@@ -66,13 +66,7 @@ if COVERS_DIR.exists():
 if ASSETS_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 
-# ── Serve built frontend (production) ────────────────────────────────────────
-frontend_dist = GAMECORE_ROOT / "frontend" / "dist"
-if frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
-
-
-# ── WebSocket ─────────────────────────────────────────────────────────────────
+# ── WebSocket (must be registered before the catch-all static mount) ──────────
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await ws.connect(websocket)
@@ -81,3 +75,9 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         ws.disconnect(websocket)
+
+
+# ── Serve built frontend (production) ────────────────────────────────────────
+frontend_dist = GAMECORE_ROOT / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
