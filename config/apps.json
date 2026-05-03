@@ -1,0 +1,33 @@
+[
+  {
+    "id": "steam",
+    "kind": "app",
+    "type": "application",
+    "label": "Steam",
+    "platform": "Steam",
+    "color": "#1f6fb3",
+    "iconPath": "assets/logos/steam.png",
+    "path": "flatpak",
+    "args": "run com.valvesoftware.Steam"
+  },
+  {
+    "id": "youtube",
+    "kind": "app",
+    "type": "application",
+    "label": "YouTube",
+    "platform": "Web",
+    "color": "#ff0000",
+    "path": "chromium",
+    "args": "--kiosk https://www.youtube.com"
+  },
+  {
+    "id": "kodi",
+    "kind": "app",
+    "type": "application",
+    "label": "Kodi",
+    "platform": "Media",
+    "color": "#17b2e7",
+    "path": "kodi",
+    "args": ""
+  }
+]

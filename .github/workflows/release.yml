@@ -1,0 +1,91 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+    tags: 
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # On ajoute des permissions pour permettre au script de créer des tags et des releases
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Important pour que l'auto-tag puisse voir l'historique
+
+      # --- ÉTAPE D'AUTO-INCREMENTATION DU TAG ---
+      - name: Minor version for each merge
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        id: tag_version
+        uses: anothrNick/github-tag-action@1.64.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          DEFAULT_BUMP: patch # Incrémente le dernier chiffre (ex: 1.0.1 -> 1.0.2)
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Install backend deps (validate)
+        run: |
+          pip install -r backend/requirements.txt
+
+      - name: Package — OTA archive
+        run: |
+          mkdir -p dist_ota
+          cp -r backend    dist_ota/
+          cp -r frontend/dist dist_ota/frontend/
+          cp -r config     dist_ota/
+          cp -r electron   dist_ota/
+          cp    update.sh  dist_ota/
+          cp    install.sh dist_ota/
+          find dist_ota -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
+          tar -czf gamecore-ota.tar.gz -C dist_ota .
+
+      - name: Package — Full archive
+        run: |
+          mkdir -p dist_full
+          cp -r backend    dist_full/
+          cp -r frontend   dist_full/
+          cp -r electron   dist_full/
+          cp -r config     dist_full/
+          cp -r assets     dist_full/
+          cp    install.sh dist_full/
+          cp    update.sh  dist_full/
+          find dist_full -name 'node_modules' -exec rm -rf {} + 2>/dev/null || true
+          find dist_full -name '__pycache__'  -exec rm -rf {} + 2>/dev/null || true
+          tar -czf gamecore-full.tar.gz -C dist_full .
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag_version.outputs.new_tag || github.ref_name }}
+          files: |
+            gamecore-ota.tar.gz
+            gamecore-full.tar.gz
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# SQLite
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.local
+
+# Electron
+electron/node_modules/
+electron/dist/
+# ROMs and Emulator Data
+emu/
+!emu/.gitkeep
+!emu/covers/
+!emu/covers/.gitkeep
+
+# Exclude all files in emulator subdirs (ROMs)
+emu/*/*
+# But keep the directories themselves via .gitkeep
+!emu/*/.gitkeep
+
+# SQLite
+*.db
+
+
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+*.tar.gz
+*.AppImage
+dist_ota/
+dist_full/
+/tmp/
+
+# Qt old project build (already in GameCore/build but just in case)
+GameCore/
