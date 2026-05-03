@@ -93,10 +93,8 @@ convert your_image.png \
 | Game Boy Advance (`mgba`) | 3:2 | `1620x1080+150+0` | 150px each side |
 | Nintendo DS (`melonds`) | 2:3 vertical | `720x1080+600+0` | 600px each side |
 | Nintendo 3DS (`azahar`) | 5:3 top screen | `1800x1080+60+0` | 60px each side |
-| PlayStation 3 (`rpcs3`) | 16:9 | `1920x1080+0+0` | none |
-| PSP (`ppsspp`) | 16:9 | `1920x1080+0+0` | none |
-| Wii U (`cemu`) | 16:9 | `1920x1080+0+0` | none |
-| Switch (`ryujinx`) | 16:9 | `1920x1080+0+0` | none |
+
+> **16:9 systems** (PS3, PSP, Wii U, Switch) fill the entire screen — no black bars, no overlay needed.
 
 **Example — Nintendo DS overlay:**
 ```bash

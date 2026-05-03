@@ -21,17 +21,6 @@
     "hole": { "x": 240, "y": 0, "w": 1440, "h": 1080 },
     "watch_timeout_s": 60
   },
-  "rpcs3": {
-    "label": "PlayStation 3",
-    "wm_class": {
-      "linux": ["rpcs3", "RPCS3", "net.rpcs3.RPCS3"],
-      "windows": ["RPCS3"]
-    },
-    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "overlay_asset": "assets/overlays/rpcs3.png",
-    "hole": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "watch_timeout_s": 90
-  },
   "duckstation": {
     "label": "PlayStation 1",
     "wm_class": {
@@ -42,39 +31,6 @@
     "overlay_asset": "assets/overlays/duckstation.png",
     "hole": { "x": 240, "y": 0, "w": 1440, "h": 1080 },
     "watch_timeout_s": 45
-  },
-  "ppsspp": {
-    "label": "PSP",
-    "wm_class": {
-      "linux": ["ppsspp", "PPSSPP", "org.ppsspp.PPSSPP"],
-      "windows": ["PPSSPPWnd"]
-    },
-    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "overlay_asset": "assets/overlays/ppsspp.png",
-    "hole": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "watch_timeout_s": 45
-  },
-  "cemu": {
-    "label": "Wii U",
-    "wm_class": {
-      "linux": ["cemu", "Cemu", "info.cemu.Cemu"],
-      "windows": ["Cemu"]
-    },
-    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "overlay_asset": "assets/overlays/cemu.png",
-    "hole": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "watch_timeout_s": 60
-  },
-  "ryujinx": {
-    "label": "Nintendo Switch",
-    "wm_class": {
-      "linux": ["ryujinx", "Ryujinx", "org.ryujinx.Ryujinx"],
-      "windows": ["Ryujinx"]
-    },
-    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "overlay_asset": "assets/overlays/ryujinx.png",
-    "hole": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "watch_timeout_s": 60
   },
   "azahar": {
     "label": "Nintendo 3DS",
