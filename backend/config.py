@@ -2,6 +2,8 @@
 import os
 from pathlib import Path
 
+DEBUG = True  # ← flip to False on preprod/main
+
 APP_VERSION = "v1.0.0"
 GITHUB_REPO = "p4v1c/GamecoreRenew"
 UPDATE_ASSET = "gamecore-ota.tar.gz"

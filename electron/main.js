@@ -3,6 +3,8 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 const { exec } = require('child_process')
 const path = require('path')
 
+const DEBUG = true  // ← flip to false on preprod/main
+
 const DEV = process.env.ELECTRON_DEV === '1'
 const BACKEND_URL = 'http://localhost:8765'
 const DEV_URL     = 'http://localhost:5173'
@@ -15,7 +17,7 @@ function createWindow() {
     width: 1920,
     height: 1080,
     fullscreen: true,
-    kiosk: !DEV,
+    kiosk: !DEBUG && !DEV,
     frame: false,
     autoHideMenuBar: true,
     backgroundColor: '#09090f',
@@ -33,8 +35,7 @@ function createWindow() {
     mainWindow.loadURL(BACKEND_URL)
   }
 
-  // DEBUG: always open DevTools
-  mainWindow.webContents.openDevTools({ mode: 'detach' })
+  if (DEBUG) mainWindow.webContents.openDevTools({ mode: 'detach' })
 
   mainWindow.on('closed', () => { mainWindow = null })
 }
@@ -49,7 +50,8 @@ function startBackend() {
 
   backendProcess = require('child_process').spawn(
     python, ['-m', 'uvicorn', 'backend.main:app',
-             '--host', '0.0.0.0', '--port', '8765', '--log-level', 'debug'],
+             '--host', '0.0.0.0', '--port', '8765',
+             '--log-level', DEBUG ? 'debug' : 'warning'],
     { cwd: root, detached: false, stdio: 'ignore' }
   )
 
