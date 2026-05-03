@@ -47,14 +47,11 @@ class ProcessManager:
         self._start_time = time.time()
 
         if exec_path == "flatpak":
-            # Force X11/XWayland so the overlay monitor can detect the window.
-            # Qt emulators respect QT_QPA_PLATFORM=xcb; SDL emulators SDL_VIDEODRIVER=x11.
-            x11_env = [
-                "--env=QT_QPA_PLATFORM=xcb",
-                "--env=SDL_VIDEODRIVER=x11",
-                "--env=GDK_BACKEND=x11",
-            ]
-            # Insert env flags right after "flatpak run" (args[0] == "run")
+            # Force Qt to use XWayland so the overlay monitor can detect the window
+            # via _NET_CLIENT_LIST. Only QT_QPA_PLATFORM=xcb — don't touch SDL_VIDEODRIVER
+            # (SDL is used for audio in many emulators; forcing x11 there breaks sound).
+            x11_env = ["--env=QT_QPA_PLATFORM=xcb"]
+            # Insert env flag right after "flatpak run"
             if args and args[0] == "run":
                 cmd = ["flatpak", "run"] + x11_env + args[1:]
             else:

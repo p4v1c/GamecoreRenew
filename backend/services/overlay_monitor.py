@@ -208,6 +208,9 @@ class OverlayMonitor:
 
         emit({"event": "window:waiting", "system_id": system_id})
 
+        # Give the Flatpak process time to start before we begin polling
+        time.sleep(2)
+
         # ── Wait for window to appear ─────────────────────────────────────────
         wid     = None
         deadline = time.time() + timeout
