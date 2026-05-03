@@ -51,8 +51,19 @@ class X11Manager:
         self._screen  = self._display.screen()
         self._root    = self._screen.root
 
-    def _all_windows(self):
-        """Recursively yield all windows."""
+    def _client_windows(self):
+        """Yield top-level client windows via _NET_CLIENT_LIST (EWMH).
+        Falls back to recursive scan if the atom is unavailable."""
+        atom = self._display.intern_atom('_NET_CLIENT_LIST')
+        prop = self._root.get_full_property(atom, 0)
+        if prop and prop.value:
+            for wid in prop.value:
+                try:
+                    yield self._display.create_resource_object('window', wid)
+                except Exception:
+                    pass
+            return
+        # Fallback: recursive scan
         def _recurse(win):
             yield win
             try:
@@ -65,7 +76,7 @@ class X11Manager:
     def find_window(self, wm_classes: list[str]) -> int | None:
         """Return window id matching any of the given WM_CLASS names."""
         targets = {c.lower() for c in wm_classes}
-        for win in self._all_windows():
+        for win in self._client_windows():
             try:
                 cls = win.get_wm_class()
                 if cls and any(c.lower() in targets for c in cls):
@@ -73,6 +84,19 @@ class X11Manager:
             except Exception:
                 continue
         return None
+
+    def dump_windows(self) -> list[dict]:
+        """Debug helper — return WM_CLASS of all client windows."""
+        out = []
+        for win in self._client_windows():
+            try:
+                cls  = win.get_wm_class()
+                name = win.get_wm_name()
+                if cls:
+                    out.append({"wm_class": list(cls), "title": name, "id": win.id})
+            except Exception:
+                pass
+        return out
 
     def force_rect(self, wid: int, x: int, y: int, w: int, h: int) -> None:
         win = self._display.create_resource_object("window", wid)
@@ -194,6 +218,13 @@ class OverlayMonitor:
             time.sleep(0.5)
 
         if not wid:
+            # Dump visible windows to help diagnose wrong WM_CLASS
+            try:
+                visible = self._mgr.dump_windows()
+                emit({"event": "error",
+                      "message": f"timeout — visible windows: {visible}"})
+            except Exception:
+                pass
             emit({"event": "window:closed", "system_id": system_id,
                   "reason": "timeout"})
             return
