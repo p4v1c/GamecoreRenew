@@ -573,8 +573,8 @@ function UpdatePage({ onClose, onBack }: { onClose: () => void; onBack: () => vo
   useEffect(() => {
     const btnCount = () => infoRef.current?.update_available ? 2 : 1
     const offs = [
-      onGp('gp:left',  () => setFocusIdx(i => Math.max(0, i - 1))),
-      onGp('gp:right', () => setFocusIdx(i => Math.min(btnCount() - 1, i + 1))),
+      onGp('gp:dpad-left',  () => setFocusIdx(i => Math.max(0, i - 1))),
+      onGp('gp:dpad-right', () => setFocusIdx(i => Math.min(btnCount() - 1, i + 1))),
       onGp('gp:confirm', () => {
         if (checkingRef.current || installingRef.current) return
         if (focusIdxRef.current === 0) checkRef.current()
