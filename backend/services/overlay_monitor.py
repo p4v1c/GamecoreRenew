@@ -21,7 +21,6 @@ OS = platform.system()  # "Linux" | "Windows" | "Darwin"
 if OS == "Linux":
     try:
         from Xlib import display as xdisplay, X, Xatom
-        from Xlib.ext import ewmh as ewmh_ext
         _XLIB_OK = True
     except ImportError:
         _XLIB_OK = False
@@ -51,7 +50,6 @@ class X11Manager:
         self._display = xdisplay.Display()
         self._screen  = self._display.screen()
         self._root    = self._screen.root
-        self._ewmh    = ewmh_ext.EWMH(self._display, self._root)
 
     def _all_windows(self):
         """Recursively yield all windows."""
