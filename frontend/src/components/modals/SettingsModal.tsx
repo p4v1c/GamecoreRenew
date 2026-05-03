@@ -556,9 +556,36 @@ function UpdatePage({ onClose, onBack }: { onClose: () => void; onBack: () => vo
   const [checking, setChecking] = useState(false)
   const [installing, setInstalling] = useState(false)
   const [log, setLog] = useState<string[]>([])
+  const [focusIdx, setFocusIdx] = useState(0)
   const logEndRef = useRef<HTMLDivElement>(null)
 
+  const focusIdxRef  = useRef(focusIdx)
+  const checkingRef  = useRef(checking)
+  const installingRef = useRef(installing)
+  const infoRef      = useRef(info)
+  useEffect(() => { focusIdxRef.current  = focusIdx  }, [focusIdx])
+  useEffect(() => { checkingRef.current  = checking  }, [checking])
+  useEffect(() => { installingRef.current = installing }, [installing])
+  useEffect(() => { infoRef.current      = info      }, [info])
+
   useSubPageGamepad(onBack, onClose)
+
+  useEffect(() => {
+    const btnCount = () => infoRef.current?.update_available ? 2 : 1
+    const offs = [
+      onGp('gp:left',  () => setFocusIdx(i => Math.max(0, i - 1))),
+      onGp('gp:right', () => setFocusIdx(i => Math.min(btnCount() - 1, i + 1))),
+      onGp('gp:confirm', () => {
+        if (checkingRef.current || installingRef.current) return
+        if (focusIdxRef.current === 0) checkRef.current()
+        else if (focusIdxRef.current === 1) applyRef.current()
+      }),
+    ]
+    return () => offs.forEach(o => o())
+  }, [])
+
+  const checkRef = useRef<() => void>(() => {})
+  const applyRef = useRef<() => void>(() => {})
 
   const check = useCallback(async () => {
     setChecking(true); setCheckError('')
@@ -590,6 +617,9 @@ function UpdatePage({ onClose, onBack }: { onClose: () => void; onBack: () => vo
     setInstalling(true)
     try { await api.update.apply() } catch { setInstalling(false) }
   }
+
+  checkRef.current = check
+  applyRef.current = apply
 
   return (
     <Overlay onClose={onClose}>
@@ -628,8 +658,9 @@ function UpdatePage({ onClose, onBack }: { onClose: () => void; onBack: () => vo
       <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
         <button onClick={check} disabled={checking || installing} style={{
           flex: 1, padding: '10px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 600,
-          background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.35)', color: '#c4b5fd',
-          opacity: checking || installing ? 0.5 : 1,
+          background: 'rgba(124,58,237,0.15)', color: '#c4b5fd',
+          border: focusIdx === 0 ? '2px solid rgba(124,58,237,0.9)' : '1px solid rgba(124,58,237,0.35)',
+          outline: 'none', opacity: checking || installing ? 0.5 : 1,
         }}>
           {checking ? '⏳ Checking…' : '🔍 Check again'}
         </button>
@@ -637,7 +668,8 @@ function UpdatePage({ onClose, onBack }: { onClose: () => void; onBack: () => vo
           <button onClick={apply} disabled={installing} style={{
             flex: 1, padding: '10px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700,
             background: installing ? 'rgba(74,222,128,0.08)' : 'rgba(74,222,128,0.15)',
-            border: '1px solid rgba(74,222,128,0.4)', color: '#4ade80',
+            border: focusIdx === 1 ? '2px solid rgba(74,222,128,0.9)' : '1px solid rgba(74,222,128,0.4)',
+            outline: 'none', color: '#4ade80',
             opacity: installing ? 0.6 : 1,
           }}>
             {installing ? '⏳ Installing…' : '↑ Install update'}
