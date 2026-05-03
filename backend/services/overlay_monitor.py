@@ -99,8 +99,8 @@ class X11Manager:
                 name = win.get_wm_name()
                 if cls:
                     out.append({"wm_class": list(cls), "title": name, "id": win.id})
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[overlay-monitor] dump_windows: {e}", file=sys.stderr)
         return out
 
     def force_rect(self, wid: int, x: int, y: int, w: int, h: int) -> None:
@@ -238,8 +238,8 @@ class OverlayMonitor:
                 visible = self._mgr.dump_windows()
                 emit({"event": "error",
                       "message": f"timeout — visible windows: {visible}"})
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[overlay-monitor] dump on timeout: {e}", file=sys.stderr)
             emit({"event": "window:closed", "system_id": system_id,
                   "reason": "timeout"})
             return
@@ -248,13 +248,21 @@ class OverlayMonitor:
         # Give emulator 0.5s to finish drawing before we force the rect
         time.sleep(0.5)
         try:
+            before = self._mgr.get_rect(wid)
+            emit({"event": "debug", "msg": f"before force_rect: {before}"})
             self._mgr.force_rect(wid, rect["x"], rect["y"], rect["w"], rect["h"])
+            time.sleep(0.2)
+            after = self._mgr.get_rect(wid)
+            emit({"event": "debug", "msg": f"after force_rect: {after}"})
         except Exception as e:
             emit_error(f"force_rect failed: {e}")
 
+        # Send the hole dimensions (game display area), not the window rect.
+        # The overlay uses this to punch the transparent hole at the right position.
+        hole = cfg.get("hole", rect)
         emit({"event": "window:ready", "system_id": system_id,
-              "rect": {"x": rect["x"], "y": rect["y"],
-                       "w": rect["w"], "h": rect["h"]}})
+              "rect": {"x": hole["x"], "y": hole["y"],
+                       "w": hole["w"], "h": hole["h"]}})
 
         # ── Maintenance loop — reforce if window moves/resizes ────────────────
         while not self._stop.is_set():
@@ -269,8 +277,8 @@ class OverlayMonitor:
                     self._mgr.force_rect(
                         wid, rect["x"], rect["y"], rect["w"], rect["h"]
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[overlay-monitor] maintenance loop: {e}", file=sys.stderr)
 
             time.sleep(0.1)
 

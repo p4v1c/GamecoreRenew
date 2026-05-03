@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 
-DEBUG = True  # ← flip to False on preprod/main
+DEBUG = os.environ.get("GAMECORE_DEBUG", "1") == "1"  # GAMECORE_DEBUG=0 to disable
 
 APP_VERSION = "v1.0.0"
 GITHUB_REPO = "p4v1c/GamecoreRenew"

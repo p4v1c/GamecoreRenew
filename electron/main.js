@@ -4,7 +4,10 @@ const { exec, spawn } = require('child_process')
 const path = require('path')
 const fs   = require('fs')
 
-const DEBUG = true  // ← flip to false on preprod/main
+// Required on Linux X11 for per-pixel transparency in BrowserWindow
+app.commandLine.appendSwitch('enable-transparent-visuals')
+
+const DEBUG = process.env.GAMECORE_DEBUG !== '0'  // GAMECORE_DEBUG=0 to disable
 
 const DEV = DEBUG && process.env.ELECTRON_DEV === '1'
 const BACKEND_URL = 'http://localhost:8765'
@@ -49,10 +52,15 @@ function createOverlayWindow() {
   if (overlayWindow) return
 
   overlayWindow = new BrowserWindow({
+    x: 0,
+    y: 0,
     width: 1920,
     height: 1080,
-    fullscreen: true,
+    // Do NOT use fullscreen: true — on Linux X11 fullscreen windows are placed
+    // in a separate compositor layer that prevents see-through transparency.
+    // Explicit x/y/w/h with alwaysOnTop gives the same visual result.
     transparent: true,
+    backgroundColor: '#00000000',
     frame: false,
     alwaysOnTop: true,
     skipTaskbar: true,
@@ -66,6 +74,9 @@ function createOverlayWindow() {
   })
 
   overlayWindow.setIgnoreMouseEvents(true)
+
+  // Open DevTools for the overlay window so we can inspect its DOM
+  if (DEBUG) overlayWindow.webContents.openDevTools({ mode: 'detach' })
 
   const overlayUrl = DEV
     ? `${DEV_URL}/overlay`
@@ -147,13 +158,29 @@ function handleMonitorEvent(msg) {
 
     case 'window:ready':
       createOverlayWindow()
-      if (overlayWindow) overlayWindow.webContents.send('overlay:show', msg)
-      if (mainWindow)    mainWindow.webContents.send('overlay:show', msg)
+      // Hide the main window so the transparent hole shows the emulator directly.
+      // If mainWindow stays visible it sits between overlay and emulator, making
+      // the hole appear black (showing GameCore's dark background instead).
+      if (mainWindow) {
+        console.log('[overlay] hiding mainWindow — isVisible:', mainWindow.isVisible())
+        mainWindow.hide()
+        console.log('[overlay] mainWindow hidden — isVisible now:', mainWindow.isVisible())
+      }
+      // Wait for the overlay page to finish loading before sending the event,
+      // otherwise the React listener isn't mounted yet and the event is lost.
+      if (overlayWindow) {
+        overlayWindow.webContents.once('did-finish-load', () => {
+          overlayWindow?.webContents.send('overlay:show', msg)
+        })
+      }
       break
 
     case 'window:closed':
       destroyOverlayWindow()
-      if (mainWindow) mainWindow.webContents.send('overlay:hide', msg)
+      if (mainWindow) {
+        mainWindow.show()
+        mainWindow.webContents.send('overlay:hide', msg)
+      }
       break
 
     case 'error':

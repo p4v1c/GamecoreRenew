@@ -53,18 +53,9 @@ export default function OverlayScreen() {
 
   return (
     <div style={styles.root}>
-      {/* Transparent hole at emulator position */}
-      {hole && (
-        <div style={{
-          ...styles.hole,
-          left: hole.x,
-          top:  hole.y,
-          width:  hole.w,
-          height: hole.h,
-        }} />
-      )}
-
-      {/* Bezel PNG — hides behind the hole via mix-blend-mode */}
+      {/* Bezel PNG — already has a transparent hole cut into it.
+          The Electron window is transparent: true, so the PNG's transparent
+          area shows through to the desktop/emulator below. No blend modes needed. */}
       {asset && (
         <img
           src={asset}
@@ -79,28 +70,18 @@ export default function OverlayScreen() {
         />
       )}
 
-      {/* CSS fallback frame when no PNG asset */}
+      {/* Fallback solid frame when no PNG — fill the bars, leave game area open */}
       {(!asset || !imgOk) && hole && (
-        <div style={{
-          position: 'absolute', inset: 0,
-          boxShadow: `inset 0 0 0 4px rgba(255,255,255,0.08)`,
-          pointerEvents: 'none',
-        }}>
-          {/* Corner accents */}
-          {[
-            { top: hole.y - 2,           left: hole.x - 2 },
-            { top: hole.y - 2,           left: hole.x + hole.w - 18 },
-            { top: hole.y + hole.h - 18, left: hole.x - 2 },
-            { top: hole.y + hole.h - 18, left: hole.x + hole.w - 18 },
-          ].map((pos, i) => (
-            <div key={i} style={{
-              position: 'absolute', width: 20, height: 20,
-              border: '2px solid rgba(255,255,255,0.25)',
-              borderRadius: 2,
-              ...pos,
-            }} />
-          ))}
-        </div>
+        <>
+          {/* Left bar */}
+          <div style={{ position: 'absolute', top: 0, left: 0,       width: hole.x,                        height: '100%', background: 'rgba(9,9,15,0.95)' }} />
+          {/* Right bar */}
+          <div style={{ position: 'absolute', top: 0, left: hole.x + hole.w, width: 1920 - hole.x - hole.w, height: '100%', background: 'rgba(9,9,15,0.95)' }} />
+          {/* Top bar */}
+          <div style={{ position: 'absolute', top: 0, left: hole.x, width: hole.w, height: hole.y,           background: 'rgba(9,9,15,0.95)' }} />
+          {/* Bottom bar */}
+          <div style={{ position: 'absolute', top: hole.y + hole.h, left: hole.x, width: hole.w, height: 1080 - hole.y - hole.h, background: 'rgba(9,9,15,0.95)' }} />
+        </>
       )}
     </div>
   )
@@ -112,15 +93,7 @@ const styles: Record<string, React.CSSProperties> = {
     inset: 0,
     zIndex: 9999,
     pointerEvents: 'none',
-    background: 'rgba(9,9,15,0.92)',
-    isolation: 'isolate',
-  },
-  hole: {
-    position: 'absolute',
     background: 'transparent',
-    mixBlendMode: 'destination-out',
-    // Force a solid color so destination-out actually punches through
-    backgroundColor: 'black',
   },
   bezel: {
     position: 'absolute',

@@ -1,5 +1,4 @@
 """Game scanning, launching, and session management."""
-import fnmatch
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -7,31 +6,15 @@ from pydantic import BaseModel
 
 from ..config import resolve_path
 from ..services.process_manager import process_manager
-from ..utils import TAG_RE
+from ..services.rom_scanner import clean_name, iter_rom_files
 from .systems import list_all
 
 router = APIRouter(tags=["games"])
 
 
-def clean_name(filename: str) -> str:
-    name = Path(filename).stem
-    return TAG_RE.sub("", name).strip()
-
-
-def matches_ext(filename: str, extensions: list[str]) -> bool:
-    name = filename.lower()
-    return any(fnmatch.fnmatch(name, p.lower()) for p in extensions)
-
-
 def scan_roms(roms_path: Path, extensions: list[str]) -> list[dict]:
-    if not roms_path.exists():
-        return []
     files = []
-    for f in sorted(roms_path.iterdir(), key=lambda x: x.name.lower()):
-        if not f.is_file() or f.name.startswith(".") or "example" in f.name.lower():
-            continue
-        if extensions and not matches_ext(f.name, extensions):
-            continue
+    for f in iter_rom_files(roms_path, extensions):
         stat = f.stat()
         files.append({
             "filename": f.name,
@@ -77,6 +60,17 @@ async def launch_game(req: LaunchRequest):
 
     if process_manager.is_running:
         raise HTTPException(409, "A game is already running")
+
+    # Validate rom_path stays inside the system's configured ROMs directory.
+    # Prevents launching arbitrary executables via crafted relative/absolute paths.
+    if req.rom_path:
+        roms_root = resolve_path(system.get("romsPath", ""))
+        if not roms_root:
+            raise HTTPException(400, "System has no ROMs path configured")
+        try:
+            Path(req.rom_path).resolve().relative_to(roms_root.resolve())
+        except ValueError:
+            raise HTTPException(403, "ROM path is outside the system's ROMs directory")
 
     exec_path = system.get("path", "")
     exec_args = system.get("args", "")

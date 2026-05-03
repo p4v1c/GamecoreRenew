@@ -1,5 +1,4 @@
 """Overlay bezel management — upload/serve per-system PNG."""
-import shutil
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
@@ -8,6 +7,7 @@ from ..config import ASSETS_DIR
 router = APIRouter(tags=["overlays"])
 
 OVERLAYS_DIR = ASSETS_DIR / "overlays"
+_MAX_OVERLAY_BYTES = 10 * 1024 * 1024  # 10 MB hard cap
 
 
 def _overlay_path(system_id: str) -> Path:
@@ -28,9 +28,19 @@ async def upload_overlay(system_id: str, file: UploadFile = File(...)):
     if file.content_type not in ("image/png", "image/jpeg", "image/webp"):
         raise HTTPException(400, "Only PNG/JPEG/WebP images are accepted")
     p = _overlay_path(system_id)
+    written = 0
     with p.open("wb") as f:
-        shutil.copyfileobj(file.file, f)
-    return {"ok": True, "path": str(p)}
+        while True:
+            chunk = await file.read(1 << 20)  # 1 MB chunks
+            if not chunk:
+                break
+            written += len(chunk)
+            if written > _MAX_OVERLAY_BYTES:
+                f.close()
+                p.unlink(missing_ok=True)
+                raise HTTPException(413, f"Overlay exceeds {_MAX_OVERLAY_BYTES // (1024 * 1024)} MB limit")
+            f.write(chunk)
+    return {"ok": True, "path": str(p), "size": written}
 
 
 @router.delete("/overlays/{system_id}")

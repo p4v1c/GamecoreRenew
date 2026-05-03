@@ -45,12 +45,10 @@ export function useGamepad() {
   const rafId = useRef<number>(0)
 
   useEffect(() => {
-    window.addEventListener('gamepadconnected', (e: GamepadEvent) => {
-      emit('gp:connected', e.gamepad.id)
-    })
-    window.addEventListener('gamepaddisconnected', () => {
-      emit('gp:disconnected')
-    })
+    const onConnect    = (e: GamepadEvent) => emit('gp:connected', e.gamepad.id)
+    const onDisconnect = () => emit('gp:disconnected')
+    window.addEventListener('gamepadconnected',    onConnect)
+    window.addEventListener('gamepaddisconnected', onDisconnect)
 
     function poll() {
       const gamepads = navigator.getGamepads()
@@ -122,7 +120,11 @@ export function useGamepad() {
     }
 
     rafId.current = requestAnimationFrame(poll)
-    return () => cancelAnimationFrame(rafId.current)
+    return () => {
+      cancelAnimationFrame(rafId.current)
+      window.removeEventListener('gamepadconnected',    onConnect)
+      window.removeEventListener('gamepaddisconnected', onDisconnect)
+    }
   }, [])
 }
 

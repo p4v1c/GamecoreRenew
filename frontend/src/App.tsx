@@ -33,9 +33,18 @@ export default function App() {
     })
     const offDone = onWsEvent('game:finished', (d: { system_id: string }) => {
       window.gamecore?.overlayStop(d.system_id)
+      setSession(null, null)
     })
+
+    // Sync state with Electron events in case WS is slow or missed
+    if (window.gamecore) {
+      window.gamecore.onOverlayHide(() => {
+        setSession(null, null)
+      })
+    }
+
     return () => { offStart(); offDone() }
-  }, [])
+  }, [setSession])
 
   // Global gamepad bindings
   useEffect(() => {

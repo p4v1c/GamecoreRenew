@@ -1,10 +1,10 @@
 """ROM upload / delete — absorbed from existing Flask web server."""
-import fnmatch
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File
 
 from .systems import list_all
 from ..config import resolve_path
+from ..services.rom_scanner import iter_rom_files, matches_ext
 from ..utils import fmt_size
 from ..ws import broadcast
 
@@ -27,10 +27,6 @@ def _get_system(system_id: str) -> dict:
     return s
 
 
-def _matches(filename: str, extensions: list[str]) -> bool:
-    return any(fnmatch.fnmatch(filename.lower(), p.lower()) for p in extensions)
-
-
 # ── /api/emulators — summary list used by the web ROM manager ────────────────
 
 @router.get("/emulators")
@@ -44,13 +40,9 @@ def list_emulators():
         rom_count  = 0
         total_size = 0
         if roms_path and roms_path.exists():
-            for f in roms_path.iterdir():
-                if (f.is_file()
-                        and not f.name.startswith(".")
-                        and "example" not in f.name.lower()
-                        and (not extensions or _matches(f.name, extensions))):
-                    rom_count  += 1
-                    total_size += f.stat().st_size
+            for f in iter_rom_files(roms_path, extensions):
+                rom_count  += 1
+                total_size += f.stat().st_size
         result.append({
             "id":         s["id"],
             "platform":   s.get("label", s["id"]),
@@ -72,13 +64,8 @@ def list_roms(system_id: str):
     roms_path = resolve_path(system.get("romsPath", ""))
     if not roms_path or not roms_path.exists():
         return []
-    exts = system.get("extensions", [])
     files = []
-    for f in sorted(roms_path.iterdir(), key=lambda x: x.name.lower()):
-        if not f.is_file() or f.name.startswith(".") or "example" in f.name.lower():
-            continue
-        if exts and not _matches(f.name, exts):
-            continue
+    for f in iter_rom_files(roms_path, system.get("extensions", [])):
         stat = f.stat()
         files.append({
             "name":      f.name,
@@ -101,7 +88,7 @@ async def upload_rom(system_id: str, file: UploadFile = File(...)):
         raise HTTPException(400, "Invalid filename")
 
     exts = system.get("extensions", [])
-    if exts and not _matches(filename, exts):
+    if exts and not matches_ext(filename, exts):
         raise HTTPException(415, f"Extension not allowed. Accepted: {', '.join(exts)}")
 
     roms_path.mkdir(parents=True, exist_ok=True)

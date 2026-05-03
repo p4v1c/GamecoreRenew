@@ -4,7 +4,10 @@ import App from './App'
 import OverlayScreen from './components/OverlayScreen'
 
 const isOverlay = window.location.pathname === '/overlay'
-if (isOverlay) document.body.classList.add('overlay-mode')
+if (isOverlay) {
+  document.documentElement.classList.add('overlay-mode')
+  document.body.classList.add('overlay-mode')
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

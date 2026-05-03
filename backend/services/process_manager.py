@@ -66,7 +66,15 @@ class ProcessManager:
             "system_id": self._system_id,
         })
 
-        asyncio.create_task(self._watch())
+        watch_task = asyncio.create_task(self._watch())
+
+        def _log_err(t: asyncio.Task) -> None:
+            if t.cancelled():
+                return
+            exc = t.exception()
+            if exc:
+                log.warning("watch task failed: %s", exc)
+        watch_task.add_done_callback(_log_err)
 
     async def kill(self) -> None:
         if not self._proc:
