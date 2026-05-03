@@ -3,9 +3,7 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 const { exec } = require('child_process')
 const path = require('path')
 
-const DEV = process.env.ELECTRON_DEV === '1'
 const BACKEND_URL = 'http://localhost:8765'
-const DEV_URL     = 'http://localhost:5173'
 
 let mainWindow = null
 let backendProcess = null
@@ -15,7 +13,7 @@ function createWindow() {
     width: 1920,
     height: 1080,
     fullscreen: true,
-    kiosk: !DEV,              // Hard kiosk: blocks task switcher etc.
+    kiosk: true,
     frame: false,
     autoHideMenuBar: true,
     backgroundColor: '#09090f',
@@ -27,22 +25,13 @@ function createWindow() {
     },
   })
 
-  if (DEV) {
-    // Dev: load Vite dev server
-    mainWindow.loadURL(DEV_URL)
-    mainWindow.webContents.openDevTools({ mode: 'detach' })
-  } else {
-    // Production: load from built frontend served by FastAPI
-    mainWindow.loadURL(BACKEND_URL)
-  }
+  mainWindow.loadURL(BACKEND_URL)
 
   mainWindow.on('closed', () => { mainWindow = null })
 }
 
 // ── Backend startup ───────────────────────────────────────────────────────────
 function startBackend() {
-  if (DEV) return  // dev: backend is started manually
-
   const root = path.join(__dirname, '..')
   const venv = path.join(root, '.venv', 'bin', 'python')
   const python = require('fs').existsSync(venv) ? venv : 'python3'
