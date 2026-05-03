@@ -3,7 +3,7 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 const { exec } = require('child_process')
 const path = require('path')
 
-const DEBUG = true  // ← flip to false on preprod/main
+const DEBUG = false  // ← flip to true on dev
 
 const DEV = DEBUG && process.env.ELECTRON_DEV === '1'
 const BACKEND_URL = 'http://localhost:8765'
