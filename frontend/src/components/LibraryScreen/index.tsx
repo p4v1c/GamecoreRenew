@@ -6,6 +6,7 @@ import { onGp } from '../../hooks/useGamepad'
 import { fmtTime, fmtDate, hexToRgb, Chip, Overlay } from '../ui'
 import { VirtualKeyboard } from '../ui/VirtualKeyboard'
 import { SYSTEM_COLORS } from '../../lib/systemColors'
+import { formatGameName } from '../../lib/formatGameName'
 
 type SortKey = 'name' | 'playtime' | 'lastPlayed'
 
@@ -66,9 +67,9 @@ export default function LibraryScreen() {
   }, [selectedSystemId, loadData])
 
   const sortedGames = [...games]
-    .filter(g => g.display_name.toLowerCase().includes(search.toLowerCase()))
+    .filter(g => formatGameName(g.display_name).toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
-      if (sort === 'name') return a.display_name.localeCompare(b.display_name)
+      if (sort === 'name') return formatGameName(a.display_name).localeCompare(formatGameName(b.display_name))
       if (sort === 'playtime') return (playtimeMap[b.filename]?.total_secs || 0) - (playtimeMap[a.filename]?.total_secs || 0)
       if (sort === 'lastPlayed') {
         const da = playtimeMap[a.filename]?.last_played || ''
@@ -232,7 +233,7 @@ export default function LibraryScreen() {
                     fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
                     overflow: 'hidden', textOverflow: 'ellipsis',
                     color: isSel ? '#fff' : 'rgba(255,255,255,0.85)',
-                  }}>{g.display_name}</div>
+                  }}>{formatGameName(g.display_name)}</div>
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>
                     {g.ext}
                   </div>
@@ -291,7 +292,7 @@ export default function LibraryScreen() {
                       {(system?.label || system?.platform || selectedSystemId).toUpperCase()}
                     </div>
                     <h2 style={{ fontSize: 30, fontWeight: 900, letterSpacing: -0.5, lineHeight: 1.1, marginBottom: 16 }}>
-                      {selectedGame.display_name}
+                      {formatGameName(selectedGame.display_name)}
                     </h2>
                     <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
                       <Chip label={selectedGame.ext} color={color} />
