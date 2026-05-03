@@ -28,20 +28,18 @@ export default function App() {
 
   // Trigger overlay when emulator starts/stops
   useEffect(() => {
-    const offStart = onWsEvent('game:started', (d: { system_id: string }) => {
-      window.gamecore?.overlayStart(d.system_id)
+    const offStart = onWsEvent('game:started', (d) => {
+      window.gamecore?.overlayStart((d as { system_id: string }).system_id)
     })
-    const offDone = onWsEvent('game:finished', (d: { system_id: string }) => {
-      window.gamecore?.overlayStop(d.system_id)
+    const offDone = onWsEvent('game:finished', (d) => {
+      window.gamecore?.overlayStop((d as { system_id: string }).system_id)
       setSession(null, null)
     })
 
     // Sync state with Electron events in case WS is slow or missed
-    if (window.gamecore) {
-      window.gamecore.onOverlayHide(() => {
-        setSession(null, null)
-      })
-    }
+    window.gamecore?.onOverlayHide(() => {
+      setSession(null, null)
+    })
 
     return () => { offStart(); offDone() }
   }, [setSession])

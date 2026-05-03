@@ -96,9 +96,3 @@ export default function PowerModal({ onClose }: Props) {
     </Overlay>
   )
 }
-
-declare global {
-  interface Window {
-    gamecore?: { reboot: () => void; shutdown: () => void; quit: () => void }
-  }
-}
