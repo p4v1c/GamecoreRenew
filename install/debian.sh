@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ================================================================
 #  GameCore — Installation Script
-#  Manjaro / Arch Linux · AMD GPU · Flatpak
+#  Debian / Ubuntu · AMD GPU · Flatpak
 #  Idempotent: safe to run multiple times
 # ================================================================
 set -euo pipefail
@@ -15,21 +15,13 @@ warn() { echo -e "  ${YLW}⚠  $*${RST}"; }
 die()  { echo -e "\n${RED}[ERROR]${RST} $*" >&2; exit 1; }
 info() { echo -e "  ${RST}$*"; }
 
-pacman_optional() {
-  pacman -S --noconfirm --needed "$1" 2>/dev/null && ok "$1" || warn "$1 not in repos — skipping"
-}
-
-[[ $EUID -eq 0 ]] || die "Run with sudo: sudo bash install.sh"
+[[ $EUID -eq 0 ]] || die "Run with sudo: sudo bash install/debian.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# ── Detect distro ────────────────────────────────────────────────
-IS_MANJARO=false
-grep -qi "manjaro" /etc/os-release 2>/dev/null && IS_MANJARO=true
-
 # ── Banner ───────────────────────────────────────────────────────
 echo -e "\n${BLU}╔══════════════════════════════════════╗${RST}"
-echo -e "${BLU}║     GameCore — Installer          ║${RST}"
+echo -e "${BLU}║     GameCore — Installer (Debian)    ║${RST}"
 echo -e "${BLU}╚══════════════════════════════════════╝${RST}"
 
 # ── Prompts ──────────────────────────────────────────────────────
@@ -69,38 +61,41 @@ chown -R "${USER_NAME}:${USER_NAME}" "$GAMECORE_PATH"
 
 # ── System packages ──────────────────────────────────────────────
 msg "System packages"
-pacman -Syu --noconfirm
-
-PKGS=(
-  mesa xf86-video-amdgpu vulkan-radeon lib32-vulkan-radeon
-  base-devel git flatpak openssh
-  python python-pip
-  nodejs npm
-  openbox xorg-xdpyinfo
-)
-
-# Kernel headers
-KERNEL=$(uname -r)
-if $IS_MANJARO; then
-  KSHORT=$(echo "$KERNEL" | grep -oP '^\d+\.\d+' | tr -d '.')
-  PKGS+=("linux${KSHORT}-headers")
-else
-  [[ $KERNEL == *zen* ]] && PKGS+=("linux-zen-headers") || PKGS+=("linux-headers")
-fi
-
-pacman -S --noconfirm --needed "${PKGS[@]}"
+apt-get update -qq
+apt-get install -y \
+  mesa-vulkan-drivers libvulkan1 \
+  xserver-xorg-video-amdgpu \
+  build-essential git curl flatpak openssh-server \
+  python3 python3-pip python3-venv \
+  openbox x11-utils sddm \
+  cpufrequtils
 ok "System packages installed."
 
-pacman_optional cpupower
-pacman_optional amd-ucode
-pacman_optional feh
+# ── Node.js 20 via NodeSource ─────────────────────────────────────
+msg "Node.js 20"
+if ! node --version 2>/dev/null | grep -q "^v20"; then
+  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+  apt-get install -y nodejs
+  ok "Node.js 20 installed."
+else
+  ok "Node.js 20 already present."
+fi
 
 # ── CPU governor ─────────────────────────────────────────────────
 msg "CPU governor"
-systemctl enable --now cpupower.service 2>/dev/null \
-  && cpupower frequency-set -g performance 2>/dev/null \
-  && ok "Performance mode set." \
-  || warn "cpupower not available."
+for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+  echo performance > "$f" 2>/dev/null || true
+done
+# Persist across reboots via rc.local
+if ! grep -q "scaling_governor" /etc/rc.local 2>/dev/null; then
+  cat >> /etc/rc.local <<'RC'
+for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+  echo performance > "$f" 2>/dev/null || true
+done
+RC
+  chmod +x /etc/rc.local
+fi
+ok "Performance mode set."
 
 # ── Flatpak ──────────────────────────────────────────────────────
 msg "Flatpak / Flathub"
@@ -152,12 +147,10 @@ for d in azahar cemu ryujinx dolphin duckstation gopher64 melonds mgba pcsx2 pps
 done
 ok "ROM directories ready."
 
-# ── Input group + udev rule (needed for evdev PS-button detection) ──
+# ── Input group + udev rule ───────────────────────────────────────
 msg "Gamepad input access"
 usermod -aG input "$USER_NAME" && ok "$USER_NAME added to 'input' group." || warn "Could not add to input group."
 
-# udev rule: make all gamepad/joystick event nodes group=input + world-readable
-# This means the backend process can open them even before a re-login
 cat > /etc/udev/rules.d/99-gamecore-input.rules <<'UDEV'
 # GameCore — allow reading gamepad events for PS/guide button detection
 KERNEL=="event*", SUBSYSTEM=="input", TAG=="seat", MODE="0664", GROUP="input"
@@ -165,7 +158,7 @@ KERNEL=="event*", SUBSYSTEM=="input", ATTRS{bInterfaceClass}=="03", MODE="0664",
 # Sony DualShock / DualSense (vendor 054c)
 SUBSYSTEM=="input", ATTRS{idVendor}=="054c", MODE="0664", GROUP="input"
 UDEV
-udevadm control --reload-rules 2>/dev/null && udevadm trigger 2>/dev/null && ok "udev rules reloaded." || warn "udev reload failed — reconnect controller."
+udevadm control --reload-rules 2>/dev/null && udevadm trigger 2>/dev/null && ok "udev rules reloaded." || warn "udev reload failed."
 
 # ── Python backend ───────────────────────────────────────────────
 msg "Python backend (venv)"
@@ -188,8 +181,8 @@ sudo -u "$USER_NAME" npm install --silent
 cd "$SCRIPT_DIR"
 ok "Electron dependencies installed."
 
-# ── systemd service ──────────────────────────────────────────────
-msg "systemd service"
+# ── systemd services ─────────────────────────────────────────────
+msg "systemd services"
 
 cat > /etc/systemd/system/gamecore-backend.service <<EOF
 [Unit]
@@ -228,7 +221,6 @@ Environment=GAMECORE_PATH=$GAMECORE_PATH
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/$USER_NAME/.Xauthority
 WorkingDirectory=$GAMECORE_PATH
-# Attend que le serveur X soit prêt (max 30s)
 ExecStartPre=/bin/bash -c 'for i in \$(seq 1 30); do xdpyinfo -display :0 >/dev/null 2>&1 && break || sleep 1; done'
 ExecStart=$GAMECORE_PATH/electron/node_modules/.bin/electron $GAMECORE_PATH/electron/main.js
 Restart=on-failure
@@ -259,7 +251,7 @@ ok "Services enabled."
 
 # ── SSH ──────────────────────────────────────────────────────────
 msg "SSH"
-systemctl enable --now sshd
+systemctl enable --now ssh
 ok "SSH active."
 
 # ── Final summary ────────────────────────────────────────────────
