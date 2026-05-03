@@ -67,6 +67,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
 .btn:active{transform:scale(.97)}
 .btn-primary{background:var(--accent);color:#fff}
 .btn-primary:hover{opacity:.88}
+.btn-outline{background:transparent;color:var(--text);border:1px solid var(--border)}
+.btn-outline:hover{background:var(--surface2);border-color:rgba(255,255,255,.15)}
 .content{flex:1;overflow-y:auto;padding:28px}
 
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;color:var(--text2);text-align:center}
@@ -115,6 +117,27 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
 
 .spinner{width:32px;height:32px;border:3px solid var(--surface3);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* Overlay modal */
+#overlay-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);z-index:300;display:none;align-items:center;justify-content:center}
+#overlay-modal.open{display:flex}
+.om-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:560px;max-width:95vw;overflow:hidden;display:flex;flex-direction:column}
+.om-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border)}
+.om-title{font-size:16px;font-weight:700;color:#fff}
+.om-close{background:none;border:none;color:var(--text2);cursor:pointer;font-size:22px;line-height:1;padding:0 4px;transition:color .15s}
+.om-close:hover{color:#fff}
+.om-body{padding:24px;display:flex;flex-direction:column;gap:20px}
+.om-preview{width:100%;aspect-ratio:16/9;border-radius:10px;border:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.om-preview img{width:100%;height:100%;object-fit:contain}
+.om-preview .om-none{color:var(--text2);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.om-drop{border:2px dashed var(--border);border-radius:10px;padding:22px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--text2)}
+.om-drop:hover,.om-drop.hover{border-color:var(--emu-color,var(--accent));background:rgba(92,124,250,.05);color:var(--text)}
+.om-drop svg{opacity:.6}
+.om-drop input{display:none}
+.om-footer{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-top:1px solid var(--border)}
+.om-hint{font-size:12px;color:var(--text2)}
+.btn-danger{background:transparent;color:var(--danger);border:1px solid var(--danger)}
+.btn-danger:hover{background:var(--danger);color:#fff}
 </style>
 </head>
 <body>
@@ -143,6 +166,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
       <span class="platform-badge" id="top-badge">–</span>
       <span class="top-title" id="top-title">Select an emulator</span>
     </div>
+    <button class="btn btn-outline" id="btn-overlay" onclick="openOverlayModal()" style="display:none">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 8h10M7 12h6"/></svg>
+      Overlay
+    </button>
     <button class="btn btn-primary" id="btn-add" onclick="triggerFileInput()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
       Add ROMs
@@ -173,6 +200,43 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
     </svg>
     <div class="drag-title">Drop to add ROMs</div>
     <div class="drag-sub" id="drag-sub-text">Select an emulator first</div>
+  </div>
+</div>
+
+<!-- Overlay modal -->
+<div id="overlay-modal">
+  <div class="om-box">
+    <div class="om-header">
+      <span class="om-title" id="om-title">Overlay — —</span>
+      <button class="om-close" onclick="closeOverlayModal()">×</button>
+    </div>
+    <div class="om-body">
+      <div class="om-preview" id="om-preview">
+        <div class="om-none" id="om-none">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 8h10M7 12h6"/></svg>
+          No overlay set
+        </div>
+        <img id="om-img" src="" alt="" style="display:none" onload="omImgLoaded()" onerror="omImgError()">
+      </div>
+      <label class="om-drop" id="om-drop"
+             ondragover="omDzOver(event,this)" ondragleave="omDzLeave(this)" ondrop="omDzDrop(event)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <span style="font-size:13px;font-weight:600">Drop a PNG here or click to browse</span>
+        <span style="font-size:12px">Recommended: 1920×1080 PNG with transparent center</span>
+        <input type="file" accept="image/png,image/jpeg,image/webp" onchange="omFileInput(this)">
+      </label>
+    </div>
+    <div class="om-footer">
+      <span class="om-hint" id="om-hint"></span>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-danger" id="om-delete" onclick="deleteOverlay()" style="display:none">Remove</button>
+        <button class="btn btn-outline" onclick="closeOverlayModal()">Close</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -235,6 +299,7 @@ async function selectEmulator(id) {
   setAccentColor(activeEmu.color);
 
   document.getElementById('top-bar').style.display = '';
+  document.getElementById('btn-overlay').style.display = '';
   document.getElementById('top-badge').textContent = activeEmu.platform;
   document.getElementById('top-title').textContent = `${activeEmu.platform} Library`;
   const extList = (activeEmu.extensions || []).join('  ');
@@ -431,6 +496,78 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function escAttr(s) { return String(s).replace(/'/g,"\\'"); }
+
+// ── Overlay modal ──────────────────────────────────────────────────────────────
+function openOverlayModal() {
+  if (!activeEmu) return;
+  document.getElementById('om-title').textContent = `Overlay — ${activeEmu.platform}`;
+  document.getElementById('overlay-modal').classList.add('open');
+  omLoadPreview();
+}
+
+function closeOverlayModal() {
+  document.getElementById('overlay-modal').classList.remove('open');
+}
+
+function omLoadPreview() {
+  const img = document.getElementById('om-img');
+  img.src = `/assets/overlays/${activeEmu.id}.png?t=${Date.now()}`;
+  img.style.display = '';
+  document.getElementById('om-none').style.display = 'none';
+  document.getElementById('om-hint').textContent = '';
+}
+
+function omImgLoaded() {
+  document.getElementById('om-none').style.display = 'none';
+  document.getElementById('om-img').style.display = '';
+  document.getElementById('om-delete').style.display = '';
+  document.getElementById('om-hint').textContent = `/assets/overlays/${activeEmu.id}.png`;
+}
+
+function omImgError() {
+  document.getElementById('om-img').style.display = 'none';
+  document.getElementById('om-none').style.display = '';
+  document.getElementById('om-delete').style.display = 'none';
+  document.getElementById('om-hint').textContent = 'No overlay configured for this emulator';
+}
+
+function omDzOver(e, el) { e.preventDefault(); el.classList.add('hover'); }
+function omDzLeave(el) { el.classList.remove('hover'); }
+function omDzDrop(e) {
+  e.preventDefault();
+  document.getElementById('om-drop').classList.remove('hover');
+  const file = e.dataTransfer.files[0];
+  if (file) omUpload(file);
+}
+function omFileInput(input) {
+  const file = input.files[0];
+  if (file) omUpload(file);
+  input.value = '';
+}
+
+async function omUpload(file) {
+  const hint = document.getElementById('om-hint');
+  hint.textContent = 'Uploading…';
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`/api/overlays/${activeEmu.id}`, { method: 'POST', body: form });
+  if (res.ok) {
+    hint.textContent = 'Saved!';
+    omLoadPreview();
+  } else {
+    hint.textContent = 'Upload failed.';
+  }
+}
+
+async function deleteOverlay() {
+  if (!confirm('Remove the overlay for this emulator?')) return;
+  const res = await fetch(`/api/overlays/${activeEmu.id}`, { method: 'DELETE' });
+  if (res.ok) omImgError();
+}
+
+document.getElementById('overlay-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('overlay-modal')) closeOverlayModal();
+});
 
 loadEmulators();
 </script>

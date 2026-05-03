@@ -1,5 +1,6 @@
 """OTA update via GitHub Releases."""
 import asyncio
+import logging
 import sys
 from fastapi import APIRouter, HTTPException
 import httpx
@@ -8,8 +9,10 @@ from ..config import APP_VERSION, GITHUB_REPO, UPDATE_ASSET, GAMECORE_ROOT
 from .. import ws
 
 router = APIRouter(prefix="/update", tags=["update"])
+log = logging.getLogger(__name__)
 
 _GH_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+_UPDATE_TIMEOUT = 600.0  # 10 min hard cap on the update script
 
 
 def _version_int(tag: str) -> int:
@@ -64,12 +67,31 @@ async def apply_update():
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
-        if proc.stdout:
-            async for line in proc.stdout:
-                await ws.broadcast("update:log", {"line": line.decode().rstrip()})
-        await proc.wait()
-        code = proc.returncode or 0
-        await ws.broadcast("update:done", {"success": code == 0, "code": code})
+        try:
+            if proc.stdout:
+                async for line in proc.stdout:
+                    await ws.broadcast("update:log", {"line": line.decode().rstrip()})
+            await asyncio.wait_for(proc.wait(), timeout=_UPDATE_TIMEOUT)
+            code = proc.returncode or 0
+            await ws.broadcast("update:done", {"success": code == 0, "code": code})
+        except asyncio.TimeoutError:
+            log.warning("update script timed out after %ss — killing", _UPDATE_TIMEOUT)
+            try:
+                proc.kill()
+                await proc.wait()
+            except ProcessLookupError:
+                pass
+            await ws.broadcast("update:log", {"line": f"[ERROR] Update timed out after {int(_UPDATE_TIMEOUT)}s — aborted."})
+            await ws.broadcast("update:done", {"success": False, "code": -1})
 
-    asyncio.create_task(_run_update())
+    task = asyncio.create_task(_run_update())
+
+    def _log_err(t: asyncio.Task) -> None:
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc:
+            log.warning("update task failed: %s", exc)
+    task.add_done_callback(_log_err)
+
     return {"ok": True, "message": "Update started"}

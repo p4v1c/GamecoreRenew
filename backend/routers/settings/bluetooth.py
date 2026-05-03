@@ -1,12 +1,18 @@
 """Bluetooth management via bluetoothctl (5.x direct subcommand mode)."""
 import asyncio
+import logging
 import re
 from fastapi import APIRouter
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/settings/bluetooth", tags=["bluetooth"])
+log = logging.getLogger(__name__)
 
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*[mK]|\r')
+
+# Keep references to background scan tasks so they aren't GC'd mid-flight
+# and exceptions are logged instead of silently swallowed.
+_bg_tasks: set[asyncio.Task] = set()
 
 
 async def _run(*args: str) -> tuple[int, str]:
@@ -54,7 +60,18 @@ async def start_scan():
             except ProcessLookupError:
                 pass
 
-    asyncio.create_task(_do_scan())
+    task = asyncio.create_task(_do_scan())
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
+
+    def _log_err(t: asyncio.Task) -> None:
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc:
+            log.warning("bluetooth scan failed: %s", exc)
+    task.add_done_callback(_log_err)
+
     return {"ok": True}
 
 

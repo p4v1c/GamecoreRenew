@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 
-DEBUG = False  # ← flip to True on dev
+DEBUG = False
 
 APP_VERSION = "v1.0.0"
 GITHUB_REPO = "p4v1c/GamecoreRenew"

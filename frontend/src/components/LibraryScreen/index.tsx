@@ -11,7 +11,7 @@ import { formatGameName } from '../../lib/formatGameName'
 type SortKey = 'name' | 'playtime' | 'lastPlayed'
 
 export default function LibraryScreen() {
-  const { selectedSystemId, selectedGameIdx, goHome, setSelectedGameIdx, setSession, modalDepth, screen } = useStore()
+  const { selectedSystemId, selectedGameIdx, goHome, setSelectedGameIdx, setSession, modalDepth, screen, sessionGameKey } = useStore()
   const modalDepthRef = useRef(modalDepth)
   const screenRef = useRef(screen)
   useEffect(() => { modalDepthRef.current = modalDepth }, [modalDepth])
@@ -54,6 +54,13 @@ export default function LibraryScreen() {
     }).finally(() => setLoading(false))
   }, [])
 
+  // Reset launching state when session changes
+  useEffect(() => {
+    if (sessionGameKey === null) {
+      setLaunching(false)
+    }
+  }, [sessionGameKey])
+
   useEffect(() => {
     setSystem(null)
     setGames([])
@@ -61,6 +68,7 @@ export default function LibraryScreen() {
     setSearch('')
     setLoading(false)
     setLoadError(false)
+    setLaunching(false) // Reset launching when system changes
 
     if (!selectedSystemId) return
     loadData(selectedSystemId)
@@ -82,7 +90,7 @@ export default function LibraryScreen() {
   const selectedGame = sortedGames[selectedGameIdx] ?? sortedGames[0]
 
   const launchGame = useCallback(async () => {
-    if (!selectedSystemId || !selectedGame) return
+    if (!selectedSystemId || !selectedGame || launching) return
     setLaunching(true)
     try {
       await api.games.launch(selectedSystemId, selectedGame.path, selectedGame.filename)
@@ -91,12 +99,19 @@ export default function LibraryScreen() {
     } catch (e) {
       console.error(e)
       setLaunching(false)
+      setSession(null, null)
     }
-  }, [selectedSystemId, selectedGame, setSession])
+  }, [selectedSystemId, selectedGame, launching, setSession])
 
   // Gamepad — guarded when modal is open or this screen is hidden behind home
   useEffect(() => {
-    const blocked = () => screenRef.current !== 'library' || modalDepthRef.current > 0 || showSearchRef.current
+    const blocked = () => {
+      return screenRef.current !== 'library' ||
+             modalDepthRef.current > 0 ||
+             showSearchRef.current ||
+             launching ||
+             sessionGameKey !== null
+    }
     const offs = [
       onGp('gp:dpad-up',  () => { if (blocked()) return; setSelectedGameIdx(Math.max(0, selectedGameIdx - 1)) }),
       onGp('gp:dpad-down',() => { if (blocked()) return; setSelectedGameIdx(Math.min(sortedGames.length - 1, selectedGameIdx + 1)) }),
@@ -113,7 +128,7 @@ export default function LibraryScreen() {
       }),
     ]
     return () => offs.forEach(off => off())
-  }, [selectedGameIdx, sortedGames.length, launchGame, goHome, setSelectedGameIdx])
+  }, [selectedGameIdx, sortedGames.length, launchGame, goHome, setSelectedGameIdx, launching, sessionGameKey])
 
   // When no system is selected, render nothing (screen is hidden by display:none anyway)
   if (!selectedSystemId) return null

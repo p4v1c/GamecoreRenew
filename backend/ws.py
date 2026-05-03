@@ -1,6 +1,9 @@
 """WebSocket broadcast manager."""
 import json
+import logging
 from fastapi import WebSocket
+
+log = logging.getLogger(__name__)
 
 _clients: list[WebSocket] = []
 _current_game: dict | None = None
@@ -18,8 +21,8 @@ async def connect(ws: WebSocket) -> None:
         try:
             payload = json.dumps({"event": "game:running", "data": _current_game})
             await ws.send_text(payload)
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("ws initial send failed: %s", e)
 
 
 def disconnect(ws: WebSocket) -> None:
@@ -33,7 +36,8 @@ async def broadcast(event: str, data: dict | None = None) -> None:
     for ws in _clients:
         try:
             await ws.send_text(payload)
-        except Exception:
+        except Exception as e:
+            log.debug("ws broadcast failed (client will be dropped): %s", e)
             dead.append(ws)
     for ws in dead:
         disconnect(ws)

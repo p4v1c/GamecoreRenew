@@ -1,11 +1,31 @@
 """WiFi management via nmcli."""
 import asyncio
+import logging
 from fastapi import APIRouter
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/settings/wifi", tags=["wifi"])
+log = logging.getLogger(__name__)
 
 CONNECT_TIMEOUT = 30.0
+
+# Keep references to fire-and-forget background tasks so they aren't GC'd
+# mid-flight and so any exception is logged instead of swallowed.
+_bg_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_bg(coro, label: str) -> None:
+    task = asyncio.create_task(coro)
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
+
+    def _log_err(t: asyncio.Task) -> None:
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc:
+            log.warning("bg task %s failed: %s", label, exc)
+    task.add_done_callback(_log_err)
 
 
 async def _run(*args: str) -> tuple[int, str, str]:
@@ -36,10 +56,14 @@ async def _wifi_iface() -> str:
 @router.get("/networks")
 async def scan_networks():
     # Rescan first (non-blocking, best-effort)
-    asyncio.create_task(asyncio.create_subprocess_exec(
-        "nmcli", "dev", "wifi", "rescan",
-        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
-    ))
+    async def _rescan() -> None:
+        proc = await asyncio.create_subprocess_exec(
+            "nmcli", "dev", "wifi", "rescan",
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+        )
+        await proc.wait()
+
+    _spawn_bg(_rescan(), "wifi-rescan")
 
     _, out, _ = await _run(
         "nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY,ACTIVE", "dev", "wifi"
