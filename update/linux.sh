@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
 # ================================================================
-#  GameCore — OTA Update Script
+#  GameCore — OTA Update Script — Linux (Arch / Debian)
 #  Called by the backend when "Apply Update" is clicked in Settings.
 # ================================================================
 set -euo pipefail
+
+# ── Distro detection ─────────────────────────────────────────────
+if command -v pacman &>/dev/null; then
+  DISTRO="arch"
+elif command -v apt-get &>/dev/null; then
+  DISTRO="debian"
+else
+  DISTRO="unknown"
+fi
+echo "[update] Detected distro: ${DISTRO}"
 
 REPO="p4v1c/GamecoreRenew"
 ASSET="gamecore-ota.tar.gz"

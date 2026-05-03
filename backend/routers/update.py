@@ -1,7 +1,6 @@
 """OTA update via GitHub Releases."""
 import asyncio
-import os
-from pathlib import Path
+import sys
 from fastapi import APIRouter, HTTPException
 import httpx
 
@@ -48,19 +47,26 @@ async def check_update():
 
 @router.post("/apply")
 async def apply_update():
-    """Run update.sh in background and stream progress via WebSocket."""
-    script = GAMECORE_ROOT / "update.sh"
+    """Run the platform update script in background, stream progress via WebSocket."""
+    if sys.platform == "win32":
+        script = GAMECORE_ROOT / "update" / "windows.bat"
+        cmd = [str(script)]
+    else:
+        script = GAMECORE_ROOT / "update" / "linux.sh"
+        cmd = ["bash", str(script)]
+
     if not script.exists():
-        raise HTTPException(404, "update.sh not found")
+        raise HTTPException(404, f"Update script not found: {script}")
 
     async def _run_update():
         proc = await asyncio.create_subprocess_exec(
-            "bash", str(script),
+            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
-        async for line in proc.stdout:
-            await ws.broadcast("update:log", {"line": line.decode().rstrip()})
+        if proc.stdout:
+            async for line in proc.stdout:
+                await ws.broadcast("update:log", {"line": line.decode().rstrip()})
         await proc.wait()
         code = proc.returncode or 0
         await ws.broadcast("update:done", {"success": code == 0, "code": code})

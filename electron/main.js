@@ -15,7 +15,7 @@ function createWindow() {
     width: 1920,
     height: 1080,
     fullscreen: true,
-    kiosk: !DEV,              // Hard kiosk: blocks task switcher etc.
+    kiosk: !DEV,
     frame: false,
     autoHideMenuBar: true,
     backgroundColor: '#09090f',
@@ -28,10 +28,8 @@ function createWindow() {
   })
 
   if (DEV) {
-    // Dev: load Vite dev server
     mainWindow.loadURL(DEV_URL)
   } else {
-    // Production: load from built frontend served by FastAPI
     mainWindow.loadURL(BACKEND_URL)
   }
 

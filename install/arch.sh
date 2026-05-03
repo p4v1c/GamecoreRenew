@@ -19,7 +19,7 @@ pacman_optional() {
   pacman -S --noconfirm --needed "$1" 2>/dev/null && ok "$1" || warn "$1 not in repos — skipping"
 }
 
-[[ $EUID -eq 0 ]] || die "Run with sudo: sudo bash install.sh"
+[[ $EUID -eq 0 ]] || die "Run with sudo: sudo bash install/arch.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -39,7 +39,6 @@ GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
 read -rp "  Web ROM port [default: 8765]          : " WEB_PORT
 WEB_PORT="${WEB_PORT:-8765}"
 
-AUTOSTART_DIR="/home/$USER_NAME/.config/autostart"
 LOCAL_IP=$(hostname -I | awk '{print $1}')
 
 echo
@@ -77,6 +76,7 @@ PKGS=(
   base-devel git flatpak openssh
   python python-pip
   nodejs npm
+  openbox xorg-xdpyinfo
 )
 
 # Kernel headers
@@ -217,8 +217,7 @@ EOF
 cat > /etc/systemd/system/gamecore-ui.service <<EOF
 [Unit]
 Description=GameCore — Electron UI
-After=graphical-session.target gamecore-backend.service
-Wants=graphical-session.target
+After=display-manager.service gamecore-backend.service
 Requires=gamecore-backend.service
 
 [Service]
@@ -229,17 +228,31 @@ Environment=GAMECORE_PATH=$GAMECORE_PATH
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/$USER_NAME/.Xauthority
 WorkingDirectory=$GAMECORE_PATH
-ExecStart=/usr/bin/electron $GAMECORE_PATH/electron/main.js
+# Attend que le serveur X soit prêt (max 30s)
+ExecStartPre=/bin/bash -c 'for i in \$(seq 1 30); do xdpyinfo -display :0 >/dev/null 2>&1 && break || sleep 1; done'
+ExecStart=$GAMECORE_PATH/electron/node_modules/.bin/electron $GAMECORE_PATH/electron/main.js
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=graphical.target
 EOF
 
+# ── SDDM auto-login ──────────────────────────────────────────────
+msg "SDDM auto-login"
+mkdir -p /etc/sddm.conf.d
+cat > /etc/sddm.conf.d/autologin.conf <<EOF
+[Autologin]
+User=$USER_NAME
+Session=openbox
+Relogin=true
+EOF
+ok "SDDM configured for auto-login as $USER_NAME (openbox session)."
+
 systemctl daemon-reload
+systemctl enable sddm.service
 systemctl enable gamecore-backend.service
 systemctl enable gamecore-ui.service
 ok "Services enabled."
