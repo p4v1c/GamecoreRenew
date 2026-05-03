@@ -5,9 +5,9 @@
       "linux": ["dolphin-emu", "Dolphin", "org.DolphinEmu.dolphin-emu"],
       "windows": ["Dolphin", "Qt5152QWindowOwnDCIcon"]
     },
-    "window_rect": { "x": 160, "y": 90, "w": 1600, "h": 900 },
-    "overlay_asset": "assets/overlays/gamecube.png",
-    "hole": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+    "overlay_asset": "assets/overlays/dolphin.png",
+    "hole": { "x": 240, "y": 0, "w": 1440, "h": 1080 },
     "watch_timeout_s": 60
   },
   "pcsx2": {
@@ -16,9 +16,9 @@
       "linux": ["pcsx2", "PCSX2", "net.pcsx2.PCSX2"],
       "windows": ["PCSX2"]
     },
-    "window_rect": { "x": 160, "y": 90, "w": 1600, "h": 900 },
-    "overlay_asset": "assets/overlays/ps2.png",
-    "hole": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+    "overlay_asset": "assets/overlays/pcsx2.png",
+    "hole": { "x": 240, "y": 0, "w": 1440, "h": 1080 },
     "watch_timeout_s": 60
   },
   "rpcs3": {
@@ -27,9 +27,9 @@
       "linux": ["rpcs3", "RPCS3", "net.rpcs3.RPCS3"],
       "windows": ["RPCS3"]
     },
-    "window_rect": { "x": 160, "y": 90, "w": 1600, "h": 900 },
-    "overlay_asset": "assets/overlays/ps3.png",
-    "hole": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+    "overlay_asset": "assets/overlays/rpcs3.png",
+    "hole": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
     "watch_timeout_s": 90
   },
   "duckstation": {
@@ -38,9 +38,9 @@
       "linux": ["duckstation", "DuckStation", "org.duckstation.DuckStation"],
       "windows": ["DuckStation"]
     },
-    "window_rect": { "x": 160, "y": 90, "w": 1600, "h": 900 },
-    "overlay_asset": "assets/overlays/ps1.png",
-    "hole": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+    "overlay_asset": "assets/overlays/duckstation.png",
+    "hole": { "x": 240, "y": 0, "w": 1440, "h": 1080 },
     "watch_timeout_s": 45
   },
   "ppsspp": {
@@ -49,9 +49,9 @@
       "linux": ["ppsspp", "PPSSPP", "org.ppsspp.PPSSPP"],
       "windows": ["PPSSPPWnd"]
     },
-    "window_rect": { "x": 280, "y": 90, "w": 1360, "h": 900 },
-    "overlay_asset": "assets/overlays/psp.png",
-    "hole": { "x": 280, "y": 90, "w": 1360, "h": 900 },
+    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+    "overlay_asset": "assets/overlays/ppsspp.png",
+    "hole": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
     "watch_timeout_s": 45
   },
   "cemu": {
@@ -60,9 +60,9 @@
       "linux": ["cemu", "Cemu", "info.cemu.Cemu"],
       "windows": ["Cemu"]
     },
-    "window_rect": { "x": 160, "y": 90, "w": 1600, "h": 900 },
-    "overlay_asset": "assets/overlays/wiiu.png",
-    "hole": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+    "overlay_asset": "assets/overlays/cemu.png",
+    "hole": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
     "watch_timeout_s": 60
   },
   "ryujinx": {
@@ -71,9 +71,9 @@
       "linux": ["ryujinx", "Ryujinx", "org.ryujinx.Ryujinx"],
       "windows": ["Ryujinx"]
     },
-    "window_rect": { "x": 160, "y": 90, "w": 1600, "h": 900 },
-    "overlay_asset": "assets/overlays/switch.png",
-    "hole": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+    "overlay_asset": "assets/overlays/ryujinx.png",
+    "hole": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
     "watch_timeout_s": 60
   },
   "azahar": {
@@ -82,9 +82,9 @@
       "linux": ["azahar", "Azahar", "citra-qt", "org.azahar_emu.azahar"],
       "windows": ["Azahar"]
     },
-    "window_rect": { "x": 320, "y": 45, "w": 1280, "h": 960 },
-    "overlay_asset": "assets/overlays/3ds.png",
-    "hole": { "x": 320, "y": 45, "w": 1280, "h": 960 },
+    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+    "overlay_asset": "assets/overlays/azahar.png",
+    "hole": { "x": 60, "y": 0, "w": 1800, "h": 1080 },
     "watch_timeout_s": 45
   },
   "mgba": {
@@ -93,9 +93,9 @@
       "linux": ["mgba", "mGBA", "io.mgba.mGBA"],
       "windows": ["mGBA"]
     },
-    "window_rect": { "x": 480, "y": 180, "w": 960, "h": 640 },
-    "overlay_asset": "assets/overlays/gba.png",
-    "hole": { "x": 480, "y": 180, "w": 960, "h": 640 },
+    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+    "overlay_asset": "assets/overlays/mgba.png",
+    "hole": { "x": 150, "y": 0, "w": 1620, "h": 1080 },
     "watch_timeout_s": 30
   },
   "melonds": {
@@ -104,9 +104,9 @@
       "linux": ["melonds", "melonDS", "net.kuribo64.melonDS"],
       "windows": ["melonDS"]
     },
-    "window_rect": { "x": 480, "y": 60, "w": 960, "h": 864 },
-    "overlay_asset": "assets/overlays/ds.png",
-    "hole": { "x": 480, "y": 60, "w": 960, "h": 864 },
+    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+    "overlay_asset": "assets/overlays/melonds.png",
+    "hole": { "x": 600, "y": 0, "w": 720, "h": 1080 },
     "watch_timeout_s": 60
   },
   "gopher64": {
@@ -115,9 +115,9 @@
       "linux": ["gopher64", "Gopher64", "com.github.gopher64.gopher64"],
       "windows": ["Gopher64"]
     },
-    "window_rect": { "x": 160, "y": 90, "w": 1600, "h": 900 },
-    "overlay_asset": "assets/overlays/n64.png",
-    "hole": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+    "overlay_asset": "assets/overlays/gopher64.png",
+    "hole": { "x": 240, "y": 0, "w": 1440, "h": 1080 },
     "watch_timeout_s": 45
   }
 }
