@@ -12,6 +12,7 @@ import HomeScreen from './components/HomeScreen'
 import LibraryScreen from './components/LibraryScreen'
 import SettingsModal from './components/modals/SettingsModal'
 import PowerModal from './components/modals/PowerModal'
+import { onWsEvent } from './hooks/useWebSocket'
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true)
@@ -24,6 +25,17 @@ export default function App() {
 
   useWebSocket()
   useGamepad()
+
+  // Trigger overlay when emulator starts/stops
+  useEffect(() => {
+    const offStart = onWsEvent('game:started', (d: { system_id: string }) => {
+      window.gamecore?.overlayStart(d.system_id)
+    })
+    const offDone = onWsEvent('game:finished', (d: { system_id: string }) => {
+      window.gamecore?.overlayStop(d.system_id)
+    })
+    return () => { offStart(); offDone() }
+  }, [])
 
   // Global gamepad bindings
   useEffect(() => {
@@ -88,6 +100,7 @@ export default function App() {
           <AnimatePresence>
             {showPower && <PowerModal key="power" onClose={() => setShowPower(false)} />}
           </AnimatePresence>
+
         </>
       )}
     </div>

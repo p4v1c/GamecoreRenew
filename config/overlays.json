@@ -1,0 +1,123 @@
+{
+  "dolphin": {
+    "label": "GameCube / Wii",
+    "wm_class": {
+      "linux": ["dolphin-emu", "Dolphin"],
+      "windows": ["Dolphin", "Qt5152QWindowOwnDCIcon"]
+    },
+    "window_rect": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "overlay_asset": "assets/overlays/gamecube.png",
+    "hole": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "watch_timeout_s": 30
+  },
+  "pcsx2": {
+    "label": "PlayStation 2",
+    "wm_class": {
+      "linux": ["pcsx2", "PCSX2"],
+      "windows": ["PCSX2"]
+    },
+    "window_rect": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "overlay_asset": "assets/overlays/ps2.png",
+    "hole": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "watch_timeout_s": 30
+  },
+  "rpcs3": {
+    "label": "PlayStation 3",
+    "wm_class": {
+      "linux": ["rpcs3", "RPCS3"],
+      "windows": ["RPCS3"]
+    },
+    "window_rect": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "overlay_asset": "assets/overlays/ps3.png",
+    "hole": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "watch_timeout_s": 40
+  },
+  "duckstation": {
+    "label": "PlayStation 1",
+    "wm_class": {
+      "linux": ["duckstation", "DuckStation"],
+      "windows": ["DuckStation"]
+    },
+    "window_rect": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "overlay_asset": "assets/overlays/ps1.png",
+    "hole": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "watch_timeout_s": 20
+  },
+  "ppsspp": {
+    "label": "PSP",
+    "wm_class": {
+      "linux": ["ppsspp", "PPSSPP"],
+      "windows": ["PPSSPPWnd"]
+    },
+    "window_rect": { "x": 280, "y": 90, "w": 1360, "h": 900 },
+    "overlay_asset": "assets/overlays/psp.png",
+    "hole": { "x": 280, "y": 90, "w": 1360, "h": 900 },
+    "watch_timeout_s": 20
+  },
+  "cemu": {
+    "label": "Wii U",
+    "wm_class": {
+      "linux": ["cemu", "Cemu"],
+      "windows": ["Cemu"]
+    },
+    "window_rect": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "overlay_asset": "assets/overlays/wiiu.png",
+    "hole": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "watch_timeout_s": 30
+  },
+  "ryujinx": {
+    "label": "Nintendo Switch",
+    "wm_class": {
+      "linux": ["ryujinx", "Ryujinx"],
+      "windows": ["Ryujinx"]
+    },
+    "window_rect": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "overlay_asset": "assets/overlays/switch.png",
+    "hole": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "watch_timeout_s": 30
+  },
+  "azahar": {
+    "label": "Nintendo 3DS",
+    "wm_class": {
+      "linux": ["azahar", "Azahar", "citra-qt"],
+      "windows": ["Azahar"]
+    },
+    "window_rect": { "x": 320, "y": 45, "w": 1280, "h": 960 },
+    "overlay_asset": "assets/overlays/3ds.png",
+    "hole": { "x": 320, "y": 45, "w": 1280, "h": 960 },
+    "watch_timeout_s": 25
+  },
+  "mgba": {
+    "label": "Game Boy Advance",
+    "wm_class": {
+      "linux": ["mgba", "mGBA"],
+      "windows": ["mGBA"]
+    },
+    "window_rect": { "x": 480, "y": 180, "w": 960, "h": 640 },
+    "overlay_asset": "assets/overlays/gba.png",
+    "hole": { "x": 480, "y": 180, "w": 960, "h": 640 },
+    "watch_timeout_s": 15
+  },
+  "melonds": {
+    "label": "Nintendo DS",
+    "wm_class": {
+      "linux": ["melonds", "melonDS"],
+      "windows": ["melonDS"]
+    },
+    "window_rect": { "x": 480, "y": 60, "w": 960, "h": 864 },
+    "overlay_asset": "assets/overlays/ds.png",
+    "hole": { "x": 480, "y": 60, "w": 960, "h": 864 },
+    "watch_timeout_s": 15
+  },
+  "gopher64": {
+    "label": "Nintendo 64",
+    "wm_class": {
+      "linux": ["gopher64", "Gopher64"],
+      "windows": ["Gopher64"]
+    },
+    "window_rect": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "overlay_asset": "assets/overlays/n64.png",
+    "hole": { "x": 160, "y": 90, "w": 1600, "h": 900 },
+    "watch_timeout_s": 20
+  }
+}
