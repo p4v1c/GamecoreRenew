@@ -5,7 +5,7 @@ const path = require('path')
 
 const DEBUG = true  // ← flip to false on preprod/main
 
-const DEV = process.env.ELECTRON_DEV === '1'
+const DEV = DEBUG && process.env.ELECTRON_DEV === '1'
 const BACKEND_URL = 'http://localhost:8765'
 const DEV_URL     = 'http://localhost:5173'
 
