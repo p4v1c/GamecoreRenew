@@ -30,11 +30,13 @@ function createWindow() {
   if (DEV) {
     // Dev: load Vite dev server
     mainWindow.loadURL(DEV_URL)
-    mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {
     // Production: load from built frontend served by FastAPI
     mainWindow.loadURL(BACKEND_URL)
   }
+
+  // DEBUG: always open DevTools
+  mainWindow.webContents.openDevTools({ mode: 'detach' })
 
   mainWindow.on('closed', () => { mainWindow = null })
 }
@@ -49,7 +51,7 @@ function startBackend() {
 
   backendProcess = require('child_process').spawn(
     python, ['-m', 'uvicorn', 'backend.main:app',
-             '--host', '0.0.0.0', '--port', '8765', '--log-level', 'warning'],
+             '--host', '0.0.0.0', '--port', '8765', '--log-level', 'debug'],
     { cwd: root, detached: false, stdio: 'ignore' }
   )
 

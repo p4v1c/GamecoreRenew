@@ -204,7 +204,7 @@ SupplementaryGroups=input
 Environment=GAMECORE_PATH=$GAMECORE_PATH
 Environment=GAMECORE_BACKEND_PORT=$WEB_PORT
 WorkingDirectory=$GAMECORE_PATH
-ExecStart=$GAMECORE_PATH/.venv/bin/python3 -m uvicorn backend.main:app --host 0.0.0.0 --port $WEB_PORT --log-level warning
+ExecStart=$GAMECORE_PATH/.venv/bin/python3 -m uvicorn backend.main:app --host 0.0.0.0 --port $WEB_PORT --log-level debug
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
