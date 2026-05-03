@@ -10,12 +10,17 @@ Protocol (stdio JSON-lines):
   stdout → {"event": "error",         "message": "..."}
 """
 import json
+import os
 import sys
 import time
 import threading
 import platform
 
 OS = platform.system()  # "Linux" | "Windows" | "Darwin"
+
+# On Wayland sessions, X11 window detection won't work unless the app runs under XWayland.
+# The overlay feature is fully functional on X11/kiosk environments (openbox, etc.).
+_WAYLAND_SESSION = OS == "Linux" and bool(os.environ.get("WAYLAND_DISPLAY"))
 
 # ── Platform imports ──────────────────────────────────────────────────────────
 if OS == "Linux":
@@ -173,7 +178,9 @@ class OverlayMonitor:
         self._stop   = threading.Event()
         self._thread: threading.Thread | None = None
 
-        if OS == "Linux" and _XLIB_OK:
+        if _WAYLAND_SESSION:
+            self._mgr = None  # overlay unsupported on Wayland-native sessions
+        elif OS == "Linux" and _XLIB_OK:
             self._mgr = X11Manager()
         elif OS == "Windows" and _WIN32_OK:
             self._mgr = Win32Manager()
@@ -199,7 +206,12 @@ class OverlayMonitor:
 
     def _run(self, system_id: str, cfg: dict) -> None:
         if not self._mgr:
-            emit_error(f"Window manager unavailable on {OS}")
+            if _WAYLAND_SESSION:
+                # Silently skip on Wayland — overlay works on X11/kiosk sessions only
+                emit({"event": "window:closed", "system_id": system_id,
+                      "reason": "wayland-unsupported"})
+            else:
+                emit_error(f"Window manager unavailable on {OS}")
             return
 
         rect    = cfg["window_rect"]
