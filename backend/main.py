@@ -1,7 +1,11 @@
-"""GameCore — FastAPI backend."""
+"""GameCore — FastAPI backend [DEBUG]."""
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+logging.basicConfig(level=logging.DEBUG)
+log = logging.getLogger(__name__)
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
