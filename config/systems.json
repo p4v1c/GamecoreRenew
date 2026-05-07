@@ -62,7 +62,7 @@
     "path": "bin/duckstation.AppImage",
     "args": "-fullscreen",
     "romsPath": "emu/duckstation/",
-    "extensions": ["*.bin", "*.cue", "*.iso", "*.img", "*.zip"],
+    "extensions": ["*.bin", "*.iso", "*.img", "*.zip"],
     "libretroSystems": ["Sony - PlayStation"]
   },
   {
@@ -88,7 +88,8 @@
     "path": "flatpak",
     "args": "run net.rpcs3.RPCS3 --fullscreen --no-gui",
     "romsPath": "emu/rpcs3/",
-    "extensions": ["*.pkg", "*.iso", "*"],
+    "scanDirs": true,
+    "extensions": [],
     "libretroSystems": ["Sony - PlayStation 3"]
   },
   {

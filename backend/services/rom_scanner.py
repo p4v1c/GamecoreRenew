@@ -16,14 +16,19 @@ def matches_ext(filename: str, extensions: list[str]) -> bool:
     return any(fnmatch.fnmatch(name, p.lower()) for p in extensions)
 
 
-def iter_rom_files(roms_path: Path, extensions: list[str]) -> Iterator[Path]:
-    """Yield ROM file paths in alphabetical order, applying common filters
-    (no hidden files, no example files, only matching extensions)."""
+def iter_rom_files(roms_path: Path, extensions: list[str], scan_dirs: bool = False) -> Iterator[Path]:
+    """Yield ROM file/folder paths in alphabetical order, applying common filters."""
     if not roms_path.exists():
         return
     for f in sorted(roms_path.iterdir(), key=lambda x: x.name.lower()):
-        if not f.is_file() or f.name.startswith(".") or "example" in f.name.lower():
+        if f.name.startswith(".") or "example" in f.name.lower():
             continue
-        if extensions and not matches_ext(f.name, extensions):
-            continue
-        yield f
+        if scan_dirs:
+            if f.is_dir():
+                yield f
+        else:
+            if not f.is_file():
+                continue
+            if extensions and not matches_ext(f.name, extensions):
+                continue
+            yield f

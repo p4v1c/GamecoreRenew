@@ -5,8 +5,26 @@ from urllib.parse import quote, unquote
 
 import httpx
 
-from ..config import COVERS_DIR
+from ..config import COVERS_DIR, THEGAMESDB_API_KEY
 from ..utils import TAG_RE
+
+TGDB_PLATFORM_MAP: dict[str, int] = {
+    "duckstation": 10,
+    "pcsx2":       11,
+    "rpcs3":       12,
+    "ppsspp":      13,
+    "gopher64":    3,
+    "dolphin":     2,
+    "mgba":        5,
+    "melonds":     8,
+    "azahar":      4912,
+    "citron":      4971,
+    "cemu":        38,
+}
+
+_TGDB_SEARCH  = "https://api.thegamesdb.net/v1/Games/ByGameName"
+_TGDB_IMAGES  = "https://api.thegamesdb.net/v1/Games/Images"
+_TGDB_IMG_CDN = "https://cdn.thegamesdb.net/images/medium/"
 
 PLATFORM_MAP: dict[str, list[str]] = {
     "melonds":     ["Nintendo - Nintendo DS", "Nintendo - Nintendo DS (Download Play)"],
@@ -15,6 +33,7 @@ PLATFORM_MAP: dict[str, list[str]] = {
     "dolphin":     ["Nintendo - GameCube", "Nintendo - Wii"],
     "cemu":        ["Nintendo - Wii U"],
     "ryujinx":     ["Nintendo - Switch"],
+    "citron":      ["Nintendo - Switch"],
     "gopher64":    ["Nintendo - Nintendo 64"],
     "duckstation": ["Sony - PlayStation"],
     "pcsx2":       ["Sony - PlayStation 2"],
@@ -161,5 +180,54 @@ async def fetch_cover(rom_path: str, system_id: str) -> str | None:
                         return str(cached)
                 except httpx.RequestError:
                     continue
+
+    # ── Fallback: TheGamesDB ──────────────────────────────────────────────────
+    if THEGAMESDB_API_KEY:
+        result = await _fetch_tgdb_cover(base, system_id, cached)
+        if result:
+            return result
+
+    return None
+
+
+async def _fetch_tgdb_cover(name: str, system_id: str, dest: Path) -> str | None:
+    """Try TheGamesDB API — returns local path on success, None otherwise."""
+    platform_id = TGDB_PLATFORM_MAP.get(system_id.lower())
+    if not platform_id:
+        return None
+
+    async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+        try:
+            r = await client.get(_TGDB_SEARCH, params={
+                "apikey": THEGAMESDB_API_KEY,
+                "name": name,
+                "filter[platform]": platform_id,
+                "fields": "game_title",
+            })
+            games = r.json().get("data", {}).get("games", [])
+            if not games:
+                return None
+            game_id = games[0]["id"]
+
+            r = await client.get(_TGDB_IMAGES, params={
+                "apikey": THEGAMESDB_API_KEY,
+                "games_id": game_id,
+                "filter[type]": "boxart",
+            })
+            data = r.json().get("data", {})
+            images = data.get("images", {}).get(str(game_id), [])
+            front = next((img for img in images if img.get("side") == "front"), None)
+            if not front and images:
+                front = images[0]
+            if not front:
+                return None
+
+            img_url = _TGDB_IMG_CDN + front["filename"]
+            r = await client.get(img_url)
+            if r.status_code == 200:
+                dest.write_bytes(r.content)
+                return str(dest)
+        except Exception:
+            return None
 
     return None

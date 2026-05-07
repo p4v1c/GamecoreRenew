@@ -1,5 +1,6 @@
 """Audio management via wpctl (PipeWire/WirePlumber)."""
 import asyncio
+import os
 import re
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -7,11 +8,22 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/settings/audio", tags=["audio"])
 
 
+def _session_env() -> dict:
+    env = os.environ.copy()
+    uid = os.getuid()
+    if not env.get("XDG_RUNTIME_DIR"):
+        env["XDG_RUNTIME_DIR"] = f"/run/user/{uid}"
+    if not env.get("DBUS_SESSION_BUS_ADDRESS"):
+        env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path=/run/user/{uid}/bus"
+    return env
+
+
 async def _run(*args: str) -> tuple[int, str]:
     proc = await asyncio.create_subprocess_exec(
         *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
+        env=_session_env(),
     )
     stdout, _ = await proc.communicate()
     return proc.returncode or 0, stdout.decode().strip()

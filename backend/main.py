@@ -63,8 +63,10 @@ def rom_manager():
 if COVERS_DIR.exists():
     app.mount("/covers", StaticFiles(directory=str(COVERS_DIR)), name="covers")
 
-if ASSETS_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
+if (ASSETS_DIR / "logos").exists():
+    app.mount("/assets/logos", StaticFiles(directory=str(ASSETS_DIR / "logos")), name="logos")
+if (ASSETS_DIR / "overlays").exists():
+    app.mount("/assets/overlays", StaticFiles(directory=str(ASSETS_DIR / "overlays")), name="overlays")
 
 # ── WebSocket (must be registered before the catch-all static mount) ──────────
 @app.websocket("/ws")
@@ -79,5 +81,12 @@ async def websocket_endpoint(websocket: WebSocket):
 
 # ── Serve built frontend (production) ────────────────────────────────────────
 frontend_dist = GAMECORE_ROOT / "frontend" / "dist"
+
+
+@app.get("/overlay", include_in_schema=False)
+def overlay_page():
+    return FileResponse(str(frontend_dist / "index.html"), media_type="text/html")
+
+
 if frontend_dist.exists():
     app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")

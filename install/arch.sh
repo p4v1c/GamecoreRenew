@@ -22,6 +22,7 @@ pacman_optional() {
 [[ $EUID -eq 0 ]] || die "Run with sudo: sudo bash install/arch.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # ── Detect distro ────────────────────────────────────────────────
 IS_MANJARO=false
@@ -39,7 +40,7 @@ GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
 read -rp "  Web ROM port [default: 8765]          : " WEB_PORT
 WEB_PORT="${WEB_PORT:-8765}"
 
-LOCAL_IP=$(hostname -I | awk '{print $1}')
+LOCAL_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}')
 
 echo
 msg "Summary"
@@ -59,9 +60,9 @@ ok "User $USER_NAME OK"
 # ── Copy files ───────────────────────────────────────────────────
 msg "Setting up $GAMECORE_PATH"
 mkdir -p "$(dirname "$GAMECORE_PATH")"
-if [ "$SCRIPT_DIR" != "$GAMECORE_PATH" ]; then
-  cp -r "$SCRIPT_DIR/." "$GAMECORE_PATH"
-  ok "Copied $SCRIPT_DIR → $GAMECORE_PATH"
+if [ "$PROJECT_ROOT" != "$GAMECORE_PATH" ]; then
+  cp -r "$PROJECT_ROOT/." "$GAMECORE_PATH"
+  ok "Copied $PROJECT_ROOT → $GAMECORE_PATH"
 else
   ok "Already in place."
 fi
@@ -77,6 +78,7 @@ PKGS=(
   python python-pip
   nodejs npm
   openbox xorg-xdpyinfo
+  bluez bluez-utils
 )
 
 # Kernel headers
@@ -256,6 +258,18 @@ systemctl enable sddm.service
 systemctl enable gamecore-backend.service
 systemctl enable gamecore-ui.service
 ok "Services enabled."
+
+# ── Bluetooth ────────────────────────────────────────────────────
+msg "Bluetooth"
+systemctl enable --now bluetooth.service
+ok "Bluetooth service enabled."
+
+# ── Power management (reboot/shutdown from UI) ───────────────────
+msg "Sudoers — power management"
+echo "pavic ALL=(ALL) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl reboot" \
+  > /etc/sudoers.d/gamecore-power
+chmod 440 /etc/sudoers.d/gamecore-power
+ok "Sudoers rule created."
 
 # ── SSH ──────────────────────────────────────────────────────────
 msg "SSH"

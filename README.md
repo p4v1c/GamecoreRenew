@@ -278,6 +278,39 @@ convert mario_background.png \
 
 ---
 
+## Cover art
+
+GameCore scrapes cover images automatically when you browse your library.
+It first tries the **libretro thumbnails CDN** (free, no key needed).
+For systems with limited libretro coverage (PS3, Switch, etc.), it falls back to **TheGamesDB**.
+
+### Enable TheGamesDB (recommended)
+
+1. Register for a free API key at **https://thegamesdb.net**
+2. Add the key to the backend service:
+
+```bash
+sudo systemctl edit gamecore-backend.service
+```
+
+In the editor, add:
+
+```
+[Service]
+Environment=THEGAMESDB_API_KEY=your_key_here
+```
+
+Then restart:
+
+```bash
+sudo systemctl restart gamecore-backend.service
+```
+
+TheGamesDB covers PS3, Switch, Nintendo 64, DS, GBA, PSP, PS1, PS2, GameCube, Wii U, and 3DS.
+If no key is set, the scraper silently falls back to libretro only.
+
+---
+
 ## OTA updates
 
 Via the UI: **Settings → Update → Check for update → Install**

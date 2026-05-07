@@ -13,7 +13,7 @@
   "pcsx2": {
     "label": "PlayStation 2",
     "wm_class": {
-      "linux": ["pcsx2", "PCSX2", "net.pcsx2.PCSX2"],
+      "linux": ["pcsx2", "PCSX2", "net.pcsx2.PCSX2", "AppRun.wrapped"],
       "windows": ["PCSX2"]
     },
     "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
@@ -24,7 +24,7 @@
   "duckstation": {
     "label": "PlayStation 1",
     "wm_class": {
-      "linux": ["duckstation", "DuckStation", "org.duckstation.DuckStation"],
+      "linux": ["duckstation", "DuckStation", "org.duckstation.DuckStation", "AppRun.wrapped"],
       "windows": ["DuckStation"]
     },
     "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
@@ -57,7 +57,7 @@
   "melonds": {
     "label": "Nintendo DS",
     "wm_class": {
-      "linux": ["melonds", "melonDS", "net.kuribo64.melonDS"],
+      "linux": ["melonds", "melonDS", "net.kuribo64.melonDS", "AppRun.wrapped"],
       "windows": ["melonDS"]
     },
     "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
@@ -68,7 +68,7 @@
   "gopher64": {
     "label": "Nintendo 64",
     "wm_class": {
-      "linux": ["gopher64", "Gopher64", "com.github.gopher64.gopher64"],
+      "linux": ["gopher64", "Gopher64", "com.github.gopher64.gopher64", "AppRun.wrapped"],
       "windows": ["Gopher64"]
     },
     "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },

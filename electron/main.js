@@ -239,8 +239,8 @@ function startBackend() {
 }
 
 // ── IPC handlers ──────────────────────────────────────────────────────────────
-ipcMain.on('system:reboot',   () => exec('systemctl reboot'))
-ipcMain.on('system:shutdown', () => exec('systemctl poweroff'))
+ipcMain.on('system:reboot',   () => exec('sudo systemctl reboot'))
+ipcMain.on('system:shutdown', () => exec('sudo systemctl poweroff'))
 ipcMain.on('system:quit',     () => app.quit())
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────

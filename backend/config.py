@@ -21,6 +21,8 @@ EMU_DIR       = GAMECORE_ROOT / "emu"
 BACKEND_PORT  = int(os.environ.get("GAMECORE_BACKEND_PORT", 8765))
 ROM_WEB_PORT  = int(os.environ.get("GAMECORE_WEB_PORT", 8080))
 
+THEGAMESDB_API_KEY = os.environ.get("THEGAMESDB_API_KEY", "")
+
 
 def resolve_path(raw: str) -> Path | None:
     if not raw:

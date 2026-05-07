@@ -1,5 +1,16 @@
 [
   {
+    "id": "stremio",
+    "kind": "app",
+    "type": "application",
+    "label": "Stremio",
+    "platform": "Media",
+    "color": "#8a00d4",
+    "iconPath": "assets/logos/stremio.png",
+    "path": "flatpak",
+    "args": "run --nosocket=wayland --socket=x11 com.stremio.Stremio"
+  },
+  {
     "id": "steam",
     "kind": "app",
     "type": "application",

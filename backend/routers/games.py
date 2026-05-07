@@ -12,16 +12,16 @@ from .systems import list_all
 router = APIRouter(tags=["games"])
 
 
-def scan_roms(roms_path: Path, extensions: list[str]) -> list[dict]:
+def scan_roms(roms_path: Path, extensions: list[str], scan_dirs: bool = False) -> list[dict]:
     files = []
-    for f in iter_rom_files(roms_path, extensions):
+    for f in iter_rom_files(roms_path, extensions, scan_dirs=scan_dirs):
         stat = f.stat()
         files.append({
             "filename": f.name,
             "display_name": clean_name(f.name),
             "path": str(f),
             "size": stat.st_size,
-            "ext": f.suffix.lstrip(".").upper(),
+            "ext": "FOLDER" if f.is_dir() else f.suffix.lstrip(".").upper(),
         })
     return files
 
@@ -43,7 +43,7 @@ def list_games(system_id: str):
     if not roms_path:
         return []
 
-    return scan_roms(roms_path, system.get("extensions", []))
+    return scan_roms(roms_path, system.get("extensions", []), scan_dirs=system.get("scanDirs", False))
 
 
 class LaunchRequest(BaseModel):

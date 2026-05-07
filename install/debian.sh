@@ -18,6 +18,7 @@ info() { echo -e "  ${RST}$*"; }
 [[ $EUID -eq 0 ]] || die "Run with sudo: sudo bash install/debian.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # ── Banner ───────────────────────────────────────────────────────
 echo -e "\n${BLU}╔══════════════════════════════════════╗${RST}"
@@ -51,9 +52,9 @@ ok "User $USER_NAME OK"
 # ── Copy files ───────────────────────────────────────────────────
 msg "Setting up $GAMECORE_PATH"
 mkdir -p "$(dirname "$GAMECORE_PATH")"
-if [ "$SCRIPT_DIR" != "$GAMECORE_PATH" ]; then
-  cp -r "$SCRIPT_DIR/." "$GAMECORE_PATH"
-  ok "Copied $SCRIPT_DIR → $GAMECORE_PATH"
+if [ "$PROJECT_ROOT" != "$GAMECORE_PATH" ]; then
+  cp -r "$PROJECT_ROOT/." "$GAMECORE_PATH"
+  ok "Copied $PROJECT_ROOT → $GAMECORE_PATH"
 else
   ok "Already in place."
 fi
@@ -68,7 +69,8 @@ apt-get install -y \
   build-essential git curl flatpak openssh-server \
   python3 python3-pip python3-venv \
   openbox x11-utils sddm \
-  cpufrequtils
+  cpufrequtils \
+  bluez
 ok "System packages installed."
 
 # ── Node.js 20 via NodeSource ─────────────────────────────────────
@@ -248,6 +250,18 @@ systemctl enable sddm.service
 systemctl enable gamecore-backend.service
 systemctl enable gamecore-ui.service
 ok "Services enabled."
+
+# ── Bluetooth ────────────────────────────────────────────────────
+msg "Bluetooth"
+systemctl enable --now bluetooth.service
+ok "Bluetooth service enabled."
+
+# ── Power management (reboot/shutdown from UI) ───────────────────
+msg "Sudoers — power management"
+echo "pavic ALL=(ALL) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl reboot" \
+  > /etc/sudoers.d/gamecore-power
+chmod 440 /etc/sudoers.d/gamecore-power
+ok "Sudoers rule created."
 
 # ── SSH ──────────────────────────────────────────────────────────
 msg "SSH"

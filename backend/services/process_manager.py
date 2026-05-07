@@ -1,5 +1,6 @@
 """Manages the currently running emulator/app process."""
 import asyncio
+import glob
 import logging
 import os
 import signal
@@ -10,6 +11,28 @@ from .. import ws
 from ..db import get_db
 
 log = logging.getLogger(__name__)
+
+
+def _display_env() -> dict:
+    """Build an env dict for launching GUI apps from systemd (DISPLAY, XDG_RUNTIME_DIR, DBUS, XAUTHORITY)."""
+    env = os.environ.copy()
+    uid = os.getuid()
+    if not env.get("DISPLAY"):
+        env["DISPLAY"] = ":1"
+    if not env.get("XDG_RUNTIME_DIR"):
+        env["XDG_RUNTIME_DIR"] = f"/run/user/{uid}"
+    if not env.get("DBUS_SESSION_BUS_ADDRESS"):
+        env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path=/run/user/{uid}/bus"
+    if not env.get("XAUTHORITY"):
+        matches = glob.glob(f"/run/user/{uid}/xauth_*")
+        if matches:
+            env["XAUTHORITY"] = matches[0]
+        else:
+            home = os.path.expanduser("~")
+            xauth = os.path.join(home, ".Xauthority")
+            if os.path.exists(xauth):
+                env["XAUTHORITY"] = xauth
+    return env
 
 
 class ProcessManager:
@@ -51,13 +74,15 @@ class ProcessManager:
         else:
             cmd = [exec_path] + args
 
-        log.info("launch: %s", " ".join(cmd))
+        env = _display_env()
+        log.info("launch: %s (DISPLAY=%s)", " ".join(cmd), env.get("DISPLAY", ""))
 
         self._proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
-            start_new_session=True,  # isolates child into its own process group so killpg doesn't hit the backend
+            start_new_session=True,
+            env=env,
         )
 
         ws.set_current_game({"game_key": self._game_key, "system_id": self._system_id})
@@ -108,35 +133,16 @@ class ProcessManager:
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
-            # Give Flatpak up to 3 s to cleanly shut down the sandbox
-            await asyncio.wait_for(proc.wait(), timeout=3.0)
+            await asyncio.wait_for(proc.wait(), timeout=1.0)
         except (asyncio.TimeoutError, OSError):
             pass
 
     async def _proc_kill(self) -> None:
-        """SIGTERM → wait 3 s → SIGKILL on the wrapper process and its group."""
+        """SIGKILL on the wrapper process and its group — skip SIGTERM to avoid confirm dialogs."""
         if not self._proc:
             return
         pid = self._proc.pid
 
-        # Try process-group kill first (catches child processes)
-        try:
-            pgid = os.getpgid(pid)
-            os.killpg(pgid, signal.SIGTERM)
-        except (OSError, ProcessLookupError):
-            try:
-                self._proc.terminate()
-            except ProcessLookupError:
-                pass
-
-        try:
-            await asyncio.wait_for(self._proc.wait(), timeout=3.0)
-            return
-        except asyncio.TimeoutError:
-            pass
-
-        # Still alive — force kill
-        log.warning("proc_kill: SIGTERM timed out, sending SIGKILL")
         try:
             pgid = os.getpgid(pid)
             os.killpg(pgid, signal.SIGKILL)

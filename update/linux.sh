@@ -48,7 +48,7 @@ systemctl stop gamecore-ui.service 2>/dev/null || true
 systemctl stop gamecore-backend.service 2>/dev/null || true
 
 echo "[update] Installing new files..."
-rsync -a --exclude='.venv' --exclude='emu/' --exclude='config/' \
+rsync -a --exclude='.venv' --exclude='emu/' --exclude='config/' --exclude='assets/overlays/' --exclude='assets/logos/' \
   "${TMP_DIR}/" "${GAMECORE_PATH}/"
 
 echo "[update] Updating Python dependencies..."

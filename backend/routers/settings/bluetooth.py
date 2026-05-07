@@ -1,6 +1,7 @@
 """Bluetooth management via bluetoothctl (5.x direct subcommand mode)."""
 import asyncio
 import logging
+import os
 import re
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -15,11 +16,22 @@ _ANSI_RE = re.compile(r'\x1b\[[0-9;]*[mK]|\r')
 _bg_tasks: set[asyncio.Task] = set()
 
 
+def _session_env() -> dict:
+    env = os.environ.copy()
+    uid = os.getuid()
+    if not env.get("XDG_RUNTIME_DIR"):
+        env["XDG_RUNTIME_DIR"] = f"/run/user/{uid}"
+    if not env.get("DBUS_SESSION_BUS_ADDRESS"):
+        env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path=/run/user/{uid}/bus"
+    return env
+
+
 async def _run(*args: str) -> tuple[int, str]:
     proc = await asyncio.create_subprocess_exec(
         *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
+        env=_session_env(),
     )
     stdout, _ = await proc.communicate()
     out = _ANSI_RE.sub("", stdout.decode())
