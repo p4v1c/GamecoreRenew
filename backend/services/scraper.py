@@ -96,6 +96,49 @@ async def _get_index(client: httpx.AsyncClient, system_name: str) -> list[str]:
     return []
 
 
+async def _fetch_tgdb_cover(name: str, system_id: str, dest: Path) -> str | None:
+    """Try TheGamesDB API — returns local path on success, None otherwise."""
+    platform_id = TGDB_PLATFORM_MAP.get(system_id.lower())
+    if not platform_id:
+        return None
+
+    async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+        try:
+            r = await client.get(_TGDB_SEARCH, params={
+                "apikey": THEGAMESDB_API_KEY,
+                "name": name,
+                "filter[platform]": platform_id,
+                "fields": "game_title",
+            })
+            games = r.json().get("data", {}).get("games", [])
+            if not games:
+                return None
+            game_id = games[0]["id"]
+
+            r = await client.get(_TGDB_IMAGES, params={
+                "apikey": THEGAMESDB_API_KEY,
+                "games_id": game_id,
+                "filter[type]": "boxart",
+            })
+            data = r.json().get("data", {})
+            images = data.get("images", {}).get(str(game_id), [])
+            front = next((img for img in images if img.get("side") == "front"), None)
+            if not front and images:
+                front = images[0]
+            if not front:
+                return None
+
+            img_url = _TGDB_IMG_CDN + front["filename"]
+            r = await client.get(img_url)
+            if r.status_code == 200:
+                dest.write_bytes(r.content)
+                return str(dest)
+        except Exception:
+            return None
+
+    return None
+
+
 async def fetch_cover(rom_path: str, system_id: str) -> str | None:
     """Return local path to cover image, downloading if necessary. None if not found."""
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
@@ -186,48 +229,5 @@ async def fetch_cover(rom_path: str, system_id: str) -> str | None:
         result = await _fetch_tgdb_cover(base, system_id, cached)
         if result:
             return result
-
-    return None
-
-
-async def _fetch_tgdb_cover(name: str, system_id: str, dest: Path) -> str | None:
-    """Try TheGamesDB API — returns local path on success, None otherwise."""
-    platform_id = TGDB_PLATFORM_MAP.get(system_id.lower())
-    if not platform_id:
-        return None
-
-    async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-        try:
-            r = await client.get(_TGDB_SEARCH, params={
-                "apikey": THEGAMESDB_API_KEY,
-                "name": name,
-                "filter[platform]": platform_id,
-                "fields": "game_title",
-            })
-            games = r.json().get("data", {}).get("games", [])
-            if not games:
-                return None
-            game_id = games[0]["id"]
-
-            r = await client.get(_TGDB_IMAGES, params={
-                "apikey": THEGAMESDB_API_KEY,
-                "games_id": game_id,
-                "filter[type]": "boxart",
-            })
-            data = r.json().get("data", {})
-            images = data.get("images", {}).get(str(game_id), [])
-            front = next((img for img in images if img.get("side") == "front"), None)
-            if not front and images:
-                front = images[0]
-            if not front:
-                return None
-
-            img_url = _TGDB_IMG_CDN + front["filename"]
-            r = await client.get(img_url)
-            if r.status_code == 200:
-                dest.write_bytes(r.content)
-                return str(dest)
-        except Exception:
-            return None
 
     return None

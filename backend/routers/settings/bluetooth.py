@@ -95,7 +95,7 @@ class DeviceRequest(BaseModel):
 async def connect_device(req: DeviceRequest):
     # Trust first so repeated pairing prompts don't block
     await _run("bluetoothctl", "--", "trust", req.mac)
-    code, out = await _run("bluetoothctl", "--", "connect", req.mac)
+    _, out = await _run("bluetoothctl", "--", "connect", req.mac)
     ok = "Connection successful" in out
     if ok:
         return {"ok": True, "message": "Connected"}

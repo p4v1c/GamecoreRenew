@@ -2,8 +2,6 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
-
 from .config import DEBUG
 logging.basicConfig(level=logging.DEBUG if DEBUG else logging.WARNING)
 
@@ -23,7 +21,7 @@ WEB_DIR = GAMECORE_ROOT / "web"
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     await init_db()
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
     monitor_task = asyncio.create_task(gamepad_monitor.run())
