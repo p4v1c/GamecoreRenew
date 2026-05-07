@@ -43,13 +43,37 @@ echo "[update] Download complete."
 echo "[update] Extracting..."
 tar -xzf "${TMP_DIR}/${ASSET}" -C "$TMP_DIR"
 
+# The tar may extract into a subdirectory (e.g. GamecoreRenew-v2.0.0/).
+# Find the actual source root: prefer a dir that contains backend/, else use TMP_DIR itself.
+SRC_DIR="$TMP_DIR"
+EXTRACTED=$(find "$TMP_DIR" -maxdepth 1 -mindepth 1 -type d | head -1)
+if [[ -n "$EXTRACTED" && -d "${EXTRACTED}/backend" ]]; then
+  SRC_DIR="$EXTRACTED"
+fi
+echo "[update] Source directory: ${SRC_DIR}"
+
 echo "[update] Stopping services..."
 systemctl stop gamecore-ui.service 2>/dev/null || true
 systemctl stop gamecore-backend.service 2>/dev/null || true
 
 echo "[update] Installing new files..."
-rsync -a --exclude='.venv' --exclude='emu/' --exclude='config/' --exclude='assets/overlays/' --exclude='assets/logos/' \
-  "${TMP_DIR}/" "${GAMECORE_PATH}/"
+# Excluded paths are user data — never overwrite them:
+#   config/     → systems.json, controller mappings, playtime DB
+#   emu/        → ROMs and covers
+#   assets/overlays/  → user-uploaded bezels
+#   assets/logos/     → user-uploaded logos
+#   .venv/      → Python virtualenv (rebuilt separately)
+rsync -a \
+  --exclude='.venv/' \
+  --exclude='emu/' \
+  --exclude='config/' \
+  --exclude='assets/overlays/' \
+  --exclude='assets/logos/' \
+  "${SRC_DIR}/" "${GAMECORE_PATH}/"
+
+# Write the new version tag so the backend reports it correctly on next start
+echo "${LATEST_TAG}" > "${GAMECORE_PATH}/VERSION"
+echo "[update] Version set to ${LATEST_TAG}"
 
 echo "[update] Updating Python dependencies..."
 "${GAMECORE_PATH}/.venv/bin/pip" install -q -r "${GAMECORE_PATH}/backend/requirements.txt"

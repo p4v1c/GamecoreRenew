@@ -4,7 +4,10 @@ from pathlib import Path
 
 DEBUG = False
 
-APP_VERSION = "v1.0.0"
+# Version is read from the VERSION file at the repo root so OTA updates
+# only need to change that one file, not config.py.
+_VERSION_FILE = Path(__file__).parent.parent / "VERSION"
+APP_VERSION = _VERSION_FILE.read_text().strip() if _VERSION_FILE.exists() else "v1.0.0"
 GITHUB_REPO = "p4v1c/GamecoreRenew"
 UPDATE_ASSET = "gamecore-ota.tar.gz"
 
