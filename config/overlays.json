@@ -49,9 +49,9 @@
       "linux": ["mgba", "mGBA", "io.mgba.mGBA"],
       "windows": ["mGBA"]
     },
-    "window_rect": { "x": 240, "y": 0, "w": 1440, "h": 1080 },
+    "window_rect": { "x": 420, "y": 0, "w": 1080, "h": 1080 },
     "overlay_asset": "assets/overlays/mgba.png",
-    "hole": { "x": 240, "y": 0, "w": 1440, "h": 1080 },
+    "hole": { "x": 420, "y": 0, "w": 1080, "h": 1080 },
     "watch_timeout_s": 30
   },
   "melonds": {
