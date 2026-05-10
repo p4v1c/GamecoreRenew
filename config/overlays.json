@@ -16,9 +16,9 @@
       "linux": ["pcsx2", "PCSX2", "net.pcsx2.PCSX2", "AppRun.wrapped"],
       "windows": ["PCSX2"]
     },
-    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+    "window_rect": { "x": 320, "y": 60, "w": 1280, "h": 960 },
     "overlay_asset": "assets/overlays/pcsx2.png",
-    "hole": { "x": 240, "y": 0, "w": 1440, "h": 1080 },
+    "hole": { "x": 320, "y": 60, "w": 1280, "h": 960 },
     "watch_timeout_s": 60
   },
   "duckstation": {
@@ -27,9 +27,9 @@
       "linux": ["duckstation", "DuckStation", "org.duckstation.DuckStation", "AppRun.wrapped"],
       "windows": ["DuckStation"]
     },
-    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+    "window_rect": { "x": 320, "y": 60, "w": 1280, "h": 960 },
     "overlay_asset": "assets/overlays/duckstation.png",
-    "hole": { "x": 240, "y": 0, "w": 1440, "h": 1080 },
+    "hole": { "x": 320, "y": 60, "w": 1280, "h": 960 },
     "watch_timeout_s": 45
   },
   "azahar": {

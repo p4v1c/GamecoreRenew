@@ -253,8 +253,8 @@ convert your_image.png \
 | System | Ratio | `-region` value | Black bars |
 |--------|-------|----------------|-----------|
 | GameCube / Wii (`dolphin`) | 4:3 | `1440x1080+240+0` | 240px each side |
-| PlayStation 1 (`duckstation`) | 4:3 | `1440x1080+240+0` | 240px each side |
-| PlayStation 2 (`pcsx2`) | 4:3 | `1440x1080+240+0` | 240px each side |
+| PlayStation 1 (`duckstation`) | 4:3 (Centered) | `1280x960+320+60` | 320px L/R, 60px T/B |
+| PlayStation 2 (`pcsx2`) | 4:3 (Centered) | `1280x960+320+60` | 320px L/R, 60px T/B |
 | Nintendo 64 (`gopher64`) | 4:3 (Centered) | `1280x960+320+60` | 320px L/R, 60px T/B |
 | Game Boy Advance (`mgba`) | 4:3 | `1440x1080+240+0` | 240px each side |
 | Nintendo DS (`melonds`) | 2:3 vertical | `720x1080+600+0` | 600px each side |
@@ -271,6 +271,16 @@ convert artwork.png \
   -region 900x540+510+0 -alpha transparent +region \
   -region 720x540+600+540 -alpha transparent +region \
   assets/overlays/azahar.png
+```
+
+**Example — PlayStation 1 / 2:**
+```bash
+convert test.jpg \
+  -background "rgb(0,0,0)" -flatten \
+  -resize 1920x1080! \
+  -alpha set \
+  -region 1280x960+320+60 -alpha transparent +region \
+  assets/overlays/duckstation.png
 ```
 
 **Example — Game Boy Advance:**
