@@ -285,8 +285,7 @@ convert test.jpg \
 
 **Example — Game Boy Advance:**
 ```bash
-convert test.jpg \
-  -background "rgb(0,0,0)" -flatten \
+convert mgba.jpg \
   -resize 1920x1080! \
   -alpha set \
   -region 1080x1080+420+0 -alpha transparent +region \
