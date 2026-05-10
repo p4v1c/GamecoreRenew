@@ -40,7 +40,7 @@
     },
     "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
     "overlay_asset": "assets/overlays/azahar.png",
-    "hole": { "x": 60, "y": 0, "w": 1800, "h": 1080 },
+    "hole": { "x": 510, "y": 0, "w": 900, "h": 1080 },
     "watch_timeout_s": 45
   },
   "mgba": {
@@ -49,9 +49,9 @@
       "linux": ["mgba", "mGBA", "io.mgba.mGBA"],
       "windows": ["mGBA"]
     },
-    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+    "window_rect": { "x": 240, "y": 0, "w": 1440, "h": 1080 },
     "overlay_asset": "assets/overlays/mgba.png",
-    "hole": { "x": 150, "y": 0, "w": 1620, "h": 1080 },
+    "hole": { "x": 240, "y": 0, "w": 1440, "h": 1080 },
     "watch_timeout_s": 30
   },
   "melonds": {
@@ -71,9 +71,9 @@
       "linux": ["gopher64", "Gopher64", "com.github.gopher64.gopher64", "AppRun.wrapped"],
       "windows": ["Gopher64"]
     },
-    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+    "window_rect": { "x": 320, "y": 60, "w": 1280, "h": 960 },
     "overlay_asset": "assets/overlays/gopher64.png",
-    "hole": { "x": 240, "y": 0, "w": 1440, "h": 1080 },
+    "hole": { "x": 320, "y": 60, "w": 1280, "h": 960 },
     "watch_timeout_s": 45
   }
 }
