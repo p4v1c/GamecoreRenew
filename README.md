@@ -42,6 +42,8 @@ You navigate with a gamepad, launch emulators, and never touch a keyboard.
 | `mgba` | mGBA | Game Boy Advance |
 | `melonds` | melonDS | Nintendo DS |
 | `gopher64` | Gopher64 | Nintendo 64 |
+| `xenia` | Xenia | Xbox 360 |
+| `shadps4` | shadPS4 | PlayStation 4 |
 
 ---
 
@@ -236,86 +238,75 @@ sudo pacman -S imagemagick
 sudo apt install imagemagick
 ```
 
-The overlay must be a **1920×1080 PNG** with a **transparent hole** where the game screen appears.  
-Start from any 1920×1080 artwork, then cut the hole with:
+The overlay must be a **1920×1080 PNG** with a **transparent hole** where the game screen appears.
+
+> ⚠️ Do **not** use the old `-region … -alpha transparent` recipe: on ImageMagick 7 it
+> silently does nothing and produces a fully opaque overlay (the game is then
+> completely hidden). Punch the hole with a `DstOut` composite instead:
 
 ```bash
-convert your_image.png \
+magick your_image.png \
   -background "rgb(0,0,0)" -flatten \
   -resize 1920x1080! \
-  -alpha set \
-  -region <W>x<H>+<X>+<Y> \
-  -alpha transparent \
+  \( -size <W>x<H> xc:black \) -geometry +<X>+<Y> -compose DstOut -composite \
   assets/overlays/<system_id>.png
 ```
 
-**Hole dimensions per system:**
+**Hole dimensions per system** (emulators render the native aspect ratio centered at full screen height):
 
-| System | Ratio | `-region` value | Black bars |
-|--------|-------|----------------|-----------|
-| GameCube / Wii (`dolphin`) | 4:3 | `1440x1080+240+0` | 240px each side |
-| PlayStation 1 (`duckstation`) | 4:3 (Centered) | `1280x960+320+60` | 320px L/R, 60px T/B |
-| PlayStation 2 (`pcsx2`) | 4:3 (Centered) | `1280x960+320+60` | 320px L/R, 60px T/B |
-| Nintendo 64 (`gopher64`) | 4:3 (Centered) | `1280x960+320+60` | 320px L/R, 60px T/B |
-| Game Boy Advance (`mgba`) | 1:1 (Centered) | `1080x1080+420+0` | 420px each side |
-| Nintendo DS (`melonds`) | 2:3 vertical | `720x1080+600+0` | 600px each side |
-| Nintendo 3DS (`azahar`) | Stacked (Top 5:3, Bot 4:3) | Two regions (see below) | Variable |
+| System | Native ratio | Hole `<W>x<H>` at `+<X>+<Y>` | Black bars |
+|--------|-------------|------------------------------|-----------|
+| GameCube / Wii (`dolphin`) | 4:3 | `1440x1080` at `+240+0` | 240px each side |
+| PlayStation 1 (`duckstation`) | 4:3 | `1440x1080` at `+240+0` | 240px each side |
+| PlayStation 2 (`pcsx2`) | 4:3 | `1440x1080` at `+240+0` | 240px each side |
+| Nintendo 64 (`gopher64`) | 4:3 | `1440x1080` at `+240+0` | 240px each side |
+| Game Boy Advance (`mgba`) | 3:2 (240×160) | `1620x1080` at `+150+0` | 150px each side |
+| Nintendo DS (`melonds`) | 2:3 vertical (2 stacked screens) | `720x1080` at `+600+0` | 600px each side |
+| Nintendo 3DS (`azahar`) | Stacked (Top 5:3, Bot 4:3) | Two holes (see below) | Variable |
 
-> **16:9 systems** (PS3, PSP, Wii U, Switch) fill the entire screen — no black bars, no overlay needed.
+> **16:9 systems** (PS3, PS4, PSP, Wii U, Switch, Xbox 360) fill the entire screen — no black bars, no overlay needed.
+> Keep `config/overlays.json` `hole` values in sync with the PNG — the JSON hole is the fallback frame used when the PNG is missing.
 
-**Example — Nintendo 3DS (stacked screens):**
+**Example — PlayStation 1 / 2 / Nintendo 64 / GameCube (4:3):**
 ```bash
-convert artwork.png \
+magick artwork.png \
   -background "rgb(0,0,0)" -flatten \
   -resize 1920x1080! \
-  -alpha set \
-  -region 900x540+510+0 -alpha transparent +region \
-  -region 720x540+600+540 -alpha transparent +region \
-  assets/overlays/azahar.png
+  \( -size 1440x1080 xc:black \) -geometry +240+0 -compose DstOut -composite \
+  assets/overlays/duckstation.png     # or pcsx2.png / gopher64.png / dolphin.png
 ```
 
-**Example — PlayStation 1 / 2:**
+**Example — Game Boy Advance (3:2):**
 ```bash
-convert test.jpg \
+magick mgba.jpg \
   -background "rgb(0,0,0)" -flatten \
   -resize 1920x1080! \
-  -alpha set \
-  -region 1280x960+320+60 -alpha transparent +region \
-  assets/overlays/duckstation.png
-```
-
-**Example — Game Boy Advance:**
-```bash
-convert mgba.jpg \
-  -resize 1920x1080! \
-  -alpha set \
-  -region 1080x1080+420+0 -alpha transparent +region \
+  \( -size 1620x1080 xc:black \) -geometry +150+0 -compose DstOut -composite \
   assets/overlays/mgba.png
 ```
 
-**Example — Nintendo 64:**
+**Example — Nintendo DS (stacked screens):**
 ```bash
-convert pokemonfinale.jpg \
+magick mario_background.png \
   -background "rgb(0,0,0)" -flatten \
   -resize 1920x1080! \
-  -alpha set \
-  -region 1280x960+320+60 -alpha transparent +region \
-  assets/overlays/gopher64.png
-```
-
-**Example — Nintendo DS Mario-themed overlay:**
-```bash
-convert mario_background.png \
-  -background "rgb(0,0,0)" -flatten \
-  -resize 1920x1080! \
-  -alpha set \
-  -region 720x1080+600+0 \
-  -alpha transparent \
+  \( -size 720x1080 xc:black \) -geometry +600+0 -compose DstOut -composite \
   assets/overlays/melonds.png
 ```
 
+**Example — Nintendo 3DS (two stacked holes):**
+```bash
+magick artwork.png \
+  -background "rgb(0,0,0)" -flatten \
+  -resize 1920x1080! \
+  \( -size 900x540 xc:black \) -geometry +510+0   -compose DstOut -composite \
+  \( -size 720x540 xc:black \) -geometry +600+540 -compose DstOut -composite \
+  assets/overlays/azahar.png
+```
+
 > `-background "rgb(0,0,0)" -flatten` fills any accidental transparency in the source image.  
-> `1920x1080!` forces exact dimensions (the `!` ignores the source aspect ratio).
+> `1920x1080!` forces exact dimensions (the `!` ignores the source aspect ratio).  
+> To verify a hole: `magick overlay.png -alpha extract -threshold 50% -negate -format "%@" info:` prints `WxH+X+Y` of the transparent zone.
 
 ---
 
