@@ -1,5 +1,4 @@
- 
- [
+[
   {
     "id": "azahar",
     "type": "emulator",
@@ -10,8 +9,13 @@
     "path": "flatpak",
     "args": "run org.azahar_emu.Azahar -f",
     "romsPath": "emu/azahar/",
-    "extensions": ["*.3ds", "*.zip"],
-    "libretroSystems": ["Nintendo - Nintendo 3DS"]
+    "extensions": [
+      "*.3ds",
+      "*.zip"
+    ],
+    "libretroSystems": [
+      "Nintendo - Nintendo 3DS"
+    ]
   },
   {
     "id": "cemu",
@@ -23,21 +27,15 @@
     "path": "flatpak",
     "args": "run info.cemu.Cemu -f -g",
     "romsPath": "emu/cemu/",
-    "extensions": ["*.wux", "*.rpx", "*.iso", "*.zip"],
-    "libretroSystems": ["Nintendo - Wii U"]
-  },
-  {
-    "id": "ryujinx",
-    "type": "emulator",
-    "label": "Nintendo Switch",
-    "platform": "Switch",
-    "color": "#e6001a",
-    "iconPath": "assets/logos/switch.png",
-    "path": "flatpak",
-    "args": "run io.github.ryubing.Ryujinx --fullscreen",
-    "romsPath": "emu/ryujinx/",
-    "extensions": ["*.xci", "*.nsp", "*.zip"],
-    "libretroSystems": ["Nintendo - Switch"]
+    "extensions": [
+      "*.wux",
+      "*.rpx",
+      "*.iso",
+      "*.zip"
+    ],
+    "libretroSystems": [
+      "Nintendo - Wii U"
+    ]
   },
   {
     "id": "dolphin",
@@ -49,8 +47,36 @@
     "path": "flatpak",
     "args": "run org.DolphinEmu.dolphin-emu -b",
     "romsPath": "emu/dolphin/",
-    "extensions": ["*.iso", "*.gcm", "*.wii", "*.zip", "*.rvz"],
-    "libretroSystems": ["Nintendo - GameCube", "Nintendo - Wii"]
+    "extensions": [
+      "*.iso",
+      "*.gcm",
+      "*.wii",
+      "*.zip",
+      "*.rvz"
+    ],
+    "libretroSystems": [
+      "Nintendo - GameCube",
+      "Nintendo - Wii"
+    ]
+  },
+  {
+    "id": "citron",
+    "type": "emulator",
+    "label": "Nintendo Switch",
+    "platform": "Switch",
+    "color": "#e6001a",
+    "iconPath": "assets/logos/switch.png",
+    "path": "lib/citron",
+    "args": "-f -g",
+    "romsPath": "emu/citron/",
+    "extensions": [
+      "*.xci",
+      "*.nsp",
+      "*.zip"
+    ],
+    "libretroSystems": [
+      "Nintendo - Switch"
+    ]
   },
   {
     "id": "duckstation",
@@ -59,11 +85,18 @@
     "platform": "PS1",
     "color": "#0046ff",
     "iconPath": "assets/logos/ps1.png",
-    "path": "bin/duckstation.AppImage",
+    "path": "lib/duck",
     "args": "-fullscreen",
     "romsPath": "emu/duckstation/",
-    "extensions": ["*.bin", "*.iso", "*.img", "*.zip"],
-    "libretroSystems": ["Sony - PlayStation"]
+    "extensions": [
+      "*.bin",
+      "*.iso",
+      "*.img",
+      "*.zip"
+    ],
+    "libretroSystems": [
+      "Sony - PlayStation"
+    ]
   },
   {
     "id": "pcsx2",
@@ -72,11 +105,17 @@
     "platform": "PS2",
     "color": "#003087",
     "iconPath": "assets/logos/ps2.png",
-    "path": "flatpak",
-    "args": "run net.pcsx2.PCSX2 -fullscreen",
+    "path": "lib/pcsx2",
+    "args": "-fullscreen",
     "romsPath": "emu/pcsx2/",
-    "extensions": ["*.iso", "*.bin", "*.zip"],
-    "libretroSystems": ["Sony - PlayStation 2"]
+    "extensions": [
+      "*.iso",
+      "*.bin",
+      "*.zip"
+    ],
+    "libretroSystems": [
+      "Sony - PlayStation 2"
+    ]
   },
   {
     "id": "rpcs3",
@@ -85,12 +124,14 @@
     "platform": "PS3",
     "color": "#00439c",
     "iconPath": "assets/logos/ps3.png",
-    "path": "flatpak",
-    "args": "run net.rpcs3.RPCS3 --fullscreen --no-gui",
+    "path": "lib/rpcs3",
+    "args": "--fullscreen --no-gui",
     "romsPath": "emu/rpcs3/",
     "scanDirs": true,
     "extensions": [],
-    "libretroSystems": ["Sony - PlayStation 3"]
+    "libretroSystems": [
+      "Sony - PlayStation 3"
+    ]
   },
   {
     "id": "ppsspp",
@@ -102,8 +143,14 @@
     "path": "flatpak",
     "args": "run org.ppsspp.PPSSPP -f",
     "romsPath": "emu/ppsspp/",
-    "extensions": ["*.iso", "*.cso", "*.zip"],
-    "libretroSystems": ["Sony - PlayStation Portable"]
+    "extensions": [
+      "*.iso",
+      "*.cso",
+      "*.zip"
+    ],
+    "libretroSystems": [
+      "Sony - PlayStation Portable"
+    ]
   },
   {
     "id": "gopher64",
@@ -112,11 +159,18 @@
     "platform": "N64",
     "color": "#b400ff",
     "iconPath": "assets/logos/n64.png",
-    "path": "flatpak",
-    "args": "run --filesystem=host:ro io.github.gopher64.gopher64 -f",
+    "path": "/opt/GameCore/lib/gopher64",
+    "args": "-f",
     "romsPath": "emu/gopher64/",
-    "extensions": ["*.n64", "*.z64", "*.v64", "*.zip"],
-    "libretroSystems": ["Nintendo - Nintendo 64"]
+    "extensions": [
+      "*.n64",
+      "*.z64",
+      "*.v64",
+      "*.zip"
+    ],
+    "libretroSystems": [
+      "Nintendo - Nintendo 64"
+    ]
   },
   {
     "id": "melonds",
@@ -125,11 +179,16 @@
     "platform": "DS",
     "color": "#0096ff",
     "iconPath": "assets/logos/ds.png",
-    "path": "flatpak",
-    "args": "run net.kuribo64.melonDS -f",
+    "path": "lib/melon",
+    "args": "-f",
     "romsPath": "emu/melonds/",
-    "extensions": ["*.nds", "*.zip"],
-    "libretroSystems": ["Nintendo - Nintendo DS"]
+    "extensions": [
+      "*.nds",
+      "*.zip"
+    ],
+    "libretroSystems": [
+      "Nintendo - Nintendo DS"
+    ]
   },
   {
     "id": "mgba",
@@ -138,10 +197,15 @@
     "platform": "GBA",
     "color": "#96c800",
     "iconPath": "assets/logos/gba.png",
-    "path": "flatpak",
-    "args": "run io.mgba.mGBA -f",
+    "path": "/usr/bin/mgba-qt",
+    "args": "--fullscreen",
     "romsPath": "emu/mgba/",
-    "extensions": ["*.gba", "*.gbc", "*.gb", "*.zip"],
+    "extensions": [
+      "*.gba",
+      "*.gbc",
+      "*.gb",
+      "*.zip"
+    ],
     "libretroSystems": [
       "Nintendo - Game Boy Advance",
       "Nintendo - Game Boy Color",

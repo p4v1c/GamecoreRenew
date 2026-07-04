@@ -1,16 +1,5 @@
 [
   {
-    "id": "stremio",
-    "kind": "app",
-    "type": "application",
-    "label": "Stremio",
-    "platform": "Media",
-    "color": "#8a00d4",
-    "iconPath": "assets/logos/stremio.png",
-    "path": "flatpak",
-    "args": "run --nosocket=wayland --socket=x11 com.stremio.Stremio"
-  },
-  {
     "id": "steam",
     "kind": "app",
     "type": "application",
@@ -28,17 +17,30 @@
     "label": "YouTube",
     "platform": "Web",
     "color": "#ff0000",
-    "path": "chromium",
-    "args": "--kiosk https://www.youtube.com"
+    "path": "firefox",
+    "args": "--profile '/home/pavic/.mozilla/firefox/youtube-tv' --kiosk 'https://www.youtube.com/tv' "
   },
-  {
-    "id": "kodi",
+  { 
+    "id": "twitch",
     "kind": "app",
     "type": "application",
-    "label": "Kodi",
+    "label": "Twitch",
+    "platform": "Web",
+    "color": "#800080",
+    "iconPath":"assets/logos/twitch.png",
+    "path": "firefox",
+    "args": "--profile '/home/pavic/.mozilla/firefox/twitch-tv' --kiosk 'https://localhost:8097/' "
+  },
+  {
+    "id": "stremio",
+    "kind": "app",
+    "type": "application",
+    "label": "Stremio",
     "platform": "Media",
-    "color": "#17b2e7",
-    "path": "kodi",
-    "args": ""
+    "color": "#8a5fff",
+    "iconPath": "assets/logos/stremio.png",
+    "path": "flatpak",
+    "args": "run --nosocket=wayland --socket=x11 com.stremio.Stremio",
+    "gamepadTrigger": true
   }
 ]
