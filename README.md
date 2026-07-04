@@ -56,7 +56,7 @@ You navigate with a gamepad, launch emulators, and never touch a keyboard.
 
 | | Minimum |
 |--|---------|
-| OS | Arch Linux / Manjaro **or** Debian / Ubuntu |
+| OS | Arch Linux / Manjaro |
 | Display | 1920×1080 (Full HD) |
 | GPU | Any — hardware acceleration recommended |
 | RAM | 4 GB |
@@ -72,18 +72,10 @@ All emulators are installed via **Flatpak**. Make sure Flatpak is available on y
 > Run this on the machine that will act as the kiosk.  
 > The installer sets up auto-login, auto-start, and all dependencies.
 
-**Arch / Manjaro:**
 ```bash
 git clone https://github.com/p4v1c/GamecoreRenew.git
 cd GamecoreRenew
 sudo bash install/arch.sh
-```
-
-**Debian / Ubuntu:**
-```bash
-git clone https://github.com/p4v1c/GamecoreRenew.git
-cd GamecoreRenew
-sudo bash install/debian.sh
 ```
 
 What the installer does:
@@ -229,11 +221,7 @@ assets/overlays/<system_id>.png
 
 **Install ImageMagick:**
 ```bash
-# Arch / Manjaro
 sudo pacman -S imagemagick
-
-# Debian / Ubuntu
-sudo apt install imagemagick
 ```
 
 The overlay must be a **1920×1080 PNG** with a **transparent hole** where the game screen appears.
@@ -425,6 +413,6 @@ config/           systems.json, overlays.json
 assets/           logos/, overlays/
 emu/              ROMs per system (emu/dolphin/, emu/melonds/…)
 web/              Standalone HTML — ROM manager (/roms)
-install/          Platform installers (arch.sh, debian.sh)
+install/          Installer (arch.sh — Arch/Manjaro only)
 update/           OTA update script (linux.sh)
 ```

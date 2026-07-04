@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ================================================================
-#  GameCore — OTA Update Script — Linux (Arch / Debian)
+#  GameCore — OTA Update Script — Arch / Manjaro
 #  Called by the backend when "Apply Update" is clicked in Settings.
 #
 #  Runs as the backend's user, WITHOUT stopping the backend: files are
@@ -18,16 +18,6 @@ REPO="p4v1c/GamecoreRenew"
 ASSET="gamecore-ota.tar.gz"
 TMP_DIR="/tmp/gamecore_ota"
 GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
-
-# ── Distro detection ─────────────────────────────────────────────
-if command -v pacman &>/dev/null; then
-  DISTRO="arch"
-elif command -v apt-get &>/dev/null; then
-  DISTRO="debian"
-else
-  DISTRO="unknown"
-fi
-echo "[update] Detected distro: ${DISTRO}"
 
 command -v python3 >/dev/null || fail "python3 not found"
 
