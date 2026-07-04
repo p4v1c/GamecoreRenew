@@ -30,6 +30,14 @@ emu/
 !emu/covers/
 !emu/covers/.gitkeep
 
+# Emulator binaries and console firmwares — live on the box only,
+# never in git (a branch switch must never be able to delete them)
+lib/
+firmwares/
+
+# Local backup copies (e.g. config/overlays.json.bak)
+*.bak
+
 # Exclude all files in emulator subdirs (ROMs)
 emu/*/*
 # But keep the directories themselves via .gitkeep
