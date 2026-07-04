@@ -371,11 +371,7 @@ Via the UI: **Settings → Update → Check for update → Install**
 
 Or manually on the device:
 ```bash
-# Linux
 bash update/linux.sh
-
-# Windows
-update\windows.bat
 ```
 
 The update pulls the latest release from GitHub, replaces app files in place (preserving ROMs, `config/`, and emulators), rebuilds the frontend, then restarts the services through a detached `gamecore-restart.service` unit. That last step needs a one-time root setup:
@@ -430,5 +426,5 @@ assets/           logos/, overlays/
 emu/              ROMs per system (emu/dolphin/, emu/melonds/…)
 web/              Standalone HTML — ROM manager (/roms)
 install/          Platform installers (arch.sh, debian.sh)
-update/           OTA update scripts (linux.sh, windows.bat)
+update/           OTA update script (linux.sh)
 ```

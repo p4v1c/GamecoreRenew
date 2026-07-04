@@ -7,9 +7,6 @@
                 "melonDS",
                 "net.kuribo64.melonDS",
                 "AppRun.wrapped"
-            ],
-            "windows": [
-                "melonDS"
             ]
         },
         "window_rect": {
@@ -35,9 +32,6 @@
                 "Azahar",
                 "citra-qt",
                 "org.azahar_emu.azahar"
-            ],
-            "windows": [
-                "Azahar"
             ]
         },
         "window_rect": {
@@ -63,10 +57,6 @@
                 "mgba",
                 "mGBA",
                 "io.mgba.mGBA"
-            ],
-            "windows": [
-                "mGBA",
-                "mgba-qt"
             ]
         },
         "window_rect": {
@@ -91,9 +81,6 @@
                 "RMG",
                 "Rosalie's Mupen GUI",
                 "gopher64",
-                "Gopher64"
-            ],
-            "windows": [
                 "Gopher64"
             ]
         },
@@ -122,9 +109,6 @@
                 "DuckStation",
                 "org.duckstation.DuckStation",
                 "AppRun.wrapped"
-            ],
-            "windows": [
-                "DuckStation"
             ]
         },
         "window_rect": {
@@ -152,9 +136,6 @@
                 "AppRun.wrapped",
                 "pcsx2-qt",
                 "net.pcsx2.PCSX2"
-            ],
-            "windows": [
-                "pcsx2-qt"
             ]
         },
         "window_rect": {

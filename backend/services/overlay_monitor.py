@@ -30,16 +30,6 @@ if OS == "Linux":
     except ImportError:
         _XLIB_OK = False
 
-elif OS == "Windows":
-    try:
-        import win32gui
-        import win32con
-        import win32process
-        _WIN32_OK = True
-    except ImportError:
-        _WIN32_OK = False
-
-
 # ── Output helpers ────────────────────────────────────────────────────────────
 def emit(obj: dict) -> None:
     print(json.dumps(obj), flush=True)
@@ -133,45 +123,6 @@ class X11Manager:
             return False
 
 
-# ── Windows / Win32 ───────────────────────────────────────────────────────────
-class Win32Manager:
-    def find_window(self, wm_classes: list[str]) -> int | None:
-        """Return HWND matching any of the given window class names."""
-        targets = {c.lower() for c in wm_classes}
-        result  = []
-
-        def _cb(hwnd, _):
-            if win32gui.IsWindowVisible(hwnd):
-                cls = win32gui.GetClassName(hwnd).lower()
-                if cls in targets or any(t in cls for t in targets):
-                    result.append(hwnd)
-            return True
-
-        win32gui.EnumWindows(_cb, None)
-        return result[0] if result else None
-
-    def force_rect(self, hwnd: int, x: int, y: int, w: int, h: int) -> None:
-        # Remove title bar and borders
-        style = win32gui.GetWindowLong(hwnd, win32con.GWL_STYLE)
-        style &= ~(win32con.WS_CAPTION | win32con.WS_THICKFRAME |
-                   win32con.WS_MINIMIZEBOX | win32con.WS_MAXIMIZEBOX |
-                   win32con.WS_SYSMENU)
-        win32gui.SetWindowLong(hwnd, win32con.GWL_STYLE, style)
-        # Move + resize + force on top
-        win32gui.SetWindowPos(
-            hwnd, win32con.HWND_TOP,
-            x, y, w, h,
-            win32con.SWP_SHOWWINDOW | win32con.SWP_FRAMECHANGED
-        )
-
-    def get_rect(self, hwnd: int) -> dict:
-        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
-        return {"x": left, "y": top, "w": right - left, "h": bottom - top}
-
-    def window_exists(self, hwnd: int) -> bool:
-        return win32gui.IsWindow(hwnd)
-
-
 # ── Monitor logic ─────────────────────────────────────────────────────────────
 class OverlayMonitor:
     def __init__(self):
@@ -182,8 +133,6 @@ class OverlayMonitor:
             self._mgr = None  # overlay unsupported on Wayland-native sessions
         elif OS == "Linux" and _XLIB_OK:
             self._mgr = X11Manager()
-        elif OS == "Windows" and _WIN32_OK:
-            self._mgr = Win32Manager()
         else:
             self._mgr = None
 
@@ -216,7 +165,7 @@ class OverlayMonitor:
 
         rect    = cfg["window_rect"]
         timeout = cfg.get("watch_timeout_s", 30)
-        classes = cfg["wm_class"].get("windows" if OS == "Windows" else "linux", [])
+        classes = cfg["wm_class"].get("linux", [])
 
         emit({"event": "window:waiting", "system_id": system_id})
 
