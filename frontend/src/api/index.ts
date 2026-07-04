@@ -96,7 +96,4 @@ export const api = {
     disconnect: (mac: string) => post<{ ok: boolean }>('/settings/bluetooth/disconnect', { mac }),
     remove: (mac: string) => fetch(`/api/settings/bluetooth/devices/${encodeURIComponent(mac)}`, { method: 'DELETE' }).then(r => r.json()) as Promise<{ ok: boolean }>,
   },
-  roms: {
-    list: (systemId: string) => get(`/roms/${systemId}`),
-  },
 }

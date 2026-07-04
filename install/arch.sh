@@ -547,6 +547,22 @@ msg "SSH"
 systemctl enable --now sshd
 ok "SSH active."
 
+# ── Default addons ───────────────────────────────────────────────
+# The ROM Manager lives in p4v1c/gamecore-addons since the addon system —
+# everyone wants it, so it is installed by default (user-level service).
+msg "Default addons (rom-manager)"
+USER_UID=$(id -u "$USER_NAME")
+loginctl enable-linger "$USER_NAME" 2>/dev/null || true
+# systemctl --user needs the user manager's bus — wait for it briefly
+for i in $(seq 1 10); do [ -S "/run/user/$USER_UID/bus" ] && break; sleep 1; done
+if sudo -u "$USER_NAME" \
+     env GAMECORE_PATH="$GAMECORE_PATH" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+     /usr/local/bin/gamecore-addon install rom-manager; then
+  ok "rom-manager addon installed → http://${LOCAL_IP}:8770"
+else
+  warn "rom-manager addon install failed — run later: gamecore-addon install rom-manager"
+fi
+
 # ── Final summary ────────────────────────────────────────────────
 echo
 echo -e "${BLU}╔══════════════════════════════════════╗${RST}"
@@ -554,11 +570,11 @@ echo -e "${BLU}║     Installation complete!           ║${RST}"
 echo -e "${BLU}╚══════════════════════════════════════╝${RST}"
 echo
 ok "Backend API   → http://${LOCAL_IP}:${WEB_PORT}"
-ok "ROM Manager   → http://${LOCAL_IP}:${WEB_PORT}/roms"
+ok "ROM Manager   → http://${LOCAL_IP}:8770  (addon)"
 ok "SSH           → ssh ${USER_NAME}@${LOCAL_IP}"
 echo
 echo -e "${YLW}  Next steps:${RST}"
 echo "  1. Reboot — GameCore launches automatically."
-echo "  2. Upload ROMs at http://${LOCAL_IP}:${WEB_PORT}/roms  (drag & drop)"
+echo "  2. Upload ROMs at http://${LOCAL_IP}:8770  (drag & drop)"
 echo "  3. Only manual step left: copy BIOS/firmwares (PS1/PS2/PS3, DS/3DS, Switch keys)."
 echo

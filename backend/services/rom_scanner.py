@@ -1,4 +1,4 @@
-"""Shared ROM scanning logic — used by /api/systems/{id}/games and /api/roms/{id}."""
+"""Shared ROM scanning logic — used by /api/systems/{id}/games (and the rom-manager addon keeps a mirrored copy)."""
 import fnmatch
 from pathlib import Path
 from typing import Iterator

@@ -14,13 +14,10 @@ from fastapi.staticfiles import StaticFiles
 
 from .db import init_db
 from . import ws
-from .routers import systems, games, playtime, covers, sysinfo, update, roms, overlays, addons
+from .routers import systems, games, playtime, covers, sysinfo, update, overlays, addons
 from .routers.settings import wifi, audio, bluetooth
 from .services import gamepad_monitor
 from .config import GAMECORE_ROOT, COVERS_DIR, ASSETS_DIR
-
-WEB_DIR = GAMECORE_ROOT / "web"
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -47,7 +44,6 @@ app.include_router(playtime.router, prefix="/api")
 app.include_router(covers.router, prefix="/api")
 app.include_router(sysinfo.router, prefix="/api")
 app.include_router(update.router, prefix="/api")
-app.include_router(roms.router, prefix="/api")
 app.include_router(overlays.router, prefix="/api")
 app.include_router(addons.router, prefix="/api")
 app.include_router(wifi.router, prefix="/api")
@@ -55,10 +51,8 @@ app.include_router(audio.router, prefix="/api")
 app.include_router(bluetooth.router, prefix="/api")
 
 # ── Web managers ─────────────────────────────────────────────────────────────
-@app.get("/roms", include_in_schema=False)
-def rom_manager():
-    return FileResponse(str(WEB_DIR / "roms.html"), media_type="text/html")
-
+# The ROM manager moved to the rom-manager addon (port 8770) —
+# see https://github.com/p4v1c/gamecore-addons
 
 @app.get("/overlay", include_in_schema=False)
 def overlay_page():

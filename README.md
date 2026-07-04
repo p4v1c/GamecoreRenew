@@ -141,10 +141,12 @@ If no ROMs are found, the library will be empty until you add some (see below).
 
 ROMs are stored in `emu/<system_id>/` folders (e.g. `emu/melonds/`, `emu/dolphin/`).
 
-**Option 1 — ROM Manager (recommended)**  
-From any device on the same network, open a browser and go to:
+**Option 1 — ROM Manager addon (recommended)**  
+The ROM Manager ships as an addon (installed by default by the installer —
+or run `gamecore-addon install rom-manager`). From any device on the same
+network, open a browser and go to:
 ```
-http://<device-ip>:8765/roms
+http://<device-ip>:8770
 ```
 Select a system in the left sidebar, then drag & drop your ROM files.  
 They are uploaded directly to the correct folder on the device.
@@ -199,6 +201,25 @@ Open Settings from the top-right icon or press **Start** on the controller.
 
 ---
 
+## Addons
+
+Optional modules live in [p4v1c/gamecore-addons](https://github.com/p4v1c/gamecore-addons)
+and are managed with one command:
+
+```
+gamecore-addon install <name>     # e.g. rom-manager
+gamecore-addon list
+gamecore-addon update
+gamecore-addon remove <name>
+```
+
+Each addon runs as its own service on its own port (8770-8799) and shows a
+shared nav bar linking every installed web addon — it all feels like one site.
+The core only exposes the registry (`GET /api/addons`) and a WebSocket relay
+(`POST /api/addons/notify`); it knows nothing about addon internals.
+
+---
+
 ## Overlays (bezels)
 
 Overlays are decorative frames displayed on top of the emulator window.  
@@ -209,7 +230,7 @@ They fill the black bars that appear on 4:3 and other non-16:9 systems.
 
 ### Uploading an overlay
 
-From the ROM Manager (`http://<device-ip>:8765/roms`):  
+From the ROM Manager addon (`http://<device-ip>:8770`):  
 Select a system → click the **Overlay** button → drag & drop or browse for a PNG.
 
 Or copy the PNG directly to:
@@ -402,7 +423,7 @@ Apps launched from GameCore that need gamepad access inside Flatpak (e.g. Stremi
 
 ```
 backend/          FastAPI — systems, games, playtime, covers, settings, OTA
-  routers/        API endpoints (systems, games, roms, overlays, sysinfo…)
+  routers/        API endpoints (systems, games, overlays, addons, sysinfo…)
   services/       Process manager, gamepad monitor, overlay monitor, scraper
 frontend/         React + Vite + Framer Motion + Zustand
   src/
@@ -412,7 +433,6 @@ electron/         Electron kiosk shell + overlay BrowserWindow
 config/           systems.json, overlays.json
 assets/           logos/, overlays/
 emu/              ROMs per system (emu/dolphin/, emu/melonds/…)
-web/              Standalone HTML — ROM manager (/roms)
 install/          Installer (arch.sh — Arch/Manjaro only)
 update/           OTA update script (linux.sh)
 ```
