@@ -1,4 +1,6 @@
 """Game scanning, launching, and session management."""
+import asyncio
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -8,6 +10,24 @@ from ..config import resolve_path
 from ..services.process_manager import process_manager
 from ..services.rom_scanner import clean_name, iter_rom_files
 from .systems import list_all
+
+log = logging.getLogger(__name__)
+
+
+async def _gamepad_trigger(rounds: int = 3, delay: float = 3.0) -> None:
+    """Run 'sudo udevadm trigger' several times so Flatpak apps detect the gamepad."""
+    for i in range(rounds):
+        await asyncio.sleep(delay)
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "sudo", "udevadm", "trigger",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await proc.wait()
+            log.info("gamepad_trigger: round %d/%d done", i + 1, rounds)
+        except Exception:
+            log.warning("gamepad_trigger: round %d failed", i + 1, exc_info=True)
 
 router = APIRouter(tags=["games"])
 
@@ -83,6 +103,11 @@ async def launch_game(req: LaunchRequest):
         game_key=game_key,
         system_id=req.system_id,
     )
+
+    if system.get("gamepadTrigger"):
+        task = asyncio.create_task(_gamepad_trigger())
+        task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+
     return {"ok": True, "game_key": game_key}
 
 
