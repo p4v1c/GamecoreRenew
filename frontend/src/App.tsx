@@ -77,11 +77,6 @@ export default function App() {
         : '#09090f',
       overflow: 'hidden',
     }}>
-      {/* Scanlines overlay */}
-      <div style={{
-        pointerEvents: 'none', position: 'fixed', inset: 0, zIndex: 999,
-        background: 'repeating-linear-gradient(to bottom, transparent 0, transparent 3px, rgba(0,0,0,0.025) 3px, rgba(0,0,0,0.025) 4px)',
-      }} />
 
       <AnimatePresence>
         {showSplash && <Splash onDone={() => setShowSplash(false)} />}

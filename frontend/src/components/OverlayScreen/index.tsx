@@ -8,9 +8,9 @@ interface OverlayData {
 type Status = 'hidden' | 'waiting' | 'visible'
 
 export default function OverlayScreen() {
-  const [status, setStatus]   = useState<Status>('hidden')
-  const [data, setData]       = useState<OverlayData | null>(null)
-  const [imgOk, setImgOk]     = useState(false)
+  const [status, setStatus] = useState<Status>('hidden')
+  const [data, setData]     = useState<OverlayData | null>(null)
+  const [imgOk, setImgOk]   = useState(false)
 
   useEffect(() => {
     if (!window.gamecore) return
@@ -46,40 +46,29 @@ export default function OverlayScreen() {
     )
   }
 
-  const hole = data?.rect
+  const hole  = data?.rect
   const asset = data?.system_id
     ? `/assets/overlays/${data.system_id}.png`
     : null
 
   return (
     <div style={styles.root}>
-      {/* Bezel PNG — already has a transparent hole cut into it.
-          The Electron window is transparent: true, so the PNG's transparent
-          area shows through to the desktop/emulator below. No blend modes needed. */}
       {asset && (
         <img
           src={asset}
           onLoad={() => setImgOk(true)}
           onError={() => setImgOk(false)}
-          style={{
-            ...styles.bezel,
-            opacity: imgOk ? 1 : 0,
-          }}
+          style={{ ...styles.bezel, opacity: imgOk ? 1 : 0 }}
           alt=""
           draggable={false}
         />
       )}
 
-      {/* Fallback solid frame when no PNG — fill the bars, leave game area open */}
       {(!asset || !imgOk) && hole && (
         <>
-          {/* Left bar */}
-          <div style={{ position: 'absolute', top: 0, left: 0,       width: hole.x,                        height: '100%', background: 'rgba(9,9,15,0.95)' }} />
-          {/* Right bar */}
+          <div style={{ position: 'absolute', top: 0, left: 0,            width: hole.x,                        height: '100%', background: 'rgba(9,9,15,0.95)' }} />
           <div style={{ position: 'absolute', top: 0, left: hole.x + hole.w, width: 1920 - hole.x - hole.w, height: '100%', background: 'rgba(9,9,15,0.95)' }} />
-          {/* Top bar */}
-          <div style={{ position: 'absolute', top: 0, left: hole.x, width: hole.w, height: hole.y,           background: 'rgba(9,9,15,0.95)' }} />
-          {/* Bottom bar */}
+          <div style={{ position: 'absolute', top: 0,            left: hole.x, width: hole.w, height: hole.y,                background: 'rgba(9,9,15,0.95)' }} />
           <div style={{ position: 'absolute', top: hole.y + hole.h, left: hole.x, width: hole.w, height: 1080 - hole.y - hole.h, background: 'rgba(9,9,15,0.95)' }} />
         </>
       )}

@@ -209,10 +209,10 @@ export default function HomeScreen({ onLaunchApp }: Props) {
           >›</button>
         )}
 
-        <div style={{ overflow: 'hidden', width: '100%' }}>
+        <div style={{ overflow: 'hidden', width: '100%', willChange: 'transform' }}>
           <motion.div
             animate={{ x: pageCount > 1 ? `${-(gridPage / pageCount) * 100}%` : 0 }}
-            transition={{ type: 'spring', stiffness: 280, damping: 30 }}
+            transition={{ type: 'spring', stiffness: 280, damping: 30, clamp: true }}
             style={{ display: 'flex', width: `${Math.max(pageCount, 1) * 100}%` }}
           >
             {Array.from({ length: Math.max(pageCount, 1) }).map((_, pi) => (
