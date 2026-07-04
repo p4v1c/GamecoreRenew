@@ -1,68 +1,169 @@
 {
-  "melonds": {
-    "label": "Nintendo DS",
-    "wm_class": {
-      "linux": ["melonds", "melonDS", "net.kuribo64.melonDS", "AppRun.wrapped"],
-      "windows": ["melonDS"]
+    "melonds": {
+        "label": "Nintendo DS",
+        "wm_class": {
+            "linux": [
+                "melonds",
+                "melonDS",
+                "net.kuribo64.melonDS",
+                "AppRun.wrapped"
+            ],
+            "windows": [
+                "melonDS"
+            ]
+        },
+        "window_rect": {
+            "x": 0,
+            "y": 0,
+            "w": 1920,
+            "h": 1080
+        },
+        "overlay_asset": "assets/overlays/melonds.png",
+        "hole": {
+            "x": 600,
+            "y": 0,
+            "w": 720,
+            "h": 1080
+        },
+        "watch_timeout_s": 60
     },
-    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "overlay_asset": "assets/overlays/melonds.png",
-    "hole": { "x": 600, "y": 0, "w": 720, "h": 1080 },
-    "watch_timeout_s": 60
-  },
-  "azahar": {
-    "label": "Nintendo 3DS",
-    "wm_class": {
-      "linux": ["azahar", "Azahar", "citra-qt", "org.azahar_emu.azahar"],
-      "windows": ["Azahar"]
+    "azahar": {
+        "label": "Nintendo 3DS",
+        "wm_class": {
+            "linux": [
+                "azahar",
+                "Azahar",
+                "citra-qt",
+                "org.azahar_emu.azahar"
+            ],
+            "windows": [
+                "Azahar"
+            ]
+        },
+        "window_rect": {
+            "x": 0,
+            "y": 0,
+            "w": 1920,
+            "h": 1080
+        },
+        "overlay_asset": "assets/overlays/azahar.png",
+        "hole": {
+            "x": 510,
+            "y": 0,
+            "w": 900,
+            "h": 1080
+        },
+        "watch_timeout_s": 45
     },
-    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "overlay_asset": "assets/overlays/azahar.png",
-    "hole": { "x": 510, "y": 0, "w": 900, "h": 1080 },
-    "watch_timeout_s": 45
-  },
-  "mgba": {
-    "label": "Game Boy Advance (Cadre Total)",
-    "wm_class": {
-      "linux": ["mgba-qt", "mgba", "mGBA", "io.mgba.mGBA"],
-      "windows": ["mGBA", "mgba-qt"]
+    "mgba": {
+        "label": "Game Boy Advance (Cadre Total)",
+        "wm_class": {
+            "linux": [
+                "mgba-qt",
+                "mgba",
+                "mGBA",
+                "io.mgba.mGBA"
+            ],
+            "windows": [
+                "mGBA",
+                "mgba-qt"
+            ]
+        },
+        "window_rect": {
+            "x": 0,
+            "y": 0,
+            "w": 1920,
+            "h": 1080
+        },
+        "overlay_asset": "assets/overlays/mgba.png",
+        "hole": {
+            "x": 420,
+            "y": 0,
+            "w": 1080,
+            "h": 1080
+        },
+        "watch_timeout_s": 30
     },
-    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "overlay_asset": "assets/overlays/mgba.png",
-    "hole": { "x": 420, "y": 0, "w": 1080, "h": 1080 },
-    "watch_timeout_s": 30
-  },
-  "gopher64": {
-    "label": "Nintendo 64",
-    "wm_class": {
-      "linux": ["RMG", "Rosalie's Mupen GUI"],
-      "windows": ["Gopher64"]
+    "gopher64": {
+        "label": "Nintendo 64",
+        "wm_class": {
+            "linux": [
+                "RMG",
+                "Rosalie's Mupen GUI"
+            ],
+            "windows": [
+                "Gopher64"
+            ]
+        },
+        "window_rect": {
+            "x": 0,
+            "y": 0,
+            "w": 1920,
+            "h": 1080
+        },
+        "overlay_asset": "assets/overlays/gopher64.png",
+        "hole": {
+            "x": 240,
+            "y": 0,
+            "w": 1440,
+            "h": 1080
+        },
+        "watch_timeout_s": 45
     },
-    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "overlay_asset": "assets/overlays/gopher64.png",
-    "hole": { "x": 320, "y": 60, "w": 1280, "h": 960 },
-    "watch_timeout_s": 45
-  },
-  "duckstation": {
-    "label": "PlayStation",
-    "wm_class": {
-      "linux": ["duckstation", "DuckStation", "org.duckstation.DuckStation", "AppRun.wrapped"],
-      "windows": ["DuckStation"]
+    "duckstation": {
+        "label": "PlayStation",
+        "wm_class": {
+            "linux": [
+                "duckstation",
+                "DuckStation",
+                "org.duckstation.DuckStation",
+                "AppRun.wrapped"
+            ],
+            "windows": [
+                "DuckStation"
+            ]
+        },
+        "window_rect": {
+            "x": 0,
+            "y": 0,
+            "w": 1920,
+            "h": 1080
+        },
+        "overlay_asset": "assets/overlays/duckstation.png",
+        "hole": {
+            "x": 240,
+            "y": 0,
+            "w": 1440,
+            "h": 1080
+        },
+        "watch_timeout_s": 45
     },
-    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "overlay_asset": "assets/overlays/duckstation.png",
-    "hole": { "x": 320, "y": 60, "w": 1280, "h": 960 },
-    "watch_timeout_s": 45
-  },
-  "pcsx2": {
-    "label": "PlayStation 2",
-    "wm_class": {
-      "linux": ["pcsx2", "PCSX2", "io.github.PCSX2.PCSX2", "AppRun.wrapped"],
-      "windows": ["pcsx2-qt"]
-    },
-    "window_rect": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "overlay_asset": "assets/overlays/pcsx2.png",
-    "hole": { "x": 320, "y": 60, "w": 1280, "h": 960 },
-    "watch_timeout_s": 45
-  }
+    "pcsx2": {
+        "label": "PlayStation 2",
+        "wm_class": {
+            "linux": [
+                "pcsx2",
+                "PCSX2",
+                "io.github.PCSX2.PCSX2",
+                "AppRun.wrapped"
+            ],
+            "windows": [
+                "pcsx2-qt"
+            ]
+        },
+        "window_rect": {
+            "x": 0,
+            "y": 0,
+            "w": 1920,
+            "h": 1080
+        },
+        "overlay_asset": "assets/overlays/pcsx2.png",
+        "hole": {
+            "x": 240,
+            "y": 0,
+            "w": 1440,
+            "h": 1080
+        },
+        "watch_timeout_s": 45
+    }
 }
