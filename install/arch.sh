@@ -483,10 +483,17 @@ ok "Bluetooth service enabled."
 
 # ── Power management (reboot/shutdown from UI) ───────────────────
 msg "Sudoers — power management"
-echo "pavic ALL=(ALL) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl reboot" \
-  > /etc/sudoers.d/gamecore-power
+cat > /etc/sudoers.d/gamecore-power <<EOF
+$USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl reboot
+$USER_NAME ALL=(root) NOPASSWD: /usr/bin/udevadm
+EOF
 chmod 440 /etc/sudoers.d/gamecore-power
-ok "Sudoers rule created."
+visudo -cf /etc/sudoers.d/gamecore-power >/dev/null || { rm -f /etc/sudoers.d/gamecore-power; warn "sudoers validation failed."; }
+ok "Sudoers rules created (power + udevadm gamepad trigger for $USER_NAME)."
+
+# OTA update: detached restart unit + narrow sudoers rule
+bash "$GAMECORE_PATH/install/setup-update-permissions.sh" "$USER_NAME" \
+  && ok "OTA restart permissions installed." || warn "OTA restart setup failed."
 
 # ── SSH ──────────────────────────────────────────────────────────
 msg "SSH"
