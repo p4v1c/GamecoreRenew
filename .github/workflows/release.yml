@@ -4,7 +4,19 @@ on:
   push:
     branches:
       - main
-    tags: 
+    # Only release when something we actually ship changes — doc-only
+    # pushes (README…) must not spam the box with fake updates.
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'electron/**'
+      - 'update/**'
+      - 'install/**'
+      - 'config/**'
+      - 'assets/**'
+      - 'emu-configs/**'
+      - '.github/workflows/release.yml'
+    tags:
       - 'v*.*.*'
   workflow_dispatch:
 

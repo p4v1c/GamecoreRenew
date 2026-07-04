@@ -102,13 +102,28 @@ msg "System packages"
 pacman -Syu --noconfirm
 
 PKGS=(
-  mesa xf86-video-amdgpu vulkan-radeon lib32-vulkan-radeon
+  mesa
   base-devel git flatpak openssh
   python python-pip
   nodejs npm
   openbox xorg-xdpyinfo
   bluez bluez-utils
 )
+
+# GPU drivers — detect the vendor instead of assuming AMD
+GPU_INFO=$(lspci -nn 2>/dev/null | grep -Ei 'vga|3d|display' || true)
+if echo "$GPU_INFO" | grep -qiE 'amd|radeon'; then
+  PKGS+=(xf86-video-amdgpu vulkan-radeon lib32-vulkan-radeon)
+  info "GPU detected: AMD (vulkan-radeon)"
+elif echo "$GPU_INFO" | grep -qi 'intel'; then
+  PKGS+=(vulkan-intel lib32-vulkan-intel)
+  info "GPU detected: Intel (vulkan-intel)"
+elif echo "$GPU_INFO" | grep -qi 'nvidia'; then
+  PKGS+=(nvidia nvidia-utils lib32-nvidia-utils)
+  info "GPU detected: NVIDIA (proprietary driver)"
+else
+  warn "GPU not identified — installing mesa only (add your Vulkan driver manually)."
+fi
 
 # Kernel headers
 KERNEL=$(uname -r)
