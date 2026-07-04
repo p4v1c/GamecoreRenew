@@ -145,6 +145,12 @@ if [[ "$MODE" == "full" ]]; then
       || { flatpak install -y flathub "$pkg" && ok "$pkg installed." || warn "$pkg failed."; }
   done
 
+  # Sandbox permissions: ROM directory + gamepad access for every emulator
+  for pkg in "${FLATPAKS[@]}"; do
+    flatpak override --filesystem="$GAMECORE_PATH" --device=all "$pkg" 2>/dev/null || true
+  done
+  ok "Flatpak overrides applied (ROMs dir + controller access)."
+
   # ── DuckStation AppImage ─────────────────────────────────────────
   msg "DuckStation AppImage"
   DUCK_BIN="$GAMECORE_PATH/bin/duckstation.AppImage"
@@ -161,6 +167,11 @@ if [[ "$MODE" == "full" ]]; then
     fi
   fi
 
+  # ── Adapt systems.json to this machine's launchers ─────────────
+  msg "Systems → Flatpak launchers"
+  bash "$GAMECORE_PATH/install/flatpakify-systems.sh" "$GAMECORE_PATH" \
+    && ok "systems.json adapted." || warn "flatpakify failed — check config/systems.json."
+
   # ── Curated emulator configs (incl. controller bindings) ───────
   msg "Emulator configs"
   if [ -d "$GAMECORE_PATH/emu-configs" ]; then
@@ -175,7 +186,7 @@ fi
 
 # ── ROM directories ──────────────────────────────────────────────
 msg "ROM directories"
-for d in azahar cemu ryujinx dolphin duckstation gopher64 melonds mgba pcsx2 ppsspp rpcs3 covers; do
+for d in azahar cemu citron ryujinx dolphin duckstation gopher64 melonds mgba pcsx2 ppsspp rpcs3 covers; do
   sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/emu/$d"
 done
 ok "ROM directories ready."
