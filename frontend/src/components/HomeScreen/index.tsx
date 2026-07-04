@@ -87,23 +87,35 @@ export default function HomeScreen({ onLaunchApp }: Props) {
     })
   }, [])
 
+  // Last valid focus index on a given page (pages can be partially filled)
+  const lastIdxOf = useCallback(
+    (p: number) => Math.min(PER_PAGE, totalItems - p * PER_PAGE) - 1,
+    [totalItems],
+  )
+
+  // Safety: if the grid shrinks (or state was persisted), keep focus on a real card
+  useEffect(() => {
+    if (pageCount > 0 && gridPage > pageCount - 1) setGridPage(pageCount - 1)
+    else if (pageItems.length > 0 && gridFocusIdx > pageItems.length - 1) setGridFocus(pageItems.length - 1)
+  }, [pageCount, gridPage, pageItems.length, gridFocusIdx, setGridPage, setGridFocus])
+
   const navigate = useCallback((dir: 'up' | 'down' | 'left' | 'right') => {
     const col = gridFocusIdx % COLS
     const row = Math.floor(gridFocusIdx / COLS)
 
     if (dir === 'right') {
-      if (col < COLS - 1) {
+      if (col < COLS - 1 && gridFocusIdx < pageItems.length - 1) {
         setGridFocus(gridFocusIdx + 1)
       } else if (gridPage < pageCount - 1) {
         setGridPage(gridPage + 1)
-        setGridFocus(row * COLS)
+        setGridFocus(Math.min(row * COLS, lastIdxOf(gridPage + 1)))
       }
     } else if (dir === 'left') {
       if (col > 0) {
         setGridFocus(gridFocusIdx - 1)
       } else if (gridPage > 0) {
         setGridPage(gridPage - 1)
-        setGridFocus(row * COLS + COLS - 1)
+        setGridFocus(Math.min(row * COLS + COLS - 1, lastIdxOf(gridPage - 1)))
       }
     } else if (dir === 'down') {
       const next = gridFocusIdx + COLS
@@ -111,17 +123,17 @@ export default function HomeScreen({ onLaunchApp }: Props) {
         setGridFocus(next)
       } else if (gridPage < pageCount - 1) {
         setGridPage(gridPage + 1)
-        setGridFocus(col)
+        setGridFocus(Math.min(col, lastIdxOf(gridPage + 1)))
       }
     } else if (dir === 'up') {
       if (row > 0) {
         setGridFocus(gridFocusIdx - COLS)
       } else if (gridPage > 0) {
         setGridPage(gridPage - 1)
-        setGridFocus((ROWS - 1) * COLS + col)
+        setGridFocus(Math.min((ROWS - 1) * COLS + col, lastIdxOf(gridPage - 1)))
       }
     }
-  }, [gridFocusIdx, gridPage, pageCount, pageItems.length, setGridFocus, setGridPage])
+  }, [gridFocusIdx, gridPage, pageCount, pageItems.length, lastIdxOf, setGridFocus, setGridPage])
 
   const activate = useCallback(() => {
     const system = pageItems[gridFocusIdx]
@@ -218,7 +230,8 @@ export default function HomeScreen({ onLaunchApp }: Props) {
             {Array.from({ length: Math.max(pageCount, 1) }).map((_, pi) => (
               <div key={pi} style={{
                 width: `${100 / Math.max(pageCount, 1)}%`, flexShrink: 0,
-                display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: 12,
+                display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)`,
+                gridTemplateRows: `repeat(${ROWS}, 1fr)`, alignContent: 'start', gap: 12,
               }}>
                 {systems.slice(pi * PER_PAGE, (pi + 1) * PER_PAGE).map((system, i) => (
                   <SystemCard
