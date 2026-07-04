@@ -3,6 +3,7 @@ import asyncio
 import glob
 import logging
 import os
+import shlex
 import signal
 import time
 from datetime import datetime, timezone
@@ -32,6 +33,9 @@ def _display_env() -> dict:
             xauth = os.path.join(home, ".Xauthority")
             if os.path.exists(xauth):
                 env["XAUTHORITY"] = xauth
+    # GameCore runs in an X11 openbox session — remove Wayland to prevent Qt apps
+    # from trying WAYLAND_DISPLAY and failing silently under the systemd service.
+    env.pop("WAYLAND_DISPLAY", None)
     return env
 
 
@@ -59,7 +63,7 @@ class ProcessManager:
         if self.is_running:
             raise RuntimeError("A game is already running")
 
-        args = exec_args.split() if exec_args else []
+        args = shlex.split(exec_args) if exec_args else []
         if rom_path:
             args.append(rom_path)
 
@@ -81,7 +85,7 @@ class ProcessManager:
             *cmd,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
-            start_new_session=True,
+            start_new_session=True,  # isolates child into its own process group so killpg doesn't hit the backend
             env=env,
         )
 
@@ -133,6 +137,7 @@ class ProcessManager:
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
+            # Give Flatpak up to 1 s to cleanly shut down the sandbox
             await asyncio.wait_for(proc.wait(), timeout=1.0)
         except (asyncio.TimeoutError, OSError):
             pass
