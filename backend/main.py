@@ -2,6 +2,8 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
+
 from .config import DEBUG
 logging.basicConfig(level=logging.DEBUG if DEBUG else logging.WARNING)
 
@@ -21,7 +23,7 @@ WEB_DIR = GAMECORE_ROOT / "web"
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI):
+async def lifespan(app: FastAPI):
     await init_db()
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
     monitor_task = asyncio.create_task(gamepad_monitor.run())
@@ -57,6 +59,11 @@ def rom_manager():
     return FileResponse(str(WEB_DIR / "roms.html"), media_type="text/html")
 
 
+@app.get("/overlay", include_in_schema=False)
+def overlay_page():
+    return FileResponse(str(frontend_dist / "index.html"), media_type="text/html")
+
+
 # ── Static files (covers served directly) ────────────────────────────────────
 if COVERS_DIR.exists():
     app.mount("/covers", StaticFiles(directory=str(COVERS_DIR)), name="covers")
@@ -79,12 +86,5 @@ async def websocket_endpoint(websocket: WebSocket):
 
 # ── Serve built frontend (production) ────────────────────────────────────────
 frontend_dist = GAMECORE_ROOT / "frontend" / "dist"
-
-
-@app.get("/overlay", include_in_schema=False)
-def overlay_page():
-    return FileResponse(str(frontend_dist / "index.html"), media_type="text/html")
-
-
 if frontend_dist.exists():
     app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
