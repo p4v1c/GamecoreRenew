@@ -80,6 +80,7 @@ rsync -a \
   --exclude='.venv/' \
   --exclude='emu/' \
   --exclude='config/' \
+  --exclude='emu-configs/' \
   --exclude='assets/overlays/' \
   --exclude='assets/logos/' \
   "${SRC_DIR}/" "${GAMECORE_PATH}/" || fail "rsync failed"

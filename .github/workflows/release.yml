@@ -70,13 +70,15 @@ jobs:
       - name: Package — Full archive
         run: |
           mkdir -p dist_full
-          cp -r backend    dist_full/
-          cp -r frontend   dist_full/
-          cp -r electron   dist_full/
-          cp -r config     dist_full/
-          cp -r assets     dist_full/
-          cp -r update     dist_full/
-          cp -r install    dist_full/
+          cp -r backend     dist_full/
+          cp -r frontend    dist_full/
+          cp -r electron    dist_full/
+          cp -r config      dist_full/
+          cp -r assets      dist_full/
+          cp -r update      dist_full/
+          cp -r install     dist_full/
+          # user data for fresh installs only — the OTA archive must NOT ship it
+          cp -r emu-configs dist_full/
           find dist_full -name 'node_modules' -exec rm -rf {} + 2>/dev/null || true
           find dist_full -name '__pycache__'  -exec rm -rf {} + 2>/dev/null || true
           tar -czf gamecore-full.tar.gz -C dist_full .
