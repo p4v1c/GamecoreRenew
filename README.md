@@ -86,13 +86,6 @@ cd GamecoreRenew
 sudo bash install/debian.sh
 ```
 
-**Windows:**
-```bat
-git clone https://github.com/p4v1c/GamecoreRenew.git
-cd GamecoreRenew
-install\windows.bat
-```
-
 What the installer does:
 - Installs Node.js, Python, Flatpak, and all emulators
 - Creates a Python virtual environment and installs backend dependencies
@@ -436,6 +429,6 @@ config/           systems.json, overlays.json
 assets/           logos/, overlays/
 emu/              ROMs per system (emu/dolphin/, emu/melonds/…)
 web/              Standalone HTML — ROM manager (/roms)
-install/          Platform installers (arch.sh, debian.sh, windows.bat)
+install/          Platform installers (arch.sh, debian.sh)
 update/           OTA update scripts (linux.sh, windows.bat)
 ```
