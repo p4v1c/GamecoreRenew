@@ -321,10 +321,17 @@ EOF
   chown -R "${USER_NAME}:${USER_NAME}" "$USER_HOME/.config"
   loginctl enable-linger "$USER_NAME" 2>/dev/null && ok "user services will start at boot (linger)." || true
 
-  # Firefox kiosk profiles used by the YouTube/Twitch tiles in apps.json
-  sudo -u "$USER_NAME" HOME="$USER_HOME" firefox --headless -CreateProfile "youtube-tv $USER_HOME/.mozilla/firefox/youtube-tv" >/dev/null 2>&1 || true
-  sudo -u "$USER_NAME" HOME="$USER_HOME" firefox --headless -CreateProfile "twitch-tv $USER_HOME/.mozilla/firefox/twitch-tv"   >/dev/null 2>&1 || true
-  ok "Firefox kiosk profiles ready (youtube-tv, twitch-tv)."
+  # Firefox kiosk profiles used by the YouTube/Twitch tiles in apps.json.
+  # The user.js is the important part: it carries the Smart-TV user agent
+  # (youtube.com/tv rejects desktop browsers) and the kiosk prefs.
+  for prof in youtube-tv twitch-tv; do
+    PROF_DIR="$USER_HOME/.mozilla/firefox/$prof"
+    sudo -u "$USER_NAME" HOME="$USER_HOME" firefox --headless -CreateProfile "$prof $PROF_DIR" >/dev/null 2>&1 || true
+    mkdir -p "$PROF_DIR"
+    cp "$GAMECORE_PATH/install/firefox-profiles/$prof.user.js" "$PROF_DIR/user.js"
+  done
+  chown -R "${USER_NAME}:${USER_NAME}" "$USER_HOME/.mozilla"
+  ok "Firefox kiosk profiles ready (youtube-tv, twitch-tv — Smart-TV user agent)."
   # apps.json was harvested on a box where HOME was /home/pavic — adapt it
   sed -i "s|/home/pavic|$USER_HOME|g" "$GAMECORE_PATH/config/apps.json"
   ok "apps.json paths adapted to $USER_HOME."
