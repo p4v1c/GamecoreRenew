@@ -89,7 +89,9 @@
         "wm_class": {
             "linux": [
                 "RMG",
-                "Rosalie's Mupen GUI"
+                "Rosalie's Mupen GUI",
+                "gopher64",
+                "Gopher64"
             ],
             "windows": [
                 "Gopher64"
@@ -114,6 +116,8 @@
         "label": "PlayStation",
         "wm_class": {
             "linux": [
+                "duck",
+                "duckstation-qt",
                 "duckstation",
                 "DuckStation",
                 "org.duckstation.DuckStation",
