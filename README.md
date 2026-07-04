@@ -17,7 +17,8 @@ React + Electron shell + FastAPI backend — plug in a controller and play.
 8. [Settings & Wi-Fi](#settings--wi-fi)
 9. [Overlays (bezels)](#overlays-bezels)
 10. [OTA updates](#ota-updates)
-11. [Project structure](#project-structure)
+11. [Living-room box setup](#living-room-box-setup)
+12. [Project structure](#project-structure)
 
 ---
 
@@ -358,13 +359,37 @@ Via the UI: **Settings → Update → Check for update → Install**
 Or manually on the device:
 ```bash
 # Linux
-sudo bash update/linux.sh
+bash update/linux.sh
 
 # Windows
 update\windows.bat
 ```
 
-The update pulls the latest release from GitHub, replaces app files (preserving ROMs, config, and emulators), and restarts the services automatically.
+The update pulls the latest release from GitHub, replaces app files in place (preserving ROMs, `config/`, and emulators), rebuilds the frontend, then restarts the services through a detached `gamecore-restart.service` unit. That last step needs a one-time root setup:
+
+```bash
+sudo install/setup-update-permissions.sh
+```
+
+This installs the restart unit and a sudoers rule allowing the GameCore user to start **only** that unit — the update itself runs unprivileged, from the UI, with progress streamed to the settings screen.
+
+---
+
+## Living-room box setup
+
+How the reference box is wired together. GameCore runs from `/opt/GameCore` with two **system** units:
+
+| Unit | Role |
+|---|---|
+| `gamecore-backend.service` | FastAPI backend (uvicorn, port **8765**). `Environment=GAMECORE_PATH=/opt/GameCore`. The TheGamesDB API key lives in a local drop-in (`systemctl edit gamecore-backend` → `Environment=THEGAMESDB_API_KEY=…`) — never in the repo. |
+| `gamecore-ui.service` | Electron shell (`electron/start-ui.sh`), started after the display manager. |
+
+Two companion projects handle TV input and Twitch:
+
+- **[gamepad-tv-bridge](https://github.com/p4v1c/gamepad-tv-bridge)** — daemon translating gamepad input to keyboard events for apps that don't speak gamepad (Firefox kiosk, EmberTV…). Cloned in `/opt/gamepad-tv-bridge`, installed editable in `~/.venv` (`pip install -e .`), runs as the **user** unit `gamepad-tv-bridge.service` (`WantedBy=graphical-session.target`). Per-app YAML profiles in `profiles/` (window-title matching).
+- **[Twitch-TV / EmberTV](https://github.com/p4v1c/Twitch-TV)** — controller-first Twitch client. Cloned in `/opt/Twitch-TV`, credentials in `config.json` (copy `config.example.json`), TLS cert via `make-cert.sh`, runs as the **user** unit `embertv.service` (`./install-autostart.sh`), HTTPS port **8097**. GameCore's Twitch app entry (`config/apps.json`) opens it in a Firefox kiosk profile at `https://localhost:8097`.
+
+Apps launched from GameCore that need gamepad access inside Flatpak (e.g. Stremio) use `"gamepadTrigger": true` in `config/apps.json`, which re-triggers udev after launch (requires `NOPASSWD: /usr/bin/udevadm` in sudoers).
 
 ---
 
