@@ -257,7 +257,7 @@ magick your_image.png \
 | System | Native ratio | Hole `<W>x<H>` at `+<X>+<Y>` | Black bars |
 |--------|-------------|------------------------------|-----------|
 | GameCube / Wii (`dolphin`) | 4:3 | `1440x1080` at `+240+0` | 240px each side |
-| PlayStation 1 (`duckstation`) | 4:3 | `1440x1080` at `+240+0` | 240px each side |
+| PlayStation 1 (`duckstation`) | 4:3 minus PS1 overscan | `1440x968` at `+240+52` | 240px sides, 52px top, 60px bottom |
 | PlayStation 2 (`pcsx2`) | 4:3 | `1440x1080` at `+240+0` | 240px each side |
 | Nintendo 64 (`gopher64`) | 4:3 | `1440x1080` at `+240+0` | 240px each side |
 | Game Boy Advance (`mgba`) | 3:2 (240×160) | `1620x1080` at `+150+0` | 150px each side |
@@ -267,14 +267,38 @@ magick your_image.png \
 > **16:9 systems** (PS3, PS4, PSP, Wii U, Switch, Xbox 360) fill the entire screen — no black bars, no overlay needed.
 > Keep `config/overlays.json` `hole` values in sync with the PNG — the JSON hole is the fallback frame used when the PNG is missing.
 
-**Example — PlayStation 1 / 2 / Nintendo 64 / GameCube (4:3):**
+**Example — PlayStation 2 / Nintendo 64 / GameCube (full-height 4:3):**
 ```bash
 magick artwork.png \
   -background "rgb(0,0,0)" -flatten \
   -resize 1920x1080! \
   \( -size 1440x1080 xc:black \) -geometry +240+0 -compose DstOut -composite \
-  assets/overlays/duckstation.png     # or pcsx2.png / gopher64.png / dolphin.png
+  assets/overlays/pcsx2.png     # or gopher64.png / dolphin.png
 ```
+
+**Example — PlayStation 1 (DuckStation):**
+
+PS1 video output carries its own black overscan bands (slightly off-center: more at
+the bottom than the top), so the hole is a bit shorter than full 4:3 and shifted down:
+
+```bash
+magick artwork.png \
+  -background "rgb(0,0,0)" -flatten \
+  -resize 1920x1080! \
+  \( -size 1440x968 xc:black \) -geometry +240+52 -compose DstOut -composite \
+  assets/overlays/duckstation.png
+```
+
+Measured with `AspectRatio = 4:3` in DuckStation. If your games show a different frame,
+measure it yourself: take a screenshot in game, then
+
+```bash
+magick screenshot.png -resize 1920x1080! -crop 1x1080+960+0 +repage \
+  -colorspace gray -threshold 10% -negate -format "%@" info:
+```
+
+prints the black band geometry on the centre column — use the bright area's `HxW+X+Y`
+as your hole. Remember to mirror the value into the `hole` of `config/overlays.json`.
 
 **Example — Game Boy Advance (3:2):**
 ```bash
