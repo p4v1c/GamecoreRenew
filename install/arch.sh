@@ -416,6 +416,14 @@ ok "DualShock 4 hidraw rules installed."
 
 udevadm control --reload-rules 2>/dev/null && udevadm trigger 2>/dev/null && ok "udev rules reloaded." || warn "udev reload failed — reconnect controller."
 
+# ── Addon manager ────────────────────────────────────────────────
+msg "Addon manager (gamecore-addon)"
+install -m 755 "$GAMECORE_PATH/install/gamecore-addon" /usr/local/bin/gamecore-addon
+# Pre-create the addons checkout dir owned by the user so `gamecore-addon
+# install` never needs root for user-level addons.
+install -d -o "$USER_NAME" -g "$USER_NAME" /opt/gamecore-addons
+ok "gamecore-addon CLI installed (addons live in /opt/gamecore-addons)."
+
 # ── Python backend ───────────────────────────────────────────────
 msg "Python backend (venv)"
 sudo -u "$USER_NAME" python3 -m venv "$GAMECORE_PATH/.venv"

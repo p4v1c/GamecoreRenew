@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+# ================================================================
+#  gamecore-addon — GameCore addon manager
+#
+#  install <name>   clone/pull the addons repo, run the addon's
+#                   install.sh, record it in the registry
+#  remove  <name>   run uninstall.sh, clean the registry
+#  list [--json]    available (repo) vs installed (registry)
+#  update [<name>]  git pull + re-run install.sh (default: all installed)
+#
+#  The repo checkout IS the runtime: services run straight from
+#  $GCA_REPO_DIR. The registry ($GAMECORE_PATH/config/addons.json)
+#  is written by this tool only — addon scripts never touch it.
+#
+#  Env overrides (sandbox / ISO):
+#    GCA_REPO_URL   addons repo         (default: p4v1c/gamecore-addons)
+#    GCA_REPO_DIR   checkout dir        (default: /opt/gamecore-addons)
+#    GAMECORE_PATH  core install dir    (default: /opt/GameCore)
+#    OFFLINE=1      never hit the network (repo comes from PAYLOAD_DIR)
+#    PAYLOAD_DIR    offline assets dir for the ISO installer
+# ================================================================
+set -euo pipefail
+
+GCA_REPO_URL="${GCA_REPO_URL:-https://github.com/p4v1c/gamecore-addons.git}"
+GCA_REPO_DIR="${GCA_REPO_DIR:-/opt/gamecore-addons}"
+GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
+OFFLINE="${OFFLINE:-0}"
+PAYLOAD_DIR="${PAYLOAD_DIR:-}"
+REGISTRY="${GAMECORE_PATH}/config/addons.json"
+
+# systemctl --user must work when we are called from a system service
+# (the core backend drives this CLI from the Addons screen).
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+die()  { echo "[gamecore-addon] ERROR: $*" >&2; exit 1; }
+info() { echo "[gamecore-addon] $*"; }
+
+command -v python3 >/dev/null || die "python3 not found"
+command -v git     >/dev/null || die "git not found"
+
+# ── addon.json / registry helpers (python3 — no jq dependency) ───
+meta() {  # meta <addon-dir> <key> → value ("" if absent)
+  python3 - "$1/addon.json" "$2" <<'PY'
+import json, sys
+v = json.load(open(sys.argv[1])).get(sys.argv[2], "")
+print(v if not isinstance(v, bool) else str(v).lower())
+PY
+}
+
+registry_add() {  # registry_add <addon-dir>
+  python3 - "$1/addon.json" "$REGISTRY" <<'PY'
+import json, sys, datetime, os, tempfile
+meta = json.load(open(sys.argv[1]))
+path = sys.argv[2]
+try:
+    reg = json.load(open(path))
+except (FileNotFoundError, json.JSONDecodeError):
+    reg = {}
+entry = {k: meta[k] for k in ("label", "description", "version", "type", "service") if k in meta}
+if meta.get("type") == "web":
+    entry["port"] = meta.get("port")
+entry["installed_at"] = datetime.datetime.now().isoformat(timespec="seconds")
+reg[meta["name"]] = entry
+os.makedirs(os.path.dirname(path), exist_ok=True)
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path))
+with os.fdopen(fd, "w") as f:
+    json.dump(reg, f, indent=2, sort_keys=True)
+    f.write("\n")
+os.replace(tmp, path)
+PY
+}
+
+registry_remove() {  # registry_remove <name>
+  python3 - "$1" "$REGISTRY" <<'PY'
+import json, sys, os, tempfile
+name, path = sys.argv[1], sys.argv[2]
+try:
+    reg = json.load(open(path))
+except (FileNotFoundError, json.JSONDecodeError):
+    sys.exit(0)
+reg.pop(name, None)
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path))
+with os.fdopen(fd, "w") as f:
+    json.dump(reg, f, indent=2, sort_keys=True)
+    f.write("\n")
+os.replace(tmp, path)
+PY
+}
+
+registry_names() {
+  python3 - "$REGISTRY" <<'PY'
+import json, sys
+try:
+    print("\n".join(sorted(json.load(open(sys.argv[1])))))
+except (FileNotFoundError, json.JSONDecodeError):
+    pass
+PY
+}
+
+# ── repo checkout ────────────────────────────────────────────────
+ensure_repo() {  # ensure_repo [pull]
+  if [[ ! -d "$GCA_REPO_DIR/.git" ]]; then
+    if [[ "$OFFLINE" == "1" ]]; then
+      [[ -n "$PAYLOAD_DIR" && -d "$PAYLOAD_DIR/gamecore-addons" ]] \
+        || die "offline mode: no checkout at $GCA_REPO_DIR and no gamecore-addons/ in PAYLOAD_DIR"
+      info "Offline: copying addons repo from payload"
+      mkdir -p "$(dirname "$GCA_REPO_DIR")" 2>/dev/null \
+        || die "cannot create $(dirname "$GCA_REPO_DIR") (run the core installer first, or sudo mkdir + chown)"
+      cp -r "$PAYLOAD_DIR/gamecore-addons" "$GCA_REPO_DIR"
+    else
+      info "Cloning $GCA_REPO_URL → $GCA_REPO_DIR"
+      git clone -q "$GCA_REPO_URL" "$GCA_REPO_DIR" \
+        || die "clone failed — does $(dirname "$GCA_REPO_DIR") exist and belong to you?"
+    fi
+  elif [[ "${1:-}" == "pull" && "$OFFLINE" != "1" ]]; then
+    info "Updating addons repo (git pull)"
+    git -C "$GCA_REPO_DIR" pull -q --ff-only || die "git pull failed in $GCA_REPO_DIR"
+  fi
+}
+
+addon_dir() {  # addon_dir <name> — validates the name, echoes the path
+  local name="$1"
+  [[ "$name" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "invalid addon name '$name'"
+  local dir="$GCA_REPO_DIR/addons/$name"
+  [[ -f "$dir/addon.json" ]] || die "unknown addon '$name' (no addons/$name/addon.json in $GCA_REPO_DIR)"
+  echo "$dir"
+}
+
+run_script() {  # run_script <addon-dir> <install.sh|uninstall.sh>
+  local dir="$1" script="$2"
+  [[ -f "$dir/$script" ]] || die "$script missing for addon $(basename "$dir")"
+  local scope; scope="$(meta "$dir" service)"
+  if [[ "$scope" == "system" && $EUID -ne 0 ]]; then
+    die "addon '$(basename "$dir")' installs a system service — run with sudo"
+  fi
+  USER_NAME="${SUDO_USER:-$(id -un)}" \
+  GAMECORE_PATH="$GAMECORE_PATH" \
+  ADDON_DIR="$dir" \
+  OFFLINE="$OFFLINE" \
+  PAYLOAD_DIR="$PAYLOAD_DIR" \
+    bash "$dir/$script"
+}
+
+# ── commands ─────────────────────────────────────────────────────
+cmd_install() {
+  local name="${1:-}"; [[ -n "$name" ]] || die "usage: gamecore-addon install <name>"
+  ensure_repo pull
+  local dir; dir="$(addon_dir "$name")"
+  info "Installing '$name' v$(meta "$dir" version)"
+  run_script "$dir" install.sh
+  registry_add "$dir"
+  info "'$name' installed and registered."
+}
+
+cmd_remove() {
+  local name="${1:-}"; [[ -n "$name" ]] || die "usage: gamecore-addon remove <name>"
+  local dir="$GCA_REPO_DIR/addons/$name"
+  if [[ -f "$dir/uninstall.sh" ]]; then
+    run_script "$dir" uninstall.sh
+  else
+    info "WARNING: no checkout/uninstall.sh for '$name' — cleaning the registry only."
+  fi
+  registry_remove "$name"
+  info "'$name' removed."
+}
+
+cmd_update() {
+  ensure_repo pull
+  local targets=("$@")
+  [[ ${#targets[@]} -gt 0 ]] || mapfile -t targets < <(registry_names)
+  [[ ${#targets[@]} -gt 0 ]] || { info "No addon installed — nothing to update."; return; }
+  for name in "${targets[@]}"; do
+    local dir; dir="$(addon_dir "$name")"
+    info "Updating '$name' → v$(meta "$dir" version)"
+    run_script "$dir" install.sh
+    registry_add "$dir"
+  done
+  info "Update done."
+}
+
+cmd_list() {
+  # Try to have a checkout for the "available" side, but never fail `list`.
+  [[ -d "$GCA_REPO_DIR/.git" ]] || ensure_repo 2>/dev/null || true
+  python3 - "$GCA_REPO_DIR" "$REGISTRY" "${1:-}" <<'PY'
+import json, sys, glob, os
+repo_dir, registry, flag = sys.argv[1], sys.argv[2], sys.argv[3]
+try:
+    installed = json.load(open(registry))
+except (FileNotFoundError, json.JSONDecodeError):
+    installed = {}
+available = []
+for f in sorted(glob.glob(os.path.join(repo_dir, "addons", "*", "addon.json"))):
+    name = os.path.basename(os.path.dirname(f))
+    if name.startswith("_"):
+        continue
+    try:
+        available.append(json.load(open(f)))
+    except json.JSONDecodeError:
+        print(f"[gamecore-addon] WARNING: bad JSON in {f}", file=sys.stderr)
+if flag == "--json":
+    print(json.dumps({"available": available, "installed": installed}, indent=2, sort_keys=True))
+else:
+    if not available and not installed:
+        print("No addons repo checkout and nothing installed.")
+    for a in available:
+        name = a.get("name", "?")
+        mark = "✓ installed" if name in installed else "  available"
+        extra = f" :{a['port']}" if a.get("type") == "web" and a.get("port") else ""
+        if name in installed and installed[name].get("version") != a.get("version"):
+            mark += f" (update: {installed[name].get('version')} → {a.get('version')})"
+        print(f"{mark}  {name:<16} {a.get('type', '?'):<8}{extra}  {a.get('description', '')}")
+    for name in sorted(set(installed) - {a.get("name") for a in available}):
+        print(f"✓ installed  {name:<16} {installed[name].get('type', '?'):<8}  (not in repo anymore)")
+PY
+}
+
+# ── dispatch ─────────────────────────────────────────────────────
+case "${1:-}" in
+  install) shift; cmd_install "$@" ;;
+  remove)  shift; cmd_remove  "$@" ;;
+  update)  shift; cmd_update  "$@" ;;
+  list)    shift || true; cmd_list "${1:-}" ;;
+  *) cat >&2 <<'EOF'
+gamecore-addon — GameCore addon manager
+Usage:
+  gamecore-addon install <name>
+  gamecore-addon remove  <name>
+  gamecore-addon update  [<name>...]
+  gamecore-addon list    [--json]
+EOF
+     exit 1 ;;
+esac
