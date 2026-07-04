@@ -232,7 +232,7 @@ if [[ "$MODE" == "full" ]]; then
   UNIT_DIR="$USER_HOME/.config/systemd/user"
   mkdir -p "$UNIT_DIR/default.target.wants" "$UNIT_DIR/graphical-session.target.wants"
 
-  pacman -S --noconfirm --needed firefox && ok "firefox installed." || warn "firefox install failed."
+  pacman -S --noconfirm --needed firefox nss && ok "firefox + nss (certutil) installed." || warn "firefox install failed."
 
   # EmberTV — Twitch for the big screen (GameCore's Twitch tile opens it)
   if [ ! -d /opt/Twitch-TV ]; then
@@ -260,6 +260,13 @@ TWCFG
       warn "No Twitch credentials — EmberTV starts in demo mode (edit /opt/Twitch-TV/config.json later)."
     fi
     chown -R "${USER_NAME}:${USER_NAME}" /opt/Twitch-TV
+    # Generate the TLS cert now (instead of first service start) so it can be
+    # trusted in the Firefox profile below — zero interaction at first launch.
+    if [ ! -f /opt/Twitch-TV/cert/cert.pem ]; then
+      sudo -u "$USER_NAME" bash /opt/Twitch-TV/make-cert.sh >/dev/null 2>&1 \
+        && ok "EmberTV TLS certificate generated." \
+        || warn "make-cert failed — it will be generated at first start instead."
+    fi
     cat > "$UNIT_DIR/embertv.service" <<'EOF'
 [Unit]
 Description=EmberTV — Twitch for the big screen
@@ -330,6 +337,17 @@ EOF
     mkdir -p "$PROF_DIR"
     cp "$GAMECORE_PATH/install/firefox-profiles/$prof.user.js" "$PROF_DIR/user.js"
   done
+  # Trust EmberTV's self-signed cert inside the twitch-tv profile (NSS db):
+  # no certificate warning at first launch — required for the unattended/ISO path.
+  TW_PROF="$USER_HOME/.mozilla/firefox/twitch-tv"
+  if [ -f /opt/Twitch-TV/cert/cert.pem ] && command -v certutil >/dev/null; then
+    [ -f "$TW_PROF/cert9.db" ] || sudo -u "$USER_NAME" certutil -N --empty-password -d sql:"$TW_PROF"
+    sudo -u "$USER_NAME" certutil -D -n "EmberTV localhost" -d sql:"$TW_PROF" 2>/dev/null || true
+    sudo -u "$USER_NAME" certutil -A -n "EmberTV localhost" -t "P,," \
+        -i /opt/Twitch-TV/cert/cert.pem -d sql:"$TW_PROF" \
+      && ok "EmberTV certificate trusted in the twitch-tv profile." \
+      || warn "certutil import failed — accept the cert warning once at first launch."
+  fi
   chown -R "${USER_NAME}:${USER_NAME}" "$USER_HOME/.mozilla"
   ok "Firefox kiosk profiles ready (youtube-tv, twitch-tv — Smart-TV user agent)."
   # apps.json was harvested on a box where HOME was /home/pavic — adapt it
