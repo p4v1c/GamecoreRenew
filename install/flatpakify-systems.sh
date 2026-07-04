@@ -24,7 +24,6 @@ systems = json.load(open(path))
 
 # system id → (path, args) on a Flatpak-only machine
 FLATPAK_MAP = {
-    "citron":      ("flatpak", "run io.github.ryubing.Ryujinx"),          # Switch via Ryujinx
     "duckstation": ("bin/duckstation.AppImage", "-fullscreen"),
     "pcsx2":       ("flatpak", "run net.pcsx2.PCSX2 -fullscreen"),
     "rpcs3":       ("flatpak", "run net.rpcs3.RPCS3 --fullscreen --no-gui"),

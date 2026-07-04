@@ -364,7 +364,7 @@ fi
 
 # ── ROM directories ──────────────────────────────────────────────
 msg "ROM directories"
-for d in azahar cemu citron ryujinx dolphin duckstation gopher64 melonds mgba pcsx2 ppsspp rpcs3 xenia shadps4 covers; do
+for d in azahar cemu ryujinx dolphin duckstation gopher64 melonds mgba pcsx2 ppsspp rpcs3 xenia shadps4 covers; do
   sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/emu/$d"
 done
 ok "ROM directories ready."
@@ -469,12 +469,11 @@ Type=simple
 User=$USER_NAME
 Group=$USER_NAME
 Environment=GAMECORE_PATH=$GAMECORE_PATH
-Environment=DISPLAY=:0
-Environment=XAUTHORITY=/home/$USER_NAME/.Xauthority
 WorkingDirectory=$GAMECORE_PATH
-# Attend que le serveur X soit prêt (max 30s)
-ExecStartPre=/bin/bash -c 'for i in \$(seq 1 30); do xdpyinfo -display :0 >/dev/null 2>&1 && break || sleep 1; done'
-ExecStart=$GAMECORE_PATH/electron/node_modules/.bin/electron $GAMECORE_PATH/electron/main.js
+# Wait for any X display (SDDM may use :0 or :1) — start-ui.sh then detects
+# the display and xauth cookie itself.
+ExecStartPre=/bin/bash -c 'for i in \$(seq 1 60); do XAUTH=\$(find /run/user/\$(id -u) -name "xauth_*" 2>/dev/null | head -1); if [ -n "\$XAUTH" ]; then for D in :1 :0 :2; do XAUTHORITY=\$XAUTH xdpyinfo -display \$D >/dev/null 2>&1 && exit 0; done; fi; sleep 1; done; exit 0'
+ExecStart=$GAMECORE_PATH/electron/start-ui.sh
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
