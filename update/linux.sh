@@ -2,8 +2,22 @@
 # ================================================================
 #  GameCore — OTA Update Script — Linux (Arch / Debian)
 #  Called by the backend when "Apply Update" is clicked in Settings.
+#
+#  Runs as the backend's user, WITHOUT stopping the backend: files are
+#  replaced and rebuilt in place (the running process keeps its old code
+#  in memory), then services are restarted by the detached
+#  gamecore-restart.service unit — never from inside this script, which
+#  would kill it (it lives in the backend's cgroup).
+#  One-time setup for the restart step: install/setup-update-permissions.sh
 # ================================================================
-set -euo pipefail
+set -uo pipefail
+
+fail() { echo "[update] ERROR: $*"; exit 1; }
+
+REPO="p4v1c/GamecoreRenew"
+ASSET="gamecore-ota.tar.gz"
+TMP_DIR="/tmp/gamecore_ota"
+GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
 
 # ── Distro detection ─────────────────────────────────────────────
 if command -v pacman &>/dev/null; then
@@ -15,46 +29,45 @@ else
 fi
 echo "[update] Detected distro: ${DISTRO}"
 
-REPO="p4v1c/GamecoreRenew"
-ASSET="gamecore-ota.tar.gz"
-TMP_DIR="/tmp/gamecore_ota"
-GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
+command -v python3 >/dev/null || fail "python3 not found"
 
 echo "[update] Checking latest release..."
 API_URL="https://api.github.com/repos/${REPO}/releases/latest"
-RELEASE=$(curl -sf "$API_URL") || { echo "[update] ERROR: GitHub unreachable"; exit 1; }
+RELEASE=$(curl -sf "$API_URL") || fail "GitHub API unreachable (${API_URL})"
 
-LATEST_TAG=$(echo "$RELEASE" | grep -o '"tag_name":"[^"]*"' | cut -d'"' -f4)
-DOWNLOAD_URL=$(echo "$RELEASE" | grep -o "\"browser_download_url\":\"[^\"]*${ASSET}\"" | cut -d'"' -f4)
+# The GitHub API returns pretty-printed JSON — parse it properly, never with grep.
+LATEST_TAG=$(printf '%s' "$RELEASE" | python3 -c \
+  'import json,sys; print(json.load(sys.stdin).get("tag_name",""))') \
+  || fail "could not parse release JSON"
+DOWNLOAD_URL=$(printf '%s' "$RELEASE" | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+name = sys.argv[1]
+print(next((a["browser_download_url"] for a in data.get("assets", []) if a["name"] == name), ""))
+' "$ASSET") || fail "could not parse release assets"
 
-if [[ -z "$DOWNLOAD_URL" ]]; then
-  echo "[update] ERROR: Asset '${ASSET}' not found in release ${LATEST_TAG}"
-  exit 1
-fi
+[[ -n "$LATEST_TAG" ]]    || fail "no tag_name in latest release"
+[[ -n "$DOWNLOAD_URL" ]]  || fail "asset '${ASSET}' not found in release ${LATEST_TAG}"
 
 echo "[update] Latest: ${LATEST_TAG}"
 echo "[update] Downloading ${ASSET}..."
 rm -rf "$TMP_DIR"
-mkdir -p "$TMP_DIR"
-
-curl -L --progress-bar -o "${TMP_DIR}/${ASSET}" "$DOWNLOAD_URL"
+mkdir -p "$TMP_DIR/src"
+curl -sfL -o "${TMP_DIR}/${ASSET}" "$DOWNLOAD_URL" || fail "download failed (${DOWNLOAD_URL})"
 echo "[update] Download complete."
 
 echo "[update] Extracting..."
-tar -xzf "${TMP_DIR}/${ASSET}" -C "$TMP_DIR"
+# Extract into src/ so the archive itself is never rsynced into GAMECORE_PATH.
+tar -xzf "${TMP_DIR}/${ASSET}" -C "${TMP_DIR}/src" || fail "archive extraction failed"
 
-# The tar may extract into a subdirectory (e.g. GamecoreRenew-v2.0.0/).
-# Find the actual source root: prefer a dir that contains backend/, else use TMP_DIR itself.
-SRC_DIR="$TMP_DIR"
-EXTRACTED=$(find "$TMP_DIR" -maxdepth 1 -mindepth 1 -type d | head -1)
-if [[ -n "$EXTRACTED" && -d "${EXTRACTED}/backend" ]]; then
+# The tar may extract flat or into a subdirectory (e.g. GamecoreRenew-v2.0.0/).
+SRC_DIR="${TMP_DIR}/src"
+if [[ ! -d "${SRC_DIR}/backend" ]]; then
+  EXTRACTED=$(find "${SRC_DIR}" -maxdepth 1 -mindepth 1 -type d | head -1)
+  [[ -n "$EXTRACTED" && -d "${EXTRACTED}/backend" ]] || fail "no backend/ found in archive"
   SRC_DIR="$EXTRACTED"
 fi
 echo "[update] Source directory: ${SRC_DIR}"
-
-echo "[update] Stopping services..."
-systemctl stop gamecore-ui.service 2>/dev/null || true
-systemctl stop gamecore-backend.service 2>/dev/null || true
 
 echo "[update] Installing new files..."
 # Excluded paths are user data — never overwrite them:
@@ -69,23 +82,28 @@ rsync -a \
   --exclude='config/' \
   --exclude='assets/overlays/' \
   --exclude='assets/logos/' \
-  "${SRC_DIR}/" "${GAMECORE_PATH}/"
+  "${SRC_DIR}/" "${GAMECORE_PATH}/" || fail "rsync failed"
 
 # Write the new version tag so the backend reports it correctly on next start
 echo "${LATEST_TAG}" > "${GAMECORE_PATH}/VERSION"
 echo "[update] Version set to ${LATEST_TAG}"
 
 echo "[update] Updating Python dependencies..."
-"${GAMECORE_PATH}/.venv/bin/pip" install -q -r "${GAMECORE_PATH}/backend/requirements.txt"
+"${GAMECORE_PATH}/.venv/bin/pip" install -q -r "${GAMECORE_PATH}/backend/requirements.txt" \
+  || fail "pip install failed"
 
 echo "[update] Rebuilding frontend..."
-cd "${GAMECORE_PATH}/frontend"
-npm install --silent
-npm run build
+cd "${GAMECORE_PATH}/frontend" || fail "frontend directory missing"
+npm install --silent || fail "npm install failed"
+npm run build        || fail "frontend build failed"
 
-echo "[update] Restarting services..."
-systemctl start gamecore-backend.service
-sleep 2
-systemctl start gamecore-ui.service
-
-echo "[update] Done! Now running ${LATEST_TAG}"
+echo "[update] Scheduling service restart (detached)..."
+# --no-block: return immediately; the restart runs in its own unit, outside
+# this script's cgroup, ~2s after we exit (see gamecore-restart.service).
+if sudo -n systemctl start --no-block gamecore-restart.service 2>/dev/null; then
+  echo "[update] Done! ${LATEST_TAG} installed — services restarting in a few seconds."
+else
+  echo "[update] Files installed (${LATEST_TAG}) but automatic restart is not set up."
+  echo "[update] Run once:  sudo ${GAMECORE_PATH}/install/setup-update-permissions.sh"
+  echo "[update] Then restart manually:  sudo systemctl restart gamecore-backend gamecore-ui"
+fi

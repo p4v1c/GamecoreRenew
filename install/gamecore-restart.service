@@ -1,0 +1,8 @@
+[Unit]
+Description=GameCore — post-OTA service restart (detached from the backend)
+
+[Service]
+Type=oneshot
+# Give the update script time to exit and the WebSocket to deliver update:done
+ExecStartPre=/usr/bin/sleep 2
+ExecStart=/usr/bin/systemctl restart gamecore-backend.service gamecore-ui.service
