@@ -404,7 +404,15 @@ How the reference box is wired together. GameCore runs from `/opt/GameCore` with
 | `gamecore-backend.service` | FastAPI backend (uvicorn, port **8765**). `Environment=GAMECORE_PATH=/opt/GameCore`. The TheGamesDB API key lives in a local drop-in (`systemctl edit gamecore-backend` → `Environment=THEGAMESDB_API_KEY=…`) — never in the repo. |
 | `gamecore-ui.service` | Electron shell (`electron/start-ui.sh`), started after the display manager. |
 
-Two companion projects handle TV input and Twitch:
+Two companion projects handle TV input and Twitch. **A `--full` install sets both up
+automatically** — it clones them, installs their user services, and prompts for the
+Twitch Client ID/Secret and the TheGamesDB API key (secrets are written to local
+files/systemd drop-ins only, never to git; leave empty for demo mode). It also creates
+the Firefox kiosk profiles for the YouTube/Twitch tiles and installs Stremio. The only
+manual step left after a full install is copying BIOS/firmwares (PS1/PS2/PS3, DS/3DS,
+Switch keys) — those can't be distributed.
+
+For reference, what the installer wires up:
 
 - **[gamepad-tv-bridge](https://github.com/p4v1c/gamepad-tv-bridge)** — daemon translating gamepad input to keyboard events for apps that don't speak gamepad (Firefox kiosk, EmberTV…). Cloned in `/opt/gamepad-tv-bridge`, installed editable in `~/.venv` (`pip install -e .`), runs as the **user** unit `gamepad-tv-bridge.service` (`WantedBy=graphical-session.target`). Per-app YAML profiles in `profiles/` (window-title matching).
 - **[Twitch-TV / EmberTV](https://github.com/p4v1c/Twitch-TV)** — controller-first Twitch client. Cloned in `/opt/Twitch-TV`, credentials in `config.json` (copy `config.example.json`), TLS cert via `make-cert.sh`, runs as the **user** unit `embertv.service` (`./install-autostart.sh`), HTTPS port **8097**. GameCore's Twitch app entry (`config/apps.json`) opens it in a Firefox kiosk profile at `https://localhost:8097`.
