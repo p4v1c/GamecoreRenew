@@ -211,5 +211,37 @@
       "Nintendo - Game Boy Color",
       "Nintendo - Game Boy"
     ]
+  },
+  {
+    "id": "xenia",
+    "type": "emulator",
+    "label": "Xbox 360",
+    "platform": "X360",
+    "color": "#107c10",
+    "iconPath": "assets/logos/xenia.png",
+    "path": "/usr/bin/wine",
+    "args": "lib/xenia/xenia_canary.exe --fullscreen=true",
+    "romsPath": "emu/xenia/",
+    "extensions": [
+      "*.iso",
+      "*.xex"
+    ],
+    "libretroSystems": [
+      "Microsoft - Xbox 360"
+    ]
+  },
+  {
+    "id": "shadps4",
+    "type": "emulator",
+    "label": "PlayStation 4",
+    "platform": "PS4",
+    "color": "#003791",
+    "iconPath": "assets/logos/shadps4.png",
+    "path": "flatpak",
+    "args": "run net.shadps4.shadPS4 --fullscreen true -g",
+    "romsPath": "emu/shadps4/",
+    "scanDirs": true,
+    "extensions": [],
+    "libretroSystems": []
   }
 ]

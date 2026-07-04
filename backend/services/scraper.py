@@ -20,6 +20,8 @@ TGDB_PLATFORM_MAP: dict[str, int] = {
     "azahar":      4912,
     "citron":      4971,
     "cemu":        38,
+    "xenia":       15,     # Xbox 360
+    "shadps4":     4919,   # PlayStation 4
 }
 
 _TGDB_SEARCH  = "https://api.thegamesdb.net/v1/Games/ByGameName"

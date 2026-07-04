@@ -42,8 +42,13 @@ You navigate with a gamepad, launch emulators, and never touch a keyboard.
 | `mgba` | mGBA | Game Boy Advance |
 | `melonds` | melonDS | Nintendo DS |
 | `gopher64` | Gopher64 | Nintendo 64 |
-| `xenia` | Xenia | Xbox 360 |
+| `xenia` | Xenia Canary | Xbox 360 |
 | `shadps4` | shadPS4 | PlayStation 4 |
+
+> - **PlayStation 1** uses the official DuckStation **AppImage** — the Flatpak was discontinued upstream in 2025.
+> - **Xbox 360** runs Xenia Canary **through Wine** (`lib/xenia/xenia_canary.exe`, downloaded by the full installer).
+> - **PlayStation 4** uses the shadPS4 Flatpak; games are folders (`emu/shadps4/<Game>/eboot.bin`, `scanDirs`).
+> - Everything else installs from Flathub. Full-mode installs grant each emulator `--filesystem` (ROMs) and `--device=all` (controller) overrides automatically.
 
 ---
 

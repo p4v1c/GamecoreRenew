@@ -17,6 +17,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_ROOT="$(dirname "$SCRIPT_DIR")/emu-configs"
 SRC_HOME="/home/pavic"   # HOME on the box the configs were harvested from
+GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
 
 [[ -d "$SRC_ROOT" ]] || { echo "emu-configs/ not found next to install/ — nothing to do."; exit 1; }
 
@@ -37,6 +38,8 @@ declare -A DEST=(
   [ppsspp]="$HOME/.var/app/org.ppsspp.PPSSPP/config/ppsspp/PSP/SYSTEM"
   [cemu]="$HOME/.var/app/info.cemu.Cemu/config/Cemu"
   [ryujinx]="$HOME/.var/app/io.github.ryubing.Ryujinx/config/Ryujinx"
+  [shadps4]="$HOME/.var/app/net.shadps4.shadPS4/config/shadps4"
+  [xenia]="$GAMECORE_PATH/lib/xenia"   # portable: config lives next to xenia_canary.exe
 )
 
 echo "Deploying emulator configs from ${SRC_ROOT}"

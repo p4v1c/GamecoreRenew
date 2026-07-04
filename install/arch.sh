@@ -142,6 +142,7 @@ if [[ "$MODE" == "full" ]]; then
     org.ppsspp.PPSSPP
     info.cemu.Cemu
     io.github.ryubing.Ryujinx
+    net.shadps4.shadPS4
     com.valvesoftware.Steam
   )
   for pkg in "${FLATPAKS[@]}"; do
@@ -164,11 +165,39 @@ if [[ "$MODE" == "full" ]]; then
     ok "DuckStation already present."
   else
     DUCK_URL=$(curl -sf "https://api.github.com/repos/stenzek/duckstation/releases/latest" \
-      | grep -o '"browser_download_url":"[^"]*x64\.AppImage"' | grep -o 'https://[^"]*' | head -1)
+      | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if a["name"]=="DuckStation-x64.AppImage"), ""))')
     if [[ -n "$DUCK_URL" ]]; then
       curl -L -o "$DUCK_BIN" "$DUCK_URL" && chmod +x "$DUCK_BIN" && ok "DuckStation installed." || warn "Download failed."
     else
       warn "Could not fetch DuckStation URL."
+    fi
+  fi
+
+  # ── Xenia Canary (Xbox 360) — runs through Wine ────────────────
+  msg "Xenia Canary (Wine)"
+  pacman -S --noconfirm --needed wine unzip p7zip && ok "wine + archive tools installed." || warn "wine install failed."
+  XENIA_DIR="$GAMECORE_PATH/lib/xenia"
+  if [ -f "$XENIA_DIR/xenia_canary.exe" ]; then
+    ok "Xenia already present."
+  else
+    XENIA_URL=$(curl -sf "https://api.github.com/repos/xenia-canary/xenia-canary-releases/releases/latest" \
+      | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if "windows" in a["name"].lower()), ""))')
+    if [[ -n "$XENIA_URL" ]]; then
+      mkdir -p "$XENIA_DIR"
+      XENIA_PKG="/tmp/xenia_canary_pkg"
+      curl -sfL -o "$XENIA_PKG" "$XENIA_URL" || warn "Xenia download failed."
+      case "$XENIA_URL" in
+        *.zip) unzip -o -q "$XENIA_PKG" -d "$XENIA_DIR" ;;
+        *.7z)  7z x -y -o"$XENIA_DIR" "$XENIA_PKG" >/dev/null ;;
+        *)     warn "Unknown Xenia archive format: $XENIA_URL" ;;
+      esac
+      rm -f "$XENIA_PKG"
+      chown -R "${USER_NAME}:${USER_NAME}" "$XENIA_DIR"
+      [ -f "$XENIA_DIR/xenia_canary.exe" ] \
+        && ok "Xenia Canary installed → lib/xenia/ (launched via wine)." \
+        || warn "xenia_canary.exe not found after extraction."
+    else
+      warn "Could not fetch Xenia Canary URL."
     fi
   fi
 
@@ -191,7 +220,7 @@ fi
 
 # ── ROM directories ──────────────────────────────────────────────
 msg "ROM directories"
-for d in azahar cemu citron ryujinx dolphin duckstation gopher64 melonds mgba pcsx2 ppsspp rpcs3 covers; do
+for d in azahar cemu citron ryujinx dolphin duckstation gopher64 melonds mgba pcsx2 ppsspp rpcs3 xenia shadps4 covers; do
   sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/emu/$d"
 done
 ok "ROM directories ready."
