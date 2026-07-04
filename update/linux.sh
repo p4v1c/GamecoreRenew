@@ -92,10 +92,14 @@ echo "[update] Updating Python dependencies..."
 "${GAMECORE_PATH}/.venv/bin/pip" install -q -r "${GAMECORE_PATH}/backend/requirements.txt" \
   || fail "pip install failed"
 
-echo "[update] Rebuilding frontend..."
-cd "${GAMECORE_PATH}/frontend" || fail "frontend directory missing"
-npm install --silent || fail "npm install failed"
-npm run build        || fail "frontend build failed"
+if [[ -d "${SRC_DIR}/frontend/dist" ]]; then
+  echo "[update] Frontend delivered prebuilt by CI — no rebuild needed."
+else
+  echo "[update] Rebuilding frontend..."
+  cd "${GAMECORE_PATH}/frontend" || fail "frontend directory missing"
+  npm install --silent || fail "npm install failed"
+  npm run build        || fail "frontend build failed"
+fi
 
 echo "[update] Scheduling service restart (detached)..."
 # --no-block: return immediately; the restart runs in its own unit, outside

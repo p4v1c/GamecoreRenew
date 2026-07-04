@@ -55,9 +55,11 @@ jobs:
 
       - name: Package — OTA archive
         run: |
-          mkdir -p dist_ota
+          mkdir -p dist_ota/frontend
           cp -r backend       dist_ota/
-          cp -r frontend/dist dist_ota/frontend/
+          # Ship the build under frontend/dist/ — same layout as the install dir,
+          # so the OTA rsync never overwrites the frontend sources (index.html).
+          cp -r frontend/dist dist_ota/frontend/dist
           cp -r config        dist_ota/
           cp -r electron      dist_ota/
           cp -r update        dist_ota/
