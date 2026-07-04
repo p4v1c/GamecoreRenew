@@ -1,0 +1,29 @@
+# ============================================================================
+# Config custom RPCS3 — Call of Duty: Advanced Warfare (BLUS31466 US, v01.20)
+# Cible : GMKtec NucBox M7 Ultra (Ryzen 7 PRO 6850U + Radeon 680M) — Manjaro
+# ----------------------------------------------------------------------------
+# But : SUPPRIMER LE SCINTILLEMENT / CLIGNOTEMENT DE TEXTURES.
+# Emplacement lu par RPCS3 (natif) : ~/.config/rpcs3/custom_configs/
+#   (PAS ~/.config/rpcs3/config/custom_configs/ — ce dossier-là est ignoré.)
+# Ne liste que les valeurs qui diffèrent des défauts globaux.
+# ============================================================================
+Core:
+  # CPU AMD sans TSX : stabilise les réservations RSX (déjà true en global, épinglé ici).
+  Accurate RSX reservation access: true
+Video:
+  Renderer: Vulkan
+  Resolution Scale: 100
+  # >>> LE CORRECTIF <<< Les jeux Activision/Call of Duty ont un scintillement de
+  # textures (surfaces qui clignotent) sur RPCS3 tant que Write Color Buffers est
+  # désactivé. L'activer corrige le problème. (Correctif documenté RPCS3.)
+  Write Color Buffers: true
+  # +1-2 FPS, gratuit sur 16 threads, lisse les à-coups.
+  Multithreaded RSX: true
+  # FSR en sortie : compense le flou de l'upscale interne ~600p -> écran.
+  Output Scaling Mode: FidelityFX Super Resolution
+  # Netteté modérée (30) : assez pour la lisibilité sans réamplifier le scintillement
+  # de bords (un sharpening élevé accentue le shimmer temporel).
+  FidelityFX CAS Sharpening Intensity: 30
+Miscellaneous:
+  # Active Feral GameMode pendant l'émulation (sudo pacman -S gamemode).
+  Enable GameMode: true
