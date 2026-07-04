@@ -15,10 +15,21 @@ warn() { echo -e "  ${YLW}⚠  $*${RST}"; }
 die()  { echo -e "\n${RED}[ERROR]${RST} $*" >&2; exit 1; }
 info() { echo -e "  ${RST}$*"; }
 
-[[ $EUID -eq 0 ]] || die "Run with sudo: sudo bash install/debian.sh"
+[[ $EUID -eq 0 ]] || die "Run with sudo: sudo bash install/debian.sh [--full|--minimal]"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# ── Install mode ─────────────────────────────────────────────────
+#   --full    : GameCore + all emulators/apps (Flatpak) + curated configs
+#   --minimal : GameCore only — no emulator, no application
+MODE="${1:-}"
+case "$MODE" in
+  --full)    MODE="full" ;;
+  --minimal) MODE="minimal" ;;
+  "")        ;;
+  *)         die "Unknown option '$MODE' (use --full or --minimal)" ;;
+esac
 
 # ── Banner ───────────────────────────────────────────────────────
 echo -e "\n${BLU}╔══════════════════════════════════════╗${RST}"
@@ -34,12 +45,19 @@ WEB_PORT="${WEB_PORT:-8765}"
 
 LOCAL_IP=$(hostname -I | awk '{print $1}')
 
+if [[ -z "$MODE" ]]; then
+  echo
+  read -rp "  Install emulators & applications too? Full install / GameCore only (F/m) : " ANSWER
+  [[ "$ANSWER" =~ ^[mM]$ ]] && MODE="minimal" || MODE="full"
+fi
+
 echo
 msg "Summary"
 info "User         : $USER_NAME"
 info "Install path : $GAMECORE_PATH"
 info "API port     : $WEB_PORT"
 info "Detected IP  : $LOCAL_IP"
+info "Mode         : $MODE $([ "$MODE" = minimal ] && echo '(no emulators, no apps)' || echo '(emulators + apps + configs)')"
 echo
 read -rp "  Continue? (y/N) " CONFIRM
 [[ "$CONFIRM" =~ ^[yY]$ ]] || die "Aborted."
@@ -105,41 +123,54 @@ flatpak remote-list 2>/dev/null | grep -q flathub \
   || flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 ok "Flathub ready."
 
-# ── Emulators ────────────────────────────────────────────────────
-msg "Installing emulators (Flatpak)"
-FLATPAKS=(
-  org.azahar_emu.Azahar
-  net.rpcs3.RPCS3
-  net.pcsx2.PCSX2
-  org.DolphinEmu.dolphin-emu
-  net.kuribo64.melonDS
-  io.github.gopher64.gopher64
-  io.mgba.mGBA
-  org.ppsspp.PPSSPP
-  info.cemu.Cemu
-  io.github.ryubing.Ryujinx
-  com.valvesoftware.Steam
-)
-for pkg in "${FLATPAKS[@]}"; do
-  flatpak list --app 2>/dev/null | grep -q "$pkg" \
-    && info "$pkg — already installed." \
-    || { flatpak install -y flathub "$pkg" && ok "$pkg installed." || warn "$pkg failed."; }
-done
+# ── Emulators (full mode only) ───────────────────────────────────
+if [[ "$MODE" == "full" ]]; then
+  msg "Installing emulators (Flatpak)"
+  FLATPAKS=(
+    org.azahar_emu.Azahar
+    net.rpcs3.RPCS3
+    net.pcsx2.PCSX2
+    org.DolphinEmu.dolphin-emu
+    net.kuribo64.melonDS
+    io.github.gopher64.gopher64
+    io.mgba.mGBA
+    org.ppsspp.PPSSPP
+    info.cemu.Cemu
+    io.github.ryubing.Ryujinx
+    com.valvesoftware.Steam
+  )
+  for pkg in "${FLATPAKS[@]}"; do
+    flatpak list --app 2>/dev/null | grep -q "$pkg" \
+      && info "$pkg — already installed." \
+      || { flatpak install -y flathub "$pkg" && ok "$pkg installed." || warn "$pkg failed."; }
+  done
 
-# ── DuckStation AppImage ─────────────────────────────────────────
-msg "DuckStation AppImage"
-DUCK_BIN="$GAMECORE_PATH/bin/duckstation.AppImage"
-sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/bin"
-if [ -f "$DUCK_BIN" ]; then
-  ok "DuckStation already present."
-else
-  DUCK_URL=$(curl -sf "https://api.github.com/repos/stenzek/duckstation/releases/latest" \
-    | grep -o '"browser_download_url":"[^"]*x64\.AppImage"' | grep -o 'https://[^"]*' | head -1)
-  if [[ -n "$DUCK_URL" ]]; then
-    curl -L -o "$DUCK_BIN" "$DUCK_URL" && chmod +x "$DUCK_BIN" && ok "DuckStation installed." || warn "Download failed."
+  # ── DuckStation AppImage ─────────────────────────────────────────
+  msg "DuckStation AppImage"
+  DUCK_BIN="$GAMECORE_PATH/bin/duckstation.AppImage"
+  sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/bin"
+  if [ -f "$DUCK_BIN" ]; then
+    ok "DuckStation already present."
   else
-    warn "Could not fetch DuckStation URL."
+    DUCK_URL=$(curl -sf "https://api.github.com/repos/stenzek/duckstation/releases/latest" \
+      | grep -o '"browser_download_url":"[^"]*x64\.AppImage"' | grep -o 'https://[^"]*' | head -1)
+    if [[ -n "$DUCK_URL" ]]; then
+      curl -L -o "$DUCK_BIN" "$DUCK_URL" && chmod +x "$DUCK_BIN" && ok "DuckStation installed." || warn "Download failed."
+    else
+      warn "Could not fetch DuckStation URL."
+    fi
   fi
+
+  # ── Curated emulator configs (incl. controller bindings) ───────
+  msg "Emulator configs"
+  if [ -d "$GAMECORE_PATH/emu-configs" ]; then
+    sudo -u "$USER_NAME" bash "$GAMECORE_PATH/install/install-emu-configs.sh" \
+      && ok "Curated configs deployed." || warn "Config deployment failed."
+  else
+    warn "emu-configs/ not found — skipping."
+  fi
+else
+  msg "Minimal mode — skipping emulators, applications and configs."
 fi
 
 # ── ROM directories ──────────────────────────────────────────────
@@ -160,6 +191,22 @@ KERNEL=="event*", SUBSYSTEM=="input", ATTRS{bInterfaceClass}=="03", MODE="0664",
 # Sony DualShock / DualSense (vendor 054c)
 SUBSYSTEM=="input", ATTRS{idVendor}=="054c", MODE="0664", GROUP="input"
 UDEV
+
+# DualShock 4 over hidraw — needed by RPCS3's native DS4 pad handler
+cat > /etc/udev/rules.d/99-ds4-controllers.rules <<'UDEV'
+# DualShock 4 over USB
+KERNEL=="hidraw*", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="05c4", MODE="0666"
+# DualShock 4 Wireless Adapter over USB
+KERNEL=="hidraw*", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="0ba0", MODE="0666"
+# DualShock 4 Slim over USB
+KERNEL=="hidraw*", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="09cc", MODE="0666"
+# DualShock 4 over Bluetooth
+KERNEL=="hidraw*", KERNELS=="*054C:05C4*", MODE="0666"
+# DualShock 4 Slim over Bluetooth
+KERNEL=="hidraw*", KERNELS=="*054C:09CC*", MODE="0666"
+UDEV
+ok "DualShock 4 hidraw rules installed."
+
 udevadm control --reload-rules 2>/dev/null && udevadm trigger 2>/dev/null && ok "udev rules reloaded." || warn "udev reload failed."
 
 # ── Python backend ───────────────────────────────────────────────
