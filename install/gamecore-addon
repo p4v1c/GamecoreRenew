@@ -179,8 +179,9 @@ cmd_update() {
 }
 
 cmd_list() {
-  # Try to have a checkout for the "available" side, but never fail `list`.
-  [[ -d "$GCA_REPO_DIR/.git" ]] || ensure_repo 2>/dev/null || true
+  # Try to have a checkout for the "available" side, but never fail `list` —
+  # subshell required: die() would exit the whole script through `|| true`.
+  [[ -d "$GCA_REPO_DIR/.git" ]] || ( ensure_repo ) >/dev/null 2>&1 || true
   python3 - "$GCA_REPO_DIR" "$REGISTRY" "${1:-}" <<'PY'
 import json, sys, glob, os
 repo_dir, registry, flag = sys.argv[1], sys.argv[2], sys.argv[3]

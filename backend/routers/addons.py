@@ -105,7 +105,7 @@ def _start(action: str, name: str) -> dict:
         raise HTTPException(400, "invalid addon name")
     if _busy_lock.locked():
         raise HTTPException(409, "another addon operation is running")
-    task = asyncio.get_event_loop().create_task(_run_cli(action, name))
+    task = asyncio.create_task(_run_cli(action, name))
     task.add_done_callback(lambda t: t.cancelled() or (t.exception() and log.warning("addon task failed: %s", t.exception())))
     return {"ok": True, "message": f"{action} {name} started"}
 
