@@ -25,14 +25,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # ── Install mode ─────────────────────────────────────────────────
-#   --full    : GameCore + all emulators/apps (Flatpak) + curated configs
-#   --minimal : GameCore only — no emulator, no application
+#   --full           : GameCore + all emulators/apps (Flatpak) + curated configs
+#   --minimal        : GameCore only — no emulator, no application
+#   --unattended <f> : zero prompt — read everything from conf file <f>
+#                      (written by the graphical wizard install/install.sh,
+#                      also the entry point for the GameCore OS ISO)
 MODE="${1:-}"
+UNATTENDED=false
+CONF=""
 case "$MODE" in
   --full)    MODE="full" ;;
   --minimal) MODE="minimal" ;;
+  --unattended)
+    UNATTENDED=true; MODE=""
+    CONF="${2:-}"
+    [[ -n "$CONF" && -f "$CONF" ]] || die "usage: arch.sh --unattended <conf-file>"
+    ;;
   "")        ;;  # asked interactively after the summary
-  *)         die "Unknown option '$MODE' (use --full or --minimal)" ;;
+  *)         die "Unknown option '$MODE' (use --full, --minimal or --unattended <conf>)" ;;
 esac
 
 # ── Detect distro ────────────────────────────────────────────────
@@ -44,30 +54,49 @@ echo -e "\n${BLU}╔════════════════════
 echo -e "${BLU}║     GameCore — Installer          ║${RST}"
 echo -e "${BLU}╚══════════════════════════════════════╝${RST}"
 
-# ── Prompts ──────────────────────────────────────────────────────
-read -rp "  System username (e.g. pavic)         : " USER_NAME
-read -rp "  Install path [default: /opt/GameCore] : " GAMECORE_PATH
-GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
-read -rp "  Web ROM port [default: 8765]          : " WEB_PORT
-WEB_PORT="${WEB_PORT:-8765}"
+# ── Configuration — conf file (unattended) or prompts ────────────
+# EMULATORS: "all" or space-separated ids among:
+#   azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu ryujinx
+#   shadps4 steam duckstation xenia
+# ADDONS: space-separated gamecore-addons names installed at the end.
+EMULATORS="all"
+ADDONS="rom-manager"
+TWITCH_CLIENT_ID=""; TWITCH_CLIENT_SECRET=""; TGDB_API_KEY=""
 
 LOCAL_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}')
 
-if [[ -z "$MODE" ]]; then
-  echo
-  read -rp "  Install emulators & applications too? Full install / GameCore only (F/m) : " ANSWER
-  [[ "$ANSWER" =~ ^[mM]$ ]] && MODE="minimal" || MODE="full"
+if $UNATTENDED; then
+  # shellcheck disable=SC1090
+  source "$CONF"
+  [[ -n "${USER_NAME:-}" ]] || die "USER_NAME missing in $CONF"
+  GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
+  WEB_PORT="${WEB_PORT:-8765}"
+  MODE="${MODE:-full}"
+  [[ "$MODE" == "full" || "$MODE" == "minimal" ]] || die "MODE must be full or minimal"
+else
+  read -rp "  System username (e.g. pavic)         : " USER_NAME
+  read -rp "  Install path [default: /opt/GameCore] : " GAMECORE_PATH
+  GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
+  read -rp "  Web ROM port [default: 8765]          : " WEB_PORT
+  WEB_PORT="${WEB_PORT:-8765}"
+
+  if [[ -z "$MODE" ]]; then
+    echo
+    read -rp "  Install emulators & applications too? Full install / GameCore only (F/m) : " ANSWER
+    [[ "$ANSWER" =~ ^[mM]$ ]] && MODE="minimal" || MODE="full"
+  fi
+
+  if [[ "$MODE" == "full" ]]; then
+    echo
+    info "EmberTV (Twitch on the TV) — leave empty to run in demo mode."
+    info "Create the app at https://dev.twitch.tv/console/apps (redirect: http://localhost:8097)."
+    read -rp  "  Twitch Client ID                      : " TWITCH_CLIENT_ID
+    read -rsp "  Twitch Client Secret (hidden)         : " TWITCH_CLIENT_SECRET; echo
+    read -rsp "  TheGamesDB API key (covers, optional) : " TGDB_API_KEY; echo
+  fi
 fi
 
-TWITCH_CLIENT_ID=""; TWITCH_CLIENT_SECRET=""; TGDB_API_KEY=""
-if [[ "$MODE" == "full" ]]; then
-  echo
-  info "EmberTV (Twitch on the TV) — leave empty to run in demo mode."
-  info "Create the app at https://dev.twitch.tv/console/apps (redirect: http://localhost:8097)."
-  read -rp  "  Twitch Client ID                      : " TWITCH_CLIENT_ID
-  read -rsp "  Twitch Client Secret (hidden)         : " TWITCH_CLIENT_SECRET; echo
-  read -rsp "  TheGamesDB API key (covers, optional) : " TGDB_API_KEY; echo
-fi
+want_emu() { [[ "$EMULATORS" == "all" || " $EMULATORS " == *" $1 "* ]]; }
 
 echo
 msg "Summary"
@@ -76,10 +105,14 @@ info "Install path : $GAMECORE_PATH"
 info "API port     : $WEB_PORT"
 info "Detected IP  : $LOCAL_IP"
 info "Mode         : $MODE $([ "$MODE" = minimal ] && echo '(no emulators, no apps)' || echo '(emulators + apps + configs)')"
+[[ "$MODE" == "full" ]] && info "Emulators    : $EMULATORS"
+info "Addons       : ${ADDONS:-none}"
 [[ "$MODE" == "full" ]] && info "EmberTV      : $([ -n "$TWITCH_CLIENT_ID" ] && echo 'live Twitch (credentials set)' || echo 'demo mode (no credentials)')"
 echo
-read -rp "  Continue? (y/N) " CONFIRM
-[[ "$CONFIRM" =~ ^[yY]$ ]] || die "Aborted."
+if ! $UNATTENDED; then
+  read -rp "  Continue? (y/N) " CONFIRM
+  [[ "$CONFIRM" =~ ^[yY]$ ]] || die "Aborted."
+fi
 
 # ── User check ───────────────────────────────────────────────────
 msg "Checking user"
@@ -157,20 +190,24 @@ ok "Flathub ready."
 # ── Emulators (full mode only) ───────────────────────────────────
 if [[ "$MODE" == "full" ]]; then
   msg "Installing emulators (Flatpak)"
-  FLATPAKS=(
-    org.azahar_emu.Azahar
-    net.rpcs3.RPCS3
-    net.pcsx2.PCSX2
-    org.DolphinEmu.dolphin-emu
-    net.kuribo64.melonDS
-    io.github.gopher64.gopher64
-    io.mgba.mGBA
-    org.ppsspp.PPSSPP
-    info.cemu.Cemu
-    io.github.ryubing.Ryujinx
-    net.shadps4.shadPS4
-    com.valvesoftware.Steam
+  declare -A EMU_FLATPAK=(
+    [azahar]=org.azahar_emu.Azahar
+    [rpcs3]=net.rpcs3.RPCS3
+    [pcsx2]=net.pcsx2.PCSX2
+    [dolphin]=org.DolphinEmu.dolphin-emu
+    [melonds]=net.kuribo64.melonDS
+    [gopher64]=io.github.gopher64.gopher64
+    [mgba]=io.mgba.mGBA
+    [ppsspp]=org.ppsspp.PPSSPP
+    [cemu]=info.cemu.Cemu
+    [ryujinx]=io.github.ryubing.Ryujinx
+    [shadps4]=net.shadps4.shadPS4
+    [steam]=com.valvesoftware.Steam
   )
+  FLATPAKS=()
+  for id in azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu ryujinx shadps4 steam; do
+    want_emu "$id" && FLATPAKS+=("${EMU_FLATPAK[$id]}")
+  done
   for pkg in "${FLATPAKS[@]}"; do
     flatpak list --app 2>/dev/null | grep -q "$pkg" \
       && info "$pkg — already installed." \
@@ -184,6 +221,7 @@ if [[ "$MODE" == "full" ]]; then
   ok "Flatpak overrides applied (ROMs dir + controller access)."
 
   # ── DuckStation AppImage ───────────────────────────────────────
+  if want_emu duckstation; then
   msg "DuckStation AppImage"
   DUCK_BIN="$GAMECORE_PATH/bin/duckstation.AppImage"
   sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/bin"
@@ -199,7 +237,10 @@ if [[ "$MODE" == "full" ]]; then
     fi
   fi
 
+  fi  # duckstation
+
   # ── Xenia Canary (Xbox 360) — runs through Wine ────────────────
+  if want_emu xenia; then
   msg "Xenia Canary (Wine)"
   pacman -S --noconfirm --needed wine unzip p7zip && ok "wine + archive tools installed." || warn "wine install failed."
   XENIA_DIR="$GAMECORE_PATH/lib/xenia"
@@ -226,6 +267,8 @@ if [[ "$MODE" == "full" ]]; then
       warn "Could not fetch Xenia Canary URL."
     fi
   fi
+
+  fi  # xenia
 
   # ── Adapt systems.json to this machine's launchers ─────────────
   msg "Systems → Flatpak launchers"
@@ -547,20 +590,24 @@ msg "SSH"
 systemctl enable --now sshd
 ok "SSH active."
 
-# ── Default addons ───────────────────────────────────────────────
-# The ROM Manager lives in p4v1c/gamecore-addons since the addon system —
-# everyone wants it, so it is installed by default (user-level service).
-msg "Default addons (rom-manager)"
-USER_UID=$(id -u "$USER_NAME")
-loginctl enable-linger "$USER_NAME" 2>/dev/null || true
-# systemctl --user needs the user manager's bus — wait for it briefly
-for i in $(seq 1 10); do [ -S "/run/user/$USER_UID/bus" ] && break; sleep 1; done
-if sudo -u "$USER_NAME" \
-     env GAMECORE_PATH="$GAMECORE_PATH" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
-     /usr/local/bin/gamecore-addon install rom-manager; then
-  ok "rom-manager addon installed → http://${LOCAL_IP}:8770"
-else
-  warn "rom-manager addon install failed — run later: gamecore-addon install rom-manager"
+# ── Addons ───────────────────────────────────────────────────────
+# Selected gamecore-addons modules (rom-manager by default — everyone
+# wants the browser ROM upload). Each runs as a user-level service.
+if [[ -n "$ADDONS" ]]; then
+  msg "Addons ($ADDONS)"
+  USER_UID=$(id -u "$USER_NAME")
+  loginctl enable-linger "$USER_NAME" 2>/dev/null || true
+  # systemctl --user needs the user manager's bus — wait for it briefly
+  for i in $(seq 1 10); do [ -S "/run/user/$USER_UID/bus" ] && break; sleep 1; done
+  for addon in $ADDONS; do
+    if sudo -u "$USER_NAME" \
+         env GAMECORE_PATH="$GAMECORE_PATH" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+         /usr/local/bin/gamecore-addon install "$addon"; then
+      ok "addon '$addon' installed."
+    else
+      warn "addon '$addon' failed — run later: gamecore-addon install $addon"
+    fi
+  done
 fi
 
 # ── Final summary ────────────────────────────────────────────────

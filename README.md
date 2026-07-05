@@ -72,10 +72,26 @@ All emulators are installed via **Flatpak**. Make sure Flatpak is available on y
 > Run this on the machine that will act as the kiosk.  
 > The installer sets up auto-login, auto-start, and all dependencies.
 
+**Graphical installer (recommended)** — a native step-by-step wizard, like any
+desktop installer. Download `gamecore-installer` from the
+[latest release](https://github.com/p4v1c/GamecoreRenew/releases/latest), then:
+
+```bash
+chmod +x gamecore-installer
+./gamecore-installer
+```
+
+Pick your emulators and addons, paste your API keys (optional), hit Install —
+it asks for the administrator password (polkit), downloads the latest GameCore
+release and does everything. Re-running it is safe.
+
+**Command line** (SSH / no graphical session):
+
 ```bash
 git clone https://github.com/p4v1c/GamecoreRenew.git
 cd GamecoreRenew
-sudo bash install/arch.sh
+sudo bash install/arch.sh                      # interactive prompts
+sudo bash install/arch.sh --unattended my.conf # scripted (see install/gamecore-install.conf.example)
 ```
 
 What the installer does:
@@ -433,6 +449,6 @@ electron/         Electron kiosk shell + overlay BrowserWindow
 config/           systems.json, overlays.json
 assets/           logos/, overlays/
 emu/              ROMs per system (emu/dolphin/, emu/melonds/…)
-install/          Installer (arch.sh — Arch/Manjaro only)
+install/          Installers: arch.sh engine (+ --unattended), installer-gui/ (Qt binary), gamecore-addon CLI
 update/           OTA update script (linux.sh)
 ```

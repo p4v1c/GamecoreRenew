@@ -73,3 +73,8 @@ dist_full/
 
 # Qt old project build (already in GameCore/build but just in case)
 GameCore/
+
+# Installer GUI build artifacts
+install/installer-gui/.buildvenv/
+install/installer-gui/build/
+install/installer-gui/*.spec

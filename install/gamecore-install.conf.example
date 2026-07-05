@@ -1,0 +1,18 @@
+# gamecore-install.conf — everything arch.sh --unattended needs.
+# The graphical installer generates this file for you; it is documented
+# here for scripted installs and the GameCore OS ISO.
+
+USER_NAME=pavic                 # required — Linux user running GameCore
+GAMECORE_PATH=/opt/GameCore
+WEB_PORT=8765
+MODE=full                       # full | minimal
+# "all" or a space-separated subset of:
+#   azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu ryujinx
+#   shadps4 steam duckstation xenia
+EMULATORS='all'
+# gamecore-addons modules to install (space-separated)
+ADDONS='rom-manager'
+# Optional API keys — leave empty to skip
+TWITCH_CLIENT_ID=''
+TWITCH_CLIENT_SECRET=''
+TGDB_API_KEY=''
