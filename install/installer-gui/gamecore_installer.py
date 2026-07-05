@@ -90,7 +90,6 @@ QPlainTextEdit { font-family: monospace; font-size: 11px; background: #07080c; c
 
 def repo_root() -> Path | None:
     """When running next to a GamecoreRenew checkout, install from it."""
-    here = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
     for base in (Path(__file__).resolve(), Path(sys.argv[0]).resolve()):
         for parent in [base, *base.parents]:
             if (parent / "install" / "arch.sh").is_file() and (parent / "backend").is_dir():
@@ -440,13 +439,18 @@ class InstallerWizard(QWizard):
         addons: AddonsPage = self.page(Pages.ADDONS)
         keys: KeysPage = self.page(Pages.KEYS)
         checked = [eid for eid, cb in emus.checks.items() if cb.isChecked()]
+        if addons.checks:
+            addon_names = " ".join(n for n, cb in addons.checks.items() if cb.isChecked())
+        else:
+            # addons fetch still pending (user rushed through) — keep the default
+            addon_names = "rom-manager"
         return {
             "user": sysp.user.text().strip(),
             "path": sysp.path.text().strip(),
             "port": sysp.port.value(),
             "mode": "minimal" if mode.minimal.isChecked() else "full",
             "emulators": "all" if len(checked) == len(EMULATORS) else " ".join(checked),
-            "addons": " ".join(n for n, cb in addons.checks.items() if cb.isChecked()),
+            "addons": addon_names,
             "twitch_id": keys.twitch_id.text().strip(),
             "twitch_secret": keys.twitch_secret.text().strip(),
             "tgdb_key": keys.tgdb.text().strip(),

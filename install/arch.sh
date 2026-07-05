@@ -601,7 +601,8 @@ if [[ -n "$ADDONS" ]]; then
   for i in $(seq 1 10); do [ -S "/run/user/$USER_UID/bus" ] && break; sleep 1; done
   for addon in $ADDONS; do
     if sudo -u "$USER_NAME" \
-         env GAMECORE_PATH="$GAMECORE_PATH" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+         env GAMECORE_PATH="$GAMECORE_PATH" GAMECORE_BACKEND_PORT="$WEB_PORT" \
+             XDG_RUNTIME_DIR="/run/user/$USER_UID" \
          /usr/local/bin/gamecore-addon install "$addon"; then
       ok "addon '$addon' installed."
     else

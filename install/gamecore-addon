@@ -135,6 +135,7 @@ run_script() {  # run_script <addon-dir> <install.sh|uninstall.sh>
   fi
   USER_NAME="${SUDO_USER:-$(id -un)}" \
   GAMECORE_PATH="$GAMECORE_PATH" \
+  GAMECORE_BACKEND_PORT="${GAMECORE_BACKEND_PORT:-8765}" \
   ADDON_DIR="$dir" \
   OFFLINE="$OFFLINE" \
   PAYLOAD_DIR="$PAYLOAD_DIR" \
