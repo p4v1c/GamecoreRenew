@@ -560,6 +560,16 @@ Relogin=true
 EOF
 ok "SDDM configured for auto-login as $USER_NAME (openbox session)."
 
+# Force 1920x1080 at the display-server level (never 4K). SDDM runs this as
+# root at X startup, before any session, so the whole X server — kiosk, games
+# and overlays — is pinned to 1080p. See install/gamecore-xsetup.sh.
+install -m755 "$GAMECORE_PATH/install/gamecore-xsetup.sh" /usr/local/bin/gamecore-xsetup
+cat > /etc/sddm.conf.d/gamecore-display.conf <<EOF
+[X11]
+DisplayCommand=/usr/local/bin/gamecore-xsetup
+EOF
+ok "Display pinned to 1920x1080 (SDDM DisplayCommand)."
+
 systemctl daemon-reload
 systemctl enable sddm.service
 systemctl enable gamecore-backend.service
