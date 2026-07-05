@@ -6,7 +6,7 @@ import { onGp } from '../../../hooks/useGamepad'
 import { useSubPageGamepad } from './useSubPageGamepad'
 
 type WifiNetwork = { ssid: string; signal: number; secured: boolean; connected: boolean }
-type WifiStatus  = { connected: boolean; ssid: string; ip: string; iface: string }
+type WifiStatus  = { connected: boolean; ssid: string; ip: string; iface: string; ethernet: { connected: boolean; iface: string; ip: string } }
 
 export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () => void }) {
   const [networks, setNetworks]     = useState<WifiNetwork[]>([])
@@ -18,6 +18,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
   const [showKeyboard, setShowKeyboard] = useState(false)
   const [pendingSsid, setPendingSsid]   = useState('')
   const [focusIdx, setFocusIdx]     = useState(0)
+  const [showWifiAnyway, setShowWifiAnyway] = useState(false)
 
   const networksRef = useRef(networks)
   const focusIdxRef = useRef(focusIdx)
@@ -103,12 +104,32 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
     )
   }
 
+  const onEthernet = !!wifiStatus?.ethernet?.connected
+
   return (
     <Overlay onClose={onClose}>
       <BackHeader label="WI-FI" onBack={onBack} />
 
+      {/* Wired connection — no need for Wi-Fi */}
+      {onEthernet && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '14px 16px', borderRadius: 12, marginBottom: 14,
+          background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)',
+        }}>
+          <span style={{ fontSize: 22 }}>🔌</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>Connected via Ethernet</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+              Wired network active{wifiStatus?.ethernet.ip ? ` · ${wifiStatus.ethernet.ip}` : ''}
+              {wifiStatus?.ethernet.iface ? ` · ${wifiStatus.ethernet.iface}` : ''} — Wi-Fi not needed
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Current connection banner */}
-      {wifiStatus?.connected && (
+      {!onEthernet && wifiStatus?.connected && (
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           padding: '10px 14px', borderRadius: 10, marginBottom: 14,
@@ -139,6 +160,17 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
         </div>
       )}
 
+      {/* On ethernet: hide the Wi-Fi list (not needed) unless asked */}
+      {onEthernet && !showWifiAnyway && (
+        <div
+          onClick={() => setShowWifiAnyway(true)}
+          style={{ textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.35)', cursor: 'pointer', padding: 8 }}
+        >
+          Show Wi-Fi networks anyway ›
+        </div>
+      )}
+
+      {(!onEthernet || showWifiAnyway) && <>
       {/* Refresh button */}
       <button
         onClick={() => { setLoading(true); refresh() }}
@@ -180,6 +212,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
       <div style={{ marginTop: 8, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
         ↑↓ Navigate · ✕ Connect/Disconnect
       </div>
+      </>}
     </Overlay>
   )
 }

@@ -106,9 +106,32 @@ async def scan_networks():
     return networks
 
 
+async def _iface_ip(iface: str) -> str:
+    if not iface:
+        return ""
+    _, info, _ = await _run("nmcli", "-t", "-f", "IP4.ADDRESS", "dev", "show", iface)
+    for line in info.splitlines():
+        if line.startswith("IP4.ADDRESS"):
+            return line.split(":", 1)[-1].split("/")[0].strip()
+    return ""
+
+
+async def _ethernet_status() -> dict:
+    """Whether a wired (ethernet) connection is active — lets the UI skip the
+    Wi-Fi list when the box is plugged in."""
+    _, out, _ = await _run("nmcli", "-t", "-f", "TYPE,STATE,DEVICE", "con", "show", "--active")
+    for line in out.splitlines():
+        parts = line.split(":")
+        if len(parts) >= 2 and parts[0] == "802-3-ethernet" and parts[1] == "activated":
+            iface = parts[2] if len(parts) > 2 else ""
+            return {"connected": True, "iface": iface, "ip": await _iface_ip(iface)}
+    return {"connected": False, "iface": "", "ip": ""}
+
+
 @router.get("/status")
 async def wifi_status():
-    """Return currently connected SSID + IP, or null."""
+    """Return currently connected SSID + IP, plus wired (ethernet) status."""
+    ethernet = await _ethernet_status()
     _, out, _ = await _run(
         "nmcli", "-t", "-f", "NAME,TYPE,STATE,DEVICE", "con", "show", "--active"
     )
@@ -117,16 +140,9 @@ async def wifi_status():
         if len(parts) >= 3 and parts[1] in ("802-11-wireless",) and parts[2] == "activated":
             ssid = parts[0]
             iface = parts[3] if len(parts) > 3 else ""
-            # Get IP
-            ip = ""
-            if iface:
-                _, info, _ = await _run("nmcli", "-t", "-f", "IP4.ADDRESS", "dev", "show", iface)
-                for line in info.splitlines():
-                    if line.startswith("IP4.ADDRESS"):
-                        ip = line.split(":", 1)[-1].split("/")[0].strip()
-                        break
-            return {"connected": True, "ssid": ssid, "ip": ip, "iface": iface}
-    return {"connected": False, "ssid": "", "ip": "", "iface": ""}
+            return {"connected": True, "ssid": ssid, "ip": await _iface_ip(iface),
+                    "iface": iface, "ethernet": ethernet}
+    return {"connected": False, "ssid": "", "ip": "", "iface": "", "ethernet": ethernet}
 
 
 class ConnectRequest(BaseModel):

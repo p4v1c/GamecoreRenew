@@ -36,7 +36,7 @@ export interface SysInfo {
   storage_total_gb: number
   storage_free_gb: number
   version: string
-  controllers: { level: number }[]
+  controllers: { level: number; charging?: boolean }[]
 }
 
 async function get<T>(path: string): Promise<T> {
@@ -79,7 +79,7 @@ export const api = {
   },
   wifi: {
     networks: () => get<{ ssid: string; signal: number; secured: boolean; connected: boolean }[]>('/settings/wifi/networks'),
-    status: () => get<{ connected: boolean; ssid: string; ip: string; iface: string }>('/settings/wifi/status'),
+    status: () => get<{ connected: boolean; ssid: string; ip: string; iface: string; ethernet: { connected: boolean; iface: string; ip: string } }>('/settings/wifi/status'),
     connect: (ssid: string, password = '') => post<{ ok: boolean; wrong_password: boolean; error?: string }>('/settings/wifi/connect', { ssid, password }),
     disconnect: () => fetch(BASE + '/settings/wifi/connect', { method: 'DELETE' }).then(r => r.json()) as Promise<{ ok: boolean; error?: string }>,
   },
