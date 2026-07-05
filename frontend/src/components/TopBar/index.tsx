@@ -6,11 +6,10 @@ interface Props {
   onPower: () => void
 }
 
-function ControllerBattery({ level, charging }: { level: number; charging?: boolean }) {
-  // Charging: green bar + a lightning bolt, regardless of level.
-  const color = charging ? '#4ade80' : level > 60 ? '#4ade80' : level > 20 ? '#fbbf24' : '#ef4444'
+function ControllerBattery({ level }: { level: number }) {
+  const color = level > 60 ? '#4ade80' : level > 20 ? '#fbbf24' : '#ef4444'
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', borderRadius: 7, background: charging ? 'rgba(74,222,128,0.08)' : 'rgba(255,255,255,0.04)', border: charging ? '1px solid rgba(74,222,128,0.25)' : '1px solid rgba(255,255,255,0.07)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', borderRadius: 7, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
       {/* Gamepad icon */}
       <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
         <rect x="1" y="3" width="12" height="6" rx="3" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/>
@@ -23,16 +22,11 @@ function ControllerBattery({ level, charging }: { level: number; charging?: bool
         {/* Body */}
         <div style={{ width: 22, height: 10, borderRadius: 2, border: '1px solid rgba(255,255,255,0.25)', overflow: 'hidden', position: 'relative' }}>
           <div style={{ width: `${level}%`, height: '100%', background: color, transition: 'width 0.5s', borderRadius: 1 }} />
-          {charging && (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, lineHeight: 1, color: '#0b0d12', fontWeight: 900 }}>⚡</div>
-          )}
         </div>
         {/* Terminal nub */}
         <div style={{ width: 2, height: 5, background: 'rgba(255,255,255,0.25)', borderRadius: '0 1px 1px 0', flexShrink: 0 }} />
       </div>
-      <span style={{ fontSize: 11, color, fontWeight: 700, fontFamily: 'monospace', minWidth: 28, display: 'flex', alignItems: 'center', gap: 2 }}>
-        {charging && <span style={{ fontSize: 9 }}>⚡</span>}{level}%
-      </span>
+      <span style={{ fontSize: 11, color, fontWeight: 700, fontFamily: 'monospace', minWidth: 28 }}>{level}%</span>
     </div>
   )
 }
@@ -70,9 +64,7 @@ export default function TopBar({ onSettings, onPower }: Props) {
 
   useEffect(() => {
     api.sysinfo().then(setSysInfo).catch(() => {})
-    // 4s so the controller charging state (⚡) and battery level feel responsive
-    // when a pad is plugged in; sysinfo is a cheap sysfs read, no subprocess.
-    const t = setInterval(() => api.sysinfo().then(setSysInfo).catch(() => {}), 4000)
+    const t = setInterval(() => api.sysinfo().then(setSysInfo).catch(() => {}), 15000)
     return () => clearInterval(t)
   }, [])
 
@@ -125,7 +117,7 @@ export default function TopBar({ onSettings, onPower }: Props) {
 
             {/* Controller batteries */}
             {sysInfo.controllers?.map((c, i) => (
-              <ControllerBattery key={i} level={c.level} charging={c.charging} />
+              <ControllerBattery key={i} level={c.level} />
             ))}
           </>
         )}

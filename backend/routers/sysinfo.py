@@ -35,13 +35,7 @@ def _controller_batteries() -> list[dict]:
             level = int(cap_path.read_text().strip())
         except (ValueError, OSError):
             continue
-        # "Charging" while plugged into the box; "Full" = plugged, done charging.
-        charging = False
-        try:
-            charging = (Path(supply) / "status").read_text().strip() in ("Charging", "Full")
-        except OSError:
-            pass
-        result.append({"level": level, "charging": charging})
+        result.append({"level": level})
     return result
 
 
