@@ -576,10 +576,35 @@ msg "Sudoers — power management"
 cat > /etc/sudoers.d/gamecore-power <<EOF
 $USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl reboot
 $USER_NAME ALL=(root) NOPASSWD: /usr/bin/udevadm
+# Desktop launcher (gamecore-launcher.sh) — start GameCore from the desktop
+$USER_NAME ALL=(root) NOPASSWD: /usr/bin/systemctl start gamecore-backend.service, /usr/bin/systemctl start gamecore-ui.service
 EOF
 chmod 440 /etc/sudoers.d/gamecore-power
 visudo -cf /etc/sudoers.d/gamecore-power >/dev/null || { rm -f /etc/sudoers.d/gamecore-power; warn "sudoers validation failed."; }
-ok "Sudoers rules created (power + udevadm gamepad trigger for $USER_NAME)."
+ok "Sudoers rules created (power + udevadm + GameCore start for $USER_NAME)."
+
+# ── Desktop launcher (clickable "GameCore" icon) ─────────────────
+msg "Desktop launcher"
+chmod +x "$GAMECORE_PATH/install/gamecore-launcher.sh"
+USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
+DESKTOP_DIR=$(sudo -u "$USER_NAME" bash -lc 'xdg-user-dir DESKTOP 2>/dev/null' || true)
+[[ -n "$DESKTOP_DIR" && -d "$DESKTOP_DIR" ]] || DESKTOP_DIR="$USER_HOME/Desktop"
+APPS_DIR="$USER_HOME/.local/share/applications"
+sudo -u "$USER_NAME" mkdir -p "$DESKTOP_DIR" "$APPS_DIR"
+LAUNCHER_DESKTOP="[Desktop Entry]
+Type=Application
+Name=GameCore
+Comment=Lancer l'interface GameCore
+Exec=$GAMECORE_PATH/install/gamecore-launcher.sh
+Icon=input-gaming
+Terminal=true
+Categories=Game;"
+echo "$LAUNCHER_DESKTOP" | sudo -u "$USER_NAME" tee "$APPS_DIR/gamecore.desktop" >/dev/null
+echo "$LAUNCHER_DESKTOP" | sudo -u "$USER_NAME" tee "$DESKTOP_DIR/GameCore.desktop" >/dev/null
+sudo -u "$USER_NAME" chmod +x "$DESKTOP_DIR/GameCore.desktop"
+# KDE: mark the desktop file as trusted so it runs on click without a warning
+sudo -u "$USER_NAME" gio set "$DESKTOP_DIR/GameCore.desktop" metadata::trusted true 2>/dev/null || true
+ok "Desktop launcher installed ($DESKTOP_DIR/GameCore.desktop)."
 
 # OTA update: detached restart unit + narrow sudoers rule
 bash "$GAMECORE_PATH/install/setup-update-permissions.sh" "$USER_NAME" \
