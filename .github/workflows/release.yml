@@ -95,7 +95,13 @@ jobs:
           find dist_full -name '__pycache__'  -exec rm -rf {} + 2>/dev/null || true
           tar -czf gamecore-full.tar.gz -C dist_full .
 
+      # Non-blocking: the installer binary is a convenience asset. If this
+      # build ever fails, the core release + OTA must still ship — so the
+      # step is continue-on-error and the missing file never fails the
+      # publish (fail_on_unmatched_files: false below).
       - name: Build installer binary (PyInstaller)
+        id: build_installer
+        continue-on-error: true
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq libegl1 libgl1
           pip install pyside6 pyinstaller
@@ -111,6 +117,7 @@ jobs:
             gamecore-ota.tar.gz
             gamecore-full.tar.gz
             install/installer-gui/dist/gamecore-installer
+          fail_on_unmatched_files: false
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
