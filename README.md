@@ -177,7 +177,7 @@ Copy ROM files into the matching `emu/<system_id>/` folder via USB or SSH.
 | GameCube / Wii | `.iso` `.gcm` `.rvz` `.zip` |
 | PlayStation 1 | `.bin` `.cue` `.iso` `.img` `.zip` |
 | PlayStation 2 | `.iso` `.bin` `.zip` |
-| PlayStation 3 | `.pkg` (installed in RPCS3 separately) |
+| PlayStation 3 | disc-game **folders** in `emu/rpcs3/` (scanned as directories). Updates/DLC are `.pkg`, installed via the RPCS3 manager addon |
 | PSP | `.iso` `.cso` `.zip` |
 | Wii U | `.wux` `.rpx` `.iso` `.zip` |
 | Switch | `.xci` `.nsp` `.zip` |
