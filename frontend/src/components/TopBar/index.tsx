@@ -70,7 +70,9 @@ export default function TopBar({ onSettings, onPower }: Props) {
 
   useEffect(() => {
     api.sysinfo().then(setSysInfo).catch(() => {})
-    const t = setInterval(() => api.sysinfo().then(setSysInfo).catch(() => {}), 15000)
+    // 4s so the controller charging state (⚡) and battery level feel responsive
+    // when a pad is plugged in; sysinfo is a cheap sysfs read, no subprocess.
+    const t = setInterval(() => api.sysinfo().then(setSysInfo).catch(() => {}), 4000)
     return () => clearInterval(t)
   }, [])
 

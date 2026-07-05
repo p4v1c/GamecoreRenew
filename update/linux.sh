@@ -75,6 +75,15 @@ rsync -a \
   --exclude='assets/logos/' \
   "${SRC_DIR}/" "${GAMECORE_PATH}/" || fail "rsync failed"
 
+# frontend/dist is pure build output (CI ships it complete). Mirror it exactly
+# — without --delete the old content-hashed bundles (index-<hash>.js) would
+# pile up forever; only the one index.html references is ever served.
+if [[ -d "${SRC_DIR}/frontend/dist" ]]; then
+  rsync -a --delete "${SRC_DIR}/frontend/dist/" "${GAMECORE_PATH}/frontend/dist/" \
+    && echo "[update] Frontend dist mirrored (stale bundles pruned)." \
+    || echo "[update] WARNING: dist mirror failed (non-fatal)."
+fi
+
 # Write the new version tag so the backend reports it correctly on next start
 echo "${LATEST_TAG}" > "${GAMECORE_PATH}/VERSION"
 echo "[update] Version set to ${LATEST_TAG}"
