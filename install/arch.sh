@@ -139,7 +139,7 @@ PKGS=(
   base-devel git flatpak openssh
   python python-pip
   nodejs npm
-  openbox xorg-xdpyinfo
+  openbox xorg-xdpyinfo xorg-xrandr
   bluez bluez-utils
 )
 
