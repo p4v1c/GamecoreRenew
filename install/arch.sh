@@ -469,22 +469,22 @@ ok "gamecore-addon CLI installed (addons live in /opt/gamecore-addons)."
 
 # ── Python backend ───────────────────────────────────────────────
 msg "Python backend (venv)"
-sudo -u "$USER_NAME" python3 -m venv "$GAMECORE_PATH/.venv"
-sudo -u "$USER_NAME" "$GAMECORE_PATH/.venv/bin/pip" install -q -r "$GAMECORE_PATH/backend/requirements.txt"
+sudo -u "$USER_NAME" -H python3 -m venv "$GAMECORE_PATH/.venv"
+sudo -u "$USER_NAME" -H "$GAMECORE_PATH/.venv/bin/pip" install -q -r "$GAMECORE_PATH/backend/requirements.txt"
 ok "Python dependencies installed."
 
 # ── Node / frontend ──────────────────────────────────────────────
 msg "Node frontend build"
 cd "$GAMECORE_PATH/frontend"
-sudo -u "$USER_NAME" npm install --silent
-sudo -u "$USER_NAME" npm run build
+sudo -u "$USER_NAME" -H npm install
+sudo -u "$USER_NAME" -H npm run build
 cd "$SCRIPT_DIR"
 ok "Frontend built → frontend/dist/"
 
 # ── Electron ─────────────────────────────────────────────────────
 msg "Electron shell"
 cd "$GAMECORE_PATH/electron"
-sudo -u "$USER_NAME" npm install --silent
+sudo -u "$USER_NAME" -H npm install
 cd "$SCRIPT_DIR"
 ok "Electron dependencies installed."
 
