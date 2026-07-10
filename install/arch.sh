@@ -180,10 +180,14 @@ pacman_optional feh
 
 # ── CPU governor ─────────────────────────────────────────────────
 msg "CPU governor"
-systemctl enable --now cpupower.service 2>/dev/null \
-  && cpupower frequency-set -g performance 2>/dev/null \
-  && ok "Performance mode set." \
-  || warn "cpupower not available."
+if systemctl enable --now cpupower.service 2>/dev/null \
+   && cpupower frequency-set -g performance 2>/dev/null; then
+  ok "Performance mode set."
+elif [ ! -d /sys/devices/system/cpu/cpu0/cpufreq ]; then
+  warn "no cpufreq driver (VM or fixed-frequency CPU) — governor skipped."
+else
+  warn "cpupower not available."
+fi
 
 # ── Flatpak ──────────────────────────────────────────────────────
 msg "Flatpak / Flathub"
