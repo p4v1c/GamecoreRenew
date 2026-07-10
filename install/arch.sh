@@ -19,6 +19,16 @@ pacman_optional() {
   pacman -S --noconfirm --needed "$1" 2>/dev/null && ok "$1" || warn "$1 not in repos — skipping"
 }
 
+# Bounded git clone: a connection that stalls mid-transfer otherwise hangs
+# git (and the whole install) forever — abort under 1 KB/s for 30 s, hard
+# cap at 5 min, and never leave a half-written checkout behind.
+git_clone() {  # git_clone <url> <dir>
+  timeout 300 git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 \
+    clone -q "$1" "$2" && return 0
+  rm -rf "$2"
+  return 1
+}
+
 [[ $EUID -eq 0 ]] || die "Run with sudo: sudo bash install/arch.sh [--full|--minimal]"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -236,10 +246,10 @@ if [[ "$MODE" == "full" ]]; then
   if [ -f "$DUCK_BIN" ]; then
     ok "DuckStation already present."
   else
-    DUCK_URL=$(curl -sf "https://api.github.com/repos/stenzek/duckstation/releases/latest" \
+    DUCK_URL=$(curl -sf --connect-timeout 15 --max-time 60 "https://api.github.com/repos/stenzek/duckstation/releases/latest" \
       | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if a["name"]=="DuckStation-x64.AppImage"), ""))')
     if [[ -n "$DUCK_URL" ]]; then
-      curl -L -o "$DUCK_BIN" "$DUCK_URL" && chmod +x "$DUCK_BIN" && ok "DuckStation installed." || warn "Download failed."
+      curl -L --connect-timeout 15 --speed-limit 1024 --speed-time 30 -o "$DUCK_BIN" "$DUCK_URL" && chmod +x "$DUCK_BIN" && ok "DuckStation installed." || warn "Download failed."
     else
       warn "Could not fetch DuckStation URL."
     fi
@@ -255,12 +265,12 @@ if [[ "$MODE" == "full" ]]; then
   if [ -f "$XENIA_DIR/xenia_canary.exe" ]; then
     ok "Xenia already present."
   else
-    XENIA_URL=$(curl -sf "https://api.github.com/repos/xenia-canary/xenia-canary-releases/releases/latest" \
+    XENIA_URL=$(curl -sf --connect-timeout 15 --max-time 60 "https://api.github.com/repos/xenia-canary/xenia-canary-releases/releases/latest" \
       | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if "windows" in a["name"].lower()), ""))')
     if [[ -n "$XENIA_URL" ]]; then
       mkdir -p "$XENIA_DIR"
       XENIA_PKG="/tmp/xenia_canary_pkg"
-      curl -sfL -o "$XENIA_PKG" "$XENIA_URL" || warn "Xenia download failed."
+      curl -sfL --connect-timeout 15 --speed-limit 1024 --speed-time 30 -o "$XENIA_PKG" "$XENIA_URL" || warn "Xenia download failed."
       case "$XENIA_URL" in
         *.zip) unzip -o -q "$XENIA_PKG" -d "$XENIA_DIR" ;;
         *.7z)  7z x -y -o"$XENIA_DIR" "$XENIA_PKG" >/dev/null ;;
@@ -302,7 +312,7 @@ if [[ "$MODE" == "full" ]]; then
 
   # EmberTV — Twitch for the big screen (GameCore's Twitch tile opens it)
   if [ ! -d /opt/Twitch-TV ]; then
-    git clone -q https://github.com/p4v1c/Twitch-TV.git /opt/Twitch-TV \
+    git_clone https://github.com/p4v1c/Twitch-TV.git /opt/Twitch-TV \
       && ok "EmberTV cloned → /opt/Twitch-TV" || warn "EmberTV clone failed."
   else
     ok "EmberTV already present."
@@ -355,7 +365,7 @@ EOF
 
   # gamepad-tv-bridge — gamepad → keyboard for kiosk web apps
   if [ ! -d /opt/gamepad-tv-bridge ]; then
-    git clone -q https://github.com/p4v1c/gamepad-tv-bridge.git /opt/gamepad-tv-bridge \
+    git_clone https://github.com/p4v1c/gamepad-tv-bridge.git /opt/gamepad-tv-bridge \
       && ok "gamepad-tv-bridge cloned → /opt/gamepad-tv-bridge" || warn "gamepad-tv-bridge clone failed."
   else
     ok "gamepad-tv-bridge already present."
@@ -415,22 +425,30 @@ EOF
   # Firefox kiosk profiles used by the YouTube/Twitch tiles in apps.json.
   # The user.js is the important part: it carries the Smart-TV user agent
   # (youtube.com/tv rejects desktop browsers) and the kiosk prefs.
+  # Plain directories launched with `firefox --profile <dir>` — no
+  # profiles.ini registration needed, so no flaky `-CreateProfile` run.
+  # Everything is created AS THE USER: a root-owned profile dir breaks
+  # certutil below (SEC_ERROR_BAD_DATABASE) and firefox's own caches.
   for prof in youtube-tv twitch-tv; do
     PROF_DIR="$USER_HOME/.mozilla/firefox/$prof"
-    sudo -u "$USER_NAME" HOME="$USER_HOME" firefox --headless -CreateProfile "$prof $PROF_DIR" >/dev/null 2>&1 || true
-    mkdir -p "$PROF_DIR"
-    cp "$GAMECORE_PATH/install/firefox-profiles/$prof.user.js" "$PROF_DIR/user.js"
+    sudo -u "$USER_NAME" mkdir -p "$PROF_DIR"
+    install -o "$USER_NAME" -g "$USER_NAME" -m 644 \
+      "$GAMECORE_PATH/install/firefox-profiles/$prof.user.js" "$PROF_DIR/user.js"
   done
   # Trust EmberTV's self-signed cert inside the twitch-tv profile (NSS db):
   # no certificate warning at first launch — required for the unattended/ISO path.
+  # Every certutil step is guarded: a cert hiccup must never abort the install.
   TW_PROF="$USER_HOME/.mozilla/firefox/twitch-tv"
   if [ -f /opt/Twitch-TV/cert/cert.pem ] && command -v certutil >/dev/null; then
-    [ -f "$TW_PROF/cert9.db" ] || sudo -u "$USER_NAME" certutil -N --empty-password -d sql:"$TW_PROF"
-    sudo -u "$USER_NAME" certutil -D -n "EmberTV localhost" -d sql:"$TW_PROF" 2>/dev/null || true
-    sudo -u "$USER_NAME" certutil -A -n "EmberTV localhost" -t "P,," \
-        -i /opt/Twitch-TV/cert/cert.pem -d sql:"$TW_PROF" \
-      && ok "EmberTV certificate trusted in the twitch-tv profile." \
-      || warn "certutil import failed — accept the cert warning once at first launch."
+    if [ -f "$TW_PROF/cert9.db" ] || sudo -u "$USER_NAME" certutil -N --empty-password -d sql:"$TW_PROF"; then
+      sudo -u "$USER_NAME" certutil -D -n "EmberTV localhost" -d sql:"$TW_PROF" 2>/dev/null || true
+      sudo -u "$USER_NAME" certutil -A -n "EmberTV localhost" -t "P,," \
+          -i /opt/Twitch-TV/cert/cert.pem -d sql:"$TW_PROF" \
+        && ok "EmberTV certificate trusted in the twitch-tv profile." \
+        || warn "certutil import failed — accept the cert warning once at first launch."
+    else
+      warn "NSS db init failed — accept the cert warning once at first launch."
+    fi
   fi
   chown -R "${USER_NAME}:${USER_NAME}" "$USER_HOME/.mozilla"
   ok "Firefox kiosk profiles ready (youtube-tv, twitch-tv — Smart-TV user agent)."
@@ -536,7 +554,7 @@ if [[ ! -x "$ELECTRON_DIR/dist/electron" ]]; then
   # Download AND extract as root (root owns TMPDIR_E); chown the result to the
   # user afterwards. Doing the extract as the user fails because it cannot read
   # root's mktemp dir.
-  if curl -fL -o "$TMPDIR_E/$EZIP" "$EURL"; then
+  if curl -fL --connect-timeout 15 --speed-limit 1024 --speed-time 30 -o "$TMPDIR_E/$EZIP" "$EURL"; then
     mkdir -p "$ELECTRON_DIR/dist"
     if bsdtar -xf "$TMPDIR_E/$EZIP" -C "$ELECTRON_DIR/dist" 2>/dev/null \
        || unzip -oq "$TMPDIR_E/$EZIP" -d "$ELECTRON_DIR/dist"; then

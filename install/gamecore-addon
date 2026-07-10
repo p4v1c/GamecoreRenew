@@ -115,8 +115,9 @@ ensure_repo() {  # ensure_repo [pull]
       cp -r "$PAYLOAD_DIR/gamecore-addons" "$GCA_REPO_DIR"
     else
       info "Cloning $GCA_REPO_URL → $GCA_REPO_DIR"
-      git clone -q "$GCA_REPO_URL" "$GCA_REPO_DIR" \
-        || die "clone failed — does $(dirname "$GCA_REPO_DIR") exist and belong to you?"
+      timeout 300 git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 \
+          clone -q "$GCA_REPO_URL" "$GCA_REPO_DIR" \
+        || { rm -rf "$GCA_REPO_DIR"; die "clone failed — does $(dirname "$GCA_REPO_DIR") exist and belong to you?"; }
     fi
   elif [[ "${1:-}" == "pull" && "$OFFLINE" != "1" ]]; then
     info "Updating addons repo (git pull)"
