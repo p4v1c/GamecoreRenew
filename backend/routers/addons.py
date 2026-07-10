@@ -82,11 +82,19 @@ async def _run_cli(action: str, name: str) -> None:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
-        try:
+
+        async def _pump() -> None:
+            # The whole read loop must sit under the timeout: a script that
+            # blocks (interactive prompt, hung pip) never closes stdout, and
+            # a timeout on proc.wait() alone would never fire — leaving
+            # _busy_lock held forever.
             if proc.stdout:
                 async for line in proc.stdout:
                     await ws.broadcast("addon:log", {"line": line.decode().rstrip()})
-            await asyncio.wait_for(proc.wait(), timeout=_CLI_TIMEOUT)
+            await proc.wait()
+
+        try:
+            await asyncio.wait_for(_pump(), timeout=_CLI_TIMEOUT)
             code = proc.returncode or 0
         except asyncio.TimeoutError:
             log.warning("gamecore-addon %s %s timed out — killing", action, name)

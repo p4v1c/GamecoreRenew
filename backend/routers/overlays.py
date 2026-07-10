@@ -1,4 +1,5 @@
 """Overlay bezel management — upload/serve per-system PNG."""
+import os
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
@@ -28,18 +29,23 @@ async def upload_overlay(system_id: str, file: UploadFile = File(...)):
     if file.content_type not in ("image/png", "image/jpeg", "image/webp"):
         raise HTTPException(400, "Only PNG/JPEG/WebP images are accepted")
     p = _overlay_path(system_id)
+    # Write to a temp file, then swap atomically — an interrupted or oversize
+    # upload must never destroy the existing overlay.
+    tmp = p.with_name(p.name + ".part")
     written = 0
-    with p.open("wb") as f:
-        while True:
-            chunk = await file.read(1 << 20)  # 1 MB chunks
-            if not chunk:
-                break
-            written += len(chunk)
-            if written > _MAX_OVERLAY_BYTES:
-                f.close()
-                p.unlink(missing_ok=True)
-                raise HTTPException(413, f"Overlay exceeds {_MAX_OVERLAY_BYTES // (1024 * 1024)} MB limit")
-            f.write(chunk)
+    try:
+        with tmp.open("wb") as f:
+            while True:
+                chunk = await file.read(1 << 20)  # 1 MB chunks
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > _MAX_OVERLAY_BYTES:
+                    raise HTTPException(413, f"Overlay exceeds {_MAX_OVERLAY_BYTES // (1024 * 1024)} MB limit")
+                f.write(chunk)
+        os.replace(tmp, p)
+    finally:
+        tmp.unlink(missing_ok=True)
     return {"ok": True, "path": str(p), "size": written}
 
 

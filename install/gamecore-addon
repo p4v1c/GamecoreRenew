@@ -101,6 +101,12 @@ PY
 ensure_repo() {  # ensure_repo [pull]
   if [[ ! -d "$GCA_REPO_DIR/.git" ]]; then
     if [[ "$OFFLINE" == "1" ]]; then
+      # The payload copy carries no .git — a previous offline install already
+      # populated the dir. Without this guard, `cp -r` would nest a second
+      # gamecore-addons/ INSIDE the existing checkout on every re-run.
+      if [[ -d "$GCA_REPO_DIR/addons" ]]; then
+        return
+      fi
       [[ -n "$PAYLOAD_DIR" && -d "$PAYLOAD_DIR/gamecore-addons" ]] \
         || die "offline mode: no checkout at $GCA_REPO_DIR and no gamecore-addons/ in PAYLOAD_DIR"
       info "Offline: copying addons repo from payload"
@@ -155,6 +161,8 @@ cmd_install() {
 
 cmd_remove() {
   local name="${1:-}"; [[ -n "$name" ]] || die "usage: gamecore-addon remove <name>"
+  # same validation as addon_dir — remove must never eval an arbitrary path
+  [[ "$name" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "invalid addon name '$name'"
   local dir="$GCA_REPO_DIR/addons/$name"
   if [[ -f "$dir/uninstall.sh" ]]; then
     run_script "$dir" uninstall.sh
@@ -171,7 +179,13 @@ cmd_update() {
   [[ ${#targets[@]} -gt 0 ]] || mapfile -t targets < <(registry_names)
   [[ ${#targets[@]} -gt 0 ]] || { info "No addon installed — nothing to update."; return; }
   for name in "${targets[@]}"; do
-    local dir; dir="$(addon_dir "$name")"
+    local dir
+    if ! dir="$(addon_dir "$name" 2>/dev/null)"; then
+      # an installed addon that vanished from the repo must not abort the
+      # update of every following addon
+      info "WARNING: '$name' is not in the repo anymore — skipped."
+      continue
+    fi
     info "Updating '$name' → v$(meta "$dir" version)"
     run_script "$dir" install.sh
     registry_add "$dir"

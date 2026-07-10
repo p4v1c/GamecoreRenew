@@ -1,6 +1,7 @@
 """OTA update via GitHub Releases."""
 import asyncio
 import logging
+import re
 from fastapi import APIRouter, HTTPException
 import httpx
 
@@ -15,9 +16,10 @@ _UPDATE_TIMEOUT = 600.0  # 10 min hard cap on the update script
 
 
 def _version_int(tag: str) -> int:
-    s = tag.lstrip("vV")
-    parts = s.split(".")
-    return sum(int(parts[i]) * (10000 ** (2 - i)) for i in range(min(3, len(parts))))
+    """Tolerant x.y.z ordering — 'v2.1.0-rc1' or a malformed tag must never
+    raise (this runs on the GitHub response, outside our control)."""
+    nums = re.findall(r"\d+", tag)[:3]
+    return sum(int(n) * (10000 ** (2 - i)) for i, n in enumerate(nums))
 
 
 @router.get("/check")
@@ -62,11 +64,17 @@ async def apply_update():
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
-        try:
+
+        async def _pump() -> None:
+            # timeout must cover the read loop too — a hung script never
+            # closes stdout, so a timeout on proc.wait() alone never fires
             if proc.stdout:
                 async for line in proc.stdout:
                     await ws.broadcast("update:log", {"line": line.decode().rstrip()})
-            await asyncio.wait_for(proc.wait(), timeout=_UPDATE_TIMEOUT)
+            await proc.wait()
+
+        try:
+            await asyncio.wait_for(_pump(), timeout=_UPDATE_TIMEOUT)
             code = proc.returncode or 0
             await ws.broadcast("update:done", {"success": code == 0, "code": code})
         except asyncio.TimeoutError:
