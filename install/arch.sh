@@ -507,16 +507,20 @@ if [[ ! -x "$ELECTRON_DIR/dist/electron" ]]; then
   EURL="https://github.com/electron/electron/releases/download/v${EV}/${EZIP}"
   TMPDIR_E="$(mktemp -d)"
   info "Downloading $EZIP …"
+  # Download AND extract as root (root owns TMPDIR_E); chown the result to the
+  # user afterwards. Doing the extract as the user fails because it cannot read
+  # root's mktemp dir.
   if curl -fL -o "$TMPDIR_E/$EZIP" "$EURL"; then
-    sudo -u "$USER_NAME" mkdir -p "$ELECTRON_DIR/dist"
-    if sudo -u "$USER_NAME" bsdtar -xf "$TMPDIR_E/$EZIP" -C "$ELECTRON_DIR/dist" 2>/dev/null \
-       || sudo -u "$USER_NAME" unzip -oq "$TMPDIR_E/$EZIP" -d "$ELECTRON_DIR/dist"; then
+    mkdir -p "$ELECTRON_DIR/dist"
+    if bsdtar -xf "$TMPDIR_E/$EZIP" -C "$ELECTRON_DIR/dist" 2>/dev/null \
+       || unzip -oq "$TMPDIR_E/$EZIP" -d "$ELECTRON_DIR/dist"; then
       # printf (not echo) — a trailing newline in path.txt makes Electron spawn
       # "…/dist/electron\n" → ENOENT.
-      sudo -u "$USER_NAME" bash -c "printf electron > '$ELECTRON_DIR/path.txt'"
+      printf electron > "$ELECTRON_DIR/path.txt"
+      chown -R "$USER_NAME:$USER_NAME" "$ELECTRON_DIR"
       ok "Electron $EV binary installed → dist/."
     else
-      die "Failed to extract the Electron binary (need bsdtar or unzip)."
+      die "Failed to extract the Electron binary (install 'libarchive' for bsdtar, or 'unzip')."
     fi
   else
     die "Failed to download Electron $EV from GitHub — check the machine's network."
