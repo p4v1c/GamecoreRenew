@@ -23,7 +23,7 @@ import tempfile
 from pathlib import Path
 
 from PySide6.QtCore import QProcess, Qt, QThread, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QTextCursor
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QRadioButton,
@@ -376,15 +376,21 @@ class InstallPage(QWizardPage):
             self._finish(1)
 
     def _on_output(self):
-        text = bytes(self.proc.readAllStandardOutput()).decode(errors="replace")
-        # strip ANSI colors from arch.sh
-        text = re.sub(r"\x1b\[[0-9;]*m", "", text)
-        sb = self.log.verticalScrollBar()
-        stick = sb.value() >= sb.maximum() - 4
-        self.log.moveCursor(self.log.textCursor().End)
-        self.log.insertPlainText(text)
-        if stick:
-            sb.setValue(sb.maximum())
+        # Never let an exception escape this slot: under PySide6 an unhandled
+        # exception in a Qt slot aborts the whole application, which would kill
+        # an install that is otherwise running fine.
+        try:
+            text = bytes(self.proc.readAllStandardOutput()).decode(errors="replace")
+            # strip ANSI colors from arch.sh
+            text = re.sub(r"\x1b\[[0-9;]*m", "", text)
+            sb = self.log.verticalScrollBar()
+            stick = sb.value() >= sb.maximum() - 4
+            self.log.moveCursor(QTextCursor.MoveOperation.End)
+            self.log.insertPlainText(text)
+            if stick:
+                sb.setValue(sb.maximum())
+        except Exception as e:
+            sys.stderr.write(f"[installer] _on_output error: {e}\n")
 
     def _on_finished(self, code, _status):
         self._finish(code)
