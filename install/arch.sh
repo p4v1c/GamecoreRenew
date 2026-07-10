@@ -154,6 +154,10 @@ elif echo "$GPU_INFO" | grep -qi 'intel'; then
 elif echo "$GPU_INFO" | grep -qi 'nvidia'; then
   PKGS+=(nvidia nvidia-utils lib32-nvidia-utils)
   info "GPU detected: NVIDIA (proprietary driver)"
+elif echo "$GPU_INFO" | grep -qiE 'vmware|virtualbox|virtio|qxl|bochs'; then
+  # VM GPU — no hardware Vulkan; llvmpipe lets Vulkan apps at least start.
+  PKGS+=(vulkan-swrast)
+  info "GPU detected: virtual machine (software Vulkan via llvmpipe)"
 else
   warn "GPU not identified — installing mesa only (add your Vulkan driver manually)."
 fi
@@ -288,7 +292,7 @@ if [[ "$MODE" == "full" ]]; then
   msg "Living-room companions"
   USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
   UNIT_DIR="$USER_HOME/.config/systemd/user"
-  mkdir -p "$UNIT_DIR/default.target.wants" "$UNIT_DIR/graphical-session.target.wants"
+  mkdir -p "$UNIT_DIR/default.target.wants"
 
   pacman -S --noconfirm --needed firefox nss && ok "firefox + nss (certutil) installed." || warn "firefox install failed."
 
@@ -357,10 +361,12 @@ EOF
     sudo -u "$USER_NAME" python3 -m venv "$USER_HOME/.venv" 2>/dev/null || true
     sudo -u "$USER_NAME" "$USER_HOME/.venv/bin/pip" install -q -e /opt/gamepad-tv-bridge \
       && ok "bridge installed in $USER_HOME/.venv (editable)." || warn "bridge pip install failed."
+    # WantedBy=default.target, NOT graphical-session.target: the openbox kiosk
+    # session never activates graphical-session.target (only full DEs like
+    # Plasma do), so the bridge would never start on the living-room box.
     cat > "$UNIT_DIR/gamepad-tv-bridge.service" <<'EOF'
 [Unit]
 Description=Gamepad TV Bridge — gamepad to keyboard daemon
-After=graphical-session.target
 
 [Service]
 Type=simple
@@ -370,9 +376,10 @@ Restart=on-failure
 RestartSec=3
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=default.target
 EOF
-    ln -sf ../gamepad-tv-bridge.service "$UNIT_DIR/graphical-session.target.wants/gamepad-tv-bridge.service"
+    ln -sf ../gamepad-tv-bridge.service "$UNIT_DIR/default.target.wants/gamepad-tv-bridge.service"
+    rm -f "$UNIT_DIR/graphical-session.target.wants/gamepad-tv-bridge.service"
     ok "gamepad-tv-bridge.service installed (user unit)."
     # /dev/uinput access for key injection
     modprobe uinput 2>/dev/null || true
@@ -385,6 +392,21 @@ EOF
 
   chown -R "${USER_NAME}:${USER_NAME}" "$USER_HOME/.config"
   loginctl enable-linger "$USER_NAME" 2>/dev/null && ok "user services will start at boot (linger)." || true
+
+  # Make the freshly written user units effective NOW, not only after reboot:
+  # the running user manager doesn't see manually symlinked units until a
+  # daemon-reload, so embertv/gamepad-tv-bridge would stay dead post-install.
+  USER_UID=$(id -u "$USER_NAME")
+  for i in $(seq 1 10); do [ -S "/run/user/$USER_UID/bus" ] && break; sleep 1; done
+  if [ -S "/run/user/$USER_UID/bus" ]; then
+    sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/$USER_UID" systemctl --user daemon-reload 2>/dev/null || true
+    sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+      systemctl --user restart embertv.service gamepad-tv-bridge.service 2>/dev/null \
+      && ok "embertv + gamepad-tv-bridge started (user services)." \
+      || warn "user services will start at next boot."
+  else
+    warn "no user bus yet — embertv + gamepad-tv-bridge will start at next boot."
+  fi
 
   # Firefox kiosk profiles used by the YouTube/Twitch tiles in apps.json.
   # The user.js is the important part: it carries the Smart-TV user agent

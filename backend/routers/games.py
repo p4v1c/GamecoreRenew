@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..config import resolve_path
+from ..services import fullscreen_enforcer
 from ..services.process_manager import process_manager
 from ..services.rom_scanner import clean_name, iter_rom_files
 from .systems import list_all
@@ -107,6 +108,11 @@ async def launch_game(req: LaunchRequest):
     if system.get("gamepadTrigger"):
         task = asyncio.create_task(_gamepad_trigger())
         task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+
+    fs_cfg = system.get("fullscreen")
+    if fs_cfg:
+        fs_task = asyncio.create_task(fullscreen_enforcer.enforce(req.system_id, fs_cfg))
+        fs_task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 
     return {"ok": True, "game_key": game_key}
 

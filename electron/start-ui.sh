@@ -16,4 +16,7 @@ elif [[ -f "$HOME/.Xauthority" ]]; then
     export XAUTHORITY="$HOME/.Xauthority"
 fi
 
-exec /opt/GameCore/electron/node_modules/.bin/electron /opt/GameCore/electron/main.js
+# Resolve the install dir from this script's location — GAMECORE_PATH is not
+# necessarily /opt/GameCore.
+GC_ELECTRON="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "$GC_ELECTRON/node_modules/.bin/electron" "$GC_ELECTRON/main.js"

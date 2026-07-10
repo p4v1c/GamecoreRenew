@@ -8,7 +8,7 @@
     "color": "#1f6fb3",
     "iconPath": "assets/logos/steam.png",
     "path": "flatpak",
-    "args": "run com.valvesoftware.Steam"
+    "args": "run com.valvesoftware.Steam -gamepadui"
   },
   {
     "id": "youtube",
@@ -40,7 +40,8 @@
     "color": "#8a5fff",
     "iconPath": "assets/logos/stremio.png",
     "path": "flatpak",
-    "args": "run --nosocket=wayland --socket=x11 com.stremio.Stremio",
-    "gamepadTrigger": true
+    "args": "run --nosocket=wayland --socket=x11 com.stremio.Stremio --no-window-decorations",
+    "gamepadTrigger": true,
+    "fullscreen": { "wm_class": ["stremio", "Stremio", "com.stremio.Stremio"], "timeout_s": 60 }
   }
 ]
