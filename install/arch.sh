@@ -485,6 +485,51 @@ ok "Frontend built → frontend/dist/"
 msg "Electron shell"
 cd "$GAMECORE_PATH/electron"
 sudo -u "$USER_NAME" -H npm install
+
+# The electron npm package downloads its actual binary from a postinstall
+# script (node install.js). On machines with hardened npm (ignore-scripts,
+# @lavamoat/allow-scripts, …) that step is silently skipped, leaving
+# node_modules/electron with no binary → "Electron failed to install
+# correctly" at runtime. Provision the binary explicitly so the install never
+# depends on the postinstall running.
+ELECTRON_DIR="$GAMECORE_PATH/electron/node_modules/electron"
+if [[ ! -x "$ELECTRON_DIR/dist/electron" ]]; then
+  warn "Electron binary missing (npm postinstall was skipped) — downloading it directly."
+  EV="$(sudo -u "$USER_NAME" node -p "require('$ELECTRON_DIR/package.json').version" 2>/dev/null)"
+  [[ -n "$EV" ]] || die "Could not determine the Electron version."
+  case "$(uname -m)" in
+    x86_64)  EARCH=x64 ;;
+    aarch64) EARCH=arm64 ;;
+    armv7l)  EARCH=armv7l ;;
+    *)       EARCH=x64 ;;
+  esac
+  EZIP="electron-v${EV}-linux-${EARCH}.zip"
+  EURL="https://github.com/electron/electron/releases/download/v${EV}/${EZIP}"
+  TMPDIR_E="$(mktemp -d)"
+  info "Downloading $EZIP …"
+  if curl -fL -o "$TMPDIR_E/$EZIP" "$EURL"; then
+    sudo -u "$USER_NAME" mkdir -p "$ELECTRON_DIR/dist"
+    if sudo -u "$USER_NAME" bsdtar -xf "$TMPDIR_E/$EZIP" -C "$ELECTRON_DIR/dist" 2>/dev/null \
+       || sudo -u "$USER_NAME" unzip -oq "$TMPDIR_E/$EZIP" -d "$ELECTRON_DIR/dist"; then
+      # printf (not echo) — a trailing newline in path.txt makes Electron spawn
+      # "…/dist/electron\n" → ENOENT.
+      sudo -u "$USER_NAME" bash -c "printf electron > '$ELECTRON_DIR/path.txt'"
+      ok "Electron $EV binary installed → dist/."
+    else
+      die "Failed to extract the Electron binary (need bsdtar or unzip)."
+    fi
+  else
+    die "Failed to download Electron $EV from GitHub — check the machine's network."
+  fi
+  rm -rf "$TMPDIR_E"
+fi
+
+# chrome-sandbox must be a root-owned SUID binary, otherwise Electron refuses
+# to start under an unprivileged user on some setups.
+if [[ -f "$ELECTRON_DIR/dist/chrome-sandbox" ]]; then
+  chown root:root "$ELECTRON_DIR/dist/chrome-sandbox"
+  chmod 4755 "$ELECTRON_DIR/dist/chrome-sandbox"
+fi
 cd "$SCRIPT_DIR"
 ok "Electron dependencies installed."
 
