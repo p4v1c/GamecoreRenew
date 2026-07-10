@@ -54,6 +54,7 @@ EMULATORS = [
 FALLBACK_ADDONS = [
     {"name": "rom-manager",   "label": "ROMs",  "description": "Upload ROMs from the browser", "default": True},
     {"name": "rpcs3-manager", "label": "RPCS3", "description": "Configure PS3 games remotely", "default": False},
+    {"name": "save-manager",  "label": "Saves", "description": "Back up, restore & transfer emulator saves", "default": False},
 ]
 
 DARK_QSS = """
@@ -117,9 +118,15 @@ class AddonsFetcher(QThread):
             for f in sorted(tmp.glob("addons/*/addon.json")):
                 if f.parent.name.startswith("_"):
                     continue
-                meta = json.loads(f.read_text())
+                try:
+                    # utf-8-sig tolerates a UTF-8 BOM (Windows-saved JSON);
+                    # skip a single malformed addon.json instead of dropping
+                    # the whole list to the fallback.
+                    meta = json.loads(f.read_text(encoding="utf-8-sig"))
+                except (ValueError, OSError):
+                    continue
                 addons.append(meta)
-            self.ready.emit(addons, "")
+            self.ready.emit(addons or FALLBACK_ADDONS, "")
         except Exception as e:
             self.ready.emit(FALLBACK_ADDONS, f"addons repo unreachable ({e}) — showing known addons")
 
