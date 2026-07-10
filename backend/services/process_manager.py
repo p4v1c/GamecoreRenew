@@ -42,6 +42,7 @@ def _display_env() -> dict:
 class ProcessManager:
     def __init__(self):
         self._proc: asyncio.subprocess.Process | None = None
+        self._launching: bool = False  # claimed before the first await in launch()
         self._game_key: str = ""
         self._system_id: str = ""
         self._start_time: float = 0.0
@@ -50,7 +51,7 @@ class ProcessManager:
 
     @property
     def is_running(self) -> bool:
-        return self._proc is not None and self._proc.returncode is None
+        return self._launching or (self._proc is not None and self._proc.returncode is None)
 
     @property
     def current_game(self) -> dict | None:
@@ -62,32 +63,38 @@ class ProcessManager:
                      game_key: str = "", system_id: str = "") -> None:
         if self.is_running:
             raise RuntimeError("A game is already running")
+        # Claim the slot synchronously — two concurrent launch() calls both
+        # pass the check above otherwise (the subprocess spawn awaits below).
+        self._launching = True
 
-        args = shlex.split(exec_args) if exec_args else []
-        if rom_path:
-            args.append(rom_path)
+        try:
+            args = shlex.split(exec_args) if exec_args else []
+            if rom_path:
+                args.append(rom_path)
 
-        self._exec_path = exec_path
-        self._launch_args = args
-        self._game_key = game_key or (rom_path.split("/")[-1] if rom_path else exec_path.split("/")[-1])
-        self._system_id = system_id
-        self._start_time = time.time()
+            self._exec_path = exec_path
+            self._launch_args = args
+            self._game_key = game_key or (rom_path.split("/")[-1] if rom_path else exec_path.split("/")[-1])
+            self._system_id = system_id
+            self._start_time = time.time()
 
-        if exec_path == "flatpak":
-            cmd = ["flatpak"] + args
-        else:
-            cmd = [exec_path] + args
+            if exec_path == "flatpak":
+                cmd = ["flatpak"] + args
+            else:
+                cmd = [exec_path] + args
 
-        env = _display_env()
-        log.info("launch: %s (DISPLAY=%s)", " ".join(cmd), env.get("DISPLAY", ""))
+            env = _display_env()
+            log.info("launch: %s (DISPLAY=%s)", " ".join(cmd), env.get("DISPLAY", ""))
 
-        self._proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-            start_new_session=True,  # isolates child into its own process group so killpg doesn't hit the backend
-            env=env,
-        )
+            self._proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+                start_new_session=True,  # isolates child into its own process group so killpg doesn't hit the backend
+                env=env,
+            )
+        finally:
+            self._launching = False
 
         ws.set_current_game({"game_key": self._game_key, "system_id": self._system_id})
         await ws.broadcast("game:started", {

@@ -2,7 +2,6 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from .config import DEBUG
 logging.basicConfig(level=logging.DEBUG if DEBUG else logging.WARNING)

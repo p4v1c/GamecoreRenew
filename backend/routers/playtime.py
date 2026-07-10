@@ -25,9 +25,12 @@ async def get_system_playtime(system_id: str):
 @router.get("/playtime/game/{game_key:path}")
 async def get_game_playtime(game_key: str):
     db = await get_db()
-    row = await db.execute_fetchone(
+    # aiosqlite has no execute_fetchone — go through a cursor explicitly
+    cur = await db.execute(
         "SELECT * FROM playtime WHERE game_key = ?", (game_key,)
     )
+    row = await cur.fetchone()
+    await cur.close()
     if not row:
         return {"game_key": game_key, "total_secs": 0, "session_count": 0, "last_played": None}
     return dict(row)

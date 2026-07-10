@@ -136,9 +136,11 @@ async def wifi_status():
         "nmcli", "-t", "-f", "NAME,TYPE,STATE,DEVICE", "con", "show", "--active"
     )
     for line in out.splitlines():
-        parts = line.split(":")
+        # NAME comes first and may contain ':' (escaped '\:' by nmcli -t) —
+        # split from the right on the 3 fixed fields, like scan_networks does.
+        parts = line.rsplit(":", 3)
         if len(parts) >= 3 and parts[1] in ("802-11-wireless",) and parts[2] == "activated":
-            ssid = parts[0]
+            ssid = parts[0].replace("\\:", ":")
             iface = parts[3] if len(parts) > 3 else ""
             return {"connected": True, "ssid": ssid, "ip": await _iface_ip(iface),
                     "iface": iface, "ethernet": ethernet}
