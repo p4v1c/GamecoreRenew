@@ -13,6 +13,10 @@ interface GamecoreStore {
   // Modal focus lock — prevents background screens from consuming gamepad events
   modalDepth: number
 
+  // Power action in flight ('shutdown' | 'restart') — freezes the UI so nothing
+  // jumps back on screen while the OS is powering off
+  powerPending: string | null
+
   // Session
   sessionGameKey: string | null
   sessionSystemId: string | null
@@ -26,6 +30,7 @@ interface GamecoreStore {
   setSession: (gameKey: string | null, systemId: string | null) => void
   openModal: () => void
   closeModal: () => void
+  setPowerPending: (action: string | null) => void
 }
 
 export const useStore = create<GamecoreStore>((set) => ({
@@ -35,6 +40,7 @@ export const useStore = create<GamecoreStore>((set) => ({
   gridFocusIdx: 0,
   gridPage: 0,
   modalDepth: 0,
+  powerPending: null,
   sessionGameKey: null,
   sessionSystemId: null,
 
@@ -46,4 +52,5 @@ export const useStore = create<GamecoreStore>((set) => ({
   setSession: (gameKey, systemId) => set({ sessionGameKey: gameKey, sessionSystemId: systemId }),
   openModal: () => set(s => ({ modalDepth: s.modalDepth + 1 })),
   closeModal: () => set(s => ({ modalDepth: Math.max(0, s.modalDepth - 1) })),
+  setPowerPending: (action) => set({ powerPending: action }),
 }))

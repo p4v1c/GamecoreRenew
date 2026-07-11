@@ -47,8 +47,8 @@ export default function App() {
   // Global gamepad bindings
   useEffect(() => {
     const offs = [
-      onGp('gp:menu', () => setShowSettings(s => !s)),
-      onGp('gp:power', () => setShowPower(s => !s)),
+      onGp('gp:menu', () => { if (!useStore.getState().powerPending) setShowSettings(s => !s) }),
+      onGp('gp:power', () => { if (!useStore.getState().powerPending) setShowPower(s => !s) }),
       onGp('gp:guide', async () => {
         if (!sessionRef.current) return
         try { await api.games.kill() } catch {}
