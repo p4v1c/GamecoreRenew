@@ -357,14 +357,16 @@ class InstallPage(QWizardPage):
             engine = f"bash {shlex.quote(str(w.local_repo / 'install' / 'arch.sh'))} --unattended {shlex.quote(self.conf_path)}"
         else:
             # Standalone binary: fetch the latest full release then install from it.
+            # Use the stable /releases/latest/download/ redirect instead of the
+            # JSON API: the anonymous API is rate-limited to 60 req/h per IP and
+            # its failure used to crash the json parser with an empty stream.
             engine = (
                 "set -e; SRC=$(mktemp -d /tmp/gamecore-src-XXXX); "
-                f"echo '[installer] Downloading the latest GameCore release…'; "
-                f"URL=$(curl -sf https://api.github.com/repos/{GITHUB_REPO}/releases/latest "
-                "| python3 -c 'import json,sys;d=json.load(sys.stdin);"
-                "print(next(a[\"browser_download_url\"] for a in d[\"assets\"] "
-                "if a[\"name\"]==\"gamecore-full.tar.gz\"))'); "
-                "curl -#L -o \"$SRC/gc.tar.gz\" \"$URL\"; "
+                "echo '[installer] Downloading the latest GameCore release…'; "
+                f"URL=https://github.com/{GITHUB_REPO}/releases/latest/download/gamecore-full.tar.gz; "
+                "curl -#fL --connect-timeout 15 --retry 3 --retry-delay 5 "
+                "--speed-limit 1024 --speed-time 30 -o \"$SRC/gc.tar.gz\" \"$URL\" "
+                "|| { echo '[installer] Download failed — check the network connection and retry.'; exit 1; }; "
                 "echo '[installer] Extracting…'; tar -xzf \"$SRC/gc.tar.gz\" -C \"$SRC\"; "
                 f"bash \"$SRC/install/arch.sh\" --unattended {shlex.quote(self.conf_path)}"
             )
