@@ -99,11 +99,14 @@ async def _get_index(client: httpx.AsyncClient, system_name: str) -> list[str]:
     return []
 
 
-async def fetch_cover(rom_path: str, system_id: str) -> str | None:
-    """Return local path to cover image, downloading if necessary. None if not found."""
-    COVERS_DIR.mkdir(parents=True, exist_ok=True)
+async def fetch_cover(rom_path: str, system_id: str, dest: Path | None = None) -> str | None:
+    """Return local path to cover image, downloading if necessary. None if not found.
+    dest overrides the target file (used by cover_pipeline's per-system cache)."""
     base = Path(rom_path).stem
-    cached = COVERS_DIR / f"{base}.png"
+    if dest is None:
+        COVERS_DIR.mkdir(parents=True, exist_ok=True)
+        dest = COVERS_DIR / f"{base}.png"
+    cached = dest
     if cached.exists():
         return str(cached)
 

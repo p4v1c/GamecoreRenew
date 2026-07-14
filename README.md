@@ -359,9 +359,27 @@ magick artwork.png \
 
 ## Cover art
 
-GameCore scrapes cover images automatically when you browse your library.
-It first tries the **libretro thumbnails CDN** (free, no key needed).
-For systems with limited libretro coverage (PS3, Switch, etc.), it falls back to **TheGamesDB**.
+Covers are resolved per game through a tiered pipeline — each tier is only
+tried if the previous one found nothing:
+
+1. **Local cache / manual override** — `emu/covers/<system>/<name>.png|.jpg`.
+   Drop an image there to force a cover for a game.
+2. **Icon embedded in the game itself** (offline, always exact):
+   PS3 folders (`PS3_GAME/ICON0.PNG`), PS4 folders (`sce_sys/icon0.png`),
+   PSP ISOs (`PSP_GAME/ICON0.PNG` read straight out of the ISO).
+   Titles shown in the library also come from the game's `PARAM.SFO`
+   for PS3/PS4, so serial-named folders display their real name.
+3. **Exact disc-ID lookup** — the ID is read from the image header
+   (GameCube/Wii `.iso/.gcm/.rvz`) or from `SYSTEM.CNF` inside the disc
+   (PS1/PS2), then fetched from **GameTDB** (GC/Wii/PS3) or the
+   **xlenore psx/ps2 cover repos**. No filename guessing involved.
+4. **Name-based scraping** — the **libretro thumbnails CDN**, then
+   **TheGamesDB** (needs an API key, see below).
+
+Failed lookups are cached for a week (`.miss` files) so browsing the
+library stays fast offline. Append `?refresh=1` to a
+`/api/covers/<system>/<file>` request to force a re-resolve (e.g. after
+renaming a ROM or getting internet back).
 
 ### Enable TheGamesDB (recommended)
 

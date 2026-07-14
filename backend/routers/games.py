@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..config import resolve_path
-from ..services import fullscreen_enforcer
+from ..services import fullscreen_enforcer, local_media
 from ..services.process_manager import process_manager
 from ..services.rom_scanner import clean_name, iter_rom_files
 from .systems import list_all
@@ -33,13 +33,17 @@ async def _gamepad_trigger(rounds: int = 3, delay: float = 3.0) -> None:
 router = APIRouter(tags=["games"])
 
 
-def scan_roms(roms_path: Path, extensions: list[str], scan_dirs: bool = False) -> list[dict]:
+def scan_roms(roms_path: Path, extensions: list[str], scan_dirs: bool = False,
+              system_id: str = "") -> list[dict]:
     files = []
     for f in iter_rom_files(roms_path, extensions, scan_dirs=scan_dirs):
         stat = f.stat()
+        # Folder-based games (PS3/PS4) embed their real title — prefer it over
+        # the folder name, which is often just a serial like BLES01234.
+        title = local_media.get_title(system_id, f) if scan_dirs and system_id else None
         files.append({
             "filename": f.name,
-            "display_name": clean_name(f.name),
+            "display_name": title or clean_name(f.name),
             "path": str(f),
             "size": stat.st_size,
             "ext": "FOLDER" if f.is_dir() else f.suffix.lstrip(".").upper(),
@@ -64,7 +68,8 @@ def list_games(system_id: str):
     if not roms_path:
         return []
 
-    return scan_roms(roms_path, system.get("extensions", []), scan_dirs=system.get("scanDirs", False))
+    return scan_roms(roms_path, system.get("extensions", []),
+                     scan_dirs=system.get("scanDirs", False), system_id=system["id"])
 
 
 class LaunchRequest(BaseModel):
