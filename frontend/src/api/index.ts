@@ -22,6 +22,16 @@ export interface GameEntry {
   ext: string
 }
 
+export interface GameMeta {
+  found: boolean
+  title: string
+  description: string
+  year: string
+  genres: string[]
+  players: number
+  rating: string
+}
+
 export interface PlaytimeEntry {
   game_key: string
   system_id: string
@@ -66,6 +76,10 @@ export const api = {
       post('/games/launch', { system_id: systemId, rom_path: romPath, game_key: gameKey }),
     kill: () => post('/games/kill'),
     session: () => get<{ game_key?: string; system_id?: string }>('/games/session'),
+  },
+  metadata: {
+    get: (systemId: string, filename: string) =>
+      get<GameMeta>(`/metadata/${systemId}/${encodeURIComponent(filename)}`),
   },
   playtime: {
     all: () => get<PlaytimeEntry[]>('/playtime'),

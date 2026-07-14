@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .db import init_db
 from . import ws
-from .routers import systems, games, playtime, covers, sysinfo, update, overlays, addons
+from .routers import systems, games, playtime, covers, metadata, sysinfo, update, overlays, addons
 from .routers.settings import wifi, audio, bluetooth
 from .services import gamepad_monitor
 from .config import GAMECORE_ROOT, COVERS_DIR, ASSETS_DIR
@@ -41,6 +41,7 @@ app.include_router(systems.router, prefix="/api")
 app.include_router(games.router, prefix="/api")
 app.include_router(playtime.router, prefix="/api")
 app.include_router(covers.router, prefix="/api")
+app.include_router(metadata.router, prefix="/api")
 app.include_router(sysinfo.router, prefix="/api")
 app.include_router(update.router, prefix="/api")
 app.include_router(overlays.router, prefix="/api")
