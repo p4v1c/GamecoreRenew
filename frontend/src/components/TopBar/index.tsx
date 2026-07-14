@@ -6,8 +6,8 @@ interface Props {
   onPower: () => void
 }
 
-function ControllerBattery({ level }: { level: number }) {
-  const color = level > 60 ? '#4ade80' : level > 20 ? '#fbbf24' : '#ef4444'
+function ControllerBattery({ level, charging }: { level: number; charging?: boolean }) {
+  const color = charging ? '#4ade80' : level > 60 ? '#4ade80' : level > 20 ? '#fbbf24' : '#ef4444'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', borderRadius: 7, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
       {/* Gamepad icon */}
@@ -26,7 +26,9 @@ function ControllerBattery({ level }: { level: number }) {
         {/* Terminal nub */}
         <div style={{ width: 2, height: 5, background: 'rgba(255,255,255,0.25)', borderRadius: '0 1px 1px 0', flexShrink: 0 }} />
       </div>
-      <span style={{ fontSize: 11, color, fontWeight: 700, fontFamily: 'monospace', minWidth: 28 }}>{level}%</span>
+      <span style={{ fontSize: 11, color, fontWeight: 700, fontFamily: 'monospace', minWidth: 28 }}>
+        {charging && '⚡'}{level}%
+      </span>
     </div>
   )
 }
@@ -117,7 +119,7 @@ export default function TopBar({ onSettings, onPower }: Props) {
 
             {/* Controller batteries */}
             {sysInfo.controllers?.map((c, i) => (
-              <ControllerBattery key={i} level={c.level} />
+              <ControllerBattery key={i} level={c.level} charging={c.charging} />
             ))}
           </>
         )}

@@ -36,7 +36,7 @@ export interface SysInfo {
   storage_total_gb: number
   storage_free_gb: number
   version: string
-  controllers: { level: number }[]
+  controllers: { level: number; name?: string; label?: string; charging?: boolean }[]
 }
 
 async function get<T>(path: string): Promise<T> {
