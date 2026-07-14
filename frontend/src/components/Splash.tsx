@@ -1,10 +1,12 @@
 import { useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { playSound } from '../lib/sounds'
 
 interface Props { onDone: () => void }
 
 export default function Splash({ onDone }: Props) {
   useEffect(() => {
+    playSound('startup')
     const t = setTimeout(onDone, 3200)
     return () => clearTimeout(t)
   }, [onDone])

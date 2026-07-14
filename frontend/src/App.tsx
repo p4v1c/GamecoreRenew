@@ -13,6 +13,7 @@ import LibraryScreen from './components/LibraryScreen'
 import SettingsModal from './components/modals/SettingsModal'
 import PowerModal from './components/modals/PowerModal'
 import { onWsEvent } from './hooks/useWebSocket'
+import { playSound } from './lib/sounds'
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true)
@@ -60,6 +61,7 @@ export default function App() {
   }, [goHome, setSession])
 
   const handleLaunchApp = async (system: { id: string; path?: string; args?: string }) => {
+    playSound('launch')
     try {
       await api.games.launch(system.id)
       setSession(system.id, system.id)

@@ -7,6 +7,7 @@ import { fmtTime, fmtDate, hexToRgb, Chip, Overlay } from '../ui'
 import { VirtualKeyboard } from '../ui/VirtualKeyboard'
 import { SYSTEM_COLORS } from '../../lib/systemColors'
 import { formatGameName } from '../../lib/formatGameName'
+import { playSound } from '../../lib/sounds'
 
 type SortKey = 'name' | 'playtime' | 'lastPlayed'
 
@@ -92,6 +93,7 @@ export default function LibraryScreen() {
   const launchGame = useCallback(async () => {
     if (!selectedSystemId || !selectedGame || launching) return
     setLaunching(true)
+    playSound('launch')
     try {
       await api.games.launch(selectedSystemId, selectedGame.path, selectedGame.filename)
       // Block inputs immediately — don't wait for the WebSocket game:started event
