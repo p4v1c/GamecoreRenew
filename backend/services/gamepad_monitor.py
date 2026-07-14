@@ -42,6 +42,9 @@ async def _watch_device(path: str) -> None:
         async for event in dev.async_read_loop():
             if event.type != EV_KEY or event.value != KEY_DOWN:
                 continue
+            # Every button press counts as activity — wakes the box from standby
+            from . import standby
+            standby.on_input()
             if event.code in GUIDE_CODES:
                 log.info("gamepad_monitor: guide/PS button detected (code=%d) on %s",
                          event.code, path)

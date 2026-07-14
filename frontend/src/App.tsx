@@ -12,6 +12,7 @@ import HomeScreen from './components/HomeScreen'
 import LibraryScreen from './components/LibraryScreen'
 import SettingsModal from './components/modals/SettingsModal'
 import PowerModal from './components/modals/PowerModal'
+import Screensaver from './components/Screensaver'
 import { onWsEvent } from './hooks/useWebSocket'
 
 export default function App() {
@@ -77,6 +78,8 @@ export default function App() {
         : '#09090f',
       overflow: 'hidden',
     }}>
+
+      <Screensaver />
 
       <AnimatePresence>
         {showSplash && <Splash onDone={() => setShowSplash(false)} />}
