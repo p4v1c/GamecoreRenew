@@ -7,6 +7,11 @@ const fs   = require('fs')
 // Required on Linux X11 for per-pixel transparency in BrowserWindow
 app.commandLine.appendSwitch('enable-transparent-visuals')
 
+// Chromium keeps WebAudio suspended until a "user gesture" — and gamepad
+// buttons don't count as one (only mouse/keyboard do). On a controller-only
+// kiosk the UI sounds would stay silent forever without this.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+
 const DEBUG = false
 
 const DEV = DEBUG && process.env.ELECTRON_DEV === '1'
