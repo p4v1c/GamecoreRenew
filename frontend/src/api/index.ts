@@ -86,6 +86,12 @@ export const api = {
     forSystem: (id: string) => get<PlaytimeEntry[]>(`/playtime/system/${id}`),
     forGame: (key: string) => get<PlaytimeEntry>(`/playtime/game/${encodeURIComponent(key)}`),
   },
+  standby: {
+    get: () => get<{ state: string; enabled: boolean; screensaver_mins: number; sleep_mins: number }>('/standby'),
+    setConfig: (cfg: { enabled?: boolean; screensaver_mins?: number; sleep_mins?: number }) =>
+      post<{ ok: boolean; enabled: boolean; screensaver_mins: number; sleep_mins: number }>('/standby/config', cfg),
+    exit: () => post('/standby/exit'),
+  },
   sysinfo: () => get<SysInfo>('/sysinfo'),
   update: {
     check: () => get<{ update_available: boolean; current: string; latest: string; download_url?: string }>('/update/check'),

@@ -13,9 +13,16 @@ from fastapi.staticfiles import StaticFiles
 
 from .db import init_db
 from . import ws
+<<<<<<< HEAD
 from .routers import systems, games, playtime, covers, metadata, sysinfo, update, overlays, addons
 from .routers.settings import wifi, audio, bluetooth
 from .services import battery, gamepad_monitor
+=======
+from .routers import systems, games, playtime, covers, sysinfo, update, overlays, addons
+from .routers import standby as standby_router
+from .routers.settings import wifi, audio, bluetooth
+from .services import gamepad_monitor, standby
+>>>>>>> feat/standby
 from .config import GAMECORE_ROOT, COVERS_DIR, ASSETS_DIR
 
 @asynccontextmanager
@@ -23,10 +30,17 @@ async def lifespan(app: FastAPI):
     await init_db()
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
     monitor_task = asyncio.create_task(gamepad_monitor.run())
+<<<<<<< HEAD
     battery_task = asyncio.create_task(battery.run())
     yield
     monitor_task.cancel()
     battery_task.cancel()
+=======
+    standby_task = asyncio.create_task(standby.run())
+    yield
+    monitor_task.cancel()
+    standby_task.cancel()
+>>>>>>> feat/standby
 
 
 app = FastAPI(title="GameCore", version="1.0.0", lifespan=lifespan)
@@ -48,6 +62,7 @@ app.include_router(sysinfo.router, prefix="/api")
 app.include_router(update.router, prefix="/api")
 app.include_router(overlays.router, prefix="/api")
 app.include_router(addons.router, prefix="/api")
+app.include_router(standby_router.router, prefix="/api")
 app.include_router(wifi.router, prefix="/api")
 app.include_router(audio.router, prefix="/api")
 app.include_router(bluetooth.router, prefix="/api")

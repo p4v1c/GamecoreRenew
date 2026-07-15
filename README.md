@@ -408,6 +408,25 @@ If no key is set, the scraper silently falls back to libretro only.
 
 ---
 
+## Standby
+
+After a configurable idle time (Settings → Standby), GameCore shows a
+cover-art screensaver, then turns the screen off via DPMS and drops the
+CPU governor to powersave. The box itself stays up: backend, SSH and OTA
+updates keep working. **Any controller button wakes it** (evdev-based, so
+it works even with the UI asleep); mouse/keyboard input works too. A
+running game always blocks standby.
+
+Governor switching is optional and needs a sudoers rule (the screen is
+the real power sink — skip this if you don't care):
+
+```
+# /etc/sudoers.d/gamecore-standby
+your_user ALL=(root) NOPASSWD: /usr/bin/cpupower frequency-set -g powersave, /usr/bin/cpupower frequency-set -g performance
+```
+
+---
+
 ## OTA updates
 
 Via the UI: **Settings → Update → Check for update → Install**

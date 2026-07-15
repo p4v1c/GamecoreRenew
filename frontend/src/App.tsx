@@ -13,6 +13,7 @@ import LibraryScreen from './components/LibraryScreen'
 import SettingsModal from './components/modals/SettingsModal'
 import PowerModal from './components/modals/PowerModal'
 import Toasts from './components/ui/Toasts'
+import Screensaver from './components/Screensaver'
 import { onWsEvent } from './hooks/useWebSocket'
 import { playSound } from './lib/sounds'
 
@@ -80,6 +81,8 @@ export default function App() {
         : '#09090f',
       overflow: 'hidden',
     }}>
+
+      <Screensaver />
 
       <AnimatePresence>
         {showSplash && <Splash onDone={() => setShowSplash(false)} />}
