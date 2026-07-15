@@ -17,6 +17,7 @@
  */
 import { useEffect, useRef } from 'react'
 import { useStore } from '../store'
+import { playSound, soundForGpEvent } from '../lib/sounds'
 
 const DEAD_ZONE = 0.5
 
@@ -31,6 +32,8 @@ const BTN = {
 } as const
 
 function emit(name: string, detail?: unknown) {
+  const sound = soundForGpEvent(name)
+  if (sound) playSound(sound)
   window.dispatchEvent(new CustomEvent(name, detail !== undefined ? { detail } : undefined))
 }
 
