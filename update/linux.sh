@@ -101,6 +101,14 @@ else
   npm run build        || fail "frontend build failed"
 fi
 
+echo "[update] Clearing Electron UI cache (stale cached bundles hide the new frontend)..."
+# The UI is still running here — it may write some cache back on exit, which
+# is why electron/main.js also clears the HTTP cache on every start. This rm
+# handles the common case and older UIs that predate that change.
+for d in "$HOME/.config/gamecore-electron" "$HOME/.config/GameCore"; do
+  rm -rf "$d/Cache" "$d/Code Cache" "$d/GPUCache" 2>/dev/null
+done
+
 echo "[update] Scheduling service restart (detached)..."
 # --no-block: return immediately; the restart runs in its own unit, outside
 # this script's cgroup, ~2s after we exit (see gamecore-restart.service).

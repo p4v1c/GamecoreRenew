@@ -1,5 +1,5 @@
 'use strict'
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, session } = require('electron')
 const { exec, spawn } = require('child_process')
 const path = require('path')
 const fs   = require('fs')
@@ -245,6 +245,10 @@ ipcMain.on('system:quit',     () => app.quit())
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
+  // Everything is served from localhost, so the HTTP cache buys nothing —
+  // but a stale cached index.html after an OTA update keeps loading the OLD
+  // frontend bundle. Clear it on every start so updates always show up.
+  try { await session.defaultSession.clearCache() } catch (_) {}
   await startBackend()
   createWindow()
   startOverlayMonitor()
