@@ -1,12 +1,21 @@
 import { useState, useEffect, useRef } from 'react'
 import { onGp } from '../../hooks/useGamepad'
 
-const ROWS: string[][] = [
+// Two layers: letters and symbols. '?123' / 'abc' switches (also R1).
+const LETTERS: string[][] = [
   ['1','2','3','4','5','6','7','8','9','0'],
   ['q','w','e','r','t','y','u','i','o','p'],
   ['a','s','d','f','g','h','j','k','l'],
   ['z','x','c','v','b','n','m'],
-  ['SHIFT','SPACE','⌫','ENTER'],
+  ['?123','SHIFT','SPACE','⌫','ENTER'],
+]
+
+const SYMBOLS: string[][] = [
+  ['!','@','#','$','%','^','&','*','(',')'],
+  ['-','_','=','+','[',']','{','}','±','~'],
+  [';',':','\'','"',',','.','<','>','?','/'],
+  ['\\','|','`','€','£','¥','§','°','¿','¡'],
+  ['abc','SPACE','⌫','ENTER'],
 ]
 
 interface Props {
@@ -18,18 +27,33 @@ interface Props {
 
 export function VirtualKeyboard({ title, password = false, onConfirm, onCancel }: Props) {
   const [value, setValue] = useState('')
+  const [layout, setLayout] = useState<'letters' | 'symbols'>('letters')
   const [row, setRow] = useState(1)
   const [col, setCol] = useState(0)
   const [shifted, setShifted] = useState(false)
 
+  const rows = layout === 'letters' ? LETTERS : SYMBOLS
+
   // Stable ref so gamepad handlers never go stale
-  const stateRef = useRef({ row, col, shifted, value })
-  useEffect(() => { stateRef.current = { row, col, shifted, value } }, [row, col, shifted, value])
+  const stateRef = useRef({ row, col, shifted, value, rows })
+  useEffect(() => { stateRef.current = { row, col, shifted, value, rows } }, [row, col, shifted, value, rows])
 
   const onConfirmRef = useRef(onConfirm)
   const onCancelRef  = useRef(onCancel)
   useEffect(() => { onConfirmRef.current = onConfirm }, [onConfirm])
   useEffect(() => { onCancelRef.current  = onCancel  }, [onCancel])
+
+  const toggleLayout = () => {
+    setLayout(l => {
+      const next = l === 'letters' ? 'symbols' : 'letters'
+      const nextRows = next === 'letters' ? LETTERS : SYMBOLS
+      // Keep the cursor on a real key after the grid changes shape
+      const r = Math.min(stateRef.current.row, nextRows.length - 1)
+      setRow(r)
+      setCol(c => Math.min(c, nextRows[r].length - 1))
+      return next
+    })
+  }
 
   const pressKey = (key: string) => {
     const { shifted, value } = stateRef.current
@@ -38,6 +62,8 @@ export function VirtualKeyboard({ title, password = false, onConfirm, onCancel }
       case 'SPACE': setValue(v => v + ' '); break
       case '⌫':    setValue(v => v.slice(0, -1)); break
       case 'ENTER': onConfirmRef.current(value); break
+      case '?123':
+      case 'abc':   toggleLayout(); break
       default: {
         const ch = shifted ? key.toUpperCase() : key
         setValue(v => v + ch)
@@ -50,31 +76,32 @@ export function VirtualKeyboard({ title, password = false, onConfirm, onCancel }
   useEffect(() => {
     const offs = [
       onGp('gp:dpad-up', () => {
-        const { row, col } = stateRef.current
+        const { row, rows } = stateRef.current
         const newRow = Math.max(0, row - 1)
         setRow(newRow)
-        setCol(c => Math.min(c, ROWS[newRow].length - 1))
+        setCol(c => Math.min(c, rows[newRow].length - 1))
       }),
       onGp('gp:dpad-down', () => {
-        const { row, col } = stateRef.current
-        const newRow = Math.min(ROWS.length - 1, row + 1)
+        const { row, rows } = stateRef.current
+        const newRow = Math.min(rows.length - 1, row + 1)
         setRow(newRow)
-        setCol(c => Math.min(c, ROWS[newRow].length - 1))
+        setCol(c => Math.min(c, rows[newRow].length - 1))
       }),
       onGp('gp:dpad-left', () => {
-        const { row, col } = stateRef.current
-        setCol(col > 0 ? col - 1 : ROWS[row].length - 1)
+        const { row, col, rows } = stateRef.current
+        setCol(col > 0 ? col - 1 : rows[row].length - 1)
       }),
       onGp('gp:dpad-right', () => {
-        const { row, col } = stateRef.current
-        setCol(col < ROWS[row].length - 1 ? col + 1 : 0)
+        const { row, col, rows } = stateRef.current
+        setCol(col < rows[row].length - 1 ? col + 1 : 0)
       }),
       onGp('gp:confirm', () => {
-        const { row, col } = stateRef.current
-        pressKey(ROWS[row][col])
+        const { row, col, rows } = stateRef.current
+        pressKey(rows[row][col])
       }),
       onGp('gp:back', () => onCancelRef.current()),
       onGp('gp:l1',   () => setShifted(s => !s)),
+      onGp('gp:r1',   () => toggleLayout()),
     ]
     return () => offs.forEach(o => o())
   }, []) // intentionally empty — stateRef keeps values fresh
@@ -100,27 +127,28 @@ export function VirtualKeyboard({ title, password = false, onConfirm, onCancel }
       </div>
 
       {/* Key rows */}
-      {ROWS.map((keys, ri) => (
-        <div key={ri} style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
+      {rows.map((keys, ri) => (
+        <div key={`${layout}-${ri}`} style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
           {keys.map((key, ci) => {
             const focused   = ri === row && ci === col
             const isShift   = key === 'SHIFT'
             const isSpace   = key === 'SPACE'
             const isDel     = key === '⌫'
             const isEnter   = key === 'ENTER'
-            const isSpecial = isShift || isSpace || isDel || isEnter
+            const isMode    = key === '?123' || key === 'abc'
+            const isSpecial = isShift || isSpace || isDel || isEnter || isMode
             const label     = isShift ? (shifted ? '⇧●' : '⇧')
                             : isSpace ? 'SPACE'
                             : isEnter ? '↵ OK'
-                            : (!isSpecial && shifted) ? key.toUpperCase()
+                            : (!isSpecial && layout === 'letters' && shifted) ? key.toUpperCase()
                             : key
 
             return (
               <button
-                key={`${ri}-${ci}`}
+                key={`${layout}-${ri}-${ci}`}
                 onClick={() => pressKey(key)}
                 style={{
-                  minWidth:   isSpace ? 100 : isShift || isEnter ? 64 : isDel ? 52 : 34,
+                  minWidth:   isSpace ? 100 : isShift || isEnter ? 64 : isDel ? 52 : isMode ? 54 : 34,
                   height:     34,
                   borderRadius: 7,
                   border:     focused
@@ -128,12 +156,12 @@ export function VirtualKeyboard({ title, password = false, onConfirm, onCancel }
                     : '1px solid rgba(255,255,255,0.09)',
                   background: focused
                     ? 'rgba(124,58,237,0.38)'
-                    : (isShift && shifted)
+                    : (isShift && shifted) || isMode
                       ? 'rgba(124,58,237,0.2)'
                       : isEnter
                         ? 'rgba(124,58,237,0.15)'
                         : 'rgba(255,255,255,0.05)',
-                  color:      focused ? '#fff' : isEnter ? '#c4b5fd' : 'rgba(255,255,255,0.78)',
+                  color:      focused ? '#fff' : isEnter || isMode ? '#c4b5fd' : 'rgba(255,255,255,0.78)',
                   fontSize:   isSpecial ? 11 : 13,
                   fontWeight: isSpecial ? 600 : 400,
                   cursor:     'pointer',
@@ -162,7 +190,7 @@ export function VirtualKeyboard({ title, password = false, onConfirm, onCancel }
       </button>
 
       <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
-        D-Pad navigate · ✕ type · ⌫ delete · ○ cancel · L1 shift · ↵ OK
+        D-Pad navigate · ✕ type · ○ cancel · L1 shift · R1 symbols · ↵ OK
       </div>
     </div>
   )
