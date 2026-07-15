@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '../../store'
-import { api, GameEntry, PlaytimeEntry, SystemEntry } from '../../api'
+import { api, GameEntry, GameMeta, PlaytimeEntry, SystemEntry } from '../../api'
 import { onGp } from '../../hooks/useGamepad'
 import { fmtTime, fmtDate, hexToRgb, Chip, Overlay } from '../ui'
 import { VirtualKeyboard } from '../ui/VirtualKeyboard'
@@ -311,9 +311,7 @@ export default function LibraryScreen() {
                     <h2 style={{ fontSize: 30, fontWeight: 900, letterSpacing: -0.5, lineHeight: 1.1, marginBottom: 16 }}>
                       {formatGameName(selectedGame.display_name)}
                     </h2>
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-                      <Chip label={selectedGame.ext} color={color} />
-                    </div>
+                    <GameMetaPanel systemId={selectedSystemId} filename={selectedGame.filename} extChip={<Chip label={selectedGame.ext} color={color} />} color={color} />
                     <div style={{ display: 'flex', gap: 24, marginBottom: 28 }}>
                       {[
                         { l: 'Play Time', v: fmtTime(playtimeMap[selectedGame.filename]?.total_secs || 0) },
@@ -373,6 +371,41 @@ export default function LibraryScreen() {
         )}
       </AnimatePresence>
     </motion.div>
+  )
+}
+
+function GameMetaPanel({ systemId, filename, extChip, color }: {
+  systemId: string; filename: string; extChip: React.ReactNode; color: string
+}) {
+  const [meta, setMeta] = useState<GameMeta | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setMeta(null)
+    api.metadata.get(systemId, filename)
+      .then(m => { if (!cancelled) setMeta(m) })
+      .catch(() => {})  // 404 = no metadata (no key / unknown game) — chips row still shows ext
+    return () => { cancelled = true }
+  }, [systemId, filename])
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 8, marginBottom: meta?.description ? 14 : 24, flexWrap: 'wrap' }}>
+        {extChip}
+        {meta?.year && <Chip label={meta.year} color={color} />}
+        {meta?.genres.slice(0, 3).map(g => <Chip key={g} label={g} color={color} />)}
+        {(meta?.players ?? 0) > 1 && <Chip label={`${meta!.players} players`} color={color} />}
+      </div>
+      {meta?.description && (
+        <p style={{
+          fontSize: 13.5, lineHeight: 1.55, color: 'rgba(255,255,255,0.55)',
+          maxWidth: 640, marginBottom: 24,
+          display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        }}>
+          {meta.description}
+        </p>
+      )}
+    </>
   )
 }
 
