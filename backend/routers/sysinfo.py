@@ -1,15 +1,11 @@
 """System information — IP, storage, version, controller batteries."""
-import glob
 import shutil
 import socket
-from pathlib import Path
 from fastapi import APIRouter
 from ..config import APP_VERSION, GAMECORE_ROOT
+from ..services.battery import read_batteries
 
 router = APIRouter(tags=["sysinfo"])
-
-# Power supply name prefixes that are NOT controllers
-_SKIP = ("BAT", "AC", "USB", "UCSI", "ADP", "MACSMC", "axp", "bq")
 
 
 def _primary_ip() -> str:
@@ -21,24 +17,6 @@ def _primary_ip() -> str:
         return "—"
 
 
-def _controller_batteries() -> list[dict]:
-    """Read controller battery levels directly from sysfs — no subprocess needed."""
-    result = []
-    for supply in sorted(glob.glob("/sys/class/power_supply/*")):
-        name = Path(supply).name
-        if any(name.upper().startswith(p.upper()) for p in _SKIP):
-            continue
-        cap_path = Path(supply) / "capacity"
-        if not cap_path.exists():
-            continue
-        try:
-            level = int(cap_path.read_text().strip())
-        except (ValueError, OSError):
-            continue
-        result.append({"level": level})
-    return result
-
-
 @router.get("/sysinfo")
 def get_sysinfo():
     total, used, free = shutil.disk_usage(GAMECORE_ROOT)
@@ -48,5 +26,5 @@ def get_sysinfo():
         "storage_total_gb": round(total / 1e9, 1),
         "storage_free_gb": round(free / 1e9, 1),
         "version": APP_VERSION,
-        "controllers": _controller_batteries(),
+        "controllers": read_batteries(),
     }

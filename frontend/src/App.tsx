@@ -12,6 +12,7 @@ import HomeScreen from './components/HomeScreen'
 import LibraryScreen from './components/LibraryScreen'
 import SettingsModal from './components/modals/SettingsModal'
 import PowerModal from './components/modals/PowerModal'
+import Toasts from './components/ui/Toasts'
 import { onWsEvent } from './hooks/useWebSocket'
 
 export default function App() {
@@ -85,6 +86,7 @@ export default function App() {
       {!showSplash && (
         <>
           <TopBar onSettings={() => setShowSettings(true)} onPower={() => setShowPower(true)} />
+          <Toasts />
 
           {/* Both screens stay mounted at all times — toggled via display:none.
               This prevents the re-mount/re-fetch flash when navigating home from library. */}
