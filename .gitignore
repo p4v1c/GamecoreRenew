@@ -31,9 +31,11 @@ emu/
 !emu/covers/.gitkeep
 
 # Emulator binaries and console firmwares — live on the box only,
-# never in git (a branch switch must never be able to delete them)
-lib/
-firmwares/
+# never in git (a branch switch must never be able to delete them).
+# Anchored to the repo root: an unanchored "lib/" also swallowed
+# frontend/src/lib/, silently keeping new source files out of git.
+/lib/
+/firmwares/
 
 # Local backup copies (e.g. config/overlays.json.bak)
 *.bak
