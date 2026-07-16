@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { onWsEvent } from '../../hooks/useWebSocket'
+import { useStore } from '../../store'
 
 interface Toast {
   id: number
@@ -32,6 +33,12 @@ export default function Toasts() {
   useEffect(() => {
     const off = onWsEvent('gp:battery', (d) => {
       const level = d.level as number
+      // While a game runs, this UI is buried under the fullscreen emulator —
+      // hand the alert to the native always-on-top HUD window instead.
+      if (useStore.getState().sessionGameKey !== null && window.gamecore?.batteryToast) {
+        window.gamecore.batteryToast({ level })
+        return
+      }
       push({
         icon: '🎮',
         title: 'Controller battery low',

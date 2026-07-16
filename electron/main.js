@@ -1,5 +1,5 @@
 'use strict'
-const { app, BrowserWindow, ipcMain, session } = require('electron')
+const { app, BrowserWindow, ipcMain, screen, session } = require('electron')
 const { exec, spawn } = require('child_process')
 const path = require('path')
 const fs   = require('fs')
@@ -97,6 +97,49 @@ function destroyOverlayWindow() {
     overlayWindow = null
   }
 }
+
+// ── Battery toast ─────────────────────────────────────────────────────────────
+// In-game the main window is buried under the fullscreen emulator, so its
+// React toast is invisible. This small transparent always-on-top window
+// (same recipe as the bezel overlay) shows the alert over anything.
+let batteryToastWindow = null
+let batteryToastTimer  = null
+
+function showBatteryToast({ level = 0 } = {}) {
+  const accent = level <= 5 ? '#ef4444' : '#fbbf24'
+  const html = `<!doctype html><html><body style="margin:0;background:transparent;overflow:hidden;font-family:sans-serif">
+    <div style="display:flex;align-items:center;gap:14px;margin:8px;padding:14px 18px;border-radius:14px;
+                background:rgba(18,18,26,0.94);border:1px solid ${accent};box-shadow:0 8px 32px rgba(0,0,0,0.6)">
+      <div style="width:40px;height:40px;border-radius:10px;background:${accent}33;display:flex;align-items:center;justify-content:center;font-size:20px">🎮</div>
+      <div>
+        <div style="font-size:14px;font-weight:700;color:${accent}">Controller battery low</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:3px">Your controller has ${Math.round(Number(level))}% battery left</div>
+      </div>
+    </div></body></html>`
+
+  if (batteryToastTimer) { clearTimeout(batteryToastTimer); batteryToastTimer = null }
+  if (batteryToastWindow) { batteryToastWindow.close(); batteryToastWindow = null }
+
+  const { width } = screen.getPrimaryDisplay().workAreaSize
+  const W = 440, H = 100
+  batteryToastWindow = new BrowserWindow({
+    x: width - W - 24, y: 24, width: W, height: H,
+    transparent: true, backgroundColor: '#00000000', frame: false,
+    alwaysOnTop: true, skipTaskbar: true, focusable: false,
+    resizable: false, hasShadow: false,
+    webPreferences: { nodeIntegration: false, contextIsolation: true },
+  })
+  batteryToastWindow.setIgnoreMouseEvents(true)
+  batteryToastWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
+  batteryToastWindow.on('closed', () => { batteryToastWindow = null })
+
+  batteryToastTimer = setTimeout(() => {
+    batteryToastTimer = null
+    if (batteryToastWindow) { batteryToastWindow.close(); batteryToastWindow = null }
+  }, 5000)
+}
+
+ipcMain.on('notify:battery', (_, data) => showBatteryToast(data || {}))
 
 // ── Overlay monitor (Python) ──────────────────────────────────────────────────
 function loadOverlayConfig() {
