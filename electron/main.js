@@ -122,7 +122,9 @@ function showBatteryToast({ level = 0 } = {}) {
     </div></body></html>`
 
   if (batteryToastTimer) { clearTimeout(batteryToastTimer); batteryToastTimer = null }
-  if (batteryToastWindow) { batteryToastWindow.close(); batteryToastWindow = null }
+  // destroy(), not close(): close() is a request that can be ignored — a
+  // lingering HUD on screen is worse than a skipped fade-out.
+  if (batteryToastWindow) { batteryToastWindow.destroy(); batteryToastWindow = null }
 
   const { width } = screen.getPrimaryDisplay().workAreaSize
   const W = 440, H = 100
@@ -145,7 +147,7 @@ function showBatteryToast({ level = 0 } = {}) {
 
   batteryToastTimer = setTimeout(() => {
     batteryToastTimer = null
-    if (batteryToastWindow) { batteryToastWindow.close(); batteryToastWindow = null }
+    if (batteryToastWindow) { batteryToastWindow.destroy(); batteryToastWindow = null }
   }, 5000)
 }
 
