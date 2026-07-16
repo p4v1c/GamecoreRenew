@@ -16,7 +16,7 @@ from . import ws
 from .routers import systems, games, playtime, covers, metadata, sysinfo, update, overlays, addons
 from .routers import standby as standby_router
 from .routers.settings import wifi, audio, bluetooth
-from .services import battery, gamepad_monitor, standby
+from .services import battery, gamepad_monitor, prefetch, standby
 from .config import GAMECORE_ROOT, COVERS_DIR, ASSETS_DIR
 
 @asynccontextmanager
@@ -26,10 +26,12 @@ async def lifespan(app: FastAPI):
     monitor_task = asyncio.create_task(gamepad_monitor.run())
     battery_task = asyncio.create_task(battery.run())
     standby_task = asyncio.create_task(standby.run())
+    prefetch_task = asyncio.create_task(prefetch.run())
     yield
     monitor_task.cancel()
     battery_task.cancel()
     standby_task.cancel()
+    prefetch_task.cancel()
 
 
 app = FastAPI(title="GameCore", version="1.0.0", lifespan=lifespan)
