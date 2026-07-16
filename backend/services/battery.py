@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 _SKIP = ("BAT", "AC", "USB", "UCSI", "ADP", "MACSMC", "axp", "bq")
 
 # Warn when the level crosses each threshold going down, once per crossing
-THRESHOLDS = (15, 10, 5)
+THRESHOLDS = (25, 15, 10, 5)
 _POLL_SECS = 30
 # Re-arm a threshold once the level climbs back above it by this margin
 # (avoids toast spam when a reading oscillates around the threshold)

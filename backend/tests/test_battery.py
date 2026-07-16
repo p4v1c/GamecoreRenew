@@ -27,7 +27,10 @@ def main():
 
     # Descente progressive : un toast par seuil, une seule fois
     check("100% → rien", battery._check([pad(100)]) == [])
-    check("16% → rien", battery._check([pad(16)]) == [])
+    check("26% → rien", battery._check([pad(26)]) == [])
+    a = battery._check([pad(25)])
+    check("25% → toast seuil 25", len(a) == 1 and a[0]["threshold"] == 25, str(a))
+    check("16% → rien (25 déjà signalé)", battery._check([pad(16)]) == [])
     a = battery._check([pad(15)])
     check("15% → toast seuil 15", len(a) == 1 and a[0]["threshold"] == 15, str(a))
     check("14% → rien (déjà signalé)", battery._check([pad(14)]) == [])
