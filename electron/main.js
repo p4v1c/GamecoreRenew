@@ -131,6 +131,12 @@ function showBatteryToast({ level = 0 } = {}) {
   })
   batteryToastWindow.setIgnoreMouseEvents(true)
   batteryToastWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
+  // Both this window and the bezel overlay are always-on-top: X11 stacks the
+  // most recently raised one higher, but make it explicit so the alert can
+  // never end up under the bezel.
+  batteryToastWindow.webContents.once('did-finish-load', () => {
+    batteryToastWindow?.moveTop()
+  })
   batteryToastWindow.on('closed', () => { batteryToastWindow = null })
 
   batteryToastTimer = setTimeout(() => {
