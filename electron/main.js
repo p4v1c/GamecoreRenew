@@ -129,7 +129,9 @@ function showBatteryToast({ level = 0 } = {}) {
   const { width } = screen.getPrimaryDisplay().workAreaSize
   const W = 440, H = 100
   batteryToastWindow = new BrowserWindow({
-    x: width - W - 24, y: 24, width: W, height: H,
+    // Below the TopBar (54px tall) so the HUD never covers the battery/IP/
+    // settings pills when it pops over the menu.
+    x: width - W - 24, y: 66, width: W, height: H,
     transparent: true, backgroundColor: '#00000000', frame: false,
     alwaysOnTop: true, skipTaskbar: true, focusable: false,
     resizable: false, hasShadow: false,
