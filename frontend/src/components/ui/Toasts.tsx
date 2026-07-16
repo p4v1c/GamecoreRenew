@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { onWsEvent } from '../../hooks/useWebSocket'
-import { useStore } from '../../store'
 
 interface Toast {
   id: number
@@ -33,9 +32,11 @@ export default function Toasts() {
   useEffect(() => {
     const off = onWsEvent('gp:battery', (d) => {
       const level = d.level as number
-      // While a game runs, this UI is buried under the fullscreen emulator —
-      // hand the alert to the native always-on-top HUD window instead.
-      if (useStore.getState().sessionGameKey !== null && window.gamecore?.batteryToast) {
+      // One single path everywhere: the native always-on-top HUD window shows
+      // over the menu, fullscreen emulators, apps (Stremio…) and bezels alike.
+      // The in-app toast is only the fallback for plain-browser access
+      // (dev / remote), where the Electron bridge doesn't exist.
+      if (window.gamecore?.batteryToast) {
         window.gamecore.batteryToast({ level })
         return
       }

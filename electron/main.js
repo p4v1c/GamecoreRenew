@@ -38,6 +38,10 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
+      // This window is the WebSocket bridge for battery alerts even while
+      // buried under an emulator or hidden behind a bezel overlay — never
+      // let Chromium throttle it in the background.
+      backgroundThrottling: false,
     },
   })
 
