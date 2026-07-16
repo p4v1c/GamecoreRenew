@@ -98,10 +98,14 @@ async def run() -> None:
 
     log.info("battery: watcher started (thresholds=%s)", THRESHOLDS)
     while True:
+        # Sleep FIRST: at backend startup the UI isn't connected to the
+        # WebSocket yet — checking immediately would broadcast a crossed
+        # threshold to zero clients and mark it fired, losing the alert
+        # (seen after every OTA restart with a pad already below 25%).
+        await asyncio.sleep(_POLL_SECS)
         try:
             for alert in _check(read_batteries()):
                 log.info("battery: %(name)s at %(level)d%% (threshold %(threshold)d%%)", alert)
                 await ws.broadcast("gp:battery", alert)
         except Exception:
             log.exception("battery: poll failed")
-        await asyncio.sleep(_POLL_SECS)
