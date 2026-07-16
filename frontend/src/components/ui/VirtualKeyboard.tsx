@@ -116,12 +116,16 @@ export function VirtualKeyboard({ title, password = false, onConfirm, onCancel }
         </div>
       )}
 
-      {/* Typed value display */}
+      {/* Typed value display — long values are clipped on the left so the
+          end of the input (what you're typing) always stays visible */}
       <div style={{
         background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(124,58,237,0.5)',
         borderRadius: 10, padding: '10px 16px', minHeight: 44,
-        fontSize: 20, letterSpacing: 4, color: '#fff', textAlign: 'center',
+        fontSize: 20, letterSpacing: 4, color: '#fff',
         fontFamily: 'monospace',
+        display: 'flex', alignItems: 'center',
+        justifyContent: displayValue ? 'flex-end' : 'center',
+        overflow: 'hidden', whiteSpace: 'nowrap',
       }}>
         {displayValue || <span style={{ opacity: 0.25, fontSize: 14, letterSpacing: 1 }}>enter password</span>}
       </div>
