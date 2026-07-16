@@ -90,6 +90,17 @@ export default function LibraryScreen() {
 
   const selectedGame = sortedGames[selectedGameIdx] ?? sortedGames[0]
 
+  // Detail panel shows a debounced selection: updating it on every step of a
+  // fast scroll thrashed AnimatePresence (the panel froze on the first game)
+  // and fired a cover+metadata request per step. 150ms after the scroll
+  // settles, the panel catches up in one clean transition.
+  const [settledGame, setSettledGame] = useState<GameEntry | null>(null)
+  useEffect(() => {
+    if (!selectedGame) { setSettledGame(null); return }
+    const t = setTimeout(() => setSettledGame(selectedGame), 150)
+    return () => clearTimeout(t)
+  }, [selectedGame?.filename])  // eslint-disable-line react-hooks/exhaustive-deps
+
   const launchGame = useCallback(async () => {
     if (!selectedSystemId || !selectedGame || launching) return
     setLaunching(true)
@@ -270,9 +281,9 @@ export default function LibraryScreen() {
 
         {/* Right: game detail */}
         <AnimatePresence mode="wait">
-          {selectedGame && (
+          {settledGame && (
             <motion.div
-              key={selectedGame.filename}
+              key={settledGame.filename}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -300,7 +311,7 @@ export default function LibraryScreen() {
                     background: `rgba(${rgb},0.15)`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <CoverImage filename={selectedGame.filename} systemId={selectedSystemId} color={color} />
+                    <CoverImage filename={settledGame.filename} systemId={selectedSystemId} color={color} />
                   </div>
 
                   {/* Info */}
@@ -309,14 +320,14 @@ export default function LibraryScreen() {
                       {(system?.label || system?.platform || selectedSystemId).toUpperCase()}
                     </div>
                     <h2 style={{ fontSize: 30, fontWeight: 900, letterSpacing: -0.5, lineHeight: 1.1, marginBottom: 16 }}>
-                      {formatGameName(selectedGame.display_name)}
+                      {formatGameName(settledGame.display_name)}
                     </h2>
-                    <GameMetaPanel systemId={selectedSystemId} filename={selectedGame.filename} extChip={<Chip label={selectedGame.ext} color={color} />} color={color} />
+                    <GameMetaPanel systemId={selectedSystemId} filename={settledGame.filename} extChip={<Chip label={settledGame.ext} color={color} />} color={color} />
                     <div style={{ display: 'flex', gap: 24, marginBottom: 28 }}>
                       {[
-                        { l: 'Play Time', v: fmtTime(playtimeMap[selectedGame.filename]?.total_secs || 0) },
-                        { l: 'Sessions', v: String(playtimeMap[selectedGame.filename]?.session_count || 0) },
-                        { l: 'Last Played', v: fmtDate(playtimeMap[selectedGame.filename]?.last_played || null) },
+                        { l: 'Play Time', v: fmtTime(playtimeMap[settledGame.filename]?.total_secs || 0) },
+                        { l: 'Sessions', v: String(playtimeMap[settledGame.filename]?.session_count || 0) },
+                        { l: 'Last Played', v: fmtDate(playtimeMap[settledGame.filename]?.last_played || null) },
                       ].map(s => (
                         <div key={s.l}>
                           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: 2, marginBottom: 4 }}>{s.l.toUpperCase()}</div>
