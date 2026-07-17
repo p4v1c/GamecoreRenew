@@ -460,6 +460,37 @@ EOF
   flatpak list --app 2>/dev/null | grep -q com.stremio.Stremio \
     || { flatpak install -y flathub com.stremio.Stremio && ok "Stremio installed." || warn "Stremio failed."; }
   flatpak override --device=all --filesystem=host com.stremio.Stremio 2>/dev/null || true
+
+  # Stremio media center over the gamepad: a fork of stremio-web with a TV
+  # on-screen keyboard, served in a Firefox kiosk and driven by
+  # gamepad-tv-bridge (stremio profile). The Flatpak above stays installed —
+  # its bundled node/server.js is the streaming server (stremio-server.service).
+  STREMIO_WEB_DIR="$USER_HOME/stremio-web"
+  if [ ! -d "$STREMIO_WEB_DIR" ]; then
+    git_clone https://github.com/p4v1c/stremio-web.git "$STREMIO_WEB_DIR" \
+      && sudo -u "$USER_NAME" git -C "$STREMIO_WEB_DIR" checkout feature/tv-virtual-keyboard \
+      && ok "stremio-web fork cloned → $STREMIO_WEB_DIR" || warn "stremio-web clone failed."
+  fi
+  if [ -d "$STREMIO_WEB_DIR" ] && [ -x /opt/gamepad-tv-bridge/install/setup-stremio.sh ]; then
+    chown -R "${USER_NAME}:${USER_NAME}" "$STREMIO_WEB_DIR"
+    # pnpm (>= 11): reuse an existing one, else install into ~/.local.
+    PNPM_BIN="$USER_HOME/.local/bin/pnpm"
+    sudo -u "$USER_NAME" bash -lc 'command -v pnpm >/dev/null 2>&1' && PNPM_BIN="$(sudo -u "$USER_NAME" bash -lc 'command -v pnpm')"
+    if ! sudo -u "$USER_NAME" test -x "$PNPM_BIN"; then
+      sudo -u "$USER_NAME" npm install -g pnpm@latest --prefix "$USER_HOME/.local" >/dev/null 2>&1 \
+        && ok "pnpm installed for $USER_NAME." || warn "pnpm install failed — build the fork manually."
+      PNPM_BIN="$USER_HOME/.local/bin/pnpm"
+    fi
+    if sudo -u "$USER_NAME" test -x "$PNPM_BIN"; then
+      msg "Building stremio-web fork (can take a few minutes)…"
+      sudo -u "$USER_NAME" bash -lc "cd '$STREMIO_WEB_DIR' && '$PNPM_BIN' install && '$PNPM_BIN' build" \
+        && ok "stremio-web built." || warn "stremio-web build failed — run 'pnpm install && pnpm build' later."
+    fi
+    # Install + enable the user services (streaming server / static UI / kiosk).
+    sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+      bash /opt/gamepad-tv-bridge/install/setup-stremio.sh \
+      && ok "Stremio TV kiosk services installed." || warn "Stremio TV setup deferred to next login."
+  fi
 else
   msg "Minimal mode — skipping emulators, applications and configs."
 fi
