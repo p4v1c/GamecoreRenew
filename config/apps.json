@@ -20,14 +20,14 @@
     "path": "firefox",
     "args": "--profile '/home/pavic/.mozilla/firefox/youtube-tv' --kiosk 'https://www.youtube.com/tv' "
   },
-  { 
+  {
     "id": "twitch",
     "kind": "app",
     "type": "application",
     "label": "Twitch",
     "platform": "Web",
     "color": "#800080",
-    "iconPath":"assets/logos/twitch.png",
+    "iconPath": "assets/logos/twitch.png",
     "path": "firefox",
     "args": "--profile '/home/pavic/.mozilla/firefox/twitch-tv' --kiosk 'https://localhost:8097/' "
   },
@@ -39,9 +39,7 @@
     "platform": "Media",
     "color": "#8a5fff",
     "iconPath": "assets/logos/stremio.png",
-    "path": "flatpak",
-    "args": "run --nosocket=wayland --socket=x11 com.stremio.Stremio --no-window-decorations",
-    "gamepadTrigger": true,
-    "fullscreen": { "wm_class": ["stremio", "Stremio", "com.stremio.Stremio"], "timeout_s": 60 }
+    "path": "bash",
+    "args": "/opt/gamepad-tv-bridge/install/launch-stremio.sh"
   }
 ]
