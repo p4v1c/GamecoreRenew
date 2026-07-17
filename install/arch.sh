@@ -483,7 +483,7 @@ EOF
     fi
     if sudo -u "$USER_NAME" test -x "$PNPM_BIN"; then
       msg "Building stremio-web fork (can take a few minutes)…"
-      sudo -u "$USER_NAME" bash -lc "cd '$STREMIO_WEB_DIR' && '$PNPM_BIN' install && '$PNPM_BIN' build" \
+      sudo -u "$USER_NAME" bash -lc "cd '$STREMIO_WEB_DIR' && '$PNPM_BIN' install && SERVICE_WORKER_DISABLED=true '$PNPM_BIN' build" \
         && ok "stremio-web built." || warn "stremio-web build failed — run 'pnpm install && pnpm build' later."
     fi
     # Install + enable the user services (streaming server / static UI / kiosk).
