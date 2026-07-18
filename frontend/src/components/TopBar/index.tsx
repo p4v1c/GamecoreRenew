@@ -6,7 +6,7 @@ interface Props {
   onPower: () => void
 }
 
-function ControllerBattery({ level, charging }: { level: number; charging?: boolean }) {
+function ControllerBattery({ player, level, charging }: { player?: number | null; level: number; charging?: boolean }) {
   const color = charging ? '#4ade80' : level > 60 ? '#4ade80' : level > 20 ? '#fbbf24' : '#ef4444'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', borderRadius: 7, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
@@ -17,6 +17,12 @@ function ControllerBattery({ level, charging }: { level: number; charging?: bool
         <rect x="3" y="2.5" width="4.2" height="1.2" rx="0.6" fill="rgba(255,255,255,0.4)"/>
         <circle cx="9.5" cy="6" r="1" fill="rgba(255,255,255,0.35)"/>
       </svg>
+      {/* Console-style slot from the backend controller registry */}
+      {player != null && (
+        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: 700, fontFamily: 'monospace' }}>
+          P{player}
+        </span>
+      )}
       {/* Battery bar */}
       <div style={{ position: 'relative', width: 24, height: 10, display: 'flex', alignItems: 'center' }}>
         {/* Body */}
@@ -119,7 +125,7 @@ export default function TopBar({ onSettings, onPower }: Props) {
 
             {/* Controller batteries */}
             {sysInfo.controllers?.map((c, i) => (
-              <ControllerBattery key={i} level={c.level} charging={c.charging} />
+              <ControllerBattery key={i} player={c.player} level={c.level} charging={c.charging} />
             ))}
           </>
         )}

@@ -102,33 +102,33 @@ function destroyOverlayWindow() {
   }
 }
 
-// ── Battery toast ─────────────────────────────────────────────────────────────
+// ── HUD toasts (battery, controller connect/disconnect) ───────────────────────
 // In-game the main window is buried under the fullscreen emulator, so its
 // React toast is invisible. This small transparent always-on-top window
 // (same recipe as the bezel overlay) shows the alert over anything.
-let batteryToastWindow = null
-let batteryToastTimer  = null
+let hudToastWindow = null
+let hudToastTimer  = null
+const HUD_TOAST_MS = 10000
 
-function showBatteryToast({ level = 0 } = {}) {
-  const accent = level <= 5 ? '#ef4444' : '#fbbf24'
+function showHudToast({ icon = '🎮', title = '', body = '', accent = '#fbbf24' } = {}) {
   const html = `<!doctype html><html><body style="margin:0;background:transparent;overflow:hidden;font-family:sans-serif">
     <div style="display:flex;align-items:center;gap:14px;margin:8px;padding:14px 18px;border-radius:14px;
                 background:rgba(18,18,26,0.94);border:1px solid ${accent};box-shadow:0 8px 32px rgba(0,0,0,0.6)">
-      <div style="width:40px;height:40px;border-radius:10px;background:${accent}33;display:flex;align-items:center;justify-content:center;font-size:20px">🎮</div>
+      <div style="width:40px;height:40px;border-radius:10px;background:${accent}33;display:flex;align-items:center;justify-content:center;font-size:20px">${icon}</div>
       <div>
-        <div style="font-size:14px;font-weight:700;color:${accent}">Controller battery low</div>
-        <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:3px">Your controller has ${Math.round(Number(level))}% battery left</div>
+        <div style="font-size:14px;font-weight:700;color:${accent}">${title}</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:3px">${body}</div>
       </div>
     </div></body></html>`
 
-  if (batteryToastTimer) { clearTimeout(batteryToastTimer); batteryToastTimer = null }
+  if (hudToastTimer) { clearTimeout(hudToastTimer); hudToastTimer = null }
   // destroy(), not close(): close() is a request that can be ignored — a
   // lingering HUD on screen is worse than a skipped fade-out.
-  if (batteryToastWindow) { batteryToastWindow.destroy(); batteryToastWindow = null }
+  if (hudToastWindow) { hudToastWindow.destroy(); hudToastWindow = null }
 
   const { width } = screen.getPrimaryDisplay().workAreaSize
   const W = 440, H = 100
-  batteryToastWindow = new BrowserWindow({
+  hudToastWindow = new BrowserWindow({
     // Below the TopBar (54px tall) so the HUD never covers the battery/IP/
     // settings pills when it pops over the menu.
     x: width - W - 24, y: 66, width: W, height: H,
@@ -137,23 +137,45 @@ function showBatteryToast({ level = 0 } = {}) {
     resizable: false, hasShadow: false,
     webPreferences: { nodeIntegration: false, contextIsolation: true },
   })
-  batteryToastWindow.setIgnoreMouseEvents(true)
-  batteryToastWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
+  hudToastWindow.setIgnoreMouseEvents(true)
+  hudToastWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
   // Both this window and the bezel overlay are always-on-top: X11 stacks the
   // most recently raised one higher, but make it explicit so the alert can
   // never end up under the bezel.
-  batteryToastWindow.webContents.once('did-finish-load', () => {
-    batteryToastWindow?.moveTop()
+  hudToastWindow.webContents.once('did-finish-load', () => {
+    hudToastWindow?.moveTop()
   })
-  batteryToastWindow.on('closed', () => { batteryToastWindow = null })
+  hudToastWindow.on('closed', () => { hudToastWindow = null })
 
-  batteryToastTimer = setTimeout(() => {
-    batteryToastTimer = null
-    if (batteryToastWindow) { batteryToastWindow.destroy(); batteryToastWindow = null }
-  }, 5000)
+  hudToastTimer = setTimeout(() => {
+    hudToastTimer = null
+    if (hudToastWindow) { hudToastWindow.destroy(); hudToastWindow = null }
+  }, HUD_TOAST_MS)
+}
+
+function showBatteryToast({ level = 0, player = null } = {}) {
+  const accent = level <= 5 ? '#ef4444' : '#fbbf24'
+  const who = player ? `Controller ${player}` : 'Controller'
+  showHudToast({
+    icon: '🎮',
+    title: `${who} battery low`,
+    body: `${who} has ${Math.round(Number(level))}% battery left`,
+    accent,
+  })
 }
 
 ipcMain.on('notify:battery', (_, data) => showBatteryToast(data || {}))
+
+ipcMain.on('notify:controller', (_, data) => {
+  const d = data || {}
+  const who = d.player ? `Controller ${d.player}` : 'Controller'
+  showHudToast({
+    icon: '🎮',
+    title: d.connected ? `${who} connected` : `${who} disconnected`,
+    body: d.label ? String(d.label) : '',
+    accent: d.connected ? '#4ade80' : '#94a3b8',
+  })
+})
 
 // ── Overlay monitor (Python) ──────────────────────────────────────────────────
 function loadOverlayConfig() {

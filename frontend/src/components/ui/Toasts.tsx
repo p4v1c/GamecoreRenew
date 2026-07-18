@@ -30,26 +30,49 @@ export default function Toasts() {
   }
 
   useEffect(() => {
-    const off = onWsEvent('gp:battery', (d) => {
+    // One single path everywhere: the native always-on-top HUD window shows
+    // over the menu, fullscreen emulators, apps (Stremio…) and bezels alike.
+    // The in-app toast is only the fallback for plain-browser access
+    // (dev / remote), where the Electron bridge doesn't exist.
+    const offBattery = onWsEvent('gp:battery', (d) => {
       const level = d.level as number
-      // One single path everywhere: the native always-on-top HUD window shows
-      // over the menu, fullscreen emulators, apps (Stremio…) and bezels alike.
-      // The in-app toast is only the fallback for plain-browser access
-      // (dev / remote), where the Electron bridge doesn't exist.
+      const player = (d.player ?? null) as number | null
       if (window.gamecore?.batteryToast) {
-        window.gamecore.batteryToast({ level })
+        window.gamecore.batteryToast({ level, player })
         return
       }
+      const who = player ? `Controller ${player}` : 'Controller'
       push({
         icon: '🎮',
-        title: 'Controller battery low',
-        body: `Your controller has ${level}% battery left`,
+        title: `${who} battery low`,
+        body: `${who} has ${level}% battery left`,
         accent: level <= 5 ? '#ef4444' : '#fbbf24',
       })
     })
+
+    const onControllerEvent = (connected: boolean) => (d: Record<string, unknown>) => {
+      const player = (d.player ?? null) as number | null
+      const label = typeof d.label === 'string' ? d.label : ''
+      if (window.gamecore?.controllerToast) {
+        window.gamecore.controllerToast({ player, label, connected })
+        return
+      }
+      const who = player ? `Controller ${player}` : 'Controller'
+      push({
+        icon: '🎮',
+        title: `${who} ${connected ? 'connected' : 'disconnected'}`,
+        body: label,
+        accent: connected ? '#4ade80' : '#94a3b8',
+      })
+    }
+    const offConnected = onWsEvent('gp:connected', onControllerEvent(true))
+    const offDisconnected = onWsEvent('gp:disconnected', onControllerEvent(false))
+
     const timersMap = timers.current
     return () => {
-      off()
+      offBattery()
+      offConnected()
+      offDisconnected()
       timersMap.forEach(clearTimeout)
       timersMap.clear()
     }
