@@ -9,6 +9,8 @@ import glob
 import logging
 from pathlib import Path
 
+from . import controller_registry
+
 log = logging.getLogger(__name__)
 
 # Power supply name prefixes that are NOT controllers (laptop/UPS/USB-PD...)
@@ -49,6 +51,9 @@ def read_batteries() -> list[dict]:
         result.append({
             "name": name,
             "label": label,
+            # Supply dir names embed the pad's MAC — join it back to the
+            # console-style slot assigned by gamepad_monitor (None if unknown)
+            "player": controller_registry.player_for_mac(name),
             "level": level,
             "charging": status in ("Charging", "Full"),
         })
@@ -79,7 +84,7 @@ def _check(batteries: list[dict]) -> list[dict]:
                 # Also mark higher thresholds: connecting a pad at 4% must
                 # yield ONE toast (5%), not three
                 fired.update(x for x in THRESHOLDS if x >= t)
-                alerts.append({"name": b["label"], "level": level, "threshold": t})
+                alerts.append({"name": b["label"], "player": b.get("player"), "level": level, "threshold": t})
                 break
         # Re-arm thresholds the level has climbed well above
         for t in list(fired):
