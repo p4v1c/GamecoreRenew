@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api, SysInfo } from '../../api'
+import logo from '../../assets/logo.png'
 
 interface Props {
   onSettings: () => void
@@ -88,17 +89,10 @@ export default function TopBar({ onSettings, onPower }: Props) {
     }}>
       {/* Logo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0 }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: 7,
-          background: 'linear-gradient(135deg,#7c3aed,#4f46e5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 0 12px rgba(124,58,237,0.5)',
-        }}>
-          <svg width="14" height="14" viewBox="0 0 14 14">
-            <polygon points="7,1 13,4.5 13,9.5 7,13 1,9.5 1,4.5" fill="none" stroke="#fff" strokeWidth="1.2" />
-            <circle cx="7" cy="7" r="2" fill="#fff" />
-          </svg>
-        </div>
+        <img src={logo} alt="" style={{
+          width: 30, height: 30, objectFit: 'contain',
+          filter: 'drop-shadow(0 0 8px rgba(124,58,237,0.45))',
+        }} />
         <span style={{ fontSize: 16, fontWeight: 900, letterSpacing: -0.5 }}>GAMECORE</span>
       </div>
 
