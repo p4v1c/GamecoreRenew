@@ -182,7 +182,10 @@ export default function Splash({ onDone }: Props) {
       const ringIn = clamp((cp - 0.55) / 0.45)
       const R = 122
 
-      if (splash.current) splash.current.style.opacity = String(1 - fo)
+      // Fade the ROOT — black backdrop included — so the dashboard underneath
+      // shows through progressively: a real cross-fade, not content fading on
+      // black followed by a hard cut when the component unmounts.
+      if (root.current) root.current.style.opacity = String(1 - fo)
       if (bg.current) bg.current.style.opacity = String(conv * 0.16)
       if (group.current) group.current.style.transform = `translate(-50%,-50%) scale(${1 + breathe + pop * 0.3})`
 
