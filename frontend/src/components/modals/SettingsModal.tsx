@@ -7,17 +7,15 @@ import { AudioPage }     from './settings/AudioPage'
 import { BluetoothPage } from './settings/BluetoothPage'
 import { UpdatePage }    from './settings/UpdatePage'
 import { DesktopPage }   from './settings/DesktopPage'
-import { SoundsPage }    from './settings/SoundsPage'
 import { StandbyPage }   from './settings/StandbyPage'
 
 interface Props { onClose: () => void }
 
-type Page = 'main' | 'wifi' | 'audio' | 'sounds' | 'bluetooth' | 'standby' | 'update' | 'desktop'
+type Page = 'main' | 'wifi' | 'audio' | 'bluetooth' | 'standby' | 'update' | 'desktop'
 
 const ITEMS = [
   { id: 'wifi',      icon: '📶', label: 'Wi-Fi',       sub: 'Manage networks' },
-  { id: 'audio',     icon: '🔊', label: 'Audio',        sub: 'Volume & output' },
-  { id: 'sounds',    icon: '🎵', label: 'UI Sounds',    sub: 'Interface sound effects' },
+  { id: 'audio',     icon: '🔊', label: 'Audio',        sub: 'Volume, output & UI sounds' },
   { id: 'bluetooth', icon: '◉',  label: 'Bluetooth',    sub: 'Devices & pairing' },
   { id: 'standby',   icon: '🌙', label: 'Standby',      sub: 'Screensaver & low power' },
   { id: 'update',    icon: '↑',  label: 'Update',       sub: 'Check for updates' },
@@ -56,7 +54,6 @@ export default function SettingsModal({ onClose }: Props) {
 
   if (page === 'wifi')      return <WifiPage      onClose={onClose} onBack={back} />
   if (page === 'audio')     return <AudioPage     onClose={onClose} onBack={back} />
-  if (page === 'sounds')    return <SoundsPage    onClose={onClose} onBack={back} />
   if (page === 'bluetooth') return <BluetoothPage onClose={onClose} onBack={back} />
   if (page === 'standby')   return <StandbyPage   onClose={onClose} onBack={back} />
   if (page === 'update')    return <UpdatePage    onClose={onClose} onBack={back} />
