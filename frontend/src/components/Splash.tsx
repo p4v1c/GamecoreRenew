@@ -14,6 +14,7 @@
 import { useEffect, useRef } from 'react'
 import { onGp } from '../hooks/useGamepad'
 import { getAudioContext, soundSettings } from '../lib/sounds'
+import { useStore } from '../store'
 
 interface Props { onDone: () => void }
 
@@ -50,6 +51,15 @@ export default function Splash({ onDone }: Props) {
 
   const onDoneRef = useRef(onDone)
   useEffect(() => { onDoneRef.current = onDone }, [onDone])
+
+  // The dashboard loads underneath us during the animation — count as a modal
+  // so its gamepad handlers stay inert until the boot is over (a ✕ press must
+  // skip the splash, not launch whatever tile happens to be focused).
+  useEffect(() => {
+    const { openModal, closeModal } = useStore.getState()
+    openModal()
+    return () => closeModal()
+  }, [])
 
   useEffect(() => {
     let t = 0

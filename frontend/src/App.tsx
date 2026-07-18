@@ -26,6 +26,9 @@ export default function App() {
   const sessionRef = useRef(sessionGameKey)
   useEffect(() => { sessionRef.current = sessionGameKey }, [sessionGameKey])
 
+  const splashRef = useRef(showSplash)
+  useEffect(() => { splashRef.current = showSplash }, [showSplash])
+
   useWebSocket()
   useGamepad()
 
@@ -50,8 +53,8 @@ export default function App() {
   // Global gamepad bindings
   useEffect(() => {
     const offs = [
-      onGp('gp:menu', () => { if (!useStore.getState().powerPending) setShowSettings(s => !s) }),
-      onGp('gp:power', () => { if (!useStore.getState().powerPending) setShowPower(s => !s) }),
+      onGp('gp:menu', () => { if (!splashRef.current && !useStore.getState().powerPending) setShowSettings(s => !s) }),
+      onGp('gp:power', () => { if (!splashRef.current && !useStore.getState().powerPending) setShowPower(s => !s) }),
       onGp('gp:guide', async () => {
         if (!sessionRef.current) return
         try { await api.games.kill() } catch {}
@@ -88,30 +91,29 @@ export default function App() {
         {showSplash && <Splash onDone={() => setShowSplash(false)} />}
       </AnimatePresence>
 
-      {!showSplash && (
-        <>
-          <TopBar onSettings={() => setShowSettings(true)} onPower={() => setShowPower(true)} />
-          <Toasts />
+      {/* Mounted from the first frame, behind the opaque splash: systems,
+          playtime and game counts are fetched while the boot animation plays,
+          so the dashboard is already populated when it fades away (it used to
+          mount empty once the splash was gone, then pop in). */}
+      <TopBar onSettings={() => setShowSettings(true)} onPower={() => setShowPower(true)} />
+      <Toasts />
 
-          {/* Both screens stay mounted at all times — toggled via display:none.
-              This prevents the re-mount/re-fetch flash when navigating home from library. */}
-          <div style={{ flex: 1, display: screen === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-            <HomeScreen onLaunchApp={handleLaunchApp} />
-          </div>
-          <div style={{ flex: 1, display: screen === 'library' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-            <LibraryScreen />
-          </div>
+      {/* Both screens stay mounted at all times — toggled via display:none.
+          This prevents the re-mount/re-fetch flash when navigating home from library. */}
+      <div style={{ flex: 1, display: screen === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+        <HomeScreen onLaunchApp={handleLaunchApp} />
+      </div>
+      <div style={{ flex: 1, display: screen === 'library' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+        <LibraryScreen />
+      </div>
 
-          <AnimatePresence>
-            {showSettings && <SettingsModal key="settings" onClose={() => setShowSettings(false)} />}
-          </AnimatePresence>
+      <AnimatePresence>
+        {showSettings && <SettingsModal key="settings" onClose={() => setShowSettings(false)} />}
+      </AnimatePresence>
 
-          <AnimatePresence>
-            {showPower && <PowerModal key="power" onClose={() => setShowPower(false)} />}
-          </AnimatePresence>
-
-        </>
-      )}
+      <AnimatePresence>
+        {showPower && <PowerModal key="power" onClose={() => setShowPower(false)} />}
+      </AnimatePresence>
     </div>
   )
 }
