@@ -10,12 +10,12 @@ interface Toast {
   accent: string
 }
 
-const TOAST_MS = 5000
+const TOAST_MS = 10000
 
 let nextId = 1
 
 /** Top-right toast stack. Listens to backend WS events (gp:battery for now)
- *  and shows each notification for 5 s. */
+ *  and shows each notification for 10 s. */
 export default function Toasts() {
   const [toasts, setToasts] = useState<Toast[]>([])
   const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
