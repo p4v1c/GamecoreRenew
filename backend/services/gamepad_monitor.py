@@ -13,6 +13,8 @@ import asyncio
 import glob
 import logging
 
+from . import controller_registry
+
 log = logging.getLogger(__name__)
 
 # Button codes for PS/Guide/Home across common Linux drivers:
@@ -81,16 +83,18 @@ async def _on_guide_pressed() -> None:
         log.exception("gamepad_monitor: error broadcasting gp:guide")
 
 
-def _find_gamepad_devices() -> list[str]:
+def _find_gamepad_devices() -> dict[str, tuple[str, str]]:
     """
-    Return event device paths that declare the guide button in their key capabilities.
+    Map path → (name, uniq) for event devices that declare the guide button.
     Scans /dev/input/event* directly instead of relying on evdev.list_devices(),
     which reads /proc/bus/input/devices and may be inaccessible without input group.
+    `uniq` is the pad's MAC address — the controller registry keys on it, and
+    battery.py joins sysfs power supplies back to a player slot through it.
     """
     try:
         import evdev
     except ImportError:
-        return []
+        return {}
 
     candidate_paths: set[str] = set(glob.glob("/dev/input/event*"))
     try:
@@ -98,18 +102,19 @@ def _find_gamepad_devices() -> list[str]:
     except Exception:
         pass
 
-    paths = []
+    found: dict[str, tuple[str, str]] = {}
     for path in sorted(candidate_paths):
         try:
             dev = evdev.InputDevice(path)
             caps = dev.capabilities()
             keys = caps.get(EV_KEY, [])
+            name, uniq = dev.name, (dev.uniq or "")
             dev.close()
             if any(code in GUIDE_CODES for code in keys):
-                paths.append(path)
+                found[path] = (name, uniq)
         except (PermissionError, OSError):
             pass
-    return paths
+    return found
 
 
 async def run() -> None:
@@ -135,21 +140,56 @@ async def run() -> None:
             "OR deploy the udev rule from install.sh"
         )
 
+    from .. import ws
+
     watched: dict[str, asyncio.Task] = {}
+    reg_keys: dict[str, str] = {}  # device path → controller_registry key
+    # Pads already plugged in when the backend starts get their slots
+    # silently — a console doesn't toast for pads that were always there.
+    first_scan = True
 
     while True:
-        current = set(_find_gamepad_devices())
+        devices = _find_gamepad_devices()
+        current = set(devices)
         watching = set(watched.keys())
 
-        for path in current - watching:
+        for path in sorted(current - watching):
+            name, uniq = devices[path]
+            key = controller_registry.key_for(uniq, path)
+            reg_keys[path] = key
+            known = controller_registry.has(key)
+            player = controller_registry.connect(key, name)
             task = asyncio.create_task(_watch_device(path), name=f"gpad:{path}")
             watched[path] = task
+            # `known` guards against re-announcing a pad whose watcher died
+            # transiently while the device never actually left.
+            if not first_scan and not known:
+                log.info("gamepad_monitor: controller %d connected (%s)", player, name)
+                try:
+                    await ws.broadcast("gp:connected", {"player": player, "label": name})
+                except Exception:
+                    log.exception("gamepad_monitor: error broadcasting gp:connected")
 
         # Clean up finished watchers (device disconnected)
         for path in list(watched):
             if watched[path].done():
                 del watched[path]
+                if path in current:
+                    # Watcher error but the device is still there — it will be
+                    # re-watched next pass; keep its player slot.
+                    continue
+                key = reg_keys.pop(path, None)
+                if key is not None:
+                    label = controller_registry.label_for(key)
+                    player = controller_registry.disconnect(key)
+                    if player is not None:
+                        log.info("gamepad_monitor: controller %d disconnected (%s)", player, label)
+                        try:
+                            await ws.broadcast("gp:disconnected", {"player": player, "label": label})
+                        except Exception:
+                            log.exception("gamepad_monitor: error broadcasting gp:disconnected")
 
+        first_scan = False
         await asyncio.sleep(3)
 
 
