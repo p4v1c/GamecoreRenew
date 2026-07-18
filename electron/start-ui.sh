@@ -21,6 +21,15 @@ elif [[ -f "$HOME/.Xauthority" ]]; then
     export XAUTHORITY="$HOME/.Xauthority"
 fi
 
+# Hide the mouse cursor after 5s of inactivity — X11-wide, so it also applies
+# inside emulators and the Firefox kiosk apps (YouTube/Twitch). Guarded so a
+# gamecore-ui restart never spawns a second daemon. Arch's `unclutter` package
+# is unclutter-xfixes (--timeout/--fork); the legacy syntax is the fallback.
+if command -v unclutter >/dev/null 2>&1 && ! pgrep -x unclutter >/dev/null 2>&1; then
+    unclutter --timeout 5 --ignore-scrolling --fork >/dev/null 2>&1 \
+        || { unclutter -idle 5 >/dev/null 2>&1 & }
+fi
+
 # Resolve the install dir from this script's location — GAMECORE_PATH is not
 # necessarily /opt/GameCore.
 GC_ELECTRON="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
