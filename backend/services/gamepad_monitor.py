@@ -22,6 +22,10 @@ log = logging.getLogger(__name__)
 #   KEY_HOMEPAGE = 172        — some older or generic HID mappings
 GUIDE_CODES = frozenset({0x13C, 172})
 
+# BTN_SOUTH (A/Cross) — declared by every real gamepad, by no keyboard/remote.
+# Used to decide which guide-capable devices deserve a player slot.
+BTN_SOUTH = 0x130
+
 EV_KEY  = 1   # evdev event type for key/button events
 KEY_DOWN = 1  # event value for key press
 
@@ -83,13 +87,20 @@ async def _on_guide_pressed() -> None:
         log.exception("gamepad_monitor: error broadcasting gp:guide")
 
 
-def _find_gamepad_devices() -> dict[str, tuple[str, str]]:
+def _find_gamepad_devices() -> dict[str, tuple[str, str, bool]]:
     """
-    Map path → (name, uniq) for event devices that declare the guide button.
-    Scans /dev/input/event* directly instead of relying on evdev.list_devices(),
-    which reads /proc/bus/input/devices and may be inaccessible without input group.
+    Map path → (name, uniq, is_pad) for event devices that declare the guide
+    button. Scans /dev/input/event* directly instead of relying on
+    evdev.list_devices(), which reads /proc/bus/input/devices and may be
+    inaccessible without input group.
+
     `uniq` is the pad's MAC address — the controller registry keys on it, and
     battery.py joins sysfs power supplies back to a player slot through it.
+
+    `is_pad` tells actual gamepads apart: KEY_HOMEPAGE (172) is also a plain
+    multimedia key, so keyboards and remotes land here too — they must keep
+    being watched for the guide/home behavior but must NOT take a player
+    slot. Every real pad declares BTN_SOUTH; no keyboard does.
     """
     try:
         import evdev
@@ -102,7 +113,7 @@ def _find_gamepad_devices() -> dict[str, tuple[str, str]]:
     except Exception:
         pass
 
-    found: dict[str, tuple[str, str]] = {}
+    found: dict[str, tuple[str, str, bool]] = {}
     for path in sorted(candidate_paths):
         try:
             dev = evdev.InputDevice(path)
@@ -111,7 +122,7 @@ def _find_gamepad_devices() -> dict[str, tuple[str, str]]:
             name, uniq = dev.name, (dev.uniq or "")
             dev.close()
             if any(code in GUIDE_CODES for code in keys):
-                found[path] = (name, uniq)
+                found[path] = (name, uniq, BTN_SOUTH in keys)
         except (PermissionError, OSError):
             pass
     return found
@@ -154,13 +165,17 @@ async def run() -> None:
         watching = set(watched.keys())
 
         for path in sorted(current - watching):
-            name, uniq = devices[path]
+            name, uniq, is_pad = devices[path]
+            task = asyncio.create_task(_watch_device(path), name=f"gpad:{path}")
+            watched[path] = task
+            # Keyboards/remotes with a Home multimedia key end up here for
+            # the guide behavior but are not controllers — no player slot.
+            if not is_pad:
+                continue
             key = controller_registry.key_for(uniq, path)
             reg_keys[path] = key
             known = controller_registry.has(key)
             player = controller_registry.connect(key, name)
-            task = asyncio.create_task(_watch_device(path), name=f"gpad:{path}")
-            watched[path] = task
             # `known` guards against re-announcing a pad whose watcher died
             # transiently while the device never actually left.
             if not first_scan and not known:
