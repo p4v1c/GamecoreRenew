@@ -34,6 +34,10 @@ function audio(): AudioContext | null {
   return ctx
 }
 
+/** The shared AudioContext — for callers that synthesize their own sounds
+ *  (the boot splash). Never close it: the UI sounds live on it too. */
+export const getAudioContext = audio
+
 /** One enveloped oscillator note. */
 function note(c: AudioContext, freq: number, at: number, dur: number, peak: number,
               type: OscillatorType = 'sine') {
