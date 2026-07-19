@@ -8,8 +8,12 @@ WEB_PORT=8765
 MODE=full                       # full | minimal
 # "all" or a space-separated subset of:
 #   azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu ryujinx
-#   shadps4 steam duckstation xenia
+#   shadps4 duckstation xenia
 EMULATORS='all'
+# Applications — "all" or a space-separated subset of:
+#   twitch stremio steam youtube
+# Unchecked apps are neither installed nor shown as tiles in the UI.
+APPS='all'
 # gamecore-addons modules to install (space-separated)
 ADDONS='rom-manager'
 # Optional API keys — leave empty to skip

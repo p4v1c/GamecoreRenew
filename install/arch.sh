@@ -67,9 +67,11 @@ echo -e "${BLU}╚════════════════════�
 # ── Configuration — conf file (unattended) or prompts ────────────
 # EMULATORS: "all" or space-separated ids among:
 #   azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu ryujinx
-#   shadps4 steam duckstation xenia
+#   shadps4 duckstation xenia
+# APPS: "all" or space-separated ids among: twitch stremio steam youtube
 # ADDONS: space-separated gamecore-addons names installed at the end.
 EMULATORS="all"
+APPS="all"
 ADDONS="rom-manager"
 TWITCH_CLIENT_ID=""; TWITCH_CLIENT_SECRET=""; TGDB_API_KEY=""
 
@@ -83,8 +85,15 @@ if $UNATTENDED; then
   WEB_PORT="${WEB_PORT:-8765}"
   MODE="${MODE:-full}"
   [[ "$MODE" == "full" || "$MODE" == "minimal" ]] || die "MODE must be full or minimal"
+  # Older confs predate APPS and listed steam among the emulators — keep both
+  # working: no APPS line means "all apps", steam-as-emulator becomes an app.
+  APPS="${APPS-all}"
+  if [[ "$APPS" != "all" && " $EMULATORS " == *" steam "* && " $APPS " != *" steam "* ]]; then
+    APPS="$APPS steam"
+  fi
 else
   read -rp "  System username (e.g. pavic)         : " USER_NAME
+  [[ -n "$USER_NAME" ]] || die "Username cannot be empty."
   read -rp "  Install path [default: /opt/GameCore] : " GAMECORE_PATH
   GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
   read -rp "  Web ROM port [default: 8765]          : " WEB_PORT
@@ -107,6 +116,7 @@ else
 fi
 
 want_emu() { [[ "$EMULATORS" == "all" || " $EMULATORS " == *" $1 "* ]]; }
+want_app() { [[ "$MODE" == "full" ]] && [[ "$APPS" == "all" || " $APPS " == *" $1 "* ]]; }
 
 echo
 msg "Summary"
@@ -115,7 +125,8 @@ info "Install path : $GAMECORE_PATH"
 info "API port     : $WEB_PORT"
 info "Detected IP  : $LOCAL_IP"
 info "Mode         : $MODE $([ "$MODE" = minimal ] && echo '(no emulators, no apps)' || echo '(emulators + apps + configs)')"
-[[ "$MODE" == "full" ]] && info "Emulators    : $EMULATORS"
+[[ "$MODE" == "full" ]] && info "Emulators    : ${EMULATORS:-none}"
+[[ "$MODE" == "full" ]] && info "Apps         : ${APPS:-none}"
 info "Addons       : ${ADDONS:-none}"
 [[ "$MODE" == "full" ]] && info "EmberTV      : $([ -n "$TWITCH_CLIENT_ID" ] && echo 'live Twitch (credentials set)' || echo 'demo mode (no credentials)')"
 echo
@@ -128,6 +139,7 @@ fi
 msg "Checking user"
 id "$USER_NAME" >/dev/null 2>&1 || { useradd -m -s /bin/bash "$USER_NAME"; ok "User $USER_NAME created."; }
 ok "User $USER_NAME OK"
+USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
 
 # ── Copy files ───────────────────────────────────────────────────
 msg "Setting up $GAMECORE_PATH"
@@ -149,7 +161,7 @@ PKGS=(
   base-devel git flatpak openssh
   python python-pip
   nodejs npm
-  openbox xorg-xdpyinfo xorg-xrandr unclutter
+  plasma-desktop sddm xorg-xdpyinfo xorg-xrandr unclutter
   bluez bluez-utils
 )
 
@@ -187,6 +199,9 @@ ok "System packages installed."
 pacman_optional cpupower
 pacman_optional amd-ucode
 pacman_optional feh
+# Plasma 6 ships the X11 session in a separate package on recent Arch/Manjaro;
+# on older Plasma the X11 session is built in and this package doesn't exist.
+pacman_optional plasma-x11-session
 
 # ── CPU governor ─────────────────────────────────────────────────
 msg "CPU governor"
@@ -220,12 +235,14 @@ if [[ "$MODE" == "full" ]]; then
     [cemu]=info.cemu.Cemu
     [ryujinx]=io.github.ryubing.Ryujinx
     [shadps4]=net.shadps4.shadPS4
-    [steam]=com.valvesoftware.Steam
   )
   FLATPAKS=()
-  for id in azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu ryujinx shadps4 steam; do
+  for id in azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu ryujinx shadps4; do
     want_emu "$id" && FLATPAKS+=("${EMU_FLATPAK[$id]}")
   done
+  # Steam moved to the apps selection but rides the same Flatpak pipeline
+  # (install + ROMs/gamepad overrides below).
+  want_app steam && FLATPAKS+=(com.valvesoftware.Steam)
   for pkg in "${FLATPAKS[@]}"; do
     flatpak list --app 2>/dev/null | grep -q "$pkg" \
       && info "$pkg — already installed." \
@@ -246,8 +263,10 @@ if [[ "$MODE" == "full" ]]; then
   if [ -f "$DUCK_BIN" ]; then
     ok "DuckStation already present."
   else
+    # `|| true`: an unreachable API leaves DUCK_URL empty (warn below) instead
+    # of json.load crashing on an empty stream and killing the install (set -e).
     DUCK_URL=$(curl -sf --connect-timeout 15 --max-time 60 "https://api.github.com/repos/stenzek/duckstation/releases/latest" \
-      | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if a["name"]=="DuckStation-x64.AppImage"), ""))')
+      | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if a["name"]=="DuckStation-x64.AppImage"), ""))' || true)
     if [[ -n "$DUCK_URL" ]]; then
       curl -L --connect-timeout 15 --speed-limit 1024 --speed-time 30 -o "$DUCK_BIN" "$DUCK_URL" && chmod +x "$DUCK_BIN" && ok "DuckStation installed." || warn "Download failed."
     else
@@ -266,7 +285,7 @@ if [[ "$MODE" == "full" ]]; then
     ok "Xenia already present."
   else
     XENIA_URL=$(curl -sf --connect-timeout 15 --max-time 60 "https://api.github.com/repos/xenia-canary/xenia-canary-releases/releases/latest" \
-      | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if "windows" in a["name"].lower()), ""))')
+      | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if "windows" in a["name"].lower()), ""))' || true)
     if [[ -n "$XENIA_URL" ]]; then
       mkdir -p "$XENIA_DIR"
       XENIA_PKG="/tmp/xenia_canary_pkg"
@@ -303,13 +322,20 @@ if [[ "$MODE" == "full" ]]; then
   fi
 
   # ── Living-room companions: EmberTV, gamepad bridge, kiosk apps ─
+  # Each app (twitch / youtube / stremio — steam is handled with the Flatpaks
+  # above) only installs when selected in APPS; unchecked means nothing is
+  # cloned, built or enabled for it.
   msg "Living-room companions"
-  USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
   UNIT_DIR="$USER_HOME/.config/systemd/user"
   mkdir -p "$UNIT_DIR/default.target.wants"
+  # user services to (re)start once the user bus is up, filled per app below
+  RESTART_UNITS=()
 
-  pacman -S --noconfirm --needed firefox nss && ok "firefox + nss (certutil) installed." || warn "firefox install failed."
+  if want_app twitch || want_app youtube; then
+    pacman -S --noconfirm --needed firefox nss && ok "firefox + nss (certutil) installed." || warn "firefox install failed."
+  fi
 
+  if want_app twitch; then
   # EmberTV — Twitch for the big screen (GameCore's Twitch tile opens it)
   if [ ! -d /opt/Twitch-TV ]; then
     git_clone https://github.com/p4v1c/Twitch-TV.git /opt/Twitch-TV \
@@ -360,9 +386,12 @@ RestartSec=3
 WantedBy=default.target
 EOF
     ln -sf ../embertv.service "$UNIT_DIR/default.target.wants/embertv.service"
+    RESTART_UNITS+=(embertv.service)
     ok "embertv.service installed (user unit, starts at login)."
   fi
+  fi  # twitch
 
+  if want_app twitch || want_app youtube || want_app stremio; then
   # gamepad-tv-bridge — gamepad → keyboard for kiosk web apps
   if [ ! -d /opt/gamepad-tv-bridge ]; then
     git_clone https://github.com/p4v1c/gamepad-tv-bridge.git /opt/gamepad-tv-bridge \
@@ -375,9 +404,10 @@ EOF
     sudo -u "$USER_NAME" python3 -m venv "$USER_HOME/.venv" 2>/dev/null || true
     sudo -u "$USER_NAME" "$USER_HOME/.venv/bin/pip" install -q -e /opt/gamepad-tv-bridge \
       && ok "bridge installed in $USER_HOME/.venv (editable)." || warn "bridge pip install failed."
-    # WantedBy=default.target, NOT graphical-session.target: the openbox kiosk
-    # session never activates graphical-session.target (only full DEs like
-    # Plasma do), so the bridge would never start on the living-room box.
+    # WantedBy=default.target, NOT graphical-session.target: with linger the
+    # user manager starts at boot (before any graphical login), so the bridge
+    # comes up regardless of how the Plasma session starts; Restart=on-failure
+    # covers the window where X isn't up yet.
     cat > "$UNIT_DIR/gamepad-tv-bridge.service" <<'EOF'
 [Unit]
 Description=Gamepad TV Bridge — gamepad to keyboard daemon
@@ -394,6 +424,7 @@ WantedBy=default.target
 EOF
     ln -sf ../gamepad-tv-bridge.service "$UNIT_DIR/default.target.wants/gamepad-tv-bridge.service"
     rm -f "$UNIT_DIR/graphical-session.target.wants/gamepad-tv-bridge.service"
+    RESTART_UNITS+=(gamepad-tv-bridge.service)
     ok "gamepad-tv-bridge.service installed (user unit)."
     # /dev/uinput access for key injection
     modprobe uinput 2>/dev/null || true
@@ -403,6 +434,7 @@ KERNEL=="uinput", GROUP="input", MODE="0660"
 EOF
     ok "uinput module + udev rule configured."
   fi
+  fi  # twitch/youtube/stremio kiosk bridge
 
   chown -R "${USER_NAME}:${USER_NAME}" "$USER_HOME/.config"
   loginctl enable-linger "$USER_NAME" 2>/dev/null && ok "user services will start at boot (linger)." || true
@@ -411,15 +443,17 @@ EOF
   # the running user manager doesn't see manually symlinked units until a
   # daemon-reload, so embertv/gamepad-tv-bridge would stay dead post-install.
   USER_UID=$(id -u "$USER_NAME")
-  for i in $(seq 1 10); do [ -S "/run/user/$USER_UID/bus" ] && break; sleep 1; done
-  if [ -S "/run/user/$USER_UID/bus" ]; then
-    sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/$USER_UID" systemctl --user daemon-reload 2>/dev/null || true
-    sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
-      systemctl --user restart embertv.service gamepad-tv-bridge.service 2>/dev/null \
-      && ok "embertv + gamepad-tv-bridge started (user services)." \
-      || warn "user services will start at next boot."
-  else
-    warn "no user bus yet — embertv + gamepad-tv-bridge will start at next boot."
+  if [ ${#RESTART_UNITS[@]} -gt 0 ]; then
+    for i in $(seq 1 10); do [ -S "/run/user/$USER_UID/bus" ] && break; sleep 1; done
+    if [ -S "/run/user/$USER_UID/bus" ]; then
+      sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/$USER_UID" systemctl --user daemon-reload 2>/dev/null || true
+      sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+        systemctl --user restart "${RESTART_UNITS[@]}" 2>/dev/null \
+        && ok "user services started: ${RESTART_UNITS[*]}." \
+        || warn "user services will start at next boot."
+    else
+      warn "no user bus yet — ${RESTART_UNITS[*]} will start at next boot."
+    fi
   fi
 
   # Firefox kiosk profiles used by the YouTube/Twitch tiles in apps.json.
@@ -429,12 +463,16 @@ EOF
   # profiles.ini registration needed, so no flaky `-CreateProfile` run.
   # Everything is created AS THE USER: a root-owned profile dir breaks
   # certutil below (SEC_ERROR_BAD_DATABASE) and firefox's own caches.
-  for prof in youtube-tv twitch-tv; do
+  FIREFOX_PROFILES=()
+  want_app youtube && FIREFOX_PROFILES+=(youtube-tv)
+  want_app twitch  && FIREFOX_PROFILES+=(twitch-tv)
+  for prof in ${FIREFOX_PROFILES[@]+"${FIREFOX_PROFILES[@]}"}; do
     PROF_DIR="$USER_HOME/.mozilla/firefox/$prof"
     sudo -u "$USER_NAME" mkdir -p "$PROF_DIR"
     install -o "$USER_NAME" -g "$USER_NAME" -m 644 \
       "$GAMECORE_PATH/install/firefox-profiles/$prof.user.js" "$PROF_DIR/user.js"
   done
+  if want_app twitch; then
   # Trust EmberTV's self-signed cert inside the twitch-tv profile (NSS db):
   # no certificate warning at first launch — required for the unattended/ISO path.
   # Every certutil step is guarded: a cert hiccup must never abort the install.
@@ -450,12 +488,13 @@ EOF
       warn "NSS db init failed — accept the cert warning once at first launch."
     fi
   fi
-  chown -R "${USER_NAME}:${USER_NAME}" "$USER_HOME/.mozilla"
-  ok "Firefox kiosk profiles ready (youtube-tv, twitch-tv — Smart-TV user agent)."
-  # apps.json was harvested on a box where HOME was /home/pavic — adapt it
-  sed -i "s|/home/pavic|$USER_HOME|g" "$GAMECORE_PATH/config/apps.json"
-  ok "apps.json paths adapted to $USER_HOME."
+  fi  # twitch certutil
+  if [ ${#FIREFOX_PROFILES[@]} -gt 0 ]; then
+    chown -R "${USER_NAME}:${USER_NAME}" "$USER_HOME/.mozilla"
+    ok "Firefox kiosk profiles ready (${FIREFOX_PROFILES[*]} — Smart-TV user agent)."
+  fi
 
+  if want_app stremio; then
   # Stremio (media tile) — needs gamepad + media access inside the sandbox
   flatpak list --app 2>/dev/null | grep -q com.stremio.Stremio \
     || { flatpak install -y flathub com.stremio.Stremio && ok "Stremio installed." || warn "Stremio failed."; }
@@ -491,9 +530,34 @@ EOF
       bash /opt/gamepad-tv-bridge/install/setup-stremio.sh \
       && ok "Stremio TV kiosk services installed." || warn "Stremio TV setup deferred to next login."
   fi
+  fi  # stremio
 else
   msg "Minimal mode — skipping emulators, applications and configs."
 fi
+
+# ── App tiles (config/apps.json) ─────────────────────────────────
+# Keep only the tiles of the apps actually installed — an unchecked app must
+# not leave a dead tile in the UI (minimal mode keeps none). Same spirit as
+# flatpakify-systems.sh for the emulators.
+msg "App tiles"
+# apps.json was harvested on a box where HOME was /home/pavic — adapt it
+sed -i "s|/home/pavic|$USER_HOME|g" "$GAMECORE_PATH/config/apps.json"
+KEEP_APPS=""
+for app in twitch stremio steam youtube; do
+  want_app "$app" && KEEP_APPS="$KEEP_APPS $app"
+done
+python3 - "$GAMECORE_PATH/config/apps.json" $KEEP_APPS <<'EOF'
+import json, sys
+path, keep = sys.argv[1], set(sys.argv[2:])
+apps = json.load(open(path))
+kept = [a for a in apps if a.get("id") in keep]
+if len(kept) != len(apps):
+    json.dump(kept, open(path, "w"), indent=2, ensure_ascii=False)
+removed = [a.get("id") for a in apps if a.get("id") not in keep]
+print(f"[app-tiles] kept: {', '.join(sorted(keep)) or 'none'}"
+      + (f" — removed: {', '.join(removed)}" if removed else ""))
+EOF
+ok "apps.json filtered to the selected apps."
 
 # ── ROM directories ──────────────────────────────────────────────
 msg "ROM directories"
@@ -675,14 +739,26 @@ EOF
 
 # ── SDDM auto-login ──────────────────────────────────────────────
 msg "SDDM auto-login"
+# KDE Plasma on X11 — the whole stack (overlays, fullscreen enforcer,
+# gamepad-tv-bridge key injection, gamecore-xsetup) is X11-only, so never
+# pick the Wayland session. Plasma 6 names its X11 session "plasmax11"
+# (plasma-x11-session package); older Plasma ships it as "plasma".
+if [ -f /usr/share/xsessions/plasmax11.desktop ]; then
+  KDE_SESSION="plasmax11"
+elif [ -f /usr/share/xsessions/plasma.desktop ]; then
+  KDE_SESSION="plasma"
+else
+  warn "No Plasma X11 session found in /usr/share/xsessions — defaulting to 'plasmax11'."
+  KDE_SESSION="plasmax11"
+fi
 mkdir -p /etc/sddm.conf.d
 cat > /etc/sddm.conf.d/autologin.conf <<EOF
 [Autologin]
 User=$USER_NAME
-Session=openbox
+Session=$KDE_SESSION
 Relogin=true
 EOF
-ok "SDDM configured for auto-login as $USER_NAME (openbox session)."
+ok "SDDM configured for auto-login as $USER_NAME (KDE Plasma X11 session: $KDE_SESSION)."
 
 # Force 1920x1080 at the display-server level (never 4K). SDDM runs this as
 # root at X startup, before any session, so the whole X server — kiosk, games
@@ -720,7 +796,6 @@ ok "Sudoers rules created (power + udevadm + GameCore start for $USER_NAME)."
 # ── Desktop launcher (clickable "GameCore" icon) ─────────────────
 msg "Desktop launcher"
 chmod +x "$GAMECORE_PATH/install/gamecore-launcher.sh"
-USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
 DESKTOP_DIR=$(sudo -u "$USER_NAME" bash -lc 'xdg-user-dir DESKTOP 2>/dev/null' || true)
 [[ -n "$DESKTOP_DIR" && -d "$DESKTOP_DIR" ]] || DESKTOP_DIR="$USER_HOME/Desktop"
 APPS_DIR="$USER_HOME/.local/share/applications"

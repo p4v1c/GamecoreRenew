@@ -3,7 +3,7 @@
 
 A single-binary desktop installer (PyInstaller, see build.sh) in the
 spirit of install4j/Windows installers: Welcome → System → Install type →
-Emulators → Addons → API keys → Summary → Install progress.
+Emulators → Applications → Addons → API keys → Summary → Install progress.
 
 It only collects choices; the actual work is done by arch.sh --unattended
 (same engine as the CLI and the future GameCore OS ISO), elevated through
@@ -47,7 +47,13 @@ EMULATORS = [
     ("ryujinx",     "Ryujinx",      "Nintendo Switch"),
     ("shadps4",     "shadPS4",      "PlayStation 4"),
     ("xenia",       "Xenia Canary", "Xbox 360 (Wine)"),
-    ("steam",       "Steam",        "PC"),
+]
+
+APPS = [
+    ("steam",   "Steam",            "PC games (Flatpak, Big Picture)"),
+    ("youtube", "YouTube",          "TV app in a Firefox kiosk"),
+    ("twitch",  "Twitch (EmberTV)", "Twitch for the big screen"),
+    ("stremio", "Stremio",          "Media center (gamepad-friendly)"),
 ]
 
 # Shown if the addons repo is unreachable at install time.
@@ -132,7 +138,7 @@ class AddonsFetcher(QThread):
 
 
 class Pages:
-    WELCOME, SYSTEM, MODE, EMULATORS, ADDONS, KEYS, SUMMARY, INSTALL = range(8)
+    WELCOME, SYSTEM, MODE, EMULATORS, APPS, ADDONS, KEYS, SUMMARY, INSTALL = range(9)
 
 
 def title(text: str) -> QLabel:
@@ -235,6 +241,40 @@ class EmulatorsPage(QWizardPage):
             c.setEnabled(not minimal)
 
 
+class AppsPage(QWizardPage):
+    def __init__(self):
+        super().__init__()
+        self.lay = QVBoxLayout(self)
+        self.lay.addWidget(title("Applications"))
+        self.info = subtitle("")
+        self.lay.addWidget(self.info)
+        bar = QHBoxLayout()
+        self.btn_all = QPushButton("Select all"); self.btn_none = QPushButton("Select none")
+        for b in (self.btn_all, self.btn_none):
+            b.setProperty("flat", True); bar.addWidget(b)
+        bar.addStretch()
+        self.lay.addLayout(bar)
+        grid = QGridLayout(); grid.setSpacing(6)
+        self.checks: dict[str, QCheckBox] = {}
+        for i, (aid, label, desc) in enumerate(APPS):
+            cb = QCheckBox(f"{label}  ·  {desc}")
+            cb.setChecked(True)
+            self.checks[aid] = cb
+            grid.addWidget(cb, i // 2, i % 2)
+        self.lay.addLayout(grid)
+        self.lay.addStretch()
+        self.btn_all.clicked.connect(lambda: [c.setChecked(True) for c in self.checks.values()])
+        self.btn_none.clicked.connect(lambda: [c.setChecked(False) for c in self.checks.values()])
+
+    def initializePage(self):
+        minimal = self.wizard().page(Pages.MODE).minimal.isChecked()
+        self.info.setText("Minimal install — applications are skipped (go back to pick Full)." if minimal
+                          else "Living-room apps shown as tiles in GameCore — uncheck what "
+                               "you don't need: it is neither installed nor shown in the UI.")
+        for c in self.checks.values():
+            c.setEnabled(not minimal)
+
+
 class AddonsPage(QWizardPage):
     def __init__(self):
         super().__init__()
@@ -304,10 +344,13 @@ class SummaryPage(QWizardPage):
         c = w.collect()
         emus = "—" if c["mode"] == "minimal" else (
             f"all ({len(EMULATORS)})" if c["emulators"] == "all" else (c["emulators"] or "none"))
+        apps = "—" if c["mode"] == "minimal" else (
+            f"all ({len(APPS)})" if c["apps"] == "all" else (c["apps"] or "none"))
         src = "local repository checkout" if w.local_repo else "latest GitHub release (downloaded)"
         rows = [
             ("User", c["user"]), ("Install path", c["path"]), ("Backend port", str(c["port"])),
-            ("Type", c["mode"]), ("Emulators", emus), ("Addons", c["addons"] or "none"),
+            ("Type", c["mode"]), ("Emulators", emus), ("Applications", apps),
+            ("Addons", c["addons"] or "none"),
             ("Twitch (EmberTV)", "credentials set" if c["twitch_id"] else "demo mode"),
             ("TheGamesDB", "key set" if c["tgdb_key"] else "skipped"),
             ("Install source", src),
@@ -343,6 +386,7 @@ class InstallPage(QWizardPage):
             f"WEB_PORT={c['port']}",
             f"MODE={c['mode']}",
             f"EMULATORS={shlex.quote(c['emulators'])}",
+            f"APPS={shlex.quote(c['apps'])}",
             f"ADDONS={shlex.quote(c['addons'])}",
             f"TWITCH_CLIENT_ID={shlex.quote(c['twitch_id'])}",
             f"TWITCH_CLIENT_SECRET={shlex.quote(c['twitch_secret'])}",
@@ -439,6 +483,7 @@ class InstallerWizard(QWizard):
         self.setPage(Pages.SYSTEM, SystemPage())
         self.setPage(Pages.MODE, ModePage())
         self.setPage(Pages.EMULATORS, EmulatorsPage())
+        self.setPage(Pages.APPS, AppsPage())
         self.setPage(Pages.ADDONS, AddonsPage())
         self.setPage(Pages.KEYS, KeysPage())
         self.setPage(Pages.SUMMARY, SummaryPage())
@@ -451,9 +496,11 @@ class InstallerWizard(QWizard):
         sysp: SystemPage = self.page(Pages.SYSTEM)
         mode: ModePage = self.page(Pages.MODE)
         emus: EmulatorsPage = self.page(Pages.EMULATORS)
+        apps: AppsPage = self.page(Pages.APPS)
         addons: AddonsPage = self.page(Pages.ADDONS)
         keys: KeysPage = self.page(Pages.KEYS)
         checked = [eid for eid, cb in emus.checks.items() if cb.isChecked()]
+        checked_apps = [aid for aid, cb in apps.checks.items() if cb.isChecked()]
         if addons.checks:
             addon_names = " ".join(n for n, cb in addons.checks.items() if cb.isChecked())
         else:
@@ -465,6 +512,7 @@ class InstallerWizard(QWizard):
             "port": sysp.port.value(),
             "mode": "minimal" if mode.minimal.isChecked() else "full",
             "emulators": "all" if len(checked) == len(EMULATORS) else " ".join(checked),
+            "apps": "all" if len(checked_apps) == len(APPS) else " ".join(checked_apps),
             "addons": addon_names,
             "twitch_id": keys.twitch_id.text().strip(),
             "twitch_secret": keys.twitch_secret.text().strip(),

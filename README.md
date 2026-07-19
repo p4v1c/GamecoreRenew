@@ -100,7 +100,7 @@ What the installer does:
 - Builds the React frontend
 - Installs Node modules for Electron
 - Creates a `gamecore` system user
-- Configures SDDM auto-login with an openbox session
+- Configures SDDM auto-login with a KDE Plasma (X11) session
 - Registers two systemd services: `gamecore-backend` and `gamecore-ui`
 - The machine will boot directly into GameCore after a reboot
 
@@ -241,7 +241,7 @@ The core only exposes the registry (`GET /api/addons`) and a WebSocket relay
 Overlays are decorative frames displayed on top of the emulator window.  
 They fill the black bars that appear on 4:3 and other non-16:9 systems.
 
-> Overlays only work on **X11 sessions** (the kiosk installer uses openbox/X11).  
+> Overlays only work on **X11 sessions** (the installer uses KDE Plasma on X11).  
 > On Wayland dev environments, overlays are silently skipped.
 
 ### Uploading an overlay
