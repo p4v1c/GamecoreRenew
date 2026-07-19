@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, screen, session } = require('electron')
 const { exec, spawn } = require('child_process')
 const path = require('path')
 const fs   = require('fs')
+const os   = require('os')
 
 // Required on Linux X11 for per-pixel transparency in BrowserWindow
 app.commandLine.appendSwitch('enable-transparent-visuals')
@@ -22,6 +23,19 @@ let mainWindow     = null
 let backendProcess = null
 let overlayWindow  = null
 let monitorProcess = null
+
+// At cold boot the UI loads while the display path is still black — X just
+// started, gamecore-xsetup switches the mode to 1080p and the TV spends a few
+// seconds re-syncing HDMI. The splash animation would play unseen during that
+// window (the user only catches the tail of it). So when the machine booted
+// recently, ask the splash to hold its first (black) frame before starting
+// the timeline. A relaunch from the desktop (uptime is high) gets no delay.
+const BOOT_UPTIME_THRESHOLD_S = 180
+const SPLASH_BOOT_HOLD_MS     = 4000
+
+function splashHoldMs() {
+  return os.uptime() < BOOT_UPTIME_THRESHOLD_S ? SPLASH_BOOT_HOLD_MS : 0
+}
 
 // ── Main window ───────────────────────────────────────────────────────────────
 function createWindow() {
@@ -45,10 +59,11 @@ function createWindow() {
     },
   })
 
+  const holdParam = `?splashHold=${splashHoldMs()}`
   if (DEV) {
-    mainWindow.loadURL(DEV_URL)
+    mainWindow.loadURL(DEV_URL + holdParam)
   } else {
-    mainWindow.loadURL(BACKEND_URL)
+    mainWindow.loadURL(BACKEND_URL + holdParam)
   }
 
   if (DEBUG) mainWindow.webContents.openDevTools({ mode: 'detach' })

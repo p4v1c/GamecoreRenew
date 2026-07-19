@@ -25,6 +25,13 @@ const T_PAD    = 850    // pad starts, fragments begin converging
 const T_IMPACT = 2050   // convergence lands: flash, shockwave, chime
 const T_END    = 3960   // hand over to the app (fade-out runs 3400→3940)
 
+// Hold requested by Electron at cold boot (?splashHold=<ms>): the display
+// path (X mode switch + TV HDMI re-sync) is still black when we mount, so the
+// timeline starts negative and the first visible frame is the real beginning
+// of the animation instead of its middle. 0 (no hold) outside Electron/boot.
+const HOLD_MS = Math.min(10000, Math.max(0,
+  Number(new URLSearchParams(window.location.search).get('splashHold')) || 0))
+
 const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x))
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 const eIO = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2)
@@ -62,7 +69,10 @@ export default function Splash({ onDone }: Props) {
   }, [])
 
   useEffect(() => {
-    let t = 0
+    // Negative start = hold the initial black frame for HOLD_MS. Every phase
+    // clamps at t<=0, so nothing moves (or plays) until the screen is live;
+    // skip() still fast-forwards through the hold at 4x.
+    let t = -HOLD_MS
     let last: number | null = null
     let rate = 1
     let raf = 0
