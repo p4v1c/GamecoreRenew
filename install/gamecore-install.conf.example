@@ -20,3 +20,7 @@ ADDONS='rom-manager'
 TWITCH_CLIENT_ID=''
 TWITCH_CLIENT_SECRET=''
 TGDB_API_KEY=''
+
+# Web login password (phase 3) — required for the LAN interface.
+# Empty/absent = LAN stays locked until "gamecore-addon auth-reset".
+WEB_PASSWORD=""

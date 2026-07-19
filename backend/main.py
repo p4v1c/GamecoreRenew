@@ -2,6 +2,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from .config import DEBUG
 logging.basicConfig(level=logging.DEBUG if DEBUG else logging.WARNING)
@@ -13,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from .db import init_db
 from . import ws
 from .routers import systems, games, playtime, covers, metadata, sysinfo, update, overlays, addons
+from .routers import auth as auth_routes
 from .routers import standby as standby_router
 from .routers.settings import wifi, audio, bluetooth
 from .services import battery, gamepad_monitor, prefetch, standby
@@ -48,6 +50,7 @@ app.include_router(standby_router.router, prefix="/api")
 app.include_router(wifi.router, prefix="/api")
 app.include_router(audio.router, prefix="/api")
 app.include_router(bluetooth.router, prefix="/api")
+app.include_router(auth_routes.router, prefix="/api")
 
 # ── Web managers ─────────────────────────────────────────────────────────────
 # The ROM manager moved to the rom-manager addon (port 8770) —
@@ -64,6 +67,16 @@ def gc_addons():
     # auth: the shared nav bar of the addon UIs needs it before login state
     # is known (see docs/SECURITY.md).
     return addons.list_installed()
+
+
+@app.get("/login", include_in_schema=False)
+def login_page():
+    # Self-contained login form for LAN clients, proxied without auth by
+    # Caddy. The TV never sees it (loopback bypasses Caddy entirely).
+    return FileResponse(
+        str(Path(__file__).parent / "templates" / "login.html"),
+        media_type="text/html",
+    )
 
 
 # ── Static files (covers served directly) ────────────────────────────────────
