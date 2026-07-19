@@ -231,12 +231,35 @@ else:
 PY
 }
 
+cmd_auth_reset() {
+  # Rotates the cookie HMAC secret AND sets a new password hash — every
+  # open session dies. The auth code lives in the core venv (argon2).
+  local py="$GAMECORE_PATH/.venv/bin/python3"
+  [[ -x "$py" ]] || die "core venv not found at $py (is GameCore installed?)"
+  local p1 p2
+  while true; do
+    read -rsp "New web password (cannot be empty): " p1; echo
+    [[ -n "$p1" ]] || { echo "Empty password refused." >&2; continue; }
+    read -rsp "Confirm                           : " p2; echo
+    [[ "$p1" == "$p2" ]] && break
+    echo "Passwords differ — try again." >&2
+  done
+  WEB_PASSWORD="$p1" GAMECORE_PATH="$GAMECORE_PATH" "$py" - <<'PY'
+import os, sys
+sys.path.insert(0, os.environ["GAMECORE_PATH"])
+from backend.services import auth
+auth.set_password(os.environ["WEB_PASSWORD"], reset_secret=True)
+PY
+  info "Password reset — all web sessions are now invalid."
+}
+
 # ── dispatch ─────────────────────────────────────────────────────
 case "${1:-}" in
-  install) shift; cmd_install "$@" ;;
-  remove)  shift; cmd_remove  "$@" ;;
-  update)  shift; cmd_update  "$@" ;;
-  list)    shift || true; cmd_list "${1:-}" ;;
+  install)    shift; cmd_install "$@" ;;
+  remove)     shift; cmd_remove  "$@" ;;
+  update)     shift; cmd_update  "$@" ;;
+  list)       shift || true; cmd_list "${1:-}" ;;
+  auth-reset) cmd_auth_reset ;;
   *) cat >&2 <<'EOF'
 gamecore-addon — GameCore addon manager
 Usage:
@@ -244,6 +267,7 @@ Usage:
   gamecore-addon remove  <name>
   gamecore-addon update  [<name>...]
   gamecore-addon list    [--json]
+  gamecore-addon auth-reset      (new web password + kill all sessions)
 EOF
      exit 1 ;;
 esac

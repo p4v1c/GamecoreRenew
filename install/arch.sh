@@ -645,6 +645,36 @@ sudo -u "$USER_NAME" -H python3 -m venv "$GAMECORE_PATH/.venv"
 sudo -u "$USER_NAME" -H "$GAMECORE_PATH/.venv/bin/pip" install -q -r "$GAMECORE_PATH/backend/requirements.txt"
 ok "Python dependencies installed."
 
+# ── LAN login password (enforced by Caddy — see docs/SECURITY.md) ─
+if [[ -f "$GAMECORE_PATH/config/auth.json" ]]; then
+  ok "Web password already set — kept (reset: gamecore-addon auth-reset)."
+else
+  msg "Web access password (login at https://${LOCAL_IP}:8443)"
+  WEB_PASSWORD="${WEB_PASSWORD:-}"
+  if ! $UNATTENDED; then
+    while true; do
+      read -rsp "  Web password (cannot be empty) : " WEB_PASSWORD; echo
+      [[ -n "$WEB_PASSWORD" ]] || { warn "Empty password refused."; continue; }
+      read -rsp "  Confirm                        : " WEB_PASSWORD2; echo
+      [[ "$WEB_PASSWORD" == "$WEB_PASSWORD2" ]] && break
+      warn "Passwords differ — try again."
+    done
+  fi
+  if [[ -n "$WEB_PASSWORD" ]]; then
+    WEB_PASSWORD="$WEB_PASSWORD" GAMECORE_PATH="$GAMECORE_PATH" \
+      "$GAMECORE_PATH/.venv/bin/python3" - <<'PYEOF'
+import os, sys
+sys.path.insert(0, os.environ["GAMECORE_PATH"])
+from backend.services import auth
+auth.set_password(os.environ["WEB_PASSWORD"])
+PYEOF
+    chown "$USER_NAME:$USER_NAME" "$GAMECORE_PATH/config/auth.json" "$GAMECORE_PATH/config/auth_secret"
+    ok "Web password set (config/auth.json, survives OTA updates)."
+  else
+    warn "No WEB_PASSWORD in conf — LAN stays locked; run 'gamecore-addon auth-reset'."
+  fi
+fi
+
 # ── Node / frontend ──────────────────────────────────────────────
 progress 89 "Building the frontend"
 msg "Node frontend build"
