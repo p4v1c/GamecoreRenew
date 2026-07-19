@@ -8,3 +8,4 @@ requests>=2.31.0
 # Overlay monitor — platform-specific (installed only on the target OS)
 python-xlib>=0.33; sys_platform == "linux"
 pywin32>=306; sys_platform == "win32"
+argon2-cffi>=23.1.0

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GameCore — Login</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: #0b0b12; color: #fff;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .card {
+    width: min(92vw, 380px); padding: 36px 30px; border-radius: 18px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  }
+  h1 { font-size: 26px; letter-spacing: 1px; text-align: center; }
+  h1 span { color: #7c3aed; }
+  .sub { margin: 10px 0 24px; font-size: 13px; color: rgba(255,255,255,0.45); text-align: center; }
+  input {
+    width: 100%; padding: 13px 14px; border-radius: 10px; font-size: 16px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+    color: #fff; outline: none;
+  }
+  input:focus { border-color: rgba(124,58,237,0.7); }
+  button {
+    width: 100%; margin-top: 12px; padding: 13px; border-radius: 10px; border: none;
+    background: #7c3aed; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .err {
+    margin-top: 14px; padding: 10px 12px; border-radius: 8px; font-size: 13px;
+    background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #f87171;
+  }
+  .hint {
+    margin-top: 22px; font-size: 12px; color: rgba(255,255,255,0.35);
+    text-align: center; line-height: 1.5;
+  }
+  .hint a { color: #a78bfa; }
+</style>
+</head>
+<body>
+<main class="card">
+  <h1>Game<span>Core</span></h1>
+  <p class="sub">Enter the shared password to access this box.</p>
+  <form id="f">
+    <input id="pw" type="password" placeholder="Password" autofocus
+           autocomplete="current-password" autocapitalize="off">
+    <button id="go" type="submit">Sign in</button>
+  </form>
+  <p id="err" class="err" hidden></p>
+  <p class="hint">
+    Certificate warning on this device?<br>
+    <a href="/gc/ca.crt">Install the GameCore certificate (CA)</a> once, then reload.
+  </p>
+</main>
+<script>
+  var params = new URLSearchParams(location.search)
+  var next = params.get('next') || '/'
+  if (next[0] !== '/' || next[1] === '/') next = '/'
+
+  var f = document.getElementById('f'), pw = document.getElementById('pw'),
+      err = document.getElementById('err'), go = document.getElementById('go')
+
+  f.addEventListener('submit', async function (e) {
+    e.preventDefault()
+    err.hidden = true; go.disabled = true
+    try {
+      var r = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw.value }),
+      })
+      var d = await r.json().catch(function () { return {} })
+      if (r.ok && d.ok) { location.replace(next); return }
+      err.textContent =
+        r.status === 429 ? 'Too many attempts — retry in ' + (d.retry_in || 'a few') + ' s' :
+        r.status === 503 ? 'No password configured on the box yet (gamecore-addon auth-reset).' :
+        'Wrong password.'
+      err.hidden = false
+    } catch (_) {
+      err.textContent = 'Network error — is the box reachable?'
+      err.hidden = false
+    }
+    go.disabled = false
+    pw.select()
+  })
+</script>
+</body>
+</html>
