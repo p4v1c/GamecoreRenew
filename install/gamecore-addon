@@ -56,7 +56,7 @@ try:
     reg = json.load(open(path))
 except (FileNotFoundError, json.JSONDecodeError):
     reg = {}
-entry = {k: meta[k] for k in ("label", "description", "version", "type", "service") if k in meta}
+entry = {k: meta[k] for k in ("label", "description", "version", "type", "service", "path") if k in meta}
 if meta.get("type") == "web":
     entry["port"] = meta.get("port")
 entry["installed_at"] = datetime.datetime.now().isoformat(timespec="seconds")
