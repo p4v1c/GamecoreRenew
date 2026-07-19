@@ -175,6 +175,7 @@ PKGS=(
   nodejs npm
   plasma-desktop sddm xorg-xdpyinfo xorg-xrandr xorg-xset unclutter
   bluez bluez-utils
+  caddy
 )
 
 # GPU drivers — detect the vendor instead of assuming AMD
@@ -812,6 +813,26 @@ systemctl enable gamecore-backend.service
 systemctl enable gamecore-ui.service
 ok "Services enabled."
 
+# ── Caddy reverse-proxy — the only GameCore port exposed to the LAN ──
+msg "Caddy reverse-proxy (HTTPS :8443)"
+# Catch-all site + on-demand internal certs: no per-box templating,
+# the box can change IP/network without touching this file.
+cp "$GAMECORE_PATH/install/Caddyfile" /etc/caddy/Caddyfile
+systemctl enable --now caddy.service
+# Install Caddy's root CA into the system trust store so the box itself
+# (kiosk browser, Firefox) gets no TLS warning. `caddy trust` needs the
+# admin API of the freshly started service — retry while it comes up.
+CADDY_TRUSTED=0
+for _ in $(seq 1 15); do
+  if caddy trust >/dev/null 2>&1; then CADDY_TRUSTED=1; break; fi
+  sleep 1
+done
+if [[ $CADDY_TRUSTED -eq 1 ]]; then
+  ok "Caddy up on :8443 — root CA installed in the system trust store."
+else
+  warn "Caddy started but 'caddy trust' failed — run 'sudo caddy trust' once."
+fi
+
 # ── Bluetooth ────────────────────────────────────────────────────
 progress 97 "Bluetooth, power & desktop launcher"
 msg "Bluetooth"
@@ -890,12 +911,12 @@ echo -e "${BLU}╔════════════════════�
 echo -e "${BLU}║     Installation complete!           ║${RST}"
 echo -e "${BLU}╚══════════════════════════════════════╝${RST}"
 echo
-ok "Backend API   → http://${LOCAL_IP}:${WEB_PORT}"
-ok "ROM Manager   → http://${LOCAL_IP}:8770  (addon)"
+ok "Web (LAN)     → https://${LOCAL_IP}:8443/roms  (login required)"
+ok "Backend API   → http://127.0.0.1:${WEB_PORT}  (loopback only)"
 ok "SSH           → ssh ${USER_NAME}@${LOCAL_IP}"
 echo
 echo -e "${YLW}  Next steps:${RST}"
 echo "  1. Reboot — GameCore launches automatically."
-echo "  2. Upload ROMs at http://${LOCAL_IP}:8770  (drag & drop)"
+echo "  2. Upload ROMs at https://${LOCAL_IP}:8443/roms  (drag & drop)"
 echo "  3. Only manual step left: copy BIOS/firmwares (PS1/PS2/PS3, DS/3DS, Switch keys)."
 echo

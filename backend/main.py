@@ -58,6 +58,14 @@ def overlay_page():
     return FileResponse(str(frontend_dist / "index.html"), media_type="text/html")
 
 
+@app.get("/gc/addons", include_in_schema=False)
+def gc_addons():
+    # Same payload as /api/addons, on a path Caddy proxies to the LAN without
+    # auth: the shared nav bar of the addon UIs needs it before login state
+    # is known (see docs/SECURITY.md).
+    return addons.list_installed()
+
+
 # ── Static files (covers served directly) ────────────────────────────────────
 # Create the directories before mounting: a conditional mount decided at
 # import time would leave /covers dead until a restart on a fresh checkout
