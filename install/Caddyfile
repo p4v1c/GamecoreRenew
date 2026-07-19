@@ -17,7 +17,7 @@ https://__GAMECORE_IP__:8443 {
 
 	# ── Public: root CA download (bootstrap client trust) ──────────────
 	handle /gc/ca.crt {
-		root * /var/lib/caddy/.local/share/caddy/pki/authorities/local
+		root * /var/lib/caddy/pki/authorities/local
 		rewrite * /root.crt
 		header Content-Type application/pem-certificate-chain
 		header Content-Disposition "attachment; filename=gamecore-ca.crt"
