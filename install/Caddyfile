@@ -12,6 +12,12 @@
 # forward_auth → the core's /api/auth/verify (shared login, phase 3).
 # The TV never goes through Caddy (Electron → localhost:8765 directly).
 
+# Only :8443 may listen on the LAN — no automatic HTTP->HTTPS redirect
+# listener on :80 (ss -tlnp must show a single exposed GameCore port).
+{
+	auto_https disable_redirects
+}
+
 https://__GAMECORE_IP__:8443 {
 	tls internal
 
