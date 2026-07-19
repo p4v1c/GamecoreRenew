@@ -64,18 +64,21 @@ https://:8443 {
 			error 403
 		}
 
-		# Addons behind path prefixes. The trailing slash matters: the pages
-		# use relative URLs, so /roms must land on /roms/.
+		# Addons behind path prefixes. The full path is passed through — each
+		# addon strips its own prefix via root_path=ADDON_BASE (ASGI semantics;
+		# a Caddy-side handle_path strip breaks Starlette sub-mounts like
+		# save-manager's /tools). Trailing slash matters: relative URLs need
+		# /roms to land on /roms/.
 		redir /roms /roms/ 308
 		redir /saves /saves/ 308
 		redir /rpcs3 /rpcs3/ 308
-		handle_path /roms/* {
+		handle /roms/* {
 			reverse_proxy 127.0.0.1:8770
 		}
-		handle_path /saves/* {
+		handle /saves/* {
 			reverse_proxy 127.0.0.1:8772
 		}
-		handle_path /rpcs3/* {
+		handle /rpcs3/* {
 			reverse_proxy 127.0.0.1:8771
 		}
 
