@@ -37,7 +37,12 @@ def scan_roms(roms_path: Path, extensions: list[str], scan_dirs: bool = False,
               system_id: str = "") -> list[dict]:
     files = []
     for f in iter_rom_files(roms_path, extensions, scan_dirs=scan_dirs):
-        stat = f.stat()
+        try:
+            stat = f.stat()
+        except OSError:
+            # Broken symlink or vanished file — skip it instead of turning
+            # the whole library listing into a 500.
+            continue
         # Folder-based games (PS3/PS4) embed their real title — prefer it over
         # the folder name, which is often just a serial like BLES01234.
         title = local_media.get_title(system_id, f) if scan_dirs and system_id else None

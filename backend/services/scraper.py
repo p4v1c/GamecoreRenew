@@ -1,5 +1,6 @@
 """Async cover scraper — libretro thumbnails CDN with TheGamesDB fallback."""
 import re
+import time
 from pathlib import Path
 from urllib.parse import quote, unquote
 
@@ -53,8 +54,10 @@ _LIBRETRO_INDEX = "https://thumbnails.libretro.com/{system}/Named_Boxarts/"
 _LANG_RE = re.compile(r"\(((?:En|Fr|De|Es|It|Ja|Ko|Ru|Pt){2,})\)")
 _INDEX_HREF_RE = re.compile(r'href="([^"]+\.png)"')
 
-# Cache for directory listings: { "Nintendo - Nintendo 3DS": ["Game (USA).png", ...] }
-_INDEX_CACHE: dict[str, list[str]] = {}
+# Cache for directory listings: { "Nintendo - Nintendo 3DS": (fetched_at, ["Game (USA).png", ...]) }
+# TTL so a long-lived backend eventually sees new CDN entries.
+_INDEX_CACHE: dict[str, tuple[float, list[str]]] = {}
+_INDEX_TTL = 24 * 3600
 
 
 def _normalize(name: str) -> str:
@@ -83,20 +86,22 @@ def _name_variants(base: str) -> list[str]:
 
 async def _get_index(client: httpx.AsyncClient, system_name: str) -> list[str]:
     """Fetch and cache directory listing from Libretro."""
-    if system_name in _INDEX_CACHE:
-        return _INDEX_CACHE[system_name]
-    
+    cached = _INDEX_CACHE.get(system_name)
+    if cached and time.time() - cached[0] < _INDEX_TTL:
+        return cached[1]
+
     url = _LIBRETRO_INDEX.format(system=quote(system_name))
     try:
         r = await client.get(url)
         if r.status_code == 200:
             # Extract filenames from hrefs, unquoting them
             files = [unquote(f) for f in _INDEX_HREF_RE.findall(r.text)]
-            _INDEX_CACHE[system_name] = files
+            _INDEX_CACHE[system_name] = (time.time(), files)
             return files
     except Exception:
         pass
-    return []
+    # Refresh failed — keep serving the stale listing rather than nothing
+    return cached[1] if cached else []
 
 
 async def fetch_cover(rom_path: str, system_id: str, dest: Path | None = None) -> str | None:

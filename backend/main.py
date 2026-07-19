@@ -22,7 +22,6 @@ from .config import GAMECORE_ROOT, COVERS_DIR, ASSETS_DIR
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    COVERS_DIR.mkdir(parents=True, exist_ok=True)
     monitor_task = asyncio.create_task(gamepad_monitor.run())
     battery_task = asyncio.create_task(battery.run())
     standby_task = asyncio.create_task(standby.run())
@@ -68,13 +67,16 @@ def overlay_page():
 
 
 # ── Static files (covers served directly) ────────────────────────────────────
-if COVERS_DIR.exists():
-    app.mount("/covers", StaticFiles(directory=str(COVERS_DIR)), name="covers")
-
-if (ASSETS_DIR / "logos").exists():
-    app.mount("/assets/logos", StaticFiles(directory=str(ASSETS_DIR / "logos")), name="logos")
-if (ASSETS_DIR / "overlays").exists():
-    app.mount("/assets/overlays", StaticFiles(directory=str(ASSETS_DIR / "overlays")), name="overlays")
+# Create the directories before mounting: a conditional mount decided at
+# import time would leave /covers dead until a restart on a fresh checkout
+# (the covers dir used to be created later, in the lifespan).
+for _dir, _route, _name in (
+    (COVERS_DIR, "/covers", "covers"),
+    (ASSETS_DIR / "logos", "/assets/logos", "logos"),
+    (ASSETS_DIR / "overlays", "/assets/overlays", "overlays"),
+):
+    _dir.mkdir(parents=True, exist_ok=True)
+    app.mount(_route, StaticFiles(directory=str(_dir)), name=_name)
 
 # ── WebSocket (must be registered before the catch-all static mount) ──────────
 @app.websocket("/ws")

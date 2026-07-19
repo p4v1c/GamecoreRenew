@@ -18,10 +18,10 @@ Config lives in config/standby.json (kept across OTA updates).
 import asyncio
 import json
 import logging
-import os
 import time
 
 from ..config import GAMECORE_ROOT
+from .process_manager import _display_env
 
 log = logging.getLogger(__name__)
 
@@ -64,7 +64,10 @@ async def _run_cmd(*argv: str) -> bool:
             *argv,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
-            env={**os.environ, "DISPLAY": os.environ.get("DISPLAY", ":0")},
+            # Same DISPLAY/XAUTHORITY resolution as game launches — under
+            # systemd there is no X env at all, and xset needs the xauth
+            # cookie, not just a DISPLAY guess.
+            env=_display_env(),
         )
         await proc.wait()
         return proc.returncode == 0

@@ -24,6 +24,15 @@ async def get_overlay(system_id: str):
     return FileResponse(p, media_type="image/png")
 
 
+def _looks_like_image(head: bytes) -> bool:
+    """Magic-byte check — the client Content-Type header proves nothing."""
+    return (
+        head.startswith(b"\x89PNG\r\n\x1a\n")
+        or head.startswith(b"\xff\xd8\xff")
+        or (head[:4] == b"RIFF" and head[8:12] == b"WEBP")
+    )
+
+
 @router.post("/overlays/{system_id}")
 async def upload_overlay(system_id: str, file: UploadFile = File(...)):
     if file.content_type not in ("image/png", "image/jpeg", "image/webp"):
@@ -39,6 +48,8 @@ async def upload_overlay(system_id: str, file: UploadFile = File(...)):
                 chunk = await file.read(1 << 20)  # 1 MB chunks
                 if not chunk:
                     break
+                if written == 0 and not _looks_like_image(chunk):
+                    raise HTTPException(400, "File content is not a PNG/JPEG/WebP image")
                 written += len(chunk)
                 if written > _MAX_OVERLAY_BYTES:
                     raise HTTPException(413, f"Overlay exceeds {_MAX_OVERLAY_BYTES // (1024 * 1024)} MB limit")

@@ -125,7 +125,23 @@ let hudToastWindow = null
 let hudToastTimer  = null
 const HUD_TOAST_MS = 10000
 
+// title/body/label reach us from the renderer over IPC, and the renderer gets
+// them from WebSocket broadcasts — including /api/addons/notify, an open LAN
+// endpoint, and Bluetooth device names. Never interpolate them into HTML raw.
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ))
+}
+
+// accent lands inside style="" — only ever use it as a plain color token
+function safeColor(c) {
+  return /^#[0-9a-fA-F]{3,8}$/.test(String(c)) ? c : '#fbbf24'
+}
+
 function showHudToast({ icon = '🎮', title = '', body = '', accent = '#fbbf24' } = {}) {
+  icon = escHtml(icon); title = escHtml(title); body = escHtml(body)
+  accent = safeColor(accent)
   const html = `<!doctype html><html><body style="margin:0;background:transparent;overflow:hidden;font-family:sans-serif">
     <div style="display:flex;align-items:center;gap:14px;margin:8px;padding:14px 18px;border-radius:14px;
                 background:rgba(18,18,26,0.94);border:1px solid ${accent};box-shadow:0 8px 32px rgba(0,0,0,0.6)">
@@ -309,8 +325,19 @@ ipcMain.on('overlay:stop', (_, { system_id }) => {
 })
 
 // ── Backend startup ───────────────────────────────────────────────────────────
-function startBackend() {
+function backendAlive() {
+  return fetch(BACKEND_URL + '/api/sysinfo', { signal: AbortSignal.timeout(1500) })
+    .then(() => true)
+    .catch(() => false)
+}
+
+async function startBackend() {
   if (DEV) return  // dev: backend is started manually
+
+  // In production gamecore-backend.service already runs uvicorn on 8765 —
+  // spawning a second one just made it crash on EADDRINUSE at every boot.
+  // Only spawn when nothing answers (desktop launch without the service).
+  if (await backendAlive()) return
 
   const root   = path.join(__dirname, '..')
   const venv   = path.join(root, '.venv', 'bin', 'python')

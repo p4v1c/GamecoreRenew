@@ -1,5 +1,4 @@
 import requests
-import sys
 
 FLATPAK_IDS = [
     "org.azahar_emu.Azahar",
@@ -12,11 +11,9 @@ FLATPAK_IDS = [
     "org.ppsspp.PPSSPP",
     "info.cemu.Cemu",
     "io.github.ryubing.Ryujinx",
-    "com.valvesoftware.Steam"
-]
-
-GITHUB_REPOS = [
-    "stenzek/duckstation"
+    "net.shadps4.shadPS4",
+    "com.valvesoftware.Steam",
+    "com.stremio.Stremio",
 ]
 
 def check_flatpak(app_id):
@@ -75,11 +72,14 @@ def main():
         print(f"[{marker}] {app_id:35} : {status}")
 
     print("\nChecking GitHub Assets:")
-    # DuckStation AppImage
-    exists, status = check_github_release_asset("stenzek/duckstation", "x64.AppImage")
-    results.append(("DuckStation AppImage", exists, status))
-    marker = "✓" if exists else "✗"
-    print(f"[{marker}] {'DuckStation AppImage':35} : {status}")
+    for label, repo, pattern in (
+        ("DuckStation AppImage", "stenzek/duckstation", "x64.AppImage"),
+        ("Xenia Canary (Windows)", "xenia-canary/xenia-canary-releases", "windows"),
+    ):
+        exists, status = check_github_release_asset(repo, pattern)
+        results.append((label, exists, status))
+        marker = "✓" if exists else "✗"
+        print(f"[{marker}] {label:35} : {status}")
 
     print("\nChecking External Resources:")
     sdl2_url = "https://raw.githubusercontent.com/gabomdq/SDL_GameControllerDB/master/gamecontrollerdb.txt"

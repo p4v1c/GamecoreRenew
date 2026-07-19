@@ -68,10 +68,10 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 export const api = {
   systems: {
     list: () => get<SystemEntry[]>('/systems'),
-    get: (id: string) => get<SystemEntry>(`/systems/${id}`),
+    get: (id: string) => get<SystemEntry>(`/systems/${encodeURIComponent(id)}`),
   },
   games: {
-    list: (systemId: string) => get<GameEntry[]>(`/systems/${systemId}/games`),
+    list: (systemId: string) => get<GameEntry[]>(`/systems/${encodeURIComponent(systemId)}/games`),
     launch: (systemId: string, romPath = '', gameKey = '') =>
       post('/games/launch', { system_id: systemId, rom_path: romPath, game_key: gameKey }),
     kill: () => post('/games/kill'),
@@ -79,11 +79,11 @@ export const api = {
   },
   metadata: {
     get: (systemId: string, filename: string) =>
-      get<GameMeta>(`/metadata/${systemId}/${encodeURIComponent(filename)}`),
+      get<GameMeta>(`/metadata/${encodeURIComponent(systemId)}/${encodeURIComponent(filename)}`),
   },
   playtime: {
     all: () => get<PlaytimeEntry[]>('/playtime'),
-    forSystem: (id: string) => get<PlaytimeEntry[]>(`/playtime/system/${id}`),
+    forSystem: (id: string) => get<PlaytimeEntry[]>(`/playtime/system/${encodeURIComponent(id)}`),
     forGame: (key: string) => get<PlaytimeEntry>(`/playtime/game/${encodeURIComponent(key)}`),
   },
   standby: {

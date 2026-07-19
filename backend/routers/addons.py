@@ -108,13 +108,21 @@ async def _run_cli(action: str, name: str) -> None:
         await ws.broadcast("addon:done", {"action": action, "name": name, "success": code == 0})
 
 
+# The task handle, not the lock, is the busy check: two requests arriving in
+# the same loop tick both saw the lock unlocked (the task hadn't started yet)
+# and the second silently queued instead of getting its 409. Checking and
+# assigning _current is atomic — no await in between.
+_current: asyncio.Task | None = None
+
+
 def _start(action: str, name: str) -> dict:
+    global _current
     if not _NAME_RE.fullmatch(name):
         raise HTTPException(400, "invalid addon name")
-    if _busy_lock.locked():
+    if _current is not None and not _current.done():
         raise HTTPException(409, "another addon operation is running")
-    task = asyncio.create_task(_run_cli(action, name))
-    task.add_done_callback(lambda t: t.cancelled() or (t.exception() and log.warning("addon task failed: %s", t.exception())))
+    _current = asyncio.create_task(_run_cli(action, name))
+    _current.add_done_callback(lambda t: t.cancelled() or (t.exception() and log.warning("addon task failed: %s", t.exception())))
     return {"ok": True, "message": f"{action} {name} started"}
 
 
