@@ -815,17 +815,9 @@ ok "Services enabled."
 
 # ── Caddy reverse-proxy — the only GameCore port exposed to the LAN ──
 msg "Caddy reverse-proxy (HTTPS :8443)"
-# Every name the box answers to needs its own internal certificate —
-# a client hitting an unlisted address gets a TLS handshake error.
-CADDY_ADDRS="https://${LOCAL_IP}:8443"
-if command -v tailscale >/dev/null 2>&1; then
-  TS_IP=$(tailscale ip -4 2>/dev/null | head -1) || true
-  [[ -n "${TS_IP:-}" ]] && CADDY_ADDRS="${CADDY_ADDRS}, https://${TS_IP}:8443"
-  TS_NAME=$(tailscale status --json 2>/dev/null | python3 -c \
-    'import json,sys; print(json.load(sys.stdin).get("Self",{}).get("DNSName","").rstrip("."))' 2>/dev/null) || true
-  [[ -n "${TS_NAME:-}" ]] && CADDY_ADDRS="${CADDY_ADDRS}, https://${TS_NAME}:8443"
-fi
-sed "s|__GAMECORE_SITE_ADDRESSES__|${CADDY_ADDRS}|" "$GAMECORE_PATH/install/Caddyfile" > /etc/caddy/Caddyfile
+# Catch-all site + on-demand internal certs: no per-box templating,
+# the box can change IP/network without touching this file.
+cp "$GAMECORE_PATH/install/Caddyfile" /etc/caddy/Caddyfile
 systemctl enable --now caddy.service
 # Install Caddy's root CA into the system trust store so the box itself
 # (kiosk browser, Firefox) gets no TLS warning. `caddy trust` needs the
