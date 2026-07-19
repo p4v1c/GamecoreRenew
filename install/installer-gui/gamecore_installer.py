@@ -33,6 +33,10 @@ from PySide6.QtWidgets import (
 GITHUB_REPO = "p4v1c/GamecoreRenew"
 ADDONS_REPO = "https://github.com/p4v1c/gamecore-addons.git"
 
+# Progress markers emitted by arch.sh when GAMECORE_PROGRESS=1:
+#   @GC-PROGRESS@ <0-100> <step label>
+PROGRESS_RE = re.compile(r"^@GC-PROGRESS@\s+(\d{1,3})\s*(.*)$")
+
 EMULATORS = [
     ("azahar",      "Azahar",       "Nintendo 3DS"),
     ("rpcs3",       "RPCS3",        "PlayStation 3"),
@@ -366,15 +370,32 @@ class InstallPage(QWizardPage):
         lay = QVBoxLayout(self)
         self.head = title("Installing…")
         lay.addWidget(self.head)
-        self.sub = subtitle("Packages and emulators take a while — the log follows in real time.")
+        self.sub = subtitle("Packages and emulators take a while — open the logs for details.")
         lay.addWidget(self.sub)
-        self.bar = QProgressBar(); self.bar.setRange(0, 0)
+        self.bar = QProgressBar(); self.bar.setRange(0, 100); self.bar.setValue(0)
         lay.addWidget(self.bar)
+        self.step = subtitle("Waiting for the engine…")
+        lay.addWidget(self.step)
+        row = QHBoxLayout()
+        self.btn_logs = QPushButton("Show logs")
+        self.btn_logs.setProperty("flat", True)
+        self.btn_logs.setCheckable(True)
+        self.btn_logs.toggled.connect(self._toggle_logs)
+        row.addWidget(self.btn_logs); row.addStretch()
+        lay.addLayout(row)
         self.log = QPlainTextEdit(); self.log.setReadOnly(True)
+        self.log.hide()
         lay.addWidget(self.log, stretch=1)
+        # keeps the header/bar top-aligned while the log is hidden
+        lay.addStretch()
         self.proc: QProcess | None = None
         self.done = False
         self.conf_path = ""
+        self._tail = ""  # carry-over for a marker line split across chunks
+
+    def _toggle_logs(self, checked):
+        self.log.setVisible(checked)
+        self.btn_logs.setText("Hide logs" if checked else "Show logs")
 
     def initializePage(self):
         w: "InstallerWizard" = self.wizard()
@@ -397,20 +418,27 @@ class InstallPage(QWizardPage):
             f.write(conf)
         os.chmod(self.conf_path, 0o600)
 
+        # GAMECORE_PROGRESS=1 makes arch.sh emit the @GC-PROGRESS@ markers
+        # that drive the progress bar and the step label below.
         if w.local_repo:
-            engine = f"bash {shlex.quote(str(w.local_repo / 'install' / 'arch.sh'))} --unattended {shlex.quote(self.conf_path)}"
+            engine = (
+                "export GAMECORE_PROGRESS=1; "
+                f"bash {shlex.quote(str(w.local_repo / 'install' / 'arch.sh'))} --unattended {shlex.quote(self.conf_path)}"
+            )
         else:
             # Standalone binary: fetch the latest full release then install from it.
             # Use the stable /releases/latest/download/ redirect instead of the
             # JSON API: the anonymous API is rate-limited to 60 req/h per IP and
             # its failure used to crash the json parser with an empty stream.
             engine = (
-                "set -e; SRC=$(mktemp -d /tmp/gamecore-src-XXXX); "
+                "set -e; export GAMECORE_PROGRESS=1; SRC=$(mktemp -d /tmp/gamecore-src-XXXX); "
+                "echo '@GC-PROGRESS@ 0 Downloading the latest GameCore release'; "
                 "echo '[installer] Downloading the latest GameCore release…'; "
                 f"URL=https://github.com/{GITHUB_REPO}/releases/latest/download/gamecore-full.tar.gz; "
                 "curl -#fL --connect-timeout 15 --retry 3 --retry-delay 5 "
                 "--speed-limit 1024 --speed-time 30 -o \"$SRC/gc.tar.gz\" \"$URL\" "
                 "|| { echo '[installer] Download failed — check the network connection and retry.'; exit 1; }; "
+                "echo '@GC-PROGRESS@ 1 Extracting the release'; "
                 "echo '[installer] Extracting…'; tar -xzf \"$SRC/gc.tar.gz\" -C \"$SRC\"; "
                 f"bash \"$SRC/install/arch.sh\" --unattended {shlex.quote(self.conf_path)}"
             )
@@ -428,6 +456,19 @@ class InstallPage(QWizardPage):
             self.log.appendPlainText("pkexec not found — restart the installer with sudo.")
             self._finish(1)
 
+    def _consume_progress(self, text: str) -> str:
+        """Update bar/step from @GC-PROGRESS@ lines; return text without them."""
+        buf = self._tail + text
+        lines = buf.split("\n")
+        self._tail = lines.pop()[-4096:]  # incomplete last line, kept for next chunk
+        for line in lines:
+            m = PROGRESS_RE.match(line.strip())
+            if m:
+                self.bar.setValue(min(100, int(m.group(1))))
+                if m.group(2):
+                    self.step.setText(m.group(2))
+        return re.sub(r"^@GC-PROGRESS@[^\n]*\n?", "", text, flags=re.M)
+
     def _on_output(self):
         # Never let an exception escape this slot: under PySide6 an unhandled
         # exception in a Qt slot aborts the whole application, which would kill
@@ -436,6 +477,7 @@ class InstallPage(QWizardPage):
             text = bytes(self.proc.readAllStandardOutput()).decode(errors="replace")
             # strip ANSI colors from arch.sh
             text = re.sub(r"\x1b\[[0-9;]*m", "", text)
+            text = self._consume_progress(text)
             sb = self.log.verticalScrollBar()
             stick = sb.value() >= sb.maximum() - 4
             self.log.moveCursor(QTextCursor.MoveOperation.End)
@@ -450,16 +492,18 @@ class InstallPage(QWizardPage):
 
     def _finish(self, code):
         self.done = True
-        self.bar.setRange(0, 1)
-        self.bar.setValue(1 if code == 0 else 0)
         if code == 0:
+            self.bar.setValue(100)
             self.head.setText("Installation complete 🎉")
             self.sub.setText("Reboot the machine — GameCore starts automatically on the TV. "
                              "ROM upload and addons are linked from the interface.")
+            self.step.setText("Done.")
         else:
             self.head.setText("Installation failed")
-            self.sub.setText(f"The engine exited with code {code}. Fix the issue above and "
+            self.sub.setText(f"The engine exited with code {code}. Fix the issue in the logs and "
                              "run the installer again — it is safe to re-run.")
+            self.step.setText("Failed — see the logs below.")
+            self.btn_logs.setChecked(True)  # surface the log where the error is
         try:
             os.unlink(self.conf_path)  # holds API secrets
         except OSError:

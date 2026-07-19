@@ -19,6 +19,15 @@ pacman_optional() {
   pacman -S --noconfirm --needed "$1" 2>/dev/null && ok "$1" || warn "$1 not in repos — skipping"
 }
 
+# Machine-readable progress for the graphical installer: "@GC-PROGRESS@ <pct> <label>".
+# Only emitted when the GUI sets GAMECORE_PROGRESS=1 — a plain CLI install
+# stays clean. Percentages are hand-assigned milestones (minimal mode jumps).
+progress() {  # progress <pct> <label…>
+  if [[ "${GAMECORE_PROGRESS:-0}" == "1" ]]; then
+    echo "@GC-PROGRESS@ $1 ${*:2}"
+  fi
+}
+
 # Bounded git clone: a connection that stalls mid-transfer otherwise hangs
 # git (and the whole install) forever — abort under 1 KB/s for 30 s, hard
 # cap at 5 min, and never leave a half-written checkout behind.
@@ -136,12 +145,14 @@ if ! $UNATTENDED; then
 fi
 
 # ── User check ───────────────────────────────────────────────────
+progress 2 "Checking user"
 msg "Checking user"
 id "$USER_NAME" >/dev/null 2>&1 || { useradd -m -s /bin/bash "$USER_NAME"; ok "User $USER_NAME created."; }
 ok "User $USER_NAME OK"
 USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
 
 # ── Copy files ───────────────────────────────────────────────────
+progress 4 "Copying GameCore files"
 msg "Setting up $GAMECORE_PATH"
 mkdir -p "$(dirname "$GAMECORE_PATH")"
 if [ "$PROJECT_ROOT" != "$GAMECORE_PATH" ]; then
@@ -153,6 +164,7 @@ fi
 chown -R "${USER_NAME}:${USER_NAME}" "$GAMECORE_PATH"
 
 # ── System packages ──────────────────────────────────────────────
+progress 6 "System packages (pacman) — this can take a while"
 msg "System packages"
 pacman -Syu --noconfirm
 
@@ -204,6 +216,7 @@ pacman_optional feh
 pacman_optional plasma-x11-session
 
 # ── CPU governor ─────────────────────────────────────────────────
+progress 22 "CPU governor"
 msg "CPU governor"
 if systemctl enable --now cpupower.service 2>/dev/null \
    && cpupower frequency-set -g performance 2>/dev/null; then
@@ -215,6 +228,7 @@ else
 fi
 
 # ── Flatpak ──────────────────────────────────────────────────────
+progress 24 "Flatpak / Flathub"
 msg "Flatpak / Flathub"
 flatpak remote-list 2>/dev/null | grep -q flathub \
   || flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
@@ -243,7 +257,11 @@ if [[ "$MODE" == "full" ]]; then
   # Steam moved to the apps selection but rides the same Flatpak pipeline
   # (install + ROMs/gamepad overrides below).
   want_app steam && FLATPAKS+=(com.valvesoftware.Steam)
+  EMU_I=0
   for pkg in "${FLATPAKS[@]}"; do
+    EMU_I=$((EMU_I + 1))
+    # interpolate 25 → 50 % across the selected emulators/apps
+    progress $((25 + EMU_I * 25 / ${#FLATPAKS[@]})) "Installing $pkg"
     flatpak list --app 2>/dev/null | grep -q "$pkg" \
       && info "$pkg — already installed." \
       || { flatpak install -y flathub "$pkg" && ok "$pkg installed." || warn "$pkg failed."; }
@@ -257,6 +275,7 @@ if [[ "$MODE" == "full" ]]; then
 
   # ── DuckStation AppImage ───────────────────────────────────────
   if want_emu duckstation; then
+  progress 50 "DuckStation AppImage"
   msg "DuckStation AppImage"
   DUCK_BIN="$GAMECORE_PATH/bin/duckstation.AppImage"
   sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/bin"
@@ -278,6 +297,7 @@ if [[ "$MODE" == "full" ]]; then
 
   # ── Xenia Canary (Xbox 360) — runs through Wine ────────────────
   if want_emu xenia; then
+  progress 52 "Xenia Canary (Wine)"
   msg "Xenia Canary (Wine)"
   pacman -S --noconfirm --needed wine unzip p7zip && ok "wine + archive tools installed." || warn "wine install failed."
   XENIA_DIR="$GAMECORE_PATH/lib/xenia"
@@ -308,11 +328,13 @@ if [[ "$MODE" == "full" ]]; then
   fi  # xenia
 
   # ── Adapt systems.json to this machine's launchers ─────────────
+  progress 55 "Adapting systems.json"
   msg "Systems → Flatpak launchers"
   bash "$GAMECORE_PATH/install/flatpakify-systems.sh" "$GAMECORE_PATH" \
     && ok "systems.json adapted." || warn "flatpakify failed — check config/systems.json."
 
   # ── Curated emulator configs (incl. controller bindings) ───────
+  progress 56 "Emulator configs"
   msg "Emulator configs"
   if [ -d "$GAMECORE_PATH/emu-configs" ]; then
     sudo -u "$USER_NAME" bash "$GAMECORE_PATH/install/install-emu-configs.sh" \
@@ -325,6 +347,7 @@ if [[ "$MODE" == "full" ]]; then
   # Each app (twitch / youtube / stremio — steam is handled with the Flatpaks
   # above) only installs when selected in APPS; unchecked means nothing is
   # cloned, built or enabled for it.
+  progress 58 "Living-room applications"
   msg "Living-room companions"
   UNIT_DIR="$USER_HOME/.config/systemd/user"
   mkdir -p "$UNIT_DIR/default.target.wants"
@@ -336,6 +359,7 @@ if [[ "$MODE" == "full" ]]; then
   fi
 
   if want_app twitch; then
+  progress 60 "Twitch (EmberTV)"
   # EmberTV — Twitch for the big screen (GameCore's Twitch tile opens it)
   if [ ! -d /opt/Twitch-TV ]; then
     git_clone https://github.com/p4v1c/Twitch-TV.git /opt/Twitch-TV \
@@ -392,6 +416,7 @@ EOF
   fi  # twitch
 
   if want_app twitch || want_app youtube || want_app stremio; then
+  progress 64 "Gamepad TV bridge"
   # gamepad-tv-bridge — gamepad → keyboard for kiosk web apps
   if [ ! -d /opt/gamepad-tv-bridge ]; then
     git_clone https://github.com/p4v1c/gamepad-tv-bridge.git /opt/gamepad-tv-bridge \
@@ -495,6 +520,7 @@ EOF
   fi
 
   if want_app stremio; then
+  progress 68 "Stremio"
   # Stremio (media tile) — needs gamepad + media access inside the sandbox
   flatpak list --app 2>/dev/null | grep -q com.stremio.Stremio \
     || { flatpak install -y flathub com.stremio.Stremio && ok "Stremio installed." || warn "Stremio failed."; }
@@ -521,6 +547,7 @@ EOF
       PNPM_BIN="$USER_HOME/.local/bin/pnpm"
     fi
     if sudo -u "$USER_NAME" test -x "$PNPM_BIN"; then
+      progress 70 "Building stremio-web (a few minutes)"
       msg "Building stremio-web fork (can take a few minutes)…"
       sudo -u "$USER_NAME" bash -lc "cd '$STREMIO_WEB_DIR' && '$PNPM_BIN' install && SERVICE_WORKER_DISABLED=true '$PNPM_BIN' build" \
         && ok "stremio-web built." || warn "stremio-web build failed — run 'pnpm install && pnpm build' later."
@@ -539,6 +566,7 @@ fi
 # Keep only the tiles of the apps actually installed — an unchecked app must
 # not leave a dead tile in the UI (minimal mode keeps none). Same spirit as
 # flatpakify-systems.sh for the emulators.
+progress 78 "App tiles"
 msg "App tiles"
 # apps.json was harvested on a box where HOME was /home/pavic — adapt it
 sed -i "s|/home/pavic|$USER_HOME|g" "$GAMECORE_PATH/config/apps.json"
@@ -560,6 +588,7 @@ EOF
 ok "apps.json filtered to the selected apps."
 
 # ── ROM directories ──────────────────────────────────────────────
+progress 80 "ROM directories"
 msg "ROM directories"
 for d in azahar cemu ryujinx dolphin duckstation gopher64 melonds mgba pcsx2 ppsspp rpcs3 xenia shadps4 covers; do
   sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/emu/$d"
@@ -567,6 +596,7 @@ done
 ok "ROM directories ready."
 
 # ── Input group + udev rule (needed for evdev PS-button detection) ──
+progress 82 "Gamepad input access"
 msg "Gamepad input access"
 usermod -aG input "$USER_NAME" && ok "$USER_NAME added to 'input' group." || warn "Could not add to input group."
 
@@ -599,6 +629,7 @@ ok "DualShock 4 hidraw rules installed."
 udevadm control --reload-rules 2>/dev/null && udevadm trigger 2>/dev/null && ok "udev rules reloaded." || warn "udev reload failed — reconnect controller."
 
 # ── Addon manager ────────────────────────────────────────────────
+progress 84 "Addon manager"
 msg "Addon manager (gamecore-addon)"
 install -m 755 "$GAMECORE_PATH/install/gamecore-addon" /usr/local/bin/gamecore-addon
 # Pre-create the addons checkout dir owned by the user so `gamecore-addon
@@ -607,12 +638,14 @@ install -d -o "$USER_NAME" -g "$USER_NAME" /opt/gamecore-addons
 ok "gamecore-addon CLI installed (addons live in /opt/gamecore-addons)."
 
 # ── Python backend ───────────────────────────────────────────────
+progress 86 "Python backend (venv)"
 msg "Python backend (venv)"
 sudo -u "$USER_NAME" -H python3 -m venv "$GAMECORE_PATH/.venv"
 sudo -u "$USER_NAME" -H "$GAMECORE_PATH/.venv/bin/pip" install -q -r "$GAMECORE_PATH/backend/requirements.txt"
 ok "Python dependencies installed."
 
 # ── Node / frontend ──────────────────────────────────────────────
+progress 89 "Building the frontend"
 msg "Node frontend build"
 cd "$GAMECORE_PATH/frontend"
 sudo -u "$USER_NAME" -H npm install
@@ -621,6 +654,7 @@ cd "$SCRIPT_DIR"
 ok "Frontend built → frontend/dist/"
 
 # ── Electron ─────────────────────────────────────────────────────
+progress 93 "Electron shell"
 msg "Electron shell"
 cd "$GAMECORE_PATH/electron"
 sudo -u "$USER_NAME" -H npm install
@@ -677,6 +711,7 @@ cd "$SCRIPT_DIR"
 ok "Electron dependencies installed."
 
 # ── systemd service ──────────────────────────────────────────────
+progress 95 "systemd services"
 msg "systemd service"
 
 cat > /etc/systemd/system/gamecore-backend.service <<EOF
@@ -738,6 +773,7 @@ WantedBy=graphical.target
 EOF
 
 # ── SDDM auto-login ──────────────────────────────────────────────
+progress 96 "SDDM auto-login (KDE Plasma)"
 msg "SDDM auto-login"
 # KDE Plasma on X11 — the whole stack (overlays, fullscreen enforcer,
 # gamepad-tv-bridge key injection, gamecore-xsetup) is X11-only, so never
@@ -777,6 +813,7 @@ systemctl enable gamecore-ui.service
 ok "Services enabled."
 
 # ── Bluetooth ────────────────────────────────────────────────────
+progress 97 "Bluetooth, power & desktop launcher"
 msg "Bluetooth"
 systemctl enable --now bluetooth.service
 ok "Bluetooth service enabled."
@@ -828,6 +865,7 @@ ok "SSH active."
 # Selected gamecore-addons modules (rom-manager by default — everyone
 # wants the browser ROM upload). Each runs as a user-level service.
 if [[ -n "$ADDONS" ]]; then
+  progress 98 "Addons ($ADDONS)"
   msg "Addons ($ADDONS)"
   USER_UID=$(id -u "$USER_NAME")
   loginctl enable-linger "$USER_NAME" 2>/dev/null || true
@@ -846,6 +884,7 @@ if [[ -n "$ADDONS" ]]; then
 fi
 
 # ── Final summary ────────────────────────────────────────────────
+progress 100 "Installation complete"
 echo
 echo -e "${BLU}╔══════════════════════════════════════╗${RST}"
 echo -e "${BLU}║     Installation complete!           ║${RST}"
