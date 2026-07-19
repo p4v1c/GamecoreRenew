@@ -1,8 +1,11 @@
 # GameCore — reverse proxy: the ONLY GameCore port exposed to the LAN.
 #
 # Installed to /etc/caddy/Caddyfile by install/arch.sh, which replaces
-# __GAMECORE_IP__ with the box's LAN IP. If the IP ever changes, edit the
-# address below and `systemctl reload caddy`.
+# __GAMECORE_SITE_ADDRESSES__ with every name the box answers to: the LAN
+# IP, and the Tailscale IP + MagicDNS name when tailscale is present (a
+# TLS client reaching an address that is not listed gets a handshake
+# error — Caddy has no matching certificate). If an address changes,
+# edit the site line below and `systemctl reload caddy`.
 #
 # TLS: `tls internal` — Caddy's local CA signs the cert. The box itself
 # trusts it via `caddy trust` (run by arch.sh); other devices install the
@@ -18,7 +21,7 @@
 	auto_https disable_redirects
 }
 
-https://__GAMECORE_IP__:8443 {
+__GAMECORE_SITE_ADDRESSES__ {
 	tls internal
 
 	# ── Public: root CA download (bootstrap client trust) ──────────────
