@@ -345,7 +345,7 @@ async function startBackend() {
 
   backendProcess = spawn(
     python, ['-m', 'uvicorn', 'backend.main:app',
-             '--host', '0.0.0.0', '--port', '8765',
+             '--host', '127.0.0.1', '--port', '8765',
              '--log-level', DEBUG ? 'debug' : 'warning'],
     { cwd: root, detached: false, stdio: 'ignore' }
   )

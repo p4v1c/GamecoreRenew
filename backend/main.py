@@ -7,7 +7,6 @@ from .config import DEBUG
 logging.basicConfig(level=logging.DEBUG if DEBUG else logging.WARNING)
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -34,13 +33,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="GameCore", version="1.0.0", lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(systems.router, prefix="/api")
