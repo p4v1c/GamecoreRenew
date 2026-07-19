@@ -1,0 +1,75 @@
+# GameCore — reverse proxy: the ONLY GameCore port exposed to the LAN.
+#
+# Installed to /etc/caddy/Caddyfile by install/arch.sh, which replaces
+# __GAMECORE_IP__ with the box's LAN IP. If the IP ever changes, edit the
+# address below and `systemctl reload caddy`.
+#
+# TLS: `tls internal` — Caddy's local CA signs the cert. The box itself
+# trusts it via `caddy trust` (run by arch.sh); other devices install the
+# root CA once from https://<ip>:8443/gc/ca.crt (link + QR on /login).
+#
+# Auth: every route except the public ones below goes through
+# forward_auth → the core's /api/auth/verify (shared login, phase 3).
+# The TV never goes through Caddy (Electron → localhost:8765 directly).
+
+https://__GAMECORE_IP__:8443 {
+	tls internal
+
+	# ── Public: root CA download (bootstrap client trust) ──────────────
+	handle /gc/ca.crt {
+		root * /var/lib/caddy/.local/share/caddy/pki/authorities/local
+		rewrite * /root.crt
+		header Content-Type application/pem-certificate-chain
+		header Content-Disposition "attachment; filename=gamecore-ca.crt"
+		file_server
+	}
+
+	# ── Public: login page + auth API ──────────────────────────────────
+	@public path /login /login/* /api/auth/*
+	handle @public {
+		reverse_proxy 127.0.0.1:8765
+	}
+
+	# ── Public: addon registry, consumed by the shared nav bar ─────────
+	handle /gc/addons {
+		reverse_proxy 127.0.0.1:8765
+	}
+
+	# ── Everything else requires a valid session cookie ────────────────
+	handle {
+		forward_auth 127.0.0.1:8765 {
+			uri /api/auth/verify
+			copy_headers X-GC-User
+		}
+
+		# The core API is NEVER exposed to the LAN (only /api/auth/* above):
+		# games/launch, update/apply, wifi, addons install… stay loopback-only.
+		handle /api/* {
+			error 403
+		}
+
+		# Addons behind path prefixes. The trailing slash matters: the pages
+		# use relative URLs, so /roms must land on /roms/.
+		redir /roms /roms/ 308
+		redir /saves /saves/ 308
+		redir /rpcs3 /rpcs3/ 308
+		handle_path /roms/* {
+			reverse_proxy 127.0.0.1:8770
+		}
+		handle_path /saves/* {
+			reverse_proxy 127.0.0.1:8772
+		}
+		handle_path /rpcs3/* {
+			reverse_proxy 127.0.0.1:8771
+		}
+
+		# The TV SPA is not usable over the LAN (its /api is blocked) —
+		# land on the ROM manager instead.
+		redir / /roms/ 302
+
+		# Core statics used by the addon pages (/assets/*, /covers/*).
+		handle {
+			reverse_proxy 127.0.0.1:8765
+		}
+	}
+}
