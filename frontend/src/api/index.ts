@@ -93,18 +93,6 @@ export const api = {
     exit: () => post('/standby/exit'),
   },
   sysinfo: () => get<SysInfo>('/sysinfo'),
-  auth: {
-    // Raw fetch: 401 (wrong current password) must surface as a payload,
-    // not an exception, so the Security page can show a proper message.
-    changePassword: async (current: string, newPassword: string): Promise<{ ok: boolean; error?: string; retry_in?: number }> => {
-      const r = await fetch(BASE + '/auth/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ current, new: newPassword }),
-      })
-      return r.json().catch(() => ({ ok: false, error: `http_${r.status}` }))
-    },
-  },
   update: {
     check: () => get<{ update_available: boolean; current: string; latest: string; download_url?: string }>('/update/check'),
     apply: () => post('/update/apply'),
