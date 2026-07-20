@@ -87,6 +87,7 @@ for _dir, _route, _name in (
     (COVERS_DIR, "/covers", "covers"),
     (ASSETS_DIR / "logos", "/assets/logos", "logos"),
     (ASSETS_DIR / "overlays", "/assets/overlays", "overlays"),
+    (GAMECORE_ROOT / "backend" / "data", "/data", "data"),
 ):
     _dir.mkdir(parents=True, exist_ok=True)
     app.mount(_route, StaticFiles(directory=str(_dir)), name=_name)
