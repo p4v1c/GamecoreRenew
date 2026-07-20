@@ -6,7 +6,7 @@
  *
  * Events dispatched on window:
  *   gp:dpad-up | gp:dpad-down | gp:dpad-left | gp:dpad-right
- *   gp:confirm (A/Cross)  | gp:back (B/Circle)  | gp:y (Y/Triangle)
+ *   gp:confirm (A/Cross)  | gp:back (B/Circle)  | gp:y (Y/Triangle) | gp:x (X/Square)
  *   gp:menu (Start/Options) | gp:power (Share/Back) | gp:guide (PS/Home)
  *   gp:l1 | gp:r1 | gp:l2 | gp:r2
  *   gp:connected(name) | gp:disconnected
@@ -103,6 +103,7 @@ export function useGamepad() {
               case BTN.A:          emit('gp:confirm');    break
               case BTN.B:          emit('gp:back');       break
               case BTN.Y:          emit('gp:y');          break
+              case BTN.X:          emit('gp:x');          break
               case BTN.OPTIONS:    emit('gp:menu');       break
               case BTN.SHARE:      emit('gp:power');      break
               case BTN.L1:         emit('gp:l1');         break

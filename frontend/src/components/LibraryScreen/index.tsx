@@ -374,7 +374,7 @@ export default function LibraryScreen() {
         borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(9,9,15,0.5)',
       }}>
         <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.15)' }}>
-          ↑↓ Navigate · ✕ Play · △ Search · L1/R1 Sort · ○ Back
+          ↑↓ Navigate · ✕ Play · △ Search · □ Controller · L1/R1 Sort · ○ Back
         </span>
       </div>
 

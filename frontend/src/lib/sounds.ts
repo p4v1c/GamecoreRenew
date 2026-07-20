@@ -104,6 +104,7 @@ export function soundForGpEvent(event: string): SoundName | null {
     case 'gp:confirm':
     case 'gp:menu':
     case 'gp:power':
+    case 'gp:x':
       return 'confirm'
     case 'gp:back':
       return 'back'
