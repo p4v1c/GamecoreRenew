@@ -30,6 +30,15 @@ export default function LibraryScreen() {
   const showSearchRef = useRef(showSearch)
   useEffect(() => { showSearchRef.current = showSearch }, [showSearch])
 
+  // The search keyboard counts as a modal: while it's open, global bindings
+  // (Options → Settings, Share → Power) must not fire on top of it.
+  const { openModal, closeModal } = useStore()
+  useEffect(() => {
+    if (!showSearch) return
+    openModal()
+    return () => closeModal()
+  }, [showSearch]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const SORT_KEYS: SortKey[] = ['name', 'playtime', 'lastPlayed']
 
   const color = (system?.color || SYSTEM_COLORS[selectedSystemId?.toLowerCase() || ''] || '#7c3aed')
@@ -126,8 +135,8 @@ export default function LibraryScreen() {
              sessionGameKey !== null
     }
     const offs = [
-      onGp('gp:dpad-up',  () => { if (blocked()) return; setSelectedGameIdx(Math.max(0, selectedGameIdx - 1)) }),
-      onGp('gp:dpad-down',() => { if (blocked()) return; setSelectedGameIdx(Math.min(sortedGames.length - 1, selectedGameIdx + 1)) }),
+      onGp('gp:dpad-up',  () => { if (blocked() || !sortedGames.length) return; setSelectedGameIdx(Math.max(0, selectedGameIdx - 1)) }),
+      onGp('gp:dpad-down',() => { if (blocked() || !sortedGames.length) return; setSelectedGameIdx(Math.min(sortedGames.length - 1, selectedGameIdx + 1)) }),
       onGp('gp:confirm',  () => { if (blocked()) return; launchGame() }),
       onGp('gp:back',     () => { if (screenRef.current !== 'library' || modalDepthRef.current > 0) return; if (showSearchRef.current) { setShowSearch(false); return } goHome() }),
       onGp('gp:y',        () => { if (blocked()) return; setShowSearch(true) }),
@@ -375,7 +384,9 @@ export default function LibraryScreen() {
           <Overlay onClose={() => setShowSearch(false)}>
             <VirtualKeyboard
               title="Search games"
-              onConfirm={val => { setSearch(val); setSelectedGameIdx(0); setShowSearch(false) }}
+              initialValue={search}
+              placeholder="search a game…"
+              onConfirm={val => { setSearch(val.trim()); setSelectedGameIdx(0); setShowSearch(false) }}
               onCancel={() => setShowSearch(false)}
             />
           </Overlay>

@@ -53,8 +53,11 @@ export default function App() {
   // Global gamepad bindings
   useEffect(() => {
     const offs = [
-      onGp('gp:menu', () => { if (!splashRef.current && !useStore.getState().powerPending) setShowSettings(s => !s) }),
-      onGp('gp:power', () => { if (!splashRef.current && !useStore.getState().powerPending) setShowPower(s => !s) }),
+      // Toggle-close always works; opening is refused while another modal
+      // (e.g. the library search keyboard) is on screen — otherwise both
+      // sets of gamepad handlers fire on every press.
+      onGp('gp:menu', () => { if (!splashRef.current && !useStore.getState().powerPending) setShowSettings(s => s ? false : useStore.getState().modalDepth === 0) }),
+      onGp('gp:power', () => { if (!splashRef.current && !useStore.getState().powerPending) setShowPower(s => s ? false : useStore.getState().modalDepth === 0) }),
       onGp('gp:guide', async () => {
         if (!sessionRef.current) return
         try { await api.games.kill() } catch {}

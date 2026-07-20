@@ -21,12 +21,16 @@ const SYMBOLS: string[][] = [
 interface Props {
   title?: string
   password?: boolean
+  /** Pre-filled text — e.g. the current search query so reopening doesn't lose it. */
+  initialValue?: string
+  /** Empty-field hint. Defaults to a password hint only in password mode. */
+  placeholder?: string
   onConfirm: (value: string) => void
   onCancel: () => void
 }
 
-export function VirtualKeyboard({ title, password = false, onConfirm, onCancel }: Props) {
-  const [value, setValue] = useState('')
+export function VirtualKeyboard({ title, password = false, initialValue = '', placeholder, onConfirm, onCancel }: Props) {
+  const [value, setValue] = useState(initialValue)
   const [layout, setLayout] = useState<'letters' | 'symbols'>('letters')
   const [row, setRow] = useState(1)
   const [col, setCol] = useState(0)
@@ -127,7 +131,7 @@ export function VirtualKeyboard({ title, password = false, onConfirm, onCancel }
         justifyContent: displayValue ? 'flex-end' : 'center',
         overflow: 'hidden', whiteSpace: 'nowrap',
       }}>
-        {displayValue || <span style={{ opacity: 0.25, fontSize: 14, letterSpacing: 1 }}>enter password</span>}
+        {displayValue || <span style={{ opacity: 0.25, fontSize: 14, letterSpacing: 1 }}>{placeholder ?? (password ? 'enter password' : 'start typing…')}</span>}
       </div>
 
       {/* Key rows */}
