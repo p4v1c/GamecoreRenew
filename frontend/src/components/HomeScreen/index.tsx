@@ -275,7 +275,7 @@ export default function HomeScreen({ onLaunchApp }: Props) {
 
       {/* Gamepad hint */}
       <div style={{ marginTop: 16, fontSize: 11, color: 'rgba(255,255,255,0.15)', letterSpacing: 1 }}>
-        {pageCount > 1 ? '← → Navigate · L1/R1 Page · ✕ Select' : '← → Navigate · ✕ Select'}
+        {pageCount > 1 ? '← → Navigate · L1/R1 Page · ✕ Select · □ Controller' : '← → Navigate · ✕ Select · □ Controller'}
       </div>
     </div>
   )

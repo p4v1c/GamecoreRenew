@@ -7,7 +7,7 @@ interface Props {
   onPower: () => void
 }
 
-function ControllerBattery({ player, level, charging }: { player?: number | null; level: number; charging?: boolean }) {
+export function ControllerBattery({ player, level, charging }: { player?: number | null; level: number; charging?: boolean }) {
   const color = charging ? '#4ade80' : level > 60 ? '#4ade80' : level > 20 ? '#fbbf24' : '#ef4444'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', borderRadius: 7, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>

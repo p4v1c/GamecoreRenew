@@ -12,6 +12,7 @@ import HomeScreen from './components/HomeScreen'
 import LibraryScreen from './components/LibraryScreen'
 import SettingsModal from './components/modals/SettingsModal'
 import PowerModal from './components/modals/PowerModal'
+import GamepadModal from './components/modals/GamepadModal'
 import Toasts from './components/ui/Toasts'
 import Screensaver from './components/Screensaver'
 import { onWsEvent } from './hooks/useWebSocket'
@@ -21,6 +22,7 @@ export default function App() {
   const [showSplash, setShowSplash] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [showPower, setShowPower] = useState(false)
+  const [showGamepad, setShowGamepad] = useState(false)
   const { screen, sessionGameKey, goHome, setSession } = useStore()
 
   const sessionRef = useRef(sessionGameKey)
@@ -58,6 +60,8 @@ export default function App() {
       // sets of gamepad handlers fire on every press.
       onGp('gp:menu', () => { if (!splashRef.current && !useStore.getState().powerPending) setShowSettings(s => s ? false : useStore.getState().modalDepth === 0) }),
       onGp('gp:power', () => { if (!splashRef.current && !useStore.getState().powerPending) setShowPower(s => s ? false : useStore.getState().modalDepth === 0) }),
+      // □ / X toggles the controller screen (mirrors stremio-web)
+      onGp('gp:x', () => { if (!splashRef.current && !useStore.getState().powerPending) setShowGamepad(s => s ? false : useStore.getState().modalDepth === 0) }),
       onGp('gp:guide', async () => {
         if (!sessionRef.current) return
         try { await api.games.kill() } catch {}
@@ -116,6 +120,10 @@ export default function App() {
 
       <AnimatePresence>
         {showPower && <PowerModal key="power" onClose={() => setShowPower(false)} />}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showGamepad && <GamepadModal key="gamepad" onClose={() => setShowGamepad(false)} />}
       </AnimatePresence>
     </div>
   )
