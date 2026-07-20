@@ -21,6 +21,10 @@ import { playSound, soundForGpEvent } from '../lib/sounds'
 
 const DEAD_ZONE = 0.5
 
+// Guide/PS button must be pressed twice within this window to emit gp:guide
+// (single press ignored — avoids accidentally killing the running game).
+const GUIDE_DOUBLE_PRESS_MS = 1000
+
 // Standard mapping indices (matches browser standard gamepad mapping)
 const BTN = {
   A: 0, B: 1, X: 2, Y: 3,
@@ -46,6 +50,7 @@ export function useGamepad() {
   const prevButtons = useRef<boolean[]>([])
   const prevAxes = useRef<number[]>([])
   const rafId = useRef<number>(0)
+  const lastGuidePress = useRef<number>(0)
 
   useEffect(() => {
     const onConnect    = (e: GamepadEvent) => emit('gp:connected', e.gamepad.id)
@@ -69,8 +74,15 @@ export function useGamepad() {
             // Guide/PS button always passes through — used to kill the emulator.
             // The browser may or may not expose it (Chromium often blocks it);
             // the backend evdev monitor is the primary path for this button.
+            // Requires a double press within GUIDE_DOUBLE_PRESS_MS.
             if (i === BTN.GUIDE) {
-              emit('gp:guide')
+              const now = performance.now()
+              if (now - lastGuidePress.current <= GUIDE_DOUBLE_PRESS_MS) {
+                lastGuidePress.current = 0
+                emit('gp:guide')
+              } else {
+                lastGuidePress.current = now
+              }
               prevButtons.current[i] = pressed
               return
             }

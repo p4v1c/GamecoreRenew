@@ -2,7 +2,8 @@
 Background service that reads gamepad events directly from /dev/input via evdev.
 
 This bypasses the Chromium Gamepad API which blocks button 16 (PS/guide button).
-When the PS/guide button is detected:
+When the PS/guide button is pressed twice within DOUBLE_PRESS_WINDOW seconds
+(a single press is ignored, to avoid accidental exits):
   - If a game is running  → kill it and broadcast gp:guide so the frontend goes home
   - Otherwise             → broadcast gp:guide (frontend can choose to ignore)
 
@@ -12,6 +13,7 @@ Either add the user to the 'input' group OR deploy the udev rule from install.sh
 import asyncio
 import glob
 import logging
+import time
 
 from . import controller_registry
 
@@ -28,6 +30,14 @@ BTN_SOUTH = 0x130
 
 EV_KEY  = 1   # evdev event type for key/button events
 KEY_DOWN = 1  # event value for key press
+
+# Guide button must be pressed twice within this window (seconds) to trigger.
+DOUBLE_PRESS_WINDOW = 1.0
+# Presses closer than this are the same physical press reported twice
+# (e.g. a pad exposing both BTN_MODE and KEY_HOMEPAGE) — ignore them.
+DEBOUNCE = 0.05
+
+_last_guide_press: float = 0.0
 
 
 async def _watch_device(path: str) -> None:
@@ -70,6 +80,19 @@ async def _watch_device(path: str) -> None:
 
 
 async def _on_guide_pressed() -> None:
+    global _last_guide_press
+
+    now = time.monotonic()
+    elapsed = now - _last_guide_press
+    if elapsed < DEBOUNCE:
+        return
+    if elapsed > DOUBLE_PRESS_WINDOW:
+        _last_guide_press = now
+        log.info("gamepad_monitor: guide pressed once — press again within %.1fs to exit",
+                 DOUBLE_PRESS_WINDOW)
+        return
+    _last_guide_press = 0.0
+
     from . import process_manager as pm_module
     from .. import ws
 
