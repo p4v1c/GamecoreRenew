@@ -15,7 +15,7 @@ import glob
 import logging
 import time
 
-from . import controller_registry
+from . import controller_profiles, controller_registry
 
 log = logging.getLogger(__name__)
 
@@ -110,15 +110,18 @@ async def _on_guide_pressed() -> None:
         log.exception("gamepad_monitor: error broadcasting gp:guide")
 
 
-def _find_gamepad_devices() -> dict[str, tuple[str, str, bool]]:
+def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str]]:
     """
-    Map path → (name, uniq, is_pad) for event devices that declare the guide
-    button. Scans /dev/input/event* directly instead of relying on
-    evdev.list_devices(), which reads /proc/bus/input/devices and may be
-    inaccessible without input group.
+    Map path → (name, uniq, is_pad, vendor, product) for event devices that
+    declare the guide button. Scans /dev/input/event* directly instead of
+    relying on evdev.list_devices(), which reads /proc/bus/input/devices and
+    may be inaccessible without input group.
 
     `uniq` is the pad's MAC address — the controller registry keys on it, and
     battery.py joins sysfs power supplies back to a player slot through it.
+    `vendor`/`product` (4-hex USB IDs) drive controller_profiles.apply_profile
+    — whichever controller TYPE takes a slot gets that slot's emulator
+    configs written for it, live (docs/CONTROLLER_MODELS.md).
 
     `is_pad` tells actual gamepads apart: KEY_HOMEPAGE (172) is also a plain
     multimedia key, so keyboards and remotes land here too — they must keep
@@ -136,16 +139,18 @@ def _find_gamepad_devices() -> dict[str, tuple[str, str, bool]]:
     except Exception:
         pass
 
-    found: dict[str, tuple[str, str, bool]] = {}
+    found: dict[str, tuple[str, str, bool, str, str]] = {}
     for path in sorted(candidate_paths):
         try:
             dev = evdev.InputDevice(path)
             caps = dev.capabilities()
             keys = caps.get(EV_KEY, [])
             name, uniq = dev.name, (dev.uniq or "")
+            info = dev.info
+            vendor, product = f"{info.vendor:04x}", f"{info.product:04x}"
             dev.close()
             if any(code in GUIDE_CODES for code in keys):
-                found[path] = (name, uniq, BTN_SOUTH in keys)
+                found[path] = (name, uniq, BTN_SOUTH in keys, vendor, product)
         except (PermissionError, OSError):
             pass
     return found
@@ -188,7 +193,7 @@ async def run() -> None:
         watching = set(watched.keys())
 
         for path in sorted(current - watching):
-            name, uniq, is_pad = devices[path]
+            name, uniq, is_pad, vendor, product = devices[path]
             task = asyncio.create_task(_watch_device(path), name=f"gpad:{path}")
             watched[path] = task
             # Keyboards/remotes with a Home multimedia key end up here for
@@ -200,7 +205,19 @@ async def run() -> None:
             known = controller_registry.has(key)
             player = controller_registry.connect(key, name)
             # `known` guards against re-announcing a pad whose watcher died
-            # transiently while the device never actually left.
+            # transiently while the device never actually left. A genuinely
+            # new slot always gets its emulator configs written — including
+            # on first_scan (pads already plugged in when the backend
+            # starts), just without the WS toast a console wouldn't show.
+            if not known:
+                try:
+                    results = await asyncio.to_thread(
+                        controller_profiles.apply_profile, player, vendor, product, name)
+                    if results:
+                        log.info("gamepad_monitor: player %d profiled (%s:%s) — %s",
+                                 player, vendor, product, "; ".join(results))
+                except Exception:
+                    log.exception("gamepad_monitor: controller_profiles failed for player %d", player)
             if not first_scan and not known:
                 log.info("gamepad_monitor: controller %d connected (%s)", player, name)
                 try:
