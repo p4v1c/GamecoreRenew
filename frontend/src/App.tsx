@@ -17,6 +17,7 @@ import Toasts from './components/ui/Toasts'
 import Screensaver from './components/Screensaver'
 import { onWsEvent } from './hooks/useWebSocket'
 import { playSound } from './lib/sounds'
+import { SAFE_AREA_X, SAFE_AREA_Y } from './lib/safeArea'
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true)
@@ -98,20 +99,31 @@ export default function App() {
         {showSplash && <Splash onDone={() => setShowSplash(false)} />}
       </AnimatePresence>
 
-      {/* Mounted from the first frame, behind the opaque splash: systems,
-          playtime and game counts are fetched while the boot animation plays,
-          so the dashboard is already populated when it fades away (it used to
-          mount empty once the splash was gone, then pop in). */}
-      <TopBar onSettings={() => setShowSettings(true)} onPower={() => setShowPower(true)} />
-      <Toasts />
+      {/* TV-safe area: HDMI overscan on some TVs crops a few % off every
+          edge (a PC monitor shows every pixel, which is why this only shows
+          up on the TV) — see lib/safeArea.ts. Keeps the top bar, screens and
+          their footer hints clear of the raw canvas border. */}
+      <div style={{
+        flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        paddingTop: SAFE_AREA_Y, paddingBottom: SAFE_AREA_Y,
+        paddingLeft: SAFE_AREA_X, paddingRight: SAFE_AREA_X,
+        boxSizing: 'border-box',
+      }}>
+        {/* Mounted from the first frame, behind the opaque splash: systems,
+            playtime and game counts are fetched while the boot animation plays,
+            so the dashboard is already populated when it fades away (it used to
+            mount empty once the splash was gone, then pop in). */}
+        <TopBar onSettings={() => setShowSettings(true)} onPower={() => setShowPower(true)} />
+        <Toasts />
 
-      {/* Both screens stay mounted at all times — toggled via display:none.
-          This prevents the re-mount/re-fetch flash when navigating home from library. */}
-      <div style={{ flex: 1, display: screen === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-        <HomeScreen onLaunchApp={handleLaunchApp} />
-      </div>
-      <div style={{ flex: 1, display: screen === 'library' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-        <LibraryScreen />
+        {/* Both screens stay mounted at all times — toggled via display:none.
+            This prevents the re-mount/re-fetch flash when navigating home from library. */}
+        <div style={{ flex: 1, display: screen === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+          <HomeScreen onLaunchApp={handleLaunchApp} />
+        </div>
+        <div style={{ flex: 1, display: screen === 'library' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+          <LibraryScreen />
+        </div>
       </div>
 
       <AnimatePresence>
