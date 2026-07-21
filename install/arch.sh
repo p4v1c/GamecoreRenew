@@ -278,11 +278,14 @@ if [[ "$MODE" == "full" ]]; then
       || { flatpak install -y flathub "$pkg" && ok "$pkg installed." || warn "$pkg failed."; }
   done
 
-  # Sandbox permissions: ROM directory + gamepad access for every emulator
+  # Sandbox permissions: ROM directory + gamepad access for every emulator.
+  # --socket=x11: fallback-x11 manifests drop X11 whenever a wayland socket
+  # exists (e.g. the box switched to a KDE session) — the emulator then dies
+  # instantly when the backend launches it on the X display.
   for pkg in "${FLATPAKS[@]}"; do
-    flatpak override --filesystem="$GAMECORE_PATH" --device=all "$pkg" 2>/dev/null || true
+    flatpak override --filesystem="$GAMECORE_PATH" --device=all --socket=x11 "$pkg" 2>/dev/null || true
   done
-  ok "Flatpak overrides applied (ROMs dir + controller access)."
+  ok "Flatpak overrides applied (ROMs dir + controller + X11 access)."
 
   # ── DuckStation AppImage ───────────────────────────────────────
   if want_emu duckstation; then
