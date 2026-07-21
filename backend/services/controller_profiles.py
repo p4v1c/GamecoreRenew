@@ -11,28 +11,48 @@ config is written for that slot, live. No slot is ever hardcoded to a
 brand.
 
 Per-emulator mechanics (ground-truthed by reading each emulator's live
-config on this box):
+config AND logs on this box, plus the relevant emulator sources):
   - PCSX2, DuckStation, gopher64 bind by SDL role name with NO device
     identity at all for slot 1 — already correct forever. Slots 2-4 still
     need an SDL-index section to exist (create it once, cloned from
     slot 1's role bindings) — after that, also correct forever regardless
     of which controller occupies that slot.
   - RPCS3, Dolphin bind by SDL role name too, but pick the physical pad by
-    a literal device NAME string ("PS4 Controller 2") — retarget just
-    that string (and the SDL slot index alongside it: found a live bug
-    where Dolphin's GCPad2 pointed at slot 0 instead of 1, so the index is
-    now always rewritten together with the name, never trusted as-is).
+    a literal device NAME string. Two hard-won facts about that string:
+      * Both bundle SDL3, whose HIDAPI drivers name pads differently from
+        the SDL2-era community DB — a DualSense is "DualSense Wireless
+        Controller" to SDL3, not "PS5 Controller" (seen live in RPCS3.log:
+        the DB name produced "SDL: Adding empty device" and a dead pad).
+        So the name is resolved against the system's libSDL3 with the
+        pads actually connected, not against gamecontrollerdb.txt.
+      * The numeric part is NOT the player slot: RPCS3 suffixes a 1-based
+        counter PER NAME ("DualSense Wireless Controller 1" even as
+        Player 2 — sdl_pad_handler.cpp counts same-named devices), and
+        Dolphin's SDL/<k>/<name> uses a 0-based PER-NAME <k> (ciface
+        DeviceContainer). Hence `dup_index` below.
   - citron, azahar, mgba, Cemu bind by raw button/axis index tied to a
     device GUID/uuid. DualShock 4 and DualSense share the same kernel
     driver and report IDENTICAL raw indices (verified live) — only the
     GUID's vendor/product bytes differ, at a fixed, format-stable hex
     offset. Retargeting a slot (or cloning slot 1 into a new slot) is a
     pure GUID substitution — every button assignment already validated by
-    the owner stays exactly where it is.
+    the owner stays exactly where it is. But the accompanying index is,
+    again, NOT the player slot: citron's `port:` counts pads sharing the
+    same GUID (sdl_driver.cpp joystick_map — a lone DualSense is port 0
+    even as Player 2, a wrong port silently binds a phantom joystick),
+    and Cemu's `<uuid>k_guid</uuid>` prefix is the same per-GUID counter
+    (SDLControllerProvider guid_counter). Also: citron player sections
+    are 0-based — player_0_* IS Player 1.
   - azahar (3DS) and mgba (GBA): single-player hardware — only slot 1 is
     ever touched, regardless of which player index is passed in.
   - ppsspp/melonDS: skipped — no existing binding on this box to clone
     from (never launched/configured yet).
+
+`dup_index` = how many already-connected pads of the same vendor:product
+occupy a LOWER player slot. It is the value all four per-name/per-GUID
+counters above need (same-model pads are the only ones that can collide
+in either scheme). Callers that know the full roster pass it; it defaults
+to 0, which is always right for the first pad of a given model.
 """
 from __future__ import annotations
 
@@ -41,6 +61,7 @@ import logging
 import os
 import re
 import shutil
+import time
 from pathlib import Path
 
 from ..config import GAMECORE_ROOT
@@ -101,8 +122,94 @@ def db_name_for(vendor: str, product: str) -> str | None:
     return None
 
 
+# SDL3 HIDAPI names for pads we know, used when live SDL3 enumeration is
+# unavailable (library missing, or the pad went back to sleep between the
+# evdev scan and this call). These differ from the SDL2 community-DB names.
+SDL3_FALLBACK_NAMES = {
+    ("054c", "05c4"): "PS4 Controller",
+    ("054c", "09cc"): "PS4 Controller",
+    ("054c", "0ba0"): "PS4 Controller",          # DS4 USB dongle
+    ("054c", "0ce6"): "DualSense Wireless Controller",
+    ("054c", "0df2"): "DualSense Edge Wireless Controller",
+}
+
+SDL_INIT_GAMEPAD = 0x2000
+
+_sdl3_cache: tuple[float, dict[tuple[str, str], str]] = (0.0, {})
+
+
+def _sdl3_live_names() -> dict[tuple[str, str], str]:
+    """vendor:product → device name for every currently-connected gamepad,
+    as reported by the system's libSDL3 — the same library family RPCS3 and
+    Dolphin bundle, so the name written to their configs is byte-for-byte
+    the name they will enumerate at boot."""
+    import ctypes
+
+    os.environ.setdefault("SDL_NO_SIGNAL_HANDLERS", "1")
+    if DB_FILE.is_file():
+        # Mirror the emulators' launch env (process_manager.py) so pads that
+        # only exist as community-DB mappings enumerate here too.
+        os.environ.setdefault("SDL_GAMECONTROLLERCONFIG_FILE", str(DB_FILE))
+    lib = ctypes.CDLL("libSDL3.so.0")
+    lib.SDL_InitSubSystem.restype = ctypes.c_bool
+    lib.SDL_InitSubSystem.argtypes = [ctypes.c_uint32]
+    lib.SDL_QuitSubSystem.argtypes = [ctypes.c_uint32]
+    lib.SDL_GetGamepads.restype = ctypes.POINTER(ctypes.c_uint32)
+    lib.SDL_GetGamepads.argtypes = [ctypes.POINTER(ctypes.c_int)]
+    lib.SDL_GetGamepadNameForID.restype = ctypes.c_char_p
+    lib.SDL_GetGamepadNameForID.argtypes = [ctypes.c_uint32]
+    lib.SDL_GetGamepadVendorForID.restype = ctypes.c_uint16
+    lib.SDL_GetGamepadVendorForID.argtypes = [ctypes.c_uint32]
+    lib.SDL_GetGamepadProductForID.restype = ctypes.c_uint16
+    lib.SDL_GetGamepadProductForID.argtypes = [ctypes.c_uint32]
+    lib.SDL_free.argtypes = [ctypes.c_void_p]
+
+    names: dict[tuple[str, str], str] = {}
+    if not lib.SDL_InitSubSystem(SDL_INIT_GAMEPAD):
+        return names
+    try:
+        count = ctypes.c_int(0)
+        pads = lib.SDL_GetGamepads(ctypes.byref(count))
+        if pads:
+            for k in range(count.value):
+                jid = pads[k]
+                raw = lib.SDL_GetGamepadNameForID(jid)
+                vendor = lib.SDL_GetGamepadVendorForID(jid)
+                product = lib.SDL_GetGamepadProductForID(jid)
+                if raw and vendor:
+                    names[(f"{vendor:04x}", f"{product:04x}")] = raw.decode()
+            lib.SDL_free(pads)
+    finally:
+        lib.SDL_QuitSubSystem(SDL_INIT_GAMEPAD)
+    return names
+
+
+def sdl3_names() -> dict[tuple[str, str], str]:
+    """_sdl3_live_names() behind a short cache — two pads taking slots in
+    the same scan pass shouldn't init SDL twice — degrading to {} instead
+    of raising when libSDL3 is unavailable."""
+    global _sdl3_cache
+    ts, cached = _sdl3_cache
+    if time.monotonic() - ts > 5.0 or not cached:
+        try:
+            cached = _sdl3_live_names()
+        except Exception:
+            log.warning("controller_profiles: SDL3 enumeration failed — "
+                        "falling back to static names", exc_info=True)
+            cached = {}
+        _sdl3_cache = (time.monotonic(), cached)
+    return cached
+
+
 def resolve_name(vendor: str, product: str, evdev_name: str) -> str:
-    return db_name_for(vendor, product) or evdev_name
+    """The device-name string SDL3-based emulators (RPCS3, Dolphin) will
+    see for this pad. Live SDL3 answer first, known-pads table next, the
+    SDL2 community-DB name only as a last resort (it is WRONG for SDL3 on
+    some pads — 'PS5 Controller' vs 'DualSense Wireless Controller')."""
+    return (sdl3_names().get((vendor, product))
+            or SDL3_FALLBACK_NAMES.get((vendor, product))
+            or db_name_for(vendor, product)
+            or evdev_name)
 
 
 def backup(p: Path) -> None:
@@ -125,55 +232,60 @@ def set_section(text: str, header: str, body: str) -> str:
 
 # ── citron (Switch, up to 8 in principle — we honor players 1-4) ────────────
 
-def _citron(i: int, vendor: str, product: str, name: str) -> str | None:
+def _citron(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
+    """citron player sections are 0-based (player_0_* IS Player 1), and the
+    `port:` inside each binding is the pad's index among connected pads
+    sharing the same GUID — NOT a player number. A wrong port binds a
+    phantom joystick with no SDL device behind it: input silently dead."""
     if not CITRON.is_file():
         return None
     t = CITRON.read_text()
-    used_ports = sorted({int(m) for m in re.findall(r"port:(\d+)", t)})
-    prefix = f"player_{i}_"
-    has_slot = f"{prefix}connected=true" in t or any(
-        line.startswith(prefix) for line in t.splitlines() if "button_a" in line
-    )
-    if has_slot:
-        old_guid = None
-        for line in t.splitlines():
-            if line.startswith(prefix):
-                m = GUID_RE.search(line)
-                if m:
-                    old_guid = m.group(1)
-                    break
-        if not old_guid:
-            return None
-        new_guid = swap_vidpid(old_guid, vendor, product)
+    prefix = f"player_{i - 1}_"
+    slot_guid = None
+    for line in t.splitlines():
+        if line.startswith(prefix):
+            m = GUID_RE.search(line)
+            if m:
+                slot_guid = m.group(1)
+                break
+    if slot_guid:
+        new_guid = swap_vidpid(slot_guid, vendor, product)
         out, n = [], 0
         for line in t.splitlines(keepends=True):
-            if line.startswith(prefix) and old_guid in line:
-                line = line.replace(old_guid, new_guid)
+            if line.startswith(prefix) and slot_guid in line:
+                line = line.replace(slot_guid, new_guid)
+                line = re.sub(r"port:\d+", f"port:{dup}", line)
                 n += 1
             out.append(line)
         if not n:
             return None
-        backup(CITRON); CITRON.write_text("".join(out))
-        return f"citron: Player {i} retargeted ({n} keys)"
-    else:
-        p1_guid, cloned_lines = None, []
-        for line in t.splitlines(keepends=True):
-            if line.startswith("player_1_"):
-                if p1_guid is None:
-                    m = GUID_RE.search(line)
-                    if m:
-                        p1_guid = m.group(1)
-                cloned_lines.append(line.replace("player_1_", prefix, 1))
-        if not p1_guid:
-            return None
-        next_port = (used_ports[-1] + 1) if used_ports else 0
-        new_guid = swap_vidpid(p1_guid, vendor, product)
-        cloned = "".join(cloned_lines).replace(p1_guid, new_guid)
-        cloned = re.sub(r"port:\d+", f"port:{next_port}", cloned)
-        cloned = cloned.replace(f"{prefix}connected=false", f"{prefix}connected=true")
-        t = t.rstrip("\n") + "\n" + cloned
+        t = "".join(out).replace(f"{prefix}connected=false", f"{prefix}connected=true")
         backup(CITRON); CITRON.write_text(t)
-        return f"citron: Player {i} created (new slot, port {next_port})"
+        return f"citron: Player {i} retargeted ({n} keys, port {dup})"
+    # No bindings for that player yet: clone Player 1 (player_0_*), keeping
+    # the cloned keys next to the originals so they stay inside [Controls].
+    p1_guid, cloned_lines = None, []
+    lines = t.splitlines(keepends=True)
+    last_p1 = -1
+    for idx, line in enumerate(lines):
+        if line.startswith("player_0_"):
+            last_p1 = idx
+            if p1_guid is None:
+                m = GUID_RE.search(line)
+                if m:
+                    p1_guid = m.group(1)
+            cloned_lines.append(line.replace("player_0_", prefix, 1))
+    if not p1_guid or last_p1 < 0:
+        return None
+    new_guid = swap_vidpid(p1_guid, vendor, product)
+    cloned = "".join(cloned_lines).replace(p1_guid, new_guid)
+    cloned = re.sub(r"port:\d+", f"port:{dup}", cloned)
+    cloned = cloned.replace(f"{prefix}connected=false", f"{prefix}connected=true")
+    if not lines[last_p1].endswith("\n"):
+        lines[last_p1] += "\n"
+    lines.insert(last_p1 + 1, cloned)
+    backup(CITRON); CITRON.write_text("".join(lines))
+    return f"citron: Player {i} created (port {dup})"
 
 
 # ── azahar (3DS) / mgba (GBA) — single-player hardware, slot 1 only ─────────
@@ -226,7 +338,11 @@ def _mgba(i: int, vendor: str, product: str, name: str) -> str | None:
 
 # ── Cemu (Wii U, controllerN.xml, 0-indexed) ────────────────────────────────
 
-def _cemu(i: int, vendor: str, product: str, name: str) -> str | None:
+def _cemu(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
+    """controller<idx>.xml is the emulated Wii U controller slot (player-1,
+    0-based), but the <uuid> prefix is Cemu's per-GUID duplicate counter
+    (SDLControllerProvider guid_counter) — a lone pad of its model is
+    always 0_<guid>, whichever player slot it occupies."""
     slot0 = CEMU_PROFILES / "controller0.xml"
     if not slot0.is_file():
         return None
@@ -243,19 +359,23 @@ def _cemu(i: int, vendor: str, product: str, name: str) -> str | None:
         if not fm:
             return None
         backup(f)
-        t = t.replace(f"<uuid>{fm.group(1)}_{fm.group(2)}</uuid>", f"<uuid>{idx}_{new_guid}</uuid>")
+        t = t.replace(f"<uuid>{fm.group(1)}_{fm.group(2)}</uuid>", f"<uuid>{dup}_{new_guid}</uuid>")
         t = re.sub(r"<display_name>[^<]*</display_name>", f"<display_name>{name}</display_name>", t, count=1)
         f.write_text(t)
-        return f"cemu: slot {idx} retargeted"
-    t = template.replace(f"<uuid>{m.group(1)}_{m.group(2)}</uuid>", f"<uuid>{idx}_{new_guid}</uuid>")
+        return f"cemu: slot {idx} retargeted (uuid {dup}_)"
+    t = template.replace(f"<uuid>{m.group(1)}_{m.group(2)}</uuid>", f"<uuid>{dup}_{new_guid}</uuid>")
     t = re.sub(r"<display_name>[^<]*</display_name>", f"<display_name>{name}</display_name>", t, count=1)
     f.write_text(t)
-    return f"cemu: slot {idx} created"
+    return f"cemu: slot {idx} created (uuid {dup}_)"
 
 
 # ── Dolphin (GameCube/Wii, GCPad1-4) — roles semantic, index+name only ──────
 
-def _dolphin(i: int, vendor: str, product: str, name: str) -> str | None:
+def _dolphin(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
+    """Dolphin qualifies devices as SDL/<k>/<name> where <k> is a 0-based
+    counter over devices SHARING THE SAME NAME (ciface DeviceContainer),
+    not a global index — a lone DualSense is SDL/0/... even as Player 2.
+    `name` must be what Dolphin's bundled SDL3 calls the pad."""
     gcpad = DOLPHIN_DIR / "GCPadNew.ini"
     if not gcpad.is_file():
         return None
@@ -268,17 +388,23 @@ def _dolphin(i: int, vendor: str, product: str, name: str) -> str | None:
     is_real = bool(body) and re.search(r"Device = SDL/\d+/", body) and \
         re.search(r"Buttons/A = `Button [SNEW]`", body)
     source = body if is_real else p1
-    new_body = re.sub(r"Device = SDL/\d+/[^\n]*", f"Device = SDL/{i - 1}/{name}", source)
+    new_body = re.sub(r"Device = SDL/\d+/[^\n]*", f"Device = SDL/{dup}/{name}", source)
     if new_body == body:
         return None
     t = set_section(t, header, new_body)
     backup(gcpad); gcpad.write_text(t)
-    return f"dolphin: {header} {'retargeted' if is_real else 'created'}"
+    return f"dolphin: {header} {'retargeted' if is_real else 'created'} (SDL/{dup}/{name})"
 
 
 # ── RPCS3 (PS3, Player 1-4 already exist) — roles semantic, name only ───────
 
-def _rpcs3(i: int, vendor: str, product: str, name: str) -> str | None:
+def _rpcs3(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
+    """RPCS3's SDL handler names devices "<name> <k>" with k a 1-based
+    counter over devices SHARING THE SAME NAME (sdl_pad_handler.cpp), not
+    the player number — a lone DualSense is "DualSense Wireless
+    Controller 1" even as Player 2. A non-matching string makes RPCS3 log
+    "SDL: Adding empty device" and the pad is silently dead in game.
+    `name` must be what RPCS3's bundled SDL3 calls the pad."""
     if not RPCS3_DEFAULT.is_file():
         return None
     t = RPCS3_DEFAULT.read_text()
@@ -286,12 +412,12 @@ def _rpcs3(i: int, vendor: str, product: str, name: str) -> str | None:
     if not m or "Handler: SDL" not in m.group(1):
         return None
     block = m.group(1)
-    block2 = re.sub(r"^(  Device: ).*$", rf"\g<1>{name} {i}", block, count=1, flags=re.M)
+    block2 = re.sub(r"^(  Device: ).*$", rf"\g<1>{name} {dup + 1}", block, count=1, flags=re.M)
     if block2 == block:
         return None
     t = t[:m.start(1)] + block2 + t[m.end(1):]
     backup(RPCS3_DEFAULT); RPCS3_DEFAULT.write_text(t)
-    return f"rpcs3: Player {i} retargeted"
+    return f"rpcs3: Player {i} retargeted ({name} {dup + 1})"
 
 
 # ── PCSX2 / DuckStation — Tier 0, only the SDL index needs to exist ─────────
@@ -315,22 +441,26 @@ def _tier0_ini(path: Path, label: str, i: int) -> str | None:
 
 # ── Entry point, called by gamepad_monitor.py on every new slot ────────────
 
-def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str) -> list[str]:
+def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
+                  dup_index: int = 0) -> list[str]:
     """Write/retarget every emulator's native config for `player_index` to
-    the controller identified by `vendor`:`product`. Never raises — each
-    emulator is isolated so one bad config doesn't block the others."""
+    the controller identified by `vendor`:`product`. `dup_index` = how many
+    same-model pads sit in lower player slots (see module docstring) — it
+    feeds every per-name/per-GUID device counter; 0 is always correct for
+    the first pad of a model. Never raises — each emulator is isolated so
+    one bad config doesn't block the others."""
     if player_index < 1 or player_index > 4:
         return []
     name = resolve_name(vendor, product, evdev_name)
     results: list[str] = []
     steps = [
-        ("citron", lambda: _citron(player_index, vendor, product, name)),
+        ("citron", lambda: _citron(player_index, dup_index, vendor, product, name)),
         ("azahar", lambda: _single_player_guid(AZAHAR, "azahar", "profiles\\1\\",
                                               player_index, vendor, product, name)),
         ("mgba", lambda: _mgba(player_index, vendor, product, name)),
-        ("cemu", lambda: _cemu(player_index, vendor, product, name)),
-        ("dolphin", lambda: _dolphin(player_index, vendor, product, name)),
-        ("rpcs3", lambda: _rpcs3(player_index, vendor, product, name)),
+        ("cemu", lambda: _cemu(player_index, dup_index, vendor, product, name)),
+        ("dolphin", lambda: _dolphin(player_index, dup_index, vendor, product, name)),
+        ("rpcs3", lambda: _rpcs3(player_index, dup_index, vendor, product, name)),
         ("pcsx2", lambda: _tier0_ini(PCSX2_INI, "pcsx2", player_index)),
         ("duckstation", lambda: _tier0_ini(DUCK_INI, "duckstation", player_index)),
     ]
@@ -400,8 +530,11 @@ def _main() -> None:
         resolved = resolve_name(v, p, n)
         print(f"  Player {i}: {resolved}  ({v}:{p})")
     print()
+    model_counts: dict[tuple[str, str], int] = {}
     for i, (v, p, n) in enumerate(pads, 1):
-        results = apply_profile(i, v, p, n)
+        dup = model_counts.get((v, p), 0)
+        results = apply_profile(i, v, p, n, dup)
+        model_counts[(v, p)] = dup + 1
         print(f"Player {i}: " + ("; ".join(results) if results else "nothing to do"))
     print("\nDone. This also happens automatically now, live, whenever a "
          "controller connects (backend/services/gamepad_monitor.py) — "

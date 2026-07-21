@@ -183,6 +183,10 @@ async def run() -> None:
 
     watched: dict[str, asyncio.Task] = {}
     reg_keys: dict[str, str] = {}  # device path → controller_registry key
+    # registry key → (player, vendor, product) for connected pads — feeds
+    # controller_profiles' dup_index (how many same-model pads sit in lower
+    # slots), which every per-name/per-GUID emulator counter needs.
+    pad_models: dict[str, tuple[int, str, str]] = {}
     # Pads already plugged in when the backend starts get their slots
     # silently — a console doesn't toast for pads that were always there.
     first_scan = True
@@ -210,14 +214,23 @@ async def run() -> None:
             # on first_scan (pads already plugged in when the backend
             # starts), just without the WS toast a console wouldn't show.
             if not known:
-                try:
-                    results = await asyncio.to_thread(
-                        controller_profiles.apply_profile, player, vendor, product, name)
-                    if results:
-                        log.info("gamepad_monitor: player %d profiled (%s:%s) — %s",
-                                 player, vendor, product, "; ".join(results))
-                except Exception:
-                    log.exception("gamepad_monitor: controller_profiles failed for player %d", player)
+                if vendor == "0000":
+                    # uhid may briefly expose a BT pad before its ids are
+                    # populated — never write configs from a zero VID/PID.
+                    log.warning("gamepad_monitor: %s (%s) has vendor 0000 — "
+                                "skipping emulator profiling", name, path)
+                else:
+                    dup = sum(1 for k2, (pl, v2, p2) in pad_models.items()
+                              if k2 != key and (v2, p2) == (vendor, product) and pl < player)
+                    try:
+                        results = await asyncio.to_thread(
+                            controller_profiles.apply_profile, player, vendor, product, name, dup)
+                        if results:
+                            log.info("gamepad_monitor: player %d profiled (%s:%s, dup %d) — %s",
+                                     player, vendor, product, dup, "; ".join(results))
+                    except Exception:
+                        log.exception("gamepad_monitor: controller_profiles failed for player %d", player)
+            pad_models[key] = (player, vendor, product)
             if not first_scan and not known:
                 log.info("gamepad_monitor: controller %d connected (%s)", player, name)
                 try:
@@ -235,6 +248,7 @@ async def run() -> None:
                     continue
                 key = reg_keys.pop(path, None)
                 if key is not None:
+                    pad_models.pop(key, None)
                     label = controller_registry.label_for(key)
                     player = controller_registry.disconnect(key)
                     if player is not None:

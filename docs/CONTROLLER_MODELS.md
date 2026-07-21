@@ -9,8 +9,11 @@ Joueur 2, etc. — comme sur une vraie console.
 
 `backend/data/gamecontrollerdb.txt` (le community database
 [SDL_GameControllerDB](https://github.com/mdqinc/SDL_GameControllerDB)) est
-exporté aux émulateurs via `SDL_GAMECONTROLLERDB` (`process_manager.py`).
-SDL2 le fusionne à son propre init : tout émulateur qui parle le "rôle"
+exporté aux émulateurs via `SDL_GAMECONTROLLERCONFIG_FILE`
+(`process_manager.py`) — c'est LA variable que SDL (2.0.10+ et SDL3) lit
+réellement ; une première version exportait `SDL_GAMECONTROLLERDB`, qui
+n'existe pas, et la base était silencieusement ignorée.
+SDL le fusionne à son propre init : tout émulateur qui parle le "rôle"
 SDL_GameController plutôt que des index bruts fonctionne alors avec
 **n'importe quelle manette listée dans la base**, sans aucune config
 manuelle. C'est le cas de **PCSX2, DuckStation et gopher64** — vérifié en
@@ -25,10 +28,20 @@ Trouvé en lisant leurs configs réelles sur le boîtier :
 - **Dolphin et RPCS3** utilisent aussi des rôles SDL sémantiques
   (`Button S/E/W/N`, `West/South/East/North`...) — mais ils sélectionnent
   QUEL périphérique physique alimente ce rôle par un **nom** littéral
-  (`Device = SDL/0/PS4 Controller`, `Device: PS4 Controller 1`). Une
-  manette différente (ex. DualSense) rapporte un nom SDL différent
-  ("PS5 Controller") → l'émulateur ne la reconnaît plus, alors que les
-  rôles de boutons eux-mêmes n'ont pas besoin de changer.
+  (`Device = SDL/0/PS4 Controller`, `Device: PS4 Controller 1`). Deux
+  pièges découverts en live (log RPCS3 : `SDL: Adding empty device` =
+  manette morte en jeu) :
+  1. Les deux embarquent **SDL3**, dont les noms diffèrent de la base
+     communautaire SDL2 : une DualSense s'appelle « DualSense Wireless
+     Controller », pas « PS5 Controller ». Le nom est donc résolu en
+     interrogeant la **libSDL3 du système** avec les manettes réellement
+     branchées (`controller_profiles.resolve_name`), la base ne servant
+     que de dernier recours.
+  2. Le numéro n'est PAS le slot joueur : RPCS3 suffixe un compteur
+     1-based **par nom** (`sdl_pad_handler.cpp`), Dolphin un compteur
+     0-based **par nom** (`SDL/<k>/<nom>`, ciface DeviceContainer). Une
+     DualSense seule est « DualSense Wireless Controller 1 » /
+     `SDL/0/...` même en Joueur 2.
 - **citron, azahar, mgba, Cemu** utilisent des **index bruts** liés à un
   GUID/UUID de périphérique précis (`button:1,guid:0500...cc09...`). Fait
   vérifié en clair sur ce boîtier : DualShock 4 et DualSense partagent le
@@ -36,6 +49,18 @@ Trouvé en lisant leurs configs réelles sur le boîtier :
   GUID diffère (octets vendor/product à une position fixe, quel que soit
   le format de GUID SDL). Retargeter un slot ne demande donc QUE de
   substituer ces octets, jamais les index déjà validés par l'utilisateur.
+  Mais là aussi l'index d'accompagnement compte **par GUID**, pas par
+  joueur : le `port:` de citron (`sdl_driver.cpp`, un port inexistant lie
+  un joystick fantôme → entrée morte silencieuse) et le préfixe
+  `<uuid>k_...</uuid>` de Cemu (`guid_counter`) valent 0 pour une manette
+  seule de son modèle, quel que soit son slot. Et attention : les sections
+  joueur de citron sont **0-based** (`player_0_*` = Joueur 1).
+
+Le compteur commun à ces quatre schémas est `dup_index` : le nombre de
+manettes du même vendor:product déjà connectées dans un slot inférieur.
+`gamepad_monitor.py` le calcule depuis son roster et le passe à
+`apply_profile()` ; 0 est toujours correct pour la première manette d'un
+modèle donné.
 
 ### Le mécanisme live : `backend/services/controller_profiles.py`
 
