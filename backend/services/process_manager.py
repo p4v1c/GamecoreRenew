@@ -15,9 +15,14 @@ from ..db import get_db
 log = logging.getLogger(__name__)
 
 # Community-maintained button/axis mappings (github.com/mdqinc/SDL_GameControllerDB).
-# SDL2 reads this env var at SDL_Init and merges it into its built-in database,
-# so any emulator linked against SDL2 (most of them) correctly maps a controller
-# it doesn't otherwise recognize — no per-emulator manual configuration needed.
+# SDL (2.0.10+ and SDL3 alike) loads the file named by the
+# SDL_GAMECONTROLLERCONFIG_FILE hint/env var at init and merges it into its
+# built-in database, so any emulator linked against SDL correctly maps a
+# controller it doesn't otherwise recognize — no per-emulator manual
+# configuration needed. (An earlier revision exported SDL_GAMECONTROLLERDB,
+# which is not a variable SDL has ever read — the DB was silently ignored.
+# Flatpak'd emulators still can't read /opt inside their sandbox; harmless,
+# SDL just skips the file.)
 _CONTROLLER_DB = GAMECORE_ROOT / "backend" / "data" / "gamecontrollerdb.txt"
 
 
@@ -25,8 +30,8 @@ def _display_env() -> dict:
     """Build an env dict for launching GUI apps from systemd (DISPLAY, XDG_RUNTIME_DIR, DBUS, XAUTHORITY)."""
     env = os.environ.copy()
     uid = os.getuid()
-    if not env.get("SDL_GAMECONTROLLERDB") and _CONTROLLER_DB.is_file():
-        env["SDL_GAMECONTROLLERDB"] = str(_CONTROLLER_DB)
+    if not env.get("SDL_GAMECONTROLLERCONFIG_FILE") and _CONTROLLER_DB.is_file():
+        env["SDL_GAMECONTROLLERCONFIG_FILE"] = str(_CONTROLLER_DB)
     if not env.get("DISPLAY"):
         env["DISPLAY"] = ":1"
     if not env.get("XDG_RUNTIME_DIR"):
