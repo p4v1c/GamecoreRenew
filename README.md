@@ -37,7 +37,7 @@ You navigate with a gamepad, launch emulators, and never touch a keyboard.
 | `rpcs3` | RPCS3 | PlayStation 3 |
 | `ppsspp` | PPSSPP | PSP |
 | `cemu` | Cemu | Wii U |
-| `ryujinx` | Ryujinx | Nintendo Switch |
+| `citron-neo` | citron-neo | Nintendo Switch |
 | `azahar` | Azahar | Nintendo 3DS |
 | `mgba` | mGBA | Game Boy Advance |
 | `melonds` | melonDS | Nintendo DS |
@@ -46,6 +46,7 @@ You navigate with a gamepad, launch emulators, and never touch a keyboard.
 | `shadps4` | shadPS4 | PlayStation 4 |
 
 > - **PlayStation 1** uses the official DuckStation **AppImage** — the Flatpak was discontinued upstream in 2025.
+> - **Nintendo Switch** uses the citron-neo **AppImage** (`lib/citron-neo/citron-neo`, fetched from the latest GitHub release — the x86-64-v3 build when the CPU supports it; the citron lineage has no official Flatpak). Its data lives in the historical citron dirs (`~/.config/citron`, `~/.local/share/citron`), where `prod.keys`/`title.keys` and the firmware go.
 > - **Xbox 360** runs Xenia Canary **through Wine** (`lib/xenia/xenia_canary.exe`, downloaded by the full installer).
 > - **PlayStation 4** uses the shadPS4 Flatpak; games are folders (`emu/shadps4/<Game>/eboot.bin`, `scanDirs`).
 > - Everything else installs from Flathub. Full-mode installs grant each emulator `--filesystem` (ROMs) and `--device=all` (controller) overrides automatically.
@@ -461,7 +462,7 @@ Twitch Client ID/Secret and the TheGamesDB API key (secrets are written to local
 files/systemd drop-ins only, never to git; leave empty for demo mode). It also creates
 the Firefox kiosk profiles for the YouTube/Twitch tiles and installs Stremio. The only
 manual step left after a full install is copying BIOS/firmwares (PS1/PS2/PS3, DS/3DS,
-Switch keys) — those can't be distributed.
+Switch keys + firmware into `~/.local/share/citron`) — those can't be distributed.
 
 For reference, what the installer wires up:
 

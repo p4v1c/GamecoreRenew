@@ -7,7 +7,7 @@ GAMECORE_PATH=/opt/GameCore
 WEB_PORT=8765
 MODE=full                       # full | minimal
 # "all" or a space-separated subset of:
-#   azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu ryujinx
+#   azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu citron-neo
 #   shadps4 duckstation xenia
 EMULATORS='all'
 # Applications — "all" or a space-separated subset of:

@@ -5,7 +5,8 @@
 #
 #  Copies each emu-configs/<emulator>/ tree into the emulator's real
 #  config location — Flatpak app dirs for everything except DuckStation
-#  (installed as an AppImage → native XDG path). Existing files are
+#  and citron-neo (installed as AppImages → native XDG paths). Existing
+#  files are
 #  backed up as <name>.bak-preinstall. Absolute paths inside the configs
 #  (harvested on a box where HOME was /home/pavic) are rewritten to the
 #  current user's HOME.
@@ -37,7 +38,7 @@ declare -A DEST=(
   [dolphin]="$HOME/.var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu"
   [ppsspp]="$HOME/.var/app/org.ppsspp.PPSSPP/config/ppsspp/PSP/SYSTEM"
   [cemu]="$HOME/.var/app/info.cemu.Cemu/config/Cemu"
-  [ryujinx]="$HOME/.var/app/io.github.ryubing.Ryujinx/config/Ryujinx"
+  [citron-neo]="$HOME/.config/citron"   # citron-neo keeps the citron dir name
   [shadps4]="$HOME/.var/app/net.shadps4.shadPS4/config/shadps4"
   [xenia]="$GAMECORE_PATH/lib/xenia"   # portable: config lives next to xenia_canary.exe
 )

@@ -30,18 +30,18 @@ config AND logs on this box, plus the relevant emulator sources):
         Player 2 — sdl_pad_handler.cpp counts same-named devices), and
         Dolphin's SDL/<k>/<name> uses a 0-based PER-NAME <k> (ciface
         DeviceContainer). Hence `dup_index` below.
-  - citron, azahar, mgba, Cemu bind by raw button/axis index tied to a
+  - citron-neo, azahar, mgba, Cemu bind by raw button/axis index tied to a
     device GUID/uuid. DualShock 4 and DualSense share the same kernel
     driver and report IDENTICAL raw indices (verified live) — only the
     GUID's vendor/product bytes differ, at a fixed, format-stable hex
     offset. Retargeting a slot (or cloning slot 1 into a new slot) is a
     pure GUID substitution — every button assignment already validated by
     the owner stays exactly where it is. But the accompanying index is,
-    again, NOT the player slot: citron's `port:` counts pads sharing the
+    again, NOT the player slot: citron-neo's `port:` counts pads sharing the
     same GUID (sdl_driver.cpp joystick_map — a lone DualSense is port 0
     even as Player 2, a wrong port silently binds a phantom joystick),
     and Cemu's `<uuid>k_guid</uuid>` prefix is the same per-GUID counter
-    (SDLControllerProvider guid_counter). Also: citron player sections
+    (SDLControllerProvider guid_counter). Also: citron-neo player sections
     are 0-based — player_0_* IS Player 1.
   - azahar (3DS) and mgba (GBA): single-player hardware — only slot 1 is
     ever touched, regardless of which player index is passed in.
@@ -57,6 +57,7 @@ to 0, which is always right for the first pad of a given model.
 from __future__ import annotations
 
 import glob
+import json
 import logging
 import os
 import re
@@ -64,7 +65,7 @@ import shutil
 import time
 from pathlib import Path
 
-from ..config import GAMECORE_ROOT
+from ..config import GAMECORE_ROOT, SYSTEMS_FILE
 
 log = logging.getLogger(__name__)
 
@@ -72,14 +73,49 @@ DB_FILE = GAMECORE_ROOT / "backend" / "data" / "gamecontrollerdb.txt"
 GUID_RE = re.compile(r"\b([0-9a-fA-F]{32})\b")
 
 HOME = Path.home()
-CITRON = HOME / ".config/citron/qt-config.ini"
+CITRON_NEO = HOME / ".config/citron/qt-config.ini"   # citron-neo keeps the citron dir name
 AZAHAR = HOME / ".var/app/org.azahar_emu.Azahar/config/azahar-emu/qt-config.ini"
 DOLPHIN_DIR = HOME / ".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu"
-RPCS3_DEFAULT = HOME / ".config/rpcs3/input_configs/global/Default.yml"
 CEMU_PROFILES = HOME / ".var/app/info.cemu.Cemu/config/Cemu/controllerProfiles"
 MGBA_CONFIG = HOME / ".config/mgba/config.ini"
-PCSX2_INI = HOME / ".config/PCSX2/inis/PCSX2.ini"
 DUCK_INI = HOME / ".local/share/duckstation/settings.ini"
+
+
+def _sys_path(emu_id: str) -> str:
+    """The `path` an emulator declares in systems.json ('' when unreadable) —
+    tells flatpak installs apart from native ones."""
+    try:
+        systems = json.loads(SYSTEMS_FILE.read_text())
+        return next((s.get("path", "") for s in systems if s.get("id") == emu_id), "")
+    except (OSError, ValueError):
+        return ""
+
+
+def _flatpak_or_native(emu_id: str, flatpak: Path, native: Path) -> Path:
+    """The config file of the install the box actually runs. systems.json
+    decides — a native tree kept as a post-migration backup must not shadow
+    the live flatpak. Unknown → whichever exists (native first, the
+    pre-flatpak layout)."""
+    declared = _sys_path(emu_id)
+    if declared == "flatpak":
+        return flatpak
+    if declared:
+        return native
+    return native if native.is_file() else flatpak
+
+
+def rpcs3_default() -> Path:
+    return _flatpak_or_native(
+        "rpcs3",
+        HOME / ".var/app/net.rpcs3.RPCS3/config/rpcs3/input_configs/global/Default.yml",
+        HOME / ".config/rpcs3/input_configs/global/Default.yml")
+
+
+def pcsx2_ini() -> Path:
+    return _flatpak_or_native(
+        "pcsx2",
+        HOME / ".var/app/net.pcsx2.PCSX2/config/PCSX2/inis/PCSX2.ini",
+        HOME / ".config/PCSX2/inis/PCSX2.ini")
 
 
 # ── VID/PID <-> GUID helpers ──────────────────────────────────────────────────
@@ -230,16 +266,16 @@ def set_section(text: str, header: str, body: str) -> str:
     return text.rstrip() + f"\n\n[{header}]\n{body}"
 
 
-# ── citron (Switch, up to 8 in principle — we honor players 1-4) ────────────
+# ── citron-neo (Switch, up to 8 in principle — we honor players 1-4) ────────
 
-def _citron(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
-    """citron player sections are 0-based (player_0_* IS Player 1), and the
+def _citron_neo(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
+    """citron-neo player sections are 0-based (player_0_* IS Player 1), and the
     `port:` inside each binding is the pad's index among connected pads
     sharing the same GUID — NOT a player number. A wrong port binds a
     phantom joystick with no SDL device behind it: input silently dead."""
-    if not CITRON.is_file():
+    if not CITRON_NEO.is_file():
         return None
-    t = CITRON.read_text()
+    t = CITRON_NEO.read_text()
     prefix = f"player_{i - 1}_"
     slot_guid = None
     for line in t.splitlines():
@@ -260,8 +296,8 @@ def _citron(i: int, dup: int, vendor: str, product: str, name: str) -> str | Non
         if not n:
             return None
         t = "".join(out).replace(f"{prefix}connected=false", f"{prefix}connected=true")
-        backup(CITRON); CITRON.write_text(t)
-        return f"citron: Player {i} retargeted ({n} keys, port {dup})"
+        backup(CITRON_NEO); CITRON_NEO.write_text(t)
+        return f"citron-neo: Player {i} retargeted ({n} keys, port {dup})"
     # No bindings for that player yet: clone Player 1 (player_0_*), keeping
     # the cloned keys next to the originals so they stay inside [Controls].
     p1_guid, cloned_lines = None, []
@@ -284,8 +320,8 @@ def _citron(i: int, dup: int, vendor: str, product: str, name: str) -> str | Non
     if not lines[last_p1].endswith("\n"):
         lines[last_p1] += "\n"
     lines.insert(last_p1 + 1, cloned)
-    backup(CITRON); CITRON.write_text("".join(lines))
-    return f"citron: Player {i} created (port {dup})"
+    backup(CITRON_NEO); CITRON_NEO.write_text("".join(lines))
+    return f"citron-neo: Player {i} created (port {dup})"
 
 
 # ── azahar (3DS) / mgba (GBA) — single-player hardware, slot 1 only ─────────
@@ -405,9 +441,10 @@ def _rpcs3(i: int, dup: int, vendor: str, product: str, name: str) -> str | None
     Controller 1" even as Player 2. A non-matching string makes RPCS3 log
     "SDL: Adding empty device" and the pad is silently dead in game.
     `name` must be what RPCS3's bundled SDL3 calls the pad."""
-    if not RPCS3_DEFAULT.is_file():
+    yml = rpcs3_default()
+    if not yml.is_file():
         return None
-    t = RPCS3_DEFAULT.read_text()
+    t = yml.read_text()
     m = re.search(rf"^Player {i} Input:\n(.*?)(?=^Player \d+ Input:|\Z)", t, re.S | re.M)
     if not m or "Handler: SDL" not in m.group(1):
         return None
@@ -416,7 +453,7 @@ def _rpcs3(i: int, dup: int, vendor: str, product: str, name: str) -> str | None
     if block2 == block:
         return None
     t = t[:m.start(1)] + block2 + t[m.end(1):]
-    backup(RPCS3_DEFAULT); RPCS3_DEFAULT.write_text(t)
+    backup(yml); yml.write_text(t)
     return f"rpcs3: Player {i} retargeted ({name} {dup + 1})"
 
 
@@ -454,14 +491,14 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
     name = resolve_name(vendor, product, evdev_name)
     results: list[str] = []
     steps = [
-        ("citron", lambda: _citron(player_index, dup_index, vendor, product, name)),
+        ("citron-neo", lambda: _citron_neo(player_index, dup_index, vendor, product, name)),
         ("azahar", lambda: _single_player_guid(AZAHAR, "azahar", "profiles\\1\\",
                                               player_index, vendor, product, name)),
         ("mgba", lambda: _mgba(player_index, vendor, product, name)),
         ("cemu", lambda: _cemu(player_index, dup_index, vendor, product, name)),
         ("dolphin", lambda: _dolphin(player_index, dup_index, vendor, product, name)),
         ("rpcs3", lambda: _rpcs3(player_index, dup_index, vendor, product, name)),
-        ("pcsx2", lambda: _tier0_ini(PCSX2_INI, "pcsx2", player_index)),
+        ("pcsx2", lambda: _tier0_ini(pcsx2_ini(), "pcsx2", player_index)),
         ("duckstation", lambda: _tier0_ini(DUCK_INI, "duckstation", player_index)),
     ]
     for emu, step in steps:

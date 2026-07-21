@@ -10,7 +10,6 @@ FLATPAK_IDS = [
     "io.mgba.mGBA",
     "org.ppsspp.PPSSPP",
     "info.cemu.Cemu",
-    "io.github.ryubing.Ryujinx",
     "net.shadps4.shadPS4",
     "com.valvesoftware.Steam",
     "com.stremio.Stremio",
@@ -74,6 +73,7 @@ def main():
     print("\nChecking GitHub Assets:")
     for label, repo, pattern in (
         ("DuckStation AppImage", "stenzek/duckstation", "x64.AppImage"),
+        ("citron-neo AppImage", "citron-neo/emulator", "linux-x86_64.AppImage"),
         ("Xenia Canary (Windows)", "xenia-canary/xenia-canary-releases", "windows"),
     ):
         exists, status = check_github_release_asset(repo, pattern)

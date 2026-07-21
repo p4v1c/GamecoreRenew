@@ -75,7 +75,7 @@ echo -e "${BLU}╚════════════════════�
 
 # ── Configuration — conf file (unattended) or prompts ────────────
 # EMULATORS: "all" or space-separated ids among:
-#   azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu ryujinx
+#   azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu citron-neo
 #   shadps4 duckstation xenia
 # APPS: "all" or space-separated ids among: twitch stremio steam youtube
 # ADDONS: space-separated gamecore-addons names installed at the end.
@@ -99,6 +99,17 @@ if $UNATTENDED; then
   APPS="${APPS-all}"
   if [[ "$APPS" != "all" && " $EMULATORS " == *" steam "* && " $APPS " != *" steam "* ]]; then
     APPS="$APPS steam"
+  fi
+  # Older confs name the Switch emulator citron or ryujinx — same slot, its
+  # id is citron-neo now.
+  if [[ "$EMULATORS" != "all" ]]; then
+    _EMUS=""
+    for _e in $EMULATORS; do
+      [[ "$_e" == "citron" || "$_e" == "ryujinx" ]] && _e="citron-neo"
+      _EMUS="$_EMUS $_e"
+    done
+    EMULATORS="${_EMUS# }"
+    unset _EMUS _e
   fi
 else
   read -rp "  System username (e.g. pavic)         : " USER_NAME
@@ -248,11 +259,10 @@ if [[ "$MODE" == "full" ]]; then
     [mgba]=io.mgba.mGBA
     [ppsspp]=org.ppsspp.PPSSPP
     [cemu]=info.cemu.Cemu
-    [ryujinx]=io.github.ryubing.Ryujinx
     [shadps4]=net.shadps4.shadPS4
   )
   FLATPAKS=()
-  for id in azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu ryujinx shadps4; do
+  for id in azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu shadps4; do
     want_emu "$id" && FLATPAKS+=("${EMU_FLATPAK[$id]}")
   done
   # Steam moved to the apps selection but rides the same Flatpak pipeline
@@ -295,6 +305,33 @@ if [[ "$MODE" == "full" ]]; then
   fi
 
   fi  # duckstation
+
+  # ── citron-neo AppImage (Nintendo Switch) ──────────────────────
+  # No official Flatpak exists for the citron lineage — GitHub AppImage.
+  if want_emu citron-neo; then
+  progress 51 "citron-neo AppImage"
+  msg "citron-neo AppImage (Switch)"
+  NEO_BIN="$GAMECORE_PATH/lib/citron-neo/citron-neo"
+  sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/lib/citron-neo"
+  if [ -f "$NEO_BIN" ]; then
+    ok "citron-neo already present."
+  else
+    # x86-64-v3 build when the CPU supports it, generic x86_64 otherwise
+    NEO_SUFFIX="linux-x86_64.AppImage"
+    /usr/lib/ld-linux-x86-64.so.2 --help 2>/dev/null | grep -q "x86-64-v3 (supported" \
+      && NEO_SUFFIX="linux-x86_64_v3.AppImage"
+    NEO_URL=$(curl -sf --connect-timeout 15 --max-time 60 "https://api.github.com/repos/citron-neo/emulator/releases/latest" \
+      | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((a['browser_download_url'] for a in d.get('assets',[]) if a['name'].endswith('$NEO_SUFFIX')), ''))" || true)
+    if [[ -n "$NEO_URL" ]]; then
+      curl -L --connect-timeout 15 --speed-limit 1024 --speed-time 30 -o "$NEO_BIN" "$NEO_URL" \
+        && chmod +x "$NEO_BIN" && chown "${USER_NAME}:${USER_NAME}" "$NEO_BIN" \
+        && ok "citron-neo installed." || warn "Download failed."
+    else
+      warn "Could not fetch citron-neo URL."
+    fi
+  fi
+
+  fi  # citron-neo
 
   # ── Xenia Canary (Xbox 360) — runs through Wine ────────────────
   if want_emu xenia; then
@@ -591,7 +628,7 @@ ok "apps.json filtered to the selected apps."
 # ── ROM directories ──────────────────────────────────────────────
 progress 80 "ROM directories"
 msg "ROM directories"
-for d in azahar cemu ryujinx dolphin duckstation gopher64 melonds mgba pcsx2 ppsspp rpcs3 xenia shadps4 covers; do
+for d in azahar cemu citron-neo dolphin duckstation gopher64 melonds mgba pcsx2 ppsspp rpcs3 xenia shadps4 covers; do
   sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/emu/$d"
 done
 ok "ROM directories ready."

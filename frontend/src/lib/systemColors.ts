@@ -1,5 +1,5 @@
 export const SYSTEM_COLORS: Record<string, string> = {
-  azahar: '#ff0096', ryujinx: '#e6001a', duckstation: '#0046ff',
+  azahar: '#ff0096', 'citron-neo': '#e6001a', duckstation: '#0046ff',
   pcsx2: '#0046ff', rpcs3: '#0046ff', ppsspp: '#1e64ff',
   dolphin: '#ff8c00', cemu: '#00b48c', gopher64: '#b400ff',
   mgba: '#96c800', melonds: '#0096ff', steam: '#1f6fb3',

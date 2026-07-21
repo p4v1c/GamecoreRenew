@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ================================================================
 #  GameCore — Pre-configure players 2-4 as DualShock 4 in the LIVE
-#  emulator configs (Ryujinx, Dolphin, PCSX2, DuckStation).
+#  emulator configs (citron-neo, Dolphin, PCSX2, DuckStation).
 #
 #  Fresh installs get this from emu-configs/ automatically; this script
 #  retrofits an already-installed box surgically: it only touches the
@@ -16,18 +16,18 @@ set -euo pipefail
 
 PY="$(command -v python3)"
 
-RYUJINX="$HOME/.var/app/io.github.ryubing.Ryujinx/config/Ryujinx/Config.json"
+CITRON_NEO="$HOME/.config/citron/qt-config.ini"   # citron-neo keeps the citron dir name
 DOLPHIN_DIR="$HOME/.var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu"
 PCSX2="$HOME/.var/app/net.pcsx2.PCSX2/config/PCSX2/inis/PCSX2.ini"
 DUCK="$HOME/.local/share/duckstation/settings.ini"
 
 backup() { [[ -f "$1" && ! -f "$1.bak-multids4" ]] && cp "$1" "$1.bak-multids4" || true; }
 
-"$PY" - "$RYUJINX" "$DOLPHIN_DIR" "$PCSX2" "$DUCK" <<'EOF'
+"$PY" - "$CITRON_NEO" "$DOLPHIN_DIR" "$PCSX2" "$DUCK" <<'EOF'
 import json, re, shutil, sys
 from pathlib import Path
 
-ryujinx, dolphin_dir, pcsx2, duck = (Path(p) for p in sys.argv[1:5])
+citron_neo, dolphin_dir, pcsx2, duck = (Path(p) for p in sys.argv[1:5])
 
 def backup(p: Path):
     b = p.with_name(p.name + ".bak-multids4")
@@ -44,28 +44,32 @@ def set_section(text, header, body):
         return re.sub(pat, f"[{header}]\n{body}", text, count=1, flags=re.S | re.M)
     return text.rstrip() + f"\n\n[{header}]\n{body}"
 
-# ── Ryujinx: clone the live Player1 entry into Player2-4 ─────────────────────
-if ryujinx.is_file():
-    cfg = json.loads(ryujinx.read_text())
-    ic = cfg.get("input_config") or []
-    p1 = next((e for e in ic if e.get("player_index") == "Player1"), None)
-    if p1 and "-" in str(p1.get("id", "")):
-        backup(ryujinx)
-        guid = p1["id"].split("-", 1)[1]
-        keep = [e for e in ic if e.get("player_index") not in ("Player2", "Player3", "Player4")]
+# ── citron-neo: clone the live player_0 (Player 1) into players 2-4 ──────────
+# Sections are 0-based (player_0_* IS Player 1). Identical DS4 pads keep the
+# same GUID — citron-neo tells them apart by `port:` (its per-GUID counter).
+if citron_neo.is_file():
+    t = citron_neo.read_text()
+    lines = t.splitlines(keepends=True)
+    p0 = [l for l in lines if l.startswith("player_0_")]
+    if p0:
+        backup(citron_neo)
         for n in (2, 3, 4):
-            e = json.loads(json.dumps(p1))
-            e["id"] = f"{n-1}-{guid}"
-            e["name"] = f"PS4 Controller ({n-1})"
-            e["player_index"] = f"Player{n}"
-            keep.append(e)
-        cfg["input_config"] = keep
-        ryujinx.write_text(json.dumps(cfg, indent=2) + "\n")
-        print("ryujinx  : Player2-4 configured (from your live Player1 mapping)")
+            pref = f"player_{n-1}_"
+            clone = "".join(
+                re.sub(r"port:\d+", f"port:{n-1}", l.replace("player_0_", pref, 1))
+                for l in p0
+            ).replace(f"{pref}connected=false", f"{pref}connected=true")
+            lines = [l for l in lines if not l.startswith(pref)]
+            last = max(i for i, l in enumerate(lines) if l.startswith("player_0_"))
+            if not lines[last].endswith("\n"):
+                lines[last] += "\n"
+            lines.insert(last + 1, clone)
+        citron_neo.write_text("".join(lines))
+        print("citron-neo: players 2-4 configured (from your live Player 1 mapping)")
     else:
-        print("ryujinx  : SKIP — no Player1 gamepad entry found")
+        print("citron-neo: SKIP — no player_0 mapping found")
 else:
-    print("ryujinx  : SKIP — Config.json not found")
+    print("citron-neo: SKIP — qt-config.ini not found")
 
 # ── PCSX2 / DuckStation: Pad2 = Pad1 mapping on SDL-1 ────────────────────────
 for path, name in ((pcsx2, "pcsx2"), (duck, "duckstation")):
