@@ -21,7 +21,7 @@ lisant leurs bindings live : `SDL-0/FaceEast`, `SDL-0/A`, etc. — des noms de
 rôle, jamais un index de bouton. Rien à faire, pour toujours, quelle que
 soit la manette (si elle est dans la base).
 
-## 2. Dolphin, RPCS3, Cemu, citron-neo, azahar, mgba — profilage live par slot
+## 2. Dolphin, RPCS3, Cemu, Ryujinx, azahar, mgba — profilage live par slot
 
 Trouvé en lisant leurs configs réelles sur le boîtier :
 
@@ -42,7 +42,7 @@ Trouvé en lisant leurs configs réelles sur le boîtier :
      0-based **par nom** (`SDL/<k>/<nom>`, ciface DeviceContainer). Une
      DualSense seule est « DualSense Wireless Controller 1 » /
      `SDL/0/...` même en Joueur 2.
-- **citron-neo, azahar, mgba, Cemu** utilisent des **index bruts** liés à un
+- **Ryujinx, azahar, mgba, Cemu** utilisent des **index/GUID** liés à un
   GUID/UUID de périphérique précis (`button:1,guid:0500...cc09...`). Fait
   vérifié en clair sur ce boîtier : DualShock 4 et DualSense partagent le
   **même pilote noyau** et rapportent des **index identiques** — seul le
@@ -50,11 +50,11 @@ Trouvé en lisant leurs configs réelles sur le boîtier :
   le format de GUID SDL). Retargeter un slot ne demande donc QUE de
   substituer ces octets, jamais les index déjà validés par l'utilisateur.
   Mais là aussi l'index d'accompagnement compte **par GUID**, pas par
-  joueur : le `port:` de citron-neo (`sdl_driver.cpp`, un port inexistant lie
-  un joystick fantôme → entrée morte silencieuse) et le préfixe
+  joueur : le préfixe `<dup>-<GUID>` de l'`id` Ryujinx dans `Config.json`
+  (un dup inexistant lie un périphérique fantôme → entrée morte) et le préfixe
   `<uuid>k_...</uuid>` de Cemu (`guid_counter`) valent 0 pour une manette
-  seule de son modèle, quel que soit son slot. Et attention : les sections
-  joueur de citron-neo sont **0-based** (`player_0_*` = Joueur 1).
+  seule de son modèle, quel que soit son slot. Les slots Ryujinx sont des
+  objets de la liste `input_config`, clés par `player_index` (`Player1`..).
 
 Le compteur commun à ces quatre schémas est `dup_index` : le nombre de
 manettes du même vendor:product déjà connectées dans un slot inférieur.
@@ -89,7 +89,7 @@ peut donc changer d'une session à l'autre sans jamais rien casser.
   suppose des index identiques à la manette de référence (Joueur 1 déjà
   configuré), ce qui n'est garanti qu'au sein d'une même famille de pilote
   (comme DS4/DualSense). Une famille différente nécessite toujours une
-  reconfiguration manuelle une fois dans citron-neo/azahar/mgba/Cemu.
+  reconfiguration manuelle une fois dans Ryujinx/azahar/mgba/Cemu.
 
 ⚠️ **Un émulateur déjà lancé au moment où sa config change ne relit pas le
 fichier tout seul** — il faut quitter/relancer le jeu pour que le nouveau

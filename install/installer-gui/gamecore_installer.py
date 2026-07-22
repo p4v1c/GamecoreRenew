@@ -48,7 +48,7 @@ EMULATORS = [
     ("mgba",        "mGBA",         "Game Boy Advance"),
     ("ppsspp",      "PPSSPP",       "PSP"),
     ("cemu",        "Cemu",         "Wii U"),
-    ("citron-neo",  "citron-neo",   "Nintendo Switch"),
+    ("ryujinx",     "Ryujinx",      "Nintendo Switch"),
     ("shadps4",     "shadPS4",      "PlayStation 4"),
     ("xenia",       "Xenia Canary", "Xbox 360 (Wine)"),
 ]

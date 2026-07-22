@@ -60,15 +60,15 @@
     ]
   },
   {
-    "id": "citron-neo",
+    "id": "ryujinx",
     "type": "emulator",
     "label": "Nintendo Switch",
     "platform": "Switch",
     "color": "#e6001a",
     "iconPath": "assets/logos/switch.png",
-    "path": "lib/citron-neo/citron-neo",
-    "args": "-f -g",
-    "romsPath": "emu/citron-neo/",
+    "path": "flatpak",
+    "args": "run io.github.ryubing.Ryujinx",
+    "romsPath": "emu/ryujinx/",
     "extensions": [
       "*.xci",
       "*.nsp",
