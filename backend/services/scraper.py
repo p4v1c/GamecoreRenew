@@ -19,7 +19,6 @@ TGDB_PLATFORM_MAP: dict[str, int] = {
     "mgba":        5,
     "melonds":     8,
     "azahar":      4912,
-    "citron":      4971,   # Switch (box-local id)
     "ryujinx":     4971,   # Switch (default id)
     "cemu":        38,
     "xenia":       15,     # Xbox 360
@@ -37,7 +36,6 @@ PLATFORM_MAP: dict[str, list[str]] = {
     "dolphin":     ["Nintendo - GameCube", "Nintendo - Wii"],
     "cemu":        ["Nintendo - Wii U"],
     "ryujinx":     ["Nintendo - Switch"],
-    "citron":      ["Nintendo - Switch"],
     "gopher64":    ["Nintendo - Nintendo 64"],
     "duckstation": ["Sony - PlayStation"],
     "pcsx2":       ["Sony - PlayStation 2"],

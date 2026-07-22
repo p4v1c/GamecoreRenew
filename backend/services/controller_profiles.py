@@ -30,19 +30,18 @@ config AND logs on this box, plus the relevant emulator sources):
         Player 2 — sdl_pad_handler.cpp counts same-named devices), and
         Dolphin's SDL/<k>/<name> uses a 0-based PER-NAME <k> (ciface
         DeviceContainer). Hence `dup_index` below.
-  - citron, azahar, mgba, Cemu bind by raw button/axis index tied to a
-    device GUID/uuid. DualShock 4 and DualSense share the same kernel
-    driver and report IDENTICAL raw indices (verified live) — only the
-    GUID's vendor/product bytes differ, at a fixed, format-stable hex
-    offset. Retargeting a slot (or cloning slot 1 into a new slot) is a
-    pure GUID substitution — every button assignment already validated by
-    the owner stays exactly where it is. But the accompanying index is,
-    again, NOT the player slot: citron's `port:` counts pads sharing the
-    same GUID (sdl_driver.cpp joystick_map — a lone DualSense is port 0
-    even as Player 2, a wrong port silently binds a phantom joystick),
-    and Cemu's `<uuid>k_guid</uuid>` prefix is the same per-GUID counter
-    (SDLControllerProvider guid_counter). Also: citron player sections
-    are 0-based — player_0_* IS Player 1.
+  - Ryujinx, azahar, mgba, Cemu bind by a device GUID/uuid. DualShock 4 and
+    DualSense share the same kernel driver and report IDENTICAL raw indices
+    (verified live) — only the GUID's vendor/product bytes differ, at a fixed,
+    format-stable hex offset. Retargeting a slot (or cloning slot 1 into a new
+    slot) is a pure GUID substitution — every button assignment already
+    validated by the owner stays exactly where it is. But the accompanying
+    index is, again, NOT the player slot: Ryujinx's `id` prefix (`<dup>-<GUID>`
+    in Config.json) counts pads sharing the same GUID — a lone DualSense is
+    dup 0 even as Player 2, a wrong dup binds a device that isn't there — and
+    Cemu's `<uuid>k_guid</uuid>` prefix is the same per-GUID counter
+    (SDLControllerProvider guid_counter). Ryujinx slots live as objects in the
+    `input_config` list keyed by `player_index` (`Player1`..).
   - azahar (3DS) and mgba (GBA): single-player hardware — only slot 1 is
     ever touched, regardless of which player index is passed in.
   - ppsspp/melonDS: skipped — no existing binding on this box to clone
@@ -57,6 +56,7 @@ to 0, which is always right for the first pad of a given model.
 from __future__ import annotations
 
 import glob
+import json
 import logging
 import os
 import re
@@ -64,7 +64,7 @@ import shutil
 import time
 from pathlib import Path
 
-from ..config import GAMECORE_ROOT
+from ..config import GAMECORE_ROOT, SYSTEMS_FILE
 
 log = logging.getLogger(__name__)
 
@@ -72,14 +72,49 @@ DB_FILE = GAMECORE_ROOT / "backend" / "data" / "gamecontrollerdb.txt"
 GUID_RE = re.compile(r"\b([0-9a-fA-F]{32})\b")
 
 HOME = Path.home()
-CITRON = HOME / ".config/citron/qt-config.ini"
+RYUJINX_CFG = HOME / ".var/app/io.github.ryubing.Ryujinx/config/Ryujinx/Config.json"
 AZAHAR = HOME / ".var/app/org.azahar_emu.Azahar/config/azahar-emu/qt-config.ini"
 DOLPHIN_DIR = HOME / ".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu"
-RPCS3_DEFAULT = HOME / ".config/rpcs3/input_configs/global/Default.yml"
 CEMU_PROFILES = HOME / ".var/app/info.cemu.Cemu/config/Cemu/controllerProfiles"
 MGBA_CONFIG = HOME / ".config/mgba/config.ini"
-PCSX2_INI = HOME / ".config/PCSX2/inis/PCSX2.ini"
 DUCK_INI = HOME / ".local/share/duckstation/settings.ini"
+
+
+def _sys_path(emu_id: str) -> str:
+    """The `path` an emulator declares in systems.json ('' when unreadable) —
+    tells flatpak installs apart from native ones."""
+    try:
+        systems = json.loads(SYSTEMS_FILE.read_text())
+        return next((s.get("path", "") for s in systems if s.get("id") == emu_id), "")
+    except (OSError, ValueError):
+        return ""
+
+
+def _flatpak_or_native(emu_id: str, flatpak: Path, native: Path) -> Path:
+    """The config file of the install the box actually runs. systems.json
+    decides — a native tree kept as a post-migration backup must not shadow
+    the live flatpak. Unknown → whichever exists (native first, the
+    pre-flatpak layout)."""
+    declared = _sys_path(emu_id)
+    if declared == "flatpak":
+        return flatpak
+    if declared:
+        return native
+    return native if native.is_file() else flatpak
+
+
+def rpcs3_default() -> Path:
+    return _flatpak_or_native(
+        "rpcs3",
+        HOME / ".var/app/net.rpcs3.RPCS3/config/rpcs3/input_configs/global/Default.yml",
+        HOME / ".config/rpcs3/input_configs/global/Default.yml")
+
+
+def pcsx2_ini() -> Path:
+    return _flatpak_or_native(
+        "pcsx2",
+        HOME / ".var/app/net.pcsx2.PCSX2/config/PCSX2/inis/PCSX2.ini",
+        HOME / ".config/PCSX2/inis/PCSX2.ini")
 
 
 # ── VID/PID <-> GUID helpers ──────────────────────────────────────────────────
@@ -230,62 +265,59 @@ def set_section(text: str, header: str, body: str) -> str:
     return text.rstrip() + f"\n\n[{header}]\n{body}"
 
 
-# ── citron (Switch, up to 8 in principle — we honor players 1-4) ────────────
+# ── Ryujinx (Switch, up to 8 in principle — we honor players 1-4) ───────────
 
-def _citron(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
-    """citron player sections are 0-based (player_0_* IS Player 1), and the
-    `port:` inside each binding is the pad's index among connected pads
-    sharing the same GUID — NOT a player number. A wrong port binds a
-    phantom joystick with no SDL device behind it: input silently dead."""
-    if not CITRON.is_file():
+def _ryu_swap_vidpid(dashed_guid: str, vendor: str, product: str) -> str:
+    """Ryujinx stores the SDL joystick GUID DASHED
+    (`00000003-054c-0000-cc09-000000006800`). Dashless, the vendor sits at
+    [8:12] big-endian and the product at [16:20] little-endian (verified on
+    the box's DS4: vendor 054c → `054c`, product 09cc → `cc09`). Swap those
+    two fields, keep bus/version/driver bytes, re-add the dashes."""
+    g = dashed_guid.replace("-", "")
+    if len(g) != 32:
+        return dashed_guid
+    g = g[:8] + vendor + g[12:16] + product[2:4] + product[0:2] + g[20:]
+    return f"{g[0:8]}-{g[8:12]}-{g[12:16]}-{g[16:20]}-{g[20:32]}"
+
+
+def _ryujinx(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
+    """Ryujinx binds each slot in Config.json's `input_config` list by
+    `player_index` (`Player1`..`Player8`) and an `id` of the form
+    `"<dup>-<SDL GUID>"`, where <dup> counts pads sharing that GUID (NOT the
+    player number) — Ryujinx's SDL2 backend needs it to pick the right
+    physical device. A wrong <dup> binds a device that isn't there: input
+    silently dead. Same-model pads share one GUID, so retargeting a slot is a
+    vidpid swap on the GUID plus the right <dup>; a new slot clones Player1."""
+    if not RYUJINX_CFG.is_file():
         return None
-    t = CITRON.read_text()
-    prefix = f"player_{i - 1}_"
-    slot_guid = None
-    for line in t.splitlines():
-        if line.startswith(prefix):
-            m = GUID_RE.search(line)
-            if m:
-                slot_guid = m.group(1)
-                break
-    if slot_guid:
-        new_guid = swap_vidpid(slot_guid, vendor, product)
-        out, n = [], 0
-        for line in t.splitlines(keepends=True):
-            if line.startswith(prefix) and slot_guid in line:
-                line = line.replace(slot_guid, new_guid)
-                line = re.sub(r"port:\d+", f"port:{dup}", line)
-                n += 1
-            out.append(line)
-        if not n:
-            return None
-        t = "".join(out).replace(f"{prefix}connected=false", f"{prefix}connected=true")
-        backup(CITRON); CITRON.write_text(t)
-        return f"citron: Player {i} retargeted ({n} keys, port {dup})"
-    # No bindings for that player yet: clone Player 1 (player_0_*), keeping
-    # the cloned keys next to the originals so they stay inside [Controls].
-    p1_guid, cloned_lines = None, []
-    lines = t.splitlines(keepends=True)
-    last_p1 = -1
-    for idx, line in enumerate(lines):
-        if line.startswith("player_0_"):
-            last_p1 = idx
-            if p1_guid is None:
-                m = GUID_RE.search(line)
-                if m:
-                    p1_guid = m.group(1)
-            cloned_lines.append(line.replace("player_0_", prefix, 1))
-    if not p1_guid or last_p1 < 0:
+    try:
+        cfg = json.loads(RYUJINX_CFG.read_text())
+    except (OSError, ValueError):
         return None
-    new_guid = swap_vidpid(p1_guid, vendor, product)
-    cloned = "".join(cloned_lines).replace(p1_guid, new_guid)
-    cloned = re.sub(r"port:\d+", f"port:{dup}", cloned)
-    cloned = cloned.replace(f"{prefix}connected=false", f"{prefix}connected=true")
-    if not lines[last_p1].endswith("\n"):
-        lines[last_p1] += "\n"
-    lines.insert(last_p1 + 1, cloned)
-    backup(CITRON); CITRON.write_text("".join(lines))
-    return f"citron: Player {i} created (port {dup})"
+    ic = cfg.get("input_config")
+    if not isinstance(ic, list):
+        return None
+    pi = f"Player{i}"
+    p1 = next((e for e in ic if e.get("player_index") == "Player1"), None)
+    if p1 is None or "-" not in str(p1.get("id", "")):
+        return None
+    p1_guid = str(p1["id"]).split("-", 1)[1]           # dashed SDL GUID
+    new_guid = _ryu_swap_vidpid(p1_guid, vendor, product)
+    slot = next((e for e in ic if e.get("player_index") == pi), None)
+    if slot is not None:
+        slot["id"] = f"{dup}-{new_guid}"
+        slot["name"] = f"{name} ({dup})"
+        action = "retargeted"
+    else:                                              # clone Player1 into slot i
+        clone = json.loads(json.dumps(p1))
+        clone["player_index"] = pi
+        clone["id"] = f"{dup}-{new_guid}"
+        clone["name"] = f"{name} ({dup})"
+        ic.append(clone)
+        action = "created"
+    backup(RYUJINX_CFG)
+    RYUJINX_CFG.write_text(json.dumps(cfg, indent=2) + "\n")
+    return f"ryujinx: Player {i} {action} (dup {dup})"
 
 
 # ── azahar (3DS) / mgba (GBA) — single-player hardware, slot 1 only ─────────
@@ -405,9 +437,10 @@ def _rpcs3(i: int, dup: int, vendor: str, product: str, name: str) -> str | None
     Controller 1" even as Player 2. A non-matching string makes RPCS3 log
     "SDL: Adding empty device" and the pad is silently dead in game.
     `name` must be what RPCS3's bundled SDL3 calls the pad."""
-    if not RPCS3_DEFAULT.is_file():
+    yml = rpcs3_default()
+    if not yml.is_file():
         return None
-    t = RPCS3_DEFAULT.read_text()
+    t = yml.read_text()
     m = re.search(rf"^Player {i} Input:\n(.*?)(?=^Player \d+ Input:|\Z)", t, re.S | re.M)
     if not m or "Handler: SDL" not in m.group(1):
         return None
@@ -416,7 +449,7 @@ def _rpcs3(i: int, dup: int, vendor: str, product: str, name: str) -> str | None
     if block2 == block:
         return None
     t = t[:m.start(1)] + block2 + t[m.end(1):]
-    backup(RPCS3_DEFAULT); RPCS3_DEFAULT.write_text(t)
+    backup(yml); yml.write_text(t)
     return f"rpcs3: Player {i} retargeted ({name} {dup + 1})"
 
 
@@ -454,14 +487,14 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
     name = resolve_name(vendor, product, evdev_name)
     results: list[str] = []
     steps = [
-        ("citron", lambda: _citron(player_index, dup_index, vendor, product, name)),
+        ("ryujinx", lambda: _ryujinx(player_index, dup_index, vendor, product, name)),
         ("azahar", lambda: _single_player_guid(AZAHAR, "azahar", "profiles\\1\\",
                                               player_index, vendor, product, name)),
         ("mgba", lambda: _mgba(player_index, vendor, product, name)),
         ("cemu", lambda: _cemu(player_index, dup_index, vendor, product, name)),
         ("dolphin", lambda: _dolphin(player_index, dup_index, vendor, product, name)),
         ("rpcs3", lambda: _rpcs3(player_index, dup_index, vendor, product, name)),
-        ("pcsx2", lambda: _tier0_ini(PCSX2_INI, "pcsx2", player_index)),
+        ("pcsx2", lambda: _tier0_ini(pcsx2_ini(), "pcsx2", player_index)),
         ("duckstation", lambda: _tier0_ini(DUCK_INI, "duckstation", player_index)),
     ]
     for emu, step in steps:

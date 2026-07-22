@@ -84,3 +84,4 @@ install/installer-gui/*.spec
 # LAN auth state — box-local, never in git (see docs/SECURITY.md)
 config/auth.json
 config/auth_secret
+OPUS_HANDOFF_gamepad.md

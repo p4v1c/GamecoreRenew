@@ -270,7 +270,7 @@ if [[ "$MODE" == "full" ]]; then
 
   # Sandbox permissions: ROM directory + gamepad access for every emulator
   for pkg in "${FLATPAKS[@]}"; do
-    flatpak override --filesystem="$GAMECORE_PATH" --device=all "$pkg" 2>/dev/null || true
+    flatpak override --filesystem="$GAMECORE_PATH" --device=all --socket=x11 "$pkg" 2>/dev/null || true
   done
   ok "Flatpak overrides applied (ROMs dir + controller access)."
 
