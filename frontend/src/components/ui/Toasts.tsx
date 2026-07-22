@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { onWsEvent } from '../../hooks/useWebSocket'
-import { SAFE_AREA_X, SAFE_AREA_Y } from '../../lib/safeArea'
 
 interface Toast {
   id: number
@@ -81,10 +80,7 @@ export default function Toasts() {
 
   return (
     <div style={{
-      // position:fixed anchors to the true viewport, not the padded safe-area
-      // wrapper in App.tsx — offset explicitly so toasts stay clear of the
-      // raw canvas edge (and below the top bar) on TVs that overscan.
-      position: 'fixed', top: 64 + SAFE_AREA_Y, right: 16 + SAFE_AREA_X, zIndex: 100,
+      position: 'fixed', top: 64, right: 16, zIndex: 100,
       display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end',
       pointerEvents: 'none',
     }}>
