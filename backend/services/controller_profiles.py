@@ -64,6 +64,8 @@ import logging
 import os
 import re
 import shutil
+import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -401,9 +403,8 @@ def _mgba(i: int, vendor: str, product: str, name: str) -> str | None:
 
 def _pad_has_hat(vendor: str, product: str) -> bool | None:
     """Whether the connected pad exposes its D-pad as an evdev hat (ABS_HAT0X,
-    code 0x10) rather than buttons. Xbox and most pads use a hat; a DS4 over
-    the HIDAPI/hid-sony path exposes the D-pad as buttons 11-14 instead. None
-    when the pad can't be found (leave the config untouched)."""
+    code 0x10) rather than buttons — the D-pad-only fallback when the fuller
+    SDL mapping is unavailable. None when the pad can't be found."""
     try:
         import evdev
     except ImportError:
@@ -423,35 +424,104 @@ def _pad_has_hat(vendor: str, product: str) -> bool | None:
     return None
 
 
+def _sdl2_live_mapping(vendor: str, product: str) -> dict[str, str] | None:
+    """Live SDL2 GameController mapping (SDL name → raw token like 'b6'/'h0.1')
+    for the connected vendor:product. Run in a SUBPROCESS: melonDS binds by raw
+    SDL2 joystick index, but those indices differ per controller AND per driver
+    version — the vendored gamecontrollerdb even ships conflicting Linux entries
+    for one pad (an Xbox is b4/b5 or b6/b7). The only reliable source is the
+    exact SDL2 the emulator uses; the backend itself loads SDL3, so we shell out
+    to read SDL2's own numbering. None on any failure."""
+    script = (
+        "import ctypes,os,sys\n"
+        "os.environ['SDL_VIDEODRIVER']='dummy'\n"
+        "v=int(sys.argv[1],16);p=int(sys.argv[2],16)\n"
+        "try: s=ctypes.CDLL('libSDL2-2.0.so.0')\n"
+        "except OSError: sys.exit(0)\n"
+        "s.SDL_GameControllerMappingForDeviceIndex.restype=ctypes.c_char_p\n"
+        "s.SDL_GameControllerMappingForDeviceIndex.argtypes=[ctypes.c_int]\n"
+        "s.SDL_JoystickGetDeviceVendor.restype=ctypes.c_uint16\n"
+        "s.SDL_JoystickGetDeviceProduct.restype=ctypes.c_uint16\n"
+        "s.SDL_JoystickGetDeviceVendor.argtypes=[ctypes.c_int]\n"
+        "s.SDL_JoystickGetDeviceProduct.argtypes=[ctypes.c_int]\n"
+        "if s.SDL_Init(0x2000)!=0: sys.exit(0)\n"
+        "for i in range(s.SDL_NumJoysticks()):\n"
+        " if s.SDL_JoystickGetDeviceVendor(i)==v and s.SDL_JoystickGetDeviceProduct(i)==p:\n"
+        "  m=s.SDL_GameControllerMappingForDeviceIndex(i)\n"
+        "  print(m.decode()) if m else None; break\n"
+        "s.SDL_Quit()\n"
+    )
+    try:
+        r = subprocess.run([sys.executable, "-c", script, vendor, product],
+                           capture_output=True, text=True, timeout=8)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    line = r.stdout.strip()
+    if "," not in line:
+        return None
+    out = {k: v for tok in line.split(",")[2:]
+           if ":" in tok for k, _, v in (tok.partition(":"),)}
+    return out or None
+
+
+# melonDS [Instance0.Joystick] key → SDL GameController button name.
+_MELONDS_KEYS = {
+    "L": "leftshoulder", "R": "rightshoulder", "Start": "start", "Select": "back",
+    "Up": "dpup", "Down": "dpdown", "Left": "dpleft", "Right": "dpright",
+}
+
+
+def _melon_encode(token: str) -> int | None:
+    """SDL raw token → melonDS joystick value. Buttons ('bN' → N) and hats
+    ('hM.D' → 0x100 | M<<4 | SDL_HAT_dir). Axis tokens (triggers) return None —
+    leave that key's existing binding rather than guess an axis encoding."""
+    if re.fullmatch(r"b\d+", token):
+        return int(token[1:])
+    m = re.fullmatch(r"h(\d+)\.(\d+)", token)
+    if m:
+        return 0x100 | (int(m.group(1)) << 4) | int(m.group(2))
+    return None
+
+
 def _melonds(i: int, vendor: str, product: str, name: str) -> str | None:
-    """melonDS (DS) is single-player — only slot 1. It binds raw SDL joystick
-    inputs: the face buttons are consistent across pads, but the D-pad is not
-    — a hat pad (Xbox, most third-party) needs melonDS's HAT encoding, while a
-    DS4 exposes the D-pad as buttons 11-14. Adapt just the four D-pad keys in
-    [Instance0.Joystick] to whichever the connected controller uses."""
+    """melonDS (DS) is single-player — only slot 1. It binds raw SDL2 joystick
+    inputs, whose indices differ per controller (a DS4's shoulders are b9/b10,
+    an Xbox's b6/b7; its D-pad is a hat, a DS4's is buttons 11-14). Re-derive
+    the shoulders / start / select / D-pad from the connected pad's live SDL2
+    mapping so they land on the right physical inputs for any controller. Face
+    buttons (A/B/X/Y = b0-b3) are consistent and left untouched."""
     if i != 1 or not MELONDS_TOML.is_file():
         return None
-    hat = _pad_has_hat(vendor, product)
-    if hat is None:
-        return None
-    # HAT 0: 0x100 | SDL_HAT_dir (UP=1, RIGHT=2, DOWN=4, LEFT=8).
-    dpad = ({"Up": 257, "Right": 258, "Down": 260, "Left": 264} if hat
-            else {"Up": 11, "Down": 12, "Left": 13, "Right": 14})
+    mapping = _sdl2_live_mapping(vendor, product)
+    vals: dict[str, int] = {}
+    if mapping:
+        for key, sdl in _MELONDS_KEYS.items():
+            enc = _melon_encode(mapping.get(sdl, ""))
+            if enc is not None:
+                vals[key] = enc
+    src = "SDL live"
+    if not vals:                       # fallback: at least the D-pad, via evdev
+        hat = _pad_has_hat(vendor, product)
+        if hat is None:
+            return None
+        vals = ({"Up": 257, "Right": 258, "Down": 260, "Left": 264} if hat
+                else {"Up": 11, "Down": 12, "Left": 13, "Right": 14})
+        src = "hat fallback"
     out, insec, n = [], False, 0
     for line in MELONDS_TOML.read_text().splitlines():
         s = line.strip()
         if s.startswith("["):
             insec = (s == "[Instance0.Joystick]")
-        m = re.match(r"^(Up|Down|Left|Right)\s*=\s*-?\d+\s*$", s)
-        if insec and m and m.group(1) in dpad:
-            out.append(f"{m.group(1)} = {dpad[m.group(1)]}"); n += 1
+        m = re.match(r"^(L|R|Start|Select|Up|Down|Left|Right)\s*=\s*-?\d+\s*$", s)
+        if insec and m and m.group(1) in vals:
+            out.append(f"{m.group(1)} = {vals[m.group(1)]}"); n += 1
         else:
             out.append(line)
     if not n:
         return None
     backup(MELONDS_TOML)
     MELONDS_TOML.write_text("\n".join(out) + "\n")
-    return f"melonds: D-pad set ({'hat' if hat else 'buttons'})"
+    return f"melonds: {n} keys mapped ({src})"
 
 
 # ── Cemu (Wii U, controllerN.xml, 0-indexed) ────────────────────────────────
