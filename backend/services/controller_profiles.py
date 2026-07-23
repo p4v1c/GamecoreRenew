@@ -44,7 +44,10 @@ config AND logs on this box, plus the relevant emulator sources):
     `input_config` list keyed by `player_index` (`Player1`..).
   - azahar (3DS) and mgba (GBA): single-player hardware — only slot 1 is
     ever touched, regardless of which player index is passed in.
-  - ppsspp/melonDS: skipped — no existing binding on this box to clone
+  - melonDS (DS): single-player, slot 1 only. Face buttons are consistent
+    across pads; only the D-pad differs (hat vs buttons), so just that is
+    adapted to the connected controller (see _melonds / _pad_has_hat).
+  - ppsspp: skipped — no existing binding on this box to clone
     from (never launched/configured yet).
 
 `dup_index` = how many already-connected pads of the same vendor:product
@@ -77,6 +80,7 @@ AZAHAR = HOME / ".var/app/org.azahar_emu.Azahar/config/azahar-emu/qt-config.ini"
 DOLPHIN_DIR = HOME / ".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu"
 CEMU_PROFILES = HOME / ".var/app/info.cemu.Cemu/config/Cemu/controllerProfiles"
 MGBA_CONFIG = HOME / ".config/mgba/config.ini"
+MELONDS_TOML = HOME / ".var/app/net.kuribo64.melonDS/config/melonDS/melonDS.toml"
 DUCK_INI = HOME / ".local/share/duckstation/settings.ini"
 
 
@@ -395,6 +399,61 @@ def _mgba(i: int, vendor: str, product: str, name: str) -> str | None:
     return "mgba: Player 1 retargeted (active slot + saved profile)"
 
 
+def _pad_has_hat(vendor: str, product: str) -> bool | None:
+    """Whether the connected pad exposes its D-pad as an evdev hat (ABS_HAT0X,
+    code 0x10) rather than buttons. Xbox and most pads use a hat; a DS4 over
+    the HIDAPI/hid-sony path exposes the D-pad as buttons 11-14 instead. None
+    when the pad can't be found (leave the config untouched)."""
+    try:
+        import evdev
+    except ImportError:
+        return None
+    for path in glob.glob("/dev/input/event*"):
+        try:
+            dev = evdev.InputDevice(path)
+            info = dev.info
+            if f"{info.vendor:04x}" == vendor and f"{info.product:04x}" == product:
+                abs_codes = [a[0] if isinstance(a, tuple) else a
+                             for a in dev.capabilities().get(3, [])]  # EV_ABS
+                dev.close()
+                return 0x10 in abs_codes                             # ABS_HAT0X
+            dev.close()
+        except (OSError, PermissionError):
+            continue
+    return None
+
+
+def _melonds(i: int, vendor: str, product: str, name: str) -> str | None:
+    """melonDS (DS) is single-player — only slot 1. It binds raw SDL joystick
+    inputs: the face buttons are consistent across pads, but the D-pad is not
+    — a hat pad (Xbox, most third-party) needs melonDS's HAT encoding, while a
+    DS4 exposes the D-pad as buttons 11-14. Adapt just the four D-pad keys in
+    [Instance0.Joystick] to whichever the connected controller uses."""
+    if i != 1 or not MELONDS_TOML.is_file():
+        return None
+    hat = _pad_has_hat(vendor, product)
+    if hat is None:
+        return None
+    # HAT 0: 0x100 | SDL_HAT_dir (UP=1, RIGHT=2, DOWN=4, LEFT=8).
+    dpad = ({"Up": 257, "Right": 258, "Down": 260, "Left": 264} if hat
+            else {"Up": 11, "Down": 12, "Left": 13, "Right": 14})
+    out, insec, n = [], False, 0
+    for line in MELONDS_TOML.read_text().splitlines():
+        s = line.strip()
+        if s.startswith("["):
+            insec = (s == "[Instance0.Joystick]")
+        m = re.match(r"^(Up|Down|Left|Right)\s*=\s*-?\d+\s*$", s)
+        if insec and m and m.group(1) in dpad:
+            out.append(f"{m.group(1)} = {dpad[m.group(1)]}"); n += 1
+        else:
+            out.append(line)
+    if not n:
+        return None
+    backup(MELONDS_TOML)
+    MELONDS_TOML.write_text("\n".join(out) + "\n")
+    return f"melonds: D-pad set ({'hat' if hat else 'buttons'})"
+
+
 # ── Cemu (Wii U, controllerN.xml, 0-indexed) ────────────────────────────────
 
 def _cemu(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
@@ -523,6 +582,7 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
         ("rpcs3", lambda: _rpcs3(player_index, dup_index, vendor, product, name)),
         ("pcsx2", lambda: _tier0_ini(pcsx2_ini(), "pcsx2", player_index)),
         ("duckstation", lambda: _tier0_ini(DUCK_INI, "duckstation", player_index)),
+        ("melonds", lambda: _melonds(player_index, vendor, product, name)),
     ]
     for emu, step in steps:
         try:
