@@ -267,12 +267,22 @@ def set_section(text: str, header: str, body: str) -> str:
 
 # ── Ryujinx (Switch, up to 8 in principle — we honor players 1-4) ───────────
 
+def _ryu_guid_vidpid(dashed_guid: str) -> tuple[str, str] | None:
+    """(vendor, product) from a Ryujinx dashed SDL GUID. Ryujinx's bundled
+    SDL2 lays out the vendor at [8:12] big-endian and the product at [16:20]
+    little-endian (`00000003-054c-0000-cc09-…` → 054c / 09cc)."""
+    g = dashed_guid.replace("-", "")
+    if len(g) != 32:
+        return None
+    return g[8:12].lower(), (g[18:20] + g[16:18]).lower()
+
+
 def _ryu_swap_vidpid(dashed_guid: str, vendor: str, product: str) -> str:
-    """Ryujinx stores the SDL joystick GUID DASHED
-    (`00000003-054c-0000-cc09-000000006800`). Dashless, the vendor sits at
-    [8:12] big-endian and the product at [16:20] little-endian (verified on
-    the box's DS4: vendor 054c → `054c`, product 09cc → `cc09`). Swap those
-    two fields, keep bus/version/driver bytes, re-add the dashes."""
+    """Best-effort GUID for a controller Ryujinx has never bound here: swap the
+    vendor/product into a reference GUID (vendor [8:12] BE, product [16:20] LE).
+    Reliable only within the reference's own brand/family — Ryujinx's SDL2 also
+    encodes bus/version/driver bytes that differ per model, which is why
+    _ryujinx() prefers a GUID Ryujinx has actually written (see there)."""
     g = dashed_guid.replace("-", "")
     if len(g) != 32:
         return dashed_guid
@@ -282,12 +292,19 @@ def _ryu_swap_vidpid(dashed_guid: str, vendor: str, product: str) -> str:
 
 def _ryujinx(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
     """Ryujinx binds each slot in Config.json's `input_config` list by
-    `player_index` (`Player1`..`Player8`) and an `id` of the form
-    `"<dup>-<SDL GUID>"`, where <dup> counts pads sharing that GUID (NOT the
-    player number) — Ryujinx's SDL2 backend needs it to pick the right
-    physical device. A wrong <dup> binds a device that isn't there: input
-    silently dead. Same-model pads share one GUID, so retargeting a slot is a
-    vidpid swap on the GUID plus the right <dup>; a new slot clones Player1."""
+    `player_index` (`Player1`..`Player8`) and an `id` `"<dup>-<SDL GUID>"`,
+    where <dup> counts pads sharing that GUID (NOT the player number).
+
+    The GUID must be the exact string Ryujinx's bundled SDL2 computes for the
+    device — and that encodes bus/version/driver bytes we can't derive from
+    vendor:product alone (a DS4 is `00000003-054c-…-…6800`, an Xbox pad
+    `00000005-045e-…-…09090000`). So we can't synthesize it blindly across
+    brands. Instead we LEARN: reuse the exact GUID Ryujinx already wrote for a
+    pad of this vendor:product (in any slot — the curated Config.json seeds the
+    box's own pads, and once a user assigns a new pad in Ryujinx it's captured
+    here). Only the first time an unseen brand appears do we fall back to a
+    best-effort swap from Player1's GUID, which may need a one-off manual
+    'Input Device' pick in Ryujinx — after which this learns it."""
     if not RYUJINX_CFG.is_file():
         return None
     try:
@@ -301,8 +318,18 @@ def _ryujinx(i: int, dup: int, vendor: str, product: str, name: str) -> str | No
     p1 = next((e for e in ic if e.get("player_index") == "Player1"), None)
     if p1 is None or "-" not in str(p1.get("id", "")):
         return None
-    p1_guid = str(p1["id"]).split("-", 1)[1]           # dashed SDL GUID
-    new_guid = _ryu_swap_vidpid(p1_guid, vendor, product)
+    # Prefer a GUID Ryujinx has actually written for this vendor:product.
+    known = None
+    for e in ic:
+        eid = str(e.get("id", ""))
+        if "-" in eid and _ryu_guid_vidpid(eid.split("-", 1)[1]) == (vendor.lower(), product.lower()):
+            known = eid.split("-", 1)[1]
+            break
+    if known:
+        new_guid, how = known, "matched"
+    else:
+        new_guid = _ryu_swap_vidpid(str(p1["id"]).split("-", 1)[1], vendor, product)
+        how = "best-effort"
     slot = next((e for e in ic if e.get("player_index") == pi), None)
     if slot is not None:
         slot["id"] = f"{dup}-{new_guid}"
@@ -317,7 +344,7 @@ def _ryujinx(i: int, dup: int, vendor: str, product: str, name: str) -> str | No
         action = "created"
     backup(RYUJINX_CFG)
     RYUJINX_CFG.write_text(json.dumps(cfg, indent=2) + "\n")
-    return f"ryujinx: Player {i} {action} (dup {dup})"
+    return f"ryujinx: Player {i} {action} ({how} GUID, dup {dup})"
 
 
 # ── azahar (3DS) / mgba (GBA) — single-player hardware, slot 1 only ─────────
