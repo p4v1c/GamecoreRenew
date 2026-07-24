@@ -383,6 +383,164 @@ def _single_player_guid(path: Path, label: str, line_prefix: str,
     return f"{label}: Player 1 retargeted ({n} keys)"
 
 
+# ── capture / restore per-controller configs (GUID-based single-player emus) ──
+# 3DS/azahar (and GBA/Wii U) bind by a device GUID + raw button indices we can't
+# synthesize reliably — swapping vidpid bytes produces GUIDs no real pad has and
+# pollutes the config. Instead we DON'T synthesize: the user auto-maps the pad
+# once in the emulator (which writes a correct config), we remember that config
+# PER controller, and swap it back in whenever that pad reconnects.
+SNAP_DIR = HOME / ".local/share/gamecore/controller-snapshots"
+
+
+def _sdl_guid_vidpid(guid: str) -> tuple[str, str] | None:
+    """(vendor, product) from a 32-hex SDL GUID (vendor LE @[8:12], product
+    LE @[16:20])."""
+    if len(guid) != 32:
+        return None
+    return (guid[10:12] + guid[8:10]).lower(), (guid[18:20] + guid[16:18]).lower()
+
+
+# Per-emulator adapters: extract the input-config block from the config text,
+# and replace it back. The "Scan mapping" button captures the block for the
+# connected controller (keyed by vidpid); connect-time restore swaps it in.
+def _sect_bounds(lines: list[str], header: str):
+    start = None
+    for i, l in enumerate(lines):
+        if l.strip() == f"[{header}]":
+            start = i
+        elif start is not None and l.strip().startswith("["):
+            return start, i
+    return (start, len(lines)) if start is not None else (None, None)
+
+
+def _az_extract(text: str) -> str:
+    return "".join(l for l in text.splitlines(keepends=True)
+                   if l.startswith("profiles\\1\\"))
+
+
+def _az_replace(text: str, block: str) -> str:
+    if not block.endswith("\n"):
+        block += "\n"
+    out, done = [], False
+    for l in text.splitlines(keepends=True):
+        if l.startswith("profiles\\1\\"):
+            if not done:
+                out.append(block); done = True
+        else:
+            out.append(l)
+    if not done:
+        out.append(block)
+    return "".join(out)
+
+
+def _sect_extract(header):
+    def f(text: str) -> str:
+        lines = text.splitlines(keepends=True)
+        s, e = _sect_bounds(lines, header)
+        return "".join(lines[s:e]) if s is not None else ""
+    return f
+
+
+def _sect_replace(header):
+    def f(text: str, block: str) -> str:
+        lines = text.splitlines(keepends=True)
+        s, e = _sect_bounds(lines, header)
+        if not block.endswith("\n"):
+            block += "\n"
+        if s is None:
+            return text + ("" if text.endswith("\n") else "\n") + block
+        return "".join(lines[:s]) + block + "".join(lines[e:])
+    return f
+
+
+# Cemu: one XML file per player slot; controller0.xml is Player 1's whole config.
+def _whole_extract(text: str) -> str:
+    return text
+
+
+def _whole_replace(_text: str, block: str) -> str:
+    return block
+
+
+# mgba: profiles persist per GUID in [gba.input-profile.<GUID>]; `device0=` picks
+# the active one. Capture device0 + its profile section; restore both so mgba
+# points at the connected pad's own profile.
+def _mgba_extract(text: str) -> str:
+    lines = text.splitlines(keepends=True)
+    dev = next((l for l in lines if l.startswith("device0=")), "")
+    guid = dev.split("=", 1)[1].strip() if "=" in dev else ""
+    s, e = _sect_bounds(lines, f"gba.input-profile.{guid}") if guid else (None, None)
+    return dev + ("".join(lines[s:e]) if s is not None else "")
+
+
+def _mgba_replace(text: str, block: str) -> str:
+    blines = block.splitlines(keepends=True)
+    dev = next((l for l in blines if l.startswith("device0=")), "")
+    guid = dev.split("=", 1)[1].strip() if "=" in dev else ""
+    sect = "".join(l for l in blines if not l.startswith("device0="))
+    out, dev_set = [], False
+    for l in text.splitlines(keepends=True):
+        if l.startswith("device0="):
+            out.append(dev if dev.endswith("\n") else dev + "\n"); dev_set = True
+        else:
+            out.append(l)
+    if not dev_set and dev:
+        out.insert(0, dev if dev.endswith("\n") else dev + "\n")
+    result = "".join(out)
+    if guid and sect.strip():
+        result = _sect_replace(f"gba.input-profile.{guid}")(result, sect)
+    return result
+
+
+# emu_id → (config-path getter, extract(text)→block, replace(text, block)→text)
+_SNAP_EMUS = {
+    "azahar":  (lambda: AZAHAR, _az_extract, _az_replace),
+    "melonds": (lambda: MELONDS_TOML, _sect_extract("Instance0.Joystick"),
+                _sect_replace("Instance0.Joystick")),
+    "mgba":    (lambda: MGBA_CONFIG, _mgba_extract, _mgba_replace),
+    "cemu":    (lambda: CEMU_PROFILES / "controller0.xml", _whole_extract, _whole_replace),
+}
+
+
+def _snap_path(emu_id: str, vendor: str, product: str) -> Path:
+    return SNAP_DIR / emu_id / f"{vendor.lower()}_{product.lower()}.snap"
+
+
+def snapshot_capture(vendor: str, product: str) -> list[str]:
+    """Save each GUID-emulator's CURRENT input config for this controller — the
+    'Scan mapping' action, after the user has auto-mapped the pad in-emulator."""
+    saved = []
+    for emu_id, (pathfn, extract, _r) in _SNAP_EMUS.items():
+        path = pathfn()
+        if not path.is_file():
+            continue
+        block = extract(path.read_text())
+        if not block.strip():
+            continue
+        snap = _snap_path(emu_id, vendor, product)
+        snap.parent.mkdir(parents=True, exist_ok=True)
+        snap.write_text(block)
+        saved.append(emu_id)
+    return saved
+
+
+def snapshot_restore(emu_id: str, vendor: str, product: str) -> str | None:
+    """Swap this controller's saved input config into one emulator (on connect).
+    None when there's no snapshot yet (caller can fall back to a live handler)."""
+    entry = _SNAP_EMUS.get(emu_id)
+    if not entry:
+        return None
+    pathfn, extract, replace = entry
+    path, snap = pathfn(), _snap_path(emu_id, vendor, product)
+    if not path.is_file() or not snap.is_file():
+        return None
+    block, text = snap.read_text(), path.read_text()
+    if extract(text).strip() == block.strip():
+        return None                                   # already applied
+    backup(path); path.write_text(replace(text, block))
+    return f"{emu_id}: restored saved mapping ({vendor}:{product})"
+
+
 def _mgba(i: int, vendor: str, product: str, name: str) -> str | None:
     if i != 1 or not MGBA_CONFIG.is_file():
         return None
@@ -664,15 +822,22 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
     results: list[str] = []
     steps = [
         ("ryujinx", lambda: _ryujinx(player_index, dup_index, vendor, product, name)),
-        ("azahar", lambda: _single_player_guid(AZAHAR, "azahar", "profiles\\1\\",
-                                              player_index, vendor, product, name)),
-        ("mgba", lambda: _mgba(player_index, vendor, product, name)),
-        ("cemu", lambda: _cemu(player_index, dup_index, vendor, product, name)),
+        # 3DS/GBA/Wii U bind by a device GUID we can't synthesize — the user
+        # "Scan mapping"s the pad once per emulator, and we restore that saved
+        # config on connect (snapshot_restore). Single-player → slot 1 only.
+        ("azahar", lambda: snapshot_restore("azahar", vendor, product)
+                   if player_index == 1 else None),
+        ("mgba", lambda: snapshot_restore("mgba", vendor, product)
+                 if player_index == 1 else None),
+        ("cemu", lambda: snapshot_restore("cemu", vendor, product)
+                 if player_index == 1 else None),
         ("dolphin", lambda: _dolphin(player_index, dup_index, vendor, product, name)),
         ("rpcs3", lambda: _rpcs3(player_index, dup_index, vendor, product, name)),
         ("pcsx2", lambda: _tier0_ini(pcsx2_ini(), "pcsx2", player_index)),
         ("duckstation", lambda: _tier0_ini(DUCK_INI, "duckstation", player_index)),
-        ("melonds", lambda: _melonds(player_index, vendor, product, name)),
+        # melonds: a saved mapping wins; else fall back to the live synthesis.
+        ("melonds", lambda: (snapshot_restore("melonds", vendor, product)
+                             or _melonds(player_index, vendor, product, name))),
     ]
     for emu, step in steps:
         try:
@@ -684,6 +849,22 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
         if msg:
             results.append(msg)
     return results
+
+
+def scan_mapping() -> dict:
+    """"Scan mapping" button: remember the ONE connected controller's current
+    input config across the GUID-based emulators, so it auto-restores on every
+    future connect. The user configures the pad once in each emulator's own
+    input UI (auto-map), then triggers this."""
+    pads = detect_pads()
+    if len(pads) != 1:
+        return {"ok": False,
+                "error": ("connect exactly one controller (the one you just "
+                          f"configured) — found {len(pads)}")}
+    vendor, product, evdev = pads[0]
+    saved = snapshot_capture(vendor, product)
+    return {"ok": True, "controller": resolve_name(vendor, product, evdev),
+            "saved": saved}
 
 
 # ── Manual/rescue entry point (install/apply-controller-model.sh) ──────────

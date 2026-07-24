@@ -16,6 +16,7 @@ from . import ws
 from .routers import systems, games, playtime, covers, metadata, sysinfo, update, overlays, addons
 from .routers import auth as auth_routes
 from .routers import standby as standby_router
+from .routers import controllers as controllers_router
 from .routers.settings import wifi, audio, bluetooth
 from .services import battery, gamepad_monitor, prefetch, standby
 from .config import GAMECORE_ROOT, COVERS_DIR, ASSETS_DIR
@@ -47,6 +48,7 @@ app.include_router(update.router, prefix="/api")
 app.include_router(overlays.router, prefix="/api")
 app.include_router(addons.router, prefix="/api")
 app.include_router(standby_router.router, prefix="/api")
+app.include_router(controllers_router.router, prefix="/api")
 app.include_router(wifi.router, prefix="/api")
 app.include_router(audio.router, prefix="/api")
 app.include_router(bluetooth.router, prefix="/api")
