@@ -465,9 +465,19 @@ def _sdl2_live_mapping(vendor: str, product: str) -> dict[str, str] | None:
 
 
 # melonDS [Instance0.Joystick] key → SDL GameController button name.
-_MELONDS_KEYS = {
+_MELONDS_SHOULDER_KEYS = {
     "L": "leftshoulder", "R": "rightshoulder", "Start": "start", "Select": "back",
+}
+_MELONDS_DPAD_KEYS = {
     "Up": "dpup", "Down": "dpdown", "Left": "dpleft", "Right": "dpright",
+}
+# Controllers whose D-pad melonDS's own SDL reads as BUTTONS, not the hat that
+# SDL's GameController mapping reports (verified by what melonDS records when
+# you bind the D-pad in-app). SDL says h0 for both a DS4 and an Xbox, but
+# melonDS latches buttons 11-14 on a DualShock 4 and the hat on an Xbox — so
+# the hat token can't be trusted here; list the button exceptions instead.
+_MELONDS_DPAD_BUTTONS = {
+    ("054c", "09cc"): {"Up": 11, "Down": 12, "Left": 13, "Right": 14},  # DualShock 4
 }
 
 
@@ -495,7 +505,17 @@ def _melonds(i: int, vendor: str, product: str, name: str) -> str | None:
     mapping = _sdl2_live_mapping(vendor, product)
     vals: dict[str, int] = {}
     if mapping:
-        for key, sdl in _MELONDS_KEYS.items():
+        for key, sdl in _MELONDS_SHOULDER_KEYS.items():
+            enc = _melon_encode(mapping.get(sdl, ""))
+            if enc is not None:
+                vals[key] = enc
+    # D-pad: a known button-exception controller wins; otherwise trust the SDL
+    # hat token (works for hat pads like the Xbox).
+    override = _MELONDS_DPAD_BUTTONS.get((vendor.lower(), product.lower()))
+    if override:
+        vals.update(override)
+    elif mapping:
+        for key, sdl in _MELONDS_DPAD_KEYS.items():
             enc = _melon_encode(mapping.get(sdl, ""))
             if enc is not None:
                 vals[key] = enc
