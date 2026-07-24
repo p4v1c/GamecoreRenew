@@ -7,6 +7,7 @@ import { onGp } from '../../hooks/useGamepad'
 interface Props { onClose: () => void }
 
 const OPTIONS = [
+  { id: 'scan',     label: 'Scan mapping', busy: 'Scanning…',  icon: '◎', color: '#22c55e', desc: 'Save the connected pad’s controls (3DS/DS/GBA…)' },
   { id: 'restart',  label: 'Restart',  busy: 'Restarting…',    icon: '↺', color: '#f59e0b', desc: 'Reboot the system' },
   { id: 'shutdown', label: 'Shutdown', busy: 'Shutting down…', icon: '⏻', color: '#ef4444', desc: 'Power off' },
 ]
@@ -18,6 +19,8 @@ const POWER_FAILSAFE_MS = 10000
 export default function PowerModal({ onClose }: Props) {
   const [confirm, setConfirm] = useState<string | null>(null)
   const [focusIdx, setFocusIdx] = useState(0)
+  const [scanning, setScanning] = useState(false)
+  const [scanResult, setScanResult] = useState<string | null>(null)
   const { openModal, closeModal, powerPending, setPowerPending } = useStore()
 
   useEffect(() => {
@@ -39,7 +42,20 @@ export default function PowerModal({ onClose }: Props) {
   }, [powerPending, setPowerPending])
 
   const handleAction = (id: string) => {
-    if (useStore.getState().powerPending) return
+    if (useStore.getState().powerPending || scanning) return
+    if (id === 'scan') {
+      // Not a power action: snapshot the connected pad's mapping, show the result
+      // inline. No confirm, no powerPending (the OS stays up).
+      setScanning(true); setScanResult(null)
+      fetch('/api/controllers/scan-mapping', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => setScanResult(
+          d.ok ? `Saved for ${d.controller}: ${d.saved?.length ? d.saved.join(', ') : 'nothing found'}`
+               : (d.error || 'scan failed')))
+        .catch(() => setScanResult('scan failed'))
+        .finally(() => setScanning(false))
+      return
+    }
     if (confirmRef.current !== id) { setConfirm(id); return }
     setPowerPending(id)
     if (window.gamecore) {
@@ -70,6 +86,8 @@ export default function PowerModal({ onClose }: Props) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, pointerEvents: powerPending ? 'none' : 'auto' }}>
         {OPTIONS.map((o, idx) => {
           const isPending = powerPending === o.id
+          const isScan = o.id === 'scan'
+          const busyPulse = isPending || (isScan && scanning)
           const dimmed = powerPending !== null && !isPending
           return (
             <div key={o.id} onClick={() => handleAction(o.id)} style={{
@@ -85,17 +103,20 @@ export default function PowerModal({ onClose }: Props) {
               transition: 'all 0.2s',
             }}>
               <motion.div
-                animate={isPending ? { opacity: [1, 0.35, 1] } : { opacity: 1 }}
-                transition={isPending ? { duration: 1.1, repeat: Infinity, ease: 'easeInOut' } : undefined}
+                animate={busyPulse ? { opacity: [1, 0.35, 1] } : { opacity: 1 }}
+                transition={busyPulse ? { duration: 1.1, repeat: Infinity, ease: 'easeInOut' } : undefined}
                 style={{ width: 44, height: 44, borderRadius: 12, background: `${o.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: o.color }}
               >
                 {o.icon}
               </motion.div>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 15, color: '#fff' }}>
-                  {isPending ? o.busy : confirm === o.id ? `Confirm ${o.label}?` : o.label}
+                  {isScan ? (scanning ? o.busy : o.label)
+                          : isPending ? o.busy : confirm === o.id ? `Confirm ${o.label}?` : o.label}
                 </div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>{o.desc}</div>
+                <div style={{ fontSize: 12, color: isScan && scanResult ? o.color : 'rgba(255,255,255,0.35)', marginTop: 2 }}>
+                  {isScan && scanResult ? scanResult : o.desc}
+                </div>
               </div>
             </div>
           )
