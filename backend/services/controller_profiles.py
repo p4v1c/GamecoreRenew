@@ -762,6 +762,13 @@ _WIIMOTE_BODY = (
     "IR/Down = `Right Y-`\n"
     "IR/Left = `Right X-`\n"
     "IR/Right = `Right X+`\n"
+    # Tilt (roll/pitch the remote) on the SAME right stick as IR: 2D games use
+    # tilt (NSMB Wii "Tilt Lift" seesaws) but not the pointer, 3D pointer games
+    # use IR but ignore tilt — so one stick serves both with no real conflict.
+    "Tilt/Forward = `Right Y+`\n"
+    "Tilt/Backward = `Right Y-`\n"
+    "Tilt/Left = `Right X-`\n"
+    "Tilt/Right = `Right X+`\n"
     "Shake/X = `Button E`\n"
     "Shake/Y = `Button E`\n"
     "Shake/Z = `Button E`\n"
