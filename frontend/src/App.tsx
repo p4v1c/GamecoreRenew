@@ -18,6 +18,11 @@ import Screensaver from './components/Screensaver'
 import { onWsEvent } from './hooks/useWebSocket'
 import { playSound } from './lib/sounds'
 
+// The controller screen only exits on a second □ within this window. A single
+// press there is a button test like any other — same idea as the double PS
+// press that kills a running game (GUIDE_DOUBLE_PRESS_MS in useGamepad).
+const CONTROLLER_CLOSE_MS = 1000
+
 export default function App() {
   const [showSplash, setShowSplash] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
@@ -30,6 +35,10 @@ export default function App() {
 
   const splashRef = useRef(showSplash)
   useEffect(() => { splashRef.current = showSplash }, [showSplash])
+
+  const gamepadOpenRef = useRef(showGamepad)
+  useEffect(() => { gamepadOpenRef.current = showGamepad }, [showGamepad])
+  const lastClosePress = useRef(0)
 
   useWebSocket()
   useGamepad()
@@ -60,8 +69,26 @@ export default function App() {
       // sets of gamepad handlers fire on every press.
       onGp('gp:menu', () => { if (!splashRef.current && !useStore.getState().powerPending) setShowSettings(s => s ? false : useStore.getState().modalDepth === 0) }),
       onGp('gp:power', () => { if (!splashRef.current && !useStore.getState().powerPending) setShowPower(s => s ? false : useStore.getState().modalDepth === 0) }),
-      // □ / X toggles the controller screen (mirrors stremio-web)
-      onGp('gp:x', () => { if (!splashRef.current && !useStore.getState().powerPending) setShowGamepad(s => s ? false : useStore.getState().modalDepth === 0) }),
+      // □ / X opens the controller screen on a single press, but closes it only
+      // on a double press — every button has to stay free for testing in there.
+      onGp('gp:x', () => {
+        if (splashRef.current || useStore.getState().powerPending) return
+
+        if (!gamepadOpenRef.current) {
+          // The opening press must not count as the first half of a close.
+          lastClosePress.current = 0
+          setShowGamepad(useStore.getState().modalDepth === 0)
+          return
+        }
+
+        const now = performance.now()
+        if (now - lastClosePress.current <= CONTROLLER_CLOSE_MS) {
+          lastClosePress.current = 0
+          setShowGamepad(false)
+        } else {
+          lastClosePress.current = now
+        }
+      }),
       onGp('gp:guide', async () => {
         if (!sessionRef.current) return
         try { await api.games.kill() } catch {}
