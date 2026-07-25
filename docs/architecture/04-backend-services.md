@@ -1,193 +1,194 @@
 # 4 — Backend, services
 
-Where the logic lives. No FastAPI import exists in this directory: a service
-is callable from a test, a script, or another service.
+Là où vit la logique. Aucun import FastAPI dans ce dossier : un service est
+appelable depuis un test, un script, ou un autre service.
 
-[`controller_profiles.py`](08-controller-pipeline.md) is big enough to have its
-own document.
+[`controller_profiles.py`](08-chaine-manettes.md) est assez gros pour avoir son
+propre document.
 
 ---
 
-## `process_manager.py` (217 l.) — one game at a time
+## process_manager.py
 
-Module-level singleton: `process_manager = ProcessManager()`.
+Singleton de module : `process_manager = ProcessManager()`.
 
-State: `_proc`, `_launching`, `_game_key`, `_system_id`, `_start_time`,
+État : `_proc`, `_launching`, `_game_key`, `_system_id`, `_start_time`,
 `_exec_path`, `_launch_args`.
 
-| Member | Role |
+| Membre | Rôle |
 |---|---|
-| `_display_env()` | rebuilds a GUI environment for a systemd child — see [1](01-runtime-topology.md#environment-reconstruction) |
+| `_display_env()` | reconstruit un environnement graphique pour un enfant de systemd — voir [1](01-topologie-execution.md#reconstruction-de-lenvironnement) |
 | `is_running` | `_launching or (_proc and returncode is None)` |
-| `current_game` | `{game_key, system_id}` or `None` |
-| `launch(exec_path, exec_args, rom_path, game_key, system_id)` | builds argv (`shlex.split` + ROM), spawns, broadcasts `game:started`, starts `_watch()` |
-| `kill()` | `_flatpak_kill()` then `_proc_kill()` |
-| `_flatpak_kill()` | finds the app-id (token after `run`) and runs `flatpak kill <app-id>`, 1 s timeout |
-| `_proc_kill()` | `os.killpg(os.getpgid(pid), SIGKILL)`, falling back to `proc.kill()` |
-| `_watch()` | awaits exit, records playtime if > 5 s, broadcasts `game:finished` |
+| `current_game` | `{game_key, system_id}` ou `None` |
+| `launch(exec_path, exec_args, rom_path, game_key, system_id)` | construit argv (`shlex.split` + ROM), lance, diffuse `game:started`, démarre `_watch()` |
+| `kill()` | `_flatpak_kill()` puis `_proc_kill()` |
+| `_flatpak_kill()` | retrouve l'app-id (le jeton après `run`) et lance `flatpak kill <app-id>`, timeout 1 s |
+| `_proc_kill()` | `os.killpg(os.getpgid(pid), SIGKILL)`, repli sur `proc.kill()` |
+| `_watch()` | attend la fin, enregistre le temps de jeu si > 5 s, diffuse `game:finished` |
 
-Three decisions that look odd until you know why:
+Trois décisions qui paraissent étranges tant qu'on n'en connaît pas la raison :
 
-1. **`_launching` is claimed synchronously**, before the first `await`. Two
-   concurrent `launch()` calls would otherwise both pass the `is_running`
-   check while the first was still awaiting the spawn.
-2. **`start_new_session=True`** puts the child in its own process group. Without
-   it, `killpg` would reach the backend itself.
-3. **SIGKILL, no SIGTERM.** Several emulators answer SIGTERM with a
-   confirmation dialog that cannot be clicked from a gamepad.
+1. **`_launching` est réservé de façon synchrone**, avant le premier `await`.
+   Deux appels concurrents à `launch()` passeraient sinon tous deux le test
+   `is_running` pendant que le premier attend encore le lancement.
+2. **`start_new_session=True`** place l'enfant dans son propre groupe de
+   processus. Sans cela, `killpg` atteindrait le backend lui-même.
+3. **SIGKILL, pas de SIGTERM.** Plusieurs émulateurs répondent au SIGTERM par
+   une confirmation impossible à cliquer à la manette.
 
-The module header also records a real bug: an earlier revision exported
-`SDL_GAMECONTROLLERDB`, a variable SDL has never read, so the vendored mapping
-database was silently ignored. The correct name is
+L'en-tête du module consigne aussi un vrai bug : une version antérieure
+exportait `SDL_GAMECONTROLLERDB`, une variable que SDL n'a jamais lue — la base
+de mappings embarquée était donc silencieusement ignorée. Le bon nom est
 `SDL_GAMECONTROLLERCONFIG_FILE`.
 
 ---
 
-## `gamepad_monitor.py` (280 l.) — evdev, the source of truth for input
+## `gamepad_monitor.py` (280 l.) — evdev, la source de vérité de l'entrée
 
-Runs as a lifespan task. It exists because the browser Gamepad API cannot be
-trusted for the Guide button and cannot see anything while a fullscreen
-emulator owns the display.
+Tourne en tâche de `lifespan`. Existe parce qu'on ne peut pas faire confiance à
+l'API Gamepad du navigateur pour le bouton Guide, et qu'elle ne voit rien
+pendant qu'un émulateur plein écran possède l'affichage.
 
-| Function | Role |
+| Fonction | Rôle |
 |---|---|
-| `run()` | main loop — rescans for devices every few seconds, watches each |
-| `_find_gamepad_devices()` | `path → (name, uniq, is_pad, vendor, product)` for every readable `/dev/input/event*` |
-| `_can_read(path)` | permission probe |
-| `_watch_device(path)` | reads one device until it disconnects or is cancelled |
-| `_on_guide_pressed()` | the double-press logic, then `POST /api/games/kill` |
+| `run()` | boucle principale — rebalaye les périphériques toutes les quelques secondes |
+| `_find_gamepad_devices()` | `chemin → (nom, uniq, is_pad, vendor, product)` pour chaque `/dev/input/event*` lisible |
+| `_can_read(path)` | sonde de permission |
+| `_watch_device(path)` | lit un périphérique jusqu'à déconnexion ou annulation |
+| `_on_guide_pressed()` | la logique de double appui, puis `POST /api/games/kill` |
 
-It also drives `controller_registry` on connect/disconnect,
-`controller_profiles.apply_profile()` / `release_profile()` for the pad's
-per-emulator configuration, and `standby.on_input()` — which is how a
-controller button wakes a sleeping box.
+Il pilote aussi `controller_registry` à la connexion/déconnexion,
+`controller_profiles.apply_profile()` / `release_profile()` pour la
+configuration par émulateur de la manette, et `standby.on_input()` — c'est
+ainsi qu'un bouton réveille un boîtier endormi.
 
 ---
 
-## `controller_registry.py` (89 l.) — console-style player slots
+## `controller_registry.py` (89 l.) — slots joueurs à la console
 
-Assigns P1…P4 and keeps them stable across reconnects.
+Attribue P1…P4 et les garde stables à travers les reconnexions.
 
-| Function | Role |
+| Fonction | Rôle |
 |---|---|
-| `normalize_mac(value)` | extracts a lowercased `aa:bb:…` from any MAC-ish string |
-| `key_for(uniq, path)` | stable key: the MAC when known, else the device node |
-| `has(key)` / `label_for(key)` | lookups |
-| `connect(key, label)` | assigns the **lowest free slot**; idempotent for a known key |
-| `disconnect(key)` | frees the slot, returns the player number it held |
-| `player_for_mac(value)` | slot for any MAC-bearing string — used to attach a sysfs battery to a player |
-| `snapshot()` | `[{player, label}]` ordered by slot — what `/api/sysinfo` returns |
+| `normalize_mac(value)` | extrait une MAC `aa:bb:…` en minuscules de n'importe quelle chaîne |
+| `key_for(uniq, path)` | clé stable : la MAC si connue, sinon le nœud périphérique |
+| `has(key)` / `label_for(key)` | recherches |
+| `connect(key, label)` | attribue le **plus petit slot libre** ; idempotent pour une clé connue |
+| `disconnect(key)` | libère le slot, renvoie le numéro de joueur qu'il portait |
+| `player_for_mac(value)` | slot pour toute chaîne porteuse de MAC — sert à rattacher une batterie sysfs à un joueur |
+| `snapshot()` | `[{player, label}]` trié par slot — ce que renvoie `/api/sysinfo` |
 
 ---
 
 ## `battery.py` (116 l.)
 
-| Function | Role |
+| Fonction | Rôle |
 |---|---|
 | `read_batteries()` | sysfs → `[{name, level, charging}]` |
-| `_check(batteries)` | **pure** — returns the alerts to send for this poll, so it is unit-testable |
-| `run()` | polls and broadcasts `gp:battery` |
+| `_check(batteries)` | **pure** — renvoie les alertes à envoyer pour ce cycle, donc testable unitairement |
+| `run()` | sonde et diffuse `gp:battery` |
 
-The UI renders it as a toast; in-game Electron paints a native always-on-top
-HUD instead, because the React toast is hidden under the emulator.
+L'UI l'affiche en toast ; en jeu, Electron peint un HUD natif toujours au-dessus,
+car le toast React est masqué par l'émulateur.
 
 ---
 
 ## `standby.py` (152 l.)
 
-| Function | Role |
+| Fonction | Rôle |
 |---|---|
 | `load_config()` / `save_config(cfg)` | `config/standby.json` |
 | `get_state()` | `active` / `screensaver` / `asleep` |
-| `_run_cmd(*argv)` | helper, returns success |
-| `_screen(on)` | DPMS on/off |
-| `_governor(gov)` | `cpupower frequency-set -g …` — optional, needs a sudoers rule |
-| `_enter(stage)` | stage transition + WS broadcast |
-| `exit_standby()` | wake |
-| `on_input()` | called from the evdev loop on any controller button |
-| `run()` | the idle poll loop |
+| `_run_cmd(*argv)` | utilitaire, renvoie le succès |
+| `_screen(on)` | DPMS allumé/éteint |
+| `_governor(gov)` | `cpupower frequency-set -g …` — optionnel, nécessite une règle sudoers |
+| `_enter(stage)` | transition d'étape + diffusion WS |
+| `exit_standby()` | réveil |
+| `on_input()` | appelée depuis la boucle evdev sur n'importe quel bouton |
+| `run()` | la boucle de sondage d'inactivité |
 
-A running game blocks standby entirely.
+Un jeu en cours bloque entièrement la veille.
 
 ---
 
 ## `cover_pipeline.py` (132 l.) — orchestration
 
-| Function | Role |
+| Fonction | Rôle |
 |---|---|
-| `resolve(system, filename, refresh=False)` | the four-tier resolution, [drawn here](02-request-flows.md#3-resolving-a-cover) |
-| `_id_urls(kind, value)` | candidate `(url, ext)` pairs for a disc ID, best first |
-| `_regions(letter)` | region-code expansion for GameTDB paths |
-| `_fetch_by_id(kind, value, base)` | downloads the first candidate that exists |
+| `resolve(system, filename, refresh=False)` | la résolution en quatre niveaux, [dessinée ici](02-flux-detailles.md#3-résoudre-une-jaquette) |
+| `_id_urls(kind, value)` | paires `(url, ext)` candidates pour un identifiant de disque, meilleure d'abord |
+| `_regions(letter)` | expansion des codes région pour les chemins GameTDB |
+| `_fetch_by_id(kind, value, base)` | télécharge la première candidate qui existe |
 
-Negative results are written as `.miss` files, honoured for 7 days, so an
-offline box does not retry the network on every scroll.
+Les résultats négatifs sont écrits en fichiers `.miss`, valables 7 jours, pour
+qu'un boîtier hors ligne ne retente pas le réseau à chaque défilement.
 
-## `local_media.py` (150 l.) — read the game itself
+## `local_media.py` (150 l.) — lire le jeu lui-même
 
-Offline and exact. Nothing here guesses from a filename.
+Hors ligne et exact. Rien ici ne devine à partir d'un nom de fichier.
 
-| Function | Role |
+| Fonction | Rôle |
 |---|---|
 | `_ps3_icon(rom)` / `_ps3_sfo(rom)` | `PS3_GAME/ICON0.PNG`, `PARAM.SFO` |
 | `_ps4_icon(rom)` / `_ps4_sfo(rom)` | `sce_sys/icon0.png`, `param.sfo` |
-| `_psp_read(rom, inner)` / `_psp_sfo(rom)` | pulls a file **out of the ISO** via `iso9660` |
-| `_gc_wii_id(rom)` | 6-char game ID from a GameCube/Wii image header |
-| `_playstation_serial(rom)` | PS1/PS2 serial (`SLUS-20946`) from `SYSTEM.CNF` inside the image |
-| `extract_icon(system_id, rom, dest)` | writes the embedded icon, or `None` |
-| `get_title(system_id, rom)` | real title from embedded metadata — why PS3 folders show a name, not `BLES01234` |
-| `disc_id(system_id, rom)` | `(kind, id)` for an exact online lookup, e.g. `("wii", "GALE01")` |
+| `_psp_read(rom, inner)` / `_psp_sfo(rom)` | extrait un fichier **de l'ISO** via `iso9660` |
+| `_gc_wii_id(rom)` | identifiant 6 caractères depuis l'en-tête d'une image GameCube/Wii |
+| `_playstation_serial(rom)` | numéro de série PS1/PS2 (`SLUS-20946`) depuis `SYSTEM.CNF` dans l'image |
+| `extract_icon(system_id, rom, dest)` | écrit l'icône embarquée, ou `None` |
+| `get_title(system_id, rom)` | vrai titre depuis les métadonnées embarquées — pourquoi les dossiers PS3 affichent un nom et pas `BLES01234` |
+| `disc_id(system_id, rom)` | `(kind, id)` pour une recherche en ligne exacte, ex. `("wii", "GALE01")` |
 
-## `iso9660.py` (106 l.) — minimal ISO reader
+## `iso9660.py` (106 l.) — lecteur ISO minimal
 
-`class Iso9660` with `open(path)` (classmethod, autodetects the sector layout,
-returns `None` for a non-ISO such as a compressed `.cso`), `_sector`,
-`_read_extent`, `_entries` and `read_file("PSP_GAME/ICON0.PNG")`
-(case-insensitive). Supports `with` via `__enter__`/`__exit__` — use it, the
-factory only closes the handle on its own failure paths.
+`class Iso9660` avec `open(path)` (méthode de classe, détecte la disposition de
+secteurs, renvoie `None` pour un non-ISO comme un `.cso` compressé), `_sector`,
+`_read_extent`, `_entries` et `read_file("PSP_GAME/ICON0.PNG")` (insensible à
+la casse). Supporte `with` via `__enter__`/`__exit__` — utilisez-le, la fabrique
+ne ferme le descripteur que sur ses propres chemins d'échec.
 
-## `scraper.py` (242 l.) — the network tier
+## `scraper.py` (242 l.) — le niveau réseau
 
-| Function | Role |
+| Fonction | Rôle |
 |---|---|
-| `_normalize(name)` | lowercase alphanumerics, for fuzzy matching |
-| `_name_variants(base)` | the spellings to try against the CDN index |
-| `_get_index(client, system_name)` | fetches and caches the libretro directory listing |
-| `fetch_cover(rom_path, system_id, dest)` | libretro first, then TheGamesDB |
-| `_fetch_tgdb_cover(name, system_id, dest)` | needs `THEGAMESDB_API_KEY`, silently skipped otherwise |
-| `_region_rank(n)` | prefers the region you probably want when several match |
+| `_normalize(name)` | minuscules alphanumériques, pour la correspondance floue |
+| `_name_variants(base)` | les orthographes à essayer contre l'index du CDN |
+| `_get_index(client, system_name)` | récupère et met en cache le listing libretro |
+| `fetch_cover(rom_path, system_id, dest)` | libretro d'abord, puis TheGamesDB |
+| `_fetch_tgdb_cover(name, system_id, dest)` | nécessite `THEGAMESDB_API_KEY`, ignoré silencieusement sinon |
+| `_region_rank(n)` | privilégie la région probablement voulue quand plusieurs correspondent |
 
 ## `metadata.py` (119 l.)
 
-`resolve(system, filename)` → description, year, genres, players, rating.
-Disk-cached and negative-cached. `_genre_names(client)` resolves the genre id
-table once; `_search_name(system, filename)` builds the query;
-`_fetch_tgdb(platform_id, name)` does the call.
+`resolve(system, filename)` → description, année, genres, joueurs, note. Mis en
+cache disque, y compris les échecs. `_genre_names(client)` résout la table des
+genres une fois ; `_search_name(system, filename)` construit la requête ;
+`_fetch_tgdb(platform_id, name)` fait l'appel.
 
 ## `sfo.py` (34 l.)
 
-`parse_bytes(d)` and `parse(path)` — PARAM.SFO key/value table, `{}` on any
-error. Same binary format on PS3, PS4 and PSP. The addons repo has its own
-copy in `shared/py/`; this one additionally exposes `parse_bytes()` for data
-already in memory.
+`parse_bytes(d)` et `parse(path)` — table clé/valeur PARAM.SFO, `{}` en cas
+d'erreur. Même format binaire sur PS3, PS4 et PSP. Le dépôt d'addons a sa
+propre copie dans `shared/py/` ; celle-ci expose en plus `parse_bytes()` pour
+des données déjà en mémoire.
 
 ## `rom_scanner.py` (34 l.)
 
-`clean_name(filename)` (strips extension and bracketed tags like `[!]`,
-`(USA)`), `matches_ext(filename, extensions)`, and
-`iter_rom_files(roms_path, extensions, scan_dirs)` — alphabetical, applying the
-common exclusions. The rom-manager addon keeps a mirrored copy.
+`clean_name(filename)` (retire l'extension et les balises entre crochets comme
+`[!]`, `(USA)`), `matches_ext(filename, extensions)` et
+`iter_rom_files(roms_path, extensions, scan_dirs)` — par ordre alphabétique,
+avec les exclusions courantes. L'addon rom-manager en garde une copie miroir.
 
 ## `prefetch.py` (60 l.)
 
-`run()` walks the library at startup and calls `warm(system, filename)` so the
-first scroll is not a spinner.
+`run()` parcourt la bibliothèque au démarrage et appelle
+`warm(system, filename)` pour que le premier défilement ne soit pas un
+indicateur de chargement.
 
 ---
 
-## `overlay_monitor.py` (277 l.) — X11 watcher, runs as a subprocess
+## `overlay_monitor.py` (277 l.) — veilleur X11, exécuté comme sous-processus
 
-Not imported by the backend: Electron spawns it and speaks JSON-lines over
+Pas importé par le backend : Electron le lance et lui parle en JSON-lines sur
 stdio.
 
 ```
@@ -196,64 +197,66 @@ stdout → {"event":"window:ready","system_id":…,"rect":{x,y,w,h}}
        → {"event":"window:waiting"|"window:closed"|"error", …}
 ```
 
-| Symbol | Role |
+| Symbole | Rôle |
 |---|---|
-| `emit(obj)` / `emit_error(msg)` | one JSON object per line on stdout, flushed |
-| `X11Manager._client_windows()` | top-level windows via `_NET_CLIENT_LIST`, with a recursive fallback |
-| `X11Manager.find_window(wm_classes)` | first window whose `WM_CLASS` matches |
-| `X11Manager.dump_windows()` | debug helper — all `WM_CLASS` values |
-| `X11Manager.force_rect(wid, x, y, w, h)` | leaves fullscreen, removes decorations (Motif hints), moves and resizes |
-| `X11Manager.get_rect(wid)` | geometry translated to root coordinates |
-| `X11Manager.window_exists(wid)` | liveness |
-| `OverlayMonitor.watch(system_id, cfg)` | starts the watch thread |
-| `OverlayMonitor.stop()` / `_run()` | lifecycle |
-| `main()` | the stdio loop |
+| `emit(obj)` / `emit_error(msg)` | un objet JSON par ligne sur stdout, vidé immédiatement |
+| `X11Manager._client_windows()` | fenêtres de premier niveau via `_NET_CLIENT_LIST`, avec repli récursif |
+| `X11Manager.find_window(wm_classes)` | première fenêtre dont le `WM_CLASS` correspond |
+| `X11Manager.dump_windows()` | aide au débogage — tous les `WM_CLASS` |
+| `X11Manager.force_rect(wid, x, y, w, h)` | quitte le plein écran, retire les décorations (hints Motif), déplace et redimensionne |
+| `X11Manager.get_rect(wid)` | géométrie traduite en coordonnées racine |
+| `X11Manager.window_exists(wid)` | test de vie |
+| `OverlayMonitor.watch(system_id, cfg)` | démarre le thread de surveillance |
+| `OverlayMonitor.stop()` / `_run()` | cycle de vie |
+| `main()` | la boucle stdio |
 
-`force_rect()` leaves fullscreen with a `_NET_WM_STATE` **ClientMessage to the
-root window**, as EWMH requires for a mapped window. Writing the property
-directly (what it used to do) clears *every* state at once —
-`_NET_WM_STATE_ABOVE` included — and desyncs the WM's bookkeeping.
+`force_rect()` quitte le plein écran avec un **ClientMessage `_NET_WM_STATE`
+envoyé à la fenêtre racine**, comme EWMH l'exige pour une fenêtre mappée.
+Écrire la propriété directement (ce qu'il faisait avant) efface *tous* les
+états d'un coup — `_NET_WM_STATE_ABOVE` compris — et désynchronise la
+comptabilité interne du gestionnaire de fenêtres.
 
-`_WAYLAND_SESSION` disables the whole module when `WAYLAND_DISPLAY` is set.
+`_WAYLAND_SESSION` désactive tout le module quand `WAYLAND_DISPLAY` est défini.
 
 ## `fullscreen_enforcer.py` (130 l.)
 
-The same EWMH toolbox pointed the other way, for apps with no fullscreen CLI
-flag (`"fullscreen"` key on a system entry).
+La même boîte à outils EWMH pointée dans l'autre sens, pour les applications
+sans option plein écran en ligne de commande (clé `"fullscreen"` d'un système).
 
 `_iter_client_windows`, `_find_window(disp, wm_classes)`, `_is_fullscreen`,
-`_request_fullscreen` (adds `_NET_WM_STATE_FULLSCREEN` by client message),
-`_enforce_sync(system_id, wm_classes, timeout_s)`, and the async
-fire-and-forget `enforce(system_id, cfg)`.
+`_request_fullscreen` (ajoute `_NET_WM_STATE_FULLSCREEN` par message client),
+`_enforce_sync(system_id, wm_classes, timeout_s)`, et l'asynchrone
+« lancer et oublier » `enforce(system_id, cfg)`.
 
 ---
 
-## `auth.py` (150 l.) — shared password
+## `auth.py` (150 l.) — mot de passe partagé
 
-| Function | Role |
+| Fonction | Rôle |
 |---|---|
-| `_write_private(path, data)` | atomic write, **0600 from the very first byte** |
-| `_auth()` / `_secret()` | read `config/auth.json` and `config/auth_secret` |
-| `is_configured()` | whether a password was ever set |
-| `set_password(new, reset_secret=False)` | argon2id hash; **always bumps `generation`** |
-| `verify_password(password)` | argon2 verify |
+| `_write_private(path, data)` | écriture atomique, **0600 dès le premier octet** |
+| `_auth()` / `_secret()` | lisent `config/auth.json` et `config/auth_secret` |
+| `is_configured()` | un mot de passe a-t-il déjà été défini |
+| `set_password(new, reset_secret=False)` | hachage argon2id ; **incrémente toujours `generation`** |
+| `verify_password(password)` | vérification argon2 |
 | `_mac(secret, payload)` | HMAC-SHA256 |
 | `make_cookie()` | `expiry.generation.HMAC(secret, "expiry.generation")` |
-| `check_cookie(value)` | expiry + generation + MAC |
-| `blocked_for(ip)` | seconds still to wait — 0 means not blocked |
-| `register_failure(ip)` / `register_success(ip)` | in-memory backoff, exponential after 5 failures |
+| `check_cookie(value)` | expiration + génération + MAC |
+| `blocked_for(ip)` | secondes restant à attendre — 0 = non bloqué |
+| `register_failure(ip)` / `register_success(ip)` | temporisation en mémoire, exponentielle après 5 échecs |
 
-Bumping `generation` is how "change password" invalidates every live session
-without storing any session state.
+Incrémenter `generation` est la façon dont « changer le mot de passe »
+invalide toutes les sessions vivantes sans stocker le moindre état de session.
 
 ---
 
-## `ws.py` and `db.py` (backend root)
+## `ws.py` et `db.py` (racine du backend)
 
-`ws.py` — `connect(ws)` (accepts and replays `game:running` if a game is
-already up), `disconnect(ws)`, `broadcast(event, data)` (drops dead clients),
+`ws.py` — `connect(ws)` (accepte et rejoue `game:running` si un jeu tourne
+déjà), `disconnect(ws)`, `broadcast(event, data)` (élimine les clients morts),
 `set_current_game(game)`.
 
-`db.py` — `get_db()` returns a live `aiosqlite` handle, re-opening it if the
-cached one has gone stale; `init_db()` creates the `playtime` and `sessions`
-tables. Schema in [7](07-config-and-data.md#playtimedb).
+`db.py` — `get_db()` renvoie une connexion `aiosqlite` vivante, en la
+rouvrant si celle en cache est devenue inutilisable ; `init_db()` crée les
+tables `playtime` et `sessions`. Schéma en
+[7](07-config-et-donnees.md#playtimedb).
