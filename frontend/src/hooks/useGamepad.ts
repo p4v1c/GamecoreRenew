@@ -11,11 +11,15 @@
  *   gp:l1 | gp:r1 | gp:l2 | gp:r2
  *   gp:connected(name) | gp:disconnected
  *
+ * Those events are edge-triggered ("□ was pressed"). Anything that needs the
+ * continuous picture instead ("□ is held", "the left stick sits at 40%") —
+ * i.e. the controller overlay — reads it through useGamepadState() below.
+ *
  * IMPORTANT: When a game session is active, ALL events are suppressed except
  * gp:guide. This mirrors the old C++ behaviour (MainWindow.cpp line 344):
  *   if (m_session.isRunning()) return;  // block everything
  */
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { playSound, soundForGpEvent } from '../lib/sounds'
 
@@ -34,6 +38,10 @@ const BTN = {
   DPAD_UP: 12, DPAD_DOWN: 13, DPAD_LEFT: 14, DPAD_RIGHT: 15,
   GUIDE: 16,
 } as const
+
+/** Per-frame subscribers (see useGamepadState) — fed by the poll loop below. */
+type FrameListener = (gp: Gamepad | null) => void
+const frameListeners = new Set<FrameListener>()
 
 function emit(name: string, detail?: unknown) {
   const sound = soundForGpEvent(name)
@@ -132,6 +140,10 @@ export function useGamepad() {
         }
       }
 
+      // Raw snapshot for the live views — deliberately outside the `playing`
+      // guard above: this only mirrors the pad on screen, it never acts on it.
+      if (frameListeners.size) frameListeners.forEach(cb => cb(gp ?? null))
+
       rafId.current = requestAnimationFrame(poll)
     }
 
@@ -149,4 +161,55 @@ export function onGp(event: string, handler: (detail?: unknown) => void): () => 
   const listener = (e: Event) => handler((e as CustomEvent).detail)
   window.addEventListener(event, listener)
   return () => window.removeEventListener(event, listener)
+}
+
+// ── Continuous state ──────────────────────────────────────────────────────────
+
+/** Standard-mapping button indices, for consumers of GamepadState.pressed. */
+export const GP_BTN = BTN
+
+export interface GamepadState {
+  connected: boolean
+  /** Held state, indexed by GP_BTN. */
+  pressed: boolean[]
+  /** Analog travel 0..1, indexed by GP_BTN — only the triggers report in-between. */
+  values: number[]
+  /** [leftX, leftY, rightX, rightY], each -1..1. */
+  axes: number[]
+}
+
+const IDLE_STATE: GamepadState = { connected: false, pressed: [], values: [], axes: [0, 0, 0, 0] }
+
+/** Quantise to 1/50th so a resting stick's jitter doesn't re-render every frame. */
+const quantise = (v: number) => Math.round(v * 50) / 50
+
+/** Subscribe to the raw per-frame snapshot. Returns cleanup fn. */
+export function onGamepadFrame(cb: FrameListener): () => void {
+  frameListeners.add(cb)
+  return () => { frameListeners.delete(cb) }
+}
+
+/**
+ * Live button/axis state of the active pad, for views that draw it.
+ * Re-renders only when something actually moved (see quantise).
+ */
+export function useGamepadState(): GamepadState {
+  const [state, setState] = useState<GamepadState>(IDLE_STATE)
+  const signature = useRef('')
+
+  useEffect(() => onGamepadFrame(gp => {
+    const next: GamepadState = gp ? {
+      connected: true,
+      pressed: gp.buttons.map(b => b.pressed),
+      values: gp.buttons.map(b => quantise(b.value)),
+      axes: [0, 1, 2, 3].map(i => quantise(gp.axes[i] ?? 0)),
+    } : IDLE_STATE
+
+    const sig = JSON.stringify(next)
+    if (sig === signature.current) return
+    signature.current = sig
+    setState(next)
+  }), [])
+
+  return state
 }
