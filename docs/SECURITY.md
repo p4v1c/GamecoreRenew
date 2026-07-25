@@ -1,4 +1,10 @@
-# GameCore — Plan de sécurisation
+# GameCore — Modèle de sécurité
+
+> **Statut : les 4 phases décrites ci-dessous sont livrées et en production.**
+> Ce document a été écrit comme un plan de déploiement ; il se lit désormais
+> comme la description du modèle en place. Les mentions « cette PR » sont
+> historiques. Vérification rapide sur un boîtier : `ss -tlnp` ne doit montrer
+> que `:8443` en écoute non-loopback.
 
 Objectif : **un seul port exposé au LAN — Caddy `:8443` en HTTPS** — tout le reste en
 loopback, avec un login unique partagé appliqué par le reverse-proxy (`forward_auth`).

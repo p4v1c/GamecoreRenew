@@ -478,14 +478,23 @@ Apps launched from GameCore that need gamepad access inside Flatpak (e.g. Stremi
 backend/          FastAPI — systems, games, playtime, covers, settings, OTA
   routers/        API endpoints (systems, games, overlays, addons, sysinfo…)
   services/       Process manager, gamepad monitor, overlay monitor, scraper
+  data/           gamecontrollerdb.txt (vendored SDL mappings)
 frontend/         React + Vite + Framer Motion + Zustand
   src/
     components/   UI components (HomeScreen, LibraryScreen, modals…)
-    hooks/        useWebSocket, useGamepad, useStore
+    hooks/        useWebSocket, useGamepad
+    store/        Zustand store (screen, selection, modal depth, session)
 electron/         Electron kiosk shell + overlay BrowserWindow
-config/           systems.json, overlays.json
+config/           runtime state, never in git, never touched by OTA:
+                  systems.json, apps.json, overlays.json, addons.json,
+                  standby.json, auth.json, playtime.db
 assets/           logos/, overlays/
-emu/              ROMs per system (emu/dolphin/, emu/melonds/…)
-install/          Installers: arch.sh engine (+ --unattended), installer-gui/ (Qt binary), gamecore-addon CLI
+emu/              ROMs per system (emu/dolphin/, emu/melonds/…) + covers/ cache
+install/          Installers: arch.sh engine (+ --unattended), installer-gui/ (Qt binary), gamecore-addon CLI, Caddyfile
 update/           OTA update script (linux.sh)
+docs/             ARCHITECTURE.md (how it all works), SECURITY.md, CONTROLLER_MODELS.md
 ```
+
+> **Working on the code?** `docs/ARCHITECTURE.md` is the detailed map — every
+> process, every service, the launch path, the gamepad event bus, and the
+> invariants that are easy to break.
