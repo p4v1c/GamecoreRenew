@@ -25,7 +25,7 @@ _WAYLAND_SESSION = OS == "Linux" and bool(os.environ.get("WAYLAND_DISPLAY"))
 # ── Platform imports ──────────────────────────────────────────────────────────
 if OS == "Linux":
     try:
-        from Xlib import display as xdisplay, X, Xatom
+        from Xlib import display as xdisplay, X, protocol
         _XLIB_OK = True
     except ImportError:
         _XLIB_OK = False
@@ -95,10 +95,25 @@ class X11Manager:
 
     def force_rect(self, wid: int, x: int, y: int, w: int, h: int) -> None:
         win = self._display.create_resource_object("window", wid)
-        # Remove fullscreen state
+        # Leave fullscreen the way EWMH asks a client to: a ClientMessage on
+        # the root. The old path wrote _NET_WM_STATE onto the window itself,
+        # which does drop fullscreen on KWin — but only by clearing every
+        # state at once, _NET_WM_STATE_ABOVE included, and it leaves the WM's
+        # own bookkeeping out of step (further state requests on that window
+        # are then ignored). Nothing obliges a WM to honour a direct write at
+        # all, the property belonging to the WM once the window is mapped.
         net_wm_state      = self._display.intern_atom("_NET_WM_STATE")
         net_wm_fullscreen = self._display.intern_atom("_NET_WM_STATE_FULLSCREEN")
-        win.change_property(net_wm_state, Xatom.ATOM, 32, [])
+        self._root.send_event(
+            protocol.event.ClientMessage(
+                window=win, client_type=net_wm_state,
+                #     0 = _NET_WM_STATE_REMOVE, then the state to drop,
+                #     0 = no second state, 1 = request comes from an application
+                data=(32, [0, net_wm_fullscreen, 0, 1, 0]),
+            ),
+            event_mask=X.SubstructureRedirectMask | X.SubstructureNotifyMask,
+        )
+        self._display.sync()
         # Remove window decorations via Motif hints
         motif_atom = self._display.intern_atom("_MOTIF_WM_HINTS")
         win.change_property(motif_atom, motif_atom, 32, [2, 0, 0, 0, 0])
