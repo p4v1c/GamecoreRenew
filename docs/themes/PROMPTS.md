@@ -62,11 +62,11 @@ Design only these surfaces — leave the rest to the default theme:
 - [ ] `library` — game grid, search, per-game metadata panel
 - [ ] `topbar` — clock, IP address, storage bar, controller battery
 - [ ] `screensaver` — idle slideshow of game cover art
-- [ ] `keyboard` — on-screen keyboard (WiFi passwords, game search)
 - [ ] `powerModal` — Scan mapping / Restart / Shutdown
 - [ ] `gamepadModal` — the live controller diagram
 
-`splash` and `settings` are out of scope. Do not design them.
+`splash`, `settings` and the on-screen keyboard are out of scope. Do not
+design them.
 
 ## Hard constraints — non-negotiable
 

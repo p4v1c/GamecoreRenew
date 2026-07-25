@@ -89,13 +89,13 @@ a screen its author never considered.
 | `library` | the game grid, search and metadata panel | yes |
 | `topbar` | clock, IP, storage, controller battery | yes |
 | `screensaver` | the standby slideshow | yes |
-| `keyboard` | the on-screen keyboard | yes |
 | `powerModal` | the power menu | yes |
 | `gamepadModal` | the controller screen | yes |
+| `keyboard` | the on-screen keyboard | **not yet** |
 | `splash` | the boot animation | **v1.1** |
 | `settings` | the settings screen | **never** |
 
-Three deliberate exclusions:
+Four deliberate exclusions:
 
 - **`settings` is not overridable.** It is the only way back to another theme.
   If a theme could break it, the box becomes unusable — and there is no mouse to
@@ -103,6 +103,10 @@ Three deliberate exclusions:
 - **`splash` is deferred to v1.1.** Its animation is rAF-driven with a cold-boot
   hold (the first black frame is held ~4 s while the TV re-syncs HDMI). A theme
   replacing it must honour that parameter or the animation plays to nobody.
+- **`keyboard` is not wired yet.** The on-screen keyboard is rendered from
+  inside `LibraryScreen` and `WifiPage`, not from `App`, so a theme's version
+  would never be picked up. Listing it would accept a theme that then silently
+  does nothing. It returns when those two call sites go through a surface.
 - **The overlay window** (`/overlay`, the emulator bezels) is out of scope. It
   has its own mount point, is driven by `config/overlays.json`, and renders on
   top of running games.
@@ -142,7 +146,6 @@ close over its own state:
 |---|---|
 | `topbar` | `{ onSettings, onPower }` |
 | `powerModal`, `gamepadModal` | `{ onClose }` |
-| `keyboard` | the same props the default keyboard takes |
 
 Everything else takes nothing. That is what keeps the contract stable: the host
 can reorganise its screens without changing a signature.

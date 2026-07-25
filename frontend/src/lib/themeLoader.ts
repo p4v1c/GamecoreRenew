@@ -10,11 +10,15 @@ import { buildSdk, SDK_VERSION } from './themeSdk'
 
 export type SurfaceName =
   | 'background' | 'decor' | 'home' | 'library' | 'topbar'
-  | 'screensaver' | 'keyboard' | 'powerModal' | 'gamepadModal'
+  | 'screensaver' | 'powerModal' | 'gamepadModal'
 
+// `keyboard` is deliberately absent: the on-screen keyboard is rendered from
+// inside LibraryScreen and WifiPage, not from App, so nothing would pick a
+// theme's version up. Listing it would accept a theme that then silently does
+// nothing. It comes back when those two call sites go through a surface.
 export const SURFACES: SurfaceName[] = [
   'background', 'decor', 'home', 'library', 'topbar',
-  'screensaver', 'keyboard', 'powerModal', 'gamepadModal',
+  'screensaver', 'powerModal', 'gamepadModal',
 ]
 
 export interface ThemeManifest {

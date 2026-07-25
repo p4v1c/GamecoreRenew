@@ -23,12 +23,14 @@ STATE_FILE = GAMECORE_ROOT / "config" / "theme.json"
 # Bumped only when a surface or an SDK key is removed. Adding one does not.
 SDK_VERSION = 1
 
-# Kept in step with docs/themes/README.md §5. `settings` is absent on purpose:
-# it is the only way back to another theme, and the box has no pointer to
-# recover with. `splash` lands in v1.1.
+# Kept in step with docs/themes/README.md §5. Three are absent on purpose:
+# `settings` is the only way back to another theme and the box has no pointer
+# to recover with; `splash` lands in v1.1; `keyboard` is rendered from inside
+# LibraryScreen and WifiPage rather than from App, so a theme's version would
+# never be picked up — accepting it would be a promise the frontend cannot keep.
 SURFACES = {
     "background", "decor", "home", "library", "topbar",
-    "screensaver", "keyboard", "powerModal", "gamepadModal",
+    "screensaver", "powerModal", "gamepadModal",
 }
 
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
