@@ -18,7 +18,13 @@ _SKIP = ("BAT", "AC", "USB", "UCSI", "ADP", "MACSMC", "axp", "bq")
 
 # Warn when the level crosses each threshold going down, once per crossing
 THRESHOLDS = (25, 15, 10, 5)
-_POLL_SECS = 30
+# The kernel value itself is fresh — hid-playstation updates power_supply on
+# every HID report — it just changes rarely, because a battery drains slowly.
+# What this interval really governs is how fast a *charging* change or a pad
+# appearing/disappearing reaches the UI. Reading a handful of files from a
+# virtual filesystem costs microseconds, so 10s is free; the broadcast below
+# only fires when something actually changed, so the socket stays quiet.
+_POLL_SECS = 10
 # Re-arm a threshold once the level climbs back above it by this margin
 # (avoids toast spam when a reading oscillates around the threshold)
 _REARM_MARGIN = 5
@@ -97,11 +103,18 @@ def _check(batteries: list[dict]) -> list[dict]:
     return alerts
 
 
+def _signature(batteries: list[dict]) -> str:
+    """What the UI actually renders — so an unchanged poll broadcasts nothing."""
+    return "|".join(f"{b['name']}:{b['level']}:{b['charging']}:{b['player']}"
+                    for b in batteries)
+
+
 async def run() -> None:
-    """Poll sysfs and broadcast low-battery alerts."""
+    """Poll sysfs, push controller status on change, broadcast low-battery alerts."""
     from .. import ws
 
-    log.info("battery: watcher started (thresholds=%s)", THRESHOLDS)
+    log.info("battery: watcher started (thresholds=%s, poll=%ss)", THRESHOLDS, _POLL_SECS)
+    last = None
     while True:
         # Sleep FIRST: at backend startup the UI isn't connected to the
         # WebSocket yet — checking immediately would broadcast a crossed
@@ -109,7 +122,17 @@ async def run() -> None:
         # (seen after every OTA restart with a pad already below 25%).
         await asyncio.sleep(_POLL_SECS)
         try:
-            for alert in _check(read_batteries()):
+            batteries = read_batteries()
+
+            # Push the whole picture when it moves. The TopBar used to poll
+            # /api/sysinfo every 15s for this, which meant the battery pill
+            # could contradict the connection toast for a quarter of a minute.
+            sig = _signature(batteries)
+            if sig != last:
+                last = sig
+                await ws.broadcast("gp:controllers", {"controllers": batteries})
+
+            for alert in _check(batteries):
                 log.info("battery: %(name)s at %(level)d%% (threshold %(threshold)d%%)", alert)
                 await ws.broadcast("gp:battery", alert)
         except Exception:
