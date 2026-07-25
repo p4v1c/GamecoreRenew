@@ -8,6 +8,7 @@ import { BluetoothPage } from './settings/BluetoothPage'
 import { UpdatePage }    from './settings/UpdatePage'
 import { DesktopPage }   from './settings/DesktopPage'
 import { StandbyPage }   from './settings/StandbyPage'
+import { ThemesPage } from './settings/ThemesPage'
 
 interface Props { onClose: () => void }
 
@@ -18,6 +19,7 @@ const ITEMS = [
   { id: 'audio',     icon: '🔊', label: 'Audio',        sub: 'Volume, output & UI sounds' },
   { id: 'bluetooth', icon: '◉',  label: 'Bluetooth',    sub: 'Devices & pairing' },
   { id: 'standby',   icon: '🌙', label: 'Standby',      sub: 'Screensaver & low power' },
+  { id: 'themes',    icon: '🎨', label: 'Themes',       sub: 'Change the look of the UI' },
   { id: 'update',    icon: '↑',  label: 'Update',       sub: 'Check for updates' },
   { id: 'desktop',   icon: '⎋',  label: 'Desktop Mode', sub: 'Return to system', danger: true },
 ] as const

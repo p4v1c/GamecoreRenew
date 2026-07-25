@@ -7,16 +7,15 @@ import { useStore } from './store'
 import { api } from './api'
 
 import Splash from './components/Splash'
-import TopBar from './components/TopBar'
-import HomeScreen from './components/HomeScreen'
-import LibraryScreen from './components/LibraryScreen'
 import SettingsModal from './components/modals/SettingsModal'
-import PowerModal from './components/modals/PowerModal'
-import GamepadModal from './components/modals/GamepadModal'
 import Toasts from './components/ui/Toasts'
-import Screensaver from './components/Screensaver'
+import { useTheme } from './hooks/useTheme'
+import { ThemeProvider, Surface } from './components/ThemeSurface'
+import {
+  DefaultBackground, DefaultDecor, DefaultTopBar, DefaultHome, DefaultLibrary,
+  DefaultScreensaver, DefaultPowerModal, DefaultGamepadModal,
+} from './components/defaults'
 import { onWsEvent } from './hooks/useWebSocket'
-import { playSound } from './lib/sounds'
 
 // The controller screen only exits on a second □ within this window. A single
 // press there is a button test like any other — same idea as the double PS
@@ -42,6 +41,7 @@ export default function App() {
 
   useWebSocket()
   useGamepad()
+  const theme = useTheme()
 
   // Trigger overlay when emulator starts/stops
   useEffect(() => {
@@ -99,17 +99,8 @@ export default function App() {
     return () => offs.forEach(off => off())
   }, [goHome, setSession])
 
-  const handleLaunchApp = async (system: { id: string; path?: string; args?: string }) => {
-    playSound('launch')
-    try {
-      await api.games.launch(system.id)
-      setSession(system.id, system.id)
-    } catch (e) {
-      console.error('Failed to launch app:', e)
-    }
-  }
-
   return (
+    <ThemeProvider value={theme}>
     <div style={{
       width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column',
       fontFamily: "'Outfit', sans-serif", color: '#fff',
@@ -119,7 +110,10 @@ export default function App() {
       overflow: 'hidden',
     }}>
 
-      <Screensaver />
+      {/* Behind everything a theme may paint. */}
+      <Surface name="background" fallback={DefaultBackground} />
+
+      <Surface name="screensaver" fallback={DefaultScreensaver} />
 
       <AnimatePresence>
         {showSplash && <Splash onDone={() => setShowSplash(false)} />}
@@ -129,29 +123,47 @@ export default function App() {
           playtime and game counts are fetched while the boot animation plays,
           so the dashboard is already populated when it fades away (it used to
           mount empty once the splash was gone, then pop in). */}
-      <TopBar onSettings={() => setShowSettings(true)} onPower={() => setShowPower(true)} />
+      <Surface name="topbar" fallback={DefaultTopBar}
+        onSettings={() => setShowSettings(true)} onPower={() => setShowPower(true)} />
       <Toasts />
 
       {/* Both screens stay mounted at all times — toggled via display:none.
           This prevents the re-mount/re-fetch flash when navigating home from library. */}
       <div style={{ flex: 1, display: screen === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-        <HomeScreen onLaunchApp={handleLaunchApp} />
+        <Surface name="home" fallback={DefaultHome} />
       </div>
       <div style={{ flex: 1, display: screen === 'library' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-        <LibraryScreen />
+        <Surface name="library" fallback={DefaultLibrary} />
       </div>
 
+      {/* Settings is never themable: it is the only way back to another theme,
+          and the box has no pointer to recover with. */}
       <AnimatePresence>
         {showSettings && <SettingsModal key="settings" onClose={() => setShowSettings(false)} />}
       </AnimatePresence>
 
       <AnimatePresence>
-        {showPower && <PowerModal key="power" onClose={() => setShowPower(false)} />}
+        {showPower && (
+          <Surface key="power" name="powerModal" fallback={DefaultPowerModal}
+            onClose={() => setShowPower(false)} />
+        )}
       </AnimatePresence>
 
       <AnimatePresence>
-        {showGamepad && <GamepadModal key="gamepad" onClose={() => setShowGamepad(false)} />}
+        {showGamepad && (
+          <Surface key="gamepad" name="gamepadModal" fallback={DefaultGamepadModal}
+            onClose={() => setShowGamepad(false)} />
+        )}
       </AnimatePresence>
+
+      {/* Above everything, never interactive, and absent while a game runs —
+          the emulator owns the screen then. */}
+      {!sessionGameKey && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 400, pointerEvents: 'none' }}>
+          <Surface name="decor" fallback={DefaultDecor} />
+        </div>
+      )}
     </div>
+    </ThemeProvider>
   )
 }

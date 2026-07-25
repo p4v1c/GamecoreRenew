@@ -1,9 +1,8 @@
 # Theme SDK — specification
 
-> **Status: proposal. None of this is implemented yet.**
-> This document specifies a system to be built. Nothing in `frontend/` provides
-> it today. Read it as a contract to implement and to write themes against, not
-> as a description of current behaviour.
+> **Status: implemented.** Items 1–5 and 7 of §14 are in the tree; item 6
+> (extracting the whole default UI behind `sdk.defaults`) is partial — the
+> surfaces listed in §5 are exposed, the settings sub-pages are not.
 
 A theme **replaces part or all of the UI**. It is not a skin: there is no CSS
 layer to override in this app (see below), so a theme ships components, not
@@ -72,6 +71,7 @@ with no change to `update/linux.sh`. That is why they live there and not under
 | `description` | string | no | one line, shown under the name |
 | `entry` | string | no | defaults to `index.js` |
 | `preview` | string | no | defaults to `preview.png` |
+| `styles` | string | no | defaults to `theme.css`; injected automatically when present |
 | `provides` | string[] | yes | surfaces this theme overrides (§5) |
 | `schedule` | object | no | `{ "from": "MM-DD", "to": "MM-DD" }` — seasonal auto-activation |
 
@@ -116,13 +116,16 @@ there is no import map to maintain and only one React instance exists.
 |---|---|---|
 | `sdk.ui` | `html` (tagged template), `React`, `useState`, `useEffect`, `useRef`, `useMemo`, `useCallback`, `motion`, `AnimatePresence` | Framer Motion is already bundled by the host |
 | `sdk.api` | `systems`, `games`, `metadata`, `playtime`, `sysinfo`, `standby`, `update`, `wifi`, `audio`, `bluetooth` | [full signatures](../architecture/05-frontend.md#apiindexts) |
-| `sdk.nav` | `screen`, `selectedSystemId`, `selectedGameIdx`, `gridFocusIdx`, `gridPage`, `sessionGameKey`, `sessionSystemId` + `goHome`, `goLibrary`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx`, `openModal`, `closeModal` | [store reference](../architecture/05-frontend.md#store--storeindexts) |
+| `sdk.nav` | `use(selector)` for a reactive read inside a component, `get()` for a snapshot in a handler, plus `goHome`, `goLibrary`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx`, `openModal`, `closeModal` | [store reference](../architecture/05-frontend.md#store--storeindexts) |
 | `sdk.input` | `onGp(event, handler)`, `useGamepadState()`, `GP_BTN`, `events` | [event bus](../architecture/05-frontend.md#the-gamepad-event-bus--hooksusegamepadts) |
 | `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `gamecore`, `asset(path)` | `asset()` resolves a path inside the theme folder |
 | `sdk.defaults` | every default component | lets a theme wrap instead of replace |
 
-`modalDepth` and `powerPending` are **readable but not writable**: they are the
-core's focus and shutdown locks.
+`modalDepth` and `powerPending` are readable through `get()` but there is no
+setter: they are the core's focus and shutdown locks.
+
+`sdk.input.onGp` silently refuses `gp:guide` — the core owns it, because a
+double press there kills a running game.
 
 `sdk.defaults` is what makes "add a Santa on top of the existing dashboard" as
 cheap as "rewrite everything" — override `home`, render the default inside it,
@@ -131,9 +134,18 @@ add your layer.
 ## 7. Module contract
 
 The entry point default-exports a function taking `sdk` and returning an object
-whose keys are surface names. **Every surface component takes no props** — it
-pulls what it needs from the SDK. That is what keeps the contract stable: the
-host can reorganise its screens without changing any signature.
+whose keys are surface names. **Surfaces take no props and pull what they need
+from the SDK**, with three exceptions the host has to hand over because they
+close over its own state:
+
+| Surface | Props |
+|---|---|
+| `topbar` | `{ onSettings, onPower }` |
+| `powerModal`, `gamepadModal` | `{ onClose }` |
+| `keyboard` | the same props the default keyboard takes |
+
+Everything else takes nothing. That is what keeps the contract stable: the host
+can reorganise its screens without changing a signature.
 
 Illustrative shape, not an implementation:
 
@@ -168,18 +180,22 @@ A theme may ship a stylesheet for its own markup and load it from its folder.
 
 ## 10. Safety
 
-**Prerequisite before anything else: the project has no error boundary today.**
-A React error currently produces a white screen. With themes running arbitrary
-JS, that becomes the most likely failure mode, on a TV with no mouse.
+The project had no error boundary at all before this: a React throw produced a
+white screen. With themes running arbitrary JS on a TV with no pointer, that was
+the failure mode to close first. What is in place:
 
-Required before the first theme ships:
-
-1. **A boundary per surface** — one broken screen must not take down the UI.
-2. **A global boundary** — a theme that fails at load falls back to default.
-3. **Persisted safe mode** — after a crash the box restarts on the default theme
-   and says why. Without it, a theme that crashes at startup loops forever.
-4. **A rescue input** — a button combination at boot that forces the default
-   theme without going through the UI.
+1. **A boundary per surface** — a broken screen falls back to the default one;
+   the rest of the theme keeps running.
+2. **A global boundary** — anything that escapes lands on a readable message
+   naming the rescue combo, never a white screen.
+3. **Crash counting with an amnesty** — two crashes and the theme is refused at
+   load. The counter is cleared only after the theme has stayed up 20 s without
+   a surface crashing; clearing it merely because the *module* loaded meant a
+   theme that broke on every boot never reached the limit.
+4. **Persisted safe mode** — the reason is shown in Settings → Themes, and
+   picking the theme again is what retries it.
+5. **A rescue input** — hold **L1 + R1 for 2 s** anywhere to force the default
+   theme, even if nothing renders.
 
 Enforced by the core, not by convention:
 
