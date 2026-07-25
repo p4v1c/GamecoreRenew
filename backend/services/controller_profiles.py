@@ -914,6 +914,32 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
     return results
 
 
+def release_profile(player_index: int) -> list[str]:
+    """Undo the "connected player" state a disconnected pad leaves behind.
+    Only Dolphin's Wii Remote needs this: `Source = 1` keeps the emulated
+    remote presented to the game as connected even with no input device bound,
+    so a pad unplugged after co-op would haunt the next solo session as a
+    phantom player. Reset that slot to Dolphin's inactive default. Role/device
+    bound emulators (GameCube, PS1/2/3, Switch…) just go input-less when a pad
+    leaves — no phantom, nothing to undo. Never raises."""
+    if player_index < 1 or player_index > 4:
+        return []
+    results: list[str] = []
+    wii = DOLPHIN_DIR / "WiimoteNew.ini"
+    if wii.is_file():
+        try:
+            t = wii.read_text()
+            header = f"Wiimote{player_index}"
+            inactive = "Device = XInput2/0/Virtual core pointer\n"
+            if section(t, header) != inactive:
+                t = set_section(t, header, inactive)
+                backup(wii); wii.write_text(t)
+                results.append(f"dolphin: {header} released (inactive)")
+        except Exception:
+            log.exception("controller_profiles: release failed for player %d", player_index)
+    return results
+
+
 def scan_mapping() -> dict:
     """"Scan mapping" button: remember the ONE connected controller's current
     input config across the GUID-based emulators, so it auto-restores on every

@@ -253,6 +253,16 @@ async def run() -> None:
                     player = controller_registry.disconnect(key)
                     if player is not None:
                         log.info("gamepad_monitor: controller %d disconnected (%s)", player, label)
+                        # Free the slot's emulated "connected player" state (else
+                        # a Dolphin Wii Remote left on Source=1 haunts solo play).
+                        try:
+                            released = await asyncio.to_thread(
+                                controller_profiles.release_profile, player)
+                            if released:
+                                log.info("gamepad_monitor: player %d released — %s",
+                                         player, "; ".join(released))
+                        except Exception:
+                            log.exception("gamepad_monitor: release_profile failed for player %d", player)
                         try:
                             await ws.broadcast("gp:disconnected", {"player": player, "label": label})
                         except Exception:
