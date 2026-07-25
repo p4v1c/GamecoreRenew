@@ -492,9 +492,10 @@ assets/           logos/, overlays/
 emu/              ROMs per system (emu/dolphin/, emu/melonds/…) + covers/ cache
 install/          Installers: arch.sh engine (+ --unattended), installer-gui/ (Qt binary), gamecore-addon CLI, Caddyfile
 update/           OTA update script (linux.sh)
-docs/             ARCHITECTURE.md (how it all works), SECURITY.md, CONTROLLER_MODELS.md
+docs/             architecture/ (9-part deep dive), SECURITY.md, CONTROLLER_MODELS.md
 ```
 
-> **Working on the code?** `docs/ARCHITECTURE.md` is the detailed map — every
-> process, every service, the launch path, the gamepad event bus, and the
+> **Working on the code?** Start at [`docs/architecture/`](docs/architecture/) —
+> runtime topology, sequence diagrams for every flow, a function-by-function
+> reference of the backend and frontend, the controller pipeline, and the
 > invariants that are easy to break.
