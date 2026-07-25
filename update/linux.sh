@@ -84,6 +84,20 @@ if [[ -d "${SRC_DIR}/frontend/dist" ]]; then
     || echo "[update] WARNING: dist mirror failed (non-fatal)."
 fi
 
+# frontend/src likewise, so the sources on the box always match the dist above.
+# They used to be left untouched by every update: the box then ran a current
+# build on top of first-install sources, and any rebuild there (the fallback
+# below, or a hand-run `npm run build`) silently reverted the UI by months.
+# --delete is safe here — node_modules/ lives in frontend/, not frontend/src/.
+if [[ -d "${SRC_DIR}/frontend/src" ]]; then
+  rsync -a --delete "${SRC_DIR}/frontend/src/" "${GAMECORE_PATH}/frontend/src/" \
+    && echo "[update] Frontend sources synced." \
+    || echo "[update] WARNING: source sync failed (non-fatal)."
+else
+  echo "[update] NOTE: this release ships no frontend sources — the ones on disk"
+  echo "[update]       may be older than the bundle being installed."
+fi
+
 # Write the new version tag so the backend reports it correctly on next start
 echo "${LATEST_TAG}" > "${GAMECORE_PATH}/VERSION"
 echo "[update] Version set to ${LATEST_TAG}"
@@ -95,6 +109,8 @@ echo "[update] Updating Python dependencies..."
 if [[ -d "${SRC_DIR}/frontend/dist" ]]; then
   echo "[update] Frontend delivered prebuilt by CI — no rebuild needed."
 else
+  # Safe now that the sources were synced above: this builds the release's own
+  # code, not whatever happened to be sitting on the box.
   echo "[update] Rebuilding frontend..."
   cd "${GAMECORE_PATH}/frontend" || fail "frontend directory missing"
   npm install --silent || fail "npm install failed"

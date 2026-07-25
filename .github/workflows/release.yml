@@ -67,16 +67,21 @@ jobs:
 
       - name: Package — OTA archive
         run: |
-          mkdir -p dist_ota/frontend
+          mkdir -p dist_ota
           cp -r backend       dist_ota/
-          # Ship the build under frontend/dist/ — same layout as the install dir,
-          # so the OTA rsync never overwrites the frontend sources (index.html).
-          cp -r frontend/dist dist_ota/frontend/dist
+          # The whole frontend/, sources included — not just dist/. A box must
+          # never be left with sources older than the build it runs: anything
+          # that rebuilds there (update/linux.sh's fallback, a hand-run
+          # `npm run build`) would otherwise regenerate dist/ from stale code and
+          # silently roll the UI back to whatever shipped with the first install.
+          # Layout matches the install dir, so the rsync lands each file in place.
+          cp -r frontend      dist_ota/
           cp -r config        dist_ota/
           cp -r electron      dist_ota/
           cp -r update        dist_ota/
           cp -r install       dist_ota/
-          find dist_ota -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
+          find dist_ota -name 'node_modules' -exec rm -rf {} + 2>/dev/null || true
+          find dist_ota -name '__pycache__'  -exec rm -rf {} + 2>/dev/null || true
           tar -czf gamecore-ota.tar.gz -C dist_ota .
 
       - name: Package — Full archive
