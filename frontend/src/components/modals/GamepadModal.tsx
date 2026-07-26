@@ -90,7 +90,7 @@ export default function GamepadModal({ onClose }: { onClose: () => void }) {
             <kbd style={{
               minWidth: 52, textAlign: 'center', padding: '3px 8px', borderRadius: 6,
               background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
-              fontSize: 11, fontWeight: 700, color: '#c4b5fd', fontFamily: 'inherit',
+              fontSize: 11, fontWeight: 700, color: 'var(--gc-accent-bright, #c4b5fd)', fontFamily: 'inherit',
             }}>{key}</kbd>
             <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{action}</span>
           </div>

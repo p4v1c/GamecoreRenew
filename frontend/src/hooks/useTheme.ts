@@ -37,6 +37,8 @@ const STABLE_AFTER_MS = 20000
 export interface ThemeState {
   /** The theme's shell, or undefined to use the default frontend. */
   shell?: SurfaceMap['shell']
+  /** Its boot animation. Present whenever `shell` is — themes are all-or-nothing. */
+  splash?: SurfaceMap['splash']
   /** Kept for the settings page: what the loader actually resolved. */
   surfaces: SurfaceMap
   /** Active theme id, or null for the built-in default. */
@@ -61,6 +63,7 @@ export function useTheme(): ThemeState {
   const [nonce, setNonce] = useState(0)
 
   const activeIdRef = useRef<string | null>(null)
+  const selectRef = useRef<(id: string | null) => Promise<void>>(async () => {})
   const stableTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const apply = useCallback(async () => {
@@ -95,7 +98,7 @@ export function useTheme(): ThemeState {
         return
       }
 
-      const loaded = await loadTheme(m)
+      const loaded = await loadTheme(m, { selectTheme: (id) => selectRef.current(id) })
       setSurfaces(loaded); setThemeId(id); setManifest(m)
       // Forget older failures only once it has actually stayed up (see above).
       if (stableTimer.current) clearTimeout(stableTimer.current)
@@ -161,8 +164,13 @@ export function useTheme(): ThemeState {
     setNonce(n => n + 1)
   }, [])
 
+  // The SDK hands themes a `select`, but a theme is built during apply(), which
+  // runs before this callback exists. The ref closes that ordering gap without
+  // making the loader depend on render order.
+  useEffect(() => { selectRef.current = select }, [select])
+
   return {
-    shell: surfaces.shell, surfaces, themeId, manifest, loading, safeMode,
+    shell: surfaces.shell, splash: surfaces.splash, surfaces, themeId, manifest, loading, safeMode,
     resetKey: `${themeId ?? 'default'}:${nonce}`,
     reload: () => setNonce(n => n + 1),
     select, noteShellCrash,

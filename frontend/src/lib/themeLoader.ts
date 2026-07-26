@@ -6,18 +6,23 @@
  * docs/themes/README.md §2).
  */
 import type { ComponentType } from 'react'
-import { buildSdk, SDK_VERSION } from './themeSdk'
+import { buildSdk, SDK_VERSION, type SdkHost } from './themeSdk'
 
 /**
- * A theme provides one thing: the shell — the whole frontend body.
+ * The two surfaces a theme owns: the boot animation, and the frontend body.
+ *
+ * Both are mandatory. A theme that covers one and leaves the other to the
+ * default produces exactly the half-and-half UI that made the first version
+ * feel broken — a beach dashboard behind the stock purple splash. Either a
+ * theme dresses the whole thing or it does not load at all.
  *
  * It used to be nine interleaved surfaces. That is what made themes brittle:
  * the theme's tree and the host's fought over stacking, the modal stack and the
  * containers that default pages expect. One owner per tree removes the class.
  */
-export type SurfaceName = 'shell'
+export type SurfaceName = 'splash' | 'shell'
 
-export const SURFACES: SurfaceName[] = ['shell']
+export const SURFACES: SurfaceName[] = ['splash', 'shell']
 
 export interface ThemeManifest {
   id: string
@@ -60,15 +65,23 @@ export async function setActiveTheme(id: string | null): Promise<void> {
 
 const STYLE_ID = 'gc-theme-style'
 
-/** A theme owns its own markup, so a stylesheet is useful again — unlike the
- *  default UI, which styles itself inline and cannot be overridden. */
+/**
+ * A theme owns its own markup, so a stylesheet is useful again — unlike the
+ * default UI, which styles itself inline and cannot be overridden.
+ *
+ * Busted on every load, exactly like the entry module. Keying the URL on the
+ * manifest version alone meant an edited theme.css kept serving from cache
+ * until its author remembered to bump `version` — so a theme looked unchanged
+ * no matter what they wrote, and a shipped fix could stay invisible after an
+ * update.
+ */
 function applyStyles(m: ThemeManifest | null): void {
   document.getElementById(STYLE_ID)?.remove()
   if (!m?.styles) return
   const link = document.createElement('link')
   link.id = STYLE_ID
   link.rel = 'stylesheet'
-  link.href = `/themes/${encodeURIComponent(m.id)}/${m.styles}?v=${encodeURIComponent(m.version)}`
+  link.href = `/themes/${encodeURIComponent(m.id)}/${m.styles}?v=${encodeURIComponent(m.version)}&t=${Date.now()}`
   document.head.appendChild(link)
 }
 
@@ -78,10 +91,13 @@ export function clearThemeStyles(): void {
 }
 
 /**
- * Import a theme and return only the surfaces it both declared and exported.
- * Throws on anything structural — the caller records the crash and falls back.
+ * Import a theme and return its surfaces.
+ *
+ * Completeness is a load-time gate, not a per-screen fallback: a missing or
+ * malformed surface throws, the caller records it, and the default frontend
+ * runs whole. Nothing is ever half-themed.
  */
-export async function loadTheme(m: ThemeManifest): Promise<SurfaceMap> {
+export async function loadTheme(m: ThemeManifest, host: SdkHost): Promise<SurfaceMap> {
   if (m.api > SDK_VERSION) {
     throw new Error(`theme targets SDK v${m.api}, this build speaks v${SDK_VERSION}`)
   }
@@ -98,33 +114,26 @@ export async function loadTheme(m: ThemeManifest): Promise<SurfaceMap> {
 
   applyStyles(m)
 
-  const produced = factory(buildSdk(m.id))
+  const produced = factory(buildSdk(m.id, host))
   if (!produced || typeof produced !== 'object') {
     throw new Error('theme factory must return an object of surfaces')
   }
 
   const declared = new Set(m.provides)
   const out: SurfaceMap = {}
+  const missing: string[] = []
+
   for (const name of SURFACES) {
     const comp = (produced as Record<string, unknown>)[name]
-    if (!comp) continue
-    if (!declared.has(name)) {
-      // Declared-and-exported is the gate: it stops a theme from silently
-      // taking over a screen its author never listed.
-      console.warn(`[gamecore] theme ${m.id} exports "${name}" without declaring it — ignored`)
-      continue
-    }
-    if (typeof comp !== 'function') {
-      console.warn(`[gamecore] theme ${m.id}: surface "${name}" is not a component — ignored`)
-      continue
-    }
+    // Declared *and* exported: the manifest is the promise, the export is the
+    // thing. Either one alone means the theme is incomplete.
+    if (!declared.has(name)) { missing.push(`${name} (not declared in theme.json)`); continue }
+    if (typeof comp !== 'function') { missing.push(`${name} (not exported as a component)`); continue }
     out[name] = comp as ComponentType<any>
   }
 
-  for (const name of m.provides) {
-    if (!out[name as SurfaceName]) {
-      console.warn(`[gamecore] theme ${m.id} declares "${name}" but did not export it — using default`)
-    }
+  if (missing.length) {
+    throw new Error(`theme is incomplete — a theme must provide every surface: ${missing.join(', ')}`)
   }
 
   return out

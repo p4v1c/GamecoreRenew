@@ -92,11 +92,35 @@ for _dir, _route, _name in (
     (ASSETS_DIR / "logos", "/assets/logos", "logos"),
     (ASSETS_DIR / "overlays", "/assets/overlays", "overlays"),
     (GAMECORE_ROOT / "backend" / "data", "/data", "data"),
-    # Theme modules and their assets — imported by the browser from here.
-    (GAMECORE_ROOT / "config" / "themes", "/themes", "themes"),
 ):
     _dir.mkdir(parents=True, exist_ok=True)
     app.mount(_route, StaticFiles(directory=str(_dir)), name=_name)
+
+
+class _NoCacheStatic(StaticFiles):
+    """Static files that must never be served from the browser cache.
+
+    A theme is a folder of ES modules the browser imports directly. The loader
+    can bust the entry point's URL, but the entry's own relative imports
+    (home.js, settings.js, ...) and its stylesheet resolve without that query,
+    so the browser pins the first version it ever saw. Editing a theme then
+    changes nothing on screen, and a fix shipped by update stays invisible.
+    These files are small and local; not caching them costs nothing.
+    """
+
+    def is_not_modified(self, response_headers, request_headers) -> bool:
+        return False
+
+    def file_response(self, *args, **kwargs):
+        resp = super().file_response(*args, **kwargs)
+        resp.headers["Cache-Control"] = "no-store, must-revalidate"
+        return resp
+
+
+# Theme modules and their assets — imported by the browser from here.
+_themes_dir = GAMECORE_ROOT / "config" / "themes"
+_themes_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/themes", _NoCacheStatic(directory=str(_themes_dir)), name="themes")
 
 # ── WebSocket (must be registered before the catch-all static mount) ──────────
 @app.websocket("/ws")

@@ -23,12 +23,15 @@ STATE_FILE = GAMECORE_ROOT / "config" / "theme.json"
 # Bumped only when a surface or an SDK key is removed. Adding one does not.
 SDK_VERSION = 1
 
-# A theme provides one thing: the shell, i.e. the whole frontend body. It used
-# to be nine interleaved surfaces, which is what made themes brittle — the
-# theme's tree fought the host's over stacking, the modal stack and the
-# containers default pages expect. `splash` stays with the kernel so a theme
-# that ships none still gets one.
-SURFACES = {"shell"}
+# The two surfaces a theme owns: the boot animation and the frontend body.
+# Both are mandatory — a theme dresses the whole UI or it does not load. Half a
+# theme (a beach dashboard behind the stock splash) is what made the first
+# version feel broken, so incompleteness is an error, not a fallback.
+#
+# It used to be nine interleaved surfaces, which is what made themes brittle:
+# the theme's tree fought the host's over stacking, the modal stack and the
+# containers default pages expect.
+SURFACES = {"splash", "shell"}
 
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
@@ -61,6 +64,7 @@ def _read_manifest(d: Path) -> dict | None:
         return None
 
     unknown = [s for s in m["provides"] if s not in SURFACES]
+    absent = sorted(SURFACES - set(m["provides"]))
     entry = m.get("entry", "index.js")
     if not (d / entry).is_file():
         log.warning("theme %s: entry %r not found", d.name, entry)
@@ -87,8 +91,11 @@ def _read_manifest(d: Path) -> dict | None:
         "provides": [s for s in m["provides"] if s in SURFACES],
         "schedule": m.get("schedule"),
         # The UI needs a reason, not just a boolean.
-        "compatible": api_version <= SDK_VERSION,
-        "warnings": ([f"unknown surface(s) ignored: {', '.join(unknown)}"] if unknown else []),
+        "compatible": api_version <= SDK_VERSION and not absent,
+        "warnings": (
+            ([f"unknown surface(s) ignored: {', '.join(unknown)}"] if unknown else [])
+            + ([f"incomplete: does not provide {', '.join(absent)}"] if absent else [])
+        ),
     }
 
 
@@ -119,8 +126,14 @@ def set_active(theme_id: str | None) -> str | None:
     if theme_id is not None:
         if not _safe_id(theme_id):
             raise ValueError("invalid theme id")
-        if not any(t["id"] == theme_id for t in list_themes()):
+        match = next((t for t in list_themes() if t["id"] == theme_id), None)
+        if match is None:
             raise LookupError("no such theme")
+        # Refused here rather than at boot: an incomplete theme would otherwise
+        # be selectable, fail to load, and leave the player on the default UI
+        # wondering why their choice did nothing.
+        if not match["compatible"]:
+            raise ValueError("; ".join(match["warnings"]) or "theme is not compatible")
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps({"active": theme_id}, indent=2))
     return theme_id

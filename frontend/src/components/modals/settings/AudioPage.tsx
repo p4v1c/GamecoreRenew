@@ -134,14 +134,14 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
   // Focused rows get the same purple outline as the row cards
   const focusWrap = (focused: boolean): CSSProperties => ({
     padding: '0 12px', borderRadius: 10, transition: 'all 0.12s',
-    background: focused ? 'rgba(124,58,237,0.12)' : 'transparent',
-    border: focused ? '1px solid rgba(124,58,237,0.5)' : '1px solid transparent',
+    background: focused ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 12%, transparent)' : 'transparent',
+    border: focused ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 50%, transparent)' : '1px solid transparent',
   })
 
   const rowCard = (focused: boolean): CSSProperties => ({
     padding: '14px 18px', borderRadius: 10, marginBottom: 6, cursor: 'pointer',
-    background: focused ? 'rgba(124,58,237,0.2)' : 'rgba(255,255,255,0.04)',
-    border: focused ? '1px solid rgba(124,58,237,0.6)' : '1px solid rgba(255,255,255,0.07)',
+    background: focused ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 20%, transparent)' : 'rgba(255,255,255,0.04)',
+    border: focused ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 60%, transparent)' : '1px solid rgba(255,255,255,0.07)',
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     transition: 'all 0.12s',
   })
@@ -185,14 +185,14 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
           {sinks.map((s, i) => (
             <div key={s.id} onClick={() => { applySink(s.id); setOutputOpen(false) }} style={{
               padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
-              background: i === dropFocus ? 'rgba(124,58,237,0.25)' : 'transparent',
-              border: i === dropFocus ? '1px solid rgba(124,58,237,0.6)' : '1px solid transparent',
+              background: i === dropFocus ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 25%, transparent)' : 'transparent',
+              border: i === dropFocus ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 60%, transparent)' : '1px solid transparent',
               fontSize: 13, color: '#fff',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               transition: 'all 0.12s',
             }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-              {s.default && <span style={{ fontSize: 11, color: '#a78bfa', fontWeight: 600, marginLeft: 10, flexShrink: 0 }}>Active</span>}
+              {s.default && <span style={{ fontSize: 11, color: 'var(--gc-accent-soft, #a78bfa)', fontWeight: 600, marginLeft: 10, flexShrink: 0 }}>Active</span>}
             </div>
           ))}
         </div>
@@ -211,7 +211,7 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
         {/* Toggle pill */}
         <div style={{
           width: 46, height: 26, borderRadius: 13, position: 'relative', transition: 'background 0.2s',
-          background: uiEnabled ? 'rgba(124,58,237,0.8)' : 'rgba(255,255,255,0.12)', flexShrink: 0,
+          background: uiEnabled ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 80%, transparent)' : 'rgba(255,255,255,0.12)', flexShrink: 0,
         }}>
           <div style={{
             position: 'absolute', top: 3, left: uiEnabled ? 23 : 3, width: 20, height: 20,

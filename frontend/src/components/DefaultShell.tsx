@@ -12,6 +12,8 @@ import GamepadModal from './modals/GamepadModal'
 import Screensaver from './Screensaver'
 import Toasts from './ui/Toasts'
 import { launchApp } from './defaults'
+import type { HomeViewProps } from './HomeScreen/types'
+import type { LibraryViewProps } from './LibraryScreen/types'
 
 /**
  * The default frontend, as one component.
@@ -20,10 +22,10 @@ import { launchApp } from './defaults'
  * the frontend, and anything it does not provide (the splash, the rescue combo,
  * the input bus) stays with the kernel in App.tsx.
  *
- * It also takes overrides, so "I only want a different dashboard" does not mean
- * "reimplement the launcher": a theme renders this shell and passes `home`.
- * Either way the theme owns one tree, which is what keeps its layers from
- * fighting the host's.
+ * A theme supplies the parts below and nothing else. They are views: what the
+ * screens look like. What they *do* — paging, focus, the modal stack, the
+ * button bindings — stays here, so a themed frontend and the default one behave
+ * identically and only the UI differs.
  */
 
 /** The controller screen only exits on a second □ within this window. */
@@ -34,8 +36,14 @@ export interface ShellParts {
   decor?: React.ComponentType
   screensaver?: React.ComponentType
   topbar?: React.ComponentType<{ onSettings: () => void; onPower: () => void }>
-  home?: React.ComponentType
-  library?: React.ComponentType
+  /**
+   * The dashboard's *markup* — not the dashboard. Paging, focus and launching
+   * stay in HomeScreen so a themed grid and the default one behave identically;
+   * a theme that got to reimplement them always got them subtly wrong.
+   */
+  homeView?: React.ComponentType<HomeViewProps>
+  /** The library's markup. Sorting, search and launching stay with the host. */
+  libraryView?: React.ComponentType<LibraryViewProps>
   settings?: React.ComponentType<{ onClose: () => void }>
   powerModal?: React.ComponentType<{ onClose: () => void }>
   gamepadModal?: React.ComponentType<{ onClose: () => void }>
@@ -66,8 +74,6 @@ export default function DefaultShell(parts: ShellParts = {}) {
   const Decor = parts.decor ?? Nothing
   const ScreensaverC = parts.screensaver ?? Screensaver
   const TopBarC = parts.topbar ?? TopBar
-  const HomeC = parts.home ?? (() => <HomeScreen onLaunchApp={launchApp} />)
-  const LibraryC = parts.library ?? LibraryScreen
   const SettingsC = parts.settings ?? SettingsModal
   const PowerC = parts.powerModal ?? PowerModal
   const GamepadC = parts.gamepadModal ?? GamepadModal
@@ -143,10 +149,10 @@ export default function DefaultShell(parts: ShellParts = {}) {
         {/* Both screens stay mounted at all times — toggled via display:none.
             This prevents the re-mount/re-fetch flash when navigating home. */}
         <div style={{ position: 'relative', zIndex: 1, flex: 1, display: screen === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-          <HomeC />
+          <HomeScreen onLaunchApp={launchApp} view={parts.homeView} />
         </div>
         <div style={{ position: 'relative', zIndex: 1, flex: 1, display: screen === 'library' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-          <LibraryC />
+          <LibraryScreen view={parts.libraryView} />
         </div>
       </div>
 

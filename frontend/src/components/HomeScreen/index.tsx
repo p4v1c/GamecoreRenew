@@ -1,17 +1,21 @@
 /**
- * HomeScreen — grid carousel.
+ * HomeScreen — the dashboard's behaviour.
  *
  * Layout: COLS × ROWS cards per page.
  * Navigating past the last column slides to the next page.
  * Mouse hover also works independently of gamepad focus.
+ *
+ * The markup lives in a view component, default or themed. This file is what
+ * guarantees they behave identically: the paging rules, the gamepad bindings
+ * and the launching are here, and a theme cannot replace them.
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { motion } from 'framer-motion'
 import { useStore } from '../../store'
 import { api, SystemEntry, PlaytimeEntry } from '../../api'
 import { onGp } from '../../hooks/useGamepad'
 import { onWsEvent } from '../../hooks/useWebSocket'
-import SystemCard from './SystemCard'
+import DefaultHomeView from './DefaultHomeView'
+import type { HomeViewProps } from './types'
 
 const COLS = 4
 const ROWS = 2
@@ -19,9 +23,10 @@ const PER_PAGE = COLS * ROWS
 
 interface Props {
   onLaunchApp: (system: SystemEntry) => void
+  view?: React.ComponentType<HomeViewProps>
 }
 
-export default function HomeScreen({ onLaunchApp }: Props) {
+export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }: Props) {
   const { goLibrary, gridFocusIdx, gridPage, setGridFocus, setGridPage, modalDepth, screen } = useStore()
 
   // Always-fresh refs so gamepad closures don't go stale
@@ -35,7 +40,6 @@ export default function HomeScreen({ onLaunchApp }: Props) {
   const totalItems = systems.length
   const pageCount = Math.ceil(totalItems / PER_PAGE)
   const pageItems = systems.slice(gridPage * PER_PAGE, (gridPage + 1) * PER_PAGE)
-  const globalIdx = gridPage * PER_PAGE + gridFocusIdx
 
   const loadSystems = useCallback(() => {
     api.systems.list().then(setSystems).catch(console.error)
@@ -135,15 +139,17 @@ export default function HomeScreen({ onLaunchApp }: Props) {
     }
   }, [gridFocusIdx, gridPage, pageCount, pageItems.length, lastIdxOf, setGridFocus, setGridPage])
 
-  const activate = useCallback(() => {
-    const system = pageItems[gridFocusIdx]
+  /** Opens a card; defaults to the focused one, so the pad and the mouse agree. */
+  const activate = useCallback((idx: number = gridFocusIdx) => {
+    const system = pageItems[idx]
     if (!system) return
+    if (idx !== gridFocusIdx) setGridFocus(idx)
     if (system.kind === 'app' || system.type === 'application') {
       onLaunchApp(system)
     } else {
       goLibrary(system.id)
     }
-  }, [pageItems, gridFocusIdx, goLibrary, onLaunchApp])
+  }, [pageItems, gridFocusIdx, setGridFocus, goLibrary, onLaunchApp])
 
   // Gamepad events — all guarded so they don't fire when a modal is open
   useEffect(() => {
@@ -167,116 +173,25 @@ export default function HomeScreen({ onLaunchApp }: Props) {
   )
 
   return (
-    <div style={{
-      flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', padding: '28px 48px', overflowY: 'auto',
-      position: 'relative',
-    }}>
-      {/* Stats */}
-      <div style={{ marginBottom: 32, textAlign: 'center' }}>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', letterSpacing: 3, marginBottom: 10 }}>
-          YOUR LIBRARY
-        </div>
-        <div style={{ display: 'flex', gap: 36, justifyContent: 'center' }}>
-          {[
-            { v: systems.filter(s => s.kind === 'emulator' || s.type === 'emulator').length, l: 'Systems' },
-            { v: totalGames, l: 'Games' },
-            { v: `${totalHours}h`, l: 'Played' },
-          ].map(s => (
-            <div key={s.l} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 26, fontWeight: 800, color: '#c4b5fd' }}>{s.v}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: 1, marginTop: 2 }}>{s.l}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Grid carousel */}
-      <div style={{ width: '100%', maxWidth: 960, position: 'relative' }}>
-        {/* Prev page arrow */}
-        {gridPage > 0 && (
-          <button
-            onClick={() => { setGridPage(gridPage - 1); setGridFocus(0) }}
-            style={{
-              position: 'absolute', left: -44, top: '50%', transform: 'translateY(-50%)',
-              width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.12)',
-              background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)',
-              fontSize: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              zIndex: 2, transition: 'all 0.15s',
-            }}
-          >‹</button>
-        )}
-
-        {/* Next page arrow */}
-        {gridPage < pageCount - 1 && (
-          <button
-            onClick={() => { setGridPage(gridPage + 1); setGridFocus(0) }}
-            style={{
-              position: 'absolute', right: -44, top: '50%', transform: 'translateY(-50%)',
-              width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.12)',
-              background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)',
-              fontSize: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              zIndex: 2, transition: 'all 0.15s',
-            }}
-          >›</button>
-        )}
-
-        <div style={{ overflow: 'hidden', width: '100%', willChange: 'transform' }}>
-          <motion.div
-            animate={{ x: pageCount > 1 ? `${-(gridPage / pageCount) * 100}%` : 0 }}
-            transition={{ type: 'spring', stiffness: 280, damping: 30, clamp: true }}
-            style={{ display: 'flex', width: `${Math.max(pageCount, 1) * 100}%` }}
-          >
-            {Array.from({ length: Math.max(pageCount, 1) }).map((_, pi) => (
-              <div key={pi} style={{
-                width: `${100 / Math.max(pageCount, 1)}%`, flexShrink: 0,
-                display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)`,
-                gridTemplateRows: `repeat(${ROWS}, 1fr)`, alignContent: 'start', gap: 12,
-              }}>
-                {systems.slice(pi * PER_PAGE, (pi + 1) * PER_PAGE).map((system, i) => (
-                  <SystemCard
-                    key={system.id}
-                    system={system}
-                    playtime={playtimeMap[system.id]}
-                    gameCount={gameCountMap[system.id]}
-                    focused={pi === gridPage && i === gridFocusIdx}
-                    onClick={() => {
-                      setGridFocus(i)
-                      if (system.kind === 'app' || system.type === 'application') {
-                        onLaunchApp(system)
-                      } else {
-                        goLibrary(system.id)
-                      }
-                    }}
-                  />
-                ))}
-              </div>
-            ))}
-          </motion.div>
-        </div>
-      </div>
-
-      {/* Page indicator */}
-      {pageCount > 1 && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 24 }}>
-          {Array.from({ length: pageCount }).map((_, i) => (
-            <div
-              key={i}
-              onClick={() => { setGridPage(i); setGridFocus(0) }}
-              style={{
-                width: i === gridPage ? 20 : 6, height: 6, borderRadius: 3, cursor: 'pointer',
-                background: i === gridPage ? '#7c3aed' : 'rgba(255,255,255,0.15)',
-                transition: 'all 0.3s',
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Gamepad hint */}
-      <div style={{ marginTop: 16, fontSize: 11, color: 'rgba(255,255,255,0.15)', letterSpacing: 1 }}>
-        {pageCount > 1 ? '← → Navigate · L1/R1 Page · ✕ Select · □ Controller' : '← → Navigate · ✕ Select · □ Controller'}
-      </div>
-    </div>
+    <View
+      systems={systems}
+      pageItems={pageItems}
+      playtime={playtimeMap}
+      counts={gameCountMap}
+      focusIdx={gridFocusIdx}
+      page={gridPage}
+      pageCount={pageCount}
+      cols={COLS}
+      rows={ROWS}
+      perPage={PER_PAGE}
+      totals={{
+        systems: systems.filter(s => s.kind === 'emulator' || s.type === 'emulator').length,
+        games: totalGames,
+        hours: totalHours,
+      }}
+      onFocus={setGridFocus}
+      onPage={(p) => { setGridPage(p); setGridFocus(0) }}
+      onActivate={activate}
+    />
   )
 }

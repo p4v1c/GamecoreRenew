@@ -113,8 +113,8 @@ export function UpdatePage({ onClose, onBack }: { onClose: () => void; onBack: (
       <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
         <button onClick={check} disabled={checking || installing} style={{
           flex: 1, padding: '10px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 600,
-          background: 'rgba(124,58,237,0.15)', color: '#c4b5fd',
-          border: focusIdx === 0 ? '2px solid rgba(124,58,237,0.9)' : '1px solid rgba(124,58,237,0.35)',
+          background: 'color-mix(in srgb, var(--gc-accent, #7c3aed) 15%, transparent)', color: 'var(--gc-accent-bright, #c4b5fd)',
+          border: focusIdx === 0 ? '2px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 90%, transparent)' : '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 35%, transparent)',
           outline: 'none', opacity: checking || installing ? 0.5 : 1,
         }}>
           {checking ? '⏳ Checking…' : '🔍 Check again'}

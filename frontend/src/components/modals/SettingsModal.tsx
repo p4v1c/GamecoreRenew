@@ -52,6 +52,7 @@ export default function SettingsModal({ onClose }: Props) {
   if (page === 'audio')     return <AudioPage     onClose={onClose} onBack={back} />
   if (page === 'bluetooth') return <BluetoothPage onClose={onClose} onBack={back} />
   if (page === 'standby')   return <StandbyPage   onClose={onClose} onBack={back} />
+  if (page === 'themes')    return <ThemesPage    onClose={onClose} onBack={back} />
   if (page === 'update')    return <UpdatePage    onClose={onClose} onBack={back} />
   if (page === 'desktop')   return <DesktopPage   onClose={onClose} onBack={back} />
 
@@ -63,8 +64,8 @@ export default function SettingsModal({ onClose }: Props) {
           <div key={it.id} onClick={() => setPage(it.id as Page)} style={{
             display: 'flex', alignItems: 'center', gap: 18, padding: '18px 22px',
             borderRadius: 14, cursor: 'pointer',
-            background: idx === focusIdx ? 'rgba(124,58,237,0.15)' : 'rgba(255,255,255,0.04)',
-            border: idx === focusIdx ? '1px solid rgba(124,58,237,0.4)' : '1px solid rgba(255,255,255,0.07)',
+            background: idx === focusIdx ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 15%, transparent)' : 'rgba(255,255,255,0.04)',
+            border: idx === focusIdx ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 40%, transparent)' : '1px solid rgba(255,255,255,0.07)',
             transition: 'all 0.15s',
           }}>
             <div style={{ fontSize: 26, width: 36, textAlign: 'center' }}>{it.icon}</div>

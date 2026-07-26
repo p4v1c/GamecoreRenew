@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import htm from 'htm'
 
 import { api } from '../api'
+import { fetchThemeIndex } from './themeLoader'
 import { useStore } from '../store'
 import { onGp, useGamepadState, GP_BTN } from '../hooks/useGamepad'
 import { onWsEvent } from '../hooks/useWebSocket'
@@ -38,6 +39,7 @@ export interface ThemeSdk {
   ui: Record<string, unknown>
   api: typeof api
   nav: Record<string, unknown>
+  themes: Record<string, unknown>
   input: Record<string, unknown>
   system: Record<string, unknown>
   defaults: typeof defaults
@@ -46,7 +48,12 @@ export interface ThemeSdk {
 /**
  * @param themeId  used to resolve asset paths inside the theme's own folder
  */
-export function buildSdk(themeId: string): ThemeSdk {
+export interface SdkHost {
+  /** The host's own theme switch — clears safe mode and crash counts too. */
+  selectTheme: (id: string | null) => Promise<void>
+}
+
+export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
   const html = htm.bind(React.createElement)
 
   return {
@@ -59,6 +66,16 @@ export function buildSdk(themeId: string): ThemeSdk {
     },
 
     api,
+
+    /**
+     * So a theme can dress its own theme picker instead of falling back to the
+     * host's dark one. Selecting is the host's call either way: it clears safe
+     * mode, resets the crash count and reloads the frontend.
+     */
+    themes: {
+      list: () => fetchThemeIndex(),
+      select: (id: string | null) => host.selectTheme(id ?? null),
+    },
 
     nav: {
       /** Reactive read — call it inside a component. */

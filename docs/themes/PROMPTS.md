@@ -54,12 +54,15 @@ model can implement it without seeing your reasoning.
 
 ## What to redesign
 
-Design only these surfaces — leave the rest to the default theme:
+You are redesigning the UI, **not the behaviour**. Paging, focus, launching and
+the button bindings stay with the host; you supply what each screen looks like.
+So design the states — resting, focused, empty, first page, last page — and do
+not invent new navigation.
 
 - [ ] `background` — full-screen layer behind everything
 - [ ] `decor` — full-screen layer above everything, **non-interactive**
-- [ ] `home` — the dashboard: system tiles, library stats, page dots
-- [ ] `library` — game grid, search, per-game metadata panel
+- [ ] `homeView` — the dashboard: system tiles, library stats, page dots
+- [ ] `libraryView` — game list, search, per-game metadata panel
 - [ ] `topbar` — clock, IP address, storage bar, controller battery
 - [ ] `screensaver` — idle slideshow of game cover art
 - [ ] `powerModal` — Scan mapping / Restart / Shutdown
@@ -68,7 +71,12 @@ Design only these surfaces — leave the rest to the default theme:
       Bluetooth, standby, themes, update). The working sub-pages can be reused
       as-is, so design the menu shell and say which pages you restyle.
 
-`splash` and the on-screen keyboard are out of scope. Do not design them.
+- [ ] `splash` — the boot animation. **Mandatory.** A theme dresses the whole
+      UI or it does not load, and a themed dashboard behind the stock purple
+      splash is exactly what that rule prevents. Keep it cheap: it runs while
+      the backend is still starting.
+
+The on-screen keyboard is out of scope. Do not design it.
 
 ## Hard constraints — non-negotiable
 
@@ -158,10 +166,15 @@ Implement a **GameCore theme** from the design brief below.
 
 A single directory, `config/themes/[THEME-ID]/`, containing:
 
-- `theme.json` — manifest. `api: 1`, `provides: ["shell"]`.
+- `theme.json` — manifest. `api: 1`, `provides: ["splash", "shell"]` — both,
+  or the theme will not load.
 - `index.js` — native ES module, default-exports a function taking `sdk` and
-  returning the surface components. **No JSX, no imports, no build step.** Use
-  `sdk.ui.html` for markup and the hooks off `sdk.ui`.
+  returning `{ splash, shell }`. **No JSX, no build step.** Use `sdk.ui.html`
+  for markup and the hooks off `sdk.ui`. Keep `index.js` to the wiring and put
+  one feature per file next to it (`splash.js`, `home.js`, `settings.js`,
+  `topbar.js`…), like `config/themes/summer` — the directory listing then
+  doubles as the check-list. Relative `import` between your own files is fine;
+  it is bare specifiers (npm packages) that do not exist without a build.
 - `theme.css` — your own styles, for your own markup.
 - `assets/` — SVGs you author inline; for any raster asset the brief lists,
   create a clearly-named placeholder and list it in your summary.
@@ -170,11 +183,17 @@ A single directory, `config/themes/[THEME-ID]/`, containing:
 
 ## Rules you must follow
 
-- **Return one `shell`.** Render `sdk.defaults.Shell` and pass it only the
-  parts you redesign — do not reimplement screens the brief did not ask for.
+- **Return `{ splash, shell }`.** Both, or the theme will not load. Render
+  `sdk.defaults.Shell` and pass it only the parts you redesign — do not
+  reimplement screens the brief did not ask for.
 - **Never write a `z-index`.** The shell owns the stacking.
-- **Reuse the settings sub-pages inside `sdk.defaults.SettingsOverlay`**, which
-  is the container they were written for.
+- **Render the settings sub-pages bare.** Each one already *is* a full-screen
+  overlay; boxing it nests a `position: fixed` layer inside a flex container and
+  shatters its layout. Restyle them with the `--gc-overlay-*` and `--gc-accent*`
+  variables in your stylesheet instead.
+- **Supply views, not screens.** `homeView` and `libraryView` receive their data
+  and callbacks as props; paging, focus, sorting and launching stay with the
+  host. Design the states, not the navigation.
 - **Read data through `sdk.api`**, navigation through `sdk.nav`, input through
   `sdk.input`. Never fetch a URL directly, never touch `window` beyond
   `sdk.system.gamecore`.

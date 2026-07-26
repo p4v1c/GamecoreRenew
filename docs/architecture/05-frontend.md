@@ -2,19 +2,47 @@
 
 React 18 + Vite + Zustand + Framer Motion. **No CSS files** — styling is
 inline style objects next to the markup, which is why components look long.
+(A *theme* is the exception: it owns its markup, so it ships a stylesheet.
+See `docs/themes/README.md`.)
 
 ```
 src/
   main.tsx                  createRoot
-  App.tsx           157 l.  shell, global gamepad bindings, modal orchestration
+  App.tsx           108 l.  the kernel — see below
   store/index.ts     57 l.  Zustand store
   api/index.ts      119 l.  typed fetch wrappers, BASE = "/api"
   hooks/
     useGamepad.ts   215 l.  Gamepad API → CustomEvents + live state
     useWebSocket.ts  73 l.  backend push → handler registry
+    useTheme.ts     178 l.  loads the active theme, crash counting, L1+R1 rescue
+  lib/
+    themeLoader.ts  140 l.  imports a theme module, validates its surfaces
+    themeSdk.ts     138 l.  the object a theme receives — the whole contract
   components/…
-  lib/…
 ```
+
+## Kernel, shell, views
+
+Picking a theme swaps the frontend. Three layers, and the boundaries are what
+keep a theme from breaking the launcher:
+
+| Layer | File | What lives there |
+|---|---|---|
+| **Kernel** | `App.tsx` | the input bus, the WebSocket, `gp:guide`, the Electron overlay handshake, the splash slot and its watchdog, the error boundaries. A theme cannot take any of it. |
+| **Shell** | `components/DefaultShell.tsx` | the whole frontend body: stacking, the modal stack, which button opens which screen. A theme renders *one* of these — the default one with parts overridden, or its own tree. |
+| **Views** | `HomeScreen/DefaultHomeView.tsx`, `LibraryScreen/DefaultLibraryView.tsx` | markup only. |
+
+The view seam is the important one. `HomeScreen` and `LibraryScreen` keep every
+decision — paging, focus, sorting, search, launching, the d-pad bindings — and
+hand a plain props object to a view component (`HomeScreen/types.ts`,
+`LibraryScreen/types.ts`). A theme supplies `homeView` / `libraryView` and
+nothing else, so **a themed screen cannot behave differently from the default
+one**: it has no code that could. Every navigation bug in the first version of
+the theme system came from a theme reimplementing this logic slightly wrong.
+
+`ThemeSurface.tsx` mounts the theme's shell behind an error boundary; if it
+throws, the default shell takes over and the crash is recorded (three strikes
+and the theme is refused at boot — `useTheme.ts`).
 
 ## Store — `store/index.ts`
 
@@ -117,28 +145,64 @@ and returns an unsubscribe.
 
 | File | Lines | Role |
 |---|---|---|
-| `App.tsx` | 157 | mounts everything, owns the four global gamepad bindings and `CONTROLLER_CLOSE_MS` |
+| `App.tsx` | 108 | the kernel: splash slot + `SPLASH_WATCHDOG_MS`, `gp:guide`, overlay handshake |
+| `components/DefaultShell.tsx` | 190 | the default frontend as one component; `ShellParts`, `ModalScope`, `CONTROLLER_CLOSE_MS` |
+| `components/ThemeSurface.tsx` | 44 | `ThemeProvider` + `Shell` — one themed tree, behind a boundary |
+| `components/defaults.tsx` | 89 | what a theme may reuse: `Shell`, `DefaultSettingsPages`, `launchApp`, … |
 | `components/Splash.tsx` | 374 | rAF boot animation; `T_IMPACT`, `HOLD_MS` and `FRAGMENTS` drive the timeline |
-| `components/HomeScreen/index.tsx` | 282 | 4×2 grid (`COLS`, `ROWS`, `PER_PAGE`), pagination, focus |
+| `components/HomeScreen/index.tsx` | 197 | **behaviour**: 4×2 grid (`COLS`, `ROWS`, `PER_PAGE`), paging, focus, launching |
+| `components/HomeScreen/DefaultHomeView.tsx` | 120 | **markup** of the default dashboard |
+| `components/HomeScreen/types.ts` | 32 | `HomeViewProps` — the seam a theme plugs into |
 | `components/HomeScreen/SystemCard.tsx` | 96 | one tile; `getColor(system)` falls back to `SYSTEM_COLORS` |
-| `components/LibraryScreen/index.tsx` | 458 | game grid, search, pagination, `GameMetaPanel`, `CoverImage` |
+| `components/LibraryScreen/index.tsx` | 212 | **behaviour**: sorting, search, selection, launching, the keyboard modal |
+| `components/LibraryScreen/DefaultLibraryView.tsx` | 244 | **markup** of the default library |
+| `components/LibraryScreen/types.ts` | 58 | `LibraryViewProps`, `SORT_KEYS`, `SORT_LABELS` |
+| `components/LibraryScreen/CoverImage.tsx` | 31 | cover art + missing-art fallback; handed to the view |
+| `components/LibraryScreen/GameMetaPanel.tsx` | 40 | year/genres/players; handed to the view |
 | `components/TopBar/index.tsx` | 134 | clock, IP, storage, `ControllerBattery`, `TBtn` |
 | `components/Screensaver.tsx` | 136 | standby slideshow, `ROTATE_MS = 9000` |
 | `components/OverlayScreen/index.tsx` | 109 | what the transparent Electron overlay window renders |
-| `components/modals/SettingsModal.tsx` | 88 | menu; pages live in `settings/` |
+| `components/modals/SettingsModal.tsx` | 85 | menu; pages live in `settings/`. **Every id in `ITEMS` needs a matching `page === …` line** — `themes` was missing one and the button was silently dead. |
 | `components/modals/PowerModal.tsx` | 136 | Scan mapping · Restart · Shutdown, `POWER_FAILSAFE_MS = 10000` |
 | `components/modals/GamepadModal.tsx` | 111 | the controller screen |
 | `components/modals/gamepad/ControllerArt.tsx` | 323 | the pad drawing — see below |
-| `components/ui/index.tsx` | 133 | `Overlay`, `OverlayLabel`, `BackHeader`, `Toggle`, `SliderRow`, `Chip`, `Bars`, `hexToRgb`, `fmtTime`, `fmtDate` |
+| `components/ui/index.tsx` | 144 | `Overlay`, `OverlayLabel`, `BackHeader`, `Toggle`, `SliderRow`, `Chip`, `Bars`, `hexToRgb`, `fmtTime`, `fmtDate` |
 | `components/ui/VirtualKeyboard.tsx` | 205 | on-screen keyboard (WiFi passwords, library search) |
 | `components/ui/Toasts.tsx` | 117 | top-right stack, `TOAST_MS = 10000` |
 
 ### Settings pages — `components/modals/settings/`
 
 `WifiPage` (218), `AudioPage` (233), `BluetoothPage` (189), `StandbyPage`
-(102), `UpdatePage` (143), `DesktopPage` (33). All share
+(102), `ThemesPage` (156), `UpdatePage` (143), `DesktopPage` (33). All share
 `useSubPageGamepad(onBack, onClose, enabled)` (18 l.), which binds ○ → back
 and □ → close consistently, so no page reimplements it.
+
+**Each page wraps itself in `<Overlay>`.** They are not fragments: a page *is* a
+full-screen fixed layer. Putting one inside another box nests a `position:
+fixed` layer in a flex container and shatters its layout — which is exactly what
+happened when a theme tried to give them its own panel. A theme reuses them bare
+and restyles them through CSS variables instead (below).
+
+### Themable tokens
+
+The settings surface is drawn with inline styles, so a stylesheet cannot reach
+it. These variables are the hook, and every one falls back to the value the dark
+UI has always used — nothing changes unless a theme defines them:
+
+| Variable | Default | Used by |
+|---|---|---|
+| `--gc-overlay-scrim` | `rgba(5,5,12,0.88)` | the full-screen backdrop behind a settings page |
+| `--gc-overlay-blur` | `blur(24px)` | same |
+| `--gc-overlay-panel` | `rgba(255,255,255,0.035)` | the card itself |
+| `--gc-overlay-border` | `rgba(255,255,255,0.09)` | its hairline |
+| `--gc-overlay-radius` | `20px` | its corners |
+| `--gc-accent` | `#7c3aed` | focus rings, toggles, sliders, the keyboard, the theme picker's marker |
+| `--gc-accent-soft` | `#a78bfa` | secondary accent text |
+| `--gc-accent-bright` | `#c4b5fd` | figures and emphasis |
+
+Write `var(--gc-accent, #7c3aed)` — never a bare `var(--gc-accent)` inside
+`color-mix()`. Without the fallback the whole function is invalid when no theme
+is active, the declaration is dropped, and the *default* UI loses its accent.
 
 `AudioPage` names its rows (`ROW_VOLUME`, `ROW_OUTPUT`, `ROW_UI_TOGGLE`,
 `ROW_UI_VOLUME`, `ROW_COUNT`) rather than indexing by number — worth copying

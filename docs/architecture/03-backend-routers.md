@@ -18,9 +18,17 @@ Routers parse, validate and delegate; the logic lives in
 | `websocket_endpoint(websocket)` | `WS /ws` — accepts, then reads forever; every send is a broadcast from `ws.py` |
 
 Static mounts, in order: `/covers`, `/assets/logos`, `/assets/overlays`,
-`/data`, then `/` → `frontend/dist` with `html=True`. The loop `mkdir`s each
-directory first — a conditional mount decided at import time used to leave
-`/covers` dead until a restart on a fresh checkout.
+`/data`, `/themes`, then `/` → `frontend/dist` with `html=True`. The loop
+`mkdir`s each directory first — a conditional mount decided at import time used
+to leave `/covers` dead until a restart on a fresh checkout.
+
+`/themes` is mounted through `_NoCacheStatic`, a `StaticFiles` subclass that
+sets `Cache-Control: no-store` and refuses 304s. A theme is a folder of ES
+modules the browser imports directly: the loader can bust the entry point's URL,
+but the entry's own relative imports and its stylesheet resolve without that
+query, so the browser would pin the first version it ever saw. Editing a theme
+would then change nothing on screen, and a fix shipped by update could stay
+invisible.
 
 > `@app.websocket("/ws")` **must** stay declared before the `/` mount. The SPA
 > catch-all would otherwise swallow the upgrade request.
@@ -110,6 +118,17 @@ why the registry stays consistent whoever ran the command.
 | `check_update()` | `GET /update/check` | queries the GitHub releases API |
 | `apply_update()` | `POST /update/apply` | spawns `update/linux.sh` in the background |
 | `_run_update()` / `_pump()` | — | streams stdout line by line over the WebSocket, which is what the settings page renders live |
+
+## `themes.py` (37 l.) — the theme catalogue
+
+| Route | What it does |
+|---|---|
+| `GET /api/themes` | `{ sdk_version, active, themes[] }` — one validated manifest per folder in `config/themes/` |
+| `POST /api/themes/active` | `{ id }` or `{ id: null }` for the default; persists to `config/theme.json` |
+
+`POST` refuses an incompatible theme with a reason rather than storing it — an
+incomplete theme would otherwise be selectable, fail to load, and leave the
+player on the default UI wondering why their choice did nothing.
 
 ## `sysinfo.py` (30 l.)
 

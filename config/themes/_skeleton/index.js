@@ -1,26 +1,52 @@
 /**
- * Skeleton theme — copy this folder, rename it, and list the surfaces you
- * implement in theme.json → "provides".
+ * Skeleton theme — copy this folder, rename it, and make it yours.
+ *
+ * A theme is all-or-nothing: it must provide BOTH surfaces, `splash` and
+ * `shell`, and list them in theme.json → "provides". Anything less does not
+ * load — half a theme (a themed dashboard behind the stock boot animation) is
+ * what made the first version feel broken.
+ *
+ * You are dressing the frontend, not rebuilding it: paging, focus, the modal
+ * stack and the button bindings stay with the host, so your theme behaves
+ * exactly like the default and only the UI changes.
+ *
+ * Keep one feature per file, like config/themes/summer — the directory listing
+ * then doubles as your check-list.
  *
  * Full contract: docs/themes/README.md
- * The app it plugs into: docs/architecture/05-frontend.md
  */
 export default (sdk) => {
-  const { html } = sdk.ui
+  const { html, useEffect } = sdk.ui
 
-  // A theme provides one thing: the shell — the whole frontend body.
-  //
-  // sdk.defaults.Shell IS the default frontend and takes parts, so you only
-  // rewrite what you care about:
-  //   background · decor · topbar · home · library
+  // Yours to draw, but not to skip: call onDone when finished, or the host
+  // gives up waiting and boots without you.
+  const Splash = ({ onDone }) => {
+    useEffect(() => {
+      const t = setTimeout(onDone, 1200)
+      return () => clearTimeout(t)
+    }, [onDone])
+    return html`
+      <div style=${{
+        position: 'fixed', inset: 0, zIndex: 900, background: '#09090f', color: '#fff',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        font: '600 34px/1 Outfit, sans-serif', letterSpacing: '0.2em',
+      }}>GAMECORE</div>`
+  }
+
+  // sdk.defaults.Shell IS the default frontend and takes views, so you rewrite
+  // only what you care about:
+  //   background · decor · topbar · homeView · library
   //   screensaver · settings · powerModal · gamepadModal
   //
-  // const MyHome = () => html`<div>…</div>`
-  // return { shell: () => html`<${sdk.defaults.Shell} home=${MyHome} />` }
+  // Note homeView, not home: you supply the dashboard's markup, the host keeps
+  // its behaviour. That is what stops a theme drifting from the default.
   //
-  // Or return your own tree entirely and pick from sdk.defaults what you do
-  // not want to write. Either way you own one tree — so you own the stacking,
-  // and you never write a z-index.
+  //   const MyHome = ({ pageItems, focusIdx }) => html`<div>…</div>`
+  //   const Shell = () => html`<${sdk.defaults.Shell} homeView=${MyHome} />`
+  //
+  // You own one tree either way — so you own the stacking, and you never write
+  // a z-index.
+  const Shell = () => html`<${sdk.defaults.Shell} />`
 
-  return { shell: () => html`<${sdk.defaults.Shell} />` }
+  return { splash: Splash, shell: Shell }
 }

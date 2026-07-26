@@ -157,3 +157,53 @@ so a type error fails the build.
 **Two `DEBUG` flags.** `backend/config.py` and `electron/main.js`. Both must be
 `false` on a device; `DEV` (Electron loading Vite) is
 `DEBUG && ELECTRON_DEV=1`.
+
+**CSS transitions do not progress under `--virtual-time-budget` either.**
+The rAF polyfill above does not help: the animation clock is frozen, so a
+transitioned property keeps its *starting* value forever. Measuring an element
+mid-transition therefore reports "it never moved". Disable the transition in the
+harness before asserting on geometry:
+
+```js
+const st = document.createElement('style')
+st.textContent = '.my-track { transition: none !important; }'
+document.head.appendChild(st)
+```
+
+Two days of "the carousel is broken" came from this. The carousel was fine.
+
+**Match a component by what it actually renders.** A probe that looked for the
+default splash by its `<canvas>` reported "no splash" in every run — that splash
+is built entirely from `<div>`s. The test passed while proving nothing. Pin
+components on something stable and verified: a root `z-index`, a class the
+component owns.
+
+## Themes
+
+**Theme files must not be cached by the browser.** The loader can bust the entry
+module's URL, but the entry's own relative imports (`home.js`, `settings.js`, …)
+and its stylesheet resolve without that query, so the browser pins the first
+version it ever saw. Editing a theme then changes nothing on screen — and a fix
+shipped by update stays invisible. `/themes` is therefore mounted through
+`_NoCacheStatic` in `backend/main.py`, which sets `Cache-Control: no-store` and
+disables 304s.
+
+**The splash must be chosen once, after the theme resolves.** Reading
+`theme.splash ?? Splash` on every render mounts the *default* splash first —
+the theme is still loading, so its splash is undefined — then swaps in the
+theme's mid-animation. Both boot animations play over each other. `App.tsx`
+freezes the choice in a ref and shows a plain opaque cover until `theme.loading`
+clears.
+
+**`overflow-clip-margin` is not reliably applied**, so do not build a layout that
+depends on it. To let a focus ring overflow a clipping container, grow the clip
+box with `padding` and pull it back with an equal negative `margin`: the content
+box — and everything sized against it — is unchanged, and plain
+`overflow: hidden` then clips further out.
+
+**A settings page is a full-screen overlay, not a fragment.** Every page in
+`components/modals/settings/` wraps itself in `<Overlay>`. Nesting one inside
+another box puts a `position: fixed` layer in a flex container and destroys its
+layout. `ThemesPage` was the one page that had forgotten its wrapper, and it
+rendered as loose content stacked under the dashboard — invisible for as long as
+it also had no route in `SettingsModal`.

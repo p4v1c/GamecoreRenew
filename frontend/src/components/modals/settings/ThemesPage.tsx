@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BackHeader } from '../../ui'
+import { Overlay, BackHeader } from '../../ui'
 import { useSubPageGamepad } from './useSubPageGamepad'
 import { onGp } from '../../../hooks/useGamepad'
 import { playSound } from '../../../lib/sounds'
@@ -24,8 +24,22 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
   }
   useEffect(refresh, [])
 
-  // Row 0 is always "Default", then one row per installed theme.
-  const rows = 1 + items.length
+  /**
+   * What you are using, first; everything else after. Default is one of the
+   * rows, not a separate concept — switching back to it is the same gesture as
+   * switching to anything else.
+   *
+   * Ordered once per load rather than on every change: a list that reshuffles
+   * under the cursor is unusable with a d-pad.
+   */
+  const [order, setOrder] = useState<(string | null)[]>([null])
+  useEffect(() => {
+    const ids: (string | null)[] = [null, ...items.map(t => t.id)]
+    setOrder([...ids].sort((a, b) => (a === active ? -1 : b === active ? 1 : 0)))
+    setFocus(0)   // the active theme, now that it leads
+  }, [items, active])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const rows = order.length
 
   useEffect(() => {
     const offs = [
@@ -40,12 +54,16 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
 
   const apply = async (idx: number) => {
     if (busy || !theme) return
-    const target = idx === 0 ? null : items[idx - 1]
-    if (target && !target.compatible) return
+    const id = order[idx]
+    const target = id === null ? null : items.find(t => t.id === id) ?? null
+    if (id !== null && !target?.compatible) return
+    // Re-applying what is already on screen would tear the frontend down and
+    // rebuild it identically — a long blink that looks like a crash.
+    if ((target?.id ?? null) === active) { playSound('move'); return }
     setBusy(true); setError('')
     try {
-      await theme.select(target ? target.id : null)
-      setActive(target ? target.id : null)
+      await theme.select(id)
+      setActive(id)
       playSound('confirm')
     } catch {
       setError('Could not apply that theme')
@@ -56,26 +74,41 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
 
   const row = (i: number, title: string, sub: string, disabled = false) => {
     const focused = focus === i
-    const current = (i === 0 && !active) || (i > 0 && items[i - 1]?.id === active)
+    const current = order[i] === active
     return (
       <div key={i} onClick={() => apply(i)} style={{
         display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px',
         borderRadius: 12, marginBottom: 8, cursor: disabled ? 'default' : 'pointer',
-        background: focused ? 'rgba(124,58,237,0.18)' : 'rgba(255,255,255,0.03)',
-        border: `1px solid ${focused ? 'rgba(124,58,237,0.55)' : 'rgba(255,255,255,0.07)'}`,
+        background: focused ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 18%, transparent)' : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${focused ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 55%, transparent)' : 'rgba(255,255,255,0.07)'}`,
         opacity: disabled ? 0.45 : 1, transition: 'all 0.15s',
       }}>
+        {/* A filled dot for the theme in use, a hollow ring for the rest: the
+            marker is a shape before it is a colour, so it survives a TV. */}
+        <span style={{
+          width: 16, height: 16, borderRadius: 8, flexShrink: 0,
+          background: current ? 'var(--gc-accent, #7c3aed)' : 'transparent',
+          border: `2px solid ${current ? 'var(--gc-accent, #7c3aed)' : 'rgba(255,255,255,0.25)'}`,
+          boxShadow: current ? '0 0 0 3px color-mix(in srgb, var(--gc-accent, #7c3aed) 25%, transparent)' : 'none',
+        }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{title}</div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{sub}</div>
         </div>
-        {current && <span style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa' }}>ACTIVE</span>}
+        {current && (
+          <span style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: 1, padding: '3px 9px',
+            borderRadius: 999, color: 'var(--gc-accent-bright, #c4b5fd)',
+            background: 'color-mix(in srgb, var(--gc-accent, #7c3aed) 22%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 45%, transparent)',
+          }}>IN USE</span>
+        )}
       </div>
     )
   }
 
   return (
-    <>
+    <Overlay onClose={onClose}>
       <BackHeader label="THEMES" onBack={onBack} />
 
       {/* Why the user landed back on the default look, if they did. */}
@@ -90,16 +123,22 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
         </div>
       )}
 
-      {row(0, 'Default', 'The built-in GameCore look')}
-
-      {items.map((t, i) => row(
-        i + 1,
-        t.name,
-        t.compatible
-          ? `v${t.version}${t.author ? ` · ${t.author}` : ''}${t.description ? ` · ${t.description}` : ''}`
-          : `needs SDK v${t.api} — this build is older`,
-        !t.compatible,
-      ))}
+      {order.map((id, i) => {
+        if (id === null) return row(i, 'Default', 'The built-in GameCore look')
+        const t = items.find(x => x.id === id)
+        if (!t) return null
+        return row(
+          i,
+          t.name,
+          t.compatible
+            ? `v${t.version}${t.author ? ` · ${t.author}` : ''}${t.description ? ` · ${t.description}` : ''}`
+            // The backend knows why — an old SDK, or a theme that does not dress
+            // every surface. Saying "needs a newer build" for the second would
+            // send the author looking in the wrong place.
+            : t.warnings.join(' · ') || `needs SDK v${t.api} — this build is older`,
+          !t.compatible,
+        )
+      })}
 
       {!items.length && (
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', padding: '10px 2px' }}>
@@ -112,6 +151,6 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
       <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1, marginTop: 16 }}>
         Hold L1 + R1 for 2s anywhere to force the default theme
       </div>
-    </>
+    </Overlay>
   )
 }

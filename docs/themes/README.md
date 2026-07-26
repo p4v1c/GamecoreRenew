@@ -72,25 +72,50 @@ with no change to `update/linux.sh`. That is why they live there and not under
 | `entry` | string | no | defaults to `index.js` |
 | `preview` | string | no | defaults to `preview.png` |
 | `styles` | string | no | defaults to `theme.css`; injected automatically when present |
-| `provides` | string[] | yes | surfaces this theme overrides (§5) |
+| `provides` | string[] | yes | must list **every** surface: `["splash", "shell"]` (§5) |
 | `schedule` | object | no | `{ "from": "MM-DD", "to": "MM-DD" }` — seasonal auto-activation |
 
-`provides` is both declaration and gate: a surface exported by the module but
-absent from `provides` is ignored. That stops a theme from silently taking over
-a screen its author never considered.
+`provides` is both declaration and gate: a surface must be listed here *and*
+exported by the module. Miss either and the theme does not load at all — it is
+not selectable, and if it was already active the default frontend runs whole.
 
-## 5. The shell
+## 5. The two surfaces
 
-A theme provides **one** thing: the shell — the whole frontend body.
+A theme provides **both** of these, always:
 
-| Provided | Owner |
+| Surface | What it is |
 |---|---|
-| `shell` | the theme (or the default one) |
-| splash, input bus, WebSocket, `gp:guide`, error boundaries, L1+R1 rescue | the kernel, always |
+| `splash` | the boot animation |
+| `shell` | the whole frontend body |
 
-Picking a theme swaps the frontend. Anything the theme does not ship — starting
-with the splash — stays with the kernel, so a theme cannot remove the boot
-animation or the way out of itself.
+| Kept by the kernel, always |
+|---|
+| input bus, WebSocket, `gp:guide`, error boundaries, L1+R1 rescue, the *fact* that a splash runs |
+
+Picking a theme swaps the frontend, so a theme dresses all of it or none of it.
+There is no per-surface fallback: half a theme — a beach dashboard behind the
+stock purple splash — is the exact look this rule exists to prevent.
+
+A themed splash draws what it likes but does not decide when booting ends: it
+must call `onDone`, and the host moves on regardless after 20s.
+
+### What is mandatory, and what is not
+
+The all-or-nothing rule is about **surfaces**, not features. Read it as:
+
+| | Mandatory? |
+|---|---|
+| `splash` and `shell` — declared in `provides` **and** exported by the module | **yes.** Miss either and the theme does not load at all |
+| Which parts of the shell you override (`homeView`, `library`, `topbar`, the modals…) | **no** |
+
+So a theme that ships a splash and a shell, and overrides only the dashboard, is
+a perfectly valid theme: everything it did not rewrite is the default UI,
+rendered *inside the theme's own shell*. You are never mixing two frontends —
+there is one tree, and you decide how much of it you author.
+
+What that buys you is the failure mode: there is no half-loaded theme. Either
+your theme runs, or the default one runs whole, and Settings → Themes tells you
+which and why.
 
 ### Composing instead of rewriting
 
@@ -101,8 +126,8 @@ animation or the way out of itself.
 | `background` | a full-screen layer the shell places behind everything |
 | `decor` | a full-screen layer above everything, non-interactive |
 | `topbar` | clock, IP, storage, controller battery |
-| `home` | the dashboard |
-| `library` | the game grid, search and metadata panel |
+| `homeView` | the dashboard's **markup** (see below) |
+| `libraryView` | the game list, detail panel and metadata — **markup only**, like `homeView` |
 | `screensaver` | the standby slideshow |
 | `settings` | the settings screen |
 | `powerModal`, `gamepadModal` | the modals |
@@ -110,6 +135,29 @@ animation or the way out of itself.
 So "add snow to the dashboard" is a shell that renders `sdk.defaults.Shell` with
 a `decor`, and "replace everything" is a shell that renders its own tree. Same
 mechanism, effort proportional to ambition.
+
+### Views, not screens
+
+`homeView` and `libraryView` are those screens' *markup*, not the screens.
+Paging, focus, sorting, search, launching and the d-pad bindings stay in the
+host and are handed to the view as props — see
+`frontend/src/components/HomeScreen/types.ts` and `LibraryScreen/types.ts`.
+The library view is even given the cover-art and metadata components ready-made,
+so a theme never reimplements the missing-art or 404 paths.
+
+That seam is deliberate. When themes reimplemented navigation they drifted from
+the default in ways nobody notices until a TV is involved — running off the
+right of a row stopped dead instead of turning the page. **A view that cannot
+navigate cannot navigate differently.** The rule the whole system rests on:
+a theme changes the UI, never the behaviour.
+
+### One feature per file
+
+The default frontend is one file per feature (`WifiPage.tsx`, `PowerModal.tsx`,
+`GamepadModal.tsx`…) and a theme should be too — see `config/themes/summer`:
+`splash.js`, `home.js`, `settings.js`, `topbar.js`, `decor.js`, `background.js`,
+with `index.js` holding nothing but the wiring. The directory listing then
+doubles as the check-list of what you still have to dress.
 
 ### Why one surface and not nine
 
@@ -140,7 +188,8 @@ there is no import map to maintain and only one React instance exists.
 | `sdk.nav` | `use(selector)` for a reactive read inside a component, `get()` for a snapshot in a handler, plus `goHome`, `goLibrary`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx`, `openModal`, `closeModal` | [store reference](../architecture/05-frontend.md#store--storeindexts) |
 | `sdk.input` | `onGp(event, handler)`, `useGamepadState()`, `GP_BTN`, `events` | [event bus](../architecture/05-frontend.md#the-gamepad-event-bus--hooksusegamepadts) |
 | `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `gamecore`, `asset(path)` | `asset()` resolves a path inside the theme folder |
-| `sdk.defaults` | `Shell` (the default frontend, takes parts), every screen, `SettingsOverlay` + `DefaultSettingsPages` (wifi, audio, bluetooth, standby, themes, update, desktop) | compose instead of rewrite |
+| `sdk.themes` | `list()`, `select(id \| null)` | so a theme can dress its own theme picker. `select()` is the host's: it clears safe mode, resets the crash count and reloads the frontend |
+| `sdk.defaults` | `Shell` (the default frontend, takes parts), every screen, `DefaultSettingsPages` (wifi, audio, bluetooth, standby, themes, update, desktop), `SettingsOverlay`, `DefaultKeyboard`, `launchApp` | compose instead of rewrite. The pages already carry their own overlay — render them bare; `SettingsOverlay` is only there if you write a page of your own |
 
 `modalDepth` and `powerPending` are readable through `get()` but there is no
 setter: they are the core's focus and shutdown locks.
@@ -149,36 +198,77 @@ setter: they are the core's focus and shutdown locks.
 double press there kills a running game.
 
 `sdk.defaults` is what makes "add a Santa on top of the existing dashboard" as
-cheap as "rewrite everything" — override `home`, render the default inside it,
+cheap as "rewrite everything" — override `homeView`, render the default inside it,
 add your layer.
 
 ## 7. Module contract
 
 The entry point default-exports a function taking `sdk` and returning
-`{ shell }`. The shell takes no props: everything comes from the SDK.
+`{ splash, shell }` — both, always. Neither takes props beyond the ones listed
+here: everything else comes from the SDK.
 
 ```js
 export default (sdk) => {
-  const { html } = sdk.ui
+  const { html, useEffect } = sdk.ui
+
+  const Splash = ({ onDone }) => {
+    useEffect(() => { const t = setTimeout(onDone, 1200); return () => clearTimeout(t) }, [onDone])
+    return html`<div class="t-splash">GAMECORE</div>`
+  }
+
   const Decor = () => html`<img src=${sdk.system.asset('santa.png')} class="t-santa" />`
-  return { shell: () => html`<${sdk.defaults.Shell} decor=${Decor} />` }
+
+  return { splash: Splash, shell: () => html`<${sdk.defaults.Shell} decor=${Decor} />` }
 }
 ```
 
 A theme may ship a stylesheet for its own markup and load it from its folder.
 
-> **Reusing a default settings page?** They are fragments written for
-> `sdk.defaults.SettingsOverlay`, which gives them their width, padding and
-> scrolling. Render them inside it, not inside your own panel.
+> **Reusing a default settings page?** Render it **bare** — each one already is
+> a full-screen overlay, so putting it in your own panel nests a `position:
+> fixed` layer inside a flex box and shatters its layout. To make it match your
+> theme, set these in your stylesheet instead:
+>
+> ```css
+> :root {
+>   --gc-overlay-scrim:  rgba(6, 18, 26, 0.55);   /* the full-screen backdrop */
+>   --gc-overlay-blur:   blur(18px) saturate(115%);
+>   --gc-overlay-panel:  rgba(12, 26, 33, 0.82);  /* the card itself */
+>   --gc-overlay-border: rgba(255, 253, 247, 0.14);
+>   --gc-overlay-radius: 22px;
+> }
+> ```
+>
+> The defaults are the dark UI's, including a near-opaque scrim — leave them
+> alone on a light or photographic background and every settings page goes
+> black.
+>
+> The same applies to the accent. The host's settings widgets — focus rings,
+> toggles, sliders, signal bars, the on-screen keyboard, the theme picker's
+> marker — are drawn with inline styles and read three more variables:
+>
+> ```css
+> :root {
+>   --gc-accent:        #F0761E;   /* focus, fills */
+>   --gc-accent-soft:   #FE9D7C;   /* secondary text */
+>   --gc-accent-bright: #FFFDF7;   /* figures, emphasis */
+> }
+> ```
+>
+> Set them or your settings screen stays the default purple on your own
+> background.
 
 ## 8. Fallback and composition
 
 | Situation | Result |
 |---|---|
-| No `shell` in `provides` | the default frontend |
-| Declared but missing from the module | the default frontend + warning |
+| A surface missing from `provides`, or from the module | the theme does not load; the default frontend runs whole, reason shown in Settings → Themes |
 | The shell throws while rendering | the default frontend, and the crash is recorded |
+| A themed splash throws, or never calls `onDone` | the default splash, or the host moves on after 20s |
 | Module fails to load | theme rejected, default frontend, reason surfaced |
+
+Note what is *not* in this table: a per-screen fallback. Completeness is checked
+once, at load. Either the theme runs or the default does.
 
 ## 9. Compatibility
 
@@ -240,7 +330,18 @@ A theme may replace the UI sounds. Two rules:
   volume setting applies. Note the default sounds are synthesised, not files:
   a theme shipping audio assets is a new case, not the existing path.
 
-## 13. Authoring loop
+## 13. Editing a theme
+
+Theme files are served with `Cache-Control: no-store`, so **save and reload** is
+the whole loop — no version bump, no cache clearing. (The loader also
+timestamps the entry module and the stylesheet, but only the backend header
+covers the entry's own relative imports.)
+
+If a reload seems to change nothing, the theme almost certainly failed to load
+rather than loading unchanged: open Settings → Themes, where an unusable theme
+is listed as not selectable with the reason next to it.
+
+## 14. Authoring loop
 
 1. Copy the skeleton theme.
 2. Edit `theme.json`, write one or more surfaces.
@@ -249,7 +350,7 @@ A theme may replace the UI sounds. Two rules:
 4. Settings → Themes → select.
 5. Iterate: reload, there is nothing to compile.
 
-## 14. Implementation order
+## 15. Implementation order
 
 | # | Work | Size |
 |---|---|---|

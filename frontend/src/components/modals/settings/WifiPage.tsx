@@ -154,7 +154,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
         <div style={{
           fontSize: 13, marginBottom: 12, padding: '8px 12px', borderRadius: 8,
           background: msgError ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)',
-          color: msgError ? '#f87171' : '#a78bfa', fontWeight: msgError ? 600 : 400,
+          color: msgError ? '#f87171' : 'var(--gc-accent-soft, #a78bfa)', fontWeight: msgError ? 600 : 400,
         }}>
           {busy ? '⏳ ' : ''}{msg}
         </div>
@@ -191,8 +191,8 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
           style={{
             display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px',
             borderRadius: 10, marginBottom: 6, cursor: busy ? 'default' : 'pointer',
-            background: ni === focusIdx ? 'rgba(124,58,237,0.2)' : n.connected ? 'rgba(74,222,128,0.06)' : 'rgba(255,255,255,0.04)',
-            border: ni === focusIdx ? '1px solid rgba(124,58,237,0.6)' : n.connected ? '1px solid rgba(74,222,128,0.25)' : '1px solid rgba(255,255,255,0.06)',
+            background: ni === focusIdx ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 20%, transparent)' : n.connected ? 'rgba(74,222,128,0.06)' : 'rgba(255,255,255,0.04)',
+            border: ni === focusIdx ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 60%, transparent)' : n.connected ? '1px solid rgba(74,222,128,0.25)' : '1px solid rgba(255,255,255,0.06)',
             opacity: busy && !n.connected ? 0.6 : 1,
             transition: 'all 0.12s',
           }}

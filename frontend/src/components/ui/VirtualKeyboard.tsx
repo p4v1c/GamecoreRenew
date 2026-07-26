@@ -115,7 +115,7 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {title && (
-        <div style={{ fontSize: 13, color: '#a78bfa', textAlign: 'center', letterSpacing: 1, marginBottom: 2 }}>
+        <div style={{ fontSize: 13, color: 'var(--gc-accent-soft, #a78bfa)', textAlign: 'center', letterSpacing: 1, marginBottom: 2 }}>
           {title}
         </div>
       )}
@@ -123,7 +123,7 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
       {/* Typed value display — long values are clipped on the left so the
           end of the input (what you're typing) always stays visible */}
       <div style={{
-        background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(124,58,237,0.5)',
+        background: 'rgba(0,0,0,0.45)', border: '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 50%, transparent)',
         borderRadius: 10, padding: '10px 16px', minHeight: 44,
         fontSize: 20, letterSpacing: 4, color: '#fff',
         fontFamily: 'monospace',
@@ -163,13 +163,13 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
                     ? '2px solid #7c3aed'
                     : '1px solid rgba(255,255,255,0.09)',
                   background: focused
-                    ? 'rgba(124,58,237,0.38)'
+                    ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 38%, transparent)'
                     : (isShift && shifted) || isMode
-                      ? 'rgba(124,58,237,0.2)'
+                      ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 20%, transparent)'
                       : isEnter
-                        ? 'rgba(124,58,237,0.15)'
+                        ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 15%, transparent)'
                         : 'rgba(255,255,255,0.05)',
-                  color:      focused ? '#fff' : isEnter || isMode ? '#c4b5fd' : 'rgba(255,255,255,0.78)',
+                  color:      focused ? '#fff' : isEnter || isMode ? 'var(--gc-accent-bright, #c4b5fd)' : 'rgba(255,255,255,0.78)',
                   fontSize:   isSpecial ? 11 : 13,
                   fontWeight: isSpecial ? 600 : 400,
                   cursor:     'pointer',
