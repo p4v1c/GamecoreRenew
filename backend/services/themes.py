@@ -100,12 +100,19 @@ def _read_manifest(d: Path) -> dict | None:
 
 
 def list_themes() -> list[dict]:
-    """Every valid theme on the box, alphabetical. Invalid ones are skipped, not fatal."""
+    """Every selectable theme on the box, alphabetical. Invalid ones are skipped, not fatal.
+
+    A leading underscore marks a template, not a theme: `_skeleton` is there to
+    be copied, not applied. It was being listed and then refused on selection —
+    `_safe_id` rejects the leading underscore — so the picker offered something
+    that could not work. Hidden here instead, which keeps the folder available
+    to whoever is writing a theme without putting it in front of a player.
+    """
     if not THEMES_DIR.is_dir():
         return []
     out = []
     for d in sorted(THEMES_DIR.iterdir()):
-        if not d.is_dir() or d.name.startswith("."):
+        if not d.is_dir() or d.name.startswith(".") or d.name.startswith("_"):
             continue
         m = _read_manifest(d)
         if m:

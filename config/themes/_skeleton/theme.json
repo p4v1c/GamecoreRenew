@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "api": 1,
   "author": "you",
-  "description": "Copy this folder to start a theme",
+  "description": "Template \u2014 copy this folder, drop the underscore, make it yours",
   "provides": [
     "splash",
     "shell"

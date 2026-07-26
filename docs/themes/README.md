@@ -75,6 +75,10 @@ with no change to `update/linux.sh`. That is why they live there and not under
 | `provides` | string[] | yes | must list **every** surface: `["splash", "shell"]` (§5) |
 | `schedule` | object | no | `{ "from": "MM-DD", "to": "MM-DD" }` — seasonal auto-activation |
 
+A folder whose name starts with `_` is a **template, not a theme**:
+`config/themes/_skeleton` is there to be copied, and never appears in
+Settings → Themes. Name your own theme without the underscore.
+
 `provides` is both declaration and gate: a surface must be listed here *and*
 exported by the module. Miss either and the theme does not load at all — it is
 not selectable, and if it was already active the default frontend runs whole.

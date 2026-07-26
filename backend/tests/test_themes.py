@@ -98,6 +98,13 @@ def main():
     themes.THEMES_DIR = root
     themes.STATE_FILE = root / "theme-state.json"
 
+    # Un gabarit (préfixe _) ne doit jamais être proposé : _safe_id refuse
+    # l'underscore initial, donc il serait listé puis refusé à la sélection.
+    write_theme(root, "_template")
+    listed = {t["id"] for t in themes.list_themes()}
+    check("gabarit _ masqué du sélecteur", "_template" not in listed, str(sorted(listed)))
+    check("gabarit non sélectionnable de toute façon", themes._safe_id("_template") is None)
+
     check("les fixtures sont bien listées", {t["id"] for t in themes.list_themes()} >= {"full", "no_splash"},
           str([t["id"] for t in themes.list_themes()]))
 
