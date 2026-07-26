@@ -1,0 +1,190 @@
+/* Summer — tokens are literal from DESIGN-BRIEF.md §2.1.
+   A theme owns its own markup, so real CSS is usable here; the default UI
+   styles itself inline and cannot be restyled from a stylesheet. */
+
+:root {
+  --accent-mandarin: #F0761E;
+  --accent-mandarin-deep: #B4520F;
+  --accent-muskmelon: #FE9D7C;
+  --foam-000: #FFFDF7;
+  --foam-200: #EFE6D6;
+  --foam-400: #C3B7A6;
+  --ink-900: #0C1A21;
+  --ink-700: #173039;
+  --sea-brand: #1D7E93;
+  --state-ok: #3FBF8F;
+  --state-warn: #E8B23A;
+  --state-alert: #E4553F;
+  --glass-900: rgba(12, 26, 33, 0.82);
+  --glass-700: rgba(12, 26, 33, 0.66);
+  --glass-500: rgba(12, 26, 33, 0.44);
+  --glass-hairline: rgba(255, 253, 247, 0.14);
+  --scrim-focus: rgba(12, 26, 33, 0.55);
+  --r-panel: 22px;
+  --r-tile: 18px;
+  --r-chip: 999px;
+}
+
+/* Every glass surface shares this. If backdrop-filter is unavailable the brief
+   says raise each alpha by 0.12 and change nothing else. */
+.sm-topbar, .sm-tile, .sm-chip, .sm-panel, .sm-stats > div {
+  backdrop-filter: blur(18px) saturate(115%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+  border: 1px solid var(--glass-hairline);
+}
+
+/* ── background ──────────────────────────────────────────────────────────── */
+.sm-ocean {
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  display: block; z-index: 0; pointer-events: none;
+}
+
+/* Everything the host renders sits above the canvas. */
+.sm-topbar, .sm-home, .sm-modal-wrap { position: relative; z-index: 1; }
+
+/* ── topbar ──────────────────────────────────────────────────────────────── */
+.sm-topbar {
+  margin: 18px 24px 10px; padding: 12px 18px; border-radius: var(--r-panel);
+  background: var(--glass-500);
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: 'Figtree', 'Outfit', sans-serif; color: var(--foam-000);
+}
+.sm-brand {
+  display: flex; align-items: center; gap: 12px;
+  font-weight: 700; letter-spacing: 0.14em; font-size: 18px;
+}
+.sm-diamond {
+  width: 26px; height: 26px; border-radius: 8px; rotate: 45deg;
+  background: linear-gradient(150deg, var(--accent-mandarin), var(--accent-mandarin-deep));
+}
+.sm-top-right { display: flex; align-items: center; gap: 10px; }
+.sm-chip {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 11px; border-radius: var(--r-chip);
+  background: var(--glass-500); font-size: 12px; color: var(--foam-200);
+}
+.sm-ip { font-family: 'JetBrains Mono', monospace; letter-spacing: 0.04em; }
+.sm-pad-n { font-weight: 700; font-size: 11px; color: var(--foam-400); }
+.sm-bat {
+  width: 30px; height: 11px; border-radius: 3px; overflow: hidden;
+  background: rgba(255, 253, 247, 0.16); display: block;
+}
+.sm-bat > i { display: block; height: 100%; background: var(--state-ok); }
+.sm-bat[data-low="w"] > i { background: var(--state-warn); }
+.sm-bat[data-low="1"] > i { background: var(--state-alert); }
+.sm-bolt { color: var(--state-ok); font-size: 11px; }
+.sm-clock {
+  display: flex; align-items: center; gap: 8px; margin-left: 4px;
+  font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 500;
+}
+.sm-glyph { color: var(--accent-mandarin); font-size: 15px; }
+.sm-icon {
+  width: 38px; height: 38px; border-radius: 50%; cursor: pointer;
+  background: var(--glass-700); border: 1px solid var(--glass-hairline);
+  color: var(--foam-000); font-size: 16px; line-height: 1;
+}
+.sm-icon-power { color: var(--state-alert); }
+
+/* ── home ────────────────────────────────────────────────────────────────── */
+.sm-home {
+  flex: 1; display: flex; flex-direction: column; gap: 14px;
+  padding: 0 24px 18px; overflow: hidden;
+  font-family: 'Figtree', 'Outfit', sans-serif; color: var(--foam-000);
+}
+.sm-stats { display: flex; gap: 12px; }
+.sm-stats > div {
+  flex: 1; padding: 12px 18px; border-radius: var(--r-tile);
+  background: var(--glass-500); display: flex; flex-direction: column; gap: 2px;
+}
+.sm-stats b { font-size: 26px; font-weight: 700; }
+.sm-stats span { font-size: 11px; letter-spacing: 0.16em; color: var(--foam-400); }
+
+.sm-grid {
+  flex: 1; display: grid; grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(2, 1fr); gap: 14px; min-height: 0;
+}
+.sm-tile {
+  position: relative; border-radius: var(--r-tile); padding: 16px 18px;
+  background: var(--glass-700); overflow: hidden;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 6px;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+/* The focus ring is the one thing a theme may never soften: it is how the
+   player knows where they are, from a couch. */
+.sm-tile[data-on="1"] {
+  background: var(--glass-900);
+  box-shadow: 0 0 0 3px var(--accent-mandarin),
+              0 0 0 7px rgba(240, 118, 30, 0.28),
+              0 18px 40px -14px rgba(0, 0, 0, 0.8);
+  transform: translateY(-2px);
+}
+.sm-tile-head {
+  position: absolute; top: 14px; left: 18px; right: 18px;
+  display: flex; align-items: center; gap: 10px;
+}
+.sm-sq {
+  width: 46px; height: 46px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 17px; color: var(--foam-000);
+  background: color-mix(in srgb, var(--tile-accent) 55%, var(--ink-900));
+}
+.sm-badge {
+  padding: 3px 9px; border-radius: var(--r-chip); font-size: 11px; font-weight: 600;
+  background: color-mix(in srgb, var(--tile-accent) 30%, transparent);
+  color: var(--foam-000);
+}
+.sm-tile-name { font-size: 19px; font-weight: 700; line-height: 1.15; }
+.sm-tile-meta { font-size: 12px; color: var(--foam-400); }
+.sm-tile-rule {
+  position: absolute; left: 18px; bottom: 0; width: 64px; height: 3px;
+  border-radius: 2px 2px 0 0; background: var(--tile-accent);
+}
+
+.sm-dots { display: flex; gap: 7px; justify-content: center; }
+.sm-dot { width: 7px; height: 7px; border-radius: 4px; background: rgba(255, 253, 247, 0.22); }
+.sm-dot[data-on="1"] { width: 22px; background: var(--accent-mandarin); }
+
+.sm-hint {
+  text-align: center; font-size: 12px; color: var(--foam-400);
+  letter-spacing: 0.04em;
+}
+
+/* ── settings ────────────────────────────────────────────────────────────── */
+.sm-modal-wrap {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(6, 18, 26, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Figtree', 'Outfit', sans-serif; color: var(--foam-000);
+}
+.sm-panel {
+  width: 520px; max-width: 90vw; max-height: 85vh; overflow-y: auto;
+  padding: 26px; border-radius: var(--r-panel);
+  background: var(--glass-900);
+  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.9);
+}
+.sm-panel-wide { width: 620px; }
+.sm-panel-title {
+  font-size: 11px; letter-spacing: 0.28em; color: var(--foam-400);
+  font-weight: 700; margin-bottom: 18px;
+}
+.sm-row {
+  display: flex; align-items: center; gap: 14px; cursor: pointer;
+  padding: 13px 15px; border-radius: 14px; margin-bottom: 8px;
+  background: var(--glass-700); border: 1px solid transparent;
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+.sm-row[data-on="1"] {
+  background: var(--scrim-focus);
+  box-shadow: 0 0 0 2px var(--accent-mandarin), 0 0 0 6px rgba(240, 118, 30, 0.22);
+}
+.sm-row[data-danger="1"] .sm-row-text b { color: var(--state-alert); }
+.sm-row-icon {
+  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  background: rgba(29, 126, 147, 0.28);
+}
+.sm-row-text { flex: 1; display: flex; flex-direction: column; }
+.sm-row-text b { font-size: 15px; font-weight: 600; }
+.sm-row-text i { font-style: normal; font-size: 12px; color: var(--foam-400); margin-top: 2px; }
+.sm-row-chevron { color: var(--foam-400); font-size: 20px; }
+.sm-hint-modal { margin-top: 14px; }
