@@ -64,9 +64,11 @@ Design only these surfaces — leave the rest to the default theme:
 - [ ] `screensaver` — idle slideshow of game cover art
 - [ ] `powerModal` — Scan mapping / Restart / Shutdown
 - [ ] `gamepadModal` — the live controller diagram
+- [ ] `settings` — the settings menu and its sub-pages (Wi-Fi, audio,
+      Bluetooth, standby, themes, update). The working sub-pages can be reused
+      as-is, so design the menu shell and say which pages you restyle.
 
-`splash`, `settings` and the on-screen keyboard are out of scope. Do not
-design them.
+`splash` and the on-screen keyboard are out of scope. Do not design them.
 
 ## Hard constraints — non-negotiable
 

@@ -12,7 +12,7 @@ import { ThemesPage } from './settings/ThemesPage'
 
 interface Props { onClose: () => void }
 
-type Page = 'main' | 'wifi' | 'audio' | 'bluetooth' | 'standby' | 'update' | 'desktop'
+type Page = 'main' | 'wifi' | 'audio' | 'bluetooth' | 'standby' | 'themes' | 'update' | 'desktop'
 
 const ITEMS = [
   { id: 'wifi',      icon: '📶', label: 'Wi-Fi',       sub: 'Manage networks' },

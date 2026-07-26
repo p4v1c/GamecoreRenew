@@ -7,13 +7,12 @@ import { useStore } from './store'
 import { api } from './api'
 
 import Splash from './components/Splash'
-import SettingsModal from './components/modals/SettingsModal'
 import Toasts from './components/ui/Toasts'
 import { useTheme } from './hooks/useTheme'
 import { ThemeProvider, Surface } from './components/ThemeSurface'
 import {
   DefaultBackground, DefaultDecor, DefaultTopBar, DefaultHome, DefaultLibrary,
-  DefaultScreensaver, DefaultPowerModal, DefaultGamepadModal,
+  DefaultScreensaver, DefaultPowerModal, DefaultGamepadModal, DefaultSettings,
 } from './components/defaults'
 import { onWsEvent } from './hooks/useWebSocket'
 
@@ -136,10 +135,13 @@ export default function App() {
         <Surface name="library" fallback={DefaultLibrary} />
       </div>
 
-      {/* Settings is never themable: it is the only way back to another theme,
-          and the box has no pointer to recover with. */}
+      {/* Themable since the L1+R1 rescue hold covers the "a theme broke my way
+          back" case without needing anything to render. */}
       <AnimatePresence>
-        {showSettings && <SettingsModal key="settings" onClose={() => setShowSettings(false)} />}
+        {showSettings && (
+          <Surface key="settings" name="settings" fallback={DefaultSettings}
+            onClose={() => setShowSettings(false)} />
+        )}
       </AnimatePresence>
 
       <AnimatePresence>

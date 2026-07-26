@@ -91,15 +91,12 @@ a screen its author never considered.
 | `screensaver` | the standby slideshow | yes |
 | `powerModal` | the power menu | yes |
 | `gamepadModal` | the controller screen | yes |
+| `settings` | the settings screen and its sub-pages | yes |
 | `keyboard` | the on-screen keyboard | **not yet** |
 | `splash` | the boot animation | **v1.1** |
-| `settings` | the settings screen | **never** |
 
-Four deliberate exclusions:
+Two deliberate exclusions:
 
-- **`settings` is not overridable.** It is the only way back to another theme.
-  If a theme could break it, the box becomes unusable — and there is no mouse to
-  recover with. A theme may style its own entry tile, not the page.
 - **`splash` is deferred to v1.1.** Its animation is rAF-driven with a cold-boot
   hold (the first black frame is held ~4 s while the TV re-syncs HDMI). A theme
   replacing it must honour that parameter or the animation plays to nobody.
@@ -110,6 +107,14 @@ Four deliberate exclusions:
 - **The overlay window** (`/overlay`, the emulator bezels) is out of scope. It
   has its own mount point, is driven by `config/overlays.json`, and renders on
   top of running games.
+
+> **`settings` was withheld at first** because it is the way back to another
+> theme, and a theme that broke it would strand a box with no pointer. The
+> **L1+R1 rescue hold** removed that argument: it forces the default theme from
+> anywhere, without needing anything to render. A theme owning `settings` should
+> still surface a way to switch theme — `sdk.defaults.DefaultSettingsPages.themes`
+> is the page itself, ready to drop in — but the box is no longer stranded if it
+> forgets.
 
 ## 6. The SDK
 
@@ -123,7 +128,7 @@ there is no import map to maintain and only one React instance exists.
 | `sdk.nav` | `use(selector)` for a reactive read inside a component, `get()` for a snapshot in a handler, plus `goHome`, `goLibrary`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx`, `openModal`, `closeModal` | [store reference](../architecture/05-frontend.md#store--storeindexts) |
 | `sdk.input` | `onGp(event, handler)`, `useGamepadState()`, `GP_BTN`, `events` | [event bus](../architecture/05-frontend.md#the-gamepad-event-bus--hooksusegamepadts) |
 | `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `gamecore`, `asset(path)` | `asset()` resolves a path inside the theme folder |
-| `sdk.defaults` | every default component | lets a theme wrap instead of replace |
+| `sdk.defaults` | every default component, plus `DefaultSettingsPages` (wifi, audio, bluetooth, standby, themes, update, desktop) | lets a theme wrap instead of replace |
 
 `modalDepth` and `powerPending` are readable through `get()` but there is no
 setter: they are the core's focus and shutdown locks.
@@ -145,7 +150,7 @@ close over its own state:
 | Surface | Props |
 |---|---|
 | `topbar` | `{ onSettings, onPower }` |
-| `powerModal`, `gamepadModal` | `{ onClose }` |
+| `powerModal`, `gamepadModal`, `settings` | `{ onClose }` |
 
 Everything else takes nothing. That is what keeps the contract stable: the host
 can reorganise its screens without changing a signature.

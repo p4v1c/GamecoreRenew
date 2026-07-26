@@ -10,7 +10,7 @@ export default (sdk) => {
 
   // Available surfaces (declare the ones you return, in theme.json):
   //   background · decor · home · library · topbar
-  //   screensaver · powerModal · gamepadModal
+  //   screensaver · powerModal · gamepadModal · settings
   //
   // Anything you do not return keeps the default look.
   // sdk.defaults holds the default components, so you can wrap instead of replace.

@@ -10,7 +10,7 @@ import { buildSdk, SDK_VERSION } from './themeSdk'
 
 export type SurfaceName =
   | 'background' | 'decor' | 'home' | 'library' | 'topbar'
-  | 'screensaver' | 'powerModal' | 'gamepadModal'
+  | 'screensaver' | 'powerModal' | 'gamepadModal' | 'settings'
 
 // `keyboard` is deliberately absent: the on-screen keyboard is rendered from
 // inside LibraryScreen and WifiPage, not from App, so nothing would pick a
@@ -18,7 +18,7 @@ export type SurfaceName =
 // nothing. It comes back when those two call sites go through a surface.
 export const SURFACES: SurfaceName[] = [
   'background', 'decor', 'home', 'library', 'topbar',
-  'screensaver', 'powerModal', 'gamepadModal',
+  'screensaver', 'powerModal', 'gamepadModal', 'settings',
 ]
 
 export interface ThemeManifest {
