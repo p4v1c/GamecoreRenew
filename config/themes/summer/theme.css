@@ -1,0 +1,584 @@
+/* Summer — tokens are literal from DESIGN-BRIEF.md §2.1.
+   A theme owns its own markup, so real CSS is usable here; the default UI
+   styles itself inline and cannot be restyled from a stylesheet. */
+
+:root {
+  --accent-mandarin: #F0761E;
+  --accent-mandarin-deep: #B4520F;
+  --accent-muskmelon: #FE9D7C;
+  --foam-000: #FFFDF7;
+  --foam-200: #EFE6D6;
+  --foam-400: #C3B7A6;
+  --ink-900: #0C1A21;
+  --ink-700: #173039;
+  --sea-brand: #1D7E93;
+  --state-ok: #3FBF8F;
+  --state-warn: #E8B23A;
+  --state-alert: #E4553F;
+  --glass-900: rgba(12, 26, 33, 0.82);
+  --glass-700: rgba(12, 26, 33, 0.66);
+  --glass-500: rgba(12, 26, 33, 0.44);
+  --glass-hairline: rgba(255, 253, 247, 0.14);
+  --scrim-focus: rgba(12, 26, 33, 0.55);
+  --r-panel: 22px;
+  --r-tile: 18px;
+  --r-chip: 999px;
+
+  /* The default settings pages are reused as-is — each is its own overlay.
+     These four variables are the host's hook for restyling them, so Wi-Fi and
+     the updater come out as sea glass over the ocean instead of the dark UI's
+     near-opaque scrim. */
+  --gc-overlay-scrim: rgba(6, 18, 26, 0.55);
+  --gc-overlay-blur: blur(18px) saturate(115%);
+  --gc-overlay-panel: rgba(12, 26, 33, 0.82);
+  --gc-overlay-border: rgba(255, 253, 247, 0.14);
+  --gc-overlay-radius: 22px;
+
+  /* The accent the host's own settings widgets use — focus rings, toggles,
+     sliders, the keyboard, the "in use" marker. Without these the settings
+     screen stays purple on a beach. */
+  --gc-accent: #F0761E;
+  --gc-accent-soft: #FE9D7C;
+  --gc-accent-bright: #FFFDF7;
+}
+
+/* Every glass surface shares this. If backdrop-filter is unavailable the brief
+   says raise each alpha by 0.12 and change nothing else.
+
+   The tiles deliberately take that fallback even where it is available. Eight
+   blurred, scaling surfaces over a live WebGL canvas is the one thing this
+   theme cannot afford: each one forces its own backdrop snapshot every frame,
+   and paging the grid visibly stuttered because of it. Raised alpha, no blur —
+   the look the brief signs off on, at a fraction of the compositing cost. */
+.sm-topbar, .sm-chip, .sm-panel, .sm-stats > div {
+  backdrop-filter: blur(18px) saturate(115%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+  border: 1px solid var(--glass-hairline);
+}
+.sm-tile { border: 1px solid var(--glass-hairline); }
+
+/* ── background ──────────────────────────────────────────────────────────── */
+.sm-ocean {
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  display: block; z-index: 0; pointer-events: none;
+}
+
+/* Everything the host renders sits above the canvas. */
+.sm-topbar, .sm-home, .sm-modal-wrap { position: relative; z-index: 1; }
+
+/* ── topbar ──────────────────────────────────────────────────────────────── */
+.sm-topbar {
+  margin: 18px 24px 10px; padding: 12px 18px; border-radius: var(--r-panel);
+  background: var(--glass-500);
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: 'Figtree', 'Outfit', sans-serif; color: var(--foam-000);
+}
+.sm-brand {
+  display: flex; align-items: center; gap: 12px;
+  font-weight: 700; letter-spacing: 0.14em; font-size: 18px;
+}
+.sm-diamond {
+  width: 26px; height: 26px; border-radius: 8px; rotate: 45deg;
+  background: linear-gradient(150deg, var(--accent-mandarin), var(--accent-mandarin-deep));
+}
+.sm-top-right { display: flex; align-items: center; gap: 10px; }
+.sm-chip {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 11px; border-radius: var(--r-chip);
+  background: var(--glass-500); font-size: 12px; color: var(--foam-200);
+}
+.sm-ip { font-family: 'JetBrains Mono', monospace; letter-spacing: 0.04em; }
+.sm-storage { gap: 9px; }
+.sm-store-bar {
+  width: 62px; height: 8px; border-radius: 4px; overflow: hidden;
+  background: rgba(255, 253, 247, 0.16); display: block;
+}
+.sm-store-bar > i { display: block; height: 100%; transition: width 400ms ease; }
+.sm-store-txt { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--foam-400); }
+.sm-pad { gap: 8px; padding: 6px 12px; }
+.sm-pad-n {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700; font-size: 13px; color: var(--foam-400);
+}
+.sm-pad-glyph { display: flex; color: var(--foam-200); }
+/* Battery: 4 segments of 6x14, --s1 apart (DESIGN-BRIEF.md §3.5). */
+.sm-bat { display: flex; gap: 4px; align-items: center; }
+.sm-bat > i {
+  display: block; width: 6px; height: 14px; border-radius: 2px;
+  background: rgba(195, 183, 166, 0.3);
+}
+.sm-bat > i[data-fill="1"] { background: var(--foam-000); }
+/* One segment left: the fill turns alert AND the pill takes a border, so the
+   warning does not depend on a colour a TV may wash out. */
+.sm-pad[data-low="1"] { border: 2px solid var(--state-alert); }
+.sm-pad[data-low="1"] .sm-bat > i[data-fill="1"] { background: var(--state-alert); }
+.sm-bolt { color: var(--state-ok); font-size: 14px; margin-left: -4px; }
+.sm-pad-more { font-weight: 700; font-size: 13px; color: var(--foam-200); }
+.sm-clock {
+  display: flex; align-items: center; gap: 8px; margin-left: 4px;
+  font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 500;
+}
+.sm-glyph { color: var(--accent-mandarin); font-size: 15px; }
+.sm-icon {
+  width: 38px; height: 38px; border-radius: 50%; cursor: pointer;
+  background: var(--glass-700); border: 1px solid var(--glass-hairline);
+  color: var(--foam-000); font-size: 16px; line-height: 1;
+}
+.sm-icon-power { color: var(--state-alert); }
+
+/* ── home ────────────────────────────────────────────────────────────────── */
+/* Geometry is literal from DESIGN-BRIEF.md §3.3: 48px safe margin (--s7),
+   24px gutter (--s5), tiles 396x236. Nothing but background and decor is
+   allowed to cross the margin. */
+.sm-home {
+  flex: 1; display: flex; flex-direction: column; gap: 24px;
+  padding: 8px 48px 24px; overflow: hidden;
+  font-family: 'Figtree', 'Outfit', sans-serif; color: var(--foam-000);
+}
+
+/* Stats strip: one row, height 72, four equal cells. The brief draws 2px rules
+   between them; they read as clutter on the ocean, so the cells are spaced
+   instead — the grouping still holds without the lines. */
+.sm-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  height: 72px; flex-shrink: 0; gap: 2px;
+  border-radius: var(--r-panel); background: var(--glass-500);
+}
+.sm-stats > div {
+  display: flex; flex-direction: column; justify-content: center; gap: 3px;
+  padding: 0 24px; min-width: 0;
+}
+.sm-stats span { font-size: 11px; letter-spacing: 0.2em; color: var(--foam-400); }
+.sm-stats b {
+  font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 600;
+}
+/* The fourth cell holds a title, not a number: display face, one line. */
+.sm-stat-title {
+  font-family: 'Outfit', sans-serif !important; font-size: 22px !important;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* The sliding rail.
+   Two things have to be true at once: the next page must never peek past the
+   edge, and the focus ring — which sits 7px outside a tile that also scales —
+   must not be shaved off. Widening the clip box does the second at the cost of
+   the first, so instead the pages are held --s7 apart on the rail and the clip
+   is allowed exactly half that margin: enough for the ring, never enough to
+   reach the neighbour.
+   Vertically nothing is clipped at all (clip, not hidden, so the axes stay
+   independent) — that is what was cutting the ring off the top row. */
+.sm-grid-view {
+  flex: 1; min-height: 0;
+  container-type: inline-size;
+  /* The clip box is grown 24px on every side by padding, and pulled back to
+     where it belongs by an equal negative margin — so the content box, and
+     with it 100cqw and the tile geometry, is unchanged. Plain overflow:hidden
+     on purpose: overflow-clip-margin is not reliably applied here, and the
+     ring was being shaved off at the first and last column because of it.
+     The 32px it buys stay under the 48px gap between pages, so the
+     neighbour still never shows. */
+  overflow: hidden;
+  margin: -32px;
+  padding: 32px;
+}
+.sm-grid-track {
+  display: flex; gap: 48px; width: max-content; height: 100%;
+  transform: translateX(calc(var(--sm-page, 0) * -1 * (100cqw + 48px)));
+  transition: transform 380ms cubic-bezier(.22,.61,.36,1);
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sm-grid-track { transition-duration: 1ms; }
+}
+
+.sm-grid {
+  flex: 0 0 100cqw; height: 100%;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  /* Floored, not just capped. minmax(0, …) let the rows collapse on a short
+     screen and the tile clipped its own title mid-line; below the floor the
+     grid overflows instead, which is visible and fixable rather than silent. */
+  grid-template-rows: repeat(2, minmax(196px, 236px)); gap: 24px;
+  align-content: start;
+}
+.sm-tile {
+  position: relative; border-radius: var(--r-panel); padding: 24px;
+  background: rgba(12, 26, 33, 0.78);  /* --glass-700 + 0.12: no per-tile blur */
+  overflow: hidden;
+  display: flex; flex-direction: column; justify-content: space-between;
+  box-shadow: 0 10px 28px rgba(4, 12, 18, 0.34);
+  transition: transform 140ms cubic-bezier(.22,.61,.36,1),
+              box-shadow 140ms, background 140ms, opacity 140ms;
+}
+/* A system with nothing in it reads as an outline, not a full tile. */
+.sm-tile[data-empty="1"] { border: 2px dashed rgba(195, 183, 166, 0.5); }
+
+/* Focus. The brief asks for four simultaneous signals — scale, ring, caret,
+   weight — never colour alone, because colour is what a TV washes out. */
+.sm-grid:has(.sm-tile[data-on="1"]) .sm-tile:not([data-on="1"]) { opacity: 0.82; }
+.sm-tile[data-on="1"] {
+  background: rgba(12, 26, 33, 0.94);
+  box-shadow: 0 0 0 3px var(--accent-mandarin),
+              0 0 0 7px rgba(240, 118, 30, 0.28),
+              0 10px 28px rgba(4, 12, 18, 0.34);
+  transform: scale(1.045);
+  opacity: 1;
+}
+.sm-tile-caret {
+  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+  font-size: 20px; color: var(--accent-mandarin);
+  opacity: 0; transition: opacity 140ms;
+}
+.sm-tile[data-on="1"] .sm-tile-caret { opacity: 1; }
+
+.sm-tile-head { display: flex; align-items: center; gap: 12px; }
+/* System logo 64x64 on a pad of the system's own accent. */
+.sm-sq {
+  width: 64px; height: 64px; border-radius: var(--r-tile); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 22px; color: var(--foam-000);
+  font-family: 'Outfit', sans-serif; letter-spacing: 0.04em;
+  background: color-mix(in srgb, var(--tile-accent) 22%, transparent);
+  padding: 4px;
+}
+.sm-sq img { width: 100%; height: 100%; object-fit: contain; }
+.sm-badge {
+  padding: 4px 10px; border-radius: var(--r-chip); font-size: 14px; font-weight: 600;
+  letter-spacing: 0.06em;
+  background: color-mix(in srgb, var(--tile-accent) 28%, transparent);
+  color: var(--foam-000);
+  transition: background 140ms, color 140ms;
+}
+/* Badge inverts on focus — the second colour-independent signal. */
+.sm-tile[data-on="1"] .sm-badge {
+  background: var(--accent-mandarin); color: var(--ink-900);
+}
+.sm-tile-name {
+  font-family: 'Outfit', sans-serif; font-size: 24px; line-height: 30px;
+  font-weight: 600; max-height: 60px; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  text-wrap: pretty;
+}
+.sm-tile[data-on="1"] .sm-tile-name { font-weight: 700; }
+.sm-tile-meta { font-size: 14px; font-weight: 500; color: var(--foam-200); margin-top: 6px; }
+.sm-tile[data-empty="1"] .sm-tile-meta { color: var(--foam-400); }
+/* Accent bar along the bottom edge, inset --s5, growing to full width on focus. */
+.sm-tile-rule {
+  position: absolute; left: 24px; right: 24px; bottom: 0; height: 3px;
+  background: color-mix(in srgb, var(--tile-accent) 80%, transparent);
+  transition: left 140ms, right 140ms, height 140ms;
+}
+.sm-tile[data-on="1"] .sm-tile-rule { left: 0; right: 0; height: 6px; }
+
+/* Page dots: shape changes, not just colour. */
+.sm-dots { display: flex; gap: 12px; justify-content: center; flex-shrink: 0; }
+.sm-dot {
+  width: 12px; height: 12px; border-radius: var(--r-chip);
+  background: rgba(195, 183, 166, 0.45); transition: width 140ms, background 140ms;
+}
+.sm-dot[data-on="1"] { width: 24px; background: var(--accent-mandarin); }
+
+.sm-hint {
+  text-align: center; font-size: 12px; color: var(--foam-400);
+  letter-spacing: 0.04em; flex-shrink: 0;
+}
+
+/* ── decor: dune foreground ──────────────────────────────────────────────── */
+/* The host already stops rendering decor while a game runs; these also idle
+   out during standby (the component returns null). Transform-only animation,
+   per the motion budget. */
+.sm-decor { position: absolute; inset: 0; overflow: hidden; }
+
+.sm-grass {
+  position: absolute; bottom: 0; height: 190px; overflow: visible;
+  opacity: 0.95;
+}
+.sm-grass-l { left: -30px; width: 620px; }
+.sm-grass-r { right: -30px; width: 590px; transform: scaleX(-1); }
+
+.sm-shell { position: absolute; overflow: visible; opacity: 0.9; }
+
+@keyframes smB1 {
+  0%, 100% { transform: rotate(-3deg) skewX(-2deg); }
+  30% { transform: rotate(6deg) skewX(4deg); }
+  52% { transform: rotate(2deg) skewX(1deg); }
+  74% { transform: rotate(7.5deg) skewX(5deg); }
+}
+@keyframes smB2 {
+  0%, 100% { transform: rotate(-5deg) skewX(-3deg) scaleY(1); }
+  28% { transform: rotate(10deg) skewX(7deg) scaleY(.985); }
+  55% { transform: rotate(3deg) skewX(2deg) scaleY(1); }
+  78% { transform: rotate(11deg) skewX(8deg) scaleY(.99); }
+}
+@keyframes smB3 {
+  0%, 100% { transform: rotate(-8deg) skewX(-5deg) scaleY(1); }
+  26% { transform: rotate(15deg) skewX(11deg) scaleY(.97); }
+  54% { transform: rotate(5deg) skewX(3deg) scaleY(1); }
+  80% { transform: rotate(16deg) skewX(12deg) scaleY(.98); }
+}
+
+/* ── settings ────────────────────────────────────────────────────────────── */
+.sm-modal-wrap {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(6, 18, 26, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Figtree', 'Outfit', sans-serif; color: var(--foam-000);
+}
+.sm-panel {
+  width: 520px; max-width: 90vw; max-height: 85vh; overflow-y: auto;
+  padding: 26px; border-radius: var(--r-panel);
+  background: var(--glass-900);
+  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.9);
+}
+.sm-panel-wide { width: 620px; }
+.sm-panel-title {
+  font-size: 11px; letter-spacing: 0.28em; color: var(--foam-400);
+  font-weight: 700; margin-bottom: 18px;
+}
+.sm-row {
+  display: flex; align-items: center; gap: 14px; cursor: pointer;
+  padding: 13px 15px; border-radius: 14px; margin-bottom: 8px;
+  background: var(--glass-700); border: 1px solid transparent;
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+.sm-row[data-on="1"] {
+  background: var(--scrim-focus);
+  box-shadow: 0 0 0 2px var(--accent-mandarin), 0 0 0 6px rgba(240, 118, 30, 0.22);
+}
+.sm-row[data-danger="1"] .sm-row-text b { color: var(--state-alert); }
+.sm-row-icon {
+  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  background: rgba(29, 126, 147, 0.28);
+}
+.sm-row-text { flex: 1; display: flex; flex-direction: column; }
+.sm-row-text b { font-size: 15px; font-weight: 600; }
+.sm-row-text i { font-style: normal; font-size: 12px; color: var(--foam-400); margin-top: 2px; }
+.sm-row-chevron { color: var(--foam-400); font-size: 20px; }
+.sm-hint-modal { margin-top: 14px; }
+
+/* ── splash ──────────────────────────────────────────────────────────────── */
+/* Boot: the backend is still starting and the ocean has not compiled its
+   shaders, so this stays on transform and opacity only. */
+.sm-splash {
+  position: fixed; inset: 0; z-index: 900; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Outfit', sans-serif; color: var(--foam-000);
+  transition: opacity var(--sm-fade, 1800ms) cubic-bezier(.4, 0, .6, 1);
+}
+.sm-splash[data-out="1"] { opacity: 0; }
+
+.sm-splash-sea {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 34%;
+}
+.sm-splash-sun {
+  position: absolute; left: 50%; bottom: 34%;
+  width: 148px; height: 148px; border-radius: 50%;
+  transform: translate(-50%, 74px) scale(0.82); opacity: 0;
+  /* Front-loaded on purpose: the sun has to be moving the moment it appears.
+     The slack lives in the hold afterwards, not in the opening. */
+  transition: transform var(--sm-rise, 1700ms) cubic-bezier(.2, .5, .3, 1),
+              opacity calc(var(--sm-rise, 1700ms) * 0.3) ease-out;
+}
+.sm-splash-sun[data-up="1"] { transform: translate(-50%, -18px) scale(1); opacity: 1; }
+
+.sm-splash-word {
+  position: relative; display: flex; align-items: center; gap: 16px;
+  font-size: 40px; font-weight: 700; letter-spacing: 0.24em;
+  text-shadow: 0 4px 30px rgba(4, 12, 18, 0.5);
+  transform: translateY(14px); opacity: 0;
+  transition: transform var(--sm-word, 950ms) cubic-bezier(.2, .5, .3, 1) var(--sm-word-delay, 150ms),
+              opacity var(--sm-word, 950ms) ease-out var(--sm-word-delay, 150ms);
+}
+.sm-splash-word[data-up="1"] { transform: translateY(0); opacity: 1; }
+.sm-splash-word .sm-diamond { width: 34px; height: 34px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sm-splash-sun, .sm-splash-word { transition-duration: 1ms; }
+}
+
+/* ── library ─────────────────────────────────────────────────────────────── */
+/* Geometry from DESIGN-BRIEF.md §3.4: rail 560, --s7 gap, panel --r-xl with
+   --s7 padding, cover 300x420, Play 240x68. */
+.sm-lib {
+  position: relative; z-index: 1;
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  font-family: 'Figtree', 'Outfit', sans-serif; color: var(--foam-000);
+  padding: 8px 48px 20px; gap: 20px;
+}
+
+.sm-lib-head {
+  display: flex; align-items: center; gap: 20px; height: 88px; flex-shrink: 0;
+  padding: 0 24px; border-radius: var(--r-panel);
+  background: var(--glass-500);
+  backdrop-filter: blur(18px) saturate(115%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+  border: 1px solid var(--glass-hairline);
+}
+.sm-lib-spacer { flex: 1; }
+.sm-lib-back {
+  padding: 10px 20px; border-radius: var(--r-chip); cursor: pointer;
+  background: var(--glass-500); border: 1px solid var(--glass-hairline);
+  color: var(--foam-000); font-size: 18px; font-weight: 600; font-family: inherit;
+}
+.sm-lib-logo {
+  width: 56px; height: 56px; border-radius: var(--r-tile); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; padding: 4px;
+  background: color-mix(in srgb, var(--sys-accent) 22%, transparent);
+  font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 18px;
+}
+.sm-lib-logo img { width: 100%; height: 100%; object-fit: contain; }
+.sm-lib-title { display: flex; flex-direction: column; min-width: 0; }
+.sm-lib-title b {
+  font-family: 'Outfit', sans-serif; font-size: 38px; line-height: 44px; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sm-lib-title i { font-style: normal; font-size: 14px; color: var(--foam-200); }
+
+.sm-lib-search {
+  position: relative; display: flex; align-items: center; gap: 10px;
+  width: 360px; height: 52px; padding: 0 20px; border-radius: var(--r-chip);
+  background: var(--glass-700); border: 1px solid var(--glass-hairline);
+}
+.sm-lib-search svg { flex-shrink: 0; color: var(--foam-400); }
+.sm-lib-search input {
+  flex: 1; min-width: 0; background: none; border: none; outline: none;
+  color: var(--foam-000); font-size: 18px; font-weight: 600; font-family: inherit;
+}
+.sm-lib-search input::placeholder { color: var(--foam-400); font-weight: 600; }
+
+.sm-lib-sorts { display: flex; gap: 12px; }
+.sm-lib-sort {
+  position: relative; padding: 10px 20px; border-radius: var(--r-chip);
+  cursor: pointer; font-size: 18px; font-weight: 600; font-family: inherit;
+  background: var(--glass-700); border: 1px solid var(--glass-hairline);
+  color: var(--foam-200);
+}
+/* Selected: fill AND a full-width underline — two signals, per the brief. */
+.sm-lib-sort[data-on="1"] { background: var(--accent-mandarin); color: var(--ink-900); }
+.sm-lib-sort[data-on="1"]::after {
+  content: ''; position: absolute; left: 20px; right: 20px; bottom: 6px;
+  height: 2px; background: var(--ink-900);
+}
+
+.sm-lib-body { flex: 1; display: flex; gap: 48px; overflow: hidden; }
+
+/* Left: the list rail */
+.sm-lib-list {
+  width: 560px; flex-shrink: 0; overflow-y: auto; padding-right: 6px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.sm-lib-row {
+  display: flex; align-items: center; gap: 16px; cursor: pointer;
+  min-height: 76px; padding: 0 20px; border-radius: var(--r-tile);
+  background: rgba(12, 26, 33, 0.78);  /* --glass-700 + 0.12: no blur per row */
+  border: 2px solid transparent; flex-shrink: 0;
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+.sm-lib-row[data-on="1"] {
+  background: rgba(12, 26, 33, 0.94);
+  border-color: var(--accent-mandarin);
+  box-shadow: 0 0 0 4px rgba(240, 118, 30, 0.24);
+}
+.sm-lib-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.sm-lib-row-main b {
+  font-size: 18px; line-height: 24px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sm-lib-row-main i { font-style: normal; font-size: 14px; color: var(--foam-400); }
+.sm-lib-row-time {
+  text-align: right; flex-shrink: 0; display: flex; flex-direction: column; gap: 3px;
+}
+.sm-lib-row-time b { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 500; }
+.sm-lib-row-time i { font-style: normal; font-size: 14px; color: var(--foam-400); }
+
+.sm-lib-empty { padding: 40px 20px; text-align: center; font-size: 18px; color: var(--foam-400); }
+.sm-lib-err { color: var(--state-alert); font-size: 18px; margin-bottom: 16px; }
+.sm-lib-retry {
+  padding: 10px 24px; border-radius: var(--r-chip); cursor: pointer; font-size: 18px;
+  font-family: inherit; font-weight: 600;
+  background: var(--glass-700); border: 1px solid var(--glass-hairline); color: var(--foam-000);
+}
+
+/* Right: the metadata panel */
+.sm-lib-detail {
+  flex: 1; min-width: 0; display: flex; gap: 32px; overflow: hidden;
+  padding: 48px; border-radius: 28px;
+  background: var(--glass-900);
+  backdrop-filter: blur(18px) saturate(115%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+  border: 1px solid var(--glass-hairline);
+  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.7);
+  animation: smFadeIn 250ms ease;
+}
+@keyframes smFadeIn { from { opacity: 0 } to { opacity: 1 } }
+
+/* Letterboxed, never cropped: box art aspect ratios are all over the place. */
+.sm-lib-cover {
+  width: 300px; height: 420px; border-radius: var(--r-panel); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  background: rgba(12, 26, 33, 0.6); border: 2px solid var(--glass-hairline);
+}
+.sm-lib-cover img { width: 100%; height: 100%; object-fit: contain; }
+
+.sm-lib-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sm-lib-sys {
+  font-size: 14px; line-height: 18px; font-weight: 600;
+  letter-spacing: 0.14em; color: var(--foam-400); margin-bottom: 10px;
+}
+.sm-lib-name {
+  font-family: 'Outfit', sans-serif; font-size: 56px; line-height: 60px; font-weight: 700;
+  margin-bottom: 18px; text-wrap: balance;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.sm-lib-chip {
+  display: inline-block; padding: 6px 14px; border-radius: var(--r-chip);
+  font-size: 14px; font-weight: 500; color: var(--foam-000);
+  background: var(--glass-500); border: 1px solid var(--glass-hairline);
+}
+.sm-lib-stats { display: flex; gap: 40px; margin: 4px 0 28px; }
+.sm-lib-stats span {
+  display: block; font-size: 14px; font-weight: 600; letter-spacing: 0.14em;
+  color: var(--foam-400); margin-bottom: 6px;
+}
+.sm-lib-stats b {
+  font-family: 'JetBrains Mono', monospace; font-size: 30px; line-height: 30px; font-weight: 500;
+}
+/* Pinned to the bottom of the panel: it is the one thing you came here to do. */
+.sm-lib-play {
+  margin-top: auto; align-self: flex-start; cursor: pointer;
+  width: 240px; height: 68px; border-radius: var(--r-chip); border: none;
+  font-size: 22px; font-weight: 600; font-family: inherit; color: var(--ink-900);
+  background: var(--accent-mandarin);
+  box-shadow: 0 10px 28px rgba(4, 12, 18, 0.34);
+  transition: opacity 150ms ease;
+}
+.sm-lib-play[data-busy="1"] { opacity: 0.65; }
+
+.sm-lib-hint { flex-shrink: 0; }
+
+
+/* ── themes picker ───────────────────────────────────────────────────────── */
+.sm-panel-back {
+  background: none; border: none; cursor: pointer; padding: 0 6px 0 0;
+  color: var(--foam-400); font-size: 20px; line-height: 1; font-family: inherit;
+}
+.sm-theme-row { align-items: center; }
+.sm-theme-row[data-off="1"] { opacity: 0.45; cursor: default; }
+/* Shape first: filled disc = in use, hollow ring = available. */
+.sm-theme-dot {
+  width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid rgba(255, 253, 247, 0.28); background: transparent;
+}
+.sm-theme-row[data-current="1"] .sm-theme-dot {
+  background: var(--accent-mandarin); border-color: var(--accent-mandarin);
+  box-shadow: 0 0 0 4px rgba(240, 118, 30, 0.22);
+}
+.sm-theme-tag {
+  flex-shrink: 0; padding: 4px 10px; border-radius: var(--r-chip);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+  color: var(--ink-900); background: var(--accent-mandarin);
+}
+.sm-theme-empty, .sm-theme-err {
+  padding: 14px 4px; font-size: 14px; color: var(--foam-400);
+}
+.sm-theme-err { color: var(--state-alert); }

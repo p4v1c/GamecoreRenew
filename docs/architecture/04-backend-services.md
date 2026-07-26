@@ -43,6 +43,24 @@ database was silently ignored. The correct name is
 
 ---
 
+## `themes.py` — discovery and the completeness rule
+
+`SURFACES = {"splash", "shell"}`, `SDK_VERSION = 1`.
+
+`_read_manifest(dir)` returns a validated manifest or `None` with a logged
+reason. It rejects a folder whose `theme.json` is unreadable, whose `id` does
+not equal the directory name (the id is a directory name, never a path —
+`_safe_id` enforces `^[a-z0-9][a-z0-9_-]{0,63}$`), or whose `entry` file is
+missing.
+
+A theme is `compatible` only if its `api` is not newer than `SDK_VERSION` **and**
+it declares every surface. Anything less is listed but not selectable, with the
+reason in `warnings` — the UI needs to say *why*, not just refuse. That rule is
+the one users feel: it is what makes a theme all-or-nothing, so there is never a
+half-dressed UI.
+
+Covered by `backend/tests/test_themes.py`.
+
 ## `gamepad_monitor.py` (280 l.) — evdev, the source of truth for input
 
 Runs as a lifespan task. It exists because the browser Gamepad API cannot be

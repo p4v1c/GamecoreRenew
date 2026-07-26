@@ -17,6 +17,7 @@ from .routers import systems, games, playtime, covers, metadata, sysinfo, update
 from .routers import auth as auth_routes
 from .routers import standby as standby_router
 from .routers import controllers as controllers_router
+from .routers import themes as themes_router
 from .routers.settings import wifi, audio, bluetooth
 from .services import battery, gamepad_monitor, prefetch, standby
 from .config import GAMECORE_ROOT, COVERS_DIR, ASSETS_DIR
@@ -49,6 +50,7 @@ app.include_router(overlays.router, prefix="/api")
 app.include_router(addons.router, prefix="/api")
 app.include_router(standby_router.router, prefix="/api")
 app.include_router(controllers_router.router, prefix="/api")
+app.include_router(themes_router.router, prefix="/api")
 app.include_router(wifi.router, prefix="/api")
 app.include_router(audio.router, prefix="/api")
 app.include_router(bluetooth.router, prefix="/api")
@@ -93,6 +95,32 @@ for _dir, _route, _name in (
 ):
     _dir.mkdir(parents=True, exist_ok=True)
     app.mount(_route, StaticFiles(directory=str(_dir)), name=_name)
+
+
+class _NoCacheStatic(StaticFiles):
+    """Static files that must never be served from the browser cache.
+
+    A theme is a folder of ES modules the browser imports directly. The loader
+    can bust the entry point's URL, but the entry's own relative imports
+    (home.js, settings.js, ...) and its stylesheet resolve without that query,
+    so the browser pins the first version it ever saw. Editing a theme then
+    changes nothing on screen, and a fix shipped by update stays invisible.
+    These files are small and local; not caching them costs nothing.
+    """
+
+    def is_not_modified(self, response_headers, request_headers) -> bool:
+        return False
+
+    def file_response(self, *args, **kwargs):
+        resp = super().file_response(*args, **kwargs)
+        resp.headers["Cache-Control"] = "no-store, must-revalidate"
+        return resp
+
+
+# Theme modules and their assets — imported by the browser from here.
+_themes_dir = GAMECORE_ROOT / "config" / "themes"
+_themes_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/themes", _NoCacheStatic(directory=str(_themes_dir)), name="themes")
 
 # ── WebSocket (must be registered before the catch-all static mount) ──────────
 @app.websocket("/ws")

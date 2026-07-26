@@ -23,11 +23,6 @@ export default function PowerModal({ onClose }: Props) {
   const [scanResult, setScanResult] = useState<string | null>(null)
   const { openModal, closeModal, powerPending, setPowerPending } = useStore()
 
-  useEffect(() => {
-    openModal()
-    return () => { closeModal(); setPowerPending(null) }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
   // Stable refs to avoid stale closure in confirm handler
   const focusIdxRef = useRef(focusIdx)
   const confirmRef  = useRef(confirm)

@@ -1,49 +1,71 @@
 import { useState, useEffect, useRef } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import { useWebSocket } from './hooks/useWebSocket'
-import { useGamepad } from './hooks/useGamepad'
-import { onGp } from './hooks/useGamepad'
+import { useWebSocket, onWsEvent } from './hooks/useWebSocket'
+import { useGamepad, onGp } from './hooks/useGamepad'
 import { useStore } from './store'
 import { api } from './api'
 
 import Splash from './components/Splash'
-import TopBar from './components/TopBar'
-import HomeScreen from './components/HomeScreen'
-import LibraryScreen from './components/LibraryScreen'
-import SettingsModal from './components/modals/SettingsModal'
-import PowerModal from './components/modals/PowerModal'
-import GamepadModal from './components/modals/GamepadModal'
-import Toasts from './components/ui/Toasts'
-import Screensaver from './components/Screensaver'
-import { onWsEvent } from './hooks/useWebSocket'
-import { playSound } from './lib/sounds'
+import ErrorBoundary from './components/ErrorBoundary'
+import DefaultShell from './components/DefaultShell'
+import { useTheme } from './hooks/useTheme'
+import { ThemeProvider, Shell } from './components/ThemeSurface'
 
-// The controller screen only exits on a second □ within this window. A single
-// press there is a button test like any other — same idea as the double PS
-// press that kills a running game (GUIDE_DOUBLE_PRESS_MS in useGamepad).
-const CONTROLLER_CLOSE_MS = 1000
+/**
+ * The kernel.
+ *
+ * Picking a theme swaps the frontend: this mounts one shell — the theme's, or
+ * the default one — and nothing else of the UI. What stays here is what a theme
+ * must not be able to take away:
+ *
+ *   · the input bus and the WebSocket
+ *   · the fact that there *is* a splash — a theme may redraw it, not remove it
+ *   · gp:guide, the double press that kills a running game
+ *   · the emulator overlay handshake with Electron
+ *   · the error boundaries and the L1+R1 rescue (see useTheme)
+ */
+/** Longest a boot animation may hold the screen before we move on regardless. */
+const SPLASH_WATCHDOG_MS = 20000
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true)
-  const [showSettings, setShowSettings] = useState(false)
-  const [showPower, setShowPower] = useState(false)
-  const [showGamepad, setShowGamepad] = useState(false)
-  const { screen, sessionGameKey, goHome, setSession } = useStore()
+  const { goHome, setSession, sessionGameKey } = useStore()
 
   const sessionRef = useRef(sessionGameKey)
   useEffect(() => { sessionRef.current = sessionGameKey }, [sessionGameKey])
 
-  const splashRef = useRef(showSplash)
-  useEffect(() => { splashRef.current = showSplash }, [showSplash])
-
-  const gamepadOpenRef = useRef(showGamepad)
-  useEffect(() => { gamepadOpenRef.current = showGamepad }, [showGamepad])
-  const lastClosePress = useRef(0)
-
   useWebSocket()
   useGamepad()
+  const theme = useTheme()
 
-  // Trigger overlay when emulator starts/stops
+  /**
+   * The boot animation is decided once, and only once the theme has resolved.
+   *
+   * Reading `theme.splash ?? Splash` on every render mounts the default splash
+   * immediately — the theme is still loading, so its splash is undefined — and
+   * then swaps in the theme's a moment later, mid-animation. You see both boot
+   * animations running over each other.
+   *
+   * Until the theme answers, the screen is a plain opaque cover: a fraction of
+   * a second, and the alternative is the dashboard flashing before the splash.
+   */
+  const chosenSplash = useRef<React.ComponentType<{ onDone: () => void }> | null>(null)
+  if (!chosenSplash.current && !theme.loading) chosenSplash.current = theme.splash ?? Splash
+  const SplashC = chosenSplash.current
+
+  // A themed splash decides its own length, but not whether booting ever ends:
+  // one that forgets to call onDone would leave the box on its title card for
+  // good. The default runs ~4s, plus a cold-boot hold capped at 10s.
+  useEffect(() => {
+    if (!showSplash) return
+    const t = setTimeout(() => {
+      console.warn('[gamecore] splash never finished — moving on')
+      setShowSplash(false)
+    }, SPLASH_WATCHDOG_MS)
+    return () => clearTimeout(t)
+  }, [showSplash])
+
+  // Emulator overlay: show the bezel when a game starts, hide it when it ends.
   useEffect(() => {
     const offStart = onWsEvent('game:started', (d) => {
       window.gamecore?.overlayStart((d as { system_id: string }).system_id)
@@ -52,106 +74,35 @@ export default function App() {
       window.gamecore?.overlayStop((d as { system_id: string }).system_id)
       setSession(null, null)
     })
-
     // Sync state with Electron events in case WS is slow or missed
-    window.gamecore?.onOverlayHide(() => {
-      setSession(null, null)
-    })
-
+    window.gamecore?.onOverlayHide(() => setSession(null, null))
     return () => { offStart(); offDone() }
   }, [setSession])
 
-  // Global gamepad bindings
-  useEffect(() => {
-    const offs = [
-      // Toggle-close always works; opening is refused while another modal
-      // (e.g. the library search keyboard) is on screen — otherwise both
-      // sets of gamepad handlers fire on every press.
-      onGp('gp:menu', () => { if (!splashRef.current && !useStore.getState().powerPending) setShowSettings(s => s ? false : useStore.getState().modalDepth === 0) }),
-      onGp('gp:power', () => { if (!splashRef.current && !useStore.getState().powerPending) setShowPower(s => s ? false : useStore.getState().modalDepth === 0) }),
-      // □ / X opens the controller screen on a single press, but closes it only
-      // on a double press — every button has to stay free for testing in there.
-      onGp('gp:x', () => {
-        if (splashRef.current || useStore.getState().powerPending) return
-
-        if (!gamepadOpenRef.current) {
-          // The opening press must not count as the first half of a close.
-          lastClosePress.current = 0
-          setShowGamepad(useStore.getState().modalDepth === 0)
-          return
-        }
-
-        const now = performance.now()
-        if (now - lastClosePress.current <= CONTROLLER_CLOSE_MS) {
-          lastClosePress.current = 0
-          setShowGamepad(false)
-        } else {
-          lastClosePress.current = now
-        }
-      }),
-      onGp('gp:guide', async () => {
-        if (!sessionRef.current) return
-        try { await api.games.kill() } catch {}
-        setSession(null, null)
-        goHome()
-      }),
-    ]
-    return () => offs.forEach(off => off())
-  }, [goHome, setSession])
-
-  const handleLaunchApp = async (system: { id: string; path?: string; args?: string }) => {
-    playSound('launch')
-    try {
-      await api.games.launch(system.id)
-      setSession(system.id, system.id)
-    } catch (e) {
-      console.error('Failed to launch app:', e)
-    }
-  }
+  // The one binding no theme may own: quitting a running game.
+  useEffect(() => onGp('gp:guide', async () => {
+    if (!sessionRef.current) return
+    try { await api.games.kill() } catch {}
+    setSession(null, null)
+    goHome()
+  }), [goHome, setSession])
 
   return (
-    <div style={{
-      width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column',
-      fontFamily: "'Outfit', sans-serif", color: '#fff',
-      background: screen === 'home'
-        ? 'radial-gradient(ellipse 70% 50% at 50% 30%, rgba(124,58,237,0.07) 0%, transparent 70%), #09090f'
-        : '#09090f',
-      overflow: 'hidden',
-    }}>
+    <ThemeProvider value={theme}>
+      <Shell fallback={DefaultShell} />
 
-      <Screensaver />
-
+      {/* Above the shell, and outside it. A theme draws its own boot animation
+          but cannot remove it, and cannot decide when booting ends: onDone is
+          ours, and a theme that never calls it hits the watchdog above. */}
       <AnimatePresence>
-        {showSplash && <Splash onDone={() => setShowSplash(false)} />}
+        {showSplash && (SplashC ? (
+          <ErrorBoundary key="splash" resetKey={theme.resetKey} fallback={<Splash onDone={() => setShowSplash(false)} />}>
+            <SplashC onDone={() => setShowSplash(false)} />
+          </ErrorBoundary>
+        ) : (
+          <div key="pre-splash" style={{ position: 'fixed', inset: 0, zIndex: 900, background: '#09090f' }} />
+        ))}
       </AnimatePresence>
-
-      {/* Mounted from the first frame, behind the opaque splash: systems,
-          playtime and game counts are fetched while the boot animation plays,
-          so the dashboard is already populated when it fades away (it used to
-          mount empty once the splash was gone, then pop in). */}
-      <TopBar onSettings={() => setShowSettings(true)} onPower={() => setShowPower(true)} />
-      <Toasts />
-
-      {/* Both screens stay mounted at all times — toggled via display:none.
-          This prevents the re-mount/re-fetch flash when navigating home from library. */}
-      <div style={{ flex: 1, display: screen === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-        <HomeScreen onLaunchApp={handleLaunchApp} />
-      </div>
-      <div style={{ flex: 1, display: screen === 'library' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-        <LibraryScreen />
-      </div>
-
-      <AnimatePresence>
-        {showSettings && <SettingsModal key="settings" onClose={() => setShowSettings(false)} />}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showPower && <PowerModal key="power" onClose={() => setShowPower(false)} />}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showGamepad && <GamepadModal key="gamepad" onClose={() => setShowGamepad(false)} />}
-      </AnimatePresence>
-    </div>
+    </ThemeProvider>
   )
 }

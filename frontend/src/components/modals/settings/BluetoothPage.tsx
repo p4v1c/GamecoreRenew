@@ -100,8 +100,8 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
         disabled={busy}
         style={{
           width: '100%', marginBottom: 14, padding: '10px 16px', borderRadius: 10,
-          background: op === 'scan' ? 'rgba(124,58,237,0.3)' : 'rgba(124,58,237,0.15)',
-          border: '1px solid rgba(124,58,237,0.4)', color: '#c4b5fd',
+          background: op === 'scan' ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 30%, transparent)' : 'color-mix(in srgb, var(--gc-accent, #7c3aed) 15%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 40%, transparent)', color: 'var(--gc-accent-bright, #c4b5fd)',
           cursor: busy ? 'default' : 'pointer', fontSize: 13, fontWeight: 600,
           opacity: busy && op !== 'scan' ? 0.5 : 1,
         }}
@@ -113,7 +113,7 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
       {msg && (
         <div style={{ fontSize: 13, marginBottom: 12, padding: '8px 12px', borderRadius: 8,
           background: msgError ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)',
-          color: msgError ? '#f87171' : '#a78bfa', fontWeight: msgError ? 600 : 400 }}>
+          color: msgError ? '#f87171' : 'var(--gc-accent-soft, #a78bfa)', fontWeight: msgError ? 600 : 400 }}>
           {msg}
         </div>
       )}
@@ -136,8 +136,8 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
               display: 'flex', alignItems: 'center', gap: 12,
               padding: '13px 16px', borderRadius: 12, marginBottom: 8,
               cursor: busy ? 'default' : 'pointer',
-              background: isFocused ? 'rgba(124,58,237,0.18)' : d.connected ? 'rgba(124,58,237,0.08)' : 'rgba(255,255,255,0.04)',
-              border: isFocused ? '1px solid rgba(124,58,237,0.6)' : d.connected ? '1px solid rgba(124,58,237,0.25)' : '1px solid rgba(255,255,255,0.07)',
+              background: isFocused ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 18%, transparent)' : d.connected ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 8%, transparent)' : 'rgba(255,255,255,0.04)',
+              border: isFocused ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 60%, transparent)' : d.connected ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 25%, transparent)' : '1px solid rgba(255,255,255,0.07)',
               opacity: busy && !isThisBusy ? 0.5 : 1,
               transition: 'all 0.15s',
             }}
@@ -160,9 +160,9 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
             {/* Action badge */}
             <div style={{
               fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6,
-              background: d.connected ? 'rgba(248,113,113,0.12)' : 'rgba(124,58,237,0.2)',
-              border: `1px solid ${d.connected ? 'rgba(248,113,113,0.3)' : 'rgba(124,58,237,0.35)'}`,
-              color: d.connected ? '#f87171' : '#c4b5fd',
+              background: d.connected ? 'rgba(248,113,113,0.12)' : 'color-mix(in srgb, var(--gc-accent, #7c3aed) 20%, transparent)',
+              border: `1px solid ${d.connected ? 'rgba(248,113,113,0.3)' : 'color-mix(in srgb, var(--gc-accent, #7c3aed) 35%, transparent)'}`,
+              color: d.connected ? '#f87171' : 'var(--gc-accent-bright, #c4b5fd)',
             }}>
               {isThisBusy ? '…' : (d.connected ? 'Disconnect' : 'Connect')}
             </div>

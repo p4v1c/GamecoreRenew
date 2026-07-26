@@ -47,7 +47,7 @@ export function Toggle({ label, value, onChange }: { label: string; value: boole
       <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)' }}>{label}</span>
       <div onClick={() => onChange(!value)} style={{
         width: 46, height: 25, borderRadius: 13, cursor: 'pointer',
-        background: value ? '#7c3aed' : 'rgba(255,255,255,0.12)',
+        background: value ? 'var(--gc-accent, #7c3aed)' : 'rgba(255,255,255,0.12)',
         position: 'relative', transition: 'background 0.2s',
       }}>
         <div style={{
@@ -61,14 +61,14 @@ export function Toggle({ label, value, onChange }: { label: string; value: boole
 }
 
 // ── Slider ────────────────────────────────────────────────────────────────────
-export function SliderRow({ label, value, onChange, color = '#7c3aed' }: {
+export function SliderRow({ label, value, onChange, color = 'var(--gc-accent, #7c3aed)' }: {
   label: string; value: number; onChange: (v: number) => void; color?: string
 }) {
   return (
     <div style={{ padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
         <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)' }}>{label}</span>
-        <span style={{ fontSize: 13, color: '#a78bfa' }}>{value}%</span>
+        <span style={{ fontSize: 13, color: 'var(--gc-accent-soft, #a78bfa)' }}>{value}%</span>
       </div>
       <input type="range" min={0} max={100} value={value} onChange={e => onChange(+e.target.value)}
         style={{ width: '100%', accentColor: color, cursor: 'pointer' }} />
@@ -84,7 +84,7 @@ export function Bars({ signal }: { signal: number }) {
       {[1, 2, 3, 4].map(i => (
         <div key={i} style={{
           width: 3, height: 4 + i * 3, borderRadius: 1,
-          background: i <= filled ? '#a78bfa' : 'rgba(255,255,255,0.15)',
+          background: i <= filled ? 'var(--gc-accent-soft, #a78bfa)' : 'rgba(255,255,255,0.15)',
         }} />
       ))}
     </div>
@@ -92,6 +92,13 @@ export function Bars({ signal }: { signal: number }) {
 }
 
 // ── Overlay wrapper ───────────────────────────────────────────────────────────
+/**
+ * Every settings page brings its own Overlay, so a theme that reuses one gets a
+ * full-screen fixed layer, not a fragment — it must render the page bare rather
+ * than boxing it. What the theme *can* change is how that layer looks: the two
+ * surfaces read CSS variables, defaulting to the values the dark UI has always
+ * used. Nothing changes unless a stylesheet defines them.
+ */
 export function Overlay({ onClose, children, width = 480 }: {
   onClose: () => void; children: React.ReactNode; width?: number
 }) {
@@ -100,13 +107,17 @@ export function Overlay({ onClose, children, width = 480 }: {
       onClick={e => e.target === e.currentTarget && onClose()}
       style={{
         position: 'fixed', inset: 0, zIndex: 500,
-        background: 'rgba(5,5,12,0.88)', backdropFilter: 'blur(24px)',
+        background: 'var(--gc-overlay-scrim, rgba(5,5,12,0.88))',
+        backdropFilter: 'var(--gc-overlay-blur, blur(24px))',
+        WebkitBackdropFilter: 'var(--gc-overlay-blur, blur(24px))',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
     >
       <div style={{
-        background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.09)',
-        borderRadius: 20, padding: '36px', width, maxWidth: '90vw',
+        background: 'var(--gc-overlay-panel, rgba(255,255,255,0.035))',
+        border: '1px solid var(--gc-overlay-border, rgba(255,255,255,0.09))',
+        borderRadius: 'var(--gc-overlay-radius, 20px)',
+        padding: '36px', width, maxWidth: '90vw',
         maxHeight: '85vh', overflowY: 'auto',
         boxShadow: '0 48px 96px rgba(0,0,0,0.9)',
       }}>

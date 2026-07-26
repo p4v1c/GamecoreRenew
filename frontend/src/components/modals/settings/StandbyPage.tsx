@@ -53,8 +53,8 @@ export function StandbyPage({ onClose, onBack }: { onClose: () => void; onBack: 
 
   const rowStyle = (i: number): React.CSSProperties => ({
     padding: '14px 18px', borderRadius: 12, marginBottom: 10, cursor: 'pointer',
-    background: focus === i ? 'rgba(124,58,237,0.15)' : 'rgba(255,255,255,0.04)',
-    border: focus === i ? '1px solid rgba(124,58,237,0.4)' : '1px solid rgba(255,255,255,0.07)',
+    background: focus === i ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 15%, transparent)' : 'rgba(255,255,255,0.04)',
+    border: focus === i ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 40%, transparent)' : '1px solid rgba(255,255,255,0.07)',
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     transition: 'all 0.15s',
   })
@@ -72,7 +72,7 @@ export function StandbyPage({ onClose, onBack }: { onClose: () => void; onBack: 
         </div>
         <div style={{
           width: 46, height: 26, borderRadius: 13, position: 'relative', flexShrink: 0, transition: 'background 0.2s',
-          background: enabled ? 'rgba(124,58,237,0.8)' : 'rgba(255,255,255,0.12)',
+          background: enabled ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 80%, transparent)' : 'rgba(255,255,255,0.12)',
         }}>
           <div style={{ position: 'absolute', top: 3, left: enabled ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
         </div>
@@ -87,7 +87,7 @@ export function StandbyPage({ onClose, onBack }: { onClose: () => void; onBack: 
             <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>{label}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 18 }}>‹</span>
-              <span style={{ fontSize: 16, fontWeight: 700, color: '#c4b5fd', minWidth: 70, textAlign: 'center' }}>{mins} min</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--gc-accent-bright, #c4b5fd)', minWidth: 70, textAlign: 'center' }}>{mins} min</span>
               <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 18 }}>›</span>
             </div>
           </div>

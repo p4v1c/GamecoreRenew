@@ -1,0 +1,62 @@
+/**
+ * Summer — a beach at the hour it actually is.
+ *
+ * Ported from the "GameCore Summer" design mockup. The mockup was one 700-line
+ * vanilla component that owned everything, including its own gamepad polling
+ * and fake data; here the ocean renderer is kept nearly verbatim (ocean.js) and
+ * the screens are rebuilt on the theme SDK, so they run on the box's real
+ * systems, playtime and controllers, and share the host's single input bus.
+ *
+ * One feature per file, like the default frontend — the directory listing is
+ * the check-list of what a theme has to dress:
+ *
+ *   views/  splash.js  the boot animation   home.js      the dashboard
+ *           background.js  the ocean        library.js   the game list
+ *           decor.js   the dune             settings.js  the menu
+ *           topbar.js  the status bar       themes.js    the theme picker
+ *
+ *   lib/    ocean.js   the WebGL renderer   idle.js      asleep or busy?
+ *
+ * Split the way the frontend splits: what a screen looks like, and what it
+ * needs to look like that. There is no components/HomeScreen/ here because a
+ * theme supplies only the *view* of a screen — the folder would hold one file.
+ *
+ * This file only wires them together. It holds no markup and no behaviour on
+ * purpose: everything a screen *does* — paging, focus, the modal stack, the
+ * button bindings — belongs to the host, so a themed frontend and the default
+ * one behave identically and only the UI differs.
+ *
+ * Contract: docs/themes/README.md
+ */
+import { createUseIdle } from './lib/idle.js'
+import { createBackground } from './views/background.js'
+import { createDecor } from './views/decor.js'
+import { createTopBar } from './views/topbar.js'
+import { createHomeView } from './views/home.js'
+import { createLibraryView } from './views/library.js'
+import { createSettings } from './views/settings.js'
+import { createThemesPage } from './views/themes.js'
+import { createSplash } from './views/splash.js'
+
+export default (sdk) => {
+  const { html } = sdk.ui
+  const useIdle = createUseIdle(sdk)
+
+  const Background = createBackground(sdk, useIdle)
+  const Decor = createDecor(sdk, useIdle)
+  const TopBar = createTopBar(sdk)
+  const HomeView = createHomeView(sdk)
+  const LibraryView = createLibraryView(sdk)
+  const Settings = createSettings(sdk, { themes: createThemesPage(sdk) })
+
+  const Shell = () => html`
+    <${sdk.defaults.Shell}
+      background=${Background}
+      decor=${Decor}
+      topbar=${TopBar}
+      homeView=${HomeView}
+      libraryView=${LibraryView}
+      settings=${Settings} />`
+
+  return { splash: createSplash(sdk), shell: Shell }
+}

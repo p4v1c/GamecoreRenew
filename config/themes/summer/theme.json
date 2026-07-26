@@ -1,0 +1,12 @@
+{
+  "id": "summer",
+  "name": "Summer",
+  "version": "1.0.0",
+  "api": 1,
+  "author": "Claude design \u00b7 ported by Claude Code",
+  "description": "A WebGL ocean that tracks the real sun, under glass panels",
+  "provides": [
+    "splash",
+    "shell"
+  ]
+}
