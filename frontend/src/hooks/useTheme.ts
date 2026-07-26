@@ -35,7 +35,9 @@ const RESCUE_HOLD_MS = 2000
 const STABLE_AFTER_MS = 20000
 
 export interface ThemeState {
-  /** Surfaces to render; empty object means "all default". */
+  /** The theme's shell, or undefined to use the default frontend. */
+  shell?: SurfaceMap['shell']
+  /** Kept for the settings page: what the loader actually resolved. */
   surfaces: SurfaceMap
   /** Active theme id, or null for the built-in default. */
   themeId: string | null
@@ -47,7 +49,7 @@ export interface ThemeState {
   resetKey: string
   reload: () => void
   select: (id: string | null) => Promise<void>
-  noteSurfaceCrash: (surface: string) => void
+  noteShellCrash: () => void
 }
 
 export function useTheme(): ThemeState {
@@ -142,13 +144,13 @@ export function useTheme(): ThemeState {
     })
   }, [])
 
-  const noteSurfaceCrash = useCallback((surface: string) => {
+  const noteShellCrash = useCallback(() => {
     const id = activeIdRef.current
     if (!id) return
     // It is not stable after all — cancel the amnesty.
     if (stableTimer.current) { clearTimeout(stableTimer.current); stableTimer.current = null }
     const n = recordCrash(id)
-    console.error(`[gamecore] theme ${id}: surface "${surface}" crashed (${n})`)
+    console.error(`[gamecore] theme ${id}: shell crashed (${n})`)
   }, [])
 
   const select = useCallback(async (id: string | null) => {
@@ -160,9 +162,9 @@ export function useTheme(): ThemeState {
   }, [])
 
   return {
-    surfaces, themeId, manifest, loading, safeMode,
+    shell: surfaces.shell, surfaces, themeId, manifest, loading, safeMode,
     resetKey: `${themeId ?? 'default'}:${nonce}`,
     reload: () => setNonce(n => n + 1),
-    select, noteSurfaceCrash,
+    select, noteShellCrash,
   }
 }

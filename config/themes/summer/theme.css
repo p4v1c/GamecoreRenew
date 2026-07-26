@@ -64,6 +64,13 @@
   background: var(--glass-500); font-size: 12px; color: var(--foam-200);
 }
 .sm-ip { font-family: 'JetBrains Mono', monospace; letter-spacing: 0.04em; }
+.sm-storage { gap: 9px; }
+.sm-store-bar {
+  width: 62px; height: 8px; border-radius: 4px; overflow: hidden;
+  background: rgba(255, 253, 247, 0.16); display: block;
+}
+.sm-store-bar > i { display: block; height: 100%; transition: width 400ms ease; }
+.sm-store-txt { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--foam-400); }
 .sm-pad-n { font-weight: 700; font-size: 11px; color: var(--foam-400); }
 .sm-bat {
   width: 30px; height: 11px; border-radius: 3px; overflow: hidden;
@@ -87,7 +94,7 @@
 
 /* ── home ────────────────────────────────────────────────────────────────── */
 .sm-home {
-  flex: 1; display: flex; flex-direction: column; gap: 14px;
+  flex: 1; display: flex; flex-direction: column; gap: 16px;
   padding: 0 24px 18px; overflow: hidden;
   font-family: 'Figtree', 'Outfit', sans-serif; color: var(--foam-000);
 }
@@ -100,45 +107,53 @@
 .sm-stats span { font-size: 11px; letter-spacing: 0.16em; color: var(--foam-400); }
 
 .sm-grid {
-  flex: 1; display: grid; grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(2, 1fr); gap: 14px; min-height: 0;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 245px; gap: 16px;
 }
 .sm-tile {
-  position: relative; border-radius: var(--r-tile); padding: 16px 18px;
+  position: relative; border-radius: 22px; padding: 24px;
   background: var(--glass-700); overflow: hidden;
-  display: flex; flex-direction: column; justify-content: flex-end; gap: 6px;
-  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  display: flex; flex-direction: column; justify-content: space-between;
+  transition: transform 140ms cubic-bezier(.22,.61,.36,1),
+              box-shadow 140ms, background 140ms;
 }
+/* A system with nothing in it reads as an outline, not a full tile. */
+.sm-tile[data-empty="1"] { border: 2px dashed rgba(195, 183, 166, 0.5); }
 /* The focus ring is the one thing a theme may never soften: it is how the
    player knows where they are, from a couch. */
 .sm-tile[data-on="1"] {
   background: var(--glass-900);
   box-shadow: 0 0 0 3px var(--accent-mandarin),
               0 0 0 7px rgba(240, 118, 30, 0.28),
-              0 18px 40px -14px rgba(0, 0, 0, 0.8);
-  transform: translateY(-2px);
+              0 10px 28px rgba(4, 12, 18, 0.34);
+  transform: scale(1.045);
 }
-.sm-tile-head {
-  position: absolute; top: 14px; left: 18px; right: 18px;
-  display: flex; align-items: center; gap: 10px;
-}
+.sm-tile-head { display: flex; align-items: center; gap: 12px; }
 .sm-sq {
-  width: 46px; height: 46px; border-radius: 12px;
+  width: 64px; height: 64px; border-radius: 14px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 17px; color: var(--foam-000);
+  font-weight: 700; font-size: 26px; color: var(--foam-000);
+  font-family: 'Outfit', sans-serif;
   background: color-mix(in srgb, var(--tile-accent) 55%, var(--ink-900));
 }
 .sm-badge {
-  padding: 3px 9px; border-radius: var(--r-chip); font-size: 11px; font-weight: 600;
+  padding: 4px 10px; border-radius: var(--r-chip); font-size: 14px; font-weight: 600;
+  letter-spacing: 0.06em;
   background: color-mix(in srgb, var(--tile-accent) 30%, transparent);
   color: var(--foam-000);
 }
-.sm-tile-name { font-size: 19px; font-weight: 700; line-height: 1.15; }
-.sm-tile-meta { font-size: 12px; color: var(--foam-400); }
-.sm-tile-rule {
-  position: absolute; left: 18px; bottom: 0; width: 64px; height: 3px;
-  border-radius: 2px 2px 0 0; background: var(--tile-accent);
+.sm-tile-name {
+  font-family: 'Outfit', sans-serif; font-size: 26px; line-height: 32px;
+  font-weight: 600; max-height: 64px; overflow: hidden;
 }
+.sm-tile[data-on="1"] .sm-tile-name { font-weight: 700; }
+.sm-tile-meta { font-size: 14px; font-weight: 500; color: var(--foam-200); margin-top: 6px; }
+.sm-tile[data-empty="1"] .sm-tile-meta { color: var(--foam-400); }
+.sm-tile-rule {
+  position: absolute; left: 24px; bottom: 0; width: 92px; height: 3px;
+  background: var(--tile-accent); transition: width 140ms, height 140ms;
+}
+.sm-tile[data-on="1"] .sm-tile-rule { width: 348px; height: 6px; }
 
 .sm-dots { display: flex; gap: 7px; justify-content: center; }
 .sm-dot { width: 7px; height: 7px; border-radius: 4px; background: rgba(255, 253, 247, 0.22); }
@@ -147,6 +162,40 @@
 .sm-hint {
   text-align: center; font-size: 12px; color: var(--foam-400);
   letter-spacing: 0.04em;
+}
+
+/* ── decor: dune foreground ──────────────────────────────────────────────── */
+/* The host already stops rendering decor while a game runs; these also idle
+   out during standby (the component returns null). Transform-only animation,
+   per the motion budget. */
+.sm-decor { position: absolute; inset: 0; overflow: hidden; }
+
+.sm-grass {
+  position: absolute; bottom: 0; height: 190px; overflow: visible;
+  opacity: 0.95;
+}
+.sm-grass-l { left: -30px; width: 620px; }
+.sm-grass-r { right: -30px; width: 590px; transform: scaleX(-1); }
+
+.sm-shell { position: absolute; overflow: visible; opacity: 0.9; }
+
+@keyframes smB1 {
+  0%, 100% { transform: rotate(-3deg) skewX(-2deg); }
+  30% { transform: rotate(6deg) skewX(4deg); }
+  52% { transform: rotate(2deg) skewX(1deg); }
+  74% { transform: rotate(7.5deg) skewX(5deg); }
+}
+@keyframes smB2 {
+  0%, 100% { transform: rotate(-5deg) skewX(-3deg) scaleY(1); }
+  28% { transform: rotate(10deg) skewX(7deg) scaleY(.985); }
+  55% { transform: rotate(3deg) skewX(2deg) scaleY(1); }
+  78% { transform: rotate(11deg) skewX(8deg) scaleY(.99); }
+}
+@keyframes smB3 {
+  0%, 100% { transform: rotate(-8deg) skewX(-5deg) scaleY(1); }
+  26% { transform: rotate(15deg) skewX(11deg) scaleY(.97); }
+  54% { transform: rotate(5deg) skewX(3deg) scaleY(1); }
+  80% { transform: rotate(16deg) skewX(12deg) scaleY(.98); }
 }
 
 /* ── settings ────────────────────────────────────────────────────────────── */

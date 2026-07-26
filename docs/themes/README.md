@@ -79,42 +79,54 @@ with no change to `update/linux.sh`. That is why they live there and not under
 absent from `provides` is ignored. That stops a theme from silently taking over
 a screen its author never considered.
 
-## 5. Surfaces
+## 5. The shell
 
-| Surface | Replaces | v1 |
-|---|---|---|
-| `background` | a full-screen layer behind everything | yes |
-| `decor` | a full-screen layer above everything, non-interactive | yes |
-| `home` | the dashboard | yes |
-| `library` | the game grid, search and metadata panel | yes |
-| `topbar` | clock, IP, storage, controller battery | yes |
-| `screensaver` | the standby slideshow | yes |
-| `powerModal` | the power menu | yes |
-| `gamepadModal` | the controller screen | yes |
-| `settings` | the settings screen and its sub-pages | yes |
-| `keyboard` | the on-screen keyboard | **not yet** |
-| `splash` | the boot animation | **v1.1** |
+A theme provides **one** thing: the shell — the whole frontend body.
 
-Two deliberate exclusions:
+| Provided | Owner |
+|---|---|
+| `shell` | the theme (or the default one) |
+| splash, input bus, WebSocket, `gp:guide`, error boundaries, L1+R1 rescue | the kernel, always |
 
-- **`splash` is deferred to v1.1.** Its animation is rAF-driven with a cold-boot
-  hold (the first black frame is held ~4 s while the TV re-syncs HDMI). A theme
-  replacing it must honour that parameter or the animation plays to nobody.
-- **`keyboard` is not wired yet.** The on-screen keyboard is rendered from
-  inside `LibraryScreen` and `WifiPage`, not from `App`, so a theme's version
-  would never be picked up. Listing it would accept a theme that then silently
-  does nothing. It returns when those two call sites go through a surface.
-- **The overlay window** (`/overlay`, the emulator bezels) is out of scope. It
-  has its own mount point, is driven by `config/overlays.json`, and renders on
-  top of running games.
+Picking a theme swaps the frontend. Anything the theme does not ship — starting
+with the splash — stays with the kernel, so a theme cannot remove the boot
+animation or the way out of itself.
 
-> **`settings` was withheld at first** because it is the way back to another
-> theme, and a theme that broke it would strand a box with no pointer. The
-> **L1+R1 rescue hold** removed that argument: it forces the default theme from
-> anywhere, without needing anything to render. A theme owning `settings` should
-> still surface a way to switch theme — `sdk.defaults.DefaultSettingsPages.themes`
-> is the page itself, ready to drop in — but the box is no longer stranded if it
-> forgets.
+### Composing instead of rewriting
+
+`sdk.defaults.Shell` **is** the default frontend, and it takes parts:
+
+| Part | Replaces |
+|---|---|
+| `background` | a full-screen layer the shell places behind everything |
+| `decor` | a full-screen layer above everything, non-interactive |
+| `topbar` | clock, IP, storage, controller battery |
+| `home` | the dashboard |
+| `library` | the game grid, search and metadata panel |
+| `screensaver` | the standby slideshow |
+| `settings` | the settings screen |
+| `powerModal`, `gamepadModal` | the modals |
+
+So "add snow to the dashboard" is a shell that renders `sdk.defaults.Shell` with
+a `decor`, and "replace everything" is a shell that renders its own tree. Same
+mechanism, effort proportional to ambition.
+
+### Why one surface and not nine
+
+The first version substituted nine components inside the host's own layout, so
+the theme and the default were **interleaved in one tree**. Every bug came from
+that:
+
+- a theme's background painted over the screens it had *not* replaced, because
+  stacking was left to the theme's CSS;
+- a themed modal never joined the modal stack, so the dashboard kept receiving
+  the d-pad behind it and the cursor moved in two places at once;
+- default settings pages were torn out of the `Overlay` they were written for
+  and dropped into the theme's own box, which broke their layout.
+
+One tree, one owner. The shell owns the stacking (a theme never writes a
+`z-index`), and the shell registers whatever it shows as a modal — for default
+and themed alike, so forgetting is not possible.
 
 ## 6. The SDK
 
@@ -128,7 +140,7 @@ there is no import map to maintain and only one React instance exists.
 | `sdk.nav` | `use(selector)` for a reactive read inside a component, `get()` for a snapshot in a handler, plus `goHome`, `goLibrary`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx`, `openModal`, `closeModal` | [store reference](../architecture/05-frontend.md#store--storeindexts) |
 | `sdk.input` | `onGp(event, handler)`, `useGamepadState()`, `GP_BTN`, `events` | [event bus](../architecture/05-frontend.md#the-gamepad-event-bus--hooksusegamepadts) |
 | `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `gamecore`, `asset(path)` | `asset()` resolves a path inside the theme folder |
-| `sdk.defaults` | every default component, plus `DefaultSettingsPages` (wifi, audio, bluetooth, standby, themes, update, desktop) | lets a theme wrap instead of replace |
+| `sdk.defaults` | `Shell` (the default frontend, takes parts), every screen, `SettingsOverlay` + `DefaultSettingsPages` (wifi, audio, bluetooth, standby, themes, update, desktop) | compose instead of rewrite |
 
 `modalDepth` and `powerPending` are readable through `get()` but there is no
 setter: they are the core's focus and shutdown locks.
@@ -142,39 +154,31 @@ add your layer.
 
 ## 7. Module contract
 
-The entry point default-exports a function taking `sdk` and returning an object
-whose keys are surface names. **Surfaces take no props and pull what they need
-from the SDK**, with three exceptions the host has to hand over because they
-close over its own state:
-
-| Surface | Props |
-|---|---|
-| `topbar` | `{ onSettings, onPower }` |
-| `powerModal`, `gamepadModal`, `settings` | `{ onClose }` |
-
-Everything else takes nothing. That is what keeps the contract stable: the host
-can reorganise its screens without changing a signature.
-
-Illustrative shape, not an implementation:
+The entry point default-exports a function taking `sdk` and returning
+`{ shell }`. The shell takes no props: everything comes from the SDK.
 
 ```js
 export default (sdk) => {
   const { html } = sdk.ui
   const Decor = () => html`<img src=${sdk.system.asset('santa.png')} class="t-santa" />`
-  return { decor: Decor }
+  return { shell: () => html`<${sdk.defaults.Shell} decor=${Decor} />` }
 }
 ```
 
 A theme may ship a stylesheet for its own markup and load it from its folder.
 
+> **Reusing a default settings page?** They are fragments written for
+> `sdk.defaults.SettingsOverlay`, which gives them their width, padding and
+> scrolling. Render them inside it, not inside your own panel.
+
 ## 8. Fallback and composition
 
 | Situation | Result |
 |---|---|
-| Surface not in `provides` | default component |
-| Declared in `provides` but missing from the module | default component + warning |
-| Surface throws while rendering | default component **for that surface only** |
-| Module fails to load | whole theme rejected, default theme, reason surfaced |
+| No `shell` in `provides` | the default frontend |
+| Declared but missing from the module | the default frontend + warning |
+| The shell throws while rendering | the default frontend, and the crash is recorded |
+| Module fails to load | theme rejected, default frontend, reason surfaced |
 
 ## 9. Compatibility
 

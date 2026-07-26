@@ -5,5 +5,5 @@
   "api": 1,
   "author": "you",
   "description": "Copy this folder to start a theme",
-  "provides": []
+  "provides": ["shell"]
 }

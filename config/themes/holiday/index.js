@@ -1,9 +1,9 @@
 /**
  * Holiday — example theme.
  *
- * Overrides two surfaces and nothing else; every other screen stays on the
- * default theme. That is the point of partial override: this file is 60 lines,
- * not a UI rewrite.
+ * Paints two layers and nothing else: it returns a shell that is the default
+ * shell with a background and a decor passed in. 60 lines, not a UI rewrite —
+ * that is what composing the default shell buys.
  *
  * Native ES module, no build step. Markup goes through sdk.ui.html.
  * Contract: docs/themes/README.md
@@ -63,5 +63,10 @@ export default (sdk) => {
     `
   }
 
-  return { background: Background, decor: Decor }
+  // One shell, composed from the default one: this theme only paints, so it
+  // hands its two layers to sdk.defaults.Shell and inherits every screen.
+  const Shell = () => html`
+    <${sdk.defaults.Shell} background=${Background} decor=${Decor} />`
+
+  return { shell: Shell }
 }

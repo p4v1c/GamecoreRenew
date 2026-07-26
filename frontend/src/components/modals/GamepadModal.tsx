@@ -34,12 +34,6 @@ export default function GamepadModal({ onClose }: { onClose: () => void }) {
   // Live button/axis state — drives the drawing below, frame by frame
   const state = useGamepadState()
 
-  // Register / unregister in the modal stack
-  useEffect(() => {
-    openModal()
-    return () => closeModal()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => {
     api.sysinfo().then(setSysInfo).catch(() => {})
     const refresh = () => setCtrl(detectControllerType())

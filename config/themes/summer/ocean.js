@@ -29,7 +29,7 @@ export const ORDER = ['dawn','noon','afternoon','sunset','night'];
 function lerp(a,b,t){return a+(b-a)*t;}
 function lerpArr(a,b,t){return a.map((v,i)=>lerp(v,b[i],t));}
 function pad2(n){return n<10?'0'+n:''+n;}
-function shade(hex,f){
+export function shade(hex,f){
   const r=Math.min(255,Math.round(parseInt(hex.slice(1,3),16)*f));
   const g=Math.min(255,Math.round(parseInt(hex.slice(3,5),16)*f));
   const b=Math.min(255,Math.round(parseInt(hex.slice(5,7),16)*f));

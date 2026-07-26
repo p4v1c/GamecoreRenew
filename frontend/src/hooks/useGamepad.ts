@@ -148,12 +148,48 @@ export function useGamepad() {
     }
 
     rafId.current = requestAnimationFrame(poll)
+
+    // Keyboard stand-in. The box is controller-only, but a browser on a desk is
+    // how anyone develops, reviews a theme or rescues a machine over VNC — and
+    // until now nothing but Enter on an already-focused tile worked there.
+    // These emit the *same* gp:* events, so the default UI and every theme get
+    // it for free and nobody writes a second navigation path.
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      // Never steal a keystroke from a real field (Wi-Fi password, search box).
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const name = KEYMAP[e.key]
+      if (!name) return
+      if (isPlaying() && name !== 'gp:guide') return
+      e.preventDefault()
+      emit(name)
+    }
+    window.addEventListener('keydown', onKey)
+
     return () => {
       cancelAnimationFrame(rafId.current)
       window.removeEventListener('gamepadconnected',    onConnect)
       window.removeEventListener('gamepaddisconnected', onDisconnect)
+      window.removeEventListener('keydown', onKey)
     }
   }, [])
+}
+
+/**
+ * Keyboard → the same events the pad emits.
+ * Letters mirror the stand-in the design mockups use, so a theme reviewed in a
+ * browser behaves like the box.
+ */
+const KEYMAP: Record<string, string> = {
+  ArrowUp: 'gp:dpad-up', ArrowDown: 'gp:dpad-down',
+  ArrowLeft: 'gp:dpad-left', ArrowRight: 'gp:dpad-right',
+  Enter: 'gp:confirm', ' ': 'gp:confirm',
+  Escape: 'gp:back', Backspace: 'gp:back',
+  PageUp: 'gp:l1', PageDown: 'gp:r1',
+  m: 'gp:menu', M: 'gp:menu',      // Start  → Settings
+  p: 'gp:power', P: 'gp:power',    // Select → Power menu
+  c: 'gp:x', C: 'gp:x',            // Square → Controller screen
 }
 
 /** Attach a gamepad event listener, returns cleanup fn. */

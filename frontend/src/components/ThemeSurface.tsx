@@ -1,6 +1,5 @@
 import React, { createContext, useContext } from 'react'
 import ErrorBoundary from './ErrorBoundary'
-import type { SurfaceName } from '../lib/themeLoader'
 import type { ThemeState } from '../hooks/useTheme'
 
 const ThemeCtx = createContext<ThemeState | null>(null)
@@ -14,30 +13,32 @@ export function useThemeCtx(): ThemeState | null {
 }
 
 /**
- * Renders the theme's version of a surface, or the default one.
+ * Mounts the theme's shell, or the default one.
  *
- * The boundary is per surface on purpose: a theme that breaks its library
- * screen keeps its dashboard, and the user can still reach Settings to switch
- * back. Falling back also records the crash, which is what eventually makes the
- * loader refuse the theme entirely.
+ * There is exactly one of these. The first design substituted nine components
+ * inside the host's own layout, which meant the theme and the default were
+ * interleaved in one tree — and every bug came from that: a theme's background
+ * painted over screens it had not replaced, its modals never joined the modal
+ * stack, and default settings pages got torn out of the container they were
+ * written for. One tree, one owner, none of it happens.
+ *
+ * The boundary is what keeps a broken theme survivable: it throws, the default
+ * shell takes over, and the crash is recorded so the loader eventually refuses
+ * the theme outright.
  */
-export function Surface<P extends object>({ name, fallback: Fallback, ...props }: {
-  name: SurfaceName
-  fallback: React.ComponentType<P>
-} & P) {
+export function Shell({ fallback: Fallback }: { fallback: React.ComponentType }) {
   const theme = useThemeCtx()
-  const Themed = theme?.surfaces?.[name]
-  const rest = props as unknown as P
+  const Themed = theme?.shell
 
-  if (!Themed) return <Fallback {...rest} />
+  if (!Themed) return <Fallback />
 
   return (
     <ErrorBoundary
       resetKey={theme?.resetKey}
-      fallback={<Fallback {...rest} />}
-      onError={() => theme?.noteSurfaceCrash(name)}
+      fallback={<Fallback />}
+      onError={() => theme?.noteShellCrash()}
     >
-      <Themed {...(rest as object)} />
+      <Themed />
     </ErrorBoundary>
   )
 }

@@ -23,16 +23,12 @@ STATE_FILE = GAMECORE_ROOT / "config" / "theme.json"
 # Bumped only when a surface or an SDK key is removed. Adding one does not.
 SDK_VERSION = 1
 
-# Kept in step with docs/themes/README.md §5. `settings` used to be withheld
-# because it is the way back to another theme; the L1+R1 rescue hold now covers
-# that without rendering anything, so a theme may own it. Two remain absent:
-# `splash` lands in v1.1, and `keyboard` is rendered from inside LibraryScreen
-# and WifiPage rather than from App, so a theme's version would never be picked
-# up — accepting it would be a promise the frontend cannot keep.
-SURFACES = {
-    "background", "decor", "home", "library", "topbar",
-    "screensaver", "powerModal", "gamepadModal", "settings",
-}
+# A theme provides one thing: the shell, i.e. the whole frontend body. It used
+# to be nine interleaved surfaces, which is what made themes brittle — the
+# theme's tree fought the host's over stacking, the modal stack and the
+# containers default pages expect. `splash` stays with the kernel so a theme
+# that ships none still gets one.
+SURFACES = {"shell"}
 
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 

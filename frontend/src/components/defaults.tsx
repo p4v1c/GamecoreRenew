@@ -18,6 +18,8 @@ import PowerModal from './modals/PowerModal'
 import GamepadModal from './modals/GamepadModal'
 import { VirtualKeyboard } from './ui/VirtualKeyboard'
 import SettingsModal from './modals/SettingsModal'
+import DefaultShell from './DefaultShell'
+import { Overlay, OverlayLabel, BackHeader } from './ui'
 import { WifiPage } from './modals/settings/WifiPage'
 import { AudioPage } from './modals/settings/AudioPage'
 import { BluetoothPage } from './modals/settings/BluetoothPage'
@@ -52,6 +54,18 @@ export const DefaultTopBar = ({ onSettings, onPower }: TopBarProps) => (
 )
 
 export const DefaultKeyboard = VirtualKeyboard
+
+/** The whole default frontend. Render it with overrides to change one screen. */
+export const Shell = DefaultShell
+
+/**
+ * The container the settings pages were written for. They are fragments, not
+ * modals: dropped into a theme's own box they lose their width, padding and
+ * scroll — which is exactly how the Wi-Fi page came out broken.
+ */
+export const SettingsOverlay = Overlay
+export const Label = OverlayLabel
+export const BackBar = BackHeader
 
 export const DefaultSettings = ({ onClose }: CloseProps) => <SettingsModal onClose={onClose} />
 

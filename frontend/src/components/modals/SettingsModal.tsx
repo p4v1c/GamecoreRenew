@@ -29,12 +29,6 @@ export default function SettingsModal({ onClose }: Props) {
   const [focusIdx, setFocusIdx] = useState(0)
   const { openModal, closeModal } = useStore()
 
-  // Register / unregister in the modal stack
-  useEffect(() => {
-    openModal()
-    return () => closeModal()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
   const back = useCallback(() => setPage('main'), [])
 
   // Stable ref for focusIdx to avoid stale closures

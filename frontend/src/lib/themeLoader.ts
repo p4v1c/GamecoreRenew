@@ -8,18 +8,16 @@
 import type { ComponentType } from 'react'
 import { buildSdk, SDK_VERSION } from './themeSdk'
 
-export type SurfaceName =
-  | 'background' | 'decor' | 'home' | 'library' | 'topbar'
-  | 'screensaver' | 'powerModal' | 'gamepadModal' | 'settings'
+/**
+ * A theme provides one thing: the shell — the whole frontend body.
+ *
+ * It used to be nine interleaved surfaces. That is what made themes brittle:
+ * the theme's tree and the host's fought over stacking, the modal stack and the
+ * containers that default pages expect. One owner per tree removes the class.
+ */
+export type SurfaceName = 'shell'
 
-// `keyboard` is deliberately absent: the on-screen keyboard is rendered from
-// inside LibraryScreen and WifiPage, not from App, so nothing would pick a
-// theme's version up. Listing it would accept a theme that then silently does
-// nothing. It comes back when those two call sites go through a surface.
-export const SURFACES: SurfaceName[] = [
-  'background', 'decor', 'home', 'library', 'topbar',
-  'screensaver', 'powerModal', 'gamepadModal', 'settings',
-]
+export const SURFACES: SurfaceName[] = ['shell']
 
 export interface ThemeManifest {
   id: string

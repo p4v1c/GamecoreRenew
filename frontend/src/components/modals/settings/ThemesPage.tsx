@@ -96,7 +96,7 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
         i + 1,
         t.name,
         t.compatible
-          ? `v${t.version}${t.author ? ` · ${t.author}` : ''} · ${t.provides.length} surface${t.provides.length > 1 ? 's' : ''}`
+          ? `v${t.version}${t.author ? ` · ${t.author}` : ''}${t.description ? ` · ${t.description}` : ''}`
           : `needs SDK v${t.api} — this build is older`,
         !t.compatible,
       ))}

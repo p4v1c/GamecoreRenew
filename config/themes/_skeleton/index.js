@@ -8,18 +8,19 @@
 export default (sdk) => {
   const { html } = sdk.ui
 
-  // Available surfaces (declare the ones you return, in theme.json):
-  //   background · decor · home · library · topbar
-  //   screensaver · powerModal · gamepadModal · settings
+  // A theme provides one thing: the shell — the whole frontend body.
   //
-  // Anything you do not return keeps the default look.
-  // sdk.defaults holds the default components, so you can wrap instead of replace.
+  // sdk.defaults.Shell IS the default frontend and takes parts, so you only
+  // rewrite what you care about:
+  //   background · decor · topbar · home · library
+  //   screensaver · settings · powerModal · gamepadModal
+  //
+  // const MyHome = () => html`<div>…</div>`
+  // return { shell: () => html`<${sdk.defaults.Shell} home=${MyHome} />` }
+  //
+  // Or return your own tree entirely and pick from sdk.defaults what you do
+  // not want to write. Either way you own one tree — so you own the stacking,
+  // and you never write a z-index.
 
-  // const Home = () => html`
-  //   <div>
-  //     <${sdk.defaults.DefaultHome} />
-  //   </div>
-  // `
-
-  return {}
+  return { shell: () => html`<${sdk.defaults.Shell} />` }
 }

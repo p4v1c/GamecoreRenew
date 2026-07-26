@@ -158,8 +158,7 @@ Implement a **GameCore theme** from the design brief below.
 
 A single directory, `config/themes/[THEME-ID]/`, containing:
 
-- `theme.json` — manifest. `api: 1`. `provides` lists **exactly** the surfaces
-  you implement, no more.
+- `theme.json` — manifest. `api: 1`, `provides: ["shell"]`.
 - `index.js` — native ES module, default-exports a function taking `sdk` and
   returning the surface components. **No JSX, no imports, no build step.** Use
   `sdk.ui.html` for markup and the hooks off `sdk.ui`.
@@ -171,7 +170,11 @@ A single directory, `config/themes/[THEME-ID]/`, containing:
 
 ## Rules you must follow
 
-- **Surface components take no props.** Everything comes from `sdk`.
+- **Return one `shell`.** Render `sdk.defaults.Shell` and pass it only the
+  parts you redesign — do not reimplement screens the brief did not ask for.
+- **Never write a `z-index`.** The shell owns the stacking.
+- **Reuse the settings sub-pages inside `sdk.defaults.SettingsOverlay`**, which
+  is the container they were written for.
 - **Read data through `sdk.api`**, navigation through `sdk.nav`, input through
   `sdk.input`. Never fetch a URL directly, never touch `window` beyond
   `sdk.system.gamecore`.

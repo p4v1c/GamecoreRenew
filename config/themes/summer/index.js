@@ -7,13 +7,15 @@
  * the screens are rebuilt on the theme SDK, so they run on the box's real
  * systems, playtime and controllers, and share the host's single input bus.
  *
- * Surfaces: background · topbar · home · settings.
- * Everything else stays on the default theme — that is what partial override
- * is for.
+ * It returns a `shell`: the whole frontend body. The pieces it does not
+ * rewrite (library, screensaver, power and controller screens) come from
+ * sdk.defaults.Shell, which takes them as overrides — so this file changes four
+ * screens without reimplementing a launcher, and the default screens keep the
+ * container and stacking they were written for.
  *
  * Contract: docs/themes/README.md
  */
-import { createOcean, todColors, currentTod } from './ocean.js'
+import { createOcean, todColors, currentTod, shade } from './ocean.js'
 
 export default (sdk) => {
   const { html, useState, useEffect, useRef, useMemo } = sdk.ui
@@ -48,7 +50,86 @@ export default (sdk) => {
 
     useEffect(() => { oceanRef.current?.setPaused(idle) }, [idle])
 
+    // No z-index here on purpose: the shell puts this behind everything.
     return html`<canvas ref=${ref} class="sm-ocean" aria-hidden="true" />`
+  }
+
+  // ── decor: the dune foreground ─────────────────────────────────────────────
+  // Grass blades are generated exactly as the mockup did — a seeded PRNG so the
+  // dune is identical on every boot — and swayed in CSS. Shells are the mockup's
+  // seven hand-placed positions. No surfer: the brief's narrative element was
+  // dropped on request.
+  const makeBlades = (seed, count, spread) => {
+    let s = seed
+    const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647 }
+    const out = []
+    for (let i = 0; i < count; i++) {
+      const back = i % 3 === 0
+      const u = i / count
+      const x = -40 + Math.pow(u, 1.8) * spread + rnd() * 22
+      const near = 1.35 - 0.65 * u
+      const h = ((back ? 80 : 130) + rnd() * (back ? 80 : 160)) * near
+      const lean = (rnd() - 0.5) * (h * 0.42)
+      const w = ((back ? 4 : 5.5) + rnd() * 4) * near
+      const cx = x + lean * 0.28, cy = 300 - h * 0.52
+      const d = `M${(x - w).toFixed(1)} 300 Q${(cx - w * 0.35).toFixed(1)} ${cy.toFixed(1)} `
+              + `${(x + lean).toFixed(1)} ${(300 - h).toFixed(1)} `
+              + `Q${(cx + w * 0.4).toFixed(1)} ${(cy + 4).toFixed(1)} ${(x + w).toFixed(1)} 300 Z`
+      out.push({
+        d, depth: back ? 0.5 + rnd() * 0.16 : 0.78 + rnd() * 0.42,
+        kf: `smB${h > 230 ? 3 : h > 150 ? 2 : 1}`,
+        dur: (1.7 + rnd() * 1.5).toFixed(2),
+        delay: (-(x / spread) * 1.6 - rnd() * 0.5).toFixed(2),
+      })
+    }
+    return out.sort((a, b) => a.depth - b.depth)
+  }
+
+  // left, top, size, rotation — the mockup's placement, kept
+  const SHELLS = [
+    [13, 86, 34, -14], [27, 81, 24, 9], [41, 94, 40, -6], [52, 84, 26, 22],
+    [63, 90, 32, -19], [76, 82, 22, 6], [88, 92, 36, 15],
+  ]
+
+  const Decor = () => {
+    const idle = useIdle()
+    // The dune belongs to the beach view. Over the library it just sits on top
+    // of the cover art, so it stays on the dashboard.
+    const screen = sdk.nav.use(s => s.screen)
+    const left = useMemo(() => makeBlades(12345, 38, 760), [])
+    const right = useMemo(() => makeBlades(987654, 34, 720), [])
+    const [c, setC] = useState(() => todColors())
+    useEffect(() => {
+      const t = setInterval(() => setC(todColors()), 60000)
+      return () => clearInterval(t)
+    }, [])
+    if (idle || screen !== 'home') return null
+
+    const blade = (b, i, tint) => html`
+      <path key=${i} d=${b.d} fill=${shade(c.grass, b.depth * tint)}
+        style=${{
+          transformBox: 'fill-box', transformOrigin: '50% 100%',
+          animation: `${b.kf} ${b.dur}s cubic-bezier(.36,.07,.19,.97) ${b.delay}s infinite`,
+        }} />`
+
+    return html`
+      <div class="sm-decor">
+        ${SHELLS.map((v, i) => html`
+          <svg key=${i} class="sm-shell" viewBox="0 0 40 32"
+               style=${{ left: `${v[0]}%`, top: `${v[1]}%`, width: `${v[2]}px`,
+                         transform: `rotate(${v[3]}deg)` }}>
+            <path d="M20 31 C6 31 1 21 2 13 C3 6 10 1 20 1 C30 1 37 6 38 13 C39 21 34 31 20 31 Z"
+                  fill=${shade(c.sandNear, 1.08)} stroke=${shade(c.sandWet, 0.88)} stroke-width="1.2" />
+            <path d="M20 31 L20 2 M20 31 L9 6 M20 31 L31 6 M20 31 L4 14 M20 31 L36 14"
+                  stroke=${shade(c.sandWet, 0.92)} stroke-width="1" fill="none" opacity="0.75" />
+          </svg>`)}
+        <svg class="sm-grass sm-grass-l" viewBox="0 0 760 300" preserveAspectRatio="none">
+          ${left.map((b, i) => blade(b, i, 1))}
+        </svg>
+        <svg class="sm-grass sm-grass-r" viewBox="0 0 720 300" preserveAspectRatio="none">
+          ${right.map((b, i) => blade(b, i, 0.96))}
+        </svg>
+      </div>`
   }
 
   // ── topbar ────────────────────────────────────────────────────────────────
@@ -96,6 +177,19 @@ export default (sdk) => {
               </span>
               ${p.charging ? html`<span class="sm-bolt">⚡</span>` : null}
             </div>`)}
+          ${info?.storage_total_gb ? html`
+            <div class="sm-chip sm-storage" title="Storage">
+              <span class="sm-store-bar">
+                <i style=${{
+                  width: `${Math.min(100, Math.round(info.storage_used_gb / info.storage_total_gb * 100))}%`,
+                  background: info.storage_used_gb / info.storage_total_gb > 0.85
+                    ? 'var(--state-alert)'
+                    : info.storage_used_gb / info.storage_total_gb > 0.65
+                      ? 'var(--state-warn)' : 'var(--sea-brand)',
+                }} />
+              </span>
+              <span class="sm-store-txt">${Math.round(info.storage_free_gb)}G free</span>
+            </div>` : null}
           ${info?.ip ? html`<div class="sm-chip sm-ip">${info.ip}</div>` : null}
           <div class="sm-clock"><span class="sm-glyph">${TOD_GLYPH(tod)}</span>${clock}</div>
           <button class="sm-icon" onClick=${onSettings} title="Settings">⚙</button>
@@ -187,6 +281,7 @@ export default (sdk) => {
         <div class="sm-grid">
           ${shown.map((sy, i) => html`
             <div key=${sy.id} class="sm-tile" data-on=${focus === i ? '1' : '0'}
+                 data-empty=${(counts[sy.id] ?? 0) === 0 ? '1' : '0'}
                  style=${{ '--tile-accent': sy.color || '#1D7E93' }}>
               <div class="sm-tile-head">
                 <span class="sm-sq">${(sy.platform || sy.label || '??').slice(0, 2).toUpperCase()}</span>
@@ -194,7 +289,9 @@ export default (sdk) => {
               </div>
               <div class="sm-tile-name">${sy.label}</div>
               <div class="sm-tile-meta">
-                ${counts[sy.id] ?? 0} games · ${fmt(playtime[sy.id])}
+                ${(counts[sy.id] ?? 0) === 0
+                  ? 'No games'
+                  : `${counts[sy.id]} games · ${fmt(playtime[sy.id])}`}
               </div>
               <i class="sm-tile-rule" />
             </div>`)}
@@ -246,14 +343,15 @@ export default (sdk) => {
 
     // The real pages do the real work — nobody should reimplement Wi-Fi
     // scanning to restyle a menu.
+    // The sub-pages are fragments written for the default Overlay — width,
+    // padding and scrolling all come from it. Dropping them into our own box is
+    // what broke the Wi-Fi page.
     if (page) {
       const P = Pages[page]
       return html`
-        <div class="sm-modal-wrap">
-          <div class="sm-panel sm-panel-wide">
-            <${P} onClose=${onClose} onBack=${() => setPage(null)} />
-          </div>
-        </div>`
+        <${sdk.defaults.SettingsOverlay} onClose=${onClose} width=${560}>
+          <${P} onClose=${onClose} onBack=${() => setPage(null)} />
+        <//>`
     }
 
     return html`
@@ -272,5 +370,17 @@ export default (sdk) => {
       </div>`
   }
 
-  return { background: Background, topbar: TopBar, home: Home, settings: Settings }
+  // ── the shell ─────────────────────────────────────────────────────────────
+  // Everything not listed here stays default, inside the default shell — which
+  // owns the stacking and the modal stack, so nothing of ours can paint over a
+  // screen we did not replace.
+  const ShellC = () => html`
+    <${sdk.defaults.Shell}
+      background=${Background}
+      decor=${Decor}
+      topbar=${TopBar}
+      home=${Home}
+      settings=${Settings} />`
+
+  return { shell: ShellC }
 }
