@@ -20,6 +20,7 @@ import {
 } from '../lib/themeSafety'
 import { onGamepadFrame, GP_BTN } from './useGamepad'
 import { onWsEvent } from './useWebSocket'
+import { useStore } from '../store'
 
 /** How long L1+R1 must be held to force the default theme. */
 const RESCUE_HOLD_MS = 2000
@@ -122,6 +123,23 @@ export function useTheme(): ThemeState {
   useEffect(() => { apply() }, [apply, nonce])
 
   useEffect(() => () => { if (stableTimer.current) clearTimeout(stableTimer.current) }, [])
+
+  /**
+   * A theme swap replaces the whole frontend, so it starts from the top.
+   *
+   * Focus and page live in the store and survive the swap, which left the
+   * player looking at page 3 of a dashboard they had never seen — and often at
+   * a tile that no longer exists in the same place. Keyed on the *mounted*
+   * theme, so it also fires when a broken theme falls back to the default.
+   */
+  const mountedThemeRef = useRef<string | null | undefined>(undefined)
+  useEffect(() => {
+    if (loading) return
+    if (mountedThemeRef.current === undefined) { mountedThemeRef.current = themeId; return }
+    if (mountedThemeRef.current === themeId) return
+    mountedThemeRef.current = themeId
+    useStore.getState().goHome()
+  }, [themeId, loading])
 
   // Another client (or the settings page) changed the selection.
   useEffect(() => onWsEvent('theme:changed', () => setNonce(n => n + 1)), [])
