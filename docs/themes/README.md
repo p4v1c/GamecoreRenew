@@ -155,9 +155,28 @@ a theme changes the UI, never the behaviour.
 
 The default frontend is one file per feature (`WifiPage.tsx`, `PowerModal.tsx`,
 `GamepadModal.tsx`…) and a theme should be too — see `config/themes/summer`:
-`splash.js`, `home.js`, `settings.js`, `topbar.js`, `decor.js`, `background.js`,
-with `index.js` holding nothing but the wiring. The directory listing then
-doubles as the check-list of what you still have to dress.
+
+```
+summer/
+  index.js          the wiring, and nothing else
+  theme.json  theme.css  preview.png  README.md
+  views/            splash.js  home.js  library.js  topbar.js
+                    settings.js  themes.js  background.js  decor.js
+  lib/              ocean.js  idle.js
+```
+
+The directory listing doubles as the check-list of what you still have to dress.
+
+It splits the way the frontend does — what a screen looks like, and what it
+needs to look like that — but it is flatter, and deliberately. There is no
+`components/HomeScreen/` because a theme supplies only the *view* of a screen:
+that folder would hold exactly one file. And there is no `hooks/`, `lib/`,
+`store/` or `api/` layer at all — a quarter of the frontend's tree — because a
+theme gets all of it from the SDK.
+
+Subfolders work (they are served as-is, and relative imports resolve normally),
+so a larger theme can nest further. Just remember there is no build step: the
+path you write is the path the browser fetches.
 
 ### Why one surface and not nine
 

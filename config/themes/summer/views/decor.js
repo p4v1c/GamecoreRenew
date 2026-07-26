@@ -6,7 +6,7 @@
  * mockup's seven hand-placed positions. No surfer: the brief's narrative
  * element was dropped on request.
  */
-import { todColors, shade } from './ocean.js'
+import { todColors, shade } from '../lib/ocean.js'
 
 const makeBlades = (seed, count, spread) => {
   let s = seed

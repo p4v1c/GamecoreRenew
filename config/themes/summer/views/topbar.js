@@ -1,5 +1,5 @@
 /** The status bar: controllers, storage, address, clock, and the two buttons. */
-import { currentTod } from './ocean.js'
+import { currentTod } from '../lib/ocean.js'
 
 const TOD_GLYPH = (t) => (t === 'night' || t === 'sunset' ? '☾' : '☀')
 

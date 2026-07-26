@@ -10,7 +10,7 @@
  * shaders yet, so it must cost nothing. onDone is the host's — we call it once,
  * and the host cuts us off anyway if we ever failed to.
  */
-import { todColors } from './ocean.js'
+import { todColors } from '../lib/ocean.js'
 
 /**
  * The whole timeline lives here, and the stylesheet reads it back through the

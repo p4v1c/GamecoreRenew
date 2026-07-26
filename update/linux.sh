@@ -75,6 +75,17 @@ rsync -a \
   --exclude='assets/logos/' \
   "${SRC_DIR}/" "${GAMECORE_PATH}/" || fail "rsync failed"
 
+# Themes are the one thing under config/ that is code, not user data: they ship
+# with the release and have to reach the box like any other fix. Synced on their
+# own, after the exclude above, and deliberately WITHOUT --delete so a theme the
+# player dropped in themselves is never removed by an update. Their selection
+# (config/theme.json) is untouched — it is not in the archive.
+if [[ -d "${SRC_DIR}/config/themes" ]]; then
+  rsync -a "${SRC_DIR}/config/themes/" "${GAMECORE_PATH}/config/themes/" \
+    && echo "[update] Bundled themes synced (player-installed themes kept)." \
+    || echo "[update] WARNING: theme sync failed (non-fatal)."
+fi
+
 # frontend/dist is pure build output (CI ships it complete). Mirror it exactly
 # — without --delete the old content-hashed bundles (index-<hash>.js) would
 # pile up forever; only the one index.html references is ever served.

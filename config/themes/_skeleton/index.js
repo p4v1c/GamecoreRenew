@@ -10,8 +10,18 @@
  * stack and the button bindings stay with the host, so your theme behaves
  * exactly like the default and only the UI changes.
  *
- * Keep one feature per file, like config/themes/summer — the directory listing
- * then doubles as your check-list.
+ * Keep one feature per file, like config/themes/summer, and split the way the
+ * frontend splits — `views/` for what a screen looks like, `lib/` for what it
+ * needs to look like that:
+ *
+ *     my-theme/
+ *       index.js  theme.json  theme.css
+ *       views/    splash.js  home.js  settings.js  …
+ *       lib/      whatever your views share
+ *
+ * The directory listing then doubles as your check-list. Subfolders and
+ * relative imports work — there is no build, so the paths you write are the
+ * paths the browser fetches.
  *
  * Full contract: docs/themes/README.md
  */

@@ -1,5 +1,5 @@
 /** The ocean, as the page background. The renderer itself lives in ocean.js. */
-import { createOcean } from './ocean.js'
+import { createOcean } from '../lib/ocean.js'
 
 export const createBackground = (sdk, useIdle) => {
   const { html, useEffect, useRef } = sdk.ui
