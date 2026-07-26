@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api, SysInfo } from '../../api'
+import { onWsEvent } from '../../hooks/useWebSocket'
 import logo from '../../assets/logo.png'
 
 interface Props {
@@ -63,6 +64,9 @@ function TBtn({ icon, label, color, onClick }: { icon: string; label: string; co
 export default function TopBar({ onSettings, onPower }: Props) {
   const [time, setTime] = useState('')
   const [sysInfo, setSysInfo] = useState<SysInfo | null>(null)
+  // Kept out of sysInfo on purpose: controller state arrives pushed and must not
+  // depend on a successful /api/sysinfo having landed first.
+  const [controllers, setControllers] = useState<SysInfo['controllers']>([])
 
   useEffect(() => {
     const tick = () => setTime(new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }))
@@ -71,10 +75,49 @@ export default function TopBar({ onSettings, onPower }: Props) {
     return () => clearInterval(t)
   }, [])
 
+  // Controller state arrives pushed, not polled. The backend already broadcast
+  // gp:connected / gp:disconnected — Toasts listened, this bar did not, so the
+  // battery pill could contradict the connection toast for up to 15s.
+  //
+  // The slow interval that remains is for IP, storage and version only, none of
+  // which move quickly. It starts only once a first read succeeded: until then
+  // we retry quickly, so a backend that is not up yet does not leave the bar
+  // empty for a whole minute.
   useEffect(() => {
-    api.sysinfo().then(setSysInfo).catch(() => {})
-    const t = setInterval(() => api.sysinfo().then(setSysInfo).catch(() => {}), 15000)
-    return () => clearInterval(t)
+    let alive = true
+    let slow: ReturnType<typeof setInterval> | null = null
+    let retry: ReturnType<typeof setTimeout> | null = null
+
+    const load = async () => {
+      try {
+        const s = await api.sysinfo()
+        if (!alive) return
+        setSysInfo(s)
+        setControllers(s.controllers || [])
+        if (!slow) slow = setInterval(load, 60000)
+      } catch {
+        if (alive && !slow) retry = setTimeout(load, 3000)
+      }
+    }
+    load()
+
+    const offs = [
+      // A pad appeared or vanished: re-read once, now, instead of waiting.
+      onWsEvent('gp:connected', load),
+      onWsEvent('gp:disconnected', load),
+      // Level or charging changed: the payload is what we render, so no
+      // round-trip at all — and no dependency on sysInfo being loaded.
+      onWsEvent('gp:controllers', (d) => {
+        const list = (d as { controllers?: SysInfo['controllers'] })?.controllers
+        if (list) setControllers(list)
+      }),
+    ]
+    return () => {
+      alive = false
+      if (slow) clearInterval(slow)
+      if (retry) clearTimeout(retry)
+      offs.forEach(off => off())
+    }
   }, [])
 
   const usedPct = sysInfo ? Math.round((sysInfo.storage_used_gb / sysInfo.storage_total_gb) * 100) : 0
@@ -118,7 +161,7 @@ export default function TopBar({ onSettings, onPower }: Props) {
             </div>
 
             {/* Controller batteries */}
-            {sysInfo.controllers?.map((c, i) => (
+            {controllers?.map((c, i) => (
               <ControllerBattery key={i} player={c.player} level={c.level} charging={c.charging} />
             ))}
           </>
