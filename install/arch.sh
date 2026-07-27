@@ -173,6 +173,10 @@ PKGS=(
   base-devel git flatpak openssh
   python python-pip
   nodejs npm
+  # ffmpeg: Stremio's streaming server transcodes with it. The one bundled in
+  # the Stremio Flatpak runtime cannot decode HEVC, which is why that server
+  # runs on the host — see docs/STREMIO.md.
+  ffmpeg
   plasma-desktop sddm xorg-xdpyinfo xorg-xrandr xorg-xset unclutter
   bluez bluez-utils
   caddy
@@ -530,7 +534,9 @@ EOF
   # Stremio media center over the gamepad: a fork of stremio-web with a TV
   # on-screen keyboard, served in a Firefox kiosk and driven by
   # gamepad-tv-bridge (stremio profile). The Flatpak above stays installed —
-  # its bundled node/server.js is the streaming server (stremio-server.service).
+  # its bundled server.js is the streaming server (stremio-server.service), but
+  # it runs on the HOST's node + ffmpeg: the Flatpak runtime's ffmpeg has no
+  # HEVC decoder, so x265 playback would hang forever. See docs/STREMIO.md.
   STREMIO_WEB_DIR="$USER_HOME/stremio-web"
   if [ ! -d "$STREMIO_WEB_DIR" ]; then
     git_clone https://github.com/p4v1c/stremio-web.git "$STREMIO_WEB_DIR" \
