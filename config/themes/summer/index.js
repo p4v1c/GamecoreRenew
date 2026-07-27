@@ -14,6 +14,7 @@
  *           background.js  the ocean        library.js   the game list
  *           decor.js   the dune             settings.js  the menu
  *           topbar.js  the status bar       themes.js    the theme picker
+ *           power.js   restart / shutdown   gamepad.js   the live pad
  *
  *   lib/    ocean.js   the WebGL renderer   idle.js      asleep or busy?
  *
@@ -37,6 +38,8 @@ import { createLibraryView } from './views/library.js'
 import { createSettings } from './views/settings.js'
 import { createThemesPage } from './views/themes.js'
 import { createSplash } from './views/splash.js'
+import { createPowerView } from './views/power.js'
+import { createGamepadView } from './views/gamepad.js'
 
 export default (sdk) => {
   const { html } = sdk.ui
@@ -56,7 +59,9 @@ export default (sdk) => {
       topbar=${TopBar}
       homeView=${HomeView}
       libraryView=${LibraryView}
-      settings=${Settings} />`
+      settings=${Settings}
+      powerView=${createPowerView(sdk)}
+      gamepadView=${createGamepadView(sdk)} />`
 
   return { splash: createSplash(sdk), shell: Shell }
 }

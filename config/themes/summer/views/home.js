@@ -62,10 +62,16 @@ export const createHomeView = (sdk) => {
         <div class="sm-grid-track" style=${{ '--sm-page': String(page) }}>
           ${Array.from({ length: Math.max(pageCount, 1) }, (_, p) => html`
             <div key=${p} class="sm-grid">
-              ${systems.slice(p * perPage, (p + 1) * perPage).map((sy, i) => html`
+              ${systems.slice(p * perPage, (p + 1) * perPage).map((sy, i) => {
+                // An app is not a library: it has no ROMs to count, so "No games"
+                // read as a fault on a tile that works perfectly well.
+                const isApp = sy.kind === 'app' || sy.type === 'application'
+                const count = counts[sy.id] ?? 0
+                const played = fmt(playtime[sy.id]?.total_secs)
+                return html`
                 <div key=${sy.id} class="sm-tile"
                      data-on=${p === page && focusIdx === i ? '1' : '0'}
-                     data-empty=${(counts[sy.id] ?? 0) === 0 ? '1' : '0'}
+                     data-empty=${!isApp && count === 0 ? '1' : '0'}
                      onClick=${() => { if (p === page) onActivate(i); else onPage(p) }}
                      style=${{ '--tile-accent': sy.color || '#1D7E93' }}>
                   <div class="sm-tile-head">
@@ -74,13 +80,14 @@ export const createHomeView = (sdk) => {
                   </div>
                   <div class="sm-tile-name">${sy.label}</div>
                   <div class="sm-tile-meta">
-                    ${(counts[sy.id] ?? 0) === 0
-                      ? 'No games'
-                      : `${counts[sy.id]} games · ${fmt(playtime[sy.id]?.total_secs)}`}
+                    ${isApp ? (played === '0m' ? '' : `${played} played`)
+                      : count === 0 ? 'No games'
+                      : `${count} games · ${played}`}
                   </div>
                   <i class="sm-tile-rule" />
                   <span class="sm-tile-caret">▸</span>
-                </div>`)}
+                </div>`
+              })}
             </div>`)}
         </div>
       </div>

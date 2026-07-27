@@ -88,4 +88,8 @@ config/auth_secret
 # machine's choice on every install, and an update would overwrite the
 # player's. The backend treats a missing file as "default theme".
 config/theme.json
+# Local harness: a dev server pointed at a test backend. Never shipped.
+frontend/vite.check.config.ts
+frontend/preview.html
+frontend/src/preview.tsx
 OPUS_HANDOFF_gamepad.md

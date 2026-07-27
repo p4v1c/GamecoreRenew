@@ -14,6 +14,8 @@ import Toasts from './ui/Toasts'
 import { launchApp } from './defaults'
 import type { HomeViewProps } from './HomeScreen/types'
 import type { LibraryViewProps } from './LibraryScreen/types'
+import type { PowerViewProps } from './modals/power/types'
+import type { GamepadViewProps } from './modals/gamepad/types'
 
 /**
  * The default frontend, as one component.
@@ -45,8 +47,14 @@ export interface ShellParts {
   /** The library's markup. Sorting, search and launching stay with the host. */
   libraryView?: React.ComponentType<LibraryViewProps>
   settings?: React.ComponentType<{ onClose: () => void }>
-  powerModal?: React.ComponentType<{ onClose: () => void }>
-  gamepadModal?: React.ComponentType<{ onClose: () => void }>
+  /**
+   * Markup for the power menu and the controller screen. Their flows stay with
+   * the host — the two-press shutdown confirmation and its failsafe, and the
+   * live pad diagram — because those are the two places where a theme getting
+   * it wrong costs more than a misaligned pixel.
+   */
+  powerView?: React.ComponentType<PowerViewProps>
+  gamepadView?: React.ComponentType<GamepadViewProps>
 }
 
 const Nothing = () => null
@@ -75,8 +83,6 @@ export default function DefaultShell(parts: ShellParts = {}) {
   const ScreensaverC = parts.screensaver ?? Screensaver
   const TopBarC = parts.topbar ?? TopBar
   const SettingsC = parts.settings ?? SettingsModal
-  const PowerC = parts.powerModal ?? PowerModal
-  const GamepadC = parts.gamepadModal ?? GamepadModal
 
   const [showSettings, setShowSettings] = useState(false)
   const [showPower, setShowPower] = useState(false)
@@ -166,14 +172,14 @@ export default function DefaultShell(parts: ShellParts = {}) {
       <AnimatePresence>
         {showPower && (
           <ModalScope key="power">
-            <PowerC onClose={() => setShowPower(false)} />
+            <PowerModal onClose={() => setShowPower(false)} view={parts.powerView} />
           </ModalScope>
         )}
       </AnimatePresence>
       <AnimatePresence>
         {showGamepad && (
           <ModalScope key="gamepad">
-            <GamepadC onClose={() => setShowGamepad(false)} />
+            <GamepadModal onClose={() => setShowGamepad(false)} view={parts.gamepadView} />
           </ModalScope>
         )}
       </AnimatePresence>

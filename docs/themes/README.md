@@ -134,7 +134,8 @@ which and why.
 | `libraryView` | the game list, detail panel and metadata — **markup only**, like `homeView` |
 | `screensaver` | the standby slideshow |
 | `settings` | the settings screen |
-| `powerModal`, `gamepadModal` | the modals |
+| `powerView` | the power menu's markup — the two-press confirmation, the pending lock and the failsafe stay with the host |
+| `gamepadView` | the controller screen's markup — the live pad diagram arrives ready-made and bound |
 
 So "add snow to the dashboard" is a shell that renders `sdk.defaults.Shell` with
 a `decor`, and "replace everything" is a shell that renders its own tree. Same

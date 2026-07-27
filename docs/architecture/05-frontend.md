@@ -163,8 +163,12 @@ and returns an unsubscribe.
 | `components/Screensaver.tsx` | 136 | standby slideshow, `ROTATE_MS = 9000` |
 | `components/OverlayScreen/index.tsx` | 109 | what the transparent Electron overlay window renders |
 | `components/modals/SettingsModal.tsx` | 85 | menu; pages live in `settings/`. **Every id in `ITEMS` needs a matching `page === …` line** — `themes` was missing one and the button was silently dead. |
-| `components/modals/PowerModal.tsx` | 136 | Scan mapping · Restart · Shutdown, `POWER_FAILSAFE_MS = 10000` |
-| `components/modals/GamepadModal.tsx` | 111 | the controller screen |
+| `components/modals/PowerModal.tsx` | 86 | **flow**: Scan mapping · Restart · Shutdown, two-press confirm, `POWER_FAILSAFE_MS = 10000` |
+| `components/modals/power/DefaultPowerView.tsx` | 68 | **markup** of the default power menu |
+| `components/modals/power/types.ts` | 32 | `PowerViewProps` |
+| `components/modals/GamepadModal.tsx` | 85 | **flow**: pad detection, glyphs, live state |
+| `components/modals/gamepad/DefaultGamepadView.tsx` | 56 | **markup** of the default controller screen |
+| `components/modals/gamepad/types.ts` | 37 | `GamepadViewProps`; hands the view a bound `Art` |
 | `components/modals/gamepad/ControllerArt.tsx` | 323 | the pad drawing — see below |
 | `components/ui/index.tsx` | 144 | `Overlay`, `OverlayLabel`, `BackHeader`, `Toggle`, `SliderRow`, `Chip`, `Bars`, `hexToRgb`, `fmtTime`, `fmtDate` |
 | `components/ui/VirtualKeyboard.tsx` | 205 | on-screen keyboard (WiFi passwords, library search) |
