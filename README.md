@@ -15,10 +15,11 @@ React + Electron shell + FastAPI backend — plug in a controller and play.
 6. [Adding ROMs](#adding-roms)
 7. [Controller navigation](#controller-navigation)
 8. [Settings & Wi-Fi](#settings--wi-fi)
-9. [Overlays (bezels)](#overlays-bezels)
-10. [OTA updates](#ota-updates)
-11. [Living-room box setup](#living-room-box-setup)
-12. [Project structure](#project-structure)
+9. [Themes](#themes)
+10. [Overlays (bezels)](#overlays-bezels)
+11. [OTA updates](#ota-updates)
+12. [Living-room box setup](#living-room-box-setup)
+13. [Project structure](#project-structure)
 
 ---
 
@@ -212,8 +213,49 @@ Open Settings from the top-right icon or press **Start** on the controller.
 - **Wi-Fi** — scan and connect to networks
 - **Audio** — volume control
 - **Bluetooth** — pair controllers
+- **Themes** — change the look of the whole UI
 - **Update** — check for and apply OTA updates
 - **System** — reboot / shutdown
+
+---
+
+## Themes
+
+Picking a theme swaps the frontend. Drop a folder in `config/themes/`, select it
+in **Settings → Themes**, and the launcher is redrawn — boot animation,
+dashboard, library, menus, the lot.
+
+```
+config/themes/my-theme/
+  theme.json        manifest: id, version, api, provides
+  index.js          entry — a native ES module, no build step
+  theme.css         your own styles
+  views/  lib/      one feature per file
+```
+
+A theme is **all or nothing**: it must provide both surfaces, `splash` and
+`shell`. Anything less does not load — the picker says so and the default UI
+runs whole. There is no half-themed state to debug.
+
+It changes the UI, never the behaviour. Paging, focus, sorting, search,
+launching, the shutdown confirmation and the live controller diagram stay with
+the launcher and are handed to a theme as data. A themed dashboard cannot
+navigate differently from the default one, because it has no code that could.
+
+If a theme crashes, the default frontend takes over and the crash is recorded;
+three strikes and the theme is refused at boot, with the reason in Settings.
+**Holding L1 + R1 for 2s anywhere** forces the default theme back — the way out
+of a theme that makes the UI unusable.
+
+Bundled themes ship with updates. A theme you dropped in yourself is never
+removed by one, and your selection survives both updates and reboots.
+
+Start from `config/themes/_skeleton` — copy it, drop the leading underscore
+(that prefix marks a template and keeps it out of the picker), and it loads.
+
+**Full contract:** [`docs/themes/README.md`](docs/themes/README.md) —
+surfaces, the SDK, the safety model, performance budget.
+**Writing one with an AI:** [`docs/themes/PROMPTS.md`](docs/themes/PROMPTS.md).
 
 ---
 
@@ -482,17 +524,21 @@ backend/          FastAPI — systems, games, playtime, covers, settings, OTA
 frontend/         React + Vite + Framer Motion + Zustand
   src/
     components/   UI components (HomeScreen, LibraryScreen, modals…)
-    hooks/        useWebSocket, useGamepad
+    hooks/        useWebSocket, useGamepad, useTheme
+    lib/          themeLoader, themeSdk, sounds, formatting helpers
     store/        Zustand store (screen, selection, modal depth, session)
 electron/         Electron kiosk shell + overlay BrowserWindow
 config/           runtime state, never in git, never touched by OTA:
                   systems.json, apps.json, overlays.json, addons.json,
                   standby.json, auth.json, playtime.db
+  themes/         installed themes — the one exception: bundled themes DO ship
+                  with an update, yours are never removed by one
 assets/           logos/, overlays/
 emu/              ROMs per system (emu/dolphin/, emu/melonds/…) + covers/ cache
 install/          Installers: arch.sh engine (+ --unattended), installer-gui/ (Qt binary), gamecore-addon CLI, Caddyfile
 update/           OTA update script (linux.sh)
-docs/             architecture/ (9-part deep dive), SECURITY.md, CONTROLLER_MODELS.md
+docs/             architecture/ (9-part deep dive), themes/ (contract + prompts),
+                  SECURITY.md, CONTROLLER_MODELS.md
 ```
 
 > **Working on the code?** Start at [`docs/architecture/`](docs/architecture/) —

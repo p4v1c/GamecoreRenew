@@ -51,13 +51,19 @@ and there is never a second React in memory.
 |---|---|
 | `config/themes/<id>/theme.json` | manifest |
 | `config/themes/<id>/index.js` | ES module, entry point |
+| `config/themes/<id>/views/`, `lib/` | one feature per file (§5) |
+| `config/themes/<id>/theme.css` | the theme's own stylesheet |
 | `config/themes/<id>/preview.png` | thumbnail for the settings page |
 | `config/themes/<id>/assets/` | images, fonts, audio |
-| `config/theme.json` | the active theme, written by the API |
+| `config/theme.json` | the active theme, written by the API. Per-device: not in git, not in the OTA archive |
 
-`config/` is already excluded from the OTA rsync, so themes survive updates
-with no change to `update/linux.sh`. That is why they live there and not under
-`assets/`.
+They live under `config/` because that whole directory is excluded from the OTA
+rsync — that is what protects `systems.json`, your mappings and the playtime DB.
+
+Themes are the one exception, and `update/linux.sh` handles it explicitly: after
+the exclude, `config/themes/` is synced on its own, **without `--delete`**. So a
+bundled theme is updated like any other code, a theme you dropped in yourself is
+never removed, and your selection is untouched.
 
 ## 4. Manifest — `theme.json`
 
@@ -200,7 +206,34 @@ One tree, one owner. The shell owns the stacking (a theme never writes a
 `z-index`), and the shell registers whatever it shows as a modal — for default
 and themed alike, so forgetting is not possible.
 
-## 6. The SDK
+## 6. What a theme can do
+
+The whole surface, in one table. Everything marked **no** is a deliberate line,
+not a gap waiting to be filled — the reasons are in §11.
+
+| | |
+|---|---|
+| **Redraw every screen** | yes — dashboard, library, top bar, settings menu, theme picker, power menu, controller screen, screensaver, boot animation |
+| **Paint behind and in front** | yes — `background` and `decor` are full-screen layers the shell places for you |
+| **Ship a stylesheet** | yes, and it is the only place in GameCore where CSS works: the default UI styles itself inline |
+| **Restyle the screens it did *not* rewrite** | yes — the Wi-Fi, Bluetooth, audio and update pages read `--gc-overlay-*` and `--gc-accent*` (§7) |
+| **Read the box's real data** | yes — systems, games, playtime, metadata, cover art, storage, network, controllers and their battery, through `sdk.api` |
+| **React to what happens** | yes — `sdk.system.onWsEvent` for standby, ROM uploads, controller connect/disconnect, battery, theme changes |
+| **Read input** | yes — `sdk.input.onGp` for every pad event, `useGamepadState()` for the raw 60 fps state (that is how a live pad diagram works) |
+| **Know where the player is** | yes — `sdk.nav.use()` inside a component, `sdk.nav.get()` in a handler |
+| **Move the player** | yes — `goHome`, `goLibrary`, `setGridFocus`, `setGridPage` |
+| **Make sound** | yes — `sdk.system.getAudioContext()` for its own synthesis (Summer's surf), `sdk.system.playSound()` for the host's set, `sdk.system.sound` to respect the player's setting |
+| **Ship assets** | yes — anything in the theme folder, resolved with `sdk.system.asset('…')` |
+| **Change the *five* UI sounds** | **no** — `move`, `confirm`, `back`, `launch`, `startup` are the host's, fired centrally by the input bus. A theme can add sounds, not replace those |
+| **Change how a screen behaves** | **no** — paging, focus, sorting, search, launching, the shutdown confirmation. It supplies the markup, the host keeps the decisions |
+| **Write a `z-index`** | **no** — the shell owns stacking. This is what let the first version paint over screens it had not replaced |
+| **Skip the boot animation** | **no** — a theme draws its own, but `onDone` is the host's and a 20s watchdog sits behind it |
+| **Take `gp:guide`** | **no** — the double press that kills a running game is reserved |
+| **Take the rescue combo** | **no** — L1 + R1 held 2s forces the default theme, from anywhere |
+| **Remove itself from the picker** | **no** — Settings → Themes is always reachable, so a theme can always be left |
+| **Reach the network or the DOM outside its tree** | **no** — see §11 |
+
+## 7. The SDK
 
 The module receives **one argument**. It imports nothing from the host, so
 there is no import map to maintain and only one React instance exists.
@@ -225,7 +258,7 @@ double press there kills a running game.
 cheap as "rewrite everything" — override `homeView`, render the default inside it,
 add your layer.
 
-## 7. Module contract
+## 8. Module contract
 
 The entry point default-exports a function taking `sdk` and returning
 `{ splash, shell }` — both, always. Neither takes props beyond the ones listed
@@ -282,7 +315,7 @@ A theme may ship a stylesheet for its own markup and load it from its folder.
 > Set them or your settings screen stays the default purple on your own
 > background.
 
-## 8. Fallback and composition
+## 9. Fallback and composition
 
 | Situation | Result |
 |---|---|
@@ -294,24 +327,29 @@ A theme may ship a stylesheet for its own markup and load it from its folder.
 Note what is *not* in this table: a per-screen fallback. Completeness is checked
 once, at load. Either the theme runs or the default does.
 
-## 9. Compatibility
+## 10. Compatibility
 
 - `api` major greater than the host's → theme is listed but **not selectable**,
   with the reason shown.
 - `api` major lower → loaded while the host still supports that version.
 - Adding a surface or an SDK key does **not** bump the major. Removing one does.
-- Theme modules are loaded with a cache-busting parameter. Electron's HTTP cache
-  has hidden UI changes before — see the OTA section of
-  [`09-gotchas.md`](../architecture/09-gotchas.md).
+- Theme files are never cached. The entry module's URL is timestamped, and
+  `/themes` is served with `Cache-Control: no-store` — the entry's own relative
+  imports and its stylesheet resolve without that query, so a header is the only
+  thing that covers them. Electron's HTTP cache has hidden UI changes before —
+  see the OTA section of [`09-gotchas.md`](../architecture/09-gotchas.md).
 
-## 10. Safety
+## 11. Safety
 
 The project had no error boundary at all before this: a React throw produced a
 white screen. With themes running arbitrary JS on a TV with no pointer, that was
 the failure mode to close first. What is in place:
 
-1. **A boundary per surface** — a broken screen falls back to the default one;
-   the rest of the theme keeps running.
+1. **A boundary around the shell** — the theme renders one tree, so one throw
+   inside it hands the whole frontend back to the default. There is no
+   half-running theme to reason about, which is the point: the first design had
+   a boundary per surface and left you with a UI that was partly one theme and
+   partly another. The splash has its own boundary, for the same reason.
 2. **A global boundary** — anything that escapes lands on a readable message
    naming the rescue combo, never a white screen.
 3. **Crash counting with an amnesty** — two crashes and the theme is refused at
@@ -334,7 +372,7 @@ A theme has access to `sdk.api`, so it can launch games and power off the box.
 On your own machine that is "don't install junk". If themes are ever shared
 between users, it becomes a real threat model.
 
-## 11. Performance
+## 12. Performance
 
 The box also runs emulators, on a TV, at 1080p.
 
@@ -344,17 +382,33 @@ The box also runs emulators, on a TV, at 1080p.
 - Animate `transform` and `opacity` only.
 - Cap the number of simultaneously animated elements.
 
-## 12. Sounds
+## 13. Sounds
 
-A theme may replace the UI sounds. Two rules:
+A theme can **add** sound. It cannot **replace** the five UI sounds.
 
-- The user's **UI sounds setting always wins** — if sounds are off, a theme
-  cannot make noise.
-- Themes go through `sdk.system.playSound` / `getAudioContext`. The host's
-  volume setting applies. Note the default sounds are synthesised, not files:
-  a theme shipping audio assets is a new case, not the existing path.
+`move`, `confirm`, `back`, `launch` and `startup` are synthesized in
+`frontend/src/lib/sounds.ts` and fired centrally by the input bus — before any
+screen is involved — so there is no hook for a theme to take them over. What a
+theme gets instead:
 
-## 13. Editing a theme
+- `sdk.system.playSound(name)` — trigger one of the host's, on its own terms;
+- `sdk.system.getAudioContext()` — the shared context, to synthesize whatever
+  it likes. `config/themes/summer/lib/ambience.js` is the worked example: surf
+  from filtered noise, no audio file, no loop seam.
+
+Two rules, whichever route you take:
+
+- **The player's sound setting always wins.** `playSound` refuses when sound is
+  off and scales to their volume. A loop *you* start does neither, so read
+  `sdk.system.sound` (`enabled`, `volume`) and follow it — including while it
+  changes, which it can, from Settings → Audio.
+- **Stop when nobody is listening.** A game running or the box asleep means
+  silence; `useIdle` in Summer shows the pattern.
+
+The default sounds are synthesized, not files. A theme shipping audio assets is
+a new case, not the existing path.
+
+## 14. Editing a theme
 
 Theme files are served with `Cache-Control: no-store`, so **save and reload** is
 the whole loop — no version bump, no cache clearing. (The loader also
@@ -365,7 +419,7 @@ If a reload seems to change nothing, the theme almost certainly failed to load
 rather than loading unchanged: open Settings → Themes, where an unusable theme
 is listed as not selectable with the reason next to it.
 
-## 14. Authoring loop
+## 15. Authoring loop
 
 1. Copy the skeleton theme.
 2. Edit `theme.json`, write one or more surfaces.
@@ -374,7 +428,7 @@ is listed as not selectable with the reason next to it.
 4. Settings → Themes → select.
 5. Iterate: reload, there is nothing to compile.
 
-## 15. Implementation order
+## 16. Implementation order
 
 | # | Work | Size |
 |---|---|---|
