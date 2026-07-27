@@ -514,6 +514,8 @@ For reference, what the installer wires up:
 
 Apps launched from GameCore that need gamepad access inside Flatpak (e.g. Stremio) use `"gamepadTrigger": true` in `config/apps.json`, which re-triggers udev after launch (requires `NOPASSWD: /usr/bin/udevadm` in sudoers).
 
+The Stremio tile runs a **forked web UI** with an on-screen keyboard rather than the Flatpak client, and its streaming server deliberately runs on the host's node + `ffmpeg` — see [`docs/STREMIO.md`](docs/STREMIO.md), which also explains why movies used to hang forever on the loading screen.
+
 ---
 
 ## Project structure
@@ -540,7 +542,7 @@ emu/              ROMs per system (emu/dolphin/, emu/melonds/…) + covers/ cach
 install/          Installers: arch.sh engine (+ --unattended), installer-gui/ (Qt binary), gamecore-addon CLI, Caddyfile
 update/           OTA update script (linux.sh)
 docs/             architecture/ (9-part deep dive), themes/ (contract + prompts),
-                  SECURITY.md, CONTROLLER_MODELS.md
+                  SECURITY.md, CONTROLLER_MODELS.md, STREMIO.md
 ```
 
 > **Working on the code?** Start at [`docs/architecture/`](docs/architecture/) —
