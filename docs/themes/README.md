@@ -60,10 +60,15 @@ and there is never a second React in memory.
 They live under `config/` because that whole directory is excluded from the OTA
 rsync — that is what protects `systems.json`, your mappings and the playtime DB.
 
-Themes are the one exception, and `update/linux.sh` handles it explicitly: after
-the exclude, `config/themes/` is synced on its own, **without `--delete`**. So a
-bundled theme is updated like any other code, a theme you dropped in yourself is
-never removed, and your selection is untouched.
+`update/linux.sh` makes one exception, and only one: **a theme the box does not
+have yet is installed; a theme it already has is never touched.** The unit is
+the directory, so there is no merge and no half-updated theme built from two
+releases. Edit a bundled theme and your edit survives every update.
+
+The cost is that a fix to a bundled theme does not reach you on its own.
+Updating one is a manual act: delete its folder and run the update again, or
+copy the new version in. Your selection (`config/theme.json`) is untouched
+either way — it is not in the archive.
 
 ## 4. Manifest — `theme.json`
 

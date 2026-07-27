@@ -247,8 +247,10 @@ three strikes and the theme is refused at boot, with the reason in Settings.
 **Holding L1 + R1 for 2s anywhere** forces the default theme back — the way out
 of a theme that makes the UI unusable.
 
-Bundled themes ship with updates. A theme you dropped in yourself is never
-removed by one, and your selection survives both updates and reboots.
+An update installs themes it finds missing and **never touches a theme already
+on the box** — edit a bundled one and your edits survive. The flip side: to pick
+up a new version of a bundled theme, delete its folder and update again. Your
+selection survives updates and reboots either way.
 
 Start from `config/themes/_skeleton` — copy it, drop the leading underscore
 (that prefix marks a template and keeps it out of the picker), and it loads.
@@ -531,8 +533,8 @@ electron/         Electron kiosk shell + overlay BrowserWindow
 config/           runtime state, never in git, never touched by OTA:
                   systems.json, apps.json, overlays.json, addons.json,
                   standby.json, auth.json, playtime.db
-  themes/         installed themes — the one exception: bundled themes DO ship
-                  with an update, yours are never removed by one
+  themes/         installed themes — an update adds ones you do not have,
+                  and never touches ones you do
 assets/           logos/, overlays/
 emu/              ROMs per system (emu/dolphin/, emu/melonds/…) + covers/ cache
 install/          Installers: arch.sh engine (+ --unattended), installer-gui/ (Qt binary), gamecore-addon CLI, Caddyfile

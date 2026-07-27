@@ -75,15 +75,35 @@ rsync -a \
   --exclude='assets/logos/' \
   "${SRC_DIR}/" "${GAMECORE_PATH}/" || fail "rsync failed"
 
-# Themes are the one thing under config/ that is code, not user data: they ship
-# with the release and have to reach the box like any other fix. Synced on their
-# own, after the exclude above, and deliberately WITHOUT --delete so a theme the
-# player dropped in themselves is never removed by an update. Their selection
-# (config/theme.json) is untouched — it is not in the archive.
+# Themes: install what is missing, never touch what is there.
+#
+# A theme is code, so a new one shipped with a release has to be able to reach
+# the box — config/ is excluded wholesale above, so nothing else would bring it.
+# But a theme on the box is the player's: they may have edited a bundled one, or
+# copied it and kept the name. So the unit is the theme directory, not the file.
+# If config/themes/<id>/ exists, it is skipped entirely — no merge, no partial
+# overwrite that would leave one theme built from two different releases.
+#
+# Updating a bundled theme is therefore a manual act: delete its folder and run
+# the update again, or copy it in by hand. Their selection (config/theme.json)
+# is untouched either way — it is not in the archive.
 if [[ -d "${SRC_DIR}/config/themes" ]]; then
-  rsync -a "${SRC_DIR}/config/themes/" "${GAMECORE_PATH}/config/themes/" \
-    && echo "[update] Bundled themes synced (player-installed themes kept)." \
-    || echo "[update] WARNING: theme sync failed (non-fatal)."
+  mkdir -p "${GAMECORE_PATH}/config/themes"
+  _installed=0 _kept=0
+  for _theme in "${SRC_DIR}/config/themes/"*/; do
+    [[ -d "$_theme" ]] || continue
+    _id="$(basename "$_theme")"
+    if [[ -e "${GAMECORE_PATH}/config/themes/${_id}" ]]; then
+      _kept=$((_kept + 1))
+      continue
+    fi
+    if cp -a "$_theme" "${GAMECORE_PATH}/config/themes/${_id}"; then
+      _installed=$((_installed + 1))
+    else
+      echo "[update] WARNING: could not install theme ${_id} (non-fatal)."
+    fi
+  done
+  echo "[update] Themes: ${_installed} installed, ${_kept} left untouched."
 fi
 
 # frontend/dist is pure build output (CI ships it complete). Mirror it exactly
