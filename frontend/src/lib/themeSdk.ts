@@ -127,6 +127,18 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
         playSound(name)
       },
       getAudioContext,
+      /**
+       * The player's sound setting, read-only.
+       *
+       * A theme that runs an ambience needs it: `playSound` gates itself, but a
+       * loop the theme starts would otherwise keep playing after the player
+       * turned sound off, and ignore their volume. Setting it stays in
+       * Settings → Audio.
+       */
+      sound: {
+        get enabled() { return soundSettings.enabled },
+        get volume() { return soundSettings.volume / 100 },
+      },
       gamecore: window.gamecore,
       /** Resolve a file shipped inside this theme's folder. */
       asset: (path: string) =>

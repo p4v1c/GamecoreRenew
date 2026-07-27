@@ -17,6 +17,7 @@
  *           power.js   restart / shutdown   gamepad.js   the live pad
  *
  *   lib/    ocean.js   the WebGL renderer   idle.js      asleep or busy?
+ *           ambience.js  the surf, synthesized
  *
  * Split the way the frontend splits: what a screen looks like, and what it
  * needs to look like that. There is no components/HomeScreen/ here because a
