@@ -354,8 +354,9 @@ flatpak remote-list 2>/dev/null | grep -q flathub \
 ok "Flathub ready."
 
 # ── Emulators (full mode only) ───────────────────────────────────
-# Declared outside the branch: the final recap reads it in minimal mode too.
+# Declared outside the branch: the final recap reads them in minimal mode too.
 DUCK_MISSING=false
+XENIA_MISSING=false
 if [[ "$MODE" == "full" ]]; then
   msg "Installing emulators (Flatpak)"
   declare -A EMU_FLATPAK=(
@@ -482,35 +483,58 @@ if [[ "$MODE" == "full" ]]; then
   if [ -f "$XENIA_DIR/xenia_canary.exe" ]; then
     ok "Xenia already present."
   else
-    XENIA_URL=$(curl -sf --connect-timeout 15 --max-time 60 "https://api.github.com/repos/xenia-canary/xenia-canary-releases/releases/latest" \
-      | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if "windows" in a["name"].lower()), ""))' || true)
-    if [[ -n "$XENIA_URL" ]]; then
+    # mktemp, not a fixed /tmp name: this runs as root and a predictable
+    # path is a symlink target waiting to happen.
+    XENIA_PKG=$(mktemp /tmp/gamecore-xenia-XXXXXXXX)
+
+    # -f so an HTTP error page is never extracted as if it were an archive,
+    # and a magic check on top: `curl -f` cannot catch a proxy or a CDN that
+    # answers 200 with something else entirely. A zip starts with "PK", a 7z
+    # with "7z".
+    xenia_fetch() {  # xenia_fetch <url>
+      : > "$XENIA_PKG"
+      curl -fsL --connect-timeout 15 --max-time 900 --speed-limit 1024 --speed-time 30 \
+           --retry 3 --retry-delay 5 --retry-connrefused -o "$XENIA_PKG" "$1" \
+        && [ -s "$XENIA_PKG" ] && head -c 2 "$XENIA_PKG" | grep -qa -e PK -e 7z
+    }
+
+    # Fixed asset URL first, GitHub API second — same reasoning as DuckStation
+    # above: unauthenticated the API allows 60 requests per hour and per IP,
+    # and when it runs out this step used to give up without ever attempting a
+    # download. The fallback earns its place here more than anywhere else,
+    # because Xenia Canary tags its releases with a commit hash and the asset
+    # name is the only fixed part of the URL.
+    XENIA_URL="https://github.com/xenia-canary/xenia-canary-releases/releases/latest/download/xenia_canary_windows_.zip"
+    if xenia_fetch "$XENIA_URL" \
+       || {
+            warn "Fixed download URL failed — asking the GitHub API for the asset."
+            XENIA_URL=$(curl -sf --connect-timeout 15 --max-time 60 "https://api.github.com/repos/xenia-canary/xenia-canary-releases/releases/latest" \
+              | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if "windows" in a["name"].lower()), ""))' 2>/dev/null || true)
+            [[ -n "$XENIA_URL" ]] && xenia_fetch "$XENIA_URL"
+          }; then
       mkdir -p "$XENIA_DIR"
-      # mktemp, not a fixed /tmp name: this runs as root and a predictable
-      # path is a symlink target waiting to happen.
-      XENIA_PKG=$(mktemp /tmp/gamecore-xenia-XXXXXXXX)
       # The extraction used to run whatever the download did. A GitHub hiccup
       # then left unzip exiting 9 on a missing file — and since the `case` is
       # not part of an &&/|| list, `set -e` aborted the WHOLE install at 52 %,
       # before a single systemd unit, sudoers rule or autologin config existed.
-      if curl -sfL --connect-timeout 15 --max-time 900 --speed-limit 1024 --speed-time 30 \
-              -o "$XENIA_PKG" "$XENIA_URL" && [ -s "$XENIA_PKG" ]; then
-        case "$XENIA_URL" in
-          *.zip) unzip -o -q "$XENIA_PKG" -d "$XENIA_DIR" || warn "Xenia unzip failed." ;;
-          *.7z)  7z x -y -o"$XENIA_DIR" "$XENIA_PKG" >/dev/null || warn "Xenia 7z extraction failed." ;;
-          *)     warn "Unknown Xenia archive format: $XENIA_URL" ;;
-        esac
-        chown -R "${USER_NAME}:${USER_NAME}" "$XENIA_DIR"
-        [ -f "$XENIA_DIR/xenia_canary.exe" ] \
-          && ok "Xenia Canary installed → lib/xenia/ (launched via wine)." \
-          || warn "xenia_canary.exe not found after extraction — Xbox 360 will not launch."
+      case "$XENIA_URL" in
+        *.zip) unzip -o -q "$XENIA_PKG" -d "$XENIA_DIR" || warn "Xenia unzip failed." ;;
+        *.7z)  7z x -y -o"$XENIA_DIR" "$XENIA_PKG" >/dev/null || warn "Xenia 7z extraction failed." ;;
+        *)     warn "Unknown Xenia archive format: $XENIA_URL" ;;
+      esac
+      chown -R "${USER_NAME}:${USER_NAME}" "$XENIA_DIR"
+      if [ -f "$XENIA_DIR/xenia_canary.exe" ]; then
+        ok "Xenia Canary installed → lib/xenia/ (launched via wine)."
       else
-        warn "Xenia download failed — skipping (Xbox 360 will not launch)."
+        XENIA_MISSING=true
+        warn "xenia_canary.exe not found after extraction — Xbox 360 will not launch."
       fi
-      rm -f "$XENIA_PKG"
     else
-      warn "Could not fetch Xenia Canary URL."
+      XENIA_MISSING=true
+      warn "Xenia Canary could not be downloaded — the Xbox 360 tile will be missing."
+      warn "  Re-run the installer once the network is back; nothing else is affected."
     fi
+    rm -f "$XENIA_PKG"
   fi
 
   fi  # xenia
@@ -1347,13 +1371,19 @@ if $NVIDIA_REBOOT_NEEDED; then
   warn "NVIDIA driver installed — the reboot is mandatory before the X11 session works."
   echo
 fi
-# Surfaced here on purpose: the download warning scrolls past in the middle of
-# a very long log, and the only other symptom is a PlayStation tile that has
-# quietly disappeared from the grid.
+# Surfaced here on purpose: these warnings scroll past in the middle of a very
+# long log, and the only other symptom is a tile that has quietly disappeared
+# from the grid.
 if $DUCK_MISSING; then
   warn "DuckStation (PlayStation) was NOT installed — its tile is missing from the grid."
   warn "  Re-run this installer to retry the download, or drop the AppImage yourself at:"
   warn "      $GAMECORE_PATH/bin/duckstation.AppImage   (chmod +x, then re-run the installer)"
+  echo
+fi
+if $XENIA_MISSING; then
+  warn "Xenia Canary (Xbox 360) was NOT installed — its tile is missing from the grid."
+  warn "  Re-run this installer to retry the download, or extract the release yourself into:"
+  warn "      $GAMECORE_PATH/lib/xenia/   (xenia_canary.exe at its root, then re-run)"
   echo
 fi
 echo -e "${YLW}  To remove GameCore later:${RST}"
