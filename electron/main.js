@@ -16,7 +16,11 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 const DEBUG = false
 
 const DEV = DEBUG && process.env.ELECTRON_DEV === '1'
-const BACKEND_URL = 'http://localhost:8765'
+// The installer lets the operator pick the backend port and passes it through
+// gamecore-ui.service (Environment=GAMECORE_BACKEND_PORT). Hardcoding 8765
+// here meant any other choice left the kiosk on a permanent black screen.
+const BACKEND_PORT = process.env.GAMECORE_BACKEND_PORT || '8765'
+const BACKEND_URL = `http://localhost:${BACKEND_PORT}`
 const DEV_URL     = 'http://localhost:5173'
 
 let mainWindow     = null
@@ -334,7 +338,7 @@ function backendAlive() {
 async function startBackend() {
   if (DEV) return  // dev: backend is started manually
 
-  // In production gamecore-backend.service already runs uvicorn on 8765 —
+  // In production gamecore-backend.service already runs uvicorn on BACKEND_PORT —
   // spawning a second one just made it crash on EADDRINUSE at every boot.
   // Only spawn when nothing answers (desktop launch without the service).
   if (await backendAlive()) return
@@ -345,7 +349,7 @@ async function startBackend() {
 
   backendProcess = spawn(
     python, ['-m', 'uvicorn', 'backend.main:app',
-             '--host', '127.0.0.1', '--port', '8765',
+             '--host', '127.0.0.1', '--port', BACKEND_PORT,
              '--log-level', DEBUG ? 'debug' : 'warning'],
     { cwd: root, detached: false, stdio: 'ignore' }
   )
