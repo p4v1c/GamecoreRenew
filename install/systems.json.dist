@@ -86,7 +86,7 @@
     "color": "#0046ff",
     "iconPath": "assets/logos/ps1.png",
     "path": "lib/duck",
-    "args": "-fullscreen",
+    "args": "-nogui -fullscreen",
     "romsPath": "emu/duckstation/",
     "extensions": [
       "*.bin",

@@ -39,7 +39,10 @@ before = len(systems)
 
 # system id → (path, args) on a Flatpak-only machine
 FLATPAK_MAP = {
-    "duckstation": ("bin/duckstation.AppImage", "-fullscreen"),
+    # -nogui like the reference box: without it DuckStation drops back to its
+    # own game list when a game exits instead of quitting, so the process never
+    # ends and GameCore stays stuck on "game running".
+    "duckstation": ("bin/duckstation.AppImage", "-nogui -fullscreen"),
     "pcsx2":       ("flatpak", "run net.pcsx2.PCSX2 -fullscreen"),
     "rpcs3":       ("flatpak", "run net.rpcs3.RPCS3 --fullscreen --no-gui"),
     "gopher64":    ("flatpak", "run io.github.gopher64.gopher64 -f"),

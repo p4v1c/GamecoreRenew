@@ -354,6 +354,8 @@ flatpak remote-list 2>/dev/null | grep -q flathub \
 ok "Flathub ready."
 
 # ── Emulators (full mode only) ───────────────────────────────────
+# Declared outside the branch: the final recap reads it in minimal mode too.
+DUCK_MISSING=false
 if [[ "$MODE" == "full" ]]; then
   msg "Installing emulators (Flatpak)"
   declare -A EMU_FLATPAK=(
@@ -406,39 +408,61 @@ if [[ "$MODE" == "full" ]]; then
                          || info "No emulator or Steam selected — nothing to install."
 
   # ── DuckStation AppImage ───────────────────────────────────────
+  # Deliberately not a Flatpak: DuckStation is not published on Flathub, and
+  # the AppImage upstream builds is its only Linux distribution channel.
   if want_emu duckstation; then
   progress 50 "DuckStation AppImage"
   msg "DuckStation AppImage"
   DUCK_BIN="$GAMECORE_PATH/bin/duckstation.AppImage"
+  DUCK_TMP="${DUCK_BIN}.part"
   sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/bin"
+
+  # -f so an HTTP error page is never written to disk and chmod +x'd; a temp
+  # file so a transfer aborted by --speed-limit never lands at the final name
+  # and gets mistaken for a good install on the next run; the ELF check
+  # because a 200 carrying the wrong body is still a failed download.
+  duck_fetch() {  # duck_fetch <url>
+    rm -f "$DUCK_TMP"
+    curl -fL --connect-timeout 15 --max-time 900 --speed-limit 1024 --speed-time 30 \
+         --retry 3 --retry-delay 5 --retry-connrefused -o "$DUCK_TMP" "$1" \
+      && [ -s "$DUCK_TMP" ] && head -c 4 "$DUCK_TMP" | grep -qa ELF
+  }
+
   # `-f "$DUCK_BIN"` alone treats a truncated download or a saved HTML error
   # page as "installed" forever. An AppImage is an ELF — check the magic.
   if [ -x "$DUCK_BIN" ] && head -c 4 "$DUCK_BIN" 2>/dev/null | grep -qa ELF; then
     ok "DuckStation already present."
   else
     rm -f "$DUCK_BIN"
-    # `|| true`: an unreachable API leaves DUCK_URL empty (warn below) instead
-    # of json.load crashing on an empty stream and killing the install (set -e).
-    DUCK_URL=$(curl -sf --connect-timeout 15 --max-time 60 "https://api.github.com/repos/stenzek/duckstation/releases/latest" \
-      | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if a["name"]=="DuckStation-x64.AppImage"), ""))' || true)
-    if [[ -n "$DUCK_URL" ]]; then
-      # -f so an HTTP error page is not written to disk and chmod +x'd; a
-      # temp file so a transfer aborted by --speed-limit never lands at the
-      # final name and gets mistaken for a good install on the next run.
-      DUCK_TMP="${DUCK_BIN}.part"
-      if curl -fL --connect-timeout 15 --max-time 900 --speed-limit 1024 --speed-time 30 \
-              -o "$DUCK_TMP" "$DUCK_URL" \
-         && [ -s "$DUCK_TMP" ] && head -c 4 "$DUCK_TMP" | grep -qa ELF; then
-        mv -f "$DUCK_TMP" "$DUCK_BIN"
-        chmod +x "$DUCK_BIN"
-        chown "${USER_NAME}:${USER_NAME}" "$DUCK_BIN"
-        ok "DuckStation installed."
-      else
-        rm -f "$DUCK_TMP"
-        warn "DuckStation download failed or was not an AppImage — PS1 will not launch."
-      fi
+    # The fixed release URL FIRST, the GitHub API only as a fallback. The API
+    # is why fresh installs kept ending up with no PlayStation emulator at
+    # all: unauthenticated it allows 60 requests per hour and per IP, so a
+    # second installer run — or anything else behind the same NAT — exhausts
+    # the quota, `curl -sf` returns nothing, and the step gave up without ever
+    # trying to download. /releases/latest/download/<asset> is a plain 302
+    # served outside that budget. The API keeps its place for the day upstream
+    # renames the asset and the fixed URL starts 404-ing.
+    if duck_fetch "https://github.com/stenzek/duckstation/releases/latest/download/DuckStation-x64.AppImage" \
+       || {
+            warn "Fixed download URL failed — asking the GitHub API for the asset."
+            # `|| true`: an unreachable API leaves DUCK_URL empty (handled just
+            # below) instead of json.load crashing on an empty stream and
+            # killing the whole install under `set -e`. `2>/dev/null` on top of
+            # it, because that crash still printed a ten-line Python traceback
+            # into the installer log, which reads like a broken install.
+            DUCK_URL=$(curl -sf --connect-timeout 15 --max-time 60 "https://api.github.com/repos/stenzek/duckstation/releases/latest" \
+              | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if a["name"]=="DuckStation-x64.AppImage"), ""))' 2>/dev/null || true)
+            [[ -n "$DUCK_URL" ]] && duck_fetch "$DUCK_URL"
+          }; then
+      mv -f "$DUCK_TMP" "$DUCK_BIN"
+      chmod +x "$DUCK_BIN"
+      chown "${USER_NAME}:${USER_NAME}" "$DUCK_BIN"
+      ok "DuckStation installed → bin/duckstation.AppImage."
     else
-      warn "Could not fetch DuckStation URL."
+      rm -f "$DUCK_TMP"
+      DUCK_MISSING=true
+      warn "DuckStation could not be downloaded — the PlayStation tile will be missing."
+      warn "  Re-run the installer once the network is back; nothing else is affected."
     fi
   fi
 
@@ -1321,6 +1345,15 @@ if [[ -z "${KDE_SESSION:-}" ]]; then
 fi
 if $NVIDIA_REBOOT_NEEDED; then
   warn "NVIDIA driver installed — the reboot is mandatory before the X11 session works."
+  echo
+fi
+# Surfaced here on purpose: the download warning scrolls past in the middle of
+# a very long log, and the only other symptom is a PlayStation tile that has
+# quietly disappeared from the grid.
+if $DUCK_MISSING; then
+  warn "DuckStation (PlayStation) was NOT installed — its tile is missing from the grid."
+  warn "  Re-run this installer to retry the download, or drop the AppImage yourself at:"
+  warn "      $GAMECORE_PATH/bin/duckstation.AppImage   (chmod +x, then re-run the installer)"
   echo
 fi
 echo -e "${YLW}  To remove GameCore later:${RST}"
