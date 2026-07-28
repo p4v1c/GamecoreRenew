@@ -64,13 +64,17 @@ livraison **une branche + une PR par phase**.
 - `backend/services/auth.py` : argon2-cffi ; cookie
   `expiry.generation.HMAC-SHA256(secret, "expiry.generation")` ; anti-bruteforce en
   mémoire (par IP via `X-Forwarded-For`, 5 échecs → backoff exponentiel).
-- `backend/routers/auth.py` : `POST /api/auth/login` (cookie `gc_session` HttpOnly,
-  Secure, SameSite=Lax, 30 j), `GET /api/auth/verify` (200 + `X-GC-User` / 302 vers
+- `backend/routers/auth.py` — exemptées de `forward_auth`, donc joignables sans
+  session : `POST /api/auth/login` (cookie `gc_session` HttpOnly, Secure,
+  SameSite=Lax, 30 j), `GET /api/auth/verify` (200 + `X-GC-User` / 302 vers
   `/login?next=…` / 401 — consommé par le `forward_auth` de Caddy),
-  `POST /api/auth/logout`, `POST /api/auth/change-password` (incrémente `generation`
-  → invalide toutes les sessions).
+  `POST /api/auth/logout`.
+- `POST /api/auth/change-password` (incrémente `generation` → invalide toutes les
+  sessions) est **derrière** le `forward_auth` : l'exemption large `/api/auth/*`
+  la publiait au LAN entier. Sur une machine sans mot de passe elle répond 503 —
+  elle ne sert pas à en définir un, elle sert à en changer un.
 - Page `/login` autonome servie par le core ; définition du mot de passe : prompt
-  dans `arch.sh`, page Settings → Sécurité de la TV, ou `gamecore-addon auth-reset`.
+  dans `arch.sh` (l'installeur graphique l'exige), ou `gamecore-addon auth-reset`.
 - Le core lui-même n'applique **aucune** auth sur ses routes (il n'est joignable
   qu'en loopback) : l'application de l'auth est le rôle exclusif de Caddy.
 
