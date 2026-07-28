@@ -80,6 +80,10 @@ jobs:
           cp -r electron      dist_ota/
           cp -r update        dist_ota/
           cp -r install       dist_ota/
+          # The tag, not the tracked VERSION file: that one still says v1.0.0
+          # (it is only ever written on a box by update/linux.sh), so shipping
+          # it would make every fresh install report itself out of date.
+          echo "${{ steps.tag_version.outputs.new_tag || github.ref_name }}" > dist_ota/VERSION
           find dist_ota -name 'node_modules' -exec rm -rf {} + 2>/dev/null || true
           find dist_ota -name '__pycache__'  -exec rm -rf {} + 2>/dev/null || true
           tar -czf gamecore-ota.tar.gz -C dist_ota .
@@ -96,6 +100,9 @@ jobs:
           cp -r install     dist_full/
           # user data for fresh installs only — the OTA archive must NOT ship it
           cp -r emu-configs dist_full/
+          # Same as the OTA archive: a full install with no VERSION falls back
+          # to APP_VERSION="v1.0.0" and offers an update on first boot.
+          echo "${{ steps.tag_version.outputs.new_tag || github.ref_name }}" > dist_full/VERSION
           find dist_full -name 'node_modules' -exec rm -rf {} + 2>/dev/null || true
           find dist_full -name '__pycache__'  -exec rm -rf {} + 2>/dev/null || true
           tar -czf gamecore-full.tar.gz -C dist_full .

@@ -10,7 +10,8 @@ React + Electron shell + FastAPI backend — plug in a controller and play.
 1. [What it does](#what-it-does)
 2. [Requirements](#requirements)
 3. [Installation (device)](#installation-device)
-4. [Development setup](#development-setup)
+4. [Uninstallation](#uninstallation)
+5. [Development setup](#development-setup)
 5. [First launch](#first-launch)
 6. [Adding ROMs](#adding-roms)
 7. [Controller navigation](#controller-navigation)
@@ -109,6 +110,43 @@ After installation:
 ```bash
 sudo reboot
 ```
+
+---
+
+## Uninstallation
+
+```bash
+sudo bash /opt/GameCore/install/uninstall.sh --dry-run   # show everything it would do
+sudo bash /opt/GameCore/install/uninstall.sh             # do it
+```
+
+The installer records what it changed in `/var/lib/gamecore/`, and the uninstaller
+reads that manifest — so it only undoes what **this** box's install actually did.
+A package that was already present is never removed, a user account that predated
+GameCore is never deleted, and an emulator config that existed before is *restored*
+from its `.bak-preinstall` backup rather than deleted.
+
+By default it removes the services, the auto-login, the sudoers and udev rules, the
+Caddy configuration and its root CA, the companion checkouts in `/opt`, the stored
+web password, and the application files — and **keeps your ROMs** (`emu/`) and
+`config/`.
+
+| Flag | Effect |
+|---|---|
+| `--dry-run` | Print every action, change nothing. Run this first. |
+| `--purge` | Also delete `emu/` (ROMs) and `config/`. |
+| `--remove-flatpaks` | Uninstall the Flatpak emulators **this install** added. Their save data in `~/.var/app/` goes with them. |
+| `--remove-packages` | `pacman -Rns` the packages this install added and that nothing else requires. |
+| `--remove-user` | Delete the GameCore user — only if the manifest proves the installer created it. |
+| `--yes` | No confirmation prompts. |
+| `--user` / `--path` | Override the auto-detected user and install directory. |
+
+Two things it cannot undo, and says so at the end: the `pacman -Syu` the installer
+ran, and the in-place rewrite of `config/systems.json` / `config/apps.json`.
+
+`sshd`, `bluetooth` and `sddm` are left enabled — they are system services that
+almost certainly predate GameCore. The installer did enable SSH, so close it
+yourself if you want it closed: `sudo systemctl disable --now sshd`.
 
 ---
 
@@ -539,7 +577,9 @@ config/           runtime state, never in git, never touched by OTA:
                   and never touches ones you do
 assets/           logos/, overlays/
 emu/              ROMs per system (emu/dolphin/, emu/melonds/…) + covers/ cache
-install/          Installers: arch.sh engine (+ --unattended), installer-gui/ (Qt binary), gamecore-addon CLI, Caddyfile
+install/          Installers: arch.sh engine (+ --unattended), uninstall.sh,
+                  installer-gui/ (Qt binary), gamecore-addon CLI, Caddyfile,
+                  apps.json.dist / systems.json.dist (pristine tile catalogues)
 update/           OTA update script (linux.sh)
 docs/             architecture/ (9-part deep dive), themes/ (contract + prompts),
                   SECURITY.md, CONTROLLER_MODELS.md, STREMIO.md

@@ -16,6 +16,7 @@ die()  { echo -e "\n${RED}[ERROR]${RST} $*" >&2; exit 1; }
 info() { echo -e "  ${RST}$*"; }
 
 pacman_optional() {
+  record_new_pkgs "$1"
   pacman -S --noconfirm --needed "$1" 2>/dev/null && ok "$1" || warn "$1 not in repos — skipping"
 }
 
@@ -36,6 +37,53 @@ git_clone() {  # git_clone <url> <dir>
     clone -q "$1" "$2" && return 0
   rm -rf "$2"
   return 1
+}
+
+# ── Install manifest ─────────────────────────────────────────────
+# install/uninstall.sh reads these to know what THIS install actually
+# changed, so it can put the machine back without guessing. Without them
+# an uninstaller cannot tell "we installed caddy" from "caddy was already
+# here", and the only safe answer is then to remove nothing.
+MANIFEST_DIR="/var/lib/gamecore"
+MANIFEST="${MANIFEST_DIR}/manifest.env"
+PKG_MANIFEST="${MANIFEST_DIR}/pacman-installed"
+FLATPAK_MANIFEST="${MANIFEST_DIR}/flatpak-installed"
+OVERRIDE_MANIFEST="${MANIFEST_DIR}/flatpak-overrides"
+
+manifest_set() {  # manifest_set <KEY> <value>
+  mkdir -p "$MANIFEST_DIR"; touch "$MANIFEST"
+  sed -i "/^$1=/d" "$MANIFEST"
+  printf '%s=%q\n' "$1" "$2" >> "$MANIFEST"
+}
+
+# Record only what pacman/flatpak did NOT already have. Called before the
+# install so "already present" never ends up on the removal list.
+record_new_pkgs() {  # record_new_pkgs <pkg...>
+  local p
+  mkdir -p "$MANIFEST_DIR"; touch "$PKG_MANIFEST"
+  for p in "$@"; do
+    pacman -Qq "$p" >/dev/null 2>&1 && continue
+    grep -qxF "$p" "$PKG_MANIFEST" 2>/dev/null || echo "$p" >> "$PKG_MANIFEST"
+  done
+}
+
+# Apps we changed the sandbox permissions of — a superset of the ones we
+# installed, and the list the uninstaller must reset.
+record_flatpak_override() {  # record_flatpak_override <app-id>
+  mkdir -p "$MANIFEST_DIR"; touch "$OVERRIDE_MANIFEST"
+  grep -qxF "$1" "$OVERRIDE_MANIFEST" 2>/dev/null || echo "$1" >> "$OVERRIDE_MANIFEST"
+}
+
+record_new_flatpak() {  # record_new_flatpak <app-id>
+  mkdir -p "$MANIFEST_DIR"; touch "$FLATPAK_MANIFEST"
+  grep -qxF "$1" "$FLATPAK_MANIFEST" 2>/dev/null || echo "$1" >> "$FLATPAK_MANIFEST"
+}
+
+# Is a Flatpak app installed? `flatpak list | grep -q <id>` matches
+# substrings (org.DolphinEmu.dolphin-emu also matches a hypothetical
+# …dolphin-emu-beta) — compare the application column exactly instead.
+flatpak_installed() {  # flatpak_installed <app-id>
+  flatpak list --app --columns=application 2>/dev/null | grep -qxF "$1"
 }
 
 [[ $EUID -eq 0 ]] || die "Run with sudo: sudo bash install/arch.sh [--full|--minimal]"
@@ -147,9 +195,26 @@ fi
 # ── User check ───────────────────────────────────────────────────
 progress 2 "Checking user"
 msg "Checking user"
-id "$USER_NAME" >/dev/null 2>&1 || { useradd -m -s /bin/bash "$USER_NAME"; ok "User $USER_NAME created."; }
+USER_CREATED=0
+if ! id "$USER_NAME" >/dev/null 2>&1; then
+  useradd -m -s /bin/bash "$USER_NAME"
+  USER_CREATED=1
+  ok "User $USER_NAME created."
+fi
 ok "User $USER_NAME OK"
 USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
+
+# The uninstaller must never delete an account that predates GameCore.
+manifest_set USER_NAME      "$USER_NAME"
+manifest_set GAMECORE_PATH  "$GAMECORE_PATH"
+manifest_set WEB_PORT       "$WEB_PORT"
+manifest_set MODE           "$MODE"
+manifest_set USER_CREATED   "$USER_CREATED"
+manifest_set INSTALLED_AT   "$(date -Iseconds)"
+# Create the list files up front, even empty. "We installed no Flatpaks" and
+# "there is no record of what we installed" must not look the same to the
+# uninstaller: the first means remove nothing, the second means it is blind.
+touch "$PKG_MANIFEST" "$FLATPAK_MANIFEST" "$OVERRIDE_MANIFEST"
 
 # ── Copy files ───────────────────────────────────────────────────
 progress 4 "Copying GameCore files"
@@ -164,10 +229,14 @@ fi
 chown -R "${USER_NAME}:${USER_NAME}" "$GAMECORE_PATH"
 
 # ── System packages ──────────────────────────────────────────────
-progress 6 "System packages (pacman) — this can take a while"
+# pacman is by far the longest phase of the install (a rolling-release
+# upgrade plus ~25 packages). Without markers inside it the GUI's progress
+# bar sits at 6 % for up to 40 minutes and looks hung.
+progress 6 "Refreshing and upgrading system packages (this can take a while)"
 msg "System packages"
 pacman -Syu --noconfirm
 
+progress 14 "Installing base packages (desktop, drivers, node, caddy)"
 PKGS=(
   mesa
   base-devel git flatpak openssh
@@ -182,8 +251,28 @@ PKGS=(
   caddy
 )
 
+# Kernel series — needed by both the headers and the Manjaro NVIDIA module,
+# so it is computed before the GPU branch. `uname -r` is the RUNNING kernel;
+# on a box that was upgraded but not rebooted the matching package may not
+# exist any more, hence the availability check below.
+KERNEL=$(uname -r)
+KSHORT=""
+if $IS_MANJARO; then
+  KSHORT=$(echo "$KERNEL" | grep -oP '^\d+\.\d+' | tr -d '.')
+  KRT=""; [[ $KERNEL == *-rt* ]] && KRT="-rt"
+  if pacman -Si "linux${KSHORT}${KRT}-headers" >/dev/null 2>&1; then
+    PKGS+=("linux${KSHORT}${KRT}-headers")
+  else
+    warn "linux${KSHORT}${KRT}-headers not in the repos — kernel headers skipped."
+    warn "  (running kernel: $KERNEL — reboot into the installed kernel and re-run if you need DKMS.)"
+  fi
+else
+  [[ $KERNEL == *zen* ]] && PKGS+=("linux-zen-headers") || PKGS+=("linux-headers")
+fi
+
 # GPU drivers — detect the vendor instead of assuming AMD
 GPU_INFO=$(lspci -nn 2>/dev/null | grep -Ei 'vga|3d|display' || true)
+NVIDIA_REBOOT_NEEDED=false
 if echo "$GPU_INFO" | grep -qiE 'amd|radeon'; then
   PKGS+=(xf86-video-amdgpu vulkan-radeon lib32-vulkan-radeon)
   info "GPU detected: AMD (vulkan-radeon)"
@@ -191,8 +280,31 @@ elif echo "$GPU_INFO" | grep -qi 'intel'; then
   PKGS+=(vulkan-intel lib32-vulkan-intel)
   info "GPU detected: Intel (vulkan-intel)"
 elif echo "$GPU_INFO" | grep -qi 'nvidia'; then
-  PKGS+=(nvidia nvidia-utils lib32-nvidia-utils)
-  info "GPU detected: NVIDIA (proprietary driver)"
+  # NEVER pass the bare name `nvidia` on Manjaro: no package is called that.
+  # ~20 packages merely *provide* it, and `--noconfirm` suppresses the
+  # "N providers available" prompt, so pacman silently picks the first —
+  # linux61-nvidia — which drags in the whole 6.1 LTS kernel and builds the
+  # module for a kernel this box is not running. X then loads nvidia_drv.so,
+  # finds no matching module, and the kiosk session never comes up.
+  NV_PKG=""
+  if $IS_MANJARO && [[ -n "$KSHORT" ]]; then
+    for cand in "linux${KSHORT}${KRT}-nvidia" "nvidia-dkms"; do
+      if pacman -Si "$cand" >/dev/null 2>&1; then NV_PKG="$cand"; break; fi
+    done
+  else
+    NV_PKG="nvidia"
+  fi
+  if [[ -n "$NV_PKG" ]]; then
+    PKGS+=("$NV_PKG" nvidia-utils lib32-nvidia-utils)
+    # nvidia-dkms builds against the installed kernel and therefore needs dkms
+    # plus the headers added above.
+    [[ "$NV_PKG" == "nvidia-dkms" ]] && PKGS+=(dkms)
+    NVIDIA_REBOOT_NEEDED=true
+    info "GPU detected: NVIDIA ($NV_PKG)"
+  else
+    warn "GPU detected: NVIDIA, but no driver package matches this kernel."
+    warn "  Install it yourself before rebooting:  sudo mhwd -a pci nonfree 0300"
+  fi
 elif echo "$GPU_INFO" | grep -qiE 'vmware|virtualbox|virtio|qxl|bochs'; then
   # VM GPU — no hardware Vulkan; llvmpipe lets Vulkan apps at least start.
   PKGS+=(vulkan-swrast)
@@ -201,24 +313,26 @@ else
   warn "GPU not identified — installing mesa only (add your Vulkan driver manually)."
 fi
 
-# Kernel headers
-KERNEL=$(uname -r)
-if $IS_MANJARO; then
-  KSHORT=$(echo "$KERNEL" | grep -oP '^\d+\.\d+' | tr -d '.')
-  PKGS+=("linux${KSHORT}-headers")
-else
-  [[ $KERNEL == *zen* ]] && PKGS+=("linux-zen-headers") || PKGS+=("linux-headers")
+# The whole GameCore stack is X11-only (overlays, fullscreen enforcer, the
+# gamepad→keyboard bridge, the 1080p pin). Plasma 6 ships its X11 session in
+# a separate package; without it SDDM has no plasmax11 session to auto-login
+# into and the box lands on Wayland — a silently broken install. Treat it as
+# required whenever the repos have it, so a failure surfaces here and not at
+# first boot. (Older Plasma builds the X11 session in and have no such package.)
+if pacman -Si plasma-x11-session >/dev/null 2>&1; then
+  PKGS+=(plasma-x11-session)
+elif [[ ! -f /usr/share/xsessions/plasma.desktop ]]; then
+  warn "No plasma-x11-session package and no plasma.desktop X11 session — the box may boot Wayland."
 fi
 
+record_new_pkgs "${PKGS[@]}"
 pacman -S --noconfirm --needed "${PKGS[@]}"
 ok "System packages installed."
 
+progress 20 "Optional packages"
 pacman_optional cpupower
 pacman_optional amd-ucode
 pacman_optional feh
-# Plasma 6 ships the X11 session in a separate package on recent Arch/Manjaro;
-# on older Plasma the X11 session is built in and this package doesn't exist.
-pacman_optional plasma-x11-session
 
 # ── CPU governor ─────────────────────────────────────────────────
 progress 22 "CPU governor"
@@ -263,20 +377,33 @@ if [[ "$MODE" == "full" ]]; then
   # (install + ROMs/gamepad overrides below).
   want_app steam && FLATPAKS+=(com.valvesoftware.Steam)
   EMU_I=0
-  for pkg in "${FLATPAKS[@]}"; do
+  EMU_TOTAL=${#FLATPAKS[@]}
+  # Unticking every emulator AND every app leaves the array empty; the
+  # progress interpolation below would then divide by zero, which under
+  # `set -e` kills the install outright.
+  for pkg in ${FLATPAKS[@]+"${FLATPAKS[@]}"}; do
     EMU_I=$((EMU_I + 1))
     # interpolate 25 → 50 % across the selected emulators/apps
-    progress $((25 + EMU_I * 25 / ${#FLATPAKS[@]})) "Installing $pkg"
-    flatpak list --app 2>/dev/null | grep -q "$pkg" \
-      && info "$pkg — already installed." \
-      || { flatpak install -y flathub "$pkg" && ok "$pkg installed." || warn "$pkg failed."; }
+    progress $((25 + EMU_I * 25 / EMU_TOTAL)) "Installing $pkg"
+    if flatpak_installed "$pkg"; then
+      info "$pkg — already installed (left out of the uninstall manifest)."
+    elif flatpak install -y flathub "$pkg"; then
+      record_new_flatpak "$pkg"
+      ok "$pkg installed."
+    else
+      warn "$pkg failed."
+    fi
   done
 
-  # Sandbox permissions: ROM directory + gamepad access for every emulator
-  for pkg in "${FLATPAKS[@]}"; do
+  # Sandbox permissions: ROM directory + gamepad access for every emulator.
+  # Recorded separately from what we installed: an emulator the user already
+  # had still gets a GameCore override, and the uninstaller has to reset it.
+  for pkg in ${FLATPAKS[@]+"${FLATPAKS[@]}"}; do
     flatpak override --filesystem="$GAMECORE_PATH" --device=all --socket=x11 "$pkg" 2>/dev/null || true
+    record_flatpak_override "$pkg"
   done
-  ok "Flatpak overrides applied (ROMs dir + controller access)."
+  [[ $EMU_TOTAL -gt 0 ]] && ok "Flatpak overrides applied (ROMs dir + controller access)." \
+                         || info "No emulator or Steam selected — nothing to install."
 
   # ── DuckStation AppImage ───────────────────────────────────────
   if want_emu duckstation; then
@@ -284,19 +411,40 @@ if [[ "$MODE" == "full" ]]; then
   msg "DuckStation AppImage"
   DUCK_BIN="$GAMECORE_PATH/bin/duckstation.AppImage"
   sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/bin"
-  if [ -f "$DUCK_BIN" ]; then
+  # `-f "$DUCK_BIN"` alone treats a truncated download or a saved HTML error
+  # page as "installed" forever. An AppImage is an ELF — check the magic.
+  if [ -x "$DUCK_BIN" ] && head -c 4 "$DUCK_BIN" 2>/dev/null | grep -qa ELF; then
     ok "DuckStation already present."
   else
+    rm -f "$DUCK_BIN"
     # `|| true`: an unreachable API leaves DUCK_URL empty (warn below) instead
     # of json.load crashing on an empty stream and killing the install (set -e).
     DUCK_URL=$(curl -sf --connect-timeout 15 --max-time 60 "https://api.github.com/repos/stenzek/duckstation/releases/latest" \
       | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if a["name"]=="DuckStation-x64.AppImage"), ""))' || true)
     if [[ -n "$DUCK_URL" ]]; then
-      curl -L --connect-timeout 15 --speed-limit 1024 --speed-time 30 -o "$DUCK_BIN" "$DUCK_URL" && chmod +x "$DUCK_BIN" && ok "DuckStation installed." || warn "Download failed."
+      # -f so an HTTP error page is not written to disk and chmod +x'd; a
+      # temp file so a transfer aborted by --speed-limit never lands at the
+      # final name and gets mistaken for a good install on the next run.
+      DUCK_TMP="${DUCK_BIN}.part"
+      if curl -fL --connect-timeout 15 --max-time 900 --speed-limit 1024 --speed-time 30 \
+              -o "$DUCK_TMP" "$DUCK_URL" \
+         && [ -s "$DUCK_TMP" ] && head -c 4 "$DUCK_TMP" | grep -qa ELF; then
+        mv -f "$DUCK_TMP" "$DUCK_BIN"
+        chmod +x "$DUCK_BIN"
+        chown "${USER_NAME}:${USER_NAME}" "$DUCK_BIN"
+        ok "DuckStation installed."
+      else
+        rm -f "$DUCK_TMP"
+        warn "DuckStation download failed or was not an AppImage — PS1 will not launch."
+      fi
     else
       warn "Could not fetch DuckStation URL."
     fi
   fi
+
+  # A type-2 AppImage mounts itself through libfuse2; without it DuckStation
+  # exits with "dlopen(): error loading libfuse.so.2" and the PS1 tile is dead.
+  pacman_optional fuse2
 
   fi  # duckstation
 
@@ -304,6 +452,7 @@ if [[ "$MODE" == "full" ]]; then
   if want_emu xenia; then
   progress 52 "Xenia Canary (Wine)"
   msg "Xenia Canary (Wine)"
+  record_new_pkgs wine unzip p7zip
   pacman -S --noconfirm --needed wine unzip p7zip && ok "wine + archive tools installed." || warn "wine install failed."
   XENIA_DIR="$GAMECORE_PATH/lib/xenia"
   if [ -f "$XENIA_DIR/xenia_canary.exe" ]; then
@@ -313,18 +462,28 @@ if [[ "$MODE" == "full" ]]; then
       | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if "windows" in a["name"].lower()), ""))' || true)
     if [[ -n "$XENIA_URL" ]]; then
       mkdir -p "$XENIA_DIR"
-      XENIA_PKG="/tmp/xenia_canary_pkg"
-      curl -sfL --connect-timeout 15 --speed-limit 1024 --speed-time 30 -o "$XENIA_PKG" "$XENIA_URL" || warn "Xenia download failed."
-      case "$XENIA_URL" in
-        *.zip) unzip -o -q "$XENIA_PKG" -d "$XENIA_DIR" ;;
-        *.7z)  7z x -y -o"$XENIA_DIR" "$XENIA_PKG" >/dev/null ;;
-        *)     warn "Unknown Xenia archive format: $XENIA_URL" ;;
-      esac
+      # mktemp, not a fixed /tmp name: this runs as root and a predictable
+      # path is a symlink target waiting to happen.
+      XENIA_PKG=$(mktemp /tmp/gamecore-xenia-XXXXXXXX)
+      # The extraction used to run whatever the download did. A GitHub hiccup
+      # then left unzip exiting 9 on a missing file — and since the `case` is
+      # not part of an &&/|| list, `set -e` aborted the WHOLE install at 52 %,
+      # before a single systemd unit, sudoers rule or autologin config existed.
+      if curl -sfL --connect-timeout 15 --max-time 900 --speed-limit 1024 --speed-time 30 \
+              -o "$XENIA_PKG" "$XENIA_URL" && [ -s "$XENIA_PKG" ]; then
+        case "$XENIA_URL" in
+          *.zip) unzip -o -q "$XENIA_PKG" -d "$XENIA_DIR" || warn "Xenia unzip failed." ;;
+          *.7z)  7z x -y -o"$XENIA_DIR" "$XENIA_PKG" >/dev/null || warn "Xenia 7z extraction failed." ;;
+          *)     warn "Unknown Xenia archive format: $XENIA_URL" ;;
+        esac
+        chown -R "${USER_NAME}:${USER_NAME}" "$XENIA_DIR"
+        [ -f "$XENIA_DIR/xenia_canary.exe" ] \
+          && ok "Xenia Canary installed → lib/xenia/ (launched via wine)." \
+          || warn "xenia_canary.exe not found after extraction — Xbox 360 will not launch."
+      else
+        warn "Xenia download failed — skipping (Xbox 360 will not launch)."
+      fi
       rm -f "$XENIA_PKG"
-      chown -R "${USER_NAME}:${USER_NAME}" "$XENIA_DIR"
-      [ -f "$XENIA_DIR/xenia_canary.exe" ] \
-        && ok "Xenia Canary installed → lib/xenia/ (launched via wine)." \
-        || warn "xenia_canary.exe not found after extraction."
     else
       warn "Could not fetch Xenia Canary URL."
     fi
@@ -332,17 +491,14 @@ if [[ "$MODE" == "full" ]]; then
 
   fi  # xenia
 
-  # ── Adapt systems.json to this machine's launchers ─────────────
-  progress 55 "Adapting systems.json"
-  msg "Systems → Flatpak launchers"
-  bash "$GAMECORE_PATH/install/flatpakify-systems.sh" "$GAMECORE_PATH" \
-    && ok "systems.json adapted." || warn "flatpakify failed — check config/systems.json."
-
   # ── Curated emulator configs (incl. controller bindings) ───────
+  # -H so $HOME inside the script is the gaming user's, not root's: every
+  # destination path in install-emu-configs.sh is derived from it.
   progress 56 "Emulator configs"
   msg "Emulator configs"
   if [ -d "$GAMECORE_PATH/emu-configs" ]; then
-    sudo -u "$USER_NAME" bash "$GAMECORE_PATH/install/install-emu-configs.sh" \
+    sudo -u "$USER_NAME" -H env GAMECORE_PATH="$GAMECORE_PATH" \
+      bash "$GAMECORE_PATH/install/install-emu-configs.sh" \
       && ok "Curated configs deployed." || warn "Config deployment failed."
   else
     warn "emu-configs/ not found — skipping."
@@ -360,6 +516,7 @@ if [[ "$MODE" == "full" ]]; then
   RESTART_UNITS=()
 
   if want_app twitch || want_app youtube; then
+    record_new_pkgs firefox nss
     pacman -S --noconfirm --needed firefox nss && ok "firefox + nss (certutil) installed." || warn "firefox install failed."
   fi
 
@@ -434,8 +591,17 @@ EOF
   fi
   if [ -d /opt/gamepad-tv-bridge ]; then
     chown -R "${USER_NAME}:${USER_NAME}" /opt/gamepad-tv-bridge
-    sudo -u "$USER_NAME" python3 -m venv "$USER_HOME/.venv" 2>/dev/null || true
-    sudo -u "$USER_NAME" "$USER_HOME/.venv/bin/pip" install -q -e /opt/gamepad-tv-bridge \
+    # ~/.venv is the most generic virtualenv path on Linux and the user may
+    # already own one. Record whether WE created it, so the uninstaller knows
+    # the difference between "delete this, it is ours" and "pip uninstall just
+    # our package out of theirs".
+    if [[ -d "$USER_HOME/.venv" ]]; then
+      manifest_set BRIDGE_VENV_CREATED 0
+    else
+      sudo -u "$USER_NAME" -H python3 -m venv "$USER_HOME/.venv" 2>/dev/null \
+        && manifest_set BRIDGE_VENV_CREATED 1 || manifest_set BRIDGE_VENV_CREATED 0
+    fi
+    sudo -u "$USER_NAME" -H "$USER_HOME/.venv/bin/pip" install -q -e /opt/gamepad-tv-bridge \
       && ok "bridge installed in $USER_HOME/.venv (editable)." || warn "bridge pip install failed."
     # WantedBy=default.target, NOT graphical-session.target: with linger the
     # user manager starts at boot (before any graphical login), so the bridge
@@ -469,8 +635,19 @@ EOF
   fi
   fi  # twitch/youtube/stremio kiosk bridge
 
-  chown -R "${USER_NAME}:${USER_NAME}" "$USER_HOME/.config"
-  loginctl enable-linger "$USER_NAME" 2>/dev/null && ok "user services will start at boot (linger)." || true
+  # Only the directory we actually wrote into. A recursive chown of the whole
+  # ~/.config silently rewrites the ownership of anything in there that
+  # legitimately belonged to another uid, with no record and no way back.
+  chown -R "${USER_NAME}:${USER_NAME}" "$USER_HOME/.config/systemd" 2>/dev/null || true
+
+  # Record whether WE turned linger on, so the uninstaller does not switch it
+  # off under a user who had it enabled for their own services.
+  if loginctl show-user "$USER_NAME" -p Linger 2>/dev/null | grep -q 'Linger=yes'; then
+    manifest_set LINGER_ENABLED 0
+  else
+    loginctl enable-linger "$USER_NAME" 2>/dev/null \
+      && { manifest_set LINGER_ENABLED 1; ok "user services will start at boot (linger)."; } || true
+  fi
 
   # Make the freshly written user units effective NOW, not only after reboot:
   # the running user manager doesn't see manually symlinked units until a
@@ -530,9 +707,16 @@ EOF
   if want_app stremio; then
   progress 68 "Stremio"
   # Stremio (media tile) — needs gamepad + media access inside the sandbox
-  flatpak list --app 2>/dev/null | grep -q com.stremio.Stremio \
-    || { flatpak install -y flathub com.stremio.Stremio && ok "Stremio installed." || warn "Stremio failed."; }
+  if flatpak_installed com.stremio.Stremio; then
+    info "Stremio — already installed (left out of the uninstall manifest)."
+  elif flatpak install -y flathub com.stremio.Stremio; then
+    record_new_flatpak com.stremio.Stremio
+    ok "Stremio installed."
+  else
+    warn "Stremio failed."
+  fi
   flatpak override --device=all --filesystem=host com.stremio.Stremio 2>/dev/null || true
+  record_flatpak_override com.stremio.Stremio
 
   # The client above is what the tile opens, unmodified. The one thing it lacks
   # for couch use is an on-screen keyboard, so a small local proxy serves
@@ -557,14 +741,33 @@ else
   msg "Minimal mode — skipping emulators, applications and configs."
 fi
 
-# ── App tiles (config/apps.json) ─────────────────────────────────
-# Keep only the tiles of the apps actually installed — an unchecked app must
-# not leave a dead tile in the UI (minimal mode keeps none). Same spirit as
-# flatpakify-systems.sh for the emulators.
-progress 78 "App tiles"
-msg "App tiles"
+# ── Home-grid tiles (config/apps.json + config/systems.json) ─────
+# An unchecked emulator or app must not leave a dead tile on the TV.
+#
+# Both files are regenerated from the pristine catalogues in install/*.dist
+# on every run. Filtering in place used to be a one-way door: re-running the
+# installer with MORE emulators selected could never bring back a tile a
+# previous minimal run had deleted, because config/ is excluded from OTA and
+# `cp -r` is skipped when the source already is the install dir. The .dist
+# files live in install/, so they ride along with both the copy and the OTA
+# rsync and stay current with each release.
+progress 76 "Home-grid tiles"
+msg "Home-grid tiles"
+for pair in "apps.json" "systems.json"; do
+  DIST="$GAMECORE_PATH/install/${pair}.dist"
+  LIVE="$GAMECORE_PATH/config/${pair}"
+  if [[ -f "$DIST" ]]; then
+    # First run only: on a second pass $LIVE is already our generated file, and
+    # overwriting the backup would lose the operator's hand-edited original.
+    [[ -f "$LIVE" && ! -e "${LIVE}.bak-install" ]] && cp -f "$LIVE" "${LIVE}.bak-install"
+    cp -f "$DIST" "$LIVE"
+  else
+    warn "install/${pair}.dist missing — filtering ${pair} in place."
+  fi
+done
 # apps.json was harvested on a box where HOME was /home/pavic — adapt it
 sed -i "s|/home/pavic|$USER_HOME|g" "$GAMECORE_PATH/config/apps.json"
+
 KEEP_APPS=""
 for app in twitch stremio steam youtube; do
   want_app "$app" && KEEP_APPS="$KEEP_APPS $app"
@@ -582,6 +785,21 @@ print(f"[app-tiles] kept: {', '.join(sorted(keep)) or 'none'}"
 EOF
 ok "apps.json filtered to the selected apps."
 
+# systems.json: rewrite the launchers to what this box actually has, and drop
+# the systems that were not selected. In minimal mode nothing is installed,
+# so the emulator half of the grid goes entirely.
+progress 78 "Systems → launchers"
+if [[ "$MODE" == "minimal" ]]; then
+  EMU_SEL=""
+else
+  EMU_SEL="$EMULATORS"
+fi
+bash "$GAMECORE_PATH/install/flatpakify-systems.sh" "$GAMECORE_PATH" "$EMU_SEL" \
+  && ok "systems.json adapted to the selected emulators." \
+  || warn "flatpakify failed — check config/systems.json."
+chown "${USER_NAME}:${USER_NAME}" \
+  "$GAMECORE_PATH/config/apps.json" "$GAMECORE_PATH/config/systems.json" 2>/dev/null || true
+
 # ── ROM directories ──────────────────────────────────────────────
 progress 80 "ROM directories"
 msg "ROM directories"
@@ -593,16 +811,33 @@ ok "ROM directories ready."
 # ── Input group + udev rule (needed for evdev PS-button detection) ──
 progress 82 "Gamepad input access"
 msg "Gamepad input access"
-usermod -aG input "$USER_NAME" && ok "$USER_NAME added to 'input' group." || warn "Could not add to input group."
+# Record whether the membership is ours. `input` is required by plenty of
+# unrelated software (Steam, retroarch, ydotool), so an uninstaller must not
+# revoke it from a user who already had it.
+if id -nG "$USER_NAME" 2>/dev/null | tr ' ' '\n' | grep -qx input; then
+  manifest_set INPUT_GROUP_ADDED 0
+  ok "$USER_NAME already in the 'input' group."
+elif usermod -aG input "$USER_NAME"; then
+  manifest_set INPUT_GROUP_ADDED 1
+  ok "$USER_NAME added to 'input' group."
+else
+  warn "Could not add to input group."
+fi
 
 # udev rule: make all gamepad/joystick event nodes group=input + world-readable
 # This means the backend process can open them even before a re-login
 cat > /etc/udev/rules.d/99-gamecore-input.rules <<'UDEV'
-# GameCore — allow reading gamepad events for PS/guide button detection
-KERNEL=="event*", SUBSYSTEM=="input", TAG=="seat", MODE="0664", GROUP="input"
-KERNEL=="event*", SUBSYSTEM=="input", ATTRS{bInterfaceClass}=="03", MODE="0664", GROUP="input"
-# Sony DualShock / DualSense (vendor 054c)
-SUBSYSTEM=="input", ATTRS{idVendor}=="054c", MODE="0664", GROUP="input"
+# GameCore — allow reading gamepad events for PS/guide button detection.
+#
+# MODE is 0660, never 0664: the second rule matches EVERY USB HID interface,
+# which includes keyboards. World-readable /dev/input/event* would let any
+# local uid — the caddy service user, any SSH session — read every keystroke
+# on the machine, sudo passwords included. Group `input` is enough: the
+# backend unit has SupplementaryGroups=input and the desktop user is a member.
+KERNEL=="event*", SUBSYSTEM=="input", ATTRS{bInterfaceClass}=="03", MODE="0660", GROUP="input"
+# Sony DualShock / DualSense (vendor 054c) — kept unconditional: a DualShock
+# over Bluetooth does not always tag every child node as a joystick.
+SUBSYSTEM=="input", ATTRS{idVendor}=="054c", MODE="0660", GROUP="input"
 UDEV
 
 # DualShock 4 over hidraw — needed by RPCS3's native DS4 pad handler
@@ -669,74 +904,9 @@ PYEOF
   fi
 fi
 
-# ── Node / frontend ──────────────────────────────────────────────
-progress 89 "Building the frontend"
-msg "Node frontend build"
-cd "$GAMECORE_PATH/frontend"
-sudo -u "$USER_NAME" -H npm install
-sudo -u "$USER_NAME" -H npm run build
-cd "$SCRIPT_DIR"
-ok "Frontend built → frontend/dist/"
-
-# ── Electron ─────────────────────────────────────────────────────
-progress 93 "Electron shell"
-msg "Electron shell"
-cd "$GAMECORE_PATH/electron"
-sudo -u "$USER_NAME" -H npm install
-
-# The electron npm package downloads its actual binary from a postinstall
-# script (node install.js). On machines with hardened npm (ignore-scripts,
-# @lavamoat/allow-scripts, …) that step is silently skipped, leaving
-# node_modules/electron with no binary → "Electron failed to install
-# correctly" at runtime. Provision the binary explicitly so the install never
-# depends on the postinstall running.
-ELECTRON_DIR="$GAMECORE_PATH/electron/node_modules/electron"
-if [[ ! -x "$ELECTRON_DIR/dist/electron" ]]; then
-  warn "Electron binary missing (npm postinstall was skipped) — downloading it directly."
-  EV="$(sudo -u "$USER_NAME" node -p "require('$ELECTRON_DIR/package.json').version" 2>/dev/null)"
-  [[ -n "$EV" ]] || die "Could not determine the Electron version."
-  case "$(uname -m)" in
-    x86_64)  EARCH=x64 ;;
-    aarch64) EARCH=arm64 ;;
-    armv7l)  EARCH=armv7l ;;
-    *)       EARCH=x64 ;;
-  esac
-  EZIP="electron-v${EV}-linux-${EARCH}.zip"
-  EURL="https://github.com/electron/electron/releases/download/v${EV}/${EZIP}"
-  TMPDIR_E="$(mktemp -d)"
-  info "Downloading $EZIP …"
-  # Download AND extract as root (root owns TMPDIR_E); chown the result to the
-  # user afterwards. Doing the extract as the user fails because it cannot read
-  # root's mktemp dir.
-  if curl -fL --connect-timeout 15 --speed-limit 1024 --speed-time 30 -o "$TMPDIR_E/$EZIP" "$EURL"; then
-    mkdir -p "$ELECTRON_DIR/dist"
-    if bsdtar -xf "$TMPDIR_E/$EZIP" -C "$ELECTRON_DIR/dist" 2>/dev/null \
-       || unzip -oq "$TMPDIR_E/$EZIP" -d "$ELECTRON_DIR/dist"; then
-      # printf (not echo) — a trailing newline in path.txt makes Electron spawn
-      # "…/dist/electron\n" → ENOENT.
-      printf electron > "$ELECTRON_DIR/path.txt"
-      chown -R "$USER_NAME:$USER_NAME" "$ELECTRON_DIR"
-      ok "Electron $EV binary installed → dist/."
-    else
-      die "Failed to extract the Electron binary (install 'libarchive' for bsdtar, or 'unzip')."
-    fi
-  else
-    die "Failed to download Electron $EV from GitHub — check the machine's network."
-  fi
-  rm -rf "$TMPDIR_E"
-fi
-
-# chrome-sandbox must be a root-owned SUID binary, otherwise Electron refuses
-# to start under an unprivileged user on some setups.
-if [[ -f "$ELECTRON_DIR/dist/chrome-sandbox" ]]; then
-  chown root:root "$ELECTRON_DIR/dist/chrome-sandbox"
-  chmod 4755 "$ELECTRON_DIR/dist/chrome-sandbox"
-fi
-cd "$SCRIPT_DIR"
-ok "Electron dependencies installed."
 
 # ── systemd service ──────────────────────────────────────────────
-progress 95 "systemd services"
+progress 88 "systemd services"
 msg "systemd service"
 
 cat > /etc/systemd/system/gamecore-backend.service <<EOF
@@ -752,7 +922,7 @@ SupplementaryGroups=input
 Environment=GAMECORE_PATH=$GAMECORE_PATH
 Environment=GAMECORE_BACKEND_PORT=$WEB_PORT
 WorkingDirectory=$GAMECORE_PATH
-ExecStart=$GAMECORE_PATH/.venv/bin/python3 -m uvicorn backend.main:app --host 127.0.0.1 --port $WEB_PORT --log-level debug
+ExecStart=$GAMECORE_PATH/.venv/bin/python3 -m uvicorn backend.main:app --host 127.0.0.1 --port $WEB_PORT
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -783,10 +953,14 @@ Type=simple
 User=$USER_NAME
 Group=$USER_NAME
 Environment=GAMECORE_PATH=$GAMECORE_PATH
+Environment=GAMECORE_BACKEND_PORT=$WEB_PORT
 WorkingDirectory=$GAMECORE_PATH
-# Wait for any X display (SDDM may use :0 or :1) — start-ui.sh then detects
-# the display and xauth cookie itself.
-ExecStartPre=/bin/bash -c 'for i in \$(seq 1 60); do XAUTH=\$(find /run/user/\$(id -u) -name "xauth_*" 2>/dev/null | head -1); if [ -n "\$XAUTH" ]; then for D in :1 :0 :2; do XAUTHORITY=\$XAUTH xdpyinfo -display \$D >/dev/null 2>&1 && exit 0; done; fi; sleep 1; done; exit 0'
+# Wait for an X server socket to exist, nothing more: start-ui.sh does the real
+# display/cookie resolution and knows about all three cookie locations. The old
+# version searched only /run/user/<uid>/xauth_*, which is where kwin_wayland
+# puts the Xwayland cookie — SDDM's X11 session writes /tmp/xauth_XXXXXX, so it
+# waited 60 s, found nothing, and Electron crash-looped.
+ExecStartPre=/bin/bash -c 'for i in \$(seq 1 60); do compgen -G "/tmp/.X11-unix/X*" >/dev/null && exit 0; sleep 1; done; exit 0'
 ExecStart=$GAMECORE_PATH/electron/start-ui.sh
 Restart=on-failure
 RestartSec=5
@@ -798,7 +972,7 @@ WantedBy=graphical.target
 EOF
 
 # ── SDDM auto-login ──────────────────────────────────────────────
-progress 96 "SDDM auto-login (KDE Plasma)"
+progress 90 "SDDM auto-login (KDE Plasma)"
 msg "SDDM auto-login"
 # KDE Plasma on X11 — the whole stack (overlays, fullscreen enforcer,
 # gamepad-tv-bridge key injection, gamecore-xsetup) is X11-only, so never
@@ -809,23 +983,68 @@ if [ -f /usr/share/xsessions/plasmax11.desktop ]; then
 elif [ -f /usr/share/xsessions/plasma.desktop ]; then
   KDE_SESSION="plasma"
 else
-  warn "No Plasma X11 session found in /usr/share/xsessions — defaulting to 'plasmax11'."
-  KDE_SESSION="plasmax11"
+  KDE_SESSION=""
 fi
-mkdir -p /etc/sddm.conf.d
-cat > /etc/sddm.conf.d/autologin.conf <<EOF
+
+if [[ -z "$KDE_SESSION" ]]; then
+  warn "No Plasma X11 session in /usr/share/xsessions — auto-login NOT configured."
+  warn "  GameCore cannot run on Wayland (overlays, fullscreen enforcer and the"
+  warn "  gamepad bridge are all X11). Install it and re-run:"
+  warn "      sudo pacman -S plasma-x11-session && sudo bash install/arch.sh"
+else
+  mkdir -p /etc/sddm.conf.d
+  # The filename matters. SDDM reads /etc/sddm.conf.d/* in name order and the
+  # LAST file wins. Manjaro Plasma ships kde_settings.conf, which carries its
+  # own [Autologin] with Session=plasma — the WAYLAND session — and 'k' sorts
+  # after 'a', so a drop-in called autologin.conf is silently overridden and
+  # the box boots into Wayland with the kiosk never starting. 'zz-' sorts last.
+  rm -f /etc/sddm.conf.d/autologin.conf /etc/sddm.conf.d/gamecore-display.conf
+  cat > /etc/sddm.conf.d/zz-gamecore-autologin.conf <<EOF
 [Autologin]
 User=$USER_NAME
 Session=$KDE_SESSION
 Relogin=true
 EOF
-ok "SDDM configured for auto-login as $USER_NAME (KDE Plasma X11 session: $KDE_SESSION)."
+
+  # Sort order alone is not enough: the Login Screen KCM rewrites
+  # kde_settings.conf whenever someone opens it, and a future KDE could name
+  # its file something that sorts after 'zz'. Strip the competing keys, and
+  # keep a backup so the uninstaller can put the user's own autologin back.
+  KDE_SDDM_CONF=/etc/sddm.conf.d/kde_settings.conf
+  # The backup lives with the manifest, NOT next to the original: SDDM reads
+  # every file in /etc/sddm.conf.d/ regardless of extension, so a .pre-gamecore
+  # copy left there would itself be parsed as configuration.
+  KDE_SDDM_BACKUP="${MANIFEST_DIR}/kde_settings.conf.pre-gamecore"
+  if [[ -f "$KDE_SDDM_CONF" ]] && grep -q '^\[Autologin\]' "$KDE_SDDM_CONF"; then
+    mkdir -p "$MANIFEST_DIR"
+    [[ -f "$KDE_SDDM_BACKUP" ]] || cp "$KDE_SDDM_CONF" "$KDE_SDDM_BACKUP"
+    manifest_set KDE_SDDM_BACKUP "$KDE_SDDM_BACKUP"
+    python3 - "$KDE_SDDM_CONF" <<'PY'
+import sys
+path = sys.argv[1]
+out, in_autologin = [], False
+for line in open(path, encoding="utf-8", errors="replace"):
+    stripped = line.strip()
+    if stripped.startswith("["):
+        in_autologin = stripped.lower() == "[autologin]"
+    elif in_autologin and stripped.split("=", 1)[0].strip() in ("User", "Session", "Relogin"):
+        continue          # GameCore's zz- drop-in owns these now
+    out.append(line)
+open(path, "w", encoding="utf-8").writelines(out)
+PY
+    manifest_set KDE_SDDM_CONF_PATCHED 1
+    ok "Competing [Autologin] keys removed from kde_settings.conf (backup kept)."
+  fi
+  ok "SDDM configured for auto-login as $USER_NAME (KDE Plasma X11 session: $KDE_SESSION)."
+fi
 
 # Force 1920x1080 at the display-server level (never 4K). SDDM runs this as
 # root at X startup, before any session, so the whole X server — kiosk, games
 # and overlays — is pinned to 1080p. See install/gamecore-xsetup.sh.
+# (start-ui.sh re-applies it inside the session, after KScreen has had its say.)
 install -m755 "$GAMECORE_PATH/install/gamecore-xsetup.sh" /usr/local/bin/gamecore-xsetup
-cat > /etc/sddm.conf.d/gamecore-display.conf <<EOF
+mkdir -p /etc/sddm.conf.d
+cat > /etc/sddm.conf.d/zz-gamecore-display.conf <<EOF
 [X11]
 DisplayCommand=/usr/local/bin/gamecore-xsetup
 EOF
@@ -839,10 +1058,41 @@ ok "Services enabled."
 
 # ── Caddy reverse-proxy — the only GameCore port exposed to the LAN ──
 msg "Caddy reverse-proxy (HTTPS :8443)"
-# Catch-all site + on-demand internal certs: no per-box templating,
-# the box can change IP/network without touching this file.
-cp "$GAMECORE_PATH/install/Caddyfile" /etc/caddy/Caddyfile
-systemctl enable --now caddy.service
+# Catch-all site + on-demand internal certs: no per-box templating for the
+# *address*, so the box can change IP/network without touching this file.
+# The backend port IS templated: the shipped Caddyfile says 8765 everywhere
+# and a box installed on another port would 502 on every LAN request.
+mkdir -p /etc/caddy
+# "Was Caddy already serving something of the user's?" — deliberately NOT
+# `systemctl is-active` and NOT "the file exists":
+#   · the caddy package OWNS /etc/caddy/Caddyfile, so on a fresh install the
+#     stock file is always there. Treating it as the user's site made every
+#     clean install print a scary "an existing Caddyfile was saved" and, worse,
+#     made the uninstaller leave caddy enabled with its CA private key on disk.
+#   · is-active is true on the SECOND run of this idempotent installer, because
+#     the first run started it — so GameCore would record its own service as
+#     pre-existing.
+# Ours iff we just installed the package, or the file is the packaged default.
+CADDY_PREEXISTING=false
+if ! grep -qxF caddy "$PKG_MANIFEST" 2>/dev/null \
+   && [[ -f /etc/caddy/Caddyfile ]] \
+   && ! grep -q 'GameCore' /etc/caddy/Caddyfile \
+   && pacman -Qkk caddy 2>/dev/null | grep -q '/etc/caddy/Caddyfile'; then
+  # caddy predates this install AND its config has been modified by someone.
+  CADDY_PREEXISTING=true
+  CADDY_BACKUP="/etc/caddy/Caddyfile.pre-gamecore"
+  [[ -e "$CADDY_BACKUP" ]] || cp /etc/caddy/Caddyfile "$CADDY_BACKUP"
+  manifest_set CADDYFILE_BACKUP "$CADDY_BACKUP"
+  warn "An existing /etc/caddy/Caddyfile was saved as $CADDY_BACKUP."
+fi
+$CADDY_PREEXISTING && manifest_set CADDY_WAS_ACTIVE active \
+                   || manifest_set CADDY_WAS_ACTIVE inactive
+sed "s|127\.0\.0\.1:8765|127.0.0.1:${WEB_PORT}|g" \
+  "$GAMECORE_PATH/install/Caddyfile" > /etc/caddy/Caddyfile
+systemctl enable caddy.service
+# restart, not `enable --now`: on a re-run caddy is already active and
+# `--now` is a no-op, so it would keep serving the previous config.
+systemctl restart caddy.service || warn "caddy failed to start — check /etc/caddy/Caddyfile"
 # Install Caddy's root CA into the system trust store so the box itself
 # (kiosk browser, Firefox) gets no TLS warning. `caddy trust` needs the
 # admin API of the freshly started service — retry while it comes up.
@@ -858,7 +1108,7 @@ else
 fi
 
 # ── Bluetooth ────────────────────────────────────────────────────
-progress 97 "Bluetooth, power & desktop launcher"
+progress 92 "Bluetooth, power & desktop launcher"
 msg "Bluetooth"
 systemctl enable --now bluetooth.service
 ok "Bluetooth service enabled."
@@ -870,10 +1120,17 @@ $USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl r
 $USER_NAME ALL=(root) NOPASSWD: /usr/bin/udevadm
 # Desktop launcher (gamecore-launcher.sh) — start GameCore from the desktop
 $USER_NAME ALL=(root) NOPASSWD: /usr/bin/systemctl start gamecore-backend.service, /usr/bin/systemctl start gamecore-ui.service
+# Standby (backend/services/standby.py) — drop the governor while the screen
+# is off. Enumerated, not wildcarded: only the two governors GameCore uses.
+$USER_NAME ALL=(root) NOPASSWD: /usr/bin/cpupower frequency-set -g powersave, /usr/bin/cpupower frequency-set -g performance
 EOF
 chmod 440 /etc/sudoers.d/gamecore-power
-visudo -cf /etc/sudoers.d/gamecore-power >/dev/null || { rm -f /etc/sudoers.d/gamecore-power; warn "sudoers validation failed."; }
-ok "Sudoers rules created (power + udevadm + GameCore start for $USER_NAME)."
+if visudo -cf /etc/sudoers.d/gamecore-power >/dev/null; then
+  ok "Sudoers rules created (power + udevadm + governor + GameCore start for $USER_NAME)."
+else
+  rm -f /etc/sudoers.d/gamecore-power
+  warn "sudoers validation failed — power menu and standby governor will not work."
+fi
 
 # ── Desktop launcher (clickable "GameCore" icon) ─────────────────
 msg "Desktop launcher"
@@ -906,6 +1163,115 @@ msg "SSH"
 systemctl enable --now sshd
 ok "SSH active."
 
+# ── Node / frontend + Electron ───────────────────────────────────
+# Deliberately the LAST thing before addons. Both steps pull ~150 MB
+# from the network (npm registry + the Electron binary from GitHub) and
+# are by far the most likely to fail on a flaky connection. When they ran
+# earlier, a single failed download aborted the script under `set -e`
+# before a single systemd unit, sudoers rule, udev rule, Caddyfile or
+# autologin drop-in existed — leaving a machine with packages installed
+# and nothing wired up. Now everything system-facing is already in place
+# and a re-run only has to redo this part.
+# ── Node / frontend ──────────────────────────────────────────────
+progress 93 "Building the frontend"
+msg "Node frontend build"
+cd "$GAMECORE_PATH/frontend"
+sudo -u "$USER_NAME" -H npm install
+sudo -u "$USER_NAME" -H npm run build
+cd "$SCRIPT_DIR"
+ok "Frontend built → frontend/dist/"
+
+# ── Electron ─────────────────────────────────────────────────────
+progress 96 "Electron shell"
+msg "Electron shell"
+cd "$GAMECORE_PATH/electron"
+# `|| warn`, not a hard failure: the electron package downloads a ~100 MB
+# binary from GitHub in its postinstall, and a transient failure there used to
+# abort the install. The explicit provisioning below exists precisely to
+# recover from a missing binary — so let control reach it.
+sudo -u "$USER_NAME" -H npm install \
+  || warn "npm install reported an error — trying explicit Electron provisioning."
+
+# The electron npm package downloads its actual binary from a postinstall
+# script (node install.js). On machines with hardened npm (ignore-scripts,
+# @lavamoat/allow-scripts, …) that step is silently skipped, leaving
+# node_modules/electron with no binary → "Electron failed to install
+# correctly" at runtime. Provision the binary explicitly so the install never
+# depends on the postinstall running.
+ELECTRON_DIR="$GAMECORE_PATH/electron/node_modules/electron"
+if [[ ! -x "$ELECTRON_DIR/dist/electron" ]]; then
+  warn "Electron binary missing (npm postinstall was skipped) — downloading it directly."
+  # `EV=$(…)` under set -e exits on failure BEFORE its own `|| die` can run, so
+  # the version lookup is guarded rather than chained. When npm died early
+  # there is no node_modules/electron/package.json at all: fall back to the
+  # major pinned in electron/package.json.
+  EV=""
+  if [[ -f "$ELECTRON_DIR/package.json" ]]; then
+    EV="$(sudo -u "$USER_NAME" -H node -p "require('$ELECTRON_DIR/package.json').version" 2>/dev/null || true)"
+  fi
+  if [[ -z "$EV" ]]; then
+    EV="$(python3 -c '
+import json, re, sys
+spec = json.load(open(sys.argv[1]))["dependencies"]["electron"]
+m = re.search(r"[0-9][0-9.]*", spec)
+print(m.group(0) if m else "")
+' "$GAMECORE_PATH/electron/package.json" 2>/dev/null || true)"
+    [[ -n "$EV" ]] && warn "Electron version taken from package.json: $EV"
+  fi
+  [[ -n "$EV" ]] || die "Could not determine the Electron version — re-run the installer once the network is back."
+  case "$(uname -m)" in
+    x86_64)  EARCH=x64 ;;
+    aarch64) EARCH=arm64 ;;
+    armv7l)  EARCH=armv7l ;;
+    *)       EARCH=x64 ;;
+  esac
+  EZIP="electron-v${EV}-linux-${EARCH}.zip"
+  EURL="https://github.com/electron/electron/releases/download/v${EV}/${EZIP}"
+  TMPDIR_E="$(mktemp -d)"
+  info "Downloading $EZIP …"
+  # Download AND extract as root (root owns TMPDIR_E); chown the result to the
+  # user afterwards. Doing the extract as the user fails because it cannot read
+  # root's mktemp dir.
+  if curl -fL --connect-timeout 15 --speed-limit 1024 --speed-time 30 -o "$TMPDIR_E/$EZIP" "$EURL"; then
+    mkdir -p "$ELECTRON_DIR/dist"
+    if bsdtar -xf "$TMPDIR_E/$EZIP" -C "$ELECTRON_DIR/dist" 2>/dev/null \
+       || unzip -oq "$TMPDIR_E/$EZIP" -d "$ELECTRON_DIR/dist"; then
+      # printf (not echo) — a trailing newline in path.txt makes Electron spawn
+      # "…/dist/electron\n" → ENOENT.
+      printf electron > "$ELECTRON_DIR/path.txt"
+      chown -R "$USER_NAME:$USER_NAME" "$ELECTRON_DIR"
+      ok "Electron $EV binary installed → dist/."
+    else
+      die "Failed to extract the Electron binary (install 'libarchive' for bsdtar, or 'unzip')."
+    fi
+  else
+    die "Failed to download Electron $EV from GitHub — check the machine's network."
+  fi
+  rm -rf "$TMPDIR_E"
+fi
+
+# start-ui.sh execs node_modules/.bin/electron. That symlink is created by npm,
+# so it is missing exactly when the binary had to be provisioned by hand above —
+# the unit would then fail with "No such file or directory" on every boot.
+if [[ -x "$ELECTRON_DIR/cli.js" || -f "$ELECTRON_DIR/cli.js" ]] \
+   && [[ ! -e "$GAMECORE_PATH/electron/node_modules/.bin/electron" ]]; then
+  mkdir -p "$GAMECORE_PATH/electron/node_modules/.bin"
+  ln -sf ../electron/cli.js "$GAMECORE_PATH/electron/node_modules/.bin/electron"
+  chmod +x "$ELECTRON_DIR/cli.js"
+  chown -h "$USER_NAME:$USER_NAME" "$GAMECORE_PATH/electron/node_modules/.bin/electron"
+  ok "node_modules/.bin/electron symlink restored."
+fi
+
+# chrome-sandbox must be a root-owned SUID binary, otherwise Electron refuses
+# to start under an unprivileged user on some setups. Do this AFTER the
+# chown -R above, which would otherwise hand it back to the user.
+if [[ -f "$ELECTRON_DIR/dist/chrome-sandbox" ]]; then
+  chown root:root "$ELECTRON_DIR/dist/chrome-sandbox"
+  chmod 4755 "$ELECTRON_DIR/dist/chrome-sandbox"
+fi
+cd "$SCRIPT_DIR"
+ok "Electron dependencies installed."
+
 # ── Addons ───────────────────────────────────────────────────────
 # Selected gamecore-addons modules (rom-manager by default — everyone
 # wants the browser ROM upload). Each runs as a user-level service.
@@ -913,7 +1279,11 @@ if [[ -n "$ADDONS" ]]; then
   progress 98 "Addons ($ADDONS)"
   msg "Addons ($ADDONS)"
   USER_UID=$(id -u "$USER_NAME")
-  loginctl enable-linger "$USER_NAME" 2>/dev/null || true
+  if loginctl show-user "$USER_NAME" -p Linger 2>/dev/null | grep -q 'Linger=yes'; then
+    grep -q '^LINGER_ENABLED=' "$MANIFEST" 2>/dev/null || manifest_set LINGER_ENABLED 0
+  else
+    loginctl enable-linger "$USER_NAME" 2>/dev/null && manifest_set LINGER_ENABLED 1 || true
+  fi
   # systemctl --user needs the user manager's bus — wait for it briefly
   for i in $(seq 1 10); do [ -S "/run/user/$USER_UID/bus" ] && break; sleep 1; done
   for addon in $ADDONS; do
@@ -943,4 +1313,17 @@ echo -e "${YLW}  Next steps:${RST}"
 echo "  1. Reboot — GameCore launches automatically."
 echo "  2. Upload ROMs at https://${LOCAL_IP}:8443/roms  (drag & drop)"
 echo "  3. Only manual step left: copy BIOS/firmwares (PS1/PS2/PS3, DS/3DS, Switch keys)."
+echo
+if [[ -z "${KDE_SESSION:-}" ]]; then
+  warn "No X11 Plasma session was configured — GameCore will NOT start after the reboot."
+  warn "  Run: sudo pacman -S plasma-x11-session && sudo bash install/arch.sh"
+  echo
+fi
+if $NVIDIA_REBOOT_NEEDED; then
+  warn "NVIDIA driver installed — the reboot is mandatory before the X11 session works."
+  echo
+fi
+echo -e "${YLW}  To remove GameCore later:${RST}"
+echo "  sudo bash $GAMECORE_PATH/install/uninstall.sh --dry-run   # see what would go"
+echo "  sudo bash $GAMECORE_PATH/install/uninstall.sh             # ROMs and config kept"
 echo
