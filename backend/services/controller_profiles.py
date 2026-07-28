@@ -735,101 +735,33 @@ def _cemu(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
     return f"cemu: slot {idx} created (uuid {dup}_)"
 
 
-# ── Dolphin (GameCube/Wii, GCPad1-4) — roles semantic, index+name only ──────
-
-# Canonical "gamepad plays Wii" mapping: Wiimote + Nunchuk on a dual-analog
-# pad, using the same device-agnostic SDL role tokens Dolphin writes for GCPad
-# (validated against the pad's own GCPadNew). It fits ANY controller — only the
-# Device line is retargeted per pad. Left stick = Nunchuk movement, right stick
-# = IR pointer (the box has no mouse, so mouse-cursor IR is useless here).
-# `Source = 1` marks the slot Emulated: that's the Dolphin default for Wiimote1
-# only — players 2-4 default to None and would stay dead without it.
-_WIIMOTE_BODY = (
-    "Source = 1\n"
-    "Device = {device}\n"
-    "Buttons/A = `Button S`\n"
-    "Buttons/B = `Trigger R`\n"
-    "Buttons/1 = `Button W`\n"
-    "Buttons/2 = `Button N`\n"
-    "Buttons/- = `Back`\n"
-    "Buttons/+ = `Start`\n"
-    "Buttons/Home = `Thumb R`\n"
-    "D-Pad/Up = `Pad N`\n"
-    "D-Pad/Down = `Pad S`\n"
-    "D-Pad/Left = `Pad W`\n"
-    "D-Pad/Right = `Pad E`\n"
-    "IR/Up = `Right Y+`\n"
-    "IR/Down = `Right Y-`\n"
-    "IR/Left = `Right X-`\n"
-    "IR/Right = `Right X+`\n"
-    # Tilt (roll/pitch the remote) on the SAME right stick as IR: 2D games use
-    # tilt (NSMB Wii "Tilt Lift" seesaws) but not the pointer, 3D pointer games
-    # use IR but ignore tilt — so one stick serves both with no real conflict.
-    "Tilt/Forward = `Right Y+`\n"
-    "Tilt/Backward = `Right Y-`\n"
-    "Tilt/Left = `Right X-`\n"
-    "Tilt/Right = `Right X+`\n"
-    "Shake/X = `Button E`\n"
-    "Shake/Y = `Button E`\n"
-    "Shake/Z = `Button E`\n"
-    "Extension = Nunchuk\n"
-    "Nunchuk/Buttons/C = `Shoulder L`\n"
-    "Nunchuk/Buttons/Z = `Trigger L`\n"
-    "Nunchuk/Stick/Up = `Left Y+`\n"
-    "Nunchuk/Stick/Down = `Left Y-`\n"
-    "Nunchuk/Stick/Left = `Left X-`\n"
-    "Nunchuk/Stick/Right = `Left X+`\n"
-    "Nunchuk/Stick/Calibration = 100.00 141.42 100.00 141.42 100.00 141.42 100.00 141.42\n"
-    "Nunchuk/Shake/X = `Shoulder R`\n"
-    "Nunchuk/Shake/Y = `Shoulder R`\n"
-    "Nunchuk/Shake/Z = `Shoulder R`\n"
-)
-
+# ── Dolphin (GameCube, GCPad1-4) — roles semantic, index+name only ─────────
 
 def _dolphin(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
-    """Retarget BOTH of Dolphin's input configs for player `i` onto the pad.
-    Dolphin qualifies devices as SDL/<k>/<name> where <k> is a 0-based counter
-    over devices SHARING THE SAME NAME (ciface DeviceContainer), not a global
-    index — a lone DualSense is SDL/0/... even as Player 2. `name` must be what
-    Dolphin's bundled SDL3 calls the pad.
-      • GameCube (GCPadNew.ini): clone the working GCPad1, swap the Device line.
-      • Wii (WiimoteNew.ini): write the canonical Wiimote+Nunchuk gamepad
-        template above with this pad's Device — the old per-pad config was a
-        keyboard/mouse frankenstein and slots 2-4 were empty (Virtual pointer).
-    Dolphin binds by SDL role, so `SDL/<dup>/<name>` is all that varies. Either
-    file may be absent/unconfigured; we do whichever we can."""
-    device = f"SDL/{dup}/{name}"
-    msgs: list[str] = []
-
+    """Dolphin qualifies devices as SDL/<k>/<name> where <k> is a 0-based
+    counter over devices SHARING THE SAME NAME (ciface DeviceContainer),
+    not a global index — a lone DualSense is SDL/0/... even as Player 2.
+    `name` must be what Dolphin's bundled SDL3 calls the pad.
+    Only the GameCube side (GCPadNew.ini) is touched: the Wii Remote is left
+    to Dolphin's own config, which the user maps in Dolphin's input UI."""
     gcpad = DOLPHIN_DIR / "GCPadNew.ini"
-    if gcpad.is_file():
-        t = gcpad.read_text()
-        p1 = section(t, "GCPad1")
-        if p1 and "Device = SDL/" in p1:
-            header = f"GCPad{i}"
-            body = section(t, header)
-            is_real = bool(body) and re.search(r"Device = SDL/\d+/", body) and \
-                re.search(r"Buttons/A = `Button [SNEW]`", body)
-            source = body if is_real else p1
-            new_body = re.sub(r"Device = SDL/\d+/[^\n]*", f"Device = {device}", source)
-            if new_body != body:
-                t = set_section(t, header, new_body)
-                backup(gcpad); gcpad.write_text(t)
-                msgs.append(f"GCPad{i} {'retargeted' if is_real else 'created'}")
-
-    wii = DOLPHIN_DIR / "WiimoteNew.ini"
-    if wii.is_file():
-        t = wii.read_text()
-        header = f"Wiimote{i}"
-        new_body = _WIIMOTE_BODY.format(device=device)
-        if section(t, header) != new_body:
-            t = set_section(t, header, new_body)
-            backup(wii); wii.write_text(t)
-            msgs.append(f"Wiimote{i} set")
-
-    if not msgs:
+    if not gcpad.is_file():
         return None
-    return f"dolphin: {', '.join(msgs)} (SDL/{dup}/{name})"
+    t = gcpad.read_text()
+    p1 = section(t, "GCPad1")
+    if not p1 or "Device = SDL/" not in p1:
+        return None
+    header = f"GCPad{i}"
+    body = section(t, header)
+    is_real = bool(body) and re.search(r"Device = SDL/\d+/", body) and \
+        re.search(r"Buttons/A = `Button [SNEW]`", body)
+    source = body if is_real else p1
+    new_body = re.sub(r"Device = SDL/\d+/[^\n]*", f"Device = SDL/{dup}/{name}", source)
+    if new_body == body:
+        return None
+    t = set_section(t, header, new_body)
+    backup(gcpad); gcpad.write_text(t)
+    return f"dolphin: {header} {'retargeted' if is_real else 'created'} (SDL/{dup}/{name})"
 
 
 # ── RPCS3 (PS3, Player 1-4 already exist) — roles semantic, name only ───────
@@ -918,32 +850,6 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
             continue
         if msg:
             results.append(msg)
-    return results
-
-
-def release_profile(player_index: int) -> list[str]:
-    """Undo the "connected player" state a disconnected pad leaves behind.
-    Only Dolphin's Wii Remote needs this: `Source = 1` keeps the emulated
-    remote presented to the game as connected even with no input device bound,
-    so a pad unplugged after co-op would haunt the next solo session as a
-    phantom player. Reset that slot to Dolphin's inactive default. Role/device
-    bound emulators (GameCube, PS1/2/3, Switch…) just go input-less when a pad
-    leaves — no phantom, nothing to undo. Never raises."""
-    if player_index < 1 or player_index > 4:
-        return []
-    results: list[str] = []
-    wii = DOLPHIN_DIR / "WiimoteNew.ini"
-    if wii.is_file():
-        try:
-            t = wii.read_text()
-            header = f"Wiimote{player_index}"
-            inactive = "Device = XInput2/0/Virtual core pointer\n"
-            if section(t, header) != inactive:
-                t = set_section(t, header, inactive)
-                backup(wii); wii.write_text(t)
-                results.append(f"dolphin: {header} released (inactive)")
-        except Exception:
-            log.exception("controller_profiles: release failed for player %d", player_index)
     return results
 
 

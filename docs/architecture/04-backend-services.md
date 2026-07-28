@@ -76,7 +76,7 @@ emulator owns the display.
 | `_on_guide_pressed()` | the double-press logic, then `POST /api/games/kill` |
 
 It also drives `controller_registry` on connect/disconnect,
-`controller_profiles.apply_profile()` / `release_profile()` for the pad's
+`controller_profiles.apply_profile()` for the pad's
 per-emulator configuration, and `standby.on_input()` — which is how a
 controller button wakes a sleeping box.
 

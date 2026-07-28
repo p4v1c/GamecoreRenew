@@ -76,7 +76,7 @@ Each returns the block to write for player `i`.
 |---|---|---|
 | `_ryujinx(i, dup, vendor, product, name)` | Switch | binds slots by position in `Config.json`'s `input_config` list |
 | `_cemu(i, dup, …)` | Wii U | `controller<idx>.xml` is the *emulated* controller slot |
-| `_dolphin(i, dup, …)` | GC/Wii | retargets **both** of Dolphin's input configs for that player |
+| `_dolphin(i, dup, …)` | GC | retargets `GCPadNew.ini` only — the Wii Remote stays Dolphin's business |
 | `_rpcs3(i, dup, …)` | PS3 | names devices `"<name> <k>"`, `k` 1-based per identical model |
 | `_melonds(i, …)` | DS | single-player only; binds **raw SDL2 joystick values** |
 | `_mgba(i, …)` | GBA | |
@@ -107,13 +107,12 @@ sequenceDiagram
     cp->>cp: resolve_name() · per-emulator writer · backup() · write
     Note over gm,cp: on unplug
     gm->>reg: disconnect(key)
-    gm->>cp: release_profile(player_index)
 ```
 
 - `apply_profile(player_index, vendor, product, evdev_name, dup_index)` —
   writes/retargets **every** emulator's native config for that slot.
-- `release_profile(player_index)` — undoes the "connected player" state a
-  disconnected pad leaves behind, so a stale slot does not eat player 1.
+- Unplugging only frees the registry slot: every emulator config we write is
+  device-bound, so a pad that leaves simply goes input-less.
 
 ### Manual — "Scan mapping"
 
