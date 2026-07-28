@@ -1,0 +1,45 @@
+[
+  {
+    "id": "steam",
+    "kind": "app",
+    "type": "application",
+    "label": "Steam",
+    "platform": "Steam",
+    "color": "#1f6fb3",
+    "iconPath": "assets/logos/steam.png",
+    "path": "flatpak",
+    "args": "run com.valvesoftware.Steam -gamepadui"
+  },
+  {
+    "id": "youtube",
+    "kind": "app",
+    "type": "application",
+    "label": "YouTube",
+    "platform": "Web",
+    "color": "#ff0000",
+    "path": "firefox",
+    "args": "--profile '/home/pavic/.mozilla/firefox/youtube-tv' --kiosk 'https://www.youtube.com/tv' "
+  },
+  {
+    "id": "twitch",
+    "kind": "app",
+    "type": "application",
+    "label": "Twitch",
+    "platform": "Web",
+    "color": "#800080",
+    "iconPath": "assets/logos/twitch.png",
+    "path": "firefox",
+    "args": "--profile '/home/pavic/.mozilla/firefox/twitch-tv' --kiosk 'https://localhost:8097/' "
+  },
+  {
+    "id": "stremio",
+    "kind": "app",
+    "type": "application",
+    "label": "Stremio",
+    "platform": "Media",
+    "color": "#8a5fff",
+    "iconPath": "assets/logos/stremio.png",
+    "path": "bash",
+    "args": "/opt/Stremio/stremio-tv.sh"
+  }
+]

@@ -1,8 +1,10 @@
 """Auth endpoints consumed by Caddy's forward_auth gate (docs/SECURITY.md).
 
-Only /api/auth/* is proxied to the LAN without a session; everything else
-behind Caddy goes through GET /verify first. The TV (loopback) never calls
-any of this — the core enforces nothing on its own routes.
+Three of these are proxied to the LAN without a session — /login, /logout
+and /verify, the calls a logged-OUT client needs — and everything else
+behind Caddy goes through GET /verify first. /change-password is NOT among
+them: it is reachable only with a session already in hand. The TV (loopback)
+never calls any of this — the core enforces nothing on its own routes.
 """
 from urllib.parse import quote
 
@@ -91,18 +93,27 @@ async def change_password(request: Request):
     current, new = str(body.get("current", "")), str(body.get("new", ""))
     if not new:
         return JSONResponse({"ok": False, "error": "empty_password"}, status_code=400)
-    if auth.is_configured():
-        ip = _client_ip(request)
-        wait = auth.blocked_for(ip)
-        if wait:
-            return JSONResponse(
-                {"ok": False, "error": "too_many_attempts", "retry_in": wait},
-                status_code=429, headers={"Retry-After": str(wait)},
-            )
-        if not auth.verify_password(current):
-            auth.register_failure(ip)
-            return JSONResponse({"ok": False, "error": "bad_password"}, status_code=401)
-        auth.register_success(ip)
+    if not auth.is_configured():
+        # This route used to be public (Caddy exempted all of /api/auth/*), so
+        # on a box that never got a password — a GUI install before the wizard
+        # asked for one — `if auth.is_configured()` used to skip the whole
+        # verification block and hand the first caller on the LAN a valid
+        # session. Provisioning does not go through here: the installer and
+        # `gamecore-addon auth-reset` call auth.set_password() directly.
+        return JSONResponse(
+            {"ok": False, "error": "auth_not_configured"}, status_code=503
+        )
+    ip = _client_ip(request)
+    wait = auth.blocked_for(ip)
+    if wait:
+        return JSONResponse(
+            {"ok": False, "error": "too_many_attempts", "retry_in": wait},
+            status_code=429, headers={"Retry-After": str(wait)},
+        )
+    if not auth.verify_password(current):
+        auth.register_failure(ip)
+        return JSONResponse({"ok": False, "error": "bad_password"}, status_code=401)
+    auth.register_success(ip)
     auth.set_password(new)  # bumps generation → every session dies
     resp = JSONResponse({"ok": True})
     _set_session(resp)  # the caller stays logged in with a fresh cookie

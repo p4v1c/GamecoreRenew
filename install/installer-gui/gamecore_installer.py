@@ -178,13 +178,27 @@ class SystemPage(QWizardPage):
         lay = QVBoxLayout(self)
         lay.addWidget(title("System"))
         lay.addWidget(subtitle("The Linux user that runs GameCore (created if missing, "
-                               "auto-login is configured for it) and the install location."))
+                               "auto-login is configured for it), the install location, "
+                               "and the password protecting the web interface on your network."))
         self.user = QLineEdit(default_user())
         self.path = QLineEdit("/opt/GameCore")
         self.port = QSpinBox()
         self.port.setRange(1, 65535)
         self.port.setValue(8765)
-        for cap, w in (("Username", self.user), ("Install path", self.path), ("Backend port", self.port)):
+        # Without this the box ends up with no config/auth.json: the LAN UI —
+        # which is the documented way to upload ROMs — can never be logged
+        # into, and recovery needs SSH access to a machine designed to be
+        # driven by a gamepad.
+        self.web_pw = QLineEdit(); self.web_pw.setEchoMode(QLineEdit.Password)
+        self.web_pw2 = QLineEdit(); self.web_pw2.setEchoMode(QLineEdit.Password)
+        fields = (
+            ("Username", self.user),
+            ("Install path", self.path),
+            ("Backend port", self.port),
+            ("Web password (ROM upload over the network)", self.web_pw),
+            ("Confirm web password", self.web_pw2),
+        )
+        for cap, w in fields:
             c = QLabel(cap.upper()); c.setObjectName("hint")
             lay.addSpacing(8); lay.addWidget(c); lay.addWidget(w)
         lay.addStretch()
@@ -193,8 +207,21 @@ class SystemPage(QWizardPage):
         if not re.fullmatch(r"[a-z_][a-z0-9_-]*", self.user.text().strip()):
             QMessageBox.warning(self, "GameCore", "Invalid username (lowercase, no space).")
             return False
-        if not self.path.text().strip().startswith("/"):
-            QMessageBox.warning(self, "GameCore", "The install path must be absolute.")
+        # arch.sh interpolates this path unquoted into systemd units and a
+        # .desktop Exec= line; a space there silently produces a unit that
+        # never loads while the installer still reports success.
+        if not re.fullmatch(r"/[A-Za-z0-9._/+-]*", self.path.text().strip()):
+            QMessageBox.warning(self, "GameCore",
+                                "The install path must be absolute and contain no spaces "
+                                "or special characters.")
+            return False
+        if not self.web_pw.text():
+            QMessageBox.warning(self, "GameCore",
+                                "A web password is required — it protects ROM upload and "
+                                "the addon pages on your local network.")
+            return False
+        if self.web_pw.text() != self.web_pw2.text():
+            QMessageBox.warning(self, "GameCore", "The two passwords do not match.")
             return False
         return True
 
@@ -355,6 +382,7 @@ class SummaryPage(QWizardPage):
             ("User", c["user"]), ("Install path", c["path"]), ("Backend port", str(c["port"])),
             ("Type", c["mode"]), ("Emulators", emus), ("Applications", apps),
             ("Addons", c["addons"] or "none"),
+            ("Web password", "set" if c["web_password"] else "NOT SET"),
             ("Twitch (EmberTV)", "credentials set" if c["twitch_id"] else "demo mode"),
             ("TheGamesDB", "key set" if c["tgdb_key"] else "skipped"),
             ("Install source", src),
@@ -412,6 +440,10 @@ class InstallPage(QWizardPage):
             f"TWITCH_CLIENT_ID={shlex.quote(c['twitch_id'])}",
             f"TWITCH_CLIENT_SECRET={shlex.quote(c['twitch_secret'])}",
             f"TGDB_API_KEY={shlex.quote(c['tgdb_key'])}",
+            # shlex.quote matters here: arch.sh `source`s this file, and a
+            # password containing $, a backtick or a space would otherwise be
+            # mangled or executed.
+            f"WEB_PASSWORD={shlex.quote(c['web_password'])}",
         ]) + "\n"
         fd, self.conf_path = tempfile.mkstemp(prefix="gamecore-install-", suffix=".conf")
         with os.fdopen(fd, "w") as f:
@@ -430,8 +462,15 @@ class InstallPage(QWizardPage):
             # Use the stable /releases/latest/download/ redirect instead of the
             # JSON API: the anonymous API is rate-limited to 60 req/h per IP and
             # its failure used to crash the json parser with an empty stream.
+            # The tarball is extracted into $SRC/src, never alongside itself:
+            # arch.sh copies its whole PROJECT_ROOT into the install dir, so a
+            # flat extract shipped a 13 MB gc.tar.gz into /opt/GameCore. The
+            # trap runs on success and on failure alike, so the download does
+            # not sit in /tmp afterwards.
             engine = (
-                "set -e; export GAMECORE_PROGRESS=1; SRC=$(mktemp -d /tmp/gamecore-src-XXXX); "
+                "set -e; export GAMECORE_PROGRESS=1; "
+                "SRC=$(mktemp -d /tmp/gamecore-src-XXXXXXXX); "
+                "trap 'rm -rf \"$SRC\"' EXIT; mkdir -p \"$SRC/src\"; "
                 "echo '@GC-PROGRESS@ 0 Downloading the latest GameCore release'; "
                 "echo '[installer] Downloading the latest GameCore release…'; "
                 f"URL=https://github.com/{GITHUB_REPO}/releases/latest/download/gamecore-full.tar.gz; "
@@ -439,8 +478,8 @@ class InstallPage(QWizardPage):
                 "--speed-limit 1024 --speed-time 30 -o \"$SRC/gc.tar.gz\" \"$URL\" "
                 "|| { echo '[installer] Download failed — check the network connection and retry.'; exit 1; }; "
                 "echo '@GC-PROGRESS@ 1 Extracting the release'; "
-                "echo '[installer] Extracting…'; tar -xzf \"$SRC/gc.tar.gz\" -C \"$SRC\"; "
-                f"bash \"$SRC/install/arch.sh\" --unattended {shlex.quote(self.conf_path)}"
+                "echo '[installer] Extracting…'; tar -xzf \"$SRC/gc.tar.gz\" -C \"$SRC/src\"; "
+                f"bash \"$SRC/src/install/arch.sh\" --unattended {shlex.quote(self.conf_path)}"
             )
 
         self.proc = QProcess(self)
@@ -561,6 +600,7 @@ class InstallerWizard(QWizard):
             "twitch_id": keys.twitch_id.text().strip(),
             "twitch_secret": keys.twitch_secret.text().strip(),
             "tgdb_key": keys.tgdb.text().strip(),
+            "web_password": sysp.web_pw.text(),
         }
 
 

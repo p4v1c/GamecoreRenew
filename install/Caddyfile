@@ -40,8 +40,10 @@ https://:8443 {
 		file_server
 	}
 
-	# ── Public: login page + auth API ──────────────────────────────────
-	@public path /login /login/* /api/auth/*
+	# ── Public: login page + the auth calls a logged-OUT client needs ──
+	# Enumerated, not /api/auth/* — that wildcard also exposed
+	# /api/auth/change-password to the whole LAN.
+	@public path /login /login/* /api/auth/login /api/auth/logout /api/auth/verify
 	handle @public {
 		reverse_proxy 127.0.0.1:8765
 	}

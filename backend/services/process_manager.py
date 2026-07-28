@@ -5,6 +5,7 @@ import logging
 import os
 import shlex
 import signal
+import subprocess
 import time
 from datetime import datetime, timezone
 
@@ -26,27 +27,84 @@ log = logging.getLogger(__name__)
 _CONTROLLER_DB = GAMECORE_ROOT / "backend" / "data" / "gamecontrollerdb.txt"
 
 
+def _xauth_candidates(uid: int) -> list[str]:
+    """Cookie files this uid owns, newest first.
+
+    Where the cookie lives depends on who started X:
+        SDDM's X11 session  → /tmp/xauth_XXXXXX
+        kwin_wayland        → /run/user/<uid>/xauth_XXXXXX
+        startx              → ~/.Xauthority
+    """
+    found = []
+    for path in glob.glob("/tmp/xauth_*") + glob.glob(f"/run/user/{uid}/xauth_*"):
+        try:
+            if os.stat(path).st_uid == uid:
+                found.append(path)
+        except OSError:
+            continue
+    found.sort(key=os.path.getmtime, reverse=True)
+    home_xauth = os.path.join(os.path.expanduser("~"), ".Xauthority")
+    if os.path.exists(home_xauth):
+        found.append(home_xauth)
+    return found
+
+
+def _probe_display(uid: int) -> tuple[str, str] | None:
+    """(DISPLAY, XAUTHORITY) of a display we can actually open, or None.
+
+    Guessing was the bug: `:1` was hardcoded, and the first socket in sort
+    order is no better — this box has both X0 and X1 and only one answers.
+    A wrong DISPLAY makes every emulator exit instantly, with stdout going to
+    DEVNULL, so the UI just flashes game:started → game:finished.
+    """
+    displays = [f":{os.path.basename(s)[1:]}" for s in sorted(glob.glob("/tmp/.X11-unix/X*"))]
+    if not displays:
+        return None
+    cookies: list[str | None] = list(_xauth_candidates(uid))
+    cookies.append(None)  # some servers accept a local connection with no cookie
+    for display in displays:
+        for cookie in cookies:
+            env = {**os.environ, "DISPLAY": display}
+            if cookie:
+                env["XAUTHORITY"] = cookie
+            else:
+                env.pop("XAUTHORITY", None)
+            try:
+                probe = subprocess.run(
+                    ["xdpyinfo"], env=env, timeout=5,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+            except (OSError, subprocess.SubprocessError):
+                return None  # no xdpyinfo — fall back to the static defaults
+            if probe.returncode == 0:
+                return display, (cookie or "")
+    return None
+
+
 def _display_env() -> dict:
     """Build an env dict for launching GUI apps from systemd (DISPLAY, XDG_RUNTIME_DIR, DBUS, XAUTHORITY)."""
     env = os.environ.copy()
     uid = os.getuid()
     if not env.get("SDL_GAMECONTROLLERCONFIG_FILE") and _CONTROLLER_DB.is_file():
         env["SDL_GAMECONTROLLERCONFIG_FILE"] = str(_CONTROLLER_DB)
+    if not env.get("DISPLAY") or not env.get("XAUTHORITY"):
+        probed = _probe_display(uid)
+        if probed:
+            env["DISPLAY"] = probed[0]
+            if probed[1]:
+                env["XAUTHORITY"] = probed[1]
+            else:
+                env.pop("XAUTHORITY", None)
     if not env.get("DISPLAY"):
-        env["DISPLAY"] = ":1"
+        env["DISPLAY"] = ":0"
     if not env.get("XDG_RUNTIME_DIR"):
         env["XDG_RUNTIME_DIR"] = f"/run/user/{uid}"
     if not env.get("DBUS_SESSION_BUS_ADDRESS"):
         env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path=/run/user/{uid}/bus"
     if not env.get("XAUTHORITY"):
-        matches = glob.glob(f"/run/user/{uid}/xauth_*")
-        if matches:
-            env["XAUTHORITY"] = matches[0]
-        else:
-            home = os.path.expanduser("~")
-            xauth = os.path.join(home, ".Xauthority")
-            if os.path.exists(xauth):
-                env["XAUTHORITY"] = xauth
+        for candidate in _xauth_candidates(uid):
+            env["XAUTHORITY"] = candidate
+            break
     # GameCore runs in an X11 openbox session — remove Wayland to prevent Qt apps
     # from trying WAYLAND_DISPLAY and failing silently under the systemd service.
     env.pop("WAYLAND_DISPLAY", None)

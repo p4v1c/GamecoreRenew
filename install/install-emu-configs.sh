@@ -56,17 +56,40 @@ for emu in "${!DEST[@]}"; do
 
   mkdir -p "$dest"
 
-  # Copy file by file, preserving sub-tree, backing up what exists.
+  # A run interrupted mid-copy leaves *.gamecore-staged behind; they would be
+  # mistaken for emulator config files by anything that scans the directory.
+  find "$dest" -name '*.gamecore-staged' -delete 2>/dev/null || true
+
+  # Copy file by file, preserving sub-tree, backing up what was there first.
+  #
+  # The file is prepared in full (including the HOME rewrite) BEFORE anything
+  # is compared or copied, so the backup decision can be made against the exact
+  # bytes that are about to land. That is what makes a re-run safe:
+  #
+  #   · target absent            → no backup, we are introducing the file
+  #   · target == what we install → no backup, it is already our own copy
+  #                                 (this is the re-run case; backing it up
+  #                                 would record GameCore's config as if it
+  #                                 were the user's, and uninstall would then
+  #                                 "restore" our file instead of deleting it)
+  #   · target differs, no backup yet → back it up, it is theirs
+  #   · a backup already exists  → never touch it, it holds the real original
   while IFS= read -r -d '' f; do
     rel="${f#"$src"/}"
     tgt="${dest}/${rel}"
     mkdir -p "$(dirname "$tgt")"
-    [[ -f "$tgt" ]] && cp "$tgt" "${tgt}.bak-preinstall"
-    cp "$f" "$tgt"
+
+    staged="${tgt}.gamecore-staged"
+    cp "$f" "$staged"
     # Rewrite the harvest box's HOME to this user's HOME (text configs only).
-    if [[ "$HOME" != "$SRC_HOME" ]] && grep -qI "$SRC_HOME" "$tgt" 2>/dev/null; then
-      sed -i "s|${SRC_HOME}|${HOME}|g" "$tgt"
+    if [[ "$HOME" != "$SRC_HOME" ]] && grep -qI "$SRC_HOME" "$staged" 2>/dev/null; then
+      sed -i "s|${SRC_HOME}|${HOME}|g" "$staged"
     fi
+
+    if [[ -f "$tgt" && ! -e "${tgt}.bak-preinstall" ]] && ! cmp -s "$staged" "$tgt"; then
+      cp "$tgt" "${tgt}.bak-preinstall"
+    fi
+    mv -f "$staged" "$tgt"
   done < <(find "$src" -type f -print0)
 
   ok "$emu → $dest"
