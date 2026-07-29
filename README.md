@@ -303,7 +303,7 @@ navigate differently from the default one, because it has no code that could.
 If a theme crashes, the default frontend takes over and the crash is recorded;
 after the second crash the theme is refused at boot, with the reason in Settings
 (`CRASH_LIMIT` in `frontend/src/lib/themeSafety.ts`).
-**Holding L1 + R1 for 2s anywhere** forces the default theme back — the way out
+**Holding L1 + R1 for 2s in the menu** forces the default theme back — the way out
 of a theme that makes the UI unusable.
 
 An update installs themes it finds missing and **never touches a theme already
