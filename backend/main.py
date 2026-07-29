@@ -20,20 +20,51 @@ from .routers import controllers as controllers_router
 from .routers import themes as themes_router
 from .routers.settings import wifi, audio, bluetooth
 from .services import battery, gamepad_monitor, prefetch, standby
+from .services.process_manager import process_manager
 from .config import GAMECORE_ROOT, COVERS_DIR, ASSETS_DIR, BACKEND_PORT
+
+log = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    monitor_task = asyncio.create_task(gamepad_monitor.run())
-    battery_task = asyncio.create_task(battery.run())
-    standby_task = asyncio.create_task(standby.run())
-    prefetch_task = asyncio.create_task(prefetch.run())
+
+    # Before anything else: the screen. Standby state lives in memory but its
+    # effect does not — `xset dpms force off` belongs to the X server, which
+    # SDDM owns and which does not restart with us. A box that went to sleep and
+    # then had its backend restarted came back believing it was awake with the
+    # TV still dark, and nothing could wake it: pad events arrive over evdev,
+    # not X, so DPMS never re-armed on its own. Unconditional, so restarting the
+    # backend — what anyone stuck like that will try — actually fixes it.
+    try:
+        await standby.resume_after_restart()
+    except Exception:
+        log.exception("lifespan: could not force the screen back on")
+
+    # Re-attach to a game a previous process left running, so the double-PS
+    # shortcut can still close it.
+    try:
+        await process_manager.adopt_orphan()
+    except Exception:
+        log.exception("lifespan: could not adopt the previous session")
+
+    tasks = [
+        asyncio.create_task(gamepad_monitor.run()),
+        asyncio.create_task(battery.run()),
+        asyncio.create_task(standby.run()),
+        asyncio.create_task(prefetch.run()),
+    ]
     yield
-    monitor_task.cancel()
-    battery_task.cancel()
-    standby_task.cancel()
-    prefetch_task.cancel()
+    for t in tasks:
+        t.cancel()
+    # Actually wait for them: cancel() only schedules the cancellation, so
+    # shutdown used to return with the tasks still mid-await.
+    await asyncio.gather(*tasks, return_exceptions=True)
+    # The running game is deliberately left alone — see
+    # process_manager._save_session(). Killing it here would take the player's
+    # unsaved progress with it on any OTA or restart, and would do nothing at
+    # all for the case that actually strands them: a crash, where this code
+    # never runs. The pgid on disk covers both.
 
 
 app = FastAPI(title="GameCore", version="1.0.0", lifespan=lifespan)
