@@ -171,6 +171,10 @@ cd frontend && npm install && npm run dev
 # 3. Electron (separate terminal)
 cd electron && npm install
 ELECTRON_DEV=1 npx electron .
+
+# Tests — see docs/TESTING.md
+pip install pytest
+pytest backend/tests -q -m "not network"    # what CI runs
 ```
 
 `DEBUG = True` in `backend/config.py` and `const DEBUG = true` in `electron/main.js` enable:
@@ -602,7 +606,7 @@ install/          Installers: arch.sh engine (+ --unattended), uninstall.sh,
                   apps.json.dist / systems.json.dist (pristine tile catalogues)
 update/           OTA update script (linux.sh)
 docs/             architecture/ (9-part deep dive), themes/ (contract + prompts),
-                  SECURITY.md, CONTROLLER_MODELS.md, STREMIO.md
+                  SECURITY.md, TESTING.md, CONTROLLER_MODELS.md, STREMIO.md
 ```
 
 > **Working on the code?** Start at [`docs/architecture/`](docs/architecture/) —

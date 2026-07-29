@@ -1,99 +1,233 @@
-# GameCore — Modèle de sécurité
+# GameCore — Security model
 
-> **Statut : les 4 phases décrites ci-dessous sont livrées et en production.**
-> Ce document a été écrit comme un plan de déploiement ; il se lit désormais
-> comme la description du modèle en place. Les mentions « cette PR » sont
-> historiques. Vérification rapide sur un boîtier : `ss -tlnp` ne doit montrer
-> que `:8443` en écoute non-loopback.
+> **Status: the four phases below are shipped and in production.** This started
+> as a rollout plan; it now reads as a description of what is in place. Mentions
+> of "this PR" are historical.
+>
+> Quick check on a box: `ss -tlnp` must show **exactly one** non-loopback
+> GameCore listener, Caddy on `:8443`.
 
-Objectif : **un seul port exposé au LAN — Caddy `:8443` en HTTPS** — tout le reste en
-loopback, avec un login unique partagé appliqué par le reverse-proxy (`forward_auth`).
-La TV (Electron → `http://localhost:8765`) reste **strictement inchangée** : pas de
-login, pas de TLS pour elle.
+The goal: **one port on the LAN — Caddy `:8443` over HTTPS** — everything else on
+loopback, behind a single shared login enforced by the reverse proxy
+(`forward_auth`). The TV (Electron → `http://localhost:8765`) is deliberately
+**untouched** by all of it: no login, no TLS.
 
-## Architecture cible
+## Target architecture
 
 ```
-LAN (téléphone / PC)
-  └─ https://IP:8443  ── Caddy (tls internal, CA locale)
-        ├─ /login*, /api/auth/*, /gc/addons, /gc/ca.crt   → core :8765 (sans auth)
+LAN (phone / laptop)
+  └─ https://IP:8443  ── Caddy (tls internal, local CA)
+        ├─ /login*, /api/auth/*, /gc/addons, /gc/ca.crt   → core :8765 (no auth)
         ├─ [forward_auth → core /api/auth/verify]
-        │    ├─ /roms/*   → 127.0.0.1:8770  (rom-manager)
-        │    ├─ /saves/*  → 127.0.0.1:8772  (save-manager)
-        │    ├─ /rpcs3/*  → 127.0.0.1:8771  (rpcs3-manager)
-        │    ├─ /api/*    → 403 (le cœur n'est JAMAIS exposé au LAN)
-        │    └─ /…        → core :8765 (statiques : /assets/*, /covers/*)
-        └─ /  → redirection /roms/
-TV (boîtier)
-  └─ Electron → http://localhost:8765 (loopback, aucune auth — accès physique = confiance)
+        │    ├─ /roms/*    → 127.0.0.1:8770  (rom-manager)
+        │    ├─ /saves/*   → 127.0.0.1:8772  (save-manager)
+        │    ├─ /rpcs3/*   → 127.0.0.1:8771  (rpcs3-manager)
+        │    ├─ /twitch/*  → 127.0.0.1:8097  (EmberTV)
+        │    ├─ /api/*     → 403 (the core is NEVER exposed to the LAN)
+        │    └─ /…         → core :8765 (statics: /assets/*, /covers/*)
+        └─ /  → redirect to /roms/
+TV (the box itself)
+  └─ Electron → http://localhost:8765 (loopback, no auth — physical access is trust)
 ```
 
-Décisions actées : mot de passe **unique partagé** (pas de multi-comptes) ; trust CA
-côté clients via **QR code** pointant sur `/gc/ca.crt` ; port Caddy **8443** ;
-livraison **une branche + une PR par phase**.
+Decisions taken: a **single shared password** (no multi-user); client CA trust via
+a **QR code** pointing at `/gc/ca.crt`; Caddy on port **8443**; delivery as **one
+branch and one PR per phase**.
 
 ## Phases
 
-### Phase 1 — Tout en loopback (cette PR)
-- Le backend écoute sur `127.0.0.1:8765` (unit systemd écrite par `install/arch.sh`,
-  et fallback uvicorn d'Electron dans `electron/main.js`).
-- Chaque addon écoute sur `127.0.0.1` (voir `docs/SECURITY.md` du repo
-  [gamecore-addons](https://github.com/p4v1c/gamecore-addons)).
-- Suppression des `CORSMiddleware allow_origins=["*"]` : derrière Caddy tout devient
-  same-origin, et la TV est déjà same-origin.
-- Sur une install existante, l'unit vivante `/etc/systemd/system/gamecore-backend.service`
-  doit être alignée à la main (l'OTA ne réécrit pas les units) :
-  `--host 0.0.0.0` → `--host 127.0.0.1`, puis `daemon-reload` + restart.
+### Phase 1 — Everything on loopback
 
-### Phase 2 — Caddy : reverse-proxy + TLS
-- `install/Caddyfile` → `/etc/caddy/Caddyfile` ; `pacman -S caddy`,
-  `systemctl enable --now caddy`, puis `caddy trust` (CA racine dans le trust système
-  du boîtier : kiosk/Firefox sans warning).
-- `tls internal` : la CA locale de Caddy sert de mini-CA. Les clients LAN installent
-  la CA via `https://IP:8443/gc/ca.crt` (lien + QR sur la page de login et sur la
-  page Sécurité de la TV).
-- Le core gagne `GET /gc/addons` (payload du registre d'addons, consommé par la nav
-  partagée — proxifié sans auth).
-- Tant que la Phase 3 n'est pas déployée, `forward_auth` échoue (endpoint absent) :
-  **deny-all par défaut**, aucun trou temporaire.
+- The backend listens on `127.0.0.1:8765` (systemd unit written by
+  `install/arch.sh`, and Electron's uvicorn fallback in `electron/main.js`).
+- Every addon listens on `127.0.0.1` (see `docs/SECURITY.md` in the
+  [gamecore-addons](https://github.com/p4v1c/gamecore-addons) repo).
+- `CORSMiddleware allow_origins=["*"]` removed: behind Caddy everything is
+  same-origin, and the TV already was.
+- On an existing install the live unit
+  `/etc/systemd/system/gamecore-backend.service` has to be aligned by hand (OTA
+  does not rewrite units): `--host 0.0.0.0` → `--host 127.0.0.1`, then
+  `daemon-reload` and restart.
 
-### Phase 3 — Login partagé
-- `config/auth.json` (`{hash argon2id, generation}`, 0600) + `config/auth_secret`
-  (32 octets, 0600, clé HMAC des cookies). `config/` est exclu du rsync OTA → ces
-  fichiers survivent aux updates. Jamais commités (`.gitignore`).
-- `backend/services/auth.py` : argon2-cffi ; cookie
-  `expiry.generation.HMAC-SHA256(secret, "expiry.generation")` ; anti-bruteforce en
-  mémoire (par IP via `X-Forwarded-For`, 5 échecs → backoff exponentiel).
-- `backend/routers/auth.py` — exemptées de `forward_auth`, donc joignables sans
-  session : `POST /api/auth/login` (cookie `gc_session` HttpOnly, Secure,
-  SameSite=Lax, 30 j), `GET /api/auth/verify` (200 + `X-GC-User` / 302 vers
-  `/login?next=…` / 401 — consommé par le `forward_auth` de Caddy),
+### Phase 2 — Caddy: reverse proxy + TLS
+
+- `install/Caddyfile` → `/etc/caddy/Caddyfile`; `pacman -S caddy`,
+  `systemctl enable --now caddy`, then `caddy trust` (root CA into the box's own
+  trust store, so the kiosk browser gets no warning).
+- `tls internal`: Caddy's local CA acts as a mini-CA. LAN clients install it once
+  from `https://IP:8443/gc/ca.crt` (link + QR on the login page and on the TV's
+  Security page).
+- The core gains `GET /gc/addons` (the addon registry payload, consumed by the
+  shared nav — proxied without auth).
+- Until Phase 3 was deployed, `forward_auth` failed because the endpoint did not
+  exist: **deny-all by default**, never a temporary hole.
+
+### Phase 3 — Shared login
+
+- `config/auth.json` (`{argon2id hash, generation}`, 0600) + `config/auth_secret`
+  (32 bytes, 0600, HMAC key for cookies). `config/` is excluded from the OTA
+  rsync, so both survive updates. Neither is ever committed (`.gitignore`).
+- `backend/services/auth.py`: argon2-cffi; cookie
+  `expiry.generation.HMAC-SHA256(secret, "expiry.generation")`; in-memory
+  anti-bruteforce (per IP via `X-Forwarded-For`, 5 failures → exponential
+  backoff).
+- `backend/routers/auth.py` — exempt from `forward_auth`, therefore reachable
+  without a session: `POST /api/auth/login` (cookie `gc_session`, HttpOnly,
+  Secure, SameSite=Lax, 30 days), `GET /api/auth/verify` (200 + `X-GC-User` /
+  302 to `/login?next=…` / 401 — consumed by Caddy's `forward_auth`),
   `POST /api/auth/logout`.
-- `POST /api/auth/change-password` (incrémente `generation` → invalide toutes les
-  sessions) est **derrière** le `forward_auth` : l'exemption large `/api/auth/*`
-  la publiait au LAN entier. Sur une machine sans mot de passe elle répond 503 —
-  elle ne sert pas à en définir un, elle sert à en changer un.
-- Page `/login` autonome servie par le core ; définition du mot de passe : prompt
-  dans `arch.sh` (l'installeur graphique l'exige), ou `gamecore-addon auth-reset`.
-- Le core lui-même n'applique **aucune** auth sur ses routes (il n'est joignable
-  qu'en loopback) : l'application de l'auth est le rôle exclusif de Caddy.
+- `POST /api/auth/change-password` (bumps `generation`, killing every session) is
+  **behind** `forward_auth`: the old broad `/api/auth/*` exemption published it
+  to the whole LAN. On a box with no password it answers 503 — it changes a
+  password, it does not set the first one.
+- A self-contained `/login` page served by the core; the password is set by the
+  prompt in `arch.sh` (the graphical installer requires it) or by
+  `gamecore-addon auth-reset`.
+- The core enforces **no** auth on its own routes (it is only reachable on
+  loopback): enforcement is exclusively Caddy's job.
 
-### Phase 4 — Addons derrière préfixe de chemin
-- Chaque addon reçoit `root_path` via l'env `ADDON_BASE` (`/roms`, `/saves`,
-  `/rpcs3`) ; `addon.json` gagne un champ `path`, recopié dans le registre par le
-  CLI `gamecore-addon` et exposé par `/gc/addons`.
-- La nav partagée et les pages des addons ne référencent plus aucun port : liens et
-  fetch relatifs (ou via `/gc/addons`), les accès navigateur→core passent par les
-  statiques `/assets/*` ou par un passthrough côté addon.
-- Les addons n'écrivent **aucune ligne d'auth** : Caddy les protège, ils reçoivent
-  seulement l'en-tête `X-GC-User`.
+### Phase 4 — Addons behind a path prefix
 
-## Points d'exploitation
-- **OTA** : `update/linux.sh` exclut `config/`, `emu/`, `emu-configs/`,
-  `assets/logos|overlays/` → l'état local du boîtier (bibliothèque, auth, registre
-  addons) survit aux mises à jour. L'OTA ne touche ni `/etc/systemd/*` ni
+- Each addon gets its `root_path` from the `ADDON_BASE` env var (`/roms`,
+  `/saves`, `/rpcs3`); `addon.json` gains a `path` field, copied into the
+  registry by the `gamecore-addon` CLI and exposed through `/gc/addons`.
+- The shared nav and the addon pages reference no port at all: links and fetches
+  are relative (or go through `/gc/addons`), and browser→core traffic goes via
+  the `/assets/*` statics or an addon-side passthrough.
+- Addons contain **no auth code whatsoever**: Caddy protects them, and all they
+  receive is the `X-GC-User` header.
+
+---
+
+## Defence in depth on top of the four phases
+
+Phases 1-4 answer "who may reach the box from the LAN". The following close the
+gaps that remain once something is *already* inside — a browser running on the
+box, a page in the kiosk, or a client that has legitimately logged in.
+
+### The core's cross-origin guard (`backend/main.py`)
+
+The core has no authentication of its own and the box runs browsers that can
+reach it: the Firefox kiosk profiles `arch.sh` installs, and Stremio. A page in
+one of those could auto-submit
+
+```html
+<form action="http://127.0.0.1:8765/api/games/kill" method="post">
+```
+
+and kill the running game, unsaved progress included. Only endpoints that take
+**no Pydantic body** are reachable that way — an HTML form can only send
+`x-www-form-urlencoded`, `multipart/form-data` or `text/plain`, and FastAPI
+answers 422 to anything else — which still left `POST /api/games/kill`,
+`POST /api/update/apply`, `POST /api/addons/{name}/install` and
+`POST /api/standby/exit`. `games/launch` and `addons/notify` were never
+reachable.
+
+A middleware now refuses any non-GET/HEAD/OPTIONS request whose `Origin` names
+somewhere we are not serving, or whose `Sec-Fetch-Site` is `cross-site`. Two
+things it deliberately is **not**:
+
+- **Not a localhost allowlist.** `/login` and `/api/auth/*` are proxied from
+  `https://<whatever address the client used>:8443`, and the box has no fixed
+  name — the Caddyfile mints certificates on demand precisely because the
+  address changes. The rule is therefore same-origin against the forwarded
+  `Host`. An allowlist would have 403'd every LAN login.
+- **Not a blanket loopback pass.** `localhost` and `127.0.0.1` are accepted as
+  the same machine *on the backend's own port*, because Electron says one where
+  the socket reports the other. Another local application on another port is not
+  the UI and does not get in.
+
+Requests with no `Origin` still pass: curl, the addon CLI and the install
+scripts have none, and a browser always attaches one to a cross-origin write.
+
+### `/ws` (`backend/main.py`)
+
+A WebSocket handshake is a GET and is **not subject to CORS at all**, so any page
+in any browser on the box could open `ws://127.0.0.1:8765/ws` and read every
+event the UI sees — what launched, what is installed, controller activity. The
+endpoint applies the same origin rule and closes with 1008 otherwise.
+
+### On-demand TLS gate (`/api/auth/tls-ask`)
+
+`on_demand_tls { ask … }` used to point at Caddy's own admin API, which answers
+200 to anything: any LAN client could open a handshake with an arbitrary SNI and
+have the box mint a certificate for it, without limit.
+
+The core now answers that question. Approved: loopback, this machine's addresses
+on any interface (the LAN address moves with the network, and a Tailscale address
+only appears there), its hostname and `<hostname>.local`, and any name that
+resolves to one of those — the last is what keeps MagicDNS working.
+
+### EmberTV (`/twitch`)
+
+EmberTV bound `0.0.0.0:8097` and authenticates nothing. Once the owner has signed
+in through the device-code flow, the OAuth token (`chat:edit`) lives in
+`.twitch-user.json` and **every route acts as that account** — a single `curl`
+from anywhere on the Wi-Fi could post to chat as the owner, read their profile
+and following list, or sign them out. It was the second GameCore port on the LAN,
+against the rule stated at the top of this document, and it appeared in no
+Caddyfile.
+
+It is loopback-only now, and reachable at `/twitch/` behind the same
+`forward_auth` as the addons. Two mechanical details matter:
+
+- EmberTV takes `BASE_PATH=/twitch` (set in its unit by `install/arch.sh`) and
+  strips the prefix itself, exactly like the addons' `root_path`. Its client is
+  built from absolute URLs, so a Caddy-side `handle_path` strip would break every
+  asset.
+- The route sets `header_up Host {hostport}`. Caddy replaces `Host` with the
+  upstream address when the upstream is `https://` (it preserves it for
+  `http://`), and EmberTV accepts a POST only when the `Origin` host matches
+  `Host` — without it, sending a chat message from a LAN browser would 403 every
+  time.
+
+EmberTV's own routes were hardened upstream too: the ones with a side effect
+(`auth/device/start`, `auth/signout`, `chat/send`) are POST-only and must carry a
+matching `Origin`. The old guard skipped the check whenever `Origin` was absent,
+which is to say for everything that was not a browser.
+
+### Login rate limiting is a slowdown, not a door
+
+The global circuit breaker was applied to **every** caller, so 25 failed logins
+spread over throwaway keys — something any unauthenticated LAN client can
+produce — returned 429 to an address that had never tried once and was
+presenting the correct password. Replayed every 60 seconds, that locked the
+owner out of the ROM, save and RPCS3 managers for as long as an attacker cared
+to keep going. (The TV is unaffected; it reaches the core on loopback.)
+
+The breaker now only weighs on addresses already known to have failed. It still
+slows a distributed spray — every sprayer is in that set by construction — while
+a client that has not got a password wrong is not treated as part of it.
+
+### Path containment
+
+`/api/covers/{system_id}/{filename:path}` passed `filename` straight into
+`roms_root / filename`, and the `:path` converter accepts slashes and `..`. The
+rule the codebase already applies in `launch_game` — resolve, then check against
+the root — now also applies in `cover_pipeline` and `metadata`.
+
+In the save-manager addon, an entry id of `"."` resolved to the collection
+directory itself (`PurePosixPath(".").parts` is empty, so neither the
+`is_absolute()` nor the `".."` check fired), and `DELETE` then backed up and
+`rmtree`'d the whole collection. For mgba and melonDS that collection *is* the
+ROM directory.
+
+## Operational notes
+
+- **OTA**: `update/linux.sh` excludes `config/`, `emu/`, `emu-configs/` and
+  `assets/logos|overlays/`, so the box's local state (library, auth, addon
+  registry) survives updates. OTA touches neither `/etc/systemd/*` nor
   `/etc/caddy/*`.
-- **Reset du mot de passe** : `gamecore-addon auth-reset` (régénère le secret et le
-  hash — toutes les sessions tombent).
-- **Vérification** : `ss -tlnp` ne doit montrer, côté GameCore, que Caddy `:8443`
-  exposé ; `8765/8770/8771/8772` uniquement sur `127.0.0.1`.
+- **`/etc/caddy/Caddyfile` is not updated by OTA.** It is written only by
+  `install/arch.sh`, which templates the backend port into it, and it needs root.
+  A security fix to the shipped Caddyfile therefore reaches no installed box on
+  its own. `update/linux.sh` now compares the two and prints the command to
+  apply it — but applying it is a manual step.
+- **Password reset**: `gamecore-addon auth-reset` (regenerates the secret and the
+  hash — every session dies).
+- **Sudoers**: every rule in `/etc/sudoers.d/gamecore-power` is argument-narrow —
+  `systemctl poweroff|reboot`, `udevadm trigger`, `systemctl start` on the two
+  GameCore units, and the two `cpupower` governors GameCore uses. Nothing is
+  wildcarded.
+- **Verification**: `ss -tlnp` must show, for GameCore, only Caddy on `:8443`;
+  `8765`, `8097`, `8770`, `8771` and `8772` on `127.0.0.1` only.

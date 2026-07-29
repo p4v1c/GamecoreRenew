@@ -24,6 +24,39 @@ gamepad. `_proc_kill()` goes straight to SIGKILL. For Flatpak, `flatpak kill
 `_watch()` only records playtime past 5 s, or a crash-looping emulator would
 inflate the library stats.
 
+**In-memory state whose effect is on disk (or in the X server) needs a
+startup reconciliation.** Two instances of the same bug:
+
+- Standby is a module variable, but `xset dpms force off` belongs to the X
+  server, which SDDM owns and which does not restart with the backend. A box
+  asleep when the backend restarted came back believing it was awake with the TV
+  dark, and no button could wake it. The lifespan now forces the screen on
+  unconditionally.
+- The running game lived only in `_proc`. A restarted backend saw
+  `is_running == False`, so `kill()` returned immediately and the emulator was
+  fullscreen and unkillable. The pgid is persisted to `config/session.json` and
+  adopted at startup.
+
+The general shape: if the backend can be restarted while the effect persists, ask
+at startup rather than assuming a clean slate. Note that a **crash** skips the
+lifespan's shutdown half entirely, so cleanup-on-shutdown does not cover it —
+which is why the game is persisted rather than killed.
+
+**`task.cancel()` only schedules the cancellation.** The lifespan awaits its
+four tasks with `asyncio.gather(..., return_exceptions=True)`; without that,
+shutdown returned with them still mid-`await`.
+
+**Killing a shell does not kill what it spawned.** The OTA timeout killed `bash`
+and left its `rsync`, `pip` and `npm` writing into `/opt/GameCore` after the UI
+had been told the update was aborted. Spawn with `start_new_session=True` and
+kill the group — `process_manager.kill_process_group()` is shared for this.
+
+**A blocking call in a coroutine blocks everything.** `_probe_display()` ran
+synchronous `subprocess.run(timeout=5)` on the event loop, on every launch and
+every standby transition; an unrelated `GET /api/systems` measured 4.7 s. It is
+memoised now, and the first probe runs off-thread. Same reason argon2 goes
+through `asyncio.to_thread` in the auth router.
+
 ## Backend wiring
 
 **`/ws` must stay registered before the `/` static mount.**
@@ -99,16 +132,40 @@ HUD toast text comes from WebSocket broadcasts, which include
 `POST /api/addons/notify` (any addon can call it) and Bluetooth device names.
 `escHtml()` and `safeColor()` exist for that. Never interpolate raw.
 
-**`rom_path` is validated by containment, not by pattern.**
-`Path(rom_path).resolve().relative_to(roms_root.resolve())` in `launch_game()`.
-Without it, `/api/games/launch` runs arbitrary binaries.
+**Any path built from a route parameter is validated by containment, not by
+pattern.** `Path(p).resolve().relative_to(root.resolve())`, in `launch_game()`,
+`cover_pipeline._rom_in_root()` and `metadata._search_name()`. A
+`{filename:path}` converter accepts slashes and `..`, so the rule has to hold
+everywhere and not be re-derived per call site — the cover pipeline was the one
+place it had been left out.
+
+**An empty path component is a path too.** `PurePosixPath(".").parts` is the
+empty tuple, so an entry id of `"."` passed both the `is_absolute()` and the
+`".."` checks in the save-manager addon, resolved to the collection directory
+itself, and `DELETE` then `rmtree`'d the whole collection. Guard `not rel.parts`
+alongside the other two, and refuse `target == root` outright.
 
 **Overlay uploads are checked by magic bytes.**
-`_looks_like_image(head)` — the client's `Content-Type` proves nothing.
+`_looks_like_image(head)` — the client's `Content-Type` proves nothing. Check the
+byte count too: an **empty** upload never enters the read loop, so it never meets
+the magic-byte test, and it used to `os.replace` a working bezel with zero bytes.
 
 **The core is never LAN-exposed.**
 `/api/*` is 403 through Caddy. The TV reaches it over loopback only. If you
 add an endpoint, assume the LAN can never call it.
+
+**…but "not LAN-exposed" is not "not reachable".** The box runs browsers — the
+Firefox kiosk profiles and Stremio — and they can reach `127.0.0.1:8765`. A page
+in one of them could auto-submit a form at `/api/games/kill`. Hence the
+cross-origin middleware in `main.py`, and the same check on `/ws`, which needs it
+most: a WebSocket handshake is a GET and is not subject to CORS at all. Adding a
+non-GET endpoint requires nothing from you; adding another *transport* does.
+
+**A rate limiter that can be tripped by an attacker is a denial of service.**
+The global login breaker applied to every caller, so 25 failures spread over
+throwaway keys — trivially produced by any unauthenticated LAN client — returned
+429 to the owner with the correct password. It now only weighs on addresses
+already known to have failed.
 
 ## OTA
 
@@ -141,6 +198,19 @@ OTA writes. That is why `VERSION` always shows as modified in `git status` on a
 box.
 
 ## Testing
+
+See [`../TESTING.md`](../TESTING.md) for how to run the suite. Two traps that
+belong here:
+
+**`GAMECORE_PATH` is read at import time**, so whichever test module pytest
+imports first would otherwise decide where the whole suite writes. `conftest.py`
+is the only place the override is guaranteed to land in time — it runs before
+any test module. It *sets* the variable rather than defaulting it: inheriting a
+`GAMECORE_PATH` from the shell would point the suite at a real installation.
+
+**A backend started by hand needs `GAMECORE_BACKEND_PORT`, not just `--port`.**
+The cross-origin guard accepts a loopback `Origin` on the backend's *configured*
+port, so with only `--port 8899` an `Origin: http://localhost:8899` is refused.
 
 **Headless Chromium never fires `requestAnimationFrame` under
 `--virtual-time-budget`.**

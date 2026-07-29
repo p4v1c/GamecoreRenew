@@ -27,19 +27,36 @@ through it.
 
 ## What lives in `config/`
 
-| File | Written by | Read by |
-|---|---|---|
-| `systems.json` | installer / by hand | `routers/systems.py` |
-| `apps.json` | installer / by hand | `routers/systems.py` |
-| `overlays.json` | by hand | `routers/overlays.py`, `electron/main.js`, `overlay_monitor.py` |
-| `addons.json` | `gamecore-addon` CLI | `routers/addons.py` |
-| `standby.json` | `POST /api/standby/config` | `services/standby.py` |
-| `auth.json`, `auth_secret` | `services/auth.py`, mode 0600 | idem |
-| `playtime.db` | backend (SQLite) | backend |
+| File | Written by | Read by | In git? |
+|---|---|---|---|
+| `systems.json` | installer, from `install/systems.json.dist` | `routers/systems.py` | **yes** |
+| `apps.json` | installer, from `install/apps.json.dist` | `routers/systems.py` | **yes** |
+| `overlays.json` | by hand | `routers/overlays.py`, `electron/main.js`, `overlay_monitor.py` | **yes** |
+| `themes/` | shipped + `update/linux.sh` (adds only what is missing) | `services/themes.py` | **yes** |
+| `theme.json` | `services/themes.set_active()`, atomically | `services/themes.get_active()` | no |
+| `addons.json` | `gamecore-addon` CLI | `routers/addons.py` | no |
+| `standby.json` | `POST /api/standby/config`, atomically | `services/standby.py` | no |
+| `session.json` | `services/process_manager.py`, atomically | idem, at startup | no |
+| `auth.json`, `auth_secret` | `services/auth.py`, mode 0600 | idem | no |
+| `playtime.db` | backend (SQLite) | backend | no |
 
-**None of these are in git, and the OTA rsync excludes `config/` entirely.**
-They are the box's identity: library layout, credentials, installed addons,
-play history. Treat overwriting one as data loss.
+**The OTA rsync excludes `config/` entirely** — but "not in git" is *not* true of
+all of it, and the distinction matters when deciding whether overwriting a file
+is data loss:
+
+- The **catalogues** (`systems.json`, `apps.json`, `overlays.json`, and the
+  bundled themes) are versioned. `install/arch.sh` regenerates the first two from
+  `install/*.dist` on **every** run, so editing them in place is not durable —
+  edit the `.dist` files.
+- The **state** (`theme.json`, `addons.json`, `standby.json`, `session.json`,
+  `auth.json`, `auth_secret`, `playtime.db`) is never in git and exists only on
+  the box. That is its identity: credentials, installed addons, play history,
+  the selected theme. Treat overwriting one as data loss.
+
+Everything written here uses the tmp-file + `os.replace` pattern from
+`auth._write_private()`. `write_text()` truncates before it writes, so an
+interrupted write left a JSON file that could not be parsed — and the selected
+theme, or the standby timings, silently reverted to defaults.
 
 ---
 
@@ -135,6 +152,30 @@ downstream: `name`, `label`, `port`, `path` (`/roms`, `/saves`, `/rpcs3`),
 `auth.json` = `{hash: argon2id, generation: int}`. `auth_secret` = 32 random
 bytes, the HMAC key for session cookies. Both 0600, written atomically by
 `_write_private()`. Bumping `generation` invalidates every live session.
+
+`_auth()` swallows `UnicodeDecodeError` as well as the JSON and OS errors:
+`read_text()` raises that one on a non-UTF-8 file, and every LAN request goes
+through here — a truncated or foreign `auth.json` used to 500 the whole proxied
+surface, `/login` included, leaving no way back in short of SSH.
+
+## `config/session.json`
+
+`{pgid, game_key, system_id, exec_path, launch_args, started_at}` — the process
+group of the running game, written by `process_manager` at launch and removed
+when it exits.
+
+It exists so a **restarted backend can still reach a game it did not start**.
+Without it the new process came up with `_proc = None`, so `is_running` was
+false, `kill()` returned at its first line, and the emulator stayed fullscreen
+and unkillable — the double-PS shortcut could never close it again. The UI is a
+separate service and does not restart with the backend, so it kept asking and
+nothing answered.
+
+`adopt_orphan()` runs in the lifespan: if the pgid is still alive, the session is
+adopted (reported by `/api/games/session`, killable via `POST /api/games/kill`);
+if not, the file is discarded. This was chosen over killing the game on shutdown,
+which would take unsaved progress with it on every OTA **and** would still leave
+a crash — where no shutdown code runs at all — stranding the player.
 
 ---
 

@@ -11,11 +11,51 @@ Routers parse, validate and delegate; the logic lives in
 
 | Symbol | What it does |
 |---|---|
-| `lifespan(app)` | creates the four background tasks on startup, cancels them on shutdown |
+| `lifespan(app)` | wakes the screen, adopts an orphaned game, creates the four background tasks; on shutdown cancels them and **awaits** them |
+| `cross_origin_guard` | HTTP middleware — 403 on a non-GET write driven from another origin |
+| `_origin_ok(headers)` | the rule itself, shared with `/ws` |
 | `overlay_page()` | `GET /overlay` — serves the SPA to the transparent Electron window |
 | `gc_addons()` | `GET /gc/addons` — same payload as `/api/addons`, on a path Caddy proxies **without auth** (the addon nav bar needs it pre-login) |
 | `login_page()` | `GET /login` — self-contained login form for LAN clients |
-| `websocket_endpoint(websocket)` | `WS /ws` — accepts, then reads forever; every send is a broadcast from `ws.py` |
+| `websocket_endpoint(websocket)` | `WS /ws` — checks `Origin`, accepts, then reads forever; every send is a broadcast from `ws.py` |
+
+### The lifespan does three things before starting the tasks
+
+1. **`standby.resume_after_restart()`** — forces the screen back on
+   unconditionally. Standby state is a module variable but its effect is not:
+   `xset dpms force off` belongs to the X server, which SDDM owns and which does
+   not restart with the backend. A box asleep when the backend restarted came
+   back believing it was awake with the TV dark, and nothing could wake it (pad
+   events arrive over evdev, not X, so DPMS never re-armed). Restarting the
+   backend is what a stuck user will try — so that is what now fixes it.
+2. **`process_manager.adopt_orphan()`** — re-attaches to a game a previous
+   process left running, so the double-PS shortcut can still close it. See
+   `config/session.json` in doc 7.
+3. On shutdown, the four tasks are cancelled **and awaited**
+   (`asyncio.gather(..., return_exceptions=True)`). `cancel()` alone only
+   schedules the cancellation, so shutdown used to return with tasks still
+   mid-await. The running game is deliberately left alone.
+
+### The cross-origin guard
+
+The core has no auth of its own and the box runs browsers that can reach it. A
+page in the Firefox kiosk or in Stremio could auto-submit a form at
+`http://127.0.0.1:8765/api/games/kill` and kill the running game. Non-GET
+requests are refused when `Origin` names somewhere we are not serving, or when
+`Sec-Fetch-Site` is `cross-site`.
+
+It is **same-origin against the forwarded `Host`**, not a localhost allowlist:
+`/login` and `/api/auth/*` arrive through Caddy from an address nobody can
+predict, so an allowlist would have 403'd every LAN login. `localhost` and
+`127.0.0.1` are additionally accepted as the same machine *on the backend's own
+port* — Electron says one where the socket reports the other — but another local
+app on another port is not the UI. A request with no `Origin` passes: curl and
+the install scripts have none, and browsers always send one on a cross-origin
+write. Full rationale in `docs/SECURITY.md`.
+
+`/ws` needs the same check for a different reason: a WebSocket handshake is a GET
+and is not subject to CORS **at all**, so any page could otherwise open
+`ws://127.0.0.1:8765/ws` and read every event the UI sees.
 
 Static mounts, in order: `/covers`, `/assets/logos`, `/assets/overlays`,
 `/data`, `/themes`, then `/` → `frontend/dist` with `html=True`. The loop
@@ -116,8 +156,24 @@ why the registry stays consistent whoever ran the command.
 |---|---|---|
 | `_version_int(tag)` | — | tolerant `x.y.z` ordering — `v2.1.0-rc1` or a malformed tag must never crash the check |
 | `check_update()` | `GET /update/check` | queries the GitHub releases API |
-| `apply_update()` | `POST /update/apply` | spawns `update/linux.sh` in the background |
+| `update_status()` | `GET /update/status` | `{running: bool}` — the backend is the source of truth |
+| `apply_update()` | `POST /update/apply` | spawns `update/linux.sh` in the background; **409** if one is already running |
 | `_run_update()` / `_pump()` | — | streams stdout line by line over the WebSocket, which is what the settings page renders live |
+
+Same busy check as `addons.py`: a module-level task handle, tested and assigned
+with no `await` in between, which is what makes it atomic. It is needed because
+`update/linux.sh` wipes its work directory on entry and rsyncs from it into
+`GAMECORE_PATH` — a second run did `rm -rf` underneath the first one's rsync.
+And it was easy to trigger: `installing` was `UpdatePage`'s own component state,
+so leaving the page and coming back re-mounted it as false and re-enabled the
+button, during minutes in which the screen does not change. `UpdatePage` now
+polls `/update/status` instead of trusting itself, and treats a 409 as "keep
+following the running update".
+
+The script is spawned with `start_new_session=True` and the 10-minute timeout
+kills the **process group**, through the same helper `process_manager` uses to
+kill a game. Killing only `bash` left its `rsync`, `pip` and `npm` writing into
+`/opt/GameCore` after the UI had been told the update was aborted.
 
 ## `themes.py` (37 l.) — the theme catalogue
 
@@ -156,8 +212,20 @@ emulator's own UI and this snapshots it per controller.
 | `_set_session(resp)` | — | `gc_session` cookie: HttpOnly, Secure, SameSite=Lax, 30 days |
 | `login(request)` | `POST /auth/login` | rate-limited by `auth.blocked_for(ip)` |
 | `verify(request)` | `GET /auth/verify` | **the `forward_auth` endpoint.** 200 → Caddy passes the request through and copies `X-GC-User`; 302 → login page; 401 |
+| `tls_ask(domain)` | `GET /auth/tls-ask` | **Caddy's `on_demand_tls` gate.** 200 approves minting a certificate |
 | `logout()` | `POST /auth/logout` | |
 | `change_password(request)` | `POST /auth/change-password` | bumps `generation` → every existing session dies |
+
+`verify_password` is argon2id with the library defaults — 64 MiB and real CPU
+time, deliberately — so `login` and `change_password` call it through
+`asyncio.to_thread`. Inline, a burst of failed logins from the LAN froze the TV,
+which talks to this same process.
+
+`tls_ask` approves loopback, this machine's addresses on any interface, its
+hostname, and any name that resolves to one of those (which is what keeps
+MagicDNS working). The gate used to be Caddy's own admin API, which answers 200
+to anything — so any LAN client could make the box mint certificates without
+limit.
 
 ## `settings/` — the OS wrappers
 
@@ -176,6 +244,12 @@ and an async `_run(*args)`.
 | `connect_wifi(req)` | `POST /wifi/connect` — returns `wrong_password` distinctly |
 | `disconnect_wifi()` | `DELETE /wifi/connect` |
 | `_spawn_bg(coro, label)` | — background task helper with error logging |
+
+The PSK goes to `nmcli` on **stdin**, via `nmcli --ask`. In argv it was visible
+in `/proc/<pid>/cmdline` to every local user for the length of the connect. An
+SSID beginning with `-` is refused rather than escaped: the SSID is positional
+with nothing marking the end of the options, such a network is vanishingly rare,
+and guessing at `nmcli`'s option parsing is not worth being clever about.
 
 ### `settings/audio.py` (88 l.)
 

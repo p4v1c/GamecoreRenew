@@ -1,133 +1,150 @@
-# Faire reconnaître n'importe quelle manette, sur n'importe quel émulateur
+# Making any controller work in any emulator
 
-Deux mécanismes distincts, complémentaires. Le principe directeur : **aucun
-slot joueur n'est jamais câblé à une marque précise.** La première manette
-qui se connecte devient Joueur 1 (quel que soit son type), la suivante
-Joueur 2, etc. — comme sur une vraie console.
+Two distinct, complementary mechanisms. The guiding rule: **no player slot is
+ever wired to a particular brand.** The first pad to connect becomes Player 1
+whatever it is, the next one Player 2, and so on — like a real console.
 
-## 1. GameCore lui-même (menu TV) et les émulateurs "SDL-natif"
+## 1. GameCore itself (the TV menu) and the "SDL-native" emulators
 
-`backend/data/gamecontrollerdb.txt` (le community database
-[SDL_GameControllerDB](https://github.com/mdqinc/SDL_GameControllerDB)) est
-exporté aux émulateurs via `SDL_GAMECONTROLLERCONFIG_FILE`
-(`process_manager.py`) — c'est LA variable que SDL (2.0.10+ et SDL3) lit
-réellement ; une première version exportait `SDL_GAMECONTROLLERDB`, qui
-n'existe pas, et la base était silencieusement ignorée.
-SDL le fusionne à son propre init : tout émulateur qui parle le "rôle"
-SDL_GameController plutôt que des index bruts fonctionne alors avec
-**n'importe quelle manette listée dans la base**, sans aucune config
-manuelle. C'est le cas de **PCSX2, DuckStation et gopher64** — vérifié en
-lisant leurs bindings live : `SDL-0/FaceEast`, `SDL-0/A`, etc. — des noms de
-rôle, jamais un index de bouton. Rien à faire, pour toujours, quelle que
-soit la manette (si elle est dans la base).
+`backend/data/gamecontrollerdb.txt` (the community
+[SDL_GameControllerDB](https://github.com/mdqinc/SDL_GameControllerDB)) is
+exported to the emulators through `SDL_GAMECONTROLLERCONFIG_FILE`
+(`process_manager.py`) — that is *the* variable SDL actually reads (2.0.10+ and
+SDL3 alike). An earlier revision exported `SDL_GAMECONTROLLERDB`, which is not a
+variable SDL has ever read, and the database was silently ignored.
 
-## 2. Dolphin, RPCS3, Cemu, Ryujinx, azahar, mgba — profilage live par slot
+SDL merges it at init, so any emulator that speaks the SDL_GameController
+**role** vocabulary rather than raw indices works with **any pad listed in the
+database**, with no manual configuration at all. That covers **PCSX2,
+DuckStation and gopher64** — verified by reading their live bindings:
+`SDL-0/FaceEast`, `SDL-0/A` and so on, role names, never a button index.
+Nothing to do, ever, whatever the pad (as long as it is in the database).
 
-Trouvé en lisant leurs configs réelles sur le boîtier :
+## 2. Dolphin, RPCS3, Cemu, Ryujinx, azahar, mgba — live per-slot profiling
 
-- **Dolphin et RPCS3** utilisent aussi des rôles SDL sémantiques
-  (`Button S/E/W/N`, `West/South/East/North`...) — mais ils sélectionnent
-  QUEL périphérique physique alimente ce rôle par un **nom** littéral
-  (`Device = SDL/0/PS4 Controller`, `Device: PS4 Controller 1`). Deux
-  pièges découverts en live (log RPCS3 : `SDL: Adding empty device` =
-  manette morte en jeu) :
-  1. Les deux embarquent **SDL3**, dont les noms diffèrent de la base
-     communautaire SDL2 : une DualSense s'appelle « DualSense Wireless
-     Controller », pas « PS5 Controller ». Le nom est donc résolu en
-     interrogeant la **libSDL3 du système** avec les manettes réellement
-     branchées (`controller_profiles.resolve_name`), la base ne servant
-     que de dernier recours.
-  2. Le numéro n'est PAS le slot joueur : RPCS3 suffixe un compteur
-     1-based **par nom** (`sdl_pad_handler.cpp`), Dolphin un compteur
-     0-based **par nom** (`SDL/<k>/<nom>`, ciface DeviceContainer). Une
-     DualSense seule est « DualSense Wireless Controller 1 » /
-     `SDL/0/...` même en Joueur 2.
-- **Ryujinx** utilise un **GUID** de périphérique précis
-  (`button:1,guid:0500...cc09...`). Fait vérifié en clair sur ce boîtier :
-  DualShock 4 et DualSense partagent le **même pilote noyau** et rapportent
-  des **index identiques** — seul le GUID diffère (octets vendor/product à
-  une position fixe, quel que soit le format de GUID SDL). Retargeter un slot
-  ne demande donc QUE de substituer ces octets, jamais les index déjà validés
-  par l'utilisateur. Mais l'index d'accompagnement compte **par GUID**, pas
-  par joueur : le préfixe `<dup>-<GUID>` de l'`id` dans `Config.json` vaut 0
-  pour une manette seule de son modèle, quel que soit son slot (un dup
-  inexistant lie un périphérique fantôme → entrée morte). Les slots Ryujinx
-  sont des objets de la liste `input_config`, clés par `player_index`
-  (`Player1`..).
+Ground-truthed by reading their actual configs on the box:
 
-- **azahar, mgba, Cemu** : **restauration d'un instantané**, PAS de
-  substitution de GUID. Leurs liaisons ne peuvent pas être fabriquées à partir
-  d'un simple VID:PID. Le modèle réel est celui-ci :
+- **Dolphin and RPCS3** also use semantic SDL roles (`Button S/E/W/N`,
+  `West/South/East/North`…) — but they pick *which physical device* feeds that
+  role by a literal **name** (`Device = SDL/0/PS4 Controller`,
+  `Device: PS4 Controller 1`). Two traps, both found live (RPCS3 log:
+  `SDL: Adding empty device` = a pad that is dead in game):
 
-  1. l'utilisateur mappe la manette une fois, dans l'émulateur, via
-     « Scan mapping » ;
-  2. `snapshot_save()` enregistre ce bloc de config, indexé par
-     `vendor:product` ;
-  3. `snapshot_restore()` le remet en place quand une manette du même modèle
-     se reconnecte.
+  1. Both bundle **SDL3**, whose names differ from the SDL2-era community
+     database: a DualSense is "DualSense Wireless Controller", not
+     "PS5 Controller". The name is therefore resolved by asking the **system's
+     libSDL3** with the pads actually connected
+     (`controller_profiles.resolve_name`); the database is only a last resort.
+  2. The number is **not** the player slot. RPCS3 appends a 1-based counter
+     **per name** (`sdl_pad_handler.cpp`), Dolphin a 0-based counter **per
+     name** (`SDL/<k>/<name>`, ciface DeviceContainer). A lone DualSense is
+     "DualSense Wireless Controller 1" / `SDL/0/…` even as Player 2.
 
-  Des versions « substitution de GUID » de `_mgba()` et `_cemu()` ont existé
-  dans `controller_profiles.py` — elles n'ont jamais été appelées par
-  `apply_profile()` et ont été supprimées. La docstring du module fait foi.
+- **Ryujinx** binds by a device **GUID** (`button:1,guid:0500…cc09…`). Verified
+  in the open on this box: DualShock 4 and DualSense share the **same kernel
+  driver** and report **identical raw indices** — only the GUID differs
+  (vendor/product bytes at a fixed offset, whatever the SDL GUID format
+  revision). Retargeting a slot is therefore *only* a substitution of those
+  bytes, never of the indices the owner has already validated. But the
+  accompanying index counts **per GUID**, not per player: the `<dup>-<GUID>`
+  prefix of `id` in `Config.json` is 0 for a lone pad of its model whatever slot
+  it occupies (a dup that does not exist binds a phantom device → a dead
+  entry). Ryujinx slots are objects in the `input_config` list, keyed by
+  `player_index` (`Player1`…).
 
-Le compteur commun aux schémas par nom et par GUID est `dup_index` : le nombre
-de manettes du même vendor:product déjà connectées dans un slot inférieur.
-`gamepad_monitor.py` le calcule depuis son roster et le passe à
-`apply_profile()` ; 0 est toujours correct pour la première manette d'un
-modèle donné.
+- **azahar, mgba, Cemu**: **snapshot restore**, *not* GUID substitution. Their
+  bindings cannot be synthesised from a VID:PID alone. The real model is:
 
-### Le mécanisme live : `backend/services/controller_profiles.py`
+  1. the owner maps the pad once, inside the emulator, via **"Scan mapping"**;
+  2. `snapshot_save()` stores that config block, indexed by `vendor:product`;
+  3. `snapshot_restore()` puts it back when a pad of the same model reconnects.
 
-C'est `gamepad_monitor.py` qui pilote tout, en continu, dans le backend déjà
-en cours d'exécution — **ce n'est pas un script à relancer à la main**.
-Chaque fois qu'une manette prend un NOUVEAU slot joueur (y compris les
-manettes déjà branchées au démarrage du backend), le module :
+  GUID-substituting versions of `_mgba()` and `_cemu()` used to exist in
+  `controller_profiles.py`. They were never called by `apply_profile()` and have
+  been removed — dead code that looks like the mechanism is worse than no code,
+  and this page described the box on the strength of them. The module docstring
+  is the authority.
 
-1. lit son vendor:product USB (evdev),
-2. résout son nom canonique SDL depuis `gamecontrollerdb.txt`,
-3. écrit/retargete la config native de chaque émulateur pour CE slot,
-   avec la bonne manette — en direct, sans redémarrer ni relancer quoi
-   que ce soit.
+The counter common to both the by-name and by-GUID schemes is `dup_index`: how
+many pads of the same vendor:product are already connected in a *lower* player
+slot. `gamepad_monitor.py` computes it from its roster and passes it to
+`apply_profile()`; 0 is always correct for the first pad of a given model.
 
-Le slot lui-même est attribué par `controller_registry.py` (déjà en place
-pour les batteries/labels TV) — première manette connectée = Joueur 1,
-suivante = Joueur 2, etc., jusqu'à 4. Le TYPE de manette qui occupe un slot
-peut donc changer d'une session à l'autre sans jamais rien casser.
+### The live mechanism: `backend/services/controller_profiles.py`
 
-- `azahar` (3DS), `mgba` (GBA), `Cemu` (Wii U) : matériel single-player ici,
-  seul le Joueur 1 est jamais concerné — et par restauration d'instantané
-  (voir plus haut), pas par substitution de GUID.
-- `melonDS` (DS) : **profilé**, contrairement à ce que disait cette page.
-  Un instantané sauvegardé gagne ; sinon `_melonds()` synthétise la config à
-  partir de la manette connectée. Les boutons de façade sont constants d'une
-  manette à l'autre — seule la croix directionnelle diffère (hat ou boutons),
-  et c'est la seule chose adaptée (`_pad_has_hat`). Single-player, slot 1.
-- `ppsspp` : aucune config existante trouvée sur ce boîtier (jamais lancé) →
-  ignoré proprement ; lance-le une fois, configure les boutons manuellement,
-  et le profilage le couvrira ensuite.
-- Manettes non-Sony (Xbox, 8BitDo, génériques) : la substitution GUID
-  (Ryujinx) suppose des index identiques à la manette de référence (Joueur 1
-  déjà configuré), ce qui n'est garanti qu'au sein d'une même famille de
-  pilote (comme DS4/DualSense). Une famille différente demande un
-  « Scan mapping » une fois, qui devient l'instantané réutilisé ensuite.
+`gamepad_monitor.py` drives all of it, continuously, inside the already-running
+backend — **this is not a script you re-run by hand**. Every time a pad takes a
+NEW player slot (including pads already plugged in when the backend starts), the
+module:
 
-⚠️ **Un émulateur déjà lancé au moment où sa config change ne relit pas le
-fichier tout seul** — il faut quitter/relancer le jeu pour que le nouveau
-mapping s'applique à cette session-là. Les lancements suivants sont
-transparents.
+1. reads its USB vendor:product (evdev),
+2. resolves its canonical SDL name,
+3. writes or retargets each emulator's native config for THAT slot, with the
+   right pad — live, without restarting or relaunching anything.
 
-## `install/apply-controller-model.sh` — outil de secours uniquement
+The slot itself is assigned by `controller_registry.py` (already in place for
+battery levels and TV labels): first pad connected = Player 1, next = Player 2,
+up to 4. The *type* of pad occupying a slot can therefore change from one
+session to the next without ever breaking anything.
+
+- `azahar` (3DS), `mgba` (GBA), `Cemu` (Wii U): single-player hardware here, so
+  only Player 1 is ever touched — and by snapshot restore (see above), not GUID
+  substitution.
+- `melonDS` (DS): **profiled**, contrary to what this page used to claim. A
+  saved snapshot wins; otherwise `_melonds()` synthesises the config from the
+  connected pad. Face buttons are consistent across pads — only the D-pad
+  differs (hat vs buttons), and that is the only thing adapted
+  (`_pad_has_hat`). Single-player, slot 1.
+- `ppsspp`: no existing config found on this box (never launched) → skipped
+  cleanly. Launch it once, map the buttons by hand, and profiling covers it
+  from then on.
+- Non-Sony pads (Xbox, 8BitDo, generics): GUID substitution (Ryujinx) assumes
+  indices identical to the reference pad (the already-configured Player 1),
+  which is only guaranteed within one driver family (as with DS4/DualSense). A
+  different family needs one "Scan mapping", which then becomes the snapshot
+  reused afterwards.
+
+> ⚠️ **An emulator already running when its config changes does not re-read the
+> file.** Quit and relaunch the game for the new mapping to apply to that
+> session. Subsequent launches are transparent.
+
+### A pad with no Home button still gets a slot
+
+`_find_gamepad_devices()` used to keep a device only if it declared `BTN_MODE`
+or `KEY_HOMEPAGE`. A pad without a Home button — a generic USB pad, an arcade
+stick, a SNES or N64 clone, an 8BitDo in DInput — never entered the dictionary
+at all: never watched, never registered, no player slot, and `apply_profile()`
+never called for it. It still worked in emulators that read SDL themselves,
+which is what made the whole pipeline described above look like it was running
+when it was not.
+
+A device is kept if it declares `BTN_SOUTH` too. Such pads simply never reach
+`_on_guide_pressed`, which is correct. A keyboard still cannot take a slot:
+`is_pad` is `BTN_SOUTH`, and no keyboard declares it. Pads kept without a Guide
+button say so once, at INFO.
+
+### One pad, several device nodes
+
+`controller_registry.key_for()` returns the pad's MAC, so a DualShock 4 paired
+over Bluetooth that is then plugged in to charge maps **two** `/dev/input/event*`
+paths to a single registry key. Unplugging the cable killed that path's watcher
+and used to release the slot outright — `gp:disconnected` broadcast,
+`release_profile()` putting `Wiimote1` back on the virtual pointer — while the
+pad was still connected over Bluetooth and still in the player's hands. The slot
+is released only once no live path maps to that key.
+
+## `install/apply-controller-model.sh` — rescue tool only
 
 ```
-install/apply-controller-model.sh                  # auto-détecte, jusqu'à 4
-install/apply-controller-model.sh 054c:0ce6         # VID:PID forcé (Joueur 1)
+install/apply-controller-model.sh                    # auto-detect, up to 4
+install/apply-controller-model.sh 054c:0ce6          # forced VID:PID (Player 1)
 install/apply-controller-model.sh 054c:0ce6 "PS5 Controller"
 ```
 
-Appelle directement `controller_profiles.py` — utile uniquement pour
-retargeter des manettes DÉJÀ branchées sans les débrancher/rebrancher (ex.
-juste après avoir installé cette fonctionnalité). Le mécanisme normal, au
-quotidien, est 100 % automatique via `gamepad_monitor.py`.
+Calls `controller_profiles.py` directly. Useful only for retargeting pads that
+are ALREADY connected without unplugging them (right after installing this
+feature, for instance). Day to day the normal mechanism is fully automatic via
+`gamepad_monitor.py`.
 
-Complémentaire à `apply-multi-ds4.sh` (clone Joueur 1 vers 2-4 pour
-plusieurs manettes du MÊME modèle, en une seule fois à l'installation).
+Complementary to `apply-multi-ds4.sh`, which clones Player 1 into slots 2-4 for
+several pads of the SAME model, once, at install time.
