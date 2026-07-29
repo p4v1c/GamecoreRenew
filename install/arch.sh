@@ -221,8 +221,40 @@ progress 4 "Copying GameCore files"
 msg "Setting up $GAMECORE_PATH"
 mkdir -p "$(dirname "$GAMECORE_PATH")"
 if [ "$PROJECT_ROOT" != "$GAMECORE_PATH" ]; then
-  cp -r "$PROJECT_ROOT/." "$GAMECORE_PATH"
-  ok "Copied $PROJECT_ROOT → $GAMECORE_PATH"
+  # Copy with the same exclusions update/linux.sh uses, not a bare `cp -r`.
+  #
+  # Re-running the installer from a checkout is a path this script recommends at
+  # the end, and `cp -r "$PROJECT_ROOT/."` had no exclusions at all: a bezel
+  # uploaded from the ROM manager (assets/overlays/pcsx2.png) was overwritten by
+  # the repo's copy, with no backup and nothing said. Same for the 18
+  # assets/logos/*.png, config/overlays.json and the installed themes.
+  # uninstall.sh already preserves assets/ for exactly this reason.
+  #
+  # tar rather than rsync: this runs at 4 %, before `pacman -Syu`, and rsync is
+  # not part of Arch's `base` — tar is. Same semantics as the old `cp -r "$SRC/."`
+  # (merge into the destination, delete nothing), only with exclusions.
+  tar -C "$PROJECT_ROOT" \
+    --exclude='./.git' \
+    --exclude='./.venv' \
+    --exclude='./emu' \
+    --exclude='./config' \
+    --exclude='./assets/overlays' \
+    --exclude='./assets/logos' \
+    -cf - . \
+    | tar -C "$GAMECORE_PATH" -xf - \
+    || die "could not copy $PROJECT_ROOT → $GAMECORE_PATH"
+
+  # First run: those directories have to arrive from somewhere. Copy each only
+  # when it is absent at the destination, so an existing install keeps its own.
+  # config/systems.json and config/apps.json are regenerated from install/*.dist
+  # further down either way, so excluding config/ above costs nothing.
+  for _keep in emu config assets/overlays assets/logos; do
+    if [ -d "$PROJECT_ROOT/$_keep" ] && [ ! -e "$GAMECORE_PATH/$_keep" ]; then
+      mkdir -p "$(dirname "$GAMECORE_PATH/$_keep")"
+      cp -a "$PROJECT_ROOT/$_keep" "$GAMECORE_PATH/$_keep"
+    fi
+  done
+  ok "Copied $PROJECT_ROOT → $GAMECORE_PATH (user content preserved)"
 else
   ok "Already in place."
 fi
@@ -249,6 +281,9 @@ PKGS=(
   plasma-desktop sddm xorg-xdpyinfo xorg-xrandr xorg-xset unclutter
   bluez bluez-utils
   caddy
+  # update/linux.sh does all of its file installation with rsync, and rsync is
+  # not in Arch's `base` — an OTA on a box without it failed at the first step.
+  rsync
 )
 
 # Kernel series — needed by both the headers and the Manjaro NVIDIA module,
@@ -270,14 +305,41 @@ else
   [[ $KERNEL == *zen* ]] && PKGS+=("linux-zen-headers") || PKGS+=("linux-headers")
 fi
 
+# The lib32-* drivers live in [multilib], which Manjaro enables and Arch does
+# not. Asking pacman for a package from a disabled repo is a "target not found"
+# error, and under `set -euo pipefail` that ended the whole install mid-way —
+# after the system upgrade and after the user account was created, before any
+# service was configured. The box was left in a state that was neither a working
+# install nor a clean machine.
+#
+# Not enabled automatically on purpose: /var/lib/gamecore is the record of what
+# this install changed, and quietly editing /etc/pacman.conf would not be in it.
+HAS_MULTILIB=false
+if pacman-conf --repo-list 2>/dev/null | grep -qx multilib; then
+  HAS_MULTILIB=true
+fi
+
+# `|| true` so a false HAS_MULTILIB is not the function's exit status — that
+# alone would abort the install under `set -e`.
+add_lib32() { $HAS_MULTILIB && PKGS+=("$@") || true; }
+
+if ! $HAS_MULTILIB; then
+  warn "[multilib] is not enabled — skipping the 32-bit Vulkan drivers."
+  warn "  32-bit games (mostly under Steam/Proton) may not render."
+  warn "  To enable it, uncomment the [multilib] section in /etc/pacman.conf,"
+  warn "  run 'sudo pacman -Sy', then re-run this installer."
+fi
+
 # GPU drivers — detect the vendor instead of assuming AMD
 GPU_INFO=$(lspci -nn 2>/dev/null | grep -Ei 'vga|3d|display' || true)
 NVIDIA_REBOOT_NEEDED=false
 if echo "$GPU_INFO" | grep -qiE 'amd|radeon'; then
-  PKGS+=(xf86-video-amdgpu vulkan-radeon lib32-vulkan-radeon)
+  PKGS+=(xf86-video-amdgpu vulkan-radeon)
+  add_lib32 lib32-vulkan-radeon
   info "GPU detected: AMD (vulkan-radeon)"
 elif echo "$GPU_INFO" | grep -qi 'intel'; then
-  PKGS+=(vulkan-intel lib32-vulkan-intel)
+  PKGS+=(vulkan-intel)
+  add_lib32 lib32-vulkan-intel
   info "GPU detected: Intel (vulkan-intel)"
 elif echo "$GPU_INFO" | grep -qi 'nvidia'; then
   # NEVER pass the bare name `nvidia` on Manjaro: no package is called that.
@@ -295,7 +357,8 @@ elif echo "$GPU_INFO" | grep -qi 'nvidia'; then
     NV_PKG="nvidia"
   fi
   if [[ -n "$NV_PKG" ]]; then
-    PKGS+=("$NV_PKG" nvidia-utils lib32-nvidia-utils)
+    PKGS+=("$NV_PKG" nvidia-utils)
+    add_lib32 lib32-nvidia-utils
     # nvidia-dkms builds against the installed kernel and therefore needs dkms
     # plus the headers added above.
     [[ "$NV_PKG" == "nvidia-dkms" ]] && PKGS+=(dkms)
@@ -559,7 +622,17 @@ if [[ "$MODE" == "full" ]]; then
   progress 58 "Living-room applications"
   msg "Living-room companions"
   UNIT_DIR="$USER_HOME/.config/systemd/user"
-  mkdir -p "$UNIT_DIR/default.target.wants"
+  # As the user, not as root. This was the one place in the script that created
+  # something under $USER_HOME as root, and it created the whole chain — so on a
+  # distribution whose /etc/skel has no .config (Arch vanilla) with an account
+  # the installer had just made with `useradd -m`, ~/.config itself ended up
+  # root:root 0755. The Electron shell keeps its profile in
+  # ~/.config/gamecore-electron and gamecore-ui.service runs as the user, so it
+  # could not write it: the service failed and looped on Restart=on-failure, and
+  # the kiosk never started at all — while the installer printed "Installation
+  # complete!". The chown further down deliberately covers only .config/systemd
+  # (see the comment there), so it never repaired this.
+  install -d -o "$USER_NAME" -g "$USER_NAME" -m 755 "$UNIT_DIR/default.target.wants"
   # user services to (re)start once the user bus is up, filled per app below
   RESTART_UNITS=()
 
