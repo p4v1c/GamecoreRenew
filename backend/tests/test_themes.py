@@ -5,7 +5,8 @@ in SURFACES. These tests pin that rule, since the failure it prevents — half a
 theme, e.g. a themed dashboard behind the stock splash — is silent and only
 shows up on the TV.
 
-Run from anywhere:  python backend/tests/test_themes.py
+Run under pytest:  pytest backend/tests/test_themes.py
+Or directly:       python backend/tests/test_themes.py
 """
 import json
 import sys
@@ -14,15 +15,21 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import pytest
+
 from backend.services import themes
 
 
-failures = []
+@pytest.fixture
+def themes_root(tmp_path, monkeypatch):
+    """A themes directory of our own, with the module globals aimed at it.
 
-def check(name, cond, detail=""):
-    print(f"[{'OK ' if cond else 'FAIL'}] {name}" + (f" — {detail}" if detail and not cond else ""))
-    if not cond:
-        failures.append(name)
+    monkeypatch restores THEMES_DIR/STATE_FILE afterwards, so the suite never
+    leaves `themes` pointing at a tmpdir that has since been deleted.
+    """
+    monkeypatch.setattr(themes, "THEMES_DIR", tmp_path)
+    monkeypatch.setattr(themes, "STATE_FILE", tmp_path / "theme-state.json")
+    return tmp_path
 
 
 def write_theme(root, tid, *, provides=("splash", "shell"), api=None, entry="index.js", **extra):
@@ -40,107 +47,171 @@ def write_theme(root, tid, *, provides=("splash", "shell"), api=None, entry="ind
     return themes._read_manifest(d)
 
 
-def main():
-    tmp = tempfile.TemporaryDirectory()
-    root = Path(tmp.name)
+# ── completeness ─────────────────────────────────────────────────────────────
 
-    # ── completeness ──────────────────────────────────────────────────────────
-    full = write_theme(root, "full")
-    check("thème complet accepté", full is not None and full["compatible"])
-    check("aucun avertissement", full is not None and full["warnings"] == [], str(full and full["warnings"]))
+def test_complete_theme_is_accepted_without_warnings(themes_root):
+    full = write_theme(themes_root, "full")
+    assert full is not None and full["compatible"], "thème complet accepté"
+    assert full["warnings"] == [], f"aucun avertissement ({full['warnings']})"
 
-    for absent, present in (("splash", ["shell"]), ("shell", ["splash"])):
-        m = write_theme(root, f"no_{absent}", provides=present)
-        check(f"sans {absent} → incompatible", m is not None and not m["compatible"])
-        check(f"sans {absent} → raison donnée",
-              m is not None and any(absent in w for w in m["warnings"]), str(m and m["warnings"]))
 
-    m = write_theme(root, "empty", provides=[])
-    check("provides vide → incompatible", m is not None and not m["compatible"])
+@pytest.mark.parametrize("absent,present", [("splash", ["shell"]), ("shell", ["splash"])])
+def test_theme_missing_a_surface_is_incompatible_and_names_it(themes_root, absent, present):
+    m = write_theme(themes_root, f"no_{absent}", provides=present)
+    assert m is not None and not m["compatible"], f"sans {absent} → incompatible"
+    assert any(absent in w for w in m["warnings"]), f"sans {absent} → raison donnée ({m['warnings']})"
 
-    # ── manifest hygiene ──────────────────────────────────────────────────────
-    m = write_theme(root, "future", api=themes.SDK_VERSION + 1)
-    check("SDK trop récent → incompatible", m is not None and not m["compatible"])
 
-    m = write_theme(root, "unknown_surface", provides=["splash", "shell", "toaster"])
-    check("surface inconnue ignorée", m is not None and "toaster" not in m["provides"], str(m and m["provides"]))
-    check("surface inconnue signalée",
-          m is not None and any("toaster" in w for w in m["warnings"]), str(m and m["warnings"]))
-    check("surface inconnue seule n'invalide pas", m is not None and m["compatible"])
+def test_empty_provides_is_incompatible(themes_root):
+    m = write_theme(themes_root, "empty", provides=[])
+    assert m is not None and not m["compatible"], "provides vide → incompatible"
 
-    d = root / "mismatch"
+
+# ── manifest hygiene ─────────────────────────────────────────────────────────
+
+def test_a_theme_from_a_future_sdk_is_incompatible(themes_root):
+    m = write_theme(themes_root, "future", api=themes.SDK_VERSION + 1)
+    assert m is not None and not m["compatible"], "SDK trop récent → incompatible"
+
+
+def test_unknown_surface_is_dropped_reported_and_not_fatal(themes_root):
+    m = write_theme(themes_root, "unknown_surface", provides=["splash", "shell", "toaster"])
+    assert m is not None and "toaster" not in m["provides"], f"surface inconnue ignorée ({m['provides']})"
+    assert any("toaster" in w for w in m["warnings"]), f"surface inconnue signalée ({m['warnings']})"
+    assert m["compatible"], "surface inconnue seule n'invalide pas"
+
+
+def test_manifest_id_must_equal_the_directory_name(themes_root):
+    d = themes_root / "mismatch"
     d.mkdir()
     (d / "index.js").write_text("export default () => ({})\n")
     (d / "theme.json").write_text(json.dumps(
         {"id": "somethingelse", "name": "x", "version": "1", "api": 1, "provides": ["splash", "shell"]}))
-    check("id ≠ nom du dossier → rejeté", themes._read_manifest(d) is None)
+    assert themes._read_manifest(d) is None, "id ≠ nom du dossier → rejeté"
 
-    d = root / "noentry"
+
+def test_a_theme_without_its_entry_module_is_rejected(themes_root):
+    d = themes_root / "noentry"
     d.mkdir()
     (d / "theme.json").write_text(json.dumps(
         {"id": "noentry", "name": "x", "version": "1", "api": 1, "provides": ["splash", "shell"]}))
-    check("entrée manquante → rejeté", themes._read_manifest(d) is None)
+    assert themes._read_manifest(d) is None, "entrée manquante → rejeté"
 
-    d = root / "broken"
+
+def test_an_unreadable_manifest_is_rejected(themes_root):
+    d = themes_root / "broken"
     d.mkdir()
     (d / "index.js").write_text("")
     (d / "theme.json").write_text("{ not json")
-    check("manifeste illisible → rejeté", themes._read_manifest(d) is None)
+    assert themes._read_manifest(d) is None, "manifeste illisible → rejeté"
 
-    # ── id safety: a theme id is a directory name, never a path ───────────────
-    for bad in ("../escape", "a/b", "Upper", "", "x" * 65):
-        check(f"id refusé: {bad!r}", themes._safe_id(bad) is None)
-    check("id accepté: 'summer'", themes._safe_id("summer") == "summer")
 
-    # ── set_active refuses what cannot load ───────────────────────────────────
-    # Pointed at the fixtures above, so the refusal is tested against a theme we
-    # built to be incomplete rather than whatever happens to be installed.
-    themes.THEMES_DIR = root
-    themes.STATE_FILE = root / "theme-state.json"
+# ── id safety: a theme id is a directory name, never a path ──────────────────
 
-    # Un gabarit (préfixe _) ne doit jamais être proposé : _safe_id refuse
-    # l'underscore initial, donc il serait listé puis refusé à la sélection.
-    write_theme(root, "_template")
+@pytest.mark.parametrize("bad", ["../escape", "a/b", "Upper", "", "x" * 65])
+def test_theme_id_is_a_directory_name_never_a_path(bad):
+    assert themes._safe_id(bad) is None, f"id refusé: {bad!r}"
+
+
+def test_a_plain_theme_id_is_accepted():
+    assert themes._safe_id("summer") == "summer", "id accepté: 'summer'"
+
+
+# ── set_active refuses what cannot load ──────────────────────────────────────
+# Pointed at fixtures we built to be incomplete, rather than whatever happens to
+# be installed on the machine running the tests.
+
+def test_templates_are_hidden_from_the_picker(themes_root):
+    # A leading underscore marks a template, not a theme: _safe_id refuses it,
+    # so listing it would offer something that can never be selected.
+    write_theme(themes_root, "_template")
     listed = {t["id"] for t in themes.list_themes()}
-    check("gabarit _ masqué du sélecteur", "_template" not in listed, str(sorted(listed)))
-    check("gabarit non sélectionnable de toute façon", themes._safe_id("_template") is None)
+    assert "_template" not in listed, f"gabarit _ masqué du sélecteur ({sorted(listed)})"
+    assert themes._safe_id("_template") is None, "gabarit non sélectionnable de toute façon"
 
-    check("les fixtures sont bien listées", {t["id"] for t in themes.list_themes()} >= {"full", "no_splash"},
-          str([t["id"] for t in themes.list_themes()]))
 
-    check("set_active accepte un thème complet", themes.set_active("full") == "full")
-    check("la sélection est persistée", themes.get_active() == "full")
+def test_valid_themes_are_listed(themes_root):
+    write_theme(themes_root, "full")
+    write_theme(themes_root, "no_splash", provides=["shell"])
+    listed = {t["id"] for t in themes.list_themes()}
+    assert listed >= {"full", "no_splash"}, f"les fixtures sont bien listées ({sorted(listed)})"
 
-    try:
+
+def test_set_active_accepts_a_complete_theme_and_persists_it(themes_root):
+    write_theme(themes_root, "full")
+    assert themes.set_active("full") == "full", "set_active accepte un thème complet"
+    assert themes.get_active() == "full", "la sélection est persistée"
+
+
+def test_set_active_refuses_an_incomplete_theme_and_keeps_the_selection(themes_root):
+    write_theme(themes_root, "full")
+    write_theme(themes_root, "no_splash", provides=["shell"])
+    themes.set_active("full")
+
+    with pytest.raises(ValueError) as e:
         themes.set_active("no_splash")
-        check("set_active refuse un thème incomplet", False, "accepté")
-    except ValueError as e:
-        check("set_active refuse un thème incomplet", "splash" in str(e), str(e))
+    assert "splash" in str(e.value), f"set_active refuse un thème incomplet ({e.value})"
+    assert themes.get_active() == "full", "un refus ne change pas la sélection"
 
-    check("un refus ne change pas la sélection", themes.get_active() == "full")
 
-    check("set_active(None) revient au défaut", themes.set_active(None) is None)
+def test_set_active_none_returns_to_the_default(themes_root):
+    write_theme(themes_root, "full")
+    themes.set_active("full")
+    assert themes.set_active(None) is None, "set_active(None) revient au défaut"
 
-    try:
+
+def test_set_active_refuses_an_unknown_id(themes_root):
+    with pytest.raises(LookupError):
         themes.set_active("nope_does_not_exist")
-        check("set_active refuse un id inconnu", False, "accepté")
-    except LookupError:
-        check("set_active refuse un id inconnu", True)
 
-    try:
+
+def test_set_active_refuses_a_path(themes_root):
+    with pytest.raises(ValueError):
         themes.set_active("../etc")
-        check("set_active refuse un chemin", False, "accepté")
-    except ValueError:
-        check("set_active refuse un chemin", True)
-
-    tmp.cleanup()
-
-    print()
-    if failures:
-        print(f"{len(failures)} FAILURES: {failures}")
-        sys.exit(1)
-    print("All tests passed.")
 
 
 if __name__ == "__main__":
-    main()
+    # Same tests, without pytest: hand-roll the themes_root fixture.
+    import contextlib
+
+    @contextlib.contextmanager
+    def themes_root_ctx():
+        saved = (themes.THEMES_DIR, themes.STATE_FILE)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            themes.THEMES_DIR = root
+            themes.STATE_FILE = root / "theme-state.json"
+            try:
+                yield root
+            finally:
+                themes.THEMES_DIR, themes.STATE_FILE = saved
+
+    def run(fn, *args, needs_root=True):
+        if needs_root:
+            with themes_root_ctx() as root:
+                fn(root, *args)
+        else:
+            fn(*args)
+        label = fn.__name__ + (f"[{','.join(map(str, args))}]" if args else "")
+        print(f"[OK ] {label}")
+
+    run(test_complete_theme_is_accepted_without_warnings)
+    run(test_theme_missing_a_surface_is_incompatible_and_names_it, "splash", ["shell"])
+    run(test_theme_missing_a_surface_is_incompatible_and_names_it, "shell", ["splash"])
+    run(test_empty_provides_is_incompatible)
+    run(test_a_theme_from_a_future_sdk_is_incompatible)
+    run(test_unknown_surface_is_dropped_reported_and_not_fatal)
+    run(test_manifest_id_must_equal_the_directory_name)
+    run(test_a_theme_without_its_entry_module_is_rejected)
+    run(test_an_unreadable_manifest_is_rejected)
+    for _bad in ("../escape", "a/b", "Upper", "", "x" * 65):
+        run(test_theme_id_is_a_directory_name_never_a_path, _bad, needs_root=False)
+    run(test_a_plain_theme_id_is_accepted, needs_root=False)
+    run(test_templates_are_hidden_from_the_picker)
+    run(test_valid_themes_are_listed)
+    run(test_set_active_accepts_a_complete_theme_and_persists_it)
+    run(test_set_active_refuses_an_incomplete_theme_and_keeps_the_selection)
+    run(test_set_active_none_returns_to_the_default)
+    run(test_set_active_refuses_an_unknown_id)
+    run(test_set_active_refuses_a_path)
+    print("\nAll tests passed.")

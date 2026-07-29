@@ -1,83 +1,98 @@
 """Unit tests for the low-battery threshold logic (services.battery._check).
 
-Run from anywhere:  python backend/tests/test_battery.py
+Run under pytest:  pytest backend/tests/test_battery.py
+Or directly:       python backend/tests/test_battery.py
 """
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import pytest
+
 from backend.services import battery
 
 
-failures = []
-
-def check(name, cond, detail=""):
-    print(f"[{'OK ' if cond else 'FAIL'}] {name}" + (f" — {detail}" if detail and not cond else ""))
-    if not cond:
-        failures.append(name)
+@pytest.fixture(autouse=True)
+def fresh_alert_state():
+    """_check remembers which thresholds already fired — start every test clean."""
+    battery._fired.clear()
+    yield
+    battery._fired.clear()
 
 
 def pad(level, charging=False, name="sony_controller_battery_aa"):
     return {"name": name, "label": "DualShock 4", "level": level, "charging": charging}
 
 
-def main():
-    battery._fired.clear()
+def test_each_threshold_fires_once_on_the_way_down():
+    assert battery._check([pad(100)]) == [], "100% → rien"
+    assert battery._check([pad(26)]) == [], "26% → rien"
 
-    # Descente progressive : un toast par seuil, une seule fois
-    check("100% → rien", battery._check([pad(100)]) == [])
-    check("26% → rien", battery._check([pad(26)]) == [])
     a = battery._check([pad(25)])
-    check("25% → toast seuil 25", len(a) == 1 and a[0]["threshold"] == 25, str(a))
-    check("16% → rien (25 déjà signalé)", battery._check([pad(16)]) == [])
+    assert len(a) == 1 and a[0]["threshold"] == 25, f"25% → toast seuil 25 ({a})"
+
+    assert battery._check([pad(16)]) == [], "16% → rien (25 déjà signalé)"
+
     a = battery._check([pad(15)])
-    check("15% → toast seuil 15", len(a) == 1 and a[0]["threshold"] == 15, str(a))
-    check("14% → rien (déjà signalé)", battery._check([pad(14)]) == [])
+    assert len(a) == 1 and a[0]["threshold"] == 15, f"15% → toast seuil 15 ({a})"
+
+    assert battery._check([pad(14)]) == [], "14% → rien (déjà signalé)"
+
     a = battery._check([pad(10)])
-    check("10% → toast seuil 10", len(a) == 1 and a[0]["threshold"] == 10, str(a))
-    a = battery._check([pad(4)])
-    check("4% → toast seuil 5", len(a) == 1 and a[0]["threshold"] == 5, str(a))
-    check("3% → rien", battery._check([pad(3)]) == [])
+    assert len(a) == 1 and a[0]["threshold"] == 10, f"10% → toast seuil 10 ({a})"
 
-    # Une manette branchée à 4% ne donne qu'UN toast (pas 15+10+5)
-    battery._fired.clear()
     a = battery._check([pad(4)])
-    check("connexion à 4% → un seul toast", len(a) == 1 and a[0]["threshold"] == 5, str(a))
+    assert len(a) == 1 and a[0]["threshold"] == 5, f"4% → toast seuil 5 ({a})"
 
-    # La charge réarme tout
-    battery._fired.clear()
+    assert battery._check([pad(3)]) == [], "3% → rien"
+
+
+def test_pad_connecting_at_4_percent_gives_one_toast_not_three():
+    a = battery._check([pad(4)])
+    assert len(a) == 1 and a[0]["threshold"] == 5, f"connexion à 4% → un seul toast ({a})"
+
+
+def test_charging_rearms_the_thresholds():
     battery._check([pad(12)])
-    check("charge → rien", battery._check([pad(30, charging=True)]) == [])
-    a = battery._check([pad(15)])
-    check("après charge, 15% re-signale", len(a) == 1, str(a))
+    assert battery._check([pad(30, charging=True)]) == [], "charge → rien"
 
-    # Oscillation autour du seuil : pas de spam (marge de réarmement)
-    battery._fired.clear()
+    a = battery._check([pad(15)])
+    assert len(a) == 1, f"après charge, 15% re-signale ({a})"
+
+
+def test_oscillating_around_a_threshold_does_not_spam():
     battery._check([pad(15)])
-    check("16% n'est pas réarmé (marge)", battery._check([pad(16)]) == [] and battery._check([pad(15)]) == [])
+    assert battery._check([pad(16)]) == [], "16% n'est pas réarmé (marge)"
+    assert battery._check([pad(15)]) == [], "15% déjà signalé"
+
     battery._check([pad(25)])  # > 15+5 → réarme
     a = battery._check([pad(15)])
-    check("25% puis 15% re-signale", len(a) == 1, str(a))
+    assert len(a) == 1, f"25% puis 15% re-signale ({a})"
 
-    # Déconnexion → état oublié
-    battery._fired.clear()
+
+def test_disconnecting_forgets_the_alert_state():
     battery._check([pad(12)])
     battery._check([])  # manette partie
     a = battery._check([pad(12)])
-    check("reconnexion à 12% re-signale", len(a) == 1 and a[0]["threshold"] == 15, str(a))
+    assert len(a) == 1 and a[0]["threshold"] == 15, f"reconnexion à 12% re-signale ({a})"
 
-    # Deux manettes indépendantes
-    battery._fired.clear()
+
+def test_two_pads_alert_independently():
     a = battery._check([pad(14, name="pad_a"), pad(80, name="pad_b")])
-    check("2 manettes: seule la faible alerte", len(a) == 1, str(a))
-
-    print()
-    if failures:
-        print(f"{len(failures)} FAILURES: {failures}")
-        sys.exit(1)
-    print("All tests passed.")
+    assert len(a) == 1, f"2 manettes: seule la faible alerte ({a})"
 
 
 if __name__ == "__main__":
-    main()
+    for fn in (
+        test_each_threshold_fires_once_on_the_way_down,
+        test_pad_connecting_at_4_percent_gives_one_toast_not_three,
+        test_charging_rearms_the_thresholds,
+        test_oscillating_around_a_threshold_does_not_spam,
+        test_disconnecting_forgets_the_alert_state,
+        test_two_pads_alert_independently,
+    ):
+        battery._fired.clear()
+        fn()
+        print(f"[OK ] {fn.__name__}")
+    print("\nAll tests passed.")
