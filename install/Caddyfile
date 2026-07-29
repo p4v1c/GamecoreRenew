@@ -74,6 +74,7 @@ https://:8443 {
 		redir /roms /roms/ 308
 		redir /saves /saves/ 308
 		redir /rpcs3 /rpcs3/ 308
+		redir /twitch /twitch/ 308
 		handle /roms/* {
 			reverse_proxy 127.0.0.1:8770
 		}
@@ -82,6 +83,31 @@ https://:8443 {
 		}
 		handle /rpcs3/* {
 			reverse_proxy 127.0.0.1:8771
+		}
+
+		# EmberTV. It used to listen on 0.0.0.0:8097 with no auth at all, which
+		# meant any device on the Wi-Fi could post to Twitch as the owner — the
+		# one GameCore port on the LAN rule exists precisely to stop that. It is
+		# loopback-only now and reachable here instead, behind the same login.
+		# Same no-strip contract as the addons: EmberTV takes BASE_PATH=/twitch
+		# (set in its unit by install/arch.sh) and strips the prefix itself.
+		# The TV does not come through here — its kiosk opens localhost:8097.
+		# start-tv.sh hands EmberTV a self-signed cert, so this hop speaks HTTPS;
+		# skip verification on it, the connection never leaves loopback.
+		#
+		# header_up Host is not optional here. With an https:// upstream Caddy
+		# replaces Host with the upstream address (it leaves it alone for a plain
+		# http:// one), and EmberTV's CSRF guard accepts a POST only when the
+		# Origin host equals Host — so without this, sending a chat message or
+		# signing out from a LAN browser would 403 every time.
+		handle /twitch/* {
+			reverse_proxy https://127.0.0.1:8097 {
+				transport http {
+					tls
+					tls_insecure_skip_verify
+				}
+				header_up Host {hostport}
+			}
 		}
 
 		# The TV SPA is not usable over the LAN (its /api is blocked) —

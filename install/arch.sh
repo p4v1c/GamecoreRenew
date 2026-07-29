@@ -579,12 +579,17 @@ if [[ "$MODE" == "full" ]]; then
   fi
   if [ -d /opt/Twitch-TV ]; then
     if [[ -n "$TWITCH_CLIENT_ID" && -n "$TWITCH_CLIENT_SECRET" ]]; then
+      # host: loopback, and it stays there. EmberTV authenticates nothing and
+      # every route acts as the signed-in Twitch account, so a LAN bind hands
+      # the account to the whole Wi-Fi. The TV kiosk reaches it on
+      # https://localhost:8097/; other devices go through Caddy's /twitch route,
+      # which is behind forward_auth like /roms and /saves.
       cat > /opt/Twitch-TV/config.json <<TWCFG
 {
   "clientId": "$TWITCH_CLIENT_ID",
   "clientSecret": "$TWITCH_CLIENT_SECRET",
   "port": 8097,
-  "host": "0.0.0.0",
+  "host": "127.0.0.1",
   "httpsKey": "",
   "httpsCert": ""
 }
@@ -612,6 +617,12 @@ After=network-online.target
 Type=simple
 WorkingDirectory=/opt/Twitch-TV
 Environment=PATH=/usr/bin:/usr/local/bin:/bin
+# Mount point for the Caddy /twitch route. EmberTV's client is built from
+# absolute URLs, so it strips the prefix itself (ASGI root_path semantics) —
+# a Caddy-side handle_path would break every asset. Requests that arrive
+# without the prefix are still served, so the TV kiosk on
+# https://localhost:8097/ is unaffected.
+Environment=BASE_PATH=/twitch
 ExecStart=/usr/bin/env bash /opt/Twitch-TV/start-tv.sh
 Restart=on-failure
 RestartSec=3
