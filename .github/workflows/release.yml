@@ -33,11 +33,30 @@ jobs:
         with:
           fetch-depth: 0 # Important pour que l'auto-tag puisse voir l'historique
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Runs BEFORE the tag step on purpose. Every push to main is published as
+      # a release that the whole fleet auto-installs, so a red backend must stop
+      # the line here — a failed step ends the job, which means no tag and no
+      # publish. Network-marked tests are deselected: the runner should not be
+      # able to fail the build because GameTDB is down.
+      - name: Test backend
+        run: |
+          pip install -r backend/requirements.txt pytest
+          python -m compileall -q backend
+          pytest backend/tests -q -m "not network"
+
       # --- ÉTAPE D'AUTO-INCREMENTATION DU TAG ---
+      # Pinned to the commit behind 1.64.0: this action runs with contents:write
+      # and the repo GITHUB_TOKEN, so a movable tag would let an upstream force-push
+      # execute arbitrary code against our releases.
       - name: Minor version for each merge
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         id: tag_version
-        uses: anothrNick/github-tag-action@1.64.0
+        uses: anothrNick/github-tag-action@c360518fb8131e99795f8208f8a6105ceca55ec2 # 1.64.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WITH_V: true
@@ -50,20 +69,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
       - name: Build frontend
         run: |
           cd frontend
           npm ci
           npm run build
-
-      - name: Install backend deps (validate)
-        run: |
-          pip install -r backend/requirements.txt
 
       - name: Package — OTA archive
         run: |
