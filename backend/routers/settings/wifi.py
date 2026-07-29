@@ -28,13 +28,14 @@ def _spawn_bg(coro, label: str) -> None:
     task.add_done_callback(_log_err)
 
 
-async def _run(*args: str) -> tuple[int, str, str]:
+async def _run(*args: str, stdin: str | None = None) -> tuple[int, str, str]:
     proc = await asyncio.create_subprocess_exec(
         *args,
+        stdin=asyncio.subprocess.PIPE if stdin is not None else None,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await proc.communicate()
+    stdout, stderr = await proc.communicate(stdin.encode() if stdin is not None else None)
     return proc.returncode or 0, stdout.decode(), stderr.decode()
 
 
@@ -154,11 +155,24 @@ class ConnectRequest(BaseModel):
 
 @router.post("/connect")
 async def connect_wifi(req: ConnectRequest):
+    # The SSID is positional and nothing marks the end of the options, so an
+    # SSID starting with '-' would be read as one by nmcli. Refused rather than
+    # escaped: such a network is vanishingly rare, and guessing at nmcli's
+    # option parsing is not something to be clever about.
+    if req.ssid.startswith("-"):
+        return {"ok": False, "wrong_password": False,
+                "error": "SSIDs starting with '-' are not supported"}
+
     args = ["nmcli", "dev", "wifi", "connect", req.ssid]
+    stdin = None
     if req.password:
-        args += ["password", req.password]
+        # --ask makes nmcli prompt for the secret and read it from stdin. It
+        # used to go in argv, where /proc/<pid>/cmdline exposed the Wi-Fi
+        # password to every local user for as long as the connect took.
+        args.insert(1, "--ask")
+        stdin = req.password + "\n"
     try:
-        code, out, err = await asyncio.wait_for(_run(*args), timeout=CONNECT_TIMEOUT)
+        code, out, err = await asyncio.wait_for(_run(*args, stdin=stdin), timeout=CONNECT_TIMEOUT)
     except asyncio.TimeoutError:
         return {"ok": False, "wrong_password": False, "error": "Connection timed out"}
 

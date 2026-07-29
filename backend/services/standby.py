@@ -18,6 +18,7 @@ Config lives in config/standby.json (kept across OTA updates).
 import asyncio
 import json
 import logging
+import os
 import time
 
 from ..config import GAMECORE_ROOT
@@ -49,8 +50,13 @@ def save_config(cfg: dict) -> dict:
     merged["screensaver_mins"] = max(1, int(merged["screensaver_mins"]))
     # Screen-off always comes after (or with) the screensaver stage
     merged["sleep_mins"] = max(merged["screensaver_mins"], int(merged["sleep_mins"]))
+    # tmp + os.replace, like auth._write_private: write_text truncates first,
+    # so an interrupted write left a half-written standby.json and load_config
+    # fell back to the defaults, quietly undoing the player's timings.
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_FILE.write_text(json.dumps(merged, indent=2))
+    tmp = CONFIG_FILE.with_name(CONFIG_FILE.name + ".tmp")
+    tmp.write_text(json.dumps(merged, indent=2))
+    os.replace(tmp, CONFIG_FILE)
     return merged
 
 

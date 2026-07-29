@@ -10,6 +10,7 @@ See docs/themes/README.md for the manifest contract.
 """
 import json
 import logging
+import os
 import re
 from pathlib import Path
 
@@ -141,6 +142,11 @@ def set_active(theme_id: str | None) -> str | None:
         # wondering why their choice did nothing.
         if not match["compatible"]:
             raise ValueError("; ".join(match["warnings"]) or "theme is not compatible")
+    # tmp + os.replace, like auth._write_private: write_text truncates first,
+    # so a power cut mid-write left a half-written theme.json that get_active()
+    # could not parse — and the player's theme silently reverted to the default.
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps({"active": theme_id}, indent=2))
+    tmp = STATE_FILE.with_name(STATE_FILE.name + ".tmp")
+    tmp.write_text(json.dumps({"active": theme_id}, indent=2))
+    os.replace(tmp, STATE_FILE)
     return theme_id

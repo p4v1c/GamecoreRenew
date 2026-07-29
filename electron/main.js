@@ -321,11 +321,18 @@ ipcMain.on('overlay:start', (_, { system_id }) => {
 })
 
 ipcMain.on('overlay:stop', (_, { system_id }) => {
+  // Tear the overlay down and bring the UI back FIRST, before anything that
+  // depends on the monitor still being alive. This used to `return` when
+  // monitorProcess was gone — and by then 'window:ready' had already hidden
+  // mainWindow, so the bezel stayed on screen with the interface invisible
+  // behind it and no way to get back to it.
+  destroyOverlayWindow()
+  if (mainWindow) mainWindow.show()
+
   if (!monitorProcess) return
   try {
     monitorProcess.stdin.write(JSON.stringify({ cmd: 'stop', system_id }) + '\n')
   } catch { /* ignore */ }
-  destroyOverlayWindow()
 })
 
 // ── Backend startup ───────────────────────────────────────────────────────────

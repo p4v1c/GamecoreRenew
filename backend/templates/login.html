@@ -58,7 +58,10 @@
 <script>
   var params = new URLSearchParams(location.search)
   var next = params.get('next') || '/'
-  if (next[0] !== '/' || next[1] === '/') next = '/'
+  // Must be a path on this host. The backslash case is the one that was
+  // missing: browsers normalise "/\evil.com" to "//evil.com" and follow it
+  // off-site, so the check has to reject it alongside "//".
+  if (next[0] !== '/' || next[1] === '/' || next[1] === '\\') next = '/'
 
   var f = document.getElementById('f'), pw = document.getElementById('pw'),
       err = document.getElementById('err'), go = document.getElementById('go')

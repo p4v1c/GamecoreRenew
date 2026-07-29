@@ -3,8 +3,11 @@
 Same binary format on PS3, PS4 and PSP — mirrored from the rpcs3-manager
 addon so the core backend can read game metadata without the addon.
 """
+import logging
 import struct
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 
 def parse_bytes(d: bytes) -> dict:
@@ -27,8 +30,19 @@ def parse_bytes(d: bytes) -> dict:
         return {}
 
 
+# A real PARAM.SFO is a few kilobytes. The cap is here because read_bytes()
+# had none and the file comes from a game dump: a 512 MB PARAM.SFO took the
+# backend's RSS from 43 MB to 540 MB, measured, and the prefetch loop reads one
+# per game.
+_MAX_SFO_BYTES = 1024 * 1024
+
+
 def parse(path: Path) -> dict:
     try:
+        if path.stat().st_size > _MAX_SFO_BYTES:
+            log.warning("sfo: %s is %d bytes — too large to be a PARAM.SFO, ignoring",
+                        path, path.stat().st_size)
+            return {}
         return parse_bytes(path.read_bytes())
     except Exception:
         return {}

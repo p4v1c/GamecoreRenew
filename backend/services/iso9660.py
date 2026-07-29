@@ -4,6 +4,7 @@ disc image (PSP ICON0.PNG, PS1/PS2 SYSTEM.CNF).
 Supports plain 2048-byte sector images (.iso) and raw 2352-byte dumps
 (.bin/.img, MODE1 and MODE2/Form1).
 """
+import os
 import struct
 
 # (sector_size, offset of the 2048 user-data bytes within a sector)
@@ -50,6 +51,16 @@ class Iso9660:
         return self._fh.read(2048)
 
     def _read_extent(self, lba: int, size: int) -> bytes:
+        # `size` is read out of the directory record, i.e. out of the file we
+        # are parsing — a corrupt or hostile image can claim any 32-bit length.
+        # Cap it at what the image could actually hold, so the loop below stops
+        # at end-of-file instead of growing a multi-gigabyte bytearray.
+        try:
+            file_size = os.fstat(self._fh.fileno()).st_size
+        except OSError:
+            file_size = 0
+        if file_size:
+            size = min(size, file_size)
         out = bytearray()
         while len(out) < size:
             chunk = self._sector(lba)
