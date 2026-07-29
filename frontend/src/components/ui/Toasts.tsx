@@ -68,11 +68,24 @@ export default function Toasts() {
     const offConnected = onWsEvent('gp:connected', onControllerEvent(true))
     const offDisconnected = onWsEvent('gp:disconnected', onControllerEvent(false))
 
+    // A launch that never started. Without this the API answered 503 and the
+    // loading screen simply stayed up, with nothing on screen saying why.
+    const offFailed = onWsEvent('game:failed', (d) => {
+      const detail = typeof d.detail === 'string' ? d.detail : ''
+      push({
+        icon: '⚠️',
+        title: 'Could not start the game',
+        body: detail || 'The emulator could not be launched',
+        accent: '#ef4444',
+      })
+    })
+
     const timersMap = timers.current
     return () => {
       offBattery()
       offConnected()
       offDisconnected()
+      offFailed()
       timersMap.forEach(clearTimeout)
       timersMap.clear()
     }

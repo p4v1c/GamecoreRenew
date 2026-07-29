@@ -6,8 +6,10 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from .. import ws
 from ..config import resolve_path
 from ..services import fullscreen_enforcer, local_media
+from ..services import process_manager as process_manager_module
 from ..services.process_manager import process_manager
 from ..services.rom_scanner import clean_name, iter_rom_files
 from .systems import list_all
@@ -107,13 +109,33 @@ async def launch_game(req: LaunchRequest):
     exec_args = system.get("args", "")
     game_key = req.game_key or (Path(req.rom_path).name if req.rom_path else system["id"])
 
-    await process_manager.launch(
-        exec_path=exec_path,
-        exec_args=exec_args,
-        rom_path=req.rom_path,
-        game_key=game_key,
-        system_id=req.system_id,
-    )
+    try:
+        await process_manager.launch(
+            exec_path=exec_path,
+            exec_args=exec_args,
+            rom_path=req.rom_path,
+            game_key=game_key,
+            system_id=req.system_id,
+        )
+    except (FileNotFoundError, PermissionError) as e:
+        # The emulator is not installed, or is not executable. This used to
+        # escape as a bare 500 with an empty body: no reason on screen, and no
+        # WebSocket event either, so the UI sat on its loading screen until
+        # someone pressed Back. _launching is released by launch()'s finally,
+        # so retrying works — the player just had no idea what happened.
+        detail = (f"{system['id']}: cannot start {exec_path!r} — "
+                  + ("not installed" if isinstance(e, FileNotFoundError) else "not executable"))
+        log.warning("launch failed — %s", detail)
+        # X may have moved under us; make the next launch re-probe rather than
+        # reuse a display that no longer answers.
+        process_manager_module.invalidate_display_cache()
+        try:
+            await ws.broadcast("game:failed", {
+                "game_key": game_key, "system_id": req.system_id, "detail": detail,
+            })
+        except Exception:
+            log.exception("launch: failed to broadcast game:failed")
+        raise HTTPException(503, detail)
 
     if system.get("gamepadTrigger"):
         task = asyncio.create_task(_gamepad_trigger())
