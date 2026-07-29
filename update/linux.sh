@@ -73,6 +73,56 @@ if [[ ! -d "${SRC_DIR}/backend" ]]; then
 fi
 echo "[update] Source directory: ${SRC_DIR}"
 
+# Disk space, before touching anything. An rsync that runs out of space part
+# way leaves GAMECORE_PATH half old and half new, and update/linux.sh cannot
+# install a specific tag — there is no way back from that except by hand.
+# Ask for twice the payload, which covers the copy plus the snapshot below.
+_need_kb=$(du -sk "${SRC_DIR}" 2>/dev/null | cut -f1)
+_free_kb=$(df -Pk "${GAMECORE_PATH}" 2>/dev/null | awk 'NR==2 {print $4}')
+if [[ -n "$_need_kb" && -n "$_free_kb" ]] && (( _free_kb < _need_kb * 2 )); then
+  fail "not enough free space on $(df -Ph "${GAMECORE_PATH}" | awk 'NR==2 {print $6}') — \
+need ~$(( _need_kb * 2 / 1024 )) MB, have $(( _free_kb / 1024 )) MB"
+fi
+
+# Snapshot the current install before overwriting it. --link-dest makes this
+# hardlinks rather than copies, so it costs directory entries and no data.
+#
+# Scope matters, and the reason is not obvious: a hardlinked snapshot shares
+# inodes with the live tree, so anything that writes IN PLACE changes both
+# copies at once. rsync is safe — it writes a temp file and renames, giving a
+# new inode — but `pip install` into .venv and `npm install` into node_modules
+# are not, and neither is the `echo > VERSION` at the end of this script. Those
+# are excluded: they are rebuilt from the release anyway, so there is nothing
+# in them worth going back to. What is left is exactly the code rsync replaces,
+# which is what the snapshot is for.
+#
+# Deliberately NOT restored automatically. A trap that rolls back on any
+# failure has to be right about a machine whose state it does not know, and
+# this path could not be exercised here — an automatic restore that goes wrong
+# turns a recoverable update into an unbootable box. The snapshot plus the
+# exact command is the part that is safe to ship untested.
+PREV_DIR="${GAMECORE_PATH}.prev"
+if rm -rf "$PREV_DIR" 2>/dev/null && \
+   rsync -a --delete \
+     --exclude='.venv/' --exclude='node_modules/' --exclude='emu/' \
+     --exclude='config/' --exclude='VERSION' \
+     --link-dest="${GAMECORE_PATH}/" "${GAMECORE_PATH}/" "${PREV_DIR}/" 2>/dev/null; then
+  echo "[update] Snapshot of the current install: ${PREV_DIR}"
+  restore_hint() {
+    echo "[update] To go back to the code that was running before this update:"
+    echo "[update]   sudo rsync -a ${PREV_DIR}/ ${GAMECORE_PATH}/"
+    echo "[update]   sudo systemctl restart gamecore-backend gamecore-ui"
+    echo "[update] (no --delete: the snapshot excludes .venv, node_modules, emu/ and"
+    echo "[update]  config/, which must not be removed from the live install)"
+  }
+else
+  echo "[update] WARNING: could not snapshot the current install — no easy way back if this fails."
+  restore_hint() { :; }
+fi
+
+# From here on, a failure leaves files half-replaced: say how to undo it.
+fail() { echo "[update] ERROR: $*"; restore_hint; exit 1; }
+
 echo "[update] Installing new files..."
 # Excluded paths are user data — never overwrite them:
 #   config/     → systems.json, controller mappings, playtime DB
