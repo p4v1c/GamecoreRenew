@@ -46,9 +46,14 @@ def _write_private(path: Path, data: bytes) -> None:
 
 
 def _auth() -> dict | None:
+    # UnicodeDecodeError is in the list because read_text() raises it, not
+    # JSONDecodeError, when the file is not UTF-8 — and every LAN request goes
+    # through here. An auth.json truncated mid-write, or written by something
+    # else, used to 500 the whole proxied surface including /login, leaving no
+    # way back in short of SSH.
     try:
         return json.loads(AUTH_FILE.read_text())
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+    except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError, OSError):
         return None
 
 
@@ -128,7 +133,19 @@ _global = {"fails": 0, "until": 0.0}
 
 def blocked_for(ip: str) -> int:
     """Seconds the caller still has to wait (0 = not blocked)."""
-    until = max(_fails.get(ip, (0, 0.0))[1], _global["until"])
+    until = _fails.get(ip, (0, 0.0))[1]
+    # The global breaker slows the spray down; it does not bar the door. It used
+    # to be unioned in for *every* caller, which made it a denial of service
+    # anyone on the LAN could trigger: 25 failures spread over throwaway keys and
+    # the owner got 429 with the correct password. Replayed once a minute, that
+    # locked them out of the ROM, save and RPCS3 managers for as long as the
+    # attacker cared to keep it up.
+    #
+    # It applies only to callers already known to have got a password wrong. A
+    # client that has never failed is not part of the spray, and register_success
+    # takes an address back out of _fails, so one typo does not stick.
+    if ip in _fails:
+        until = max(until, _global["until"])
     return max(0, int(until - time.time()) + 1) if until > time.time() else 0
 
 
