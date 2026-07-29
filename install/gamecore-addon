@@ -175,9 +175,23 @@ cmd_remove() {
 }
 
 cmd_update() {
+  # `git pull` is repo-wide: naming one addon still brings down new code for
+  # every one of them, since the addons run straight out of this checkout. If
+  # only the named addon's install.sh were replayed, the others would be left
+  # running new code with their deploy step (shared files, dependencies,
+  # service units) never re-applied — a state nothing else would ever repair.
+  # So every registered addon is reinstalled after a pull, whatever was asked
+  # for; the request only decides what gets mentioned.
+  local requested=("$@")
   ensure_repo pull
-  local targets=("$@")
-  [[ ${#targets[@]} -gt 0 ]] || mapfile -t targets < <(registry_names)
+
+  local targets=()
+  mapfile -t targets < <(registry_names)
+  if [[ ${#requested[@]} -gt 0 && ${#targets[@]} -gt 1 ]]; then
+    info "Note: the pull updates the whole addons repo, so every installed addon"
+    info "      is reinstalled — not just ${requested[*]}."
+  fi
+  [[ ${#targets[@]} -gt 0 ]] || targets=("${requested[@]}")
   [[ ${#targets[@]} -gt 0 ]] || { info "No addon installed — nothing to update."; return; }
   for name in "${targets[@]}"; do
     local dir

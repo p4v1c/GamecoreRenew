@@ -158,6 +158,27 @@ else
   npm run build        || fail "frontend build failed"
 fi
 
+# Caddy's config is NOT part of an OTA. /etc/caddy/Caddyfile is written only by
+# install/arch.sh (which templates the backend port into it) and needs root, so
+# a security fix to the shipped Caddyfile — a route that should not be exposed,
+# a gate that approves too much — reaches no installed box on its own. Nothing
+# said so, either. At least notice, and say what to do about it.
+if [[ -f /etc/caddy/Caddyfile && -f "${GAMECORE_PATH}/install/Caddyfile" ]]; then
+  # Compare against the shipped file with the same port substitution arch.sh
+  # applies, so a box on a non-default port is not flagged every single update.
+  _live_port=$(grep -oE '127\.0\.0\.1:[0-9]+' /etc/caddy/Caddyfile | head -1 | cut -d: -f2)
+  _live_port=${_live_port:-8765}
+  if ! sed "s|127\.0\.0\.1:8765|127.0.0.1:${_live_port}|g" \
+       "${GAMECORE_PATH}/install/Caddyfile" | diff -q - /etc/caddy/Caddyfile >/dev/null 2>&1; then
+    echo "[update] NOTE: /etc/caddy/Caddyfile differs from the one shipped in this release."
+    echo "[update]       An update cannot rewrite it (root, and the port is templated per box)."
+    echo "[update]       If you have not customised it, apply the new one with:"
+    echo "[update]         sudo sed 's|127.0.0.1:8765|127.0.0.1:${_live_port}|g' \\"
+    echo "[update]           ${GAMECORE_PATH}/install/Caddyfile > /etc/caddy/Caddyfile \\"
+    echo "[update]           && sudo systemctl reload caddy"
+  fi
+fi
+
 echo "[update] Clearing Electron UI cache (stale cached bundles hide the new frontend)..."
 # The UI is still running here — it may write some cache back on exit, which
 # is why electron/main.js also clears the HTTP cache on every start. This rm
