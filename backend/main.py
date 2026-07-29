@@ -7,8 +7,8 @@ from pathlib import Path
 from .config import DEBUG
 logging.basicConfig(level=logging.DEBUG if DEBUG else logging.WARNING)
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .db import init_db
@@ -20,7 +20,7 @@ from .routers import controllers as controllers_router
 from .routers import themes as themes_router
 from .routers.settings import wifi, audio, bluetooth
 from .services import battery, gamepad_monitor, prefetch, standby
-from .config import GAMECORE_ROOT, COVERS_DIR, ASSETS_DIR
+from .config import GAMECORE_ROOT, COVERS_DIR, ASSETS_DIR, BACKEND_PORT
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,6 +37,75 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="GameCore", version="1.0.0", lifespan=lifespan)
+
+
+# ── Cross-origin guard ───────────────────────────────────────────────────────
+# The core is unauthenticated on loopback, and the box runs browsers that can
+# reach it — the Firefox kiosk profiles arch.sh installs, and Stremio. A page in
+# one of those could carry
+#     <form action="http://127.0.0.1:8765/api/games/kill" method="post">
+# and auto-submit it: the running game dies, the save with it, from an ad on an
+# unrelated site. Only endpoints taking no Pydantic body are reachable that way
+# — a form can send urlencoded, multipart or text/plain and FastAPI answers 422
+# to anything else — which still leaves games/kill, update/apply,
+# addons/{name}/install and standby/exit.
+#
+# There was no middleware at all here: no CORS, no TrustedHost, no origin check.
+
+_LOOPBACK = {"localhost", "127.0.0.1", "::1"}
+
+
+def _hostport(netloc: str, default_port: int) -> tuple[str, int]:
+    """(host, port) from a netloc — lowercased, IPv6 brackets stripped."""
+    netloc = netloc.strip().lower()
+    if netloc.startswith("["):                      # [::1]:8765
+        host, _, rest = netloc.partition("]")
+        host, port = host[1:], rest.lstrip(":")
+    else:
+        host, _, port = netloc.partition(":")
+    try:
+        return host, int(port) if port else default_port
+    except ValueError:
+        return host, default_port
+
+
+def _origin_ok(headers) -> bool:
+    """False for a write driven by a page we are not serving."""
+    if headers.get("sec-fetch-site") == "cross-site":
+        return False
+
+    origin = headers.get("origin")
+    if not origin:
+        # curl, the addon CLI, the install scripts. A browser always attaches
+        # Origin to a cross-origin write, so nothing we are defending against
+        # arrives without one.
+        return True
+
+    scheme, _, rest = origin.partition("://")
+    if not rest:
+        return False
+    o_host, o_port = _hostport(rest, 443 if scheme == "https" else 80)
+    h_host, h_port = _hostport(headers.get("host", ""), o_port)
+
+    # Same-origin. This is the branch that keeps LAN login working: /login and
+    # /api/auth/* are proxied by Caddy from https://<whatever address the client
+    # used>:8443, the box has no fixed name, and Caddy passes the client's Host
+    # through — so comparing the two is the check, with no hardcoded host.
+    if (o_host, o_port) == (h_host, h_port):
+        return True
+
+    # The TV. Electron loads http://localhost:<BACKEND_PORT> while the socket
+    # may report 127.0.0.1; both spellings mean this machine. Deliberately not a
+    # blanket loopback pass — another local app on a different port is not the UI.
+    return o_host in _LOOPBACK and h_host in _LOOPBACK and o_port in (h_port, BACKEND_PORT)
+
+
+@app.middleware("http")
+async def cross_origin_guard(request: Request, call_next):
+    if request.method not in ("GET", "HEAD", "OPTIONS") and not _origin_ok(request.headers):
+        return JSONResponse({"detail": "cross-origin request refused"}, status_code=403)
+    return await call_next(request)
+
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(systems.router, prefix="/api")
@@ -125,6 +194,13 @@ app.mount("/themes", _NoCacheStatic(directory=str(_themes_dir)), name="themes")
 # ── WebSocket (must be registered before the catch-all static mount) ──────────
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    # A WebSocket handshake is a GET and is not subject to CORS, so any page in
+    # any browser on this box could open ws://127.0.0.1:8765/ws and read every
+    # event the UI sees — what launched, what is installed, controller activity.
+    # The HTTP middleware never sees this route; check the same rule here.
+    if not _origin_ok(websocket.headers):
+        await websocket.close(code=1008)   # policy violation
+        return
     await ws.connect(websocket)
     try:
         while True:
