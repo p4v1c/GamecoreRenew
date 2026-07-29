@@ -45,10 +45,18 @@ async def _genre_names(client: httpx.AsyncClient) -> dict[str, str]:
 
 
 def _search_name(system: dict, filename: str) -> str:
+    # Same confinement as cover_pipeline._rom_in_root: `filename` comes from a
+    # {filename:path} route parameter, so it can carry slashes and '..'. Nothing
+    # here leaks a file's contents, but the invariant is "a ROM path is checked
+    # against its root", and it should hold everywhere rather than case by case.
     roms_root = resolve_path(system.get("romsPath", ""))
     if roms_root:
-        rom = roms_root / filename
-        if rom.exists():
+        try:
+            rom = (roms_root / filename).resolve()
+            rom.relative_to(roms_root.resolve())
+        except (ValueError, OSError):
+            rom = None
+        if rom is not None and rom.exists():
             title = local_media.get_title(system["id"], rom)
             if title:
                 return title

@@ -72,6 +72,26 @@ async def _fetch_by_id(kind: str, value: str, base: Path) -> Path | None:
     return None
 
 
+def _rom_in_root(system: dict, filename: str) -> Path | None:
+    """The ROM `filename` names inside its system's ROMs directory, or None.
+
+    `filename` arrives from /api/covers/{system_id}/{filename:path}, and the
+    :path converter happily accepts slashes and '..' — so this has to be
+    confined before anything opens it, the same way launch_game confines
+    rom_path (routers/games.py). docs/architecture/09-gotchas.md states the
+    invariant; this is where it was missing.
+    """
+    roms_root = resolve_path(system.get("romsPath", ""))
+    if not roms_root:
+        return None
+    try:
+        candidate = (roms_root / filename).resolve()
+        candidate.relative_to(roms_root.resolve())
+    except (ValueError, OSError):
+        return None
+    return candidate if candidate.exists() else None
+
+
 async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | None:
     """Return a local path to the cover for one game, or None."""
     sid = system["id"].lower()
@@ -100,12 +120,7 @@ async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | 
     if miss.exists() and time.time() - miss.stat().st_mtime < _MISS_TTL:
         return None
 
-    rom: Path | None = None
-    roms_root = resolve_path(system.get("romsPath", ""))
-    if roms_root:
-        candidate = roms_root / filename
-        if candidate.exists():
-            rom = candidate
+    rom: Path | None = _rom_in_root(system, filename)
 
     if rom:
         # 1. Icon embedded in the game (offline, always right)

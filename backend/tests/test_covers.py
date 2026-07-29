@@ -328,6 +328,39 @@ def test_refresh_re_resolves_a_cached_cover(client):
     assert r.status_code == 200 and r.content == FAKE_PNG
 
 
+def test_cover_path_is_confined_to_the_roms_root(client, monkeypatch):
+    """{filename:path} accepts slashes and '..' — the pipeline must not follow them.
+
+    Offline on purpose: fetch_cover is stubbed out so the test is about
+    containment and nothing else.
+    """
+    from backend.services import cover_pipeline
+
+    secret = ROOT.parent / "secret.txt"
+    secret.write_bytes(b"\x89PNG\r\n\x1a\n" + b"not for you" * 20)
+
+    async def no_scrape(*a, **kw):
+        return None
+    monkeypatch.setattr(cover_pipeline, "fetch_cover", no_scrape)
+
+    for attempt in ("..%2F..%2F..%2Fsecret.txt", "../../../secret.txt", "..%2Fsecret.txt"):
+        r = client.get(f"/api/covers/ppsspp/{attempt}")
+        assert r.status_code == 404, f"{attempt} → {r.status_code}"
+        assert secret.read_bytes() not in r.content
+
+    # _rom_in_root is the guard; check it directly too, so the assertion does not
+    # depend on how the 404 happened to be produced.
+    system = {"id": "ppsspp", "romsPath": "emu/ppsspp/"}
+    assert cover_pipeline._rom_in_root(system, "../../../secret.txt") is None
+    assert cover_pipeline._rom_in_root(system, str(secret)) is None
+    assert cover_pipeline._rom_in_root(system, "SomePspGame.iso") is not None, \
+        "a genuine ROM still resolves"
+
+    # Nothing may be cached outside the system's own covers directory.
+    stray = [p for p in (ROOT / "emu/covers").iterdir() if p.is_file()]
+    assert stray == [], f"cache files written outside a system dir: {stray}"
+
+
 @pytest.mark.network
 def test_gamecube_cover_is_looked_up_on_gametdb_by_id6(client):
     # No local icon → disc-ID lookup on GameTDB.
