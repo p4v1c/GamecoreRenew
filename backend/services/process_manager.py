@@ -33,6 +33,25 @@ _CONTROLLER_DB = GAMECORE_ROOT / "backend" / "data" / "gamecontrollerdb.txt"
 SESSION_FILE = GAMECORE_ROOT / "config" / "session.json"
 
 
+async def kill_process_group(proc) -> None:
+    """SIGKILL a process and everything it started.
+
+    Killing the process alone leaves its children behind — for a shell script
+    that means the rsync, pip and npm it spawned keep writing while the caller
+    has already given up on it. Needs start_new_session=True at spawn time, so
+    the group is the child's own and never the backend's.
+    """
+    if proc is None or proc.returncode is not None:
+        return
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except (OSError, ProcessLookupError):
+        try:
+            proc.kill()
+        except (ProcessLookupError, OSError):
+            pass
+
+
 def _pgid_alive(pgid: int) -> bool:
     if pgid <= 1:
         return False
@@ -397,18 +416,7 @@ class ProcessManager:
 
     async def _proc_kill(self) -> None:
         """SIGKILL on the wrapper process and its group — skip SIGTERM to avoid confirm dialogs."""
-        if not self._proc:
-            return
-        pid = self._proc.pid
-
-        try:
-            pgid = os.getpgid(pid)
-            os.killpg(pgid, signal.SIGKILL)
-        except (OSError, ProcessLookupError):
-            try:
-                self._proc.kill()
-            except ProcessLookupError:
-                pass
+        await kill_process_group(self._proc)
 
     async def _watch(self) -> None:
         if not self._proc:

@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 import httpx
 
 from ..config import APP_VERSION, GITHUB_REPO, UPDATE_ASSET, GAMECORE_ROOT
+from ..services.process_manager import kill_process_group
 from .. import ws
 
 router = APIRouter(prefix="/update", tags=["update"])
@@ -49,20 +50,48 @@ async def check_update():
     return {"update_available": False, "current": APP_VERSION, "latest": remote_tag}
 
 
+# The task handle is the busy check, same as routers/addons.py: testing and
+# assigning it with no await in between is what makes it atomic.
+#
+# update/linux.sh used to work in a fixed /tmp/gamecore_ota that it wiped on
+# entry, and rsync'd from into GAMECORE_PATH. Nothing stopped a second run: the
+# UI's `installing` flag is local to UpdatePage, so navigating away and back
+# re-mounted it, reset the flag, and re-enabled the button while the first run
+# was still going. Clicking again ran `rm -rf` under the live rsync.
+_current: asyncio.Task | None = None
+
+
+@router.get("/status")
+def update_status():
+    """Whether an update is running right now — the backend is the source of truth.
+
+    The UI cannot keep this in component state: it is lost the moment the user
+    leaves the page, and an update outlives that by minutes.
+    """
+    return {"running": _current is not None and not _current.done()}
+
+
 @router.post("/apply")
 async def apply_update():
     """Run the platform update script in background, stream progress via WebSocket."""
+    global _current
     script = GAMECORE_ROOT / "update" / "linux.sh"
     cmd = ["bash", str(script)]
 
     if not script.exists():
         raise HTTPException(404, f"Update script not found: {script}")
 
+    if _current is not None and not _current.done():
+        raise HTTPException(409, "an update is already running")
+
     async def _run_update():
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
+            # Its own process group, so the timeout below can take the whole
+            # tree with it rather than just bash.
+            start_new_session=True,
         )
 
         async def _pump() -> None:
@@ -79,15 +108,18 @@ async def apply_update():
             await ws.broadcast("update:done", {"success": code == 0, "code": code})
         except asyncio.TimeoutError:
             log.warning("update script timed out after %ss — killing", _UPDATE_TIMEOUT)
+            # The whole process group, not just bash. Killing the shell alone
+            # left its rsync, pip and npm running inside GAMECORE_PATH while
+            # the UI had already been told the update was aborted.
+            await kill_process_group(proc)
             try:
-                proc.kill()
                 await proc.wait()
             except ProcessLookupError:
                 pass
             await ws.broadcast("update:log", {"line": f"[ERROR] Update timed out after {int(_UPDATE_TIMEOUT)}s — aborted."})
             await ws.broadcast("update:done", {"success": False, "code": -1})
 
-    task = asyncio.create_task(_run_update())
+    _current = asyncio.create_task(_run_update())
 
     def _log_err(t: asyncio.Task) -> None:
         if t.cancelled():
@@ -95,6 +127,6 @@ async def apply_update():
         exc = t.exception()
         if exc:
             log.warning("update task failed: %s", exc)
-    task.add_done_callback(_log_err)
+    _current.add_done_callback(_log_err)
 
     return {"ok": True, "message": "Update started"}
