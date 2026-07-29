@@ -9,8 +9,10 @@
  * Recovery paths, in order of how likely the user reaches them:
  *   1. the surface boundary swaps that one screen for the default;
  *   2. after CRASH_LIMIT failures the theme is refused entirely;
- *   3. holding L1+R1 for RESCUE_HOLD_MS forces the default theme, from
- *      anywhere, even if nothing renders (see useThemeRescue).
+ *   3. holding L1+R1 for RESCUE_HOLD_MS forces the default theme, even if
+ *      nothing renders — but only in the menu, never while a game is running:
+ *      that combo is ordinary play input, and the UI still polls the pad behind
+ *      an emulator whose system has no bezel (see the rescue in useTheme).
  */
 const KEY_CRASH = 'gc:theme:crashes'
 const KEY_SAFE = 'gc:theme:safeMode'

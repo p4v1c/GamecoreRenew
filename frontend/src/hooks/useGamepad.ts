@@ -49,8 +49,13 @@ function emit(name: string, detail?: unknown) {
   window.dispatchEvent(new CustomEvent(name, detail !== undefined ? { detail } : undefined))
 }
 
-/** True when an emulator / app is running — reads Zustand state synchronously. */
-function isPlaying(): boolean {
+/** True when an emulator / app is running — reads Zustand state synchronously.
+ *
+ * Exported because `onGamepadFrame` subscribers have to apply it themselves:
+ * the frame callback is deliberately outside the guard below, and anything that
+ * *acts* on a frame rather than just displaying it needs this. One name for the
+ * invariant, so there is no second definition to drift. */
+export function isPlaying(): boolean {
   return useStore.getState().sessionGameKey !== null
 }
 
@@ -140,8 +145,14 @@ export function useGamepad() {
         }
       }
 
-      // Raw snapshot for the live views — deliberately outside the `playing`
-      // guard above: this only mirrors the pad on screen, it never acts on it.
+      // Raw snapshot, deliberately outside the `playing` guard above: the
+      // controller screen has to keep mirroring the pad, and a held combo is not
+      // edge-triggered so it cannot come through the events above.
+      //
+      // That means a subscriber which *acts* on a frame must call isPlaying()
+      // itself. This comment used to assert no subscriber ever did — and the
+      // L1+R1 theme rescue in useTheme did, which is how the box reset its own
+      // theme mid-game.
       if (frameListeners.size) frameListeners.forEach(cb => cb(gp ?? null))
 
       rafId.current = requestAnimationFrame(poll)

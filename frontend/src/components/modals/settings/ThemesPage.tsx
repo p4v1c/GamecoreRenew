@@ -149,7 +149,7 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
       {error && <div style={{ fontSize: 12, color: '#fca5a5', marginTop: 10 }}>{error}</div>}
 
       <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1, marginTop: 16 }}>
-        Hold L1 + R1 for 2s anywhere to force the default theme
+        Hold L1 + R1 for 2s in the menu to force the default theme
       </div>
     </Overlay>
   )

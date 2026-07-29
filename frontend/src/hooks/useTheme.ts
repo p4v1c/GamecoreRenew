@@ -18,7 +18,7 @@ import {
   clearCrashes, clearSafeMode, getSafeMode, isBlocked,
   recordCrash, setSafeMode, type SafeModeInfo,
 } from '../lib/themeSafety'
-import { onGamepadFrame, GP_BTN } from './useGamepad'
+import { onGamepadFrame, isPlaying, GP_BTN } from './useGamepad'
 import { onWsEvent } from './useWebSocket'
 import { useStore } from '../store'
 
@@ -148,6 +148,17 @@ export function useTheme(): ThemeState {
   useEffect(() => {
     let since = 0
     return onGamepadFrame(gp => {
+      // Never while a game is running. L1+R1 held for two seconds is ordinary
+      // play input — Dolphin's triggers, PS3 and PSP shoulders — and the UI is
+      // still polling the pad behind any emulator whose system has no bezel
+      // (a bezel hides mainWindow, which suspends rAF; without one the window
+      // merely sits behind the game). So the theme reset itself mid-game, which
+      // is what "the box changes theme on its own" was.
+      //
+      // onGamepadFrame is outside useGamepad's own `playing` guard by design,
+      // so acting on a frame means checking here. Quitting the game (double PS)
+      // costs nothing and the rescue is available again immediately.
+      if (isPlaying()) { since = 0; return }
       const held = !!gp?.buttons?.[GP_BTN.L1]?.pressed && !!gp?.buttons?.[GP_BTN.R1]?.pressed
       if (!held) { since = 0; return }
       const now = performance.now()

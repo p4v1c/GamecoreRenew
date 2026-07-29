@@ -98,6 +98,22 @@ fallback.
 Every button there is a test target, so no button may be an action.
 `CONTROLLER_CLOSE_MS` in `App.tsx`.
 
+**`onGamepadFrame` is outside the "a game is running" guard, on purpose.** The
+controller screen has to keep mirroring the pad, and a *held* combo is not
+edge-triggered so it cannot arrive through the `gp:*` events. The consequence is
+that any subscriber which **acts** on a frame must call `isPlaying()` itself.
+
+That was learned the hard way: the L1+R1 theme rescue subscribed to frames and
+reset the theme. L1+R1 held for two seconds is ordinary play input — Dolphin's
+triggers, PS3 and PSP shoulders — so the box reset its own theme mid-game.
+
+It looked random because it depended on the bezel. A system **with** an overlay
+hides `mainWindow` at `window:ready`, which suspends `requestAnimationFrame` and
+stops the poll dead; a system **without** one leaves the window sitting behind
+the emulator, still polling. So it happened on dolphin, rpcs3, ryujinx, cemu,
+ppsspp, xenia and shadps4, and never on melonds, azahar, mgba, gopher64,
+duckstation or pcsx2.
+
 ## Display
 
 **Overlays are X11-only.**
