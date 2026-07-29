@@ -39,6 +39,10 @@ DEBOUNCE = 0.05
 
 _last_guide_press: float = 0.0
 
+# Paths already reported as "kept, but has no Guide button" — the scan runs
+# every few seconds and this should be said once per device, not per pass.
+_logged_no_guide: set[str] = set()
+
 
 async def _watch_device(path: str) -> None:
     """Read events from one device until it disconnects or is cancelled."""
@@ -149,10 +153,31 @@ def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str]]:
             info = dev.info
             vendor, product = f"{info.vendor:04x}", f"{info.product:04x}"
             dev.close()
-            if any(code in GUIDE_CODES for code in keys):
-                found[path] = (name, uniq, BTN_SOUTH in keys, vendor, product)
+            has_guide = any(code in GUIDE_CODES for code in keys)
+            is_pad = BTN_SOUTH in keys
+            # `or is_pad` is the second half of this test, and it was missing:
+            # a device had to declare a Guide/Home code to be seen at all. A pad
+            # without a Home button — a generic USB pad, an arcade stick, a SNES
+            # or N64 clone, an 8BitDo in DInput — never entered this dict, so it
+            # was never watched, never registered, never given a player slot, and
+            # apply_profile was never called for it. PCSX2 and DuckStation got no
+            # [Pad2], Dolphin left Wiimote1 on the virtual pointer, RPCS3 and
+            # Ryujinx were never retargeted. It still worked in emulators that
+            # read SDL directly, which is what made it look like something else.
+            #
+            # These pads simply never reach _on_guide_pressed, which is correct.
+            # A keyboard cannot arrive this way: is_pad is BTN_SOUTH, which no
+            # keyboard declares, so the anti-keyboard rule below is unchanged.
+            if has_guide or is_pad:
+                found[path] = (name, uniq, is_pad, vendor, product)
+                if is_pad and not has_guide and path not in _logged_no_guide:
+                    _logged_no_guide.add(path)
+                    log.info("gamepad_monitor: %s (%s) has no Guide button — taking a "
+                             "player slot, but it cannot trigger the guide shortcut",
+                             name, path)
         except (PermissionError, OSError):
             pass
+    _logged_no_guide.intersection_update(found)
     return found
 
 
@@ -247,7 +272,15 @@ async def run() -> None:
                     # re-watched next pass; keep its player slot.
                     continue
                 key = reg_keys.pop(path, None)
-                if key is not None:
+                # One pad can own several /dev/input/event* nodes: key_for()
+                # returns its MAC, so a DualShock 4 paired over Bluetooth and
+                # then plugged in to charge maps two paths to the same key.
+                # Unplugging the cable killed that path's watcher and this
+                # released the slot outright — gp:disconnected broadcast,
+                # release_profile putting Wiimote1 back on the virtual pointer —
+                # while the pad was still connected over Bluetooth and still in
+                # the player's hands. Only let go once no live path is left.
+                if key is not None and key not in reg_keys.values():
                     pad_models.pop(key, None)
                     label = controller_registry.label_for(key)
                     player = controller_registry.disconnect(key)
