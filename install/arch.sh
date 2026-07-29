@@ -39,6 +39,30 @@ git_clone() {  # git_clone <url> <dir>
   return 1
 }
 
+git_sync() {  # git_sync <dir> <label> — bring an EXISTING satellite checkout up to date
+  # Cloning only when the directory is absent left every satellite pinned to
+  # whatever commit it was first installed at, for ever: re-running the
+  # installer printed "already present" and moved on, and OTA never touches
+  # /opt outside GAMECORE_PATH. A fix shipped upstream reached nothing.
+  #
+  # Fast-forward only, and never over local changes — an installer that
+  # stashes or resets behind the owner's back is exactly how a hand-applied
+  # fix disappears. It says what it did not do instead.
+  local dir="$1" label="$2" head
+  [[ -d "$dir/.git" ]] || { warn "$label: $dir is not a git checkout — left untouched."; return 0; }
+  if [[ -n "$(sudo -u "$USER_NAME" git -C "$dir" status --porcelain 2>/dev/null)" ]]; then
+    warn "$label: local changes in $dir — NOT updated."
+    info "  Keep them, then update:  git -C $dir stash && git -C $dir pull --ff-only"
+    return 0
+  fi
+  if sudo -u "$USER_NAME" timeout 120 git -C "$dir" pull -q --ff-only 2>/dev/null; then
+    head="$(sudo -u "$USER_NAME" git -C "$dir" log --oneline -1 2>/dev/null | cut -c1-60)"
+    ok "$label up to date (${head:-unknown})."
+  else
+    warn "$label: could not fast-forward $dir — left at its current commit."
+  fi
+}
+
 # ── Install manifest ─────────────────────────────────────────────
 # install/uninstall.sh reads these to know what THIS install actually
 # changed, so it can put the machine back without guessing. Without them
@@ -648,7 +672,7 @@ if [[ "$MODE" == "full" ]]; then
     git_clone https://github.com/p4v1c/Twitch-TV.git /opt/Twitch-TV \
       && ok "EmberTV cloned → /opt/Twitch-TV" || warn "EmberTV clone failed."
   else
-    ok "EmberTV already present."
+    git_sync /opt/Twitch-TV "EmberTV"
   fi
   if [ -d /opt/Twitch-TV ]; then
     if [[ -n "$TWITCH_CLIENT_ID" && -n "$TWITCH_CLIENT_SECRET" ]]; then
@@ -719,7 +743,7 @@ EOF
     git_clone https://github.com/p4v1c/gamepad-tv-bridge.git /opt/gamepad-tv-bridge \
       && ok "gamepad-tv-bridge cloned → /opt/gamepad-tv-bridge" || warn "gamepad-tv-bridge clone failed."
   else
-    ok "gamepad-tv-bridge already present."
+    git_sync /opt/gamepad-tv-bridge "gamepad-tv-bridge"
   fi
   if [ -d /opt/gamepad-tv-bridge ]; then
     chown -R "${USER_NAME}:${USER_NAME}" /opt/gamepad-tv-bridge
@@ -861,8 +885,9 @@ EOF
       && ok "Stremio gamepad keyboard cloned → $STREMIO_DIR" \
       || warn "Stremio keyboard clone failed — the tile will not start."
   else
-    sudo -u "$USER_NAME" git -C "$STREMIO_DIR" pull --ff-only >/dev/null 2>&1 \
-      && ok "Stremio gamepad keyboard up to date." || true
+    # Was `pull --ff-only … || true`, which said nothing when it failed — a
+    # checkout with local changes stayed silently behind for ever.
+    git_sync "$STREMIO_DIR" "Stremio gamepad keyboard"
   fi
   if [ -d "$STREMIO_DIR" ]; then
     chown -R "${USER_NAME}:${USER_NAME}" "$STREMIO_DIR"
