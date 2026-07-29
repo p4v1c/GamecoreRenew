@@ -211,19 +211,30 @@ Copy ROM files into the matching `emu/<system_id>/` folder via USB or SSH.
 
 **Supported formats per system:**
 
-| System | Extensions |
-|--------|-----------|
-| GameCube / Wii | `.iso` `.gcm` `.rvz` `.zip` |
-| PlayStation 1 | `.bin` `.cue` `.iso` `.img` `.zip` |
-| PlayStation 2 | `.iso` `.bin` `.zip` |
-| PlayStation 3 | disc-game **folders** in `emu/rpcs3/` (scanned as directories). Updates/DLC are `.pkg`, installed via the RPCS3 manager addon |
-| PSP | `.iso` `.cso` `.zip` |
-| Wii U | `.wux` `.rpx` `.iso` `.zip` |
-| Switch | `.xci` `.nsp` `.zip` |
-| Nintendo 3DS | `.3ds` `.zip` |
-| Nintendo DS | `.nds` `.zip` |
-| Game Boy Advance | `.gba` `.zip` |
-| Nintendo 64 | `.n64` `.z64` `.v64` `.zip` |
+The scanner filters strictly on this list — a format that is not declared is not
+shown, with no message. `config/systems.json` is the source of truth and is
+regenerated from `install/systems.json.dist` on every install;
+`backend/tests/test_systems_extensions.py` pins this table to it.
+
+| System | Folder | Extensions |
+|--------|--------|-----------|
+| GameCube / Wii | `emu/dolphin/` | `.iso` `.gcm` `.rvz` `.wbfs` `.wad` `.zip` |
+| PlayStation | `emu/duckstation/` | `.bin` `.iso` `.img` `.cue` `.chd` `.pbp` `.zip` |
+| PlayStation 2 | `emu/pcsx2/` | `.iso` `.bin` `.chd` `.zip` |
+| PlayStation 3 | `emu/rpcs3/` | disc-game **folders** (scanned as directories). Updates/DLC are `.pkg`, installed via the RPCS3 manager addon |
+| PlayStation 4 | `emu/shadps4/` | game **folders** (scanned as directories) |
+| PlayStation Portable | `emu/ppsspp/` | `.iso` `.cso` `.pbp` `.zip` |
+| Wii U | `emu/cemu/` | `.wux` `.rpx` `.iso` `.zip` |
+| Nintendo Switch | `emu/ryujinx/` | `.xci` `.nsp` `.zip` |
+| Nintendo 3DS | `emu/azahar/` | `.3ds` `.cia` `.zip` |
+| Nintendo DS | `emu/melonds/` | `.nds` `.zip` |
+| Game Boy Advance | `emu/mgba/` | `.gba` `.gbc` `.gb` `.zip` |
+| Nintendo 64 | `emu/gopher64/` | `.n64` `.z64` `.v64` `.zip` |
+| Xbox 360 | `emu/xenia/` | `.iso` `.xex` |
+
+> A multi-track PS1 dump is `Game.cue` plus its `Game (Track NN).bin` files.
+> Launch the **`.cue`** — it is the one that knows about the other tracks.
+> Starting `Track 01.bin` on its own boots the game without its CD audio.
 
 ---
 
