@@ -6,6 +6,10 @@ behind Caddy goes through GET /verify first. /change-password is NOT among
 them: it is reachable only with a session already in hand. The TV (loopback)
 never calls any of this — the core enforces nothing on its own routes.
 """
+import asyncio
+import logging
+import socket
+import subprocess
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request, Response
@@ -14,6 +18,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from ..services import auth
 
 router = APIRouter(prefix="/auth")
+log = logging.getLogger(__name__)
 
 
 def _client_ip(request: Request) -> str:
@@ -53,7 +58,11 @@ async def login(request: Request):
         body = await request.json()
     except Exception:
         body = {}
-    if not auth.verify_password(str(body.get("password", ""))):
+    # Off the event loop: argon2id with the library defaults allocates 64 MiB
+    # and takes real CPU time by design. Called inline, a burst of failed
+    # logins from the LAN froze the TV — the UI talks to this same process.
+    ok = await asyncio.to_thread(auth.verify_password, str(body.get("password", "")))
+    if not ok:
         auth.register_failure(ip)
         return JSONResponse({"ok": False, "error": "bad_password"}, status_code=401)
     auth.register_success(ip)
@@ -75,6 +84,64 @@ def verify(request: Request):
             next_uri = "/"
         return RedirectResponse(f"/login?next={quote(next_uri, safe='')}", status_code=302)
     return Response(status_code=401)
+
+
+def _local_addresses() -> set[str]:
+    """Every address this machine answers on, plus its names."""
+    names = {"localhost", "127.0.0.1", "::1", socket.gethostname().lower()}
+    names.add(f"{socket.gethostname().lower()}.local")
+    try:
+        for fam, _, _, _, sockaddr in socket.getaddrinfo(socket.gethostname(), None):
+            names.add(sockaddr[0].split("%")[0].lower())
+    except OSError:
+        pass
+    # The interface list is what actually matters — the LAN address changes with
+    # the network, and a Tailscale address only shows up here.
+    try:
+        import subprocess
+        out = subprocess.run(["ip", "-o", "addr", "show"], capture_output=True,
+                             text=True, timeout=2).stdout
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) >= 4 and parts[2] in ("inet", "inet6"):
+                names.add(parts[3].split("/")[0].split("%")[0].lower())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return names
+
+
+@router.get("/tls-ask")
+def tls_ask(domain: str = ""):
+    """Caddy's on_demand_tls gate: 200 approves issuing a certificate.
+
+    It used to point at Caddy's own admin API, which answers 200 to anything —
+    so any LAN client could open a TLS handshake with an arbitrary SNI and make
+    the box mint a certificate for it, as many times as it liked.
+
+    Approved: loopback, this machine's own addresses on any interface (the LAN
+    address changes with the network, and a Tailscale address only appears
+    here), its hostname, and a name that resolves to one of those — which is
+    what covers a MagicDNS name.
+    """
+    name = (domain or "").strip().lower().rstrip(".")
+    if not name:
+        return Response(status_code=403)
+
+    local = _local_addresses()
+    if name in local:
+        return Response(status_code=200)
+
+    # A name we do not recognise: accept it only if it points back at us.
+    try:
+        resolved = {ai[4][0].split("%")[0].lower()
+                    for ai in socket.getaddrinfo(name, None)}
+    except (OSError, UnicodeError):
+        resolved = set()
+    if resolved & local:
+        return Response(status_code=200)
+
+    log.info("on-demand TLS refused for %r (not an address of this machine)", name)
+    return Response(status_code=403)
 
 
 @router.post("/logout")
@@ -110,11 +177,13 @@ async def change_password(request: Request):
             {"ok": False, "error": "too_many_attempts", "retry_in": wait},
             status_code=429, headers={"Retry-After": str(wait)},
         )
-    if not auth.verify_password(current):
+    # Same reason as /login: argon2 is deliberately expensive, so it does not
+    # get to run on the event loop.
+    if not await asyncio.to_thread(auth.verify_password, current):
         auth.register_failure(ip)
         return JSONResponse({"ok": False, "error": "bad_password"}, status_code=401)
     auth.register_success(ip)
-    auth.set_password(new)  # bumps generation → every session dies
+    await asyncio.to_thread(auth.set_password, new)  # bumps generation → every session dies
     resp = JSONResponse({"ok": True})
     _set_session(resp)  # the caller stays logged in with a fresh cookie
     return resp

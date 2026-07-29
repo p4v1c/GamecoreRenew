@@ -6,8 +6,11 @@ raw 2352 MODE2) and PS2 (.iso, 2048) images with SYSTEM.CNF, and a fake
 GameCube ISO header. Then exercises local_media directly and the FastAPI
 endpoints via TestClient.
 
-Run from anywhere:  python backend/tests/test_covers.py
-The GameTDB/xlenore checks need internet; everything else is offline.
+Run under pytest:  pytest backend/tests/test_covers.py
+Or directly:       python backend/tests/test_covers.py
+
+The GameTDB/xlenore checks need internet and carry @pytest.mark.network;
+everything else is offline. `pytest -m "not network"` skips them.
 """
 import os
 import shutil
@@ -17,7 +20,31 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-ROOT = Path(tempfile.mkdtemp(prefix="gamecore-test-")) / "fake_root"
+sys.path.insert(0, str(REPO))
+
+# GAMECORE_PATH decides every path in backend.config, and it is read at import
+# time — so it has to be set before anything under backend/ is imported. Under
+# pytest that is conftest.py's job (it loads first, and hands the directory over
+# in GAMECORE_TEST_ROOT); this branch covers running the file directly.
+# Never os.environ.setdefault here: inheriting a GAMECORE_PATH from the shell
+# would aim the cover cache at a real installation.
+_root = os.environ.get("GAMECORE_TEST_ROOT")
+if _root is None:
+    _root = str(Path(tempfile.mkdtemp(prefix="gamecore-test-")) / "fake_root")
+    os.environ["GAMECORE_TEST_ROOT"] = _root
+    os.environ["GAMECORE_PATH"] = _root
+ROOT = Path(_root)
+
+import asyncio
+
+import httpx
+import pytest
+
+
+def await_(coro):
+    """Run one coroutine to completion from a sync test."""
+    return asyncio.run(coro)
+
 
 FAKE_PNG = b"\x89PNG\r\n\x1a\n" + b"fakepngdata" * 20
 
@@ -200,113 +227,289 @@ def setup_root():
     ]
     (ROOT / "config/systems.json").write_text(json.dumps(systems))
     (ROOT / "config/apps.json").write_text("[]")
+    return ROOT
 
 
-# ── Tests ─────────────────────────────────────────────────────────────────────
+@pytest.fixture(scope="module")
+def fake_root():
+    """The synthetic game tree, built once for the module.
 
-failures = []
-
-def check(name, cond, detail=""):
-    status = "OK " if cond else "FAIL"
-    print(f"[{status}] {name}" + (f" — {detail}" if detail and not cond else ""))
-    if not cond:
-        failures.append(name)
+    Module-scoped on purpose: GAMECORE_PATH is frozen into backend.config at
+    import time, so the root cannot move between tests. The cover tests below
+    share it the way the pipeline shares a real library.
+    """
+    return setup_root()
 
 
-def main():
-    os.environ["GAMECORE_PATH"] = str(ROOT)
-    setup_root()
-    sys.path.insert(0, str(REPO))
-
-    from backend.services import local_media, sfo
-    from backend.services.iso9660 import Iso9660
-
-    # sfo
-    meta = sfo.parse(ROOT / "emu/rpcs3/BLUS30443/PS3_GAME/PARAM.SFO")
-    check("sfo.parse TITLE", meta.get("TITLE") == "Demon's  Souls", str(meta))
-
-    # iso9660 direct
-    iso = Iso9660.open(ROOT / "emu/ppsspp/SomePspGame.iso")
-    check("iso9660 open 2048", iso is not None)
-    data = iso.read_file("PSP_GAME/ICON0.PNG") if iso else None
-    check("iso9660 nested file", data == FAKE_PNG)
-    if iso:
-        iso.close()
-
-    # local titles
-    check("PS3 title", local_media.get_title("rpcs3", ROOT / "emu/rpcs3/BLUS30443") == "Demon's Souls")
-    check("PS4 title", local_media.get_title("shadps4", ROOT / "emu/shadps4/CUSA00552") == "Bloodborne")
-    check("PSP title", local_media.get_title("ppsspp", ROOT / "emu/ppsspp/SomePspGame.iso") == "Crisis Core")
-
-    # disc ids
-    check("PS3 disc_id", local_media.disc_id("rpcs3", ROOT / "emu/rpcs3/BLUS30443") == ("ps3", "BLUS30443"))
-    check("PS2 serial", local_media.disc_id("pcsx2", ROOT / "emu/pcsx2/MyPs2Game.iso") == ("ps2", "SLUS-20946"))
-    check("PS1 serial (raw bin)", local_media.disc_id("duckstation", ROOT / "emu/duckstation/MyPs1Game.bin") == ("psx", "SCUS-94900"))
-    check("GC id6", local_media.disc_id("dolphin", ROOT / "emu/dolphin/Melee.iso") == ("wii", "GALE01"))
-
-    # icon extraction
-    dest = ROOT / "out.png"
-    check("PS3 icon extract", local_media.extract_icon("rpcs3", ROOT / "emu/rpcs3/BLUS30443", dest) and dest.read_bytes() == FAKE_PNG)
-    dest.unlink()
-    check("PSP icon extract", local_media.extract_icon("ppsspp", ROOT / "emu/ppsspp/SomePspGame.iso", dest) and dest.read_bytes() == FAKE_PNG)
-
-    # ── API end-to-end ────────────────────────────────────────────────────────
+@pytest.fixture(scope="module")
+def client(fake_root):
+    """TestClient over the real app, with the lifespan running."""
     from fastapi.testclient import TestClient
     from backend.main import app
+    with TestClient(app) as c:
+        yield c
 
-    with TestClient(app) as client:
-        r = client.get("/api/systems/rpcs3/games")
-        check("GET games rpcs3 200", r.status_code == 200, r.text)
-        games = r.json()
-        check("rpcs3 real title in list", games and games[0]["display_name"] == "Demon's Souls", str(games))
-        check("rpcs3 filename preserved", games and games[0]["filename"] == "BLUS30443", str(games))
 
-        r = client.get("/api/covers/rpcs3/BLUS30443")
-        check("PS3 cover 200 (local ICON0)", r.status_code == 200 and r.content == FAKE_PNG)
-        check("PS3 cover cached per-system", (ROOT / "emu/covers/rpcs3/BLUS30443.png").is_file())
+# ── Local parsers ─────────────────────────────────────────────────────────────
 
-        r = client.get("/api/covers/ppsspp/SomePspGame.iso")
-        check("PSP cover 200 (embedded ICON0)", r.status_code == 200 and r.content == FAKE_PNG)
+def test_sfo_parse_reads_the_title(fake_root):
+    from backend.services import sfo
+    meta = sfo.parse(ROOT / "emu/rpcs3/BLUS30443/PS3_GAME/PARAM.SFO")
+    assert meta.get("TITLE") == "Demon's  Souls", f"sfo.parse TITLE ({meta})"
 
-        # GC: no local icon → disc-ID lookup on GameTDB (needs network)
-        r = client.get("/api/covers/dolphin/Melee.iso")
-        check("GC cover via GameTDB id6", r.status_code == 200 and r.headers["content-type"] == "image/png" and len(r.content) > 10000,
-              f"status={r.status_code} len={len(r.content)}")
 
-        # PS2: xlenore by serial (needs network)
-        r = client.get("/api/covers/pcsx2/MyPs2Game.iso")
-        check("PS2 cover via xlenore serial", r.status_code == 200 and r.headers["content-type"] == "image/jpeg" and len(r.content) > 10000,
-              f"status={r.status_code} len={len(r.content)}")
+def test_iso9660_opens_a_2048_byte_image(fake_root):
+    from backend.services.iso9660 import Iso9660
+    iso = Iso9660.open(ROOT / "emu/ppsspp/SomePspGame.iso")
+    assert iso is not None, "iso9660 open 2048"
+    iso.close()
 
-        # PS1: xlenore by serial (needs network)
-        r = client.get("/api/covers/duckstation/MyPs1Game.bin")
-        check("PS1 cover via xlenore serial", r.status_code == 200 and r.headers["content-type"] == "image/jpeg" and len(r.content) > 10000,
-              f"status={r.status_code} len={len(r.content)}")
 
-        # Unknown game on a system with nothing local → 404 + .miss marker
-        (ROOT / "emu/ppsspp/Unknown_Game_zzz.iso").write_bytes(b"not an iso")
-        r = client.get("/api/covers/ppsspp/Unknown_Game_zzz.iso")
-        check("unknown game 404", r.status_code == 404)
-        check("negative cache written", (ROOT / "emu/covers/ppsspp/Unknown_Game_zzz.miss").is_file())
-        # second hit must be served from the negative cache (no network) — just re-check 404
-        r = client.get("/api/covers/ppsspp/Unknown_Game_zzz.iso")
-        check("negative cache 404 again", r.status_code == 404)
+def test_iso9660_reads_a_nested_file(fake_root):
+    from backend.services.iso9660 import Iso9660
+    iso = Iso9660.open(ROOT / "emu/ppsspp/SomePspGame.iso")
+    assert iso is not None
+    try:
+        assert iso.read_file("PSP_GAME/ICON0.PNG") == FAKE_PNG, "iso9660 nested file"
+    finally:
+        iso.close()
 
-        # refresh=1 clears cache and re-resolves
-        r = client.get("/api/covers/rpcs3/BLUS30443?refresh=1")
-        check("refresh re-resolves", r.status_code == 200 and r.content == FAKE_PNG)
 
-        # legacy flat cache migration
-        legacy = ROOT / "emu/covers/OldGame.png"
-        legacy.write_bytes(FAKE_PNG)
-        (ROOT / "emu/mgba").mkdir(parents=True, exist_ok=True)
+@pytest.mark.parametrize("system,rel,expected", [
+    ("rpcs3", "emu/rpcs3/BLUS30443", "Demon's Souls"),
+    ("shadps4", "emu/shadps4/CUSA00552", "Bloodborne"),
+    ("ppsspp", "emu/ppsspp/SomePspGame.iso", "Crisis Core"),
+])
+def test_local_media_reads_the_title_off_the_dump(fake_root, system, rel, expected):
+    from backend.services import local_media
+    assert local_media.get_title(system, ROOT / rel) == expected
 
-    print()
-    if failures:
-        print(f"{len(failures)} FAILURES: {failures}")
-        sys.exit(1)
-    print("All tests passed.")
+
+@pytest.mark.parametrize("system,rel,expected", [
+    ("rpcs3", "emu/rpcs3/BLUS30443", ("ps3", "BLUS30443")),
+    ("pcsx2", "emu/pcsx2/MyPs2Game.iso", ("ps2", "SLUS-20946")),
+    ("duckstation", "emu/duckstation/MyPs1Game.bin", ("psx", "SCUS-94900")),
+    ("dolphin", "emu/dolphin/Melee.iso", ("wii", "GALE01")),
+])
+def test_local_media_reads_the_disc_id(fake_root, system, rel, expected):
+    from backend.services import local_media
+    assert local_media.disc_id(system, ROOT / rel) == expected
+
+
+@pytest.mark.parametrize("system,rel", [
+    ("rpcs3", "emu/rpcs3/BLUS30443"),
+    ("ppsspp", "emu/ppsspp/SomePspGame.iso"),
+])
+def test_local_media_extracts_the_embedded_icon(fake_root, system, rel, tmp_path):
+    from backend.services import local_media
+    dest = tmp_path / "out.png"
+    assert local_media.extract_icon(system, ROOT / rel, dest)
+    assert dest.read_bytes() == FAKE_PNG
+
+
+# ── API end-to-end ────────────────────────────────────────────────────────────
+
+def test_games_endpoint_lists_the_ps3_dump(client):
+    r = client.get("/api/systems/rpcs3/games")
+    assert r.status_code == 200, r.text
+    games = r.json()
+    assert games and games[0]["display_name"] == "Demon's Souls", str(games)
+    assert games[0]["filename"] == "BLUS30443", str(games)
+
+
+def test_ps3_cover_comes_from_the_local_icon0(client):
+    r = client.get("/api/covers/rpcs3/BLUS30443")
+    assert r.status_code == 200 and r.content == FAKE_PNG
+
+
+def test_ps3_cover_is_cached_per_system(client):
+    client.get("/api/covers/rpcs3/BLUS30443")
+    assert (ROOT / "emu/covers/rpcs3/BLUS30443.png").is_file(), "PS3 cover cached per-system"
+
+
+def test_psp_cover_comes_from_the_icon0_inside_the_iso(client):
+    r = client.get("/api/covers/ppsspp/SomePspGame.iso")
+    assert r.status_code == 200 and r.content == FAKE_PNG
+
+
+def test_refresh_re_resolves_a_cached_cover(client):
+    r = client.get("/api/covers/rpcs3/BLUS30443?refresh=1")
+    assert r.status_code == 200 and r.content == FAKE_PNG
+
+
+def test_cover_path_is_confined_to_the_roms_root(client, monkeypatch):
+    """{filename:path} accepts slashes and '..' — the pipeline must not follow them.
+
+    Offline on purpose: fetch_cover is stubbed out so the test is about
+    containment and nothing else.
+    """
+    from backend.services import cover_pipeline
+
+    secret = ROOT.parent / "secret.txt"
+    secret.write_bytes(b"\x89PNG\r\n\x1a\n" + b"not for you" * 20)
+
+    async def no_scrape(*a, **kw):
+        return None
+    monkeypatch.setattr(cover_pipeline, "fetch_cover", no_scrape)
+
+    for attempt in ("..%2F..%2F..%2Fsecret.txt", "../../../secret.txt", "..%2Fsecret.txt"):
+        r = client.get(f"/api/covers/ppsspp/{attempt}")
+        assert r.status_code == 404, f"{attempt} → {r.status_code}"
+        assert secret.read_bytes() not in r.content
+
+    # _rom_in_root is the guard; check it directly too, so the assertion does not
+    # depend on how the 404 happened to be produced.
+    system = {"id": "ppsspp", "romsPath": "emu/ppsspp/"}
+    assert cover_pipeline._rom_in_root(system, "../../../secret.txt") is None
+    assert cover_pipeline._rom_in_root(system, str(secret)) is None
+    assert cover_pipeline._rom_in_root(system, "SomePspGame.iso") is not None, \
+        "a genuine ROM still resolves"
+
+    # Nothing may be cached outside the system's own covers directory.
+    stray = [p for p in (ROOT / "emu/covers").iterdir() if p.is_file()]
+    assert stray == [], f"cache files written outside a system dir: {stray}"
+
+
+def test_no_miss_is_written_when_the_network_is_down(client, monkeypatch):
+    """A .miss claims "nobody has this cover" — a dead network is not that.
+
+    The worst case is the first boot: prefetch starts 15 s in, before the owner
+    has configured Wi-Fi from this very interface, and every game in the library
+    got a marker with a seven-day TTL.
+    """
+    from backend.services import cover_pipeline
+
+    async def network_is_down(*a, **kw):
+        raise httpx.RequestError("no route to host")
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", network_is_down)
+    monkeypatch.setattr(httpx.AsyncClient, "head", network_is_down)
+
+    (ROOT / "emu/melonds").mkdir(parents=True, exist_ok=True)
+    (ROOT / "emu/melonds/Brand New Game.nds").write_bytes(b"nds")
+    system = {"id": "melonds", "romsPath": "emu/melonds/"}
+
+    assert await_(cover_pipeline.resolve(system, "Brand New Game.nds")) is None
+    assert not (ROOT / "emu/covers/melonds/Brand New Game.miss").exists(), \
+        "a failed request must not be recorded as a missing cover"
+
+
+def test_a_genuine_miss_is_still_cached(client, monkeypatch):
+    """The negative cache has to keep working, or every visit re-hits the CDN."""
+    from backend.services import cover_pipeline, scraper
+
+    async def not_found(*a, **kw):
+        return httpx.Response(404, request=httpx.Request("GET", "https://example.invalid"))
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", not_found)
+    monkeypatch.setattr(httpx.AsyncClient, "head", not_found)
+
+    (ROOT / "emu/melonds").mkdir(parents=True, exist_ok=True)
+    (ROOT / "emu/melonds/Nobody Has This.nds").write_bytes(b"nds")
+    system = {"id": "melonds", "romsPath": "emu/melonds/"}
+
+    assert await_(cover_pipeline.resolve(system, "Nobody Has This.nds")) is None
+    assert (ROOT / "emu/covers/melonds/Nobody Has This.miss").exists(), \
+        "a real 404 is worth remembering"
+
+
+@pytest.mark.parametrize("status", [403, 429, 500, 503])
+def test_a_quota_or_server_error_is_not_a_miss(client, monkeypatch, status):
+    from backend.services import cover_pipeline
+
+    async def refused(*a, **kw):
+        return httpx.Response(status, request=httpx.Request("GET", "https://example.invalid"))
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", refused)
+    monkeypatch.setattr(httpx.AsyncClient, "head", refused)
+
+    (ROOT / "emu/melonds").mkdir(parents=True, exist_ok=True)
+    name = f"Rate Limited {status}.nds"
+    (ROOT / "emu/melonds" / name).write_bytes(b"nds")
+    system = {"id": "melonds", "romsPath": "emu/melonds/"}
+
+    assert await_(cover_pipeline.resolve(system, name)) is None
+    assert not (ROOT / "emu/covers/melonds" / f"Rate Limited {status}.miss").exists(), \
+        f"HTTP {status} means try again later, not 'no cover exists'"
+
+
+@pytest.mark.network
+def test_gamecube_cover_is_looked_up_on_gametdb_by_id6(client):
+    # No local icon → disc-ID lookup on GameTDB.
+    r = client.get("/api/covers/dolphin/Melee.iso")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png" and len(r.content) > 10000, \
+        f"status={r.status_code} len={len(r.content)}"
+
+
+@pytest.mark.network
+def test_ps2_cover_is_looked_up_on_xlenore_by_serial(client):
+    r = client.get("/api/covers/pcsx2/MyPs2Game.iso")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg" and len(r.content) > 10000, \
+        f"status={r.status_code} len={len(r.content)}"
+
+
+@pytest.mark.network
+def test_ps1_cover_is_looked_up_on_xlenore_by_serial(client):
+    r = client.get("/api/covers/duckstation/MyPs1Game.bin")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg" and len(r.content) > 10000, \
+        f"status={r.status_code} len={len(r.content)}"
+
+
+@pytest.mark.network
+def test_a_game_nobody_has_a_cover_for_is_404_and_negatively_cached(client):
+    # Needs the network: a .miss marker is only written when a lookup actually
+    # came back empty, never when the request failed to leave the box (#14).
+    (ROOT / "emu/ppsspp/Unknown_Game_zzz.iso").write_bytes(b"not an iso")
+
+    r = client.get("/api/covers/ppsspp/Unknown_Game_zzz.iso")
+    assert r.status_code == 404, "unknown game 404"
+    assert (ROOT / "emu/covers/ppsspp/Unknown_Game_zzz.miss").is_file(), "negative cache written"
+
+    # Second hit is served from the negative cache, without touching the network.
+    r = client.get("/api/covers/ppsspp/Unknown_Game_zzz.iso")
+    assert r.status_code == 404, "negative cache 404 again"
 
 
 if __name__ == "__main__":
-    main()
+    setup_root()
+
+    from fastapi.testclient import TestClient
+    from backend.main import app
+
+    _tmp = Path(tempfile.mkdtemp(prefix="gamecore-icons-"))
+
+    def run(fn, *args):
+        fn(ROOT, *args)
+        print(f"[OK ] {fn.__name__}" + (f"[{args[0]}]" if args else ""))
+
+    run(test_sfo_parse_reads_the_title)
+    run(test_iso9660_opens_a_2048_byte_image)
+    run(test_iso9660_reads_a_nested_file)
+    for _a in (("rpcs3", "emu/rpcs3/BLUS30443", "Demon's Souls"),
+               ("shadps4", "emu/shadps4/CUSA00552", "Bloodborne"),
+               ("ppsspp", "emu/ppsspp/SomePspGame.iso", "Crisis Core")):
+        run(test_local_media_reads_the_title_off_the_dump, *_a)
+    for _a in (("rpcs3", "emu/rpcs3/BLUS30443", ("ps3", "BLUS30443")),
+               ("pcsx2", "emu/pcsx2/MyPs2Game.iso", ("ps2", "SLUS-20946")),
+               ("duckstation", "emu/duckstation/MyPs1Game.bin", ("psx", "SCUS-94900")),
+               ("dolphin", "emu/dolphin/Melee.iso", ("wii", "GALE01"))):
+        run(test_local_media_reads_the_disc_id, *_a)
+    for _a in (("rpcs3", "emu/rpcs3/BLUS30443"), ("ppsspp", "emu/ppsspp/SomePspGame.iso")):
+        test_local_media_extracts_the_embedded_icon(ROOT, *_a, tmp_path=_tmp)
+        print(f"[OK ] test_local_media_extracts_the_embedded_icon[{_a[0]}]")
+
+    with TestClient(app) as _client:
+        for _fn in (test_games_endpoint_lists_the_ps3_dump,
+                    test_ps3_cover_comes_from_the_local_icon0,
+                    test_ps3_cover_is_cached_per_system,
+                    test_psp_cover_comes_from_the_icon0_inside_the_iso,
+                    test_refresh_re_resolves_a_cached_cover,
+                    test_gamecube_cover_is_looked_up_on_gametdb_by_id6,
+                    test_ps2_cover_is_looked_up_on_xlenore_by_serial,
+                    test_ps1_cover_is_looked_up_on_xlenore_by_serial,
+                    test_a_game_nobody_has_a_cover_for_is_404_and_negatively_cached):
+            _fn(_client)
+            print(f"[OK ] {_fn.__name__}")
+
+    shutil.rmtree(_tmp, ignore_errors=True)
+    print("\nAll tests passed.")

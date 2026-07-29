@@ -57,6 +57,23 @@ export function UpdatePage({ onClose, onBack }: { onClose: () => void; onBack: (
   // Auto-check on open
   useEffect(() => { check() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Ask the backend whether an update is already running, on mount and then
+  // periodically. `installing` alone was component state: leaving this page and
+  // coming back re-mounted it as false, the Install button went live again, and
+  // a second run of update/linux.sh started on top of the first.
+  useEffect(() => {
+    let alive = true
+    const poll = async () => {
+      try {
+        const { running } = await api.update.status()
+        if (alive) setInstalling(running)
+      } catch { /* keep whatever we have */ }
+    }
+    poll()
+    const t = setInterval(poll, 3000)
+    return () => { alive = false; clearInterval(t) }
+  }, [])
+
   // Subscribe to update log stream
   useEffect(() => {
     const off1 = onWsEvent('update:log', d => {
@@ -70,7 +87,18 @@ export function UpdatePage({ onClose, onBack }: { onClose: () => void; onBack: (
   const apply = async () => {
     setLog([])
     setInstalling(true)
-    try { await api.update.apply() } catch { setInstalling(false) }
+    try {
+      await api.update.apply()
+    } catch (e: unknown) {
+      // 409 means one is already running — stay in the installing state and
+      // keep following its log rather than re-enabling the button.
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('409')) {
+        setLog(prev => [...prev, '[update] An update is already running — following it.'])
+        return
+      }
+      setInstalling(false)
+    }
   }
 
   checkRef.current = check

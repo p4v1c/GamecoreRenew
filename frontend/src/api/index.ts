@@ -96,6 +96,9 @@ export const api = {
   update: {
     check: () => get<{ update_available: boolean; current: string; latest: string; download_url?: string }>('/update/check'),
     apply: () => post('/update/apply'),
+    // The backend is the source of truth for "is an update running": component
+    // state does not survive leaving the page, and an update outlives that.
+    status: () => get<{ running: boolean }>('/update/status'),
   },
   wifi: {
     networks: () => get<{ ssid: string; signal: number; secured: boolean; connected: boolean }[]>('/settings/wifi/networks'),

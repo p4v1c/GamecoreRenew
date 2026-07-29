@@ -18,10 +18,11 @@ Config lives in config/standby.json (kept across OTA updates).
 import asyncio
 import json
 import logging
+import os
 import time
 
 from ..config import GAMECORE_ROOT
-from .process_manager import _display_env
+from .process_manager import display_env
 
 log = logging.getLogger(__name__)
 
@@ -49,8 +50,13 @@ def save_config(cfg: dict) -> dict:
     merged["screensaver_mins"] = max(1, int(merged["screensaver_mins"]))
     # Screen-off always comes after (or with) the screensaver stage
     merged["sleep_mins"] = max(merged["screensaver_mins"], int(merged["sleep_mins"]))
+    # tmp + os.replace, like auth._write_private: write_text truncates first,
+    # so an interrupted write left a half-written standby.json and load_config
+    # fell back to the defaults, quietly undoing the player's timings.
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_FILE.write_text(json.dumps(merged, indent=2))
+    tmp = CONFIG_FILE.with_name(CONFIG_FILE.name + ".tmp")
+    tmp.write_text(json.dumps(merged, indent=2))
+    os.replace(tmp, CONFIG_FILE)
     return merged
 
 
@@ -60,14 +66,16 @@ def get_state() -> str:
 
 async def _run_cmd(*argv: str) -> bool:
     try:
+        # Same DISPLAY/XAUTHORITY resolution as game launches — under systemd
+        # there is no X env at all, and xset needs the xauth cookie, not just a
+        # DISPLAY guess. Awaited: the probe behind it can block for seconds the
+        # first time, and this runs on every standby transition.
+        env = await display_env()
         proc = await asyncio.create_subprocess_exec(
             *argv,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
-            # Same DISPLAY/XAUTHORITY resolution as game launches — under
-            # systemd there is no X env at all, and xset needs the xauth
-            # cookie, not just a DISPLAY guess.
-            env=_display_env(),
+            env=env,
         )
         await proc.wait()
         return proc.returncode == 0
@@ -104,18 +112,46 @@ async def _enter(stage: str) -> None:
 
 
 async def exit_standby() -> None:
+    """Wake the box. Deliberately unconditional — see resume_after_restart().
+
+    It used to return immediately when _state was already "active", which is
+    exactly the case where waking matters: the screen can be off while this
+    process believes it is on, and POST /api/standby/exit then did nothing at
+    all. Asking to wake up is never a no-op.
+    """
     global _state, _last_input
     from .. import ws
     _last_input = time.monotonic()
-    if _state == "active":
-        return
     was = _state
-    log.info("standby: wake from %s", was)
     _state = "active"
-    if was == "sleep":
-        await _screen(True)
-        await _governor("performance")
+    if was != "active":
+        log.info("standby: wake from %s", was)
+    await _screen(True)
+    await _governor("performance")
     await ws.broadcast("standby:exit", {})
+
+
+async def resume_after_restart() -> None:
+    """Undo, at startup, any standby the previous process left on the screen.
+
+    _state is in memory; its effect is not. `xset dpms force off` is a property
+    of the X server, and X belongs to SDDM — it does not restart with the
+    backend. So after a crash, a `systemctl restart`, or the end of an OTA
+    (update/linux.sh restarts the service), the box came back holding
+    _state == "active" with the screen still off. on_input() tests
+    `_state != "active"` before waking, so a button press did nothing; gamepad
+    events arrive over evdev rather than X, so DPMS never re-armed by itself
+    either. The TV stayed black until someone SSH'd in or plugged a keyboard.
+
+    Called from the lifespan before the watcher starts, so it also repairs a box
+    that is already in that state — restarting the backend is what a stuck user
+    will try, and now it works.
+    """
+    global _state, _last_input
+    _state = "active"
+    _last_input = time.monotonic()
+    await _screen(True)
+    await _governor("performance")
 
 
 def on_input() -> None:

@@ -9,6 +9,28 @@ import httpx
 from ..config import COVERS_DIR, THEGAMESDB_API_KEY
 from ..utils import TAG_RE
 
+
+class Unreachable(Exception):
+    """No lookup actually completed — nothing answered, or what answered was
+    not an answer about this game (429, 403, 5xx).
+
+    The distinction exists because callers cache the negative result. "Nobody
+    has a cover for this game" is worth remembering for a week; "the Wi-Fi was
+    not configured yet" is not. Collapsing the two is what left a brand-new box
+    with no artwork at all: prefetch starts 15 s after boot, before the owner
+    has been able to join a network from the very interface it is filling, so
+    the first run wrote a miss marker for every single game.
+    """
+
+
+# Statuses that say "ask again later", not "no such thing". Anything >= 500 is
+# treated the same way.
+_TRANSIENT_STATUS = frozenset({403, 408, 425, 429})
+
+
+def _is_transient(status: int) -> bool:
+    return status in _TRANSIENT_STATUS or status >= 500
+
 TGDB_PLATFORM_MAP: dict[str, int] = {
     "duckstation": 10,
     "pcsx2":       11,
@@ -82,11 +104,16 @@ def _name_variants(base: str) -> list[str]:
     return variants
 
 
-async def _get_index(client: httpx.AsyncClient, system_name: str) -> list[str]:
-    """Fetch and cache directory listing from Libretro."""
+async def _get_index(client: httpx.AsyncClient, system_name: str) -> tuple[list[str], bool, bool]:
+    """Fetch and cache the Libretro directory listing.
+
+    Returns (files, reached, transient). The two flags are what let the caller
+    tell "this game is not in the index" from "the index never loaded" — an
+    empty list means both, and only the first may be cached as a miss.
+    """
     cached = _INDEX_CACHE.get(system_name)
     if cached and time.time() - cached[0] < _INDEX_TTL:
-        return cached[1]
+        return cached[1], True, False
 
     url = _LIBRETRO_INDEX.format(system=quote(system_name))
     try:
@@ -95,16 +122,20 @@ async def _get_index(client: httpx.AsyncClient, system_name: str) -> list[str]:
             # Extract filenames from hrefs, unquoting them
             files = [unquote(f) for f in _INDEX_HREF_RE.findall(r.text)]
             _INDEX_CACHE[system_name] = (time.time(), files)
-            return files
+            return files, True, False
+        # Refresh failed — keep serving the stale listing rather than nothing
+        return (cached[1] if cached else []), True, _is_transient(r.status_code)
     except Exception:
-        pass
-    # Refresh failed — keep serving the stale listing rather than nothing
-    return cached[1] if cached else []
+        return (cached[1] if cached else []), False, False
 
 
 async def fetch_cover(rom_path: str, system_id: str, dest: Path | None = None) -> str | None:
-    """Return local path to cover image, downloading if necessary. None if not found.
-    dest overrides the target file (used by cover_pipeline's per-system cache)."""
+    """Return local path to cover image, downloading if necessary.
+
+    None means the lookups completed and nobody has this cover. Raises
+    Unreachable when they did not complete — see that class. dest overrides the
+    target file (used by cover_pipeline's per-system cache).
+    """
     base = Path(rom_path).stem
     if dest is None:
         COVERS_DIR.mkdir(parents=True, exist_ok=True)
@@ -123,6 +154,11 @@ async def fetch_cover(rom_path: str, system_id: str, dest: Path | None = None) -
     clean_base = TAG_RE.sub("", base).strip()
     norm_clean = _normalize(clean_base) if clean_base != base else None
 
+    # Did anything answer at all, and did anything answer "later"? Together they
+    # decide whether a None from this function may be cached as a real miss.
+    reached = False
+    transient = False
+
     async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
         for platform in platforms:
             # 1. Try heuristics first (fast, no index fetch needed if match)
@@ -133,6 +169,10 @@ async def fetch_cover(rom_path: str, system_id: str, dest: Path | None = None) -
                 )
                 try:
                     r = await client.head(url)
+                    reached = True
+                    if _is_transient(r.status_code):
+                        transient = True
+                        continue
                     if r.status_code == 200:
                         r = await client.get(url)
                         cached.write_bytes(r.content)
@@ -141,7 +181,9 @@ async def fetch_cover(rom_path: str, system_id: str, dest: Path | None = None) -
                     continue
 
             # 2. Index-based fuzzy matching — exact norm match, then prefix, then cross-region
-            index = await _get_index(client, platform)
+            index, idx_reached, idx_transient = await _get_index(client, platform)
+            reached = reached or idx_reached
+            transient = transient or idx_transient
             if not index:
                 continue
 
@@ -184,7 +226,10 @@ async def fetch_cover(rom_path: str, system_id: str, dest: Path | None = None) -
                 )
                 try:
                     r = await client.get(url)
-                    if r.status_code == 200:
+                    reached = True
+                    if _is_transient(r.status_code):
+                        transient = True
+                    elif r.status_code == 200:
                         cached.write_bytes(r.content)
                         return str(cached)
                 except httpx.RequestError:
@@ -192,15 +237,27 @@ async def fetch_cover(rom_path: str, system_id: str, dest: Path | None = None) -
 
     # ── Fallback: TheGamesDB ──────────────────────────────────────────────────
     if THEGAMESDB_API_KEY:
+        # Raises Unreachable itself if it could not get an answer.
         result = await _fetch_tgdb_cover(base, system_id, cached)
         if result:
             return result
+        reached = True
 
+    if not reached or transient:
+        raise Unreachable(
+            f"no cover lookup completed for {base!r} "
+            f"(reached={reached}, transient={transient})")
     return None
 
 
 async def _fetch_tgdb_cover(name: str, system_id: str, dest: Path) -> str | None:
-    """Try TheGamesDB API — returns local path on success, None otherwise."""
+    """Try TheGamesDB — local path on success, None if it has no cover for this game.
+
+    Raises Unreachable if the API did not answer, or answered with a quota or
+    server error. That used to be swallowed by a bare `except Exception: return
+    None`, which the caller could not tell from a genuine "not found" — so a
+    day of exhausted quota was recorded as "this game has no cover" for a week.
+    """
     platform_id = TGDB_PLATFORM_MAP.get(system_id.lower())
     if not platform_id:
         return None
@@ -213,6 +270,8 @@ async def _fetch_tgdb_cover(name: str, system_id: str, dest: Path) -> str | None
                 "filter[platform]": platform_id,
                 "fields": "game_title",
             })
+            if r.status_code != 200:
+                raise Unreachable(f"TheGamesDB search answered {r.status_code}")
             games = r.json().get("data", {}).get("games", [])
             if not games:
                 return None
@@ -223,6 +282,8 @@ async def _fetch_tgdb_cover(name: str, system_id: str, dest: Path) -> str | None
                 "games_id": game_id,
                 "filter[type]": "boxart",
             })
+            if r.status_code != 200:
+                raise Unreachable(f"TheGamesDB images answered {r.status_code}")
             data = r.json().get("data", {})
             images = data.get("images", {}).get(str(game_id), [])
             front = next((img for img in images if img.get("side") == "front"), None)
@@ -236,7 +297,14 @@ async def _fetch_tgdb_cover(name: str, system_id: str, dest: Path) -> str | None
             if r.status_code == 200:
                 dest.write_bytes(r.content)
                 return str(dest)
+            if _is_transient(r.status_code):
+                raise Unreachable(f"TheGamesDB CDN answered {r.status_code}")
+        except Unreachable:
+            raise
+        except httpx.RequestError as e:
+            raise Unreachable(f"TheGamesDB unreachable: {e}") from e
         except Exception:
-            return None
+            # A malformed payload is not evidence about this game either.
+            raise Unreachable("TheGamesDB returned something unusable")
 
     return None

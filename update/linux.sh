@@ -16,8 +16,23 @@ fail() { echo "[update] ERROR: $*"; exit 1; }
 
 REPO="p4v1c/GamecoreRenew"
 ASSET="gamecore-ota.tar.gz"
-TMP_DIR="/tmp/gamecore_ota"
 GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
+
+# Only one update at a time. The backend refuses a second /api/update/apply,
+# but this is the guard that holds if it is ever started another way — two runs
+# used to share a fixed /tmp/gamecore_ota, and the second one's `rm -rf` landed
+# in the middle of the first one's rsync into GAMECORE_PATH.
+LOCK_FILE="${TMPDIR:-/tmp}/gamecore_ota.lock"
+if command -v flock >/dev/null; then
+  exec 9>"$LOCK_FILE" || fail "cannot open lock file ${LOCK_FILE}"
+  flock -n 9 || fail "another update is already running"
+fi
+
+# A private working directory, so concurrent runs cannot collide even without
+# flock, and so a stale one is never inherited.
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gamecore_ota.XXXXXXXX")" || fail "cannot create a work directory"
+cleanup() { rm -rf "$TMP_DIR"; }
+trap cleanup EXIT
 
 command -v python3 >/dev/null || fail "python3 not found"
 
@@ -41,7 +56,6 @@ print(next((a["browser_download_url"] for a in data.get("assets", []) if a["name
 
 echo "[update] Latest: ${LATEST_TAG}"
 echo "[update] Downloading ${ASSET}..."
-rm -rf "$TMP_DIR"
 mkdir -p "$TMP_DIR/src"
 curl -sfL -o "${TMP_DIR}/${ASSET}" "$DOWNLOAD_URL" || fail "download failed (${DOWNLOAD_URL})"
 echo "[update] Download complete."
@@ -58,6 +72,56 @@ if [[ ! -d "${SRC_DIR}/backend" ]]; then
   SRC_DIR="$EXTRACTED"
 fi
 echo "[update] Source directory: ${SRC_DIR}"
+
+# Disk space, before touching anything. An rsync that runs out of space part
+# way leaves GAMECORE_PATH half old and half new, and update/linux.sh cannot
+# install a specific tag — there is no way back from that except by hand.
+# Ask for twice the payload, which covers the copy plus the snapshot below.
+_need_kb=$(du -sk "${SRC_DIR}" 2>/dev/null | cut -f1)
+_free_kb=$(df -Pk "${GAMECORE_PATH}" 2>/dev/null | awk 'NR==2 {print $4}')
+if [[ -n "$_need_kb" && -n "$_free_kb" ]] && (( _free_kb < _need_kb * 2 )); then
+  fail "not enough free space on $(df -Ph "${GAMECORE_PATH}" | awk 'NR==2 {print $6}') — \
+need ~$(( _need_kb * 2 / 1024 )) MB, have $(( _free_kb / 1024 )) MB"
+fi
+
+# Snapshot the current install before overwriting it. --link-dest makes this
+# hardlinks rather than copies, so it costs directory entries and no data.
+#
+# Scope matters, and the reason is not obvious: a hardlinked snapshot shares
+# inodes with the live tree, so anything that writes IN PLACE changes both
+# copies at once. rsync is safe — it writes a temp file and renames, giving a
+# new inode — but `pip install` into .venv and `npm install` into node_modules
+# are not, and neither is the `echo > VERSION` at the end of this script. Those
+# are excluded: they are rebuilt from the release anyway, so there is nothing
+# in them worth going back to. What is left is exactly the code rsync replaces,
+# which is what the snapshot is for.
+#
+# Deliberately NOT restored automatically. A trap that rolls back on any
+# failure has to be right about a machine whose state it does not know, and
+# this path could not be exercised here — an automatic restore that goes wrong
+# turns a recoverable update into an unbootable box. The snapshot plus the
+# exact command is the part that is safe to ship untested.
+PREV_DIR="${GAMECORE_PATH}.prev"
+if rm -rf "$PREV_DIR" 2>/dev/null && \
+   rsync -a --delete \
+     --exclude='.venv/' --exclude='node_modules/' --exclude='emu/' \
+     --exclude='config/' --exclude='VERSION' \
+     --link-dest="${GAMECORE_PATH}/" "${GAMECORE_PATH}/" "${PREV_DIR}/" 2>/dev/null; then
+  echo "[update] Snapshot of the current install: ${PREV_DIR}"
+  restore_hint() {
+    echo "[update] To go back to the code that was running before this update:"
+    echo "[update]   sudo rsync -a ${PREV_DIR}/ ${GAMECORE_PATH}/"
+    echo "[update]   sudo systemctl restart gamecore-backend gamecore-ui"
+    echo "[update] (no --delete: the snapshot excludes .venv, node_modules, emu/ and"
+    echo "[update]  config/, which must not be removed from the live install)"
+  }
+else
+  echo "[update] WARNING: could not snapshot the current install — no easy way back if this fails."
+  restore_hint() { :; }
+fi
+
+# From here on, a failure leaves files half-replaced: say how to undo it.
+fail() { echo "[update] ERROR: $*"; restore_hint; exit 1; }
 
 echo "[update] Installing new files..."
 # Excluded paths are user data — never overwrite them:
@@ -129,10 +193,6 @@ else
   echo "[update]       may be older than the bundle being installed."
 fi
 
-# Write the new version tag so the backend reports it correctly on next start
-echo "${LATEST_TAG}" > "${GAMECORE_PATH}/VERSION"
-echo "[update] Version set to ${LATEST_TAG}"
-
 echo "[update] Updating Python dependencies..."
 "${GAMECORE_PATH}/.venv/bin/pip" install -q -r "${GAMECORE_PATH}/backend/requirements.txt" \
   || fail "pip install failed"
@@ -148,6 +208,27 @@ else
   npm run build        || fail "frontend build failed"
 fi
 
+# Caddy's config is NOT part of an OTA. /etc/caddy/Caddyfile is written only by
+# install/arch.sh (which templates the backend port into it) and needs root, so
+# a security fix to the shipped Caddyfile — a route that should not be exposed,
+# a gate that approves too much — reaches no installed box on its own. Nothing
+# said so, either. At least notice, and say what to do about it.
+if [[ -f /etc/caddy/Caddyfile && -f "${GAMECORE_PATH}/install/Caddyfile" ]]; then
+  # Compare against the shipped file with the same port substitution arch.sh
+  # applies, so a box on a non-default port is not flagged every single update.
+  _live_port=$(grep -oE '127\.0\.0\.1:[0-9]+' /etc/caddy/Caddyfile | head -1 | cut -d: -f2)
+  _live_port=${_live_port:-8765}
+  if ! sed "s|127\.0\.0\.1:8765|127.0.0.1:${_live_port}|g" \
+       "${GAMECORE_PATH}/install/Caddyfile" | diff -q - /etc/caddy/Caddyfile >/dev/null 2>&1; then
+    echo "[update] NOTE: /etc/caddy/Caddyfile differs from the one shipped in this release."
+    echo "[update]       An update cannot rewrite it (root, and the port is templated per box)."
+    echo "[update]       If you have not customised it, apply the new one with:"
+    echo "[update]         sudo sed 's|127.0.0.1:8765|127.0.0.1:${_live_port}|g' \\"
+    echo "[update]           ${GAMECORE_PATH}/install/Caddyfile > /etc/caddy/Caddyfile \\"
+    echo "[update]           && sudo systemctl reload caddy"
+  fi
+fi
+
 echo "[update] Clearing Electron UI cache (stale cached bundles hide the new frontend)..."
 # The UI is still running here — it may write some cache back on exit, which
 # is why electron/main.js also clears the HTTP cache on every start. This rm
@@ -155,6 +236,17 @@ echo "[update] Clearing Electron UI cache (stale cached bundles hide the new fro
 for d in "$HOME/.config/gamecore-electron" "$HOME/.config/GameCore"; do
   rm -rf "$d/Cache" "$d/Code Cache" "$d/GPUCache" 2>/dev/null
 done
+
+# Write the new version tag LAST — after every step that can still fail.
+#
+# It used to be written before pip and the frontend build. If the network
+# dropped in between, the script exited via fail() with VERSION already
+# claiming the new release: the box ran new files against old dependencies,
+# and GET /api/update/check compared that VERSION to the latest tag, decided
+# it was up to date, and stopped offering the update. The only way to retry
+# was over SSH.
+echo "${LATEST_TAG}" > "${GAMECORE_PATH}/VERSION"
+echo "[update] Version set to ${LATEST_TAG}"
 
 echo "[update] Scheduling service restart (detached)..."
 # --no-block: return immediately; the restart runs in its own unit, outside

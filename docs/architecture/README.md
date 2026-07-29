@@ -28,6 +28,13 @@ Looking for something specific:
 - *"What writes `config/addons.json`?"* → [7](07-config-and-data.md#configaddonsjson)
 - *"Why did my UI change disappear after an update?"* → [9](09-gotchas.md#the-ota-rebuild-trap)
 - *"What events can the UI listen to?"* → [5](05-frontend.md#the-websocket-event-table)
+- *"How do I run the tests?"* → [`../TESTING.md`](../TESTING.md)
+- *"What is exposed to the LAN, and what protects the rest?"* → [`../SECURITY.md`](../SECURITY.md)
+
+Outside this folder: [`../SECURITY.md`](../SECURITY.md) (the threat model and
+what enforces it), [`../TESTING.md`](../TESTING.md) (the suite, the `network`
+marker, `conftest.py`), [`../CONTROLLER_MODELS.md`](../CONTROLLER_MODELS.md)
+(why each emulator is profiled the way it is).
 
 ## The system in one picture
 

@@ -1,5 +1,6 @@
 """Overlay bezel management — upload/serve per-system PNG."""
 import os
+import tempfile
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
@@ -39,11 +40,16 @@ async def upload_overlay(system_id: str, file: UploadFile = File(...)):
         raise HTTPException(400, "Only PNG/JPEG/WebP images are accepted")
     p = _overlay_path(system_id)
     # Write to a temp file, then swap atomically — an interrupted or oversize
-    # upload must never destroy the existing overlay.
-    tmp = p.with_name(p.name + ".part")
+    # upload must never destroy the existing overlay. The name is unique: it
+    # used to be a fixed "<name>.part", so two uploads at once wrote into the
+    # same file and whichever finished second published a mixture of both.
+    # Same directory, so os.replace stays on one filesystem and is atomic.
+    p.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=p.name + ".", suffix=".part", dir=str(p.parent))
+    tmp = Path(tmp_name)
     written = 0
     try:
-        with tmp.open("wb") as f:
+        with os.fdopen(fd, "wb") as f:
             while True:
                 chunk = await file.read(1 << 20)  # 1 MB chunks
                 if not chunk:
@@ -54,6 +60,11 @@ async def upload_overlay(system_id: str, file: UploadFile = File(...)):
                 if written > _MAX_OVERLAY_BYTES:
                     raise HTTPException(413, f"Overlay exceeds {_MAX_OVERLAY_BYTES // (1024 * 1024)} MB limit")
                 f.write(chunk)
+        # An empty upload never entered the loop body, so it never met the
+        # magic-byte test — and then replaced a perfectly good bezel with zero
+        # bytes. Nothing is published unless something was actually checked.
+        if written == 0:
+            raise HTTPException(400, "Empty file")
         os.replace(tmp, p)
     finally:
         tmp.unlink(missing_ok=True)

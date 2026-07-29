@@ -48,6 +48,9 @@ REMOVE_PACKAGES=false
 REMOVE_USER=false
 GC_USER=""
 GC_PATH=""
+# Set when `userdel -r` actually removed the home directory, so the closing
+# summary stops promising that ~/.var/app/ was left in place — it was inside it.
+HOME_DELETED=false
 
 usage() {
   cat <<'EOF'
@@ -820,8 +823,14 @@ if $REMOVE_USER; then
     # No blanket `pkill -u`: it would kill the SSH session running this very
     # script and abandon the remaining steps. userdel reports the problem
     # perfectly well on its own.
-    run userdel -r "$GC_USER" 2>/dev/null && ok "user '$GC_USER' deleted." \
-      || warn "userdel failed — log '$GC_USER' out (loginctl terminate-user $GC_USER), then re-run."
+    if run userdel -r "$GC_USER" 2>/dev/null; then
+      ok "user '$GC_USER' deleted."
+      # -r took the home directory with it, and ~/.var/app/ lives inside it.
+      # The summary must stop claiming the emulator saves were left alone.
+      HOME_DELETED=true
+    else
+      warn "userdel failed — log '$GC_USER' out (loginctl terminate-user $GC_USER), then re-run."
+    fi
   fi
 fi
 
@@ -859,7 +868,7 @@ if ! $DRY; then
   echo -e "${YLW}  Left in place on purpose:${RST}"
   echo "  · sshd, bluetooth and sddm — system services that likely predate GameCore"
   echo "    (GameCore did enable sshd: 'sudo systemctl disable --now sshd' if you want it closed)"
-  echo "  · emulator save data in ~/.var/app/ (flatpak uninstall --delete-data <id>)"
+  $HOME_DELETED || echo "  · emulator save data in ~/.var/app/ (flatpak uninstall --delete-data <id>)"
   $REMOVE_FLATPAKS || echo "  · the Flatpak emulators themselves"
   $REMOVE_PACKAGES || echo "  · the system packages GameCore added"
   echo

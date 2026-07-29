@@ -13,20 +13,25 @@ own document.
 Module-level singleton: `process_manager = ProcessManager()`.
 
 State: `_proc`, `_launching`, `_game_key`, `_system_id`, `_start_time`,
-`_exec_path`, `_launch_args`.
+`_exec_path`, `_launch_args`, `_orphan_pgid`.
 
 | Member | Role |
 |---|---|
-| `_display_env()` | rebuilds a GUI environment for a systemd child — see [1](01-runtime-topology.md#environment-reconstruction) |
-| `is_running` | `_launching or (_proc and returncode is None)` |
+| `_display_env()` | rebuilds a GUI environment for a systemd child — see [1](01-runtime-topology.md#environment-reconstruction). **Synchronous**; memoised |
+| `display_env()` | the `async` wrapper every event-loop caller must use |
+| `invalidate_display_cache()` | forget the probed display — called after a failed launch |
+| `kill_process_group(proc)` | module-level: SIGKILL a process **and its children**. Shared with `routers/update.py` |
+| `is_running` | `_launching or (_proc alive) or (_orphan_pgid alive)` |
 | `current_game` | `{game_key, system_id}` or `None` |
-| `launch(exec_path, exec_args, rom_path, game_key, system_id)` | builds argv (`shlex.split` + ROM), spawns, broadcasts `game:started`, starts `_watch()` |
-| `kill()` | `_flatpak_kill()` then `_proc_kill()` |
+| `launch(...)` | builds argv (`shlex.split` + ROM), spawns, records the session, broadcasts `game:started`, starts `_watch()` |
+| `_save_session()` / `_clear_session()` | write/remove `config/session.json` atomically |
+| `adopt_orphan()` | at startup, re-attach to a game a previous backend left running |
+| `kill()` | orphan → `_kill_orphan()`; otherwise `_flatpak_kill()` then `_proc_kill()` |
 | `_flatpak_kill()` | finds the app-id (token after `run`) and runs `flatpak kill <app-id>`, 1 s timeout |
-| `_proc_kill()` | `os.killpg(os.getpgid(pid), SIGKILL)`, falling back to `proc.kill()` |
-| `_watch()` | awaits exit, records playtime if > 5 s, broadcasts `game:finished` |
+| `_proc_kill()` | delegates to `kill_process_group()` |
+| `_watch()` | awaits exit, clears the session file, records playtime if > 5 s, broadcasts `game:finished` |
 
-Three decisions that look odd until you know why:
+Decisions that look odd until you know why:
 
 1. **`_launching` is claimed synchronously**, before the first `await`. Two
    concurrent `launch()` calls would otherwise both pass the `is_running`
@@ -35,6 +40,24 @@ Three decisions that look odd until you know why:
    it, `killpg` would reach the backend itself.
 3. **SIGKILL, no SIGTERM.** Several emulators answer SIGTERM with a
    confirmation dialog that cannot be clicked from a gamepad.
+4. **The display probe is memoised.** Under systemd neither `DISPLAY` nor
+   `XAUTHORITY` is set, so `_probe_display()` ran on *every* launch and *every*
+   standby transition — with synchronous `subprocess.run(timeout=5)` calls, on
+   the event loop. When X was slow to answer (cold boot, stale xauth cookie, the
+   TV resyncing HDMI), an unrelated `GET /api/systems` measured **4.7 s**. The
+   display does not move mid-session, so it is probed once; the first probe runs
+   off-thread via `display_env()`, and the cache is dropped only when a launch
+   fails.
+5. **The pgid is persisted, and the game is never killed at shutdown.** See
+   `config/session.json` in [7](07-config-and-data.md). Killing it in the
+   lifespan would take unsaved progress with it on every OTA, and would do
+   nothing for the case that actually strands the player — a crash, where the
+   lifespan never runs.
+
+`launch_game` (in `routers/games.py`) catches `FileNotFoundError` and
+`PermissionError` and answers **503** naming the system and the binary, plus a
+`game:failed` broadcast the UI turns into a toast. It used to escape as a bare
+500 with an empty body: the launch silently did not happen and nothing said why.
 
 The module header also records a real bug: an earlier revision exported
 `SDL_GAMECONTROLLERDB`, a variable SDL has never read, so the vendored mapping
@@ -121,11 +144,29 @@ HUD instead, because the React toast is hidden under the emulator.
 | `_screen(on)` | DPMS on/off |
 | `_governor(gov)` | `cpupower frequency-set -g …` — optional, needs a sudoers rule |
 | `_enter(stage)` | stage transition + WS broadcast |
-| `exit_standby()` | wake |
+| `exit_standby()` | wake — **unconditional** |
+| `resume_after_restart()` | called from the lifespan; forces the screen on at startup |
 | `on_input()` | called from the evdev loop on any controller button |
 | `run()` | the idle poll loop |
 
 A running game blocks standby entirely.
+
+**The state is in memory; its effect is not.** `xset dpms force off` is a
+property of the X server, and X belongs to SDDM — it does not restart with the
+backend. So a box asleep when the backend restarted (crash, `systemctl restart`,
+the end of an OTA) came back holding `_state == "active"` with the TV still
+dark. `on_input()` tests `_state != "active"` before waking, so a button press
+did nothing; pad events arrive over evdev rather than X, so DPMS never re-armed
+by itself; and `POST /api/standby/exit` returned at its first line. SSH or a USB
+keyboard were the only ways out.
+
+Hence both halves: `resume_after_restart()` in the lifespan repairs a box already
+in that state, and `exit_standby()` no longer short-circuits on
+`_state == "active"` — asking to wake up is never a no-op.
+
+`_run_cmd` awaits `display_env()` rather than calling `_display_env()` inline:
+the probe behind it can block for seconds on the first call, and this runs on
+every standby transition.
 
 ---
 
@@ -136,10 +177,28 @@ A running game blocks standby entirely.
 | `resolve(system, filename, refresh=False)` | the four-tier resolution, [drawn here](02-request-flows.md#3-resolving-a-cover) |
 | `_id_urls(kind, value)` | candidate `(url, ext)` pairs for a disc ID, best first |
 | `_regions(letter)` | region-code expansion for GameTDB paths |
-| `_fetch_by_id(kind, value, base)` | downloads the first candidate that exists |
+| `_rom_in_root(system, filename)` | the ROM `filename` names **inside its ROMs root**, or `None` |
+| `_fetch_by_id(kind, value, base)` | downloads the first candidate that exists; raises `Unreachable` if none answered |
 
 Negative results are written as `.miss` files, honoured for 7 days, so an
 offline box does not retry the network on every scroll.
+
+**A `.miss` is only written for a real "not found".** The pipeline could not tell
+"nobody has a cover for this game" from "nothing answered": network errors were
+swallowed lower down, `resolve()` saw `None` either way, and it wrote the marker
+unconditionally. The worst trigger was also the most likely — a new box has no
+network until the owner configures Wi-Fi *from the GameCore interface*, and
+`prefetch` starts 15 s after boot. The first run therefore walked the whole
+library with no connectivity and marked every game; once Wi-Fi was up,
+`resolve()` returned 404 from the marker before trying anything, so the library
+stayed blank **for a week**, silently, and rebooting did not help. An exhausted
+TheGamesDB quota did the same.
+
+`_rom_in_root` is the containment guard: `filename` comes from the
+`{filename:path}` route parameter, which accepts slashes and `..`, and the value
+went straight into `roms_root / filename`. Same rule `launch_game` has always
+applied — resolve, then check against the root. `metadata._search_name` has it
+too.
 
 ## `local_media.py` (150 l.) — read the game itself
 
@@ -174,6 +233,15 @@ factory only closes the handle on its own failure paths.
 | `fetch_cover(rom_path, system_id, dest)` | libretro first, then TheGamesDB |
 | `_fetch_tgdb_cover(name, system_id, dest)` | needs `THEGAMESDB_API_KEY`, silently skipped otherwise |
 | `_region_rank(n)` | prefers the region you probably want when several match |
+| `Unreachable` | raised when **no lookup completed** — distinct from "not found" |
+| `_is_transient(status)` | 403, 408, 425, 429 and anything ≥ 500 mean "ask again later" |
+
+`fetch_cover` and `_fetch_by_id` return `None` only when the lookups completed
+and nobody has the cover; they raise `Unreachable` otherwise. That distinction is
+the whole point — `cover_pipeline` caches the negative result for seven days, and
+a dead network is not evidence about a game. `_fetch_tgdb_cover` raises on any
+non-200 too: a 429 body has no `games` key either, so an empty result used to be
+indistinguishable from a genuine miss.
 
 ## `metadata.py` (119 l.)
 

@@ -19,10 +19,13 @@
 # listener on :80 (ss -tlnp must show a single exposed GameCore port).
 {
 	auto_https disable_redirects
-	# Gate for on-demand issuance. Any name is fine (LAN threat model);
-	# asking Caddy's own admin API avoids depending on another service.
+	# Gate for on-demand issuance. This used to ask Caddy's own admin API,
+	# which answers 200 to anything — so any LAN client could open a
+	# handshake with an arbitrary SNI and have the box mint a certificate
+	# for it, without limit. The core approves only names that resolve to
+	# this machine (see /api/auth/tls-ask).
 	on_demand_tls {
-		ask http://127.0.0.1:2019/config/
+		ask http://127.0.0.1:8765/api/auth/tls-ask
 	}
 }
 
@@ -74,6 +77,7 @@ https://:8443 {
 		redir /roms /roms/ 308
 		redir /saves /saves/ 308
 		redir /rpcs3 /rpcs3/ 308
+		redir /twitch /twitch/ 308
 		handle /roms/* {
 			reverse_proxy 127.0.0.1:8770
 		}
@@ -82,6 +86,31 @@ https://:8443 {
 		}
 		handle /rpcs3/* {
 			reverse_proxy 127.0.0.1:8771
+		}
+
+		# EmberTV. It used to listen on 0.0.0.0:8097 with no auth at all, which
+		# meant any device on the Wi-Fi could post to Twitch as the owner — the
+		# one GameCore port on the LAN rule exists precisely to stop that. It is
+		# loopback-only now and reachable here instead, behind the same login.
+		# Same no-strip contract as the addons: EmberTV takes BASE_PATH=/twitch
+		# (set in its unit by install/arch.sh) and strips the prefix itself.
+		# The TV does not come through here — its kiosk opens localhost:8097.
+		# start-tv.sh hands EmberTV a self-signed cert, so this hop speaks HTTPS;
+		# skip verification on it, the connection never leaves loopback.
+		#
+		# header_up Host is not optional here. With an https:// upstream Caddy
+		# replaces Host with the upstream address (it leaves it alone for a plain
+		# http:// one), and EmberTV's CSRF guard accepts a POST only when the
+		# Origin host equals Host — so without this, sending a chat message or
+		# signing out from a LAN browser would 403 every time.
+		handle /twitch/* {
+			reverse_proxy https://127.0.0.1:8097 {
+				transport http {
+					tls
+					tls_insecure_skip_verify
+				}
+				header_up Host {hostport}
+			}
 		}
 
 		# The TV SPA is not usable over the LAN (its /api is blocked) —

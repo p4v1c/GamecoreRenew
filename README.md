@@ -135,7 +135,7 @@ web password, and the application files — and **keeps your ROMs** (`emu/`) and
 |---|---|
 | `--dry-run` | Print every action, change nothing. Run this first. |
 | `--purge` | Also delete `emu/` (ROMs) and `config/`. |
-| `--remove-flatpaks` | Uninstall the Flatpak emulators **this install** added. Their save data in `~/.var/app/` goes with them. |
+| `--remove-flatpaks` | Uninstall the Flatpak emulators **this install** added. Their save data in `~/.var/app/` is **kept** — the uninstaller never passes `--delete-data`. Remove it yourself with `flatpak uninstall --delete-data <app-id>`. |
 | `--remove-packages` | `pacman -Rns` the packages this install added and that nothing else requires. |
 | `--remove-user` | Delete the GameCore user — only if the manifest proves the installer created it. |
 | `--yes` | No confirmation prompts. |
@@ -160,7 +160,9 @@ cd GamecoreRenew
 
 # 1. Backend
 pip install -r backend/requirements.txt
-uvicorn backend.main:app --host 0.0.0.0 --port 8765 --reload
+# Loopback only — the core has no authentication of its own, and
+# docs/SECURITY.md phase 1 is "only :8443 listens on the LAN".
+uvicorn backend.main:app --host 127.0.0.1 --port 8765 --reload
 
 # 2. Frontend (separate terminal)
 cd frontend && npm install && npm run dev
@@ -169,6 +171,10 @@ cd frontend && npm install && npm run dev
 # 3. Electron (separate terminal)
 cd electron && npm install
 ELECTRON_DEV=1 npx electron .
+
+# Tests — see docs/TESTING.md
+pip install pytest
+pytest backend/tests -q -m "not network"    # what CI runs
 ```
 
 `DEBUG = True` in `backend/config.py` and `const DEBUG = true` in `electron/main.js` enable:
@@ -201,8 +207,11 @@ The ROM Manager ships as an addon (installed by default by the installer —
 or run `gamecore-addon install rom-manager`). From any device on the same
 network, open a browser and go to:
 ```
-http://<device-ip>:8770
+https://<device-ip>:8443/roms/
 ```
+The addon itself listens only on `127.0.0.1:8770` — every LAN request goes
+through Caddy on `:8443`, which asks for the shared password first. `:8770` is
+not reachable from another machine.
 Select a system in the left sidebar, then drag & drop your ROM files.  
 They are uploaded directly to the correct folder on the device.
 
@@ -211,19 +220,30 @@ Copy ROM files into the matching `emu/<system_id>/` folder via USB or SSH.
 
 **Supported formats per system:**
 
-| System | Extensions |
-|--------|-----------|
-| GameCube / Wii | `.iso` `.gcm` `.rvz` `.zip` |
-| PlayStation 1 | `.bin` `.cue` `.iso` `.img` `.zip` |
-| PlayStation 2 | `.iso` `.bin` `.zip` |
-| PlayStation 3 | disc-game **folders** in `emu/rpcs3/` (scanned as directories). Updates/DLC are `.pkg`, installed via the RPCS3 manager addon |
-| PSP | `.iso` `.cso` `.zip` |
-| Wii U | `.wux` `.rpx` `.iso` `.zip` |
-| Switch | `.xci` `.nsp` `.zip` |
-| Nintendo 3DS | `.3ds` `.zip` |
-| Nintendo DS | `.nds` `.zip` |
-| Game Boy Advance | `.gba` `.zip` |
-| Nintendo 64 | `.n64` `.z64` `.v64` `.zip` |
+The scanner filters strictly on this list — a format that is not declared is not
+shown, with no message. `config/systems.json` is the source of truth and is
+regenerated from `install/systems.json.dist` on every install;
+`backend/tests/test_systems_extensions.py` pins this table to it.
+
+| System | Folder | Extensions |
+|--------|--------|-----------|
+| GameCube / Wii | `emu/dolphin/` | `.iso` `.gcm` `.rvz` `.wbfs` `.wad` `.zip` |
+| PlayStation | `emu/duckstation/` | `.bin` `.iso` `.img` `.cue` `.chd` `.pbp` `.zip` |
+| PlayStation 2 | `emu/pcsx2/` | `.iso` `.bin` `.chd` `.zip` |
+| PlayStation 3 | `emu/rpcs3/` | disc-game **folders** (scanned as directories). Updates/DLC are `.pkg`, installed via the RPCS3 manager addon |
+| PlayStation 4 | `emu/shadps4/` | game **folders** (scanned as directories) |
+| PlayStation Portable | `emu/ppsspp/` | `.iso` `.cso` `.pbp` `.zip` |
+| Wii U | `emu/cemu/` | `.wux` `.rpx` `.iso` `.zip` |
+| Nintendo Switch | `emu/ryujinx/` | `.xci` `.nsp` `.zip` |
+| Nintendo 3DS | `emu/azahar/` | `.3ds` `.cia` `.zip` |
+| Nintendo DS | `emu/melonds/` | `.nds` `.zip` |
+| Game Boy Advance | `emu/mgba/` | `.gba` `.gbc` `.gb` `.zip` |
+| Nintendo 64 | `emu/gopher64/` | `.n64` `.z64` `.v64` `.zip` |
+| Xbox 360 | `emu/xenia/` | `.iso` `.xex` |
+
+> A multi-track PS1 dump is `Game.cue` plus its `Game (Track NN).bin` files.
+> Launch the **`.cue`** — it is the one that knows about the other tracks.
+> Starting `Track 01.bin` on its own boots the game without its CD audio.
 
 ---
 
@@ -281,7 +301,8 @@ the launcher and are handed to a theme as data. A themed dashboard cannot
 navigate differently from the default one, because it has no code that could.
 
 If a theme crashes, the default frontend takes over and the crash is recorded;
-three strikes and the theme is refused at boot, with the reason in Settings.
+after the second crash the theme is refused at boot, with the reason in Settings
+(`CRASH_LIMIT` in `frontend/src/lib/themeSafety.ts`).
 **Holding L1 + R1 for 2s anywhere** forces the default theme back — the way out
 of a theme that makes the UI unusable.
 
@@ -328,7 +349,7 @@ They fill the black bars that appear on 4:3 and other non-16:9 systems.
 
 ### Uploading an overlay
 
-From the ROM Manager addon (`http://<device-ip>:8770`):  
+From the ROM Manager addon (`https://<device-ip>:8443/roms/`):  
 Select a system → click the **Overlay** button → drag & drop or browse for a PNG.
 
 Or copy the PNG directly to:
@@ -552,7 +573,7 @@ For reference, what the installer wires up:
 
 Apps launched from GameCore that need gamepad access inside Flatpak (e.g. Stremio) use `"gamepadTrigger": true` in `config/apps.json`, which re-triggers udev after launch (requires `NOPASSWD: /usr/bin/udevadm` in sudoers).
 
-The Stremio tile runs a **forked web UI** with an on-screen keyboard rather than the Flatpak client, and its streaming server deliberately runs on the host's node + `ffmpeg` — see [`docs/STREMIO.md`](docs/STREMIO.md), which also explains why movies used to hang forever on the loading screen.
+The Stremio tile runs the **official Flatpak desktop client**, unmodified. All it lacked for couch use was an on-screen keyboard, so a small local proxy serves Stremio's own web interface with a keyboard script injected — no fork, no browser kiosk, no host-side node or `ffmpeg` transcoding. See [`docs/STREMIO.md`](docs/STREMIO.md).
 
 ---
 
@@ -570,9 +591,12 @@ frontend/         React + Vite + Framer Motion + Zustand
     lib/          themeLoader, themeSdk, sounds, formatting helpers
     store/        Zustand store (screen, selection, modal depth, session)
 electron/         Electron kiosk shell + overlay BrowserWindow
-config/           runtime state, never in git, never touched by OTA:
-                  systems.json, apps.json, overlays.json, addons.json,
-                  standby.json, auth.json, playtime.db
+config/           never touched by OTA. Two kinds of file live here:
+                  · versioned catalogues, regenerated from install/*.dist on
+                    every install — systems.json, apps.json, overlays.json
+                  · per-box state, never in git — auth.json, auth_secret,
+                    addons.json, standby.json, theme.json, session.json,
+                    playtime.db
   themes/         installed themes — an update adds ones you do not have,
                   and never touches ones you do
 assets/           logos/, overlays/
@@ -582,7 +606,7 @@ install/          Installers: arch.sh engine (+ --unattended), uninstall.sh,
                   apps.json.dist / systems.json.dist (pristine tile catalogues)
 update/           OTA update script (linux.sh)
 docs/             architecture/ (9-part deep dive), themes/ (contract + prompts),
-                  SECURITY.md, CONTROLLER_MODELS.md, STREMIO.md
+                  SECURITY.md, TESTING.md, CONTROLLER_MODELS.md, STREMIO.md
 ```
 
 > **Working on the code?** Start at [`docs/architecture/`](docs/architecture/) —
