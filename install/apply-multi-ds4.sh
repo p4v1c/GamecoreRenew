@@ -90,11 +90,21 @@ if gcpad.is_file():
         backup(gcpad)
         for n in (2, 3, 4):
             body = section(t, f"GCPad{n}")
-            if body and "Buttons/A" in body:  # mapped — just point it at pad n
+            # "has a Buttons/A line" was not enough to call a section mapped:
+            # GCPad3/4 shipped with the D-Pad on `T`/`G`/`F`/`H` and Z on `D`,
+            # keyboard keys from the box these configs were captured on. They
+            # passed, so only the Device line was rewritten and players 3 and 4
+            # ended up with a dead D-Pad. A bare single key between backticks is
+            # the tell; `Pad N` and `Back` are roles and stay untouched, so a
+            # deliberate remap is not overwritten.
+            keyboard_leftover = body and re.search(
+                r"(?:D-Pad/(?:Up|Down|Left|Right)|Buttons/Z) = `[^`]`", body)
+            if body and "Buttons/A" in body and not keyboard_leftover:
+                # mapped — just point it at pad n
                 body = re.sub(r"Device = SDL/\d+/", f"Device = SDL/{n-1}/", body)
                 if "Device = SDL/" not in body:
                     body = p1.replace("Device = SDL/0/", f"Device = SDL/{n-1}/")
-            else:  # stub (mouse/empty) — full copy of GCPad1
+            else:  # stub, or keyboard leftovers — full copy of GCPad1
                 body = p1.replace("Device = SDL/0/", f"Device = SDL/{n-1}/")
             t = set_section(t, f"GCPad{n}", body)
         gcpad.write_text(t)

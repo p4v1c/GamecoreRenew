@@ -808,8 +808,23 @@ def _dolphin(i: int, dup: int, vendor: str, product: str, name: str) -> str | No
         if p1 and "Device = SDL/" in p1:
             header = f"GCPad{i}"
             body = section(t, header)
+            # A section only counts as usable if it is genuinely a pad config.
+            # GCPad1/3/4 shipped with the D-Pad on `T`/`G`/`F`/`H` and Z on `D` —
+            # keyboard keys left over from the machine the configs were captured
+            # on. They satisfied both checks below, so this function rewrote only
+            # their Device line: on a fresh install with one pad, the D-Pad did
+            # nothing and Z (targeting) was unusable in every GameCube game,
+            # while player 2 — the one section that was correct — worked fine.
+            #
+            # The third test asks "is any of this a bare keyboard key", not "is
+            # it exactly `Pad N`", so that someone who deliberately remapped
+            # their D-Pad onto a stick does not have that thrown away and
+            # replaced with a clone of GCPad1.
+            keyboard_leftover = bool(body) and re.search(
+                r"(?:D-Pad/(?:Up|Down|Left|Right)|Buttons/Z) = `[^`]`", body)
             is_real = bool(body) and re.search(r"Device = SDL/\d+/", body) and \
-                re.search(r"Buttons/A = `Button [SNEW]`", body)
+                re.search(r"Buttons/A = `Button [SNEW]`", body) and \
+                not keyboard_leftover
             source = body if is_real else p1
             new_body = re.sub(r"Device = SDL/\d+/[^\n]*", f"Device = {device}", source)
             if new_body != body:
