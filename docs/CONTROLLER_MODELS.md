@@ -42,22 +42,36 @@ Trouvé en lisant leurs configs réelles sur le boîtier :
      0-based **par nom** (`SDL/<k>/<nom>`, ciface DeviceContainer). Une
      DualSense seule est « DualSense Wireless Controller 1 » /
      `SDL/0/...` même en Joueur 2.
-- **Ryujinx, azahar, mgba, Cemu** utilisent des **index/GUID** liés à un
-  GUID/UUID de périphérique précis (`button:1,guid:0500...cc09...`). Fait
-  vérifié en clair sur ce boîtier : DualShock 4 et DualSense partagent le
-  **même pilote noyau** et rapportent des **index identiques** — seul le
-  GUID diffère (octets vendor/product à une position fixe, quel que soit
-  le format de GUID SDL). Retargeter un slot ne demande donc QUE de
-  substituer ces octets, jamais les index déjà validés par l'utilisateur.
-  Mais là aussi l'index d'accompagnement compte **par GUID**, pas par
-  joueur : le préfixe `<dup>-<GUID>` de l'`id` Ryujinx dans `Config.json`
-  (un dup inexistant lie un périphérique fantôme → entrée morte) et le préfixe
-  `<uuid>k_...</uuid>` de Cemu (`guid_counter`) valent 0 pour une manette
-  seule de son modèle, quel que soit son slot. Les slots Ryujinx sont des
-  objets de la liste `input_config`, clés par `player_index` (`Player1`..).
+- **Ryujinx** utilise un **GUID** de périphérique précis
+  (`button:1,guid:0500...cc09...`). Fait vérifié en clair sur ce boîtier :
+  DualShock 4 et DualSense partagent le **même pilote noyau** et rapportent
+  des **index identiques** — seul le GUID diffère (octets vendor/product à
+  une position fixe, quel que soit le format de GUID SDL). Retargeter un slot
+  ne demande donc QUE de substituer ces octets, jamais les index déjà validés
+  par l'utilisateur. Mais l'index d'accompagnement compte **par GUID**, pas
+  par joueur : le préfixe `<dup>-<GUID>` de l'`id` dans `Config.json` vaut 0
+  pour une manette seule de son modèle, quel que soit son slot (un dup
+  inexistant lie un périphérique fantôme → entrée morte). Les slots Ryujinx
+  sont des objets de la liste `input_config`, clés par `player_index`
+  (`Player1`..).
 
-Le compteur commun à ces quatre schémas est `dup_index` : le nombre de
-manettes du même vendor:product déjà connectées dans un slot inférieur.
+- **azahar, mgba, Cemu** : **restauration d'un instantané**, PAS de
+  substitution de GUID. Leurs liaisons ne peuvent pas être fabriquées à partir
+  d'un simple VID:PID. Le modèle réel est celui-ci :
+
+  1. l'utilisateur mappe la manette une fois, dans l'émulateur, via
+     « Scan mapping » ;
+  2. `snapshot_save()` enregistre ce bloc de config, indexé par
+     `vendor:product` ;
+  3. `snapshot_restore()` le remet en place quand une manette du même modèle
+     se reconnecte.
+
+  Des versions « substitution de GUID » de `_mgba()` et `_cemu()` ont existé
+  dans `controller_profiles.py` — elles n'ont jamais été appelées par
+  `apply_profile()` et ont été supprimées. La docstring du module fait foi.
+
+Le compteur commun aux schémas par nom et par GUID est `dup_index` : le nombre
+de manettes du même vendor:product déjà connectées dans un slot inférieur.
 `gamepad_monitor.py` le calcule depuis son roster et le passe à
 `apply_profile()` ; 0 est toujours correct pour la première manette d'un
 modèle donné.
@@ -80,16 +94,22 @@ pour les batteries/labels TV) — première manette connectée = Joueur 1,
 suivante = Joueur 2, etc., jusqu'à 4. Le TYPE de manette qui occupe un slot
 peut donc changer d'une session à l'autre sans jamais rien casser.
 
-- `azahar` (3DS) et `mgba` (GBA) : matériel single-player, seul le Joueur 1
-  est jamais concerné.
-- `ppsspp` et `melonDS` : aucune config existante trouvée sur ce boîtier
-  (jamais lancés) → ignorés proprement ; lance-les une fois, configure les
-  boutons manuellement, et le profilage les couvrira ensuite.
+- `azahar` (3DS), `mgba` (GBA), `Cemu` (Wii U) : matériel single-player ici,
+  seul le Joueur 1 est jamais concerné — et par restauration d'instantané
+  (voir plus haut), pas par substitution de GUID.
+- `melonDS` (DS) : **profilé**, contrairement à ce que disait cette page.
+  Un instantané sauvegardé gagne ; sinon `_melonds()` synthétise la config à
+  partir de la manette connectée. Les boutons de façade sont constants d'une
+  manette à l'autre — seule la croix directionnelle diffère (hat ou boutons),
+  et c'est la seule chose adaptée (`_pad_has_hat`). Single-player, slot 1.
+- `ppsspp` : aucune config existante trouvée sur ce boîtier (jamais lancé) →
+  ignoré proprement ; lance-le une fois, configure les boutons manuellement,
+  et le profilage le couvrira ensuite.
 - Manettes non-Sony (Xbox, 8BitDo, génériques) : la substitution GUID
-  suppose des index identiques à la manette de référence (Joueur 1 déjà
-  configuré), ce qui n'est garanti qu'au sein d'une même famille de pilote
-  (comme DS4/DualSense). Une famille différente nécessite toujours une
-  reconfiguration manuelle une fois dans Ryujinx/azahar/mgba/Cemu.
+  (Ryujinx) suppose des index identiques à la manette de référence (Joueur 1
+  déjà configuré), ce qui n'est garanti qu'au sein d'une même famille de
+  pilote (comme DS4/DualSense). Une famille différente demande un
+  « Scan mapping » une fois, qui devient l'instantané réutilisé ensuite.
 
 ⚠️ **Un émulateur déjà lancé au moment où sa config change ne relit pas le
 fichier tout seul** — il faut quitter/relancer le jeu pour que le nouveau

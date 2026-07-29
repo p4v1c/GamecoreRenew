@@ -128,11 +128,24 @@ A process started by systemd has no session environment. Two places rebuild it:
 
 - `electron/start-ui.sh` — for the UI itself.
 - `backend/services/process_manager.py:_display_env()` — for every emulator:
-  `DISPLAY` (default `:1`), `XDG_RUNTIME_DIR`, `DBUS_SESSION_BUS_ADDRESS`,
-  `XAUTHORITY` (globbed from `/run/user/<uid>/xauth_*`), and
+  `DISPLAY`, `XDG_RUNTIME_DIR`, `DBUS_SESSION_BUS_ADDRESS`, `XAUTHORITY` and
   `SDL_GAMECONTROLLERCONFIG_FILE` → `backend/data/gamecontrollerdb.txt`.
   It also **removes `WAYLAND_DISPLAY`**, or Qt emulators try Wayland and fail
   silently under the unit.
+
+  `DISPLAY` is **probed, not guessed**. `_probe_display()` enumerates the
+  sockets in `/tmp/.X11-unix/X*`, and for each one tries every cookie the uid
+  owns — `/tmp/xauth_*` (SDDM's X11 session), `/run/user/<uid>/xauth_*`
+  (kwin_wayland), `~/.Xauthority` (startx) — plus no cookie at all, running
+  `xdpyinfo` until one answers. `:0` is the last-resort fallback if nothing
+  does. Hardcoding `:1` was the original bug: a box with both `X0` and `X1`
+  has only one that answers, and a wrong `DISPLAY` makes every emulator exit
+  instantly with its output on `DEVNULL` — the UI just flashes
+  `game:started` → `game:finished`.
+
+  The result is **memoised**: the display does not move during a session, and
+  the probe can block for seconds when X is slow to answer. It is recomputed
+  only after a failed launch (`invalidate_display_cache()`).
 
 ## Development topology
 

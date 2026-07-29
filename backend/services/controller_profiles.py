@@ -30,20 +30,24 @@ config AND logs on this box, plus the relevant emulator sources):
         Player 2 — sdl_pad_handler.cpp counts same-named devices), and
         Dolphin's SDL/<k>/<name> uses a 0-based PER-NAME <k> (ciface
         DeviceContainer). Hence `dup_index` below.
-  - Ryujinx, azahar, mgba, Cemu bind by a device GUID/uuid. DualShock 4 and
-    DualSense share the same kernel driver and report IDENTICAL raw indices
-    (verified live) — only the GUID's vendor/product bytes differ, at a fixed,
-    format-stable hex offset. Retargeting a slot (or cloning slot 1 into a new
-    slot) is a pure GUID substitution — every button assignment already
-    validated by the owner stays exactly where it is. But the accompanying
-    index is, again, NOT the player slot: Ryujinx's `id` prefix (`<dup>-<GUID>`
-    in Config.json) counts pads sharing the same GUID — a lone DualSense is
-    dup 0 even as Player 2, a wrong dup binds a device that isn't there — and
-    Cemu's `<uuid>k_guid</uuid>` prefix is the same per-GUID counter
-    (SDLControllerProvider guid_counter). Ryujinx slots live as objects in the
-    `input_config` list keyed by `player_index` (`Player1`..).
-  - azahar (3DS) and mgba (GBA): single-player hardware — only slot 1 is
-    ever touched, regardless of which player index is passed in.
+  - Ryujinx binds by a device GUID. DualShock 4 and DualSense share the same
+    kernel driver and report IDENTICAL raw indices (verified live) — only the
+    GUID's vendor/product bytes differ, at a fixed, format-stable hex offset.
+    Retargeting a slot is therefore a pure GUID substitution, and every button
+    assignment the owner already validated stays exactly where it is. The
+    accompanying index is, again, NOT the player slot: the `id` prefix
+    (`<dup>-<GUID>` in Config.json) counts pads sharing the same GUID — a lone
+    DualSense is dup 0 even as Player 2, and a wrong dup binds a device that
+    is not there. Ryujinx slots live as objects in the `input_config` list
+    keyed by `player_index` (`Player1`..).
+  - azahar (3DS), mgba (GBA), Cemu (Wii U): snapshot restore, NOT GUID
+    substitution. Their bindings cannot be synthesised from a VID:PID — the
+    owner maps the pad once per emulator with "Scan mapping", that config is
+    saved (snapshot_save), and it is put back when the same model reconnects
+    (snapshot_restore). All three are single-player here, so only slot 1 is
+    ever touched whatever player index is passed in. GUID-rewriting versions
+    of the mgba and Cemu profilers used to exist in this file and were never
+    called by apply_profile; they have been removed.
   - melonDS (DS): single-player, slot 1 only. Face buttons are consistent
     across pads; only the D-pad differs (hat vs buttons), so just that is
     adapted to the connected controller (see _melonds / _pad_has_hat).
@@ -541,24 +545,6 @@ def snapshot_restore(emu_id: str, vendor: str, product: str) -> str | None:
     return f"{emu_id}: restored saved mapping ({vendor}:{product})"
 
 
-def _mgba(i: int, vendor: str, product: str, name: str) -> str | None:
-    if i != 1 or not MGBA_CONFIG.is_file():
-        return None
-    t = MGBA_CONFIG.read_text()
-    m = re.search(r"^device0=([0-9a-fA-F]{32})$", t, re.M)
-    if not m:
-        return None
-    old_guid = m.group(1)
-    new_guid = swap_vidpid(old_guid, vendor, product)
-    backup(MGBA_CONFIG)
-    t = re.sub(r"^device0=[0-9a-fA-F]{32}$", f"device0={new_guid}", t, flags=re.M)
-    sec = re.search(rf"^\[gba\.input-profile\.{old_guid}\]\n(.*?)(?=^\[|\Z)", t, re.S | re.M)
-    if sec and f"[gba.input-profile.{new_guid}]" not in t:
-        t += f"\n[gba.input-profile.{new_guid}]\n{sec.group(1)}"
-    MGBA_CONFIG.write_text(t)
-    return "mgba: Player 1 retargeted (active slot + saved profile)"
-
-
 def _pad_has_hat(vendor: str, product: str) -> bool | None:
     """Whether the connected pad exposes its D-pad as an evdev hat (ABS_HAT0X,
     code 0x10) rather than buttons — the D-pad-only fallback when the fuller
@@ -702,37 +688,16 @@ def _melonds(i: int, vendor: str, product: str, name: str) -> str | None:
     return f"melonds: {n} keys mapped ({src})"
 
 
-# ── Cemu (Wii U, controllerN.xml, 0-indexed) ────────────────────────────────
-
-def _cemu(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
-    """controller<idx>.xml is the emulated Wii U controller slot (player-1,
-    0-based), but the <uuid> prefix is Cemu's per-GUID duplicate counter
-    (SDLControllerProvider guid_counter) — a lone pad of its model is
-    always 0_<guid>, whichever player slot it occupies."""
-    slot0 = CEMU_PROFILES / "controller0.xml"
-    if not slot0.is_file():
-        return None
-    template = slot0.read_text()
-    m = re.search(r"<uuid>(\d+)_([0-9a-fA-F]{32})</uuid>", template)
-    if not m:
-        return None
-    idx = i - 1
-    f = CEMU_PROFILES / f"controller{idx}.xml"
-    new_guid = swap_vidpid(m.group(2), vendor, product)
-    if f.is_file():
-        t = f.read_text()
-        fm = re.search(r"<uuid>(\d+)_([0-9a-fA-F]{32})</uuid>", t)
-        if not fm:
-            return None
-        backup(f)
-        t = t.replace(f"<uuid>{fm.group(1)}_{fm.group(2)}</uuid>", f"<uuid>{dup}_{new_guid}</uuid>")
-        t = re.sub(r"<display_name>[^<]*</display_name>", f"<display_name>{name}</display_name>", t, count=1)
-        f.write_text(t)
-        return f"cemu: slot {idx} retargeted (uuid {dup}_)"
-    t = template.replace(f"<uuid>{m.group(1)}_{m.group(2)}</uuid>", f"<uuid>{dup}_{new_guid}</uuid>")
-    t = re.sub(r"<display_name>[^<]*</display_name>", f"<display_name>{name}</display_name>", t, count=1)
-    f.write_text(t)
-    return f"cemu: slot {idx} created (uuid {dup}_)"
+# ── mgba / Cemu / azahar: GUID substitution is NOT how these work ───────────
+#
+# _mgba() and _cemu() used to live here and rewrote the device GUID in place.
+# Neither was ever called: apply_profile() restores a snapshot the owner
+# captured with "Scan mapping" instead (snapshot_restore), because these
+# emulators bind to a GUID that cannot be synthesised from a VID:PID alone.
+# They were removed rather than kept as reference — dead code that looks like
+# the mechanism is worse than no code, and docs/CONTROLLER_MODELS.md described
+# the box on the strength of them. The snapshot model is documented in this
+# module's docstring.
 
 
 # ── Dolphin (GameCube/Wii, GCPad1-4) — roles semantic, index+name only ──────

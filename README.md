@@ -135,7 +135,7 @@ web password, and the application files — and **keeps your ROMs** (`emu/`) and
 |---|---|
 | `--dry-run` | Print every action, change nothing. Run this first. |
 | `--purge` | Also delete `emu/` (ROMs) and `config/`. |
-| `--remove-flatpaks` | Uninstall the Flatpak emulators **this install** added. Their save data in `~/.var/app/` goes with them. |
+| `--remove-flatpaks` | Uninstall the Flatpak emulators **this install** added. Their save data in `~/.var/app/` is **kept** — the uninstaller never passes `--delete-data`. Remove it yourself with `flatpak uninstall --delete-data <app-id>`. |
 | `--remove-packages` | `pacman -Rns` the packages this install added and that nothing else requires. |
 | `--remove-user` | Delete the GameCore user — only if the manifest proves the installer created it. |
 | `--yes` | No confirmation prompts. |
@@ -160,7 +160,9 @@ cd GamecoreRenew
 
 # 1. Backend
 pip install -r backend/requirements.txt
-uvicorn backend.main:app --host 0.0.0.0 --port 8765 --reload
+# Loopback only — the core has no authentication of its own, and
+# docs/SECURITY.md phase 1 is "only :8443 listens on the LAN".
+uvicorn backend.main:app --host 127.0.0.1 --port 8765 --reload
 
 # 2. Frontend (separate terminal)
 cd frontend && npm install && npm run dev
@@ -201,8 +203,11 @@ The ROM Manager ships as an addon (installed by default by the installer —
 or run `gamecore-addon install rom-manager`). From any device on the same
 network, open a browser and go to:
 ```
-http://<device-ip>:8770
+https://<device-ip>:8443/roms/
 ```
+The addon itself listens only on `127.0.0.1:8770` — every LAN request goes
+through Caddy on `:8443`, which asks for the shared password first. `:8770` is
+not reachable from another machine.
 Select a system in the left sidebar, then drag & drop your ROM files.  
 They are uploaded directly to the correct folder on the device.
 
@@ -292,7 +297,8 @@ the launcher and are handed to a theme as data. A themed dashboard cannot
 navigate differently from the default one, because it has no code that could.
 
 If a theme crashes, the default frontend takes over and the crash is recorded;
-three strikes and the theme is refused at boot, with the reason in Settings.
+after the second crash the theme is refused at boot, with the reason in Settings
+(`CRASH_LIMIT` in `frontend/src/lib/themeSafety.ts`).
 **Holding L1 + R1 for 2s anywhere** forces the default theme back — the way out
 of a theme that makes the UI unusable.
 
@@ -339,7 +345,7 @@ They fill the black bars that appear on 4:3 and other non-16:9 systems.
 
 ### Uploading an overlay
 
-From the ROM Manager addon (`http://<device-ip>:8770`):  
+From the ROM Manager addon (`https://<device-ip>:8443/roms/`):  
 Select a system → click the **Overlay** button → drag & drop or browse for a PNG.
 
 Or copy the PNG directly to:
@@ -563,7 +569,7 @@ For reference, what the installer wires up:
 
 Apps launched from GameCore that need gamepad access inside Flatpak (e.g. Stremio) use `"gamepadTrigger": true` in `config/apps.json`, which re-triggers udev after launch (requires `NOPASSWD: /usr/bin/udevadm` in sudoers).
 
-The Stremio tile runs a **forked web UI** with an on-screen keyboard rather than the Flatpak client, and its streaming server deliberately runs on the host's node + `ffmpeg` — see [`docs/STREMIO.md`](docs/STREMIO.md), which also explains why movies used to hang forever on the loading screen.
+The Stremio tile runs the **official Flatpak desktop client**, unmodified. All it lacked for couch use was an on-screen keyboard, so a small local proxy serves Stremio's own web interface with a keyboard script injected — no fork, no browser kiosk, no host-side node or `ffmpeg` transcoding. See [`docs/STREMIO.md`](docs/STREMIO.md).
 
 ---
 
@@ -581,9 +587,12 @@ frontend/         React + Vite + Framer Motion + Zustand
     lib/          themeLoader, themeSdk, sounds, formatting helpers
     store/        Zustand store (screen, selection, modal depth, session)
 electron/         Electron kiosk shell + overlay BrowserWindow
-config/           runtime state, never in git, never touched by OTA:
-                  systems.json, apps.json, overlays.json, addons.json,
-                  standby.json, auth.json, playtime.db
+config/           never touched by OTA. Two kinds of file live here:
+                  · versioned catalogues, regenerated from install/*.dist on
+                    every install — systems.json, apps.json, overlays.json
+                  · per-box state, never in git — auth.json, auth_secret,
+                    addons.json, standby.json, theme.json, session.json,
+                    playtime.db
   themes/         installed themes — an update adds ones you do not have,
                   and never touches ones you do
 assets/           logos/, overlays/
