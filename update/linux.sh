@@ -16,8 +16,23 @@ fail() { echo "[update] ERROR: $*"; exit 1; }
 
 REPO="p4v1c/GamecoreRenew"
 ASSET="gamecore-ota.tar.gz"
-TMP_DIR="/tmp/gamecore_ota"
 GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
+
+# Only one update at a time. The backend refuses a second /api/update/apply,
+# but this is the guard that holds if it is ever started another way — two runs
+# used to share a fixed /tmp/gamecore_ota, and the second one's `rm -rf` landed
+# in the middle of the first one's rsync into GAMECORE_PATH.
+LOCK_FILE="${TMPDIR:-/tmp}/gamecore_ota.lock"
+if command -v flock >/dev/null; then
+  exec 9>"$LOCK_FILE" || fail "cannot open lock file ${LOCK_FILE}"
+  flock -n 9 || fail "another update is already running"
+fi
+
+# A private working directory, so concurrent runs cannot collide even without
+# flock, and so a stale one is never inherited.
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gamecore_ota.XXXXXXXX")" || fail "cannot create a work directory"
+cleanup() { rm -rf "$TMP_DIR"; }
+trap cleanup EXIT
 
 command -v python3 >/dev/null || fail "python3 not found"
 
@@ -41,7 +56,6 @@ print(next((a["browser_download_url"] for a in data.get("assets", []) if a["name
 
 echo "[update] Latest: ${LATEST_TAG}"
 echo "[update] Downloading ${ASSET}..."
-rm -rf "$TMP_DIR"
 mkdir -p "$TMP_DIR/src"
 curl -sfL -o "${TMP_DIR}/${ASSET}" "$DOWNLOAD_URL" || fail "download failed (${DOWNLOAD_URL})"
 echo "[update] Download complete."
@@ -129,10 +143,6 @@ else
   echo "[update]       may be older than the bundle being installed."
 fi
 
-# Write the new version tag so the backend reports it correctly on next start
-echo "${LATEST_TAG}" > "${GAMECORE_PATH}/VERSION"
-echo "[update] Version set to ${LATEST_TAG}"
-
 echo "[update] Updating Python dependencies..."
 "${GAMECORE_PATH}/.venv/bin/pip" install -q -r "${GAMECORE_PATH}/backend/requirements.txt" \
   || fail "pip install failed"
@@ -155,6 +165,17 @@ echo "[update] Clearing Electron UI cache (stale cached bundles hide the new fro
 for d in "$HOME/.config/gamecore-electron" "$HOME/.config/GameCore"; do
   rm -rf "$d/Cache" "$d/Code Cache" "$d/GPUCache" 2>/dev/null
 done
+
+# Write the new version tag LAST — after every step that can still fail.
+#
+# It used to be written before pip and the frontend build. If the network
+# dropped in between, the script exited via fail() with VERSION already
+# claiming the new release: the box ran new files against old dependencies,
+# and GET /api/update/check compared that VERSION to the latest tag, decided
+# it was up to date, and stopped offering the update. The only way to retry
+# was over SSH.
+echo "${LATEST_TAG}" > "${GAMECORE_PATH}/VERSION"
+echo "[update] Version set to ${LATEST_TAG}"
 
 echo "[update] Scheduling service restart (detached)..."
 # --no-block: return immediately; the restart runs in its own unit, outside
