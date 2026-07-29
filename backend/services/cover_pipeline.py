@@ -18,7 +18,7 @@ import httpx
 
 from ..config import COVERS_DIR, resolve_path
 from . import local_media
-from .scraper import fetch_cover
+from .scraper import Unreachable, _is_transient, fetch_cover
 
 log = logging.getLogger(__name__)
 
@@ -59,16 +59,28 @@ def _id_urls(kind: str, value: str) -> list[tuple[str, str]]:
 
 
 async def _fetch_by_id(kind: str, value: str, base: Path) -> Path | None:
+    """Raises Unreachable if none of the candidate URLs actually answered."""
+    urls = _id_urls(kind, value)
+    if not urls:
+        return None
+    reached = False
+    transient = False
     async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-        for url, ext in _id_urls(kind, value):
+        for url, ext in urls:
             try:
                 r = await client.get(url)
             except httpx.RequestError:
+                continue
+            reached = True
+            if _is_transient(r.status_code):
+                transient = True
                 continue
             if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/"):
                 dest = base.with_suffix(ext)
                 dest.write_bytes(r.content)
                 return dest
+    if not reached or transient:
+        raise Unreachable(f"no disc-ID lookup completed for {kind}/{value}")
     return None
 
 
@@ -122,6 +134,11 @@ async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | 
 
     rom: Path | None = _rom_in_root(system, filename)
 
+    # Set as soon as any step could not get an answer. A .miss is a claim that
+    # nobody has this cover; nothing may claim that on the strength of a request
+    # that never left the box.
+    unreachable = False
+
     if rom:
         # 1. Icon embedded in the game (offline, always right)
         if local_media.extract_icon(sid, rom, png):
@@ -130,18 +147,35 @@ async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | 
         # 2. Exact lookup by the ID read from the game itself
         did = local_media.disc_id(sid, rom)
         if did:
-            found = await _fetch_by_id(did[0], did[1], base)
+            try:
+                found = await _fetch_by_id(did[0], did[1], base)
+            except Unreachable:
+                unreachable, found = True, None
             if found:
                 return found
 
     # 3./4. Name-based scraping (libretro CDN, then TheGamesDB)
     try:
         scraped = await fetch_cover(filename, sid, dest=png)
+    except Unreachable as e:
+        log.info("cover lookup for %s/%s did not complete (%s)", sid, filename, e)
+        unreachable, scraped = True, None
     except Exception:
         log.warning("cover scrape failed for %s/%s", sid, filename, exc_info=True)
-        scraped = None
+        # An unexpected error says nothing about whether the cover exists.
+        unreachable, scraped = True, None
     if scraped:
         return Path(scraped)
+
+    if unreachable:
+        # No marker. This is the case that mattered most: prefetch starts 15 s
+        # after boot, and on a brand-new box there is no Wi-Fi yet — the owner
+        # configures it from this very interface. The first run used to write a
+        # .miss for every game in the library, and _MISS_TTL is seven days, so
+        # the box stayed blank for a week with no message and no way to force a
+        # retry short of ?refresh=1 on each game. Rebooting did not help; the
+        # markers are on disk.
+        return None
 
     miss.touch()
     return None

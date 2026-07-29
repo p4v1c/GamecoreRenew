@@ -18,7 +18,7 @@ import httpx
 from ..config import GAMECORE_ROOT, THEGAMESDB_API_KEY, resolve_path
 from . import local_media
 from .rom_scanner import clean_name
-from .scraper import TGDB_PLATFORM_MAP
+from .scraper import TGDB_PLATFORM_MAP, Unreachable
 
 log = logging.getLogger(__name__)
 
@@ -87,6 +87,9 @@ async def resolve(system: dict, filename: str) -> dict | None:
     data = None
     try:
         data = await _fetch_tgdb(platform_id, _search_name(system, filename))
+    except Unreachable as e:
+        log.info("metadata: lookup for %s/%s did not complete (%s)", sid, filename, e)
+        return None  # transient — don't cache
     except Exception:
         log.warning("metadata: lookup failed for %s/%s", sid, filename, exc_info=True)
         return None  # transient — don't cache
@@ -94,6 +97,9 @@ async def resolve(system: dict, filename: str) -> dict | None:
     if data:
         cache.write_text(json.dumps(data, ensure_ascii=False))
         return data
+    # Only reached when TheGamesDB answered and had nothing. _fetch_tgdb raises
+    # on a non-200, so an exhausted quota is no longer written down as "this
+    # game has no metadata" for the next seven days.
     cache.write_text(json.dumps({"found": False}))
     return None
 
@@ -106,6 +112,10 @@ async def _fetch_tgdb(platform_id: int, name: str) -> dict | None:
             "filter[platform]": platform_id,
             "fields": "overview,players,rating,genres",
         })
+        if r.status_code != 200:
+            # A 429 body has no "games" key either, so without this the caller
+            # saw an empty result and cached it as a definitive miss.
+            raise Unreachable(f"TheGamesDB answered {r.status_code}")
         games = r.json().get("data", {}).get("games", [])
         if not games:
             return None

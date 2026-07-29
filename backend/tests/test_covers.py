@@ -35,7 +35,16 @@ if _root is None:
     os.environ["GAMECORE_PATH"] = _root
 ROOT = Path(_root)
 
+import asyncio
+
+import httpx
 import pytest
+
+
+def await_(coro):
+    """Run one coroutine to completion from a sync test."""
+    return asyncio.run(coro)
+
 
 FAKE_PNG = b"\x89PNG\r\n\x1a\n" + b"fakepngdata" * 20
 
@@ -359,6 +368,69 @@ def test_cover_path_is_confined_to_the_roms_root(client, monkeypatch):
     # Nothing may be cached outside the system's own covers directory.
     stray = [p for p in (ROOT / "emu/covers").iterdir() if p.is_file()]
     assert stray == [], f"cache files written outside a system dir: {stray}"
+
+
+def test_no_miss_is_written_when_the_network_is_down(client, monkeypatch):
+    """A .miss claims "nobody has this cover" — a dead network is not that.
+
+    The worst case is the first boot: prefetch starts 15 s in, before the owner
+    has configured Wi-Fi from this very interface, and every game in the library
+    got a marker with a seven-day TTL.
+    """
+    from backend.services import cover_pipeline
+
+    async def network_is_down(*a, **kw):
+        raise httpx.RequestError("no route to host")
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", network_is_down)
+    monkeypatch.setattr(httpx.AsyncClient, "head", network_is_down)
+
+    (ROOT / "emu/melonds").mkdir(parents=True, exist_ok=True)
+    (ROOT / "emu/melonds/Brand New Game.nds").write_bytes(b"nds")
+    system = {"id": "melonds", "romsPath": "emu/melonds/"}
+
+    assert await_(cover_pipeline.resolve(system, "Brand New Game.nds")) is None
+    assert not (ROOT / "emu/covers/melonds/Brand New Game.miss").exists(), \
+        "a failed request must not be recorded as a missing cover"
+
+
+def test_a_genuine_miss_is_still_cached(client, monkeypatch):
+    """The negative cache has to keep working, or every visit re-hits the CDN."""
+    from backend.services import cover_pipeline, scraper
+
+    async def not_found(*a, **kw):
+        return httpx.Response(404, request=httpx.Request("GET", "https://example.invalid"))
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", not_found)
+    monkeypatch.setattr(httpx.AsyncClient, "head", not_found)
+
+    (ROOT / "emu/melonds").mkdir(parents=True, exist_ok=True)
+    (ROOT / "emu/melonds/Nobody Has This.nds").write_bytes(b"nds")
+    system = {"id": "melonds", "romsPath": "emu/melonds/"}
+
+    assert await_(cover_pipeline.resolve(system, "Nobody Has This.nds")) is None
+    assert (ROOT / "emu/covers/melonds/Nobody Has This.miss").exists(), \
+        "a real 404 is worth remembering"
+
+
+@pytest.mark.parametrize("status", [403, 429, 500, 503])
+def test_a_quota_or_server_error_is_not_a_miss(client, monkeypatch, status):
+    from backend.services import cover_pipeline
+
+    async def refused(*a, **kw):
+        return httpx.Response(status, request=httpx.Request("GET", "https://example.invalid"))
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", refused)
+    monkeypatch.setattr(httpx.AsyncClient, "head", refused)
+
+    (ROOT / "emu/melonds").mkdir(parents=True, exist_ok=True)
+    name = f"Rate Limited {status}.nds"
+    (ROOT / "emu/melonds" / name).write_bytes(b"nds")
+    system = {"id": "melonds", "romsPath": "emu/melonds/"}
+
+    assert await_(cover_pipeline.resolve(system, name)) is None
+    assert not (ROOT / "emu/covers/melonds" / f"Rate Limited {status}.miss").exists(), \
+        f"HTTP {status} means try again later, not 'no cover exists'"
 
 
 @pytest.mark.network
