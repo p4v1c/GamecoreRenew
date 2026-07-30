@@ -130,3 +130,58 @@ def test_a_library_with_nothing_to_repair_is_left_alone(tmp_path):
     assert moved == [0]
     assert rows == [("Some Other Game.iso", "duckstation", 120, 2,
                      "2026-05-05T00:00:00+00:00")]
+
+
+def _old_catalogue_library(tmp_path: Path) -> Path:
+    """A box whose systems.json predates `*.cue` — config/ is OTA-excluded."""
+    root = _library(tmp_path)
+    (root / "config" / "systems.json").write_text(json.dumps([{
+        "id": "duckstation", "name": "PS1", "romsPath": "emu/duckstation/",
+        "extensions": ["*.bin", "*.iso", "*.img", "*.zip"],   # no *.cue
+        "path": "/bin/true",
+    }]))
+    return root
+
+
+def test_playtime_comes_back_when_the_descriptor_is_not_listed(tmp_path):
+    """The state a bad release left this box in.
+
+    A version that hid the .bin behind a .cue the catalogue does not scan moved
+    the playtime onto that .cue. Once the .bin is listed again, the hours have
+    to come back to it — otherwise the fix leaves the data exactly as
+    unreachable as the bug did.
+    """
+    (rows, sessions), moved = _run(_old_catalogue_library(tmp_path), [
+        ("Dragon Ball Z .cue", "duckstation", 909, 21, "2026-07-20T21:07:29+00:00"),
+    ])
+    assert moved == [1]
+    assert rows == [("Dragon Ball Z .bin", "duckstation", 909, 21,
+                     "2026-07-20T21:07:29+00:00")], rows
+    assert sessions == [("Dragon Ball Z .bin",)]
+
+
+def test_the_direction_follows_the_catalogue_not_the_extension(tmp_path):
+    """Same two files, opposite catalogues, opposite moves."""
+    (rows_new, _), _ = _run(_library(tmp_path / "new"), [
+        ("Dragon Ball Z .bin", "duckstation", 60, 1, "2026-01-01T00:00:00+00:00"),
+    ])
+    (rows_old, _), _ = _run(_old_catalogue_library(tmp_path / "old"), [
+        ("Dragon Ball Z .bin", "duckstation", 60, 1, "2026-01-01T00:00:00+00:00"),
+    ])
+    assert rows_new[0][0] == "Dragon Ball Z .cue"   # catalogue scans *.cue
+    assert rows_old[0][0] == "Dragon Ball Z .bin"   # catalogue does not
+
+
+def test_a_group_nobody_lists_is_left_alone(tmp_path):
+    """No visible representative → no move. Moving it would hide it further."""
+    root = _library(tmp_path)
+    (root / "config" / "systems.json").write_text(json.dumps([{
+        "id": "duckstation", "name": "PS1", "romsPath": "emu/duckstation/",
+        "extensions": ["*.chd"],                      # neither .bin nor .cue
+        "path": "/bin/true",
+    }]))
+    (rows, _), moved = _run(root, [
+        ("Dragon Ball Z .cue", "duckstation", 909, 21, "2026-07-20T21:07:29+00:00"),
+    ])
+    assert moved == [0]
+    assert rows[0][0] == "Dragon Ball Z .cue"

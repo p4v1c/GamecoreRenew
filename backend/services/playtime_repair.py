@@ -25,13 +25,26 @@ from pathlib import Path
 from ..config import resolve_path
 from ..db import get_db
 from ..routers.systems import list_all
-from .rom_scanner import shadowed_by_a_descriptor
+from .rom_scanner import iter_rom_files, shadowed_by_a_descriptor
 
 log = logging.getLogger(__name__)
 
 
 def _rename_map() -> dict[tuple[str, str], str]:
-    """{(system_id, old lowercased filename): the filename now listed}."""
+    """{(system_id, a lowercased filename not listed): the one that is}.
+
+    Deliberately **not** "the descriptor wins". The question this answers is
+    *which file of this disc group does the library actually show?* — and the
+    answer depends on the box's own `extensions`, which `config/` being excluded
+    from the OTA makes genuinely variable across the fleet.
+
+    So the map is built from what `iter_rom_files` really returns, and it
+    corrects in either direction: a `.bin` superseded by its `.cue` on a
+    current catalogue, and a `.cue` that a catalogue predating `*.cue` does not
+    scan. The second case is not hypothetical — it is the state this very box
+    was left in by a release that hid the `.bin` in favour of a `.cue` it could
+    not list.
+    """
     out: dict[tuple[str, str], str] = {}
     for system in list_all():
         if system.get("kind") != "emulator" or system.get("scanDirs"):
@@ -43,15 +56,28 @@ def _rename_map() -> dict[tuple[str, str], str]:
             entries = sorted(roms.iterdir(), key=lambda x: x.name.lower())
         except OSError:
             continue
+
+        # The whole disc group, ignoring extensions: every file that belongs to
+        # a descriptor, plus the descriptor itself.
+        groups: dict[str, set[str]] = {}
+        for member, owner in shadowed_by_a_descriptor(entries, None).items():
+            g = groups.setdefault(owner, {owner.lower()})
+            g.add(member)
+        if not groups:
+            continue
+
         sid = system["id"]
-        # The system's own extensions, for the same reason iter_rom_files
-        # passes them: a descriptor this system does not scan replaces nothing,
-        # so nothing may be re-keyed onto it. Moving playtime onto an entry the
-        # library will never list would hide it just as thoroughly as the bug
-        # this function exists to prevent.
-        for hidden, owner in shadowed_by_a_descriptor(
-                entries, system.get("extensions") or []).items():
-            out[(sid, hidden)] = owner
+        listed = {f.name for f in iter_rom_files(
+            roms, system.get("extensions") or [], False)}
+        for members in groups.values():
+            # The representative is whichever member the library shows. None
+            # means the whole group is invisible — nothing to move it onto.
+            rep = next((n for n in listed if n.lower() in members), None)
+            if not rep:
+                continue
+            for m in members:
+                if m != rep.lower():
+                    out[(sid, m)] = rep
     return out
 
 

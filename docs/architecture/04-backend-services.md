@@ -404,9 +404,16 @@ before this existed, one row on the reference box: 15 minutes, 21 sessions.
 So the rename is followed, in `playtime` and in `sessions`. If both keys
 already have a row (the player launched the `.cue` too) they are **merged**,
 not picked between: seconds and session counts add up, `last_played` is the
-later of the two. Idempotent by construction — after one pass no row matches a
-hidden name — and it never deletes a row it has not merged into its
-replacement.
+later of the two. Idempotent by construction, and it never deletes a row it has
+not merged into its replacement.
+
+The map is built from **what `iter_rom_files` actually returns**, not from
+"the descriptor wins" — so it corrects in either direction. That distinction is
+not theoretical: `config/` is excluded from the OTA, so a box installed before
+`*.cue` was added to duckstation lists the `.bin` and not the `.cue`, and a
+release that moved the playtime onto that `.cue` left it as unreachable as the
+bug it was fixing. A disc group no member of which is listed is left alone —
+moving playtime onto an invisible entry only hides it further.
 
 The covers and metadata caches need no equivalent: both are keyed on the
 *stem*, which `.bin` and `.cue` share.
