@@ -347,12 +347,60 @@ error. Same binary format on PS3, PS4 and PSP. The addons repo has its own
 copy in `shared/py/`; this one additionally exposes `parse_bytes()` for data
 already in memory.
 
-## `rom_scanner.py` (34 l.)
+## `rom_scanner.py` (126 l.)
 
 `clean_name(filename)` (strips extension and bracketed tags like `[!]`,
 `(USA)`), `matches_ext(filename, extensions)`, and
 `iter_rom_files(roms_path, extensions, scan_dirs)` — alphabetical, applying the
 common exclusions. The rom-manager addon keeps a mirrored copy.
+
+### One game, one entry
+
+`shadowed_by_a_descriptor(entries)` → `{hidden file: the entry that owns it}`.
+
+A PS1 dump is a descriptor plus its tracks, and duckstation scans `*.bin` *and*
+`*.cue` — so a single-disc game was listed twice, same name, same artwork. Both
+extensions have to stay scannable (a `.cue` is the only launchable file of a
+multi-track dump, and plenty of dumps ship as a bare `.bin`), so the dedup is at
+the listing level and the descriptor wins.
+
+Two rules, because either alone leaves duplicates on a real library:
+
+- **what the descriptor names** — a multi-track dump's `Game (Track 01).bin`
+  shares no stem with `Game.cue`. Transitive: an `.m3u` hides its `.cue` files
+  and their tracks go with them in the same pass;
+- **what shares its stem** — the common case of a dump renamed while the
+  descriptor kept pointing at the old name. Measured on the reference box:
+  `Dragon Ball Z .cue` names `Dragon Ball Z (Europe).bin`, which does not
+  exist, while `Dragon Ball Z .bin` sits next to it.
+
+`.m3u` lines are read whole rather than tokenised — disc names contain spaces,
+and a token pattern matches only the tail after the last one. A directory with
+no descriptor is never read, so a library without disc images is untouched.
+
+The **value** of that mapping is what `playtime_repair` needs: hiding a file
+that a player has hours on would orphan them.
+
+## `playtime_repair.py` (105 l.)
+
+`rekey_shadowed_entries()` → number of rows moved. Runs once in the lifespan,
+before anything can serve a library.
+
+`game_key` is the filename the library listed. So the day the library stops
+listing a file, every hour recorded against it stops being reachable: the row
+is still there, nothing points at it, and a game played for hours reports as
+never played. Hiding a `.bin` behind its `.cue` does exactly that — measured
+before this existed, one row on the reference box: 15 minutes, 21 sessions.
+
+So the rename is followed, in `playtime` and in `sessions`. If both keys
+already have a row (the player launched the `.cue` too) they are **merged**,
+not picked between: seconds and session counts add up, `last_played` is the
+later of the two. Idempotent by construction — after one pass no row matches a
+hidden name — and it never deletes a row it has not merged into its
+replacement.
+
+The covers and metadata caches need no equivalent: both are keyed on the
+*stem*, which `.bin` and `.cue` share.
 
 ## `prefetch.py` (60 l.)
 

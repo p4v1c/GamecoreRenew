@@ -38,8 +38,13 @@ def _references(descriptor: Path, text: str) -> Iterator[str]:
         yield m.group(1) or m.group(2) or ""
 
 
-def _shadowed_by_a_descriptor(entries: list[Path]) -> set[str]:
-    """Lowercased names of files that are part of another entry, not games.
+def shadowed_by_a_descriptor(entries: list[Path]) -> dict[str, str]:
+    """{lowercased name of a file that is part of another entry: that entry}.
+
+    The value matters as much as the key: a player's playtime is stored under
+    the name that was listed, so when a `.bin` stops being listed its hours
+    have to follow the `.cue` that replaced it (services/playtime_repair.py).
+    A set would have hidden the entry and orphaned the data.
 
     Two rules, because either one alone leaves duplicates on a real library:
 
@@ -55,12 +60,12 @@ def _shadowed_by_a_descriptor(entries: list[Path]) -> set[str]:
     """
     descriptors = [p for p in entries if p.suffix.lower() in _DISC_DESCRIPTORS]
     if not descriptors:
-        return set()
+        return {}
 
-    hidden: set[str] = set()
-    stems: set[str] = set()
+    hidden: dict[str, str] = {}
+    stems: dict[str, str] = {}
     for d in descriptors:
-        stems.add(d.stem.strip().lower())
+        stems.setdefault(d.stem.strip().lower(), d.name)
         try:
             text = d.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -69,11 +74,13 @@ def _shadowed_by_a_descriptor(entries: list[Path]) -> set[str]:
             ref = ref.strip()
             if ref:
                 # .name: an .m3u may point into a subdirectory.
-                hidden.add(Path(ref).name.lower())
+                hidden.setdefault(Path(ref).name.lower(), d.name)
 
     for p in entries:
-        if p.suffix.lower() in _DISC_TRACKS and p.stem.strip().lower() in stems:
-            hidden.add(p.name.lower())
+        if p.suffix.lower() in _DISC_TRACKS:
+            owner = stems.get(p.stem.strip().lower())
+            if owner:
+                hidden.setdefault(p.name.lower(), owner)
 
     # A descriptor can only be hidden by being named in another one (an .m3u
     # listing its discs) — the stem rule above only ever adds track files, so
@@ -101,7 +108,7 @@ def iter_rom_files(roms_path: Path, extensions: list[str], scan_dirs: bool = Fal
         return
 
     # One game, one entry: a .bin that belongs to a .cue is not a second game.
-    hidden = set() if scan_dirs else _shadowed_by_a_descriptor(entries)
+    hidden = {} if scan_dirs else shadowed_by_a_descriptor(entries)
 
     for f in entries:
         if f.name.startswith(".") or "example" in f.name.lower():

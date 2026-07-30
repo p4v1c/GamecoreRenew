@@ -8,6 +8,7 @@ exist.
 
 Run under pytest:  pytest backend/tests/test_gamemedia.py
 """
+import asyncio
 import json
 import os
 import sys
@@ -32,6 +33,18 @@ from backend.services import gamemedia
 from backend.services.gamemedia import gamemedia as gm
 
 
+def await_(coro):
+    """Run one coroutine to completion from a sync test.
+
+    Same helper as test_covers, and for the same reason: nothing in this suite
+    depends on pytest-asyncio, and the release workflow installs only
+    `requirements.txt` + `pytest`. A `@pytest.mark.asyncio` here would pass on a
+    developer's machine and do nothing on the runner — where a red pytest step
+    is what stops a broken release from being published.
+    """
+    return asyncio.run(coro)
+
+
 # ── The tier is inert until it is configured ─────────────────────────────────
 
 def test_unconfigured_box_reports_no_source():
@@ -48,9 +61,8 @@ def test_unconfigured_box_reports_no_source():
     assert status["available"] is False
 
 
-@pytest.mark.asyncio
-async def test_resolve_is_a_noop_without_a_source():
-    assert await gamemedia.resolve("rpcs3", "Uncharted 2") is None
+def test_resolve_is_a_noop_without_a_source():
+    assert await_(gamemedia.resolve("rpcs3", "Uncharted 2")) is None
 
 
 def test_caches_live_under_emu_and_not_in_the_home_directory():
@@ -155,11 +167,10 @@ def test_a_deferred_media_without_a_url_is_not_servable(tmp_path):
     assert gm._manifest_complete(tmp_path, manifest) is False
 
 
-@pytest.mark.asyncio
-async def test_fetch_media_refuses_a_slug_that_could_escape_the_cache():
+def test_fetch_media_refuses_a_slug_that_could_escape_the_cache():
     """A slug arrives from a URL and becomes a filename."""
     for hostile in ("../../etc/passwd", "box/front", "", "Box-Front", "box_front"):
-        assert await gamemedia.media_file("rpcs3", "Uncharted 2", hostile) is None
+        assert await_(gamemedia.media_file("rpcs3", "Uncharted 2", hostile)) is None
 
 
 def test_fetch_media_returns_nothing_for_a_type_the_game_does_not_have(tmp_path,

@@ -208,6 +208,15 @@ a crash — where no shutdown code runs at all — stranding the player.
 
 Created by `db.py:init_db()`.
 
+> **`game_key` is a filename.** It is whatever the library listed, which makes
+> it a *reference to something outside the database* — so anything that changes
+> what gets listed orphans the rows keyed on the old name. They are not
+> deleted, they simply stop being reachable, and a game played for hours
+> reports as never played. That is not hypothetical: hiding a `.bin` behind its
+> `.cue` did it to one row on the reference box. Any future change to what
+> `rom_scanner` lists needs the same treatment
+> ([`playtime_repair`](04-backend-services.md#playtime_repairpy-105-l)).
+
 ```sql
 CREATE TABLE playtime (
     game_key      TEXT PRIMARY KEY,
