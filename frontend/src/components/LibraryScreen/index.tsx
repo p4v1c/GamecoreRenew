@@ -114,12 +114,24 @@ export default function LibraryScreen({ view: View = DefaultLibraryView }: Props
   // fast scroll thrashed AnimatePresence (the panel froze on the first game)
   // and fired a cover+metadata request per step. 150ms after the scroll
   // settles, the panel catches up in one clean transition.
-  const [settledGame, setSettledGame] = useState<GameEntry | null>(null)
+  //
+  // The system it belongs to is stored WITH it, and checked during render.
+  // `systemId` comes from the store and changes the instant the player picks
+  // another console, while this lags 150ms behind — so leaving a library
+  // committed one frame pairing the new system with the previous system's
+  // game, and the browser really did request
+  // `/api/covers/rpcs3/Super Mario 64 DS.nds`. Clearing it from an effect is
+  // too late: effects run after the DOM is committed, so the <img> has already
+  // been created and the request already sent.
+  const [settled, setSettled] = useState<{ game: GameEntry; systemId: string } | null>(null)
   useEffect(() => {
-    if (!selectedGame) { setSettledGame(null); return }
-    const t = setTimeout(() => setSettledGame(selectedGame), 150)
+    if (!selectedGame || !selectedSystemId) { setSettled(null); return }
+    const t = setTimeout(() => setSettled({ game: selectedGame, systemId: selectedSystemId }), 150)
     return () => clearTimeout(t)
-  }, [selectedGame?.filename])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedGame?.filename, selectedSystemId])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // What the view receives — unchanged in shape, so no theme has to care.
+  const settledGame = settled?.systemId === selectedSystemId ? settled.game : null
 
   const launchGame = useCallback(async () => {
     if (!selectedSystemId || !selectedGame || launching) return
