@@ -223,6 +223,7 @@ not a gap waiting to be filled — the reasons are in §11.
 | **Ship a stylesheet** | yes, and it is the only place in GameCore where CSS works: the default UI styles itself inline |
 | **Restyle the screens it did *not* rewrite** | yes — the Wi-Fi, Bluetooth, audio and update pages read `--gc-overlay-*` and `--gc-accent*` (§7) |
 | **Read the box's real data** | yes — systems, games, playtime, metadata, cover art, storage, network, controllers and their battery, through `sdk.api` |
+| **Draw something other than the jacket** | yes — 3D box, clear logo, gameplay screenshot, title screen, ready-made mix, trailer, 54 types in all (§7.1) |
 | **React to what happens** | yes — `sdk.system.onWsEvent` for standby, ROM uploads, controller connect/disconnect, battery, theme changes |
 | **Read input** | yes — `sdk.input.onGp` for every pad event, `useGamepadState()` for the raw 60 fps state (that is how a live pad diagram works) |
 | **Know where the player is** | yes — `sdk.nav.use()` inside a component, `sdk.nav.get()` in a handler |
@@ -246,7 +247,7 @@ there is no import map to maintain and only one React instance exists.
 | Namespace | Contents | Detail |
 |---|---|---|
 | `sdk.ui` | `html` (tagged template), `React`, `useState`, `useEffect`, `useRef`, `useMemo`, `useCallback`, `motion`, `AnimatePresence` | Framer Motion is already bundled by the host |
-| `sdk.api` | `systems`, `games`, `metadata`, `playtime`, `sysinfo`, `standby`, `update`, `wifi`, `audio`, `bluetooth` | [full signatures](../architecture/05-frontend.md#apiindexts) |
+| `sdk.api` | `systems`, `games`, `metadata`, `media`, `playtime`, `sysinfo`, `standby`, `update`, `wifi`, `audio`, `bluetooth` | [full signatures](../architecture/05-frontend.md#apiindexts) |
 | `sdk.nav` | `use(selector)` for a reactive read inside a component, `get()` for a snapshot in a handler, plus `goHome`, `goLibrary`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx`, `openModal`, `closeModal` | [store reference](../architecture/05-frontend.md#store--storeindexts) |
 | `sdk.input` | `onGp(event, handler)`, `useGamepadState()`, `GP_BTN`, `events` | [event bus](../architecture/05-frontend.md#the-gamepad-event-bus--hooksusegamepadts) |
 | `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `sound` (read-only `enabled` / `volume`), `gamecore`, `asset(path)` | `asset()` resolves a path inside the theme folder |
@@ -262,6 +263,61 @@ double press there kills a running game.
 `sdk.defaults` is what makes "add a Santa on top of the existing dashboard" as
 cheap as "rewrite everything" — override `homeView`, render the default inside it,
 add your layer.
+
+### 7.1 Artwork other than the jacket
+
+The default library draws a flat box front, because that is what every game has.
+A theme is not tied to it: a game carries up to 54 media types, and any of them
+can be the thing your library is built on.
+
+Two ways in, and the first one covers most themes:
+
+```js
+// The Cover component you already receive takes an optional type.
+html`<${Cover} filename=${game.filename} systemId=${systemId}
+               color=${color} type="box-3d" />`
+```
+
+Leave `type` out and it draws the jacket from `/api/covers` exactly as before —
+same URL, same cache, same fallback. Pass one and it draws that instead, falling
+back to the jacket when this particular game does not have it. That fallback is
+the point: the 3D box is a rarer artwork than the flat scan, and a theme built
+on it would otherwise show a hole for every game nobody photographed in
+perspective.
+
+```js
+// Or ask what a game actually has, and decide.
+const index = await sdk.api.media.list(systemId, game.filename)
+// index.media = { "box-3d": { category: "box", kind: "image",
+//                             region: "wor", cached: true }, … }
+const hero = index.media['mix-rbv2'] ? 'mix-rbv2' : 'box-front'
+const src  = sdk.api.media.url(systemId, game.filename, hero)
+```
+
+The types worth knowing, by `category`:
+
+| Category | Useful slugs | What it gives you |
+|---|---|---|
+| `box` | `box-front` `box-back` `box-3d` `box-spine` | the jacket, and **the box in perspective** — transparent background, irregular ratio, so do not force it into a fixed-ratio frame |
+| `logo` | `clear-logo` `clear-logo-hd` | the game's logo cut out on transparency — what a title over a background wants |
+| `screenshot` | `screenshot-gameplay` `screenshot-game-title` | in-game capture, title screen |
+| `mix` | `mix-rbv2` `mix-rbv1` | **ready-made compositions** (box + screenshot + logo) built for TV grids. Often the best single image to show, and the cheapest way to look designed |
+| `video` | `video-normalized` `video` | trailer or gameplay clip, ~15 MB `.mp4`. `video-normalized` is the better default: consistent format and loudness |
+| `artwork` | `fanart-background` `square` | wallpapers, square thumbnail |
+| `marquee`, `icon`, `bezel`, `document`, `theme`, `pinball` | | banners, list pictograms, 4:3 side fillers, the `.pdf` manual, Hyperspin themes, virtual pinball art |
+
+Three things to design around:
+
+- **Nothing exists for every game.** `available: false` on the index means the
+  box has no ScreenScraper account and no offline index — not that the game is
+  unknown. Draw the jacket and move on; do not show an error.
+- **The first display of a type costs a round trip.** Media are fetched on
+  demand, so `cached: false` means one download. On a slow link, prefer a type
+  the index reports as cached for anything that has to appear instantly, and
+  let the fancy one arrive after.
+- **A video is not a cover.** 15 MB per game, and the library selection moves
+  with the d-pad. Debounce it the way the host debounces `detailGame` (150 ms),
+  or a fast scroll queues a download per step.
 
 ## 8. Module contract
 

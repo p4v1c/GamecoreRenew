@@ -343,13 +343,25 @@ class KeysPage(QWizardPage):
         lay = QVBoxLayout(self)
         lay.addWidget(title("API keys — all optional"))
         lay.addWidget(subtitle("Leave empty to skip: EmberTV then runs in demo mode and covers are "
-                               "fetched without TheGamesDB. You can add them later."))
+                               "fetched without TheGamesDB or ScreenScraper. You can add them later."))
         self.twitch_id = QLineEdit(); self.twitch_id.setPlaceholderText("dev.twitch.tv/console/apps")
         self.twitch_secret = QLineEdit(); self.twitch_secret.setEchoMode(QLineEdit.Password)
         self.tgdb = QLineEdit(); self.tgdb.setEchoMode(QLineEdit.Password)
+        # ScreenScraper needs two accounts, and mixing them up is the usual
+        # cause of a 403 — hence a caption per field rather than one per pair.
+        self.ss_dev_id = QLineEdit()
+        self.ss_dev_id.setPlaceholderText("developer pseudonym, not the devinfos.php number")
+        self.ss_dev_password = QLineEdit(); self.ss_dev_password.setEchoMode(QLineEdit.Password)
+        self.ss_user = QLineEdit()
+        self.ss_user.setPlaceholderText("your screenscraper.fr account — carries the quota")
+        self.ss_password = QLineEdit(); self.ss_password.setEchoMode(QLineEdit.Password)
         for cap, w in (("Twitch Client ID", self.twitch_id),
                        ("Twitch Client Secret", self.twitch_secret),
-                       ("TheGamesDB API key (game covers)", self.tgdb)):
+                       ("TheGamesDB API key (game covers)", self.tgdb),
+                       ("ScreenScraper dev id (asked for on their forum)", self.ss_dev_id),
+                       ("ScreenScraper dev password", self.ss_dev_password),
+                       ("ScreenScraper member login", self.ss_user),
+                       ("ScreenScraper member password", self.ss_password)):
             c = QLabel(cap.upper()); c.setObjectName("hint")
             lay.addSpacing(8); lay.addWidget(c); lay.addWidget(w)
         lay.addStretch()
@@ -385,6 +397,8 @@ class SummaryPage(QWizardPage):
             ("Web password", "set" if c["web_password"] else "NOT SET"),
             ("Twitch (EmberTV)", "credentials set" if c["twitch_id"] else "demo mode"),
             ("TheGamesDB", "key set" if c["tgdb_key"] else "skipped"),
+            ("ScreenScraper", ("configured" if c["ss_user"] else "developer only (level-0 quota)")
+                              if c["ss_dev_id"] else "skipped"),
             ("Install source", src),
         ]
         self.recap.setText("<table cellspacing='6'>" + "".join(
@@ -440,6 +454,10 @@ class InstallPage(QWizardPage):
             f"TWITCH_CLIENT_ID={shlex.quote(c['twitch_id'])}",
             f"TWITCH_CLIENT_SECRET={shlex.quote(c['twitch_secret'])}",
             f"TGDB_API_KEY={shlex.quote(c['tgdb_key'])}",
+            f"SS_DEV_ID={shlex.quote(c['ss_dev_id'])}",
+            f"SS_DEV_PASSWORD={shlex.quote(c['ss_dev_password'])}",
+            f"SS_USER={shlex.quote(c['ss_user'])}",
+            f"SS_PASSWORD={shlex.quote(c['ss_password'])}",
             # shlex.quote matters here: arch.sh `source`s this file, and a
             # password containing $, a backtick or a space would otherwise be
             # mangled or executed.
@@ -600,6 +618,12 @@ class InstallerWizard(QWizard):
             "twitch_id": keys.twitch_id.text().strip(),
             "twitch_secret": keys.twitch_secret.text().strip(),
             "tgdb_key": keys.tgdb.text().strip(),
+            "ss_dev_id": keys.ss_dev_id.text().strip(),
+            # Not .strip()ed: a password is taken as typed. The login above is,
+            # because a trailing space pasted from a browser is never intended.
+            "ss_dev_password": keys.ss_dev_password.text(),
+            "ss_user": keys.ss_user.text().strip(),
+            "ss_password": keys.ss_password.text(),
             "web_password": sysp.web_pw.text(),
         }
 

@@ -23,6 +23,22 @@ BACKEND_PORT  = int(os.environ.get("GAMECORE_BACKEND_PORT", 8765))
 
 THEGAMESDB_API_KEY = os.environ.get("THEGAMESDB_API_KEY", "")
 
+# ScreenScraper — read straight from the environment by the vendored
+# gamescrape (services/gamemedia), which is why nothing here imports them.
+# They are listed for the reader and for /api/sysinfo: two credential levels are
+# needed, and confusing them is the usual cause of a 403.
+#
+#   SCREENSCRAPER_DEV_ID / SCREENSCRAPER_DEV_PASSWORD
+#       developer credentials, granted per software on the ScreenScraper forum.
+#       DEV_ID is the developer's pseudonym, not the number in the devinfos URL.
+#   SCREENSCRAPER_USER / SCREENSCRAPER_PASSWORD
+#       a member account. It carries the daily quota and the thread count.
+#
+# Both are required: jeuInfos.php answers 403 without the first, and a level-0
+# quota without the second. The installer writes them into the same systemd
+# drop-in as THEGAMESDB_API_KEY (0600, never in git). Absent, the gamemedia
+# tier is simply skipped and covers resolve exactly as they did before.
+
 
 def resolve_path(raw: str) -> Path | None:
     if not raw:

@@ -460,7 +460,7 @@ magick artwork.png \
 
 ---
 
-## Cover art
+## Cover art and game media
 
 Covers are resolved per game through a tiered pipeline — each tier is only
 tried if the previous one found nothing:
@@ -472,17 +472,86 @@ tried if the previous one found nothing:
    PSP ISOs (`PSP_GAME/ICON0.PNG` read straight out of the ISO).
    Titles shown in the library also come from the game's `PARAM.SFO`
    for PS3/PS4, so serial-named folders display their real name.
-3. **Exact disc-ID lookup** — the ID is read from the image header
+3. **ScreenScraper / LaunchBox** — the ROM's **file hash** (CRC32+MD5+SHA1)
+   when it is a real file, so a renamed or mistagged cartridge still lands on
+   the right game; the `PARAM.SFO` title for PS3/PS4/PSP folders; the filename
+   otherwise. This is also where the other 53 media types come from — see
+   below. Needs credentials (or the offline LaunchBox index); skipped
+   entirely when neither is configured.
+4. **Exact disc-ID lookup** — the ID is read from the image header
    (GameCube/Wii `.iso/.gcm/.rvz`) or from `SYSTEM.CNF` inside the disc
    (PS1/PS2), then fetched from **GameTDB** (GC/Wii/PS3) or the
    **xlenore psx/ps2 cover repos**. No filename guessing involved.
-4. **Name-based scraping** — the **libretro thumbnails CDN**, then
+5. **Name-based scraping** — the **libretro thumbnails CDN**, then
    **TheGamesDB** (needs an API key, see below).
 
 Failed lookups are cached for a week (`.miss` files) so browsing the
 library stays fast offline. Append `?refresh=1` to a
 `/api/covers/<system>/<file>` request to force a re-resolve (e.g. after
 renaming a ROM or getting internet back).
+
+### Beyond the jacket — `/api/media`
+
+A game has up to **54 media types**: 3D box, clear logo, gameplay screenshot,
+title screen, ready-made mixes, trailer, manual, cartridge art, bezels.
+
+```bash
+curl 'http://127.0.0.1:8765/api/media/rpcs3/BCES00509' | jq .media
+# → { "box-3d": {"category":"box","kind":"image","region":"eu","cached":false}, … }
+
+# and the file itself
+curl -o box3d.png 'http://127.0.0.1:8765/api/media/rpcs3/BCES00509/media/box-3d'
+```
+
+**The default themes are unaffected**: they draw the jacket, from `/api/covers`,
+exactly as before. This exists so a theme *can* be built on 3D boxes or
+screenshots — see [`docs/themes/README.md` §7.1](docs/themes/README.md).
+
+Nothing is downloaded before it is asked for. A scrape fetches the cover and
+records the rest; the first request for a 3D box is one HTTP call and costs no
+ScreenScraper quota.
+
+### Enable ScreenScraper (best identification)
+
+ScreenScraper needs **two accounts**, and they are not the same thing:
+
+| | |
+|---|---|
+| **developer** | asked for on the [ScreenScraper forum](https://www.screenscraper.fr), granted per piece of software. The dev id is the **pseudonym**, not the number in the `devinfos.php` URL. Without it: `403` |
+| **member** | your own account on screenscraper.fr. It carries the daily quota and the number of threads you may use |
+
+The installer asks for both. To add them afterwards:
+
+```bash
+sudo systemctl edit gamecore-backend.service
+```
+
+```
+[Service]
+Environment="SCREENSCRAPER_DEV_ID=your_dev_pseudonym"
+Environment="SCREENSCRAPER_DEV_PASSWORD=your_dev_password"
+Environment="SCREENSCRAPER_USER=your_member_login"
+Environment="SCREENSCRAPER_PASSWORD=your_member_password"
+```
+
+```bash
+sudo systemctl restart gamecore-backend.service
+```
+
+> The developer credential is **shared by every box running GameCore**. That is
+> why requests are spaced 1.2 s apart and never committed to the repo: exceeding
+> the rate gets the id blacklisted for everyone, not just you.
+
+**Or no account at all**: LaunchBox publishes its metadata dump, 185 000 games
+with 172 000 synopses, and it works offline once indexed.
+
+```bash
+cd /opt/GameCore && .venv/bin/python backend/services/gamemedia/gamescrape.py --refresh
+```
+
+That downloads 106 MB, indexes for about 25 s and leaves a 234 MB SQLite file in
+`emu/gamescrape/`. The backend never builds it on its own — 106 MB of download
+from inside an HTTP handler would block the request for minutes.
 
 ### Enable TheGamesDB (recommended)
 
@@ -555,13 +624,14 @@ How the reference box is wired together. GameCore runs from `/opt/GameCore` with
 
 | Unit | Role |
 |---|---|
-| `gamecore-backend.service` | FastAPI backend (uvicorn, port **8765**). `Environment=GAMECORE_PATH=/opt/GameCore`. The TheGamesDB API key lives in a local drop-in (`systemctl edit gamecore-backend` → `Environment=THEGAMESDB_API_KEY=…`) — never in the repo. |
+| `gamecore-backend.service` | FastAPI backend (uvicorn, port **8765**). `Environment=GAMECORE_PATH=/opt/GameCore`. Scraper credentials — the TheGamesDB key and the four ScreenScraper values — live in a local drop-in (`systemctl edit gamecore-backend`, mode 600), never in the repo. |
 | `gamecore-ui.service` | Electron shell (`electron/start-ui.sh`), started after the display manager. |
 
 Two companion projects handle TV input and Twitch. **A `--full` install sets both up
 automatically** — it clones them, installs their user services, and prompts for the
-Twitch Client ID/Secret and the TheGamesDB API key (secrets are written to local
-files/systemd drop-ins only, never to git; leave empty for demo mode). It also creates
+Twitch Client ID/Secret, the TheGamesDB API key and the ScreenScraper credentials
+(secrets are written to local files/systemd drop-ins only, never to git; leave empty
+for demo mode and name-based covers). It also creates
 the Firefox kiosk profiles for the YouTube/Twitch tiles and installs Stremio. The only
 manual step left after a full install is copying BIOS/firmwares (PS1/PS2/PS3, DS/3DS,
 Switch keys) — those can't be distributed.
@@ -581,8 +651,11 @@ The Stremio tile runs the **official Flatpak desktop client**, unmodified. All i
 
 ```
 backend/          FastAPI — systems, games, playtime, covers, settings, OTA
-  routers/        API endpoints (systems, games, overlays, addons, sysinfo…)
-  services/       Process manager, gamepad monitor, overlay monitor, scraper
+  routers/        API endpoints (systems, games, covers, media, addons, sysinfo…)
+  services/       Process manager, gamepad monitor, overlay monitor, scrapers
+    gamemedia/    ScreenScraper + LaunchBox — hash matching, 54 media types
+                  (two vendored stdlib-only files + the adapter; see
+                  VENDORED.md there before editing them)
   data/           gamecontrollerdb.txt (vendored SDL mappings)
 frontend/         React + Vite + Framer Motion + Zustand
   src/
@@ -600,7 +673,8 @@ config/           never touched by OTA. Two kinds of file live here:
   themes/         installed themes — an update adds ones you do not have,
                   and never touches ones you do
 assets/           logos/, overlays/
-emu/              ROMs per system (emu/dolphin/, emu/melonds/…) + covers/ cache
+emu/              ROMs per system (emu/dolphin/, emu/melonds/…), covers/ cache,
+                  gamemedia/ manifests + artwork, gamescrape/ LaunchBox index
 install/          Installers: arch.sh engine (+ --unattended), uninstall.sh,
                   installer-gui/ (Qt binary), gamecore-addon CLI, Caddyfile,
                   apps.json.dist / systems.json.dist (pristine tile catalogues)

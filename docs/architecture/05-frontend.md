@@ -156,8 +156,8 @@ and returns an unsubscribe.
 | `components/HomeScreen/SystemCard.tsx` | 96 | one tile; `getColor(system)` falls back to `SYSTEM_COLORS` |
 | `components/LibraryScreen/index.tsx` | 212 | **behaviour**: sorting, search, selection, launching, the keyboard modal |
 | `components/LibraryScreen/DefaultLibraryView.tsx` | 244 | **markup** of the default library |
-| `components/LibraryScreen/types.ts` | 58 | `LibraryViewProps`, `SORT_KEYS`, `SORT_LABELS` |
-| `components/LibraryScreen/CoverImage.tsx` | 31 | cover art + missing-art fallback; handed to the view |
+| `components/LibraryScreen/types.ts` | 66 | `LibraryViewProps`, `SORT_KEYS`, `SORT_LABELS` |
+| `components/LibraryScreen/CoverImage.tsx` | 57 | cover art + missing-art fallback; handed to the view. Optional `type` prop draws any media type (`box-3d`, `clear-logo`, `screenshot-gameplay`…) — omitted, it is the jacket from `/api/covers`, byte for byte what it always was |
 | `components/LibraryScreen/GameMetaPanel.tsx` | 40 | year/genres/players; handed to the view |
 | `components/TopBar/index.tsx` | 134 | clock, IP, storage, `ControllerBattery`, `TBtn` |
 | `components/Screensaver.tsx` | 136 | standby slideshow, `ROTATE_MS = 9000` |
@@ -241,9 +241,28 @@ rim to move against — without it the cap looks like it is floating.
 ## `api/index.ts`
 
 `BASE = '/api'`, generic `get<T>` / `post<T>`, and the `api` object grouping
-`systems`, `games`, `playtime`, `sysinfo`, `update`, `wifi`, `audio`,
-`bluetooth`, `addons`, `standby`. Types exported for the UI: `SystemEntry`,
-`GameEntry`, `GameMeta`, `PlaytimeEntry`, `SysInfo`.
+`systems`, `games`, `metadata`, `media`, `playtime`, `sysinfo`, `update`,
+`wifi`, `audio`, `bluetooth`, `addons`, `standby`. Types exported for the UI:
+`SystemEntry`, `GameEntry`, `GameMeta`, `MediaEntry`, `GameMediaIndex`,
+`PlaytimeEntry`, `SysInfo`.
+
+`api.media` is the one to read before drawing artwork that is not a jacket:
+
+| Call | Returns |
+|---|---|
+| `api.media.list(systemId, filename)` | `GameMediaIndex` — what this game actually has, each entry with `category`, `kind`, `region`, `cached` |
+| `api.media.url(systemId, filename, type)` | a plain string, for an `<img src>` or a `<video src>` |
+
+`list()` first, always: what a game carries depends on the game — a PS3 dump
+has 28 media, an obscure cartridge three. `found: false` with
+`available: false` means no source is configured on this box, which is not the
+same as an unknown game; `unreachable: true` means the question could not be
+asked and a retry later is worth something.
+
+`GameMeta` gained optional fields on the same call — `developer`, `publisher`,
+`released`, `score` (0–1), `classifications`. They are optional because a box
+answering from TheGamesDB has none of them. The seven original keys did not
+move.
 
 Same-origin by construction — the SPA is served by the backend, so no base URL
 and no CORS.

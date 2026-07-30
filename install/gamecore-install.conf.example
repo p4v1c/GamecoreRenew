@@ -21,6 +21,25 @@ TWITCH_CLIENT_ID=''
 TWITCH_CLIENT_SECRET=''
 TGDB_API_KEY=''
 
+# ScreenScraper — box art, 3D boxes, screenshots, videos and synopses, matched
+# by file hash rather than by filename. Leave empty to skip: covers then resolve
+# exactly as they did before, from the embedded icon, GameTDB and libretro.
+#
+# TWO levels, both required, and they are not the same account:
+#   · developer — granted per software on the ScreenScraper forum. SS_DEV_ID is
+#                 the developer PSEUDONYM, not the number in the devinfos.php
+#                 URL. jeuInfos.php answers 403 without it.
+#   · member    — your own screenscraper.fr account. It carries the daily quota
+#                 and the number of threads allowed.
+#
+# The installer writes them to /etc/systemd/system/gamecore-backend.service.d/
+# override.conf (mode 600). This conf file holds them in clear text too: keep it
+# out of git and delete it once the install is done.
+SS_DEV_ID=''
+SS_DEV_PASSWORD=''
+SS_USER=''
+SS_PASSWORD=''
+
 # Web login password (phase 3) — required for the LAN interface.
 # Empty/absent = LAN stays locked until "gamecore-addon auth-reset".
 WEB_PASSWORD=""

@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .db import init_db
 from . import ws
-from .routers import systems, games, playtime, covers, metadata, sysinfo, update, overlays, addons
+from .routers import systems, games, playtime, covers, media, metadata, sysinfo, update, overlays, addons
 from .routers import auth as auth_routes
 from .routers import standby as standby_router
 from .routers import controllers as controllers_router
@@ -143,6 +143,7 @@ app.include_router(systems.router, prefix="/api")
 app.include_router(games.router, prefix="/api")
 app.include_router(playtime.router, prefix="/api")
 app.include_router(covers.router, prefix="/api")
+app.include_router(media.router, prefix="/api")
 app.include_router(metadata.router, prefix="/api")
 app.include_router(sysinfo.router, prefix="/api")
 app.include_router(update.router, prefix="/api")

@@ -3,8 +3,19 @@ legacy name scrapers. Order:
 
   1. cache (emu/covers/<system>/<stem>.png|.jpg — drop a file there to force a cover)
   2. icon embedded in the game itself (PS3/PS4 folders, PSP ISO) — offline, exact
-  3. disc-ID lookup: GameTDB (GC/Wii/PS3), xlenore repos (PS1/PS2) — exact
-  4. libretro thumbnails by name, then TheGamesDB (services.scraper)
+  3. gamemedia: ScreenScraper by file hash, then the offline LaunchBox index
+  4. disc-ID lookup: GameTDB (GC/Wii/PS3), xlenore repos (PS1/PS2) — exact
+  5. libretro thumbnails by name, then TheGamesDB (services.scraper)
+
+Step 3 is the one that is certain on a cartridge: there is no icon to extract
+and no serial to read, so everything below it guesses from the filename, while
+a CRC32 the ScreenScraper database recognises identifies the game outright. It
+sits *below* the embedded icon because that one is exact too and costs no
+network at all, and *above* the name scrapers for the same reason it exists.
+
+It is also inert unless configured: with no ScreenScraper credentials and no
+LaunchBox index, `gamemedia.available()` is False and this pipeline is byte for
+byte the one that ran before it was added.
 
 Misses are remembered (<stem>.miss, TTL) so the library UI doesn't re-hit
 the network for every unmatched game on every visit.
@@ -16,8 +27,9 @@ from pathlib import Path
 
 import httpx
 
-from ..config import COVERS_DIR, resolve_path
-from . import local_media
+from ..config import COVERS_DIR
+from ..utils import rom_in_root
+from . import gamemedia, local_media
 from .scraper import Unreachable, _is_transient, fetch_cover
 
 log = logging.getLogger(__name__)
@@ -84,24 +96,46 @@ async def _fetch_by_id(kind: str, value: str, base: Path) -> Path | None:
     return None
 
 
-def _rom_in_root(system: dict, filename: str) -> Path | None:
-    """The ROM `filename` names inside its system's ROMs directory, or None.
+async def _from_gamemedia(sid: str, target: str, base: Path,
+                          refresh: bool = False) -> tuple[Path | None, bool]:
+    """(cover, unreachable) from the ScreenScraper / LaunchBox tier.
 
-    `filename` arrives from /api/covers/{system_id}/{filename:path}, and the
-    :path converter happily accepts slashes and '..' — so this has to be
-    confined before anything opens it, the same way launch_game confines
-    rom_path (routers/games.py). docs/architecture/09-gotchas.md states the
-    invariant; this is where it was missing.
+    Copied into emu/covers/ rather than served from the gamemedia cache: this
+    directory is what `/covers` mounts statically, what the screensaver reads,
+    and what a user drops a file into to override a cover. One image per game
+    duplicated is worth keeping that one place.
+
+    The type asked for is a flat jacket (COVER_ORDER), so what lands here is
+    the same *kind* of picture the pipeline has always produced — no theme sees
+    a different shape. The 3D box, the logo and the screenshots are reachable
+    through /api/media, which is what a theme built on them would use.
     """
-    roms_root = resolve_path(system.get("romsPath", ""))
-    if not roms_root:
-        return None
-    try:
-        candidate = (roms_root / filename).resolve()
-        candidate.relative_to(roms_root.resolve())
-    except (ValueError, OSError):
-        return None
-    return candidate if candidate.exists() else None
+    manifest = await gamemedia.resolve(sid, target, refresh=refresh)
+    if manifest is None:
+        return None, False          # tier not configured — not a verdict
+    if not manifest.get("found"):
+        # `unreachable` is the whole point of asking: a spent quota must not be
+        # written down as "nobody has a cover for this game" for a week.
+        return None, bool(manifest.get("unreachable"))
+
+    available = manifest.get("media") or {}
+    for slug in gamemedia.COVER_ORDER:
+        if slug not in available:
+            continue
+        src = await gamemedia.media_file(sid, target, slug)
+        if not src:
+            continue
+        dest = base.with_suffix(src.suffix if src.suffix in (".png", ".jpg") else ".png")
+        dest.write_bytes(src.read_bytes())
+        return dest, False
+    # Found the game, but it has no box art at all. That is an answer.
+    return None, False
+
+
+# The confinement moved to utils.rom_in_root when the media router became the
+# third caller. Kept under its old name here: it is the guard the covers tests
+# assert on directly, and the invariant is easier to check where it is used.
+_rom_in_root = rom_in_root
 
 
 async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | None:
@@ -144,7 +178,22 @@ async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | 
         if local_media.extract_icon(sid, rom, png):
             return png
 
-        # 2. Exact lookup by the ID read from the game itself
+    # 2. gamemedia — the hash when the ROM is a file, the PARAM.SFO title when
+    #    it is a directory, the name otherwise. Passing the full path is what
+    #    makes the first two possible; without it the tier still works, by name.
+    if gamemedia.available():
+        try:
+            found, gm_unreachable = await _from_gamemedia(
+                sid, str(rom or filename), base, refresh=refresh)
+        except Exception:
+            log.warning("gamemedia lookup failed for %s/%s", sid, filename, exc_info=True)
+            found, gm_unreachable = None, True
+        if found:
+            return found
+        unreachable = unreachable or gm_unreachable
+
+    if rom:
+        # 3. Exact lookup by the ID read from the game itself
         did = local_media.disc_id(sid, rom)
         if did:
             try:
@@ -154,7 +203,7 @@ async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | 
             if found:
                 return found
 
-    # 3./4. Name-based scraping (libretro CDN, then TheGamesDB)
+    # 4./5. Name-based scraping (libretro CDN, then TheGamesDB)
     try:
         scraped = await fetch_cover(filename, sid, dest=png)
     except Unreachable as e:
