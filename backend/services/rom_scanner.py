@@ -38,8 +38,19 @@ def _references(descriptor: Path, text: str) -> Iterator[str]:
         yield m.group(1) or m.group(2) or ""
 
 
-def shadowed_by_a_descriptor(entries: list[Path]) -> dict[str, str]:
+def shadowed_by_a_descriptor(entries: list[Path],
+                             extensions: list[str] | None = None) -> dict[str, str]:
     """{lowercased name of a file that is part of another entry: that entry}.
+
+    `extensions` is the system's own list, and passing it is not optional in
+    practice: **a file may only be hidden if the entry replacing it will
+    actually be listed.** A descriptor the system does not scan hides nothing.
+
+    This is what broke the reference box. `config/` is excluded from the OTA, so
+    a machine installed before `*.cue` was added to duckstation keeps a
+    catalogue that scans `*.bin` but not `*.cue`. The `.cue` was on disk, so it
+    shadowed the `.bin`; it was not in `extensions`, so it was filtered out
+    right after — and the library went from one PS1 game to none.
 
     The value matters as much as the key: a player's playtime is stored under
     the name that was listed, so when a `.bin` stops being listed its hours
@@ -58,7 +69,9 @@ def shadowed_by_a_descriptor(entries: list[Path]) -> dict[str, str]:
       contains `FILE "Dragon Ball Z (Europe).bin"`, a file that does not exist,
       while `Dragon Ball Z .bin` sits right next to it.
     """
-    descriptors = [p for p in entries if p.suffix.lower() in _DISC_DESCRIPTORS]
+    descriptors = [p for p in entries
+                   if p.suffix.lower() in _DISC_DESCRIPTORS
+                   and (not extensions or matches_ext(p.name, extensions))]
     if not descriptors:
         return {}
 
@@ -108,7 +121,7 @@ def iter_rom_files(roms_path: Path, extensions: list[str], scan_dirs: bool = Fal
         return
 
     # One game, one entry: a .bin that belongs to a .cue is not a second game.
-    hidden = {} if scan_dirs else shadowed_by_a_descriptor(entries)
+    hidden = {} if scan_dirs else shadowed_by_a_descriptor(entries, extensions)
 
     for f in entries:
         if f.name.startswith(".") or "example" in f.name.lower():

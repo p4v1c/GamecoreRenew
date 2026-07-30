@@ -378,6 +378,15 @@ Two rules, because either alone leaves duplicates on a real library:
 and a token pattern matches only the tail after the last one. A directory with
 no descriptor is never read, so a library without disc images is untouched.
 
+**A file may only be hidden if the entry replacing it will actually be listed**,
+so the system's `extensions` are passed in and a descriptor it does not scan
+hides nothing. Forgetting that emptied a library in production: `config/` is
+excluded from the OTA, so a box installed before `*.cue` was added to
+duckstation keeps a catalogue scanning `*.bin` and not `*.cue`. The `.cue` was
+on disk and shadowed the `.bin`; it was then filtered out by `matches_ext`, and
+PS1 went from one game to none. Any rule that hides an entry has to check that
+something visible takes its place.
+
 The **value** of that mapping is what `playtime_repair` needs: hiding a file
 that a player has hours on would orphan them.
 

@@ -44,7 +44,13 @@ def _rename_map() -> dict[tuple[str, str], str]:
         except OSError:
             continue
         sid = system["id"]
-        for hidden, owner in shadowed_by_a_descriptor(entries).items():
+        # The system's own extensions, for the same reason iter_rom_files
+        # passes them: a descriptor this system does not scan replaces nothing,
+        # so nothing may be re-keyed onto it. Moving playtime onto an entry the
+        # library will never list would hide it just as thoroughly as the bug
+        # this function exists to prevent.
+        for hidden, owner in shadowed_by_a_descriptor(
+                entries, system.get("extensions") or []).items():
             out[(sid, hidden)] = owner
     return out
 

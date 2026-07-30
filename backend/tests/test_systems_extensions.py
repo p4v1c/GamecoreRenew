@@ -219,3 +219,45 @@ def test_a_library_with_no_descriptor_is_untouched(tmp_path):
     """No .cue anywhere means no reading, no hiding — the old behaviour exactly."""
     _tree(tmp_path, {"A.bin": b"x", "B.iso": b"x"})
     assert [f.name for f in iter_rom_files(tmp_path, PS1_EXTS)] == ["A.bin", "B.iso"]
+
+
+def test_a_descriptor_the_system_does_not_scan_hides_nothing(tmp_path):
+    """The regression that took the reference box from one PS1 game to none.
+
+    `config/` is excluded from the OTA, so a box installed before `*.cue` was
+    added to duckstation keeps a catalogue scanning `*.bin` and not `*.cue`.
+    The .cue is still on disk, so it shadowed the .bin — and was then filtered
+    out by matches_ext, leaving an empty library.
+
+    A file may only be hidden if the entry replacing it will actually be
+    listed.
+    """
+    _tree(tmp_path, {
+        "Dragon Ball Z .cue": 'FILE "Dragon Ball Z (Europe).bin" BINARY\n',
+        "Dragon Ball Z .bin": b"x",
+    })
+    old_catalogue = ["*.bin", "*.iso", "*.img", "*.zip"]        # no *.cue
+    assert [f.name for f in iter_rom_files(tmp_path, old_catalogue)] == \
+        ["Dragon Ball Z .bin"], "the game must stay listed"
+    # And with the current catalogue, the dedup still happens.
+    assert [f.name for f in iter_rom_files(tmp_path, PS1_EXTS)] == ["Dragon Ball Z .cue"]
+
+
+def test_a_playlist_the_system_does_not_scan_hides_nothing(tmp_path):
+    """Same rule one level up: an .m3u nobody lists must not hide its discs."""
+    _tree(tmp_path, {
+        "FF IX.m3u": "FF IX (Disc 1).cue\n",
+        "FF IX (Disc 1).cue": 'FILE "FF IX (Disc 1).bin" BINARY\n',
+        "FF IX (Disc 1).bin": b"x",
+    })
+    assert [f.name for f in iter_rom_files(tmp_path, ["*.bin", "*.cue"])] == \
+        ["FF IX (Disc 1).cue"], "no *.m3u in the catalogue → the .cue stays"
+
+
+def test_no_extension_filter_still_dedups(tmp_path):
+    """An empty extension list means 'scan everything' — the dedup applies."""
+    _tree(tmp_path, {
+        "Solo Dump.cue": 'FILE "Solo Dump.bin" BINARY\n',
+        "Solo Dump.bin": b"x",
+    })
+    assert [f.name for f in iter_rom_files(tmp_path, [])] == ["Solo Dump.cue"]
