@@ -144,7 +144,7 @@ def test_a_deferred_media_does_not_make_the_entry_incomplete(tmp_path):
     time a theme draws a cover, because an incomplete manifest is rescraped.
     """
     (tmp_path / "box-front.png").write_bytes(b"\x89PNG\r\n\x1a\n")
-    manifest = {"found": True, "media": {
+    manifest = {"found": True, "lang": gm.LANG_PREF[0], "media": {
         "box-front": {"file": "box-front.png"},
         "box-3d": {"deferred": True, "url": gm.strip_creds(SS_URL)},
     }}
@@ -202,7 +202,7 @@ def test_a_failed_on_demand_fetch_keeps_the_url_for_next_time(tmp_path, monkeypa
     monkeypatch.setattr(gm.gs, "fetch", lambda url, dest, verbose: None)
     d = gm.entry_dir("rpcs3", "Uncharted 2")
     stored = gm.strip_creds(SS_URL)
-    gm.write_json(d / gm.MANIFEST, {"found": True, "media": {
+    gm.write_json(d / gm.MANIFEST, {"found": True, "lang": gm.LANG_PREF[0], "media": {
         "box-3d": {"deferred": True, "url": stored, "category": "box"}}})
 
     assert gm.fetch_media("rpcs3", "Uncharted 2", "box-3d") is None
@@ -337,3 +337,56 @@ def test_a_negative_stands_when_nothing_new_is_configured(monkeypatch):
         {"found": False, "tiers_tried": ["thegamesdb"]}) is False
     # A key added since the negative was written is also a reason to retry.
     assert metadata._worth_another_look({"found": False}) is True
+
+
+# ── Language ─────────────────────────────────────────────────────────────────
+
+def test_english_is_the_default():
+    """The interface is in English; the synopses have to match it.
+
+    Upstream prefers French, which is right for its own users and wrong for a
+    library whose buttons read "PLAY TIME".
+    """
+    from backend import config
+    assert config.SCRAPER_LANG[0] == "en"
+    assert gm.LANG_PREF[0] == "en"
+
+
+def test_the_preferred_language_wins_and_falls_back():
+    gm_pref = gm.LANG_PREF
+    try:
+        items = [{"langue": "fr", "text": "Deux mondes se rencontrent"},
+                 {"langue": "en", "text": "Two worlds collide"}]
+        gm.LANG_PREF = ["en", "fr"]
+        assert gm._pick_lang(items) == "Two worlds collide"
+        gm.LANG_PREF = ["fr", "en"]
+        assert gm._pick_lang(items) == "Deux mondes se rencontrent"
+        # A game ScreenScraper only has in one language still yields text.
+        gm.LANG_PREF = ["de", "en"]
+        assert gm._pick_lang(items) == "Two worlds collide"
+        gm.LANG_PREF = ["de", "es"]
+        assert gm._pick_lang(items) == "Deux mondes se rencontrent", "first entry"
+    finally:
+        gm.LANG_PREF = gm_pref
+
+
+def test_a_manifest_scraped_in_another_language_is_rescraped(tmp_path):
+    """Otherwise a library keeps whatever language it was first swept in.
+
+    The media already downloaded are kept across that rescrape, so it costs one
+    jeuInfos per game and no file transfer.
+    """
+    assert gm._manifest_complete(tmp_path, {"found": True, "lang": "fr", "media": {}}) is False
+    assert gm._manifest_complete(tmp_path, {"found": True, "lang": "en", "media": {}}) is True
+    # Written before the field existed → scraped under the old French default.
+    assert gm._manifest_complete(tmp_path, {"found": True, "media": {}}) is False
+
+
+def test_a_metadata_entry_in_the_wrong_language_is_reconsidered():
+    from backend.services import metadata
+    assert metadata._wrong_language(
+        {"found": True, "source": "screenscraper", "lang": "fr"}) is True
+    assert metadata._wrong_language(
+        {"found": True, "source": "screenscraper", "lang": "en"}) is False
+    # TheGamesDB is English-only and carries no source — never invalidated.
+    assert metadata._wrong_language({"found": True, "title": "Mario Kart DS"}) is False

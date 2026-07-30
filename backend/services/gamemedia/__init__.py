@@ -28,7 +28,7 @@ import logging
 import re
 from pathlib import Path
 
-from ...config import GAMECORE_ROOT
+from ...config import GAMECORE_ROOT, SCRAPER_LANG
 from . import gamemedia as gm
 from . import gamescrape as gs
 
@@ -51,6 +51,10 @@ gs.DB_PATH = INDEX_DIR / "launchbox.sqlite"          # idem
 # The softname identifies this software to ScreenScraper. It is tied to the
 # devid granted on their forum, so it belongs to GameCore, not to the script.
 gs.SS_SOFTNAME = "gamecore"
+
+# Synopses and genre names are localised by ScreenScraper; upstream prefers
+# French. GameCore's interface is in English, so that is the default here.
+gm.LANG_PREF = SCRAPER_LANG
 
 # ── Media policy ─────────────────────────────────────────────────────────────
 # What is downloaded during a scrape. Everything else the game has is recorded
@@ -226,6 +230,10 @@ def to_game_meta(manifest: dict) -> dict:
         "rating": meta.get("esrb") or classifications.get("PEGI") or "",
         # ── added by gamemedia, absent from the TheGamesDB path ──
         "source": manifest.get("source") or "",
+        # Which language the text above is in. ScreenScraper localises synopses
+        # and genre names, so a cached entry is only valid for the preference
+        # that produced it (services/metadata._wrong_language).
+        "lang": manifest.get("lang") or "",
         "developer": meta.get("developer") or "",
         "publisher": meta.get("publisher") or "",
         "released": meta.get("released") or "",

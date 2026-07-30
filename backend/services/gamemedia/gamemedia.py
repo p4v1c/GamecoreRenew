@@ -429,13 +429,26 @@ def with_creds(url: str) -> str:
     return urllib.parse.urlunsplit(parts._replace(query=urllib.parse.urlencode(pairs)))
 
 
+# GameCore: which language wins, most preferred first. Upstream hardcoded
+# French then English; GameCore's whole interface is in English, so a library
+# where the buttons read "PLAY TIME" and the synopses are in French is not a
+# choice anyone made. Set by the adapter from GAMECORE_SCRAPER_LANG.
+#
+# It applies to the synopsis AND to the genre names — ScreenScraper localises
+# both, which is why a French install shows "Course, Conduite" where an English
+# one shows "Racing, Driving".
+LANG_PREF: list[str] = ["fr", "en"]
+
+
 def _pick_lang(items: list[dict], key: str = "text") -> str:
-    """Value from a multilingual ScreenScraper list: fr, then en, then the 1st."""
+    """Value from a multilingual ScreenScraper list, per LANG_PREF."""
     if not items:
         return ""
     by = {i.get("langue"): i.get(key, "") for i in items if isinstance(i, dict)}
-    return by.get("fr") or by.get("en") or next(
-        (i.get(key, "") for i in items if isinstance(i, dict)), "")
+    for lang in LANG_PREF:
+        if by.get(lang):
+            return by[lang]
+    return next((i.get(key, "") for i in items if isinstance(i, dict)), "")
 
 
 def _pick_region(items: list[dict], order: list[str]) -> str:
@@ -901,6 +914,14 @@ def _manifest_complete(d: Path, manifest: dict) -> bool:
         if gs.lb_index_ready() and "launchbox" not in tried:
             return False
         return True
+    # GameCore: the synopsis and the genre names are stored in the language that
+    # was preferred when the game was scraped, so an entry scraped under another
+    # one is not servable — it would pin a library to whatever language it
+    # happened to be first swept in. Re-scraping costs one jeuInfos; the media
+    # already downloaded are kept (see `have` in resolve()), so no file moves.
+    if manifest.get("found") and manifest.get("lang") != LANG_PREF[0]:
+        return False
+
     for info in (manifest.get("media") or {}).values():
         # GameCore: `deferred` is a fourth state, and the only one that does not
         # make the entry incomplete. `pending` means "a download=0 wrote this and
@@ -1045,6 +1066,9 @@ def resolve(system: str, filename: str, *, refresh: bool = False,
         "system": system, "filename": filename, "key": game_key(filename),
         "found": True, "source": hit["source"], "matched_by": hit["matched_by"],
         "game_id": hit["game_id"], "scraped_at": datetime.now(timezone.utc).isoformat(),
+        # GameCore: the language the text in `meta` is in. Without it, changing
+        # the preference would leave every already-scraped game in the old one.
+        "lang": LANG_PREF[0],
         "parsed": parsed, "meta": hit["meta"], "notes": notes,
         "media": {}, "cached": False,
     }

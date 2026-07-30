@@ -19,6 +19,7 @@ which is `$GAMECORE_PATH` or the repo root.
 | `APP_VERSION` | contents of `VERSION` (written by the OTA script) |
 | `GITHUB_REPO`, `UPDATE_ASSET` | `p4v1c/GamecoreRenew`, `gamecore-ota.tar.gz` |
 | `THEGAMESDB_API_KEY` | env only — never committed |
+| `SCRAPER_LANG` | `$GAMECORE_SCRAPER_LANG` or `en,fr` — language of the scraped text |
 | `DEBUG` | must be `false` on a device |
 
 ### Environment
@@ -34,6 +35,21 @@ installer writes them into one systemd drop-in,
 | `THEGAMESDB_API_KEY` | `services/scraper.py`, `services/metadata.py` |
 | `SCREENSCRAPER_DEV_ID` / `SCREENSCRAPER_DEV_PASSWORD` | **developer** credentials, granted per software on the ScreenScraper forum. The id is the developer's *pseudonym*, not the number in the `devinfos.php` URL |
 | `SCREENSCRAPER_USER` / `SCREENSCRAPER_PASSWORD` | a **member** account. It carries the daily quota and the thread count |
+| `GAMECORE_SCRAPER_LANG` | comma-separated, most preferred first. Default `en,fr` |
+
+**Language.** ScreenScraper localises synopses **and genre names**, so a French
+preference gives `Course, Conduite` where an English one gives
+`Racing, Driving`. English is the default because the interface is: a library
+whose buttons read "PLAY TIME" and whose synopses are in French is not a choice
+anyone made. Upstream `gamescrape` prefers French — right for its own users,
+wrong here.
+
+It is applied **at scrape time**, not at display time: the chosen text is what
+lands in the cache. So the language is recorded with the entry (`lang`, in both
+the gamemedia manifest and the metadata cache) and an entry in another language
+is reconsidered on read. Changing the variable therefore re-scrapes the library
+by itself — one `jeuInfos` per game, and the already-downloaded media are kept,
+so no artwork is transferred twice.
 
 The two ScreenScraper levels are not interchangeable and both are needed:
 `jeuInfos.php` answers `403` without the first, and gives a level-0 quota

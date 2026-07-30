@@ -2,11 +2,11 @@
 
 Two sources, in this order:
 
-  1. gamemedia — ScreenScraper, then the offline LaunchBox index. It answers in
-     French when it can, gives the developer, the publisher, the age ratings
-     and a normalised score, and needs no network at all on the LaunchBox side.
-     Its manifest is already on disk when the cover pipeline has run, so this
-     usually costs nothing.
+  1. gamemedia — ScreenScraper, then the offline LaunchBox index. Gives the
+     developer, the publisher, the age ratings and a normalised score, and
+     needs no network at all on the LaunchBox side. Its manifest is already on
+     disk when the cover pipeline has run, so this usually costs nothing.
+     Its text is localised — see `SCRAPER_LANG` in config.py.
   2. TheGamesDB — what was here before, unchanged, and still the only source on
      a box with no ScreenScraper account and no index.
 
@@ -31,7 +31,7 @@ from pathlib import Path
 
 import httpx
 
-from ..config import GAMECORE_ROOT, THEGAMESDB_API_KEY
+from ..config import GAMECORE_ROOT, SCRAPER_LANG, THEGAMESDB_API_KEY
 from ..utils import rom_in_root
 from . import gamemedia, local_media
 from .rom_scanner import clean_name
@@ -72,6 +72,20 @@ def _search_name(system: dict, filename: str) -> str:
         if title:
             return title
     return clean_name(filename)
+
+
+def _wrong_language(entry: dict) -> bool:
+    """True for a hit whose text is in a language we no longer want.
+
+    ScreenScraper localises synopses *and* genre names, so the language is
+    baked into the cached entry — a library swept in French stays French for
+    good unless the entry is reconsidered. TheGamesDB entries carry no `source`
+    and are English only; they are never invalidated by this.
+
+    An entry written before the field existed has no `lang`, which is treated
+    as a mismatch: it was scraped under the old French-first default.
+    """
+    return bool(entry.get("source")) and entry.get("lang") != SCRAPER_LANG[0]
 
 
 def _sources_now() -> set[str]:
@@ -117,7 +131,7 @@ async def resolve(system: dict, filename: str) -> dict | None:
     if cache.is_file():
         try:
             data = json.loads(cache.read_text())
-            if data.get("found"):
+            if data.get("found") and not _wrong_language(data):
                 return data
             if not _worth_another_look(data) and \
                     time.time() - cache.stat().st_mtime < _MISS_TTL:

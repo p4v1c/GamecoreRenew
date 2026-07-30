@@ -23,6 +23,18 @@ BACKEND_PORT  = int(os.environ.get("GAMECORE_BACKEND_PORT", 8765))
 
 THEGAMESDB_API_KEY = os.environ.get("THEGAMESDB_API_KEY", "")
 
+# Language of the scraped text — synopses and genre names, which ScreenScraper
+# localises. English by default because the interface is: a library whose
+# buttons read "PLAY TIME" and whose synopses are in French is not a choice
+# anyone made. Comma-separated, most preferred first, e.g. "fr,en".
+#
+# It is read at scrape time, not at display time: the chosen text is what lands
+# in the cache. Changing it therefore only affects games scraped afterwards —
+# see docs/architecture/04-backend-services.md for how to re-scrape a library.
+SCRAPER_LANG = [c.strip().lower() for c
+                in os.environ.get("GAMECORE_SCRAPER_LANG", "en,fr").split(",")
+                if c.strip()] or ["en"]
+
 # ScreenScraper — read straight from the environment by the vendored
 # gamescrape (services/gamemedia), which is why nothing here imports them.
 # They are listed for the reader and for /api/sysinfo: two credential levels are
