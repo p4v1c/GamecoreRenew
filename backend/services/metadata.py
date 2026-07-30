@@ -1,12 +1,28 @@
-"""Game metadata (description, year, genres, players, rating) via TheGamesDB.
+"""Game metadata (description, year, genres, players, rating).
 
-Same key as the cover scraper (THEGAMESDB_API_KEY). Results are cached on
-disk under emu/metadata/<system>/<stem>.json — one network hit per game,
-survives OTA updates (emu/ is excluded from the update rsync). Misses are
-cached too (found:false + TTL) so the library stays fast without a key.
+Two sources, in this order:
+
+  1. gamemedia — ScreenScraper, then the offline LaunchBox index. It answers in
+     French when it can, gives the developer, the publisher, the age ratings
+     and a normalised score, and needs no network at all on the LaunchBox side.
+     Its manifest is already on disk when the cover pipeline has run, so this
+     usually costs nothing.
+  2. TheGamesDB — what was here before, unchanged, and still the only source on
+     a box with no ScreenScraper account and no index.
+
+Results are cached on disk under emu/metadata/<system>/<stem>.json — one
+network hit per game, survives OTA updates (emu/ is excluded from the update
+rsync). Misses are cached too (found:false + TTL) so the library stays fast
+without a key.
 
 The search name prefers the title embedded in the game (PARAM.SFO for
 PS3/PS4/PSP) over the filename — exact titles give exact matches.
+
+**The seven keys the API has always returned keep their name, type and
+meaning**: `found`, `title`, `description`, `year`, `genres`, `players`
+(a number), `rating` (the age rating, a string). GameMetaPanel and every theme
+already read those. What gamemedia adds — developer, publisher, the 0–1 score,
+the full classifications table — arrives on new keys beside them.
 """
 import json
 import logging
@@ -15,8 +31,9 @@ from pathlib import Path
 
 import httpx
 
-from ..config import GAMECORE_ROOT, THEGAMESDB_API_KEY, resolve_path
-from . import local_media
+from ..config import GAMECORE_ROOT, THEGAMESDB_API_KEY
+from ..utils import rom_in_root
+from . import gamemedia, local_media
 from .rom_scanner import clean_name
 from .scraper import TGDB_PLATFORM_MAP, Unreachable
 
@@ -45,21 +62,15 @@ async def _genre_names(client: httpx.AsyncClient) -> dict[str, str]:
 
 
 def _search_name(system: dict, filename: str) -> str:
-    # Same confinement as cover_pipeline._rom_in_root: `filename` comes from a
+    # utils.rom_in_root does the confinement: `filename` comes from a
     # {filename:path} route parameter, so it can carry slashes and '..'. Nothing
     # here leaks a file's contents, but the invariant is "a ROM path is checked
     # against its root", and it should hold everywhere rather than case by case.
-    roms_root = resolve_path(system.get("romsPath", ""))
-    if roms_root:
-        try:
-            rom = (roms_root / filename).resolve()
-            rom.relative_to(roms_root.resolve())
-        except (ValueError, OSError):
-            rom = None
-        if rom is not None and rom.exists():
-            title = local_media.get_title(system["id"], rom)
-            if title:
-                return title
+    rom = rom_in_root(system, filename)
+    if rom is not None:
+        title = local_media.get_title(system["id"], rom)
+        if title:
+            return title
     return clean_name(filename)
 
 
@@ -79,6 +90,23 @@ async def resolve(system: dict, filename: str) -> dict | None:
                 return None
         except (json.JSONDecodeError, OSError):
             pass
+
+    # ── 1. gamemedia ─────────────────────────────────────────────────────────
+    # Ahead of TheGamesDB because it identifies the game by hash rather than by
+    # name, and because it is the only one of the two that answers with no key
+    # at all (the LaunchBox index is offline). Inert when neither source is
+    # configured — `available()` is then False and this block does nothing.
+    if gamemedia.available():
+        rom = rom_in_root(system, filename)
+        manifest = await gamemedia.resolve(sid, str(rom) if rom else filename)
+        if manifest is not None and manifest.get("found"):
+            data = gamemedia.to_game_meta(manifest)
+            cache.write_text(json.dumps(data, ensure_ascii=False))
+            return data
+        # A `found: false` here is NOT written down. gamemedia already caches
+        # its own negative, and only when the tiers really answered; copying it
+        # into a second cache with a 7-day TTL would outlive the retry it does
+        # for free the day credentials appear or the quota resets.
 
     platform_id = TGDB_PLATFORM_MAP.get(sid)
     if not THEGAMESDB_API_KEY or not platform_id:

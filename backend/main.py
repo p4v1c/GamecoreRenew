@@ -13,13 +13,13 @@ from fastapi.staticfiles import StaticFiles
 
 from .db import init_db
 from . import ws
-from .routers import systems, games, playtime, covers, metadata, sysinfo, update, overlays, addons
+from .routers import systems, games, playtime, covers, media, metadata, sysinfo, update, overlays, addons
 from .routers import auth as auth_routes
 from .routers import standby as standby_router
 from .routers import controllers as controllers_router
 from .routers import themes as themes_router
 from .routers.settings import wifi, audio, bluetooth
-from .services import battery, gamepad_monitor, prefetch, standby
+from .services import battery, gamepad_monitor, playtime_repair, prefetch, standby
 from .services.process_manager import process_manager
 from .config import GAMECORE_ROOT, COVERS_DIR, ASSETS_DIR, BACKEND_PORT
 
@@ -28,6 +28,19 @@ log = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+
+    # A game's playtime is keyed by the filename the library listed, so a
+    # change in what gets listed silently orphans it. Hiding a .bin behind its
+    # .cue does exactly that — the hours are still in the database and nothing
+    # points at them any more. Runs once (idempotent), before anything can
+    # serve a library.
+    try:
+        moved = await playtime_repair.rekey_shadowed_entries()
+        if moved:
+            log.info("playtime: %d entr%s re-keyed onto their disc descriptor",
+                     moved, "y" if moved == 1 else "ies")
+    except Exception:
+        log.exception("lifespan: playtime repair failed")
 
     # Before anything else: the screen. Standby state lives in memory but its
     # effect does not — `xset dpms force off` belongs to the X server, which
@@ -143,6 +156,7 @@ app.include_router(systems.router, prefix="/api")
 app.include_router(games.router, prefix="/api")
 app.include_router(playtime.router, prefix="/api")
 app.include_router(covers.router, prefix="/api")
+app.include_router(media.router, prefix="/api")
 app.include_router(metadata.router, prefix="/api")
 app.include_router(sysinfo.router, prefix="/api")
 app.include_router(update.router, prefix="/api")

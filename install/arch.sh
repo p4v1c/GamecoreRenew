@@ -155,6 +155,8 @@ EMULATORS="all"
 APPS="all"
 ADDONS="rom-manager"
 TWITCH_CLIENT_ID=""; TWITCH_CLIENT_SECRET=""; TGDB_API_KEY=""
+# ScreenScraper — two credential levels, both required, see the prompt below.
+SS_DEV_ID=""; SS_DEV_PASSWORD=""; SS_USER=""; SS_PASSWORD=""
 
 LOCAL_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}')
 
@@ -193,6 +195,20 @@ else
     read -rp  "  Twitch Client ID                      : " TWITCH_CLIENT_ID
     read -rsp "  Twitch Client Secret (hidden)         : " TWITCH_CLIENT_SECRET; echo
     read -rsp "  TheGamesDB API key (covers, optional) : " TGDB_API_KEY; echo
+
+    echo
+    info "ScreenScraper (box art, 3D boxes, screenshots, videos, synopses)."
+    info "TWO accounts are needed and they are not the same thing:"
+    info "  · developer  — asked for on the ScreenScraper forum, per software."
+    info "                 The dev id is the PSEUDONYM, not the number in the"
+    info "                 devinfos.php URL. Without it: 403."
+    info "  · member     — your own account on screenscraper.fr. It carries the"
+    info "                 daily quota and the thread count."
+    info "Leave empty to skip: covers then resolve exactly as before."
+    read -rp  "  ScreenScraper dev id                  : " SS_DEV_ID
+    read -rsp "  ScreenScraper dev password (hidden)   : " SS_DEV_PASSWORD; echo
+    read -rp  "  ScreenScraper member login            : " SS_USER
+    read -rsp "  ScreenScraper member password (hidden): " SS_PASSWORD; echo
   fi
 fi
 
@@ -210,6 +226,7 @@ info "Mode         : $MODE $([ "$MODE" = minimal ] && echo '(no emulators, no ap
 [[ "$MODE" == "full" ]] && info "Apps         : ${APPS:-none}"
 info "Addons       : ${ADDONS:-none}"
 [[ "$MODE" == "full" ]] && info "EmberTV      : $([ -n "$TWITCH_CLIENT_ID" ] && echo 'live Twitch (credentials set)' || echo 'demo mode (no credentials)')"
+[[ "$MODE" == "full" ]] && info "ScreenScraper: $([ -n "$SS_DEV_ID" ] && echo 'configured (hash matching + every media type)' || echo 'absent (covers by name only)')"
 echo
 if ! $UNATTENDED; then
   read -rp "  Continue? (y/N) " CONFIRM
@@ -1089,14 +1106,32 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-if [[ -n "$TGDB_API_KEY" ]]; then
+# Scraper credentials — one drop-in, mode 600, outside the repo. They are
+# secrets: THEGAMESDB_API_KEY is a key, and the four ScreenScraper values are
+# two accounts, one of which (the developer one) is shared by every user of the
+# same softname and gets revoked if it leaks.
+#
+# Written as a single file rather than one per key: two drop-ins with the same
+# name overwrite each other, and two different names are two places to look when
+# a scrape stops working.
+if [[ -n "$TGDB_API_KEY" || -n "$SS_DEV_ID" ]]; then
   mkdir -p /etc/systemd/system/gamecore-backend.service.d
-  cat > /etc/systemd/system/gamecore-backend.service.d/override.conf <<EOF
-[Service]
-Environment=THEGAMESDB_API_KEY=$TGDB_API_KEY
-EOF
+  {
+    echo "[Service]"
+    [[ -n "$TGDB_API_KEY"    ]] && echo "Environment=THEGAMESDB_API_KEY=$TGDB_API_KEY"
+    # Quoted: a ScreenScraper password may contain spaces, and systemd would
+    # otherwise cut the value at the first one.
+    [[ -n "$SS_DEV_ID"       ]] && echo "Environment=\"SCREENSCRAPER_DEV_ID=$SS_DEV_ID\""
+    [[ -n "$SS_DEV_PASSWORD" ]] && echo "Environment=\"SCREENSCRAPER_DEV_PASSWORD=$SS_DEV_PASSWORD\""
+    [[ -n "$SS_USER"         ]] && echo "Environment=\"SCREENSCRAPER_USER=$SS_USER\""
+    [[ -n "$SS_PASSWORD"     ]] && echo "Environment=\"SCREENSCRAPER_PASSWORD=$SS_PASSWORD\""
+  } > /etc/systemd/system/gamecore-backend.service.d/override.conf
   chmod 600 /etc/systemd/system/gamecore-backend.service.d/override.conf
-  ok "TheGamesDB API key configured (local drop-in, never in git)."
+  [[ -n "$TGDB_API_KEY" ]] && ok "TheGamesDB API key configured (local drop-in, never in git)."
+  if [[ -n "$SS_DEV_ID" ]]; then
+    ok "ScreenScraper credentials configured (local drop-in, never in git)."
+    [[ -n "$SS_USER" ]] || warn "No ScreenScraper member account: the developer credentials alone give a level-0 quota."
+  fi
 fi
 
 cat > /etc/systemd/system/gamecore-ui.service <<EOF

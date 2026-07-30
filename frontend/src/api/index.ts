@@ -28,8 +28,52 @@ export interface GameMeta {
   description: string
   year: string
   genres: string[]
+  /** Highest player count the sources know: "1-3" arrives here as 3. */
   players: number
+  /** Age rating (ESRB, PEGI as a fallback) — a label, not a score. */
   rating: string
+
+  // ── Filled in by the gamemedia tier (ScreenScraper / LaunchBox) ──────────
+  // All optional: a box with no ScreenScraper account and no LaunchBox index
+  // answers from TheGamesDB, which has none of them. Read them with `?.`.
+  source?: 'screenscraper' | 'launchbox' | ''
+  developer?: string
+  publisher?: string
+  /** Full ISO date when known ("2011-05-10"); `year` is extracted from it. */
+  released?: string
+  /** The raw player string, "1-3" — `players` is the number. */
+  players_label?: string
+  /** Community score normalised to 0–1, ready to multiply by 5 stars. */
+  score?: number | null
+  /** Number of votes behind `score` (LaunchBox only). 5.0 from 2 votes is not 4.7 from 987. */
+  score_count?: number | null
+  /** { PEGI: "16", ESRB: "T", USK: "16", … } */
+  classifications?: Record<string, string>
+  platform?: string
+}
+
+/** One artwork a game has. The file itself is at `api.media.url(...)`. */
+export interface MediaEntry {
+  /** box, cart, logo, screenshot, mix, marquee, artwork, icon, bezel, video, document, theme, pinball */
+  category: string
+  kind: 'image' | 'video' | 'document' | 'archive'
+  region: string
+  /** Already on disk. False means the first request pays one download. */
+  cached: boolean
+}
+
+export interface GameMediaIndex {
+  found: boolean
+  /** False = no media source configured on this box — not "game unknown". */
+  available: boolean
+  source?: string
+  matched_by?: string
+  meta: Partial<GameMeta>
+  /** Keyed by media type: "box-3d", "clear-logo", "screenshot-gameplay", … */
+  media: Record<string, MediaEntry>
+  /** True = we could not ask (quota, network). Retrying later is worth something. */
+  unreachable?: boolean
+  notes?: string[]
 }
 
 export interface PlaytimeEntry {
@@ -80,6 +124,23 @@ export const api = {
   metadata: {
     get: (systemId: string, filename: string) =>
       get<GameMeta>(`/metadata/${encodeURIComponent(systemId)}/${encodeURIComponent(filename)}`),
+  },
+  /**
+   * Every artwork a game has, not just its jacket.
+   *
+   * `list()` says what exists — that is the call to make first, because what a
+   * game has depends on the game: a PS3 dump carries 28 media, an obscure
+   * cartridge three. `url()` builds the src for one of them; it is a plain
+   * string, so it goes straight into an <img> or a <video>.
+   *
+   * Nothing is downloaded before it is asked for, so the first display of a
+   * type costs one round trip and every one after it is served from disk.
+   */
+  media: {
+    list: (systemId: string, filename: string) =>
+      get<GameMediaIndex>(`/media/${encodeURIComponent(systemId)}/${encodeURIComponent(filename)}`),
+    url: (systemId: string, filename: string, type: string) =>
+      `${BASE}/media/${encodeURIComponent(systemId)}/${encodeURIComponent(filename)}/media/${encodeURIComponent(type)}`,
   },
   playtime: {
     all: () => get<PlaytimeEntry[]>('/playtime'),

@@ -133,3 +133,89 @@ if __name__ == "__main__":
     test_matches_ext_is_case_insensitive()
     print("[OK ] test_matches_ext_is_case_insensitive")
     print("\nAll tests passed.")
+
+
+# ── One game, one entry ───────────────────────────────────────────────────────
+#
+# Scanning both halves of a disc dump is right (the descriptor is the only
+# launchable file of a multi-track dump, and plenty of dumps are a bare .bin),
+# but listing both shows the same game twice — which is what the player sees.
+
+from backend.services.rom_scanner import iter_rom_files  # noqa: E402
+
+
+def _tree(tmp: Path, files: dict) -> Path:
+    for name, body in files.items():
+        p = tmp / name
+        p.write_bytes(body) if isinstance(body, bytes) else p.write_text(body)
+    return tmp
+
+
+PS1_EXTS = ["*.bin", "*.iso", "*.img", "*.cue", "*.chd", "*.pbp", "*.zip"]
+
+
+def test_a_cue_hides_the_bin_it_names(tmp_path):
+    _tree(tmp_path, {
+        "Solo Dump.cue": 'FILE "Solo Dump.bin" BINARY\n',
+        "Solo Dump.bin": b"x",
+    })
+    assert [f.name for f in iter_rom_files(tmp_path, PS1_EXTS)] == ["Solo Dump.cue"]
+
+
+def test_a_cue_hides_a_bin_it_no_longer_names(tmp_path):
+    """The common case: the dump was renamed, the descriptor was not.
+
+    Measured on a real library — `Dragon Ball Z .cue` still points at
+    `Dragon Ball Z (Europe).bin`, which does not exist, while
+    `Dragon Ball Z .bin` sits next to it. Matching only on what the descriptor
+    names would leave both in the library.
+    """
+    _tree(tmp_path, {
+        "Dragon Ball Z .cue": 'FILE "Dragon Ball Z (Europe).bin" BINARY\n',
+        "Dragon Ball Z .bin": b"x",
+    })
+    assert [f.name for f in iter_rom_files(tmp_path, PS1_EXTS)] == ["Dragon Ball Z .cue"]
+
+
+def test_a_multitrack_dump_shows_only_its_cue(tmp_path):
+    """The tracks share no stem with the .cue, so only the reference pass sees them."""
+    _tree(tmp_path, {
+        "FF IX.cue": 'FILE "FF IX (Track 01).bin" BINARY\nFILE "FF IX (Track 02).bin" BINARY\n',
+        "FF IX (Track 01).bin": b"x",
+        "FF IX (Track 02).bin": b"x",
+    })
+    assert [f.name for f in iter_rom_files(tmp_path, PS1_EXTS)] == ["FF IX.cue"]
+
+
+def test_a_multidisc_playlist_hides_its_discs_and_their_tracks(tmp_path):
+    """Transitive: the .m3u hides the .cue files, whose own tracks go with them.
+
+    The .m3u lines are read whole rather than tokenised — disc names contain
+    spaces, and any token pattern matches only the tail after the last one.
+    """
+    _tree(tmp_path, {
+        "FF IX.m3u": "FF IX (Disc 1).cue\nFF IX (Disc 2).cue\n",
+        "FF IX (Disc 1).cue": 'FILE "FF IX (Disc 1) (Track 01).bin" BINARY\n',
+        "FF IX (Disc 2).cue": 'FILE "FF IX (Disc 2) (Track 01).bin" BINARY\n',
+        "FF IX (Disc 1) (Track 01).bin": b"x",
+        "FF IX (Disc 2) (Track 01).bin": b"x",
+    })
+    assert [f.name for f in iter_rom_files(tmp_path, ["*.bin", "*.cue", "*.m3u"])] == ["FF IX.m3u"]
+
+
+def test_an_unrelated_image_is_left_alone(tmp_path):
+    """Only files a descriptor claims are hidden — nothing else."""
+    _tree(tmp_path, {
+        "Solo Dump.cue": 'FILE "Solo Dump.bin" BINARY\n',
+        "Solo Dump.bin": b"x",
+        "Standalone Game.iso": b"x",
+        "Another Game.bin": b"x",
+    })
+    assert [f.name for f in iter_rom_files(tmp_path, PS1_EXTS)] == [
+        "Another Game.bin", "Solo Dump.cue", "Standalone Game.iso"]
+
+
+def test_a_library_with_no_descriptor_is_untouched(tmp_path):
+    """No .cue anywhere means no reading, no hiding — the old behaviour exactly."""
+    _tree(tmp_path, {"A.bin": b"x", "B.iso": b"x"})
+    assert [f.name for f in iter_rom_files(tmp_path, PS1_EXTS)] == ["A.bin", "B.iso"]

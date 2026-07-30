@@ -20,6 +20,12 @@ log = logging.getLogger(__name__)
 _START_DELAY = 15   # let the splash/home screen boot without competition
 _CONCURRENCY = 3    # be gentle with the CDNs and the box's uplink
 
+# Note on pacing when ScreenScraper is configured: the gamemedia tier holds its
+# own lock and spaces its calls 1.2 s apart, so the three workers above do not
+# multiply into three concurrent scrapes. A first sweep of a large library
+# therefore takes minutes rather than seconds — deliberately. It runs once, in
+# the background, and every game it resolves costs nothing on every boot after.
+
 
 async def run() -> None:
     await asyncio.sleep(_START_DELAY)

@@ -115,6 +115,43 @@ binary on the box".
 `{filename:path}` (not `{filename}`) because ROM names contain slashes for
 folder-based games.
 
+## `media.py` (135 l.) — every artwork, not just the jacket
+
+| Function | Route |
+|---|---|
+| `list_media(system_id, filename, refresh=False)` | `GET /media/{system}/{file:path}` → the catalogue + metadata |
+| `get_media(system_id, filename, media_type)` | `GET /media/{system}/{file:path}/media/{type}` → one file |
+
+`/covers` answers *"give me a cover"* and answers it exactly as it always has.
+This router answers *"what does this game have?"* — `box-3d`, `clear-logo`,
+`screenshot-gameplay`, `mix-rbv2`, `video`, `manual`, 54 types in all — so a
+theme can be built on something other than a flat box front. Backed by
+[`services/gamemedia`](04-backend-services.md#gamemedia--screenscraper--launchbox).
+
+The catalogue is what makes it usable. Each entry carries `category`
+(`box`, `cart`, `logo`, `screenshot`, `mix`, `marquee`, `artwork`, `icon`,
+`bezel`, `video`, `document`, `theme`, `pinball`), `kind` (`image`, `video`,
+`document`, `archive`) and `cached`. Without them a theme would have to
+recognise 54 type names by hand to know which one is a box.
+
+Three answers a theme has to tell apart, and the reason the JSON is shaped this
+way rather than as a bare 404:
+
+| Response | Meaning |
+|---|---|
+| `available: false` | no ScreenScraper account and no LaunchBox index on this box. Nothing is wrong with the game |
+| `found: false, unreachable: true` | quota spent, or network down. Retrying later is worth something |
+| `found: false, unreachable: false` | the sources answered and do not have this game. Final |
+
+**Nothing is downloaded before it is asked for.** A scrape fetches the cover
+and records the other ~27 media with their URL; the first request for a 3D box
+costs one HTTP call and no ScreenScraper quota, every request after it costs a
+`stat()`. Fetching everything up front would be ~34 s per game at the 1.2 s
+ScreenScraper requires between calls.
+
+A 404 on the file route carries the list of types the game *does* have, so a
+theme never has to guess twice.
+
 ## `playtime.py` (36 l.)
 
 `get_all_playtime()`, `get_system_playtime(system_id)`,

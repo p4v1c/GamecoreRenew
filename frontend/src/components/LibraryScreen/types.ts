@@ -52,7 +52,14 @@ export interface LibraryViewProps {
   /**
    * Cover art and metadata, ready-made: both do their own fetching, caching and
    * fallbacks. Rebuilding them in a theme means reimplementing the 404 path.
+   *
+   * `Cover` takes an optional `type`: `"box-3d"`, `"clear-logo"`,
+   * `"screenshot-gameplay"`, `"mix-rbv2"`… Left out, it draws the jacket from
+   * /api/covers exactly as it always has, so a view written before this
+   * existed behaves identically. Ask `sdk.api.media.list()` what a given game
+   * actually has — it varies by game, and a type that is missing falls back to
+   * the jacket rather than to a hole.
    */
-  Cover: ComponentType<{ filename: string; systemId: string; color: string }>
+  Cover: ComponentType<{ filename: string; systemId: string; color: string; type?: string }>
   Meta: ComponentType<{ systemId: string; filename: string; extChip: ReactNode; color: string }>
 }

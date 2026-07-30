@@ -21,6 +21,31 @@ which is `$GAMECORE_PATH` or the repo root.
 | `THEGAMESDB_API_KEY` | env only — never committed |
 | `DEBUG` | must be `false` on a device |
 
+### Environment
+
+Read straight from the process environment, never from a file in the repo. The
+installer writes them into one systemd drop-in,
+`/etc/systemd/system/gamecore-backend.service.d/override.conf`, mode 600.
+
+| Variable | For |
+|---|---|
+| `GAMECORE_PATH` | the install root |
+| `GAMECORE_BACKEND_PORT` | the API port |
+| `THEGAMESDB_API_KEY` | `services/scraper.py`, `services/metadata.py` |
+| `SCREENSCRAPER_DEV_ID` / `SCREENSCRAPER_DEV_PASSWORD` | **developer** credentials, granted per software on the ScreenScraper forum. The id is the developer's *pseudonym*, not the number in the `devinfos.php` URL |
+| `SCREENSCRAPER_USER` / `SCREENSCRAPER_PASSWORD` | a **member** account. It carries the daily quota and the thread count |
+
+The two ScreenScraper levels are not interchangeable and both are needed:
+`jeuInfos.php` answers `403` without the first, and gives a level-0 quota
+without the second. Confusing them is the usual cause of a scrape that returns
+nothing. With none of them set, the gamemedia tier reports itself unavailable
+and covers resolve exactly as they did before it existed.
+
+The developer credential is shared by everyone running the same softname, so it
+is never committed and never read from the repo — that is also why the 1.2 s
+rate limit in `services/gamemedia` is not negotiable: exceeding it blacklists
+the id for every GameCore box, not just this one.
+
 `resolve_path(raw)` turns a config-relative string into an absolute `Path`;
 absolute inputs pass through unchanged. Every `romsPath` and `iconPath` goes
 through it.
@@ -183,6 +208,15 @@ a crash — where no shutdown code runs at all — stranding the player.
 
 Created by `db.py:init_db()`.
 
+> **`game_key` is a filename.** It is whatever the library listed, which makes
+> it a *reference to something outside the database* — so anything that changes
+> what gets listed orphans the rows keyed on the old name. They are not
+> deleted, they simply stop being reachable, and a game played for hours
+> reports as never played. That is not hypothetical: hiding a `.bin` behind its
+> `.cue` did it to one row on the reference box. Any future change to what
+> `rom_scanner` lists needs the same treatment
+> ([`playtime_repair`](04-backend-services.md#playtime_repairpy-105-l)).
+
 ```sql
 CREATE TABLE playtime (
     game_key      TEXT PRIMARY KEY,
@@ -225,7 +259,17 @@ long-lived aiosqlite connection can die under the box's suspend cycles.
 |---|---|---|
 | `emu/covers/<system>/<name>.png\|jpg` | resolved cover art | manual — **drop a file here to pin a cover** |
 | `emu/covers/<system>/<name>.miss` | negative cache | 7 days, or `?refresh=1` |
-| metadata cache | TheGamesDB text, incl. negative results | as above |
+| metadata cache | game text, incl. negative results | as above |
+| `emu/gamemedia/<system>/<key>/game.json` | one game's manifest — metadata + every media it has | none. A game does not change; `?refresh=1` rescrapes |
+| `emu/gamemedia/<system>/<key>/<type>.png\|mp4\|pdf` | the media actually downloaded | idem |
+| `emu/gamemedia/systems.json` | ScreenScraper's 250-system registry (~4 MB) | none — it is the source of the console aliases |
+| `emu/gamescrape/launchbox.sqlite` | offline LaunchBox index, 185 k games (234 MB) | rebuilt by `gamescrape.py --refresh`, and automatically when its schema version moves |
+
+Everything gamemedia writes lives under `emu/`, with the ROMs and the covers,
+because that directory is excluded from both git and the OTA rsync. A manifest,
+a 234 MB index and the artwork all survive an update. Upstream defaults to
+`~/.cache`, which under systemd resolves against whichever `HOME` the unit
+happens to have.
 | `~/.config/gamecore-electron/Cache` | Chromium HTTP cache | cleared by the OTA script and on every Electron start |
 
 ## Assets

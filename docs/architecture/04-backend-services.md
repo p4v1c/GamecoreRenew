@@ -170,15 +170,26 @@ every standby transition.
 
 ---
 
-## `cover_pipeline.py` (132 l.) — orchestration
+## `cover_pipeline.py` (170 l.) — orchestration
 
 | Function | Role |
 |---|---|
-| `resolve(system, filename, refresh=False)` | the four-tier resolution, [drawn here](02-request-flows.md#3-resolving-a-cover) |
+| `resolve(system, filename, refresh=False)` | the five-tier resolution, [drawn here](02-request-flows.md#3-resolving-a-cover) |
+| `_from_gamemedia(sid, target, base, refresh)` | the ScreenScraper / LaunchBox tier — returns `(cover, unreachable)` |
 | `_id_urls(kind, value)` | candidate `(url, ext)` pairs for a disc ID, best first |
 | `_regions(letter)` | region-code expansion for GameTDB paths |
-| `_rom_in_root(system, filename)` | the ROM `filename` names **inside its ROMs root**, or `None` |
 | `_fetch_by_id(kind, value, base)` | downloads the first candidate that exists; raises `Unreachable` if none answered |
+
+The order is: cache → embedded icon → **gamemedia** → disc-ID lookup → name
+scrapers. gamemedia sits below the embedded icon because that one is exact and
+costs no network, and above the name scrapers because it is the only tier that
+is exact on a **cartridge** — there is no icon to extract and no serial to
+read, so everything below it guesses from the filename while a CRC32 the
+ScreenScraper database recognises identifies the game outright.
+
+It asks for a flat jacket (`gamemedia.COVER_ORDER`), so what lands in
+`emu/covers/` is the same *kind* of picture the pipeline has always produced.
+Nothing downstream sees a different shape.
 
 Negative results are written as `.miss` files, honoured for 7 days, so an
 offline box does not retry the network on every scroll.
@@ -194,11 +205,14 @@ library with no connectivity and marked every game; once Wi-Fi was up,
 stayed blank **for a week**, silently, and rebooting did not help. An exhausted
 TheGamesDB quota did the same.
 
-`_rom_in_root` is the containment guard: `filename` comes from the
+`utils.rom_in_root` is the containment guard: `filename` comes from the
 `{filename:path}` route parameter, which accepts slashes and `..`, and the value
 went straight into `roms_root / filename`. Same rule `launch_game` has always
-applied — resolve, then check against the root. `metadata._search_name` has it
-too.
+applied — resolve, then check against the root. It moved to `utils.py` when
+`routers/media.py` became its third caller: two near-identical copies were a
+convention, three would have been a rule to remember rather than import.
+`cover_pipeline._rom_in_root` remains as an alias, because that is the name the
+cover tests assert on.
 
 ## `local_media.py` (150 l.) — read the game itself
 
@@ -243,12 +257,88 @@ a dead network is not evidence about a game. `_fetch_tgdb_cover` raises on any
 non-200 too: a 429 body has no `games` key either, so an empty result used to be
 indistinguishable from a genuine miss.
 
-## `metadata.py` (119 l.)
+## `gamemedia/` — ScreenScraper + LaunchBox
+
+Two vendored files (`gamescrape.py`, `gamemedia.py` — standard library only,
+see `VENDORED.md` in that folder) and one adapter, `__init__.py`, which is the
+**only thing the rest of the backend imports**.
+
+What it adds: identification by **file hash** instead of by filename, and 54
+media types per game instead of one cover.
+
+| Function | Role |
+|---|---|
+| `available()` | is any source configured? Cheap, no network. Everything else is a no-op when it is False |
+| `status()` | `{available, screenscraper, launchbox_index, cache}` |
+| `resolve(system_id, target, only=…, refresh=…)` | the manifest. `None` = *the tier could not be asked*, distinct from a manifest with `found: false` |
+| `media_file(system_id, filename, slug)` | local path to one media, downloading it if it was deferred |
+| `media_index(manifest)` | `media` as the API exposes it — descriptors only, **never the source URL** |
+| `to_game_meta(manifest)` | a manifest in the `GameMeta` shape `/api/metadata` has always returned |
+| `cached(system_id, filename)` | the manifest already on disk. No network, no thread |
+
+**How a game is identified**, best first: the file's CRC32+MD5+SHA1 when it is a
+real file under 384 MiB (certain — a renamed or mistagged ROM still lands on the
+right game); the `TITLE` its `PARAM.SFO` declares when it is a PS3/PS4/PSP
+directory (the directory name is whatever the user typed, and ScreenScraper 404s
+on it); the parsed filename otherwise.
+
+**Three states, not a boolean.** "This game is not in the database" is a fact
+worth caching. "The quota is spent", "the network is down" and "nothing is
+configured" are not, and a manifest carries `unreachable` to say so. Collapsing
+them is what would carve a permanent "no such game" over a whole library swept
+before the credentials were entered.
+
+Two design points that are GameCore's, not upstream's:
+
+- **Nothing is downloaded before it is asked for.** A scrape fetches
+  `EAGER_MEDIA` (the cover, one image — what the default theme displays and
+  what the previous pipeline downloaded) and records the rest as `deferred`
+  with its URL. `media_file()` fetches one on demand: one HTTP request, no
+  second `jeuInfos`, no quota. Fetching all 28 media of a PS3 game up front
+  would be ~34 s per title at the 1.2 s rate ScreenScraper requires.
+- **A stored URL carries no credentials.** ScreenScraper puts `devid`,
+  `devpassword`, `ssid` and `sspassword` in the query of every media URL it
+  returns, and a deferred media keeps its URL in `game.json`. They are stripped
+  on write and restored from the live configuration on read, so the developer
+  account is never written to disk — it is shared by every user of the same
+  softname and gets revoked if it leaks.
+
+Synchronous by design (`urllib` + a thread pool), so every call runs in
+`asyncio.to_thread` behind a single lock. The lock is about the quota, not
+thread safety: prefetch warms three games at a time, and three concurrent
+scrapes would put three `jeuInfos` in flight ignoring each other's 1.2 s.
+
+Configured through four environment variables — `SCREENSCRAPER_DEV_ID`,
+`SCREENSCRAPER_DEV_PASSWORD`, `SCREENSCRAPER_USER`, `SCREENSCRAPER_PASSWORD`
+([where they come from](07-config-and-data.md#environment)). The LaunchBox tier
+needs no account at all, only `python3 gamescrape.py --refresh` run once. The
+backend **never** builds that index itself: 106 MB of download from inside an
+HTTP handler would block the request for minutes.
+
+## `metadata.py` (135 l.)
 
 `resolve(system, filename)` → description, year, genres, players, rating.
-Disk-cached and negative-cached. `_genre_names(client)` resolves the genre id
-table once; `_search_name(system, filename)` builds the query;
+Disk-cached and negative-cached. Two sources: **gamemedia first** (hash
+matching, French synopses when it has them, developer/publisher/age ratings,
+and no network at all on the LaunchBox side), then TheGamesDB unchanged —
+still the only source on a box with neither configured.
+`_genre_names(client)` resolves the genre id table once;
+`_search_name(system, filename)` builds the query;
 `_fetch_tgdb(platform_id, name)` does the call.
+
+**The seven keys the API has always returned keep their name, type and
+meaning** — `found`, `title`, `description`, `year`, `genres`, `players` (a
+number), `rating` (the age rating, a string). GameMetaPanel and every theme
+already read them. Two traps that shaped the mapping: ScreenScraper writes
+players as a range (`"1-3"`), which as a string silently stops the player-count
+chip from rendering, so it is reduced to its maximum; and its `rating` is a
+score out of 20 where TheGamesDB's is a label, so the normalised 0–1 score
+arrives on a new key, `score`, and `rating` stays the label.
+
+A `found: false` from gamemedia is deliberately **not** copied into this
+service's cache: gamemedia already caches its own negative, and only when the
+tiers really answered. A second copy with a 7-day TTL would outlive the retry
+gamemedia does for free the day the credentials appear or the quota resets.
 
 ## `sfo.py` (34 l.)
 
@@ -257,12 +347,60 @@ error. Same binary format on PS3, PS4 and PSP. The addons repo has its own
 copy in `shared/py/`; this one additionally exposes `parse_bytes()` for data
 already in memory.
 
-## `rom_scanner.py` (34 l.)
+## `rom_scanner.py` (126 l.)
 
 `clean_name(filename)` (strips extension and bracketed tags like `[!]`,
 `(USA)`), `matches_ext(filename, extensions)`, and
 `iter_rom_files(roms_path, extensions, scan_dirs)` — alphabetical, applying the
 common exclusions. The rom-manager addon keeps a mirrored copy.
+
+### One game, one entry
+
+`shadowed_by_a_descriptor(entries)` → `{hidden file: the entry that owns it}`.
+
+A PS1 dump is a descriptor plus its tracks, and duckstation scans `*.bin` *and*
+`*.cue` — so a single-disc game was listed twice, same name, same artwork. Both
+extensions have to stay scannable (a `.cue` is the only launchable file of a
+multi-track dump, and plenty of dumps ship as a bare `.bin`), so the dedup is at
+the listing level and the descriptor wins.
+
+Two rules, because either alone leaves duplicates on a real library:
+
+- **what the descriptor names** — a multi-track dump's `Game (Track 01).bin`
+  shares no stem with `Game.cue`. Transitive: an `.m3u` hides its `.cue` files
+  and their tracks go with them in the same pass;
+- **what shares its stem** — the common case of a dump renamed while the
+  descriptor kept pointing at the old name. Measured on the reference box:
+  `Dragon Ball Z .cue` names `Dragon Ball Z (Europe).bin`, which does not
+  exist, while `Dragon Ball Z .bin` sits next to it.
+
+`.m3u` lines are read whole rather than tokenised — disc names contain spaces,
+and a token pattern matches only the tail after the last one. A directory with
+no descriptor is never read, so a library without disc images is untouched.
+
+The **value** of that mapping is what `playtime_repair` needs: hiding a file
+that a player has hours on would orphan them.
+
+## `playtime_repair.py` (105 l.)
+
+`rekey_shadowed_entries()` → number of rows moved. Runs once in the lifespan,
+before anything can serve a library.
+
+`game_key` is the filename the library listed. So the day the library stops
+listing a file, every hour recorded against it stops being reachable: the row
+is still there, nothing points at it, and a game played for hours reports as
+never played. Hiding a `.bin` behind its `.cue` does exactly that — measured
+before this existed, one row on the reference box: 15 minutes, 21 sessions.
+
+So the rename is followed, in `playtime` and in `sessions`. If both keys
+already have a row (the player launched the `.cue` too) they are **merged**,
+not picked between: seconds and session counts add up, `last_played` is the
+later of the two. Idempotent by construction — after one pass no row matches a
+hidden name — and it never deletes a row it has not merged into its
+replacement.
+
+The covers and metadata caches need no equivalent: both are keyed on the
+*stem*, which `.bin` and `.cue` share.
 
 ## `prefetch.py` (60 l.)
 

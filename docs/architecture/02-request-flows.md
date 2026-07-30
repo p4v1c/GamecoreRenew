@@ -94,21 +94,49 @@ flowchart TD
     miss -->|yes| none["404 — UI shows the fallback tile"]
     miss -->|no| t2["local_media.extract_icon()"]
     t2 -->|"PS3 ICON0.PNG · PS4 icon0.png<br/>PSP ICON0.PNG via iso9660"| serve
-    t2 -->|nothing| t3["local_media.disc_id()"]
-    t3 -->|"GC/Wii header · PS1/PS2 SYSTEM.CNF"| fetch["_fetch_by_id() → GameTDB / xlenore"]
+    t2 -->|nothing| t3["gamemedia.resolve()<br/>(skipped if no source configured)"]
+    t3 -->|"ScreenScraper by CRC/MD5/SHA1<br/>or PARAM.SFO title · then LaunchBox"| serve
+    t3 -->|nothing| t4["local_media.disc_id()"]
+    t4 -->|"GC/Wii header · PS1/PS2 SYSTEM.CNF"| fetch["_fetch_by_id() → GameTDB / xlenore"]
     fetch -->|hit| serve
-    fetch -->|miss| t4["scraper.fetch_cover()"]
-    t4 -->|"libretro CDN (_name_variants)"| serve
-    t4 -->|"then TheGamesDB if key set"| serve
-    t4 -->|nothing| write["write .miss"] --> none
+    fetch -->|miss| t5["scraper.fetch_cover()"]
+    t5 -->|"libretro CDN (_name_variants)"| serve
+    t5 -->|"then TheGamesDB if key set"| serve
+    t5 -->|nothing| write["write .miss"] --> none
 ```
 
 Entry point: `services/cover_pipeline.py:resolve(system, filename, refresh)`.
 `?refresh=1` skips the cache and the `.miss` check.
 
-Tier 2 and 3 are **offline and exact** — they read the game itself, so they
-never mis-identify. Tier 4 is fuzzy name matching and is only reached when the
-game carries no identity.
+Tiers 2 and 4 are **offline and exact** — they read the game itself, so they
+never mis-identify. Tier 3 is exact too when the ROM is a real file: a
+CRC32 the ScreenScraper database recognises identifies the game outright, which
+is the only exact method available on a cartridge (no embedded icon, no serial
+to read). Tier 5 is fuzzy name matching and is only reached when the game
+carries no identity anywhere.
+
+Tier 3 is also the one that can be **absent**: with no ScreenScraper account
+and no LaunchBox index, `gamemedia.available()` is False and the flow is the
+one that ran before it existed.
+
+## 3b. Resolving any other media
+
+```mermaid
+flowchart TD
+    start["GET /api/media/{system}/{file}/media/{type}"] --> man{"manifest cached?"}
+    man -->|no| scrape["gamemedia.resolve() — one jeuInfos,<br/>downloads the cover, defers the rest"]
+    man -->|yes| have{"type in the manifest?"}
+    scrape --> have
+    have -->|no| l404["404 + the list of types this game has"]
+    have -->|"file on disk"| serve["FileResponse, immutable"]
+    have -->|"deferred (URL kept, credential-free)"| fetch["fetch_media() — one download,<br/>credentials restored, 1.2 s limiter"]
+    fetch --> serve
+    fetch -->|failed| e502["502 — URL kept, retried next time"]
+```
+
+The manifest is scraped once per game and holds every media the sources have.
+Only what is displayed is downloaded: a first request for `box-3d` costs one
+HTTP call and **no ScreenScraper quota**, because the URL was already recorded.
 
 ## 4. OTA update
 
