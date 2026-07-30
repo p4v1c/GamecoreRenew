@@ -513,3 +513,41 @@ if __name__ == "__main__":
 
     shutil.rmtree(_tmp, ignore_errors=True)
     print("\nAll tests passed.")
+
+
+# ── A negative is only as good as the list of who was asked ───────────────────
+
+def test_an_old_miss_marker_is_retried_once_a_new_source_exists(fake_root, monkeypatch):
+    """Adding a better source must retry what a weaker one gave up on.
+
+    Markers written before gamemedia existed are empty files. Reading them as
+    "everything was asked" left a box showing a week of "no artwork" while a
+    source that had the cover sat configured and idle — 13 of 58 metadata
+    entries on the reference box the day ScreenScraper was added.
+    """
+    from backend.services import cover_pipeline, gamemedia
+
+    miss = ROOT / "emu/covers/melonds/Old Marker.miss"
+    miss.parent.mkdir(parents=True, exist_ok=True)
+    miss.write_text("")                       # the pre-gamemedia shape
+
+    monkeypatch.setattr(gamemedia, "available", lambda: False)
+    assert cover_pipeline._miss_worth_another_look(miss) is False, \
+        "no new source configured — the marker stands"
+
+    monkeypatch.setattr(gamemedia, "available", lambda: True)
+    assert cover_pipeline._miss_worth_another_look(miss) is True, \
+        "gamemedia never asked — worth another look"
+
+
+def test_a_marker_that_already_consulted_every_source_stands(fake_root, monkeypatch):
+    from backend.services import cover_pipeline, gamemedia
+    import json as _json
+
+    miss = ROOT / "emu/covers/melonds/Fresh Marker.miss"
+    miss.parent.mkdir(parents=True, exist_ok=True)
+    miss.write_text(_json.dumps({"tiers_tried": ["gamemedia", "names"]}))
+
+    monkeypatch.setattr(gamemedia, "available", lambda: True)
+    assert cover_pipeline._miss_worth_another_look(miss) is False, \
+        "gamemedia answered — the TTL is what governs from here"

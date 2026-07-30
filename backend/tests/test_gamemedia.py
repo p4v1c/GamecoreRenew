@@ -311,3 +311,29 @@ def test_covers_are_untouched_by_all_of_this(client):
 
 # The fixtures come from test_covers: the same synthetic library, built once.
 from backend.tests.test_covers import client, fake_root  # noqa: E402,F401
+
+
+# ── Negative metadata must not outlive the source that could answer ──────────
+
+def test_a_negative_written_before_gamemedia_is_reconsidered(monkeypatch):
+    from backend.services import metadata
+
+    monkeypatch.setattr(metadata.gamemedia, "available", lambda: True)
+    monkeypatch.setattr(metadata, "THEGAMESDB_API_KEY", "")
+
+    # The shape every entry cached before this release has.
+    assert metadata._worth_another_look({"found": False}) is True
+    # And once gamemedia has answered, the TTL governs again.
+    assert metadata._worth_another_look(
+        {"found": False, "tiers_tried": ["gamemedia"]}) is False
+
+
+def test_a_negative_stands_when_nothing_new_is_configured(monkeypatch):
+    from backend.services import metadata
+
+    monkeypatch.setattr(metadata.gamemedia, "available", lambda: False)
+    monkeypatch.setattr(metadata, "THEGAMESDB_API_KEY", "key")
+    assert metadata._worth_another_look(
+        {"found": False, "tiers_tried": ["thegamesdb"]}) is False
+    # A key added since the negative was written is also a reason to retry.
+    assert metadata._worth_another_look({"found": False}) is True

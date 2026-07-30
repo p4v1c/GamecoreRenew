@@ -74,6 +74,39 @@ def _search_name(system: dict, filename: str) -> str:
     return clean_name(filename)
 
 
+def _sources_now() -> set[str]:
+    """The sources that could answer if asked right now."""
+    out = set()
+    if gamemedia.available():
+        out.add("gamemedia")
+    if THEGAMESDB_API_KEY:
+        out.add("thegamesdb")
+    return out
+
+
+def _worth_another_look(negative: dict) -> bool:
+    """True when a source that was never asked can answer now.
+
+    A cached "nobody knows this game" is only as good as the list of who was
+    asked. Adding a better source does not, on its own, retry the games the
+    previous one gave up on — and a 7-day TTL is a long time to show a library
+    with no descriptions while a source that has them sits configured and idle.
+
+    Measured on the reference box the day ScreenScraper was added: 13 of 58
+    entries were TheGamesDB negatives, and ScreenScraper had a full French
+    synopsis for the very first one checked.
+
+    A negative written before this field existed carries no list, which reads
+    as "gamemedia was never asked" — exactly right, since it did not exist.
+    """
+    return bool(_sources_now() - set(negative.get("tiers_tried") or []))
+
+
+def _write_negative(cache: Path, tried: list[str]) -> None:
+    """Record WHO said no, not just that someone did."""
+    cache.write_text(json.dumps({"found": False, "tiers_tried": sorted(set(tried))}))
+
+
 async def resolve(system: dict, filename: str) -> dict | None:
     """Metadata dict for one game, or None. Disk-cached, negative-cached."""
     sid = system["id"].lower()
@@ -86,10 +119,13 @@ async def resolve(system: dict, filename: str) -> dict | None:
             data = json.loads(cache.read_text())
             if data.get("found"):
                 return data
-            if time.time() - cache.stat().st_mtime < _MISS_TTL:
+            if not _worth_another_look(data) and \
+                    time.time() - cache.stat().st_mtime < _MISS_TTL:
                 return None
         except (json.JSONDecodeError, OSError):
             pass
+
+    tried: list[str] = []
 
     # ── 1. gamemedia ─────────────────────────────────────────────────────────
     # Ahead of TheGamesDB because it identifies the game by hash rather than by
@@ -103,14 +139,20 @@ async def resolve(system: dict, filename: str) -> dict | None:
             data = gamemedia.to_game_meta(manifest)
             cache.write_text(json.dumps(data, ensure_ascii=False))
             return data
-        # A `found: false` here is NOT written down. gamemedia already caches
-        # its own negative, and only when the tiers really answered; copying it
-        # into a second cache with a 7-day TTL would outlive the retry it does
-        # for free the day credentials appear or the quota resets.
+        # Counted as tried only when it really answered. `unreachable` means the
+        # question could not be asked — a spent quota is not evidence about the
+        # game, and recording it would suppress the retry for a week.
+        if manifest is not None and not manifest.get("unreachable"):
+            tried.append("gamemedia")
 
     platform_id = TGDB_PLATFORM_MAP.get(sid)
     if not THEGAMESDB_API_KEY or not platform_id:
-        return None  # not worth a miss file — config, not data
+        # Nothing more to ask. Worth writing down only if something answered:
+        # otherwise this is a configuration state, not a fact about the game.
+        if tried:
+            _write_negative(cache, tried)
+        return None
+    tried.append("thegamesdb")
 
     data = None
     try:
@@ -128,7 +170,7 @@ async def resolve(system: dict, filename: str) -> dict | None:
     # Only reached when TheGamesDB answered and had nothing. _fetch_tgdb raises
     # on a non-200, so an exhausted quota is no longer written down as "this
     # game has no metadata" for the next seven days.
-    cache.write_text(json.dumps({"found": False}))
+    _write_negative(cache, tried)
     return None
 
 

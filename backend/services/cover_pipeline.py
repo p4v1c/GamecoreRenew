@@ -20,6 +20,7 @@ byte the one that ran before it was added.
 Misses are remembered (<stem>.miss, TTL) so the library UI doesn't re-hit
 the network for every unmatched game on every visit.
 """
+import json
 import logging
 import shutil
 import time
@@ -96,6 +97,28 @@ async def _fetch_by_id(kind: str, value: str, base: Path) -> Path | None:
     return None
 
 
+def _miss_worth_another_look(miss: Path) -> bool:
+    """True when a source the marker never consulted can answer now.
+
+    A `.miss` says "nobody has a cover for this game", and that claim is only
+    as good as the list of who was asked. gamemedia can appear on a box at any
+    time — credentials entered, LaunchBox index built — and without this the
+    library would keep serving a week-old "no artwork" from a marker written
+    before that source existed.
+
+    An old marker is an empty file and parses to nothing, which reads as
+    "gamemedia was never asked" — exactly right, since it did not exist when
+    the marker was written.
+    """
+    if not gamemedia.available():
+        return False
+    try:
+        tried = set(json.loads(miss.read_text()).get("tiers_tried") or [])
+    except (OSError, ValueError):
+        tried = set()
+    return "gamemedia" not in tried
+
+
 async def _from_gamemedia(sid: str, target: str, base: Path,
                           refresh: bool = False) -> tuple[Path | None, bool]:
     """(cover, unreachable) from the ScreenScraper / LaunchBox tier.
@@ -163,7 +186,8 @@ async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | 
         shutil.move(str(legacy), png)
         return png
 
-    if miss.exists() and time.time() - miss.stat().st_mtime < _MISS_TTL:
+    if miss.exists() and time.time() - miss.stat().st_mtime < _MISS_TTL \
+            and not _miss_worth_another_look(miss):
         return None
 
     rom: Path | None = _rom_in_root(system, filename)
@@ -172,6 +196,9 @@ async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | 
     # nobody has this cover; nothing may claim that on the strength of a request
     # that never left the box.
     unreachable = False
+    # Which sources actually answered, recorded in the marker so a source added
+    # later does not inherit a refusal it never made.
+    tried: list[str] = []
 
     if rom:
         # 1. Icon embedded in the game (offline, always right)
@@ -191,6 +218,8 @@ async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | 
         if found:
             return found
         unreachable = unreachable or gm_unreachable
+        if not gm_unreachable:
+            tried.append("gamemedia")
 
     if rom:
         # 3. Exact lookup by the ID read from the game itself
@@ -226,5 +255,7 @@ async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | 
         # markers are on disk.
         return None
 
-    miss.touch()
+    # The marker records WHO said no. An empty one — every marker written before
+    # this — reads as "gamemedia was never asked", which is exactly true.
+    miss.write_text(json.dumps({"tiers_tried": sorted(set(tried + ["names"]))}))
     return None
