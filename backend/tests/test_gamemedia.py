@@ -390,3 +390,55 @@ def test_a_metadata_entry_in_the_wrong_language_is_reconsidered():
         {"found": True, "source": "screenscraper", "lang": "en"}) is False
     # TheGamesDB is English-only and carries no source — never invalidated.
     assert metadata._wrong_language({"found": True, "title": "Mario Kart DS"}) is False
+
+
+# ── A cached hit is only as good as the source that wrote it ─────────────────
+
+def test_a_hit_from_before_gamemedia_is_reconsidered(monkeypatch):
+    """45 of 53 entries on the reference box were in this state.
+
+    They were TheGamesDB records that gamemedia had never been given a chance
+    to improve, and five had no synopsis at all while ScreenScraper held a full
+    one — the N64 game showed a blank description under a perfectly good
+    paragraph sitting in the manifest next door.
+    """
+    from backend.services import metadata
+
+    monkeypatch.setattr(metadata.gamemedia, "available", lambda: True)
+    legacy = {"found": True, "title": "Mario Kart 64", "description": ""}
+    assert metadata._from_a_weaker_source(legacy) is True
+
+
+def test_it_happens_once_and_cannot_loop(monkeypatch):
+    """Every record written from now on carries a source, TheGamesDB's included.
+
+    Without that stamp a game gamemedia does not know would be re-asked on
+    every single call, for ever.
+    """
+    from backend.services import metadata
+
+    monkeypatch.setattr(metadata.gamemedia, "available", lambda: True)
+    for src in ("thegamesdb", "screenscraper", "launchbox"):
+        assert metadata._from_a_weaker_source({"found": True, "source": src}) is False
+
+
+def test_nothing_is_reconsidered_when_gamemedia_cannot_answer(monkeypatch):
+    from backend.services import metadata
+
+    monkeypatch.setattr(metadata.gamemedia, "available", lambda: False)
+    assert metadata._from_a_weaker_source({"found": True, "title": "x"}) is False
+
+
+def test_the_language_check_no_longer_catches_thegamesdb(monkeypatch):
+    """It is English only and carries no `lang`.
+
+    Testing `entry.get("source")` at all — which is what the first version did
+    — would now match it and reconsider it on every call.
+    """
+    from backend.services import metadata
+
+    assert metadata._wrong_language({"found": True, "source": "thegamesdb"}) is False
+    assert metadata._wrong_language(
+        {"found": True, "source": "screenscraper", "lang": "fr"}) is True
+    assert metadata._wrong_language(
+        {"found": True, "source": "screenscraper", "lang": "en"}) is False

@@ -74,18 +74,42 @@ def _search_name(system: dict, filename: str) -> str:
     return clean_name(filename)
 
 
+# The sources whose text is localised. TheGamesDB is English only.
+_LOCALISED = ("screenscraper", "launchbox")
+
+
 def _wrong_language(entry: dict) -> bool:
     """True for a hit whose text is in a language we no longer want.
 
     ScreenScraper localises synopses *and* genre names, so the language is
     baked into the cached entry — a library swept in French stays French for
-    good unless the entry is reconsidered. TheGamesDB entries carry no `source`
-    and are English only; they are never invalidated by this.
+    good unless the entry is reconsidered.
 
-    An entry written before the field existed has no `lang`, which is treated
-    as a mismatch: it was scraped under the old French-first default.
+    Only the localised sources are checked. Testing `entry.get("source")` at
+    all would now catch TheGamesDB too, which never carries a `lang` and would
+    therefore be reconsidered on every single call.
     """
-    return bool(entry.get("source")) and entry.get("lang") != SCRAPER_LANG[0]
+    return entry.get("source") in _LOCALISED and entry.get("lang") != SCRAPER_LANG[0]
+
+
+def _from_a_weaker_source(entry: dict) -> bool:
+    """True for a hit written before gamemedia existed, now that it can answer.
+
+    A cached hit is only as good as the source that produced it, and this cache
+    predates the better one. Measured on the reference box: 45 of 53 entries
+    were TheGamesDB records that gamemedia had never been given a chance to
+    improve — and five of those had no synopsis at all while ScreenScraper held
+    a full one. The N64 game showed a blank description under a perfectly good
+    paragraph sitting in the manifest next door.
+
+    Reconsidering is nearly free: the cover pipeline has usually already
+    scraped the manifest, so gamemedia answers from disk without a request.
+
+    It happens **once**. An entry with no `source` at all is a legacy record;
+    every entry written from here on carries one, including TheGamesDB's, so
+    this can never loop.
+    """
+    return "source" not in entry and gamemedia.available()
 
 
 def _sources_now() -> set[str]:
@@ -131,7 +155,8 @@ async def resolve(system: dict, filename: str) -> dict | None:
     if cache.is_file():
         try:
             data = json.loads(cache.read_text())
-            if data.get("found") and not _wrong_language(data):
+            if data.get("found") and not _wrong_language(data) \
+                    and not _from_a_weaker_source(data):
                 return data
             if not _worth_another_look(data) and \
                     time.time() - cache.stat().st_mtime < _MISS_TTL:
@@ -179,6 +204,11 @@ async def resolve(system: dict, filename: str) -> dict | None:
         return None  # transient — don't cache
 
     if data:
+        # Stamped, and this is what stops _from_a_weaker_source from looping:
+        # a legacy record has no `source` at all and is reconsidered once; a
+        # record written here says who wrote it and is left alone from then on,
+        # even on a box where gamemedia is configured but does not know the game.
+        data["source"] = "thegamesdb"
         cache.write_text(json.dumps(data, ensure_ascii=False))
         return data
     # Only reached when TheGamesDB answered and had nothing. _fetch_tgdb raises
