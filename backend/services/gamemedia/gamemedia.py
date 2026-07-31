@@ -164,12 +164,27 @@ def write_json(path: Path, payload: dict) -> None:
 
 SYSTEMS_CACHE = CACHE_ROOT / "systems.json"
 
-EMULATOR_ALIASES: dict[str, str] = {
+# GameCore: a value may be a LIST when one emulator covers several consoles.
+#
+# The extension was supposed to settle those cases, and it does when the
+# extension is a real dump format the registry knows — .wbfs is Wii, .gcz is
+# GameCube. It cannot when the format belongs to the emulator itself: .rvz is
+# Dolphin's own container and ScreenScraper lists it under no system at all, so
+# `by_ext` came back empty and only the alias spoke.
+#
+# The alias said "gamecube", so every Dolphin game was looked up as a GameCube
+# game. Measured on the reference box: Ocarina, Wind Waker and the Mario Partys
+# resolved because they really are GameCube games; Skyward Sword, New Super
+# Mario Bros. Wii and Super Smash Bros. Brawl are Wii only and came back "not in
+# the database" — and Mario Kart Wii quietly matched *Mario Kart: Double Dash*,
+# which is worse than nothing.
+EMULATOR_ALIASES: dict[str, str | list[str]] = {
     "rpcs3": "ps3", "shadps4": "ps4", "pcsx2": "ps2", "duckstation": "psx",
-    "ppsspp": "psp", "vita3k": "vita", "dolphin": "gamecube", "cemu": "wiiu",
+    "ppsspp": "psp", "vita3k": "vita",
+    "dolphin": ["gamecube", "wii"], "cemu": "wiiu",
     "ryujinx": "switch", "yuzu": "switch", "citron": "switch",
     "azahar": "3ds", "citra": "3ds", "melonds": "nds", "desmume": "nds",
-    "mgba": "gba", "gopher64": "nintendo 64", "mupen64plus": "nintendo 64",
+    "mgba": ["gba", "gbc", "gb"], "gopher64": "nintendo 64", "mupen64plus": "nintendo 64",
     "xenia": "xbox 360", "xemu": "xbox", "flycast": "dreamcast",
     "mednafen": "psx", "snes9x": "super nintendo", "mesen": "nes",
     # "arcade" is not a system on ScreenScraper: more than 50 boards share
@@ -181,6 +196,13 @@ EMULATOR_ALIASES: dict[str, str] = {
     "segacd": "mega cd", "x360": "xbox 360", "xone": "xbox one",
     "psx": "playstation", "ps1": "playstation", "gc": "gamecube",
 }
+
+
+# GameCore: the alias table maps one emulator to one *or several* consoles.
+def _alias_names(key: str) -> list[str]:
+    """The console names an emulator id stands for, most likely first."""
+    v = EMULATOR_ALIASES.get(key, key)
+    return [v] if isinstance(v, str) else list(v)
 
 
 def _slug_name(s: str) -> str:
@@ -270,11 +292,28 @@ def system_candidates(filename: str, hint: str = "") -> list[int]:
     by_ext = reg["by_ext"].get(ext, [])
     hinted, _ = detect_system(filename, hint)
 
+    # GameCore: every console the emulator covers, not just the primary one.
+    # This is what the extension was meant to supply and cannot when the format
+    # belongs to the emulator rather than to the console — .rvz is listed under
+    # no system at all, so a Wii game under Dolphin was only ever asked about
+    # as a GameCube game.
+    from_alias: list[int] = []
+    for raw in (hint, Path(filename).parent.name):
+        key = _slug_name(raw)
+        if not key:
+            continue
+        for name in _alias_names(key):
+            if sid := reg["by_name"].get(_slug_name(name)):
+                from_alias.append(sid)
+        if from_alias:
+            break
+
     ordered: list[int] = []
     if 0 < len(by_ext) <= 3:          # discriminating extension: it goes first
         ordered += by_ext
     if hinted:
         ordered.append(hinted)
+    ordered += from_alias              # the emulator's other consoles
     ordered += by_ext                  # the rest of the extension, last resort
     seen: set[int] = set()
     return [s for s in ordered if not (s in seen or seen.add(s))][:4]
@@ -293,10 +332,13 @@ def detect_system(filename: str, hint: str = "") -> tuple[int | None, dict]:
         key = _slug_name(raw)
         if not key:
             continue
-        key = EMULATOR_ALIASES.get(key, key)
-        key = _slug_name(key)
-        if sid := reg["by_name"].get(key):
-            return sid, reg["info"].get(sid, {})
+        # GameCore: an alias may name several consoles. The first that the
+        # registry knows is the primary — the one reported as `ss_systemeid`
+        # and used for the LaunchBox platform. The others come back through
+        # system_candidates() and are what actually get tried.
+        for name in _alias_names(key):
+            if sid := reg["by_name"].get(_slug_name(name)):
+                return sid, reg["info"].get(sid, {})
     ext = Path(filename).suffix.lower().lstrip(".")
     if cands := reg["by_ext"].get(ext):
         return cands[0], reg["info"].get(cands[0], {})

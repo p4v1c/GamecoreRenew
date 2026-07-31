@@ -442,3 +442,23 @@ def test_the_language_check_no_longer_catches_thegamesdb(monkeypatch):
         {"found": True, "source": "screenscraper", "lang": "fr"}) is True
     assert metadata._wrong_language(
         {"found": True, "source": "screenscraper", "lang": "en"}) is False
+
+
+# ── One emulator, several consoles ───────────────────────────────────────────
+
+def test_an_emulator_covering_two_consoles_offers_both():
+    """Dolphin reads GameCube *and* Wii, and .rvz cannot break the tie.
+
+    The extension was meant to settle it, and does for a real dump format —
+    .wbfs is Wii, .gcz is GameCube. It cannot for .rvz, which is Dolphin's own
+    container and which ScreenScraper lists under no system at all. With the
+    alias naming one console, every Dolphin game was looked up as a GameCube
+    game: Skyward Sword, New Super Mario Bros. Wii and Super Smash Bros. Brawl
+    came back "not in the database" because they are Wii only.
+    """
+    assert gm._alias_names("dolphin") == ["gamecube", "wii"]
+    assert gm._alias_names("mgba") == ["gba", "gbc", "gb"]
+    # A plain string still means one console, which is most of the table.
+    assert gm._alias_names("rpcs3") == ["ps3"]
+    # And an id that is not an emulator passes straight through.
+    assert gm._alias_names("ps3") == ["ps3"]
