@@ -682,6 +682,47 @@ def hashes_for(path: Path) -> dict[str, str] | None:
     return gs.file_hashes(path, limit=HASH_MAX_BYTES)
 
 
+# GameCore: how close the title that came back is to the one we asked for.
+#
+# ScreenScraper's romnom search is fuzzy and always answers *something*. Asked
+# for "Mario Kart Wii" on GameCube it returns "Mario Kart: Double Dash!!" — and
+# since any answer ended the loop, that is what the box displayed. The Wii
+# candidate, which would have answered "Mario Kart Wii", was never asked.
+#
+# Both figures below come from measuring this library, not from taste:
+#
+#   correct match, article reordered   1.000  ("Legend of Zelda, The - Skyward
+#                                              Sword" vs ScreenScraper's "The
+#                                              Legend of Zelda - Skyward Sword")
+#   wrong console                      0.581  (Double Dash)
+#   *different game in the same series* 0.909  (Mario Party 4 vs Mario Party 7)
+#
+# That 0.909 is why a threshold alone cannot do this. One character apart, two
+# genuinely different games — so the rule is not "is this good enough", it is
+# "which candidate is closest". A candidate is only accepted outright when it
+# is nearly exact; anything short of that keeps looking and the best wins.
+NAME_ACCEPT = 0.95
+
+
+def _title_score(parsed: dict, jeu: dict) -> float:
+    """Best similarity between the name we asked for and any name returned."""
+    import difflib
+    want = gs.normalize(parsed.get("romnom") or parsed.get("title") or "")
+    if not want:
+        return 0.0
+    names = [str(n.get("text") or "") for n in (jeu.get("noms") or [])
+             if isinstance(n, dict)]
+    if not names:
+        return 0.0
+    return max(difflib.SequenceMatcher(None, want, gs.normalize(n)).ratio()
+               for n in names)
+
+
+def _hash_confirmed(jeu: dict, hashes: dict | None) -> bool:
+    """The server echoed one of our digests — certain, never second-guessed."""
+    return _matched_by(jeu, hashes) == "hash"
+
+
 def _matched_by(jeu: dict, hashes: dict | None) -> str:
     """How the game was REALLY found — verified, not declared.
 
@@ -793,7 +834,17 @@ def ss_everything(parsed: dict, rom_path: Path | None,
         raise ScreenScraperUnreachable(
             "console undetermined and no usable hash")
 
-    data = None
+    # GameCore: the best candidate wins, not the first one to answer.
+    #
+    # An emulator can cover several consoles, and the search is fuzzy, so the
+    # first console asked will happily return its nearest title — which is how
+    # a Wii game came back as a GameCube one. Candidates are compared instead.
+    #
+    # The quota cost is paid only where there is doubt: a title that comes back
+    # nearly exact is accepted on the spot, so a game found on the first try
+    # still costs one request. Only an unconvincing answer makes us ask the next
+    # console, which is precisely when it is worth it.
+    best: tuple[float, dict, bool] | None = None
     for sid, use_hash in attempts:
         p = dict(params)
         if sid:
@@ -804,15 +855,30 @@ def ss_everything(parsed: dict, rom_path: Path | None,
             for k in ("crc", "md5", "sha1"):
                 p.pop(k, None)          # romtaille stays: it helps the server
         data = ss_request("jeuInfos.php", p, verbose)
-        if data is not None:
-            hash_used = use_hash
-            break
-    if data is None:
-        return None
+        if data is None:
+            continue
+        jeu = (data.get("response") or {}).get("jeu")
+        if not jeu:
+            continue
 
-    jeu = (data.get("response") or {}).get("jeu")
-    if not jeu:
+        # A digest the server echoed back is proof, not a guess. Nothing about
+        # a title can improve on it, and nothing may override it.
+        if use_hash and hashes and _hash_confirmed(jeu, hashes):
+            best = (1.0, jeu, use_hash)
+            break
+
+        score = _title_score(parsed, jeu)
+        if best is None or score > best[0]:
+            best = (score, jeu, use_hash)
+        if score >= NAME_ACCEPT:
+            break
+
+    if best is None:
         return None
+    # Kept even when nothing was convincing: a weak match is still far more
+    # useful than a blank card, and `matched_by` carries the doubt so it can be
+    # seen rather than guessed at.
+    name_score, jeu, hash_used = best
 
     order = gs.SS_REGION_PREF.get(parsed["region"], gs.SS_REGION_PREF[None])
     genres = [_pick_lang(g.get("noms", [])) for g in (jeu.get("genres") or [])]
@@ -868,9 +934,15 @@ def ss_everything(parsed: dict, rom_path: Path | None,
     for v in media.values():
         v.pop("_rank", None)
 
+    how = _matched_by(jeu, hashes if hash_used else None)
+    # GameCore: a name match nobody is confident about says so. It is the same
+    # honesty `_matched_by` already applies to hashes — describe what actually
+    # happened, so a wrong cover can be recognised as a weak match rather than
+    # looked at as a mystery.
+    if how.startswith("name") and name_score < NAME_ACCEPT:
+        how = f"{how} (weak, {name_score:.0%})"
     return {"source": "screenscraper", "game_id": jeu.get("id"),
-            "matched_by": _matched_by(jeu, hashes if hash_used else None),
-            "meta": meta, "media": media}
+            "matched_by": how, "meta": meta, "media": media}
 
 
 # ── Tier 3: LaunchBox ───────────────────────────────────────────────────────

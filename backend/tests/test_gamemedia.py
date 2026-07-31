@@ -462,3 +462,50 @@ def test_an_emulator_covering_two_consoles_offers_both():
     assert gm._alias_names("rpcs3") == ["ps3"]
     # And an id that is not an emulator passes straight through.
     assert gm._alias_names("ps3") == ["ps3"]
+
+
+# ── The best candidate wins, not the first to answer ─────────────────────────
+
+def _jeu(*titles):
+    return {"id": 1, "noms": [{"region": "wor", "text": t} for t in titles]}
+
+
+def test_a_fuzzy_hit_on_the_wrong_console_scores_badly():
+    """ScreenScraper's name search always answers something.
+
+    Asked for Mario Kart Wii on GameCube it returns Mario Kart: Double Dash,
+    and since any answer used to end the loop, that is what the box displayed.
+    """
+    parsed = {"title": "Mario Kart Wii"}
+    assert gm._title_score(parsed, _jeu("Mario Kart Wii")) == 1.0
+    assert gm._title_score(parsed, _jeu("Mario Kart : Double Dash!!")) < 0.7
+
+
+def test_the_rom_naming_convention_does_not_count_against_a_match():
+    """Dumps put the article at the end; ScreenScraper puts it in front.
+
+    Scoring the raw strings would reject the correct answer — which is why this
+    goes through the same normalise() the LaunchBox search uses.
+    """
+    parsed = {"title": "Legend of Zelda, The - Skyward Sword"}
+    assert gm._title_score(parsed, _jeu("The Legend of Zelda - Skyward Sword")) == 1.0
+
+
+def test_two_games_in_one_series_are_a_threshold_apart():
+    """Mario Party 4 against Mario Party 7 scores 0.909.
+
+    One character apart, two genuinely different games — so a threshold alone
+    cannot decide this, and the acceptance bar sits above it. What settles it
+    is comparing the candidates with each other.
+    """
+    score = gm._title_score({"title": "Mario Party 4"}, _jeu("Mario Party 7"))
+    assert 0.85 < score < gm.NAME_ACCEPT
+
+
+def test_a_confirmed_hash_is_never_second_guessed():
+    """The server echoed our digest. No title can improve on that."""
+    hashes = {"crc": "ABCD1234", "md5": "", "sha1": ""}
+    echoed = {"id": 1, "rom": {"romcrc": "abcd1234"}, "noms": []}
+    assert gm._hash_confirmed(echoed, hashes) is True
+    # A different digest is a name match dressed up as a hash one.
+    assert gm._hash_confirmed({"id": 1, "rom": {"romcrc": "0000"}}, hashes) is False
