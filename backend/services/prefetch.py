@@ -11,6 +11,8 @@ import logging
 
 from ..config import resolve_path
 from ..routers.systems import list_all
+from ..utils import rom_in_root
+from . import gamemedia
 from .cover_pipeline import resolve as resolve_cover
 from .metadata import resolve as resolve_metadata
 from .rom_scanner import iter_rom_files
@@ -64,3 +66,25 @@ async def run() -> None:
 
     await asyncio.gather(*(warm(s, f) for s, f in jobs))
     log.info("prefetch: done (%d games)", len(jobs))
+
+    # Second pass: the artwork a theme draws beyond the cover — the faces of
+    # the 3D box, the captures. Deliberately after the first, and not merged
+    # into it: every game must have a cover before any game has six images.
+    # Someone opening the library thirty seconds after boot cares about the
+    # grid being full, not about the detail panel of one title being complete.
+    #
+    # It costs no jeuInfos — the URLs are already in the manifests — so a
+    # second sweep is downloads and nothing else. Games whose media are already
+    # on disk cost a stat() each.
+    if not gamemedia.available() or not gamemedia.WARM_MEDIA:
+        return
+    warmed = 0
+    for system, filename in jobs:
+        rom = rom_in_root(system, filename)
+        try:
+            warmed += await gamemedia.warm(system["id"].lower(),
+                                           str(rom) if rom else filename)
+        except Exception:
+            log.debug("prefetch: warming failed for %s", filename, exc_info=True)
+    if warmed:
+        log.info("prefetch: %d extra media cached", warmed)

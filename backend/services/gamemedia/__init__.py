@@ -25,6 +25,7 @@ so a theme can be built on something other than a flat jacket.
 """
 import asyncio
 import logging
+import os
 import re
 from pathlib import Path
 
@@ -66,6 +67,23 @@ gm.LANG_PREF = SCRAPER_LANG
 # PS3 game carries would be ~34 s per title at the 1.2 s ScreenScraper demands
 # — for artwork no shipped theme reads.
 EAGER_MEDIA = {"box-front"}
+
+# What the warming pass pulls down afterwards, once the whole library has a
+# cover. These are what the shipped themes draw: the flat jacket, the three
+# faces the 3D box is built from, and the two captures the detail panel shows.
+#
+# Kept apart from EAGER_MEDIA on purpose. A scrape has to be quick — it holds
+# the lock and it is what stands between the player and a cover — so it fetches
+# one image. Warming runs afterwards, on manifests that already exist, and costs
+# no jeuInfos at all: every one of these is already recorded with its URL, so
+# it is a plain download.
+#
+# Configurable, because a box on a slow line or with a thousand games may want
+# less: GAMECORE_WARM_MEDIA, comma-separated, empty to warm nothing.
+WARM_MEDIA = {s for s in os.environ.get(
+    "GAMECORE_WARM_MEDIA",
+    "box-front,box-3d,box-spine,box-back,screenshot-gameplay,screenshot-game-title"
+).split(",") if s.strip()}
 
 # The cover pipeline asks for these in order. box-front is the jacket every
 # current theme draws; the rest are there so a system that has no flat box art
@@ -173,6 +191,41 @@ async def media_file(system_id: str, filename: str, slug: str) -> Path | None:
             log.warning("gamemedia: fetching %s for %s/%s failed", slug,
                         system_id, filename, exc_info=True)
             return None
+
+
+async def warm(system_id: str, target: Path | str,
+               types: set[str] | None = None) -> int:
+    """Pull down the media a theme will want, before it asks. Returns how many.
+
+    This is the difference between a detail panel that appears and one that
+    fills in. A scrape fetches the cover and records everything else with its
+    URL; the first time a theme draws a 3D box or a capture, that URL is
+    resolved on the spot, behind the scraper's 1.2 s spacing. Doing it once at
+    boot instead means the artwork is on disk before anyone looks.
+
+    Cheap on purpose: it never scrapes. It reads the manifest that is already
+    there and fetches only what is missing from it, so it costs no jeuInfos and
+    nothing at all for a game whose media are already down. A box with no
+    manifest yet is skipped — the cover pipeline will make one, and the next
+    pass will warm it.
+    """
+    if types is None:
+        types = WARM_MEDIA
+    if not types:
+        return 0
+
+    name = str(target)
+    manifest = cached(system_id, name)
+    if not manifest or not manifest.get("found"):
+        return 0
+
+    media = manifest.get("media") or {}
+    missing = [t for t in types if t in media and not media[t].get("file")]
+    got = 0
+    for slug in missing:
+        if await media_file(system_id, name, slug):
+            got += 1
+    return got
 
 
 def media_index(manifest: dict) -> dict[str, dict]:

@@ -509,3 +509,66 @@ def test_a_confirmed_hash_is_never_second_guessed():
     assert gm._hash_confirmed(echoed, hashes) is True
     # A different digest is a name match dressed up as a hash one.
     assert gm._hash_confirmed({"id": 1, "rom": {"romcrc": "0000"}}, hashes) is False
+
+
+# ── warming ──────────────────────────────────────────────────────────────────
+# What makes the detail panel instant: the media a theme draws beyond the cover
+# are fetched at boot rather than the first time someone looks at the game.
+
+def test_warming_fetches_only_what_is_missing(tmp_path, monkeypatch):
+    """Already-downloaded media must not be re-fetched.
+
+    Warming runs on every boot over the whole library. If it asked for what it
+    already had, a 47-game box would spend ~280 requests at 1.2 s each on every
+    single start — six minutes of the scraper's budget for nothing.
+    """
+    monkeypatch.setattr(gm, "CACHE_ROOT", tmp_path)
+    d = gm.entry_dir("rpcs3", "Uncharted 2")
+    gm.write_json(d / gm.MANIFEST, {"found": True, "media": {
+        "box-front": {"file": "box-front.png"},                 # already here
+        "box-3d": {"deferred": True, "url": gm.strip_creds(SS_URL)},
+        "screenshot-gameplay": {"deferred": True, "url": gm.strip_creds(SS_URL)},
+    }})
+
+    asked = []
+
+    async def fake_media_file(system_id, filename, slug):
+        asked.append(slug)
+        return tmp_path / f"{slug}.png"
+
+    monkeypatch.setattr(gamemedia, "media_file", fake_media_file)
+    got = await_(gamemedia.warm("rpcs3", "Uncharted 2",
+                                {"box-front", "box-3d", "screenshot-gameplay"}))
+
+    assert got == 2
+    assert sorted(asked) == ["box-3d", "screenshot-gameplay"]
+
+
+def test_warming_never_asks_for_a_media_the_game_does_not_have(tmp_path,
+                                                               monkeypatch):
+    """A slug absent from the manifest is absent from the game.
+
+    Asking anyway would cost a request per game per type that system never
+    carries — box-spine alone is missing from most arcade titles.
+    """
+    monkeypatch.setattr(gm, "CACHE_ROOT", tmp_path)
+    d = gm.entry_dir("rpcs3", "Uncharted 2")
+    gm.write_json(d / gm.MANIFEST,
+                  {"found": True, "media": {"box-front": {"file": "b.png"}}})
+
+    async def refuse(*a):
+        raise AssertionError("warming asked for a media that was never recorded")
+
+    monkeypatch.setattr(gamemedia, "media_file", refuse)
+    assert await_(gamemedia.warm("rpcs3", "Uncharted 2", {"box-3d"})) == 0
+
+
+def test_warming_skips_a_game_with_no_manifest(tmp_path, monkeypatch):
+    """It never scrapes: a game the cover pipeline has not reached costs nothing."""
+    monkeypatch.setattr(gm, "CACHE_ROOT", tmp_path)
+
+    async def refuse(*a):
+        raise AssertionError("warming tried to fetch without a manifest")
+
+    monkeypatch.setattr(gamemedia, "media_file", refuse)
+    assert await_(gamemedia.warm("rpcs3", "Never Scraped")) == 0

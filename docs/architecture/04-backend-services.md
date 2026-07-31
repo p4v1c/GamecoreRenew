@@ -418,10 +418,34 @@ moving playtime onto an invisible entry only hides it further.
 The covers and metadata caches need no equivalent: both are keyed on the
 *stem*, which `.bin` and `.cue` share.
 
-## `prefetch.py` (60 l.)
+## `prefetch.py` (82 l.)
 
 `run()` walks the library at startup and calls `warm(system, filename)` so the
-first scroll is not a spinner.
+first scroll is not a spinner. Two passes, in this order:
+
+1. **Cover and metadata**, three games at a time, through the same pipelines the
+   API uses — an already-cached game costs one `stat()`.
+2. **The rest of the artwork a theme draws**, once every game has a cover:
+   `gamemedia.warm()` for each entry, sequentially.
+
+The order is the point. Someone opening the library thirty seconds after boot
+wants the grid full, not one title's detail panel complete.
+
+The second pass costs no `jeuInfos`: a scrape downloads `box-front` and records
+every other media with its URL, so warming is a plain download of URLs already
+on disk. It fetches only what the manifest says the game *has* and does not yet
+*hold* — which is why it is nearly free on a warm box and why a game the cover
+pipeline has not reached yet is simply skipped until the next boot.
+
+What it pulls is `gamemedia.WARM_MEDIA`: the flat jacket, the three faces the 3D
+box is built from (`box-3d`, `box-spine`, `box-back`) and the two captures the
+detail panel shows. Override with `GAMECORE_WARM_MEDIA` — comma-separated, empty
+to warm nothing, for a box on a slow line or with a very large library.
+
+Measured on the reference box before this existed: `box-front` 47/47, but
+`box-3d` and `screenshot-gameplay` only 41/47 — the six missing were simply the
+games nobody had opened yet, each one costing a round trip behind the scraper's
+1.2 s spacing the moment someone did.
 
 ---
 
