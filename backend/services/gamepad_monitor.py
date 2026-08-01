@@ -250,9 +250,13 @@ async def run() -> None:
                     try:
                         results = await asyncio.to_thread(
                             controller_profiles.apply_profile, player, vendor, product, name, dup)
-                        if results:
-                            log.info("gamepad_monitor: player %d profiled (%s:%s, dup %d) — %s",
-                                     player, vendor, product, dup, "; ".join(results))
+                        # Log both outcomes. `if results:` alone meant a pass
+                        # that configured nothing looked exactly like one that
+                        # never ran — apply_profile now details the give-ups
+                        # itself, but the "0 emulators" headline belongs here.
+                        log.info("gamepad_monitor: player %d profiled (%s:%s, dup %d) — %s",
+                                 player, vendor, product, dup,
+                                 "; ".join(results) if results else "no emulator configured")
                     except Exception:
                         log.exception("gamepad_monitor: controller_profiles failed for player %d", player)
             pad_models[key] = (player, vendor, product)

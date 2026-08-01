@@ -257,10 +257,46 @@ def resolve_name(vendor: str, product: str, evdev_name: str) -> str:
             or evdev_name)
 
 
+class Skip(str):
+    """Why a step wrote nothing — a real answer, not an absence of one.
+
+    Every writer used to return `str | None`, and apply_profile only collected
+    the truthy ones. So "I retargeted Player 2" reached the log and "there is
+    no Player 1 pad to clone from" reached nobody: a give-up was byte-for-byte
+    indistinguishable from a success. RPCS3's players 2-4 sat dead for a week
+    that way, and `scan_mapping()` answered `{"ok": True}` on a snapshot it had
+    taken of the wrong controller.
+
+    A Skip is a str, so it logs and joins like any other message; it is a
+    distinct type, so apply_profile can file it apart and log it as a warning.
+    `None` keeps its old meaning and only it: nothing to do, nothing to say.
+    """
+    __slots__ = ()
+
+
 def backup(p: Path) -> None:
     b = p.with_name(p.name + ".bak-ctrlmodel")
     if p.is_file() and not b.exists():
         shutil.copy2(p, b)
+
+
+def _atomic_write(p: Path, text: str) -> None:
+    """Write through a temp file in the same directory, then os.replace().
+
+    `write_text()` truncates first and writes second. This pipeline runs at
+    backend startup — the exact moment someone powers the box on, and the exact
+    moment they can cut the power again with the wall switch. A Config.json
+    caught between the two is invalid JSON, and Ryujinx starts over from
+    defaults. os.replace() is atomic within a filesystem, so a reader sees
+    either the whole old file or the whole new one.
+    """
+    tmp = p.with_name(p.name + ".gamecore-tmp")
+    try:
+        tmp.write_text(text)
+        os.replace(tmp, p)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def section(text: str, header: str) -> str | None:
@@ -353,7 +389,7 @@ def _ryujinx(i: int, dup: int, vendor: str, product: str, name: str) -> str | No
         ic.append(clone)
         action = "created"
     backup(RYUJINX_CFG)
-    RYUJINX_CFG.write_text(json.dumps(cfg, indent=2) + "\n")
+    _atomic_write(RYUJINX_CFG, json.dumps(cfg, indent=2) + "\n")
     return f"ryujinx: Player {i} {action} ({how} GUID, dup {dup})"
 
 
@@ -383,7 +419,7 @@ def _single_player_guid(path: Path, label: str, line_prefix: str,
             out.append(line)
     if not n:
         return None
-    backup(path); path.write_text("".join(out))
+    backup(path); _atomic_write(path, "".join(out))
     return f"{label}: Player 1 retargeted ({n} keys)"
 
 
@@ -523,7 +559,7 @@ def snapshot_capture(vendor: str, product: str) -> list[str]:
             continue
         snap = _snap_path(emu_id, vendor, product)
         snap.parent.mkdir(parents=True, exist_ok=True)
-        snap.write_text(block)
+        _atomic_write(snap, block)
         saved.append(emu_id)
     return saved
 
@@ -541,7 +577,7 @@ def snapshot_restore(emu_id: str, vendor: str, product: str) -> str | None:
     block, text = snap.read_text(), path.read_text()
     if extract(text).strip() == block.strip():
         return None                                   # already applied
-    backup(path); path.write_text(replace(text, block))
+    backup(path); _atomic_write(path, replace(text, block))
     return f"{emu_id}: restored saved mapping ({vendor}:{product})"
 
 
@@ -684,7 +720,7 @@ def _melonds(i: int, vendor: str, product: str, name: str) -> str | None:
     if not n:
         return None
     backup(MELONDS_TOML)
-    MELONDS_TOML.write_text("\n".join(out) + "\n")
+    _atomic_write(MELONDS_TOML, "\n".join(out) + "\n")
     return f"melonds: {n} keys mapped ({src})"
 
 
@@ -794,7 +830,7 @@ def _dolphin(i: int, dup: int, vendor: str, product: str, name: str) -> str | No
             new_body = re.sub(r"Device = SDL/\d+/[^\n]*", f"Device = {device}", source)
             if new_body != body:
                 t = set_section(t, header, new_body)
-                backup(gcpad); gcpad.write_text(t)
+                backup(gcpad); _atomic_write(gcpad, t)
                 msgs.append(f"GCPad{i} {'retargeted' if is_real else 'created'}")
 
     wii = DOLPHIN_DIR / "WiimoteNew.ini"
@@ -804,7 +840,7 @@ def _dolphin(i: int, dup: int, vendor: str, product: str, name: str) -> str | No
         new_body = _WIIMOTE_BODY.format(device=device)
         if section(t, header) != new_body:
             t = set_section(t, header, new_body)
-            backup(wii); wii.write_text(t)
+            backup(wii); _atomic_write(wii, t)
             msgs.append(f"Wiimote{i} set")
 
     if not msgs:
@@ -833,7 +869,7 @@ def _rpcs3(i: int, dup: int, vendor: str, product: str, name: str) -> str | None
     if block2 == block:
         return None
     t = t[:m.start(1)] + block2 + t[m.end(1):]
-    backup(yml); yml.write_text(t)
+    backup(yml); _atomic_write(yml, t)
     return f"rpcs3: Player {i} retargeted ({name} {dup + 1})"
 
 
@@ -852,7 +888,7 @@ def _tier0_ini(path: Path, label: str, i: int) -> str | None:
         return None  # already a real, device-agnostic binding — nothing to do, ever
     new_body = p1.replace("SDL-0/", f"SDL-{i - 1}/")
     t = set_section(t, header, new_body)
-    backup(path); path.write_text(t)
+    backup(path); _atomic_write(path, t)
     return f"{label}: created {header} (device-agnostic from here on)"
 
 
@@ -865,8 +901,18 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
     same-model pads sit in lower player slots (see module docstring) — it
     feeds every per-name/per-GUID device counter; 0 is always correct for
     the first pad of a model. Never raises — each emulator is isolated so
-    one bad config doesn't block the others."""
+    one bad config doesn't block the others.
+
+    Returns the messages of the steps that actually wrote something. Steps that
+    gave up return a `Skip` and are logged as warnings instead: the caller's
+    toast stays about what changed, but the journal finally says why an
+    emulator was left alone."""
     if player_index < 1 or player_index > 4:
+        # The slot cap is deliberate (see the module docstring), but a 5th pad
+        # used to get a player number, a TV toast, and no config at all,
+        # without a word anywhere.
+        log.warning("controller_profiles: player %d is outside the 1-4 slots this "
+                    "box profiles — %s:%s left unconfigured", player_index, vendor, product)
         return []
     name = resolve_name(vendor, product, evdev_name)
     results: list[str] = []
@@ -889,15 +935,22 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
         ("melonds", lambda: (snapshot_restore("melonds", vendor, product)
                              or _melonds(player_index, vendor, product, name))),
     ]
+    skipped: list[str] = []
     for emu, step in steps:
         try:
             msg = step()
         except Exception:
             log.exception("controller_profiles: %s failed for player %d (%s:%s)",
                          emu, player_index, vendor, product)
+            skipped.append(f"{emu}: internal error (see traceback)")
             continue
-        if msg:
+        if isinstance(msg, Skip):
+            skipped.append(str(msg))
+        elif msg:
             results.append(msg)
+    if skipped:
+        log.warning("controller_profiles: player %d (%s:%s) — not configured: %s",
+                    player_index, vendor, product, "; ".join(skipped))
     return results
 
 
@@ -920,7 +973,7 @@ def release_profile(player_index: int) -> list[str]:
             inactive = "Device = XInput2/0/Virtual core pointer\n"
             if section(t, header) != inactive:
                 t = set_section(t, header, inactive)
-                backup(wii); wii.write_text(t)
+                backup(wii); _atomic_write(wii, t)
                 results.append(f"dolphin: {header} released (inactive)")
         except Exception:
             log.exception("controller_profiles: release failed for player %d", player_index)
