@@ -1197,21 +1197,84 @@ def _rpcs3(i: int, dup: int, vendor: str, product: str, name: str) -> str | None
 
 # ── PCSX2 / DuckStation — Tier 0, only the SDL index needs to exist ─────────
 
+# Per emulator: the pad type that leaves the analog sticks and the rumble
+# motors alive, and where the multitap switch lives.
+#
+# DuckStation shipped `Type = DigitalController` while [Pad1] holds every
+# analog binding it needs (LDown, RUp, L3, R3, LargeMotor, SmallMotor). The
+# upstream DigitalController declares 14 digital inputs and nothing else, so
+# those eleven lines are dead: sticks inert, no rumble, Ape Escape unplayable.
+# It is the only Sony-side fault that hits player 1, and it could never be
+# repaired because _tier0_ini returned immediately for i == 1.
+#
+# The multitap matters because PS1 and PS2 have two physical ports. PCSX2
+# refuses slot 3+ at the SIO2 level while IsMultitapPortEnabled(port) is false,
+# and DuckStation only wires Pad1/Pad2 while MultitapMode is Disabled — so
+# writing [Pad3] and reporting success, as this did, promised a third player
+# that could never move. Enabling the tap on port 1 gives that port slots
+# 1/3/4/5, port 2 staying Pad2: four players, at the cost of a virtual
+# accessory the games that ignore multitaps ignore anyway.
+_TIER0 = {
+    "pcsx2":       {"type": "DualShock2",
+                    "tap": ("Pad", "MultitapPort1", "true")},
+    "duckstation": {"type": "AnalogController",
+                    "tap": ("ControllerPorts", "MultitapMode", "Port1Only")},
+}
+
+
+def _set_ini_key(text: str, header: str, key: str, value: str) -> tuple[str, bool]:
+    """Set `key = value` in an INI section, adding the line if it is missing.
+    Returns (text, changed) and never reformats anything else."""
+    body = section(text, header)
+    if body is None:
+        return text, False
+    if re.search(rf"^{re.escape(key)} = {re.escape(value)}$", body, re.M):
+        return text, False
+    if re.search(rf"^{re.escape(key)} = ", body, re.M):
+        new = re.sub(rf"^{re.escape(key)} = .*$", lambda _: f"{key} = {value}",
+                     body, count=1, flags=re.M)
+    else:
+        lines = body.splitlines(keepends=True)
+        at = max((n for n, l in enumerate(lines) if l.strip()), default=-1) + 1
+        lines.insert(at, f"{key} = {value}\n")
+        new = "".join(lines)
+    return set_section(text, header, new), True
+
+
 def _tier0_ini(path: Path, label: str, i: int) -> str | None:
-    if i == 1 or not path.is_file():
+    if not path.is_file():
         return None
+    spec = _TIER0[label]
     t = path.read_text()
+    orig = t
     p1 = section(t, "Pad1")
     if not p1 or "SDL-0/" not in p1:
-        return None
+        return Skip(f"{label}: [Pad1] has no SDL bindings to clone from — "
+                    f"player {i} left alone")
     header = f"Pad{i}"
     body = section(t, header)
-    if body and "SDL-" in body and "Type = None" not in body:
-        return None  # already a real, device-agnostic binding — nothing to do, ever
-    new_body = p1.replace("SDL-0/", f"SDL-{i - 1}/")
-    t = set_section(t, header, new_body)
+    msgs: list[str] = []
+
+    usable = bool(body) and "SDL-" in body and "Type = None" not in body
+    if not usable:
+        t = set_section(t, header, p1.replace("SDL-0/", f"SDL-{i - 1}/"))
+        msgs.append(f"created {header}")
+    # The Type line rides along with the cloned body, and on slot 1 it is the
+    # only thing there is to fix.
+    t, retyped = _set_ini_key(t, header, "Type", spec["type"])
+    if retyped and not msgs:
+        msgs.append(f"{header} set to {spec['type']}")
+
+    if i >= 3:
+        tap_section, tap_key, tap_value = spec["tap"]
+        t, tapped = _set_ini_key(t, tap_section, tap_key, tap_value)
+        if tapped:
+            msgs.append(f"multitap enabled ({tap_key} = {tap_value})")
+
+    if t == orig:
+        return None
     backup(path); _atomic_write(path, t)
-    return f"{label}: created {header} (device-agnostic from here on)"
+    return f"{label}: {', '.join(msgs)}"
 
 
 # ── Entry point, called by gamepad_monitor.py on every new slot ────────────
