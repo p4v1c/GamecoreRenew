@@ -1086,7 +1086,7 @@ msg "systemd service"
 cat > /etc/systemd/system/gamecore-backend.service <<EOF
 [Unit]
 Description=GameCore — FastAPI Backend
-After=network.target
+After=network.target display-manager.service
 
 [Service]
 Type=simple
@@ -1096,6 +1096,25 @@ SupplementaryGroups=input
 Environment=GAMECORE_PATH=$GAMECORE_PATH
 Environment=GAMECORE_BACKEND_PORT=$WEB_PORT
 WorkingDirectory=$GAMECORE_PATH
+# Wait for a display that ANSWERS, not merely for a socket to exist.
+#
+# The backend used to win the boot race against X on every cold boot: it
+# started at 14:56:19 on the reference box, main.py's lifespan reached
+# standby.resume_after_restart() → xset → the X probe at 14:56:20, and the
+# first socket only appeared at 14:56:22.8 — :1, the one that answers there,
+# at 14:56:24.3. Every emulator then launched against the wrong display and
+# died instantly, until someone restarted the service.
+#
+# Waiting for a socket is not enough, which is why this differs from the UI
+# unit's check: on that same boot X0 appeared 1.5 s before X1, so a socket
+# test would have passed while the only usable display still did not exist.
+# Each socket is tried with each cookie location — the same three the probe in
+# process_manager.py knows about.
+#
+# Always exits 0: a box with no X at all (headless, SSH install) must still get
+# its backend. The bound is 20 s, and process_manager retries the probe anyway,
+# so this is ordering — not a correctness dependency.
+ExecStartPre=/bin/bash -c 'command -v xdpyinfo >/dev/null || exit 0; for i in \$(seq 1 20); do for s in /tmp/.X11-unix/X*; do [ -S "\$s" ] || continue; for c in /run/user/\$(id -u)/xauth_* /tmp/xauth_* "\$HOME/.Xauthority" ""; do DISPLAY=":\${s##*/X}" XAUTHORITY="\$c" xdpyinfo >/dev/null 2>&1 && exit 0; done; done; sleep 1; done; exit 0'
 ExecStart=$GAMECORE_PATH/.venv/bin/python3 -m uvicorn backend.main:app --host 127.0.0.1 --port $WEB_PORT
 Restart=on-failure
 RestartSec=5

@@ -120,17 +120,43 @@ def _probe_display(uid: int) -> tuple[str, str] | None:
     return None
 
 
-# Result of the last successful _probe_display, and whether we have probed at
-# all. The display does not move while the session is up, and probing costs up
-# to 5 s of blocked event loop per call (see _display_env).
+# Result of the last SUCCESSFUL _probe_display. The display does not move while
+# the session is up, and probing costs up to 5 s of blocked event loop per call
+# (see _display_env), so a success is kept for the life of the process.
 _probe_cache: tuple[str, str] | None = None
-_probe_done = False
+
+# A failure is NOT kept the same way, and that distinction is the whole point.
+#
+# The backend wins the boot race against X, every cold boot. Measured on the
+# reference box: systemd starts the backend at 14:56:19, main.py's lifespan
+# calls standby.resume_after_restart() → xset → display_env() at 14:56:20 —
+# and /tmp/.X11-unix/ is still empty. SDDM only starts X at 14:56:22, the
+# first socket appears at 14:56:22.8, and :1 — the only display that answers
+# on that box — at 14:56:24.3. The probe therefore ran 4.3 s too early.
+#
+# Latching that failure the way a success is latched left _probe_cache at None
+# for the life of the process, _display_env fell through to DISPLAY=":0", and
+# every emulator started against a display that does not answer and died
+# instantly — stdout to DEVNULL, so the UI just flashed game:started →
+# game:finished. Restarting the backend was the only cure, and it worked only
+# because by then X had been up for minutes.
+#
+# A failed probe means "X could not be asked yet", never "there is no display".
+# So it is retried; the delay only stops a genuinely headless box from paying
+# xdpyinfo's timeout on every call.
+_probe_retry_at: float = 0.0
+_PROBE_RETRY_SECS = 5.0
+
+
+def _probe_due() -> bool:
+    """True when _display_env() would actually run the probe — and so may block."""
+    return _probe_cache is None and time.monotonic() >= _probe_retry_at
 
 
 def invalidate_display_cache() -> None:
     """Forget the probed display — call when a launch fails and X may have moved."""
-    global _probe_done, _probe_cache
-    _probe_done, _probe_cache = False, None
+    global _probe_cache, _probe_retry_at
+    _probe_cache, _probe_retry_at = None, 0.0
 
 
 def _display_env() -> dict:
@@ -144,15 +170,18 @@ def _display_env() -> dict:
     whole loop blocked behind it — no WebSocket, no API, no pad events.
     Measured at 4.7 s on an unrelated GET /api/systems during one launch.
     """
-    global _probe_cache, _probe_done
+    global _probe_cache, _probe_retry_at
     env = os.environ.copy()
     uid = os.getuid()
     if not env.get("SDL_GAMECONTROLLERCONFIG_FILE") and _CONTROLLER_DB.is_file():
         env["SDL_GAMECONTROLLERCONFIG_FILE"] = str(_CONTROLLER_DB)
     if not env.get("DISPLAY") or not env.get("XAUTHORITY"):
-        if not _probe_done:
-            _probe_cache = _probe_display(uid)
-            _probe_done = True
+        if _probe_due():
+            found = _probe_display(uid)
+            if found:
+                _probe_cache = found
+            else:
+                _probe_retry_at = time.monotonic() + _PROBE_RETRY_SECS
         probed = _probe_cache
         if probed:
             env["DISPLAY"] = probed[0]
@@ -184,7 +213,7 @@ async def display_env() -> dict:
     first launch after a cold boot is exactly when the probe is slowest and
     exactly when the UI most needs to stay responsive.
     """
-    if _probe_done or os.environ.get("DISPLAY"):
+    if os.environ.get("DISPLAY") or not _probe_due():
         return _display_env()
     return await asyncio.to_thread(_display_env)
 

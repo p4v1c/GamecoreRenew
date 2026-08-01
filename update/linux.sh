@@ -229,6 +229,24 @@ if [[ -f /etc/caddy/Caddyfile && -f "${GAMECORE_PATH}/install/Caddyfile" ]]; the
   fi
 fi
 
+# Same blind spot as the Caddyfile above: the systemd units are written only by
+# install/arch.sh and live under /etc, so an ordering fix reaches no installed
+# box on its own. This one matters — without the wait, the backend starts
+# before X and every game launch fails until the service is restarted by hand.
+#
+# The code-side fix (process_manager retries a failed probe instead of latching
+# it) ships with this update and is what actually repairs a running box; this
+# only removes the first failed launch after a cold boot.
+if [[ -f /etc/systemd/system/gamecore-backend.service ]] \
+   && ! grep -q 'ExecStartPre' /etc/systemd/system/gamecore-backend.service; then
+  echo "[update] NOTE: gamecore-backend.service starts without waiting for the X display."
+  echo "[update]       Harmless now — the backend retries the probe — but it costs one"
+  echo "[update]       failed launch after each cold boot. To apply the new ordering:"
+  echo "[update]         sudo systemctl edit --full gamecore-backend.service"
+  echo "[update]       and copy the ExecStartPre line from:"
+  echo "[update]         ${GAMECORE_PATH}/install/arch.sh   (search: FastAPI Backend)"
+fi
+
 echo "[update] Clearing Electron UI cache (stale cached bundles hide the new frontend)..."
 # The UI is still running here — it may write some cache back on exit, which
 # is why electron/main.js also clears the HTTP cache on every start. This rm

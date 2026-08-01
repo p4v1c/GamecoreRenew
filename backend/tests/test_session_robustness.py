@@ -247,3 +247,65 @@ if __name__ == "__main__":
     print("Run this one under pytest — it uses tmp_path and monkeypatch fixtures:")
     print("    pytest backend/tests/test_session_robustness.py")
     sys.exit(0)
+
+
+# ── A failed probe is not a probed failure ───────────────────────────────────
+# The boot race, measured on the reference box: systemd starts the backend at
+# 14:56:19, the lifespan reaches the X probe at 14:56:20, and the only display
+# that answers there appears at 14:56:24.3. Latching that 4.3-second-early
+# failure left the box unable to launch anything until the service was
+# restarted by hand.
+
+def test_a_failed_probe_is_retried_not_latched(monkeypatch):
+    """X not being up yet means 'ask again', never 'there is no display'."""
+    attempts = []
+
+    def probe(uid):
+        attempts.append(uid)
+        # Fails while X is still starting, then succeeds — the real boot.
+        return None if len(attempts) < 3 else (":1", "/run/user/1000/xauth_ok")
+
+    monkeypatch.setattr(pm, "_probe_display", probe)
+    monkeypatch.setattr(pm, "_PROBE_RETRY_SECS", 0)  # don't sleep through the backoff
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("XAUTHORITY", raising=False)
+    pm.invalidate_display_cache()
+
+    # While X is down the caller still gets an env — the old static fallback.
+    assert pm._display_env()["DISPLAY"] == ":0"
+    assert pm._display_env()["DISPLAY"] == ":0"
+
+    # Once X answers, the real display is picked up without a restart.
+    env = pm._display_env()
+    assert env["DISPLAY"] == ":1", "the backend had to be restarted by hand to get here"
+    assert env["XAUTHORITY"] == "/run/user/1000/xauth_ok"
+    assert len(attempts) == 3
+
+
+def test_a_successful_probe_is_still_latched(monkeypatch):
+    """The retry must not cost a probe per call once X has answered."""
+    attempts = []
+    monkeypatch.setattr(pm, "_probe_display",
+                        lambda uid: attempts.append(uid) or (":1", ""))
+    monkeypatch.setattr(pm, "_PROBE_RETRY_SECS", 0)
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("XAUTHORITY", raising=False)
+    pm.invalidate_display_cache()
+
+    for _ in range(5):
+        assert pm._display_env()["DISPLAY"] == ":1"
+    assert len(attempts) == 1
+
+
+def test_a_headless_box_does_not_probe_on_every_call(monkeypatch):
+    """No X at all must not mean xdpyinfo's 5 s timeout on every standby tick."""
+    attempts = []
+    monkeypatch.setattr(pm, "_probe_display", lambda uid: attempts.append(uid))
+    monkeypatch.setattr(pm, "_PROBE_RETRY_SECS", 300)
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("XAUTHORITY", raising=False)
+    pm.invalidate_display_cache()
+
+    for _ in range(10):
+        pm._display_env()
+    assert len(attempts) == 1, "the backoff must hold between retries"
