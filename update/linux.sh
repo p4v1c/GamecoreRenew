@@ -130,11 +130,20 @@ echo "[update] Installing new files..."
 #   assets/overlays/  → user-uploaded bezels
 #   assets/logos/     → user-uploaded logos
 #   .venv/      → Python virtualenv (rebuilt separately)
+#
+# emu-configs/ used to be in this list, and it does not belong: it is not user
+# data. The emulators' real configs live in ~/.var/app/**, and emu-configs/ is
+# the reference tree install-emu-configs.sh copies FROM — read-only at runtime,
+# nothing in backend/ or electron/ ever writes to it. Excluding it meant a
+# corrected controller mapping could reach GitHub and never reach a box:
+# emu-configs/dolphin/GCPadNew.ini was fixed upstream, a test locked the fix in,
+# and the box kept its keyboard D-Pad for good. Shipping it here does NOT touch
+# a running emulator's config — deploying that stays a deliberate act:
+#     bash /opt/GameCore/install/install-emu-configs.sh
 rsync -a \
   --exclude='.venv/' \
   --exclude='emu/' \
   --exclude='config/' \
-  --exclude='emu-configs/' \
   --exclude='assets/overlays/' \
   --exclude='assets/logos/' \
   "${SRC_DIR}/" "${GAMECORE_PATH}/" || fail "rsync failed"

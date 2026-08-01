@@ -42,6 +42,15 @@ declare -A DEST=(
   [xenia]="$GAMECORE_PATH/lib/xenia"   # portable: config lives next to xenia_canary.exe
 )
 
+# mgba is the one emulator here that is sometimes native: a box can run Arch's
+# mgba-qt instead of the flatpak, which is what systems.json records and what
+# controller_profiles follows through _flatpak_or_native. Deploy to the tree
+# that exists, or the curated config lands next to an uninstalled flatpak and
+# nothing ever reads it.
+if [[ ! -d "$HOME/.var/app/io.mgba.mGBA" && -d "$HOME/.config/mgba" ]]; then
+  DEST[mgba]="$HOME/.config/mgba"
+fi
+
 echo "Deploying emulator configs from ${SRC_ROOT}"
 echo
 
