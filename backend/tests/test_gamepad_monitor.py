@@ -108,63 +108,161 @@ def test_the_no_guide_notice_is_logged_once_per_device(fake_evdev, caplog):
 # ── #12 · one pad, several device nodes ──────────────────────────────────────
 #
 # key_for() returns the pad's MAC, so a DualShock 4 on Bluetooth that is then
-# plugged in to charge maps two /dev/input/event* paths to a single registry key.
+# plugged in to charge maps two /dev/input/event* paths to a single registry
+# key. These used to assert on a dict literal that mirrored the monitor's own
+# condition, so deleting that condition would have left them all green. They
+# now go through pads_by_key() and _reconcile(), which is where the decision
+# actually lives.
 
-def test_a_pad_keeps_its_slot_while_another_node_is_alive():
-    reg_keys = {"/dev/input/event20": "84:30:95:07:c8:1c",   # Bluetooth
-                "/dev/input/event24": "84:30:95:07:c8:1c"}   # USB cable
+import asyncio
 
-    # The cable is unplugged: event24's watcher dies.
-    key = reg_keys.pop("/dev/input/event24")
-    assert key in reg_keys.values(), "the Bluetooth node is still there — keep the slot"
-
-
-def test_the_slot_is_released_once_the_last_node_goes():
-    reg_keys = {"/dev/input/event20": "84:30:95:07:c8:1c"}
-
-    key = reg_keys.pop("/dev/input/event20")
-    assert key not in reg_keys.values(), "nothing left — the pad really is gone"
+from backend.services import controller_profiles as cp
+from backend.services import controller_registry as reg
 
 
-def test_unplugging_one_pad_does_not_touch_another():
-    reg_keys = {"/dev/input/event20": "84:30:95:07:c8:1c",
-                "/dev/input/event21": "aa:bb:cc:dd:ee:ff"}
-
-    key = reg_keys.pop("/dev/input/event21")
-    assert key not in reg_keys.values(), "player 2 left"
-    assert "84:30:95:07:c8:1c" in reg_keys.values(), "player 1 stayed"
+def _node(path, mac, vendor="054c", product="09cc", name="Wireless Controller"):
+    return {path: (name, mac, True, vendor, product)}
 
 
-def test_registry_keeps_the_slot_when_only_one_node_dies():
-    """The same thing end to end, against the real registry."""
-    from backend.services import controller_registry as reg
-    reg._slots.clear()
-    reg._labels.clear()
+class _FakeWS:
+    async def broadcast(self, *_a, **_k):
+        pass
+
+
+def _make_roster(monkeypatch):
+    """A recorder around the profiling calls, with the registry reset.
+
+    Split out of the fixture so the `python backend/tests/…` runner at the
+    bottom can use it too."""
+    calls: list[tuple] = []
+    reg._slots.clear(); reg._labels.clear()
+    monkeypatch.setattr(cp, "resolve_name", lambda v, p, n: {
+        "054c:09cc": "PS4 Controller", "045e:02fd": "Xbox One Controller",
+    }.get(f"{v}:{p}", n))
+    monkeypatch.setattr(cp, "apply_profile",
+                        lambda pl, v, p, n, d: calls.append(("apply", pl, v, d)) or ["ok"])
+    monkeypatch.setattr(cp, "release_profile",
+                        lambda pl: calls.append(("release", pl)) or ["released"])
+
+    state: dict = {"live": {}, "applied": {}}
+
+    def scan(devices):
+        was = state["live"]
+        state["live"] = gm.pads_by_key(devices)
+        calls.clear()
+        if was != state["live"]:
+            asyncio.run(gm._reconcile(was, state["live"], state["applied"], False, _FakeWS()))
+        return list(calls)
+
+    return scan
+
+
+@pytest.fixture
+def roster(monkeypatch):
     try:
-        mac = "84:30:95:07:c8:1c"
-        reg_keys = {"/dev/input/event20": mac}
-        player = reg.connect(mac, "Wireless Controller")
-        assert player == 1
-
-        # Plug the cable in — same pad, second node, same key.
-        reg_keys["/dev/input/event24"] = reg.key_for(mac, "/dev/input/event24")
-        assert reg.connect(reg_keys["/dev/input/event24"], "Wireless Controller") == 1
-
-        # Unplug it.
-        key = reg_keys.pop("/dev/input/event24")
-        if key not in reg_keys.values():
-            reg.disconnect(key)
-        assert reg.snapshot() == [{"player": 1, "label": "Wireless Controller"}], \
-            "the pad is still on Bluetooth — it must keep player 1"
-
-        # Now turn the pad off for real.
-        key = reg_keys.pop("/dev/input/event20")
-        if key not in reg_keys.values():
-            reg.disconnect(key)
-        assert reg.snapshot() == []
+        yield _make_roster(monkeypatch)
     finally:
-        reg._slots.clear()
-        reg._labels.clear()
+        reg._slots.clear(); reg._labels.clear()
+
+
+def test_a_pad_with_several_nodes_takes_one_slot(roster):
+    """A DualShock 4 exposes a touchpad and a motion node besides its buttons."""
+    pad = {**_node("/dev/input/event20", "84:30:95:07:c8:1c"),
+           **_node("/dev/input/event21", "84:30:95:07:c8:1c", name="Touchpad"),
+           **_node("/dev/input/event22", "84:30:95:07:c8:1c", name="Motion Sensors")}
+
+    assert roster(pad) == [("apply", 1, "054c", 0)]
+    assert reg.snapshot() == [{"player": 1, "label": "Wireless Controller"}]
+
+
+def test_a_pad_keeps_its_slot_while_another_node_is_alive(roster):
+    """Unplugging the charging cable of a Bluetooth pad is not a disconnect."""
+    bt = _node("/dev/input/event20", "84:30:95:07:c8:1c")
+    roster({**bt, **_node("/dev/input/event24", "84:30:95:07:c8:1c")})
+
+    assert roster(bt) == [], "the Bluetooth node is still there — nothing happens"
+    assert reg.snapshot() == [{"player": 1, "label": "Wireless Controller"}]
+
+
+def test_the_slot_is_released_once_the_last_node_goes(roster):
+    roster(_node("/dev/input/event20", "84:30:95:07:c8:1c"))
+
+    assert roster({}) == [("release", 1)]
+    assert reg.snapshot() == []
+
+
+def test_unplugging_one_pad_does_not_touch_another(roster):
+    p1 = _node("/dev/input/event20", "84:30:95:07:c8:1c")
+    p2 = _node("/dev/input/event21", "aa:bb:cc:dd:ee:ff", "045e", "02fd", "Xbox Wireless")
+    roster({**p1, **p2})
+
+    assert roster(p1) == [("release", 2)]
+    assert reg.snapshot() == [{"player": 1, "label": "Wireless Controller"}]
+
+
+# ── the survivors are re-profiled when the roster changes ────────────────────
+
+def test_the_survivor_of_two_identical_pads_is_re_profiled(roster):
+    """dup is relative to the roster, so a departure invalidates what is left.
+
+    Two DualShock 4s: the second is written as `SDL/1/PS4 Controller` for
+    Dolphin and `PS4 Controller 2` for RPCS3. When the first pad's battery
+    dies, those strings stop describing anything — the survivor must go back
+    to dup 0. Only the arriving pad used to be profiled, so it never did.
+    """
+    a = _node("/dev/input/event20", "84:30:95:07:c8:1c")
+    b = _node("/dev/input/event21", "aa:bb:cc:dd:ee:ff")
+
+    assert roster(a) == [("apply", 1, "054c", 0)]
+    assert roster({**a, **b}) == [("apply", 2, "054c", 1)]
+    assert roster(b) == [("release", 1), ("apply", 2, "054c", 0)]
+
+
+def test_an_unchanged_roster_writes_nothing(roster):
+    """Idempotence: the scan runs every three seconds for the whole session."""
+    pad = _node("/dev/input/event20", "84:30:95:07:c8:1c")
+    roster(pad)
+    assert roster(pad) == []
+    assert roster(pad) == []
+
+
+def test_a_pad_whose_ids_are_still_zero_takes_no_slot(roster):
+    """uhid can expose a Bluetooth pad before the kernel fills its ids in.
+
+    Such a pad used to be given a player slot and then refused a config, and
+    `known` blocked every later attempt — so it held that slot, unconfigured,
+    until the backend restarted.
+    """
+    ghost = {"/dev/input/event9": ("uhid pad", "", True, "0000", "0000")}
+
+    assert roster(ghost) == []
+    assert reg.snapshot() == []
+
+    real = {"/dev/input/event9": ("8BitDo Pro 2", "", True, "2dc8", "6003")}
+    assert roster(real) == [("apply", 1, "2dc8", 0)]
+
+
+def test_dup_counts_by_resolved_name_not_by_vendor_product():
+    """Every consumer of dup counts by name: Dolphin writes SDL/<dup>/<name>
+    and RPCS3 `<name> <dup+1>`. SDL3_FALLBACK_NAMES alone maps 054c:05c4,
+    054c:09cc and 054c:0ba0 onto "PS4 Controller", so counting by
+    vendor:product gave two different DualShock 4 revisions dup 0 each — one
+    pad drove two ports and the other was dead.
+    """
+    assert gm.dup_indexes({
+        "a": (1, "PS4 Controller"),
+        "b": (2, "PS4 Controller"),
+        "c": (3, "Xbox One Controller"),
+    }) == {"a": 0, "b": 1, "c": 0}
+
+
+def test_event_nodes_sort_by_number_not_lexicographically():
+    """Slots are handed out in this order on the first scan, so `event10`
+    sorting before `event2` made the numbering depend on how many input
+    devices the box happens to have."""
+    paths = ["/dev/input/event10", "/dev/input/event2", "/dev/input/event20"]
+    assert sorted(paths, key=gm._event_sort_key) == [
+        "/dev/input/event2", "/dev/input/event10", "/dev/input/event20"]
 
 
 if __name__ == "__main__":
@@ -220,10 +318,37 @@ if __name__ == "__main__":
         test_the_no_guide_notice_is_logged_once_per_device(devs, _Caplog())
     print("[OK ] test_the_no_guide_notice_is_logged_once_per_device")
 
-    for fn in (test_a_pad_keeps_its_slot_while_another_node_is_alive,
+    class _Monkeypatch:
+        """Enough of pytest's monkeypatch for the roster fixture."""
+        def __init__(self):
+            self._undo = []
+
+        def setattr(self, obj, name, value):
+            self._undo.append((obj, name, getattr(obj, name)))
+            setattr(obj, name, value)
+
+        def undo(self):
+            for obj, name, old in reversed(self._undo):
+                setattr(obj, name, old)
+            self._undo.clear()
+
+    for fn in (test_a_pad_with_several_nodes_takes_one_slot,
+               test_a_pad_keeps_its_slot_while_another_node_is_alive,
                test_the_slot_is_released_once_the_last_node_goes,
                test_unplugging_one_pad_does_not_touch_another,
-               test_registry_keeps_the_slot_when_only_one_node_dies):
+               test_the_survivor_of_two_identical_pads_is_re_profiled,
+               test_an_unchanged_roster_writes_nothing,
+               test_a_pad_whose_ids_are_still_zero_takes_no_slot):
+        mp = _Monkeypatch()
+        try:
+            fn(_make_roster(mp))
+        finally:
+            mp.undo()
+            reg._slots.clear(); reg._labels.clear()
+        print(f"[OK ] {fn.__name__}")
+
+    for fn in (test_dup_counts_by_resolved_name_not_by_vendor_product,
+               test_event_nodes_sort_by_number_not_lexicographically):
         fn()
         print(f"[OK ] {fn.__name__}")
     print("\nAll tests passed.")

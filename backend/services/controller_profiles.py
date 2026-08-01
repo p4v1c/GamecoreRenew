@@ -247,13 +247,24 @@ def _sdl3_live_names() -> dict[tuple[str, str], str]:
     return names
 
 
-def sdl3_names() -> dict[tuple[str, str], str]:
+def sdl3_names(want: tuple[str, str] | None = None) -> dict[tuple[str, str], str]:
     """_sdl3_live_names() behind a short cache — two pads taking slots in
     the same scan pass shouldn't init SDL twice — degrading to {} instead
-    of raising when libSDL3 is unavailable."""
+    of raising when libSDL3 is unavailable.
+
+    `want` is the pad the caller is asking about. A 5 s cache with a 3 s scan
+    period meant a pad that had just arrived was answered from a snapshot taken
+    before it existed, and the name fell through to the static table or the
+    community DB — right for a DualShock 4 by luck, wrong for anything less
+    common. A cached miss on the pad we are asking about is therefore worth one
+    re-enumeration, rate-limited so an unplugged pad cannot spin SDL up on
+    every pass.
+    """
     global _sdl3_cache
     ts, cached = _sdl3_cache
-    if time.monotonic() - ts > 5.0 or not cached:
+    stale = time.monotonic() - ts > 5.0 or not cached
+    missing = want is not None and want not in cached and time.monotonic() - ts > 1.0
+    if stale or missing:
         try:
             cached = _sdl3_live_names()
         except Exception:
@@ -269,7 +280,7 @@ def resolve_name(vendor: str, product: str, evdev_name: str) -> str:
     see for this pad. Live SDL3 answer first, known-pads table next, the
     SDL2 community-DB name only as a last resort (it is WRONG for SDL3 on
     some pads — 'PS5 Controller' vs 'DualSense Wireless Controller')."""
-    return (sdl3_names().get((vendor, product))
+    return (sdl3_names((vendor, product)).get((vendor, product))
             or SDL3_FALLBACK_NAMES.get((vendor, product))
             or db_name_for(vendor, product)
             or evdev_name)
