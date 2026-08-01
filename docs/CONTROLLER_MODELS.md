@@ -40,23 +40,46 @@ Ground-truthed by reading their actual configs on the box:
      name** (`SDL/<k>/<name>`, ciface DeviceContainer). A lone DualSense is
      "DualSense Wireless Controller 1" / `SDL/0/…` even as Player 2.
 
-- **Ryujinx** binds by a device **GUID** (`button:1,guid:0500…cc09…`). Verified
-  in the open on this box: DualShock 4 and DualSense share the **same kernel
-  driver** and report **identical raw indices** — only the GUID differs
-  (vendor/product bytes at a fixed offset, whatever the SDL GUID format
-  revision). Retargeting a slot is therefore *only* a substitution of those
-  bytes, never of the indices the owner has already validated. But the
-  accompanying index counts **per GUID**, not per player: the `<dup>-<GUID>`
-  prefix of `id` in `Config.json` is 0 for a lone pad of its model whatever slot
-  it occupies (a dup that does not exist binds a phantom device → a dead
-  entry). Ryujinx slots are objects in the `input_config` list, keyed by
-  `player_index` (`Player1`…).
+- **Ryujinx** binds by a device **GUID**, and it resolves that GUID by string
+  equality: `DriverConfigurationUpdate` → `GetGamepad(id)` →
+  `_gamepadsIds.IndexOf(id)`. No match is −1, and −1 disposes the slot in
+  silence — no log, no "already assigned" mark in Input Settings.
+
+  The GUID must therefore be the exact one Ryujinx's own SDL2 computes, and it
+  carries **bus type, version and driver signature** on top of vendor/product:
+  the same DualShock 4 has different GUIDs over USB and over Bluetooth. It is
+  never derived from a vendor:product. Ryujinx renders SDL2's 16 raw GUID bytes
+  through .NET's `System.Guid`, which reverses the first three fields and
+  leaves the rest alone, so the conversion is exact:
+
+  ```
+  030000004c050000cc09000000006800  ->  00000003-054c-0000-cc09-000000006800
+  050000005e040000fd02000003090000  ->  00000005-045e-0000-fd02-000003090000
+  ```
+
+  `ryu_guid_from_sdl2()` does that, on the GUID read live from SDL2. When SDL2
+  cannot be asked, the slot is left alone and a `Skip` says so — an id that
+  matches no device is worse than an unchanged one.
+
+  An earlier version copied the GUID from any entry sharing a vendor:product,
+  or else substituted vendor/product into a reference GUID. The first breaks
+  whenever a pad changes transport; the second produces strings no device has
+  ever had, and since they parse back to the right vendor:product, the next
+  pass adopted them as "a GUID Ryujinx wrote" and reported a match. Once wrong,
+  always wrong, always reported as a success.
+
+  The accompanying index counts **per GUID**, not per player
+  (`SDL2GamepadDriver.GenerateGamepadId` walks `guidIndex` up while the id is
+  taken): the `<dup>-<GUID>` prefix of `id` in `Config.json` is 0 for a lone pad
+  of its model whatever slot it occupies. Ryujinx slots are objects in the
+  `input_config` list, keyed by `player_index` (`Player1`…).
 
 - **azahar, mgba, Cemu**: **snapshot restore**, *not* GUID substitution. Their
   bindings cannot be synthesised from a VID:PID alone. The real model is:
 
   1. the owner maps the pad once, inside the emulator, via **"Scan mapping"**;
-  2. `snapshot_save()` stores that config block, indexed by `vendor:product`;
+  2. `snapshot_capture()` stores that config block, indexed by `vendor:product`
+     — refusing it when the block's own GUID names another controller;
   3. `snapshot_restore()` puts it back when a pad of the same model reconnects.
 
   GUID-substituting versions of `_mgba()` and `_cemu()` used to exist in
@@ -66,26 +89,41 @@ Ground-truthed by reading their actual configs on the box:
   is the authority.
 
 The counter common to both the by-name and by-GUID schemes is `dup_index`: how
-many pads of the same vendor:product are already connected in a *lower* player
-slot. `gamepad_monitor.py` computes it from its roster and passes it to
+many pads with the same **resolved name** are already connected in a *lower*
+player slot. `gamepad_monitor.py` computes it from its roster and passes it to
 `apply_profile()`; 0 is always correct for the first pad of a given model.
 
 ### The live mechanism: `backend/services/controller_profiles.py`
 
 `gamepad_monitor.py` drives all of it, continuously, inside the already-running
-backend — **this is not a script you re-run by hand**. Every time a pad takes a
-NEW player slot (including pads already plugged in when the backend starts), the
-module:
+backend — **this is not a script you re-run by hand**. Whenever the set of
+connected pads changes, `_reconcile()` runs and the module:
 
-1. reads its USB vendor:product (evdev),
-2. resolves its canonical SDL name,
-3. writes or retargets each emulator's native config for THAT slot, with the
-   right pad — live, without restarting or relaunching anything.
+1. builds the roster — one entry per PHYSICAL pad, since a DualShock 4 owns
+   three `/dev/input/event*` nodes and `key_for()` collapses them onto its MAC,
+2. releases the slots of pads that have left, and gives arrivals theirs,
+3. recomputes every `dup` index and re-profiles **each** slot whose
+   `(vendor, product, resolved name, dup)` footprint moved — live, without
+   restarting or relaunching anything.
+
+Step 3 is the part that is easy to get wrong. Only the arriving pad used to be
+profiled, and only the leaving pad's slot released. But `SDL/<dup>/<name>`,
+`<name> <dup+1>` and `<dup>-<GUID>` all describe the *roster*, not one
+controller: player 1's pad running out of battery mid-session left player 2
+holding a `dup` that no longer meant anything. Reconciling the whole roster
+fixes that class of bug rather than its instances, and it is the only way a
+slot ever gets a second chance — the old code profiled a pad exactly once.
 
 The slot itself is assigned by `controller_registry.py` (already in place for
 battery levels and TV labels): first pad connected = Player 1, next = Player 2,
 up to 4. The *type* of pad occupying a slot can therefore change from one
 session to the next without ever breaking anything.
+
+`dup` is counted by **resolved name**, not by vendor:product. Every consumer
+counts by name, and `SDL3_FALLBACK_NAMES` alone maps `054c:05c4`, `054c:09cc`
+and `054c:0ba0` onto "PS4 Controller" — counting by vendor:product gave two
+DualShock 4 revisions `dup 0` each, so one pad drove two ports and the other
+was dead.
 
 - `azahar` (3DS), `mgba` (GBA), `Cemu` (Wii U): single-player hardware here, so
   only Player 1 is ever touched — and by snapshot restore (see above), not GUID
@@ -95,14 +133,23 @@ session to the next without ever breaking anything.
   connected pad. Face buttons are consistent across pads — only the D-pad
   differs (hat vs buttons), and that is the only thing adapted
   (`_pad_has_hat`). Single-player, slot 1.
-- `ppsspp`: no existing config found on this box (never launched) → skipped
-  cleanly. Launch it once, map the buttons by hand, and profiling covers it
-  from then on.
-- Non-Sony pads (Xbox, 8BitDo, generics): GUID substitution (Ryujinx) assumes
-  indices identical to the reference pad (the already-configured Player 1),
-  which is only guaranteed within one driver family (as with DS4/DualSense). A
-  different family needs one "Scan mapping", which then becomes the snapshot
-  reused afterwards.
+- `ppsspp`: **deliberately not profiled, and that is the right answer** — not
+  "never launched", which this page used to say and which was already false.
+  `controls.ini` binds `NKCODE` role names under `DEVICE_ID_PAD_0` and carries
+  no device identity at all, so one shipped file fits every pad. It is a
+  static config to get right once, in `emu-configs/ppsspp/`, not something to
+  write per controller.
+- `gopher64`: **not profiled either, and this page used to imply otherwise** by
+  listing it with PCSX2 and DuckStation under "nothing to do, ever". Its button
+  profile is genuinely device-agnostic (`SDL_GamepadButton` enum ids), but
+  binding a pad to an N64 *port* is a separate step nothing performs:
+  `controller_assignment` sits at `[null, null, null, null]` and the N64 has no
+  controller at all. Out of scope here; it needs its own step.
+- Non-Sony pads (Xbox, 8BitDo, generics): nothing special. Ryujinx reads the
+  real GUID from SDL2 rather than assuming a driver family, PCSX2/DuckStation/
+  gopher64 bind by SDL role, and Dolphin/RPCS3 by SDL name. Only azahar, mgba
+  and Cemu — which store raw button indices — need one "Scan mapping" per
+  model, which then becomes the snapshot reused afterwards.
 
 > ⚠️ **An emulator already running when its config changes does not re-read the
 > file.** Quit and relaunch the game for the new mapping to apply to that

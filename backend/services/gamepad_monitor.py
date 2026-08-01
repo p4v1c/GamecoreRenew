@@ -181,6 +181,129 @@ def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str]]:
     return found
 
 
+def _event_sort_key(path: str) -> tuple[str, int]:
+    """Sort /dev/input/event10 after event2, not before it. Player slots are
+    handed out in this order on the first scan, so a lexicographic sort quietly
+    made the numbering depend on how many input devices the box happens to
+    have."""
+    head = path.rstrip("0123456789")
+    tail = path[len(head):]
+    return head, int(tail) if tail else -1
+
+
+def pads_by_key(devices: dict[str, tuple[str, str, bool, str, str]]
+                ) -> dict[str, tuple[str, str, str]]:
+    """registry key → (vendor, product, evdev name), one entry per PHYSICAL
+    controller.
+
+    A pad owns several event nodes (a DualShock 4 adds a touchpad and a motion
+    node) and key_for() collapses them onto its MAC, so the same controller
+    must not be counted — or slotted — twice. Pads whose ids are still zero are
+    left out entirely: uhid can expose a Bluetooth pad before the kernel fills
+    them in, and a slot handed out then used to be held for ever by a pad we
+    refused to profile, because `known` blocked every later attempt.
+    """
+    out: dict[str, tuple[str, str, str]] = {}
+    for path in sorted(devices, key=_event_sort_key):
+        name, uniq, is_pad, vendor, product = devices[path]
+        if not is_pad or vendor == "0000" or product == "0000":
+            continue
+        key = controller_registry.key_for(uniq, path)
+        out.setdefault(key, (vendor, product, name))
+    return out
+
+
+def dup_indexes(roster: dict[str, tuple[int, str]]) -> dict[str, int]:
+    """key → how many pads sharing the same RESOLVED NAME hold a lower slot.
+
+    It used to count by vendor:product, but every consumer counts by name:
+    Dolphin writes `SDL/<dup>/<name>` and RPCS3 `<name> <dup+1>`, both per-name
+    counters. SDL3_FALLBACK_NAMES alone collapses 054c:05c4, 054c:09cc and
+    054c:0ba0 onto "PS4 Controller", so a DualShock 4 v1 and a v2 both got
+    dup 0 — GCPad1 and GCPad2 pointed at `SDL/0/PS4 Controller`, one pad drove
+    two ports and the other was dead. Ryujinx counts by GUID, where the name is
+    at least as fine-grained, so counting by name is safe for it too.
+    """
+    return {key: sum(1 for k2, (slot2, name2) in roster.items()
+                     if k2 != key and name2 == name and slot2 < slot)
+            for key, (slot, name) in roster.items()}
+
+
+async def _reconcile(was: dict[str, tuple[str, str, str]],
+                     live: dict[str, tuple[str, str, str]],
+                     applied: dict[str, tuple[str, str, str, int]],
+                     first_scan: bool, ws) -> None:
+    """Bring every player slot in line with the pads that are actually here.
+
+    Only the arriving pad used to be profiled, and only the leaving pad's slot
+    was released. But the strings these emulators store are relative to the
+    whole roster — Dolphin's `SDL/<dup>/<name>`, RPCS3's `<name> <dup+1>`,
+    Ryujinx's `<dup>-<GUID>` — so a departure silently invalidates the
+    survivors' configs. Player 1's pad running out of battery mid-session left
+    player 2 holding a `dup` that no longer described anything, and the next
+    launch of Dolphin found port 1 pinned to a controller that had left.
+
+    Reconciling the whole roster whenever it changes fixes that class of bug
+    rather than its instances, and it is the only way a slot ever gets a second
+    chance: the old code profiled a pad exactly once, when `known` was False.
+    """
+    # Departures first: their slots must be free before dup indexes are recomputed.
+    for key in [k for k in was if k not in live]:
+        applied.pop(key, None)
+        label = controller_registry.label_for(key)
+        player = controller_registry.disconnect(key)
+        if player is None:
+            continue
+        log.info("gamepad_monitor: controller %d disconnected (%s)", player, label)
+        # Free the slot's emulated "connected player" state (else a Dolphin Wii
+        # Remote left on Source=1 haunts solo play).
+        try:
+            released = await asyncio.to_thread(controller_profiles.release_profile, player)
+            if released:
+                log.info("gamepad_monitor: player %d released — %s", player, "; ".join(released))
+        except Exception:
+            log.exception("gamepad_monitor: release_profile failed for player %d", player)
+        try:
+            await ws.broadcast("gp:disconnected", {"player": player, "label": label})
+        except Exception:
+            log.exception("gamepad_monitor: error broadcasting gp:disconnected")
+
+    arrivals = [k for k in live if not controller_registry.has(k)]
+    roster: dict[str, tuple[int, str]] = {}
+    for key, (vendor, product, evdev_name) in live.items():
+        player = controller_registry.connect(key, evdev_name)
+        roster[key] = (player, controller_profiles.resolve_name(vendor, product, evdev_name))
+
+    for key, dup in dup_indexes(roster).items():
+        vendor, product, evdev_name = live[key]
+        player, name = roster[key]
+        if applied.get(key) == (vendor, product, name, dup):
+            continue
+        applied[key] = (vendor, product, name, dup)
+        try:
+            results = await asyncio.to_thread(
+                controller_profiles.apply_profile, player, vendor, product, evdev_name, dup)
+            # Log both outcomes. `if results:` alone meant a pass that
+            # configured nothing looked exactly like one that never ran —
+            # apply_profile details the give-ups itself, but the "0 emulators"
+            # headline belongs here.
+            log.info("gamepad_monitor: player %d profiled (%s, %s:%s, dup %d) — %s",
+                     player, name, vendor, product, dup,
+                     "; ".join(results) if results else "no emulator configured")
+        except Exception:
+            log.exception("gamepad_monitor: controller_profiles failed for player %d", player)
+
+    if not first_scan:
+        for key in arrivals:
+            player, _name = roster[key]
+            label = live[key][2]
+            log.info("gamepad_monitor: controller %d connected (%s)", player, label)
+            try:
+                await ws.broadcast("gp:connected", {"player": player, "label": label})
+            except Exception:
+                log.exception("gamepad_monitor: error broadcasting gp:connected")
+
+
 async def run() -> None:
     """Main loop: scan for gamepad devices every few seconds and watch them."""
     try:
@@ -207,11 +330,11 @@ async def run() -> None:
     from .. import ws
 
     watched: dict[str, asyncio.Task] = {}
-    reg_keys: dict[str, str] = {}  # device path → controller_registry key
-    # registry key → (player, vendor, product) for connected pads — feeds
-    # controller_profiles' dup_index (how many same-model pads sit in lower
-    # slots), which every per-name/per-GUID emulator counter needs.
-    pad_models: dict[str, tuple[int, str, str]] = {}
+    # registry key → the (vendor, product, resolved name, dup) an emulator
+    # config was last written for. A slot is re-profiled when its footprint
+    # changes, which is what makes the roster self-correcting.
+    applied: dict[str, tuple[str, str, str, int]] = {}
+    live: dict[str, tuple[str, str, str]] = {}
     # Pads already plugged in when the backend starts get their slots
     # silently — a console doesn't toast for pads that were always there.
     first_scan = True
@@ -219,88 +342,18 @@ async def run() -> None:
     while True:
         devices = _find_gamepad_devices()
         current = set(devices)
-        watching = set(watched.keys())
 
-        for path in sorted(current - watching):
-            name, uniq, is_pad, vendor, product = devices[path]
-            task = asyncio.create_task(_watch_device(path), name=f"gpad:{path}")
-            watched[path] = task
-            # Keyboards/remotes with a Home multimedia key end up here for
-            # the guide behavior but are not controllers — no player slot.
-            if not is_pad:
-                continue
-            key = controller_registry.key_for(uniq, path)
-            reg_keys[path] = key
-            known = controller_registry.has(key)
-            player = controller_registry.connect(key, name)
-            # `known` guards against re-announcing a pad whose watcher died
-            # transiently while the device never actually left. A genuinely
-            # new slot always gets its emulator configs written — including
-            # on first_scan (pads already plugged in when the backend
-            # starts), just without the WS toast a console wouldn't show.
-            if not known:
-                if vendor == "0000":
-                    # uhid may briefly expose a BT pad before its ids are
-                    # populated — never write configs from a zero VID/PID.
-                    log.warning("gamepad_monitor: %s (%s) has vendor 0000 — "
-                                "skipping emulator profiling", name, path)
-                else:
-                    dup = sum(1 for k2, (pl, v2, p2) in pad_models.items()
-                              if k2 != key and (v2, p2) == (vendor, product) and pl < player)
-                    try:
-                        results = await asyncio.to_thread(
-                            controller_profiles.apply_profile, player, vendor, product, name, dup)
-                        if results:
-                            log.info("gamepad_monitor: player %d profiled (%s:%s, dup %d) — %s",
-                                     player, vendor, product, dup, "; ".join(results))
-                    except Exception:
-                        log.exception("gamepad_monitor: controller_profiles failed for player %d", player)
-            pad_models[key] = (player, vendor, product)
-            if not first_scan and not known:
-                log.info("gamepad_monitor: controller %d connected (%s)", player, name)
-                try:
-                    await ws.broadcast("gp:connected", {"player": player, "label": name})
-                except Exception:
-                    log.exception("gamepad_monitor: error broadcasting gp:connected")
+        # Watch every device that declares a Guide button or is a pad. This is
+        # about the guide shortcut only; player slots are decided below, from
+        # the device list rather than from which watchers happen to be alive.
+        for path in sorted(current - set(watched), key=_event_sort_key):
+            watched[path] = asyncio.create_task(_watch_device(path), name=f"gpad:{path}")
+        for path in [p for p, t in watched.items() if t.done()]:
+            del watched[path]      # gone, or errored: re-watched next pass if still there
 
-        # Clean up finished watchers (device disconnected)
-        for path in list(watched):
-            if watched[path].done():
-                del watched[path]
-                if path in current:
-                    # Watcher error but the device is still there — it will be
-                    # re-watched next pass; keep its player slot.
-                    continue
-                key = reg_keys.pop(path, None)
-                # One pad can own several /dev/input/event* nodes: key_for()
-                # returns its MAC, so a DualShock 4 paired over Bluetooth and
-                # then plugged in to charge maps two paths to the same key.
-                # Unplugging the cable killed that path's watcher and this
-                # released the slot outright — gp:disconnected broadcast,
-                # release_profile putting Wiimote1 back on the virtual pointer —
-                # while the pad was still connected over Bluetooth and still in
-                # the player's hands. Only let go once no live path is left.
-                if key is not None and key not in reg_keys.values():
-                    pad_models.pop(key, None)
-                    label = controller_registry.label_for(key)
-                    player = controller_registry.disconnect(key)
-                    if player is not None:
-                        log.info("gamepad_monitor: controller %d disconnected (%s)", player, label)
-                        # Free the slot's emulated "connected player" state (else
-                        # a Dolphin Wii Remote left on Source=1 haunts solo play).
-                        try:
-                            released = await asyncio.to_thread(
-                                controller_profiles.release_profile, player)
-                            if released:
-                                log.info("gamepad_monitor: player %d released — %s",
-                                         player, "; ".join(released))
-                        except Exception:
-                            log.exception("gamepad_monitor: release_profile failed for player %d", player)
-                        try:
-                            await ws.broadcast("gp:disconnected", {"player": player, "label": label})
-                        except Exception:
-                            log.exception("gamepad_monitor: error broadcasting gp:disconnected")
-
+        was, live = live, pads_by_key(devices)
+        if was != live:
+            await _reconcile(was, live, applied, first_scan, ws)
         first_scan = False
         await asyncio.sleep(3)
 

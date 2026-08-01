@@ -12,11 +12,17 @@ brand.
 
 Per-emulator mechanics (ground-truthed by reading each emulator's live
 config AND logs on this box, plus the relevant emulator sources):
-  - PCSX2, DuckStation, gopher64 bind by SDL role name with NO device
-    identity at all for slot 1 — already correct forever. Slots 2-4 still
-    need an SDL-index section to exist (create it once, cloned from
-    slot 1's role bindings) — after that, also correct forever regardless
-    of which controller occupies that slot.
+  - PCSX2, DuckStation bind by SDL role name with NO device identity at
+    all — the bindings themselves are correct forever, whatever the pad.
+    Slots 2-4 still need an SDL-index section to exist (created once,
+    cloned from slot 1's role bindings), the `Type` line has to name a
+    pad that actually has sticks, and slots 3+ need the multitap on:
+    PS1 and PS2 have two physical ports, so a third player without it
+    gets a full config section and no input at all.
+    gopher64 is NOT covered, and this docstring used to say it was. Its
+    button profile is device-agnostic, but binding a pad to an N64 port
+    is a separate step nothing here performs — its config sits at
+    `controller_assignment = [null, null, null, null]`.
   - RPCS3, Dolphin bind by SDL role name too, but pick the physical pad by
     a literal device NAME string. Two hard-won facts about that string:
       * Both bundle SDL3, whose HIDAPI drivers name pads differently from
@@ -30,12 +36,14 @@ config AND logs on this box, plus the relevant emulator sources):
         Player 2 — sdl_pad_handler.cpp counts same-named devices), and
         Dolphin's SDL/<k>/<name> uses a 0-based PER-NAME <k> (ciface
         DeviceContainer). Hence `dup_index` below.
-  - Ryujinx binds by a device GUID. DualShock 4 and DualSense share the same
-    kernel driver and report IDENTICAL raw indices (verified live) — only the
-    GUID's vendor/product bytes differ, at a fixed, format-stable hex offset.
-    Retargeting a slot is therefore a pure GUID substitution, and every button
-    assignment the owner already validated stays exactly where it is. The
-    accompanying index is, again, NOT the player slot: the `id` prefix
+  - Ryujinx binds by a device GUID, and it must be the exact one its own
+    SDL2 computes: bus type, version and driver signature are all in there,
+    so the same pad has different GUIDs over USB and over Bluetooth. It is
+    read from SDL2 and converted, never derived from a vendor:product
+    (ryu_guid_from_sdl2 — Ryujinx renders SDL2's 16 raw bytes through .NET's
+    System.Guid, which is a pure byte reordering). Every button assignment
+    the owner validated stays where it is; only the device changes.
+    The accompanying index is, again, NOT the player slot: the `id` prefix
     (`<dup>-<GUID>` in Config.json) counts pads sharing the same GUID — a lone
     DualSense is dup 0 even as Player 2, and a wrong dup binds a device that
     is not there. Ryujinx slots live as objects in the `input_config` list
@@ -43,22 +51,38 @@ config AND logs on this box, plus the relevant emulator sources):
   - azahar (3DS), mgba (GBA), Cemu (Wii U): snapshot restore, NOT GUID
     substitution. Their bindings cannot be synthesised from a VID:PID — the
     owner maps the pad once per emulator with "Scan mapping", that config is
-    saved (snapshot_save), and it is put back when the same model reconnects
-    (snapshot_restore). All three are single-player here, so only slot 1 is
-    ever touched whatever player index is passed in. GUID-rewriting versions
-    of the mgba and Cemu profilers used to exist in this file and were never
-    called by apply_profile; they have been removed.
-  - melonDS (DS): single-player, slot 1 only. Face buttons are consistent
-    across pads; only the D-pad differs (hat vs buttons), so just that is
-    adapted to the connected controller (see _melonds / _pad_has_hat).
-  - ppsspp: skipped — no existing binding on this box to clone
-    from (never launched/configured yet).
+    saved (snapshot_capture), and it is put back when the same model
+    reconnects (snapshot_restore). A block whose own GUID names a different
+    controller is refused rather than filed under the connected one. All
+    three are single-player here, so only slot 1 is ever touched whatever
+    player index is passed in. GUID-rewriting versions of the mgba and Cemu
+    profilers used to exist in this file and were never called by
+    apply_profile; they have been removed.
+  - melonDS (DS): single-player, slot 1 only, and a captured snapshot always
+    wins over the synthesis — testing that with `snapshot_restore(...) or
+    _melonds(...)` conflated "no snapshot" with "snapshot already applied",
+    so the synthesis overwrote the owner's mapping every other session.
+    Otherwise the config is derived from the pad: face buttons are consistent
+    across pads, only the D-pad differs (hat vs buttons), so just that is
+    adapted (see _melonds / _pad_has_hat).
+  - ppsspp: deliberately not covered, and that IS the right answer — not
+    "never launched", which this docstring used to claim and which was
+    already false. Its controls.ini binds NKCODE role names under
+    DEVICE_ID_PAD_0 with no device identity, so one shipped file fits
+    every pad. Get it right once in emu-configs/, not per controller.
 
-`dup_index` = how many already-connected pads of the same vendor:product
-occupy a LOWER player slot. It is the value all four per-name/per-GUID
-counters above need (same-model pads are the only ones that can collide
-in either scheme). Callers that know the full roster pass it; it defaults
-to 0, which is always right for the first pad of a given model.
+`dup_index` = how many already-connected pads with the same RESOLVED NAME
+occupy a LOWER player slot. It is the value all the per-name/per-GUID
+counters above need (same-model pads are the only ones that can collide in
+either scheme). It counts by name and not by vendor:product because every
+consumer counts by name, and SDL3_FALLBACK_NAMES alone maps three Sony
+product ids onto "PS4 Controller". Callers that know the full roster pass
+it; it defaults to 0, which is always right for the first pad of a model.
+
+Nothing here decides WHEN to run: gamepad_monitor._reconcile() does, and it
+re-profiles every slot whose (vendor, product, name, dup) footprint moved,
+not just the pad that arrived — those counters describe the roster, so one
+pad leaving invalidates the others.
 """
 from __future__ import annotations
 
@@ -78,15 +102,12 @@ from ..config import GAMECORE_ROOT, SYSTEMS_FILE
 log = logging.getLogger(__name__)
 
 DB_FILE = GAMECORE_ROOT / "backend" / "data" / "gamecontrollerdb.txt"
-GUID_RE = re.compile(r"\b([0-9a-fA-F]{32})\b")
 
 HOME = Path.home()
 RYUJINX_CFG = HOME / ".var/app/io.github.ryubing.Ryujinx/config/Ryujinx/Config.json"
 AZAHAR = HOME / ".var/app/org.azahar_emu.Azahar/config/azahar-emu/qt-config.ini"
 DOLPHIN_DIR = HOME / ".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu"
 CEMU_PROFILES = HOME / ".var/app/info.cemu.Cemu/config/Cemu/controllerProfiles"
-MGBA_CONFIG = HOME / ".config/mgba/config.ini"
-MELONDS_TOML = HOME / ".var/app/net.kuribo64.melonDS/config/melonDS/melonDS.toml"
 DUCK_INI = HOME / ".local/share/duckstation/settings.ini"
 
 
@@ -127,6 +148,24 @@ def pcsx2_ini() -> Path:
         HOME / ".config/PCSX2/inis/PCSX2.ini")
 
 
+def mgba_config() -> Path:
+    # install/arch.sh installs io.mgba.mGBA and flatpakify-systems.sh rewrites
+    # mgba to flatpak, so a hardcoded ~/.config path silently profiled nothing
+    # on a standard install. It is right on THIS box, which runs Arch's native
+    # mgba-qt — an accident that hid the bug.
+    return _flatpak_or_native(
+        "mgba",
+        HOME / ".var/app/io.mgba.mGBA/config/mgba/config.ini",
+        HOME / ".config/mgba/config.ini")
+
+
+def melonds_toml() -> Path:
+    return _flatpak_or_native(
+        "melonds",
+        HOME / ".var/app/net.kuribo64.melonDS/config/melonDS/melonDS.toml",
+        HOME / ".config/melonDS/melonDS.toml")
+
+
 # ── VID/PID <-> GUID helpers ──────────────────────────────────────────────────
 
 def vidpid_of(guid: str) -> tuple[str, str]:
@@ -137,14 +176,6 @@ def vidpid_of(guid: str) -> tuple[str, str]:
     vendor = (guid[10:12] + guid[8:10]).lower()
     product = (guid[18:20] + guid[16:18]).lower()
     return vendor, product
-
-
-def swap_vidpid(guid: str, vendor: str, product: str) -> str:
-    """Same GUID, new vendor/product bytes — every other byte (bus type,
-    driver signature, version) is preserved untouched."""
-    v_le = vendor[2:4] + vendor[0:2]
-    p_le = product[2:4] + product[0:2]
-    return guid[:8] + v_le + guid[12:16] + p_le + guid[20:]
 
 
 def db_name_for(vendor: str, product: str) -> str | None:
@@ -229,13 +260,24 @@ def _sdl3_live_names() -> dict[tuple[str, str], str]:
     return names
 
 
-def sdl3_names() -> dict[tuple[str, str], str]:
+def sdl3_names(want: tuple[str, str] | None = None) -> dict[tuple[str, str], str]:
     """_sdl3_live_names() behind a short cache — two pads taking slots in
     the same scan pass shouldn't init SDL twice — degrading to {} instead
-    of raising when libSDL3 is unavailable."""
+    of raising when libSDL3 is unavailable.
+
+    `want` is the pad the caller is asking about. A 5 s cache with a 3 s scan
+    period meant a pad that had just arrived was answered from a snapshot taken
+    before it existed, and the name fell through to the static table or the
+    community DB — right for a DualShock 4 by luck, wrong for anything less
+    common. A cached miss on the pad we are asking about is therefore worth one
+    re-enumeration, rate-limited so an unplugged pad cannot spin SDL up on
+    every pass.
+    """
     global _sdl3_cache
     ts, cached = _sdl3_cache
-    if time.monotonic() - ts > 5.0 or not cached:
+    stale = time.monotonic() - ts > 5.0 or not cached
+    missing = want is not None and want not in cached and time.monotonic() - ts > 1.0
+    if stale or missing:
         try:
             cached = _sdl3_live_names()
         except Exception:
@@ -251,16 +293,52 @@ def resolve_name(vendor: str, product: str, evdev_name: str) -> str:
     see for this pad. Live SDL3 answer first, known-pads table next, the
     SDL2 community-DB name only as a last resort (it is WRONG for SDL3 on
     some pads — 'PS5 Controller' vs 'DualSense Wireless Controller')."""
-    return (sdl3_names().get((vendor, product))
+    return (sdl3_names((vendor, product)).get((vendor, product))
             or SDL3_FALLBACK_NAMES.get((vendor, product))
             or db_name_for(vendor, product)
             or evdev_name)
+
+
+class Skip(str):
+    """Why a step wrote nothing — a real answer, not an absence of one.
+
+    Every writer used to return `str | None`, and apply_profile only collected
+    the truthy ones. So "I retargeted Player 2" reached the log and "there is
+    no Player 1 pad to clone from" reached nobody: a give-up was byte-for-byte
+    indistinguishable from a success. RPCS3's players 2-4 sat dead for a week
+    that way, and `scan_mapping()` answered `{"ok": True}` on a snapshot it had
+    taken of the wrong controller.
+
+    A Skip is a str, so it logs and joins like any other message; it is a
+    distinct type, so apply_profile can file it apart and log it as a warning.
+    `None` keeps its old meaning and only it: nothing to do, nothing to say.
+    """
+    __slots__ = ()
 
 
 def backup(p: Path) -> None:
     b = p.with_name(p.name + ".bak-ctrlmodel")
     if p.is_file() and not b.exists():
         shutil.copy2(p, b)
+
+
+def _atomic_write(p: Path, text: str) -> None:
+    """Write through a temp file in the same directory, then os.replace().
+
+    `write_text()` truncates first and writes second. This pipeline runs at
+    backend startup — the exact moment someone powers the box on, and the exact
+    moment they can cut the power again with the wall switch. A Config.json
+    caught between the two is invalid JSON, and Ryujinx starts over from
+    defaults. os.replace() is atomic within a filesystem, so a reader sees
+    either the whole old file or the whole new one.
+    """
+    tmp = p.with_name(p.name + ".gamecore-tmp")
+    try:
+        tmp.write_text(text)
+        os.replace(tmp, p)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def section(text: str, header: str) -> str | None:
@@ -277,114 +355,129 @@ def set_section(text: str, header: str, body: str) -> str:
 
 # ── Ryujinx (Switch, up to 8 in principle — we honor players 1-4) ───────────
 
-def _ryu_guid_vidpid(dashed_guid: str) -> tuple[str, str] | None:
-    """(vendor, product) from a Ryujinx dashed SDL GUID. Ryujinx's bundled
-    SDL2 lays out the vendor at [8:12] big-endian and the product at [16:20]
-    little-endian (`00000003-054c-0000-cc09-…` → 054c / 09cc)."""
+def ryu_guid_vidpid(dashed_guid: str) -> tuple[str, str] | None:
+    """(vendor, product) from a Ryujinx dashed SDL GUID — the vendor sits at
+    [8:12] big-endian and the product at [16:20] little-endian
+    (`00000003-054c-0000-cc09-…` → 054c / 09cc).
+
+    Kept for reading a Config.json, never for deciding what to write: two pads
+    can share a vendor:product and still have different GUIDs (a DualShock 4
+    over USB and the same pad over Bluetooth differ in their bus and driver
+    bytes). Treating this as an identity is what broke Ryujinx.
+    """
     g = dashed_guid.replace("-", "")
     if len(g) != 32:
         return None
     return g[8:12].lower(), (g[18:20] + g[16:18]).lower()
 
 
-def _ryu_swap_vidpid(dashed_guid: str, vendor: str, product: str) -> str:
-    """Best-effort GUID for a controller Ryujinx has never bound here: swap the
-    vendor/product into a reference GUID (vendor [8:12] BE, product [16:20] LE).
-    Reliable only within the reference's own brand/family — Ryujinx's SDL2 also
-    encodes bus/version/driver bytes that differ per model, which is why
-    _ryujinx() prefers a GUID Ryujinx has actually written (see there)."""
-    g = dashed_guid.replace("-", "")
-    if len(g) != 32:
-        return dashed_guid
-    g = g[:8] + vendor + g[12:16] + product[2:4] + product[0:2] + g[20:]
-    return f"{g[0:8]}-{g[8:12]}-{g[12:16]}-{g[16:20]}-{g[20:32]}"
+def ryu_guid_from_sdl2(sdl_hex: str) -> str | None:
+    """Ryujinx's dashed GUID from SDL2's raw 32-hex one.
+
+    Ryujinx hands SDL2's 16 GUID bytes straight to .NET's `System.Guid`, whose
+    string form reverses the first three fields and leaves the last eight bytes
+    alone. So the whole thing is a byte reordering, not a lossy summary — which
+    means the exact GUID Ryujinx will compute can be derived from the exact
+    GUID SDL2 reports, with nothing guessed:
+
+        030000004c050000cc09000000006800 -> 00000003-054c-0000-cc09-000000006800
+        050000005e040000fd02000003090000 -> 00000005-045e-0000-fd02-000003090000
+
+    Both of those are byte-for-byte what this box's Config.json holds for its
+    DualShock 4 and its Xbox One pad.
+    """
+    try:
+        b = bytes.fromhex(sdl_hex)
+    except ValueError:
+        return None
+    if len(b) != 16:
+        return None
+    return "-".join((b[0:4][::-1].hex(), b[4:6][::-1].hex(), b[6:8][::-1].hex(),
+                     b[8:10].hex(), b[10:16].hex()))
 
 
 def _ryujinx(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
     """Ryujinx binds each slot in Config.json's `input_config` list by
     `player_index` (`Player1`..`Player8`) and an `id` `"<dup>-<SDL GUID>"`,
-    where <dup> counts pads sharing that GUID (NOT the player number).
+    where <dup> counts pads sharing that GUID (SDL2GamepadDriver.
+    GenerateGamepadId walks `guidIndex` up while the id is taken) — NOT the
+    player number.
 
-    The GUID must be the exact string Ryujinx's bundled SDL2 computes for the
-    device — and that encodes bus/version/driver bytes we can't derive from
-    vendor:product alone (a DS4 is `00000003-054c-…-…6800`, an Xbox pad
-    `00000005-045e-…-…09090000`). So we can't synthesize it blindly across
-    brands. Instead we LEARN: reuse the exact GUID Ryujinx already wrote for a
-    pad of this vendor:product (in any slot — the curated Config.json seeds the
-    box's own pads, and once a user assigns a new pad in Ryujinx it's captured
-    here). Only the first time an unseen brand appears do we fall back to a
-    best-effort swap from Player1's GUID, which may need a one-off manual
-    'Input Device' pick in Ryujinx — after which this learns it."""
+    NpadManager.DriverConfigurationUpdate resolves that id with
+    `_gamepadsIds.IndexOf(id)`. No match means -1, means the slot is disposed,
+    silently — no log, no "already assigned" mark in Input Settings, nothing.
+
+    So the GUID has to be exactly right, and it used to be neither read nor
+    computed. It was copied from another entry that merely shared a
+    vendor:product — which breaks the moment a pad changes transport, because
+    the bus and driver bytes change and only vendor/product were compared — or
+    else fabricated by substituting vendor/product into a reference GUID, which
+    produced strings no device has ever had (a DualShock 4 GUID with Xbox
+    vendor bytes keeps the DS4's bus 0x0003 and HIDAPI signature; the real Xbox
+    pad is bus 0x0005 with a different tail). Worse, the fabricated GUID parsed
+    back to the right vendor:product, so the next pass adopted it as "a GUID
+    Ryujinx wrote" and logged a match. Once wrong, always wrong.
+
+    Nothing needs guessing: ask SDL2 for the pad's actual GUID and convert
+    (ryu_guid_from_sdl2). If SDL2 cannot be reached, say so and change nothing
+    — an invented id is worse than an untouched slot.
+    """
     if not RYUJINX_CFG.is_file():
         return None
     try:
         cfg = json.loads(RYUJINX_CFG.read_text())
-    except (OSError, ValueError):
-        return None
+    except (OSError, ValueError) as e:
+        return Skip(f"ryujinx: Config.json unreadable ({e.__class__.__name__})")
     ic = cfg.get("input_config")
     if not isinstance(ic, list):
-        return None
+        return Skip("ryujinx: Config.json has no input_config list")
+
+    sdl_hex = _sdl2_probe(vendor, product).get("guid", "")
+    new_guid = ryu_guid_from_sdl2(sdl_hex) if sdl_hex else None
+    if not new_guid:
+        return Skip(f"ryujinx: SDL2 would not report a GUID for {vendor}:{product} "
+                    f"— Player {i} left as it was")
+
+    # A pad template to clone from, for a slot that does not exist yet or that
+    # currently belongs to the keyboard. Any gamepad slot will do; the button
+    # map is role-based, so it carries over between controller types.
+    model = next((e for e in ic if e.get("backend") == "GamepadSDL2"), None)
     pi = f"Player{i}"
-    p1 = next((e for e in ic if e.get("player_index") == "Player1"), None)
-    if p1 is None or "-" not in str(p1.get("id", "")):
-        return None
-    # Prefer a GUID Ryujinx has actually written for this vendor:product.
-    known = None
-    for e in ic:
-        eid = str(e.get("id", ""))
-        if "-" in eid and _ryu_guid_vidpid(eid.split("-", 1)[1]) == (vendor.lower(), product.lower()):
-            known = eid.split("-", 1)[1]
-            break
-    if known:
-        new_guid, how = known, "matched"
-    else:
-        new_guid = _ryu_swap_vidpid(str(p1["id"]).split("-", 1)[1], vendor, product)
-        how = "best-effort"
     slot = next((e for e in ic if e.get("player_index") == pi), None)
-    if slot is not None:
-        slot["id"] = f"{dup}-{new_guid}"
-        slot["name"] = f"{name} ({dup})"
+    new_id = f"{dup}-{new_guid}"
+
+    if slot is not None and slot.get("backend") == "GamepadSDL2":
+        if slot.get("id") == new_id and slot.get("name") == f"{name} ({dup})":
+            return None                     # already correct — do not rewrite 11 KB
+        slot["id"], slot["name"] = new_id, f"{name} ({dup})"
         action = "retargeted"
-    else:                                              # clone Player1 into slot i
-        clone = json.loads(json.dumps(p1))
+    else:
+        # An existing non-gamepad slot used to have its id mutated in place,
+        # which left a keyboard config claiming to be an SDL device: the pad
+        # did not work and neither did the keyboard.
+        if model is None:
+            return Skip(f"ryujinx: no gamepad slot to clone from — Player {i} left as it was")
+        clone = json.loads(json.dumps(model))
         clone["player_index"] = pi
-        clone["id"] = f"{dup}-{new_guid}"
-        clone["name"] = f"{name} ({dup})"
-        ic.append(clone)
-        action = "created"
-    backup(RYUJINX_CFG)
-    RYUJINX_CFG.write_text(json.dumps(cfg, indent=2) + "\n")
-    return f"ryujinx: Player {i} {action} ({how} GUID, dup {dup})"
-
-
-# ── azahar (3DS) / mgba (GBA) — single-player hardware, slot 1 only ─────────
-
-def _single_player_guid(path: Path, label: str, line_prefix: str,
-                        i: int, vendor: str, product: str, name: str) -> str | None:
-    if i != 1 or not path.is_file():
-        return None
-    t = path.read_text()
-    old_guid = None
-    for line in t.splitlines():
-        if line.startswith(line_prefix):
-            m = GUID_RE.search(line)
-            if m:
-                old_guid = m.group(1)
-                break
-    if not old_guid:
-        return None
-    new_guid = swap_vidpid(old_guid, vendor, product)
-    out, n = [], 0
-    for line in t.splitlines(keepends=True):
-        if line.startswith(line_prefix) and old_guid in line:
-            out.append(line.replace(old_guid, new_guid))
-            n += 1
+        clone["id"], clone["name"] = new_id, f"{name} ({dup})"
+        if slot is not None:
+            ic[ic.index(slot)] = clone
+            action = "replaced (was a keyboard slot)"
         else:
-            out.append(line)
-    if not n:
-        return None
-    backup(path); path.write_text("".join(out))
-    return f"{label}: Player 1 retargeted ({n} keys)"
+            ic.append(clone)
+            action = "created"
+    backup(RYUJINX_CFG)
+    _atomic_write(RYUJINX_CFG, json.dumps(cfg, indent=2) + "\n")
+    return f"ryujinx: Player {i} {action} (dup {dup}, {new_guid})"
+
+
+# _single_player_guid() lived here and swapped the vendor/product bytes of a
+# GUID line in place. Nothing called it — apply_profile has always used the
+# snapshot mechanism below for these emulators — and the approach was wrong
+# anyway, for the same reason it was wrong in Ryujinx: a GUID also encodes bus
+# and driver bytes, so a swap yields a device that does not exist. It is gone,
+# along with _sdl_guid_vidpid(), which only it used. Dead code that looks like
+# the mechanism is worse than no code.
 
 
 # ── capture / restore per-controller configs (GUID-based single-player emus) ──
@@ -394,14 +487,6 @@ def _single_player_guid(path: Path, label: str, line_prefix: str,
 # once in the emulator (which writes a correct config), we remember that config
 # PER controller, and swap it back in whenever that pad reconnects.
 SNAP_DIR = HOME / ".local/share/gamecore/controller-snapshots"
-
-
-def _sdl_guid_vidpid(guid: str) -> tuple[str, str] | None:
-    """(vendor, product) from a 32-hex SDL GUID (vendor LE @[8:12], product
-    LE @[16:20])."""
-    if len(guid) != 32:
-        return None
-    return (guid[10:12] + guid[8:10]).lower(), (guid[18:20] + guid[16:18]).lower()
 
 
 # Per-emulator adapters: extract the input-config block from the config text,
@@ -417,17 +502,34 @@ def _sect_bounds(lines: list[str], header: str):
     return (start, len(lines)) if start is not None else (None, None)
 
 
+def _az_prefix(text: str) -> str:
+    """The `profiles\\N\\` prefix azahar is actually using.
+
+    Qt writes array entries 1-based (`profiles\\1\\…`) but stores the selected
+    index 0-based in `profile=`. `profiles\\1\\` was hardcoded, which is right
+    only while `profile=0` — true today, false the moment a second input
+    profile is created and picked, at which point a snapshot restore would
+    rewrite the profile the owner is not using.
+    """
+    m = re.search(r"^profile=(\d+)$", text, re.M)
+    return f"profiles\\{int(m.group(1)) + 1 if m else 1}\\"
+
+
 def _az_extract(text: str) -> str:
-    return "".join(l for l in text.splitlines(keepends=True)
-                   if l.startswith("profiles\\1\\"))
+    prefix = _az_prefix(text)
+    return "".join(l for l in text.splitlines(keepends=True) if l.startswith(prefix))
 
 
 def _az_replace(text: str, block: str) -> str:
+    prefix = _az_prefix(text)
     if not block.endswith("\n"):
         block += "\n"
+    # A snapshot taken under a different active profile carries that profile's
+    # prefix; re-key it onto the one in use rather than writing a dead index.
+    block = re.sub(r"^profiles\\\d+\\", lambda _: prefix, block, flags=re.M)
     out, done = [], False
     for l in text.splitlines(keepends=True):
-        if l.startswith("profiles\\1\\"):
+        if l.startswith(prefix):
             if not done:
                 out.append(block); done = True
         else:
@@ -466,42 +568,60 @@ def _whole_replace(_text: str, block: str) -> str:
     return block
 
 
-# mgba: profiles persist per GUID in [gba.input-profile.<GUID>]; `device0=` picks
-# the active one. Capture device0 + its profile section; restore both so mgba
-# points at the connected pad's own profile.
+def _ini_sections(block: str) -> list[tuple[str, str]]:
+    """[(header, whole section including its [header] line)] for a block of
+    complete INI sections — the shape snapshots of multi-section formats take."""
+    out: list[tuple[str, str]] = []
+    header, body = None, []
+    for line in block.splitlines(keepends=True):
+        if line.strip().startswith("[") and line.strip().endswith("]"):
+            if header is not None:
+                out.append((header, "".join(body)))
+            header, body = line.strip()[1:-1], [line]
+        elif header is not None:
+            body.append(line)
+    if header is not None:
+        out.append((header, "".join(body)))
+    return out
+
+
+# mgba keeps the ACTIVE binding table in [gba.input.SDLB] — every keyA/keyL/hat0
+# lives there, along with `device0=`, the GUID of the pad it belongs to. The
+# per-GUID [gba.input-profile.<GUID>] sections hold tilt and gyro axes and
+# nothing else.
+#
+# The snapshot used to capture `device0=` plus that GUID section, i.e. six gyro
+# keys and not one button: 180 bytes on this box, for both saved controllers.
+# "Scan mapping" reported success, restore announced "restored saved mapping",
+# and no button ever moved. Capture the section that actually binds buttons,
+# and keep the gyro section alongside it.
 def _mgba_extract(text: str) -> str:
     lines = text.splitlines(keepends=True)
-    dev = next((l for l in lines if l.startswith("device0=")), "")
-    guid = dev.split("=", 1)[1].strip() if "=" in dev else ""
-    s, e = _sect_bounds(lines, f"gba.input-profile.{guid}") if guid else (None, None)
-    return dev + ("".join(lines[s:e]) if s is not None else "")
+    s, e = _sect_bounds(lines, "gba.input.SDLB")
+    if s is None:
+        return ""
+    block = "".join(lines[s:e])
+    guid = next((l.split("=", 1)[1].strip() for l in lines[s:e]
+                 if l.startswith("device0=")), "")
+    if guid:
+        gs, ge = _sect_bounds(lines, f"gba.input-profile.{guid}")
+        if gs is not None:
+            block += "".join(lines[gs:ge])
+    return block
 
 
 def _mgba_replace(text: str, block: str) -> str:
-    blines = block.splitlines(keepends=True)
-    dev = next((l for l in blines if l.startswith("device0=")), "")
-    guid = dev.split("=", 1)[1].strip() if "=" in dev else ""
-    sect = "".join(l for l in blines if not l.startswith("device0="))
-    out, dev_set = [], False
-    for l in text.splitlines(keepends=True):
-        if l.startswith("device0="):
-            out.append(dev if dev.endswith("\n") else dev + "\n"); dev_set = True
-        else:
-            out.append(l)
-    if not dev_set and dev:
-        out.insert(0, dev if dev.endswith("\n") else dev + "\n")
-    result = "".join(out)
-    if guid and sect.strip():
-        result = _sect_replace(f"gba.input-profile.{guid}")(result, sect)
-    return result
+    for header, body in _ini_sections(block):
+        text = _sect_replace(header)(text, body)
+    return text
 
 
 # emu_id → (config-path getter, extract(text)→block, replace(text, block)→text)
 _SNAP_EMUS = {
     "azahar":  (lambda: AZAHAR, _az_extract, _az_replace),
-    "melonds": (lambda: MELONDS_TOML, _sect_extract("Instance0.Joystick"),
+    "melonds": (melonds_toml, _sect_extract("Instance0.Joystick"),
                 _sect_replace("Instance0.Joystick")),
-    "mgba":    (lambda: MGBA_CONFIG, _mgba_extract, _mgba_replace),
+    "mgba":    (mgba_config, _mgba_extract, _mgba_replace),
     "cemu":    (lambda: CEMU_PROFILES / "controller0.xml", _whole_extract, _whole_replace),
 }
 
@@ -510,10 +630,43 @@ def _snap_path(emu_id: str, vendor: str, product: str) -> Path:
     return SNAP_DIR / emu_id / f"{vendor.lower()}_{product.lower()}.snap"
 
 
-def snapshot_capture(vendor: str, product: str) -> list[str]:
+def snapshot_exists(emu_id: str, vendor: str, product: str) -> bool:
+    return _snap_path(emu_id, vendor, product).is_file()
+
+
+# A 32-hex SDL GUID wherever it appears — after `guid:` in azahar, after `0_`
+# in Cemu's <uuid>, bare after `device0=` in mgba. A \b would not fire after an
+# underscore, which is a word character, so Cemu's `0_0500…` would be missed.
+_ANY_GUID_RE = re.compile(r"(?<![0-9a-fA-F])([0-9a-fA-F]{32})(?![0-9a-fA-F])")
+
+
+def _block_disagrees(block: str, vendor: str, product: str) -> str | None:
+    """The first GUID in `block` that belongs to another controller, if any.
+
+    Cemu's controller0.xml carries the pad's <uuid> and azahar's profile carries
+    a `guid:` per binding, so a captured block states which controller it is
+    for. Nothing checked that against the pad the user said they had just
+    mapped, and the box ends up with cemu/045e_02fd.snap byte-identical to
+    cemu/054c_09cc.snap — both the DualShock 4's config, because "Scan mapping"
+    was pressed with the Xbox pad connected while the file still held the DS4.
+    Restoring it is a no-op today, but the moment the owner maps the Xbox by
+    hand, the next connection overwrites their work with the DS4's config.
+    """
+    want = (vendor.lower(), product.lower())
+    for guid in _ANY_GUID_RE.findall(block):
+        if vidpid_of(guid) != want:
+            return guid
+    return None
+
+
+def snapshot_capture(vendor: str, product: str) -> tuple[list[str], list[str]]:
     """Save each GUID-emulator's CURRENT input config for this controller — the
-    'Scan mapping' action, after the user has auto-mapped the pad in-emulator."""
-    saved = []
+    'Scan mapping' action, after the user has auto-mapped the pad in-emulator.
+
+    Returns (saved, refused): an emulator whose config plainly describes a
+    different controller is refused rather than saved under this one's name."""
+    saved: list[str] = []
+    refused: list[str] = []
     for emu_id, (pathfn, extract, _r) in _SNAP_EMUS.items():
         path = pathfn()
         if not path.is_file():
@@ -521,11 +674,18 @@ def snapshot_capture(vendor: str, product: str) -> list[str]:
         block = extract(path.read_text())
         if not block.strip():
             continue
+        wrong = _block_disagrees(block, vendor, product)
+        if wrong:
+            log.warning("controller_profiles: %s config describes %s, not %s:%s "
+                        "— refusing to save it as this pad's mapping",
+                        emu_id, wrong, vendor, product)
+            refused.append(emu_id)
+            continue
         snap = _snap_path(emu_id, vendor, product)
         snap.parent.mkdir(parents=True, exist_ok=True)
-        snap.write_text(block)
+        _atomic_write(snap, block)
         saved.append(emu_id)
-    return saved
+    return saved, refused
 
 
 def snapshot_restore(emu_id: str, vendor: str, product: str) -> str | None:
@@ -541,7 +701,7 @@ def snapshot_restore(emu_id: str, vendor: str, product: str) -> str | None:
     block, text = snap.read_text(), path.read_text()
     if extract(text).strip() == block.strip():
         return None                                   # already applied
-    backup(path); path.write_text(replace(text, block))
+    backup(path); _atomic_write(path, replace(text, block))
     return f"{emu_id}: restored saved mapping ({vendor}:{product})"
 
 
@@ -568,39 +728,73 @@ def _pad_has_hat(vendor: str, product: str) -> bool | None:
     return None
 
 
-def _sdl2_live_mapping(vendor: str, product: str) -> dict[str, str] | None:
-    """Live SDL2 GameController mapping (SDL name → raw token like 'b6'/'h0.1')
-    for the connected vendor:product. Run in a SUBPROCESS: melonDS binds by raw
-    SDL2 joystick index, but those indices differ per controller AND per driver
-    version — the vendored gamecontrollerdb even ships conflicting Linux entries
-    for one pad (an Xbox is b4/b5 or b6/b7). The only reliable source is the
-    exact SDL2 the emulator uses; the backend itself loads SDL3, so we shell out
-    to read SDL2's own numbering. None on any failure."""
-    script = (
-        "import ctypes,os,sys\n"
-        "os.environ['SDL_VIDEODRIVER']='dummy'\n"
-        "v=int(sys.argv[1],16);p=int(sys.argv[2],16)\n"
-        "try: s=ctypes.CDLL('libSDL2-2.0.so.0')\n"
-        "except OSError: sys.exit(0)\n"
-        "s.SDL_GameControllerMappingForDeviceIndex.restype=ctypes.c_char_p\n"
-        "s.SDL_GameControllerMappingForDeviceIndex.argtypes=[ctypes.c_int]\n"
-        "s.SDL_JoystickGetDeviceVendor.restype=ctypes.c_uint16\n"
-        "s.SDL_JoystickGetDeviceProduct.restype=ctypes.c_uint16\n"
-        "s.SDL_JoystickGetDeviceVendor.argtypes=[ctypes.c_int]\n"
-        "s.SDL_JoystickGetDeviceProduct.argtypes=[ctypes.c_int]\n"
-        "if s.SDL_Init(0x2000)!=0: sys.exit(0)\n"
-        "for i in range(s.SDL_NumJoysticks()):\n"
-        " if s.SDL_JoystickGetDeviceVendor(i)==v and s.SDL_JoystickGetDeviceProduct(i)==p:\n"
-        "  m=s.SDL_GameControllerMappingForDeviceIndex(i)\n"
-        "  print(m.decode()) if m else None; break\n"
-        "s.SDL_Quit()\n"
-    )
+_SDL2_PROBE = (
+    "import ctypes,os,sys\n"
+    "os.environ['SDL_VIDEODRIVER']='dummy'\n"
+    "v=int(sys.argv[1],16);p=int(sys.argv[2],16)\n"
+    "try: s=ctypes.CDLL('libSDL2-2.0.so.0')\n"
+    "except OSError: sys.exit(0)\n"
+    "class G(ctypes.Structure): _fields_=[('data',ctypes.c_uint8*16)]\n"
+    "s.SDL_GameControllerMappingForDeviceIndex.restype=ctypes.c_char_p\n"
+    "s.SDL_GameControllerMappingForDeviceIndex.argtypes=[ctypes.c_int]\n"
+    "s.SDL_JoystickGetDeviceGUID.restype=G\n"
+    "s.SDL_JoystickGetDeviceGUID.argtypes=[ctypes.c_int]\n"
+    "s.SDL_JoystickGetDeviceVendor.restype=ctypes.c_uint16\n"
+    "s.SDL_JoystickGetDeviceProduct.restype=ctypes.c_uint16\n"
+    "s.SDL_JoystickGetDeviceVendor.argtypes=[ctypes.c_int]\n"
+    "s.SDL_JoystickGetDeviceProduct.argtypes=[ctypes.c_int]\n"
+    "if s.SDL_Init(0x2000)!=0: sys.exit(0)\n"
+    "for i in range(s.SDL_NumJoysticks()):\n"
+    " if s.SDL_JoystickGetDeviceVendor(i)==v and s.SDL_JoystickGetDeviceProduct(i)==p:\n"
+    "  print('GUID '+bytes(s.SDL_JoystickGetDeviceGUID(i).data).hex())\n"
+    "  m=s.SDL_GameControllerMappingForDeviceIndex(i)\n"
+    "  print('MAP '+m.decode()) if m else None\n"
+    "  break\n"
+    "s.SDL_Quit()\n"
+)
+
+_sdl2_cache: dict[tuple[str, str], tuple[float, dict[str, str]]] = {}
+
+
+def _sdl2_probe(vendor: str, product: str) -> dict[str, str]:
+    """What SDL2 itself says about a connected pad: its raw 32-hex GUID and its
+    GameController mapping string. `{}` when SDL2 cannot be asked.
+
+    Run in a SUBPROCESS because the backend has already loaded SDL3 into its
+    own address space, and because these two answers must come from the same
+    SDL2 the emulators use — melonDS binds raw joystick indices that differ per
+    driver version, and Ryujinx's GUID carries bus and driver bytes that exist
+    nowhere else. Cached briefly: two pads taking slots in the same scan pass
+    would otherwise each pay the subprocess, and its timeout is 8 seconds.
+    """
+    key = (vendor.lower(), product.lower())
+    ts, cached = _sdl2_cache.get(key, (0.0, {}))
+    if cached and time.monotonic() - ts <= 5.0:
+        return cached
     try:
-        r = subprocess.run([sys.executable, "-c", script, vendor, product],
+        r = subprocess.run([sys.executable, "-c", _SDL2_PROBE, vendor, product],
                            capture_output=True, text=True, timeout=8)
     except (OSError, subprocess.SubprocessError):
-        return None
-    line = r.stdout.strip()
+        log.warning("controller_profiles: SDL2 probe failed for %s:%s", vendor, product)
+        return {}
+    out: dict[str, str] = {}
+    for line in r.stdout.splitlines():
+        tag, _, value = line.partition(" ")
+        if tag in ("GUID", "MAP") and value:
+            out[tag.lower()] = value.strip()
+    if out:
+        _sdl2_cache[key] = (time.monotonic(), out)
+    return out
+
+
+def _sdl2_live_mapping(vendor: str, product: str) -> dict[str, str] | None:
+    """Live SDL2 GameController mapping (SDL name → raw token like 'b6'/'h0.1')
+    for the connected vendor:product. melonDS binds by raw SDL2 joystick index,
+    and those indices differ per controller AND per driver version — the
+    vendored gamecontrollerdb even ships conflicting Linux entries for one pad
+    (an Xbox is b4/b5 or b6/b7). The only reliable source is the exact SDL2 the
+    emulator uses. None on any failure."""
+    line = _sdl2_probe(vendor, product).get("map", "")
     if "," not in line:
         return None
     out = {k: v for tok in line.split(",")[2:]
@@ -644,7 +838,8 @@ def _melonds(i: int, vendor: str, product: str, name: str) -> str | None:
     the shoulders / start / select / D-pad from the connected pad's live SDL2
     mapping so they land on the right physical inputs for any controller. Face
     buttons (A/B/X/Y = b0-b3) are consistent and left untouched."""
-    if i != 1 or not MELONDS_TOML.is_file():
+    toml = melonds_toml()
+    if i != 1 or not toml.is_file():
         return None
     mapping = _sdl2_live_mapping(vendor, product)
     vals: dict[str, int] = {}
@@ -672,7 +867,7 @@ def _melonds(i: int, vendor: str, product: str, name: str) -> str | None:
                 else {"Up": 11, "Down": 12, "Left": 13, "Right": 14})
         src = "hat fallback"
     out, insec, n = [], False, 0
-    for line in MELONDS_TOML.read_text().splitlines():
+    for line in toml.read_text().splitlines():
         s = line.strip()
         if s.startswith("["):
             insec = (s == "[Instance0.Joystick]")
@@ -683,8 +878,8 @@ def _melonds(i: int, vendor: str, product: str, name: str) -> str | None:
             out.append(line)
     if not n:
         return None
-    backup(MELONDS_TOML)
-    MELONDS_TOML.write_text("\n".join(out) + "\n")
+    backup(toml)
+    _atomic_write(toml, "\n".join(out) + "\n")
     return f"melonds: {n} keys mapped ({src})"
 
 
@@ -751,51 +946,154 @@ _WIIMOTE_BODY = (
 )
 
 
+# Canonical "any gamepad plays GameCube" bindings — every value is a
+# device-agnostic SDL role token, so the same body fits a DualShock, an Xbox
+# pad or a generic USB stick; only the Device line is per-pad.
+#
+# No Calibration line: a calibration is a measurement of one physical stick,
+# and Dolphin falls back to a perfect circle without it, which is right for a
+# pad nobody has measured. No Modifier line either: `Main Stick/Modifier =
+# `Shift`` came from the machine these configs were captured on, and it lets a
+# plugged-in keyboard shrink a player's stick range.
+_GCPAD_BODY = (
+    "Device = {device}\n"
+    "Buttons/A = `Button S`\n"
+    "Buttons/B = `Button E`\n"
+    "Buttons/X = `Button W`\n"
+    "Buttons/Y = `Button N`\n"
+    "Buttons/Z = Back\n"
+    "Buttons/Start = Start\n"
+    "D-Pad/Up = `Pad N`\n"
+    "D-Pad/Down = `Pad S`\n"
+    "D-Pad/Left = `Pad W`\n"
+    "D-Pad/Right = `Pad E`\n"
+    "Main Stick/Up = `Left Y+`\n"
+    "Main Stick/Down = `Left Y-`\n"
+    "Main Stick/Left = `Left X-`\n"
+    "Main Stick/Right = `Left X+`\n"
+    "C-Stick/Up = `Right Y+`\n"
+    "C-Stick/Down = `Right Y-`\n"
+    "C-Stick/Left = `Right X-`\n"
+    "C-Stick/Right = `Right X+`\n"
+    "Triggers/L = `Shoulder L`\n"
+    "Triggers/R = `Shoulder R`\n"
+    "Triggers/L-Analog = `Trigger L`\n"
+    "Triggers/R-Analog = `Trigger R`\n"
+)
+
+# The SDL role tokens Dolphin writes for a gamepad. A value outside this set is
+# a keyboard key, a mouse axis, or something else that will not follow the pad.
+_GC_SDL_TOKEN = re.compile(
+    r"`?(?:Button [NESW]|Pad [NESW]|Shoulder [LR]|Trigger [LR]|Thumb [LR]|"
+    r"(?:Left|Right) [XY][+-]|Back|Start|Guide)`?$")
+
+# The keys that name a physical input. Everything else in a GCPad section is a
+# number or a tuning knob (Calibration, Dead Zone, Range, Modifier) and says
+# nothing about which device the section follows.
+#
+# Presence is not required: Dolphin omits a binding the owner never made, and
+# an unbound C-Stick is a choice, not a leftover. What is required is that
+# every action key that IS there names an SDL role.
+_GC_ACTION_KEY = re.compile(
+    r"(?:Buttons/(?:A|B|X|Y|Z|Start)|D-Pad/(?:Up|Down|Left|Right)|"
+    r"(?:Main Stick|C-Stick)/(?:Up|Down|Left|Right)|"
+    r"Triggers/(?:L|R|L-Analog|R-Analog))$")
+
+
+def _gc_values(body: str) -> dict[str, str]:
+    return {k.strip(): v.strip()
+            for line in body.splitlines() if "=" in line
+            for k, _, v in (line.partition("="),)}
+
+
+def _gcpad_is_real(body: str | None) -> bool:
+    """Is this GCPad section a usable gamepad config, or a leftover?
+
+    The old test asked "does any of the D-Pad or Z look like a bare keyboard
+    key", which is a blacklist: `Buttons/Z = `D`` was caught, `Main Stick/
+    Modifier = `Shift`` was not. This asks the opposite question — is every
+    binding a device-agnostic SDL role token — which is what "works with any
+    controller" actually means. Someone who deliberately put their D-Pad on a
+    stick still passes, because a stick token is a role token; a config
+    captured on a machine with a keyboard does not.
+    """
+    if not body or not re.search(r"Device = SDL/\d+/", body):
+        return False
+    values = _gc_values(body)
+    if not _GC_SDL_TOKEN.match(values.get("Buttons/A", "")):
+        return False        # no face buttons: a skeleton, not a config
+    return all(_GC_SDL_TOKEN.match(v)
+               for k, v in values.items() if _GC_ACTION_KEY.match(k))
+
+
 def _dolphin(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
     """Retarget BOTH of Dolphin's input configs for player `i` onto the pad.
     Dolphin qualifies devices as SDL/<k>/<name> where <k> is a 0-based counter
     over devices SHARING THE SAME NAME (ciface DeviceContainer), not a global
     index — a lone DualSense is SDL/0/... even as Player 2. `name` must be what
     Dolphin's bundled SDL3 calls the pad.
-      • GameCube (GCPadNew.ini): clone the working GCPad1, swap the Device line.
+      • GameCube (GCPadNew.ini): keep the slot's own bindings when they are
+        real, else take them from another healthy slot, else from the canonical
+        template above. Only the Device line varies per pad.
       • Wii (WiimoteNew.ini): write the canonical Wiimote+Nunchuk gamepad
-        template above with this pad's Device — the old per-pad config was a
+        template with this pad's Device — the old per-pad config was a
         keyboard/mouse frankenstein and slots 2-4 were empty (Virtual pointer).
     Dolphin binds by SDL role, so `SDL/<dup>/<name>` is all that varies. Either
-    file may be absent/unconfigured; we do whichever we can."""
+    file may be absent/unconfigured; we do whichever we can.
+
+    The donor used to be GCPad1, unconditionally and untested — and on this box
+    GCPad1 was itself the contaminated section (D-Pad on `T`/`G`/`F`/`H`, Z on
+    `D`). So slot 1 repaired itself with itself, slots 3 and 4 cloned the
+    contamination, and only slot 2 — the one section that happened to be
+    correct — worked. The fix has to live in the code and not in
+    emu-configs/dolphin/GCPadNew.ini, because update/linux.sh excludes
+    emu-configs/ from the OTA rsync: a correction shipped there can never reach
+    a box that is already installed.
+    """
     device = f"SDL/{dup}/{name}"
     msgs: list[str] = []
 
     gcpad = DOLPHIN_DIR / "GCPadNew.ini"
     if gcpad.is_file():
         t = gcpad.read_text()
-        p1 = section(t, "GCPad1")
-        if p1 and "Device = SDL/" in p1:
-            header = f"GCPad{i}"
-            body = section(t, header)
-            # A section only counts as usable if it is genuinely a pad config.
-            # GCPad1/3/4 shipped with the D-Pad on `T`/`G`/`F`/`H` and Z on `D` —
-            # keyboard keys left over from the machine the configs were captured
-            # on. They satisfied both checks below, so this function rewrote only
-            # their Device line: on a fresh install with one pad, the D-Pad did
-            # nothing and Z (targeting) was unusable in every GameCube game,
-            # while player 2 — the one section that was correct — worked fine.
-            #
-            # The third test asks "is any of this a bare keyboard key", not "is
-            # it exactly `Pad N`", so that someone who deliberately remapped
-            # their D-Pad onto a stick does not have that thrown away and
-            # replaced with a clone of GCPad1.
-            keyboard_leftover = bool(body) and re.search(
-                r"(?:D-Pad/(?:Up|Down|Left|Right)|Buttons/Z) = `[^`]`", body)
-            is_real = bool(body) and re.search(r"Device = SDL/\d+/", body) and \
-                re.search(r"Buttons/A = `Button [SNEW]`", body) and \
-                not keyboard_leftover
-            source = body if is_real else p1
-            new_body = re.sub(r"Device = SDL/\d+/[^\n]*", f"Device = {device}", source)
-            if new_body != body:
-                t = set_section(t, header, new_body)
-                backup(gcpad); gcpad.write_text(t)
-                msgs.append(f"GCPad{i} {'retargeted' if is_real else 'created'}")
+        header = f"GCPad{i}"
+        body = section(t, header)
+        if _gcpad_is_real(body):
+            source, origin = body, "retargeted"
+        else:
+            # Any healthy sibling first — it may carry a remap the owner made
+            # on purpose — then the template. Never an untested GCPad1.
+            donor_k = _gc_donor_index(t, i)
+            if donor_k:
+                source, origin = section(t, f"GCPad{donor_k}"), f"rebuilt from GCPad{donor_k}"
+            else:
+                source, origin = _GCPAD_BODY, "rebuilt from template"
+        # A plain replacement, not a regex one: an SDL device name is arbitrary
+        # text and may hold backslashes that re.sub would read as escapes.
+        new_body = re.sub(r"^Device = .*$", lambda _: f"Device = {device}",
+                          source, count=1, flags=re.M)
+        if not new_body.startswith("Device = ") and "\nDevice = " not in new_body:
+            new_body = f"Device = {device}\n" + new_body
+        # A calibration is a measurement of one physical stick. Cloned onto
+        # another pad it is simply wrong, so it does not travel with a donor.
+        new_body = re.sub(r"^.*/Calibration = .*\n", "", new_body, flags=re.M)
+        # `Main Stick/Modifier = `Shift`` and `C-Stick/Modifier = `Ctrl`` are
+        # keyboard leftovers that survive an otherwise healthy section: holding
+        # Shift on a plugged-in keyboard shrinks the stick range of whoever
+        # owns this port.
+        new_body = re.sub(r"^.*/Modifier = `[^`]*`\n", "", new_body, flags=re.M)
+        if new_body != body:
+            t = set_section(t, header, new_body)
+            msgs.append(f"GCPad{i} {origin}")
+        # One physical pad cannot hold two GameCube ports. GCPad2 and GCPad3
+        # both ended up on `SDL/0/Xbox One Controller`, and Mario Party moved
+        # two characters at once.
+        stolen = _gc_release_others(t, i, device)
+        if stolen != t:
+            t = stolen
+            msgs.append(f"freed the duplicate {device}")
+        if msgs:
+            backup(gcpad); _atomic_write(gcpad, t)
 
     wii = DOLPHIN_DIR / "WiimoteNew.ini"
     if wii.is_file():
@@ -804,7 +1102,7 @@ def _dolphin(i: int, dup: int, vendor: str, product: str, name: str) -> str | No
         new_body = _WIIMOTE_BODY.format(device=device)
         if section(t, header) != new_body:
             t = set_section(t, header, new_body)
-            backup(wii); wii.write_text(t)
+            backup(wii); _atomic_write(wii, t)
             msgs.append(f"Wiimote{i} set")
 
     if not msgs:
@@ -812,7 +1110,38 @@ def _dolphin(i: int, dup: int, vendor: str, product: str, name: str) -> str | No
     return f"dolphin: {', '.join(msgs)} (SDL/{dup}/{name})"
 
 
+def _gc_donor_index(text: str, i: int) -> int:
+    return next((k for k in range(1, 5)
+                 if k != i and _gcpad_is_real(section(text, f"GCPad{k}"))), 0)
+
+
+def _gc_release_others(text: str, i: int, device: str) -> str:
+    """Blank the Device line of every other GCPad bound to the same pad."""
+    for k in range(1, 5):
+        if k == i:
+            continue
+        body = section(text, f"GCPad{k}")
+        if body and re.search(rf"^Device = {re.escape(device)}$", body, re.M):
+            text = set_section(text, f"GCPad{k}",
+                               re.sub(r"^Device = .*$", "Device =", body, flags=re.M))
+    return text
+
+
 # ── RPCS3 (PS3, Player 1-4 already exist) — roles semantic, name only ───────
+
+def _rpcs3_block(text: str, i: int) -> re.Match | None:
+    return re.search(rf"^Player {i} Input:\n(.*?)(?=^Player \d+ Input:|\Z)", text, re.S | re.M)
+
+
+def _rpcs3_is_bound(block: str) -> bool:
+    """A slot that will actually drive a pad: the SDL handler, and bindings
+    that are not all empty strings. RPCS3 writes `Handler: "Null"` with every
+    binding blanked when it saves a player whose Device matched nothing."""
+    if "Handler: SDL" not in block:
+        return False
+    return bool(re.search(r'^\s+(?:Cross|Circle|Square|Triangle|Start):\s*(?!""|$)\S',
+                          block, re.M))
+
 
 def _rpcs3(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
     """RPCS3's SDL handler names devices "<name> <k>" with k a 1-based
@@ -820,40 +1149,127 @@ def _rpcs3(i: int, dup: int, vendor: str, product: str, name: str) -> str | None
     the player number — a lone DualSense is "DualSense Wireless
     Controller 1" even as Player 2. A non-matching string makes RPCS3 log
     "SDL: Adding empty device" and the pad is silently dead in game.
-    `name` must be what RPCS3's bundled SDL3 calls the pad."""
+    `name` must be what RPCS3's bundled SDL3 calls the pad.
+
+    Only the Device line used to be rewritten, and only if the slot already
+    said `Handler: SDL`. But the state RPCS3 leaves a slot in when its Device
+    matches nothing is exactly `Handler: "Null"` with every binding blanked —
+    so the one case that needed repairing was the one case that returned
+    early, silently, on every connection, for ever. Players 2-4 on this box
+    have been in that state since 28/07 while the pre-GameCore backup still
+    shows all four on `Handler: SDL`. A slot like that is now rebuilt from a
+    healthy one: the bindings are role names, identical from one controller to
+    the next, so the clone is correct by construction.
+    """
     yml = rpcs3_default()
     if not yml.is_file():
-        return None
+        return Skip(f"rpcs3: no input config at {yml} — nothing to retarget")
     t = yml.read_text()
-    m = re.search(rf"^Player {i} Input:\n(.*?)(?=^Player \d+ Input:|\Z)", t, re.S | re.M)
-    if not m or "Handler: SDL" not in m.group(1):
-        return None
+    m = _rpcs3_block(t, i)
+    if not m:
+        return Skip(f"rpcs3: Config has no 'Player {i} Input:' block")
     block = m.group(1)
-    block2 = re.sub(r"^(  Device: ).*$", rf"\g<1>{name} {dup + 1}", block, count=1, flags=re.M)
-    if block2 == block:
+
+    if _rpcs3_is_bound(block):
+        source, action = block, "retargeted"
+    else:
+        donor = next((d.group(1) for k in range(1, 8) if k != i
+                      and (d := _rpcs3_block(t, k)) and _rpcs3_is_bound(d.group(1))), None)
+        if donor is None:
+            return Skip(f"rpcs3: Player {i} is unbound and no other player is bound "
+                        f"— nothing to clone from")
+        source, action = donor, "rebuilt"
+    # A device name is arbitrary text; a lambda keeps re.sub from reading a
+    # backslash in it as a group reference.
+    new_block = re.sub(r"^(  Device: ).*$", lambda mm: f"{mm.group(1)}{name} {dup + 1}",
+                       source, count=1, flags=re.M)
+    if new_block == block:
         return None
-    t = t[:m.start(1)] + block2 + t[m.end(1):]
-    backup(yml); yml.write_text(t)
-    return f"rpcs3: Player {i} retargeted ({name} {dup + 1})"
+    t = t[:m.start(1)] + new_block + t[m.end(1):]
+    backup(yml); _atomic_write(yml, t)
+    return f"rpcs3: Player {i} {action} ({name} {dup + 1})"
 
 
 # ── PCSX2 / DuckStation — Tier 0, only the SDL index needs to exist ─────────
 
+# Per emulator: the pad type that leaves the analog sticks and the rumble
+# motors alive, and where the multitap switch lives.
+#
+# DuckStation shipped `Type = DigitalController` while [Pad1] holds every
+# analog binding it needs (LDown, RUp, L3, R3, LargeMotor, SmallMotor). The
+# upstream DigitalController declares 14 digital inputs and nothing else, so
+# those eleven lines are dead: sticks inert, no rumble, Ape Escape unplayable.
+# It is the only Sony-side fault that hits player 1, and it could never be
+# repaired because _tier0_ini returned immediately for i == 1.
+#
+# The multitap matters because PS1 and PS2 have two physical ports. PCSX2
+# refuses slot 3+ at the SIO2 level while IsMultitapPortEnabled(port) is false,
+# and DuckStation only wires Pad1/Pad2 while MultitapMode is Disabled — so
+# writing [Pad3] and reporting success, as this did, promised a third player
+# that could never move. Enabling the tap on port 1 gives that port slots
+# 1/3/4/5, port 2 staying Pad2: four players, at the cost of a virtual
+# accessory the games that ignore multitaps ignore anyway.
+_TIER0 = {
+    "pcsx2":       {"type": "DualShock2",
+                    "tap": ("Pad", "MultitapPort1", "true")},
+    "duckstation": {"type": "AnalogController",
+                    "tap": ("ControllerPorts", "MultitapMode", "Port1Only")},
+}
+
+
+def _set_ini_key(text: str, header: str, key: str, value: str) -> tuple[str, bool]:
+    """Set `key = value` in an INI section, adding the line if it is missing.
+    Returns (text, changed) and never reformats anything else."""
+    body = section(text, header)
+    if body is None:
+        return text, False
+    if re.search(rf"^{re.escape(key)} = {re.escape(value)}$", body, re.M):
+        return text, False
+    if re.search(rf"^{re.escape(key)} = ", body, re.M):
+        new = re.sub(rf"^{re.escape(key)} = .*$", lambda _: f"{key} = {value}",
+                     body, count=1, flags=re.M)
+    else:
+        lines = body.splitlines(keepends=True)
+        at = max((n for n, l in enumerate(lines) if l.strip()), default=-1) + 1
+        lines.insert(at, f"{key} = {value}\n")
+        new = "".join(lines)
+    return set_section(text, header, new), True
+
+
 def _tier0_ini(path: Path, label: str, i: int) -> str | None:
-    if i == 1 or not path.is_file():
+    if not path.is_file():
         return None
+    spec = _TIER0[label]
     t = path.read_text()
+    orig = t
     p1 = section(t, "Pad1")
     if not p1 or "SDL-0/" not in p1:
-        return None
+        return Skip(f"{label}: [Pad1] has no SDL bindings to clone from — "
+                    f"player {i} left alone")
     header = f"Pad{i}"
     body = section(t, header)
-    if body and "SDL-" in body and "Type = None" not in body:
-        return None  # already a real, device-agnostic binding — nothing to do, ever
-    new_body = p1.replace("SDL-0/", f"SDL-{i - 1}/")
-    t = set_section(t, header, new_body)
-    backup(path); path.write_text(t)
-    return f"{label}: created {header} (device-agnostic from here on)"
+    msgs: list[str] = []
+
+    usable = bool(body) and "SDL-" in body and "Type = None" not in body
+    if not usable:
+        t = set_section(t, header, p1.replace("SDL-0/", f"SDL-{i - 1}/"))
+        msgs.append(f"created {header}")
+    # The Type line rides along with the cloned body, and on slot 1 it is the
+    # only thing there is to fix.
+    t, retyped = _set_ini_key(t, header, "Type", spec["type"])
+    if retyped and not msgs:
+        msgs.append(f"{header} set to {spec['type']}")
+
+    if i >= 3:
+        tap_section, tap_key, tap_value = spec["tap"]
+        t, tapped = _set_ini_key(t, tap_section, tap_key, tap_value)
+        if tapped:
+            msgs.append(f"multitap enabled ({tap_key} = {tap_value})")
+
+    if t == orig:
+        return None
+    backup(path); _atomic_write(path, t)
+    return f"{label}: {', '.join(msgs)}"
 
 
 # ── Entry point, called by gamepad_monitor.py on every new slot ────────────
@@ -865,8 +1281,18 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
     same-model pads sit in lower player slots (see module docstring) — it
     feeds every per-name/per-GUID device counter; 0 is always correct for
     the first pad of a model. Never raises — each emulator is isolated so
-    one bad config doesn't block the others."""
+    one bad config doesn't block the others.
+
+    Returns the messages of the steps that actually wrote something. Steps that
+    gave up return a `Skip` and are logged as warnings instead: the caller's
+    toast stays about what changed, but the journal finally says why an
+    emulator was left alone."""
     if player_index < 1 or player_index > 4:
+        # The slot cap is deliberate (see the module docstring), but a 5th pad
+        # used to get a player number, a TV toast, and no config at all,
+        # without a word anywhere.
+        log.warning("controller_profiles: player %d is outside the 1-4 slots this "
+                    "box profiles — %s:%s left unconfigured", player_index, vendor, product)
         return []
     name = resolve_name(vendor, product, evdev_name)
     results: list[str] = []
@@ -885,19 +1311,38 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
         ("rpcs3", lambda: _rpcs3(player_index, dup_index, vendor, product, name)),
         ("pcsx2", lambda: _tier0_ini(pcsx2_ini(), "pcsx2", player_index)),
         ("duckstation", lambda: _tier0_ini(DUCK_INI, "duckstation", player_index)),
-        # melonds: a saved mapping wins; else fall back to the live synthesis.
-        ("melonds", lambda: (snapshot_restore("melonds", vendor, product)
-                             or _melonds(player_index, vendor, product, name))),
+        # melonds: single-player like the three above, and a saved mapping
+        # always wins over the live synthesis.
+        #
+        # This used to read `snapshot_restore(...) or _melonds(...)`, and
+        # snapshot_restore returns None for two different reasons: there is no
+        # snapshot, or the snapshot is ALREADY in place. So the fallback ran
+        # every other connection and overwrote the mapping the owner had
+        # captured, which the next connection then restored — one session in
+        # two was wrong. It also lacked the `player_index == 1` guard its three
+        # neighbours have, so plugging in a second pad rewrote melonDS's one
+        # and only player config for the wrong controller.
+        ("melonds", lambda: None if player_index != 1 else (
+            snapshot_restore("melonds", vendor, product)
+            if snapshot_exists("melonds", vendor, product)
+            else _melonds(player_index, vendor, product, name))),
     ]
+    skipped: list[str] = []
     for emu, step in steps:
         try:
             msg = step()
         except Exception:
             log.exception("controller_profiles: %s failed for player %d (%s:%s)",
                          emu, player_index, vendor, product)
+            skipped.append(f"{emu}: internal error (see traceback)")
             continue
-        if msg:
+        if isinstance(msg, Skip):
+            skipped.append(str(msg))
+        elif msg:
             results.append(msg)
+    if skipped:
+        log.warning("controller_profiles: player %d (%s:%s) — not configured: %s",
+                    player_index, vendor, product, "; ".join(skipped))
     return results
 
 
@@ -907,7 +1352,7 @@ def release_profile(player_index: int) -> list[str]:
     remote presented to the game as connected even with no input device bound,
     so a pad unplugged after co-op would haunt the next solo session as a
     phantom player. Reset that slot to Dolphin's inactive default. Role/device
-    bound emulators (GameCube, PS1/2/3, Switch…) just go input-less when a pad
+    bound emulators (PS1/2/3, Switch…) just go input-less when a pad
     leaves — no phantom, nothing to undo. Never raises."""
     if player_index < 1 or player_index > 4:
         return []
@@ -917,13 +1362,37 @@ def release_profile(player_index: int) -> list[str]:
         try:
             t = wii.read_text()
             header = f"Wiimote{player_index}"
-            inactive = "Device = XInput2/0/Virtual core pointer\n"
+            # `Source = 0`, not "no Source line at all". Dolphin's compiled-in
+            # default for Wiimote1 is WiimoteSource::Emulated
+            # (Core/Config/WiimoteSettings.cpp), so deleting the key alongside
+            # the body left an emulated remote presented to the game as
+            # connected and bound to a pointer with no buttons. Wii Sports
+            # started, asked for A, and neither pad nor keyboard could answer:
+            # this function created the phantom it exists to remove.
+            inactive = "Source = 0\nDevice = XInput2/0/Virtual core pointer\n"
             if section(t, header) != inactive:
                 t = set_section(t, header, inactive)
-                backup(wii); wii.write_text(t)
+                backup(wii); _atomic_write(wii, t)
                 results.append(f"dolphin: {header} released (inactive)")
         except Exception:
             log.exception("controller_profiles: release failed for player %d", player_index)
+
+    # GameCube ports have no Source key and no phantom, but the Device line
+    # stays pinned to a pad that has left. The next pad to take a lower slot is
+    # then written next to it, and two ports drive the same controller.
+    gcpad = DOLPHIN_DIR / "GCPadNew.ini"
+    if gcpad.is_file():
+        try:
+            t = gcpad.read_text()
+            header = f"GCPad{player_index}"
+            body = section(t, header)
+            if body and re.search(r"^Device = SDL/", body, re.M):
+                t = set_section(t, header,
+                                re.sub(r"^Device = .*$", "Device =", body, flags=re.M))
+                backup(gcpad); _atomic_write(gcpad, t)
+                results.append(f"dolphin: {header} unbound")
+        except Exception:
+            log.exception("controller_profiles: GCPad release failed for player %d", player_index)
     return results
 
 
@@ -938,9 +1407,13 @@ def scan_mapping() -> dict:
                 "error": ("connect exactly one controller (the one you just "
                           f"configured) — found {len(pads)}")}
     vendor, product, evdev = pads[0]
-    saved = snapshot_capture(vendor, product)
+    saved, refused = snapshot_capture(vendor, product)
+    # `refused` is the emulators whose config describes a different pad — the
+    # user mapped one controller and pressed the button holding another, or
+    # never mapped that emulator at all. Saying so beats a green "ok" that
+    # quietly stores the wrong mapping under this pad's name.
     return {"ok": True, "controller": resolve_name(vendor, product, evdev),
-            "saved": saved}
+            "saved": saved, "refused": refused}
 
 
 # ── Manual/rescue entry point (install/apply-controller-model.sh) ──────────
