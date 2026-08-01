@@ -87,8 +87,6 @@ RYUJINX_CFG = HOME / ".var/app/io.github.ryubing.Ryujinx/config/Ryujinx/Config.j
 AZAHAR = HOME / ".var/app/org.azahar_emu.Azahar/config/azahar-emu/qt-config.ini"
 DOLPHIN_DIR = HOME / ".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu"
 CEMU_PROFILES = HOME / ".var/app/info.cemu.Cemu/config/Cemu/controllerProfiles"
-MGBA_CONFIG = HOME / ".config/mgba/config.ini"
-MELONDS_TOML = HOME / ".var/app/net.kuribo64.melonDS/config/melonDS/melonDS.toml"
 DUCK_INI = HOME / ".local/share/duckstation/settings.ini"
 
 
@@ -127,6 +125,24 @@ def pcsx2_ini() -> Path:
         "pcsx2",
         HOME / ".var/app/net.pcsx2.PCSX2/config/PCSX2/inis/PCSX2.ini",
         HOME / ".config/PCSX2/inis/PCSX2.ini")
+
+
+def mgba_config() -> Path:
+    # install/arch.sh installs io.mgba.mGBA and flatpakify-systems.sh rewrites
+    # mgba to flatpak, so a hardcoded ~/.config path silently profiled nothing
+    # on a standard install. It is right on THIS box, which runs Arch's native
+    # mgba-qt — an accident that hid the bug.
+    return _flatpak_or_native(
+        "mgba",
+        HOME / ".var/app/io.mgba.mGBA/config/mgba/config.ini",
+        HOME / ".config/mgba/config.ini")
+
+
+def melonds_toml() -> Path:
+    return _flatpak_or_native(
+        "melonds",
+        HOME / ".var/app/net.kuribo64.melonDS/config/melonDS/melonDS.toml",
+        HOME / ".config/melonDS/melonDS.toml")
 
 
 # ── VID/PID <-> GUID helpers ──────────────────────────────────────────────────
@@ -491,17 +507,34 @@ def _sect_bounds(lines: list[str], header: str):
     return (start, len(lines)) if start is not None else (None, None)
 
 
+def _az_prefix(text: str) -> str:
+    """The `profiles\\N\\` prefix azahar is actually using.
+
+    Qt writes array entries 1-based (`profiles\\1\\…`) but stores the selected
+    index 0-based in `profile=`. `profiles\\1\\` was hardcoded, which is right
+    only while `profile=0` — true today, false the moment a second input
+    profile is created and picked, at which point a snapshot restore would
+    rewrite the profile the owner is not using.
+    """
+    m = re.search(r"^profile=(\d+)$", text, re.M)
+    return f"profiles\\{int(m.group(1)) + 1 if m else 1}\\"
+
+
 def _az_extract(text: str) -> str:
-    return "".join(l for l in text.splitlines(keepends=True)
-                   if l.startswith("profiles\\1\\"))
+    prefix = _az_prefix(text)
+    return "".join(l for l in text.splitlines(keepends=True) if l.startswith(prefix))
 
 
 def _az_replace(text: str, block: str) -> str:
+    prefix = _az_prefix(text)
     if not block.endswith("\n"):
         block += "\n"
+    # A snapshot taken under a different active profile carries that profile's
+    # prefix; re-key it onto the one in use rather than writing a dead index.
+    block = re.sub(r"^profiles\\\d+\\", lambda _: prefix, block, flags=re.M)
     out, done = [], False
     for l in text.splitlines(keepends=True):
-        if l.startswith("profiles\\1\\"):
+        if l.startswith(prefix):
             if not done:
                 out.append(block); done = True
         else:
@@ -540,42 +573,60 @@ def _whole_replace(_text: str, block: str) -> str:
     return block
 
 
-# mgba: profiles persist per GUID in [gba.input-profile.<GUID>]; `device0=` picks
-# the active one. Capture device0 + its profile section; restore both so mgba
-# points at the connected pad's own profile.
+def _ini_sections(block: str) -> list[tuple[str, str]]:
+    """[(header, whole section including its [header] line)] for a block of
+    complete INI sections — the shape snapshots of multi-section formats take."""
+    out: list[tuple[str, str]] = []
+    header, body = None, []
+    for line in block.splitlines(keepends=True):
+        if line.strip().startswith("[") and line.strip().endswith("]"):
+            if header is not None:
+                out.append((header, "".join(body)))
+            header, body = line.strip()[1:-1], [line]
+        elif header is not None:
+            body.append(line)
+    if header is not None:
+        out.append((header, "".join(body)))
+    return out
+
+
+# mgba keeps the ACTIVE binding table in [gba.input.SDLB] — every keyA/keyL/hat0
+# lives there, along with `device0=`, the GUID of the pad it belongs to. The
+# per-GUID [gba.input-profile.<GUID>] sections hold tilt and gyro axes and
+# nothing else.
+#
+# The snapshot used to capture `device0=` plus that GUID section, i.e. six gyro
+# keys and not one button: 180 bytes on this box, for both saved controllers.
+# "Scan mapping" reported success, restore announced "restored saved mapping",
+# and no button ever moved. Capture the section that actually binds buttons,
+# and keep the gyro section alongside it.
 def _mgba_extract(text: str) -> str:
     lines = text.splitlines(keepends=True)
-    dev = next((l for l in lines if l.startswith("device0=")), "")
-    guid = dev.split("=", 1)[1].strip() if "=" in dev else ""
-    s, e = _sect_bounds(lines, f"gba.input-profile.{guid}") if guid else (None, None)
-    return dev + ("".join(lines[s:e]) if s is not None else "")
+    s, e = _sect_bounds(lines, "gba.input.SDLB")
+    if s is None:
+        return ""
+    block = "".join(lines[s:e])
+    guid = next((l.split("=", 1)[1].strip() for l in lines[s:e]
+                 if l.startswith("device0=")), "")
+    if guid:
+        gs, ge = _sect_bounds(lines, f"gba.input-profile.{guid}")
+        if gs is not None:
+            block += "".join(lines[gs:ge])
+    return block
 
 
 def _mgba_replace(text: str, block: str) -> str:
-    blines = block.splitlines(keepends=True)
-    dev = next((l for l in blines if l.startswith("device0=")), "")
-    guid = dev.split("=", 1)[1].strip() if "=" in dev else ""
-    sect = "".join(l for l in blines if not l.startswith("device0="))
-    out, dev_set = [], False
-    for l in text.splitlines(keepends=True):
-        if l.startswith("device0="):
-            out.append(dev if dev.endswith("\n") else dev + "\n"); dev_set = True
-        else:
-            out.append(l)
-    if not dev_set and dev:
-        out.insert(0, dev if dev.endswith("\n") else dev + "\n")
-    result = "".join(out)
-    if guid and sect.strip():
-        result = _sect_replace(f"gba.input-profile.{guid}")(result, sect)
-    return result
+    for header, body in _ini_sections(block):
+        text = _sect_replace(header)(text, body)
+    return text
 
 
 # emu_id → (config-path getter, extract(text)→block, replace(text, block)→text)
 _SNAP_EMUS = {
     "azahar":  (lambda: AZAHAR, _az_extract, _az_replace),
-    "melonds": (lambda: MELONDS_TOML, _sect_extract("Instance0.Joystick"),
+    "melonds": (melonds_toml, _sect_extract("Instance0.Joystick"),
                 _sect_replace("Instance0.Joystick")),
-    "mgba":    (lambda: MGBA_CONFIG, _mgba_extract, _mgba_replace),
+    "mgba":    (mgba_config, _mgba_extract, _mgba_replace),
     "cemu":    (lambda: CEMU_PROFILES / "controller0.xml", _whole_extract, _whole_replace),
 }
 
@@ -584,10 +635,43 @@ def _snap_path(emu_id: str, vendor: str, product: str) -> Path:
     return SNAP_DIR / emu_id / f"{vendor.lower()}_{product.lower()}.snap"
 
 
-def snapshot_capture(vendor: str, product: str) -> list[str]:
+def snapshot_exists(emu_id: str, vendor: str, product: str) -> bool:
+    return _snap_path(emu_id, vendor, product).is_file()
+
+
+# A 32-hex SDL GUID wherever it appears — after `guid:` in azahar, after `0_`
+# in Cemu's <uuid>, bare after `device0=` in mgba. GUID_RE's \b does not fire
+# after an underscore, which is a word character.
+_ANY_GUID_RE = re.compile(r"(?<![0-9a-fA-F])([0-9a-fA-F]{32})(?![0-9a-fA-F])")
+
+
+def _block_disagrees(block: str, vendor: str, product: str) -> str | None:
+    """The first GUID in `block` that belongs to another controller, if any.
+
+    Cemu's controller0.xml carries the pad's <uuid> and azahar's profile carries
+    a `guid:` per binding, so a captured block states which controller it is
+    for. Nothing checked that against the pad the user said they had just
+    mapped, and the box ends up with cemu/045e_02fd.snap byte-identical to
+    cemu/054c_09cc.snap — both the DualShock 4's config, because "Scan mapping"
+    was pressed with the Xbox pad connected while the file still held the DS4.
+    Restoring it is a no-op today, but the moment the owner maps the Xbox by
+    hand, the next connection overwrites their work with the DS4's config.
+    """
+    want = (vendor.lower(), product.lower())
+    for guid in _ANY_GUID_RE.findall(block):
+        if vidpid_of(guid) != want:
+            return guid
+    return None
+
+
+def snapshot_capture(vendor: str, product: str) -> tuple[list[str], list[str]]:
     """Save each GUID-emulator's CURRENT input config for this controller — the
-    'Scan mapping' action, after the user has auto-mapped the pad in-emulator."""
-    saved = []
+    'Scan mapping' action, after the user has auto-mapped the pad in-emulator.
+
+    Returns (saved, refused): an emulator whose config plainly describes a
+    different controller is refused rather than saved under this one's name."""
+    saved: list[str] = []
+    refused: list[str] = []
     for emu_id, (pathfn, extract, _r) in _SNAP_EMUS.items():
         path = pathfn()
         if not path.is_file():
@@ -595,11 +679,18 @@ def snapshot_capture(vendor: str, product: str) -> list[str]:
         block = extract(path.read_text())
         if not block.strip():
             continue
+        wrong = _block_disagrees(block, vendor, product)
+        if wrong:
+            log.warning("controller_profiles: %s config describes %s, not %s:%s "
+                        "— refusing to save it as this pad's mapping",
+                        emu_id, wrong, vendor, product)
+            refused.append(emu_id)
+            continue
         snap = _snap_path(emu_id, vendor, product)
         snap.parent.mkdir(parents=True, exist_ok=True)
         _atomic_write(snap, block)
         saved.append(emu_id)
-    return saved
+    return saved, refused
 
 
 def snapshot_restore(emu_id: str, vendor: str, product: str) -> str | None:
@@ -752,7 +843,8 @@ def _melonds(i: int, vendor: str, product: str, name: str) -> str | None:
     the shoulders / start / select / D-pad from the connected pad's live SDL2
     mapping so they land on the right physical inputs for any controller. Face
     buttons (A/B/X/Y = b0-b3) are consistent and left untouched."""
-    if i != 1 or not MELONDS_TOML.is_file():
+    toml = melonds_toml()
+    if i != 1 or not toml.is_file():
         return None
     mapping = _sdl2_live_mapping(vendor, product)
     vals: dict[str, int] = {}
@@ -780,7 +872,7 @@ def _melonds(i: int, vendor: str, product: str, name: str) -> str | None:
                 else {"Up": 11, "Down": 12, "Left": 13, "Right": 14})
         src = "hat fallback"
     out, insec, n = [], False, 0
-    for line in MELONDS_TOML.read_text().splitlines():
+    for line in toml.read_text().splitlines():
         s = line.strip()
         if s.startswith("["):
             insec = (s == "[Instance0.Joystick]")
@@ -791,8 +883,8 @@ def _melonds(i: int, vendor: str, product: str, name: str) -> str | None:
             out.append(line)
     if not n:
         return None
-    backup(MELONDS_TOML)
-    _atomic_write(MELONDS_TOML, "\n".join(out) + "\n")
+    backup(toml)
+    _atomic_write(toml, "\n".join(out) + "\n")
     return f"melonds: {n} keys mapped ({src})"
 
 
@@ -1161,9 +1253,21 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
         ("rpcs3", lambda: _rpcs3(player_index, dup_index, vendor, product, name)),
         ("pcsx2", lambda: _tier0_ini(pcsx2_ini(), "pcsx2", player_index)),
         ("duckstation", lambda: _tier0_ini(DUCK_INI, "duckstation", player_index)),
-        # melonds: a saved mapping wins; else fall back to the live synthesis.
-        ("melonds", lambda: (snapshot_restore("melonds", vendor, product)
-                             or _melonds(player_index, vendor, product, name))),
+        # melonds: single-player like the three above, and a saved mapping
+        # always wins over the live synthesis.
+        #
+        # This used to read `snapshot_restore(...) or _melonds(...)`, and
+        # snapshot_restore returns None for two different reasons: there is no
+        # snapshot, or the snapshot is ALREADY in place. So the fallback ran
+        # every other connection and overwrote the mapping the owner had
+        # captured, which the next connection then restored — one session in
+        # two was wrong. It also lacked the `player_index == 1` guard its three
+        # neighbours have, so plugging in a second pad rewrote melonDS's one
+        # and only player config for the wrong controller.
+        ("melonds", lambda: None if player_index != 1 else (
+            snapshot_restore("melonds", vendor, product)
+            if snapshot_exists("melonds", vendor, product)
+            else _melonds(player_index, vendor, product, name))),
     ]
     skipped: list[str] = []
     for emu, step in steps:
@@ -1245,9 +1349,13 @@ def scan_mapping() -> dict:
                 "error": ("connect exactly one controller (the one you just "
                           f"configured) — found {len(pads)}")}
     vendor, product, evdev = pads[0]
-    saved = snapshot_capture(vendor, product)
+    saved, refused = snapshot_capture(vendor, product)
+    # `refused` is the emulators whose config describes a different pad — the
+    # user mapped one controller and pressed the button holding another, or
+    # never mapped that emulator at all. Saying so beats a green "ok" that
+    # quietly stores the wrong mapping under this pad's name.
     return {"ok": True, "controller": resolve_name(vendor, product, evdev),
-            "saved": saved}
+            "saved": saved, "refused": refused}
 
 
 # ── Manual/rescue entry point (install/apply-controller-model.sh) ──────────

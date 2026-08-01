@@ -56,7 +56,13 @@ export default function PowerModal({ onClose, view: View = DefaultPowerView }: P
       fetch('/api/controllers/scan-mapping', { method: 'POST' })
         .then(r => r.json())
         .then(d => setScanResult(
-          d.ok ? `Saved for ${d.controller}: ${d.saved?.length ? d.saved.join(', ') : 'nothing found'}`
+          d.ok ? [
+            `Saved for ${d.controller}: ${d.saved?.length ? d.saved.join(', ') : 'nothing found'}`,
+            // An emulator whose config names another controller is refused
+            // rather than filed under this pad. Silence there used to let a
+            // DualShock 4 mapping be stored as the Xbox pad's.
+            d.refused?.length ? `— skipped (configured for another pad): ${d.refused.join(', ')}` : '',
+          ].filter(Boolean).join(' ')
                : (d.error || 'scan failed')))
         .catch(() => setScanResult('scan failed'))
         .finally(() => setScanning(false))
