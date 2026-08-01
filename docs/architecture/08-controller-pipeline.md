@@ -1,6 +1,6 @@
 # 8 — Controller pipeline
 
-`backend/services/controller_profiles.py`, 1034 lines. The hardest part of the
+`backend/services/controller_profiles.py`, ~1465 lines. The hardest part of the
 project, and the one most likely to be broken by a well-meaning refactor.
 
 Companion: `docs/CONTROLLER_MODELS.md` for per-emulator format notes.
@@ -33,10 +33,16 @@ different pad.
 | Function | Role |
 |---|---|
 | `vidpid_of(guid)` | `(vendor, product)` — SDL packs them at a fixed offset |
-| `swap_vidpid(guid, vendor, product)` | same GUID, new vendor/product bytes; every other byte (bus type, version) is preserved |
-| `_sdl_guid_vidpid(guid)` | the 32-hex form (vendor LE `[8:12]`, product LE `[16:20]`) |
-| `_ryu_guid_vidpid(dashed_guid)` | Ryujinx's dashed dialect |
-| `_ryu_swap_vidpid(...)` | best-effort GUID for a pad Ryujinx has never bound here |
+| `ryu_guid_vidpid(dashed_guid)` | the same, for Ryujinx's dashed dialect. For **reading** a config, never for deciding what to write |
+| `ryu_guid_from_sdl2(sdl_hex)` | the exact GUID Ryujinx will compute, from the one SDL2 reports — .NET `System.Guid` byte order |
+| `_sdl2_probe(vendor, product)` | what SDL2 itself says about a connected pad: raw GUID **and** GameController mapping, from a subprocess |
+
+> A GUID carries bus type, version and driver signature as well as
+> vendor/product, so two pads with the same vendor:product can have different
+> GUIDs — the same DualShock 4 over USB and over Bluetooth, for instance.
+> Substituting vendor/product bytes into someone else's GUID therefore yields a
+> device that does not exist. Two functions used to do exactly that
+> (`swap_vidpid`, `_ryu_swap_vidpid`); both are gone. Ask SDL.
 
 ## Naming a device
 
@@ -74,14 +80,17 @@ Each returns the block to write for player `i`.
 
 | Function | Emulator | Notes |
 |---|---|---|
-| `_ryujinx(i, dup, vendor, product, name)` | Switch | binds slots by position in `Config.json`'s `input_config` list |
-| `_cemu(i, dup, …)` | Wii U | `controller<idx>.xml` is the *emulated* controller slot |
-| `_dolphin(i, dup, …)` | GC/Wii | retargets **both** of Dolphin's input configs for that player |
-| `_rpcs3(i, dup, …)` | PS3 | names devices `"<name> <k>"`, `k` 1-based per identical model |
+| `_ryujinx(i, dup, vendor, product, name)` | Switch | `input_config` entries keyed by `player_index`; the `id` is `<dup>-<GUID>` and must match a connected device exactly |
+| `_dolphin(i, dup, …)` | GC/Wii | retargets **both** of Dolphin's input configs; `_GCPAD_BODY` / `_WIIMOTE_BODY` are the canonical bodies |
+| `_gcpad_is_real(body)` | GC | is every action binding an SDL role, or is this a config captured next to a keyboard |
+| `_rpcs3(i, dup, …)` | PS3 | names devices `"<name> <k>"`, `k` 1-based per identical model; rebuilds a `Handler: "Null"` slot from a bound one |
 | `_melonds(i, …)` | DS | single-player only; binds **raw SDL2 joystick values** |
-| `_mgba(i, …)` | GBA | |
-| `_tier0_ini(path, label, i)` | generic INI | |
-| `_single_player_guid(path, label, line_prefix, i, …)` | shared helper | for emulators with one GUID line |
+| `_tier0_ini(path, label, i)` | PCSX2 / DuckStation | clones `[Pad1]`'s role bindings onto an SDL index, normalises `Type`, and turns the multitap on for slots 3+ |
+
+azahar, mgba and Cemu have no writer: they go through the snapshot mechanism
+below. GUID-substituting versions of `_mgba()`, `_cemu()` and
+`_single_player_guid()` used to sit here; none was ever called by
+`apply_profile()`, and this page described the box on the strength of them.
 
 Two helpers exist purely because melonDS stores raw joystick numbers:
 
@@ -135,12 +144,20 @@ it inline (`Saved for <pad>: …`).
 
 ## If you touch this file
 
-- **Always `backup()` before writing.** A wrong write costs the user their
-  manual mapping.
+- **Always `backup()` before writing, and write through `_atomic_write()`.**
+  A wrong write costs the user their manual mapping; a truncated one costs them
+  the whole config, and this pipeline runs at backend startup — the moment
+  someone can still cut the power at the wall.
+- **Return a `Skip`, never a bare `None`, when you give up.** `None` means
+  "nothing to do". A give-up that returns `None` is invisible: that is how
+  RPCS3's players 2-4 stayed dead for a week.
 - **Never reformat a config wholesale.** Emulators tolerate their own
   formatting and little else; that is why extract/replace is surgical.
-- **Test with two identical pads.** `dup_index` exists because RPCS3 names
-  devices `"<name> 1"`, `"<name> 2"` — most bugs here are second-controller
-  bugs.
+- **Test with two identical pads, and unplug one.** `dup_index` exists because
+  RPCS3 names devices `"<name> 1"`, `"<name> 2"` — most bugs here are
+  second-controller bugs, and the rest appear when a pad leaves. `_reconcile()`
+  re-profiles the survivors precisely because their `dup` describes the roster.
+- **Run the profiler twice and diff.** Every writer must be a no-op the second
+  time. `_ryujinx` was not, and rewrote 11 KB on every connection.
 - **A pad's D-pad is not a settled question.** Check `_pad_has_hat()` before
   assuming.

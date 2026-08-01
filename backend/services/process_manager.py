@@ -22,9 +22,12 @@ log = logging.getLogger(__name__)
 # built-in database, so any emulator linked against SDL correctly maps a
 # controller it doesn't otherwise recognize — no per-emulator manual
 # configuration needed. (An earlier revision exported SDL_GAMECONTROLLERDB,
-# which is not a variable SDL has ever read — the DB was silently ignored.
-# Flatpak'd emulators still can't read /opt inside their sandbox; harmless,
-# SDL just skips the file.)
+# which is not a variable SDL has ever read — the DB was silently ignored.)
+#
+# The flatpak'd emulators DO read /opt: five carry an explicit
+# `filesystems=/opt/GameCore` override and the rest have `host:ro` in their
+# manifest. A comment here used to claim the opposite, which would send the
+# next maintainer hunting a sandbox problem that does not exist.
 _CONTROLLER_DB = GAMECORE_ROOT / "backend" / "data" / "gamecontrollerdb.txt"
 
 # The pgid of the running game, so a restarted backend can find it again.

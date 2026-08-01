@@ -12,11 +12,17 @@ brand.
 
 Per-emulator mechanics (ground-truthed by reading each emulator's live
 config AND logs on this box, plus the relevant emulator sources):
-  - PCSX2, DuckStation, gopher64 bind by SDL role name with NO device
-    identity at all for slot 1 — already correct forever. Slots 2-4 still
-    need an SDL-index section to exist (create it once, cloned from
-    slot 1's role bindings) — after that, also correct forever regardless
-    of which controller occupies that slot.
+  - PCSX2, DuckStation bind by SDL role name with NO device identity at
+    all — the bindings themselves are correct forever, whatever the pad.
+    Slots 2-4 still need an SDL-index section to exist (created once,
+    cloned from slot 1's role bindings), the `Type` line has to name a
+    pad that actually has sticks, and slots 3+ need the multitap on:
+    PS1 and PS2 have two physical ports, so a third player without it
+    gets a full config section and no input at all.
+    gopher64 is NOT covered, and this docstring used to say it was. Its
+    button profile is device-agnostic, but binding a pad to an N64 port
+    is a separate step nothing here performs — its config sits at
+    `controller_assignment = [null, null, null, null]`.
   - RPCS3, Dolphin bind by SDL role name too, but pick the physical pad by
     a literal device NAME string. Two hard-won facts about that string:
       * Both bundle SDL3, whose HIDAPI drivers name pads differently from
@@ -45,22 +51,38 @@ config AND logs on this box, plus the relevant emulator sources):
   - azahar (3DS), mgba (GBA), Cemu (Wii U): snapshot restore, NOT GUID
     substitution. Their bindings cannot be synthesised from a VID:PID — the
     owner maps the pad once per emulator with "Scan mapping", that config is
-    saved (snapshot_save), and it is put back when the same model reconnects
-    (snapshot_restore). All three are single-player here, so only slot 1 is
-    ever touched whatever player index is passed in. GUID-rewriting versions
-    of the mgba and Cemu profilers used to exist in this file and were never
-    called by apply_profile; they have been removed.
-  - melonDS (DS): single-player, slot 1 only. Face buttons are consistent
-    across pads; only the D-pad differs (hat vs buttons), so just that is
-    adapted to the connected controller (see _melonds / _pad_has_hat).
-  - ppsspp: skipped — no existing binding on this box to clone
-    from (never launched/configured yet).
+    saved (snapshot_capture), and it is put back when the same model
+    reconnects (snapshot_restore). A block whose own GUID names a different
+    controller is refused rather than filed under the connected one. All
+    three are single-player here, so only slot 1 is ever touched whatever
+    player index is passed in. GUID-rewriting versions of the mgba and Cemu
+    profilers used to exist in this file and were never called by
+    apply_profile; they have been removed.
+  - melonDS (DS): single-player, slot 1 only, and a captured snapshot always
+    wins over the synthesis — testing that with `snapshot_restore(...) or
+    _melonds(...)` conflated "no snapshot" with "snapshot already applied",
+    so the synthesis overwrote the owner's mapping every other session.
+    Otherwise the config is derived from the pad: face buttons are consistent
+    across pads, only the D-pad differs (hat vs buttons), so just that is
+    adapted (see _melonds / _pad_has_hat).
+  - ppsspp: deliberately not covered, and that IS the right answer — not
+    "never launched", which this docstring used to claim and which was
+    already false. Its controls.ini binds NKCODE role names under
+    DEVICE_ID_PAD_0 with no device identity, so one shipped file fits
+    every pad. Get it right once in emu-configs/, not per controller.
 
-`dup_index` = how many already-connected pads of the same vendor:product
-occupy a LOWER player slot. It is the value all four per-name/per-GUID
-counters above need (same-model pads are the only ones that can collide
-in either scheme). Callers that know the full roster pass it; it defaults
-to 0, which is always right for the first pad of a given model.
+`dup_index` = how many already-connected pads with the same RESOLVED NAME
+occupy a LOWER player slot. It is the value all the per-name/per-GUID
+counters above need (same-model pads are the only ones that can collide in
+either scheme). It counts by name and not by vendor:product because every
+consumer counts by name, and SDL3_FALLBACK_NAMES alone maps three Sony
+product ids onto "PS4 Controller". Callers that know the full roster pass
+it; it defaults to 0, which is always right for the first pad of a model.
+
+Nothing here decides WHEN to run: gamepad_monitor._reconcile() does, and it
+re-profiles every slot whose (vendor, product, name, dup) footprint moved,
+not just the pad that arrived — those counters describe the roster, so one
+pad leaving invalidates the others.
 """
 from __future__ import annotations
 
@@ -80,7 +102,6 @@ from ..config import GAMECORE_ROOT, SYSTEMS_FILE
 log = logging.getLogger(__name__)
 
 DB_FILE = GAMECORE_ROOT / "backend" / "data" / "gamecontrollerdb.txt"
-GUID_RE = re.compile(r"\b([0-9a-fA-F]{32})\b")
 
 HOME = Path.home()
 RYUJINX_CFG = HOME / ".var/app/io.github.ryubing.Ryujinx/config/Ryujinx/Config.json"
@@ -155,14 +176,6 @@ def vidpid_of(guid: str) -> tuple[str, str]:
     vendor = (guid[10:12] + guid[8:10]).lower()
     product = (guid[18:20] + guid[16:18]).lower()
     return vendor, product
-
-
-def swap_vidpid(guid: str, vendor: str, product: str) -> str:
-    """Same GUID, new vendor/product bytes — every other byte (bus type,
-    driver signature, version) is preserved untouched."""
-    v_le = vendor[2:4] + vendor[0:2]
-    p_le = product[2:4] + product[0:2]
-    return guid[:8] + v_le + guid[12:16] + p_le + guid[20:]
 
 
 def db_name_for(vendor: str, product: str) -> str | None:
@@ -458,34 +471,13 @@ def _ryujinx(i: int, dup: int, vendor: str, product: str, name: str) -> str | No
     return f"ryujinx: Player {i} {action} (dup {dup}, {new_guid})"
 
 
-# ── azahar (3DS) / mgba (GBA) — single-player hardware, slot 1 only ─────────
-
-def _single_player_guid(path: Path, label: str, line_prefix: str,
-                        i: int, vendor: str, product: str, name: str) -> str | None:
-    if i != 1 or not path.is_file():
-        return None
-    t = path.read_text()
-    old_guid = None
-    for line in t.splitlines():
-        if line.startswith(line_prefix):
-            m = GUID_RE.search(line)
-            if m:
-                old_guid = m.group(1)
-                break
-    if not old_guid:
-        return None
-    new_guid = swap_vidpid(old_guid, vendor, product)
-    out, n = [], 0
-    for line in t.splitlines(keepends=True):
-        if line.startswith(line_prefix) and old_guid in line:
-            out.append(line.replace(old_guid, new_guid))
-            n += 1
-        else:
-            out.append(line)
-    if not n:
-        return None
-    backup(path); _atomic_write(path, "".join(out))
-    return f"{label}: Player 1 retargeted ({n} keys)"
+# _single_player_guid() lived here and swapped the vendor/product bytes of a
+# GUID line in place. Nothing called it — apply_profile has always used the
+# snapshot mechanism below for these emulators — and the approach was wrong
+# anyway, for the same reason it was wrong in Ryujinx: a GUID also encodes bus
+# and driver bytes, so a swap yields a device that does not exist. It is gone,
+# along with _sdl_guid_vidpid(), which only it used. Dead code that looks like
+# the mechanism is worse than no code.
 
 
 # ── capture / restore per-controller configs (GUID-based single-player emus) ──
@@ -495,14 +487,6 @@ def _single_player_guid(path: Path, label: str, line_prefix: str,
 # once in the emulator (which writes a correct config), we remember that config
 # PER controller, and swap it back in whenever that pad reconnects.
 SNAP_DIR = HOME / ".local/share/gamecore/controller-snapshots"
-
-
-def _sdl_guid_vidpid(guid: str) -> tuple[str, str] | None:
-    """(vendor, product) from a 32-hex SDL GUID (vendor LE @[8:12], product
-    LE @[16:20])."""
-    if len(guid) != 32:
-        return None
-    return (guid[10:12] + guid[8:10]).lower(), (guid[18:20] + guid[16:18]).lower()
 
 
 # Per-emulator adapters: extract the input-config block from the config text,
@@ -651,8 +635,8 @@ def snapshot_exists(emu_id: str, vendor: str, product: str) -> bool:
 
 
 # A 32-hex SDL GUID wherever it appears — after `guid:` in azahar, after `0_`
-# in Cemu's <uuid>, bare after `device0=` in mgba. GUID_RE's \b does not fire
-# after an underscore, which is a word character.
+# in Cemu's <uuid>, bare after `device0=` in mgba. A \b would not fire after an
+# underscore, which is a word character, so Cemu's `0_0500…` would be missed.
 _ANY_GUID_RE = re.compile(r"(?<![0-9a-fA-F])([0-9a-fA-F]{32})(?![0-9a-fA-F])")
 
 

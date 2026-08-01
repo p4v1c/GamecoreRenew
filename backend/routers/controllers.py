@@ -1,10 +1,20 @@
 """Controller mapping snapshots — the "Scan mapping" action.
 
-The GUID-based emulators (3DS/azahar, DS/melonDS, GBA/mgba, Wii U/Cemu,
-Switch/Ryujinx) bind a pad by a device GUID + raw button indices that can't be
-synthesized reliably. Instead the user configures the pad once in each
-emulator's own input UI, then hits "Scan mapping" — this remembers that config
-per controller so it's restored automatically on every future connect.
+Four emulators (3DS/azahar, DS/melonDS, GBA/mgba, Wii U/Cemu) bind a pad by a
+device GUID plus raw button indices that can't be synthesized reliably. Instead
+the user configures the pad once in each emulator's own input UI, then hits
+"Scan mapping" — this remembers that config per controller so it's restored
+automatically on every future connect.
+
+Ryujinx used to be listed here and never was: it has no snapshot adapter, and
+it does not need one. Its GUID is read live from SDL2 and converted exactly
+(controller_profiles.ryu_guid_from_sdl2), and its bindings are role names that
+carry from one controller to the next.
+
+An emulator whose current config plainly describes a DIFFERENT controller is
+refused rather than filed under the connected one, and comes back in
+`refused` — the box already holds a Cemu snapshot named for an Xbox pad that
+contains a DualShock 4's config, saved when this returned a flat "ok".
 """
 from fastapi import APIRouter
 
