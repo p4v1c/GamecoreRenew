@@ -30,12 +30,14 @@ config AND logs on this box, plus the relevant emulator sources):
         Player 2 — sdl_pad_handler.cpp counts same-named devices), and
         Dolphin's SDL/<k>/<name> uses a 0-based PER-NAME <k> (ciface
         DeviceContainer). Hence `dup_index` below.
-  - Ryujinx binds by a device GUID. DualShock 4 and DualSense share the same
-    kernel driver and report IDENTICAL raw indices (verified live) — only the
-    GUID's vendor/product bytes differ, at a fixed, format-stable hex offset.
-    Retargeting a slot is therefore a pure GUID substitution, and every button
-    assignment the owner already validated stays exactly where it is. The
-    accompanying index is, again, NOT the player slot: the `id` prefix
+  - Ryujinx binds by a device GUID, and it must be the exact one its own
+    SDL2 computes: bus type, version and driver signature are all in there,
+    so the same pad has different GUIDs over USB and over Bluetooth. It is
+    read from SDL2 and converted, never derived from a vendor:product
+    (ryu_guid_from_sdl2 — Ryujinx renders SDL2's 16 raw bytes through .NET's
+    System.Guid, which is a pure byte reordering). Every button assignment
+    the owner validated stays where it is; only the device changes.
+    The accompanying index is, again, NOT the player slot: the `id` prefix
     (`<dup>-<GUID>` in Config.json) counts pads sharing the same GUID — a lone
     DualSense is dup 0 even as Player 2, and a wrong dup binds a device that
     is not there. Ryujinx slots live as objects in the `input_config` list
@@ -313,84 +315,120 @@ def set_section(text: str, header: str, body: str) -> str:
 
 # ── Ryujinx (Switch, up to 8 in principle — we honor players 1-4) ───────────
 
-def _ryu_guid_vidpid(dashed_guid: str) -> tuple[str, str] | None:
-    """(vendor, product) from a Ryujinx dashed SDL GUID. Ryujinx's bundled
-    SDL2 lays out the vendor at [8:12] big-endian and the product at [16:20]
-    little-endian (`00000003-054c-0000-cc09-…` → 054c / 09cc)."""
+def ryu_guid_vidpid(dashed_guid: str) -> tuple[str, str] | None:
+    """(vendor, product) from a Ryujinx dashed SDL GUID — the vendor sits at
+    [8:12] big-endian and the product at [16:20] little-endian
+    (`00000003-054c-0000-cc09-…` → 054c / 09cc).
+
+    Kept for reading a Config.json, never for deciding what to write: two pads
+    can share a vendor:product and still have different GUIDs (a DualShock 4
+    over USB and the same pad over Bluetooth differ in their bus and driver
+    bytes). Treating this as an identity is what broke Ryujinx.
+    """
     g = dashed_guid.replace("-", "")
     if len(g) != 32:
         return None
     return g[8:12].lower(), (g[18:20] + g[16:18]).lower()
 
 
-def _ryu_swap_vidpid(dashed_guid: str, vendor: str, product: str) -> str:
-    """Best-effort GUID for a controller Ryujinx has never bound here: swap the
-    vendor/product into a reference GUID (vendor [8:12] BE, product [16:20] LE).
-    Reliable only within the reference's own brand/family — Ryujinx's SDL2 also
-    encodes bus/version/driver bytes that differ per model, which is why
-    _ryujinx() prefers a GUID Ryujinx has actually written (see there)."""
-    g = dashed_guid.replace("-", "")
-    if len(g) != 32:
-        return dashed_guid
-    g = g[:8] + vendor + g[12:16] + product[2:4] + product[0:2] + g[20:]
-    return f"{g[0:8]}-{g[8:12]}-{g[12:16]}-{g[16:20]}-{g[20:32]}"
+def ryu_guid_from_sdl2(sdl_hex: str) -> str | None:
+    """Ryujinx's dashed GUID from SDL2's raw 32-hex one.
+
+    Ryujinx hands SDL2's 16 GUID bytes straight to .NET's `System.Guid`, whose
+    string form reverses the first three fields and leaves the last eight bytes
+    alone. So the whole thing is a byte reordering, not a lossy summary — which
+    means the exact GUID Ryujinx will compute can be derived from the exact
+    GUID SDL2 reports, with nothing guessed:
+
+        030000004c050000cc09000000006800 -> 00000003-054c-0000-cc09-000000006800
+        050000005e040000fd02000003090000 -> 00000005-045e-0000-fd02-000003090000
+
+    Both of those are byte-for-byte what this box's Config.json holds for its
+    DualShock 4 and its Xbox One pad.
+    """
+    try:
+        b = bytes.fromhex(sdl_hex)
+    except ValueError:
+        return None
+    if len(b) != 16:
+        return None
+    return "-".join((b[0:4][::-1].hex(), b[4:6][::-1].hex(), b[6:8][::-1].hex(),
+                     b[8:10].hex(), b[10:16].hex()))
 
 
 def _ryujinx(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
     """Ryujinx binds each slot in Config.json's `input_config` list by
     `player_index` (`Player1`..`Player8`) and an `id` `"<dup>-<SDL GUID>"`,
-    where <dup> counts pads sharing that GUID (NOT the player number).
+    where <dup> counts pads sharing that GUID (SDL2GamepadDriver.
+    GenerateGamepadId walks `guidIndex` up while the id is taken) — NOT the
+    player number.
 
-    The GUID must be the exact string Ryujinx's bundled SDL2 computes for the
-    device — and that encodes bus/version/driver bytes we can't derive from
-    vendor:product alone (a DS4 is `00000003-054c-…-…6800`, an Xbox pad
-    `00000005-045e-…-…09090000`). So we can't synthesize it blindly across
-    brands. Instead we LEARN: reuse the exact GUID Ryujinx already wrote for a
-    pad of this vendor:product (in any slot — the curated Config.json seeds the
-    box's own pads, and once a user assigns a new pad in Ryujinx it's captured
-    here). Only the first time an unseen brand appears do we fall back to a
-    best-effort swap from Player1's GUID, which may need a one-off manual
-    'Input Device' pick in Ryujinx — after which this learns it."""
+    NpadManager.DriverConfigurationUpdate resolves that id with
+    `_gamepadsIds.IndexOf(id)`. No match means -1, means the slot is disposed,
+    silently — no log, no "already assigned" mark in Input Settings, nothing.
+
+    So the GUID has to be exactly right, and it used to be neither read nor
+    computed. It was copied from another entry that merely shared a
+    vendor:product — which breaks the moment a pad changes transport, because
+    the bus and driver bytes change and only vendor/product were compared — or
+    else fabricated by substituting vendor/product into a reference GUID, which
+    produced strings no device has ever had (a DualShock 4 GUID with Xbox
+    vendor bytes keeps the DS4's bus 0x0003 and HIDAPI signature; the real Xbox
+    pad is bus 0x0005 with a different tail). Worse, the fabricated GUID parsed
+    back to the right vendor:product, so the next pass adopted it as "a GUID
+    Ryujinx wrote" and logged a match. Once wrong, always wrong.
+
+    Nothing needs guessing: ask SDL2 for the pad's actual GUID and convert
+    (ryu_guid_from_sdl2). If SDL2 cannot be reached, say so and change nothing
+    — an invented id is worse than an untouched slot.
+    """
     if not RYUJINX_CFG.is_file():
         return None
     try:
         cfg = json.loads(RYUJINX_CFG.read_text())
-    except (OSError, ValueError):
-        return None
+    except (OSError, ValueError) as e:
+        return Skip(f"ryujinx: Config.json unreadable ({e.__class__.__name__})")
     ic = cfg.get("input_config")
     if not isinstance(ic, list):
-        return None
+        return Skip("ryujinx: Config.json has no input_config list")
+
+    sdl_hex = _sdl2_probe(vendor, product).get("guid", "")
+    new_guid = ryu_guid_from_sdl2(sdl_hex) if sdl_hex else None
+    if not new_guid:
+        return Skip(f"ryujinx: SDL2 would not report a GUID for {vendor}:{product} "
+                    f"— Player {i} left as it was")
+
+    # A pad template to clone from, for a slot that does not exist yet or that
+    # currently belongs to the keyboard. Any gamepad slot will do; the button
+    # map is role-based, so it carries over between controller types.
+    model = next((e for e in ic if e.get("backend") == "GamepadSDL2"), None)
     pi = f"Player{i}"
-    p1 = next((e for e in ic if e.get("player_index") == "Player1"), None)
-    if p1 is None or "-" not in str(p1.get("id", "")):
-        return None
-    # Prefer a GUID Ryujinx has actually written for this vendor:product.
-    known = None
-    for e in ic:
-        eid = str(e.get("id", ""))
-        if "-" in eid and _ryu_guid_vidpid(eid.split("-", 1)[1]) == (vendor.lower(), product.lower()):
-            known = eid.split("-", 1)[1]
-            break
-    if known:
-        new_guid, how = known, "matched"
-    else:
-        new_guid = _ryu_swap_vidpid(str(p1["id"]).split("-", 1)[1], vendor, product)
-        how = "best-effort"
     slot = next((e for e in ic if e.get("player_index") == pi), None)
-    if slot is not None:
-        slot["id"] = f"{dup}-{new_guid}"
-        slot["name"] = f"{name} ({dup})"
+    new_id = f"{dup}-{new_guid}"
+
+    if slot is not None and slot.get("backend") == "GamepadSDL2":
+        if slot.get("id") == new_id and slot.get("name") == f"{name} ({dup})":
+            return None                     # already correct — do not rewrite 11 KB
+        slot["id"], slot["name"] = new_id, f"{name} ({dup})"
         action = "retargeted"
-    else:                                              # clone Player1 into slot i
-        clone = json.loads(json.dumps(p1))
+    else:
+        # An existing non-gamepad slot used to have its id mutated in place,
+        # which left a keyboard config claiming to be an SDL device: the pad
+        # did not work and neither did the keyboard.
+        if model is None:
+            return Skip(f"ryujinx: no gamepad slot to clone from — Player {i} left as it was")
+        clone = json.loads(json.dumps(model))
         clone["player_index"] = pi
-        clone["id"] = f"{dup}-{new_guid}"
-        clone["name"] = f"{name} ({dup})"
-        ic.append(clone)
-        action = "created"
+        clone["id"], clone["name"] = new_id, f"{name} ({dup})"
+        if slot is not None:
+            ic[ic.index(slot)] = clone
+            action = "replaced (was a keyboard slot)"
+        else:
+            ic.append(clone)
+            action = "created"
     backup(RYUJINX_CFG)
     _atomic_write(RYUJINX_CFG, json.dumps(cfg, indent=2) + "\n")
-    return f"ryujinx: Player {i} {action} ({how} GUID, dup {dup})"
+    return f"ryujinx: Player {i} {action} (dup {dup}, {new_guid})"
 
 
 # ── azahar (3DS) / mgba (GBA) — single-player hardware, slot 1 only ─────────
@@ -604,39 +642,73 @@ def _pad_has_hat(vendor: str, product: str) -> bool | None:
     return None
 
 
-def _sdl2_live_mapping(vendor: str, product: str) -> dict[str, str] | None:
-    """Live SDL2 GameController mapping (SDL name → raw token like 'b6'/'h0.1')
-    for the connected vendor:product. Run in a SUBPROCESS: melonDS binds by raw
-    SDL2 joystick index, but those indices differ per controller AND per driver
-    version — the vendored gamecontrollerdb even ships conflicting Linux entries
-    for one pad (an Xbox is b4/b5 or b6/b7). The only reliable source is the
-    exact SDL2 the emulator uses; the backend itself loads SDL3, so we shell out
-    to read SDL2's own numbering. None on any failure."""
-    script = (
-        "import ctypes,os,sys\n"
-        "os.environ['SDL_VIDEODRIVER']='dummy'\n"
-        "v=int(sys.argv[1],16);p=int(sys.argv[2],16)\n"
-        "try: s=ctypes.CDLL('libSDL2-2.0.so.0')\n"
-        "except OSError: sys.exit(0)\n"
-        "s.SDL_GameControllerMappingForDeviceIndex.restype=ctypes.c_char_p\n"
-        "s.SDL_GameControllerMappingForDeviceIndex.argtypes=[ctypes.c_int]\n"
-        "s.SDL_JoystickGetDeviceVendor.restype=ctypes.c_uint16\n"
-        "s.SDL_JoystickGetDeviceProduct.restype=ctypes.c_uint16\n"
-        "s.SDL_JoystickGetDeviceVendor.argtypes=[ctypes.c_int]\n"
-        "s.SDL_JoystickGetDeviceProduct.argtypes=[ctypes.c_int]\n"
-        "if s.SDL_Init(0x2000)!=0: sys.exit(0)\n"
-        "for i in range(s.SDL_NumJoysticks()):\n"
-        " if s.SDL_JoystickGetDeviceVendor(i)==v and s.SDL_JoystickGetDeviceProduct(i)==p:\n"
-        "  m=s.SDL_GameControllerMappingForDeviceIndex(i)\n"
-        "  print(m.decode()) if m else None; break\n"
-        "s.SDL_Quit()\n"
-    )
+_SDL2_PROBE = (
+    "import ctypes,os,sys\n"
+    "os.environ['SDL_VIDEODRIVER']='dummy'\n"
+    "v=int(sys.argv[1],16);p=int(sys.argv[2],16)\n"
+    "try: s=ctypes.CDLL('libSDL2-2.0.so.0')\n"
+    "except OSError: sys.exit(0)\n"
+    "class G(ctypes.Structure): _fields_=[('data',ctypes.c_uint8*16)]\n"
+    "s.SDL_GameControllerMappingForDeviceIndex.restype=ctypes.c_char_p\n"
+    "s.SDL_GameControllerMappingForDeviceIndex.argtypes=[ctypes.c_int]\n"
+    "s.SDL_JoystickGetDeviceGUID.restype=G\n"
+    "s.SDL_JoystickGetDeviceGUID.argtypes=[ctypes.c_int]\n"
+    "s.SDL_JoystickGetDeviceVendor.restype=ctypes.c_uint16\n"
+    "s.SDL_JoystickGetDeviceProduct.restype=ctypes.c_uint16\n"
+    "s.SDL_JoystickGetDeviceVendor.argtypes=[ctypes.c_int]\n"
+    "s.SDL_JoystickGetDeviceProduct.argtypes=[ctypes.c_int]\n"
+    "if s.SDL_Init(0x2000)!=0: sys.exit(0)\n"
+    "for i in range(s.SDL_NumJoysticks()):\n"
+    " if s.SDL_JoystickGetDeviceVendor(i)==v and s.SDL_JoystickGetDeviceProduct(i)==p:\n"
+    "  print('GUID '+bytes(s.SDL_JoystickGetDeviceGUID(i).data).hex())\n"
+    "  m=s.SDL_GameControllerMappingForDeviceIndex(i)\n"
+    "  print('MAP '+m.decode()) if m else None\n"
+    "  break\n"
+    "s.SDL_Quit()\n"
+)
+
+_sdl2_cache: dict[tuple[str, str], tuple[float, dict[str, str]]] = {}
+
+
+def _sdl2_probe(vendor: str, product: str) -> dict[str, str]:
+    """What SDL2 itself says about a connected pad: its raw 32-hex GUID and its
+    GameController mapping string. `{}` when SDL2 cannot be asked.
+
+    Run in a SUBPROCESS because the backend has already loaded SDL3 into its
+    own address space, and because these two answers must come from the same
+    SDL2 the emulators use — melonDS binds raw joystick indices that differ per
+    driver version, and Ryujinx's GUID carries bus and driver bytes that exist
+    nowhere else. Cached briefly: two pads taking slots in the same scan pass
+    would otherwise each pay the subprocess, and its timeout is 8 seconds.
+    """
+    key = (vendor.lower(), product.lower())
+    ts, cached = _sdl2_cache.get(key, (0.0, {}))
+    if cached and time.monotonic() - ts <= 5.0:
+        return cached
     try:
-        r = subprocess.run([sys.executable, "-c", script, vendor, product],
+        r = subprocess.run([sys.executable, "-c", _SDL2_PROBE, vendor, product],
                            capture_output=True, text=True, timeout=8)
     except (OSError, subprocess.SubprocessError):
-        return None
-    line = r.stdout.strip()
+        log.warning("controller_profiles: SDL2 probe failed for %s:%s", vendor, product)
+        return {}
+    out: dict[str, str] = {}
+    for line in r.stdout.splitlines():
+        tag, _, value = line.partition(" ")
+        if tag in ("GUID", "MAP") and value:
+            out[tag.lower()] = value.strip()
+    if out:
+        _sdl2_cache[key] = (time.monotonic(), out)
+    return out
+
+
+def _sdl2_live_mapping(vendor: str, product: str) -> dict[str, str] | None:
+    """Live SDL2 GameController mapping (SDL name → raw token like 'b6'/'h0.1')
+    for the connected vendor:product. melonDS binds by raw SDL2 joystick index,
+    and those indices differ per controller AND per driver version — the
+    vendored gamecontrollerdb even ships conflicting Linux entries for one pad
+    (an Xbox is b4/b5 or b6/b7). The only reliable source is the exact SDL2 the
+    emulator uses. None on any failure."""
+    line = _sdl2_probe(vendor, product).get("map", "")
     if "," not in line:
         return None
     out = {k: v for tok in line.split(",")[2:]
