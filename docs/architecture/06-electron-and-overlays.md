@@ -3,6 +3,24 @@
 `electron/` is 447 lines total: `main.js` (390), `preload.js` (23),
 `start-ui.sh`. It owns three windows and one subprocess.
 
+
+## The bezel must outrank the emulator
+
+`alwaysOnTop: true` on its own is Electron's "floating" level, and KWin puts a
+window that asked for `_NET_WM_STATE_FULLSCREEN` above it — which is every
+emulator launched with `-f`. The bezel then draws *under* the game and only
+shows where the emulator happens not to paint.
+
+Measured with Rosalie's Mupen GUI: two 1920x1080 RMG windows on top, and the
+bezel visible only in the two vertical strips RMG left untouched — black
+everywhere else, which reads as "the overlay is the wrong size" and is not.
+
+`overlayWindow.setAlwaysOnTop(true, 'screen-saver')` is the fix. The same
+window still must not use `fullscreen: true` itself, for the reason already
+noted above it: a fullscreen window lands in a compositor layer that breaks
+per-pixel transparency. Explicit geometry plus the top level gives both.
+
+
 ## Chromium switches, set before anything
 
 ```js

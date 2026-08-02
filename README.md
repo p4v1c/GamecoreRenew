@@ -385,10 +385,17 @@ magick your_image.png \
 | GameCube / Wii (`dolphin`) | 4:3 | `1440x1080` at `+240+0` | 240px each side |
 | PlayStation 1 (`duckstation`) | 4:3 minus PS1 overscan | `1440x968` at `+240+52` | 240px sides, 52px top, 60px bottom |
 | PlayStation 2 (`pcsx2`) | 4:3 | `1440x1080` at `+240+0` | 240px each side |
-| Nintendo 64 (`gopher64`) | 4:3 | `1440x1080` at `+240+0` | 240px each side |
+| Nintendo 64 (`gopher64`, Rosalie's Mupen GUI) | measured, not 4:3 | `1407x888` at `+258+90` | 258px sides, 90px top, 102px bottom |
 | Game Boy Advance (`mgba`) | 3:2 (240×160) | `1620x1080` at `+150+0` | 150px each side |
 | Nintendo DS (`melonds`) | 2:3 vertical (2 stacked screens) | `720x1080` at `+600+0` | 600px each side |
 | Nintendo 3DS (`azahar`) | Stacked (Top 5:3, Bot 4:3) | Two holes (see below) | Variable |
+
+> **Nintendo 64 does not follow the 4:3 rule.** Rosalie's Mupen GUI draws
+> 1407x888 at +258+90 on a 1080p screen — measured with `spectacle`, not
+> derived. Its window is 1920x1080 and it paints black around that picture, so
+> the bezel has to open exactly on the picture, not on a 4:3 rectangle.
+> When in doubt for any emulator, measure rather than assume: launch the game
+> with no overlay, screenshot, and find the non-black bounding box.
 
 > **16:9 systems** (PS3, PS4, PSP, Wii U, Switch, Xbox 360) fill the entire screen — no black bars, no overlay needed.
 > Keep `config/overlays.json` `hole` values in sync with the PNG — the JSON hole is the fallback frame used when the PNG is missing.

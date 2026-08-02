@@ -92,10 +92,10 @@
         },
         "overlay_asset": "assets/overlays/gopher64.png",
         "hole": {
-            "x": 240,
-            "y": 0,
-            "w": 1440,
-            "h": 1080
+            "x": 258,
+            "y": 90,
+            "w": 1407,
+            "h": 888
         },
         "watch_timeout_s": 45
     },

@@ -112,6 +112,13 @@ function createOverlayWindow() {
   })
 
   overlayWindow.setIgnoreMouseEvents(true)
+  // `alwaysOnTop: true` alone is the "floating" level, and KWin puts a window
+  // that asked for _NET_WM_STATE_FULLSCREEN — which is what every emulator
+  // launched with -f does — in a layer above it. The bezel then draws *under*
+  // the emulator and only shows where the emulator happens not to paint.
+  // Measured with Rosalie's Mupen GUI: two 1920x1080 RMG windows on top, the
+  // bezel visible only in the two vertical strips RMG leaves untouched.
+  overlayWindow.setAlwaysOnTop(true, 'screen-saver')
 
   // Open DevTools for the overlay window so we can inspect its DOM
   if (DEBUG) overlayWindow.webContents.openDevTools({ mode: 'detach' })
