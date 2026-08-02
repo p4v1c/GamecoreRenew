@@ -24,6 +24,17 @@ log = logging.getLogger(__name__)
 #   KEY_HOMEPAGE = 172        — some older or generic HID mappings
 GUIDE_CODES = frozenset({0x13C, 172})
 
+# How many scan passes a pad gets to be profiled completely before the monitor
+# stops trying. A pass that leaves an emulator unconfigured is retried on the
+# next scan (3 s apart) rather than remembered as done.
+#
+# Bounded, because some give-ups are permanent — an emulator with no gamepad
+# slot to clone from will never succeed — and each retry pays for SDL probes
+# with an 8 s timeout apiece. Five passes is ~15 s, which covers the case this
+# exists for: SDL not yet seeing a Bluetooth pad that has just connected. A
+# DualShock 4's Ryujinx slot was lost exactly that way, and never recreated.
+PROFILE_RETRIES = 5
+
 # BTN_SOUTH (A/Cross) — declared by every real gamepad, by no keyboard/remote.
 # Used to decide which guide-capable devices deserve a player slot.
 BTN_SOUTH = 0x130
@@ -231,7 +242,7 @@ def dup_indexes(roster: dict[str, tuple[int, str]]) -> dict[str, int]:
 
 async def _reconcile(was: dict[str, tuple[str, str, str]],
                      live: dict[str, tuple[str, str, str]],
-                     applied: dict[str, tuple[str, str, str, int]],
+                     applied: dict[str, tuple[tuple[str, str, str, int] | None, int]],
                      first_scan: bool, ws) -> None:
     """Bring every player slot in line with the pads that are actually here.
 
@@ -277,9 +288,17 @@ async def _reconcile(was: dict[str, tuple[str, str, str]],
     for key, dup in dup_indexes(roster).items():
         vendor, product, evdev_name = live[key]
         player, name = roster[key]
-        if applied.get(key) == (vendor, product, name, dup):
+        footprint = (vendor, product, name, dup)
+        prev, retries = applied.get(key, (None, 0))
+        # Settled: this exact footprint was configured cleanly, or it failed
+        # often enough that retrying is just burning SDL probes every 3 s.
+        if prev == footprint and retries <= 0:
             continue
-        applied[key] = (vendor, product, name, dup)
+        if prev != footprint:
+            retries = PROFILE_RETRIES   # new pad, or it moved slot — full budget
+        # Claimed before the attempt so a raise cannot loop forever, but with
+        # one retry spent rather than the whole thing marked done.
+        applied[key] = (footprint, retries - 1)
         try:
             results = await asyncio.to_thread(
                 controller_profiles.apply_profile, player, vendor, product, evdev_name, dup)
@@ -290,6 +309,15 @@ async def _reconcile(was: dict[str, tuple[str, str, str]],
             log.info("gamepad_monitor: player %d profiled (%s, %s:%s, dup %d) — %s",
                      player, name, vendor, product, dup,
                      "; ".join(results) if results else "no emulator configured")
+            if getattr(results, "complete", True):
+                applied[key] = (footprint, 0)          # done, stop asking
+            elif retries - 1 <= 0:
+                # Out of budget. Say so once, here, rather than leaving the
+                # owner to notice months later that one emulator never got a
+                # slot — apply_profile has already logged which ones and why.
+                log.warning("gamepad_monitor: player %d (%s) still incomplete after "
+                            "%d attempts — giving up until it reconnects",
+                            player, name, PROFILE_RETRIES)
         except Exception:
             log.exception("gamepad_monitor: controller_profiles failed for player %d", player)
 
@@ -331,9 +359,11 @@ async def run() -> None:
 
     watched: dict[str, asyncio.Task] = {}
     # registry key → the (vendor, product, resolved name, dup) an emulator
-    # config was last written for. A slot is re-profiled when its footprint
-    # changes, which is what makes the roster self-correcting.
-    applied: dict[str, tuple[str, str, str, int]] = {}
+    # config was last written for, and how many attempts that footprint has
+    # left. A slot is re-profiled when its footprint changes, which is what
+    # makes the roster self-correcting — and now also when the last pass left
+    # an emulator unconfigured, until the budget runs out.
+    applied: dict[str, tuple[tuple[str, str, str, int] | None, int]] = {}
     live: dict[str, tuple[str, str, str]] = {}
     # Pads already plugged in when the backend starts get their slots
     # silently — a console doesn't toast for pads that were always there.
@@ -352,7 +382,10 @@ async def run() -> None:
             del watched[path]      # gone, or errored: re-watched next pass if still there
 
         was, live = live, pads_by_key(devices)
-        if was != live:
+        # `was != live` alone would never give a failed pass its retry: nothing
+        # about the pad changes when SDL merely has not caught up with it yet.
+        pending = any(retries > 0 for _, retries in applied.values())
+        if was != live or pending:
             await _reconcile(was, live, applied, first_scan, ws)
         first_scan = False
         await asyncio.sleep(3)

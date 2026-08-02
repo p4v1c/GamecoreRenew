@@ -352,3 +352,94 @@ if __name__ == "__main__":
         fn()
         print(f"[OK ] {fn.__name__}")
     print("\nAll tests passed.")
+
+
+# ── a failed profiling pass must be retried ──────────────────────────────────
+# apply_profile logged its give-ups and returned only the successes, so the
+# monitor could not tell a transient failure from a clean pass — and it marked
+# the pad done *before* the attempt. A DualShock 4's Ryujinx slot went missing
+# for good that way: SDL had not yet caught up with a fresh Bluetooth
+# connection, _ryujinx refused to invent an id, and the pad was never revisited.
+
+def _one_pad():
+    return {**_node("/dev/input/event20", "aa:bb:cc:dd:ee:ff")}
+
+
+def _run_reconcile(applied, live, ws):
+    asyncio.run(gm._reconcile({}, live, applied, False, ws))
+
+
+def test_an_incomplete_pass_is_retried(monkeypatch):
+    reg._slots.clear(); reg._labels.clear()
+    monkeypatch.setattr(cp, "resolve_name", lambda v, p, n: "PS4 Controller")
+    attempts = []
+
+    def flaky(pl, v, p, n, d):
+        attempts.append(pl)
+        # Fails while SDL has not caught up, then succeeds — the real case.
+        if len(attempts) < 3:
+            return cp.ProfileResult([], ["ryujinx: SDL2 would not report a GUID"])
+        return cp.ProfileResult(["ryujinx: Player 1 created"])
+
+    monkeypatch.setattr(cp, "apply_profile", flaky)
+    live = gm.pads_by_key(_one_pad())
+    applied: dict = {}
+    for _ in range(5):
+        _run_reconcile(applied, live, _FakeWS())
+
+    assert len(attempts) == 3, "a give-up was remembered as a success"
+    # Settled once it worked: no further attempts, however many scans go by.
+    _run_reconcile(applied, live, _FakeWS())
+    assert len(attempts) == 3
+
+
+def test_a_clean_pass_is_not_repeated(monkeypatch):
+    """The whole point of `applied` — one write per pad, not one every 3 s."""
+    reg._slots.clear(); reg._labels.clear()
+    monkeypatch.setattr(cp, "resolve_name", lambda v, p, n: "PS4 Controller")
+    attempts = []
+    monkeypatch.setattr(cp, "apply_profile",
+                        lambda pl, v, p, n, d: attempts.append(pl) or cp.ProfileResult(["ok"]))
+    live = gm.pads_by_key(_one_pad())
+    applied: dict = {}
+    for _ in range(4):
+        _run_reconcile(applied, live, _FakeWS())
+    assert len(attempts) == 1
+
+
+def test_retrying_stops_instead_of_spinning_forever(monkeypatch):
+    """Some give-ups are permanent, and each retry pays for SDL probes with an
+    8 s timeout. The budget has to run out."""
+    reg._slots.clear(); reg._labels.clear()
+    monkeypatch.setattr(cp, "resolve_name", lambda v, p, n: "PS4 Controller")
+    attempts = []
+    monkeypatch.setattr(cp, "apply_profile",
+                        lambda pl, v, p, n, d: attempts.append(pl) or
+                        cp.ProfileResult([], ["rpcs3: nothing to clone from"]))
+    live = gm.pads_by_key(_one_pad())
+    applied: dict = {}
+    for _ in range(20):
+        _run_reconcile(applied, live, _FakeWS())
+    assert len(attempts) == gm.PROFILE_RETRIES
+
+
+def test_a_reconnection_gives_a_fresh_budget(monkeypatch):
+    """Unplugging and replugging is what an owner does when something is wrong;
+    it must actually mean something."""
+    reg._slots.clear(); reg._labels.clear()
+    monkeypatch.setattr(cp, "resolve_name", lambda v, p, n: "PS4 Controller")
+    attempts = []
+    monkeypatch.setattr(cp, "apply_profile",
+                        lambda pl, v, p, n, d: attempts.append(pl) or
+                        cp.ProfileResult([], ["ryujinx: no GUID"]))
+    live = gm.pads_by_key(_one_pad())
+    applied: dict = {}
+    for _ in range(10):
+        _run_reconcile(applied, live, _FakeWS())
+    assert len(attempts) == gm.PROFILE_RETRIES
+
+    applied.clear()          # what a disconnect/reconnect amounts to
+    reg._slots.clear(); reg._labels.clear()
+    for _ in range(10):
+        _run_reconcile(applied, live, _FakeWS())
+    assert len(attempts) == gm.PROFILE_RETRIES * 2

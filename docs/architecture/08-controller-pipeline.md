@@ -150,6 +150,33 @@ Two helpers exist purely because melonDS stores raw joystick numbers:
   evdev hat (`ABS_HAT0*`) or as buttons. **DualShock 4 reports buttons where
   SDL claims a hat**, which is exactly the bug `fix/melonds-ds4-dpad` fixed.
 
+## A failed pass is not a finished pass
+
+`apply_profile` returns a `ProfileResult` — a `list` of what was written, plus
+`.complete`, false when any emulator gave up. Every caller still treats it as
+the list; only the monitor reads the extra bit.
+
+`gamepad_monitor._reconcile` used to mark a pad done *before* attempting it:
+
+```python
+applied[key] = (vendor, product, name, dup)   # then apply_profile(...)
+```
+
+so a give-up was remembered exactly like a success and the pad was never
+revisited. Measured: a DualShock 4 and an Xbox pad were plugged in together;
+Dolphin, RPCS3, PCSX2 and DuckStation got both players, and Ryujinx got no
+Player 2 at all. Replaying the same call afterwards created the slot correctly,
+so the failure had been transient — SDL had not yet caught up with a Bluetooth
+pad that had just connected, and `_ryujinx` rightly refused to invent an id.
+
+Now the footprint carries a retry budget (`PROFILE_RETRIES`, 5 passes ≈ 15 s):
+an incomplete pass is retried on the next scan, a clean one settles
+immediately, and a reconnection restores a full budget. Bounded on purpose —
+some give-ups are permanent (an emulator with no gamepad slot to clone from
+will never succeed) and each retry pays for SDL probes with an 8 s timeout
+apiece. `run()` also had to stop gating `_reconcile` on `was != live`: nothing
+about the pad changes while SDL is simply behind.
+
 ## The two entry points
 
 ### Automatic — on connect/disconnect

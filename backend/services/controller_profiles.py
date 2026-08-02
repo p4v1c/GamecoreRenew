@@ -1379,8 +1379,32 @@ def _tier0_ini(path: Path, label: str, i: int) -> str | None:
 
 # ── Entry point, called by gamepad_monitor.py on every new slot ────────────
 
+class ProfileResult(list):
+    """What a profiling pass wrote, plus whether any step gave up.
+
+    A `list` subclass because every caller — the toast, the log line, the tests
+    — already treats the return value as the list of messages, and only the
+    monitor needs the extra bit.
+
+    That bit matters: a pass that skipped an emulator is not finished, and the
+    monitor used to have no way to tell. `apply_profile` logged the give-ups
+    and returned the successes, so a transient failure looked exactly like a
+    clean pass — which is how a DualShock 4's Ryujinx slot went missing for
+    good after SDL simply had not caught up with a fresh Bluetooth connection.
+    """
+
+    def __init__(self, results=(), skipped=()):
+        super().__init__(results)
+        self.skipped: list[str] = list(skipped)
+
+    @property
+    def complete(self) -> bool:
+        """True when every emulator was either configured or had nothing to do."""
+        return not self.skipped
+
+
 def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
-                  dup_index: int = 0) -> list[str]:
+                  dup_index: int = 0) -> ProfileResult:
     """Write/retarget every emulator's native config for `player_index` to
     the controller identified by `vendor`:`product`. `dup_index` = how many
     same-model pads sit in lower player slots (see module docstring) — it
@@ -1398,7 +1422,9 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
         # without a word anywhere.
         log.warning("controller_profiles: player %d is outside the 1-4 slots this "
                     "box profiles — %s:%s left unconfigured", player_index, vendor, product)
-        return []
+        # Not a Skip: the slot cap is a decision, not a failure, and retrying
+        # a 5th pad every three seconds would never produce anything.
+        return ProfileResult()
     name = resolve_name(vendor, product, evdev_name)
     results: list[str] = []
     steps = [
@@ -1448,7 +1474,7 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
     if skipped:
         log.warning("controller_profiles: player %d (%s:%s) — not configured: %s",
                     player_index, vendor, product, "; ".join(skipped))
-    return results
+    return ProfileResult(results, skipped)
 
 
 def release_profile(player_index: int) -> list[str]:
