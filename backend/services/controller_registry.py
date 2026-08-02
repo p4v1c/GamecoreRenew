@@ -87,3 +87,30 @@ def snapshot() -> list[dict]:
         {"player": player, "label": _labels.get(key, "")}
         for key, player in sorted(_slots.items(), key=lambda kv: kv[1])
     ]
+
+
+def compact() -> dict[str, tuple[int, int]]:
+    """Renumber the occupied slots to 1..N, preserving their order.
+
+    Returns `key → (old, new)` for the pads that moved; empty when there was
+    nothing to close up.
+
+    Slots are handed out lowest-free-first and never given back while a pad
+    stays connected — deliberately, so nobody changes player number mid-game.
+    The cost is a gap: unplug player 1 during a two-player session and the pad
+    that remains keeps slot 2 for good. Observed on the reference box with a
+    single DualShock 4 left holding Player 2, and Ryujinx therefore presenting
+    no Player 1 at all to a Switch game that wanted one.
+
+    Deciding WHEN to call this is the caller's job, and it is the whole
+    difficulty: closing the gap while a game runs would swap who player 1 is,
+    mid-session. `_reconcile` only calls it with no game running.
+    """
+    moved: dict[str, tuple[int, int]] = {}
+    for new, (key, old) in enumerate(sorted(_slots.items(), key=lambda kv: kv[1]), 1):
+        if old != new:
+            _slots[key] = new
+            moved[key] = (old, new)
+            log.info("controller_registry: player %d → %d (%s)", old, new,
+                     _labels.get(key, "?"))
+    return moved

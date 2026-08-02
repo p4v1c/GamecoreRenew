@@ -150,6 +150,36 @@ Two helpers exist purely because melonDS stores raw joystick numbers:
   evdev hat (`ABS_HAT0*`) or as buttons. **DualShock 4 reports buttons where
   SDL claims a hat**, which is exactly the bug `fix/melonds-ds4-dpad` fixed.
 
+## What a pad is, for profiling purposes
+
+The footprint that decides whether a slot needs rewriting is
+`(player, vendor, product, resolved name, dup, bustype)`. Two of those were
+added after they were found missing:
+
+- **`player`** — a pad that moves slot rewrites different sections. Without it,
+  a slot change was invisible.
+- **`bustype`** — an SDL GUID encodes the bus (`0x03` USB, `0x05` Bluetooth),
+  and Ryujinx binds by that GUID. The MAC, vendor and product are all identical
+  across a transport change, so moving a pad from Bluetooth to a cable left
+  every GUID-bound emulator pointing at a device that no longer exists,
+  silently. Note the same Xbox pad is `0x05…` over Bluetooth and `0x03…` over
+  USB, while a DualShock 4 reads `0x03…` either way because HIDAPI drives it.
+
+## Slots close up between games
+
+`controller_registry.compact()` renumbers the occupied slots to 1..N,
+preserving order, and returns what moved. Slots are handed out
+lowest-free-first and never taken back from a connected pad — deliberately, so
+nobody changes player number mid-game — but that leaves a gap: unplug player 1
+during co-op and the survivor keeps slot 2 for the rest of the session.
+Observed with a lone DualShock 4 on Player 2, and Ryujinx therefore presenting
+no Player 1 at all to a Switch game that wanted one.
+
+`_reconcile` calls it **only when no game is running**, which is the whole
+difficulty of the feature: closing the gap mid-session would silently turn
+player 2 into player 1. The pads that move are re-profiled on their own, since
+the player number is part of the footprint.
+
 ## A failed pass is not a finished pass
 
 `apply_profile` returns a `ProfileResult` — a `list` of what was written, plus

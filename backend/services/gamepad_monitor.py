@@ -125,12 +125,20 @@ async def _on_guide_pressed() -> None:
         log.exception("gamepad_monitor: error broadcasting gp:guide")
 
 
-def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str]]:
+def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str, int]]:
     """
     Map path → (name, uniq, is_pad, vendor, product) for event devices that
     declare the guide button. Scans /dev/input/event* directly instead of
     relying on evdev.list_devices(), which reads /proc/bus/input/devices and
     may be inaccessible without input group.
+
+    `bustype` is the transport (0x03 USB, 0x05 Bluetooth). It is part of what
+    a config is written FOR, not just how the pad is reached: an SDL GUID
+    encodes the bus, so the same Xbox pad is 0x05... over Bluetooth and
+    0x03... over USB, and Ryujinx binds by that GUID. Without it in the
+    footprint, moving a pad from Bluetooth to a cable left every GUID-bound
+    emulator pointing at a device that no longer exists — silently, because
+    the MAC, the vendor and the product are all unchanged.
 
     `uniq` is the pad's MAC address — the controller registry keys on it, and
     battery.py joins sysfs power supplies back to a player slot through it.
@@ -154,7 +162,7 @@ def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str]]:
     except Exception:
         pass
 
-    found: dict[str, tuple[str, str, bool, str, str]] = {}
+    found: dict[str, tuple[str, str, bool, str, str, int]] = {}
     for path in sorted(candidate_paths):
         try:
             dev = evdev.InputDevice(path)
@@ -163,6 +171,7 @@ def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str]]:
             name, uniq = dev.name, (dev.uniq or "")
             info = dev.info
             vendor, product = f"{info.vendor:04x}", f"{info.product:04x}"
+            bustype = getattr(info, "bustype", 0)
             dev.close()
             has_guide = any(code in GUIDE_CODES for code in keys)
             is_pad = BTN_SOUTH in keys
@@ -180,7 +189,7 @@ def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str]]:
             # A keyboard cannot arrive this way: is_pad is BTN_SOUTH, which no
             # keyboard declares, so the anti-keyboard rule below is unchanged.
             if has_guide or is_pad:
-                found[path] = (name, uniq, is_pad, vendor, product)
+                found[path] = (name, uniq, is_pad, vendor, product, bustype)
                 if is_pad and not has_guide and path not in _logged_no_guide:
                     _logged_no_guide.add(path)
                     log.info("gamepad_monitor: %s (%s) has no Guide button — taking a "
@@ -202,10 +211,10 @@ def _event_sort_key(path: str) -> tuple[str, int]:
     return head, int(tail) if tail else -1
 
 
-def pads_by_key(devices: dict[str, tuple[str, str, bool, str, str]]
-                ) -> dict[str, tuple[str, str, str]]:
-    """registry key → (vendor, product, evdev name), one entry per PHYSICAL
-    controller.
+def pads_by_key(devices: dict[str, tuple[str, str, bool, str, str, int]]
+                ) -> dict[str, tuple[str, str, str, int]]:
+    """registry key → (vendor, product, evdev name, bustype), one entry per
+    PHYSICAL controller.
 
     A pad owns several event nodes (a DualShock 4 adds a touchpad and a motion
     node) and key_for() collapses them onto its MAC, so the same controller
@@ -214,13 +223,13 @@ def pads_by_key(devices: dict[str, tuple[str, str, bool, str, str]]
     them in, and a slot handed out then used to be held for ever by a pad we
     refused to profile, because `known` blocked every later attempt.
     """
-    out: dict[str, tuple[str, str, str]] = {}
+    out: dict[str, tuple[str, str, str, int]] = {}
     for path in sorted(devices, key=_event_sort_key):
-        name, uniq, is_pad, vendor, product = devices[path]
+        name, uniq, is_pad, vendor, product, bustype = devices[path]
         if not is_pad or vendor == "0000" or product == "0000":
             continue
         key = controller_registry.key_for(uniq, path)
-        out.setdefault(key, (vendor, product, name))
+        out.setdefault(key, (vendor, product, name, bustype))
     return out
 
 
@@ -240,8 +249,18 @@ def dup_indexes(roster: dict[str, tuple[int, str]]) -> dict[str, int]:
             for key, (slot, name) in roster.items()}
 
 
-async def _reconcile(was: dict[str, tuple[str, str, str]],
-                     live: dict[str, tuple[str, str, str]],
+
+def _game_running() -> bool:
+    """True while an emulator is up. Imported late: process_manager pulls in the
+    database and the websocket layer, and this module is imported at startup."""
+    try:
+        from . import process_manager
+        return process_manager.process_manager.is_running
+    except Exception:      # never let a bookkeeping question break reconciliation
+        return False
+
+async def _reconcile(was: dict[str, tuple[str, str, str, int]],
+                     live: dict[str, tuple[str, str, str, int]],
                      applied: dict[str, tuple[tuple[str, str, str, int] | None, int]],
                      first_scan: bool, ws) -> None:
     """Bring every player slot in line with the pads that are actually here.
@@ -279,16 +298,32 @@ async def _reconcile(was: dict[str, tuple[str, str, str]],
         except Exception:
             log.exception("gamepad_monitor: error broadcasting gp:disconnected")
 
+    # Close up the gap a departure leaves, but only between games. Slots are
+    # never taken back from a connected pad, so unplugging player 1 during
+    # co-op left the survivor on slot 2 for good — and a Switch game asking for
+    # Player 1 then found nobody. Doing it mid-session would be worse: the
+    # remaining player would silently become someone else.
+    #
+    # The pads that move are re-profiled on their own, because the player
+    # number is part of the footprint.
+    if not _game_running():
+        for key, (old_slot, new_slot) in controller_registry.compact().items():
+            log.info("gamepad_monitor: player %d → %d (%s)", old_slot, new_slot,
+                     controller_registry.label_for(key))
+
     arrivals = [k for k in live if not controller_registry.has(k)]
     roster: dict[str, tuple[int, str]] = {}
-    for key, (vendor, product, evdev_name) in live.items():
+    for key, (vendor, product, evdev_name, _bus) in live.items():
         player = controller_registry.connect(key, evdev_name)
         roster[key] = (player, controller_profiles.resolve_name(vendor, product, evdev_name))
 
     for key, dup in dup_indexes(roster).items():
-        vendor, product, evdev_name = live[key]
+        vendor, product, evdev_name, bustype = live[key]
         player, name = roster[key]
-        footprint = (vendor, product, name, dup)
+        # Everything that decides what gets written. The player number belongs
+        # here — a pad moving slot rewrites different sections — and so does
+        # the transport, which an SDL GUID encodes.
+        footprint = (player, vendor, product, name, dup, bustype)
         prev, retries = applied.get(key, (None, 0))
         # Settled: this exact footprint was configured cleanly, or it failed
         # often enough that retrying is just burning SDL probes every 3 s.

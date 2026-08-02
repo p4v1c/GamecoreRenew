@@ -27,9 +27,11 @@ KEY_A = 30              # a plain keyboard key
 
 
 class FakeDevice:
-    def __init__(self, path, name, keys, uniq="", vendor=0x054C, product=0x09CC):
+    def __init__(self, path, name, keys, uniq="", vendor=0x054C, product=0x09CC,
+                 bustype=0x05):
         self.path, self.name, self._keys, self.uniq = path, name, keys, uniq
-        self.info = types.SimpleNamespace(vendor=vendor, product=product)
+        self.info = types.SimpleNamespace(vendor=vendor, product=product,
+                                          bustype=bustype)
 
     def capabilities(self):
         return {gm.EV_KEY: self._keys}
@@ -120,8 +122,9 @@ from backend.services import controller_profiles as cp
 from backend.services import controller_registry as reg
 
 
-def _node(path, mac, vendor="054c", product="09cc", name="Wireless Controller"):
-    return {path: (name, mac, True, vendor, product)}
+def _node(path, mac, vendor="054c", product="09cc", name="Wireless Controller",
+          bustype=0x05):
+    return {path: (name, mac, True, vendor, product, bustype)}
 
 
 class _FakeWS:
@@ -209,13 +212,18 @@ def test_the_survivor_of_two_identical_pads_is_re_profiled(roster):
     Dolphin and `PS4 Controller 2` for RPCS3. When the first pad's battery
     dies, those strings stop describing anything — the survivor must go back
     to dup 0. Only the arriving pad used to be profiled, so it never did.
+
+    The survivor also moves back to player 1: slots are compacted between
+    games, so the pad left alone is the one the game asks for first. It used
+    to keep slot 2 for the rest of the session, which left Ryujinx presenting
+    no Player 1 at all.
     """
     a = _node("/dev/input/event20", "84:30:95:07:c8:1c")
     b = _node("/dev/input/event21", "aa:bb:cc:dd:ee:ff")
 
     assert roster(a) == [("apply", 1, "054c", 0)]
     assert roster({**a, **b}) == [("apply", 2, "054c", 1)]
-    assert roster(b) == [("release", 1), ("apply", 2, "054c", 0)]
+    assert roster(b) == [("release", 1), ("apply", 1, "054c", 0)]
 
 
 def test_an_unchanged_roster_writes_nothing(roster):
@@ -233,12 +241,12 @@ def test_a_pad_whose_ids_are_still_zero_takes_no_slot(roster):
     `known` blocked every later attempt — so it held that slot, unconfigured,
     until the backend restarted.
     """
-    ghost = {"/dev/input/event9": ("uhid pad", "", True, "0000", "0000")}
+    ghost = {"/dev/input/event9": ("uhid pad", "", True, "0000", "0000", 0x05)}
 
     assert roster(ghost) == []
     assert reg.snapshot() == []
 
-    real = {"/dev/input/event9": ("8BitDo Pro 2", "", True, "2dc8", "6003")}
+    real = {"/dev/input/event9": ("8BitDo Pro 2", "", True, "2dc8", "6003", 0x05)}
     assert roster(real) == [("apply", 1, "2dc8", 0)]
 
 
@@ -443,3 +451,45 @@ def test_a_reconnection_gives_a_fresh_budget(monkeypatch):
     for _ in range(10):
         _run_reconcile(applied, live, _FakeWS())
     assert len(attempts) == gm.PROFILE_RETRIES * 2
+
+
+# ── transport, and closing up the slots ──────────────────────────────────────
+
+def test_moving_a_pad_from_bluetooth_to_usb_re_profiles_it(roster):
+    """An SDL GUID encodes the bus, and Ryujinx binds by that GUID.
+
+    The MAC, the vendor and the product are all identical across a transport
+    change, so without the bus in the footprint the pad looked unchanged and
+    every GUID-bound emulator kept pointing at a device that no longer exists.
+    """
+    bt  = _node("/dev/input/event20", "84:30:95:07:c8:1c", bustype=0x05)
+    usb = _node("/dev/input/event20", "84:30:95:07:c8:1c", bustype=0x03)
+
+    assert roster(bt) == [("apply", 1, "054c", 0)]
+    assert roster(usb) == [("apply", 1, "054c", 0)], "a cable is a different device to SDL"
+
+
+def test_the_last_pad_left_becomes_player_one(roster):
+    """Unplug player 1 in co-op and the survivor used to keep slot 2 for good —
+    so Ryujinx presented no Player 1 at all to a game that wanted one."""
+    a = _node("/dev/input/event20", "84:30:95:07:c8:1c")
+    b = _node("/dev/input/event21", "aa:bb:cc:dd:ee:ff", vendor="045e", product="02fd")
+
+    roster(a)
+    roster({**a, **b})
+    assert reg._slots[gm.controller_registry.key_for("aa:bb:cc:dd:ee:ff", "")] == 2
+
+    roster(b)                       # player 1 leaves
+    assert reg._slots[gm.controller_registry.key_for("aa:bb:cc:dd:ee:ff", "")] == 1
+
+
+def test_slots_are_not_renumbered_while_a_game_runs(roster, monkeypatch):
+    """Closing the gap mid-session would silently make player 2 into player 1."""
+    monkeypatch.setattr(gm, "_game_running", lambda: True)
+    a = _node("/dev/input/event20", "84:30:95:07:c8:1c")
+    b = _node("/dev/input/event21", "aa:bb:cc:dd:ee:ff", vendor="045e", product="02fd")
+
+    roster(a)
+    roster({**a, **b})
+    roster(b)
+    assert reg._slots[gm.controller_registry.key_for("aa:bb:cc:dd:ee:ff", "")] == 2
