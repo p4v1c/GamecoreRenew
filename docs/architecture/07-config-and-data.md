@@ -38,6 +38,29 @@ installer writes them into one systemd drop-in,
 | `GAMECORE_SCRAPER_LANG` | comma-separated, most preferred first. Default `en,fr` |
 | `GAMECORE_WARM_MEDIA` | which media `prefetch` downloads at boot beyond the cover. Comma-separated, empty to warm nothing. Default `box-front,box-3d,box-spine,box-back,screenshot-gameplay,screenshot-game-title` ([why](04-backend-services.md#prefetchpy-82-l)) |
 
+**The N64 slot is keyed `gopher64` and runs Rosalie's Mupen GUI.** That
+mismatch is deliberate. gopher64 sets no `WM_CLASS` on its window, so
+`overlay_monitor` could never find it and the bezel never drew; RMG reports
+`"RMG", "Rosalie's Mupen GUI"`, which `config/overlays.json` already listed.
+
+The id was not renamed because `config/` is excluded from the OTA. A renamed id
+reaches new installs only, and leaves every existing box pointing at an
+emulator the installer no longer installs — the same failure mode as the PS1
+`*.cue` extension. It is also the key for `emu/gopher64/`, the covers, the
+metadata cache, the playtime rows and the overlay entry, so renaming it means a
+five-store migration for no user-visible gain: the label reads "Nintendo 64"
+either way.
+
+`update/linux.sh` reports a box whose N64 entry still launches gopher64, with
+the commands to switch it.
+
+RMG needs no controller writer. RMG-Input runs in `ControllerMode 0`
+(automatic) and maps an SDL gamepad without writing a profile — verified by
+launching a ROM with a DualShock 4 connected and diffing `mupen64plus.cfg`
+afterwards: `Profiles` stayed empty. A snapshot adapter is registered anyway,
+so "Scan mapping" is available if the automatic mapping is ever wrong; it stays
+inert until someone presses it.
+
 **Language.** ScreenScraper localises synopses **and genre names**, so a French
 preference gives `Course, Conduite` where an English one gives
 `Racing, Driving`. English is the default because the interface is: a library

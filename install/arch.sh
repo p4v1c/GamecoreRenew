@@ -469,7 +469,10 @@ if [[ "$MODE" == "full" ]]; then
     [pcsx2]=net.pcsx2.PCSX2
     [dolphin]=org.DolphinEmu.dolphin-emu
     [melonds]=net.kuribo64.melonDS
-    [gopher64]=io.github.gopher64.gopher64
+    # The N64 slot runs Rosalie's Mupen GUI. gopher64 sets no WM_CLASS on its
+    # window, so overlay_monitor could never find it and the bezel never drew.
+    # The key stays `gopher64` on purpose — see systems.json.dist.
+    [gopher64]=com.github.Rosalie241.RMG
     [mgba]=io.mgba.mGBA
     [ppsspp]=org.ppsspp.PPSSPP
     [cemu]=info.cemu.Cemu

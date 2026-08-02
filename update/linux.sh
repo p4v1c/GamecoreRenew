@@ -256,6 +256,33 @@ if [[ -f /etc/systemd/system/gamecore-backend.service ]] \
   echo "[update]         ${GAMECORE_PATH}/install/arch.sh   (search: FastAPI Backend)"
 fi
 
+# config/systems.json is excluded above, so an emulator swap decided here never
+# reaches an installed box. The N64 slot moved from gopher64 to Rosalie's Mupen
+# GUI — gopher64 sets no WM_CLASS on its window, so overlay_monitor could never
+# find it and the bezel never drew. Say so rather than leave a box launching an
+# emulator the installer no longer installs.
+if [[ -f "${GAMECORE_PATH}/config/systems.json" ]]; then
+  if python3 - "${GAMECORE_PATH}/config/systems.json" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+rows = d if isinstance(d, list) else d.get("systems", d)
+seq = rows if isinstance(rows, list) else list(rows.values())
+hit = next((s for s in seq if s.get("id") == "gopher64"), None)
+sys.exit(0 if hit and "gopher64" in (hit.get("args", "") + hit.get("path", "")) else 1)
+PYEOF
+  then
+    echo "[update] NOTE: the N64 slot in config/systems.json still launches gopher64."
+    echo "[update]       It has no WM_CLASS, so the bezel overlay cannot find its window."
+    echo "[update]       An update cannot rewrite config/. To switch to Rosalie's Mupen GUI:"
+    echo "[update]         flatpak install -y flathub com.github.Rosalie241.RMG"
+    echo "[update]         flatpak override --filesystem=${GAMECORE_PATH} --device=all \\"
+    echo "[update]           --socket=x11 com.github.Rosalie241.RMG"
+    echo "[update]       then set that entry to:"
+    echo '[update]         "path": "flatpak",'
+    echo '[update]         "args": "run com.github.Rosalie241.RMG -f -n -q"'
+  fi
+fi
+
 # Third thing an OTA cannot rewrite: the desktop shortcut. arch.sh writes it
 # pointing at install/gamecore-launcher.sh, which is maintained here — but a
 # box that was set up by hand, or before that shortcut existed, can be pointing

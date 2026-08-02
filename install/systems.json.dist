@@ -166,8 +166,8 @@
     "platform": "N64",
     "color": "#b400ff",
     "iconPath": "assets/logos/n64.png",
-    "path": "/opt/GameCore/lib/gopher64",
-    "args": "-f",
+    "path": "flatpak",
+    "args": "run com.github.Rosalie241.RMG -f -n -q",
     "romsPath": "emu/gopher64/",
     "extensions": [
       "*.n64",

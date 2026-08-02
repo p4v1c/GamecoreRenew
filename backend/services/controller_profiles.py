@@ -109,6 +109,10 @@ RYUJINX_CFG = HOME / f".var/app/{RYUJINX_APP}/config/Ryujinx/Config.json"
 AZAHAR = HOME / ".var/app/org.azahar_emu.Azahar/config/azahar-emu/qt-config.ini"
 DOLPHIN_DIR = HOME / ".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu"
 CEMU_PROFILES = HOME / ".var/app/info.cemu.Cemu/config/Cemu/controllerProfiles"
+# Rosalie's Mupen GUI drives the N64 slot (which is still keyed `gopher64`; see
+# docs/architecture/07-config-and-data.md). One mupen64plus.cfg holds
+# everything — video, core, input — in `[Rosalie's Mupen GUI …]` sections.
+RMG_CFG = HOME / ".var/app/com.github.Rosalie241.RMG/config/RMG/mupen64plus.cfg"
 DUCK_INI = HOME / ".local/share/duckstation/settings.ini"
 
 
@@ -669,6 +673,31 @@ def _mgba_replace(text: str, block: str) -> str:
     return text
 
 
+
+# RMG: input lives in `[Rosalie's Mupen GUI - Input Plugin]` plus whatever
+# profile sections it writes when a pad is configured. Matched on the prefix
+# rather than an exact header because those profile names could not be observed
+# — there was no pad connected when this was written, and RMG only creates them
+# once one is mapped in its own dialog. The prefix is safe either way: the
+# graphics and core sections of the same file do not carry it, so a restore
+# cannot reach them.
+_RMG_INPUT_PREFIX = "Rosalie's Mupen GUI - Input Plugin"
+
+
+def _rmg_extract(text: str) -> str:
+    return "".join(body for header, body in _ini_sections(text)
+                   if header.startswith(_RMG_INPUT_PREFIX))
+
+
+def _rmg_replace(text: str, block: str) -> str:
+    keep = [(h, b) for h, b in _ini_sections(text)
+            if not h.startswith(_RMG_INPUT_PREFIX)]
+    out = "".join(b for _h, b in keep)
+    if not out.endswith("\n"):
+        out += "\n"
+    return out + block if block.endswith("\n") else out + block + "\n"
+
+
 # emu_id → (config-path getter, extract(text)→block, replace(text, block)→text)
 _SNAP_EMUS = {
     "azahar":  (lambda: AZAHAR, _az_extract, _az_replace),
@@ -676,6 +705,10 @@ _SNAP_EMUS = {
                 _sect_replace("Instance0.Joystick")),
     "mgba":    (mgba_config, _mgba_extract, _mgba_replace),
     "cemu":    (lambda: CEMU_PROFILES / "controller0.xml", _whole_extract, _whole_replace),
+    # N64. RMG-Input runs in ControllerMode 0 (automatic) out of the box and
+    # maps an SDL gamepad on its own, so this is an escape hatch rather than
+    # the normal path: it stays inert until someone presses "Scan mapping".
+    "gopher64": (lambda: RMG_CFG, _rmg_extract, _rmg_replace),
 }
 
 

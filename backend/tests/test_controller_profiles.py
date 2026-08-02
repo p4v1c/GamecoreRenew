@@ -665,6 +665,8 @@ if __name__ == "__main__":
         (test_ryujinx_asks_its_own_sdl_not_the_hosts, "tmp+mp"),
         (test_a_native_install_still_gets_an_answer, "tmp+mp"),
         (test_the_name_crc_is_stripped_from_the_guid, "tmp+mp"),
+        (test_rmg_snapshots_the_input_sections_only, "tmp"),
+        (test_rmg_restore_leaves_the_rest_of_the_file_alone, "tmp"),
         (test_the_shipped_ini_has_no_keyboard_bindings_left, ""),
     ]
 
@@ -686,3 +688,49 @@ if __name__ == "__main__":
                 mp.undo()
         print(f"[OK ] {fn.__name__}")
     print("\nAll tests passed.")
+
+
+# ── RMG (the N64 slot) ───────────────────────────────────────────────────────
+# One mupen64plus.cfg holds video, core and input together, so a snapshot must
+# take the input sections and nothing else — restoring a captured mapping must
+# not roll back the graphics settings sitting in the same file.
+
+_RMG_CFG = """[Core]
+Version = 1.01
+ScreenWidth = 1920
+
+[Rosalie's Mupen GUI - Input Plugin]
+Profiles = "PS4 Controller"
+ControllerMode = 0
+
+[Rosalie's Mupen GUI - Input Plugin Profile PS4 Controller]
+A_BUTTON = 1
+DEADZONE = 9
+
+[Rsp-HLE]
+Version = 1.00
+"""
+
+
+def test_rmg_snapshots_the_input_sections_only(tmp_path):
+    block = cp._rmg_extract(_RMG_CFG)
+    assert "A_BUTTON = 1" in block, "the profile section is where the mapping is"
+    assert "ScreenWidth" not in block and "Rsp-HLE" not in block, \
+        "a controller snapshot must not carry the video settings"
+
+
+def test_rmg_restore_leaves_the_rest_of_the_file_alone(tmp_path):
+    """The profile sections are matched on a prefix, because RMG names them
+    after the controller and that name is not known in advance."""
+    captured = cp._rmg_extract(_RMG_CFG)
+    # A later config: same file, different mapping, video settings changed.
+    later = _RMG_CFG.replace("A_BUTTON = 1", "A_BUTTON = 99") \
+                    .replace("ScreenWidth = 1920", "ScreenWidth = 1280")
+
+    back = cp._rmg_replace(later, captured)
+
+    assert "A_BUTTON = 1" in back, "the captured mapping came back"
+    assert "A_BUTTON = 99" not in back, "and replaced the one that was there"
+    assert "ScreenWidth = 1280" in back, "video settings are not part of the snapshot"
+    assert back.count("[Rosalie's Mupen GUI - Input Plugin]") == 1
+    assert "[Rsp-HLE]" in back
