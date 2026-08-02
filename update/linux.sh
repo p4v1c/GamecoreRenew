@@ -256,6 +256,26 @@ if [[ -f /etc/systemd/system/gamecore-backend.service ]] \
   echo "[update]         ${GAMECORE_PATH}/install/arch.sh   (search: FastAPI Backend)"
 fi
 
+# Third thing an OTA cannot rewrite: the desktop shortcut. arch.sh writes it
+# pointing at install/gamecore-launcher.sh, which is maintained here — but a
+# box that was set up by hand, or before that shortcut existed, can be pointing
+# somewhere else entirely.
+#
+# Worth a word because the consequence is invisible and nasty. The variant
+# found on the reference box ran `sudo systemctl is-active`, which needs no
+# root and is not covered by the NOPASSWD rule, so every click failed two sudo
+# authentications and walked pam_faillock closer to locking the user's account.
+for _d in "$HOME/Desktop/GameCore.desktop" "$HOME/Bureau/GameCore.desktop"; do
+  [[ -f "$_d" ]] || continue
+  if ! grep -q "^Exec=${GAMECORE_PATH}/install/gamecore-launcher.sh" "$_d"; then
+    echo "[update] NOTE: $_d does not run the shipped launcher."
+    echo "[update]       It points at: $(grep -m1 '^Exec=' "$_d" | cut -d= -f2-)"
+    echo "[update]       An update cannot rewrite a file outside ${GAMECORE_PATH}. Fix with:"
+    echo "[update]         sed -i 's|^Exec=.*|Exec=${GAMECORE_PATH}/install/gamecore-launcher.sh|' \\"
+    echo "[update]           '$_d'"
+  fi
+done
+
 echo "[update] Clearing Electron UI cache (stale cached bundles hide the new frontend)..."
 # The UI is still running here — it may write some cache back on exit, which
 # is why electron/main.js also clears the HTTP cache on every start. This rm

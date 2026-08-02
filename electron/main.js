@@ -26,6 +26,16 @@ const DEV_URL     = 'http://localhost:5173'
 let mainWindow     = null
 let backendProcess = null
 let overlayWindow  = null
+
+// Set only by Settings → Desktop (system:quit). Everything else that empties
+// the window list is a fault, and window-all-closed rebuilds instead of dying.
+let quitting = false
+// Timestamps of recent rebuilds. A kiosk must never exit on its own, but it
+// must not spin either: if the window cannot stay up, stop and let systemd and
+// the desktop launcher deal with it.
+let rebuilds = []
+const REBUILD_LIMIT  = 3
+const REBUILD_WINDOW = 10_000
 let monitorProcess = null
 
 // At cold boot the UI loads while the display path is still black — X just
@@ -378,7 +388,10 @@ async function startBackend() {
 // ── IPC handlers ──────────────────────────────────────────────────────────────
 ipcMain.on('system:reboot',   () => exec('sudo systemctl reboot'))
 ipcMain.on('system:shutdown', () => exec('sudo systemctl poweroff'))
-ipcMain.on('system:quit',     () => app.quit())
+// The ONLY way out. Settings → Desktop sends this; everything else that closes
+// a window is an accident, and window-all-closed below reads this flag to tell
+// the two apart.
+ipcMain.on('system:quit',     () => { quitting = true; app.quit() })
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
@@ -391,9 +404,44 @@ app.whenReady().then(async () => {
   startOverlayMonitor()
 })
 
+// Electron's boilerplate here is `app.quit()`, which is right for a desktop
+// app and wrong for a kiosk: a console does not exit because a window went
+// away. It did exactly that — cleanly, with code 0 — so systemd's
+// Restart=on-failure never fired, and the box came back only because the
+// desktop launcher happened to start it again, whole, splash and all. That is
+// the "the splash reappears while I'm on the board" report.
+//
+// The window lifecycle is driven by game launches (mainWindow.hide() on start,
+// the overlay window created and destroyed around it), which is why it struck
+// at random and more often when a launch failed.
+//
+// So: leaving is a decision, taken in Settings → Desktop, and nowhere else.
+// Anything else that empties the window list is a fault to recover from —
+// rebuild the window rather than take the whole app down with it.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  if (quitting || process.platform === 'darwin') {
+    if (quitting) app.quit()
+    return
+  }
+  const now = Date.now()
+  rebuilds = rebuilds.filter((t) => now - t < REBUILD_WINDOW)
+  if (rebuilds.length >= REBUILD_LIMIT) {
+    console.error(`[gamecore] main window closed ${rebuilds.length} times in ` +
+                  `${REBUILD_WINDOW / 1000}s — giving up rather than spinning`)
+    quitting = true
+    app.quit()
+    return
+  }
+  rebuilds.push(now)
+  console.warn('[gamecore] all windows closed with no quit request — rebuilding')
+  createWindow()
 })
+
+// Any real shutdown passes through here first — Settings → Desktop, but also
+// the SIGTERM systemd sends on `systemctl stop`. Without it, windows closing
+// during teardown would look like the fault above and rebuild a window while
+// the app is on its way out.
+app.on('before-quit', () => { quitting = true })
 
 app.on('will-quit', () => {
   stopOverlayMonitor()
