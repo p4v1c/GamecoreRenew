@@ -54,12 +54,26 @@ either way.
 `update/linux.sh` reports a box whose N64 entry still launches gopher64, with
 the commands to switch it.
 
-RMG needs no controller writer. RMG-Input runs in `ControllerMode 0`
-(automatic) and maps an SDL gamepad without writing a profile — verified by
-launching a ROM with a DualShock 4 connected and diffing `mupen64plus.cfg`
-afterwards: `Profiles` stayed empty. A snapshot adapter is registered anyway,
-so "Scan mapping" is available if the automatic mapping is ever wrong; it stays
-inert until someone presses it.
+RMG **does** need a writer, contrary to what `ControllerMode 0` suggests.
+Without a `[Rosalie's Mupen GUI - Input Plugin Profile <port>]` section the N64
+port has no controller at all, however well SDL sees the pad — mupen64plus says
+so in as many words:
+
+    Game controller 0 (Standard controller) has nothing plugged in
+
+Writing the section turns that line into `has a Memory pak plugged in`, which
+is how `_rmg()` was verified. Player *N* binds port *N-1*.
+
+The 74 binding keys are **read from RMG's own `InputProfileDB.json`**, shipped
+inside the flatpak, never written out here — the same rule as asking SDL for a
+GUID instead of fabricating one. That DB holds an entry per known controller
+keyed by `DeviceName`, plus `fallback_profile` for everything else, which is
+what any SDL gamepad gets. No DB, no write: `_rmg()` returns a `Skip` rather
+than invent a mapping that would rot the first time RMG changes its schema.
+
+A snapshot adapter is registered too, and a captured mapping wins over the
+synthesised one — the same rule melonDS follows. "Scan mapping" is therefore
+available if the generic mapping is ever wrong.
 
 **Language.** ScreenScraper localises synopses **and genre names**, so a French
 preference gives `Course, Conduite` where an English one gives

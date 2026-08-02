@@ -698,6 +698,75 @@ def _rmg_replace(text: str, block: str) -> str:
     return out + block if block.endswith("\n") else out + block + "\n"
 
 
+
+# ── RMG (the N64 slot) ───────────────────────────────────────────────────────
+RMG_APP = "com.github.Rosalie241.RMG"
+
+
+def _rmg_fallback_profile() -> dict | None:
+    """RMG's own generic gamepad mapping, from the InputProfileDB.json it ships.
+
+    Read rather than written out here, for the same reason the Ryujinx GUID is
+    asked of SDL rather than fabricated: RMG owns the meaning of these 74 keys
+    (`A_InputType`, `A_Name`, `A_Data`, `A_ExtraData` per N64 input), and a
+    hand-copied table would rot the first time it changes them. The DB holds an
+    entry per known controller keyed by DeviceName, plus `fallback_profile` for
+    everything else — which is what any SDL gamepad should get.
+    """
+    loc = flatpak_location(RMG_APP)
+    if not loc:
+        return None
+    db = Path(loc) / "files" / "share" / "RMG" / "InputProfileDB.json"
+    try:
+        entries = json.loads(db.read_text())
+    except (OSError, ValueError):
+        return None
+    for e in entries if isinstance(entries, list) else []:
+        names = e.get("DeviceName") or []
+        if "fallback_profile" in (names if isinstance(names, list) else [names]):
+            return e
+    return None
+
+
+def _rmg(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
+    """RMG binds N64 port `i-1` in `[Rosalie's Mupen GUI - Input Plugin Profile <port>]`.
+
+    Without that section the port has no controller at all — mupen64plus says
+    so in as many words: `Game controller 0 (Standard controller) has nothing
+    plugged in`, and no pad works however well SDL sees it. Writing the section
+    changes that line to `has a Memory pak plugged in`, which is how this was
+    verified.
+
+    RMG picks the mapping by `DeviceName`, so that is the SDL name — the same
+    string resolve_name() gives every other SDL-named emulator.
+    """
+    if not RMG_CFG.is_file():
+        return None
+    fallback = _rmg_fallback_profile()
+    if fallback is None:
+        return Skip(f"rmg: no InputProfileDB.json to read a mapping from "
+                    f"— Player {i} left as it was")
+    try:
+        text = RMG_CFG.read_text()
+    except OSError as e:
+        return Skip(f"rmg: mupen64plus.cfg unreadable ({e.__class__.__name__})")
+
+    header = f"{_RMG_INPUT_PREFIX} Profile {i - 1}"
+    lines = [f"[{header}]", "", f'DeviceName = "{name}"', "DeviceType = 4"]
+    for k in sorted(fallback):
+        if k in ("DeviceName", "DeviceType"):
+            continue
+        v = fallback[k]
+        lines.append(f'{k} = "{v}"' if isinstance(v, str) else f"{k} = {v}")
+    block = "\n".join(lines) + "\n"
+
+    if _sect_extract(header)(text).strip() == block.strip():
+        return None                       # already right — do not rewrite the file
+    backup(RMG_CFG)
+    _atomic_write(RMG_CFG, _sect_replace(header)(text, block))
+    return f"rmg: N64 port {i - 1} bound to {name}"
+
+
 # emu_id → (config-path getter, extract(text)→block, replace(text, block)→text)
 _SNAP_EMUS = {
     "azahar":  (lambda: AZAHAR, _az_extract, _az_replace),
@@ -845,6 +914,23 @@ _sdl2_cache: dict[tuple[str, str, str], tuple[float, dict[str, str]]] = {}
 # Resolved once per process: the flatpak deploy path does not move while the
 # app stays installed, and `flatpak info` costs ~100 ms.
 _bundled_sdl_cache: dict[str, str] = {}
+_flatpak_loc_cache: dict[str, str] = {}
+
+
+def flatpak_location(app_id: str) -> str:
+    """Deploy directory of an installed flatpak, or "". Cached per process."""
+    if app_id in _flatpak_loc_cache:
+        return _flatpak_loc_cache[app_id]
+    out = ""
+    try:
+        r = subprocess.run(["flatpak", "info", "--show-location", app_id],
+                           capture_output=True, text=True, timeout=8)
+        if r.returncode == 0:
+            out = r.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    _flatpak_loc_cache[app_id] = out
+    return out
 
 
 def bundled_sdl2(app_id: str) -> str:
@@ -875,16 +961,9 @@ def bundled_sdl2(app_id: str) -> str:
     """
     if app_id in _bundled_sdl_cache:
         return _bundled_sdl_cache[app_id]
-    path = ""
-    try:
-        r = subprocess.run(["flatpak", "info", "--show-location", app_id],
-                           capture_output=True, text=True, timeout=8)
-        if r.returncode == 0:
-            lib = Path(r.stdout.strip()) / "files" / "bin" / "libSDL2.so"
-            if lib.is_file():
-                path = str(lib)
-    except (OSError, subprocess.SubprocessError):
-        pass  # not a flatpak install, or no flatpak at all — the host SDL will do
+    loc = flatpak_location(app_id)
+    lib = Path(loc) / "files" / "bin" / "libSDL2.so" if loc else None
+    path = str(lib) if lib and lib.is_file() else ""
     _bundled_sdl_cache[app_id] = path
     return path
 
@@ -1471,6 +1550,11 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
                  if player_index == 1 else None),
         ("cemu", lambda: snapshot_restore("cemu", vendor, product)
                  if player_index == 1 else None),
+        # N64. A captured mapping always wins over the synthesised one, the
+        # same rule melonDS follows below.
+        ("gopher64", lambda: snapshot_restore("gopher64", vendor, product)
+                     if snapshot_exists("gopher64", vendor, product)
+                     else _rmg(player_index, dup_index, vendor, product, name)),
         ("dolphin", lambda: _dolphin(player_index, dup_index, vendor, product, name)),
         ("rpcs3", lambda: _rpcs3(player_index, dup_index, vendor, product, name)),
         ("pcsx2", lambda: _tier0_ini(pcsx2_ini(), "pcsx2", player_index)),
