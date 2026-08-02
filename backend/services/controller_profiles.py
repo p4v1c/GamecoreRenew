@@ -445,12 +445,41 @@ def _ryujinx(i: int, dup: int, vendor: str, product: str, name: str) -> str | No
     pi = f"Player{i}"
     slot = next((e for e in ic if e.get("player_index") == pi), None)
     new_id = f"{dup}-{new_guid}"
+    new_name = f"{name} ({dup})"
+
+    # Any OTHER slot claiming this exact id is a fossil of a session where this
+    # same pad held a different player number — and it is not inert. Ryujinx
+    # resolves every slot through _gamepadsIds.IndexOf(id), so two slots
+    # carrying one id both resolve to the one physical pad: the game sees two
+    # controllers connected and the player drives a phantom alongside himself.
+    #
+    # Measured on the reference box. A DualShock 4 was profiled into slot 2 in
+    # one session and slot 1 in a later one, and both entries ended up holding
+    # 0-e58f0005-054c-0000-cc09-000000006800.
+    #
+    # release_profile does not cover this. It assumes a device-bound emulator
+    # "just goes input-less when a pad leaves", which holds only while the
+    # stale id names a pad that is gone; here it names one that is connected.
+    # And nothing else would ever notice, because a slot is only ever rewritten
+    # for the player being profiled.
+    #
+    # Removing rather than blanking: an absent player_index is exactly what
+    # Ryujinx reads as "this slot is not configured", and a slot claiming
+    # another player's pad is an artefact, never something the owner set up.
+    stale = [e for e in ic if e.get("id") == new_id and e.get("player_index") != pi]
+    for e in stale:
+        ic.remove(e)
+    freed = "".join(f", freed {e.get('player_index')}" for e in stale)
 
     if slot is not None and slot.get("backend") == "GamepadSDL2":
-        if slot.get("id") == new_id and slot.get("name") == f"{name} ({dup})":
+        # `not stale` matters: on a box where the duplicate already exists, the
+        # slot being profiled is usually the one that is *right*, and returning
+        # early here would leave the phantom in place for good.
+        if slot.get("id") == new_id and slot.get("name") == new_name and not stale:
             return None                     # already correct — do not rewrite 11 KB
-        slot["id"], slot["name"] = new_id, f"{name} ({dup})"
-        action = "retargeted"
+        # Read before mutating: once the id is written it always equals new_id.
+        action = "deduplicated" if slot.get("id") == new_id else "retargeted"
+        slot["id"], slot["name"] = new_id, new_name
     else:
         # An existing non-gamepad slot used to have its id mutated in place,
         # which left a keyboard config claiming to be an SDL device: the pad
@@ -459,7 +488,7 @@ def _ryujinx(i: int, dup: int, vendor: str, product: str, name: str) -> str | No
             return Skip(f"ryujinx: no gamepad slot to clone from — Player {i} left as it was")
         clone = json.loads(json.dumps(model))
         clone["player_index"] = pi
-        clone["id"], clone["name"] = new_id, f"{name} ({dup})"
+        clone["id"], clone["name"] = new_id, new_name
         if slot is not None:
             ic[ic.index(slot)] = clone
             action = "replaced (was a keyboard slot)"
@@ -468,7 +497,7 @@ def _ryujinx(i: int, dup: int, vendor: str, product: str, name: str) -> str | No
             action = "created"
     backup(RYUJINX_CFG)
     _atomic_write(RYUJINX_CFG, json.dumps(cfg, indent=2) + "\n")
-    return f"ryujinx: Player {i} {action} (dup {dup}, {new_guid})"
+    return f"ryujinx: Player {i} {action} (dup {dup}, {new_guid}){freed}"
 
 
 # _single_player_guid() lived here and swapped the vendor/product bytes of a
@@ -1353,7 +1382,15 @@ def release_profile(player_index: int) -> list[str]:
     so a pad unplugged after co-op would haunt the next solo session as a
     phantom player. Reset that slot to Dolphin's inactive default. Role/device
     bound emulators (PS1/2/3, Switch…) just go input-less when a pad
-    leaves — no phantom, nothing to undo. Never raises."""
+    leaves — no phantom, nothing to undo. Never raises.
+
+    That last sentence held only while the stale id names a pad that is *gone*.
+    Ryujinx grew its own phantom the other way round: a pad profiled into slot 2
+    in one session and slot 1 in the next left slot 2 holding the id of a pad
+    still connected, and Ryujinx resolves ids by value — one pad, two players.
+    That is fixed where it is created, in _ryujinx, which now clears its own id
+    from every other slot; it is not fixable here, because no disconnect ever
+    happens for the slot in question."""
     if player_index < 1 or player_index > 4:
         return []
     results: list[str] = []

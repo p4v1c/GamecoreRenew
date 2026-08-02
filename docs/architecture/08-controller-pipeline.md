@@ -44,6 +44,20 @@ different pad.
 > device that does not exist. Two functions used to do exactly that
 > (`swap_vidpid`, `_ryu_swap_vidpid`); both are gone. Ask SDL.
 
+**Ryujinx: no two slots may carry the same `id`.** It resolves every entry in
+`input_config` with `_gamepadsIds.IndexOf(id)`, by value — so two slots holding
+one id both resolve to the same physical pad, and the game sees two controllers
+connected. A right GUID is not enough on its own.
+
+The duplicate is not created by a bad write; it is created by a *good* one
+landing in a new slot. Profile a pad into Player 2 in one session and Player 1
+in the next — a Bluetooth reconnection is enough — and Player 2 keeps the id.
+Found on the reference box with a DualShock 4 held by both. `release_profile`
+cannot help: no disconnect ever happens for the surviving slot. So `_ryujinx`
+clears its own id from every other slot before writing, and its early "already
+correct, don't rewrite 11 KB" return is conditional on there being no duplicate
+— otherwise the slot that is right is exactly the one that hides the phantom.
+
 ## Naming a device
 
 SDL3-based emulators (RPCS3, Dolphin) record the *device name string*, so it has

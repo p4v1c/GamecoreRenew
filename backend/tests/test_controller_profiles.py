@@ -454,6 +454,85 @@ def test_mgba_captures_the_section_that_binds_buttons(tmp_path, monkeypatch):
     assert "something=1" in cp._mgba_replace(ini, block.replace("keyA=0", "keyA=2"))
 
 
+
+# ── two slots must never claim one pad ───────────────────────────────────────
+# Ryujinx resolves every slot through _gamepadsIds.IndexOf(id), so a duplicate
+# id is not inert: both slots resolve to the one physical pad and the game sees
+# two controllers connected. Found on the reference box, where a DualShock 4
+# had been profiled into slot 2 in one session and slot 1 in a later one.
+
+# The real values that box reports, so the test breaks if the derivation does.
+DS4_SDL_GUID = "05008fe54c050000cc09000000006800"
+DS4_RYU_ID   = "0-e58f0005-054c-0000-cc09-000000006800"
+
+
+def test_a_stale_slot_holding_this_pads_id_is_removed(tmp_path, monkeypatch):
+    """The exact state found on the box: Player1 right, Player2 its twin."""
+    cfg = tmp_path / "Config.json"
+    cfg.write_text(json.dumps({"input_config": [
+        {"player_index": "Player1", "backend": "GamepadSDL2",
+         "id": DS4_RYU_ID, "name": "PS4 Controller (0)"},
+        {"player_index": "Player2", "backend": "GamepadSDL2",
+         "id": DS4_RYU_ID, "name": "PS4 Controller (0)"},
+        # A fossil of the old fabricated-GUID era: resolves to nothing, so it
+        # is Ryujinx's problem to dispose of, not ours to delete.
+        {"player_index": "Player3", "backend": "GamepadSDL2",
+         "id": "2-00000003-054c-0000-cc09-000000006800", "name": "PS4 Controller (2)"},
+    ]}, indent=2))
+    monkeypatch.setattr(cp, "RYUJINX_CFG", cfg)
+    monkeypatch.setattr(cp, "_sdl2_probe", lambda v, p: {"guid": DS4_SDL_GUID})
+
+    msg = cp._ryujinx(1, 0, "054c", "09cc", "PS4 Controller")
+
+    ic = json.loads(cfg.read_text())["input_config"]
+    ids = [e["id"] for e in ic]
+    assert len(ids) == len(set(ids)), "one pad drove two players"
+    assert [e["player_index"] for e in ic] == ["Player1", "Player3"]
+    assert msg and "freed Player2" in msg, "a silent removal is a removal nobody can debug"
+
+
+def test_being_already_correct_does_not_hide_a_duplicate(tmp_path, monkeypatch):
+    """The early return exists to avoid rewriting 11 KB for nothing.
+
+    On a box that already has the duplicate, the slot being profiled is the one
+    that is *right* — so returning early there left the phantom in place for
+    good, which is exactly how it survived on the reference box.
+    """
+    cfg = tmp_path / "Config.json"
+    cfg.write_text(json.dumps({"input_config": [
+        {"player_index": "Player1", "backend": "GamepadSDL2",
+         "id": DS4_RYU_ID, "name": "PS4 Controller (0)"},
+        {"player_index": "Player4", "backend": "GamepadSDL2",
+         "id": DS4_RYU_ID, "name": "PS4 Controller (0)"},
+    ]}, indent=2))
+    monkeypatch.setattr(cp, "RYUJINX_CFG", cfg)
+    monkeypatch.setattr(cp, "_sdl2_probe", lambda v, p: {"guid": DS4_SDL_GUID})
+
+    assert cp._ryujinx(1, 0, "054c", "09cc", "PS4 Controller") is not None
+    ic = json.loads(cfg.read_text())["input_config"]
+    assert [e["player_index"] for e in ic] == ["Player1"]
+
+
+def test_two_real_pads_keep_their_two_slots(tmp_path, monkeypatch):
+    """Deduplication must not eat a genuine second controller.
+
+    Two identical pads share a GUID and are told apart by <dup>, so their ids
+    differ and neither is stale.
+    """
+    cfg = tmp_path / "Config.json"
+    cfg.write_text(json.dumps({"input_config": [
+        {"player_index": "Player1", "backend": "GamepadSDL2",
+         "id": DS4_RYU_ID, "name": "PS4 Controller (0)"},
+        {"player_index": "Player2", "backend": "GamepadSDL2",
+         "id": "1-e58f0005-054c-0000-cc09-000000006800", "name": "PS4 Controller (1)"},
+    ]}, indent=2))
+    monkeypatch.setattr(cp, "RYUJINX_CFG", cfg)
+    monkeypatch.setattr(cp, "_sdl2_probe", lambda v, p: {"guid": DS4_SDL_GUID})
+
+    assert cp._ryujinx(2, 1, "054c", "09cc", "PS4 Controller") is None
+    ic = json.loads(cfg.read_text())["input_config"]
+    assert [e["player_index"] for e in ic] == ["Player1", "Player2"]
+
 def test_azahar_follows_the_active_profile(tmp_path):
     """Qt stores the selected index 0-based in `profile=` and writes the array
     1-based, so `profiles\\1\\` is only right while profile=0."""
@@ -516,6 +595,9 @@ if __name__ == "__main__":
         (test_a_snapshot_of_the_wrong_controller_is_refused, "tmp+mp"),
         (test_mgba_captures_the_section_that_binds_buttons, "tmp+mp"),
         (test_azahar_follows_the_active_profile, "tmp"),
+        (test_a_stale_slot_holding_this_pads_id_is_removed, "tmp+mp"),
+        (test_being_already_correct_does_not_hide_a_duplicate, "tmp+mp"),
+        (test_two_real_pads_keep_their_two_slots, "tmp+mp"),
         (test_the_shipped_ini_has_no_keyboard_bindings_left, ""),
     ]
 
