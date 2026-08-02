@@ -463,7 +463,7 @@ def test_mgba_captures_the_section_that_binds_buttons(tmp_path, monkeypatch):
 
 # The real values that box reports, so the test breaks if the derivation does.
 DS4_SDL_GUID = "05008fe54c050000cc09000000006800"
-DS4_RYU_ID   = "0-e58f0005-054c-0000-cc09-000000006800"
+DS4_RYU_ID   = "0-00000005-054c-0000-cc09-000000006800"
 
 
 def test_a_stale_slot_holding_this_pads_id_is_removed(tmp_path, monkeypatch):
@@ -524,7 +524,7 @@ def test_two_real_pads_keep_their_two_slots(tmp_path, monkeypatch):
         {"player_index": "Player1", "backend": "GamepadSDL2",
          "id": DS4_RYU_ID, "name": "PS4 Controller (0)"},
         {"player_index": "Player2", "backend": "GamepadSDL2",
-         "id": "1-e58f0005-054c-0000-cc09-000000006800", "name": "PS4 Controller (1)"},
+         "id": "1-00000005-054c-0000-cc09-000000006800", "name": "PS4 Controller (1)"},
     ]}, indent=2))
     monkeypatch.setattr(cp, "RYUJINX_CFG", cfg)
     monkeypatch.setattr(cp, "_sdl2_probe", lambda v, p, lib="": {"guid": DS4_SDL_GUID})
@@ -564,7 +564,7 @@ def test_ryujinx_asks_its_own_sdl_not_the_hosts(tmp_path, monkeypatch):
 
     assert asked == ["/ryujinx/libSDL2.so"], "the host's SDL2 answer does not go in Ryujinx's config"
     slot = json.loads(cfg.read_text())["input_config"][0]
-    assert slot["id"] == "0-e58f0003-054c-0000-cc09-000000006800"
+    assert slot["id"] == "0-00000003-054c-0000-cc09-000000006800"
 
 
 def test_a_native_install_still_gets_an_answer(tmp_path, monkeypatch):
@@ -581,7 +581,21 @@ def test_a_native_install_still_gets_an_answer(tmp_path, monkeypatch):
 
     assert cp._ryujinx(1, 0, "054c", "09cc", "PS4 Controller") is not None
     slot = json.loads(cfg.read_text())["input_config"][0]
-    assert slot["id"] == "0-e58f0005-054c-0000-cc09-000000006800"
+    assert slot["id"] == "0-00000005-054c-0000-cc09-000000006800"
+
+
+def test_the_name_crc_is_stripped_from_the_guid(tmp_path, monkeypatch):
+    """SDL 2.26+ packs a CRC16 of the device name in bytes 2-3; Ryujinx clears
+    it before building its id, so it must not survive into what we write.
+
+    Ground truth: the pad was bound by hand in Ryujinx's Input settings and the
+    id Ryujinx wrote for itself was read back.
+    """
+    assert cp.ryu_guid_from_sdl2("03008fe54c050000cc09000000006800") == \
+        "00000003-054c-0000-cc09-000000006800", "the CRC leaked into the id"
+    # A GUID that never carried one is untouched.
+    assert cp.ryu_guid_from_sdl2("030000004c050000cc09000000006800") == \
+        "00000003-054c-0000-cc09-000000006800"
 
 def test_azahar_follows_the_active_profile(tmp_path):
     """Qt stores the selected index 0-based in `profile=` and writes the array
@@ -650,6 +664,7 @@ if __name__ == "__main__":
         (test_two_real_pads_keep_their_two_slots, "tmp+mp"),
         (test_ryujinx_asks_its_own_sdl_not_the_hosts, "tmp+mp"),
         (test_a_native_install_still_gets_an_answer, "tmp+mp"),
+        (test_the_name_crc_is_stripped_from_the_guid, "tmp+mp"),
         (test_the_shipped_ini_has_no_keyboard_bindings_left, ""),
     ]
 

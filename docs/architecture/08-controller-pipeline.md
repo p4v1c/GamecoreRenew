@@ -34,7 +34,7 @@ different pad.
 |---|---|
 | `vidpid_of(guid)` | `(vendor, product)` — SDL packs them at a fixed offset |
 | `ryu_guid_vidpid(dashed_guid)` | the same, for Ryujinx's dashed dialect. For **reading** a config, never for deciding what to write |
-| `ryu_guid_from_sdl2(sdl_hex)` | the exact GUID Ryujinx will compute, from the one SDL2 reports — .NET `System.Guid` byte order |
+| `ryu_guid_from_sdl2(sdl_hex)` | the exact GUID Ryujinx will compute, from the one SDL2 reports — .NET `System.Guid` byte order, **name CRC (bytes 2-3) zeroed** |
 | `_sdl2_probe(vendor, product, lib)` | what SDL2 itself says about a connected pad: raw GUID **and** GameController mapping, from a subprocess. `lib` picks *which* SDL2 answers |
 | `bundled_sdl2(app_id)` | the SDL2 a flatpak'd emulator ships, or `""`. Its answer, not the host's, is what goes in that emulator's config |
 
@@ -60,6 +60,24 @@ matching controllers found` in its log, the controller applet on screen.
 
 Only Ryujinx is affected today: RPCS3 and PCSX2 ship SDL3, which agrees with
 the host, and Dolphin uses the runtime's.
+
+**Ryujinx zeroes the name CRC.** SDL 2.26+ packs a CRC16 of the device name
+into bytes 2-3 to tell apart pads sharing a vendor:product. Ryujinx clears it
+before building its id, so it must not survive into what we write.
+
+Established by binding the pad by hand in Ryujinx's own Input settings and
+reading back what it wrote — the only source of truth here, since every backup
+in that directory was written by GameCore:
+
+| | |
+|---|---|
+| Ryujinx wrote for itself | `0-00000003-054c-0000-cc09-000000006800` |
+| its own SDL reports | `03008fe54c050000cc09000000006800` |
+| host SDL3 reports | `05008fe54c050000cc09000000006800` |
+
+Bus byte and CRC are two independent corrections and both are required: zeroing
+the CRC on the host's answer still yields bus `0x05`, an id Ryujinx never
+computes.
 
 **Ryujinx: no two slots may carry the same `id`.** It resolves every entry in
 `input_config` with `_gamepadsIds.IndexOf(id)`, by value — so two slots holding

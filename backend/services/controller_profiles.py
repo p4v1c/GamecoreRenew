@@ -386,15 +386,34 @@ def ryu_guid_from_sdl2(sdl_hex: str) -> str | None:
 
     Both of those are byte-for-byte what this box's Config.json holds for its
     DualShock 4 and its Xbox One pad.
+
+    **Bytes 2-3 are zeroed first.** SDL 2.26 started packing a CRC16 of the
+    device name there to tell apart pads that share a vendor:product; Ryujinx
+    clears it before building its id, so the CRC must not survive into what we
+    write.
+
+    Ground truth, taken by binding the pad by hand in Ryujinx's own Input
+    settings and reading back what it wrote:
+
+        Ryujinx wrote            0-00000003-054c-0000-cc09-000000006800
+        its SDL reports          03008fe54c050000cc09000000006800
+        this function used to    0-e58f0003-054c-0000-cc09-000000006800   wrong
+        with the CRC zeroed      0-00000003-054c-0000-cc09-000000006800   right
+
+    The bus byte and the CRC are two separate corrections and both are needed:
+    the host's SDL3 would give bus 0x05 here, so zeroing the CRC on the host's
+    answer still yields an id Ryujinx never computes.
     """
     try:
-        b = bytes.fromhex(sdl_hex)
+        b = bytearray.fromhex(sdl_hex)
     except ValueError:
         return None
     if len(b) != 16:
         return None
-    return "-".join((b[0:4][::-1].hex(), b[4:6][::-1].hex(), b[6:8][::-1].hex(),
-                     b[8:10].hex(), b[10:16].hex()))
+    b[2] = b[3] = 0
+    return "-".join((bytes(b[0:4])[::-1].hex(), bytes(b[4:6])[::-1].hex(),
+                     bytes(b[6:8])[::-1].hex(), bytes(b[8:10]).hex(),
+                     bytes(b[10:16]).hex()))
 
 
 def _ryujinx(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
