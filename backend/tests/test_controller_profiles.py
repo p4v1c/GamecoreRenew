@@ -667,9 +667,6 @@ if __name__ == "__main__":
         (test_the_name_crc_is_stripped_from_the_guid, "tmp+mp"),
         (test_rmg_snapshots_the_input_sections_only, "tmp"),
         (test_rmg_restore_leaves_the_rest_of_the_file_alone, "tmp"),
-        (test_rmg_binds_the_n64_port, "tmp+mp"),
-        (test_rmg_gives_each_player_its_own_port, "tmp+mp"),
-        (test_rmg_invents_nothing_when_the_profile_db_is_missing, "tmp+mp"),
         (test_the_shipped_ini_has_no_keyboard_bindings_left, ""),
     ]
 
@@ -737,56 +734,3 @@ def test_rmg_restore_leaves_the_rest_of_the_file_alone(tmp_path):
     assert "ScreenWidth = 1280" in back, "video settings are not part of the snapshot"
     assert back.count("[Rosalie's Mupen GUI - Input Plugin]") == 1
     assert "[Rsp-HLE]" in back
-
-
-def test_rmg_binds_the_n64_port(tmp_path, monkeypatch):
-    """Without a Profile section the port has no controller at all — mupen64plus
-    says `Game controller 0 (Standard controller) has nothing plugged in`, and
-    no pad works however well SDL sees it."""
-    cfg = tmp_path / "mupen64plus.cfg"
-    cfg.write_text("[Core]\nScreenWidth = 1920\n\n[Rsp-HLE]\nVersion = 1\n")
-    monkeypatch.setattr(cp, "RMG_CFG", cfg)
-    monkeypatch.setattr(cp, "_rmg_fallback_profile",
-                        lambda: {"DeviceName": ["fallback_profile"], "DeviceType": 4,
-                                 "A_Name": "a", "A_Data": "0", "Start_Name": "start"})
-
-    msg = cp._rmg(1, 0, "054c", "09cc", "PS4 Controller")
-
-    text = cfg.read_text()
-    assert msg and "port 0" in msg
-    assert '[Rosalie\'s Mupen GUI - Input Plugin Profile 0]' in text
-    assert 'DeviceName = "PS4 Controller"' in text, "RMG picks the mapping by name"
-    assert 'A_Name = "a"' in text, "the mapping comes from RMG's own fallback profile"
-    assert "ScreenWidth = 1920" in text and "[Rsp-HLE]" in text, "video untouched"
-
-    assert cp._rmg(1, 0, "054c", "09cc", "PS4 Controller") is None, "idempotent"
-
-
-def test_rmg_gives_each_player_its_own_port(tmp_path, monkeypatch):
-    cfg = tmp_path / "mupen64plus.cfg"
-    cfg.write_text("[Core]\nScreenWidth = 1920\n")
-    monkeypatch.setattr(cp, "RMG_CFG", cfg)
-    monkeypatch.setattr(cp, "_rmg_fallback_profile",
-                        lambda: {"DeviceName": ["fallback_profile"], "DeviceType": 4,
-                                 "A_Name": "a"})
-
-    cp._rmg(1, 0, "054c", "09cc", "PS4 Controller")
-    cp._rmg(3, 0, "045e", "02fd", "Xbox One Controller")
-
-    heads = [h for h, _b in cp._ini_sections(cfg.read_text()) if "Input Plugin Profile" in h]
-    assert heads == ["Rosalie's Mupen GUI - Input Plugin Profile 0",
-                     "Rosalie's Mupen GUI - Input Plugin Profile 2"], "player N → port N-1"
-
-
-def test_rmg_invents_nothing_when_the_profile_db_is_missing(tmp_path, monkeypatch):
-    """A hand-copied mapping table would rot the first time RMG changes its 74
-    keys. No DB, no write — and say so."""
-    cfg = tmp_path / "mupen64plus.cfg"
-    cfg.write_text("[Core]\nScreenWidth = 1920\n")
-    monkeypatch.setattr(cp, "RMG_CFG", cfg)
-    monkeypatch.setattr(cp, "_rmg_fallback_profile", lambda: None)
-
-    before = cfg.read_text()
-    msg = cp._rmg(1, 0, "054c", "09cc", "PS4 Controller")
-    assert isinstance(msg, cp.Skip)
-    assert cfg.read_text() == before

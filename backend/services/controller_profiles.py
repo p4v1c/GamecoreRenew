@@ -674,13 +674,26 @@ def _mgba_replace(text: str, block: str) -> str:
 
 
 
-# RMG: input lives in `[Rosalie's Mupen GUI - Input Plugin]` plus whatever
-# profile sections it writes when a pad is configured. Matched on the prefix
-# rather than an exact header because those profile names could not be observed
-# — there was no pad connected when this was written, and RMG only creates them
-# once one is mapped in its own dialog. The prefix is safe either way: the
-# graphics and core sections of the same file do not carry it, so a restore
-# cannot reach them.
+# RMG: input lives in `[Rosalie's Mupen GUI - Input Plugin]` plus one
+# `… Profile <port>` section per N64 port. Matched on the prefix, which also
+# keeps `[… GameCube Adapter Input Plugin]` out — it does not carry it.
+#
+# Snapshot only, and deliberately: nothing here synthesises an RMG mapping.
+# Two attempts to do so failed against what RMG actually writes, which is
+#
+#     PluggedIn = True
+#     DeviceName = "PS4 Controller"
+#     DevicePath = "/dev/hidraw0"
+#     DeviceSerial = "40:1b:5f:b9:ea:8d"
+#     A_Name = "cross"   …
+#
+# `PluggedIn` is what attaches a controller to the port — without it the game
+# itself says "connect a controller to socket 1", however complete the rest of
+# the section looks. `DevicePath` is a host path that can move between boots,
+# and the button names are per-controller (`cross`, `square` for a DualShock 4,
+# not the generic `a`, `x` of the fallback_profile RMG ships). Reproducing all
+# of that means reimplementing RMG's own dialog, and being wrong about it is
+# silent. Capturing what RMG wrote is not.
 _RMG_INPUT_PREFIX = "Rosalie's Mupen GUI - Input Plugin"
 
 
@@ -698,73 +711,6 @@ def _rmg_replace(text: str, block: str) -> str:
     return out + block if block.endswith("\n") else out + block + "\n"
 
 
-
-# ── RMG (the N64 slot) ───────────────────────────────────────────────────────
-RMG_APP = "com.github.Rosalie241.RMG"
-
-
-def _rmg_fallback_profile() -> dict | None:
-    """RMG's own generic gamepad mapping, from the InputProfileDB.json it ships.
-
-    Read rather than written out here, for the same reason the Ryujinx GUID is
-    asked of SDL rather than fabricated: RMG owns the meaning of these 74 keys
-    (`A_InputType`, `A_Name`, `A_Data`, `A_ExtraData` per N64 input), and a
-    hand-copied table would rot the first time it changes them. The DB holds an
-    entry per known controller keyed by DeviceName, plus `fallback_profile` for
-    everything else — which is what any SDL gamepad should get.
-    """
-    loc = flatpak_location(RMG_APP)
-    if not loc:
-        return None
-    db = Path(loc) / "files" / "share" / "RMG" / "InputProfileDB.json"
-    try:
-        entries = json.loads(db.read_text())
-    except (OSError, ValueError):
-        return None
-    for e in entries if isinstance(entries, list) else []:
-        names = e.get("DeviceName") or []
-        if "fallback_profile" in (names if isinstance(names, list) else [names]):
-            return e
-    return None
-
-
-def _rmg(i: int, dup: int, vendor: str, product: str, name: str) -> str | None:
-    """RMG binds N64 port `i-1` in `[Rosalie's Mupen GUI - Input Plugin Profile <port>]`.
-
-    Without that section the port has no controller at all — mupen64plus says
-    so in as many words: `Game controller 0 (Standard controller) has nothing
-    plugged in`, and no pad works however well SDL sees it. Writing the section
-    changes that line to `has a Memory pak plugged in`, which is how this was
-    verified.
-
-    RMG picks the mapping by `DeviceName`, so that is the SDL name — the same
-    string resolve_name() gives every other SDL-named emulator.
-    """
-    if not RMG_CFG.is_file():
-        return None
-    fallback = _rmg_fallback_profile()
-    if fallback is None:
-        return Skip(f"rmg: no InputProfileDB.json to read a mapping from "
-                    f"— Player {i} left as it was")
-    try:
-        text = RMG_CFG.read_text()
-    except OSError as e:
-        return Skip(f"rmg: mupen64plus.cfg unreadable ({e.__class__.__name__})")
-
-    header = f"{_RMG_INPUT_PREFIX} Profile {i - 1}"
-    lines = [f"[{header}]", "", f'DeviceName = "{name}"', "DeviceType = 4"]
-    for k in sorted(fallback):
-        if k in ("DeviceName", "DeviceType"):
-            continue
-        v = fallback[k]
-        lines.append(f'{k} = "{v}"' if isinstance(v, str) else f"{k} = {v}")
-    block = "\n".join(lines) + "\n"
-
-    if _sect_extract(header)(text).strip() == block.strip():
-        return None                       # already right — do not rewrite the file
-    backup(RMG_CFG)
-    _atomic_write(RMG_CFG, _sect_replace(header)(text, block))
-    return f"rmg: N64 port {i - 1} bound to {name}"
 
 
 # emu_id → (config-path getter, extract(text)→block, replace(text, block)→text)
@@ -1550,11 +1496,10 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
                  if player_index == 1 else None),
         ("cemu", lambda: snapshot_restore("cemu", vendor, product)
                  if player_index == 1 else None),
-        # N64. A captured mapping always wins over the synthesised one, the
-        # same rule melonDS follows below.
+        # N64 (Rosalie's Mupen GUI). Snapshot only — see _rmg_extract for why
+        # nothing is synthesised here. Single-player, like its three neighbours.
         ("gopher64", lambda: snapshot_restore("gopher64", vendor, product)
-                     if snapshot_exists("gopher64", vendor, product)
-                     else _rmg(player_index, dup_index, vendor, product, name)),
+                     if player_index == 1 else None),
         ("dolphin", lambda: _dolphin(player_index, dup_index, vendor, product, name)),
         ("rpcs3", lambda: _rpcs3(player_index, dup_index, vendor, product, name)),
         ("pcsx2", lambda: _tier0_ini(pcsx2_ini(), "pcsx2", player_index)),

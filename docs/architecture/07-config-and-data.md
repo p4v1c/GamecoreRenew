@@ -54,26 +54,32 @@ either way.
 `update/linux.sh` reports a box whose N64 entry still launches gopher64, with
 the commands to switch it.
 
-RMG **does** need a writer, contrary to what `ControllerMode 0` suggests.
-Without a `[Rosalie's Mupen GUI - Input Plugin Profile <port>]` section the N64
-port has no controller at all, however well SDL sees the pad — mupen64plus says
-so in as many words:
+RMG's controller config is **captured, never synthesised** — it joins azahar,
+mGBA and Cemu on the "Scan mapping" path. Two attempts to write it failed
+against what RMG actually produces:
 
-    Game controller 0 (Standard controller) has nothing plugged in
+```ini
+[Rosalie's Mupen GUI - Input Plugin Profile 0]
+PluggedIn = True
+DeviceName = "PS4 Controller"
+DevicePath = "/dev/hidraw0"
+DeviceSerial = "40:1b:5f:b9:ea:8d"
+A_Name = "cross"        # not the generic "a" of the shipped fallback_profile
+```
 
-Writing the section turns that line into `has a Memory pak plugged in`, which
-is how `_rmg()` was verified. Player *N* binds port *N-1*.
+`PluggedIn` is what attaches a controller to the N64 port. Without it the game
+itself refuses to start — *"connect a controller to socket 1"* — however
+complete the rest of the section looks, and `ControllerMode 0` ("automatic")
+does not supply it. `DevicePath` is a host path that can move between boots,
+and the button names are per-controller. Reproducing that means reimplementing
+RMG's own dialog, and being wrong about it is silent; capturing what RMG wrote
+is not.
 
-The 74 binding keys are **read from RMG's own `InputProfileDB.json`**, shipped
-inside the flatpak, never written out here — the same rule as asking SDL for a
-GUID instead of fabricating one. That DB holds an entry per known controller
-keyed by `DeviceName`, plus `fallback_profile` for everything else, which is
-what any SDL gamepad gets. No DB, no write: `_rmg()` returns a `Skip` rather
-than invent a mapping that would rot the first time RMG changes its schema.
-
-A snapshot adapter is registered too, and a captured mapping wins over the
-synthesised one — the same rule melonDS follows. "Scan mapping" is therefore
-available if the generic mapping is ever wrong.
+Do it once per pad: configure the controller in RMG (Settings → Input), then
+press **Scan mapping** in GameCore. The snapshot is restored whenever that pad
+reconnects. `_rmg_extract` takes the `[Rosalie's Mupen GUI - Input Plugin…]`
+sections and nothing else, so a restore never rolls back the video settings
+living in the same `mupen64plus.cfg`.
 
 **Language.** ScreenScraper localises synopses **and genre names**, so a French
 preference gives `Course, Conduite` where an English one gives
