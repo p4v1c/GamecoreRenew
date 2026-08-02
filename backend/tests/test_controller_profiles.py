@@ -667,6 +667,8 @@ if __name__ == "__main__":
         (test_the_name_crc_is_stripped_from_the_guid, "tmp+mp"),
         (test_rmg_snapshots_the_input_sections_only, "tmp"),
         (test_rmg_restore_leaves_the_rest_of_the_file_alone, "tmp"),
+        (test_an_rmg_block_naming_another_pad_is_refused, "mp"),
+        (test_a_pad_the_sdl_database_does_not_know_is_still_capturable, "mp"),
         (test_the_shipped_ini_has_no_keyboard_bindings_left, ""),
     ]
 
@@ -734,3 +736,30 @@ def test_rmg_restore_leaves_the_rest_of_the_file_alone(tmp_path):
     assert "ScreenWidth = 1280" in back, "video settings are not part of the snapshot"
     assert back.count("[Rosalie's Mupen GUI - Input Plugin]") == 1
     assert "[Rsp-HLE]" in back
+
+
+def test_an_rmg_block_naming_another_pad_is_refused(monkeypatch):
+    """RMG carries no SDL GUID, so the GUID check waves its config through.
+
+    Press "Scan mapping" with the Xbox connected while mupen64plus.cfg still
+    holds the DualShock 4's profile and the DS4's mapping gets saved as the
+    Xbox's — then restored over the owner's work the next time it connects.
+    """
+    ds4_block = ('[Rosalie\'s Mupen GUI - Input Plugin Profile 0]\n'
+                 'PluggedIn = True\n'
+                 'DeviceName = "PS4 Controller"\n'
+                 'A_Name = "cross"\n')
+    monkeypatch.setattr(cp, "db_name_for", lambda v, p: {
+        ("054c", "09cc"): "PS4 Controller",
+        ("045e", "02fd"): "Xbox One Controller",
+    }.get((v, p), ""))
+
+    assert cp._block_disagrees(ds4_block, "045e", "02fd") == "PS4 Controller"
+    assert cp._block_disagrees(ds4_block, "054c", "09cc") is None
+
+
+def test_a_pad_the_sdl_database_does_not_know_is_still_capturable(monkeypatch):
+    """An unknown pad is exactly when a captured mapping matters most."""
+    block = 'DeviceName = "Some Generic Pad"\nPluggedIn = True\n'
+    monkeypatch.setattr(cp, "db_name_for", lambda v, p: "")
+    assert cp._block_disagrees(block, "1234", "5678") is None

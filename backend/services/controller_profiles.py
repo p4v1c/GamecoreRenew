@@ -757,6 +757,22 @@ def _block_disagrees(block: str, vendor: str, product: str) -> str | None:
     for guid in _ANY_GUID_RE.findall(block):
         if vidpid_of(guid) != want:
             return guid
+
+    # RMG names the device instead of carrying a GUID, so the loop above finds
+    # nothing in its config and would wave through any pad's mapping saved
+    # under any other pad's name — the exact accident this function exists to
+    # stop, just spelled differently. Compare what it says it is against the
+    # SDL name this vendor:product resolves to.
+    for line in block.splitlines():
+        if not line.startswith("DeviceName"):
+            continue
+        _k, _sep, raw = line.partition("=")
+        said = raw.strip().strip('"')
+        expected = db_name_for(vendor, product)
+        # No entry in the SDL database is not a disagreement: an unknown pad is
+        # exactly the case where a captured mapping is most needed.
+        if said and expected and said != expected:
+            return said
     return None
 
 
