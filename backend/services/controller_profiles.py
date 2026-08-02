@@ -104,7 +104,8 @@ log = logging.getLogger(__name__)
 DB_FILE = GAMECORE_ROOT / "backend" / "data" / "gamecontrollerdb.txt"
 
 HOME = Path.home()
-RYUJINX_CFG = HOME / ".var/app/io.github.ryubing.Ryujinx/config/Ryujinx/Config.json"
+RYUJINX_APP = "io.github.ryubing.Ryujinx"
+RYUJINX_CFG = HOME / f".var/app/{RYUJINX_APP}/config/Ryujinx/Config.json"
 AZAHAR = HOME / ".var/app/org.azahar_emu.Azahar/config/azahar-emu/qt-config.ini"
 DOLPHIN_DIR = HOME / ".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu"
 CEMU_PROFILES = HOME / ".var/app/info.cemu.Cemu/config/Cemu/controllerProfiles"
@@ -432,7 +433,11 @@ def _ryujinx(i: int, dup: int, vendor: str, product: str, name: str) -> str | No
     if not isinstance(ic, list):
         return Skip("ryujinx: Config.json has no input_config list")
 
-    sdl_hex = _sdl2_probe(vendor, product).get("guid", "")
+    # Ryujinx's OWN SDL2, not the host's. They disagree by one byte — the bus
+    # type — and it is Ryujinx that has to recognise what we write. See
+    # bundled_sdl2() for the measurement. Falls back to the host's SDL2 when
+    # the emulator is a native install rather than a flatpak.
+    sdl_hex = _sdl2_probe(vendor, product, bundled_sdl2(RYUJINX_APP)).get("guid", "")
     new_guid = ryu_guid_from_sdl2(sdl_hex) if sdl_hex else None
     if not new_guid:
         return Skip(f"ryujinx: SDL2 would not report a GUID for {vendor}:{product} "
@@ -761,7 +766,8 @@ _SDL2_PROBE = (
     "import ctypes,os,sys\n"
     "os.environ['SDL_VIDEODRIVER']='dummy'\n"
     "v=int(sys.argv[1],16);p=int(sys.argv[2],16)\n"
-    "try: s=ctypes.CDLL('libSDL2-2.0.so.0')\n"
+    "lib=sys.argv[3] if len(sys.argv)>3 and sys.argv[3] else 'libSDL2-2.0.so.0'\n"
+    "try: s=ctypes.CDLL(lib)\n"
     "except OSError: sys.exit(0)\n"
     "class G(ctypes.Structure): _fields_=[('data',ctypes.c_uint8*16)]\n"
     "s.SDL_GameControllerMappingForDeviceIndex.restype=ctypes.c_char_p\n"
@@ -782,12 +788,63 @@ _SDL2_PROBE = (
     "s.SDL_Quit()\n"
 )
 
-_sdl2_cache: dict[tuple[str, str], tuple[float, dict[str, str]]] = {}
+_sdl2_cache: dict[tuple[str, str, str], tuple[float, dict[str, str]]] = {}
+
+# Resolved once per process: the flatpak deploy path does not move while the
+# app stays installed, and `flatpak info` costs ~100 ms.
+_bundled_sdl_cache: dict[str, str] = {}
 
 
-def _sdl2_probe(vendor: str, product: str) -> dict[str, str]:
+def bundled_sdl2(app_id: str) -> str:
+    """Absolute path of the SDL2 a flatpak'd emulator ships, or "".
+
+    An emulator that bundles its own SDL does not necessarily agree with the
+    host's about what a pad's GUID is, and it is the emulator's answer that has
+    to go in its config.
+
+    Measured on the reference box, same physical DualShock 4, same instant:
+
+        host libSDL2-2.0.so.0 (sdl2-compat 2.32.70 over SDL3)
+            05008fe54c050000cc09000000006800   bus 0x0005, Bluetooth
+        Ryujinx's bundled libSDL2.so (real SDL 2.30.0)
+            03008fe54c050000cc09000000006800   bus 0x0003, USB
+
+    One byte, the bus type: SDL3 reports the transport, SDL2 2.30 reports USB
+    for anything HIDAPI drives, Bluetooth included. Everything else — CRC,
+    vendor, product, driver tail — is identical.
+
+    That one byte is the difference between Ryujinx binding the pad and
+    Ryujinx's `_gamepadsIds.IndexOf(id)` returning -1 and disposing the slot in
+    silence, which shows up in its log as `Hid Remap: No matching controllers
+    found` and on screen as the controller applet.
+
+    Only Ryujinx is affected today: RPCS3 and PCSX2 ship SDL3, which agrees
+    with the host, and Dolphin uses the runtime's.
+    """
+    if app_id in _bundled_sdl_cache:
+        return _bundled_sdl_cache[app_id]
+    path = ""
+    try:
+        r = subprocess.run(["flatpak", "info", "--show-location", app_id],
+                           capture_output=True, text=True, timeout=8)
+        if r.returncode == 0:
+            lib = Path(r.stdout.strip()) / "files" / "bin" / "libSDL2.so"
+            if lib.is_file():
+                path = str(lib)
+    except (OSError, subprocess.SubprocessError):
+        pass  # not a flatpak install, or no flatpak at all — the host SDL will do
+    _bundled_sdl_cache[app_id] = path
+    return path
+
+
+def _sdl2_probe(vendor: str, product: str, lib: str = "") -> dict[str, str]:
     """What SDL2 itself says about a connected pad: its raw 32-hex GUID and its
     GameController mapping string. `{}` when SDL2 cannot be asked.
+
+    `lib` picks WHICH SDL2 answers. Empty means the host's. Pass an emulator's
+    bundled one (bundled_sdl2) whenever the answer is going into that
+    emulator's config: the host's SDL2 here is sdl2-compat over SDL3, and it
+    does not agree with a real SDL2 about the bus byte of a GUID.
 
     Run in a SUBPROCESS because the backend has already loaded SDL3 into its
     own address space, and because these two answers must come from the same
@@ -796,12 +853,12 @@ def _sdl2_probe(vendor: str, product: str) -> dict[str, str]:
     nowhere else. Cached briefly: two pads taking slots in the same scan pass
     would otherwise each pay the subprocess, and its timeout is 8 seconds.
     """
-    key = (vendor.lower(), product.lower())
+    key = (vendor.lower(), product.lower(), lib)
     ts, cached = _sdl2_cache.get(key, (0.0, {}))
     if cached and time.monotonic() - ts <= 5.0:
         return cached
     try:
-        r = subprocess.run([sys.executable, "-c", _SDL2_PROBE, vendor, product],
+        r = subprocess.run([sys.executable, "-c", _SDL2_PROBE, vendor, product, lib],
                            capture_output=True, text=True, timeout=8)
     except (OSError, subprocess.SubprocessError):
         log.warning("controller_profiles: SDL2 probe failed for %s:%s", vendor, product)

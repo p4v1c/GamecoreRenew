@@ -262,7 +262,7 @@ def test_ryujinx_leaves_the_slot_alone_when_sdl_says_nothing(tmp_path, monkeypat
         {"player_index": "Player1", "backend": "GamepadSDL2",
          "id": "0-00000003-054c-0000-cc09-000000006800", "name": "PS4 Controller (0)"}]}))
     monkeypatch.setattr(cp, "RYUJINX_CFG", cfg)
-    monkeypatch.setattr(cp, "_sdl2_probe", lambda v, p: {})
+    monkeypatch.setattr(cp, "_sdl2_probe", lambda v, p, lib="": {})
 
     before = cfg.read_text()
     msg = cp._ryujinx(2, 0, "045e", "02fd", "Xbox One Controller")
@@ -280,7 +280,7 @@ def test_ryujinx_does_not_rewrite_a_slot_that_is_already_right(tmp_path, monkeyp
          "id": "0-00000003-054c-0000-cc09-000000006800", "name": "PS4 Controller (0)"}]}, indent=2))
     monkeypatch.setattr(cp, "RYUJINX_CFG", cfg)
     monkeypatch.setattr(cp, "_sdl2_probe",
-                        lambda v, p: {"guid": "030000004c050000cc09000000006800"})
+                        lambda v, p, lib="": {"guid": "030000004c050000cc09000000006800"})
 
     before = cfg.read_text()
     assert cp._ryujinx(1, 0, "054c", "09cc", "PS4 Controller") is None
@@ -297,7 +297,7 @@ def test_ryujinx_replaces_a_keyboard_slot_instead_of_mutating_it(tmp_path, monke
         {"player_index": "Player2", "backend": "WindowKeyboard", "id": "0"}]}))
     monkeypatch.setattr(cp, "RYUJINX_CFG", cfg)
     monkeypatch.setattr(cp, "_sdl2_probe",
-                        lambda v, p: {"guid": "050000005e040000fd02000003090000"})
+                        lambda v, p, lib="": {"guid": "050000005e040000fd02000003090000"})
 
     cp._ryujinx(2, 0, "045e", "02fd", "Xbox One Controller")
 
@@ -480,7 +480,7 @@ def test_a_stale_slot_holding_this_pads_id_is_removed(tmp_path, monkeypatch):
          "id": "2-00000003-054c-0000-cc09-000000006800", "name": "PS4 Controller (2)"},
     ]}, indent=2))
     monkeypatch.setattr(cp, "RYUJINX_CFG", cfg)
-    monkeypatch.setattr(cp, "_sdl2_probe", lambda v, p: {"guid": DS4_SDL_GUID})
+    monkeypatch.setattr(cp, "_sdl2_probe", lambda v, p, lib="": {"guid": DS4_SDL_GUID})
 
     msg = cp._ryujinx(1, 0, "054c", "09cc", "PS4 Controller")
 
@@ -506,7 +506,7 @@ def test_being_already_correct_does_not_hide_a_duplicate(tmp_path, monkeypatch):
          "id": DS4_RYU_ID, "name": "PS4 Controller (0)"},
     ]}, indent=2))
     monkeypatch.setattr(cp, "RYUJINX_CFG", cfg)
-    monkeypatch.setattr(cp, "_sdl2_probe", lambda v, p: {"guid": DS4_SDL_GUID})
+    monkeypatch.setattr(cp, "_sdl2_probe", lambda v, p, lib="": {"guid": DS4_SDL_GUID})
 
     assert cp._ryujinx(1, 0, "054c", "09cc", "PS4 Controller") is not None
     ic = json.loads(cfg.read_text())["input_config"]
@@ -527,11 +527,61 @@ def test_two_real_pads_keep_their_two_slots(tmp_path, monkeypatch):
          "id": "1-e58f0005-054c-0000-cc09-000000006800", "name": "PS4 Controller (1)"},
     ]}, indent=2))
     monkeypatch.setattr(cp, "RYUJINX_CFG", cfg)
-    monkeypatch.setattr(cp, "_sdl2_probe", lambda v, p: {"guid": DS4_SDL_GUID})
+    monkeypatch.setattr(cp, "_sdl2_probe", lambda v, p, lib="": {"guid": DS4_SDL_GUID})
 
     assert cp._ryujinx(2, 1, "054c", "09cc", "PS4 Controller") is None
     ic = json.loads(cfg.read_text())["input_config"]
     assert [e["player_index"] for e in ic] == ["Player1", "Player2"]
+
+
+# ── the GUID has to come from the emulator's own SDL ─────────────────────────
+# Same DualShock 4, same instant, two libraries:
+#   host libSDL2-2.0.so.0 (sdl2-compat 2.32.70 over SDL3) -> 05008fe5...  bus 5
+#   Ryujinx's bundled libSDL2.so (real SDL 2.30.0)        -> 03008fe5...  bus 3
+# SDL3 reports the transport; SDL2 2.30 reports USB for anything HIDAPI drives.
+# Writing the host's answer made Ryujinx's IndexOf(id) return -1 and dispose
+# the slot in silence — "Hid Remap: No matching controllers found", 352 times
+# in one session log, and the controller applet on screen.
+
+def test_ryujinx_asks_its_own_sdl_not_the_hosts(tmp_path, monkeypatch):
+    cfg = tmp_path / "Config.json"
+    cfg.write_text(json.dumps({"input_config": [
+        {"player_index": "Player1", "backend": "GamepadSDL2",
+         "id": "0-00000003-054c-0000-cc09-000000006800", "name": "PS4 Controller (0)"}]}, indent=2))
+    monkeypatch.setattr(cp, "RYUJINX_CFG", cfg)
+    monkeypatch.setattr(cp, "bundled_sdl2", lambda app: "/ryujinx/libSDL2.so")
+
+    asked = []
+
+    def probe(vendor, product, lib=""):
+        asked.append(lib)
+        # The host and the emulator disagree; only one of these is usable.
+        return {"guid": "03008fe54c050000cc09000000006800" if lib
+                else "05008fe54c050000cc09000000006800"}
+
+    monkeypatch.setattr(cp, "_sdl2_probe", probe)
+    cp._ryujinx(1, 0, "054c", "09cc", "PS4 Controller")
+
+    assert asked == ["/ryujinx/libSDL2.so"], "the host's SDL2 answer does not go in Ryujinx's config"
+    slot = json.loads(cfg.read_text())["input_config"][0]
+    assert slot["id"] == "0-e58f0003-054c-0000-cc09-000000006800"
+
+
+def test_a_native_install_still_gets_an_answer(tmp_path, monkeypatch):
+    """No flatpak means no bundled SDL — fall back to the host's rather than
+    give up, which is what every non-flatpak install would otherwise do."""
+    cfg = tmp_path / "Config.json"
+    cfg.write_text(json.dumps({"input_config": [
+        {"player_index": "Player1", "backend": "GamepadSDL2",
+         "id": "0-deadbeef-054c-0000-cc09-000000006800", "name": "PS4 Controller (0)"}]}, indent=2))
+    monkeypatch.setattr(cp, "RYUJINX_CFG", cfg)
+    monkeypatch.setattr(cp, "bundled_sdl2", lambda app: "")
+    monkeypatch.setattr(cp, "_sdl2_probe",
+                        lambda v, p, lib="": {"guid": "05008fe54c050000cc09000000006800"})
+
+    assert cp._ryujinx(1, 0, "054c", "09cc", "PS4 Controller") is not None
+    slot = json.loads(cfg.read_text())["input_config"][0]
+    assert slot["id"] == "0-e58f0005-054c-0000-cc09-000000006800"
 
 def test_azahar_follows_the_active_profile(tmp_path):
     """Qt stores the selected index 0-based in `profile=` and writes the array
@@ -598,6 +648,8 @@ if __name__ == "__main__":
         (test_a_stale_slot_holding_this_pads_id_is_removed, "tmp+mp"),
         (test_being_already_correct_does_not_hide_a_duplicate, "tmp+mp"),
         (test_two_real_pads_keep_their_two_slots, "tmp+mp"),
+        (test_ryujinx_asks_its_own_sdl_not_the_hosts, "tmp+mp"),
+        (test_a_native_install_still_gets_an_answer, "tmp+mp"),
         (test_the_shipped_ini_has_no_keyboard_bindings_left, ""),
     ]
 

@@ -35,7 +35,8 @@ different pad.
 | `vidpid_of(guid)` | `(vendor, product)` — SDL packs them at a fixed offset |
 | `ryu_guid_vidpid(dashed_guid)` | the same, for Ryujinx's dashed dialect. For **reading** a config, never for deciding what to write |
 | `ryu_guid_from_sdl2(sdl_hex)` | the exact GUID Ryujinx will compute, from the one SDL2 reports — .NET `System.Guid` byte order |
-| `_sdl2_probe(vendor, product)` | what SDL2 itself says about a connected pad: raw GUID **and** GameController mapping, from a subprocess |
+| `_sdl2_probe(vendor, product, lib)` | what SDL2 itself says about a connected pad: raw GUID **and** GameController mapping, from a subprocess. `lib` picks *which* SDL2 answers |
+| `bundled_sdl2(app_id)` | the SDL2 a flatpak'd emulator ships, or `""`. Its answer, not the host's, is what goes in that emulator's config |
 
 > A GUID carries bus type, version and driver signature as well as
 > vendor/product, so two pads with the same vendor:product can have different
@@ -43,6 +44,22 @@ different pad.
 > Substituting vendor/product bytes into someone else's GUID therefore yields a
 > device that does not exist. Two functions used to do exactly that
 > (`swap_vidpid`, `_ryu_swap_vidpid`); both are gone. Ask SDL.
+
+**Ask the emulator's SDL, not the host's.** They can disagree. Measured on
+the reference box, same DualShock 4, same instant:
+
+| library | GUID | bus |
+|---|---|---|
+| host `libSDL2-2.0.so.0` — sdl2-compat 2.32.70 over SDL3 | `05008fe5…` | `0x0005` Bluetooth |
+| Ryujinx's bundled `libSDL2.so` — real SDL 2.30.0 | `03008fe5…` | `0x0003` USB |
+
+One byte. SDL3 reports the transport; SDL2 2.30 reports USB for anything
+HIDAPI drives, Bluetooth included. Writing the host's answer made Ryujinx's
+`IndexOf(id)` return -1 and dispose the slot in silence — `Hid Remap: No
+matching controllers found` in its log, the controller applet on screen.
+
+Only Ryujinx is affected today: RPCS3 and PCSX2 ship SDL3, which agrees with
+the host, and Dolphin uses the runtime's.
 
 **Ryujinx: no two slots may carry the same `id`.** It resolves every entry in
 `input_config` with `_gamepadsIds.IndexOf(id)`, by value — so two slots holding
