@@ -28,6 +28,15 @@ export const ORDER = ['dawn','noon','afternoon','sunset','night'];
 
 function lerp(a,b,t){return a+(b-a)*t;}
 function lerpArr(a,b,t){return a.map((v,i)=>lerp(v,b[i],t));}
+const HEX_RE = /^#[0-9a-f]{6}$/i;
+/** Blend two #rrggbb strings. Every colour in TOD is one of these. */
+function lerpHex(a,b,t){
+  const ch=(o)=>[parseInt(a.slice(o,o+2),16),parseInt(b.slice(o,o+2),16)];
+  const mix=(o)=>{const[x,y]=ch(o);return Math.round(lerp(x,y,t)).toString(16).padStart(2,'0');};
+  return '#'+mix(1)+mix(3)+mix(5);
+}
+/** Ease in and out, so a transition has no corner at either end. */
+function smoothstep(t){return t<=0?0:t>=1?1:t*t*(3-2*t);}
 function pad2(n){return n<10?'0'+n:''+n;}
 export function shade(hex,f){
   const r=Math.min(255,Math.round(parseInt(hex.slice(1,3),16)*f));
@@ -39,7 +48,7 @@ export function shade(hex,f){
 const VS = 'attribute vec2 p;varying vec2 vUv;void main(){vUv=p*0.5+0.5;gl_Position=vec4(p,0.0,1.0);}';
 const FS=[
 'precision highp float;varying vec2 vUv;',
-'uniform float uT,uEnergy,uNight,uAspect;',
+'uniform float uT,uEnergy,uNight,uAspect,uScale;',
 'uniform vec3 uSkyTop,uSkyMid,uSkyLow,uSeaDeep,uSeaShallow,uFoam,uSandNear,uSandWet,uDisc,uSun;',
 'uniform vec4 uGlow,uAmbient;',
 'float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}',
@@ -111,14 +120,37 @@ const FS=[
 '   float fw=3.6+4.4*fe;',
 '   float band=1.0-smoothstep(0.0,fw,back);',
 '   float lace=fbm(vec2(p.x*0.85,p.z*0.75+uT*0.6))*0.65+fbm(vec2(p.x*2.4,p.z*2.1+uT*1.1))*0.35;',
-'   float bub=step(0.72,hash(floor(p.xz*vec2(13.0,19.0))+floor(uT*3.0)));',
+// Bubbles used to snap to a new pattern three times a second — floor(uT*3.0)
+// is a hard cut, and a hard cut on a random field is a pop, not a bubble. The
+// two neighbouring cells are crossfaded instead, so they appear and fade.
+'   float bt=uT*3.0;float bf=fract(bt);',
+'   float bub=mix(step(0.72,hash(floor(p.xz*vec2(13.0,19.0))+floor(bt))),',
+'                 step(0.72,hash(floor(p.xz*vec2(13.0,19.0))+floor(bt)+1.0)),',
+'                 smoothstep(0.0,1.0,bf));',
 '   float fm=band*smoothstep(0.22,0.78,lace+0.30*band)+band*bub*0.45;',
 '   fm+=(1.0-smoothstep(0.0,1.4,back))*0.85;',
 '   float swash=(1.0-smoothstep(1.2,3.4,abs(back-fw-3.2-2.0*fe)))*smoothstep(0.42,0.8,lace)*0.35;',
 '   col=mix(s,uFoam,clamp(fm+swash,0.0,0.96));',
 '  }else{',
-'   vec2 grad;float shoal=smoothstep(0.0,26.0,zf-edge);float hf=exp(-zf/150.0);',
-'   for(int i=0;i<4;i++){float hh=waves(p.xz,shoal,hf,grad);t=(hh-eye.y)/dir.y;p=eye+dir*t;zf=-p.z;shoal=smoothstep(0.0,26.0,zf-edge);hf=exp(-zf/150.0);}',
+// Band-limiting starts here. A pixel far out covers many wavelengths, so the
+// short components no longer describe a shape — they sample one arbitrary point
+// of it, and that point changes every frame. `hf` already faded them; it fades
+// them sooner now, and `rough` below carries the same idea to the highlights.
+// uScale folds in the render resolution: half the pixels means each one spans
+// twice the water, which is exactly why the picture sparkles once the quality
+// tier drops and looks clean at full resolution.
+'   vec2 grad;float shoal=smoothstep(0.0,26.0,zf-edge);float hf=exp(-zf/(90.0*uScale));',
+// Where the ray meets the moving surface, solved by iteration. Undamped, this
+// overshoots on a steep face and lands somewhere else each frame — and since
+// the crest and foam thresholds below are sharp, a point that moves reads as a
+// pixel flicking on and off. Measured: the noise sat exactly in the mid-field
+// where the swell is steepest, not at the horizon and not in the highlights.
+//
+// Relaxing each step to 65 % keeps the iteration from oscillating; a fifth pass
+// pays back the slower approach. Cost is one more evaluation of a function the
+// shader already runs four times.
+'   for(int i=0;i<5;i++){float hh=waves(p.xz,shoal,hf,grad);float tn=(hh-eye.y)/dir.y;t=mix(t,tn,0.65);p=eye+dir*t;zf=-p.z;shoal=smoothstep(0.0,26.0,zf-edge);hf=exp(-zf/(90.0*uScale));}',
+'   float rough=smoothstep(18.0*uScale,240.0*uScale,zf);',
 '   float h=waves(p.xz,shoal,hf,grad);',
 '   vec3 n=normalize(vec3(-grad.x,1.0,-grad.y));',
 '   vec3 v=-dir;float fr=pow(1.0-max(dot(n,v),0.0),5.0);fr=mix(0.02,0.85,fr);',
@@ -128,10 +160,18 @@ const FS=[
 '   deep*=1.0+0.10*clamp(-grad.y*2.0,-0.4,0.4);',
 '   vec3 rf=mix(uSeaShallow,sky(refl),0.65);',
 '   col=mix(deep,rf,clamp(fr*0.55,0.0,1.0));',
-'   float sp=pow(max(dot(refl,uSun),0.0),190.0);',
+// A 190-power lobe is narrower than a pixel: whether it lands is a coin toss
+// per pixel per frame, which reads as sparkle rather than as sun on water. So
+// the lobe widens and dims with distance — the same energy, spread over the
+// waves the pixel actually covers, which is what the eye expects to see.
+'   float sexp=mix(190.0,24.0,rough);',
+'   float sp=pow(max(dot(refl,uSun),0.0),sexp)*mix(1.0,0.30,rough);',
 '   col+=uDisc*sp*mix(1.4,0.7,uNight);',
-'   float glit=pow(max(dot(refl,uSun),0.0),22.0)*0.24*exp(-max(zf-edge,0.0)/120.0);',
-'   col+=uDisc*glit*(0.4+0.6*fbm(p.xz*1.1+uT*0.4));',
+// Same for the glitter, and its noise is world-space: past a certain distance
+// one octave of it fits inside a pixel, so it stops being texture and becomes
+// noise. It fades out before that happens.
+'   float glit=pow(max(dot(refl,uSun),0.0),22.0)*0.24*exp(-max(zf-edge,0.0)/120.0)*(1.0-rough*0.9);',
+'   col+=uDisc*glit*(0.4+0.6*fbm(p.xz*mix(1.1,0.3,rough)+uT*0.4));',
 '   float crest=smoothstep(0.46,0.98,h/max(0.95*uEnergy,0.01));',
 '   float cf=crest*smoothstep(0.36,0.84,fbm(p.xz*0.55+vec2(uT*0.5,0.0)))*exp(-max(zf-edge,0.0)/150.0);',
 '   float sw2=zf-edge;',
@@ -155,8 +195,13 @@ const FS=[
 '   sf=max(sf,(1.0-smoothstep(0.0,1.2,sw2))*0.85);',
 '   col=mix(col,uFoam,clamp(max(max(cf*0.70,brk*0.95),sf*0.92),0.0,0.95));',
 '   col*=mix(0.90,1.0,smoothstep(0.0,140.0,zf));',
-'   float far=smoothstep(110.0,480.0,zf);',
-'   col=mix(col,mix(uSeaDeep,uSkyLow,0.42),far*0.88);',
+// The haze now reaches 1.0 instead of stopping at 0.88. Those last 12 % were
+// the noisiest part of the frame: at the horizon `dir.y` approaches zero, the
+// intersection lands hundreds of units out, and sin() of a number that large
+// loses its low bits — so the leftover signal there was not water, it was
+// floating-point precision.
+'   float far=smoothstep(110.0,420.0,zf);',
+'   col=mix(col,mix(uSeaDeep,uSkyLow,0.42),far);',
 '  }',
 ' }',
 ' col=mix(col,col*uAmbient.rgb,uAmbient.a);',
@@ -212,11 +257,27 @@ export function currentTod(geo = LOCATION) {
   for (const w of win) {
     if (h >= w[1] && h < w[2]) {
       const t = (h - w[1]) / (w[2] - w[1])
-      // Only the last 12% of a window blends into the next state.
-      return { tod: w[0], t: t > 0.88 ? (t - 0.88) / 0.12 : 0 }
+      // The last third of a window blends into the next state, eased at both
+      // ends. It used to be the last 12 %, which on a short window is a few
+      // minutes — and since the colours were switched rather than blended
+      // (todColors), what the player actually saw was an instant change.
+      //
+      // A third is long enough to be invisible: over an afternoon of several
+      // hours the sea drifts towards evening the way it does outside. The first
+      // two thirds hold the state so each hour of the day still has a look of
+      // its own rather than being a permanent crossfade.
+      return { tod: w[0], t: t > 0.67 ? smoothstep((t - 0.67) / 0.33) : 0 }
     }
   }
-  return { tod: 'night', t: 0 }
+  // Night is everything the four windows do not cover, and it wraps midnight.
+  // It used to be the bare fallback with no ramp, so the one transition the
+  // player is most likely to be awake for — night giving way to dawn — was the
+  // only one that had no crossfade at all: 212/255 on the low sky, in one
+  // frame. Measured by replaying a day a minute at a time.
+  const span = (24 - e.dusk) + e.dawn
+  const into = h >= e.dusk ? h - e.dusk : h + (24 - e.dusk)
+  const t = span > 0 ? into / span : 0
+  return { tod: 'night', t: t > 0.67 ? smoothstep((t - 0.67) / 0.33) : 0 }
 }
 
 /** Interpolated token set for right now. */
@@ -229,6 +290,13 @@ export function todColors(geo = LOCATION) {
   for (const k in a) {
     if (k === 'glow' || k === 'ambient') m[k] = lerpArr(a[k], b[k], t)
     else if (typeof a[k] === 'number') m[k] = lerp(a[k], b[k], t)
+    // Every colour in TOD is a #rrggbb string, and strings were switched at the
+    // half-way mark rather than blended. That is the whole of the abrupt
+    // change: the sky, the sea, the sand and the foam all jumped to their next
+    // value on the same frame. Only the sun/moon glyph still snaps — there is
+    // no halfway between ☀ and ☾.
+    else if (typeof a[k] === 'string' && HEX_RE.test(a[k]) && HEX_RE.test(b[k]))
+      m[k] = lerpHex(a[k], b[k], t)
     else m[k] = t > 0.5 ? b[k] : a[k]
   }
   return m
@@ -274,7 +342,7 @@ export function createOcean(canvas, opts = {}) {
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0)
 
   const u = {}
-  for (const n of ['uT', 'uEnergy', 'uNight', 'uAspect', 'uSkyTop', 'uSkyMid', 'uSkyLow',
+  for (const n of ['uT', 'uEnergy', 'uNight', 'uAspect', 'uScale', 'uSkyTop', 'uSkyMid', 'uSkyLow',
                    'uSeaDeep', 'uSeaShallow', 'uFoam', 'uSandNear', 'uSandWet', 'uDisc',
                    'uGlow', 'uAmbient', 'uSun']) u[n] = gl.getUniformLocation(pr, n)
 
@@ -287,7 +355,7 @@ export function createOcean(canvas, opts = {}) {
   setRes()
 
   const t0 = performance.now()
-  let raf = 0, last = 0, paused = false, slow = 0, tier = 0, dead = false
+  let raf = 0, last = 0, paused = false, slow = 0, fast = 0, tier = 0, dead = false
 
   const draw = (secs) => {
     const c = todColors(geo)
@@ -295,6 +363,11 @@ export function createOcean(canvas, opts = {}) {
     gl.uniform1f(u.uEnergy, c.energy * (opts.waveEnergy ?? 1))
     gl.uniform1f(u.uNight, c.night)
     gl.uniform1f(u.uAspect, 1920 / 1080)
+    // Fewer pixels means each one spans more water, so the shader has to
+    // band-limit sooner. Without this the picture is clean at full resolution
+    // and sparkles the moment the quality tier drops — which is exactly how
+    // the fault was described: fine sometimes, glittery other times.
+    gl.uniform1f(u.uScale, scale)
     gl.uniform3fv(u.uSkyTop, hex2rgb(c.skyTop));   gl.uniform3fv(u.uSkyMid, hex2rgb(c.skyMid))
     gl.uniform3fv(u.uSkyLow, hex2rgb(c.skyLow));   gl.uniform3fv(u.uSeaDeep, hex2rgb(c.seaDeep))
     gl.uniform3fv(u.uSeaShallow, hex2rgb(c.seaShallow)); gl.uniform3fv(u.uFoam, hex2rgb(c.foam))
@@ -320,12 +393,21 @@ export function createOcean(canvas, opts = {}) {
     last = now
     const start = performance.now()
     draw((now - t0) / 1000)
-    // Two strikes and the render scale drops. A launcher must never be the
-    // reason a box feels slow.
-    if (tier < 2 && opts.autoQuality !== false) {
+    // The render scale follows the machine. A launcher must never be the reason
+    // a box feels slow — but the drop used to be permanent, so one bad stretch
+    // (a game closing, an update unpacking) left the sea grainy until the next
+    // reboot, with no way back. It climbs again after a long clean run.
+    if (opts.autoQuality !== false) {
       const cost = performance.now() - start
-      if (dt > 60 || cost > 28) slow++; else slow = Math.max(0, slow - 2)
-      if (slow > 150) { slow = 0; tier++; scale = tier === 1 ? 0.75 : 0.55; setRes() }
+      if (dt > 60 || cost > 28) { slow++; fast = 0 } else { slow = Math.max(0, slow - 2); fast++ }
+      if (slow > 150 && tier < 2) {
+        slow = 0; fast = 0; tier++; scale = tier === 1 ? 0.75 : 0.55; setRes()
+      } else if (fast > 1800 && tier > 0) {
+        // A full minute at 30 fps with nothing late. Hysteresis is deliberately
+        // lopsided — 5 s to step down, 60 s to step back up — so a box that is
+        // genuinely too slow settles instead of oscillating between two looks.
+        fast = 0; slow = 0; tier--; scale = tier === 1 ? 0.75 : 1; setRes()
+      }
     }
   }
   raf = requestAnimationFrame(tick)

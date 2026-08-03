@@ -35,8 +35,44 @@ const clean = (name) => String(name || '')
   .replace(/\s*[\(\[][^\)\]]*[\)\]]/g, '')
   .trim() || String(name || '')
 
+import { createBox3D, isTurnable } from './box3d.js'
+
+// Captures under the description. `screenshot-gameplay` is the in-game one and
+// `screenshot-game-title` the title screen; both are common, and showing the
+// title screen alone would look like a mistake, so gameplay leads.
+const SHOT_TYPES = ['screenshot-gameplay', 'screenshot-game-title']
+const MAX_SHOTS = 2
+
 export const createLibraryView = (sdk) => {
-  const { html, useEffect, useRef } = sdk.ui
+  const { html, useEffect, useRef, useState } = sdk.ui
+  const Box3D = createBox3D(sdk)
+
+  /**
+   * Everything this game has, in one request.
+   *
+   * One per selected game, and the host already debounces the selection by
+   * 150 ms, so scrolling a long system does not fire one per step. The box art
+   * and the captures both read from this — asking twice for the same catalogue
+   * would double the cost of moving the cursor.
+   *
+   * It degrades quietly in all three ways it can fail: an older host has no
+   * `sdk.api.media`, a box with no scraper account answers `available: false`,
+   * and a game can simply have nothing. All three end as `null`, which every
+   * consumer below already treats as "show the plain cover".
+   */
+  const useMedia = (systemId, filename) => {
+    const [media, setMedia] = useState(null)
+    useEffect(() => {
+      setMedia(null)
+      if (!sdk.api.media || !filename) return
+      let cancelled = false
+      sdk.api.media.list(systemId, filename)
+        .then((idx) => { if (!cancelled && idx?.found) setMedia(idx.media || null) })
+        .catch(() => {})
+      return () => { cancelled = true }
+    }, [systemId, filename])
+    return media
+  }
 
   return ({
     systemId, system, games, totalCount, playtime, selectedIdx, detailGame,
@@ -52,6 +88,9 @@ export const createLibraryView = (sdk) => {
     }, [selectedIdx])
 
     const pt = detailGame ? playtime[detailGame.filename] : null
+    const media = useMedia(systemId, detailGame?.filename)
+    const shots = (media ? SHOT_TYPES.filter(t => media[t]) : []).slice(0, MAX_SHOTS)
+      .map(t => ({ type: t, url: sdk.api.media.url(systemId, detailGame.filename, t) }))
 
     return html`
       <div class="sm-lib" style=${{ '--sys-accent': color }}>
@@ -109,28 +148,49 @@ export const createLibraryView = (sdk) => {
 
           ${detailGame ? html`
             <div class="sm-lib-detail" key=${detailGame.filename}>
-              <div class="sm-lib-cover">
-                <${Cover} filename=${detailGame.filename} systemId=${systemId} color=${color} />
-              </div>
-              <div class="sm-lib-info">
-                <div class="sm-lib-sys">${(system?.label || system?.platform || systemId).toUpperCase()}</div>
-                <h2 class="sm-lib-name">${clean(detailGame.display_name)}</h2>
-                <${Meta} systemId=${systemId} filename=${detailGame.filename}
-                         color=${CHIP_INK} extChip=${html`<span class="sm-lib-chip">${detailGame.ext}</span>`} />
+              <!-- The box, what you have done with it, and what you came to do.
+                   All three belong to the game as an object, so they sit in one
+                   column under it — which also gives the captures the whole
+                   height of the other one. -->
+              <div class="sm-lib-side">
+                <div class="sm-lib-cover">
+                  <${Box3D} systemId=${systemId} filename=${detailGame.filename}
+                            media=${media} color=${color} Cover=${Cover} />
+                </div>
                 <div class="sm-lib-stats">
                   <div><span>PLAY TIME</span><b>${fmt(pt?.total_secs)}</b></div>
-                  <div><span>SESSIONS</span><b>${pt?.session_count || 0}</b></div>
                   <div><span>LAST PLAYED</span><b>${date(pt?.last_played) || '—'}</b></div>
                 </div>
                 <button class="sm-lib-play" data-busy=${launching ? '1' : '0'} onClick=${onLaunch}>
                   ${launching ? '⏳ Launching…' : '▶ Play'}
                 </button>
               </div>
+              <div class="sm-lib-info">
+                <div class="sm-lib-sys">${(system?.label || system?.platform || systemId).toUpperCase()}</div>
+                <h2 class="sm-lib-name">${clean(detailGame.display_name)}</h2>
+                <${Meta} systemId=${systemId} filename=${detailGame.filename}
+                         color=${CHIP_INK} extChip=${html`<span class="sm-lib-chip">${detailGame.ext}</span>`} />
+                <!-- The image is the frame. A wrapper would have to pick a
+                     size before knowing the picture's shape, and whatever it
+                     picked would be wrong for one console or the other —
+                     which is how a 16:9 capture ended up centred in a tall
+                     empty square. -->
+                ${shots.length ? html`
+                  <div class="sm-lib-shots">
+                    ${shots.map(s => html`
+                      <img key=${s.type} class="sm-lib-shot" src=${s.url} alt="" loading="lazy"
+                           onError=${(e) => { e.target.style.display = 'none' }} />`)}
+                  </div>` : null}
+              </div>
             </div>` : null}
         </div>
 
+        <!-- The drift makes the box look turnable; this says so. It appears
+             only when the game really has the faces to turn, because a hint
+             for something that does not work is worse than no hint. -->
         <div class="sm-hint sm-lib-hint">
-          ↑↓ Navigate · ✕ Play · △ Search · □ Controller · L1/R1 Sort · ○ Back
+          ↑↓ Navigate · ✕ Play · △ Search · □ Controller · L1/R1 Sort${
+            isTurnable(media) ? ' · ⟳ R-Stick Turn box' : ''} · ○ Back
         </div>
       </div>`
   }

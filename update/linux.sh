@@ -148,35 +148,134 @@ rsync -a \
   --exclude='assets/logos/' \
   "${SRC_DIR}/" "${GAMECORE_PATH}/" || fail "rsync failed"
 
-# Themes: install what is missing, never touch what is there.
+# Themes: install what is missing, and update what the release ships a newer
+# version of.
 #
 # A theme is code, so a new one shipped with a release has to be able to reach
 # the box — config/ is excluded wholesale above, so nothing else would bring it.
-# But a theme on the box is the player's: they may have edited a bundled one, or
-# copied it and kept the name. So the unit is the theme directory, not the file.
-# If config/themes/<id>/ exists, it is skipped entirely — no merge, no partial
-# overwrite that would leave one theme built from two different releases.
+# This used to stop there: a theme the box already had was skipped, always. The
+# reasoning was that a theme on the box is the player's, and it held right up
+# until a bundled theme had a bug. Then the fix reached GitHub, reached the
+# archive, reached this loop — and was thrown away on every box that had ever
+# installed that theme. Correcting one meant deleting its folder over SSH.
 #
-# Updating a bundled theme is therefore a manual act: delete its folder and run
-# the update again, or copy it in by hand. Their selection (config/theme.json)
-# is untouched either way — it is not in the archive.
+# So the decision is now the same one the rest of this script makes about the
+# release itself: compare versions. `version` is a mandatory field of
+# theme.json (docs/themes/README.md §4), it is the author's own statement that
+# something changed, and it is already required — nothing new has to be
+# published for this to work.
+#
+#   on the box, not in the release   never touched. A theme you wrote is yours;
+#                                    this loop only ever looks at what shipped.
+#   in the release, not on the box   installed, as before.
+#   both, release version newer      replaced, previous kept in .prev/<id>.
+#   both, same or older              left alone. Re-running an update, or
+#                                    installing an older release, changes nothing.
+#
+# The cost is the honest one: editing a bundled theme in place without bumping
+# its version means a later release can replace your edit. The previous copy is
+# kept under config/themes/.prev/<id>/ so it is recoverable rather than gone —
+# `list_themes()` skips any directory starting with `.` or `_`, so nothing put
+# there is ever offered to a player. Only the most recent replacement is kept,
+# the same single-snapshot rule as ${GAMECORE_PATH}.prev above.
+#
+# The player's selection (config/theme.json) is untouched throughout — it is
+# not in the archive.
+
+# Strictly-newer test, tolerant of anything a manifest might contain: this runs
+# on a version string written by a theme author, so it must not raise on
+# '1.2.0-beta', 'v3', or ''. Same shape as _version_int in routers/update.py.
+_theme_newer() {
+  python3 - "$1" "$2" <<'PYEOF' 2>/dev/null
+import re, sys
+def key(v):
+    nums = re.findall(r"\d+", v or "")[:3]
+    return tuple(int(n) for n in (nums + ["0", "0", "0"])[:3])
+sys.exit(0 if key(sys.argv[1]) > key(sys.argv[2]) else 1)
+PYEOF
+}
+
+# Empty means "could not read it" — never a version. A theme whose manifest is
+# missing, truncated or not JSON is one this script must not make decisions
+# about, and the caller treats an empty answer as "leave it alone".
+_theme_version() {
+  python3 - "${1}/theme.json" <<'PYEOF' 2>/dev/null
+import json, sys
+try:
+    print(str(json.load(open(sys.argv[1])).get("version", "")))
+except Exception:
+    print("")
+PYEOF
+}
+
 if [[ -d "${SRC_DIR}/config/themes" ]]; then
-  mkdir -p "${GAMECORE_PATH}/config/themes"
-  _installed=0 _kept=0
+  _themes_dir="${GAMECORE_PATH}/config/themes"
+  _themes_prev="${_themes_dir}/.prev"
+  mkdir -p "$_themes_dir"
+  _installed=0 _updated=0 _kept=0
   for _theme in "${SRC_DIR}/config/themes/"*/; do
     [[ -d "$_theme" ]] || continue
     _id="$(basename "$_theme")"
-    if [[ -e "${GAMECORE_PATH}/config/themes/${_id}" ]]; then
-      _kept=$((_kept + 1))
+    _dest="${_themes_dir}/${_id}"
+
+    if [[ ! -e "$_dest" ]]; then
+      if cp -a "$_theme" "$_dest"; then
+        _installed=$((_installed + 1))
+      else
+        echo "[update] WARNING: could not install theme ${_id} (non-fatal)."
+      fi
       continue
     fi
-    if cp -a "$_theme" "${GAMECORE_PATH}/config/themes/${_id}"; then
-      _installed=$((_installed + 1))
+
+    _have="$(_theme_version "$_dest")"
+    _want="$(_theme_version "$_theme")"
+    if [[ -z "$_want" ]]; then
+      echo "[update] WARNING: theme ${_id} ships no readable version — left untouched."
+      _kept=$((_kept + 1)); continue
+    fi
+    if [[ -z "$_have" ]]; then
+      echo "[update] Theme ${_id}: no readable version on this box — left untouched (${_want} available)."
+      _kept=$((_kept + 1)); continue
+    fi
+    if ! _theme_newer "$_want" "$_have"; then
+      _kept=$((_kept + 1)); continue
+    fi
+
+    # Staged, then swapped by rename. The theme directory is live code the UI
+    # imports by path, so it must never be observed half-written and must never
+    # briefly not exist — an `rm -rf` followed by a `cp` that runs out of space
+    # leaves the box with no theme at all, which is a box with no interface.
+    # Staging area and destination are in the same directory, so both renames
+    # are atomic, and a `.`-prefixed leftover from a killed run is invisible to
+    # the theme scanner and cleared by the next one.
+    _stage="${_themes_dir}/.incoming-${_id}"
+    rm -rf "$_stage"
+    if ! cp -a "$_theme" "$_stage"; then
+      rm -rf "$_stage"
+      echo "[update] WARNING: could not stage theme ${_id} — kept ${_have} (non-fatal)."
+      _kept=$((_kept + 1)); continue
+    fi
+
+    mkdir -p "$_themes_prev"
+    rm -rf "${_themes_prev}/${_id}"
+    if ! mv "$_dest" "${_themes_prev}/${_id}"; then
+      rm -rf "$_stage"
+      echo "[update] WARNING: could not set theme ${_id} aside — kept ${_have} (non-fatal)."
+      _kept=$((_kept + 1)); continue
+    fi
+
+    if mv "$_stage" "$_dest"; then
+      echo "[update] Theme ${_id}: ${_have} -> ${_want} (previous kept in themes/.prev/${_id})"
+      _updated=$((_updated + 1))
     else
-      echo "[update] WARNING: could not install theme ${_id} (non-fatal)."
+      # Put the old one back rather than leave the slot empty.
+      mv "${_themes_prev}/${_id}" "$_dest" 2>/dev/null
+      rm -rf "$_stage"
+      echo "[update] WARNING: could not install theme ${_id} — restored ${_have} (non-fatal)."
+      _kept=$((_kept + 1))
     fi
   done
-  echo "[update] Themes: ${_installed} installed, ${_kept} left untouched."
+  echo "[update] Themes: ${_installed} installed, ${_updated} updated, ${_kept} left untouched."
 fi
 
 # frontend/dist is pure build output (CI ships it complete). Mirror it exactly

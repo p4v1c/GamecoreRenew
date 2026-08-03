@@ -143,6 +143,9 @@
   display: grid; grid-template-columns: repeat(4, 1fr);
   height: 72px; flex-shrink: 0; gap: 2px;
   border-radius: var(--r-panel); background: var(--glass-500);
+  /* On top of the column's 24px gap. The flex gap is uniform, and the grid
+     needs to breathe under the strip more than the page dots do below it. */
+  margin-bottom: 24px;
 }
 .sm-stats > div {
   display: flex; flex-direction: column; justify-content: center; gap: 3px;
@@ -512,13 +515,152 @@
 }
 @keyframes smFadeIn { from { opacity: 0 } to { opacity: 1 } }
 
-/* Letterboxed, never cropped: box art aspect ratios are all over the place. */
+/* The hero art is the box in perspective (views/library.js: HERO_ART), which
+ * arrives on a transparent background with an irregular ratio — no two consoles
+ * agree on the shape of a box. So there is no frame and no fill here: a glass
+ * card behind a cut-out box would show its rectangle through the transparency,
+ * which is exactly what a 3D box is meant to avoid. The shadow is what seats it
+ * on the panel instead.
+ *
+ * A game with no 3D box falls back to its flat jacket (the host's Cover does it
+ * on error), and the same treatment suits it — a jacket with a drop shadow
+ * reads as a physical object rather than a sticker. */
 .sm-lib-cover {
-  width: 300px; height: 420px; border-radius: var(--r-panel); flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; overflow: hidden;
-  background: rgba(12, 26, 33, 0.6); border: 2px solid var(--glass-hairline);
+  width: 320px; height: 420px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
 }
-.sm-lib-cover img { width: 100%; height: 100%; object-fit: contain; }
+/* !important because the host's Cover sets object-fit inline, and an inline
+ * style beats a stylesheet. Its default crops to fill, which on a box seen at
+ * an angle cuts the spine off — the one part that makes it read as 3D. */
+.sm-lib-cover img {
+  width: 100%; height: 100%; object-fit: contain !important;
+  filter: drop-shadow(0 24px 34px rgba(0, 0, 0, 0.55));
+}
+
+/* ── The box as an object (views/box3d.js) ──────────────────────────────────
+ * Six faces in CSS 3D rather than WebGL: the ocean already holds a GL context,
+ * and a second one competing for the GPU is a poor trade for cover art.
+ * Geometry comes from the images' own proportions and is set inline — a DS
+ * case, a PS3 case and a PC big box agree on nothing. */
+.sm-box3d {
+  position: relative;
+  /* Roughly two box-widths away. 1400px was almost orthographic — the faces
+   * stayed parallel and the whole thing read as a rotating postcard, which is
+   * exactly what it looked like. Closer means the near edge is visibly larger
+   * than the far one, and that difference is the entire depth cue. */
+  perspective: 900px;
+  perspective-origin: 50% 42%;
+}
+.sm-box3d-stage {
+  position: absolute; inset: 0;
+  transform-style: preserve-3d;
+  will-change: transform;           /* it moves every frame; promote it once */
+}
+/* Faces are centred on the box's own centre — `left: 50%` plus a negative
+ * margin of half their own width, which the component sets since only it knows
+ * the proportions. Anything anchored with `inset: 0` would be forced to the
+ * container's width and could never be a side face. */
+.sm-box3d-face {
+  position: absolute; top: 0; left: 50%; height: 100%;
+  background-size: 100% 100%; background-repeat: no-repeat;
+  backface-visibility: hidden;
+  border-radius: 2px;
+}
+/* The thin top and bottom edges. The art supplies the colour (see box3d.js);
+ * only its outermost sliver is used, which is what the cut edge of the sleeve
+ * actually shows. A fixed grey here was wrong on every white case. */
+.sm-box3d-cap {
+  background-size: 100% 2600%;
+  background-repeat: no-repeat;
+  overflow: hidden;
+}
+.sm-box3d-cap-top { background-position: 0 0; }
+.sm-box3d-cap-bottom { background-position: 0 100%; }
+/* An edge is not lit like a face: it catches a highlight where the sleeve
+ * folds and falls into shadow towards the back of the case. Without this the
+ * top reads as a bright ribbon and flattens the whole box again. */
+.sm-box3d-cap::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(0, 0, 0, 0.10) 38%,
+    rgba(0, 0, 0, 0.52) 100%);
+}
+.sm-box3d-cap-bottom::after { transform: scaleY(-1); }
+/* The sheen slides with the rotation (--sheen is written by the rAF loop). A
+ * highlight that stays put is what makes CSS 3D read as flat cardboard. */
+.sm-box3d-front::after {
+  content: ''; position: absolute; inset: 0; border-radius: 2px;
+  background: linear-gradient(105deg,
+    rgba(255, 255, 255, 0) calc(var(--sheen, 50%) - 34%),
+    rgba(255, 255, 255, 0.16) var(--sheen, 50%),
+    rgba(255, 255, 255, 0) calc(var(--sheen, 50%) + 34%));
+  pointer-events: none;
+}
+/* A game with no scanned back gets the dark of a closed case rather than a
+ * mirrored front, which would read as a printing error. */
+.sm-box3d-back {
+  background-color: #14202b;
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.5);
+}
+/* Faces seen edge-on catch less light — flat lighting is the other half of
+ * what makes a CSS cuboid look like folded paper. */
+.sm-box3d-spine { filter: brightness(0.86); }
+.sm-box3d-edge {
+  background: linear-gradient(90deg, #0e1a22, #1b2c38 45%, #0b141b);
+  filter: brightness(0.7);
+}
+/* Contact shadow. It is the thing that stops the box floating; the loop
+ * squashes and slides it as the box turns. */
+.sm-box3d-shadow {
+  position: absolute; left: 8%; right: 8%; bottom: -22px; height: 26px;
+  background: radial-gradient(ellipse at center,
+    rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 70%);
+  filter: blur(6px);
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* Captures, under the description. Two at most: this panel also carries the
+ * play-time row and the Play button, and a wall of screenshots pushes the
+ * button off a 1080p screen. */
+/* The captures take whatever height the column has left, now that the stats
+ * and the button have moved out of it — 447px on a 1080p screen, measured.
+ * `min-height: 0` is what lets a flex child shrink to its container instead of
+ * insisting on its content; without it the row keeps its natural size and the
+ * growth never happens. */
+.sm-lib-shots {
+  display: flex; gap: 16px; min-width: 0;
+  flex: 1; min-height: 0; margin-top: 4px;
+  align-items: flex-start;          /* each picture keeps its own height */
+  /* Centred, because the pair no longer fills the row by construction. A 16:9
+   * pair happens to reach both edges and looked centred by accident; a DS pair
+   * is narrower and sat against the left with the gap all on one side. */
+  justify-content: center;
+}
+/* No wrapper: the image carries its own border and corners, so the frame is
+ * exactly the picture and there is nowhere for empty space to appear.
+ *
+ * A container would have to commit to a size before knowing the shape, and no
+ * single shape fits: a DS capture is two stacked screens and stands taller
+ * than it is wide, a 3DS or PS3 capture is 16:9. Cropping to fill loses half a
+ * DS screen; letterboxing to fit left a widescreen shot marooned in a tall
+ * empty square. Sizing to the image itself is the only answer that is right
+ * for both.
+ *
+ * The two caps are what keep a pair honest: at most half the row each, at most
+ * the height the column has left. */
+.sm-lib-shot {
+  max-width: calc(50% - 8px); max-height: 100%;
+  width: auto; height: auto;
+  display: block; object-fit: contain;
+  border-radius: var(--r-tile);
+  border: 1px solid var(--glass-hairline);
+  background: rgba(6, 14, 19, 0.55);
+  /* They arrive after the panel is drawn — fading them in stops the layout
+   * from appearing to flinch when a game has them and the previous one did not. */
+  animation: smFadeIn 220ms ease;
+}
 
 .sm-lib-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .sm-lib-sys {
@@ -535,17 +677,32 @@
   font-size: 14px; font-weight: 500; color: var(--foam-000);
   background: var(--glass-500); border: 1px solid var(--glass-hairline);
 }
-.sm-lib-stats { display: flex; gap: 40px; margin: 4px 0 28px; }
+/* The left column: the box, its history, and the button. Grouping them means
+ * the reading column beside it holds nothing but text and pictures, and can
+ * give the captures its whole height. */
+.sm-lib-side {
+  flex-shrink: 0; width: 320px;
+  display: flex; flex-direction: column; align-items: center;
+}
+/* Two figures, not three. Sessions counted launches, which is not something
+ * anyone came to this screen to learn — and it crowded the two numbers that
+ * do say something about the game. */
+.sm-lib-stats {
+  display: flex; gap: 34px; margin: 26px 0 0; text-align: center;
+}
 .sm-lib-stats span {
-  display: block; font-size: 14px; font-weight: 600; letter-spacing: 0.14em;
+  display: block; font-size: 13px; font-weight: 600; letter-spacing: 0.14em;
   color: var(--foam-400); margin-bottom: 6px;
 }
 .sm-lib-stats b {
-  font-family: 'JetBrains Mono', monospace; font-size: 30px; line-height: 30px; font-weight: 500;
+  font-family: 'JetBrains Mono', monospace; font-size: 26px; line-height: 28px; font-weight: 500;
 }
-/* Pinned to the bottom of the panel: it is the one thing you came here to do. */
+/* Directly under the two figures it belongs with, not pinned to the floor.
+ * `margin-top: auto` pushed it to the bottom of the column, which made sense
+ * when the column was the whole panel and left a lake of empty space once it
+ * became just the box and its stats. */
 .sm-lib-play {
-  margin-top: auto; align-self: flex-start; cursor: pointer;
+  margin-top: 26px; cursor: pointer;
   width: 240px; height: 68px; border-radius: var(--r-chip); border: none;
   font-size: 22px; font-weight: 600; font-family: inherit; color: var(--ink-900);
   background: var(--accent-mandarin);
@@ -670,3 +827,89 @@
   font-family: inherit; font-size: 14px; font-weight: 700; color: var(--accent-muskmelon);
 }
 .sm-gamepad-map span { font-size: 15px; color: var(--foam-200); }
+
+
+/* ── Launch transition (views/warp.js) ──────────────────────────────────────
+ * The one place this theme stacks something itself. The rule against a theme
+ * writing a z-index exists so it cannot paint over host UI it did not replace;
+ * Summer replaces the whole frontend, and this veil is meant to cover it. The
+ * shell's own top layer is 400, so this sits above it — and above nothing else,
+ * because there is nothing else. */
+.sm-root { display: contents; }
+
+.sm-warp {
+  position: fixed; inset: 0; z-index: 900;
+  width: 100%; height: 100%;
+  pointer-events: none;                /* never swallows a button press */
+}
+/* Taken out of the compositor entirely once the frame is clear again — see the
+ * end of the loop in warp.js. A transparent full-screen canvas costs little,
+ * but it costs it for as long as the box is on. */
+.sm-warp[hidden] { display: none; }
+
+
+/* ── Standby (views/screensaver.js) ─────────────────────────────────────────
+ * This one *does* need a z-index, unlike everything else in this theme. The
+ * shell renders <ScreensaverC /> bare, with no positioned wrapper of its own —
+ * the host's screensaver carries `position: fixed; zIndex: 9500` inline, and a
+ * replacement has to carry it too. Leaving it out put the dashboard straight
+ * through the black.
+ *
+ * 9500 is the host's own figure, kept so the two behave identically.
+ *
+ * Deep black rather than the theme's ink: the panel is about to be switched
+ * off, and a lit background would be the brightest thing in a dark room. */
+.sm-saver {
+  position: fixed; inset: 0; z-index: 9500;
+  background: #000; overflow: hidden;
+  font-family: 'Figtree', 'Outfit', sans-serif;
+  display: flex; align-items: center; justify-content: center;
+}
+.sm-saver[data-sleep="1"] { background: #000; }
+
+.sm-saver-stage {
+  display: flex; flex-direction: column; align-items: center; gap: 34px;
+  animation: smSaverIn 1500ms ease both;
+}
+/* Slower and gentler than anywhere else in the theme: this plays every nine
+ * seconds in a quiet room, and a snappy transition there reads as a flicker. */
+@keyframes smSaverIn {
+  from { opacity: 0; transform: scale(1.035); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.sm-saver-name {
+  font-size: 20px; font-weight: 600; letter-spacing: 0.02em;
+  color: rgba(255, 253, 247, 0.34);
+  max-width: 70vw; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sm-saver-clock {
+  position: absolute; top: 48px; right: 64px;
+  font-size: 64px; font-weight: 200; letter-spacing: 2px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 253, 247, 0.42);
+}
+.sm-saver-hint {
+  position: absolute; bottom: 36px; left: 0; right: 0; text-align: center;
+  font-size: 12px; letter-spacing: 2px; color: rgba(255, 253, 247, 0.16);
+}
+/* The fallback when nothing is scraped — the flat cover, as the host's own
+ * standby shows it. */
+.sm-saver-flat {
+  max-width: 38vw; max-height: 58vh; border-radius: 16px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+/* The box gets a deeper shadow here than in the library: it is the only lit
+ * thing on the screen, so it has to sit on something. */
+.sm-saver .sm-box3d-shadow { bottom: -30px; opacity: 0.85; }
+
+/* A spine stored lying down (the N64 one is 680x115 where the DS one is 63x458).
+ * Sized H x D and given a quarter turn, it covers the D x H face exactly, with
+ * the title upright instead of crushed. */
+.sm-box3d-spine-turned {
+  position: absolute; top: 50%; left: 50%;
+  background-size: 100% 100%; background-repeat: no-repeat;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}

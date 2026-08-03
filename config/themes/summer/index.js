@@ -41,6 +41,9 @@ import { createThemesPage } from './views/themes.js'
 import { createSplash } from './views/splash.js'
 import { createPowerView } from './views/power.js'
 import { createGamepadView } from './views/gamepad.js'
+import { createWarp } from './views/warp.js'
+import { createBox3D } from './views/box3d.js'
+import { createScreensaver } from './views/screensaver.js'
 
 export default (sdk) => {
   const { html } = sdk.ui
@@ -53,16 +56,31 @@ export default (sdk) => {
   const LibraryView = createLibraryView(sdk)
   const Settings = createSettings(sdk, { themes: createThemesPage(sdk) })
 
+  const Warp = createWarp(sdk)
+  // The same box the detail panel draws, so a game asleep looks like the same
+  // object it is awake — and its idle drift, which exists in the library to
+  // hint that the box turns, is what a screensaver wanted anyway.
+  const Screensaver = createScreensaver(sdk, createBox3D(sdk))
+
+  // The launch veil is a sibling of the shell, not one of its parts. `decor` —
+  // the slot for painting over everything — is unmounted by the shell the
+  // moment a session opens, which is precisely when this has to start. See
+  // views/warp.js. The wrapper is `display: contents`, so it adds a name to
+  // the tree and nothing to the layout.
   const Shell = () => html`
-    <${sdk.defaults.Shell}
-      background=${Background}
-      decor=${Decor}
-      topbar=${TopBar}
-      homeView=${HomeView}
-      libraryView=${LibraryView}
-      settings=${Settings}
-      powerView=${createPowerView(sdk)}
-      gamepadView=${createGamepadView(sdk)} />`
+    <div class="sm-root">
+      <${sdk.defaults.Shell}
+        background=${Background}
+        decor=${Decor}
+        topbar=${TopBar}
+        homeView=${HomeView}
+        libraryView=${LibraryView}
+        settings=${Settings}
+        screensaver=${Screensaver}
+        powerView=${createPowerView(sdk)}
+        gamepadView=${createGamepadView(sdk)} />
+      <${Warp} />
+    </div>`
 
   return { splash: createSplash(sdk), shell: Shell }
 }

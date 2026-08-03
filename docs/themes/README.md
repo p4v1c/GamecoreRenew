@@ -60,15 +60,32 @@ and there is never a second React in memory.
 They live under `config/` because that whole directory is excluded from the OTA
 rsync — that is what protects `systems.json`, your mappings and the playtime DB.
 
-`update/linux.sh` makes one exception, and only one: **a theme the box does not
-have yet is installed; a theme it already has is never touched.** The unit is
-the directory, so there is no merge and no half-updated theme built from two
-releases. Edit a bundled theme and your edit survives every update.
+`update/linux.sh` makes one exception, and it is decided by `version`:
 
-The cost is that a fix to a bundled theme does not reach you on its own.
-Updating one is a manual act: delete its folder and run the update again, or
-copy the new version in. Your selection (`config/theme.json`) is untouched
-either way — it is not in the archive.
+| On the box | In the release | What happens |
+|---|---|---|
+| — | yes | installed |
+| yes | — | **never touched.** A theme you wrote is yours; the update only ever looks at what shipped |
+| yes | newer `version` | replaced; the previous copy is kept in `config/themes/.prev/<id>/` |
+| yes | same or older `version` | left alone |
+
+The unit is the directory, so there is no merge and no half-updated theme built
+from two releases. The swap is staged and renamed into place, so a theme is
+never observed half-written and never briefly missing.
+
+This is why `version` is mandatory. It is your statement that something
+changed, and it is the only thing that decides whether a box takes your fix —
+so **bump it in `theme.json` whenever you publish a change**, or the release
+will ship a theme no box installs.
+
+The cost is the honest one: editing a bundled theme in place on a box, without
+bumping its version, means a later release can replace that edit. It is kept
+under `.prev/<id>/` rather than lost, and `list_themes()` skips any directory
+starting with `.` or `_`, so nothing there is ever offered to a player. Only
+the most recent replacement is kept.
+
+Your selection (`config/theme.json`) is untouched throughout — it is not in the
+archive.
 
 ## 4. Manifest — `theme.json`
 
