@@ -74,7 +74,22 @@ function ModalScope({ children }: { children: React.ReactNode }) {
     openModal()
     return () => closeModal()
   }, [])   // eslint-disable-line react-hooks/exhaustive-deps
-  return <>{children}</>
+
+  // The stacking is registered here too, for the same reason and once.
+  //
+  // The screens sit at z-index 1 so they clear the background, which puts a
+  // modal at `auto` UNDERNEATH them. The default modals get away with it
+  // because ui/Overlay sets z-index 500 on itself — but a theme writes its own
+  // modal markup and does not use Overlay, and docs/themes/README promises it
+  // "never writes a z-index". That held everywhere except the one place it
+  // mattered: a themed settings panel opened *behind* the dashboard, tiles
+  // painting straight over it.
+  //
+  // Not `position: fixed; inset: 0` here: the children already cover the
+  // viewport when they want to, and a full-screen wrapper would swallow clicks
+  // meant for a panel that does not. Relative + z-index is the whole job — it
+  // creates the stacking context and takes no space.
+  return <div style={{ position: 'relative', zIndex: 500 }}>{children}</div>
 }
 
 export default function DefaultShell(parts: ShellParts = {}) {
