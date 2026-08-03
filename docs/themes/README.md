@@ -243,6 +243,31 @@ host's rows.
 > `4 × 2`: one row of eight instead of two rows of four, and L1/R1 behave
 > exactly as before.
 
+## 5c. Check it loads before you ship it
+
+```bash
+node scripts/check-theme.mjs config/themes/<id>
+```
+
+It imports every module the way the browser will. `node --check` is **not**
+enough, and the gap is not theoretical — it has bitten twice:
+
+```js
+html`
+  <!-- `key` on this node restarts the animation -->
+  <div class="hold" key=${id}>
+`
+```
+
+A backtick inside an HTML comment inside an `html``` template closes the
+template early. The file still parses, so `node --check` passes; the module
+throws `Unexpected identifier` the moment it is loaded, and the theme is
+disabled at runtime with no clue as to which line.
+
+**So: no backticks inside HTML comments.** Write `key` instead of `` `key` ``.
+The same goes for `${...}`, which is interpolation wherever it appears —
+comment or not.
+
 ## 6. What a theme can do
 
 The whole surface, in one table. Everything marked **no** is a deliberate line,
