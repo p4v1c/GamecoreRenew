@@ -102,6 +102,7 @@ archive.
 | `styles` | string | no | defaults to `theme.css`; injected automatically when present |
 | `provides` | string[] | yes | must list **every** surface: `["splash", "shell"]` (§5) |
 | `schedule` | object | no | `{ "from": "MM-DD", "to": "MM-DD" }` — seasonal auto-activation |
+| `launch` | object | no | `{ "ms": 1520 }` — how long your launch animation needs before the game starts (§5c) |
 
 A folder whose name starts with `_` is a **template, not a theme**:
 `config/themes/_skeleton` is there to be copied, and never appears in
@@ -265,6 +266,38 @@ host's rows.
 > A page holds `cols × rows`, so `8 × 1` keeps the 8-per-page of the default
 > `4 × 2`: one row of eight instead of two rows of four, and L1/R1 behave
 > exactly as before.
+
+## 5c. Giving your launch animation time to finish
+
+Your `libraryView` receives `launching`, and most themes answer it with a boot
+animation. The host used to start the emulator on the same tick it raised that
+flag, so the game's window arrived over the top of an animation that had barely
+begun — a cartridge still going into its slot when the screen was taken.
+
+You cannot fix that from your side: you never call the launch, you only watch
+the flag. So say how long you need, and the host waits:
+
+```json
+{ "id": "shelf", "launch": { "ms": 1520 } }
+```
+
+Absent, the game starts immediately — which is what every theme did before this
+existed, and what the default view still does, because it draws no ceremony and
+a delay there would be dead air.
+
+`ms` must be an integer 0–5000. Outside that it is dropped with a warning and
+you get no delay: a theme is code its owner installed, but a minute of ceremony
+is a console that ignores the button for a minute.
+
+Count the whole animation, not the part you like. The value is the delay before
+the game is asked to start — the emulator then takes its own time to appear, so
+erring a little short costs nothing and erring long is felt as lag on every
+launch.
+
+**○ still means ○.** Waiting opens a window where the player can leave the
+screen with a launch already promised. Pressing back during your animation
+cancels it: the request is never sent, and the flag is cleared under you. Do
+not treat `launching` going false as "the game is running".
 
 ## 5c. Check it loads before you ship it
 

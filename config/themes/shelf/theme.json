@@ -1,7 +1,7 @@
 {
   "id": "shelf",
   "name": "Shelf",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "api": 1,
   "author": "Claude, from p4v1c's reference capture",
   "description": "Your library as boxed games on a papered wall — browse the spines, turn the box, slot the cartridge in",
@@ -12,5 +12,8 @@
   "home": {
     "rows": 1,
     "paged": false
+  },
+  "launch": {
+    "ms": 1520
   }
 }

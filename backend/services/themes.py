@@ -86,6 +86,42 @@ def _home_grid(raw, theme_id: str) -> dict | None:
     return out or None
 
 
+# How long a theme's launch ceremony runs, before the emulator is allowed to
+# start. `None` means "start it immediately", which is what every theme written
+# before this said by saying nothing — so adding this cannot change how any of
+# them behaves.
+#
+# It exists because the host owns the moment the game starts and the theme owns
+# the animation announcing it, and nothing connected the two: LibraryScreen set
+# `launching` and called the API on the same line, so the emulator's window took
+# the screen while the cartridge was still going in. The theme cannot fix that
+# from its side — it never calls the launch, it only watches the flag.
+#
+# Bounded rather than trusted, same as the grid above: a theme that asks for a
+# minute of ceremony has turned a console into something that ignores the
+# button for a minute. Five seconds is longer than any boot animation worth
+# watching, and it is a ceiling, not a target.
+_LAUNCH_MS_MAX = 5000
+
+
+def _launch_ms(raw, theme_id: str) -> int | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        log.warning("theme %s: `launch` must be an object — ignored", theme_id)
+        return None
+    if "ms" not in raw:
+        return None
+    v = raw["ms"]
+    # `isinstance(True, int)` is True in Python, and `"ms": true` is a mistake,
+    # not a duration.
+    if not isinstance(v, int) or isinstance(v, bool) or not 0 <= v <= _LAUNCH_MS_MAX:
+        log.warning("theme %s: launch.ms must be an integer 0-%d, got %r — ignored",
+                    theme_id, _LAUNCH_MS_MAX, v)
+        return None
+    return v
+
+
 def _read_manifest(d: Path) -> dict | None:
     """Parsed, validated manifest for one directory, or None with a logged reason."""
     f = d / "theme.json"
@@ -136,6 +172,7 @@ def _read_manifest(d: Path) -> dict | None:
         "provides": [s for s in m["provides"] if s in SURFACES],
         "schedule": m.get("schedule"),
         "home": _home_grid(m.get("home"), d.name),
+        "launch": _launch_ms(m.get("launch"), d.name),
         # The UI needs a reason, not just a boolean.
         "compatible": api_version <= SDK_VERSION and not absent,
         "warnings": (

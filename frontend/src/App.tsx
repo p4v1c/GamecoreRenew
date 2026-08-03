@@ -93,12 +93,28 @@ export default function App() {
 
       {/* Above the shell, and outside it. A theme draws its own boot animation
           but cannot remove it, and cannot decide when booting ends: onDone is
-          ours, and a theme that never calls it hits the watchdog above. */}
+          ours, and a theme that never calls it hits the watchdog above.
+
+          "Above" has to be built here, because a theme is forbidden to write a
+          z-index (docs/themes/README.md §6 — the shell owns stacking) and being
+          later in the DOM is not enough: the shell paints its own layers at
+          z-index 1, 400 and 500, and a positive z-index beats a `auto` one
+          whatever the source order. A themed splash therefore came up UNDER the
+          dashboard — the boot animation visible only in the gaps between the
+          system tiles, the wordmark hidden behind them entirely. The default
+          Splash never showed it because it sets zIndex 9000 on its own root,
+          which is a thing only the host is allowed to do.
+
+          So the host supplies the layer and the theme keeps drawing inside it,
+          with no rule bent on either side. Same 9000 as the default splash: the
+          two are mutually exclusive, and matching keeps one number to change. */}
       <AnimatePresence>
         {showSplash && (SplashC ? (
-          <ErrorBoundary key="splash" resetKey={theme.resetKey} fallback={<Splash onDone={() => setShowSplash(false)} />}>
-            <SplashC onDone={() => setShowSplash(false)} />
-          </ErrorBoundary>
+          <div key="splash" style={{ position: 'fixed', inset: 0, zIndex: 9000 }}>
+            <ErrorBoundary resetKey={theme.resetKey} fallback={<Splash onDone={() => setShowSplash(false)} />}>
+              <SplashC onDone={() => setShowSplash(false)} />
+            </ErrorBoundary>
+          </div>
         ) : (
           <div key="pre-splash" style={{ position: 'fixed', inset: 0, zIndex: 900, background: '#09090f' }} />
         ))}

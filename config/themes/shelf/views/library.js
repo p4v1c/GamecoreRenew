@@ -182,7 +182,22 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
       // Which way along the row. The rail keeps the selection at the centre,
       // so after a step forward the jacket you left is one pitch to the LEFT
       // and the one arriving came from one pitch to the right.
-      setSwap({ game: gone, dir: selectedIdx > prev.idx ? 1 : -1, tucked: true })
+      //
+      // Unless one is already on its way back. You cannot put a box away and
+      // take another out four times a second, and trying to looked like it:
+      // the outgoing holder is keyed by filename, so every step unmounted the
+      // half-turned jacket and mounted the next one face-on at full size, and
+      // holding a direction became a stutter of boxes appearing at the centre
+      // and vanishing. Worse, the one in flight was aiming at a column one
+      // pitch away, and the rail had already moved two.
+      //
+      // So a second step cancels the ceremony rather than restarting it: no
+      // outgoing jacket, `tucked` held, timers re-armed from this step. What
+      // is left is what a shelf actually does — you slide along the row with
+      // nothing in your hand, every spine drawn including the selected one,
+      // and the jacket comes out of its gap once you stop.
+      setSwap((s) => (s ? { game: null, dir: s.dir, tucked: true }
+        : { game: gone, dir: selectedIdx > prev.idx ? 1 : -1, tucked: true }))
       const timers = [
         setTimeout(() => setSwap((s) => (s ? { ...s, tucked: false } : s)), PUSH_MS),
         setTimeout(() => setSwap(null), PULL_MS),
@@ -190,8 +205,16 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
       return () => timers.forEach(clearTimeout)
     }, [current])
 
-    const leaving = swap && games.some((g) => g.filename === swap.game.filename) ? swap : null
-    const tucked = !!leaving?.tucked
+    // Two different questions, and conflating them is what would crash on a
+    // cancelled ceremony. `swapping` is "is a change in progress" — it governs
+    // the wait before the next jacket comes out, and it survives a cancellation.
+    // `leaving` is "there is a jacket to animate out", which a cancelled step
+    // no longer has. A swap whose game has vanished from the shelf underneath
+    // us is not one either.
+    const swapping = swap && (!swap.game || games.some((g) => g.filename === swap.game.filename))
+      ? swap : null
+    const leaving = swapping?.game ? swapping : null
+    const tucked = !!swapping?.tucked
 
     // ── states before there is a shelf ───────────────────────────────────
     if (loading || loadError || !games.length) {
@@ -281,7 +304,7 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
                        style=${{ '--o': String(i), '--lean': `${lean(i).toFixed(2)}deg` }}
                        data-on=${i === selectedIdx ? '1' : '0'}
                        data-gap=${(i === selectedIdx && !tucked)
-                                  || g.filename === leaving?.game.filename ? '1' : '0'}>
+                                  || g.filename === leaving?.game?.filename ? '1' : '0'}>
                     <${Box.Spine} systemId=${systemId} game=${g} on=${i === selectedIdx}
                                   onClick=${() => onSelect(i)} />
                   </div>`
@@ -321,9 +344,9 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
 
             <div class="cz-hold" key=${games[selectedIdx]?.filename || 'none'}
                  data-phase="in"
-                 style=${{ '--dir': String(leaving?.dir || 1),
+                 style=${{ '--dir': String(swapping?.dir || 1),
                            '--lean': `${lean(selectedIdx).toFixed(2)}deg`,
-                           '--wait': leaving ? `${PUSH_MS}ms` : '0ms' }}
+                           '--wait': swapping ? `${PUSH_MS}ms` : '0ms' }}
                  data-tucked=${tucked ? '1' : '0'}
                  data-turning=${settled ? '0' : '1'}>
               <div class="cz-carry">

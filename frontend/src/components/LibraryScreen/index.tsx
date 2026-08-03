@@ -16,6 +16,7 @@ import { VirtualKeyboard } from '../ui/VirtualKeyboard'
 import { SYSTEM_COLORS } from '../../lib/systemColors'
 import { formatGameName } from '../../lib/formatGameName'
 import { playSound } from '../../lib/sounds'
+import { useThemeCtx } from '../ThemeSurface'
 import DefaultLibraryView from './DefaultLibraryView'
 import CoverImage from './CoverImage'
 import GameMetaPanel from './GameMetaPanel'
@@ -133,10 +134,44 @@ export default function LibraryScreen({ view: View = DefaultLibraryView }: Props
   // What the view receives — unchanged in shape, so no theme has to care.
   const settledGame = settled?.systemId === selectedSystemId ? settled.game : null
 
+  /**
+   * The launch ceremony, and why the game waits for it.
+   *
+   * `setLaunching(true)` and the API call used to be consecutive lines, so the
+   * emulator's window arrived over the top of the boot animation about a third
+   * of the way in — the cartridge was still going into the slot when the game
+   * took the screen. A theme cannot fix that from its side: it never calls the
+   * launch, it only watches the flag.
+   *
+   * How long to wait is the theme's to say, because it is the theme's
+   * animation. Themes that draw no ceremony — the default view among them —
+   * declare nothing, get no delay, and behave exactly as before. The backend
+   * bounds the value; this only has to trust the shape.
+   *
+   * The token is what makes ○ mean ○. Waiting opens a window in which the
+   * player can leave the screen with a launch already promised, and without it
+   * they would land on the dashboard and have the game start underneath them a
+   * second later. Bumping the token is how leaving cancels a launch that has
+   * not been sent yet — and it is a ref, not state, precisely so that cancelling
+   * cannot race a render.
+   */
+  const ceremonyMs = useThemeCtx()?.manifest?.launch?.ms ?? 0
+  const launchToken = useRef(0)
+
+  const cancelPendingLaunch = useCallback(() => {
+    launchToken.current += 1
+    setLaunching(false)
+  }, [])
+
   const launchGame = useCallback(async () => {
     if (!selectedSystemId || !selectedGame || launching) return
+    const token = ++launchToken.current
     setLaunching(true)
     playSound('launch')
+    if (ceremonyMs > 0) {
+      await new Promise(r => setTimeout(r, ceremonyMs))
+      if (launchToken.current !== token) return   // ○ was pressed — never sent
+    }
     try {
       await api.games.launch(selectedSystemId, selectedGame.path, selectedGame.filename)
       // Block inputs immediately — don't wait for the WebSocket game:started event
@@ -146,7 +181,7 @@ export default function LibraryScreen({ view: View = DefaultLibraryView }: Props
       setLaunching(false)
       setSession(null, null)
     }
-  }, [selectedSystemId, selectedGame, launching, setSession])
+  }, [selectedSystemId, selectedGame, launching, setSession, ceremonyMs])
 
   // Gamepad — guarded when modal is open or this screen is hidden behind home
   useEffect(() => {
@@ -161,7 +196,7 @@ export default function LibraryScreen({ view: View = DefaultLibraryView }: Props
       onGp('gp:dpad-up',  () => { if (blocked() || !sortedGames.length) return; setSelectedGameIdx(Math.max(0, selectedGameIdx - 1)) }),
       onGp('gp:dpad-down',() => { if (blocked() || !sortedGames.length) return; setSelectedGameIdx(Math.min(sortedGames.length - 1, selectedGameIdx + 1)) }),
       onGp('gp:confirm',  () => { if (blocked()) return; launchGame() }),
-      onGp('gp:back',     () => { if (screenRef.current !== 'library' || modalDepthRef.current > 0) return; if (showSearchRef.current) { setShowSearch(false); return } goHome() }),
+      onGp('gp:back',     () => { if (screenRef.current !== 'library' || modalDepthRef.current > 0) return; if (showSearchRef.current) { setShowSearch(false); return } cancelPendingLaunch(); goHome() }),
       onGp('gp:y',        () => { if (blocked()) return; setShowSearch(true) }),
       onGp('gp:l1', () => {
         if (blocked()) return
@@ -173,7 +208,7 @@ export default function LibraryScreen({ view: View = DefaultLibraryView }: Props
       }),
     ]
     return () => offs.forEach(off => off())
-  }, [selectedGameIdx, sortedGames.length, launchGame, goHome, setSelectedGameIdx, launching, sessionGameKey])
+  }, [selectedGameIdx, sortedGames.length, launchGame, goHome, setSelectedGameIdx, launching, sessionGameKey, cancelPendingLaunch])
 
   // When no system is selected, render nothing (screen is hidden by display:none anyway)
   if (!selectedSystemId) return null

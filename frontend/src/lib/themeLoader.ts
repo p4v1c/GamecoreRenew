@@ -38,6 +38,9 @@ export interface ThemeManifest {
   schedule?: { from?: string; to?: string } | null
   /** Dashboard grid the theme asks for. Absent = whatever the host uses. */
   home?: { cols?: number; rows?: number; paged?: boolean } | null
+  /** How long the theme's launch animation runs before the game is started.
+   *  Absent = start it immediately, which is what every theme did before. */
+  launch?: { ms?: number } | null
   compatible: boolean
   warnings: string[]
 }
