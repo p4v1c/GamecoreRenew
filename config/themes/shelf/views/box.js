@@ -34,6 +34,29 @@ import { flat } from '../lib/accent.js'
 /** Portrait, the commonest cover shape — held until the front image measures. */
 const RATIO_UNKNOWN = 0.72
 
+/**
+ * The shapes a game box actually comes in.
+ *
+ * The solid is built from the artwork: height is fixed and width follows the
+ * image's aspect, which is the only way one theme draws a PS3 slipcase and a
+ * Mega Drive carton without cropping two thirds of a real collection. The catch
+ * is that it trusts the file to *be* a box front, and the cover route does not
+ * always return one — for four games on the reference box it returned a wide
+ * logo banner, three of them at exactly 320×176. At a ratio of 1.82 against a
+ * fixed 400px height, that draws a box 728px wide: the jacket filled the stage
+ * and dwarfed the shelf it was supposed to have come out of.
+ *
+ * So an aspect no box has is read as what it is — evidence that the file is not
+ * a box front — rather than faithfully rendered. Measured against the 55 covers
+ * cached on that box, the legitimate ones run 0.60 to 1.43 (a portrait PS3 case
+ * at one end, a landscape Mario Kart 64 carton at the other) and the banners
+ * sit at 1.80–1.82, with nothing in between. The band below is wide enough to
+ * hold every real shape with room to spare and still exclude them.
+ */
+const RATIO_MIN = 0.5
+const RATIO_MAX = 1.5
+const plausible = (r) => r >= RATIO_MIN && r <= RATIO_MAX
+
 /** Stable per title: the printed spine's colour, for a game with no scan. */
 const hueOf = (s) => {
   let h = 0
@@ -88,15 +111,24 @@ export const createBox = (sdk) => {
     const [frontDead, setFrontDead] = useState(false)
     const [spineDead, setSpineDead] = useState(false)
 
-    // A cover can fail in two ways, and only one of them raises `onError`.
-    // The other is a file that loads perfectly and contains no picture — a
+    // Whether the host's cover route has already been rejected for this game.
+    // It is the preferred source — the same URL the rest of the UI requests, so
+    // it is a cache hit rather than a second download — but it is not the only
+    // one, and when it hands back something that is not a box front the scraped
+    // `box-front` sitting in the media set usually is. All four of the banners
+    // found on the reference box had a correct box-front on disk.
+    const [ownArt, setOwnArt] = useState(false)
+
+    // A cover can fail in three ways, and only one of them raises `onError`.
+    // It can be a file that loads perfectly and contains no picture — a
     // scraper's chroma-key plate — which has to be looked at to be recognised.
-    // Both land on `frontDead`, because from here they are the same fact: this
-    // game has no front, print one instead.
+    // Or it can be a picture of something else, which is what a wide logo
+    // banner is, and that one is only visible once it has been measured.
     useEffect(() => {
       setRatio(RATIO_UNKNOWN)
       setFrontDead(false)
       setSpineDead(false)
+      setOwnArt(false)
       if (!game) return
       let live = true
       flat(jacket(systemId, game.filename)).then((blank) => {
@@ -108,13 +140,28 @@ export const createBox = (sdk) => {
     if (!game) return null
 
     const name = title(game.display_name)
-    const front = jacket(systemId, game.filename)
+    const scraped = pick(sdk, systemId, game.filename, media, ['box-front'])
+    const front = ownArt && scraped ? scraped : jacket(systemId, game.filename)
     const spine = sdk.api.media.url(systemId, game.filename, 'box-spine')
     const back = pick(sdk, systemId, game.filename, media, ['box-back'])
 
+    /**
+     * The image decides the shape of the solid, so it has to be believed —
+     * but only once it has said something believable.
+     *
+     * An implausible aspect is not a shape to draw, it is a wrong file. The
+     * first time one turns up, swap to the scraped box-front and let this run
+     * again on that; `ownArt` makes it a single retry, so a game whose every
+     * source is a banner cannot loop. If the second one is no better the value
+     * is clamped rather than obeyed: a box at the edge of the band is odd, a
+     * box twice the width of the stage is broken.
+     */
     const measure = (e) => {
       const { naturalWidth: w, naturalHeight: h } = e.target
-      if (w && h) setRatio(Math.max(0.45, Math.min(1.9, w / h)))
+      if (!w || !h) return
+      const r = w / h
+      if (!plausible(r) && !ownArt && scraped) { setOwnArt(true); return }
+      setRatio(Math.max(RATIO_MIN, Math.min(RATIO_MAX, r)))
     }
 
     return html`
