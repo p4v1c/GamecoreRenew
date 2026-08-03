@@ -14,11 +14,6 @@ def set_current_game(game: dict | None) -> None:
     _current_game = game
 
 
-def current_game() -> dict | None:
-    """What is running, or None. The overlay router asks, to pick a bezel."""
-    return _current_game
-
-
 async def connect(ws: WebSocket) -> None:
     await ws.accept()
     _clients.append(ws)

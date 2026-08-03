@@ -347,33 +347,6 @@ They fill the black bars that appear on 4:3 and other non-16:9 systems.
 > Overlays only work on **X11 sessions** (the installer uses KDE Plasma on X11).  
 > On Wayland dev environments, overlays are silently skipped.
 
-### A bezel per game
-
-`assets/overlays/<system>.png` is the system's default. A single game can have
-its own:
-
-```
-assets/overlays/gopher64.png                 default for every N64 game
-assets/overlays/gopher64/Mario Kart 64.png   this game only
-```
-
-The per-game file wins when it exists. The key is the ROM filename **without
-its extension** — the same key the covers and metadata caches use.
-
-The ROM Manager addon does this for you: the emulator's **Overlay** button
-sets the default, and each game row has its own bezel action. By hand, the
-API takes a `game` parameter:
-
-```bash
-curl -F file=@bezel.png "http://127.0.0.1:8765/api/overlays/gopher64?game=Mario%20Kart%2064.z64"
-curl -X DELETE "http://127.0.0.1:8765/api/overlays/gopher64?game=Mario%20Kart%2064.z64"
-```
-
-The overlay window asks the backend for `/api/overlays/current` and gets
-whichever applies — only the backend knows which game is running, so nothing
-in the frontend, Electron or the overlay monitor needs to know per-game bezels
-exist.
-
 ### Uploading an overlay
 
 From the ROM Manager addon (`https://<device-ip>:8443/roms/`):  

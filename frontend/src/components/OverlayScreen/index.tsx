@@ -48,7 +48,7 @@ export default function OverlayScreen() {
 
   const hole  = data?.rect
   const asset = data?.system_id
-    ? `/api/overlays/current?t=${data.system_id}`
+    ? `/assets/overlays/${data.system_id}.png`
     : null
 
   return (
