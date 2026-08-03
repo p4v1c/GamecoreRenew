@@ -1,7 +1,9 @@
 /**
  * HomeScreen — the dashboard's behaviour.
  *
- * Layout: COLS × ROWS cards per page.
+ * Layout: cols × rows cards per page — 4 × 2 unless the active theme's
+ * manifest asks for something else (`home: { cols, rows }`). The shape is
+ * negotiable because it is layout; the rules below are not.
  * Navigating past the last column slides to the next page.
  * Mouse hover also works independently of gamepad focus.
  *
@@ -15,11 +17,13 @@ import { api, SystemEntry, PlaytimeEntry } from '../../api'
 import { onGp } from '../../hooks/useGamepad'
 import { onWsEvent } from '../../hooks/useWebSocket'
 import DefaultHomeView from './DefaultHomeView'
+import { useThemeCtx } from '../ThemeSurface'
 import type { HomeViewProps } from './types'
 
+// What the dashboard is when nobody asks for anything else — the default UI
+// and every theme written before `home` existed.
 const COLS = 4
 const ROWS = 2
-const PER_PAGE = COLS * ROWS
 
 interface Props {
   onLaunchApp: (system: SystemEntry) => void
@@ -28,6 +32,17 @@ interface Props {
 
 export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }: Props) {
   const { goLibrary, gridFocusIdx, gridPage, setGridFocus, setGridPage, modalDepth, screen } = useStore()
+
+  // A theme may ask for a different grid — one long row of big icons, say.
+  // The navigation below is unchanged and still owns paging, focus and wrap:
+  // only the shape it walks is negotiable, because the shape is layout and
+  // layout is the theme's side of the line. The backend has already bounded
+  // these (services/themes._home_grid); the `||` is for a theme that names
+  // only one of the two.
+  const themeHome = useThemeCtx()?.manifest?.home
+  const cols = themeHome?.cols || COLS
+  const rows = themeHome?.rows || ROWS
+  const perPage = cols * rows
 
   // Always-fresh refs so gamepad closures don't go stale
   const modalDepthRef = useRef(modalDepth)
@@ -38,8 +53,8 @@ export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }
   const [playtimeMap, setPlaytimeMap] = useState<Record<string, PlaytimeEntry>>({})
   const [gameCountMap, setGameCountMap] = useState<Record<string, number>>({})
   const totalItems = systems.length
-  const pageCount = Math.ceil(totalItems / PER_PAGE)
-  const pageItems = systems.slice(gridPage * PER_PAGE, (gridPage + 1) * PER_PAGE)
+  const pageCount = Math.ceil(totalItems / perPage)
+  const pageItems = systems.slice(gridPage * perPage, (gridPage + 1) * perPage)
 
   const loadSystems = useCallback(() => {
     api.systems.list().then(setSystems).catch(console.error)
@@ -93,8 +108,8 @@ export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }
 
   // Last valid focus index on a given page (pages can be partially filled)
   const lastIdxOf = useCallback(
-    (p: number) => Math.min(PER_PAGE, totalItems - p * PER_PAGE) - 1,
-    [totalItems],
+    (p: number) => Math.min(perPage, totalItems - p * perPage) - 1,
+    [totalItems, perPage],
   )
 
   // Safety: if the grid shrinks (or state was persisted), keep focus on a real card
@@ -104,25 +119,25 @@ export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }
   }, [pageCount, gridPage, pageItems.length, gridFocusIdx, setGridPage, setGridFocus])
 
   const navigate = useCallback((dir: 'up' | 'down' | 'left' | 'right') => {
-    const col = gridFocusIdx % COLS
-    const row = Math.floor(gridFocusIdx / COLS)
+    const col = gridFocusIdx % cols
+    const row = Math.floor(gridFocusIdx / cols)
 
     if (dir === 'right') {
-      if (col < COLS - 1 && gridFocusIdx < pageItems.length - 1) {
+      if (col < cols - 1 && gridFocusIdx < pageItems.length - 1) {
         setGridFocus(gridFocusIdx + 1)
       } else if (gridPage < pageCount - 1) {
         setGridPage(gridPage + 1)
-        setGridFocus(Math.min(row * COLS, lastIdxOf(gridPage + 1)))
+        setGridFocus(Math.min(row * cols, lastIdxOf(gridPage + 1)))
       }
     } else if (dir === 'left') {
       if (col > 0) {
         setGridFocus(gridFocusIdx - 1)
       } else if (gridPage > 0) {
         setGridPage(gridPage - 1)
-        setGridFocus(Math.min(row * COLS + COLS - 1, lastIdxOf(gridPage - 1)))
+        setGridFocus(Math.min(row * cols + cols - 1, lastIdxOf(gridPage - 1)))
       }
     } else if (dir === 'down') {
-      const next = gridFocusIdx + COLS
+      const next = gridFocusIdx + cols
       if (next < pageItems.length) {
         setGridFocus(next)
       } else if (gridPage < pageCount - 1) {
@@ -131,13 +146,13 @@ export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }
       }
     } else if (dir === 'up') {
       if (row > 0) {
-        setGridFocus(gridFocusIdx - COLS)
+        setGridFocus(gridFocusIdx - cols)
       } else if (gridPage > 0) {
         setGridPage(gridPage - 1)
-        setGridFocus(Math.min((ROWS - 1) * COLS + col, lastIdxOf(gridPage - 1)))
+        setGridFocus(Math.min((rows - 1) * cols + col, lastIdxOf(gridPage - 1)))
       }
     }
-  }, [gridFocusIdx, gridPage, pageCount, pageItems.length, lastIdxOf, setGridFocus, setGridPage])
+  }, [gridFocusIdx, gridPage, pageCount, pageItems.length, lastIdxOf, setGridFocus, setGridPage, cols, rows])
 
   /** Opens a card; defaults to the focused one, so the pad and the mouse agree. */
   const activate = useCallback((idx: number = gridFocusIdx) => {
@@ -181,9 +196,9 @@ export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }
       focusIdx={gridFocusIdx}
       page={gridPage}
       pageCount={pageCount}
-      cols={COLS}
-      rows={ROWS}
-      perPage={PER_PAGE}
+      cols={cols}
+      rows={rows}
+      perPage={perPage}
       totals={{
         systems: systems.filter(s => s.kind === 'emulator' || s.type === 'emulator').length,
         games: totalGames,

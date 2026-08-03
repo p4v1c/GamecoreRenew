@@ -215,3 +215,48 @@ if __name__ == "__main__":
     run(test_set_active_refuses_an_unknown_id)
     run(test_set_active_refuses_a_path)
     print("\nAll tests passed.")
+
+
+# ── a theme may ask for its own dashboard grid ───────────────────────────────
+# The grid is layout, and layout is the theme's side of the line. A theme that
+# wants one long row of big icons cannot fake it: HomeScreen.navigate() walks
+# COLS × ROWS and wraps at the row end, so a rail drawn as one continuous line
+# would silently skip half its contents whenever ROWS > 1.
+
+def test_a_theme_that_says_nothing_gets_the_hosts_grid():
+    """The whole compatibility argument: every theme written before this said
+    nothing, and must keep looking exactly as it did."""
+    assert themes._home_grid(None, "t") is None
+    assert themes._home_grid({}, "t") is None
+
+
+def test_a_grid_is_passed_through():
+    assert themes._home_grid({"cols": 8, "rows": 1}, "t") == {"cols": 8, "rows": 1}
+    assert themes._home_grid({"rows": 1}, "t") == {"rows": 1}, "one of the two is enough"
+
+
+def test_an_unusable_grid_is_dropped_not_obeyed():
+    """A theme is code its owner installed, but 0 divides by zero in pageCount
+    and 400 asks the host to render every system on one page. Neither is a
+    look; both are a broken screen."""
+    for bad in ({"cols": 0}, {"cols": -4}, {"cols": 999}, {"cols": 1.5},
+                {"cols": "8"}, {"cols": True}, {"cols": None}):
+        assert themes._home_grid(bad, "t") is None, bad
+    # A bad value does not take a good one down with it.
+    assert themes._home_grid({"cols": 8, "rows": 0}, "t") == {"cols": 8}
+    # Not an object at all.
+    assert themes._home_grid("one row please", "t") is None
+    assert themes._home_grid([8, 1], "t") is None
+
+
+def test_the_grid_reaches_the_manifest(tmp_path, monkeypatch):
+    monkeypatch.setattr(themes, "THEMES_DIR", tmp_path)
+    d = tmp_path / "row"
+    d.mkdir()
+    (d / "index.js").write_text("export default () => ({})")
+    (d / "theme.json").write_text(json.dumps({
+        "id": "row", "name": "Row", "version": "1.0.0", "api": 1,
+        "provides": ["shell"], "home": {"cols": 8, "rows": 1},
+    }))
+    m = next(t for t in themes.list_themes() if t["id"] == "row")
+    assert m["home"] == {"cols": 8, "rows": 1}

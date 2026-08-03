@@ -211,6 +211,38 @@ One tree, one owner. The shell owns the stacking (a theme never writes a
 `z-index`), and the shell registers whatever it shows as a modal — for default
 and themed alike, so forgetting is not possible.
 
+## 5b. Asking for a different dashboard grid
+
+The dashboard is `cols × rows` cards per page — 4 × 2 unless the manifest says
+otherwise:
+
+```json
+{ "id": "shelf", "home": { "cols": 8, "rows": 1 } }
+```
+
+Absent, it is the host's grid, which is what every theme written before this
+said by saying nothing. Naming only one of the two is fine; the other keeps the
+host's value.
+
+**Why this is negotiable when so little else is.** The grid is layout, and
+layout is the theme's side of the line. A theme that wants one long row of big
+icons cannot fake it: `HomeScreen.navigate()` walks the grid and wraps at the
+row end, so a rail drawn as one continuous line would silently skip half its
+contents whenever `rows > 1` — and a row that lies about where the cursor goes
+is worse than a visible second row. What stays the host's is everything the
+grid is walked *by*: paging, focus, wrap, the bindings.
+
+`cols` and `rows` must be integers 1–16. Outside that they are dropped with a
+warning and the host's value stands: a theme is code its owner installed, but 0
+divides by zero in `pageCount` and 400 asks the host to render every system on
+one page. Neither is a look; both are a broken screen. A bad value does not
+take a good one down with it — `{"cols": 8, "rows": 0}` yields `cols` 8 and the
+host's rows.
+
+> A page holds `cols × rows`, so `8 × 1` keeps the 8-per-page of the default
+> `4 × 2`: one row of eight instead of two rows of four, and L1/R1 behave
+> exactly as before.
+
 ## 6. What a theme can do
 
 The whole surface, in one table. Everything marked **no** is a deliberate line,

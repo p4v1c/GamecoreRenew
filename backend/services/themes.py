@@ -42,6 +42,42 @@ def _safe_id(theme_id: str) -> str | None:
     return theme_id if _ID_RE.match(theme_id or "") else None
 
 
+# The dashboard grid a theme may ask for. `None` means "whatever the host
+# uses", which is what every theme written before this said by saying nothing —
+# so adding this cannot change how any of them looks.
+#
+# It exists because the grid is a layout decision and layout is the theme's
+# side of the line. A theme that wants one long row of big icons cannot fake
+# it: HomeScreen.navigate() walks COLS × ROWS and wraps at the row end, so a
+# rail drawn as one continuous line would skip half its contents the moment
+# ROWS > 1 — and a row that lies about where the cursor goes is worse than a
+# visible second row.
+#
+# Bounded rather than trusted. A theme is code the owner installed, but a grid
+# of 0 divides by zero in `pageCount` and a grid of 400 asks the host to render
+# every system on one page; neither is a look, both are a broken screen.
+_GRID_MAX = 16
+
+
+def _home_grid(raw, theme_id: str) -> dict | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        log.warning("theme %s: `home` must be an object — ignored", theme_id)
+        return None
+    out = {}
+    for key in ("cols", "rows"):
+        if key not in raw:
+            continue
+        v = raw[key]
+        if not isinstance(v, int) or isinstance(v, bool) or not 1 <= v <= _GRID_MAX:
+            log.warning("theme %s: home.%s must be an integer 1-%d, got %r — ignored",
+                        theme_id, key, _GRID_MAX, v)
+            continue
+        out[key] = v
+    return out or None
+
+
 def _read_manifest(d: Path) -> dict | None:
     """Parsed, validated manifest for one directory, or None with a logged reason."""
     f = d / "theme.json"
@@ -91,6 +127,7 @@ def _read_manifest(d: Path) -> dict | None:
         "styles": styles if (d / styles).is_file() else None,
         "provides": [s for s in m["provides"] if s in SURFACES],
         "schedule": m.get("schedule"),
+        "home": _home_grid(m.get("home"), d.name),
         # The UI needs a reason, not just a boolean.
         "compatible": api_version <= SDK_VERSION and not absent,
         "warnings": (
