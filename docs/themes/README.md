@@ -218,7 +218,13 @@ otherwise:
 
 ```json
 { "id": "shelf", "home": { "cols": 8, "rows": 1 } }
+{ "id": "shelf", "home": { "rows": 1, "paged": false } }
 ```
+
+`"paged": false` puts the whole list on one page: no L1/R1, no boundary to walk
+into, and `cols` is then derived from how many items there are rather than
+declared. A number could not do that job — it would be right until the owner
+installs one more system.
 
 Absent, it is the host's grid, which is what every theme written before this
 said by saying nothing. Naming only one of the two is fine; the other keeps the

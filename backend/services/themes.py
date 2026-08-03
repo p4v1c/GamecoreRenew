@@ -66,6 +66,14 @@ def _home_grid(raw, theme_id: str) -> dict | None:
         log.warning("theme %s: `home` must be an object — ignored", theme_id)
         return None
     out = {}
+    # `"paged": false` means "the whole list on one page" — no L1/R1, no
+    # boundary to walk into. The host then derives `cols` from how many items
+    # there actually are, which a manifest cannot know: a number written here
+    # would be right until the owner installs a seventeenth system.
+    if raw.get("paged") is False:
+        out["paged"] = False
+    elif "paged" in raw and raw["paged"] is not True:
+        log.warning("theme %s: home.paged must be a boolean — ignored", theme_id)
     for key in ("cols", "rows"):
         if key not in raw:
             continue

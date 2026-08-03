@@ -40,9 +40,6 @@ export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }
   // these (services/themes._home_grid); the `||` is for a theme that names
   // only one of the two.
   const themeHome = useThemeCtx()?.manifest?.home
-  const cols = themeHome?.cols || COLS
-  const rows = themeHome?.rows || ROWS
-  const perPage = cols * rows
 
   // Always-fresh refs so gamepad closures don't go stale
   const modalDepthRef = useRef(modalDepth)
@@ -53,6 +50,17 @@ export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }
   const [playtimeMap, setPlaytimeMap] = useState<Record<string, PlaytimeEntry>>({})
   const [gameCountMap, setGameCountMap] = useState<Record<string, number>>({})
   const totalItems = systems.length
+
+  const rows = themeHome?.rows || ROWS
+  // A theme can also ask for no pages at all. `cols` then follows the list
+  // instead of the list following `cols`: one page holds everything, pageCount
+  // is 1, and L1/R1 have nowhere to go — which is the point. A number in the
+  // manifest could not do this; it would be right until the seventeenth system.
+  const cols = themeHome?.paged === false
+    ? Math.max(1, Math.ceil(totalItems / rows))
+    : (themeHome?.cols || COLS)
+  const perPage = cols * rows
+
   const pageCount = Math.ceil(totalItems / perPage)
   const pageItems = systems.slice(gridPage * perPage, (gridPage + 1) * perPage)
 

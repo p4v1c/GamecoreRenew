@@ -37,7 +37,7 @@ export interface ThemeManifest {
   provides: string[]
   schedule?: { from?: string; to?: string } | null
   /** Dashboard grid the theme asks for. Absent = whatever the host uses. */
-  home?: { cols?: number; rows?: number } | null
+  home?: { cols?: number; rows?: number; paged?: boolean } | null
   compatible: boolean
   warnings: string[]
 }

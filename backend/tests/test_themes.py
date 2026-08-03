@@ -260,3 +260,14 @@ def test_the_grid_reaches_the_manifest(tmp_path, monkeypatch):
     }))
     m = next(t for t in themes.list_themes() if t["id"] == "row")
     assert m["home"] == {"cols": 8, "rows": 1}
+
+
+def test_a_theme_can_ask_for_no_pages():
+    """`cols` cannot express this: a number in the manifest is right until the
+    owner installs one more system. The host derives it from the list."""
+    assert themes._home_grid({"rows": 1, "paged": False}, "t") == {"paged": False, "rows": 1}
+    # True is the default and says nothing new.
+    assert themes._home_grid({"paged": True}, "t") is None
+    # Anything else is not a boolean and is dropped, without taking rows down.
+    assert themes._home_grid({"paged": "no", "rows": 1}, "t") == {"rows": 1}
+    assert themes._home_grid({"paged": 0, "rows": 1}, "t") == {"rows": 1}
