@@ -28,11 +28,17 @@ import { useSubPageGamepad } from './useSubPageGamepad'
  *    were steering something off-screen.
  *
  *  · **Twenty systems in one column is a wall.** They are grouped by who made
- *    the hardware — the PlayStations together, the Nintendos together — which
- *    turns one long list into four short ones you can skim. The grouping comes
- *    from `family` in pack.json, not from a table of ids in here: a pack for a
- *    machine nobody anticipated names its own maker and is grouped with its
- *    siblings without a line of this file changing.
+ *    the hardware and the groups start CLOSED, so the screen opens on four
+ *    lines — Microsoft, Nintendo, Sony, Applications — and you open the one you
+ *    want. The grouping comes from `family` in pack.json, not from a table of
+ *    ids in here: a pack for a machine nobody anticipated names its own maker
+ *    and is grouped with its siblings without a line of this file changing.
+ *
+ *  · **A sticky heading hides the row underneath it.** `scrollIntoView` knows
+ *    nothing about `position: sticky`: it aligns the row with the top of the
+ *    scroll box, which is exactly where the heading is painted, so walking back
+ *    up put the focused row behind it. `scroll-margin-top` is the seam for
+ *    that — it tells the scroller the row starts higher than it does.
  *
  *  · **Removing is destructive and was one button press.** ✕ on a focused row
  *    removed a system with no confirmation, and the focused row is wherever
@@ -49,10 +55,23 @@ const ACCENT = 'var(--gc-accent, #7c3aed)'
 const mix = (pct: number) => `color-mix(in srgb, ${ACCENT} ${pct}%, transparent)`
 const DANGER = '#f87171'
 
+// Height a sticky heading occupies. scrollIntoView aligns a stop with the top
+// of the scroll box, which is where the heading is painted, so every stop
+// reserves this much above itself or walking back up hides the focused row
+// behind it. That was the bug in the screenshot: the Xbox row sat under
+// MICROSOFT with the heading nowhere to be seen.
+const HEAD_H = '3.2rem'
+
 const APPS = 'Applications'
 const OTHER = 'Other'
 
 interface Group { family: string; rows: CatalogEntry[]; installed: number }
+
+/** What the cursor walks: the headings are stops too, because opening a maker
+ *  is an action and the pad has no other way to reach one. */
+type Item =
+  | { kind: 'head'; family: string; group: Group }
+  | { kind: 'row'; row: CatalogEntry }
 
 export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: () => void }) {
   const [rows, setRows] = useState<CatalogEntry[] | null>(null)
@@ -65,6 +84,9 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
   const [armed, setArmed] = useState('')
   const [filter, setFilter] = useState('')
   const [showSearch, setShowSearch] = useState(false)
+  // Which makers are unfolded. Closed is the default: the point of grouping is
+  // that the screen opens on four lines instead of twenty.
+  const [open, setOpen] = useState<Set<string>>(() => new Set())
   const logEndRef = useRef<HTMLDivElement>(null)
   const focusRowRef = useRef<HTMLDivElement>(null)
 
@@ -108,15 +130,42 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
       }))
   }, [rows, filter])
 
-  // One flat sequence for the cursor: the D-pad crosses group boundaries
-  // without the player having to know they are there.
-  const flat = useMemo(() => groups.flatMap(g => g.rows), [groups])
+  // Searching opens everything: a filter that matched three systems and left
+  // them folded inside closed makers would look like it had found nothing.
+  const searching = filter.trim().length > 0
 
-  const flatRef = useRef(flat)
+  // One flat sequence for the cursor — headings included, so the pad walks
+  // straight from "Nintendo" into its systems and out the other side.
+  const items = useMemo<Item[]>(() => {
+    const out: Item[] = []
+    for (const g of groups) {
+      out.push({ kind: 'head', family: g.family, group: g })
+      if (searching || open.has(g.family)) {
+        for (const r of g.rows) out.push({ kind: 'row', row: r })
+      }
+    }
+    return out
+  }, [groups, open, searching])
+
+  const rowCount = useMemo(() => groups.reduce((n, g) => n + g.rows.length, 0), [groups])
+
+  const toggle = useCallback((family: string) => {
+    setArmed('')
+    playSound('confirm')
+    setOpen(prev => {
+      const next = new Set(prev)
+      if (!next.delete(family)) next.add(family)
+      return next
+    })
+  }, [])
+
+  const flatRef = useRef(items)
+  const toggleRef = useRef(toggle)
+  useEffect(() => { toggleRef.current = toggle }, [toggle])
   const busyRef = useRef(busyId)
   const focusRef = useRef(focusIdx)
   const armedRef = useRef(armed)
-  useEffect(() => { flatRef.current = flat }, [flat])
+  useEffect(() => { flatRef.current = items }, [items])
   useEffect(() => { busyRef.current = busyId }, [busyId])
   useEffect(() => { focusRef.current = focusIdx }, [focusIdx])
   useEffect(() => { armedRef.current = armed }, [armed])
@@ -148,15 +197,15 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
   // remove the last row and the index points past the end, which reads as the
   // highlight vanishing.
   useEffect(() => {
-    if (flat.length && focusIdx > flat.length - 1) setFocusIdx(flat.length - 1)
-  }, [flat.length, focusIdx])
+    if (items.length && focusIdx > items.length - 1) setFocusIdx(items.length - 1)
+  }, [items.length, focusIdx])
 
   // Drag the list to the cursor. `block: 'nearest'` scrolls only when the row
   // is actually out of view, so walking the middle of the list does not jerk
   // the container on every step.
   useEffect(() => {
     focusRowRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [focusIdx, flat.length])
+  }, [focusIdx, items.length])
 
   // Progress arrives on the WebSocket the addons screen already uses, so a
   // long Flatpak download shows something rather than a frozen row.
@@ -216,8 +265,10 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
       onGp('gp:dpad-up', () => move(-1)),
       onGp('gp:dpad-down', () => move(1)),
       onGp('gp:confirm', () => {
-        const row = flatRef.current[focusRef.current]
-        if (row) void actRef.current(row)
+        const it = flatRef.current[focusRef.current]
+        if (!it) return
+        if (it.kind === 'head') toggleRef.current(it.family)
+        else void actRef.current(it.row)
       }),
       onGp('gp:y', () => { if (!busyRef.current) setShowSearch(true) }),
     ]
@@ -247,10 +298,6 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
     )
   }
 
-  // Runs across the whole render, group boundaries included, so it lines up
-  // with `flat` above — the cursor knows nothing about sections.
-  let flatIdx = -1
-
   return (
     <Overlay onClose={onClose}>
       <BackHeader label="EMULATORS & APPS" onBack={onBack} />
@@ -263,7 +310,7 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
         }}>
           <span style={{ opacity: 0.6 }}>filter</span>
           <b style={{ color: 'var(--gc-accent-bright, #c4b5fd)' }}>{filter.trim()}</b>
-          <span style={{ opacity: 0.55 }}>{flat.length} of {rows?.length ?? 0}</span>
+          <span style={{ opacity: 0.55 }}>{rowCount} of {rows?.length ?? 0}</span>
         </div>
       )}
 
@@ -273,107 +320,129 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
       )}
 
       <div style={{ overflowY: 'auto', padding: '0 1.5rem', flex: 1, minHeight: 0 }}>
-        {groups.map(group => (
-          <div key={group.family}>
-            <div style={{
-              display: 'flex', alignItems: 'baseline', gap: 8,
-              padding: '0.9rem 0 0.45rem', fontSize: '0.72rem', letterSpacing: '0.12em',
-              textTransform: 'uppercase', opacity: 0.6, fontWeight: 700,
-              position: 'sticky', top: 0, zIndex: 1,
-              // The rows scroll under the heading, so it needs something behind
-              // it or the two overlap into an unreadable smear.
-              background: 'var(--gc-overlay-bg, rgba(12,10,20,0.96))',
-            }}>
-              <span>{group.family}</span>
-              <span style={{ opacity: 0.7, letterSpacing: 0 }}>
-                {group.installed}/{group.rows.length}
-              </span>
-            </div>
+        {items.map((item, i) => {
+          const focused = i === focusIdx
+          // The seam that fixes walking back up into a sticky heading: the
+          // scroller is told each stop begins HEAD_H higher than it draws, so
+          // aligning it to the top leaves the heading its own room.
+          const stop = { scrollMarginTop: HEAD_H }
 
-            {group.rows.map(row => {
-              flatIdx += 1
-              const running = busyId === row.id
-              const focused = flatIdx === focusIdx
-              const isArmed = armed === row.id
+          if (item.kind === 'head') {
+            const g = item.group
+            const isOpen = searching || open.has(g.family)
+            return (
+              <div
+                key={`head:${g.family}`}
+                ref={focused ? focusRowRef : undefined}
+                onClick={() => toggle(g.family)}
+                style={{
+                  ...stop,
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  margin: '0.6rem 0 0.35rem', padding: '0.55rem 0.8rem',
+                  borderRadius: 12, cursor: 'pointer',
+                  position: 'sticky', top: 0, zIndex: 1,
+                  fontSize: '0.74rem', letterSpacing: '0.12em',
+                  textTransform: 'uppercase', fontWeight: 700,
+                  background: focused ? mix(26) : 'var(--gc-overlay-bg, rgba(12,10,20,0.96))',
+                  border: `1px solid ${focused ? mix(60) : 'transparent'}`,
+                  transition: 'background 120ms ease, border-color 120ms ease',
+                }}
+              >
+                <span style={{
+                  display: 'inline-block', width: '0.7em', flexShrink: 0,
+                  transform: isOpen ? 'rotate(90deg)' : 'none',
+                  transition: 'transform 140ms ease', opacity: 0.75,
+                }}>▶</span>
+                <span style={{ flex: 1, minWidth: 0 }}>{g.family}</span>
+                <span style={{ letterSpacing: 0, opacity: 0.6, fontWeight: 600 }}>
+                  {g.installed}/{g.rows.length}
+                </span>
+              </div>
+            )
+          }
 
-              return (
-                <div
-                  key={row.id}
-                  ref={focused ? focusRowRef : undefined}
-                  onClick={() => void act(row)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.9rem',
-                    padding: '0.7rem 0.9rem', marginBottom: '0.4rem', borderRadius: 12,
-                    cursor: busyId ? 'default' : 'pointer',
-                    opacity: busyId && !running ? 0.35 : 1,
-                    background: isArmed ? 'rgba(248,113,113,0.14)'
-                      : focused ? mix(18) : 'rgba(255,255,255,0.045)',
-                    border: `1px solid ${isArmed ? 'rgba(248,113,113,0.55)'
-                      : focused ? mix(55) : 'transparent'}`,
-                    transition: 'background 120ms ease, border-color 120ms ease',
-                  }}
-                >
-                  {/* The system's own colour, the same one its tile carries on
-                      the grid — the fastest way to find a row you already know. */}
-                  <div style={{
-                    width: 4, alignSelf: 'stretch', minHeight: 34, borderRadius: 2,
-                    background: row.color, flexShrink: 0,
-                  }} />
+          const row = item.row
+          const running = busyId === row.id
+          const isArmed = armed === row.id
 
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontWeight: 600, display: 'flex', alignItems: 'center',
-                      gap: 8, minWidth: 0,
-                    }}>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {row.label}
-                      </span>
-                      {row.origin === 'local' && (
-                        <span style={{
-                          fontSize: '0.6rem', letterSpacing: '0.08em', padding: '2px 6px',
-                          borderRadius: 999, background: mix(28),
-                          color: 'var(--gc-accent-bright, #c4b5fd)', flexShrink: 0,
-                        }}>LOCAL</span>
-                      )}
-                    </div>
+          return (
+            <div
+              key={row.id}
+              ref={focused ? focusRowRef : undefined}
+              onClick={() => void act(row)}
+              style={{
+                ...stop,
+                display: 'flex', alignItems: 'center', gap: '0.9rem',
+                padding: '0.7rem 0.9rem', marginBottom: '0.4rem', borderRadius: 12,
+                marginLeft: '1.1rem',           // indented: it belongs to the maker above
+                cursor: busyId ? 'default' : 'pointer',
+                opacity: busyId && !running ? 0.35 : 1,
+                background: isArmed ? 'rgba(248,113,113,0.14)'
+                  : focused ? mix(18) : 'rgba(255,255,255,0.045)',
+                border: `1px solid ${isArmed ? 'rgba(248,113,113,0.55)'
+                  : focused ? mix(55) : 'transparent'}`,
+                transition: 'background 120ms ease, border-color 120ms ease',
+              }}
+            >
+              {/* The system's own colour, the same one its tile carries on the
+                  grid — the fastest way to find a row you already know. */}
+              <div style={{
+                width: 4, alignSelf: 'stretch', minHeight: 34, borderRadius: 2,
+                background: row.color, flexShrink: 0,
+              }} />
 
-                    <div style={{
-                      fontSize: '0.78rem', opacity: 0.55, overflow: 'hidden',
-                      textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {row.description || row.emulatorName}
-                    </div>
-
-                    {row.restricted.length > 0 && (
-                      // A local pack is data only unless the operator opted in.
-                      // Saying which blocks were ignored is what stops "why did
-                      // my generator not run" being a mystery.
-                      <div style={{ fontSize: '0.7rem', color: '#ffb347', marginTop: 2 }}>
-                        ignored (local pack): {row.restricted.join(', ')}
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{
-                    fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.04em',
-                    whiteSpace: 'nowrap', padding: '0.35rem 0.7rem', borderRadius: 999,
-                    flexShrink: 0,
-                    background: isArmed ? 'rgba(248,113,113,0.22)'
-                      : row.installed ? 'rgba(255,255,255,0.07)' : mix(30),
-                    color: isArmed ? DANGER
-                      : row.installed ? 'rgba(255,255,255,0.75)'
-                      : 'var(--gc-accent-bright, #c4b5fd)',
-                    border: `1px solid ${isArmed ? 'rgba(248,113,113,0.5)' : 'transparent'}`,
-                  }}>
-                    {running ? 'Working…' : isArmed ? 'Confirm?' : row.installed ? 'Remove' : 'Install'}
-                  </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontWeight: 600, display: 'flex', alignItems: 'center',
+                  gap: 8, minWidth: 0,
+                }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {row.label}
+                  </span>
+                  {row.origin === 'local' && (
+                    <span style={{
+                      fontSize: '0.6rem', letterSpacing: '0.08em', padding: '2px 6px',
+                      borderRadius: 999, background: mix(28),
+                      color: 'var(--gc-accent-bright, #c4b5fd)', flexShrink: 0,
+                    }}>LOCAL</span>
+                  )}
                 </div>
-              )
-            })}
-          </div>
-        ))}
 
-        {rows !== null && flat.length === 0 && !error && (
+                <div style={{
+                  fontSize: '0.78rem', opacity: 0.55, overflow: 'hidden',
+                  textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {row.description || row.emulatorName}
+                </div>
+
+                {row.restricted.length > 0 && (
+                  // A local pack is data only unless the operator opted in.
+                  // Saying which blocks were ignored is what stops "why did my
+                  // generator not run" being a mystery.
+                  <div style={{ fontSize: '0.7rem', color: '#ffb347', marginTop: 2 }}>
+                    ignored (local pack): {row.restricted.join(', ')}
+                  </div>
+                )}
+              </div>
+
+              <div style={{
+                fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.04em',
+                whiteSpace: 'nowrap', padding: '0.35rem 0.7rem', borderRadius: 999,
+                flexShrink: 0,
+                background: isArmed ? 'rgba(248,113,113,0.22)'
+                  : row.installed ? 'rgba(255,255,255,0.07)' : mix(30),
+                color: isArmed ? DANGER
+                  : row.installed ? 'rgba(255,255,255,0.75)'
+                  : 'var(--gc-accent-bright, #c4b5fd)',
+                border: `1px solid ${isArmed ? 'rgba(248,113,113,0.5)' : 'transparent'}`,
+              }}>
+                {running ? 'Working…' : isArmed ? 'Confirm?' : row.installed ? 'Remove' : 'Install'}
+              </div>
+            </div>
+          )
+        })}
+
+        {rows !== null && rowCount === 0 && !error && (
           <div style={{ padding: '1rem 0', opacity: 0.6 }}>
             {filter.trim()
               ? `Nothing matches "${filter.trim()}".`
@@ -390,7 +459,8 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
           ? 'Working — the list is held until this finishes.'
           : armed
             ? 'Press ✕ again to remove it · any direction cancels'
-            : `✕ install or remove · △ ${filter.trim() ? 'change filter' : 'search'} · ○ back`}
+            : `✕ ${items[focusIdx]?.kind === 'head' ? 'open or close' : 'install or remove'}`
+              + ` · △ ${filter.trim() ? 'change filter' : 'search'} · ○ back`}
       </div>
 
       {log.length > 0 && (
