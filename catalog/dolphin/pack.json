@@ -4,6 +4,7 @@
   "label": "GameCube / Wii",
   "emulatorName": "Dolphin",
   "platform": "GameCube/Wii",
+  "family": "Nintendo",
   "color": "#ff8c00",
   "install": {
     "provider": "flatpak",

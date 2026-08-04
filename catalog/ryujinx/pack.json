@@ -4,6 +4,7 @@
   "label": "Nintendo Switch",
   "emulatorName": "Ryujinx",
   "platform": "Switch",
+  "family": "Nintendo",
   "color": "#e6001a",
   "install": {
     "provider": "flatpak",

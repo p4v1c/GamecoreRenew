@@ -4,6 +4,7 @@
   "label": "Game Boy Advance",
   "emulatorName": "mGBA",
   "platform": "GBA",
+  "family": "Nintendo",
   "color": "#96c800",
   "install": {
     "provider": "flatpak",

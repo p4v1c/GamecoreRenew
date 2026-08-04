@@ -4,6 +4,7 @@
   "label": "PlayStation 3",
   "emulatorName": "RPCS3",
   "platform": "PS3",
+  "family": "Sony",
   "color": "#00439c",
   "install": {
     "provider": "flatpak",

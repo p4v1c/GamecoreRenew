@@ -4,6 +4,7 @@
   "label": "Xbox 360",
   "emulatorName": "Xenia Canary",
   "platform": "X360",
+  "family": "Microsoft",
   "color": "#107c10",
   "install": {
     "provider": "github-archive",

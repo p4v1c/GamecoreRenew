@@ -4,6 +4,7 @@
   "label": "Wii U",
   "emulatorName": "Cemu",
   "platform": "Wii U",
+  "family": "Nintendo",
   "color": "#00b48c",
   "install": {
     "provider": "flatpak",

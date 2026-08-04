@@ -89,6 +89,12 @@ def list_catalog():
             "kind": p.kind,
             "label": p.data["label"],
             "platform": p.data["platform"],
+            # Who made the hardware. The installer groups by it, so a box with
+            # twenty systems reads as four short lists. Empty rather than a
+            # guess: a pack that does not say lands under "Other", which is
+            # honest, where inferring a maker from the id would be wrong the
+            # first time somebody ships a machine nobody here anticipated.
+            "family": p.data.get("family", ""),
             "color": p.data["color"],
             "emulatorName": p.data.get("emulatorName", p.data["label"]),
             "description": p.data.get("description", ""),

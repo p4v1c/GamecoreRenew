@@ -82,6 +82,9 @@ export interface CatalogEntry {
   kind: 'emulator' | 'app'
   label: string
   platform: string
+  /** Who made the hardware — 'Nintendo', 'Sony'... Empty when the pack does not
+   *  say, which groups it under "Other" rather than guessing from the id. */
+  family: string
   color: string
   /** The product name when it differs from the platform label: the N64 slot is
    *  labelled "Nintendo 64" and runs "Rosalie's Mupen GUI". */

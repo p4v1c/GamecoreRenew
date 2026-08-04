@@ -4,6 +4,7 @@
   "label": "PlayStation 4",
   "emulatorName": "shadPS4",
   "platform": "PS4",
+  "family": "Sony",
   "color": "#003791",
   "install": {
     "provider": "flatpak",

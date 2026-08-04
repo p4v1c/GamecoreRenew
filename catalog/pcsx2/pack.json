@@ -4,6 +4,7 @@
   "label": "PlayStation 2",
   "emulatorName": "PCSX2",
   "platform": "PS2",
+  "family": "Sony",
   "color": "#003087",
   "install": {
     "provider": "flatpak",

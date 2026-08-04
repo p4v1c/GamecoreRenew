@@ -4,6 +4,7 @@
   "label": "PlayStation",
   "emulatorName": "DuckStation",
   "platform": "PS1",
+  "family": "Sony",
   "color": "#0046ff",
   "packages": {
     "pacman": [

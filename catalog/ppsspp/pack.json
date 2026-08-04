@@ -4,6 +4,7 @@
   "label": "PlayStation Portable",
   "emulatorName": "PPSSPP",
   "platform": "PSP",
+  "family": "Sony",
   "color": "#1e64ff",
   "install": {
     "provider": "flatpak",

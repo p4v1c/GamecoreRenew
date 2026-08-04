@@ -21,17 +21,18 @@ import { useSubPageGamepad } from './useSubPageGamepad'
  * ── What this screen has to survive ────────────────────────────────────────
  * It is the longest list in the settings modal and the only one that grows: a
  * box with the shipped catalogue plus local packs shows more rows than fit on
- * a television. Three things follow from that, and none of them were true
- * before:
+ * a television. Four things follow from that:
  *
  *  · **The focus has to drag the list with it.** The D-pad moved a highlight
  *    that the scroll container knew nothing about, so past the seventh row you
- *    were steering something off-screen. No other settings page is long enough
- *    for this to bite, which is why the pattern was missing here.
+ *    were steering something off-screen.
  *
- *  · **Installed and available are different questions.** One flat list mixed
- *    "what do I have" with "what could I add", and answering either meant
- *    reading every row. They are two sections now, each with its count.
+ *  · **Twenty systems in one column is a wall.** They are grouped by who made
+ *    the hardware — the PlayStations together, the Nintendos together — which
+ *    turns one long list into four short ones you can skim. The grouping comes
+ *    from `family` in pack.json, not from a table of ids in here: a pack for a
+ *    machine nobody anticipated names its own maker and is grouped with its
+ *    siblings without a line of this file changing.
  *
  *  · **Removing is destructive and was one button press.** ✕ on a focused row
  *    removed a system with no confirmation, and the focused row is wherever
@@ -39,14 +40,19 @@ import { useSubPageGamepad } from './useSubPageGamepad'
  *    cursor disarms it.
  *
  *  · **Past a screenful, walking the list stops being navigation.** △ opens the
- *    same virtual keyboard the library search uses, and the filter runs over
- *    the label, the emulator's own name, the platform and the id — "dolphin"
- *    finds the GameCube slot, and so does "gamecube".
+ *    virtual keyboard, and the filter runs over the label, the emulator's own
+ *    name, the maker, the platform and the id — "dolphin" finds the GameCube
+ *    slot, and so do "gamecube" and "nintendo".
  */
 
 const ACCENT = 'var(--gc-accent, #7c3aed)'
 const mix = (pct: number) => `color-mix(in srgb, ${ACCENT} ${pct}%, transparent)`
 const DANGER = '#f87171'
+
+const APPS = 'Applications'
+const OTHER = 'Other'
+
+interface Group { family: string; rows: CatalogEntry[]; installed: number }
 
 export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: () => void }) {
   const [rows, setRows] = useState<CatalogEntry[] | null>(null)
@@ -63,42 +69,65 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
   const focusRowRef = useRef<HTMLDivElement>(null)
 
   /**
-   * Installed first, then available, each alphabetical.
+   * The catalogue, filtered and grouped by maker.
    *
-   * The order is derived rather than stored because the list reorders itself
-   * the moment an action lands — install something and it moves sections. The
-   * cursor is therefore restored by id below, not by index, or finishing an
-   * install would jump the highlight to whatever slid into that slot.
+   * Apps are their own group whatever they declare: Steam and YouTube have no
+   * hardware maker, and filing them under the company that happens to own them
+   * would put YouTube beside a games console.
+   *
+   * Makers are alphabetical, then Other, then Applications last — the two
+   * catch-alls sink rather than interleave, so the shape of the screen does not
+   * change when a pack forgets to declare a family.
    */
-  const ordered = useMemo(() => {
-    const by = (a: CatalogEntry, b: CatalogEntry) => a.label.localeCompare(b.label)
+  const groups = useMemo<Group[]>(() => {
     const q = filter.trim().toLowerCase()
     // Every name a player might reach for. The slot is called "GameCube" and
     // runs "Dolphin"; someone who knows one does not necessarily know the other.
     const hit = (r: CatalogEntry) => !q || [
-      r.label, r.emulatorName, r.platform, r.id, r.description,
+      r.label, r.emulatorName, r.platform, r.family, r.id, r.description,
     ].some(f => String(f || '').toLowerCase().includes(q))
-    const all = (rows ?? []).filter(hit)
-    return [...all.filter(r => r.installed).sort(by), ...all.filter(r => !r.installed).sort(by)]
+
+    const buckets = new Map<string, CatalogEntry[]>()
+    for (const r of (rows ?? []).filter(hit)) {
+      const key = r.kind === 'app' ? APPS : (r.family?.trim() || OTHER)
+      const b = buckets.get(key)
+      if (b) b.push(r)
+      else buckets.set(key, [r])
+    }
+
+    const rank = (f: string) => (f === APPS ? 2 : f === OTHER ? 1 : 0)
+    return [...buckets.entries()]
+      .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
+      .map(([family, list]) => ({
+        family,
+        // Installed first inside a maker: "what do I have" is the question
+        // asked most often, and the pill says which is which either way.
+        rows: list.sort((x, y) =>
+          Number(y.installed) - Number(x.installed) || x.label.localeCompare(y.label)),
+        installed: list.filter(r => r.installed).length,
+      }))
   }, [rows, filter])
 
-  const installedCount = ordered.filter(r => r.installed).length
+  // One flat sequence for the cursor: the D-pad crosses group boundaries
+  // without the player having to know they are there.
+  const flat = useMemo(() => groups.flatMap(g => g.rows), [groups])
 
-  const rowsRef = useRef(ordered)
+  const flatRef = useRef(flat)
   const busyRef = useRef(busyId)
   const focusRef = useRef(focusIdx)
   const armedRef = useRef(armed)
-  useEffect(() => { rowsRef.current = ordered }, [ordered])
+  useEffect(() => { flatRef.current = flat }, [flat])
   useEffect(() => { busyRef.current = busyId }, [busyId])
   useEffect(() => { focusRef.current = focusIdx }, [focusIdx])
   useEffect(() => { armedRef.current = armed }, [armed])
-  // The handlers below are bound once; without this they would read the value
-  // of `showSearch` captured on the first render and keep stepping the list
-  // underneath an open keyboard.
-  const searchRef = useRef(showSearch)
-  useEffect(() => { searchRef.current = showSearch }, [showSearch])
 
-  useSubPageGamepad(onBack, onClose, !showSearch)
+  // ○ closes the keyboard first, the page second — and the page's own handlers
+  // are off while it is open.
+  useSubPageGamepad(
+    showSearch ? () => setShowSearch(false) : onBack,
+    onClose,
+    !showSearch,
+  )
 
   const load = useCallback(async () => {
     try {
@@ -119,15 +148,15 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
   // remove the last row and the index points past the end, which reads as the
   // highlight vanishing.
   useEffect(() => {
-    if (ordered.length && focusIdx > ordered.length - 1) setFocusIdx(ordered.length - 1)
-  }, [ordered.length, focusIdx])
+    if (flat.length && focusIdx > flat.length - 1) setFocusIdx(flat.length - 1)
+  }, [flat.length, focusIdx])
 
   // Drag the list to the cursor. `block: 'nearest'` scrolls only when the row
   // is actually out of view, so walking the middle of the list does not jerk
   // the container on every step.
   useEffect(() => {
     focusRowRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [focusIdx, ordered.length])
+  }, [focusIdx, flat.length])
 
   // Progress arrives on the WebSocket the addons screen already uses, so a
   // long Flatpak download shows something rather than a frozen row.
@@ -171,37 +200,56 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
   const actRef = useRef(act)
   useEffect(() => { actRef.current = act }, [act])
 
+  // Bound and unbound with the keyboard rather than guarded inside it: while it
+  // is open these must not exist at all, or ✕ picks a letter AND acts on
+  // whatever the list had focused.
   useEffect(() => {
+    if (showSearch) return
     const move = (d: number) => {
-      const n = rowsRef.current.length
+      const n = flatRef.current.length
       if (!n) return
       setArmed('')                       // stepping away is how you say no
       setFocusIdx(i => Math.max(0, Math.min(n - 1, i + d)))
       playSound('move')
     }
     const offs = [
-      onGp('gp:dpad-up', () => { if (searchRef.current) return; move(-1) }),
-      onGp('gp:dpad-down', () => { if (searchRef.current) return; move(1) }),
+      onGp('gp:dpad-up', () => move(-1)),
+      onGp('gp:dpad-down', () => move(1)),
       onGp('gp:confirm', () => {
-        if (searchRef.current) return
-        const row = rowsRef.current[focusRef.current]
+        const row = flatRef.current[focusRef.current]
         if (row) void actRef.current(row)
       }),
       onGp('gp:y', () => { if (!busyRef.current) setShowSearch(true) }),
     ]
     return () => offs.forEach(o => o())
-  }, [])
+  }, [showSearch])
 
-  const section = (label: string, count: number) => (
-    <div style={{
-      display: 'flex', alignItems: 'baseline', gap: 8,
-      padding: '0.9rem 0 0.45rem', fontSize: '0.72rem', letterSpacing: '0.12em',
-      textTransform: 'uppercase', opacity: 0.55, fontWeight: 700,
-    }}>
-      <span>{label}</span>
-      <span style={{ opacity: 0.7, letterSpacing: 0 }}>{count}</span>
-    </div>
-  )
+  /**
+   * The keyboard replaces the page rather than sitting inside it.
+   *
+   * Rendered as a child of this page's Overlay it had nowhere to go: the list
+   * above owns the flex height, so the keyboard came out squashed to nothing
+   * and △ looked like it did nothing at all. WifiPage has always returned its
+   * own Overlay for exactly this reason.
+   */
+  if (showSearch) {
+    return (
+      <Overlay onClose={onClose}>
+        <BackHeader label="SEARCH" onBack={() => setShowSearch(false)} />
+        <VirtualKeyboard
+          title="Search emulators & apps"
+          initialValue={filter}
+          placeholder="name, maker, platform…"
+          onConfirm={(val) => { setFilter(val.trim()); setShowSearch(false) }}
+          onCancel={() => setShowSearch(false)}
+        />
+      </Overlay>
+    )
+  }
+
+  // Runs across the whole render, group boundaries included, so it lines up
+  // with `flat` above — the cursor knows nothing about sections.
+  let flatIdx = -1
 
   return (
     <Overlay onClose={onClose}>
@@ -215,9 +263,7 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
         }}>
           <span style={{ opacity: 0.6 }}>filter</span>
           <b style={{ color: 'var(--gc-accent-bright, #c4b5fd)' }}>{filter.trim()}</b>
-          <span style={{ opacity: 0.55 }}>
-            {ordered.length} of {rows?.length ?? 0}
-          </span>
+          <span style={{ opacity: 0.55 }}>{flat.length} of {rows?.length ?? 0}</span>
         </div>
       )}
 
@@ -227,101 +273,107 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
       )}
 
       <div style={{ overflowY: 'auto', padding: '0 1.5rem', flex: 1, minHeight: 0 }}>
-        {ordered.map((row, i) => {
-          const running = busyId === row.id
-          const focused = i === focusIdx
-          const isArmed = armed === row.id
-          const head = i === 0 || ordered[i - 1].installed !== row.installed
-
-          return (
-            <div key={row.id}>
-              {head && section(
-                row.installed ? 'On the grid' : 'Available',
-                row.installed ? installedCount : ordered.length - installedCount,
-              )}
-
-              <div
-                ref={focused ? focusRowRef : undefined}
-                onClick={() => void act(row)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.9rem',
-                  padding: '0.7rem 0.9rem', marginBottom: '0.4rem', borderRadius: 12,
-                  cursor: busyId ? 'default' : 'pointer',
-                  opacity: busyId && !running ? 0.35 : 1,
-                  background: isArmed ? 'rgba(248,113,113,0.14)'
-                    : focused ? mix(18) : 'rgba(255,255,255,0.045)',
-                  border: `1px solid ${isArmed ? 'rgba(248,113,113,0.55)'
-                    : focused ? mix(55) : 'transparent'}`,
-                  transition: 'background 120ms ease, border-color 120ms ease',
-                }}
-              >
-                {/* The system's own colour, the same one its tile carries on the
-                    grid — the fastest way to find a row you already know. */}
-                <div style={{
-                  width: 4, alignSelf: 'stretch', minHeight: 34, borderRadius: 2,
-                  background: row.color, flexShrink: 0,
-                }} />
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontWeight: 600, display: 'flex', alignItems: 'center',
-                    gap: 8, minWidth: 0,
-                  }}>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {row.label}
-                    </span>
-                    {row.kind === 'app' && (
-                      <span style={{
-                        fontSize: '0.6rem', letterSpacing: '0.08em', padding: '2px 6px',
-                        borderRadius: 999, background: 'rgba(255,255,255,0.1)',
-                        opacity: 0.75, flexShrink: 0,
-                      }}>APP</span>
-                    )}
-                    {row.origin === 'local' && (
-                      <span style={{
-                        fontSize: '0.6rem', letterSpacing: '0.08em', padding: '2px 6px',
-                        borderRadius: 999, background: mix(28),
-                        color: 'var(--gc-accent-bright, #c4b5fd)', flexShrink: 0,
-                      }}>LOCAL</span>
-                    )}
-                  </div>
-
-                  <div style={{
-                    fontSize: '0.78rem', opacity: 0.55, overflow: 'hidden',
-                    textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    {row.description || row.emulatorName}
-                  </div>
-
-                  {row.restricted.length > 0 && (
-                    // A local pack is data only unless the operator opted in.
-                    // Saying which blocks were ignored is what stops "why did my
-                    // generator not run" being a mystery.
-                    <div style={{ fontSize: '0.7rem', color: '#ffb347', marginTop: 2 }}>
-                      ignored (local pack): {row.restricted.join(', ')}
-                    </div>
-                  )}
-                </div>
-
-                <div style={{
-                  fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.04em',
-                  whiteSpace: 'nowrap', padding: '0.35rem 0.7rem', borderRadius: 999,
-                  flexShrink: 0,
-                  background: isArmed ? 'rgba(248,113,113,0.22)'
-                    : row.installed ? 'rgba(255,255,255,0.07)' : mix(30),
-                  color: isArmed ? DANGER
-                    : row.installed ? 'rgba(255,255,255,0.75)'
-                    : 'var(--gc-accent-bright, #c4b5fd)',
-                  border: `1px solid ${isArmed ? 'rgba(248,113,113,0.5)' : 'transparent'}`,
-                }}>
-                  {running ? 'Working…' : isArmed ? 'Confirm?' : row.installed ? 'Remove' : 'Install'}
-                </div>
-              </div>
+        {groups.map(group => (
+          <div key={group.family}>
+            <div style={{
+              display: 'flex', alignItems: 'baseline', gap: 8,
+              padding: '0.9rem 0 0.45rem', fontSize: '0.72rem', letterSpacing: '0.12em',
+              textTransform: 'uppercase', opacity: 0.6, fontWeight: 700,
+              position: 'sticky', top: 0, zIndex: 1,
+              // The rows scroll under the heading, so it needs something behind
+              // it or the two overlap into an unreadable smear.
+              background: 'var(--gc-overlay-bg, rgba(12,10,20,0.96))',
+            }}>
+              <span>{group.family}</span>
+              <span style={{ opacity: 0.7, letterSpacing: 0 }}>
+                {group.installed}/{group.rows.length}
+              </span>
             </div>
-          )
-        })}
 
-        {rows !== null && ordered.length === 0 && !error && (
+            {group.rows.map(row => {
+              flatIdx += 1
+              const running = busyId === row.id
+              const focused = flatIdx === focusIdx
+              const isArmed = armed === row.id
+
+              return (
+                <div
+                  key={row.id}
+                  ref={focused ? focusRowRef : undefined}
+                  onClick={() => void act(row)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.9rem',
+                    padding: '0.7rem 0.9rem', marginBottom: '0.4rem', borderRadius: 12,
+                    cursor: busyId ? 'default' : 'pointer',
+                    opacity: busyId && !running ? 0.35 : 1,
+                    background: isArmed ? 'rgba(248,113,113,0.14)'
+                      : focused ? mix(18) : 'rgba(255,255,255,0.045)',
+                    border: `1px solid ${isArmed ? 'rgba(248,113,113,0.55)'
+                      : focused ? mix(55) : 'transparent'}`,
+                    transition: 'background 120ms ease, border-color 120ms ease',
+                  }}
+                >
+                  {/* The system's own colour, the same one its tile carries on
+                      the grid — the fastest way to find a row you already know. */}
+                  <div style={{
+                    width: 4, alignSelf: 'stretch', minHeight: 34, borderRadius: 2,
+                    background: row.color, flexShrink: 0,
+                  }} />
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontWeight: 600, display: 'flex', alignItems: 'center',
+                      gap: 8, minWidth: 0,
+                    }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {row.label}
+                      </span>
+                      {row.origin === 'local' && (
+                        <span style={{
+                          fontSize: '0.6rem', letterSpacing: '0.08em', padding: '2px 6px',
+                          borderRadius: 999, background: mix(28),
+                          color: 'var(--gc-accent-bright, #c4b5fd)', flexShrink: 0,
+                        }}>LOCAL</span>
+                      )}
+                    </div>
+
+                    <div style={{
+                      fontSize: '0.78rem', opacity: 0.55, overflow: 'hidden',
+                      textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {row.description || row.emulatorName}
+                    </div>
+
+                    {row.restricted.length > 0 && (
+                      // A local pack is data only unless the operator opted in.
+                      // Saying which blocks were ignored is what stops "why did
+                      // my generator not run" being a mystery.
+                      <div style={{ fontSize: '0.7rem', color: '#ffb347', marginTop: 2 }}>
+                        ignored (local pack): {row.restricted.join(', ')}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{
+                    fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.04em',
+                    whiteSpace: 'nowrap', padding: '0.35rem 0.7rem', borderRadius: 999,
+                    flexShrink: 0,
+                    background: isArmed ? 'rgba(248,113,113,0.22)'
+                      : row.installed ? 'rgba(255,255,255,0.07)' : mix(30),
+                    color: isArmed ? DANGER
+                      : row.installed ? 'rgba(255,255,255,0.75)'
+                      : 'var(--gc-accent-bright, #c4b5fd)',
+                    border: `1px solid ${isArmed ? 'rgba(248,113,113,0.5)' : 'transparent'}`,
+                  }}>
+                    {running ? 'Working…' : isArmed ? 'Confirm?' : row.installed ? 'Remove' : 'Install'}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ))}
+
+        {rows !== null && flat.length === 0 && !error && (
           <div style={{ padding: '1rem 0', opacity: 0.6 }}>
             {filter.trim()
               ? `Nothing matches "${filter.trim()}".`
@@ -340,16 +392,6 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
             ? 'Press ✕ again to remove it · any direction cancels'
             : `✕ install or remove · △ ${filter.trim() ? 'change filter' : 'search'} · ○ back`}
       </div>
-
-      {showSearch && (
-        <VirtualKeyboard
-          title="Search emulators & apps"
-          initialValue={filter}
-          placeholder="name, platform or emulator…"
-          onConfirm={(val) => { setFilter(val.trim()); setShowSearch(false) }}
-          onCancel={() => setShowSearch(false)}
-        />
-      )}
 
       {log.length > 0 && (
         <pre style={{

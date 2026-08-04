@@ -15,6 +15,10 @@
       "description": "The product name, when it differs from the platform label: `label` is 'Nintendo 64', this is 'Rosalie's Mupen GUI'. Shown by the graphical installer, which used to carry its own copy of both. Absent = fall back to `label`.",
       "type": "string", "minLength": 1
     },
+    "family": {
+      "description": "Who made the hardware: 'Nintendo', 'Sony', 'Microsoft', 'Sega'... The installer groups the catalogue by it, so a box with twenty systems reads as four short lists instead of one long one. Free text on purpose — a pack for a machine nobody here anticipated names its own maker and is grouped with its siblings without a line of UI changing. Absent = grouped under 'Other'; apps are grouped by their kind and ignore this.",
+      "type": "string", "minLength": 1
+    },
     "description": {
       "description": "One line shown next to the tick box in the install wizard.",
       "type": "string", "minLength": 1
