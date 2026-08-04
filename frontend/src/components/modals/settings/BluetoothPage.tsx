@@ -29,8 +29,17 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
   const [focusIdx, setFocusIdx] = useState(0)
 
   const items = [...devices, ...found]
+  // Slot 0 is the Scan button, so the ring is one longer than the list. The
+  // button used to carry nothing but onClick: on a television, with a pad and
+  // no mouse, the one control that finds a new device could not be pressed at
+  // all. Making it the first stop needs no new button to learn — you walk up
+  // to it the way you walk to anything else.
+  // Highest reachable index: slot 0 is the button, 1..items.length are rows.
+  const SCAN_SLOT = 0
+  const rowIdx = (i: number) => i - 1
   const itemsRef = useRef(items)
   useEffect(() => { itemsRef.current = items })
+  const scanRef = useRef<() => Promise<void>>(async () => {})
   const devicesRef = useRef(devices)
   const focusIdxRef = useRef(focusIdx)
   const opRef = useRef(op)
@@ -55,10 +64,11 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
   useEffect(() => {
     const offs = [
       onGp('gp:dpad-up',   () => setFocusIdx(i => Math.max(0, i - 1))),
-      onGp('gp:dpad-down', () => setFocusIdx(i => Math.min(itemsRef.current.length - 1, i + 1))),
+      onGp('gp:dpad-down', () => setFocusIdx(i => Math.min(itemsRef.current.length, i + 1))),
       onGp('gp:confirm', () => {
         if (opRef.current) return
-        const d = itemsRef.current[focusIdxRef.current]
+        if (focusIdxRef.current === SCAN_SLOT) { void scanRef.current(); return }
+        const d = itemsRef.current[focusIdxRef.current - 1]
         if (!d) return
         if (d.paired) toggleDevice(d)
         else pairDevice(d)
@@ -131,6 +141,8 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
     setOp(null)
   }
 
+  useEffect(() => { scanRef.current = scan })
+
   const removeDevice = async (e: React.MouseEvent, mac: string) => {
     e.stopPropagation()
     if (op) return
@@ -149,12 +161,15 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
 
       {/* Scan button */}
       <button
-        onClick={scan}
+        onClick={() => { setFocusIdx(SCAN_SLOT); void scan() }}
         disabled={busy}
         style={{
           width: '100%', marginBottom: 14, padding: '10px 16px', borderRadius: 10,
-          background: op === 'scan' ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 30%, transparent)' : 'color-mix(in srgb, var(--gc-accent, #7c3aed) 15%, transparent)',
-          border: '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 40%, transparent)', color: 'var(--gc-accent-bright, #c4b5fd)',
+          background: op === 'scan' ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 30%, transparent)'
+            : focusIdx === SCAN_SLOT ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 24%, transparent)'
+            : 'color-mix(in srgb, var(--gc-accent, #7c3aed) 15%, transparent)',
+          border: `1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) ${focusIdx === SCAN_SLOT ? 75 : 40}%, transparent)`,
+          color: 'var(--gc-accent-bright, #c4b5fd)',
           cursor: busy ? 'default' : 'pointer', fontSize: 13, fontWeight: 600,
           opacity: busy && op !== 'scan' ? 0.5 : 1,
         }}
@@ -176,10 +191,10 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
         <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, textAlign: 'center', padding: 16 }}>Loading…</div>
       ) : items.length === 0 ? (
         <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, textAlign: 'center', padding: 16 }}>
-          No paired devices — scan to find new ones
+          No paired devices yet — put yours in pairing mode, then press ✕ on Scan above
         </div>
       ) : items.map((d, di) => {
-        const isFocused = di === focusIdx
+        const isFocused = di === rowIdx(focusIdx)
         const isThisBusy = opMac === d.mac && busy
         // A heading before the first of each list, so "already yours" and "in
         // the room right now" are never mistaken for one another.
@@ -198,7 +213,7 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
             )}
 
             <div
-              onClick={() => { setFocusIdx(di); d.paired ? toggleDevice(d) : pairDevice(d) }}
+              onClick={() => { setFocusIdx(di + 1); d.paired ? toggleDevice(d) : pairDevice(d) }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '13px 16px', borderRadius: 12, marginBottom: 8,
@@ -249,7 +264,10 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
       })}
 
       <div style={{ marginTop: 8, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
-        ↑↓ Navigate · ✕ {items[focusIdx] && !items[focusIdx].paired ? 'Pair' : 'Connect/Disconnect'}
+        ↑↓ Navigate · ✕ {
+          focusIdx === SCAN_SLOT ? 'Scan'
+            : items[rowIdx(focusIdx)] && !items[rowIdx(focusIdx)].paired ? 'Pair'
+            : 'Connect/Disconnect'}
       </div>
     </Overlay>
   )
