@@ -378,6 +378,7 @@
   display: block;
   transform-style: preserve-3d;
   transform-origin: 50% 100%;
+  will-change: transform;
 }
 /* The artwork settles 150ms behind the cursor. Rather than hide the lag, own
    it: the box eases while the next jacket is on its way. */
@@ -639,8 +640,25 @@
   position: relative; width: var(--w); height: var(--h);
   transform-style: preserve-3d;
   transform: rotateX(var(--tilt)) rotateY(var(--turn));
-  transition: transform 620ms cubic-bezier(0.22, 0.61, 0.36, 1),
-              width 300ms ease, height 300ms ease;
+
+  /* Transform only. `width` and `height` were transitioned here too, and they
+     are layout properties: easing them re-runs layout on this box AND on its
+     six faces — every one of which is sized from --w, --d or --h — on every
+     frame. When that overlapped the 440ms turn, the rotation was competing with
+     a relayout for the same frames, and the turn is where it showed.
+
+     What it bought was a smooth resize when --ratio changed. views/box.js now
+     remembers each game's measured proportions, so a box mounts at its own
+     width and the value stops moving at all; the rare first measurement snaps
+     instead, while the jacket is still hidden behind the wait. */
+  transition: transform 620ms cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  /* Promote before the gesture, not during it. .cz-box and .cz-carry are the
+     two nodes cz-push-* and cz-pull-* drive, and neither declared this — so the
+     compositor built their layers as the animation started, which is a hitch in
+     the first frames of every turn. The file already uses this on the rail and
+     the paper for the same reason. */
+  will-change: transform;
 }
 /* Turning it over carries on the way it was already going, past the opening
    edge — the gesture of a box in a hand, not a card flip. */
