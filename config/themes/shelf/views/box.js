@@ -35,6 +35,27 @@ import { flat } from '../lib/accent.js'
 const RATIO_UNKNOWN = 0.72
 
 /**
+ * Proportions already measured, by game. Survives the component.
+ *
+ * `Face` is keyed on the game it draws, so moving the cursor unmounts one and
+ * mounts another — which is what makes a box carry its own title's shape
+ * instead of the previous one's. The cost is that a fresh component starts at
+ * RATIO_UNKNOWN and jumps to the real value when the image measures, and
+ * `--ratio` is the box's width: that jump is a visible change of size.
+ *
+ * While the jacket is travelling out of the shelf, it is a change of size
+ * MID-FLIGHT — the cut the animation is not supposed to have. Remembering what
+ * each game measured removes it for every title already seen, which on a shelf
+ * you walk up and down is nearly all of them: the box mounts at its own width
+ * and never moves.
+ *
+ * A plain Map, not an LRU. One number per game looked at in a session, against
+ * a library the same screen already holds in memory.
+ */
+const ratios = new Map()
+const shapeKey = (systemId, filename) => `${systemId}::${filename}`
+
+/**
  * The shapes a game box actually comes in.
  *
  * The solid is built from the artwork: height is fixed and width follows the
@@ -107,7 +128,12 @@ export const createBox = (sdk) => {
    * assembled rather than composited: a flat image cannot be turned over.
    */
   const Face = ({ systemId, game, meta, media, flipped }) => {
-    const [ratio, setRatio] = useState(RATIO_UNKNOWN)
+    // Seeded from what this game measured last time, so a box that has been
+    // seen before mounts at its own proportions rather than at the portrait
+    // guess. `useState` takes the initialiser once, on mount, which is exactly
+    // the moment the key gives us a new component for a new game.
+    const [ratio, setRatio] = useState(
+      () => ratios.get(shapeKey(systemId, game?.filename)) ?? RATIO_UNKNOWN)
     const [frontDead, setFrontDead] = useState(false)
     const [spineDead, setSpineDead] = useState(false)
 
@@ -201,7 +227,9 @@ export const createBox = (sdk) => {
         setRejected(true)
         if (scraped) return
       }
-      setRatio(Math.max(RATIO_MIN, Math.min(RATIO_MAX, r)))
+      const kept = Math.max(RATIO_MIN, Math.min(RATIO_MAX, r))
+      ratios.set(shapeKey(systemId, game.filename), kept)
+      setRatio(kept)
     }
 
     // `load` is an event, and an event only reaches a listener that was already
