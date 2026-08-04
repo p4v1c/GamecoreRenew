@@ -1,0 +1,44 @@
+{
+  "id": "ppsspp",
+  "kind": "emulator",
+  "label": "PlayStation Portable",
+  "emulatorName": "PPSSPP",
+  "platform": "PSP",
+  "color": "#1e64ff",
+  "install": {
+    "provider": "flatpak",
+    "appId": "org.ppsspp.PPSSPP"
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run org.ppsspp.PPSSPP -f"
+  },
+  "roms": {
+    "dir": "emu/ppsspp",
+    "extensions": [
+      "*.iso",
+      "*.cso",
+      "*.pbp",
+      "*.zip"
+    ]
+  },
+  "config": {
+    "dest": "@FLATPAK_CONFIG@/ppsspp/PSP/SYSTEM"
+  },
+  "controllers": {
+    "maxPlayers": 0,
+    "strategy": "none"
+  },
+  "scraper": {
+    "tgdbId": 13,
+    "screenscraper": [
+      61
+    ],
+    "libretro": [
+      "Sony - PlayStation Portable"
+    ],
+    "mediaAlias": [
+      "psp"
+    ]
+  }
+}

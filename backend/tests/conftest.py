@@ -38,3 +38,12 @@ for _var in ("SCREENSCRAPER_DEV_ID", "SCREENSCRAPER_DEV_PASSWORD",
              "SCREENSCRAPER_USER", "SCREENSCRAPER_PASSWORD"):
     os.environ.pop(_var, None)
 os.environ["XDG_CONFIG_HOME"] = str(_ROOT / "config-home")
+
+# The catalogue is SHIPPED CODE, not box state: catalog/<id>/pack.json is the
+# single source scraper.py, gamemedia.py and the installers read. The throwaway
+# root above exists to keep writable data (covers, playtime.db, config/) out of
+# the checkout — it must not also hide the catalogue, or every consumer that
+# builds its tables at import time would come up empty under test and the
+# suite would be green about maps that are simply absent.
+_REPO = Path(__file__).resolve().parents[2]
+(_ROOT / "catalog").symlink_to(_REPO / "catalog")

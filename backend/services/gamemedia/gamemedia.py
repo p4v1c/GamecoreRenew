@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import re
 import shutil
@@ -63,6 +64,8 @@ import time
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 # GameCore: vendored as backend.services.gamemedia.gamemedia, so the sibling is
 # a package module. The fallback keeps `python3 gamemedia.py` working from the
@@ -178,15 +181,13 @@ SYSTEMS_CACHE = CACHE_ROOT / "systems.json"
 # Mario Bros. Wii and Super Smash Bros. Brawl are Wii only and came back "not in
 # the database" — and Mario Kart Wii quietly matched *Mario Kart: Double Dash*,
 # which is worse than nothing.
-EMULATOR_ALIASES: dict[str, str | list[str]] = {
-    "rpcs3": "ps3", "shadps4": "ps4", "pcsx2": "ps2", "duckstation": "psx",
-    "ppsspp": "psp", "vita3k": "vita",
-    "dolphin": ["gamecube", "wii"], "cemu": "wiiu",
-    "ryujinx": "switch", "yuzu": "switch", "citron": "switch",
-    "azahar": "3ds", "citra": "3ds", "melonds": "nds", "desmume": "nds",
-    "mgba": ["gba", "gbc", "gb"], "gopher64": "nintendo 64", "mupen64plus": "nintendo 64",
-    "xenia": "xbox 360", "xemu": "xbox", "flycast": "dreamcast",
-    "mednafen": "psx", "snes9x": "super nintendo", "mesen": "nes",
+# Emulators GameCore does not ship a pack for, plus the short ids gamescrape
+# accepts on the command line. Kept by hand because nothing declares them.
+_EXTRA_ALIASES: dict[str, str | list[str]] = {
+    "vita3k": "vita", "yuzu": "switch", "citron": "switch", "citra": "3ds",
+    "desmume": "nds", "mupen64plus": "nintendo 64", "xemu": "xbox",
+    "flycast": "dreamcast", "mednafen": "psx", "snes9x": "super nintendo",
+    "mesen": "nes",
     # "arcade" is not a system on ScreenScraper: more than 50 boards share
     # nom_launchbox="arcade". The convention (Skyscraper's too) is to aim at Mame
     # (id 75) and let the zip hash designate the board.
@@ -196,6 +197,29 @@ EMULATOR_ALIASES: dict[str, str | list[str]] = {
     "segacd": "mega cd", "x360": "xbox 360", "xone": "xbox one",
     "psx": "playstation", "ps1": "playstation", "gc": "gamecube",
 }
+
+
+def _catalog_aliases() -> dict[str, str | list[str]]:
+    """`scraper.mediaAlias` from every pack.
+
+    Hand-maintaining this alongside scraper.py's two platform maps meant three
+    tables to keep in step for one fact. Never fatal: an unreadable catalogue
+    degrades to the extras above rather than breaking media lookup entirely.
+    """
+    out: dict[str, str | list[str]] = {}
+    try:
+        from ..catalog import load_catalog
+        for pack in load_catalog().values():
+            names = (pack.data.get("scraper") or {}).get("mediaAlias")
+            if names:
+                out[pack.id] = names[0] if len(names) == 1 else list(names)
+    except Exception:
+        log.warning("gamemedia: catalogue unreadable — emulator aliases limited "
+                    "to the built-in extras", exc_info=True)
+    return out
+
+
+EMULATOR_ALIASES: dict[str, str | list[str]] = {**_EXTRA_ALIASES, **_catalog_aliases()}
 
 
 # GameCore: the alias table maps one emulator to one *or several* consoles.

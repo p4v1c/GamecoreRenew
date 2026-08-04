@@ -1,0 +1,307 @@
+#!/usr/bin/env bash
+# ================================================================
+#  gamecore-emu — install an emulator or an application on a box
+#                 that is already running.
+#
+#  list [--json]        available (catalogue) vs installed
+#  install <id>...      obtain the binary, deploy the seed, add the tile
+#  remove  <id>...      drop the tile; the binary and the ROMs stay
+#  reconfigure <id>...  re-deploy the seed and re-profile the pads
+#  verify [<id>...]     is what the catalogue declares actually here?
+#
+#  Same shape as gamecore-addon on purpose: same subcommand names, same
+#  --json output, same "offline is not a failure" behaviour. Two tools that
+#  do the same kind of thing should not need to be learned twice.
+#
+#  What this deliberately does NOT do: install from an arbitrary URL or a
+#  remote repository. A pack comes from the release, or the operator drops it
+#  in config/catalog.d/ themselves — and a pack dropped there is DATA ONLY
+#  (see config/catalog.d/README.md). This CLI is reachable from the web UI;
+#  "install this URL" would make that a remote code execution button.
+#
+#  Env overrides (sandbox / ISO):
+#    GAMECORE_PATH  core install dir    (default: /opt/GameCore)
+#    GAMECORE_USER  owner of the files  (default: the invoking user)
+# ================================================================
+set -euo pipefail
+
+GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
+GAMECORE_USER="${GAMECORE_USER:-${SUDO_USER:-$(id -un)}}"
+
+die()  { echo "[gamecore-emu] ERROR: $*" >&2; exit 1; }
+info() { echo "[gamecore-emu] $*"; }
+
+command -v python3 >/dev/null || die "python3 not found"
+[[ -d "$GAMECORE_PATH/catalog" ]] || die "no catalogue at $GAMECORE_PATH/catalog"
+
+# The backend venv when it exists (the providers are plain stdlib, but the
+# catalogue loader lives in backend/ and the venv is what the box runs).
+PY="$GAMECORE_PATH/.venv/bin/python3"
+[[ -x "$PY" ]] || PY="python3"
+
+QUERY="$GAMECORE_PATH/scripts/catalog-query.py"
+PROVIDER="$GAMECORE_PATH/scripts/gamecore-provider.py"
+[[ -f "$QUERY" && -f "$PROVIDER" ]] || die "scripts/ is missing from $GAMECORE_PATH"
+
+# ── helpers ──────────────────────────────────────────────────────
+known_ids() { "$PY" "$QUERY" ids --catalog "$GAMECORE_PATH/catalog" \
+                --local "$GAMECORE_PATH/config/catalog.d"; }
+
+require_ids() {  # require_ids <id>...
+  [[ $# -gt 0 ]] || die "which one? try: gamecore-emu list"
+  local known id
+  known="$(known_ids)"
+  for id in "$@"; do
+    grep -qxF "$id" <<<"$known" || die "no pack named '$id' (try: gamecore-emu list)"
+  done
+}
+
+# ── list ─────────────────────────────────────────────────────────
+cmd_list() {
+  "$PY" - "$GAMECORE_PATH" "${1:-}" <<'PY'
+import json, subprocess, sys
+from pathlib import Path
+
+root, fmt = Path(sys.argv[1]), sys.argv[2]
+sys.path.insert(0, str(root))
+from backend.services.catalog import load_catalog
+
+packs = load_catalog(root / "catalog", root / "config" / "catalog.d")
+
+try:
+    live = {s["id"] for s in json.loads((root / "config" / "systems.json").read_text())}
+    live |= {a["id"] for a in json.loads((root / "config" / "apps.json").read_text())}
+except (OSError, ValueError):
+    live = set()
+
+# "Installed" here means the tile is on the grid, which is what the owner sees.
+# Whether the Flatpak is present is a separate question — `verify` answers it.
+rows = [{"id": p.id, "kind": p.kind, "label": p.data["label"],
+         "platform": p.data["platform"], "origin": p.origin,
+         "installed": p.id in live}
+        for p in sorted(packs.values(), key=lambda p: (p.kind, p.id))]
+
+if fmt == "--json":
+    print(json.dumps(rows, indent=2, ensure_ascii=False))
+else:
+    width = max((len(r["id"]) for r in rows), default=2)
+    for r in rows:
+        mark = "✓" if r["installed"] else " "
+        local = "  (local)" if r["origin"] == "local" else ""
+        print(f" {mark} {r['id']:<{width}}  {r['label']}{local}")
+    n = sum(r["installed"] for r in rows)
+    print(f"\n{n}/{len(rows)} on the grid.")
+PY
+}
+
+# ── install ──────────────────────────────────────────────────────
+cmd_install() {
+  require_ids "$@"
+  # Installing lifts a previous removal — otherwise the merge below would
+  # honour the old "declined" record and the tile would never come back.
+  "$PY" - "$GAMECORE_PATH" "$@" <<'UNDECLINE'
+import sys
+from pathlib import Path
+root, ids = Path(sys.argv[1]), set(sys.argv[2:])
+sys.path.insert(0, str(root))
+from backend.services.catalog.merge import load_removed, save_removed
+before = load_removed(root)
+if before & ids:
+    save_removed(root, before - ids)
+    print("[gamecore-emu] no longer declined: " + ", ".join(sorted(before & ids)))
+UNDECLINE
+  local id
+  for id in "$@"; do
+    info "installing $id"
+    # The provider prints OK/SAME/FAIL per line and exits non-zero on failure.
+    # `|| true`: one emulator that cannot be downloaded must not abort the
+    # others, exactly as in arch.sh.
+    "$PY" "$PROVIDER" install "$id" \
+        --user "$GAMECORE_USER" --gamecore-path "$GAMECORE_PATH" || true
+
+    # Seed + generators + the tile, in one place so `install` and
+    # `reconfigure` cannot drift apart.
+    apply_pack "$id" || warn_pack "$id"
+  done
+  refresh_grid
+}
+
+warn_pack() { echo "[gamecore-emu] WARNING: $1 configured with errors." >&2; }
+
+apply_pack() {  # apply_pack <id> — seed, then generators
+  "$PY" - "$GAMECORE_PATH" "$1" "$GAMECORE_USER" <<'PY'
+import sys
+from pathlib import Path
+
+root, pack_id, user = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+sys.path.insert(0, str(root))
+from backend.services import configgen
+from backend.services.catalog import load_catalog
+from backend.services.configgen import seed as seedlib
+
+packs = load_catalog(root / "catalog", root / "config" / "catalog.d")
+pack = packs[pack_id]
+home = Path("~" + user).expanduser()
+
+dest = configgen.resolve_config_dir(pack, home)
+if pack.seed_dir and dest:
+    changed = seedlib.deploy(pack.seed_dir, dest, home=home, gamecore_path=root)
+    print(f"[gamecore-emu]   seed: {len(changed)} file(s) into {dest}")
+elif pack.seed_dir:
+    print("[gamecore-emu]   seed: no destination declared — skipped")
+
+# Re-profile whatever pads are connected right now, so the emulator is usable
+# without unplugging anything.
+configgen.HOME = home
+configgen.SNAP_DIR = home / ".local/share/gamecore/controller-snapshots"
+pads = configgen.detect_pads()
+seen: dict[tuple[str, str], int] = {}
+for i, (vendor, product, name) in enumerate(pads, 1):
+    dup = seen.get((vendor, product), 0)
+    seen[(vendor, product)] = dup + 1
+    result = configgen.apply_profile(i, vendor, product, name, dup)
+    for line in result:
+        print(f"[gamecore-emu]   {line}")
+if not pads:
+    print("[gamecore-emu]   no pad connected — mappings apply on next connect")
+PY
+}
+
+# ── remove ───────────────────────────────────────────────────────
+cmd_remove() {
+  require_ids "$@"
+  # The tile only. The Flatpak, the ROMs and the emulator's own config
+  # (saves, memory cards, BIOS) are left alone — `gamecore-emu remove` is
+  # "take it off the grid", not "destroy my data". Removing the application
+  # itself stays an explicit `flatpak uninstall`.
+  "$PY" - "$GAMECORE_PATH" "$@" <<'PY'
+import json, sys
+from pathlib import Path
+
+root, ids = Path(sys.argv[1]), set(sys.argv[2:])
+sys.path.insert(0, str(root))
+for name in ("systems.json", "apps.json"):
+    path = root / "config" / name
+    try:
+        rows = json.loads(path.read_text())
+    except (OSError, ValueError):
+        continue
+    kept = [r for r in rows if r.get("id") not in ids]
+    if len(kept) != len(rows):
+        gone = sorted({r["id"] for r in rows if r.get("id") in ids})
+        tmp = path.with_name(path.name + ".gamecore-tmp")
+        tmp.write_text(json.dumps(kept, indent=2, ensure_ascii=False) + "\n")
+        tmp.replace(path)
+        print(f"[gamecore-emu] removed from {name}: {', '.join(gone)}")
+# Record the removal. Without this the very next merge undid it: the merge
+# adds every catalogue pack the grid is missing, which is right for "new in
+# this release" and exactly wrong for "I took it off". The two rules were in
+# direct contradiction and the merge always won.
+#
+# config/ is excluded from the OTA rsync, so the choice survives updates.
+from backend.services.catalog.merge import load_removed, save_removed
+save_removed(root, load_removed(root) | ids)
+print("[gamecore-emu] recorded in config/catalog-removed.json — it will not come back.")
+print("[gamecore-emu] ROMs, save data and the application itself were kept.")
+PY
+}
+
+# ── reconfigure ──────────────────────────────────────────────────
+cmd_reconfigure() {
+  require_ids "$@"
+  local id
+  for id in "$@"; do
+    info "reconfiguring $id"
+    apply_pack "$id" || warn_pack "$id"
+  done
+}
+
+# ── verify ───────────────────────────────────────────────────────
+cmd_verify() {
+  "$PY" - "$GAMECORE_PATH" "$@" <<'PY'
+import json, shutil, subprocess, sys
+from pathlib import Path
+
+root, only = Path(sys.argv[1]), set(sys.argv[2:])
+sys.path.insert(0, str(root))
+from backend.services.catalog import load_catalog
+
+packs = load_catalog(root / "catalog", root / "config" / "catalog.d")
+try:
+    r = subprocess.run(["flatpak", "list", "--app", "--columns=application"],
+                       capture_output=True, text=True, timeout=60)
+    installed = {l.strip() for l in r.stdout.splitlines() if l.strip()} if r.returncode == 0 else None
+except (OSError, subprocess.SubprocessError):
+    installed = None
+
+bad = 0
+for pack in sorted(packs.values(), key=lambda p: p.id):
+    if only and pack.id not in only:
+        continue
+    spec = pack.data.get("install") or {}
+    provider = spec.get("provider", "none")
+    if provider == "flatpak":
+        if installed is None:
+            state = "? flatpak could not be queried"
+        else:
+            ok = spec["appId"] in installed
+            state = "OK" if ok else f"MISSING {spec['appId']}"
+            bad += not ok
+    elif provider == "github-asset":
+        ok = (root / spec["dest"]).is_file()
+        state = "OK" if ok else f"MISSING {spec['dest']}"
+        bad += not ok
+    elif provider == "github-archive":
+        ok = (root / spec["dest"] / spec["entrypoint"]).is_file()
+        state = "OK" if ok else f"MISSING {spec['dest']}/{spec['entrypoint']}"
+        bad += not ok
+    else:
+        state = "-- nothing to obtain"
+    print(f" {pack.id:<14} {state}")
+
+# `?` is not a failure: an unreadable flatpak list means we cannot SEE the
+# installation, not that nothing is installed. Same rule as flatpakify's prune.
+sys.exit(1 if bad else 0)
+PY
+}
+
+# ── grid ─────────────────────────────────────────────────────────
+refresh_grid() {
+  info "refreshing the grid"
+  "$PY" - "$GAMECORE_PATH" <<'PY'
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root))
+from backend.services.catalog import load_catalog
+from backend.services.catalog.merge import merge_file
+
+packs = load_catalog(root / "catalog", root / "config" / "catalog.d")
+# Both halves. apps.json was never merged, so `install <app>` could remove a
+# tile it was then unable to put back.
+for name, kind in (("systems.json", "emulator"), ("apps.json", "app")):
+    for n in merge_file(root / "config" / name, packs, root, kind=kind):
+        print(f"[gamecore-emu]   {n}")
+PY
+  info "done — the grid reloads on its own (no restart needed)."
+}
+
+# ── dispatch ─────────────────────────────────────────────────────
+case "${1:-}" in
+  list)        shift || true; cmd_list "${1:-}" ;;
+  install)     shift; cmd_install "$@" ;;
+  remove)      shift; cmd_remove "$@" ;;
+  reconfigure) shift; cmd_reconfigure "$@" ;;
+  verify)      shift || true; cmd_verify "$@" ;;
+  *) cat >&2 <<'EOF'
+gamecore-emu — add an emulator to a box that is already running
+Usage:
+  gamecore-emu list [--json]
+  gamecore-emu install     <id>...
+  gamecore-emu remove      <id>...      (tile only — ROMs and saves stay)
+  gamecore-emu reconfigure <id>...      (re-deploy the seed, re-profile pads)
+  gamecore-emu verify      [<id>...]
+EOF
+     exit 1 ;;
+esac

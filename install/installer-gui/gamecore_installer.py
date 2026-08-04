@@ -37,28 +37,14 @@ ADDONS_REPO = "https://github.com/p4v1c/gamecore-addons.git"
 #   @GC-PROGRESS@ <0-100> <step label>
 PROGRESS_RE = re.compile(r"^@GC-PROGRESS@\s+(\d{1,3})\s*(.*)$")
 
-EMULATORS = [
-    ("azahar",      "Azahar",       "Nintendo 3DS"),
-    ("rpcs3",       "RPCS3",        "PlayStation 3"),
-    ("pcsx2",       "PCSX2",        "PlayStation 2"),
-    ("duckstation", "DuckStation",  "PlayStation 1"),
-    ("dolphin",     "Dolphin",      "GameCube / Wii"),
-    ("melonds",     "melonDS",      "Nintendo DS"),
-    ("gopher64",    "gopher64",     "Nintendo 64"),
-    ("mgba",        "mGBA",         "Game Boy Advance"),
-    ("ppsspp",      "PPSSPP",       "PSP"),
-    ("cemu",        "Cemu",         "Wii U"),
-    ("ryujinx",     "Ryujinx",      "Nintendo Switch"),
-    ("shadps4",     "shadPS4",      "PlayStation 4"),
-    ("xenia",       "Xenia Canary", "Xbox 360 (Wine)"),
-]
-
-APPS = [
-    ("steam",   "Steam",            "PC games (Flatpak, Big Picture)"),
-    ("youtube", "YouTube",          "TV app in a Firefox kiosk"),
-    ("twitch",  "Twitch (EmberTV)", "Twitch for the big screen"),
-    ("stremio", "Stremio",          "Media center (gamepad-friendly)"),
-]
+# The catalogue, generated from catalog/<id>/pack.json by
+# scripts/gen-catalog.py. It is baked into a module rather than read at runtime
+# because this wizard is a PyInstaller onefile binary: it runs BEFORE the
+# repository exists on the machine.
+#
+# Hand-maintaining it here is how the N64 tick box went on offering "gopher64"
+# long after that slot started launching Rosalie's Mupen GUI.
+from catalog_data import APPS, EMULATORS
 
 # Shown if the addons repo is unreachable at install time.
 FALLBACK_ADDONS = [

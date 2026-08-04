@@ -3,7 +3,7 @@
 #  GameCore — Pre-configure players 2-4 as DualShock 4 in the LIVE
 #  emulator configs (Ryujinx, Dolphin, PCSX2, DuckStation).
 #
-#  Fresh installs get this from emu-configs/ automatically; this script
+#  Fresh installs get this from catalog/<id>/seed/ automatically; this script
 #  retrofits an already-installed box surgically: it only touches the
 #  pad sections, everything else (your settings, game dirs, creds…)
 #  is preserved. Backups: <file>.bak-multids4. Idempotent.

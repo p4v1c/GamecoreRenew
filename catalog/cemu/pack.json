@@ -1,0 +1,49 @@
+{
+  "id": "cemu",
+  "kind": "emulator",
+  "label": "Wii U",
+  "emulatorName": "Cemu",
+  "platform": "Wii U",
+  "color": "#00b48c",
+  "install": {
+    "provider": "flatpak",
+    "appId": "info.cemu.Cemu"
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run info.cemu.Cemu -f -g"
+  },
+  "roms": {
+    "dir": "emu/cemu",
+    "extensions": [
+      "*.wux",
+      "*.rpx",
+      "*.iso",
+      "*.zip"
+    ]
+  },
+  "config": {
+    "dest": "@FLATPAK_CONFIG@/Cemu"
+  },
+  "controllers": {
+    "maxPlayers": 1,
+    "strategy": "snapshot-restore",
+    "target": "controllerProfiles/controller0.xml",
+    "seedMustNotContain": [
+      "<uuid>[^<]",
+      "<display_name>[^<]"
+    ]
+  },
+  "scraper": {
+    "tgdbId": 38,
+    "screenscraper": [
+      18
+    ],
+    "libretro": [
+      "Nintendo - Wii U"
+    ],
+    "mediaAlias": [
+      "wiiu"
+    ]
+  }
+}

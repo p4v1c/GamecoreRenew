@@ -1,19 +1,34 @@
+"""Check that everything the catalogue says to install still exists upstream.
+
+Driven by catalog/<id>/pack.json, and that matters: this list used to be
+hand-written and still carried io.github.gopher64.gopher64 long after the N64
+slot moved to Rosalie's Mupen GUI. It reported a healthy Flathub entry for an
+application nobody installs — green on the wrong target, which is worse than
+red. Reading the catalogue is what turns this into the job that would have
+caught the whole thing.
+
+Needs the network. Run it on a schedule, not on every push: CI must not go red
+because Flathub is slow.
+"""
+import sys
+from pathlib import Path
+
 import requests
 
-FLATPAK_IDS = [
-    "org.azahar_emu.Azahar",
-    "net.rpcs3.RPCS3",
-    "net.pcsx2.PCSX2",
-    "org.DolphinEmu.dolphin-emu",
-    "net.kuribo64.melonDS",
-    "io.github.gopher64.gopher64",
-    "io.mgba.mGBA",
-    "org.ppsspp.PPSSPP",
-    "info.cemu.Cemu",
-    "io.github.ryubing.Ryujinx",
-    "net.shadps4.shadPS4",
-    "com.valvesoftware.Steam",
-    "com.stremio.Stremio",
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from backend.services.catalog import load_catalog  # noqa: E402
+
+_PACKS = load_catalog()
+
+FLATPAK_IDS = sorted({p.app_id for p in _PACKS.values() if p.app_id})
+
+# The two emulators that do not come from Flathub, and where their releases
+# live. Also from the catalogue: `github-asset` / `github-archive` providers.
+GITHUB_ASSETS = [
+    (p.id, p.data["install"]["repo"], p.data["install"].get("assetPattern")
+     or p.data["install"]["asset"])
+    for p in sorted(_PACKS.values(), key=lambda p: p.id)
+    if (p.data.get("install") or {}).get("provider", "").startswith("github-")
 ]
 
 def check_flatpak(app_id):
@@ -72,10 +87,7 @@ def main():
         print(f"[{marker}] {app_id:35} : {status}")
 
     print("\nChecking GitHub Assets:")
-    for label, repo, pattern in (
-        ("DuckStation AppImage", "stenzek/duckstation", "x64.AppImage"),
-        ("Xenia Canary (Windows)", "xenia-canary/xenia-canary-releases", "windows"),
-    ):
+    for label, repo, pattern in GITHUB_ASSETS:
         exists, status = check_github_release_asset(repo, pattern)
         results.append((label, exists, status))
         marker = "✓" if exists else "✗"

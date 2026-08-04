@@ -17,8 +17,9 @@
     "label": "YouTube",
     "platform": "Web",
     "color": "#ff0000",
+    "iconPath": "assets/logos/youtube.png",
     "path": "firefox",
-    "args": "--profile '/home/pavic/.mozilla/firefox/youtube-tv' --kiosk 'https://www.youtube.com/tv' "
+    "args": "--profile '@HOME@/.mozilla/firefox/youtube-tv' --kiosk 'https://www.youtube.com/tv' "
   },
   {
     "id": "twitch",
@@ -29,7 +30,7 @@
     "color": "#800080",
     "iconPath": "assets/logos/twitch.png",
     "path": "firefox",
-    "args": "--profile '/home/pavic/.mozilla/firefox/twitch-tv' --kiosk 'https://localhost:8097/' "
+    "args": "--profile '@HOME@/.mozilla/firefox/twitch-tv' --kiosk 'https://localhost:8097/' "
   },
   {
     "id": "stremio",

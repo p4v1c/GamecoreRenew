@@ -1,0 +1,27 @@
+{
+  "id": "youtube",
+  "kind": "app",
+  "label": "YouTube",
+  "emulatorName": "YouTube",
+  "description": "TV app in a Firefox kiosk",
+  "platform": "Web",
+  "color": "#ff0000",
+  "packages": {
+    "pacman": [
+      "firefox",
+      "nss"
+    ]
+  },
+  "launch": {
+    "path": "firefox",
+    "args": "--profile '@HOME@/.mozilla/firefox/youtube-tv' --kiosk 'https://www.youtube.com/tv' "
+  },
+  "files": [
+    {
+      "src": "files/youtube-tv.user.js",
+      "dest": "@HOME@/.mozilla/firefox/youtube-tv/user.js",
+      "owner": "user",
+      "mode": "644"
+    }
+  ]
+}

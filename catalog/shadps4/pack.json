@@ -1,0 +1,31 @@
+{
+  "id": "shadps4",
+  "kind": "emulator",
+  "label": "PlayStation 4",
+  "emulatorName": "shadPS4",
+  "platform": "PS4",
+  "color": "#003791",
+  "install": {
+    "provider": "flatpak",
+    "appId": "net.shadps4.shadPS4"
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run net.shadps4.shadPS4 --fullscreen true -g"
+  },
+  "roms": {
+    "dir": "emu/shadps4",
+    "scanDirs": true,
+    "extensions": []
+  },
+  "controllers": {
+    "maxPlayers": 0,
+    "strategy": "none"
+  },
+  "scraper": {
+    "tgdbId": 4919,
+    "mediaAlias": [
+      "ps4"
+    ]
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "id": "gopher64",
+  "kind": "emulator",
+  "label": "Nintendo 64",
+  "emulatorName": "Rosalie's Mupen GUI",
+  "platform": "N64",
+  "color": "#b400ff",
+  "install": {
+    "provider": "flatpak",
+    "appId": "com.github.Rosalie241.RMG"
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run com.github.Rosalie241.RMG -f -n -q"
+  },
+  "roms": {
+    "dir": "emu/gopher64",
+    "extensions": [
+      "*.n64",
+      "*.z64",
+      "*.v64",
+      "*.zip"
+    ]
+  },
+  "config": {
+    "dest": "@FLATPAK_CONFIG@/RMG"
+  },
+  "controllers": {
+    "maxPlayers": 1,
+    "strategy": "snapshot-restore",
+    "target": "mupen64plus.cfg"
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "RMG",
+        "Rosalie's Mupen GUI",
+        "gopher64",
+        "Gopher64"
+      ]
+    },
+    "asset": "gopher64.png"
+  },
+  "scraper": {
+    "tgdbId": 3,
+    "screenscraper": [
+      14
+    ],
+    "libretro": [
+      "Nintendo - Nintendo 64"
+    ],
+    "mediaAlias": [
+      "nintendo 64"
+    ]
+  }
+}

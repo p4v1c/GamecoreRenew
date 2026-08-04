@@ -131,15 +131,27 @@ echo "[update] Installing new files..."
 #   assets/logos/     → user-uploaded logos
 #   .venv/      → Python virtualenv (rebuilt separately)
 #
-# emu-configs/ used to be in this list, and it does not belong: it is not user
-# data. The emulators' real configs live in ~/.var/app/**, and emu-configs/ is
-# the reference tree install-emu-configs.sh copies FROM — read-only at runtime,
-# nothing in backend/ or electron/ ever writes to it. Excluding it meant a
-# corrected controller mapping could reach GitHub and never reach a box:
+# catalog/ is deliberately NOT in this list, and that is the whole point of the
+# pack migration. It carries the shipped logos and the curated seeds, which are
+# project content, not user data: the emulators' real configs live in
+# ~/.var/app/**, and catalog/<id>/seed/ is only the reference tree
+# install-emu-configs.sh copies FROM — read-only at runtime, nothing in
+# backend/ or electron/ ever writes to it.
+#
+# Its predecessor emu-configs/ was excluded once, and it cost: a corrected
+# controller mapping could reach GitHub and never reach a box.
 # emu-configs/dolphin/GCPadNew.ini was fixed upstream, a test locked the fix in,
-# and the box kept its keyboard D-Pad for good. Shipping it here does NOT touch
-# a running emulator's config — deploying that stays a deliberate act:
+# and the box kept its keyboard D-Pad for good. Same reasoning now applies to
+# the logos, which moved out of assets/logos/ into catalog/<id>/logo.png for
+# exactly this reason — assets/logos/ stays excluded below so a logo the
+# operator uploaded by hand is still never overwritten.
+#
+# Shipping catalog/ here does NOT touch a running emulator's config — deploying
+# that stays a deliberate act:
 #     bash /opt/GameCore/install/install-emu-configs.sh
+#
+# config/ is excluded wholesale, which is what preserves config/catalog.d/ —
+# the operator's own packs — across every update.
 rsync -a \
   --exclude='.venv/' \
   --exclude='emu/' \
@@ -355,32 +367,46 @@ if [[ -f /etc/systemd/system/gamecore-backend.service ]] \
   echo "[update]         ${GAMECORE_PATH}/install/arch.sh   (search: FastAPI Backend)"
 fi
 
-# config/systems.json is excluded above, so an emulator swap decided here never
-# reaches an installed box. The N64 slot moved from gopher64 to Rosalie's Mupen
-# GUI — gopher64 sets no WM_CLASS on its window, so overlay_monitor could never
-# find it and the bezel never drew. Say so rather than leave a box launching an
-# emulator the installer no longer installs.
-if [[ -f "${GAMECORE_PATH}/config/systems.json" ]]; then
-  if python3 - "${GAMECORE_PATH}/config/systems.json" <<'PYEOF'
-import json, sys
-d = json.load(open(sys.argv[1]))
-rows = d if isinstance(d, list) else d.get("systems", d)
-seq = rows if isinstance(rows, list) else list(rows.values())
-hit = next((s for s in seq if s.get("id") == "gopher64"), None)
-sys.exit(0 if hit and "gopher64" in (hit.get("args", "") + hit.get("path", "")) else 1)
+# config/systems.json is excluded from the rsync above — deliberately, it is
+# the box's identity — so nothing shipped in a release used to reach the grid.
+# This block handled that by PRINTING the commands the owner was expected to
+# type by hand to migrate the N64 slot from gopher64 to Rosalie's Mupen GUI.
+# Nobody types those, and the tile went on launching an emulator the installer
+# no longer installs.
+#
+# It merges now, conservatively (backend/services/catalog/merge.py):
+#   · a tile the operator added by hand is kept, untouched;
+#   · an emulator new in this release is added;
+#   · a launcher is repaired ONLY when it is stale — it names a Flatpak app id
+#     no pack declares, or its path does not resolve on this box. A native
+#     binary in lib/ that exists is never pushed back to Flatpak;
+#   · `extensions` gains what it is missing and loses nothing. A machine
+#     installed before *.cue was added to duckstation scanned *.bin and not
+#     *.cue: the .cue shadowed the .bin and was then filtered out, and the
+#     library went from one PS1 game to none.
+#
+# The previous file is kept as systems.json.bak-merge. A malformed grid is
+# reported and left alone: an update must not take the interface down because
+# a hand edit left a trailing comma.
+echo "[update] Merging the shipped catalogue into config/systems.json..."
+"${GAMECORE_PATH}/.venv/bin/python3" - "${GAMECORE_PATH}" <<'PYEOF' || \
+  echo "[update] WARNING: catalogue merge failed (non-fatal) — the grid is unchanged."
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root))
+from backend.services.catalog import load_catalog
+from backend.services.catalog.merge import merge_file
+
+notes = merge_file(root / "config" / "systems.json",
+                   load_catalog(root / "catalog", root / "config" / "catalog.d"),
+                   root)
+for n in notes:
+    print(f"[update]   {n}")
+if not notes:
+    print("[update]   nothing to change.")
 PYEOF
-  then
-    echo "[update] NOTE: the N64 slot in config/systems.json still launches gopher64."
-    echo "[update]       It has no WM_CLASS, so the bezel overlay cannot find its window."
-    echo "[update]       An update cannot rewrite config/. To switch to Rosalie's Mupen GUI:"
-    echo "[update]         flatpak install -y flathub com.github.Rosalie241.RMG"
-    echo "[update]         flatpak override --filesystem=${GAMECORE_PATH} --device=all \\"
-    echo "[update]           --socket=x11 com.github.Rosalie241.RMG"
-    echo "[update]       then set that entry to:"
-    echo '[update]         "path": "flatpak",'
-    echo '[update]         "args": "run com.github.Rosalie241.RMG -f -n -q"'
-  fi
-fi
 
 # Third thing an OTA cannot rewrite: the desktop shortcut. arch.sh writes it
 # pointing at install/gamecore-launcher.sh, which is maintained here — but a

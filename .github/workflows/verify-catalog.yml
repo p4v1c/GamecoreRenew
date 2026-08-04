@@ -1,0 +1,38 @@
+name: Verify the catalogue upstream
+
+# Weekly, not on every push, and that split is the point.
+#
+# verify_emulators.py needs the network: it asks Flathub and the GitHub
+# releases API whether everything the catalogue says to install still exists.
+# Wired into the release job it would turn a slow Flathub into a red build and
+# block a release that has nothing to do with it — so it runs on its own
+# schedule and opens nothing, it just reports.
+#
+# This is the job that would have caught the gopher64 migration: the N64 slot
+# moved to Rosalie's Mupen GUI while verify_emulators.py went on checking
+# io.github.gopher64.gopher64 — a real Flathub entry, so it stayed green while
+# pointing at an application nobody installs. It reads catalog/<id>/pack.json
+# now, so "what we verify" and "what we install" cannot come apart again.
+
+on:
+  schedule:
+    - cron: '17 4 * * 1'      # Mondays, 04:17 UTC
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install requests
+        run: pip install -q requests
+
+      - name: Check every app id and release asset the catalogue declares
+        run: python verify_emulators.py

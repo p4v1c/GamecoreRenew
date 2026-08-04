@@ -37,18 +37,26 @@ path = os.path.join(root, "config", "systems.json")
 systems = json.load(open(path))
 before = len(systems)
 
-# system id → (path, args) on a Flatpak-only machine
-FLATPAK_MAP = {
-    # -nogui like the reference box: without it DuckStation drops back to its
-    # own game list when a game exits instead of quitting, so the process never
-    # ends and GameCore stays stuck on "game running".
-    "duckstation": ("bin/duckstation.AppImage", "-nogui -fullscreen"),
-    "pcsx2":       ("flatpak", "run net.pcsx2.PCSX2 -fullscreen"),
-    "rpcs3":       ("flatpak", "run net.rpcs3.RPCS3 --fullscreen --no-gui"),
-    "gopher64":    ("flatpak", "run io.github.gopher64.gopher64 -f"),
-    "melonds":     ("flatpak", "run net.kuribo64.melonDS -f"),
-    "mgba":        ("flatpak", "run io.mgba.mGBA --fullscreen"),
-}
+# system id → (path, args) on a Flatpak-only machine, FROM THE CATALOGUE.
+#
+# This was a hand-written map of six entries and it carried the pre-migration
+# N64 app id (io.github.gopher64.gopher64) for months. It was harmless only by
+# accident: systems.json already said "flatpak", and launcher_exists() returns
+# True for that before the rewrite is ever considered. A mine, not a
+# protection — the day the N64 slot goes back to a native binary, this fires
+# and writes an app id nobody installs.
+#
+# `launch` in a pack IS the fresh-install launcher; `preferIfPresent` is what
+# systems.json.dist records for the reference box's native binaries in lib/.
+# So the rewrite target is simply launch, for every pack — no list to maintain,
+# and a new emulator is covered the day its pack lands.
+sys.path.insert(0, root)
+try:
+    from backend.services.catalog import load_catalog
+    FLATPAK_MAP = {p.id: p.launcher() for p in load_catalog().values()}
+except Exception as e:                       # never let this abort the install
+    print(f"[flatpakify] catalogue unavailable ({e}) — launchers left as they are.")
+    FLATPAK_MAP = {}
 
 # ── 1. selection ────────────────────────────────────────────────
 dropped_unselected = []

@@ -1,0 +1,50 @@
+{
+  "id": "xenia",
+  "kind": "emulator",
+  "label": "Xbox 360",
+  "emulatorName": "Xenia Canary",
+  "platform": "X360",
+  "color": "#107c10",
+  "install": {
+    "provider": "github-archive",
+    "repo": "xenia-canary/xenia-canary-releases",
+    "asset": "xenia_canary_windows_.zip",
+    "assetPattern": "windows",
+    "dest": "lib/xenia",
+    "entrypoint": "xenia_canary.exe",
+    "magic": "PK",
+    "requires": [
+      "wine",
+      "unzip",
+      "p7zip"
+    ],
+    "version": "latest"
+  },
+  "launch": {
+    "path": "/usr/bin/wine",
+    "args": "lib/xenia/xenia_canary.exe --fullscreen=true"
+  },
+  "roms": {
+    "dir": "emu/xenia",
+    "extensions": [
+      "*.iso",
+      "*.xex"
+    ]
+  },
+  "controllers": {
+    "maxPlayers": 0,
+    "strategy": "none"
+  },
+  "scraper": {
+    "tgdbId": 15,
+    "screenscraper": [
+      33
+    ],
+    "libretro": [
+      "Microsoft - Xbox 360"
+    ],
+    "mediaAlias": [
+      "xbox 360"
+    ]
+  }
+}

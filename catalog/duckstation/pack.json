@@ -1,0 +1,82 @@
+{
+  "id": "duckstation",
+  "kind": "emulator",
+  "label": "PlayStation",
+  "emulatorName": "DuckStation",
+  "platform": "PS1",
+  "color": "#0046ff",
+  "packages": {
+    "pacman": [
+      "fuse2"
+    ]
+  },
+  "install": {
+    "provider": "github-asset",
+    "repo": "stenzek/duckstation",
+    "asset": "DuckStation-x64.AppImage",
+    "dest": "bin/duckstation.AppImage",
+    "magic": "ELF",
+    "mode": "755",
+    "version": "latest"
+  },
+  "launch": {
+    "path": "bin/duckstation.AppImage",
+    "args": "-nogui -fullscreen",
+    "preferIfPresent": {
+      "path": "lib/duck",
+      "args": "-nogui -fullscreen"
+    }
+  },
+  "roms": {
+    "dir": "emu/duckstation",
+    "extensions": [
+      "*.bin",
+      "*.iso",
+      "*.img",
+      "*.cue",
+      "*.chd",
+      "*.pbp",
+      "*.zip"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.local/share/duckstation"
+  },
+  "controllers": {
+    "maxPlayers": 4,
+    "strategy": "sdl-index-clone",
+    "target": "settings.ini",
+    "padType": "AnalogController",
+    "multitap": {
+      "section": "ControllerPorts",
+      "key": "MultitapMode",
+      "value": "Port1Only",
+      "fromPlayer": 3
+    }
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "duck",
+        "duckstation-qt",
+        "duckstation",
+        "DuckStation",
+        "org.duckstation.DuckStation",
+        "AppRun.wrapped"
+      ]
+    },
+    "asset": "duckstation.png"
+  },
+  "scraper": {
+    "tgdbId": 10,
+    "screenscraper": [
+      57
+    ],
+    "libretro": [
+      "Sony - PlayStation"
+    ],
+    "mediaAlias": [
+      "psx"
+    ]
+  }
+}

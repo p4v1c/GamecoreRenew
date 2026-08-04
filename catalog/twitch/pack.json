@@ -1,0 +1,80 @@
+{
+  "id": "twitch",
+  "kind": "app",
+  "label": "Twitch",
+  "emulatorName": "Twitch (EmberTV)",
+  "description": "Twitch for the big screen",
+  "platform": "Web",
+  "color": "#800080",
+  "packages": {
+    "pacman": [
+      "firefox",
+      "nss"
+    ]
+  },
+  "sources": [
+    {
+      "git": "https://github.com/p4v1c/Twitch-TV.git",
+      "dest": "/opt/Twitch-TV",
+      "owner": "user"
+    }
+  ],
+  "secrets": [
+    {
+      "key": "TWITCH_CLIENT_ID",
+      "label": "Twitch Client ID",
+      "hidden": false,
+      "help": "https://dev.twitch.tv/console/apps - redirect http://localhost:8097"
+    },
+    {
+      "key": "TWITCH_CLIENT_SECRET",
+      "label": "Twitch Client Secret",
+      "hidden": true
+    }
+  ],
+  "launch": {
+    "path": "firefox",
+    "args": "--profile '@HOME@/.mozilla/firefox/twitch-tv' --kiosk 'https://localhost:8097/' "
+  },
+  "files": [
+    {
+      "template": "files/embertv-config.json.tmpl",
+      "dest": "/opt/Twitch-TV/config.json",
+      "owner": "user",
+      "mode": "600",
+      "when": "secrets.TWITCH_CLIENT_ID"
+    },
+    {
+      "src": "files/embertv-config.demo.json",
+      "dest": "/opt/Twitch-TV/config.json",
+      "owner": "user",
+      "mode": "600",
+      "when": "!secrets.TWITCH_CLIENT_ID"
+    },
+    {
+      "src": "files/twitch-tv.user.js",
+      "dest": "@HOME@/.mozilla/firefox/twitch-tv/user.js",
+      "owner": "user",
+      "mode": "644"
+    }
+  ],
+  "services": [
+    {
+      "unit": "files/embertv.service",
+      "scope": "user",
+      "enable": true
+    }
+  ],
+  "postInstall": [
+    {
+      "run": "steps/make-cert.sh",
+      "label": "EmberTV TLS certificate",
+      "timeoutSec": 60
+    },
+    {
+      "run": "steps/trust-cert.sh",
+      "label": "trust the cert in the Firefox NSS db",
+      "timeoutSec": 60
+    }
+  ]
+}

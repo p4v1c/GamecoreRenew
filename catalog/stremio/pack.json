@@ -1,0 +1,32 @@
+{
+  "id": "stremio",
+  "kind": "app",
+  "label": "Stremio",
+  "emulatorName": "Stremio",
+  "description": "Media center (gamepad-friendly)",
+  "platform": "Media",
+  "color": "#8a5fff",
+  "install": {
+    "provider": "flatpak",
+    "appId": "com.stremio.Stremio"
+  },
+  "sandbox": {
+    "device": [
+      "all"
+    ],
+    "filesystem": [
+      "host"
+    ]
+  },
+  "sources": [
+    {
+      "git": "https://github.com/p4v1c/stremio-gamepad-keyboard.git",
+      "dest": "/opt/Stremio",
+      "owner": "user"
+    }
+  ],
+  "launch": {
+    "path": "bash",
+    "args": "/opt/Stremio/stremio-tv.sh"
+  }
+}

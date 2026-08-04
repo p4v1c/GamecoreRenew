@@ -384,35 +384,41 @@ fi
 # ================================================================
 #  4. Emulator configs — restore, do not delete
 # ================================================================
-# install-emu-configs.sh copies emu-configs/<emu>/** into each emulator's real
+# install-emu-configs.sh copies catalog/<emu>/seed/** into each emulator's real
 # config dir, saving any pre-existing file as <name>.bak-preinstall. Reversing
 # it means putting every backup back and deleting only the files GameCore
 # introduced. Everything else in ~/.var/app/ — save states, memory cards,
 # BIOS, the user's own tweaks — is never touched.
 #
-# Runs BEFORE the install dir goes (emu-configs/ is the only list of which
-# files were touched) and BEFORE any flatpak uninstall (which wipes ~/.var/app).
+# Runs BEFORE the install dir goes (the seeds are the only list of which files
+# were touched) and BEFORE any flatpak uninstall (which wipes ~/.var/app).
+#
+# Only the file NAMES are read here, never their contents, so the @HOME@ tokens
+# a seed now carries are irrelevant to this pass.
 msg "Emulator configurations"
 declare -A RESTORED_TARGETS=()
-if [[ -n "$GC_HOME" && -d "$GC_PATH/emu-configs" ]]; then
-  declare -A EMU_DEST=(
-    [duckstation]="$GC_HOME/.local/share/duckstation"
-    [pcsx2]="$GC_HOME/.var/app/net.pcsx2.PCSX2/config/PCSX2/inis"
-    [rpcs3]="$GC_HOME/.var/app/net.rpcs3.RPCS3/config/rpcs3"
-    [gopher64]="$GC_HOME/.var/app/io.github.gopher64.gopher64/config/gopher64"
-    [melonds]="$GC_HOME/.var/app/net.kuribo64.melonDS/config/melonDS"
-    [mgba]="$GC_HOME/.var/app/io.mgba.mGBA/config/mgba"
-    [azahar]="$GC_HOME/.var/app/org.azahar_emu.Azahar/config/azahar-emu"
-    [dolphin]="$GC_HOME/.var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu"
-    [ppsspp]="$GC_HOME/.var/app/org.ppsspp.PPSSPP/config/ppsspp/PSP/SYSTEM"
-    [cemu]="$GC_HOME/.var/app/info.cemu.Cemu/config/Cemu"
-    [ryujinx]="$GC_HOME/.var/app/io.github.ryubing.Ryujinx/config/Ryujinx"
-    [shadps4]="$GC_HOME/.var/app/net.shadps4.shadPS4/config/shadps4"
-    [xenia]="$GC_PATH/lib/xenia"
-  )
+if [[ -n "$GC_HOME" && -d "$GC_PATH/catalog" ]]; then
+  # The same map install-emu-configs.sh uses, from the same source. It used to
+  # be a verbatim copy of that file's, which is how it inherited the gopher64
+  # phantom directory — and it had drifted further still: it lacked the native
+  # branch, so on a box running Arch's own mgba-qt the installer wrote to
+  # ~/.config/mgba and this pass looked only in ~/.var/app/io.mgba.mGBA. The
+  # user's original mgba config was never restored from its .bak-preinstall.
+  #
+  # Both destinations now come from the catalogue, native branch included.
+  declare -A EMU_DEST=()
+  while IFS=$'\t' read -r emu dest native; do
+    [[ -n "$emu" ]] || continue
+    if [[ -n "$native" && ! -d "${dest%/*/*}" && -d "$native" ]]; then
+      EMU_DEST[$emu]="$native"
+    else
+      EMU_DEST[$emu]="$dest"
+    fi
+  done < <(python3 "$GC_PATH/scripts/catalog-query.py" config-dest \
+             --home "$GC_HOME" --gamecore-path "$GC_PATH" 2>/dev/null)
   RESTORED=0; DELETED=0
   for emu in "${!EMU_DEST[@]}"; do
-    src="$GC_PATH/emu-configs/$emu"
+    src="$GC_PATH/catalog/$emu/seed"
     dest="${EMU_DEST[$emu]}"
     [[ -d "$src" && -d "$dest" ]] || continue
     while IFS= read -r -d '' f; do
@@ -428,11 +434,11 @@ if [[ -n "$GC_HOME" && -d "$GC_PATH/emu-configs" ]]; then
   ok "emulator configs: $RESTORED restored from backup, $DELETED GameCore files removed."
   info "Save states, memory cards and BIOS in ~/.var/app/ are untouched."
 else
-  info "No emu-configs/ to reverse — skipping."
+  info "No catalog/ seeds to reverse — skipping."
 fi
 
 # install/apply-multi-ds4.sh (run by hand, not by the installer) leaves its own
-# .bak-multids4 backups. Restore them only where emu-configs had no backup of
+# .bak-multids4 backups. Restore them only where the seeds had no backup of
 # its own — otherwise the .bak-preinstall we just put back is the older, more
 # correct "before" state and the multi-ds4 copy is stale.
 if [[ -n "$GC_HOME" ]]; then

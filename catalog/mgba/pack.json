@@ -1,0 +1,67 @@
+{
+  "id": "mgba",
+  "kind": "emulator",
+  "label": "Game Boy Advance",
+  "emulatorName": "mGBA",
+  "platform": "GBA",
+  "color": "#96c800",
+  "install": {
+    "provider": "flatpak",
+    "appId": "io.mgba.mGBA"
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run io.mgba.mGBA --fullscreen",
+    "preferIfPresent": {
+      "path": "/usr/bin/mgba-qt",
+      "args": "--fullscreen"
+    }
+  },
+  "roms": {
+    "dir": "emu/mgba",
+    "extensions": [
+      "*.gba",
+      "*.gbc",
+      "*.gb",
+      "*.zip"
+    ]
+  },
+  "config": {
+    "dest": "@FLATPAK_CONFIG@/mgba",
+    "nativeDest": "@HOME@/.config/mgba"
+  },
+  "controllers": {
+    "maxPlayers": 1,
+    "strategy": "snapshot-restore",
+    "target": "config.ini"
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "mgba-qt",
+        "mgba",
+        "mGBA",
+        "io.mgba.mGBA"
+      ]
+    },
+    "asset": "mgba.png"
+  },
+  "scraper": {
+    "tgdbId": 5,
+    "screenscraper": [
+      12,
+      10,
+      9
+    ],
+    "libretro": [
+      "Nintendo - Game Boy Advance",
+      "Nintendo - Game Boy Color",
+      "Nintendo - Game Boy"
+    ],
+    "mediaAlias": [
+      "gba",
+      "gbc",
+      "gb"
+    ]
+  }
+}

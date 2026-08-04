@@ -1,0 +1,56 @@
+{
+  "id": "dolphin",
+  "kind": "emulator",
+  "label": "GameCube / Wii",
+  "emulatorName": "Dolphin",
+  "platform": "GameCube/Wii",
+  "color": "#ff8c00",
+  "install": {
+    "provider": "flatpak",
+    "appId": "org.DolphinEmu.dolphin-emu"
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run org.DolphinEmu.dolphin-emu -b"
+  },
+  "roms": {
+    "dir": "emu/dolphin",
+    "extensions": [
+      "*.iso",
+      "*.gcm",
+      "*.rvz",
+      "*.wbfs",
+      "*.wad",
+      "*.zip"
+    ]
+  },
+  "config": {
+    "dest": "@FLATPAK_CONFIG@/dolphin-emu"
+  },
+  "controllers": {
+    "maxPlayers": 4,
+    "strategy": "rewrite-device-line",
+    "target": [
+      "GCPadNew.ini",
+      "WiimoteNew.ini"
+    ],
+    "seedMustNotContain": [
+      "^Device = (?:SDL|evdev)/"
+    ]
+  },
+  "scraper": {
+    "tgdbId": 2,
+    "screenscraper": [
+      13,
+      16
+    ],
+    "libretro": [
+      "Nintendo - GameCube",
+      "Nintendo - Wii"
+    ],
+    "mediaAlias": [
+      "gamecube",
+      "wii"
+    ]
+  }
+}

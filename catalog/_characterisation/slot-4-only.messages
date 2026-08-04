@@ -1,0 +1,1 @@
+apply(xbox, P4, dup0): dolphin: GCPad4 rebuilt from template, Wiimote4 set (SDL/0/Xbox One Controller); duckstation: created Pad4, multitap enabled (MultitapMode = Port1Only); pcsx2: created Pad4, multitap enabled (MultitapPort1 = true); rpcs3: Player 4 retargeted (Xbox One Controller 1); ryujinx: Player 4 retargeted (dup 0, 00000005-045e-0000-fd02-000003090000)

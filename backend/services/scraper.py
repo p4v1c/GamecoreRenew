@@ -1,4 +1,5 @@
 """Async cover scraper — libretro thumbnails CDN with TheGamesDB fallback."""
+import logging
 import re
 import time
 from pathlib import Path
@@ -8,6 +9,8 @@ import httpx
 
 from ..config import COVERS_DIR, THEGAMESDB_API_KEY
 from ..utils import TAG_RE
+
+log = logging.getLogger(__name__)
 
 
 class Unreachable(Exception):
@@ -31,43 +34,53 @@ _TRANSIENT_STATUS = frozenset({403, 408, 425, 429})
 def _is_transient(status: int) -> bool:
     return status in _TRANSIENT_STATUS or status >= 500
 
-TGDB_PLATFORM_MAP: dict[str, int] = {
-    "duckstation": 10,
-    "pcsx2":       11,
-    "rpcs3":       12,
-    "ppsspp":      13,
-    "gopher64":    3,
-    "dolphin":     2,   # GameCube (Wii is 9, handled via libretro)
-    "mgba":        5,
-    "melonds":     8,
-    "azahar":      4912,
-    "ryujinx":     4971,   # Switch (default id)
-    "cemu":        38,
-    "xenia":       15,     # Xbox 360
-    "shadps4":     4919,   # PlayStation 4
+# ── platform ids, from the catalogue ────────────────────────────────────────
+# These two maps were hand-written here, and they had already drifted from the
+# rest of the project: `melonds` listed two libretro systems where
+# systems.json.dist listed one, and `xenia` was missing from PLATFORM_MAP
+# entirely — so the libretro cover fallback never fired for the Xbox 360 even
+# though systems.json declared its system. One source now: catalog/<id>/pack.json.
+#
+# The extras below are ids with no pack: other emulators gamescrape can be
+# pointed at by hand. They are kept, and kept separate, so it stays obvious
+# which entries are catalogue-backed and which are not.
+_EXTRA_LIBRETRO: dict[str, list[str]] = {
+    "retroarch": ["Nintendo - Super Nintendo Entertainment System"],
+    "snes9x":    ["Nintendo - Super Nintendo Entertainment System"],
+    "nestopia":  ["Nintendo - Nintendo Entertainment System"],
+    "mame":      ["MAME"],
 }
+
+
+def _catalog_scraper_maps() -> tuple[dict[str, int], dict[str, list[str]]]:
+    """(tgdb ids, libretro systems) declared by the packs.
+
+    Never fatal: a backend that cannot read the catalogue must still scrape
+    with whatever it knows, not fail to import.
+    """
+    tgdb: dict[str, int] = {}
+    libretro: dict[str, list[str]] = {}
+    try:
+        from .catalog import load_catalog
+        for pack in load_catalog().values():
+            sc = pack.data.get("scraper") or {}
+            if (tid := sc.get("tgdbId")) is not None:
+                tgdb[pack.id] = tid
+            if names := sc.get("libretro"):
+                libretro[pack.id] = list(names)
+    except Exception:
+        log.warning("scraper: catalogue unreadable — platform ids limited to "
+                    "the built-in extras", exc_info=True)
+    return tgdb, libretro
+
+
+TGDB_PLATFORM_MAP, _CATALOG_LIBRETRO = _catalog_scraper_maps()
 
 _TGDB_SEARCH  = "https://api.thegamesdb.net/v1/Games/ByGameName"
 _TGDB_IMAGES  = "https://api.thegamesdb.net/v1/Games/Images"
 _TGDB_IMG_CDN = "https://cdn.thegamesdb.net/images/medium/"
 
-PLATFORM_MAP: dict[str, list[str]] = {
-    "melonds":     ["Nintendo - Nintendo DS", "Nintendo - Nintendo DS (Download Play)"],
-    "azahar":      ["Nintendo - Nintendo 3DS"],
-    "mgba":        ["Nintendo - Game Boy Advance", "Nintendo - Game Boy Color", "Nintendo - Game Boy"],
-    "dolphin":     ["Nintendo - GameCube", "Nintendo - Wii"],
-    "cemu":        ["Nintendo - Wii U"],
-    "ryujinx":     ["Nintendo - Switch"],
-    "gopher64":    ["Nintendo - Nintendo 64"],
-    "duckstation": ["Sony - PlayStation"],
-    "pcsx2":       ["Sony - PlayStation 2"],
-    "ppsspp":      ["Sony - PlayStation Portable"],
-    "rpcs3":       ["Sony - PlayStation 3"],
-    "retroarch":   ["Nintendo - Super Nintendo Entertainment System"],
-    "snes9x":      ["Nintendo - Super Nintendo Entertainment System"],
-    "nestopia":    ["Nintendo - Nintendo Entertainment System"],
-    "mame":        ["MAME"],
-}
+PLATFORM_MAP: dict[str, list[str]] = {**_EXTRA_LIBRETRO, **_CATALOG_LIBRETRO}
 
 _LIBRETRO_BASE = "https://thumbnails.libretro.com/{system}/Named_Boxarts/{name}.png"
 _LIBRETRO_INDEX = "https://thumbnails.libretro.com/{system}/Named_Boxarts/"

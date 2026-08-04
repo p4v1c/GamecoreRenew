@@ -1,0 +1,55 @@
+{
+  "id": "azahar",
+  "kind": "emulator",
+  "label": "Nintendo 3DS",
+  "emulatorName": "Azahar",
+  "platform": "3DS",
+  "color": "#ff0096",
+  "install": {
+    "provider": "flatpak",
+    "appId": "org.azahar_emu.Azahar"
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run org.azahar_emu.Azahar -f"
+  },
+  "roms": {
+    "dir": "emu/azahar",
+    "extensions": [
+      "*.3ds",
+      "*.cia",
+      "*.zip"
+    ]
+  },
+  "config": {
+    "dest": "@FLATPAK_CONFIG@/azahar-emu"
+  },
+  "controllers": {
+    "maxPlayers": 1,
+    "strategy": "snapshot-restore",
+    "target": "qt-config.ini"
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "azahar",
+        "Azahar",
+        "citra-qt",
+        "org.azahar_emu.azahar"
+      ]
+    },
+    "asset": "azahar.png"
+  },
+  "scraper": {
+    "tgdbId": 4912,
+    "screenscraper": [
+      17
+    ],
+    "libretro": [
+      "Nintendo - Nintendo 3DS"
+    ],
+    "mediaAlias": [
+      "3ds"
+    ]
+  }
+}

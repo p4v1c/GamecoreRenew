@@ -1,0 +1,47 @@
+{
+  "id": "ryujinx",
+  "kind": "emulator",
+  "label": "Nintendo Switch",
+  "emulatorName": "Ryujinx",
+  "platform": "Switch",
+  "color": "#e6001a",
+  "install": {
+    "provider": "flatpak",
+    "appId": "io.github.ryubing.Ryujinx"
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run io.github.ryubing.Ryujinx"
+  },
+  "roms": {
+    "dir": "emu/ryujinx",
+    "extensions": [
+      "*.xci",
+      "*.nsp",
+      "*.zip"
+    ]
+  },
+  "config": {
+    "dest": "@FLATPAK_CONFIG@/Ryujinx"
+  },
+  "controllers": {
+    "maxPlayers": 4,
+    "strategy": "guid-rebind",
+    "target": "Config.json",
+    "seedMustNotContain": [
+      "\"id\":\\s*\"\\d+-[0-9a-f]{8}-"
+    ]
+  },
+  "scraper": {
+    "tgdbId": 4971,
+    "screenscraper": [
+      225
+    ],
+    "libretro": [
+      "Nintendo - Switch"
+    ],
+    "mediaAlias": [
+      "switch"
+    ]
+  }
+}

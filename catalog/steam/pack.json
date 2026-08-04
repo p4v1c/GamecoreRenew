@@ -1,0 +1,17 @@
+{
+  "id": "steam",
+  "kind": "app",
+  "label": "Steam",
+  "emulatorName": "Steam",
+  "description": "PC games (Flatpak, Big Picture)",
+  "platform": "Steam",
+  "color": "#1f6fb3",
+  "install": {
+    "provider": "flatpak",
+    "appId": "com.valvesoftware.Steam"
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run com.valvesoftware.Steam -gamepadui"
+  }
+}

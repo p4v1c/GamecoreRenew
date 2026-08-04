@@ -14,7 +14,8 @@ on:
       - 'install/**'
       - 'config/**'
       - 'assets/**'
-      - 'emu-configs/**'
+      - 'catalog/**'
+      - 'scripts/**'
       - '.github/workflows/release.yml'
     tags:
       - 'v*.*.*'
@@ -43,11 +44,39 @@ jobs:
       # the line here — a failed step ends the job, which means no tag and no
       # publish. Network-marked tests are deselected: the runner should not be
       # able to fail the build because GameTDB is down.
+      # Offline, and deliberately ahead of the test suite: a malformed pack
+      # should fail with "unknown property 'romsPath'", not with a traceback
+      # from whatever loaded it first.
+      - name: Validate the catalogue
+        run: |
+          python scripts/check-catalog.py
+
+      # The .dist files are build output now. A pack edited without
+      # regenerating them is a box that disagrees with itself.
+      - name: Catalogue is in sync with install/*.dist
+        run: |
+          python scripts/gen-catalog.py --check
+
+      # A personal username has no business in a public repository, and the
+      # two independent sed passes that used to chase it are gone.
+      - name: No harvest-box home path left
+        run: |
+          # Scoped to shipped CONTENT. install/arch.sh and
+          # install-emu-configs.sh still name the literal in comments, because
+          # they keep a back-compat substitution for boxes upgrading from a
+          # release that had it — those comments must stay readable.
+          if grep -rn '/home/pavic' catalog/ install/*.dist config/*.json 2>/dev/null; then
+            echo "::error::a literal /home/pavic is back — use the @HOME@ token"
+            exit 1
+          fi
+
       - name: Test backend
         run: |
           pip install -r backend/requirements.txt pytest
           python -m compileall -q backend
-          pytest backend/tests -q -m "not network"
+          # catalog/*/tests/ is discovered too, so a pack's tests arrive with
+          # the pack rather than in a central directory nobody updates.
+          pytest backend/tests catalog -q -m "not network"
 
       # --- ÉTAPE D'AUTO-INCREMENTATION DU TAG ---
       # Pinned to the commit behind 1.64.0: this action runs with contents:write
@@ -90,6 +119,13 @@ jobs:
           cp -r electron      dist_ota/
           cp -r update        dist_ota/
           cp -r install       dist_ota/
+          # Shipped content, and it MUST be overwritten by an update: this is
+          # what finally lets a corrected logo or seed reach an installed box.
+          cp -r catalog       dist_ota/
+          # The installers CALL these (catalog-query.py, gamecore-provider.py).
+          # Leaving them out does not degrade anything — it breaks the install
+          # outright, and only on a real box, never in CI.
+          cp -r scripts       dist_ota/
           # The tag, not the tracked VERSION file: that one still says v1.0.0
           # (it is only ever written on a box by update/linux.sh), so shipping
           # it would make every fresh install report itself out of date.
@@ -108,8 +144,8 @@ jobs:
           cp -r assets      dist_full/
           cp -r update      dist_full/
           cp -r install     dist_full/
-          # user data for fresh installs only — the OTA archive must NOT ship it
-          cp -r emu-configs dist_full/
+          cp -r catalog     dist_full/
+          cp -r scripts     dist_full/
           # Same as the OTA archive: a full install with no VERSION falls back
           # to APP_VERSION="v1.0.0" and offers an update on first boot.
           echo "${{ steps.tag_version.outputs.new_tag || github.ref_name }}" > dist_full/VERSION

@@ -76,6 +76,25 @@ export interface GameMediaIndex {
   notes?: string[]
 }
 
+/** One pack in the catalogue — an emulator or an application. */
+export interface CatalogEntry {
+  id: string
+  kind: 'emulator' | 'app'
+  label: string
+  platform: string
+  color: string
+  /** The product name when it differs from the platform label: the N64 slot is
+   *  labelled "Nintendo 64" and runs "Rosalie's Mupen GUI". */
+  emulatorName: string
+  description: string
+  /** 'shipped' with the release, or 'local' from config/catalog.d/. */
+  origin: 'shipped' | 'local'
+  /** Its tile is on the grid. Not "the application is present" — see api.catalog. */
+  installed: boolean
+  /** Blocks ignored because a local pack is data only (generator.py, services…). */
+  restricted: string[]
+}
+
 export interface PlaytimeEntry {
   game_key: string
   system_id: string
@@ -146,6 +165,24 @@ export const api = {
     all: () => get<PlaytimeEntry[]>('/playtime'),
     forSystem: (id: string) => get<PlaytimeEntry[]>(`/playtime/system/${encodeURIComponent(id)}`),
     forGame: (key: string) => get<PlaytimeEntry>(`/playtime/game/${encodeURIComponent(key)}`),
+  },
+  /**
+   * The pack catalogue: everything this box COULD run, and adding it without
+   * re-running the installer.
+   *
+   * `installed` is about the grid — the tile the player sees. Whether the
+   * Flatpak itself is present is a different question, and answering it needs
+   * the network (`gamecore-emu verify`).
+   *
+   * install/remove/reconfigure return as soon as the CLI has started; progress
+   * arrives on the WebSocket as `catalog:log`, and `catalog:done` closes it.
+   */
+  catalog: {
+    list: () => get<CatalogEntry[]>('/catalog'),
+    busy: () => get<{ busy: boolean }>('/catalog/busy'),
+    install: (id: string) => post(`/catalog/${encodeURIComponent(id)}/install`),
+    remove: (id: string) => post(`/catalog/${encodeURIComponent(id)}/remove`),
+    reconfigure: (id: string) => post(`/catalog/${encodeURIComponent(id)}/reconfigure`),
   },
   standby: {
     get: () => get<{ state: string; enabled: boolean; screensaver_mins: number; sleep_mins: number }>('/standby'),

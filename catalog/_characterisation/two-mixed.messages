@@ -1,0 +1,2 @@
+apply(ds4, P1, dup0): dolphin: GCPad1 rebuilt from template, Wiimote1 set (SDL/0/PS4 Controller); melonds: 8 keys mapped (SDL live); rpcs3: Player 1 retargeted (PS4 Controller 1); ryujinx: Player 1 retargeted (dup 0, 00000003-054c-0000-cc09-000000006800)
+apply(xbox, P2, dup0): dolphin: GCPad2 rebuilt from GCPad1, Wiimote2 set (SDL/0/Xbox One Controller); rpcs3: Player 2 retargeted (Xbox One Controller 1); ryujinx: Player 2 retargeted (dup 0, 00000005-045e-0000-fd02-000003090000)

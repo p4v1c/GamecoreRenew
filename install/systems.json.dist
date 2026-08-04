@@ -194,7 +194,8 @@
       "*.zip"
     ],
     "libretroSystems": [
-      "Nintendo - Nintendo DS"
+      "Nintendo - Nintendo DS",
+      "Nintendo - Nintendo DS (Download Play)"
     ]
   },
   {

@@ -1,0 +1,228 @@
+LastROMFolder = ""
+LastBIOSFolder = ""
+PauseLostFocus = false
+FastForwardFPS = 1000.0
+RecentROM = ["/opt/GameCore/emu/melonds/Mario Kart DS (Europe) (En,Fr,De,Es,It).nds", "/opt/GameCore/emu/melonds/Inazuma Eleven (Europe).nds", "/opt/GameCore/emu/melonds/New Super Mario Bros. (Europe) (En,Fr,De,Es,It).nds", "/opt/GameCore/emu/melonds/Legend of Zelda, The - Phantom Hourglass (Europe) (En,Fr,De,Es,It).nds", "/opt/GameCore/emu/melonds/Beyblade - Metal Masters (USA) (En,Fr,Es) (Toys'R'Us Exclusive).nds", "/opt/GameCore/emu/melonds/Mario Party DS (Europe) (En,Fr,De,Es,It) (Rev 1).nds", "/opt/GameCore/emu/melonds/Dragon Ball - Origins (Europe) (En,Fr,De,Es,It).nds", "/opt/GameCore/emu/melonds/Pokemon Diamond Sun And Moon Completed.nds", "/opt/GameCore/emu/melonds/Super Mario 64 DS (Europe) (En,Fr,De,Es,It).nds", "/opt/GameCore/emu/melonds/One-Piece-Gigant_Battle.nds"]
+UITheme = ""
+AudioSync = false
+TargetFPS = 60.0
+LimitFPS = true
+SlowmoFPS = 30.0
+
+[Mic]
+InputType = 1
+Device = ""
+WavPath = ""
+
+[LAN]
+DirectMode = false
+
+[Instance0]
+EnableCheats = false
+SaveFilePath = ""
+JoystickID = 0
+SavestatePath = ""
+CheatFilePath = ""
+
+[Instance0.DS]
+[Instance0.DS.Battery]
+LevelOkay = true
+
+[Instance0.Window1]
+Enabled = false
+
+[Instance0.Firmware]
+Username = "melonDS"
+Language = 1
+FavouriteColour = 0
+BirthdayMonth = 1
+BirthdayDay = 1
+Message = ""
+MAC = ""
+
+[Instance0.Window2]
+Enabled = false
+
+[Instance0.Keyboard]
+HK_Pause = -1
+Start = -1
+Right = -1
+HK_VolumeDown = -1
+HK_GuitarGripBlue = -1
+HK_GuitarGripYellow = -1
+HK_FrameLimitToggle = -1
+Down = -1
+B = -1
+Left = -1
+HK_SwapScreens = -1
+HK_FrameStep = -1
+Y = -1
+HK_FullscreenToggle = -1
+HK_SlowMo = -1
+Select = -1
+HK_Lid = -1
+HK_SwapScreenEmphasis = -1
+HK_Mic = -1
+HK_FastForward = -1
+HK_GuitarGripGreen = -1
+HK_VolumeUp = -1
+HK_SolarSensorDecrease = -1
+Up = -1
+HK_PowerButton = -1
+HK_Reset = -1
+HK_SolarSensorIncrease = -1
+R = -1
+HK_GuitarGripRed = -1
+L = -1
+A = -1
+HK_FastForwardToggle = -1
+HK_SlowMoToggle = -1
+X = -1
+
+[Instance0.Joystick]
+HK_Pause = -1
+Start = 11
+Right = 258
+HK_VolumeDown = -1
+HK_GuitarGripBlue = -1
+HK_GuitarGripYellow = -1
+HK_FrameLimitToggle = -1
+Down = 260
+B = 1
+Left = 264
+HK_SwapScreens = -1
+HK_FrameStep = -1
+Y = 3
+HK_FullscreenToggle = -1
+HK_SlowMo = -1
+Select = 15
+HK_Lid = -1
+HK_SwapScreenEmphasis = -1
+HK_Mic = -1
+HK_FastForward = -1
+HK_GuitarGripGreen = -1
+HK_VolumeUp = -1
+HK_SolarSensorDecrease = -1
+Up = 257
+HK_PowerButton = -1
+HK_Reset = -1
+HK_SolarSensorIncrease = -1
+R = 7
+HK_GuitarGripRed = -1
+L = 6
+A = 0
+HK_FastForwardToggle = -1
+HK_SlowMoToggle = -1
+X = 2
+
+[Instance0.Window0]
+ShowOSD = true
+Geometry = "AdnQywADAAAAAAAAAAAAAAAAB38AAAQLAAAAAAAAABQAAAd/AAAESwAAAAACAAAAB4AAAAAAAAAAHAAAB38AAAQL"
+ScreenLayout = 0
+ScreenRotation = 0
+ScreenAspectBot = 0
+ScreenGap = 0
+ScreenSwap = false
+ScreenSizing = 0
+IntegerScaling = false
+ScreenAspectTop = 0
+ScreenFilter = false
+Enabled = true
+
+[Instance0.Window3]
+Enabled = false
+
+[Instance0.Audio]
+Volume = 256
+DSiVolumeSync = false
+
+[Instance0.Gdb]
+Enabled = false
+
+[Instance0.Gdb.ARM7]
+Port = 3334
+BreakOnStartup = false
+
+[Instance0.Gdb.ARM9]
+Port = 3333
+BreakOnStartup = false
+
+[Instance0.RTC]
+Offset = 0
+
+[MP]
+RecvTimeout = 25
+AudioMode = 1
+
+[Audio]
+BitDepth = 0
+Interpolation = 0
+
+[Mouse]
+HideSeconds = 5
+Hide = false
+
+[Emu]
+ConsoleType = 0
+ExternalBIOSEnable = false
+DirectBoot = true
+
+[Savestate]
+RelocSRAM = false
+
+[3D]
+Renderer = 0
+
+[3D.Soft]
+Threaded = true
+
+[Screen]
+UseGL = false
+
+[JIT]
+MaxBlockSize = 32
+LiteralOptimisations = true
+BranchOptimisations = true
+FastMemory = true
+Enable = false
+
+[DS]
+BIOS9Path = ""
+BIOS7Path = ""
+FirmwarePath = ""
+
+[DSi]
+NANDPath = ""
+BIOS7Path = ""
+BIOS9Path = ""
+FirmwarePath = ""
+FullBIOSBoot = false
+
+[DSi.Camera0]
+XFlip = false
+InputType = 0
+ImagePath = ""
+DeviceName = ""
+
+[DSi.Camera1]
+XFlip = false
+InputType = 0
+ImagePath = ""
+DeviceName = ""
+
+[DSi.SD]
+Enable = false
+ImageSize = 0
+ImagePath = "dsisd.bin"
+ReadOnly = false
+FolderSync = false
+FolderPath = ""
+
+[DLDI]
+Enable = false
+ImageSize = 0
+ImagePath = "dldi.bin"
+ReadOnly = false
+FolderSync = false
+FolderPath = ""
+

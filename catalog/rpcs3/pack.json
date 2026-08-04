@@ -1,0 +1,48 @@
+{
+  "id": "rpcs3",
+  "kind": "emulator",
+  "label": "PlayStation 3",
+  "emulatorName": "RPCS3",
+  "platform": "PS3",
+  "color": "#00439c",
+  "install": {
+    "provider": "flatpak",
+    "appId": "net.rpcs3.RPCS3"
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run net.rpcs3.RPCS3 --fullscreen --no-gui",
+    "preferIfPresent": {
+      "path": "lib/rpcs3",
+      "args": "--fullscreen --no-gui"
+    }
+  },
+  "roms": {
+    "dir": "emu/rpcs3",
+    "scanDirs": true,
+    "extensions": []
+  },
+  "config": {
+    "dest": "@FLATPAK_CONFIG@/rpcs3"
+  },
+  "controllers": {
+    "maxPlayers": 4,
+    "strategy": "rewrite-player-block",
+    "target": "input_configs/global/Default.yml",
+    "seedMustNotContain": [
+      "^\\s*Device:\\s*(?!\"\"|\"Null\")\\S"
+    ]
+  },
+  "scraper": {
+    "tgdbId": 12,
+    "screenscraper": [
+      59
+    ],
+    "libretro": [
+      "Sony - PlayStation 3"
+    ],
+    "mediaAlias": [
+      "ps3"
+    ]
+  }
+}

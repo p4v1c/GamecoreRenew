@@ -1,61 +1,68 @@
 #!/usr/bin/env bash
 # ================================================================
-#  GameCore — Deploy curated emulator configs (emu-configs/)
+#  GameCore — Deploy curated emulator configs (catalog/<id>/seed/)
 #  Run as the gaming user (NOT root):  bash install/install-emu-configs.sh
 #
-#  Copies each emu-configs/<emulator>/ tree into the emulator's real
+#  Copies each catalog/<emulator>/seed/ tree into the emulator's real
 #  config location — Flatpak app dirs for everything except DuckStation
 #  (installed as an AppImage → native XDG path). Existing files are
-#  backed up as <name>.bak-preinstall. Absolute paths inside the configs
-#  (harvested on a box where HOME was /home/pavic) are rewritten to the
-#  current user's HOME.
+#  backed up as <name>.bak-preinstall.
+#
+#  The seeds used to live in emu-configs/<emulator>/ and carried a literal
+#  /home/pavic, harvested from the box they were taken on and rewritten here
+#  by a sed pass. They now carry an @HOME@ token instead, so a personal
+#  username no longer ships in a public repository and the substitution is
+#  explicit rather than a search-and-replace that could hit anything.
 # ================================================================
 set -euo pipefail
 
 [[ $EUID -ne 0 ]] || { echo "Run me as the gaming user, not root."; exit 1; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC_ROOT="$(dirname "$SCRIPT_DIR")/emu-configs"
-SRC_HOME="/home/pavic"   # HOME on the box the configs were harvested from
+CATALOG_ROOT="$(dirname "$SCRIPT_DIR")/catalog"
 GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
 
-[[ -d "$SRC_ROOT" ]] || { echo "emu-configs/ not found next to install/ — nothing to do."; exit 1; }
+[[ -d "$CATALOG_ROOT" ]] || { echo "catalog/ not found next to install/ — nothing to do."; exit 1; }
 
 GRN='\033[1;32m'; YLW='\033[1;33m'; RST='\033[0m'
 ok()   { echo -e "  ${GRN}✓${RST} $*"; }
 skip() { echo -e "  ${YLW}·${RST} $*"; }
 
-# emulator-id → destination directory
-declare -A DEST=(
-  [duckstation]="$HOME/.local/share/duckstation"
-  [pcsx2]="$HOME/.var/app/net.pcsx2.PCSX2/config/PCSX2/inis"
-  [rpcs3]="$HOME/.var/app/net.rpcs3.RPCS3/config/rpcs3"
-  [gopher64]="$HOME/.var/app/io.github.gopher64.gopher64/config/gopher64"
-  [melonds]="$HOME/.var/app/net.kuribo64.melonDS/config/melonDS"
-  [mgba]="$HOME/.var/app/io.mgba.mGBA/config/mgba"
-  [azahar]="$HOME/.var/app/org.azahar_emu.Azahar/config/azahar-emu"
-  [dolphin]="$HOME/.var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu"
-  [ppsspp]="$HOME/.var/app/org.ppsspp.PPSSPP/config/ppsspp/PSP/SYSTEM"
-  [cemu]="$HOME/.var/app/info.cemu.Cemu/config/Cemu"
-  [ryujinx]="$HOME/.var/app/io.github.ryubing.Ryujinx/config/Ryujinx"
-  [shadps4]="$HOME/.var/app/net.shadps4.shadPS4/config/shadps4"
-  [xenia]="$GAMECORE_PATH/lib/xenia"   # portable: config lives next to xenia_canary.exe
-)
+# emulator-id → destination directory, FROM THE CATALOGUE.
+#
+# This map used to be written out by hand here, and copied again into
+# uninstall.sh. That is what let the N64 slot rot: the migration from gopher64
+# to Rosalie's Mupen GUI updated arch.sh and systems.json but not this file, so
+# the curated config was deployed to
+# ~/.var/app/io.github.gopher64.gopher64/config/gopher64 — a directory the
+# `mkdir -p` below CREATED — while RMG read
+# ~/.var/app/com.github.Rosalie241.RMG/config/RMG/ and never saw it. A green
+# tick, no error, and the config silently never applied.
+#
+# catalog-query.py resolves @FLATPAK_CONFIG@ from the SAME install.appId the
+# installer installs, so the two cannot drift apart again.
+#
+# Third column: the native destination, for the emulators a box can run outside
+# Flatpak (mgba, melonds). Deploy to the tree that EXISTS, or the curated config
+# lands next to an uninstalled flatpak and nothing ever reads it.
+declare -A DEST=()
+while IFS=$'\t' read -r emu dest native; do
+  [[ -n "$emu" ]] || continue
+  if [[ -n "$native" && ! -d "${dest%/*/*}" && -d "$native" ]]; then
+    DEST[$emu]="$native"
+  else
+    DEST[$emu]="$dest"
+  fi
+done < <(python3 "$(dirname "$SCRIPT_DIR")/scripts/catalog-query.py" config-dest \
+           --home "$HOME" --gamecore-path "$GAMECORE_PATH")
 
-# mgba is the one emulator here that is sometimes native: a box can run Arch's
-# mgba-qt instead of the flatpak, which is what systems.json records and what
-# controller_profiles follows through _flatpak_or_native. Deploy to the tree
-# that exists, or the curated config lands next to an uninstalled flatpak and
-# nothing ever reads it.
-if [[ ! -d "$HOME/.var/app/io.mgba.mGBA" && -d "$HOME/.config/mgba" ]]; then
-  DEST[mgba]="$HOME/.config/mgba"
-fi
+[[ ${#DEST[@]} -gt 0 ]] || { echo "catalog: no pack declares a config destination."; exit 1; }
 
-echo "Deploying emulator configs from ${SRC_ROOT}"
+echo "Deploying emulator configs from ${CATALOG_ROOT}/<id>/seed"
 echo
 
 for emu in "${!DEST[@]}"; do
-  src="${SRC_ROOT}/${emu}"
+  src="${CATALOG_ROOT}/${emu}/seed"
   dest="${DEST[$emu]}"
 
   if [[ ! -d "$src" ]]; then
@@ -90,9 +97,10 @@ for emu in "${!DEST[@]}"; do
 
     staged="${tgt}.gamecore-staged"
     cp "$f" "$staged"
-    # Rewrite the harvest box's HOME to this user's HOME (text configs only).
-    if [[ "$HOME" != "$SRC_HOME" ]] && grep -qI "$SRC_HOME" "$staged" 2>/dev/null; then
-      sed -i "s|${SRC_HOME}|${HOME}|g" "$staged"
+    # Substitute the seed tokens (text configs only). @HOME@ replaces the
+    # literal /home/pavic two independent sed passes used to chase.
+    if grep -qI '@HOME@\|@GAMECORE_PATH@' "$staged" 2>/dev/null; then
+      sed -i -e "s|@HOME@|${HOME}|g" -e "s|@GAMECORE_PATH@|${GAMECORE_PATH}|g" "$staged"
     fi
 
     if [[ -f "$tgt" && ! -e "${tgt}.bak-preinstall" ]] && ! cmp -s "$staged" "$tgt"; then

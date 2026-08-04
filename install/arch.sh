@@ -463,29 +463,28 @@ DUCK_MISSING=false
 XENIA_MISSING=false
 if [[ "$MODE" == "full" ]]; then
   msg "Installing emulators (Flatpak)"
-  declare -A EMU_FLATPAK=(
-    [azahar]=org.azahar_emu.Azahar
-    [rpcs3]=net.rpcs3.RPCS3
-    [pcsx2]=net.pcsx2.PCSX2
-    [dolphin]=org.DolphinEmu.dolphin-emu
-    [melonds]=net.kuribo64.melonDS
-    # The N64 slot runs Rosalie's Mupen GUI. gopher64 sets no WM_CLASS on its
-    # window, so overlay_monitor could never find it and the bezel never drew.
-    # The key stays `gopher64` on purpose — see systems.json.dist.
-    [gopher64]=com.github.Rosalie241.RMG
-    [mgba]=io.mgba.mGBA
-    [ppsspp]=org.ppsspp.PPSSPP
-    [cemu]=info.cemu.Cemu
-    [ryujinx]=io.github.ryubing.Ryujinx
-    [shadps4]=net.shadps4.shadPS4
-  )
+  # id → Flatpak app id, FROM THE CATALOGUE (catalog/<id>/pack.json).
+  #
+  # This was a hand-written map, and it was the ONE copy the N64 migration
+  # updated — install-emu-configs.sh, uninstall.sh, flatpakify-systems.sh and
+  # verify_emulators.py kept pointing at io.github.gopher64.gopher64 for
+  # months. The key stays `gopher64` on purpose even though it launches
+  # Rosalie's Mupen GUI: gopher64 sets no WM_CLASS on its window, so
+  # overlay_monitor could never find it and the bezel never drew.
+  declare -A EMU_FLATPAK=()
+  while IFS=$'\t' read -r id app_id; do
+    [[ -n "$id" ]] && EMU_FLATPAK[$id]="$app_id"
+  done < <(python3 "$GAMECORE_PATH/scripts/catalog-query.py" flatpaks --kind emulator)
+  [[ ${#EMU_FLATPAK[@]} -gt 0 ]] || die "catalog/ declares no Flatpak emulator — is the checkout complete?"
+
   FLATPAKS=()
-  for id in azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu ryujinx shadps4; do
+  for id in "${!EMU_FLATPAK[@]}"; do
     want_emu "$id" && FLATPAKS+=("${EMU_FLATPAK[$id]}")
   done
   # Steam moved to the apps selection but rides the same Flatpak pipeline
   # (install + ROMs/gamepad overrides below).
-  want_app steam && FLATPAKS+=(com.valvesoftware.Steam)
+  STEAM_APP_ID=$(python3 "$GAMECORE_PATH/scripts/catalog-query.py" app-ids --select steam)
+  want_app steam && [[ -n "$STEAM_APP_ID" ]] && FLATPAKS+=("$STEAM_APP_ID")
   EMU_I=0
   EMU_TOTAL=${#FLATPAKS[@]}
   # Unticking every emulator AND every app leaves the array empty; the
@@ -505,158 +504,93 @@ if [[ "$MODE" == "full" ]]; then
     fi
   done
 
-  # Sandbox permissions: ROM directory + gamepad access for every emulator.
+  # Sandbox permissions, per pack. The emulator policy — ROM directory,
+  # gamepad, X11 — is the default a pack gets by saying nothing; a pack that
+  # needs a different one declares a `sandbox` block (Stremio wants
+  # --filesystem=host and no X11 socket). It was hardcoded here, so the two
+  # policies lived in two unrelated places in this file.
+  #
   # Recorded separately from what we installed: an emulator the user already
   # had still gets a GameCore override, and the uninstaller has to reset it.
+  declare -A SANDBOX=()
+  while IFS=$'\t' read -r app_id flags; do
+    [[ -n "$app_id" ]] && SANDBOX[$app_id]="$flags"
+  done < <(python3 "$GAMECORE_PATH/scripts/catalog-query.py" sandbox \
+             --gamecore-path "$GAMECORE_PATH")
   for pkg in ${FLATPAKS[@]+"${FLATPAKS[@]}"}; do
-    flatpak override --filesystem="$GAMECORE_PATH" --device=all --socket=x11 "$pkg" 2>/dev/null || true
+    # Unquoted on purpose: the flags are a space-separated list to expand.
+    # shellcheck disable=SC2086
+    flatpak override ${SANDBOX[$pkg]:-"--filesystem=$GAMECORE_PATH --device=all --socket=x11"} \
+      "$pkg" 2>/dev/null || true
     record_flatpak_override "$pkg"
   done
   [[ $EMU_TOTAL -gt 0 ]] && ok "Flatpak overrides applied (ROMs dir + controller access)." \
                          || info "No emulator or Steam selected — nothing to install."
 
-  # ── DuckStation AppImage ───────────────────────────────────────
-  # Deliberately not a Flatpak: DuckStation is not published on Flathub, and
-  # the AppImage upstream builds is its only Linux distribution channel.
-  if want_emu duckstation; then
-  progress 50 "DuckStation AppImage"
-  msg "DuckStation AppImage"
-  DUCK_BIN="$GAMECORE_PATH/bin/duckstation.AppImage"
-  DUCK_TMP="${DUCK_BIN}.part"
-  sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/bin"
-
-  # -f so an HTTP error page is never written to disk and chmod +x'd; a temp
-  # file so a transfer aborted by --speed-limit never lands at the final name
-  # and gets mistaken for a good install on the next run; the ELF check
-  # because a 200 carrying the wrong body is still a failed download.
-  duck_fetch() {  # duck_fetch <url>
-    rm -f "$DUCK_TMP"
-    curl -fL --connect-timeout 15 --max-time 900 --speed-limit 1024 --speed-time 30 \
-         --retry 3 --retry-delay 5 --retry-connrefused -o "$DUCK_TMP" "$1" \
-      && [ -s "$DUCK_TMP" ] && head -c 4 "$DUCK_TMP" | grep -qa ELF
-  }
-
-  # `-f "$DUCK_BIN"` alone treats a truncated download or a saved HTML error
-  # page as "installed" forever. An AppImage is an ELF — check the magic.
-  if [ -x "$DUCK_BIN" ] && head -c 4 "$DUCK_BIN" 2>/dev/null | grep -qa ELF; then
-    ok "DuckStation already present."
-  else
-    rm -f "$DUCK_BIN"
-    # The fixed release URL FIRST, the GitHub API only as a fallback. The API
-    # is why fresh installs kept ending up with no PlayStation emulator at
-    # all: unauthenticated it allows 60 requests per hour and per IP, so a
-    # second installer run — or anything else behind the same NAT — exhausts
-    # the quota, `curl -sf` returns nothing, and the step gave up without ever
-    # trying to download. /releases/latest/download/<asset> is a plain 302
-    # served outside that budget. The API keeps its place for the day upstream
-    # renames the asset and the fixed URL starts 404-ing.
-    if duck_fetch "https://github.com/stenzek/duckstation/releases/latest/download/DuckStation-x64.AppImage" \
-       || {
-            warn "Fixed download URL failed — asking the GitHub API for the asset."
-            # `|| true`: an unreachable API leaves DUCK_URL empty (handled just
-            # below) instead of json.load crashing on an empty stream and
-            # killing the whole install under `set -e`. `2>/dev/null` on top of
-            # it, because that crash still printed a ten-line Python traceback
-            # into the installer log, which reads like a broken install.
-            DUCK_URL=$(curl -sf --connect-timeout 15 --max-time 60 "https://api.github.com/repos/stenzek/duckstation/releases/latest" \
-              | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if a["name"]=="DuckStation-x64.AppImage"), ""))' 2>/dev/null || true)
-            [[ -n "$DUCK_URL" ]] && duck_fetch "$DUCK_URL"
-          }; then
-      mv -f "$DUCK_TMP" "$DUCK_BIN"
-      chmod +x "$DUCK_BIN"
-      chown "${USER_NAME}:${USER_NAME}" "$DUCK_BIN"
-      ok "DuckStation installed → bin/duckstation.AppImage."
-    else
-      rm -f "$DUCK_TMP"
-      DUCK_MISSING=true
-      warn "DuckStation could not be downloaded — the PlayStation tile will be missing."
-      warn "  Re-run the installer once the network is back; nothing else is affected."
-    fi
-  fi
-
-  # A type-2 AppImage mounts itself through libfuse2; without it DuckStation
-  # exits with "dlopen(): error loading libfuse.so.2" and the PS1 tile is dead.
-  pacman_optional fuse2
-
-  fi  # duckstation
-
-  # ── Xenia Canary (Xbox 360) — runs through Wine ────────────────
-  if want_emu xenia; then
-  progress 52 "Xenia Canary (Wine)"
-  msg "Xenia Canary (Wine)"
-  record_new_pkgs wine unzip p7zip
-  pacman -S --noconfirm --needed wine unzip p7zip && ok "wine + archive tools installed." || warn "wine install failed."
-  XENIA_DIR="$GAMECORE_PATH/lib/xenia"
-  if [ -f "$XENIA_DIR/xenia_canary.exe" ]; then
-    ok "Xenia already present."
-  else
-    # mktemp, not a fixed /tmp name: this runs as root and a predictable
-    # path is a symlink target waiting to happen.
-    XENIA_PKG=$(mktemp /tmp/gamecore-xenia-XXXXXXXX)
-
-    # -f so an HTTP error page is never extracted as if it were an archive,
-    # and a magic check on top: `curl -f` cannot catch a proxy or a CDN that
-    # answers 200 with something else entirely. A zip starts with "PK", a 7z
-    # with "7z".
-    xenia_fetch() {  # xenia_fetch <url>
-      : > "$XENIA_PKG"
-      curl -fsL --connect-timeout 15 --max-time 900 --speed-limit 1024 --speed-time 30 \
-           --retry 3 --retry-delay 5 --retry-connrefused -o "$XENIA_PKG" "$1" \
-        && [ -s "$XENIA_PKG" ] && head -c 2 "$XENIA_PKG" | grep -qa -e PK -e 7z
-    }
-
-    # Fixed asset URL first, GitHub API second — same reasoning as DuckStation
-    # above: unauthenticated the API allows 60 requests per hour and per IP,
-    # and when it runs out this step used to give up without ever attempting a
-    # download. The fallback earns its place here more than anywhere else,
-    # because Xenia Canary tags its releases with a commit hash and the asset
-    # name is the only fixed part of the URL.
-    XENIA_URL="https://github.com/xenia-canary/xenia-canary-releases/releases/latest/download/xenia_canary_windows_.zip"
-    if xenia_fetch "$XENIA_URL" \
-       || {
-            warn "Fixed download URL failed — asking the GitHub API for the asset."
-            XENIA_URL=$(curl -sf --connect-timeout 15 --max-time 60 "https://api.github.com/repos/xenia-canary/xenia-canary-releases/releases/latest" \
-              | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["browser_download_url"] for a in d.get("assets",[]) if "windows" in a["name"].lower()), ""))' 2>/dev/null || true)
-            [[ -n "$XENIA_URL" ]] && xenia_fetch "$XENIA_URL"
-          }; then
-      mkdir -p "$XENIA_DIR"
-      # The extraction used to run whatever the download did. A GitHub hiccup
-      # then left unzip exiting 9 on a missing file — and since the `case` is
-      # not part of an &&/|| list, `set -e` aborted the WHOLE install at 52 %,
-      # before a single systemd unit, sudoers rule or autologin config existed.
-      case "$XENIA_URL" in
-        *.zip) unzip -o -q "$XENIA_PKG" -d "$XENIA_DIR" || warn "Xenia unzip failed." ;;
-        *.7z)  7z x -y -o"$XENIA_DIR" "$XENIA_PKG" >/dev/null || warn "Xenia 7z extraction failed." ;;
-        *)     warn "Unknown Xenia archive format: $XENIA_URL" ;;
+  # ── Non-Flatpak emulators: providers ──────────────────────────
+  # DuckStation (an AppImage — not published on Flathub) and Xenia Canary (a
+  # Windows zip run through Wine) each had a bespoke ~65-line block here, with
+  # its own fetch function. The two were already almost identical: same
+  # timeouts, same --speed-limit, same magic-byte check, same fall back to the
+  # GitHub API. They are now DATA in catalog/<id>/pack.json, and one helper —
+  # backend/services/installer/ — carries every protection they earned:
+  #
+  #   · the fixed release URL FIRST, the API only as a fallback. The API allows
+  #     60 requests per hour per IP unauthenticated, and exhausting it is why
+  #     fresh installs kept ending up with no PlayStation emulator at all: the
+  #     step gave up without ever attempting a download.
+  #   · a .part temp file, so an aborted transfer never lands at the final name
+  #     and gets read as "already installed" on the next run.
+  #   · magic bytes, because a 200 carrying an HTML error page is still a
+  #     failed download and `curl -f` cannot see it.
+  #   · extraction failure warns and carries on. It used to abort the WHOLE
+  #     install at 52 %, before a single systemd unit or sudoers rule existed.
+  #
+  # New, and the reason it is worth having in one place: an optional sha256 per
+  # pack, and a pinnable version. There was no integrity check anywhere before.
+  #
+  # `|| true`: a provider that fails costs one tile. The recap at the end says
+  # which, and how to retry.
+  for _id in duckstation xenia; do
+    want_emu "$_id" || continue
+    case "$_id" in
+      duckstation) progress 50 "DuckStation AppImage"; msg "DuckStation AppImage" ;;
+      xenia)       progress 52 "Xenia Canary (Wine)";  msg "Xenia Canary (Wine)" ;;
+    esac
+    # Provider-level dependencies (wine, unzip, p7zip for Xenia) are declared in
+    # the pack under install.requires and installed by the provider itself.
+    _out=$(python3 "$GAMECORE_PATH/scripts/gamecore-provider.py" install "$_id" \
+             --user "$USER_NAME" --gamecore-path "$GAMECORE_PATH" 2>&1) || true
+    while IFS= read -r _line; do
+      case "$_line" in
+        OK*)   ok   "${_line#OK }" ;;
+        SAME*) info "${_line#SAME }" ;;
+        *)     warn "${_line#FAIL }"
+               [[ "$_id" == duckstation ]] && DUCK_MISSING=true
+               [[ "$_id" == xenia ]]       && XENIA_MISSING=true ;;
       esac
-      chown -R "${USER_NAME}:${USER_NAME}" "$XENIA_DIR"
-      if [ -f "$XENIA_DIR/xenia_canary.exe" ]; then
-        ok "Xenia Canary installed → lib/xenia/ (launched via wine)."
-      else
-        XENIA_MISSING=true
-        warn "xenia_canary.exe not found after extraction — Xbox 360 will not launch."
-      fi
-    else
-      XENIA_MISSING=true
-      warn "Xenia Canary could not be downloaded — the Xbox 360 tile will be missing."
-      warn "  Re-run the installer once the network is back; nothing else is affected."
-    fi
-    rm -f "$XENIA_PKG"
-  fi
+    done <<< "$_out"
 
-  fi  # xenia
+    # Extra system packages the pack declares (fuse2: a type-2 AppImage mounts
+    # itself through libfuse2, and without it DuckStation exits with
+    # "dlopen(): error loading libfuse.so.2" and the PS1 tile is dead).
+    for _pkg in $(python3 "$GAMECORE_PATH/scripts/catalog-query.py" packages --select "$_id"); do
+      pacman_optional "$_pkg"
+    done
+  done
+
 
   # ── Curated emulator configs (incl. controller bindings) ───────
   # -H so $HOME inside the script is the gaming user's, not root's: every
   # destination path in install-emu-configs.sh is derived from it.
   progress 56 "Emulator configs"
   msg "Emulator configs"
-  if [ -d "$GAMECORE_PATH/emu-configs" ]; then
+  if [ -d "$GAMECORE_PATH/catalog" ]; then
     sudo -u "$USER_NAME" -H env GAMECORE_PATH="$GAMECORE_PATH" \
       bash "$GAMECORE_PATH/install/install-emu-configs.sh" \
       && ok "Curated configs deployed." || warn "Config deployment failed."
   else
-    warn "emu-configs/ not found — skipping."
+    warn "catalog/ not found — skipping."
   fi
 
   # ── Living-room companions: EmberTV, gamepad bridge, kiosk apps ─
@@ -883,16 +817,22 @@ EOF
   if want_app stremio; then
   progress 68 "Stremio"
   # Stremio (media tile) — needs gamepad + media access inside the sandbox
-  if flatpak_installed com.stremio.Stremio; then
+  STREMIO_APP_ID=$(python3 "$GAMECORE_PATH/scripts/catalog-query.py" app-ids --select stremio)
+  STREMIO_SANDBOX=$(python3 "$GAMECORE_PATH/scripts/catalog-query.py" sandbox \
+                      --select stremio --gamecore-path "$GAMECORE_PATH" | cut -f2-)
+  if flatpak_installed "$STREMIO_APP_ID"; then
     info "Stremio — already installed (left out of the uninstall manifest)."
-  elif flatpak install -y flathub com.stremio.Stremio; then
-    record_new_flatpak com.stremio.Stremio
+  elif flatpak install -y flathub "$STREMIO_APP_ID"; then
+    record_new_flatpak "$STREMIO_APP_ID"
     ok "Stremio installed."
   else
     warn "Stremio failed."
   fi
-  flatpak override --device=all --filesystem=host com.stremio.Stremio 2>/dev/null || true
-  record_flatpak_override com.stremio.Stremio
+  # Not the emulator policy: Stremio needs the whole filesystem (it plays media
+  # from anywhere) and no X11 socket. Declared in catalog/stremio/pack.json.
+  # shellcheck disable=SC2086
+  flatpak override $STREMIO_SANDBOX "$STREMIO_APP_ID" 2>/dev/null || true
+  record_flatpak_override "$STREMIO_APP_ID"
 
   # The client above is what the tile opens, unmodified. The one thing it lacks
   # for couch use is an on-screen keyboard, so a small local proxy serves
@@ -942,11 +882,15 @@ for pair in "apps.json" "systems.json"; do
     warn "install/${pair}.dist missing — filtering ${pair} in place."
   fi
 done
-# apps.json was harvested on a box where HOME was /home/pavic — adapt it
-sed -i "s|/home/pavic|$USER_HOME|g" "$GAMECORE_PATH/config/apps.json"
+# apps.json ships an @HOME@ token (it is generated from catalog/*/pack.json).
+# The /home/pavic pass stays alongside it: a box upgrading from an older
+# release still has the literal in its own config/apps.json, and config/ is
+# excluded from the OTA rsync, so nothing else would ever fix it.
+sed -i -e "s|@HOME@|$USER_HOME|g" -e "s|/home/pavic|$USER_HOME|g" \
+  "$GAMECORE_PATH/config/apps.json"
 
 KEEP_APPS=""
-for app in twitch stremio steam youtube; do
+for app in $(python3 "$GAMECORE_PATH/scripts/catalog-query.py" ids --kind app); do
   want_app "$app" && KEEP_APPS="$KEEP_APPS $app"
 done
 python3 - "$GAMECORE_PATH/config/apps.json" $KEEP_APPS <<'EOF'
@@ -980,7 +924,10 @@ chown "${USER_NAME}:${USER_NAME}" \
 # ── ROM directories ──────────────────────────────────────────────
 progress 80 "ROM directories"
 msg "ROM directories"
-for d in azahar cemu ryujinx dolphin duckstation gopher64 melonds mgba pcsx2 ppsspp rpcs3 xenia shadps4 covers; do
+# From the catalogue: every pack declares its own roms.dir, so adding an
+# emulator no longer means remembering to add a line here too. `covers` is not
+# a system — it is where the cover pipeline caches art.
+for d in $(python3 "$GAMECORE_PATH/scripts/catalog-query.py" rom-dirs) covers; do
   sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/emu/$d"
 done
 ok "ROM directories ready."

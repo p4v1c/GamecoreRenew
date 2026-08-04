@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .db import init_db
 from . import ws
-from .routers import systems, games, playtime, covers, media, metadata, sysinfo, update, overlays, addons
+from .routers import systems, games, playtime, covers, media, metadata, sysinfo, update, overlays, addons, catalog
 from .routers import auth as auth_routes
 from .routers import standby as standby_router
 from .routers import controllers as controllers_router
@@ -162,6 +162,9 @@ app.include_router(sysinfo.router, prefix="/api")
 app.include_router(update.router, prefix="/api")
 app.include_router(overlays.router, prefix="/api")
 app.include_router(addons.router, prefix="/api")
+# The pack catalogue: what this box could run, and installing it without
+# re-running the installer. Same busy-lock and WebSocket shape as addons.
+app.include_router(catalog.router, prefix="/api")
 app.include_router(standby_router.router, prefix="/api")
 app.include_router(controllers_router.router, prefix="/api")
 app.include_router(themes_router.router, prefix="/api")
@@ -201,9 +204,13 @@ def login_page():
 # Create the directories before mounting: a conditional mount decided at
 # import time would leave /covers dead until a restart on a fresh checkout
 # (the covers dir used to be created later, in the lifespan).
+# Logos are NOT a static mount any more: they live in catalog/<id>/logo.png
+# and only assets/logos/ holds the operator's own replacements. The route in
+# routers/systems.py serves both, override first — see public_router there.
+app.include_router(systems.public_router)
+
 for _dir, _route, _name in (
     (COVERS_DIR, "/covers", "covers"),
-    (ASSETS_DIR / "logos", "/assets/logos", "logos"),
     (ASSETS_DIR / "overlays", "/assets/overlays", "overlays"),
     (GAMECORE_ROOT / "backend" / "data", "/data", "data"),
 ):

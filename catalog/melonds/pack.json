@@ -1,0 +1,63 @@
+{
+  "id": "melonds",
+  "kind": "emulator",
+  "label": "Nintendo DS",
+  "emulatorName": "melonDS",
+  "platform": "DS",
+  "color": "#0096ff",
+  "install": {
+    "provider": "flatpak",
+    "appId": "net.kuribo64.melonDS"
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run net.kuribo64.melonDS -f",
+    "preferIfPresent": {
+      "path": "lib/melon",
+      "args": "-f"
+    }
+  },
+  "roms": {
+    "dir": "emu/melonds",
+    "extensions": [
+      "*.nds",
+      "*.zip"
+    ]
+  },
+  "config": {
+    "dest": "@FLATPAK_CONFIG@/melonDS",
+    "nativeDest": "@HOME@/.config/melonDS"
+  },
+  "controllers": {
+    "maxPlayers": 1,
+    "strategy": "snapshot-or-synth",
+    "target": "melonDS.toml",
+    "seedMustNotContain": [
+      "^Device = \"[^\"]"
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "melonds",
+        "melonDS",
+        "net.kuribo64.melonDS",
+        "AppRun.wrapped"
+      ]
+    },
+    "asset": "melonds.png"
+  },
+  "scraper": {
+    "tgdbId": 8,
+    "screenscraper": [
+      15
+    ],
+    "libretro": [
+      "Nintendo - Nintendo DS",
+      "Nintendo - Nintendo DS (Download Play)"
+    ],
+    "mediaAlias": [
+      "nds"
+    ]
+  }
+}
