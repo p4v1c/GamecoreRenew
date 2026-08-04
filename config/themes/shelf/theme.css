@@ -378,7 +378,6 @@
   display: block;
   transform-style: preserve-3d;
   transform-origin: 50% 100%;
-  will-change: transform;
 }
 /* The artwork settles 150ms behind the cursor. Rather than hide the lag, own
    it: the box eases while the next jacket is on its way. */
@@ -654,24 +653,26 @@
   transform-style: preserve-3d;
   transform: rotateX(var(--tilt)) rotateY(var(--turn));
 
-  /* Transform only. `width` and `height` were transitioned here too, and they
-     are layout properties: easing them re-runs layout on this box AND on its
-     six faces — every one of which is sized from --w, --d or --h — on every
-     frame. When that overlapped the pull, the rotation was competing with
-     a relayout for the same frames, and the turn is where it showed.
+  /* `width` and `height` are transitioned here on purpose, and removing them
+     was a mistake worth recording. --w is derived from --ratio, which changes
+     the moment a cover measures; without an ease, that change is a snap, and a
+     snap in the middle of the jacket coming out of the shelf is the "it
+     teleports, then sits down correctly" this theme was reported for.
 
-     What it bought was a smooth resize when --ratio changed. views/box.js now
-     remembers each game's measured proportions, so a box mounts at its own
-     width and the value stops moving at all; the rare first measurement snaps
-     instead, while the jacket is still hidden behind the wait. */
-  transition: transform 620ms cubic-bezier(0.22, 0.61, 0.36, 1);
+     They were dropped for a perf argument — easing a layout property re-runs
+     layout on the box and its six faces every frame — made without being able
+     to watch the result. The visible cost of removing them was immediate and
+     the invisible gain was speculative. views/box.js remembering each game's
+     proportions is what actually reduces how often this fires; the ease is what
+     makes the remaining times bearable.
 
-  /* Promote before the gesture, not during it. .cz-box and .cz-carry are the
-     two nodes cz-push-* and cz-pull-* drive, and neither declared this — so the
-     compositor built their layers as the animation started, which is a hitch in
-     the first frames of every turn. The file already uses this on the rail and
-     the paper for the same reason. */
-  will-change: transform;
+     No `will-change: transform` here either. It was added for the same perf
+     argument, on two elements carrying `transform-style: preserve-3d` — a
+     combination that promotes the layer and, depending on the engine, flattens
+     the 3D context. A box that flattens and un-flattens reads as a jump of
+     pose, which is the other half of the same report. */
+  transition: transform 620ms cubic-bezier(0.22, 0.61, 0.36, 1),
+              width 300ms ease, height 300ms ease;
 }
 /* Turning it over carries on the way it was already going, past the opening
    edge — the gesture of a box in a hand, not a card flip. */
