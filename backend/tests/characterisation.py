@@ -241,6 +241,16 @@ def install_stubs(cp, home: Path, monkeypatch) -> None:
         monkeypatch.setattr(module, probe_name, probe, raising=False)
         monkeypatch.setattr(module, "bundled_sdl2",
                             lambda app_id: "/stub/libSDL2.so", raising=False)
+        # `guid_for` refuses to answer when it cannot locate the flatpak, so
+        # that it never hands back the HOST's GUID — the host disagrees with
+        # Ryujinx's own SDL2 on the bus byte. That seam was added after this
+        # harness was written, and it is not deterministic: it shells out to
+        # `flatpak info`. Left unstubbed, the fixtures replayed differently
+        # depending on whether the machine happened to have Ryujinx installed
+        # — green here, red on a clean runner, which is exactly backwards.
+        # A scenario declares its environment; it does not inherit ours.
+        monkeypatch.setattr(module, "flatpak_location",
+                            lambda app_id: "/stub/flatpak", raising=False)
     # evdev is not available in CI and the pads are not there anyway.
     monkeypatch.setattr(cp, "_pad_has_hat", lambda v, p: True, raising=False)
     monkeypatch.setattr(cc, "pad_has_hat", lambda v, p: True, raising=False)
