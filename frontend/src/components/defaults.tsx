@@ -27,6 +27,7 @@ import { StandbyPage } from './modals/settings/StandbyPage'
 import { UpdatePage } from './modals/settings/UpdatePage'
 import { DesktopPage } from './modals/settings/DesktopPage'
 import { ThemesPage } from './modals/settings/ThemesPage'
+import { CatalogPage } from './modals/settings/CatalogPage'
 
 /** Launching lives here rather than in App so a prop-less surface can do it. */
 export async function launchApp(system: { id: string }): Promise<void> {
@@ -82,6 +83,12 @@ export const DefaultSettingsPages = {
   themes: ThemesPage,
   update: UpdatePage,
   desktop: DesktopPage,
+  // Adding and removing systems was reachable from the built-in settings modal
+  // and from nowhere else. A theme builds its own menu and resolves each entry
+  // through this map, so leaving `catalog` out of it meant the two shipped
+  // themes had no way to install an emulator at all — the page existed, the
+  // route existed, and nothing could open them.
+  catalog: CatalogPage,
 }
 
 /** Nothing behind and nothing on top, unless a theme says otherwise. */

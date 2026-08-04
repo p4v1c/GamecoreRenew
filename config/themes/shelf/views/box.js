@@ -124,11 +124,21 @@ export const createBox = (sdk) => {
     // scraper's chroma-key plate — which has to be looked at to be recognised.
     // Or it can be a picture of something else, which is what a wide logo
     // banner is, and that one is only visible once it has been measured.
+    //
+    // This effect used to open by resetting the four states above for the new
+    // game, and that is what drew one game's box at another game's proportions.
+    // An effect runs AFTER paint; an <img> whose src points at something the
+    // browser already has fires `load` before that. So the order was measure,
+    // then reset — and the reset won. The box then stood at RATIO_UNKNOWN, a
+    // portrait guess, whatever shape the artwork actually was, and it stayed
+    // there because nothing would fire `load` a second time. Walking away and
+    // back re-entered on a cold node and it came out right, which is exactly
+    // the "wrong until I scroll away and return" this produced.
+    //
+    // The reset is gone. `Face` is now keyed on the game it draws (see
+    // views/library.js), so a different game is a different component with
+    // fresh state, decided before any image can load rather than after.
     useEffect(() => {
-      setRatio(RATIO_UNKNOWN)
-      setFrontDead(false)
-      setSpineDead(false)
-      setOwnArt(false)
       if (!game) return
       let live = true
       flat(jacket(systemId, game.filename)).then((blank) => {
@@ -156,13 +166,22 @@ export const createBox = (sdk) => {
      * is clamped rather than obeyed: a box at the edge of the band is odd, a
      * box twice the width of the stage is broken.
      */
-    const measure = (e) => {
-      const { naturalWidth: w, naturalHeight: h } = e.target
+    const measure = (el) => {
+      if (!el) return
+      const { naturalWidth: w, naturalHeight: h } = el
       if (!w || !h) return
       const r = w / h
       if (!plausible(r) && !ownArt && scraped) { setOwnArt(true); return }
       setRatio(Math.max(RATIO_MIN, Math.min(RATIO_MAX, r)))
     }
+
+    // `load` is an event, and an event only reaches a listener that was already
+    // attached. A cached image assigned to a node that is being reused can be
+    // complete before the handler is on it, and then the measurement simply
+    // never happens — the second half of the same bug, and the half that
+    // survives a remount. Reading `complete` on the node settles it without
+    // waiting for anything: if the picture is already there, measure it now.
+    const seed = (el) => { if (el && el.complete) measure(el) }
 
     return html`
       <div class="cz-box" data-flipped=${flipped ? '1' : '0'}
@@ -175,7 +194,8 @@ export const createBox = (sdk) => {
                 <span class="cz-noart-name">${name}</span>
                 <span class="cz-noart-note">No cover scanned</span>
               </div>`
-            : html`<img src=${front} alt=${name} onLoad=${measure}
+            : html`<img key=${front} ref=${seed} src=${front} alt=${name}
+                        onLoad=${(e) => measure(e.target)}
                         onError=${() => setFrontDead(true)} />`}
         </div>
 

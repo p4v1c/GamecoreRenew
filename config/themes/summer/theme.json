@@ -8,5 +8,8 @@
   "provides": [
     "splash",
     "shell"
-  ]
+  ],
+  "launch": {
+    "ms": 1500
+  }
 }

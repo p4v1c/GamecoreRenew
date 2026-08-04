@@ -337,7 +337,8 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
                              '--lean': `${lean(games.findIndex((g) => g.filename === leaving.game.filename)).toFixed(2)}deg` }}
                    aria-hidden="true">
                 <div class="cz-carry">
-                  <${Box.Face} systemId=${systemId} game=${leaving.game}
+                  <${Box.Face} key=${leaving.game.filename}
+                               systemId=${systemId} game=${leaving.game}
                                meta=${meta} media=${media} flipped=${false} />
                 </div>
               </div>` : null}
@@ -350,7 +351,20 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
                  data-tucked=${tucked ? '1' : '0'}
                  data-turning=${settled ? '0' : '1'}>
               <div class="cz-carry">
-                <${Box.Face} systemId=${systemId} game=${detailGame || games[selectedIdx]}
+                <!-- Keyed on the game it DRAWS, which is not what the wrapper
+                     above is keyed on. The cz-hold node keys on the CURSOR,
+                     games[selectedIdx], because that is what has to fire the
+                     jacket animation. This draws detailGame, the settled
+                     selection, 150 ms behind it. So the two disagree for the
+                     length of the debounce, and without its own key this
+                     component was reused across a change of game: it kept the
+                     previous title's measured proportions and drew the new
+                     artwork inside them. A different game is a different box.
+                     (No backticks in this comment: it sits inside a template
+                     literal and one backtick would end it — the rest of the
+                     markup then parses as JavaScript and the theme dies.) -->
+                <${Box.Face} key=${(detailGame || games[selectedIdx])?.filename || 'none'}
+                             systemId=${systemId} game=${detailGame || games[selectedIdx]}
                              meta=${meta} media=${media} flipped=${browse.flipped} />
               </div>
             </div>

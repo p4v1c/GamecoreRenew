@@ -20,18 +20,35 @@
  * over a box that is working perfectly well — the emulator that never started
  * is annoying, a launcher that looks dead is worse.
  *
- * There is no delay before the launch, on purpose. An emulator takes one to
- * fifteen seconds to put a window up and this runs in seven hundred
- * milliseconds, so the two overlap for free. Animating first and launching
- * after would buy nothing and cost the player half a second every time.
+ * The launch waits for the iris, and did not always. This used to say there was
+ * no delay on purpose — that an emulator takes one to fifteen seconds to put a
+ * window up while this runs in seven hundred milliseconds, so the two overlap
+ * for free. Two things were wrong with that. The number had drifted: the close
+ * is 1500 ms, not 700. And the premise does not hold — a warm mGBA or
+ * DuckStation maps its window in a few hundred milliseconds, over the top of
+ * everything, and cuts the iris mid-turn. Which emulator you picked decided
+ * whether you saw the animation, which is the one thing an animation must not
+ * depend on.
+ *
+ * So theme.json declares `launch.ms`, and the host holds the launch for exactly
+ * that long before sending it (see LibraryScreen: it is awaited, and ○ cancels
+ * it). The cost is real — 1.5 s added to every launch — and it is the price of
+ * the ceremony being a ceremony rather than a coin toss. Shelf pays the same
+ * 1520 ms for the same reason.
+ *
+ * **`launch.ms` in theme.json must equal CLOSE_MS below.** Nothing enforces it;
+ * they are two files.
  */
 
-// Long enough to feel deliberate, short enough to always be finished before the
-// game arrives. That second half matters more than it looks: the emulator maps
-// its window over everything, so if the iris were still closing when it opened
-// the animation would be cut off mid-turn — a hard jump exactly where the whole
-// point was to have none. The quickest cold start measured here is over a
-// second; this sits comfortably inside that.
+// Long enough to feel deliberate. It used to also claim to be "short enough to
+// always be finished before the game arrives", on the grounds that the quickest
+// cold start measured was over a second. That was a measurement of the
+// emulators that happened to be tried, not a property of the system: a warm
+// cache and a light emulator beat it easily, and then the iris is still closing
+// when the window maps over it.
+//
+// It is no longer a race. `launch.ms` in theme.json holds the launch for this
+// long, so the two must stay equal — change one, change the other.
 const CLOSE_MS = 1500
 
 // Coming back is not the same gesture. The player has just quit and wants the

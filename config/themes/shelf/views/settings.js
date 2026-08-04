@@ -17,6 +17,7 @@ const MENU = [
   { id: 'audio', icon: '🔊', label: 'Audio', sub: 'Volume and output' },
   { id: 'bluetooth', icon: '◉', label: 'Bluetooth', sub: 'Pads and headsets' },
   { id: 'standby', icon: '🌙', label: 'Standby', sub: 'Screensaver and sleep' },
+  { id: 'catalog', icon: '🎮', label: 'Emulators & apps', sub: 'Add a system, or take one off the shelf' },
   { id: 'themes', icon: '▧', label: 'Themes', sub: 'Change how this looks' },
   { id: 'update', icon: '↑', label: 'Update', sub: 'Check for a new version' },
   { id: 'desktop', icon: '⎋', label: 'Desktop', sub: 'Leave for the system', danger: true },
