@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Overlay, BackHeader } from '../../ui'
+import { VirtualKeyboard } from '../../ui/VirtualKeyboard'
 import { api, type CatalogEntry } from '../../../api'
 import { onGp } from '../../../hooks/useGamepad'
 import { onWsEvent } from '../../../hooks/useWebSocket'
@@ -36,6 +37,11 @@ import { useSubPageGamepad } from './useSubPageGamepad'
  *    removed a system with no confirmation, and the focused row is wherever
  *    the cursor happened to be. It now takes a second press, and moving the
  *    cursor disarms it.
+ *
+ *  · **Past a screenful, walking the list stops being navigation.** △ opens the
+ *    same virtual keyboard the library search uses, and the filter runs over
+ *    the label, the emulator's own name, the platform and the id — "dolphin"
+ *    finds the GameCube slot, and so does "gamecube".
  */
 
 const ACCENT = 'var(--gc-accent, #7c3aed)'
@@ -51,6 +57,8 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
   // The id whose removal is armed. Removal is the one irreversible thing on
   // this screen, so it asks twice; nothing else here does.
   const [armed, setArmed] = useState('')
+  const [filter, setFilter] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
   const logEndRef = useRef<HTMLDivElement>(null)
   const focusRowRef = useRef<HTMLDivElement>(null)
 
@@ -64,9 +72,15 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
    */
   const ordered = useMemo(() => {
     const by = (a: CatalogEntry, b: CatalogEntry) => a.label.localeCompare(b.label)
-    const all = rows ?? []
+    const q = filter.trim().toLowerCase()
+    // Every name a player might reach for. The slot is called "GameCube" and
+    // runs "Dolphin"; someone who knows one does not necessarily know the other.
+    const hit = (r: CatalogEntry) => !q || [
+      r.label, r.emulatorName, r.platform, r.id, r.description,
+    ].some(f => String(f || '').toLowerCase().includes(q))
+    const all = (rows ?? []).filter(hit)
     return [...all.filter(r => r.installed).sort(by), ...all.filter(r => !r.installed).sort(by)]
-  }, [rows])
+  }, [rows, filter])
 
   const installedCount = ordered.filter(r => r.installed).length
 
@@ -78,8 +92,13 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
   useEffect(() => { busyRef.current = busyId }, [busyId])
   useEffect(() => { focusRef.current = focusIdx }, [focusIdx])
   useEffect(() => { armedRef.current = armed }, [armed])
+  // The handlers below are bound once; without this they would read the value
+  // of `showSearch` captured on the first render and keep stepping the list
+  // underneath an open keyboard.
+  const searchRef = useRef(showSearch)
+  useEffect(() => { searchRef.current = showSearch }, [showSearch])
 
-  useSubPageGamepad(onBack, onClose)
+  useSubPageGamepad(onBack, onClose, !showSearch)
 
   const load = useCallback(async () => {
     try {
@@ -91,6 +110,10 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  // A new filter is a new list; leaving the cursor at row 9 of a two-row result
+  // hides it off the end.
+  useEffect(() => { setFocusIdx(0); setArmed('') }, [filter])
 
   // A list that has just reordered can be shorter than where the cursor was —
   // remove the last row and the index points past the end, which reads as the
@@ -157,12 +180,14 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
       playSound('move')
     }
     const offs = [
-      onGp('gp:dpad-up', () => move(-1)),
-      onGp('gp:dpad-down', () => move(1)),
+      onGp('gp:dpad-up', () => { if (searchRef.current) return; move(-1) }),
+      onGp('gp:dpad-down', () => { if (searchRef.current) return; move(1) }),
       onGp('gp:confirm', () => {
+        if (searchRef.current) return
         const row = rowsRef.current[focusRef.current]
         if (row) void actRef.current(row)
       }),
+      onGp('gp:y', () => { if (!busyRef.current) setShowSearch(true) }),
     ]
     return () => offs.forEach(o => o())
   }, [])
@@ -181,6 +206,20 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
   return (
     <Overlay onClose={onClose}>
       <BackHeader label="EMULATORS & APPS" onBack={onBack} />
+
+      {filter.trim() && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, margin: '0 1.5rem 0.5rem',
+          padding: '0.4rem 0.75rem', borderRadius: 999, background: mix(20),
+          border: `1px solid ${mix(45)}`, fontSize: '0.78rem', width: 'fit-content',
+        }}>
+          <span style={{ opacity: 0.6 }}>filter</span>
+          <b style={{ color: 'var(--gc-accent-bright, #c4b5fd)' }}>{filter.trim()}</b>
+          <span style={{ opacity: 0.55 }}>
+            {ordered.length} of {rows?.length ?? 0}
+          </span>
+        </div>
+      )}
 
       {error && <div style={{ color: DANGER, padding: '0 1.5rem 0.5rem' }}>{error}</div>}
       {rows === null && !error && (
@@ -284,7 +323,9 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
 
         {rows !== null && ordered.length === 0 && !error && (
           <div style={{ padding: '1rem 0', opacity: 0.6 }}>
-            The catalogue is empty — no packs are installed on this box.
+            {filter.trim()
+              ? `Nothing matches "${filter.trim()}".`
+              : 'The catalogue is empty — no packs are installed on this box.'}
           </div>
         )}
       </div>
@@ -297,8 +338,18 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
           ? 'Working — the list is held until this finishes.'
           : armed
             ? 'Press ✕ again to remove it · any direction cancels'
-            : '✕ install or remove · ○ back'}
+            : `✕ install or remove · △ ${filter.trim() ? 'change filter' : 'search'} · ○ back`}
       </div>
+
+      {showSearch && (
+        <VirtualKeyboard
+          title="Search emulators & apps"
+          initialValue={filter}
+          placeholder="name, platform or emulator…"
+          onConfirm={(val) => { setFilter(val.trim()); setShowSearch(false) }}
+          onCancel={() => setShowSearch(false)}
+        />
+      )}
 
       {log.length > 0 && (
         <pre style={{
