@@ -111,13 +111,26 @@ export const createBox = (sdk) => {
     const [frontDead, setFrontDead] = useState(false)
     const [spineDead, setSpineDead] = useState(false)
 
-    // Whether the host's cover route has already been rejected for this game.
+    // The host's cover route has handed back something that is not a box front.
     // It is the preferred source — the same URL the rest of the UI requests, so
     // it is a cache hit rather than a second download — but it is not the only
-    // one, and when it hands back something that is not a box front the scraped
-    // `box-front` sitting in the media set usually is. All four of the banners
-    // found on the reference box had a correct box-front on disk.
-    const [ownArt, setOwnArt] = useState(false)
+    // one, and when it fails this way the scraped `box-front` sitting in the
+    // media set usually is one. All four of the banners found on the reference
+    // box had a correct box-front on disk.
+    //
+    // This is a VERDICT, not an instruction, and that distinction is the whole
+    // fix. It used to be `ownArt` — "we have switched to the scraped art" —
+    // and switching was only possible when `box-front` was already known. But
+    // the cover is a cache hit and `media` is a round trip, so the measurement
+    // almost always happens first: `scraped` was still null, the swap was
+    // skipped, and the else-branch clamped the banner to RATIO_MAX and drew it.
+    // That is the wide blue FIFA slab — a 1.81 banner squashed to 1.5 and
+    // rendered as a box. `media` then arrived with the real front, and nothing
+    // asked again, because an <img> that has loaded does not load twice.
+    //
+    // Remembered instead, the verdict outlives the race: the moment box-front
+    // turns up, `front` below points at it and the new source measures itself.
+    const [rejected, setRejected] = useState(false)
 
     // A cover can fail in three ways, and only one of them raises `onError`.
     // It can be a file that loads perfectly and contains no picture — a
@@ -151,7 +164,11 @@ export const createBox = (sdk) => {
 
     const name = title(game.display_name)
     const scraped = pick(sdk, systemId, game.filename, media, ['box-front'])
-    const front = ownArt && scraped ? scraped : jacket(systemId, game.filename)
+    // Derived, so it becomes true on the render where `media` lands rather than
+    // needing something to notice and act. One step only: once we are on the
+    // scraped front there is nothing further to fall back to.
+    const useScraped = rejected && !!scraped
+    const front = useScraped ? scraped : jacket(systemId, game.filename)
     const spine = sdk.api.media.url(systemId, game.filename, 'box-spine')
     const back = pick(sdk, systemId, game.filename, media, ['box-back'])
 
@@ -159,19 +176,31 @@ export const createBox = (sdk) => {
      * The image decides the shape of the solid, so it has to be believed —
      * but only once it has said something believable.
      *
-     * An implausible aspect is not a shape to draw, it is a wrong file. The
-     * first time one turns up, swap to the scraped box-front and let this run
-     * again on that; `ownArt` makes it a single retry, so a game whose every
-     * source is a banner cannot loop. If the second one is no better the value
-     * is clamped rather than obeyed: a box at the edge of the band is odd, a
-     * box twice the width of the stage is broken.
+     * An implausible aspect is not a shape to draw, it is a wrong file. Record
+     * that and the swap to the scraped box-front follows on its own, whenever
+     * the media set arrives — which is the point, because it usually arrives
+     * after this runs. `useScraped` makes it a single step, so a game whose
+     * every source is a banner cannot loop. If the second file is no better the
+     * value is clamped rather than obeyed: a box at the edge of the band is
+     * odd, a box twice the width of the stage is broken.
+     *
+     * Measured on the reference box, FIFA 19 on PS3: the cover route answers
+     * 320x176 (ratio 1.82, a wide EA logo banner) and box-front is 581x680
+     * (0.85, the actual sleeve). Both files were there the whole time.
      */
     const measure = (el) => {
       if (!el) return
       const { naturalWidth: w, naturalHeight: h } = el
       if (!w || !h) return
       const r = w / h
-      if (!plausible(r) && !ownArt && scraped) { setOwnArt(true); return }
+      if (!plausible(r) && !useScraped) {
+        // Record it whether or not there is anywhere to go yet. If box-front is
+        // already here the swap re-measures on the new file and this value is
+        // irrelevant; if it is not, the clamped banner stands in until it
+        // arrives, which beats an empty stage.
+        setRejected(true)
+        if (scraped) return
+      }
       setRatio(Math.max(RATIO_MIN, Math.min(RATIO_MAX, r)))
     }
 
