@@ -39,6 +39,12 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
   const rowIdx = (i: number) => i - 1
   const itemsRef = useRef(items)
   useEffect(() => { itemsRef.current = items })
+  // Whatever the cursor is on, so the list can be dragged to it. The Overlay
+  // caps itself at 85vh with overflow-y:auto, so a box with a handful of paired
+  // devices plus a scan's worth of discovered ones is taller than the panel —
+  // and the highlight walked straight out of view, exactly as it did on the
+  // catalogue screen before this same fix.
+  const focusElRef = useRef<HTMLDivElement | HTMLButtonElement | null>(null)
   const scanRef = useRef<() => Promise<void>>(async () => {})
   const devicesRef = useRef(devices)
   const focusIdxRef = useRef(focusIdx)
@@ -143,6 +149,12 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
 
   useEffect(() => { scanRef.current = scan })
 
+  // `block: 'nearest'` scrolls only when the target is actually off-screen, so
+  // walking the middle of the list does not jerk the panel on every step.
+  useEffect(() => {
+    focusElRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [focusIdx, items.length])
+
   const removeDevice = async (e: React.MouseEvent, mac: string) => {
     e.stopPropagation()
     if (op) return
@@ -161,6 +173,7 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
 
       {/* Scan button */}
       <button
+        ref={el => { if (focusIdx === SCAN_SLOT) focusElRef.current = el }}
         onClick={() => { setFocusIdx(SCAN_SLOT); void scan() }}
         disabled={busy}
         style={{
@@ -213,6 +226,7 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
             )}
 
             <div
+              ref={el => { if (isFocused) focusElRef.current = el }}
               onClick={() => { setFocusIdx(di + 1); d.paired ? toggleDevice(d) : pairDevice(d) }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12,
