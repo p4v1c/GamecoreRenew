@@ -73,12 +73,19 @@ const RISE_MS = 900
 const IRIS_MS = 620
 
 /** The whole swap: the jacket going back in, then the next one coming out.
- *  Must match theme.css — 360ms of `cz-push-*`, then 440ms of `cz-pull-*` after
+ *  Must match theme.css — 360ms of `cz-push-*`, then 560ms of `cz-pull-*` after
  *  a delay of the same 360. The outgoing node is dropped only at the end of all
  *  of it, so `--dir` cannot change halfway through the second animation, and a
- *  jacket cannot be unmounted mid-gesture and read as never having folded. */
+ *  jacket cannot be unmounted mid-gesture and read as never having folded.
+ *
+ *  The pull was 440ms and the turn inside it read as dry — 202ms to cover 90°.
+ *  It is 560 now, with the handover moved from 54% to 42% in the keyframes, so
+ *  the travel keeps its pace and only the turn is longer. This number and that
+ *  one are two files with nothing enforcing the match: shorten the CSS without
+ *  shortening this and the outgoing jacket lingers; shorten this without the
+ *  CSS and it vanishes mid-turn. */
 const PUSH_MS = 360
-const PULL_MS = PUSH_MS + 440
+const PULL_MS = PUSH_MS + 560
 
 export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Cartridge }) => {
   const { html, useState, useEffect, useMemo, useRef } = sdk.ui

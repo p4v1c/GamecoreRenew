@@ -519,7 +519,7 @@
 @keyframes cz-pull-travel {
   0%      { animation-timing-function: cubic-bezier(0.32, 0, 0.2, 1);
             transform: translate3d(0, 0, var(--dive)) rotateZ(var(--lean, 0deg)); }
-  54%     { transform: translate3d(0, 0, 0) rotateZ(0deg); }
+  42%     { transform: translate3d(0, 0, 0) rotateZ(0deg); }
   100%    { transform: translate3d(0, 0, 0) rotateZ(0deg); }
 }
 
@@ -537,7 +537,7 @@
 @keyframes cz-pull-travel-y {
   0%      { animation-timing-function: cubic-bezier(0.32, 0, 0.2, 1);
             transform: translate3d(0, 0, var(--dive)); }
-  54%     { transform: translate3d(0, 0, 0); }
+  42%     { transform: translate3d(0, 0, 0); }
   100%    { transform: translate3d(0, 0, 0); }
 }
 
@@ -558,7 +558,7 @@
 @keyframes cz-pull-turn-flat {
   0%      { transform: translateZ(calc(var(--w) / -2)) rotateZ(-90deg)
                        rotateX(0deg) rotateY(90deg); }
-  54%     { animation-timing-function: cubic-bezier(0.25, 0.8, 0.35, 1);
+  42%     { animation-timing-function: cubic-bezier(0.25, 0.8, 0.35, 1);
             transform: translateZ(calc(var(--w) / -2)) rotateZ(-90deg)
                        rotateX(0deg) rotateY(90deg); }
   100%    { transform: translateZ(0px) rotateZ(0deg)
@@ -566,7 +566,7 @@
 }
 @keyframes cz-pull-turn {
   0%      { transform: translateZ(calc(var(--w) / -2)) rotateX(0deg) rotateY(90deg); }
-  54%     { animation-timing-function: cubic-bezier(0.25, 0.8, 0.35, 1);
+  42%     { animation-timing-function: cubic-bezier(0.25, 0.8, 0.35, 1);
             transform: translateZ(calc(var(--w) / -2)) rotateX(0deg) rotateY(90deg); }
   100%    { transform: translateZ(0px) rotateX(var(--tilt)) rotateY(var(--turn)); }
 }
@@ -592,8 +592,21 @@
 .cz-hold[data-phase="out"] .cz-carry  { animation: cz-push-travel 360ms linear forwards; }
 .cz-hold[data-phase="out"] .cz-box    { animation: cz-push-turn   360ms linear forwards; }
 
-.cz-hold[data-phase="in"] .cz-carry   { animation: cz-pull-travel 440ms linear var(--wait, 0ms) backwards; }
-.cz-hold[data-phase="in"] .cz-box     { animation: cz-pull-turn   440ms linear var(--wait, 0ms) backwards; }
+/* 560ms, not 440. The gesture is two moves in sequence — the box comes forward
+   out of its gap, then turns to face you — and the handover between them is the
+   percentage in the keyframes above. At 440ms with a handover at 54%, the turn
+   had 202ms to cover 90°, which read as dry: it arrived before the eye had
+   followed it round.
+
+   Lengthening the whole animation and moving the handover earlier gives the
+   turn the extra time WITHOUT slowing the part that was already right: the
+   travel keeps ~235ms (42% of 560, against 54% of 440), and the turn goes from
+   202ms to ~325ms.
+
+   PULL_MS in views/library.js is wait + this. Change one, change the other, or
+   the outgoing jacket is dropped while the arriving one is still turning. */
+.cz-hold[data-phase="in"] .cz-carry   { animation: cz-pull-travel 560ms linear var(--wait, 0ms) backwards; }
+.cz-hold[data-phase="in"] .cz-box     { animation: cz-pull-turn   560ms linear var(--wait, 0ms) backwards; }
 
 /* The other two stackings put the jacket away the same way, because they are
    the same shelf seen from somewhere else — they have a row, the row has a gap
@@ -644,7 +657,7 @@
   /* Transform only. `width` and `height` were transitioned here too, and they
      are layout properties: easing them re-runs layout on this box AND on its
      six faces — every one of which is sized from --w, --d or --h — on every
-     frame. When that overlapped the 440ms turn, the rotation was competing with
+     frame. When that overlapped the pull, the rotation was competing with
      a relayout for the same frames, and the turn is where it showed.
 
      What it bought was a smooth resize when --ratio changed. views/box.js now
