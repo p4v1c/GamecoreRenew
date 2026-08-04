@@ -473,8 +473,14 @@ ok "units removed (incl. the drop-in holding the TheGamesDB key)."
 #  6. SDDM auto-login and the 1080p display command
 # ================================================================
 msg "SDDM"
+# zzz-gamecore-session.conf is written by gamecore-session-select, not by the
+# installer, so it exists only on a box where someone toggled to the desktop.
+# Left behind it would keep pointing SDDM at a session after everything that
+# needed it is gone. zz-gamecore-openbox.conf is its pre-rename name.
 safe_rm /etc/sddm.conf.d/zz-gamecore-autologin.conf \
         /etc/sddm.conf.d/zz-gamecore-display.conf \
+        /etc/sddm.conf.d/zzz-gamecore-session.conf \
+        /etc/sddm.conf.d/zz-gamecore-openbox.conf \
         /etc/sddm.conf.d/gamecore-display.conf
 
 # Older installs used the generic name autologin.conf — which is also a name a
@@ -513,7 +519,8 @@ warn "The login screen will ask for a password again on the next boot."
 # ================================================================
 msg "System integration"
 # gamecore-addon last among the addon steps — its own `remove` needed it.
-safe_rm /usr/local/bin/gamecore-xsetup /usr/local/bin/gamecore-addon
+safe_rm /usr/local/bin/gamecore-xsetup /usr/local/bin/gamecore-addon \
+        /usr/local/bin/gamecore-session-select
 
 safe_rm /etc/sudoers.d/gamecore-power /etc/sudoers.d/gamecore-update /etc/sudoers.d/gamecore-standby
 if $DRY || visudo -c >/dev/null 2>&1; then

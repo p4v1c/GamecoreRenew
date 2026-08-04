@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# ================================================================
+#  gamecore-session-select — point SDDM's auto-login at the kiosk, or at a desktop
+#
+#      sudo gamecore-session-select gamecore    # openbox + the GameCore UI
+#      sudo gamecore-session-select desktop     # the machine's own desktop
+#      gamecore-session-select status           # what it is set to now (no root)
+#
+#  Why this exists: the box auto-logs into an openbox session whose only job is
+#  to host the kiosk. That is right for a living-room appliance and wrong for
+#  the ten minutes a year someone needs a file manager. Toggling by hand means
+#  editing SDDM drop-ins as root and remembering to stop gamecore-ui, which will
+#  otherwise draw the kiosk over the desktop.
+#
+#  Reversible by deletion: remove /etc/sddm.conf.d/zzz-gamecore-session.conf and
+#  the installer's own zz-gamecore-autologin.conf takes over again. Nothing else
+#  on the system is touched.
+#
+#  The file name has to sort LAST. SDDM reads /etc/sddm.conf.d/* in name order
+#  and the last [Autologin] wins — that is the whole reason the installer's file
+#  is called zz-…, and this one must beat it, hence zzz-.
+# ================================================================
+set -euo pipefail
+
+CONF=/etc/sddm.conf.d/zzz-gamecore-session.conf
+INSTALLER_CONF=/etc/sddm.conf.d/zz-gamecore-autologin.conf
+
+# The user is never hard-coded: it is read back from the file the installer
+# wrote, so this script keeps working on a box installed under any account.
+_gc_user() {
+  local u=""
+  [[ -f "$CONF" ]] && u=$(sed -n 's/^User=//p' "$CONF" | tail -1)
+  [[ -z "$u" && -f "$INSTALLER_CONF" ]] && u=$(sed -n 's/^User=//p' "$INSTALLER_CONF" | tail -1)
+  [[ -z "$u" ]] && u="${SUDO_USER:-${USER:-}}"
+  printf '%s' "$u"
+}
+
+# The desktop is whatever this machine actually has. Hard-coding "plasma" broke
+# the moment the box was not a Plasma box, and a session name that does not
+# exist makes SDDM fall back to its own default with no message at all.
+_desktop_session() {
+  local d n
+  for d in /usr/share/wayland-sessions /usr/share/xsessions; do
+    [[ -d "$d" ]] || continue
+    for f in "$d"/*.desktop; do
+      [[ -e "$f" ]] || continue
+      n=$(basename "$f" .desktop)
+      [[ "$n" == openbox ]] && continue     # that is the kiosk, not a desktop
+      printf '%s' "$n"; return 0
+    done
+  done
+  return 1
+}
+
+_current() {
+  local s=""
+  for f in /etc/sddm.conf.d/*.conf; do
+    [[ -e "$f" ]] || continue
+    local v; v=$(sed -n 's/^Session=//p' "$f" | tail -1)
+    [[ -n "$v" ]] && s="$v"                 # last file wins, same as SDDM
+  done
+  printf '%s' "${s:-<aucune>}"
+}
+
+case "${1:-}" in
+  status)
+    echo "auto-login    : $(_current)"
+    echo "gamecore-ui   : $(systemctl is-enabled gamecore-ui.service 2>/dev/null || echo inconnu)"
+    exit 0
+    ;;
+  gamecore|kiosk|openbox) SESSION=openbox; UI=start ;;
+  desktop)
+    if ! SESSION=$(_desktop_session); then
+      echo "no desktop session installed — nothing to switch to" >&2
+      exit 1
+    fi
+    UI=stop
+    ;;
+  *)
+    echo "usage: $(basename "$0") gamecore|desktop|status" >&2
+    exit 2
+    ;;
+esac
+
+[[ $EUID -eq 0 ]] || { echo "run this with sudo" >&2; exit 1; }
+
+GC_USER=$(_gc_user)
+[[ -n "$GC_USER" ]] || { echo "cannot determine the auto-login user" >&2; exit 1; }
+
+install -d -m755 /etc/sddm.conf.d
+cat > "$CONF" <<CFG
+# Auto-login target, driven by gamecore-session-select.
+# Reversible: delete this file and zz-gamecore-autologin.conf takes over.
+[Autologin]
+User=$GC_USER
+Session=$SESSION
+Relogin=true
+CFG
+chmod 644 "$CONF"
+
+# The kiosk must not draw itself over a desktop session, and must come back
+# with the kiosk one. `|| true`: a box mid-install may not have the unit yet,
+# and that is not a reason to leave the auto-login half-switched.
+systemctl "$UI" gamecore-ui.service 2>/dev/null || true
+
+echo "auto-login -> $SESSION ; gamecore-ui -> $UI"
+echo "takes effect at the next login (reboot, or: systemctl restart sddm)"

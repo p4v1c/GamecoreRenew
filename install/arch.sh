@@ -418,16 +418,25 @@ else
 fi
 
 # The whole GameCore stack is X11-only (overlays, fullscreen enforcer, the
-# gamepad→keyboard bridge, the 1080p pin). Plasma 6 ships its X11 session in
-# a separate package; without it SDDM has no plasmax11 session to auto-login
-# into and the box lands on Wayland — a silently broken install. Treat it as
-# required whenever the repos have it, so a failure surfaces here and not at
-# first boot. (Older Plasma builds the X11 session in and have no such package.)
-if pacman -Si plasma-x11-session >/dev/null 2>&1; then
-  PKGS+=(plasma-x11-session)
-elif [[ ! -f /usr/share/xsessions/plasma.desktop ]]; then
-  warn "No plasma-x11-session package and no plasma.desktop X11 session — the box may boot Wayland."
-fi
+# gamepad→keyboard bridge, the 1080p pin), so the kiosk needs a real X session.
+#
+# That used to mean Plasma's X11 session, from the plasma-x11-session package.
+# It no longer does. KDE is retiring the X11 session, so an installer built on
+# it is built on something the distributions are in the process of removing —
+# and the failure mode is the worst kind: the package simply stops existing and
+# the box lands on Wayland at the next fresh install.
+#
+# Openbox is what the stack actually needs: a window manager, and nothing else.
+# No desktop, no session manager, no compositor competing with the emulators
+# for the screen. The kiosk is started by gamecore-ui.service off
+# graphical.target rather than by the window manager, so openbox carries no
+# configuration of its own — its defaults are the whole setup.
+#
+# The desktop escape hatch (`gamecore-session-select desktop`) switches
+# auto-login to whatever full session the machine already has. Nothing is
+# installed for it here: a box with no desktop simply has none to fall back to,
+# which is a living-room appliance working as intended, not a failure.
+PKGS+=(openbox)
 
 record_new_pkgs "${PKGS[@]}"
 pacman -S --noconfirm --needed "${PKGS[@]}"
@@ -1133,25 +1142,23 @@ WantedBy=graphical.target
 EOF
 
 # ── SDDM auto-login ──────────────────────────────────────────────
-progress 90 "SDDM auto-login (KDE Plasma)"
+progress 90 "SDDM auto-login (openbox kiosk)"
 msg "SDDM auto-login"
-# KDE Plasma on X11 — the whole stack (overlays, fullscreen enforcer,
-# gamepad-tv-bridge key injection, gamecore-xsetup) is X11-only, so never
-# pick the Wayland session. Plasma 6 names its X11 session "plasmax11"
-# (plasma-x11-session package); older Plasma ships it as "plasma".
-if [ -f /usr/share/xsessions/plasmax11.desktop ]; then
-  KDE_SESSION="plasmax11"
-elif [ -f /usr/share/xsessions/plasma.desktop ]; then
-  KDE_SESSION="plasma"
+# The kiosk logs into an openbox X session. The stack (overlays, fullscreen
+# enforcer, gamepad-tv-bridge key injection, gamecore-xsetup) is X11-only, and
+# openbox gives exactly that with nothing else attached — see the package block
+# above for why this is no longer Plasma's X11 session.
+if [ -f /usr/share/xsessions/openbox.desktop ]; then
+  KIOSK_SESSION="openbox"
 else
-  KDE_SESSION=""
+  KIOSK_SESSION=""
 fi
 
-if [[ -z "$KDE_SESSION" ]]; then
-  warn "No Plasma X11 session in /usr/share/xsessions — auto-login NOT configured."
+if [[ -z "$KIOSK_SESSION" ]]; then
+  warn "No openbox session in /usr/share/xsessions — auto-login NOT configured."
   warn "  GameCore cannot run on Wayland (overlays, fullscreen enforcer and the"
   warn "  gamepad bridge are all X11). Install it and re-run:"
-  warn "      sudo pacman -S plasma-x11-session && sudo bash install/arch.sh"
+  warn "      sudo pacman -S openbox && sudo bash install/arch.sh"
 else
   mkdir -p /etc/sddm.conf.d
   # The filename matters. SDDM reads /etc/sddm.conf.d/* in name order and the
@@ -1159,11 +1166,12 @@ else
   # own [Autologin] with Session=plasma — the WAYLAND session — and 'k' sorts
   # after 'a', so a drop-in called autologin.conf is silently overridden and
   # the box boots into Wayland with the kiosk never starting. 'zz-' sorts last.
-  rm -f /etc/sddm.conf.d/autologin.conf /etc/sddm.conf.d/gamecore-display.conf
+  rm -f /etc/sddm.conf.d/autologin.conf /etc/sddm.conf.d/gamecore-display.conf \
+        /etc/sddm.conf.d/zz-gamecore-openbox.conf
   cat > /etc/sddm.conf.d/zz-gamecore-autologin.conf <<EOF
 [Autologin]
 User=$USER_NAME
-Session=$KDE_SESSION
+Session=$KIOSK_SESSION
 Relogin=true
 EOF
 
@@ -1196,7 +1204,7 @@ PY
     manifest_set KDE_SDDM_CONF_PATCHED 1
     ok "Competing [Autologin] keys removed from kde_settings.conf (backup kept)."
   fi
-  ok "SDDM configured for auto-login as $USER_NAME (KDE Plasma X11 session: $KDE_SESSION)."
+  ok "SDDM configured for auto-login as $USER_NAME (openbox X11 session: $KIOSK_SESSION)."
 fi
 
 # Force 1920x1080 at the display-server level (never 4K). SDDM runs this as
@@ -1204,6 +1212,12 @@ fi
 # and overlays — is pinned to 1080p. See install/gamecore-xsetup.sh.
 # (start-ui.sh re-applies it inside the session, after KScreen has had its say.)
 install -m755 "$GAMECORE_PATH/install/gamecore-xsetup.sh" /usr/local/bin/gamecore-xsetup
+
+# The desktop escape hatch. The box auto-logs into openbox, which hosts the
+# kiosk and nothing else; this is how someone gets to a real desktop for the
+# ten minutes a year they need one, without editing SDDM drop-ins as root and
+# without leaving gamecore-ui drawing the kiosk over it.
+install -m755 "$GAMECORE_PATH/install/gamecore-session-select" /usr/local/bin/gamecore-session-select
 mkdir -p /etc/sddm.conf.d
 cat > /etc/sddm.conf.d/zz-gamecore-display.conf <<EOF
 [X11]
@@ -1282,6 +1296,11 @@ $USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl r
 # Enumerated like the governor rule below: unrestricted, it also granted
 # `udevadm control`, which reloads and can replace the device rules.
 $USER_NAME ALL=(root) NOPASSWD: /usr/bin/udevadm trigger
+# Desktop escape hatch — switch auto-login between the openbox kiosk and the
+# machine's desktop. Enumerated with its two arguments rather than left open:
+# the script writes an SDDM drop-in as root, so "any argument" is not a thing
+# to hand out.
+$USER_NAME ALL=(root) NOPASSWD: /usr/local/bin/gamecore-session-select gamecore, /usr/local/bin/gamecore-session-select desktop
 # Desktop launcher (gamecore-launcher.sh) — start GameCore from the desktop
 $USER_NAME ALL=(root) NOPASSWD: /usr/bin/systemctl start gamecore-backend.service, /usr/bin/systemctl start gamecore-ui.service
 # Standby (backend/services/standby.py) — drop the governor while the screen
@@ -1478,9 +1497,9 @@ echo "  1. Reboot — GameCore launches automatically."
 echo "  2. Upload ROMs at https://${LOCAL_IP}:8443/roms  (drag & drop)"
 echo "  3. Only manual step left: copy BIOS/firmwares (PS1/PS2/PS3, DS/3DS, Switch keys)."
 echo
-if [[ -z "${KDE_SESSION:-}" ]]; then
-  warn "No X11 Plasma session was configured — GameCore will NOT start after the reboot."
-  warn "  Run: sudo pacman -S plasma-x11-session && sudo bash install/arch.sh"
+if [[ -z "${KIOSK_SESSION:-}" ]]; then
+  warn "No openbox X11 session was configured — GameCore will NOT start after the reboot."
+  warn "  Run: sudo pacman -S openbox && sudo bash install/arch.sh"
   echo
 fi
 if $NVIDIA_REBOOT_NEEDED; then

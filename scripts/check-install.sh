@@ -12,7 +12,7 @@
 #  Why this exists: "the install finished without an error" and "the box
 #  works" are different statements. arch.sh warns and carries on for a dozen
 #  recoverable failures — a Flatpak that would not download, an AppImage the
-#  network refused, a missing plasma-x11-session — and each one is a tile that
+#  network refused, a missing openbox session — and each one is a tile that
 #  is quietly absent, or a kiosk that will not come up at the next boot.
 #  Those warnings scroll past in a very long log.
 #
@@ -126,18 +126,25 @@ done
 act=$(systemctl is-active gamecore-backend 2>/dev/null)
 [[ "$act" == active ]] && ok "backend running" || bad "backend" "is-active=$act"
 
-# The kiosk is X11-only. Booting into Wayland is a silently broken install:
-# overlays, the fullscreen enforcer and the gamepad bridge all need X.
-if ls /usr/share/xsessions/plasmax11.desktop /usr/share/xsessions/plasma.desktop >/dev/null 2>&1; then
-  ok "Plasma X11 session present"
+# The kiosk is X11-only: overlays, the fullscreen enforcer and the gamepad
+# bridge all need X. It logs into an openbox session — see install/arch.sh for
+# why that is no longer Plasma's X11 session.
+if [[ -f /usr/share/xsessions/openbox.desktop ]]; then
+  ok "openbox X11 session present"
 else
-  bad "no Plasma X11 session" "the box will boot Wayland and the kiosk will not start"
+  bad "no openbox session" "the box has no X session to host the kiosk"
 fi
+# SDDM reads /etc/sddm.conf.d/* in name order and the LAST [Autologin] wins, so
+# the effective session is the last Session= across every file — not the one in
+# GameCore's own drop-in, which a later-sorting file can override in silence.
 sess=$(grep -h '^Session=' /etc/sddm.conf.d/*.conf 2>/dev/null | tail -1 | cut -d= -f2)
 case "$sess" in
-  plasmax11|plasma) ok "SDDM autologin session" "$sess" ;;
-  "")  bad "SDDM autologin" "no Session= in /etc/sddm.conf.d — no auto-login" ;;
-  *)   warn "SDDM autologin" "session is '$sess' — expected plasmax11" ;;
+  openbox) ok "SDDM autologin session" "openbox — kiosk mode" ;;
+  "")      bad "SDDM autologin" "no Session= in /etc/sddm.conf.d — no auto-login" ;;
+  # Not a failure: this is what `gamecore-session-select desktop` sets, on
+  # purpose. The kiosk still runs if gamecore-ui is started by hand, so calling
+  # the box broken here would be wrong — it is parked, and it says so.
+  *)       warn "SDDM autologin" "session is '$sess' — desktop mode, not the kiosk"$'\n'"      back to the kiosk: sudo gamecore-session-select gamecore" ;;
 esac
 
 # ── 5. the API actually answers ───────────────────────────────────────────
