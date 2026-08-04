@@ -77,6 +77,15 @@ export interface GameMediaIndex {
 }
 
 /** One pack in the catalogue — an emulator or an application. */
+export interface BtDevice {
+  mac: string
+  name: string
+  connected: boolean
+  /** Already known to the adapter. False means it was just discovered by a
+   *  scan and has to be paired before it can be connected. */
+  paired: boolean
+}
+
 export interface CatalogEntry {
   id: string
   kind: 'emulator' | 'app'
@@ -214,8 +223,12 @@ export const api = {
     setSink: (sink: string) => post('/settings/audio/sink', { sink }),
   },
   bluetooth: {
-    devices: () => get<{ mac: string; name: string; connected: boolean }[]>('/settings/bluetooth/devices'),
-    scan: () => post('/settings/bluetooth/scan'),
+    devices: () => get<BtDevice[]>('/settings/bluetooth/devices'),
+    /** Looks around for `seconds`, then answers with what is in range and NOT
+     *  already paired. It used to return the moment it was called and throw the
+     *  discovery away, which is why nothing new could ever appear. */
+    scan: () => post<{ ok: boolean; found: BtDevice[]; seconds: number }>('/settings/bluetooth/scan'),
+    pair: (mac: string) => post<{ ok: boolean; message: string }>('/settings/bluetooth/pair', { mac }),
     connect: (mac: string) => post<{ ok: boolean; message: string }>('/settings/bluetooth/connect', { mac }),
     disconnect: (mac: string) => post<{ ok: boolean }>('/settings/bluetooth/disconnect', { mac }),
     remove: (mac: string) => fetch(`/api/settings/bluetooth/devices/${encodeURIComponent(mac)}`, { method: 'DELETE' }).then(r => r.json()) as Promise<{ ok: boolean }>,

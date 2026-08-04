@@ -1,14 +1,26 @@
 import { useState, useEffect, useRef } from 'react'
 import { Overlay, BackHeader } from '../../ui'
-import { api } from '../../../api'
+import { api, type BtDevice } from '../../../api'
 import { onGp } from '../../../hooks/useGamepad'
 import { useSubPageGamepad } from './useSubPageGamepad'
 
-type BtDevice = { mac: string; name: string; connected: boolean }
-type BtOp = 'connect' | 'disconnect' | 'scan' | null
+type BtOp = 'connect' | 'disconnect' | 'scan' | 'pair' | null
+
+/**
+ * Two lists, not one.
+ *
+ * `devices` is what the adapter already knows; `found` is what the last scan
+ * saw and has never been paired. They were the same list before, because the
+ * backend only ever returned paired devices — so the scan button ran for eight
+ * seconds and could not, by construction, reveal anything new.
+ *
+ * The cursor walks them as one sequence: a player pressing down does not care
+ * where our bookkeeping changes.
+ */
 
 export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack: () => void }) {
   const [devices, setDevices] = useState<BtDevice[]>([])
+  const [found, setFound] = useState<BtDevice[]>([])
   const [loading, setLoading] = useState(true)
   const [op, setOp] = useState<BtOp>(null)           // current running operation
   const [opMac, setOpMac] = useState('')              // which device is busy
@@ -16,6 +28,9 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
   const [msgError, setMsgError] = useState(false)
   const [focusIdx, setFocusIdx] = useState(0)
 
+  const items = [...devices, ...found]
+  const itemsRef = useRef(items)
+  useEffect(() => { itemsRef.current = items })
   const devicesRef = useRef(devices)
   const focusIdxRef = useRef(focusIdx)
   const opRef = useRef(op)
@@ -24,7 +39,13 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
   useEffect(() => { opRef.current = op }, [op])
 
   const refresh = async () => {
-    try { setDevices(await api.bluetooth.devices()) } catch {}
+    try {
+      const known = await api.bluetooth.devices()
+      setDevices(known)
+      // Something that has just been paired is in both lists for a moment.
+      const macs = new Set(known.map(d => d.mac))
+      setFound(f => f.filter(d => !macs.has(d.mac)))
+    } catch {}
   }
 
   useEffect(() => { refresh().finally(() => setLoading(false)) }, [])
@@ -34,11 +55,13 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
   useEffect(() => {
     const offs = [
       onGp('gp:dpad-up',   () => setFocusIdx(i => Math.max(0, i - 1))),
-      onGp('gp:dpad-down', () => setFocusIdx(i => Math.min(devicesRef.current.length - 1, i + 1))),
+      onGp('gp:dpad-down', () => setFocusIdx(i => Math.min(itemsRef.current.length - 1, i + 1))),
       onGp('gp:confirm', () => {
         if (opRef.current) return
-        const d = devicesRef.current[focusIdxRef.current]
-        if (d) toggleDevice(d)
+        const d = itemsRef.current[focusIdxRef.current]
+        if (!d) return
+        if (d.paired) toggleDevice(d)
+        else pairDevice(d)
       }),
     ]
     return () => offs.forEach(o => o())
@@ -70,12 +93,42 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
     await refresh()
   }
 
+  /**
+   * Pair, then trust, then connect — all three on the backend, in that order.
+   *
+   * Only ever on the device the player selected. A box that paired with
+   * whatever it discovered would adopt the neighbours' headphones.
+   */
+  const pairDevice = async (d: BtDevice) => {
+    if (op) return
+    setOp('pair'); setOpMac(d.mac)
+    setMsg(`Pairing with ${d.name} — keep it in pairing mode…`); setMsgError(false)
+    try {
+      const r = await api.bluetooth.pair(d.mac)
+      setMsg(r.message || (r.ok ? 'Paired' : 'Pairing failed'))
+      setMsgError(!r.ok)
+    } catch {
+      setMsg('Pairing failed'); setMsgError(true)
+    }
+    setOp(null); setOpMac('')
+    await refresh()
+  }
+
   const scan = async () => {
     if (op) return
-    setOp('scan'); setMsg('Scanning for devices (8s)…'); setMsgError(false)
-    try { await api.bluetooth.scan() } catch {}
+    setOp('scan'); setMsgError(false)
+    setMsg('Looking for devices — put yours in pairing mode now…')
+    try {
+      const r = await api.bluetooth.scan()
+      setFound(r.found ?? [])
+      setMsg((r.found ?? []).length
+        ? `Found ${r.found.length} device(s) not yet paired`
+        : 'Nothing new in range — hold the pairing button and scan again')
+    } catch {
+      setMsg('Scan failed'); setMsgError(true)
+    }
     await refresh()
-    setOp(null); setMsg('Scan complete')
+    setOp(null)
   }
 
   const removeDevice = async (e: React.MouseEvent, mac: string) => {
@@ -118,71 +171,85 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
         </div>
       )}
 
-      {/* Device list */}
+      {/* Device list — paired first, then whatever the scan turned up. */}
       {loading ? (
         <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, textAlign: 'center', padding: 16 }}>Loading…</div>
-      ) : devices.length === 0 ? (
+      ) : items.length === 0 ? (
         <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, textAlign: 'center', padding: 16 }}>
           No paired devices — scan to find new ones
         </div>
-      ) : devices.map((d, di) => {
+      ) : items.map((d, di) => {
         const isFocused = di === focusIdx
         const isThisBusy = opMac === d.mac && busy
+        // A heading before the first of each list, so "already yours" and "in
+        // the room right now" are never mistaken for one another.
+        const head = di === 0 || items[di - 1].paired !== d.paired
+        const label = d.paired ? 'PAIRED' : 'FOUND — NOT PAIRED YET'
+
         return (
-          <div
-            key={d.mac}
-            onClick={() => { setFocusIdx(di); toggleDevice(d) }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '13px 16px', borderRadius: 12, marginBottom: 8,
-              cursor: busy ? 'default' : 'pointer',
-              background: isFocused ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 18%, transparent)' : d.connected ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 8%, transparent)' : 'rgba(255,255,255,0.04)',
-              border: isFocused ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 60%, transparent)' : d.connected ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 25%, transparent)' : '1px solid rgba(255,255,255,0.07)',
-              opacity: busy && !isThisBusy ? 0.5 : 1,
-              transition: 'all 0.15s',
-            }}
-          >
-            {/* Icon */}
-            <div style={{ fontSize: 20, width: 28, textAlign: 'center' }}>
-              {d.connected ? '🔵' : '⚪'}
-            </div>
-
-            {/* Info */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {d.name}
-              </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
-                {isThisBusy ? (d.connected ? 'Disconnecting…' : 'Connecting…') : (d.connected ? 'Connected' : d.mac)}
-              </div>
-            </div>
-
-            {/* Action badge */}
-            <div style={{
-              fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6,
-              background: d.connected ? 'rgba(248,113,113,0.12)' : 'color-mix(in srgb, var(--gc-accent, #7c3aed) 20%, transparent)',
-              border: `1px solid ${d.connected ? 'rgba(248,113,113,0.3)' : 'color-mix(in srgb, var(--gc-accent, #7c3aed) 35%, transparent)'}`,
-              color: d.connected ? '#f87171' : 'var(--gc-accent-bright, #c4b5fd)',
-            }}>
-              {isThisBusy ? '…' : (d.connected ? 'Disconnect' : 'Connect')}
-            </div>
-
-            {/* Remove button */}
-            {!d.connected && (
-              <div
-                onClick={e => removeDevice(e, d.mac)}
-                title="Remove device"
-                style={{ fontSize: 16, color: 'rgba(255,255,255,0.2)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}
-              >
-                ×
+          <div key={d.mac}>
+            {head && (
+              <div style={{
+                fontSize: 10, letterSpacing: 1.4, fontWeight: 700,
+                color: 'rgba(255,255,255,0.3)', margin: '10px 2px 6px',
+              }}>
+                {label}
               </div>
             )}
+
+            <div
+              onClick={() => { setFocusIdx(di); d.paired ? toggleDevice(d) : pairDevice(d) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '13px 16px', borderRadius: 12, marginBottom: 8,
+                cursor: busy ? 'default' : 'pointer',
+                background: isFocused ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 18%, transparent)' : d.connected ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 8%, transparent)' : 'rgba(255,255,255,0.04)',
+                border: isFocused ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 60%, transparent)' : d.connected ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 25%, transparent)' : '1px solid rgba(255,255,255,0.07)',
+                opacity: busy && !isThisBusy ? 0.5 : 1,
+                transition: 'all 0.15s',
+              }}
+            >
+              <div style={{ fontSize: 20, width: 28, textAlign: 'center' }}>
+                {d.connected ? '🔵' : d.paired ? '⚪' : '✨'}
+              </div>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {d.name}
+                </div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
+                  {isThisBusy
+                    ? (!d.paired ? 'Pairing…' : d.connected ? 'Disconnecting…' : 'Connecting…')
+                    : (d.connected ? 'Connected' : d.mac)}
+                </div>
+              </div>
+
+              <div style={{
+                fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6,
+                background: d.connected ? 'rgba(248,113,113,0.12)' : 'color-mix(in srgb, var(--gc-accent, #7c3aed) 20%, transparent)',
+                border: `1px solid ${d.connected ? 'rgba(248,113,113,0.3)' : 'color-mix(in srgb, var(--gc-accent, #7c3aed) 35%, transparent)'}`,
+                color: d.connected ? '#f87171' : 'var(--gc-accent-bright, #c4b5fd)',
+              }}>
+                {isThisBusy ? '…' : !d.paired ? 'Pair' : d.connected ? 'Disconnect' : 'Connect'}
+              </div>
+
+              {/* Forgetting a device only makes sense for one the box knows. */}
+              {d.paired && !d.connected && (
+                <div
+                  onClick={e => removeDevice(e, d.mac)}
+                  title="Remove device"
+                  style={{ fontSize: 16, color: 'rgba(255,255,255,0.2)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}
+                >
+                  ×
+                </div>
+              )}
+            </div>
           </div>
         )
       })}
 
       <div style={{ marginTop: 8, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
-        ↑↓ Navigate · ✕ Connect/Disconnect
+        ↑↓ Navigate · ✕ {items[focusIdx] && !items[focusIdx].paired ? 'Pair' : 'Connect/Disconnect'}
       </div>
     </Overlay>
   )
