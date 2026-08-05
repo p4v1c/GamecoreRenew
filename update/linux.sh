@@ -8,7 +8,7 @@
 #  in memory), then services are restarted by the detached
 #  gamecore-restart.service unit — never from inside this script, which
 #  would kill it (it lives in the backend's cgroup).
-#  One-time setup for the restart step: install/setup-update-permissions.sh
+#  One-time setup for the restart step: install/steps/setup-update-permissions.sh
 # ================================================================
 set -uo pipefail
 
@@ -148,7 +148,7 @@ echo "[update] Installing new files..."
 #
 # Shipping catalog/ here does NOT touch a running emulator's config — deploying
 # that stays a deliberate act:
-#     bash /opt/GameCore/install/install-emu-configs.sh
+#     bash /opt/GameCore/install/steps/install-emu-configs.sh
 #
 # config/ is excluded wholesale, which is what preserves config/catalog.d/ —
 # the operator's own packs — across every update.
@@ -333,18 +333,18 @@ fi
 # a security fix to the shipped Caddyfile — a route that should not be exposed,
 # a gate that approves too much — reaches no installed box on its own. Nothing
 # said so, either. At least notice, and say what to do about it.
-if [[ -f /etc/caddy/Caddyfile && -f "${GAMECORE_PATH}/install/Caddyfile" ]]; then
+if [[ -f /etc/caddy/Caddyfile && -f "${GAMECORE_PATH}/install/system/Caddyfile" ]]; then
   # Compare against the shipped file with the same port substitution arch.sh
   # applies, so a box on a non-default port is not flagged every single update.
   _live_port=$(grep -oE '127\.0\.0\.1:[0-9]+' /etc/caddy/Caddyfile | head -1 | cut -d: -f2)
   _live_port=${_live_port:-8765}
   if ! sed "s|127\.0\.0\.1:8765|127.0.0.1:${_live_port}|g" \
-       "${GAMECORE_PATH}/install/Caddyfile" | diff -q - /etc/caddy/Caddyfile >/dev/null 2>&1; then
+       "${GAMECORE_PATH}/install/system/Caddyfile" | diff -q - /etc/caddy/Caddyfile >/dev/null 2>&1; then
     echo "[update] NOTE: /etc/caddy/Caddyfile differs from the one shipped in this release."
     echo "[update]       An update cannot rewrite it (root, and the port is templated per box)."
     echo "[update]       If you have not customised it, apply the new one with:"
     echo "[update]         sudo sed 's|127.0.0.1:8765|127.0.0.1:${_live_port}|g' \\"
-    echo "[update]           ${GAMECORE_PATH}/install/Caddyfile > /etc/caddy/Caddyfile \\"
+    echo "[update]           ${GAMECORE_PATH}/install/system/Caddyfile > /etc/caddy/Caddyfile \\"
     echo "[update]           && sudo systemctl reload caddy"
   fi
 fi
@@ -409,7 +409,7 @@ if not notes:
 PYEOF
 
 # Third thing an OTA cannot rewrite: the desktop shortcut. arch.sh writes it
-# pointing at install/gamecore-launcher.sh, which is maintained here — but a
+# pointing at install/bin/gamecore-launcher, which is maintained here — but a
 # box that was set up by hand, or before that shortcut existed, can be pointing
 # somewhere else entirely.
 #
@@ -419,11 +419,11 @@ PYEOF
 # authentications and walked pam_faillock closer to locking the user's account.
 for _d in "$HOME/Desktop/GameCore.desktop" "$HOME/Bureau/GameCore.desktop"; do
   [[ -f "$_d" ]] || continue
-  if ! grep -q "^Exec=${GAMECORE_PATH}/install/gamecore-launcher.sh" "$_d"; then
+  if ! grep -q "^Exec=${GAMECORE_PATH}/install/bin/gamecore-launcher" "$_d"; then
     echo "[update] NOTE: $_d does not run the shipped launcher."
     echo "[update]       It points at: $(grep -m1 '^Exec=' "$_d" | cut -d= -f2-)"
     echo "[update]       An update cannot rewrite a file outside ${GAMECORE_PATH}. Fix with:"
-    echo "[update]         sed -i 's|^Exec=.*|Exec=${GAMECORE_PATH}/install/gamecore-launcher.sh|' \\"
+    echo "[update]         sed -i 's|^Exec=.*|Exec=${GAMECORE_PATH}/install/bin/gamecore-launcher|' \\"
     echo "[update]           '$_d'"
   fi
 done
@@ -454,6 +454,6 @@ if sudo -n systemctl start --no-block gamecore-restart.service 2>/dev/null; then
   echo "[update] Done! ${LATEST_TAG} installed — services restarting in a few seconds."
 else
   echo "[update] Files installed (${LATEST_TAG}) but automatic restart is not set up."
-  echo "[update] Run once:  sudo ${GAMECORE_PATH}/install/setup-update-permissions.sh"
+  echo "[update] Run once:  sudo ${GAMECORE_PATH}/install/steps/setup-update-permissions.sh"
   echo "[update] Then restart manually:  sudo systemctl restart gamecore-backend gamecore-ui"
 fi

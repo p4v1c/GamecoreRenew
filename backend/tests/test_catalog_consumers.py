@@ -91,7 +91,7 @@ def test_no_installer_hardcodes_a_flatpak_config_path():
     other reasons. The two installers must now hold none.
     """
     offenders = []
-    for name in ("install/install-emu-configs.sh", "install/uninstall.sh"):
+    for name in ("install/steps/install-emu-configs.sh", "install/uninstall.sh"):
         for n, line in enumerate(
                 (ROOT / name).read_text(encoding="utf-8").splitlines(), 1):
             if line.lstrip().startswith("#"):
@@ -110,7 +110,7 @@ def test_flatpakify_rewrites_to_the_app_id_the_installer_installs(packs):
     Harmless today only because `launcher_exists("flatpak")` returns True
     first — a mine, not a protection.
     """
-    text = (ROOT / "install/flatpakify-systems.sh").read_text(encoding="utf-8")
+    text = (ROOT / "install/steps/flatpakify-systems.sh").read_text(encoding="utf-8")
     m = re.search(r"FLATPAK_MAP = \{(.*?)^\}", text, re.S | re.M)
     if not m:
         pytest.skip("FLATPAK_MAP is gone — the launcher comes from the catalogue")
@@ -282,9 +282,9 @@ def test_the_old_n64_app_id_is_gone_from_every_consumer():
     """One grep, across every file that used to carry it."""
     dead = "io.github.gopher64.gopher64"
     offenders = []
-    for name in ("install/arch.sh", "install/install-emu-configs.sh",
-                 "install/uninstall.sh", "install/flatpakify-systems.sh",
-                 "verify_emulators.py", "install/systems.json.dist",
+    for name in ("install/arch.sh", "install/steps/install-emu-configs.sh",
+                 "install/uninstall.sh", "install/steps/flatpakify-systems.sh",
+                 "verify_emulators.py", "install/generated/systems.json.dist",
                  "backend/services/scraper.py",
                  "install/installer-gui/catalog_data.py"):
         text = (ROOT / name).read_text(encoding="utf-8")
@@ -318,8 +318,8 @@ def test_every_helper_the_installers_call_is_shipped():
     full = set(re.findall(r"cp -r\s+(\S+)\s+dist_full/", workflow))
 
     referenced = set()
-    for name in ("install/arch.sh", "install/install-emu-configs.sh",
-                 "install/uninstall.sh", "install/flatpakify-systems.sh"):
+    for name in ("install/arch.sh", "install/steps/install-emu-configs.sh",
+                 "install/uninstall.sh", "install/steps/flatpakify-systems.sh"):
         text = (ROOT / name).read_text(encoding="utf-8")
         for line in text.splitlines():
             if line.lstrip().startswith("#"):
@@ -342,7 +342,7 @@ def test_every_helper_the_installers_call_is_shipped():
 def test_a_launcher_token_is_resolved_when_the_grid_is_read():
     """Found by actually starting the backend.
 
-    `install/arch.sh` substitutes @HOME@ when it copies install/apps.json.dist
+    `install/arch.sh` substitutes @HOME@ when it copies install/generated/apps.json.dist
     into config/, and that was the ONLY place it happened. A config/apps.json
     that arrived any other way — restored from a backup, copied out of the
     repository, written by hand — kept the literal, and the YouTube tile

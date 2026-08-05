@@ -73,7 +73,7 @@ __all__ = [
 
 
 def _main() -> None:
-    """install/apply-controller-model.sh — a rescue tool, not the live path.
+    """install/steps/apply-controller-model.sh — a rescue tool, not the live path.
 
     Useful only for retargeting pads that are ALREADY connected without
     unplugging them. Day to day this is fully automatic via gamepad_monitor.

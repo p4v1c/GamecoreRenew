@@ -94,7 +94,7 @@ release and does everything. Re-running it is safe.
 git clone https://github.com/p4v1c/GamecoreRenew.git
 cd GamecoreRenew
 sudo bash install/arch.sh                      # interactive prompts
-sudo bash install/arch.sh --unattended my.conf # scripted (see install/gamecore-install.conf.example)
+sudo bash install/arch.sh --unattended my.conf # scripted (see install/install.conf.example)
 ```
 
 What the installer does:
@@ -243,7 +243,7 @@ Copy ROM files into the matching `emu/<system_id>/` folder via USB or SSH.
 
 The scanner filters strictly on this list — a format that is not declared is not
 shown, with no message. `config/systems.json` is the source of truth and is
-regenerated from `install/systems.json.dist` on every install;
+regenerated from `install/generated/systems.json.dist` on every install;
 `backend/tests/test_systems_extensions.py` pins this table to it.
 
 | System | Folder | Extensions |
@@ -639,7 +639,7 @@ bash update/linux.sh
 The update pulls the latest release from GitHub, replaces app files in place (preserving ROMs, `config/`, and emulators), rebuilds the frontend, then restarts the services through a detached `gamecore-restart.service` unit. That last step needs a one-time root setup:
 
 ```bash
-sudo install/setup-update-permissions.sh
+sudo install/steps/setup-update-permissions.sh
 ```
 
 This installs the restart unit and a sudoers rule allowing the GameCore user to start **only** that unit — the update itself runs unprivileged, from the UI, with progress streamed to the settings screen.
@@ -688,7 +688,7 @@ git add catalog/myemu install/
 ```
 
 **`gen-catalog.py` is not optional.** Three committed files are generated from
-the packs: `install/systems.json.dist` and `install/apps.json.dist` (the tile
+the packs: `install/generated/systems.json.dist` and `install/generated/apps.json.dist` (the tile
 catalogues the installer copies into `config/`) and
 `install/installer-gui/catalog_data.py` (the wizard's tick-box list — the wizard
 is a standalone binary that runs *before* the repository is on the machine, so
@@ -758,7 +758,7 @@ frontend/         React + Vite + Framer Motion + Zustand
     store/        Zustand store (screen, selection, modal depth, session)
 electron/         Electron kiosk shell + overlay BrowserWindow
 config/           never touched by OTA. Two kinds of file live here:
-                  · versioned catalogues, regenerated from install/*.dist on
+                  · versioned catalogues, regenerated from install/generated/*.dist on
                     every install — systems.json, apps.json, overlays.json
                   · per-box state, never in git — auth.json, auth_secret,
                     addons.json, standby.json, theme.json, session.json,
@@ -773,11 +773,15 @@ catalog/          THE source of truth — one directory per emulator or app:
                   generator.py (controller bindings), files/ + steps/ (what the
                   install writes and runs), tests/. See docs/architecture/10.
   _schema/        pack.schema.json — what check-catalog.py validates against
-install/          Installers: arch.sh engine (+ --unattended), uninstall.sh,
-                  installer-gui/ (Qt wizard + its PyInstaller .spec),
-                  gamecore-addon CLI, gamecore-session-select, Caddyfile,
-                  apps.json.dist / systems.json.dist (GENERATED from catalog/
-                  by scripts/gen-catalog.py — do not hand-edit)
+install/          arch.sh (the engine, + --unattended) and uninstall.sh at the
+                  root; everything else grouped by what it IS:
+  bin/            installed into /usr/local/bin — gamecore-addon, -emu,
+                  -launcher, -session-select, -xsetup
+  system/         installed into /etc — Caddyfile, gamecore-restart.service
+  steps/          called by arch.sh, never installed on the box
+  generated/      apps.json.dist, systems.json.dist — written by
+                  scripts/gen-catalog.py, never hand-edited
+  installer-gui/  the Qt wizard + its PyInstaller .spec
 scripts/          catalog-query.py, gamecore-provider.py, gen-catalog.py,
                   check-catalog.py, check-install.sh
 update/           OTA update script (linux.sh)

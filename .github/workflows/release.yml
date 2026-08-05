@@ -53,7 +53,7 @@ jobs:
 
       # The .dist files are build output now. A pack edited without
       # regenerating them is a box that disagrees with itself.
-      - name: Catalogue is in sync with install/*.dist
+      - name: Catalogue is in sync with install/generated/*.dist
         run: |
           python scripts/gen-catalog.py --check
 
@@ -61,11 +61,10 @@ jobs:
       # two independent sed passes that used to chase it are gone.
       - name: No harvest-box home path left
         run: |
-          # Scoped to shipped CONTENT. install/arch.sh and
-          # install-emu-configs.sh still name the literal in comments, because
-          # they keep a back-compat substitution for boxes upgrading from a
-          # release that had it — those comments must stay readable.
-          if grep -rn '/home/pavic' catalog/ install/*.dist config/*.json 2>/dev/null; then
+          # Scoped to shipped CONTENT: the generated catalogues, the packs and
+          # config/. The substitution that used to rewrite the literal at
+          # install time is gone — @HOME@ is the only mechanism now.
+          if grep -rn '/home/pavic' catalog/ install/generated/*.dist config/*.json 2>/dev/null; then
             echo "::error::a literal /home/pavic is back — use the @HOME@ token"
             exit 1
           fi

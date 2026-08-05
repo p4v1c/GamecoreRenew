@@ -132,14 +132,14 @@ def test_without_the_permissions_setup_it_runs_in_place(monkeypatch):
     """A development checkout should fail on its own terms, not pretend."""
     monkeypatch.setattr(catalog.shutil, "which", lambda n: None)
     argv = catalog._cli_argv("install", "rpcs3")
-    assert argv[0].endswith("install/gamecore-emu")
+    assert argv[0].endswith("install/bin/gamecore-emu")
     assert "sudo" not in argv
 
 
 def test_the_sudoers_rule_names_a_root_owned_path():
     """A rule pointing inside GAMECORE_PATH — writable by the very user it
     grants — would be a root shell with extra steps."""
-    setup = (ROOT / "install/setup-update-permissions.sh").read_text()
+    setup = (ROOT / "install/steps/setup-update-permissions.sh").read_text()
     assert "NOPASSWD: /usr/local/bin/gamecore-emu" in setup
     assert "install -m 755 -o root -g root" in setup
     # And never a blanket flatpak rule: that would let the GameCore user

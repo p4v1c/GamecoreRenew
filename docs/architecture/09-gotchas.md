@@ -75,7 +75,7 @@ error breaks the API on the very next request.
 **`config/` is the box's identity.**
 Never touched by OTA. Not all of it is out of git, though — `systems.json`,
 `apps.json`, `overlays.json` and the bundled themes *are* versioned, and the
-installer regenerates the first two from `install/*.dist` on every run. What is
+installer regenerates the first two from `install/generated/*.dist` on every run. What is
 never in git is the **state**: `auth.json` and `auth_secret`, `addons.json`,
 `standby.json`, `theme.json`, `session.json`, `playtime.db`. Overwriting one of
 those is data loss — the password, the addon registry, the play history.

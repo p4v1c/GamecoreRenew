@@ -1,6 +1,6 @@
 """Deploy a pack's `seed/` into the emulator's real config directory.
 
-The Python side of what `install/install-emu-configs.sh` does, so the hot
+The Python side of what `install/steps/install-emu-configs.sh` does, so the hot
 install path of phase 5 and the shell installer share one implementation.
 
 Two things this owns:

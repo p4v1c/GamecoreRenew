@@ -43,7 +43,7 @@ def _cli_argv(action: str, pack_id: str) -> list[str]:
     Unlike gamecore-addon — which installs user-level services and needs no
     privilege — this installs Flatpaks and system packages. The backend runs as
     the GameCore user, so it goes through the single narrow sudoers rule
-    install/setup-update-permissions.sh writes:
+    install/steps/setup-update-permissions.sh writes:
 
         <user> ALL=(root) NOPASSWD: /usr/local/bin/gamecore-emu
 
@@ -59,7 +59,7 @@ def _cli_argv(action: str, pack_id: str) -> list[str]:
         return ["sudo", "-n", installed, action, pack_id]
     # Development / a box where the permissions were never set up: run it
     # directly and let it fail on its own terms rather than pretend.
-    return [str(GAMECORE_ROOT / "install" / "gamecore-emu"), action, pack_id]
+    return [str(GAMECORE_ROOT / "install" / "bin" / "gamecore-emu"), action, pack_id]
 
 
 def _live_ids() -> set[str]:

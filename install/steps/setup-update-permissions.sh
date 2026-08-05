@@ -44,7 +44,7 @@ if [[ -f "${HERE}/gamecore-emu" ]]; then
   install -m 755 -o root -g root "${HERE}/gamecore-emu" /usr/local/bin/gamecore-emu
   EMU_RULE="${GC_USER} ALL=(root) NOPASSWD: /usr/local/bin/gamecore-emu"
 else
-  echo "⚠  install/gamecore-emu not found — hot install will not be available."
+  echo "⚠  install/bin/gamecore-emu not found — hot install will not be available."
   EMU_RULE=""
 fi
 

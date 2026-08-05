@@ -26,7 +26,7 @@ _busy_lock = asyncio.Lock()  # one CLI action at a time
 
 
 def _cli() -> str:
-    path = shutil.which("gamecore-addon") or str(GAMECORE_ROOT / "install" / "gamecore-addon")
+    path = shutil.which("gamecore-addon") or str(GAMECORE_ROOT / "install" / "bin" / "gamecore-addon")
     return path
 
 

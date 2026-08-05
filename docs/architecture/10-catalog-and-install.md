@@ -173,8 +173,8 @@ Three committed files are **derived** from the packs:
 | Generated | Why it exists |
 |---|---|
 | `install/installer-gui/catalog_data.py` | the wizard's tick-box list. It is a PyInstaller binary that runs **before** the repository is on the machine, so the list is baked in at build time |
-| `install/apps.json.dist` | the pristine app-tile catalogue `arch.sh` copies into `config/` |
-| `install/systems.json.dist` | same, for systems |
+| `install/generated/apps.json.dist` | the pristine app-tile catalogue `arch.sh` copies into `config/` |
+| `install/generated/systems.json.dist` | same, for systems |
 
 ```bash
 python3 scripts/gen-catalog.py          # regenerate

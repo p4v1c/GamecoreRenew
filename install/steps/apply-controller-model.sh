@@ -15,9 +15,9 @@
 #  a rescue tool if something needs re-applying by hand).
 #
 #  Usage:
-#    install/apply-controller-model.sh                  # auto-detect, up to 4
-#    install/apply-controller-model.sh 054c:0ce6         # force a single VID:PID as Player 1
-#    install/apply-controller-model.sh 054c:0ce6 "PS5 Controller"
+#    install/steps/apply-controller-model.sh                  # auto-detect, up to 4
+#    install/steps/apply-controller-model.sh 054c:0ce6         # force a single VID:PID as Player 1
+#    install/steps/apply-controller-model.sh 054c:0ce6 "PS5 Controller"
 # ================================================================
 set -euo pipefail
 

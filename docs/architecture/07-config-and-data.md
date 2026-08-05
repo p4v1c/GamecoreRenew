@@ -114,8 +114,8 @@ through it.
 
 | File | Written by | Read by | In git? |
 |---|---|---|---|
-| `systems.json` | installer, from `install/systems.json.dist` | `routers/systems.py` | **yes** |
-| `apps.json` | installer, from `install/apps.json.dist` | `routers/systems.py` | **yes** |
+| `systems.json` | installer, from `install/generated/systems.json.dist` | `routers/systems.py` | **yes** |
+| `apps.json` | installer, from `install/generated/apps.json.dist` | `routers/systems.py` | **yes** |
 | `overlays.json` | by hand | `routers/overlays.py`, `electron/main.js`, `overlay_monitor.py` | **yes** |
 | `themes/` | shipped + `update/linux.sh` (adds only what is missing) | `services/themes.py` | **yes** |
 | `theme.json` | `services/themes.set_active()`, atomically | `services/themes.get_active()` | no |
@@ -131,7 +131,7 @@ is data loss:
 
 - The **catalogues** (`systems.json`, `apps.json`, `overlays.json`, and the
   bundled themes) are versioned. `install/arch.sh` regenerates the first two from
-  `install/*.dist` on **every** run, so editing them in place is not durable —
+  `install/generated/*.dist` on **every** run, so editing them in place is not durable —
   edit the `.dist` files.
 - The **state** (`theme.json`, `addons.json`, `standby.json`, `session.json`,
   `auth.json`, `auth_secret`, `playtime.db`) is never in git and exists only on

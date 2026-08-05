@@ -43,7 +43,7 @@ def _hot_load(path: Path) -> list:
 def _expand(rows: list) -> list:
     """Resolve the pack tokens in launcher fields, at READ time.
 
-    `install/arch.sh` substitutes @HOME@ when it copies install/apps.json.dist
+    `install/arch.sh` substitutes @HOME@ when it copies install/generated/apps.json.dist
     into config/, and that used to be the only place it happened — so a
     config/apps.json that arrived any other way (restored from a backup, copied
     from the repository, written by hand) kept the literal, and the tile

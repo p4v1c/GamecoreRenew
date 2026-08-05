@@ -119,8 +119,8 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 #   --full           : GameCore + all emulators/apps (Flatpak) + curated configs
 #   --minimal        : GameCore only — no emulator, no application
 #   --unattended <f> : zero prompt — read everything from conf file <f>
-#                      (written by the graphical wizard install/install.sh,
-#                      also the entry point for the GameCore OS ISO)
+#                      (written by install/installer-gui/, and the entry point
+#                      for the GameCore OS ISO. See install.conf.example)
 MODE="${1:-}"
 UNATTENDED=false
 CONF=""
@@ -288,7 +288,7 @@ if [ "$PROJECT_ROOT" != "$GAMECORE_PATH" ]; then
 
   # First run: those directories have to arrive from somewhere. Copy each only
   # when it is absent at the destination, so an existing install keeps its own.
-  # config/systems.json and config/apps.json are regenerated from install/*.dist
+  # config/systems.json and config/apps.json are regenerated from install/generated/*.dist
   # further down either way, so excluding config/ above costs nothing.
   for _keep in emu config assets/overlays assets/logos; do
     if [ -d "$PROJECT_ROOT/$_keep" ] && [ ! -e "$GAMECORE_PATH/$_keep" ]; then
@@ -524,7 +524,7 @@ if [[ "$MODE" == "full" ]]; then
   msg "Emulator configs"
   if [ -d "$GAMECORE_PATH/catalog" ]; then
     sudo -u "$USER_NAME" -H env GAMECORE_PATH="$GAMECORE_PATH" \
-      bash "$GAMECORE_PATH/install/install-emu-configs.sh" \
+      bash "$GAMECORE_PATH/install/steps/install-emu-configs.sh" \
       && ok "Curated configs deployed." || warn "Config deployment failed."
   else
     warn "catalog/ not found — skipping."
@@ -688,7 +688,7 @@ fi
 # ── Home-grid tiles (config/apps.json + config/systems.json) ─────
 # An unchecked emulator or app must not leave a dead tile on the TV.
 #
-# Both files are regenerated from the pristine catalogues in install/*.dist
+# Both files are regenerated from the pristine catalogues in install/generated/*.dist
 # on every run. Filtering in place used to be a one-way door: re-running the
 # installer with MORE emulators selected could never bring back a tile a
 # previous minimal run had deleted, because config/ is excluded from OTA and
@@ -698,7 +698,7 @@ fi
 progress 76 "Home-grid tiles"
 msg "Home-grid tiles"
 for pair in "apps.json" "systems.json"; do
-  DIST="$GAMECORE_PATH/install/${pair}.dist"
+  DIST="$GAMECORE_PATH/install/generated/${pair}.dist"
   LIVE="$GAMECORE_PATH/config/${pair}"
   if [[ -f "$DIST" ]]; then
     # First run only: on a second pass $LIVE is already our generated file, and
@@ -706,7 +706,7 @@ for pair in "apps.json" "systems.json"; do
     [[ -f "$LIVE" && ! -e "${LIVE}.bak-install" ]] && cp -f "$LIVE" "${LIVE}.bak-install"
     cp -f "$DIST" "$LIVE"
   else
-    warn "install/${pair}.dist missing — filtering ${pair} in place."
+    warn "install/generated/${pair}.dist missing — filtering ${pair} in place."
   fi
 done
 # apps.json ships an @HOME@ token (it is generated from catalog/*/pack.json).
@@ -738,7 +738,7 @@ if [[ "$MODE" == "minimal" ]]; then
 else
   EMU_SEL="$EMULATORS"
 fi
-bash "$GAMECORE_PATH/install/flatpakify-systems.sh" "$GAMECORE_PATH" "$EMU_SEL" \
+bash "$GAMECORE_PATH/install/steps/flatpakify-systems.sh" "$GAMECORE_PATH" "$EMU_SEL" \
   && ok "systems.json adapted to the selected emulators." \
   || warn "flatpakify failed — check config/systems.json."
 chown "${USER_NAME}:${USER_NAME}" \
@@ -808,7 +808,7 @@ udevadm control --reload-rules 2>/dev/null && udevadm trigger 2>/dev/null && ok 
 # ── Addon manager ────────────────────────────────────────────────
 progress 84 "Addon manager"
 msg "Addon manager (gamecore-addon)"
-install -m 755 "$GAMECORE_PATH/install/gamecore-addon" /usr/local/bin/gamecore-addon
+install -m 755 "$GAMECORE_PATH/install/bin/gamecore-addon" /usr/local/bin/gamecore-addon
 # Pre-create the addons checkout dir owned by the user so `gamecore-addon
 # install` never needs root for user-level addons.
 install -d -o "$USER_NAME" -g "$USER_NAME" /opt/gamecore-addons
@@ -964,7 +964,7 @@ msg "SDDM auto-login"
 # installed to /usr/local/bin further down. One implementation of the ranking,
 # so the installer and the desktop escape hatch cannot disagree about which
 # session this machine has.
-KIOSK_SESSION=$(bash "$GAMECORE_PATH/install/gamecore-session-select" pick-desktop --x11 2>/dev/null || true)
+KIOSK_SESSION=$(bash "$GAMECORE_PATH/install/bin/gamecore-session-select" pick-desktop --x11 2>/dev/null || true)
 manifest_set KIOSK_SESSION "$KIOSK_SESSION"
 
 if [[ -z "$KIOSK_SESSION" ]]; then
@@ -1022,15 +1022,15 @@ fi
 
 # Force 1920x1080 at the display-server level (never 4K). SDDM runs this as
 # root at X startup, before any session, so the whole X server — kiosk, games
-# and overlays — is pinned to 1080p. See install/gamecore-xsetup.sh.
+# and overlays — is pinned to 1080p. See install/bin/gamecore-xsetup.
 # (start-ui.sh re-applies it inside the session, after KScreen has had its say.)
-install -m755 "$GAMECORE_PATH/install/gamecore-xsetup.sh" /usr/local/bin/gamecore-xsetup
+install -m755 "$GAMECORE_PATH/install/bin/gamecore-xsetup" /usr/local/bin/gamecore-xsetup
 
 # The desktop escape hatch. The box auto-logs into its desktop with the kiosk
 # over it; this turns the kiosk off — for the ten minutes a year someone needs a
 # file manager — without editing SDDM drop-ins as root and without leaving
 # gamecore-ui to redraw over the desktop at the next boot.
-install -m755 "$GAMECORE_PATH/install/gamecore-session-select" /usr/local/bin/gamecore-session-select
+install -m755 "$GAMECORE_PATH/install/bin/gamecore-session-select" /usr/local/bin/gamecore-session-select
 mkdir -p /etc/sddm.conf.d
 cat > /etc/sddm.conf.d/zz-gamecore-display.conf <<EOF
 [X11]
@@ -1076,7 +1076,7 @@ fi
 $CADDY_PREEXISTING && manifest_set CADDY_WAS_ACTIVE active \
                    || manifest_set CADDY_WAS_ACTIVE inactive
 sed "s|127\.0\.0\.1:8765|127.0.0.1:${WEB_PORT}|g" \
-  "$GAMECORE_PATH/install/Caddyfile" > /etc/caddy/Caddyfile
+  "$GAMECORE_PATH/install/system/Caddyfile" > /etc/caddy/Caddyfile
 systemctl enable caddy.service
 # restart, not `enable --now`: on a re-run caddy is already active and
 # `--now` is a no-op, so it would keep serving the previous config.
@@ -1129,7 +1129,7 @@ fi
 
 # ── Desktop launcher (clickable "GameCore" icon) ─────────────────
 msg "Desktop launcher"
-chmod +x "$GAMECORE_PATH/install/gamecore-launcher.sh"
+chmod +x "$GAMECORE_PATH/install/bin/gamecore-launcher"
 DESKTOP_DIR=$(sudo -u "$USER_NAME" bash -lc 'xdg-user-dir DESKTOP 2>/dev/null' || true)
 [[ -n "$DESKTOP_DIR" && -d "$DESKTOP_DIR" ]] || DESKTOP_DIR="$USER_HOME/Desktop"
 APPS_DIR="$USER_HOME/.local/share/applications"
@@ -1138,7 +1138,7 @@ LAUNCHER_DESKTOP="[Desktop Entry]
 Type=Application
 Name=GameCore
 Comment=Lancer l'interface GameCore
-Exec=$GAMECORE_PATH/install/gamecore-launcher.sh
+Exec=$GAMECORE_PATH/install/bin/gamecore-launcher
 Icon=input-gaming
 Terminal=true
 Categories=Game;"
@@ -1150,7 +1150,7 @@ sudo -u "$USER_NAME" gio set "$DESKTOP_DIR/GameCore.desktop" metadata::trusted t
 ok "Desktop launcher installed ($DESKTOP_DIR/GameCore.desktop)."
 
 # OTA update: detached restart unit + narrow sudoers rule
-bash "$GAMECORE_PATH/install/setup-update-permissions.sh" "$USER_NAME" \
+bash "$GAMECORE_PATH/install/steps/setup-update-permissions.sh" "$USER_NAME" \
   && ok "OTA restart permissions installed." || warn "OTA restart setup failed."
 
 # ── SSH ──────────────────────────────────────────────────────────

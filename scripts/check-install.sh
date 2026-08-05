@@ -47,7 +47,7 @@ for d in backend frontend electron install update catalog scripts config; do
 done
 # scripts/ is the one the installers CALL. Leaving it out does not degrade
 # anything — it breaks the install outright, and only on a real box.
-for f in scripts/catalog-query.py scripts/gamecore-provider.py install/gamecore-emu; do
+for f in scripts/catalog-query.py scripts/gamecore-provider.py install/bin/gamecore-emu; do
   [[ -f "$GAMECORE_PATH/$f" ]] && ok "$f" || bad "$f" "the installers call this"
 done
 [[ -f "$GAMECORE_PATH/frontend/dist/index.html" ]] && ok "frontend built" \
@@ -106,8 +106,8 @@ PY
 
 # ── 3. what the catalogue says should be installed, is ────────────────────
 head_ "Emulators"
-if [[ -x /usr/local/bin/gamecore-emu || -f "$GAMECORE_PATH/install/gamecore-emu" ]]; then
-  CLI=$(command -v gamecore-emu || echo "$GAMECORE_PATH/install/gamecore-emu")
+if [[ -x /usr/local/bin/gamecore-emu || -f "$GAMECORE_PATH/install/bin/gamecore-emu" ]]; then
+  CLI=$(command -v gamecore-emu || echo "$GAMECORE_PATH/install/bin/gamecore-emu")
   while read -r line; do
     case "$line" in
       *OK) ok "${line%% *}" ;;

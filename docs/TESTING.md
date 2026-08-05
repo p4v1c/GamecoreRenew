@@ -112,7 +112,7 @@ part-way through, months later.
 ## Tests that pin a *document*
 
 `test_systems_extensions.py` parses the "Supported formats per system" table out
-of `README.md` and compares it to `install/systems.json.dist`. The table gained
+of `README.md` and compares it to `install/generated/systems.json.dist`. The table gained
 an `emu/<id>/` folder column specifically so the pairing is unambiguous enough to
 check mechanically.
 

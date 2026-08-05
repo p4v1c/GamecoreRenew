@@ -113,8 +113,8 @@ def test_the_generated_dist_files_are_in_sync():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     systems, apps = mod.render(load_catalog(CATALOG, LOCAL))
-    assert (ROOT / "install/systems.json.dist").read_text(encoding="utf-8") == systems
-    assert (ROOT / "install/apps.json.dist").read_text(encoding="utf-8") == apps
+    assert (ROOT / "install/generated/systems.json.dist").read_text(encoding="utf-8") == systems
+    assert (ROOT / "install/generated/apps.json.dist").read_text(encoding="utf-8") == apps
 
 
 # ── the loader ──────────────────────────────────────────────────────────────

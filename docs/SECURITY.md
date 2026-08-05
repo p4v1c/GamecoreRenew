@@ -51,7 +51,7 @@ branch and one PR per phase**.
 
 ### Phase 2 — Caddy: reverse proxy + TLS
 
-- `install/Caddyfile` → `/etc/caddy/Caddyfile`; `pacman -S caddy`,
+- `install/system/Caddyfile` → `/etc/caddy/Caddyfile`; `pacman -S caddy`,
   `systemctl enable --now caddy`, then `caddy trust` (root CA into the box's own
   trust store, so the kiosk browser gets no warning).
 - `tls internal`: Caddy's local CA acts as a mini-CA. LAN clients install it once

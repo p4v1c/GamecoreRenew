@@ -8,7 +8,7 @@
 #  pad sections, everything else (your settings, game dirs, creds…)
 #  is preserved. Backups: <file>.bak-multids4. Idempotent.
 #
-#  Run as the gaming user:  bash install/apply-multi-ds4.sh
+#  Run as the gaming user:  bash install/steps/apply-multi-ds4.sh
 # ================================================================
 set -euo pipefail
 

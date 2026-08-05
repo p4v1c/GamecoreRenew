@@ -19,7 +19,7 @@
 #                AppImage whose download failed, Xenia without wine. A tile
 #                that cannot launch is worse than no tile.
 #
-#  Usage:  bash install/flatpakify-systems.sh [GAMECORE_PATH] [SELECTION]
+#  Usage:  bash install/steps/flatpakify-systems.sh [GAMECORE_PATH] [SELECTION]
 #            SELECTION = "all" (default), "" (none), or a space-separated
 #            list of system ids, matching arch.sh's EMULATORS.
 # ================================================================

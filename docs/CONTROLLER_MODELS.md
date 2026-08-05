@@ -180,12 +180,12 @@ and used to release the slot outright — `gp:disconnected` broadcast,
 pad was still connected over Bluetooth and still in the player's hands. The slot
 is released only once no live path maps to that key.
 
-## `install/apply-controller-model.sh` — rescue tool only
+## `install/steps/apply-controller-model.sh` — rescue tool only
 
 ```
-install/apply-controller-model.sh                    # auto-detect, up to 4
-install/apply-controller-model.sh 054c:0ce6          # forced VID:PID (Player 1)
-install/apply-controller-model.sh 054c:0ce6 "PS5 Controller"
+install/steps/apply-controller-model.sh                    # auto-detect, up to 4
+install/steps/apply-controller-model.sh 054c:0ce6          # forced VID:PID (Player 1)
+install/steps/apply-controller-model.sh 054c:0ce6 "PS5 Controller"
 ```
 
 Calls `controller_profiles.py` directly. Useful only for retargeting pads that

@@ -437,7 +437,7 @@ else
   info "No catalog/ seeds to reverse — skipping."
 fi
 
-# install/apply-multi-ds4.sh (run by hand, not by the installer) leaves its own
+# install/steps/apply-multi-ds4.sh (run by hand, not by the installer) leaves its own
 # .bak-multids4 backups. Restore them only where the seeds had no backup of
 # its own — otherwise the .bak-preinstall we just put back is the older, more
 # correct "before" state and the multi-ds4 copy is stale.

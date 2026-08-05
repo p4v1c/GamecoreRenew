@@ -130,7 +130,7 @@ the bezel overlays, the fullscreen enforcer, `gamecore-xsetup`'s 1080p pin and
 the gamepad→keyboard bridge's window detection all speak X11 — so a Wayland
 session is not a supported target.
 
-The session name is **not hardcoded anywhere**. `install/gamecore-session-select
+The session name is **not hardcoded anywhere**. `install/bin/gamecore-session-select
 pick-desktop --x11` ranks what `/usr/share/xsessions/` offers (Plasma first,
 then the other full desktops), `install/arch.sh` writes the winner into
 `/etc/sddm.conf.d/zz-gamecore-autologin.conf` and records it in

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ================================================================
 #  GameCore — Deploy curated emulator configs (catalog/<id>/seed/)
-#  Run as the gaming user (NOT root):  bash install/install-emu-configs.sh
+#  Run as the gaming user (NOT root):  bash install/steps/install-emu-configs.sh
 #
 #  Copies each catalog/<emulator>/seed/ tree into the emulator's real
 #  config location — Flatpak app dirs for everything except DuckStation

@@ -5,7 +5,7 @@ is not listed, with nothing said about it. So a missing entry is invisible —
 which is how `.cue` went missing for PS1 while the README advertised it, and
 why this file exists.
 
-install/systems.json.dist is the one that matters on a box: install/arch.sh
+install/generated/systems.json.dist is the one that matters on a box: install/arch.sh
 regenerates config/systems.json from it on every run. The two must not drift,
 and neither may drift from the README table.
 
@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
-DIST = REPO / "install/systems.json.dist"
+DIST = REPO / "install/generated/systems.json.dist"
 LIVE = REPO / "config/systems.json"
 README = REPO / "README.md"
 

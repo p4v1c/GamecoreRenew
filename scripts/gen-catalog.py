@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate install/systems.json.dist and install/apps.json.dist from the packs.
+"""Generate install/generated/systems.json.dist and install/generated/apps.json.dist from the packs.
 
     scripts/gen-catalog.py            # write the .dist files
     scripts/gen-catalog.py --check    # fail if the committed .dist are stale
@@ -15,7 +15,7 @@ files use, not the order the pack declares.
 Phase 1 keeps behaviour identical, which drives two deliberate choices:
 
   · `path`/`args` come from `preferIfPresent` when a pack declares one. That is
-    what `install/systems.json.dist` says today (`lib/duck`, `lib/rpcs3`, …):
+    what `install/generated/systems.json.dist` says today (`lib/duck`, `lib/rpcs3`, …):
     the reference box's native binaries. flatpakify-systems.sh still rewrites
     them to Flatpak launchers at install time on a fresh box, exactly as
     before.
@@ -34,8 +34,8 @@ sys.path.insert(0, str(ROOT))
 
 from backend.services.catalog import load_catalog  # noqa: E402
 
-SYSTEMS_DIST   = ROOT / "install" / "systems.json.dist"
-APPS_DIST      = ROOT / "install" / "apps.json.dist"
+SYSTEMS_DIST   = ROOT / "install" / "generated" / "systems.json.dist"
+APPS_DIST      = ROOT / "install" / "generated" / "apps.json.dist"
 COLOURS_TS     = ROOT / "frontend" / "src" / "lib" / "systemColors.ts"
 INSTALLER_DATA = ROOT / "install" / "installer-gui" / "catalog_data.py"
 OVERLAYS       = ROOT / "config" / "overlays.json"

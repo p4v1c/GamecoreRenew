@@ -63,12 +63,12 @@ serves `/roms`:
 
 ```bash
 # on the box
-sudo install -m755 ~/gamecore-test/GamecoreRenew/install/gamecore-addon /usr/local/bin/
+sudo install -m755 ~/gamecore-test/GamecoreRenew/install/bin/gamecore-addon /usr/local/bin/
 sudo install -d -o "$USER" -g "$USER" /opt/gamecore-addons
 ```
 
 (If the sandbox checkout is gone, grab the script from the release's
-`gamecore-full.tar.gz` under `install/gamecore-addon`.)
+`gamecore-full.tar.gz` under `install/bin/gamecore-addon`.)
 
 ## Step 3 — install `rom-manager` (box still on the old core)
 
