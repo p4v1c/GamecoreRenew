@@ -43,7 +43,7 @@ import json
 import shutil
 from pathlib import Path
 
-from .tiles import tile_entry
+from .tiles import flatpak_app_id, tile_entry
 
 REMOVED_FILE = "catalog-removed.json"
 
@@ -89,17 +89,15 @@ def _launcher_resolves(path: str, root: Path) -> bool:
     return shutil.which(path) is not None
 
 
-def _flatpak_app_id(args: str) -> str:
-    """The app id out of `run <app-id> <flags…>`, or ""."""
-    parts = args.split()
-    return parts[1] if len(parts) > 1 and parts[0] == "run" else ""
+# The app id is read by tiles.py, which owns the shape of a launcher — see the
+# failure both copies of this used to produce.
 
 
 def launcher_is_stale(entry: dict, pack, known_app_ids: set[str], root: Path) -> str:
     """"" when the launcher is fine, otherwise why it is not."""
     path, args = entry.get("path", ""), entry.get("args", "")
     if path == "flatpak":
-        app_id = _flatpak_app_id(args)
+        app_id = flatpak_app_id(args)
         if app_id and app_id not in known_app_ids:
             return (f"launches {app_id}, which no pack declares "
                     f"(the installer installs {pack.app_id or 'something else'})")

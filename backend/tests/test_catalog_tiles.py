@@ -96,3 +96,58 @@ def test_prefer_if_present_is_the_only_thing_the_box_changes(packs):
         differing = {k for k in shipped if shipped[k] != merged.get(k)}
         assert differing <= {"path", "args"}, \
             f"{pack.id}: the two builders differ on {differing - {'path', 'args'}}"
+
+
+# ── reading the app id out of a flatpak launcher ───────────────────────────
+
+def test_the_app_id_is_the_first_non_option_argument():
+    """Found on a real box, and silent in both readers.
+
+    `geforcenow` launches `run --nosocket=wayland --socket=x11
+    com.nvidia.geforcenow`. Both readers used to take the token after `run`
+    and therefore read `--nosocket=wayland` as the application id:
+
+      · process_manager._flatpak_kill ran `flatpak kill --nosocket=wayland`,
+        which kills nothing — and it only warns when `run` is missing, which it
+        was not, so quitting the app left its sandbox running and the log said
+        the kill had been issued;
+      · merge.launcher_is_stale found no pack declaring `--nosocket=wayland`
+        and would have rewritten the launcher as stale. Latent only because no
+        pack ships flags today.
+    """
+    from backend.services.catalog.tiles import flatpak_app_id
+
+    assert flatpak_app_id("run --nosocket=wayland --socket=x11 com.nvidia.geforcenow") \
+        == "com.nvidia.geforcenow"
+    # The ordinary shape every pack uses, and the flags that follow an id.
+    assert flatpak_app_id("run net.rpcs3.RPCS3") == "net.rpcs3.RPCS3"
+    assert flatpak_app_id("run net.shadps4.shadPS4 --fullscreen true -g") \
+        == "net.shadps4.shadPS4"
+
+
+@pytest.mark.parametrize("args", ["", "kill net.rpcs3.RPCS3", "run", "run --only-flags"])
+def test_something_that_is_not_a_flatpak_run_yields_nothing(args):
+    """Empty, never a guess. `merge` treats "" as "no opinion" and leaves the
+    launcher alone; `_flatpak_kill` warns and falls back to killpg. A wrong id
+    would make one rewrite a working launcher and the other kill nothing."""
+    from backend.services.catalog.tiles import flatpak_app_id
+    assert flatpak_app_id(args) == ""
+
+
+def test_every_shipped_pack_still_parses_to_its_declared_app_id(packs):
+    """The fix must not move any pack that was already correct.
+
+    All twelve put the id straight after `run`, so this is the characterisation
+    half: whatever the rule becomes, it keeps answering what the catalogue
+    declares.
+    """
+    from backend.services.catalog.tiles import flatpak_app_id
+
+    wrong = []
+    for pack in packs.values():
+        if not pack.app_id:
+            continue
+        _, args = pack.launcher()
+        if args.startswith("run ") and flatpak_app_id(args) != pack.app_id:
+            wrong.append(f"{pack.id}: read {flatpak_app_id(args)!r}, declares {pack.app_id!r}")
+    assert wrong == [], "\n".join(wrong)

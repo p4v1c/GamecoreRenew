@@ -427,10 +427,13 @@ class ProcessManager:
 
     async def _flatpak_kill(self) -> None:
         """Run 'flatpak kill <app-id>' non-blockingly, like the C++ startDetached."""
-        try:
-            idx = self._launch_args.index("run")
-            app_id = self._launch_args[idx + 1]
-        except (ValueError, IndexError):
+        # Read by tiles.py: the id is the first NON-OPTION argument after
+        # `run`, not the token after it. This used to take args[idx + 1] and so
+        # ran `flatpak kill --nosocket=wayland` for any tile carrying a flag —
+        # killing nothing, warning about nothing, and leaving the sandbox up.
+        from .catalog.tiles import flatpak_app_id
+        app_id = flatpak_app_id(" ".join(self._launch_args))
+        if not app_id:
             log.warning("flatpak_kill: could not find app-id in args %s", self._launch_args)
             return
 

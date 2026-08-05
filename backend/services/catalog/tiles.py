@@ -35,6 +35,37 @@ from collections.abc import Callable
 LauncherResolver = Callable[[object], "tuple[str, str]"]
 
 
+def flatpak_app_id(args: str) -> str:
+    """The application id out of a `flatpak run …` argument string, or "".
+
+    The id is the first argument that is not an option — NOT simply the token
+    after `run`. Flatpak takes its own flags there, and a tile that needs one
+    reads `run --nosocket=wayland --socket=x11 com.nvidia.geforcenow`.
+
+    Both readers used to take `args[1]` and therefore read `--nosocket=wayland`
+    as the application id. That was silent in both:
+
+      · `process_manager._flatpak_kill` ran `flatpak kill --nosocket=wayland`,
+        which kills nothing. It only warns when `run` is absent, and `run` was
+        there — so quitting that app left its sandbox running, and the log said
+        the kill had been issued;
+      · `merge.launcher_is_stale` compared it against the declared app ids,
+        found no pack declaring `--nosocket=wayland`, and would have rewritten
+        the launcher as stale. Latent only because no pack ships flags today —
+        the first one to need `--socket=x11` would have had its launcher
+        silently replaced on the next update.
+
+    One reader now, so the next caller cannot get it wrong a third way.
+    """
+    parts = args.split()
+    if not parts or parts[0] != "run":
+        return ""
+    for token in parts[1:]:
+        if not token.startswith("-"):
+            return token
+    return ""
+
+
 def preferred_launcher(pack) -> tuple[str, str]:
     launch = pack.data["launch"]
     prefer = launch.get("preferIfPresent")
