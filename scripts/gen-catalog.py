@@ -110,6 +110,15 @@ def app_entry(pack) -> dict:
         entry["iconPath"] = f"assets/logos/{LOGO_NAME[pack.id]}"
     entry["path"] = path
     entry["args"] = args
+    # Launch-time behaviour the live entry carries and the pack declares. The
+    # pack speaks camelCase like the rest of the schema; games.py and
+    # fullscreen_enforcer.py read the snake_case names they always have.
+    launch = pack.data["launch"]
+    if fs := launch.get("fullscreen"):
+        entry["fullscreen"] = {"wm_class": fs["wmClass"],
+                               "timeout_s": fs.get("timeoutSec", 45)}
+    if launch.get("gamepadTrigger"):
+        entry["gamepadTrigger"] = True
     return entry
 
 

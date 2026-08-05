@@ -41,6 +41,15 @@
     "color": "#8a5fff",
     "iconPath": "assets/logos/stremio.png",
     "path": "bash",
-    "args": "/opt/Stremio/stremio-tv.sh"
+    "args": "/opt/Stremio/stremio-tv.sh",
+    "fullscreen": {
+      "wm_class": [
+        "stremio",
+        "Stremio",
+        "com.stremio.Stremio"
+      ],
+      "timeout_s": 60
+    },
+    "gamepadTrigger": true
   }
 ]

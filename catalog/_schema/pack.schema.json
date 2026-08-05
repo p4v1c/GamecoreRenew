@@ -98,6 +98,20 @@
       "properties": {
         "path": { "type": "string", "minLength": 1 },
         "args": { "type": "string" },
+        "fullscreen": {
+          "description": "For an app with no fullscreen CLI flag (Stremio has none). backend/services/fullscreen_enforcer.py waits for a window whose WM_CLASS matches, then asks the WM to fullscreen it over EWMH.",
+          "type": "object",
+          "required": ["wmClass"],
+          "additionalProperties": false,
+          "properties": {
+            "wmClass":    { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+            "timeoutSec": { "type": "integer", "minimum": 1, "maximum": 300 }
+          }
+        },
+        "gamepadTrigger": {
+          "description": "Re-fire udev after launch. A Flatpak app that opens its own window only sees a pad plugged in before it started; this makes one plugged in after it appear. Needs the udevadm sudoers rule.",
+          "type": "boolean"
+        },
         "preferIfPresent": {
           "description": "Absorbs the REWRITE pass of flatpakify-systems.sh: when this path exists, it wins over the nominal launcher.",
           "type": "object",

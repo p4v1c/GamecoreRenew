@@ -27,7 +27,16 @@
   ],
   "launch": {
     "path": "bash",
-    "args": "/opt/Stremio/stremio-tv.sh"
+    "args": "/opt/Stremio/stremio-tv.sh",
+    "fullscreen": {
+      "wmClass": [
+        "stremio",
+        "Stremio",
+        "com.stremio.Stremio"
+      ],
+      "timeoutSec": 60
+    },
+    "gamepadTrigger": true
   },
   "postInstall": [
     {

@@ -56,7 +56,7 @@ by `scripts/check-catalog.py`, which CI runs before anything else. Required:
 |---|---|---|
 | `id` `kind` `label` `platform` `color` | everything | identity. `kind` is `emulator` or `app` |
 | `emulatorName` `family` `description` | the grid, the install wizard | display only |
-| `launch` | the backend, `flatpakify-systems.sh` | the command the tile runs. `preferIfPresent` picks a native binary over the Flatpak when one exists |
+| `launch` | the backend, `flatpakify-systems.sh` | the command the tile runs. `preferIfPresent` picks a native binary over the Flatpak when one exists. `fullscreen` and `gamepadTrigger` cover what happens just after — see below |
 | `roms` | the backend, `arch.sh` | ROM directory and extensions |
 | `config` | `install-emu-configs.sh` | where `seed/` is deployed |
 | `controllers` | `backend/services/configgen/` | which binding strategy `generator.py` implements |
@@ -105,6 +105,32 @@ page is still a failed download, and an optional `sha256`.
 - `ifAbsent: true` writes only when the destination does not exist. Re-running
   the installer is documented as safe, and for a file the owner is invited to
   hand-edit, safe has to mean untouched.
+
+### `launch.fullscreen` and `launch.gamepadTrigger`
+
+Two things a tile may need once the app is up, both read by
+`backend/routers/games.py` right after the launch succeeds:
+
+```json
+"launch": {
+  "path": "bash", "args": "/opt/Stremio/stremio-tv.sh",
+  "fullscreen": { "wmClass": ["stremio", "Stremio", "com.stremio.Stremio"],
+                  "timeoutSec": 60 },
+  "gamepadTrigger": true
+}
+```
+
+- `fullscreen` — for an app with no fullscreen CLI flag, and Stremio has none.
+  `fullscreen_enforcer.py` waits up to `timeoutSec` for a window whose WM_CLASS
+  matches, then asks the window manager to fullscreen it over EWMH. X11 and
+  XWayland only.
+- `gamepadTrigger` — re-fires `udevadm trigger` after launch. A Flatpak app only
+  sees the pads that existed when it started; this makes one plugged in
+  afterwards appear. Needs the udevadm sudoers rule.
+
+The pack spells them in camelCase like the rest of the schema;
+`gen-catalog.py` writes the `wm_class` / `timeout_s` spelling the enforcer has
+always read into the tile entry.
 
 ---
 

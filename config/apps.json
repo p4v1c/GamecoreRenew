@@ -17,6 +17,7 @@
     "label": "YouTube",
     "platform": "Web",
     "color": "#ff0000",
+    "iconPath": "assets/logos/youtube.png",
     "path": "firefox",
     "args": "--profile '@HOME@/.mozilla/firefox/youtube-tv' --kiosk 'https://www.youtube.com/tv' "
   },
@@ -40,6 +41,15 @@
     "color": "#8a5fff",
     "iconPath": "assets/logos/stremio.png",
     "path": "bash",
-    "args": "/opt/Stremio/stremio-tv.sh"
+    "args": "/opt/Stremio/stremio-tv.sh",
+    "fullscreen": {
+      "wm_class": [
+        "stremio",
+        "Stremio",
+        "com.stremio.Stremio"
+      ],
+      "timeout_s": 60
+    },
+    "gamepadTrigger": true
   }
 ]
