@@ -164,8 +164,13 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq libegl1 libgl1
           pip install pyside6 pyinstaller
           cd install/installer-gui
-          pyinstaller --noconfirm --clean --onefile --windowed \
-            --name gamecore-installer gamecore_installer.py
+          # The .spec, never the CLI form: onefile/windowed are the easy half of
+          # it. The half that matters is the list of libraries kept OUT of the
+          # bundle, which has no command-line equivalent — this runner is Ubuntu
+          # and the boxes are Arch/Manjaro, and shipping the runner's
+          # libxkbcommon next to the host's libxkbcommon-x11 segfaulted the
+          # wizard on the first key typed. See the spec's header.
+          pyinstaller --noconfirm --clean gamecore-installer.spec
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

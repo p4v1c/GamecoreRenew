@@ -698,38 +698,7 @@ class InstallerWizard(QWizard):
         }
 
 
-def isolate_input_method():
-    """Keep the session's input-method plugin out of this process.
-
-    Nothing in this wizard runs on a key press — the pages connect no
-    textChanged/textEdited signal and register no wizard field — so a crash on
-    the first letter typed into a field cannot come from the code above. It
-    comes from the only foreign code a key press reaches: the platform
-    input-context plugin Qt loads because the desktop exports QT_IM_MODULE
-    (ibus on GNOME/KDE, fcitx elsewhere).
-
-    That plugin is picked by NAME from the plugin path, so this process can end
-    up loading one built against a different Qt than the one it runs — the
-    distribution's, when QT_PLUGIN_PATH is exported, or a stale copy next to a
-    PyInstaller bundle. Nothing happens at startup: the window paints, the mouse
-    works, and the first key event routed into it is a SIGSEGV. Running the
-    wizard through sudo has the same effect from the other side — root cannot
-    reach the user's ibus bus.
-
-    `compose` is what Qt uses on X11 when nothing is exported, it ships with the
-    same Qt as the rest of the process, and it keeps dead keys and Compose
-    sequences working — which is all this wizard needs to type a username, a
-    path and a password. Set GAMECORE_KEEP_IM=1 to keep the session's own.
-    """
-    if os.environ.get("GAMECORE_KEEP_IM") == "1":
-        return
-    os.environ["QT_IM_MODULE"] = "compose"
-    # Only the Qt this process was built with may contribute plugins.
-    os.environ.pop("QT_PLUGIN_PATH", None)
-
-
 def main():
-    isolate_input_method()
     app = QApplication(sys.argv)
     app.setStyleSheet(DARK_QSS)
     app.setFont(QFont(app.font().family(), 10))

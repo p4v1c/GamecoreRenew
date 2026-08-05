@@ -79,7 +79,12 @@ GameCore/
 # Installer GUI build artifacts
 install/installer-gui/.buildvenv/
 install/installer-gui/build/
+# A .spec used to be pure build output — PyInstaller writes one next to the
+# script on every CLI run. gamecore-installer.spec is a SOURCE file now: it is
+# the only place able to say which libraries must stay out of the bundle, and
+# ignoring it shipped the crash it exists to prevent.
 install/installer-gui/*.spec
+!install/installer-gui/gamecore-installer.spec
 
 # LAN auth state — box-local, never in git (see docs/SECURITY.md)
 config/auth.json
