@@ -99,11 +99,32 @@ def default_user() -> str:
     return u if u != "root" else ""
 
 
+def addons_cache() -> Path:
+    """Private per-user checkout for the addons list.
+
+    Never a fixed name under /tmp: that path is world-writable and predictable,
+    so any local account could plant a git repo there first and decide which
+    addon names this wizard writes into the conf — names arch.sh then feeds to
+    `gamecore-addon install` with root behind it.
+    """
+    base = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
+    d = base / "gamecore-installer"
+    d.mkdir(parents=True, exist_ok=True)
+    os.chmod(d, 0o700)
+    return d / "addons"
+
+
+# An addon name reaches `for addon in $ADDONS` in arch.sh unquoted, then
+# `gamecore-addon install "$addon"`. It comes from a JSON file fetched over the
+# network, so it is validated here rather than trusted there.
+ADDON_NAME_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}$")
+
+
 class AddonsFetcher(QThread):
     ready = Signal(list, str)
 
     def run(self):
-        tmp = Path(tempfile.gettempdir()) / "gamecore-installer-addons"
+        tmp = addons_cache()
         try:
             if (tmp / ".git").exists():
                 subprocess.run(["git", "-C", str(tmp), "pull", "-q", "--ff-only"], timeout=30, check=False)
@@ -120,6 +141,8 @@ class AddonsFetcher(QThread):
                     # the whole list to the fallback.
                     meta = json.loads(f.read_text(encoding="utf-8-sig"))
                 except (ValueError, OSError):
+                    continue
+                if not isinstance(meta, dict) or not ADDON_NAME_RE.fullmatch(str(meta.get("name", ""))):
                     continue
                 addons.append(meta)
             self.ready.emit(addons or FALLBACK_ADDONS, "")
@@ -308,19 +331,35 @@ class AddonsPage(QWizardPage):
         self._fetcher = None
 
     def initializePage(self):
-        if self.checks:
+        # `self.checks` is only filled once the fetch LANDS, so it cannot be the
+        # guard on its own: coming back to this page while the clone is still in
+        # flight (it is allowed 60 s) started a second QThread and dropped the
+        # last Python reference to the first one. PySide then deletes a running
+        # QThread, which aborts the process — the wizard died on a Back/Next,
+        # not on anything the user did wrong.
+        if self.checks or self._fetcher is not None:
             return
-        self._fetcher = AddonsFetcher()
+        self._fetcher = AddonsFetcher(self)
         self._fetcher.ready.connect(self._fill)
         self._fetcher.start()
 
     def _fill(self, addons, warning):
-        self.status.setText(warning or f"{len(addons)} addon(s) available.")
-        for a in addons:
-            cb = QCheckBox(f"{a.get('label', a['name'])}  —  {a.get('description', '')}")
-            cb.setChecked(bool(a.get("default")))
-            self.checks[a["name"]] = cb
-            self.box.addWidget(cb)
+        # Queued from the worker thread: an exception escaping here is an
+        # unhandled exception in a slot, which under PySide6 takes the whole
+        # wizard down rather than losing one checkbox.
+        try:
+            self.status.setText(warning or f"{len(addons)} addon(s) available.")
+            for a in addons:
+                name = a.get("name")
+                if not name or name in self.checks:
+                    continue
+                cb = QCheckBox(f"{a.get('label', name)}  —  {a.get('description', '')}")
+                cb.setChecked(bool(a.get("default")))
+                self.checks[name] = cb
+                self.box.addWidget(cb)
+        except Exception as e:  # pragma: no cover — belt and braces
+            sys.stderr.write(f"[installer] addons list: {e}\n")
+            self.status.setText("Addon list unreadable — install them later with gamecore-addon.")
 
 
 class KeysPage(QWizardPage):
@@ -547,11 +586,23 @@ class InstallPage(QWizardPage):
                              "run the installer again — it is safe to re-run.")
             self.step.setText("Failed — see the logs below.")
             self.btn_logs.setChecked(True)  # surface the log where the error is
+        self.cleanup_conf()
+        self.completeChanged.emit()
+
+    def cleanup_conf(self):
+        """Remove the generated conf — it holds the web password and API keys.
+
+        Also called when the wizard is closed: the file used to be unlinked only
+        on a normal finish, so quitting mid-install left every secret typed into
+        the wizard readable in /tmp until the next reboot.
+        """
+        if not self.conf_path:
+            return
         try:
-            os.unlink(self.conf_path)  # holds API secrets
+            os.unlink(self.conf_path)
         except OSError:
             pass
-        self.completeChanged.emit()
+        self.conf_path = ""
 
     def isComplete(self):
         return self.done
@@ -579,6 +630,32 @@ class InstallerWizard(QWizard):
             # QWizardPage ignores stylesheet backgrounds without this flag
             self.page(pid).setAttribute(Qt.WA_StyledBackground, True)
 
+    def reject(self):
+        """Esc and the window's close button both land here (QDialog::closeEvent).
+
+        Two things must not happen silently: walking away from an install that
+        is still running as root, and leaving the conf file — web password and
+        API keys — behind in /tmp.
+        """
+        inst: InstallPage = self.page(Pages.INSTALL)
+        if inst.proc is not None and inst.proc.state() != QProcess.NotRunning:
+            if QMessageBox.question(
+                    self, "GameCore",
+                    "An installation is running with administrator rights.\n\n"
+                    "Closing this window does NOT stop it — the machine would be "
+                    "left half-installed with no log to look at.\n\nClose anyway?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No) != QMessageBox.Yes:
+                return
+        inst.cleanup_conf()
+        addons: AddonsPage = self.page(Pages.ADDONS)
+        if addons._fetcher is not None and addons._fetcher.isRunning():
+            # Destroying a running QThread aborts the process. The fetch is
+            # bounded by git's own timeouts, so a short wait covers the normal
+            # case (the clone answering) without freezing the window.
+            addons._fetcher.wait(3000)
+        super().reject()
+
     def collect(self) -> dict:
         sysp: SystemPage = self.page(Pages.SYSTEM)
         mode: ModePage = self.page(Pages.MODE)
@@ -586,8 +663,15 @@ class InstallerWizard(QWizard):
         apps: AppsPage = self.page(Pages.APPS)
         addons: AddonsPage = self.page(Pages.ADDONS)
         keys: KeysPage = self.page(Pages.KEYS)
-        checked = [eid for eid, cb in emus.checks.items() if cb.isChecked()]
-        checked_apps = [aid for aid, cb in apps.checks.items() if cb.isChecked()]
+        minimal = mode.minimal.isChecked()
+        # In minimal mode the tick boxes are only DISABLED, so they stay ticked
+        # and collect() reported "all" — a conf that says EMULATORS=all next to
+        # MODE=minimal. arch.sh happens to gate the emulator phase on MODE, so
+        # nothing was installed, but the file recorded the opposite of what ran
+        # and anything else reading it (the ISO path, a re-run, uninstall.sh)
+        # would believe it.
+        checked = [] if minimal else [eid for eid, cb in emus.checks.items() if cb.isChecked()]
+        checked_apps = [] if minimal else [aid for aid, cb in apps.checks.items() if cb.isChecked()]
         if addons.checks:
             addon_names = " ".join(n for n, cb in addons.checks.items() if cb.isChecked())
         else:
@@ -614,7 +698,38 @@ class InstallerWizard(QWizard):
         }
 
 
+def isolate_input_method():
+    """Keep the session's input-method plugin out of this process.
+
+    Nothing in this wizard runs on a key press — the pages connect no
+    textChanged/textEdited signal and register no wizard field — so a crash on
+    the first letter typed into a field cannot come from the code above. It
+    comes from the only foreign code a key press reaches: the platform
+    input-context plugin Qt loads because the desktop exports QT_IM_MODULE
+    (ibus on GNOME/KDE, fcitx elsewhere).
+
+    That plugin is picked by NAME from the plugin path, so this process can end
+    up loading one built against a different Qt than the one it runs — the
+    distribution's, when QT_PLUGIN_PATH is exported, or a stale copy next to a
+    PyInstaller bundle. Nothing happens at startup: the window paints, the mouse
+    works, and the first key event routed into it is a SIGSEGV. Running the
+    wizard through sudo has the same effect from the other side — root cannot
+    reach the user's ibus bus.
+
+    `compose` is what Qt uses on X11 when nothing is exported, it ships with the
+    same Qt as the rest of the process, and it keeps dead keys and Compose
+    sequences working — which is all this wizard needs to type a username, a
+    path and a password. Set GAMECORE_KEEP_IM=1 to keep the session's own.
+    """
+    if os.environ.get("GAMECORE_KEEP_IM") == "1":
+        return
+    os.environ["QT_IM_MODULE"] = "compose"
+    # Only the Qt this process was built with may contribute plugins.
+    os.environ.pop("QT_PLUGIN_PATH", None)
+
+
 def main():
+    isolate_input_method()
     app = QApplication(sys.argv)
     app.setStyleSheet(DARK_QSS)
     app.setFont(QFont(app.font().family(), 10))
