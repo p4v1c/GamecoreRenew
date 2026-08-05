@@ -46,6 +46,7 @@
   },
   "controllers": {
     "maxPlayers": 4,
+    "order": 8,
     "strategy": "sdl-index-clone",
     "target": "settings.ini",
     "padType": "AnalogController",

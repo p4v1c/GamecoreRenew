@@ -52,13 +52,19 @@ def test_both_builders_agree_on_the_field_set(packs):
 
 
 def test_launch_behaviour_survives_both_paths(packs):
-    """Stremio has no fullscreen flag on the command line — the enforcer is the
-    only thing that fullscreens it, and it only runs if the tile says so."""
-    for build in (lambda p: tile_entry(p), lambda p: entry_from_pack(p, ROOT)):
-        tile = build(packs["stremio"])
-        assert tile["fullscreen"]["wm_class"], "no wm_class — the enforcer does nothing"
-        assert tile["fullscreen"]["timeout_s"] > 0
-        assert tile["gamepadTrigger"] is True
+    """An app with no fullscreen flag on the command line is fullscreened only
+    by the enforcer, and the enforcer only runs if the tile says so.
+
+    The pack is found by what it declares, not by name: naming it would tie this
+    test to the catalogue shipping that particular app for ever.
+    """
+    declaring = [p for p in packs.values() if (p.data["launch"].get("fullscreen"))]
+    assert declaring, "no pack declares launch.fullscreen — has the block been lost again?"
+    for pack in declaring:
+        for build in (lambda p: tile_entry(p), lambda p: entry_from_pack(p, ROOT)):
+            tile = build(pack)
+            assert tile["fullscreen"]["wm_class"], f"{pack.id}: no wm_class, the enforcer does nothing"
+            assert tile["fullscreen"]["timeout_s"] > 0
 
 
 def test_every_tile_names_a_logo_after_its_own_pack(packs):

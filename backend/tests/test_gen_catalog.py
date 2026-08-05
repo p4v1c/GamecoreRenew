@@ -73,18 +73,22 @@ def test_a_pack_with_no_order_sorts_last_rather_than_vanishing(gc, packs):
 
 
 def test_order_decides_the_grid(gc, packs):
-    """cemu ships with order 1. A newcomer at 0 goes ahead of it, at 99 behind —
-    equal orders fall back to the id, which is why this compares to a neighbour
-    rather than to position zero."""
+    """Compared against a neighbour picked from the catalogue, never a named
+    one: reordering the grid is a legitimate change and must not fail this."""
+    emulators = sorted((p for p in packs.values() if p.kind == "emulator"),
+                       key=lambda p: p.data.get("order", 10_000))
+    middle = emulators[len(emulators) // 2]
+    its_order = middle.data["order"]
+
     def place(order):
         plus = dict(packs, newcomer=_fake("newcomer", order=order))
         ids = [t["id"] for t in json.loads(gc.render(plus)[0])]
-        return ids.index("newcomer"), ids.index("cemu")
+        return ids.index("newcomer"), ids.index(middle.id)
 
-    early, cemu_early = place(0)
-    late, cemu_late = place(99)
-    assert early < cemu_early
-    assert late > cemu_late
+    before, neighbour = place(its_order - 1)
+    assert before < neighbour
+    after, neighbour = place(its_order + 1)
+    assert after > neighbour
 
 
 def test_the_shipped_catalogue_still_declares_its_order(packs):
@@ -92,3 +96,31 @@ def test_the_shipped_catalogue_still_declares_its_order(packs):
     silently move a console to the end of the grid on the next regeneration."""
     unordered = sorted(p.id for p in packs.values() if "order" not in p.data)
     assert not unordered, f"packs with no order: {unordered}"
+
+
+# ── the same promise, for the controller pipeline ──────────────────────────
+
+def test_a_new_pack_is_profiled_without_being_listed_anywhere(packs):
+    """The other half of the same bug, and the nastier one.
+
+    `configgen.profilable_packs` walked a tuple of ten ids and used
+    `packs.get(pid)`, so an emulator absent from it was never profiled: it
+    shipped a generator.py and a controllers block, and its bindings were
+    silently never written. The only symptom is a pad that does nothing, in
+    that one emulator, on a real box.
+    """
+    from backend.services.configgen import profilable_packs
+
+    newcomer = _fake("newcomer", controllers={"maxPlayers": 4,
+                                              "strategy": "snapshot-restore"})
+    got = [p.id for p in profilable_packs(dict(packs, newcomer=newcomer))]
+    assert "newcomer" in got
+    assert got[-1] == "newcomer", "no declared order means last, not missing"
+
+
+def test_a_pack_that_profiles_nothing_stays_out(packs):
+    """`strategy: none` is a declaration, not an omission."""
+    from backend.services.configgen import profilable_packs
+
+    quiet = _fake("quiet", controllers={"maxPlayers": 0, "strategy": "none"})
+    assert "quiet" not in [p.id for p in profilable_packs(dict(packs, quiet=quiet))]

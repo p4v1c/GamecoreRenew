@@ -34,6 +34,7 @@
   },
   "controllers": {
     "maxPlayers": 1,
+    "order": 2,
     "strategy": "snapshot-restore",
     "target": "config.ini"
   },

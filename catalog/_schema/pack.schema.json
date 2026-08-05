@@ -162,6 +162,11 @@
       "additionalProperties": false,
       "properties": {
         "maxPlayers": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "order": {
+          "description": "Where this emulator sits in a profiling pass, and therefore in the toast the player sees when a pad is plugged in. Absent means last, in id order. It used to be a tuple of ten ids in backend/services/configgen/__init__.py, and a pack missing from it was never profiled at all — its bindings silently never written.",
+          "type": "integer",
+          "minimum": 0
+        },
         "strategy": {
           "description": "rewrite-player-block: rpcs3 · rewrite-device-line: dolphin (binds by NAME) · guid-rebind: ryujinx (binds by GUID) · sdl-index-clone: pcsx2/duckstation · snapshot-restore: azahar/mgba/cemu/gopher64 · snapshot-or-synth: melonds · none",
           "enum": [

@@ -28,6 +28,7 @@
   },
   "controllers": {
     "maxPlayers": 1,
+    "order": 1,
     "strategy": "snapshot-restore",
     "target": "qt-config.ini"
   },

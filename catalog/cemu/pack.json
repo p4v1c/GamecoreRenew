@@ -29,6 +29,7 @@
   },
   "controllers": {
     "maxPlayers": 1,
+    "order": 3,
     "strategy": "snapshot-restore",
     "target": "controllerProfiles/controller0.xml",
     "seedMustNotContain": [

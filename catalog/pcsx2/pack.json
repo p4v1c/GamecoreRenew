@@ -33,6 +33,7 @@
   },
   "controllers": {
     "maxPlayers": 4,
+    "order": 7,
     "strategy": "sdl-index-clone",
     "target": "PCSX2.ini",
     "padType": "DualShock2",

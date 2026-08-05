@@ -230,22 +230,21 @@ def test_every_pack_carries_everything_it_declares(packs):
     assert not broken, f"packs declaring files they do not carry: {broken}"
 
 
-@pytest.mark.parametrize("pack_id", ["twitch", "youtube", "stremio", "steam"])
-def test_each_app_pack_declares_something_to_do(packs, pack_id):
+def test_each_app_pack_declares_something_to_do(packs):
     """An app that declares nothing installs nothing — and the wizard would
-    still offer its tick box."""
-    pack = packs[pack_id]
-    assert any(pack.data.get(k) for k in
-               ("install", "sources", "files", "services", "postInstall", "packages")), \
-        f"{pack_id} declares no install work at all"
+    still offer its tick box. Every app in the catalogue, not a list of four."""
+    idle = [p.id for p in packs.values() if p.kind == "app"
+            and not any(p.data.get(k) for k in
+                        ("install", "sources", "files", "services", "postInstall", "packages"))]
+    assert not idle, f"apps that declare no install work at all: {idle}"
 
 def test_the_app_packs_apply_end_to_end_without_touching_the_system(packs, tmp_path):
     """A dry run reaches every block of every app pack. It is what would have
     caught the deleted user.js at build time rather than at 66 % on a box."""
     ctx = AppContext(gamecore_path=tmp_path, user="", dry_run=True,
                      user_home=tmp_path, secrets={"TWITCH_CLIENT_ID": "abc"})
-    for pack_id in ("twitch", "youtube", "stremio", "steam"):
-        results = apply(packs[pack_id], ctx)
-        assert results, f"{pack_id} applied nothing at all"
+    for pack in (p for p in packs.values() if p.kind == "app"):
+        results = apply(pack, ctx)
+        assert results, f"{pack.id} applied nothing at all"
         assert all(r.ok for r in results), \
             [r.message for r in results if not r.ok]

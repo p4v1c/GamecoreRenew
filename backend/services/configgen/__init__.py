@@ -29,13 +29,6 @@ from .helpers.base import Skip
 
 log = logging.getLogger(__name__)
 
-# The order emulators are profiled in. Not a catalogue fact — it is the order
-# the pre-refactor `apply_profile` used, and it decides the order of the
-# messages in the TV toast. Kept explicit so a refactor that was supposed to
-# move code does not quietly reorder what the player sees.
-STEP_ORDER = ("ryujinx", "azahar", "mgba", "cemu", "gopher64",
-              "dolphin", "rpcs3", "pcsx2", "duckstation", "melonds")
-
 _generator_cache: dict[str, object] = {}
 
 
@@ -116,17 +109,27 @@ def generator_opts(pack, home: Path, snap_dir: Path) -> dict | None:
 
 
 def profilable_packs(packs: dict) -> list:
-    """Packs that profile controllers at all, in the documented order."""
-    out = []
-    for pid in STEP_ORDER:
-        pack = packs.get(pid)
-        if pack is None:
-            continue
+    """Packs that profile controllers at all, in the order they declare.
+
+    The order decides what the player reads in the toast when a pad is plugged
+    in, so it is deliberate rather than alphabetical — but it belongs to the
+    pack, under `controllers.order`, and not to a tuple in this file.
+
+    It WAS a tuple in this file, and `packs.get(pid)` meant a pack missing from
+    it was not profiled at all: a new emulator shipping a generator.py and a
+    controllers block had its bindings silently never written, and the only
+    symptom was a pad that did nothing in that one emulator.
+
+    No order means last, never absent.
+    """
+    profilable = []
+    for pack in packs.values():
         ctl = pack.data.get("controllers") or {}
         if ctl.get("strategy", "none") == "none" or ctl.get("maxPlayers", 0) < 1:
             continue
-        out.append(pack)
-    return out
+        profilable.append(pack)
+    return sorted(profilable,
+                  key=lambda p: (p.data["controllers"].get("order", 10_000), p.id))
 
 
 # Patched by the characterisation harness, and by nothing else at runtime.

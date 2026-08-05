@@ -29,6 +29,7 @@
   },
   "controllers": {
     "maxPlayers": 4,
+    "order": 6,
     "strategy": "rewrite-player-block",
     "target": "input_configs/global/Default.yml",
     "seedMustNotContain": [

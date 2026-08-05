@@ -28,6 +28,7 @@
   },
   "controllers": {
     "maxPlayers": 4,
+    "order": 0,
     "strategy": "guid-rebind",
     "target": "Config.json",
     "seedMustNotContain": [
