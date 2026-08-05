@@ -56,11 +56,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
-import re
 import sys
-import time
-import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -75,370 +71,104 @@ except ImportError:  # pragma: no cover — standalone use
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import gamescrape as gs  # noqa: E402  — parsing, LaunchBox index, SS calls
 
-CACHE_ROOT = Path(os.environ.get("GAMEMEDIA_CACHE",
-                                 Path.home() / ".cache" / "gamemedia"))
-# A game does not change. We only re-query when the entry is empty or explicitly
-# refreshed — a TTL would fire 20,000 requests a month for nothing.
-MANIFEST = "game.json"
+try:
+    from . import paths
+except ImportError:                                    # plain-script CLI
+    import paths
 
 
-# ── Helpers ─────────────────────────────────────────────────────────────────
-
-# What sits in a ROM directory without being a game.
-_JUNK_NAMES = {".gitkeep", ".gitignore", "desktop.ini", "thumbs.db", ".ds_store",
-               "readme", "readme.txt", "covers", "media", "metadata", "manuals"}
-_JUNK_EXTS = {"txt", "nfo", "dat", "xml", "json", "md", "log", "sav", "srm",
-              "state", "png", "jpg", "jpeg", "cfg", "ini", "db", "bak", "part"}
 
 
-def looks_like_game(filename: str) -> str:
-    """"" when the entry could be a game, otherwise the reason for refusing.
+# ── The façade ──────────────────────────────────────────────────────────────
+#
+# This file was 1 605 lines. Four of its section headers were already the
+# seams, and they are now four modules, plus one for the location they share:
+#
+#     helpers.py     what is a game, what is junk, where its entry goes
+#     registry.py    which ScreenScraper system a ROM belongs to
+#     identity.py    the dumps that are directories, and what they call themselves
+#     ss_client.py   the ScreenScraper client: rate limit, retries, hashes, scoring
+#     paths.py       the cache root, which MOVES (see paths.set_cache_root)
+#
+# What stayed is the two scraping tiers, the resolution-and-cache logic they
+# feed, the HTTP API and the CLI — the parts that orchestrate rather than
+# answer one question.
+#
+# Everything the modules define is re-exported HERE, under the names it had
+# before: services/gamemedia/__init__.py reaches into this module as `gm.<name>`
+# and so do the tests. A split that changed one import outside this package
+# would not be a split.
+# `ss_client` is also imported as a MODULE: `ss_remaining` is rebound on every
+# API answer that reports the quota, and a from-import would pin it to the
+# value it had at startup — the health endpoint would report a full quota for
+# ever, including after the account was closed for exceeding it.
+try:
+    from . import ss_client
+    from .helpers import (                                     # noqa: F401
+        entry_dir,
+        game_key,
+        looks_like_game,
+        write_json,
+    )
+    from .identity import local_identity, read_sfo             # noqa: F401
+    from .registry import (                                    # noqa: F401
+        EMULATOR_ALIASES,
+        _alias_names,
+        _catalog_aliases,
+        detect_system,
+        fetch_systems,
+        registry,
+        system_candidates,
+    )
+    from .ss_client import (                                   # noqa: F401
+        HASH_MAX_BYTES,
+        NAME_ACCEPT,
+        SS_MAX_THREADS,
+        ScreenScraperClosed,
+        ScreenScraperUnreachable,
+        _hash_confirmed,
+        _ss_limiter,
+        _matched_by,
+        _rating_01,
+        _title_score,
+        _year_of,
+        hashes_for,
+        ss_request,
+        ss_threads,
+    )
+except ImportError:                                            # plain-script CLI
+    import ss_client
+    from helpers import entry_dir, game_key, looks_like_game, write_json  # noqa: F401
+    from identity import local_identity, read_sfo              # noqa: F401
+    from registry import (                                     # noqa: F401
+        EMULATOR_ALIASES, _alias_names, _catalog_aliases, detect_system,
+        fetch_systems, registry, system_candidates,
+    )
+    from ss_client import (                                    # noqa: F401
+        HASH_MAX_BYTES, NAME_ACCEPT, SS_MAX_THREADS, ScreenScraperClosed,
+        ScreenScraperUnreachable, _hash_confirmed, _matched_by, _rating_01, _ss_limiter,
+        _title_score, _year_of, hashes_for, ss_request, ss_threads,
+    )
 
-    A ROM directory also holds .gitkeep files, covers/, notes. Without this
-    filter the service scraped them: ".gitkeep" matched "The Keep" on LaunchBox
-    and "Samurai Deeper Kyo" on ScreenScraper. A wrong result in the cache does
-    more harm than no result at all.
+
+def set_cache_root(directory) -> None:
+    """Move the media cache. The ONLY supported way to move it.
+
+    Assigning `gm.CACHE_ROOT` used to work because there was one module; there
+    are five now, and an assignment here would leave helpers.entry_dir writing
+    covers under ~/.cache while everything else reported them inside the
+    installation — where the OTA rsync never sees them and a cleaner does.
     """
-    name = Path(filename).name
-    if not name or name.startswith("."):
-        return "hidden file"
-    if name.lower() in _JUNK_NAMES:
-        return "service file"
-    ext = Path(name).suffix.lower().lstrip(".")
-    if ext in _JUNK_EXTS:
-        return f"unplayable extension (.{ext})"
-    # A one or two character title cannot be searched for seriously.
-    if len(re.sub(r"[^A-Za-z0-9]", "", Path(name).stem)) < 3:
-        return "name too short"
-    return ""
+    global CACHE_ROOT, SYSTEMS_CACHE
+    paths.set_cache_root(directory)
+    CACHE_ROOT, SYSTEMS_CACHE = paths.CACHE_ROOT, paths.SYSTEMS_CACHE
 
 
-def game_key(filename: str) -> str:
-    """Stable, safe cache key from a ROM name.
-
-    No accents, no exotic separator, never empty, never a path: this value
-    becomes a directory name, and `filename` comes from a URL parameter.
-    """
-    stem = Path(filename).name
-    for _ in range(2):                                  # "game.nds.zip" → "game"
-        stem = Path(stem).stem
-    flat = unicodedata.normalize("NFKD", stem).encode("ascii", "ignore").decode()
-    flat = re.sub(r"[^A-Za-z0-9]+", "-", flat).strip("-").lower()
-    return flat[:120] or "unnamed"
-
-
-def entry_dir(system: str, filename: str) -> Path:
-    """Cache directory, confined under CACHE_ROOT.
-
-    The confinement is explicit because `system` and `filename` come from the
-    HTTP request: a `..` in either must not be able to write elsewhere. Same rule
-    as everywhere else — resolve, then verify.
-    """
-    sysid = re.sub(r"[^A-Za-z0-9_-]+", "", system).lower() or "unknown"
-    d = (CACHE_ROOT / sysid / game_key(filename)).resolve()
-    root = CACHE_ROOT.resolve()
-    if not (d == root or root in d.parents):
-        raise ValueError("cache path outside the root")
-    return d
-
-
-def write_json(path: Path, payload: dict) -> None:
-    """tmp + os.replace: an interruption must not leave an unreadable manifest,
-    or the game would be rescraped on every call for no visible reason."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
-                   encoding="utf-8")
-    os.replace(tmp, path)
-
-
-# ── System registry: built from the API, not hardcoded ───────────────────────
-#
-# ScreenScraper declares 250 systems through systemesListe.php, each with its
-# extensions AND its names under every frontend (nom_eu, nom_us, nom_recalbox,
-# nom_retropie, nom_launchbox, noms_commun). Everything is derived from there and
-# cached: adding a console takes no code change, just a `--refresh-systems` the
-# day ScreenScraper adds one.
-#
-# The only hand-written table is EMULATOR_ALIASES below, because an EMULATOR
-# name ("rpcs3", "duckstation") is not a console name and appears nowhere in the
-# API.
-
-SYSTEMS_CACHE = CACHE_ROOT / "systems.json"
-
-# GameCore: a value may be a LIST when one emulator covers several consoles.
-#
-# The extension was supposed to settle those cases, and it does when the
-# extension is a real dump format the registry knows — .wbfs is Wii, .gcz is
-# GameCube. It cannot when the format belongs to the emulator itself: .rvz is
-# Dolphin's own container and ScreenScraper lists it under no system at all, so
-# `by_ext` came back empty and only the alias spoke.
-#
-# The alias said "gamecube", so every Dolphin game was looked up as a GameCube
-# game. Measured on the reference box: Ocarina, Wind Waker and the Mario Partys
-# resolved because they really are GameCube games; Skyward Sword, New Super
-# Mario Bros. Wii and Super Smash Bros. Brawl are Wii only and came back "not in
-# the database" — and Mario Kart Wii quietly matched *Mario Kart: Double Dash*,
-# which is worse than nothing.
-# Emulators GameCore does not ship a pack for, plus the short ids gamescrape
-# accepts on the command line. Kept by hand because nothing declares them.
-_EXTRA_ALIASES: dict[str, str | list[str]] = {
-    "vita3k": "vita", "yuzu": "switch", "citron": "switch", "citra": "3ds",
-    "desmume": "nds", "mupen64plus": "nintendo 64", "xemu": "xbox",
-    "flycast": "dreamcast", "mednafen": "psx", "snes9x": "super nintendo",
-    "mesen": "nes",
-    # "arcade" is not a system on ScreenScraper: more than 50 boards share
-    # nom_launchbox="arcade". The convention (Skyscraper's too) is to aim at Mame
-    # (id 75) and let the zip hash designate the board.
-    "arcade": "mame", "fbneo": "mame", "fba": "mame", "mame4all": "mame",
-    # short ids specific to GameCore / gamescrape, absent from the API.
-    "mastersys": "master system", "virtualboy": "virtual boy",
-    "segacd": "mega cd", "x360": "xbox 360", "xone": "xbox one",
-    "psx": "playstation", "ps1": "playstation", "gc": "gamecube",
-}
-
-
-def _catalog_aliases() -> dict[str, str | list[str]]:
-    """`scraper.mediaAlias` from every pack.
-
-    Hand-maintaining this alongside scraper.py's two platform maps meant three
-    tables to keep in step for one fact. Never fatal: an unreadable catalogue
-    degrades to the extras above rather than breaking media lookup entirely.
-    """
-    out: dict[str, str | list[str]] = {}
-    try:
-        from ..catalog import load_catalog
-        for pack in load_catalog().values():
-            names = (pack.data.get("scraper") or {}).get("mediaAlias")
-            if names:
-                out[pack.id] = names[0] if len(names) == 1 else list(names)
-    except Exception:
-        log.warning("gamemedia: catalogue unreadable — emulator aliases limited "
-                    "to the built-in extras", exc_info=True)
-    return out
-
-
-EMULATOR_ALIASES: dict[str, str | list[str]] = {**_EXTRA_ALIASES, **_catalog_aliases()}
-
-
-# GameCore: the alias table maps one emulator to one *or several* consoles.
-def _alias_names(key: str) -> list[str]:
-    """The console names an emulator id stands for, most likely first."""
-    v = EMULATOR_ALIASES.get(key, key)
-    return [v] if isinstance(v, str) else list(v)
-
-
-def _slug_name(s: str) -> str:
-    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
-    return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
-
-
-def fetch_systems(force: bool = False) -> list[dict]:
-    """The official system list, cached (4 MB, rarely changes)."""
-    if not force:
-        try:
-            return json.loads(SYSTEMS_CACHE.read_text("utf-8"))["systemes"]
-        except (OSError, ValueError, KeyError):
-            pass
-    creds = gs.ss_credentials()
-    if not creds:
-        return []
-    try:
-        data = ss_request("systemesListe.php", creds)
-    except (ScreenScraperClosed, ScreenScraperUnreachable):
-        return []
-    systemes = ((data or {}).get("response") or {}).get("systemes") or []
-    if systemes:
-        write_json(SYSTEMS_CACHE, {"fetched_at": datetime.now(timezone.utc).isoformat(),
-                                   "systemes": systemes})
-    return systemes
-
-
-_registry: dict | None = None
-
-
-def registry() -> dict:
-    """{by_name: {alias→id}, by_ext: {ext→[id…]}, info: {id→{…}}}."""
-    global _registry
-    if _registry is not None:
-        return _registry
-    by_name: dict[str, int] = {}
-    by_ext: dict[str, list[int]] = {}
-    info: dict[int, dict] = {}
-    # 3 levels: the system's own name > a frontend slug > category/synonym.
-    tiers: list[list[tuple[int, list]]] = [[], [], []]
-    for s in fetch_systems():
-        try:
-            sid = int(s["id"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        noms = s.get("noms") or {}
-        label = noms.get("nom_eu") or noms.get("nom_us") or noms.get("noms_commun") or str(sid)
-        info[sid] = {"id": sid, "name": label,
-                     "launchbox": noms.get("nom_launchbox") or "",
-                     "company": (s.get("compagnie") or ""),
-                     "type": s.get("type") or ""}
-        # Every known name becomes an alias, BUT in two precedence passes.
-        # nom_launchbox is a category, not an identity: more than 50 arcade
-        # boards all read "arcade" there. So the system's own names come first,
-        # categories and synonyms after.
-        tiers[0].append((sid, [noms.get("nom_eu"), noms.get("nom_us")]))
-        tiers[1].append((sid, [noms.get("nom_recalbox"), noms.get("nom_retropie")]))
-        tiers[2].append((sid, [noms.get("nom_launchbox"), noms.get("nom_hyperspin"),
-                               noms.get("noms_commun")]))
-        for ext in str(s.get("extensions") or "").split(","):
-            if ext := ext.strip().lower().lstrip("."):
-                by_ext.setdefault(ext, []).append(sid)
-
-    for group in tiers:
-        for sid, fields in group:
-            for field in fields:
-                for part in str(field or "").split(","):
-                    if alias := _slug_name(part):
-                        by_name.setdefault(alias, sid)
-
-    _registry = {"by_name": by_name, "by_ext": by_ext, "info": info}
-    return _registry
-
-
-def system_candidates(filename: str, hint: str = "") -> list[int]:
-    """The systemeid values to try, most likely first.
-
-    An emulator id sometimes covers several consoles — mgba reads gba, gbc AND
-    gb, dolphin reads gamecube and wii. Sending a single systemeid made a GBC
-    game filed under emu/mgba/ fail. The extension is often more precise than
-    the emulator (.gbc leaves no doubt) but useless when shared (.iso exists on
-    twenty machines) — hence this order.
-    """
-    reg = registry()
-    ext = Path(filename).suffix.lower().lstrip(".")
-    by_ext = reg["by_ext"].get(ext, [])
-    hinted, _ = detect_system(filename, hint)
-
-    # GameCore: every console the emulator covers, not just the primary one.
-    # This is what the extension was meant to supply and cannot when the format
-    # belongs to the emulator rather than to the console — .rvz is listed under
-    # no system at all, so a Wii game under Dolphin was only ever asked about
-    # as a GameCube game.
-    from_alias: list[int] = []
-    for raw in (hint, Path(filename).parent.name):
-        key = _slug_name(raw)
-        if not key:
-            continue
-        for name in _alias_names(key):
-            if sid := reg["by_name"].get(_slug_name(name)):
-                from_alias.append(sid)
-        if from_alias:
-            break
-
-    ordered: list[int] = []
-    if 0 < len(by_ext) <= 3:          # discriminating extension: it goes first
-        ordered += by_ext
-    if hinted:
-        ordered.append(hinted)
-    ordered += from_alias              # the emulator's other consoles
-    ordered += by_ext                  # the rest of the extension, last resort
-    seen: set[int] = set()
-    return [s for s in ordered if not (s in seen or seen.add(s))][:4]
-
-
-def detect_system(filename: str, hint: str = "") -> tuple[int | None, dict]:
-    """(systemeid, info) for this game. An explicit hint always wins.
-
-    The extension alone is ambiguous — .bin exists on Megadrive, PS1 and Master
-    System, .iso on about twenty machines — so a hint (`-s`, or the parent
-    directory name, which on a GameCore box is the emulator id) is what decides.
-    With no hint we take the extension's first candidate.
-    """
-    reg = registry()
-    for raw in (hint, Path(filename).parent.name):
-        key = _slug_name(raw)
-        if not key:
-            continue
-        # GameCore: an alias may name several consoles. The first that the
-        # registry knows is the primary — the one reported as `ss_systemeid`
-        # and used for the LaunchBox platform. The others come back through
-        # system_candidates() and are what actually get tried.
-        for name in _alias_names(key):
-            if sid := reg["by_name"].get(_slug_name(name)):
-                return sid, reg["info"].get(sid, {})
-    ext = Path(filename).suffix.lower().lstrip(".")
-    if cands := reg["by_ext"].get(ext):
-        return cands[0], reg["info"].get(cands[0], {})
-    return None, {}
-
-
-# ── Local identity: the games that are DIRECTORIES ──────────────────────────
-#
-# PS3, PS4 and decompressed PSP dumps are not files but directory trees.
-# Consequence: no hash is possible (a directory has none), and the directory name
-# is whatever the user felt like typing.
-#
-# Measured against the API on "Uncharted 2":
-#
-#   romnom = directory name "Uncharted 2"          → 404
-#   romnom = TITLE from PARAM.SFO                   → 200, 152 media
-#   romnom = TITLE_ID "BCES00509"                  → 404
-#   serialnum = TITLE_ID                           → 404
-#   romtype=folder                                 → 404
-#
-# So the right key is the TITLE the game gives itself, read from its PARAM.SFO.
-# It is also a better input for LaunchBox than the directory name. The serial is
-# only useful for tracing, the API does not accept it.
-
-_SFO_PATHS = ("PS3_GAME/PARAM.SFO", "PARAM.SFO", "sce_sys/param.sfo",
-              "PSP_GAME/PARAM.SFO", "PS3_GAME/PARAM.sfo")
-# ™ and ® are in the SFO but not in the ScreenScraper database.
-_SFO_NOISE = str.maketrans({"™": "", "®": "", "©": "", " ": " "})
-
-
-def read_sfo(folder: Path) -> dict[str, str]:
-    """{TITLE, TITLE_ID, …} from a game directory's PARAM.SFO, or {}.
-
-    A minimal reader, deliberately copied here rather than imported from
-    GameCore: this script must run on its own, on any machine, dependency-free.
-    """
-    import struct
-    for rel in _SFO_PATHS:
-        p = folder / rel
-        try:
-            if not p.is_file() or p.stat().st_size > 1 << 20:   # a real SFO is KB
-                continue
-            raw = p.read_bytes()
-        except OSError:
-            continue
-        try:
-            magic, _ver, key_tbl, data_tbl, count = struct.unpack_from("<4sIIII", raw, 0)
-            if magic != b"\x00PSF":
-                continue
-            out: dict[str, str] = {}
-            for i in range(min(count, 512)):
-                k_off, fmt, length, _max, d_off = struct.unpack_from("<HHIII", raw, 20 + 16 * i)
-                key = raw[key_tbl + k_off:raw.index(b"\x00", key_tbl + k_off)].decode(
-                    "utf-8", "replace")
-                blob = raw[data_tbl + d_off:data_tbl + d_off + length]
-                if fmt == 0x0404:                              # entier 32 bits
-                    out[key] = str(struct.unpack("<I", blob[:4])[0])
-                else:                                          # UTF-8 string
-                    out[key] = blob.split(b"\x00", 1)[0].decode("utf-8", "replace")
-            return out
-        except (struct.error, ValueError, IndexError):
-            continue
-    return {}
-
-
-def local_identity(target: Path) -> dict[str, str]:
-    """Title and serial the game gives itself, when it is a directory."""
-    if not target.is_dir():
-        return {}
-    meta = read_sfo(target)
-    title = (meta.get("TITLE") or "").translate(_SFO_NOISE)
-    # An SFO TITLE is sometimes MULTILINE: Uncharted 3 declares itself
-    # "Uncharted 3: Drake's Deception\nGame of the Year". Sent as is, the romnom
-    # gave a 404; truncated to its first line, 141 media.
-    title = re.sub(r"\s+", " ", title.split("\n")[0]).strip()
-    return {"title": title, "serial": (meta.get("TITLE_ID") or "").strip()} if title else {}
-
+# Re-exported so `gm.CACHE_ROOT` and `gm.SYSTEMS_CACHE` keep answering, and kept
+# in step by set_cache_root() above.
+CACHE_ROOT = paths.CACHE_ROOT
+SYSTEMS_CACHE = paths.SYSTEMS_CACHE
+MANIFEST = paths.MANIFEST
 
 def safe_url(url: str) -> str:
     """Re-normalise a URL handed over by a third-party API.
@@ -527,276 +257,6 @@ def _pick_region(items: list[dict], order: list[str]) -> str:
     return next((i.get("text", "") for i in items if isinstance(i, dict)), "")
 
 
-# ── Client ScreenScraper ─────────────────────────────────────────────────────
-#
-# These rules are not precautions invented here: they come from reading
-# Skyscraper (muldjord), the reference CLI scraper, which learned them in
-# production over hundreds of thousands of ROMs.
-#
-#   · 1.2 s MINIMUM between two requests. Their source comment is explicit:
-#     "set a bit above 1.0 as requested by the good folks at ScreenScraper.
-#     Don't change!" Without it you get blacklisted, and it is the devid — so
-#     everyone using it — that goes down.
-#   · Errors are classified on the FIRST RAW BYTES, not on the parsed JSON:
-#     "It's more stable than checking the potentially faulty JSON."
-#     ScreenScraper regularly returns raw text with a 200 code.
-#   · The JSON itself is sometimes invalid and gets repaired (trailing comma).
-#   · The thread count comes from the account, capped at 8 even if the API
-#     offers more.
-#
-# Each error case is handled distinctly, and that is the whole point: "game not
-# found" is final and gets cached, "quota reached" is
-# temporaire et ne doit RIEN mettre en cache.
-
-SS_MIN_INTERVAL = 1.2
-SS_RETRIES = 3
-SS_MAX_THREADS = 8
-
-
-class ScreenScraperClosed(Exception):
-    """API closed, quota spent, or software blacklisted — cache nothing."""
-
-
-class ScreenScraperUnreachable(Exception):
-    """No usable response — unknown state, cache nothing."""
-
-
-class _Limiter:
-    """One call every SS_MIN_INTERVAL seconds, across all threads."""
-
-    def __init__(self, interval: float) -> None:
-        import threading
-        self._interval, self._lock, self._last = interval, threading.Lock(), 0.0
-
-    def wait(self) -> None:
-        with self._lock:
-            gap = self._interval - (time.monotonic() - self._last)
-            if gap > 0:
-                time.sleep(gap)
-            self._last = time.monotonic()
-
-
-_ss_limiter = _Limiter(SS_MIN_INTERVAL)
-# Requests left for the day, known from the first response. None = not yet
-# known. 0 = stop insisting.
-ss_remaining: int | None = None
-
-
-def ss_request(endpoint: str, params: dict, verbose: bool = False) -> dict | None:
-    """Rate-limited ScreenScraper call, with retries and classified errors.
-
-    Returns the JSON, or None when the API clearly says "game not found".
-    Raises ScreenScraperClosed / ScreenScraperUnreachable in every other failure
-    case, so the caller knows whether it is allowed to cache.
-    """
-    global ss_remaining
-    import urllib.error
-    import urllib.parse
-    import urllib.request
-
-    if ss_remaining == 0:
-        raise ScreenScraperClosed("daily quota spent")
-
-    url = gs.SS_API + endpoint + "?" + urllib.parse.urlencode(params)
-    last = "no response"
-    for attempt in range(SS_RETRIES):
-        _ss_limiter.wait()
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": gs.UA})
-            with urllib.request.urlopen(req, timeout=gs.TIMEOUT) as r:
-                raw = r.read()
-        except urllib.error.HTTPError as e:
-            raw, code = e.read(), e.code
-            head = raw[:1024].decode("utf-8", "replace")
-            if code == 404 or "non trouv" in head:
-                return None
-            last = f"HTTP {code} — {head.strip()[:120]}"
-            # 401/403 credentials, 426 API closed, 429/430/431 quota reached.
-            # Without those last three, a 429 with an empty body triggered 3
-            # attempts at 1.2 s — 3 requests burned on an already spent quota,
-            # for every game in the library.
-            if code in (401, 403, 426, 429, 430, 431):
-                if code in (426, 429, 430, 431):
-                    ss_remaining = 0                   # short-circuits the rest
-                raise ScreenScraperClosed(last)
-        except (urllib.error.URLError, OSError) as e:
-            last = str(e)
-            time.sleep(1.5 * (attempt + 1))
-            continue
-        else:
-            head = raw[:1024].decode("utf-8", "replace")
-
-        # Classify on the raw bytes, before any parsing (cf. Skyscraper).
-        # The needles below are FRENCH on purpose: they are fragments of
-        # ScreenScraper's own error messages, which the API returns in French
-        # regardless of the caller. Translating them would break the matching.
-        low = head.lower()
-        if "non trouv" in low:
-            return None
-        for fatal in ("api totalement ferm", "quota de scrape est",
-                      "blacklist", "closed for non-registered"):
-            if fatal in low:
-                ss_remaining = 0
-                raise ScreenScraperClosed(head.strip()[:160])
-        if "maximum threads" in low or "api ferm" in low:
-            last = head.strip()[:160]
-            time.sleep(2.0 * (attempt + 1))
-            continue
-
-        # ScreenScraper sometimes returns JSON with a trailing comma.
-        txt = raw.decode("utf-8", "replace").replace("],\n\t\t}", "]\n\t\t}")
-        try:
-            data = json.loads(txt)
-        except ValueError:
-            last = f"JSON illisible : {head.strip()[:120]}"
-            continue
-
-        user = ((data.get("response") or {}).get("ssuser") or {})
-        try:
-            ss_remaining = int(user["maxrequestsperday"]) - int(user["requeststoday"])
-        except (KeyError, TypeError, ValueError):
-            pass
-        _seed_threads(data)          # free: the response already has maxthreads
-        return data
-
-    raise ScreenScraperUnreachable(last)
-
-
-# CONTAINER formats: compressed or re-encoded. Their hash exists in no DAT —
-# No-Intro and Redump index the raw dump or the tracks, not the archive. Hashing
-# them costs minutes of disk reads for no gain whatsoever.
-_CONTAINER_EXTS = {"chd", "rvz", "cso", "zso", "wbfs", "gcz", "wia", "pbp",
-                   "ecm", "7z", "rar", "squashfs", "nsz", "xcz"}
-# Hashing ceiling. It was 4 GiB: a PS2 .iso was read IN FULL inside the HTTP
-# handler — over two minutes of blocking on a USB disk. ES-DE cuts at 384 MiB by
-# default, Skyscraper at 50 for its cache key.
-HASH_MAX_BYTES = int(os.environ.get("GAMEMEDIA_HASH_MAX", 384 * 1024 * 1024))
-
-
-def _year_of(released: str) -> str:
-    """The year, whatever date format the source returned."""
-    m = re.search(r"(19|20)\d{2}", released or "")
-    return m.group(0) if m else ""
-
-
-def _rating_01(raw: str) -> float | None:
-    """The rating brought back to 0-1, or None. ScreenScraper rates out of 20."""
-    try:
-        v = float(str(raw).replace(",", ".").strip())
-    except (TypeError, ValueError):
-        return None
-    if v <= 0:
-        return None
-    return round(min(v, 20.0) / 20.0, 3)
-
-
-def hashes_for(path: Path) -> dict[str, str] | None:
-    """File hashes, or None when computing them makes no sense."""
-    try:
-        if not path.is_file():
-            return None
-        size = path.stat().st_size
-    except OSError:
-        return None
-    if path.suffix.lower().lstrip(".") in _CONTAINER_EXTS:
-        return None
-    if size > HASH_MAX_BYTES:
-        return None
-    return gs.file_hashes(path, limit=HASH_MAX_BYTES)
-
-
-# GameCore: how close the title that came back is to the one we asked for.
-#
-# ScreenScraper's romnom search is fuzzy and always answers *something*. Asked
-# for "Mario Kart Wii" on GameCube it returns "Mario Kart: Double Dash!!" — and
-# since any answer ended the loop, that is what the box displayed. The Wii
-# candidate, which would have answered "Mario Kart Wii", was never asked.
-#
-# Both figures below come from measuring this library, not from taste:
-#
-#   correct match, article reordered   1.000  ("Legend of Zelda, The - Skyward
-#                                              Sword" vs ScreenScraper's "The
-#                                              Legend of Zelda - Skyward Sword")
-#   wrong console                      0.581  (Double Dash)
-#   *different game in the same series* 0.909  (Mario Party 4 vs Mario Party 7)
-#
-# That 0.909 is why a threshold alone cannot do this. One character apart, two
-# genuinely different games — so the rule is not "is this good enough", it is
-# "which candidate is closest". A candidate is only accepted outright when it
-# is nearly exact; anything short of that keeps looking and the best wins.
-NAME_ACCEPT = 0.95
-
-
-def _title_score(parsed: dict, jeu: dict) -> float:
-    """Best similarity between the name we asked for and any name returned."""
-    import difflib
-    want = gs.normalize(parsed.get("romnom") or parsed.get("title") or "")
-    if not want:
-        return 0.0
-    names = [str(n.get("text") or "") for n in (jeu.get("noms") or [])
-             if isinstance(n, dict)]
-    if not names:
-        return 0.0
-    return max(difflib.SequenceMatcher(None, want, gs.normalize(n)).ratio()
-               for n in names)
-
-
-def _hash_confirmed(jeu: dict, hashes: dict | None) -> bool:
-    """The server echoed one of our digests — certain, never second-guessed."""
-    return _matched_by(jeu, hashes) == "hash"
-
-
-def _matched_by(jeu: dict, hashes: dict | None) -> str:
-    """How the game was REALLY found — verified, not declared.
-
-    Returning "hash" because we sent one describes what we asked, not what the
-    server used: the frontend received a certainty that was not one. ES-DE
-    re-parses the <rommd5> from the response and compares it with the local
-    digest, with three states (ScreenScraper.cpp:635-636,
-    GuiScraperSearch.cpp:488-508). Same thing here.
-    """
-    if not hashes:
-        return "name"
-    echo = jeu.get("rom") or {}
-    pairs = (("romcrc", "crc"), ("rommd5", "md5"), ("romsha1", "sha1"))
-    seen = [(str(echo.get(k) or "").lower(), str(hashes.get(h) or "").lower())
-            for k, h in pairs if echo.get(k)]
-    if not seen:
-        return "hash (unverifiable)"
-    return ("hash" if any(a == b for a, b in seen)
-            else "name (hash sent, not confirmed)")
-
-
-# maxthreads does not change within a session, and ssuserInfos.php costs one
-# quota unit + 1.2 s. Calling it per game doubled the consumption. The value is
-# also seeded from any jeuInfos response, which already carries it.
-_ss_threads: int | None = None
-
-
-def _seed_threads(data: dict) -> None:
-    global _ss_threads
-    n = ((data.get("response") or {}).get("ssuser") or {}).get("maxthreads")
-    try:
-        _ss_threads = max(1, min(SS_MAX_THREADS, int(n)))
-    except (TypeError, ValueError):
-        pass
-
-
-def ss_threads() -> int:
-    """Parallelism the account allows, capped the way Skyscraper caps it."""
-    global _ss_threads
-    if _ss_threads is not None:
-        return _ss_threads
-    creds = gs.ss_credentials()
-    if not creds:
-        return 1
-    try:
-        data = ss_request("ssuserInfos.php", creds)
-    except (ScreenScraperClosed, ScreenScraperUnreachable):
-        return 1
-    if data:
-        _seed_threads(data)
-    return _ss_threads if _ss_threads is not None else 1
 
 
 # ── Tier 2: ScreenScraper, metadata AND media in one call ───────────────────
@@ -1482,7 +942,7 @@ def serve(port: int, verbose: bool = False) -> None:
                 return self._json(200, {
                     "ok": True, "cache": str(CACHE_ROOT),
                     "screenscraper": bool(gs.ss_credentials()),
-                    "ss_requests_left": ss_remaining,
+                    "ss_requests_left": ss_client.ss_remaining,
                     "launchbox_index": gs.lb_index_ready()})
 
             if parts == ["api", "cache"]:

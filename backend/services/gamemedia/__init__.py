@@ -44,8 +44,9 @@ log = logging.getLogger(__name__)
 CACHE_DIR = GAMECORE_ROOT / "emu" / "gamemedia"
 INDEX_DIR = GAMECORE_ROOT / "emu" / "gamescrape"
 
-gm.CACHE_ROOT = CACHE_DIR
-gm.SYSTEMS_CACHE = CACHE_DIR / "systems.json"        # derived at import time
+# One call rather than two assignments: gamemedia is five modules now, and an
+# assignment reaches only the one it is made on (see gamemedia.set_cache_root).
+gm.set_cache_root(CACHE_DIR)
 # One call rather than two assignments: gamescrape is five modules now, and an
 # assignment reaches only the one it is made on (see gamescrape.set_index_dir).
 gs.set_index_dir(INDEX_DIR)
