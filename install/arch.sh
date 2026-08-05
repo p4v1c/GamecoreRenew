@@ -168,12 +168,7 @@ if $UNATTENDED; then
   WEB_PORT="${WEB_PORT:-8765}"
   MODE="${MODE:-full}"
   [[ "$MODE" == "full" || "$MODE" == "minimal" ]] || die "MODE must be full or minimal"
-  # Older confs predate APPS and listed steam among the emulators — keep both
-  # working: no APPS line means "all apps", steam-as-emulator becomes an app.
   APPS="${APPS-all}"
-  if [[ "$APPS" != "all" && " $EMULATORS " == *" steam "* && " $APPS " != *" steam "* ]]; then
-    APPS="$APPS steam"
-  fi
 else
   read -rp "  System username (e.g. pavic)         : " USER_NAME
   [[ -n "$USER_NAME" ]] || die "Username cannot be empty."
@@ -715,11 +710,7 @@ for pair in "apps.json" "systems.json"; do
   fi
 done
 # apps.json ships an @HOME@ token (it is generated from catalog/*/pack.json).
-# The /home/pavic pass stays alongside it: a box upgrading from an older
-# release still has the literal in its own config/apps.json, and config/ is
-# excluded from the OTA rsync, so nothing else would ever fix it.
-sed -i -e "s|@HOME@|$USER_HOME|g" -e "s|/home/pavic|$USER_HOME|g" \
-  "$GAMECORE_PATH/config/apps.json"
+sed -i -e "s|@HOME@|$USER_HOME|g" "$GAMECORE_PATH/config/apps.json"
 
 KEEP_APPS=""
 for app in $(python3 "$GAMECORE_PATH/scripts/catalog-query.py" ids --kind app); do

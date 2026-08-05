@@ -473,42 +473,18 @@ ok "units removed (incl. the drop-in holding the TheGamesDB key)."
 #  6. SDDM auto-login and the 1080p display command
 # ================================================================
 msg "SDDM"
-# Three of these are legacy names, and they are listed for the same reason:
-# a box installed by an older version has them on disk, and this is the only
-# thing that will ever take them away.
-#
-#   zzz-gamecore-session.conf   written by gamecore-session-select back when it
-#                               switched sessions. It no longer writes anything
-#                               — the kiosk is a service toggle now — but a box
-#                               that toggled to the desktop before that still
-#                               carries one, and it holds [Autologin] with
-#                               Relogin=true. Left behind, the account keeps
-#                               auto-logging in after everything that needed it
-#                               is gone.
-#   zz-gamecore-openbox.conf    the pre-rename name of the installer's drop-in.
-#   gamecore-display.conf       the pre-rename name of the 1080p one.
+# The two drop-ins install/arch.sh writes, and nothing else. Every other name
+# this used to chase was a file an older version of GameCore had written under a
+# name it no longer uses — carried for the sake of boxes that were never
+# installed. A cleanup list that guesses at history is a list nobody can check.
 safe_rm /etc/sddm.conf.d/zz-gamecore-autologin.conf \
-        /etc/sddm.conf.d/zz-gamecore-display.conf \
-        /etc/sddm.conf.d/zzz-gamecore-session.conf \
-        /etc/sddm.conf.d/zz-gamecore-openbox.conf \
-        /etc/sddm.conf.d/gamecore-display.conf
-
-# Older installs used the generic name autologin.conf — which is also a name a
-# user may have picked themselves. Only remove it if it is ours.
-if [[ -f /etc/sddm.conf.d/autologin.conf ]]; then
-  if grep -q "^User=${GC_USER}\$" /etc/sddm.conf.d/autologin.conf 2>/dev/null \
-     && grep -q '^Session=plasma' /etc/sddm.conf.d/autologin.conf 2>/dev/null; then
-    safe_rm /etc/sddm.conf.d/autologin.conf
-  else
-    warn "/etc/sddm.conf.d/autologin.conf does not look like GameCore's — left in place."
-  fi
-fi
+        /etc/sddm.conf.d/zz-gamecore-display.conf
 
 # Put the user's own [Autologin] block back if we stripped it.
 KDE_SDDM_CONF=/etc/sddm.conf.d/kde_settings.conf
-# Older installs kept the backup next to the original; look in both places.
-for b in "${KDE_SDDM_BACKUP:-}" "${MANIFEST_DIR}/kde_settings.conf.pre-gamecore" \
-         "${KDE_SDDM_CONF}.pre-gamecore"; do
+# The backup lives with the manifest, never next to the original: SDDM parses
+# every file in /etc/sddm.conf.d/ regardless of extension.
+for b in "${KDE_SDDM_BACKUP:-}" "${MANIFEST_DIR}/kde_settings.conf.pre-gamecore"; do
   [[ -n "$b" && -f "$b" ]] || continue
   run mv -f "$b" "$KDE_SDDM_CONF" \
     && ok "kde_settings.conf restored to its pre-GameCore contents."
