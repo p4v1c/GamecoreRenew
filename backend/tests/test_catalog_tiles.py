@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT))
 
 from backend.services.catalog import load_catalog
 from backend.services.catalog.merge import entry_from_pack
-from backend.services.catalog.tiles import LOGO_NAME, tile_entry
+from backend.services.catalog.tiles import tile_entry
 
 CATALOG = ROOT / "catalog"
 LOCAL = ROOT / "config" / "catalog.d"
@@ -61,14 +61,12 @@ def test_launch_behaviour_survives_both_paths(packs):
         assert tile["gamepadTrigger"] is True
 
 
-def test_every_tile_names_a_logo_that_something_can_serve(packs):
-    """`serve_logo` resolves by pack id first, then by the historical file name
-    recorded in systems.json. A tile naming neither draws an empty square."""
+def test_every_tile_names_a_logo_after_its_own_pack(packs):
+    """One naming rule. There were two — eleven ids mapped to platform names —
+    and a table to consult to know which applied."""
     for pack in packs.values():
         icon = tile_entry(pack)["iconPath"]
-        stem = Path(icon).stem
-        assert stem == pack.id or LOGO_NAME.get(pack.id) == Path(icon).name, \
-            f"{pack.id}: {icon} matches neither the pack id nor its historical name"
+        assert Path(icon).stem == pack.id, f"{pack.id}: {icon} is not named after the pack"
         assert pack.logo is not None, f"{pack.id} declares {icon} but ships no logo"
 
 

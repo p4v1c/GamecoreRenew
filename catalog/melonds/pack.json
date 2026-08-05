@@ -6,6 +6,7 @@
   "platform": "DS",
   "family": "Nintendo",
   "color": "#0096ff",
+  "order": 9,
   "install": {
     "provider": "flatpak",
     "appId": "net.kuribo64.melonDS"

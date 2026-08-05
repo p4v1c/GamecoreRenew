@@ -677,6 +677,7 @@ A minimal emulator:
   "platform": "SOMECONSOLE",
   "family": "Sega",
   "color": "#1e90ff",
+  "order": 13,
   "install": { "provider": "flatpak", "appId": "org.example.MyEmu" },
   "launch": { "path": "flatpak", "args": "run org.example.MyEmu --fullscreen" },
   "roms": { "dir": "emu/myemu", "extensions": ["*.bin", "*.zip"] }

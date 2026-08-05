@@ -23,6 +23,11 @@
       "description": "One line shown next to the tick box in the install wizard.",
       "type": "string", "minLength": 1
     },
+    "order": {
+      "description": "Where this system sits in the grid, and in the installer's tick list. A curated running order, not alphabetical — the console you reach for most is first. Absent means last, in id order: a pack that forgets it is placed badly, never dropped. Before this field the order was a list of ids inside scripts/gen-catalog.py, and a pack missing from that list was silently absent from both the grid and the installer.",
+      "type": "integer",
+      "minimum": 0
+    },
     "platform": { "type": "string", "minLength": 1 },
     "color":    { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
 

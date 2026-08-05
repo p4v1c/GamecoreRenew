@@ -6,6 +6,7 @@
   "platform": "GBA",
   "family": "Nintendo",
   "color": "#96c800",
+  "order": 10,
   "install": {
     "provider": "flatpak",
     "appId": "io.mgba.mGBA"

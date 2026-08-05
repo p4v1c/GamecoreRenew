@@ -6,6 +6,7 @@
   "platform": "PSP",
   "family": "Sony",
   "color": "#1e64ff",
+  "order": 7,
   "install": {
     "provider": "flatpak",
     "appId": "org.ppsspp.PPSSPP"

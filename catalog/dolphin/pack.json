@@ -6,6 +6,7 @@
   "platform": "GameCube/Wii",
   "family": "Nintendo",
   "color": "#ff8c00",
+  "order": 2,
   "install": {
     "provider": "flatpak",
     "appId": "org.DolphinEmu.dolphin-emu"

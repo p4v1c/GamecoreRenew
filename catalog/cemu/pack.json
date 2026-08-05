@@ -6,6 +6,7 @@
   "platform": "Wii U",
   "family": "Nintendo",
   "color": "#00b48c",
+  "order": 1,
   "install": {
     "provider": "flatpak",
     "appId": "info.cemu.Cemu"

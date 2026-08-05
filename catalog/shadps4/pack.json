@@ -6,6 +6,7 @@
   "platform": "PS4",
   "family": "Sony",
   "color": "#003791",
+  "order": 12,
   "install": {
     "provider": "flatpak",
     "appId": "net.shadps4.shadPS4"

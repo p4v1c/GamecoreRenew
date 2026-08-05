@@ -56,6 +56,7 @@ by `scripts/check-catalog.py`, which CI runs before anything else. Required:
 |---|---|---|
 | `id` `kind` `label` `platform` `color` | everything | identity. `kind` is `emulator` or `app` |
 | `emulatorName` `family` `description` | the grid, the install wizard | display only |
+| `order` | `gen-catalog.py` | where the tile sits in the grid and in the wizard's list. A curated running order, not alphabetical. **Absent means last**, never absent — that ordering used to be a list of ids inside the script, and a pack missing from it was silently dropped from both |
 | `launch` | the backend, `flatpakify-systems.sh` | the command the tile runs. `preferIfPresent` picks a native binary over the Flatpak when one exists. `fullscreen` and `gamepadTrigger` cover what happens just after — see below |
 | `roms` | the backend, `arch.sh` | ROM directory and extensions |
 | `config` | `install-emu-configs.sh` | where `seed/` is deployed |

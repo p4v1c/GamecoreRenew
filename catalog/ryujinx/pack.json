@@ -6,6 +6,7 @@
   "platform": "Switch",
   "family": "Nintendo",
   "color": "#e6001a",
+  "order": 3,
   "install": {
     "provider": "flatpak",
     "appId": "io.github.ryubing.Ryujinx"

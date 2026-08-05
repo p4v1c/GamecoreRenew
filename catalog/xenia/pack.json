@@ -6,6 +6,7 @@
   "platform": "X360",
   "family": "Microsoft",
   "color": "#107c10",
+  "order": 11,
   "install": {
     "provider": "github-archive",
     "repo": "xenia-canary/xenia-canary-releases",

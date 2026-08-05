@@ -30,19 +30,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-# The file name systems.json records for a pack's logo. These are platform
-# names, not pack ids, because that is what installed boxes already have in
-# their catalogues — `serve_logo` resolves them back to `catalog/<id>/logo.png`.
-# Renaming them would be a migration for no gain.
-LOGO_NAME = {
-    "azahar": "3ds.png", "cemu": "wiiu.png", "dolphin": "gamecube.png",
-    "ryujinx": "switch.png", "duckstation": "ps1.png", "pcsx2": "ps2.png",
-    "rpcs3": "ps3.png", "ppsspp": "psp.png", "gopher64": "n64.png",
-    "melonds": "ds.png", "mgba": "gba.png", "xenia": "xenia.png",
-    "shadps4": "shadps4.png", "steam": "steam.png", "twitch": "twitch.png",
-    "stremio": "stremio.png", "youtube": "youtube.png",
-}
-
 # (path, args) for a pack. The default is "whatever the pack prefers", which is
 # what a .dist records: it describes the reference box, not this one.
 LauncherResolver = Callable[[object], "tuple[str, str]"]
@@ -57,7 +44,15 @@ def preferred_launcher(pack) -> tuple[str, str]:
 
 
 def logo_path(pack) -> str:
-    return f"assets/logos/{LOGO_NAME.get(pack.id, pack.id + '.png')}"
+    """One rule: a pack's logo is named after the pack.
+
+    There used to be a table here mapping eleven ids to the platform names
+    installed boxes record — `duckstation` to `ps1.png`. Nothing depended on
+    it: no test, and `serve_logo` resolves an iconPath back to its pack either
+    way, which is what keeps already-installed boxes working. All it bought was
+    a second naming rule and a list to consult to know which one applied.
+    """
+    return f"assets/logos/{pack.id}.png"
 
 
 def tile_entry(pack, *, resolve_launcher: LauncherResolver | None = None) -> dict:

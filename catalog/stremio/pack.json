@@ -6,6 +6,7 @@
   "description": "Media center (gamepad-friendly)",
   "platform": "Media",
   "color": "#8a5fff",
+  "order": 3,
   "install": {
     "provider": "flatpak",
     "appId": "com.stremio.Stremio"

@@ -14,9 +14,16 @@ steps:
    file name. Not excluded from the OTA, so a corrected logo does reach an
    installed box.
 
+A tile always names its logo after its pack: `duckstation.png`, not `ps1.png`.
+Boxes installed before that keep the platform names in their own
+`config/systems.json`, and `serve_logo` still resolves them — which is what its
+second lookup pass is for.
+
 So a file appearing here means someone overrode something. Nothing is meant to
 be committed here — `nes.png` and `snes.png` were, left over from before the
 logos moved into the packs, and they were the only two that could never be
 served from a pack because no `nes` or `snes` pack exists.
+
+To override a logo, name the file after the pack: `assets/logos/duckstation.png`.
 
 Same arrangement for `assets/overlays/`, one level up.

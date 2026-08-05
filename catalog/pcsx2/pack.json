@@ -6,6 +6,7 @@
   "platform": "PS2",
   "family": "Sony",
   "color": "#003087",
+  "order": 5,
   "install": {
     "provider": "flatpak",
     "appId": "net.pcsx2.PCSX2"

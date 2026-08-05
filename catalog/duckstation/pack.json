@@ -6,6 +6,7 @@
   "platform": "PS1",
   "family": "Sony",
   "color": "#0046ff",
+  "order": 4,
   "packages": {
     "pacman": [
       "fuse2"

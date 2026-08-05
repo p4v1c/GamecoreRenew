@@ -6,6 +6,7 @@
   "platform": "PS3",
   "family": "Sony",
   "color": "#00439c",
+  "order": 6,
   "install": {
     "provider": "flatpak",
     "appId": "net.rpcs3.RPCS3"

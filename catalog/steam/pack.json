@@ -6,6 +6,7 @@
   "description": "PC games (Flatpak, Big Picture)",
   "platform": "Steam",
   "color": "#1f6fb3",
+  "order": 0,
   "install": {
     "provider": "flatpak",
     "appId": "com.valvesoftware.Steam"

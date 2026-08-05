@@ -6,6 +6,7 @@
   "description": "Twitch for the big screen",
   "platform": "Web",
   "color": "#800080",
+  "order": 2,
   "packages": {
     "pacman": [
       "firefox",

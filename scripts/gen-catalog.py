@@ -44,16 +44,24 @@ OVERLAYS       = ROOT / "config" / "overlays.json"
 # Logos keep their historical file names in assets/logos/ so that a box that
 # has hand-replaced one keeps it (assets/logos/ stays out of the OTA rsync).
 # The pack owns the image; this map owns the legacy name.
-# systems.json.dist: it is a curated running order, not alphabetical.
-SYSTEM_ORDER = ["azahar", "cemu", "dolphin", "ryujinx", "duckstation", "pcsx2",
-                "rpcs3", "ppsspp", "gopher64", "melonds", "mgba", "xenia",
-                "shadps4"]
-APP_ORDER = ["steam", "youtube", "twitch", "stremio"]
+# The grid order is a curated running order, not alphabetical — and it lives in
+# the packs, under `order`, not here.
+#
+# It used to be two lists of ids in this file, and `if i in packs` meant a pack
+# missing from them was DROPPED: a new catalog/<id>/ validated, generated
+# nothing, and appeared neither on the grid nor in the installer's tick list,
+# without one line of output saying so. "Drop a directory" has to be true.
+#
+# A pack with no `order` sorts last, by id. Badly placed is recoverable; absent
+# is not.
+def ordered(packs: dict, kind: str) -> list:
+    return sorted((p for p in packs.values() if p.kind == kind),
+                  key=lambda p: (p.data.get("order", 10_000), p.id))
 
 
 def render(packs: dict) -> tuple[str, str]:
-    systems = [tile_entry(packs[i]) for i in SYSTEM_ORDER if i in packs]
-    apps = [tile_entry(packs[i]) for i in APP_ORDER if i in packs]
+    systems = [tile_entry(p) for p in ordered(packs, "emulator")]
+    apps = [tile_entry(p) for p in ordered(packs, "app")]
     dump = lambda d: json.dumps(d, indent=2, ensure_ascii=False) + "\n"
     return dump(systems), dump(apps)
 
@@ -99,15 +107,12 @@ def render_installer_data(packs: dict) -> str:
     offer "gopher64" as the N64 emulator long after that slot started launching
     Rosalie's Mupen GUI.
     """
-    def rows(kind, order):
+    def rows(kind):
         out = []
-        for pid in order:
-            p = packs.get(pid)
-            if p is None or p.kind != kind:
-                continue
+        for p in ordered(packs, kind):
             name = p.data.get("emulatorName", p.data["label"])
             desc = p.data.get("description", p.data["label"])
-            out.append(f"    ({pid!r}, {name!r}, {desc!r}),")
+            out.append(f"    ({p.id!r}, {name!r}, {desc!r}),")
         return out
 
     return "\n".join([
@@ -118,11 +123,11 @@ def render_installer_data(packs: dict) -> str:
         '"""',
         "",
         "EMULATORS = [",
-        *rows("emulator", SYSTEM_ORDER),
+        *rows("emulator"),
         "]",
         "",
         "APPS = [",
-        *rows("app", APP_ORDER),
+        *rows("app"),
         "]",
         "",
     ])
