@@ -473,10 +473,20 @@ ok "units removed (incl. the drop-in holding the TheGamesDB key)."
 #  6. SDDM auto-login and the 1080p display command
 # ================================================================
 msg "SDDM"
-# zzz-gamecore-session.conf is written by gamecore-session-select, not by the
-# installer, so it exists only on a box where someone toggled to the desktop.
-# Left behind it would keep pointing SDDM at a session after everything that
-# needed it is gone. zz-gamecore-openbox.conf is its pre-rename name.
+# Three of these are legacy names, and they are listed for the same reason:
+# a box installed by an older version has them on disk, and this is the only
+# thing that will ever take them away.
+#
+#   zzz-gamecore-session.conf   written by gamecore-session-select back when it
+#                               switched sessions. It no longer writes anything
+#                               — the kiosk is a service toggle now — but a box
+#                               that toggled to the desktop before that still
+#                               carries one, and it holds [Autologin] with
+#                               Relogin=true. Left behind, the account keeps
+#                               auto-logging in after everything that needed it
+#                               is gone.
+#   zz-gamecore-openbox.conf    the pre-rename name of the installer's drop-in.
+#   gamecore-display.conf       the pre-rename name of the 1080p one.
 safe_rm /etc/sddm.conf.d/zz-gamecore-autologin.conf \
         /etc/sddm.conf.d/zz-gamecore-display.conf \
         /etc/sddm.conf.d/zzz-gamecore-session.conf \
