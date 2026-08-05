@@ -1,0 +1,33 @@
+# Whatever your editor is, these are the file's rules.
+# https://editorconfig.org
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+[*.{py,sh}]
+indent_size = 4
+
+# Shell in this repo is 2-space: install/arch.sh and uninstall.sh are long
+# enough that 4 would push the nested blocks off the right edge.
+[*.sh]
+indent_size = 2
+
+[install/bin/*]
+indent_size = 2
+
+[*.{js,jsx,ts,tsx,json,yml,yaml,css,html}]
+indent_size = 2
+
+[*.md]
+indent_size = 2
+# Two trailing spaces are a hard line break in Markdown.
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab

@@ -23,7 +23,6 @@ from __future__ import annotations
 import logging
 import os
 import pwd
-import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass

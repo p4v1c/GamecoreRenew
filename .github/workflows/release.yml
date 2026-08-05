@@ -51,6 +51,18 @@ jobs:
         run: |
           python scripts/check-catalog.py
 
+      # Static analysis, ahead of the tests: an unused import or an unquoted
+      # rm -rf is cheaper to read in isolation than inside a test failure.
+      #
+      # The rulesets are deliberately narrow — see pyproject.toml for why, and
+      # for the per-file exceptions and the reason each one is legitimate.
+      # Versions pinned like everything else the build depends on.
+      - name: Lint — Python (ruff) and shell (shellcheck)
+        run: |
+          pip install 'ruff==0.16.1' 'shellcheck-py==0.11.0.1'
+          ruff check .
+          shellcheck -S warning $(git ls-files '*.sh') install/bin/*
+
       # The .dist files are build output now. A pack edited without
       # regenerating them is a box that disagrees with itself.
       - name: Catalogue is in sync with install/generated/*.dist

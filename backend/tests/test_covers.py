@@ -54,7 +54,6 @@ FAKE_PNG = b"\x89PNG\r\n\x1a\n" + b"fakepngdata" * 20
 def build_sfo(pairs: dict) -> bytes:
     keys = b""
     data = b""
-    entries = b""
     offsets = []
     for k, v in pairs.items():
         koff = len(keys)
@@ -396,7 +395,7 @@ def test_no_miss_is_written_when_the_network_is_down(client, monkeypatch):
 
 def test_a_genuine_miss_is_still_cached(client, monkeypatch):
     """The negative cache has to keep working, or every visit re-hits the CDN."""
-    from backend.services import cover_pipeline, scraper
+    from backend.services import cover_pipeline
 
     async def not_found(*a, **kw):
         return httpx.Response(404, request=httpx.Request("GET", "https://example.invalid"))

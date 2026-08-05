@@ -80,6 +80,11 @@ echo "[update] Source directory: ${SRC_DIR}"
 _need_kb=$(du -sk "${SRC_DIR}" 2>/dev/null | cut -f1)
 _free_kb=$(df -Pk "${GAMECORE_PATH}" 2>/dev/null | awk 'NR==2 {print $4}')
 if [[ -n "$_need_kb" && -n "$_free_kb" ]] && (( _free_kb < _need_kb * 2 )); then
+  # fail() is defined at the top of this file; the definition shellcheck found
+  # is the REDEFINITION further down, which adds the restore hint once there is
+  # a snapshot to restore from. Before that point there is nothing to restore,
+  # and the plain one is the right one.
+  # shellcheck disable=SC2218
   fail "not enough free space on $(df -Ph "${GAMECORE_PATH}" | awk 'NR==2 {print $6}') — \
 need ~$(( _need_kb * 2 / 1024 )) MB, have $(( _free_kb / 1024 )) MB"
 fi
@@ -269,7 +274,10 @@ if [[ -d "${SRC_DIR}/config/themes" ]]; then
     fi
 
     mkdir -p "$_themes_prev"
-    rm -rf "${_themes_prev}/${_id}"
+    # :? on both halves. An empty _id would make this wipe the whole .prev
+    # directory rather than one theme, and an rm -rf is not the place to trust
+    # that a loop variable is always set.
+    rm -rf "${_themes_prev:?}/${_id:?}"
     if ! mv "$_dest" "${_themes_prev}/${_id}"; then
       rm -rf "$_stage"
       echo "[update] WARNING: could not set theme ${_id} aside — kept ${_have} (non-fatal)."

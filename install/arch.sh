@@ -669,7 +669,7 @@ EOF
   # daemon-reload, so embertv/gamepad-tv-bridge would stay dead post-install.
   USER_UID=$(id -u "$USER_NAME")
   if [ ${#RESTART_UNITS[@]} -gt 0 ]; then
-    for i in $(seq 1 10); do [ -S "/run/user/$USER_UID/bus" ] && break; sleep 1; done
+    for _ in $(seq 1 10); do [ -S "/run/user/$USER_UID/bus" ] && break; sleep 1; done
     if [ -S "/run/user/$USER_UID/bus" ]; then
       sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/$USER_UID" systemctl --user daemon-reload 2>/dev/null || true
       sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
@@ -837,6 +837,10 @@ else
     done
   fi
   if [[ -n "$WEB_PASSWORD" ]]; then
+    # The prefix assignment is for the forked python, which reads both from its
+    # environment. The interpreter path is expanded by THIS shell, from the same
+    # variable and the same value — two readers, one value.
+    # shellcheck disable=SC2097,SC2098
     WEB_PASSWORD="$WEB_PASSWORD" GAMECORE_PATH="$GAMECORE_PATH" \
       "$GAMECORE_PATH/.venv/bin/python3" - <<'PYEOF'
 import os, sys
@@ -1280,7 +1284,7 @@ if [[ -n "$ADDONS" ]]; then
     loginctl enable-linger "$USER_NAME" 2>/dev/null && manifest_set LINGER_ENABLED 1 || true
   fi
   # systemctl --user needs the user manager's bus — wait for it briefly
-  for i in $(seq 1 10); do [ -S "/run/user/$USER_UID/bus" ] && break; sleep 1; done
+  for _ in $(seq 1 10); do [ -S "/run/user/$USER_UID/bus" ] && break; sleep 1; done
   for addon in $ADDONS; do
     if sudo -u "$USER_NAME" \
          env GAMECORE_PATH="$GAMECORE_PATH" GAMECORE_BACKEND_PORT="$WEB_PORT" \

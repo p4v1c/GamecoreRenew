@@ -280,7 +280,6 @@ def test_the_n64_slot_deploys_where_rmg_actually_reads(packs):
 
 def test_the_old_n64_app_id_is_gone_from_every_consumer():
     """One grep, across every file that used to carry it."""
-    dead = "io.github.gopher64.gopher64"
     offenders = []
     for name in ("install/arch.sh", "install/steps/install-emu-configs.sh",
                  "install/uninstall.sh", "install/steps/flatpakify-systems.sh",

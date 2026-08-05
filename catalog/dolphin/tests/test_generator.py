@@ -13,8 +13,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from backend.services.configgen.controllers import Pad          # noqa: E402
-from backend.services.configgen.helpers.base import Skip        # noqa: E402
-from backend.services.configgen.helpers.ini import section, set_section  # noqa: E402
+from backend.services.configgen.helpers.ini import section  # noqa: E402
 
 
 def _load(pack_id):

@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 
 from backend.services.catalog import load_catalog                    # noqa: E402
 from backend.services.catalog.merge import (                          # noqa: E402
-    launcher_is_stale, merge_file, merge_systems, nominal_launcher,
+    merge_file, merge_systems,
 )
 
 CATALOG = ROOT / "catalog"

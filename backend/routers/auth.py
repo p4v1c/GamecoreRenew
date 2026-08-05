@@ -9,7 +9,6 @@ never calls any of this — the core enforces nothing on its own routes.
 import asyncio
 import logging
 import socket
-import subprocess
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request, Response

@@ -8,7 +8,6 @@ Run under pytest:  pytest backend/tests/test_update.py
 import asyncio
 import os
 import signal
-import subprocess
 import sys
 import time
 from pathlib import Path

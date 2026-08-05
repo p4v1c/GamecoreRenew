@@ -42,13 +42,11 @@ from __future__ import annotations
 
 import logging
 import os
-import pwd
 import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import manifest
 from .providers import Context, Result, _chown, _pacman_install, install
 
 log = logging.getLogger(__name__)

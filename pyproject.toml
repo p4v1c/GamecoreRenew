@@ -1,0 +1,53 @@
+# Tooling configuration. GameCore is not a distributed Python package — there is
+# no [project] table on purpose; the backend runs from a checkout at
+# GAMECORE_PATH with its own venv, and setup.py would be a lie.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+    "frontend/node_modules",
+    "electron/node_modules",
+    "install/installer-gui/.buildvenv",
+    "install/installer-gui/build",
+    "install/installer-gui/dist",
+]
+
+[tool.ruff.lint]
+# Deliberately narrow: pyflakes plus the pycodestyle rules that are defects
+# rather than taste. This is what ruff itself defaults to.
+#
+# The wider sets (SIM, PERF, UP, B, RUF…) find another ~200 things in this tree,
+# and every one of them is a judgement call about style. A linter that reports
+# two hundred items on the day it is switched on gets switched back off, and
+# then nothing catches the fifteen unused imports that are actually rot. Widen
+# it later, one family at a time, fixing as you go.
+# E7 is left out on purpose. It reports the semicolon-joined pairs this
+# codebase uses on purpose (`self.pw = QLineEdit(); self.pw.setEchoMode(…)`) —
+# eighty of them, all deliberate. Style, not defects.
+select = ["E4", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# A pack's generator.py is imported by path, and re-exports the helper surface
+# its strategy needs — names that look unused here are the contract the
+# dispatcher calls.
+"catalog/*/generator.py" = ["F401"]
+
+# logging.basicConfig() runs before FastAPI and the routers are imported, so a
+# logger created at import time in any of them gets the configured level. That
+# is the whole reason the imports are split — E402 is right that it is unusual
+# and wrong that it is a mistake.
+"backend/main.py" = ["E402"]
+
+# The tests insert the repository root on sys.path before importing `backend`,
+# which no import-order rule can express. F811: pytest fixtures are shared by
+# importing them from the module that defines them, and using one as a
+# parameter reads to ruff as a redefinition.
+"backend/tests/*.py" = ["E402", "F811"]
+"catalog/*/tests/*.py" = ["E402", "F811"]
+"scripts/*.py" = ["E402"]
+
+# catalog_data is imported after the comment block that explains why the list is
+# baked into the binary rather than read from the catalogue at runtime. Moving
+# the import above it would separate the two.
+"install/installer-gui/gamecore_installer.py" = ["E402"]

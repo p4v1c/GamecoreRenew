@@ -20,7 +20,6 @@ any more — and silent when there is nothing to do, which is every start after
 the first and every box that owns no disc image.
 """
 import logging
-from pathlib import Path
 
 from ..config import resolve_path
 from ..db import get_db
