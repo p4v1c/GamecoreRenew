@@ -260,7 +260,13 @@ touch "$PKG_MANIFEST" "$FLATPAK_MANIFEST" "$OVERRIDE_MANIFEST"
 # ── Copy files ───────────────────────────────────────────────────
 progress 4 "Copying GameCore files"
 msg "Setting up $GAMECORE_PATH"
-mkdir -p "$(dirname "$GAMECORE_PATH")"
+# The destination itself, not just its parent. `cp -r "$SRC/." "$GAMECORE_PATH"`
+# used to create it on the way; the tar pipeline below cannot — `tar -C <dir>`
+# needs <dir> to exist and exits before reading a single byte. Every FRESH
+# install died here, at 4 %, with "tar: /opt/GameCore: Cannot open". Only an
+# install onto an existing directory — i.e. a re-run — got past it, which is
+# exactly the case anyone testing the change would have been in.
+mkdir -p "$GAMECORE_PATH"
 if [ "$PROJECT_ROOT" != "$GAMECORE_PATH" ]; then
   # Copy with the same exclusions update/linux.sh uses, not a bare `cp -r`.
   #
