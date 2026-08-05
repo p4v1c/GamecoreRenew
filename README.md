@@ -113,10 +113,13 @@ Closing GameCore from Settings → Desktop drops you on that Plasma desktop. To
 keep the desktop across reboots — and put the kiosk back later:
 
 ```bash
-sudo gamecore-session-select desktop     # kiosk off, desktop stays
+sudo gamecore-session-select desktop     # kiosk off, it stops starting at boot
 sudo gamecore-session-select gamecore    # kiosk back on
-gamecore-session-select status           # what is set, and what is available
+gamecore-session-select status           # which mode, and the sessions available
 ```
+
+There is one session, so this changes no login configuration: it enables or
+disables `gamecore-ui.service`, nothing else.
 
 Verify an install from the outside — it changes nothing:
 

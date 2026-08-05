@@ -1,39 +1,33 @@
 #!/usr/bin/env bash
 # ================================================================
-#  gamecore-session-select — point SDDM's auto-login at the kiosk, or at a desktop
+#  gamecore-session-select — turn the GameCore kiosk on or off
 #
-#      sudo gamecore-session-select gamecore    # the desktop + the GameCore kiosk
-#      sudo gamecore-session-select desktop     # the machine's own desktop
-#      gamecore-session-select status           # what it is set to now (no root)
+#      sudo gamecore-session-select desktop     # kiosk off — plain desktop
+#      sudo gamecore-session-select gamecore    # kiosk back on
+#      gamecore-session-select status           # what is set right now (no root)
+#      gamecore-session-select pick-desktop --x11   # used by install/arch.sh
 #
-#  Why this exists: the box auto-logs into the machine's own X11 desktop and
-#  draws the kiosk over it. That is right for a living-room appliance and wrong
-#  for the ten minutes a year someone needs a file manager. Toggling by hand
-#  means editing SDDM drop-ins as root and remembering to disable gamecore-ui,
-#  which will otherwise draw the kiosk over the desktop again at the next boot.
+#  It used to switch SDDM's auto-login between a bare openbox session and the
+#  machine's desktop. There is only one session now: the box auto-logs into its
+#  own X11 desktop and the kiosk is drawn over it. Both modes therefore pointed
+#  at the SAME Session=, and writing a drop-in to say so was ceremony — the only
+#  thing that ever differed is whether gamecore-ui.service is enabled.
 #
-#  Reversible by deletion: remove /etc/sddm.conf.d/zzz-gamecore-session.conf and
-#  the installer's own zz-gamecore-autologin.conf takes over again. Nothing else
-#  on the system is touched.
+#  So that is all this does. It touches no SDDM configuration at all, which also
+#  removes the way it used to fail: `desktop` picked the first .desktop file
+#  alphabetically, Wayland directory first, and landed a Plasma box on a Wayland
+#  session it could not draw. A black screen, with no message.
 #
-#  The file name has to sort LAST. SDDM reads /etc/sddm.conf.d/* in name order
-#  and the last [Autologin] wins — that is the whole reason the installer's file
-#  is called zz-…, and this one must beat it, hence zzz-.
+#  The name is kept because /etc/sudoers.d/gamecore-power grants exactly these
+#  two argument forms, and that rule is already on installed boxes.
+#
+#  enable/disable and --now, never start/stop: install/arch.sh ENABLES the unit,
+#  so merely stopping it brought the kiosk back over the desktop at the next
+#  boot — which reads as the switch not having worked.
 # ================================================================
 set -euo pipefail
 
-CONF=/etc/sddm.conf.d/zzz-gamecore-session.conf
-INSTALLER_CONF=/etc/sddm.conf.d/zz-gamecore-autologin.conf
-
-# The user is never hard-coded: it is read back from the file the installer
-# wrote, so this script keeps working on a box installed under any account.
-_gc_user() {
-  local u=""
-  [[ -f "$CONF" ]] && u=$(sed -n 's/^User=//p' "$CONF" | tail -1)
-  [[ -z "$u" && -f "$INSTALLER_CONF" ]] && u=$(sed -n 's/^User=//p' "$INSTALLER_CONF" | tail -1)
-  [[ -z "$u" ]] && u="${SUDO_USER:-${USER:-}}"
-  printf '%s' "$u"
-}
+UNIT=gamecore-ui.service
 
 # Every session this machine offers. "<name>\t<dir>".
 _sessions() {
@@ -48,25 +42,18 @@ _sessions() {
   done
 }
 
-# The desktop is whatever this machine actually has. Hard-coding "plasma" broke
-# the moment the box was not a Plasma box, and a session name that does not
-# exist makes SDDM fall back to its own default with no message at all.
+# Which session the box should auto-log into. Hard-coding "plasma" broke the
+# moment the box was not a Plasma box, and a session name that does not exist
+# makes SDDM fall back to its own default with no message at all.
 #
-# But "the first .desktop in the directory" is not that either, and it is what
-# this used to do: alphabetical order, Wayland scanned before X11. On a Plasma
-# box that is how `desktop` landed on a Wayland session the machine could not
-# draw — a black screen, no message, and no obvious way back for someone who
-# switched precisely because they wanted a file manager.
-#
-# So: X11 before Wayland, because the whole GameCore stack is X11 and a box that
-# just ran the kiosk has proved X works on it, while its Wayland session may
-# never have been started once — llvmpipe in a VM is the case that broke here.
-# Then full desktops before bare window managers, since "desktop mode" means a
-# desktop. Anything left over still wins over nothing at all.
+# X11 first: the whole GameCore stack is X11 (bezel overlays, the fullscreen
+# enforcer, gamecore-xsetup's 1080p pin, the gamepad bridge's window detection),
+# so --x11 is what install/arch.sh asks for. Full desktops before bare window
+# managers, and anything at all before nothing.
 PREFERRED=(plasmax11 plasma plasma-x11 gnome-xorg gnome xfce mate cinnamon
            lxqt lxde budgie deepin pantheon i3 sway)
 
-_desktop_session() {   # _desktop_session [--x11]
+_pick() {   # _pick [--x11]
   local only_x11=false; [[ "${1:-}" == "--x11" ]] && only_x11=true
   local want name dir
   for want in "${PREFERRED[@]}"; do
@@ -82,105 +69,56 @@ _desktop_session() {   # _desktop_session [--x11]
   return 1
 }
 
-# The session that HOSTS the kiosk: the machine's own X11 desktop.
-#
-# It used to be a bare openbox session, always, and that is what put an empty
-# root window behind the kiosk — closing GameCore left a window manager with no
-# panel and no menu, reported (correctly) as a black screen.
-#
-# GameCore does not need a bare session. It needs X11, which any X11 desktop
-# provides, and it draws over whatever is underneath. So the kiosk rides the
-# desktop, and quitting reveals that desktop instead of a void.
-_kiosk_session() { _desktop_session --x11; }
-
-_current() {
-  local s=""
+_autologin() {
+  local s="" v
+  # SDDM reads /etc/sddm.conf.d/* in name order and the LAST [Autologin] wins.
   for f in /etc/sddm.conf.d/*.conf; do
     [[ -e "$f" ]] || continue
-    local v; v=$(sed -n 's/^Session=//p' "$f" | tail -1)
-    [[ -n "$v" ]] && s="$v"                 # last file wins, same as SDDM
+    v=$(sed -n 's/^Session=//p' "$f" | tail -1)
+    [[ -n "$v" ]] && s="$v"
   done
-  printf '%s' "${s:-<aucune>}"
+  printf '%s' "${s:-<none>}"
 }
 
 case "${1:-}" in
   status)
-    echo "auto-login    : $(_current)"
-    echo "gamecore-ui   : $(systemctl is-enabled gamecore-ui.service 2>/dev/null || echo inconnu)"
-    echo "kiosk session : $(_kiosk_session 2>/dev/null || echo '<none installed>')"
-    echo "desktop pick  : $(_desktop_session 2>/dev/null || echo '<none installed>')"
-    echo "available     :"
+    if systemctl is-enabled --quiet "$UNIT" 2>/dev/null; then
+      echo "mode          : gamecore (the kiosk starts at boot)"
+    else
+      echo "mode          : desktop (the kiosk does not start at boot)"
+    fi
+    echo "gamecore-ui   : $(systemctl is-enabled "$UNIT" 2>/dev/null || echo unknown)"\
+         "/ $(systemctl is-active "$UNIT" 2>/dev/null || echo inactive)"
+    echo "auto-login    : $(_autologin)"
+    echo "sessions      :"
     _sessions | while IFS=$'\t' read -r n d; do
       printf '  %-18s %s\n' "$n" "${d##*/}"
     done
     exit 0
     ;;
   pick-desktop)
-    # Prints the session name and nothing else. install/arch.sh uses it to
-    # choose the auto-login session, so the ranking above has ONE implementation
-    # instead of a copy in the installer that drifts from this one.
-    # --x11 for the kiosk: overlays, the fullscreen enforcer, gamecore-xsetup
-    # and the gamepad bridge's window detection are all X11.
-    _desktop_session "${2:-}" || exit 1
+    # Prints the session name and nothing else. install/arch.sh uses it to pick
+    # the auto-login session, so the ranking above has ONE implementation rather
+    # than a copy in the installer that drifts from this one.
+    _pick "${2:-}" || exit 1
     echo
     exit 0
     ;;
-  gamecore|kiosk)
-    if ! SESSION=$(_kiosk_session); then
-      echo "no X11 session on this machine — GameCore needs a desktop's X11 session" >&2
-      exit 1
-    fi
-    UI=enable
-    ;;
-  desktop)
-    # An explicit name wins over the guess. The guess is a heuristic over what
-    # the machine happens to ship, and the person typing this knows which
-    # session they actually log into — `status` lists the valid answers.
-    if [[ -n "${2:-}" ]]; then
-      if ! _sessions | cut -f1 | grep -qxF "$2"; then
-        echo "no session called '$2' on this machine — see: $(basename "$0") status" >&2
-        exit 1
-      fi
-      SESSION="$2"
-    elif ! SESSION=$(_desktop_session); then
-      echo "no desktop session installed — nothing to switch to" >&2
-      exit 1
-    fi
-    UI=disable
-    ;;
+  gamecore|kiosk) ACTION=enable  ;;
+  desktop)        ACTION=disable ;;
   *)
-    echo "usage: $(basename "$0") gamecore|desktop [session]|status|pick-desktop [--x11]" >&2
+    echo "usage: $(basename "$0") gamecore|desktop|status|pick-desktop [--x11]" >&2
     exit 2
     ;;
 esac
 
 [[ $EUID -eq 0 ]] || { echo "run this with sudo" >&2; exit 1; }
 
-GC_USER=$(_gc_user)
-[[ -n "$GC_USER" ]] || { echo "cannot determine the auto-login user" >&2; exit 1; }
+systemctl "$ACTION" --now "$UNIT"
 
-install -d -m755 /etc/sddm.conf.d
-cat > "$CONF" <<CFG
-# Auto-login target, driven by gamecore-session-select.
-# Reversible: delete this file and zz-gamecore-autologin.conf takes over.
-[Autologin]
-User=$GC_USER
-Session=$SESSION
-Relogin=true
-CFG
-chmod 644 "$CONF"
-
-# The kiosk must not draw itself over a desktop session, and must come back with
-# the kiosk one. `--now` so it also applies to the session running right now.
-#
-# enable/disable, not start/stop: arch.sh enables gamecore-ui.service, so
-# stopping it left it enabled and the kiosk came back at the very next boot, on
-# top of the desktop the owner had just switched to. Which reads as the switch
-# not having worked, or as a black screen.
-#
-# `|| true`: a box mid-install may not have the unit yet, and that is not a
-# reason to leave the auto-login half-switched.
-systemctl "$UI" --now gamecore-ui.service 2>/dev/null || true
-
-echo "auto-login -> $SESSION ; gamecore-ui -> $UI"
-echo "takes effect at the next login (reboot, or: systemctl restart sddm)"
+if [[ "$ACTION" == enable ]]; then
+  echo "kiosk ON — GameCore starts at boot, over the desktop."
+else
+  echo "kiosk OFF — the box logs into its desktop and stays there."
+  echo "back on:  sudo $(basename "$0") gamecore"
+fi

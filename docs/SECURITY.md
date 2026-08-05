@@ -257,9 +257,8 @@ Three more rules the applier enforces (`backend/services/installer/applier.py`):
 - **Sudoers**: every rule in `/etc/sudoers.d/gamecore-power` is argument-narrow —
   `systemctl poweroff|reboot`, `udevadm trigger`, `systemctl start` on the two
   GameCore units, `gamecore-session-select` with its two literal arguments, and
-  the two `cpupower` governors GameCore uses. Nothing is wildcarded. Note the
-  consequence: `gamecore-session-select desktop <name>` takes a third argument
-  and is therefore **not** covered — it is a console command, not something the
-  UI can trigger.
+  the two `cpupower` governors GameCore uses. Nothing is wildcarded — which is
+  why `gamecore-session-select` takes no third argument: a rule that had to
+  accept one would have to accept any.
 - **Verification**: `ss -tlnp` must show, for GameCore, only Caddy on `:8443`;
   `8765`, `8097`, `8770`, `8771` and `8772` on `127.0.0.1` only.

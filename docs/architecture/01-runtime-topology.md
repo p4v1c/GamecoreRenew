@@ -150,10 +150,12 @@ competing `User`/`Session`/`Relogin` keys out of that file (keeping a backup in
 the manifest directory), because the Login Screen KCM rewrites it whenever
 someone opens it.
 
-`sudo gamecore-session-select desktop` disables `gamecore-ui.service` and points
-auto-login at a plain desktop; `… gamecore` puts the kiosk back. `enable`/
-`disable`, not `start`/`stop` — the unit is enabled at install, so merely
-stopping it brought the kiosk back over the desktop at the next boot.
+`sudo gamecore-session-select desktop` / `… gamecore` toggles the kiosk. There is
+only one session, so it changes **no SDDM configuration at all** — it is
+`systemctl enable|disable --now gamecore-ui.service` behind an argument-narrow
+sudoers rule. `enable`/`disable`, never `start`/`stop`: the unit is enabled at
+install, so merely stopping it brought the kiosk back over the desktop at the
+next boot.
 
 ## Environment reconstruction
 

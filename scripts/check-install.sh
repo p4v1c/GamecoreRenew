@@ -119,10 +119,19 @@ fi
 
 # ── 4. services and the kiosk chain ───────────────────────────────────────
 head_ "Services"
-for unit in gamecore-backend gamecore-ui sddm; do
+for unit in gamecore-backend sddm; do
   en=$(systemctl is-enabled "$unit" 2>/dev/null || echo unknown)
   [[ "$en" == enabled ]] && ok "$unit enabled" || bad "$unit" "is-enabled=$en — it will not start at boot"
 done
+# gamecore-ui is the one unit that is legitimately off: `gamecore-session-select
+# desktop` disables it on purpose, and calling that box broken would be wrong.
+# It is parked, and it says so.
+en=$(systemctl is-enabled gamecore-ui 2>/dev/null || echo unknown)
+case "$en" in
+  enabled)  ok   "gamecore-ui enabled" "kiosk mode" ;;
+  disabled) warn "gamecore-ui" "disabled — desktop mode, the kiosk will not start"$'\n'"      back to the kiosk: sudo gamecore-session-select gamecore" ;;
+  *)        bad  "gamecore-ui" "is-enabled=$en — it will not start at boot" ;;
+esac
 act=$(systemctl is-active gamecore-backend 2>/dev/null)
 [[ "$act" == active ]] && ok "backend running" || bad "backend" "is-active=$act"
 
@@ -138,18 +147,15 @@ fi
 # the effective session is the last Session= across every file — not the one in
 # GameCore's own drop-in, which a later-sorting file can override in silence.
 sess=$(grep -h '^Session=' /etc/sddm.conf.d/*.conf 2>/dev/null | tail -1 | cut -d= -f2)
-# What the kiosk session IS varies by box, so it is read back from the manifest
-# rather than compared to a literal — it is the machine's own desktop session,
-# whatever that is called here. A literal would report a perfectly healthy
-# Plasma-hosted kiosk as "parked in desktop mode".
+# What the session IS varies by box, so it is read back from the manifest rather
+# than compared to a literal — it is the machine's own desktop session, whatever
+# it is called here. Kiosk mode and desktop mode use the SAME session; only
+# gamecore-ui differs, which is what the check above covers.
 want=$(sed -n 's/^KIOSK_SESSION=//p' /var/lib/gamecore/manifest.env 2>/dev/null | tail -1 | tr -d "'\"")
 case "$sess" in
   "")      bad "SDDM autologin" "no Session= in /etc/sddm.conf.d — no auto-login" ;;
-  "$want") ok "SDDM autologin session" "$sess — kiosk mode" ;;
-  # Not a failure: this is what `gamecore-session-select desktop` sets, on
-  # purpose. The kiosk still runs if gamecore-ui is started by hand, so calling
-  # the box broken here would be wrong — it is parked, and it says so.
-  *)       warn "SDDM autologin" "session is '$sess' — desktop mode, not the kiosk"$'\n'"      back to the kiosk: sudo gamecore-session-select gamecore" ;;
+  "$want") ok  "SDDM autologin session" "$sess" ;;
+  *)       warn "SDDM autologin" "session is '$sess', the install recorded '$want'"$'\n'"      something else in /etc/sddm.conf.d/ sorts later and overrode it" ;;
 esac
 
 # ── 5. the API actually answers ───────────────────────────────────────────
