@@ -32,7 +32,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from backend.services.catalog import load_catalog  # noqa: E402
+from backend.services.catalog import load_catalog
+from backend.services.catalog.tiles import tile_entry  # noqa: E402
 
 SYSTEMS_DIST   = ROOT / "install" / "generated" / "systems.json.dist"
 APPS_DIST      = ROOT / "install" / "generated" / "apps.json.dist"
@@ -43,20 +44,6 @@ OVERLAYS       = ROOT / "config" / "overlays.json"
 # Logos keep their historical file names in assets/logos/ so that a box that
 # has hand-replaced one keeps it (assets/logos/ stays out of the OTA rsync).
 # The pack owns the image; this map owns the legacy name.
-LOGO_NAME = {
-    "azahar": "3ds.png", "cemu": "wiiu.png", "dolphin": "gamecube.png",
-    "ryujinx": "switch.png", "duckstation": "ps1.png", "pcsx2": "ps2.png",
-    "rpcs3": "ps3.png", "ppsspp": "psp.png", "gopher64": "n64.png",
-    "melonds": "ds.png", "mgba": "gba.png", "xenia": "xenia.png",
-    "shadps4": "shadps4.png", "steam": "steam.png", "twitch": "twitch.png",
-    "stremio": "stremio.png",
-    # youtube had no icon at all before the migration: the tile rendered with
-    # no image. The pack now ships one, so the entry gains an iconPath - the
-    # single intentional addition to apps.json.dist.
-    "youtube": "youtube.png",
-}
-
-# The order emulators appear in the grid. Taken from the committed
 # systems.json.dist: it is a curated running order, not alphabetical.
 SYSTEM_ORDER = ["azahar", "cemu", "dolphin", "ryujinx", "duckstation", "pcsx2",
                 "rpcs3", "ppsspp", "gopher64", "melonds", "mgba", "xenia",
@@ -64,67 +51,9 @@ SYSTEM_ORDER = ["azahar", "cemu", "dolphin", "ryujinx", "duckstation", "pcsx2",
 APP_ORDER = ["steam", "youtube", "twitch", "stremio"]
 
 
-def _launcher(pack) -> tuple[str, str]:
-    """What the .dist records: the reference box's preference when there is
-    one, otherwise the nominal launcher."""
-    launch = pack.data["launch"]
-    prefer = launch.get("preferIfPresent")
-    if prefer:
-        return prefer["path"], prefer.get("args", "")
-    return launch["path"], launch.get("args", "")
-
-
-def system_entry(pack) -> dict:
-    path, args = _launcher(pack)
-    roms = pack.data["roms"]
-    entry = {
-        "id": pack.id,
-        "type": "emulator",
-        "label": pack.data["label"],
-        "platform": pack.data["platform"],
-        "color": pack.data["color"],
-    }
-    if pack.id in LOGO_NAME:
-        entry["iconPath"] = f"assets/logos/{LOGO_NAME[pack.id]}"
-    entry["path"] = path
-    entry["args"] = args
-    entry["romsPath"] = roms["dir"] + "/"
-    if roms.get("scanDirs"):
-        entry["scanDirs"] = True
-    entry["extensions"] = roms.get("extensions", [])
-    entry["libretroSystems"] = (pack.data.get("scraper") or {}).get("libretro", [])
-    return entry
-
-
-def app_entry(pack) -> dict:
-    path, args = _launcher(pack)
-    entry = {
-        "id": pack.id,
-        "kind": "app",
-        "type": "application",
-        "label": pack.data["label"],
-        "platform": pack.data["platform"],
-        "color": pack.data["color"],
-    }
-    if pack.id in LOGO_NAME:
-        entry["iconPath"] = f"assets/logos/{LOGO_NAME[pack.id]}"
-    entry["path"] = path
-    entry["args"] = args
-    # Launch-time behaviour the live entry carries and the pack declares. The
-    # pack speaks camelCase like the rest of the schema; games.py and
-    # fullscreen_enforcer.py read the snake_case names they always have.
-    launch = pack.data["launch"]
-    if fs := launch.get("fullscreen"):
-        entry["fullscreen"] = {"wm_class": fs["wmClass"],
-                               "timeout_s": fs.get("timeoutSec", 45)}
-    if launch.get("gamepadTrigger"):
-        entry["gamepadTrigger"] = True
-    return entry
-
-
 def render(packs: dict) -> tuple[str, str]:
-    systems = [system_entry(packs[i]) for i in SYSTEM_ORDER if i in packs]
-    apps = [app_entry(packs[i]) for i in APP_ORDER if i in packs]
+    systems = [tile_entry(packs[i]) for i in SYSTEM_ORDER if i in packs]
+    apps = [tile_entry(packs[i]) for i in APP_ORDER if i in packs]
     dump = lambda d: json.dumps(d, indent=2, ensure_ascii=False) + "\n"
     return dump(systems), dump(apps)
 

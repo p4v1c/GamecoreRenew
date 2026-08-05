@@ -43,6 +43,7 @@ import json
 import shutil
 from pathlib import Path
 
+from .tiles import tile_entry
 
 REMOVED_FILE = "catalog-removed.json"
 
@@ -118,42 +119,14 @@ def nominal_launcher(pack, root: Path) -> tuple[str, str]:
     return launch["path"], launch.get("args", "")
 
 
-def system_entry_from_pack(pack, root: Path) -> dict:
-    """A fresh systems.json entry, for an emulator the box does not have yet."""
-    path, args = nominal_launcher(pack, root)
-    roms = pack.data.get("roms") or {}
-    entry = {
-        "id": pack.id,
-        "type": "emulator",
-        "label": pack.data["label"],
-        "platform": pack.data["platform"],
-        "color": pack.data["color"],
-        "iconPath": f"assets/logos/{pack.id}.png",
-        "path": path,
-        "args": args,
-        "romsPath": roms.get("dir", f"emu/{pack.id}") + "/",
-    }
-    if roms.get("scanDirs"):
-        entry["scanDirs"] = True
-    entry["extensions"] = list(roms.get("extensions", []))
-    entry["libretroSystems"] = list((pack.data.get("scraper") or {}).get("libretro", []))
-    return entry
+def entry_from_pack(pack, root: Path) -> dict:
+    """A fresh tile for a pack this box does not have yet.
 
-
-def app_entry_from_pack(pack) -> dict:
-    """A fresh apps.json entry. Apps have no ROM directory and no extensions."""
-    launch = pack.data["launch"]
-    return {
-        "id": pack.id,
-        "kind": "app",
-        "type": "application",
-        "label": pack.data["label"],
-        "platform": pack.data["platform"],
-        "color": pack.data["color"],
-        "iconPath": f"assets/logos/{pack.id}.png",
-        "path": launch["path"],
-        "args": launch.get("args", ""),
-    }
+    The shape is `catalog/tiles.py`'s and nowhere else — see its header for what
+    that duplication used to cost. All this adds is the box: `preferIfPresent`
+    is honoured only when that binary is really here.
+    """
+    return tile_entry(pack, resolve_launcher=lambda p: nominal_launcher(p, root))
 
 
 def merge_systems(live: list[dict], packs: dict, root: Path,
@@ -213,8 +186,7 @@ def merge_systems(live: list[dict], packs: dict, root: Path,
             if pack.id in removed:
                 # Taken off deliberately. Not "missing" — declined.
                 continue
-            out.append(system_entry_from_pack(pack, root) if kind == "emulator"
-                       else app_entry_from_pack(pack))
+            out.append(entry_from_pack(pack, root))
             notes.append(f"{pack.id}: added — new in this release")
 
     return out, notes
