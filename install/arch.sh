@@ -980,8 +980,6 @@ else
   # own [Autologin] with Session=plasma — the WAYLAND session — and 'k' sorts
   # after 'a', so a drop-in called autologin.conf is silently overridden and
   # the box boots into Wayland with the kiosk never starting. 'zz-' sorts last.
-  rm -f /etc/sddm.conf.d/autologin.conf /etc/sddm.conf.d/gamecore-display.conf \
-        /etc/sddm.conf.d/zz-gamecore-openbox.conf
   cat > /etc/sddm.conf.d/zz-gamecore-autologin.conf <<EOF
 [Autologin]
 User=$USER_NAME
