@@ -629,8 +629,16 @@ def resolve(system: str, filename: str, *, refresh: bool = False,
         else:
             # build_index() downloads 106 MB and indexes for 1 to 2 minutes.
             # Never inside an HTTP handler: say so and hand back control.
+            #
+            # The path is named, and the command is one that WORKS. This note
+            # used to read "run `gamescrape.py --refresh`", and following it to
+            # the letter rebuilt 234 MB in ~/.cache/gamescrape — not here.
+            # A remedy that changes nothing is worse than no remedy: it spends
+            # a quarter of an hour and leaves the reader certain they fixed it.
             unreachable = True
-            notes.append("launchbox: index missing — run `gamescrape.py --refresh`")
+            notes.append(
+                f"launchbox: index missing at {gs.DB_PATH} — run "
+                f"`gamescrape.py --refresh --index-dir {gs.CACHE_DIR}`")
 
     if hit is None:
         # Nothing found. A negative manifest is only written when the tiers

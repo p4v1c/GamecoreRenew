@@ -152,6 +152,35 @@ CACHE_DIR = common.CACHE_DIR
 DB_PATH = common.DB_PATH
 
 
+def resolve_index_dir(explicit: str | None = None):
+    """Where THIS run should keep the index, or None to leave the default.
+
+    ONE answer to "where does the index live", and this function is what makes
+    it one.
+
+    It was two. The backend imports services/gamemedia/__init__.py, which moves
+    the index into GAMECORE_PATH/emu/gamescrape — inside the installation, and
+    excluded from the OTA rsync so it survives updates. This file run as a
+    plain script never executes that __init__, so `--refresh` built the 234 MB
+    index in ~/.cache/gamescrape instead, where the backend never looks.
+
+    Which made the remedy a lie: when the index was missing the backend printed
+    "run `gamescrape.py --refresh`", and doing exactly that rebuilt 234 MB at
+    the wrong path and changed nothing. Found on a real box, where the
+    LaunchBox tier had been silently off since the day it was populated —
+    `status()` reported launchbox_index: False with the index sitting on disk
+    two directories away, and every lookup fell through to ScreenScraper alone.
+
+    GAMECORE_PATH set means "this is a GameCore install", and then there is
+    exactly one right answer. Unset, standalone behaviour is untouched:
+    ~/.cache/gamescrape, as the module docstring promises.
+    """
+    if explicit:
+        return Path(explicit)
+    root = os.environ.get("GAMECORE_PATH", "")
+    return Path(root) / "emu" / "gamescrape" if root else None
+
+
 def set_index_dir(directory) -> None:
     """Move the LaunchBox index. The ONLY supported way to move it.
 
@@ -514,12 +543,19 @@ def main() -> int:
     p.add_argument("--ss-media-types", action="store_true",
                    help="list the media types ScreenScraper declares and "
                         "confront SS_MEDIA with what it announces")
+    p.add_argument("--index-dir", metavar="DIR",
+                   help="where the LaunchBox index lives. Defaults to "
+                        "$GAMECORE_PATH/emu/gamescrape on a GameCore box, and "
+                        "to ~/.cache/gamescrape otherwise")
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args()
     # Through the setter, not by assignment: `out()` lives in common.py now and
     # is imported by four modules. Rebinding a name here would leave every one
     # of them printing to stdout, which is what `--json | jq` cannot survive.
     set_json_mode(args.json)
+
+    if (chosen := resolve_index_dir(args.index_dir)) is not None:
+        set_index_dir(chosen)
 
     if args.ss_check or args.ss_systems:
         if not ss_credentials():

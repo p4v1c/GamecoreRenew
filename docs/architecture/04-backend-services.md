@@ -311,9 +311,18 @@ scrapes would put three `jeuInfos` in flight ignoring each other's 1.2 s.
 Configured through four environment variables — `SCREENSCRAPER_DEV_ID`,
 `SCREENSCRAPER_DEV_PASSWORD`, `SCREENSCRAPER_USER`, `SCREENSCRAPER_PASSWORD`
 ([where they come from](07-config-and-data.md#environment)). The LaunchBox tier
-needs no account at all, only `python3 gamescrape.py --refresh` run once. The
-backend **never** builds that index itself: 106 MB of download from inside an
-HTTP handler would block the request for minutes.
+needs no account at all, only `python3 gamescrape.py --refresh` run once — and
+**with `GAMECORE_PATH` set**, or the index lands in `~/.cache/gamescrape` where
+the backend never looks. That is not hypothetical: it is where the index sat on
+the reference box, with `status()` reporting `launchbox_index: false` and the
+tier silently off since the day it was populated. `resolve_index_dir()` now
+answers that question once for both the CLI and the backend, and
+`test_the_cli_and_the_backend_agree_on_where_the_index_lives` keeps the two
+answers equal.
+
+Nothing builds it for you: the installer does not, and the backend **never**
+does — 106 MB of download from inside an HTTP handler would block the request
+for minutes. A box with no index simply has no LaunchBox tier.
 
 ## `metadata.py` (135 l.)
 

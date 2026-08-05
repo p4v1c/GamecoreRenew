@@ -572,3 +572,79 @@ def test_warming_skips_a_game_with_no_manifest(tmp_path, monkeypatch):
 
     monkeypatch.setattr(gamemedia, "media_file", refuse)
     assert await_(gamemedia.warm("rpcs3", "Never Scraped")) == 0
+
+
+
+# ── where the index lives: one fact, one answer ────────────────────────────
+
+def test_the_cli_and_the_backend_agree_on_where_the_index_lives(tmp_path):
+    """Found on a real box, and invisible from everywhere else.
+
+    The backend imports services/gamemedia/__init__.py, which moves the index
+    into GAMECORE_PATH/emu/gamescrape — inside the installation, excluded from
+    the OTA rsync so it survives updates. `gamescrape.py` run as a plain script
+    never executes that __init__, so `--refresh` built the 234 MB index in
+    ~/.cache/gamescrape instead.
+
+    Nothing said so. `status()` reported `launchbox_index: False` with the
+    index on disk two directories away, the LaunchBox tier had been silently
+    off since the day it was populated, and every lookup fell through to
+    ScreenScraper alone — which needs an account the free tier does not have.
+
+    Both sides are asked in a subprocess, through the same seam a person uses:
+    the script with GAMECORE_PATH set, and the package the backend imports.
+    """
+    import subprocess
+    import sys as _sys
+
+    root = tmp_path / "gamecore"
+    (root / "emu").mkdir(parents=True)
+    env = {**os.environ, "GAMECORE_PATH": str(root),
+           "PYTHONDONTWRITEBYTECODE": "1"}
+
+    def run(code: str) -> str:
+        r = subprocess.run([_sys.executable, "-c", code], capture_output=True,
+                           text=True, env=env, cwd=str(REPO), timeout=60)
+        assert r.returncode == 0, r.stderr
+        return r.stdout.strip()
+
+    # The script, resolving its index the way main() does — the real function,
+    # not a copy of its rule.
+    # Mirrors main()'s two lines exactly, None-guard included — so a regression
+    # reports WHICH two paths disagree rather than crashing on a None.
+    from_cli = run(
+        "import sys; sys.path.insert(0, 'backend/services/gamemedia'); "
+        "import gamescrape as gs; "
+        "chosen = gs.resolve_index_dir(None)\n"
+        "if chosen is not None: gs.set_index_dir(chosen)\n"
+        "print(gs.DB_PATH)")
+
+    # The package, as the backend imports it.
+    from_backend = run(
+        "from backend.services.gamemedia import gamescrape as gs; print(gs.DB_PATH)")
+
+    assert from_cli == from_backend, (
+        f"the CLI would build the index at {from_cli}\n"
+        f"the backend would read it from  {from_backend}")
+
+
+def test_a_standalone_gamescrape_still_caches_in_the_home(tmp_path):
+    """The other half: away from a GameCore install, nothing changes.
+
+    gamescrape is usable on its own — its module docstring documents
+    ~/.cache/gamescrape — and this fix must not relocate a developer's index
+    just because they have the variable exported for something else.
+    """
+    import subprocess
+    import sys as _sys
+
+    env = {k: v for k, v in os.environ.items() if k != "GAMECORE_PATH"}
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    r = subprocess.run(
+        [_sys.executable, "-c",
+         "import sys; sys.path.insert(0, 'backend/services/gamemedia'); "
+         "import gamescrape as gs; print(gs.resolve_index_dir(None))"],
+        capture_output=True, text=True, env=env, cwd=str(REPO), timeout=60)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "None", (
+        "with no GAMECORE_PATH the default must be left alone")
