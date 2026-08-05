@@ -19,6 +19,13 @@ set -euo pipefail
 [[ $EUID -ne 0 ]] || { echo "Run me as the gaming user, not root."; exit 1; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# arch.sh calls this through `sudo -u <user>`, which keeps ROOT's working
+# directory — /root, which the gaming user cannot read. Every `find` in here
+# then printed "Failed to restore initial working directory: Permission denied"
+# once per emulator, ten lines of alarm in the middle of an install that was
+# working. Nothing below depends on the caller's cwd; leave it somewhere
+# readable.
+cd "$SCRIPT_DIR"
 CATALOG_ROOT="$(dirname "$SCRIPT_DIR")/catalog"
 GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
 

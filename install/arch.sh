@@ -798,14 +798,27 @@ EOF
   # profiles.ini registration needed, so no flaky `-CreateProfile` run.
   # Everything is created AS THE USER: a root-owned profile dir breaks
   # certutil below (SEC_ERROR_BAD_DATABASE) and firefox's own caches.
+  # The user.js files live in the pack that needs them — catalog/<app>/files/ —
+  # since the "one app = one directory" refactor. That move deleted
+  # install/firefox-profiles/ and this line kept reading it, so a fresh install
+  # died here with "install: cannot stat .../youtube-tv.user.js" at 66 %, after
+  # the packages, the emulators and the services. Mapped explicitly rather than
+  # derived from the profile name: the pack id is the pack id.
+  declare -A FIREFOX_PROFILE_PACK=([youtube-tv]=youtube [twitch-tv]=twitch)
   FIREFOX_PROFILES=()
   want_app youtube && FIREFOX_PROFILES+=(youtube-tv)
   want_app twitch  && FIREFOX_PROFILES+=(twitch-tv)
   for prof in ${FIREFOX_PROFILES[@]+"${FIREFOX_PROFILES[@]}"}; do
     PROF_DIR="$USER_HOME/.mozilla/firefox/$prof"
+    SRC_JS="$GAMECORE_PATH/catalog/${FIREFOX_PROFILE_PACK[$prof]}/files/$prof.user.js"
+    # Guarded, like every other optional asset here. Unguarded, `install`
+    # failing under `set -e` ended the WHOLE run rather than costing one tile.
+    if [[ ! -f "$SRC_JS" ]]; then
+      warn "$prof.user.js not in catalog/${FIREFOX_PROFILE_PACK[$prof]}/files — tile will open without the Smart-TV user agent."
+      continue
+    fi
     sudo -u "$USER_NAME" mkdir -p "$PROF_DIR"
-    install -o "$USER_NAME" -g "$USER_NAME" -m 644 \
-      "$GAMECORE_PATH/install/firefox-profiles/$prof.user.js" "$PROF_DIR/user.js"
+    install -o "$USER_NAME" -g "$USER_NAME" -m 644 "$SRC_JS" "$PROF_DIR/user.js"
   done
   if want_app twitch; then
   # Trust EmberTV's self-signed cert inside the twitch-tv profile (NSS db):
