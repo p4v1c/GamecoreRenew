@@ -31,6 +31,9 @@
     "maxPlayers": 0,
     "strategy": "none"
   },
+  "localMedia": {
+    "format": "psp"
+  },
   "scraper": {
     "tgdbId": 13,
     "screenscraper": [

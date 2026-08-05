@@ -36,6 +36,9 @@
       "^\\s*Device:\\s*(?!\"\"|\"Null\")\\S"
     ]
   },
+  "localMedia": {
+    "format": "ps3"
+  },
   "scraper": {
     "tgdbId": 12,
     "screenscraper": [

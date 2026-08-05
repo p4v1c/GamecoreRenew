@@ -41,6 +41,10 @@
       "^Device = (?:SDL|evdev)/"
     ]
   },
+  "localMedia": {
+    "format": "gcwii",
+    "discTag": "wii"
+  },
   "scraper": {
     "tgdbId": 2,
     "screenscraper": [

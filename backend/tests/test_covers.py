@@ -171,6 +171,18 @@ def setup_root():
         shutil.rmtree(ROOT)
     (ROOT / "config").mkdir(parents=True)
 
+    # Put back what the rmtree above just took away. conftest.py symlinks the
+    # catalogue into the throwaway root precisely so the consumers that build a
+    # table from it — scraper.py's platform maps, gamemedia.py's aliases,
+    # local_media.py's formats — are not empty under test. Wiping the root
+    # deleted that link, so those tables came up empty for every module
+    # imported after this fixture ran, and full for every module imported
+    # before it: the suite was green or red depending on collection order, and
+    # green for the wrong reason. Running this file on its own was the red one.
+    link = ROOT / "catalog"
+    if not link.exists():
+        link.symlink_to(REPO / "catalog")
+
     # PS3 game folder — named by serial, like real dumps
     ps3 = ROOT / "emu/rpcs3/BLUS30443"
     (ps3 / "PS3_GAME").mkdir(parents=True)

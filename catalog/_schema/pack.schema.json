@@ -203,6 +203,24 @@
       }
     },
 
+    "localMedia": {
+      "description": "The on-disk layout this system's dumps use, so icons, titles and disc serials can be read from the game files themselves instead of guessed from the filename. Absent = this system has no local media and falls back to online scraping, which is exactly what an emulator nobody listed used to get. WHICH parser reads a format is code (backend/services/local_media.py); WHICH format a system uses is this. duckstation and pcsx2 read the identical PlayStation layout and differ by one string — that was six `if sid == …` branches across three functions before it moved here.",
+      "type": "object",
+      "required": ["format"],
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "description": "ps3: PS3_GAME/ICON0.PNG + PARAM.SFO · ps4: sce_sys/ · psp: the same two files inside the ISO · gcwii: the 6-char id in the image header · playstation: the serial in SYSTEM.CNF. A new format is new code, so this enum only grows alongside local_media.py.",
+          "enum": ["ps3", "ps4", "psp", "gcwii", "playstation"]
+        },
+        "discTag": {
+          "description": "The kind `disc_id()` returns, when it is not the format name. gcwii reads GameCube and Wii images alike but reports 'wii'; duckstation and pcsx2 share the playstation parser and report 'psx' and 'ps2'. Absent = the format name.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+
     "scraper": {
       "type": "object",
       "additionalProperties": false,

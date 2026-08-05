@@ -57,6 +57,10 @@
     },
     "asset": "pcsx2.png"
   },
+  "localMedia": {
+    "format": "playstation",
+    "discTag": "ps2"
+  },
   "scraper": {
     "tgdbId": 11,
     "screenscraper": [

@@ -369,6 +369,74 @@ def test_an_absolute_path_already_in_the_grid_is_untouched():
     assert _expand([dict(original)])[0] == original
 
 
+# ── local media: the format is data, the parser is code ────────────────────
+
+def test_every_declared_local_media_format_has_a_parser(packs):
+    """The schema enum and the registry are one fact in two files.
+
+    A pack may only name a format `local_media.py` can actually read — the
+    enum exists to make anything else unwritable, and this is what keeps the
+    enum honest when a value is added to it and the parser forgotten. The
+    symptom would be silent: covers quietly stop being exact for that system.
+    """
+    from backend.services.local_media import _FORMATS
+    unknown = []
+    for pack in packs.values():
+        block = pack.data.get("localMedia")
+        if block and block["format"] not in _FORMATS:
+            unknown.append(f"{pack.id}: declares format {block['format']!r}")
+    assert unknown == [], "\n".join(unknown)
+
+
+def test_the_schema_enum_and_the_parser_registry_agree():
+    """Both directions. A parser with no enum entry is unreachable: no pack can
+    ask for it, so it is dead code that looks live."""
+    import json as _json
+
+    from backend.services.local_media import _FORMATS
+    schema = _json.loads(
+        (CATALOG / "_schema" / "pack.schema.json").read_text(encoding="utf-8"))
+    declared = set(schema["properties"]["localMedia"]["properties"]["format"]["enum"])
+    assert declared == set(_FORMATS), (
+        f"only in the schema: {sorted(declared - set(_FORMATS))}; "
+        f"only in local_media.py: {sorted(set(_FORMATS) - declared)}")
+
+
+def test_local_media_names_no_system_of_its_own(packs):
+    """The chain of `if sid == "rpcs3" / "shadps4" / …` this replaced.
+
+    It was six branches across three functions for one fact, and duckstation
+    and pcsx2 differed by a single string. Which parser reads which system is
+    the pack's to say; a system id back in this file means it is being said
+    twice again.
+    """
+    import ast
+    source = (ROOT / "backend/services/local_media.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    # Prose may name them, and does: the module header explains which
+    # emulators the old chain covered, and that history is the documentation.
+    # Comments never reach the AST; docstrings are the string constants that
+    # open a module, class or function body, so they are excluded by identity.
+    docstrings = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                             ast.AsyncFunctionDef)):
+            body = getattr(node, "body", None)
+            if body and isinstance(body[0], ast.Expr) \
+                    and isinstance(body[0].value, ast.Constant) \
+                    and isinstance(body[0].value.value, str):
+                docstrings.add(id(body[0].value))
+
+    ids = {p.id for p in packs.values()}
+    offenders = [f"line {node.lineno}: {node.value!r}"
+                 for node in ast.walk(tree)
+                 if isinstance(node, ast.Constant) and isinstance(node.value, str)
+                 and id(node) not in docstrings and node.value in ids]
+    assert offenders == [], (
+        "local_media.py names a pack id in live code again:\n" + "\n".join(offenders))
+
+
 # ── the grid's images ──────────────────────────────────────────────────────
 
 def test_every_tile_logo_is_served_at_the_path_the_grid_asks_for():

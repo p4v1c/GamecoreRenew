@@ -24,6 +24,9 @@
     "maxPlayers": 0,
     "strategy": "none"
   },
+  "localMedia": {
+    "format": "ps4"
+  },
   "scraper": {
     "tgdbId": 4919,
     "mediaAlias": [

@@ -70,6 +70,10 @@
     },
     "asset": "duckstation.png"
   },
+  "localMedia": {
+    "format": "playstation",
+    "discTag": "psx"
+  },
   "scraper": {
     "tgdbId": 10,
     "screenscraper": [
