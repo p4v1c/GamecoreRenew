@@ -3,7 +3,8 @@
 One generator per emulator, living in `catalog/<id>/generator.py`, behind a
 common controller abstraction. That structure is taken from Batocera's
 configgen; the CONTENT of each generator is this project's, and where the two
-disagreed the measurements decided (docs/proposals/01-catalog-packs.md §5).
+disagreed the measurements on the reference box decided — see
+`backend/tests/characterisation.py` for the pads and the GUIDs they produced.
 
 **The deliberate divergence.** Batocera regenerates every config at launch and
 overwrites the owner's edits. GameCore does the opposite: a generator writes

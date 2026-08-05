@@ -19,8 +19,8 @@ has. Nothing is invented.
 SDL is stubbed, because it must be: `resolve_name()` asks the system's libSDL3
 about the pads physically connected, and `_sdl2_probe()` shells out to whichever
 SDL2 an emulator bundles. Both answers are machine- and moment-dependent. The
-values below are not invented either — they were MEASURED on the reference box
-(see docs/proposals/01-catalog-packs.md §5.0):
+values below are not invented either — they were MEASURED on the reference box,
+with the three pads plugged in one at a time:
 
     DualShock 4  054c:09cc   SDL3 "PS4 Controller"
                              Ryujinx's bundled SDL2 GUID 03008fe54c05...6800
