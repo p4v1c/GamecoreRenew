@@ -5,6 +5,10 @@ React + Electron shell + FastAPI backend — plug in a controller and play.
 
 ---
 
+> **Licence** — GPL-3.0-or-later, see [`LICENSE`](LICENSE).
+> **Contributing** — [`CONTRIBUTING.md`](CONTRIBUTING.md).
+> **Upgrading a box** — [`CHANGELOG.md`](CHANGELOG.md) lists what needs your hand.
+
 ## Table of contents
 
 1. [What it does](#what-it-does)
