@@ -127,20 +127,24 @@ act=$(systemctl is-active gamecore-backend 2>/dev/null)
 [[ "$act" == active ]] && ok "backend running" || bad "backend" "is-active=$act"
 
 # The kiosk is X11-only: overlays, the fullscreen enforcer and the gamepad
-# bridge all need X. It logs into an openbox session — see install/arch.sh for
-# why that is no longer Plasma's X11 session.
-if [[ -f /usr/share/xsessions/openbox.desktop ]]; then
-  ok "openbox X11 session present"
+# bridge all need X. ANY X11 session hosts it — the machine's own desktop by
+# preference, openbox only when the box has no desktop at all.
+if compgen -G "/usr/share/xsessions/*.desktop" >/dev/null; then
+  ok "X11 session(s) present" "$(cd /usr/share/xsessions && echo *.desktop | sed 's/\.desktop//g')"
 else
-  bad "no openbox session" "the box has no X session to host the kiosk"
+  bad "no X11 session" "the box has no X session to host the kiosk"
 fi
 # SDDM reads /etc/sddm.conf.d/* in name order and the LAST [Autologin] wins, so
 # the effective session is the last Session= across every file — not the one in
 # GameCore's own drop-in, which a later-sorting file can override in silence.
 sess=$(grep -h '^Session=' /etc/sddm.conf.d/*.conf 2>/dev/null | tail -1 | cut -d= -f2)
+# What the kiosk session IS varies by box, so it is read back from the manifest
+# rather than compared to a literal. Hard-coding "openbox" here would report a
+# perfectly healthy Plasma-hosted kiosk as "parked in desktop mode".
+want=$(sed -n 's/^KIOSK_SESSION=//p' /var/lib/gamecore/manifest.env 2>/dev/null | tail -1 | tr -d "'\"")
 case "$sess" in
-  openbox) ok "SDDM autologin session" "openbox — kiosk mode" ;;
   "")      bad "SDDM autologin" "no Session= in /etc/sddm.conf.d — no auto-login" ;;
+  "$want") ok "SDDM autologin session" "$sess — kiosk mode" ;;
   # Not a failure: this is what `gamecore-session-select desktop` sets, on
   # purpose. The kiosk still runs if gamecore-ui is started by hand, so calling
   # the box broken here would be wrong — it is parked, and it says so.

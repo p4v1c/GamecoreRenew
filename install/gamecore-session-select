@@ -67,16 +67,36 @@ _sessions() {
 PREFERRED=(plasmax11 plasma plasma-x11 gnome-xorg gnome xfce mate cinnamon
            lxqt lxde budgie deepin pantheon i3 sway)
 
-_desktop_session() {
-  local want name
+_desktop_session() {   # _desktop_session [--x11]
+  local only_x11=false; [[ "${1:-}" == "--x11" ]] && only_x11=true
+  local want name dir
   for want in "${PREFERRED[@]}"; do
-    while IFS=$'\t' read -r name _; do
+    while IFS=$'\t' read -r name dir; do
+      $only_x11 && [[ "$dir" != */xsessions ]] && continue
       [[ "$name" == "$want" ]] && { printf '%s' "$name"; return 0; }
     done < <(_sessions)
   done
-  name=$(_sessions | head -1 | cut -f1)
-  [[ -n "$name" ]] || return 1
-  printf '%s' "$name"
+  while IFS=$'\t' read -r name dir; do
+    $only_x11 && [[ "$dir" != */xsessions ]] && continue
+    printf '%s' "$name"; return 0
+  done < <(_sessions)
+  return 1
+}
+
+# The session that HOSTS the kiosk. It used to be openbox, always, and that is
+# what put a bare root window behind the kiosk: closing GameCore left a window
+# manager with no panel and no menu — reported, correctly, as a black screen.
+#
+# GameCore does not need openbox. It needs X11, which any X11 desktop provides,
+# and it draws over whatever is underneath. So the kiosk rides the machine's own
+# desktop when there is one, and quitting reveals that desktop instead of a void.
+# openbox remains for the case it was really meant for: an appliance with no
+# desktop installed at all.
+_kiosk_session() {
+  local s
+  if s=$(_desktop_session --x11); then printf '%s' "$s"; return 0; fi
+  [[ -f /usr/share/xsessions/openbox.desktop ]] || return 1
+  printf 'openbox'
 }
 
 _current() {
@@ -93,6 +113,7 @@ case "${1:-}" in
   status)
     echo "auto-login    : $(_current)"
     echo "gamecore-ui   : $(systemctl is-enabled gamecore-ui.service 2>/dev/null || echo inconnu)"
+    echo "kiosk session : $(_kiosk_session 2>/dev/null || echo '<none installed>')"
     echo "desktop pick  : $(_desktop_session 2>/dev/null || echo '<none installed>')"
     echo "available     :"
     _sessions | while IFS=$'\t' read -r n d; do
@@ -100,7 +121,25 @@ case "${1:-}" in
     done
     exit 0
     ;;
-  gamecore|kiosk|openbox) SESSION=openbox; UI=enable ;;
+  pick-desktop)
+    # Prints the session name and nothing else. install/arch.sh uses it to
+    # choose the auto-login session, so the ranking above has ONE implementation
+    # instead of a copy in the installer that drifts from this one.
+    # --x11 for the kiosk: overlays, the fullscreen enforcer, gamecore-xsetup
+    # and the gamepad bridge's window detection are all X11.
+    _desktop_session "${2:-}" || exit 1
+    echo
+    exit 0
+    ;;
+  gamecore|kiosk)
+    # `openbox` is no longer an alias for this: it used to be what the kiosk
+    # session WAS, and it is now only the fallback for a box with no desktop.
+    if ! SESSION=$(_kiosk_session); then
+      echo "no X11 session on this machine — install one (openbox is enough)" >&2
+      exit 1
+    fi
+    UI=enable
+    ;;
   desktop)
     # An explicit name wins over the guess. The guess is a heuristic over what
     # the machine happens to ship, and the person typing this knows which
@@ -118,7 +157,7 @@ case "${1:-}" in
     UI=disable
     ;;
   *)
-    echo "usage: $(basename "$0") gamecore|desktop [session]|status" >&2
+    echo "usage: $(basename "$0") gamecore|desktop [session]|status|pick-desktop [--x11]" >&2
     exit 2
     ;;
 esac
