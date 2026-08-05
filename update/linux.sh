@@ -510,7 +510,11 @@ if [[ -n "$missing_rules" ]]; then
   echo "[update]"
   echo "[update] This box is missing privileges that later releases added, so the"
   echo "[update] following do nothing at all — silently, until this notice:"
-  printf "[update] %b" "$missing_rules"
+  # Each line gets its own prefix: `printf "[update] %b"` prints it once and
+  # the rest of the list comes out unprefixed, which the UI streams verbatim.
+  printf "%b" "$missing_rules" | while IFS= read -r line; do
+    echo "[update] $line"
+  done
   echo "[update] Grant them once (root, no reinstall, nothing else changes):"
   echo "[update]   sudo ${GAMECORE_PATH}/install/steps/setup-update-permissions.sh ${USER}"
   echo "[update] and, for anything above that step does not cover, the matching"
