@@ -19,8 +19,9 @@ React + Electron shell + FastAPI backend — plug in a controller and play.
 9. [Themes](#themes)
 10. [Overlays (bezels)](#overlays-bezels)
 11. [OTA updates](#ota-updates)
-12. [Living-room box setup](#living-room-box-setup)
-13. [Project structure](#project-structure)
+12. [Adding an emulator or an app](#adding-an-emulator-or-an-app)
+13. [Living-room box setup](#living-room-box-setup)
+14. [Project structure](#project-structure)
 
 ---
 
@@ -97,14 +98,31 @@ sudo bash install/arch.sh --unattended my.conf # scripted (see install/gamecore-
 ```
 
 What the installer does:
-- Installs Node.js, Python, Flatpak, and all emulators
+- Installs Node.js, Python, Flatpak, Plasma and the drivers your GPU needs
+- Installs the emulators and apps you ticked — each one from its own
+  [catalogue pack](#adding-an-emulator-or-an-app), nothing is hardcoded
 - Creates a Python virtual environment and installs backend dependencies
-- Builds the React frontend
-- Installs Node modules for Electron
-- Creates a `gamecore` system user
-- Configures SDDM auto-login with a KDE Plasma (X11) session
+- Builds the React frontend, installs Node modules for Electron
+- Creates the Linux user you named (or reuses it if it exists)
+- Configures SDDM auto-login into that user's **KDE Plasma X11 session**, with
+  the GameCore kiosk drawn over it
 - Registers two systemd services: `gamecore-backend` and `gamecore-ui`
-- The machine will boot directly into GameCore after a reboot
+- The machine boots straight into GameCore after a reboot
+
+Closing GameCore from Settings → Desktop drops you on that Plasma desktop. To
+keep the desktop across reboots — and put the kiosk back later:
+
+```bash
+sudo gamecore-session-select desktop     # kiosk off, desktop stays
+sudo gamecore-session-select gamecore    # kiosk back on
+gamecore-session-select status           # what is set, and what is available
+```
+
+Verify an install from the outside — it changes nothing:
+
+```bash
+bash /opt/GameCore/scripts/check-install.sh
+```
 
 After installation:
 ```bash
@@ -625,6 +643,71 @@ This installs the restart unit and a sudoers rule allowing the GameCore user to 
 
 ---
 
+## Adding an emulator or an app
+
+**One directory is one system or one application.** Everything it needs lives in
+`catalog/<id>/`, and nothing about it is written anywhere else — not in
+`install/arch.sh`, not in the installer wizard, not in the tile catalogues.
+Adding one is dropping a directory; removing one is `rm -rf`.
+
+```
+catalog/myemu/
+├── pack.json        the declaration — the only required file
+├── logo.png         the tile
+├── seed/            curated config, deployed to the emulator's config dir
+├── generator.py     controller bindings (optional)
+└── tests/           this pack's own tests, run by CI with the rest
+```
+
+A minimal emulator:
+
+```json
+{
+  "id": "myemu",
+  "kind": "emulator",
+  "label": "Some Console",
+  "emulatorName": "MyEmu",
+  "platform": "SOMECONSOLE",
+  "family": "Sega",
+  "color": "#1e90ff",
+  "install": { "provider": "flatpak", "appId": "org.example.MyEmu" },
+  "launch": { "path": "flatpak", "args": "run org.example.MyEmu --fullscreen" },
+  "roms": { "dir": "emu/myemu", "extensions": ["*.bin", "*.zip"] }
+}
+```
+
+Then, from the repository root:
+
+```bash
+python3 scripts/check-catalog.py    # validate against the schema
+python3 scripts/gen-catalog.py      # regenerate the three derived files
+git add catalog/myemu install/
+```
+
+**`gen-catalog.py` is not optional.** Three committed files are generated from
+the packs: `install/systems.json.dist` and `install/apps.json.dist` (the tile
+catalogues the installer copies into `config/`) and
+`install/installer-gui/catalog_data.py` (the wizard's tick-box list — the wizard
+is a standalone binary that runs *before* the repository is on the machine, so
+its list is baked in at build time). Skip it and your pack validates, appears in
+no tick box, is never selected, and never installs. CI runs
+`gen-catalog.py --check` and fails the build if the committed copies are stale.
+
+An **app** is the same file with `"kind": "app"`, plus whatever it needs beside
+it — `sources` for git checkouts, `files` for configs (with `@HOME@` and secret
+tokens), `services` for a systemd user unit, `postInstall` for the steps that do
+not reduce to data. `catalog/twitch/` is the worked example: it installs EmberTV
+end to end, including generating a TLS certificate and trusting it in a Firefox
+profile.
+
+Emulators that are not on Flathub are just a different `install` provider —
+`github-asset` for an AppImage (DuckStation), `github-archive` for a zip
+(Xenia). Both carry checksum, magic-byte and retry protections for free.
+
+Full reference: [`docs/architecture/10-catalog-and-install.md`](docs/architecture/10-catalog-and-install.md).
+
+---
+
 ## Living-room box setup
 
 How the reference box is wired together. GameCore runs from `/opt/GameCore` with two **system** units:
@@ -645,8 +728,8 @@ Switch keys) — those can't be distributed.
 
 For reference, what the installer wires up:
 
-- **[gamepad-tv-bridge](https://github.com/p4v1c/gamepad-tv-bridge)** — daemon translating gamepad input to keyboard events for apps that don't speak gamepad (Firefox kiosk, EmberTV…). Cloned in `/opt/gamepad-tv-bridge`, installed editable in `~/.venv` (`pip install -e .`), runs as the **user** unit `gamepad-tv-bridge.service` (`WantedBy=graphical-session.target`). Per-app YAML profiles in `profiles/` (window-title matching).
-- **[Twitch-TV / EmberTV](https://github.com/p4v1c/Twitch-TV)** — controller-first Twitch client. Cloned in `/opt/Twitch-TV`, credentials in `config.json` (copy `config.example.json`), TLS cert via `make-cert.sh`, runs as the **user** unit `embertv.service` (`./install-autostart.sh`), HTTPS port **8097**. GameCore's Twitch app entry (`config/apps.json`) opens it in a Firefox kiosk profile at `https://localhost:8097`.
+- **[gamepad-tv-bridge](https://github.com/p4v1c/gamepad-tv-bridge)** — daemon translating gamepad input to keyboard events for apps that don't speak gamepad (Firefox kiosk, EmberTV…). Cloned in `/opt/gamepad-tv-bridge`, installed editable in `~/.venv` (`pip install -e .`), runs as the **user** unit `gamepad-tv-bridge.service` (`WantedBy=default.target`, so linger starts it at boot rather than at graphical login). Per-app YAML profiles in `profiles/` (window-title matching). It is wired by `arch.sh`, not by a pack: it serves both the YouTube and the Twitch kiosk, so it belongs to neither.
+- **[Twitch-TV / EmberTV](https://github.com/p4v1c/Twitch-TV)** — controller-first Twitch client, installed entirely from `catalog/twitch/`: the checkout in `/opt/Twitch-TV` (`sources`), `config.json` rendered from a template with your Client ID/Secret — or a demo config when you leave them empty (`files`), the **user** unit `embertv.service` on HTTPS **8097** (`services`), then the TLS certificate generated and trusted in the Firefox kiosk profile's NSS database (`postInstall`). GameCore's Twitch tile opens `https://localhost:8097`.
 
 Apps launched from GameCore that need gamepad access inside Flatpak (e.g. Stremio) use `"gamepadTrigger": true` in `config/apps.json`, which re-triggers udev after launch (requires `NOPASSWD: /usr/bin/udevadm` in sudoers).
 
@@ -682,11 +765,20 @@ config/           never touched by OTA. Two kinds of file live here:
 assets/           logos/, overlays/
 emu/              ROMs per system (emu/dolphin/, emu/melonds/…), covers/ cache,
                   gamemedia/ manifests + artwork, gamescrape/ LaunchBox index
+catalog/          THE source of truth — one directory per emulator or app:
+                  pack.json (declaration), logo.png, seed/ (curated config),
+                  generator.py (controller bindings), files/ + steps/ (what the
+                  install writes and runs), tests/. See docs/architecture/10.
+  _schema/        pack.schema.json — what check-catalog.py validates against
 install/          Installers: arch.sh engine (+ --unattended), uninstall.sh,
-                  installer-gui/ (Qt binary), gamecore-addon CLI, Caddyfile,
-                  apps.json.dist / systems.json.dist (pristine tile catalogues)
+                  installer-gui/ (Qt wizard + its PyInstaller .spec),
+                  gamecore-addon CLI, gamecore-session-select, Caddyfile,
+                  apps.json.dist / systems.json.dist (GENERATED from catalog/
+                  by scripts/gen-catalog.py — do not hand-edit)
+scripts/          catalog-query.py, gamecore-provider.py, gen-catalog.py,
+                  check-catalog.py, check-install.sh
 update/           OTA update script (linux.sh)
-docs/             architecture/ (9-part deep dive), themes/ (contract + prompts),
+docs/             architecture/ (10-part deep dive), themes/ (contract + prompts),
                   SECURITY.md, TESTING.md, CONTROLLER_MODELS.md, STREMIO.md
 ```
 

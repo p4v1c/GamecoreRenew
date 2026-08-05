@@ -2,15 +2,15 @@
 # ================================================================
 #  gamecore-session-select — point SDDM's auto-login at the kiosk, or at a desktop
 #
-#      sudo gamecore-session-select gamecore    # openbox + the GameCore UI
+#      sudo gamecore-session-select gamecore    # the desktop + the GameCore kiosk
 #      sudo gamecore-session-select desktop     # the machine's own desktop
 #      gamecore-session-select status           # what it is set to now (no root)
 #
-#  Why this exists: the box auto-logs into an openbox session whose only job is
-#  to host the kiosk. That is right for a living-room appliance and wrong for
-#  the ten minutes a year someone needs a file manager. Toggling by hand means
-#  editing SDDM drop-ins as root and remembering to stop gamecore-ui, which will
-#  otherwise draw the kiosk over the desktop.
+#  Why this exists: the box auto-logs into the machine's own X11 desktop and
+#  draws the kiosk over it. That is right for a living-room appliance and wrong
+#  for the ten minutes a year someone needs a file manager. Toggling by hand
+#  means editing SDDM drop-ins as root and remembering to disable gamecore-ui,
+#  which will otherwise draw the kiosk over the desktop again at the next boot.
 #
 #  Reversible by deletion: remove /etc/sddm.conf.d/zzz-gamecore-session.conf and
 #  the installer's own zz-gamecore-autologin.conf takes over again. Nothing else
@@ -35,7 +35,7 @@ _gc_user() {
   printf '%s' "$u"
 }
 
-# Every session this machine offers, minus the kiosk. "<name>\t<dir>".
+# Every session this machine offers. "<name>\t<dir>".
 _sessions() {
   local d f n
   for d in /usr/share/xsessions /usr/share/wayland-sessions; do
@@ -43,7 +43,6 @@ _sessions() {
     for f in "$d"/*.desktop; do
       [[ -e "$f" ]] || continue
       n=$(basename "$f" .desktop)
-      [[ "$n" == openbox ]] && continue     # that is the kiosk, not a desktop
       printf '%s\t%s\n' "$n" "$d"
     done
   done
@@ -83,21 +82,16 @@ _desktop_session() {   # _desktop_session [--x11]
   return 1
 }
 
-# The session that HOSTS the kiosk. It used to be openbox, always, and that is
-# what put a bare root window behind the kiosk: closing GameCore left a window
-# manager with no panel and no menu — reported, correctly, as a black screen.
+# The session that HOSTS the kiosk: the machine's own X11 desktop.
 #
-# GameCore does not need openbox. It needs X11, which any X11 desktop provides,
-# and it draws over whatever is underneath. So the kiosk rides the machine's own
-# desktop when there is one, and quitting reveals that desktop instead of a void.
-# openbox remains for the case it was really meant for: an appliance with no
-# desktop installed at all.
-_kiosk_session() {
-  local s
-  if s=$(_desktop_session --x11); then printf '%s' "$s"; return 0; fi
-  [[ -f /usr/share/xsessions/openbox.desktop ]] || return 1
-  printf 'openbox'
-}
+# It used to be a bare openbox session, always, and that is what put an empty
+# root window behind the kiosk — closing GameCore left a window manager with no
+# panel and no menu, reported (correctly) as a black screen.
+#
+# GameCore does not need a bare session. It needs X11, which any X11 desktop
+# provides, and it draws over whatever is underneath. So the kiosk rides the
+# desktop, and quitting reveals that desktop instead of a void.
+_kiosk_session() { _desktop_session --x11; }
 
 _current() {
   local s=""
@@ -132,10 +126,8 @@ case "${1:-}" in
     exit 0
     ;;
   gamecore|kiosk)
-    # `openbox` is no longer an alias for this: it used to be what the kiosk
-    # session WAS, and it is now only the fallback for a box with no desktop.
     if ! SESSION=$(_kiosk_session); then
-      echo "no X11 session on this machine — install one (openbox is enough)" >&2
+      echo "no X11 session on this machine — GameCore needs a desktop's X11 session" >&2
       exit 1
     fi
     UI=enable

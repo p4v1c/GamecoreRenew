@@ -12,7 +12,7 @@
 #  Why this exists: "the install finished without an error" and "the box
 #  works" are different statements. arch.sh warns and carries on for a dozen
 #  recoverable failures — a Flatpak that would not download, an AppImage the
-#  network refused, a missing openbox session — and each one is a tile that
+#  network refused, a missing X11 session — and each one is a tile that
 #  is quietly absent, or a kiosk that will not come up at the next boot.
 #  Those warnings scroll past in a very long log.
 #
@@ -126,9 +126,9 @@ done
 act=$(systemctl is-active gamecore-backend 2>/dev/null)
 [[ "$act" == active ]] && ok "backend running" || bad "backend" "is-active=$act"
 
-# The kiosk is X11-only: overlays, the fullscreen enforcer and the gamepad
-# bridge all need X. ANY X11 session hosts it — the machine's own desktop by
-# preference, openbox only when the box has no desktop at all.
+# The kiosk is X11-only: overlays, the fullscreen enforcer, gamecore-xsetup and
+# the gamepad bridge all need X. It is hosted on the machine's own X11 desktop
+# session and draws over it.
 if compgen -G "/usr/share/xsessions/*.desktop" >/dev/null; then
   ok "X11 session(s) present" "$(cd /usr/share/xsessions && echo *.desktop | sed 's/\.desktop//g')"
 else
@@ -139,8 +139,9 @@ fi
 # GameCore's own drop-in, which a later-sorting file can override in silence.
 sess=$(grep -h '^Session=' /etc/sddm.conf.d/*.conf 2>/dev/null | tail -1 | cut -d= -f2)
 # What the kiosk session IS varies by box, so it is read back from the manifest
-# rather than compared to a literal. Hard-coding "openbox" here would report a
-# perfectly healthy Plasma-hosted kiosk as "parked in desktop mode".
+# rather than compared to a literal — it is the machine's own desktop session,
+# whatever that is called here. A literal would report a perfectly healthy
+# Plasma-hosted kiosk as "parked in desktop mode".
 want=$(sed -n 's/^KIOSK_SESSION=//p' /var/lib/gamecore/manifest.env 2>/dev/null | tail -1 | tr -d "'\"")
 case "$sess" in
   "")      bad "SDDM autologin" "no Session= in /etc/sddm.conf.d — no auto-login" ;;

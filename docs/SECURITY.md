@@ -212,6 +212,35 @@ directory itself (`PurePosixPath(".").parts` is empty, so neither the
 `rmtree`'d the whole collection. For mgba and melonDS that collection *is* the
 ROM directory.
 
+### The catalogue is code, and it is treated as such
+
+`catalog/<id>/` can carry `generator.py`, a systemd unit, and shell run at
+install time. `config/catalog.d/` — the local override directory, writable on the
+box and excluded from OTA — can carry the same JSON. The two are not trusted the
+same way.
+
+`backend/services/catalog/loader.py` **strips** `postInstall`, `services`,
+`sources` and `packages` from any pack found in `config/catalog.d/`, and ignores
+its `generator.py`, logging the fact at every load. Without that rule, dropping a
+directory on a box would be arbitrary code execution as root, and the install CLI
+would make it reachable from the UI. `GAMECORE_TRUST_LOCAL_PACKS=1` lifts it for
+an operator who means it; the warning is printed on every load, not once.
+
+Three more rules the applier enforces (`backend/services/installer/applier.py`):
+
+- **A pack may only read its own directory.** `src`, `template`, `unit` and
+  `run` are resolved against the pack directory and refused when they resolve
+  outside it — `..` in a `pack.json` is not a use case.
+- **`postInstall` never runs as root.** It runs as the gaming user, with a
+  timeout the schema caps at 300 s, and a failure is a warning: a certificate
+  hiccup must never be the reason an install is reported as failed.
+- **Secrets never reach `argv`.** `sudo -u <user> env KEY=value …` would put
+  every value in `/proc/<pid>/cmdline`, which is world-readable, and one of them
+  is a Twitch client secret. `--preserve-env` names the variables and lets sudo
+  carry them from an environment instead. The graphical installer writes them to
+  a `0600` temp file which it deletes when it closes — including when the window
+  is closed mid-install, which it previously did not.
+
 ## Operational notes
 
 - **OTA**: `update/linux.sh` excludes `config/`, `emu/`, `emu-configs/` and
@@ -227,7 +256,10 @@ ROM directory.
   hash — every session dies).
 - **Sudoers**: every rule in `/etc/sudoers.d/gamecore-power` is argument-narrow —
   `systemctl poweroff|reboot`, `udevadm trigger`, `systemctl start` on the two
-  GameCore units, and the two `cpupower` governors GameCore uses. Nothing is
-  wildcarded.
+  GameCore units, `gamecore-session-select` with its two literal arguments, and
+  the two `cpupower` governors GameCore uses. Nothing is wildcarded. Note the
+  consequence: `gamecore-session-select desktop <name>` takes a third argument
+  and is therefore **not** covered — it is a console command, not something the
+  UI can trigger.
 - **Verification**: `ss -tlnp` must show, for GameCore, only Caddy on `:8443`;
   `8765`, `8097`, `8770`, `8771` and `8772` on `127.0.0.1` only.

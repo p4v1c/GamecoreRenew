@@ -122,6 +122,39 @@ it Chromium has **no audio at all** under a systemd service) and probes
 Addons are **user** units (`systemctl --user`), so they inherit the graphical
 session and stop with it.
 
+## The session the kiosk runs in
+
+SDDM auto-logs the gaming user into **the machine's own X11 desktop session**,
+and `gamecore-ui.service` draws the kiosk over it. The whole stack is X11-only —
+the bezel overlays, the fullscreen enforcer, `gamecore-xsetup`'s 1080p pin and
+the gamepad→keyboard bridge's window detection all speak X11 — so a Wayland
+session is not a supported target.
+
+The session name is **not hardcoded anywhere**. `install/gamecore-session-select
+pick-desktop --x11` ranks what `/usr/share/xsessions/` offers (Plasma first,
+then the other full desktops), `install/arch.sh` writes the winner into
+`/etc/sddm.conf.d/zz-gamecore-autologin.conf` and records it in
+`/var/lib/gamecore/manifest.env` as `KIOSK_SESSION`. `check-install.sh` reads it
+back from there rather than comparing to a literal.
+
+> The kiosk used to get a bare openbox session installed for the purpose. That
+> was the wrong half of the requirement: GameCore needs X11, not an empty
+> session. Hosting it on the desktop costs nothing and means **closing the kiosk
+> reveals a usable desktop** — under openbox it revealed a root window with no
+> panel and no menu, reported as a black screen.
+
+`zz-` in that filename is load-bearing. SDDM reads `/etc/sddm.conf.d/*` in name
+order and the **last** `[Autologin]` wins; Manjaro Plasma ships
+`kde_settings.conf`, and `k` sorts before `z`. The installer also strips the
+competing `User`/`Session`/`Relogin` keys out of that file (keeping a backup in
+the manifest directory), because the Login Screen KCM rewrites it whenever
+someone opens it.
+
+`sudo gamecore-session-select desktop` disables `gamecore-ui.service` and points
+auto-login at a plain desktop; `… gamecore` puts the kiosk back. `enable`/
+`disable`, not `start`/`stop` — the unit is enabled at install, so merely
+stopping it brought the kiosk back over the desktop at the next boot.
+
 ## Environment reconstruction
 
 A process started by systemd has no session environment. Two places rebuild it:

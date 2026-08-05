@@ -73,7 +73,11 @@ HTTP_PROXY=http://127.0.0.1:1 HTTPS_PROXY=http://127.0.0.1:1 \
 |---|---|
 | `test_auth.py` | password round-trip, per-IP backoff, and that the **global breaker does not lock out an innocent IP** |
 | `test_battery.py` | the low-battery threshold logic: one toast per threshold, rearming, hysteresis |
-| `test_controller_profiles.py` | `_dolphin()`'s "is this section already a real pad config?" decision, and that the shipped `GCPadNew.ini` has no keyboard bindings left |
+| `test_bluetooth.py` | pairing vs reconnecting, and the cursor following the list past the screen |
+| `test_catalog.py` `test_catalog_merge.py` `test_catalog_consumers.py` | the pack loader, shipped ∪ local merging, and that every consumer reads the catalogue instead of its own copy |
+| `test_configgen_snapshots.py` `test_controller_characterisation.py` `test_generator_contract.py` | the per-emulator binding writers: snapshots produced from the OLD implementation and replayed on the new one, plus the surface every `generator.py` must expose |
+| `test_installer_providers.py` | the four `install` providers and the download helper — fixed URL before the API, `.part` file, magic bytes, sha256 |
+| `test_installer_applier.py` | `packages`/`sources`/`files`/`services`/`postInstall`: token expansion, `when`, `ifAbsent`, a pack refused when it reads outside its own directory, a failing step warning instead of aborting — **and that every pack carries every file it declares** |
 | `test_controller_registry.py` | player-slot assignment, MAC normalisation, battery→slot join |
 | `test_covers.py` | the cover pipeline end to end against synthetic dumps; path containment; `.miss` written only for a genuine miss |
 | `test_cross_origin.py` | the core's origin guard and `/ws` — including that a LAN client through Caddy is still allowed |
@@ -81,12 +85,29 @@ HTTP_PROXY=http://127.0.0.1:1 HTTPS_PROXY=http://127.0.0.1:1 \
 | `test_session_robustness.py` | standby wake, display-probe memoisation, adopting an orphaned game, 503 on a missing emulator |
 | `test_systems_extensions.py` | `systems.json.dist` ↔ `config/systems.json` ↔ the README table stay in agreement |
 | `test_themes.py` | manifest validation, the completeness rule, theme-id safety |
+| `test_playtime_repair.py` `test_theme_versions.py` `test_gamemedia.py` | playtime repair, theme version bumps reaching a box, media/hash matching |
 | `test_update.py` | one update at a time (409), the timeout killing the whole process group, `VERSION` written last |
+
+`catalog/<id>/tests/` is collected too — a pack's tests arrive with the pack
+rather than in a central directory nobody updates. CI runs
+`pytest backend/tests catalog -m "not network"`.
 
 `test_covers.py` builds real binary fixtures rather than mocking: a PARAM.SFO, an
 ISO9660 image (2048-byte and raw 2352-byte layouts), a PS1 `.bin` with a
 `SYSTEM.CNF`, a GameCube ID6 header. That is why it catches parser regressions
 that a mocked test would not.
+
+## The test that pins the *packs*
+
+`test_installer_applier.py::test_every_pack_carries_everything_it_declares`
+walks every pack and fails if a `files`, `services` or `postInstall` entry names
+a file the directory does not contain.
+
+It exists because `catalog/twitch/pack.json` declared six payload files and
+shipped one, and because a refactor deleted `install/firefox-profiles/` while
+`install/arch.sh` still read it. Neither showed up in CI, in review, or on a box
+that already had GameCore. Both surfaced the same way: a **fresh** install dying
+part-way through, months later.
 
 ## Tests that pin a *document*
 
