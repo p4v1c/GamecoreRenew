@@ -152,16 +152,23 @@ jobs:
           find dist_full -name '__pycache__'  -exec rm -rf {} + 2>/dev/null || true
           tar -czf gamecore-full.tar.gz -C dist_full .
 
-      # Non-blocking: the installer binary is a convenience asset. If this
-      # build ever fails, the core release + OTA must still ship — so the
-      # step is continue-on-error and the missing file never fails the
-      # publish (fail_on_unmatched_files: false below).
+      # Blocking, and it has to be. It was continue-on-error, on the grounds
+      # that a convenience asset must not stop the core release — and what
+      # that produced was a release whose installer binary segfaulted on the
+      # first key typed into any field, published without anyone noticing the
+      # build had anything to say. A broken installer is not a degraded
+      # release; it is the front door.
+      #
+      # Versions are pinned. Unpinned, the Qt inside the binary changed at
+      # every release, so the installer someone tested was never the one the
+      # next release shipped — which is the exact shape of the libxkbcommon
+      # bug the .spec exists to prevent. Bump these deliberately, and test the
+      # binary on a rolling distro when you do.
       - name: Build installer binary (PyInstaller)
         id: build_installer
-        continue-on-error: true
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq libegl1 libgl1
-          pip install pyside6 pyinstaller
+          pip install 'pyside6==6.11.1' 'pyinstaller==6.21.0'
           cd install/installer-gui
           # The .spec, never the CLI form: onefile/windowed are the easy half of
           # it. The half that matters is the list of libraries kept OUT of the
@@ -179,7 +186,10 @@ jobs:
             gamecore-ota.tar.gz
             gamecore-full.tar.gz
             install/installer-gui/dist/gamecore-installer
-          fail_on_unmatched_files: false
+          # true: the three assets are the release. A missing one used to be
+          # silent, and `latest/download/gamecore-installer` then 404s for
+          # everyone who follows the README.
+          fail_on_unmatched_files: true
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
