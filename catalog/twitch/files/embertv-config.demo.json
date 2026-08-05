@@ -1,0 +1,8 @@
+{
+  "clientId": "",
+  "clientSecret": "",
+  "port": 8097,
+  "host": "127.0.0.1",
+  "httpsKey": "",
+  "httpsCert": ""
+}

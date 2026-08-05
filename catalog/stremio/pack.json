@@ -28,5 +28,12 @@
   "launch": {
     "path": "bash",
     "args": "/opt/Stremio/stremio-tv.sh"
-  }
+  },
+  "postInstall": [
+    {
+      "run": "steps/executable-bits.sh",
+      "label": "make the launcher executable",
+      "timeoutSec": 30
+    }
+  ]
 }

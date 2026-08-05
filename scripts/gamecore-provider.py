@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -27,7 +28,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from backend.services.catalog import load_catalog          # noqa: E402
-from backend.services.installer import Context, install    # noqa: E402
+from backend.services.installer import AppContext, apply, enabled_units  # noqa: E402
 
 
 def main() -> int:
@@ -39,6 +40,8 @@ def main() -> int:
                     help="'all' or a space-separated list of ids")
     ap.add_argument("--kind", choices=["emulator", "app"])
     ap.add_argument("--user", default="", help="owner of the installed files")
+    ap.add_argument("--user-home", default="",
+                    help="that user's home; @HOME@ in a pack resolves to it")
     ap.add_argument("--gamecore-path", type=Path, default=Path("/opt/GameCore"))
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--catalog", type=Path, default=ROOT / "catalog")
@@ -66,14 +69,27 @@ def main() -> int:
         for missing in sorted(wanted - {p.id for p in chosen}):
             print(f"FAIL {missing}: no such pack in the catalogue")
 
-    ctx = Context(gamecore_path=args.gamecore_path, user=args.user,
-                  dry_run=args.dry_run)
+    # Secrets come from the environment, never from argv: /proc/<pid>/cmdline is
+    # world-readable and one of these is a Twitch client secret. arch.sh exports
+    # them for the length of this call.
+    secrets = {spec["key"]: os.environ.get(spec["key"], "")
+               for pack in chosen for spec in pack.data.get("secrets", [])}
+    ctx = AppContext(gamecore_path=args.gamecore_path, user=args.user,
+                     dry_run=args.dry_run,
+                     user_home=Path(args.user_home) if args.user_home
+                               else Path.home(),
+                     secrets=secrets)
     failed = bool(wanted) and bool(wanted - {p.id for p in chosen})
     for pack in chosen:
-        result = install(pack, ctx)
-        tag = "SAME" if result.already else ("OK" if result.ok else "FAIL")
-        print(f"{tag} {result.message}")
-        failed = failed or not result.ok
+        for result in apply(pack, ctx):
+            tag = "SAME" if result.already else ("OK" if result.ok else "FAIL")
+            print(f"{tag} {result.message}")
+            failed = failed or not result.ok
+        # The caller has to daemon-reload and restart these: a user unit that was
+        # symlinked by hand is invisible to a running user manager until it does,
+        # so the service would sit dead until the next boot.
+        for unit in enabled_units(pack, ctx):
+            print(f"UNIT {unit}")
     return 1 if failed else 0
 
 

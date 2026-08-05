@@ -496,10 +496,9 @@ if [[ "$MODE" == "full" ]]; then
   for id in "${!EMU_FLATPAK[@]}"; do
     want_emu "$id" && FLATPAKS+=("${EMU_FLATPAK[$id]}")
   done
-  # Steam moved to the apps selection but rides the same Flatpak pipeline
-  # (install + ROMs/gamepad overrides below).
-  STEAM_APP_ID=$(python3 "$GAMECORE_PATH/scripts/catalog-query.py" app-ids --select steam)
-  want_app steam && [[ -n "$STEAM_APP_ID" ]] && FLATPAKS+=("$STEAM_APP_ID")
+  # Steam is not here any more: it is an app, and the app pass below installs it
+  # from its pack — install_flatpak does the install, the sandbox override and
+  # both uninstall manifests, which is exactly what this loop does by hand.
   EMU_I=0
   EMU_TOTAL=${#FLATPAKS[@]}
   # Unticking every emulator AND every app leaves the array empty; the
@@ -608,12 +607,22 @@ if [[ "$MODE" == "full" ]]; then
     warn "catalog/ not found — skipping."
   fi
 
-  # ── Living-room companions: EmberTV, gamepad bridge, kiosk apps ─
-  # Each app (twitch / youtube / stremio — steam is handled with the Flatpaks
-  # above) only installs when selected in APPS; unchecked means nothing is
-  # cloned, built or enabled for it.
+  # ── Living-room applications ────────────────────────────────────
+  # Every app selected in APPS, installed from its own pack. Unchecked means
+  # nothing is cloned, written or enabled for it.
   progress 58 "Living-room applications"
-  msg "Living-room companions"
+  msg "Living-room applications"
+  # One directory per app. catalog/<app>/ carries what the app needs — the
+  # git checkouts beside it, its config, its user unit, its post-install
+  # ceremonies — and the applier honours the declarations. This block used to
+  # be ~230 lines of EmberTV, Firefox profiles, certutil and Stremio written
+  # out by hand, next to packs that already declared all of it and that nothing
+  # read: that gap is how install/firefox-profiles/ could be deleted by a
+  # refactor and only surface on a fresh box, months later, at 66 %.
+  #
+  # Steam and Stremio ride this too — install_flatpak does the install, the
+  # sandbox override and both uninstall manifests — so they are no longer part
+  # of the emulator Flatpak loop above.
   UNIT_DIR="$USER_HOME/.config/systemd/user"
   # As the user, not as root. This was the one place in the script that created
   # something under $USER_HOME as root, and it created the whole chain — so on a
@@ -626,81 +635,36 @@ if [[ "$MODE" == "full" ]]; then
   # complete!". The chown further down deliberately covers only .config/systemd
   # (see the comment there), so it never repaired this.
   install -d -o "$USER_NAME" -g "$USER_NAME" -m 755 "$UNIT_DIR/default.target.wants"
-  # user services to (re)start once the user bus is up, filled per app below
+  # user services to (re)start once the user bus is up, filled from UNIT lines
   RESTART_UNITS=()
 
-  if want_app twitch || want_app youtube; then
-    record_new_pkgs firefox nss
-    pacman -S --noconfirm --needed firefox nss && ok "firefox + nss (certutil) installed." || warn "firefox install failed."
-  fi
-
-  if want_app twitch; then
-  progress 60 "Twitch (EmberTV)"
-  # EmberTV — Twitch for the big screen (GameCore's Twitch tile opens it)
-  if [ ! -d /opt/Twitch-TV ]; then
-    git_clone https://github.com/p4v1c/Twitch-TV.git /opt/Twitch-TV \
-      && ok "EmberTV cloned → /opt/Twitch-TV" || warn "EmberTV clone failed."
+  APP_SEL=""
+  for _app in $(python3 "$GAMECORE_PATH/scripts/catalog-query.py" ids --kind app); do
+    want_app "$_app" && APP_SEL="$APP_SEL $_app"
+  done
+  if [[ -n "${APP_SEL// /}" ]]; then
+    # Exported, never passed as arguments: /proc/<pid>/cmdline is world-readable
+    # and one of these is a Twitch client secret. The pack names the keys it
+    # wants under `secrets`; the applier reads only those.
+    export TWITCH_CLIENT_ID TWITCH_CLIENT_SECRET TGDB_API_KEY \
+           SS_DEV_ID SS_DEV_PASSWORD SS_USER SS_PASSWORD
+    while IFS= read -r _line; do
+      case "$_line" in
+        OK*)   ok   "${_line#OK }" ;;
+        SAME*) info "${_line#SAME }" ;;
+        UNIT*) RESTART_UNITS+=("${_line#UNIT }") ;;
+        FAIL*) warn "${_line#FAIL }" ;;
+        *)     [[ -n "$_line" ]] && info "$_line" ;;
+      esac
+    done < <(python3 "$GAMECORE_PATH/scripts/gamecore-provider.py" install \
+               --kind app --select "$APP_SEL" \
+               --user "$USER_NAME" --user-home "$USER_HOME" \
+               --gamecore-path "$GAMECORE_PATH" 2>&1 || true)
+    unset TWITCH_CLIENT_ID TWITCH_CLIENT_SECRET
   else
-    git_sync /opt/Twitch-TV "EmberTV"
+    info "No living-room application selected."
   fi
-  if [ -d /opt/Twitch-TV ]; then
-    if [[ -n "$TWITCH_CLIENT_ID" && -n "$TWITCH_CLIENT_SECRET" ]]; then
-      # host: loopback, and it stays there. EmberTV authenticates nothing and
-      # every route acts as the signed-in Twitch account, so a LAN bind hands
-      # the account to the whole Wi-Fi. The TV kiosk reaches it on
-      # https://localhost:8097/; other devices go through Caddy's /twitch route,
-      # which is behind forward_auth like /roms and /saves.
-      cat > /opt/Twitch-TV/config.json <<TWCFG
-{
-  "clientId": "$TWITCH_CLIENT_ID",
-  "clientSecret": "$TWITCH_CLIENT_SECRET",
-  "port": 8097,
-  "host": "127.0.0.1",
-  "httpsKey": "",
-  "httpsCert": ""
-}
-TWCFG
-      chmod 600 /opt/Twitch-TV/config.json
-      ok "Twitch credentials written (config.json, kept out of git)."
-    elif [ ! -f /opt/Twitch-TV/config.json ]; then
-      cp /opt/Twitch-TV/config.example.json /opt/Twitch-TV/config.json
-      warn "No Twitch credentials — EmberTV starts in demo mode (edit /opt/Twitch-TV/config.json later)."
-    fi
-    chown -R "${USER_NAME}:${USER_NAME}" /opt/Twitch-TV
-    # Generate the TLS cert now (instead of first service start) so it can be
-    # trusted in the Firefox profile below — zero interaction at first launch.
-    if [ ! -f /opt/Twitch-TV/cert/cert.pem ]; then
-      sudo -u "$USER_NAME" bash /opt/Twitch-TV/make-cert.sh >/dev/null 2>&1 \
-        && ok "EmberTV TLS certificate generated." \
-        || warn "make-cert failed — it will be generated at first start instead."
-    fi
-    cat > "$UNIT_DIR/embertv.service" <<'EOF'
-[Unit]
-Description=EmberTV — Twitch for the big screen
-After=network-online.target
 
-[Service]
-Type=simple
-WorkingDirectory=/opt/Twitch-TV
-Environment=PATH=/usr/bin:/usr/local/bin:/bin
-# Mount point for the Caddy /twitch route. EmberTV's client is built from
-# absolute URLs, so it strips the prefix itself (ASGI root_path semantics) —
-# a Caddy-side handle_path would break every asset. Requests that arrive
-# without the prefix are still served, so the TV kiosk on
-# https://localhost:8097/ is unaffected.
-Environment=BASE_PATH=/twitch
-ExecStart=/usr/bin/env bash /opt/Twitch-TV/start-tv.sh
-Restart=on-failure
-RestartSec=3
-
-[Install]
-WantedBy=default.target
-EOF
-    ln -sf ../embertv.service "$UNIT_DIR/default.target.wants/embertv.service"
-    RESTART_UNITS+=(embertv.service)
-    ok "embertv.service installed (user unit, starts at login)."
-  fi
-  fi  # twitch
 
   # Stremio is deliberately absent here: its interface reads the gamepad itself,
   # and its window is Wayland-native, which the bridge's X11 title detection
@@ -791,97 +755,6 @@ EOF
     fi
   fi
 
-  # Firefox kiosk profiles used by the YouTube/Twitch tiles in apps.json.
-  # The user.js is the important part: it carries the Smart-TV user agent
-  # (youtube.com/tv rejects desktop browsers) and the kiosk prefs.
-  # Plain directories launched with `firefox --profile <dir>` — no
-  # profiles.ini registration needed, so no flaky `-CreateProfile` run.
-  # Everything is created AS THE USER: a root-owned profile dir breaks
-  # certutil below (SEC_ERROR_BAD_DATABASE) and firefox's own caches.
-  # The user.js files live in the pack that needs them — catalog/<app>/files/ —
-  # since the "one app = one directory" refactor. That move deleted
-  # install/firefox-profiles/ and this line kept reading it, so a fresh install
-  # died here with "install: cannot stat .../youtube-tv.user.js" at 66 %, after
-  # the packages, the emulators and the services. Mapped explicitly rather than
-  # derived from the profile name: the pack id is the pack id.
-  declare -A FIREFOX_PROFILE_PACK=([youtube-tv]=youtube [twitch-tv]=twitch)
-  FIREFOX_PROFILES=()
-  want_app youtube && FIREFOX_PROFILES+=(youtube-tv)
-  want_app twitch  && FIREFOX_PROFILES+=(twitch-tv)
-  for prof in ${FIREFOX_PROFILES[@]+"${FIREFOX_PROFILES[@]}"}; do
-    PROF_DIR="$USER_HOME/.mozilla/firefox/$prof"
-    SRC_JS="$GAMECORE_PATH/catalog/${FIREFOX_PROFILE_PACK[$prof]}/files/$prof.user.js"
-    # Guarded, like every other optional asset here. Unguarded, `install`
-    # failing under `set -e` ended the WHOLE run rather than costing one tile.
-    if [[ ! -f "$SRC_JS" ]]; then
-      warn "$prof.user.js not in catalog/${FIREFOX_PROFILE_PACK[$prof]}/files — tile will open without the Smart-TV user agent."
-      continue
-    fi
-    sudo -u "$USER_NAME" mkdir -p "$PROF_DIR"
-    install -o "$USER_NAME" -g "$USER_NAME" -m 644 "$SRC_JS" "$PROF_DIR/user.js"
-  done
-  if want_app twitch; then
-  # Trust EmberTV's self-signed cert inside the twitch-tv profile (NSS db):
-  # no certificate warning at first launch — required for the unattended/ISO path.
-  # Every certutil step is guarded: a cert hiccup must never abort the install.
-  TW_PROF="$USER_HOME/.mozilla/firefox/twitch-tv"
-  if [ -f /opt/Twitch-TV/cert/cert.pem ] && command -v certutil >/dev/null; then
-    if [ -f "$TW_PROF/cert9.db" ] || sudo -u "$USER_NAME" certutil -N --empty-password -d sql:"$TW_PROF"; then
-      sudo -u "$USER_NAME" certutil -D -n "EmberTV localhost" -d sql:"$TW_PROF" 2>/dev/null || true
-      sudo -u "$USER_NAME" certutil -A -n "EmberTV localhost" -t "P,," \
-          -i /opt/Twitch-TV/cert/cert.pem -d sql:"$TW_PROF" \
-        && ok "EmberTV certificate trusted in the twitch-tv profile." \
-        || warn "certutil import failed — accept the cert warning once at first launch."
-    else
-      warn "NSS db init failed — accept the cert warning once at first launch."
-    fi
-  fi
-  fi  # twitch certutil
-  if [ ${#FIREFOX_PROFILES[@]} -gt 0 ]; then
-    chown -R "${USER_NAME}:${USER_NAME}" "$USER_HOME/.mozilla"
-    ok "Firefox kiosk profiles ready (${FIREFOX_PROFILES[*]} — Smart-TV user agent)."
-  fi
-
-  if want_app stremio; then
-  progress 68 "Stremio"
-  # Stremio (media tile) — needs gamepad + media access inside the sandbox
-  STREMIO_APP_ID=$(python3 "$GAMECORE_PATH/scripts/catalog-query.py" app-ids --select stremio)
-  STREMIO_SANDBOX=$(python3 "$GAMECORE_PATH/scripts/catalog-query.py" sandbox \
-                      --select stremio --gamecore-path "$GAMECORE_PATH" | cut -f2-)
-  if flatpak_installed "$STREMIO_APP_ID"; then
-    info "Stremio — already installed (left out of the uninstall manifest)."
-  elif flatpak install -y flathub "$STREMIO_APP_ID"; then
-    record_new_flatpak "$STREMIO_APP_ID"
-    ok "Stremio installed."
-  else
-    warn "Stremio failed."
-  fi
-  # Not the emulator policy: Stremio needs the whole filesystem (it plays media
-  # from anywhere) and no X11 socket. Declared in catalog/stremio/pack.json.
-  # shellcheck disable=SC2086
-  flatpak override $STREMIO_SANDBOX "$STREMIO_APP_ID" 2>/dev/null || true
-  record_flatpak_override "$STREMIO_APP_ID"
-
-  # The client above is what the tile opens, unmodified. The one thing it lacks
-  # for couch use is an on-screen keyboard, so a small local proxy serves
-  # Stremio's own interface with a keyboard script injected into it — the client
-  # takes a --url, which is the seam. Gamepad navigation already works natively.
-  # No fork to build, no kiosk, no service. See docs/STREMIO.md.
-  STREMIO_DIR=/opt/Stremio
-  if [ ! -d "$STREMIO_DIR/.git" ]; then
-    git_clone https://github.com/p4v1c/stremio-gamepad-keyboard.git "$STREMIO_DIR" \
-      && ok "Stremio gamepad keyboard cloned → $STREMIO_DIR" \
-      || warn "Stremio keyboard clone failed — the tile will not start."
-  else
-    # Was `pull --ff-only … || true`, which said nothing when it failed — a
-    # checkout with local changes stayed silently behind for ever.
-    git_sync "$STREMIO_DIR" "Stremio gamepad keyboard"
-  fi
-  if [ -d "$STREMIO_DIR" ]; then
-    chown -R "${USER_NAME}:${USER_NAME}" "$STREMIO_DIR"
-    chmod +x "$STREMIO_DIR"/stremio-tv.sh "$STREMIO_DIR"/*.py 2>/dev/null || true
-  fi
-  fi  # stremio
 else
   msg "Minimal mode — skipping emulators, applications and configs."
 fi

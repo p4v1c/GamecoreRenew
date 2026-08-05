@@ -49,7 +49,8 @@
       "dest": "/opt/Twitch-TV/config.json",
       "owner": "user",
       "mode": "600",
-      "when": "!secrets.TWITCH_CLIENT_ID"
+      "when": "!secrets.TWITCH_CLIENT_ID",
+      "ifAbsent": true
     },
     {
       "src": "files/twitch-tv.user.js",
