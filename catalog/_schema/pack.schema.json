@@ -4,289 +4,131 @@
   "title": "GameCore catalog pack",
   "description": "One emulator or application = one directory. seed/, logo.png|logo.svg, generator.py and tests/ are implicit: they are present on disk or they are not, and no field declares them.",
   "type": "object",
-  "required": [
-    "id",
-    "kind",
-    "label",
-    "platform",
-    "color",
-    "launch"
-  ],
+  "required": ["id", "kind", "label", "platform", "color", "launch"],
   "additionalProperties": false,
+
   "properties": {
-    "id": {
-      "type": "string",
-      "pattern": "^[a-z0-9][a-z0-9_-]*$"
-    },
-    "kind": {
-      "enum": [
-        "emulator",
-        "app"
-      ]
-    },
-    "label": {
-      "type": "string",
-      "minLength": 1
-    },
+    "id":       { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" },
+    "kind":     { "enum": ["emulator", "app"] },
+    "label":    { "type": "string", "minLength": 1 },
     "emulatorName": {
       "description": "The product name, when it differs from the platform label: `label` is 'Nintendo 64', this is 'Rosalie's Mupen GUI'. Shown by the graphical installer, which used to carry its own copy of both. Absent = fall back to `label`.",
-      "type": "string",
-      "minLength": 1
+      "type": "string", "minLength": 1
     },
     "family": {
       "description": "Who made the hardware: 'Nintendo', 'Sony', 'Microsoft', 'Sega'... The installer groups the catalogue by it, so a box with twenty systems reads as four short lists instead of one long one. Free text on purpose — a pack for a machine nobody here anticipated names its own maker and is grouped with its siblings without a line of UI changing. Absent = grouped under 'Other'; apps are grouped by their kind and ignore this.",
-      "type": "string",
-      "minLength": 1
+      "type": "string", "minLength": 1
     },
     "description": {
       "description": "One line shown next to the tick box in the install wizard.",
-      "type": "string",
-      "minLength": 1
+      "type": "string", "minLength": 1
     },
-    "platform": {
-      "type": "string",
-      "minLength": 1
-    },
-    "color": {
-      "type": "string",
-      "pattern": "^#[0-9a-fA-F]{6}$"
-    },
+    "platform": { "type": "string", "minLength": 1 },
+    "color":    { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+
     "install": {
       "description": "How the MAIN artifact is obtained. Extra system dependencies go in `packages`, never here.",
       "type": "object",
-      "required": [
-        "provider"
-      ],
+      "required": ["provider"],
       "oneOf": [
         {
           "properties": {
-            "provider": {
-              "const": "flatpak"
-            },
-            "appId": {
-              "type": "string",
-              "minLength": 1
-            }
+            "provider": { "const": "flatpak" },
+            "appId": { "type": "string", "minLength": 1 }
           },
-          "required": [
-            "provider",
-            "appId"
-          ],
+          "required": ["provider", "appId"],
           "additionalProperties": false
         },
         {
           "properties": {
-            "provider": {
-              "const": "github-asset"
-            },
-            "repo": {
-              "type": "string",
-              "pattern": "^[^/]+/[^/]+$"
-            },
-            "asset": {
-              "type": "string",
-              "minLength": 1
-            },
-            "dest": {
-              "type": "string",
-              "minLength": 1
-            },
-            "magic": {
-              "enum": [
-                "ELF",
-                "PK",
-                "7z"
-              ]
-            },
-            "mode": {
-              "type": "string",
-              "pattern": "^[0-7]{3,4}$"
-            },
-            "version": {
-              "type": "string"
-            },
-            "sha256": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
-            }
+            "provider": { "const": "github-asset" },
+            "repo":    { "type": "string", "pattern": "^[^/]+/[^/]+$" },
+            "asset":   { "type": "string", "minLength": 1 },
+            "dest":    { "type": "string", "minLength": 1 },
+            "magic":   { "enum": ["ELF", "PK", "7z"] },
+            "mode":    { "type": "string", "pattern": "^[0-7]{3,4}$" },
+            "version": { "type": "string" },
+            "sha256":  { "type": "string", "pattern": "^[0-9a-f]{64}$" }
           },
-          "required": [
-            "provider",
-            "repo",
-            "asset",
-            "dest",
-            "magic"
-          ],
+          "required": ["provider", "repo", "asset", "dest", "magic"],
           "additionalProperties": false
         },
         {
           "properties": {
-            "provider": {
-              "const": "github-archive"
-            },
-            "repo": {
-              "type": "string",
-              "pattern": "^[^/]+/[^/]+$"
-            },
-            "asset": {
-              "type": "string",
-              "minLength": 1
-            },
-            "assetPattern": {
-              "type": "string"
-            },
-            "dest": {
-              "type": "string",
-              "minLength": 1
-            },
-            "entrypoint": {
-              "type": "string",
-              "minLength": 1
-            },
-            "magic": {
-              "enum": [
-                "PK",
-                "7z"
-              ]
-            },
-            "requires": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "version": {
-              "type": "string"
-            },
-            "sha256": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
-            }
+            "provider":     { "const": "github-archive" },
+            "repo":         { "type": "string", "pattern": "^[^/]+/[^/]+$" },
+            "asset":        { "type": "string", "minLength": 1 },
+            "assetPattern": { "type": "string" },
+            "dest":         { "type": "string", "minLength": 1 },
+            "entrypoint":   { "type": "string", "minLength": 1 },
+            "magic":        { "enum": ["PK", "7z"] },
+            "requires":     { "type": "array", "items": { "type": "string" } },
+            "version":      { "type": "string" },
+            "sha256":       { "type": "string", "pattern": "^[0-9a-f]{64}$" }
           },
-          "required": [
-            "provider",
-            "repo",
-            "asset",
-            "dest",
-            "entrypoint",
-            "magic"
-          ],
+          "required": ["provider", "repo", "asset", "dest", "entrypoint", "magic"],
           "additionalProperties": false
         },
         {
           "properties": {
-            "provider": {
-              "const": "pacman"
-            },
-            "packages": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "minItems": 1
-            }
+            "provider": { "const": "pacman" },
+            "packages": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
           },
-          "required": [
-            "provider",
-            "packages"
-          ],
+          "required": ["provider", "packages"],
           "additionalProperties": false
         }
       ]
     },
+
     "sandbox": {
       "description": "Flatpak override. Absent = the emulator policy (filesystem @GAMECORE_PATH@, device all, socket x11). Only meaningful when install.provider is flatpak.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "filesystem": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "device": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "socket": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
+        "filesystem": { "type": "array", "items": { "type": "string" } },
+        "device":     { "type": "array", "items": { "type": "string" } },
+        "socket":     { "type": "array", "items": { "type": "string" } }
       }
     },
+
     "launch": {
       "type": "object",
-      "required": [
-        "path"
-      ],
+      "required": ["path"],
       "additionalProperties": false,
       "properties": {
-        "path": {
-          "type": "string",
-          "minLength": 1
-        },
-        "args": {
-          "type": "string"
-        },
+        "path": { "type": "string", "minLength": 1 },
+        "args": { "type": "string" },
         "preferIfPresent": {
           "description": "Absorbs the REWRITE pass of flatpakify-systems.sh: when this path exists, it wins over the nominal launcher.",
           "type": "object",
-          "required": [
-            "path"
-          ],
+          "required": ["path"],
           "additionalProperties": false,
           "properties": {
-            "path": {
-              "type": "string",
-              "minLength": 1
-            },
-            "args": {
-              "type": "string"
-            }
+            "path": { "type": "string", "minLength": 1 },
+            "args": { "type": "string" }
           }
         }
       }
     },
+
     "roms": {
       "type": "object",
-      "required": [
-        "dir"
-      ],
+      "required": ["dir"],
       "additionalProperties": false,
       "properties": {
-        "dir": {
-          "type": "string",
-          "pattern": "^emu/[a-z0-9_-]+$"
-        },
-        "scanDirs": {
-          "type": "boolean"
-        },
-        "extensions": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^\\*\\.[A-Za-z0-9]+$"
-          }
-        }
+        "dir":        { "type": "string", "pattern": "^emu/[a-z0-9_-]+$" },
+        "scanDirs":   { "type": "boolean" },
+        "extensions": { "type": "array", "items": { "type": "string", "pattern": "^\\*\\.[A-Za-z0-9]+$" } }
       }
     },
+
     "config": {
       "description": "Where seed/ is deployed. Omit entirely when the pack ships no seed/.",
       "type": "object",
-      "required": [
-        "dest"
-      ],
+      "required": ["dest"],
       "additionalProperties": false,
       "properties": {
-        "dest": {
-          "type": "string",
-          "minLength": 1
-        },
+        "dest": { "type": "string", "minLength": 1 },
         "nativeDest": {
           "description": "Destination when launch.path is not 'flatpak' (mgba, melonds).",
           "type": "string",
@@ -294,19 +136,13 @@
         }
       }
     },
+
     "controllers": {
       "type": "object",
-      "required": [
-        "maxPlayers",
-        "strategy"
-      ],
+      "required": ["maxPlayers", "strategy"],
       "additionalProperties": false,
       "properties": {
-        "maxPlayers": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 4
-        },
+        "maxPlayers": { "type": "integer", "minimum": 0, "maximum": 4 },
         "strategy": {
           "description": "rewrite-player-block: rpcs3 · rewrite-device-line: dolphin (binds by NAME) · guid-rebind: ryujinx (binds by GUID) · sdl-index-clone: pcsx2/duckstation · snapshot-restore: azahar/mgba/cemu/gopher64 · snapshot-or-synth: melonds · none",
           "enum": [
@@ -319,39 +155,16 @@
             "none"
           ]
         },
-        "target": {
-          "type": [
-            "string",
-            "array"
-          ],
-          "items": {
-            "type": "string"
-          }
-        },
+        "target": { "type": ["string", "array"], "items": { "type": "string" } },
         "multitap": {
           "type": "object",
-          "required": [
-            "section",
-            "key",
-            "value",
-            "fromPlayer"
-          ],
+          "required": ["section", "key", "value", "fromPlayer"],
           "additionalProperties": false,
           "properties": {
-            "section": {
-              "type": "string"
-            },
-            "key": {
-              "type": "string"
-            },
-            "value": {
-              "type": "string"
-            },
-            "fromPlayer": {
-              "type": "integer",
-              "minimum": 2,
-              "maximum": 4
-            }
+            "section":    { "type": "string" },
+            "key":        { "type": "string" },
+            "value":      { "type": "string" },
+            "fromPlayer": { "type": "integer", "minimum": 2, "maximum": 4 }
           }
         },
         "padType": {
@@ -361,278 +174,140 @@
         "seedMustNotContain": {
           "description": "Python regular expressions (re.M) a seed/ may never match. Regexes, not plain substrings: RPCS3 YAML structurally needs a `Device:` key, and what must be forbidden is a Device that NAMES a controller, not the key itself. A seed that names a device pins the grid to one controller model; CI fails on a hit.",
           "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
+          "items": { "type": "string", "minLength": 1 }
         }
       }
     },
+
     "scraper": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "tgdbId": {
-          "type": "integer"
-        },
-        "screenscraper": {
-          "type": "array",
-          "items": {
-            "type": "integer"
-          }
-        },
-        "libretro": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "mediaAlias": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
+        "tgdbId":        { "type": "integer" },
+        "screenscraper": { "type": "array", "items": { "type": "integer" } },
+        "libretro":      { "type": "array", "items": { "type": "string" } },
+        "mediaAlias":    { "type": "array", "items": { "type": "string" } }
       }
     },
+
     "overlay": {
       "description": "Bezel identification only. window_rect and hole stay in config/overlays.json: they are image/resolution tuning, not a property of the emulator. `label` is NOT repeated here - the pack's own label is used.",
       "type": "object",
-      "required": [
-        "wmClass"
-      ],
+      "required": ["wmClass"],
       "additionalProperties": false,
       "properties": {
         "wmClass": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "linux": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "minItems": 1
-            }
+            "linux": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
           },
-          "required": [
-            "linux"
-          ]
+          "required": ["linux"]
         },
-        "asset": {
-          "type": "string"
-        }
+        "asset": { "type": "string" }
       }
     },
+
     "packages": {
       "description": "Extra system dependencies, NOT the main artifact. Aggregated across all selected packs into a single pacman call.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "pacman": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "minItems": 1
-        }
+        "pacman": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
       }
     },
+
     "sources": {
       "description": "git_sync semantics: clone when absent, pull --ff-only otherwise, never over local changes.",
       "type": "array",
       "items": {
         "type": "object",
-        "required": [
-          "git",
-          "dest"
-        ],
+        "required": ["git", "dest"],
         "additionalProperties": false,
         "properties": {
-          "git": {
-            "type": "string"
-          },
-          "dest": {
-            "type": "string"
-          },
-          "owner": {
-            "enum": [
-              "user",
-              "root"
-            ]
-          }
+          "git":   { "type": "string" },
+          "dest":  { "type": "string" },
+          "owner": { "enum": ["user", "root"] }
         }
       }
     },
+
     "secrets": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": [
-          "key",
-          "label"
-        ],
+        "required": ["key", "label"],
         "additionalProperties": false,
         "properties": {
-          "key": {
-            "type": "string",
-            "pattern": "^[A-Z][A-Z0-9_]*$"
-          },
-          "label": {
-            "type": "string"
-          },
-          "hidden": {
-            "type": "boolean"
-          },
-          "help": {
-            "type": "string"
-          }
+          "key":    { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "label":  { "type": "string" },
+          "hidden": { "type": "boolean" },
+          "help":   { "type": "string" }
         }
       }
     },
+
     "files": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": [
-          "dest"
-        ],
+        "required": ["dest"],
         "additionalProperties": false,
         "properties": {
-          "src": {
-            "type": "string"
-          },
-          "template": {
-            "type": "string"
-          },
-          "dest": {
-            "type": "string"
-          },
-          "owner": {
-            "enum": [
-              "user",
-              "root"
-            ]
-          },
-          "mode": {
-            "type": "string",
-            "pattern": "^[0-7]{3,4}$"
-          },
-          "when": {
-            "type": "string",
-            "pattern": "^!?secrets\\.[A-Z][A-Z0-9_]*$"
-          },
-          "ifAbsent": {
-            "type": "boolean",
-            "description": "Write only when dest does not exist. For a file the owner is expected to hand-edit: a demo config re-created on every re-run silently discards their edits."
-          }
+          "src":      { "type": "string" },
+          "template": { "type": "string" },
+          "dest":     { "type": "string" },
+          "owner":    { "enum": ["user", "root"] },
+          "mode":     { "type": "string", "pattern": "^[0-7]{3,4}$" },
+          "when":     { "type": "string", "pattern": "^!?secrets\\.[A-Z][A-Z0-9_]*$" },
+          "ifAbsent": { "type": "boolean",
+                        "description": "Write only when dest does not exist. For a file the owner is expected to hand-edit: re-running the installer is documented as safe, and for the demo EmberTV config that has to mean untouched." }
         },
-        "oneOf": [
-          {
-            "required": [
-              "src"
-            ]
-          },
-          {
-            "required": [
-              "template"
-            ]
-          }
-        ]
+        "oneOf": [{ "required": ["src"] }, { "required": ["template"] }]
       }
     },
+
     "services": {
       "description": "User units only. arch.sh:668 documents why creating this tree as root broke the kiosk.",
       "type": "array",
       "items": {
         "type": "object",
-        "required": [
-          "unit",
-          "scope"
-        ],
+        "required": ["unit", "scope"],
         "additionalProperties": false,
         "properties": {
-          "unit": {
-            "type": "string"
-          },
-          "scope": {
-            "const": "user"
-          },
-          "enable": {
-            "type": "boolean"
-          },
-          "when": {
-            "type": "string",
-            "pattern": "^!?secrets\\.[A-Z][A-Z0-9_]*$"
-          }
+          "unit":   { "type": "string" },
+          "scope":  { "const": "user" },
+          "enable": { "type": "boolean" },
+          "when":   { "type": "string", "pattern": "^!?secrets\\.[A-Z][A-Z0-9_]*$" }
         }
       }
     },
+
     "postInstall": {
       "description": "Last resort, bounded: runs as the user, never root, with a timeout, and a failure NEVER interrupts the install - it logs a warning. An ordered list, because some apps need two irreducible steps (generate a cert, then trust it).",
       "type": "array",
       "items": {
         "type": "object",
-        "required": [
-          "run"
-        ],
+        "required": ["run"],
         "additionalProperties": false,
         "properties": {
-          "run": {
-            "type": "string"
-          },
-          "label": {
-            "type": "string"
-          },
-          "timeoutSec": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 300
-          },
-          "when": {
-            "type": "string",
-            "pattern": "^!?secrets\\.[A-Z][A-Z0-9_]*$"
-          }
+          "run":        { "type": "string" },
+          "label":      { "type": "string" },
+          "timeoutSec": { "type": "integer", "minimum": 1, "maximum": 300 },
+          "when":       { "type": "string", "pattern": "^!?secrets\\.[A-Z][A-Z0-9_]*$" }
         }
       }
     }
   },
+
   "allOf": [
     {
-      "if": {
-        "properties": {
-          "kind": {
-            "const": "emulator"
-          }
-        },
-        "required": [
-          "kind"
-        ]
-      },
-      "then": {
-        "required": [
-          "roms"
-        ]
-      }
+      "if":   { "properties": { "kind": { "const": "emulator" } }, "required": ["kind"] },
+      "then": { "required": ["roms"] }
     },
     {
-      "if": {
-        "properties": {
-          "kind": {
-            "const": "app"
-          }
-        },
-        "required": [
-          "kind"
-        ]
-      },
-      "then": {
-        "not": {
-          "required": [
-            "roms"
-          ]
-        }
-      }
+      "if":   { "properties": { "kind": { "const": "app" } }, "required": ["kind"] },
+      "then": { "not": { "required": ["roms"] } }
     }
   ]
 }

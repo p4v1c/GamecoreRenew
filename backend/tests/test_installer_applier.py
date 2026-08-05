@@ -210,20 +210,34 @@ def packs():
     return load_catalog(CATALOG, LOCAL)
 
 
-@pytest.mark.parametrize("pack_id", ["twitch", "youtube", "stremio", "steam"])
-def test_every_app_pack_carries_everything_it_declares(packs, pack_id):
+def test_every_pack_carries_everything_it_declares(packs):
     """The check the repository did not have. catalog/twitch/pack.json declared
     six payload files and shipped one; the five missing ones only surfaced as a
-    dead install on a fresh machine."""
-    pack = packs[pack_id]
-    declared = (
-        [f.get("src") or f["template"] for f in pack.data.get("files", [])]
-        + [s["unit"] for s in pack.data.get("services", [])]
-        + [s["run"] for s in pack.data.get("postInstall", [])]
-    )
-    missing = [rel for rel in declared if not (pack.path / rel).is_file()]
-    assert not missing, f"{pack_id} declares files it does not carry: {missing}"
+    dead install on a fresh machine, at 66 %.
 
+    Every pack, not just the apps: an emulator may declare the same blocks, and
+    "nobody does that yet" is what made the last gap invisible for months."""
+    broken = {}
+    for pack in packs.values():
+        declared = (
+            [f.get("src") or f["template"] for f in pack.data.get("files", [])]
+            + [s["unit"] for s in pack.data.get("services", [])]
+            + [s["run"] for s in pack.data.get("postInstall", [])]
+        )
+        missing = [rel for rel in declared if not (pack.path / rel).is_file()]
+        if missing:
+            broken[pack.id] = missing
+    assert not broken, f"packs declaring files they do not carry: {broken}"
+
+
+@pytest.mark.parametrize("pack_id", ["twitch", "youtube", "stremio", "steam"])
+def test_each_app_pack_declares_something_to_do(packs, pack_id):
+    """An app that declares nothing installs nothing — and the wizard would
+    still offer its tick box."""
+    pack = packs[pack_id]
+    assert any(pack.data.get(k) for k in
+               ("install", "sources", "files", "services", "postInstall", "packages")), \
+        f"{pack_id} declares no install work at all"
 
 def test_the_app_packs_apply_end_to_end_without_touching_the_system(packs, tmp_path):
     """A dry run reaches every block of every app pack. It is what would have

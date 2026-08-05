@@ -146,10 +146,10 @@ echo -e "${BLU}║     GameCore — Installer          ║${RST}"
 echo -e "${BLU}╚══════════════════════════════════════╝${RST}"
 
 # ── Configuration — conf file (unattended) or prompts ────────────
-# EMULATORS: "all" or space-separated ids among:
-#   azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu ryujinx
-#   shadps4 duckstation xenia
-# APPS: "all" or space-separated ids among: twitch stremio steam youtube
+# EMULATORS / APPS: "all", or space-separated pack ids. The ids are whatever
+# catalog/ holds — `scripts/catalog-query.py ids --kind emulator` lists them.
+# No copy of that list lives in this file: one did, and it went stale the day a
+# pack was added.
 # ADDONS: space-separated gamecore-addons names installed at the end.
 EMULATORS="all"
 APPS="all"
@@ -474,124 +474,55 @@ ok "Flathub ready."
 
 # ── Emulators (full mode only) ───────────────────────────────────
 # Declared outside the branch: the final recap reads them in minimal mode too.
-DUCK_MISSING=false
-XENIA_MISSING=false
+# Whatever failed, by pack id, with the message the provider gave.
+EMU_FAILED=()
+APP_FAILED=()
 if [[ "$MODE" == "full" ]]; then
-  msg "Installing emulators (Flatpak)"
-  # id → Flatpak app id, FROM THE CATALOGUE (catalog/<id>/pack.json).
+  msg "Installing emulators"
+  # One call, one pack at a time, everything the pack declares. There is no
+  # list of emulators in this file any more — not the Flatpak ids, not the
+  # sandbox flags, not the two non-Flatpak ones. `gamecore-provider.py` reads
+  # catalog/<id>/pack.json and applies it:
   #
-  # This was a hand-written map, and it was the ONE copy the N64 migration
-  # updated — install-emu-configs.sh, uninstall.sh, flatpakify-systems.sh and
-  # verify_emulators.py kept pointing at io.github.gopher64.gopher64 for
-  # months. The key stays `gopher64` on purpose even though it launches
-  # Rosalie's Mupen GUI: gopher64 sets no WM_CLASS on its window, so
-  # overlay_monitor could never find it and the bezel never drew.
-  declare -A EMU_FLATPAK=()
-  while IFS=$'\t' read -r id app_id; do
-    [[ -n "$id" ]] && EMU_FLATPAK[$id]="$app_id"
-  done < <(python3 "$GAMECORE_PATH/scripts/catalog-query.py" flatpaks --kind emulator)
-  [[ ${#EMU_FLATPAK[@]} -gt 0 ]] || die "catalog/ declares no Flatpak emulator — is the checkout complete?"
-
-  FLATPAKS=()
-  for id in "${!EMU_FLATPAK[@]}"; do
-    want_emu "$id" && FLATPAKS+=("${EMU_FLATPAK[$id]}")
-  done
-  # Steam is not here any more: it is an app, and the app pass below installs it
-  # from its pack — install_flatpak does the install, the sandbox override and
-  # both uninstall manifests, which is exactly what this loop does by hand.
+  #   packages   the extra system deps (fuse2: a type-2 AppImage mounts itself
+  #              through libfuse2, and without it DuckStation exits with
+  #              "dlopen(): error loading libfuse.so.2" and the PS1 tile is dead)
+  #   install    flatpak, or a GitHub asset/archive for the two that are not on
+  #              Flathub — same protections either way: the fixed release URL
+  #              before the rate-limited API, a .part temp file, magic bytes,
+  #              an optional sha256
+  #   sandbox    the ROM dir + controller access, per pack
+  #
+  # What this replaced: a hand-written Flatpak loop, a hand-written override
+  # loop, and `for _id in duckstation xenia`. That last one is why this is a
+  # rewrite rather than a tidy-up — a third AppImage emulator would have been
+  # declared in its pack, validated by check-catalog, offered in the wizard,
+  # and never installed, without one line of output saying so.
+  EMU_TOTAL=$(python3 "$GAMECORE_PATH/scripts/catalog-query.py" ids --kind emulator \
+              | { [[ "$EMULATORS" == "all" ]] && cat \
+                   || grep -xF -f <(tr ' ' '\n' <<<"$EMULATORS" | grep -v '^$'); } \
+              | wc -l)
   EMU_I=0
-  EMU_TOTAL=${#FLATPAKS[@]}
-  # Unticking every emulator AND every app leaves the array empty; the
-  # progress interpolation below would then divide by zero, which under
-  # `set -e` kills the install outright.
-  for pkg in ${FLATPAKS[@]+"${FLATPAKS[@]}"}; do
-    EMU_I=$((EMU_I + 1))
-    # interpolate 25 → 50 % across the selected emulators/apps
-    progress $((25 + EMU_I * 25 / EMU_TOTAL)) "Installing $pkg"
-    if flatpak_installed "$pkg"; then
-      info "$pkg — already installed (left out of the uninstall manifest)."
-    elif flatpak install -y flathub "$pkg"; then
-      record_new_flatpak "$pkg"
-      ok "$pkg installed."
-    else
-      warn "$pkg failed."
-    fi
-  done
-
-  # Sandbox permissions, per pack. The emulator policy — ROM directory,
-  # gamepad, X11 — is the default a pack gets by saying nothing; a pack that
-  # needs a different one declares a `sandbox` block (Stremio wants
-  # --filesystem=host and no X11 socket). It was hardcoded here, so the two
-  # policies lived in two unrelated places in this file.
-  #
-  # Recorded separately from what we installed: an emulator the user already
-  # had still gets a GameCore override, and the uninstaller has to reset it.
-  declare -A SANDBOX=()
-  while IFS=$'\t' read -r app_id flags; do
-    [[ -n "$app_id" ]] && SANDBOX[$app_id]="$flags"
-  done < <(python3 "$GAMECORE_PATH/scripts/catalog-query.py" sandbox \
-             --gamecore-path "$GAMECORE_PATH")
-  for pkg in ${FLATPAKS[@]+"${FLATPAKS[@]}"}; do
-    # Unquoted on purpose: the flags are a space-separated list to expand.
-    # shellcheck disable=SC2086
-    flatpak override ${SANDBOX[$pkg]:-"--filesystem=$GAMECORE_PATH --device=all --socket=x11"} \
-      "$pkg" 2>/dev/null || true
-    record_flatpak_override "$pkg"
-  done
-  [[ $EMU_TOTAL -gt 0 ]] && ok "Flatpak overrides applied (ROMs dir + controller access)." \
-                         || info "No emulator or Steam selected — nothing to install."
-
-  # ── Non-Flatpak emulators: providers ──────────────────────────
-  # DuckStation (an AppImage — not published on Flathub) and Xenia Canary (a
-  # Windows zip run through Wine) each had a bespoke ~65-line block here, with
-  # its own fetch function. The two were already almost identical: same
-  # timeouts, same --speed-limit, same magic-byte check, same fall back to the
-  # GitHub API. They are now DATA in catalog/<id>/pack.json, and one helper —
-  # backend/services/installer/ — carries every protection they earned:
-  #
-  #   · the fixed release URL FIRST, the API only as a fallback. The API allows
-  #     60 requests per hour per IP unauthenticated, and exhausting it is why
-  #     fresh installs kept ending up with no PlayStation emulator at all: the
-  #     step gave up without ever attempting a download.
-  #   · a .part temp file, so an aborted transfer never lands at the final name
-  #     and gets read as "already installed" on the next run.
-  #   · magic bytes, because a 200 carrying an HTML error page is still a
-  #     failed download and `curl -f` cannot see it.
-  #   · extraction failure warns and carries on. It used to abort the WHOLE
-  #     install at 52 %, before a single systemd unit or sudoers rule existed.
-  #
-  # New, and the reason it is worth having in one place: an optional sha256 per
-  # pack, and a pinnable version. There was no integrity check anywhere before.
-  #
-  # `|| true`: a provider that fails costs one tile. The recap at the end says
-  # which, and how to retry.
-  for _id in duckstation xenia; do
-    want_emu "$_id" || continue
-    case "$_id" in
-      duckstation) progress 50 "DuckStation AppImage"; msg "DuckStation AppImage" ;;
-      xenia)       progress 52 "Xenia Canary (Wine)";  msg "Xenia Canary (Wine)" ;;
-    esac
-    # Provider-level dependencies (wine, unzip, p7zip for Xenia) are declared in
-    # the pack under install.requires and installed by the provider itself.
-    _out=$(python3 "$GAMECORE_PATH/scripts/gamecore-provider.py" install "$_id" \
-             --user "$USER_NAME" --gamecore-path "$GAMECORE_PATH" 2>&1) || true
+  if [[ -n "${EMULATORS// /}" && "$EMU_TOTAL" -gt 0 ]]; then
     while IFS= read -r _line; do
       case "$_line" in
+        # One per pack, before its results — the progress bar has to move during
+        # the longest phase of the install or the GUI looks hung.
+        PACK*) EMU_I=$((EMU_I + 1))
+               progress $((25 + EMU_I * 25 / EMU_TOTAL)) "Installing ${_line#PACK }" ;;
         OK*)   ok   "${_line#OK }" ;;
         SAME*) info "${_line#SAME }" ;;
-        *)     warn "${_line#FAIL }"
-               [[ "$_id" == duckstation ]] && DUCK_MISSING=true
-               [[ "$_id" == xenia ]]       && XENIA_MISSING=true ;;
+        FAIL*) warn "${_line#FAIL }"; EMU_FAILED+=("${_line#FAIL }") ;;
+        UNIT*) : ;;   # emulators declare none; the app pass collects them
+        *)     [[ -n "$_line" ]] && info "$_line" ;;
       esac
-    done <<< "$_out"
-
-    # Extra system packages the pack declares (fuse2: a type-2 AppImage mounts
-    # itself through libfuse2, and without it DuckStation exits with
-    # "dlopen(): error loading libfuse.so.2" and the PS1 tile is dead).
-    for _pkg in $(python3 "$GAMECORE_PATH/scripts/catalog-query.py" packages --select "$_id"); do
-      pacman_optional "$_pkg"
-    done
-  done
+    done < <(python3 "$GAMECORE_PATH/scripts/gamecore-provider.py" install \
+               --kind emulator --select "$EMULATORS" \
+               --user "$USER_NAME" --user-home "$USER_HOME" \
+               --gamecore-path "$GAMECORE_PATH" 2>&1 || true)
+  else
+    info "No emulator selected — nothing to install."
+  fi
 
 
   # ── Curated emulator configs (incl. controller bindings) ───────
@@ -648,12 +579,15 @@ if [[ "$MODE" == "full" ]]; then
     # wants under `secrets`; the applier reads only those.
     export TWITCH_CLIENT_ID TWITCH_CLIENT_SECRET TGDB_API_KEY \
            SS_DEV_ID SS_DEV_PASSWORD SS_USER SS_PASSWORD
+    APP_TOTAL=$(wc -w <<<"$APP_SEL"); APP_I=0
     while IFS= read -r _line; do
       case "$_line" in
+        PACK*) APP_I=$((APP_I + 1))
+               progress $((58 + APP_I * 12 / APP_TOTAL)) "Installing ${_line#PACK }" ;;
         OK*)   ok   "${_line#OK }" ;;
         SAME*) info "${_line#SAME }" ;;
         UNIT*) RESTART_UNITS+=("${_line#UNIT }") ;;
-        FAIL*) warn "${_line#FAIL }" ;;
+        FAIL*) warn "${_line#FAIL }"; APP_FAILED+=("${_line#FAIL }") ;;
         *)     [[ -n "$_line" ]] && info "$_line" ;;
       esac
     done < <(python3 "$GAMECORE_PATH/scripts/gamecore-provider.py" install \
@@ -1401,16 +1335,18 @@ fi
 # Surfaced here on purpose: these warnings scroll past in the middle of a very
 # long log, and the only other symptom is a tile that has quietly disappeared
 # from the grid.
-if $DUCK_MISSING; then
-  warn "DuckStation (PlayStation) was NOT installed — its tile is missing from the grid."
-  warn "  Re-run this installer to retry the download, or drop the AppImage yourself at:"
-  warn "      $GAMECORE_PATH/bin/duckstation.AppImage   (chmod +x, then re-run the installer)"
-  echo
-fi
-if $XENIA_MISSING; then
-  warn "Xenia Canary (Xbox 360) was NOT installed — its tile is missing from the grid."
-  warn "  Re-run this installer to retry the download, or extract the release yourself into:"
-  warn "      $GAMECORE_PATH/lib/xenia/   (xenia_canary.exe at its root, then re-run)"
+#
+# Generic, and it has to be: this used to be one hand-written block per
+# emulator, naming DuckStation and Xenia. A third one that failed to download
+# said nothing at all here — the same shape of bug as the `for _id in
+# duckstation xenia` loop this replaced. The provider already said what broke
+# and what to do about it; this only makes sure it is the last thing read.
+if [ ${#EMU_FAILED[@]} -gt 0 ] || [ ${#APP_FAILED[@]} -gt 0 ]; then
+  warn "Not everything selected was installed — those tiles are missing from the grid:"
+  for _f in ${EMU_FAILED[@]+"${EMU_FAILED[@]}"} ${APP_FAILED[@]+"${APP_FAILED[@]}"}; do
+    warn "  · $_f"
+  done
+  warn "  Re-running this installer retries them; nothing else is affected."
   echo
 fi
 echo -e "${YLW}  To remove GameCore later:${RST}"

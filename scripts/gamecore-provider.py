@@ -81,6 +81,10 @@ def main() -> int:
                      secrets=secrets)
     failed = bool(wanted) and bool(wanted - {p.id for p in chosen})
     for pack in chosen:
+        # Before its results, so the caller can move a progress bar per pack.
+        # The emulator phase is by far the longest part of an install and a bar
+        # that does not move for forty minutes reads as hung.
+        print(f"PACK {pack.id}")
         for result in apply(pack, ctx):
             tag = "SAME" if result.already else ("OK" if result.ok else "FAIL")
             print(f"{tag} {result.message}")
