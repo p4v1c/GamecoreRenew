@@ -35,21 +35,48 @@ _gc_user() {
   printf '%s' "$u"
 }
 
-# The desktop is whatever this machine actually has. Hard-coding "plasma" broke
-# the moment the box was not a Plasma box, and a session name that does not
-# exist makes SDDM fall back to its own default with no message at all.
-_desktop_session() {
-  local d n
-  for d in /usr/share/wayland-sessions /usr/share/xsessions; do
+# Every session this machine offers, minus the kiosk. "<name>\t<dir>".
+_sessions() {
+  local d f n
+  for d in /usr/share/xsessions /usr/share/wayland-sessions; do
     [[ -d "$d" ]] || continue
     for f in "$d"/*.desktop; do
       [[ -e "$f" ]] || continue
       n=$(basename "$f" .desktop)
       [[ "$n" == openbox ]] && continue     # that is the kiosk, not a desktop
-      printf '%s' "$n"; return 0
+      printf '%s\t%s\n' "$n" "$d"
     done
   done
-  return 1
+}
+
+# The desktop is whatever this machine actually has. Hard-coding "plasma" broke
+# the moment the box was not a Plasma box, and a session name that does not
+# exist makes SDDM fall back to its own default with no message at all.
+#
+# But "the first .desktop in the directory" is not that either, and it is what
+# this used to do: alphabetical order, Wayland scanned before X11. On a Plasma
+# box that is how `desktop` landed on a Wayland session the machine could not
+# draw — a black screen, no message, and no obvious way back for someone who
+# switched precisely because they wanted a file manager.
+#
+# So: X11 before Wayland, because the whole GameCore stack is X11 and a box that
+# just ran the kiosk has proved X works on it, while its Wayland session may
+# never have been started once — llvmpipe in a VM is the case that broke here.
+# Then full desktops before bare window managers, since "desktop mode" means a
+# desktop. Anything left over still wins over nothing at all.
+PREFERRED=(plasmax11 plasma plasma-x11 gnome-xorg gnome xfce mate cinnamon
+           lxqt lxde budgie deepin pantheon i3 sway)
+
+_desktop_session() {
+  local want name
+  for want in "${PREFERRED[@]}"; do
+    while IFS=$'\t' read -r name _; do
+      [[ "$name" == "$want" ]] && { printf '%s' "$name"; return 0; }
+    done < <(_sessions)
+  done
+  name=$(_sessions | head -1 | cut -f1)
+  [[ -n "$name" ]] || return 1
+  printf '%s' "$name"
 }
 
 _current() {
@@ -66,18 +93,32 @@ case "${1:-}" in
   status)
     echo "auto-login    : $(_current)"
     echo "gamecore-ui   : $(systemctl is-enabled gamecore-ui.service 2>/dev/null || echo inconnu)"
+    echo "desktop pick  : $(_desktop_session 2>/dev/null || echo '<none installed>')"
+    echo "available     :"
+    _sessions | while IFS=$'\t' read -r n d; do
+      printf '  %-18s %s\n' "$n" "${d##*/}"
+    done
     exit 0
     ;;
-  gamecore|kiosk|openbox) SESSION=openbox; UI=start ;;
+  gamecore|kiosk|openbox) SESSION=openbox; UI=enable ;;
   desktop)
-    if ! SESSION=$(_desktop_session); then
+    # An explicit name wins over the guess. The guess is a heuristic over what
+    # the machine happens to ship, and the person typing this knows which
+    # session they actually log into — `status` lists the valid answers.
+    if [[ -n "${2:-}" ]]; then
+      if ! _sessions | cut -f1 | grep -qxF "$2"; then
+        echo "no session called '$2' on this machine — see: $(basename "$0") status" >&2
+        exit 1
+      fi
+      SESSION="$2"
+    elif ! SESSION=$(_desktop_session); then
       echo "no desktop session installed — nothing to switch to" >&2
       exit 1
     fi
-    UI=stop
+    UI=disable
     ;;
   *)
-    echo "usage: $(basename "$0") gamecore|desktop|status" >&2
+    echo "usage: $(basename "$0") gamecore|desktop [session]|status" >&2
     exit 2
     ;;
 esac
@@ -98,10 +139,17 @@ Relogin=true
 CFG
 chmod 644 "$CONF"
 
-# The kiosk must not draw itself over a desktop session, and must come back
-# with the kiosk one. `|| true`: a box mid-install may not have the unit yet,
-# and that is not a reason to leave the auto-login half-switched.
-systemctl "$UI" gamecore-ui.service 2>/dev/null || true
+# The kiosk must not draw itself over a desktop session, and must come back with
+# the kiosk one. `--now` so it also applies to the session running right now.
+#
+# enable/disable, not start/stop: arch.sh enables gamecore-ui.service, so
+# stopping it left it enabled and the kiosk came back at the very next boot, on
+# top of the desktop the owner had just switched to. Which reads as the switch
+# not having worked, or as a black screen.
+#
+# `|| true`: a box mid-install may not have the unit yet, and that is not a
+# reason to leave the auto-login half-switched.
+systemctl "$UI" --now gamecore-ui.service 2>/dev/null || true
 
 echo "auto-login -> $SESSION ; gamecore-ui -> $UI"
 echo "takes effect at the next login (reboot, or: systemctl restart sddm)"
