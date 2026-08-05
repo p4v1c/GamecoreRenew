@@ -755,6 +755,25 @@ for d in $(python3 "$GAMECORE_PATH/scripts/catalog-query.py" rom-dirs) covers; d
 done
 ok "ROM directories ready."
 
+# ── Offline metadata index ─────────────────────────────────────────
+# The LaunchBox tier: 185 000 games, no account, offline once built. The other
+# tier (ScreenScraper) needs developer credentials most boxes do not have, so
+# without this a fresh install has NO metadata source at all — no titles, no
+# synopses, no covers, and nothing saying why.
+#
+# `--minimal` skips it: it is 234 MB, and a minimal install is the one that
+# asked for less. The step prints the one command that adds it later.
+#
+# Never fatal — the step always exits 0 and reports. A missing description is a
+# degraded box; an aborted installer at 80 % is a machine that is neither
+# installed nor clean.
+if [[ "$MODE" == "full" ]]; then
+  progress 81 "Offline metadata index"
+  msg "Offline metadata index"
+  bash "$GAMECORE_PATH/install/steps/build-media-index.sh" \
+       "$GAMECORE_PATH" "$USER_NAME"
+fi
+
 # ── Input group + udev rule (needed for evdev PS-button detection) ──
 progress 82 "Gamepad input access"
 msg "Gamepad input access"

@@ -323,7 +323,7 @@ long-lived aiosqlite connection can die under the box's suspend cycles.
 | `emu/gamemedia/<system>/<key>/game.json` | one game's manifest — metadata + every media it has | none. A game does not change; `?refresh=1` rescrapes |
 | `emu/gamemedia/<system>/<key>/<type>.png\|mp4\|pdf` | the media actually downloaded | idem |
 | `emu/gamemedia/systems.json` | ScreenScraper's 250-system registry (~4 MB) | none — it is the source of the console aliases |
-| `emu/gamescrape/launchbox.sqlite` | offline LaunchBox index, 185 k games (234 MB) | never: the installer does not build it and the backend never rebuilds it. `gamescrape.py --refresh` only, by hand. A stale schema disables the tier — it does not trigger a rebuild |
+| `emu/gamescrape/launchbox.sqlite` | offline LaunchBox index, 185 k games (234 MB) | built once by `install/steps/build-media-index.sh` (full installs only), then never touched. The backend does NOT rebuild it: a stale schema disables the tier rather than triggering a 234 MB download from an HTTP handler. `gamescrape.py --refresh` is the manual cure |
 
 Everything gamemedia writes lives under `emu/`, with the ROMs and the covers,
 because that directory is excluded from both git and the OTA rsync. A manifest,

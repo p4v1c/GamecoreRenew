@@ -320,9 +320,13 @@ answers that question once for both the CLI and the backend, and
 `test_the_cli_and_the_backend_agree_on_where_the_index_lives` keeps the two
 answers equal.
 
-Nothing builds it for you: the installer does not, and the backend **never**
-does — 106 MB of download from inside an HTTP handler would block the request
-for minutes. A box with no index simply has no LaunchBox tier.
+A full install builds it once, in `install/steps/build-media-index.sh`, and
+never fails the install over it. `--minimal` and `GAMECORE_SKIP_MEDIA_INDEX=1`
+skip it, and both print the single command that adds it later.
+
+The backend **never** builds it — 106 MB of download from inside an HTTP
+handler would block the request for minutes. A box with no index simply has no
+LaunchBox tier, and says so in the manifest notes.
 
 ## `metadata.py` (135 l.)
 
