@@ -46,8 +46,9 @@ INDEX_DIR = GAMECORE_ROOT / "emu" / "gamescrape"
 
 gm.CACHE_ROOT = CACHE_DIR
 gm.SYSTEMS_CACHE = CACHE_DIR / "systems.json"        # derived at import time
-gs.CACHE_DIR = INDEX_DIR
-gs.DB_PATH = INDEX_DIR / "launchbox.sqlite"          # idem
+# One call rather than two assignments: gamescrape is five modules now, and an
+# assignment reaches only the one it is made on (see gamescrape.set_index_dir).
+gs.set_index_dir(INDEX_DIR)
 
 # The softname identifies this software to ScreenScraper. It is tied to the
 # devid granted on their forum, so it belongs to GameCore, not to the script.
