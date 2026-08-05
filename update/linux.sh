@@ -455,6 +455,69 @@ done
 echo "${LATEST_TAG}" > "${GAMECORE_PATH}/VERSION"
 echo "[update] Version set to ${LATEST_TAG}"
 
+# ── Privileges a release added after this box was installed ────────────────
+#
+# Sudoers rules are written ONCE, by arch.sh and setup-update-permissions.sh, at
+# INSTALL time. An OTA replaces code and nothing else — it runs as the backend's
+# user and cannot grant itself anything. So every rule added in a later release
+# is simply absent on every box installed before it, for ever, and the feature
+# it gates is dead without a word.
+#
+# Found on the reference box, running a release fourteen tags old:
+#   · no rule for /usr/local/bin/gamecore-emu, and the CLI not installed at all
+#     — so "install an emulator" from the Systems screen could not work. The
+#     endpoint exists, the catalogue lists seventeen packs, and the button was
+#     never going to do anything.
+#   · no rule for cpupower, so standby.py never dropped or raised the governor.
+#     It logs at debug and carries on, which is why nobody saw it: the only
+#     trace was `sudo: a password is required` in the journal.
+#
+# This cannot be repaired from here — that is the point of the rule being
+# root-owned. What it CAN do is stop the drift being invisible: check what the
+# release expects against what this box grants, and name the one command that
+# fixes it. A dead feature that says so is a support question; a dead feature
+# that does not is a bug report about something else entirely.
+# NOPASSWD is the only thing that counts, and `sudo -n -l <command>` does NOT
+# test it: on a box whose owner is in wheel, `(ALL) ALL` means every command is
+# permitted — with a password. The backend always calls `sudo -n`, which never
+# prompts, so a rule that is merely "allowed" is a rule that fails. The list is
+# therefore read once and searched for the NOPASSWD entries themselves.
+sudo_rules="$(sudo -n -l 2>/dev/null || true)"
+
+# The rules to expect are READ FROM THE INSTALLERS THIS UPDATE JUST SHIPPED,
+# never typed here. A hardcoded list would cover the two rules that happened to
+# be missing the day this was written and go stale on the third — which is the
+# very drift it exists to catch. arch.sh and setup-update-permissions.sh are the
+# only writers of sudoers rules, and they are both in the OTA archive.
+expected_cmds="$(grep -rhoE 'NOPASSWD: *[^"]*' \
+                   "${GAMECORE_PATH}/install/arch.sh" \
+                   "${GAMECORE_PATH}/install/steps/setup-update-permissions.sh" 2>/dev/null \
+                 | sed 's/NOPASSWD: *//' \
+                 | tr ',' '\n' \
+                 | grep -oE '/[a-zA-Z0-9/._-]+' \
+                 | sort -u)"
+
+missing_rules=""
+while IFS= read -r cmd; do
+  [[ -n "$cmd" ]] || continue
+  # Match on the binary name: the granted rule carries its arguments too
+  # ("systemctl start gamecore-ui.service"), and comparing whole lines would
+  # report a difference for every rule that has any.
+  grep -q "NOPASSWD:.*$(basename "$cmd")" <<<"$sudo_rules" \
+    || missing_rules="${missing_rules}  · ${cmd}\n"
+done <<<"$expected_cmds"
+if [[ -n "$missing_rules" ]]; then
+  echo "[update]"
+  echo "[update] This box is missing privileges that later releases added, so the"
+  echo "[update] following do nothing at all — silently, until this notice:"
+  printf "[update] %b" "$missing_rules"
+  echo "[update] Grant them once (root, no reinstall, nothing else changes):"
+  echo "[update]   sudo ${GAMECORE_PATH}/install/steps/setup-update-permissions.sh ${USER}"
+  echo "[update] and, for anything above that step does not cover, the matching"
+  echo "[update] NOPASSWD line from ${GAMECORE_PATH}/install/arch.sh (search: sudoers)."
+  echo "[update]"
+fi
+
 echo "[update] Scheduling service restart (detached)..."
 # --no-block: return immediately; the restart runs in its own unit, outside
 # this script's cgroup, ~2s after we exit (see gamecore-restart.service).
