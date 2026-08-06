@@ -31,8 +31,28 @@ set -euo pipefail
 GC_USER="${1:-${SUDO_USER:-}}"
 [[ -n "$GC_USER" ]] || { echo "usage: sudo $0 <gamecore-user>"; exit 1; }
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# One directory per KIND of file, so neither of these sits beside this script:
+# `install/steps/` holds steps, the unit lives in `install/system/` and the CLI
+# in `install/bin/`. Both paths were `${HERE}/…` until the reorganisation moved
+# the files and left the references behind — see the failure below.
+INSTALL_ROOT="$(cd "${HERE}/.." && pwd)"
+UNIT_SRC="${INSTALL_ROOT}/system/gamecore-restart.service"
+EMU_SRC="${INSTALL_ROOT}/bin/gamecore-emu"
 
-install -m 644 "${HERE}/gamecore-restart.service" /etc/systemd/system/gamecore-restart.service
+# Fatal, and it did not used to be. With no `set -e`, a failed `install` here
+# printed one line, carried on, wrote a sudoers file holding only half the
+# rules, and exited 0 — so arch.sh answered "OTA restart permissions
+# installed." for a step that had installed neither the unit nor the CLI.
+#
+# Every box built after the reorganisation therefore came up with no
+# gamecore-restart.service (the OTA cannot restart itself) and no
+# /usr/local/bin/gamecore-emu (installing an emulator from the interface
+# silently does nothing), announced as a success. A green tick on a step that
+# did not run is worse than the red one it replaced.
+[[ -f "$UNIT_SRC" ]] || { echo "ERROR: missing $UNIT_SRC"; exit 1; }
+
+install -m 644 "$UNIT_SRC" /etc/systemd/system/gamecore-restart.service \
+  || { echo "ERROR: could not install gamecore-restart.service"; exit 1; }
 systemctl daemon-reload
 
 # The CLI has to live at a path root controls. Left in $GAMECORE_PATH it would
@@ -40,11 +60,11 @@ systemctl daemon-reload
 # user can rewrite is not a restriction at all — it is a root shell with extra
 # steps. /usr/local/bin is root-owned, and this is the same place
 # gamecore-addon is installed to.
-if [[ -f "${HERE}/gamecore-emu" ]]; then
-  install -m 755 -o root -g root "${HERE}/gamecore-emu" /usr/local/bin/gamecore-emu
+if [[ -f "$EMU_SRC" ]]; then
+  install -m 755 -o root -g root "$EMU_SRC" /usr/local/bin/gamecore-emu
   EMU_RULE="${GC_USER} ALL=(root) NOPASSWD: /usr/local/bin/gamecore-emu"
 else
-  echo "⚠  install/bin/gamecore-emu not found — hot install will not be available."
+  echo "⚠  $EMU_SRC not found — hot install will not be available."
   EMU_RULE=""
 fi
 
