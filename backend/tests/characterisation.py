@@ -78,18 +78,36 @@ PADS = {p.key: p for p in (DS4, XBOX, DUALSENSE)}
 
 @dataclass(frozen=True)
 class Step:
-    """One call. `release` means release_profile instead of apply_profile."""
+    """One call. `release` means release_profile instead of apply_profile.
+
+    `occupied` is the roster that REMAINS once this release has happened, and
+    it is not decoration: a slot-by-slot release cannot decide anything that
+    depends on the other slots. The multitap is the case that proves it — it is
+    a property of the roster, not of a slot, so `release(4)` alone can never
+    know whether player 3 is still sitting there.
+    """
     pad: str | None
     slot: int
     dup: int = 0
     release: bool = False
+    occupied: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
 class Scenario:
+    """`before` names a tree under `catalog/_characterisation/inputs/<before>/`
+    laid over the seeds before the steps run.
+
+    The seeds must stay neutral — a fresh install is what they describe — so a
+    scenario that needs a DAMAGED config cannot express it as a seed. It is an
+    input fixture, and the distinction is the whole reason the repair paths had
+    no test: the harness always started from a healthy seed, so the state the
+    repair exists to fix was never built.
+    """
     name: str
     why: str
     steps: tuple[Step, ...]
+    before: str | None = None
 
 
 # ── The matrix ─────────────────────────────────────────────────────────────
@@ -131,15 +149,38 @@ SCENARIOS: tuple[Scenario, ...] = (
     Scenario("unplug-player-2", "co-op, then player 2 leaves. Dolphin's Wiimote "
                                 "keeps an emulated remote presented to the game "
                                 "unless the slot is released",
-             (Step("ds4", 1, 0), Step("xbox", 2, 0), Step(None, 2, release=True))),
+             (Step("ds4", 1, 0), Step("xbox", 2, 0),
+              Step(None, 2, release=True, occupied=(1,)))),
     Scenario("unplug-then-replug", "the survivor's dup describes the ROSTER, so "
                                    "the slot is re-profiled on the way back",
-             (Step("ds4", 1, 0), Step("ds4", 2, 1), Step(None, 2, release=True),
+             (Step("ds4", 1, 0), Step("ds4", 2, 1),
+              Step(None, 2, release=True, occupied=(1,)),
               Step("ds4", 2, 1))),
     Scenario("idempotence-ds4", "the same call twice: the second must write "
                                 "NOTHING. _ryujinx used to rewrite 11 KB on "
                                 "every connection",
              (Step("ds4", 1, 0), Step("ds4", 1, 0))),
+    Scenario("four-then-one-ds4",
+             "four pads, then three leave. Every emulator that NAMES a device "
+             "must stop naming one in slots 2-4 — the box had 'Xbox One "
+             "Wireless Controller 3' sitting in RPCS3's Player 4 with a single "
+             "DualShock 4 plugged in. The multitap goes back off with them: "
+             "nothing turned it off, so every later solo session ran with a "
+             "virtual accessory on port 1",
+             (Step("ds4", 1, 0), Step("ds4", 2, 1),
+              Step("ds4", 3, 2), Step("ds4", 4, 3),
+              Step(None, 4, release=True, occupied=(1, 2, 3)),
+              Step(None, 3, release=True, occupied=(1, 2)),
+              Step(None, 2, release=True, occupied=(1,)))),
+    Scenario("rpcs3-player-2-null",
+             "the state the reference box was really in: Player 2 left by "
+             "RPCS3 as Handler: \"Null\" with every binding blanked, Player 1 "
+             "healthy. The slot must be REBUILT from the healthy one, not "
+             "retargeted as it stands. No scenario built this state, so "
+             "replacing _is_bound() with `return True` — which disables the "
+             "repair entirely — left the whole suite green",
+             (Step("ds4", 2, 0),),
+             before="rpcs3-player-2-null"),
 )
 
 # Files the profilers touch, relative to the fake HOME / install root. The
@@ -166,19 +207,34 @@ SEED_DEST = {
 }
 
 
-def build_tree(home: Path) -> None:
-    """Deploy every seed into a fake HOME — the state a fresh install has."""
+def _deploy(src: Path, dest: Path) -> None:
+    dest.mkdir(parents=True, exist_ok=True)
+    for f in src.rglob("*"):
+        if f.is_file():
+            target = dest / f.relative_to(src)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, target)
+
+
+def build_tree(home: Path, before: str | None = None) -> None:
+    """Deploy every seed into a fake HOME — the state a fresh install has.
+
+    `before` then lays an input fixture over it, for the scenarios that start
+    from a config a box has DAMAGED rather than one an install has just laid
+    down. Same layout as the seeds, keyed by pack id.
+    """
     for pack_id, rel in SEED_DEST.items():
         src = CATALOG / pack_id / "seed"
-        if not src.is_dir():
-            continue
-        dest = home / rel
-        dest.mkdir(parents=True, exist_ok=True)
-        for f in src.rglob("*"):
-            if f.is_file():
-                target = dest / f.relative_to(src)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(f, target)
+        if src.is_dir():
+            _deploy(src, home / rel)
+    if before is None:
+        return
+    root = CATALOG / "_characterisation" / "inputs" / before
+    assert root.is_dir(), f"no input fixture at {root}"
+    for pack_id, rel in SEED_DEST.items():
+        src = root / pack_id
+        if src.is_dir():
+            _deploy(src, home / rel)
 
 
 def install_stubs(cp, home: Path, monkeypatch) -> None:
@@ -261,7 +317,8 @@ def run_scenario(cp, scenario: Scenario) -> list[str]:
     for step in scenario.steps:
         if step.release:
             messages.append(f"release({step.slot}): "
-                            + "; ".join(cp.release_profile(step.slot)))
+                            + "; ".join(cp.release_profile(step.slot,
+                                                           step.occupied)))
             continue
         pad = PADS[step.pad]
         result = cp.apply_profile(step.slot, pad.vendor, pad.product,

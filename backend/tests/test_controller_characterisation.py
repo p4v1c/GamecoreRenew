@@ -32,11 +32,18 @@ UPDATE = os.environ.get("GAMECORE_UPDATE_FIXTURES") == "1"
 
 
 @pytest.fixture
-def box(tmp_path, monkeypatch):
-    """A fresh install: every seed deployed, SDL deterministic."""
+def box(request, tmp_path, monkeypatch):
+    """A fresh install: every seed deployed, SDL deterministic.
+
+    A parametrised scenario declaring `before` gets its input fixture laid over
+    the seeds — the seeds describe a fresh install and must keep doing so, so a
+    damaged starting state belongs to the scenario, not to the catalogue.
+    """
     home = tmp_path / "home"
     home.mkdir()
-    ch.build_tree(home)
+    scenario = getattr(request.node, "callspec", None)
+    before = getattr(scenario.params.get("scenario"), "before", None) if scenario else None
+    ch.build_tree(home, before)
     ch.install_stubs(cp, home, monkeypatch)
     return home
 
