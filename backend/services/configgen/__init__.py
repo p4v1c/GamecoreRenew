@@ -238,7 +238,8 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
 
 
 def release_profile(player_index: int,
-                    occupied: Collection[int] = ()) -> list[str]:
+                    occupied: Collection[int] = (),
+                    pack_ids: Collection[str] | None = None) -> list[str]:
     """Un-write the slot a pad no longer holds — the inverse of apply_profile.
 
     This docstring used to say "only Dolphin needs it today; role/device bound
@@ -257,6 +258,12 @@ def release_profile(player_index: int,
     there. Empty means nobody is left, which is what the last pad leaving
     looks like.
 
+    `pack_ids` narrows the pass to named packs. The hotplug path passes None
+    and sweeps everything, because a pad leaving concerns every emulator. The
+    launch path passes the one emulator about to start: rewriting Cemu's config
+    because someone launched PCSX2 is a side effect nobody asked for, and it is
+    also what would make the pass too slow to sit in front of a launch.
+
     Never raises: an emulator whose config cannot be un-written must not stop
     the others from being.
     """
@@ -272,6 +279,8 @@ def release_profile(player_index: int,
         return []
     results: list[str] = []
     for pack in profilable_packs(load_catalog()):
+        if pack_ids is not None and pack.id not in pack_ids:
+            continue
         ctl = pack.data.get("controllers") or {}
         # Same guard apply_profile applies, for the same reason: a slot a pack
         # never writes is a slot it has nothing to un-write, and calling into
