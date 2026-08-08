@@ -17,6 +17,7 @@ The accompanying index counts **per GUID**, not per player
 from __future__ import annotations
 
 import json
+from collections.abc import Collection
 
 from backend.services.configgen.helpers.base import Skip, atomic_write, backup
 
@@ -130,3 +131,48 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
     backup(cfg_path)
     atomic_write(cfg_path, json.dumps(cfg, indent=2) + "\n")
     return f"ryujinx: Player {i} {action} (dup {dup}, {new_guid}){freed}"
+
+
+def release(player_index: int, opts: dict,
+            occupied: Collection[int] = ()) -> list[str]:
+    """Drop the gamepad slot no pad holds.
+
+    generate() already says why a stale entry is not inert — two slots carrying
+    one id both resolve to the one physical pad, and the game sees a phantom
+    alongside the player. The comment there notes that release_profile "assumes
+    a device-bound emulator just goes input-less when a pad leaves, which holds
+    only while the stale id names a pad that is gone". On the reference box it
+    did not even hold that far: Players 3 and 4 kept indexes 2 and 3, which
+    Input Settings presents as configured players.
+
+    REMOVED, not blanked, and for the reason generate() gives: an absent
+    `player_index` is exactly what Ryujinx reads as "this slot is not
+    configured". A blanked id would instead be an id that resolves to -1, which
+    is the failure this whole generator exists to avoid writing.
+
+    Only `GamepadSDL2` entries. A slot the owner set up for a keyboard is
+    theirs, was never written by us, and is not ours to take away.
+
+    `occupied` is unused: Ryujinx stores nothing about the roster.
+    """
+    cfg_path = opts["target"]
+    if not cfg_path.is_file():
+        return []
+    try:
+        cfg = json.loads(cfg_path.read_text())
+    except (OSError, ValueError):
+        return []
+    ic = cfg.get("input_config")
+    if not isinstance(ic, list):
+        return []
+
+    pi = f"Player{player_index}"
+    gone = [e for e in ic
+            if e.get("player_index") == pi and e.get("backend") == "GamepadSDL2"]
+    if not gone:
+        return []
+    for e in gone:
+        ic.remove(e)
+    backup(cfg_path)
+    atomic_write(cfg_path, json.dumps(cfg, indent=2) + "\n")
+    return [f"ryujinx: Player {player_index} removed"]

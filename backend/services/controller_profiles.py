@@ -29,6 +29,7 @@ import logging
 
 from .configgen import (
     HOME,
+    MAX_PLAYERS,
     SNAP_DIR,
     ProfileResult,
     apply_profile,
@@ -60,7 +61,7 @@ log = logging.getLogger(__name__)
 
 __all__ = [
     # the hotplug path — gamepad_monitor.py
-    "apply_profile", "release_profile", "ProfileResult",
+    "apply_profile", "release_profile", "ProfileResult", "MAX_PLAYERS",
     # the Power-menu actions — routers/controllers.py
     "scan_mapping", "forget_mapping", "detect_pads",
     # the controller abstraction

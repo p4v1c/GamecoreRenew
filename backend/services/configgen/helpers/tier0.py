@@ -26,6 +26,7 @@ could never be repaired because the writer returned immediately for i == 1.
 """
 from __future__ import annotations
 
+from collections.abc import Collection
 from pathlib import Path
 
 from .base import Skip, atomic_write, backup
@@ -70,3 +71,40 @@ def apply(path: Path, label: str, player_index: int, *, pad_type: str,
     backup(path)
     atomic_write(path, text)
     return f"{label}: {', '.join(messages)}"
+
+
+def release(path: Path, label: str, player_index: int, *,
+            multitap: dict | None, occupied: Collection[int] = ()) -> list[str]:
+    """The inverse of the only thing here that is not per-slot: the multitap.
+
+    The `[PadN]` sections are deliberately left alone. Both emulators bind by
+    SDL role with no device identity at all, so a section for a slot nobody
+    holds names nothing and drives nothing — there is no ghost to remove, and
+    rewriting bindings that are correct forever would be churn.
+
+    The multitap is the opposite: it is a property of the ROSTER. `apply()`
+    turns it on as soon as a player at or above `fromPlayer` arrives, which is
+    required — PCSX2 refuses slot 3 at the SIO2 level while
+    `IsMultitapPortEnabled(port)` is false. Nothing ever turned it off, so the
+    seed's `MultitapPort1 = false` was a state the box left once and never came
+    back to: after a single session at four, every solo session afterwards ran
+    with a virtual accessory plugged into port 1.
+
+    And it cannot be decided from `player_index`. Releasing slot 4 says nothing
+    about whether slot 3 is still occupied. That is why `occupied` exists in
+    this signature at all, and why passing a bare index was not enough.
+    """
+    if not path.is_file() or not multitap:
+        return []
+    if any(p >= multitap["fromPlayer"] for p in occupied):
+        return []                       # somebody still needs the port
+
+    text = path.read_text()
+    text, changed = set_key(text, multitap["section"], multitap["key"],
+                            multitap["offValue"])
+    if not changed:
+        return []
+    backup(path)
+    atomic_write(path, text)
+    return [f"{label}: multitap disabled "
+            f"({multitap['key']} = {multitap['offValue']})"]

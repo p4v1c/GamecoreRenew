@@ -6,6 +6,8 @@ only in three values, and those are declared in pack.json
 """
 from __future__ import annotations
 
+from collections.abc import Collection
+
 from backend.services.configgen.helpers import tier0
 
 EMU_ID = "duckstation"
@@ -15,3 +17,10 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
     ctl = opts["controllers"]
     return tier0.apply(opts["target"], EMU_ID, player_index,
                        pad_type=ctl["padType"], multitap=ctl.get("multitap"))
+
+
+def release(player_index: int, opts: dict,
+            occupied: Collection[int] = ()) -> list[str]:
+    ctl = opts["controllers"]
+    return tier0.release(opts["target"], EMU_ID, player_index,
+                         multitap=ctl.get("multitap"), occupied=occupied)

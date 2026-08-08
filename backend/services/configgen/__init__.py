@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import importlib.util
 import logging
+from collections.abc import Collection
 from pathlib import Path
 
 from ..catalog import load_catalog
@@ -136,6 +137,12 @@ def profilable_packs(packs: dict) -> list:
 HOME = Path.home()
 SNAP_DIR = HOME / ".local/share/gamecore/controller-snapshots"
 
+# How many player slots this box profiles at all. The pack schema caps
+# `controllers.maxPlayers` at the same number, and apply_profile /
+# release_profile share this one name so the two halves of the pair can never
+# drift apart — the write side once knew a ceiling the un-write side did not.
+MAX_PLAYERS = 4
+
 
 class ProfileResult(list):
     """What a profiling pass wrote, plus whether any step gave up.
@@ -167,7 +174,7 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
     Called by gamepad_monitor on every new slot. Never raises — each emulator
     is isolated so one bad config does not block the others.
     """
-    if player_index < 1 or player_index > 4:
+    if player_index < 1 or player_index > MAX_PLAYERS:
         # The slot cap is deliberate, but a 5th pad used to get a player
         # number, a TV toast, and no config at all, without a word anywhere.
         # Not a Skip: a decision, not a failure, and retrying every three
@@ -230,17 +237,48 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
     return ProfileResult(results, skipped)
 
 
-def release_profile(player_index: int) -> list[str]:
-    """Undo the "connected player" state a disconnected pad leaves behind.
+def release_profile(player_index: int,
+                    occupied: Collection[int] = ()) -> list[str]:
+    """Un-write the slot a pad no longer holds — the inverse of apply_profile.
 
-    Only Dolphin needs it today — its emulated Wii Remote stays presented to
-    the game as connected. Role/device bound emulators just go input-less when
-    a pad leaves. Never raises.
+    This docstring used to say "only Dolphin needs it today; role/device bound
+    emulators just go input-less when a pad leaves". The reference box proved
+    that false. They do not go input-less: they keep NAMING an absent device.
+    With one DualShock 4 connected, RPCS3 still presented "Xbox One Wireless
+    Controller 3" as Player 4 and Ryujinx still held indexes 2 and 3. A PS3
+    game at four then sees four players, two of whom cannot move — which is not
+    the same thing as receiving no input.
+
+    `occupied` is the set of slots a pad still holds AFTER this release, and it
+    is not decoration. Some of what apply_profile writes belongs to the ROSTER
+    and not to a slot: the multitap PCSX2 and DuckStation need before slot 3
+    exists at all is the measured case. A release knowing only its own index
+    can never decide those — it cannot tell whether player 3 is still sitting
+    there. Empty means nobody is left, which is what the last pad leaving
+    looks like.
+
+    Never raises: an emulator whose config cannot be un-written must not stop
+    the others from being.
     """
-    if player_index < 1 or player_index > 4:
+    if player_index < 1 or player_index > MAX_PLAYERS:
+        # Its twin logs the same ceiling eight lines up, and the comment there
+        # says what the silence cost: "a 5th pad used to get a player number, a
+        # TV toast, and no config at all, without a word anywhere". The lesson
+        # had been applied to one half of the pair only. It matters here for a
+        # different reason: the day MAX_PLAYERS rises, a release that stays
+        # mute leaves the new slots permanently stale and says nothing.
+        log.warning("configgen: player %d is outside the 1-%d slots this box "
+                    "profiles — nothing released", player_index, MAX_PLAYERS)
         return []
     results: list[str] = []
     for pack in profilable_packs(load_catalog()):
+        ctl = pack.data.get("controllers") or {}
+        # Same guard apply_profile applies, for the same reason: a slot a pack
+        # never writes is a slot it has nothing to un-write, and calling into
+        # it would ask a single-player generator about a player it has no
+        # concept of.
+        if player_index > ctl.get("maxPlayers", MAX_PLAYERS):
+            continue
         module = load_generator(pack)
         if module is None or not hasattr(module, "release"):
             continue
@@ -248,7 +286,7 @@ def release_profile(player_index: int) -> list[str]:
         if opts is None:
             continue
         try:
-            results.extend(module.release(player_index, opts))
+            results.extend(module.release(player_index, opts, occupied))
         except Exception:
             log.exception("configgen: %s release failed for player %d",
                           pack.id, player_index)

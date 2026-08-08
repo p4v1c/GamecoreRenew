@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Collection
 
 from backend.services.configgen.helpers.base import atomic_write, backup
 from backend.services.configgen.helpers.ini import section, set_section
@@ -254,13 +255,26 @@ def _gc_release_others(text: str, i: int, device: str) -> str:
     return text
 
 
-def release(player_index: int, opts: dict) -> list[str]:
+def release(player_index: int, opts: dict,
+            occupied: Collection[int] = ()) -> list[str]:
     """Undo the "connected player" state a disconnected pad leaves behind.
 
-    Only Dolphin needs this. `Source = 1` keeps the emulated Wii Remote
-    presented to the game as connected even with no input device bound, so a
-    pad unplugged after co-op would haunt the next solo session as a phantom
-    player. Role/device bound emulators just go input-less when a pad leaves.
+    `Source = 1` keeps the emulated Wii Remote presented to the game as
+    connected even with no input device bound, so a pad unplugged after co-op
+    would haunt the next solo session as a phantom player.
+
+    **This function was correct and GCPad4 was dirty anyway.** With one pad
+    connected the reference box still had `GCPad4 = SDL/3/PS4 Controller`, and
+    the reason was not here: nothing ever CALLED it for slot 4. The monitor
+    released a slot only on a departure it had witnessed, and a pad unplugged
+    while the box was off raises no departure event — at startup `was` is
+    empty. So the one generator that had an inverse never got to run it. The
+    sweep in `_reconcile` is what fixes that, and it is why the other
+    generators needed one too rather than a fix here.
+
+    `occupied` is unused: nothing Dolphin stores is about the roster. It is in
+    the signature because the dispatcher has one signature, and the pack that
+    does need it (the multitap) proved a slot index alone is not enough.
 
     `Source = 0`, not "no Source line at all": Dolphin's compiled-in default
     for Wiimote1 is WiimoteSource::Emulated, so deleting the key alongside the

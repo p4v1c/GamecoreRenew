@@ -181,13 +181,16 @@
         },
         "target": { "type": ["string", "array"], "items": { "type": "string" } },
         "multitap": {
+          "description": "The accessory a two-port console needs before slot 3 exists at all. `value` turns it on, `offValue` turns it back off. Both are declared here because a release that had to GUESS the off value would be inventing config, and because the tap belongs to the roster rather than to a slot: nothing switched it off for a long time, so every solo session after one session at four ran with a virtual accessory on port 1.",
           "type": "object",
-          "required": ["section", "key", "value", "fromPlayer"],
+          "required": ["section", "key", "value", "offValue", "fromPlayer"],
           "additionalProperties": false,
           "properties": {
             "section":    { "type": "string" },
             "key":        { "type": "string" },
             "value":      { "type": "string" },
+            "offValue":   { "description": "What the key reads when no player needs the tap — the value the seed ships.",
+                            "type": "string" },
             "fromPlayer": { "type": "integer", "minimum": 2, "maximum": 4 }
           }
         },

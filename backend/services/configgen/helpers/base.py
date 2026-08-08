@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import shutil
+from collections.abc import Collection
 from pathlib import Path
 from typing import Protocol
 
@@ -70,6 +71,13 @@ class Generator(Protocol):
         why nothing was, or None for "nothing to do"."""
         ...
 
-    def release(self, player_index: int, opts: dict) -> list[str]:
-        """Undo the "connected player" state a disconnected pad leaves."""
+    def release(self, player_index: int, opts: dict,
+                occupied: Collection[int] = ()) -> list[str]:
+        """Un-write the slot, touching only the sections GameCore owns.
+
+        `occupied` is the roster that remains. A generator whose emulator
+        stores anything about the roster rather than about the slot — a
+        multitap, a port count — cannot answer without it, and one that stores
+        nothing of the sort simply ignores it.
+        """
         ...

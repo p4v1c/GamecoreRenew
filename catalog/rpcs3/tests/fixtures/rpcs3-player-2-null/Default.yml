@@ -1,6 +1,6 @@
 Player 1 Input:
   Handler: SDL
-  Device: PS4 Controller 1
+  Device: ""
   Config:
     Left Stick Left: LS X-
     Left Stick Down: LS Y-
@@ -93,7 +93,7 @@ Player 1 Input:
   Buddy Device: ""
 Player 2 Input:
   Handler: SDL
-  Device: ""
+  Device: PS4 Controller 1
   Config:
     Left Stick Left: LS X-
     Left Stick Down: LS Y-

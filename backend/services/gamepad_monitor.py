@@ -331,6 +331,12 @@ async def _reconcile(was: dict[str, tuple[str, str, str, int]],
     chance: the old code profiled a pad exactly once, when `known` was False.
     """
     # Departures first: their slots must be free before dup indexes are recomputed.
+    #
+    # No release_profile() here any more. It used to hang off this loop, which
+    # meant a slot was only ever freed for a departure this process WITNESSED —
+    # and worse, it named the slot the pad held before compact() moved anyone.
+    # The sweep below decides from the roster instead, which is the thing that
+    # actually says whether a slot is occupied.
     for key in [k for k in was if k not in live]:
         applied.pop(key, None)
         label = controller_registry.label_for(key)
@@ -338,14 +344,6 @@ async def _reconcile(was: dict[str, tuple[str, str, str, int]],
         if player is None:
             continue
         log.info("gamepad_monitor: controller %d disconnected (%s)", player, label)
-        # Free the slot's emulated "connected player" state (else a Dolphin Wii
-        # Remote left on Source=1 haunts solo play).
-        try:
-            released = await asyncio.to_thread(controller_profiles.release_profile, player)
-            if released:
-                log.info("gamepad_monitor: player %d released — %s", player, "; ".join(released))
-        except Exception:
-            log.exception("gamepad_monitor: release_profile failed for player %d", player)
         try:
             await ws.broadcast("gp:disconnected", {"player": player, "label": label})
         except Exception:
@@ -369,6 +367,32 @@ async def _reconcile(was: dict[str, tuple[str, str, str, int]],
     for key, (vendor, product, evdev_name, _bus) in live.items():
         player = controller_registry.connect(key, evdev_name)
         roster[key] = (player, controller_profiles.resolve_name(vendor, product, evdev_name))
+
+    # Free every slot no pad holds, on EVERY inventory change — not only on a
+    # departure. This is the reboot hole, and it is the one the reference box
+    # was sitting in: someone plays at four, powers the box off, unplugs three
+    # pads, powers it back on. `was` is empty at startup, so those three
+    # departures produce no event at all and their slots were never released.
+    # With one DualShock 4 connected the box showed RPCS3 players 2-4 naming
+    # Xbox pads, Ryujinx holding indexes 2 and 3, and Dolphin's GCPad4 on
+    # SDL/3 — four players, three of them ghosts.
+    #
+    # Before the profiling loop, so a slot is freed before anything claims it,
+    # and passing the whole remaining roster because some of what was written
+    # is not per-slot: the PS1/PS2 multitap is on while ANY player at or above
+    # slot 3 is here, which no single index can answer.
+    occupied = {player for player, _name in roster.values()}
+    for slot in range(1, controller_profiles.MAX_PLAYERS + 1):
+        if slot in occupied:
+            continue
+        try:
+            released = await asyncio.to_thread(
+                controller_profiles.release_profile, slot, occupied)
+            if released:
+                log.info("gamepad_monitor: slot %d freed — %s",
+                         slot, "; ".join(released))
+        except Exception:
+            log.exception("gamepad_monitor: release_profile failed for slot %d", slot)
 
     for key, dup in dup_indexes(roster).items():
         vendor, product, evdev_name, bustype = live[key]
