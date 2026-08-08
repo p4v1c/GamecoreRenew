@@ -15,6 +15,12 @@ An emulator whose current config plainly describes a DIFFERENT controller is
 refused rather than filed under the connected one, and comes back in
 `refused` — the box already holds a Cemu snapshot named for an Xbox pad that
 contains a DualShock 4's config, saved when this returned a flat "ok".
+
+That same snapshot is why DELETE exists. `restore()` now refuses to apply a
+snapshot whose GUID names another pad, and a refusal with no way to act on it
+is only a nicer dead end: the file sits in a directory no one can reach from a
+sofa. Scan and forget are the two halves of one gesture, so they live on one
+path and differ by verb.
 """
 from fastapi import APIRouter
 
@@ -26,3 +32,8 @@ router = APIRouter(tags=["controllers"])
 @router.post("/controllers/scan-mapping")
 def scan_mapping():
     return controller_profiles.scan_mapping()
+
+
+@router.delete("/controllers/scan-mapping")
+def forget_mapping():
+    return controller_profiles.forget_mapping()

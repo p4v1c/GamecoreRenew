@@ -19,6 +19,10 @@ interface Props {
 
 const OPTIONS: PowerOption[] = [
   { id: 'scan',     label: 'Scan mapping', busy: 'Scanning…',  icon: '◎', color: '#22c55e', desc: 'Save the connected pad’s controls (3DS/DS/GBA…)' },
+  // The inverse of the one above. A saved mapping whose config names a
+  // different pad is refused on connect rather than applied, and without this
+  // the owner is told their mapping was ignored and can do nothing about it.
+  { id: 'forget',   label: 'Forget mapping', busy: 'Forgetting…', icon: '⌫', color: '#64748b', desc: 'Delete the connected pad’s saved controls, then scan again' },
   { id: 'restart',  label: 'Restart',  busy: 'Restarting…',    icon: '↺', color: '#f59e0b', desc: 'Reboot the system' },
   { id: 'shutdown', label: 'Shutdown', busy: 'Shutting down…', icon: '⏻', color: '#ef4444', desc: 'Power off' },
 ]
@@ -65,6 +69,23 @@ export default function PowerModal({ onClose, view: View = DefaultPowerView }: P
           ].filter(Boolean).join(' ')
                : (d.error || 'scan failed')))
         .catch(() => setScanResult('scan failed'))
+        .finally(() => setScanning(false))
+      return
+    }
+    if (id === 'forget') {
+      // Two-press like the power actions — it deletes the owner's saved work —
+      // but never powerPending: the OS stays up, so soft-locking the UI until
+      // a shutdown that will not come would strand them on this screen.
+      if (confirmRef.current !== id) { setConfirm(id); return }
+      setConfirm(null)
+      setScanning(true); setScanResult(null)
+      fetch('/api/controllers/scan-mapping', { method: 'DELETE' })
+        .then(r => r.json())
+        .then(d => setScanResult(
+          d.ok
+            ? `Forgot for ${d.controller}: ${d.forgotten?.length ? d.forgotten.join(', ') : 'nothing was saved'}`
+            : (d.error || 'forget failed')))
+        .catch(() => setScanResult('forget failed'))
         .finally(() => setScanning(false))
       return
     }

@@ -163,7 +163,7 @@ and returns an unsubscribe.
 | `components/Screensaver.tsx` | 136 | standby slideshow, `ROTATE_MS = 9000` |
 | `components/OverlayScreen/index.tsx` | 109 | what the transparent Electron overlay window renders |
 | `components/modals/SettingsModal.tsx` | 85 | menu; pages live in `settings/`. **Every id in `ITEMS` needs a matching `page === …` line** — `themes` was missing one and the button was silently dead. |
-| `components/modals/PowerModal.tsx` | 86 | **flow**: Scan mapping · Restart · Shutdown, two-press confirm, `POWER_FAILSAFE_MS = 10000` |
+| `components/modals/PowerModal.tsx` | 86 | **flow**: Scan mapping · Forget mapping · Restart · Shutdown, two-press confirm, `POWER_FAILSAFE_MS = 10000` |
 | `components/modals/power/DefaultPowerView.tsx` | 68 | **markup** of the default power menu |
 | `components/modals/power/types.ts` | 32 | `PowerViewProps` |
 | `components/modals/GamepadModal.tsx` | 85 | **flow**: pad detection, glyphs, live state |

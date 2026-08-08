@@ -236,10 +236,16 @@ persisted to `config/standby.json`), `wake()` → `standby.exit_standby()`.
 
 ## `controllers.py` (18 l.)
 
-One route: `POST /controllers/scan-mapping` → `controller_profiles.scan_mapping()`.
-The whole point is in [8](08-controller-pipeline.md): GUID-based emulators
-cannot be mapped programmatically, so the user configures the pad once in the
+One path, two verbs: `POST /controllers/scan-mapping` →
+`controller_profiles.scan_mapping()` and `DELETE` → `forget_mapping()`. The
+whole point is in [8](08-controller-pipeline.md): GUID-based emulators cannot
+be mapped programmatically, so the user configures the pad once in the
 emulator's own UI and this snapshots it per controller.
+
+`DELETE` is the inverse, and it exists because `restore()` refuses a snapshot
+whose GUID names a different pad. The box already carries one such file, so
+refusing without a way to remove it would only replace a silent overwrite with
+a silent deadlock.
 
 ## `auth.py` (109 l.) — shared-password login
 

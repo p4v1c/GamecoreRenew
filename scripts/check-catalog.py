@@ -9,8 +9,9 @@ Four families of check:
   schema     every pack.json validates against catalog/_schema/pack.schema.json
   symmetry   a pack has a logo, a declared ROM dir when it is an emulator, and
              a config.dest exactly when it ships a seed/
-  seeds      no seed/ matches its own `seedMustNotContain`, and no seed carries
-             a harvest-box absolute path
+  seeds      no seed/ carries an SDL GUID that decodes to a real pad, no seed/
+             matches its own `seedMustNotContain`, and no seed carries a
+             harvest-box absolute path
   coherence  no two packs claim the same ROM directory or the same Flatpak
              app id, and @FLATPAK_CONFIG@ is only used by a Flatpak pack
 
@@ -29,12 +30,40 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from backend.services.catalog.schema import load_schema, validate  # noqa: E402
+from backend.services.configgen.controllers import (                # noqa: E402
+    SDL3_FALLBACK_NAMES, db_name_for, vidpid_of,
+)
+from backend.services.configgen.snapshots import (                  # noqa: E402
+    _ANY_GUID_RE as ANY_GUID_RE, guid_scannable,
+)
 
 CATALOG = ROOT / "catalog"
 SCHEMA = CATALOG / "_schema" / "pack.schema.json"
 
 # Absolute paths that only make sense on the box a config was harvested from.
 HARVEST_PATHS = (re.compile(r"/home/[a-z][a-z0-9_-]*/"),)
+
+_pad_name_memo: dict[tuple[str, str], str | None] = {}
+
+
+def named_pad(guid: str) -> str | None:
+    """The pad this GUID designates, or None if it designates nothing known.
+
+    `seedMustNotContain` catches only what a pack thought to declare, so two
+    seeds shipped a DualShock 4 GUID for months under `17 pack(s) OK`. This
+    decodes instead of matching: any seed carrying a GUID whose vendor:product
+    is a pad SDL can name is refused, whether or not the pack asked for it.
+
+    A GUID whose vendor:product is in no table is NOT a hit — that would be
+    noise (a hash, a session id), not a pinned pad.
+    """
+    vendor, product = vidpid_of(guid)
+    if (vendor, product) not in _pad_name_memo:
+        # gamecontrollerdb.txt is 2000+ lines re-read per lookup, and a single
+        # seed can carry dozens of GUIDs.
+        _pad_name_memo[(vendor, product)] = (
+            SDL3_FALLBACK_NAMES.get((vendor, product)) or db_name_for(vendor, product))
+    return _pad_name_memo[(vendor, product)]
 
 # Binary seeds are copied verbatim and never token-substituted; scanning them
 # for text patterns produces noise, not findings.
@@ -121,6 +150,21 @@ def check(only: str | None = None) -> list[str]:
                 except (OSError, UnicodeDecodeError):
                     continue
                 rel = f.relative_to(d)
+                # Scanned through the same normalisation the runtime guard uses,
+                # or a GUID inside an azahar stick binding stays invisible here
+                # too — 2 of this seed's 17 were.
+                for m in ANY_GUID_RE.finditer(guid_scannable(text)):
+                    name = named_pad(m.group(1))
+                    if not name:
+                        continue
+                    vendor, product = vidpid_of(m.group(1))
+                    line = text[: m.start()].count("\n") + 1
+                    problems.append(
+                        f"{pid}: {rel}:{line} carries the SDL GUID {m.group(1)} "
+                        f"— {vendor}:{product} ({name}). A seed is what a NEW box "
+                        f"receives: a GUID in it describes the pad of the machine "
+                        f"the config was harvested from and nobody else's. Clear "
+                        f"the value and let the generator fill it in.")
                 for pat in patterns:
                     m = re.search(pat, text, re.M)
                     if m:

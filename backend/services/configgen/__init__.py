@@ -290,3 +290,36 @@ def scan_mapping() -> dict:
             log.exception("configgen: capture failed for %s", pack.id)
     return {"ok": True, "controller": resolve_name(vendor, product, evdev),
             "saved": saved, "refused": refused}
+
+
+def forget_mapping() -> dict:
+    """The inverse of "Scan mapping": drop the connected pad's saved configs.
+
+    restore() refuses a snapshot whose GUID names another controller, and the
+    box already carries one of those (cemu/045e_02fd.snap, a DualShock 4's
+    config filed under an Xbox pad). Refusing without offering this would leave
+    the owner informed and stuck: the file is not reachable from the couch, and
+    the only other way out is a shell.
+
+    Deliberately per-connected-pad and not per-emulator-id: the gesture the
+    owner makes is "forget what you think you know about THIS controller",
+    which is the same shape as the scan that created it.
+    """
+    pads = detect_pads()
+    if len(pads) != 1:
+        return {"ok": False,
+                "error": ("connect exactly one controller (the one to forget) "
+                          f"— found {len(pads)}")}
+    vendor, product, evdev = pads[0]
+    forgotten: list[str] = []
+    for pack in profilable_packs(load_catalog()):
+        try:
+            if snapshots.forget(SNAP_DIR, pack.id, vendor, product):
+                forgotten.append(pack.id)
+        except OSError:
+            log.exception("configgen: could not forget %s snapshot", pack.id)
+    if forgotten:
+        log.info("configgen: forgot saved mapping for %s:%s — %s",
+                 vendor, product, ", ".join(forgotten))
+    return {"ok": True, "controller": resolve_name(vendor, product, evdev),
+            "forgotten": forgotten}

@@ -10,6 +10,7 @@ without a controller plugged in.
 Run under pytest:  pytest backend/tests/test_gamepad_monitor.py
 Or directly:       python backend/tests/test_gamepad_monitor.py
 """
+import logging
 import sys
 import types
 from pathlib import Path
@@ -493,3 +494,94 @@ def test_slots_are_not_renumbered_while_a_game_runs(roster, monkeypatch):
     roster({**a, **b})
     roster(b)
     assert reg._slots[gm.controller_registry.key_for("aa:bb:cc:dd:ee:ff", "")] == 2
+
+
+# ── evdev refused: the failure that looks exactly like "no pad" ──────────────
+# `{}` is what a box with nothing plugged in returns AND what a box whose every
+# device was refused returns. Downstream cannot separate them: `was != live` is
+# false, so _reconcile is never even called. From the sofa the pad simply does
+# nothing, in the menu and in games, with an empty journal to diagnose it.
+
+
+@pytest.fixture
+def denied_evdev(monkeypatch):
+    """evdev is present, the devices are there, every open is refused.
+
+    The box whose backend account is not in the `input` group — the failure
+    mode `_find_gamepad_devices`'s own docstring names.
+    """
+    paths = ["/dev/input/event3", "/dev/input/event5"]
+
+    def refuse(path):
+        raise PermissionError(13, "Permission denied", path)
+
+    module = types.ModuleType("evdev")
+    module.InputDevice = refuse
+    module.list_devices = lambda: list(paths)
+    monkeypatch.setitem(sys.modules, "evdev", module)
+    monkeypatch.setattr(gm.glob, "glob", lambda pattern: list(paths))
+    gm._logged_no_guide.clear()
+    gm._last_denied = None
+    return paths
+
+
+def test_a_refused_device_names_the_cause(denied_evdev, caplog):
+    """The line has to carry the reason, not just the symptom: `input` group."""
+    with caplog.at_level(logging.WARNING, logger=gm.log.name):
+        assert gm._find_gamepad_devices() == {}
+
+    warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert len(warnings) == 1
+    assert "input" in warnings[0].getMessage()
+
+
+def test_the_refusal_is_not_repeated_every_pass(denied_evdev, caplog):
+    """The scan loop runs every three seconds forever. One warning per pass is
+    1200 an hour, which buries the one line that names the cause."""
+    with caplog.at_level(logging.WARNING, logger=gm.log.name):
+        for _ in range(5):
+            gm._find_gamepad_devices()
+
+    assert len([r for r in caplog.records if r.levelno >= logging.WARNING]) == 1
+
+
+def test_a_box_with_no_controller_stays_silent(fake_evdev, caplog):
+    """A console with nothing plugged in is a legitimate state, not a fault.
+    If this ever warns, the diagnostic above becomes noise and gets ignored."""
+    gm._last_denied = None
+    with caplog.at_level(logging.DEBUG, logger=gm.log.name):
+        assert gm._find_gamepad_devices() == {}
+
+    assert caplog.records == []
+
+
+def test_a_missing_evdev_module_says_so(monkeypatch, caplog):
+    """`except ImportError: return {}` guaranteed no pad would ever be seen and
+    wrote it nowhere."""
+    monkeypatch.setitem(sys.modules, "evdev", None)   # `import evdev` raises
+    monkeypatch.setattr(gm.glob, "glob", lambda pattern: [])
+    monkeypatch.setattr(gm, "_logged_no_evdev", False)
+
+    with caplog.at_level(logging.DEBUG, logger=gm.log.name):
+        assert gm._find_gamepad_devices() == {}
+
+    assert any(r.levelno >= logging.ERROR for r in caplog.records)
+
+
+def test_a_pad_unplugged_mid_scan_is_not_a_permission_problem(monkeypatch, caplog):
+    """A device that vanishes between the glob and the open is routine. Calling
+    that a permission failure would send the owner after the wrong cause."""
+    def gone(path):
+        raise FileNotFoundError(2, "No such device", path)
+
+    module = types.ModuleType("evdev")
+    module.InputDevice = gone
+    module.list_devices = lambda: ["/dev/input/event9"]
+    monkeypatch.setitem(sys.modules, "evdev", module)
+    monkeypatch.setattr(gm.glob, "glob", lambda pattern: ["/dev/input/event9"])
+    gm._last_denied = None
+
+    with caplog.at_level(logging.DEBUG, logger=gm.log.name):
+        assert gm._find_gamepad_devices() == {}
+
+    assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []

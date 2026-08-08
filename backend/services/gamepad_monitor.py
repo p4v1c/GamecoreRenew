@@ -54,6 +54,39 @@ _last_guide_press: float = 0.0
 # every few seconds and this should be said once per device, not per pass.
 _logged_no_guide: set[str] = set()
 
+# Both evdev failure modes return the SAME empty dict a box with nothing
+# plugged in returns, and the scan loop below runs every three seconds forever.
+# So each one gets a WARNING the first time and on every change after that,
+# never once per pass — a line repeated 1200 times an hour is how the one line
+# that names the cause gets buried. The unconditional debug line underneath
+# stays available when someone is actually looking.
+_logged_no_evdev = False
+_last_denied: tuple[int, int] | None = None
+
+
+def _report_denied(denied: int, total: int) -> None:
+    """Say that input devices are being refused, without saying it every pass.
+
+    A box with no controller plugged in is a legitimate state and MUST stay
+    silent. That is the whole difficulty: it produces the same `{}` as a box
+    whose every device was refused. `denied` is the only thing that tells the
+    two apart, so nothing is written unless something was actually refused.
+    """
+    global _last_denied
+    if not denied:
+        _last_denied = None          # cleared, so a later failure reports again
+        return
+    log.debug("gamepad_monitor: %d/%d input devices refused", denied, total)
+    if _last_denied == (denied, total):
+        return
+    _last_denied = (denied, total)
+    log.warning(
+        "gamepad_monitor: %d of %d input devices refused (permission denied) — "
+        "is the account running the backend outside the `input` group? A pad "
+        "refused here is invisible everywhere: no player slot, no emulator "
+        "config, and no guide shortcut, in the menu as well as in games.",
+        denied, total)
+
 
 async def _watch_device(path: str) -> None:
     """Read events from one device until it disconnects or is cancelled."""
@@ -151,9 +184,19 @@ def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str, int]]:
     being watched for the guide/home behavior but must NOT take a player
     slot. Every real pad declares BTN_SOUTH; no keyboard does.
     """
+    global _logged_no_evdev
     try:
         import evdev
     except ImportError:
+        # Not a crash: the rest of the box works without a pad. But it is not
+        # the absence of a controller either — it is the guarantee that no
+        # controller will EVER be seen, which the empty dict below cannot say.
+        log.debug("gamepad_monitor: python-evdev is not importable")
+        if not _logged_no_evdev:
+            _logged_no_evdev = True
+            log.error("gamepad_monitor: python-evdev is not importable — no "
+                      "controller can be detected on this box at all. Install "
+                      "python-evdev in the backend's environment.")
         return {}
 
     candidate_paths: set[str] = set(glob.glob("/dev/input/event*"))
@@ -163,6 +206,7 @@ def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str, int]]:
         pass
 
     found: dict[str, tuple[str, str, bool, str, str, int]] = {}
+    denied = 0
     for path in sorted(candidate_paths):
         try:
             dev = evdev.InputDevice(path)
@@ -195,8 +239,17 @@ def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str, int]]:
                     log.info("gamepad_monitor: %s (%s) has no Guide button — taking a "
                              "player slot, but it cannot trigger the guide shortcut",
                              name, path)
-        except (PermissionError, OSError):
+        except PermissionError:
+            # Counted, not reported here: one line per device would be four
+            # lines a pass on a box that simply lacks the group. Must come
+            # before OSError — it is a subclass, so the wide clause would
+            # swallow it and the count would always be zero.
+            denied += 1
+        except OSError:
+            # A device that vanished between the glob and the open — a pad
+            # being unplugged right now. Routine, and not a permission problem.
             pass
+    _report_denied(denied, len(candidate_paths))
     _logged_no_guide.intersection_update(found)
     return found
 

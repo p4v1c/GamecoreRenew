@@ -73,6 +73,143 @@ def test_mgba_captures_the_section_that_binds_buttons(tmp_path, monkeypatch):
 DS4_SDL_GUID = "05008fe54c050000cc09000000006800"
 DS4_RYU_ID   = "0-00000005-054c-0000-cc09-000000006800"
 
+# ── the guard capture() had and restore() did not ────────────────────────────
+# capture() learned to refuse a block naming another pad only AFTER the box had
+# filed cemu/045e_02fd.snap holding a DualShock 4's config. So the guard covered
+# future captures while the poisoned file stayed on disk, and restore() applied
+# it on every connect — overwriting whatever the owner had remapped by hand.
+# The identity extract/replace of a whole-file config keeps these on the shared
+# mechanism rather than on any one pack's format.
+
+DS4_UUID = "<uuid>0_05009b514c050000cc09000000810000</uuid>\n"
+XBOX = ("045e", "02fd")
+
+
+def _whole_file(text):
+    return text
+
+
+def _overwrite(_text, block):
+    return block
+
+
+# The DeviceName branch is dead in this suite unless the SDL database is
+# stubbed: conftest redirects GAMECORE_ROOT to a fake root, gamecontrollerdb.txt
+# is not there, and `db_name_for` returns None — on which the branch declines to
+# judge. Without these monkeypatches both tests below pass while executing
+# nothing, which is the exact shape of a test that guards nothing.
+_NAMES = {("054c", "09cc"): "PS4 Controller", ("045e", "02fd"): "Xbox One Controller"}
+
+
+@pytest.fixture
+def sdl_names(monkeypatch):
+    monkeypatch.setattr(snapshots, "db_name_for",
+                        lambda v, p: _NAMES.get((v, p)))
+
+
+def test_a_guid_inside_a_compound_binding_is_seen(sdl_names):
+    """azahar escapes `:` as `$0` inside a compound binding, so a stick's GUID
+    reads `guid$00300…` — and the `0` of that escape is a hex digit, which made
+    the lookbehind refuse the match. Every stick binding was invisible to this
+    check, in capture() as well as restore().
+
+    Measured on the reference box: 045e_02fd.snap (the Xbox's) had circle_pad
+    `left` on the Xbox and `right`/`up`/`down` still on the DualShock 4. It was
+    declared coherent, saved, restored — and the stick only answered to the
+    left. capture()'s blindness is how such a file got written at all.
+    """
+    ds4 = "03008fe54c050000cc09000000006800"
+    block = ("profiles\\1\\circle_pad=\"left:axis$00$1direction$0-$1engine$0sdl"
+             f"$1guid$0{ds4}$1port$00$1threshold$0-0.5\"\n")
+
+    assert snapshots.block_disagrees(block, *XBOX) == ds4
+
+
+def test_neutralising_the_escapes_does_not_move_offsets():
+    """check-catalog.py turns a match offset into a line number, so the
+    substitution must not change the text's length."""
+    raw = 'a$0b$1c\nd\n'
+    assert len(snapshots.guid_scannable(raw)) == len(raw)
+    assert snapshots.guid_scannable(raw).count("\n") == raw.count("\n")
+
+
+def test_an_unassigned_slot_is_not_a_disagreement(sdl_names):
+    """Rosalie's Mupen GUI writes `DeviceName = "None"` with `PluggedIn = False`
+    for every slot nobody assigned — three of its four profiles on a one-pad
+    box. Counting those as "this config is for another controller" rejected an
+    entirely ordinary N64 config on the strength of its empty slots.
+
+    Harmless while only capture() asked; the moment restore() started asking
+    too, it would have refused the owner's saved N64 mapping on every connect.
+    """
+    block = ('[Profile 0]\nPluggedIn = True\nDeviceName = "PS4 Controller"\n'
+             '[Profile 1]\nPluggedIn = False\nDeviceName = "None"\n'
+             '[Profile 2]\nPluggedIn = False\nDeviceName = "None"\n')
+
+    assert snapshots.block_disagrees(block, "054c", "09cc") is None
+
+
+def test_a_named_slot_still_disagrees(sdl_names):
+    """The other half: skipping "None" must not blind the check to a real
+    mismatch, which is the whole reason the DeviceName branch exists."""
+    block = ('[Profile 0]\nPluggedIn = True\nDeviceName = "PS4 Controller"\n'
+             '[Profile 1]\nPluggedIn = False\nDeviceName = "None"\n')
+
+    assert snapshots.block_disagrees(block, *XBOX) == "PS4 Controller"
+
+
+def test_restore_refuses_a_snapshot_that_names_another_controller(tmp_path):
+    """The owner's own mapping must survive a poisoned snapshot."""
+    cfg = tmp_path / "controller0.xml"
+    owner = "<emulated_controller>\n<uuid>0_xbox_mapping_by_hand</uuid>\n</emulated_controller>\n"
+    cfg.write_text(owner)
+
+    snaps = tmp_path / "snaps"
+    snap = snapshots.snap_path(snaps, "cemu", *XBOX)
+    snap.parent.mkdir(parents=True)
+    snap.write_text(f"<emulated_controller>\n{DS4_UUID}</emulated_controller>\n")
+
+    msg = snapshots.restore(snaps, "cemu", cfg, _whole_file, _overwrite, *XBOX)
+
+    assert cfg.read_text() == owner, "restore() overwrote the owner's mapping"
+    # Refusing silently would trade a silent overwrite for a silent deadlock:
+    # the pad misbehaves and the journal explains nothing.
+    assert msg and "ignored" in msg
+
+
+def test_restore_still_applies_a_snapshot_that_agrees(tmp_path):
+    """The other half: the guard must not break the feature it protects."""
+    cfg = tmp_path / "controller0.xml"
+    cfg.write_text("<emulated_controller>\n<uuid>0_stale</uuid>\n</emulated_controller>\n")
+
+    snaps = tmp_path / "snaps"
+    snap = snapshots.snap_path(snaps, "cemu", "054c", "09cc")
+    snap.parent.mkdir(parents=True)
+    saved = f"<emulated_controller>\n{DS4_UUID}</emulated_controller>\n"
+    snap.write_text(saved)
+
+    msg = snapshots.restore(snaps, "cemu", cfg, _whole_file, _overwrite,
+                            "054c", "09cc")
+
+    assert cfg.read_text() == saved
+    assert msg and "restored" in msg
+
+
+def test_a_saved_mapping_can_be_forgotten(tmp_path):
+    """The inverse that did not exist. A refused snapshot is unreachable from a
+    sofa, and without this the only way out of one is a shell."""
+    snaps = tmp_path / "snaps"
+    snap = snapshots.snap_path(snaps, "cemu", *XBOX)
+    snap.parent.mkdir(parents=True)
+    snap.write_text("anything")
+
+    assert snapshots.forget(snaps, "cemu", *XBOX) is True
+    assert not snap.exists()
+    # Idempotent: forgetting twice is the owner pressing the button twice, not
+    # an error to show them.
+    assert snapshots.forget(snaps, "cemu", *XBOX) is False
+
+
 def test_azahar_follows_the_active_profile(tmp_path):
     """Qt stores the selected index 0-based in `profile=` and writes the array
     1-based, so `profiles\\1\\` is only right while profile=0."""

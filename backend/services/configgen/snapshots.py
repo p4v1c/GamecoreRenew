@@ -41,6 +41,26 @@ log = logging.getLogger(__name__)
 # underscore, which is a word character, so Cemu's `0_0500…` would be missed.
 _ANY_GUID_RE = re.compile(r"(?<![0-9a-fA-F])([0-9a-fA-F]{32})(?![0-9a-fA-F])")
 
+# azahar escapes `:` as `$0` and `,` as `$1` INSIDE a compound binding, so the
+# GUID of a stick direction reads `guid$00500…` — and the `0` of that escape is
+# a hex digit, which defeats the lookbehind above and hid every stick binding
+# from this module. Measured: a snapshot whose circle_pad had `left` on the Xbox
+# and `right`/`up`/`down` still on the DualShock 4 was declared coherent and
+# restored, and the stick only answered to the left.
+#
+# Substituted with the SAME number of characters so callers can still report a
+# byte offset (check-catalog.py prints a line number from one).
+_COMPOUND_ESCAPE = re.compile(r"\$[01]")
+
+
+def guid_scannable(text: str) -> str:
+    """`text` with compound-binding escapes neutralised, length unchanged.
+
+    Scan this rather than the raw text: a GUID is a GUID whether the emulator
+    wrote it after a `:` or after its own escape for one.
+    """
+    return _COMPOUND_ESCAPE.sub("  ", text)
+
 
 def snap_path(snap_dir: Path, emu_id: str, vendor: str, product: str) -> Path:
     return snap_dir / emu_id / f"{vendor.lower()}_{product.lower()}.snap"
@@ -63,7 +83,7 @@ def block_disagrees(block: str, vendor: str, product: str) -> str | None:
     hand, the next connection overwrites their work with the DS4's config.
     """
     want = (vendor.lower(), product.lower())
-    for guid in _ANY_GUID_RE.findall(block):
+    for guid in _ANY_GUID_RE.findall(guid_scannable(block)):
         if vidpid_of(guid) != want:
             return guid
 
@@ -77,9 +97,18 @@ def block_disagrees(block: str, vendor: str, product: str) -> str | None:
         _k, _sep, raw = line.partition("=")
         said = raw.strip().strip('"')
         expected = db_name_for(vendor, product)
+        # "None" is RMG's literal for a slot nobody assigned — it comes with
+        # `PluggedIn = False`, and three of its four profiles say it on a
+        # one-pad box. It names no device, so it can no more disagree than an
+        # empty value can. Counting it made a perfectly ordinary N64 config
+        # look like another pad's: measured on the reference box, profile 0
+        # said "PS4 Controller" and profiles 1-3 said "None", and the whole
+        # snapshot was rejected on the strength of the three empty ones.
+        if said in ("", "None"):
+            continue
         # No entry in the SDL database is not a disagreement: an unknown pad is
         # exactly the case where a captured mapping is most needed.
-        if said and expected and said != expected:
+        if expected and said != expected:
             return said
     return None
 
@@ -127,8 +156,47 @@ def restore(snap_dir: Path, emu_id: str, path: Path, extract, replace,
     if not path.is_file() or not snap.is_file():
         return None
     block, text = snap.read_text(), path.read_text()
+
+    # The same question capture() asks, asked again here. capture() gained this
+    # guard AFTER the box had already filed cemu/045e_02fd.snap containing a
+    # DualShock 4's config, so the guard protects future captures only and the
+    # poisoned file stays on disk. Without this, restore() re-applies it on
+    # EVERY connect, overwriting by hand whatever the owner remapped since —
+    # the one failure in this module that destroys the owner's own work.
+    #
+    # Checked BEFORE the already-applied test on purpose: when the poisoned
+    # block is already in place the config is wrong right now, and staying
+    # silent is precisely what left this undiagnosable from the couch.
+    wrong = block_disagrees(block, vendor, product)
+    if wrong:
+        log.warning("configgen: %s has a saved mapping for %s:%s whose config "
+                    "describes %s — refusing to apply it. The pad will keep the "
+                    "mapping it has; forget the saved one to re-scan.",
+                    emu_id, vendor, product, wrong)
+        # Not a Skip: a Skip means "try again", and the monitor would retry
+        # every three seconds forever. A GUID that names another pad is a
+        # decision about a file on disk, not a transient failure — it can only
+        # change when someone forgets the snapshot.
+        return (f"{emu_id}: saved mapping ignored — it describes {wrong}, "
+                f"not {vendor}:{product}")
+
     if extract(text).strip() == block.strip():
         return None                                   # already applied
     backup(path)
     atomic_write(path, replace(text, block))
     return f"{emu_id}: restored saved mapping ({vendor}:{product})"
+
+
+def forget(snap_dir: Path, emu_id: str, vendor: str, product: str) -> bool:
+    """Delete this controller's saved mapping for one emulator.
+
+    The missing inverse. Without it a refused snapshot has no way out: the
+    owner is told their mapping was not applied and can do nothing about it,
+    which trades a silent overwrite for a silent deadlock. Returns True when a
+    file was actually removed, so the caller can report what it did.
+    """
+    try:
+        snap_path(snap_dir, emu_id, vendor, product).unlink()
+        return True
+    except FileNotFoundError:
+        return False

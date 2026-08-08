@@ -30,7 +30,10 @@
     "maxPlayers": 1,
     "order": 1,
     "strategy": "snapshot-restore",
-    "target": "qt-config.ini"
+    "target": "qt-config.ini",
+    "seedMustNotContain": [
+      "engine[:$]0?sdl"
+    ]
   },
   "overlay": {
     "wmClass": {

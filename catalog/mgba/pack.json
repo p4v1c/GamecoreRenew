@@ -36,7 +36,11 @@
     "maxPlayers": 1,
     "order": 2,
     "strategy": "snapshot-restore",
-    "target": "config.ini"
+    "target": "config.ini",
+    "seedMustNotContain": [
+      "^device0=.",
+      "^\\[gba\\.input-profile\\."
+    ]
   },
   "overlay": {
     "wmClass": {

@@ -65,7 +65,7 @@ not invent new navigation.
 - [ ] `libraryView` — game list, search, per-game metadata panel
 - [ ] `topbar` — clock, IP address, storage bar, controller battery
 - [ ] `screensaver` — idle slideshow of game cover art
-- [ ] `powerModal` — Scan mapping / Restart / Shutdown
+- [ ] `powerModal` — Scan mapping / Forget mapping / Restart / Shutdown
 - [ ] `gamepadModal` — the live controller diagram
 - [ ] `settings` — the settings menu and its sub-pages (Wi-Fi, audio,
       Bluetooth, standby, themes, update). The working sub-pages can be reused
