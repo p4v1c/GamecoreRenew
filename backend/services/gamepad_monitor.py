@@ -436,10 +436,33 @@ async def _reconcile(was: dict[str, tuple[str, str, str, int]],
     if not first_scan:
         for key in arrivals:
             player, _name = roster[key]
-            label = live[key][2]
+            vendor, product, label, _bus = live[key]
             log.info("gamepad_monitor: controller %d connected (%s)", player, label)
+            # P1 made the give-up visible in the journal and at "Scan mapping".
+            # Neither is where the player is standing: they have just plugged a
+            # pad in and it does not work. The toast is, and until now it said
+            # "Controller 2 connected" in green for a controller that is dead in
+            # every emulator matching a device by name.
+            #
+            # Asked through P1's own `identification`, not by matching the skip
+            # strings: one source of truth for "can this pad be named", and it
+            # is the exact condition the wizard answers.
+            unmapped = False
             try:
-                await ws.broadcast("gp:connected", {"player": player, "label": label})
+                unmapped = not (await asyncio.to_thread(
+                    controller_profiles.identification, vendor, product, label)
+                )["identified"]
+            except Exception:
+                # A pad arriving is news whatever we can work out about it.
+                # Letting this question take the toast down with it would
+                # silence precisely the pad we understand least.
+                log.exception("gamepad_monitor: could not tell whether %s:%s "
+                              "is identified", vendor, product)
+            try:
+                await ws.broadcast("gp:connected",
+                                   {"player": player, "label": label,
+                                    "vendor": vendor, "product": product,
+                                    "unmapped": unmapped})
             except Exception:
                 log.exception("gamepad_monitor: error broadcasting gp:connected")
 

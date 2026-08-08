@@ -34,6 +34,7 @@ from .configgen import (
     ProfileResult,
     apply_profile,
     forget_mapping,
+    identification,
     release_profile,
     scan_mapping,
 )
@@ -67,6 +68,9 @@ __all__ = [
     "apply_profile", "release_profile", "ProfileResult", "MAX_PLAYERS",
     # the Power-menu actions — routers/controllers.py
     "scan_mapping", "forget_mapping", "detect_pads",
+    # "can this pad be named at all" — the toast asks it on every arrival, so
+    # the wizard is offered exactly where the player notices the pad is dead
+    "identification",
     # the controller abstraction
     "Pad", "resolve_name", "display_name", "ResolvedName", "SDL3_TRUSTED",
     "sdl3_names", "sdl2_probe", "bundled_sdl2",

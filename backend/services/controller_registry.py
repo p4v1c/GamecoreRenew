@@ -43,6 +43,34 @@ def key_for(uniq: str | None, path: str) -> str:
     return normalize_mac(uniq) or path
 
 
+def nodes_by_key(nodes: list[tuple[str | None, str]]) -> dict[str, list[str]]:
+    """registry key → EVERY devnode that belongs to that physical controller.
+
+    `key_for()` already collapses a pad's nodes onto its MAC, and
+    `gamepad_monitor.pads_by_key()` uses that to count a controller once. But it
+    keeps only the FIRST node it meets (`setdefault`), because all it needs is
+    the pad's identity.
+
+    A capture session needs the opposite: all of them. A Bluetooth pad publishes
+    several `event*` nodes — a DualShock 4 adds a touchpad and a motion sensor —
+    and which one carries the BUTTONS is not something the caller can choose by
+    position. Measured on this box, a DS4 arrives as three nodes and the gamepad
+    one is not always the lowest-numbered: reading a single node picked by
+    convention gives a wizard where half the buttons do nothing, intermittently,
+    depending on the order the kernel happened to create them in.
+
+    Order is preserved within a key, so a caller that still wants one node gets
+    the same one `pads_by_key()` would have chosen.
+
+    Pure, like the rest of this module: the caller does the evdev opening and
+    hands over (uniq, path) pairs.
+    """
+    out: dict[str, list[str]] = {}
+    for uniq, path in nodes:
+        out.setdefault(key_for(uniq, path), []).append(path)
+    return out
+
+
 def has(key: str) -> bool:
     return key in _slots
 

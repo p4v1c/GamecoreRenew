@@ -6,7 +6,7 @@ import { Overlay, OverlayLabel } from '../../ui'
 import type { GamepadViewProps } from './types'
 
 export default function DefaultGamepadView({
-  name, layoutLabel, controllers, glyphs, mappings, onClose, Art, Battery,
+  name, layoutLabel, controllers, glyphs, mappings, onClose, onRemap, Art, Battery,
 }: GamepadViewProps) {
   return (
     <Overlay onClose={onClose} width={640}>
@@ -45,6 +45,24 @@ export default function DefaultGamepadView({
           </div>
         ))}
       </div>
+
+      {/* The way out for a pad none of the above applies to. A controller SDL
+          cannot name lights nothing up in the diagram and matches none of the
+          bindings listed, so this screen is exactly where its owner ends up —
+          and until now it told them nothing they could act on. */}
+      {onRemap && (
+        <button onClick={onRemap} style={{
+          display: 'block', width: '100%', padding: '10px 14px', marginBottom: 12,
+          borderRadius: 10, background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.12)', color: '#fff',
+          fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit',
+        }}>
+          Buttons wrong or dead? — map this controller
+          <span style={{ display: 'block', fontSize: 10, fontWeight: 400, marginTop: 3, color: 'rgba(255,255,255,0.4)' }}>
+            About a minute, no keyboard. Works in all thirteen systems.
+          </span>
+        </button>
+      )}
 
       <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
         Press any button to test · {glyphs.left} ×2 Close

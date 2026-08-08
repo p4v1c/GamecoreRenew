@@ -233,4 +233,88 @@ export const api = {
     disconnect: (mac: string) => post<{ ok: boolean }>('/settings/bluetooth/disconnect', { mac }),
     remove: (mac: string) => fetch(`/api/settings/bluetooth/devices/${encodeURIComponent(mac)}`, { method: 'DELETE' }).then(r => r.json()) as Promise<{ ok: boolean }>,
   },
+  /**
+   * Controller mapping — two mechanisms that must not be confused.
+   *
+   * `scanMapping` remembers a config the owner made BY HAND inside an
+   * emulator's own input UI (3DS/DS/GBA/Wii U bind by GUID and raw indices).
+   * The wizard is for the case that cannot help with: a pad SDL does not know,
+   * where no emulator will offer to bind it in the first place. It writes an
+   * SDL mapping line every SDL-based emulator reads at startup.
+   */
+  controllers: {
+    scanMapping: () => post<ScanResult>('/controllers/scan-mapping'),
+    forgetScan: () => fetch(BASE + '/controllers/scan-mapping', { method: 'DELETE' })
+      .then(r => r.json()) as Promise<ScanResult>,
+    mapping: {
+      start: () => post<MappingSession>('/controllers/mapping/start'),
+      commit: (bindings: Record<string, string>, name = '') =>
+        post<MappingCommit>('/controllers/mapping/commit', { bindings, name }),
+      cancel: () => post<{ ok: boolean }>('/controllers/mapping/cancel'),
+      saved: () => get<{ ok: boolean; saved: SavedMapping[]; file: string }>(
+        '/controllers/mapping/saved'),
+      forget: (guid: string) =>
+        post<{ ok: boolean; forgotten: boolean }>('/controllers/mapping/forget', { guid }),
+      /**
+       * The event stream, on its own socket rather than the app-wide one.
+       *
+       * Deliberate: this carries every press on the pad, it is only meaningful
+       * while the wizard is on screen, and closing it is how the backend learns
+       * the player walked away. Sharing the main socket would leave a capture
+       * session open for the life of the app.
+       */
+      socket: () => new WebSocket(`ws://${window.location.host}/api/ws/controllers/mapping`),
+    },
+  },
+}
+
+export interface ScanResult {
+  ok: boolean
+  controller?: string
+  saved?: string[]
+  refused?: string[]
+  forgotten?: string[]
+  /** False when no SDL on the box can name this pad — see the wizard. */
+  identified?: boolean
+  detail?: string
+  error?: string
+}
+
+/** One step of the wizard: an SDL field name, and what to ask the player for. */
+export interface MappingStep {
+  field: string
+  kind: 'button' | 'axis'
+  label: string
+}
+
+export interface MappingSession {
+  ok: boolean
+  session?: string
+  controller?: string
+  vendor?: string
+  product?: string
+  /** One per SDL identity the pad has — see controller_capture.sdl_guids. */
+  guids?: string[]
+  nodes?: string[]
+  steps?: MappingStep[]
+  /** Fields a pad may legitimately lack, so a gap is not an abandoned capture. */
+  optional?: string[]
+  error?: string
+}
+
+export interface MappingCommit {
+  ok: boolean
+  controller?: string
+  lines?: string[]
+  bindings?: number
+  /** Required fields left unbound — empty means the capture is complete. */
+  missing?: string[]
+  database?: string
+  error?: string
+}
+
+export interface SavedMapping {
+  guid: string
+  name: string
+  line: string
 }

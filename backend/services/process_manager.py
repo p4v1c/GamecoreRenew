@@ -28,7 +28,29 @@ log = logging.getLogger(__name__)
 # `filesystems=/opt/GameCore` override and the rest have `host:ro` in their
 # manifest. A comment here used to claim the opposite, which would send the
 # next maintainer hunting a sandbox problem that does not exist.
-_CONTROLLER_DB = GAMECORE_ROOT / "backend" / "data" / "gamecontrollerdb.txt"
+#
+# The path now comes from mapping_db.served(), not from the vendored file
+# directly: what an emulator must read is the community database WITH the
+# owner's own captures appended. Naming the vendored file here would have made
+# the mapping wizard write to a database nothing loads.
+
+
+def _controller_db():
+    """Path for SDL_GAMECONTROLLERCONFIG_FILE, or None.
+
+    Imported inside the call rather than at module scope: `configgen` pulls in
+    the catalogue loader, and this module is imported from `main` before the
+    app has decided anything. Never raises — a database that cannot be built
+    must cost the captured mappings, not the launch.
+    """
+    try:
+        from .configgen import mapping_db
+        return mapping_db.served()
+    except Exception:
+        log.warning("process_manager: no controller database to hand to SDL",
+                    exc_info=True)
+        return None
+
 
 # The pgid of the running game, so a restarted backend can find it again.
 # config/ survives the OTA rsync, and this file is state rather than settings —
@@ -176,8 +198,10 @@ def _display_env() -> dict:
     global _probe_cache, _probe_retry_at
     env = os.environ.copy()
     uid = os.getuid()
-    if not env.get("SDL_GAMECONTROLLERCONFIG_FILE") and _CONTROLLER_DB.is_file():
-        env["SDL_GAMECONTROLLERCONFIG_FILE"] = str(_CONTROLLER_DB)
+    if not env.get("SDL_GAMECONTROLLERCONFIG_FILE"):
+        db = _controller_db()
+        if db:
+            env["SDL_GAMECONTROLLERCONFIG_FILE"] = str(db)
     if not env.get("DISPLAY") or not env.get("XAUTHORITY"):
         if _probe_due():
             found = _probe_display(uid)

@@ -220,3 +220,238 @@ def test_azahar_follows_the_active_profile(tmp_path):
     assert gens["azahar"].extract(two).strip() == 'profiles\\2\\button_a="button:0"'
 
 
+# ── a config built from a captured mapping ───────────────────────────────────
+#
+# `snapshots.py` opens by saying nothing here can be synthesised, and that was
+# right: a vendor:product says nothing about raw button indices. The wizard
+# changes THAT premise and only that one — a pad mapped button by button has
+# had those indices measured.
+#
+# Every shape asserted below has a measured original in the snapshots this box
+# already carries (azahar/054c_09cc.snap for a button and a trigger axis,
+# azahar/045e_02fd.snap for a hat D-pad, ~/.config/mgba/config.ini for the
+# whole [gba.input.SDLB] section). Nothing here is a guess about a format.
+
+from backend.services.configgen import derive                    # noqa: E402
+
+DERIVE_GUID = "03000325adde0000efbe000011010000"
+
+# A generic pad as the wizard records one: face buttons, a hat D-pad, analogue
+# triggers and two sticks.
+CAPTURED = (f"{DERIVE_GUID},Generic USB Gamepad,"
+            "a:b0,b:b1,x:b2,y:b3,"
+            "dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,"
+            "leftshoulder:b4,rightshoulder:b5,"
+            "lefttrigger:+a2,righttrigger:+a5,"
+            "back:b6,start:b7,guide:b8,"
+            "leftx:a0,lefty:a1,rightx:a3,righty:a4,platform:Linux,")
+
+
+@pytest.fixture
+def wizard_mapped(monkeypatch, tmp_path):
+    """A box where the wizard has run, and SDL reads the pad through evdev."""
+    from backend.services.configgen import mapping_db
+    user = tmp_path / "user.txt"
+    user.write_text(CAPTURED + "\n")
+    monkeypatch.setattr(mapping_db, "USER_DB", user)
+    monkeypatch.setattr(derive, "sdl2_probe",
+                        lambda v, p, lib="": {"guid": DERIVE_GUID})
+    monkeypatch.setattr(derive, "evdev_driven", lambda v, p: True)
+    return tmp_path
+
+
+class _Pad:
+    # The vendor:product DERIVE_GUID actually encodes. Not decoration: the
+    # snapshot guard decodes the GUID and refuses a block naming another pad,
+    # so a mismatch here would be refused before any assertion below ran — as
+    # it was, on the first run of these tests.
+    vendor, product = "dead", "beef"
+
+
+def test_the_tokens_the_wizard_writes_are_understood():
+    """`b3`, `+a2` and `h0.1` are the whole vocabulary. A token misread here is
+    a binding written to the wrong kind of input."""
+    assert derive.parse_token("b3") == derive.Input("button", 3)
+    assert derive.parse_token("+a2") == derive.Input("axis", 2, "+")
+    assert derive.parse_token("-a2") == derive.Input("axis", 2, "-")
+    assert derive.parse_token("a2") == derive.Input("axis", 2, "+")
+    assert derive.parse_token("h0.1") == derive.Input("hat", 0, "up")
+    assert derive.parse_token("h0.8") == derive.Input("hat", 0, "left")
+    # A diagonal is two bits and no emulator here has a binding for one.
+    assert derive.parse_token("h0.3") is None
+    assert derive.parse_token("rubbish") is None
+
+
+def test_azahar_is_built_in_the_shape_azahar_itself_wrote(wizard_mapped):
+    """Compared against the real snapshot on this box, not against itself."""
+    block = gens["azahar"]._derive_block(_Pad(), "profiles\\1\\")
+
+    # A button — azahar/054c_09cc.snap: button:0,engine:sdl,guid:…,port:0
+    assert (f'profiles\\1\\button_a="button:0,engine:sdl,guid:{DERIVE_GUID},'
+            f'port:0"\n') in block
+    # A hat D-pad — azahar/045e_02fd.snap, keys alphabetical, hat after guid
+    assert (f'profiles\\1\\button_up="direction:up,engine:sdl,'
+            f'guid:{DERIVE_GUID},hat:0,port:0"\n') in block
+    # A trigger axis, with its threshold
+    assert (f'profiles\\1\\button_zl="axis:2,direction:+,engine:sdl,'
+            f'guid:{DERIVE_GUID},port:0,threshold:0.5"\n') in block
+    # Every binding needs its \default companion or azahar's UI shows it unset
+    assert block.count("\\default=false") == block.count('="')
+
+
+def test_azahars_sticks_carry_the_escaped_compound_form(wizard_mapped):
+    """azahar escapes `:` as `$0` and `,` as `$1` inside a compound binding.
+    Getting this wrong is not cosmetic: the `0` of `$0` is a hex digit, which
+    is what hid every stick binding from `block_disagrees` until it was
+    measured."""
+    block = gens["azahar"]._derive_block(_Pad(), "profiles\\1\\")
+
+    line = next(l for l in block.splitlines() if "circle_pad=" in l)
+    assert "engine:analog_from_button" in line
+    assert "modifier_scale:0.680000" in line
+    assert f"left:axis$00$1direction$0-$1engine$0sdl$1guid$0{DERIVE_GUID}" in line
+    assert "$1threshold$0-0.5" in line, "the negative half carries a signed threshold"
+    # The check that guards the whole snapshot mechanism must still see it.
+    assert snapshots.block_disagrees(block, "9999", "9999") == DERIVE_GUID
+
+
+def test_mgba_writes_its_two_halves_in_opposite_directions(wizard_mapped):
+    """mGBA's format, confirmed by ~/.config/mgba/config.ini on this box:
+    `key<Name>=<sdl button>` names the GBA key and stores the pad's button,
+    while `hat0<Dir>=<gba key id>` is the other way round. Writing one in the
+    other's shape gives a file mGBA loads in silence and ignores."""
+    block = gens["mgba"]._derive_block(_Pad())
+
+    assert "keyA=0\n" in block and "keyB=1\n" in block
+    assert "keyL=4\n" in block and "keyR=5\n" in block
+    assert "keySelect=6\n" in block and "keyStart=7\n" in block
+    # The hat half: hat0Up carries the GBA key id for Up, which is 6.
+    assert "hat0Up=6\n" in block
+    assert "hat0Down=7\n" in block and "hat0Left=5\n" in block
+    assert "hat0Right=4\n" in block
+    assert f"device0={DERIVE_GUID}\n" in block
+
+
+def test_mgba_unbinds_what_the_pad_does_not_have(wizard_mapped):
+    """The section is replaced wholesale, so a key simply left out KEEPS
+    whatever the previous controller put there — the box's own config still
+    carries `keyUp=11` from an Xbox pad next to a DualShock 4's hat."""
+    block = gens["mgba"]._derive_block(_Pad())
+
+    assert "keyUp=-1\n" in block, "a hat D-pad must clear the button form"
+
+
+def test_mgba_falls_back_to_the_stick_when_there_is_no_dpad(wizard_mapped, monkeypatch):
+    """A GBA with no direction at all is unplayable, and plenty of pads report
+    their D-pad as nothing but a stick."""
+    from backend.services.configgen import mapping_db
+    no_dpad = CAPTURED
+    for token in ("dpup:h0.1,", "dpdown:h0.4,", "dpleft:h0.8,", "dpright:h0.2,"):
+        no_dpad = no_dpad.replace(token, "")
+    mapping_db.USER_DB.write_text(no_dpad + "\n")
+
+    block = gens["mgba"]._derive_block(_Pad())
+
+    assert "axisLeftAxis=-0\n" in block and "axisLeftValue=-12288\n" in block
+    assert "axisRightAxis=+0\n" in block and "axisRightValue=12288\n" in block
+    assert "axisUpAxis=-1\n" in block and "axisDownAxis=+1\n" in block
+
+
+def test_nothing_is_derived_for_a_pad_sdl_reads_through_hidapi(wizard_mapped, monkeypatch):
+    """The sharp rule. The capture's indices come from SDL's LINUX joystick
+    driver; a HIDAPI-driven pad reports a completely different button order for
+    the same controller — measured in snapshots.py, where azahar wrote
+    `button_up = 11` for a DualShock 4 whose SDL mapping calls button 11 the
+    touchpad. Writing evdev indices there is a config full of plausible numbers
+    binding the wrong things."""
+    monkeypatch.setattr(derive, "evdev_driven", lambda v, p: False)
+
+    assert gens["azahar"]._derive_block(_Pad(), "profiles\\1\\") is None
+    assert gens["mgba"]._derive_block(_Pad()) is None
+
+
+def test_a_pad_sdl_cannot_be_asked_about_is_refused(wizard_mapped, monkeypatch):
+    """None is not a yes. An untouched config is recoverable; one full of
+    another driver's indices looks correct and is not."""
+    monkeypatch.setattr(derive, "evdev_driven", lambda v, p: None)
+
+    assert gens["mgba"]._derive_block(_Pad()) is None
+
+
+def test_a_capture_under_another_guid_is_not_this_emulators(wizard_mapped, monkeypatch):
+    """The wizard files one line per SDL identity the pad has. azahar must be
+    written from the line matching the GUID ITS SDL computes — matching on
+    vendor:product instead would hand it the host SDL3 line, whose indices are
+    a different driver's."""
+    monkeypatch.setattr(derive, "sdl2_probe",
+                        lambda v, p, lib="": {"guid": "05008fe54c050000cc09000000006800"})
+
+    assert derive.bindings_for("dead", "beef") is None
+
+
+def test_a_hand_made_snapshot_always_beats_a_derivation(wizard_mapped, tmp_path):
+    """The owner configured the pad inside the emulator and pressed "Scan
+    mapping". That is their work, and a derivation that overwrote it would be
+    this pipeline destroying exactly what it exists to preserve."""
+    cfg = tmp_path / "qt-config.ini"
+    cfg.write_text("[Controls]\nprofile=0\nprofiles\\1\\button_a=\"stale\"\n")
+    snaps = tmp_path / "snaps"
+    snap = snapshots.snap_path(snaps, "azahar", "dead", "beef")
+    snap.parent.mkdir(parents=True)
+    saved = f'profiles\\1\\button_a="button:9,engine:sdl,guid:{DERIVE_GUID},port:0"\n'
+    snap.write_text(saved)
+
+    msg = gens["azahar"].generate(1, _Pad(), {"snap_dir": snaps, "target": cfg})
+
+    assert "button:9" in cfg.read_text(), "the derivation overwrote the owner's snapshot"
+    assert msg and "restored" in msg
+
+
+def test_the_derivation_reaches_the_file_and_is_idempotent(wizard_mapped, tmp_path):
+    """The second call must write NOTHING. A generator that rewrites on every
+    connect is how _ryujinx used to churn 11 KB a plug."""
+    cfg = tmp_path / "qt-config.ini"
+    cfg.write_text("[Controls]\nprofile=0\nsomethingElse=1\n")
+    opts = {"snap_dir": tmp_path / "snaps", "target": cfg}
+
+    first = gens["azahar"].generate(1, _Pad(), opts)
+    written = cfg.read_text()
+    second = gens["azahar"].generate(1, _Pad(), opts)
+
+    assert first and "captured mapping" in first
+    assert "button_a=" in written
+    assert "somethingElse=1" in written, "the rest of the file must survive"
+    assert second is None, "the second pass rewrote an identical block"
+    assert cfg.read_text() == written
+
+
+def test_a_box_that_never_ran_the_wizard_pays_nothing(monkeypatch, tmp_path):
+    """The hotplug path, which is every box until the day it is not.
+
+    `bindings_for` runs once per generator on every pad connection, and
+    `sdl2_probe` is a subprocess with an eight-second timeout. Finding out there
+    is nothing to derive from must cost a stat of one absent file, not an SDL
+    launch per emulator.
+    """
+    from backend.services.configgen import mapping_db
+    monkeypatch.setattr(mapping_db, "USER_DB", tmp_path / "never-written.txt")
+
+    def must_not_run(*_a, **_k):
+        raise AssertionError("an SDL subprocess ran for a box with no captures")
+
+    monkeypatch.setattr(derive, "sdl2_probe", must_not_run)
+    monkeypatch.setattr(derive, "evdev_driven", must_not_run)
+
+    assert derive.bindings_for("054c", "09cc") is None
+
+
+def test_cemu_is_still_refused():
+    """Two unknowns, both of which produce a config that looks right: its
+    <uuid> is not an identity anything here can compute (measured: the name CRC
+    and the driver tail both differ from every SDL we can ask), and its
+    <button> ids for axes are internal to Cemu. "Scan mapping" stays the way to
+    teach Cemu a pad."""
+    assert not hasattr(gens["cemu"], "_derive_block")
+    assert "not an identity" in derive.cemu_is_not_derivable
+
+

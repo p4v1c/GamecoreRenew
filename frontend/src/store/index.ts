@@ -31,6 +31,18 @@ interface GamecoreStore {
   openModal: () => void
   closeModal: () => void
   setPowerPending: (action: string | null) => void
+
+  /**
+   * Bumped when something asks for the mapping wizard — today, the toast shown
+   * when a pad no SDL can name is plugged in.
+   *
+   * A counter and not a boolean: the shell reacts to the CHANGE, so asking
+   * twice in a row works, and there is no flag left set for a later mount to
+   * trip over. The toast cannot open the wizard itself — the shell owns which
+   * modal is up, and the wizard has to displace whatever else is on screen.
+   */
+  remapRequest: number
+  requestRemap: () => void
 }
 
 export const useStore = create<GamecoreStore>((set) => ({
@@ -43,6 +55,7 @@ export const useStore = create<GamecoreStore>((set) => ({
   powerPending: null,
   sessionGameKey: null,
   sessionSystemId: null,
+  remapRequest: 0,
 
   goHome: () => set({ screen: 'home', selectedSystemId: null, gridPage: 0, gridFocusIdx: 0 }),
   goLibrary: (id) => set({ screen: 'library', selectedSystemId: id, selectedGameIdx: 0 }),
@@ -53,4 +66,5 @@ export const useStore = create<GamecoreStore>((set) => ({
   openModal: () => set(s => ({ modalDepth: s.modalDepth + 1 })),
   closeModal: () => set(s => ({ modalDepth: Math.max(0, s.modalDepth - 1) })),
   setPowerPending: (action) => set({ powerPending: action }),
+  requestRemap: () => set(s => ({ remapRequest: s.remapRequest + 1 })),
 }))

@@ -5,6 +5,7 @@ import { onGp, useGamepadState } from '../../hooks/useGamepad'
 import { ControllerBattery } from '../TopBar'
 import ControllerArt, { ControllerLayout } from './gamepad/ControllerArt'
 import DefaultGamepadView from './gamepad/DefaultGamepadView'
+import MappingWizard from './gamepad/MappingWizard'
 import type { GamepadViewProps } from './gamepad/types'
 
 // Ported from stremio-web's GamepadModal (□ toggles it there too), redrawn
@@ -27,13 +28,16 @@ const GLYPHS: Record<ControllerLayout, { top: string; right: string; bottom: str
   generic:     { top: '△', right: '○', bottom: '✕', left: '□', lb: 'L1', rb: 'R1', menu: 'Options', power: 'Share' },
 }
 
-export default function GamepadModal({ onClose, view: View = DefaultGamepadView }: {
+export default function GamepadModal({ onClose, startInWizard = false, view: View = DefaultGamepadView }: {
   onClose: () => void
+  /** Open straight into the wizard — the unrecognised-controller toast does. */
+  startInWizard?: boolean
   view?: React.ComponentType<GamepadViewProps>
 }) {
   const { openModal, closeModal } = useStore()
   const [ctrl, setCtrl] = useState(detectControllerType)
   const [sysInfo, setSysInfo] = useState<SysInfo | null>(null)
+  const [wizard, setWizard] = useState(startInWizard)
 
   // Live button/axis state — drives the drawing below, frame by frame
   const state = useGamepadState()
@@ -66,6 +70,20 @@ export default function GamepadModal({ onClose, view: View = DefaultGamepadView 
   // Bound here so a view mounts it with no props and cannot mis-wire the pad.
   const Art = useCallback(() => <ControllerArt layout={ctrl.type} state={state} />, [ctrl.type, state])
 
+  // Full frame, over everything, and it owns the pad while it is up: the
+  // wizard exists precisely for controllers whose buttons mean nothing yet, so
+  // it cannot share a screen with a view that reads them as navigation.
+  if (wizard) {
+    return <MappingWizard onClose={() => {
+      // Came from the toast: leaving the wizard leaves entirely. Dropping the
+      // player onto the controller diagram instead would strand them one
+      // screen deep with the pad that does not work yet.
+      if (startInWizard) { onClose(); return }
+      setWizard(false)
+      api.sysinfo().then(setSysInfo).catch(() => {})
+    }} />
+  }
+
   return (
     <View
       layout={ctrl.type}
@@ -80,6 +98,7 @@ export default function GamepadModal({ onClose, view: View = DefaultGamepadView 
       glyphs={g}
       mappings={MAPPINGS}
       onClose={onClose}
+      onRemap={() => setWizard(true)}
       Art={Art}
       Battery={ControllerBattery}
     />
