@@ -130,10 +130,15 @@ Effet     : `apply_profile()` traite le même plafond huit lignes plus haut et l
             `return []` et se tait, sur **toute** la plage refusée (0, négatif,
             ≥ 5). La leçon a été retenue d'un seul côté de la paire.
 
-            Sévérité basse aujourd'hui : aucun pack ne déclare `maxPlayers > 4`
-            et `apply_profile` ne distribue pas de slot au-delà. C'est une
-            asymétrie latente, pas une panne en cours — mais le jour où un pack
-            monte à 8, la libération redevient inopérante sans aucun signal.
+            Sévérité basse, et il faut être précis sur pourquoi : le schéma
+            plafonne `controllers.maxPlayers` à `"maximum": 4`, donc un pack ne
+            PEUT PAS déclarer 8 aujourd'hui — l'hypothèse « le jour où maxPlayers
+            passe à 8 » supposerait aussi de lever cette borne. C'est une
+            asymétrie de journalisation entre deux fonctions jumelles, pas une
+            panne en cours. Elle est inscrite parce qu'elle est gratuite à
+            corriger et qu'elle mine la confiance dans le journal : un lecteur
+            qui voit `apply_profile` se plaindre en déduit que son jumeau le
+            ferait aussi.
 Correctif suggéré : le même `log.warning` que son jumeau.
 Confiance : haute
 
@@ -191,3 +196,109 @@ Correctif suggéré : logger l'étage auquel la chaîne s'est arrêtée dès qu'
             erreur, mais elle est la seule qui relie « manette morte dans RPCS3 »
             à sa cause.
 Confiance : haute
+
+---
+
+# Passe 3 — Contrats du catalogue
+
+Les deux sens ont été parcourus : ce que le pack déclare est-il honoré, et ce
+que le générateur fait est-il déclaré. Vérifié sans constat : `maxPlayers`,
+`order`, `padType`, `multitap` et `strategy` sont tous lus et honorés
+(`profilable_packs`, `apply_profile`, `tier0.apply`), et
+`backend/tests/test_generator_contract.py` couvre déjà la surface que chaque
+stratégie oblige à exposer.
+
+### F-006 — deux seeds livrés épinglent une DualShock 4 précise
+Famille   : contrats du catalogue
+Sévérité  : haute
+Preuve    : `AUDIT/repro/test_f006_seed_nomme_une_manette.py` (rouge sur main,
+            2 failed / 39 passed — les verts couvrent les 39 autres fichiers de
+            seed, plus deux garde-fous : le décodeur reconnaît bien un GUID de
+            DS4, et il ne se déclenche pas sur du hex quelconque)
+Fichier   : `catalog/mgba/seed/config.ini:5` et `:32`
+            `catalog/azahar/seed/qt-config.ini:42` et suivantes
+Effet     : les deux seeds portent le GUID SDL d'une DualShock 4 réelle
+            (`054c:09cc`), et azahar y ajoute les **indices de boutons bruts**
+            (`button:0`, `button:12`…). C'est exactement ce que le docstring de
+            `snapshots.py` décrit comme non synthétisable — livré en dur pour un
+            seul modèle de manette.
+
+            Le catalogue a un champ pour ce défaut précis, et le schéma dit
+            pourquoi : *« A seed that names a device pins the grid to one
+            controller model; CI fails on a hit »*. Mais `seedMustNotContain`
+            est **déclaratif** : `check-catalog.py` ne teste que les motifs que
+            le pack déclare. Cinq packs sur dix en déclarent ; ces deux-là n'en
+            déclarent aucun, donc la garde ne les regarde même pas. D'où
+            `check-catalog: 17 pack(s) OK` sur un catalogue qui porte le défaut.
+
+            Le générateur dolphin raconte l'incident jumeau et sa correction :
+            *« That seed used to pin `Device = SDL/0..3/PS4 Controller`, which
+            is dead input on any box without a DualShock 4 […] the seed now
+            names no device and check-catalog.py fails the build if one comes
+            back »*. La leçon a été appliquée à dolphin, rpcs3, cemu, melonds et
+            ryujinx, et pas à ces deux-là.
+
+            Aggravant : azahar et mgba sont en `snapshot-restore`. Leur
+            `generate()` ne fait que restaurer un snapshot s'il en existe un.
+            Sur une boîte neuve avec une manette qui n'est pas une DS4, il n'y a
+            aucun chemin de réparation automatique — contrairement à dolphin ou
+            rpcs3 qui reconstruisent le slot. La seule issue est que le
+            propriétaire mappe à la main puis presse « Scan mapping ».
+
+            Les deux GUID diffèrent d'un octet (bus `03` pour azahar, `05` pour
+            mgba) : ce sont deux récoltes de la même manette à deux moments et
+            sur deux transports, ce qui confirme qu'il s'agit bien de résidus de
+            la machine de récolte.
+Sortie     :
+```
+$ grep -n "05008fe54c05\|03008fe54c05" catalog/mgba/seed/config.ini \
+                                       catalog/azahar/seed/qt-config.ini | head -3
+catalog/mgba/seed/config.ini:5:device0=05008fe54c050000cc09000000006800
+catalog/mgba/seed/config.ini:32:[gba.input-profile.05008fe54c050000cc09000000006800]
+catalog/azahar/seed/qt-config.ini:42:profiles\1\button_a="button:0,engine:sdl,guid:03008fe54c050000cc09000000006800,port:0"
+```
+Correctif suggéré : deux temps. Nettoyer les deux seeds ; puis rendre la garde
+            NON déclarative — `check-catalog.py` peut refuser tout GUID de 32 hex
+            décodant vers un vendor:product connu, dans n'importe quel seed, sans
+            que le pack ait à le demander. `seedMustNotContain` reste utile pour
+            les formes que le décodage ne voit pas (le `<display_name>` de Cemu).
+Confiance : haute pour le constat (le GUID est là, la garde ne le regarde pas).
+            Moyenne pour l'ampleur du symptôme : voir Incertitudes — je n'ai pas
+            pu brancher une manette non-DS4 pour mesurer ce que fait azahar avec
+            ce fichier.
+
+### F-007 — le schéma autorise une liste de cibles, le répartiteur n'en passe qu'une
+Famille   : contrats du catalogue
+Sévérité  : basse (latente)
+Preuve    : `AUDIT/repro/test_f007_target_liste_tronquee.py` (rouge sur main,
+            1 failed / 2 passed — les verts vérifient que le schéma autorise
+            bien la liste et qu'un pack la déclare, faute de quoi le constat
+            n'aurait plus de porteur)
+Fichier   : `backend/services/configgen/__init__.py:99` (`target = target[0]`)
+            vs `catalog/_schema/pack.schema.json` (`"type": ["string", "array"]`)
+Effet     : `generator_opts()` réduit la liste à son premier élément et jette le
+            reste sans journal. Les autres cibles déclarées ne se retrouvent dans
+            aucune clé de `opts`.
+
+            Sans conséquence aujourd'hui, et pour une raison qui tient du
+            hasard : le seul pack déclarant une liste (dolphin) est aussi le seul
+            des dix dont le générateur ne lit **jamais** `opts["target"]` — il
+            code ses deux noms de fichiers en dur. Les deux défauts se masquent
+            mutuellement. Neuf générateurs sur dix lisent `opts["target"]`.
+
+            Le piège est donc pour le pack suivant : deux cibles déclarées, la
+            convention majoritaire suivie, la moitié des fichiers écrite, aucun
+            signal, et un `pack.json` qui affirme le contraire.
+Sortie     :
+```
+$ python3 -c '…'   # quel générateur lit sa cible déclarée
+dolphin      target=['GCPadNew.ini', 'WiimoteNew.ini']   lit_opts_target=False
+azahar       target='qt-config.ini'                      lit_opts_target=True
+…             (les 9 autres : True)
+```
+Correctif suggéré : soit `opts["targets"]` (au pluriel) toujours présent en
+            liste, soit le schéma restreint à une chaîne. Le choix dépend de si
+            un pack multi-fichiers est attendu — c'est une question de
+            conception, pas un correctif mécanique.
+Confiance : haute sur le mécanisme, basse sur l'urgence — rien ne casse
+            aujourd'hui.
