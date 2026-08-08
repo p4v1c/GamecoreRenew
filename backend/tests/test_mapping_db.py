@@ -227,6 +227,45 @@ def test_the_served_file_is_rebuilt_when_a_source_moves(db):
     assert "# newer community" in mapping_db.served().read_text()
 
 
+def test_a_community_database_that_arrives_OLDER_is_still_noticed(db):
+    """The OTA case a timestamp comparison gets wrong.
+
+    `update/linux.sh` installs with `rsync -a`, and `-a` implies `-t`: the new
+    vendored database arrives carrying the mtime it had in the release archive,
+    which can be older than the merge already on the box. A "newer than me?"
+    test answers no to a database that has genuinely just changed, and the box
+    serves the previous release's merge for ever — silently, because the file
+    is present and looks right.
+    """
+    mapping_db.upsert(USER_LINE)
+    mapping_db.DB_FILE.write_text("# a DIFFERENT community database\n")
+    # Backdated a decade, exactly as rsync -a would leave it.
+    os.utime(mapping_db.DB_FILE, (1_000_000, 1_000_000))
+
+    served = mapping_db.served().read_text()
+
+    assert "# a DIFFERENT community database" in served, (
+        "the replacement was ignored because it is older than the merge — "
+        "which is what every OTA looks like, rsync -a preserving mtimes")
+    assert USER_LINE in served, "and the owner's capture survived the rebuild"
+
+
+def test_an_unchanged_box_does_not_rewrite_600kb_on_every_launch(db, monkeypatch):
+    """The other half. `served()` runs on every game launch, and a merge that
+    rebuilt unconditionally would write the whole community database each
+    time — the reason this is a fingerprint and not just "always rebuild"."""
+    mapping_db.upsert(USER_LINE)
+    rebuilds = []
+    real = mapping_db.rebuild
+    monkeypatch.setattr(mapping_db, "rebuild",
+                        lambda: rebuilds.append(1) or real())
+
+    mapping_db.served()
+    mapping_db.served()
+
+    assert rebuilds == [], "nothing changed and it rebuilt anyway"
+
+
 def test_a_capture_can_be_dropped(db):
     """A wrong capture must be undoable from the couch. `forget_mapping` next
     door exists for exactly this reason on the snapshot side."""

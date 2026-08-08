@@ -77,6 +77,30 @@ _HEADER = (
     "# gamecontrollerdb_user.txt instead; this file is rebuilt from it.\n"
 )
 
+# What the two sources looked like when this file was built. Compared on every
+# `served()` to decide whether it is still current.
+#
+# **A timestamp alone is not enough, and an OTA is exactly why.**
+# `update/linux.sh` installs the new release with `rsync -a`, and `-a` implies
+# `-t`: the vendored database arrives carrying the mtime it had in the archive,
+# which can be OLDER than the merge already sitting in the data directory. A
+# "newer than me?" test therefore answers no to a database that has genuinely
+# just changed, and the box keeps serving the previous release's merge for ever
+# — silently, because the file is present and looks right.
+#
+# Size and mtime together, recorded rather than inferred: two databases that
+# differ in content and match on both is not a case worth designing for, and
+# any mismatch in either direction — newer, older, resized — is a rebuild.
+_SOURCES_RE = re.compile(r"^# sources: (\S+) (\S+)$", re.M)
+
+
+def _fingerprint(path: Path) -> str:
+    try:
+        st = path.stat()
+        return f"{st.st_size}:{st.st_mtime_ns}"
+    except OSError:
+        return "-"
+
 _USER_BANNER = "\n# ── captured on this box (mapping wizard) ──\n"
 
 # A mapping line is `<32 hex GUID>,<name>,<binding>,<binding>,…`. Anything else
@@ -186,7 +210,9 @@ def rebuild() -> Path | None:
             return None
     if not community and not user:
         return None
-    parts = [_HEADER, community]
+    parts = [_HEADER,
+             f"# sources: {_fingerprint(DB_FILE)} {_fingerprint(USER_DB)}\n",
+             community]
     if not community.endswith("\n"):
         parts.append("\n")
     if user:
@@ -200,17 +226,23 @@ def rebuild() -> Path | None:
 def served() -> Path | None:
     """The file SDL_GAMECONTROLLERCONFIG_FILE must name, or None.
 
-    Rebuilt when it is missing or older than either source, so a box that has
-    never run the wizard still gets the vendored database and one that has does
-    not depend on the wizard having been the last thing to run — an OTA
-    replaces the community file underneath us, and the merge has to notice.
+    Rebuilt whenever either source no longer matches the fingerprint recorded
+    in its header — see `_SOURCES_RE` for why that is a fingerprint and not a
+    "newer than me" test. So a box that has never run the wizard still gets the
+    vendored database, one that has does not depend on the wizard having been
+    the last thing to run, and an OTA that replaces the community file
+    underneath us is noticed even though rsync hands it an older timestamp.
     """
+    want = f"# sources: {_fingerprint(DB_FILE)} {_fingerprint(USER_DB)}"
     try:
-        stale = (not SERVED_DB.is_file()
-                 or (USER_DB.is_file()
-                     and USER_DB.stat().st_mtime > SERVED_DB.stat().st_mtime)
-                 or (DB_FILE.is_file()
-                     and DB_FILE.stat().st_mtime > SERVED_DB.stat().st_mtime))
+        if not SERVED_DB.is_file():
+            stale = True
+        else:
+            # The header only: this file is 600 KB and the question is four
+            # lines in.
+            with SERVED_DB.open(encoding="utf-8", errors="replace") as f:
+                head = "".join(next(f, "") for _ in range(8))
+            stale = want not in head
     except OSError:
         stale = True
     if stale:
