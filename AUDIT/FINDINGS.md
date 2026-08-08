@@ -302,3 +302,86 @@ Correctif suggéré : soit `opts["targets"]` (au pluriel) toujours présent en
             conception, pas un correctif mécanique.
 Confiance : haute sur le mécanisme, basse sur l'urgence — rien ne casse
             aujourd'hui.
+
+---
+
+# Passe 4 — Commentaires et docs qui mentent
+
+Les deux constats annoncés au départ sont confirmés et inscrits. Le critère
+appliqué : une affirmation **au présent sur ce que le code fait**, contredite
+par le code. Les mentions historiques (« It used to be a bare openbox
+session… ») sont légitimes et hors sujet.
+
+Examinés et **écartés** — c'est le filtre qui compte autant que les constats :
+
+- `docs/architecture/11-install-script-seams.md:55` décrit une arborescence
+  `install/lib/` + `install/phases/` qui n'existe pas. Mais la section s'intitule
+  « The seams, if a VM is available » et introduit le bloc par « So the split
+  is: » — c'est une **proposition**, pas une description. Pas un mensonge.
+- le même document date les phases d'`arch.sh` (« SDDM auto-login | 964–1051 »)
+  avec ~19 lignes de dérive (réel : 983). L'en-tête de colonne dit
+  « Lines (approx.) » et le texte désigne les appels `msg "<name>"` comme les
+  vraies lignes de coupe. Hedgé, et le lecteur atterrit à côté de la bonne
+  ancre. Pas un constat.
+- `backend/tests/test_configgen_snapshots.py:5` et deux `test_generator.py` de
+  packs citent `backend/tests/test_controller_profiles.py`, qui n'existe plus —
+  mais au passé (« Moved out of … in phase 4 »). Légitime.
+
+### F-008 — `process_manager.py` situe GameCore dans une session openbox
+Famille   : commentaires et docs qui mentent
+Sévérité  : basse
+Preuve    : `AUDIT/repro/test_f008_commentaires_qui_mentent.py` (rouge sur main
+            — 2 failed / 12 passed pour les deux constats du fichier ; les
+            garde-fous lisent `PKGS` dans `install/arch.sh` et établissent
+            qu'`plasma-desktop` y est et qu'`openbox` n'y est plus)
+Fichier   : `backend/services/process_manager.py:205`
+Effet     : le commentaire dit « GameCore runs in an X11 openbox session ».
+            openbox n'est plus installé — absent de `PKGS`, l'installateur pose
+            `plasma-desktop` et `plasma-x11-session` — et le CHANGELOG l'annonce
+            sous *« The kiosk is hosted on the machine's own X11 desktop
+            session. openbox is no longer installed and is no longer the
+            auto-login target. »*
+
+            La ligne de code que ce commentaire justifie
+            (`env.pop("WAYLAND_DISPLAY", None)`) reste **correcte** : la pile
+            entière est X11-only, `arch.sh` le redit à la ligne 421. C'est la
+            RAISON qui est fausse — et c'est elle que le prochain lecteur
+            utilisera pour décider si la ligne peut partir. Un lecteur qui sait
+            qu'openbox a disparu conclura que le commentaire est mort, donc que
+            la ligne l'est aussi ; elle ne l'est pas.
+Correctif suggéré : remplacer « openbox » par « the machine's own X11 desktop
+            session », qui est à la fois vrai et la vraie raison.
+Confiance : haute
+
+### F-009 — deux textes se contredisent sur ce qu'est une sous-page de réglages
+Famille   : commentaires et docs qui mentent
+Sévérité  : moyenne
+Preuve    : `AUDIT/repro/test_f008_commentaires_qui_mentent.py`, second groupe
+            (rouge sur main ; huit tests verts mesurent que **8/8** sous-pages
+            rendent leur propre `<Overlay>`)
+Fichier   : `frontend/src/components/defaults.tsx:63`
+            vs `docs/themes/README.md:368`
+Effet     : `defaults.tsx` dit *« They are fragments, not modals: dropped into a
+            theme's own box they lose their width, padding and scroll — which is
+            exactly how the Wi-Fi page came out broken »*, et expose
+            `SettingsOverlay` pour les envelopper. `docs/themes/README.md` dit
+            l'inverse : *« The pages already carry their own overlay — render
+            them bare; SettingsOverlay is only there if you write a page of your
+            own »*.
+
+            La mesure tranche : les 8 sous-pages rendent chacune leur propre
+            `<Overlay>`. C'est donc la doc qui est juste et le commentaire qui
+            ment.
+
+            Et il ne ment pas de façon inerte. Un auteur de thème qui suit
+            `defaults.tsx` emboîte une `Overlay` dans une `Overlay` et obtient
+            précisément la largeur, les marges et le défilement cassés que le
+            commentaire dit vouloir éviter. **Les deux textes racontent le même
+            incident Wi-Fi et en tirent des conclusions opposées** — ce qui
+            suggère que le correctif a été appliqué (les pages ont gagné leur
+            Overlay) sans que le commentaire qui décrivait l'ancien état soit
+            retiré.
+Correctif suggéré : réécrire le commentaire de `defaults.tsx` pour dire ce que
+            `SettingsOverlay` sert vraiment (écrire une page NEUVE), et non ce
+            qu'il fallait faire avant que les pages portent leur propre overlay.
+Confiance : haute
