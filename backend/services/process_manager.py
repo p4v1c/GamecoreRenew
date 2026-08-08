@@ -202,8 +202,15 @@ def _display_env() -> dict:
         for candidate in _xauth_candidates(uid):
             env["XAUTHORITY"] = candidate
             break
-    # GameCore runs in an X11 openbox session — remove Wayland to prevent Qt apps
-    # from trying WAYLAND_DISPLAY and failing silently under the systemd service.
+    # GameCore is hosted on the machine's own X11 desktop session — remove
+    # Wayland to prevent Qt apps from trying WAYLAND_DISPLAY and failing
+    # silently under the systemd service.
+    #
+    # This said "an X11 openbox session" long after openbox stopped being
+    # installed (arch.sh lays down plasma-desktop and plasma-x11-session). The
+    # line below is still right — the whole stack is X11-only — but a reader who
+    # knew openbox was gone would conclude the comment was dead and therefore
+    # that the line was too. The session changed; X11-only did not.
     env.pop("WAYLAND_DISPLAY", None)
     return env
 

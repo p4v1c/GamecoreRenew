@@ -60,9 +60,16 @@ export const DefaultKeyboard = VirtualKeyboard
 export const Shell = DefaultShell
 
 /**
- * The container the settings pages were written for. They are fragments, not
- * modals: dropped into a theme's own box they lose their width, padding and
- * scroll — which is exactly how the Wi-Fi page came out broken.
+ * The container to write a NEW settings page in, so it gets the same width,
+ * padding and scroll as the built-in ones.
+ *
+ * Not for wrapping the pages in `DefaultSettingsPages`: all eight already
+ * render their own `<Overlay>` as their root. This used to say they were
+ * "fragments, not modals" and had to be wrapped — true before they each gained
+ * one, and the opposite of true after. A theme author following it nested an
+ * Overlay inside an Overlay and got exactly the broken width, margins and
+ * scroll the old text warned about, which is how the Wi-Fi page came out
+ * broken. Render those pages bare.
  */
 export const SettingsOverlay = Overlay
 export const Label = OverlayLabel

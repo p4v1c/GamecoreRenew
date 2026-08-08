@@ -1,8 +1,9 @@
 # Theme SDK — specification
 
-> **Status: implemented.** Items 1–5 and 7 of §14 are in the tree; item 6
-> (extracting the whole default UI behind `sdk.defaults`) is partial — the
-> surfaces listed in §5 are exposed, the settings sub-pages are not.
+> **Status: implemented.** Items 1–5 and 7 of §14 are in the tree, and so is
+> item 6 (extracting the whole default UI behind `sdk.defaults`): the surfaces
+> listed in §5 are exposed, and so are the settings sub-pages, through
+> `sdk.defaults.DefaultSettingsPages`.
 
 A theme **replaces part or all of the UI**. It is not a skin: there is no CSS
 layer to override in this app (see below), so a theme ships components, not
