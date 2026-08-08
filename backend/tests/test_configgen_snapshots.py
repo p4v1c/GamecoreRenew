@@ -425,6 +425,26 @@ def test_the_derivation_reaches_the_file_and_is_idempotent(wizard_mapped, tmp_pa
     assert cfg.read_text() == written
 
 
+def test_a_box_that_never_ran_the_wizard_pays_nothing(monkeypatch, tmp_path):
+    """The hotplug path, which is every box until the day it is not.
+
+    `bindings_for` runs once per generator on every pad connection, and
+    `sdl2_probe` is a subprocess with an eight-second timeout. Finding out there
+    is nothing to derive from must cost a stat of one absent file, not an SDL
+    launch per emulator.
+    """
+    from backend.services.configgen import mapping_db
+    monkeypatch.setattr(mapping_db, "USER_DB", tmp_path / "never-written.txt")
+
+    def must_not_run(*_a, **_k):
+        raise AssertionError("an SDL subprocess ran for a box with no captures")
+
+    monkeypatch.setattr(derive, "sdl2_probe", must_not_run)
+    monkeypatch.setattr(derive, "evdev_driven", must_not_run)
+
+    assert derive.bindings_for("054c", "09cc") is None
+
+
 def test_cemu_is_still_refused():
     """Two unknowns, both of which produce a config that looks right: its
     <uuid> is not an identity anything here can compute (measured: the name CRC

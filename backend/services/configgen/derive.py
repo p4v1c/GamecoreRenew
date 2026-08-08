@@ -187,7 +187,16 @@ def bindings_for(vendor: str, product: str, app_id: str = "") -> tuple[str, dict
     The GUID is the one THAT EMULATOR's SDL computes — the whole reason
     `Pad.guid_for()` exists — so a mapping is only handed over when the wizard
     filed a line under that exact identity.
+
+    **The cheap question is asked first, and that ordering is the point.** This
+    runs on the hotplug path, once per generator, every time a pad connects —
+    and `sdl2_probe` is a SUBPROCESS with an eight-second timeout. On a box that
+    has never run the wizard there is nothing to derive from, and finding that
+    out has to cost a stat of one absent file rather than an SDL launch per
+    emulator. Which is every box, until the day it is not.
     """
+    if not mapping_db.read_user():
+        return None
     raw = sdl2_probe(vendor, product).get("guid", "")
     if not raw:
         return None
