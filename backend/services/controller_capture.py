@@ -458,6 +458,17 @@ async def events(session: Session):
 
     tasks = [asyncio.create_task(pump(d), name=f"capture:{d.path}")
              for d in devices]
+
+    # What each input is currently reporting, so a return to rest can be sent
+    # as the RELEASE of the thing that was held.
+    #
+    # The wizard's "hold this button, the pad does not have it" gesture needs
+    # both edges: a press alone cannot be told from a hold until it ends. A
+    # first version sent presses only — `binding_for` is deliberately
+    # press-only, because binding on a release would record the button the
+    # player let go of while reaching for the next one — and the hold could
+    # therefore never fire, leaving a wizard with no way past a missing button.
+    active: dict[tuple[str, int], str] = {}
     try:
         while True:
             path, event = await queue.get()
@@ -466,12 +477,27 @@ async def events(session: Session):
                 continue
             flat = flats.get((path, event.code), 0)
             token = binding_for(layout, event.type, event.code, event.value, flat)
-            if token is None:
+            if token is not None:
+                active[(path, event.code)] = token
+                yield {"binding": token, "pressed": True,
+                       "kind": "button" if event.type == EV_KEY else "axis",
+                       "signed": half_axis(token, event.value),
+                       "code": event.code, "value": event.value, "node": path}
                 continue
-            yield {"binding": token,
+            # Only a genuine return to rest is a release. An unmappable code or
+            # a key autorepeat must not be reported as one, or the UI would see
+            # a button let go that was never pressed.
+            at_rest = (event.value == 0 if event.type == EV_KEY
+                       else abs(event.value) <= max(flat, 0))
+            if not at_rest:
+                continue
+            previous = active.pop((path, event.code), None)
+            if previous is None:
+                continue
+            yield {"binding": previous, "pressed": False,
                    "kind": "button" if event.type == EV_KEY else "axis",
-                   "signed": half_axis(token, event.value),
-                   "code": event.code, "value": event.value, "node": path}
+                   "signed": previous, "code": event.code,
+                   "value": event.value, "node": path}
     finally:
         for task in tasks:
             task.cancel()
