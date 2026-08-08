@@ -385,3 +385,145 @@ Correctif suggéré : réécrire le commentaire de `defaults.tsx` pour dire ce q
             `SettingsOverlay` sert vraiment (écrire une page NEUVE), et non ce
             qu'il fallait faire avant que les pages portent leur propre overlay.
 Confiance : haute
+
+---
+
+# Passe 5 — Tests vacants
+
+Méthode : réintroduire un défaut précis, lancer la ligne de base entière,
+restaurer. Une mutation qui laisse la suite **verte** prouve qu'aucun test ne
+garde ce comportement.
+
+C'est la seule forme de preuve possible ici. Le code de production est correct
+sur `main`, donc un « test rouge sur main » ne peut pas exister : c'est
+l'ABSENCE de garde qui est le constat, et une mutation survivante est la façon
+exécutable de la montrer.
+
+    python3 AUDIT/repro/mutations.py
+
+Dix mutations, dont **six témoins** dont on sait qu'elles doivent être
+attrapées — sans elles, un harnais cassé rendrait « tout survit » et le constat
+serait faux. Les six sont bien attrapées :
+
+```
+  multitap-jamais-ecrit:           attrapée   (11 failed)
+  gcpad-toujours-sain:             attrapée   (32 failed)
+  block-disagrees-aveugle:         attrapée   (1 failed)
+  pack-file-sans-garde-de-chemin:  attrapée   (1 failed)
+  event-sort-lexicographique:      attrapée   (1 failed)
+  ordre-de-profilage-alphabetique: attrapée   (1 failed)
+
+  rpcs3-toujours-lie:              SURVIT     (584 passed)
+  maxplayers-ignore:               SURVIT     (584 passed)
+  atomic-write-non-atomique:       SURVIT     (584 passed)
+  seed-deploy-reecrit-tout:        SURVIT     (584 passed)
+```
+
+### F-010 — le chemin de réparation de RPCS3 n'est joué par aucun scénario
+Famille   : tests vacants
+Sévérité  : haute
+Preuve    : `python3 AUDIT/repro/mutations.py rpcs3-toujours-lie` →
+            **584 passed** ; et le comptage des fixtures de messages ci-dessous
+Fichier   : `catalog/rpcs3/generator.py:37` (`_is_bound`) et `:59` (le donneur)
+Effet     : remplacer `_is_bound()` par `return True` désactive exactement la
+            réparation que le module existe pour faire — un slot en
+            `Handler: "Null"` avec des bindings vides n'est plus reconstruit à
+            partir d'un slot sain, il est « retargeté » tel quel, donc laissé
+            mort. La suite entière reste verte.
+
+            La cause est mesurable : le seed livre les quatre joueurs en
+            `Handler: SDL` avec leurs bindings, et la caractérisation part
+            toujours du seed. L'état malade que le code répare n'est donc
+            **jamais construit** par aucun des 14 scénarios :
+Sortie     :
+```
+$ grep -oh "rpcs3: Player [0-9] [a-z]*" catalog/_characterisation/*.messages \
+    | sort | uniq -c
+     11 rpcs3: Player 1 retargeted
+      8 rpcs3: Player 2 retargeted
+      4 rpcs3: Player 3 retargeted
+      3 rpcs3: Player 4 retargeted
+```
+            Zéro « rebuilt ». Les occurrences de « rebuilt » dans ces fixtures
+            appartiennent toutes à dolphin.
+
+            Ce que ça garde n'est pas anodin : le docstring du module dit que
+            c'est cette branche qui a manqué pendant que *« Players 2-4 on the
+            reference box were in that state for a week »*. La correction d'une
+            panne d'une semaine n'a pas de test.
+Correctif suggéré : un scénario de caractérisation partant d'un `Default.yml`
+            où Player 2 est en `Handler: "Null"` bindings vides et Player 1 sain
+            — c'est-à-dire l'état réel de la boîte avant la correction. Le seed
+            ne peut pas le porter (il doit rester neutre) : c'est une fixture
+            d'entrée, pas un seed.
+Confiance : haute
+
+### F-011 — le garde `maxPlayers` du répartiteur n'est vérifié par rien
+Famille   : tests vacants
+Sévérité  : basse
+Preuve    : `python3 AUDIT/repro/mutations.py maxplayers-ignore` → **584 passed**
+Fichier   : `backend/services/configgen/__init__.py:191`
+Effet     : supprimer `if player_index > ctl.get("maxPlayers", 4): continue`
+            ne casse aucun test. `test_single_player_emulators_ignore_slots_above_one`
+            annonce pourtant *« Invariant 5. azahar, mgba, Cemu and melonDS are
+            single-player here: only slot 1 is ever touched, whatever player
+            index arrives »*.
+
+            Il reste vert parce que **les cinq générateurs mono-joueur se
+            gardent eux-mêmes** (`if i != 1: return None` chez azahar, cemu,
+            mgba, gopher64 ; `if i != 1 or not toml.is_file()` chez melonds).
+            Le test vérifie donc la garde des GÉNÉRATEURS, pas celle du
+            répartiteur qu'il nomme.
+
+            Soyons précis sur la gravité : l'invariant est bien tenu
+            aujourd'hui, par la couche du dessous. Ce n'est pas une panne, c'est
+            une défense en profondeur dont un des deux étages n'est pas testé —
+            et c'est l'étage que le commentaire présente comme le correctif de
+            classe (*« melonDS lacked this guard once, so plugging in a second
+            pad rewrote its one and only player config for the wrong pad »*).
+            Un pack futur qui déclare `maxPlayers: 1` sans se garder lui-même
+            n'a que cet étage, et rien ne dit s'il fonctionne.
+Correctif suggéré : un test qui appelle `apply_profile` avec un faux pack
+            `maxPlayers: 1` dont le générateur ne se garde pas, et vérifie qu'il
+            n'est pas appelé pour le slot 2.
+Confiance : haute
+
+### F-012 — les deux primitives d'écriture ne sont testées nulle part
+Famille   : tests vacants
+Sévérité  : moyenne
+Preuve    : `python3 AUDIT/repro/mutations.py atomic-write-non-atomique
+            seed-deploy-reecrit-tout` → **584 passed** dans les deux cas ; et
+            `grep -rl "atomic_write" backend/tests/ catalog/*/tests/` ne
+            remonte **aucun** fichier.
+Fichier   : `backend/services/configgen/helpers/base.py:40` (`atomic_write`)
+            `backend/services/configgen/seed.py:48` (`deploy`)
+Effet     : deux fonctions dont le docstring décrit une panne vécue et précise,
+            et qu'aucun test ne nomme.
+
+            `atomic_write` remplacée par un `write_text()` nu — précisément ce
+            que le docstring dit avoir corrigé (*« write_text() truncates first
+            […] a Config.json caught between the two is invalid JSON, and
+            Ryujinx starts over from defaults »*) — laisse la suite verte.
+            La caractérisation compare le CONTENU final, qui est identique ;
+            elle ne peut pas voir par quel chemin il est arrivé.
+
+            `deploy()` avec son court-circuit « c'est déjà notre propre copie »
+            supprimé laisse la suite verte aussi. Le module entier n'a aucun
+            test : c'est lui qui décide quand créer un `.bak-preinstall`, et le
+            docstring explique que se tromper fait *« record GameCore's config
+            as if it were the user's, and uninstall would then "restore" our
+            file instead of deleting it »* — soit une désinstallation qui
+            réinstalle.
+
+            Nuance honnête sur `deploy()` : la mutation testée ne casse pas la
+            décision de sauvegarde elle-même (le `filecmp.cmp` en aval la
+            protège encore), elle supprime l'idempotence — chaque re-run
+            réécrit tous les fichiers et les annonce comme modifiés. C'est
+            moins grave que ce que le docstring redoute, et rien ne le voit
+            quand même.
+Correctif suggéré : pour `atomic_write`, un test qui observe qu'aucun lecteur
+            ne voit le fichier tronqué (p. ex. en interceptant `os.replace` et
+            en vérifiant que la cible est intacte jusque-là). Pour `deploy()`,
+            les quatre lignes du tableau de son docstring sont déjà quatre cas
+            de test écrits d'avance.
+Confiance : haute
