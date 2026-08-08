@@ -141,6 +141,61 @@
       }
     },
 
+    "bios": {
+      "description": "The system files the OWNER has to supply, and where they go. Nothing here is ever downloaded, shipped or linked to — this block only says what a working install looks like, so `backend/services/bios.py` can answer 'absent / wrong md5 / conforming' instead of the emulator answering with a black screen.\n\nThe information was already in the seeds, unreadable: `catalog/pcsx2/seed/PCSX2.ini` has named `ps2-0150e-20001228.bin` since the first release, and nothing could check whether that file was on the box. A player whose PS2 games all failed to boot got no message naming it.\n\nDeclare only what is SOURCED — a filename a seed pins, or one the emulator itself defines. A guessed name produces a permanently red line on a working install, which is the ticket this block exists to remove.",
+      "type": "object",
+      "required": ["dir"],
+      "additionalProperties": false,
+      "properties": {
+        "dir": {
+          "description": "Where the files belong, as a path expression. `@FLATPAK_CONFIG@` and `@FLATPAK_DATA@` expand from the same `install.appId` the installer installs — the gopher64 rule — so a BIOS directory under an app id nobody installs is unexpressible. `@HOME@` and `@GAMECORE_PATH@` are also accepted, for the emulators that are not Flatpak.\n\nThis is NOT `config.dest`: PCSX2 reads its inis from `PCSX2/inis` and its BIOS from `PCSX2/bios`, Cemu keeps `keys.txt` under data/ and its settings under config/. Deriving one from the other would have named the wrong directory for both.",
+          "type": "string",
+          "minLength": 1
+        },
+        "files": {
+          "description": "The files checked by name. Omit for a system whose emulator scans the directory instead — see `anyFile`.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["file", "required", "note"],
+            "additionalProperties": false,
+            "properties": {
+              "file": {
+                "description": "Name relative to `dir`, subdirectories allowed. Never absolute and never containing '..': the checker refuses to stat outside `dir`, and a pack that tried would be reading a path the catalogue does not own.",
+                "type": "string",
+                "minLength": 1
+              },
+              "md5": {
+                "description": "Expected fingerprint, when a single dump is the right one. Absent means 'present is all we can check' — a firmware whose hash changes with its version (RPCS3, Ryujinx keys) must NOT carry one, or every legitimate update would be reported as corrupt.",
+                "type": "string",
+                "pattern": "^[0-9a-f]{32}$"
+              },
+              "required": {
+                "description": "true = the system does not work without it, and a launch is refused with this filename on screen. false = the install is fine without it (regional firmwares, high-resolution BIOS, keys only some titles need). Red on a working box is the ticket this block was written to stop, so `false` is the answer whenever there is any doubt.",
+                "type": "boolean"
+              },
+              "note": {
+                "description": "One line the player reads. What the file is for, never where to get it.",
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "anyFile": {
+          "description": "For an emulator that SCANS `dir` and takes whatever image it recognises — DuckStation's `[BIOS] SearchDirectory`. No filename can be checked because the pack legitimately pins none, so the only honest verdict is 'the directory has something in it' or 'it is empty'. Never carries an md5, for the same reason.",
+          "type": "object",
+          "required": ["required", "note"],
+          "additionalProperties": false,
+          "properties": {
+            "required": { "type": "boolean" },
+            "note":     { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+
     "config": {
       "description": "Where seed/ is deployed. Omit entirely when the pack ships no seed/.",
       "type": "object",

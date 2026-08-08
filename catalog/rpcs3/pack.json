@@ -27,6 +27,16 @@
   "config": {
     "dest": "@FLATPAK_CONFIG@/rpcs3"
   },
+  "bios": {
+    "dir": "@FLATPAK_CONFIG@/rpcs3/dev_flash/sys/external",
+    "files": [
+      {
+        "file": "liblv2.sprx",
+        "required": true,
+        "note": "PS3 firmware. Install it from RPCS3 itself, from a PUP you supply — this module is what says the install finished."
+      }
+    ]
+  },
   "controllers": {
     "maxPlayers": 4,
     "order": 6,

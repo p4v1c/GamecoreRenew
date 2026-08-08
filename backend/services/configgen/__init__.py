@@ -75,9 +75,7 @@ def resolve_config_dir(pack, home: Path) -> Path | None:
     app_id = pack.app_id
 
     def expand(value: str) -> Path:
-        return Path(value
-                    .replace("@FLATPAK_CONFIG@", f"{home}/.var/app/{app_id}/config")
-                    .replace("@HOME@", str(home)))
+        return pack.expand(value, home)
 
     flatpak_dir = expand(cfg["dest"])
     native = cfg.get("nativeDest")

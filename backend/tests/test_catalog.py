@@ -8,6 +8,7 @@ security rule that strips code-executing blocks from local packs.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -89,6 +90,46 @@ def test_flatpak_config_destinations_derive_from_the_installed_app_id():
         install = pack.get("install") or {}
         assert install.get("provider") == "flatpak", directory.name
         assert install.get("appId"), directory.name
+
+
+# A seed line that pins a boot ROM by name: `BIOS = ps2-0150e-20001228.bin`.
+# Anchored on the whole line so DuckStation's `BIOS = true` and melonDS's
+# `BIOS9Path = ""` are not hits — what is wanted is a filename, not the word.
+_SEED_PINS_A_BIOS = re.compile(
+    r"^[ \t]*BIOS[ \t]*=[ \t]*([^\s=]+\.(?:bin|rom))[ \t]*$", re.M | re.I)
+
+
+def test_a_seed_that_names_a_bios_file_has_it_declared():
+    """The information was in the seed and nothing could read it.
+
+    `catalog/pcsx2/seed/PCSX2.ini` has named its boot ROM since the first
+    release. A box missing that exact file got a black screen and no message,
+    because no code anywhere knew the name existed.
+
+    Now that `bios` carries it, the two can drift the other way: someone edits
+    the seed to a different dump and the BIOS screen keeps telling the owner to
+    copy a file the emulator will never open. This is the tie between them.
+    """
+    missing = []
+    for directory in _packs():
+        seed = directory / "seed"
+        if not seed.is_dir():
+            continue
+        declared = {e["file"] for e in
+                    ((_load(directory).get("bios") or {}).get("files") or [])}
+        for f in sorted(seed.rglob("*")):
+            if not f.is_file():
+                continue
+            try:
+                text = f.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for m in _SEED_PINS_A_BIOS.finditer(text):
+                if m.group(1) not in declared:
+                    missing.append(f"{directory.name}: {f.relative_to(ROOT)} pins "
+                                   f"{m.group(1)!r}, pack.json bios declares "
+                                   f"{sorted(declared)}")
+    assert missing == [], "\n".join(missing)
 
 
 def test_no_seed_carries_a_harvest_box_home():

@@ -132,6 +132,33 @@ def check(only: str | None = None) -> list[str]:
                                 f"by {seen_appids[app_id]}")
             seen_appids[app_id] = pid
 
+        bios = pack.get("bios")
+        if bios:
+            bdir = bios["dir"]
+            if ("@FLATPAK_CONFIG@" in bdir or "@FLATPAK_DATA@" in bdir) and not app_id:
+                problems.append(
+                    f"{pid}: bios.dir uses a Flatpak token but install.provider is "
+                    f"not flatpak — the BIOS directory would resolve against nothing")
+            if not bios.get("files") and not bios.get("anyFile"):
+                problems.append(
+                    f"{pid}: bios declares neither files nor anyFile — the block "
+                    f"says a directory exists and checks nothing in it")
+            if bios.get("files") and bios.get("anyFile"):
+                problems.append(
+                    f"{pid}: bios declares both files and anyFile — anyFile means "
+                    f"the emulator scans the directory, which makes named files a "
+                    f"second, contradictory answer")
+            for entry in bios.get("files", []):
+                name = entry["file"]
+                # `file` is joined onto bios.dir and stat'd. An absolute name or
+                # a '..' segment would make the checker report on a path the
+                # catalogue does not own — and a red BIOS line pointing at
+                # someone's home directory is worse than no line at all.
+                if name.startswith("/") or ".." in Path(name).parts:
+                    problems.append(
+                        f"{pid}: bios file {name!r} escapes bios.dir — names are "
+                        f"relative to it, subdirectories allowed, nothing above")
+
         roms = pack.get("roms")
         if roms:
             rd = roms["dir"]

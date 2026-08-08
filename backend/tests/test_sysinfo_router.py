@@ -31,7 +31,7 @@ from backend.main import app                    # noqa: E402
 from backend.services import battery            # noqa: E402
 
 _KEYS = {"ip", "storage_used_gb", "storage_total_gb", "storage_free_gb",
-         "version", "controllers"}
+         "version", "controllers", "bios"}
 
 
 @pytest.fixture

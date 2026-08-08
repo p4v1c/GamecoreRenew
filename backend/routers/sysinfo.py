@@ -3,6 +3,7 @@ import shutil
 import socket
 from fastapi import APIRouter
 from ..config import APP_VERSION, GAMECORE_ROOT
+from ..services import bios
 from ..services.battery import read_batteries
 
 router = APIRouter(tags=["sysinfo"])
@@ -27,4 +28,9 @@ def get_sysinfo():
         "storage_free_gb": round(free / 1e9, 1),
         "version": APP_VERSION,
         "controllers": read_batteries(),
+        # The project has no diagnostic export; this endpoint is the nearest
+        # thing to one, and a missing BIOS is the first question anyone reading
+        # a support report needs answered. Two keys, no file list — the detail
+        # is what /api/bios is for.
+        "bios": bios.summary(),
     }

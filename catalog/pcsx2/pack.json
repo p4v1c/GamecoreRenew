@@ -31,6 +31,17 @@
   "config": {
     "dest": "@FLATPAK_CONFIG@/PCSX2/inis"
   },
+  "bios": {
+    "dir": "@FLATPAK_CONFIG@/PCSX2/bios",
+    "files": [
+      {
+        "file": "ps2-0150e-20001228.bin",
+        "md5": "838544f12de9b0abc90811279ee223c8",
+        "required": true,
+        "note": "PlayStation 2 boot ROM. GameCore's PCSX2 configuration names this exact file, so PCSX2 starts with this one or with none."
+      }
+    ]
+  },
   "controllers": {
     "maxPlayers": 4,
     "order": 7,
