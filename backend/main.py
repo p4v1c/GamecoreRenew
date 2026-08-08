@@ -15,6 +15,7 @@ from .db import init_db
 from . import ws
 from .routers import systems, games, playtime, covers, media, metadata, sysinfo, update, overlays, addons, catalog
 from .routers import auth as auth_routes
+from .routers import bios as bios_router
 from .routers import standby as standby_router
 from .routers import controllers as controllers_router
 from .routers import themes as themes_router
@@ -165,6 +166,7 @@ app.include_router(addons.router, prefix="/api")
 # The pack catalogue: what this box could run, and installing it without
 # re-running the installer. Same busy-lock and WebSocket shape as addons.
 app.include_router(catalog.router, prefix="/api")
+app.include_router(bios_router.router, prefix="/api")
 app.include_router(standby_router.router, prefix="/api")
 app.include_router(controllers_router.router, prefix="/api")
 app.include_router(themes_router.router, prefix="/api")

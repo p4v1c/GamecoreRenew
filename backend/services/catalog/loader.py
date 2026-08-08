@@ -95,6 +95,26 @@ class Pack:
         install = self.data.get("install") or {}
         return install.get("appId", "") if install.get("provider") == "flatpak" else ""
 
+    def expand(self, value: str, home: Path) -> Path:
+        """A pack path expression, resolved against THIS box.
+
+        The two Flatpak tokens expand from the same `install.appId` the
+        installer installs, which is what makes a phantom directory
+        unexpressible — see `configgen.resolve_config_dir`, which is where this
+        started and now calls in here.
+
+        It moved because `bios.dir` needs the same expansion and needed one
+        token more: PCSX2 keeps its inis and its BIOS in different
+        subdirectories of config/, and Cemu keeps `keys.txt` under data/ while
+        its settings live under config/. A second copy of the expander would
+        have been a second place for `.var/app` to be spelled.
+        """
+        return Path(value
+                    .replace("@FLATPAK_CONFIG@", f"{home}/.var/app/{self.app_id}/config")
+                    .replace("@FLATPAK_DATA@", f"{home}/.var/app/{self.app_id}/data")
+                    .replace("@GAMECORE_PATH@", str(GAMECORE_ROOT))
+                    .replace("@HOME@", str(home)))
+
     def launcher(self, *, prefer_existing: bool = False, root: Path | None = None
                  ) -> tuple[str, str]:
         """(path, args). `prefer_existing` resolves `preferIfPresent`, which is
