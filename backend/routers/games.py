@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from .. import ws
 from ..config import resolve_path
 from ..services import (
+    bios,
     controller_profiles,
     controller_registry,
     fullscreen_enforcer,
@@ -173,6 +174,25 @@ async def launch_game(req: LaunchRequest):
     exec_path = system.get("path", "")
     exec_args = system.get("args", "")
     game_key = req.game_key or (Path(req.rom_path).name if req.rom_path else system["id"])
+
+    # Before the emulator, not after. Without a required BIOS, PCSX2 starts and
+    # sits on a black screen: the player sees a game that launched and did
+    # nothing, which is indistinguishable from a broken dump, a broken pad or a
+    # broken box. Refusing here costs the same second and names the file.
+    #
+    # Only ABSENT stops a launch — never a hash. An owner running a dump this
+    # catalogue does not record has a working emulator, and blocking them would
+    # be GameCore inventing a fault. `bios.launch_blocker` never raises: a
+    # check that cannot run is a game that starts.
+    if blocker := bios.launch_blocker(req.system_id):
+        log.warning("launch refused — %s", blocker)
+        try:
+            await ws.broadcast("game:failed", {
+                "game_key": game_key, "system_id": req.system_id, "detail": blocker,
+            })
+        except Exception:
+            log.exception("launch: failed to broadcast game:failed")
+        raise HTTPException(424, blocker)
 
     # Before launch, not after: the emulator reads its input config at startup,
     # so a slot freed a moment later is a slot the running game still sees.

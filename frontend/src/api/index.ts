@@ -160,6 +160,12 @@ export interface SysInfo {
   storage_free_gb: number
   version: string
   controllers: { level: number; name?: string; label?: string; player?: number | null; charging?: boolean }[]
+  /**
+   * The BIOS check, small enough to ride along on a support report. `ok` is
+   * null when the check itself could not run — not the same as "fine".
+   * `api.bios.list()` is where the per-file detail lives.
+   */
+  bios: { ok: boolean | null; systems: Record<string, 'ok' | 'absent' | 'mismatch'> }
 }
 
 async function get<T>(path: string): Promise<T> {

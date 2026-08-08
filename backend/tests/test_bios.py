@@ -41,11 +41,11 @@ def _pack(bios_block: dict, pid: str = "testpack") -> Pack:
         path=Path("/nonexistent"), origin="shipped")
 
 
-def _one_required(md5: str | None = GOOD_MD5) -> Pack:
+def _one_required(md5: str | None = GOOD_MD5, directory: str = "@HOME@/sys") -> Pack:
     spec = {"file": "boot.bin", "required": True, "note": "the boot rom"}
     if md5:
         spec["md5"] = md5
-    return _pack({"dir": "@HOME@/sys", "files": [spec]})
+    return _pack({"dir": directory, "files": [spec]})
 
 
 def _row(pack: Pack, home: Path) -> dict:
@@ -280,6 +280,131 @@ def test_hashing_can_be_skipped_entirely(tmp_path, monkeypatch):
 
     assert bios.missing_required("testpack", tmp_path,
                                  packs={"testpack": _one_required()}) == []
+
+
+def test_the_summary_sees_a_corrupt_file(tmp_path):
+    """The diagnostic hashes where the launch gate does not.
+
+    A support report that says "everything is fine" about a box whose boot ROM
+    is a truncated download is the answer that sends the ticket round again.
+    Affordable because the md5 cache makes the second read a dict lookup.
+    """
+    (tmp_path / "sys").mkdir()
+    (tmp_path / "sys" / "boot.bin").write_bytes(b"truncated download")
+    packs = {"testpack": _one_required()}
+
+    assert bios.summary(tmp_path, packs=packs) == {
+        "ok": False, "systems": {"testpack": bios.MISMATCH}}
+
+
+def test_the_summary_says_null_rather_than_fine_when_it_cannot_run(monkeypatch):
+    """`ok: false` and "the check broke" are not the same report."""
+    def boom(*_a, **_k):
+        raise OSError("no catalogue")
+
+    monkeypatch.setattr(bios, "report", boom)
+    assert bios.summary()["ok"] is None
+
+
+# ── the sentence the player reads instead of a black screen ────────────────
+
+def test_the_refusal_names_the_file_and_the_destination(tmp_path):
+    (tmp_path / "sys").mkdir()
+    message = bios.launch_blocker("testpack", tmp_path,
+                                  packs={"testpack": _one_required()})
+
+    assert "boot.bin" in message
+    assert str(tmp_path / "sys" / "boot.bin") in message
+
+
+def test_the_refusal_for_a_scanned_directory_names_the_directory(tmp_path):
+    """No filename can be named here, so the directory has to be."""
+    (tmp_path / "sys").mkdir()
+    pack = _pack({"dir": "@HOME@/sys", "anyFile": {
+        "required": True, "note": "any image the emulator recognises"}})
+
+    message = bios.launch_blocker("testpack", tmp_path, packs={"testpack": pack})
+    assert str(tmp_path / "sys") in message
+
+
+@pytest.mark.parametrize("content", [GOOD, b"a dump nobody wrote down"])
+def test_a_present_file_never_refuses_a_launch(tmp_path, content):
+    """Right hash or wrong, the file is there and the emulator will read it."""
+    (tmp_path / "sys").mkdir()
+    (tmp_path / "sys" / "boot.bin").write_bytes(content)
+    assert bios.launch_blocker("testpack", tmp_path,
+                               packs={"testpack": _one_required()}) == ""
+
+
+# ── the gate, through the endpoint a player actually hits ──────────────────
+
+_GHOST = {"id": "testpack", "label": "Test System", "kind": "emulator",
+          "path": "/usr/bin/definitely-not-installed", "args": "", "romsPath": ""}
+
+
+@pytest.fixture
+def launcher(monkeypatch):
+    """A client whose emulator cannot start, so nothing is ever launched.
+
+    The BIOS gate runs before the exec step, so a launcher that always fails at
+    exec still exercises it in full — and 503 from that step is how a test says
+    "the gate let this through".
+    """
+    from fastapi.testclient import TestClient
+
+    from backend import main
+    from backend.routers import games as games_router
+
+    monkeypatch.setattr(games_router, "list_all", lambda: [_GHOST])
+    with TestClient(main.app) as client:
+        yield client
+
+
+def _with_pack(monkeypatch, pack):
+    monkeypatch.setattr(bios, "load_catalog", lambda *a, **k: {"testpack": pack})
+
+
+def test_launching_without_a_required_bios_names_the_file(launcher, monkeypatch,
+                                                          tmp_path):
+    """The whole point of the gate.
+
+    Started anyway, the emulator sits on a black screen: a game that launched
+    and did nothing, indistinguishable from a broken dump, a broken pad or a
+    broken box. Refused here it costs the same second and says which file.
+    """
+    _with_pack(monkeypatch, _one_required(directory=str(tmp_path)))
+    r = launcher.post("/api/games/launch", json={"system_id": "testpack"})
+
+    assert r.status_code == 424, r.text
+    assert "boot.bin" in r.json()["detail"]
+    assert str(tmp_path / "boot.bin") in r.json()["detail"]
+
+
+def test_a_box_that_has_the_file_still_launches(launcher, monkeypatch, tmp_path):
+    """The gate must not become a second way for a working box to fail.
+
+    503 is the exec step refusing a binary that is not there, which is exactly
+    where this launch went before the gate existed.
+    """
+    (tmp_path / "boot.bin").write_bytes(GOOD)
+    _with_pack(monkeypatch, _one_required(directory=str(tmp_path)))
+
+    r = launcher.post("/api/games/launch", json={"system_id": "testpack"})
+    assert r.status_code == 503, r.text
+
+
+def test_a_check_that_explodes_does_not_stop_the_launch(launcher, monkeypatch):
+    """Same guarantee `_free_stale_slots` documents, for the same reason.
+
+    A BIOS check that cannot run must cost a game that starts, never a game
+    that does not. Reaching 503 means the gate got out of the way.
+    """
+    def boom(*_a, **_k):
+        raise OSError("the flatpak config directory went away")
+
+    monkeypatch.setattr(bios, "load_catalog", boom)
+    r = launcher.post("/api/games/launch", json={"system_id": "testpack"})
+    assert r.status_code == 503, r.text
 
 
 # ── the shipped catalogue ──────────────────────────────────────────────────

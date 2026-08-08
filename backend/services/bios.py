@@ -170,6 +170,27 @@ def report(home: Path | None = None, *, packs: dict | None = None,
     return out
 
 
+def summary(home: Path | None = None, *, packs: dict | None = None) -> dict:
+    """One glance, for a diagnostic dump: which systems, and what state.
+
+    Hashes, unlike the launch gate. A diagnostic that cannot see a corrupt file
+    is the wrong diagnostic — "everything is fine" is the answer that sent the
+    ticket round again. It is affordable because `_md5` caches on identity and
+    mtime, so the second reader of the same unchanged file pays a dict lookup.
+
+    Never raises. This rides on `/api/sysinfo`, which the top bar polls the
+    whole time the box is on: a home screen that cannot draw its own header
+    looks like a box that did not boot.
+    """
+    try:
+        rows = report(home, packs=packs)
+        return {"ok": all(r["status"] == OK for r in rows),
+                "systems": {r["id"]: r["status"] for r in rows}}
+    except Exception:
+        log.exception("bios: summary failed")
+        return {"ok": None, "systems": {}}
+
+
 def missing_required(system_id: str, home: Path | None = None, *,
                      packs: dict | None = None) -> list[dict]:
     """The required files this system has not got. Empty means launch.
@@ -196,3 +217,34 @@ def missing_required(system_id: str, home: Path | None = None, *,
     except Exception:
         log.exception("bios: check for %r failed — launching anyway", system_id)
         return []
+
+
+def launch_blocker(system_id: str, home: Path | None = None, *,
+                   packs: dict | None = None) -> str:
+    """One sentence to show instead of starting the emulator, or "".
+
+    The sentence lives here rather than in the router because it is the whole
+    value of the check: a launch refused without naming the file is the black
+    screen again, with an extra step. Same philosophy as the generators' `Skip`
+    — say what did not happen and why, in words the player can act on.
+
+    Never raises, for the same reason `missing_required` does not: a check that
+    cannot run must cost a game that starts, never a game that does not.
+    """
+    try:
+        missing = missing_required(system_id, home, packs=packs)
+        if not missing:
+            return ""
+        packs = load_catalog() if packs is None else packs
+        pack = packs.get(system_id)
+        label = pack.data["label"] if pack else system_id
+        parts = []
+        for f in missing:
+            if f.get("any_file"):
+                parts.append(f"a BIOS image is missing — copy one into {f['path']}")
+            else:
+                parts.append(f"{f['file']} is missing — copy it to {f['path']}")
+        return f"{label} cannot start: " + "; ".join(parts)
+    except Exception:
+        log.exception("bios: refusal message for %r failed", system_id)
+        return ""
