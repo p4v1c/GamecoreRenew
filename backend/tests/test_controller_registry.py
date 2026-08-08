@@ -67,6 +67,53 @@ def test_key_for_falls_back_to_the_devnode():
     assert reg.key_for("", "/dev/input/event7") == "/dev/input/event7", "key_for sans uniq → devnode"
 
 
+# ── un pad, plusieurs nœuds event* ───────────────────────────────────────────
+
+def test_a_bluetooth_pad_with_several_nodes_is_one_controller():
+    """Une DualShock 4 publie trois nœuds — pavé tactile, capteurs, manette —
+    et un seul porte les BOUTONS. Lequel n'est pas décidable par la position :
+    l'ordre de création dépend du noyau et change d'un démarrage à l'autre.
+
+    Le wizard de mappage lit TOUS les nœuds du pad, et c'est cette fonction qui
+    dit lesquels. Regrouper par nœud plutôt que par MAC donnerait un wizard où
+    la moitié des boutons ne répondent pas, par intermittence.
+    """
+    nodes = [
+        ("84:30:95:07:C8:1C", "/dev/input/event18"),   # capteurs de mouvement
+        ("84:30:95:07:c8:1c", "/dev/input/event19"),   # pavé tactile
+        ("84:30:95:07:c8:1c", "/dev/input/event20"),   # la manette
+        ("a4:53:85:11:22:33", "/dev/input/event21"),   # une SECONDE manette
+    ]
+
+    grouped = reg.nodes_by_key(nodes)
+
+    assert len(grouped) == 2, f"trois nœuds d'un même pad comptés séparément : {grouped}"
+    assert grouped["84:30:95:07:c8:1c"] == [
+        "/dev/input/event18", "/dev/input/event19", "/dev/input/event20"], \
+        "les trois nœuds du pad, dans l'ordre, sous sa MAC"
+    assert grouped["a4:53:85:11:22:33"] == ["/dev/input/event21"]
+
+
+def test_pads_without_a_mac_stay_separate():
+    """Le repli sur le devnode ne doit pas fusionner deux manettes filaires :
+    sans `uniq`, chaque nœud EST une identité, et les regrouper ferait
+    disparaître le deuxième joueur."""
+    grouped = reg.nodes_by_key([(None, "/dev/input/event3"), ("", "/dev/input/event4")])
+
+    assert grouped == {"/dev/input/event3": ["/dev/input/event3"],
+                       "/dev/input/event4": ["/dev/input/event4"]}
+
+
+def test_the_first_node_stays_the_one_pads_by_key_would_pick():
+    """`gamepad_monitor.pads_by_key()` prend le premier nœud rencontré. Les deux
+    fonctions doivent désigner le même, sinon le pad que le wizard mappe n'est
+    pas celui à qui le registre a donné un slot."""
+    nodes = [("84:30:95:07:c8:1c", "/dev/input/event18"),
+             ("84:30:95:07:c8:1c", "/dev/input/event20")]
+
+    assert reg.nodes_by_key(nodes)["84:30:95:07:c8:1c"][0] == "/dev/input/event18"
+
+
 # ── jointure batterie par MAC ────────────────────────────────────────────────
 
 def test_player_for_mac_joins_a_power_supply_name_to_its_slot():
@@ -104,6 +151,9 @@ if __name__ == "__main__":
         test_a_freed_slot_is_reused_before_a_new_one,
         test_disconnecting_an_unknown_key_is_a_noop,
         test_key_for_falls_back_to_the_devnode,
+        test_a_bluetooth_pad_with_several_nodes_is_one_controller,
+        test_pads_without_a_mac_stay_separate,
+        test_the_first_node_stays_the_one_pads_by_key_would_pick,
         test_player_for_mac_joins_a_power_supply_name_to_its_slot,
         test_snapshot_is_ordered_by_slot,
         test_battery_alert_carries_the_player_slot,
