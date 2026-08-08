@@ -41,6 +41,7 @@
       "section": "Pad",
       "key": "MultitapPort1",
       "value": "true",
+      "offValue": "false",
       "fromPlayer": 3
     }
   },

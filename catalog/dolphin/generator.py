@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Collection
 
-from backend.services.configgen.helpers.base import atomic_write, backup
+from backend.services.configgen.controllers import SDL3_TRUSTED
+from backend.services.configgen.helpers.base import Skip, atomic_write, backup
 from backend.services.configgen.helpers.ini import section, set_section
 
 log = logging.getLogger(__name__)
@@ -176,6 +178,15 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
     DualShock 4 until a pad connects and this function repairs it; the seed now
     names no device and check-catalog.py fails the build if one comes back.
     """
+    # Dolphin qualifies devices as SDL/<k>/<name> and looks that string up in
+    # its own ciface enumeration, so a guessed name is a device Dolphin has
+    # never heard of — GCPad silently unbound, Wiimote on a virtual pointer.
+    # Writing nothing keeps whatever the slot had; writing a guess does not.
+    if pad.name.source not in SDL3_TRUSTED:
+        return Skip(f"dolphin: no SDL3 name for {pad.vendor}:{pad.product} "
+                    f"({pad.evdev_name!r} is the kernel's name, not SDL3's) — "
+                    f"player {player_index} left as it was")
+
     i, device = player_index, f"SDL/{pad.dup_index}/{pad.name}"
     dolphin_dir = opts["config_dir"]
     msgs: list[str] = []
@@ -254,13 +265,26 @@ def _gc_release_others(text: str, i: int, device: str) -> str:
     return text
 
 
-def release(player_index: int, opts: dict) -> list[str]:
+def release(player_index: int, opts: dict,
+            occupied: Collection[int] = ()) -> list[str]:
     """Undo the "connected player" state a disconnected pad leaves behind.
 
-    Only Dolphin needs this. `Source = 1` keeps the emulated Wii Remote
-    presented to the game as connected even with no input device bound, so a
-    pad unplugged after co-op would haunt the next solo session as a phantom
-    player. Role/device bound emulators just go input-less when a pad leaves.
+    `Source = 1` keeps the emulated Wii Remote presented to the game as
+    connected even with no input device bound, so a pad unplugged after co-op
+    would haunt the next solo session as a phantom player.
+
+    **This function was correct and GCPad4 was dirty anyway.** With one pad
+    connected the reference box still had `GCPad4 = SDL/3/PS4 Controller`, and
+    the reason was not here: nothing ever CALLED it for slot 4. The monitor
+    released a slot only on a departure it had witnessed, and a pad unplugged
+    while the box was off raises no departure event — at startup `was` is
+    empty. So the one generator that had an inverse never got to run it. The
+    sweep in `_reconcile` is what fixes that, and it is why the other
+    generators needed one too rather than a fix here.
+
+    `occupied` is unused: nothing Dolphin stores is about the roster. It is in
+    the signature because the dispatcher has one signature, and the pack that
+    does need it (the multitap) proved a slot index alone is not enough.
 
     `Source = 0`, not "no Source line at all": Dolphin's compiled-in default
     for Wiimote1 is WiimoteSource::Emulated, so deleting the key alongside the

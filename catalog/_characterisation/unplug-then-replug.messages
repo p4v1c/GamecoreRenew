@@ -1,4 +1,4 @@
 apply(ds4, P1, dup0): dolphin: GCPad1 rebuilt from template, Wiimote1 set (SDL/0/PS4 Controller); melonds: 8 keys mapped (SDL live); rpcs3: Player 1 retargeted (PS4 Controller 1); ryujinx: Player 1 retargeted (dup 0, 00000003-054c-0000-cc09-000000006800)
 apply(ds4, P2, dup1): dolphin: GCPad2 rebuilt from GCPad1, Wiimote2 set (SDL/1/PS4 Controller); rpcs3: Player 2 retargeted (PS4 Controller 2); ryujinx: Player 2 retargeted (dup 1, 00000003-054c-0000-cc09-000000006800)
-release(2): dolphin: Wiimote2 released (inactive); dolphin: GCPad2 unbound
-apply(ds4, P2, dup1): dolphin: GCPad2 rebuilt from GCPad1, Wiimote2 set (SDL/1/PS4 Controller)
+release(2): ryujinx: Player 2 unbound; dolphin: Wiimote2 released (inactive); dolphin: GCPad2 unbound; rpcs3: Player 2 unbound
+apply(ds4, P2, dup1): dolphin: GCPad2 rebuilt from GCPad1, Wiimote2 set (SDL/1/PS4 Controller); rpcs3: Player 2 retargeted (PS4 Controller 2); ryujinx: Player 2 retargeted (dup 1, 00000003-054c-0000-cc09-000000006800)

@@ -54,6 +54,7 @@
       "section": "ControllerPorts",
       "key": "MultitapMode",
       "value": "Port1Only",
+      "offValue": "Disabled",
       "fromPlayer": 3
     }
   },

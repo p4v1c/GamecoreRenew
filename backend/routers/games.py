@@ -8,7 +8,12 @@ from pydantic import BaseModel
 
 from .. import ws
 from ..config import resolve_path
-from ..services import fullscreen_enforcer, local_media
+from ..services import (
+    controller_profiles,
+    controller_registry,
+    fullscreen_enforcer,
+    local_media,
+)
 from ..services import process_manager as process_manager_module
 from ..services.process_manager import process_manager
 from ..services.rom_scanner import clean_name, iter_rom_files
@@ -31,6 +36,66 @@ async def _gamepad_trigger(rounds: int = 3, delay: float = 3.0) -> None:
             log.info("gamepad_trigger: round %d/%d done", i + 1, rounds)
         except Exception:
             log.warning("gamepad_trigger: round %d failed", i + 1, exc_info=True)
+
+# A launch must never wait on config housekeeping. The work below is a few
+# small file reads and at most one rewrite per emulator, so it lands in
+# milliseconds — but a stalled NFS home or a flatpak directory that has gone
+# away must cost the player a slightly stale config, never a game that will not
+# start. Generous next to the real cost, tight next to a player's patience.
+RECONCILE_BUDGET = 0.2
+
+
+async def _free_stale_slots(system_id: str) -> None:
+    """Drop slots no pad holds, for the emulator about to start.
+
+    Launch is the one moment where the inventory is certainly complete and the
+    emulator is about to re-read its config, so it catches whatever the hotplug
+    events missed — a pad that died between two scans, a scan that failed, a
+    box that came up with `evdev` briefly unreadable.
+
+    Deliberately the RELEASE half only, and not a full re-profile:
+
+      · writing a profile means asking SDL for names and GUIDs, and those probes
+        carry an 8 s timeout apiece. That does not belong in front of a launch,
+        and the monitor already retries them on its own budget.
+      · reading the registry is a pure lookup with no SDL in it at all, so this
+        pass is file I/O and nothing else.
+
+    So this fixes a slot that names a pad which is NOT there. It does not create
+    one for a pad that is there and was never profiled — that stays the
+    monitor's job, on its three-second loop.
+
+    Scoped to the one pack being launched: rewriting Cemu because someone
+    started PCSX2 is a side effect nobody asked for.
+
+    Never raises. Every failure here is a config left as it was, which is a
+    playable game; an exception would be a game that does not start.
+    """
+    try:
+        occupied = {c["player"] for c in controller_registry.snapshot()}
+
+        def sweep() -> list[str]:
+            done: list[str] = []
+            for slot in range(1, controller_profiles.MAX_PLAYERS + 1):
+                if slot not in occupied:
+                    done += controller_profiles.release_profile(
+                        slot, occupied, pack_ids=(system_id,))
+            return done
+
+        freed = await asyncio.wait_for(asyncio.to_thread(sweep),
+                                       timeout=RECONCILE_BUDGET)
+        if freed:
+            log.info("launch: %s — freed stale slots: %s",
+                     system_id, "; ".join(freed))
+    except TimeoutError:
+        # Abandoned, not retried: the launch is what matters, and the monitor
+        # will come back to it within three seconds anyway.
+        log.warning("launch: %s — slot cleanup exceeded %.0f ms, launching "
+                    "with the config as it is", system_id, RECONCILE_BUDGET * 1000)
+    except Exception:
+        log.exception("launch: %s — slot cleanup failed, launching anyway",
+                      system_id)
+
 
 router = APIRouter(tags=["games"])
 
@@ -108,6 +173,10 @@ async def launch_game(req: LaunchRequest):
     exec_path = system.get("path", "")
     exec_args = system.get("args", "")
     game_key = req.game_key or (Path(req.rom_path).name if req.rom_path else system["id"])
+
+    # Before launch, not after: the emulator reads its input config at startup,
+    # so a slot freed a moment later is a slot the running game still sees.
+    await _free_stale_slots(req.system_id)
 
     try:
         await process_manager.launch(

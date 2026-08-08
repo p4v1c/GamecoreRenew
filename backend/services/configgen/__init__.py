@@ -20,11 +20,12 @@ from __future__ import annotations
 
 import importlib.util
 import logging
+from collections.abc import Collection
 from pathlib import Path
 
 from ..catalog import load_catalog
 from . import snapshots
-from .controllers import Pad, detect_pads, resolve_name
+from .controllers import SDL3_TRUSTED, Pad, detect_pads, display_name, resolve_name
 from .helpers.base import Skip
 
 log = logging.getLogger(__name__)
@@ -136,6 +137,12 @@ def profilable_packs(packs: dict) -> list:
 HOME = Path.home()
 SNAP_DIR = HOME / ".local/share/gamecore/controller-snapshots"
 
+# How many player slots this box profiles at all. The pack schema caps
+# `controllers.maxPlayers` at the same number, and apply_profile /
+# release_profile share this one name so the two halves of the pair can never
+# drift apart — the write side once knew a ceiling the un-write side did not.
+MAX_PLAYERS = 4
+
 
 class ProfileResult(list):
     """What a profiling pass wrote, plus whether any step gave up.
@@ -167,7 +174,7 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
     Called by gamepad_monitor on every new slot. Never raises — each emulator
     is isolated so one bad config does not block the others.
     """
-    if player_index < 1 or player_index > 4:
+    if player_index < 1 or player_index > MAX_PLAYERS:
         # The slot cap is deliberate, but a 5th pad used to get a player
         # number, a TV toast, and no config at all, without a word anywhere.
         # Not a Skip: a decision, not a failure, and retrying every three
@@ -230,17 +237,57 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
     return ProfileResult(results, skipped)
 
 
-def release_profile(player_index: int) -> list[str]:
-    """Undo the "connected player" state a disconnected pad leaves behind.
+def release_profile(player_index: int,
+                    occupied: Collection[int] = (),
+                    pack_ids: Collection[str] | None = None) -> list[str]:
+    """Un-write the slot a pad no longer holds — the inverse of apply_profile.
 
-    Only Dolphin needs it today — its emulated Wii Remote stays presented to
-    the game as connected. Role/device bound emulators just go input-less when
-    a pad leaves. Never raises.
+    This docstring used to say "only Dolphin needs it today; role/device bound
+    emulators just go input-less when a pad leaves". The reference box proved
+    that false. They do not go input-less: they keep NAMING an absent device.
+    With one DualShock 4 connected, RPCS3 still presented "Xbox One Wireless
+    Controller 3" as Player 4 and Ryujinx still held indexes 2 and 3. A PS3
+    game at four then sees four players, two of whom cannot move — which is not
+    the same thing as receiving no input.
+
+    `occupied` is the set of slots a pad still holds AFTER this release, and it
+    is not decoration. Some of what apply_profile writes belongs to the ROSTER
+    and not to a slot: the multitap PCSX2 and DuckStation need before slot 3
+    exists at all is the measured case. A release knowing only its own index
+    can never decide those — it cannot tell whether player 3 is still sitting
+    there. Empty means nobody is left, which is what the last pad leaving
+    looks like.
+
+    `pack_ids` narrows the pass to named packs. The hotplug path passes None
+    and sweeps everything, because a pad leaving concerns every emulator. The
+    launch path passes the one emulator about to start: rewriting Cemu's config
+    because someone launched PCSX2 is a side effect nobody asked for, and it is
+    also what would make the pass too slow to sit in front of a launch.
+
+    Never raises: an emulator whose config cannot be un-written must not stop
+    the others from being.
     """
-    if player_index < 1 or player_index > 4:
+    if player_index < 1 or player_index > MAX_PLAYERS:
+        # Its twin logs the same ceiling eight lines up, and the comment there
+        # says what the silence cost: "a 5th pad used to get a player number, a
+        # TV toast, and no config at all, without a word anywhere". The lesson
+        # had been applied to one half of the pair only. It matters here for a
+        # different reason: the day MAX_PLAYERS rises, a release that stays
+        # mute leaves the new slots permanently stale and says nothing.
+        log.warning("configgen: player %d is outside the 1-%d slots this box "
+                    "profiles — nothing released", player_index, MAX_PLAYERS)
         return []
     results: list[str] = []
     for pack in profilable_packs(load_catalog()):
+        if pack_ids is not None and pack.id not in pack_ids:
+            continue
+        ctl = pack.data.get("controllers") or {}
+        # Same guard apply_profile applies, for the same reason: a slot a pack
+        # never writes is a slot it has nothing to un-write, and calling into
+        # it would ask a single-player generator about a player it has no
+        # concept of.
+        if player_index > ctl.get("maxPlayers", MAX_PLAYERS):
+            continue
         module = load_generator(pack)
         if module is None or not hasattr(module, "release"):
             continue
@@ -248,11 +295,36 @@ def release_profile(player_index: int) -> list[str]:
         if opts is None:
             continue
         try:
-            results.extend(module.release(player_index, opts))
+            results.extend(module.release(player_index, opts, occupied))
         except Exception:
             log.exception("configgen: %s release failed for player %d",
                           pack.id, player_index)
     return results
+
+
+def _identification(vendor: str, product: str, evdev_name: str) -> dict:
+    """Whether we know what an SDL3 emulator will call this pad.
+
+    This is the give-up surfacing at the API, which is the point: a pad libSDL3
+    does not enumerate gets no RPCS3 and no Dolphin config at all, and until now
+    the only sign of that was a line in the EMULATOR's log. "Scan mapping" is
+    exactly the moment the owner is holding the pad and asking what we know
+    about it, so it is where the answer belongs.
+
+    `identified: false` is not a failure of the scan — the snapshot emulators
+    bind by GUID and work fine — so it rides alongside `ok`, not instead of it.
+    """
+    resolved = resolve_name(vendor, product, evdev_name)
+    if resolved.source in SDL3_TRUSTED:
+        return {"identified": True}
+    return {
+        "identified": False,
+        "detail": (f"libSDL3 does not enumerate {vendor}:{product} and it is "
+                   f"not in the known-pads table, so the name the SDL3-based "
+                   f"emulators expect is unknown. Their configs are left "
+                   f"untouched: writing the kernel's name instead gives a pad "
+                   f"that is dead in game with a config that looks correct."),
+    }
 
 
 def scan_mapping() -> dict:
@@ -288,8 +360,9 @@ def scan_mapping() -> dict:
             refused.append(pack.id)
         except Exception:
             log.exception("configgen: capture failed for %s", pack.id)
-    return {"ok": True, "controller": resolve_name(vendor, product, evdev),
-            "saved": saved, "refused": refused}
+    return {"ok": True, "controller": display_name(vendor, product, evdev),
+            "saved": saved, "refused": refused,
+            **_identification(vendor, product, evdev)}
 
 
 def forget_mapping() -> dict:
@@ -321,5 +394,6 @@ def forget_mapping() -> dict:
     if forgotten:
         log.info("configgen: forgot saved mapping for %s:%s — %s",
                  vendor, product, ", ".join(forgotten))
-    return {"ok": True, "controller": resolve_name(vendor, product, evdev),
-            "forgotten": forgotten}
+    return {"ok": True, "controller": display_name(vendor, product, evdev),
+            "forgotten": forgotten,
+            **_identification(vendor, product, evdev)}

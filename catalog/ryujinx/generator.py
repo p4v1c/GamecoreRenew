@@ -17,6 +17,7 @@ The accompanying index counts **per GUID**, not per player
 from __future__ import annotations
 
 import json
+from collections.abc import Collection
 
 from backend.services.configgen.helpers.base import Skip, atomic_write, backup
 
@@ -130,3 +131,61 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
     backup(cfg_path)
     atomic_write(cfg_path, json.dumps(cfg, indent=2) + "\n")
     return f"ryujinx: Player {i} {action} (dup {dup}, {new_guid}){freed}"
+
+
+def release(player_index: int, opts: dict,
+            occupied: Collection[int] = ()) -> list[str]:
+    """Unbind the gamepad slot no pad holds, without destroying the template.
+
+    generate() already says why a stale entry is not inert — two slots carrying
+    one id both resolve to the one physical pad, and the game sees a phantom
+    alongside the player. On the reference box Players 3 and 4 kept indexes 2
+    and 3, which Input Settings presents as configured players.
+
+    **The id is blanked, not the entry removed, and that is not a detail.**
+    Removing looked right — the generator's own comment observes that an absent
+    `player_index` is what Ryujinx reads as "not configured" — but it is a trap
+    door. generate() builds a missing slot by CLONING the first GamepadSDL2
+    entry it finds, so once the last one is gone there is no template left:
+    `model is None`, `Skip("no gamepad slot to clone from")`, and Ryujinx can
+    never be configured again by any number of reconnections.
+
+    Measured, on this developer's own box and not in theory: a run left
+    `input_config` an empty list, and no pad could take a slot afterwards.
+
+    An empty id is what the SEED ships for an unused slot, so this is the
+    byte-exact inverse of what generate() wrote — the same choice RPCS3's
+    release makes with `Device: ""`. Ryujinx resolves it through
+    `_gamepadsIds.IndexOf("")`, gets -1 and disposes the slot, which is exactly
+    "no player here". That silent disposal is a FAILURE when the id was meant
+    to name a pad; it is the intended outcome when the slot is meant to be
+    empty. And the owner's per-slot tuning — deadzones, motion, rumble — stays
+    where it is instead of being thrown away and re-cloned from someone else's.
+
+    Only `GamepadSDL2` entries. A slot the owner set up for a keyboard is
+    theirs, was never written by us, and is not ours to touch.
+
+    `occupied` is unused: Ryujinx stores nothing about the roster.
+    """
+    cfg_path = opts["target"]
+    if not cfg_path.is_file():
+        return []
+    try:
+        cfg = json.loads(cfg_path.read_text())
+    except (OSError, ValueError):
+        return []
+    ic = cfg.get("input_config")
+    if not isinstance(ic, list):
+        return []
+
+    pi = f"Player{player_index}"
+    freed = [e for e in ic
+             if e.get("player_index") == pi and e.get("backend") == "GamepadSDL2"
+             and (e.get("id") or e.get("name"))]
+    if not freed:
+        return []
+    for e in freed:
+        e["id"], e["name"] = "", ""
+    backup(cfg_path)
+    atomic_write(cfg_path, json.dumps(cfg, indent=2) + "\n")
+    return [f"ryujinx: Player {player_index} unbound"]

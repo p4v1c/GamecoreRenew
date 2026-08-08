@@ -145,8 +145,13 @@ def _make_roster(monkeypatch):
     }.get(f"{v}:{p}", n))
     monkeypatch.setattr(cp, "apply_profile",
                         lambda pl, v, p, n, d: calls.append(("apply", pl, v, d)) or ["ok"])
+    # The occupied roster is recorded, not just the slot: it is the argument
+    # that lets a release decide anything the roster owns rather than the slot
+    # (the PS1/PS2 multitap), and a stub that swallowed it would let the
+    # monitor stop passing it without a single test noticing.
     monkeypatch.setattr(cp, "release_profile",
-                        lambda pl: calls.append(("release", pl)) or ["released"])
+                        lambda pl, occ=(): calls.append(
+                            ("release", pl, tuple(sorted(occ)))) or ["released"])
 
     state: dict = {"live": {}, "applied": {}}
 
@@ -159,6 +164,20 @@ def _make_roster(monkeypatch):
         return list(calls)
 
     return scan
+
+
+def _applies(calls):
+    return [c for c in calls if c[0] == "apply"]
+
+
+def _releases(calls):
+    """{slot: the roster that was still occupied when it was freed}.
+
+    Every scan now sweeps every slot no pad holds, so the interesting question
+    stopped being "was a release emitted" and became "which slots, and what was
+    it told about the rest".
+    """
+    return {c[1]: c[2] for c in calls if c[0] == "release"}
 
 
 @pytest.fixture
@@ -175,7 +194,11 @@ def test_a_pad_with_several_nodes_takes_one_slot(roster):
            **_node("/dev/input/event21", "84:30:95:07:c8:1c", name="Touchpad"),
            **_node("/dev/input/event22", "84:30:95:07:c8:1c", name="Motion Sensors")}
 
-    assert roster(pad) == [("apply", 1, "054c", 0)]
+    calls = roster(pad)
+    assert _applies(calls) == [("apply", 1, "054c", 0)]
+    # The three slots nobody holds are swept on the same pass — that is what
+    # closes the reboot hole, and it must happen even when nothing left.
+    assert _releases(calls) == {2: (1,), 3: (1,), 4: (1,)}
     assert reg.snapshot() == [{"player": 1, "label": "Wireless Controller"}]
 
 
@@ -191,7 +214,11 @@ def test_a_pad_keeps_its_slot_while_another_node_is_alive(roster):
 def test_the_slot_is_released_once_the_last_node_goes(roster):
     roster(_node("/dev/input/event20", "84:30:95:07:c8:1c"))
 
-    assert roster({}) == [("release", 1)]
+    calls = roster({})
+    assert _applies(calls) == []
+    # Nobody is left, so every slot is freed and every one of them is told the
+    # roster is empty. That last part is what turns the multitap back off.
+    assert _releases(calls) == {1: (), 2: (), 3: (), 4: ()}
     assert reg.snapshot() == []
 
 
@@ -200,7 +227,9 @@ def test_unplugging_one_pad_does_not_touch_another(roster):
     p2 = _node("/dev/input/event21", "aa:bb:cc:dd:ee:ff", "045e", "02fd", "Xbox Wireless")
     roster({**p1, **p2})
 
-    assert roster(p1) == [("release", 2)]
+    calls = roster(p1)
+    assert _releases(calls) == {2: (1,), 3: (1,), 4: (1,)}
+    assert 1 not in _releases(calls), "the surviving pad's slot must not be freed"
     assert reg.snapshot() == [{"player": 1, "label": "Wireless Controller"}]
 
 
@@ -222,9 +251,14 @@ def test_the_survivor_of_two_identical_pads_is_re_profiled(roster):
     a = _node("/dev/input/event20", "84:30:95:07:c8:1c")
     b = _node("/dev/input/event21", "aa:bb:cc:dd:ee:ff")
 
-    assert roster(a) == [("apply", 1, "054c", 0)]
-    assert roster({**a, **b}) == [("apply", 2, "054c", 1)]
-    assert roster(b) == [("release", 1), ("apply", 1, "054c", 0)]
+    assert _applies(roster(a)) == [("apply", 1, "054c", 0)]
+    assert _applies(roster({**a, **b})) == [("apply", 2, "054c", 1)]
+    calls = roster(b)
+    assert _applies(calls) == [("apply", 1, "054c", 0)]
+    # Slot 2 is freed because the survivor compacted into slot 1, not because
+    # its own pad left — the sweep reads the roster, so it gets that right
+    # where hanging the release off the departure event did not.
+    assert _releases(calls) == {2: (1,), 3: (1,), 4: (1,)}
 
 
 def test_an_unchanged_roster_writes_nothing(roster):
@@ -248,7 +282,7 @@ def test_a_pad_whose_ids_are_still_zero_takes_no_slot(roster):
     assert reg.snapshot() == []
 
     real = {"/dev/input/event9": ("8BitDo Pro 2", "", True, "2dc8", "6003", 0x05)}
-    assert roster(real) == [("apply", 1, "2dc8", 0)]
+    assert _applies(roster(real)) == [("apply", 1, "2dc8", 0)]
 
 
 def test_dup_counts_by_resolved_name_not_by_vendor_product():
@@ -466,8 +500,9 @@ def test_moving_a_pad_from_bluetooth_to_usb_re_profiles_it(roster):
     bt  = _node("/dev/input/event20", "84:30:95:07:c8:1c", bustype=0x05)
     usb = _node("/dev/input/event20", "84:30:95:07:c8:1c", bustype=0x03)
 
-    assert roster(bt) == [("apply", 1, "054c", 0)]
-    assert roster(usb) == [("apply", 1, "054c", 0)], "a cable is a different device to SDL"
+    assert _applies(roster(bt)) == [("apply", 1, "054c", 0)]
+    assert _applies(roster(usb)) == [("apply", 1, "054c", 0)], \
+        "a cable is a different device to SDL"
 
 
 def test_the_last_pad_left_becomes_player_one(roster):

@@ -1,0 +1,2 @@
+apply(unknown, P1, dup0): melonds: 8 keys mapped (SDL live)
+    skipped: dolphin: no SDL3 name for 1d79:0f0f ('Generic USB Gamepad' is the kernel's name, not SDL3's) — player 1 left as it was; rpcs3: no SDL3 name for 1d79:0f0f ('Generic USB Gamepad' is the kernel's name, not SDL3's) — Player 1 left as it was; ryujinx: SDL2 would not report a GUID for 1d79:0f0f — Player 1 left as it was

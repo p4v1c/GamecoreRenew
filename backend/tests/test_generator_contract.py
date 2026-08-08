@@ -101,6 +101,37 @@ def test_snapshot_helpers_take_the_arity_restore_uses(pack_id, strategy, _meta):
         f"{pack_id}.replace must take exactly (text, block)"
 
 
+def _packs_with_a_release():
+    """The packs that ship an inverse. Selected here rather than skipped inside
+    the test: a skip reads as "not checked" in the run summary, and this is a
+    pack having nothing to un-write, which is a fact about the pack."""
+    return [p for p in PACKS if hasattr(_load(p[0]), "release")]
+
+
+RELEASING = _packs_with_a_release()
+assert RELEASING, ("no generator exposes release() — release_profile would be "
+                   "a no-op and the stale slots are back")
+
+
+@pytest.mark.parametrize("pack_id,strategy,_meta", RELEASING,
+                         ids=[p[0] for p in RELEASING])
+def test_release_takes_the_arity_the_dispatcher_calls(pack_id, strategy, _meta):
+    """A pack that ships a `release()` must take (player_index, opts, occupied).
+
+    `occupied` was added when the multitap proved a slot index cannot decide
+    everything a release has to decide: whether the PS1/PS2 tap is still needed
+    depends on the rest of the roster, not on the slot being freed. A generator
+    left on the old two-argument form raises TypeError inside release_profile's
+    try/except, which turns it into one log line and an un-freed slot — the
+    same shape as the melonDS bug this file exists for.
+    """
+    fn = _load(pack_id).release
+    params = list(inspect.signature(fn).parameters)
+    assert params[:3] == ["player_index", "opts", "occupied"], (
+        f"catalog/{pack_id}/generator.py: release{inspect.signature(fn)} — "
+        f"release_profile calls release(player_index, opts, occupied)")
+
+
 @pytest.mark.parametrize("pack_id,strategy,meta",
                          [p for p in PACKS if p[1].startswith("snapshot")],
                          ids=[p[0] for p in PACKS if p[1].startswith("snapshot")])
