@@ -50,7 +50,28 @@ MUTATIONS: list[tuple[str, str, str, str]] = [
      '        if target.is_file() and target.read_bytes() == payload:\n            continue',
      '        if False:\n            continue'),
 
+    # ── passe 6 : chemins et frontières ────────────────────────────────────
+    ("config-dir-natif-toujours-prioritaire",
+     "backend/services/configgen/__init__.py",
+     '        if not (home / ".var/app" / app_id).is_dir() and native_dir.is_dir():',
+     '        if native_dir.is_dir():'),
+
+    ("snap-path-sans-normalisation",
+     "backend/services/configgen/snapshots.py",
+     'return snap_dir / emu_id / f"{vendor.lower()}_{product.lower()}.snap"',
+     'return snap_dir / emu_id / f"{vendor}_{product}.snap"'),
+
     # ── témoins : la suite les attrape, donc le harnais fonctionne ─────────
+    ("theme-id-non-valide",
+     "backend/services/themes.py",
+     'return theme_id if _ID_RE.match(theme_id or "") else None',
+     'return theme_id or None'),
+
+    ("grid-non-borne",
+     "backend/services/themes.py",
+     "_GRID_MAX = 16",
+     "_GRID_MAX = 100000"),
+
     ("multitap-jamais-ecrit",
      "backend/services/configgen/helpers/tier0.py",
      'if multitap and player_index >= multitap["fromPlayer"]:',

@@ -527,3 +527,118 @@ Correctif suggéré : pour `atomic_write`, un test qui observe qu'aucun lecteur
             les quatre lignes du tableau de son docstring sont déjà quatre cas
             de test écrits d'avance.
 Confiance : haute
+
+---
+
+# Passe 6 — Chemins et frontières
+
+**Le harnais de test n'écrit pas hors de ses répertoires temporaires.** C'est la
+question la plus importante de cette famille — le seul chemin par lequel un
+`pytest` pourrait toucher les vraies configs de la boîte — et la réponse est
+non, mesurée deux fois :
+
+```
+$ HOME=<sentinelle vide> XDG_CACHE_HOME=… XDG_CONFIG_HOME=… \
+      pytest backend/tests catalog -q -m "not network"
+584 passed, 5 skipped, 4 deselected
+$ find <sentinelle> -mindepth 1 | wc -l
+0
+
+$ # liste des fichiers du checkout avant / après une exécution complète
+$ diff before.txt after.txt && echo AUCUNE
+AUCUNE
+```
+
+`backend/tests/conftest.py` y est pour beaucoup : il pointe `GAMECORE_PATH` sur
+un `tempfile.mkdtemp()` **avant** tout import, et neutralise aussi les
+identifiants ScreenScraper pour que la suite ne se comporte pas différemment sur
+la machine d'un développeur. C'est fait correctement et documenté.
+
+Examinés et **écartés** :
+
+- `backend/config.py:15` — `GAMECORE_ROOT` retombe sur l'emplacement du CODE
+  quand `GAMECORE_PATH` est absent. C'est un chemin construit relativement au
+  code, mais délibérément : en production le checkout **est** la racine de
+  données (`/opt/GameCore`). Cohérent, pas un défaut.
+- `resolve_path()` rend les chemins absolus tels quels — un `romsPath` sur un
+  autre disque est un cas d'usage, pas une évasion.
+- `snap_path()` normalise la casse du vendor:product sans test, mais les deux
+  appelants formatent déjà en minuscules (`f"{info.vendor:04x}"`). Défense en
+  profondeur non testée, sans chemin d'atteinte : pas inscrit.
+
+### F-013 — la règle qui choisit l'arbre de config n'est vérifiée par rien
+Famille   : chemins et frontières
+Sévérité  : moyenne
+Preuve    : `python3 AUDIT/repro/mutations.py config-dir-natif-toujours-prioritaire`
+            → **584 passed** (la mutation inverse la règle et rien ne bronche)
+Fichier   : `backend/services/configgen/__init__.py:87`
+Effet     : `resolve_config_dir()` décide **où toutes les configs de manette
+            sont écrites**. Sa règle est subtile et son docstring dit pourquoi :
+
+                « The tree that EXISTS wins, native first: a native tree kept as
+                  a post-migration backup must not shadow a live flatpak, and a
+                  curated config written next to an uninstalled flatpak is never
+                  read by anything. »
+
+            Remplacer la condition par le seul `native_dir.is_dir()` — c'est-à-
+            dire faire gagner le natif même quand le flatpak est vivant, la
+            moitié de la règle que le docstring dit avoir apprise — laisse la
+            suite entière verte.
+
+            Le symptôme, si la règle se casse, est celui qui envoie chercher
+            ailleurs : `apply_profile` réussit, écrit ses fichiers, retourne ses
+            messages, la boîte affiche son toast « manette configurée » — et
+            l'émulateur lit un autre répertoire. Une manette morte, sans aucune
+            erreur nulle part. C'est la classe de panne que ce dépôt appelle
+            « gopher64 » et que `check-catalog.py` empêche côté catalogue ; côté
+            résolution, rien.
+
+            Deux packs déclarent un `nativeDest` (mgba, melonds) : la règle n'est
+            donc pas théorique, elle s'applique à des packs livrés.
+Correctif suggéré : trois tests, un par ligne du docstring — flatpak seul,
+            natif seul, les deux présents. Ils tiennent en quelques `mkdir` dans
+            `tmp_path` et n'ont besoin d'aucun émulateur.
+Confiance : haute sur l'absence de garde (mutation reproductible). Le défaut
+            lui-même n'est PAS présent sur `main` : la règle est correctement
+            écrite aujourd'hui, c'est sa protection qui manque.
+
+---
+
+# Classement final — les trois à traiter en premier
+
+Critère : ce que ça coûte à quelqu'un assis sur son canapé, aujourd'hui, sur une
+boîte livrée — pas l'élégance du correctif.
+
+### 1. F-006 — les deux seeds qui épinglent une DualShock 4
+**Pourquoi d'abord :** c'est le seul constat qui frappe **toute boîte neuve dont
+le propriétaire n'a pas de DualShock 4**, sans action de sa part et sans
+réparation automatique possible. azahar et mgba étant en `snapshot-restore`,
+aucun code ne reconstruit le slot : la manette est simplement morte dans ces
+deux émulateurs jusqu'à un mappage manuel. Et le correctif est le moins risqué
+de la liste — nettoyer deux fichiers de seed, plus une garde non déclarative
+dans `check-catalog.py` qui empêche la récidive pour tous les packs à la fois.
+Diagnostic quasi impossible depuis le canapé, correctif quasi sans risque : le
+meilleur rapport de la liste.
+
+### 2. F-002 — `restore()` sans la garde que `capture()` a
+**Pourquoi ensuite :** c'est le seul constat qui **détruit du travail
+utilisateur**. Le propriétaire remappe sa manette à la main dans l'émulateur ; à
+la connexion suivante, un snapshot empoisonné écrase son mapping. Et il n'a
+aucun moyen de s'en sortir : aucune route n'efface un snapshot. Le docstring de
+`snapshots.py` atteste qu'un tel snapshot **existe déjà** sur la boîte de
+référence. Le correctif est petit — appeler `block_disagrees()` dans `restore()`
+— mais il laisse la question de l'issue de secours, d'où la deuxième place et
+non la première.
+
+### 3. F-004 — evdev inaccessible, aucune trace
+**Pourquoi en troisième :** la panne est plus rare que les deux précédentes,
+mais quand elle arrive elle est **totale** (plus une seule manette, menu
+compris) et **muette**. Le journal est le seul outil de diagnostic à distance
+sur une boîte de salon, et il ne dit rien. Le correctif est trivial — compter
+les refus, logger une fois — et il transforme « ma boîte ne répond plus » en
+une ligne qui nomme la cause. Coût quasi nul, valeur de diagnostic élevée.
+
+**Pourquoi pas F-010 malgré sa sévérité haute :** l'absence de test sur la
+réparation RPCS3 est le constat le plus inquiétant pour l'AVENIR du code, mais
+il ne casse rien aujourd'hui — la branche est correcte, elle n'est pas gardée.
+Il vient juste après ces trois-là, et avant tous les autres.
