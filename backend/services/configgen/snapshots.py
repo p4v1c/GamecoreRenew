@@ -41,6 +41,26 @@ log = logging.getLogger(__name__)
 # underscore, which is a word character, so Cemu's `0_0500…` would be missed.
 _ANY_GUID_RE = re.compile(r"(?<![0-9a-fA-F])([0-9a-fA-F]{32})(?![0-9a-fA-F])")
 
+# azahar escapes `:` as `$0` and `,` as `$1` INSIDE a compound binding, so the
+# GUID of a stick direction reads `guid$00500…` — and the `0` of that escape is
+# a hex digit, which defeats the lookbehind above and hid every stick binding
+# from this module. Measured: a snapshot whose circle_pad had `left` on the Xbox
+# and `right`/`up`/`down` still on the DualShock 4 was declared coherent and
+# restored, and the stick only answered to the left.
+#
+# Substituted with the SAME number of characters so callers can still report a
+# byte offset (check-catalog.py prints a line number from one).
+_COMPOUND_ESCAPE = re.compile(r"\$[01]")
+
+
+def guid_scannable(text: str) -> str:
+    """`text` with compound-binding escapes neutralised, length unchanged.
+
+    Scan this rather than the raw text: a GUID is a GUID whether the emulator
+    wrote it after a `:` or after its own escape for one.
+    """
+    return _COMPOUND_ESCAPE.sub("  ", text)
+
 
 def snap_path(snap_dir: Path, emu_id: str, vendor: str, product: str) -> Path:
     return snap_dir / emu_id / f"{vendor.lower()}_{product.lower()}.snap"
@@ -63,7 +83,7 @@ def block_disagrees(block: str, vendor: str, product: str) -> str | None:
     hand, the next connection overwrites their work with the DS4's config.
     """
     want = (vendor.lower(), product.lower())
-    for guid in _ANY_GUID_RE.findall(block):
+    for guid in _ANY_GUID_RE.findall(guid_scannable(block)):
         if vidpid_of(guid) != want:
             return guid
 

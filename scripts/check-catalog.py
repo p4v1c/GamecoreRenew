@@ -33,16 +33,15 @@ from backend.services.catalog.schema import load_schema, validate  # noqa: E402
 from backend.services.configgen.controllers import (                # noqa: E402
     SDL3_FALLBACK_NAMES, db_name_for, vidpid_of,
 )
+from backend.services.configgen.snapshots import (                  # noqa: E402
+    _ANY_GUID_RE as ANY_GUID_RE, guid_scannable,
+)
 
 CATALOG = ROOT / "catalog"
 SCHEMA = CATALOG / "_schema" / "pack.schema.json"
 
 # Absolute paths that only make sense on the box a config was harvested from.
 HARVEST_PATHS = (re.compile(r"/home/[a-z][a-z0-9_-]*/"),)
-
-# An SDL GUID is 32 hex characters wherever it appears. No `\b`: it would not
-# fire after a `_`, and that is exactly how Cemu writes its own (`0_0500…`).
-ANY_GUID_RE = re.compile(r"(?<![0-9a-fA-F])([0-9a-fA-F]{32})(?![0-9a-fA-F])")
 
 _pad_name_memo: dict[tuple[str, str], str | None] = {}
 
@@ -151,7 +150,10 @@ def check(only: str | None = None) -> list[str]:
                 except (OSError, UnicodeDecodeError):
                     continue
                 rel = f.relative_to(d)
-                for m in ANY_GUID_RE.finditer(text):
+                # Scanned through the same normalisation the runtime guard uses,
+                # or a GUID inside an azahar stick binding stays invisible here
+                # too — 2 of this seed's 17 were.
+                for m in ANY_GUID_RE.finditer(guid_scannable(text)):
                     name = named_pad(m.group(1))
                     if not name:
                         continue

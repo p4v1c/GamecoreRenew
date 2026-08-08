@@ -107,6 +107,32 @@ def sdl_names(monkeypatch):
                         lambda v, p: _NAMES.get((v, p)))
 
 
+def test_a_guid_inside_a_compound_binding_is_seen(sdl_names):
+    """azahar escapes `:` as `$0` inside a compound binding, so a stick's GUID
+    reads `guid$00300…` — and the `0` of that escape is a hex digit, which made
+    the lookbehind refuse the match. Every stick binding was invisible to this
+    check, in capture() as well as restore().
+
+    Measured on the reference box: 045e_02fd.snap (the Xbox's) had circle_pad
+    `left` on the Xbox and `right`/`up`/`down` still on the DualShock 4. It was
+    declared coherent, saved, restored — and the stick only answered to the
+    left. capture()'s blindness is how such a file got written at all.
+    """
+    ds4 = "03008fe54c050000cc09000000006800"
+    block = ("profiles\\1\\circle_pad=\"left:axis$00$1direction$0-$1engine$0sdl"
+             f"$1guid$0{ds4}$1port$00$1threshold$0-0.5\"\n")
+
+    assert snapshots.block_disagrees(block, *XBOX) == ds4
+
+
+def test_neutralising_the_escapes_does_not_move_offsets():
+    """check-catalog.py turns a match offset into a line number, so the
+    substitution must not change the text's length."""
+    raw = 'a$0b$1c\nd\n'
+    assert len(snapshots.guid_scannable(raw)) == len(raw)
+    assert snapshots.guid_scannable(raw).count("\n") == raw.count("\n")
+
+
 def test_an_unassigned_slot_is_not_a_disagreement(sdl_names):
     """Rosalie's Mupen GUI writes `DeviceName = "None"` with `PluggedIn = False`
     for every slot nobody assigned — three of its four profiles on a one-pad
