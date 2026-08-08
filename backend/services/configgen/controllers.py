@@ -93,8 +93,14 @@ def _sdl3_live_names() -> dict[tuple[str, str], str]:
     import ctypes
 
     os.environ.setdefault("SDL_NO_SIGNAL_HANDLERS", "1")
-    if DB_FILE.is_file():
-        os.environ.setdefault("SDL_GAMECONTROLLERCONFIG_FILE", str(DB_FILE))
+    # The SERVED database, not the vendored one: a pad the owner has just
+    # mapped by hand must be enumerated here exactly as the emulators will
+    # enumerate it, or the name we write into their configs comes from a
+    # different table than the one they read.
+    from . import mapping_db
+    db = mapping_db.served()
+    if db:
+        os.environ.setdefault("SDL_GAMECONTROLLERCONFIG_FILE", str(db))
     lib = ctypes.CDLL("libSDL3.so.0")
     lib.SDL_InitSubSystem.restype = ctypes.c_bool
     lib.SDL_InitSubSystem.argtypes = [ctypes.c_uint32]
