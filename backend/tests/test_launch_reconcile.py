@@ -123,8 +123,13 @@ def test_only_the_slots_nobody_holds_are_freed(launcher, monkeypatch):
     monkeypatch.setattr(games_router.controller_profiles, "release_profile",
                         lambda slot, occupied=(), pack_ids=None:
                         calls.append((slot, tuple(sorted(occupied)))) or [])
-    reg.connect("aa:bb:cc:dd:ee:01", "pad one")
-    reg.connect("aa:bb:cc:dd:ee:02", "pad two")
+    # The roster is stated, not built with reg.connect(): TestClient runs the
+    # app lifespan, which starts the gamepad monitor, which scans the REAL
+    # /dev/input — so a developer with a pad plugged in had a third slot taken
+    # under the test's feet and this assertion failed on their machine only.
+    monkeypatch.setattr(games_router.controller_registry, "snapshot",
+                        lambda: [{"player": 1, "label": "pad one"},
+                                 {"player": 2, "label": "pad two"}])
 
     _launch(launcher)
 

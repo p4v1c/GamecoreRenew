@@ -137,6 +137,37 @@ def test_the_multitap_goes_back_off_when_the_players_leave(box):
             f"[{tap['section']}] {tap['key']} is still {tap['value']!r}")
 
 
+def test_freeing_every_slot_leaves_a_pad_able_to_come_back(box):
+    """Releasing must never make the box unconfigurable.
+
+    Found the hard way, on a real machine: the first version of Ryujinx's
+    release REMOVED the slot's entry, which reads well — an absent
+    `player_index` is what Ryujinx treats as "not configured". But generate()
+    builds a missing slot by cloning the first gamepad entry it finds, so once
+    the last one was gone there was no template left. `input_config` became an
+    empty list and no pad could ever take a slot again, however many times it
+    was reconnected. A release that closes the door behind it is worse than the
+    stale slot it removed.
+
+    Asserted through the pipeline rather than on the file format: what matters
+    is that a pad plugged in afterwards gets configured.
+    """
+    for slot in range(1, 5):
+        cp.apply_profile(slot, ch.DS4.vendor, ch.DS4.product,
+                         ch.DS4.evdev_name, slot - 1)
+    for slot in range(4, 0, -1):
+        cp.release_profile(slot, ())          # everybody unplugs
+
+    back = cp.apply_profile(1, ch.DS4.vendor, ch.DS4.product,
+                            ch.DS4.evdev_name, 0)
+
+    assert not back.skipped, (
+        f"a pad reconnecting after every slot was freed could not be "
+        f"configured: {back.skipped}. The release destroyed something "
+        f"generate() needs.")
+    assert list(back), "the reconnecting pad was configured by nobody"
+
+
 # ── the departure the monitor NEVER sees: a reboot ───────────────────────────
 
 class _FakeWS:

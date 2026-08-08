@@ -25,6 +25,7 @@ from __future__ import annotations
 import re
 from collections.abc import Collection
 
+from backend.services.configgen.controllers import SDL3_TRUSTED
 from backend.services.configgen.helpers.base import Skip, atomic_write, backup
 
 EMU_ID = "rpcs3"
@@ -45,6 +46,16 @@ def _is_bound(block: str) -> bool:
 
 
 def generate(player_index: int, pad, opts: dict) -> str | None:
+    # RPCS3 matches this string against its own SDL3 enumeration, so a name
+    # nobody could vouch for is not a lesser config — it is a dead pad plus a
+    # config that looks right. The only symptom used to be "SDL: Adding empty
+    # device" in RPCS3's log, which nobody reads from a sofa. Leaving the slot
+    # as it is at least keeps whatever worked before.
+    if pad.name.source not in SDL3_TRUSTED:
+        return Skip(f"rpcs3: no SDL3 name for {pad.vendor}:{pad.product} "
+                    f"({pad.evdev_name!r} is the kernel's name, not SDL3's) — "
+                    f"Player {player_index} left as it was")
+
     yml = opts["target"]
     if not yml.is_file():
         return Skip(f"rpcs3: no input config at {yml} — nothing to retarget")

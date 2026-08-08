@@ -25,7 +25,7 @@ from pathlib import Path
 
 from ..catalog import load_catalog
 from . import snapshots
-from .controllers import Pad, detect_pads, resolve_name
+from .controllers import SDL3_TRUSTED, Pad, detect_pads, display_name, resolve_name
 from .helpers.base import Skip
 
 log = logging.getLogger(__name__)
@@ -302,6 +302,31 @@ def release_profile(player_index: int,
     return results
 
 
+def _identification(vendor: str, product: str, evdev_name: str) -> dict:
+    """Whether we know what an SDL3 emulator will call this pad.
+
+    This is the give-up surfacing at the API, which is the point: a pad libSDL3
+    does not enumerate gets no RPCS3 and no Dolphin config at all, and until now
+    the only sign of that was a line in the EMULATOR's log. "Scan mapping" is
+    exactly the moment the owner is holding the pad and asking what we know
+    about it, so it is where the answer belongs.
+
+    `identified: false` is not a failure of the scan — the snapshot emulators
+    bind by GUID and work fine — so it rides alongside `ok`, not instead of it.
+    """
+    resolved = resolve_name(vendor, product, evdev_name)
+    if resolved.source in SDL3_TRUSTED:
+        return {"identified": True}
+    return {
+        "identified": False,
+        "detail": (f"libSDL3 does not enumerate {vendor}:{product} and it is "
+                   f"not in the known-pads table, so the name the SDL3-based "
+                   f"emulators expect is unknown. Their configs are left "
+                   f"untouched: writing the kernel's name instead gives a pad "
+                   f"that is dead in game with a config that looks correct."),
+    }
+
+
 def scan_mapping() -> dict:
     """"Scan mapping": remember the ONE connected pad's current input config
     across the snapshot emulators, so it auto-restores on every future connect.
@@ -335,8 +360,9 @@ def scan_mapping() -> dict:
             refused.append(pack.id)
         except Exception:
             log.exception("configgen: capture failed for %s", pack.id)
-    return {"ok": True, "controller": resolve_name(vendor, product, evdev),
-            "saved": saved, "refused": refused}
+    return {"ok": True, "controller": display_name(vendor, product, evdev),
+            "saved": saved, "refused": refused,
+            **_identification(vendor, product, evdev)}
 
 
 def forget_mapping() -> dict:
@@ -368,5 +394,6 @@ def forget_mapping() -> dict:
     if forgotten:
         log.info("configgen: forgot saved mapping for %s:%s — %s",
                  vendor, product, ", ".join(forgotten))
-    return {"ok": True, "controller": resolve_name(vendor, product, evdev),
-            "forgotten": forgotten}
+    return {"ok": True, "controller": display_name(vendor, product, evdev),
+            "forgotten": forgotten,
+            **_identification(vendor, product, evdev)}

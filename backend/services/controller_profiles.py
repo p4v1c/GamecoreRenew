@@ -40,10 +40,13 @@ from .configgen import (
 from .configgen.controllers import (
     DB_FILE,
     SDL3_FALLBACK_NAMES,
+    SDL3_TRUSTED,
     Pad,
+    ResolvedName,
     bundled_sdl2,
     db_name_for,
     detect_pads,
+    display_name,
     flatpak_location,
     pad_has_hat,
     resolve_name,
@@ -65,7 +68,8 @@ __all__ = [
     # the Power-menu actions — routers/controllers.py
     "scan_mapping", "forget_mapping", "detect_pads",
     # the controller abstraction
-    "Pad", "resolve_name", "sdl3_names", "sdl2_probe", "bundled_sdl2",
+    "Pad", "resolve_name", "display_name", "ResolvedName", "SDL3_TRUSTED",
+    "sdl3_names", "sdl2_probe", "bundled_sdl2",
     "flatpak_location", "pad_has_hat", "db_name_for", "vidpid_of",
     "ryu_guid_from_sdl2", "ryu_guid_vidpid", "SDL3_FALLBACK_NAMES", "DB_FILE",
     # format helpers other modules and tests still reach for

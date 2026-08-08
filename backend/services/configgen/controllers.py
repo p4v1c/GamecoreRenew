@@ -156,18 +156,112 @@ def sdl3_names(want: tuple[str, str] | None = None) -> dict[tuple[str, str], str
     return cached
 
 
-def resolve_name(vendor: str, product: str, evdev_name: str) -> str:
+class ResolvedName(str):
+    """A device name, plus WHERE it came from.
+
+    A bare string could not tell a reliable answer from a guess, and the
+    guesses were being written into configs. `source` is one of:
+
+        sdl3_live       libSDL3 named this pad, with it connected. The truth.
+        fallback_table  SDL3_FALLBACK_NAMES — measured SDL3 names. Reliable.
+        unknown         neither answered. The VALUE is still the pad's kernel
+                        name, so a log line or a toast reads sensibly, but it
+                        is not what an SDL3 emulator enumerates and a consumer
+                        that matches by name must refuse to write it.
+
+    Only three, and deliberately: the community DB and the raw kernel name are
+    not rungs of this chain any more. They are `display_name()`'s business,
+    where being approximately right is the whole job. Keeping them here as
+    "sources" would have preserved exactly the confusion this class exists to
+    remove — a value that reads like an answer and is a guess.
+
+    A `str` subclass, like `Skip`, so every existing consumer — the f-strings
+    in the generators, the dup counter, the JSON the router returns — keeps
+    working unchanged and only the callers that must care, care.
+    """
+    __slots__ = ("source",)
+
+    def __new__(cls, value: str, source: str):
+        obj = super().__new__(cls, value)
+        obj.source = source
+        return obj
+
+
+# Which rungs are a real answer to "what will an SDL3 emulator enumerate".
+SDL3_TRUSTED = frozenset({"sdl3_live", "fallback_table"})
+
+# vendor:product → the rung it last came back on. `Pad.name` is a property, so
+# one profiling pass resolves the same pad about ten times, and the monitor
+# retries an incomplete pass five times: an unconditional line here would be
+# fifty copies of the same warning per pad. Said once, and again whenever the
+# answer CHANGES — which is the interesting event, because a pad that moves
+# from sdl3_live to unknown is a pad that went to sleep.
+_logged_resolution: dict[tuple[str, str], str] = {}
+
+
+def _say_once(vendor: str, product: str, source: str, level: int,
+              message: str, *args) -> None:
+    if _logged_resolution.get((vendor, product)) == source:
+        return
+    _logged_resolution[(vendor, product)] = source
+    log.log(level, message, *args)
+
+
+def resolve_name(vendor: str, product: str, evdev_name: str) -> ResolvedName:
     """The device-name string SDL3-based emulators (RPCS3, Dolphin) will see.
 
-    Live SDL3 answer first, known-pads table next, the SDL2 community-DB name
-    only as a last resort — it is WRONG for SDL3 on some pads ("PS5 Controller"
-    vs "DualSense Wireless Controller"), which showed up live in RPCS3.log as
-    "SDL: Adding empty device" and a dead pad in game.
+    **The community DB is no longer in this chain.** It is an SDL2-era name and
+    is wrong for SDL3 on several pads, which showed up live in RPCS3.log as
+    "SDL: Adding empty device" and a dead pad in game. It survives in
+    `display_name()`, where being approximately right is exactly what is wanted.
+
+    **The failure this exists to stop being silent is an ABSENCE, not an
+    exception.** `sdl3_names()` warns when libSDL3 raises — but the common case
+    is that SDL3 answers perfectly well and simply does not know this pad,
+    which is what the comment on SDL3_FALLBACK_NAMES describes ("the pad went
+    back to sleep between the evdev scan and this call"). No exception, a valid
+    dict without the entry, and the chain used to walk quietly down to the raw
+    kernel name and write it. The only trace was in the EMULATOR's log, not
+    ours. So every rung below the first says so.
     """
-    return (sdl3_names((vendor, product)).get((vendor, product))
-            or SDL3_FALLBACK_NAMES.get((vendor, product))
-            or db_name_for(vendor, product)
-            or evdev_name)
+    live = sdl3_names((vendor, product)).get((vendor, product))
+    if live:
+        _say_once(vendor, product, "sdl3_live", logging.DEBUG,
+                  "configgen: libSDL3 names %s:%s %r", vendor, product, live)
+        return ResolvedName(live, "sdl3_live")
+
+    table = SDL3_FALLBACK_NAMES.get((vendor, product))
+    if table:
+        # Not a failure — these were measured against SDL3 — but it does mean
+        # the pad was not enumerated live, which is worth knowing when a config
+        # written now turns out not to match at boot.
+        _say_once(vendor, product, "fallback_table", logging.INFO,
+                  "configgen: libSDL3 did not enumerate %s:%s — falling back "
+                  "to the known-pads table (%r)", vendor, product, table)
+        return ResolvedName(table, "fallback_table")
+
+    _say_once(vendor, product, "unknown", logging.WARNING,
+              "configgen: no SDL3 name for %s:%s — libSDL3 does not enumerate "
+              "it and it is not in the known-pads table. Its kernel name is "
+              "%r, which is NOT what an SDL3 emulator calls a device: written "
+              "into a config it produces \"SDL: Adding empty device\" and a "
+              "pad that is dead in game. The emulators that match by name are "
+              "left untouched.", vendor, product, evdev_name)
+    return ResolvedName(evdev_name, "unknown")
+
+
+def display_name(vendor: str, product: str, evdev_name: str) -> str:
+    """A name for a HUMAN — a toast, a log line, the Power menu.
+
+    Where `resolve_name` must refuse a guess because the string has to match
+    what an emulator enumerates, this one only has to be recognisable, so the
+    community DB earns its place: "Horipad Mini 4" tells the owner which pad is
+    in their hands, and no config is written from it.
+    """
+    resolved = resolve_name(vendor, product, evdev_name)
+    if resolved.source in SDL3_TRUSTED:
+        return str(resolved)
+    return db_name_for(vendor, product) or evdev_name
 
 
 # ── Ryujinx GUID ──────────────────────────────────────────────────────────
@@ -361,8 +455,12 @@ class Pad:
     dup_index: int = 0
 
     @property
-    def name(self) -> str:
-        """What an SDL3-based emulator will call it."""
+    def name(self) -> ResolvedName:
+        """What an SDL3-based emulator will call it — and how sure we are.
+
+        Carries `.source`; a generator whose emulator matches this string
+        against its own SDL3 enumeration must check it before writing.
+        """
         return resolve_name(self.vendor, self.product, self.evdev_name)
 
     def guid_for(self, app_id: str) -> str | None:

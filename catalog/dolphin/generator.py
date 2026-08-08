@@ -24,7 +24,8 @@ import logging
 import re
 from collections.abc import Collection
 
-from backend.services.configgen.helpers.base import atomic_write, backup
+from backend.services.configgen.controllers import SDL3_TRUSTED
+from backend.services.configgen.helpers.base import Skip, atomic_write, backup
 from backend.services.configgen.helpers.ini import section, set_section
 
 log = logging.getLogger(__name__)
@@ -177,6 +178,15 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
     DualShock 4 until a pad connects and this function repairs it; the seed now
     names no device and check-catalog.py fails the build if one comes back.
     """
+    # Dolphin qualifies devices as SDL/<k>/<name> and looks that string up in
+    # its own ciface enumeration, so a guessed name is a device Dolphin has
+    # never heard of — GCPad silently unbound, Wiimote on a virtual pointer.
+    # Writing nothing keeps whatever the slot had; writing a guess does not.
+    if pad.name.source not in SDL3_TRUSTED:
+        return Skip(f"dolphin: no SDL3 name for {pad.vendor}:{pad.product} "
+                    f"({pad.evdev_name!r} is the kernel's name, not SDL3's) — "
+                    f"player {player_index} left as it was")
+
     i, device = player_index, f"SDL/{pad.dup_index}/{pad.name}"
     dolphin_dir = opts["config_dir"]
     msgs: list[str] = []

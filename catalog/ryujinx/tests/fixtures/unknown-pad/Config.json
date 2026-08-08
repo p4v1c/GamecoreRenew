@@ -182,8 +182,8 @@
       },
       "version": 1,
       "backend": "GamepadSDL2",
-      "id": "0-00000003-054c-0000-cc09-000000006800",
-      "name": "PS4 Controller (0)",
+      "id": "",
+      "name": "",
       "controller_type": "ProController",
       "player_index": "Player1"
     },

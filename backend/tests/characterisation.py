@@ -73,7 +73,18 @@ DUALSENSE = Pad("dualsense", "054c", "0ce6", "DualSense Wireless Controller",
                 "DualSense Wireless Controller",
                 "030000004c050000e60c000011810000")
 
-PADS = {p.key: p for p in (DS4, XBOX, DUALSENSE)}
+# A pad libSDL3 does not enumerate and no table knows: a plausible generic USB
+# gamepad, deliberately fictitious. `sdl3_name` is EMPTY, which is what makes it
+# useful — the stub below answers for the pads it knows and simply omits this
+# one, so the chain reaches its last rung without anything raising. That is the
+# real failure mode: not an exception, an absence.
+#
+# Its vendor:product is in neither gamecontrollerdb.txt nor
+# SDL3_FALLBACK_NAMES; test_the_unknown_pad_is_really_unknown checks that, so
+# this scenario cannot quietly stop testing anything the day the DB is updated.
+UNKNOWN = Pad("unknown", "1d79", "0f0f", "Generic USB Gamepad", "", "")
+
+PADS = {p.key: p for p in (DS4, XBOX, DUALSENSE, UNKNOWN)}
 
 
 @dataclass(frozen=True)
@@ -181,6 +192,16 @@ SCENARIOS: tuple[Scenario, ...] = (
              "repair entirely — left the whole suite green",
              (Step("ds4", 2, 0),),
              before="rpcs3-player-2-null"),
+    Scenario("unknown-pad",
+             "a pad libSDL3 does not enumerate and no table knows. The name "
+             "chain used to walk down to the raw kernel name in silence and "
+             "write it: RPCS3 got `Device: Generic X-Box pad 1`, which matches "
+             "nothing it enumerates, so the pad was dead in game and the only "
+             "trace was \"SDL: Adding empty device\" in the EMULATOR's log. "
+             "The emulators that match a device by NAME must now write nothing "
+             "and say why; the ones that bind by SDL index or by GUID are "
+             "unaffected and must keep working",
+             (Step("unknown", 1, 0),)),
 )
 
 # Files the profilers touch, relative to the fake HOME / install root. The
@@ -275,7 +296,11 @@ def install_stubs(cp, home: Path, monkeypatch) -> None:
     by_vp = {(p.vendor, p.product): p for p in PADS.values()}
 
     def names(want=None):
-        return {(p.vendor, p.product): p.sdl3_name for p in PADS.values()}
+        # A pad with no sdl3_name is one libSDL3 does not enumerate. It must be
+        # ABSENT from the answer, not present with an empty string: the whole
+        # point is a valid reply that does not contain this pad.
+        return {(p.vendor, p.product): p.sdl3_name
+                for p in PADS.values() if p.sdl3_name}
 
     def probe(vendor, product, lib=""):
         pad = by_vp.get((vendor.lower(), product.lower()))
