@@ -93,6 +93,45 @@ def _overwrite(_text, block):
     return block
 
 
+# The DeviceName branch is dead in this suite unless the SDL database is
+# stubbed: conftest redirects GAMECORE_ROOT to a fake root, gamecontrollerdb.txt
+# is not there, and `db_name_for` returns None — on which the branch declines to
+# judge. Without these monkeypatches both tests below pass while executing
+# nothing, which is the exact shape of a test that guards nothing.
+_NAMES = {("054c", "09cc"): "PS4 Controller", ("045e", "02fd"): "Xbox One Controller"}
+
+
+@pytest.fixture
+def sdl_names(monkeypatch):
+    monkeypatch.setattr(snapshots, "db_name_for",
+                        lambda v, p: _NAMES.get((v, p)))
+
+
+def test_an_unassigned_slot_is_not_a_disagreement(sdl_names):
+    """Rosalie's Mupen GUI writes `DeviceName = "None"` with `PluggedIn = False`
+    for every slot nobody assigned — three of its four profiles on a one-pad
+    box. Counting those as "this config is for another controller" rejected an
+    entirely ordinary N64 config on the strength of its empty slots.
+
+    Harmless while only capture() asked; the moment restore() started asking
+    too, it would have refused the owner's saved N64 mapping on every connect.
+    """
+    block = ('[Profile 0]\nPluggedIn = True\nDeviceName = "PS4 Controller"\n'
+             '[Profile 1]\nPluggedIn = False\nDeviceName = "None"\n'
+             '[Profile 2]\nPluggedIn = False\nDeviceName = "None"\n')
+
+    assert snapshots.block_disagrees(block, "054c", "09cc") is None
+
+
+def test_a_named_slot_still_disagrees(sdl_names):
+    """The other half: skipping "None" must not blind the check to a real
+    mismatch, which is the whole reason the DeviceName branch exists."""
+    block = ('[Profile 0]\nPluggedIn = True\nDeviceName = "PS4 Controller"\n'
+             '[Profile 1]\nPluggedIn = False\nDeviceName = "None"\n')
+
+    assert snapshots.block_disagrees(block, *XBOX) == "PS4 Controller"
+
+
 def test_restore_refuses_a_snapshot_that_names_another_controller(tmp_path):
     """The owner's own mapping must survive a poisoned snapshot."""
     cfg = tmp_path / "controller0.xml"

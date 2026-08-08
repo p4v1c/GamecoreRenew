@@ -77,9 +77,18 @@ def block_disagrees(block: str, vendor: str, product: str) -> str | None:
         _k, _sep, raw = line.partition("=")
         said = raw.strip().strip('"')
         expected = db_name_for(vendor, product)
+        # "None" is RMG's literal for a slot nobody assigned — it comes with
+        # `PluggedIn = False`, and three of its four profiles say it on a
+        # one-pad box. It names no device, so it can no more disagree than an
+        # empty value can. Counting it made a perfectly ordinary N64 config
+        # look like another pad's: measured on the reference box, profile 0
+        # said "PS4 Controller" and profiles 1-3 said "None", and the whole
+        # snapshot was rejected on the strength of the three empty ones.
+        if said in ("", "None"):
+            continue
         # No entry in the SDL database is not a disagreement: an unknown pad is
         # exactly the case where a captured mapping is most needed.
-        if said and expected and said != expected:
+        if expected and said != expected:
             return said
     return None
 
