@@ -33,7 +33,7 @@
       {
         "file": "liblv2.sprx",
         "required": true,
-        "note": "PS3 firmware, installed by RPCS3 itself from a PUP the owner supplies. This one module is the marker that the install finished — no md5, because it changes with every firmware version."
+        "note": "PS3 firmware. Install it from RPCS3 itself, from a PUP you supply — this module is what says the install finished."
       }
     ]
   },

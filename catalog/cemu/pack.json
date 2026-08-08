@@ -33,7 +33,7 @@
       {
         "file": "keys.txt",
         "required": false,
-        "note": "Wii U title keys, needed to read an encrypted retail dump. Not required: Cemu runs a decrypted game without it, and refusing to launch on that box would be a wrong answer."
+        "note": "Wii U title keys, needed to read an encrypted retail dump. A decrypted game runs without it."
       }
     ]
   },

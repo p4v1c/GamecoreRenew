@@ -240,11 +240,14 @@ def launch_blocker(system_id: str, home: Path | None = None, *,
         label = pack.data["label"] if pack else system_id
         parts = []
         for f in missing:
-            if f.get("any_file"):
-                parts.append(f"a BIOS image is missing — copy one into {f['path']}")
-            else:
-                parts.append(f"{f['file']} is missing — copy it to {f['path']}")
-        return f"{label} cannot start: " + "; ".join(parts)
+            where = (f"no image in {f['path']}" if f.get("any_file")
+                     else f"{f['file']} is missing — expected at {f['path']}")
+            # The pack's own note, not a generic "copy it there". Not every
+            # missing file is copied: RPCS3's firmware is installed by RPCS3
+            # from a PUP, and telling the owner to drop `liblv2.sprx` into
+            # dev_flash is advice that cannot work.
+            parts.append(f"{where}. {f['note']}")
+        return f"{label} cannot start: " + " ".join(parts)
     except Exception:
         log.exception("bios: refusal message for %r failed", system_id)
         return ""

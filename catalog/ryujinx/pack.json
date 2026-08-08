@@ -32,7 +32,7 @@
       {
         "file": "prod.keys",
         "required": true,
-        "note": "Switch console keys. Ryujinx decrypts nothing without them and stops at a black window. No md5: the file grows with each firmware the owner adds keys for."
+        "note": "Switch console keys. Without them Ryujinx decrypts nothing and stops on a black window."
       },
       {
         "file": "title.keys",

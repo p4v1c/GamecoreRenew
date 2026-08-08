@@ -48,7 +48,7 @@
     "dir": "@HOME@/.local/share/duckstation/bios",
     "anyFile": {
       "required": true,
-      "note": "PlayStation boot ROM. seed/settings.ini points [BIOS] SearchDirectory here and names no file: DuckStation takes any image it recognises, so the only thing that can be checked is that this directory is not empty."
+      "note": "PlayStation boot ROM. DuckStation reads any image it recognises from this directory, so the name is yours to choose."
     }
   },
   "controllers": {

@@ -315,6 +315,10 @@ def test_the_refusal_names_the_file_and_the_destination(tmp_path):
 
     assert "boot.bin" in message
     assert str(tmp_path / "sys" / "boot.bin") in message
+    # The pack's own note, not a generic "copy it there": RPCS3's firmware is
+    # installed by RPCS3 from a PUP, and telling someone to drop a module into
+    # dev_flash is advice that cannot work.
+    assert "the boot rom" in message
 
 
 def test_the_refusal_for_a_scanned_directory_names_the_directory(tmp_path):
