@@ -532,6 +532,32 @@ Confiance : haute
 
 # Passe 6 — Chemins et frontières
 
+> ## ⚠️ CORRECTION (P14, 2026-08-08) — ce constat était FAUX
+>
+> La passe 6 concluait que le harnais n'écrit pas hors de ses répertoires
+> temporaires. **Il écrivait dans les vraies configs d'émulateur de la boîte.**
+> `TestClient(main.app)` exécute le lifespan de l'application, le lifespan démarre
+> `gamepad_monitor.run()`, et le moniteur scanne le VRAI `/dev/input`, trouve la
+> manette branchée et la profile contre `configgen.HOME` — `Path.home()`, évalué
+> à l'import. P1 l'a mesuré : azahar et melonDS réécrits à 20:55:33 pendant une
+> ligne de base.
+>
+> **Le défaut n'est pas dans la conclusion, il est dans l'expérience.** Les deux
+> mesures citées ci-dessous sont exactes et ne prouvent rien : l'écriture ne se
+> produit que si une manette est connectée, et il n'y en avait pas. Une expérience
+> qui ne pouvait pas échouer, quoi que fasse le code. La seconde (`diff
+> before.txt after.txt`) ne regardait que le checkout, jamais `$HOME`.
+>
+> C'est la classe d'erreur que cette passe existe pour attraper, et elle l'a
+> commise sur elle-même : une propriété déclarée vérifiée, sur une preuve qui ne
+> la couvre pas. Un registre qui affirme à tort est pire qu'un registre incomplet
+> — la propriété ne sera pas revérifiée.
+>
+> Corrigé dans `045d7fc` : `conftest.py` fixe `HOME` sur la racine jetable avant
+> tout import. Gardé depuis par `backend/tests/test_home_isolation.py`, qui ne
+> dépend pas de ce qui est branché. État de la boîte et limites de l'enquête
+> médico-légale : `AUDIT/degats-var-app.md`.
+
 **Le harnais de test n'écrit pas hors de ses répertoires temporaires.** C'est la
 question la plus importante de cette famille — le seul chemin par lequel un
 `pytest` pourrait toucher les vraies configs de la boîte — et la réponse est
@@ -549,10 +575,15 @@ $ diff before.txt after.txt && echo AUCUNE
 AUCUNE
 ```
 
+*(Les deux blocs ci-dessus sont conservés tels quels : c'est la preuve qui a été
+jugée suffisante, et la garder lisible est le seul moyen de comprendre comment
+elle a convaincu. Voir la correction en tête de section.)*
+
 `backend/tests/conftest.py` y est pour beaucoup : il pointe `GAMECORE_PATH` sur
 un `tempfile.mkdtemp()` **avant** tout import, et neutralise aussi les
 identifiants ScreenScraper pour que la suite ne se comporte pas différemment sur
-la machine d'un développeur. C'est fait correctement et documenté.
+la machine d'un développeur. C'est fait correctement et documenté — mais
+`GAMECORE_PATH` n'était pas la seule racine à détourner, et `HOME` manquait.
 
 Examinés et **écartés** :
 
