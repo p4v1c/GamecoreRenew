@@ -32,6 +32,7 @@ from .configgen import (
     SNAP_DIR,
     ProfileResult,
     apply_profile,
+    forget_mapping,
     release_profile,
     scan_mapping,
 )
@@ -60,8 +61,8 @@ log = logging.getLogger(__name__)
 __all__ = [
     # the hotplug path — gamepad_monitor.py
     "apply_profile", "release_profile", "ProfileResult",
-    # the Power-menu action — routers/controllers.py
-    "scan_mapping", "detect_pads",
+    # the Power-menu actions — routers/controllers.py
+    "scan_mapping", "forget_mapping", "detect_pads",
     # the controller abstraction
     "Pad", "resolve_name", "sdl3_names", "sdl2_probe", "bundled_sdl2",
     "flatpak_location", "pad_has_hat", "db_name_for", "vidpid_of",

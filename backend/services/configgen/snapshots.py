@@ -127,8 +127,47 @@ def restore(snap_dir: Path, emu_id: str, path: Path, extract, replace,
     if not path.is_file() or not snap.is_file():
         return None
     block, text = snap.read_text(), path.read_text()
+
+    # The same question capture() asks, asked again here. capture() gained this
+    # guard AFTER the box had already filed cemu/045e_02fd.snap containing a
+    # DualShock 4's config, so the guard protects future captures only and the
+    # poisoned file stays on disk. Without this, restore() re-applies it on
+    # EVERY connect, overwriting by hand whatever the owner remapped since —
+    # the one failure in this module that destroys the owner's own work.
+    #
+    # Checked BEFORE the already-applied test on purpose: when the poisoned
+    # block is already in place the config is wrong right now, and staying
+    # silent is precisely what left this undiagnosable from the couch.
+    wrong = block_disagrees(block, vendor, product)
+    if wrong:
+        log.warning("configgen: %s has a saved mapping for %s:%s whose config "
+                    "describes %s — refusing to apply it. The pad will keep the "
+                    "mapping it has; forget the saved one to re-scan.",
+                    emu_id, vendor, product, wrong)
+        # Not a Skip: a Skip means "try again", and the monitor would retry
+        # every three seconds forever. A GUID that names another pad is a
+        # decision about a file on disk, not a transient failure — it can only
+        # change when someone forgets the snapshot.
+        return (f"{emu_id}: saved mapping ignored — it describes {wrong}, "
+                f"not {vendor}:{product}")
+
     if extract(text).strip() == block.strip():
         return None                                   # already applied
     backup(path)
     atomic_write(path, replace(text, block))
     return f"{emu_id}: restored saved mapping ({vendor}:{product})"
+
+
+def forget(snap_dir: Path, emu_id: str, vendor: str, product: str) -> bool:
+    """Delete this controller's saved mapping for one emulator.
+
+    The missing inverse. Without it a refused snapshot has no way out: the
+    owner is told their mapping was not applied and can do nothing about it,
+    which trades a silent overwrite for a silent deadlock. Returns True when a
+    file was actually removed, so the caller can report what it did.
+    """
+    try:
+        snap_path(snap_dir, emu_id, vendor, product).unlink()
+        return True
+    except FileNotFoundError:
+        return False
