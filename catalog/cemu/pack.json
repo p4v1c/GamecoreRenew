@@ -27,6 +27,16 @@
   "config": {
     "dest": "@FLATPAK_CONFIG@/Cemu"
   },
+  "bios": {
+    "dir": "@FLATPAK_DATA@/Cemu",
+    "files": [
+      {
+        "file": "keys.txt",
+        "required": false,
+        "note": "Wii U title keys, needed to read an encrypted retail dump. Not required: Cemu runs a decrypted game without it, and refusing to launch on that box would be a wrong answer."
+      }
+    ]
+  },
   "controllers": {
     "maxPlayers": 1,
     "order": 3,

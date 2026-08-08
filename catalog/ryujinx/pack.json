@@ -26,6 +26,21 @@
   "config": {
     "dest": "@FLATPAK_CONFIG@/Ryujinx"
   },
+  "bios": {
+    "dir": "@FLATPAK_CONFIG@/Ryujinx/system",
+    "files": [
+      {
+        "file": "prod.keys",
+        "required": true,
+        "note": "Switch console keys. Ryujinx decrypts nothing without them and stops at a black window. No md5: the file grows with each firmware the owner adds keys for."
+      },
+      {
+        "file": "title.keys",
+        "required": false,
+        "note": "Per-title keys. Only some dumps need them, so a box without this file is a working box."
+      }
+    ]
+  },
   "controllers": {
     "maxPlayers": 4,
     "order": 0,

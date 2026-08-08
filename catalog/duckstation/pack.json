@@ -44,6 +44,13 @@
   "config": {
     "dest": "@HOME@/.local/share/duckstation"
   },
+  "bios": {
+    "dir": "@HOME@/.local/share/duckstation/bios",
+    "anyFile": {
+      "required": true,
+      "note": "PlayStation boot ROM. seed/settings.ini points [BIOS] SearchDirectory here and names no file: DuckStation takes any image it recognises, so the only thing that can be checked is that this directory is not empty."
+    }
+  },
   "controllers": {
     "maxPlayers": 4,
     "order": 8,
