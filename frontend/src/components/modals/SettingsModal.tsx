@@ -10,10 +10,11 @@ import { DesktopPage }   from './settings/DesktopPage'
 import { StandbyPage }   from './settings/StandbyPage'
 import { ThemesPage } from './settings/ThemesPage'
 import { CatalogPage } from './settings/CatalogPage'
+import { BiosPage } from './settings/BiosPage'
 
 interface Props { onClose: () => void }
 
-type Page = 'main' | 'wifi' | 'audio' | 'bluetooth' | 'standby' | 'themes' | 'catalog' | 'update' | 'desktop'
+type Page = 'main' | 'wifi' | 'audio' | 'bluetooth' | 'standby' | 'themes' | 'catalog' | 'bios' | 'update' | 'desktop'
 
 const ITEMS = [
   { id: 'wifi',      icon: '📶', label: 'Wi-Fi',       sub: 'Manage networks' },
@@ -22,6 +23,7 @@ const ITEMS = [
   { id: 'standby',   icon: '🌙', label: 'Standby',      sub: 'Screensaver & low power' },
   { id: 'themes',    icon: '🎨', label: 'Themes',       sub: 'Change the look of the UI' },
   { id: 'catalog',   icon: '🎮', label: 'Emulators & apps', sub: 'Add or remove systems' },
+  { id: 'bios',      icon: '🧩', label: 'BIOS',         sub: 'System files each console needs' },
   { id: 'update',    icon: '↑',  label: 'Update',       sub: 'Check for updates' },
   { id: 'desktop',   icon: '⎋',  label: 'Desktop Mode', sub: 'Return to system', danger: true },
 ] as const
@@ -56,6 +58,7 @@ export default function SettingsModal({ onClose }: Props) {
   if (page === 'standby')   return <StandbyPage   onClose={onClose} onBack={back} />
   if (page === 'themes')    return <ThemesPage    onClose={onClose} onBack={back} />
   if (page === 'catalog')   return <CatalogPage   onClose={onClose} onBack={back} />
+  if (page === 'bios')      return <BiosPage      onClose={onClose} onBack={back} />
   if (page === 'update')    return <UpdatePage    onClose={onClose} onBack={back} />
   if (page === 'desktop')   return <DesktopPage   onClose={onClose} onBack={back} />
 

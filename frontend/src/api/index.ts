@@ -115,6 +115,44 @@ export interface PlaytimeEntry {
   last_played: string | null
 }
 
+/**
+ * One system file the owner has to supply, and what this box makes of it.
+ *
+ * Three states, deliberately not two: `absent` and `mismatch` are different
+ * problems with different fixes. Nothing here, and nothing on the page that
+ * renders it, ever says where to obtain a file.
+ */
+export interface BiosFile {
+  /** Name relative to the system's BIOS directory. Empty when `any_file`. */
+  file: string
+  /** The exact absolute path to copy to — the whole reason this screen exists. */
+  path: string
+  required: boolean
+  note: string
+  status: 'ok' | 'absent' | 'mismatch'
+  /** An md5 was declared AND compared. `ok` without it means "present". */
+  verified: boolean
+  expected_md5: string
+  /** Only filled on a mismatch: the hash the owner's file actually has. */
+  actual_md5?: string
+  /** The emulator scans its directory and names no file (DuckStation). */
+  any_file?: boolean
+}
+
+export interface BiosSystem {
+  id: string
+  label: string
+  platform: string
+  color: string
+  /** Where the files go on this box, already resolved. */
+  dir: string
+  /** The worst state among the REQUIRED files. Optional ones never reach it. */
+  status: 'ok' | 'absent' | 'mismatch'
+  /** Its tile is on the grid. A system not added yet is dimmed, never hidden. */
+  installed: boolean
+  files: BiosFile[]
+}
+
 export interface SysInfo {
   ip: string
   storage_used_gb: number
@@ -201,6 +239,9 @@ export const api = {
     setConfig: (cfg: { enabled?: boolean; screensaver_mins?: number; sleep_mins?: number }) =>
       post<{ ok: boolean; enabled: boolean; screensaver_mins: number; sleep_mins: number }>('/standby/config', cfg),
     exit: () => post('/standby/exit'),
+  },
+  bios: {
+    list: () => get<BiosSystem[]>('/bios'),
   },
   sysinfo: () => get<SysInfo>('/sysinfo'),
   update: {

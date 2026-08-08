@@ -28,6 +28,7 @@ import { UpdatePage } from './modals/settings/UpdatePage'
 import { DesktopPage } from './modals/settings/DesktopPage'
 import { ThemesPage } from './modals/settings/ThemesPage'
 import { CatalogPage } from './modals/settings/CatalogPage'
+import { BiosPage } from './modals/settings/BiosPage'
 
 /** Launching lives here rather than in App so a prop-less surface can do it. */
 export async function launchApp(system: { id: string }): Promise<void> {
@@ -96,6 +97,11 @@ export const DefaultSettingsPages = {
   // themes had no way to install an emulator at all — the page existed, the
   // route existed, and nothing could open them.
   catalog: CatalogPage,
+  // Same reason as `catalog`, and it bites harder here: the BIOS screen is
+  // what someone opens BECAUSE their box is not working. A theme that could
+  // not resolve it would leave them with the black screen this page exists to
+  // explain, and no route to the explanation.
+  bios: BiosPage,
 }
 
 /** Nothing behind and nothing on top, unless a theme says otherwise. */
