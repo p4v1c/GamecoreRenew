@@ -302,7 +302,7 @@ def release_profile(player_index: int,
     return results
 
 
-def _identification(vendor: str, product: str, evdev_name: str) -> dict:
+def identification(vendor: str, product: str, evdev_name: str) -> dict:
     """Whether we know what an SDL3 emulator will call this pad.
 
     This is the give-up surfacing at the API, which is the point: a pad libSDL3
@@ -362,7 +362,7 @@ def scan_mapping() -> dict:
             log.exception("configgen: capture failed for %s", pack.id)
     return {"ok": True, "controller": display_name(vendor, product, evdev),
             "saved": saved, "refused": refused,
-            **_identification(vendor, product, evdev)}
+            **identification(vendor, product, evdev)}
 
 
 def forget_mapping() -> dict:
@@ -396,4 +396,4 @@ def forget_mapping() -> dict:
                  vendor, product, ", ".join(forgotten))
     return {"ok": True, "controller": display_name(vendor, product, evdev),
             "forgotten": forgotten,
-            **_identification(vendor, product, evdev)}
+            **identification(vendor, product, evdev)}

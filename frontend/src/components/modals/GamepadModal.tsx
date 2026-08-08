@@ -28,14 +28,16 @@ const GLYPHS: Record<ControllerLayout, { top: string; right: string; bottom: str
   generic:     { top: '△', right: '○', bottom: '✕', left: '□', lb: 'L1', rb: 'R1', menu: 'Options', power: 'Share' },
 }
 
-export default function GamepadModal({ onClose, view: View = DefaultGamepadView }: {
+export default function GamepadModal({ onClose, startInWizard = false, view: View = DefaultGamepadView }: {
   onClose: () => void
+  /** Open straight into the wizard — the unrecognised-controller toast does. */
+  startInWizard?: boolean
   view?: React.ComponentType<GamepadViewProps>
 }) {
   const { openModal, closeModal } = useStore()
   const [ctrl, setCtrl] = useState(detectControllerType)
   const [sysInfo, setSysInfo] = useState<SysInfo | null>(null)
-  const [wizard, setWizard] = useState(false)
+  const [wizard, setWizard] = useState(startInWizard)
 
   // Live button/axis state — drives the drawing below, frame by frame
   const state = useGamepadState()
@@ -73,6 +75,10 @@ export default function GamepadModal({ onClose, view: View = DefaultGamepadView 
   // it cannot share a screen with a view that reads them as navigation.
   if (wizard) {
     return <MappingWizard onClose={() => {
+      // Came from the toast: leaving the wizard leaves entirely. Dropping the
+      // player onto the controller diagram instead would strand them one
+      // screen deep with the pad that does not work yet.
+      if (startInWizard) { onClose(); return }
       setWizard(false)
       api.sysinfo().then(setSysInfo).catch(() => {})
     }} />

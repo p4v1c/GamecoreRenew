@@ -620,3 +620,77 @@ def test_a_pad_unplugged_mid_scan_is_not_a_permission_problem(monkeypatch, caplo
         assert gm._find_gamepad_devices() == {}
 
     assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+
+
+# ── the give-up reaches the player, not just the journal ─────────────────────
+#
+# P1 made "this pad cannot be named" visible in the log and at "Scan mapping".
+# Neither is where the player is standing: they have just plugged a controller
+# in and it does not work. The connect toast is, and it said "Controller 2
+# connected" in green for a pad dead in every emulator that matches by name.
+
+
+class _RecordingWS:
+    def __init__(self):
+        self.sent: list[tuple[str, dict]] = []
+
+    async def broadcast(self, event, data=None):
+        self.sent.append((event, data or {}))
+
+
+def _connect_event(monkeypatch, identified: bool):
+    """Plug one pad in and return the gp:connected payload."""
+    reg._slots.clear(); reg._labels.clear()
+    monkeypatch.setattr(cp, "resolve_name", lambda v, p, n: n)
+    monkeypatch.setattr(cp, "apply_profile", lambda *a, **k: ["ok"])
+    monkeypatch.setattr(cp, "release_profile", lambda *a, **k: [])
+    monkeypatch.setattr(cp, "identification",
+                        lambda v, p, n: {"identified": identified})
+
+    live = gm.pads_by_key(_node("/dev/input/event9", "84:30:95:07:c8:1c",
+                                vendor="1d79", product="0f0f",
+                                name="Generic USB Gamepad"))
+    ws = _RecordingWS()
+    asyncio.run(gm._reconcile({}, live, {}, False, ws))
+    return next(d for e, d in ws.sent if e == "gp:connected")
+
+
+def test_an_unnameable_pad_is_flagged_on_the_connect_event(monkeypatch):
+    """Without this the toast has nothing to decide on and the only trace of a
+    dead controller is a line in a log nobody reads from a sofa."""
+    payload = _connect_event(monkeypatch, identified=False)
+
+    assert payload["unmapped"] is True, payload
+    # The wizard needs to know WHICH pad, and the toast shows its name.
+    assert payload["vendor"] == "1d79" and payload["product"] == "0f0f"
+    assert payload["label"] == "Generic USB Gamepad"
+
+
+def test_a_pad_the_box_can_name_is_not_flagged(monkeypatch):
+    """The flag has to mean something. If it were always true the first person
+    to see the offer would learn to ignore it — which is exactly what happened
+    to the give-up when it only went to the journal."""
+    payload = _connect_event(monkeypatch, identified=True)
+
+    assert payload["unmapped"] is False, payload
+
+
+def test_a_broken_identification_does_not_lose_the_connect_event(monkeypatch):
+    """A pad arriving is news whatever we can work out about it. Letting this
+    question raise would take the toast down with it — and the pad that most
+    needs announcing is the one we understand least."""
+    reg._slots.clear(); reg._labels.clear()
+    monkeypatch.setattr(cp, "resolve_name", lambda v, p, n: n)
+    monkeypatch.setattr(cp, "apply_profile", lambda *a, **k: ["ok"])
+    monkeypatch.setattr(cp, "release_profile", lambda *a, **k: [])
+
+    def boom(*_a, **_k):
+        raise RuntimeError("SDL fell over")
+
+    monkeypatch.setattr(cp, "identification", boom)
+
+    live = gm.pads_by_key(_node("/dev/input/event9", "84:30:95:07:c8:1c"))
+    ws = _RecordingWS()
+    asyncio.run(gm._reconcile({}, live, {}, False, ws))
+
+    assert any(e == "gp:connected" for e, _ in ws.sent)

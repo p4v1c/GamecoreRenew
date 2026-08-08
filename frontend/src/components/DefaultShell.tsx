@@ -102,7 +102,19 @@ export default function DefaultShell(parts: ShellParts = {}) {
   const [showSettings, setShowSettings] = useState(false)
   const [showPower, setShowPower] = useState(false)
   const [showGamepad, setShowGamepad] = useState(false)
-  const { screen, sessionGameKey } = useStore()
+  const [startInWizard, setStartInWizard] = useState(false)
+  const { screen, sessionGameKey, remapRequest } = useStore()
+
+  // The unrecognised-controller toast asks for the wizard; the shell is what
+  // can grant it, because it owns which modal is up. Straight into the wizard
+  // rather than onto the controller screen: the player is holding a pad that
+  // does not work, and one more screen to cross is one more screen to cross
+  // with a controller that cannot cross it.
+  useEffect(() => {
+    if (remapRequest === 0) return
+    setStartInWizard(true)
+    setShowGamepad(true)
+  }, [remapRequest])
 
   const gamepadOpenRef = useRef(showGamepad)
   useEffect(() => { gamepadOpenRef.current = showGamepad }, [showGamepad])
@@ -194,7 +206,11 @@ export default function DefaultShell(parts: ShellParts = {}) {
       <AnimatePresence>
         {showGamepad && (
           <ModalScope key="gamepad">
-            <GamepadModal onClose={() => setShowGamepad(false)} view={parts.gamepadView} />
+            <GamepadModal
+              onClose={() => { setShowGamepad(false); setStartInWizard(false) }}
+              startInWizard={startInWizard}
+              view={parts.gamepadView}
+            />
           </ModalScope>
         )}
       </AnimatePresence>
