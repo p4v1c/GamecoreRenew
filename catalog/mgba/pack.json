@@ -9,11 +9,11 @@
   "order": 10,
   "install": {
     "provider": "flatpak",
-    "appId": "io.mgba.mGBA"
+    "appIds": ["io.mgba.mGBA"]
   },
   "launch": {
     "path": "flatpak",
-    "args": "run io.mgba.mGBA --fullscreen",
+    "args": "run @APPID@ --fullscreen",
     "preferIfPresent": {
       "path": "/usr/bin/mgba-qt",
       "args": "--fullscreen"

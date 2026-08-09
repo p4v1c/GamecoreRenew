@@ -9,11 +9,11 @@
   "order": 7,
   "install": {
     "provider": "flatpak",
-    "appId": "org.ppsspp.PPSSPP"
+    "appIds": ["org.ppsspp.PPSSPP"]
   },
   "launch": {
     "path": "flatpak",
-    "args": "run org.ppsspp.PPSSPP -f"
+    "args": "run @APPID@ -f"
   },
   "roms": {
     "dir": "emu/ppsspp",

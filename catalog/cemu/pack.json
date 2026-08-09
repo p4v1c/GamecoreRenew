@@ -9,11 +9,11 @@
   "order": 1,
   "install": {
     "provider": "flatpak",
-    "appId": "info.cemu.Cemu"
+    "appIds": ["info.cemu.Cemu"]
   },
   "launch": {
     "path": "flatpak",
-    "args": "run info.cemu.Cemu -f -g"
+    "args": "run @APPID@ -f -g"
   },
   "roms": {
     "dir": "emu/cemu",

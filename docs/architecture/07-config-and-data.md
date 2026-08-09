@@ -420,7 +420,8 @@ call from the project owner; what follows is the material to make it with.
 
 The split promises that `tar czf backup.tgz /userdata` restores a box. Today it
 does not, and the reason is that the emulators are Flatpaks: they write under
-`~/.var/app/<appId>/`, which is neither the installation nor the data tree.
+`~/.var/app/<the installed appIds entry>/`, which is neither the installation
+nor the data tree.
 
 Worse, saves are **not** in a directory of their own — several sit inside what
 looks like a configuration tree, which is why "back up the config directory,

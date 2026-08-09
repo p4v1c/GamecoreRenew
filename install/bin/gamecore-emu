@@ -227,15 +227,13 @@ from pathlib import Path
 
 root, only = Path(sys.argv[1]), set(sys.argv[2:])
 sys.path.insert(0, str(root))
-from backend.services.catalog import load_catalog
+from backend.services.catalog import appid, load_catalog
 
+# One probe, shared: the resolver behind @FLATPAK_CONFIG@ and @APPID@ reads
+# the same answer this loop prints, so `verify` cannot report a pack healthy
+# under an id the rest of the box is not using.
+installed = appid.probe()
 packs = load_catalog(root / "catalog", root / "config" / "catalog.d")
-try:
-    r = subprocess.run(["flatpak", "list", "--app", "--columns=application"],
-                       capture_output=True, text=True, timeout=60)
-    installed = {l.strip() for l in r.stdout.splitlines() if l.strip()} if r.returncode == 0 else None
-except (OSError, subprocess.SubprocessError):
-    installed = None
 
 bad = 0
 for pack in sorted(packs.values(), key=lambda p: p.id):
@@ -247,8 +245,17 @@ for pack in sorted(packs.values(), key=lambda p: p.id):
         if installed is None:
             state = "? flatpak could not be queried"
         else:
-            ok = spec["appId"] in installed
-            state = "OK" if ok else f"MISSING {spec['appId']}"
+            # ANY candidate counts. A box that fell back is installed, not
+            # broken, and reporting it MISSING would send the owner chasing an
+            # emulator that is sitting right there under its other name.
+            present = [a for a in pack.app_ids if a in installed]
+            ok = bool(present)
+            if not ok:
+                state = "MISSING " + " / ".join(pack.app_ids)
+            elif present[0] == pack.app_ids[0]:
+                state = "OK"
+            else:
+                state = f"OK (fallback: {present[0]}, not {pack.app_ids[0]})"
             bad += not ok
     elif provider == "github-asset":
         ok = (root / spec["dest"]).is_file()

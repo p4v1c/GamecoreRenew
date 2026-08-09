@@ -9,11 +9,11 @@
   "order": 2,
   "install": {
     "provider": "flatpak",
-    "appId": "org.DolphinEmu.dolphin-emu"
+    "appIds": ["org.DolphinEmu.dolphin-emu"]
   },
   "launch": {
     "path": "flatpak",
-    "args": "run org.DolphinEmu.dolphin-emu -b"
+    "args": "run @APPID@ -b"
   },
   "roms": {
     "dir": "emu/dolphin",

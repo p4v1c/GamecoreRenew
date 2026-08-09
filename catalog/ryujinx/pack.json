@@ -9,11 +9,11 @@
   "order": 3,
   "install": {
     "provider": "flatpak",
-    "appId": "io.github.ryubing.Ryujinx"
+    "appIds": ["io.github.ryubing.Ryujinx"]
   },
   "launch": {
     "path": "flatpak",
-    "args": "run io.github.ryubing.Ryujinx"
+    "args": "run @APPID@"
   },
   "roms": {
     "dir": "emu/ryujinx",

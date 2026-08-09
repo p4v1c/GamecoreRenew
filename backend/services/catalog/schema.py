@@ -5,8 +5,8 @@ validates when an optional dependency happens to be installed is a catalogue
 that does not validate. The subset here is exactly what
 `catalog/_schema/pack.schema.json` uses — `type`, `enum`, `const`, `required`,
 `properties`, `additionalProperties`, `items`, `pattern`, `minLength`,
-`minItems`, `minimum`, `maximum`, `oneOf`, `allOf`, `not`, `if`/`then` — and
-anything outside it raises rather than silently passing.
+`minItems`, `uniqueItems`, `minimum`, `maximum`, `oneOf`, `allOf`, `not`,
+`if`/`then` — and anything outside it raises rather than silently passing.
 
 Adding a keyword to the schema without adding it here is therefore a loud
 failure, not a quiet hole.
@@ -20,7 +20,7 @@ from pathlib import Path
 _KNOWN = {
     "$schema", "$id", "title", "description",
     "type", "enum", "const", "required", "properties", "additionalProperties",
-    "items", "pattern", "minLength", "minItems", "minimum", "maximum",
+    "items", "pattern", "minLength", "minItems", "uniqueItems", "minimum", "maximum",
     "oneOf", "allOf", "not", "if", "then", "propertyNames", "default",
 }
 
@@ -74,6 +74,12 @@ def _validate(value: object, schema: dict, path: str, errors: list[str]) -> None
     if isinstance(value, list):
         if "minItems" in schema and len(value) < schema["minItems"]:
             errors.append(f"{path}: fewer than {schema['minItems']} items")
+        if schema.get("uniqueItems") and len(value) != len({json.dumps(v, sort_keys=True)
+                                                            for v in value}):
+            # Serialised rather than set()'d directly: the items this guards are
+            # strings today, but a duplicate dict is unhashable and would raise
+            # instead of reporting.
+            errors.append(f"{path}: contains a duplicate")
         if "items" in schema:
             for i, item in enumerate(value):
                 _validate(item, schema["items"], f"{path}[{i}]", errors)

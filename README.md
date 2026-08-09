@@ -678,8 +678,8 @@ A minimal emulator:
   "family": "Sega",
   "color": "#1e90ff",
   "order": 13,
-  "install": { "provider": "flatpak", "appId": "org.example.MyEmu" },
-  "launch": { "path": "flatpak", "args": "run org.example.MyEmu --fullscreen" },
+  "install": { "provider": "flatpak", "appIds": ["org.example.MyEmu"] },
+  "launch": { "path": "flatpak", "args": "run @APPID@ --fullscreen" },
   "roms": { "dir": "emu/myemu", "extensions": ["*.bin", "*.zip"] }
 }
 ```

@@ -34,6 +34,20 @@ from collections.abc import Callable
 # what a .dist records: it describes the reference box, not this one.
 LauncherResolver = Callable[[object], "tuple[str, str]"]
 
+# What a flatpak launcher writes instead of an application id. The tile says
+# "the app this pack resolves to", not "io.github.ryubing.Ryujinx", so the day
+# a candidate dies the tile is still correct and only the catalogue changes.
+#
+# It is expanded at LAUNCH, not when the tile is written: a tile is written
+# once, by an installer or an OTA, and the set of installed Flatpaks changes
+# after that. Baking the id in is what tied a launcher to an install for good.
+APPID_TOKEN = "@APPID@"
+
+
+def expand_app_id(args: str, app_id: str) -> str:
+    """Substitute the launcher token. A no-op on args that do not carry it."""
+    return args.replace(APPID_TOKEN, app_id) if app_id else args
+
 
 def flatpak_app_id(args: str) -> str:
     """The application id out of a `flatpak run …` argument string, or "".

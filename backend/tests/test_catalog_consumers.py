@@ -72,8 +72,8 @@ def _python_dict(path: Path, name: str) -> dict:
 def test_config_destinations_derive_from_the_installed_app_id(packs):
     """Both installers now ask the catalogue, and it cannot answer wrong.
 
-    @FLATPAK_CONFIG@ expands from the SAME install.appId the installer
-    installs, so a destination under a different app id is unexpressible.
+    @FLATPAK_CONFIG@ expands from the SAME install.appIds entry the box has
+    installed, so a destination under a different app id is unexpressible.
     """
     wrong = []
     for emu_id, dest, _native in _catalog_query("config-dest"):
@@ -467,3 +467,170 @@ def test_every_tile_logo_is_served_at_the_path_the_grid_asks_for():
         if r.status_code != 200 or not r.content:
             blank.append(f"{item['id']}: GET /{icon} -> {r.status_code}")
     assert blank == [], "tiles with no image:\n" + "\n".join(blank)
+
+
+# ── the prune must understand @APPID@ ──────────────────────────────────────
+
+def _flatpakify_box(tmp_path, tiles, installed):
+    """A throwaway GAMECORE_PATH, and a `flatpak` that answers from a fixture.
+
+    The real script is run, not a re-implementation of it: the failure this
+    guards lives in the prune's own parsing, so a copy of that parsing in the
+    test would agree with itself and prove nothing. Nothing outside tmp_path is
+    written, and no Flatpak is installed, removed or queried for real.
+    """
+    import json
+    import os
+    import subprocess
+
+    for name in ("backend", "catalog"):
+        (tmp_path / name).symlink_to(ROOT / name)
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "systems.json").write_text(json.dumps(tiles))
+
+    bin_dir = tmp_path / "stub-bin"
+    bin_dir.mkdir()
+    stub = bin_dir / "flatpak"
+    stub.write_text("#!/bin/sh\nprintf '%s\\n' " +
+                    " ".join(f"'{a}'" for a in installed) + "\n" if installed
+                    else "#!/bin/sh\nexit 0\n")
+    stub.chmod(0o755)
+
+    env = dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}")
+    r = subprocess.run(["bash", str(ROOT / "install/steps/flatpakify-systems.sh"),
+                        str(tmp_path)],
+                       capture_output=True, text=True, timeout=120, env=env)
+    assert r.returncode == 0, r.stderr
+    return json.loads((tmp_path / "config" / "systems.json").read_text()), r.stdout
+
+
+def test_the_prune_resolves_the_token_instead_of_reading_it_as_an_app_id(packs, tmp_path):
+    """The regression that would have emptied every fresh install's grid.
+
+    The prune asked `is args.split()[1] in the installed set`. Against
+    `run @APPID@ -f` that question is "is the literal string @APPID@ an
+    installed Flatpak", the answer is no for every tile at once, and the
+    guard that keeps a tile when the probe looks unreliable does NOT fire —
+    the probe succeeded, it just answered a question nobody meant to ask.
+
+    Thirteen emulators, all silently dropped, on a box where all thirteen were
+    correctly installed.
+
+    A native tile is added alongside, and it is what makes this test able to
+    fail. The prune skips itself entirely when it would empty the grid — a
+    sound guard, and one that hides this exact bug: with only Flatpak tiles the
+    broken prune drops every one of them, the grid comes out empty, the guard
+    fires and puts them all back. The bug is invisible until ONE tile survives
+    on its own merits.
+    """
+    flatpak_packs = [p for p in packs.values() if p.kind == "emulator" and p.app_ids][:2]
+    native = {"id": "native", "type": "emulator", "label": "native",
+              "platform": "native", "color": "#000000", "path": "/bin/sh",
+              "args": "", "romsPath": "emu/native/", "extensions": []}
+    tiles = [native] + [
+        {"id": p.id, "type": "emulator", "label": p.id, "platform": p.id,
+         "color": "#000000", "path": "flatpak", "args": "run @APPID@ -f",
+         "romsPath": f"emu/{p.id}/", "extensions": []}
+        for p in flatpak_packs]
+
+    kept, out = _flatpakify_box(tmp_path, tiles,
+                                [p.app_ids[0] for p in flatpak_packs])
+
+    assert [t["id"] for t in kept] == [t["id"] for t in tiles], (
+        f"tiles were pruned although every candidate is installed — the token "
+        f"was read as an application id.\n{out}")
+
+
+def test_the_prune_still_drops_a_tile_whose_whole_list_is_absent(packs, tmp_path):
+    """The other direction: teaching the prune about the token must not turn it
+    into a prune that never prunes. A tile that cannot launch is worse than no
+    tile — that is why this pass exists at all.
+
+    Two tiles, because one would not test the prune: dropping the last tile on
+    the grid trips the "every launcher looks missing, the probe is unreliable"
+    guard and the whole pass is skipped. That guard is right, and it is exactly
+    what would hide a prune that had stopped working.
+    """
+    flatpak_packs = [p for p in packs.values() if p.kind == "emulator" and p.app_ids]
+    survivor, doomed = flatpak_packs[0], flatpak_packs[1]
+
+    def tile(pack):
+        return {"id": pack.id, "type": "emulator", "label": pack.id,
+                "platform": pack.id, "color": "#000000", "path": "flatpak",
+                "args": "run @APPID@ -f", "romsPath": f"emu/{pack.id}/",
+                "extensions": []}
+
+    kept, out = _flatpakify_box(tmp_path, [tile(survivor), tile(doomed)],
+                                [survivor.app_ids[0]])
+
+    assert [t["id"] for t in kept] == [survivor.id], (
+        f"expected only {survivor.id} to survive — {doomed.id} declares "
+        f"{doomed.app_ids} and none is installed.\n{out}")
+
+
+# ── the weekly upstream check must be able to fire ─────────────────────────
+
+def _run_verify(monkeypatch, alive):
+    """Run verify_emulators.main() with Flathub and GitHub replaced.
+
+    Offline: `alive` is the set of app ids the fake Flathub still knows. The
+    real module is imported by path — it lives at the repo root, not in a
+    package — and its module-level catalogue read is the thing under test, so
+    it is reloaded rather than cached from another test.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("verify_emulators",
+                                                  ROOT / "verify_emulators.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    monkeypatch.setattr(mod, "check_flatpak",
+                        lambda app_id: (app_id in alive,
+                                        "OK" if app_id in alive else "Not Found"))
+    monkeypatch.setattr(mod, "check_github_release_asset",
+                        lambda repo, pattern: (True, "Found"))
+    monkeypatch.setattr(mod, "check_url", lambda url: (True, "OK"))
+    return mod
+
+
+def test_the_weekly_check_is_green_while_every_app_id_lives(packs, monkeypatch, capsys):
+    """The half that keeps the job usable. A check that cries wolf every Monday
+    is a check whose issue nobody opens."""
+    alive = {a for p in packs.values() for a in p.app_ids}
+    mod = _run_verify(monkeypatch, alive)
+    assert mod.main() == 0
+    assert "verified successfully" in capsys.readouterr().out
+
+
+def test_the_weekly_check_fails_when_a_pack_has_no_surviving_app_id(packs, monkeypatch,
+                                                                    capsys):
+    """A dead pack. `.github/workflows/verify-catalog.yml` opens an issue on
+    this exit code — a non-zero that never happens is a job that reports
+    nothing, and the whole value here is a week's warning before a player finds
+    out."""
+    doomed = next(p for p in packs.values() if p.app_ids)
+    alive = {a for p in packs.values() for a in p.app_ids} - set(doomed.app_ids)
+
+    mod = _run_verify(monkeypatch, alive)
+    assert mod.main() == 1
+    assert doomed.id in capsys.readouterr().out
+
+
+def test_a_spent_fallback_is_reported_even_though_nothing_is_broken(monkeypatch,
+                                                                    capsys):
+    """The finding that would otherwise be invisible.
+
+    A pack with two candidates whose FIRST is gone still installs, still
+    launches, and still passes every other check on this box. It is also one
+    disappearance from having nothing left, and there will be no second
+    warning. Silence here is how a list quietly becomes a string again.
+    """
+    mod = _run_verify(monkeypatch, {"org.example.Fallback"})
+    monkeypatch.setattr(mod, "FLATPAK_PACKS",
+                        [("probe", ["org.example.Gone", "org.example.Fallback"])])
+    monkeypatch.setattr(mod, "GITHUB_ASSETS", [])
+
+    assert mod.main() == 1, "a spent fallback passed silently"
+    out = capsys.readouterr().out
+    assert "DEGRADED" in out and "org.example.Gone" in out

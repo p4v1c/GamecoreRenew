@@ -25,12 +25,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from backend.services.catalog import load_catalog  # noqa: E402
+from backend.services.catalog import appid, load_catalog  # noqa: E402
 
 
 def _resolve(value: str, home: str, gamecore: str, app_id: str) -> str:
     """Expand the pack tokens. @FLATPAK_CONFIG@ derives from the SAME app id
-    the installer installs — that is what makes a phantom config directory
+    the box has installed — that is what makes a phantom config directory
     impossible to express."""
     return (value
             .replace("@FLATPAK_CONFIG@", f"{home}/.var/app/{app_id}/config")
@@ -43,8 +43,11 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=[
         "ids", "flatpaks", "config-dest", "rom-dirs", "launchers",
-        "sandbox", "packages", "app-ids",
+        "sandbox", "packages", "app-ids", "app-id-candidates",
     ])
+    ap.add_argument("--no-probe", action="store_true",
+                    help="do not ask flatpak what is installed; answer from the "
+                         "packs' declared order alone (for a build, not a box)")
     ap.add_argument("--kind", choices=["emulator", "app"],
                     help="restrict to emulators or applications")
     ap.add_argument("--select", default="all",
@@ -59,6 +62,12 @@ def main() -> int:
     ap.add_argument("--catalog", type=Path, default=ROOT / "catalog")
     ap.add_argument("--local", type=Path, default=ROOT / "config" / "catalog.d")
     args = ap.parse_args()
+
+    # A box, so the answer follows what is actually installed: a machine that
+    # fell back to the second candidate must be told where ITS config lives,
+    # not where the preferred candidate's would have been.
+    if not args.no_probe:
+        appid.probe()
 
     try:
         packs = load_catalog(args.catalog, args.local)
@@ -80,9 +89,19 @@ def main() -> int:
             out.append(p.id)
 
         elif args.command in ("flatpaks", "app-ids"):
+            # The RESOLVED id — one line per pack, the id this box means. A
+            # caller running `flatpak override` or `flatpak kill` wants the one
+            # that is there, never the whole candidate list.
             if p.app_id:
                 out.append(p.id + "\t" + p.app_id if args.command == "flatpaks"
                            else p.app_id)
+
+        elif args.command == "app-id-candidates":
+            # Every candidate, for the caller that has to consider them all:
+            # the weekly upstream check, and an uninstaller that must find the
+            # emulator it installed even if the catalogue has moved on since.
+            for candidate in p.app_ids:
+                out.append(f"{p.id}\t{candidate}")
 
         elif args.command == "config-dest":
             cfg = p.data.get("config")

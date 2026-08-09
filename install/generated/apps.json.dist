@@ -8,7 +8,7 @@
     "color": "#1f6fb3",
     "iconPath": "assets/logos/steam.png",
     "path": "flatpak",
-    "args": "run com.valvesoftware.Steam -gamepadui"
+    "args": "run @APPID@ -gamepadui"
   },
   {
     "id": "youtube",

@@ -9,10 +9,10 @@
   "order": 0,
   "install": {
     "provider": "flatpak",
-    "appId": "com.valvesoftware.Steam"
+    "appIds": ["com.valvesoftware.Steam"]
   },
   "launch": {
     "path": "flatpak",
-    "args": "run com.valvesoftware.Steam -gamepadui"
+    "args": "run @APPID@ -gamepadui"
   }
 }

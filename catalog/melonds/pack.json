@@ -9,11 +9,11 @@
   "order": 9,
   "install": {
     "provider": "flatpak",
-    "appId": "net.kuribo64.melonDS"
+    "appIds": ["net.kuribo64.melonDS"]
   },
   "launch": {
     "path": "flatpak",
-    "args": "run net.kuribo64.melonDS -f",
+    "args": "run @APPID@ -f",
     "preferIfPresent": {
       "path": "lib/melon",
       "args": "-f"

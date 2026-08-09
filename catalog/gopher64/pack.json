@@ -9,11 +9,11 @@
   "order": 8,
   "install": {
     "provider": "flatpak",
-    "appId": "com.github.Rosalie241.RMG"
+    "appIds": ["com.github.Rosalie241.RMG"]
   },
   "launch": {
     "path": "flatpak",
-    "args": "run com.github.Rosalie241.RMG -f -n -q"
+    "args": "run @APPID@ -f -n -q"
   },
   "roms": {
     "dir": "emu/gopher64",

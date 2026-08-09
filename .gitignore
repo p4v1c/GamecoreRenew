@@ -104,3 +104,14 @@ OPUS_HANDOFF_gamepad.md
 # is worse than none, since the next run compares against it.
 .gate-last-count
 .gate-last-skips
+
+# Catalogue signing — the PRIVATE half, never in git, not even "for testing".
+# The catalogue decides which application every box installs and launches, so
+# this key is the fleet. Generate it outside the repository
+# (scripts/sign-catalog.py --new-key) and keep it there; the public half in
+# catalog/_ota/ is the only part that ships.
+*.ed25519
+*.ed25519.key
+catalog-signing.key
+catalog-signing*.priv
+*-signing.key

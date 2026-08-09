@@ -134,20 +134,24 @@ def test_something_that_is_not_a_flatpak_run_yields_nothing(args):
     assert flatpak_app_id(args) == ""
 
 
-def test_every_shipped_pack_still_parses_to_its_declared_app_id(packs):
+def test_every_shipped_flatpak_launcher_defers_to_the_catalogue(packs):
     """The fix must not move any pack that was already correct.
 
     All twelve put the id straight after `run`, so this is the characterisation
     half: whatever the rule becomes, it keeps answering what the catalogue
-    declares.
+    declares — which is now the token, not a literal id. A pack that spells the
+    id out is a launcher that cannot follow a fallback, and check-catalog.py
+    refuses it; here the reader is what is under test, so what matters is that
+    it lands on the token and not on a flag that happens to precede it.
     """
-    from backend.services.catalog.tiles import flatpak_app_id
+    from backend.services.catalog.tiles import APPID_TOKEN, flatpak_app_id
 
     wrong = []
     for pack in packs.values():
-        if not pack.app_id:
+        if not pack.app_ids:
             continue
         _, args = pack.launcher()
-        if args.startswith("run ") and flatpak_app_id(args) != pack.app_id:
-            wrong.append(f"{pack.id}: read {flatpak_app_id(args)!r}, declares {pack.app_id!r}")
+        if args.startswith("run ") and flatpak_app_id(args) != APPID_TOKEN:
+            wrong.append(f"{pack.id}: read {flatpak_app_id(args)!r}, "
+                         f"expected {APPID_TOKEN}")
     assert wrong == [], "\n".join(wrong)

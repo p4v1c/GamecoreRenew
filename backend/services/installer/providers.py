@@ -1,6 +1,6 @@
 """One strategy per way of obtaining a binary.
 
-    flatpak          appId                                    the EMU_FLATPAK loop
+    flatpak          appIds (ordered, first one the remote has) the EMU_FLATPAK loop
     github-asset     repo, asset, dest, magic, version?, sha256?   the DuckStation block
     github-archive   repo, asset, dest, entrypoint, requires  the Xenia block
     pacman           packages                                 pacman_optional
@@ -28,6 +28,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..catalog import appid
 from . import manifest
 from .fetch import extract, fetch_release_asset
 
@@ -86,12 +87,70 @@ def _pacman_install(packages: list[str], optional: bool = False) -> bool:
 
 # ── flatpak ────────────────────────────────────────────────────────────────
 
-def install_flatpak(pack, ctx: Context) -> Result:
-    app_id = pack.data["install"]["appId"]
-    if ctx.dry_run:
-        return Result(True, f"would install flatpak {app_id}")
+def remote_has(app_id: str, remote: str = "flathub", timeout: int = 120) -> bool:
+    """Does the remote still offer this application?
 
-    already = manifest.flatpak_installed(app_id)
+    `flatpak install` on a dead id fails with the same generic non-zero exit as
+    a network outage, so asking first is what lets the fallback distinguish
+    "this candidate is gone, try the next" from "the network is down, stop".
+    Without the distinction a flaky connection would silently install the
+    second-choice emulator and nobody would know why.
+    """
+    try:
+        r = subprocess.run(["flatpak", "remote-info", remote, app_id],
+                           capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError) as e:
+        log.warning("providers: remote-info %s failed — %s", app_id, e)
+        return False
+    return r.returncode == 0
+
+
+def pick_app_id(pack, ctx: Context) -> tuple[str, str]:
+    """(app id to install, why). Empty id = no candidate survives.
+
+    Order of questions matters:
+
+      1. anything already installed wins outright. Re-running the installer on
+         a box that fell back months ago must not drag it back to a candidate
+         that has since returned — that would leave the emulator's config
+         directory, its saves and its BIOS behind under the old id.
+      2. otherwise the first candidate the remote still offers.
+
+    A pack with one candidate skips the probe entirely: that is every pack
+    today, and paying a `remote-info` round trip per emulator to confirm the
+    only choice available would add a minute to every install for nothing.
+    """
+    app_ids = pack.app_ids
+    for app_id in app_ids:
+        if manifest.flatpak_installed(app_id):
+            return app_id, "already installed"
+    if len(app_ids) == 1:
+        return app_ids[0], "the only candidate"
+    for app_id in app_ids:
+        if remote_has(app_id):
+            if app_id != app_ids[0]:
+                # The line the owner needs in the journal on the day it fires.
+                log.warning("providers: %s: %s is gone from the remote — falling "
+                            "back to %s", pack.id, app_ids[0], app_id)
+            return app_id, "offered by the remote"
+        log.warning("providers: %s: %s is not on the remote", pack.id, app_id)
+    return "", "no declared app id is on the remote"
+
+
+def install_flatpak(pack, ctx: Context) -> Result:
+    if ctx.dry_run:
+        # No probe: --dry-run must not need the network, and the first
+        # candidate is what a box with nothing installed would end up with.
+        return Result(True, f"would install flatpak {pack.app_ids[0]}")
+
+    app_id, why = pick_app_id(pack, ctx)
+    if not app_id:
+        return Result(False,
+                      f"{pack.id}: none of {', '.join(pack.app_ids)} is on the "
+                      f"remote any more — its tile will be missing. The pack "
+                      f"needs a new entry in install.appIds.")
+
+    already = why == "already installed"
     if already:
         # Left out of the uninstall manifest on purpose: an emulator the owner
         # had before GameCore must never end up on the removal list.
@@ -105,6 +164,10 @@ def install_flatpak(pack, ctx: Context) -> Result:
         if r.returncode != 0:
             return Result(False, f"{app_id}: flatpak install exited {r.returncode}")
         manifest.record_new_flatpak(app_id)
+        # What is installed just changed, and the seed deployment that follows
+        # expands @FLATPAK_CONFIG@ through it. Without this, an install that
+        # fell back to the second candidate wrote its config under the first.
+        appid.probe()
 
     # The sandbox override applies either way — hence a manifest of its own.
     flags = sandbox_flags(pack, ctx)

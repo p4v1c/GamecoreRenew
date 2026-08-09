@@ -46,7 +46,7 @@ skip() { echo -e "  ${YLW}·${RST} $*"; }
 # ~/.var/app/com.github.Rosalie241.RMG/config/RMG/ and never saw it. A green
 # tick, no error, and the config silently never applied.
 #
-# catalog-query.py resolves @FLATPAK_CONFIG@ from the SAME install.appId the
+# catalog-query.py resolves @FLATPAK_CONFIG@ from the SAME install.appIds entry the
 # installer installs, so the two cannot drift apart again.
 #
 # Third column: the native destination, for the emulators a box can run outside

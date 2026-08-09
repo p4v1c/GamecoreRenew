@@ -53,10 +53,20 @@ before = len(systems)
 sys.path.insert(0, root)
 try:
     from backend.services.catalog import load_catalog
-    FLATPAK_MAP = {p.id: p.launcher() for p in load_catalog().values()}
+    from backend.services.catalog.tiles import APPID_TOKEN, flatpak_app_id
+    PACKS = load_catalog()
+    FLATPAK_MAP = {p.id: p.launcher() for p in PACKS.values()}
+    # id → every app id the pack would accept, for the prune below.
+    CANDIDATES = {p.id: p.app_ids for p in PACKS.values() if p.app_ids}
 except Exception as e:                       # never let this abort the install
     print(f"[flatpakify] catalogue unavailable ({e}) — launchers left as they are.")
-    FLATPAK_MAP = {}
+    APPID_TOKEN = "@APPID@"
+    FLATPAK_MAP, CANDIDATES = {}, {}
+    def flatpak_app_id(args):
+        parts = args.split()
+        if not parts or parts[0] != "run":
+            return ""
+        return next((t for t in parts[1:] if not t.startswith("-")), "")
 
 # ── 1. selection ────────────────────────────────────────────────
 dropped_unselected = []
@@ -125,8 +135,17 @@ def runnable(s: dict) -> bool:
     if p == "flatpak":
         if FLATPAK_APPS is None:
             return True                  # cannot tell — keep the tile
-        parts = args.split()             # "run <app-id> <flags…>"
-        app_id = parts[1] if len(parts) > 1 and parts[0] == "run" else ""
+        # `flatpak_app_id`, not args.split()[1]: flatpak takes its own flags
+        # after `run`, so a tile needing --socket=x11 read the flag as the
+        # application id and was pruned for not being installed.
+        app_id = flatpak_app_id(args)
+        if app_id == APPID_TOKEN:
+            # A modern tile names no id — it defers to the catalogue. Ask the
+            # same question of every candidate the pack declares. Reading the
+            # token as a literal id would have found it in no `flatpak list`
+            # and quietly pruned EVERY Flatpak tile off a fresh install.
+            wanted = CANDIDATES.get(s.get("id", ""), [])
+            return not wanted or any(a in FLATPAK_APPS for a in wanted)
         return not app_id or app_id in FLATPAK_APPS
     return launcher_exists(p)
 

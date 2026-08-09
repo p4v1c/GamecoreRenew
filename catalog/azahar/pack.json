@@ -9,11 +9,11 @@
   "order": 0,
   "install": {
     "provider": "flatpak",
-    "appId": "org.azahar_emu.Azahar"
+    "appIds": ["org.azahar_emu.Azahar"]
   },
   "launch": {
     "path": "flatpak",
-    "args": "run org.azahar_emu.Azahar -f"
+    "args": "run @APPID@ -f"
   },
   "roms": {
     "dir": "emu/azahar",

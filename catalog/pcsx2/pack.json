@@ -9,11 +9,11 @@
   "order": 5,
   "install": {
     "provider": "flatpak",
-    "appId": "net.pcsx2.PCSX2"
+    "appIds": ["net.pcsx2.PCSX2"]
   },
   "launch": {
     "path": "flatpak",
-    "args": "run net.pcsx2.PCSX2 -fullscreen",
+    "args": "run @APPID@ -fullscreen",
     "preferIfPresent": {
       "path": "lib/pcsx2",
       "args": "-fullscreen"
