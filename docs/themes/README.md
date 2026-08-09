@@ -104,6 +104,7 @@ archive.
 | `provides` | string[] | yes | must list **every** surface: `["splash", "shell"]` (§5) |
 | `schedule` | object | no | `{ "from": "MM-DD", "to": "MM-DD" }` — seasonal auto-activation |
 | `launch` | object | no | `{ "ms": 1520 }` — how long your launch animation needs before the game starts (§5c) |
+| `sounds` | object | no | `{ "move": "assets/move.wav" }` — UI sounds you replace (§13) |
 
 A folder whose name starts with `_` is a **template, not a theme**:
 `config/themes/_skeleton` is there to be copied, and never appears in
@@ -344,7 +345,7 @@ not a gap waiting to be filled — the reasons are in §11.
 | **Move the player** | yes — `goHome`, `goLibrary`, `setGridFocus`, `setGridPage` |
 | **Make sound** | yes — `sdk.system.getAudioContext()` for its own synthesis (Summer's surf), `sdk.system.playSound()` for the host's set, `sdk.system.sound` to respect the player's setting |
 | **Ship assets** | yes — anything in the theme folder, resolved with `sdk.system.asset('…')` |
-| **Change the *five* UI sounds** | **no** — `move`, `confirm`, `back`, `launch`, `startup` are the host's, fired centrally by the input bus. A theme can add sounds, not replace those |
+| **Change the five UI sounds** | yes — declare them in `sounds` and the bus plays yours instead (§13). What stays the host's is *when* they fire |
 | **Change how a screen behaves** | **no** — paging, focus, sorting, search, launching, the shutdown confirmation. It supplies the markup, the host keeps the decisions |
 | **Write a `z-index`** | **no** — the shell owns stacking. This is what let the first version paint over screens it had not replaced |
 | **Skip the boot animation** | **no** — a theme draws its own, but `onDone` is the host's and a 20s watchdog sits behind it |
@@ -442,8 +443,9 @@ Three things to design around:
 ## 8. Module contract
 
 The entry point default-exports a function taking `sdk` and returning
-`{ splash, shell }` — both, always. Neither takes props beyond the ones listed
-here: everything else comes from the SDK.
+`{ splash, shell }` — both, always — and optionally `sounds` (§13). Neither
+surface takes props beyond the ones listed here: everything else comes from the
+SDK.
 
 ```js
 export default (sdk) => {
@@ -565,29 +567,80 @@ The box also runs emulators, on a TV, at 1080p.
 
 ## 13. Sounds
 
-A theme can **add** sound. It cannot **replace** the five UI sounds.
+A theme can **add** sounds and **replace** the five UI ones.
 
-`move`, `confirm`, `back`, `launch` and `startup` are synthesized in
-`frontend/src/lib/sounds.ts` and fired centrally by the input bus — before any
-screen is involved — so there is no hook for a theme to take them over. What a
-theme gets instead:
+`move`, `confirm`, `back`, `launch` and `startup` are fired centrally by the
+input bus, before any screen is involved. That used to mean there was no hook
+for a theme to take them over: a shell that had redrawn every screen still
+answered every press with the stock bip, because the bus sits *under* the theme
+layer. The seam is now the same one `homeView` draws — **the bus keeps the
+*when*, the theme gets the *what*.**
 
-- `sdk.system.playSound(name)` — trigger one of the host's, on its own terms;
-- `sdk.system.getAudioContext()` — the shared context, to synthesize whatever
-  it likes. `config/themes/summer/lib/ambience.js` is the worked example: surf
-  from filtered noise, no audio file, no loop seam.
+### Declaring them
 
-Two rules, whichever route you take:
+In the manifest, for files you ship:
 
-- **The player's sound setting always wins.** `playSound` refuses when sound is
-  off and scales to their volume. A loop *you* start does neither, so read
-  `sdk.system.sound` (`enabled`, `volume`) and follow it — including while it
-  changes, which it can, from Settings → Audio.
-- **Stop when nobody is listening.** A game running or the box asleep means
-  silence; `useIdle` in Summer shows the pattern.
+```json
+{ "id": "arcade", "sounds": { "move": "assets/tick.wav",
+                              "confirm": "assets/coin.wav" } }
+```
 
-The default sounds are synthesized, not files. A theme shipping audio assets is
-a new case, not the existing path.
+Or from the module, which also accepts a function — the shipped themes
+synthesize rather than ship audio, and replacing one bip should not mean
+bouncing a wav:
+
+```js
+return {
+  splash: Splash,
+  shell: Shell,
+  sounds: {
+    move: (ctx, out) => {                    // `out` is already at the player's volume
+      const o = ctx.createOscillator()
+      o.type = 'square'; o.frequency.value = 1200
+      o.connect(out); o.start(); o.stop(ctx.currentTime + 0.03)
+    },
+  },
+}
+```
+
+The module wins over the manifest for the same name, exactly the way
+`{ ...DefaultSettingsPages, ...ownPages }` works.
+
+### The cascade
+
+**Your sound → the host's sound → silence.**
+
+Declare `move` alone and the other four stay the host's — replacing one sound
+does not saddle you with synthesizing the rest. A name neither of you has is
+silent rather than an error, which is what lets you add sounds of your own:
+`sdk.system.playSound('coin')` plays your coin, and does nothing in a theme
+that never declared one.
+
+A file that 404s or will not decode is dropped back to the host's sound. One
+typo'd path costs one bip, not the theme.
+
+### The two rules, unchanged
+
+- **The player's sound setting always wins.** This is enforced, not requested:
+  nothing plays while sound is off, and the `out` node you are handed is
+  already scaled to their volume, re-read on every play so moving the slider in
+  Settings → Audio is heard immediately. Connect to `out`, **not** to
+  `ctx.destination` — the second is how you would escape the slider, and a
+  theme that can be louder than the player allows is a theme they can only
+  silence by uninstalling it.
+- **Stop when nobody is listening.** A loop *you* start is outside all of the
+  above, so read `sdk.system.sound` (`enabled`, `volume`) and follow it. A game
+  running or the box asleep means silence; `useIdle` in Summer shows the
+  pattern.
+
+`sdk.system.getAudioContext()` is still there for ambience rather than events —
+`config/themes/summer/lib/ambience.js` is the worked example: surf from
+filtered noise, no audio file, no loop seam.
+
+**What you still cannot do is decide when a UI sound plays.** You supply
+`move`; the bus decides that a d-pad press is a `move`. That is the same line
+`homeView` draws, and it is why a themed frontend cannot get navigation
+feedback subtly wrong.
 
 ## 14. Editing a theme
 

@@ -18,6 +18,7 @@ import {
   clearCrashes, clearSafeMode, getSafeMode, isBlocked,
   recordCrash, setSafeMode, type SafeModeInfo,
 } from '../lib/themeSafety'
+import { clearThemeSounds } from '../lib/sounds'
 import { onGamepadFrame, isPlaying, GP_BTN } from './useGamepad'
 import { onWsEvent } from './useWebSocket'
 import { useStore } from '../store'
@@ -69,6 +70,16 @@ export function useTheme(): ThemeState {
 
   const apply = useCallback(async () => {
     setLoading(true)
+    // Cleared here, at the top, rather than on each way out.
+    //
+    // Below this line are five paths that end with the default UI on screen —
+    // no theme selected, theme not installed, incompatible, blocked, threw —
+    // and clearThemeStyles is only on two of them. Sounds are worse than a
+    // stale stylesheet when that happens: you cannot see them, so a rescued box
+    // still answering every press in the voice of the theme you just escaped
+    // reads as the rescue having failed. loadTheme reinstalls the set a few
+    // lines later on the one path that keeps a theme.
+    clearThemeSounds()
     try {
       const index = await fetchThemeIndex()
       const id = index.active

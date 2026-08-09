@@ -15,6 +15,7 @@ import {
   clearThemeStyles,
   fetchThemeIndex,
   loadTheme,
+  resolveThemeSounds,
   setActiveTheme,
   SURFACES,
   type ThemeManifest,
@@ -90,6 +91,67 @@ describe('the theme stylesheet', () => {
 
   it('is a no-op when there is no stylesheet to clear', () => {
     expect(() => clearThemeStyles()).not.toThrow()
+  })
+})
+
+describe('the theme sound set', () => {
+  it('resolves a manifest path against the theme folder', () => {
+    const [name, entry] = Object.entries(
+      resolveThemeSounds(manifest({ id: 'noisy', sounds: { move: 'assets/move.wav' } })),
+    )[0]
+    expect(name).toBe('move')
+    expect(entry).toMatch(/^\/themes\/noisy\/assets\/move\.wav\?/)
+  })
+
+  it('busts the cache the way the entry module and the stylesheet do', () => {
+    // An author who edits move.wav and reloads must hear move.wav. Electron's
+    // HTTP cache has hidden UI changes before, and a sound is harder to notice
+    // as stale than a colour.
+    const { move } = resolveThemeSounds(manifest({ sounds: { move: 'a.wav' } }))
+    expect(move).toMatch(/[?&]t=\d+/)
+  })
+
+  it('lets the module override the manifest for the same name', () => {
+    // Same precedence as `{ ...DefaultSettingsPages, ...ownPages }`: a theme
+    // keeps the declarative form for most sounds and reaches for code on the
+    // one it wants to synthesize.
+    const fn = () => {}
+    const out = resolveThemeSounds(
+      manifest({ sounds: { move: 'assets/move.wav' } }),
+      { sounds: { move: fn } },
+    )
+    expect(out.move).toBe(fn)
+  })
+
+  it('keeps manifest sounds the module did not mention', () => {
+    const fn = () => {}
+    const out = resolveThemeSounds(
+      manifest({ sounds: { move: 'assets/move.wav', back: 'assets/back.wav' } }),
+      { sounds: { move: fn } },
+    )
+    expect(out.move).toBe(fn)
+    expect(out.back).toMatch(/assets\/back\.wav/)
+  })
+
+  it('accepts a plain function from a theme that synthesizes', () => {
+    // Both shipped themes synthesize rather than ship audio — Summer builds its
+    // surf out of filtered noise — so requiring a file to replace one bip would
+    // have been a step backwards.
+    const fn = () => {}
+    expect(resolveThemeSounds(manifest(), { sounds: { surf: fn } }).surf).toBe(fn)
+  })
+
+  it('ignores an entry that is neither a path nor a function', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const out = resolveThemeSounds(manifest(), { sounds: { move: 42, back: null } })
+    expect(out).toEqual({})
+  })
+
+  it('is empty for a theme that declares no sounds at all', () => {
+    // Every theme written before this said nothing and must still sound
+    // exactly as it did.
+    expect(resolveThemeSounds(manifest())).toEqual({})
+    expect(resolveThemeSounds(manifest(), {})).toEqual({})
   })
 })
 

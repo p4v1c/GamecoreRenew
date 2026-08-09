@@ -271,3 +271,77 @@ def test_a_theme_can_ask_for_no_pages():
     # Anything else is not a boolean and is dropped, without taking rows down.
     assert themes._home_grid({"paged": "no", "rows": 1}, "t") == {"rows": 1}
     assert themes._home_grid({"paged": 0, "rows": 1}, "t") == {"rows": 1}
+
+
+# ── a theme may replace the UI sounds ────────────────────────────────────────
+# The five host sounds are fired by the input bus, which sits UNDER the theme
+# layer: before this, a shell that redrew every screen still answered every
+# press with the stock bip and had no hook to take it over. The manifest names
+# files; the module may also hand back functions (see themeLoader).
+
+
+@pytest.fixture
+def sound_theme(tmp_path):
+    """A theme directory with one real audio file in it, ready to be pointed at."""
+    d = tmp_path / "noisy"
+    (d / "assets").mkdir(parents=True)
+    (d / "assets" / "move.wav").write_bytes(b"RIFF....WAVE")
+    return d
+
+
+def test_a_theme_that_declares_no_sounds_keeps_the_hosts(sound_theme):
+    """Every theme written before this said nothing, and must still sound
+    exactly as it did."""
+    assert themes._sounds(None, sound_theme) is None
+    assert themes._sounds({}, sound_theme) is None
+
+
+def test_a_declared_sound_reaches_the_manifest(sound_theme):
+    assert themes._sounds({"move": "assets/move.wav"}, sound_theme) == {"move": "assets/move.wav"}
+
+
+def test_a_sound_path_may_not_leave_the_theme_folder(sound_theme):
+    """The frontend turns these straight into a fetch, so the theme directory is
+    the boundary. Checked rather than trusted: a theme is code somebody
+    downloaded."""
+    for bad in ("../../../etc/passwd", "/etc/passwd", "assets/../../secrets.wav"):
+        assert themes._sounds({"move": bad}, sound_theme) is None, bad
+
+
+def test_a_sound_whose_file_is_missing_falls_back_instead_of_failing(sound_theme):
+    """Dropped, not fatal: the cascade gives that one name back to the host, so
+    a typo'd path costs one bip rather than the whole theme."""
+    assert themes._sounds({"move": "assets/nope.wav"}, sound_theme) is None
+    # And it does not take a good sibling down with it.
+    assert themes._sounds(
+        {"move": "assets/move.wav", "back": "assets/nope.wav"}, sound_theme,
+    ) == {"move": "assets/move.wav"}
+
+
+def test_an_unusable_sound_entry_is_dropped(sound_theme):
+    assert themes._sounds({"move": 42}, sound_theme) is None
+    assert themes._sounds({"move": ""}, sound_theme) is None
+    assert themes._sounds({"MOVE": "assets/move.wav"}, sound_theme) is None
+    assert themes._sounds({"../x": "assets/move.wav"}, sound_theme) is None
+    assert themes._sounds("loud please", sound_theme) is None
+    assert themes._sounds([["move", "assets/move.wav"]], sound_theme) is None
+
+
+def test_a_theme_may_name_a_sound_the_host_does_not_have(sound_theme):
+    """The cascade ends in silence, not an error, so a theme can add its own
+    names as well as replace the five."""
+    assert themes._sounds({"coin": "assets/move.wav"}, sound_theme) == {"coin": "assets/move.wav"}
+
+
+def test_the_sounds_reach_the_manifest(tmp_path, monkeypatch):
+    monkeypatch.setattr(themes, "THEMES_DIR", tmp_path)
+    d = tmp_path / "noisy"
+    (d / "assets").mkdir(parents=True)
+    (d / "assets" / "move.wav").write_bytes(b"RIFF....WAVE")
+    (d / "index.js").write_text("export default () => ({})")
+    (d / "theme.json").write_text(json.dumps({
+        "id": "noisy", "name": "Noisy", "version": "1.0.0", "api": 1,
+        "provides": ["splash", "shell"], "sounds": {"move": "assets/move.wav"},
+    }))
+    m = next(t for t in themes.list_themes() if t["id"] == "noisy")
+    assert m["sounds"] == {"move": "assets/move.wav"}

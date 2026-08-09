@@ -122,6 +122,52 @@ def _launch_ms(raw, theme_id: str) -> int | None:
     return v
 
 
+# The UI sounds a theme replaces, as `name -> file inside the theme folder`.
+#
+# It exists because the five host sounds are fired by the input bus, which sits
+# *under* the theme layer: a shell that redrew every screen still answered every
+# press with the stock bip, and there was no hook anywhere to take that over.
+# The bus keeps deciding *when* a sound plays; this decides *what* plays.
+#
+# A name missing here falls through to the host's synthesized sound, so a theme
+# replaces one sound without inheriting the job of synthesizing the other four.
+_SOUND_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
+
+
+def _sounds(raw, d: Path) -> dict | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        log.warning("theme %s: `sounds` must be an object — ignored", d.name)
+        return None
+    out = {}
+    for name, rel in raw.items():
+        if not isinstance(name, str) or not _SOUND_NAME_RE.match(name):
+            log.warning("theme %s: sound name %r must be lowercase alphanumeric — ignored",
+                        d.name, name)
+            continue
+        if not isinstance(rel, str) or not rel:
+            log.warning("theme %s: sound %s must be a path string — ignored", d.name, name)
+            continue
+        # A manifest names files inside its own folder and nowhere else. Without
+        # this, `"move": "../../../etc/passwd"` is a path the frontend would
+        # happily turn into a fetch — the theme directory is the boundary, and
+        # it is checked here rather than trusted because a theme is code
+        # somebody downloaded.
+        if rel.startswith("/") or ".." in Path(rel).parts:
+            log.warning("theme %s: sound %s path %r leaves the theme folder — ignored",
+                        d.name, name, rel)
+            continue
+        if not (d / rel).is_file():
+            # Dropped rather than fatal: the cascade falls back to the host's
+            # sound, which is a theme with one missing bip instead of a theme
+            # that will not load.
+            log.warning("theme %s: sound %s file %r not found — ignored", d.name, name, rel)
+            continue
+        out[name] = rel
+    return out or None
+
+
 def _read_manifest(d: Path) -> dict | None:
     """Parsed, validated manifest for one directory, or None with a logged reason."""
     f = d / "theme.json"
@@ -173,6 +219,7 @@ def _read_manifest(d: Path) -> dict | None:
         "schedule": m.get("schedule"),
         "home": _home_grid(m.get("home"), d.name),
         "launch": _launch_ms(m.get("launch"), d.name),
+        "sounds": _sounds(m.get("sounds"), d),
         # The UI needs a reason, not just a boolean.
         "compatible": api_version <= SDK_VERSION and not absent,
         "warnings": (

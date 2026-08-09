@@ -7,6 +7,7 @@
  */
 import type { ComponentType } from 'react'
 import { buildSdk, SDK_VERSION, type SdkHost } from './themeSdk'
+import { setThemeSounds, type ThemeSound } from './sounds'
 
 /**
  * The two surfaces a theme owns: the boot animation, and the frontend body.
@@ -41,6 +42,9 @@ export interface ThemeManifest {
   /** How long the theme's launch animation runs before the game is started.
    *  Absent = start it immediately, which is what every theme did before. */
   launch?: { ms?: number } | null
+  /** UI sounds the theme replaces, `name -> path inside the theme folder`.
+   *  The backend has already dropped the ones whose file is missing. */
+  sounds?: Record<string, string> | null
   compatible: boolean
   warnings: string[]
 }
@@ -96,6 +100,44 @@ export function clearThemeStyles(): void {
 }
 
 /**
+ * The theme's sound set, from its two sources, in precedence order.
+ *
+ * The manifest can only name files; the module can also hand back functions,
+ * which is what a theme that synthesizes rather than ships audio needs — and
+ * both shipped themes synthesize. The module wins on a clash, the same way
+ * `{ ...DefaultSettingsPages, ...ownPages }` lets a theme keep the host's page
+ * for everything it did not write.
+ *
+ * Exported for its own sake: this merge is the whole contract, and the import()
+ * in loadTheme means it is otherwise only reachable on a box with themes on it.
+ */
+export function resolveThemeSounds(
+  m: ThemeManifest,
+  produced: Record<string, unknown> = {},
+): Record<string, ThemeSound> {
+  // Same busting as the entry module and the stylesheet: an author who edits
+  // move.wav and reloads must hear move.wav, not whatever Electron cached.
+  const bust = `?v=${encodeURIComponent(m.version)}&t=${Date.now()}`
+  const url = (rel: string) =>
+    `/themes/${encodeURIComponent(m.id)}/${rel.replace(/^\/+/, '')}${bust}`
+
+  const out: Record<string, ThemeSound> = {}
+  for (const [name, rel] of Object.entries(m.sounds ?? {})) {
+    if (typeof rel === 'string') out[name] = url(rel)
+  }
+
+  const fromModule = produced.sounds
+  if (fromModule && typeof fromModule === 'object') {
+    for (const [name, v] of Object.entries(fromModule as Record<string, unknown>)) {
+      if (typeof v === 'function') out[name] = v as ThemeSound
+      else if (typeof v === 'string') out[name] = url(v)
+      else console.warn(`[gamecore] theme sound "${name}" must be a path or a function — ignored`)
+    }
+  }
+  return out
+}
+
+/**
  * Import a theme and return its surfaces.
  *
  * Completeness is a load-time gate, not a per-screen fallback: a missing or
@@ -140,6 +182,10 @@ export async function loadTheme(m: ThemeManifest, host: SdkHost): Promise<Surfac
   if (missing.length) {
     throw new Error(`theme is incomplete — a theme must provide every surface: ${missing.join(', ')}`)
   }
+
+  // After the completeness gate, so a theme that is about to be refused does
+  // not leave its bips installed over the default UI that replaces it.
+  setThemeSounds(resolveThemeSounds(m, produced as Record<string, unknown>))
 
   return out
 }
