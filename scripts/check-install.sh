@@ -22,6 +22,10 @@
 set -uo pipefail
 
 GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
+# The generated config and the ROMs follow the data root, which is the
+# install unless the box has been split. Checking them under GAMECORE_PATH
+# on a split box would report a perfectly healthy install as broken.
+GAMECORE_DATA="${GAMECORE_DATA:-$GAMECORE_PATH}"
 JSON=false
 [[ "${1:-}" == "--json" ]] && JSON=true
 
@@ -42,9 +46,10 @@ PY="$GAMECORE_PATH/.venv/bin/python3"
 
 # ── 1. the files are there ────────────────────────────────────────────────
 head_ "Files"
-for d in backend frontend electron install update catalog scripts config; do
+for d in backend frontend electron install update catalog scripts; do
   [[ -d "$GAMECORE_PATH/$d" ]] && ok "$d/" || bad "$d/" "missing from $GAMECORE_PATH"
 done
+[[ -d "$GAMECORE_DATA/config" ]] && ok "config/" || bad "config/" "missing from $GAMECORE_DATA"
 # scripts/ is the one the installers CALL. Leaving it out does not degrade
 # anything — it breaks the install outright, and only on a real box.
 for f in scripts/catalog-query.py scripts/gamecore-provider.py install/bin/gamecore-emu; do
@@ -65,13 +70,13 @@ if [[ -f "$GAMECORE_PATH/scripts/check-catalog.py" ]]; then
     bad "packs invalid" "$(echo "$out" | head -1)"
   fi
 fi
-n_sys=$("$PY" -c "import json;print(len(json.load(open('$GAMECORE_PATH/config/systems.json'))))" 2>/dev/null || echo 0)
-n_app=$("$PY" -c "import json;print(len(json.load(open('$GAMECORE_PATH/config/apps.json'))))" 2>/dev/null || echo 0)
+n_sys=$("$PY" -c "import json;print(len(json.load(open('$GAMECORE_DATA/config/systems.json'))))" 2>/dev/null || echo 0)
+n_app=$("$PY" -c "import json;print(len(json.load(open('$GAMECORE_DATA/config/apps.json'))))" 2>/dev/null || echo 0)
 [[ "$n_sys" -gt 0 ]] && ok "grid" "$n_sys systems, $n_app apps" || bad "grid" "systems.json is empty"
 
 # A launcher naming a Flatpak nobody installed is a dead tile. This is the
 # gopher64 class of failure, checked from the outside.
-"$PY" - "$GAMECORE_PATH" <<'PY' 2>/dev/null | while IFS='|' read -r kind msg; do
+"$PY" - "$GAMECORE_DATA" <<'PY' 2>/dev/null | while IFS='|' read -r kind msg; do
 import json, subprocess, sys
 root = sys.argv[1]
 try:
@@ -214,7 +219,7 @@ fi
 # fire always and mean nothing. What mattered was that those .pyc files made
 # the grep above report a leak that was not one; `-I` settles it, and the
 # release archives strip them anyway.
-if grep -qs '@HOME@' "$GAMECORE_PATH/config/apps.json" 2>/dev/null; then
+if grep -qs '@HOME@' "$GAMECORE_DATA/config/apps.json" 2>/dev/null; then
   warn "apps.json" "@HOME@ still unsubstituted — the backend resolves it at read time, but arch.sh should have"
 else
   ok "apps.json tokens resolved"

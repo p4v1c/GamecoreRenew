@@ -211,6 +211,16 @@ if [[ -z "$GC_PATH" && -f "$BACKEND_UNIT" ]]; then
   GC_PATH=$(awk -F= '/^Environment=GAMECORE_PATH=/{print $3; exit}' "$BACKEND_UNIT")
 fi
 GC_PATH="${GC_PATH:-/opt/GameCore}"
+# Where the player's data actually is. On every box built before the code/data
+# split this IS the install, and everything below behaves as it always did.
+if [[ -z "${GC_DATA:-}" && -f "$BACKEND_UNIT" ]]; then
+  GC_DATA=$(awk -F= '/^Environment=GAMECORE_DATA=/{print $3; exit}' "$BACKEND_UNIT")
+fi
+[[ -n "${GC_DATA:-}" ]] || GC_DATA="${GAMECORE_DATA:-$GC_PATH}"
+# True when the data is its own tree, which changes what --purge can honestly
+# claim to have deleted.
+SPLIT=false
+[[ "$GC_DATA" != "$GC_PATH" ]] && SPLIT=true
 if [[ -z "$GC_USER" && -d "$GC_PATH" ]]; then
   GC_USER=$(stat -c %U "$GC_PATH" 2>/dev/null)
 fi
@@ -247,7 +257,8 @@ if $MANIFEST_FOUND; then
 else
   info "Manifest      : not found — conservative mode (nothing ambiguous is touched)"
 fi
-info "ROMs & config : $($PURGE && echo 'DELETED (--purge)' || echo 'kept')"
+info "ROMs & config : $($PURGE && ($SPLIT && echo "kept — they are in $GC_DATA, outside the install" || echo 'DELETED (--purge)') || echo 'kept')"
+$SPLIT && info "Data path     : $GC_DATA (never deleted by this script)"
 info "Flatpaks      : $($REMOVE_FLATPAKS && echo 'remove the ones we installed' || echo 'kept')"
 info "Packages      : $($REMOVE_PACKAGES && echo 'remove the ones we installed' || echo 'kept')"
 info "Linux user    : $($REMOVE_USER && echo "delete '$GC_USER' if we created it" || echo 'kept')"
@@ -767,12 +778,22 @@ msg "Application files"
 # The stored web password and cookie key go regardless of --purge: they live
 # under config/, which the default path preserves, and leaving an argon2 hash
 # and an HMAC key behind after removal is not acceptable.
-safe_rm "$GC_PATH/config/auth.json" "$GC_PATH/config/auth_secret"
+safe_rm "$GC_DATA/config/auth.json" "$GC_DATA/config/auth_secret"
 
 if [[ -d "$GC_PATH" ]]; then
   if $PURGE; then
     safe_rm "$GC_PATH"
-    ok "$GC_PATH deleted, ROMs and configuration included."
+    if $SPLIT; then
+      # --purge deletes the INSTALL. A separate data tree is somebody's ROM
+      # library on its own filesystem, quite possibly a disk they mounted
+      # themselves — deleting it because a flag was passed to an uninstaller
+      # is not a decision this script gets to make. Name it and stop.
+      ok "$GC_PATH deleted."
+      warn "Your ROMs and configuration are in $GC_DATA and were NOT deleted."
+      warn "  To remove them too:  sudo rm -rf $GC_DATA"
+    else
+      ok "$GC_PATH deleted, ROMs and configuration included."
+    fi
   else
     # `assets` is kept alongside emu/ and config/: assets/overlays holds the
     # bezels the user uploaded through the ROM manager and assets/logos their
@@ -862,7 +883,7 @@ echo -e "${BLU}╚════════════════════�
 echo
 if ! $DRY; then
   ok "GameCore no longer starts at boot."
-  $PURGE || info "Your ROMs are still in $GC_PATH/emu"
+  { $PURGE && ! $SPLIT; } || info "Your ROMs are still in $GC_DATA/emu"
   echo
   echo -e "${YLW}  Left in place on purpose:${RST}"
   echo "  · sshd, bluetooth and sddm — system services that likely predate GameCore"
