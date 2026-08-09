@@ -15,8 +15,21 @@ import sys
 import time
 import threading
 import platform
+from pathlib import Path
 
 OS = platform.system()  # "Linux" | "Windows" | "Darwin"
+
+# The rules about what a screen measurement has to look like to be believed
+# live in `bezel_capture`, so the backend and this process cannot drift apart
+# about them. Imported by path because this file is spawned as a script, not
+# as part of the package — and guarded, because an import failure here must
+# cost the measurement and not the overlay.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+try:
+    from backend.services import bezel_capture as _measurement
+except Exception as _e:                                       # pragma: no cover
+    print(f"[overlay-monitor] no capture support: {_e}", file=sys.stderr)
+    _measurement = None
 
 # On Wayland sessions, X11 window detection won't work unless the app runs under XWayland.
 # The overlay feature is fully functional on X11/kiosk environments (openbox, etc.).
@@ -137,6 +150,38 @@ class X11Manager:
         except Exception:
             return False
 
+    def capture(self, wid: int, w: int, h: int) -> tuple[bytes, int] | None:
+        """(raw pixels, bytes per row) of the window's current contents.
+
+        Read in horizontal bands rather than in one call: a 1920x1080 window
+        is about 8 MB, and an X reply that large exceeds what some servers will
+        return in a single GetImage — the request fails outright rather than
+        being split for us. Bands also mean a failure late in the read costs
+        the bands already gathered and nothing more.
+        """
+        try:
+            win = self._display.create_resource_object("window", wid)
+            rows_per_band = max(1, 262144 // max(1, w * 4))
+            data = bytearray()
+            y = 0
+            while y < h:
+                band = min(rows_per_band, h - y)
+                img = win.get_image(0, y, w, band, X.ZPixmap, 0xFFFFFFFF)
+                raw = img.data
+                if isinstance(raw, str):          # python-xlib < 0.30
+                    raw = raw.encode("latin-1")
+                data += raw
+                y += band
+            if not data:
+                return None
+            # Derived, not assumed: the depth-32 visual an emulator gets is not
+            # guaranteed, and a stride computed from the wrong one measures a
+            # skewed picture rather than failing.
+            return bytes(data), len(data) // h
+        except Exception as e:
+            print(f"[overlay-monitor] capture: {e}", file=sys.stderr)
+            return None
+
 
 # ── Monitor logic ─────────────────────────────────────────────────────────────
 class OverlayMonitor:
@@ -228,6 +273,13 @@ class OverlayMonitor:
               "rect": {"x": hole["x"], "y": hole["y"],
                        "w": hole["w"], "h": hole["h"]}})
 
+        # ── Does the emulator draw where the hole says it does? ───────────────
+        # Only when the backend asked: once an answer is cached for this
+        # system and ratio there is nothing left to learn, and reading 8 MB
+        # off the X server twice per launch for it would be pure cost.
+        if cfg.get("measure"):
+            self._measure(system_id, wid, rect, cfg.get("announced") or hole)
+
         # ── Maintenance loop — reforce if window moves/resizes ────────────────
         while not self._stop.is_set():
             if not self._mgr.window_exists(wid):
@@ -245,6 +297,53 @@ class OverlayMonitor:
                 print(f"[overlay-monitor] maintenance loop: {e}", file=sys.stderr)
 
             time.sleep(0.1)
+
+    # ── Capture ──────────────────────────────────────────────────────────────
+
+    def _measure(self, system_id: str, wid: int, rect: dict, announced: dict) -> None:
+        """Two samples of what is really on screen, reported if they agree.
+
+        Runs after `window:ready`, so the overlay is already up and nothing
+        here is in front of the player. Every failure path is silent for the
+        same reason: a capture that does not work must cost a log line, never
+        a launch.
+
+        Two samples because a second into a game is very often a loading
+        screen — see `bezel_capture`, which owns every rule about what a
+        measurement has to look like to be believed. This function only holds
+        the X11 half, which is the half that cannot be tested without a screen.
+        """
+        if _measurement is None:
+            return
+        try:
+            samples = []
+            for delay in (1.0, 2.5):
+                if self._stop.wait(delay):
+                    return                        # game already over
+                if not self._mgr.window_exists(wid):
+                    return
+                shot = self._mgr.capture(wid, rect["w"], rect["h"])
+                if not shot:
+                    return
+                pixels, stride = shot
+                samples.append(_measurement.content_bbox(
+                    pixels, rect["w"], rect["h"], stride))
+
+            box = _measurement.agree(*samples)
+            if box is None:
+                emit({"event": "debug",
+                      "msg": f"measure: samples disagree — {samples}"})
+                return
+            if not _measurement.is_plausible(box, rect["w"], rect["h"]):
+                emit({"event": "debug", "msg": f"measure: implausible — {box}"})
+                return
+
+            x, y, w, h = box
+            emit({"event": "window:measured", "system_id": system_id,
+                  "announced": announced, "window": {"w": rect["w"], "h": rect["h"]},
+                  "measured": {"x": x, "y": y, "w": w, "h": h}})
+        except Exception as e:
+            print(f"[overlay-monitor] measure: {e}", file=sys.stderr)
 
 
 # ── Main stdin loop ───────────────────────────────────────────────────────────

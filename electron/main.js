@@ -305,8 +305,14 @@ function handleMonitorEvent(msg) {
       // Wait for the overlay page to finish loading before sending the event,
       // otherwise the React listener isn't mounted yet and the event is lost.
       if (overlayWindow) {
+        // The asset travels with the geometry. Without it the overlay page
+        // would rebuild the URL from system_id and always draw the system
+        // bezel — the per-game resolution would be computed and then thrown
+        // away one process boundary before it was used.
+        const shown = { ...msg, asset: overlayChoice?.asset ?? null,
+                        source: overlayChoice?.source ?? 'declared' }
         overlayWindow.webContents.once('did-finish-load', () => {
-          overlayWindow?.webContents.send('overlay:show', msg)
+          overlayWindow?.webContents.send('overlay:show', shown)
         })
       }
       break
@@ -319,21 +325,78 @@ function handleMonitorEvent(msg) {
       }
       break
 
+    // The emulator drew somewhere other than the hole said it would. Two
+    // things happen, and they are deliberately independent: the overlay moves
+    // its hole now, so this game is right immediately; and the backend is
+    // told, so the next launch starts out right without looking again.
+    case 'window:measured':
+      if (overlayWindow) {
+        overlayWindow.webContents.send('overlay:show', {
+          ...msg, rect: msg.measured,
+          asset: overlayChoice?.asset ?? null,
+          source: overlayChoice?.source ?? 'declared',
+        })
+      }
+      fetch(`${BACKEND_URL}/api/overlays/measured/${encodeURIComponent(msg.system_id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ announced: msg.announced, measured: msg.measured,
+                               window: msg.window }),
+        signal: AbortSignal.timeout(4000),
+      }).catch(() => { /* a correction not learned is next launch's problem */ })
+      break
+
     case 'error':
       if (DEBUG) console.error('[overlay-monitor] error:', msg.message)
       break
   }
 }
 
+// Which bezel this launch resolved to, and where its hole falls. Set just
+// before the monitor is told to watch, read again when 'window:ready' comes
+// back — the monitor reports geometry and knows nothing about artwork.
+let overlayChoice = null
+
+// The backend measures the hole out of the PNG's own alpha channel, so the
+// answer follows whatever bezel is actually on this box. Deciding it here
+// instead would mean a second PNG decoder in JavaScript and two sets of
+// numbers to keep in agreement; `config/overlays.json` is the fallback for a
+// system with no PNG at all, and the backend already reads it.
+function resolveBezel(system_id, game_key) {
+  const q = new URLSearchParams({ rom: game_key || '' })
+  return fetch(`${BACKEND_URL}/api/overlays/resolve/${encodeURIComponent(system_id)}?${q}`,
+               { signal: AbortSignal.timeout(4000) })
+    .then(r => (r.ok ? r.json() : null))
+    .catch(() => null)
+}
+
 // ── IPC — overlay control (from renderer) ────────────────────────────────────
-ipcMain.on('overlay:start', (_, { system_id }) => {
+ipcMain.on('overlay:start', async (_, { system_id, game_key }) => {
   const configs = loadOverlayConfig()
   const cfg     = configs[system_id]
   if (!cfg) return
 
+  // Awaited before the monitor starts, not raced against it: the monitor
+  // emits 'window:ready' as soon as the emulator's window appears, and a
+  // choice that arrived after that point would draw the previous game's bezel.
+  const choice = await resolveBezel(system_id, game_key)
+
+  // A backend that did not answer is not a reason to skip the overlay — the
+  // declared geometry is exactly what this code used before there was an
+  // endpoint to ask.
+  overlayChoice = choice && choice.source !== 'none'
+    ? choice
+    : { source: 'declared', asset: null, hole: cfg.hole || null }
+
   startOverlayMonitor()
 
-  const cmd = JSON.stringify({ cmd: 'watch', system_id, config: cfg }) + '\n'
+  // `measure`/`announced` ride along so the monitor knows whether to look at
+  // the screen at all, and against which rectangle to report what it sees.
+  const watched = overlayChoice.hole
+    ? { ...cfg, hole: overlayChoice.hole,
+        measure: !!overlayChoice.measure, announced: overlayChoice.announced }
+    : cfg
+  const cmd = JSON.stringify({ cmd: 'watch', system_id, config: watched }) + '\n'
   try { monitorProcess?.stdin.write(cmd) } catch { /* monitor not ready yet */ }
 })
 
@@ -345,6 +408,9 @@ ipcMain.on('overlay:stop', (_, { system_id }) => {
   // behind it and no way to get back to it.
   destroyOverlayWindow()
   if (mainWindow) mainWindow.show()
+  // Cleared here rather than on the next start: a stale choice surviving a
+  // failed launch is the previous game's bezel drawn over the new one.
+  overlayChoice = null
 
   if (!monitorProcess) return
   try {

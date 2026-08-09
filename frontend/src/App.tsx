@@ -68,7 +68,11 @@ export default function App() {
   // Emulator overlay: show the bezel when a game starts, hide it when it ends.
   useEffect(() => {
     const offStart = onWsEvent('game:started', (d) => {
-      window.gamecore?.overlayStart((d as { system_id: string }).system_id)
+      // `game_key` is the ROM filename the launcher recorded, and it is what
+      // picks this game's bezel out of a pack. Passing only system_id gets the
+      // system bezel for every game, which is the feature not existing.
+      const ev = d as { system_id: string; game_key?: string }
+      window.gamecore?.overlayStart(ev.system_id, ev.game_key)
     })
     const offDone = onWsEvent('game:finished', (d) => {
       window.gamecore?.overlayStop((d as { system_id: string }).system_id)

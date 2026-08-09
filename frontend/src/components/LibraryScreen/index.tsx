@@ -20,6 +20,7 @@ import { useThemeCtx } from '../ThemeSurface'
 import DefaultLibraryView from './DefaultLibraryView'
 import CoverImage from './CoverImage'
 import GameMetaPanel from './GameMetaPanel'
+import GameOptionsModal from '../modals/game/GameOptionsModal'
 import { SORT_KEYS, type SortKey, type LibraryViewProps } from './types'
 
 interface Props {
@@ -41,9 +42,15 @@ export default function LibraryScreen({ view: View = DefaultLibraryView }: Props
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
+  const [showOptions, setShowOptions] = useState(false)
 
   const showSearchRef = useRef(showSearch)
   useEffect(() => { showSearchRef.current = showSearch }, [showSearch])
+  // The options panel registers its own dpad/✕/○ handlers. Without this the
+  // library's handlers stay live underneath it, so moving the cursor in the
+  // panel also moves it in the list — and ✕ launches the game.
+  const showOptionsRef = useRef(showOptions)
+  useEffect(() => { showOptionsRef.current = showOptions }, [showOptions])
 
   // The search keyboard counts as a modal: while it's open, global bindings
   // (Options → Settings, Share → Power) must not fire on top of it.
@@ -53,6 +60,14 @@ export default function LibraryScreen({ view: View = DefaultLibraryView }: Props
     openModal()
     return () => closeModal()
   }, [showSearch]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Same for the options panel, and for the same reason: Options → Settings
+  // and Share → Power are global, and would open a second surface on top.
+  useEffect(() => {
+    if (!showOptions) return
+    openModal()
+    return () => closeModal()
+  }, [showOptions]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const color = (system?.color || SYSTEM_COLORS[selectedSystemId?.toLowerCase() || ''] || '#7c3aed')
 
@@ -189,6 +204,7 @@ export default function LibraryScreen({ view: View = DefaultLibraryView }: Props
       return screenRef.current !== 'library' ||
              modalDepthRef.current > 0 ||
              showSearchRef.current ||
+             showOptionsRef.current ||
              launching ||
              sessionGameKey !== null
     }
@@ -196,8 +212,11 @@ export default function LibraryScreen({ view: View = DefaultLibraryView }: Props
       onGp('gp:dpad-up',  () => { if (blocked() || !sortedGames.length) return; setSelectedGameIdx(Math.max(0, selectedGameIdx - 1)) }),
       onGp('gp:dpad-down',() => { if (blocked() || !sortedGames.length) return; setSelectedGameIdx(Math.min(sortedGames.length - 1, selectedGameIdx + 1)) }),
       onGp('gp:confirm',  () => { if (blocked()) return; launchGame() }),
-      onGp('gp:back',     () => { if (screenRef.current !== 'library' || modalDepthRef.current > 0) return; if (showSearchRef.current) { setShowSearch(false); return } cancelPendingLaunch(); goHome() }),
+      onGp('gp:back',     () => { if (screenRef.current !== 'library' || modalDepthRef.current > 0 || showOptionsRef.current) return; if (showSearchRef.current) { setShowSearch(false); return } cancelPendingLaunch(); goHome() }),
       onGp('gp:y',        () => { if (blocked()) return; setShowSearch(true) }),
+      // R2, because every face button is already spoken for on this screen:
+      // ✕ launches, ○ goes back, △ searches and □ is the controller screen.
+      onGp('gp:r2',       () => { if (blocked() || !settledGame) return; setShowOptions(true) }),
       onGp('gp:l1', () => {
         if (blocked()) return
         setSort(s => { const i = SORT_KEYS.indexOf(s); return SORT_KEYS[(i - 1 + SORT_KEYS.length) % SORT_KEYS.length] })
@@ -252,6 +271,20 @@ export default function LibraryScreen({ view: View = DefaultLibraryView }: Props
               onCancel={() => setShowSearch(false)}
             />
           </Overlay>
+        )}
+      </AnimatePresence>
+
+      {/* Per-game options. Also the host's: which bezel a game gets is not a
+          themable decision, and a theme that omitted it would leave the only
+          remedy for a wrong overlay behind an SSH session. */}
+      <AnimatePresence>
+        {showOptions && settledGame && selectedSystemId && (
+          <GameOptionsModal
+            systemId={selectedSystemId}
+            rom={settledGame.filename}
+            title={settledGame.display_name}
+            onClose={() => setShowOptions(false)}
+          />
         )}
       </AnimatePresence>
     </>

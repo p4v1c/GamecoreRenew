@@ -52,6 +52,35 @@ export interface GameMeta {
   platform?: string
 }
 
+/** A bezel that exists on this box and may therefore be offered. */
+export interface OverlayOption {
+  /** The filename, and what `choose()` takes back. */
+  id: string
+  label: string
+  level: 'game' | 'system'
+  asset: string
+}
+
+export interface ResolvedOverlay {
+  system_id: string
+  /** 'game' | 'system' | 'chosen' | 'declared' | 'off' | 'none'. `off` and
+   *  `none` draw the same thing and are different problems: one the player
+   *  asked for, the other means no artwork was found. */
+  source: string
+  asset: string | null
+  hole: { x: number; y: number; w: number; h: number } | null
+  frame: { w: number; h: number } | null
+}
+
+export interface OverlayChoices {
+  system_id: string
+  rom: string | null
+  /** null = automatic. Not the same as 'off'. */
+  current: string | null
+  resolved: ResolvedOverlay
+  options: OverlayOption[]
+}
+
 /** One artwork a game has. The file itself is at `api.media.url(...)`. */
 export interface MediaEntry {
   /** box, cart, logo, screenshot, mix, marquee, artwork, icon, bezel, video, document, theme, pinball */
@@ -174,6 +203,16 @@ async function get<T>(path: string): Promise<T> {
   return r.json()
 }
 
+async function put<T>(path: string, body?: unknown): Promise<T> {
+  const r = await fetch(BASE + path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+  return r.json()
+}
+
 async function post<T>(path: string, body?: unknown): Promise<T> {
   const r = await fetch(BASE + path, {
     method: 'POST',
@@ -218,6 +257,21 @@ export const api = {
   metadata: {
     get: (systemId: string, filename: string) =>
       get<GameMeta>(`/metadata/${encodeURIComponent(systemId)}/${encodeURIComponent(filename)}`),
+  },
+  /**
+   * Which bezel a game gets, and the player's say in it.
+   *
+   * `choices()` is what the options panel needs: what exists on this box, and
+   * what is set today. `null` for `current` means automatic — the cascade
+   * decides — which is deliberately not the same value as `"off"`.
+   */
+  overlays: {
+    choices: (systemId: string, rom: string) =>
+      get<OverlayChoices>(`/overlays/choices/${encodeURIComponent(systemId)}`
+                          + `?rom=${encodeURIComponent(rom)}`),
+    choose: (systemId: string, rom: string, choice: string | null) =>
+      put<{ ok: boolean; current: string | null; resolved: ResolvedOverlay }>(
+        `/overlays/choices/${encodeURIComponent(systemId)}`, { rom, choice }),
   },
   /**
    * Every artwork a game has, not just its jacket.

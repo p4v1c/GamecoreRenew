@@ -441,7 +441,33 @@ Overlays are decorative frames displayed on top of the emulator window.
 They fill the black bars that appear on 4:3 and other non-16:9 systems.
 
 > Overlays only work on **X11 sessions** (the installer uses KDE Plasma on X11).  
-> On Wayland dev environments, overlays are silently skipped.
+> On Wayland dev environments, overlays are silently skipped. This includes the
+> in-game measurement below — there is no capture path on Wayland.
+
+### One bezel per game
+
+A bezel is looked up for the game first and for the system second:
+
+```
+assets/overlays/<system_id>/<Game Name (Region)>.png   ← this game
+assets/overlays/<system_id>.png                        ← the whole system
+                                                       ← otherwise nothing
+```
+
+The per-game directory is named the way Bezel Project packs are, i.e. the way
+No-Intro and Redump name dumps. Region, revision, disc and language tags are
+ignored on both sides, so `Final Fantasy VII (USA) (Disc 1).chd` finds
+`Final Fantasy VII (USA).png`, and a European library finds an American pack.
+
+**A game with no bezel at all gets no frame** — not black bars from a
+rectangle nobody measured.
+
+Press **R2** on a game in the library to pick a specific bezel or turn the
+overlay off for that game alone.
+
+Coverage in the Bezel Project repositories is uneven: strong on PSX, N64, GBA
+and arcade, weak to absent on PS2, GameCube and 3DS. The five 16:9 systems
+(PS3, PS4, Switch, Wii U, Xbox 360) have no black bars and need no overlay.
 
 ### Uploading an overlay
 
@@ -452,6 +478,19 @@ Or copy the PNG directly to:
 ```
 assets/overlays/<system_id>.png
 ```
+
+### The hole is measured for you
+
+The transparent region is read out of the PNG's alpha channel at launch, so the
+`hole` in `config/overlays.json` no longer has to be kept in sync by hand — it
+is only the fallback frame for a system with no PNG at all. Drop in a bezel cut
+for any resolution and the hole follows.
+
+A second after a game starts, GameCore also checks that the emulator really
+draws where the hole says it does, and corrects it once per system and ratio if
+not. Nothing is corrected unless two samples agree and the result looks like
+letterboxing — a measurement taken during a loading screen is discarded rather
+than believed.
 
 ### Creating an overlay with ImageMagick
 
@@ -527,7 +566,10 @@ magick screenshot.png -resize 1920x1080! -crop 1x1080+960+0 +repage \
 ```
 
 prints the black band geometry on the centre column — use the bright area's `HxW+X+Y`
-as your hole. Remember to mirror the value into the `hole` of `config/overlays.json`.
+as your hole. Mirroring it into `config/overlays.json` is optional now: the hole
+is measured from the PNG at launch, and the JSON value is only the fallback for
+a system with no PNG. Keep them in step anyway if you edit one — the test suite
+checks that the shipped bezels and their declared holes agree.
 
 **Example — Game Boy Advance (3:2):**
 ```bash

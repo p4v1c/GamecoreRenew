@@ -143,6 +143,96 @@ Run by `gamecore-ui.service` before Electron. It:
 
 `config/overlays.json` per system — `wm_class` (the match list),
 `window_rect`, `overlay_asset`, `hole`, `watch_timeout_s`. Full schema in
-[7](07-config-and-data.md#configoverlaysjson). The PNG's transparent hole and
-the JSON `hole` must agree: the JSON is the fallback frame drawn when the PNG
-is missing. Recipes for cutting the hole are in the main `README.md`.
+[7](07-config-and-data.md#configoverlaysjson). Recipes for cutting the hole
+are in the main `README.md`.
+
+The JSON `hole` is no longer what gets drawn. It is the fallback for a system
+whose PNG is missing, and nothing else — see below.
+
+## Which bezel, and where its hole is
+
+`services/bezels.py` resolves a cascade, Batocera-style:
+
+| level | source |
+|---|---|
+| `game` | `<DATA>/assets/overlays/<system_id>/<rom>.png` |
+| `system` | `<DATA>/assets/overlays/<system_id>.png` |
+| `declared` | the `hole` of `config/overlays.json`, no artwork |
+| `none` | nothing is drawn — **not** a frame |
+
+`chosen` and `off` sit in front of all of it: the player's own answer, set from
+the library with R2 and stored in `<DATA>/config/bezel-choices.json`.
+
+Matching a ROM to a pack filename goes through `bezels.rom_key`, which is
+`parse_rom` + `normalize` from `services/gamemedia/parser.py` — the scraper's
+vocabulary, not a second regex. `Final Fantasy VII (USA) (Disc 1).chd` has to
+reach `Final Fantasy VII (USA).png`, and roughly a third of a real library does
+not without it. `backend/tests/test_overlay_naming.py` holds 50 real filenames.
+
+### The hole is measured, not read
+
+Out of the PNG's own alpha channel, by a decoder in `bezels._alpha_bbox`.
+
+`config/` **and** `assets/overlays/` are both excluded from the OTA rsync, so a
+wrong `hole` in the shipped JSON can never be corrected on an existing box —
+the release carries the fix and the rsync drops it. There was one: `gopher64`
+declared `1407x888+258+90` against a PNG transparent over `1440x1080+240+0`.
+The PNG is the copy that is actually on the box, so it is the one believed.
+
+Not ImageMagick, though the README's recipe is the right thing to type at a
+shell: no install script puts it on a box. All five PNG row filters reference
+bytes exactly one pixel away and therefore never cross a channel, so only the
+alpha byte is unfiltered — 1.6 s → 0.4 s for a 1920x1080 bezel, cached in
+`<DATA>/config/bezel-holes.json` by mtime and size.
+
+### When the emulator disagrees with the hole
+
+`services/bezel_capture.py`. A frame is captured a second into the game, the
+drawn region measured out of it, and the hole corrected if the two disagree —
+cached per system and announced ratio in `<DATA>/config/bezel-corrections.json`,
+so a box looks once and then stops.
+
+Most of that module is about refusing to believe the measurement, because a
+false correction moves a hole that was right. Two samples 1.5 s apart must
+agree; the result must look like letterboxing (centred, even bars); a drift
+under 6 px is not written down. **A measurement filling the whole window is
+refused even though a stretched emulator really does draw that way** — a bright
+splash screen is indistinguishable from one, and believing it would retire a
+good bezel permanently.
+
+The X11 capture itself is not covered by any test and cannot be without a
+screen and a running emulator.
+
+### Wiring
+
+```
+game:started (game_key = the ROM filename)
+  → App.tsx → overlayStart(system_id, game_key)
+  → main.js  GET /api/overlays/resolve/<system_id>?rom=<game_key>   ← awaited
+  → monitor  {"cmd":"watch", config:{…, hole, measure, announced}}
+  → monitor  {"event":"window:ready", rect: hole}
+  → monitor  {"event":"window:measured", …}  (only when measure)
+  → main.js  POST /api/overlays/measured/<system_id>
+```
+
+The resolve call is **awaited before the monitor starts**: `window:ready`
+arrives as soon as the emulator's window does, and a choice landing after that
+draws the previous game's bezel.
+
+Electron asks the backend rather than deciding for itself because the hole
+comes out of a PNG's alpha channel — a second decoder in JavaScript would be a
+second set of numbers to keep in agreement.
+
+### Packs
+
+`POST /api/overlays/packs/<system_id>` files a downloaded pack into the bezel
+directory. The **download is an addon's job** (`p4v1c/gamecore-addons`), never
+core's: a Bezel Project pack is gigabytes of other people's box art, and
+GameCore does not host it, ship it in the ISO, or fetch it unasked — the same
+posture as BIOS files and keys. The source must resolve inside `<DATA>/addons/`,
+only `.png` files are copied, and symlinks are skipped rather than followed.
+
+Coverage is uneven and worth checking per repository before promising anything:
+strong on PSX, N64, GBA and arcade, weak to absent on PS2, GameCube and 3DS.
+The five 16:9 systems (PS3, PS4, Switch, Wii U, Xbox 360) have no black bars
+and want no overlay at all.
