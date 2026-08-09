@@ -49,6 +49,24 @@ assert len(BY_FORMAT) >= 2, (
     "this module most likely to be wrong, and one of them would be untested")
 
 
+@pytest.fixture(autouse=True)
+def isolated_records(tmp_path, monkeypatch):
+    """One <DATA> per test.
+
+    conftest points the whole suite at a single throwaway root, which is right
+    for keeping the developer's box out of it and wrong here: these records
+    persist for the length of the run, so the second test to adopt a profile
+    would find it already adopted and assert about the first test's leftovers.
+    Three cases failed exactly that way before this existed, and the ones that
+    passed were passing for no better reason.
+    """
+    monkeypatch.setattr(pergame, "pergame_dir", lambda: tmp_path / "data")
+    # `flatpak info` is memoised per app id for the life of the process. A test
+    # that pinned a version would otherwise be answered from whatever the
+    # previous test — or the developer's real box — put in there first.
+    monkeypatch.setattr(pergame, "_version_memo", {})
+
+
 @pytest.fixture
 def home(tmp_path):
     h = tmp_path / "home"
@@ -322,11 +340,16 @@ def test_a_record_that_cannot_be_parsed_is_a_game_with_no_settings(home):
 
 def test_the_record_lands_under_the_data_root_and_not_the_installation():
     """`<DATA>` is what a backup copies and what the OTA rsync leaves alone.
-    Under the code root it would be wiped by the next update."""
+
+    Under the code root these would be wiped by the next update — silently, and
+    on every box at once, which is the failure mode `paths.py` was written to
+    make unexpressible. Asserted against `paths` directly because the fixture
+    above redirects the records: what is under test is the LAYOUT entry, not
+    where this particular test happens to be writing.
+    """
     from backend.services import paths
-    p = pergame.record_path("rpcs3", "BLES00932")
-    assert paths.pergame_dir() in p.parents
-    assert paths.GAMECORE_DATA in p.parents
+    assert paths.GAMECORE_DATA in paths.pergame_dir().parents
+    assert pergame.pergame_dir() in pergame.record_path("rpcs3", "BLES00932").parents
 
 
 def test_json_records_are_written_whole_or_not_at_all(home):
@@ -338,3 +361,196 @@ def test_json_records_are_written_whole_or_not_at_all(home):
     pergame.set_settings(pack.id, gid, {"Video": {"Ours": True}})
     written = json.loads(pergame.record_path(pack.id, gid).read_text())
     assert written["settings"]["Video"]["Ours"] is True
+
+
+# ── shared profiles ──────────────────────────────────────────────────────────
+
+WITH_PROFILES = [p for p in SUPPORTING if p.data["perGame"].get("profiles")]
+assert WITH_PROFILES, (
+    "no pack ships a profile — the mechanism would be dead code on every real "
+    "box, and every test below would be asserting about a catalogue nobody has")
+
+
+@pytest.fixture
+def known_version(monkeypatch):
+    """Pin what the box reports, so no test depends on which emulators the
+    developer happens to have installed — or shells out to flatpak at all."""
+    def pin(version):
+        monkeypatch.setattr(pergame, "emulator_version", lambda _s: version)
+    return pin
+
+
+def _a_profiled_game() -> tuple[object, dict]:
+    pack = WITH_PROFILES[0]
+    return pack, pack.data["perGame"]["profiles"][0]
+
+
+def test_a_known_game_starts_configured_without_anyone_asking(home, known_version):
+    """The whole promise: the player launches, it works, and nothing on screen
+    mentions that a setting was placed."""
+    pack, profile = _a_profiled_game()
+    known_version("99.0.0")
+    gid = profile["gameId"]
+
+    pergame.adopt_profile(pack.id, gid)
+    pergame.materialise_id(pack.id, gid, home)
+
+    written = pergame.target(pack.id, gid, home).read_text()
+    for keys in profile["settings"].values():
+        for key in keys:
+            assert key in written, (
+                f"{pack.id}: the shipped profile for {gid} sets {key!r} and the "
+                f"file does not mention it:\n{written}")
+
+
+def test_the_player_can_take_it_back_off(home, known_version):
+    pack, profile = _a_profiled_game()
+    known_version("99.0.0")
+    gid = profile["gameId"]
+
+    pergame.adopt_profile(pack.id, gid)
+    pergame.materialise_id(pack.id, gid, home)
+    assert pergame.target(pack.id, gid, home).is_file()
+
+    pergame.dismiss_profile(pack.id, gid, home)
+    assert not pergame.target(pack.id, gid, home).is_file()
+    assert pergame.profile_state(pack.id, gid)["dismissed"]
+
+
+def test_a_dismissed_profile_stays_dismissed_across_launches(home, known_version):
+    """Un-writing without remembering means the next launch puts it straight
+    back: a setting the player cannot remove, only postpone. That is the trust
+    bug this whole feature would be judged on, and it needs exactly one launch
+    to appear — so it would have shipped looking fine."""
+    pack, profile = _a_profiled_game()
+    known_version("99.0.0")
+    gid = profile["gameId"]
+
+    pergame.adopt_profile(pack.id, gid)
+    pergame.materialise_id(pack.id, gid, home)
+    pergame.dismiss_profile(pack.id, gid, home)
+
+    for _ in range(3):                       # three more launches
+        pergame.adopt_profile(pack.id, gid)
+        pergame.materialise_id(pack.id, gid, home)
+
+    assert not pergame.target(pack.id, gid, home).is_file(), (
+        "the profile came back after the player removed it")
+
+
+def test_removing_it_is_not_a_one_way_door(home, known_version):
+    """The inverse has to exist, or nobody can safely try the button."""
+    pack, profile = _a_profiled_game()
+    known_version("99.0.0")
+    gid = profile["gameId"]
+
+    pergame.adopt_profile(pack.id, gid)
+    pergame.materialise_id(pack.id, gid, home)
+    pergame.dismiss_profile(pack.id, gid, home)
+    pergame.restore_profile(pack.id, gid, home)
+
+    assert pergame.target(pack.id, gid, home).is_file()
+    assert not pergame.profile_state(pack.id, gid)["dismissed"]
+
+
+def test_a_profile_is_adopted_once_and_not_re_imposed_every_launch(home, known_version):
+    """A player who changes one of the profile's keys in the emulator's own
+    window must not find it back the way it was after the next launch, with
+    nothing on screen connecting the two."""
+    pack, profile = _a_profiled_game()
+    known_version("99.0.0")
+    gid = profile["gameId"]
+    section, keys = next(iter(profile["settings"].items()))
+    key = next(iter(keys))
+
+    pergame.adopt_profile(pack.id, gid)
+    pergame.materialise_id(pack.id, gid, home)
+
+    pergame.set_settings(pack.id, gid, {section: {key: "theirs"}})
+    pergame.adopt_profile(pack.id, gid)
+
+    owned = pergame.record(pack.id, gid)["settings"][section][key]
+    assert owned == "theirs", (
+        f"the profile was re-imposed over the player's own choice: {owned!r}")
+
+
+def test_an_emulator_too_old_for_a_profile_is_offered_it_and_not_given_it(home,
+                                                                          known_version):
+    """The day RPCS3 renames an option, the range is how a profile is retired
+    without a release. It is only worth having if it actually withholds."""
+    pack, profile = _a_profiled_game()
+    known_version("0.0.1")
+    gid = profile["gameId"]
+
+    assert pergame.adopt_profile(pack.id, gid) is False
+    assert pergame.materialise_id(pack.id, gid, home) is None
+
+    state = pergame.profile_state(pack.id, gid)
+    assert state["available"] and not state["inRange"], (
+        "the panel cannot tell the player why nothing happened")
+
+
+def test_a_box_that_cannot_report_a_version_still_gets_the_profile(home,
+                                                                   known_version):
+    """Refusing on "cannot tell" would switch the feature off wherever
+    `flatpak info` is slow or the emulator is not a Flatpak at all — a feature
+    that silently does nothing, which is worse than one that occasionally
+    writes a key an old build ignores."""
+    pack, profile = _a_profiled_game()
+    known_version(None)
+    assert pergame.adopt_profile(pack.id, profile["gameId"]) is True
+
+
+def test_a_profile_is_matched_on_the_id_and_never_on_the_name(known_version):
+    """Two dumps of one game agree on their Title ID and disagree about
+    everything else. A profile matched any other way applies to one player's
+    copy and not the next one's, which reads as the profile being broken."""
+    pack, profile = _a_profiled_game()
+    assert pergame.profile_for(pack.id, profile["gameId"]) is not None
+    assert pergame.profile_for(pack.id, profile["label"]) is None
+    assert pergame.profile_for(pack.id, profile["gameId"].lower()) is None
+
+
+def test_a_game_with_no_profile_says_so_rather_than_inventing_one(known_version):
+    pack, _ = _a_profiled_game()
+    assert pergame.profile_state(pack.id, "NOSUCHGAME")["available"] is False
+
+
+@pytest.mark.parametrize("pack", WITH_PROFILES, ids=lambda p: p.id)
+def test_every_shipped_profile_survives_the_writer_it_is_aimed_at(pack, home,
+                                                                  known_version):
+    """The profiles ride the OTA channel, so nothing between here and a box
+    re-reads them. A section name the writer cannot place, or a value it
+    renders as `True`, would be a setting that reports itself applied and does
+    nothing at all — and the one screen a player would check says it is fine.
+    """
+    known_version("99.0.0")
+    for profile in pack.data["perGame"]["profiles"]:
+        gid = profile["gameId"]
+        assert pergame.adopt_profile(pack.id, gid), f"{gid} was not adopted"
+        assert pergame.materialise_id(pack.id, gid, home), f"{gid} wrote nothing"
+        text = pergame.target(pack.id, gid, home).read_text()
+        for section, keys in profile["settings"].items():
+            assert section in text, f"{gid}: section {section!r} missing:\n{text}"
+            for key, value in keys.items():
+                rendered = pergame._render(value)
+                assert f"{key}: {rendered}" in text or f"{key} = {rendered}" in text, (
+                    f"{gid}: {key}={rendered!r} did not land:\n{text}")
+        pergame.dismiss_profile(pack.id, gid, home)
+
+
+@pytest.mark.parametrize("spec,version,allowed", [
+    (">=0.0.30", "0.0.41-19497-c0598f61", True),   # what this box actually reports
+    (">=0.0.30", "0.0.29", False),
+    (">=0.0.30", "0.0.30", True),
+    (">=0.0.30,<0.1.0", "0.0.99", True),
+    (">=0.0.30,<0.1.0", "0.1.0", False),
+    (">=1.0", "1.0.0", True),
+    (">=0.0.30", None, True),
+    (">=0.0.30", "nightly", True),                 # unparseable reads as unknown
+])
+def test_the_version_range_orders_versions_and_not_strings(spec, version, allowed):
+    """`"0.0.9" > "0.0.10"` as strings, and that is the whole bug. A build
+    counter and a commit hash carry real information and no ordering, so they
+    are dropped rather than compared."""
+    assert pergame._version_allows(spec, version) is allowed

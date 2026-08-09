@@ -314,7 +314,10 @@ def materialise(system_id: str, rom: Path | str, home: Path) -> str | None:
     knows the id and must not pay for a second read of the container.
     """
     game_id = identify(system_id, rom)
-    return materialise_id(system_id, game_id, home) if game_id else None
+    if not game_id:
+        return None
+    adopt_profile(system_id, game_id)
+    return materialise_id(system_id, game_id, home)
 
 
 def materialise_id(system_id: str, game_id: str, home: Path) -> str | None:
@@ -415,3 +418,203 @@ def release(system_id: str, game_id: str, home: Path) -> str | None:
     data.pop("source", None)
     _write_record(system_id, game_id, data)
     return f"{system_id}: settings removed for {game_id}"
+
+
+# ── shared profiles ──────────────────────────────────────────────────────────
+#
+# The "it just works" half: a game with a known-good setting starts, and the
+# player never learns that anything was placed. Everything below exists to keep
+# that from also meaning "and can never be undone".
+#
+# Distributed as DATA in the pack, which is what makes them reach a box down
+# the signed catalogue channel. A profile is a fact about a game, not code, and
+# a fix for a title somebody discovers on a Tuesday should not need a release.
+
+# `flatpak info` per app id, once per process. The version only changes when
+# something updates the emulator, and that does not happen while the backend is
+# up: a box that updated mid-session gets the old answer until it restarts,
+# which costs at most one launch with a profile that was correct yesterday.
+_version_memo: dict[str, str | None] = {}
+
+# Long enough for a cold flatpak metadata read, short enough that it cannot be
+# what makes a game feel slow to start. A timeout answers "unknown", and
+# unknown applies the profile — see `_version_allows`.
+_VERSION_TIMEOUT = 2.0
+
+
+def _version_tuple(raw: str) -> tuple[int, ...]:
+    """The leading dotted-numeric part of a version, and nothing else.
+
+    RPCS3 reports `0.0.41-19497-c0598f61`. The build counter and the commit are
+    real information and completely useless for ordering, so they are dropped
+    rather than parsed into something that would compare `c0598f61` against
+    `a1b2c3d4` and produce an answer.
+    """
+    lead = re.match(r"\d+(?:\.\d+)*", raw.strip())
+    return tuple(int(n) for n in lead.group(0).split(".")) if lead else ()
+
+
+def _at_least(have: tuple[int, ...], want: tuple[int, ...]) -> bool:
+    width = max(len(have), len(want))
+    return have + (0,) * (width - len(have)) >= want + (0,) * (width - len(want))
+
+
+def emulator_version(system_id: str) -> str | None:
+    """What version of this emulator the box has, or None if it cannot tell.
+
+    Only Flatpak is asked, because only Flatpak can be asked cheaply and
+    uniformly. An emulator installed from a GitHub asset has its version in the
+    pack's `install.version`, which is what the catalogue THOUGHT it installed
+    rather than what is on the disk — close enough to mislead, so it is not
+    used here.
+    """
+    import subprocess
+
+    try:
+        pack = load_catalog()[system_id.lower()]
+    except Exception:
+        return None
+    if (pack.data.get("install") or {}).get("provider") != "flatpak":
+        return None
+    app_id = pack.app_id
+    if app_id in _version_memo:
+        return _version_memo[app_id]
+
+    found = None
+    try:
+        r = subprocess.run(["flatpak", "info", app_id], capture_output=True,
+                           text=True, timeout=_VERSION_TIMEOUT)
+        m = re.search(r"^\s*Version:\s*(\S+)", r.stdout, re.M)
+        found = m.group(1) if m and r.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError):
+        found = None
+    _version_memo[app_id] = found
+    return found
+
+
+def _version_allows(spec: str, version: str | None) -> bool:
+    """Does the installed emulator fall inside a profile's declared range?
+
+    UNKNOWN counts as yes, and that is a judgement rather than an oversight.
+    The range exists so a profile can be retired the day an emulator renames
+    the option it sets — a case somebody has to notice and push. Refusing on
+    "cannot tell" would instead switch the whole feature off on any box where
+    `flatpak info` is slow, unavailable, or the emulator is not a Flatpak, and
+    a feature that silently does nothing is worse than one that occasionally
+    writes a key an old build ignores.
+    """
+    if version is None:
+        return True
+    have = _version_tuple(version)
+    if not have:
+        return True
+    for clause in spec.split(","):
+        clause = clause.strip()
+        op = clause[:2] if clause[:2] in (">=", "<=") else clause[:1]
+        want = _version_tuple(clause[len(op):])
+        if not want:
+            continue
+        if op == ">=" and not _at_least(have, want):
+            return False
+        if op == ">" and (_at_least(want, have)):
+            return False
+        if op == "<=" and not _at_least(want, have):
+            return False
+        if op == "<" and _at_least(have, want):
+            return False
+    return True
+
+
+def profile_for(system_id: str, game_id: str) -> dict | None:
+    """The shipped profile for this exact game, or None.
+
+    Matched on the id and never on the title: two dumps of one game agree on
+    their Title ID and disagree about their file name, their region tag and
+    their revision. A profile keyed by anything else would apply to one
+    player's copy and not the next one's, which reads as the profile being
+    broken rather than as the match being wrong.
+    """
+    for profile in (block(system_id) or {}).get("profiles", []):
+        if profile["gameId"] == game_id:
+            return profile
+    return None
+
+
+def profile_state(system_id: str, game_id: str) -> dict:
+    """Everything the options screen needs to say about the shipped profile.
+
+    Assembled here rather than in the router because "applied", "refused" and
+    "exists but this emulator is too old for it" are three different sentences
+    and the difference between them is entirely this module's business.
+    """
+    profile = profile_for(system_id, game_id)
+    if profile is None:
+        return {"available": False}
+    data = record(system_id, game_id)
+    version = emulator_version(system_id)
+    return {
+        "available": True,
+        "label": profile["label"],
+        "why": profile["why"],
+        "emulator": profile["emulator"],
+        "emulatorVersion": version,
+        "inRange": _version_allows(profile["emulator"], version),
+        "applied": data.get("profileApplied") == game_id,
+        "dismissed": bool(data.get("dismissed")),
+    }
+
+
+def adopt_profile(system_id: str, game_id: str) -> bool:
+    """Take the shipped profile's settings as this game's, once.
+
+    Once, and the marker is what makes it once. Re-adopting on every launch
+    would undo a player who had changed one of the profile's keys in the
+    emulator's own window — they would fix it, play, quit, and find it back the
+    way it was, with nothing on screen connecting the two.
+
+    Returns True when something was newly adopted.
+    """
+    profile = profile_for(system_id, game_id)
+    if profile is None:
+        return False
+    data = record(system_id, game_id)
+    if data.get("dismissed") or data.get("profileApplied") == game_id:
+        return False
+    if not _version_allows(profile["emulator"], emulator_version(system_id)):
+        log.info("pergame: %s has a profile for %s but it declares %s and this "
+                 "box runs %s — offering it rather than placing it",
+                 system_id, game_id, profile["emulator"],
+                 emulator_version(system_id))
+        return False
+    set_settings(system_id, game_id, profile["settings"], source="profile")
+    data = record(system_id, game_id)
+    data["profileApplied"] = game_id
+    _write_record(system_id, game_id, data)
+    return True
+
+
+def dismiss_profile(system_id: str, game_id: str, home: Path) -> str | None:
+    """Take the profile back off, and remember that the player said so.
+
+    Both halves are needed. Un-writing without the flag means the next launch
+    puts it straight back — a setting the player cannot remove, only postpone,
+    which is the trust bug this feature would be judged on. The flag without
+    the un-write is a screen that says "removed" over a file that still holds
+    it.
+    """
+    message = release(system_id, game_id, home)
+    data = record(system_id, game_id)
+    data["dismissed"] = True
+    data.pop("profileApplied", None)
+    _write_record(system_id, game_id, data)
+    return message
+
+
+def restore_profile(system_id: str, game_id: str, home: Path) -> str | None:
+    """Put a dismissed profile back. The inverse has to exist, or "remove" is
+    a one-way door and nobody can safely try it."""
+    data = record(system_id, game_id)
+    data.pop("dismissed", None)
+    _write_record(system_id, game_id, data)
+    adopt_profile(system_id, game_id)
+    return materialise_id(system_id, game_id, home)
