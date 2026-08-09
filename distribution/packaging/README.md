@@ -140,3 +140,23 @@ PKGBUILD: champs OK — gamecore-bin 1.0.155-1
 Ce que ça ne dit pas : que la construction aboutit, que l'arborescence est celle
 attendue, que le paquet s'installe, ou que la boîte fonctionne après. Aucune de
 ces quatre choses n'a été vérifiée.
+
+## `shellcheck` sur ce fichier ne veut rien dire
+
+Le PKGBUILD n'est pas dans la ligne de base du dépôt, qui n'analyse que
+`git ls-files '*.sh'` et `install/bin/*`. C'est correct, et il ne faut pas
+l'y ajouter : lancé dessus, `shellcheck` produit du bruit garanti, parce qu'il
+ne connaît pas le contrat de `makepkg`.
+
+```
+SC2148  Tips depend on target shell and yours is unknown  (un PKGBUILD n'a pas de shebang)
+SC2034  pkgrel appears unused                             (makepkg le lit, pas le script)
+SC2034  pkgdesc appears unused                            (idem)
+SC2034  arch appears unused                               (idem)
+```
+
+Ces quatre-là sont attendues et se répètent sur n'importe quel PKGBUILD valide.
+En ajouter la suppression par des directives `# shellcheck disable=` ne ferait
+que rendre le fichier moins lisible pour supprimer un avertissement que
+personne n'a demandé. `bash -n` plus la vérification des champs ci-dessus est
+la bonne granularité ici.
