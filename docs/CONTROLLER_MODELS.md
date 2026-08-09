@@ -15,10 +15,15 @@ variable SDL has ever read, and the database was silently ignored.
 
 SDL merges it at init, so any emulator that speaks the SDL_GameController
 **role** vocabulary rather than raw indices works with **any pad listed in the
-database**, with no manual configuration at all. That covers **PCSX2,
-DuckStation and gopher64** — verified by reading their live bindings:
-`SDL-0/FaceEast`, `SDL-0/A` and so on, role names, never a button index.
-Nothing to do, ever, whatever the pad (as long as it is in the database).
+database**, with no manual configuration at all. That covers **PCSX2 and
+DuckStation** — verified by reading their live bindings: `SDL-0/FaceEast`,
+`SDL-0/A` and so on, role names, never a button index. Nothing to do, ever,
+whatever the pad (as long as it is in the database).
+
+The N64 pack (`gopher64`, running Rosalie's Mupen GUI) used to be listed here
+and does **not** belong: see §4 below. Its button profile is device-agnostic,
+but nothing binds a pad to an N64 port, so "nothing to do, ever" is false for
+it in the way that matters.
 
 ## 2. Dolphin, RPCS3, Cemu, Ryujinx, azahar, mgba — live per-slot profiling
 
@@ -137,17 +142,19 @@ was dead.
   "never launched", which this page used to say and which was already false.
   `controls.ini` binds `NKCODE` role names under `DEVICE_ID_PAD_0` and carries
   no device identity at all, so one shipped file fits every pad. It is a
-  static config to get right once, in `emu-configs/ppsspp/`, not something to
+  static config to get right once, in `catalog/ppsspp/seed/`, not something to
   write per controller.
-- `gopher64`: **not profiled either, and this page used to imply otherwise** by
-  listing it with PCSX2 and DuckStation under "nothing to do, ever". Its button
+- `gopher64` — the pack id; the emulator is **Rosalie's Mupen GUI**, a front end
+  over the Mupen64Plus core, which is why its config file is `mupen64plus.cfg`:
+  **not profiled either, and this page used to imply otherwise** by listing it
+  with PCSX2 and DuckStation under "nothing to do, ever". Its button
   profile is genuinely device-agnostic (`SDL_GamepadButton` enum ids), but
   binding a pad to an N64 *port* is a separate step nothing performs:
   `controller_assignment` sits at `[null, null, null, null]` and the N64 has no
   controller at all. Out of scope here; it needs its own step.
 - Non-Sony pads (Xbox, 8BitDo, generics): nothing special. Ryujinx reads the
-  real GUID from SDL2 rather than assuming a driver family, PCSX2/DuckStation/
-  gopher64 bind by SDL role, and Dolphin/RPCS3 by SDL name. Only azahar, mgba
+  real GUID from SDL2 rather than assuming a driver family, PCSX2 and
+  DuckStation bind by SDL role, and Dolphin/RPCS3 by SDL name. Only azahar, mgba
   and Cemu — which store raw button indices — need one "Scan mapping" per
   model, which then becomes the snapshot reused afterwards.
 
