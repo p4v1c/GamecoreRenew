@@ -305,3 +305,41 @@ the background), `connect_device`, `disconnect_device`, `remove_device(mac)`.
 
 > Bluetooth device names are attacker-controlled strings that reach the UI.
 > They are one of the reasons `escHtml()` exists in Electron.
+
+---
+
+## Routers added by the recent phases
+
+These four arrived with features that did not exist when the inventory above was
+written. Each is listed with what it serves and the decision that is not visible
+from the endpoint list.
+
+### `catalog.py` (292 l.) — installing while the box is running
+
+`GET /catalog`, `POST /catalog/{pack_id}/install`, `POST /{pack_id}/remove`,
+`POST /{pack_id}/reconfigure`, `GET /catalog/busy`, `GET /catalog/ota/status`,
+`POST /catalog/ota/refresh`.
+
+`busy` exists because installing a Flatpak is minutes long and the player is
+holding a gamepad: the screen has to be able to say "already working" rather than
+queue a second install behind the first. The `ota/*` pair drives the signed
+catalogue channel — see [10](10-catalog-and-install.md#three-tiers-and-the-signed-remote-one).
+
+### `bios.py` (27 l.) — one row per system that needs a system file
+
+`GET /bios`. Thin on purpose; the verdicts come from
+[`services/bios.py`](04-backend-services.md#biospy-253-l--three-verdicts-not-two).
+
+### `pergame.py` (145 l.) — per-game settings from the sofa
+
+`GET /pergame/{system_id}`, `POST /pergame/{system_id}/profile`,
+`POST /pergame/{system_id}/open`.
+
+`open` launches the emulator's **own** settings window. That is the deliberate
+half of the design: GameCore never translates a setting's meaning across thirteen
+emulators, so the escape hatch is opening the real UI rather than approximating
+it. See [10](10-catalog-and-install.md#pergame--and-why-it-is-required-on-every-emulator-pack).
+
+### `storage.py` (74 l.) — external disks
+
+`GET /storage/volumes`, `POST /storage/mount`, `POST /storage/unmount`.

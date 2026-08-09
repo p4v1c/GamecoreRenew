@@ -534,3 +534,126 @@ already up), `disconnect(ws)`, `broadcast(event, data)` (drops dead clients),
 `db.py` — `get_db()` returns a live `aiosqlite` handle, re-opening it if the
 cached one has gone stale; `init_db()` creates the `playtime` and `sessions`
 tables. Schema in [7](07-config-and-data.md#playtimedb).
+
+---
+
+## Services added by the recent phases
+
+Ten modules and two sub-packages arrived after the inventory above was written.
+These entries are **summaries, not full function inventories**: each names what
+the module is for and the one decision that is not recoverable by reading its
+signatures. The docstrings carry the rest, and they are unusually good.
+
+### `paths.py` — the two roots
+
+Owns `GAMECORE_ROOT`, `GAMECORE_DATA` and `_LAYOUT`. Nothing outside it may join
+a writable directory onto a root; `test_paths.py` enforces that on the AST.
+Fully described in [7](07-config-and-data.md#path-resolution--backendservicespathspy).
+
+### `configgen/` — the controller pipeline
+
+`__init__.py` (apply/release/scan/forget), `controllers.py` (SDL resolution,
+`Pad`, `ResolvedName`), `snapshots.py`, `mapping_db.py`, `seed.py`, `derive.py`,
+plus `helpers/`. One generator per emulator lives in `catalog/<id>/generator.py`,
+not here. All of [8](08-controller-pipeline.md).
+
+### `installer/` — obtaining what a pack declares
+
+`providers.py`, `fetch.py`, `applier.py`, `manifest.py`. The applier is what
+refuses a pack that names a file it does not carry — the check the repository did
+not have when a refactor deleted a directory `arch.sh` still read, and an install
+died at 66 % on a fresh machine months later.
+
+### `bios.py` (253 l.) — three verdicts, not two
+
+Whether the system file an emulator needs is present **and right**. The support
+ticket it exists to delete: a missing or corrupt BIOS produces no message a player
+can act on — the emulator refuses to start, or starts on a black screen, and
+nothing on screen names a file. Every case cost three round trips before anyone
+knew what was being discussed.
+
+The verdicts are deliberately distinct, because "absent" and "present but wrong"
+need different sentences. What a pack declares is data (`bios` in `pack.json`);
+how it is checked is here. `required: false` matters: a BIOS gate that blocks a
+launch it should not is GameCore inventing a fault.
+
+### `pergame.py` (648 l.) — one game's settings
+
+`<DATA>/config/per-game/<system>/<id>.json` is the original; the emulator's file
+is **derived**. Nothing here knows what a setting *means* — no table maps
+"internal resolution" onto thirteen vocabularies, because chasing that map across
+emulator releases is what makes Batocera's configgen impossible to keep current.
+Every write records what it displaced so removal can put it back key by key.
+Detail in [10](10-catalog-and-install.md#pergame--and-why-it-is-required-on-every-emulator-pack).
+
+### `gameid.py` (235 l.) — which game this is
+
+A per-game config is a file named after a game, so something must answer "which
+game is this" before anything can be written. The answer differs per system only
+in **where it is read from**:
+
+| strategy | source |
+|---|---|
+| `ps3`, `ps4`, `psp` | a Title ID in `PARAM.SFO` |
+| `gcwii` | the 6 characters at the top of a disc image |
+| `playstation` | the serial in `SYSTEM.CNF` |
+| `wiiu` | the title id in the dump's own `meta.xml` |
+| `hash` | the CRC32 of the file |
+| `filename` | the normalised name — nothing else was available |
+
+Pluggable per system, because an N64 cartridge dump carries no serial at all.
+
+### `bezels.py` (656 l.) — which bezel, and where its window is
+
+Resolves game → system → nothing, like Batocera. The interesting half is **why
+the hole is measured rather than read**: `config/` and `assets/overlays/` are both
+excluded from the OTA rsync, deliberately, because they are the player's. The
+consequence is that a wrong `hole` in a shipped `overlays.json` can *never* be
+corrected on a box that already exists — the release carries the fix and the rsync
+drops it on the floor.
+
+### `bezel_capture.py` (228 l.) — when the emulator disagrees with itself
+
+A hole is cut for the ratio a system is *supposed* to render at, and the emulator
+does not always oblige (an aspect setting left on stretch, a core letterboxing 4:3
+inside 16:9, a widescreen hack). The overlay is then perfectly correct about a
+picture that is not there, with nothing on screen to suggest which of the two is
+wrong. The only witness is the screen: a frame is captured a second into the game,
+the drawn region measured, and a disagreement corrects the hole and is remembered.
+
+### `controller_capture.py` (543 l.) — the mapping wizard's engine
+
+Turns "the owner pressed this" into an SDL mapping line. What arrives from the
+kernel is an evdev code (`BTN_SOUTH`, 0x130); what must be written is SDL's
+vocabulary (`b0`, `a3`, `h0.1`), where the numbers are SDL's joystick indices, not
+the kernel's codes.
+
+**Nothing bridges those two by inspection.** SDL assigns indices by walking the
+device's declared capabilities in a fixed order, so index 0 is "the first button
+this device declares" — and the same physical button is a different number on a
+pad that declares one extra key. `sdl_layout()` reproduces that walk. Guessing
+here produces a mapping that looks plausible and binds the wrong buttons.
+
+### `usb_devices.py` (260 l.) — the peripherals that are not SDL gamepads
+
+The autoconfig pipeline knows exactly one kind of device: a pad declaring
+`BTN_SOUTH` on an evdev node. Everything else — the GameCube adapter Dolphin
+drives over raw libusb, light guns, dance mats — is invisible to it. This module
+is that second roster, declared per pack under `usb`. It **never refuses a
+launch**: a USB accessory is optional by nature, so blocking would be GameCore
+inventing a fault. It only speaks.
+
+### `storage.py` (402 l.) — external disks
+
+"I plug my ROM disk in" is one of the first three things anyone expects from a
+console in a living room, and before this there was no udisks, no mount, nothing
+anywhere in the repository — a disk plugged into the box did exactly nothing.
+
+### `storage_monitor.py` (206 l.) — reacting to a disk arriving or leaving
+
+Mounts an arrival, re-points its stable link, tells the frontend. **Nothing is
+invalidated on the way, and that is not an omission**: a system's games are
+scanned per request from its `romsPath`, and `romsPath` points at the stable link
+rather than at a mount point — so the next scan already reads the new disk. There
+is no cached library to clear, and adding a hook for one that does not exist would
+be a line nobody could ever prove still works.
