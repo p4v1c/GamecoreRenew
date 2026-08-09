@@ -342,6 +342,7 @@ not a gap waiting to be filled — the reasons are in §11.
 | **Draw something other than the jacket** | yes — 3D box, clear logo, gameplay screenshot, title screen, ready-made mix, trailer, 54 types in all (§7.1) |
 | **React to what happens** | yes — `sdk.system.onWsEvent` for standby, ROM uploads, controller connect/disconnect, battery, theme changes |
 | **Draw the notifications** | yes — `toasts` is a part like any other. What each one *says* and how long it stays is the host's |
+| **Make the pad buzz** | yes — declare a `rumble` table and the bus fires it (§13b). Nothing vibrates unless a theme asks |
 | **Read input** | yes — `sdk.input.onGp` for every pad event, `useGamepadState()` for the raw 60 fps state (that is how a live pad diagram works) |
 | **Know where the player is** | yes — `sdk.nav.use()` inside a component, `sdk.nav.get()` in a handler |
 | **Move the player** | yes — `goHome`, `goLibrary`, `setGridFocus`, `setGridPage` |
@@ -366,7 +367,7 @@ there is no import map to maintain and only one React instance exists.
 | `sdk.ui` | `html` (tagged template), `React`, `useState`, `useEffect`, `useRef`, `useMemo`, `useCallback`, `motion`, `AnimatePresence` | Framer Motion is already bundled by the host |
 | `sdk.api` | `systems`, `games`, `metadata`, `media`, `playtime`, `sysinfo`, `standby`, `update`, `wifi`, `audio`, `bluetooth` | [full signatures](../architecture/05-frontend.md#apiindexts) |
 | `sdk.nav` | `use(selector)` for a reactive read inside a component, `get()` for a snapshot in a handler, plus `goHome`, `goLibrary`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx`, `openModal`, `closeModal` | [store reference](../architecture/05-frontend.md#store--storeindexts) |
-| `sdk.input` | `onGp(event, handler)`, `useGamepadState()`, `GP_BTN`, `events` | [event bus](../architecture/05-frontend.md#the-gamepad-event-bus--hooksusegamepadts) |
+| `sdk.input` | `onGp(event, handler)`, `useGamepadState()`, `GP_BTN`, `events`, `rumble(pattern)`, `haptics` (read-only `enabled`) | [event bus](../architecture/05-frontend.md#the-gamepad-event-bus--hooksusegamepadts) |
 | `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `sound` (read-only `enabled` / `volume`), `gamecore`, `asset(path)` | `asset()` resolves a path inside the theme folder |
 | `sdk.themes` | `list()`, `select(id \| null)` | so a theme can dress its own theme picker. `select()` is the host's: it clears safe mode, resets the crash count and reloads the frontend |
 | `sdk.defaults` | `Shell` (the default frontend, takes parts), every screen, `DefaultSettingsPages`, `SettingsOverlay`, `DefaultKeyboard`, `launchApp` | compose instead of rewrite. The pages already carry their own overlay — render them bare; `SettingsOverlay` is only there if you write a page of your own |
@@ -643,6 +644,49 @@ filtered noise, no audio file, no loop seam.
 `move`; the bus decides that a d-pad press is a `move`. That is the same line
 `homeView` draws, and it is why a themed frontend cannot get navigation
 feedback subtly wrong.
+
+## 13b. Haptics
+
+Same shape as the sounds, and for the same reason: you supply the *what*, the
+bus keeps the *when*.
+
+```js
+return {
+  splash: Splash,
+  shell: Shell,
+  rumble: {
+    'gp:confirm': { duration: 35, strong: 0.35 },
+    'gp:back':    { duration: 22, weak: 0.4 },
+    // A sequence plays back to back. `delay` is the gap before a step.
+    'gp:menu':    [{ duration: 18, weak: 0.5 }, { duration: 18, weak: 0.5, delay: 40 }],
+  },
+}
+```
+
+`duration` and `delay` are milliseconds, `strong` (low-frequency motor) and
+`weak` (high-frequency) are 0–1. Keyed on the `gp:*` event names, so ○ can feel
+different from ✕ without the host having to invent a vocabulary of feelings
+first.
+
+**Nothing on this box vibrated before, and nothing vibrates now unless a theme
+asks.** There is no default table. A player who wants none of it turns
+*Controller vibration* off in Settings → Audio, and that setting is enforced
+here the way the volume is enforced on sounds — you cannot play through it.
+
+Bounded, like `launch.ms` and the grid: a burst is capped at 1 s, a pattern at
+3 s and 8 steps, magnitudes clamp into 0–1. A pad that buzzes for a minute is
+not a look, and unlike a broken grid you cannot see it on screen to work out
+what is wrong — it just reads as a broken controller.
+
+`sdk.input.rumble(pattern)` is there for the moments the bus cannot know about:
+your launch ceremony landing, your splash's impact frame. It is refused while a
+game is running — the emulator owns the pad then, motors included. Use the
+table for anything that is a response to a button press, or you have moved a
+behaviour into the presentation layer.
+
+Most pads report no actuator at all through Chromium, so treat all of this as
+something that may simply not happen. It is feedback; it is never the only way
+the player is told something.
 
 ## 14. Editing a theme
 

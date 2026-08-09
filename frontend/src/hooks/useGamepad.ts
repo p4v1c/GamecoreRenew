@@ -22,6 +22,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { playSound, soundForGpEvent } from '../lib/sounds'
+import { rumble, rumbleForGpEvent } from '../lib/rumble'
 
 const DEAD_ZONE = 0.5
 
@@ -46,6 +47,11 @@ const frameListeners = new Set<FrameListener>()
 function emit(name: string, detail?: unknown) {
   const sound = soundForGpEvent(name)
   if (sound) playSound(sound)
+  // Both feedback channels fire from here, from the same decision, so a theme
+  // that dresses one and not the other cannot desynchronise them. Empty unless
+  // a theme filled the table in — nothing on this box vibrated before.
+  const pattern = rumbleForGpEvent(name)
+  if (pattern) rumble(pattern)
   window.dispatchEvent(new CustomEvent(name, detail !== undefined ? { detail } : undefined))
 }
 

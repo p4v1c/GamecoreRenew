@@ -15,6 +15,7 @@ import {
   clearThemeStyles,
   fetchThemeIndex,
   loadTheme,
+  resolveThemeRumble,
   resolveThemeSounds,
   setActiveTheme,
   SURFACES,
@@ -152,6 +153,39 @@ describe('the theme sound set', () => {
     // exactly as it did.
     expect(resolveThemeSounds(manifest())).toEqual({})
     expect(resolveThemeSounds(manifest(), {})).toEqual({})
+  })
+})
+
+describe('the theme rumble table', () => {
+  it('takes patterns keyed on gamepad events', () => {
+    const out = resolveThemeRumble({ rumble: { 'gp:confirm': { duration: 40, strong: 0.5 } } })
+    expect(out['gp:confirm']).toEqual({ duration: 40, strong: 0.5 })
+  })
+
+  it('accepts a sequence as readily as a single burst', () => {
+    const seq = [{ duration: 20 }, { duration: 40, delay: 30 }]
+    expect(resolveThemeRumble({ rumble: { 'gp:back': seq } })['gp:back']).toEqual(seq)
+  })
+
+  it('refuses to let a theme dress gp:guide', () => {
+    // The core owns the double press that kills a running game, and it owns it
+    // here too: a theme that could hang a three-second buzz off quitting would
+    // be deciding what quitting feels like from inside the presentation layer.
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(resolveThemeRumble({ rumble: { 'gp:guide': { duration: 3000 } } })).toEqual({})
+  })
+
+  it('is empty for a theme that says nothing', () => {
+    // Nothing on this box vibrated before, and a theme that did not ask for
+    // haptics must not acquire them by upgrading.
+    expect(resolveThemeRumble({})).toEqual({})
+    expect(resolveThemeRumble({ rumble: null })).toEqual({})
+    expect(resolveThemeRumble()).toEqual({})
+  })
+
+  it('drops an entry that is not a pattern', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(resolveThemeRumble({ rumble: { 'gp:confirm': 'hard' } })).toEqual({})
   })
 })
 

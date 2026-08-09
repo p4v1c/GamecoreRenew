@@ -8,6 +8,7 @@
 import type { ComponentType } from 'react'
 import { buildSdk, SDK_VERSION, type SdkHost } from './themeSdk'
 import { setThemeSounds, type ThemeSound } from './sounds'
+import { setThemeRumble, type RumblePattern } from './rumble'
 
 /**
  * The two surfaces a theme owns: the boot animation, and the frontend body.
@@ -186,6 +187,37 @@ export async function loadTheme(m: ThemeManifest, host: SdkHost): Promise<Surfac
   // After the completeness gate, so a theme that is about to be refused does
   // not leave its bips installed over the default UI that replaces it.
   setThemeSounds(resolveThemeSounds(m, produced as Record<string, unknown>))
+  setThemeRumble(resolveThemeRumble(produced as Record<string, unknown>))
 
+  return out
+}
+
+/**
+ * The theme's per-event haptics table.
+ *
+ * Manifest-side there is nothing to declare — unlike a sound, a pattern is
+ * plain data with no file behind it, so the module is the only source and JSON
+ * in `theme.json` would be a second way to say the same thing.
+ *
+ * Keyed on `gp:*` event names, so a theme can make ○ feel different from ✕
+ * without the host inventing a vocabulary of feelings first.
+ */
+export function resolveThemeRumble(
+  produced: Record<string, unknown> = {},
+): Record<string, RumblePattern> {
+  const raw = produced.rumble
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Record<string, RumblePattern> = {}
+  for (const [event, pattern] of Object.entries(raw as Record<string, unknown>)) {
+    // The core owns gp:guide, and it owns it here too: a theme that could hang
+    // a 3-second buzz off the double-press that kills a running game would be
+    // deciding what quitting feels like from inside the presentation layer.
+    if (event === 'gp:guide') {
+      console.warn('[gamecore] theme tried to dress reserved event gp:guide — ignored')
+      continue
+    }
+    if (pattern && (typeof pattern === 'object')) out[event] = pattern as RumblePattern
+    else console.warn(`[gamecore] rumble pattern for "${event}" must be an object or array — ignored`)
+  }
   return out
 }

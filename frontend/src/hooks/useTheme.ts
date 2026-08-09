@@ -19,6 +19,7 @@ import {
   recordCrash, setSafeMode, type SafeModeInfo,
 } from '../lib/themeSafety'
 import { clearThemeSounds } from '../lib/sounds'
+import { clearThemeRumble } from '../lib/rumble'
 import { onGamepadFrame, isPlaying, GP_BTN } from './useGamepad'
 import { onWsEvent } from './useWebSocket'
 import { useStore } from '../store'
@@ -80,6 +81,7 @@ export function useTheme(): ThemeState {
     // reads as the rescue having failed. loadTheme reinstalls the set a few
     // lines later on the one path that keeps a theme.
     clearThemeSounds()
+    clearThemeRumble()
     try {
       const index = await fetchThemeIndex()
       const id = index.active

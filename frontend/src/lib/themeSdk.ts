@@ -14,7 +14,8 @@ import htm from 'htm'
 import { api } from '../api'
 import { fetchThemeIndex } from './themeLoader'
 import { useStore } from '../store'
-import { onGp, useGamepadState, GP_BTN } from '../hooks/useGamepad'
+import { onGp, useGamepadState, GP_BTN, isPlaying } from '../hooks/useGamepad'
+import { rumble, rumbleSettings, type RumblePattern } from './rumble'
 import { onWsEvent } from '../hooks/useWebSocket'
 import { playSound, getAudioContext, soundSettings } from './sounds'
 import * as defaults from '../components/defaults'
@@ -117,6 +118,27 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
       useGamepadState,
       GP_BTN,
       events: GP_EVENTS,
+
+      /**
+       * Punctuate a moment of your own — a launch ceremony landing, a boot
+       * animation's impact frame.
+       *
+       * The routine feedback for a button press is not this: declare a
+       * `rumble` table and the input bus fires it, the same way it fires your
+       * sounds, so the *when* stays where every other decision about behaviour
+       * lives. This is the escape hatch for the things the bus cannot know
+       * about, and it is exactly as much latitude as `playSound` already gives.
+       *
+       * Refused while a game is running: the emulator owns the pad then,
+       * motors included, and a theme buzzing over someone's game is the kind
+       * of bug that gets blamed on the controller.
+       */
+      rumble: (pattern: RumblePattern) => {
+        if (isPlaying()) return
+        rumble(pattern)
+      },
+      /** The player's haptics setting, read-only — same contract as `sound`. */
+      get haptics() { return { enabled: rumbleSettings.enabled } },
     },
 
     system: {
