@@ -13,20 +13,20 @@ import shutil
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..config import GAMECORE_ROOT
+from ..services.paths import config_dir, install_bin_dir
 from .. import ws
 
 router = APIRouter(prefix="/addons", tags=["addons"])
 log = logging.getLogger(__name__)
 
-ADDONS_FILE = GAMECORE_ROOT / "config" / "addons.json"
+ADDONS_FILE = config_dir() / "addons.json"
 _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _CLI_TIMEOUT = 600.0
 _busy_lock = asyncio.Lock()  # one CLI action at a time
 
 
 def _cli() -> str:
-    path = shutil.which("gamecore-addon") or str(GAMECORE_ROOT / "install" / "bin" / "gamecore-addon")
+    path = shutil.which("gamecore-addon") or str(install_bin_dir() / "gamecore-addon")
     return path
 
 

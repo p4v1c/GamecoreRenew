@@ -4,11 +4,11 @@ import tempfile
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
-from ..config import ASSETS_DIR
+from ..services.paths import overlays_dir
 
 router = APIRouter(tags=["overlays"])
 
-OVERLAYS_DIR = ASSETS_DIR / "overlays"
+OVERLAYS_DIR = overlays_dir()
 _MAX_OVERLAY_BYTES = 10 * 1024 * 1024  # 10 MB hard cap
 
 

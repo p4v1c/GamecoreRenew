@@ -22,7 +22,9 @@ from .routers import themes as themes_router
 from .routers.settings import wifi, audio, bluetooth
 from .services import battery, gamepad_monitor, playtime_repair, prefetch, standby
 from .services.process_manager import process_manager
-from .config import GAMECORE_ROOT, COVERS_DIR, ASSETS_DIR, BACKEND_PORT
+from .config import BACKEND_PORT
+from .services.paths import (backend_data_dir, covers_dir, frontend_dist_dir,
+                            overlays_dir, themes_dir)
 
 log = logging.getLogger(__name__)
 
@@ -212,9 +214,9 @@ def login_page():
 app.include_router(systems.public_router)
 
 for _dir, _route, _name in (
-    (COVERS_DIR, "/covers", "covers"),
-    (ASSETS_DIR / "overlays", "/assets/overlays", "overlays"),
-    (GAMECORE_ROOT / "backend" / "data", "/data", "data"),
+    (covers_dir(), "/covers", "covers"),
+    (overlays_dir(), "/assets/overlays", "overlays"),
+    (backend_data_dir(), "/data", "data"),
 ):
     _dir.mkdir(parents=True, exist_ok=True)
     app.mount(_route, StaticFiles(directory=str(_dir)), name=_name)
@@ -241,7 +243,7 @@ class _NoCacheStatic(StaticFiles):
 
 
 # Theme modules and their assets — imported by the browser from here.
-_themes_dir = GAMECORE_ROOT / "config" / "themes"
+_themes_dir = themes_dir()
 _themes_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/themes", _NoCacheStatic(directory=str(_themes_dir)), name="themes")
 
@@ -264,6 +266,6 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 # ── Serve built frontend (production) ────────────────────────────────────────
-frontend_dist = GAMECORE_ROOT / "frontend" / "dist"
+frontend_dist = frontend_dist_dir()
 if frontend_dist.exists():
     app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")

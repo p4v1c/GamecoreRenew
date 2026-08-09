@@ -26,10 +26,10 @@ from pathlib import Path
 from argon2 import PasswordHasher
 from argon2.exceptions import Argon2Error, InvalidHashError, VerifyMismatchError
 
-from ..config import GAMECORE_ROOT
+from .paths import config_dir
 
-AUTH_FILE = GAMECORE_ROOT / "config" / "auth.json"
-SECRET_FILE = GAMECORE_ROOT / "config" / "auth_secret"
+AUTH_FILE = config_dir() / "auth.json"
+SECRET_FILE = config_dir() / "auth_secret"
 COOKIE_NAME = "gc_session"
 SESSION_SECONDS = 30 * 24 * 3600  # 30 days
 

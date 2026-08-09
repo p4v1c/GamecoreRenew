@@ -29,7 +29,8 @@ import os
 import re
 from pathlib import Path
 
-from ...config import GAMECORE_ROOT, SCRAPER_LANG
+from ...config import SCRAPER_LANG
+from ..paths import media_cache_dir, media_index_dir
 from . import gamemedia as gm
 from . import gamescrape as gs
 
@@ -41,8 +42,8 @@ log = logging.getLogger(__name__)
 # 40 MB of artwork survive every update and never reach a commit. Upstream
 # defaults to ~/.cache, which the backend's systemd unit would resolve against
 # whichever HOME it happens to have.
-CACHE_DIR = GAMECORE_ROOT / "emu" / "gamemedia"
-INDEX_DIR = GAMECORE_ROOT / "emu" / "gamescrape"
+CACHE_DIR = media_cache_dir()
+INDEX_DIR = media_index_dir()
 
 # One call rather than two assignments: gamemedia is five modules now, and an
 # assignment reaches only the one it is made on (see gamemedia.set_cache_root).

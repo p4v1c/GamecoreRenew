@@ -32,11 +32,11 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from ...config import GAMECORE_ROOT
+from ..paths import backend_data_dir
 
 log = logging.getLogger(__name__)
 
-DB_FILE = GAMECORE_ROOT / "backend" / "data" / "gamecontrollerdb.txt"
+DB_FILE = backend_data_dir() / "gamecontrollerdb.txt"
 SDL_INIT_GAMEPAD = 0x2000
 
 

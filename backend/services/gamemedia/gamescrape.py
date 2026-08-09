@@ -174,10 +174,20 @@ def resolve_index_dir(explicit: str | None = None):
     GAMECORE_PATH set means "this is a GameCore install", and then there is
     exactly one right answer. Unset, standalone behaviour is untouched:
     ~/.cache/gamescrape, as the module docstring promises.
+
+    The index is a 234 MB cache — data, so it follows GAMECORE_DATA when the
+    installation and the player's data are separate trees. Reading the
+    environment here rather than importing `services/paths.py` is deliberate
+    and is the one exception `backend/tests/test_paths.py` grants: this file
+    is run as a plain script by `install/steps/build-media-index.sh`, where a
+    package-relative import has no package to resolve against. The fallback
+    keeps it agreeing with `gamemedia/__init__.py`, which does go through
+    paths.py — the two must name the same directory or the backend reports a
+    media tier it does not have.
     """
     if explicit:
         return Path(explicit)
-    root = os.environ.get("GAMECORE_PATH", "")
+    root = os.environ.get("GAMECORE_DATA", "") or os.environ.get("GAMECORE_PATH", "")
     return Path(root) / "emu" / "gamescrape" if root else None
 
 

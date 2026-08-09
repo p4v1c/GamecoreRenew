@@ -1,6 +1,17 @@
-"""Central configuration — all paths derived from GAMECORE_ROOT."""
+"""Central configuration.
+
+Paths are NOT derived here any more. `services/paths.py` owns the two roots —
+the installation (code, read-only) and the data (writable) — and this module
+re-exports the handful of names the backend has always imported from it, so
+that a consumer keeps one import and the split stays in one file.
+
+What is left here is genuinely configuration: version, ports, credentials,
+scraper language.
+"""
 import os
 from pathlib import Path
+
+from .services import paths
 
 DEBUG = False
 
@@ -11,13 +22,18 @@ APP_VERSION = _VERSION_FILE.read_text().strip() if _VERSION_FILE.exists() else "
 GITHUB_REPO = "p4v1c/GamecoreRenew"
 UPDATE_ASSET = "gamecore-ota.tar.gz"
 
-GAMECORE_ROOT = Path(os.environ.get("GAMECORE_PATH", str(Path(__file__).parent.parent)))
+GAMECORE_ROOT = paths.GAMECORE_ROOT
+GAMECORE_DATA = paths.GAMECORE_DATA
 
-SYSTEMS_FILE  = GAMECORE_ROOT / "config" / "systems.json"
-APPS_FILE     = GAMECORE_ROOT / "config" / "apps.json"
-PLAYTIME_DB   = GAMECORE_ROOT / "config" / "playtime.db"
-COVERS_DIR    = GAMECORE_ROOT / "emu" / "covers"
-ASSETS_DIR    = GAMECORE_ROOT / "assets"
+SYSTEMS_FILE  = paths.config_dir() / "systems.json"
+APPS_FILE     = paths.config_dir() / "apps.json"
+PLAYTIME_DB   = paths.config_dir() / "playtime.db"
+COVERS_DIR    = paths.covers_dir()
+OVERLAYS_DIR  = paths.overlays_dir()
+LOGOS_DIR     = paths.logos_dir()
+# The shipped assets tree — fonts, sounds, the operator-replaceable logos live
+# under it but resolve through LOGOS_DIR above, which is the writable one.
+ASSETS_DIR    = paths.assets_dir()
 
 BACKEND_PORT  = int(os.environ.get("GAMECORE_BACKEND_PORT", 8765))
 
@@ -53,7 +69,11 @@ SCRAPER_LANG = [c.strip().lower() for c
 
 
 def resolve_path(raw: str) -> Path | None:
-    if not raw:
-        return None
-    p = Path(raw)
-    return p if p.is_absolute() else GAMECORE_ROOT / p
+    """A relative path out of systems.json/apps.json, made absolute.
+
+    Resolved against the DATA root: the only callers are `romsPath` readers
+    (utils, prefetch, playtime_repair, routers/games), and ROMs are data. With
+    GAMECORE_DATA defaulting to the installation this returns exactly what it
+    always did.
+    """
+    return paths.resolve_data_path(raw)

@@ -210,10 +210,57 @@ fi
 want_emu() { [[ "$EMULATORS" == "all" || " $EMULATORS " == *" $1 "* ]]; }
 want_app() { [[ "$MODE" == "full" ]] && [[ "$APPS" == "all" || " $APPS " == *" $1 "* ]]; }
 
+# ── Where the player's data goes ─────────────────────────────────
+#
+# Defaults to the install directory, which is where every GameCore before this
+# one kept it. That default is not laziness: the code that reads GAMECORE_DATA
+# ships over OTA to boxes that already exist, and their data is inside the
+# install. A default of /userdata would tell every one of them to look at an
+# empty directory.
+#
+# Setting it to something else in the unattended config is what a NEW box does
+# to get the split from day one — no migration needed, because there is nothing
+# to migrate yet.
+GAMECORE_DATA="${GAMECORE_DATA:-$GAMECORE_PATH}"
+
+provision_userdata() {  # provision_userdata <dir> <user>
+  # A btrfs subvolume when the filesystem offers one — it snapshots and gets
+  # quota independently of the root, which is the whole point of separating the
+  # data. A plain directory otherwise: correct everywhere, just less useful.
+  #
+  # This deliberately does NOT partition a disk. Repartitioning is the one
+  # operation here that can destroy an unrelated filesystem, it cannot be
+  # undone, and it cannot be made safe from a script that does not know what
+  # else is on the device. An operator who wants /userdata on its own partition
+  # mounts it there before running this, and the directory branch below finds it
+  # already mounted and simply uses it.
+  local dir="$1" user="$2"
+  [[ "$dir" == "$GAMECORE_PATH" ]] && return 0   # not split; nothing to make
+
+  if [[ -d "$dir" ]]; then
+    ok "Data directory $dir already exists — left as it is."
+  elif [[ "$(stat -f -c %T "$(dirname "$dir")" 2>/dev/null)" == "btrfs" ]] \
+       && command -v btrfs >/dev/null; then
+    btrfs subvolume create "$dir" >/dev/null \
+      && ok "btrfs subvolume $dir created." \
+      || { mkdir -p "$dir"; warn "btrfs subvolume failed — plain directory instead."; }
+  else
+    mkdir -p "$dir"
+    ok "Data directory $dir created."
+  fi
+  chown -R "${user}:${user}" "$dir"
+  # The layout backend/services/paths.py resolves against. Created up front so
+  # a first boot never has to decide whether an absent directory means "empty"
+  # or "broken".
+  sudo -u "$user" mkdir -p "$dir/config" "$dir/emu" "$dir/assets/overlays" \
+                           "$dir/assets/logos" "$dir/addons"
+}
+
 echo
 msg "Summary"
 info "User         : $USER_NAME"
 info "Install path : $GAMECORE_PATH"
+info "Data path    : $GAMECORE_DATA$([ "$GAMECORE_DATA" = "$GAMECORE_PATH" ] && echo ' (inside the install, as before)')"
 info "API port     : $WEB_PORT"
 info "Detected IP  : $LOCAL_IP"
 info "Mode         : $MODE $([ "$MODE" = minimal ] && echo '(no emulators, no apps)' || echo '(emulators + apps + configs)')"
@@ -243,6 +290,7 @@ USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
 # The uninstaller must never delete an account that predates GameCore.
 manifest_set USER_NAME      "$USER_NAME"
 manifest_set GAMECORE_PATH  "$GAMECORE_PATH"
+manifest_set GAMECORE_DATA  "$GAMECORE_DATA"
 manifest_set WEB_PORT       "$WEB_PORT"
 manifest_set MODE           "$MODE"
 manifest_set USER_CREATED   "$USER_CREATED"
@@ -251,6 +299,11 @@ manifest_set INSTALLED_AT   "$(date -Iseconds)"
 # "there is no record of what we installed" must not look the same to the
 # uninstaller: the first means remove nothing, the second means it is blind.
 touch "$PKG_MANIFEST" "$FLATPAK_MANIFEST" "$OVERRIDE_MANIFEST"
+
+# ── Data directory ───────────────────────────────────────────────
+# A no-op unless GAMECORE_DATA was pointed somewhere else, which is what makes
+# this safe to ship: an ordinary install still puts everything in one place.
+provision_userdata "$GAMECORE_DATA" "$USER_NAME"
 
 # ── Copy files ───────────────────────────────────────────────────
 progress 4 "Copying GameCore files"
@@ -699,7 +752,7 @@ progress 76 "Home-grid tiles"
 msg "Home-grid tiles"
 for pair in "apps.json" "systems.json"; do
   DIST="$GAMECORE_PATH/install/generated/${pair}.dist"
-  LIVE="$GAMECORE_PATH/config/${pair}"
+  LIVE="$GAMECORE_DATA/config/${pair}"
   if [[ -f "$DIST" ]]; then
     # First run only: on a second pass $LIVE is already our generated file, and
     # overwriting the backup would lose the operator's hand-edited original.
@@ -710,13 +763,13 @@ for pair in "apps.json" "systems.json"; do
   fi
 done
 # apps.json ships an @HOME@ token (it is generated from catalog/*/pack.json).
-sed -i -e "s|@HOME@|$USER_HOME|g" "$GAMECORE_PATH/config/apps.json"
+sed -i -e "s|@HOME@|$USER_HOME|g" "$GAMECORE_DATA/config/apps.json"
 
 KEEP_APPS=""
 for app in $(python3 "$GAMECORE_PATH/scripts/catalog-query.py" ids --kind app); do
   want_app "$app" && KEEP_APPS="$KEEP_APPS $app"
 done
-python3 - "$GAMECORE_PATH/config/apps.json" $KEEP_APPS <<'EOF'
+python3 - "$GAMECORE_DATA/config/apps.json" $KEEP_APPS <<'EOF'
 import json, sys
 path, keep = sys.argv[1], set(sys.argv[2:])
 apps = json.load(open(path))
@@ -738,11 +791,11 @@ if [[ "$MODE" == "minimal" ]]; then
 else
   EMU_SEL="$EMULATORS"
 fi
-bash "$GAMECORE_PATH/install/steps/flatpakify-systems.sh" "$GAMECORE_PATH" "$EMU_SEL" \
+bash "$GAMECORE_PATH/install/steps/flatpakify-systems.sh" "$GAMECORE_DATA" "$EMU_SEL" \
   && ok "systems.json adapted to the selected emulators." \
   || warn "flatpakify failed — check config/systems.json."
 chown "${USER_NAME}:${USER_NAME}" \
-  "$GAMECORE_PATH/config/apps.json" "$GAMECORE_PATH/config/systems.json" 2>/dev/null || true
+  "$GAMECORE_DATA/config/apps.json" "$GAMECORE_DATA/config/systems.json" 2>/dev/null || true
 
 # ── ROM directories ──────────────────────────────────────────────
 progress 80 "ROM directories"
@@ -751,7 +804,7 @@ msg "ROM directories"
 # emulator no longer means remembering to add a line here too. `covers` is not
 # a system — it is where the cover pipeline caches art.
 for d in $(python3 "$GAMECORE_PATH/scripts/catalog-query.py" rom-dirs) covers; do
-  sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/emu/$d"
+  sudo -u "$USER_NAME" mkdir -p "$GAMECORE_DATA/emu/$d"
 done
 ok "ROM directories ready."
 
@@ -770,6 +823,7 @@ ok "ROM directories ready."
 if [[ "$MODE" == "full" ]]; then
   progress 81 "Offline metadata index"
   msg "Offline metadata index"
+  GAMECORE_DATA="$GAMECORE_DATA" \
   bash "$GAMECORE_PATH/install/steps/build-media-index.sh" \
        "$GAMECORE_PATH" "$USER_NAME"
 fi
@@ -841,7 +895,7 @@ sudo -u "$USER_NAME" -H "$GAMECORE_PATH/.venv/bin/pip" install -q -r "$GAMECORE_
 ok "Python dependencies installed."
 
 # ── LAN login password (enforced by Caddy — see docs/SECURITY.md) ─
-if [[ -f "$GAMECORE_PATH/config/auth.json" ]]; then
+if [[ -f "$GAMECORE_DATA/config/auth.json" ]]; then
   ok "Web password already set — kept (reset: gamecore-addon auth-reset)."
 else
   msg "Web access password (login at https://${LOCAL_IP}:8443)"
@@ -861,13 +915,14 @@ else
     # variable and the same value — two readers, one value.
     # shellcheck disable=SC2097,SC2098
     WEB_PASSWORD="$WEB_PASSWORD" GAMECORE_PATH="$GAMECORE_PATH" \
+      GAMECORE_DATA="$GAMECORE_DATA" \
       "$GAMECORE_PATH/.venv/bin/python3" - <<'PYEOF'
 import os, sys
 sys.path.insert(0, os.environ["GAMECORE_PATH"])
 from backend.services import auth
 auth.set_password(os.environ["WEB_PASSWORD"])
 PYEOF
-    chown "$USER_NAME:$USER_NAME" "$GAMECORE_PATH/config/auth.json" "$GAMECORE_PATH/config/auth_secret"
+    chown "$USER_NAME:$USER_NAME" "$GAMECORE_DATA/config/auth.json" "$GAMECORE_DATA/config/auth_secret"
     ok "Web password set (config/auth.json, survives OTA updates)."
   else
     warn "No WEB_PASSWORD in conf — LAN stays locked; run 'gamecore-addon auth-reset'."
@@ -890,6 +945,7 @@ User=$USER_NAME
 Group=$USER_NAME
 SupplementaryGroups=input
 Environment=GAMECORE_PATH=$GAMECORE_PATH
+Environment=GAMECORE_DATA=$GAMECORE_DATA
 Environment=GAMECORE_BACKEND_PORT=$WEB_PORT
 WorkingDirectory=$GAMECORE_PATH
 # Wait for a display that ANSWERS, not merely for a socket to exist.
@@ -960,6 +1016,7 @@ Type=simple
 User=$USER_NAME
 Group=$USER_NAME
 Environment=GAMECORE_PATH=$GAMECORE_PATH
+Environment=GAMECORE_DATA=$GAMECORE_DATA
 Environment=GAMECORE_BACKEND_PORT=$WEB_PORT
 WorkingDirectory=$GAMECORE_PATH
 # Wait for an X server socket to exist, nothing more: start-ui.sh does the real
@@ -1306,7 +1363,8 @@ if [[ -n "$ADDONS" ]]; then
   for _ in $(seq 1 10); do [ -S "/run/user/$USER_UID/bus" ] && break; sleep 1; done
   for addon in $ADDONS; do
     if sudo -u "$USER_NAME" \
-         env GAMECORE_PATH="$GAMECORE_PATH" GAMECORE_BACKEND_PORT="$WEB_PORT" \
+         env GAMECORE_PATH="$GAMECORE_PATH" GAMECORE_DATA="$GAMECORE_DATA" \
+             GAMECORE_BACKEND_PORT="$WEB_PORT" \
              XDG_RUNTIME_DIR="/run/user/$USER_UID" \
          /usr/local/bin/gamecore-addon install "$addon"; then
       ok "addon '$addon' installed."

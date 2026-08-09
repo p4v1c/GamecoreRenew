@@ -48,9 +48,13 @@ def _run(tmp_path: Path, seed: list[tuple], passes: int = 1) -> tuple[list, list
     """
     from backend import config, db as dbmod
     from backend.routers import systems as systems_router
-    from backend.services import playtime_repair
+    from backend.services import paths, playtime_repair
 
     # config caches its paths at import; point them at this library.
+    # `paths.use_roots` first: `romsPath` is relative and resolves against the
+    # DATA root, so without it the repair would scan the suite's throwaway root
+    # instead of this library — and report nothing to repair, in green.
+    paths.use_roots(tmp_path)
     config.GAMECORE_ROOT = tmp_path
     config.SYSTEMS_FILE = tmp_path / "config" / "systems.json"
     config.APPS_FILE = tmp_path / "config" / "apps.json"

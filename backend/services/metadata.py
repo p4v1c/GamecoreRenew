@@ -31,7 +31,8 @@ from pathlib import Path
 
 import httpx
 
-from ..config import GAMECORE_ROOT, SCRAPER_LANG, THEGAMESDB_API_KEY
+from ..config import SCRAPER_LANG, THEGAMESDB_API_KEY
+from .paths import metadata_dir
 from ..utils import rom_in_root
 from . import gamemedia, local_media
 from .rom_scanner import clean_name
@@ -39,7 +40,7 @@ from .scraper import TGDB_PLATFORM_MAP, Unreachable
 
 log = logging.getLogger(__name__)
 
-METADATA_DIR = GAMECORE_ROOT / "emu" / "metadata"
+METADATA_DIR = metadata_dir()
 _MISS_TTL = 7 * 24 * 3600
 
 _TGDB_SEARCH = "https://api.thegamesdb.net/v1/Games/ByGameName"

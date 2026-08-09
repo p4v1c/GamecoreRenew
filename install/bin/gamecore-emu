@@ -26,6 +26,9 @@
 set -euo pipefail
 
 GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
+# catalog/ is shipped code; config/catalog.d/ is the operator's own packs.
+# One on each side of the line, so they resolve against different roots.
+GAMECORE_DATA="${GAMECORE_DATA:-$GAMECORE_PATH}"
 GAMECORE_USER="${GAMECORE_USER:-${SUDO_USER:-$(id -un)}}"
 
 die()  { echo "[gamecore-emu] ERROR: $*" >&2; exit 1; }
@@ -45,7 +48,7 @@ PROVIDER="$GAMECORE_PATH/scripts/gamecore-provider.py"
 
 # ── helpers ──────────────────────────────────────────────────────
 known_ids() { "$PY" "$QUERY" ids --catalog "$GAMECORE_PATH/catalog" \
-                --local "$GAMECORE_PATH/config/catalog.d"; }
+                --local "$GAMECORE_DATA/config/catalog.d"; }
 
 require_ids() {  # require_ids <id>...
   [[ $# -gt 0 ]] || die "which one? try: gamecore-emu list"

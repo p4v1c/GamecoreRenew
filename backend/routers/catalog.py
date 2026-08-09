@@ -25,7 +25,7 @@ import shutil
 from fastapi import APIRouter, HTTPException
 
 from .. import ws
-from ..config import GAMECORE_ROOT
+from ..services.paths import config_dir, install_bin_dir
 from ..services.catalog import load_catalog
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
@@ -59,14 +59,14 @@ def _cli_argv(action: str, pack_id: str) -> list[str]:
         return ["sudo", "-n", installed, action, pack_id]
     # Development / a box where the permissions were never set up: run it
     # directly and let it fail on its own terms rather than pretend.
-    return [str(GAMECORE_ROOT / "install" / "bin" / "gamecore-emu"), action, pack_id]
+    return [str(install_bin_dir() / "gamecore-emu"), action, pack_id]
 
 
 def _live_ids() -> set[str]:
     out: set[str] = set()
     for name in ("systems.json", "apps.json"):
         try:
-            rows = json.loads((GAMECORE_ROOT / "config" / name).read_text())
+            rows = json.loads((config_dir() / name).read_text())
             out |= {r["id"] for r in rows if "id" in r}
         except (OSError, ValueError):
             pass
