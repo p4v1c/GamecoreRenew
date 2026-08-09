@@ -72,8 +72,8 @@ def _python_dict(path: Path, name: str) -> dict:
 def test_config_destinations_derive_from_the_installed_app_id(packs):
     """Both installers now ask the catalogue, and it cannot answer wrong.
 
-    @FLATPAK_CONFIG@ expands from the SAME install.appId the installer
-    installs, so a destination under a different app id is unexpressible.
+    @FLATPAK_CONFIG@ expands from the SAME install.appIds entry the box has
+    installed, so a destination under a different app id is unexpressible.
     """
     wrong = []
     for emu_id, dest, _native in _catalog_query("config-dest"):

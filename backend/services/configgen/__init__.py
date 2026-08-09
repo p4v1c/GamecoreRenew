@@ -61,7 +61,7 @@ def load_generator(pack):
 def resolve_config_dir(pack, home: Path) -> Path | None:
     """Where this emulator's config actually lives on THIS box.
 
-    `@FLATPAK_CONFIG@` expands from the same `install.appId` the installer
+    `@FLATPAK_CONFIG@` expands from the same `install.appIds` entry the box
     installs — that is what makes a phantom config directory unexpressible.
 
     `nativeDest` exists for the emulators a box can run outside Flatpak (mgba,

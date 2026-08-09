@@ -75,10 +75,28 @@ by `scripts/check-catalog.py`, which CI runs before anything else. Required:
 
 | `provider` | Fields | Used by |
 |---|---|---|
-| `flatpak` | `appId` | every Flathub emulator, Steam, Stremio |
+| `flatpak` | `appIds` | every Flathub emulator, Steam, Stremio |
 | `github-asset` | `repo`, `asset`, `dest`, `magic`, `version?`, `sha256?` | DuckStation (AppImage) |
 | `github-archive` | `repo`, `asset`, `dest`, `entrypoint`, `requires` | Xenia (Windows zip under Wine) |
 | `pacman` | `packages` | a pack that is just a distribution package |
+
+`appIds` is an ordered list, not a string, because an upstream can vanish
+overnight — Ryujinx original left Flathub with no warning. The installer takes
+the first candidate the remote still offers; everything else on the box (the
+`@FLATPAK_CONFIG@` and `@FLATPAK_DATA@` expansions, `verify`, the launcher)
+takes the first one actually **installed**, so a box that fell back keeps its
+config, its saves and its BIOS under one app id rather than three.
+
+Anything already installed wins over what the remote prefers. Re-running the
+installer on a box that fell back months ago must not drag it forward when the
+primary returns: `~/.var/app/<the id it installed>/` holds the memory cards.
+
+A launcher therefore writes `run @APPID@ …` and never an app id — `launch.args`
+naming one is refused by `scripts/check-catalog.py`. A tile is written once, by
+an installer or an OTA merge, and `config/` is excluded from the OTA rsync; an
+id baked into it is the one thing that cannot be corrected later. The token is
+resolved at launch, against what is installed. See `catalog/_ota/README.md` for
+the channel that corrects a dead id across the fleet without a release.
 
 The download path carries protections that each cost a broken install to learn:
 the fixed `/releases/latest/download/` URL **before** the rate-limited API (60
@@ -267,8 +285,8 @@ Minimum viable pack:
   "platform": "SOMECONSOLE",
   "family": "Sega",
   "color": "#1e90ff",
-  "install": { "provider": "flatpak", "appId": "org.example.MyEmu" },
-  "launch": { "path": "flatpak", "args": "run org.example.MyEmu --fullscreen" },
+  "install": { "provider": "flatpak", "appIds": ["org.example.MyEmu"] },
+  "launch": { "path": "flatpak", "args": "run @APPID@ --fullscreen" },
   "roms": { "dir": "emu/myemu", "extensions": ["*.bin", "*.zip"] }
 }
 ```
@@ -313,7 +331,7 @@ it. That install died at 66 %, on a fresh machine, months later.
 
 ```bash
 catalog-query.py ids --kind emulator          # one id per line
-catalog-query.py flatpaks --kind emulator     # id<TAB>appId
+catalog-query.py flatpaks --kind emulator     # id<TAB>the resolved appId
 catalog-query.py app-ids --select steam       # the Flatpak id of one app
 catalog-query.py rom-dirs                     # every roms.dir
 catalog-query.py config-dest --select mgba    # where seed/ goes
