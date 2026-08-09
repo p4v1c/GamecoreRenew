@@ -7,8 +7,11 @@ from urllib.parse import quote, unquote
 
 import httpx
 
-from ..config import COVERS_DIR, THEGAMESDB_API_KEY
+from ..config import THEGAMESDB_API_KEY
 from ..utils import TAG_RE
+from .paths import covers_dir
+
+COVERS_DIR = covers_dir()
 
 log = logging.getLogger(__name__)
 

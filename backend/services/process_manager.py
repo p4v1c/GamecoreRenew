@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timezone
 
 from .. import ws
-from ..config import GAMECORE_ROOT
+from .paths import config_dir
 from ..db import get_db
 
 log = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def _controller_db():
 # The pgid of the running game, so a restarted backend can find it again.
 # config/ survives the OTA rsync, and this file is state rather than settings —
 # it is removed as soon as the game exits.
-SESSION_FILE = GAMECORE_ROOT / "config" / "session.json"
+SESSION_FILE = config_dir() / "session.json"
 
 
 async def kill_process_group(proc) -> None:

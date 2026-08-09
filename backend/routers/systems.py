@@ -3,7 +3,8 @@ import json
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-from ..config import SYSTEMS_FILE, APPS_FILE, ASSETS_DIR, GAMECORE_ROOT
+from ..config import SYSTEMS_FILE, APPS_FILE, GAMECORE_ROOT
+from ..services.paths import GAMECORE_DATA, logos_dir
 
 router = APIRouter(tags=["systems"])
 
@@ -56,13 +57,16 @@ def _expand(rows: list) -> list:
     """
     home = str(Path.home())
     root = str(GAMECORE_ROOT)
+    data = str(GAMECORE_DATA)
 
     def fix(row: dict) -> dict:
         out = dict(row)
         for key in ("path", "args"):
             v = out.get(key)
             if isinstance(v, str) and "@" in v:
-                out[key] = v.replace("@HOME@", home).replace("@GAMECORE_PATH@", root)
+                out[key] = (v.replace("@HOME@", home)
+                             .replace("@GAMECORE_DATA@", data)
+                             .replace("@GAMECORE_PATH@", root))
         return out
 
     return [fix(r) if isinstance(r, dict) else r for r in rows]
@@ -133,7 +137,7 @@ def serve_logo(filename: str):
     if "/" in filename or "\\" in filename or filename.startswith("."):
         raise HTTPException(404)
 
-    override = ASSETS_DIR / "logos" / filename
+    override = logos_dir() / filename
     if override.is_file():
         return FileResponse(override)
 

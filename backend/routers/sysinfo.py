@@ -2,7 +2,8 @@
 import shutil
 import socket
 from fastapi import APIRouter
-from ..config import APP_VERSION, GAMECORE_ROOT
+from ..config import APP_VERSION
+from ..services.paths import GAMECORE_DATA
 from ..services import bios
 from ..services.battery import read_batteries
 
@@ -20,7 +21,7 @@ def _primary_ip() -> str:
 
 @router.get("/sysinfo")
 def get_sysinfo():
-    total, used, free = shutil.disk_usage(GAMECORE_ROOT)
+    total, used, free = shutil.disk_usage(GAMECORE_DATA)
     return {
         "ip": _primary_ip(),
         "storage_used_gb": round(used / 1e9, 1),

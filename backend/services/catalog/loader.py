@@ -36,12 +36,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ...config import GAMECORE_ROOT
+from ..paths import GAMECORE_DATA, catalog_dir, config_dir
 from .schema import load_schema, validate
 
 log = logging.getLogger(__name__)
 
-CATALOG_DIR = GAMECORE_ROOT / "catalog"
-LOCAL_DIR = GAMECORE_ROOT / "config" / "catalog.d"
+CATALOG_DIR = catalog_dir()
+LOCAL_DIR = config_dir() / "catalog.d"
 SCHEMA_FILE = CATALOG_DIR / "_schema" / "pack.schema.json"
 
 # Blocks a local pack may not use unless the operator opts in explicitly.
@@ -112,6 +113,7 @@ class Pack:
         return Path(value
                     .replace("@FLATPAK_CONFIG@", f"{home}/.var/app/{self.app_id}/config")
                     .replace("@FLATPAK_DATA@", f"{home}/.var/app/{self.app_id}/data")
+                    .replace("@GAMECORE_DATA@", str(GAMECORE_DATA))
                     .replace("@GAMECORE_PATH@", str(GAMECORE_ROOT))
                     .replace("@HOME@", str(home)))
 

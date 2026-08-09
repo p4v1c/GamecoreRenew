@@ -14,12 +14,12 @@ import os
 import re
 from pathlib import Path
 
-from ..config import GAMECORE_ROOT
+from .paths import config_dir, themes_dir
 
 log = logging.getLogger(__name__)
 
-THEMES_DIR = GAMECORE_ROOT / "config" / "themes"
-STATE_FILE = GAMECORE_ROOT / "config" / "theme.json"
+THEMES_DIR = themes_dir()
+STATE_FILE = config_dir() / "theme.json"
 
 # Bumped only when a surface or an SDK key is removed. Adding one does not.
 SDK_VERSION = 1

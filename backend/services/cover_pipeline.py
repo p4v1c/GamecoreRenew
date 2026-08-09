@@ -28,10 +28,12 @@ from pathlib import Path
 
 import httpx
 
-from ..config import COVERS_DIR
 from ..utils import rom_in_root
 from . import gamemedia, local_media
+from .paths import covers_dir
 from .scraper import Unreachable, _is_transient, fetch_cover
+
+COVERS_DIR = covers_dir()
 
 log = logging.getLogger(__name__)
 

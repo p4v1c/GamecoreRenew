@@ -21,12 +21,12 @@ import logging
 import os
 import time
 
-from ..config import GAMECORE_ROOT
+from .paths import config_dir
 from .process_manager import display_env
 
 log = logging.getLogger(__name__)
 
-CONFIG_FILE = GAMECORE_ROOT / "config" / "standby.json"
+CONFIG_FILE = config_dir() / "standby.json"
 
 DEFAULTS = {"enabled": True, "screensaver_mins": 10, "sleep_mins": 20}
 
