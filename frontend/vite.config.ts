@@ -27,6 +27,14 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
   server: {
+    // The bundled themes live in ../config/themes, outside this package. The
+    // acceptance test imports one of them — the default UI rebuilt as an
+    // ordinary theme — and runs it against the real SDK, which is only worth
+    // doing if it is the shipped files being loaded and not a copy.
+    //
+    // Dev-server only. On the box the backend serves /themes itself, and this
+    // config is not involved.
+    fs: { allow: ['..'] },
     port: 5173,
     proxy: {
       '/api': 'http://localhost:8765',

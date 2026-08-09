@@ -135,6 +135,13 @@ stock purple splash — is the exact look this rule exists to prevent.
 A themed splash draws what it likes but does not decide when booting ends: it
 must call `onDone`, and the host moves on regardless after 20s.
 
+It should also start `sdk.system.splashHoldMs` late. At cold boot the display
+path — the X mode switch, then the TV's HDMI re-sync — is still black when the
+splash mounts, so an animation that begins immediately plays to nobody and the
+player's first glimpse is the middle of it. Start your clock at
+`-sdk.system.splashHoldMs` and clamp every phase at `t <= 0`; the value is 0
+outside Electron and outside a cold boot, so nothing changes while you develop.
+
 ### What is mandatory, and what is not
 
 The all-or-nothing rule is about **surfaces**, not features. Read it as:
@@ -407,15 +414,23 @@ there is no import map to maintain and only one React instance exists.
 | `sdk.api` | `systems`, `games`, `metadata`, `media`, `playtime`, `sysinfo`, `standby`, `update`, `wifi`, `audio`, `bluetooth` | [full signatures](../architecture/05-frontend.md#apiindexts) |
 | `sdk.nav` | `use(selector)` for a reactive read inside a component, `get()` for a snapshot in a handler, plus `goHome`, `goLibrary`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx`, `openModal`, `closeModal` | [store reference](../architecture/05-frontend.md#store--storeindexts) |
 | `sdk.input` | `onGp(event, handler)`, `useGamepadState()`, `GP_BTN`, `events`, `rumble(pattern)`, `haptics` (read-only `enabled`) | [event bus](../architecture/05-frontend.md#the-gamepad-event-bus--hooksusegamepadts) |
-| `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `sound` (read-only `enabled` / `volume`), `gamecore`, `asset(path)` | `asset()` resolves a path inside the theme folder |
+| `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `sound` (read-only `enabled` / `volume`), `gamecore`, `asset(path)`, `splashHoldMs` | `asset()` resolves a path inside the theme folder; `splashHoldMs` is the cold-boot hold your splash should sit on before it starts (§8) |
+| `sdk.format` | `gameName`, `time`, `date`, `hexToRgb`, `systemColor` | how the rest of the UI renders the box's data. Reimplementing these does not fail, it *drifts* |
 | `sdk.themes` | `list()`, `select(id \| null)` | so a theme can dress its own theme picker. `select()` is the host's: it clears safe mode, resets the crash count and reloads the frontend |
-| `sdk.defaults` | `Shell` (the default frontend, takes parts), every screen, `DefaultSettingsPages`, `SettingsOverlay`, `DefaultKeyboard`, `launchApp` | compose instead of rewrite. The pages already carry their own overlay — render them bare; `SettingsOverlay` is only there if you write a page of your own |
+| `sdk.defaults` | `Shell` (the default frontend, takes parts), every screen, `DefaultSettingsPages`, `SettingsOverlay`, `Label`, `BackBar`, `DefaultKeyboard`, `launchApp` | compose instead of rewrite. The pages already carry their own overlay — render them bare; `SettingsOverlay`, `Label` and `BackBar` are the chrome to build a page of your own that matches them |
 
 `DefaultSettingsPages` is deliberately not enumerated here. It gained `catalog`
 and `bios` after this table was written and the table did not follow, so the one
 document a theme author reads to find out what exists listed seven of the nine
 pages that did. `Object.keys(sdk.defaults.DefaultSettingsPages)` is the list, at
 runtime, and it is the only copy of it that cannot go stale.
+
+`sdk.defaults` has the same property, one level up: it is the whole
+`components/defaults.tsx` namespace, not a hand-picked subset, so the row above
+is a guide and `Object.keys(sdk.defaults)` is the truth. `Label` and `BackBar`
+are what that gap looks like in practice — both have been exported and usable
+the whole time, and both were missing from this table until the remake used
+them.
 
 `modalDepth` and `powerPending` are readable through `get()` but there is no
 setter: they are the core's focus and shutdown locks.
@@ -806,3 +821,37 @@ it, so the box is never left pointing at a directory that is not there.
 
 Step 6 validates the spec: if the default UI cannot be expressed through this
 SDK, the SDK is incomplete.
+
+## 17. The acceptance test
+
+`config/themes/default-remake` is the default UI **rebuilt as an ordinary
+third-party theme**, and it is the only test that answers the question step 6
+asks. It is worth reading before writing a theme of your own, and its README
+lists what it does *not* reproduce.
+
+It is kept in the tree as a regression test, and it is run by the suite
+(`frontend/src/lib/defaultRemake.test.ts`) against the real `buildSdk()` output
+rather than a stub — a stub would pass on exactly the day the SDK lost a key the
+theme needs.
+
+It passes eight of the ten shell parts. `background` and `decor` are the two it
+leaves out, and that is the faithful answer rather than a shortcut: the default
+UI has no full-screen layer behind or in front of itself, so a remake that
+supplied one would no longer be a remake. `config/themes/summer` is the worked
+example for those two.
+
+The six gaps it found, all now closed, were each of the same shape: none
+prevented a theme from *loading*, and every one let a theme load and then be
+quietly worse than the default.
+
+| Found | Was |
+|---|---|
+| `sdk.format.systemColor` | a private function in `SystemCard`; a themed dashboard painted uncatalogued systems the house purple |
+| `sdk.format.gameName` | unreachable; a themed library could not turn a ROM filename into a title |
+| `sdk.format.time` / `date` / `hexToRgb` | unreachable; a theme phrased playtime differently from the rest of the UI |
+| `sortKeys` / `sortLabels` | imported by the default view only; a theme's copy would drift from what L1/R1 actually cycles |
+| `toasts` | rendered by the shell, not a part; a theme with its own tree lost every notification |
+| `sdk.system.splashHoldMs` | read from the URL by the default splash and undocumented, so every themed splash started mid-animation at cold boot |
+
+If you add something to the default UI, add it to this theme. If you cannot, you
+have found the next gap.

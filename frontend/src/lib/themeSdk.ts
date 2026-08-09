@@ -186,6 +186,23 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
         get volume() { return soundSettings.volume / 100 },
       },
       gamecore: window.gamecore,
+
+      /**
+       * How long a boot animation should hold its first frame, in ms.
+       *
+       * Electron asks for this at cold boot (`?splashHold=`) because the
+       * display path — the X mode switch, then the TV's HDMI re-sync — is
+       * still black when the splash mounts. Without the hold, the animation
+       * starts against a dead screen and the first thing the player actually
+       * sees is the middle of it.
+       *
+       * The default splash honoured this and nothing said so, so every themed
+       * splash was starting mid-animation on the one boot that matters. Parsed
+       * and clamped here rather than left to each theme to rediscover from
+       * window.location.
+       */
+      splashHoldMs: Math.min(10000, Math.max(0,
+        Number(new URLSearchParams(window.location.search).get('splashHold')) || 0)),
       /** Resolve a file shipped inside this theme's folder. */
       asset: (path: string) =>
         `/themes/${encodeURIComponent(themeId)}/${String(path).replace(/^\/+/, '')}`,
