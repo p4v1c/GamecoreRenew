@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from ..services import bezels
 from ..services.paths import overlays_dir
 
@@ -42,6 +43,52 @@ async def resolve_overlay(system_id: str, rom: str = ""):
     # Only the filename: `rom` arrives as the launcher's `game_key`, and a
     # directory component in it would let the pack index be pointed elsewhere.
     return bezels.for_launch(system_id, Path(rom).name or None)
+
+
+@router.get("/overlays/choices/{system_id}")
+async def overlay_choices(system_id: str, rom: str = ""):
+    """What the game's options screen may offer, and what is set today.
+
+    `options` lists only bezels that exist on this box. A menu entry that
+    resolves to nothing when picked is indistinguishable, from a sofa, from a
+    setting that did not save.
+    """
+    if not _SYSTEM_ID_RE.match(system_id):
+        raise HTTPException(400, "Invalid system id")
+    name = Path(rom).name or None
+    return {
+        "system_id": system_id,
+        "rom": name,
+        "current": bezels.preference(system_id, name),   # None = automatic
+        "resolved": bezels.for_launch(system_id, name),
+        "options": bezels.available(system_id, name),
+    }
+
+
+class OverlayChoice(BaseModel):
+    rom: str
+    # None → back to automatic, "off" → draw nothing, otherwise a bezel
+    # filename taken from `options` above.
+    choice: str | None = None
+
+
+@router.put("/overlays/choices/{system_id}")
+async def set_overlay_choice(system_id: str, body: OverlayChoice):
+    if not _SYSTEM_ID_RE.match(system_id):
+        raise HTTPException(400, "Invalid system id")
+    name = Path(body.rom).name
+    if not name:
+        raise HTTPException(400, "A choice belongs to a game")
+    choice = body.choice
+    if choice not in (None, "off"):
+        # Checked against what actually exists, so a stored preference can
+        # only ever name a bezel this box has. The alternative is a setting
+        # that saves happily and does nothing at launch.
+        if choice not in {o["id"] for o in bezels.available(system_id, name)}:
+            raise HTTPException(404, "No such bezel for this game")
+    bezels.set_preference(system_id, name, choice)
+    return {"ok": True, "current": bezels.preference(system_id, name),
+            "resolved": bezels.for_launch(system_id, name)}
 
 
 @router.get("/overlays/{system_id}")

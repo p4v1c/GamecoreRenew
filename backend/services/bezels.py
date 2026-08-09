@@ -132,13 +132,36 @@ def resolve(system_id: str, rom_name: str | None = None) -> tuple[Path | None, s
 
     `(path, "game")` → a bezel named after this ROM;
     `(path, "system")` → the system's own bezel;
+    `(None, "off")` → the player turned this game's overlay off;
     `(None, "none")` → there is no bezel, and the caller must draw nothing.
 
-    That last one is not a detail. The fallback frame drawn from a declared
+    The last two draw the same thing and are kept apart on purpose: the UI has
+    to be able to say "you switched this off" rather than "no bezel found",
+    which are the same picture and completely different problems.
+
+    "none" is not a detail either. The fallback frame drawn from a declared
     hole is only ever correct for a system whose geometry someone measured;
     inventing one for a system with no bezel at all puts black bars over a game
     that was filling the screen correctly.
     """
+    choice = preference(system_id, rom_name)
+    if choice == "off":
+        return None, "off"
+    if choice:
+        # A named bezel is honoured only if it is still there. A pack removed
+        # under a preference that names it must fall back to the cascade, not
+        # leave the game with an overlay that resolves to a missing file.
+        picked = _pack_index(system_id).get(rom_key(choice))
+        if picked:
+            return picked, "chosen"
+        # The system bezel is a legitimate choice and does not live in the
+        # pack directory, so the index above cannot find it.
+        system_png = overlays_dir() / f"{system_id}.png"
+        if system_png.is_file() and rom_key(choice) == rom_key(system_png.name):
+            return system_png, "chosen"
+        log.info("bezels: %s/%s names a bezel that is gone (%s) — falling back",
+                 system_id, rom_name, choice)
+
     if rom_name:
         hit = _pack_index(system_id).get(rom_key(rom_name))
         if hit:
@@ -147,6 +170,83 @@ def resolve(system_id: str, rom_name: str | None = None) -> tuple[Path | None, s
     if system_png.is_file():
         return system_png, "system"
     return None, "none"
+
+
+# ── The player's own choice ──────────────────────────────────────────────────
+#
+# Keyed by `rom_key`, not by filename: a preference set on `Crash Bandicoot
+# (USA).cue` has to survive the day that dump is replaced by the European one.
+# Same reasoning as the pack index, and the same function decides both.
+
+_CHOICES_FILE = "bezel-choices.json"
+
+
+def _choices_path() -> Path:
+    return config_dir() / _CHOICES_FILE
+
+
+def choices() -> dict[str, dict[str, str]]:
+    try:
+        loaded = json.loads(_choices_path().read_text())
+        return loaded if isinstance(loaded, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def preference(system_id: str, rom_name: str | None) -> str | None:
+    """"off", a bezel filename, or None for "decide it automatically"."""
+    if not rom_name:
+        return None
+    return choices().get(system_id, {}).get(rom_key(rom_name))
+
+
+def set_preference(system_id: str, rom_name: str, choice: str | None) -> None:
+    """Record a choice, or drop it with None to go back to automatic.
+
+    A dropped choice is REMOVED rather than stored as "auto": the automatic
+    answer changes when a pack is installed, and a box that had written the
+    answer down would keep the old one forever.
+    """
+    key = rom_key(rom_name)
+    if not key:
+        return
+    data = choices()
+    per_system = data.setdefault(system_id, {})
+    if choice is None:
+        per_system.pop(key, None)
+        if not per_system:
+            data.pop(system_id, None)
+    else:
+        per_system[key] = choice
+
+    p = _choices_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    # Written through a temp file in the same directory: this is the player's
+    # settings, and a power cut mid-write must not leave a truncated JSON that
+    # takes every preference on the box with it.
+    tmp = p.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, indent=2, sort_keys=True))
+    tmp.replace(p)
+
+
+def available(system_id: str, rom_name: str | None = None) -> list[dict]:
+    """What the options screen may offer for this game, best first.
+
+    Only bezels that exist. Offering a per-game bezel for a system with no
+    pack installed is a menu entry that does nothing when picked, and from a
+    sofa that is indistinguishable from the setting not being saved.
+    """
+    out: list[dict] = []
+    if rom_name:
+        hit = _pack_index(system_id).get(rom_key(rom_name))
+        if hit:
+            out.append({"id": hit.name, "label": hit.stem, "level": "game",
+                        "asset": _asset_url(hit)})
+    system_png = overlays_dir() / f"{system_id}.png"
+    if system_png.is_file():
+        out.append({"id": system_png.name, "label": system_id, "level": "system",
+                    "asset": _asset_url(system_png)})
+    return out
 
 
 # ── Measuring the hole ───────────────────────────────────────────────────────
@@ -346,6 +446,13 @@ def describe(system_id: str, rom_name: str | None = None,
     whole and a game with black bars nobody asked for.
     """
     png, level = resolve(system_id, rom_name)
+
+    # Switched off wins over everything, the declared frame included. Falling
+    # through to `declared` here would answer "no PNG, draw the JSON frame" —
+    # so turning an overlay off would replace the artwork with black bars,
+    # which is the opposite of what the player asked for.
+    if level == "off":
+        return {"source": "off", "asset": None, "hole": None}
 
     if png is not None:
         hole = measure_hole(png)

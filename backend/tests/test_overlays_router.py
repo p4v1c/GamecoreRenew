@@ -122,6 +122,117 @@ def test_a_rom_name_cannot_point_the_lookup_at_another_directory(client, library
                              "Crash%20Bandicoot%20%28USA%29.png")
 
 
+# ── The player's own choice ─────────────────────────────────────────────────
+
+def _pack(library: Path) -> None:
+    overlays = library / "assets" / "overlays"
+    write_png(overlays / "duckstation.png", 1920, 1080, (240, 52, 1440, 968))
+    write_png(overlays / "duckstation" / "Crash Bandicoot (USA).png",
+              1920, 1080, (240, 0, 1440, 1080))
+
+
+def test_turning_an_overlay_off_draws_nothing_at_all(client, library):
+    """Not the declared frame. Switching a bezel off used to have nowhere to
+    land except "no PNG", and "no PNG" means "draw the JSON frame" — so the
+    artwork would be replaced by black bars, which is the opposite of the
+    request."""
+    _pack(library)
+    r = client.put("/api/overlays/choices/duckstation",
+                   json={"rom": "Crash Bandicoot (USA).cue", "choice": "off"})
+    assert r.status_code == 200, r.text
+
+    body = client.get("/api/overlays/resolve/duckstation",
+                      params={"rom": "Crash Bandicoot (USA).cue"}).json()
+    assert body["source"] == "off"
+    assert body["asset"] is None
+    assert body["hole"] is None
+
+
+def test_a_choice_applies_to_the_game_and_not_to_the_system(client, library):
+    _pack(library)
+    client.put("/api/overlays/choices/duckstation",
+               json={"rom": "Crash Bandicoot (USA).cue", "choice": "off"})
+
+    other = client.get("/api/overlays/resolve/duckstation",
+                       params={"rom": "Silent Hill (USA).cue"}).json()
+    assert other["source"] == "system"
+
+
+def test_a_choice_survives_the_dump_being_replaced(client, library):
+    """Stored under the normalised key, so the European re-dump of a game
+    keeps the setting made on the American one. A preference filed under a
+    filename would silently reset the day someone swapped a ROM."""
+    _pack(library)
+    client.put("/api/overlays/choices/duckstation",
+               json={"rom": "Crash Bandicoot (USA).cue", "choice": "off"})
+
+    body = client.get("/api/overlays/resolve/duckstation",
+                      params={"rom": "Crash Bandicoot (Europe) (Rev 1).chd"}).json()
+    assert body["source"] == "off"
+
+
+def test_going_back_to_automatic_forgets_the_choice(client, library):
+    """Removed, not stored as "auto". The automatic answer changes when a pack
+    is installed, and a written-down answer would never notice."""
+    _pack(library)
+    client.put("/api/overlays/choices/duckstation",
+               json={"rom": "Crash Bandicoot (USA).cue", "choice": "off"})
+    r = client.put("/api/overlays/choices/duckstation",
+                   json={"rom": "Crash Bandicoot (USA).cue", "choice": None})
+    assert r.json()["current"] is None
+    assert r.json()["resolved"]["source"] == "game"
+
+
+def test_the_system_bezel_can_be_chosen_over_the_game_one(client, library):
+    """It does not live in the pack directory, so the index that answers every
+    other lookup cannot find it — the one case that needs its own branch."""
+    _pack(library)
+    r = client.put("/api/overlays/choices/duckstation",
+                   json={"rom": "Crash Bandicoot (USA).cue", "choice": "duckstation.png"})
+    assert r.status_code == 200, r.text
+    assert r.json()["resolved"]["asset"] == "/assets/overlays/duckstation.png"
+
+
+def test_a_bezel_that_does_not_exist_cannot_be_chosen(client, library):
+    """A preference is only ever allowed to name something on this box.
+    Otherwise the setting saves happily and does nothing at launch."""
+    _pack(library)
+    r = client.put("/api/overlays/choices/duckstation",
+                   json={"rom": "Crash Bandicoot (USA).cue", "choice": "Nonesuch.png"})
+    assert r.status_code == 404
+
+
+def test_a_chosen_bezel_that_later_disappears_falls_back(client, library):
+    """A pack uninstalled under a preference that names it. Falling back to
+    the cascade beats an overlay pointing at a missing file."""
+    _pack(library)
+    client.put("/api/overlays/choices/duckstation",
+               json={"rom": "Crash Bandicoot (USA).cue",
+                     "choice": "Crash Bandicoot (USA).png"})
+    (library / "assets" / "overlays" / "duckstation" / "Crash Bandicoot (USA).png").unlink()
+
+    body = client.get("/api/overlays/resolve/duckstation",
+                      params={"rom": "Crash Bandicoot (USA).cue"}).json()
+    assert body["source"] == "system"
+
+
+def test_the_options_screen_is_offered_only_what_exists(client, library):
+    _pack(library)
+    body = client.get("/api/overlays/choices/duckstation",
+                      params={"rom": "Crash Bandicoot (USA).cue"}).json()
+    assert body["current"] is None
+    assert [o["level"] for o in body["options"]] == ["game", "system"]
+
+    bare = client.get("/api/overlays/choices/duckstation",
+                      params={"rom": "Silent Hill (USA).cue"}).json()
+    assert [o["level"] for o in bare["options"]] == ["system"]
+
+
+def test_a_choice_needs_a_game(client, library):
+    r = client.put("/api/overlays/choices/duckstation", json={"rom": "", "choice": "off"})
+    assert r.status_code == 400
+
+
 def test_the_declared_hole_answers_when_the_png_is_missing(client, library):
     """A box whose bezel was never uploaded still gets the frame overlays.json
     describes — that is what the JSON is for, and all it is for."""
