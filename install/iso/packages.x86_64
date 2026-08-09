@@ -74,7 +74,7 @@ networkmanager
 # NetworkManager's default supplicant. iwd would need NM reconfigured to use it,
 # and an unconfigured pair is a Wi-Fi list that is always empty.
 wpa_supplicant
-wireless_regdb
+wireless-regdb
 
 # ── GameCore's own dependencies — mirrors install/arch.sh PKGS ────
 # Kept in the same order as the array in arch.sh so a diff between the two is
@@ -108,7 +108,7 @@ xf86-video-amdgpu
 vulkan-radeon
 vulkan-intel
 vulkan-swrast
-nvidia
+nvidia-open
 nvidia-utils
 dkms
 lib32-vulkan-radeon
