@@ -24,7 +24,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # On ajoute des permissions pour permettre au script de créer des tags et des releases
+    # The tagging step pushes a tag and publishes a release, so the token needs write.
     permissions:
       contents: write
 
@@ -96,7 +96,7 @@ jobs:
           # the pack rather than in a central directory nobody updates.
           pytest backend/tests catalog -q -m "not network"
 
-      # --- ÉTAPE D'AUTO-INCREMENTATION DU TAG ---
+      # --- TAG AUTO-INCREMENT STEP ---
       # Pinned to the commit behind 1.64.0: this action runs with contents:write
       # and the repo GITHUB_TOKEN, so a movable tag would let an upstream force-push
       # execute arbitrary code against our releases.
@@ -107,7 +107,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WITH_V: true
-          DEFAULT_BUMP: patch # Incrémente le dernier chiffre (ex: 1.0.1 -> 1.0.2)
+          DEFAULT_BUMP: patch # bumps the last digit (e.g. 1.0.1 -> 1.0.2)
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

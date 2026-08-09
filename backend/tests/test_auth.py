@@ -36,7 +36,7 @@ def test_global_breaker_does_not_lock_out_innocent_ip():
     for i in range(30):
         auth.register_failure(f"10.0.0.{i}")
     assert auth._global["until"] > time.time(), "the breaker really did trip"
-    assert auth.blocked_for("192.168.1.77") == 0, "IP jamais vue → pas bloquée"
+    assert auth.blocked_for("192.168.1.77") == 0, "an IP never seen → not blocked"
 
 
 def test_global_breaker_still_applies_to_an_ip_that_has_failed():
@@ -53,7 +53,7 @@ def test_repeated_failures_block_the_offending_ip():
     assert auth.blocked_for(ip) == 0, "les premiers essais sont gratuits"
 
     auth.register_failure(ip)
-    assert auth.blocked_for(ip) > 0, "au seuil, l'IP est bloquée"
+    assert auth.blocked_for(ip) > 0, "at the threshold, the IP is blocked"
 
 
 def test_a_success_clears_the_block():
@@ -63,7 +63,7 @@ def test_a_success_clears_the_block():
     assert auth.blocked_for(ip) > 0
 
     auth.register_success(ip)
-    assert auth.blocked_for(ip) == 0, "une réussite oublie l'historique de l'IP"
+    assert auth.blocked_for(ip) == 0, "one success forgets the IP's history"
 
 
 def test_a_typo_does_not_pin_a_client_to_the_global_breaker_forever():

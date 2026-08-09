@@ -1,61 +1,59 @@
-# Awesome-lists — la ligne, et le corps de PR
+# Awesome-lists — the line, and the PR body
 
-Les awesome-lists sont le canal le plus lent et le plus durable : une ligne
-acceptée reste des années et fait un backlink depuis un dépôt très bien classé.
-Elles sont aussi les plus faciles à se faire refuser, pour une raison unique et
-constante : **une PR qui ne respecte pas le format de la liste est fermée sans
-discussion.**
+Awesome-lists are the slowest and most durable channel: an accepted line stays
+for years and earns a backlink from a very well-ranked repo. They are also the
+easiest to get refused from, for one constant reason: **a PR that does not match
+the list's format is closed without discussion.**
 
-Donc, dans l'ordre, à chaque fois :
+So, in order, every time:
 
-1. lire le `CONTRIBUTING.md` de la liste visée ;
-2. **copier le format exact d'une ligne voisine** — tiret, gras ou pas, point
-   final ou pas, ordre alphabétique ou non ;
-3. une PR par liste, jamais une PR groupée.
+1. read the target list's `CONTRIBUTING.md`;
+2. **copy the exact format of a neighbouring line** — dash, bold or not, full stop
+   or not, alphabetical order or not;
+3. one PR per list, never a grouped PR.
 
-> **Si l'ISO est publiée** : dans le corps de PR, remplacer la ligne
-> « Installs onto an existing Arch/Manjaro system with a graphical installer »
-> par « Ships a bootable ISO, or installs onto an existing Arch/Manjaro system ».
+> **Now that the ISO ships** (pending, see [`../iso-blocker.md`](../iso-blocker.md)):
+> in the PR body, replace the line "Installs onto an existing Arch/Manjaro system
+> with a graphical installer" with "Ships a bootable ISO, or installs onto an
+> existing Arch/Manjaro system".
 
 ---
 
-## Les listes visées, par ordre de pertinence
+## The target lists, in order of relevance
 
-| Liste | Section probable | Remarque |
+| List | Likely section | Note |
 |---|---|---|
-| [`awesome-emulators`](https://github.com/tomconte/awesome-emulators) | Frontends | La plus directe. |
-| [`awesome-linux-gaming`](https://github.com/dgvai/awesome-linux-gaming) | Emulation | Recoupe l'audience de r/linux_gaming. |
-| [`awesome-selfhosted`](https://github.com/awesome-selfhosted/awesome-selfhosted) | — | **Ne pas soumettre.** GameCore n'est pas un service auto-hébergé ; la PR sera refusée et c'est justifié. |
-| [`awesome-arch`](https://github.com/PandaFoss/Awesome-Arch) | Applications | Angle Arch, plus petite mais très ciblée. |
+| [`awesome-emulators`](https://github.com/tomconte/awesome-emulators) | Frontends | The most direct. |
+| [`awesome-linux-gaming`](https://github.com/dgvai/awesome-linux-gaming) | Emulation | Overlaps r/linux_gaming's audience. |
+| [`awesome-selfhosted`](https://github.com/awesome-selfhosted/awesome-selfhosted) | — | **Do not submit.** GameCore is not a self-hosted service; the PR will be refused and rightly so. |
+| [`awesome-arch`](https://github.com/PandaFoss/Awesome-Arch) | Applications | Arch angle, smaller but very targeted. |
 
 ---
 
-## La ligne
+## The line
 
-Format le plus courant (`- [Nom](url) - Description.`) :
+Most common format (`- [Name](url) - Description.`):
 
 ```markdown
 - [GameCore](https://github.com/p4v1c/GamecoreRenew) - Gamepad-driven living-room emulation frontend for Arch Linux, built around the recent consoles (PS3, PS4, Switch, Wii U, Xbox 360) with Flatpak emulators that stay current and controllers that configure themselves.
 ```
 
-Si la liste impose des descriptions courtes (beaucoup plafonnent autour de 100
-caractères) :
+If the list requires short descriptions (many cap around 100 characters):
 
 ```markdown
 - [GameCore](https://github.com/p4v1c/GamecoreRenew) - Living-room emulation frontend for Arch Linux, recent consoles first.
 ```
 
-> Le lien pointe le **dépôt**, pas le site : les awesome-lists attendent un
-> projet, et une entrée qui pointe une page marketing plutôt qu'un dépôt se fait
-> régulièrement demander de changer. Le site est de toute façon lié depuis le
-> About du dépôt.
+> The link points at the **repo**, not the site: awesome-lists expect a project,
+> and an entry pointing at a marketing page rather than a repo regularly gets
+> asked to change. The site is linked from the repo's About anyway.
 
 ---
 
-## Corps de la PR
+## PR body
 
-Court. Le mainteneur d'une awesome-list en lit des dizaines et cherche trois
-choses : est-ce vivant, est-ce libre, est-ce à sa place.
+Short. An awesome-list maintainer reads dozens of these and looks for three
+things: is it alive, is it free, does it belong here.
 
 ```markdown
 ### What it is
@@ -93,15 +91,14 @@ Docs: https://github.com/p4v1c/GamecoreRenew#readme
 
 ---
 
-## Ce qu'il ne faut pas mettre dans la PR
+## What must not go in the PR
 
-- **Aucune comparaison nommée avec Batocera** ou avec une entrée déjà présente
-  dans la liste. Un mainteneur lit ça comme « ma soumission mérite plus que la
-  vôtre », et c'est le moyen le plus rapide de faire fermer une PR par ailleurs
-  correcte. Les différences ci-dessus sont formulées en positif, sans nommer
-  personne — c'est délibéré, ne pas le « corriger ».
-- **Pas de captures d'écran** : ce sont des listes de texte, les images
-  alourdissent la revue sans rien apporter.
-- **Pas de mention du nombre d'étoiles**, ni de « nouveau projet ». Plusieurs
-  listes exigent une ancienneté ou une popularité minimale ; l'annoncer soi-même
-  fait appliquer le critère immédiatement.
+- **No named comparison with Batocera** or with an entry already in the list. A
+  maintainer reads that as "my submission deserves more than yours", and it is
+  the fastest way to get an otherwise correct PR closed. The differences above
+  are phrased positively, naming nobody — that is deliberate, do not "fix" it.
+- **No screenshots**: these are text lists, images weigh the review down without
+  adding anything.
+- **No mention of star count**, nor of "new project". Several lists require a
+  minimum age or popularity; announcing it yourself gets the criterion applied
+  immediately.

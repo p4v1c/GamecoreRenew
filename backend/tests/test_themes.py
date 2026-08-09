@@ -52,7 +52,7 @@ def write_theme(root, tid, *, provides=("splash", "shell"), api=None, entry="ind
 
 def test_complete_theme_is_accepted_without_warnings(themes_root):
     full = write_theme(themes_root, "full")
-    assert full is not None and full["compatible"], "thème complet accepté"
+    assert full is not None and full["compatible"], "a complete theme is accepted"
     assert full["warnings"] == [], f"aucun avertissement ({full['warnings']})"
 
 
@@ -60,7 +60,7 @@ def test_complete_theme_is_accepted_without_warnings(themes_root):
 def test_theme_missing_a_surface_is_incompatible_and_names_it(themes_root, absent, present):
     m = write_theme(themes_root, f"no_{absent}", provides=present)
     assert m is not None and not m["compatible"], f"sans {absent} → incompatible"
-    assert any(absent in w for w in m["warnings"]), f"sans {absent} → raison donnée ({m['warnings']})"
+    assert any(absent in w for w in m["warnings"]), f"missing {absent} → a reason is given ({m['warnings']})"
 
 
 def test_empty_provides_is_incompatible(themes_root):
@@ -72,13 +72,13 @@ def test_empty_provides_is_incompatible(themes_root):
 
 def test_a_theme_from_a_future_sdk_is_incompatible(themes_root):
     m = write_theme(themes_root, "future", api=themes.SDK_VERSION + 1)
-    assert m is not None and not m["compatible"], "SDK trop récent → incompatible"
+    assert m is not None and not m["compatible"], "SDK too new → incompatible"
 
 
 def test_unknown_surface_is_dropped_reported_and_not_fatal(themes_root):
     m = write_theme(themes_root, "unknown_surface", provides=["splash", "shell", "toaster"])
-    assert m is not None and "toaster" not in m["provides"], f"surface inconnue ignorée ({m['provides']})"
-    assert any("toaster" in w for w in m["warnings"]), f"surface inconnue signalée ({m['warnings']})"
+    assert m is not None and "toaster" not in m["provides"], f"unknown surface ignored ({m['provides']})"
+    assert any("toaster" in w for w in m["warnings"]), f"unknown surface reported ({m['warnings']})"
     assert m["compatible"], "surface inconnue seule n'invalide pas"
 
 
@@ -88,7 +88,7 @@ def test_manifest_id_must_equal_the_directory_name(themes_root):
     (d / "index.js").write_text("export default () => ({})\n")
     (d / "theme.json").write_text(json.dumps(
         {"id": "somethingelse", "name": "x", "version": "1", "api": 1, "provides": ["splash", "shell"]}))
-    assert themes._read_manifest(d) is None, "id ≠ nom du dossier → rejeté"
+    assert themes._read_manifest(d) is None, "id ≠ folder name → rejected"
 
 
 def test_a_theme_without_its_entry_module_is_rejected(themes_root):
@@ -96,7 +96,7 @@ def test_a_theme_without_its_entry_module_is_rejected(themes_root):
     d.mkdir()
     (d / "theme.json").write_text(json.dumps(
         {"id": "noentry", "name": "x", "version": "1", "api": 1, "provides": ["splash", "shell"]}))
-    assert themes._read_manifest(d) is None, "entrée manquante → rejeté"
+    assert themes._read_manifest(d) is None, "missing entry → rejected"
 
 
 def test_an_unreadable_manifest_is_rejected(themes_root):
@@ -104,18 +104,18 @@ def test_an_unreadable_manifest_is_rejected(themes_root):
     d.mkdir()
     (d / "index.js").write_text("")
     (d / "theme.json").write_text("{ not json")
-    assert themes._read_manifest(d) is None, "manifeste illisible → rejeté"
+    assert themes._read_manifest(d) is None, "unreadable manifest → rejected"
 
 
 # ── id safety: a theme id is a directory name, never a path ──────────────────
 
 @pytest.mark.parametrize("bad", ["../escape", "a/b", "Upper", "", "x" * 65])
 def test_theme_id_is_a_directory_name_never_a_path(bad):
-    assert themes._safe_id(bad) is None, f"id refusé: {bad!r}"
+    assert themes._safe_id(bad) is None, f"id refused: {bad!r}"
 
 
 def test_a_plain_theme_id_is_accepted():
-    assert themes._safe_id("summer") == "summer", "id accepté: 'summer'"
+    assert themes._safe_id("summer") == "summer", "id accepted: 'summer'"
 
 
 # ── set_active refuses what cannot load ──────────────────────────────────────
@@ -127,21 +127,21 @@ def test_templates_are_hidden_from_the_picker(themes_root):
     # so listing it would offer something that can never be selected.
     write_theme(themes_root, "_template")
     listed = {t["id"] for t in themes.list_themes()}
-    assert "_template" not in listed, f"gabarit _ masqué du sélecteur ({sorted(listed)})"
-    assert themes._safe_id("_template") is None, "gabarit non sélectionnable de toute façon"
+    assert "_template" not in listed, f"_-prefixed template hidden from the picker ({sorted(listed)})"
+    assert themes._safe_id("_template") is None, "the template is not selectable anyway"
 
 
 def test_valid_themes_are_listed(themes_root):
     write_theme(themes_root, "full")
     write_theme(themes_root, "no_splash", provides=["shell"])
     listed = {t["id"] for t in themes.list_themes()}
-    assert listed >= {"full", "no_splash"}, f"les fixtures sont bien listées ({sorted(listed)})"
+    assert listed >= {"full", "no_splash"}, f"the fixtures are listed ({sorted(listed)})"
 
 
 def test_set_active_accepts_a_complete_theme_and_persists_it(themes_root):
     write_theme(themes_root, "full")
-    assert themes.set_active("full") == "full", "set_active accepte un thème complet"
-    assert themes.get_active() == "full", "la sélection est persistée"
+    assert themes.set_active("full") == "full", "set_active accepts a complete theme"
+    assert themes.get_active() == "full", "the selection is persisted"
 
 
 def test_set_active_refuses_an_incomplete_theme_and_keeps_the_selection(themes_root):
@@ -151,14 +151,14 @@ def test_set_active_refuses_an_incomplete_theme_and_keeps_the_selection(themes_r
 
     with pytest.raises(ValueError) as e:
         themes.set_active("no_splash")
-    assert "splash" in str(e.value), f"set_active refuse un thème incomplet ({e.value})"
-    assert themes.get_active() == "full", "un refus ne change pas la sélection"
+    assert "splash" in str(e.value), f"set_active refuses an incomplete theme ({e.value})"
+    assert themes.get_active() == "full", "a refusal leaves the selection alone"
 
 
 def test_set_active_none_returns_to_the_default(themes_root):
     write_theme(themes_root, "full")
     themes.set_active("full")
-    assert themes.set_active(None) is None, "set_active(None) revient au défaut"
+    assert themes.set_active(None) is None, "set_active(None) falls back to the default"
 
 
 def test_set_active_refuses_an_unknown_id(themes_root):

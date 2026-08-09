@@ -1,16 +1,17 @@
-# AlternativeTo — fiche à soumettre
+# AlternativeTo — entry to submit
 
-**Où** : https://alternativeto.net/manage/new-app/ (compte requis, création par
-l'humain).
+**Where**: https://alternativeto.net/manage/new-app/ (account required, created
+by the human).
 
-AlternativeTo est un annuaire : la fiche n'a d'intérêt que **par les « alternative
-to » qu'elle déclare**, parce que le trafic arrive par les pages des concurrents,
-jamais par une recherche sur le nom. C'est le seul canal de cette phase où la
-comparaison est le mécanisme et pas une faiblesse — mais elle reste dans les
-champs de liaison, jamais dans la description.
+AlternativeTo is a directory: the entry is only worth anything **through the
+"alternative to" links it declares**, because traffic arrives from competitors'
+pages, never from a search on the name. It is the one channel in this phase where
+comparison is the mechanism rather than a weakness — but it stays in the linking
+fields, never in the description.
 
-> **Si l'ISO est publiée** : ajouter « or a bootable ISO if it does not » à la fin
-> du deuxième paragraphe de la description longue.
+> **Now that the ISO ships** (pending, see [`../iso-blocker.md`](../iso-blocker.md)):
+> add "or a bootable ISO if it does not" to the end of the long description's
+> second paragraph.
 
 ---
 
@@ -20,10 +21,10 @@ champs de liaison, jamais dans la description.
 GameCore
 ```
 
-> Il existe déjà plusieurs « GameCore » (un moteur Java, un IDE 3D, un moteur Mac
-> sur SourceForge). Si le formulaire refuse le nom pour cause de doublon, utiliser
-> `GameCore (emulation frontend)` — et **pas** `GamecoreRenew`, qui n'est le nom
-> de rien pour un lecteur.
+> There are already several "GameCore"s (a Java engine, a 3D IDE, a Mac engine on
+> SourceForge). If the form refuses the name as a duplicate, use
+> `GameCore (emulation frontend)` — and **not** `GamecoreRenew`, which is the
+> name of nothing to a reader.
 
 ## URL
 
@@ -31,7 +32,7 @@ GameCore
 https://p4v1c.github.io/GamecoreRenew/
 ```
 
-## Tagline (une ligne)
+## Tagline (one line)
 
 ```
 Living-room emulation frontend for Arch Linux, built around the recent consoles.
@@ -84,15 +85,15 @@ Linux
 Self-Hosted
 ```
 
-> Cocher **Linux** uniquement côté OS. Ne pas cocher Windows ni macOS : le stack
-> est X11-only et l'installateur est spécifique à Arch. Une fiche qui promet une
-> plateforme qu'elle ne sert pas récolte des votes négatifs et des commentaires
-> « ça ne s'installe pas », qui restent visibles des années.
+> Tick **Linux** only on the OS side. Do not tick Windows or macOS: the stack is
+> X11-only and the installer is Arch-specific. An entry promising a platform it
+> does not serve collects downvotes and "it doesn't install" comments, which stay
+> visible for years.
 
 ## Alternative to
 
-Dans cet ordre — c'est l'ordre de pertinence décroissante, et c'est celui qui
-détermine d'où vient le trafic :
+In this order — it is decreasing order of relevance, and it determines where the
+traffic comes from:
 
 ```
 Batocera.linux
@@ -101,24 +102,23 @@ EmulationStation
 Playnite
 ```
 
-Pour chacune, la note de comparaison si le formulaire la demande :
+For each, the comparison note if the form asks for one:
 
-- **Batocera.linux** — même usage (une box salon pilotée à la manette), approche
-  opposée : Batocera est une image système figée et en lecture seule couvrant un
-  très grand nombre de machines anciennes ; GameCore est une Arch complète et
-  modifiable, orientée consoles récentes, dont les émulateurs se mettent à jour
-  indépendamment.
-- **RetroBat** — même idée sur Windows ; GameCore est Linux uniquement.
-- **EmulationStation** — EmulationStation est l'interface seule, à intégrer.
-  GameCore est le système complet : installation, services, kiosque, mises à
-  jour, configuration des manettes.
-- **Playnite** — Playnite unifie des bibliothèques de jeux PC sous Windows.
-  Recoupement réel sur le lanceur au canapé, aucun sur l'émulation Linux.
+- **Batocera.linux** — same use (a living-room box driven by a gamepad), opposite
+  approach: Batocera is a frozen, read-only system image covering a very large
+  number of older machines; GameCore is a full, modifiable Arch oriented at recent
+  consoles, whose emulators update independently.
+- **RetroBat** — same idea on Windows; GameCore is Linux only.
+- **EmulationStation** — EmulationStation is the interface alone, to be
+  integrated. GameCore is the whole system: installation, services, kiosk,
+  updates, controller configuration.
+- **Playnite** — Playnite unifies PC game libraries on Windows. Real overlap on
+  the couch launcher, none on Linux emulation.
 
-> **Ne pas ajouter RetroPie ni Lakka.** Ce sont des cibles ARM / bas de gamme, et
-> une fiche qui se déclare alternative à un projet qu'elle ne remplace pas se
-> fait corriger par les votes de la communauté — ce qui abîme la fiche entière,
-> y compris les liaisons justes.
+> **Do not add RetroPie or Lakka.** Those are ARM / low-end targets, and an entry
+> declaring itself an alternative to a project it does not replace gets corrected
+> by community votes — which damages the entire entry, including the accurate
+> links.
 
 ## Tags
 
@@ -135,14 +135,13 @@ gamepad
 living-room
 ```
 
-## Captures à joindre
+## Screenshots to attach
 
-Quatre, dans cet ordre. Ce sont des extractions de la vidéo, donc elles ne
-coûtent rien de plus une fois celle-ci tournée — **et elles héritent de la même
-contrainte : aucune jaquette commerciale, aucun nom de ROM lisible** (voir
-[`../video-script.md`](../video-script.md)).
+Four, in this order. They are frames from the video, so they cost nothing extra
+once it is shot — **and they inherit the same constraint: no commercial box art,
+no readable ROM name** (see [`../video-script.md`](../video-script.md)).
 
-1. l'écran d'accueil ;
-2. la bibliothèque, liste des systèmes visible, PS3/PS4/Switch en tête ;
-3. le wizard de mappage en cours, un bouton affiché plein écran ;
-4. l'écran des réglages.
+1. the home screen;
+2. the library, list of systems visible, PS3/PS4/Switch at the top;
+3. the mapping wizard mid-run, one button shown full screen;
+4. the settings screen.

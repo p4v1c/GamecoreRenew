@@ -1,54 +1,54 @@
-# `gamecore-bin` — écrit, vérifié syntaxiquement, **pas soumis**
+# `gamecore-bin` — written, syntax-checked, **not submitted**
 
-## Ce qui a été fait
+## What was done
 
-- `PKGBUILD` et `gamecore-bin.install` rédigés.
-- Syntaxe validée : `bash -n`, plus un sourcing dans un sous-shell qui vérifie
-  que les variables obligatoires sont peuplées et que `package()` est définie.
-  La commande exacte est en bas de ce fichier, elle est rejouable.
-- `sha256sums` calculé sur l'asset réel de `v1.0.155`.
+- `PKGBUILD` and `gamecore-bin.install` written.
+- Syntax validated: `bash -n`, plus a sourcing in a subshell that checks the
+  mandatory variables are populated and that `package()` is defined. The exact
+  command is at the bottom of this file; it is replayable.
+- `sha256sums` computed against the real asset of `v1.0.155`.
 
-## Ce qui n'a pas été fait, et ne doit pas l'être à la légère
+## What was not done, and must not be done lightly
 
-**`makepkg` n'a jamais été lancé.** C'était une consigne de la phase, et elle
-est justifiée : `makepkg` sur cette machine télécharge, extrait et construit
-sous l'utilisateur courant, et cette machine fait tourner une installation
-GameCore vivante dans `/opt/GameCore`. Un `makepkg -i` y écrirait par-dessus.
+**`makepkg` has never been run.** That was a phase instruction, and it is
+justified: `makepkg` on this machine downloads, extracts and builds as the current
+user, and this machine runs a live GameCore installation in `/opt/GameCore`. A
+`makepkg -i` would write over it.
 
-Donc : **la syntaxe est vérifiée, le paquet n'est pas prouvé.** Ce sont deux
-choses très différentes et il ne faut pas confondre l'une pour l'autre en
-lisant ce dossier.
+So: **the syntax is checked, the package is not proven.** Those are two very
+different things and one must not be mistaken for the other when reading this
+folder.
 
 ---
 
-## Les deux questions ouvertes, à trancher avant l'AUR
+## The two open questions, to settle before the AUR
 
-### 1. Le paquet installe des fichiers, pas une box
+### 1. The package installs files, not a box
 
-L'archive `gamecore-full.tar.gz` contient le frontend **déjà construit**
-(`frontend/dist/`), mais **pas** `node_modules`, et pas de venv Python — la CI
-les retire (`find dist_full -name node_modules -exec rm -rf`).
+The `gamecore-full.tar.gz` archive contains the frontend **already built**
+(`frontend/dist/`), but **not** `node_modules`, and no Python venv — CI strips
+them (`find dist_full -name node_modules -exec rm -rf`).
 
-Conséquence : après `pacman -U`, `/opt/GameCore` existe mais rien ne tourne. Il
-faut `sudo gamecore-setup`, qui construit le venv, installe les modules Node,
-et câble la machine.
+Consequence: after `pacman -U`, `/opt/GameCore` exists but nothing runs. You need
+`sudo gamecore-setup`, which builds the venv, installs the Node modules, and
+wires the machine up.
 
-C'est un choix défendable — l'installation de GameCore *est* une transformation
-de la machine (auto-login SDDM, session Plasma, unités systemd, sudoers, règles
-udev), et un paquet AUR n'a pas à faire ça tout seul dans un `post_install`.
-Mais ça veut dire que `gamecore-bin` n'est pas un paquet « installe et joue »,
-et **la description AUR devra le dire**, sinon le premier commentaire sur la
-page du paquet sera « ça installe rien ».
+That is a defensible choice — installing GameCore *is* a transformation of the
+machine (SDDM auto-login, Plasma session, systemd units, sudoers, udev rules),
+and an AUR package has no business doing that on its own in a `post_install`. But
+it means `gamecore-bin` is not an "install and play" package, and **the AUR
+description will have to say so**, otherwise the first comment on the package page
+will be "this installs nothing".
 
-L'alternative serait un paquet qui dépend des modules Python d'Arch
-(`python-fastapi`, `python-uvicorn`, `python-evdev`…) au lieu d'un venv, et
-d'`electron` au lieu d'un `npm install`. C'est plus propre du point de vue
-d'Arch, et ça diverge de la façon dont le projet s'installe partout ailleurs —
-donc ça crée un deuxième chemin d'installation à maintenir. **Pas tranché.**
+The alternative would be a package depending on Arch's Python modules
+(`python-fastapi`, `python-uvicorn`, `python-evdev`…) instead of a venv, and on
+`electron` instead of an `npm install`. That is cleaner from Arch's point of
+view, and it diverges from how the project installs everywhere else — so it
+creates a second installation path to maintain. **Not settled.**
 
-### 2. `/usr/local/bin` contre `/usr/bin` — la collision est réelle
+### 2. `/usr/local/bin` versus `/usr/bin` — the collision is real
 
-`install/arch.sh` copie ses outils dans `/usr/local/bin` :
+`install/arch.sh` copies its tools into `/usr/local/bin`:
 
 ```
 install -m755 …/gamecore-xsetup         /usr/local/bin/gamecore-xsetup
@@ -56,107 +56,105 @@ install -m755 …/gamecore-session-select /usr/local/bin/gamecore-session-select
 install -m 755 …/gamecore-addon         /usr/local/bin/gamecore-addon
 ```
 
-Un paquet pacman **ne doit jamais écrire dans `/usr/local`** — c'est le
-territoire de l'administrateur, et Arch l'interdit explicitement.
+A pacman package **must never write into `/usr/local`** — that is the
+administrator's territory, and Arch forbids it explicitly.
 
-Le PKGBUILD ne livre donc qu'**un seul** exécutable, `/usr/bin/gamecore-setup`,
-et laisse les sept autres à `arch.sh`. Si on avait livré les sept aussi, la
-boîte se retrouverait avec deux copies de chacun, celle de `/usr/local/bin`
-masquant celle du paquet dans le `PATH` — et une mise à jour du paquet
-laisserait tourner les anciennes.
+So the PKGBUILD ships exactly **one** executable, `/usr/bin/gamecore-setup`, and
+leaves the other seven to `arch.sh`. Had we shipped all seven too, the box would
+end up with two copies of each, the `/usr/local/bin` one shadowing the package's
+one in `PATH` — and a package upgrade would leave the old ones running.
 
-Le sudoers écrit par `arch.sh` référence en dur `/usr/local/bin/gamecore-session-select`
-(ligne 1374), donc déplacer ces outils vers `/usr/bin` n'est pas une
-modification d'une ligne : il faut aussi le sudoers, l'unité SDDM
-(`DisplayCommand=`) et le `.desktop`. **Pas tranché non plus, et c'est le vrai
-travail avant une soumission AUR.**
+The sudoers file written by `arch.sh` hardcodes
+`/usr/local/bin/gamecore-session-select` (line 1374), so moving these tools to
+`/usr/bin` is not a one-line change: the sudoers, the SDDM unit
+(`DisplayCommand=`) and the `.desktop` all have to follow. **Not settled either,
+and this is the real work before an AUR submission.**
 
 ---
 
-## Le versionnage, et le piège de l'asset
+## Versioning, and the asset trap
 
-Chaque release s'appelle `gamecore-full.tar.gz`. **Toujours le même nom.**
+Every release is called `gamecore-full.tar.gz`. **Always the same name.**
 
-Le cache de `makepkg` est indexé par nom de fichier. Sans renommage, une
-construction de `1.0.155` réutiliserait le tarball de `1.0.154` déjà en cache,
-sans rien retélécharger et sans rien signaler — un paquet estampillé d'une
-version, contenant une autre. D'où le `::` dans `source=` :
+`makepkg`'s cache is indexed by file name. Without a rename, a build of `1.0.155`
+would reuse the already-cached `1.0.154` tarball, downloading nothing and
+reporting nothing — a package stamped with one version, containing another. Hence
+the `::` in `source=`:
 
 ```bash
 source=("${pkgname}-${pkgver}.tar.gz::${url}/releases/download/v${pkgver}/gamecore-full.tar.gz")
 ```
 
-À chaque montée de version : changer `pkgver`, remettre `pkgrel=1`, puis
-`updpkgsums`. Jamais de somme recopiée à la main.
+On every version bump: change `pkgver`, reset `pkgrel=1`, then `updpkgsums`.
+Never a sum copied by hand.
 
-Et surtout : **le dépôt publie une release par merge sur `main`** — plus de 150
-en quelques jours. Un paquet AUR ne peut pas suivre ce rythme, et un
-`gamecore-bin` figé trois semaines en arrière est un paquet réputé cassé.
-Si l'AUR est fait un jour, il faut d'abord une notion de release *stable*,
-distincte du flux continu que la boîte consomme en OTA.
+And above all: **the repo publishes one release per merge to `main`** — more than
+150 in a few days. An AUR package cannot follow that pace, and a `gamecore-bin`
+frozen three weeks back is a package with a reputation for being broken. If the
+AUR ever happens, it needs a notion of a *stable* release first, distinct from
+the continuous stream the box consumes over OTA.
 
-C'est la troisième raison pour laquelle rien n'est soumis.
+That is the third reason nothing has been submitted.
 
 ---
 
-## Rejouer la vérification syntaxique
+## Replaying the syntax check
 
-Sans `makepkg`, sans réseau, sans rien construire :
+No `makepkg`, no network, nothing built:
 
 ```bash
 cd distribution/packaging
 
-# 1. Le fichier est-il du bash valide ?
+# 1. Is the file valid bash?
 bash -n PKGBUILD
 bash -n gamecore-bin.install
 
-# 2. Les champs obligatoires sont-ils peuplés, et package() définie ?
-#    Le `bash -c` n'est pas décoratif : le shell de cette machine est zsh, et
-#    sous zsh ce bloc échoue deux fois sans rien dire du PKGBUILD —
-#    `options` y est un paramètre réservé (« invalid value: !debug ») et
-#    `${!v}` n'est pas une indirection mais une expansion invalide.
-#    Un PKGBUILD est du bash par définition : il se lit avec bash.
+# 2. Are the mandatory fields populated, and package() defined?
+#    The `bash -c` is not decorative: this machine's shell is zsh, and under zsh
+#    this block fails twice without saying anything about the PKGBUILD —
+#    `options` is a reserved parameter there ("invalid value: !debug") and
+#    `${!v}` is not an indirection but an invalid expansion.
+#    A PKGBUILD is bash by definition: read it with bash.
 bash -c '
 set -e
 source ./PKGBUILD
 for v in pkgname pkgver pkgrel pkgdesc url license arch source sha256sums; do
-  [ -n "${!v}" ] || { echo "champ vide : $v"; exit 1; }
+  [ -n "${!v}" ] || { echo "empty field: $v"; exit 1; }
 done
-declare -f package >/dev/null || { echo "package() manquante"; exit 1; }
+declare -f package >/dev/null || { echo "package() missing"; exit 1; }
 [ "${#source[@]}" -eq "${#sha256sums[@]}" ] \
-  || { echo "source[] et sha256sums[] de tailles différentes"; exit 1; }
-echo "PKGBUILD: champs OK — $pkgname $pkgver-$pkgrel"
+  || { echo "source[] and sha256sums[] have different sizes"; exit 1; }
+echo "PKGBUILD: fields OK — $pkgname $pkgver-$pkgrel"
 '
 ```
 
-Sortie obtenue au moment de la rédaction :
+Output obtained at the time of writing:
 
 ```
 bash -n PKGBUILD: OK
 bash -n .install: OK
-PKGBUILD: champs OK — gamecore-bin 1.0.155-1
+PKGBUILD: fields OK — gamecore-bin 1.0.155-1
 ```
 
-Ce que ça ne dit pas : que la construction aboutit, que l'arborescence est celle
-attendue, que le paquet s'installe, ou que la boîte fonctionne après. Aucune de
-ces quatre choses n'a été vérifiée.
+What that does not say: that the build succeeds, that the tree is the expected
+one, that the package installs, or that the box works afterwards. None of those
+four has been verified.
 
-## `shellcheck` sur ce fichier ne veut rien dire
+## Running `shellcheck` on this file means nothing
 
-Le PKGBUILD n'est pas dans la ligne de base du dépôt, qui n'analyse que
-`git ls-files '*.sh'` et `install/bin/*`. C'est correct, et il ne faut pas
-l'y ajouter : lancé dessus, `shellcheck` produit du bruit garanti, parce qu'il
-ne connaît pas le contrat de `makepkg`.
+The PKGBUILD is not in the repo's baseline, which only analyses
+`git ls-files '*.sh'` and `install/bin/*`. That is correct, and it must not be
+added: pointed at a PKGBUILD, `shellcheck` produces guaranteed noise, because it
+does not know `makepkg`'s contract.
 
 ```
-SC2148  Tips depend on target shell and yours is unknown  (un PKGBUILD n'a pas de shebang)
-SC2034  pkgrel appears unused                             (makepkg le lit, pas le script)
-SC2034  pkgdesc appears unused                            (idem)
-SC2034  arch appears unused                               (idem)
+SC2148  Tips depend on target shell and yours is unknown  (a PKGBUILD has no shebang)
+SC2034  pkgrel appears unused                             (makepkg reads it, not the script)
+SC2034  pkgdesc appears unused                            (same)
+SC2034  arch appears unused                               (same)
 ```
 
-Ces quatre-là sont attendues et se répètent sur n'importe quel PKGBUILD valide.
-En ajouter la suppression par des directives `# shellcheck disable=` ne ferait
-que rendre le fichier moins lisible pour supprimer un avertissement que
-personne n'a demandé. `bash -n` plus la vérification des champs ci-dessus est
-la bonne granularité ici.
+Those four are expected and repeat on any valid PKGBUILD. Silencing them with
+`# shellcheck disable=` directives would only make the file less readable in order
+to suppress a warning nobody asked for. `bash -n` plus the field check above is
+the right granularity here.
