@@ -22,6 +22,8 @@ drawn.
 | 9 | [Gotchas](09-gotchas.md) | The invariants that are easy to break, and why they exist |
 | 10 | [Catalogue & install](10-catalog-and-install.md) | `catalog/<id>/` — one directory per system or app, and how a box is built from it |
 | 11 | [Install-script seams](11-install-script-seams.md) | How `arch.sh` and `uninstall.sh` would be split, and what must be true first |
+| 12 | [The addon contract](12-addon-contract.md) | `api: 1` — the **public** contract third-party addons must satisfy |
+| 13 | [Release & OTA](13-release-and-ota.md) | What a push to `main` sets in motion, what reaches a box, and how to go back |
 
 Looking for something specific:
 
@@ -34,6 +36,9 @@ Looking for something specific:
 - *"What installs EmberTV / the Firefox kiosk profiles?"* → [10](10-catalog-and-install.md#3-the-install-pipeline)
 - *"Why is `arch.sh` 1 300 lines, and can I split it?"* → [11](11-install-script-seams.md)
 - *"Which session does the box log into?"* → [1](01-runtime-topology.md#the-session-the-kiosk-runs-in)
+- *"I write an addon — where am I allowed to write?"* → [12](12-addon-contract.md)
+- *"What happens when I merge to `main`, and how do I undo it?"* → [13](13-release-and-ota.md)
+- *"Why is `lib/xenia` classified two different ways?"* → [7](07-config-and-data.md#the-two-roots-drawn--including-what-is-still-ambiguous)
 - *"How do I run the tests?"* → [`../TESTING.md`](../TESTING.md)
 - *"What is exposed to the LAN, and what protects the rest?"* → [`../SECURITY.md`](../SECURITY.md)
 

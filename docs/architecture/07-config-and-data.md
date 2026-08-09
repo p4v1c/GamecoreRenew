@@ -35,6 +35,56 @@ may read the root variables from the environment. It works on the AST, not on
 a grep, because half these modules discuss `config/` and `emu/` at length in
 their docstrings.
 
+### The two roots, drawn — including what is still ambiguous
+
+```mermaid
+flowchart TB
+    subgraph ROOT["GAMECORE_ROOT — the installation (code)"]
+        direction LR
+        r1["backend/ · frontend/dist<br/>electron/ · .venv/"]
+        r2["catalog/<br/>packs, seeds, generators"]
+        r3["assets/<br/>shipped fonts, sounds"]
+        r4["install/ · scripts/ · update/"]
+    end
+
+    subgraph DATA["GAMECORE_DATA — the player's data (writable)"]
+        direction LR
+        d1["config/<br/>systems.json · playtime.db<br/>auth · catalog.d/ · themes/"]
+        d2["emu/<br/>ROMs · covers · scraped media"]
+        d3["assets/overlays/<br/>assets/logos/"]
+        d4["addons/ · volumes/<br/>config/per-game/"]
+    end
+
+    AMB["lib/xenia<br/><b>classified two ways — issue #36</b>"]
+
+    ROOT -.->|"launch args resolve it under<br/>@GAMECORE_PATH@, and paths._LAYOUT<br/>has no key that can name it"| AMB
+    DATA -.->|"uninstall.sh keeps it as player data:<br/>lib/xenia/content/&lt;XUID&gt;/&lt;TitleID&gt;/<br/>holds Xbox 360 <b>saves</b>"| AMB
+
+    style AMB fill:#b3261e,color:#fff,stroke:#7f1d1d,stroke-width:2px
+```
+
+**The ambiguity is real and it is not resolved.** `GAMECORE_DATA` defaults to
+`GAMECORE_ROOT`, so today they are one directory and nothing breaks. It breaks
+the moment the roots genuinely split, or the install root goes read-only:
+
+| Says | What it says about `lib/` |
+|---|---|
+| `catalog/xenia/pack.json` | `"dest": "lib/xenia"`, and launch args `'@GAMECORE_PATH@/lib/xenia/xenia_canary.exe'` — the **code** root |
+| `paths._LAYOUT` | **no entry at all.** There is no logical name that resolves to it, so `data_dir()` cannot express it |
+| `install/uninstall.sh` | keeps it, in the same breath as the player's data: `emu\|config\|assets\|lib) continue` |
+| `update/linux.sh` | does **not** exclude it from the deploy rsync |
+
+Xenia Canary is portable — it keeps its content beside its own executable rather
+than under `$HOME` — so for this one system the ROMs are on the data side and the
+**saves are not**. `lib/xenia/content/<XUID>/<TitleID>/` is a data directory
+sitting physically inside the code root, and `/lib/` is gitignored, so nothing in
+the repo hints at it either.
+
+This is [issue #36](https://github.com/p4v1c/GamecoreRenew/issues/36), and it
+needs a decision rather than a patch. Do not "tidy" it by adding a `_LAYOUT`
+entry on its own: the launch args, the uninstaller's keep-list and the rsync
+excludes all have to move together, and a migration has to carry existing saves.
+
 `backend/config.py` re-exports the names the backend has always imported:
 
 | Constant | Value |

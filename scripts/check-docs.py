@@ -13,8 +13,8 @@ Two things are verified:
      with an optional `:123` or `:symbol()` citation suffix) resolve on disk;
   2. relative Markdown links between documents resolve.
 
-The two allowlists below are the interesting part
--------------------------------------------------
+The allowlists below are the interesting part
+----------------------------------------------
 The first version of this script flagged 24 references and **every single one
 was a false positive**, in two distinct ways. Both are worth naming, because
 both are things this repository does on purpose:
@@ -37,7 +37,12 @@ forces such prose to be deleted would strip the documentation of the only part
 that cannot be recovered by reading the code. So those paths are listed too,
 with the reason.
 
-If you add an entry to either list, say why. A list of bare paths becomes a
+`NOT_YET` — a file a document names *because it is missing*: the catalogue
+signing key, whose absence is what keeps the update channel off. Delete the entry
+when the file lands, and the normal check takes over — the doc is then verified
+rather than excused.
+
+If you add an entry to any of the three, say why. A list of bare paths becomes a
 place to silence this script, which is the opposite of the point.
 
 Run:  python3 scripts/check-docs.py [--all]
@@ -58,7 +63,7 @@ TOP_LEVEL = {
     "electron", "frontend", "install", "lib", "scripts", "update",
 }
 
-# Written at runtime, never in git — see the module docstring.
+# Created on a real box, never in git — see the module docstring.
 RUNTIME_GENERATED = {
     "config/auth.json",       # shared-password hash, written on first setup
     "config/auth_secret",     # session-signing secret, 0600
@@ -66,6 +71,20 @@ RUNTIME_GENERATED = {
     "config/theme.json",      # the selected theme
     "config/standby.json",    # sleep/wake schedule
     "config/addons.json",     # installed addons registry
+    # Downloaded by the full installer, and `/lib/` is gitignored. Docs name it
+    # a lot because it is the subject of issue #36 — the one data directory
+    # sitting inside the code root.
+    "lib/xenia",
+}
+
+# Named on purpose although not there YET: a document describing how to turn a
+# feature on has to name the file whose absence keeps it off. Delete the entry
+# when the file lands — at that point the normal check takes over and the doc is
+# verified rather than excused.
+NOT_YET = {
+    # The Ed25519 public key for the catalogue update channel. Its absence is
+    # what keeps the channel off, and 10-catalog-and-install.md says so.
+    "catalog/_ota/catalog-signing.pub",
 }
 
 # Named on purpose although gone — the failure they describe is the point.
@@ -112,10 +131,10 @@ def check_file(md: Path) -> list[str]:
             tok = tok.strip()
             if not is_candidate_path(tok):
                 continue
-            if tok in RUNTIME_GENERATED or tok in HISTORICAL:
+            if tok in RUNTIME_GENERATED or tok in HISTORICAL or tok in NOT_YET:
                 continue
             clean = CITATION_SUFFIX.sub("", tok).rstrip("/")
-            if clean in RUNTIME_GENERATED or clean in HISTORICAL:
+            if clean in RUNTIME_GENERATED or clean in HISTORICAL or clean in NOT_YET:
                 continue
             if not exists(clean):
                 problems.append(f"{rel_md}:{lineno}: `{tok}` does not exist")
@@ -144,8 +163,8 @@ def main() -> int:
         print(f"check-docs: {len(problems)} stale reference(s)\n")
         for p in problems:
             print("  " + p)
-        print("\nIf a path is gone on purpose and the prose is about that, add it")
-        print("to HISTORICAL in this script with the reason.")
+        print("\nIf a path is absent on purpose and the prose is about that,")
+        print("add it to HISTORICAL or NOT_YET in this script, with the reason.")
         return 1
 
     print(f"check-docs: {len(docs)} document(s), every path and link resolves")
