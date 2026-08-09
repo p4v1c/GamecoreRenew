@@ -23,7 +23,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from backend.services import configgen  # noqa: E402
+from backend.services import configgen, pergame  # noqa: E402
 
 
 def test_the_home_the_generators_write_to_is_not_the_developers():
@@ -56,3 +56,34 @@ def test_every_profilable_pack_writes_below_that_home():
         target = opts["target"].resolve()
         assert home in target.parents, (
             f"{pack.id} writes to {target}, outside the throwaway home {home}")
+
+
+def test_every_per_game_path_is_built_from_a_home_that_can_be_redirected():
+    """A second family of writes into `~/.var/app`, and the same danger.
+
+    The controller generators all resolve their target from one `HOME`, which
+    is what makes the single line in conftest sufficient. The per-game writer
+    is newer and takes `home` as an ARGUMENT instead — a deliberate choice, so
+    a caller cannot forget which tree it is aiming at, but it moves the
+    guarantee from "one variable" to "every caller passes the right thing".
+
+    This is the test that keeps it honest: hand every supporting pack a
+    sentinel home and check the path it produces actually lands under it. A
+    pack whose `perGame.path` reached the real tree some other way — an
+    absolute path, a `~`, a token that does not expand — would be a second
+    door onto the developer's own console, which is the exact thing this file
+    was written after somebody walked through.
+    """
+    from backend.services.catalog import load_catalog
+
+    sentinel = Path("/tmp/gamecore-sentinel-home")
+    supporting = [p for p in load_catalog().values()
+                  if (p.data.get("perGame") or {}).get("supported")]
+    assert supporting, "no pack supports per-game config — this asserts nothing"
+
+    for pack in supporting:
+        target = pergame.target(pack.id, "TESTID", sentinel)
+        assert target is not None, f"{pack.id}: no per-game path resolved"
+        assert sentinel in target.parents, (
+            f"{pack.id} writes per-game settings to {target}, which is not "
+            f"under the home it was handed ({sentinel})")

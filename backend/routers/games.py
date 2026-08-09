@@ -10,10 +10,12 @@ from .. import ws
 from ..config import resolve_path
 from ..services import (
     bios,
+    configgen,
     controller_profiles,
     controller_registry,
     fullscreen_enforcer,
     local_media,
+    pergame,
     usb_devices,
 )
 from ..services import process_manager as process_manager_module
@@ -108,6 +110,35 @@ async def _free_stale_slots(system_id: str) -> None:
                     "with the config as it is", system_id, RECONCILE_BUDGET * 1000)
     except Exception:
         log.exception("launch: %s — slot cleanup failed, launching anyway",
+                      system_id)
+
+
+async def _place_per_game_config(system_id: str, rom_path: str) -> None:
+    """Write this game's own settings before the emulator reads them.
+
+    Before launch and not after, for the same reason the slot sweep is: an
+    emulator reads its configuration once, at startup, so a file written a
+    moment later is a file the running game will never see.
+
+    Bounded by the same budget and just as expendable. The work is one small
+    read and at most one rewrite, but identifying the game means opening the
+    dump — a PARAM.SFO on a disc that is spinning up, a meta.xml on an NFS
+    home — and that must cost the player a game without its per-game tweak,
+    never a game that will not start. A per-game config is an improvement on a
+    working system; it is not a precondition of one.
+    """
+    try:
+        placed = await asyncio.wait_for(
+            asyncio.to_thread(pergame.materialise, system_id, rom_path,
+                              configgen.HOME),
+            timeout=RECONCILE_BUDGET)
+        if placed:
+            log.info("launch: %s", placed)
+    except TimeoutError:
+        log.warning("launch: %s — per-game config exceeded %.0f ms, launching "
+                    "with the config as it is", system_id, RECONCILE_BUDGET * 1000)
+    except Exception:
+        log.exception("launch: %s — per-game config failed, launching anyway",
                       system_id)
 
 
@@ -246,6 +277,8 @@ async def launch_game(req: LaunchRequest):
     # Before launch, not after: the emulator reads its input config at startup,
     # so a slot freed a moment later is a slot the running game still sees.
     await _free_stale_slots(req.system_id)
+    if req.rom_path:
+        await _place_per_game_config(req.system_id, req.rom_path)
 
     try:
         await process_manager.launch(

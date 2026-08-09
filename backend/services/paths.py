@@ -81,6 +81,7 @@ _LAYOUT = {
     "themes":    "config/themes",     # installed themes (mutable code)
     "addons":    "addons",            # per-addon writable state, <DATA>/addons/<id>/
     "volumes":   "volumes",           # symlinks to external disks, one per label
+    "pergame":   "config/per-game",   # per-game settings, <system>/<game id>.json
 }
 
 
@@ -122,6 +123,21 @@ def logos_dir() -> Path:       return data_dir("logos")
 def themes_dir() -> Path:      return data_dir("themes")
 def addons_dir() -> Path:      return data_dir("addons")
 def volumes_dir() -> Path:     return data_dir("volumes")
+
+
+def pergame_dir() -> Path:
+    """Where a game's own settings live, and why it is not the emulator's tree.
+
+    The file the emulator reads is DERIVED. This is the original, and the
+    difference shows up the day somebody reinstalls a Flatpak: `flatpak
+    uninstall --delete-data` takes `~/.var/app/<id>` with it, and every
+    per-game setting the player ever placed would go with it — silently, and
+    at the exact moment they were trying to fix something.
+
+    Under the DATA root, so it is also the thing a backup already copies and
+    the thing the OTA rsync already leaves alone.
+    """
+    return data_dir("pergame")
 
 
 # ── The read-only side ───────────────────────────────────────────────────────
