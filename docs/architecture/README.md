@@ -88,8 +88,12 @@ LAN only ever sees Caddy. Details in [1](01-runtime-topology.md) and
 - **`routers/` parse and validate, `services/` decide and act.** A router that
   grows logic belongs in a service. No FastAPI import exists below
   `services/`.
-- **Every path derives from `GAMECORE_ROOT`** (`backend/config.py`). Nothing
-  hardcodes `/opt/GameCore`.
+- **Every path derives from one of the two roots**, and `backend/services/paths.py`
+  owns both: `GAMECORE_ROOT` is the installation (code, aiming at read-only),
+  `GAMECORE_DATA` is everything the player owns. `backend/config.py` only
+  re-exports them. Nothing hardcodes `/opt/GameCore`, and nothing outside
+  `paths.py` joins a writable directory onto a root by hand — `test_paths.py`
+  fails the build when something does. See [7](07-config-and-data.md).
 - **`config/` is the box's identity** — never in git, never touched by OTA.
 - **The frontend has no CSS files.** Styling is inline objects, colocated with
   the component.
