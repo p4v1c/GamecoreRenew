@@ -11,15 +11,17 @@ import { StandbyPage }   from './settings/StandbyPage'
 import { ThemesPage } from './settings/ThemesPage'
 import { CatalogPage } from './settings/CatalogPage'
 import { BiosPage } from './settings/BiosPage'
+import { StoragePage } from './settings/StoragePage'
 
 interface Props { onClose: () => void }
 
-type Page = 'main' | 'wifi' | 'audio' | 'bluetooth' | 'standby' | 'themes' | 'catalog' | 'bios' | 'update' | 'desktop'
+type Page = 'main' | 'wifi' | 'audio' | 'bluetooth' | 'storage' | 'standby' | 'themes' | 'catalog' | 'bios' | 'update' | 'desktop'
 
 const ITEMS = [
   { id: 'wifi',      icon: '📶', label: 'Wi-Fi',       sub: 'Manage networks' },
   { id: 'audio',     icon: '🔊', label: 'Audio',        sub: 'Volume, output & UI sounds' },
   { id: 'bluetooth', icon: '◉',  label: 'Bluetooth',    sub: 'Devices & pairing' },
+  { id: 'storage',   icon: '💾', label: 'Storage',      sub: 'External disks & safe eject' },
   { id: 'standby',   icon: '🌙', label: 'Standby',      sub: 'Screensaver & low power' },
   { id: 'themes',    icon: '🎨', label: 'Themes',       sub: 'Change the look of the UI' },
   { id: 'catalog',   icon: '🎮', label: 'Emulators & apps', sub: 'Add or remove systems' },
@@ -55,6 +57,7 @@ export default function SettingsModal({ onClose }: Props) {
   if (page === 'wifi')      return <WifiPage      onClose={onClose} onBack={back} />
   if (page === 'audio')     return <AudioPage     onClose={onClose} onBack={back} />
   if (page === 'bluetooth') return <BluetoothPage onClose={onClose} onBack={back} />
+  if (page === 'storage')   return <StoragePage   onClose={onClose} onBack={back} />
   if (page === 'standby')   return <StandbyPage   onClose={onClose} onBack={back} />
   if (page === 'themes')    return <ThemesPage    onClose={onClose} onBack={back} />
   if (page === 'catalog')   return <CatalogPage   onClose={onClose} onBack={back} />
