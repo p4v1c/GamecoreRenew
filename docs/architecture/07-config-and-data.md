@@ -413,6 +413,73 @@ a 234 MB index and the artwork all survive an update. Upstream defaults to
 happens to have.
 | `~/.config/gamecore-electron/Cache` | Chromium HTTP cache | cleared by the OTA script and on every Electron start |
 
+## OPEN DECISION — Flatpak saves are in neither tree
+
+**This one is not settled, and it is deliberately not settled here.** It needs a
+call from the project owner; what follows is the material to make it with.
+
+The split promises that `tar czf backup.tgz /userdata` restores a box. Today it
+does not, and the reason is that the emulators are Flatpaks: they write under
+`~/.var/app/<appId>/`, which is neither the installation nor the data tree.
+
+Worse, saves are **not** in a directory of their own — several sit inside what
+looks like a configuration tree, which is why "back up the config directory,
+skip the saves" is not an available option:
+
+| Emulator | Where the saves are |
+|---|---|
+| RPCS3 | `config/rpcs3/dev_hdd0/home/*/savedata/` — inside the config tree |
+| Dolphin | `data/dolphin-emu/GC/`, `.../Wii/` |
+| PCSX2, DuckStation | `memcards/` |
+| Cemu | `mlc01/usr/save/` |
+| Ryujinx | `bis/user/save/` |
+| azahar | `sdmc/`, `nand/` |
+| mGBA, melonDS | `.sav` files **next to the ROMs** |
+
+The last row is the one bright spot: those `.sav` files live in `emu/<system>/`
+and are therefore already inside `/userdata` and already backed up. Every other
+row is outside it.
+
+The `save-manager` addon covers backup and restore, and it works — but
+`install/installer-gui/gamecore_installer.py` offers it with `"default": False`,
+so a box installed by clicking through the installer has no save backup at all
+and nothing says so.
+
+### Option A — turn `save-manager` on by default
+
+Change the one `default` flag. The addon already exists, is already tested, and
+already knows each emulator's layout.
+
+- Backups become opt-out rather than opt-in, which matches what a player
+  expects from a console.
+- It is a *backup*, not a relocation: saves still live under `~/.var/app`, so
+  `tar czf backup.tgz /userdata` still does not capture them. The promise of the
+  split stays half-true, and the restore procedure stays two commands.
+- Costs a service and its port on every box, including ones whose owner would
+  never open the screen.
+
+### Option B — redirect the save directories into `/userdata`
+
+Point each emulator's save location at `<DATA>/saves/<system>/`, by
+configuration where the emulator supports it and by symlink where it does not.
+
+- `tar czf backup.tgz /userdata` becomes literally true, which is the property
+  the whole phase is for.
+- The redirection has to be right for **each** emulator, and being wrong is
+  silent in the worst way: the emulator starts, finds no save, and offers a new
+  game. That is indistinguishable from a corrupt save to the person holding the
+  pad.
+- Symlinks into a Flatpak sandbox need a filesystem override per app, so this
+  also enlarges the Flatpak permission surface.
+- It touches live save data on existing boxes, so it needs its own migration —
+  with the same care as `scripts/migrate-userdata.py`, and probably after it.
+
+### What is true either way
+
+Nothing in this phase touches `~/.var/app`. Both options are additive and can
+be taken later; taking neither leaves saves exactly as safe (or not) as they
+were before the split, which is the status quo and not a regression.
+
 ## Assets
 
 | Path | Contents |
