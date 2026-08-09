@@ -403,9 +403,28 @@ def sdl2_probe(vendor: str, product: str, lib: str = "") -> dict[str, str]:
     try:
         r = subprocess.run([sys.executable, "-c", _SDL2_PROBE, vendor, product, lib],
                            capture_output=True, text=True, timeout=8)
-    except (OSError, subprocess.SubprocessError):
-        log.warning("configgen: SDL2 probe failed for %s:%s", vendor, product)
-        return {}
+    except (OSError, subprocess.SubprocessError) as e:
+        # Two different facts used to leave here as the same empty dict: "SDL
+        # ran, and this pad is not among its joysticks" and "SDL was never
+        # asked". Only the first is an answer about the pad.
+        #
+        # The second is what the reference box hit — three times over several
+        # days, each at the instant a Bluetooth pad connected — and it reached
+        # the player as "SDL2 would not report a GUID": a claim about SDL's
+        # answer, for a probe that never produced one. It sent the diagnosis
+        # to gamecontrollerdb and to /dev/input permissions, neither of which
+        # was involved; measured afterwards, that same SDL2 returned the GUID
+        # ten times out of ten in 0.85 s.
+        #
+        # The exception was discarded as well, so the journal could not tell a
+        # timeout from a failure to spawn — which is why the errno behind those
+        # three lines is now unrecoverable. `error` carries the class to the
+        # caller, the log line carries the detail to whoever reads it.
+        log.warning("configgen: SDL2 probe for %s:%s could not be run (%s: %s)",
+                    vendor, product, e.__class__.__name__, e)
+        # Deliberately not cached: a probe that never ran is not a finding
+        # about this pad, and the monitor's retry must be free to ask again.
+        return {"error": e.__class__.__name__}
     out: dict[str, str] = {}
     for line in r.stdout.splitlines():
         tag, _, value = line.partition(" ")
@@ -436,6 +455,21 @@ def pad_has_hat(vendor: str, product: str) -> bool | None:
         except (OSError, PermissionError):
             continue
     return None
+
+
+# ── why a GUID could not be produced ──────────────────────────────────────
+# Returned by `Pad.guid_for`, and named rather than spelled out at each call
+# site so a generator's message and a test's assertion cannot drift apart.
+
+# SDL answered, and this pad is not one of its joysticks. Permanent for a pad
+# SDL has no driver for; this is the one the mapping wizard exists for.
+GUID_NO_GUID = "no-guid"
+# `flatpak info` could not locate the emulator, so its own SDL2 is out of
+# reach and the host's must not be substituted (they disagree on the bus byte).
+GUID_UNREACHABLE = "unreachable"
+# The probe subprocess never ran to completion, so SDL was never asked.
+# Transient — gamepad_monitor's PROFILE_RETRIES budget is what clears it.
+GUID_PROBE_FAILED = "probe-failed"
 
 
 # ── the object generators actually receive ────────────────────────────────
@@ -469,11 +503,22 @@ class Pad:
         """
         return resolve_name(self.vendor, self.product, self.evdev_name)
 
-    def guid_for(self, app_id: str) -> str | None:
-        """The dashed GUID *that emulator's own SDL2* computes.
+    def guid_for(self, app_id: str) -> tuple[str | None, str]:
+        """`(guid, why_not)` — the dashed GUID *that emulator's own SDL2*
+        computes, or None and one of the `GUID_*` reasons above.
 
         None when it cannot be asked — an invented id is worse than an
         untouched slot, and the caller turns None into a `Skip`.
+
+        **Why the reason is returned rather than only logged.** All three
+        failures used to arrive at the caller as a bare None, so the `Skip`
+        could only name the commonest of them. On the reference box the one
+        that actually fired was `GUID_PROBE_FAILED`, and the player was told
+        `SDL2 would not report a GUID` — which is a statement about an answer
+        SDL never gave. The three call for different things: NO_GUID is
+        permanent and wants the mapping wizard, UNREACHABLE means the flatpak
+        moved, PROBE_FAILED is transient and the monitor's retry is what
+        clears it. A caller that cannot tell them apart cannot say any of it.
 
         **The silent fallback this used to have.** The code asked
         `sdl2_probe(vendor, product, bundled_sdl2(app_id))`, and `sdl2_probe`
@@ -506,9 +551,13 @@ class Pad:
                 log.warning("configgen: cannot locate %s — refusing to answer "
                             "with the host's SDL2, which disagrees on the bus byte",
                             app_id)
-                return None
-        raw = sdl2_probe(self.vendor, self.product, bundled_sdl2(app_id)).get("guid", "")
-        return ryu_guid_from_sdl2(raw) if raw else None
+                return None, GUID_UNREACHABLE
+        answer = sdl2_probe(self.vendor, self.product, bundled_sdl2(app_id))
+        raw = answer.get("guid", "")
+        if not raw:
+            return None, (GUID_PROBE_FAILED if answer.get("error")
+                          else GUID_NO_GUID)
+        return ryu_guid_from_sdl2(raw), ""
 
     def sdl2_mapping(self) -> dict[str, str] | None:
         """Live SDL2 GameController mapping (SDL name → raw token like 'b6' or

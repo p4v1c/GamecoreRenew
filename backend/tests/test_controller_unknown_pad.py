@@ -148,6 +148,27 @@ def test_the_give_up_is_reported_not_swallowed(box):
     assert f"{PAD.vendor}:{PAD.product}" in named, named
 
 
+def test_the_give_up_is_also_reported_in_words_a_player_knows(box):
+    """The same give-ups, named as systems rather than as diagnostics.
+
+    `skipped` is for the journal: "ryujinx: SDL2 would not report a GUID for
+    1d79:0f0f" tells an owner reading logs exactly what happened, and tells a
+    player on a sofa nothing. The arrival toast needs "Nintendo Switch", and
+    it must come from the pack rather than from splitting the prefix off a
+    Skip string — a pack id is not a system name.
+    """
+    result = cp.apply_profile(1, PAD.vendor, PAD.product, PAD.evdev_name, 0)
+
+    assert len(result.skipped_labels) == len(result.skipped), (
+        "every give-up needs a name the player can read")
+    from backend.services import configgen
+    labels = {p.data.get("label")
+              for p in configgen.profilable_packs(configgen.load_catalog())}
+    assert set(result.skipped_labels) <= labels, (
+        f"{result.skipped_labels} is not a set of catalogue labels — this is "
+        "what pack ids leaking into the toast looks like")
+
+
 def test_the_emulators_that_do_not_match_by_name_still_work(box):
     """The refusal must be narrow. PCSX2 and DuckStation bind by SDL role with
     no device identity at all, so a name nobody knows changes nothing for

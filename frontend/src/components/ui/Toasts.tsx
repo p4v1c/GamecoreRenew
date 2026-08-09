@@ -96,6 +96,36 @@ function useToastQueue() {
         return
       }
 
+      // A pad that IS recognised can still be left out of one emulator. That
+      // case took the green "connected" branch below, so the player was told
+      // everything was fine while one console ignored the pad — the reference
+      // box played the Switch on a stale mapping and nothing ever said so.
+      //
+      // Unlike the offer above, this carries no action: it is a statement of
+      // fact, the HUD can draw it, and it MUST go there. A system missing from
+      // one console out of thirteen is only ever noticed while playing that
+      // console — which is precisely when this window is buried under the
+      // emulator and an in-app toast is drawn where nobody can see it.
+      const unconfigured = Array.isArray(d.unconfigured)
+        ? (d.unconfigured as unknown[]).filter((s): s is string => typeof s === 'string')
+        : []
+
+      if (connected && unconfigured.length > 0) {
+        if (window.gamecore?.controllerToast) {
+          window.gamecore.controllerToast({ player, label, connected, unconfigured })
+          return
+        }
+        push({
+          icon: '⚠️',
+          title: `${who} is not set up for ${unconfigured.join(', ')}`,
+          body: `It works everywhere else, but ${unconfigured.length === 1
+            ? 'that system'
+            : 'those systems'} will not respond to it.`,
+          accent: '#fbbf24',
+        })
+        return
+      }
+
       if (window.gamecore?.controllerToast) {
         window.gamecore.controllerToast({ player, label, connected })
         return

@@ -221,6 +221,29 @@ ipcMain.on('notify:battery', (_, data) => showBatteryToast(data || {}))
 ipcMain.on('notify:controller', (_, data) => {
   const d = data || {}
   const who = d.player ? `Controller ${d.player}` : 'Controller'
+
+  // Systems this pad was NOT configured for. A pad can be recognised and still
+  // be left out of one emulator, and until this branch existed that arrived as
+  // the green "connected" toast — so the one console that ignored the pad was
+  // the one thing the player was never told about.
+  //
+  // Same provenance rule as everything else reaching showHudToast: these are
+  // catalogue labels relayed by the renderer, so they are text to escape and
+  // never markup. Capped because the HUD is a fixed 440x100 window.
+  const missing = Array.isArray(d.unconfigured)
+    ? d.unconfigured.filter(s => typeof s === 'string').slice(0, 3)
+    : []
+
+  if (d.connected && missing.length > 0) {
+    showHudToast({
+      icon: '⚠️',
+      title: `${who} is not set up for ${missing.join(', ')}`,
+      body: `It works elsewhere — ${missing.length === 1 ? 'that system' : 'those systems'} will not respond to it.`,
+      accent: '#fbbf24',
+    })
+    return
+  }
+
   showHudToast({
     icon: '🎮',
     title: d.connected ? `${who} connected` : `${who} disconnected`,
