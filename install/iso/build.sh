@@ -61,7 +61,20 @@ GAMECORE_ISO_VERSION="${GAMECORE_ISO_VERSION:-$(cat "$REPO/VERSION" 2>/dev/null 
 GAMECORE_ISO_VERSION="${GAMECORE_ISO_VERSION#v}"
 export GAMECORE_ISO_VERSION
 
-WORKROOT="$(mktemp -d /var/tmp/gamecore-iso.XXXXXX)"
+# Where the uncompressed root filesystem is assembled. It is BIG — the whole
+# package set unpacked, plus the squashfs being written next to it, comfortably
+# past 20 GB. /var/tmp by default; overridable because a CI runner keeps its
+# space on a different mount than the one / lives on, and mkarchiso failing
+# halfway through for lack of room looks nothing like a disk-space problem.
+SCRATCH="${GAMECORE_ISO_SCRATCH:-/var/tmp}"
+mkdir -p "$SCRATCH"
+# `-BG` and not `-P --output=avail`: coreutils refuses those two together, and
+# the failure is a usage error on stderr with an empty capture — so the check
+# would compare "" against 25 and abort the build under `set -e`.
+AVAIL_GB=$(df -BG "$SCRATCH" | awk 'NR==2 {gsub(/G/,"",$4); print $4+0}')
+[[ "$AVAIL_GB" -ge 25 ]] \
+  || warn "only ${AVAIL_GB} GB free in $SCRATCH — mkarchiso needs about 25 GB."
+WORKROOT="$(mktemp -d "$SCRATCH/gamecore-iso.XXXXXX")"
 PROFILE="$WORKROOT/profile"
 # mkarchiso's work dir holds a mounted root filesystem. Leaving it behind on a
 # failure leaves loop mounts and several GB; cleaning it up unconditionally is
