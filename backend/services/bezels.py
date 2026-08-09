@@ -51,8 +51,7 @@ import zlib
 from pathlib import Path
 from urllib.parse import quote
 
-from . import bezel_capture
-from .gamemedia.parser import normalize, parse_rom
+from . import bezel_capture, gameid
 from .paths import addons_dir, config_dir, overlays_dir
 
 log = logging.getLogger(__name__)
@@ -92,8 +91,15 @@ def rom_key(name: str) -> str:
     `TAG_RE`, the articles — is the same problem already solved once, and a
     ROM's identity has to be one answer: a name that scrapes as one game and
     resolves a bezel as another is worse than either being wrong alone.
+
+    That sentence is now enforced instead of asserted. The same computation is
+    the `filename` strategy in `gameid.py` — the last-resort identity a
+    per-game config falls back to — so it lives there and this delegates. Two
+    copies would have drifted the first time either side learned a new tag,
+    and the symptom would be a game whose overlay and whose settings are filed
+    under different names, with nothing to make them disagree out loud.
     """
-    return normalize(parse_rom(name)["title"])
+    return gameid.from_filename(name)
 
 
 # ── The cascade ──────────────────────────────────────────────────────────────

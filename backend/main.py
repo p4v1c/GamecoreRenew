@@ -16,6 +16,7 @@ from . import ws
 from .routers import systems, games, playtime, covers, media, metadata, sysinfo, update, overlays, addons, catalog
 from .routers import auth as auth_routes
 from .routers import bios as bios_router
+from .routers import pergame as pergame_router
 from .routers import standby as standby_router
 from .routers import controllers as controllers_router
 from .routers import themes as themes_router
@@ -167,6 +168,7 @@ app.include_router(metadata.router, prefix="/api")
 app.include_router(sysinfo.router, prefix="/api")
 app.include_router(update.router, prefix="/api")
 app.include_router(overlays.router, prefix="/api")
+app.include_router(pergame_router.router, prefix="/api")
 app.include_router(addons.router, prefix="/api")
 # The pack catalogue: what this box could run, and installing it without
 # re-running the installer. Same busy-lock and WebSocket shape as addons.

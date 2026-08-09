@@ -61,5 +61,9 @@
     "mediaAlias": [
       "switch"
     ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "Ryujinx has no per-title configuration file: its settings are global, and a title override is a fork feature that this pack's appIds do not point at."
   }
 }

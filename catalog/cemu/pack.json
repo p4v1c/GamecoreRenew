@@ -58,5 +58,13 @@
     "mediaAlias": [
       "wiiu"
     ]
+  },
+  "perGame": {
+    "supported": true,
+    "path": "@FLATPAK_CONFIG@/Cemu/gameProfiles/@GAMEID@.ini",
+    "format": "ini",
+    "key": "wiiu",
+    "settingsArgs": "run @APPID@",
+    "merge": "own-keys"
   }
 }

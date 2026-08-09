@@ -322,6 +322,97 @@
       }
     },
 
+    "perGame": {
+      "description": "Whether this emulator can be configured ONE GAME AT A TIME, and if so where that file goes.\n\nThe cases this exists for are binary, not cosmetic: an RPCS3 title that sits on a black screen until Write Color Buffers is ticked, a Dolphin game that freezes on anything but Vulkan, a Wii U dump whose textures are garbage without its graphic pack. The difference is not 40 fps against 60 — it is starts against does not start, and from a sofa the only remedy was to leave GameCore, find the emulator's own window, and hunt.\n\nREQUIRED on every emulator pack, and the requirement is the point. An emulator that cannot do this must say so with `supported: false` and a reason, because the failure mode of leaving it out is silence: the button is absent, the player cannot tell 'this emulator has no per-game settings' from 'GameCore forgot this emulator', and neither can anyone reading the catalogue.\n\nAnd because it is DATA, the day shadPS4 grows per-title configs is a pack.json pushed down the signed OTA channel — not a release, not a frontend build, not a box reboot. That is the whole reason this block is here and not in a table in backend/services/.",
+      "type": "object",
+      "required": ["supported"],
+      "additionalProperties": false,
+      "properties": {
+        "supported": { "type": "boolean" },
+        "why": {
+          "description": "Why not, in one line, when `supported` is false. What is missing — an identity nobody can read out of the dump, a per-game path nobody has verified on a real install. Never 'not implemented': that is the one thing the reader can already see.",
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "description": "Where the per-game file lands, as a path expression, with `@GAMEID@` standing for whatever `key` resolves to. Same expander as `bios.dir` and `config.dest` — `@FLATPAK_CONFIG@` expands from the `install.appIds` entry the box actually has installed, so a per-game directory under an app id nobody installs is unexpressible.\n\nThis is NOT derived from `config.dest`. RPCS3 keeps its custom configs beside its main one under config/, Dolphin keeps GameSettings/ under data/, and an emulator that put them somewhere else entirely would have no way to say so.\n\n`@GAMEID@` is mandatory, and the pattern is what enforces it. A path without it names ONE file for every game on the system — which is not a smaller version of this feature, it is the exact bug the feature exists to remove, wearing its interface: the player sets Vulkan on one game and silently sets it on all of them.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "@GAMEID@"
+        },
+        "format": {
+          "description": "How the file is written. `ini` is [section]/key = value; `yaml` is the two-level mapping RPCS3 uses. A new format is new code in backend/services/pergame.py, so this enum only grows alongside it — the same rule `localMedia.format` follows.",
+          "enum": ["ini", "yaml"]
+        },
+        "key": {
+          "description": "Which reader in backend/services/gameid.py names the game. The enum mirrors that registry exactly and test_pergame_contract.py fails the build when the two drift, because a `key` the registry does not implement is a per-game file that is never written and never explains why.\n\nWhen the pack also declares `localMedia.format`, the two must be the SAME string: a ROM whose identity is one thing to the scraper and another to the config is a bug nobody would find by reading either.",
+          "enum": ["ps3", "ps4", "psp", "gcwii", "playstation", "wiiu", "hash", "filename"]
+        },
+        "settingsArgs": {
+          "description": "The arguments that open this emulator's OWN settings window, where the player picks the setting GameCore then keeps.\n\nGameCore deliberately builds no unified settings screen. Translating 'internal resolution' into thirteen vocabularies, and then maintaining that translation across every emulator release, is exactly what makes Batocera's configgen impossible to port — so the button opens the real thing instead.\n\nDeclared rather than derived. The obvious shortcut is to take `launch.args` and strip `--fullscreen --no-gui`, which is a hardcoded list of other people's command-line flags living in the backend: it works for the three emulators somebody checked and silently opens a fullscreen game with no window for the fourth. The pack knows its own launcher.\n\nAbsent = no button. An emulator with no settings window to open must not be offered one.",
+          "type": "string",
+          "minLength": 1
+        },
+        "merge": {
+          "description": "What happens to a per-game file that already exists. `own-keys`: read it, set only the keys GameCore was asked to set, leave every other byte alone — the same divergence from Batocera the controller generators make, and here it protects settings the player made in the emulator's own window.\n\nOne value, deliberately. A second one is a second write path, and it gets added the day an emulator actually needs it and can be tested against that emulator, not in advance.",
+          "enum": ["own-keys"]
+        },
+        "profiles": {
+          "description": "Known-good settings for named titles, shipped as data so they ride the signed catalogue channel. This is the 'it just works' half: the player launches, the game starts, and nothing on screen mentions that a setting was placed.\n\nVersioned by emulator on purpose. The day RPCS3 renames an option, an unversioned profile stops being help and becomes a trap — it keeps writing a key that no longer exists while the screen still says the profile is applied.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["gameId", "label", "why", "emulator", "settings"],
+            "additionalProperties": false,
+            "properties": {
+              "gameId": {
+                "description": "Exactly what `key` resolves to for this game — a Title ID, a 6-character disc id. Not a title: two dumps of one game share an id and disagree about their filename.",
+                "type": "string",
+                "minLength": 1
+              },
+              "label": { "description": "The game's name, for the one line the player reads when they go looking.", "type": "string", "minLength": 1 },
+              "why":   { "description": "What breaks without it. 'Black screen until Write Color Buffers is on' — the sentence that lets someone judge whether removing it is safe.", "type": "string", "minLength": 1 },
+              "emulator": {
+                "description": "The emulator versions these settings were verified against, as `>=x.y.z` or `>=x.y.z,<a.b.c`. A profile whose range excludes the installed emulator is offered but NOT applied automatically, and says so.",
+                "type": "string",
+                "pattern": "^(>=|>)[0-9][0-9A-Za-z.\\-]*(,(<=|<)[0-9][0-9A-Za-z.\\-]*)?$"
+              },
+              "settings": {
+                "description": "section → key → value. One nesting level, because both supported formats have exactly one: an INI section, or a YAML top-level mapping.",
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "additionalProperties": { "type": ["string", "number", "boolean"] }
+                }
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if":   { "properties": { "supported": { "const": true } }, "required": ["supported"] },
+          "then": { "required": ["path", "format", "key", "merge"] }
+        },
+        {
+          "if":   { "properties": { "supported": { "const": false } }, "required": ["supported"] },
+          "then": {
+            "required": ["why"],
+            "allOf": [
+              { "not": { "required": ["path"] } },
+              { "not": { "required": ["format"] } },
+              { "not": { "required": ["key"] } },
+              { "not": { "required": ["merge"] } },
+              { "not": { "required": ["profiles"] } }
+            ]
+          }
+        }
+      ]
+    },
+
     "scraper": {
       "type": "object",
       "additionalProperties": false,
@@ -446,11 +537,12 @@
   "allOf": [
     {
       "if":   { "properties": { "kind": { "const": "emulator" } }, "required": ["kind"] },
-      "then": { "required": ["roms"] }
+      "then": { "required": ["roms", "perGame"] }
     },
     {
       "if":   { "properties": { "kind": { "const": "app" } }, "required": ["kind"] },
-      "then": { "not": { "required": ["roms"] } }
+      "then": { "allOf": [{ "not": { "required": ["roms"] } },
+                          { "not": { "required": ["perGame"] } }] }
     }
   ]
 }

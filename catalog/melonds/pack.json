@@ -62,5 +62,9 @@
     "mediaAlias": [
       "nds"
     ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "melonDS keeps one configuration and offers no per-title file to write. Nothing to point at."
   }
 }

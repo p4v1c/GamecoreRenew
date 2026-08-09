@@ -93,5 +93,9 @@
     "mediaAlias": [
       "psx"
     ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "The serial is readable — the pack already declares the playstation parser — but nobody has checked on a real install which directory DuckStation reads a per-game ini from, and a file written to the wrong one saves happily and changes nothing."
   }
 }

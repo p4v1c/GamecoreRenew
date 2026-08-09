@@ -57,5 +57,9 @@
     "mediaAlias": [
       "3ds"
     ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "A 3DS dump carries its Title ID in the NCSD/NCCH header, and no reader in backend/services/gameid.py opens one yet. Azahar does keep per-title configs; what is missing is the name to file them under."
   }
 }

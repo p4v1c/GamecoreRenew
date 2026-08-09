@@ -72,6 +72,39 @@ export interface ResolvedOverlay {
   frame: { w: number; h: number } | null
 }
 
+/** What a shipped profile is doing for this game, if anything.
+ *
+ *  `available` false covers both "no profile for this title" and "this system
+ *  has none at all" — the panel says nothing in either case, which is right:
+ *  most games need no profile and hearing about it every time would be noise.
+ */
+export interface PerGameProfile {
+  available: boolean
+  label?: string
+  /** What breaks without it. Shown before asking anyone to remove it. */
+  why?: string
+  /** The emulator versions it was verified against, e.g. ">=0.0.30". */
+  emulator?: string
+  emulatorVersion?: string | null
+  /** False = it exists, but this box runs an emulator it does not claim. */
+  inRange?: boolean
+  applied?: boolean
+  dismissed?: boolean
+}
+
+export interface PerGameState {
+  system_id: string
+  supported: boolean
+  /** The pack's own sentence when `supported` is false. Never invented here. */
+  why: string | null
+  /** null = the dump carries no identity this box can read. Not an error. */
+  gameId: string | null
+  settings: Record<string, Record<string, string | number | boolean>>
+  source?: 'player' | 'profile'
+  profile: PerGameProfile
+  canOpenSettings: boolean
+}
+
 export interface OverlayChoices {
   system_id: string
   rom: string | null
@@ -272,6 +305,31 @@ export const api = {
     choose: (systemId: string, rom: string, choice: string | null) =>
       put<{ ok: boolean; current: string | null; resolved: ResolvedOverlay }>(
         `/overlays/choices/${encodeURIComponent(systemId)}`, { rom, choice }),
+  },
+  /**
+   * One game's own settings, and the shipped profile that may be behind them.
+   *
+   * `state()` answers everything the panel shows in a single round trip. Three
+   * separate calls would give three chances to paint a half-answered screen,
+   * and "supported, but we have not identified the game yet" is a state that
+   * should never be visible.
+   *
+   * There is no call to set an individual setting, deliberately. GameCore does
+   * not know what a setting MEANS — `openSettings()` opens the emulator's own
+   * window, and what the player does there is what GameCore then keeps, per
+   * game. A unified settings screen would mean translating every option into
+   * thirteen vocabularies and maintaining that map for ever.
+   */
+  perGame: {
+    state: (systemId: string, rom: string) =>
+      get<PerGameState>(`/pergame/${encodeURIComponent(systemId)}`
+                        + `?rom=${encodeURIComponent(rom)}`),
+    profile: (systemId: string, rom: string, action: 'remove' | 'restore') =>
+      post<{ ok: boolean } & PerGameState>(
+        `/pergame/${encodeURIComponent(systemId)}/profile`, { rom, action }),
+    openSettings: (systemId: string, rom: string) =>
+      post<{ ok: boolean }>(`/pergame/${encodeURIComponent(systemId)}/open`,
+                            { rom }),
   },
   /**
    * Every artwork a game has, not just its jacket.

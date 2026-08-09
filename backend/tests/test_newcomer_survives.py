@@ -93,6 +93,23 @@ def _pack_data(kind: str, **overrides) -> dict:
         data["roms"] = {"dir": "emu/newcomer", "extensions": ["*.ncr"]}
         data["controllers"] = {"maxPlayers": 4, "strategy": "sdl-index-clone",
                                "target": "inis/Pad.ini", "padType": "NewcomerPad"}
+        # `perGame` is required of every emulator, which is the whole point of
+        # the block: an emulator that cannot be configured per game has to say
+        # so out loud rather than be indistinguishable from one nobody wired up.
+        #
+        # Declared SUPPORTED, and with `key: filename`, because that is the
+        # interesting case here. A console this project has never heard of has
+        # no serial anybody can read out of its dumps — the last-resort
+        # identity is exactly what it would use — and a newcomer that supports
+        # the feature is the one that would expose a hardcoded id list in the
+        # per-game path, which is the class of bug this whole file exists for.
+        data["perGame"] = {
+            "supported": True,
+            "path": "@FLATPAK_CONFIG@/newcomer/games/@GAMEID@.ini",
+            "format": "ini",
+            "key": "filename",
+            "merge": "own-keys",
+        }
     # An override of None REMOVES the block: "this pack declares no `install`"
     # is a case under test, and `"install": null` is a schema violation, not an
     # absent block.
