@@ -325,6 +325,27 @@ function handleMonitorEvent(msg) {
       }
       break
 
+    // The emulator drew somewhere other than the hole said it would. Two
+    // things happen, and they are deliberately independent: the overlay moves
+    // its hole now, so this game is right immediately; and the backend is
+    // told, so the next launch starts out right without looking again.
+    case 'window:measured':
+      if (overlayWindow) {
+        overlayWindow.webContents.send('overlay:show', {
+          ...msg, rect: msg.measured,
+          asset: overlayChoice?.asset ?? null,
+          source: overlayChoice?.source ?? 'declared',
+        })
+      }
+      fetch(`${BACKEND_URL}/api/overlays/measured/${encodeURIComponent(msg.system_id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ announced: msg.announced, measured: msg.measured,
+                               window: msg.window }),
+        signal: AbortSignal.timeout(4000),
+      }).catch(() => { /* a correction not learned is next launch's problem */ })
+      break
+
     case 'error':
       if (DEBUG) console.error('[overlay-monitor] error:', msg.message)
       break
@@ -369,7 +390,12 @@ ipcMain.on('overlay:start', async (_, { system_id, game_key }) => {
 
   startOverlayMonitor()
 
-  const watched = overlayChoice.hole ? { ...cfg, hole: overlayChoice.hole } : cfg
+  // `measure`/`announced` ride along so the monitor knows whether to look at
+  // the screen at all, and against which rectangle to report what it sees.
+  const watched = overlayChoice.hole
+    ? { ...cfg, hole: overlayChoice.hole,
+        measure: !!overlayChoice.measure, announced: overlayChoice.announced }
+    : cfg
   const cmd = JSON.stringify({ cmd: 'watch', system_id, config: watched }) + '\n'
   try { monitorProcess?.stdin.write(cmd) } catch { /* monitor not ready yet */ }
 })

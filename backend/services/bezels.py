@@ -51,6 +51,7 @@ import zlib
 from pathlib import Path
 from urllib.parse import quote
 
+from . import bezel_capture
 from .gamemedia.parser import normalize, parse_rom
 from .paths import config_dir, overlays_dir
 
@@ -555,10 +556,28 @@ def for_launch(system_id: str, rom_name: str | None = None) -> dict:
     window = cfg.get("window_rect") or {"x": 0, "y": 0, "w": 1920, "h": 1080}
     out = describe(system_id, rom_name, declared=cfg.get("hole"))
     hole = out["hole"]
+    if not hole:
+        return {"system_id": system_id, "source": out["source"],
+                "asset": out["asset"], "hole": None, "frame": None,
+                "measure": False}
+
+    placed = in_window(hole, window)
+
+    # What the emulator was last seen to actually draw at this ratio, if the
+    # two ever disagreed. Applied here rather than at capture time so it also
+    # covers the launches where nothing is captured at all.
+    fixed = bezel_capture.correction_for(system_id, placed)
+
     return {
         "system_id": system_id,
         "source": out["source"],
         "asset": out["asset"],
-        "hole": in_window(hole, window) if hole else None,
-        "frame": {"w": hole["frame_w"], "h": hole["frame_h"]} if hole else None,
+        "hole": fixed or placed,
+        "frame": {"w": hole["frame_w"], "h": hole["frame_h"]},
+        # The announced hole, kept separate: it is the key the capture files
+        # its answer under, and a corrected hole must not become the key or the
+        # correction would be relearned against itself every launch.
+        "announced": placed,
+        # Nothing to learn once the answer is known.
+        "measure": fixed is None,
     }

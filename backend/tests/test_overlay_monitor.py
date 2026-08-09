@@ -71,3 +71,127 @@ def test_stopping_a_monitor_that_never_started_is_not_an_error(monkeypatch):
     mon.stop()
     mon.stop()
     assert mon._thread is None
+
+
+# ── the screen measurement ─────────────────────────────────────────────────
+#
+# The X11 capture itself needs a display and a running emulator and is not
+# exercised anywhere. What is exercised is the part around it: when the monitor
+# looks at all, what it puts on the wire, and that every way a capture can fail
+# ends in silence rather than in an exception on a launch path.
+
+# A 20x20 window whose bezel announces a pillarbox, against an emulator that
+# letterboxes instead — the shape of the mismatch this exists to find.
+RECT = {"x": 0, "y": 0, "w": 20, "h": 20}
+ANNOUNCED = {"x": 5, "y": 0, "w": 10, "h": 20}
+DRAWN = (0, 5, 20, 10)
+
+
+class FakeManager:
+    """An X11Manager that returns frames from a script instead of a screen."""
+
+    def __init__(self, *frames):
+        self._frames = list(frames)
+        self.captures = 0
+
+    def window_exists(self, wid):
+        return True
+
+    def capture(self, wid, w, h):
+        self.captures += 1
+        shot = self._frames.pop(0) if self._frames else None
+        return None if shot is None else (shot, w * 4)
+
+
+def lit(w, h, box):
+    """A black frame with one lit rectangle, laid out the way X returns one."""
+    out = bytearray()
+    for y in range(h):
+        row = bytearray(w * 4)
+        if box and box[1] <= y < box[1] + box[3]:
+            for x in range(box[0], box[0] + box[2]):
+                row[x * 4] = row[x * 4 + 1] = row[x * 4 + 2] = 200
+        out += row
+    return bytes(out)
+
+
+def _monitor(monkeypatch, mgr):
+    monkeypatch.setattr(om, "_WAYLAND_SESSION", True)   # no real display wanted
+    mon = om.OverlayMonitor()
+    mon._mgr = mgr
+    # The samples are 1 s and 2.5 s apart in production; a test must not be.
+    monkeypatch.setattr(mon._stop, "wait", lambda _s: False)
+    return mon
+
+
+def test_two_agreeing_samples_are_reported(monkeypatch, capsys):
+    """A pillarbox announced, an emulator letterboxing instead."""
+    frame = lit(20, 20, DRAWN)
+    mon = _monitor(monkeypatch, FakeManager(frame, frame))
+    mon._measure("duckstation", 1, RECT, ANNOUNCED)
+
+    msg = json.loads(capsys.readouterr().out.strip())
+    assert msg["event"] == "window:measured"
+    assert msg["measured"] == {"x": 0, "y": 5, "w": 20, "h": 10}
+    # The ANNOUNCED rectangle, not the measured one: it is the key the backend
+    # files the correction under, and sending the corrected value instead would
+    # make every launch relearn against its own last answer.
+    assert msg["announced"] == ANNOUNCED
+    assert msg["window"] == {"w": 20, "h": 20}
+
+
+def test_samples_that_disagree_report_nothing(monkeypatch, capsys):
+    """A loading screen followed by the game. Believing either would be a
+    coin toss, and the losing side moves a hole that was right."""
+    mon = _monitor(monkeypatch, FakeManager(lit(20, 20, (9, 9, 2, 2)),
+                                            lit(20, 20, DRAWN)))
+    mon._measure("duckstation", 1, RECT, ANNOUNCED)
+    events = [json.loads(x)["event"] for x in capsys.readouterr().out.splitlines()]
+    assert "window:measured" not in events
+
+
+def test_an_implausible_agreement_reports_nothing(monkeypatch, capsys):
+    """Two samples of the same logo agree perfectly and mean nothing."""
+    logo = lit(20, 20, (9, 9, 2, 2))
+    mon = _monitor(monkeypatch, FakeManager(logo, logo))
+    mon._measure("duckstation", 1, RECT, ANNOUNCED)
+    events = [json.loads(x)["event"] for x in capsys.readouterr().out.splitlines()]
+    assert "window:measured" not in events
+
+
+def test_a_frame_filling_the_whole_window_reports_nothing(monkeypatch, capsys):
+    """Deliberately refused, and the refusal costs a real case.
+
+    An emulator stretching a 4:3 game across the window really does draw edge
+    to edge, and correcting to that would be right. But a bright splash screen
+    measures identically, and believing one would cache "no bars here" and
+    retire a perfectly good bezel for good. A missed correction leaves the box
+    exactly as it is today; a false one throws artwork away, so the tie goes to
+    doing nothing.
+    """
+    full = lit(20, 20, (0, 0, 20, 20))
+    mon = _monitor(monkeypatch, FakeManager(full, full))
+    mon._measure("duckstation", 1, RECT, ANNOUNCED)
+    events = [json.loads(x)["event"] for x in capsys.readouterr().out.splitlines()]
+    assert "window:measured" not in events
+
+
+def test_a_failed_capture_is_silent(monkeypatch, capsys):
+    """GetImage refusing is normal on a compositor that redirects the window.
+    It must cost the measurement and nothing else."""
+    mon = _monitor(monkeypatch, FakeManager(None, None))
+    mon._measure("duckstation", 1, RECT, ANNOUNCED)
+    assert "window:measured" not in capsys.readouterr().out
+
+
+def test_a_game_that_ends_during_the_wait_stops_the_capture(monkeypatch, capsys):
+    """`_stop.wait` returning True is the game already over. Reading 8 MB off
+    a window that is being torn down is how the monitor outlives the emulator."""
+    mgr = FakeManager(lit(20, 20, DRAWN), lit(20, 20, DRAWN))
+    monkeypatch.setattr(om, "_WAYLAND_SESSION", True)
+    mon = om.OverlayMonitor()
+    mon._mgr = mgr
+    monkeypatch.setattr(mon._stop, "wait", lambda _s: True)
+    mon._measure("duckstation", 1, RECT, ANNOUNCED)
+    assert mgr.captures == 0
+    assert capsys.readouterr().out == ""

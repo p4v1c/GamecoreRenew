@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from ..services import bezels
+from ..services import bezel_capture, bezels
 from ..services.paths import overlays_dir
 
 router = APIRouter(tags=["overlays"])
@@ -43,6 +43,41 @@ async def resolve_overlay(system_id: str, rom: str = ""):
     # Only the filename: `rom` arrives as the launcher's `game_key`, and a
     # directory component in it would let the pack index be pointed elsewhere.
     return bezels.for_launch(system_id, Path(rom).name or None)
+
+
+class Measured(BaseModel):
+    """What the overlay monitor saw the emulator draw, in window coordinates."""
+    announced: dict           # the hole that was in force — the cache key
+    measured: dict            # x/y/w/h of the drawn region
+    window: dict              # the size the measurement was taken in
+
+
+@router.post("/overlays/measured/{system_id}")
+async def record_measurement(system_id: str, body: Measured):
+    """Learn that this system draws somewhere other than its hole says.
+
+    The monitor does the looking because it is the process holding the X11
+    display and the window id; the decision to believe it is here, where the
+    cache lives and where it can be tested without a screen.
+
+    `applied: false` is a normal answer, not a failure — it is what a
+    measurement that was implausible, or too small to matter, gets. Nothing is
+    written, so the next launch simply looks again.
+    """
+    if not _SYSTEM_ID_RE.match(system_id):
+        raise HTTPException(400, "Invalid system id")
+    try:
+        announced = {k: int(body.announced[k]) for k in ("x", "y", "w", "h")}
+        box = tuple(int(body.measured[k]) for k in ("x", "y", "w", "h"))
+        win_w, win_h = int(body.window["w"]), int(body.window["h"])
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(400, "Malformed measurement")
+
+    if not bezel_capture.is_plausible(box, win_w, win_h):
+        return {"ok": True, "applied": False, "reason": "implausible"}
+    applied = bezel_capture.record(system_id, announced, box)
+    return {"ok": True, "applied": applied,
+            "reason": None if applied else "within tolerance"}
 
 
 @router.get("/overlays/choices/{system_id}")

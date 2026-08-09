@@ -85,7 +85,8 @@ def test_a_system_with_no_bezel_at_all_is_a_200_and_not_a_404(client, library):
     body = client.get("/api/overlays/resolve/rpcs3",
                       params={"rom": "Whatever.pkg"}).json()
     assert body == {"system_id": "rpcs3", "source": "none",
-                    "asset": None, "hole": None, "frame": None}
+                    "asset": None, "hole": None, "frame": None,
+                    "measure": False}
 
 
 def test_no_rom_at_all_still_answers(client, library):
@@ -120,6 +121,76 @@ def test_a_rom_name_cannot_point_the_lookup_at_another_directory(client, library
     assert body["source"] == "game"
     assert body["asset"] == ("/assets/overlays/duckstation/"
                              "Crash%20Bandicoot%20%28USA%29.png")
+
+
+# ── Learning that the emulator draws somewhere else ─────────────────────────
+
+def test_a_reported_mismatch_moves_the_hole_on_the_next_launch(client, library):
+    """The loop this endpoint exists to close.
+
+    The bezel announces 4:3 and the emulator letterboxes instead. The first
+    launch draws the announced hole and reports what it saw; the second starts
+    out right and is told not to bother looking again.
+    """
+    write_png(library / "assets" / "overlays" / "duckstation.png",
+              1920, 1080, (240, 0, 1440, 1080))
+
+    first = client.get("/api/overlays/resolve/duckstation").json()
+    assert first["hole"] == {"x": 240, "y": 0, "w": 1440, "h": 1080}
+    assert first["measure"] is True
+
+    r = client.post("/api/overlays/measured/duckstation", json={
+        "announced": first["hole"],
+        "measured": {"x": 0, "y": 120, "w": 1920, "h": 840},
+        "window": {"w": 1920, "h": 1080},
+    })
+    assert r.json() == {"ok": True, "applied": True, "reason": None}
+
+    second = client.get("/api/overlays/resolve/duckstation").json()
+    assert second["hole"] == {"x": 0, "y": 120, "w": 1920, "h": 840}
+    # The announced rectangle is still reported, because it is the key the
+    # correction was filed under — relearning against the corrected value
+    # would move the hole a little further every single launch.
+    assert second["announced"] == {"x": 240, "y": 0, "w": 1440, "h": 1080}
+    assert second["measure"] is False
+
+
+def test_a_logo_on_a_loading_screen_is_reported_and_refused(client, library):
+    """The monitor can only decide the two samples agreed. Whether what they
+    agreed on is a game is decided here, where it can be tested."""
+    write_png(library / "assets" / "overlays" / "duckstation.png",
+              1920, 1080, (240, 0, 1440, 1080))
+    r = client.post("/api/overlays/measured/duckstation", json={
+        "announced": {"x": 240, "y": 0, "w": 1440, "h": 1080},
+        "measured": {"x": 860, "y": 470, "w": 200, "h": 140},
+        "window": {"w": 1920, "h": 1080},
+    })
+    assert r.json()["applied"] is False
+
+    body = client.get("/api/overlays/resolve/duckstation").json()
+    assert body["hole"] == {"x": 240, "y": 0, "w": 1440, "h": 1080}
+    # Nothing was written, so the next launch looks again rather than giving up.
+    assert body["measure"] is True
+
+
+def test_a_measurement_within_tolerance_changes_nothing(client, library):
+    """Otherwise every launch rewrites the hole by a pixel and the box never
+    stops capturing."""
+    write_png(library / "assets" / "overlays" / "duckstation.png",
+              1920, 1080, (240, 0, 1440, 1080))
+    r = client.post("/api/overlays/measured/duckstation", json={
+        "announced": {"x": 240, "y": 0, "w": 1440, "h": 1080},
+        "measured": {"x": 242, "y": 1, "w": 1438, "h": 1079},
+        "window": {"w": 1920, "h": 1080},
+    })
+    assert r.json() == {"ok": True, "applied": False, "reason": "within tolerance"}
+
+
+def test_a_malformed_measurement_is_refused_not_crashed(client, library):
+    r = client.post("/api/overlays/measured/duckstation", json={
+        "announced": {"x": 0}, "measured": {}, "window": {},
+    })
+    assert r.status_code == 400
 
 
 # ── The player's own choice ─────────────────────────────────────────────────

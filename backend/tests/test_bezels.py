@@ -363,7 +363,9 @@ def test_a_system_the_config_never_heard_of_answers_rather_than_raising(library)
     _declare(library, {})
     out = bezels.for_launch("some-new-emulator", "Whatever (USA).iso")
     assert out == {"system_id": "some-new-emulator", "source": "none",
-                   "asset": None, "hole": None, "frame": None}
+                   "asset": None, "hole": None, "frame": None,
+                   # Nothing to look at, so nothing to look for.
+                   "measure": False}
 
 
 def test_a_missing_overlays_json_is_not_fatal(library):
