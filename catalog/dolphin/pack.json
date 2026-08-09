@@ -74,6 +74,7 @@
     "path": "@FLATPAK_DATA@/dolphin-emu/GameSettings/@GAMEID@.ini",
     "format": "ini",
     "key": "gcwii",
+    "settingsArgs": "run @APPID@",
     "merge": "own-keys"
   }
 }

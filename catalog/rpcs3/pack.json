@@ -75,6 +75,7 @@
     "path": "@FLATPAK_CONFIG@/rpcs3/custom_configs/config_@GAMEID@.yml",
     "format": "yaml",
     "key": "ps3",
+    "settingsArgs": "run @APPID@",
     "merge": "own-keys",
     "profiles": [
       {

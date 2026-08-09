@@ -618,3 +618,31 @@ def restore_profile(system_id: str, game_id: str, home: Path) -> str | None:
     _write_record(system_id, game_id, data)
     adopt_profile(system_id, game_id)
     return materialise_id(system_id, game_id, home)
+
+
+# ── the emulator's own screen ────────────────────────────────────────────────
+
+def settings_launcher(system_id: str) -> tuple[str, str] | None:
+    """`(path, args)` that open this emulator's own settings window, or None.
+
+    GameCore builds no unified settings screen, and this function is where that
+    decision is spent. Translating "internal resolution" into thirteen
+    vocabularies and then chasing it across every emulator release is what
+    makes Batocera's configgen impossible to port; opening the real window
+    costs one field in the pack and never goes out of date.
+
+    The args are DECLARED by the pack rather than derived from `launch.args` by
+    stripping `--fullscreen --no-gui`. That shortcut is a hardcoded list of
+    other people's command-line flags living in the backend: correct for the
+    three emulators somebody checked, and for the fourth it opens a fullscreen
+    game with no window and no way back.
+    """
+    b = block(system_id) or {}
+    args = b.get("settingsArgs")
+    if not args or not b.get("supported"):
+        return None
+    try:
+        pack = load_catalog()[system_id.lower()]
+    except Exception:
+        return None
+    return pack.launcher(prefer_existing=True)[0], args

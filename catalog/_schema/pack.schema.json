@@ -348,6 +348,11 @@
           "description": "Which reader in backend/services/gameid.py names the game. The enum mirrors that registry exactly and test_pergame_contract.py fails the build when the two drift, because a `key` the registry does not implement is a per-game file that is never written and never explains why.\n\nWhen the pack also declares `localMedia.format`, the two must be the SAME string: a ROM whose identity is one thing to the scraper and another to the config is a bug nobody would find by reading either.",
           "enum": ["ps3", "ps4", "psp", "gcwii", "playstation", "wiiu", "hash", "filename"]
         },
+        "settingsArgs": {
+          "description": "The arguments that open this emulator's OWN settings window, where the player picks the setting GameCore then keeps.\n\nGameCore deliberately builds no unified settings screen. Translating 'internal resolution' into thirteen vocabularies, and then maintaining that translation across every emulator release, is exactly what makes Batocera's configgen impossible to port — so the button opens the real thing instead.\n\nDeclared rather than derived. The obvious shortcut is to take `launch.args` and strip `--fullscreen --no-gui`, which is a hardcoded list of other people's command-line flags living in the backend: it works for the three emulators somebody checked and silently opens a fullscreen game with no window for the fourth. The pack knows its own launcher.\n\nAbsent = no button. An emulator with no settings window to open must not be offered one.",
+          "type": "string",
+          "minLength": 1
+        },
         "merge": {
           "description": "What happens to a per-game file that already exists. `own-keys`: read it, set only the keys GameCore was asked to set, leave every other byte alone — the same divergence from Batocera the controller generators make, and here it protects settings the player made in the emulator's own window.\n\nOne value, deliberately. A second one is a second write path, and it gets added the day an emulator actually needs it and can be tested against that emulator, not in advance.",
           "enum": ["own-keys"]
