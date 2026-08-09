@@ -98,3 +98,9 @@ frontend/vite.check.config.ts
 frontend/preview.html
 frontend/src/preview.tsx
 OPUS_HANDOFF_gamepad.md
+
+# Local gate bookkeeping — the last test counts a run observed. Box- and
+# session-local state: committed once by accident, and a stale count in git
+# is worse than none, since the next run compares against it.
+.gate-last-count
+.gate-last-skips
