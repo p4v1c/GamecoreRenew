@@ -518,6 +518,11 @@ PKGS=(
   plasma-desktop sddm xorg-xdpyinfo xorg-xrandr xorg-xset unclutter
   bluez bluez-utils
   caddy
+  # mDNS: avahi answers for <hostname>.local, nss-mdns is what makes glibc ask
+  # it. Both, always — nss-mdns alone resolves nothing and avahi alone is only
+  # reachable by software that speaks mDNS itself. See the mDNS section below
+  # for why these are installed rather than assumed from the distro.
+  avahi nss-mdns
   # update/linux.sh does all of its file installation with rsync, and rsync is
   # not in Arch's `base` — an OTA on a box without it failed at the first step.
   rsync
@@ -1352,6 +1357,85 @@ if [[ $CADDY_TRUSTED -eq 1 ]]; then
   ok "Caddy up on :8443 — root CA installed in the system trust store."
 else
   warn "Caddy started but 'caddy trust' failed — run 'sudo caddy trust' once."
+fi
+
+# ── mDNS — how the LAN finds the port Caddy just opened ──────────
+# Without this the box is reachable only by IP, and the IP comes from DHCP: the
+# address written on a sticky note stops working at the next lease. Everything a
+# phone or laptop reaches — https://…:8443/roms/, /saves/, /rpcs3/ — is behind
+# that one address.
+#
+# Unlike networkmanager (see the header: the distro is expected to bring it),
+# avahi is installed by GameCore rather than assumed. Three reasons, and this is
+# the paragraph to read before deciding otherwise:
+#
+#   1. nmcli is a dependency GameCore CONSUMES; mDNS is a capability it ADDS.
+#      Nothing else on the box wants it.
+#   2. Its absence is SILENT. `nmcli: not found` shows up in Settings → Wi-Fi;
+#      a name that does not resolve produces no message anywhere, and cannot
+#      even be observed from the box itself.
+#   3. No distro gets this right by default. Arch ships neither package; Manjaro
+#      ships avahi and leaves the unit disabled — which is exactly the state the
+#      production box was found in ("Daemon not running" in the journal).
+msg "mDNS (avahi) — reaching the box by name"
+systemctl enable --now avahi-daemon.service 2>/dev/null \
+  && ok "avahi-daemon enabled — the box answers to $(hostname).local." \
+  || warn "avahi-daemon failed to start — the box stays reachable by IP only."
+
+# nss-mdns being INSTALLED resolves nothing. glibc only consults it when
+# nsswitch.conf names it, and the package does not edit that file. Skipping this
+# leaves a running daemon that advertises correctly and a box that still cannot
+# be reached by name — a failure indistinguishable from the service being off,
+# which is why it gets its own step rather than a line inside the one above.
+#
+# Surgical, not templated: the hosts: line differs between Arch and Manjaro and
+# grows entries over time (mymachines, resolve, myhostname). Overwriting it with
+# a known-good line is how you delete the one entry that box needed. So the
+# entry is inserted before the first resolver that would answer NXDOMAIN for a
+# .local name, and re-running is a no-op.
+NSS=/etc/nsswitch.conf
+if [[ ! -f $NSS ]]; then
+  warn "$NSS does not exist — mDNS name resolution not wired up."
+elif grep -qE '^\s*hosts:.*\bmdns' "$NSS"; then
+  ok "nsswitch.conf already consults mDNS."
+else
+  NSS_BACKUP="${NSS}.pre-gamecore"
+  [[ -e $NSS_BACKUP ]] || cp "$NSS" "$NSS_BACKUP"
+  manifest_set NSSWITCH_BACKUP "$NSS_BACKUP"
+  # [NOTFOUND=return] stops the lookup for .local only — mdns_minimal answers
+  # nothing else, so ordinary DNS below is untouched. Without the guard a slow
+  # or absent mDNS responder delays every failed lookup on the box.
+  #
+  # Inserted before the FIRST of resolve/dns, and awk rather than sed because
+  # that word matters: ERE has no lazy quantifier, so the obvious
+  # `s/(hosts:.*)(resolve|dns)/` matches greedily and lands the entry AFTER
+  # resolve. systemd-resolved then answers .local first and mdns_minimal is
+  # never consulted — the file looks patched and nothing resolves.
+  if awk '
+      /^[[:space:]]*hosts:/ && !done {
+        for (i = 2; i <= NF; i++)
+          if ($i == "resolve" || $i == "dns") { at = i; break }
+        if (!at) at = NF + 1              # neither present: append at the end
+        line = $1
+        for (i = 2; i < at; i++) line = line " " $i
+        line = line " mdns_minimal [NOTFOUND=return]"
+        for (i = at; i <= NF; i++) line = line " " $i
+        print line; done = 1; next
+      }
+      { print }
+    ' "$NSS" > "${NSS}.gamecore-new" \
+     && grep -qE '^\s*hosts:.*\bmdns_minimal' "${NSS}.gamecore-new" \
+     && cat "${NSS}.gamecore-new" > "$NSS"; then
+    rm -f "${NSS}.gamecore-new"
+    ok "nsswitch.conf now consults mDNS (backup: $NSS_BACKUP)."
+  else
+    # Restore rather than leave a half-edited nsswitch.conf: a malformed hosts:
+    # line breaks name resolution for the WHOLE box, not just .local.
+    rm -f "${NSS}.gamecore-new"
+    cp "$NSS_BACKUP" "$NSS"
+    warn "Could not add mdns_minimal to $NSS — left unchanged. The box stays"
+    warn "  reachable by IP; add it by hand to resolve $(hostname).local."
+  fi
 fi
 
 # ── Bluetooth ────────────────────────────────────────────────────

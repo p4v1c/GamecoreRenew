@@ -75,6 +75,14 @@ networkmanager
 # and an unconfigured pair is a Wi-Fi list that is always empty.
 wpa_supplicant
 wireless-regdb
+# mDNS — the box answers to <hostname>.local so the LAN does not need its IP,
+# which is a DHCP lease and changes. Unlike networkmanager above, these are also
+# in install/arch.sh's PKGS: mDNS is a capability GameCore adds rather than one
+# it consumes, and its absence is silent (no error anywhere, the name simply
+# never resolves). arch.sh also patches nsswitch.conf, without which nss-mdns
+# is installed and never consulted.
+avahi
+nss-mdns
 
 # ── GameCore's own dependencies — mirrors install/arch.sh PKGS ────
 # Kept in the same order as the array in arch.sh so a diff between the two is
