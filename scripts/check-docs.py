@@ -19,12 +19,18 @@ The first version of this script flagged 24 references and **every single one
 was a false positive**, in two distinct ways. Both are worth naming, because
 both are things this repository does on purpose:
 
-`RUNTIME_GENERATED` — `config/` is the box's identity. It is not in git, and
-several of its files are written on first boot. A checkout legitimately has no
-`config/auth_secret`. Skipping all of `config/` would have been the easy fix and
-the wrong one: then a document could invent `config/setttings.json` and nothing
-would notice. So the generated files are listed by name, and a new one has to be
-added here deliberately.
+Existence is resolved against `git ls-files`, **not against the disk.** The first
+version asked the filesystem and so passed on this machine and failed in CI:
+`frontend/dist` and `lib/` exist once you have built and installed, and exist
+nowhere in a fresh clone. A checker whose answer depends on which machine runs it
+reports the machine, not the docs.
+
+`NOT_IN_GIT` / `RUNTIME_GENERATED` — build output, and the box's own state.
+`config/` is the box's identity: it is not in git and several of its files are
+written on first boot, so a checkout legitimately has no `config/auth_secret`.
+Skipping all of `config/` would have been the easy fix and the wrong one: then a
+document could invent `config/setttings.json` and nothing would notice. So each
+is listed by name, and a new one has to be added deliberately.
 
 `HISTORICAL` — this repo documents *what failure produced a rule*, which means
 its best paragraphs name files that no longer exist:
@@ -51,6 +57,7 @@ Run:  python3 scripts/check-docs.py [--all]
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -63,7 +70,20 @@ TOP_LEVEL = {
     "electron", "frontend", "install", "lib", "scripts", "update",
 }
 
-# Created on a real box, never in git — see the module docstring.
+# Not in git: build output, or written on a real box. See the module docstring
+# for why these are listed by name rather than skipped by directory.
+NOT_IN_GIT = {
+    # Build output. The docs name it a lot, and the OTA discussion turns on the
+    # difference between shipping it and shipping frontend/ whole.
+    "frontend/dist",
+    # `/lib/` is gitignored. lib/xenia is downloaded by the full installer, and
+    # is the subject of issue #36 — the one data directory inside the code root.
+    "lib",
+    "lib/xenia",
+}
+
+# Written on a box at runtime — a subset of the above, kept separate because
+# these are box *state* rather than build output.
 RUNTIME_GENERATED = {
     "config/auth.json",       # shared-password hash, written on first setup
     "config/auth_secret",     # session-signing secret, 0600
@@ -71,10 +91,6 @@ RUNTIME_GENERATED = {
     "config/theme.json",      # the selected theme
     "config/standby.json",    # sleep/wake schedule
     "config/addons.json",     # installed addons registry
-    # Downloaded by the full installer, and `/lib/` is gitignored. Docs name it
-    # a lot because it is the subject of issue #36 — the one data directory
-    # sitting inside the code root.
-    "lib/xenia",
 }
 
 # Named on purpose although not there YET: a document describing how to turn a
@@ -115,10 +131,39 @@ def is_candidate_path(tok: str) -> bool:
     return tok.split("/", 1)[0] in TOP_LEVEL
 
 
+def _tracked() -> set[str]:
+    """Every path git tracks, plus every directory implied by one.
+
+    **Resolved against git, not against the disk, and that is the whole point.**
+    The first version of this script asked the filesystem, so it passed here and
+    failed in CI: `frontend/dist` and `lib/` exist on a machine that has built
+    and installed, and exist nowhere in a fresh clone. A checker whose answer
+    depends on which machine runs it does not check anything — it reports the
+    machine. Asking git makes the answer identical everywhere.
+    """
+    out = subprocess.run(["git", "ls-files"], cwd=ROOT,
+                         capture_output=True, text=True, check=True).stdout
+    paths: set[str] = set()
+    for line in out.splitlines():
+        paths.add(line)
+        parent = Path(line).parent
+        while str(parent) != ".":
+            paths.add(str(parent))
+            parent = parent.parent
+    return paths
+
+
+TRACKED = _tracked()
+
+
 def exists(clean: str) -> bool:
-    p = ROOT / clean
     # `backend/config` names the module; backend/config.py is the file.
-    return p.exists() or p.with_suffix(".py").exists()
+    return clean in TRACKED or f"{clean}.py" in TRACKED
+
+
+def _excused(tok: str) -> bool:
+    return (tok in NOT_IN_GIT or tok in RUNTIME_GENERATED
+            or tok in HISTORICAL or tok in NOT_YET)
 
 
 def check_file(md: Path) -> list[str]:
@@ -131,10 +176,10 @@ def check_file(md: Path) -> list[str]:
             tok = tok.strip()
             if not is_candidate_path(tok):
                 continue
-            if tok in RUNTIME_GENERATED or tok in HISTORICAL or tok in NOT_YET:
+            if _excused(tok):
                 continue
             clean = CITATION_SUFFIX.sub("", tok).rstrip("/")
-            if clean in RUNTIME_GENERATED or clean in HISTORICAL or clean in NOT_YET:
+            if _excused(clean):
                 continue
             if not exists(clean):
                 problems.append(f"{rel_md}:{lineno}: `{tok}` does not exist")
