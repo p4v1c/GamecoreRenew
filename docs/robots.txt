@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://p4v1c.github.io/GamecoreRenew/sitemap.xml

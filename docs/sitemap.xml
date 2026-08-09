@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  One entry, on purpose. The other files under docs/ are Markdown served as
+  plain text: submitting them to a search engine spends crawl budget on
+  documents no visitor arriving from a search result can read. index.html is
+  the only page here that is a page.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://p4v1c.github.io/GamecoreRenew/</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

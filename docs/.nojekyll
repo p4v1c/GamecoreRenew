@@ -1,0 +1,14 @@
+Serve docs/ as static files — do not run Jekyll over it.
+
+index.html is a single self-contained page with no build step and no template
+syntax, so a Jekyll pass buys nothing here.
+
+What it can cost: Jekyll also walks the Markdown files next to this one and
+parses them as Liquid templates. None of them contains `{{` or `{%` today —
+checked — but the theme documentation is about writing templates, and the day
+one of those braces appears inside a code fence, Jekyll treats it as a template
+tag and fails the build. That turns an unrelated documentation edit into a
+broken site, with the error surfacing in Pages rather than anywhere the author
+was looking.
+
+GitHub only tests whether this file exists; its contents are ignored.

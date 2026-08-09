@@ -1,0 +1,59 @@
+# Messages only. Nothing here starts a service, enables a unit, creates a user
+# or touches a config — a pacman hook is the wrong place for any of that, and
+# install/arch.sh is the right one.
+
+post_install() {
+  cat <<'MSG'
+
+  GameCore's files are in /opt/GameCore. The box is NOT set up yet.
+
+  To finish — emulators, Python venv, node modules, services, auto-login,
+  and the kiosk session:
+
+      sudo gamecore-setup
+
+  It is interactive, and safe to re-run. For a scripted install:
+
+      sudo gamecore-setup --unattended /path/to/install.conf
+
+  (template: /opt/GameCore/install/install.conf.example)
+
+  Nothing about your machine has changed until you run it.
+
+MSG
+}
+
+post_upgrade() {
+  cat <<'MSG'
+
+  /opt/GameCore has been replaced with the new release.
+
+  ROMs (emu/), config/ and your emulators are untouched — they do not live in
+  the package. If the services are already installed, restart them:
+
+      sudo systemctl restart gamecore-backend gamecore-ui
+
+  Note that a box set up by `gamecore-setup` also updates itself over the air
+  from the Settings screen. Driving it from BOTH pacman and OTA means two
+  things write to /opt/GameCore with no idea the other exists. Pick one.
+
+MSG
+}
+
+pre_remove() {
+  cat <<'MSG'
+
+  Removing the package deletes /opt/GameCore, but it does NOT undo what
+  `gamecore-setup` did to this machine — services, auto-login, sudoers, udev
+  rules and the Caddy config stay.
+
+  Undo those FIRST, while the files are still there:
+
+      sudo bash /opt/GameCore/install/uninstall.sh --dry-run   # look
+      sudo bash /opt/GameCore/install/uninstall.sh             # do it
+
+  The uninstaller reads the manifest in /var/lib/gamecore/, so it only reverts
+  what this box's install actually changed.
+
+MSG
+}

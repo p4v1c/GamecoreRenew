@@ -1,0 +1,111 @@
+# Maintainer: p4v1c <vpaquereau@guardiaschool.fr>
+#
+# NOT SUBMITTED TO THE AUR. Read distribution/packaging/README.md first —
+# this file has been checked for syntax only. It has never been run through
+# makepkg, and there are two open questions in that README that have to be
+# answered before it is worth anyone's `pacman -U`.
+
+pkgname=gamecore-bin
+pkgver=1.0.155
+pkgrel=1
+pkgdesc="Living-room emulation frontend for Arch — PS3, PS4, Switch, Wii U, Xbox 360 and 8 more, gamepad-only"
+arch=('x86_64')
+url="https://github.com/p4v1c/GamecoreRenew"
+license=('GPL-3.0-or-later')
+
+# What GameCore needs to exist and to finish its own setup. Deliberately NOT
+# the whole list install/arch.sh installs: that script turns a machine into a
+# kiosk (SDDM auto-login, a Plasma session, systemd units, sudoers, udev), and
+# a package has no business dragging a desktop environment in as a hard
+# dependency of something the user may want to set up differently. Those live
+# in optdepends, with the reason each one is there.
+depends=(
+  'python'
+  'python-pip'   # the setup builds a venv from backend/requirements.txt
+  'nodejs'
+  'npm'
+  'flatpak'      # every emulator is a Flatpak; without it there is nothing to launch
+  'rsync'        # update/linux.sh installs every file with it — an OTA dies at step 1 without
+)
+optdepends=(
+  'plasma-desktop: the X11 session the kiosk is drawn over, and what "Exit to Desktop" reveals'
+  'sddm: auto-login into that session at boot'
+  'xorg-xrandr: the 1080p pin the overlays and the fullscreen enforcer assume'
+  'xorg-xdpyinfo: display geometry probing for the bezel hole measurement'
+  'xorg-xset: DPMS screen-off for standby'
+  'unclutter: hides the mouse pointer on a box nobody points at'
+  'bluez-utils: pairing controllers over Bluetooth from the Settings screen'
+  'caddy: the HTTPS reverse proxy in front of the LAN web UI'
+  'openssh: remote access to the box'
+  'ffmpeg: media tooling for cover art and video previews'
+  'wine: required by the Xbox 360 emulator (Xenia Canary runs under it)'
+)
+
+provides=('gamecore')
+conflicts=('gamecore')
+
+# The upstream asset is called gamecore-full.tar.gz for EVERY release. Left
+# under that name, makepkg's cache would hand a stale v1.0.154 tarball to a
+# v1.0.155 build and the package would be silently wrong — same name, same
+# cache entry, no re-download. The ::rename is what makes each version a
+# distinct cache key.
+source=("${pkgname}-${pkgver}.tar.gz::${url}/releases/download/v${pkgver}/gamecore-full.tar.gz")
+sha256sums=('1fc2035b6f5be8a8aa22701df8a27c6170780d15c49a29eab4c575a5e446bf77')
+
+# Regenerate with `updpkgsums` on every pkgver bump. A stale sum here does not
+# fail open — makepkg refuses the build — but it is the step that gets skipped.
+
+install="${pkgname}.install"
+
+# The payload is JavaScript, Python and shell. There is nothing to strip, and
+# no debug symbols to split off; leaving these on makes makepkg walk the whole
+# tree for ELF files it will not find.
+options=('!strip' '!debug')
+
+package() {
+  # The archive is packed with `tar -czf … -C dist_full .`, so it has no
+  # top-level directory: its contents land directly in $srcdir. Hence the
+  # explicit list below rather than a single copy of one extracted folder.
+  local dest="${pkgdir}/opt/GameCore"
+  install -d "$dest"
+
+  # The nine directories the release archive carries, plus VERSION. Named one
+  # by one on purpose: a glob here would also sweep up whatever makepkg leaves
+  # in $srcdir, and would silently start shipping new top-level directories
+  # that upstream adds without anyone deciding to.
+  local d
+  for d in assets backend catalog config electron frontend install scripts update; do
+    cp -a "${srcdir}/${d}" "${dest}/"
+  done
+
+  # Read by the UI and by update/linux.sh to decide whether the box is behind.
+  # The archive's copy carries the release tag, which is what we want — the
+  # tracked VERSION file in git still says v1.0.0.
+  install -Dm644 "${srcdir}/VERSION" "${dest}/VERSION"
+
+  # One entry point, and only one. install/bin/ holds seven more tools, but
+  # install/arch.sh copies those into /usr/local/bin itself as part of wiring
+  # the box — and /usr/local is not a package's to write to. Shipping them
+  # here as well would put two copies of each on the box, with the
+  # /usr/local/bin one shadowing this one in PATH. See README.md.
+  install -d "${pkgdir}/usr/bin"
+  cat > "${pkgdir}/usr/bin/gamecore-setup" <<'EOF'
+#!/bin/sh
+# Finishes the installation: emulators, venv, node_modules, services, kiosk.
+# Separate from the package because it rewrites the machine (auto-login,
+# systemd units, sudoers, udev) — that is an administrator's decision, taken
+# once, not a side effect of pacman laying files down.
+if [ "$(id -u)" -ne 0 ]; then
+  echo "gamecore-setup: run me as root — sudo gamecore-setup" >&2
+  exit 1
+fi
+exec bash /opt/GameCore/install/arch.sh "$@"
+EOF
+  chmod 755 "${pkgdir}/usr/bin/gamecore-setup"
+
+  # No license file is installed, and that is correct twice over: the release
+  # archive does not carry LICENSE (it ships only the nine directories above),
+  # and GPL-3.0-or-later is one of Arch's common licenses — /usr/share/licenses/
+  # common/GPL3 already exists on every system, so packages using it do not
+  # ship their own copy.
+}
