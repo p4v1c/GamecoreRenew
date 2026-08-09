@@ -90,7 +90,16 @@ included, so the install works with no network at all.
 
 1. Download `gamecore-<version>.iso` and `gamecore-<version>.iso.sha256` from
    the [latest release](https://github.com/p4v1c/GamecoreRenew/releases/latest).
-2. Check it — a truncated download produces a stick that boots halfway:
+
+   The image carries a whole desktop and all three GPU driver stacks, so it is
+   often larger than the 2 GiB GitHub allows for one release asset. When it is,
+   the release carries `gamecore-<version>.iso.00.part`, `.01.part` … and a
+   `REASSEMBLE.txt` instead. Download them all, then:
+   ```bash
+   cat gamecore-*.iso.*.part > gamecore-<version>.iso
+   ```
+2. Check it — a truncated download produces a stick that boots halfway. The
+   checksum covers the whole image, so it verifies a reassembled one too:
    ```bash
    sha256sum -c gamecore-*.iso.sha256
    ```

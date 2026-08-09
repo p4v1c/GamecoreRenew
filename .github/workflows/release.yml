@@ -289,15 +289,58 @@ jobs:
           bash install/iso/build.sh --out "$PWD/out"
           ls -lh out/
 
+      # GitHub refuses any release asset over 2 GiB. This image is a whole
+      # desktop — Plasma, all three GPU driver stacks, linux-firmware — plus the
+      # offline payload, so it is expected to be over that line, and "the upload
+      # step failed" is not a useful thing to discover on a release day.
+      #
+      # Split rather than trimmed: every one of those packages is there because
+      # an offline install on unknown hardware needs it (see packages.x86_64),
+      # so shipping the image in parts costs one `cat` and shipping it smaller
+      # costs a box that boots to a black screen.
+      #
+      # The .sha256 keeps covering the WHOLE image, which is what makes the
+      # reassembly checkable: cat the parts, verify, burn.
+      - name: Split the image if GitHub cannot take it whole
+        working-directory: out
+        run: |
+          iso=$(ls -- *.iso)
+          limit=$((2 * 1024 * 1024 * 1024))
+          size=$(stat -c%s -- "$iso")
+          echo "$iso is $((size / 1024 / 1024)) MiB (GitHub's asset limit is 2048 MiB)"
+          if [ "$size" -le "$limit" ]; then
+            echo "fits — uploading it whole."
+            exit 0
+          fi
+          # 1900 MiB leaves headroom under the limit without producing a long
+          # tail of parts.
+          split -b 1900M -d --additional-suffix=.part -- "$iso" "${iso}."
+          rm -f -- "$iso"
+          cat > REASSEMBLE.txt <<EOF
+          ${iso} is larger than the 2 GiB GitHub allows for a single release
+          asset, so it is published in parts.
+
+          Download every ${iso}.NN.part file and the .sha256, then:
+
+              cat ${iso}.*.part > ${iso}
+              sha256sum -c ${iso}.sha256
+
+          The checksum covers the reassembled image. Only write it to a USB
+          stick once that check says OK.
+          EOF
+          ls -lh
+
       - name: Attach the ISO to the release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.build.outputs.tag }}
-          files: |
-            out/*.iso
-            out/*.iso.sha256
-          # Same reasoning as the core assets: a missing image must be a failed
-          # job, not a release page that quietly has one fewer download.
+          # The whole directory, because what is in it depends on the step
+          # above — one .iso, or N .part files plus REASSEMBLE.txt. Naming
+          # `out/*.iso` here would make every split build fail on an unmatched
+          # glob, which is the opposite of what the split is for.
+          files: out/*
+          # build.sh always writes at least an image and its .sha256, so an
+          # empty out/ means the build produced nothing and said it succeeded.
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
