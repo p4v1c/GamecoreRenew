@@ -1,6 +1,6 @@
 # Theme SDK — specification
 
-> **Status: implemented.** Items 1–5 and 7 of §14 are in the tree, and so is
+> **Status: implemented.** Items 1–5 and 7 of §16 are in the tree, and so is
 > item 6 (extracting the whole default UI behind `sdk.defaults`): the surfaces
 > listed in §5 are exposed, and so are the settings sub-pages, through
 > `sdk.defaults.DefaultSettingsPages`.
@@ -366,7 +366,13 @@ there is no import map to maintain and only one React instance exists.
 | `sdk.input` | `onGp(event, handler)`, `useGamepadState()`, `GP_BTN`, `events` | [event bus](../architecture/05-frontend.md#the-gamepad-event-bus--hooksusegamepadts) |
 | `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `sound` (read-only `enabled` / `volume`), `gamecore`, `asset(path)` | `asset()` resolves a path inside the theme folder |
 | `sdk.themes` | `list()`, `select(id \| null)` | so a theme can dress its own theme picker. `select()` is the host's: it clears safe mode, resets the crash count and reloads the frontend |
-| `sdk.defaults` | `Shell` (the default frontend, takes parts), every screen, `DefaultSettingsPages` (wifi, audio, bluetooth, standby, themes, update, desktop), `SettingsOverlay`, `DefaultKeyboard`, `launchApp` | compose instead of rewrite. The pages already carry their own overlay — render them bare; `SettingsOverlay` is only there if you write a page of your own |
+| `sdk.defaults` | `Shell` (the default frontend, takes parts), every screen, `DefaultSettingsPages`, `SettingsOverlay`, `DefaultKeyboard`, `launchApp` | compose instead of rewrite. The pages already carry their own overlay — render them bare; `SettingsOverlay` is only there if you write a page of your own |
+
+`DefaultSettingsPages` is deliberately not enumerated here. It gained `catalog`
+and `bios` after this table was written and the table did not follow, so the one
+document a theme author reads to find out what exists listed seven of the nine
+pages that did. `Object.keys(sdk.defaults.DefaultSettingsPages)` is the list, at
+runtime, and it is the only copy of it that cannot go stale.
 
 `modalDepth` and `powerPending` are readable through `get()` but there is no
 setter: they are the core's focus and shutdown locks.

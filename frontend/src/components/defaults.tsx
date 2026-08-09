@@ -64,8 +64,8 @@ export const Shell = DefaultShell
  * The container to write a NEW settings page in, so it gets the same width,
  * padding and scroll as the built-in ones.
  *
- * Not for wrapping the pages in `DefaultSettingsPages`: all eight already
- * render their own `<Overlay>` as their root. This used to say they were
+ * Not for wrapping the pages in `DefaultSettingsPages`: every one of them
+ * already renders its own `<Overlay>` as its root. This used to say they were
  * "fragments, not modals" and had to be wrapped — true before they each gained
  * one, and the opposite of true after. A theme author following it nested an
  * Overlay inside an Overlay and got exactly the broken width, margins and
