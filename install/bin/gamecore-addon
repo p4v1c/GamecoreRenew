@@ -9,24 +9,57 @@
 #  update [<name>]  git pull + re-run install.sh (default: all installed)
 #
 #  The repo checkout IS the runtime: services run straight from
-#  $GCA_REPO_DIR. The registry ($GAMECORE_PATH/config/addons.json)
+#  $GCA_REPO_DIR. The registry ($GAMECORE_DATA/config/addons.json)
 #  is written by this tool only — addon scripts never touch it.
 #
 #  Env overrides (sandbox / ISO):
 #    GCA_REPO_URL   addons repo         (default: p4v1c/gamecore-addons)
-#    GCA_REPO_DIR   checkout dir        (default: /opt/gamecore-addons)
+#    GCA_REPO_DIR   checkout dir        (default: see below)
 #    GAMECORE_PATH  core install dir    (default: /opt/GameCore)
+#    GAMECORE_DATA  player data dir     (default: $GAMECORE_PATH)
 #    OFFLINE=1      never hit the network (repo comes from PAYLOAD_DIR)
 #    PAYLOAD_DIR    offline assets dir for the ISO installer
+#
+#  ── The hook contract, version 1 ────────────────────────────────
+#  An addon's install.sh / uninstall.sh is handed GAMECORE_DATA and
+#  ADDON_DATA_DIR, and must write to those. GAMECORE_PATH is passed
+#  for reading only: it becomes a read-only mount, and an addon that
+#  writes under it will fail at install time on a box nobody is
+#  watching. addon.json must declare `"api": 1` to say it knows this;
+#  one without it is refused by name rather than left to write into a
+#  directory that will not accept it.
 # ================================================================
 set -euo pipefail
 
 GCA_REPO_URL="${GCA_REPO_URL:-https://github.com/p4v1c/gamecore-addons.git}"
-GCA_REPO_DIR="${GCA_REPO_DIR:-/opt/gamecore-addons}"
 GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
+# Defaults to the install, exactly like the backend's services/paths.py: until
+# the data physically moves (P12) the two are the same directory, and nothing
+# an addon touches changes location on the release that introduces this.
+GAMECORE_DATA="${GAMECORE_DATA:-$GAMECORE_PATH}"
 OFFLINE="${OFFLINE:-0}"
 PAYLOAD_DIR="${PAYLOAD_DIR:-}"
-REGISTRY="${GAMECORE_PATH}/config/addons.json"
+REGISTRY="${GAMECORE_DATA}/config/addons.json"
+
+# The checkout is git-managed code, but the player installs and removes it at
+# runtime — so it cannot live on a read-only root, and it is not shipped by the
+# OTA either. It is the fourth category the code/data split did not have a name
+# for: mutable code, which belongs on the data side.
+#
+# An existing /opt/gamecore-addons keeps being used. Every box installed before
+# this release has its addons there, with services already pointing into it;
+# relocating it from under them would break running addons for no gain, and the
+# player would have no way to tell why.
+if [[ -z "${GCA_REPO_DIR:-}" ]]; then
+  if [[ -d /opt/gamecore-addons/.git || -d /opt/gamecore-addons/addons ]]; then
+    GCA_REPO_DIR="/opt/gamecore-addons"
+  else
+    GCA_REPO_DIR="${GAMECORE_DATA}/addons/_repo"
+  fi
+fi
+
+# The hook contract this CLI speaks. Bumped only when a guarantee is withdrawn.
+GCA_API_VERSION=1
 
 # systemctl --user must work when we are called from a system service
 # (the core backend drives this CLI from the Addons screen).
@@ -133,6 +166,26 @@ addon_dir() {  # addon_dir <name> — validates the name, echoes the path
   echo "$dir"
 }
 
+check_api() {  # check_api <addon-dir> — refuse an addon written before the split
+  local dir="$1" name declared
+  name="$(basename "$dir")"
+  declared="$(meta "$dir" api)"
+  if [[ -z "$declared" ]]; then
+    die "addon '$name' does not declare an api version in addon.json.
+
+  It was written before GameCore separated code from data, so it may well
+  write under \$GAMECORE_PATH — which is becoming a read-only mount. Refusing
+  now, by name, rather than letting it install and fail later on a box with
+  nobody in front of it.
+
+  To port it: write to \$ADDON_DATA_DIR (or under \$GAMECORE_DATA), never to
+  \$GAMECORE_PATH, then add \"api\": $GCA_API_VERSION to its addon.json."
+  fi
+  if [[ "$declared" != "$GCA_API_VERSION" ]]; then
+    die "addon '$name' speaks api $declared, this GameCore speaks $GCA_API_VERSION."
+  fi
+}
+
 run_script() {  # run_script <addon-dir> <install.sh|uninstall.sh>
   local dir="$1" script="$2"
   [[ -f "$dir/$script" ]] || die "$script missing for addon $(basename "$dir")"
@@ -140,8 +193,17 @@ run_script() {  # run_script <addon-dir> <install.sh|uninstall.sh>
   if [[ "$scope" == "system" && $EUID -ne 0 ]]; then
     die "addon '$(basename "$dir")' installs a system service — run with sudo"
   fi
+  # The addon's own writable corner, created before the hook runs so that
+  # `install.sh` can simply write into it — an addon should not have to know
+  # how GameCore lays out its data to keep a config file.
+  local addon_data
+  addon_data="${GAMECORE_DATA}/addons/$(basename "$dir")"
+  mkdir -p "$addon_data" 2>/dev/null || true
   USER_NAME="${SUDO_USER:-$(id -un)}" \
   GAMECORE_PATH="$GAMECORE_PATH" \
+  GAMECORE_DATA="$GAMECORE_DATA" \
+  GAMECORE_ADDON_API="$GCA_API_VERSION" \
+  ADDON_DATA_DIR="$addon_data" \
   GAMECORE_BACKEND_PORT="${GAMECORE_BACKEND_PORT:-8765}" \
   ADDON_DIR="$dir" \
   OFFLINE="$OFFLINE" \
@@ -154,6 +216,7 @@ cmd_install() {
   local name="${1:-}"; [[ -n "$name" ]] || die "usage: gamecore-addon install <name>"
   ensure_repo pull
   local dir; dir="$(addon_dir "$name")"
+  check_api "$dir"
   info "Installing '$name' v$(meta "$dir" version)"
   run_script "$dir" install.sh
   registry_add "$dir"
@@ -201,6 +264,7 @@ cmd_update() {
       info "WARNING: '$name' is not in the repo anymore — skipped."
       continue
     fi
+    check_api "$dir"
     info "Updating '$name' → v$(meta "$dir" version)"
     run_script "$dir" install.sh
     registry_add "$dir"

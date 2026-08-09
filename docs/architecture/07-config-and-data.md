@@ -2,19 +2,52 @@
 
 Everything the box stores, and who writes it.
 
-## Path resolution — `backend/config.py`
+## Path resolution — `backend/services/paths.py`
 
-Nothing hardcodes `/opt/GameCore`. Every path derives from `GAMECORE_ROOT`,
-which is `$GAMECORE_PATH` or the repo root.
+Nothing hardcodes `/opt/GameCore`, and nothing outside this one module decides
+where anything lives. There are **two roots**:
+
+| Root | Env | Holds | Writable |
+|---|---|---|---|
+| `GAMECORE_ROOT` | `$GAMECORE_PATH` or the repo root | backend, venv, frontend build, catalogue, installers | no (that is the goal) |
+| `GAMECORE_DATA` | `$GAMECORE_DATA`, **defaulting to `GAMECORE_ROOT`** | ROMs, generated config, covers, scraped media, overlays, playtime | yes |
+
+**The default is the whole safety property, not a placeholder.** The release
+that introduced the split reaches production boxes over OTA with nobody in
+front of them, and `update/linux.sh` rsyncs into `GAMECORE_PATH` while
+excluding `emu/` and `config/` — the two directories a split moves. If the new
+code looked for data anywhere other than where the rsync left it, every box
+would boot with an empty library and no settings, and the rollback would hand
+the *old* code a tree the *new* code had moved. So the pointer moves and the
+bytes do not: after the update every path resolves to the byte-identical
+location it did before. Moving the bytes is a separate, human-typed operation
+(`scripts/migrate-userdata.py`), deliberately unreachable from the updater.
+
+`paths._LAYOUT` is the table of writable locations, and it deliberately keeps
+today's names (`emu/`, `config/`, `assets/overlays/`) rather than the eventual
+`roms/ overlays/ media/`. Renaming there either moves bytes on every installed
+box or ships a second layout no test and no real box has exercised. The rename
+is one edit to that table, and it belongs with the move.
+
+`backend/tests/test_paths.py` enforces both halves mechanically — no module
+outside `paths.py` may join a writable directory onto the code root, and none
+may read the root variables from the environment. It works on the AST, not on
+a grep, because half these modules discuss `config/` and `emu/` at length in
+their docstrings.
+
+`backend/config.py` re-exports the names the backend has always imported:
 
 | Constant | Value |
 |---|---|
-| `GAMECORE_ROOT` | `$GAMECORE_PATH` or the repo root |
-| `SYSTEMS_FILE` | `config/systems.json` |
-| `APPS_FILE` | `config/apps.json` |
-| `PLAYTIME_DB` | `config/playtime.db` |
-| `COVERS_DIR` | `emu/covers` |
-| `ASSETS_DIR` | `assets/` |
+| `GAMECORE_ROOT` | the installation |
+| `GAMECORE_DATA` | the data root |
+| `SYSTEMS_FILE` | `<DATA>/config/systems.json` |
+| `APPS_FILE` | `<DATA>/config/apps.json` |
+| `PLAYTIME_DB` | `<DATA>/config/playtime.db` |
+| `COVERS_DIR` | `<DATA>/emu/covers` |
+| `OVERLAYS_DIR` | `<DATA>/assets/overlays` |
+| `LOGOS_DIR` | `<DATA>/assets/logos` |
+| `ASSETS_DIR` | `<ROOT>/assets/` — the shipped tree |
 | `BACKEND_PORT` | `$GAMECORE_BACKEND_PORT` or 8765 |
 | `APP_VERSION` | contents of `VERSION` (written by the OTA script) |
 | `GITHUB_REPO`, `UPDATE_ASSET` | `p4v1c/GamecoreRenew`, `gamecore-ota.tar.gz` |
@@ -30,7 +63,8 @@ installer writes them into one systemd drop-in,
 
 | Variable | For |
 |---|---|
-| `GAMECORE_PATH` | the install root |
+| `GAMECORE_PATH` | the install root (code) |
+| `GAMECORE_DATA` | the data root. Unset = the install root, which is what every box installed before the split runs |
 | `GAMECORE_BACKEND_PORT` | the API port |
 | `THEGAMESDB_API_KEY` | `services/scraper.py`, `services/metadata.py` |
 | `SCREENSCRAPER_DEV_ID` / `SCREENSCRAPER_DEV_PASSWORD` | **developer** credentials, granted per software on the ScreenScraper forum. The id is the developer's *pseudonym*, not the number in the `devinfos.php` URL |
@@ -225,7 +259,54 @@ Keyed by system id:
 Written by the `gamecore-addon` CLI from each addon's `addon.json`. Served
 verbatim by `GET /api/addons` and `GET /gc/addons`. Fields that matter
 downstream: `name`, `label`, `port`, `path` (`/roms`, `/saves`, `/rpcs3`),
-`type` (`web` addons get a nav link), `version`.
+`type` (`web` addons get a nav link), `version`, `api`.
+
+It lives under `<DATA>/config/`, and the CLI and `routers/addons.py` had to
+move together — the CLI writes it, the backend reads it, and a box where only
+one of them had moved would show an empty Addons screen while having addons
+installed.
+
+### The hook contract — `api: 1`
+
+**This is a public contract, and versioning it is a breaking change.** It is
+the part of the split that reaches outside this repository: third-party addons
+were written when `$GAMECORE_PATH` was writable, and a read-only root breaks
+them at install time, on a box in somebody's living room, with the Addons
+screen showing a script's stderr.
+
+So an addon must declare `"api": 1` in its `addon.json`. One that does not is
+**refused before anything runs**, by name, with the porting instructions — the
+person reading that message is a player on a television, not the addon's
+author.
+
+What `install.sh` / `uninstall.sh` receive:
+
+| Variable | Meaning |
+|---|---|
+| `GAMECORE_DATA` | the data root. **Write here.** |
+| `ADDON_DATA_DIR` | `<DATA>/addons/<id>/`, created before the hook runs — an addon should not have to know the layout to keep a config file |
+| `GAMECORE_PATH` | the install root. **Read-only.** Passed so an addon can find shipped code, never so it can write |
+| `GAMECORE_ADDON_API` | the version the CLI speaks |
+| `ADDON_DIR`, `USER_NAME`, `GAMECORE_BACKEND_PORT`, `OFFLINE`, `PAYLOAD_DIR` | unchanged |
+
+**The gate is on install and update, never on remove.** A box updated to this
+release has addons installed by the old CLI, none of which declares a version.
+Refusing to remove them would strand the player with something they cannot
+uninstall from the screen that installed it — the update would have taken away
+the exit.
+
+### `/opt/gamecore-addons` — the fourth category
+
+The checkout is git-managed code, but the player installs and removes it at
+runtime, so it can live on neither a read-only root nor the OTA. It is
+**mutable code**, which the code/data split had no name for, and it belongs on
+the data side: new installs put it at `<DATA>/addons/_repo` (addon ids cannot
+start with `_`, so it cannot collide with an addon's own directory).
+
+An existing `/opt/gamecore-addons` keeps being used. Boxes installed before
+this release have their addons there with services already pointing into it;
+relocating it from under them would break running addons for no gain, and the
+player would have no way to tell why.
 
 ## `config/standby.json`
 
