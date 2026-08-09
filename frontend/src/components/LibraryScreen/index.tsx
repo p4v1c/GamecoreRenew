@@ -13,7 +13,7 @@ import { api, GameEntry, PlaytimeEntry, SystemEntry } from '../../api'
 import { onGp } from '../../hooks/useGamepad'
 import { hexToRgb, Overlay } from '../ui'
 import { VirtualKeyboard } from '../ui/VirtualKeyboard'
-import { SYSTEM_COLORS } from '../../lib/systemColors'
+import { systemColor } from '../../lib/format'
 import { formatGameName } from '../../lib/formatGameName'
 import { playSound } from '../../lib/sounds'
 import { useThemeCtx } from '../ThemeSurface'
@@ -21,7 +21,7 @@ import DefaultLibraryView from './DefaultLibraryView'
 import CoverImage from './CoverImage'
 import GameMetaPanel from './GameMetaPanel'
 import GameOptionsModal from '../modals/game/GameOptionsModal'
-import { SORT_KEYS, type SortKey, type LibraryViewProps } from './types'
+import { SORT_KEYS, SORT_LABELS, type SortKey, type LibraryViewProps } from './types'
 
 interface Props {
   view?: React.ComponentType<LibraryViewProps>
@@ -69,7 +69,10 @@ export default function LibraryScreen({ view: View = DefaultLibraryView }: Props
     return () => closeModal()
   }, [showOptions]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const color = (system?.color || SYSTEM_COLORS[selectedSystemId?.toLowerCase() || ''] || '#7c3aed')
+  // One resolver, shared with SystemCard and handed to themes as
+  // sdk.format.systemColor — this used to be a third hand-rolled copy of the
+  // same fallback chain.
+  const color = systemColor({ id: selectedSystemId ?? '', color: system?.color })
 
   const loadData = useCallback((systemId: string) => {
     setLoading(true)
@@ -243,6 +246,8 @@ export default function LibraryScreen({ view: View = DefaultLibraryView }: Props
         selectedIdx={selectedGameIdx}
         detailGame={settledGame}
         sort={sort}
+        sortKeys={SORT_KEYS}
+        sortLabels={SORT_LABELS}
         search={search}
         loading={loading}
         loadError={loadError}

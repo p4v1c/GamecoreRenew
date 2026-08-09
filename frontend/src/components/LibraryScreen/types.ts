@@ -35,6 +35,17 @@ export interface LibraryViewProps {
    */
   detailGame: GameEntry | null
   sort: SortKey
+  /**
+   * Every sort the host cycles through with L1/R1, and their labels.
+   *
+   * Handed over rather than left to the view because the view does not choose
+   * them: L1/R1 walk this list in LibraryScreen, so a theme that typed its own
+   * copy would draw one set of options while the buttons cycled another the
+   * day a fourth sort is added. The default view imported them directly, which
+   * a theme cannot do.
+   */
+  sortKeys: SortKey[]
+  sortLabels: Record<SortKey, string>
   search: string
   loading: boolean
   loadError: boolean

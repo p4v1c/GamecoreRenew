@@ -18,6 +18,7 @@ import { onGp, useGamepadState, GP_BTN, isPlaying } from '../hooks/useGamepad'
 import { rumble, rumbleSettings, type RumblePattern } from './rumble'
 import { onWsEvent } from '../hooks/useWebSocket'
 import { playSound, getAudioContext, soundSettings } from './sounds'
+import { formatGameName, hexToRgb, fmtTime, fmtDate, systemColor } from './format'
 import * as defaults from '../components/defaults'
 
 /** SDK major. Bumped only when something is removed or changes shape. */
@@ -39,6 +40,7 @@ export interface ThemeSdk {
   version: number
   ui: Record<string, unknown>
   api: typeof api
+  format: Record<string, unknown>
   nav: Record<string, unknown>
   themes: Record<string, unknown>
   input: Record<string, unknown>
@@ -67,6 +69,28 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
     },
 
     api,
+
+    /**
+     * How the rest of the UI renders the box's data.
+     *
+     * Not conveniences: these are the difference between a theme that shows
+     * the same information as the default and one that shows it *differently*.
+     * A theme reimplementing `gameName` gets ROM-name cleanup subtly wrong, and
+     * one reimplementing `systemColor` misses that `system.color` is optional
+     * and paints half the dashboard purple.
+     */
+    format: {
+      /** `Super_Mario_64_(USA).z64` → `Super Mario 64`. */
+      gameName: formatGameName,
+      /** Seconds → the playtime string the whole UI uses. */
+      time: fmtTime,
+      /** ISO date → the "last played" string. */
+      date: fmtDate,
+      /** `#7c3aed` → `124, 58, 237`, for rgba() in your own styles. */
+      hexToRgb,
+      /** A system's accent: its pack's colour, the catalogue's, then the default. */
+      systemColor,
+    },
 
     /**
      * So a theme can dress its own theme picker instead of falling back to the

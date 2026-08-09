@@ -8,11 +8,11 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { fmtTime, fmtDate, hexToRgb, Chip } from '../ui'
 import { formatGameName } from '../../lib/formatGameName'
-import { SORT_KEYS, SORT_LABELS, type LibraryViewProps } from './types'
+import type { LibraryViewProps } from './types'
 
 export default function DefaultLibraryView({
   systemId, system, games, totalCount, playtime, selectedIdx, detailGame,
-  sort, search, loading, loadError, launching, color,
+  sort, sortKeys, sortLabels, search, loading, loadError, launching, color,
   onSelect, onSearch, onSort, onLaunch, onBack, onRetry, Cover, Meta,
 }: LibraryViewProps) {
   const rgb = hexToRgb(color)
@@ -70,14 +70,14 @@ export default function DefaultLibraryView({
 
         {/* Sort */}
         <div style={{ display: 'flex', gap: 6 }}>
-          {SORT_KEYS.map(v => (
+          {sortKeys.map(v => (
             <button key={v} onClick={() => onSort(v)} style={{
               padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 500,
               background: sort === v ? `rgba(${rgb},0.2)` : 'transparent',
               color: sort === v ? color : 'rgba(255,255,255,0.35)',
               border: sort === v ? `1px solid ${color}50` : '1px solid transparent',
               transition: 'all 0.15s',
-            }}>{SORT_LABELS[v]}</button>
+            }}>{sortLabels[v]}</button>
           ))}
         </div>
       </div>
