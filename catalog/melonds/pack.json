@@ -9,7 +9,7 @@
   "order": 9,
   "install": {
     "provider": "flatpak",
-    "appId": "net.kuribo64.melonDS"
+    "appIds": ["net.kuribo64.melonDS"]
   },
   "launch": {
     "path": "flatpak",

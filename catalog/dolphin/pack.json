@@ -9,7 +9,7 @@
   "order": 2,
   "install": {
     "provider": "flatpak",
-    "appId": "org.DolphinEmu.dolphin-emu"
+    "appIds": ["org.DolphinEmu.dolphin-emu"]
   },
   "launch": {
     "path": "flatpak",

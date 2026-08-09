@@ -9,7 +9,7 @@
   "order": 0,
   "install": {
     "provider": "flatpak",
-    "appId": "org.azahar_emu.Azahar"
+    "appIds": ["org.azahar_emu.Azahar"]
   },
   "launch": {
     "path": "flatpak",

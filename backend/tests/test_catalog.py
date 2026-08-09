@@ -80,7 +80,7 @@ def test_flatpak_config_destinations_derive_from_the_installed_app_id():
     the files, printed a tick, and RMG never saw any of it.
 
     A pack cannot express that: @FLATPAK_CONFIG@ resolves from the SAME
-    install.appId the installer uses, so the two cannot drift.
+    install.appIds the installer picks from, so the two cannot drift.
     """
     for directory in _packs():
         pack = _load(directory)
@@ -89,7 +89,7 @@ def test_flatpak_config_destinations_derive_from_the_installed_app_id():
             continue
         install = pack.get("install") or {}
         assert install.get("provider") == "flatpak", directory.name
-        assert install.get("appId"), directory.name
+        assert install.get("appIds"), directory.name
 
 
 # A seed line that pins a boot ROM by name: `BIOS = ps2-0150e-20001228.bin`.

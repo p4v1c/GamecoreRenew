@@ -39,9 +39,15 @@
         {
           "properties": {
             "provider": { "const": "flatpak" },
-            "appId": { "type": "string", "minLength": 1 }
+            "appIds": {
+              "description": "Ordered candidates, best first. The installer takes the first one the remote still offers; everything else on the box takes the first one actually installed.\n\nA list and not a string because an upstream can vanish overnight — Ryujinx original left Flathub with no warning, and Ryubing is one maintainer's decision away from the same. With a single id that day broke twice and said neither: the install found nothing, and the tile went on launching a name that no longer existed. A second candidate is the difference between a degraded box and a dead slot.\n\nOne entry is perfectly legitimate: it means nobody has found a credible alternative yet, not that the pack forgot.",
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "minItems": 1,
+              "uniqueItems": true
+            }
           },
-          "required": ["provider", "appId"],
+          "required": ["provider", "appIds"],
           "additionalProperties": false
         },
         {
@@ -148,7 +154,7 @@
       "additionalProperties": false,
       "properties": {
         "dir": {
-          "description": "Where the files belong, as a path expression. `@FLATPAK_CONFIG@` and `@FLATPAK_DATA@` expand from the same `install.appId` the installer installs — the gopher64 rule — so a BIOS directory under an app id nobody installs is unexpressible. `@HOME@` and `@GAMECORE_PATH@` are also accepted, for the emulators that are not Flatpak.\n\nThis is NOT `config.dest`: PCSX2 reads its inis from `PCSX2/inis` and its BIOS from `PCSX2/bios`, Cemu keeps `keys.txt` under data/ and its settings under config/. Deriving one from the other would have named the wrong directory for both.",
+          "description": "Where the files belong, as a path expression. `@FLATPAK_CONFIG@` and `@FLATPAK_DATA@` expand from the same `install.appIds` entry the box actually has installed — the gopher64 rule — so a BIOS directory under an app id nobody installs is unexpressible. `@HOME@` and `@GAMECORE_PATH@` are also accepted, for the emulators that are not Flatpak.\n\nThis is NOT `config.dest`: PCSX2 reads its inis from `PCSX2/inis` and its BIOS from `PCSX2/bios`, Cemu keeps `keys.txt` under data/ and its settings under config/. Deriving one from the other would have named the wrong directory for both.",
           "type": "string",
           "minLength": 1
         },

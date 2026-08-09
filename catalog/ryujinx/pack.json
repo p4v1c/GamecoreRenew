@@ -9,7 +9,7 @@
   "order": 3,
   "install": {
     "provider": "flatpak",
-    "appId": "io.github.ryubing.Ryujinx"
+    "appIds": ["io.github.ryubing.Ryujinx"]
   },
   "launch": {
     "path": "flatpak",

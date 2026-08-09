@@ -9,7 +9,7 @@
   "order": 6,
   "install": {
     "provider": "flatpak",
-    "appId": "net.rpcs3.RPCS3"
+    "appIds": ["net.rpcs3.RPCS3"]
   },
   "launch": {
     "path": "flatpak",

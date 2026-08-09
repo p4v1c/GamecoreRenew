@@ -9,7 +9,7 @@
   "order": 5,
   "install": {
     "provider": "flatpak",
-    "appId": "net.pcsx2.PCSX2"
+    "appIds": ["net.pcsx2.PCSX2"]
   },
   "launch": {
     "path": "flatpak",

@@ -78,7 +78,7 @@ def _pack_data(kind: str, **overrides) -> dict:
         "description": "A console this project has never heard of.",
         "platform": "newcomer",
         "color": "#123456",
-        "install": {"provider": "flatpak", "appId": NEWCOMER_APP_ID},
+        "install": {"provider": "flatpak", "appIds": [NEWCOMER_APP_ID]},
         "launch": {"path": "flatpak", "args": f"run {NEWCOMER_APP_ID}"},
         "config": {"dest": "@FLATPAK_CONFIG@/newcomer"},
         "packages": {"pacman": ["newcomer-runtime"]},
@@ -142,8 +142,11 @@ def catalogue(tmp_path):
 
 
 def _query(catalog: Path, local: Path, *args: str) -> str:
+    # --no-probe: without it the script asks the DEVELOPER'S flatpak what is
+    # installed, and the answer to "where does this pack's config live" would
+    # depend on which emulators happen to be on the machine running the suite.
     r = subprocess.run(
-        [sys.executable, str(ROOT / "scripts/catalog-query.py"), *args,
+        [sys.executable, str(ROOT / "scripts/catalog-query.py"), *args, "--no-probe",
          "--home", "/home/USER", "--gamecore-path", "/opt/GameCore",
          "--catalog", str(catalog), "--local", str(local)],
         capture_output=True, text=True, timeout=60)
@@ -296,6 +299,8 @@ def test_every_catalog_query_subcommand_sees_the_newcomer(catalogue):
     assert NEWCOMER in _query(catalog, local, "ids").split()
     assert f"{NEWCOMER}\t{NEWCOMER_APP_ID}" in _query(catalog, local, "flatpaks")
     assert NEWCOMER_APP_ID in _query(catalog, local, "app-ids").split()
+    assert f"{NEWCOMER}\t{NEWCOMER_APP_ID}" \
+        in _query(catalog, local, "app-id-candidates")
     assert f"{NEWCOMER}\t/home/USER/.var/app/{NEWCOMER_APP_ID}/config/newcomer" \
         in _query(catalog, local, "config-dest")
     assert NEWCOMER in _query(catalog, local, "rom-dirs").split()

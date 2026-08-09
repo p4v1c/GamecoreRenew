@@ -137,7 +137,9 @@ def merge_systems(live: list[dict], packs: dict, root: Path,
     never added back. `kind` picks which half of the catalogue this file holds.
     """
     removed = removed or set()
-    known_app_ids = {p.app_id for p in packs.values() if p.app_id}
+    # Every candidate, not just the resolved one: a box legitimately running a
+    # fallback must not have its working launcher called stale and rewritten.
+    known_app_ids = {a for p in packs.values() for a in p.app_ids}
     notes: list[str] = []
     out: list[dict] = []
     seen: set[str] = set()

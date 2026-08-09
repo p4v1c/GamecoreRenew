@@ -12,12 +12,13 @@ Four families of check:
   seeds      no seed/ carries an SDL GUID that decodes to a real pad, no seed/
              matches its own `seedMustNotContain`, and no seed carries a
              harvest-box absolute path
-  coherence  no two packs claim the same ROM directory or the same Flatpak
-             app id, and @FLATPAK_CONFIG@ is only used by a Flatpak pack
+  coherence  no two packs claim the same ROM directory or any of the same
+             Flatpak app ids, and @FLATPAK_CONFIG@ is only used by a Flatpak pack
 
 The last one is what makes the gopher64 class of bug structurally impossible:
-`@FLATPAK_CONFIG@` resolves from the SAME `install.appId` the installer uses,
-so the config directory and the installed application cannot drift apart.
+`@FLATPAK_CONFIG@` resolves from the SAME `install.appIds` entry the box has
+installed, so the config directory and the installed application cannot drift
+apart.
 """
 from __future__ import annotations
 
@@ -29,6 +30,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from backend.services.catalog import appid                         # noqa: E402
 from backend.services.catalog.schema import load_schema, validate  # noqa: E402
 from backend.services.configgen.controllers import (                # noqa: E402
     SDL3_FALLBACK_NAMES, db_name_for, vidpid_of,
@@ -119,18 +121,23 @@ def check(only: str | None = None) -> list[str]:
         # wrong format entirely.
 
         # ── coherence ─────────────────────────────────────────────────────
-        install = pack.get("install") or {}
-        app_id = install.get("appId") if install.get("provider") == "flatpak" else None
+        app_ids = appid.declared(pack)
+        app_id = app_ids[0] if app_ids else None
         dest = (cfg or {}).get("dest", "")
         if "@FLATPAK_CONFIG@" in dest and not app_id:
             problems.append(
                 f"{pid}: uses @FLATPAK_CONFIG@ but install.provider is not flatpak — "
                 f"the config dir would resolve against nothing")
-        if app_id:
-            if app_id in seen_appids:
-                problems.append(f"{pid}: Flatpak app id {app_id} already claimed "
-                                f"by {seen_appids[app_id]}")
-            seen_appids[app_id] = pid
+        # EVERY candidate, not just the first. Two packs that share a fallback
+        # would both install it and then both claim its ~/.var/app directory —
+        # the second one's seed overwriting the first one's config, on the day
+        # the primary dies and nowhere before it. Uniqueness has to hold across
+        # the whole list or it does not hold at all.
+        for candidate in app_ids:
+            if candidate in seen_appids:
+                problems.append(f"{pid}: Flatpak app id {candidate} already claimed "
+                                f"by {seen_appids[candidate]}")
+            seen_appids[candidate] = pid
 
         bios = pack.get("bios")
         if bios:

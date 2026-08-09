@@ -9,7 +9,7 @@
   "order": 3,
   "install": {
     "provider": "flatpak",
-    "appId": "com.stremio.Stremio"
+    "appIds": ["com.stremio.Stremio"]
   },
   "sandbox": {
     "device": [

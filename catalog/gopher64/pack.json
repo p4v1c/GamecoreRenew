@@ -9,7 +9,7 @@
   "order": 8,
   "install": {
     "provider": "flatpak",
-    "appId": "com.github.Rosalie241.RMG"
+    "appIds": ["com.github.Rosalie241.RMG"]
   },
   "launch": {
     "path": "flatpak",

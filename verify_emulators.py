@@ -7,8 +7,15 @@ application nobody installs — green on the wrong target, which is worse than
 red. Reading the catalogue is what turns this into the job that would have
 caught the whole thing.
 
+A pack declares an ORDERED list of app ids, so the question is per pack and
+not per id: a pack is healthy when at least one candidate still resolves, and
+degraded — worth an issue, not a red install — when its preferred one is gone
+and a fallback is carrying it. A pack whose whole list is dead is the failure
+this job exists to catch, a week before a player does.
+
 Needs the network. Run it on a schedule, not on every push: CI must not go red
-because Flathub is slow.
+because Flathub is slow. Exits non-zero only on a finding, so the workflow can
+tell "nothing to report" from "Flathub said no".
 """
 import sys
 from pathlib import Path
@@ -18,9 +25,13 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from backend.services.catalog import load_catalog  # noqa: E402
 
+# --no-probe territory: this runs in CI, where no emulator is installed and
+# `flatpak` does not exist. Reading the DECLARED order is the whole point —
+# we are checking the catalogue against upstream, not a box against itself.
 _PACKS = load_catalog()
 
-FLATPAK_IDS = sorted({p.app_id for p in _PACKS.values() if p.app_id})
+FLATPAK_PACKS = [(p.id, p.app_ids)
+                 for p in sorted(_PACKS.values(), key=lambda p: p.id) if p.app_ids]
 
 # The two emulators that do not come from Flathub, and where their releases
 # live. Also from the catalogue: `github-asset` / `github-archive` providers.
@@ -76,38 +87,61 @@ def check_url(url):
 def main():
     print("Verifying Emulators and Resources existence...")
     print("-" * 50)
-    
+
     results = []
-    
+    degraded = []
+
     print("\nChecking Flatpaks on Flathub:")
-    for app_id in FLATPAK_IDS:
-        exists, status = check_flatpak(app_id)
-        results.append((app_id, exists, status))
-        marker = "✓" if exists else "✗"
-        print(f"[{marker}] {app_id:35} : {status}")
+    for pack_id, app_ids in FLATPAK_PACKS:
+        alive = []
+        for app_id in app_ids:
+            exists, status = check_flatpak(app_id)
+            marker = "\u2713" if exists else "\u2717"
+            print(f"[{marker}] {app_id:35} : {status}")
+            if exists:
+                alive.append(app_id)
+        # The pack, not the id, is what has to be reported: one dead candidate
+        # out of two is a catalogue that still works and a fallback that has
+        # been spent. Silence there is how a list quietly becomes a string
+        # again, one disappearance at a time.
+        results.append((f"{pack_id} (no surviving app id)", bool(alive), ""))
+        if alive and alive[0] != app_ids[0]:
+            degraded.append(f"{pack_id}: {app_ids[0]} is gone; "
+                            f"falling back to {alive[0]}")
+        elif len(app_ids) > 1 and len(alive) < len(app_ids):
+            dead = [a for a in app_ids if a not in alive]
+            degraded.append(f"{pack_id}: fallback(s) gone: {', '.join(dead)}")
 
     print("\nChecking GitHub Assets:")
     for label, repo, pattern in GITHUB_ASSETS:
         exists, status = check_github_release_asset(repo, pattern)
         results.append((label, exists, status))
-        marker = "✓" if exists else "✗"
+        marker = "\u2713" if exists else "\u2717"
         print(f"[{marker}] {label:35} : {status}")
 
     print("\nChecking External Resources:")
     sdl2_url = "https://raw.githubusercontent.com/gabomdq/SDL_GameControllerDB/master/gamecontrollerdb.txt"
     exists, status = check_url(sdl2_url)
     results.append(("SDL2 GameControllerDB", exists, status))
-    marker = "✓" if exists else "✗"
+    marker = "\u2713" if exists else "\u2717"
     print(f"[{marker}] {'SDL2 GameControllerDB':35} : {status}")
 
     print("\n" + "-" * 50)
     failed = [r[0] for r in results if not r[1]]
+    for line in degraded:
+        print(f"DEGRADED: {line}")
     if failed:
         print(f"WARNING: {len(failed)} items failed verification!")
         for f in failed:
             print(f" - {f}")
-    else:
+    if not failed and not degraded:
         print("All emulators and resources verified successfully.")
+        return 0
+    # Non-zero on a spent fallback too. A catalogue down to its last app id is
+    # exactly the state this job is meant to give a week's warning about, and
+    # a green tick would spend that week.
+    return 1
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

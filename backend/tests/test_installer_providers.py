@@ -262,3 +262,120 @@ def test_duckstation_and_xenia_are_data_now(packs):
     assert xenia["provider"] == "github-archive"
     assert xenia["entrypoint"] == "xenia_canary.exe"
     assert set(xenia["requires"]) == {"wine", "unzip", "p7zip"}
+
+
+# ── the app id fallback ────────────────────────────────────────────────────
+#
+# The failure being prevented: Ryujinx original left Flathub overnight. A pack
+# that spelled one id in `install.appId` and again in `launch.args` broke twice
+# that day and reported neither — `flatpak install` failed with a generic
+# non-zero, and the tile went on launching a name that no longer existed.
+#
+# These build their pack rather than naming one from the catalogue: every
+# shipped pack declares a single candidate today (nobody has found a credible
+# alternative to any of them yet), so a test that named one would stop testing
+# the fallback the moment that changed.
+
+def _flatpak_pack(app_ids, pack_id="probe"):
+    from backend.services.catalog import Pack
+    return Pack(id=pack_id, origin="shipped", path=Path("/nonexistent"),
+                data={"id": pack_id, "kind": "app", "label": "Probe",
+                      "platform": "probe", "color": "#000000",
+                      "install": {"provider": "flatpak", "appIds": list(app_ids)},
+                      "launch": {"path": "flatpak", "args": "run @APPID@"}})
+
+
+@pytest.fixture
+def flatpak_world(monkeypatch):
+    """A box and a remote, both described rather than probed.
+
+    Nothing here runs flatpak: `--remove-flatpaks` aside, this suite must never
+    change what is installed on the machine running it.
+    """
+    world = {"installed": set(), "remote": set(), "installs": []}
+
+    monkeypatch.setattr(prov.manifest, "flatpak_installed",
+                        lambda app_id: app_id in world["installed"])
+    monkeypatch.setattr(prov, "remote_has",
+                        lambda app_id, *a, **k: app_id in world["remote"])
+    monkeypatch.setattr(prov.manifest, "record_new_flatpak", lambda a: None)
+    monkeypatch.setattr(prov.manifest, "record_flatpak_override", lambda a: None)
+    # The resolver caches what it last saw; a probe here would read the
+    # developer's own machine and leak into every later test in the session.
+    monkeypatch.setattr(prov.appid, "probe", lambda *a, **k: None)
+
+    def fake_run(cmd, *a, **k):
+        if cmd[:2] == ["flatpak", "install"]:
+            world["installs"].append(cmd[-1])
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(prov.subprocess, "run", fake_run)
+    return world
+
+
+def test_a_dead_primary_falls_back_to_the_alternative(flatpak_world, tmp_path, caplog):
+    """Rename an app id in a pack.json and the install must land on the next
+    one — and say so. A silent fallback is how a box ends up running an
+    emulator nobody chose."""
+    flatpak_world["remote"] = {"org.example.Fork"}
+    pack = _flatpak_pack(["org.example.Gone", "org.example.Fork"])
+
+    with caplog.at_level("WARNING"):
+        r = install(pack, Context(gamecore_path=tmp_path))
+
+    assert r.ok, r.message
+    assert flatpak_world["installs"] == ["org.example.Fork"], \
+        "the installer did not move to the surviving candidate"
+    assert any("org.example.Gone is gone from the remote" in m
+               and "falling back to org.example.Fork" in m
+               for m in caplog.messages), \
+        f"no line names the substitution — the owner cannot tell why the box " \
+        f"is running a different app id. Got: {caplog.messages}"
+
+
+def test_the_preferred_candidate_wins_while_it_lives(flatpak_world, tmp_path):
+    """The fallback must not become the default the moment it exists."""
+    flatpak_world["remote"] = {"org.example.Main", "org.example.Fork"}
+    r = install(_flatpak_pack(["org.example.Main", "org.example.Fork"]),
+                Context(gamecore_path=tmp_path))
+    assert r.ok and flatpak_world["installs"] == ["org.example.Main"]
+
+
+def test_what_is_already_installed_beats_what_the_remote_prefers(flatpak_world, tmp_path):
+    """A box that fell back months ago must not be dragged forward when the
+    primary returns. Its saves, its BIOS and its config all live under
+    ~/.var/app/<the id it actually installed>/ — moving the install without
+    moving those is how a player loses a memory card."""
+    flatpak_world["installed"] = {"org.example.Fork"}
+    flatpak_world["remote"] = {"org.example.Main", "org.example.Fork"}
+
+    r = install(_flatpak_pack(["org.example.Main", "org.example.Fork"]),
+                Context(gamecore_path=tmp_path))
+
+    assert r.ok and r.already, r.message
+    assert flatpak_world["installs"] == [], \
+        "a working fallback install was replaced by the preferred candidate"
+
+
+def test_a_whole_dead_list_costs_one_tile_and_names_the_fix(flatpak_world, tmp_path):
+    """Every candidate gone. One tile missing, the install carries on, and the
+    message says what a human has to do about it — the Xenia rule."""
+    r = install(_flatpak_pack(["org.example.Gone", "org.example.AlsoGone"]),
+                Context(gamecore_path=tmp_path))
+    assert not r.ok
+    assert "install.appIds" in r.message, r.message
+    assert flatpak_world["installs"] == []
+
+
+def test_a_single_candidate_never_touches_the_network(flatpak_world, tmp_path, monkeypatch):
+    """Every shipped pack has one candidate. Paying a `remote-info` round trip
+    per emulator to confirm the only choice available would add minutes to
+    every install, and would make a fresh install fail on a slow Flathub."""
+    asked = []
+    monkeypatch.setattr(prov, "remote_has",
+                        lambda app_id, *a, **k: asked.append(app_id) or True)
+
+    r = install(_flatpak_pack(["org.example.Only"]), Context(gamecore_path=tmp_path))
+
+    assert r.ok and flatpak_world["installs"] == ["org.example.Only"]
+    assert asked == [], f"the remote was queried for a pack with no choice: {asked}"

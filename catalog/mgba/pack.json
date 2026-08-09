@@ -9,7 +9,7 @@
   "order": 10,
   "install": {
     "provider": "flatpak",
-    "appId": "io.mgba.mGBA"
+    "appIds": ["io.mgba.mGBA"]
   },
   "launch": {
     "path": "flatpak",

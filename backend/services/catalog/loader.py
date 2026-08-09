@@ -37,6 +37,7 @@ from pathlib import Path
 
 from ...config import GAMECORE_ROOT
 from ..paths import GAMECORE_DATA, catalog_dir, config_dir
+from . import appid
 from .schema import load_schema, validate
 
 log = logging.getLogger(__name__)
@@ -92,15 +93,26 @@ class Pack:
         return self.data.get("kind", "emulator")
 
     @property
+    def app_ids(self) -> list[str]:
+        """Every candidate this pack declares, in preference order."""
+        return appid.declared(self.data)
+
+    @property
     def app_id(self) -> str:
-        install = self.data.get("install") or {}
-        return install.get("appId", "") if install.get("provider") == "flatpak" else ""
+        """The one candidate this box means — see `catalog/appid.py`.
+
+        Installed-aware, but only in a process that asked to be: with no probe
+        recorded this is `appIds[0]`, which is what the old single-valued
+        `install.appId` returned and what keeps the generated `.dist` files
+        identical on every machine that builds them.
+        """
+        return appid.resolve(self.app_ids)
 
     def expand(self, value: str, home: Path) -> Path:
         """A pack path expression, resolved against THIS box.
 
-        The two Flatpak tokens expand from the same `install.appId` the
-        installer installs, which is what makes a phantom directory
+        The two Flatpak tokens expand from the `install.appIds` candidate the
+        box actually has installed, which is what makes a phantom directory
         unexpressible — see `configgen.resolve_config_dir`, which is where this
         started and now calls in here.
 

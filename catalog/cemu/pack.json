@@ -9,7 +9,7 @@
   "order": 1,
   "install": {
     "provider": "flatpak",
-    "appId": "info.cemu.Cemu"
+    "appIds": ["info.cemu.Cemu"]
   },
   "launch": {
     "path": "flatpak",
