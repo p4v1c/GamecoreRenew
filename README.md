@@ -917,7 +917,9 @@ scripts/          catalog-query.py, gamecore-provider.py, gen-catalog.py,
                   check-catalog.py, check-install.sh
 update/           OTA update script (linux.sh)
 docs/             architecture/ (10-part deep dive), themes/ (contract + prompts),
-                  SECURITY.md, TESTING.md, CONTROLLER_MODELS.md, STREMIO.md
+                  SECURITY.md, TESTING.md, CONTROLLER_MODELS.md, STREMIO.md,
+                  STREAMING.md (assessed, not shipped — why a Moonlight host is
+                  not an addon)
 ```
 
 > **Working on the code?** Start at [`docs/architecture/`](docs/architecture/) —
