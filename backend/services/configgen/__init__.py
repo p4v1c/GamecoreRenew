@@ -156,9 +156,16 @@ class ProfileResult(list):
     connection.
     """
 
-    def __init__(self, results=(), skipped=()):
+    def __init__(self, results=(), skipped=(), skipped_labels=()):
         super().__init__(results)
         self.skipped: list[str] = list(skipped)
+        # The same give-ups named the way the player names them. `skipped`
+        # holds diagnostics — "ryujinx: SDL2 would not report a GUID for
+        # 045e:02fd" — which belong in the journal and read as noise on a TV;
+        # this holds "Nintendo Switch". Collected here rather than parsed back
+        # out of the messages, because a pack id is not a system name and the
+        # prefix of a Skip string is not a promise.
+        self.skipped_labels: list[str] = list(skipped_labels)
 
     @property
     def complete(self) -> bool:
@@ -186,6 +193,7 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
               dup_index=dup_index)
     results: list[str] = []
     skipped: list[str] = []
+    skipped_labels: list[str] = []
 
     for pack in profilable_packs(load_catalog()):
         ctl = pack.data.get("controllers") or {}
@@ -222,17 +230,19 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
             log.exception("configgen: %s failed for player %d (%s:%s)",
                           pack.id, player_index, vendor, product)
             skipped.append(f"{pack.id}: internal error (see traceback)")
+            skipped_labels.append(pack.data.get("label") or pack.id)
             continue
 
         if isinstance(msg, Skip):
             skipped.append(str(msg))
+            skipped_labels.append(pack.data.get("label") or pack.id)
         elif msg:
             results.append(msg)
 
     if skipped:
         log.warning("configgen: player %d (%s:%s) — not configured: %s",
                     player_index, vendor, product, "; ".join(skipped))
-    return ProfileResult(results, skipped)
+    return ProfileResult(results, skipped, skipped_labels)
 
 
 def release_profile(player_index: int,

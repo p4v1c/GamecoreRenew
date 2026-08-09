@@ -52,6 +52,65 @@ def test_ryujinx_leaves_the_slot_alone_when_sdl_says_nothing(tmp_path, monkeypat
 
     assert isinstance(msg, Skip), "a give-up has to be reported, not swallowed"
     assert cfg.read_text() == before, "an invented id is worse than an untouched slot"
+    # The wording belongs to THIS branch — SDL was asked and had no GUID. The
+    # test below exists because it used to be said for the other branch too.
+    assert "SDL2 would not report a GUID" in str(msg)
+
+
+def test_ryujinx_does_not_blame_sdl_when_the_probe_never_ran(tmp_path, monkeypatch):
+    """The reference box's actual failure, and the sentence it produced.
+
+    `sdl2_probe` answered `{}` for two unrelated facts — "SDL ran, and this pad
+    is not one of its joysticks" and "the probe subprocess never ran" — so the
+    give-up said *SDL2 would not report a GUID* for a probe SDL was never
+    asked. Three journal lines over several days therefore read as a permanent
+    SDL problem, and the diagnosis went to gamecontrollerdb and to /dev/input
+    permissions. Neither was involved: measured minutes later, that same SDL2
+    returned the GUID ten times out of ten in 0.85 s, and the real fault was
+    transient, at the instant a Bluetooth pad connected.
+
+    The refusal itself is correct and stays — only the sentence changes.
+    """
+    cfg = tmp_path / "Config.json"
+    cfg.write_text(json.dumps({"input_config": [
+        {"player_index": "Player1", "backend": "GamepadSDL2",
+         "id": "0-00000003-054c-0000-cc09-000000006800", "name": "PS4 Controller (0)"}]}))
+    _CFG[0] = cfg
+    monkeypatch.setattr(cc, "sdl2_probe",
+                        lambda v, p, lib="": {"error": "TimeoutExpired"})
+
+    before = cfg.read_text()
+    msg = _ryujinx(2, 0, "045e", "02fd", "Xbox One Controller")
+
+    assert isinstance(msg, Skip), "still a refusal — an invented id is worse"
+    assert cfg.read_text() == before
+    assert "would not report a GUID" not in str(msg), (
+        "SDL was never asked, so it did not decline to answer")
+    assert "could not be run" in str(msg)
+
+
+def test_ryujinx_names_the_emulator_when_the_flatpak_is_gone(tmp_path, monkeypatch):
+    """The third cause, which also arrived as "SDL2 would not report a GUID".
+
+    It is not about SDL at all: the flatpak could not be located, so the
+    emulator's own SDL2 was never reachable and the host's must not stand in
+    for it. Told the old way, the owner would look at the pad; told this way,
+    at the install.
+    """
+    cfg = tmp_path / "Config.json"
+    cfg.write_text(json.dumps({"input_config": [
+        {"player_index": "Player1", "backend": "GamepadSDL2",
+         "id": "0-00000003-054c-0000-cc09-000000006800", "name": "PS4 Controller (0)"}]}))
+    _CFG[0] = cfg
+    monkeypatch.setattr(cc, "flatpak_location", lambda app_id: "")
+
+    before = cfg.read_text()
+    msg = _ryujinx(2, 0, "045e", "02fd", "Xbox One Controller")
+
+    assert isinstance(msg, Skip)
+    assert cfg.read_text() == before
+    assert "could not be located" in str(msg)
+    assert "would not report a GUID" not in str(msg)
 
 def test_ryujinx_does_not_rewrite_a_slot_that_is_already_right(tmp_path, monkeypatch):
     """This was the only writer that rewrote its whole 11 KB config on every

@@ -19,6 +19,10 @@ from __future__ import annotations
 import json
 from collections.abc import Collection
 
+from backend.services.configgen.controllers import (
+    GUID_PROBE_FAILED,
+    GUID_UNREACHABLE,
+)
 from backend.services.configgen.helpers.base import Skip, atomic_write, backup
 
 EMU_ID = "ryujinx"
@@ -66,8 +70,22 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
     # type — and it is Ryujinx that has to recognise what we write. See
     # bundled_sdl2() for the measurement. Falls back to the host's SDL2 when
     # the emulator is a native install rather than a flatpak.
-    new_guid = pad.guid_for(opts["app_id"])
+    new_guid, why = pad.guid_for(opts["app_id"])
     if not new_guid:
+        # The refusal is the same in every case — an invented id is worse than
+        # an untouched slot — but the sentence is not. This one said "SDL2
+        # would not report a GUID" for all three, and on the reference box the
+        # case that fired was the probe failing to run at the instant a
+        # Bluetooth pad connected. SDL had never been asked; measured
+        # afterwards it answered ten times out of ten. Naming the wrong cause
+        # cost a diagnosis that went looking at gamecontrollerdb and
+        # /dev/input permissions, neither of which was involved.
+        if why == GUID_PROBE_FAILED:
+            return Skip(f"ryujinx: the SDL2 probe for {pad.vendor}:{pad.product} "
+                        f"could not be run — Player {i} left as it was")
+        if why == GUID_UNREACHABLE:
+            return Skip(f"ryujinx: {opts['app_id']} could not be located, so its "
+                        f"own SDL2 could not be asked — Player {i} left as it was")
         return Skip(f"ryujinx: SDL2 would not report a GUID for "
                     f"{pad.vendor}:{pad.product} — Player {i} left as it was")
 

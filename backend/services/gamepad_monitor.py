@@ -394,6 +394,12 @@ async def _reconcile(was: dict[str, tuple[str, str, str, int]],
         except Exception:
             log.exception("gamepad_monitor: release_profile failed for slot %d", slot)
 
+    # Which systems this pass gave up on, per pad, for the arrival toast below.
+    # The profiling loop is the only place that knows, and it runs before the
+    # loop that speaks to the player — so the answer has to be carried, not
+    # recomputed. Re-profiling to find out would double every SDL probe.
+    unconfigured: dict[str, list[str]] = {}
+
     for key, dup in dup_indexes(roster).items():
         vendor, product, evdev_name, bustype = live[key]
         player, name = roster[key]
@@ -421,6 +427,7 @@ async def _reconcile(was: dict[str, tuple[str, str, str, int]],
             log.info("gamepad_monitor: player %d profiled (%s, %s:%s, dup %d) — %s",
                      player, name, vendor, product, dup,
                      "; ".join(results) if results else "no emulator configured")
+            unconfigured[key] = list(getattr(results, "skipped_labels", ()))
             if getattr(results, "complete", True):
                 applied[key] = (footprint, 0)          # done, stop asking
             elif retries - 1 <= 0:
@@ -458,11 +465,22 @@ async def _reconcile(was: dict[str, tuple[str, str, str, int]],
                 # silence precisely the pad we understand least.
                 log.exception("gamepad_monitor: could not tell whether %s:%s "
                               "is identified", vendor, product)
+            # A pad can be perfectly identified and STILL be left out of one
+            # emulator — the reference box's Xbox pad was, on the Switch alone,
+            # while every other system bound it. `unmapped` cannot say so: it
+            # answers "can this pad be named", which was true. So the toast was
+            # the green "Controller 1 connected" and the only trace of the
+            # give-up was a journal line nobody reads from a sofa.
+            #
+            # A system missing from one console out of thirteen is exactly the
+            # fault that is undiagnosable from the couch, and it is silent by
+            # construction: the game simply does not answer the pad.
             try:
                 await ws.broadcast("gp:connected",
                                    {"player": player, "label": label,
                                     "vendor": vendor, "product": product,
-                                    "unmapped": unmapped})
+                                    "unmapped": unmapped,
+                                    "unconfigured": unconfigured.get(key, [])})
             except Exception:
                 log.exception("gamepad_monitor: error broadcasting gp:connected")
 

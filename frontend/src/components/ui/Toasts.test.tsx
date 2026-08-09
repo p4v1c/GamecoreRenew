@@ -91,6 +91,40 @@ describe('the unrecognised-controller toast', () => {
     expect(screen.queryByText('Controller 1 connected')).toBeNull()
   })
 
+  it('warns which systems a recognised pad was not set up for', () => {
+    // The reference box's Xbox pad was recognised, so `unmapped` was false and
+    // this took the green "connected" branch — while Ryujinx had been skipped
+    // and the Switch kept running an old mapping. Nothing said so.
+    render(<Toasts />)
+    emit('gp:connected', {
+      player: 1, label: 'Xbox Wireless Controller', unmapped: false,
+      unconfigured: ['Nintendo Switch'],
+    })
+
+    expect(screen.queryByText('Controller 1 connected')).toBeNull()
+    expect(screen.getByText(/Nintendo Switch/)).toBeTruthy()
+  })
+
+  it('sends that warning to the HUD, because it is where the game is', () => {
+    // Unlike the "map it" offer this carries no button, so the HUD can draw
+    // it — and it has to: a pad missing from one console out of thirteen is
+    // only ever noticed while playing that console, which is exactly when the
+    // React window is buried under the emulator.
+    const controllerToast = vi.fn()
+    ;(window as { gamecore?: unknown }).gamecore = { controllerToast }
+
+    render(<Toasts />)
+    emit('gp:connected', {
+      player: 1, label: 'Xbox Wireless Controller', unmapped: false,
+      unconfigured: ['Nintendo Switch'],
+    })
+
+    expect(controllerToast).toHaveBeenCalledOnce()
+    expect(controllerToast.mock.calls[0][0]).toMatchObject({
+      unconfigured: ['Nintendo Switch'],
+    })
+  })
+
   it('takes pointer events back so the button can actually be pressed', () => {
     // The stack is click-through so a toast never steals a press from the
     // screen behind it. A toast that OFFERS something has to take that back,

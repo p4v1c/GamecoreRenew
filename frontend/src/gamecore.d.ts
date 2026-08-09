@@ -18,7 +18,7 @@ interface GamecoreAPI {
   overlayStop:  (system_id: string) => void
 
   batteryToast:    (data: { level: number; player?: number | null }) => void
-  controllerToast: (data: { player?: number | null; label?: string; connected: boolean }) => void
+  controllerToast: (data: { player?: number | null; label?: string; connected: boolean; unconfigured?: string[] }) => void
 
   onOverlayShow:    (cb: (data: OverlayData) => void) => void
   onOverlayHide:    (cb: (data: OverlayData) => void) => void

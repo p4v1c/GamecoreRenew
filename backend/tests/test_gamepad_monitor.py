@@ -694,3 +694,48 @@ def test_a_broken_identification_does_not_lose_the_connect_event(monkeypatch):
     asyncio.run(gm._reconcile({}, live, {}, False, ws))
 
     assert any(e == "gp:connected" for e, _ in ws.sent)
+
+
+def test_the_arrival_toast_names_the_systems_left_unconfigured(monkeypatch):
+    """A recognised pad that one emulator refused must say WHICH one.
+
+    The reference box's Xbox pad was identified fine, so `unmapped` was false
+    and the arrival toast was the green "Controller 1 connected" — while
+    Ryujinx had been skipped and the Switch went on running an old mapping.
+    `unmapped` cannot carry this: it answers "can this pad be named", which
+    was true. Nothing else reached the player, and a journal line is not
+    something anyone reads from a sofa.
+    """
+    reg._slots.clear(); reg._labels.clear()
+    monkeypatch.setattr(cp, "resolve_name", lambda v, p, n: "Xbox Wireless Controller")
+    monkeypatch.setattr(cp, "apply_profile", lambda pl, v, p, n, d: cp.ProfileResult(
+        ["rpcs3: Player 1 written"],
+        ["ryujinx: the SDL2 probe for 045e:02fd could not be run"],
+        ["Nintendo Switch"]))
+
+    ws = _RecordingWS()
+    asyncio.run(gm._reconcile({}, gm.pads_by_key(_one_pad()), {}, False, ws))
+
+    arrivals = [d for e, d in ws.sent if e == "gp:connected"]
+    assert arrivals, "a pad that arrived has to be announced"
+    assert arrivals[0]["unconfigured"] == ["Nintendo Switch"], (
+        "the toast cannot warn about a system it was never told about")
+
+
+def test_a_fully_configured_pad_warns_about_nothing(monkeypatch):
+    """The warning must not fire on the ordinary case, or it is noise.
+
+    Same reason the green toast existed in the first place: a pad plugged in
+    and working is news, and a spurious "not set up for …" on every connection
+    would train the player to ignore the one that matters.
+    """
+    reg._slots.clear(); reg._labels.clear()
+    monkeypatch.setattr(cp, "resolve_name", lambda v, p, n: "PS4 Controller")
+    monkeypatch.setattr(cp, "apply_profile",
+                        lambda pl, v, p, n, d: cp.ProfileResult(["rpcs3: Player 1 written"]))
+
+    ws = _RecordingWS()
+    asyncio.run(gm._reconcile({}, gm.pads_by_key(_one_pad()), {}, False, ws))
+
+    arrivals = [d for e, d in ws.sent if e == "gp:connected"]
+    assert arrivals and arrivals[0]["unconfigured"] == []
