@@ -747,6 +747,51 @@ is listed as not selectable with the reason next to it.
 4. Settings → Themes → select.
 5. Iterate: reload, there is nothing to compile.
 
+## 15b. Installing one from somewhere else
+
+```bash
+gamecore-theme install ./my-theme          # a directory
+gamecore-theme install theme.zip           # an archive
+gamecore-theme install https://…/x.zip     # a download
+gamecore-theme install https://…/x.git     # a repository
+gamecore-theme verify  <src>               # check it, install nothing
+gamecore-theme list [--json]
+gamecore-theme remove <id>
+```
+
+There is no `install.sh` and nothing to compile — a theme is a directory of
+plain files (§2), so this tool never runs anything it fetched. It inspects,
+validates and moves.
+
+**Everything is validated in a staging directory before it is moved into
+place**, and that ordering is the point rather than a nicety. The frontend
+imports `config/themes/<id>/index.js` as a module with the SDK handed to it:
+the moment a theme's files exist under `config/themes/`, they are code running
+in the UI process. There is no "installed but not yet checked" state to back
+out of, so a theme that fails validation never occupies that path at all.
+
+Refused, rather than trusted, because the source is somebody else's:
+
+- an archive entry that escapes the destination (`../../etc/…`) — zip slip;
+- any symlink, in the archive or in the tree — the directory is served over
+  HTTP and a link into the ROM library or `/etc` would be followed;
+- an archive that expands past `GCT_MAX_MB` (64 by default);
+- a manifest the **box's own reader** rejects. The rules are not reimplemented
+  here: `backend/services/themes.py` is what the running frontend believes, and
+  a second copy of "what makes a theme valid" would drift into accepting themes
+  the frontend then refuses to load.
+
+Reinstalling keeps the previous copy in `config/themes/.prev/<id>/`, the same
+promise `update/linux.sh` makes. `remove` deselects the theme *before* deleting
+it, so the box is never left pointing at a directory that is not there.
+
+`OFFLINE=1` refuses every network fetch.
+
+> A theme is arbitrary code with access to `sdk.api`, so it can launch games
+> and power the box off. Installing one from a URL is a trust decision, and
+> none of the checks above make it a safe one — they only stop the fetch itself
+> from being the attack. Read what you install.
+
 ## 16. Implementation order
 
 | # | Work | Size |
