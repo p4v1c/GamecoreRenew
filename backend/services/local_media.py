@@ -209,6 +209,28 @@ def _resolve(system_id: str) -> tuple[_Format, str] | None:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
+def format_reader(format_name: str, kind: str):
+    """One parser out of the table above, by FORMAT rather than by system.
+
+    Everything else here is keyed by system id, because everything else here
+    answers a question about a library. `gameid.py` asks a different one — "how
+    is this container read" — and the answer belongs to the format, which is
+    what `_Format` has said since it was written.
+
+    It exists so there is one PARAM.SFO reader and one WIA header reader on the
+    box. Without it `gameid` would carry its own copies, and the day one of
+    them was corrected the other would keep answering with the old offsets: a
+    game whose cover comes from one identity and whose settings are filed under
+    another, with nothing to make the two disagree in public.
+
+    `None` for an unknown format or a reader that format does not have. A
+    GameCube image carries no embedded title however it is opened, and that is
+    a fact about the disc, not a gap to fill in.
+    """
+    fmt = _FORMATS.get(format_name)
+    return getattr(fmt, kind, None) if fmt else None
+
+
 def extract_icon(system_id: str, rom: Path, dest: Path) -> Path | None:
     """Write the game's embedded icon to dest (PNG). None if the system has
     no local icon or the game doesn't carry one."""
