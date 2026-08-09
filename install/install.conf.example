@@ -52,6 +52,19 @@ SS_PASSWORD=''
 # Empty/absent = LAN stays locked until "gamecore-addon auth-reset".
 WEB_PASSWORD=""
 
+# Install without a network: 0 (never), 1 (always), auto (probe once).
+#
+# The ISO writes `auto` into the conf it leaves on the installed machine. A box
+# with a cable in it should still get its system upgrade and its Flatpaks; a box
+# without one must not fail because of it.
+#
+# Offline, the installer takes its Python wheels and its node_modules from the
+# payload the ISO staged (GAMECORE_OFFLINE, /usr/share/gamecore by default)
+# instead of from PyPI and the npm registry. The Flatpak emulators are the one
+# thing that cannot work offline — they are gigabytes from Flathub — so they are
+# reported and skipped, and installed the first time the box sees a network.
+#OFFLINE=0
+
 # ================================================================
 #  Guided disk install — read ONLY by the ISO's gamecore-disk-install.sh.
 #

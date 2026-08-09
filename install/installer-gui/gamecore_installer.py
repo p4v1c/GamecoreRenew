@@ -25,9 +25,9 @@ from pathlib import Path
 from PySide6.QtCore import QProcess, Qt, QThread, Signal
 from PySide6.QtGui import QFont, QTextCursor
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-    QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QRadioButton,
-    QSpinBox, QVBoxLayout, QWizard, QWizardPage,
+    QApplication, QCheckBox, QComboBox, QGridLayout, QHBoxLayout, QLabel,
+    QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton,
+    QRadioButton, QSpinBox, QVBoxLayout, QWizard, QWizardPage,
 )
 
 GITHUB_REPO = "p4v1c/GamecoreRenew"
@@ -151,7 +151,86 @@ class AddonsFetcher(QThread):
 
 
 class Pages:
-    WELCOME, SYSTEM, MODE, EMULATORS, APPS, ADDONS, KEYS, SUMMARY, INSTALL = range(9)
+    # DISK sits between WELCOME and SYSTEM and is registered ONLY on the live
+    # ISO. QWizard's default nextId() walks the registered ids in ascending
+    # order, so an unregistered page is skipped with no branching to maintain —
+    # which is why this is a renumbering rather than an id appended at the end.
+    WELCOME, DISK, SYSTEM, MODE, EMULATORS, APPS, ADDONS, KEYS, SUMMARY, INSTALL = range(10)
+
+
+def iso_payload() -> Path | None:
+    """The GameCore tree baked into the ISO, when running from the live medium.
+
+    gamecore-iso-installer.sh exports GAMECORE_SRC. Its absence is what tells
+    the wizard it is an ordinary desktop install: the disk page disappears, and
+    nothing in this file will touch a partition table.
+    """
+    src = os.environ.get("GAMECORE_SRC", "")
+    if not src:
+        return None
+    p = Path(src)
+    return p if (p / "install" / "arch.sh").is_file() else None
+
+
+def list_target_disks() -> list[dict]:
+    """Whole disks that are plausible install targets.
+
+    The medium the installer booted from is filtered out by name. Offering it
+    is not a theoretical mistake — it is the top entry on a machine with one
+    internal disk and one USB stick, and picking it destroys the running
+    system mid-install.
+    """
+    try:
+        out = subprocess.run(
+            ["lsblk", "-J", "-d", "-b", "-o", "NAME,SIZE,TYPE,MODEL,RM"],
+            capture_output=True, text=True, timeout=10, check=True).stdout
+        devices = json.loads(out).get("blockdevices", [])
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return []
+
+    boot = ""
+    try:
+        src = subprocess.run(["findmnt", "-n", "-o", "SOURCE", "/run/archiso/bootmnt"],
+                             capture_output=True, text=True, timeout=5).stdout.strip()
+        if src:
+            boot = subprocess.run(["lsblk", "-no", "PKNAME", src],
+                                  capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        boot = ""
+
+    disks = []
+    for d in devices:
+        name = str(d.get("name", ""))
+        if d.get("type") != "disk" or name in ("", boot) or name.startswith(("loop", "sr")):
+            continue
+        size = int(d.get("size") or 0)
+        # 16 GiB. Below that the root partition alone does not fit, and the
+        # entry would only be there to be picked by mistake.
+        if size < 16 * 1024**3:
+            continue
+        disks.append({
+            "path": f"/dev/{name}",
+            "size": size,
+            "label": f"/dev/{name} — {size / 1024**3:.0f} GiB "
+                     f"{str(d.get('model') or 'unknown model').strip()}"
+                     f"{'  [removable]' if d.get('rm') else ''}",
+        })
+    return disks
+
+
+def keymaps() -> list[str]:
+    """Console keymaps, from localectl — the machine's own list, not a copy."""
+    try:
+        out = subprocess.run(["localectl", "list-keymaps"],
+                             capture_output=True, text=True, timeout=10, check=True).stdout
+        found = [k for k in out.split() if k]
+        if found:
+            return found
+    except (OSError, subprocess.SubprocessError):
+        pass
+    # localectl needs systemd-localed; if it is not answering, a short list
+    # beats an empty combo box the operator cannot type a keymap into.
+    return ["us", "uk", "fr", "de", "es", "it", "be", "ch", "pt", "dvorak"]
 
 
 def title(text: str) -> QLabel:
@@ -179,6 +258,105 @@ class WelcomePage(QWizardPage):
             "The installation modifies the system (packages, services, auto-login) — "
             "run it on the machine that will live under the TV."))
         lay.addStretch()
+
+
+class DiskPage(QWizardPage):
+    """Where to install — live ISO only.
+
+    Registered by InstallerWizard only when iso_payload() found a payload, so a
+    desktop install never sees it and this class never runs `lsblk` there.
+    """
+
+    def __init__(self):
+        super().__init__()
+        lay = QVBoxLayout(self)
+        lay.addWidget(title("Disk"))
+        lay.addWidget(subtitle(
+            "GameCore will take the whole disk: an EFI partition, the system, and "
+            "a separate /userdata partition for your ROMs, saves and covers.\n\n"
+            "EVERYTHING CURRENTLY ON THE SELECTED DISK IS DESTROYED. There is no "
+            "option to keep an existing partition."))
+
+        self.disks = list_target_disks()
+        self.disk = QComboBox()
+        for d in self.disks:
+            self.disk.addItem(d["label"], d["path"])
+        if not self.disks:
+            self.disk.addItem("no suitable disk found", "")
+            self.disk.setEnabled(False)
+
+        self.root_size = QSpinBox()
+        self.root_size.setRange(30, 2000)
+        self.root_size.setSuffix(" GiB")
+        # 60 GiB, matching gamecore-disk-install.sh's own default. The Flatpak
+        # emulators live in /var/lib/flatpak — on the ROOT partition, not in
+        # /userdata — and thirteen of them plus a KDE runtime is past 30 GiB.
+        self.root_size.setValue(60)
+
+        self.hostname = QLineEdit("gamecore")
+        self.timezone = QComboBox(); self.timezone.setEditable(True)
+        self.keymap = QComboBox(); self.keymap.setEditable(True)
+
+        # The machine's current settings as defaults: the live session already
+        # picked something up, and it is a better guess than a hardcoded "UTC".
+        try:
+            current_tz = Path("/etc/localtime").resolve()
+            tz_root = Path("/usr/share/zoneinfo")
+            tz_default = str(current_tz.relative_to(tz_root))
+        except (OSError, ValueError):
+            tz_default = "UTC"
+        zoneinfo_dir = Path("/usr/share/zoneinfo")
+        zones = sorted(
+            str(p.relative_to(zoneinfo_dir))
+            for p in zoneinfo_dir.glob("*/*")
+            if p.is_file() and not p.name.startswith(".")
+        ) if zoneinfo_dir.is_dir() else []
+        self.timezone.addItems(zones or [tz_default])
+        self.timezone.setCurrentText(tz_default)
+        self.keymap.addItems(keymaps())
+        self.keymap.setCurrentText("us")
+
+        for cap, w in (
+            ("Install to", self.disk),
+            ("System partition size (the rest becomes /userdata)", self.root_size),
+            ("Hostname", self.hostname),
+            ("Time zone", self.timezone),
+            ("Console keyboard layout", self.keymap),
+        ):
+            c = QLabel(cap.upper()); c.setObjectName("hint")
+            lay.addSpacing(8); lay.addWidget(c); lay.addWidget(w)
+        lay.addStretch()
+
+    def validatePage(self):
+        target = self.disk.currentData()
+        if not target:
+            QMessageBox.warning(self, "GameCore",
+                                "No disk to install to was found. GameCore needs a disk of "
+                                "at least 16 GiB that is not the medium you booted from.")
+            return False
+        size = next((d["size"] for d in self.disks if d["path"] == target), 0)
+        # +1 GiB ESP, and /userdata has to be worth having afterwards. Caught
+        # here rather than by sgdisk, which happily creates a 0-sector third
+        # partition and fails at mkfs — with the disk already wiped.
+        if self.root_size.value() * 1024**3 + 2 * 1024**3 >= size:
+            QMessageBox.warning(self, "GameCore",
+                                f"A {self.root_size.value()} GiB system partition leaves no room "
+                                f"for /userdata on a {size / 1024**3:.0f} GiB disk.")
+            return False
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", self.hostname.text().strip()):
+            QMessageBox.warning(self, "GameCore",
+                                "Invalid hostname (lowercase letters, digits and hyphens).")
+            return False
+        if not (Path("/usr/share/zoneinfo") / self.timezone.currentText().strip()).is_file():
+            QMessageBox.warning(self, "GameCore",
+                                f"Unknown time zone '{self.timezone.currentText().strip()}'.")
+            return False
+        return QMessageBox.question(
+            self, "GameCore",
+            f"{target} will be erased completely.\n\n"
+            "Every partition and everything on them is destroyed, and this cannot "
+            "be undone.\n\nContinue?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
 
 
 class SystemPage(QWizardPage):
@@ -414,8 +592,16 @@ class SummaryPage(QWizardPage):
             f"all ({len(EMULATORS)})" if c["emulators"] == "all" else (c["emulators"] or "none"))
         apps = "—" if c["mode"] == "minimal" else (
             f"all ({len(APPS)})" if c["apps"] == "all" else (c["apps"] or "none"))
-        src = "local repository checkout" if w.local_repo else "latest GitHub release (downloaded)"
+        if w.iso_src is not None:
+            src = "this ISO (no download — the release is on the medium)"
+        elif w.local_repo:
+            src = "local repository checkout"
+        else:
+            src = "latest GitHub release (downloaded)"
         rows = [
+            # First row on the ISO, and it names the disk one last time before
+            # the install page starts erasing it.
+            *([("Disk (ERASED)", c["target_disk"])] if w.iso_src is not None else []),
             ("User", c["user"]), ("Install path", c["path"]), ("Backend port", str(c["port"])),
             ("Type", c["mode"]), ("Emulators", emus), ("Applications", apps),
             ("Addons", c["addons"] or "none"),
@@ -487,7 +673,15 @@ class InstallPage(QWizardPage):
             # password containing $, a backtick or a space would otherwise be
             # mangled or executed.
             f"WEB_PASSWORD={shlex.quote(c['web_password'])}",
-        ]) + "\n"
+        ] + ([
+            # ISO only — read by gamecore-disk-install.sh, ignored by arch.sh.
+            "# --- guided disk install (GameCore ISO) ---",
+            f"TARGET_DISK={shlex.quote(c['target_disk'])}",
+            f"ROOT_SIZE={shlex.quote(c['root_size'])}",
+            f"TARGET_HOSTNAME={shlex.quote(c['hostname'])}",
+            f"TIMEZONE={shlex.quote(c['timezone'])}",
+            f"KEYMAP={shlex.quote(c['keymap'])}",
+        ] if w.iso_src is not None else [])) + "\n"
         fd, self.conf_path = tempfile.mkstemp(prefix="gamecore-install-", suffix=".conf")
         with os.fdopen(fd, "w") as f:
             f.write(conf)
@@ -495,7 +689,22 @@ class InstallPage(QWizardPage):
 
         # GAMECORE_PROGRESS=1 makes arch.sh emit the @GC-PROGRESS@ markers
         # that drive the progress bar and the step label below.
-        if w.local_repo:
+        if w.iso_src is not None:
+            # The live ISO: partition, copy the system, arm the first boot.
+            # arch.sh is NOT run from here — it runs on the installed machine at
+            # its first boot, where systemd is real. See the head of
+            # gamecore-disk-install.sh for why that split exists at all.
+            #
+            # --yes, because the operator has already confirmed the disk twice
+            # in this wizard (a dialog naming it, and the page before it). A
+            # third prompt would be typed into a terminal nobody can see: this
+            # process has no tty, so the script's `read` would hang for ever
+            # with the progress bar sitting still.
+            engine = (
+                "export GAMECORE_PROGRESS=1; "
+                f"/usr/local/bin/gamecore-disk-install.sh --yes {shlex.quote(self.conf_path)}"
+            )
+        elif w.local_repo:
             engine = (
                 "export GAMECORE_PROGRESS=1; "
                 f"bash {shlex.quote(str(w.local_repo / 'install' / 'arch.sh'))} --unattended {shlex.quote(self.conf_path)}"
@@ -577,8 +786,18 @@ class InstallPage(QWizardPage):
         if code == 0:
             self.bar.setValue(100)
             self.head.setText("Installation complete 🎉")
-            self.sub.setText("Reboot the machine — GameCore starts automatically on the TV. "
-                             "ROM upload and addons are linked from the interface.")
+            if self.wizard().iso_src is not None:
+                # Not "done" in the sense the desktop path means it: the disk
+                # holds a bootable system, and arch.sh has not run yet. Saying
+                # "reboot, GameCore starts" here would have someone watching a
+                # twenty-minute first boot convinced it had hung.
+                self.sub.setText(
+                    "Remove the USB stick and reboot. The first boot finishes the "
+                    "installation — emulators, services and the kiosk — on the screen, "
+                    "then reboots once more into GameCore. It takes a while.")
+            else:
+                self.sub.setText("Reboot the machine — GameCore starts automatically on the TV. "
+                                 "ROM upload and addons are linked from the interface.")
             self.step.setText("Done.")
         else:
             self.head.setText("Installation failed")
@@ -617,7 +836,13 @@ class InstallerWizard(QWizard):
         self.setOption(QWizard.NoCancelButtonOnLastPage)
         self.resize(760, 560)
         self.local_repo = repo_root()
+        # Set once, read by collect() and by the install page. The ISO exports
+        # GAMECORE_SRC; everywhere else this is None and the wizard behaves
+        # exactly as it did before — same pages, same engine, no lsblk.
+        self.iso_src = iso_payload()
         self.setPage(Pages.WELCOME, WelcomePage())
+        if self.iso_src is not None:
+            self.setPage(Pages.DISK, DiskPage())
         self.setPage(Pages.SYSTEM, SystemPage())
         self.setPage(Pages.MODE, ModePage())
         self.setPage(Pages.EMULATORS, EmulatorsPage())
@@ -677,7 +902,22 @@ class InstallerWizard(QWizard):
         else:
             # addons fetch still pending (user rushed through) — keep the default
             addon_names = "rom-manager"
+        # Present only on the ISO. Empty dict elsewhere, so the conf written by
+        # InstallPage carries no disk keys at all on a desktop install — a
+        # TARGET_DISK sitting in a conf that arch.sh alone will read is a loaded
+        # gun for the next person who passes that file to the ISO.
+        disk: dict = {}
+        if self.iso_src is not None:
+            d: DiskPage = self.page(Pages.DISK)
+            disk = {
+                "target_disk": d.disk.currentData(),
+                "root_size": f"{d.root_size.value()}G",
+                "hostname": d.hostname.text().strip(),
+                "timezone": d.timezone.currentText().strip(),
+                "keymap": d.keymap.currentText().strip(),
+            }
         return {
+            **disk,
             "user": sysp.user.text().strip(),
             "path": sysp.path.text().strip(),
             "port": sysp.port.value(),
