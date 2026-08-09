@@ -22,5 +22,8 @@
       "category": "Game"
     },
     "files": ["main.js", "preload.js"]
+  },
+  "allowScripts": {
+    "electron": true
   }
 }
