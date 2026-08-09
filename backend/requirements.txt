@@ -9,3 +9,7 @@ requests>=2.31.0
 python-xlib>=0.33; sys_platform == "linux"
 pywin32>=306; sys_platform == "win32"
 argon2-cffi>=23.1.0
+# Ed25519 verification for the catalogue OTA channel. Verify-only on a box:
+# no private key ever reaches one. Without it the channel refuses every bundle
+# rather than accepting an unverified one — see services/catalog/signing.py.
+cryptography>=42.0.0

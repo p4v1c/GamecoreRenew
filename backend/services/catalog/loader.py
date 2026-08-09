@@ -77,6 +77,8 @@ class Pack:
 
     @property
     def generator(self) -> Path | None:
+        if self.origin == "remote":
+            return None                  # never, and with no way to opt in
         if self.origin == "local" and not _trust_local():
             return None
         p = self.path / "generator.py"
@@ -148,6 +150,14 @@ def _trust_local() -> bool:
     return os.environ.get("GAMECORE_TRUST_LOCAL_PACKS", "") == "1"
 
 
+def _ota_dir() -> Path:
+    """Imported lazily: `ota.py` pulls in the signing stack, and the loader is
+    on the path `catalog-query.py` takes at 25 % of a fresh install, before
+    `pip install -r backend/requirements.txt` has run."""
+    from .ota import state_dir
+    return state_dir()
+
+
 def _strip_privileged(data: dict, pack_id: str) -> list[str]:
     """Remove the code-executing blocks from a local pack. Returns what went."""
     removed = []
@@ -183,7 +193,18 @@ def _read_pack(directory: Path, origin: str, schema: dict) -> Pack | None:
         return None
 
     stripped: list[str] = []
-    if origin == "local":
+    if origin == "remote":
+        # No opt-in, unlike a local pack. GAMECORE_TRUST_LOCAL_PACKS is the
+        # operator saying "I put that directory there myself"; nobody can say
+        # that about bytes off the network, so there is no environment variable
+        # that turns this off.
+        stripped = _strip_privileged(data, directory.name)
+        if (directory / "generator.py").is_file():
+            stripped.append("generator.py")
+        if stripped:
+            log.warning("catalog: remote pack %r is data-only — ignored %s",
+                        directory.name, ", ".join(sorted(stripped)))
+    elif origin == "local":
         if _trust_local():
             # Deliberately logged on EVERY load, not once: an operator who
             # turned this on months ago must keep being told.
@@ -222,8 +243,25 @@ def _scan(base: Path, origin: str, schema: dict) -> dict[str, Pack]:
 
 
 def load_catalog(catalog_dir: Path | None = None,
-                 local_dir: Path | None = None) -> dict[str, Pack]:
-    """Every pack, local overriding shipped, keyed by id."""
+                 local_dir: Path | None = None,
+                 ota_dir: Path | None = None) -> dict[str, Pack]:
+    """Every pack, keyed by id. Three tiers, later ones overriding earlier.
+
+        shipped   catalog/                 the release
+        remote    <data>/catalog-ota/      signed corrections — see ota.py
+        local     config/catalog.d/        the operator
+
+    The operator is last on purpose. A box whose owner pinned a pack by hand
+    must not have that undone by an endpoint, or the update channel is also a
+    way to overrule the person holding the machine.
+
+    The remote tier is `data-only` like a local pack, and never trusted with
+    code whatever the environment says: `ota.py` drops the privileged blocks
+    before writing, and a bundle is a JSON document that cannot express a
+    `generator.py` in the first place. The strip below is the second of those
+    two, kept because a directory under the OTA path could also get there by
+    other means — a stale cache, a hand copy, a restored backup.
+    """
     shipped_dir = catalog_dir or CATALOG_DIR
     # The schema ships INSIDE catalog/, so it is read from the directory being
     # loaded rather than from a module constant. Otherwise a caller pointing at
@@ -231,14 +269,17 @@ def load_catalog(catalog_dir: Path | None = None,
     # root — would validate it against a schema that is not there.
     schema = load_schema(shipped_dir / "_schema" / "pack.schema.json")
     shipped = _scan(shipped_dir, "shipped", schema)
+    remote = _scan(ota_dir if ota_dir is not None else _ota_dir(), "remote", schema)
     local = _scan(local_dir or LOCAL_DIR, "local", schema)
 
     merged = dict(shipped)
-    for pid, pack in local.items():
-        if pid in shipped:
-            log.info("catalog: %r overridden by the local pack in %s", pid, pack.path)
-        merged[pid] = pack
+    for origin, tier in (("remote", remote), ("local", local)):
+        for pid, pack in tier.items():
+            if pid in merged:
+                log.info("catalog: %r overridden by the %s pack in %s",
+                         pid, origin, pack.path)
+            merged[pid] = pack
 
-    log.info("catalog: %d pack(s) — %d shipped, %d local",
-             len(merged), len(shipped), len(local))
+    log.info("catalog: %d pack(s) — %d shipped, %d remote, %d local",
+             len(merged), len(shipped), len(remote), len(local))
     return merged

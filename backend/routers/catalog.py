@@ -19,14 +19,16 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 import shutil
 
+import httpx
 from fastapi import APIRouter, HTTPException
 
 from .. import ws
-from ..services.paths import config_dir, install_bin_dir
-from ..services.catalog import load_catalog
+from ..services.catalog import load_catalog, ota, signing
+from ..services.paths import catalog_dir, config_dir, install_bin_dir
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 log = logging.getLogger(__name__)
@@ -196,3 +198,95 @@ async def reconfigure_pack(pack_id: str):
 @router.get("/busy")
 def busy():
     return {"busy": _current is not None and not _current.done()}
+
+
+# ── the catalogue's own update channel ─────────────────────────────────────
+#
+# Separate from routers/update.py on purpose. That one ships the application:
+# it runs update/linux.sh, rsyncs a tree and can restart services. This one
+# only ever writes pack.json files into the OTA tier, and that difference is
+# what makes a 24-hour turnaround on a dead app id safe to automate.
+#
+# The endpoint is NOT configured by default. `GAMECORE_CATALOG_URL` is empty
+# unless an operator sets it, and with no public key in catalog/_ota/ the
+# channel refuses everything regardless — a box that was never given a key to
+# trust has no way to be told what to install.
+
+CATALOG_URL = os.environ.get("GAMECORE_CATALOG_URL", "").strip()
+_OTA_TIMEOUT = 30.0
+# 2 MiB. The whole catalogue is ~100 KiB of JSON; the cap is there so a hostile
+# or broken endpoint cannot stream until the box runs out of memory.
+_OTA_MAX_BYTES = 2 * 1024 * 1024
+
+
+def _public_key_path():
+    return catalog_dir() / "_ota" / signing.PUBLIC_KEY_NAME
+
+
+@router.get("/ota/status")
+def catalog_ota_status():
+    """What this box would do, without doing it.
+
+    `configured` is deliberately three separate facts. "It does not work" is
+    not a diagnosis, and the three causes have three different fixes: nobody
+    set the URL, nobody shipped a key to trust, or the release is simply newer
+    than anything the channel has to offer.
+    """
+    key = _public_key_path()
+    return {
+        "url": CATALOG_URL,
+        "configured": bool(CATALOG_URL),
+        "trustAnchor": key.name if key.is_file() else "",
+        "shippedVersion": ota.shipped_version(),
+        "appliedVersion": ota.applied_version(),
+    }
+
+
+@router.post("/ota/refresh")
+async def catalog_ota_refresh():
+    """Fetch the signed bundle and apply it if it is newer.
+
+    Every refusal is a 4xx with the reason in it. A silent no-op here is how a
+    fleet stays broken for a week while the dashboard says the channel is fine.
+    """
+    if not CATALOG_URL:
+        raise HTTPException(501, "no catalogue endpoint configured "
+                                 "(GAMECORE_CATALOG_URL is unset)")
+    key = _public_key_path()
+    if not key.is_file():
+        # Refused before the fetch, not after. A box with no trust anchor has
+        # nothing to gain from downloading the bytes, and every reason not to.
+        raise HTTPException(
+            501, f"no signing key at {key} — an unsigned catalogue decides what "
+                 f"this box installs and launches, so the channel stays off")
+
+    try:
+        async with httpx.AsyncClient(timeout=_OTA_TIMEOUT,
+                                     follow_redirects=False) as client:
+            r = await client.get(CATALOG_URL)
+            r.raise_for_status()
+            body = r.content
+    except Exception as e:
+        raise HTTPException(503, f"catalogue endpoint unreachable: {e}")
+
+    if len(body) > _OTA_MAX_BYTES:
+        raise HTTPException(413, f"the bundle is {len(body)} bytes, over the "
+                                 f"{_OTA_MAX_BYTES} cap")
+
+    try:
+        summary = ota.apply_bundle(body, public_key=key)
+    except signing.SignatureError as e:
+        # 403, not 502: this is not a broken server, it is a bundle this box
+        # will not act on. Logged at ERROR because on a healthy fleet it never
+        # happens, and when it does somebody needs to look.
+        log.error("catalog-ota: REFUSED — %s", e)
+        raise HTTPException(403, f"the catalogue was refused: {e}")
+    except ValueError as e:
+        log.warning("catalog-ota: not applied — %s", e)
+        raise HTTPException(409, str(e))
+
+    try:
+        await ws.broadcast("catalog:updated", summary)
+    except Exception:
+        log.exception("catalog-ota: could not announce the update")
+    return summary

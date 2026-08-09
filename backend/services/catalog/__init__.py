@@ -3,6 +3,7 @@
 See `loader.py` for the merge rule (local wins) and the data-only rule that
 applies to `config/catalog.d/`.
 """
+from . import appid, ota, signing
 from .loader import (
     CATALOG_DIR,
     LOCAL_DIR,
@@ -19,4 +20,5 @@ __all__ = [
     "PRIVILEGED_BLOCKS", "PRIVILEGED_FILES",
     "Pack", "load_catalog",
     "SchemaError", "load_schema", "validate",
+    "appid", "ota", "signing",
 ]

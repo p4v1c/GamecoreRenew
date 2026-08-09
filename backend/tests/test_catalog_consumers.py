@@ -566,3 +566,71 @@ def test_the_prune_still_drops_a_tile_whose_whole_list_is_absent(packs, tmp_path
     assert [t["id"] for t in kept] == [survivor.id], (
         f"expected only {survivor.id} to survive — {doomed.id} declares "
         f"{doomed.app_ids} and none is installed.\n{out}")
+
+
+# ── the weekly upstream check must be able to fire ─────────────────────────
+
+def _run_verify(monkeypatch, alive):
+    """Run verify_emulators.main() with Flathub and GitHub replaced.
+
+    Offline: `alive` is the set of app ids the fake Flathub still knows. The
+    real module is imported by path — it lives at the repo root, not in a
+    package — and its module-level catalogue read is the thing under test, so
+    it is reloaded rather than cached from another test.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("verify_emulators",
+                                                  ROOT / "verify_emulators.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    monkeypatch.setattr(mod, "check_flatpak",
+                        lambda app_id: (app_id in alive,
+                                        "OK" if app_id in alive else "Not Found"))
+    monkeypatch.setattr(mod, "check_github_release_asset",
+                        lambda repo, pattern: (True, "Found"))
+    monkeypatch.setattr(mod, "check_url", lambda url: (True, "OK"))
+    return mod
+
+
+def test_the_weekly_check_is_green_while_every_app_id_lives(packs, monkeypatch, capsys):
+    """The half that keeps the job usable. A check that cries wolf every Monday
+    is a check whose issue nobody opens."""
+    alive = {a for p in packs.values() for a in p.app_ids}
+    mod = _run_verify(monkeypatch, alive)
+    assert mod.main() == 0
+    assert "verified successfully" in capsys.readouterr().out
+
+
+def test_the_weekly_check_fails_when_a_pack_has_no_surviving_app_id(packs, monkeypatch,
+                                                                    capsys):
+    """A dead pack. `.github/workflows/verify-catalog.yml` opens an issue on
+    this exit code — a non-zero that never happens is a job that reports
+    nothing, and the whole value here is a week's warning before a player finds
+    out."""
+    doomed = next(p for p in packs.values() if p.app_ids)
+    alive = {a for p in packs.values() for a in p.app_ids} - set(doomed.app_ids)
+
+    mod = _run_verify(monkeypatch, alive)
+    assert mod.main() == 1
+    assert doomed.id in capsys.readouterr().out
+
+
+def test_a_spent_fallback_is_reported_even_though_nothing_is_broken(monkeypatch,
+                                                                    capsys):
+    """The finding that would otherwise be invisible.
+
+    A pack with two candidates whose FIRST is gone still installs, still
+    launches, and still passes every other check on this box. It is also one
+    disappearance from having nothing left, and there will be no second
+    warning. Silence here is how a list quietly becomes a string again.
+    """
+    mod = _run_verify(monkeypatch, {"org.example.Fallback"})
+    monkeypatch.setattr(mod, "FLATPAK_PACKS",
+                        [("probe", ["org.example.Gone", "org.example.Fallback"])])
+    monkeypatch.setattr(mod, "GITHUB_ASSETS", [])
+
+    assert mod.main() == 1, "a spent fallback passed silently"
+    out = capsys.readouterr().out
+    assert "DEGRADED" in out and "org.example.Gone" in out
