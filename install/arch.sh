@@ -210,10 +210,57 @@ fi
 want_emu() { [[ "$EMULATORS" == "all" || " $EMULATORS " == *" $1 "* ]]; }
 want_app() { [[ "$MODE" == "full" ]] && [[ "$APPS" == "all" || " $APPS " == *" $1 "* ]]; }
 
+# ── Where the player's data goes ─────────────────────────────────
+#
+# Defaults to the install directory, which is where every GameCore before this
+# one kept it. That default is not laziness: the code that reads GAMECORE_DATA
+# ships over OTA to boxes that already exist, and their data is inside the
+# install. A default of /userdata would tell every one of them to look at an
+# empty directory.
+#
+# Setting it to something else in the unattended config is what a NEW box does
+# to get the split from day one — no migration needed, because there is nothing
+# to migrate yet.
+GAMECORE_DATA="${GAMECORE_DATA:-$GAMECORE_PATH}"
+
+provision_userdata() {  # provision_userdata <dir> <user>
+  # A btrfs subvolume when the filesystem offers one — it snapshots and gets
+  # quota independently of the root, which is the whole point of separating the
+  # data. A plain directory otherwise: correct everywhere, just less useful.
+  #
+  # This deliberately does NOT partition a disk. Repartitioning is the one
+  # operation here that can destroy an unrelated filesystem, it cannot be
+  # undone, and it cannot be made safe from a script that does not know what
+  # else is on the device. An operator who wants /userdata on its own partition
+  # mounts it there before running this, and the directory branch below finds it
+  # already mounted and simply uses it.
+  local dir="$1" user="$2"
+  [[ "$dir" == "$GAMECORE_PATH" ]] && return 0   # not split; nothing to make
+
+  if [[ -d "$dir" ]]; then
+    ok "Data directory $dir already exists — left as it is."
+  elif [[ "$(stat -f -c %T "$(dirname "$dir")" 2>/dev/null)" == "btrfs" ]] \
+       && command -v btrfs >/dev/null; then
+    btrfs subvolume create "$dir" >/dev/null \
+      && ok "btrfs subvolume $dir created." \
+      || { mkdir -p "$dir"; warn "btrfs subvolume failed — plain directory instead."; }
+  else
+    mkdir -p "$dir"
+    ok "Data directory $dir created."
+  fi
+  chown -R "${user}:${user}" "$dir"
+  # The layout backend/services/paths.py resolves against. Created up front so
+  # a first boot never has to decide whether an absent directory means "empty"
+  # or "broken".
+  sudo -u "$user" mkdir -p "$dir/config" "$dir/emu" "$dir/assets/overlays" \
+                           "$dir/assets/logos" "$dir/addons"
+}
+
 echo
 msg "Summary"
 info "User         : $USER_NAME"
 info "Install path : $GAMECORE_PATH"
+info "Data path    : $GAMECORE_DATA$([ "$GAMECORE_DATA" = "$GAMECORE_PATH" ] && echo ' (inside the install, as before)')"
 info "API port     : $WEB_PORT"
 info "Detected IP  : $LOCAL_IP"
 info "Mode         : $MODE $([ "$MODE" = minimal ] && echo '(no emulators, no apps)' || echo '(emulators + apps + configs)')"
@@ -243,6 +290,7 @@ USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
 # The uninstaller must never delete an account that predates GameCore.
 manifest_set USER_NAME      "$USER_NAME"
 manifest_set GAMECORE_PATH  "$GAMECORE_PATH"
+manifest_set GAMECORE_DATA  "$GAMECORE_DATA"
 manifest_set WEB_PORT       "$WEB_PORT"
 manifest_set MODE           "$MODE"
 manifest_set USER_CREATED   "$USER_CREATED"
@@ -251,6 +299,11 @@ manifest_set INSTALLED_AT   "$(date -Iseconds)"
 # "there is no record of what we installed" must not look the same to the
 # uninstaller: the first means remove nothing, the second means it is blind.
 touch "$PKG_MANIFEST" "$FLATPAK_MANIFEST" "$OVERRIDE_MANIFEST"
+
+# ── Data directory ───────────────────────────────────────────────
+# A no-op unless GAMECORE_DATA was pointed somewhere else, which is what makes
+# this safe to ship: an ordinary install still puts everything in one place.
+provision_userdata "$GAMECORE_DATA" "$USER_NAME"
 
 # ── Copy files ───────────────────────────────────────────────────
 progress 4 "Copying GameCore files"
@@ -770,6 +823,7 @@ ok "ROM directories ready."
 if [[ "$MODE" == "full" ]]; then
   progress 81 "Offline metadata index"
   msg "Offline metadata index"
+  GAMECORE_DATA="$GAMECORE_DATA" \
   bash "$GAMECORE_PATH/install/steps/build-media-index.sh" \
        "$GAMECORE_PATH" "$USER_NAME"
 fi
@@ -890,6 +944,7 @@ User=$USER_NAME
 Group=$USER_NAME
 SupplementaryGroups=input
 Environment=GAMECORE_PATH=$GAMECORE_PATH
+Environment=GAMECORE_DATA=$GAMECORE_DATA
 Environment=GAMECORE_BACKEND_PORT=$WEB_PORT
 WorkingDirectory=$GAMECORE_PATH
 # Wait for a display that ANSWERS, not merely for a socket to exist.
@@ -960,6 +1015,7 @@ Type=simple
 User=$USER_NAME
 Group=$USER_NAME
 Environment=GAMECORE_PATH=$GAMECORE_PATH
+Environment=GAMECORE_DATA=$GAMECORE_DATA
 Environment=GAMECORE_BACKEND_PORT=$WEB_PORT
 WorkingDirectory=$GAMECORE_PATH
 # Wait for an X server socket to exist, nothing more: start-ui.sh does the real
@@ -1306,7 +1362,8 @@ if [[ -n "$ADDONS" ]]; then
   for _ in $(seq 1 10); do [ -S "/run/user/$USER_UID/bus" ] && break; sleep 1; done
   for addon in $ADDONS; do
     if sudo -u "$USER_NAME" \
-         env GAMECORE_PATH="$GAMECORE_PATH" GAMECORE_BACKEND_PORT="$WEB_PORT" \
+         env GAMECORE_PATH="$GAMECORE_PATH" GAMECORE_DATA="$GAMECORE_DATA" \
+             GAMECORE_BACKEND_PORT="$WEB_PORT" \
              XDG_RUNTIME_DIR="/run/user/$USER_UID" \
          /usr/local/bin/gamecore-addon install "$addon"; then
       ok "addon '$addon' installed."

@@ -42,6 +42,9 @@ set -uo pipefail
 
 GC_PATH="${1:?usage: build-media-index.sh <GAMECORE_PATH> <USER_NAME>}"
 GC_USER="${2:?usage: build-media-index.sh <GAMECORE_PATH> <USER_NAME>}"
+# The 234 MB index is a cache the player accumulates, so it follows the data
+# root. Defaults to the install, where every box built before the split has it.
+GC_DATA="${GAMECORE_DATA:-$GC_PATH}"
 
 YLW='\033[1;33m'; GRN='\033[1;32m'; RST='\033[0m'
 ok()   { echo -e "  ${GRN}✓${RST} $*"; }
@@ -61,13 +64,13 @@ as_user() {
 }
 
 GS="$GC_PATH/backend/services/gamemedia/gamescrape.py"
-INDEX_DIR="$GC_PATH/emu/gamescrape"
+INDEX_DIR="$GC_DATA/emu/gamescrape"
 INDEX="$INDEX_DIR/launchbox.sqlite"
 
 # The command that builds it, spelled once. GAMECORE_PATH is what makes
 # gamescrape.py resolve the index to $GC_PATH/emu/gamescrape rather than to the
 # invoking user's ~/.cache — see resolve_index_dir() in that file.
-HOWTO="sudo -u $GC_USER GAMECORE_PATH=$GC_PATH python3 $GS --refresh"
+HOWTO="sudo -u $GC_USER GAMECORE_PATH=$GC_PATH GAMECORE_DATA=$GC_DATA python3 $GS --refresh"
 
 if [[ "${GAMECORE_SKIP_MEDIA_INDEX:-0}" == "1" ]]; then
   info "Media index skipped (GAMECORE_SKIP_MEDIA_INDEX=1)."
@@ -109,7 +112,7 @@ echo "  No account needed; this is what gives a box titles and covers offline."
 as_user mkdir -p "$INDEX_DIR"
 
 # stdlib only, so the backend venv is not needed and this runs before it exists.
-if as_user env "GAMECORE_PATH=$GC_PATH" python3 "$GS" --refresh; then
+if as_user env "GAMECORE_PATH=$GC_PATH" "GAMECORE_DATA=$GC_DATA" python3 "$GS" --refresh; then
   if [[ -s "$INDEX" ]]; then
     ok "Media index built ($(du -h "$INDEX" | cut -f1)) — 185 000 games, offline."
   else

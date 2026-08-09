@@ -17,6 +17,28 @@ fail() { echo "[update] ERROR: $*"; exit 1; }
 REPO="p4v1c/GamecoreRenew"
 ASSET="gamecore-ota.tar.gz"
 GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
+# Where the player's data lives. Defaults to the install, which is where every
+# box created before the code/data split keeps it — so on those boxes the two
+# variables name the same directory and this script behaves exactly as it did.
+#
+# ── When the data has actually moved ────────────────────────────────────────
+# The excludes on the deploy rsync below (emu/, config/, assets/overlays/,
+# assets/logos/) exist for one reason: those directories sit INSIDE the tree
+# being rsynced into. Once GAMECORE_DATA is a separate tree they are no longer
+# inside it, the excludes protect nothing, and this script can do the simple
+# thing instead — replace the whole install, `--delete` included, so that a
+# file removed from a release actually disappears from the box rather than
+# lingering for ever.
+#
+# That is the eventual shape and it is a real improvement: the case-by-case
+# preservation below is the only reason an update cannot be a clean swap.
+#
+# **Nothing is removed here, and the order matters.** While the data is still
+# inside the install — which is true of every box that will receive this
+# release — dropping an exclude means the rsync deletes the ROM library on the
+# first update. The excludes go when the bytes have gone, not before, and the
+# check is `is_split` below rather than anybody's memory of which phase shipped.
+GAMECORE_DATA="${GAMECORE_DATA:-$GAMECORE_PATH}"
 
 # Only one update at a time. The backend refuses a second /api/update/apply,
 # but this is the guard that holds if it is ever started another way — two runs
@@ -157,6 +179,13 @@ echo "[update] Installing new files..."
 #
 # config/ is excluded wholesale, which is what preserves config/catalog.d/ —
 # the operator's own packs — across every update.
+if [[ "${GAMECORE_DATA}" != "${GAMECORE_PATH}" ]]; then
+  # Said out loud because it changes what the excludes below are worth, and
+  # because an operator reading a log after a bad update needs to know which
+  # of the two shapes the box was in.
+  echo "[update] Data lives at ${GAMECORE_DATA}, outside the install."
+  echo "[update] The excludes below are now redundant but still harmless."
+fi
 rsync -a \
   --exclude='.venv/' \
   --exclude='emu/' \
@@ -226,7 +255,11 @@ PYEOF
 }
 
 if [[ -d "${SRC_DIR}/config/themes" ]]; then
-  _themes_dir="${GAMECORE_PATH}/config/themes"
+  # The data root, not the install: a theme is installed content, and once the
+  # two trees separate this loop would otherwise write into a read-only root
+  # and drop every bundled theme on the floor. Identical while GAMECORE_DATA
+  # defaults to GAMECORE_PATH, which is every box today.
+  _themes_dir="${GAMECORE_DATA}/config/themes"
   _themes_prev="${_themes_dir}/.prev"
   mkdir -p "$_themes_dir"
   _installed=0 _updated=0 _kept=0

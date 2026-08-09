@@ -218,6 +218,32 @@ def test_the_release_actually_replaced_the_code(box, tmp_path):
     assert (box / "backend" / "services" / "paths.py").exists()
 
 
+def test_the_excludes_stay_while_the_data_is_still_inside_the_install():
+    """Two facts that must change together, checked together.
+
+    The excludes protect `emu/` and `config/` because they sit inside the tree
+    the rsync writes into. Removing one while the data is still there deletes
+    the ROM library on the first update — the worst outcome in this repository,
+    reached by a change that looks like tidying up.
+
+    So the condition is not "this phase" or "not yet", which nobody can check.
+    It is the default in `services/paths.py`: while GAMECORE_DATA falls back to
+    the install, the data is inside it and the excludes are load-bearing. The
+    day that default becomes a separate tree, this test stops demanding them by
+    itself — no edit needed, and no way to forget.
+    """
+    from backend.services import paths
+
+    if paths.is_split():
+        pytest.skip("the suite is running with the roots already separate")
+
+    excludes = _release_excludes()
+    for needed in ("emu/", "config/", "assets/overlays/", "assets/logos/"):
+        assert needed in excludes, (
+            f"update/linux.sh no longer excludes {needed}, but the data still "
+            "lives inside the install — the next OTA would delete it")
+
+
 def test_rolling_back_returns_a_working_box(box, tmp_path):
     """`update/linux.sh` snapshots into `${GAMECORE_PATH}.prev` and restores
     with `rsync -a ${PREV_DIR}/ ${GAMECORE_PATH}/`.
