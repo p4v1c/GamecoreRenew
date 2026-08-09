@@ -252,6 +252,161 @@ def test_the_disk_installer_strips_every_live_only_file_the_profile_ships():
         + "\n\nEach one makes the installed machine boot the installer again.")
 
 
+# ── mDNS ───────────────────────────────────────────────────────────────────
+#
+# The box is reached over the LAN at one address, and that address is a DHCP
+# lease. mDNS is what replaces it with a name. Every failure below produces the
+# same symptom — the name does not resolve — from a different cause, and none of
+# them says anything on the box itself.
+
+
+def test_the_installer_asks_for_both_halves_of_mdns():
+    """Either package alone resolves nothing.
+
+    avahi answers mDNS queries for this host; nss-mdns is the glibc plugin that
+    makes the box ASK. Installing avahi alone gives a box that other machines
+    can find and that cannot find anything — and the half that is missing is
+    never the one named in a bug report.
+    """
+    pkgs = arch_sh_packages()
+    for half in ("avahi", "nss-mdns"):
+        assert half in pkgs, (
+            f"install/arch.sh no longer installs {half} — mDNS needs both "
+            f"halves, and the box is back to being reachable by IP only.")
+
+
+def test_the_installer_wires_mdns_into_nsswitch_rather_than_only_installing_it():
+    """The step everyone forgets, and the one with no symptom of its own.
+
+    Installing nss-mdns does not make glibc consult it: the plugin is only
+    reached when `hosts:` in /etc/nsswitch.conf names it, and the package does
+    not edit that file. Skip this and avahi runs, advertises correctly, `ss`
+    shows it listening — and the name still does not resolve. That is
+    indistinguishable from the daemon being stopped, which is where anyone
+    debugging it will look first.
+    """
+    body = _uncommented(ARCH_SH)
+    assert "nsswitch.conf" in body, (
+        "install/arch.sh installs nss-mdns but never edits /etc/nsswitch.conf. "
+        "The plugin is then present and never consulted.")
+    assert "mdns_minimal" in body, (
+        "arch.sh touches nsswitch.conf but does not add the mdns_minimal "
+        "entry — nothing routes .local lookups to avahi.")
+
+
+def _run_nsswitch_edit(tmp_path: Path, hosts_line: str, runs: int = 1) -> str:
+    """Run arch.sh's OWN nsswitch edit against a throwaway nsswitch.conf.
+
+    Extracted from the shipped script rather than reimplemented, for the reason
+    `_run_validate` above gives: a copy keeps passing after the real one has
+    been broken. Only the path is substituted — the logic under test is the
+    text that ships.
+    """
+    body = ARCH_SH.read_text(encoding="utf-8")
+    start = body.index("NSS=/etc/nsswitch.conf")
+    end = body.index("# ── Bluetooth", start)
+    block = body[start:end]
+    # Everything after the assignment; the harness supplies the path instead.
+    block = block.split("\n", 1)[1]
+    assert "mdns_minimal" in block, "the nsswitch block moved — this harness no longer extracts it"
+
+    nss = tmp_path / "nsswitch.conf"
+    nss.write_text(f"passwd: files\n{hosts_line}\nnetworks: files\n", encoding="utf-8")
+
+    harness = tmp_path / "harness.sh"
+    harness.write_text(textwrap.dedent(f"""\
+        set -euo pipefail
+        ok()   {{ :; }}
+        warn() {{ echo "WARN: $*"; }}
+        manifest_set() {{ :; }}
+        NSS="{nss}"
+        for _ in $(seq 1 {runs}); do
+        {textwrap.indent(block, '  ')}
+        done
+        """), encoding="utf-8")
+    r = subprocess.run(["bash", str(harness)], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, f"the edit failed:\n{r.stdout}{r.stderr}"
+    return nss.read_text(encoding="utf-8")
+
+
+# The shapes a real hosts: line comes in. Arch and Manjaro do not agree, and the
+# line grows entries over releases — so the edit is exercised against each
+# rather than against one known-good example.
+HOSTS_LINES = [
+    "hosts: mymachines resolve [!UNAVAIL=return] files myhostname dns",
+    "hosts: files dns myhostname",
+    "hosts: files resolve myhostname dns",
+]
+
+
+@pytest.mark.parametrize("hosts_line", HOSTS_LINES)
+def test_the_mdns_entry_lands_before_the_resolver_that_would_answer_first(tmp_path, hosts_line):
+    """Order inside the hosts: line decides whether any of this works.
+
+    `resolve` (systemd-resolved) and `dns` answer for a .local name before
+    avahi ever sees the query, so an entry sitting after them is never reached.
+    This is not hypothetical: the first version of the edit was a sed
+    substitution, ERE has no lazy quantifier, `(hosts:.*)(resolve|dns)` matched
+    greedily, and mdns_minimal landed AFTER resolve. The file read as correctly
+    patched and the name did not resolve.
+    """
+    out = _run_nsswitch_edit(tmp_path, hosts_line)
+    line = next(ln for ln in out.splitlines() if ln.lstrip().startswith("hosts:"))
+    fields = line.split()
+    assert "mdns_minimal" in fields, f"the edit did not add mdns_minimal: {line}"
+    for resolver in ("resolve", "dns"):
+        if resolver in fields:
+            assert fields.index("mdns_minimal") < fields.index(resolver), (
+                f"mdns_minimal is placed after {resolver}, which answers for "
+                f".local first — avahi is never consulted: {line}")
+    assert "[NOTFOUND=return]" in line, (
+        f"the mdns_minimal entry has no [NOTFOUND=return] guard, so every "
+        f"failed lookup on the box waits on mDNS: {line}")
+
+
+@pytest.mark.parametrize("hosts_line", HOSTS_LINES)
+def test_the_nsswitch_edit_survives_being_run_twice(tmp_path, hosts_line):
+    """arch.sh is idempotent by contract, and re-running it is the documented
+    way to repair a box.
+
+    A second pass that appends a second mdns_minimal leaves a hosts: line glibc
+    still parses and nobody can read — and the third pass makes it worse. The
+    first version of this test asserted the guard by grepping arch.sh for
+    `grep -qE …hosts:…mdns`, and passed with the guard deleted: it was matching
+    the *other* grep, the one that validates the rewritten file. Hence running
+    the real thing instead.
+    """
+    once = _run_nsswitch_edit(tmp_path, hosts_line, runs=1)
+    twice = _run_nsswitch_edit(tmp_path, hosts_line, runs=2)
+    assert once == twice, (
+        f"a second run changed the file again:\n  once:  {once!r}\n"
+        f"  twice: {twice!r}")
+    line = next(ln for ln in twice.splitlines() if ln.lstrip().startswith("hosts:"))
+    assert line.split().count("mdns_minimal") == 1, (
+        f"the entry was added twice: {line}")
+
+
+def test_the_iso_enables_avahi_the_same_way_it_enables_networkmanager():
+    """An installed box is a copy of the live root, symlinks included.
+
+    /etc/systemd/system/multi-user.target.wants is how this profile enables a
+    unit — gamecore-disk-install.sh strips the live-only files and this
+    directory is not among them, so what is enabled here is enabled on the
+    installed machine. A package shipped with no symlink is avahi installed and
+    `disabled`, which is exactly the state the production box was found in.
+    """
+    wants = ISO / "airootfs/etc/systemd/system/multi-user.target.wants"
+    unit = wants / "avahi-daemon.service"
+    assert unit.is_symlink(), (
+        f"{unit.relative_to(REPO)} is missing or is not a symlink — the ISO "
+        f"ships avahi and leaves it disabled.")
+    # Same target shape as the NetworkManager link beside it: a relative link
+    # would resolve against the build host, not the image.
+    assert str(unit.readlink()).startswith("/usr/lib/systemd/system/"), (
+        f"{unit.name} points at {unit.readlink()} — it must point into "
+        f"/usr/lib/systemd/system, like the NetworkManager link beside it.")
+
+
 def test_the_disk_installer_hands_over_to_arch_sh_rather_than_running_it():
     """arch.sh cannot run under arch-chroot, and the split is load-bearing.
 

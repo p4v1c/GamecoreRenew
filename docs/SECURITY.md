@@ -5,7 +5,8 @@
 > of "this PR" are historical.
 >
 > Quick check on a box: `ss -tlnp` must show **exactly one** non-loopback
-> GameCore listener, Caddy on `:8443`.
+> GameCore listener, Caddy on `:8443`. One UDP socket is expected alongside it —
+> avahi on `5353`, which serves discovery and no data; see "mDNS" below.
 
 The goal: **one port on the LAN — Caddy `:8443` over HTTPS** — everything else on
 loopback, behind a single shared login enforced by the reverse proxy
@@ -241,6 +242,57 @@ Three more rules the applier enforces (`backend/services/installer/applier.py`):
   a `0600` temp file which it deletes when it closes — including when the window
   is closed mid-install, which it previously did not.
 
+## mDNS (avahi) — the one deliberate exception to "one port"
+
+`install/arch.sh` installs `avahi` + `nss-mdns`, enables `avahi-daemon.service`,
+and adds `mdns_minimal [NOTFOUND=return]` to the `hosts:` line of
+`/etc/nsswitch.conf`. The ISO carries both packages and enables the unit through
+`multi-user.target.wants/`, like NetworkManager.
+
+**This is a second LAN-facing socket: UDP `5353`, on every interface.** It is the
+only one besides Caddy `:8443`, and the rule at the top of this document is
+otherwise unchanged — nothing new is *served*, and no GameCore data crosses it.
+
+Why it is worth the exception: the box is reachable at exactly one address and
+that address is a DHCP lease. When the lease changes, every noted URL breaks at
+once — the login page, `/roms/`, `/saves/`, `/rpcs3/`. mDNS replaces the address
+with `<hostname>.local` (`gamecore.local` by default: `TARGET_HOSTNAME` in
+`install.conf.example`, defaulted by the wizard and written to `/etc/hostname` by
+`gamecore-disk-install.sh`).
+
+What it exposes, precisely:
+
+- **The hostname and the IP behind it**, to anyone on the same layer-2 segment.
+  That is the entire protocol; mDNS has no authentication and cannot have any.
+  Someone already on the LAN can find the box by scanning it in any case — mDNS
+  makes discovery convenient, not possible.
+- **No service records.** GameCore installs nothing in `/etc/avahi/services/`, so
+  the daemon advertises the host address only. It does not announce that :8443
+  exists, what runs behind it, or that this is a games console. Adding a
+  `.service` file would change that, and is a decision to take here first.
+- **Nothing about authentication.** The shared login on :8443 is untouched:
+  resolving the name gets a client to the same Caddy, facing the same
+  `forward_auth`.
+
+Also true, and easy to miss: **`ss -tlnp` does not show it.** `-t` is TCP and
+mDNS is UDP, so the verification below stays literally correct. Use
+`ss -ulnp | grep 5353` to see it.
+
+**Boxes installed before this change never get it.** OTA (`update/linux.sh`) is
+an rsync of files; it does not re-run `arch.sh`, so no update installs a package,
+enables a unit or edits `/etc/nsswitch.conf`. Such a box keeps working exactly as
+before, reachable by IP — the change is additive and breaks no existing route.
+Retrofitting one is three manual commands as root, and re-running `arch.sh` does
+the same thing idempotently:
+
+```sh
+pacman -S --needed avahi nss-mdns
+systemctl enable --now avahi-daemon.service
+# then add `mdns_minimal [NOTFOUND=return]` to the hosts: line of
+# /etc/nsswitch.conf, BEFORE `resolve` and `dns` — after them it is never
+# consulted, and the symptom is identical to the daemon being stopped.
+```
+
 ## Operational notes
 
 - **OTA**: `update/linux.sh` excludes `config/`, `emu/`, `emu-configs/` and
@@ -261,4 +313,5 @@ Three more rules the applier enforces (`backend/services/installer/applier.py`):
   why `gamecore-session-select` takes no third argument: a rule that had to
   accept one would have to accept any.
 - **Verification**: `ss -tlnp` must show, for GameCore, only Caddy on `:8443`;
-  `8765`, `8097`, `8770`, `8771` and `8772` on `127.0.0.1` only.
+  `8765`, `8097`, `8770`, `8771` and `8772` on `127.0.0.1` only. On UDP,
+  `ss -ulnp` shows avahi on `5353` — expected, and the only one (see "mDNS").
