@@ -5,11 +5,20 @@ validates when an optional dependency happens to be installed is a catalogue
 that does not validate. The subset here is exactly what
 `catalog/_schema/pack.schema.json` uses — `type`, `enum`, `const`, `required`,
 `properties`, `additionalProperties`, `items`, `pattern`, `minLength`,
-`minItems`, `uniqueItems`, `minimum`, `maximum`, `oneOf`, `allOf`, `not`,
-`if`/`then` — and anything outside it raises rather than silently passing.
+`minItems`, `minProperties`, `uniqueItems`, `minimum`, `maximum`, `oneOf`,
+`allOf`, `not`, `if`/`then` — and anything outside it raises rather than
+silently passing.
 
 Adding a keyword to the schema without adding it here is therefore a loud
 failure, not a quiet hole.
+
+`additionalProperties` takes a SCHEMA as well as `false`, which is how
+`perGame.profiles[].settings` is checked at all: it is a map whose keys nobody
+can enumerate — they are INI section names an emulator chose — and whose values
+must still be flat maps of scalars. Without it the block would validate as
+`type: object` and a profile pushed down the OTA channel could carry a nested
+structure three levels deep, which the writer would flatten into a key spelled
+`{'x': 1}` and place in a real config file.
 """
 from __future__ import annotations
 
@@ -20,7 +29,8 @@ from pathlib import Path
 _KNOWN = {
     "$schema", "$id", "title", "description",
     "type", "enum", "const", "required", "properties", "additionalProperties",
-    "items", "pattern", "minLength", "minItems", "uniqueItems", "minimum", "maximum",
+    "items", "pattern", "minLength", "minItems", "minProperties", "uniqueItems",
+    "minimum", "maximum",
     "oneOf", "allOf", "not", "if", "then", "propertyNames", "default",
 }
 
@@ -88,14 +98,25 @@ def _validate(value: object, schema: dict, path: str, errors: list[str]) -> None
         for key in schema.get("required", []):
             if key not in value:
                 errors.append(f"{path}: missing required '{key}'")
+        if "minProperties" in schema and len(value) < schema["minProperties"]:
+            errors.append(f"{path}: fewer than {schema['minProperties']} properties")
         props = schema.get("properties", {})
         for key, sub in props.items():
             if key in value:
                 _validate(value[key], sub, f"{path}.{key}", errors)
-        if schema.get("additionalProperties") is False:
+        extra = schema.get("additionalProperties")
+        if extra is False:
             for key in value:
                 if key not in props:
                     errors.append(f"{path}: unknown property '{key}'")
+        elif isinstance(extra, dict):
+            # A map whose keys nobody can enumerate but whose values still have
+            # a shape — an INI section name chosen by an emulator, holding keys
+            # chosen by that emulator. `false` cannot express it and `true`
+            # checks nothing.
+            for key, item in value.items():
+                if key not in props:
+                    _validate(item, extra, f"{path}.{key}", errors)
 
     if "not" in schema:
         inner: list[str] = []

@@ -69,5 +69,28 @@
     "mediaAlias": [
       "ps3"
     ]
+  },
+  "perGame": {
+    "supported": true,
+    "path": "@FLATPAK_CONFIG@/rpcs3/custom_configs/config_@GAMEID@.yml",
+    "format": "yaml",
+    "key": "ps3",
+    "merge": "own-keys",
+    "profiles": [
+      {
+        "gameId": "BLES00932",
+        "label": "Demon's Souls",
+        "why": "Without Write Color Buffers the game renders without its fog and shadow passes — the picture is wrong from the first room, and nothing on screen says a setting is missing.",
+        "emulator": ">=0.0.30",
+        "settings": { "Video": { "Write Color Buffers": true } }
+      },
+      {
+        "gameId": "BLUS30443",
+        "label": "Demon's Souls",
+        "why": "Without Write Color Buffers the game renders without its fog and shadow passes — the picture is wrong from the first room, and nothing on screen says a setting is missing.",
+        "emulator": ">=0.0.30",
+        "settings": { "Video": { "Write Color Buffers": true } }
+      }
+    ]
   }
 }

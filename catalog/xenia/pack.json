@@ -48,5 +48,9 @@
     "mediaAlias": [
       "xbox 360"
     ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "Xenia does keep a config per title id, but this pack ships no reader for a 360 container and nobody has verified the path against a real install."
   }
 }

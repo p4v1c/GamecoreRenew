@@ -55,5 +55,9 @@
     "mediaAlias": [
       "nintendo 64"
     ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "An N64 cartridge dump carries no serial, so its identity has to be a hash of the file. gameid can compute one; what is unverified is whether RMG reads per-game settings from a file at all rather than from its own database."
   }
 }

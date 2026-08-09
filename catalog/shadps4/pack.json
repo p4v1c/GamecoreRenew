@@ -32,5 +32,9 @@
     "mediaAlias": [
       "ps4"
     ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "shadPS4 has no per-title configuration yet. This is the case the block exists for — the day it grows one, this pack gains a path, a format and a key, and reaches every box down the signed catalogue channel without a release."
   }
 }

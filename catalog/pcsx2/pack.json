@@ -84,5 +84,9 @@
     "mediaAlias": [
       "ps2"
     ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "PCSX2 names a per-game ini after the serial AND the disc CRC, and nothing here computes the CRC. Half an identity would name a file PCSX2 never opens."
   }
 }

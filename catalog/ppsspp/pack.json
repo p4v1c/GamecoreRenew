@@ -45,5 +45,9 @@
     "mediaAlias": [
       "psp"
     ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "The Title ID is readable — the pack declares the psp parser — but PPSSPP's per-game ini location has not been checked against a real install."
   }
 }
