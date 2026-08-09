@@ -244,7 +244,7 @@
     "color": "#107c10",
     "iconPath": "assets/logos/xenia.png",
     "path": "/usr/bin/wine",
-    "args": "lib/xenia/xenia_canary.exe --fullscreen=true",
+    "args": "'@GAMECORE_PATH@/lib/xenia/xenia_canary.exe' --fullscreen=true",
     "romsPath": "emu/xenia/",
     "extensions": [
       "*.iso",

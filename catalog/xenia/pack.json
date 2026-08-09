@@ -24,7 +24,7 @@
   },
   "launch": {
     "path": "/usr/bin/wine",
-    "args": "lib/xenia/xenia_canary.exe --fullscreen=true"
+    "args": "'@GAMECORE_PATH@/lib/xenia/xenia_canary.exe' --fullscreen=true"
   },
   "roms": {
     "dir": "emu/xenia",
