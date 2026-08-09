@@ -30,6 +30,7 @@ import { DesktopPage } from './modals/settings/DesktopPage'
 import { ThemesPage } from './modals/settings/ThemesPage'
 import { CatalogPage } from './modals/settings/CatalogPage'
 import { BiosPage } from './modals/settings/BiosPage'
+import { StoragePage } from './modals/settings/StoragePage'
 
 /** Launching lives here rather than in App so a prop-less surface can do it. */
 export async function launchApp(system: { id: string }): Promise<void> {
@@ -103,7 +104,22 @@ export const DefaultSettingsPages = {
   // not resolve it would leave them with the black screen this page exists to
   // explain, and no route to the explanation.
   bios: BiosPage,
+  // And again, found by the check below rather than by a player: `storage` was
+  // in the built-in settings menu and in no theme's, because it was never even
+  // added to this map — so no theme *could* have offered it. Safe-eject for an
+  // external disk is not somewhere to lose: the failure mode of not having it
+  // is a pulled drive and a corrupted library.
+  storage: StoragePage,
 }
+
+/**
+ * Every settings page a theme is expected to be able to reach.
+ *
+ * The list is derived, never typed out: this map has gained four entries since
+ * it was written and each one was a page some theme could not open. Comparing a
+ * theme's menu against this is what turns "we forgot" into a line on screen.
+ */
+export const SETTINGS_PAGE_IDS = Object.keys(DefaultSettingsPages)
 
 /** Nothing behind and nothing on top, unless a theme says otherwise. */
 export const DefaultBackground = () => null

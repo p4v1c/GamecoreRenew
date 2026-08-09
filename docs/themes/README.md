@@ -105,6 +105,7 @@ archive.
 | `schedule` | object | no | `{ "from": "MM-DD", "to": "MM-DD" }` — seasonal auto-activation |
 | `launch` | object | no | `{ "ms": 1520 }` — how long your launch animation needs before the game starts (§5c) |
 | `sounds` | object | no | `{ "move": "assets/move.wav" }` — UI sounds you replace (§13) |
+| `settings` | object | no | `{ "pages": [...] }` — which host settings pages your own menu opens (§5d) |
 
 A folder whose name starts with `_` is a **template, not a theme**:
 `config/themes/_skeleton` is there to be copied, and never appears in
@@ -302,7 +303,45 @@ screen with a launch already promised. Pressing back during your animation
 cancels it: the request is never sent, and the flag is cleared under you. Do
 not treat `launching` going false as "the game is running".
 
-## 5c. Check it loads before you ship it
+## 5d. If you write your own settings menu, say what it opens
+
+The settings sub-pages are the host's, and your menu resolves each entry
+through `sdk.defaults.DefaultSettingsPages`. Leaving one out costs nothing at
+load and shows nothing on screen: the page is still there, its route is still
+there, and there is simply no way to get to it.
+
+That has shipped twice. `catalog` was missing from the map, so **neither**
+bundled theme had any way to install an emulator. `storage` was missing from
+the map itself, so no theme could offer safe-eject for an external disk even if
+its author had thought of it. Both were found by reading the code, not by a
+player — which is the problem, because the pages people go looking for are the
+ones they need when something is already wrong.
+
+So declare what your menu reaches:
+
+```json
+{ "id": "shelf", "settings": { "pages": ["wifi", "audio", "bluetooth", "standby",
+                                         "catalog", "bios", "storage", "themes",
+                                         "update", "desktop"] } }
+```
+
+The host compares that to `Object.keys(sdk.defaults.DefaultSettingsPages)` and
+names anything you have left unreachable, in Settings → Themes. CI does the
+same:
+
+```bash
+node scripts/check-theme.mjs config/themes/<id>
+```
+
+**Say nothing and nothing is checked** — that is the right answer for a theme
+that reuses the host's settings modal, which reaches everything by definition.
+Warning about those would make the check noise, and a check that cries wolf is
+how the first two got through.
+
+Declaring the empty list is not the same as saying nothing: it means your menu
+opens none of them, and you will be told so for every page.
+
+## 5e. Check it loads before you ship it
 
 ```bash
 node scripts/check-theme.mjs config/themes/<id>

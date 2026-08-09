@@ -46,6 +46,9 @@ export interface ThemeManifest {
   /** UI sounds the theme replaces, `name -> path inside the theme folder`.
    *  The backend has already dropped the ones whose file is missing. */
   sounds?: Record<string, string> | null
+  /** Which host settings pages the theme's own menu can open. Absent = it did
+   *  not say, which is a different thing from "none" — see unreachablePages. */
+  settings?: { pages?: string[] } | null
   compatible: boolean
   warnings: string[]
 }
@@ -190,6 +193,29 @@ export async function loadTheme(m: ThemeManifest, host: SdkHost): Promise<Surfac
   setThemeRumble(resolveThemeRumble(produced as Record<string, unknown>))
 
   return out
+}
+
+/**
+ * Settings pages the host has and the theme's menu cannot open.
+ *
+ * This has already shipped twice, which is the whole argument for checking it.
+ * `catalog` was left out of `DefaultSettingsPages` and both bundled themes had
+ * no way to install an emulator; `storage` was never added to that map at all,
+ * so safe-eject for an external disk was unreachable from any theme that could
+ * ever be written. Each time the page existed, the route existed, and nothing
+ * on screen could open them — which is invisible until somebody needs the page,
+ * and the pages people need are the ones they need when something is wrong.
+ *
+ * A theme that says nothing gets an empty answer rather than the full list. Not
+ * declaring is what a theme reusing the host's settings modal does, and it
+ * reaches everything; flagging those would make the warning noise, and a
+ * warning that cries wolf is how the first two got through.
+ */
+export function unreachablePages(m: ThemeManifest | null, hostPages: string[]): string[] {
+  const declared = m?.settings?.pages
+  if (!declared) return []
+  const reachable = new Set(declared)
+  return hostPages.filter(p => !reachable.has(p))
 }
 
 /**

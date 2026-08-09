@@ -18,6 +18,11 @@ const MENU = [
   { id: 'bluetooth', icon: '◉', label: 'Bluetooth', sub: 'Pads and headsets' },
   { id: 'standby', icon: '🌙', label: 'Standby', sub: 'Screensaver and sleep' },
   { id: 'catalog', icon: '🎮', label: 'Emulators & apps', sub: 'Add a system, or take one off the shelf' },
+  // bios and storage were in the host's menu and in none of this one, so a
+  // player on this theme could not reach either. See settings.pages in
+  // theme.json — the host now says so out loud in Settings → Themes.
+  { id: 'bios', icon: '🧩', label: 'BIOS', sub: 'The system files a console needs to start' },
+  { id: 'storage', icon: '💾', label: 'Storage', sub: 'External disks, and how to unplug one safely' },
   { id: 'themes', icon: '▧', label: 'Themes', sub: 'Change how this looks' },
   { id: 'update', icon: '↑', label: 'Update', sub: 'Check for a new version' },
   { id: 'desktop', icon: '⎋', label: 'Desktop', sub: 'Leave for the system', danger: true },

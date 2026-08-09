@@ -9,6 +9,7 @@ Run under pytest:  pytest backend/tests/test_themes.py
 Or directly:       python backend/tests/test_themes.py
 """
 import json
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -345,3 +346,80 @@ def test_the_sounds_reach_the_manifest(tmp_path, monkeypatch):
     }))
     m = next(t for t in themes.list_themes() if t["id"] == "noisy")
     assert m["sounds"] == {"move": "assets/move.wav"}
+
+
+# ── no theme may leave a settings page unreachable ───────────────────────────
+# Omitting one costs nothing at load and is invisible on screen: the page
+# exists, the route exists, and nothing can open it. It has shipped twice —
+# `catalog`, so neither bundled theme could install an emulator, and `storage`,
+# which was missing from DefaultSettingsPages itself, so no theme could have
+# offered safe-eject even if its author had thought of it.
+#
+# The check is here rather than only in scripts/check-theme.mjs because this
+# suite is in the baseline and that script is not.
+
+REPO = Path(__file__).resolve().parents[2]
+DEFAULTS_TSX = REPO / "frontend" / "src" / "components" / "defaults.tsx"
+SHIPPED_THEMES = REPO / "config" / "themes"
+
+
+def host_settings_pages() -> list[str]:
+    """The page ids the frontend exposes, read from the one place they exist.
+
+    Parsed rather than copied: a list typed out here would be the third copy of
+    it in the repo, and the first two both drifted.
+    """
+    src = DEFAULTS_TSX.read_text()
+    block = re.search(r"export const DefaultSettingsPages = \{(.*?)\n\}", src, re.S)
+    assert block, "DefaultSettingsPages not found — did the export move?"
+    return re.findall(r"^  ([a-z][a-z0-9_-]*):", block.group(1), re.M)
+
+
+def themes_with_their_own_menu():
+    """Shipped themes that resolve pages through DefaultSettingsPages.
+
+    Found by what they *do*, not by name: a test naming `summer` stops
+    protecting the theme somebody adds next.
+    """
+    if not SHIPPED_THEMES.is_dir():
+        return
+    for d in sorted(SHIPPED_THEMES.iterdir()):
+        if not d.is_dir() or d.name.startswith("."):
+            continue
+        if not (d / "theme.json").is_file():
+            continue
+        if any("DefaultSettingsPages" in f.read_text()
+               for f in d.rglob("*.js")):
+            yield d
+
+
+def test_the_host_page_list_is_readable():
+    """The two tests below are vacuous if this regex stops matching, and a
+    guard that silently passes forever is worse than no guard."""
+    pages = host_settings_pages()
+    assert len(pages) >= 8, f"suspiciously few settings pages parsed: {pages}"
+
+
+@pytest.mark.parametrize("theme_dir", list(themes_with_their_own_menu()),
+                         ids=lambda d: d.name)
+def test_a_shipped_theme_menu_reaches_every_settings_page(theme_dir):
+    m = json.loads((theme_dir / "theme.json").read_text())
+    declared = (m.get("settings") or {}).get("pages")
+    assert declared is not None, (
+        f"{theme_dir.name} builds its own settings menu but declares no "
+        "settings.pages — the host cannot tell what it left unreachable"
+    )
+    missing = [p for p in host_settings_pages() if p not in declared]
+    assert not missing, f"{theme_dir.name} cannot open: {', '.join(missing)}"
+
+
+@pytest.mark.parametrize("theme_dir", list(themes_with_their_own_menu()),
+                         ids=lambda d: d.name)
+def test_a_shipped_theme_declares_only_pages_that_exist(theme_dir):
+    """The other direction: a menu entry pointing at a page that was renamed or
+    removed resolves to undefined and renders nothing when it is selected."""
+    m = json.loads((theme_dir / "theme.json").read_text())
+    declared = (m.get("settings") or {}).get("pages") or []
+    pages = host_settings_pages()
+    unknown = [p for p in declared if p not in pages]
+    assert not unknown, f"{theme_dir.name} declares pages that do not exist: {unknown}"

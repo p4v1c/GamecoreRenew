@@ -19,6 +19,7 @@ import {
   resolveThemeSounds,
   setActiveTheme,
   SURFACES,
+  unreachablePages,
   type ThemeManifest,
 } from './themeLoader'
 import { SDK_VERSION } from './themeSdk'
@@ -153,6 +154,38 @@ describe('the theme sound set', () => {
     // exactly as it did.
     expect(resolveThemeSounds(manifest())).toEqual({})
     expect(resolveThemeSounds(manifest(), {})).toEqual({})
+  })
+})
+
+describe('settings pages a theme cannot reach', () => {
+  const HOST = ['wifi', 'audio', 'catalog', 'bios', 'storage']
+
+  it('names the pages the host has and the theme does not list', () => {
+    // The bug this exists for, twice over: the page exists, the route exists,
+    // and nothing on screen can open it. Invisible until somebody needs the
+    // page — and the pages people need are the ones they need when something
+    // is already wrong.
+    const m = manifest({ settings: { pages: ['wifi', 'audio', 'catalog'] } })
+    expect(unreachablePages(m, HOST)).toEqual(['bios', 'storage'])
+  })
+
+  it('says nothing when the menu reaches everything', () => {
+    expect(unreachablePages(manifest({ settings: { pages: HOST } }), HOST)).toEqual([])
+  })
+
+  it('says nothing about a theme that never declared', () => {
+    // A theme reusing the host's settings modal reaches every page and
+    // declares nothing. Flagging those would make this warning noise, and a
+    // warning that cries wolf is exactly how the first two got through.
+    expect(unreachablePages(manifest(), HOST)).toEqual([])
+    expect(unreachablePages(manifest({ settings: null }), HOST)).toEqual([])
+    expect(unreachablePages(null, HOST)).toEqual([])
+  })
+
+  it('treats an empty declaration as a menu that opens nothing', () => {
+    // Different from not declaring: this theme said it has a menu and listed
+    // no pages in it.
+    expect(unreachablePages(manifest({ settings: { pages: [] } }), HOST)).toEqual(HOST)
   })
 })
 

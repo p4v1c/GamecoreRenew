@@ -4,7 +4,8 @@ import { useSubPageGamepad } from './useSubPageGamepad'
 import { onGp } from '../../../hooks/useGamepad'
 import { playSound } from '../../../lib/sounds'
 import { useThemeCtx } from '../../ThemeSurface'
-import { fetchThemeIndex, type ThemeManifest } from '../../../lib/themeLoader'
+import { fetchThemeIndex, unreachablePages, type ThemeManifest } from '../../../lib/themeLoader'
+import { SETTINGS_PAGE_IDS } from '../../defaults'
 
 /** Settings → Themes: list what is installed, apply one, get back to default. */
 export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: () => void }) {
@@ -122,6 +123,25 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
           Pick it again to retry.
         </div>
       )}
+
+      {/* A page the host has and this theme's menu cannot open. Shown for the
+          theme in use only: it is a bug report about what is on screen now,
+          not a review of everything installed. */}
+      {(() => {
+        const active_ = items.find(t => t.id === active) ?? null
+        const lost = unreachablePages(active_, SETTINGS_PAGE_IDS)
+        if (!lost.length) return null
+        return (
+          <div style={{
+            padding: '10px 12px', borderRadius: 10, marginBottom: 14,
+            background: 'rgba(251,191,36,0.10)', border: '1px solid rgba(251,191,36,0.3)',
+            fontSize: 12, color: '#fbbf24',
+          }}>
+            <b>{active_?.name}</b> has no way to open: {lost.join(', ')}.
+            {' '}Those pages are still there — its menu just does not list them.
+          </div>
+        )
+      })()}
 
       {order.map((id, i) => {
         if (id === null) return row(i, 'Default', 'The built-in GameCore look')
