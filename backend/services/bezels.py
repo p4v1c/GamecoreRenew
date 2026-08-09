@@ -53,7 +53,7 @@ from urllib.parse import quote
 
 from . import bezel_capture
 from .gamemedia.parser import normalize, parse_rom
-from .paths import config_dir, overlays_dir
+from .paths import addons_dir, config_dir, overlays_dir
 
 log = logging.getLogger(__name__)
 
@@ -502,6 +502,73 @@ def _asset_url(png: Path) -> str:
     except ValueError:
         rel = Path(png.name)
     return "/assets/overlays/" + "/".join(quote(p) for p in rel.parts)
+
+
+# ── Installing a pack ────────────────────────────────────────────────────────
+#
+# The downloader is an addon (p4v1c/gamecore-addons), not core: a Bezel Project
+# pack is gigabytes of other people's box art and logos, and GameCore neither
+# hosts it, ships it in the ISO, nor fetches it without being asked. Same
+# posture as BIOS files and keys.
+#
+# What core owns is the last step — taking a directory the addon has downloaded
+# into its own data directory and filing the images where the cascade looks.
+# It lives here rather than in the addon so that what may be written, and
+# where, is decided by the side that is not third-party code.
+
+_MAX_BEZEL_BYTES = 10 * 1024 * 1024
+
+
+def install_pack(system_id: str, source: Path) -> dict:
+    """Copy a downloaded pack's PNGs into this system's bezel directory.
+
+    `source` must resolve inside `addons_dir()`. That is the whole security
+    boundary: without it this is a general-purpose "copy any file the backend
+    user can read into a directory the UI serves over HTTP", which is a much
+    larger thing than installing bezels.
+
+    Files are copied one at a time, by name, and only ever `.png`. Nothing is
+    deleted and no directory is moved — a pack that replaces another leaves
+    both, and the newer file simply wins its own name.
+    """
+    root = addons_dir().resolve()
+    try:
+        src = source.resolve(strict=True)
+        src.relative_to(root)
+    except (OSError, ValueError):
+        raise ValueError("A pack is installed from an addon's own directory")
+    if not src.is_dir():
+        raise ValueError("Not a directory")
+
+    dest = _pack_dir(system_id)
+    dest.mkdir(parents=True, exist_ok=True)
+
+    installed = skipped = 0
+    for p in sorted(src.iterdir()):
+        # Symlinks are skipped rather than followed: a pack is an archive
+        # someone downloaded, and a link in one is a way to reach back out of
+        # the directory this function just went to the trouble of confining.
+        if p.is_symlink() or not p.is_file() or p.suffix.lower() != ".png":
+            skipped += 1
+            continue
+        try:
+            if p.stat().st_size > _MAX_BEZEL_BYTES:
+                skipped += 1
+                continue
+            target = dest / p.name
+            # Through a temp file in the destination directory, then renamed:
+            # a copy interrupted half way must not leave a truncated PNG under
+            # a name the cascade will happily resolve at the next launch.
+            tmp = dest / (p.name + ".part")
+            tmp.write_bytes(p.read_bytes())
+            tmp.replace(target)
+            installed += 1
+        except OSError as e:
+            log.warning("bezels: %s not installed — %s", p.name, e)
+            skipped += 1
+
+    log.info("bezels: %s — %d bezel(s) installed from %s", system_id, installed, src)
+    return {"system_id": system_id, "installed": installed, "skipped": skipped}
 
 
 # ── The declared side, for a system whose PNG is missing ─────────────────────

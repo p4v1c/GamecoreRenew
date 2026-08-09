@@ -45,6 +45,28 @@ async def resolve_overlay(system_id: str, rom: str = ""):
     return bezels.for_launch(system_id, Path(rom).name or None)
 
 
+class PackSource(BaseModel):
+    """Where the addon put the pack it downloaded, under `<DATA>/addons/`."""
+    source: str
+
+
+@router.post("/overlays/packs/{system_id}")
+async def install_pack(system_id: str, body: PackSource):
+    """File a downloaded bezel pack where the cascade looks for it.
+
+    The download itself is an addon's job, not core's: a Bezel Project pack is
+    gigabytes of other people's box art, and GameCore does not host it, ship it
+    in the ISO, or fetch it unasked. Only the last step is here, because where
+    files may be written is not a decision to leave to third-party code.
+    """
+    if not _SYSTEM_ID_RE.match(system_id):
+        raise HTTPException(400, "Invalid system id")
+    try:
+        return bezels.install_pack(system_id, Path(body.source))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 class Measured(BaseModel):
     """What the overlay monitor saw the emulator draw, in window coordinates."""
     announced: dict           # the hole that was in force — the cache key

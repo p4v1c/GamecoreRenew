@@ -123,6 +123,87 @@ def test_a_rom_name_cannot_point_the_lookup_at_another_directory(client, library
                              "Crash%20Bandicoot%20%28USA%29.png")
 
 
+# ── Installing a downloaded pack ────────────────────────────────────────────
+
+def _addon_pack(library: Path) -> Path:
+    d = library / "addons" / "bezelproject" / "psx"
+    d.mkdir(parents=True)
+    write_png(d / "Crash Bandicoot (USA).png", 1920, 1080, (240, 0, 1440, 1080))
+    write_png(d / "Silent Hill (USA).png", 1920, 1080, (300, 60, 1320, 960))
+    return d
+
+
+def test_an_installed_pack_resolves_per_game(client, library):
+    """The point of the whole addon: after this, two games have two bezels and
+    nobody typed anything."""
+    src = _addon_pack(library)
+    r = client.post("/api/overlays/packs/duckstation", json={"source": str(src)})
+    assert r.json()["installed"] == 2
+
+    body = client.get("/api/overlays/resolve/duckstation",
+                      params={"rom": "Crash Bandicoot (Europe).chd"}).json()
+    assert body["source"] == "game"
+
+
+def test_only_png_files_are_taken(client, library):
+    """A Bezel Project pack ships a `.info` beside every image, and archives
+    arrive with readmes and licence files in them."""
+    src = _addon_pack(library)
+    (src / "Crash Bandicoot (USA).info").write_text("1440 1080 240 0")
+    (src / "README.md").write_text("#")
+    (src / "sub").mkdir()
+
+    body = client.post("/api/overlays/packs/duckstation", json={"source": str(src)}).json()
+    assert body == {"system_id": "duckstation", "installed": 2, "skipped": 3}
+
+
+def test_a_pack_outside_the_addons_directory_is_refused(client, library, tmp_path):
+    """Without this the endpoint is "copy any file the backend can read into a
+    directory served over HTTP", which is a much bigger thing than bezels."""
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    write_png(outside / "x.png", 40, 20, (10, 0, 20, 20))
+
+    r = client.post("/api/overlays/packs/duckstation", json={"source": str(outside)})
+    assert r.status_code == 400
+
+
+def test_a_traversal_out_of_the_addons_directory_is_refused(client, library):
+    _addon_pack(library)
+    r = client.post("/api/overlays/packs/duckstation",
+                    json={"source": str(library / "addons" / ".." / "config")})
+    assert r.status_code == 400
+
+
+def test_a_symlink_in_a_pack_is_not_followed(client, library, tmp_path):
+    """A pack is an archive someone downloaded. A link inside one is a way to
+    reach back out of the directory this endpoint went to trouble to confine."""
+    src = _addon_pack(library)
+    secret = tmp_path / "id_rsa.png"
+    write_png(secret, 40, 20, (10, 0, 20, 20))
+    (src / "sneaky.png").symlink_to(secret)
+
+    body = client.post("/api/overlays/packs/duckstation", json={"source": str(src)}).json()
+    assert body["installed"] == 2
+    assert not (library / "assets" / "overlays" / "duckstation" / "sneaky.png").exists()
+
+
+def test_installing_over_an_existing_pack_replaces_by_name(client, library):
+    """Nothing is deleted and no directory is moved — a second pack simply
+    wins the names it shares with the first."""
+    src = _addon_pack(library)
+    client.post("/api/overlays/packs/duckstation", json={"source": str(src)})
+    write_png(src / "Crash Bandicoot (USA).png", 1920, 1080, (0, 100, 1920, 880))
+    (src / "Silent Hill (USA).png").unlink()
+
+    client.post("/api/overlays/packs/duckstation", json={"source": str(src)})
+    body = client.get("/api/overlays/resolve/duckstation",
+                      params={"rom": "Crash Bandicoot (USA).cue"}).json()
+    assert body["hole"] == {"x": 0, "y": 100, "w": 1920, "h": 880}
+    # The bezel the second pack did not carry is still there.
+    assert (library / "assets" / "overlays" / "duckstation" / "Silent Hill (USA).png").exists()
+
+
 # ── Learning that the emulator draws somewhere else ─────────────────────────
 
 def test_a_reported_mismatch_moves_the_hole_on_the_next_launch(client, library):
