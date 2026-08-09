@@ -5,8 +5,17 @@
 import { Overlay, OverlayLabel } from '../../ui'
 import type { GamepadViewProps } from './types'
 
+const CLASS_LABELS: Record<string, string> = {
+  adapter: 'Adapter',
+  wheel: 'Wheel',
+  lightgun: 'Light gun',
+  arcade: 'Arcade stick',
+  gamepad: 'Controller',
+  unknown: 'Peripheral',
+}
+
 export default function DefaultGamepadView({
-  name, layoutLabel, controllers, glyphs, mappings, onClose, onRemap, Art, Battery,
+  name, layoutLabel, controllers, usbDevices = [], glyphs, mappings, onClose, onRemap, Art, Battery,
 }: GamepadViewProps) {
   return (
     <Overlay onClose={onClose} width={640}>
@@ -45,6 +54,54 @@ export default function DefaultGamepadView({
           </div>
         ))}
       </div>
+
+      {/* The peripherals that take no player slot. Nothing is drawn when no
+          installed system declares one, which is most boxes — an empty
+          "Peripherals" heading is a question the owner did not ask.
+
+          Absent is not an error and must not be red: a box with no GameCube
+          adapter is a perfectly working box, and colouring it as a fault is
+          exactly the manufactured ticket the BIOS screen documents. The note
+          only appears on the absent ones, because that is when there is
+          something to check. */}
+      {usbDevices.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, letterSpacing: 1, color: 'rgba(255,255,255,0.3)', marginBottom: 7 }}>
+            PERIPHERALS
+          </div>
+          {usbDevices.map(d => (
+            <div key={`${d.system_id}:${d.vid_pid}`} style={{
+              display: 'flex', alignItems: 'baseline', gap: 8, padding: '5px 0',
+              borderTop: '1px solid rgba(255,255,255,0.06)',
+            }}>
+              <span style={{
+                width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                alignSelf: 'center',
+                background: d.status === 'present' ? '#4ade80' : 'rgba(255,255,255,0.2)',
+              }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: '#fff' }}>
+                  {d.label}
+                  <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>
+                    {' · '}{CLASS_LABELS[d.class] ?? CLASS_LABELS.unknown}{' · '}{d.system_label}
+                  </span>
+                </div>
+                {d.status === 'absent' && (
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
+                    {d.note}
+                  </div>
+                )}
+              </div>
+              <span style={{
+                fontSize: 10, flexShrink: 0,
+                color: d.status === 'present' ? '#4ade80' : 'rgba(255,255,255,0.3)',
+              }}>
+                {d.status === 'present' ? 'Detected' : 'Not detected'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* The way out for a pad none of the above applies to. A controller SDL
           cannot name lights nothing up in the diagram and matches none of the

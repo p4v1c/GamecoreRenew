@@ -19,8 +19,10 @@ from .routers import bios as bios_router
 from .routers import standby as standby_router
 from .routers import controllers as controllers_router
 from .routers import themes as themes_router
+from .routers import storage as storage_router
 from .routers.settings import wifi, audio, bluetooth
-from .services import battery, gamepad_monitor, playtime_repair, prefetch, standby
+from .services import (battery, gamepad_monitor, playtime_repair, prefetch,
+                       standby, storage_monitor)
 from .services.process_manager import process_manager
 from .config import BACKEND_PORT
 from .services.paths import (backend_data_dir, covers_dir, frontend_dist_dir,
@@ -69,6 +71,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(battery.run()),
         asyncio.create_task(standby.run()),
         asyncio.create_task(prefetch.run()),
+        asyncio.create_task(storage_monitor.run()),
     ]
     yield
     for t in tasks:
@@ -171,6 +174,7 @@ app.include_router(catalog.router, prefix="/api")
 app.include_router(bios_router.router, prefix="/api")
 app.include_router(standby_router.router, prefix="/api")
 app.include_router(controllers_router.router, prefix="/api")
+app.include_router(storage_router.router, prefix="/api")
 app.include_router(themes_router.router, prefix="/api")
 app.include_router(wifi.router, prefix="/api")
 app.include_router(audio.router, prefix="/api")

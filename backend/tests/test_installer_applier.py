@@ -298,3 +298,110 @@ def test_a_remote_pack_reaches_the_applier_with_nothing_to_apply(tmp_path, ctx):
     assert not (tmp_path / "pwned").exists(), "a remote pack ran a command"
     assert not (tmp_path / "written").exists(), "a remote pack wrote a file"
     assert pack.generator is None, "a remote pack contributed executable code"
+
+
+# ── udev ───────────────────────────────────────────────────────────────────
+#
+# Every test here points `udev_rules_dir` at tmp_path. Nothing in this suite may
+# write into the real /etc/udev/rules.d — that would need root, so the honest
+# alternative was a skipped test, and a skipped test is how rule generation
+# ships never having been run.
+
+USB_ADAPTER = {
+    "vidPid": "057e:0337",
+    "class": "adapter",
+    "label": "GameCube adapter",
+    "udevRule": 'ATTRS{idVendor}=="057e", ATTRS{idProduct}=="0337", MODE="0666"',
+    "note": "Check the switch is on Wii U.",
+}
+
+
+def test_a_declared_usb_device_gets_its_rule_written(tmp_path, ctx):
+    ctx.udev_rules_dir = tmp_path / "rules.d"
+    pack = make_pack(tmp_path, {"id": "gc", "usb": [USB_ADAPTER]})
+    results = ap.apply_udev(pack, ctx)
+    assert [r.ok for r in results] == [True]
+    written = (ctx.udev_rules_dir / "99-gamecore-gc.rules").read_text()
+    assert USB_ADAPTER["udevRule"] in written
+    # Traceable back to the pack, or nobody will dare delete it later.
+    assert "gc" in written and "GameCube adapter" in written
+
+
+def test_the_rules_file_is_named_after_the_pack(tmp_path, ctx):
+    """One file per pack, never appended to a shared one.
+
+    Appending has no idempotent form — re-running the installer would grow the
+    file every time — and a pack has to be able to take its own rules away.
+    """
+    ctx.udev_rules_dir = tmp_path / "rules.d"
+    ap.apply_udev(make_pack(tmp_path, {"id": "wheelpack", "usb": [USB_ADAPTER]}), ctx)
+    assert [p.name for p in ctx.udev_rules_dir.iterdir()] == ["99-gamecore-wheelpack.rules"]
+
+
+def test_re_running_the_installer_does_not_grow_the_rules_file(tmp_path, ctx):
+    """Re-running an install is documented as safe. A rules file that gained a
+    duplicate block per run would be the counter-example."""
+    ctx.udev_rules_dir = tmp_path / "rules.d"
+    pack = make_pack(tmp_path, {"id": "gc", "usb": [USB_ADAPTER]})
+    ap.apply_udev(pack, ctx)
+    first = (ctx.udev_rules_dir / "99-gamecore-gc.rules").read_text()
+    ap.apply_udev(pack, ctx)
+    assert (ctx.udev_rules_dir / "99-gamecore-gc.rules").read_text() == first
+
+
+def test_a_pack_with_no_usb_block_writes_no_rules_at_all(tmp_path, ctx):
+    """An empty rules file is a permission question nobody asked."""
+    ctx.udev_rules_dir = tmp_path / "rules.d"
+    assert ap.apply_udev(make_pack(tmp_path, {"id": "plain"}), ctx) == []
+    assert not ctx.udev_rules_dir.exists()
+
+
+def test_a_device_declaring_no_rule_writes_no_rules_file(tmp_path, ctx):
+    """Plenty of peripherals work on kernel defaults. Declaring one must not
+    widen a permission on its account."""
+    ctx.udev_rules_dir = tmp_path / "rules.d"
+    no_rule = {k: v for k, v in USB_ADAPTER.items() if k != "udevRule"}
+    assert ap.apply_udev(make_pack(tmp_path, {"id": "gc", "usb": [no_rule]}), ctx) == []
+    assert not ctx.udev_rules_dir.exists()
+
+
+def test_a_dry_run_writes_nothing_and_says_where_it_would_have(tmp_path, ctx):
+    ctx.udev_rules_dir = tmp_path / "rules.d"
+    ctx.dry_run = True
+    results = ap.apply_udev(make_pack(tmp_path, {"id": "gc", "usb": [USB_ADAPTER]}), ctx)
+    assert [r.ok for r in results] == [True]
+    assert "99-gamecore-gc.rules" in results[0].message
+    assert not ctx.udev_rules_dir.exists()
+
+
+def test_an_unwritable_rules_dir_costs_the_rule_and_not_the_install(tmp_path, ctx):
+    """The non-root install. The emulator still installs and still runs; what
+    the owner loses is an accessory that may need a manual step. An exception
+    here would have cost them the whole pack instead."""
+    blocked = tmp_path / "blocked"
+    blocked.write_text("I am a file, not a directory")
+    ctx.udev_rules_dir = blocked / "rules.d"
+    results = ap.apply_udev(make_pack(tmp_path, {"id": "gc", "usb": [USB_ADAPTER]}), ctx)
+    assert [r.ok for r in results] == [False]
+    assert "gc" in results[0].message
+
+
+def test_apply_runs_the_udev_step_as_part_of_the_pack(tmp_path, ctx):
+    """Wired into apply(), not merely importable — the step existed and was
+    never called is the failure this catches."""
+    ctx.udev_rules_dir = tmp_path / "rules.d"
+    ap.apply(make_pack(tmp_path, {"id": "gc", "usb": [USB_ADAPTER]}), ctx)
+    assert (ctx.udev_rules_dir / "99-gamecore-gc.rules").is_file()
+
+
+def test_apply_udev_never_activates_anything(tmp_path, ctx, monkeypatch):
+    """Written, never triggered. Reloading per pack would re-fire the whole
+    device tree a dozen times during one install, and the rules matter at the
+    next plug event anyway. `install/arch.sh` reloads once, at the end."""
+    calls = []
+    monkeypatch.setattr(ap.subprocess, "run",
+                        lambda *a, **k: calls.append(a) or (_ for _ in ()).throw(
+                            AssertionError("apply_udev must not run a subprocess")))
+    ctx.udev_rules_dir = tmp_path / "rules.d"
+    ap.apply_udev(make_pack(tmp_path, {"id": "gc", "usb": [USB_ADAPTER]}), ctx)
+    assert calls == []

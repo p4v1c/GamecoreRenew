@@ -149,6 +149,7 @@ def test_a_restarted_backend_finds_the_running_game(session_file):
         session_file.write_text(json.dumps({
             "pgid": os.getpgid(proc.pid), "game_key": "Melee.iso",
             "system_id": "dolphin", "exec_path": "/usr/bin/dolphin-emu",
+            "rom_path": "/run/media/gc/ROMS/gamecube/Melee.iso",
             "launch_args": [], "started_at": time.time(),
         }))
 
@@ -157,7 +158,14 @@ def test_a_restarted_backend_finds_the_running_game(session_file):
 
         asyncio.run(fresh.adopt_orphan())
         assert fresh.is_running, "the emulator is still on screen — say so"
-        assert fresh.current_game == {"game_key": "Melee.iso", "system_id": "dolphin"}
+        # rom_path is part of the session because storage_monitor asks whether
+        # the disk that has just been unplugged is the one the running game
+        # came from. An adopted game that forgot its path would be the one case
+        # where a disk pulled mid-session said nothing — precisely after a
+        # backend restart, when the player is least likely to expect it.
+        assert fresh.current_game == {
+            "game_key": "Melee.iso", "system_id": "dolphin",
+            "rom_path": "/run/media/gc/ROMS/gamecube/Melee.iso"}
     finally:
         try:
             os.killpg(os.getpgid(proc.pid), signal.SIGKILL)

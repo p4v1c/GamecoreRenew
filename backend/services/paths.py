@@ -80,6 +80,7 @@ _LAYOUT = {
     "logos":     "assets/logos",      # logo replacements uploaded by the operator
     "themes":    "config/themes",     # installed themes (mutable code)
     "addons":    "addons",            # per-addon writable state, <DATA>/addons/<id>/
+    "volumes":   "volumes",           # symlinks to external disks, one per label
 }
 
 
@@ -120,6 +121,7 @@ def overlays_dir() -> Path:    return data_dir("overlays")
 def logos_dir() -> Path:       return data_dir("logos")
 def themes_dir() -> Path:      return data_dir("themes")
 def addons_dir() -> Path:      return data_dir("addons")
+def volumes_dir() -> Path:     return data_dir("volumes")
 
 
 # ── The read-only side ───────────────────────────────────────────────────────

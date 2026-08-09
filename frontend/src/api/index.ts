@@ -184,6 +184,25 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
   return r.json()
 }
 
+/**
+ * A POST whose FastAPI `detail` survives into the thrown Error.
+ *
+ * `post()` above throws "409 Conflict", which is exactly the generic failure
+ * the storage screen must not show: udisks answers "target is busy" — a game
+ * is still reading the disk — and that sentence is the only actionable part of
+ * the response. Losing it turns a fixable state into a dead end.
+ */
+async function postDetailed<T>(path: string, body?: unknown): Promise<T> {
+  const r = await fetch(BASE + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
+  const payload = await r.json().catch(() => null)
+  if (!r.ok) throw new Error(payload?.detail || `${r.status} ${r.statusText}`)
+  return payload as T
+}
+
 export const api = {
   systems: {
     list: () => get<SystemEntry[]>('/systems'),
@@ -289,7 +308,31 @@ export const api = {
    * where no emulator will offer to bind it in the first place. It writes an
    * SDL mapping line every SDL-based emulator reads at startup.
    */
+  /**
+   * External disks.
+   *
+   * `unmount` is the one that matters: pulling a disk with unwritten data is
+   * how a save is lost, and nobody can tell by looking whether a write has
+   * finished. It flushes and detaches, and it reports udisks's own words when
+   * it cannot — "target is busy" means a game is still reading the disk.
+   */
+  storage: {
+    list: () => get<{ ok: boolean; volumes: StorageVolume[] }>('/storage/volumes'),
+    mount: (device: string) =>
+      postDetailed<{ ok: boolean; detail: string }>('/storage/mount', { device }),
+    unmount: (device: string) =>
+      postDetailed<{ ok: boolean; detail: string }>('/storage/unmount', { device }),
+  },
   controllers: {
+    /**
+     * The peripherals that are NOT SDL pads, present or absent.
+     *
+     * The player slots answer "who is player 2". They cannot answer "is the
+     * GameCube adapter plugged in": Dolphin drives it over raw libusb, so it
+     * has no evdev node and never enters the roster. Without this list, an
+     * adapter that is unplugged and one the box cannot see look identical.
+     */
+    devices: () => get<{ ok: boolean; devices: UsbDevice[] }>('/controllers/devices'),
     scanMapping: () => post<ScanResult>('/controllers/scan-mapping'),
     forgetScan: () => fetch(BASE + '/controllers/scan-mapping', { method: 'DELETE' })
       .then(r => r.json()) as Promise<ScanResult>,
@@ -313,6 +356,46 @@ export const api = {
       socket: () => new WebSocket(`ws://${window.location.host}/api/ws/controllers/mapping`),
     },
   },
+}
+
+/** One external disk — see api.storage. */
+export interface StorageVolume {
+  name: string
+  /** `/dev/sdb1`. The handle for mount/unmount: a row number is not one, since
+   *  a disk arriving while the screen is open renumbers the list. */
+  device: string
+  label: string
+  uuid: string
+  fstype: string
+  size: string
+  /** Where udisks put it. Not stable across replugs — do not record it. */
+  mountpoint: string
+  mounted: boolean
+  slug: string
+  /** `<DATA>/volumes/<slug>` — what a romsPath should point at. Survives a
+   *  replug, which the mount point does not: udisks calls the second mount of
+   *  the same disk "ROMS 1". */
+  stable_path: string
+  /** false for exFAT/NTFS: ROMs are fine, emulator saves are not. */
+  keeps_permissions: boolean
+  /** The sentence to show when keeps_permissions is false; "" otherwise. */
+  saves_warning: string
+}
+
+/** One declared peripheral that is not an SDL pad — see api.controllers.devices. */
+export interface UsbDevice {
+  system_id: string
+  system_label: string
+  vid_pid: string
+  /** 'gamepad' | 'adapter' | 'wheel' | 'lightgun' | 'arcade', or 'unknown' for
+   *  a class this release does not know — a pack from a newer catalogue. */
+  class: string
+  label: string
+  /** The pack's own words about what to check. Shown when the device is absent. */
+  note: string
+  /** What sysfs calls it, when it is here. Empty when absent. */
+  detected_as: string
+  status: 'present' | 'absent'
 }
 
 export interface ScanResult {

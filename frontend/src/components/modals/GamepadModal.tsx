@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useStore } from '../../store'
-import { api, SysInfo } from '../../api'
+import { api, SysInfo, UsbDevice } from '../../api'
 import { onGp, useGamepadState } from '../../hooks/useGamepad'
 import { ControllerBattery } from '../TopBar'
 import ControllerArt, { ControllerLayout } from './gamepad/ControllerArt'
@@ -37,6 +37,7 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
   const { openModal, closeModal } = useStore()
   const [ctrl, setCtrl] = useState(detectControllerType)
   const [sysInfo, setSysInfo] = useState<SysInfo | null>(null)
+  const [usbDevices, setUsbDevices] = useState<UsbDevice[]>([])
   const [wizard, setWizard] = useState(startInWizard)
 
   // Live button/axis state — drives the drawing below, frame by frame
@@ -46,7 +47,20 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
     api.sysinfo().then(setSysInfo).catch(() => {})
     const refresh = () => setCtrl(detectControllerType())
     const offs = [onGp('gp:connected', refresh), onGp('gp:disconnected', refresh)]
-    return () => offs.forEach(o => o())
+
+    // Polled, not event-driven, and that is not laziness. gp:connected fires
+    // from gamepad_monitor, which only ever sees a device with an evdev node
+    // that declares BTN_SOUTH — precisely the devices this list is NOT about.
+    // A GameCube adapter emits no event when it is plugged in, so a screen
+    // that waited for one would sit on "absent" while the owner plugs the
+    // thing in and out in front of it, which is the exact moment this list
+    // exists to serve.
+    const readDevices = () => api.controllers.devices()
+      .then(r => setUsbDevices(r.devices ?? []))
+      .catch(() => {})
+    readDevices()
+    const timer = setInterval(readDevices, 2000)
+    return () => { offs.forEach(o => o()); clearInterval(timer) }
   }, [])
 
   // No button binding here on purpose: on this screen every press is a test and
@@ -95,6 +109,7 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
       }
       connected={ctrl.name !== 'No controller detected'}
       controllers={sysInfo?.controllers ?? []}
+      usbDevices={usbDevices}
       glyphs={g}
       mappings={MAPPINGS}
       onClose={onClose}

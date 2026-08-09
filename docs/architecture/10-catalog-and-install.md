@@ -151,6 +151,73 @@ The pack spells them in camelCase like the rest of the schema;
 `gen-catalog.py` writes the `wm_class` / `timeout_s` spelling the enforcer has
 always read into the tile entry.
 
+### `usb` — the peripherals that are not SDL gamepads
+
+The autoconfig pipeline knows exactly one kind of device: a pad that declares
+`BTN_SOUTH` on an evdev node. `gamepad_monitor` enumerates `/dev/input/event*`,
+`controller_registry` hands out a player slot, a generator writes a config for
+whatever took it. Anything that does not enter through that door was invisible
+end to end — no player slot, no udev rule, no line anywhere on screen:
+
+- the **GameCube adapter** Dolphin drives over raw libusb, which has no evdev
+  node at all;
+- a **DolphinBar** and its Wiimotes, several HID interfaces whose shape depends
+  on the mode switch on the bar;
+- **arcade sticks** that enumerate as a keyboard — no `BTN_SOUTH`, so
+  `pads_by_key()` drops them on purpose;
+- **wheels**, whose force-feedback node is separate from their buttons;
+- RPCS3's **DS3 passthrough** over hidraw.
+
+`gamepad_monitor` is right to keep dropping these: a player slot is for
+something that can be player 2, and a light gun is not. The gap was that there
+was no *other* list either.
+
+```json
+"usb": [
+  {
+    "vidPid": "057e:0337",
+    "class": "adapter",
+    "label": "GameCube controller adapter",
+    "udevRule": "SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"057e\", ATTRS{idProduct}==\"0337\", MODE=\"0666\"",
+    "note": "Check the switch on the adapter is on Wii U rather than PC."
+  }
+]
+```
+
+`class` is one of `gamepad`, `adapter`, `wheel`, `lightgun`, `arcade`. It is
+what the roster was missing — `gamepad` is the case the pipeline already
+handled, the other four are the ones it could not express. A class this release
+does not know is listed as *unknown* rather than raising: `config/catalog.d/` is
+data the operator wrote, and the OTA tier can carry a pack from a newer
+catalogue.
+
+Declaring one does four things:
+
+| | where |
+|---|---|
+| writes `/etc/udev/rules.d/99-gamecore-<pack>.rules` at install | `installer/applier.py:apply_udev` |
+| lists the device present-or-absent on the controller screen | `GET /api/controllers/devices` |
+| re-fires `udevadm trigger` after launch, so a device plugged in later reaches the Flatpak sandbox | `routers/games.py` |
+| broadcasts `game:notice` with the pack's own note when the device is absent | `usb_devices.launch_notice` |
+
+Two rules worth stating out loud:
+
+- **It never refuses a launch.** A USB accessory is optional by nature — Dolphin
+  plays perfectly with a DualShock 4 and no adapter — so blocking would be
+  GameCore inventing a fault, the mistake `bios.required: false` exists to
+  avoid. The BIOS gate blocks; this one only speaks.
+- **The rule is written, never activated.** `apply_udev` runs no `udevadm`.
+  Reloading per pack would re-fire the whole device tree a dozen times during
+  one install, and the rules matter at the next plug event anyway;
+  `install/arch.sh` reloads once, at the end. `udevRule` also never reaches the
+  tile — it is install-time text needing root, and the tile is read on every
+  launch.
+
+Write the narrowest rule that works. `MODE="0666"` on a device that also
+carries a keyboard interface is every keystroke on the box readable by any
+local uid — `install/arch.sh` documents that trade at length around
+`99-gamecore-input.rules`.
+
 ---
 
 ## 3. The install pipeline

@@ -258,6 +258,11 @@ class ProcessManager:
         self._launching: bool = False  # claimed before the first await in launch()
         self._game_key: str = ""
         self._system_id: str = ""
+        # Kept so storage_monitor can answer "was the running game on the
+        # disk that just vanished". Without it the only honest answer to a
+        # disk pulled mid-session was silence, and the player got an
+        # emulator that froze for no stated reason.
+        self._rom_path: str = ""
         self._start_time: float = 0.0
         self._exec_path: str = ""   # "flatpak" or absolute path
         self._launch_args: list[str] = []  # args passed after exec_path
@@ -289,6 +294,7 @@ class ProcessManager:
             "game_key": self._game_key,
             "system_id": self._system_id,
             "exec_path": self._exec_path,
+            "rom_path": self._rom_path,
             "launch_args": self._launch_args,
             "started_at": self._start_time,
         }
@@ -325,6 +331,7 @@ class ProcessManager:
         self._game_key = str(data.get("game_key") or "")
         self._system_id = str(data.get("system_id") or "")
         self._exec_path = str(data.get("exec_path") or "")
+        self._rom_path = str(data.get("rom_path") or "")
         self._launch_args = [str(a) for a in (data.get("launch_args") or [])]
         try:
             self._start_time = float(data.get("started_at") or time.time())
@@ -355,7 +362,8 @@ class ProcessManager:
     def current_game(self) -> dict | None:
         if not self.is_running:
             return None
-        return {"game_key": self._game_key, "system_id": self._system_id}
+        return {"game_key": self._game_key, "system_id": self._system_id,
+                "rom_path": self._rom_path}
 
     async def launch(self, exec_path: str, exec_args: str, rom_path: str = "",
                      game_key: str = "", system_id: str = "") -> None:
@@ -372,6 +380,7 @@ class ProcessManager:
 
             self._exec_path = exec_path
             self._launch_args = args
+            self._rom_path = rom_path
             self._game_key = game_key or (rom_path.split("/")[-1] if rom_path else exec_path.split("/")[-1])
             self._system_id = system_id
             self._start_time = time.time()

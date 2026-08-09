@@ -41,10 +41,24 @@ emulators be written from a capture instead of demanding a manual pass.
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from ..services import controller_capture, controller_profiles
+from ..services import controller_capture, controller_profiles, usb_devices
 from ..services.configgen import mapping_db
 
 router = APIRouter(tags=["controllers"])
+
+
+@router.get("/controllers/devices")
+def usb_peripherals():
+    """The declared peripherals that are not SDL pads, present or absent.
+
+    The player slots above this list answer "who is player 2". They cannot
+    answer "is the GameCube adapter plugged in", because an adapter Dolphin
+    drives over raw libusb has no evdev node and therefore never enters the
+    roster at all. Without this list the two failure modes — not plugged in,
+    and plugged in but not seen — look identical from a sofa, and only one of
+    them is fixed by touching the cable.
+    """
+    return {"ok": True, "devices": usb_devices.report()}
 
 
 @router.post("/controllers/scan-mapping")
