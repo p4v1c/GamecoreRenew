@@ -59,6 +59,14 @@
     "libretroSystems": [
       "Nintendo - GameCube",
       "Nintendo - Wii"
+    ],
+    "usb": [
+      {
+        "vidPid": "057e:0337",
+        "class": "adapter",
+        "label": "GameCube controller adapter",
+        "note": "Dolphin drives this adapter over raw libusb, so it never appears as a controller anywhere else on the box — not in the player slots, not in any other emulator. Check the cable, and that the switch on the adapter is on Wii U rather than PC."
+      }
     ]
   },
   {
@@ -137,6 +145,14 @@
     "extensions": [],
     "libretroSystems": [
       "Sony - PlayStation 3"
+    ],
+    "usb": [
+      {
+        "vidPid": "054c:0268",
+        "class": "gamepad",
+        "label": "DualShock 3",
+        "note": "RPCS3's native DS3 handler reads the pad over hidraw, which is what gives it motion and pressure-sensitive buttons a generic SDL pad cannot report. The pad also works as an ordinary SDL controller without this — only the PS3-specific inputs are lost."
+      }
     ]
   },
   {

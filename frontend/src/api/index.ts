@@ -290,6 +290,15 @@ export const api = {
    * SDL mapping line every SDL-based emulator reads at startup.
    */
   controllers: {
+    /**
+     * The peripherals that are NOT SDL pads, present or absent.
+     *
+     * The player slots answer "who is player 2". They cannot answer "is the
+     * GameCube adapter plugged in": Dolphin drives it over raw libusb, so it
+     * has no evdev node and never enters the roster. Without this list, an
+     * adapter that is unplugged and one the box cannot see look identical.
+     */
+    devices: () => get<{ ok: boolean; devices: UsbDevice[] }>('/controllers/devices'),
     scanMapping: () => post<ScanResult>('/controllers/scan-mapping'),
     forgetScan: () => fetch(BASE + '/controllers/scan-mapping', { method: 'DELETE' })
       .then(r => r.json()) as Promise<ScanResult>,
@@ -313,6 +322,22 @@ export const api = {
       socket: () => new WebSocket(`ws://${window.location.host}/api/ws/controllers/mapping`),
     },
   },
+}
+
+/** One declared peripheral that is not an SDL pad — see api.controllers.devices. */
+export interface UsbDevice {
+  system_id: string
+  system_label: string
+  vid_pid: string
+  /** 'gamepad' | 'adapter' | 'wheel' | 'lightgun' | 'arcade', or 'unknown' for
+   *  a class this release does not know — a pack from a newer catalogue. */
+  class: string
+  label: string
+  /** The pack's own words about what to check. Shown when the device is absent. */
+  note: string
+  /** What sysfs calls it, when it is here. Empty when absent. */
+  detected_as: string
+  status: 'present' | 'absent'
 }
 
 export interface ScanResult {

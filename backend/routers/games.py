@@ -14,6 +14,7 @@ from ..services import (
     controller_registry,
     fullscreen_enforcer,
     local_media,
+    usb_devices,
 )
 from ..services import process_manager as process_manager_module
 from ..services.catalog import launch as catalog_launch
@@ -25,7 +26,18 @@ log = logging.getLogger(__name__)
 
 
 async def _gamepad_trigger(rounds: int = 3, delay: float = 3.0) -> None:
-    """Run 'sudo udevadm trigger' several times so Flatpak apps detect the gamepad."""
+    """Run 'sudo udevadm trigger' several times so Flatpak apps detect the gamepad.
+
+    Named for pads because pads were all it ever ran for, and that was the hole:
+    the flag is `launch.gamepadTrigger`, only Stremio set it, and every reason
+    it exists applies word for word to a GameCube adapter. A device plugged in
+    after the sandbox started stayed invisible until the game was quit and
+    relaunched — which from a sofa is an accessory that does not work.
+
+    `udevadm trigger` with no filter re-fires the whole tree, so nothing about
+    the command had to change. What changed is WHO gets to ask for it: any pack
+    that declares `usb` does now, without having to claim to be about gamepads.
+    """
     for i in range(rounds):
         await asyncio.sleep(delay)
         try:
@@ -210,6 +222,27 @@ async def launch_game(req: LaunchRequest):
             log.exception("launch: failed to broadcast game:failed")
         raise HTTPException(424, blocker)
 
+    # Beside the BIOS gate, and deliberately NOT one of them: a declared USB
+    # accessory that is absent is said out loud and the game starts anyway.
+    #
+    # An accessory is optional by nature — Dolphin plays perfectly with a
+    # DualShock 4 and no GameCube adapter — so refusing here would be GameCore
+    # inventing a fault, which is the mistake `bios.required: false` exists to
+    # avoid. But saying nothing is how "my adapter does not work" becomes a
+    # phone call: the owner cannot tell an adapter that is unplugged from one
+    # the sandbox cannot see, and both look like a game that ignores it.
+    #
+    # Before the launch attempt rather than after, so an emulator that then
+    # fails to start does not swallow the one sentence that explains the box.
+    if notice := usb_devices.launch_notice(req.system_id):
+        log.info("launch: %s", notice)
+        try:
+            await ws.broadcast("game:notice", {
+                "game_key": game_key, "system_id": req.system_id, "detail": notice,
+            })
+        except Exception:
+            log.exception("launch: failed to broadcast game:notice")
+
     # Before launch, not after: the emulator reads its input config at startup,
     # so a slot freed a moment later is a slot the running game still sees.
     await _free_stale_slots(req.system_id)
@@ -242,7 +275,10 @@ async def launch_game(req: LaunchRequest):
             log.exception("launch: failed to broadcast game:failed")
         raise HTTPException(503, detail)
 
-    if system.get("gamepadTrigger"):
+    # A pack declaring `usb` wants the same re-fire, for the same reason — see
+    # _gamepad_trigger. `or`, not a second task: two overlapping trigger loops
+    # would be six `udevadm trigger` calls on a box that asked for three.
+    if system.get("gamepadTrigger") or system.get("usb"):
         task = asyncio.create_task(_gamepad_trigger())
         task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 

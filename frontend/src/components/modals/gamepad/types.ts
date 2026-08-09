@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import type { ControllerLayout } from './ControllerArt'
-import type { SysInfo } from '../../../api'
+import type { SysInfo, UsbDevice } from '../../../api'
 
 /**
  * What a controller screen is handed.
@@ -23,6 +23,17 @@ export interface GamepadViewProps {
   connected: boolean
   /** Battery and player index per pad, from the backend registry. */
   controllers: NonNullable<SysInfo['controllers']>
+  /**
+   * The declared peripherals that take no player slot — a GameCube adapter, a
+   * DolphinBar, a wheel. Empty when no installed system declares any, which is
+   * the common case and must draw nothing at all.
+   *
+   * These deliberately do NOT appear among `controllers`: a light gun is not
+   * player 2, and giving one a slot is how an emulator ends up writing pad
+   * bindings for a device that has no buttons. They are a separate list
+   * because they answer a separate question — "is it plugged in".
+   */
+  usbDevices?: UsbDevice[]
   /** Button glyphs for this family: use these, never hardcoded ✕/○/△/□. */
   glyphs: { top: string; right: string; bottom: string; left: string; lb: string; rb: string; menu: string; power: string }
   /** [key, action] pairs — what each button does across GameCore. */

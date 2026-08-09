@@ -140,4 +140,15 @@ def tile_entry(pack, *, resolve_launcher: LauncherResolver | None = None) -> dic
     if launch.get("gamepadTrigger"):
         entry["gamepadTrigger"] = True
 
+    # The accessories that are not pads. Only what a LAUNCH needs to know:
+    # which device, what to call it, and what to say when it is not there.
+    # `udevRule` is deliberately not carried — it is install-time text, it
+    # needs root to mean anything, and a tile is a file the backend reads on
+    # every launch. Copying a permission rule into it would put the widest
+    # thing a pack can ask for into the most-read file on the box.
+    if usb := pack.data.get("usb"):
+        entry["usb"] = [{"vidPid": d["vidPid"], "class": d["class"],
+                         "label": d.get("label", ""), "note": d["note"]}
+                        for d in usb]
+
     return entry

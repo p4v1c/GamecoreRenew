@@ -267,6 +267,43 @@
       }
     },
 
+    "usb": {
+      "description": "The peripherals this system needs that are NOT SDL gamepads: the GameCube adapter Dolphin drives over raw libusb, a DolphinBar, an arcade stick that enumerates as a keyboard, a wheel, RPCS3's DS3 passthrough.\n\nNone of them can enter the roster through `controllers`, and that is the point. `gamepad_monitor` only ever sees a device that declares BTN_SOUTH on an evdev node, so an adapter with no evdev node at all was invisible everywhere: no line on the controllers screen, no udev rule, and no way for the owner to tell 'not plugged in' from 'not supported'.\n\nDeclaring one here does four things: it lays the rule down at install (`installer/applier.py`), it lists the device on the controllers screen present-or-absent, it re-fires udev after launch so a device plugged in later reaches the Flatpak sandbox, and it puts the pack's own note on screen when the device is missing.\n\nIt never refuses a launch. A USB accessory is optional by nature — Dolphin plays fine with a DualShock 4 — and blocking would be inventing a fault, the mistake `bios.required` exists to avoid.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["vidPid", "class", "note"],
+        "additionalProperties": false,
+        "properties": {
+          "vidPid": {
+            "description": "Lowercase `vendor:product`, exactly as sysfs writes it in /sys/bus/usb/devices/*/idVendor. Pinned lowercase so a pack and a udev rule that name the same adapter in different case are still the same adapter.",
+            "type": "string",
+            "pattern": "^[0-9a-f]{4}:[0-9a-f]{4}$"
+          },
+          "class": {
+            "description": "What KIND of thing it is, which is what the roster was missing. `gamepad` is the case the pipeline already handled; the other four are the ones it could not express. The controllers screen groups by it, and it is the honest answer to 'why does this device not get a player slot' — a light gun never should.",
+            "enum": ["gamepad", "adapter", "wheel", "lightgun", "arcade"]
+          },
+          "label": {
+            "description": "What the owner calls it — 'GameCube adapter', 'DolphinBar'. Absent = the vidPid is shown, which is correct but unreadable from a sofa.",
+            "type": "string",
+            "minLength": 1
+          },
+          "udevRule": {
+            "description": "One udev rule line, written to /etc/udev/rules.d/99-gamecore-<pack>.rules at install. Omit when the device needs no rule — plenty work on their kernel defaults, and an unnecessary rule is a permission widened for nothing.\n\nWrite the narrowest rule that works: this grants access to a device node, and `MODE=\"0666\"` on a device that also carries a keyboard interface is every keystroke on the box readable by any local uid. The existing 99-gamecore-input.rules documents that trade at length.",
+            "type": "string",
+            "minLength": 1
+          },
+          "note": {
+            "description": "One line the player reads when the device is not detected. What it is for and what to check — the mode switch on a DolphinBar, the USB port a passthrough needs. Never where to buy one.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+
     "localMedia": {
       "description": "The on-disk layout this system's dumps use, so icons, titles and disc serials can be read from the game files themselves instead of guessed from the filename. Absent = this system has no local media and falls back to online scraping, which is exactly what an emulator nobody listed used to get. WHICH parser reads a format is code (backend/services/local_media.py); WHICH format a system uses is this. duckstation and pcsx2 read the identical PlayStation layout and differ by one string — that was six `if sid == …` branches across three functions before it moved here.",
       "type": "object",

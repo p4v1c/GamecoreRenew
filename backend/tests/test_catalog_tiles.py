@@ -155,3 +155,45 @@ def test_every_shipped_flatpak_launcher_defers_to_the_catalogue(packs):
             wrong.append(f"{pack.id}: read {flatpak_app_id(args)!r}, "
                          f"expected {APPID_TOKEN}")
     assert wrong == [], "\n".join(wrong)
+
+
+# ── the peripherals that are not pads ──────────────────────────────────────
+
+def test_the_usb_block_reaches_the_tile_by_both_paths(packs):
+    """A pack found by what it declares, never by name.
+
+    Same class of bug as `fullscreen` above: a field that only one of the two
+    builders emitted meant a fresh install and an updated one disagreed, and
+    nothing said so. `usb` is read on every launch, so a tile missing it is an
+    accessory that is silently never mentioned.
+    """
+    declaring = [p for p in packs.values() if p.data.get("usb")]
+    assert declaring, "no pack declares usb — has the block been lost?"
+    for pack in declaring:
+        for build in (lambda p: tile_entry(p), lambda p: entry_from_pack(p, ROOT)):
+            tile = build(pack)
+            assert len(tile["usb"]) == len(pack.data["usb"])
+            for device in tile["usb"]:
+                assert device["vidPid"] and device["class"] and device["note"]
+
+
+def test_the_tile_never_carries_a_udev_rule(packs):
+    """`udevRule` is install-time text that needs root to mean anything.
+
+    The tile is the most-read file on the box — games.py opens it on every
+    launch — and copying the widest permission a pack can request into it would
+    put that text somewhere it is neither needed nor guarded.
+    """
+    for pack in packs.values():
+        for build in (lambda p: tile_entry(p), lambda p: entry_from_pack(p, ROOT)):
+            for device in build(pack).get("usb", []):
+                assert "udevRule" not in device, \
+                    f"{pack.id}: a udev rule reached the tile"
+
+
+def test_a_pack_declaring_no_usb_gets_no_usb_key(packs):
+    """Most packs declare none, and an empty list in every tile would be a
+    field the frontend has to special-case for no reason."""
+    for pack in packs.values():
+        if not pack.data.get("usb"):
+            assert "usb" not in tile_entry(pack)

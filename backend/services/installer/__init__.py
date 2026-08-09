@@ -12,6 +12,7 @@ from .applier import (
     apply_packages,
     apply_services,
     apply_sources,
+    apply_udev,
     enabled_units,
     run_post_install,
 )
@@ -28,6 +29,7 @@ from .providers import PROVIDERS, Context, Result, install, sandbox_flags
 
 __all__ = [
     "AppContext", "apply", "apply_files", "apply_packages", "apply_services",
+    "apply_udev",
     "apply_sources", "enabled_units", "run_post_install",
     "Context", "Result", "PROVIDERS", "install", "sandbox_flags",
     "download", "extract", "fetch_release_asset", "github_asset_url",
