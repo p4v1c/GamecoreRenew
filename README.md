@@ -88,16 +88,21 @@ The ISO installs on a bare machine. You do **not** need to install Arch, or
 anything else, beforehand: the image carries the whole system, GameCore
 included, so the install works with no network at all.
 
-1. Download `gamecore-<version>.iso` and `gamecore-<version>.iso.sha256` from
-   the [latest release](https://github.com/p4v1c/GamecoreRenew/releases/latest).
+1. Download the image and its `.sha256` from the
+   [latest release](https://github.com/p4v1c/GamecoreRenew/releases/latest).
 
    The image carries a whole desktop and all three GPU driver stacks, so it is
    often larger than the 2 GiB GitHub allows for one release asset. When it is,
-   the release carries `gamecore-<version>.iso.00.part`, `.01.part` … and a
-   `REASSEMBLE.txt` instead. Download them all, then:
+   the release carries `….iso.00.part`, `….iso.01.part` … and a
+   `REASSEMBLE.txt` instead of the `.iso`. Download every part and the
+   `.sha256`, then join them:
    ```bash
-   cat gamecore-*.iso.*.part > gamecore-<version>.iso
+   cat gamecore-*.iso.*.part > "$(basename gamecore-*.iso.sha256 .sha256)"
    ```
+   Reassemble to the name the `.sha256` carries, not to one you make up: the
+   checksum file names the image mkarchiso produced, and `sha256sum -c` looks
+   for that exact name on disk. `REASSEMBLE.txt` in the release spells the
+   name out if you would rather copy it by hand.
 2. Check it — a truncated download produces a stick that boots halfway. The
    checksum covers the whole image, so it verifies a reassembled one too:
    ```bash

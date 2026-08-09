@@ -144,6 +144,26 @@ if $WITH_PAYLOAD; then
   # machine being installed.
   msg "Node modules and the frontend build"
   command -v npm >/dev/null || die "npm not found — install 'npm' (nodejs) on the build host."
+
+  # Checked HERE, before ~40 minutes of pacstrap and squashfs, because the
+  # symptom otherwise arrives at the Electron guard below and is indistinguishable
+  # from the npm-policy failure that guard was written for.
+  #
+  # Electron 31's postinstall unpacks with extract-zip 2.0.1 / yauzl 2.10, and on
+  # Node 26 that unpack stalls without ever settling its promise: node exits 0
+  # having written dist/locales and nothing else. Silent, and it looks like a
+  # successful install right up to the guard.
+  #
+  # Measured: Node 22.21 unpacks the 260 MB tree, Node 26.4 writes 352 KB and no
+  # binary. 23/24/25 were NOT tested — the ceiling below is the last version
+  # known to work, not the first known to break. Raise it with a measurement.
+  NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
+  [[ "$NODE_MAJOR" -ge 18 && "$NODE_MAJOR" -le 22 ]] \
+    || die "this build host runs Node $NODE_MAJOR; the payload must be staged with Node 18-22.
+  Electron 31's postinstall silently extracts nothing on Node 26, and the ISO
+  would be built with no Electron binary in it.
+  On Arch:  pacman -S nodejs-lts-jod   (the release workflow does the same)"
+  info "node $(node --version), npm $(npm --version)"
   ( cd "$SRC/frontend" && npm ci && npm run build ) \
     || die "the frontend build failed — the ISO would install a box with no UI."
   ok "frontend/node_modules + frontend/dist staged"
@@ -154,9 +174,21 @@ if $WITH_PAYLOAD; then
   # and arch.sh's fallback for that is a download. On the target there is no
   # download, so a missing binary has to be caught HERE, where the network
   # still exists.
+  #
+  # Two distinct causes reach this line, and they read identically — which is
+  # why they are both named. The first one kept the `iso` job red from the day
+  # it was added (v1.0.150 through v1.0.152) until it was traced:
+  #   1. npm >= 11.6 blocks a dependency's install scripts unless package.json
+  #      declares it under `allowScripts`. electron/package.json declares it;
+  #      if that entry is dropped, npm warns and moves on and the binary never
+  #      downloads. Grep the log for "install-scripts" to confirm.
+  #   2. Node 26 extracts nothing (see the version check above).
   [[ -x "$SRC/electron/node_modules/electron/dist/electron" ]] \
     || die "the Electron binary was not provisioned into node_modules — an offline
-  install cannot fetch it. Re-run with npm's postinstall scripts enabled."
+  install cannot fetch it. Two things produce this:
+    - npm blocked electron's postinstall  → check for 'install-scripts' warnings
+      in the log above, and for the allowScripts entry in electron/package.json;
+    - the postinstall ran but extracted nothing → check the Node version."
   ok "electron/node_modules staged (binary present)"
 
   # The marker arch.sh looks for. A directory that merely exists is not proof of

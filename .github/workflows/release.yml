@@ -233,6 +233,13 @@ jobs:
   # `fail_on_unmatched_files` below makes a silently-missing image impossible.
   # What it cannot do is un-publish the release — the window where the latest
   # release has no ISO is real, and visible.
+  #
+  # Every clause above still holds, but it described an intention rather than an
+  # observation until 2026-08: this job had never once reached its upload step,
+  # so the "window" was not a gap between the release and its image, it was every
+  # release ever published. Two stacked causes, both fixed — npm >= 11.6 blocking
+  # Electron's postinstall, and Node 26 extracting nothing when it is unblocked.
+  # See the Arch dependencies step and install/iso/build.sh.
   iso:
     needs: build
     # Only for an actual release: a push to main, or a v*.*.* tag. Both are
@@ -266,10 +273,32 @@ jobs:
       # actions/checkout silently falls back to a REST tarball download without
       # it — which produces a tree with no .git, and build.sh reads VERSION and
       # the tag from the checkout.
+      # nodejs-lts-jod (22.x), NOT the rolling `nodejs` (26.x at the time of
+      # writing), and this is load-bearing rather than conservatism.
+      #
+      # Electron 31's postinstall extracts the binary it downloads with
+      # extract-zip 2.0.1 / yauzl 2.10. On Node 26 that extraction stalls: the
+      # promise never settles, node drains the event loop and exits 0 having
+      # written ~350 KB of dist/locales and no `dist/electron`. No error, no
+      # non-zero status — the only symptom is build.sh's guard firing forty
+      # minutes later, which reads exactly like the npm policy problem below
+      # and is a completely different bug.
+      #
+      # Measured on the same zip, same npm, same allowScripts: Node 26 → 352 KB
+      # and no binary, Node 22 → 260 MB and a 182 MB dist/electron.
+      #
+      # The ISO itself still ships the rolling `nodejs` (packages.x86_64) and
+      # that is fine: dist/electron is a standalone Chromium build, and the
+      # frontend bundle this produces is byte-identical to the Node 26 one.
       - name: Arch build dependencies
         run: |
           pacman -Syu --noconfirm --needed \
-            archiso git nodejs npm python python-pip base-devel
+            archiso git nodejs-lts-jod npm python python-pip base-devel
+          # Named in the log on purpose: when this job breaks again, the first
+          # question is which node and which npm ran, and scrolling pacman
+          # output for it is how the last diagnosis lost an afternoon.
+          node --version
+          npm --version
 
       - name: Checkout
         uses: actions/checkout@v4
