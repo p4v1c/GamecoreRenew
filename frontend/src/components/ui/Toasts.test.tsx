@@ -14,6 +14,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, cleanup } from '@testing-library/react'
 import Toasts from './Toasts'
+import type { ToastsViewProps } from './toasts/types'
 import { useStore } from '../../store'
 
 /** The handlers Toasts registers, so a test can play a backend event. */
@@ -109,5 +110,65 @@ describe('the unrecognised-controller toast', () => {
     const card = screen.getByText('Controller 1 connected')
       .parentElement!.parentElement as HTMLElement
     expect(card.style.pointerEvents).toBe('none')
+  })
+})
+
+/**
+ * A themed stack.
+ *
+ * `Toasts` was rendered by `DefaultShell` and was not one of the parts, so a
+ * theme that wrote its own tree lost every notification there is — the ROM that
+ * finished uploading, the pad that went flat, the offer to map a controller
+ * that does not work. Silently, and only on the machine of whoever was standing
+ * in front of the TV.
+ */
+describe('a theme that draws its own toasts', () => {
+  /** Renders the same data as text, so the assertions do not depend on a look. */
+  const ThemedView = ({ toasts, onDismiss }: ToastsViewProps) => (
+    <div>
+      {toasts.map(t => (
+        <div key={t.id}>
+          <span>themed: {t.title}</span>
+          {t.action && (
+            <button onClick={() => { t.action!.run(); onDismiss(t.id) }}>{t.action.label}</button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+
+  it('receives the same events the default stack does', () => {
+    render(<Toasts view={ThemedView} />)
+    emit('game:failed', { detail: 'RPCS3 exited immediately' })
+
+    expect(screen.getByText('themed: Could not start the game')).toBeTruthy()
+  })
+
+  it('replaces the markup and nothing else', () => {
+    // The point of the seam: the theme draws, the host still decides what a
+    // toast IS. A themed stack cannot quietly drop the one that carries a
+    // button, because it never chose which ones exist.
+    render(<Toasts view={ThemedView} />)
+    emit('gp:connected', { player: 2, label: 'Generic USB Gamepad', unmapped: true })
+
+    expect(screen.getByText('themed: Controller 2 is not recognised')).toBeTruthy()
+    expect(screen.queryByText('Controller 2 is not recognised')).toBeNull()
+
+    act(() => { (screen.getByText('Map it now') as HTMLButtonElement).click() })
+    expect(useStore.getState().remapRequest).toBe(1)
+  })
+
+  it('still hands the HUD what the HUD owns', () => {
+    // The handover is the host's call, not the view's. A theme cannot claim a
+    // toast the native always-on-top window is supposed to draw over a
+    // fullscreen emulator.
+    const controllerToast = vi.fn()
+    ;(window as { gamecore?: unknown }).gamecore = { controllerToast }
+
+    render(<Toasts view={ThemedView} />)
+    emit('gp:connected', { player: 1, label: 'PS4 Controller', unmapped: false })
+
+    expect(controllerToast).toHaveBeenCalledOnce()
+    expect(screen.queryByText(/^themed:/)).toBeNull()
   })
 })

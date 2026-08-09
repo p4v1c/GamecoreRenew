@@ -16,6 +16,7 @@ import type { HomeViewProps } from './HomeScreen/types'
 import type { LibraryViewProps } from './LibraryScreen/types'
 import type { PowerViewProps } from './modals/power/types'
 import type { GamepadViewProps } from './modals/gamepad/types'
+import type { ToastsViewProps } from './ui/toasts/types'
 
 /**
  * The default frontend, as one component.
@@ -55,6 +56,18 @@ export interface ShellParts {
    */
   powerView?: React.ComponentType<PowerViewProps>
   gamepadView?: React.ComponentType<GamepadViewProps>
+  /**
+   * The notification stack's markup. The queue, the durations and the handover
+   * to the native HUD stay with the host.
+   *
+   * It is a part because it was not one: `Toasts` was rendered here
+   * unconditionally, so a theme that wrote its own shell kept the default's
+   * toasts in the default's corner in the default's colours — and one that
+   * rendered its own tree instead of `Shell` lost every notification there is.
+   * A ROM finishing its upload, a pad going flat and the offer to map an
+   * unrecognised controller are not decoration.
+   */
+  toasts?: React.ComponentType<ToastsViewProps>
 }
 
 const Nothing = () => null
@@ -177,7 +190,7 @@ export default function DefaultShell(parts: ShellParts = {}) {
           so the dashboard is already populated when it fades away. */}
       <div style={{ position: 'relative', zIndex: 1, display: 'contents' }}>
         <TopBarC onSettings={() => setShowSettings(true)} onPower={() => setShowPower(true)} />
-        <Toasts />
+        <Toasts view={parts.toasts} />
 
         {/* Both screens stay mounted at all times — toggled via display:none.
             This prevents the re-mount/re-fetch flash when navigating home. */}

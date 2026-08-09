@@ -17,6 +17,7 @@ import Screensaver from './Screensaver'
 import PowerModal from './modals/PowerModal'
 import GamepadModal from './modals/GamepadModal'
 import { VirtualKeyboard } from './ui/VirtualKeyboard'
+import Toasts, { DefaultToastsView } from './ui/Toasts'
 import SettingsModal from './modals/SettingsModal'
 import DefaultShell from './DefaultShell'
 import { Overlay, OverlayLabel, BackHeader } from './ui'
@@ -107,3 +108,14 @@ export const DefaultSettingsPages = {
 /** Nothing behind and nothing on top, unless a theme says otherwise. */
 export const DefaultBackground = () => null
 export const DefaultDecor = () => null
+
+/**
+ * The notification stack.
+ *
+ * `DefaultToasts` is the whole thing, queue included — for a theme that writes
+ * its own tree rather than rendering `Shell`, and would otherwise have no
+ * notifications at all. `DefaultToastsView` is only the markup, for a theme
+ * that wants the default look somewhere else on screen.
+ */
+export const DefaultToasts = Toasts
+export const DefaultToastsMarkup = DefaultToastsView

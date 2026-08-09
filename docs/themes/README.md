@@ -167,6 +167,7 @@ which and why.
 | `settings` | the settings screen |
 | `powerView` | the power menu's markup — the two-press confirmation, the pending lock and the failsafe stay with the host |
 | `gamepadView` | the controller screen's markup — the live pad diagram arrives ready-made and bound |
+| `toasts` | the notification stack's markup — the queue, the durations and the handover to the native HUD stay with the host |
 
 So "add snow to the dashboard" is a shell that renders `sdk.defaults.Shell` with
 a `decor`, and "replace everything" is a shell that renders its own tree. Same
@@ -340,6 +341,7 @@ not a gap waiting to be filled — the reasons are in §11.
 | **Read the box's real data** | yes — systems, games, playtime, metadata, cover art, storage, network, controllers and their battery, through `sdk.api` |
 | **Draw something other than the jacket** | yes — 3D box, clear logo, gameplay screenshot, title screen, ready-made mix, trailer, 54 types in all (§7.1) |
 | **React to what happens** | yes — `sdk.system.onWsEvent` for standby, ROM uploads, controller connect/disconnect, battery, theme changes |
+| **Draw the notifications** | yes — `toasts` is a part like any other. What each one *says* and how long it stays is the host's |
 | **Read input** | yes — `sdk.input.onGp` for every pad event, `useGamepadState()` for the raw 60 fps state (that is how a live pad diagram works) |
 | **Know where the player is** | yes — `sdk.nav.use()` inside a component, `sdk.nav.get()` in a handler |
 | **Move the player** | yes — `goHome`, `goLibrary`, `setGridFocus`, `setGridPage` |
