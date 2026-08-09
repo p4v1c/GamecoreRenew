@@ -28,6 +28,13 @@ jobs:
     permissions:
       contents: write
 
+    # Published so the `iso` job below can attach its image to THIS release
+    # rather than computing a tag of its own. Two independent tag computations
+    # is how an ISO ends up on the wrong release — or on a release that does not
+    # exist yet.
+    outputs:
+      tag: ${{ steps.tag_version.outputs.new_tag || github.ref_name }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -208,5 +215,89 @@ jobs:
           # everyone who follows the README.
           fail_on_unmatched_files: true
           generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # ── The installation ISO ─────────────────────────────────────────
+  #
+  # A separate job, running AFTER the release exists and attaching to it.
+  #
+  # That ordering is a deliberate trade-off and not the pattern the rest of this
+  # file uses. Every push to main is a release the whole fleet auto-installs,
+  # and this job takes the better part of an hour and needs ~25 GB. Making the
+  # OTA archive wait behind it would put a fix for a broken box forty-five
+  # minutes further away, and a broken ISO build would stop that fix reaching
+  # anyone at all.
+  #
+  # So the core release publishes first and the ISO catches up. There is still
+  # no continue-on-error: a failed ISO build is a red cross on the commit and
+  # `fail_on_unmatched_files` below makes a silently-missing image impossible.
+  # What it cannot do is un-publish the release — the window where the latest
+  # release has no ISO is real, and visible.
+  iso:
+    needs: build
+    # Only for an actual release: a push to main, or a v*.*.* tag. Both are
+    # release paths the build job publishes for, and both deserve an image.
+    #
+    # What this excludes is `workflow_dispatch` from a branch. That is the trap
+    # the Publish step's `tag_name` fallback carries — with no guard it resolves
+    # to github.ref_name, and an ISO would be attached to a release named after
+    # someone's working branch, which the fleet would then read as the latest.
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    # mkarchiso runs pacstrap and mounts loop devices, so it needs Arch and it
+    # needs real privileges. --privileged is what makes the loop mounts work;
+    # without it mkarchiso fails at the squashfs step with a mount error that
+    # reads like a corrupt profile.
+    #
+    # /mnt is bind-mounted because the runner's root filesystem has ~14 GB free
+    # and this build needs ~25 GB. /mnt is the large scratch disk every GitHub
+    # runner has, and GAMECORE_ISO_SCRATCH below points build.sh at it.
+    container:
+      image: archlinux:latest
+      options: --privileged -v /mnt:/mnt
+
+    steps:
+      # Before the checkout, on purpose: the archlinux image has no git, and
+      # actions/checkout silently falls back to a REST tarball download without
+      # it — which produces a tree with no .git, and build.sh reads VERSION and
+      # the tag from the checkout.
+      - name: Arch build dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            archiso git nodejs npm python python-pip base-devel
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build.outputs.tag }}
+
+      # The ISO reports the version of the release it is attached to, not the
+      # day the runner happened to build it. profiledef.sh and build.sh both
+      # read this variable, so the filename and the volume metadata agree.
+      - name: Build the ISO
+        env:
+          GAMECORE_ISO_VERSION: ${{ needs.build.outputs.tag }}
+          GAMECORE_ISO_SCRATCH: /mnt/gamecore-iso
+        run: |
+          mkdir -p /mnt/gamecore-iso
+          df -h /mnt
+          bash install/iso/build.sh --out "$PWD/out"
+          ls -lh out/
+
+      - name: Attach the ISO to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.tag }}
+          files: |
+            out/*.iso
+            out/*.iso.sha256
+          # Same reasoning as the core assets: a missing image must be a failed
+          # job, not a release page that quietly has one fewer download.
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

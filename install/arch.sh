@@ -17,6 +17,14 @@ info() { echo -e "  ${RST}$*"; }
 
 pacman_optional() {
   record_new_pkgs "$1"
+  # Offline, "not in repos" would be a lie — there are no repos to be in. Say
+  # what actually happened, because the same message on an ISO install sent
+  # people looking for a package that was sitting installed all along.
+  if ! $NET_OK; then
+    pacman -Qq "$1" >/dev/null 2>&1 && ok "$1 (already installed)" \
+      || warn "$1 absent and no network — skipping"
+    return 0
+  fi
   pacman -S --noconfirm --needed "$1" 2>/dev/null && ok "$1" || warn "$1 not in repos — skipping"
 }
 
@@ -110,6 +118,93 @@ flatpak_installed() {  # flatpak_installed <app-id>
   flatpak list --app --columns=application 2>/dev/null | grep -qxF "$1"
 }
 
+# ── Unattended conf validation ───────────────────────────────────
+#
+# Everything in the conf is interpolated into something that then executes:
+# systemd unit files, a sudoers drop-in, a Caddyfile, `useradd`, and
+# `gamecore-addon install <name>` with root behind it.
+#
+# This is NOT a security boundary. The conf is `source`d — it is already
+# arbitrary shell, and whoever writes it could simply put a command in it. It is
+# a guard against the file being WRONG, which is a far more common event now
+# that three different things write it: the graphical wizard, the ISO's guided
+# install, and whoever is scripting more than one box.
+#
+# The failures it stops all share a shape — they do not appear here, they appear
+# twenty minutes later, somewhere that does not mention the conf:
+#   · a USER_NAME with a space writes a sudoers file `visudo -cf` rejects, at 84 %;
+#   · a GAMECORE_PATH with a space produces `ExecStart=/opt/Game Core/.venv/…`,
+#     which systemd splits into a command and an argument — the unit fails at
+#     the first boot, long after the installer said "Installation complete";
+#   · a WEB_PORT of "8765 " or "http" reaches Caddy and the backend, and the LAN
+#     interface simply never answers.
+conf_bad() { die "$CONF: $*"; }
+
+_conf_path() {  # _conf_path <name> <value>
+  local n="$1" v="$2"
+  [[ "$v" == /* ]]  || conf_bad "$n must be an absolute path (got '$v')."
+  [[ "$v" != "/" ]] || conf_bad "$n must not be / — that is the whole filesystem."
+  [[ "$v" != */ ]]  || conf_bad "$n must not end in a slash (got '$v')."
+  # The set that survives being interpolated UNQUOTED into a systemd unit line.
+  [[ "$v" =~ ^[A-Za-z0-9_/.@+-]+$ ]] \
+    || conf_bad "$n '$v' contains a character a systemd unit cannot carry unquoted."
+}
+
+_conf_tokens() {  # _conf_tokens <name> <value> — "all", empty, or space-separated ids
+  local n="$1" v="$2" t
+  [[ "$v" == "all" || -z "$v" ]] && return 0
+  for t in $v; do
+    # Same shape the wizard enforces on addon names before it writes them
+    # (ADDON_NAME_RE in gamecore_installer.py) — these ids reach
+    # `gamecore-addon install "$addon"` and the catalogue query.
+    [[ "$t" =~ ^[a-z0-9][a-z0-9._-]*$ ]] \
+      || conf_bad "$n contains '$t', which is not a valid pack or addon id."
+  done
+}
+
+validate_conf() {
+  [[ "$USER_NAME" =~ ^[a-z_][a-z0-9_-]*$ ]] \
+    || conf_bad "USER_NAME '$USER_NAME' is not a valid Linux username."
+
+  _conf_path GAMECORE_PATH "$GAMECORE_PATH"
+  # GAMECORE_DATA is resolved further down (it defaults to GAMECORE_PATH), so
+  # only check it when the conf actually set it.
+  [[ -n "${GAMECORE_DATA:-}" ]] && _conf_path GAMECORE_DATA "$GAMECORE_DATA"
+
+  if [[ ! "$WEB_PORT" =~ ^[0-9]+$ ]] || (( WEB_PORT < 1 || WEB_PORT > 65535 )); then
+    conf_bad "WEB_PORT '$WEB_PORT' is not a port number (1-65535)."
+  fi
+
+  _conf_tokens EMULATORS "${EMULATORS:-}"
+  _conf_tokens APPS      "${APPS:-}"
+  _conf_tokens ADDONS    "${ADDONS:-}"
+
+  # Unknown keys — a WARNING and never fatal, because a fleet script may
+  # legitimately carry its own variables in the same file.
+  #
+  # The accepted list is read from install.conf.example rather than typed here.
+  # That file is the documentation for this format; a key documented but not
+  # accepted, or accepted but never documented, is precisely the drift this
+  # catches. `EMULATOR=rpcs3` instead of `EMULATORS=` is silent otherwise — the
+  # variable keeps its "all" default and the box installs thirteen emulators
+  # nobody asked for.
+  local example="$SCRIPT_DIR/install.conf.example"
+  if [[ -f "$example" ]]; then
+    local allowed set_keys unknown=()
+    allowed=$(grep -oE '^#?[A-Za-z_][A-Za-z0-9_]*=' "$example" | tr -d '#=' | sort -u || true)
+    set_keys=$(grep -oE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=' "$CONF" | tr -d ' =' | sort -u || true)
+    local k
+    for k in $set_keys; do
+      grep -qxF "$k" <<<"$allowed" || unknown+=("$k")
+    done
+    if [[ ${#unknown[@]} -gt 0 ]]; then
+      warn "$CONF sets keys this installer does not know: ${unknown[*]}"
+      warn "  A typo here is silent — the real setting keeps its default."
+      warn "  The accepted keys are documented in install/install.conf.example."
+    fi
+  fi
+}
+
 [[ $EUID -eq 0 ]] || die "Run with sudo: sudo bash install/arch.sh [--full|--minimal]"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -169,6 +264,7 @@ if $UNATTENDED; then
   MODE="${MODE:-full}"
   [[ "$MODE" == "full" || "$MODE" == "minimal" ]] || die "MODE must be full or minimal"
   APPS="${APPS-all}"
+  validate_conf
 else
   read -rp "  System username (e.g. pavic)         : " USER_NAME
   [[ -n "$USER_NAME" ]] || die "Username cannot be empty."
@@ -209,6 +305,43 @@ fi
 
 want_emu() { [[ "$EMULATORS" == "all" || " $EMULATORS " == *" $1 "* ]]; }
 want_app() { [[ "$MODE" == "full" ]] && [[ "$APPS" == "all" || " $APPS " == *" $1 "* ]]; }
+
+# ── Offline installs ─────────────────────────────────────────────
+#
+# The ISO installs a machine that may never have been plugged into anything.
+# Everything this script normally downloads is staged into the image instead
+# (install/iso/build.sh): the packages are already in the copied root, the
+# Python dependencies are a wheelhouse, and node_modules for the frontend and
+# for Electron are prebuilt.
+#
+# OFFLINE is read from the conf: 0 (never), 1 (always), auto (probe once).
+# `auto` is what the ISO writes — a box with a cable in it should still get its
+# upgrades and its Flatpaks; a box without one must not fail because of it.
+#
+# What stays broken offline, deliberately: the Flatpak emulators. They are
+# gigabytes from Flathub and cannot be baked into an ISO that fits on a stick.
+# Those steps already warn instead of dying, so the box comes up with a working
+# interface and installs its emulators the first time it sees a network.
+OFFLINE="${OFFLINE:-0}"
+GAMECORE_OFFLINE="${GAMECORE_OFFLINE:-/usr/share/gamecore}"
+NET_OK=true
+case "$OFFLINE" in
+  0|false|no)  NET_OK=true ;;
+  1|true|yes)  NET_OK=false ;;
+  auto)
+    # One probe, against a host that is not a mirror: mirrors go down on their
+    # own and "this mirror is unreachable" is not "this machine has no network".
+    # `|| true` because a failing probe under `set -e` would end the install
+    # rather than answer the question it was asked.
+    if curl -fsS --connect-timeout 5 --max-time 10 -o /dev/null https://archlinux.org/ 2>/dev/null; then
+      NET_OK=true
+    else
+      NET_OK=false
+    fi
+    ;;
+  *) die "OFFLINE must be 0, 1 or auto (got '$OFFLINE')" ;;
+esac
+$NET_OK || warn "No network — installing from the artefacts staged in $GAMECORE_OFFLINE."
 
 # ── Where the player's data goes ─────────────────────────────────
 #
@@ -361,7 +494,16 @@ chown -R "${USER_NAME}:${USER_NAME}" "$GAMECORE_PATH"
 # bar sits at 6 % for up to 40 minutes and looks hung.
 progress 6 "Refreshing and upgrading system packages (this can take a while)"
 msg "System packages"
-pacman -Syu --noconfirm
+if $NET_OK; then
+  pacman -Syu --noconfirm
+else
+  # Skipped rather than attempted: `pacman -Syu` with no route fails, and under
+  # `set -e` that ends the install at 6 % — before the user account, before a
+  # single service. On an ISO install the packages are already the ones the
+  # image shipped, which is the whole point of packages.x86_64.
+  warn "Offline — skipping the system upgrade."
+  info "  Run 'sudo pacman -Syu' once this box has a network."
+fi
 
 progress 14 "Installing base packages (desktop, drivers, node, caddy)"
 PKGS=(
@@ -484,8 +626,27 @@ fi
 # no menu, which is what "Exit to Desktop gives me a black screen" was.
 
 record_new_pkgs "${PKGS[@]}"
-pacman -S --noconfirm --needed "${PKGS[@]}"
-ok "System packages installed."
+if $NET_OK; then
+  pacman -S --noconfirm --needed "${PKGS[@]}"
+  ok "System packages installed."
+else
+  # Offline this is a CHECK, not an install — there is nothing to install from.
+  # Reporting what is missing by name matters more here than anywhere else: the
+  # answer is always "add it to install/iso/packages.x86_64 and rebuild the
+  # ISO", and without the list nobody can tell which one.
+  MISSING_PKGS=()
+  for _p in "${PKGS[@]}"; do
+    pacman -Qq "$_p" >/dev/null 2>&1 || MISSING_PKGS+=("$_p")
+  done
+  if [[ ${#MISSING_PKGS[@]} -eq 0 ]]; then
+    ok "Offline — all ${#PKGS[@]} system packages are already installed."
+  else
+    warn "Offline, and ${#MISSING_PKGS[@]} package(s) are missing with no way to fetch them:"
+    warn "  ${MISSING_PKGS[*]}"
+    warn "  The box will come up degraded. If this was an ISO install, these"
+    warn "  belong in install/iso/packages.x86_64."
+  fi
+fi
 
 progress 20 "Optional packages"
 # The X11 session Plasma is hosted on. Manjaro ships it as its own package;
@@ -891,7 +1052,25 @@ ok "gamecore-addon CLI installed (addons live in /opt/gamecore-addons)."
 progress 86 "Python backend (venv)"
 msg "Python backend (venv)"
 sudo -u "$USER_NAME" -H python3 -m venv "$GAMECORE_PATH/.venv"
-sudo -u "$USER_NAME" -H "$GAMECORE_PATH/.venv/bin/pip" install -q -r "$GAMECORE_PATH/backend/requirements.txt"
+# The wheelhouse the ISO stages. --find-links even when online, so a box WITH a
+# network still prefers the wheels it shipped with over whatever PyPI serves
+# today; --no-index only when there is nothing to reach anyway.
+#
+# evdev, argon2-cffi, cryptography and uvicorn's httptools/uvloop are C
+# extensions, so these wheels only fit the CPython the ISO was built against.
+# That holds because build.sh runs on the same Arch whose `python` mkarchiso
+# pacstraps — see the ABI note there.
+PIP_ARGS=()
+if [[ -d "$GAMECORE_OFFLINE/wheels" ]]; then
+  PIP_ARGS=(--find-links "$GAMECORE_OFFLINE/wheels")
+  $NET_OK || PIP_ARGS+=(--no-index)
+  info "Using the wheelhouse staged at $GAMECORE_OFFLINE/wheels."
+elif ! $NET_OK; then
+  die "Offline and no wheelhouse at $GAMECORE_OFFLINE/wheels — the backend cannot be installed.
+  This box was not installed from a GameCore ISO, or the payload was removed."
+fi
+sudo -u "$USER_NAME" -H "$GAMECORE_PATH/.venv/bin/pip" install -q "${PIP_ARGS[@]}" \
+  -r "$GAMECORE_PATH/backend/requirements.txt"
 ok "Python dependencies installed."
 
 # ── LAN login password (enforced by Caddy — see docs/SECURITY.md) ─
@@ -1251,7 +1430,18 @@ ok "SSH active."
 progress 93 "Building the frontend"
 msg "Node frontend build"
 cd "$GAMECORE_PATH/frontend"
-sudo -u "$USER_NAME" -H npm install
+if $NET_OK; then
+  sudo -u "$USER_NAME" -H npm install
+elif [[ -d node_modules ]]; then
+  # Staged by install/iso/build.sh, built with the Node version the ISO ships.
+  ok "Offline — using the node_modules the ISO staged."
+else
+  die "Offline and frontend/node_modules is missing — there is nothing to build the UI from."
+fi
+# Built rather than trusted, even when the ISO already shipped a dist/: the
+# sources were just copied over the top of it by the file-copy step, and a dist/
+# older than the sources beside it is the exact failure the OTA packaging
+# comment warns about.
 sudo -u "$USER_NAME" -H npm run build
 cd "$SCRIPT_DIR"
 ok "Frontend built → frontend/dist/"
@@ -1264,8 +1454,18 @@ cd "$GAMECORE_PATH/electron"
 # binary from GitHub in its postinstall, and a transient failure there used to
 # abort the install. The explicit provisioning below exists precisely to
 # recover from a missing binary — so let control reach it.
-sudo -u "$USER_NAME" -H npm install \
-  || warn "npm install reported an error — trying explicit Electron provisioning."
+ELECTRON_DIR="$GAMECORE_PATH/electron/node_modules/electron"
+if $NET_OK; then
+  sudo -u "$USER_NAME" -H npm install \
+    || warn "npm install reported an error — trying explicit Electron provisioning."
+elif [[ -x "$ELECTRON_DIR/dist/electron" ]]; then
+  # build.sh refuses to produce an ISO whose payload lacks this binary, so
+  # reaching here with it present is the normal offline path.
+  ok "Offline — Electron already provisioned by the ISO."
+else
+  warn "Offline and no Electron binary — the kiosk will not start."
+  warn "  Re-run this installer once the box has a network."
+fi
 
 # The electron npm package downloads its actual binary from a postinstall
 # script (node install.js). On machines with hardened npm (ignore-scripts,
@@ -1273,8 +1473,17 @@ sudo -u "$USER_NAME" -H npm install \
 # node_modules/electron with no binary → "Electron failed to install
 # correctly" at runtime. Provision the binary explicitly so the install never
 # depends on the postinstall running.
-ELECTRON_DIR="$GAMECORE_PATH/electron/node_modules/electron"
-if [[ ! -x "$ELECTRON_DIR/dist/electron" ]]; then
+# ELECTRON_DIR is set above the npm step now — the offline branch needs it to
+# decide whether there is anything to skip.
+#
+# `&& $NET_OK`: this whole block ends in a `die` on a failed download, and
+# offline the download cannot succeed. Dying here would abort the install at
+# 96 %, after every service, sudoers rule and unit is already in place, over a
+# binary the box can be given later. The warning below is the offline answer.
+if [[ ! -x "$ELECTRON_DIR/dist/electron" ]] && ! $NET_OK; then
+  warn "No Electron binary and no network — the kiosk cannot start yet."
+  warn "  Re-run the installer with a network, or copy electron/node_modules in."
+elif [[ ! -x "$ELECTRON_DIR/dist/electron" ]]; then
   warn "Electron binary missing (npm postinstall was skipped) — downloading it directly."
   # `EV=$(…)` under set -e exits on failure BEFORE its own `|| die` can run, so
   # the version lookup is guarded rather than chained. When npm died early

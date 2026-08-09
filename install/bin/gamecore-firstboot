@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Run install/arch.sh on the first boot of a machine installed from the ISO.
+#
+# Why the install is split in two at all: gamecore-disk-install.sh runs from the
+# live medium inside `arch-chroot`, where there is no running systemd. arch.sh
+# calls `systemctl enable --now` on half a dozen units without guarding any of
+# them, so it cannot run there — the first one fails and `set -e` ends the
+# install with a partitioned disk and no services. Here systemd is real, the
+# hardware is the final hardware, and arch.sh runs exactly the path it was
+# written and tested for.
+#
+# Started by gamecore-firstboot.service, on tty1, with no timeout.
+set -uo pipefail
+# No `set -e`: this script's whole job is to survive arch.sh failing and leave
+# the operator something to read. Exiting silently is the one outcome that is
+# never acceptable — the machine would reboot into a black screen.
+
+CONF=/etc/gamecore-install.conf
+LOG=/var/log/gamecore-firstboot.log
+PAYLOAD="${GAMECORE_ISO_PAYLOAD:-/usr/share/gamecore}"
+SRC="$PAYLOAD/src"
+
+say() { echo "[gamecore-firstboot] $*" | tee -a "$LOG"; }
+
+[[ -f "$CONF" ]] || { echo "[gamecore-firstboot] no $CONF — nothing to do."; exit 0; }
+
+say "=============================================="
+say " GameCore — finishing the installation."
+say " This takes a while. The machine reboots into"
+say " GameCore on its own when it is done."
+say " Log: $LOG"
+say "=============================================="
+
+if [[ ! -f "$SRC/install/arch.sh" ]]; then
+  say "FATAL: no GameCore payload at $SRC."
+  say "The disk install copied a system without one — reinstall from the ISO."
+  exit 1
+fi
+
+# GAMECORE_PROGRESS stays OFF here. The @GC-PROGRESS@ markers exist for the Qt
+# wizard to parse; on a tty they are noise interleaved with the output someone
+# is actually trying to read.
+say "Running install/arch.sh --unattended …"
+bash "$SRC/install/arch.sh" --unattended "$CONF" 2>&1 | tee -a "$LOG"
+# PIPESTATUS, not $? — that would be tee's exit code, which is 0 whatever
+# arch.sh did. A failed install reporting success is how a box reaches someone's
+# living room broken.
+rc="${PIPESTATUS[0]}"
+
+if [[ "$rc" -ne 0 ]]; then
+  say ""
+  say "The installation FAILED (arch.sh exited $rc)."
+  say "Nothing has been removed — the log above and $LOG have the details."
+  say "Fix what it complains about, then re-run:"
+  say "    sudo bash $SRC/install/arch.sh --unattended $CONF"
+  say ""
+  # The unit is NOT disarmed and the conf is NOT deleted: a re-run is what the
+  # operator needs, and both are what a re-run needs. But it does not loop
+  # either — the unit is oneshot and the operator is now at a console.
+  exit "$rc"
+fi
+
+say "Installation finished."
+
+# The conf holds the LAN password and the ScreenScraper credentials in clear
+# text. arch.sh has consumed them (they are in a mode-600 systemd drop-in now),
+# so this copy is pure liability. Deleting it also disarms the unit — see
+# ConditionPathExists in gamecore-firstboot.service.
+rm -f "$CONF"
+systemctl disable gamecore-firstboot.service >/dev/null 2>&1 || true
+
+# The offline payload is ~2 GB of wheels, node_modules and a second copy of the
+# GameCore tree. arch.sh has already copied what it needs into GAMECORE_PATH, so
+# from here it is dead weight on a disk that is about to hold ROMs.
+say "Reclaiming the offline install payload ($PAYLOAD)…"
+rm -rf "$PAYLOAD"
+
+say "Rebooting into GameCore."
+sleep 5
+systemctl reboot

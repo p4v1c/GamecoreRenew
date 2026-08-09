@@ -14,6 +14,8 @@ React + Electron shell + FastAPI backend — plug in a controller and play.
 1. [What it does](#what-it-does)
 2. [Requirements](#requirements)
 3. [Installation (device)](#installation-device)
+   · [Burn the ISO](#burn-the-iso-recommended--no-linux-needed-first)
+   · [Onto an existing Arch](#install-onto-a-machine-that-already-runs-arch)
 4. [Uninstallation](#uninstallation)
 5. [Development setup](#development-setup)
 5. [First launch](#first-launch)
@@ -63,14 +65,15 @@ You navigate with a gamepad, launch emulators, and never touch a keyboard.
 
 | | Minimum |
 |--|---------|
-| OS | Arch Linux / Manjaro |
+| OS | None — the [ISO](#burn-the-iso-recommended--no-linux-needed-first) installs the system. Arch Linux / Manjaro if you install onto an existing machine. |
+| Firmware | UEFI, **Secure Boot disabled** (the ISO is unsigned) |
 | Display | 1920×1080 (Full HD) |
 | GPU | Any — hardware acceleration recommended |
 | RAM | 4 GB |
-| Storage | 20 GB + (depends on your ROM library) |
+| Storage | 80 GB + (60 GB system + your ROM library) |
 | Controller | Any XInput / evdev gamepad |
 
-All emulators are installed via **Flatpak**. Make sure Flatpak is available on your system before running the installer.
+All emulators are installed via **Flatpak**. Make sure Flatpak is available on your system before running the installer — the ISO ships it.
 
 ---
 
@@ -79,7 +82,66 @@ All emulators are installed via **Flatpak**. Make sure Flatpak is available on y
 > Run this on the machine that will act as the kiosk.  
 > The installer sets up auto-login, auto-start, and all dependencies.
 
-**Graphical installer (recommended)** — a native step-by-step wizard, like any
+### Burn the ISO (recommended — no Linux needed first)
+
+The ISO installs on a bare machine. You do **not** need to install Arch, or
+anything else, beforehand: the image carries the whole system, GameCore
+included, so the install works with no network at all.
+
+1. Download `gamecore-<version>.iso` and `gamecore-<version>.iso.sha256` from
+   the [latest release](https://github.com/p4v1c/GamecoreRenew/releases/latest).
+2. Check it — a truncated download produces a stick that boots halfway:
+   ```bash
+   sha256sum -c gamecore-*.iso.sha256
+   ```
+3. Write it to a USB stick of 8 GB or more. **`of=` is the disk, not a
+   partition** (`/dev/sdb`, never `/dev/sdb1`), and everything on it is lost:
+   ```bash
+   lsblk                 # find the stick, check the size before you trust the name
+   sudo dd if=gamecore-*.iso of=/dev/sdX bs=4M status=progress oflag=sync
+   ```
+4. Boot the target machine from it, **in UEFI mode, with Secure Boot disabled**.
+
+> **Secure Boot is not supported in this version** — nothing in the image is
+> signed. Turn it off in the firmware setup ("Secure Boot" → Disabled, usually
+> under Security or Boot). Most firmware also lists the same stick twice in the
+> boot menu; pick the entry prefixed **UEFI:**. The installer refuses to
+> continue in legacy BIOS mode rather than producing a machine that will not
+> boot.
+
+The wizard starts on its own. It asks which disk to take, then the same
+questions as the desktop installer (user, emulators, addons, API keys).
+
+**The selected disk is erased completely.** It is repartitioned as:
+
+| | Size | Filesystem | Mounted |
+|--|--|--|--|
+| EFI system partition | 1 GiB | FAT32 | `/boot` |
+| System | 60 GiB by default | ext4 | `/` |
+| Player data | the rest | btrfs | `/userdata` |
+
+`/userdata` is a separate partition on purpose: ROMs, saves, covers and config
+survive reinstalling the system, and can be snapshotted on their own.
+
+When the wizard finishes, remove the stick and reboot. **The first boot finishes
+the installation** — services, kiosk, and the emulators if a network is
+available — printing what it is doing on the screen, then reboots into GameCore.
+It takes a while and it has not hung.
+
+Emulators are Flatpaks and are the one thing that cannot be baked into the
+image. With no network they are reported and skipped, and installed later from
+the Systems screen.
+
+Building the ISO yourself needs Arch (or an `archlinux` container), root, and
+about 25 GB of scratch space:
+
+```bash
+sudo bash install/iso/build.sh          # → out/gamecore-<version>.iso + .sha256
+```
+
+### Install onto a machine that already runs Arch
+
+**Graphical installer** — a native step-by-step wizard, like any
 desktop installer. Download `gamecore-installer` from the
 [latest release](https://github.com/p4v1c/GamecoreRenew/releases/latest), then:
 
@@ -781,12 +843,19 @@ catalog/          THE source of truth — one directory per emulator or app:
 install/          arch.sh (the engine, + --unattended) and uninstall.sh at the
                   root; everything else grouped by what it IS:
   bin/            installed into /usr/local/bin — gamecore-addon, -emu,
-                  -launcher, -session-select, -xsetup
-  system/         installed into /etc — Caddyfile, gamecore-restart.service
+                  -launcher, -session-select, -xsetup, -firstboot
+  system/         installed into /etc — Caddyfile, gamecore-restart.service,
+                  gamecore-firstboot.service
   steps/          called by arch.sh, never installed on the box
   generated/      apps.json.dist, systems.json.dist — written by
                   scripts/gen-catalog.py, never hand-edited
   installer-gui/  the Qt wizard + its PyInstaller .spec
+  iso/            the archiso profile for the installation ISO — profiledef.sh,
+                  packages.x86_64 (a superset of arch.sh's package list, checked
+                  by backend/tests/test_iso_profile.py), the boot menus, and
+                  airootfs/ with the live session. build.sh is the one command
+                  that builds an image; gamecore-disk-install.sh is the guided
+                  partitioner and refuses to run anywhere but a booted ISO.
 scripts/          catalog-query.py, gamecore-provider.py, gen-catalog.py,
                   check-catalog.py, check-install.sh
 update/           OTA update script (linux.sh)
