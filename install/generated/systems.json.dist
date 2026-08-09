@@ -7,7 +7,7 @@
     "color": "#ff0096",
     "iconPath": "assets/logos/azahar.png",
     "path": "flatpak",
-    "args": "run org.azahar_emu.Azahar -f",
+    "args": "run @APPID@ -f",
     "romsPath": "emu/azahar/",
     "extensions": [
       "*.3ds",
@@ -26,7 +26,7 @@
     "color": "#00b48c",
     "iconPath": "assets/logos/cemu.png",
     "path": "flatpak",
-    "args": "run info.cemu.Cemu -f -g",
+    "args": "run @APPID@ -f -g",
     "romsPath": "emu/cemu/",
     "extensions": [
       "*.wux",
@@ -46,7 +46,7 @@
     "color": "#ff8c00",
     "iconPath": "assets/logos/dolphin.png",
     "path": "flatpak",
-    "args": "run org.DolphinEmu.dolphin-emu -b",
+    "args": "run @APPID@ -b",
     "romsPath": "emu/dolphin/",
     "extensions": [
       "*.iso",
@@ -69,7 +69,7 @@
     "color": "#e6001a",
     "iconPath": "assets/logos/ryujinx.png",
     "path": "flatpak",
-    "args": "run io.github.ryubing.Ryujinx",
+    "args": "run @APPID@",
     "romsPath": "emu/ryujinx/",
     "extensions": [
       "*.xci",
@@ -147,7 +147,7 @@
     "color": "#1e64ff",
     "iconPath": "assets/logos/ppsspp.png",
     "path": "flatpak",
-    "args": "run org.ppsspp.PPSSPP -f",
+    "args": "run @APPID@ -f",
     "romsPath": "emu/ppsspp/",
     "extensions": [
       "*.iso",
@@ -167,7 +167,7 @@
     "color": "#b400ff",
     "iconPath": "assets/logos/gopher64.png",
     "path": "flatpak",
-    "args": "run com.github.Rosalie241.RMG -f -n -q",
+    "args": "run @APPID@ -f -n -q",
     "romsPath": "emu/gopher64/",
     "extensions": [
       "*.n64",
@@ -246,7 +246,7 @@
     "color": "#003791",
     "iconPath": "assets/logos/shadps4.png",
     "path": "flatpak",
-    "args": "run net.shadps4.shadPS4 --fullscreen true -g",
+    "args": "run @APPID@ --fullscreen true -g",
     "romsPath": "emu/shadps4/",
     "scanDirs": true,
     "extensions": [],

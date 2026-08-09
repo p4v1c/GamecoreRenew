@@ -13,7 +13,7 @@
   },
   "launch": {
     "path": "flatpak",
-    "args": "run org.ppsspp.PPSSPP -f"
+    "args": "run @APPID@ -f"
   },
   "roms": {
     "dir": "emu/ppsspp",

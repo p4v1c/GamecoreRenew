@@ -79,7 +79,7 @@ def _pack_data(kind: str, **overrides) -> dict:
         "platform": "newcomer",
         "color": "#123456",
         "install": {"provider": "flatpak", "appIds": [NEWCOMER_APP_ID]},
-        "launch": {"path": "flatpak", "args": f"run {NEWCOMER_APP_ID}"},
+        "launch": {"path": "flatpak", "args": "run @APPID@"},
         "config": {"dest": "@FLATPAK_CONFIG@/newcomer"},
         "packages": {"pacman": ["newcomer-runtime"]},
         "scraper": {
@@ -304,7 +304,10 @@ def test_every_catalog_query_subcommand_sees_the_newcomer(catalogue):
     assert f"{NEWCOMER}\t/home/USER/.var/app/{NEWCOMER_APP_ID}/config/newcomer" \
         in _query(catalog, local, "config-dest")
     assert NEWCOMER in _query(catalog, local, "rom-dirs").split()
-    assert f"{NEWCOMER}\tflatpak\trun {NEWCOMER_APP_ID}" \
+    # The launcher names the TOKEN, not the id — that is the whole point of the
+    # field. A newcomer that leaked its app id into `args` would be a tile that
+    # cannot follow the fallback its own pack declares.
+    assert f"{NEWCOMER}\tflatpak\trun @APPID@" \
         in _query(catalog, local, "launchers")
     assert NEWCOMER_APP_ID in _query(catalog, local, "sandbox")
     assert "newcomer-runtime" in _query(catalog, local, "packages").split()

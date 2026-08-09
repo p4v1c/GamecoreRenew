@@ -13,7 +13,7 @@
   },
   "launch": {
     "path": "flatpak",
-    "args": "run org.azahar_emu.Azahar -f"
+    "args": "run @APPID@ -f"
   },
   "roms": {
     "dir": "emu/azahar",

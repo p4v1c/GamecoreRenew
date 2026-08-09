@@ -13,7 +13,7 @@
   },
   "launch": {
     "path": "flatpak",
-    "args": "run net.shadps4.shadPS4 --fullscreen true -g"
+    "args": "run @APPID@ --fullscreen true -g"
   },
   "roms": {
     "dir": "emu/shadps4",

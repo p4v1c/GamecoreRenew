@@ -43,7 +43,7 @@ import json
 import shutil
 from pathlib import Path
 
-from .tiles import flatpak_app_id, tile_entry
+from .tiles import APPID_TOKEN, flatpak_app_id, tile_entry
 
 REMOVED_FILE = "catalog-removed.json"
 
@@ -98,9 +98,20 @@ def launcher_is_stale(entry: dict, pack, known_app_ids: set[str], root: Path) ->
     path, args = entry.get("path", ""), entry.get("args", "")
     if path == "flatpak":
         app_id = flatpak_app_id(args)
+        if app_id == APPID_TOKEN:
+            return ""                    # defers to the catalogue — never stale
         if app_id and app_id not in known_app_ids:
             return (f"launches {app_id}, which no pack declares "
                     f"(the installer installs {pack.app_id or 'something else'})")
+        # A literal id where the pack now defers to @APPID@. Not broken today —
+        # this is the id the box installed — but it is the half of the fallback
+        # that does not move: when the catalogue drops this candidate, the tile
+        # goes on launching it and the player gets "app not installed" from
+        # flatpak instead of the emulator. This is the ONLY moment an installed
+        # box gets migrated, so it has to count as stale before it breaks.
+        if app_id and APPID_TOKEN in (pack.data.get("launch") or {}).get("args", ""):
+            return (f"hardcodes {app_id}; the pack resolves its app id at launch "
+                    f"now, so this tile could not follow a fallback")
         return ""
     if not _launcher_resolves(path, root):
         return f"launcher {path!r} does not exist on this box"

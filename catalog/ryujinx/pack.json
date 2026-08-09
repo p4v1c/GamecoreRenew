@@ -13,7 +13,7 @@
   },
   "launch": {
     "path": "flatpak",
-    "args": "run io.github.ryubing.Ryujinx"
+    "args": "run @APPID@"
   },
   "roms": {
     "dir": "emu/ryujinx",

@@ -13,6 +13,6 @@
   },
   "launch": {
     "path": "flatpak",
-    "args": "run com.valvesoftware.Steam -gamepadui"
+    "args": "run @APPID@ -gamepadui"
   }
 }

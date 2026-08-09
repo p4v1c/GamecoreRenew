@@ -46,14 +46,34 @@ def test_the_n64_launcher_is_repaired(packs, tmp_path):
     """
     live = [_entry("gopher64", "flatpak", "run io.github.gopher64.gopher64 -f")]
     merged, notes = merge_systems(live, packs, tmp_path)
-    assert merged[0]["args"] == "run com.github.Rosalie241.RMG -f -n -q"
+    assert merged[0]["args"] == "run @APPID@ -f -n -q"
     assert any("gopher64: launcher updated" in n for n in notes)
 
 
-def test_a_launcher_naming_a_declared_app_is_left_alone(packs, tmp_path):
+def test_a_launcher_hardcoding_a_live_app_id_is_migrated_to_the_token(packs, tmp_path):
+    """The launchers every box installed before `install.appIds` existed.
+
+    `run net.rpcs3.RPCS3` is not broken — it is exactly what is installed — and
+    the old rule therefore left it alone. That is the trap: it keeps working
+    right up until the catalogue drops that candidate, and then the tile is the
+    one thing still naming it. The player gets flatpak's "app not installed"
+    for an emulator the box installed successfully under another name.
+
+    An OTA merge is the only moment an installed box gets migrated, so a live
+    but frozen id has to count as stale BEFORE it breaks, not after.
+    """
     live = [_entry("rpcs3", "flatpak", "run net.rpcs3.RPCS3 --fullscreen --no-gui")]
     merged, notes = merge_systems(live, packs, tmp_path)
-    assert merged[0]["args"] == "run net.rpcs3.RPCS3 --fullscreen --no-gui"
+    assert merged[0]["args"] == "run @APPID@ --fullscreen --no-gui"
+    assert any("hardcodes net.rpcs3.RPCS3" in n for n in notes)
+
+
+def test_a_launcher_already_on_the_token_is_left_alone(packs, tmp_path):
+    """The migration must be idempotent: an OTA a week later must not report
+    the same tile as changed again, or every update looks like it did work."""
+    live = [_entry("rpcs3", "flatpak", "run @APPID@ --fullscreen --no-gui")]
+    merged, notes = merge_systems(live, packs, tmp_path)
+    assert merged[0]["args"] == "run @APPID@ --fullscreen --no-gui"
     assert not [n for n in notes if "rpcs3: launcher" in n]
 
 
@@ -150,7 +170,7 @@ def test_the_previous_file_is_backed_up(packs, tmp_path):
     original = f.read_text()
     merge_file(f, packs, tmp_path)
     assert (tmp_path / "systems.json.bak-merge").read_text() == original
-    assert json.loads(f.read_text())[0]["args"].startswith("run com.github.Rosalie241.RMG")
+    assert json.loads(f.read_text())[0]["args"].startswith("run @APPID@")
 
 
 def test_dry_run_changes_nothing(packs, tmp_path):

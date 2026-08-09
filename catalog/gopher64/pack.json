@@ -13,7 +13,7 @@
   },
   "launch": {
     "path": "flatpak",
-    "args": "run com.github.Rosalie241.RMG -f -n -q"
+    "args": "run @APPID@ -f -n -q"
   },
   "roms": {
     "dir": "emu/gopher64",

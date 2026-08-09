@@ -467,3 +467,102 @@ def test_every_tile_logo_is_served_at_the_path_the_grid_asks_for():
         if r.status_code != 200 or not r.content:
             blank.append(f"{item['id']}: GET /{icon} -> {r.status_code}")
     assert blank == [], "tiles with no image:\n" + "\n".join(blank)
+
+
+# ── the prune must understand @APPID@ ──────────────────────────────────────
+
+def _flatpakify_box(tmp_path, tiles, installed):
+    """A throwaway GAMECORE_PATH, and a `flatpak` that answers from a fixture.
+
+    The real script is run, not a re-implementation of it: the failure this
+    guards lives in the prune's own parsing, so a copy of that parsing in the
+    test would agree with itself and prove nothing. Nothing outside tmp_path is
+    written, and no Flatpak is installed, removed or queried for real.
+    """
+    import json
+    import os
+    import subprocess
+
+    for name in ("backend", "catalog"):
+        (tmp_path / name).symlink_to(ROOT / name)
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "systems.json").write_text(json.dumps(tiles))
+
+    bin_dir = tmp_path / "stub-bin"
+    bin_dir.mkdir()
+    stub = bin_dir / "flatpak"
+    stub.write_text("#!/bin/sh\nprintf '%s\\n' " +
+                    " ".join(f"'{a}'" for a in installed) + "\n" if installed
+                    else "#!/bin/sh\nexit 0\n")
+    stub.chmod(0o755)
+
+    env = dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}")
+    r = subprocess.run(["bash", str(ROOT / "install/steps/flatpakify-systems.sh"),
+                        str(tmp_path)],
+                       capture_output=True, text=True, timeout=120, env=env)
+    assert r.returncode == 0, r.stderr
+    return json.loads((tmp_path / "config" / "systems.json").read_text()), r.stdout
+
+
+def test_the_prune_resolves_the_token_instead_of_reading_it_as_an_app_id(packs, tmp_path):
+    """The regression that would have emptied every fresh install's grid.
+
+    The prune asked `is args.split()[1] in the installed set`. Against
+    `run @APPID@ -f` that question is "is the literal string @APPID@ an
+    installed Flatpak", the answer is no for every tile at once, and the
+    guard that keeps a tile when the probe looks unreliable does NOT fire —
+    the probe succeeded, it just answered a question nobody meant to ask.
+
+    Thirteen emulators, all silently dropped, on a box where all thirteen were
+    correctly installed.
+
+    A native tile is added alongside, and it is what makes this test able to
+    fail. The prune skips itself entirely when it would empty the grid — a
+    sound guard, and one that hides this exact bug: with only Flatpak tiles the
+    broken prune drops every one of them, the grid comes out empty, the guard
+    fires and puts them all back. The bug is invisible until ONE tile survives
+    on its own merits.
+    """
+    flatpak_packs = [p for p in packs.values() if p.kind == "emulator" and p.app_ids][:2]
+    native = {"id": "native", "type": "emulator", "label": "native",
+              "platform": "native", "color": "#000000", "path": "/bin/sh",
+              "args": "", "romsPath": "emu/native/", "extensions": []}
+    tiles = [native] + [
+        {"id": p.id, "type": "emulator", "label": p.id, "platform": p.id,
+         "color": "#000000", "path": "flatpak", "args": "run @APPID@ -f",
+         "romsPath": f"emu/{p.id}/", "extensions": []}
+        for p in flatpak_packs]
+
+    kept, out = _flatpakify_box(tmp_path, tiles,
+                                [p.app_ids[0] for p in flatpak_packs])
+
+    assert [t["id"] for t in kept] == [t["id"] for t in tiles], (
+        f"tiles were pruned although every candidate is installed — the token "
+        f"was read as an application id.\n{out}")
+
+
+def test_the_prune_still_drops_a_tile_whose_whole_list_is_absent(packs, tmp_path):
+    """The other direction: teaching the prune about the token must not turn it
+    into a prune that never prunes. A tile that cannot launch is worse than no
+    tile — that is why this pass exists at all.
+
+    Two tiles, because one would not test the prune: dropping the last tile on
+    the grid trips the "every launcher looks missing, the probe is unreliable"
+    guard and the whole pass is skipped. That guard is right, and it is exactly
+    what would hide a prune that had stopped working.
+    """
+    flatpak_packs = [p for p in packs.values() if p.kind == "emulator" and p.app_ids]
+    survivor, doomed = flatpak_packs[0], flatpak_packs[1]
+
+    def tile(pack):
+        return {"id": pack.id, "type": "emulator", "label": pack.id,
+                "platform": pack.id, "color": "#000000", "path": "flatpak",
+                "args": "run @APPID@ -f", "romsPath": f"emu/{pack.id}/",
+                "extensions": []}
+
+    kept, out = _flatpakify_box(tmp_path, [tile(survivor), tile(doomed)],
+                                [survivor.app_ids[0]])
+
+    assert [t["id"] for t in kept] == [survivor.id], (
+        f"expected only {survivor.id} to survive — {doomed.id} declares "
+        f"{doomed.app_ids} and none is installed.\n{out}")

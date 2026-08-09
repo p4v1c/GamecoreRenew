@@ -13,7 +13,8 @@ Four families of check:
              matches its own `seedMustNotContain`, and no seed carries a
              harvest-box absolute path
   coherence  no two packs claim the same ROM directory or any of the same
-             Flatpak app ids, and @FLATPAK_CONFIG@ is only used by a Flatpak pack
+             Flatpak app ids, no launcher spells an app id out instead of
+             using @APPID@, and @FLATPAK_CONFIG@ is only used by a Flatpak pack
 
 The last one is what makes the gopher64 class of bug structurally impossible:
 `@FLATPAK_CONFIG@` resolves from the SAME `install.appIds` entry the box has
@@ -30,7 +31,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from backend.services.catalog import appid                         # noqa: E402
+from backend.services.catalog import appid, tiles                  # noqa: E402
 from backend.services.catalog.schema import load_schema, validate  # noqa: E402
 from backend.services.configgen.controllers import (                # noqa: E402
     SDL3_FALLBACK_NAMES, db_name_for, vidpid_of,
@@ -138,6 +139,21 @@ def check(only: str | None = None) -> list[str]:
                 problems.append(f"{pid}: Flatpak app id {candidate} already claimed "
                                 f"by {seen_appids[candidate]}")
             seen_appids[candidate] = pid
+
+        # A launcher may name the token or nothing, never a literal id: a
+        # hardcoded id is the half of the bug that survives a corrected
+        # catalogue, because the tile keeps launching it after the install has
+        # already moved on.
+        launch = pack.get("launch") or {}
+        for where, block in (("launch", launch), ("launch.preferIfPresent",
+                                                  launch.get("preferIfPresent") or {})):
+            largs = block.get("args", "")
+            for candidate in app_ids:
+                if candidate in largs:
+                    problems.append(
+                        f"{pid}: {where}.args spells out {candidate} — use "
+                        f"{tiles.APPID_TOKEN}, or the tile goes on launching this id "
+                        f"after install.appIds has moved past it")
 
         bios = pack.get("bios")
         if bios:

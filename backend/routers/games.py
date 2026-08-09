@@ -16,6 +16,7 @@ from ..services import (
     local_media,
 )
 from ..services import process_manager as process_manager_module
+from ..services.catalog import launch as catalog_launch
 from ..services.process_manager import process_manager
 from ..services.rom_scanner import clean_name, iter_rom_files
 from .systems import list_all
@@ -174,6 +175,21 @@ async def launch_game(req: LaunchRequest):
     exec_path = system.get("path", "")
     exec_args = system.get("args", "")
     game_key = req.game_key or (Path(req.rom_path).name if req.rom_path else system["id"])
+
+    # The tile names no Flatpak app id — it defers to the catalogue, which is
+    # what lets a dead upstream be corrected without rewriting every box's
+    # systems.json. Resolved here, against what is installed right now.
+    try:
+        exec_args = catalog_launch.resolve_args(system["id"], exec_args)
+    except LookupError as e:
+        log.warning("launch refused — %s", e)
+        try:
+            await ws.broadcast("game:failed", {
+                "game_key": game_key, "system_id": req.system_id, "detail": str(e),
+            })
+        except Exception:
+            log.exception("launch: failed to broadcast game:failed")
+        raise HTTPException(424, str(e))
 
     # Before the emulator, not after. Without a required BIOS, PCSX2 starts and
     # sits on a black screen: the player sees a game that launched and did

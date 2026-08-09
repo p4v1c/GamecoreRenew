@@ -13,7 +13,7 @@
   },
   "launch": {
     "path": "flatpak",
-    "args": "run net.rpcs3.RPCS3 --fullscreen --no-gui",
+    "args": "run @APPID@ --fullscreen --no-gui",
     "preferIfPresent": {
       "path": "lib/rpcs3",
       "args": "--fullscreen --no-gui"

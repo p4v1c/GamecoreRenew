@@ -13,7 +13,7 @@
   },
   "launch": {
     "path": "flatpak",
-    "args": "run info.cemu.Cemu -f -g"
+    "args": "run @APPID@ -f -g"
   },
   "roms": {
     "dir": "emu/cemu",
