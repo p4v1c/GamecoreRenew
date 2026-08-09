@@ -27,6 +27,8 @@ from __future__ import annotations
 import ast
 import importlib
 import os
+import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -122,6 +124,39 @@ def test_only_paths_py_reads_the_root_variables_from_the_environment():
                 offenders.append(f"{src.relative_to(REPO)}:{node.lineno}: {node.value!r}")
     assert not offenders, (
         "only services/paths.py may read the root variables:\n  "
+        + "\n  ".join(offenders))
+
+
+def test_no_shell_script_writes_data_under_the_install_root():
+    """The same rule, on the half the AST walk cannot see.
+
+    The installers, the updater and the two CLIs build paths as strings, and
+    they had a dozen of these: the generated `systems.json`, the ROM
+    directories, the credentials, `catalog.d`, the addon registry. Each one was
+    correct until the roots differ, and then it writes the player's password
+    into a read-only tree.
+
+    Found by sweeping by hand once. Kept found by this.
+    """
+    scripts = subprocess.run(
+        ["git", "-C", str(REPO), "ls-files", "-z",
+         "install/*.sh", "install/**/*.sh", "install/bin/*",
+         "update/*.sh", "scripts/*.sh"],
+        capture_output=True, text=True, check=True).stdout.split("\0")
+
+    bad = re.compile(r"\$\{?(?:GAMECORE_PATH|GC_PATH)\}?/(config|emu|assets/overlays|assets/logos)\b")
+    offenders = []
+    for rel in filter(None, scripts):
+        path = REPO / rel
+        if not path.is_file():
+            continue
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if line.lstrip().startswith("#"):
+                continue          # prose explaining the split is not the split
+            if bad.search(line):
+                offenders.append(f"{rel}:{n}: {line.strip()}")
+    assert not offenders, (
+        "these write player data under the install root; use GAMECORE_DATA:\n  "
         + "\n  ".join(offenders))
 
 

@@ -322,7 +322,7 @@ cmd_auth_reset() {
     [[ "$p1" == "$p2" ]] && break
     echo "Passwords differ — try again." >&2
   done
-  WEB_PASSWORD="$p1" GAMECORE_PATH="$GAMECORE_PATH" "$py" - <<'PY'
+  WEB_PASSWORD="$p1" GAMECORE_PATH="$GAMECORE_PATH" GAMECORE_DATA="$GAMECORE_DATA" "$py" - <<'PY'
 import os, sys
 sys.path.insert(0, os.environ["GAMECORE_PATH"])
 from backend.services import auth
@@ -333,9 +333,9 @@ PY
   # the backend (User=<gamecore user>) then cannot read them, is_configured()
   # reports False, and the box is locked out of its own web UI with no way in.
   if [[ $EUID -eq 0 ]]; then
-    owner="$(stat -c '%U:%G' "$GAMECORE_PATH/config" 2>/dev/null)"
+    owner="$(stat -c '%U:%G' "$GAMECORE_DATA/config" 2>/dev/null)"
     if [[ -n "$owner" && "$owner" != "root:root" ]]; then
-      chown "$owner" "$GAMECORE_PATH/config/auth.json" "$GAMECORE_PATH/config/auth_secret" 2>/dev/null \
+      chown "$owner" "$GAMECORE_DATA/config/auth.json" "$GAMECORE_DATA/config/auth_secret" 2>/dev/null \
         && info "Credential files handed back to $owner."
     fi
   fi

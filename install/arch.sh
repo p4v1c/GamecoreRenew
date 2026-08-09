@@ -752,7 +752,7 @@ progress 76 "Home-grid tiles"
 msg "Home-grid tiles"
 for pair in "apps.json" "systems.json"; do
   DIST="$GAMECORE_PATH/install/generated/${pair}.dist"
-  LIVE="$GAMECORE_PATH/config/${pair}"
+  LIVE="$GAMECORE_DATA/config/${pair}"
   if [[ -f "$DIST" ]]; then
     # First run only: on a second pass $LIVE is already our generated file, and
     # overwriting the backup would lose the operator's hand-edited original.
@@ -763,13 +763,13 @@ for pair in "apps.json" "systems.json"; do
   fi
 done
 # apps.json ships an @HOME@ token (it is generated from catalog/*/pack.json).
-sed -i -e "s|@HOME@|$USER_HOME|g" "$GAMECORE_PATH/config/apps.json"
+sed -i -e "s|@HOME@|$USER_HOME|g" "$GAMECORE_DATA/config/apps.json"
 
 KEEP_APPS=""
 for app in $(python3 "$GAMECORE_PATH/scripts/catalog-query.py" ids --kind app); do
   want_app "$app" && KEEP_APPS="$KEEP_APPS $app"
 done
-python3 - "$GAMECORE_PATH/config/apps.json" $KEEP_APPS <<'EOF'
+python3 - "$GAMECORE_DATA/config/apps.json" $KEEP_APPS <<'EOF'
 import json, sys
 path, keep = sys.argv[1], set(sys.argv[2:])
 apps = json.load(open(path))
@@ -791,11 +791,11 @@ if [[ "$MODE" == "minimal" ]]; then
 else
   EMU_SEL="$EMULATORS"
 fi
-bash "$GAMECORE_PATH/install/steps/flatpakify-systems.sh" "$GAMECORE_PATH" "$EMU_SEL" \
+bash "$GAMECORE_PATH/install/steps/flatpakify-systems.sh" "$GAMECORE_DATA" "$EMU_SEL" \
   && ok "systems.json adapted to the selected emulators." \
   || warn "flatpakify failed — check config/systems.json."
 chown "${USER_NAME}:${USER_NAME}" \
-  "$GAMECORE_PATH/config/apps.json" "$GAMECORE_PATH/config/systems.json" 2>/dev/null || true
+  "$GAMECORE_DATA/config/apps.json" "$GAMECORE_DATA/config/systems.json" 2>/dev/null || true
 
 # ── ROM directories ──────────────────────────────────────────────
 progress 80 "ROM directories"
@@ -804,7 +804,7 @@ msg "ROM directories"
 # emulator no longer means remembering to add a line here too. `covers` is not
 # a system — it is where the cover pipeline caches art.
 for d in $(python3 "$GAMECORE_PATH/scripts/catalog-query.py" rom-dirs) covers; do
-  sudo -u "$USER_NAME" mkdir -p "$GAMECORE_PATH/emu/$d"
+  sudo -u "$USER_NAME" mkdir -p "$GAMECORE_DATA/emu/$d"
 done
 ok "ROM directories ready."
 
@@ -895,7 +895,7 @@ sudo -u "$USER_NAME" -H "$GAMECORE_PATH/.venv/bin/pip" install -q -r "$GAMECORE_
 ok "Python dependencies installed."
 
 # ── LAN login password (enforced by Caddy — see docs/SECURITY.md) ─
-if [[ -f "$GAMECORE_PATH/config/auth.json" ]]; then
+if [[ -f "$GAMECORE_DATA/config/auth.json" ]]; then
   ok "Web password already set — kept (reset: gamecore-addon auth-reset)."
 else
   msg "Web access password (login at https://${LOCAL_IP}:8443)"
@@ -915,13 +915,14 @@ else
     # variable and the same value — two readers, one value.
     # shellcheck disable=SC2097,SC2098
     WEB_PASSWORD="$WEB_PASSWORD" GAMECORE_PATH="$GAMECORE_PATH" \
+      GAMECORE_DATA="$GAMECORE_DATA" \
       "$GAMECORE_PATH/.venv/bin/python3" - <<'PYEOF'
 import os, sys
 sys.path.insert(0, os.environ["GAMECORE_PATH"])
 from backend.services import auth
 auth.set_password(os.environ["WEB_PASSWORD"])
 PYEOF
-    chown "$USER_NAME:$USER_NAME" "$GAMECORE_PATH/config/auth.json" "$GAMECORE_PATH/config/auth_secret"
+    chown "$USER_NAME:$USER_NAME" "$GAMECORE_DATA/config/auth.json" "$GAMECORE_DATA/config/auth_secret"
     ok "Web password set (config/auth.json, survives OTA updates)."
   else
     warn "No WEB_PASSWORD in conf — LAN stays locked; run 'gamecore-addon auth-reset'."

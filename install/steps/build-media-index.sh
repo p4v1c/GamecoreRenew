@@ -67,9 +67,9 @@ GS="$GC_PATH/backend/services/gamemedia/gamescrape.py"
 INDEX_DIR="$GC_DATA/emu/gamescrape"
 INDEX="$INDEX_DIR/launchbox.sqlite"
 
-# The command that builds it, spelled once. GAMECORE_PATH is what makes
-# gamescrape.py resolve the index to $GC_PATH/emu/gamescrape rather than to the
-# invoking user's ~/.cache — see resolve_index_dir() in that file.
+# The command that builds it, spelled once. The two root variables are what
+# make gamescrape.py resolve the index to $GC_DATA/emu/gamescrape rather than
+# to the invoking user's ~/.cache — see resolve_index_dir() in that file.
 HOWTO="sudo -u $GC_USER GAMECORE_PATH=$GC_PATH GAMECORE_DATA=$GC_DATA python3 $GS --refresh"
 
 if [[ "${GAMECORE_SKIP_MEDIA_INDEX:-0}" == "1" ]]; then

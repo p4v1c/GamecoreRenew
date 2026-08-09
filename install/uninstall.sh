@@ -62,7 +62,9 @@ Options
   --dry-run            Print every action, change nothing. Run this first.
   --yes, -y            Do not ask for confirmation.
   --purge              Also delete ROMs, covers and config/
-                       (default: $GAMECORE_PATH/emu and config/ are KEPT).
+                       (default: the ROMs and config under the data root
+                       are KEPT; a data root outside the install is
+                       never deleted, even with --purge).
   --remove-flatpaks    Uninstall the Flatpak emulators/apps THIS install added
                        (from the manifest). Save data in ~/.var/app/<id>/ is
                        KEPT — remove it yourself with
@@ -315,7 +317,7 @@ fi
 # ================================================================
 msg "Addons"
 ADDON_CLI="/usr/local/bin/gamecore-addon"
-REGISTRY="$GC_PATH/config/addons.json"
+REGISTRY="$GC_DATA/config/addons.json"
 if [[ -x "$ADDON_CLI" && -f "$REGISTRY" ]]; then
   mapfile -t INSTALLED_ADDONS < <(python3 -c '
 import json, sys
