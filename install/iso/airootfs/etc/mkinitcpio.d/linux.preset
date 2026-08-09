@@ -1,0 +1,13 @@
+# mkinitcpio preset for the 'linux' package as built INTO the ISO.
+#
+# One preset, and no fallback image: the fallback exists to carry every module
+# for hardware the default autodetect missed, and the archiso hooks already
+# build a complete image because a live medium cannot autodetect the machine it
+# has not booted on yet. A second image would double the build time to produce a
+# copy of the first.
+PRESETS=('archiso')
+
+ALL_kver='/boot/vmlinuz-linux'
+ALL_config='/etc/mkinitcpio.conf'
+
+archiso_image="/boot/initramfs-linux.img"
