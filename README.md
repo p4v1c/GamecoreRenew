@@ -50,10 +50,11 @@ You navigate with a gamepad, launch emulators, and never touch a keyboard.
 | `azahar` | Azahar | Nintendo 3DS |
 | `mgba` | mGBA | Game Boy Advance |
 | `melonds` | melonDS | Nintendo DS |
-| `gopher64` | Gopher64 | Nintendo 64 |
+| `gopher64` | Rosalie's Mupen GUI (Mupen64Plus core) | Nintendo 64 |
 | `xenia` | Xenia Canary | Xbox 360 |
 | `shadps4` | shadPS4 | PlayStation 4 |
 
+> - **Nintendo 64**: the pack **id** is `gopher64` but the emulator installed is **Rosalie's Mupen GUI** (`com.github.Rosalie241.RMG`), a front end over the Mupen64Plus core — which is why its config file is `mupen64plus.cfg`. The id is a key: it names the catalogue directory, `emu/gopher64/` on every installed box, and the controller snapshots. Renaming it without a migration would move a player's N64 library under a path the scanner no longer reads, so it stays.
 > - **PlayStation 1** uses the official DuckStation **AppImage** — the Flatpak was discontinued upstream in 2025.
 > - **Xbox 360** runs Xenia Canary **through Wine** (`lib/xenia/xenia_canary.exe`, downloaded by the full installer).
 > - **PlayStation 4** uses the shadPS4 Flatpak; games are folders (`emu/shadps4/<Game>/eboot.bin`, `scanDirs`).

@@ -8,10 +8,10 @@ plugged in, and profiles it against `configgen.HOME` — `Path.home()`, read at
 import time. `conftest.py` now points `HOME` at the throwaway root before any
 import; nothing guarded that it stays pointed there.
 
-AUDIT pass 6 asked this exact question and cleared it. Its evidence was a run
-under a sentinel `HOME` that came back empty — but the write only happens when a
-pad is connected, and none was: an experiment that could not fail whatever the
-code did. Neither test below depends on what is plugged in.
+An earlier audit pass asked this exact question and cleared it. Its evidence was
+a run under a sentinel `HOME` that came back empty — but the write only happens
+when a pad is connected, and none was: an experiment that could not fail
+whatever the code did. Neither test below depends on what is plugged in.
 """
 from __future__ import annotations
 

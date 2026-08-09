@@ -32,12 +32,12 @@ def test_each_threshold_fires_once_on_the_way_down():
     a = battery._check([pad(25)])
     assert len(a) == 1 and a[0]["threshold"] == 25, f"25% → toast seuil 25 ({a})"
 
-    assert battery._check([pad(16)]) == [], "16% → rien (25 déjà signalé)"
+    assert battery._check([pad(16)]) == [], "16% → nothing (25 already reported)"
 
     a = battery._check([pad(15)])
     assert len(a) == 1 and a[0]["threshold"] == 15, f"15% → toast seuil 15 ({a})"
 
-    assert battery._check([pad(14)]) == [], "14% → rien (déjà signalé)"
+    assert battery._check([pad(14)]) == [], "14% → nothing (already reported)"
 
     a = battery._check([pad(10)])
     assert len(a) == 1 and a[0]["threshold"] == 10, f"10% → toast seuil 10 ({a})"
@@ -50,7 +50,7 @@ def test_each_threshold_fires_once_on_the_way_down():
 
 def test_pad_connecting_at_4_percent_gives_one_toast_not_three():
     a = battery._check([pad(4)])
-    assert len(a) == 1 and a[0]["threshold"] == 5, f"connexion à 4% → un seul toast ({a})"
+    assert len(a) == 1 and a[0]["threshold"] == 5, f"connecting at 4% → a single toast ({a})"
 
 
 def test_charging_rearms_the_thresholds():
@@ -58,15 +58,15 @@ def test_charging_rearms_the_thresholds():
     assert battery._check([pad(30, charging=True)]) == [], "charge → rien"
 
     a = battery._check([pad(15)])
-    assert len(a) == 1, f"après charge, 15% re-signale ({a})"
+    assert len(a) == 1, f"after charging, 15% reports again ({a})"
 
 
 def test_oscillating_around_a_threshold_does_not_spam():
     battery._check([pad(15)])
-    assert battery._check([pad(16)]) == [], "16% n'est pas réarmé (marge)"
-    assert battery._check([pad(15)]) == [], "15% déjà signalé"
+    assert battery._check([pad(16)]) == [], "16% does not re-arm (hysteresis margin)"
+    assert battery._check([pad(15)]) == [], "15% already reported"
 
-    battery._check([pad(25)])  # > 15+5 → réarme
+    battery._check([pad(25)])  # > 15+5 → re-arms
     a = battery._check([pad(15)])
     assert len(a) == 1, f"25% puis 15% re-signale ({a})"
 
@@ -75,7 +75,7 @@ def test_disconnecting_forgets_the_alert_state():
     battery._check([pad(12)])
     battery._check([])  # manette partie
     a = battery._check([pad(12)])
-    assert len(a) == 1 and a[0]["threshold"] == 15, f"reconnexion à 12% re-signale ({a})"
+    assert len(a) == 1 and a[0]["threshold"] == 15, f"reconnecting at 12% reports again ({a})"
 
 
 def test_two_pads_alert_independently():

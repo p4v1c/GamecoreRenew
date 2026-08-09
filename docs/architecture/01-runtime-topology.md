@@ -23,6 +23,56 @@ Plus, out of band:
 Ports 8770-8799 are reserved for addons. Vite (`:5173`) exists in development
 only.
 
+## The shape of it, including the sandbox boundary
+
+```mermaid
+flowchart TB
+    tv["TV — physical access<br/><i>this is the trust boundary</i>"]
+    lan["LAN client (phone, PC)"]
+
+    subgraph box["the box"]
+        subgraph host["host processes — all bound to 127.0.0.1"]
+            be["<b>backend</b> :8765<br/>gamecore-backend.service<br/>REST · WebSocket · serves frontend/dist"]
+            el["<b>Electron</b><br/>gamecore-ui.service<br/>kiosk window · overlay · HUD"]
+            mon["overlay_monitor.py<br/>JSON-lines on stdio"]
+            addons["addons :8770-8772<br/><i>systemd user units</i>"]
+            caddy["<b>Caddy</b> :8443<br/>TLS + shared password<br/><i>the only LAN-facing port</i>"]
+        end
+
+        subgraph sandbox["Flatpak sandbox — a different filesystem view"]
+            emu["<b>the emulator</b><br/>own process group"]
+        end
+    end
+
+    el -->|"http://localhost:8765"| be
+    el -->|spawn| mon
+    el --> tv
+    be -->|"spawn · killpg"| emu
+    be -.->|"WebSocket events"| el
+    addons -->|"POST /api/addons/notify"| be
+    lan -->|https| caddy
+    caddy -->|forward_auth| be
+    caddy --> addons
+    caddy -. "/api/* → 403" .-> be
+
+    style sandbox stroke-dasharray: 6 4,stroke:#b3261e,stroke-width:2px
+    style caddy stroke-width:2px
+```
+
+**The dashed box is the part that catches people out.** The emulator does not
+share the backend's filesystem view: it sees only what its Flatpak permissions
+grant. That is why the installer adds `--filesystem` for the ROM directory and
+`--device=all` for controllers per app, why a config written to
+`~/.var/app/<id>/…` is the emulator's real config and one written elsewhere is
+not, and why `flatpak kill <app-id>` has to come before any signal — a signal to
+the wrapper never reaches inside.
+
+**Everything except Caddy binds `127.0.0.1`.** The TV reaches the backend over
+loopback with no authentication at all: physical access *is* the trust boundary.
+The LAN only ever sees Caddy, and `/api/*` is 403 through it. If you add an
+endpoint, assume the LAN can never call it — and see [9](09-gotchas.md) for why
+"not LAN-exposed" still is not "not reachable" on a box that runs browsers.
+
 ## Boot sequence
 
 ```mermaid

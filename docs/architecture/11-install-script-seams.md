@@ -1,6 +1,6 @@
 # Splitting the install scripts — the seams, and why they are not cut yet
 
-`install/arch.sh` is 1 342 lines and `install/uninstall.sh` is 879. Both are far
+`install/arch.sh` is 1 632 lines and `install/uninstall.sh` is 902. Both are far
 outside the size the rest of this tree keeps to, and both were looked at as part
 of the quality pass that split `gamescrape.py` and `gamemedia.py`.
 
@@ -87,3 +87,53 @@ more than it earns.
 The criterion is not "is it hardcoded", it is **"does it disappear without
 saying so"**. That script prints `SKIP — ini not found`. It fails in the open,
 which is all that is asked of it.
+
+---
+
+## The ISO, and why it is a *third* installer rather than a wrapper
+
+`install/iso/` builds a live ISO with `mkarchiso` — an archiso profile
+(`profiledef.sh`, `packages.x86_64`, `pacman.conf`, `airootfs/`, `syslinux/`,
+`efiboot/`) plus `build.sh` (229 l.) which stages the payload and runs the build.
+
+Three properties are not obvious and each one is a seam in its own right.
+
+**The profile is copied before building.** `mkarchiso` wants the payload inside
+the profile's `airootfs/`, and the payload is ~2 GB of `node_modules`, Python
+wheels and a copy of the GameCore tree. Staging that in place would put two
+gigabytes of build output inside the git working tree, where the next
+`git status` is unusable and the next `git clean -fdx` is a nasty surprise. So
+the profile is copied to a scratch directory and the repository is never written
+to.
+
+**`gamecore-disk-install.sh` deliberately does not run `arch.sh`.** This is the
+seam that matters most, because the obvious design is wrong. `arch.sh` assumes a
+running systemd — `systemctl enable --now sshd`, `cpupower.service` and half a
+dozen more, none of them guarded — and inside `arch-chroot` there is no systemd
+to talk to. The first call fails, `set -e` fires, and the install dies two thirds
+of the way through **with a partitioned disk and no bootloader**.
+
+So the disk install stops at "a bootable Arch carrying the GameCore payload", and
+the rest is finished on first boot, where systemd exists. That is why there are
+three installers and not one:
+
+| | runs where | finishes what |
+|---|---|---|
+| `gamecore-installer` (PyInstaller) | an existing Arch/Manjaro | everything |
+| `gamecore-disk-install.sh` | the live ISO, `arch-chroot` | partitioning and payload only |
+| first-boot unit | the installed box | the systemd half |
+
+**Where it can be built, and where it cannot.** `mkarchiso` needs root, loop
+mounts and ~25 GB of scratch, so the ISO cannot be built or verified on the box
+that plays the games, and it is not built on a development laptop by accident —
+`build.sh` guards against both. In practice the only place it is exercised is the
+`iso` job in `release.yml`, which means **CI is the test environment**: a change
+here is proven by pushing, and there is no cheaper way. See
+[13](13-release-and-ota.md) for what that push costs, and
+[9](09-gotchas.md#build-and-release) for the two stacked defects that kept this
+job red from the day it was added — both of which exited 0.
+
+`build.sh` now refuses a Node outside 18–22 **before** the forty minutes of
+`pacstrap`, rather than letting the symptom surface at the Electron guard where
+it is indistinguishable from the npm policy problem. The upper bound is the last
+version measured working, not the first known broken.

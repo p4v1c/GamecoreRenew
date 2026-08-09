@@ -1,194 +1,190 @@
-# Vidéo — 3 minutes
+# Video — 3 minutes
 
-Dans cette niche, la vidéo se classe mieux que n'importe quelle page, et c'est
-elle qui crée les recherches sur le nom. Une personne qui cherche « ps3 emulator
-living room » n'a aujourd'hui aucun résultat qui lui montre le résultat final en
-mouvement.
+In this niche, video ranks better than any page, and it is what creates searches
+for the name. Someone searching "ps3 emulator living room" today gets no result
+that shows them the finished thing in motion.
 
-**La règle qui gouverne tout le script : on ne raconte pas, on montre.** Chaque
-seconde de voix off qui décrit ce que l'image montre déjà est une seconde
-perdue. Le montage tient les 3 minutes sans une seule diapositive de texte.
+**The rule governing the whole script: don't tell, show.** Every second of
+voice-over describing what the picture already shows is a second wasted. The edit
+holds 3 minutes without a single text slide.
 
 ---
 
-## ⚠️ À régler avant de tourner
+## ⚠️ To settle before shooting
 
-> **Le lien de fin.** Voir [`BLOQUANT-iso.md`](BLOQUANT-iso.md) : l'ISO n'existe
-> sur aucune release. Le plan de fin (2:40) dit donc « télécharge
-> l'installateur », pas « grave l'ISO ». Si l'ISO est publiée d'ici le tournage,
-> la substitution est indiquée sur ce plan — et c'est un meilleur plan de fin.
+> **The closing link.** The ISO now ships (see
+> [`iso-blocker.md`](iso-blocker.md)) — release `v1.0.157` carries it. The
+> closing shot (2:40) is still written for "download the installer"; the
+> substitution for the ISO wording is on that shot, and it is a better ending.
+> One caveat before using it: **nobody has booted the reassembled image yet.**
+> Boot it once before telling an audience to burn it.
 
-> **Rien de sous copyright à l'écran.** C'est la contrainte la plus facile à
-> oublier au montage et la plus coûteuse : une vidéo d'émulation qui affiche des
-> jaquettes commerciales, des titres de jeux et du gameplay se fait démonétiser
-> ou retirer, et le lien meurt avec elle. Concrètement :
-> - **jamais de gameplay filmé** — on coupe à la seconde où le jeu rend l'image ;
-> - **pas de jaquettes** dans la bibliothèque : peupler la démo avec des
->   homebrews et des demos libres, dont les jaquettes sont les leurs ;
-> - **aucun nom de fichier de ROM** visible, nulle part, y compris dans un
->   terminal ou une notification qui passe ;
-> - **pas de BIOS, pas de clés** à l'écran, même flous.
+> **Nothing copyrighted on screen.** This is the easiest constraint to forget in
+> the edit and the most expensive: an emulation video showing commercial box art,
+> game titles and gameplay gets demonetised or taken down, and the link dies with
+> it. Concretely:
+> - **never any filmed gameplay** — cut the second the game renders a frame;
+> - **no box art** in the library: populate the demo with homebrew and freely
+>   distributable demos, whose art is their own;
+> - **no ROM filename** visible anywhere, including in a terminal or a
+>   notification going past;
+> - **no BIOS, no keys** on screen, even blurred.
 >
-> Ce que la vidéo doit prouver, c'est que **la boîte lance**, pas ce qu'elle
-> lance. Le lancement s'arrête au logo de l'émulateur : c'est suffisant, et
-> c'est sûr.
+> What the video has to prove is that **the box launches**, not what it launches.
+> The launch stops at the emulator's logo: that is enough, and it is safe.
 
 ---
 
-## Le tournage
+## Shooting
 
-**Une seule prise pour l'écran, aucune coupe cachée.** L'argument du projet est
-« ça marche tout seul » ; un montage qui saute d'un plan à l'autre au moment
-précis où quelque chose se configure détruit exactement ce qu'il essaie de
-prouver. Filmer la séquence complète en continu et couper dans la longueur, pas
-dans la logique.
+**One single take for the screen, no hidden cuts.** The project's argument is "it
+works on its own"; an edit that jumps from shot to shot at the precise moment
+something configures itself destroys exactly what it is trying to prove. Film the
+whole sequence continuously and cut for length, not for logic.
 
-- **Écran** : capture HDMI de la boîte, 1080p60. Pas de captation logicielle sur
-  la boîte elle-même — elle coûte des images et ça se voit sur les animations.
-- **Mains** : une seconde caméra sur la manette, à hauteur de table, pour les
-  plans de branchement et le wizard. C'est le plan qui rend le propos physique.
-- **Son** : le son de la boîte (les sons d'interface sont un thème, ils
-  existent), plus une voix off enregistrée séparément. Pas de musique sous la
-  voix — elle sature les 3 minutes et fatigue.
+- **Screen**: HDMI capture from the box, 1080p60. No software capture on the box
+  itself — it costs frames and it shows on the animations.
+- **Hands**: a second camera on the controller, at table height, for the plugging
+  and wizard shots. That is the shot that makes the point physical.
+- **Sound**: the box's own sound (interface sounds are a theme, they exist), plus
+  a voice-over recorded separately. No music under the voice — it saturates the
+  3 minutes and tires the listener.
 
 ---
 
-## Le script
+## The script
 
-Les timecodes sont des cibles ; la marge est dans les plans 2 et 6.
+Timecodes are targets; the slack is in shots 2 and 6.
 
-### 0:00 — 0:12 · Le démarrage, sans un mot
+### 0:00 — 0:12 · The boot, without a word
 
-**Image** — Plan large : une télé, une box, une manette posée. La box est
-éteinte. Un doigt appuie sur le bouton d'alimentation.
-Coupe sur la capture HDMI : logo de démarrage, splash, **écran d'accueil**.
-Le chrono du plan reste visible en bas à gauche pendant toute la séquence.
+**Picture** — Wide shot: a TV, a box, a controller set down. The box is off. A
+finger presses the power button.
+Cut to the HDMI capture: boot logo, splash, **home screen**.
+A running timer stays visible bottom-left throughout the sequence.
 
-**Voix off** — *rien.* Pas un mot pendant douze secondes.
+**Voice-over** — *nothing.* Not a word for twelve seconds.
 
-> Ce plan est l'argument entier du projet et il n'a pas besoin d'être commenté.
-> Le chrono est là parce que « ça démarre vite » est une affirmation, et que le
-> chrono est une preuve. **Ne pas le truquer et ne pas accélérer l'image** : si
-> le démarrage prend quarante secondes, on montre quarante secondes ou on coupe
-> le plan avec un fondu honnête et on annonce la durée réelle à l'oral.
+> This shot is the project's entire argument and it needs no commentary. The
+> timer is there because "it boots fast" is a claim, and a timer is proof. **Do
+> not fake it and do not speed the picture up**: if boot takes forty seconds,
+> show forty seconds, or cut the shot with an honest fade and state the real
+> duration out loud.
 
-### 0:12 — 0:35 · Ce que c'est
+### 0:12 — 0:35 · What it is
 
-**Image** — Navigation à la manette sur l'accueil, puis la bibliothèque. On
-descend la liste des systèmes : PS3, PS4, Switch, Wii U, Xbox 360 défilent en
-tête. On s'arrête une seconde sur la liste complète.
+**Picture** — Pad navigation on the home screen, then the library. Scroll down
+the list of systems: PS3, PS4, Switch, Wii U, Xbox 360 go past at the top. Hold a
+second on the full list.
 
-**Voix off** —
-> « Ça, c'est une machine sous Arch Linux, dans un salon, pilotée uniquement à
-> la manette. Treize systèmes — et contrairement à la plupart des boîtes de ce
-> genre, ce sont les consoles récentes qui sont en tête de liste : PS3, PS4,
-> Switch, Wii U, Xbox 360. »
+**Voice-over** —
+> "This is a machine running Arch Linux, in a living room, driven entirely with a
+> controller. Thirteen systems — and unlike most boxes of this kind, it is the
+> recent consoles that are at the top of the list: PS3, PS4, Switch, Wii U, Xbox
+> 360."
 
-### 0:35 — 1:05 · La manette, sans rien configurer
+### 0:35 — 1:05 · The controller, with nothing to configure
 
-**Image** — Plan mains : une **deuxième** manette, d'une autre marque que la
-première, sortie de sa boîte. On la branche.
-Coupe écran : l'indicateur de manette passe à deux. Le joueur 2 apparaît.
-La deuxième manette navigue immédiatement dans le menu.
+**Picture** — Hands shot: a **second** controller, a different brand from the
+first, out of its box. Plug it in.
+Cut to screen: the controller indicator goes to two. Player 2 appears. The second
+pad navigates the menu immediately.
 
-**Voix off** —
-> « Une manette qu'on branche est utilisable tout de suite. Pas d'écran de
-> configuration, pas de fichier à éditer — et c'est vrai dans les émulateurs
-> aussi, pas seulement dans le menu. La première manette branchée est le joueur
-> un, la suivante le joueur deux. Comme sur une console. »
+**Voice-over** —
+> "A controller you plug in is usable straight away. No configuration screen, no
+> file to edit — and that is true inside the emulators too, not just in the menu.
+> The first pad plugged in is player one, the next is player two. Like a console."
 
-> Utiliser deux marques différentes est le point du plan. Deux manettes
-> identiques ne prouvent rien : c'est le cas facile.
+> Using two different brands is the point of the shot. Two identical pads prove
+> nothing: that is the easy case.
 >
-> **Il n'y a qu'une manette sur la machine de développement** (une DualShock 4).
-> Ce plan demande donc du matériel qui n'est pas là au moment où ce script est
-> écrit. S'il ne peut pas être tourné avec deux pads réels, **le couper
-> entièrement** et garder la démonstration à une manette : le harnais de
-> caractérisation prouve le multi-manettes dans les tests, mais une vidéo ne
-> peut montrer que ce qui a été branché.
+> **There is only one controller on the development machine** (a DualShock 4).
+> This shot therefore needs hardware that is not present as this script is
+> written. If it cannot be shot with two real pads, **cut it entirely** and keep
+> the demonstration to one controller: the characterisation harness proves
+> multi-pad support in the tests, but a video can only show what was plugged in.
 
-### 1:05 — 1:45 · On lance. Switch, puis PS3.
+### 1:05 — 1:45 · Launching. Switch, then PS3.
 
-**Image** — Bibliothèque → système Switch → un jeu (homebrew) → **A**.
-L'émulateur s'ouvre, la fenêtre apparaît, le logo s'affiche. **Coupe.**
-Retour accueil par le bouton Guide, sans lâcher la manette.
-Puis : système PS3 → un jeu → **A**. RPCS3 s'ouvre. **Coupe.**
+**Picture** — Library → Switch system → a game (homebrew) → **A**. The emulator
+opens, the window appears, the logo shows. **Cut.**
+Back to home via the Guide button, without putting the pad down.
+Then: PS3 system → a game → **A**. RPCS3 opens. **Cut.**
 
-**Voix off** —
-> « On lance depuis le canapé, et on revient au menu avec le bouton Guide sans
-> jamais toucher un clavier. Les émulateurs, eux, sont des Flatpaks : ils se
-> mettent à jour depuis Flathub, à leur rythme. RPCS3 bouge toutes les semaines
-> — sur une image figée, on attend la prochaine version de la distribution. Ici,
-> non. »
+**Voice-over** —
+> "You launch from the couch, and you come back to the menu with the Guide button
+> without ever touching a keyboard. The emulators themselves are Flatpaks: they
+> update from Flathub, at their own pace. RPCS3 changes every week — on a frozen
+> image, you wait for the distribution's next version. Not here."
 
-> Le retour par le bouton Guide est important à montrer : c'est la question
-> « et on en sort comment ? » à laquelle toute boîte de ce type doit répondre.
+> The return via the Guide button matters: it is the "and how do I get out?"
+> question that every box of this kind has to answer.
 
-### 1:45 — 2:30 · Le wizard de mappage
+### 1:45 — 2:30 · The mapping wizard
 
-**Image** — Plan mains sur une manette générique, sans marque, du genre que
-personne ne reconnaît. On la branche : elle ne navigue pas correctement.
-Coupe écran : Réglages → Manettes → **Mapper cette manette**.
-Le wizard démarre. Un bouton à la fois, plein écran. On voit :
-- une **pression** qui enregistre et avance,
-- un **maintien** qui saute un bouton que le pad n'a pas,
-- une **double pression** qui revient en arrière.
+**Picture** — Hands shot on a generic, unbranded controller, the kind nothing
+recognises. Plug it in: it does not navigate properly.
+Cut to screen: Settings → Controllers → **Map this controller**.
+The wizard starts. One button at a time, full screen. You see:
+- a **press** that records and advances,
+- a **hold** that skips a button the pad does not have,
+- a **double press** that goes back.
 
-Fin du wizard, écran de revue, sauvegarde. La manette navigue.
+End of the wizard, review screen, save. The pad navigates.
 
-**Voix off** —
-> « Et pour une manette que personne ne connaît, il y a ce wizard. Un bouton à
-> la fois, et il est piloté entièrement par la manette qu'on est en train de
-> configurer — parce qu'à ce moment-là, c'est le seul périphérique dont on soit
-> sûr. Un appui enregistre. Un appui long saute un bouton que la manette n'a
-> pas. Deux appuis reviennent en arrière. Une minute, sans clavier. »
+**Voice-over** —
+> "And for a controller nobody recognises, there is this wizard. One button at a
+> time, and it is driven entirely by the controller you are configuring — because
+> at that moment, it is the only device you can be sure of. A press records. A
+> long press skips a button the pad does not have. Two presses go back. A minute,
+> without a keyboard."
 
-> C'est le plan le plus convaincant de la vidéo pour un public d'émulation :
-> tout le monde dans cette communauté a déjà passé une soirée sur un fichier de
-> mapping. Ne pas l'accélérer, et **laisser le maintien durer** — c'est
-> précisément la gestuelle qu'il faut avoir vue une fois pour la reproduire.
+> This is the most convincing shot in the video for an emulation audience:
+> everyone in that community has spent an evening on a mapping file. Do not speed
+> it up, and **let the hold last** — that is precisely the gesture you need to
+> have seen once to reproduce it.
 
-### 2:30 — 2:40 · La vraie machine
+### 2:30 — 2:40 · The real machine
 
-**Image** — Réglages → Quitter vers le bureau. Le kiosque se ferme, **un bureau
-Plasma complet** apparaît. Un navigateur s'ouvre. Puis, en une commande dans un
-terminal, retour au kiosque.
+**Picture** — Settings → Exit to desktop. The kiosk closes, **a full Plasma
+desktop** appears. A browser opens. Then, in one terminal command, back to the
+kiosk.
 
-**Voix off** —
-> « Et en dessous, c'est une Arch complète. Pas une image en lecture seule : un
-> vrai PC, avec un bureau, sur lequel on installe ce qu'on veut. »
+**Voice-over** —
+> "And underneath, it is a full Arch. Not a read-only image: a real PC, with a
+> desktop, that you install whatever you like on."
 
-> Ce plan répond à la seule objection sérieuse que fait le public technique aux
-> boîtes de salon : « je perds ma machine ». Dix secondes suffisent.
+> This shot answers the only serious objection a technical audience makes to
+> living-room boxes: "I lose my machine". Ten seconds is enough.
 
-### 2:40 — 3:00 · Où le prendre
+### 2:40 — 3:00 · Where to get it
 
-**Image** — Retour sur l'accueil de GameCore. L'URL du site s'affiche en
-surimpression, lisible, immobile, jusqu'à la fin.
+**Picture** — Back to the GameCore home screen. The site URL is overlaid,
+readable, still, until the end.
 
-**Voix off** —
-> « C'est du logiciel libre, en GPL. Si la machine tourne déjà sous Arch ou
-> Manjaro, il y a un installateur graphique à télécharger — le lien est en
-> description. »
+**Voice-over** —
+> "It's free software, GPL. If the machine already runs Arch or Manjaro, there is
+> a graphical installer to download — the link is in the description."
 
-> **Si l'ISO est publiée**, remplacer cette dernière phrase par :
-> « Il y a une image ISO à graver sur une clé : tu n'as pas besoin d'installer
-> Arch d'abord, ni même d'avoir Linux. Le lien est en description. »
-> C'est une bien meilleure fin — elle enlève la seule condition d'entrée.
+> **Now that the ISO ships**, replace that last sentence with:
+> "There's an ISO image to burn onto a stick: you don't need to install Arch
+> first, or even to have Linux. The link is in the description."
+> That is a much better ending — it removes the only entry condition. Boot the
+> image once yourself before using this wording.
 
 ---
 
-## Le texte de la publication (YouTube)
+## The publication text (YouTube)
 
-### Titre
+### Title
 
-Le titre porte la requête, pas le nom : personne ne cherche « GameCore ».
+The title carries the query, not the name: nobody searches for "GameCore".
 
 ```
 A living-room emulation box for PS3, PS4, Switch and Wii U — on Arch Linux
 ```
 
-Variante si la chaîne est francophone :
+Variant if the channel is French-speaking:
 
 ```
 Une box salon pour émuler PS3, PS4, Switch et Wii U — sous Arch Linux
@@ -196,8 +192,8 @@ Une box salon pour émuler PS3, PS4, Switch et Wii U — sous Arch Linux
 
 ### Description
 
-Les deux premières lignes sont les seules visibles avant « plus » : elles
-portent l'angle, et le lien est haut.
+The first two lines are the only ones visible before "more": they carry the
+angle, and the link is high up.
 
 ```
 GameCore is a gamepad-only frontend for a living-room Arch Linux box, built
@@ -223,9 +219,9 @@ No games, ROMs or BIOS files are shown or provided in this video. Everything on
 screen is homebrew or a freely distributable demo.
 ```
 
-> La dernière ligne n'est pas de la prudence décorative : elle est ce qu'un
-> modérateur lit en premier sur un signalement, et c'est elle qui fait la
-> différence entre une vidéo examinée et une vidéo retirée.
+> That last line is not decorative caution: it is what a moderator reads first on
+> a report, and it is what makes the difference between a video reviewed and a
+> video removed.
 
 ### Tags
 
@@ -235,6 +231,6 @@ wii u emulator, cemu, retrogaming, htpc, couch gaming, emulation frontend,
 batocera alternative, flatpak, gamepad
 ```
 
-`batocera alternative` est ici — dans les tags, où il capte une recherche
-existante — et **nulle part dans le titre, la description ou la voix off**. La
-comparaison en largeur est perdue d'avance ; la requête, elle, se prend.
+`batocera alternative` belongs here — in the tags, where it catches an existing
+search — and **nowhere in the title, description or voice-over**. The comparison
+on breadth is lost in advance; the query itself is worth taking.

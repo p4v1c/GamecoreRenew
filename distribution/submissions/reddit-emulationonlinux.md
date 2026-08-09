@@ -1,36 +1,36 @@
-# r/EmulationOnLinux — post à publier
+# r/EmulationOnLinux — post to publish
 
-**Le public le plus proche du projet, et le plus exigeant sur les détails.** Ici
-on ne vend pas une expérience salon : on parle configuration de manettes,
-Flatpak, et RPCS3. C'est la seule communauté de cette phase qui vérifiera les
-affirmations techniques — donc la seule où il faut être précis, et où être
-précis suffit.
+**The audience closest to the project, and the most demanding on detail.** This
+is not where you sell a living-room experience: here you talk controller
+configuration, Flatpak, and RPCS3. It is the only community in this phase that
+will check the technical claims — so the only one where you have to be precise,
+and where being precise is enough.
 
-**Avant de poster** : lire les règles du subreddit dans la barre latérale.
-Beaucoup de subs d'émulation interdisent tout lien vers des ROMs ou des BIOS —
-le post ci-dessous n'en contient aucun et n'y fait aucune allusion, et ça doit
-le rester.
+**Before posting**: read the subreddit rules in the sidebar. Many emulation subs
+forbid any link to ROMs or BIOSes — the post below contains none and alludes to
+none, and that must stay true.
 
-**Flair** : `Project` ou `Discussion` selon ce qui existe. Sans flair, le post
-est retiré automatiquement sur la plupart de ces subs.
+**Flair**: `Project` or `Discussion`, whichever exists. Without a flair the post
+is auto-removed on most of these subs.
 
-> **Si l'ISO est publiée** : remplacer le paragraphe « Getting it » par
-> « There's a bootable ISO if the machine has no Linux on it yet, or a graphical
-> installer if it already runs Arch or Manjaro. »
+> **Now that the ISO ships** (pending, see [`../iso-blocker.md`](../iso-blocker.md)):
+> replace the "Getting it" paragraph with "There's a bootable ISO if the machine
+> has no Linux on it yet, or a graphical installer if it already runs Arch or
+> Manjaro."
 
 ---
 
-## Titre
+## Title
 
 ```
 I built a couch emulation frontend for Arch that auto-configures controllers inside each emulator (RPCS3, Ryujinx, Dolphin, Cemu…)
 ```
 
-> Le titre porte le **détail technique**, pas l'ambition. « J'ai fait un frontend
-> d'émulation » ne se distingue de rien ; « il configure les manettes dans RPCS3
-> et Ryujinx » est un problème que ce public a eu personnellement.
+> The title carries the **technical detail**, not the ambition. "I made an
+> emulation frontend" is indistinguishable from anything; "it configures pads
+> inside RPCS3 and Ryujinx" is a problem this audience has had personally.
 
-## Corps
+## Body
 
 ```markdown
 I've been building a living-room emulation frontend for Arch for a while and it
@@ -57,8 +57,8 @@ Not just in the launcher's menus — the actual emulator config files. This turn
 out to be much less uniform than I expected, and the details might save someone
 else the reverse-engineering:
 
-- PCSX2, DuckStation and gopher64 speak SDL's role vocabulary (`SDL-0/FaceEast`),
-  so exporting the community SDL_GameControllerDB through
+- PCSX2 and DuckStation speak SDL's role vocabulary (`SDL-0/FaceEast`), so
+  exporting the community SDL_GameControllerDB through
   `SDL_GAMECONTROLLERCONFIG_FILE` covers any pad in the database with zero
   config. Worth noting that's *the* variable SDL actually reads —
   `SDL_GAMECONTROLLERDB` is not one, and I shipped that for a while before
@@ -104,36 +104,35 @@ wrong.
 
 ---
 
-## Notes pour la réponse aux commentaires
+## Notes for answering comments
 
-Trois questions vont tomber, et il vaut mieux avoir la réponse prête que
-d'improviser.
+Three questions will land, and it is better to have the answer ready than to
+improvise.
 
-- **« Pourquoi pas Batocera / EmuDeck ? »** — Répondre par l'usage, jamais par la
-  comparaison : consoles récentes en priorité, émulateurs qui se mettent à jour
-  seuls, machine qui reste une machine. **Ne pas dire que Batocera est moins
-  bien.** C'est un projet respecté ici, et l'attaquer coûte le fil entier.
-- **« Ça marche sur autre chose qu'Arch ? »** — Non, et le dire franchement.
-  L'installateur est spécifique à Arch/Manjaro et le stack est X11 uniquement.
-  Une réponse évasive se paie en tickets d'installation.
-- **« Et les ROMs / BIOS ? »** — Le projet n'en distribue aucun, n'en télécharge
-  aucun, et n'a pas de scraper qui en cherche. Réponse courte, pas de débat.
+- **"Why not Batocera / EmuDeck?"** — Answer with the use case, never with the
+  comparison: recent consoles first, emulators that update themselves, a machine
+  that stays a machine. **Do not say Batocera is worse.** It is a respected
+  project here, and attacking it costs the whole thread.
+- **"Does it work on anything other than Arch?"** — No, and say so plainly. The
+  installer is Arch/Manjaro-specific and the stack is X11 only. An evasive answer
+  is paid for in installation tickets.
+- **"What about ROMs / BIOSes?"** — The project distributes none, downloads none,
+  and has no scraper that looks for any. Short answer, no debate.
 
-Et une quatrième, qui viendra forcément parce que le post insiste sur le
-multi-manettes :
+And a fourth, which will certainly come because the post insists on multi-pad
+support:
 
-- **« Tu l'as testé avec combien de manettes ? »** — La réponse honnête, et il
-  faut la donner telle quelle : **une seule manette physique** sur la machine de
-  développement, une DualShock 4. Deux, trois et quatre manettes sont couvertes
-  par un harnais de caractérisation qui rejoue des ensembles synthétiques contre
-  les vrais générateurs et compare aux sorties enregistrées — c'est une vraie
-  preuve pour la génération des configs, et ce n'est **pas** une preuve que
-  quatre pads jouent ensemble sur du matériel réel.
+- **"How many controllers did you test it with?"** — The honest answer, and it
+  must be given as-is: **one physical controller** on the development machine, a
+  DualShock 4. Two, three and four pads are covered by a characterisation harness
+  that replays synthetic rosters against the real generators and compares to
+  recorded output — that is real proof for config generation, and it is **not**
+  proof that four pads play together on real hardware.
 >
-> Dire ça coûte moins que de se faire prendre : ce sub compte des gens qui ont
-> quatre manettes et qui essaieront. Se faire contredire par un commentaire
-> après avoir affirmé le contraire tue le fil ; l'avoir annoncé d'avance
-> transforme le même commentaire en rapport de test.
+> Saying that costs less than being caught: this sub has people with four
+> controllers who will try. Being contradicted by a comment after claiming
+> otherwise kills the thread; having said it up front turns the same comment into
+> a test report.
 
-Le principe général : ce sub sanctionne le survendu. Ce qui n'a pas été branché
-se dit. Ici c'est un signal de sérieux, pas une faiblesse.
+The general principle: this sub punishes overselling. What has not been plugged
+in gets said. Here that reads as seriousness, not weakness.

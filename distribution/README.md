@@ -1,138 +1,135 @@
-# Distribution — contenus prêts à publier
+# Distribution — ready-to-publish material
 
-**Rien dans ce dossier n'a été publié.** Aucun compte créé, aucun post envoyé,
-aucun paquet soumis, aucune PR ouverte. Tout est rédigé pour qu'un humain le
-relise, décide, et l'envoie lui-même.
+**Nothing in this folder has been published.** No account created, no post sent,
+no package submitted, no PR opened. Everything is written so that a human reads
+it, decides, and sends it themselves.
 
-C'est volontaire et ça doit le rester : la moitié de ces canaux (AlternativeTo,
-awesome-*, r/linux_gaming) ne pardonne pas une deuxième soumission. On n'y va
-qu'une fois, et seulement quand la porte d'entrée tient.
-
----
-
-## ⛔ Avant de publier quoi que ce soit — lire [`BLOQUANT-iso.md`](BLOQUANT-iso.md)
-
-L'argument d'entrée de tous ces textes est « tu n'as pas besoin d'installer Arch
-d'abord ». **Aujourd'hui c'est faux dans les faits** : le README pointe vers une
-ISO que la page des releases n'a jamais portée, parce que le job `iso` de
-`release.yml` échoue à chaque release depuis qu'il existe.
-
-Envoyer du trafic maintenant, c'est envoyer des gens vers un lien de
-téléchargement qui n'existe pas. Le détail, la cause exacte et le correctif
-proposé sont dans [`BLOQUANT-iso.md`](BLOQUANT-iso.md).
-
-Les textes ci-dessous sont donc écrits **vrais aujourd'hui** : ils mènent par
-l'installateur graphique, qui lui est bien publié à chaque release et
-fonctionne. Chaque fichier porte un encadré « si l'ISO est publiée » avec la
-formulation à substituer, une fois que ce sera le cas.
+That is deliberate and must stay that way: half of these channels (AlternativeTo,
+awesome-*, r/linux_gaming) do not forgive a second submission. You get one shot,
+and only once the front door holds.
 
 ---
 
-## L'angle, identique partout
+## The ISO blocker is cleared — [`iso-blocker.md`](iso-blocker.md)
 
-> Une box salon pour les consoles récentes — PS3, PS4, Switch, Wii U, Xbox 360 —
-> avec des émulateurs toujours à jour, sur une Arch qui reste une vraie machine.
+The opening argument of every text here is "you don't have to install Arch
+first". For a while that was factually false: no release had ever carried an ISO,
+because the `iso` job in `release.yml` failed on every one since it was added.
 
-En anglais, pour les canaux internationaux :
+**That is fixed.** `v1.0.157` ships the image as split `.part` files with its
+`.sha256`. The cause, the two stacked defects behind it, and the trap that would
+have replayed it are in [`iso-blocker.md`](iso-blocker.md) — worth reading before
+touching the ISO job.
+
+One thing still nobody has done: **boot the reassembled image.** `sha256sum -c`
+proves the transfer, not that UEFI starts it. Do that before pointing an audience
+at it.
+
+The texts below still lead through the graphical installer, and each carries a
+`> **Now that the ISO ships**` box with the wording to substitute. Those
+substitutions are **pending** — they change the pitch, so they are the sender's
+to apply, not mine.
+
+---
+
+## The angle, identical everywhere
 
 > A living-room box for the *recent* consoles — PS3, PS4, Switch, Wii U, Xbox
 > 360 — with emulators that stay current, on an Arch that stays a real computer.
 
-**Jamais « alternative à Batocera » comme argument principal.** C'est la
-comparaison en largeur : sur le nombre de systèmes supportés, sur l'âge du
-projet, sur la taille de la communauté, on perd. Les trois points ci-dessous
-sont les seuls terrains où la comparaison est gagnable, et ce sont ceux à tenir :
+**Never "a Batocera alternative" as the main argument.** That is the comparison
+on breadth: on number of supported systems, on project age, on community size, we
+lose. The three points below are the only ground where the comparison is winnable,
+and they are the ones to hold:
 
-1. **Les consoles récentes d'abord.** Treize systèmes, orientés PS3/PS4/Switch/
-   Wii U/Xbox 360 — pas trente systèmes 8 bits plus trois émulateurs modernes en
-   bout de liste.
-2. **Des émulateurs toujours à jour.** Ce sont des Flatpaks de Flathub, mis à
-   jour par Flatpak. RPCS3 et Ryujinx bougent toutes les semaines ; une image
-   figée les gèle jusqu'à la prochaine release de la distribution.
-3. **La machine reste une vraie machine.** C'est une Arch complète avec un
-   bureau Plasma derrière. `gamecore-session-select desktop` et on est sur un
-   PC. Rien n'est en lecture seule, rien n'est verrouillé.
+1. **Recent consoles first.** Thirteen systems, oriented at PS3/PS4/Switch/Wii
+   U/Xbox 360 — not thirty 8-bit systems plus three modern emulators at the end
+   of the list.
+2. **Emulators that stay current.** They are Flathub Flatpaks, updated by
+   Flatpak. RPCS3 and Ryujinx move every week; a frozen image freezes them until
+   the distribution's next release.
+3. **The machine stays a real machine.** It is a full Arch with a Plasma desktop
+   behind it. `gamecore-session-select desktop` and you are on a PC. Nothing is
+   read-only, nothing is locked down.
 
-Le quatrième argument, plus discret mais c'est celui qui fait rester : **la
-manette est configurée toute seule, dans tous les émulateurs**. C'est le sujet
-de la vidéo, et c'est ce qui se démontre le mieux en images.
+The fourth argument is quieter but it is the one that makes people stay: **the
+controller configures itself, in every emulator**. That is the subject of the
+video, and it is what demonstrates best in moving pictures.
 
 ---
 
-## Ce qu'il y a ici
+## What is here
 
-| Fichier | Ce que c'est | Qui l'envoie |
+| File | What it is | Who sends it |
 |---|---|---|
-| [`BLOQUANT-iso.md`](BLOQUANT-iso.md) | Le prérequis non tenu, sa cause, le correctif proposé | à traiter avant tout le reste |
-| [`github-about.md`](github-about.md) | Description, topics, URL du dépôt | à coller dans les réglages GitHub |
-| [`packaging/PKGBUILD`](packaging/PKGBUILD) | Paquet `gamecore-bin` pour l'AUR | **ne pas soumettre** avant lecture de [`packaging/README.md`](packaging/README.md) |
-| [`video-script.md`](video-script.md) | Script d'une vidéo de 3 minutes | à tourner |
-| [`submissions/alternativeto.md`](submissions/alternativeto.md) | Fiche AlternativeTo | à soumettre |
-| [`submissions/awesome-emulators.md`](submissions/awesome-emulators.md) | Ligne + corps de PR pour les awesome-lists | à ouvrir en PR |
-| [`submissions/reddit-emulationonlinux.md`](submissions/reddit-emulationonlinux.md) | Post r/EmulationOnLinux | à poster |
-| [`submissions/reddit-linux_gaming.md`](submissions/reddit-linux_gaming.md) | Post r/linux_gaming | à poster |
-| [`submissions/linuxfr.md`](submissions/linuxfr.md) | Dépêche LinuxFr (français) | à soumettre |
+| [`iso-blocker.md`](iso-blocker.md) | The ISO outage, its two stacked causes, and the fix — **resolved**, kept as a record | read before touching the ISO job |
+| [`github-about.md`](github-about.md) | Description, topics, repo URL | to paste into the GitHub settings |
+| [`packaging/PKGBUILD`](packaging/PKGBUILD) | `gamecore-bin` package for the AUR | **do not submit** before reading [`packaging/README.md`](packaging/README.md) |
+| [`video-script.md`](video-script.md) | Script for a 3-minute video | to shoot |
+| [`submissions/alternativeto.md`](submissions/alternativeto.md) | AlternativeTo entry | to submit |
+| [`submissions/awesome-emulators.md`](submissions/awesome-emulators.md) | Line + PR body for the awesome-lists | to open as a PR |
+| [`submissions/reddit-emulationonlinux.md`](submissions/reddit-emulationonlinux.md) | r/EmulationOnLinux post | to post |
+| [`submissions/reddit-linux_gaming.md`](submissions/reddit-linux_gaming.md) | r/linux_gaming post | to post |
+| [`submissions/linuxfr.md`](submissions/linuxfr.md) | LinuxFr article — **written in French on purpose**, LinuxFr is a French-language site | to submit |
 
-Le site est ailleurs, parce qu'il doit être servi par GitHub Pages :
-[`../docs/index.html`](../docs/index.html). Voir [`site.md`](site.md) pour
-l'activer.
-
----
-
-## L'ordre de publication, et pourquoi cet ordre
-
-Ce n'est pas une liste de courses. Chaque étape alimente la suivante, et deux
-d'entre elles ne peuvent pas être défaites.
-
-1. **Régler le bloquant ISO.** Rien ne part avant.
-2. **Le About et les topics du dépôt.** Cinq minutes, réversible, et c'est ce
-   que tous les autres liens vont pointer. Aujourd'hui Google n'a que
-   `Contribute to p4v1c/GamecoreRenew development by creating an account on
-   GitHub.` — la description par défaut de GitHub, c'est-à-dire rien.
-3. **Le site Pages.** Il donne une URL propre à mettre dans le About, et un
-   `<title>` et une meta description qu'on contrôle — ce que le dépôt seul ne
-   permet pas. GitHub bloque le crawl de `/tree/` et `/blob/` dans son
-   `robots.txt`, donc seul le README de la branche par défaut est indexable.
-4. **La vidéo.** Elle doit exister avant les posts : dans cette niche elle se
-   classe mieux que n'importe quelle page, et c'est elle qui crée les recherches
-   sur le nom. Un post sans démo vidéo se fait demander « des captures ? » en
-   premier commentaire.
-5. **Les posts Reddit et LinuxFr.** Un canal par jour, pas les trois le même
-   jour : poster partout en même temps se lit comme du spam, et on n'a qu'un
-   seul premier post par communauté.
-6. **AlternativeTo et les awesome-lists.** En dernier : ce sont des annuaires,
-   ils profitent d'un projet qui a déjà des traces ailleurs, et une soumission
-   refusée pour « pas assez établi » ne se retente pas facilement.
-
-**L'AUR n'est pas dans cette liste.** Voir [`packaging/README.md`](packaging/README.md) :
-le PKGBUILD est écrit et vérifié syntaxiquement, mais il n'a jamais été
-construit, et publier un paquet AUR cassé est la pire première impression
-possible sur ce canal précis.
+The site lives elsewhere, because it has to be served by GitHub Pages:
+[`../docs/index.html`](../docs/index.html). See [`site.md`](site.md) to turn it
+on.
 
 ---
 
-## Ce que le nom coûte, et la seule chose à décider
+## The publication order, and why this order
 
-« GameCore » est déjà pris plusieurs fois : un moteur de jeu Java, un IDE 3D, un
-moteur Mac sur SourceForge, une chaîne YouTube, et l'utilisateur GitHub
-`@GameCore`. Se battre sur ce mot est perdu d'avance — il ne rankera pas, quoi
-qu'on écrive.
+This is not a shopping list. Each step feeds the next, and two of them cannot be
+undone.
 
-S'ajoute à ça que le dépôt s'appelle `GamecoreRenew` et le produit `GameCore` :
-les deux se diluent, et aucun des deux n'accumule.
+1. ~~Fix the ISO blocker.~~ **Done** — but boot the reassembled image before sending anyone at it.
+2. **The repo's About and topics.** Five minutes, reversible, and it is what every
+   other link will point at. Today Google only has `Contribute to
+   p4v1c/GamecoreRenew development by creating an account on GitHub.` — GitHub's
+   default description, which is to say nothing.
+3. **The Pages site.** It gives a clean URL to put in the About, and a `<title>`
+   and a meta description we control — which the repo alone does not allow.
+   GitHub blocks crawling of `/tree/` and `/blob/` in its `robots.txt`, so only
+   the default branch's README is indexable.
+4. **The video.** It has to exist before the posts: in this niche it ranks better
+   than any page, and it is what creates searches for the name. A post without a
+   video demo gets "any screenshots?" as its first comment.
+5. **The Reddit and LinuxFr posts.** One channel a day, not all three the same
+   day: posting everywhere at once reads as spam, and you only get one first post
+   per community.
+6. **AlternativeTo and the awesome-lists.** Last: they are directories, they
+   benefit from a project that already has traces elsewhere, and a submission
+   refused for "not established enough" is not easily retried.
 
-**Ce n'est pas à moi de trancher, et il n'y a qu'une décision à prendre :
-renommer le dépôt en `GameCore`, ou pas.**
+**The AUR is not in this list.** See [`packaging/README.md`](packaging/README.md):
+the PKGBUILD is written and syntactically checked, but it has never been built,
+and shipping a broken AUR package is the worst possible first impression on that
+particular channel.
 
-- **Renommer** : GitHub met une redirection permanente, les `git remote`
-  existants continuent de fonctionner, et le nom du produit et celui du dépôt
-  arrêtent de se diluer. Ça casse en revanche les URL de release déjà
-  distribuées et tout ce qui pointe `GamecoreRenew` en dur — à vérifier avant.
-- **Ne pas renommer** : rien ne casse, et on continue avec deux noms.
+---
 
-Dans les deux cas, **la stratégie SEO des textes ne change pas**, parce qu'elle
-ne mise pas sur le nom : elle mise sur les requêtes longues que les gens tapent
-réellement, et qui n'ont aujourd'hui presque pas de bonne réponse :
+## What the name costs, and the only thing to decide
+
+"GameCore" is already taken several times over: a Java game engine, a 3D IDE, a
+Mac engine on SourceForge, a YouTube channel, and the GitHub user `@GameCore`.
+Fighting over that word is lost in advance — it will not rank, whatever we write.
+
+On top of that the repo is called `GamecoreRenew` and the product `GameCore`: the
+two dilute each other, and neither accumulates.
+
+**This is not mine to settle, and there is only one decision to make: rename the
+repo to `GameCore`, or not.**
+
+- **Rename**: GitHub sets a permanent redirect, existing `git remote`s keep
+  working, and the product name and the repo name stop diluting each other. It
+  does break already-distributed release URLs and anything hardcoding
+  `GamecoreRenew` — to check beforehand.
+- **Don't rename**: nothing breaks, and we carry on with two names.
+
+Either way, **the SEO strategy of these texts does not change**, because it does
+not bet on the name: it bets on the long queries people actually type, which
+today have almost no good answer:
 
 - `ps3 emulator living room tv frontend`
 - `rpcs3 gamepad autoconfig`
@@ -140,7 +137,6 @@ réellement, et qui n'ont aujourd'hui presque pas de bonne réponse :
 - `arch linux emulation frontend flatpak`
 - `batocera alternative recent consoles`
 
-C'est pour ça que le `<title>` du site et la description du About portent tous
-les deux « living-room emulation frontend for Arch Linux » à côté du nom, et pas
-seulement « GameCore ». Le nom seul n'est une requête pour personne ; la
-description en est une.
+That is why the site's `<title>` and the About description both carry
+"living-room emulation frontend for Arch Linux" next to the name, and not just
+"GameCore". The name alone is nobody's search query; the description is one.

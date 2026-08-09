@@ -1,53 +1,51 @@
-# Le About du dépôt — à appliquer à la main
+# The repo's About block — to apply by hand
 
-GitHub, aujourd'hui, ne sert aucune description. Google n'a donc que la chaîne
-par défaut :
+GitHub serves no description today. So Google only has the default string:
 
 ```
 Contribute to p4v1c/GamecoreRenew development by creating an account on GitHub.
 ```
 
-C'est le seul texte que le dépôt émet vers l'extérieur. Le remplacer est le
-changement le moins cher et le plus rentable de toute cette phase.
+That is the only text the repo emits to the outside world. Replacing it is the
+cheapest and highest-return change in this whole phase.
 
-## Où
+## Where
 
-`https://github.com/p4v1c/GamecoreRenew` → bouton **⚙ (Settings)** à droite de
-**About**, en haut de la colonne de droite de la page d'accueil du dépôt. Pas
-dans Settings du dépôt : c'est bien la petite roue dentée du bloc About.
+`https://github.com/p4v1c/GamecoreRenew` → the **⚙ (Settings)** button to the
+right of **About**, at the top of the repo home page's right-hand column. Not the
+repo Settings: it is the little cog on the About block itself.
 
 ---
 
-## 1. Description (une ligne)
+## 1. Description (one line)
 
-Le champ est limité à 350 caractères, mais Google en coupe l'affichage autour de
-155–160. **Tout ce qui compte doit tenir dans les 155 premiers.**
+The field allows 350 characters, but Google cuts the displayed text around
+155–160. **Everything that matters must fit in the first 155.**
 
 ```
 Living-room emulation frontend for Arch Linux — PS3, PS4, Switch, Wii U, Xbox 360 and 8 more. Always-current Flatpak emulators, auto-configured pads.
 ```
 
-149 caractères — donc affichée entière par Google, sans troncature. Le découpage
-est délibéré :
+149 characters — so Google shows it whole, untruncated. The ordering is
+deliberate:
 
-- **`Living-room emulation frontend for Arch Linux`** en tête — c'est la requête,
-  pas le nom. Personne ne cherche « GameCore » ; des gens cherchent ces mots-là.
-- **Les consoles nommées** ensuite, parce que `ps3`, `switch`, `wii u` sont ce
-  qui est réellement tapé, et parce que c'est l'angle : les consoles récentes
-  d'abord.
-- **`Always-current Flatpak emulators, auto-configured pads`** en fin : les deux
-  différenciateurs. `pads` plutôt que `controllers`, et la phrase coupée en deux
-  plutôt qu'une virgule de plus, uniquement pour tenir sous 155.
+- **`Living-room emulation frontend for Arch Linux`** first — that is the query,
+  not the name. Nobody searches for "GameCore"; people do search those words.
+- **The named consoles** next, because `ps3`, `switch`, `wii u` are what actually
+  gets typed, and because that is the angle: recent consoles first.
+- **`Always-current Flatpak emulators, auto-configured pads`** last: the two
+  differentiators. `pads` rather than `controllers`, and the sentence split in
+  two rather than one more comma, purely to stay under 155.
 
-Si « gamepad-only » doit absolument y être, cette variante fait 170 caractères
-et Google la coupera juste avant `auto-configured` — c'est-à-dire qu'elle perd
-en affichage le différenciateur qu'elle ajoute :
+If "gamepad-only" absolutely has to be in there, this variant is 170 characters
+and Google will cut it just before `auto-configured` — meaning it loses, in
+display, the very differentiator it adds:
 
 ```
 Living-room emulation frontend for Arch Linux — PS3, PS4, Switch, Wii U, Xbox 360 and 8 more, always-current Flatpak emulators, gamepad-only, auto-configured controllers.
 ```
 
-Le mot est de toute façon dans le topic `gamepad` et dans le `<title>` du site.
+The word is in the `gamepad` topic and in the site's `<title>` anyway.
 
 ---
 
@@ -57,14 +55,14 @@ Le mot est de toute façon dans le topic `gamepad` et dans le `<title>` du site.
 https://p4v1c.github.io/GamecoreRenew/
 ```
 
-À mettre **après** avoir activé Pages (voir [`site.md`](site.md)) — un champ
-Website qui 404 est pire que vide, il est suivi par les crawlers.
+To be set **after** enabling Pages (see [`site.md`](site.md)) — a Website field
+that 404s is worse than an empty one, because crawlers follow it.
 
 ---
 
 ## 3. Topics
 
-Les huit demandés, dans cet ordre (GitHub les affiche dans l'ordre de saisie) :
+The eight wanted, in this order (GitHub displays them in entry order):
 
 ```
 emulation-frontend
@@ -77,13 +75,12 @@ gamepad
 kiosk
 ```
 
-À coller un par un dans le champ Topics. GitHub en accepte jusqu'à 20.
+To paste one at a time into the Topics field. GitHub accepts up to 20.
 
-### Cinq de plus, à ajouter si on veut
+### Five more, to add if wanted
 
-Ils sont là parce que les pages `/topics/<nom>` de GitHub sont indexées et
-servent de pages d'atterrissage — un topic est un canal de découverte, pas une
-étiquette :
+They are here because GitHub's `/topics/<name>` pages are indexed and act as
+landing pages — a topic is a discovery channel, not a label:
 
 ```
 emulator
@@ -93,33 +90,32 @@ htpc
 couch-gaming
 ```
 
-`playstation-3` et `nintendo-switch` sont les deux qui portent l'angle « consoles
-récentes ». `htpc` et `couch-gaming` attrapent la recherche par usage plutôt que
-par technologie, qui est celle des gens qui construisent une box salon sans
-savoir encore ce qu'ils vont y mettre.
+`playstation-3` and `nintendo-switch` are the two that carry the "recent
+consoles" angle. `htpc` and `couch-gaming` catch search-by-use rather than
+search-by-technology, which is what people building a living-room box do before
+they know what they will put in it.
 
 ---
 
-## 4. Les cases à cocher, sous les topics
+## 4. The checkboxes, under the topics
 
-- **Releases** — cocher. C'est là qu'est l'installateur, c'est la première
-  chose qu'un visiteur doit voir.
-- **Packages** — décocher, il n'y en a pas.
-- **Deployments** — décocher.
+- **Releases** — tick. That is where the installer is, and it is the first thing
+  a visitor should see.
+- **Packages** — untick, there are none.
+- **Deployments** — untick.
 
 ---
 
-## Vérifier que ça a pris
+## Checking it took
 
-Une fois appliqué, la balise se lit sans attendre le passage de Google :
+Once applied, the tag reads back without waiting for Google to come round:
 
 ```bash
 curl -s https://github.com/p4v1c/GamecoreRenew | grep -o '<meta name="description"[^>]*>'
 ```
 
-Elle doit renvoyer la nouvelle description, plus la phrase `Contribute to…`.
+It must return the new description, plus the `Contribute to…` sentence.
 
-Pour l'indexation elle-même, compter quelques jours, et ne pas s'en inquiéter
-avant deux semaines. Le site Pages sera de toute façon indexé plus vite que la
-page du dépôt, parce que GitHub interdit aux crawlers `/tree/` et `/blob/` mais
-pas `github.io`.
+For indexing itself, count a few days, and do not worry about it before two
+weeks. The Pages site will be indexed faster than the repo page anyway, because
+GitHub forbids crawlers on `/tree/` and `/blob/` but not on `github.io`.

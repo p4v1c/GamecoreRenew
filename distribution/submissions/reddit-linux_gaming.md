@@ -1,51 +1,49 @@
-# r/linux_gaming — post à publier
+# r/linux_gaming — post to publish
 
-**Public beaucoup plus large que r/EmulationOnLinux, et beaucoup plus méfiant
-envers l'autopromotion.** Le sub a plus d'un million d'abonnés ; un post qui
-sent le communiqué se fait enterrer en downvotes dans l'heure.
+**A much wider audience than r/EmulationOnLinux, and much more suspicious of
+self-promotion.** The sub has over a million subscribers; a post that smells of a
+press release gets buried in downvotes within the hour.
 
-Ce qui passe ici, c'est un projet personnel raconté par la personne qui l'a fait,
-avec ses limites annoncées. Le post ci-dessous est donc plus court que celui de
-r/EmulationOnLinux, moins technique, et il **dit ce qui ne marche pas** — ce
-n'est pas de la modestie, c'est ce qui fait la différence entre un fil qui vit et
-un fil qui meurt.
+What works here is a personal project told by the person who made it, with its
+limits stated. The post below is therefore shorter than the r/EmulationOnLinux
+one, less technical, and it **says what doesn't work** — that is not modesty, it
+is the difference between a thread that lives and a thread that dies.
 
-**Avant de poster :**
+**Before posting:**
 
-- lire les règles du sub, en particulier celles sur l'autopromotion — certaines
-  exigent un ratio de participation ou une ancienneté de compte ;
-- mettre le flair. Ici c'est probablement **`Software`** ou **`Emulation`** ;
-- poster en semaine, en matinée européenne. Un dimanche soir, le fil est enterré
-  avant que qui que ce soit le voie ;
-- **ne pas poster le même jour que r/EmulationOnLinux.** Les deux audiences se
-  recoupent, et le crosspost simultané se lit comme du spam ;
-- **relire les affirmations à la première personne.** Ce texte est écrit pour
-  être signé par le propriétaire, mais il est rédigé par quelqu'un d'autre :
-  « c'est ce qui tourne sous ma télé », « ça m'a pris un moment », « j'ai
-  exactement une manette » sont des affirmations biographiques. Elles collent à
-  ce que le dépôt laisse voir, mais **seul le propriétaire sait si elles sont
-  vraies** — et sur un sub qui sanctionne le survendu, une seule qui ne l'est
-  pas coûte plus que tout ce que le post rapporte. À corriger sans état d'âme,
-  le ton compte moins que l'exactitude.
+- read the sub's rules, particularly on self-promotion — some require a
+  participation ratio or a minimum account age;
+- set the flair. Here it is probably **`Software`** or **`Emulation`**;
+- post on a weekday, European morning. On a Sunday evening the thread is buried
+  before anyone sees it;
+- **do not post the same day as r/EmulationOnLinux.** The two audiences overlap,
+  and a simultaneous crosspost reads as spam;
+- **reread the first-person claims.** This text is written to be signed by the
+  owner, but it was drafted by someone else: "it's what runs under my TV", "it
+  took me a while", "I have exactly one controller" are biographical claims. They
+  match what the repo lets you see, but **only the owner knows whether they are
+  true** — and on a sub that punishes overselling, a single false one costs more
+  than everything the post earns. Correct without hesitation; tone matters less
+  than accuracy.
 
-> **Si l'ISO est publiée** : remplacer la puce « It only installs on Arch or
-> Manjaro » par « It ships an ISO if you're starting from a bare machine, and an
-> installer if you already run Arch or Manjaro » — et **déplacer cette puce hors
-> de la section des limites**, puisque ce n'en est plus une.
+> **Now that the ISO ships** (pending, see [`../iso-blocker.md`](../iso-blocker.md)):
+> replace the "It only installs on Arch or Manjaro" bullet with "It ships an ISO
+> if you're starting from a bare machine, and an installer if you already run Arch
+> or Manjaro" — and **move that bullet out of the limitations section**, since it
+> is no longer one.
 
 ---
 
-## Titre
+## Title
 
 ```
 I spent a while turning an old PC into a console for the living room — PS3, PS4, Switch and Wii U, driven entirely with a gamepad
 ```
 
-> Le titre raconte un projet, pas un produit. « J'ai passé un moment à » est ce
-> qui fait la différence entre un post accueilli et un post signalé — et c'est
-> vrai, donc ce n'est pas une posture.
+> The title tells a project, not a product. "I spent a while" is what separates a
+> welcomed post from a reported one — and it is true, so it is not a pose.
 
-## Corps
+## Body
 
 ```markdown
 I wanted the machine under my TV to behave like a console: turn it on, it's
@@ -98,25 +96,22 @@ Happy to answer questions, and happy to be told what I got wrong.
 
 ---
 
-## Notes pour la réponse aux commentaires
+## Notes for answering comments
 
-- **« Pourquoi pas Bazzite / ChimeraOS / Batocera ? »** — Elle viendra en premier
-  et probablement plusieurs fois. Répondre par ce qu'on voulait, pas par ce
-  qu'ils n'ont pas : consoles récentes en priorité, émulateurs à jour
-  indépendamment, machine qui reste utilisable normalement. **Ne dénigrer aucun
-  des trois** — beaucoup de lecteurs les utilisent, et les critiquer transforme
-  le fil en défense.
-- **« Pourquoi Arch et pas Debian/Fedora ? »** — Parce que les émulateurs récents
-  ont besoin de paquets système récents, et parce que c'est ce qui tourne sur la
-  boîte. C'est une réponse suffisante ; ne pas tenter d'en faire un argument
-  technique universel.
-- **« Wayland ? »** — Non, et dire pourquoi précisément (overlays, plein écran
-  forcé, pont manette→clavier). Ne pas promettre de date. Une promesse de
-  roadmap dans un commentaire Reddit est citée six mois plus tard.
-- **Un rapport de bug dans les commentaires** — demander une issue GitHub, mais
-  **répondre quand même sur le fond dans le fil**. « Ouvre une issue » tout court
-  se lit comme une esquive.
+- **"Why not Bazzite / ChimeraOS / Batocera?"** — It will come first and probably
+  several times. Answer with what you wanted, not with what they lack: recent
+  consoles first, emulators updating independently, a machine that stays normally
+  usable. **Do not disparage any of the three** — many readers use them, and
+  criticising them turns the thread into a defence.
+- **"Why Arch and not Debian/Fedora?"** — Because recent emulators need recent
+  system packages, and because that is what runs on the box. That is a sufficient
+  answer; do not try to make it a universal technical argument.
+- **"Wayland?"** — No, and say precisely why (overlays, forced fullscreen,
+  pad→keyboard bridge). Do not promise a date. A roadmap promise in a Reddit
+  comment gets quoted back six months later.
+- **A bug report in the comments** — ask for a GitHub issue, but **answer the
+  substance in the thread anyway**. "Open an issue" on its own reads as a dodge.
 
-Et le réflexe à ne pas avoir : **ne pas répondre aux downvotes ni aux
-commentaires hostiles.** Sur ce sub, un auteur qui se défend fait toujours pire
-que le commentaire qu'il combat.
+And the reflex not to have: **do not reply to downvotes or hostile comments.** On
+this sub, an author who defends himself always does worse than the comment he is
+fighting.

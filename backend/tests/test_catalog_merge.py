@@ -99,7 +99,7 @@ def test_a_launcher_pointing_at_nothing_is_repaired(packs, tmp_path):
 # ── what must never be lost ────────────────────────────────────────────────
 
 def test_a_tile_the_operator_added_by_hand_is_untouched(packs, tmp_path):
-    mine = _entry("myemu", "/opt/mine/run.sh", "--go", label="Mon émulateur")
+    mine = _entry("myemu", "/opt/mine/run.sh", "--go", label="My emulator")
     merged, _ = merge_systems([mine], packs, tmp_path)
     # The catalogue's own emulators are added alongside it; the point is that
     # the operator's entry comes through byte for byte, and first.

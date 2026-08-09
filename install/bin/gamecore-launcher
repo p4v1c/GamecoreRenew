@@ -12,13 +12,13 @@ SERVICES=("gamecore-backend.service" "gamecore-ui.service")
 
 for SERVICE in "${SERVICES[@]}"; do
   if systemctl is-active --quiet "$SERVICE"; then
-    echo "🟢 $SERVICE est déjà en cours d'exécution."
+    echo "🟢 $SERVICE is already running."
   else
-    echo "🔴 $SERVICE est arrêté. Démarrage en cours..."
+    echo "🔴 $SERVICE is stopped. Starting..."
     if sudo -n systemctl start "$SERVICE" 2>/dev/null && systemctl is-active --quiet "$SERVICE"; then
-      echo "✅ $SERVICE a été démarré avec succès."
+      echo "✅ $SERVICE started successfully."
     else
-      echo "❌ Échec du démarrage de $SERVICE."
+      echo "❌ Failed to start $SERVICE."
     fi
   fi
 done

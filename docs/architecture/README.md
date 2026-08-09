@@ -22,6 +22,8 @@ drawn.
 | 9 | [Gotchas](09-gotchas.md) | The invariants that are easy to break, and why they exist |
 | 10 | [Catalogue & install](10-catalog-and-install.md) | `catalog/<id>/` — one directory per system or app, and how a box is built from it |
 | 11 | [Install-script seams](11-install-script-seams.md) | How `arch.sh` and `uninstall.sh` would be split, and what must be true first |
+| 12 | [The addon contract](12-addon-contract.md) | `api: 1` — the **public** contract third-party addons must satisfy |
+| 13 | [Release & OTA](13-release-and-ota.md) | What a push to `main` sets in motion, what reaches a box, and how to go back |
 
 Looking for something specific:
 
@@ -34,6 +36,9 @@ Looking for something specific:
 - *"What installs EmberTV / the Firefox kiosk profiles?"* → [10](10-catalog-and-install.md#3-the-install-pipeline)
 - *"Why is `arch.sh` 1 300 lines, and can I split it?"* → [11](11-install-script-seams.md)
 - *"Which session does the box log into?"* → [1](01-runtime-topology.md#the-session-the-kiosk-runs-in)
+- *"I write an addon — where am I allowed to write?"* → [12](12-addon-contract.md)
+- *"What happens when I merge to `main`, and how do I undo it?"* → [13](13-release-and-ota.md)
+- *"Why is `lib/xenia` classified two different ways?"* → [7](07-config-and-data.md#the-two-roots-drawn--including-what-is-still-ambiguous)
 - *"How do I run the tests?"* → [`../TESTING.md`](../TESTING.md)
 - *"What is exposed to the LAN, and what protects the rest?"* → [`../SECURITY.md`](../SECURITY.md)
 
@@ -88,8 +93,12 @@ LAN only ever sees Caddy. Details in [1](01-runtime-topology.md) and
 - **`routers/` parse and validate, `services/` decide and act.** A router that
   grows logic belongs in a service. No FastAPI import exists below
   `services/`.
-- **Every path derives from `GAMECORE_ROOT`** (`backend/config.py`). Nothing
-  hardcodes `/opt/GameCore`.
+- **Every path derives from one of the two roots**, and `backend/services/paths.py`
+  owns both: `GAMECORE_ROOT` is the installation (code, aiming at read-only),
+  `GAMECORE_DATA` is everything the player owns. `backend/config.py` only
+  re-exports them. Nothing hardcodes `/opt/GameCore`, and nothing outside
+  `paths.py` joins a writable directory onto a root by hand — `test_paths.py`
+  fails the build when something does. See [7](07-config-and-data.md).
 - **`config/` is the box's identity** — never in git, never touched by OTA.
 - **The frontend has no CSS files.** Styling is inline objects, colocated with
   the component.

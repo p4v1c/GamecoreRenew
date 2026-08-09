@@ -213,10 +213,122 @@ The repo pins `v1.0.0`; the real version lives in the tags and in the file the
 OTA writes. That is why `VERSION` always shows as modified in `git status` on a
 box.
 
+**`rsync -a` implies `-t`, so "is it newer than me?" is not a freshness test.**
+A file the OTA installs arrives carrying the mtime it had *in the archive*, which
+can be **older** than the derived file already sitting on the box. The measured
+case is the SDL mapping database: `mapping_db.served()` merges the vendored
+community file with the owner's captures, and a "newer than me" check answered
+*no* to a database that had genuinely just changed — so the box kept serving the
+previous release's merge for ever, silently, because the file was present and
+looked right. Freshness is now a recorded **fingerprint** (size and mtime of both
+sources, written into the served file's header) and any mismatch in either
+direction is a rebuild.
+
+Anything derived from a file an OTA replaces has this problem. Compare
+fingerprints, not dates.
+
+## Guards that do not guard
+
+**A declarative guard only checks what it is asked to check.** `check-catalog.py`
+used to test seeds against `seedMustNotContain`, a list each pack declares. Two
+packs declared nothing, so their seeds shipped a real DualShock 4's SDL GUID for
+months under a cheerful `17 pack(s) OK`.
+
+What that cost is worth spelling out, because it is invisible from the box: both
+packs are `snapshot-restore`, so their `generate()` only restores a snapshot if
+one exists. **No code rebuilds the slot** the way Dolphin's or RPCS3's does. On
+any box whose owner does not happen to own that exact pad, those two configs
+describe a device that does not exist, and the controller is simply dead in those
+two emulators until a manual mapping — with nothing anywhere to diagnose it.
+
+The guard is now **non-declarative**: any 32-hex GUID whose vendor:product decodes
+to a known pad is refused, in any seed, whether or not the pack asked. A rule
+each subject opts into protects the subjects that were already careful.
+
+**A shipped seed must name no controller.** This lesson was paid for twice. The
+Dolphin generator still carries the first telling: the seed used to pin
+`Device = SDL/0..3/PS4 Controller`, which is dead input on any box without a
+DualShock 4. It was applied to dolphin, rpcs3, cemu, melonds and ryujinx — and not
+to the other two, which is exactly how it came back.
+
+**`\b` is not a boundary for a GUID.** The scanner matches a 32-hex SDL GUID
+wherever it appears, using explicit lookarounds:
+
+```python
+re.compile(r"(?<![0-9a-fA-F])([0-9a-fA-F]{32})(?![0-9a-fA-F])")
+```
+
+`\b` would not fire after an **underscore**, which is a word character — and that
+is precisely how Cemu writes its own (`0_0500…`). Azahar is worse: it escapes `:`
+as `$0` inside a compound binding, so a stick direction's GUID reads `guid$00500…`
+and the `0` of the escape runs into the GUID. A pattern that looks obviously
+correct silently matches nothing on the two formats that needed it most.
+
+## Build and release
+
+**npm ≥ 11.6 does not run a dependency's install scripts, and exits 0 anyway.**
+Unless `package.json` declares them under `allowScripts`. Electron's `postinstall`
+is the one that downloads the ~180 MB binary; blocked, it downloads nothing, npm
+reports success, and the build fails forty minutes later at an unrelated-looking
+guard. The only trace is one `npm warn install-scripts` line. This kept every ISO
+release red from the day the job was added.
+
+**Do not generate that entry with `npm install-scripts approve <pkg>`.** By
+default it writes a version-**pinned** entry (`"electron@31.7.7": true`). The
+dependency is `^31.0.0`, so the first Electron bump stops matching, the postinstall
+is blocked again, and the build breaks exactly as before — a month later, with
+nothing having been touched. Write it by name, or pass
+`--no-allow-scripts-pin`.
+
+**Electron 31 cannot unpack itself under Node 26, and also exits 0.** extract-zip
+2.0.1 / yauzl 2.10 hang without ever resolving their promise; node drains its
+event loop and exits **zero** having written `dist/locales` and nothing else. No
+error, no non-zero status, and the symptom is the same guard with the same
+message as the npm problem above — which is why fixing only the first cause would
+have left the job red and cost another full release cycle to learn. The workflow
+pins `nodejs-lts-jod` (22.x), and `build.sh` now refuses a Node outside 18–22
+*before* the forty minutes of `pacstrap` rather than letting it surface where it
+is indistinguishable.
+
+Two independent defects, stacked, the first hiding the second, both exiting 0.
+When a build produces nothing and reports success, suspect more than one cause.
+
+**`sha256sum -c` looks for the filename recorded inside the `.sha256` file**, not
+one you reconstruct. The release splits the ISO into `.part` files, and the
+documented reassembly used to rebuild the image under a name derived from the
+version — while the checksum file names whatever `mkarchiso` actually produced.
+It failed on `No such file or directory`. The procedure now derives the name from
+the `.sha256` itself, so it is right whatever `mkarchiso` chooses; the old one was
+right for exactly one name.
+
 ## Testing
 
-See [`../TESTING.md`](../TESTING.md) for how to run the suite. Two traps that
+See [`../TESTING.md`](../TESTING.md) for how to run the suite. The traps that
 belong here:
+
+**`TestClient(main.app)` runs the lifespan, and the lifespan writes real
+emulator configs.** Not hypothetical: a `pytest` run rewrote Player 1 of this
+machine's RPCS3 `Default.yml` and emptied Ryujinx's `input_config`. The chain is
+short and nothing in it looks dangerous — the lifespan starts
+`gamepad_monitor.run()`, the monitor scans the **real** `/dev/input`, finds
+whatever pad the developer left plugged in, and profiles it against a `HOME`
+read at import time. `conftest.py` points `HOME` at a throwaway root before any
+import; `test_home_isolation.py` now guards that it stays pointed there, because
+nothing did.
+
+**An experiment that cannot fail proves nothing.** The same question had been
+asked once before and cleared: a run under a sentinel `HOME` came back empty. But
+the write only happens when a pad is connected, and none was — the experiment
+would have come back empty whatever the code did. Before trusting a green run,
+ask what result would have been produced by the *broken* version. If it is the
+same result, nothing was measured.
+
+That is the general shape of the worst failures in this repository, and it has
+appeared in several costumes: a CSS probe matching a `<canvas>` in a splash built
+entirely from `<div>`s; a guard that only checks the patterns a pack asks it to
+check (below); an `apply_udev()` that existed but was never called from `apply()`,
+so the install went green without writing a byte. **A test that would not fail on
+its own bug is worse than no test**, because it also stops anyone looking.
 
 **`GAMECORE_PATH` is read at import time**, so whichever test module pytest
 imports first would otherwise decide where the whole suite writes. `conftest.py`

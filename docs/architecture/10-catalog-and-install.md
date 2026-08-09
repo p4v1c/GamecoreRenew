@@ -218,6 +218,58 @@ carries a keyboard interface is every keystroke on the box readable by any
 local uid — `install/arch.sh` documents that trade at length around
 `99-gamecore-input.rules`.
 
+### `perGame` — and why it is **required** on every emulator pack
+
+Whether this emulator can be configured one game at a time, and if so where that
+file goes. Implemented in `backend/services/pergame.py`.
+
+The cases it exists for are binary, not cosmetic: an RPCS3 title that sits on a
+black screen until Write Color Buffers is ticked, a Dolphin game that freezes on
+anything but Vulkan, a Wii U dump whose textures are garbage without its graphic
+pack. The difference is not 40 fps against 60 — it is *starts* against *does not
+start*, and from a sofa the only remedy was to leave GameCore, find the
+emulator's own window, and hunt.
+
+**The block is mandatory, and that is the design.** An emulator that cannot do
+this must say so explicitly:
+
+```json
+"perGame": { "supported": false, "why": "…" }
+```
+
+Leaving it out fails validation, because the failure mode of an absent block is
+silence: the button simply does not appear, and the player cannot tell "this
+emulator has no per-game settings" from "GameCore forgot this emulator". Neither
+can anyone reading the catalogue. A declared `false` with a reason is an answer;
+an omission is a bug that looks like a feature.
+
+Three properties follow from where the data lives:
+
+- **The emulator's file is derived; `<DATA>/config/per-game/<system>/<id>.json`
+  is the original.** Writing straight into `~/.var/app/…` and calling that the
+  record loses everything the day somebody runs `flatpak uninstall
+  --delete-data` — which people do when an emulator misbehaves, which is exactly
+  when they have per-game settings. Under the data root it is also what a backup
+  copies and what the OTA rsync already leaves alone.
+- **Nothing maps a setting onto thirteen vocabularies.** No table translates
+  "internal resolution" per emulator. That layer is what makes Batocera's
+  configgen impossible to keep current — every emulator release moves an option
+  and the map has to be chased. GameCore writes the section and key it is given,
+  verbatim, and the button beside it opens the emulator's own settings window. A
+  shipped profile names RPCS3's spelling of RPCS3's option because it *is* an
+  RPCS3 profile.
+- **`own-keys` merging makes removal honest.** Every write records what it
+  displaced — the previous value, or a marker saying the key was absent — and
+  removal puts that back key by key, deleting the file only when GameCore
+  created it. "Undo" cannot mean "delete the file": the file may hold the
+  player's own settings alongside ours. Without that record, "the player can
+  remove it" is a button that lies.
+
+And because it is **data**, the day shadPS4 grows per-title configs is a
+`pack.json` pushed down the signed catalogue channel — not a release, not a
+frontend build, not a box reboot. That is the whole reason the block is here and
+not in a table in `backend/services/`.
+
 ---
 
 ## 3. The install pipeline
@@ -317,6 +369,57 @@ only, because honouring its privileged blocks would make "drop a directory"
 equivalent to arbitrary code execution as root — and the install CLI would make
 that reachable from the UI. `GAMECORE_TRUST_LOCAL_PACKS=1` lifts it, and is
 logged on every load rather than once.
+
+### Three tiers, and the signed remote one
+
+There are in fact **three** sources, and their precedence is deliberate:
+
+```
+catalog/                 shipped   the release
+<DATA>/catalog-ota/      remote    signed corrections, override shipped
+config/catalog.d/        local     the operator, overrides everything
+```
+
+**The operator is last on purpose.** A box whose owner pinned a pack by hand must
+not have that undone by an endpoint, or the update channel is also a way to
+overrule the person holding the machine.
+
+The middle tier (`backend/services/catalog/ota.py`, key material in
+`catalog/_ota/`) exists for one concrete objective: an app id dies on Flathub and
+every box is corrected within a day, without cutting a release. Today that
+correction *is* a release — `release.yml` fires on every push to `main`, so
+fixing one string in one `pack.json` rebuilds the frontend, rebuilds the
+PyInstaller wizard, publishes three assets and ships the whole application to
+every box.
+
+Three properties are load-bearing:
+
+- **A bundle is Ed25519-signed, and a box with no trust anchor refuses every
+  bundle before fetching it.** An unauthenticated remote catalogue is a remote
+  code execution primitive with a pleasant API: it names the application the box
+  installs and the one it launches, so whoever holds the endpoint, the DNS or the
+  TLS terminator holds the fleet. The private key never enters this repository,
+  never enters CI and never reaches a box; `.gitignore` and a test refuse the
+  obvious filenames, but those are accident nets, not the control. The control is
+  that the key lives elsewhere.
+- **`CATALOG_VERSION` must be strictly greater than the applied one.** Not
+  tidiness: yesterday's bundle stays validly signed for ever, and replaying it is
+  how somebody puts back the app id today's bundle fixes. **A signature cannot
+  express freshness; only the version can.**
+- **Data only, with no opt-in.** Stricter than `config/catalog.d/`, where the
+  operator can say "I put that directory there myself". Nobody can say that about
+  bytes off the network. `postInstall`, `services`, `sources`, `packages`, `files`
+  and `secrets` are dropped on arrival, and a bundle being a single JSON document
+  has no way to express a `generator.py`, a symlink or a file mode in the first
+  place.
+
+Rotating the key means cutting a release: a box trusts exactly the public key its
+installed version shipped. Full procedure in
+[`../../catalog/_ota/README.md`](../../catalog/_ota/README.md).
+
+> **The channel is off until `catalog/_ota/catalog-signing.pub` is committed**,
+> and `catalog/CATALOG_VERSION` is still `1`. Turning it on is a deliberate act
+> by whoever will hold the key.
 
 Two more rules the applier enforces:
 
