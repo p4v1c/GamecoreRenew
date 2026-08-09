@@ -148,7 +148,21 @@ def test_two_games_on_one_system_get_two_different_bezels(library):
     assert crash["asset"] != hill["asset"]
     assert crash["hole"] != hill["hole"]
     # …and the region and revision tags on the ROMs did not stop either match.
-    assert crash["asset"].endswith("Crash%20Bandicoot%20(USA).png".replace("%20", " "))
+    assert "Crash" in crash["asset"] and "Silent" in hill["asset"]
+
+
+def test_the_asset_url_is_encoded(library):
+    """Pack filenames are game titles. Spaces, parentheses and apostrophes are
+    the normal case, and an unencoded src attribute is a bezel that silently
+    does not load — with the resolution having worked perfectly."""
+    overlays = library / "assets" / "overlays"
+    write_png(overlays / "gopher64" / "Conker's Bad Fur Day (USA).png", 40, 20, (5, 0, 30, 20))
+
+    url = bezels.describe("gopher64", "Conker's Bad Fur Day (USA).z64")["asset"]
+    assert url == ("/assets/overlays/gopher64/"
+                   "Conker%27s%20Bad%20Fur%20Day%20%28USA%29.png")
+    # The directory separator survives; only the segments are quoted.
+    assert url.count("/") == 4
 
 
 def test_a_game_without_its_own_bezel_falls_back_to_the_system(library):
@@ -308,6 +322,52 @@ def test_the_hole_carries_the_frame_it_was_measured_in(tmp_path):
     png = write_png(tmp_path / "small.png", 1280, 96, (160, 0, 960, 96))
     assert bezels.measure_hole(png) == {"x": 160, "y": 0, "w": 960, "h": 96,
                                         "frame_w": 1280, "frame_h": 96}
+
+
+# ── What a launch actually receives ─────────────────────────────────────────
+
+def _declare(library: Path, entry: dict) -> None:
+    (library / "config" / "overlays.json").write_text(json.dumps(entry))
+
+
+def test_a_pack_cut_for_a_smaller_frame_still_lands_on_the_game(library):
+    """The failure that looks like success.
+
+    A 1280x960 pack stretched over a 1920x1080 window draws its artwork
+    correctly — `objectFit: fill` sees to that — and then punches its hole
+    where 1280x960 said it was. The picture looks right and the game is behind
+    the frame.
+    """
+    _declare(library, {"duckstation": {"window_rect": {"x": 0, "y": 0,
+                                                       "w": 1920, "h": 1080}}})
+    write_png(library / "assets" / "overlays" / "duckstation.png",
+              1280, 960, (160, 0, 960, 960))
+
+    out = bezels.for_launch("duckstation")
+    assert out["frame"] == {"w": 1280, "h": 960}
+    assert out["hole"] == {"x": 240, "y": 0, "w": 1440, "h": 1080}
+
+
+def test_a_pack_already_in_window_space_is_left_alone(library):
+    _declare(library, {"pcsx2": {"window_rect": {"x": 0, "y": 0, "w": 1920, "h": 1080}}})
+    write_png(library / "assets" / "overlays" / "pcsx2.png", 1920, 1080, (240, 0, 1440, 1080))
+
+    assert bezels.for_launch("pcsx2")["hole"] == {"x": 240, "y": 0, "w": 1440, "h": 1080}
+
+
+def test_a_system_the_config_never_heard_of_answers_rather_than_raising(library):
+    """The launcher hands over whatever system the tile names. An overlays.json
+    that predates a pack — `config/` is excluded from the OTA rsync, so that is
+    the normal state of an upgraded box — must not turn a launch into an
+    exception."""
+    _declare(library, {})
+    out = bezels.for_launch("some-new-emulator", "Whatever (USA).iso")
+    assert out == {"system_id": "some-new-emulator", "source": "none",
+                   "asset": None, "hole": None, "frame": None}
+
+
+def test_a_missing_overlays_json_is_not_fatal(library):
+    assert bezels.for_launch("duckstation")["source"] == "none"
 
 
 # ── Against what this repository actually ships ─────────────────────────────

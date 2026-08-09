@@ -1,9 +1,11 @@
-"""Overlay bezel management — upload/serve per-system PNG."""
+"""Overlay bezel management — upload/serve per-system PNG, and resolve per game."""
 import os
+import re
 import tempfile
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
+from ..services import bezels
 from ..services.paths import overlays_dir
 
 router = APIRouter(tags=["overlays"])
@@ -11,10 +13,35 @@ router = APIRouter(tags=["overlays"])
 OVERLAYS_DIR = overlays_dir()
 _MAX_OVERLAY_BYTES = 10 * 1024 * 1024  # 10 MB hard cap
 
+# A system id names a directory and a file under the overlays root. Anything
+# outside this alphabet is not a system, and `..` in particular would make
+# `resolve` read PNGs from anywhere the backend user can reach.
+_SYSTEM_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
 
 def _overlay_path(system_id: str) -> Path:
     OVERLAYS_DIR.mkdir(parents=True, exist_ok=True)
     return OVERLAYS_DIR / f"{system_id}.png"
+
+
+@router.get("/overlays/resolve/{system_id}")
+async def resolve_overlay(system_id: str, rom: str = ""):
+    """Which bezel this launch should draw, and where its hole falls.
+
+    Answered by the backend rather than by Electron because the hole is
+    measured out of the PNG's alpha channel, and a second decoder in JavaScript
+    would be a second set of numbers to keep in agreement with this one.
+
+    Never 404s. A system with no bezel is a normal, frequent answer — the five
+    16:9 systems have no black bars to hide and want no overlay at all — and an
+    error status here would put a failed request in the log of every launch on
+    a box that is behaving correctly.
+    """
+    if not _SYSTEM_ID_RE.match(system_id):
+        raise HTTPException(400, "Invalid system id")
+    # Only the filename: `rom` arrives as the launcher's `game_key`, and a
+    # directory component in it would let the pack index be pointed elsewhere.
+    return bezels.for_launch(system_id, Path(rom).name or None)
 
 
 @router.get("/overlays/{system_id}")

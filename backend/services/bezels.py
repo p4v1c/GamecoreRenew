@@ -49,6 +49,7 @@ import logging
 import struct
 import zlib
 from pathlib import Path
+from urllib.parse import quote
 
 from .gamemedia.parser import normalize, parse_rom
 from .paths import config_dir, overlays_dir
@@ -382,9 +383,75 @@ def _asset_url(png: Path) -> str:
     `overlays_dir()` is mounted at /assets/overlays (main.py), so the URL is
     the path relative to that mount and not a second notion of where bezels
     live.
+
+    Percent-encoded, because pack filenames are game titles: spaces,
+    parentheses and apostrophes are the normal case, not the exception, and
+    `Conker's Bad Fur Day (USA).png` in a bare src attribute is a bezel that
+    silently does not load.
     """
     try:
         rel = png.relative_to(overlays_dir())
     except ValueError:
-        return f"/assets/overlays/{png.name}"
-    return "/assets/overlays/" + "/".join(rel.parts)
+        rel = Path(png.name)
+    return "/assets/overlays/" + "/".join(quote(p) for p in rel.parts)
+
+
+# ── The declared side, for a system whose PNG is missing ─────────────────────
+
+def overlay_config() -> dict:
+    """`config/overlays.json` as this box has it.
+
+    Read from `config_dir()` and not from the checkout: the OTA rsync excludes
+    `config/`, so the file on a box is the one the installer put there and may
+    predate anything this release ships. Reading the repository's copy would
+    describe a machine that does not exist.
+    """
+    try:
+        loaded = json.loads((config_dir() / "overlays.json").read_text())
+        return loaded if isinstance(loaded, dict) else {}
+    except (OSError, json.JSONDecodeError) as e:
+        log.warning("bezels: config/overlays.json unreadable — %s", e)
+        return {}
+
+
+def in_window(hole: dict, window: dict) -> dict:
+    """A hole measured in a bezel's own frame, expressed in the game window.
+
+    The overlay is stretched over the emulator window (`objectFit: fill`), so
+    a pack cut for 1280x960 lands on a 1920x1080 window with its hole in the
+    same proportion. Without this, such a pack draws its artwork correctly and
+    punches its hole in the wrong place — the one failure that looks like the
+    bezel working.
+    """
+    fw = hole.get("frame_w") or window["w"]
+    fh = hole.get("frame_h") or window["h"]
+    sx, sy = window["w"] / fw, window["h"] / fh
+    return {
+        "x": round(hole["x"] * sx),
+        "y": round(hole["y"] * sy),
+        # At least one pixel: a hole rounded away is an overlay with no way to
+        # see the game, which is worse than no overlay at all.
+        "w": max(1, round(hole["w"] * sx)),
+        "h": max(1, round(hole["h"] * sy)),
+    }
+
+
+def for_launch(system_id: str, rom_name: str | None = None) -> dict:
+    """What Electron asks for when a game starts.
+
+    The hole comes back in the coordinates of the window the monitor is about
+    to force the emulator into, because that is the only space the overlay can
+    act on. `frame` travels alongside so a wrong-looking hole can be traced to
+    the pack it was measured in rather than guessed at.
+    """
+    cfg = overlay_config().get(system_id, {})
+    window = cfg.get("window_rect") or {"x": 0, "y": 0, "w": 1920, "h": 1080}
+    out = describe(system_id, rom_name, declared=cfg.get("hole"))
+    hole = out["hole"]
+    return {
+        "system_id": system_id,
+        "source": out["source"],
+        "asset": out["asset"],
+        "hole": in_window(hole, window) if hole else None,
+        "frame": {"w": hole["frame_w"], "h": hole["frame_h"]} if hole else None,
+    }
