@@ -1,0 +1,361 @@
+#!/usr/bin/env bash
+# ================================================================
+#  gamecore-theme — GameCore theme manager
+#
+#  install <src>    fetch a theme and put it in config/themes/<id>
+#  remove  <id>     delete it, and deselect it if it was active
+#  list [--json]    what is installed, and which one is active
+#  verify  <src>    validate without installing anything
+#
+#  <src> is a directory, a .zip, an https:// URL to a .zip, or a
+#  git repository (anything ending .git, or git+<url>).
+#
+#  Unlike an addon there is NO install.sh and nothing to compile: a
+#  theme is a directory of plain files that the frontend imports at
+#  runtime (docs/themes/README.md §2). So this tool never executes
+#  anything it downloads — it only inspects, validates and moves.
+#
+#  ── Why validation happens before the move ──────────────────────
+#  That is the whole design of this script. The frontend imports
+#  config/themes/<id>/index.js as a native ES module, with the SDK
+#  handed to it: a theme is code, running in the UI process, and the
+#  moment its files exist under config/themes/ they are live.
+#
+#  There is therefore no "installed but not yet checked" state to
+#  recover from. Everything is fetched into a staging directory
+#  outside config/themes/, validated there, and only then renamed
+#  into place. A theme that fails validation never occupies the path
+#  the frontend reads.
+#
+#  Env overrides (sandbox / ISO):
+#    GAMECORE_PATH  core install dir    (default: /opt/GameCore)
+#    GAMECORE_DATA  player data dir     (default: $GAMECORE_PATH)
+#    OFFLINE=1      refuse any network fetch
+#    GCT_MAX_MB     download size cap   (default: 64)
+# ================================================================
+set -euo pipefail
+
+GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
+GAMECORE_DATA="${GAMECORE_DATA:-$GAMECORE_PATH}"
+OFFLINE="${OFFLINE:-0}"
+GCT_MAX_MB="${GCT_MAX_MB:-64}"
+
+THEMES_DIR="${GAMECORE_DATA}/config/themes"
+STATE_FILE="${GAMECORE_DATA}/config/theme.json"
+
+die()  { echo "[gamecore-theme] ERROR: $*" >&2; exit 1; }
+info() { echo "[gamecore-theme] $*"; }
+warn() { echo "[gamecore-theme] WARNING: $*" >&2; }
+
+command -v python3 >/dev/null || die "python3 not found"
+
+STAGE=""
+cleanup() { [[ -n "$STAGE" && -d "$STAGE" ]] && rm -rf "$STAGE"; }
+trap cleanup EXIT
+
+# ── validation ───────────────────────────────────────────────────
+# The manifest rules are NOT reimplemented here. backend/services/themes.py is
+# what the running box believes, and a second copy of "what makes a theme
+# valid" would drift from it — this CLI would then accept a theme the frontend
+# refuses to load, which is the worst of both.
+validate() {  # validate <dir> → prints the theme id
+  python3 - "$1" "$GAMECORE_PATH" <<'PY'
+import json, re, sys
+from pathlib import Path
+
+d, core = Path(sys.argv[1]), sys.argv[2]
+
+def fail(msg):
+    print(f"[gamecore-theme] ERROR: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+mf = d / "theme.json"
+if not mf.is_file():
+    fail(f"no theme.json in {d}")
+try:
+    raw = json.loads(mf.read_text())
+except Exception as e:
+    fail(f"theme.json is not valid JSON ({e})")
+
+tid = raw.get("id")
+if not isinstance(tid, str) or not tid:
+    fail(f"invalid theme id {tid!r} — must be a string")
+# Checked before the pattern below, which also rejects these but would say
+# "invalid id" for something that is really "you copied the template and did
+# not rename it". `_x` is a template and `.x` is hidden: list_themes() skips
+# both, so installing one puts a theme on disk that can never be picked.
+if tid.startswith(("_", ".")):
+    fail(f"'{tid}' starts with {tid[0]!r} — that marks a template, not an "
+         "installable theme. Rename it in theme.json and in the folder name.")
+if not re.match(r"^[a-z0-9][a-z0-9_-]{0,63}$", tid):
+    fail(f"invalid theme id {tid!r} — lowercase letters, digits, - and _ only")
+
+# Reuse the box's own manifest reader when it is reachable. _read_manifest
+# expects the directory name to equal the id, which is exactly what we are
+# about to name it.
+staged = d
+if d.name != tid:
+    staged = d.parent / tid
+    d.rename(staged)
+
+sys.path.insert(0, core)
+try:
+    from backend.services import themes
+except Exception:
+    themes = None
+
+if themes is not None:
+    m = themes._read_manifest(staged)
+    if m is None:
+        fail("the box's own manifest reader rejected this theme "
+             "(run with the backend on PYTHONPATH for the reason)")
+    if not m["compatible"]:
+        fail("; ".join(m["warnings"]) or "theme is not compatible with this build")
+else:
+    # Degraded but not silent: better a weaker check than a skipped one.
+    print("[gamecore-theme] WARNING: backend not importable — manifest checked "
+          "shallowly only", file=sys.stderr)
+    for k in ("id", "name", "version", "api", "provides"):
+        if k not in raw:
+            fail(f"manifest is missing required field '{k}'")
+    if not isinstance(raw.get("provides"), list) or \
+            not {"splash", "shell"} <= set(raw["provides"]):
+        fail("`provides` must list every surface: splash, shell")
+    entry = raw.get("entry", "index.js")
+    if not (staged / entry).is_file():
+        fail(f"entry module {entry!r} not found")
+
+# Nothing here may be a symlink. The directory is served over HTTP by the
+# backend and read by the frontend; a link pointing at /etc or at the ROM
+# library would be followed, and a theme is code somebody downloaded.
+for p in staged.rglob("*"):
+    if p.is_symlink():
+        fail(f"contains a symlink ({p.relative_to(staged)}) — refused")
+
+print(tid)
+PY
+}
+
+# ── fetching ─────────────────────────────────────────────────────
+# Every route lands the theme in $STAGE/src, outside config/themes/.
+fetch() {  # fetch <src>
+  local src="$1"
+  STAGE="$(mktemp -d)"
+
+  if [[ -d "$src" ]]; then
+    info "Copying from $src"
+    cp -r "$src" "$STAGE/src"
+    # A checkout's history is not part of the theme, and it is usually the
+    # bulk of what gets copied.
+    rm -rf "$STAGE/src/.git"
+    return
+  fi
+
+  if [[ -f "$src" ]]; then
+    info "Unpacking $src"
+    unpack "$src"
+    return
+  fi
+
+  [[ "$src" =~ ^(https|git\+https):// ]] \
+    || die "don't know how to fetch '$src' (want a directory, a .zip, an https:// URL or a .git repo)"
+  [[ "$OFFLINE" != "1" ]] || die "OFFLINE=1 — refusing to fetch $src"
+
+  if [[ "$src" == git+* || "$src" == *.git ]]; then
+    command -v git >/dev/null || die "git not found"
+    local url="${src#git+}"
+    info "Cloning $url"
+    # --depth 1: we want a theme, not its history.
+    timeout 300 git clone -q --depth 1 "$url" "$STAGE/src" \
+      || die "clone failed for $url"
+    rm -rf "$STAGE/src/.git"
+  else
+    command -v curl >/dev/null || die "curl not found"
+    info "Downloading $src"
+    timeout 300 curl -fsSL --max-filesize "$((GCT_MAX_MB * 1024 * 1024))" \
+      -o "$STAGE/dl.zip" "$src" || die "download failed for $src"
+    unpack "$STAGE/dl.zip"
+  fi
+}
+
+unpack() {  # unpack <zipfile> → $STAGE/src
+  python3 - "$1" "$STAGE/src" "$GCT_MAX_MB" <<'PY'
+import sys, zipfile
+from pathlib import Path
+
+archive, dest, max_mb = sys.argv[1], Path(sys.argv[2]), int(sys.argv[3])
+
+def fail(msg):
+    print(f"[gamecore-theme] ERROR: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+if not zipfile.is_zipfile(archive):
+    fail(f"{archive} is not a zip archive")
+
+with zipfile.ZipFile(archive) as z:
+    total = sum(i.file_size for i in z.infolist())
+    # A zip bomb is a plausible thing to be handed by a theme gallery, and the
+    # box has a small disk.
+    if total > max_mb * 1024 * 1024:
+        fail(f"archive expands to {total // 1048576} MB, over the {max_mb} MB cap")
+    for i in z.infolist():
+        name = i.filename
+        # Zip slip: an entry named ../../etc/cron.d/x escapes the destination
+        # on extraction. Checked rather than trusted — this archive came off
+        # the internet.
+        if name.startswith("/") or ".." in Path(name).parts:
+            fail(f"archive entry {name!r} escapes the destination — refused")
+        # Symlinks survive a zip round trip and are followed when the backend
+        # serves the directory.
+        if (i.external_attr >> 16) & 0o170000 == 0o120000:
+            fail(f"archive entry {name!r} is a symlink — refused")
+    z.extractall(dest)
+PY
+}
+
+# A zip of a theme usually carries one top-level folder. Accept either shape
+# rather than making the publisher care.
+theme_root() {  # theme_root <dir>
+  local d="$1"
+  if [[ -f "$d/theme.json" ]]; then echo "$d"; return; fi
+  local found
+  found="$(find "$d" -mindepth 2 -maxdepth 2 -name theme.json -print -quit)"
+  [[ -n "$found" ]] || die "no theme.json found in the fetched files"
+  dirname "$found"
+}
+
+# ── commands ─────────────────────────────────────────────────────
+cmd_verify() {
+  local src="${1:-}"; [[ -n "$src" ]] || die "usage: gamecore-theme verify <src>"
+  fetch "$src"
+  local root tid
+  root="$(theme_root "$STAGE/src")"
+  tid="$(validate "$root")"
+  info "'$tid' is a valid theme."
+}
+
+cmd_install() {
+  local src="${1:-}"; [[ -n "$src" ]] || die "usage: gamecore-theme install <src>"
+  fetch "$src"
+
+  local root tid
+  root="$(theme_root "$STAGE/src")"
+  # Before the move, always. Past this line the files are live.
+  tid="$(validate "$root")"
+  root="$(dirname "$root")/$tid"
+
+  mkdir -p "$THEMES_DIR" || die "cannot create $THEMES_DIR"
+  local dest="$THEMES_DIR/$tid"
+
+  if [[ -e "$dest" ]]; then
+    # Kept, not overwritten — the same promise update/linux.sh makes. Someone
+    # who edited a bundled theme in place has their copy under .prev/.
+    local prev="$THEMES_DIR/.prev"
+    mkdir -p "$prev"
+    rm -rf "${prev:?}/$tid"
+    mv "$dest" "$prev/$tid"
+    info "Previous '$tid' kept in $prev/$tid"
+  fi
+
+  # Rename, not copy: the frontend must never observe a half-written theme.
+  # Same filesystem, because $STAGE would otherwise be on /tmp and mv would
+  # degrade to a copy — so stage the final hop next to the destination.
+  local landing="$THEMES_DIR/.incoming-$tid.$$"
+  rm -rf "$landing"
+  cp -r "$root" "$landing"
+  mv "$landing" "$dest"
+
+  info "'$tid' installed in $dest"
+  info "Pick it in Settings → Themes."
+}
+
+cmd_remove() {
+  local tid="${1:-}"; [[ -n "$tid" ]] || die "usage: gamecore-theme remove <id>"
+  # Never eval an arbitrary path: this function deletes a directory.
+  [[ "$tid" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || die "invalid theme id '$tid'"
+  local dest="$THEMES_DIR/$tid"
+  [[ -d "$dest" ]] || die "'$tid' is not installed"
+
+  # Deselect FIRST. Removing the files under an active selection leaves the box
+  # pointing at a theme that no longer exists — the frontend then falls back to
+  # the default and says the theme is "not installed", which is true and
+  # useless.
+  python3 - "$STATE_FILE" "$tid" <<'PY'
+import json, os, sys, tempfile
+path, tid = sys.argv[1], sys.argv[2]
+try:
+    state = json.load(open(path))
+except Exception:
+    sys.exit(0)
+if state.get("active") != tid:
+    sys.exit(0)
+state["active"] = None
+d = os.path.dirname(path)
+fd, tmp = tempfile.mkstemp(dir=d)
+with os.fdopen(fd, "w") as f:
+    json.dump(state, f, indent=2)
+os.replace(tmp, path)
+print(f"[gamecore-theme] '{tid}' was active — switched back to the default.")
+PY
+
+  rm -rf "$dest"
+  info "'$tid' removed."
+}
+
+cmd_list() {
+  python3 - "$THEMES_DIR" "$STATE_FILE" "${1:-}" <<'PY'
+import json, sys
+from pathlib import Path
+
+themes_dir, state_file, flag = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+try:
+    active = json.load(open(state_file)).get("active")
+except Exception:
+    active = None
+
+out = []
+if themes_dir.is_dir():
+    for d in sorted(themes_dir.iterdir()):
+        if not d.is_dir() or d.name.startswith((".", "_")):
+            continue
+        try:
+            m = json.loads((d / "theme.json").read_text())
+        except Exception:
+            print(f"[gamecore-theme] WARNING: unreadable manifest in {d}", file=sys.stderr)
+            continue
+        out.append({k: m.get(k, "") for k in ("id", "name", "version", "author", "description")})
+
+if flag == "--json":
+    print(json.dumps({"active": active, "themes": out}, indent=2, sort_keys=True))
+elif not out:
+    print("No theme installed. The default GameCore look is in use.")
+else:
+    for t in out:
+        mark = "✓ active   " if t["id"] == active else "  installed"
+        print(f"{mark}  {t['id']:<16} v{t['version']:<8} {t['description']}")
+    if active is None:
+        print("\n  (the built-in default look is in use)")
+PY
+}
+
+# ── dispatch ─────────────────────────────────────────────────────
+case "${1:-}" in
+  install) shift; cmd_install "$@" ;;
+  remove)  shift; cmd_remove  "$@" ;;
+  verify)  shift; cmd_verify  "$@" ;;
+  list)    shift || true; cmd_list "${1:-}" ;;
+  *) cat >&2 <<'EOF'
+gamecore-theme — GameCore theme manager
+Usage:
+  gamecore-theme install <dir|zip|https://…zip|…git>
+  gamecore-theme remove  <id>
+  gamecore-theme verify  <src>     (validate, install nothing)
+  gamecore-theme list    [--json]
+
+A theme is buildless: nothing is compiled and nothing it ships is ever
+executed by this tool. It is validated in a staging directory and only then
+moved into config/themes/, because the frontend imports it the moment it is
+there.
+EOF
+     exit 1 ;;
+esac

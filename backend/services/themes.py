@@ -36,6 +36,10 @@ SURFACES = {"splash", "shell"}
 
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
+# Sound names and settings-page ids: short lowercase slugs, both keys into a
+# frontend map rather than anything that touches the filesystem.
+_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
+
 
 def _safe_id(theme_id: str) -> str | None:
     """A theme id is a plain directory name — never a path."""
@@ -122,6 +126,81 @@ def _launch_ms(raw, theme_id: str) -> int | None:
     return v
 
 
+# The UI sounds a theme replaces, as `name -> file inside the theme folder`.
+#
+# It exists because the five host sounds are fired by the input bus, which sits
+# *under* the theme layer: a shell that redrew every screen still answered every
+# press with the stock bip, and there was no hook anywhere to take that over.
+# The bus keeps deciding *when* a sound plays; this decides *what* plays.
+#
+# A name missing here falls through to the host's synthesized sound, so a theme
+# replaces one sound without inheriting the job of synthesizing the other four.
+def _sounds(raw, d: Path) -> dict | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        log.warning("theme %s: `sounds` must be an object — ignored", d.name)
+        return None
+    out = {}
+    for name, rel in raw.items():
+        if not isinstance(name, str) or not _SLUG_RE.match(name):
+            log.warning("theme %s: sound name %r must be lowercase alphanumeric — ignored",
+                        d.name, name)
+            continue
+        if not isinstance(rel, str) or not rel:
+            log.warning("theme %s: sound %s must be a path string — ignored", d.name, name)
+            continue
+        # A manifest names files inside its own folder and nowhere else. Without
+        # this, `"move": "../../../etc/passwd"` is a path the frontend would
+        # happily turn into a fetch — the theme directory is the boundary, and
+        # it is checked here rather than trusted because a theme is code
+        # somebody downloaded.
+        if rel.startswith("/") or ".." in Path(rel).parts:
+            log.warning("theme %s: sound %s path %r leaves the theme folder — ignored",
+                        d.name, name, rel)
+            continue
+        if not (d / rel).is_file():
+            # Dropped rather than fatal: the cascade falls back to the host's
+            # sound, which is a theme with one missing bip instead of a theme
+            # that will not load.
+            log.warning("theme %s: sound %s file %r not found — ignored", d.name, name, rel)
+            continue
+        out[name] = rel
+    return out or None
+
+
+# Which host settings pages a theme's own menu can open.
+#
+# Declared rather than detected, because a theme's menu is arbitrary JS and
+# there is nothing to introspect. The backend does not know what the full set
+# is either — `DefaultSettingsPages` lives in the frontend — so this only
+# carries the claim across; the diff happens where the real list is.
+#
+# It exists because omitting an entry has already shipped, twice. `catalog` was
+# missing from the map and both bundled themes had no way to install an
+# emulator; `storage` was missing from the map entirely, so no theme could
+# offer safe-eject even if it wanted to. The page existed, the route existed,
+# and nothing could open them.
+def _settings(raw, theme_id: str) -> dict | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        log.warning("theme %s: `settings` must be an object — ignored", theme_id)
+        return None
+    pages = raw.get("pages")
+    if pages is None:
+        return None
+    if not isinstance(pages, list):
+        log.warning("theme %s: settings.pages must be a list — ignored", theme_id)
+        return None
+    out = [p for p in pages if isinstance(p, str) and _SLUG_RE.match(p)]
+    dropped = len(pages) - len(out)
+    if dropped:
+        log.warning("theme %s: %d settings.pages entr(ies) are not page ids — ignored",
+                    theme_id, dropped)
+    return {"pages": out}
+
+
 def _read_manifest(d: Path) -> dict | None:
     """Parsed, validated manifest for one directory, or None with a logged reason."""
     f = d / "theme.json"
@@ -173,6 +252,8 @@ def _read_manifest(d: Path) -> dict | None:
         "schedule": m.get("schedule"),
         "home": _home_grid(m.get("home"), d.name),
         "launch": _launch_ms(m.get("launch"), d.name),
+        "sounds": _sounds(m.get("sounds"), d),
+        "settings": _settings(m.get("settings"), d.name),
         # The UI needs a reason, not just a boolean.
         "compatible": api_version <= SDK_VERSION and not absent,
         "warnings": (

@@ -1,0 +1,26 @@
+{
+  "id": "default-remake",
+  "name": "Default (remake)",
+  "version": "1.0.0",
+  "api": 1,
+  "author": "GameCore — the SDK's own acceptance test",
+  "description": "The stock look, rebuilt as an ordinary third-party theme",
+  "provides": [
+    "splash",
+    "shell"
+  ],
+  "settings": {
+    "pages": [
+      "wifi",
+      "audio",
+      "bluetooth",
+      "storage",
+      "standby",
+      "themes",
+      "catalog",
+      "bios",
+      "update",
+      "desktop"
+    ]
+  }
+}

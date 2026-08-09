@@ -14,9 +14,11 @@ import htm from 'htm'
 import { api } from '../api'
 import { fetchThemeIndex } from './themeLoader'
 import { useStore } from '../store'
-import { onGp, useGamepadState, GP_BTN } from '../hooks/useGamepad'
+import { onGp, useGamepadState, GP_BTN, isPlaying } from '../hooks/useGamepad'
+import { rumble, rumbleSettings, type RumblePattern } from './rumble'
 import { onWsEvent } from '../hooks/useWebSocket'
 import { playSound, getAudioContext, soundSettings } from './sounds'
+import { formatGameName, hexToRgb, fmtTime, fmtDate, systemColor } from './format'
 import * as defaults from '../components/defaults'
 
 /** SDK major. Bumped only when something is removed or changes shape. */
@@ -38,6 +40,7 @@ export interface ThemeSdk {
   version: number
   ui: Record<string, unknown>
   api: typeof api
+  format: Record<string, unknown>
   nav: Record<string, unknown>
   themes: Record<string, unknown>
   input: Record<string, unknown>
@@ -66,6 +69,28 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
     },
 
     api,
+
+    /**
+     * How the rest of the UI renders the box's data.
+     *
+     * Not conveniences: these are the difference between a theme that shows
+     * the same information as the default and one that shows it *differently*.
+     * A theme reimplementing `gameName` gets ROM-name cleanup subtly wrong, and
+     * one reimplementing `systemColor` misses that `system.color` is optional
+     * and paints half the dashboard purple.
+     */
+    format: {
+      /** `Super_Mario_64_(USA).z64` → `Super Mario 64`. */
+      gameName: formatGameName,
+      /** Seconds → the playtime string the whole UI uses. */
+      time: fmtTime,
+      /** ISO date → the "last played" string. */
+      date: fmtDate,
+      /** `#7c3aed` → `124, 58, 237`, for rgba() in your own styles. */
+      hexToRgb,
+      /** A system's accent: its pack's colour, the catalogue's, then the default. */
+      systemColor,
+    },
 
     /**
      * So a theme can dress its own theme picker instead of falling back to the
@@ -117,6 +142,27 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
       useGamepadState,
       GP_BTN,
       events: GP_EVENTS,
+
+      /**
+       * Punctuate a moment of your own — a launch ceremony landing, a boot
+       * animation's impact frame.
+       *
+       * The routine feedback for a button press is not this: declare a
+       * `rumble` table and the input bus fires it, the same way it fires your
+       * sounds, so the *when* stays where every other decision about behaviour
+       * lives. This is the escape hatch for the things the bus cannot know
+       * about, and it is exactly as much latitude as `playSound` already gives.
+       *
+       * Refused while a game is running: the emulator owns the pad then,
+       * motors included, and a theme buzzing over someone's game is the kind
+       * of bug that gets blamed on the controller.
+       */
+      rumble: (pattern: RumblePattern) => {
+        if (isPlaying()) return
+        rumble(pattern)
+      },
+      /** The player's haptics setting, read-only — same contract as `sound`. */
+      get haptics() { return { enabled: rumbleSettings.enabled } },
     },
 
     system: {
@@ -140,6 +186,23 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
         get volume() { return soundSettings.volume / 100 },
       },
       gamecore: window.gamecore,
+
+      /**
+       * How long a boot animation should hold its first frame, in ms.
+       *
+       * Electron asks for this at cold boot (`?splashHold=`) because the
+       * display path — the X mode switch, then the TV's HDMI re-sync — is
+       * still black when the splash mounts. Without the hold, the animation
+       * starts against a dead screen and the first thing the player actually
+       * sees is the middle of it.
+       *
+       * The default splash honoured this and nothing said so, so every themed
+       * splash was starting mid-animation on the one boot that matters. Parsed
+       * and clamped here rather than left to each theme to rediscover from
+       * window.location.
+       */
+      splashHoldMs: Math.min(10000, Math.max(0,
+        Number(new URLSearchParams(window.location.search).get('splashHold')) || 0)),
       /** Resolve a file shipped inside this theme's folder. */
       asset: (path: string) =>
         `/themes/${encodeURIComponent(themeId)}/${String(path).replace(/^\/+/, '')}`,

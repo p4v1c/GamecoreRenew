@@ -1,17 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ComponentType } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { onWsEvent } from '../../hooks/useWebSocket'
 import { useStore } from '../../store'
-
-interface Toast {
-  id: number
-  icon: string
-  title: string
-  body: string
-  accent: string
-  /** An offer the player can take, drawn as a button inside the toast. */
-  action?: { label: string; run: () => void }
-}
+import type { Toast, ToastsViewProps } from './toasts/types'
 
 const TOAST_MS = 10000
 
@@ -27,9 +18,15 @@ const ACTION_TOAST_MS = 30000
 
 let nextId = 1
 
-/** Top-right toast stack. Listens to backend WS events (gp:battery for now)
- *  and shows each notification for 10 s. */
-export default function Toasts() {
+/**
+ * The notification queue: which backend events become a toast, how long each
+ * stays, and which ones the native HUD takes instead.
+ *
+ * All of it is the host's, for the default and themed alike. A theme supplies
+ * the markup and nothing else — a themed stack cannot decide a battery warning
+ * is worth thirty seconds, or quietly drop the one toast that carries a button.
+ */
+function useToastQueue() {
   const [toasts, setToasts] = useState<Toast[]>([])
   const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
 
@@ -136,6 +133,11 @@ export default function Toasts() {
     }
   }, [])
 
+  return { toasts, dismiss }
+}
+
+/** Top-right toast stack — the default look. */
+export function DefaultToastsView({ toasts, onDismiss }: ToastsViewProps) {
   return (
     <div style={{
       position: 'fixed', top: 64, right: 16, zIndex: 100,
@@ -172,7 +174,7 @@ export default function Toasts() {
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>{t.body}</div>
               {t.action && (
                 <button
-                  onClick={() => { t.action!.run(); dismiss(t.id) }}
+                  onClick={() => { t.action!.run(); onDismiss(t.id) }}
                   style={{
                     marginTop: 8, padding: '5px 12px', borderRadius: 8,
                     background: `${t.accent}22`, border: `1px solid ${t.accent}66`,
@@ -187,4 +189,14 @@ export default function Toasts() {
       </AnimatePresence>
     </div>
   )
+}
+
+/**
+ * The notification stack. `view` replaces the markup only — see
+ * `toasts/types.ts` for why the queue itself is not negotiable.
+ */
+export default function Toasts({ view }: { view?: ComponentType<ToastsViewProps> }) {
+  const { toasts, dismiss } = useToastQueue()
+  const View = view ?? DefaultToastsView
+  return <View toasts={toasts} onDismiss={dismiss} />
 }

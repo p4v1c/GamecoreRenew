@@ -8,5 +8,6 @@
   "provides": [
     "splash",
     "shell"
-  ]
+  ],
+  "_settings_note": "Writing your own settings menu? Add a `settings` block listing the host pages it opens, or the host cannot tell you which ones you left unreachable. See docs/themes/README.md §5d."
 }

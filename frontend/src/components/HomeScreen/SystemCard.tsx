@@ -1,10 +1,9 @@
 import { hexToRgb, fmtTime, fmtDate } from '../ui'
 import { SystemEntry, PlaytimeEntry } from '../../api'
-import { SYSTEM_COLORS } from '../../lib/systemColors'
-
-function getColor(system: SystemEntry): string {
-  return system.color || SYSTEM_COLORS[system.id.toLowerCase()] || '#7c3aed'
-}
+// The same resolver themes get through sdk.format. It used to be a private
+// getColor() here, so a themed dashboard had no way to reach it and fell back
+// to the house purple for every system whose pack sets no colour.
+import { systemColor } from '../../lib/format'
 
 interface Props {
   system: SystemEntry
@@ -15,7 +14,7 @@ interface Props {
 }
 
 export default function SystemCard({ system, playtime, gameCount, focused, onClick }: Props) {
-  const color = getColor(system)
+  const color = systemColor(system)
   const rgb = hexToRgb(color)
 
   return (

@@ -1,6 +1,6 @@
 # Theme SDK — specification
 
-> **Status: implemented.** Items 1–5 and 7 of §14 are in the tree, and so is
+> **Status: implemented.** Items 1–5 and 7 of §16 are in the tree, and so is
 > item 6 (extracting the whole default UI behind `sdk.defaults`): the surfaces
 > listed in §5 are exposed, and so are the settings sub-pages, through
 > `sdk.defaults.DefaultSettingsPages`.
@@ -104,6 +104,8 @@ archive.
 | `provides` | string[] | yes | must list **every** surface: `["splash", "shell"]` (§5) |
 | `schedule` | object | no | `{ "from": "MM-DD", "to": "MM-DD" }` — seasonal auto-activation |
 | `launch` | object | no | `{ "ms": 1520 }` — how long your launch animation needs before the game starts (§5c) |
+| `sounds` | object | no | `{ "move": "assets/move.wav" }` — UI sounds you replace (§13) |
+| `settings` | object | no | `{ "pages": [...] }` — which host settings pages your own menu opens (§5d) |
 
 A folder whose name starts with `_` is a **template, not a theme**:
 `config/themes/_skeleton` is there to be copied, and never appears in
@@ -132,6 +134,13 @@ stock purple splash — is the exact look this rule exists to prevent.
 
 A themed splash draws what it likes but does not decide when booting ends: it
 must call `onDone`, and the host moves on regardless after 20s.
+
+It should also start `sdk.system.splashHoldMs` late. At cold boot the display
+path — the X mode switch, then the TV's HDMI re-sync — is still black when the
+splash mounts, so an animation that begins immediately plays to nobody and the
+player's first glimpse is the middle of it. Start your clock at
+`-sdk.system.splashHoldMs` and clamp every phase at `t <= 0`; the value is 0
+outside Electron and outside a cold boot, so nothing changes while you develop.
 
 ### What is mandatory, and what is not
 
@@ -166,6 +175,7 @@ which and why.
 | `settings` | the settings screen |
 | `powerView` | the power menu's markup — the two-press confirmation, the pending lock and the failsafe stay with the host |
 | `gamepadView` | the controller screen's markup — the live pad diagram arrives ready-made and bound |
+| `toasts` | the notification stack's markup — the queue, the durations and the handover to the native HUD stay with the host |
 
 So "add snow to the dashboard" is a shell that renders `sdk.defaults.Shell` with
 a `decor`, and "replace everything" is a shell that renders its own tree. Same
@@ -300,7 +310,45 @@ screen with a launch already promised. Pressing back during your animation
 cancels it: the request is never sent, and the flag is cleared under you. Do
 not treat `launching` going false as "the game is running".
 
-## 5c. Check it loads before you ship it
+## 5d. If you write your own settings menu, say what it opens
+
+The settings sub-pages are the host's, and your menu resolves each entry
+through `sdk.defaults.DefaultSettingsPages`. Leaving one out costs nothing at
+load and shows nothing on screen: the page is still there, its route is still
+there, and there is simply no way to get to it.
+
+That has shipped twice. `catalog` was missing from the map, so **neither**
+bundled theme had any way to install an emulator. `storage` was missing from
+the map itself, so no theme could offer safe-eject for an external disk even if
+its author had thought of it. Both were found by reading the code, not by a
+player — which is the problem, because the pages people go looking for are the
+ones they need when something is already wrong.
+
+So declare what your menu reaches:
+
+```json
+{ "id": "shelf", "settings": { "pages": ["wifi", "audio", "bluetooth", "standby",
+                                         "catalog", "bios", "storage", "themes",
+                                         "update", "desktop"] } }
+```
+
+The host compares that to `Object.keys(sdk.defaults.DefaultSettingsPages)` and
+names anything you have left unreachable, in Settings → Themes. CI does the
+same:
+
+```bash
+node scripts/check-theme.mjs config/themes/<id>
+```
+
+**Say nothing and nothing is checked** — that is the right answer for a theme
+that reuses the host's settings modal, which reaches everything by definition.
+Warning about those would make the check noise, and a check that cries wolf is
+how the first two got through.
+
+Declaring the empty list is not the same as saying nothing: it means your menu
+opens none of them, and you will be told so for every page.
+
+## 5e. Check it loads before you ship it
 
 ```bash
 node scripts/check-theme.mjs config/themes/<id>
@@ -339,12 +387,14 @@ not a gap waiting to be filled — the reasons are in §11.
 | **Read the box's real data** | yes — systems, games, playtime, metadata, cover art, storage, network, controllers and their battery, through `sdk.api` |
 | **Draw something other than the jacket** | yes — 3D box, clear logo, gameplay screenshot, title screen, ready-made mix, trailer, 54 types in all (§7.1) |
 | **React to what happens** | yes — `sdk.system.onWsEvent` for standby, ROM uploads, controller connect/disconnect, battery, theme changes |
+| **Draw the notifications** | yes — `toasts` is a part like any other. What each one *says* and how long it stays is the host's |
+| **Make the pad buzz** | yes — declare a `rumble` table and the bus fires it (§13b). Nothing vibrates unless a theme asks |
 | **Read input** | yes — `sdk.input.onGp` for every pad event, `useGamepadState()` for the raw 60 fps state (that is how a live pad diagram works) |
 | **Know where the player is** | yes — `sdk.nav.use()` inside a component, `sdk.nav.get()` in a handler |
 | **Move the player** | yes — `goHome`, `goLibrary`, `setGridFocus`, `setGridPage` |
 | **Make sound** | yes — `sdk.system.getAudioContext()` for its own synthesis (Summer's surf), `sdk.system.playSound()` for the host's set, `sdk.system.sound` to respect the player's setting |
 | **Ship assets** | yes — anything in the theme folder, resolved with `sdk.system.asset('…')` |
-| **Change the *five* UI sounds** | **no** — `move`, `confirm`, `back`, `launch`, `startup` are the host's, fired centrally by the input bus. A theme can add sounds, not replace those |
+| **Change the five UI sounds** | yes — declare them in `sounds` and the bus plays yours instead (§13). What stays the host's is *when* they fire |
 | **Change how a screen behaves** | **no** — paging, focus, sorting, search, launching, the shutdown confirmation. It supplies the markup, the host keeps the decisions |
 | **Write a `z-index`** | **no** — the shell owns stacking. This is what let the first version paint over screens it had not replaced |
 | **Skip the boot animation** | **no** — a theme draws its own, but `onDone` is the host's and a 20s watchdog sits behind it |
@@ -363,10 +413,24 @@ there is no import map to maintain and only one React instance exists.
 | `sdk.ui` | `html` (tagged template), `React`, `useState`, `useEffect`, `useRef`, `useMemo`, `useCallback`, `motion`, `AnimatePresence` | Framer Motion is already bundled by the host |
 | `sdk.api` | `systems`, `games`, `metadata`, `media`, `playtime`, `sysinfo`, `standby`, `update`, `wifi`, `audio`, `bluetooth` | [full signatures](../architecture/05-frontend.md#apiindexts) |
 | `sdk.nav` | `use(selector)` for a reactive read inside a component, `get()` for a snapshot in a handler, plus `goHome`, `goLibrary`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx`, `openModal`, `closeModal` | [store reference](../architecture/05-frontend.md#store--storeindexts) |
-| `sdk.input` | `onGp(event, handler)`, `useGamepadState()`, `GP_BTN`, `events` | [event bus](../architecture/05-frontend.md#the-gamepad-event-bus--hooksusegamepadts) |
-| `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `sound` (read-only `enabled` / `volume`), `gamecore`, `asset(path)` | `asset()` resolves a path inside the theme folder |
+| `sdk.input` | `onGp(event, handler)`, `useGamepadState()`, `GP_BTN`, `events`, `rumble(pattern)`, `haptics` (read-only `enabled`) | [event bus](../architecture/05-frontend.md#the-gamepad-event-bus--hooksusegamepadts) |
+| `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `sound` (read-only `enabled` / `volume`), `gamecore`, `asset(path)`, `splashHoldMs` | `asset()` resolves a path inside the theme folder; `splashHoldMs` is the cold-boot hold your splash should sit on before it starts (§8) |
+| `sdk.format` | `gameName`, `time`, `date`, `hexToRgb`, `systemColor` | how the rest of the UI renders the box's data. Reimplementing these does not fail, it *drifts* |
 | `sdk.themes` | `list()`, `select(id \| null)` | so a theme can dress its own theme picker. `select()` is the host's: it clears safe mode, resets the crash count and reloads the frontend |
-| `sdk.defaults` | `Shell` (the default frontend, takes parts), every screen, `DefaultSettingsPages` (wifi, audio, bluetooth, standby, themes, update, desktop), `SettingsOverlay`, `DefaultKeyboard`, `launchApp` | compose instead of rewrite. The pages already carry their own overlay — render them bare; `SettingsOverlay` is only there if you write a page of your own |
+| `sdk.defaults` | `Shell` (the default frontend, takes parts), every screen, `DefaultSettingsPages`, `SettingsOverlay`, `Label`, `BackBar`, `DefaultKeyboard`, `launchApp` | compose instead of rewrite. The pages already carry their own overlay — render them bare; `SettingsOverlay`, `Label` and `BackBar` are the chrome to build a page of your own that matches them |
+
+`DefaultSettingsPages` is deliberately not enumerated here. It gained `catalog`
+and `bios` after this table was written and the table did not follow, so the one
+document a theme author reads to find out what exists listed seven of the nine
+pages that did. `Object.keys(sdk.defaults.DefaultSettingsPages)` is the list, at
+runtime, and it is the only copy of it that cannot go stale.
+
+`sdk.defaults` has the same property, one level up: it is the whole
+`components/defaults.tsx` namespace, not a hand-picked subset, so the row above
+is a guide and `Object.keys(sdk.defaults)` is the truth. `Label` and `BackBar`
+are what that gap looks like in practice — both have been exported and usable
+the whole time, and both were missing from this table until the remake used
+them.
 
 `modalDepth` and `powerPending` are readable through `get()` but there is no
 setter: they are the core's focus and shutdown locks.
@@ -436,8 +500,9 @@ Three things to design around:
 ## 8. Module contract
 
 The entry point default-exports a function taking `sdk` and returning
-`{ splash, shell }` — both, always. Neither takes props beyond the ones listed
-here: everything else comes from the SDK.
+`{ splash, shell }` — both, always — and optionally `sounds` (§13). Neither
+surface takes props beyond the ones listed here: everything else comes from the
+SDK.
 
 ```js
 export default (sdk) => {
@@ -559,29 +624,123 @@ The box also runs emulators, on a TV, at 1080p.
 
 ## 13. Sounds
 
-A theme can **add** sound. It cannot **replace** the five UI sounds.
+A theme can **add** sounds and **replace** the five UI ones.
 
-`move`, `confirm`, `back`, `launch` and `startup` are synthesized in
-`frontend/src/lib/sounds.ts` and fired centrally by the input bus — before any
-screen is involved — so there is no hook for a theme to take them over. What a
-theme gets instead:
+`move`, `confirm`, `back`, `launch` and `startup` are fired centrally by the
+input bus, before any screen is involved. That used to mean there was no hook
+for a theme to take them over: a shell that had redrawn every screen still
+answered every press with the stock bip, because the bus sits *under* the theme
+layer. The seam is now the same one `homeView` draws — **the bus keeps the
+*when*, the theme gets the *what*.**
 
-- `sdk.system.playSound(name)` — trigger one of the host's, on its own terms;
-- `sdk.system.getAudioContext()` — the shared context, to synthesize whatever
-  it likes. `config/themes/summer/lib/ambience.js` is the worked example: surf
-  from filtered noise, no audio file, no loop seam.
+### Declaring them
 
-Two rules, whichever route you take:
+In the manifest, for files you ship:
 
-- **The player's sound setting always wins.** `playSound` refuses when sound is
-  off and scales to their volume. A loop *you* start does neither, so read
-  `sdk.system.sound` (`enabled`, `volume`) and follow it — including while it
-  changes, which it can, from Settings → Audio.
-- **Stop when nobody is listening.** A game running or the box asleep means
-  silence; `useIdle` in Summer shows the pattern.
+```json
+{ "id": "arcade", "sounds": { "move": "assets/tick.wav",
+                              "confirm": "assets/coin.wav" } }
+```
 
-The default sounds are synthesized, not files. A theme shipping audio assets is
-a new case, not the existing path.
+Or from the module, which also accepts a function — the shipped themes
+synthesize rather than ship audio, and replacing one bip should not mean
+bouncing a wav:
+
+```js
+return {
+  splash: Splash,
+  shell: Shell,
+  sounds: {
+    move: (ctx, out) => {                    // `out` is already at the player's volume
+      const o = ctx.createOscillator()
+      o.type = 'square'; o.frequency.value = 1200
+      o.connect(out); o.start(); o.stop(ctx.currentTime + 0.03)
+    },
+  },
+}
+```
+
+The module wins over the manifest for the same name, exactly the way
+`{ ...DefaultSettingsPages, ...ownPages }` works.
+
+### The cascade
+
+**Your sound → the host's sound → silence.**
+
+Declare `move` alone and the other four stay the host's — replacing one sound
+does not saddle you with synthesizing the rest. A name neither of you has is
+silent rather than an error, which is what lets you add sounds of your own:
+`sdk.system.playSound('coin')` plays your coin, and does nothing in a theme
+that never declared one.
+
+A file that 404s or will not decode is dropped back to the host's sound. One
+typo'd path costs one bip, not the theme.
+
+### The two rules, unchanged
+
+- **The player's sound setting always wins.** This is enforced, not requested:
+  nothing plays while sound is off, and the `out` node you are handed is
+  already scaled to their volume, re-read on every play so moving the slider in
+  Settings → Audio is heard immediately. Connect to `out`, **not** to
+  `ctx.destination` — the second is how you would escape the slider, and a
+  theme that can be louder than the player allows is a theme they can only
+  silence by uninstalling it.
+- **Stop when nobody is listening.** A loop *you* start is outside all of the
+  above, so read `sdk.system.sound` (`enabled`, `volume`) and follow it. A game
+  running or the box asleep means silence; `useIdle` in Summer shows the
+  pattern.
+
+`sdk.system.getAudioContext()` is still there for ambience rather than events —
+`config/themes/summer/lib/ambience.js` is the worked example: surf from
+filtered noise, no audio file, no loop seam.
+
+**What you still cannot do is decide when a UI sound plays.** You supply
+`move`; the bus decides that a d-pad press is a `move`. That is the same line
+`homeView` draws, and it is why a themed frontend cannot get navigation
+feedback subtly wrong.
+
+## 13b. Haptics
+
+Same shape as the sounds, and for the same reason: you supply the *what*, the
+bus keeps the *when*.
+
+```js
+return {
+  splash: Splash,
+  shell: Shell,
+  rumble: {
+    'gp:confirm': { duration: 35, strong: 0.35 },
+    'gp:back':    { duration: 22, weak: 0.4 },
+    // A sequence plays back to back. `delay` is the gap before a step.
+    'gp:menu':    [{ duration: 18, weak: 0.5 }, { duration: 18, weak: 0.5, delay: 40 }],
+  },
+}
+```
+
+`duration` and `delay` are milliseconds, `strong` (low-frequency motor) and
+`weak` (high-frequency) are 0–1. Keyed on the `gp:*` event names, so ○ can feel
+different from ✕ without the host having to invent a vocabulary of feelings
+first.
+
+**Nothing on this box vibrated before, and nothing vibrates now unless a theme
+asks.** There is no default table. A player who wants none of it turns
+*Controller vibration* off in Settings → Audio, and that setting is enforced
+here the way the volume is enforced on sounds — you cannot play through it.
+
+Bounded, like `launch.ms` and the grid: a burst is capped at 1 s, a pattern at
+3 s and 8 steps, magnitudes clamp into 0–1. A pad that buzzes for a minute is
+not a look, and unlike a broken grid you cannot see it on screen to work out
+what is wrong — it just reads as a broken controller.
+
+`sdk.input.rumble(pattern)` is there for the moments the bus cannot know about:
+your launch ceremony landing, your splash's impact frame. It is refused while a
+game is running — the emulator owns the pad then, motors included. Use the
+table for anything that is a response to a button press, or you have moved a
+behaviour into the presentation layer.
+
+Most pads report no actuator at all through Chromium, so treat all of this as
+something that may simply not happen. It is feedback; it is never the only way
+the player is told something.
 
 ## 14. Editing a theme
 
@@ -603,6 +762,51 @@ is listed as not selectable with the reason next to it.
 4. Settings → Themes → select.
 5. Iterate: reload, there is nothing to compile.
 
+## 15b. Installing one from somewhere else
+
+```bash
+gamecore-theme install ./my-theme          # a directory
+gamecore-theme install theme.zip           # an archive
+gamecore-theme install https://…/x.zip     # a download
+gamecore-theme install https://…/x.git     # a repository
+gamecore-theme verify  <src>               # check it, install nothing
+gamecore-theme list [--json]
+gamecore-theme remove <id>
+```
+
+There is no `install.sh` and nothing to compile — a theme is a directory of
+plain files (§2), so this tool never runs anything it fetched. It inspects,
+validates and moves.
+
+**Everything is validated in a staging directory before it is moved into
+place**, and that ordering is the point rather than a nicety. The frontend
+imports `config/themes/<id>/index.js` as a module with the SDK handed to it:
+the moment a theme's files exist under `config/themes/`, they are code running
+in the UI process. There is no "installed but not yet checked" state to back
+out of, so a theme that fails validation never occupies that path at all.
+
+Refused, rather than trusted, because the source is somebody else's:
+
+- an archive entry that escapes the destination (`../../etc/…`) — zip slip;
+- any symlink, in the archive or in the tree — the directory is served over
+  HTTP and a link into the ROM library or `/etc` would be followed;
+- an archive that expands past `GCT_MAX_MB` (64 by default);
+- a manifest the **box's own reader** rejects. The rules are not reimplemented
+  here: `backend/services/themes.py` is what the running frontend believes, and
+  a second copy of "what makes a theme valid" would drift into accepting themes
+  the frontend then refuses to load.
+
+Reinstalling keeps the previous copy in `config/themes/.prev/<id>/`, the same
+promise `update/linux.sh` makes. `remove` deselects the theme *before* deleting
+it, so the box is never left pointing at a directory that is not there.
+
+`OFFLINE=1` refuses every network fetch.
+
+> A theme is arbitrary code with access to `sdk.api`, so it can launch games
+> and power the box off. Installing one from a URL is a trust decision, and
+> none of the checks above make it a safe one — they only stop the fetch itself
+> from being the attack. Read what you install.
+
 ## 16. Implementation order
 
 | # | Work | Size |
@@ -617,3 +821,37 @@ is listed as not selectable with the reason next to it.
 
 Step 6 validates the spec: if the default UI cannot be expressed through this
 SDK, the SDK is incomplete.
+
+## 17. The acceptance test
+
+`config/themes/default-remake` is the default UI **rebuilt as an ordinary
+third-party theme**, and it is the only test that answers the question step 6
+asks. It is worth reading before writing a theme of your own, and its README
+lists what it does *not* reproduce.
+
+It is kept in the tree as a regression test, and it is run by the suite
+(`frontend/src/lib/defaultRemake.test.ts`) against the real `buildSdk()` output
+rather than a stub — a stub would pass on exactly the day the SDK lost a key the
+theme needs.
+
+It passes eight of the ten shell parts. `background` and `decor` are the two it
+leaves out, and that is the faithful answer rather than a shortcut: the default
+UI has no full-screen layer behind or in front of itself, so a remake that
+supplied one would no longer be a remake. `config/themes/summer` is the worked
+example for those two.
+
+The six gaps it found, all now closed, were each of the same shape: none
+prevented a theme from *loading*, and every one let a theme load and then be
+quietly worse than the default.
+
+| Found | Was |
+|---|---|
+| `sdk.format.systemColor` | a private function in `SystemCard`; a themed dashboard painted uncatalogued systems the house purple |
+| `sdk.format.gameName` | unreachable; a themed library could not turn a ROM filename into a title |
+| `sdk.format.time` / `date` / `hexToRgb` | unreachable; a theme phrased playtime differently from the rest of the UI |
+| `sortKeys` / `sortLabels` | imported by the default view only; a theme's copy would drift from what L1/R1 actually cycles |
+| `toasts` | rendered by the shell, not a part; a theme with its own tree lost every notification |
+| `sdk.system.splashHoldMs` | read from the URL by the default splash and undocumented, so every themed splash started mid-animation at cold boot |
+
+If you add something to the default UI, add it to this theme. If you cannot, you
+have found the next gap.

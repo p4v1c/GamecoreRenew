@@ -17,6 +17,7 @@ import Screensaver from './Screensaver'
 import PowerModal from './modals/PowerModal'
 import GamepadModal from './modals/GamepadModal'
 import { VirtualKeyboard } from './ui/VirtualKeyboard'
+import Toasts, { DefaultToastsView } from './ui/Toasts'
 import SettingsModal from './modals/SettingsModal'
 import DefaultShell from './DefaultShell'
 import { Overlay, OverlayLabel, BackHeader } from './ui'
@@ -29,6 +30,7 @@ import { DesktopPage } from './modals/settings/DesktopPage'
 import { ThemesPage } from './modals/settings/ThemesPage'
 import { CatalogPage } from './modals/settings/CatalogPage'
 import { BiosPage } from './modals/settings/BiosPage'
+import { StoragePage } from './modals/settings/StoragePage'
 
 /** Launching lives here rather than in App so a prop-less surface can do it. */
 export async function launchApp(system: { id: string }): Promise<void> {
@@ -64,8 +66,8 @@ export const Shell = DefaultShell
  * The container to write a NEW settings page in, so it gets the same width,
  * padding and scroll as the built-in ones.
  *
- * Not for wrapping the pages in `DefaultSettingsPages`: all eight already
- * render their own `<Overlay>` as their root. This used to say they were
+ * Not for wrapping the pages in `DefaultSettingsPages`: every one of them
+ * already renders its own `<Overlay>` as its root. This used to say they were
  * "fragments, not modals" and had to be wrapped — true before they each gained
  * one, and the opposite of true after. A theme author following it nested an
  * Overlay inside an Overlay and got exactly the broken width, margins and
@@ -102,8 +104,34 @@ export const DefaultSettingsPages = {
   // not resolve it would leave them with the black screen this page exists to
   // explain, and no route to the explanation.
   bios: BiosPage,
+  // And again, found by the check below rather than by a player: `storage` was
+  // in the built-in settings menu and in no theme's, because it was never even
+  // added to this map — so no theme *could* have offered it. Safe-eject for an
+  // external disk is not somewhere to lose: the failure mode of not having it
+  // is a pulled drive and a corrupted library.
+  storage: StoragePage,
 }
+
+/**
+ * Every settings page a theme is expected to be able to reach.
+ *
+ * The list is derived, never typed out: this map has gained four entries since
+ * it was written and each one was a page some theme could not open. Comparing a
+ * theme's menu against this is what turns "we forgot" into a line on screen.
+ */
+export const SETTINGS_PAGE_IDS = Object.keys(DefaultSettingsPages)
 
 /** Nothing behind and nothing on top, unless a theme says otherwise. */
 export const DefaultBackground = () => null
 export const DefaultDecor = () => null
+
+/**
+ * The notification stack.
+ *
+ * `DefaultToasts` is the whole thing, queue included — for a theme that writes
+ * its own tree rather than rendering `Shell`, and would otherwise have no
+ * notifications at all. `DefaultToastsView` is only the markup, for a theme
+ * that wants the default look somewhere else on screen.
+ */
+export const DefaultToasts = Toasts
+export const DefaultToastsMarkup = DefaultToastsView

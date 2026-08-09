@@ -4,13 +4,20 @@ import { api } from '../../../api'
 import { onGp } from '../../../hooks/useGamepad'
 import { useSubPageGamepad } from './useSubPageGamepad'
 import { playSound, soundSettings } from '../../../lib/sounds'
+import { rumble, rumbleSettings } from '../../../lib/rumble'
 
 // Fixed row layout — the output picker is a single dropdown row
 const ROW_VOLUME = 0
 const ROW_OUTPUT = 1
 const ROW_UI_TOGGLE = 2
 const ROW_UI_VOLUME = 3
-const ROW_COUNT = 4
+// Haptics live on the Audio page rather than the controller screen, which is
+// where someone would look first. That screen is a live button test — every
+// button has to stay free in there, so it cannot carry a toggle. This page is
+// already the one that owns feedback rather than output: UI sounds are not
+// "audio" either.
+const ROW_RUMBLE = 4
+const ROW_COUNT = 5
 
 /** Settings → Audio: everything sound-related on one console-style page —
  *  system volume first, an Output dropdown, then the UI sound effects.
@@ -22,6 +29,7 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
   const [sinks, setSinks] = useState<{ id: string; name: string; default: boolean }[]>([])
   const [uiEnabled, setUiEnabled] = useState(soundSettings.enabled)
   const [uiVolume, setUiVolume] = useState(soundSettings.volume)
+  const [rumbleOn, setRumbleOn] = useState(rumbleSettings.enabled)
   const [focus, setFocus] = useState(0)
   const [outputOpen, setOutputOpen] = useState(false)
   const [dropFocus, setDropFocus] = useState(0)
@@ -32,6 +40,7 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
   const focusRef = useRef(focus)
   const uiEnabledRef = useRef(uiEnabled)
   const uiVolumeRef = useRef(uiVolume)
+  const rumbleOnRef = useRef(rumbleOn)
   const outputOpenRef = useRef(outputOpen)
   const dropFocusRef = useRef(dropFocus)
   useEffect(() => { volumeRef.current = volume }, [volume])
@@ -39,6 +48,7 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
   useEffect(() => { focusRef.current = focus }, [focus])
   useEffect(() => { uiEnabledRef.current = uiEnabled }, [uiEnabled])
   useEffect(() => { uiVolumeRef.current = uiVolume }, [uiVolume])
+  useEffect(() => { rumbleOnRef.current = rumbleOn }, [rumbleOn])
   useEffect(() => { outputOpenRef.current = outputOpen }, [outputOpen])
   useEffect(() => { dropFocusRef.current = dropFocus }, [dropFocus])
 
@@ -76,6 +86,15 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
     soundSettings.volume = v
     setUiVolume(v)
     playSound('confirm')  // preview at the new volume
+  }
+
+  const applyRumble = (v: boolean) => {
+    rumbleSettings.enabled = v
+    setRumbleOn(v)
+    // Preview, and the only way to find out whether this pad can do it at all:
+    // most controllers expose no actuator through Chromium, and a toggle that
+    // silently governs nothing is worse than no toggle.
+    if (v) rumble({ duration: 120, strong: 0.5, weak: 0.3 })
   }
 
   const openOutput = () => {
@@ -118,6 +137,7 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
         const f = focusRef.current
         if (f === ROW_OUTPUT) openOutput()
         else if (f === ROW_UI_TOGGLE) applyUiEnabled(!uiEnabledRef.current)
+        else if (f === ROW_RUMBLE) applyRumble(!rumbleOnRef.current)
       }),
     ]
     return () => offs.forEach(o => o())
@@ -222,6 +242,27 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
       <div style={{ opacity: uiEnabled ? 1 : 0.35, pointerEvents: uiEnabled ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
         <div style={focusWrap(focus === ROW_UI_VOLUME)} onClick={() => setFocus(ROW_UI_VOLUME)}>
           <SliderRow label="Sound volume" value={uiVolume} onChange={applyUiVolume} />
+        </div>
+      </div>
+
+      {/* Haptics */}
+      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', letterSpacing: 2, margin: '16px 0 8px' }}>HAPTICS</div>
+      <div style={rowCard(focus === ROW_RUMBLE)}
+        onClick={() => { setFocus(ROW_RUMBLE); applyRumble(!rumbleOn) }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>Controller vibration</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', marginTop: 3 }}>
+            Only themes that ask for it — nothing vibrates by default
+          </div>
+        </div>
+        <div style={{
+          width: 46, height: 26, borderRadius: 13, position: 'relative', transition: 'background 0.2s',
+          background: rumbleOn ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 80%, transparent)' : 'rgba(255,255,255,0.12)', flexShrink: 0,
+        }}>
+          <div style={{
+            position: 'absolute', top: 3, left: rumbleOn ? 23 : 3, width: 20, height: 20,
+            borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
+          }} />
         </div>
       </div>
 

@@ -9,6 +9,7 @@ Run under pytest:  pytest backend/tests/test_themes.py
 Or directly:       python backend/tests/test_themes.py
 """
 import json
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -271,3 +272,154 @@ def test_a_theme_can_ask_for_no_pages():
     # Anything else is not a boolean and is dropped, without taking rows down.
     assert themes._home_grid({"paged": "no", "rows": 1}, "t") == {"rows": 1}
     assert themes._home_grid({"paged": 0, "rows": 1}, "t") == {"rows": 1}
+
+
+# ── a theme may replace the UI sounds ────────────────────────────────────────
+# The five host sounds are fired by the input bus, which sits UNDER the theme
+# layer: before this, a shell that redrew every screen still answered every
+# press with the stock bip and had no hook to take it over. The manifest names
+# files; the module may also hand back functions (see themeLoader).
+
+
+@pytest.fixture
+def sound_theme(tmp_path):
+    """A theme directory with one real audio file in it, ready to be pointed at."""
+    d = tmp_path / "noisy"
+    (d / "assets").mkdir(parents=True)
+    (d / "assets" / "move.wav").write_bytes(b"RIFF....WAVE")
+    return d
+
+
+def test_a_theme_that_declares_no_sounds_keeps_the_hosts(sound_theme):
+    """Every theme written before this said nothing, and must still sound
+    exactly as it did."""
+    assert themes._sounds(None, sound_theme) is None
+    assert themes._sounds({}, sound_theme) is None
+
+
+def test_a_declared_sound_reaches_the_manifest(sound_theme):
+    assert themes._sounds({"move": "assets/move.wav"}, sound_theme) == {"move": "assets/move.wav"}
+
+
+def test_a_sound_path_may_not_leave_the_theme_folder(sound_theme):
+    """The frontend turns these straight into a fetch, so the theme directory is
+    the boundary. Checked rather than trusted: a theme is code somebody
+    downloaded."""
+    for bad in ("../../../etc/passwd", "/etc/passwd", "assets/../../secrets.wav"):
+        assert themes._sounds({"move": bad}, sound_theme) is None, bad
+
+
+def test_a_sound_whose_file_is_missing_falls_back_instead_of_failing(sound_theme):
+    """Dropped, not fatal: the cascade gives that one name back to the host, so
+    a typo'd path costs one bip rather than the whole theme."""
+    assert themes._sounds({"move": "assets/nope.wav"}, sound_theme) is None
+    # And it does not take a good sibling down with it.
+    assert themes._sounds(
+        {"move": "assets/move.wav", "back": "assets/nope.wav"}, sound_theme,
+    ) == {"move": "assets/move.wav"}
+
+
+def test_an_unusable_sound_entry_is_dropped(sound_theme):
+    assert themes._sounds({"move": 42}, sound_theme) is None
+    assert themes._sounds({"move": ""}, sound_theme) is None
+    assert themes._sounds({"MOVE": "assets/move.wav"}, sound_theme) is None
+    assert themes._sounds({"../x": "assets/move.wav"}, sound_theme) is None
+    assert themes._sounds("loud please", sound_theme) is None
+    assert themes._sounds([["move", "assets/move.wav"]], sound_theme) is None
+
+
+def test_a_theme_may_name_a_sound_the_host_does_not_have(sound_theme):
+    """The cascade ends in silence, not an error, so a theme can add its own
+    names as well as replace the five."""
+    assert themes._sounds({"coin": "assets/move.wav"}, sound_theme) == {"coin": "assets/move.wav"}
+
+
+def test_the_sounds_reach_the_manifest(tmp_path, monkeypatch):
+    monkeypatch.setattr(themes, "THEMES_DIR", tmp_path)
+    d = tmp_path / "noisy"
+    (d / "assets").mkdir(parents=True)
+    (d / "assets" / "move.wav").write_bytes(b"RIFF....WAVE")
+    (d / "index.js").write_text("export default () => ({})")
+    (d / "theme.json").write_text(json.dumps({
+        "id": "noisy", "name": "Noisy", "version": "1.0.0", "api": 1,
+        "provides": ["splash", "shell"], "sounds": {"move": "assets/move.wav"},
+    }))
+    m = next(t for t in themes.list_themes() if t["id"] == "noisy")
+    assert m["sounds"] == {"move": "assets/move.wav"}
+
+
+# ── no theme may leave a settings page unreachable ───────────────────────────
+# Omitting one costs nothing at load and is invisible on screen: the page
+# exists, the route exists, and nothing can open it. It has shipped twice —
+# `catalog`, so neither bundled theme could install an emulator, and `storage`,
+# which was missing from DefaultSettingsPages itself, so no theme could have
+# offered safe-eject even if its author had thought of it.
+#
+# The check is here rather than only in scripts/check-theme.mjs because this
+# suite is in the baseline and that script is not.
+
+REPO = Path(__file__).resolve().parents[2]
+DEFAULTS_TSX = REPO / "frontend" / "src" / "components" / "defaults.tsx"
+SHIPPED_THEMES = REPO / "config" / "themes"
+
+
+def host_settings_pages() -> list[str]:
+    """The page ids the frontend exposes, read from the one place they exist.
+
+    Parsed rather than copied: a list typed out here would be the third copy of
+    it in the repo, and the first two both drifted.
+    """
+    src = DEFAULTS_TSX.read_text()
+    block = re.search(r"export const DefaultSettingsPages = \{(.*?)\n\}", src, re.S)
+    assert block, "DefaultSettingsPages not found — did the export move?"
+    return re.findall(r"^  ([a-z][a-z0-9_-]*):", block.group(1), re.M)
+
+
+def themes_with_their_own_menu():
+    """Shipped themes that resolve pages through DefaultSettingsPages.
+
+    Found by what they *do*, not by name: a test naming `summer` stops
+    protecting the theme somebody adds next.
+    """
+    if not SHIPPED_THEMES.is_dir():
+        return
+    for d in sorted(SHIPPED_THEMES.iterdir()):
+        if not d.is_dir() or d.name.startswith("."):
+            continue
+        if not (d / "theme.json").is_file():
+            continue
+        if any("DefaultSettingsPages" in f.read_text()
+               for f in d.rglob("*.js")):
+            yield d
+
+
+def test_the_host_page_list_is_readable():
+    """The two tests below are vacuous if this regex stops matching, and a
+    guard that silently passes forever is worse than no guard."""
+    pages = host_settings_pages()
+    assert len(pages) >= 8, f"suspiciously few settings pages parsed: {pages}"
+
+
+@pytest.mark.parametrize("theme_dir", list(themes_with_their_own_menu()),
+                         ids=lambda d: d.name)
+def test_a_shipped_theme_menu_reaches_every_settings_page(theme_dir):
+    m = json.loads((theme_dir / "theme.json").read_text())
+    declared = (m.get("settings") or {}).get("pages")
+    assert declared is not None, (
+        f"{theme_dir.name} builds its own settings menu but declares no "
+        "settings.pages — the host cannot tell what it left unreachable"
+    )
+    missing = [p for p in host_settings_pages() if p not in declared]
+    assert not missing, f"{theme_dir.name} cannot open: {', '.join(missing)}"
+
+
+@pytest.mark.parametrize("theme_dir", list(themes_with_their_own_menu()),
+                         ids=lambda d: d.name)
+def test_a_shipped_theme_declares_only_pages_that_exist(theme_dir):
+    """The other direction: a menu entry pointing at a page that was renamed or
+    removed resolves to undefined and renders nothing when it is selected."""
+    m = json.loads((theme_dir / "theme.json").read_text())
+    declared = (m.get("settings") or {}).get("pages") or []
+    pages = host_settings_pages()
+    unknown = [p for p in declared if p not in pages]
+    assert not unknown, f"{theme_dir.name} declares pages that do not exist: {unknown}"

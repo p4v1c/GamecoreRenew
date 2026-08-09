@@ -15,8 +15,11 @@ import {
   clearThemeStyles,
   fetchThemeIndex,
   loadTheme,
+  resolveThemeRumble,
+  resolveThemeSounds,
   setActiveTheme,
   SURFACES,
+  unreachablePages,
   type ThemeManifest,
 } from './themeLoader'
 import { SDK_VERSION } from './themeSdk'
@@ -90,6 +93,132 @@ describe('the theme stylesheet', () => {
 
   it('is a no-op when there is no stylesheet to clear', () => {
     expect(() => clearThemeStyles()).not.toThrow()
+  })
+})
+
+describe('the theme sound set', () => {
+  it('resolves a manifest path against the theme folder', () => {
+    const [name, entry] = Object.entries(
+      resolveThemeSounds(manifest({ id: 'noisy', sounds: { move: 'assets/move.wav' } })),
+    )[0]
+    expect(name).toBe('move')
+    expect(entry).toMatch(/^\/themes\/noisy\/assets\/move\.wav\?/)
+  })
+
+  it('busts the cache the way the entry module and the stylesheet do', () => {
+    // An author who edits move.wav and reloads must hear move.wav. Electron's
+    // HTTP cache has hidden UI changes before, and a sound is harder to notice
+    // as stale than a colour.
+    const { move } = resolveThemeSounds(manifest({ sounds: { move: 'a.wav' } }))
+    expect(move).toMatch(/[?&]t=\d+/)
+  })
+
+  it('lets the module override the manifest for the same name', () => {
+    // Same precedence as `{ ...DefaultSettingsPages, ...ownPages }`: a theme
+    // keeps the declarative form for most sounds and reaches for code on the
+    // one it wants to synthesize.
+    const fn = () => {}
+    const out = resolveThemeSounds(
+      manifest({ sounds: { move: 'assets/move.wav' } }),
+      { sounds: { move: fn } },
+    )
+    expect(out.move).toBe(fn)
+  })
+
+  it('keeps manifest sounds the module did not mention', () => {
+    const fn = () => {}
+    const out = resolveThemeSounds(
+      manifest({ sounds: { move: 'assets/move.wav', back: 'assets/back.wav' } }),
+      { sounds: { move: fn } },
+    )
+    expect(out.move).toBe(fn)
+    expect(out.back).toMatch(/assets\/back\.wav/)
+  })
+
+  it('accepts a plain function from a theme that synthesizes', () => {
+    // Both shipped themes synthesize rather than ship audio — Summer builds its
+    // surf out of filtered noise — so requiring a file to replace one bip would
+    // have been a step backwards.
+    const fn = () => {}
+    expect(resolveThemeSounds(manifest(), { sounds: { surf: fn } }).surf).toBe(fn)
+  })
+
+  it('ignores an entry that is neither a path nor a function', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const out = resolveThemeSounds(manifest(), { sounds: { move: 42, back: null } })
+    expect(out).toEqual({})
+  })
+
+  it('is empty for a theme that declares no sounds at all', () => {
+    // Every theme written before this said nothing and must still sound
+    // exactly as it did.
+    expect(resolveThemeSounds(manifest())).toEqual({})
+    expect(resolveThemeSounds(manifest(), {})).toEqual({})
+  })
+})
+
+describe('settings pages a theme cannot reach', () => {
+  const HOST = ['wifi', 'audio', 'catalog', 'bios', 'storage']
+
+  it('names the pages the host has and the theme does not list', () => {
+    // The bug this exists for, twice over: the page exists, the route exists,
+    // and nothing on screen can open it. Invisible until somebody needs the
+    // page — and the pages people need are the ones they need when something
+    // is already wrong.
+    const m = manifest({ settings: { pages: ['wifi', 'audio', 'catalog'] } })
+    expect(unreachablePages(m, HOST)).toEqual(['bios', 'storage'])
+  })
+
+  it('says nothing when the menu reaches everything', () => {
+    expect(unreachablePages(manifest({ settings: { pages: HOST } }), HOST)).toEqual([])
+  })
+
+  it('says nothing about a theme that never declared', () => {
+    // A theme reusing the host's settings modal reaches every page and
+    // declares nothing. Flagging those would make this warning noise, and a
+    // warning that cries wolf is exactly how the first two got through.
+    expect(unreachablePages(manifest(), HOST)).toEqual([])
+    expect(unreachablePages(manifest({ settings: null }), HOST)).toEqual([])
+    expect(unreachablePages(null, HOST)).toEqual([])
+  })
+
+  it('treats an empty declaration as a menu that opens nothing', () => {
+    // Different from not declaring: this theme said it has a menu and listed
+    // no pages in it.
+    expect(unreachablePages(manifest({ settings: { pages: [] } }), HOST)).toEqual(HOST)
+  })
+})
+
+describe('the theme rumble table', () => {
+  it('takes patterns keyed on gamepad events', () => {
+    const out = resolveThemeRumble({ rumble: { 'gp:confirm': { duration: 40, strong: 0.5 } } })
+    expect(out['gp:confirm']).toEqual({ duration: 40, strong: 0.5 })
+  })
+
+  it('accepts a sequence as readily as a single burst', () => {
+    const seq = [{ duration: 20 }, { duration: 40, delay: 30 }]
+    expect(resolveThemeRumble({ rumble: { 'gp:back': seq } })['gp:back']).toEqual(seq)
+  })
+
+  it('refuses to let a theme dress gp:guide', () => {
+    // The core owns the double press that kills a running game, and it owns it
+    // here too: a theme that could hang a three-second buzz off quitting would
+    // be deciding what quitting feels like from inside the presentation layer.
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(resolveThemeRumble({ rumble: { 'gp:guide': { duration: 3000 } } })).toEqual({})
+  })
+
+  it('is empty for a theme that says nothing', () => {
+    // Nothing on this box vibrated before, and a theme that did not ask for
+    // haptics must not acquire them by upgrading.
+    expect(resolveThemeRumble({})).toEqual({})
+    expect(resolveThemeRumble({ rumble: null })).toEqual({})
+    expect(resolveThemeRumble()).toEqual({})
+  })
+
+  it('drops an entry that is not a pattern', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(resolveThemeRumble({ rumble: { 'gp:confirm': 'hard' } })).toEqual({})
   })
 })
 

@@ -7,6 +7,8 @@
  */
 import type { ComponentType } from 'react'
 import { buildSdk, SDK_VERSION, type SdkHost } from './themeSdk'
+import { setThemeSounds, type ThemeSound } from './sounds'
+import { setThemeRumble, type RumblePattern } from './rumble'
 
 /**
  * The two surfaces a theme owns: the boot animation, and the frontend body.
@@ -41,6 +43,12 @@ export interface ThemeManifest {
   /** How long the theme's launch animation runs before the game is started.
    *  Absent = start it immediately, which is what every theme did before. */
   launch?: { ms?: number } | null
+  /** UI sounds the theme replaces, `name -> path inside the theme folder`.
+   *  The backend has already dropped the ones whose file is missing. */
+  sounds?: Record<string, string> | null
+  /** Which host settings pages the theme's own menu can open. Absent = it did
+   *  not say, which is a different thing from "none" — see unreachablePages. */
+  settings?: { pages?: string[] } | null
   compatible: boolean
   warnings: string[]
 }
@@ -96,6 +104,44 @@ export function clearThemeStyles(): void {
 }
 
 /**
+ * The theme's sound set, from its two sources, in precedence order.
+ *
+ * The manifest can only name files; the module can also hand back functions,
+ * which is what a theme that synthesizes rather than ships audio needs — and
+ * both shipped themes synthesize. The module wins on a clash, the same way
+ * `{ ...DefaultSettingsPages, ...ownPages }` lets a theme keep the host's page
+ * for everything it did not write.
+ *
+ * Exported for its own sake: this merge is the whole contract, and the import()
+ * in loadTheme means it is otherwise only reachable on a box with themes on it.
+ */
+export function resolveThemeSounds(
+  m: ThemeManifest,
+  produced: Record<string, unknown> = {},
+): Record<string, ThemeSound> {
+  // Same busting as the entry module and the stylesheet: an author who edits
+  // move.wav and reloads must hear move.wav, not whatever Electron cached.
+  const bust = `?v=${encodeURIComponent(m.version)}&t=${Date.now()}`
+  const url = (rel: string) =>
+    `/themes/${encodeURIComponent(m.id)}/${rel.replace(/^\/+/, '')}${bust}`
+
+  const out: Record<string, ThemeSound> = {}
+  for (const [name, rel] of Object.entries(m.sounds ?? {})) {
+    if (typeof rel === 'string') out[name] = url(rel)
+  }
+
+  const fromModule = produced.sounds
+  if (fromModule && typeof fromModule === 'object') {
+    for (const [name, v] of Object.entries(fromModule as Record<string, unknown>)) {
+      if (typeof v === 'function') out[name] = v as ThemeSound
+      else if (typeof v === 'string') out[name] = url(v)
+      else console.warn(`[gamecore] theme sound "${name}" must be a path or a function — ignored`)
+    }
+  }
+  return out
+}
+
+/**
  * Import a theme and return its surfaces.
  *
  * Completeness is a load-time gate, not a per-screen fallback: a missing or
@@ -141,5 +187,63 @@ export async function loadTheme(m: ThemeManifest, host: SdkHost): Promise<Surfac
     throw new Error(`theme is incomplete — a theme must provide every surface: ${missing.join(', ')}`)
   }
 
+  // After the completeness gate, so a theme that is about to be refused does
+  // not leave its bips installed over the default UI that replaces it.
+  setThemeSounds(resolveThemeSounds(m, produced as Record<string, unknown>))
+  setThemeRumble(resolveThemeRumble(produced as Record<string, unknown>))
+
+  return out
+}
+
+/**
+ * Settings pages the host has and the theme's menu cannot open.
+ *
+ * This has already shipped twice, which is the whole argument for checking it.
+ * `catalog` was left out of `DefaultSettingsPages` and both bundled themes had
+ * no way to install an emulator; `storage` was never added to that map at all,
+ * so safe-eject for an external disk was unreachable from any theme that could
+ * ever be written. Each time the page existed, the route existed, and nothing
+ * on screen could open them — which is invisible until somebody needs the page,
+ * and the pages people need are the ones they need when something is wrong.
+ *
+ * A theme that says nothing gets an empty answer rather than the full list. Not
+ * declaring is what a theme reusing the host's settings modal does, and it
+ * reaches everything; flagging those would make the warning noise, and a
+ * warning that cries wolf is how the first two got through.
+ */
+export function unreachablePages(m: ThemeManifest | null, hostPages: string[]): string[] {
+  const declared = m?.settings?.pages
+  if (!declared) return []
+  const reachable = new Set(declared)
+  return hostPages.filter(p => !reachable.has(p))
+}
+
+/**
+ * The theme's per-event haptics table.
+ *
+ * Manifest-side there is nothing to declare — unlike a sound, a pattern is
+ * plain data with no file behind it, so the module is the only source and JSON
+ * in `theme.json` would be a second way to say the same thing.
+ *
+ * Keyed on `gp:*` event names, so a theme can make ○ feel different from ✕
+ * without the host inventing a vocabulary of feelings first.
+ */
+export function resolveThemeRumble(
+  produced: Record<string, unknown> = {},
+): Record<string, RumblePattern> {
+  const raw = produced.rumble
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Record<string, RumblePattern> = {}
+  for (const [event, pattern] of Object.entries(raw as Record<string, unknown>)) {
+    // The core owns gp:guide, and it owns it here too: a theme that could hang
+    // a 3-second buzz off the double-press that kills a running game would be
+    // deciding what quitting feels like from inside the presentation layer.
+    if (event === 'gp:guide') {
+      console.warn('[gamecore] theme tried to dress reserved event gp:guide — ignored')
+      continue
+    }
+    if (pattern && (typeof pattern === 'object')) out[event] = pattern as RumblePattern
+    else console.warn(`[gamecore] rumble pattern for "${event}" must be an object or array — ignored`)
+  }
   return out
 }
