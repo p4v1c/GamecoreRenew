@@ -33,9 +33,11 @@ sys.path.insert(0, str(ROOT))
 from backend.services.catalog import ota, signing                   # noqa: E402
 from backend.services.catalog.signing import SignatureError         # noqa: E402
 
-pytest.importorskip("cryptography",
-                    reason="the OTA channel cannot exist without it")
-
+# A hard import, deliberately NOT `pytest.importorskip`. cryptography is a
+# pinned requirement, and skipping is the wrong failure: this file is the only
+# thing standing between the fleet and an unauthenticated remote catalogue, and
+# a green run with the whole module quietly skipped reads exactly like a green
+# run with it passing. If the dependency is missing, that is the finding.
 from cryptography.hazmat.primitives import serialization            # noqa: E402
 from cryptography.hazmat.primitives.asymmetric import ed25519       # noqa: E402
 
