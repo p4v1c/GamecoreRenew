@@ -5,6 +5,14 @@
 USER_NAME=pavic                 # required — Linux user running GameCore
 GAMECORE_PATH=/opt/GameCore
 WEB_PORT=8765
+# Where the player's data lives — ROMs, saves, covers, config.
+# Absent, it defaults to GAMECORE_PATH, which is where every GameCore before the
+# split kept it. Do NOT "fix" that default: the code reading it ships over OTA
+# to boxes whose data really is inside the install, and pointing them at
+# /userdata would show them an empty library.
+# A NEW box sets it here and gets the split from day one. The ISO's guided
+# install writes GAMECORE_DATA=/userdata into this file by itself.
+#GAMECORE_DATA=/userdata
 MODE=full                       # full | minimal
 # "all" or a space-separated subset of:
 #   azahar rpcs3 pcsx2 dolphin melonds gopher64 mgba ppsspp cemu ryujinx
@@ -43,3 +51,48 @@ SS_PASSWORD=''
 # Web login password (phase 3) — required for the LAN interface.
 # Empty/absent = LAN stays locked until "gamecore-addon auth-reset".
 WEB_PASSWORD=""
+
+# ================================================================
+#  Guided disk install — read ONLY by the ISO's gamecore-disk-install.sh.
+#
+#  arch.sh ignores every key below. They exist because the ISO installs onto a
+#  bare machine, and that machine has no partitions yet.
+#
+#  ⚠  TARGET_DISK is erased in full. There is no undo, and no "keep my other
+#     partition" mode: the guided install writes a whole GPT.
+# ================================================================
+
+# The whole disk, never a partition. `gamecore-disk-install.sh --list-disks`
+# prints the candidates.
+#TARGET_DISK=/dev/nvme0n1
+
+# p1 — the EFI system partition, mounted /boot. It holds the kernel, the
+# initramfs and the microcode, and an NVIDIA initramfs is not small: 1 GiB is
+# the size at which a kernel update stops failing halfway through.
+#ESP_SIZE=1G
+
+# p2 — the root partition. The Flatpak emulators land in /var/lib/flatpak, which
+# is HERE and not in /userdata: thirteen emulators plus a KDE runtime is
+# comfortably past 30 GiB.
+#ROOT_SIZE=60G
+#ROOT_FS=ext4
+
+# p3 — the rest of the disk, mounted /userdata, and what GAMECORE_DATA points
+# at. btrfs by default because that is what makes snapshotting saves separately
+# from the system possible at all.
+#USERDATA_FS=btrfs
+
+# The installed system's identity. Set KEYMAP before you need to type a
+# password on a console with an AZERTY keyboard.
+#TARGET_HOSTNAME=gamecore
+#TIMEZONE=Europe/Paris
+#LOCALE=en_US.UTF-8
+#KEYMAP=us
+
+# Left empty, root is LOCKED on the installed machine — which is the right
+# default for a console that auto-logs into the kiosk. Set it if you want to be
+# able to log in on tty2 when something goes wrong.
+#ROOT_PASSWORD=''
+# Only used on a re-install, when the account already exists: arch.sh creates
+# the GameCore user itself on the first boot.
+#USER_PASSWORD=''

@@ -1,0 +1,37 @@
+[Unit]
+Description=GameCore — finish the installation on the first boot
+Documentation=https://github.com/p4v1c/GamecoreRenew
+
+# The conf is the arming pin. gamecore-disk-install.sh writes it, and
+# gamecore-firstboot deletes it once the install succeeds — so this unit is a
+# no-op on every boot after the first, even if someone re-enables it by hand.
+# A flag file in /var would have been the other option; the conf is better
+# because it cannot get out of step with the thing it triggers.
+ConditionPathExists=/etc/gamecore-install.conf
+
+Wants=network-online.target
+After=network-online.target systemd-user-sessions.service
+
+# The install takes tens of minutes and prints continuously. Sharing tty1 with a
+# login prompt interleaves agetty's output with the installer's and leaves a
+# cursor fighting for the same lines; stopping the getty for the duration is
+# what makes the screen readable.
+Conflicts=getty@tty1.service
+Before=getty@tty1.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/gamecore-firstboot
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+# No timeout, deliberately. The default is 90 seconds; this unit installs
+# thirteen Flatpak emulators and builds a React frontend. systemd killing it at
+# 90 s leaves a half-installed box that reports itself as failed with no
+# indication that the only thing wrong was a stopwatch.
+TimeoutStartSec=infinity
+
+[Install]
+WantedBy=multi-user.target
