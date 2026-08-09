@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!--
+  The reason this file exists.
+
+  GitHub serves the repository page with `meta-description: Contribute to
+  p4v1c/GamecoreRenew development by creating an account on GitHub.` — that is
+  the only text the project emitted to a search engine, and it is worth nothing.
+  GitHub also blocks crawlers from /tree/ and /blob/ in its robots.txt, so only
+  the README of the default branch is indexable, and its <title> is not ours to
+  set either.
+
+  A page on github.io is crawlable, and every tag below is under our control.
+  That is the whole point; keep it a single self-contained file with no external
+  requests, so it cannot break and cannot leak a visitor to a third party.
+-->
+
+<title>GameCore — living-room emulation frontend for Arch Linux (PS3, PS4, Switch, Wii U)</title>
+<meta name="description" content="A gamepad-only emulation box for the recent consoles — PS3, PS4, Switch, Wii U, Xbox 360 and 8 more. Flatpak emulators that stay current, controllers that configure themselves, on an Arch install that stays a real computer.">
+<link rel="canonical" href="https://p4v1c.github.io/GamecoreRenew/">
+<meta name="color-scheme" content="dark light">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GameCore">
+<meta property="og:title" content="GameCore — a living-room box for the recent consoles">
+<meta property="og:description" content="PS3, PS4, Switch, Wii U, Xbox 360 and 8 more. Always-current Flatpak emulators, controllers that configure themselves, on an Arch that stays a real machine.">
+<meta property="og:url" content="https://p4v1c.github.io/GamecoreRenew/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GameCore — a living-room box for the recent consoles">
+<meta name="twitter:description" content="PS3, PS4, Switch, Wii U, Xbox 360 and 8 more. Always-current Flatpak emulators, controllers that configure themselves, on an Arch that stays a real machine.">
+
+<!--
+  Add og:image / twitter:image once a screenshot exists — a link posted to
+  Reddit or Mastodon with no image gets a bare grey card, and that is the first
+  thing anyone sees of the project. 1200x630, under 1 MB, and it inherits the
+  same rule as the video: no commercial cover art, no ROM filenames.
+  <meta property="og:image" content="https://p4v1c.github.io/GamecoreRenew/screenshot.png">
+-->
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "GameCore",
+  "applicationCategory": "GameApplication",
+  "operatingSystem": "Arch Linux, Manjaro",
+  "description": "Gamepad-driven living-room emulation frontend for Arch Linux, built around the recent consoles: PS3, PS4, Switch, Wii U and Xbox 360.",
+  "url": "https://p4v1c.github.io/GamecoreRenew/",
+  "codeRepository": "https://github.com/p4v1c/GamecoreRenew",
+  "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
+}
+</script>
+
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --line: #262d38;
+    --ink: #e8edf5;
+    --dim: #9aa7b8;
+    --accent: #4ea3ff;
+    --warn: #f0b429;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+  a { color: var(--accent); }
+  a:focus-visible, .btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  header { padding: 72px 0 56px; border-bottom: 1px solid var(--line); }
+  .name {
+    font-size: 13px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--dim); margin: 0 0 18px;
+  }
+  h1 {
+    font-size: clamp(30px, 5.2vw, 46px); line-height: 1.15;
+    margin: 0 0 20px; letter-spacing: -.02em;
+  }
+  .lede { font-size: clamp(17px, 2.3vw, 20px); color: var(--dim); margin: 0 0 32px; max-width: 62ch; }
+
+  .btn {
+    display: inline-block; padding: 12px 22px; border-radius: 8px;
+    text-decoration: none; font-weight: 600; margin: 0 10px 10px 0;
+    border: 1px solid var(--line);
+  }
+  .btn.primary { background: var(--accent); color: #06121f; border-color: var(--accent); }
+  .btn.ghost { color: var(--ink); }
+
+  section { padding: 52px 0; border-bottom: 1px solid var(--line); }
+  h2 { font-size: 25px; margin: 0 0 10px; letter-spacing: -.01em; }
+  h3 { font-size: 17px; margin: 0 0 6px; }
+  p { max-width: 68ch; }
+  .sub { color: var(--dim); margin: 0 0 28px; max-width: 68ch; }
+
+  .grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+  .card p { color: var(--dim); margin: 0; font-size: 15px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  caption { text-align: left; color: var(--dim); padding-bottom: 12px; font-size: 15px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 600; }
+  tbody tr:last-child td { border-bottom: 0; }
+
+  pre {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 16px; overflow-x: auto; font-size: 14px;
+  }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+  .limits { list-style: none; padding: 0; margin: 0; }
+  .limits li { padding: 9px 0 9px 26px; position: relative; color: var(--dim); max-width: 68ch; }
+  .limits li::before {
+    content: "—"; position: absolute; left: 0; color: var(--warn); font-weight: 700;
+  }
+  .limits strong { color: var(--ink); }
+
+  footer { padding: 40px 0 64px; color: var(--dim); font-size: 14px; }
+  footer a { color: var(--dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <p class="name">GameCore</p>
+    <h1>A living-room box for the consoles people actually want to emulate.</h1>
+    <p class="lede">
+      PS3, PS4, Switch, Wii U and Xbox 360 — plus eight more systems — driven
+      entirely with a gamepad, on an Arch Linux machine that stays a real
+      computer underneath.
+    </p>
+    <a class="btn primary" href="https://github.com/p4v1c/GamecoreRenew/releases/latest">Download the installer</a>
+    <a class="btn ghost" href="https://github.com/p4v1c/GamecoreRenew">Source on GitHub</a>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>Three things it does differently</h2>
+    <p class="sub">
+      Most living-room emulation systems are built around decades of older
+      machines, shipped as a frozen image. This one takes the opposite bet.
+    </p>
+    <div class="grid">
+      <div class="card">
+        <h3>The recent consoles come first</h3>
+        <p>
+          Thirteen systems, weighted towards PS3, PS4, Switch, Wii U and Xbox
+          360 — not thirty 8-bit machines with the modern emulators bolted on
+          at the end of the list.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Emulators that stay current</h3>
+        <p>
+          They are Flatpaks from Flathub and update on their own schedule.
+          RPCS3 and Ryujinx change every few weeks; on a frozen system image a
+          compatibility fix waits for the image's next release.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Still a real machine</h3>
+        <p>
+          A full Arch install with a KDE Plasma desktop underneath. Nothing is
+          read-only, nothing is locked. One command closes the kiosk and hands
+          the computer back.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Plug a controller in. That's the configuration step.</h2>
+    <p class="sub">
+      GameCore writes each emulator's own config for the pads actually
+      connected, per player slot. The first pad plugged in is Player 1 whatever
+      brand it is, the next is Player 2 — like a real console. No player slot is
+      ever tied to a brand.
+    </p>
+    <p>
+      This is harder than it sounds, and it is where most of the work went.
+      Every emulator identifies devices differently: some speak SDL's role
+      vocabulary, some match a literal device name whose numbering is not the
+      player slot, and one binds by a GUID that differs between USB and
+      Bluetooth for the same pad — and fails silently when it does not match.
+    </p>
+    <p>
+      For a controller nothing recognises, a built-in wizard maps it in about a
+      minute: one button at a time, full screen, driven entirely by the pad
+      being mapped. Press to record, hold to skip a button the pad does not
+      have, double-press to go back. No keyboard at any point.
+    </p>
+    <p>
+      <a href="https://github.com/p4v1c/GamecoreRenew/blob/main/docs/CONTROLLER_MODELS.md">The full write-up, per emulator →</a>
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Thirteen systems</h2>
+    <table>
+      <caption>Every emulator installs from Flathub, except where noted.</caption>
+      <thead>
+        <tr><th scope="col">System</th><th scope="col">Emulator</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>PlayStation 3</td><td>RPCS3</td></tr>
+        <tr><td>PlayStation 4</td><td>shadPS4</td></tr>
+        <tr><td>Nintendo Switch</td><td>Ryujinx</td></tr>
+        <tr><td>Wii U</td><td>Cemu</td></tr>
+        <tr><td>Xbox 360</td><td>Xenia Canary <span style="color:var(--dim)">(via Wine)</span></td></tr>
+        <tr><td>PlayStation 2</td><td>PCSX2</td></tr>
+        <tr><td>PlayStation 1</td><td>DuckStation <span style="color:var(--dim)">(AppImage)</span></td></tr>
+        <tr><td>PSP</td><td>PPSSPP</td></tr>
+        <tr><td>GameCube / Wii</td><td>Dolphin</td></tr>
+        <tr><td>Nintendo 3DS</td><td>Azahar</td></tr>
+        <tr><td>Nintendo DS</td><td>melonDS</td></tr>
+        <tr><td>Game Boy Advance</td><td>mGBA</td></tr>
+        <tr><td>Nintendo 64</td><td>Gopher64</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Installing it</h2>
+    <p class="sub">
+      On a machine already running Arch Linux or Manjaro, a graphical installer
+      does the whole job — emulators, services, auto-login and the kiosk
+      session.
+    </p>
+    <pre><code>chmod +x gamecore-installer
+./gamecore-installer</code></pre>
+    <p>
+      Pick your emulators, hit Install. It asks for the administrator password
+      once, through polkit. Re-running it is safe. After that the box updates
+      itself over the air from the settings screen.
+    </p>
+    <p>
+      There is a command-line path too, for a machine you only reach over SSH —
+      see <a href="https://github.com/p4v1c/GamecoreRenew#installation-device">the README</a>.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>What it does not do</h2>
+    <p class="sub">
+      Better read here than found out after an install.
+    </p>
+    <ul class="limits">
+      <li><strong>Arch and Manjaro only.</strong> The installer is specific to them. If you run something else, this is not for you today.</li>
+      <li><strong>X11 only.</strong> The overlay system, the fullscreen enforcer and the gamepad-to-keyboard bridge all depend on it. Wayland is not a small change.</li>
+      <li><strong>The first install needs a network</strong>, because the emulators come from Flathub.</li>
+      <li><strong>Multi-controller setups are proven by a test harness, not by hardware.</strong> Two-, three- and four-pad configurations are replayed as synthetic controller sets against the real config generators and compared against recorded output. That is real evidence for the generated configs. It is not four people playing on a real box.</li>
+      <li><strong>One developer.</strong> The bus factor is one.</li>
+      <li><strong>No games, ROMs, BIOS files or keys</strong> are distributed, downloaded or included. Bring your own.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>
+      Free software under the
+      <a href="https://github.com/p4v1c/GamecoreRenew/blob/main/LICENSE">GPL-3.0-or-later</a>
+      · <a href="https://github.com/p4v1c/GamecoreRenew">Source</a>
+      · <a href="https://github.com/p4v1c/GamecoreRenew/issues">Issues</a>
+      · <a href="https://github.com/p4v1c/GamecoreRenew#readme">Documentation</a>
+    </p>
+    <p>
+      GameCore is not affiliated with Sony, Nintendo, Microsoft, or with any of
+      the emulator projects it installs.
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
