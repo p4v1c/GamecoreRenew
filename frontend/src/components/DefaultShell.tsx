@@ -55,6 +55,14 @@ export interface ShellParts {
    * it wrong costs more than a misaligned pixel.
    */
   powerView?: React.ComponentType<PowerViewProps>
+  /**
+   * Power-menu ids this theme offers somewhere else, so they leave that menu.
+   *
+   * Only the mapping utilities can go; PowerModal refuses to drop restart,
+   * shutdown or desktop whatever is passed. A theme that moves "Scan mapping"
+   * into its own Controllers screen says so here and stops showing it twice.
+   */
+  powerOmit?: string[]
   gamepadView?: React.ComponentType<GamepadViewProps>
   /**
    * The notification stack's markup. The queue, the durations and the handover
@@ -212,7 +220,7 @@ export default function DefaultShell(parts: ShellParts = {}) {
       <AnimatePresence>
         {showPower && (
           <ModalScope key="power">
-            <PowerModal onClose={() => setShowPower(false)} view={parts.powerView} />
+            <PowerModal onClose={() => setShowPower(false)} view={parts.powerView} omit={parts.powerOmit} />
           </ModalScope>
         )}
       </AnimatePresence>

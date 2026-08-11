@@ -6,7 +6,7 @@
  * that makes every close path inert, the failsafe that unfreezes the UI when
  * the OS never powers off, and the mapping scan.
  */
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useStore } from '../../store'
 import { onGp } from '../../hooks/useGamepad'
 import DefaultPowerView from './power/DefaultPowerView'
@@ -15,7 +15,31 @@ import type { PowerOption, PowerViewProps } from './power/types'
 interface Props {
   onClose: () => void
   view?: React.ComponentType<PowerViewProps>
+  /**
+   * Ids this theme offers somewhere else, so they can leave this menu.
+   *
+   * The mapping utilities are here for a historical reason — this modal had the
+   * two-press confirmation and no settings screen did — not because saving a
+   * pad's controls is a way to end a session. A theme that gives them a proper
+   * home says so, and gets the three-row power menu the design asks for.
+   *
+   * Filtered here rather than in the view, and that distinction is the whole
+   * point: `focusIdx` is an index into the array handed over, so a view that
+   * hid rows itself would leave the cursor landing on nothing. The array the
+   * host counts and the array the player sees have to be the same one.
+   */
+  omit?: string[]
 }
+
+/**
+ * What may never leave, whatever a theme claims.
+ *
+ * Powering off is the one thing a console must always be able to do, and
+ * `desktop` is the escape hatch when the front end itself is the problem. A
+ * theme with a typo in its omit list must not be able to build a box that
+ * cannot be turned off from the sofa.
+ */
+const UNREMOVABLE = new Set(['restart', 'shutdown', 'desktop'])
 
 const OPTIONS: PowerOption[] = [
   { id: 'scan',     label: 'Scan mapping', busy: 'Scanning…',  icon: '◎', color: '#22c55e', desc: 'Save the connected pad’s controls (3DS/DS/GBA…)' },
@@ -23,8 +47,14 @@ const OPTIONS: PowerOption[] = [
   // different pad is refused on connect rather than applied, and without this
   // the owner is told their mapping was ignored and can do nothing about it.
   { id: 'forget',   label: 'Forget mapping', busy: 'Forgetting…', icon: '⌫', color: '#64748b', desc: 'Delete the connected pad’s saved controls, then scan again' },
-  { id: 'restart',  label: 'Restart',  busy: 'Restarting…',    icon: '↺', color: '#f59e0b', desc: 'Reboot the system' },
+  // Shutdown before restart, which is the order the design asks for and the
+  // order of how often each is wanted. It is safe to lead with here because
+  // the two mapping utilities sit above it in the unfiltered list, so the
+  // cursor still starts on something harmless; a theme that omits them gets
+  // Shutdown under the cursor and the two-press confirmation is what stands
+  // between that and a powered-off box.
   { id: 'shutdown', label: 'Shutdown', busy: 'Shutting down…', icon: '⏻', color: '#ef4444', desc: 'Power off' },
+  { id: 'restart',  label: 'Restart',  busy: 'Restarting…',    icon: '↺', color: '#f59e0b', desc: 'Reboot the system' },
   // Leaving for the desktop is the third way a session ends, and it belonged
   // in the menu the other two are in. It was reachable only from
   // Settings → Desktop, four rows into a menu nobody opens to quit — while the
@@ -42,7 +72,12 @@ const OPTIONS: PowerOption[] = [
 // (no sudo rights, systemctl error…) — unfreeze the UI instead of soft-locking.
 const POWER_FAILSAFE_MS = 10000
 
-export default function PowerModal({ onClose, view: View = DefaultPowerView }: Props) {
+export default function PowerModal({ onClose, view: View = DefaultPowerView, omit }: Props) {
+  const options = useMemo(() => {
+    const drop = new Set((omit ?? []).filter(id => !UNREMOVABLE.has(id)))
+    return drop.size ? OPTIONS.filter(o => !drop.has(o.id)) : OPTIONS
+  }, [omit])
+
   const [confirm, setConfirm] = useState<string | null>(null)
   const [focusIdx, setFocusIdx] = useState(0)
   const [scanning, setScanning] = useState(false)
@@ -50,6 +85,11 @@ export default function PowerModal({ onClose, view: View = DefaultPowerView }: P
   const { openModal, closeModal, powerPending, setPowerPending } = useStore()
 
   // Stable refs to avoid stale closure in confirm handler
+  // The filtered list, for the handlers: they are bound once and would
+  // otherwise keep counting the array as it was when the menu opened.
+  const optionsRef = useRef(options)
+  useEffect(() => { optionsRef.current = options }, [options])
+
   const focusIdxRef = useRef(focusIdx)
   const confirmRef  = useRef(confirm)
   useEffect(() => { focusIdxRef.current = focusIdx }, [focusIdx])
@@ -126,8 +166,11 @@ export default function PowerModal({ onClose, view: View = DefaultPowerView }: P
   useEffect(() => {
     const offs = [
       onGp('gp:dpad-up',   () => { if (!useStore.getState().powerPending) setFocusIdx(i => Math.max(0, i - 1)) }),
-      onGp('gp:dpad-down', () => { if (!useStore.getState().powerPending) setFocusIdx(i => Math.min(OPTIONS.length - 1, i + 1)) }),
-      onGp('gp:confirm',   () => handleAction(OPTIONS[focusIdxRef.current].id)),
+      onGp('gp:dpad-down', () => { if (!useStore.getState().powerPending) setFocusIdx(i => Math.min(optionsRef.current.length - 1, i + 1)) }),
+      onGp('gp:confirm',   () => {
+        const o = optionsRef.current[focusIdxRef.current]
+        if (o) handleAction(o.id)
+      }),
       onGp('gp:back',  safeClose),
       onGp('gp:power', safeClose),
     ]
@@ -136,7 +179,7 @@ export default function PowerModal({ onClose, view: View = DefaultPowerView }: P
 
   return (
     <View
-      options={OPTIONS}
+      options={options}
       focusIdx={focusIdx}
       confirmId={confirm}
       pendingId={powerPending}

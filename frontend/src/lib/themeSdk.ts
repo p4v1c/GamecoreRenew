@@ -161,8 +161,25 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
         if (isPlaying()) return
         rumble(pattern)
       },
-      /** The player's haptics setting, read-only — same contract as `sound`. */
-      get haptics() { return { enabled: rumbleSettings.enabled } },
+      /**
+       * The player's haptics setting.
+       *
+       * Readable so a theme can respect it; writable so a theme that replaces
+       * Settings → Audio can still offer it. It used to be read-only, and the
+       * comment said "setting it stays in Settings → Audio" — true while that
+       * page was always the host's. Once a theme can render its own, that
+       * sentence stopped describing a boundary and started describing a hole:
+       * replacing the page silently deleted the vibration switch from the box,
+       * with the page still there and nothing able to reach it. That is the
+       * same failure `catalog` and `storage` shipped as, arriving by a
+       * different door.
+       */
+      get haptics() {
+        return {
+          get enabled() { return rumbleSettings.enabled },
+          set enabled(v: boolean) { rumbleSettings.enabled = !!v },
+        }
+      },
     },
 
     system: {
@@ -174,16 +191,31 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
       },
       getAudioContext,
       /**
-       * The player's sound setting, read-only.
+       * The player's sound setting.
        *
-       * A theme that runs an ambience needs it: `playSound` gates itself, but a
-       * loop the theme starts would otherwise keep playing after the player
-       * turned sound off, and ignore their volume. Setting it stays in
-       * Settings → Audio.
+       * A theme that runs an ambience needs to READ it: `playSound` gates
+       * itself, but a loop the theme starts would otherwise keep playing after
+       * the player turned sound off, and ignore their volume.
+       *
+       * Writable for the same reason `haptics` is — a theme rendering its own
+       * Settings → Audio has to be able to set what that page sets, or
+       * replacing the page quietly removes the control from the console.
+       *
+       * `volume` is 0–1 in both directions, which is the unit a theme mixes in;
+       * the 0–100 the slider stores is an implementation detail of localStorage
+       * and stays behind this boundary. Clamped, because a theme is code its
+       * owner installed and a NaN here silences the box until someone finds
+       * this key in devtools.
        */
       sound: {
         get enabled() { return soundSettings.enabled },
+        set enabled(v: boolean) { soundSettings.enabled = !!v },
         get volume() { return soundSettings.volume / 100 },
+        set volume(v: number) {
+          const n = Number(v)
+          soundSettings.volume = Math.round(
+            Math.max(0, Math.min(1, isFinite(n) ? n : 0.6)) * 100)
+        },
       },
       gamecore: window.gamecore,
 
