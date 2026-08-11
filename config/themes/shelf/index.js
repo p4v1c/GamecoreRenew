@@ -13,9 +13,10 @@
  *   views/  splash.js     the cartridge going in     home.js      the consoles
  *           background.js the wall                   library.js   the shelf
  *           box.js        the solid and its spines   cartridge.js the media
- *           topbar.js     the shelf label            settings.js  the drawer
+ *           topbar.js     the shelf label            settings.js  the rail
  *           themes.js     the picker                 power.js     restart/off
- *           gamepad.js    the live pad
+ *           gamepad.js    the live pad               controllers.js what is
+ *                                                                  plugged in
  *
  *   lib/    paper.js      the wallpaper, as a mask   accent.js    the colour
  *           names.js      titles, letters, regions   dossier.js   one lookup
@@ -42,6 +43,7 @@ import { createCartridge } from './views/cartridge.js'
 import { createSplash } from './views/splash.js'
 import { createSettings } from './views/settings.js'
 import { createThemesPage } from './views/themes.js'
+import { createControllersPage } from './views/controllers.js'
 import { createPowerView } from './views/power.js'
 import { createGamepadView } from './views/gamepad.js'
 
@@ -64,7 +66,14 @@ export default (sdk) => {
     Box: createBox(sdk),
     Cartridge: createCartridge(sdk),
   })
-  const Settings = createSettings(sdk, { themes: createThemesPage(sdk) })
+  // `themes` overrides a host page; `controllers` adds one the host does not
+  // have. Both ride the same merge — `{ ...DefaultSettingsPages, ...ownPages }`
+  // — and only `themes` belongs in theme.json's settings.pages, which lists
+  // host pages reached and nothing else.
+  const Settings = createSettings(sdk, {
+    themes: createThemesPage(sdk),
+    controllers: createControllersPage(sdk),
+  })
 
   const Shell = () => html`
     <${sdk.defaults.Shell}

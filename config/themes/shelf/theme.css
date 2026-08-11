@@ -1316,7 +1316,52 @@
 
 .cz-hint-modal { margin-top: 16px; color: rgba(237, 234, 227, 0.42); line-height: 1.7; }
 
+/* ── the settings rail ────────────────────────────────────────────────────
+   The reference capture's numbered list, in the drawer's palette rather than
+   its own. It was drawn teal-on-paper; the host pages these rows hand over to
+   write their text in hardcoded white, so a paper rail in front of a
+   white-on-dark Wi-Fi page is exactly the seam this overlay palette exists to
+   close. Structure from the capture, colour from the shelf. */
+.cz-set-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 13px 14px; border-radius: 12px; cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+.cz-set-row[data-on="1"] {
+  background: color-mix(in srgb, var(--gc-accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--gc-accent) 55%, transparent);
+  transform: translateX(3px);
+}
+.cz-set-row[data-danger="1"][data-on="1"] {
+  background: rgba(200, 70, 50, 0.18); border-color: rgba(200, 70, 50, 0.5);
+}
+.cz-set-num {
+  flex: 0 0 auto; width: 20px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em;
+  color: rgba(237, 234, 227, 0.3);
+}
+.cz-set-row[data-on="1"] .cz-set-num { color: var(--gc-accent-soft); }
+.cz-set-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cz-set-text b { font-size: 16px; font-weight: 500; }
+.cz-set-text i { font-style: normal; font-size: 12.5px; color: rgba(237, 234, 227, 0.5); }
+/* The live value at the end of a row. It is empty when the endpoint behind it
+   did not answer — deliberately empty, not a dash, which would read as a
+   reading of "none" rather than as the absence of one. */
+.cz-set-meta {
+  flex: 0 1 auto; max-width: 42%;
+  font-family: var(--font-mono); font-size: 12px; text-align: right;
+  color: var(--gc-accent-soft);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cz-set-chevron { flex: 0 0 auto; color: rgba(237, 234, 227, 0.35); font-size: 19px; }
+
 /* power */
+.cz-power-head {
+  margin: 16px 0 6px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.24em;
+  text-transform: uppercase; color: rgba(237, 234, 227, 0.32);
+}
 .cz-power-row { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 12px; cursor: pointer; border: 1px solid transparent; transition: background-color 160ms ease, border-color 160ms ease; }
 .cz-power-row[data-on="1"] { background: color-mix(in srgb, var(--row-accent, #B8892B) 16%, transparent); border-color: color-mix(in srgb, var(--row-accent, #B8892B) 55%, transparent); }
 .cz-power-row[data-confirm="1"] { background: rgba(200, 70, 50, 0.2); border-color: rgba(200, 70, 50, 0.6); }
@@ -1333,6 +1378,41 @@
   color: rgba(237, 234, 227, 0.7); font-family: var(--font-body); font-size: 15px;
 }
 .cz-power-cancel:disabled { opacity: 0.3; cursor: default; }
+
+/* ── Settings → Controllers ───────────────────────────────────────────────
+   This page renders inside the HOST's Overlay, which styles itself inline and
+   sets no colour on its children. Every rule here states its own ink; the
+   panel rows elsewhere in this file inherit theirs from .cz-panel, which is
+   not in this tree. */
+.cz-ctl-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 14px; margin-bottom: 6px; border-radius: 12px;
+  background: rgba(237, 234, 227, 0.05);
+  border: 1px solid var(--gc-overlay-border);
+  font-family: var(--font-body); color: #EDEAE3;
+}
+.cz-ctl-slot {
+  flex: 0 0 auto; display: grid; place-items: center;
+  min-width: 44px; height: 30px; padding: 0 8px; border-radius: 8px;
+  background: color-mix(in srgb, var(--gc-accent) 18%, transparent);
+  font-family: var(--font-mono); font-size: 12px; color: var(--gc-accent-bright);
+}
+.cz-ctl-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cz-ctl-text b {
+  font-size: 14px; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cz-ctl-text i { font-style: normal; font-size: 12px; color: rgba(237, 234, 227, 0.5); }
+.cz-ctl-head {
+  margin: 18px 0 8px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.24em;
+  text-transform: uppercase; color: rgba(237, 234, 227, 0.32);
+}
+.cz-ctl-note {
+  font-family: var(--font-body); font-size: 13px; line-height: 1.9;
+  color: rgba(237, 234, 227, 0.6);
+}
+.cz-ctl-note b { color: #EDEAE3; font-weight: 500; }
 
 /* controller */
 .cz-pad-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
