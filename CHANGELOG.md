@@ -28,6 +28,18 @@ are the auto-incremented tags.
 
 ### Changed
 
+- **The power menu offers "Return to desktop".** Leaving the front end is the
+  third way a session ends and it was reachable only from Settings → Desktop —
+  four rows into a menu nobody opens in order to quit, while the button that
+  means "I am done with this box" opened a screen that could reboot it and shut
+  it down but not step out of it. Same two-press confirmation and the same
+  failsafe as the other two. Every theme gets it; the settings page stays for
+  the sentence of explanation the row has no room for.
+- **Shelf's settings screen is a numbered rail, and Shelf v1 ships beside it.**
+  The previous drawer menu is installed unchanged as the separate theme
+  **Shelf v1**, selectable from Settings → Themes. It is the fallback if the
+  new screen turns out to be awkward on a pad — nothing to restore by hand.
+
 - **The kiosk is hosted on the machine's own X11 desktop session.** openbox is
   no longer installed and is no longer the auto-login target. Closing GameCore
   now reveals a usable desktop instead of an empty root window. Boxes installed

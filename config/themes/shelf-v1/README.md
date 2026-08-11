@@ -1,4 +1,18 @@
-# Shelf
+# Shelf v1
+
+**This is the fallback, kept deliberately.** It is Shelf as it stood before the
+settings rework: the same wall, the same shelf, the same box — and the older
+settings screen, a flat drawer menu of ten rows.
+
+It exists because the replacement cannot be proven from here. Shelf v2's rail
+renders, resolves every page and passes its tests, but nothing in this
+repository can establish that it is comfortable to cross with a thumbstick from
+three metres away. If it is not, this is the theme to select in
+Settings → Themes — no file to restore, no install to re-run.
+
+Everything below describes the shelf itself, which the two versions share.
+
+---
 
 Your library as objects on a papered wall. A system's games stand as spines;
 the selected one is turned towards you as a real solid and can be turned over;
@@ -69,86 +83,6 @@ reload:
 - **The fixed one** is seal gold, in `:root`. The host's settings widgets are
   drawn with inline styles and can only read `:root`, so chrome does not follow
   the artwork. The shelf does.
-
-## The settings rail, and why it is not the two-column screen
-
-The v2 capture draws Settings as a rail of numbered categories on the left and
-the selected category's contents on the right, both on screen at once. This is
-a rail that hands over to a full-screen page instead, and the reason is
-structural rather than a shortfall of effort.
-
-Every page in `sdk.defaults.DefaultSettingsPages` renders its own `<Overlay>`,
-which is `position: fixed; inset: 0`. The handles a theme is given on it are
-`--gc-overlay-{scrim,blur,panel,border,radius}` — colour, blur, corners. None
-of them insets the layer, so a page drawn "on the right" covers the rail
-whatever the theme does; and boxing it into a column nests `position: fixed`
-inside a flex panel, which is the exact thing that shattered the Wi-Fi page and
-painted it black.
-
-What carried the capture's meaning survives: the numbered rows, and the live
-value at the end of each one — the SSID you are on, how many pads answered,
-how many BIOS sets are complete. **Every one of those is read from the box or
-left blank.** The capture's own figures (−42 dBm, 82 % battery, `2.4.0 →
-2.4.2`) have no source on this machine, and a rail that invents them is a rail
-nobody can trust for the values that are real. A row whose endpoint did not
-answer shows nothing — not a dash, which reads as a measurement of "none".
-
-Eight rows for ten host pages, which is not a page left behind: `Update`,
-`Standby`, `Storage` and `Desktop` sit one level down under `System`, and
-`theme.json` declares all ten. Returning from one of them lands back on
-`System` rather than at the top of the rail.
-
-`Controllers` is this theme's own page — the host has none. It does not carry
-the capture's dead-zone slider or exit-combination picker, because neither
-exists on this box: dead zones are written per emulator by configgen and the
-exit hotkey is generated rather than chosen. It states what is connected, read
-from the Gamepad API rather than from `sysinfo.controllers` (that field is
-`read_batteries()`, which cannot see a wired pad), and says where the three
-real controller settings actually are.
-
-## What this screen deliberately does not do
-
-The capture proposes more than the box can honestly answer. These are refusals,
-written down so the next person does not spend a day rediscovering them.
-
-**Display — no resolution, refresh rate or VSync.** A mode switch needs a
-revert-unless-confirmed timer, and here that timer would have to run inside the
-frontend — the very surface a bad mode makes invisible and unpilotable. There
-is no second channel to confirm from with a pad in your hand. On top of that,
-`xrandr` is in none of the sudoers rules, `fullscreen_enforcer.py` reads the
-current display state, and the X11 session is configured at install time.
-VSync alone would have been safe, but it is written per emulator by configgen,
-so one global switch would misstate what it governs. Desktop Mode already puts
-the desktop's own display tools within reach.
-
-**System — no `pacman -Syu`.** The sudoers rules (`install/arch.sh`,
-`install/steps/setup-update-permissions.sh`) each name a binary and usually its
-exact arguments: `systemctl poweroff|reboot`, `udevadm trigger`,
-`gamecore-session-select gamecore|desktop`, two `systemctl start` units,
-`cpupower frequency-set`, and `gamecore-emu`. A NOPASSWD rule for pacman is not
-another line of that kind — pacman runs package hooks as root, so it is a root
-shell obtainable by installing any package. And the failure mode decides it
-anyway: interrupted halfway, `pacman -Syu` leaves mesa or the libc inconsistent
-— no frontend, no pad, no way back from a sofa, repair needs a TTY and a
-keyboard. Updating GameCore itself already covers the real need and is what
-Settings → System → Update does.
-
-**Emulator versions and "Update all".** `gamecore-emu` has `install`, `remove`,
-`reconfigure` and `verify` — no `update` verb — and nothing on the box asks a
-remote what version it offers. `pergame.emulator_version()` can read an
-installed Flatpak's version, but it is Flatpak-only and no endpoint exposes it.
-So the capture's `2.4.0 → 2.4.2`, its per-row Update buttons and its "Update
-all" describe an action that does not exist. This is the most tempting row on
-the screen and the most dishonest: it promises work nobody can perform.
-
-Also dropped for want of a source: Wi-Fi gateway/DNS/MAC/band/channel/link
-rate and WPA2-vs-WPA3 (the backend knows `secured`, a boolean, and a 0–100
-signal that is not dBm); the Wi-Fi and Bluetooth radio switches (no route);
-per-Bluetooth-device battery and RSSI (`BtDevice` is `{mac, name, connected,
-paired}`, and the battery levels that exist carry no MAC to join on); stick
-dead zone and exit combination; background music; the kernel version; and an
-ejectable internal disk — `storage.report()` excludes it on purpose, since an
-Eject button on your own root filesystem is not a feature.
 
 ## Deliberate deviations
 

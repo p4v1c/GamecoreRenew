@@ -1,10 +1,10 @@
 {
-  "id": "shelf",
-  "name": "Shelf",
-  "version": "2.0.0",
+  "id": "shelf-v1",
+  "name": "Shelf v1",
+  "version": "1.9.0",
   "api": 1,
   "author": "Claude, from p4v1c's reference capture",
-  "description": "Your library as boxed games on a papered wall — browse the spines, turn the box, slot the cartridge in",
+  "description": "Shelf as it was before the v2 settings rework — the drawer menu under the shelf. Kept selectable as the fallback if v2 turns out to be unusable on a pad",
   "provides": [
     "splash",
     "shell"
