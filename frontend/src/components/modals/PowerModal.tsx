@@ -25,6 +25,17 @@ const OPTIONS: PowerOption[] = [
   { id: 'forget',   label: 'Forget mapping', busy: 'Forgetting…', icon: '⌫', color: '#64748b', desc: 'Delete the connected pad’s saved controls, then scan again' },
   { id: 'restart',  label: 'Restart',  busy: 'Restarting…',    icon: '↺', color: '#f59e0b', desc: 'Reboot the system' },
   { id: 'shutdown', label: 'Shutdown', busy: 'Shutting down…', icon: '⏻', color: '#ef4444', desc: 'Power off' },
+  // Leaving for the desktop is the third way a session ends, and it belonged
+  // in the menu the other two are in. It was reachable only from
+  // Settings → Desktop, four rows into a menu nobody opens to quit — while the
+  // button that means "I am done with this box" opened a screen that could
+  // restart it and shut it down but not step out of it.
+  //
+  // Appended rather than slotted in beside Restart on purpose: `focusIdx`
+  // indexes this array, so the first entry is whatever the cursor starts on.
+  // Putting a session-ending action there would move the default focus off the
+  // harmless mapping scan and onto something two presses from quitting.
+  { id: 'desktop',  label: 'Return to desktop', busy: 'Leaving…', icon: '⌘', color: '#38bdf8', desc: 'Leave the front end for the system session' },
 ]
 
 // If the OS is still alive after this delay the power command failed
@@ -91,6 +102,16 @@ export default function PowerModal({ onClose, view: View = DefaultPowerView }: P
     }
     if (confirmRef.current !== id) { setConfirm(id); return }
     setPowerPending(id)
+    if (id === 'desktop') {
+      // The same two presses and the same pending lock as the two above: this
+      // also ends the session, and if the window refuses to go the failsafe is
+      // what gives the screen back instead of stranding the player on a menu
+      // that has stopped accepting input. Identical to Settings → Desktop,
+      // which stays for the sentence of explanation this row has no room for.
+      window.gamecore?.quit()
+      window.close()
+      return
+    }
     if (window.gamecore) {
       if (id === 'restart')  window.gamecore.reboot()
       if (id === 'shutdown') window.gamecore.shutdown()
