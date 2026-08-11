@@ -1,0 +1,1573 @@
+/* ===========================================================================
+   Shelf — a wall, a shelf, and the box you are holding.
+
+   Two accents, with two jobs, and they never meet:
+
+     · the live one — `--acc-*` — is read out of the jacket on screen and set
+       on each surface's own root by JS. The wall, the stamps and the focus
+       ring wear it, and it cross-fades when the selection settles.
+     · the fixed one — `--gc-accent*` — is the seal gold below. It dresses the
+       host's own settings widgets, which are drawn with inline styles and can
+       only read `:root`. Chrome does not follow the artwork; the shelf does.
+
+   No `z-index` in this file, anywhere. The shell owns stacking and DOM order
+   does the rest — that is the rule the theme system rests on.
+   =========================================================================== */
+
+:root {
+  /* paper */
+  --paper:      #F4F2ED;
+  --paper-sink: #E7E4DC;
+  --card:       #F8F7F4;
+  --card-well:  #FFFFFF;
+
+  /* ink */
+  --ink:    #17161A;
+  --ink-2:  #55535C;
+  --ink-3:  #8B8992;
+  --rule:   rgba(23, 22, 26, 0.12);
+  --rule-2: rgba(23, 22, 26, 0.06);
+
+  /* cardboard — the three faces nobody prints */
+  --board:      #1C1B19;
+  --board-lit:  #2A2825;
+  --board-dark: #0E0D0C;
+
+  /* live accent, until a jacket says otherwise */
+  --acc-h: 262;
+  --acc-s: 42%;
+  --acc-l: 56%;
+
+  --shadow-box:  0 26px 54px rgba(20, 18, 24, 0.30), 0 4px 12px rgba(20, 18, 24, 0.16);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 30px rgba(20, 18, 24, 0.10);
+
+  --r-card: 14px;
+  --r-chip: 999px;
+
+  --font-display: 'Space Grotesk', 'Outfit', system-ui, sans-serif;
+  --font-body:    'Outfit', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+
+  /* ── the host's overlays ────────────────────────────────────────────────
+     Wi-Fi, audio, Bluetooth, standby and the updater are reused as they are,
+     and every one of them writes its text in hardcoded white. So they stay on
+     a dark panel — a warm near-black rather than the default's blue-black, so
+     it reads as the drawer under the shelf rather than as another app. */
+  --gc-overlay-scrim:  rgba(20, 18, 15, 0.74);
+  --gc-overlay-blur:   blur(16px) saturate(112%);
+  --gc-overlay-panel:  rgba(28, 26, 23, 0.94);
+  --gc-overlay-border: rgba(244, 242, 237, 0.14);
+  --gc-overlay-radius: 18px;
+
+  /* seal gold */
+  --gc-accent:        #B8892B;
+  --gc-accent-soft:   #E2C070;
+  --gc-accent-bright: #FFF6E2;
+}
+
+/* live accent, resolved */
+.cz-wall, .cz-lib, .cz-home, .cz-splash {
+  --acc:      hsl(var(--acc-h) var(--acc-s) var(--acc-l));
+  --acc-deep: hsl(var(--acc-h) var(--acc-s) 26%);
+  --acc-wash: hsl(var(--acc-h) calc(var(--acc-s) * 0.75) 90%);
+}
+
+/* ── the wall ─────────────────────────────────────────────────────────────
+   Three flat layers. The pattern is a mask, never a picture, which is the
+   only reason the tint is a property that can transition at all. */
+.cz-wall { position: absolute; inset: 0; background: var(--paper); overflow: hidden; }
+
+.cz-wall-soft,
+.cz-wall-line {
+  position: absolute;
+  inset: -1px -1px calc(var(--wall-tile) * -1) calc(var(--wall-tile) * -1);
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+  -webkit-mask-size: var(--wall-tile) var(--wall-tile);
+  mask-size: var(--wall-tile) var(--wall-tile);
+  mask-mode: alpha;
+  transition: background-color 900ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+  animation: cz-drift 140s linear infinite;
+}
+.cz-wall-soft {
+  background-color: hsl(var(--acc-h) calc(var(--acc-s) * 0.6) 84%);
+  -webkit-mask-image: var(--wall-soft);
+  mask-image: var(--wall-soft);
+}
+.cz-wall-line {
+  background-color: hsl(var(--acc-h) calc(var(--acc-s) * 0.5) 62%);
+  opacity: 0.34;
+  -webkit-mask-image: var(--wall-line);
+  mask-image: var(--wall-line);
+  animation-duration: 190s;
+  animation-direction: reverse;
+}
+.cz-wall-vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(120% 80% at 50% 42%, transparent 42%, rgba(28, 24, 20, 0.16) 100%);
+}
+.cz-wall[data-idle="1"] .cz-wall-soft,
+.cz-wall[data-idle="1"] .cz-wall-line { animation-play-state: paused; }
+
+@keyframes cz-drift {
+  to { transform: translate3d(var(--wall-tile), var(--wall-tile), 0); }
+}
+
+/* ── top bar ──────────────────────────────────────────────────────────── */
+.cz-top {
+  position: relative;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  padding: 14px 30px 8px;
+  font-family: var(--font-mono); color: var(--ink-2);
+}
+.cz-tab {
+  font-size: 13px; font-weight: 500; letter-spacing: 0.34em;
+  color: var(--ink); text-transform: uppercase;
+}
+.cz-top-right { display: flex; align-items: center; gap: 14px; font-size: 11.5px; }
+
+.cz-pad { display: flex; align-items: center; gap: 6px; color: var(--ink-2); }
+.cz-pad > b { font-weight: 600; color: var(--ink-3); }
+.cz-bat { display: flex; gap: 2.5px; }
+.cz-bat > i { width: 5px; height: 12px; border-radius: 1.5px; background: rgba(23, 22, 26, 0.18); }
+.cz-bat > i[data-fill="1"] { background: var(--ink); }
+/* One segment left is a shape change as well as a colour change — a washed-out
+   TV eats the colour and keeps the rule. */
+.cz-pad[data-low="1"] { color: #A8321F; }
+.cz-pad[data-low="1"] .cz-bat > i[data-fill="1"] { background: #A8321F; }
+.cz-pad[data-low="1"] .cz-bat { box-shadow: 0 2px 0 #A8321F; padding-bottom: 2px; }
+.cz-bolt { font-style: normal; font-size: 11px; }
+.cz-pad-more { font-weight: 600; }
+
+.cz-store { display: flex; align-items: center; gap: 7px; }
+.cz-store-bar { display: block; width: 54px; height: 5px; border-radius: 3px; background: rgba(23, 22, 26, 0.14); overflow: hidden; }
+.cz-store-bar > i { display: block; height: 100%; background: var(--ink-2); transition: width 400ms ease; }
+.cz-store-bar > i[data-level="warn"]  { background: #9A7415; }
+.cz-store-bar > i[data-level="alert"] { background: #A8321F; }
+
+.cz-clock { font-size: 15px; font-weight: 500; color: var(--ink); letter-spacing: 0.04em; }
+
+.cz-tool {
+  display: grid; place-items: center; width: 30px; height: 30px;
+  border: 1px solid var(--rule); border-radius: 9px;
+  background: rgba(255, 255, 255, 0.5); color: var(--ink-2); cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+.cz-tool:hover { background: #fff; color: var(--ink); border-color: rgba(23, 22, 26, 0.24); }
+.cz-tool-power:hover { color: #A8321F; border-color: rgba(168, 50, 31, 0.45); }
+
+/* ===========================================================================
+   LIBRARY
+   =========================================================================== */
+.cz-lib {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  font-family: var(--font-body); color: var(--ink);
+  padding: 0 30px 14px;
+}
+
+/* ── header: search, index, sort ──────────────────────────────────────── */
+.cz-head {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  gap: 16px; padding-top: 2px;
+}
+
+/* The bar shows the query and names the button that opens the host's
+   keyboard. The field is for a mouse, and calls the host's own onSearch. */
+.cz-search {
+  display: flex; align-items: center; gap: 8px; justify-self: start;
+  padding: 6px 8px 6px 12px; border-radius: var(--r-chip);
+  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid var(--rule-2);
+  color: var(--ink-3);
+  transition: border-color 200ms ease, background-color 200ms ease;
+}
+.cz-search[data-live="1"] {
+  background: #fff; border-color: var(--acc-deep); color: var(--ink);
+}
+.cz-search input {
+  width: 168px; border: 0; background: none; outline: none; padding: 0;
+  font-family: var(--font-body); font-size: 14px; color: var(--ink);
+}
+.cz-search input::placeholder { color: var(--ink-3); }
+.cz-search > kbd {
+  display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 6px;
+  border-radius: 6px; background: var(--ink); color: var(--paper);
+  font-family: var(--font-mono); font-size: 10px;
+}
+.cz-search-n { font-family: var(--font-mono); font-size: 11px; color: var(--acc-deep); }
+.cz-search-x {
+  border: 0; background: none; cursor: pointer; padding: 0 4px;
+  font-size: 18px; line-height: 1; color: var(--ink-3);
+}
+.cz-search-x:hover { color: var(--ink); }
+
+.cz-sortchip {
+  justify-self: end; display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-3);
+}
+.cz-sortchip > kbd {
+  display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 6px;
+  border-radius: 6px; background: rgba(23, 22, 26, 0.1); color: var(--ink-2);
+  font-family: inherit; font-size: 10px;
+}
+
+.cz-rail-index {
+  display: flex; align-items: center; justify-content: center; gap: 2px;
+  justify-self: center;
+  padding: 4px 10px; border-radius: var(--r-chip);
+  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid var(--rule-2);
+  font-family: var(--font-mono); font-size: 12px;
+}
+.cz-letter {
+  width: 22px; height: 22px; border: 0; border-radius: 50%;
+  background: transparent; color: rgba(23, 22, 26, 0.22);
+  font: inherit; cursor: default; padding: 0;
+  transition: color 200ms ease, background-color 200ms ease;
+}
+.cz-letter[data-has="1"] { color: var(--ink-3); cursor: pointer; }
+.cz-letter[data-has="1"]:hover { color: var(--ink); }
+.cz-letter[data-on="1"] { background: var(--ink); color: var(--paper); }
+.cz-sortnote { display: flex; align-items: center; gap: 10px; padding: 0 6px; color: var(--ink-2); }
+.cz-sortback {
+  border: 0; background: none; padding: 0; cursor: pointer;
+  font: inherit; color: var(--acc-deep); text-decoration: underline; text-underline-offset: 3px;
+}
+
+/* ── the shelf ────────────────────────────────────────────────────────── */
+.cz-body { flex: 1; min-height: 0; display: flex; gap: 26px; padding-top: 10px; }
+
+.cz-stage { position: relative; flex: 1; min-width: 0; overflow: hidden; }
+
+/* The line the boxes stand on. One hairline; the shadow does the rest. */
+.cz-shelfline {
+  position: absolute; left: -30px; right: -30px; bottom: 12%;
+  height: 1px; background: rgba(23, 22, 26, 0.16);
+  box-shadow: 0 -14px 26px -12px rgba(23, 22, 26, 0.22);
+}
+
+.cz-rail {
+  position: absolute; inset: 0;
+  transform: translate3d(calc(var(--i) * var(--pitch) * -1), 0, 0);
+  transition: transform 340ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+  --pitch: 40px;
+}
+
+.cz-slot {
+  position: absolute; left: 50%; top: 50%;
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -50%) translateX(calc(var(--o) * var(--pitch))) rotate(var(--lean, 0deg));
+}
+/* A gap in the row is a gap because something left it, and for exactly as long
+   as that thing is out. Nothing else may hide a spine.
+
+   This used to be `[data-on="1"]` — hide whatever is selected, always. That is
+   true at rest and a lie during a swap: it left an empty column standing at the
+   centre for the whole time the previous jacket was being put away, so by the
+   time the next one came out its hole had been waiting for it. A shelf does not
+   work like that. The hole appears when the box does, because it IS the box
+   having left.
+
+   The view sets `data-gap` on two columns, and only ever while there is
+   movement:
+
+     the column being filled  — one pitch out, held open from the moment the
+                                jacket starts back until it has landed in it
+     the column being emptied — the centre, opened at the instant the arriving
+                                jacket takes over from its own spine
+
+   Hiding rather than removing keeps the rail's spacing exactly as it was, so
+   nothing shuffles when you move along the shelf. And the handoff needs no
+   crossfade in either direction: what appears and what disappears are the same
+   artwork, at the same size, in the same column, at the same depth — the solid
+   spends the ends of both animations being, precisely, a spine. */
+.cz-slot[data-gap="1"] { visibility: hidden; }
+
+.cz-spine {
+  display: block; width: 34px; height: 320px; padding: 0;
+  border: 0; border-radius: 2px; cursor: pointer;
+  background: var(--board);
+  box-shadow: 0 14px 26px -10px rgba(20, 18, 24, 0.5),
+              inset -6px 0 12px -8px rgba(0, 0, 0, 0.7),
+              inset 1px 0 0 rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+  transition: transform 200ms ease;
+}
+.cz-spine > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cz-spine:hover { transform: translateY(-8px); }
+
+/* No scan: a black field and a coloured wordmark, which is what the real
+   cardboard is. */
+.cz-spine-print {
+  display: flex; flex-direction: column; align-items: center; height: 100%;
+  padding: 8px 0;
+  background: linear-gradient(90deg, var(--board-dark), var(--board-lit) 55%, var(--board-dark));
+}
+.cz-spine-cap, .cz-spine-foot {
+  flex: 0 0 auto; width: 18px; height: 4px; border-radius: 1px;
+  background: hsl(var(--spine-h) 62% 52%);
+}
+.cz-spine-foot { opacity: 0.5; }
+.cz-spine-name {
+  flex: 1; min-height: 0; margin: 8px 0;
+  writing-mode: vertical-rl; text-orientation: mixed;
+  font-family: var(--font-display); font-size: 12.5px; font-weight: 600;
+  letter-spacing: 0.06em; color: #EDEAE3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── the solid ────────────────────────────────────────────────────────── */
+/* The perspective sits here, one level above the solid, because it only ever
+   reaches direct children — and here rather than on .cz-stage because this is
+   also the element that fades, and `opacity` below 1 forces `preserve-3d` to
+   `flat` on the element carrying it. The solid keeps its depth; the fade is
+   applied to the finished scene. */
+.cz-hold {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  perspective: 1700px;
+  perspective-origin: 50% 46%;
+  transition: opacity 200ms ease;
+
+  /* Where the row is, in this stacking, and how far one step along it is.
+     Everything else about the swap is shared; these two numbers are all that
+     differ between a shelf, a pile and a gallery, and both fall out of the
+     geometry rather than being chosen:
+
+       --dive   the depth at which the solid draws the same size as a spine
+                = -perspective × (box length / spine length - 1)
+       --slide  one rail pitch, measured BEFORE the perspective divides it
+                = pitch × box length / spine length
+
+     shelf    1700 perspective, 400 box, 320 spine, 40 pitch  ->  -425 / 50
+     gallery  2600 perspective, 440 box, 320 spine, 40 pitch  ->  -975 / 55
+     stack    1400 perspective, 400 box, 380 spine, 46 pitch  ->   -74 / 48
+
+     If any of those six numbers is edited, the pair below is wrong and the
+     jacket stops landing flush — that is the whole contract of this block. */
+  --dive: -425px;
+  --slide: 50px;
+}
+
+/* The thing that carries the box about — and the reason the box stays a box.
+
+   .cz-hold is `transform-style: flat`, which is correct: it is the perspective
+   element and the element that fades. But that also means anything it holds is
+   rendered once and then composited as a picture into the holder's plane. A
+   rotation applied to .cz-hold therefore turns a photograph of a box, not a
+   box: the volume goes, which is exactly what an earlier version did.
+
+   So the travel lives here instead. `preserve-3d` extends the holder's 3D
+   context down to the solid, so translating this element moves the box THROUGH
+   the perspective — it recedes as it goes back into the row — while the box
+   itself keeps doing its own rotating one level below.
+
+   Nothing that groups (opacity, filter, clip) may ever be set here: any of them
+   silently forces this back to `flat` and the volume is lost again.
+
+   The origin is the bottom edge because that is where a box on a shelf pivots,
+   and because it is where `.cz-slot` pivots: the lean this element takes on at
+   the end of the journey has to be the same lean, about the same point, as the
+   spine standing in that column. A slot's origin is its own bottom, 40px above
+   the solid's — a 3° rotation about pivots 40px apart differs by two pixels,
+   which is close enough to hand off on. */
+.cz-carry {
+  display: block;
+  transform-style: preserve-3d;
+  transform-origin: 50% 100%;
+}
+/* The artwork settles 150ms behind the cursor. Rather than hide the lag, own
+   it: the box eases while the next jacket is on its way. */
+.cz-hold[data-turning="1"] { opacity: 0.62; }
+
+/* While the jacket you are moving to is still IN the row, the row draws it.
+   Not this.
+
+   The arriving solid is mounted from the first frame — it has to be, its
+   animation needs the delay to run against — and `backwards` parks it at its
+   opening pose, which is deliberately indistinguishable from a spine standing
+   in the row. Left on screen, that is a second copy of a spine the rail is
+   already drawing, sitting on top of the jacket that is still on its way out.
+   That is the doubled spine over the departing box.
+
+   So it waits its turn out of sight, and comes back at the instant the rail
+   gives its column up — one flag, one render, both sides of the handoff. Not
+   `opacity`: that would group the element and flatten the solid inside it,
+   which is the mistake this whole file exists to avoid. `visibility` reserves
+   the space, keeps the 3D context intact, and is the same mechanism the row
+   itself uses to hold a gap open. */
+.cz-hold[data-tucked="1"] { visibility: hidden; }
+
+/* ── The jacket coming out, and the last one going back in ────────────────
+   Two nodes live in the holder while one replaces the other, so the gesture
+   reads both ways: the box you left slides back down between its neighbours
+   and turns away, while the one you moved to is drawn forward and round to
+   face you. The outgoing node is dropped by the view when PULL_MS is up.
+
+   Same duration and the same curve for both, so they read as one movement
+   rather than two that happen to overlap. `backwards` matters: without it the
+   first frame shows the final pose before the animation starts. */
+/* Putting a box away is two movements, and they happen on two elements.
+
+   First it turns until it is edge-on — perpendicular to you, spine out, the
+   pose it holds between its neighbours. Only then does it move sideways into
+   the gap the row keeps open: the selected slot is not drawn
+   (`.cz-slot[data-on="1"] { visibility: hidden }`), and one rail pitch away is
+   where the jacket you just left belongs. Taking the next one out is the same
+   backwards — it comes out of its gap edge-on, travels to the middle, and only
+   there turns to face you.
+
+   Why three animations rather than one:
+
+     fade    on .cz-hold   — opacity groups, so it must NOT touch the 3D layer
+     travel  on .cz-carry  — preserve-3d, so the move happens inside the
+                             perspective and the box recedes as it goes back
+     turn    on .cz-box    — the solid's own rotateY, the only place a rotation
+                             can go without flattening the thing being rotated
+
+   The rotation must be the box's own `rotateY`, not the holder's: the holder is
+   flat, so turning it turns a rendered picture of the box and the thickness
+   disappears mid-gesture. Turning .cz-box instead means the spine, the top and
+   the opening edge all stay real — you watch the tranche widen as the front
+   narrows, which is the whole point of the box being assembled at all.
+
+   90 degrees, not 84. A flat picture at 90° has no width and blinks out, which
+   is why the earlier version stopped short. A solid at 90° is its spine, ~38px
+   of it, facing you — the same face the row is made of. Stopping short now
+   would leave it visibly crooked next to its neighbours.
+
+   `linear` on the elements, easing declared per keyframe: the two halves are
+   separate gestures and each wants its own curve, and — since three animations
+   have to stay in step — an easing applied to the whole would have to be
+   identical on all three anyway. This way the 50% mark is the 50% mark
+   everywhere. */
+/* ── where -425px comes from, and why the box does not fade ───────────────
+   The row is a real row and the gesture has to end IN it, not near it. So the
+   box travels back until it is, to the pixel, one of the spines:
+
+     a spine is 320px tall; the solid is `--h`, 400px on the shelf's screen
+     perspective is 1700px, so an element at depth z draws at 1700 / (1700 - z)
+     320 / 400 = 0.8  ⇒  z = -425px
+
+   At the end of the push the box is therefore the same height, at the same
+   depth, in the same column as its neighbours: it IS a spine on the shelf. The
+   real one is swapped in underneath at that exact moment (the view holds the
+   slot open with `data-gap` for precisely as long as the jacket is in flight),
+   so there is nothing to cross-fade and nothing that pops.
+
+   Which is why no opacity is animated on the way out at all. An earlier version
+   dissolved the box as it went, and it read as the jacket giving up halfway
+   rather than being put away — you never saw it arrive.
+
+   -50px sideways, not -40: the depth divides it. 0.8 × 50 = 40, one rail pitch,
+   which is where the gap is.
+
+   `--tilt` unwinds to 0 over the same interval. A box lying back 5° is a box
+   being shown to you; a box in the row stands straight, like its neighbours.
+
+   And `translateZ(--w / -2)`, which is the whole reason the arithmetic above
+   was not enough on its own. Turning the box a quarter turn about its centre
+   swings the printed spine — the face you end up looking at — a half-width
+   TOWARDS you: at 90° the face that started at x = -w/2 is sitting at z = +w/2.
+   So the solid can be at the row's depth while the only part of it you can see
+   is 144px in front of the row, drawing ~11% too tall next to its neighbours.
+   That was visible: the box that had supposedly gone back on the shelf stayed
+   the tallest thing on it.
+
+   Pushing the solid back by half its own width cancels exactly that, and it has
+   to be `--w` rather than a number because the width is the artwork's: a PS1
+   box and a Mega Drive box do not swing the same distance. The result is that
+   the printed spine lands at the depth the row is at, whatever shape the box
+   is. Every keyframe carries all three functions, including the ones where the
+   translate is zero, so the list interpolates component-wise instead of being
+   flattened to matrices. */
+/* `--lean` is the last thing that made a landed jacket read as not belonging.
+   No spine on this shelf stands upright — each is tilted a degree or three by
+   its index, which is what stops the row looking like a printed pattern. A box
+   that arrives perfectly straight lands between two leaning neighbours, closes
+   the wedge of light on one side and opens it on the other, and the three of
+   them look like they are being pressed together. The view passes the lean of
+   the column being landed in, so the solid finishes at the angle the spine it
+   is replacing was already at, and comes back upright on the way out. */
+@keyframes cz-push-travel {
+  0%, 46% { animation-timing-function: cubic-bezier(0.5, 0, 0.3, 1);
+            transform: translate3d(0, 0, 0) rotateZ(0deg); }
+  100%    { transform: translate3d(calc(var(--dir, 1) * var(--slide) * -1), 0, var(--dive))
+                       rotateZ(var(--lean, 0deg)); }
+}
+@keyframes cz-push-turn {
+  0%      { animation-timing-function: cubic-bezier(0.45, 0, 0.35, 1);
+            transform: translateZ(0px) rotateX(var(--tilt)) rotateY(var(--turn)); }
+  46%     { transform: translateZ(calc(var(--w) / -2)) rotateX(0deg) rotateY(90deg); }
+  100%    { transform: translateZ(calc(var(--w) / -2)) rotateX(0deg) rotateY(90deg); }
+}
+
+/* Coming out is the same distances backwards, and it starts from the row: at 0%
+   the solid is spine-sized, at spine depth, in the column its own spine was
+   standing in a frame ago — the view hides that spine on the same tick. Nothing
+   fades in, because from the viewer's side nothing arrived. The row is still
+   full. Then this pulls forward, and the hole opens behind it because the thing
+   that was filling it is now in your hand.
+
+   There is no opacity anywhere in either direction. Every frame of the swap has
+   the same number of spines in the row plus one solid somewhere between the row
+   and the front of the stage. */
+@keyframes cz-pull-travel {
+  0%      { animation-timing-function: cubic-bezier(0.32, 0, 0.2, 1);
+            transform: translate3d(0, 0, var(--dive)) rotateZ(var(--lean, 0deg)); }
+  42%     { transform: translate3d(0, 0, 0) rotateZ(0deg); }
+  100%    { transform: translate3d(0, 0, 0) rotateZ(0deg); }
+}
+
+/* The pile runs down the screen instead of across it, and its spines lie on
+   their sides, so the same gesture needs the step on the other axis and a
+   quarter turn in the plane of the screen to match the bars it is joining.
+   Nothing else changes: same depth, same timings, same handoff, same reading
+   of the two keyframes above. The lean is dropped because a pile has none —
+   `.cz-lib[data-view="stack"] .cz-slot` sets a flat -90° and no jitter. */
+@keyframes cz-push-travel-y {
+  0%, 46% { animation-timing-function: cubic-bezier(0.5, 0, 0.3, 1);
+            transform: translate3d(0, 0, 0); }
+  100%    { transform: translate3d(0, calc(var(--dir, 1) * var(--slide) * -1), var(--dive)); }
+}
+@keyframes cz-pull-travel-y {
+  0%      { animation-timing-function: cubic-bezier(0.32, 0, 0.2, 1);
+            transform: translate3d(0, 0, var(--dive)); }
+  42%     { transform: translate3d(0, 0, 0); }
+  100%    { transform: translate3d(0, 0, 0); }
+}
+
+/* `rotateZ` sits outside `rotateY`, so the box is turned edge-on first and then
+   laid down — the printed spine ends up facing you along a horizontal bar. It
+   is outside the `translateZ` compensation too, and harmlessly so: spinning
+   about the viewing axis moves nothing in depth, so the half-width the quarter
+   turn brought forward is still exactly what gets pushed back. */
+@keyframes cz-push-turn-flat {
+  0%      { animation-timing-function: cubic-bezier(0.45, 0, 0.35, 1);
+            transform: translateZ(0px) rotateZ(0deg)
+                       rotateX(var(--tilt)) rotateY(var(--turn)); }
+  46%     { transform: translateZ(calc(var(--w) / -2)) rotateZ(-90deg)
+                       rotateX(0deg) rotateY(90deg); }
+  100%    { transform: translateZ(calc(var(--w) / -2)) rotateZ(-90deg)
+                       rotateX(0deg) rotateY(90deg); }
+}
+@keyframes cz-pull-turn-flat {
+  0%      { transform: translateZ(calc(var(--w) / -2)) rotateZ(-90deg)
+                       rotateX(0deg) rotateY(90deg); }
+  42%     { animation-timing-function: cubic-bezier(0.25, 0.8, 0.35, 1);
+            transform: translateZ(calc(var(--w) / -2)) rotateZ(-90deg)
+                       rotateX(0deg) rotateY(90deg); }
+  100%    { transform: translateZ(0px) rotateZ(0deg)
+                       rotateX(var(--tilt)) rotateY(var(--turn)); }
+}
+@keyframes cz-pull-turn {
+  0%      { transform: translateZ(calc(var(--w) / -2)) rotateX(0deg) rotateY(90deg); }
+  42%     { animation-timing-function: cubic-bezier(0.25, 0.8, 0.35, 1);
+            transform: translateZ(calc(var(--w) / -2)) rotateX(0deg) rotateY(90deg); }
+  100%    { transform: translateZ(0px) rotateX(var(--tilt)) rotateY(var(--turn)); }
+}
+
+/* One after the other, not both at once.
+
+   Run together, the two jackets crossed in the middle and neither read. A box
+   goes back on the shelf, and only then is the next one taken out — that is
+   the gesture, and it is a sequence.
+
+   The delay on the arriving lines is `--wait`, set by the view and only when
+   there IS something to put away: opening the shelf has no outgoing jacket, and
+   a fixed delay there would leave the first box invisible with nothing
+   happening. `backwards` holds the arriving one at its opening frame — edge-on,
+   deep in its gap, opacity 0 — for the whole wait.
+
+   No `forwards` on the arriving three: their last keyframe is the resting pose
+   the base rules already declare, so letting the fill lapse changes nothing on
+   screen and hands the box back to its `transition` for the flip.
+
+   PULL_MS in views/library.js is the sum of wait and pull, so the outgoing node
+   stays mounted for the whole sequence and `--dir` cannot change halfway. */
+.cz-hold[data-phase="out"] .cz-carry  { animation: cz-push-travel 360ms linear forwards; }
+.cz-hold[data-phase="out"] .cz-box    { animation: cz-push-turn   360ms linear forwards; }
+
+/* 560ms, not 440. The gesture is two moves in sequence — the box comes forward
+   out of its gap, then turns to face you — and the handover between them is the
+   percentage in the keyframes above. At 440ms with a handover at 54%, the turn
+   had 202ms to cover 90°, which read as dry: it arrived before the eye had
+   followed it round.
+
+   Lengthening the whole animation and moving the handover earlier gives the
+   turn the extra time WITHOUT slowing the part that was already right: the
+   travel keeps ~235ms (42% of 560, against 54% of 440), and the turn goes from
+   202ms to ~325ms.
+
+   PULL_MS in views/library.js is wait + this. Change one, change the other, or
+   the outgoing jacket is dropped while the arriving one is still turning. */
+.cz-hold[data-phase="in"] .cz-carry   { animation: cz-pull-travel 560ms linear var(--wait, 0ms) backwards; }
+.cz-hold[data-phase="in"] .cz-box     { animation: cz-pull-turn   560ms linear var(--wait, 0ms) backwards; }
+
+/* The other two stackings put the jacket away the same way, because they are
+   the same shelf seen from somewhere else — they have a row, the row has a gap
+   where the selected game is missing, and that gap is where the jacket goes.
+   They used to cross-fade, on the reasoning that a depth cue would read as a
+   glitch when the row is face-on or lying down. It reads as a glitch when the
+   jacket does not go anywhere; give it the gap and it reads as a shelf.
+
+   Gallery needs nothing but its own `--dive` and `--slide`: same row, same
+   pitch, same spines, only a longer box and a flatter perspective.
+
+   Stack changes axis, so it swaps the animation NAME and keeps everything the
+   base rules already set — duration, delay, fill, and the `--wait` that
+   sequences the two halves stay in one place for all three views. */
+.cz-lib[data-view="gallery"] .cz-hold { --dive: -975px; --slide: 55px; }
+.cz-lib[data-view="stack"]   .cz-hold { --dive: -74px;  --slide: 48px; }
+
+.cz-lib[data-view="stack"] .cz-hold[data-phase="out"] .cz-carry { animation-name: cz-push-travel-y; }
+.cz-lib[data-view="stack"] .cz-hold[data-phase="out"] .cz-box   { animation-name: cz-push-turn-flat; }
+.cz-lib[data-view="stack"] .cz-hold[data-phase="in"]  .cz-carry { animation-name: cz-pull-travel-y; }
+.cz-lib[data-view="stack"] .cz-hold[data-phase="in"]  .cz-box   { animation-name: cz-pull-turn-flat; }
+
+
+/* Cast on the shelf, not attached to the box: a filter on the solid itself
+   would flatten it. */
+.cz-castshadow {
+  position: absolute; left: 50%; top: 50%;
+  width: 380px; height: 46px;
+  transform: translate(-50%, 172px);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(20, 18, 24, 0.34), transparent 78%);
+  filter: blur(7px);
+  transition: opacity 200ms ease;
+}
+.cz-lib[data-view="stack"] .cz-castshadow { opacity: 0; }
+
+.cz-box {
+  --h: clamp(230px, 40vh, 400px);
+  --w: calc(var(--h) * var(--ratio));
+  --d: clamp(15px, calc(var(--w) * 0.13), 38px);
+  --turn: 25deg;
+  --tilt: -5deg;
+
+  position: relative; width: var(--w); height: var(--h);
+  transform-style: preserve-3d;
+  transform: rotateX(var(--tilt)) rotateY(var(--turn));
+
+  /* `width` and `height` are transitioned here on purpose, and removing them
+     was a mistake worth recording. --w is derived from --ratio, which changes
+     the moment a cover measures; without an ease, that change is a snap, and a
+     snap in the middle of the jacket coming out of the shelf is the "it
+     teleports, then sits down correctly" this theme was reported for.
+
+     They were dropped for a perf argument — easing a layout property re-runs
+     layout on the box and its six faces every frame — made without being able
+     to watch the result. The visible cost of removing them was immediate and
+     the invisible gain was speculative. views/box.js remembering each game's
+     proportions is what actually reduces how often this fires; the ease is what
+     makes the remaining times bearable.
+
+     No `will-change: transform` here either. It was added for the same perf
+     argument, on two elements carrying `transform-style: preserve-3d` — a
+     combination that promotes the layer and, depending on the engine, flattens
+     the 3D context. A box that flattens and un-flattens reads as a jump of
+     pose, which is the other half of the same report. */
+  transition: transform 620ms cubic-bezier(0.22, 0.61, 0.36, 1),
+              width 300ms ease, height 300ms ease;
+}
+/* Turning it over carries on the way it was already going, past the opening
+   edge — the gesture of a box in a hand, not a card flip. */
+.cz-box[data-flipped="1"] { transform: rotateX(var(--tilt)) rotateY(calc(var(--turn) + 180deg)); }
+
+.cz-f {
+  position: absolute; left: 50%; top: 50%;
+  overflow: hidden; backface-visibility: hidden;
+  background: var(--board);
+}
+.cz-f > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.cz-f-front, .cz-f-back { width: var(--w); height: var(--h); }
+.cz-f-front  { transform: translate(-50%, -50%) translateZ(calc(var(--d) / 2)); }
+.cz-f-back   { transform: translate(-50%, -50%) rotateY(180deg) translateZ(calc(var(--d) / 2)); }
+
+.cz-f-spine, .cz-f-edge { width: var(--d); height: var(--h); }
+.cz-f-spine  { transform: translate(-50%, -50%) rotateY(-90deg) translateZ(calc(var(--w) / 2)); }
+.cz-f-edge   { transform: translate(-50%, -50%) rotateY(90deg)  translateZ(calc(var(--w) / 2)); }
+
+.cz-f-top, .cz-f-bottom { width: var(--w); height: var(--d); }
+.cz-f-top    { transform: translate(-50%, -50%) rotateX(90deg)  translateZ(calc(var(--h) / 2)); }
+.cz-f-bottom { transform: translate(-50%, -50%) rotateX(-90deg) translateZ(calc(var(--h) / 2)); }
+
+/* Cardboard: the opening edge folds, the ends catch the light from above. */
+.cz-f-edge {
+  background: linear-gradient(90deg, var(--board-dark), var(--board-lit) 40%, var(--board-dark));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.cz-f-top    { background: linear-gradient(180deg, var(--board-lit), var(--board)); }
+.cz-f-bottom { background: var(--board-dark); }
+
+.cz-f-spine[data-scan="0"] {
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(90deg, var(--board-dark), var(--board-lit) 55%, var(--board-dark));
+}
+.cz-f-spine[data-scan="0"] .cz-spine-name { margin: 12px 0; }
+
+.cz-noart {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 22px; text-align: center;
+  background: linear-gradient(160deg, var(--board-lit), var(--board-dark));
+}
+.cz-noart-name {
+  font-family: var(--font-display); font-size: 19px; font-weight: 700;
+  line-height: 1.25; color: #EDEAE3;
+}
+.cz-noart-note {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: rgba(237, 234, 227, 0.42);
+}
+
+/* ── the printed reverse ──────────────────────────────────────────────── */
+.cz-back {
+  width: 100%; height: 100%; padding: 18px 18px 14px;
+  display: flex; flex-direction: column; gap: 12px;
+  background: linear-gradient(170deg, #211F1C, #131211);
+  color: #E6E2DA;
+}
+.cz-back-head > b {
+  display: block; font-family: var(--font-display); font-size: 17px; font-weight: 700;
+  line-height: 1.15; letter-spacing: -0.01em;
+}
+.cz-back-head > i {
+  display: block; margin-top: 4px; font-style: normal;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: hsl(var(--spine-h, 40) 55% 66%);
+}
+.cz-back-shots { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; }
+.cz-back-shots[data-n="1"] { grid-template-columns: 1fr; }
+.cz-back-shots img {
+  display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
+  border: 1px solid rgba(237, 234, 227, 0.16); border-radius: 2px;
+}
+.cz-back-blurb {
+  flex: 1; min-height: 0; margin: 0;
+  font-size: 11.5px; line-height: 1.5; color: rgba(230, 226, 218, 0.66);
+  overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical;
+}
+.cz-back-fine {
+  display: flex; justify-content: space-between; gap: 10px;
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.12em;
+  color: rgba(230, 226, 218, 0.5);
+}
+.cz-back-code { color: rgba(230, 226, 218, 0.8); }
+.cz-back-bars {
+  height: 24px; border-radius: 2px; background: #EDEAE3;
+  background-image: repeating-linear-gradient(90deg,
+    #131211 0 1px, transparent 1px 3px, #131211 3px 5px, transparent 5px 6px,
+    #131211 6px 8px, transparent 8px 11px);
+  background-position: 6px 0; background-repeat: repeat-x;
+  background-size: auto 70%;
+}
+
+/* ── the card ─────────────────────────────────────────────────────────── */
+.cz-card {
+  flex: 0 0 400px;
+  display: flex; flex-direction: column;
+  border-radius: var(--r-card);
+  background: var(--card);
+  border: 1px solid var(--rule-2);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.cz-card-media {
+  display: grid; place-items: center;
+  padding: 26px 26px 22px;
+  background: var(--card-well);
+  border-bottom: 1px solid var(--rule-2);
+  min-height: 190px;
+}
+.cz-card-text { padding: 20px 24px 22px; display: flex; flex-direction: column; gap: 14px; }
+
+.cz-card-name {
+  margin: 0;
+  font-family: var(--font-display); font-size: 30px; font-weight: 700;
+  line-height: 1.1; letter-spacing: -0.022em; color: var(--ink);
+}
+.cz-stamps { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.cz-stamp {
+  padding: 4px 11px; border-radius: var(--r-chip);
+  background: var(--paper-sink); color: var(--ink-2);
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em;
+}
+.cz-stamp-std {
+  background: var(--acc-deep); color: #fff; font-weight: 500;
+  transition: background-color 600ms ease;
+}
+
+.cz-specs { margin: 0; display: flex; flex-direction: column; }
+.cz-specs > div {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  padding: 8px 0; border-bottom: 1px solid var(--rule-2);
+}
+.cz-specs > div:last-child { border-bottom: 0; }
+.cz-specs dt { font-size: 14px; color: var(--ink-3); }
+.cz-specs dd {
+  margin: 0; font-family: var(--font-mono); font-size: 14px; color: var(--ink);
+  text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cz-specs[data-loading="1"] dd { color: var(--ink-3); }
+.cz-specs-log { padding-top: 8px; border-top: 1px solid var(--rule); }
+.cz-specs-log dt, .cz-specs-log dd { font-size: 12.5px; }
+
+/* ── foot ─────────────────────────────────────────────────────────────── */
+.cz-foot {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 20px;
+  padding-top: 12px;
+  font-family: var(--font-mono); font-size: clamp(11px, 1.3vh, 14px); color: var(--ink-3);
+}
+/* The dashboard's foot is the last thing in its column, so `margin-top: auto`
+   drops it onto the bottom edge instead of leaving it wherever the row above
+   happens to end. */
+.cz-ps > .cz-foot { margin-top: auto; padding-bottom: 2px; }
+.cz-count { letter-spacing: 0.04em; }
+.cz-lib[data-booting="1"] .cz-count { color: var(--ink); }
+
+/* The button legend is the one thing on screen you look for while holding a
+   pad you cannot see, so it is pinned to the corner your thumb already points
+   at and set big enough to read from a sofa. It used to be 22px tall in a row
+   that floated wherever the flex spare space put it. */
+.cz-keys {
+  display: flex; align-items: center; gap: clamp(8px, 0.9vh, 12px);
+  margin-left: auto;                    /* hard right, whatever is on the left */
+  font-size: clamp(12px, 1.5vh, 17px);
+}
+.cz-keys > span { color: var(--ink-3); margin-right: clamp(8px, 1vh, 14px); }
+.cz-keys > kbd {
+  display: inline-grid; place-items: center;
+  min-width: clamp(30px, 3.4vh, 42px); height: clamp(28px, 3.2vh, 38px);
+  padding: 0 clamp(7px, 0.8vh, 11px); border-radius: clamp(7px, 0.9vh, 11px);
+  background: var(--ink); color: var(--paper);
+  font-family: inherit; font-size: clamp(12px, 1.45vh, 17px); line-height: 1;
+  box-shadow: 0 3px 0 rgba(23, 22, 26, 0.35);
+}
+.cz-keys > kbd.cz-key-go { background: var(--acc-deep); transition: background-color 600ms ease; }
+
+/* ── empty, loading, error ────────────────────────────────────────────── */
+.cz-empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; text-align: center;
+}
+.cz-empty-body { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.cz-empty b { font-family: var(--font-display); font-size: 26px; font-weight: 700; }
+.cz-empty i { font-style: normal; font-size: 15px; color: var(--ink-2); max-width: 52ch; line-height: 1.5; }
+.cz-btn {
+  margin-top: 10px; padding: 10px 22px; border: 0; border-radius: var(--r-chip);
+  background: var(--ink); color: var(--paper); cursor: pointer;
+  font-family: var(--font-body); font-size: 15px; font-weight: 500;
+}
+.cz-btn:hover { background: var(--acc-deep); }
+
+/* ===========================================================================
+   THE OTHER TWO STACKINGS
+   Same markup, same solid, same rail. Only the axis and the card move.
+   =========================================================================== */
+
+/* stack — the boxes in a pile, index down the left edge */
+.cz-lib[data-view="stack"] .cz-body { flex-direction: row; }
+.cz-lib[data-view="stack"] .cz-head { display: flex; justify-content: space-between; }
+.cz-lib[data-view="stack"] .cz-rail-index {
+  position: absolute; left: 0; top: 50%;
+  transform: translateY(-50%);
+  flex-direction: column; justify-self: auto;
+  padding: 10px 4px;
+}
+.cz-lib[data-view="stack"] { position: relative; padding-left: 74px; }
+.cz-lib[data-view="stack"] .cz-rail {
+  --pitch: 46px;
+  transform: translate3d(0, calc(var(--i) * var(--pitch) * -1), 0);
+}
+/* Lying flat, a box does not lean — the shelf's jitter is dropped here.
+
+   The origin has to move to the middle. The shelf pivots its spines on their
+   bottom edge, which is right for a degree of lean and catastrophic for a
+   quarter turn: rotating a 380px bar about a corner swings its centre 190px
+   sideways, so every bar in the pile sits a long way from the slot it belongs
+   to. That is invisible while the pile is only ever bars — they are all thrown
+   by the same amount — and becomes obvious the moment a jacket has to land
+   among them, because the solid turns about its own centre and lands where its
+   slot actually is. Turning both about the middle is what makes the two agree. */
+.cz-lib[data-view="stack"] .cz-slot {
+  transform-origin: 50% 50%;
+  transform: translate(-50%, -50%) translateY(calc(var(--o) * var(--pitch))) rotate(-90deg);
+}
+/* Shorter and thinner than the pile used to be, and for the same reason the
+   shelf's spines are shorter than its box: a row has to draw SMALLER than the
+   jacket standing in front of it, or there is no depth for the jacket to go
+   back into and the gesture has to lunge towards you to reach it. 380 against
+   the solid's 400 is the recession `--dive` is derived from. */
+.cz-lib[data-view="stack"] .cz-spine { width: 40px; height: 380px; }
+.cz-lib[data-view="stack"] .cz-spine:hover { transform: translateY(-4px); }
+.cz-lib[data-view="stack"] .cz-shelfline { display: none; }
+.cz-lib[data-view="stack"] .cz-box { --turn: -16deg; --tilt: 12deg; }
+.cz-lib[data-view="stack"] .cz-hold { perspective: 1400px; perspective-origin: 42% 50%; }
+
+/* gallery — flat on, the card as a strip along the bottom */
+.cz-lib[data-view="gallery"] .cz-body { flex-direction: column; gap: 16px; }
+.cz-lib[data-view="gallery"] .cz-box {
+  --turn: 0deg; --tilt: 0deg;
+  --h: clamp(240px, 44vh, 440px);
+}
+.cz-lib[data-view="gallery"] .cz-hold { perspective: 2600px; }
+.cz-lib[data-view="gallery"] .cz-shelfline { bottom: 4%; }
+
+.cz-lib[data-view="gallery"] .cz-card {
+  flex: 0 0 auto;
+  flex-direction: row; align-items: stretch; gap: 0;
+}
+.cz-lib[data-view="gallery"] .cz-card-media {
+  flex: 0 0 190px; padding: 14px 18px; min-height: 0;
+  border-bottom: 0; border-right: 1px solid var(--rule-2);
+}
+.cz-lib[data-view="gallery"] .cz-card-text {
+  flex: 1; min-width: 0; flex-direction: row; align-items: center; gap: 28px;
+  padding: 14px 24px;
+}
+.cz-lib[data-view="gallery"] .cz-card-head { flex: 0 1 30%; min-width: 0; }
+.cz-lib[data-view="gallery"] .cz-card-name { font-size: 24px; }
+.cz-lib[data-view="gallery"] .cz-specs {
+  flex: 1; flex-direction: row; gap: 26px; align-items: flex-start;
+}
+.cz-lib[data-view="gallery"] .cz-specs > div {
+  flex-direction: column; align-items: flex-start; gap: 3px;
+  padding: 0; border-bottom: 0;
+}
+.cz-lib[data-view="gallery"] .cz-specs dt { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+.cz-lib[data-view="gallery"] .cz-specs dd { text-align: left; font-size: 13px; }
+.cz-lib[data-view="gallery"] .cz-specs-log { display: none; }
+
+/* ===========================================================================
+   THE CARTRIDGE
+   `cart-front` is not in WARM_MEDIA, so most games do not have a photograph of
+   their media. The shell is built instead, with the jacket set into the label
+   window — which is what a cartridge label is. Disc dumps get a disc.
+   =========================================================================== */
+.cz-media { display: grid; place-items: center; width: 100%; }
+.cz-media[data-kind="photo"] img { display: block; max-width: 100%; max-height: 150px; }
+/* At boot the whole iris is scaled, so the media keeps its natural size. */
+
+.cz-cart {
+  position: relative; width: 210px; height: 138px;
+  border-radius: 7px 7px 4px 4px;
+  background:
+    linear-gradient(180deg, #E2E0DA, #CFCDC7 42%, #C2C0BA);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.18),
+    0 10px 20px -8px rgba(20, 18, 24, 0.4);
+}
+/* The ridged shoulders every cartridge has, on both flanks. */
+.cz-cart::before, .cz-cart::after {
+  content: ''; position: absolute; top: 8px; bottom: 30px; width: 22px;
+  background: repeating-linear-gradient(180deg,
+    rgba(0, 0, 0, 0.13) 0 1px, transparent 1px 9px);
+  border-radius: 3px;
+}
+.cz-cart::before { left: 7px; }
+.cz-cart::after  { right: 7px; }
+
+.cz-cart-shoulder {
+  position: absolute; left: 26px; right: 26px; top: 0; height: 7px;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, #EDEBE6, #DAD8D2);
+}
+.cz-cart-label {
+  position: absolute; left: 34px; right: 34px; top: 12px; height: 66px;
+  border-radius: 2px; overflow: hidden;
+  background: #111;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.cz-cart-art { width: 100%; height: 100%; background-size: cover; background-position: center 34%; }
+.cz-cart-grip {
+  position: absolute; left: 30px; right: 30px; bottom: 12px; height: 34px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.10), rgba(0, 0, 0, 0.03));
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.22), inset 0 -1px 0 rgba(255, 255, 255, 0.6);
+}
+.cz-cart-screw {
+  position: absolute; bottom: 5px; width: 6px; height: 6px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #F2F0EB, #A9A7A1);
+}
+.cz-cart-screw-l { left: 12px; }
+.cz-cart-screw-r { right: 12px; }
+
+.cz-disc { position: relative; width: 150px; height: 150px; }
+.cz-disc-art {
+  position: absolute; inset: 0; border-radius: 50%;
+  background-size: cover; background-position: center;
+  box-shadow: 0 10px 20px -8px rgba(20, 18, 24, 0.45);
+}
+.cz-disc-sheen {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(from 210deg,
+    rgba(255, 255, 255, 0) 0deg, rgba(255, 255, 255, 0.42) 40deg,
+    rgba(255, 255, 255, 0) 90deg, rgba(255, 255, 255, 0) 210deg,
+    rgba(255, 255, 255, 0.3) 250deg, rgba(255, 255, 255, 0) 300deg);
+  mix-blend-mode: screen;
+}
+.cz-disc-hub {
+  position: absolute; left: 50%; top: 50%; width: 44px; height: 44px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%; background: rgba(238, 236, 231, 0.92);
+  display: grid; place-items: center;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
+}
+.cz-disc-hub > i {
+  width: 17px; height: 17px; border-radius: 50%;
+  background: var(--card); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+/* ===========================================================================
+   THE TRANSITION
+
+   The host toggles the two screens with `display`, so there is no outgoing
+   frame to animate — a hidden element cannot be tweened. But an element going
+   from `display: none` to visible restarts its animations, which is exactly
+   the hook needed: the arriving screen plays itself in, and choosing a console
+   reads as walking up to its shelf.
+
+   Applied to the *contents*, never to `.cz-lib` itself — an animated
+   `transform` on that element would become the containing block for the boot
+   overlay's `position: fixed`, and the iris would close on the wrong box.
+   =========================================================================== */
+.cz-lib > .cz-head   { animation: cz-in-down 420ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.cz-lib > .cz-body   { animation: cz-in-up 520ms cubic-bezier(0.22, 0.61, 0.36, 1) 60ms both; }
+.cz-lib > .cz-foot   { animation: cz-in-down 420ms ease 140ms both; }
+.cz-lib .cz-shelfline { animation: cz-draw 560ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.cz-lib .cz-card     { animation: cz-in-right 480ms cubic-bezier(0.22, 0.61, 0.36, 1) 100ms both; }
+
+.cz-home > .cz-body  { animation: cz-in-up 460ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.cz-home > .cz-foot  { animation: cz-in-down 400ms ease 120ms both; }
+
+@keyframes cz-in-up    { from { opacity: 0; transform: translateY(26px) scale(0.985); } }
+@keyframes cz-in-down  { from { opacity: 0; transform: translateY(-10px); } }
+@keyframes cz-in-right { from { opacity: 0; transform: translateX(26px); } }
+@keyframes cz-draw     { from { transform: scaleX(0.2); opacity: 0; } }
+
+/* ===========================================================================
+   BOOTING
+   The cartridge leaves the card, fills the screen, and the iris closes on its
+   label. It ends black, because what comes next is the emulator.
+   =========================================================================== */
+.cz-boot { position: fixed; inset: 0; display: grid; place-items: center; }
+.cz-boot::before {
+  content: ''; position: absolute; inset: 0; background: #0A0908;
+  animation: cz-dim 900ms ease-in forwards;
+}
+.cz-boot[data-phase="iris"]::before,
+.cz-boot[data-phase="dark"]::before { animation: none; background: #0A0908; }
+@keyframes cz-dim { from { opacity: 0; } to { opacity: 1; } }
+
+.cz-boot-iris { position: relative; transform-origin: 50% 46%; }
+.cz-boot[data-phase="rise"] .cz-boot-iris {
+  animation: cz-rise 900ms cubic-bezier(0.2, 0.72, 0.28, 1) forwards;
+}
+@keyframes cz-rise {
+  from { transform: translateY(30vh) scale(0.55); opacity: 0; }
+  22%  { opacity: 1; }
+  to   { transform: translateY(0) scale(2.9); opacity: 1; }
+}
+.cz-boot[data-phase="iris"] .cz-boot-iris {
+  overflow: hidden;
+  animation: cz-iris 620ms cubic-bezier(0.62, 0.02, 0.9, 0.34) forwards;
+}
+@keyframes cz-iris {
+  from { transform: scale(2.9); border-radius: 4px; }
+  14%  { border-radius: 50%; }
+  to   { transform: scale(0.02); border-radius: 50%; }
+}
+.cz-boot[data-phase="dark"] .cz-boot-iris { opacity: 0; }
+
+/* ===========================================================================
+   HOME — consoles on rails that run sideways
+
+   One lane per grid row, all sliding together so the columns stay in register.
+   `[data-lanes]` comes from the host's ROWS, so a box set to ROWS = 1 gets a
+   single unbroken rail with no change to the markup.
+   =========================================================================== */
+.cz-home {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  padding: 0 30px 14px; gap: 10px;
+  font-family: var(--font-body); color: var(--ink);
+}
+.cz-home .cz-body { padding-top: 6px; }
+
+.cz-home-stage { display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+
+.cz-lane {
+  position: relative; flex: 1; min-height: 0;
+  transition: opacity 260ms ease;
+}
+/* The lane you are not on steps back rather than disappearing — you still
+   need to see what is on the other shelf to decide to go there. */
+.cz-home[data-lanes="2"] .cz-lane[data-on="0"] { opacity: 0.55; }
+
+/* The plank, running the full width of the stage and out past both edges. */
+.cz-shelf {
+  position: absolute; left: -30px; right: -30px; bottom: 12%; height: 1px;
+  background: rgba(23, 22, 26, 0.22);
+  box-shadow: 0 -12px 22px -12px rgba(23, 22, 26, 0.28);
+}
+
+.cz-cslot { --pitch: 150px; }
+.cz-home[data-lanes="1"] .cz-cslot { --pitch: 210px; }
+.cz-home .cz-rail { --pitch: 150px; }
+.cz-home[data-lanes="1"] .cz-rail { --pitch: 210px; }
+
+.cz-cslot {
+  bottom: 12%; top: auto;
+  transform: translate(-50%, 0) translateX(calc(var(--o) * var(--pitch)));
+  transform-origin: 50% 100%;
+  cursor: pointer;
+  transition: opacity 200ms ease;
+}
+.cz-cslot[data-empty="1"] { opacity: 0.5; }
+
+/* The perspective sits on the box's direct parent — it reaches direct
+   children only — and this element carries no opacity or filter, either of
+   which forces `preserve-3d` back to `flat` and quietly collapses the solid
+   into a flat picture. */
+.cz-stand { position: relative; perspective: 900px; perspective-origin: 50% 70%; }
+
+.cz-cbox {
+  --h: clamp(96px, 15vh, 150px);
+  --w: calc(var(--h) * 0.78);
+  --d: calc(var(--w) * 0.24);
+  --turn: 42deg;
+  --lift: 0px;
+
+  position: relative; width: var(--w); height: var(--h);
+  transform-style: preserve-3d;
+  transform: translateY(var(--lift)) rotateX(-7deg) rotateY(var(--turn));
+  transition: transform 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.cz-home[data-lanes="1"] .cz-cbox { --h: clamp(150px, 26vh, 260px); }
+
+/* Focus is a rotation and a lift before it is anything else: the box turns to
+   face you and comes off the plank. Shape survives a set that eats colour. */
+.cz-cslot[data-on="1"] .cz-cbox { --turn: 11deg; --lift: -14px; }
+.cz-cslot:hover .cz-cbox { --turn: 28deg; }
+
+.cz-cf {
+  position: absolute; left: 50%; top: 50%;
+  overflow: hidden; backface-visibility: hidden; background: var(--board);
+}
+.cz-cf-front {
+  width: var(--w); height: var(--h);
+  transform: translate(-50%, -50%) translateZ(calc(var(--d) / 2));
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 15px 10px 10px;
+  background: linear-gradient(165deg, var(--board-lit), var(--board-dark));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.cz-cf-band { position: absolute; left: 0; right: 0; top: 0; height: 6px; background: var(--sys); }
+.cz-cf-logo { display: grid; place-items: center; width: 100%; flex: 1; min-height: 0; }
+.cz-cf-logo img { max-width: 78%; max-height: 100%; object-fit: contain; }
+.cz-cf-logo b {
+  font-family: var(--font-display); font-size: 22px; font-weight: 700;
+  letter-spacing: 0.04em; color: #EDEAE3;
+}
+.cz-cf-plat {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: rgba(237, 234, 227, 0.5);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.cz-cf-spine, .cz-cf-edge { width: var(--d); height: var(--h); }
+.cz-cf-spine {
+  transform: translate(-50%, -50%) rotateY(-90deg) translateZ(calc(var(--w) / 2));
+  display: grid; place-items: center;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--sys) 40%, #0E0D0C),
+    color-mix(in srgb, var(--sys) 78%, #0E0D0C) 55%,
+    color-mix(in srgb, var(--sys) 40%, #0E0D0C));
+}
+.cz-cf-spine > span {
+  writing-mode: vertical-rl; text-orientation: mixed;
+  max-height: 84%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-display); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; color: #FFF; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+.cz-cf-edge {
+  transform: translate(-50%, -50%) rotateY(90deg) translateZ(calc(var(--w) / 2));
+  background: linear-gradient(90deg, var(--board-dark), var(--board-lit) 40%, var(--board-dark));
+}
+.cz-cf-top {
+  width: var(--w); height: var(--d);
+  transform: translate(-50%, -50%) rotateX(90deg) translateZ(calc(var(--h) / 2));
+  background: linear-gradient(180deg, var(--board-lit), var(--board));
+}
+
+/* Cast on the plank, not attached to the box: a filter on the solid would
+   flatten it. */
+.cz-cshade {
+  position: absolute; bottom: -8px; left: 50%;
+  width: 118%; height: 14px; transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(20, 18, 24, 0.34), transparent 76%);
+  filter: blur(5px);
+  transition: transform 420ms ease, opacity 420ms ease;
+}
+.cz-cslot[data-on="1"] .cz-cshade { transform: translateX(-50%) scale(1.2); opacity: 0.85; }
+
+/* The card: the console's own, in the library's frame. */
+.cz-home-card { flex: 0 0 340px; }
+.cz-bigmark {
+  display: grid; place-items: center; width: 100%; min-height: 130px;
+  border-radius: 10px; padding: 18px;
+  background: linear-gradient(165deg, var(--board-lit), var(--board-dark));
+  box-shadow: inset 0 6px 0 -2px var(--sys);
+}
+.cz-bigmark img { max-width: 74%; max-height: 110px; object-fit: contain; }
+.cz-bigmark b {
+  font-family: var(--font-display); font-size: 40px; font-weight: 700;
+  letter-spacing: 0.03em; color: #EDEAE3;
+}
+.cz-open {
+  display: flex; align-items: center; gap: 10px; padding-top: 4px;
+  font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-2);
+}
+.cz-open > kbd {
+  display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 6px;
+  border-radius: 6px; background: var(--acc-deep); color: var(--paper);
+  font-family: inherit; font-size: 10.5px;
+  box-shadow: 0 2px 0 rgba(23, 22, 26, 0.35);
+  transition: background-color 600ms ease;
+}
+
+.cz-dots { display: flex; justify-content: center; gap: 7px; }
+.cz-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(23, 22, 26, 0.2); transition: background-color 200ms ease, transform 200ms ease; }
+.cz-dot[data-on="1"] { background: var(--ink); transform: scale(1.35); }
+
+.cz-hint {
+  text-align: center; font-family: var(--font-mono); font-size: 11.5px;
+  color: var(--ink-3); letter-spacing: 0.04em;
+}
+
+/* ===========================================================================
+   OVERLAYS — the drawer under the shelf
+   Warm near-black, seal gold, so the reused Wi-Fi and updater pages sit in the
+   same room as the menu that opened them.
+   =========================================================================== */
+.cz-scrim {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  padding: 40px;
+  background: var(--gc-overlay-scrim);
+  backdrop-filter: var(--gc-overlay-blur);
+  -webkit-backdrop-filter: var(--gc-overlay-blur);
+}
+/* Opt-in, not automatic: a scrim that fades every time it mounts also fades on
+   the way BACK from a sub-page, and for those 180ms the screen behind shows
+   through — which looks exactly like the menu closing and reopening. Whoever
+   renders it says whether this is an opening. */
+.cz-scrim[data-enter="1"] { animation: cz-fade 180ms ease both; }
+@keyframes cz-fade { from { opacity: 0; } }
+
+.cz-panel {
+  width: min(560px, 100%); max-height: 82vh; overflow: auto;
+  padding: 26px 26px 20px; border-radius: var(--gc-overlay-radius);
+  background: var(--gc-overlay-panel);
+  border: 1px solid var(--gc-overlay-border);
+  box-shadow: 0 34px 70px rgba(0, 0, 0, 0.5);
+  font-family: var(--font-body); color: #EDEAE3;
+  animation: cz-panel-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@keyframes cz-panel-in { from { opacity: 0; transform: translateY(10px); } }
+
+.cz-panel-title {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 18px;
+  font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.28em;
+  text-transform: uppercase; color: var(--gc-accent-soft);
+}
+.cz-panel-back {
+  border: 0; background: none; color: inherit; cursor: pointer;
+  font-size: 20px; line-height: 1; padding: 0 2px;
+}
+
+.cz-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 13px 14px; border-radius: 12px; cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+.cz-row[data-on="1"] {
+  background: color-mix(in srgb, var(--gc-accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--gc-accent) 55%, transparent);
+  transform: translateX(3px);
+}
+.cz-row-icon { width: 24px; text-align: center; font-size: 17px; opacity: 0.9; }
+.cz-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cz-row-text b { font-size: 16px; font-weight: 500; }
+.cz-row-text i { font-style: normal; font-size: 12.5px; color: rgba(237, 234, 227, 0.5); }
+.cz-row-chevron { color: rgba(237, 234, 227, 0.35); font-size: 19px; }
+.cz-row[data-danger="1"][data-on="1"] {
+  background: rgba(200, 70, 50, 0.18); border-color: rgba(200, 70, 50, 0.5);
+}
+
+.cz-hint-modal { margin-top: 16px; color: rgba(237, 234, 227, 0.42); line-height: 1.7; }
+
+/* power */
+.cz-power-row { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 12px; cursor: pointer; border: 1px solid transparent; transition: background-color 160ms ease, border-color 160ms ease; }
+.cz-power-row[data-on="1"] { background: color-mix(in srgb, var(--row-accent, #B8892B) 16%, transparent); border-color: color-mix(in srgb, var(--row-accent, #B8892B) 55%, transparent); }
+.cz-power-row[data-confirm="1"] { background: rgba(200, 70, 50, 0.2); border-color: rgba(200, 70, 50, 0.6); }
+.cz-power-row[data-dim="1"] { opacity: 0.35; }
+.cz-power-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: rgba(237, 234, 227, 0.07); color: var(--row-accent, #B8892B); }
+.cz-power-icon[data-pulse="1"] { animation: cz-pulse 1.1s ease-in-out infinite; }
+@keyframes cz-pulse { 50% { opacity: 0.45; } }
+.cz-power-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.cz-power-text b { font-size: 16px; font-weight: 500; }
+.cz-power-text i { font-style: normal; font-size: 12.5px; color: rgba(237, 234, 227, 0.5); }
+.cz-power-cancel {
+  width: 100%; margin-top: 12px; padding: 11px; border-radius: 11px; cursor: pointer;
+  border: 1px solid var(--gc-overlay-border); background: transparent;
+  color: rgba(237, 234, 227, 0.7); font-family: var(--font-body); font-size: 15px;
+}
+.cz-power-cancel:disabled { opacity: 0.3; cursor: default; }
+
+/* controller */
+.cz-pad-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.cz-pad-name { font-family: var(--font-display); font-size: 20px; font-weight: 700; }
+.cz-pad-art { display: grid; place-items: center; min-height: 200px; position: relative; }
+.cz-pad-art[data-off="1"] { opacity: 0.3; }
+.cz-pad-empty {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px; text-align: center;
+}
+.cz-pad-empty b { font-size: 16px; }
+.cz-pad-empty i { font-style: normal; font-size: 13px; color: rgba(237, 234, 227, 0.55); }
+.cz-pad-maps { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; margin-top: 14px; }
+.cz-pad-map { display: flex; align-items: center; gap: 10px; font-size: 13px; color: rgba(237, 234, 227, 0.7); }
+.cz-pad-map kbd {
+  display: inline-grid; place-items: center; min-width: 26px; height: 22px; padding: 0 7px;
+  border-radius: 6px; background: rgba(237, 234, 227, 0.1);
+  border: 1px solid var(--gc-overlay-border);
+  font-family: var(--font-mono); font-size: 11px; color: var(--gc-accent-bright);
+}
+.cz-pad-readout { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 10px; font-family: var(--font-mono); font-size: 12px; color: rgba(237, 234, 227, 0.6); }
+.cz-pad-readout b { color: var(--gc-accent-bright); font-weight: 500; }
+/* The battery segments are drawn for paper; on the drawer they invert. */
+.cz-pad-readout .cz-bat { display: inline-flex; vertical-align: middle; margin: 0 4px; }
+.cz-pad-readout .cz-bat > i { background: rgba(237, 234, 227, 0.22); }
+.cz-pad-readout .cz-bat > i[data-fill="1"] { background: var(--gc-accent-bright); }
+
+/* themes */
+.cz-theme-dot {
+  width: 13px; height: 13px; border-radius: 50%; flex: 0 0 auto;
+  border: 2px solid rgba(237, 234, 227, 0.3);
+}
+.cz-row[data-current="1"] .cz-theme-dot { background: var(--gc-accent); border-color: var(--gc-accent); }
+.cz-row[data-off="1"] { opacity: 0.4; cursor: default; }
+.cz-theme-tag {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em;
+  color: var(--gc-accent-soft);
+}
+.cz-note { padding: 14px; font-size: 14px; color: rgba(237, 234, 227, 0.55); }
+
+/* ===========================================================================
+   SPLASH — a cartridge going into a slot
+   Runs while the backend is still starting, so it is four elements and only
+   transform and opacity.
+   =========================================================================== */
+.cz-splash {
+  position: fixed; inset: 0; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 34px; background: var(--paper);
+  transition: opacity var(--fade) ease;
+}
+.cz-splash[data-out="1"] { opacity: 0; }
+
+.cz-splash-slot {
+  position: relative; width: 300px; height: 26px; border-radius: 5px;
+  background: linear-gradient(180deg, var(--paper-sink), #D6D2C8);
+  box-shadow: inset 0 3px 7px rgba(0, 0, 0, 0.28);
+}
+.cz-splash-cart {
+  position: absolute; left: 50%; bottom: 8px; width: 210px; height: 138px;
+  transform: translate(-50%, -240px);
+  animation: cz-slot var(--drop) cubic-bezier(0.34, 0.9, 0.4, 1) forwards;
+}
+@keyframes cz-slot {
+  0%   { transform: translate(-50%, -240px); }
+  72%  { transform: translate(-50%, -18px); }
+  84%  { transform: translate(-50%, -4px); }
+  100% { transform: translate(-50%, -12px); }
+}
+.cz-splash-word {
+  display: flex; align-items: center; gap: 14px;
+  font-family: var(--font-display); font-size: 26px; font-weight: 700;
+  letter-spacing: 0.34em; color: var(--ink);
+  opacity: 0; transform: translateY(8px);
+  animation: cz-word 700ms ease var(--word-delay) forwards;
+}
+@keyframes cz-word { to { opacity: 1; transform: none; } }
+.cz-splash-mark {
+  width: 18px; height: 18px; border-radius: 3px;
+  background: var(--gc-accent); rotate: 45deg;
+}
+
+/* ===========================================================================
+   Quality floor
+   =========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .cz-wall-soft, .cz-wall-line { animation: none; }
+  .cz-rail, .cz-box, .cz-cbox, .cz-cshade, .cz-lane, .cz-cslot { transition-duration: 1ms; }
+  .cz-hold[data-phase],
+  .cz-hold[data-phase] .cz-carry,
+  .cz-hold[data-phase] .cz-box { animation-duration: 1ms; animation-delay: 0ms; }
+  .cz-boot-iris, .cz-boot::before, .cz-splash-cart, .cz-splash-word { animation-duration: 1ms; }
+  .cz-lib > .cz-head, .cz-lib > .cz-body, .cz-lib > .cz-foot,
+  .cz-lib .cz-shelfline, .cz-lib .cz-card,
+  .cz-home > .cz-body, .cz-home > .cz-foot { animation-duration: 1ms; }
+}
+
+/* The host paints its root #09090f and its text white. Both are covered — the
+   wall is opaque and every surface here sets its own ink — but a themed screen
+   that briefly flashes dark on mount is worth one line to prevent. */
+.cz-lib, .cz-home { background: transparent; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   The dashboard as one row of big icons
+   ═══════════════════════════════════════════════════════════════════════════
+   Sizes are set from the viewport height, not in pixels: this is read from a
+   sofa, and a tile that is right on a 24" desk monitor is a postage stamp on a
+   55" TV. Everything below is `clamp`ed so it degrades rather than breaks.
+
+   No `z-index` here either — the row, the strip and the foot are siblings in
+   DOM order and that is the whole stacking story. */
+
+.cz-ps { justify-content: center; gap: clamp(10px, 2vh, 22px); }
+
+/* ── What you are on ─────────────────────────────────────────────────────── */
+.cz-ps-head {
+  flex: 0 0 auto; text-align: left; padding: 0 6px;
+  animation: cz-in-up 380ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.cz-ps-name {
+  margin: 0; font-family: var(--font-display, var(--font-body));
+  font-size: clamp(26px, 4.4vh, 54px); line-height: 1.06;
+  letter-spacing: -0.01em; color: var(--ink);
+}
+.cz-ps-meta {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 8px; margin-top: 6px;
+  font-size: clamp(12px, 1.5vh, 15px); color: var(--ink-2, rgba(23, 22, 26, 0.62));
+}
+.cz-ps-sep { opacity: 0.4; }
+
+/* ── The row ─────────────────────────────────────────────────────────────── */
+.cz-ps-stage {
+  position: relative; flex: 1; min-height: 0;   /* takes the room, centres in it */
+  overflow: hidden;
+  --tile: clamp(104px, 19vh, 208px);
+  --gap: clamp(12px, 1.8vh, 26px);
+  --pitch: calc(var(--tile) + var(--gap));
+}
+
+/* The row centres itself while it fits, and travels once it does not — one
+   expression, no JS measuring anything.
+   
+     --span  how wide the tiles are altogether
+     --over  how far it sticks out past ONE edge; 0 while it fits
+     --want  the shift that would put the focused tile dead centre
+   
+   `clamp` does the switch. When it fits, --over is 0 and both bounds are 0, so
+   the shift is 0 and NOTHING moves as you walk the row. When it overflows, the
+   bounds are exactly the two extremes where an edge tile meets an edge of the
+   screen, so the row never slides to reveal blank space. */
+.cz-ps-row {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  gap: var(--gap); flex-wrap: nowrap;
+
+  --span: calc(var(--n) * var(--pitch) - var(--gap));
+  --over: max(0px, calc((var(--span) - 100%) / 2));
+  --want: calc(var(--span) / 2 - var(--i) * var(--pitch) - var(--tile) / 2);
+  transform: translateX(clamp(calc(-1 * var(--over)), var(--want), var(--over)));
+
+  transition: transform 400ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+
+.cz-tile {
+  flex: 0 0 var(--tile); width: var(--tile); height: var(--tile);
+  cursor: pointer;
+  transform: scale(0.82); transform-origin: 50% 50%;
+  opacity: 0.5;
+  transition: transform 320ms cubic-bezier(0.22, 0.61, 0.36, 1),
+              opacity 260ms ease;
+}
+.cz-tile[data-on="1"] { transform: scale(1.16) translateY(-2%); opacity: 1; }
+.cz-tile:hover { opacity: 0.85; }
+/* A shelf with no ROMs stays visible but says so — the same rule the box
+   view follows, so the two screens agree about what "empty" looks like. */
+.cz-tile[data-empty="1"] .cz-tile-art { filter: grayscale(0.55); }
+
+.cz-tile-art {
+  width: 100%; height: 100%; border-radius: clamp(12px, 1.8vh, 22px);
+  display: flex; align-items: center; justify-content: center;
+  background:
+    linear-gradient(158deg,
+      color-mix(in srgb, var(--sys) 34%, #ffffff) 0%,
+      color-mix(in srgb, var(--sys) 78%, #10101a) 100%);
+  box-shadow: 0 2px 3px rgba(23, 22, 26, 0.16);
+  overflow: hidden;
+  transition: box-shadow 320ms ease;
+}
+.cz-tile[data-on="1"] .cz-tile-art {
+  box-shadow:
+    0 18px 34px -14px color-mix(in srgb, var(--sys) 62%, transparent),
+    0 4px 10px rgba(23, 22, 26, 0.22);
+}
+.cz-tile-art img {
+  width: 62%; height: 62%; object-fit: contain;
+  filter: drop-shadow(0 2px 5px rgba(10, 10, 16, 0.35));
+}
+.cz-tile-art b {
+  font-family: var(--font-display, var(--font-body));
+  font-size: calc(var(--tile) * 0.26); letter-spacing: 0.04em; color: #fff;
+  text-shadow: 0 2px 6px rgba(10, 10, 16, 0.4);
+}
+
+/* ── The lane you are not on ─────────────────────────────────────────────── */
+/* Present, legible, and plainly not where the cursor is. It disappears by
+   itself when the host runs a single row: `lanes > 1` guards it in the view. */
+.cz-ps-strip {
+  position: relative; flex: 0 0 auto;
+  height: calc(var(--mini) * 1.5); overflow: hidden;
+  --mini: clamp(38px, 6.6vh, 68px);
+  --mgap: clamp(8px, 1.2vh, 16px);
+  --mpitch: calc(var(--mini) + var(--mgap));
+  opacity: 0.5;
+}
+.cz-ps-striprow {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  gap: var(--mgap); flex-wrap: nowrap;
+  --mspan: calc(var(--n, 8) * var(--mpitch) - var(--mgap));
+  --mover: max(0px, calc((var(--mspan) - 100%) / 2));
+  transform: translateX(clamp(calc(-1 * var(--mover)),
+                              calc(var(--mspan) / 2 - var(--i, 0) * var(--mpitch) - var(--mini) / 2),
+                              var(--mover)));
+  transition: transform 400ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.cz-mini {
+  flex: 0 0 var(--mini); width: var(--mini); height: var(--mini);
+  cursor: pointer;
+}
+.cz-mini .cz-tile-art { border-radius: clamp(7px, 1vh, 12px); box-shadow: none; }
+.cz-mini .cz-tile-art b { font-size: calc(var(--mini) * 0.3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cz-tile, .cz-ps-row, .cz-ps-striprow { transition-duration: 1ms; }
+  .cz-ps-head { animation-duration: 1ms; }
+}
