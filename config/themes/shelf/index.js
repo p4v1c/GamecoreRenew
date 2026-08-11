@@ -14,9 +14,12 @@
  *           background.js the wall                   library.js   the shelf
  *           box.js        the solid and its spines   cartridge.js the media
  *           topbar.js     the shelf label            settings.js  the rail
- *           themes.js     the picker                 power.js     restart/off
- *           gamepad.js    the live pad               controllers.js what is
- *                                                                  plugged in
+ *           power.js      restart/off                gamepad.js   the live pad
+ *
+ *   views/pages/  one file per settings category, all bare markup that sits in
+ *           the settings screen's middle column: wifi, bluetooth, audio,
+ *           controllers, catalog, bios, themes, system — and rows.js, the four
+ *           controls the capture uses, shared so a toggle is the same toggle
  *
  *   lib/    paper.js      the wallpaper, as a mask   accent.js    the colour
  *           names.js      titles, letters, regions   dossier.js   one lookup
@@ -42,8 +45,6 @@ import { createBox } from './views/box.js'
 import { createCartridge } from './views/cartridge.js'
 import { createSplash } from './views/splash.js'
 import { createSettings } from './views/settings.js'
-import { createThemesPage } from './views/themes.js'
-import { createControllersPage } from './views/controllers.js'
 import { createPowerView } from './views/power.js'
 import { createGamepadView } from './views/gamepad.js'
 
@@ -66,14 +67,12 @@ export default (sdk) => {
     Box: createBox(sdk),
     Cartridge: createCartridge(sdk),
   })
-  // `themes` overrides a host page; `controllers` adds one the host does not
-  // have. Both ride the same merge — `{ ...DefaultSettingsPages, ...ownPages }`
-  // — and only `themes` belongs in theme.json's settings.pages, which lists
-  // host pages reached and nothing else.
-  const Settings = createSettings(sdk, {
-    themes: createThemesPage(sdk),
-    controllers: createControllersPage(sdk),
-  })
+  // Every settings category is now an inline page inside the settings screen
+  // (views/pages/), so there is nothing left to override as a full-screen
+  // overlay — the two files that used to do that were superseded rather than
+  // kept as dead routes. `ownPages` stays in the signature because it is the
+  // seam a fork uses to replace one page without editing views/settings.js.
+  const Settings = createSettings(sdk, {}, { TopBar })
 
   const Shell = () => html`
     <${sdk.defaults.Shell}
@@ -83,6 +82,7 @@ export default (sdk) => {
       libraryView=${LibraryView}
       settings=${Settings}
       powerView=${createPowerView(sdk)}
+      powerOmit=${['scan', 'forget']}
       gamepadView=${createGamepadView(sdk)} />`
 
   return { splash: createSplash(sdk), shell: Shell }

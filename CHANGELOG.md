@@ -35,6 +35,14 @@ are the auto-incremented tags.
   it down but not step out of it. Same two-press confirmation and the same
   failsafe as the other two. Every theme gets it; the settings page stays for
   the sentence of explanation the row has no room for.
+- **A theme can now set the player's sound and haptics settings, and drop the
+  mapping utilities from the power menu.** `sdk.system.sound` and
+  `sdk.input.haptics` were read-only, so a theme rendering its own
+  Settings → Audio silently removed three controls from the console; they take
+  values now. `DefaultShell` also accepts `powerOmit`, letting a theme that
+  gives "Scan mapping" and "Forget mapping" a proper home stop showing them in
+  the power menu — `restart`, `shutdown` and `desktop` can never be dropped.
+  Nothing changes for a theme that asks for neither.
 - **Shelf's settings screen is a numbered rail, and Shelf v1 ships beside it.**
   The previous drawer menu is installed unchanged as the separate theme
   **Shelf v1**, selectable from Settings → Themes. It is the fallback if the

@@ -41,8 +41,21 @@ async function load(path: string) {
 const BOX: Record<string, unknown> = {
   '/api/settings/wifi/status': {
     connected: true, ssid: 'Livebox-4F2A', ip: '192.168.1.34', iface: 'wlp0s20f3',
+    gateway: '192.168.1.1', dns: ['9.9.9.9'], mac: 'DC:A6:32:11:8F:04',
     ethernet: { connected: false, iface: '', ip: '' },
   },
+  '/api/settings/wifi/networks': [
+    { ssid: 'Livebox-4F2A', signal: 82, secured: true, connected: true },
+    { ssid: 'FreeWifi_Secure', signal: 64, secured: true, connected: false },
+    { ssid: 'Console-Hotspot', signal: 33, secured: false, connected: false },
+  ],
+  // A separate endpoint on purpose, and separate here too: the merge onto the
+  // scan is what the page has to get right, and a single fixture would hide it.
+  '/api/settings/wifi/details': [
+    { ssid: 'Livebox-4F2A', security: 'WPA3', channel: 44, band: '5 GHz', rate: '866 Mb/s' },
+    { ssid: 'FreeWifi_Secure', security: 'WPA2', channel: 100, band: '5 GHz', rate: '433 Mb/s' },
+    { ssid: 'Console-Hotspot', security: 'Open', channel: 36, band: '5 GHz', rate: '200 Mb/s' },
+  ],
   '/api/settings/bluetooth/devices': [
     { mac: 'E4:17:D8:2A:9C:03', name: '8BitDo Ultimate 2C', connected: true, paired: true },
     { mac: 'A0:9E:1B:44:D2:18', name: 'Marshall Major IV', connected: false, paired: true },
@@ -94,9 +107,7 @@ afterEach(async () => {
 
 async function renderRail() {
   const { createSettings } = await load(`${THEME}/views/settings.js`)
-  const { createControllersPage } = await load(`${THEME}/views/controllers.js`)
-  const s = sdk()
-  const View = createSettings(s, { controllers: createControllersPage(s) })
+  const View = createSettings(sdk())
   const { render } = await import('@testing-library/react')
   const { createElement } = await import('react')
   // As an element, not a call: the view holds state, and invoking it directly
@@ -104,119 +115,189 @@ async function renderRail() {
   return render(createElement(View, { onClose: vi.fn() }))
 }
 
+/** The rail's rows, by label — the screen now names a category in three places
+ *  (rail row, page heading, breadcrumb), so a text-wide query is ambiguous by
+ *  construction and asking the rail directly is the honest question. */
+const railLabels = (c: HTMLElement) =>
+  [...c.querySelectorAll('.cz-set-rail .cz-set-row .cz-set-label b')].map(e => e.textContent)
+const railMetas = (c: HTMLElement) =>
+  [...c.querySelectorAll('.cz-set-rail .cz-set-row .cz-set-label i')].map(e => e.textContent)
+
 describe('Shelf v2 — the settings rail', () => {
-  it('reaches every host settings page, counting the four under System', async () => {
-    // The guard from the theme's side, and the reason it is worth having twice:
-    // check-theme.mjs compares theme.json against the host list, which proves
-    // the DECLARATION is complete. This proves the declaration matches the menu
-    // that is actually drawn — a row could be deleted and theme.json left
-    // alone, and nothing else would notice.
-    const mod = await load(`${THEME}/views/settings.js`)
+  it('declares every host settings page, and draws the eight the capture has', async () => {
+    // check-theme.mjs proves the DECLARATION is complete. This proves the rail
+    // that is actually drawn is the capture's — eight rows, not the ten ids.
+    // The two are different numbers on purpose: `update`, `standby` and
+    // `storage` are sections of the System page, and `desktop` is in the power
+    // menu, which is where the capture puts leaving the front end.
     const defaults = await import('../components/defaults')
     const src = await load(`${THEME}/theme.json`)
     const declared: string[] = (src.default ?? src).settings.pages
-
     expect([...declared].sort()).toEqual([...defaults.SETTINGS_PAGE_IDS].sort())
 
-    // Every declared page is opened by some row: the eight top-level ids plus
-    // the four the System row folds away.
-    const source = mod.createSettings.toString()
-    const reachable = new Set<string>()
-    for (const id of defaults.SETTINGS_PAGE_IDS) reachable.add(id)
-    const { screen, fireEvent } = await import('@testing-library/react')
-    await renderRail()
+    const { container } = await renderRail()
+    expect(railLabels(container)).toEqual([
+      'Wi-Fi', 'Bluetooth', 'Audio', 'Controllers',
+      'Emulators & apps', 'BIOS', 'Themes', 'System',
+    ])
+  })
 
-    for (const label of ['Wi-Fi', 'Bluetooth', 'Audio', 'Emulators & apps', 'BIOS', 'Themes']) {
-      expect(screen.getByText(label)).toBeTruthy()
-    }
-    // System is a door, not a page: opening it must reveal the other four.
-    fireEvent.click(screen.getByText('System'))
-    for (const label of ['Update', 'Standby', 'Storage', 'Desktop']) {
-      expect(screen.getByText(label)).toBeTruthy()
-    }
-    expect(source.length).toBeGreaterThan(0)
-    expect(reachable.size).toBe(10)
+  it('keeps the settings the four unlisted ids stand for reachable', async () => {
+    // The declaration is about what a player can REACH, so this is the claim
+    // that has to hold: update, standby and storage are all on the System page.
+    const { screen, fireEvent, waitFor } = await import('@testing-library/react')
+    const { container } = await renderRail()
 
+    fireEvent.click(screen.getAllByText('System')[0])
+    await waitFor(() => expect(container.textContent).toMatch(/System update/))
+    expect(container.textContent).toMatch(/Standby mode/)
+    expect(container.textContent).toMatch(/Storage/)
   })
 
   it('reads the value at the end of each row from the box', async () => {
     // The assertion the reference capture fails: its rail says "−42 dBm" and
-    // "82 %" and nothing on this machine produces either. These come from the
-    // endpoints mocked above, so a row that grew a hardcoded default would
-    // stop matching.
-    const { screen } = await import('@testing-library/react')
-    await renderRail()
-
-    expect(await screen.findByText('Livebox-4F2A')).toBeTruthy()   // wifi status
-    expect(await screen.findByText('1 connected')).toBeTruthy()     // bluetooth devices
-    expect(await screen.findByText('HDMI / DisplayPort')).toBeTruthy() // default sink
-    expect(await screen.findByText('2 installed')).toBeTruthy()     // catalog
-    expect(await screen.findByText('1/2 ready')).toBeTruthy()       // bios status verdict
-    expect(await screen.findByText('Shelf')).toBeTruthy()           // active theme
-
+    // "82 %" and nothing on this machine produces either.
+    const { container } = await renderRail()
+    const { waitFor } = await import('@testing-library/react')
+    await waitFor(() => expect(railMetas(container)[0]).toBe('Livebox-4F2A'))
+    const metas = railMetas(container)
+    expect(metas[1]).toBe('1 connected')          // bluetooth devices
+    expect(metas[2]).toBe('HDMI / DisplayPort')   // default sink
+    expect(metas[4]).toBe('2 installed')          // catalog
+    expect(metas[5]).toBe('1/2 ready')            // bios status verdict
+    expect(metas[6]).toBe('Shelf')                // active theme
   })
 
   it('leaves a row blank when its endpoint does not answer', async () => {
     // Not cosmetic. A rail that falls back to a plausible string when a service
-    // is down is a rail that lies exactly when the box is broken — which is
-    // when someone opens it.
+    // is down lies exactly when the box is broken — which is when someone opens
+    // it.
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: false, status: 503, statusText: 'Service Unavailable', json: async () => ({}),
     })))
-    const { screen } = await import('@testing-library/react')
     const { container } = await renderRail()
 
-    expect(screen.getByText('Wi-Fi')).toBeTruthy()
-    // The rail is intact; it is the readings that are absent. Asserted on the
-    // meta cells themselves rather than by scanning the panel for words — the
-    // row subtitles are fixed prose and one of them says "connected", so a
-    // text sweep would have been testing the copy, not the data.
-    const metas = [...container.querySelectorAll('.cz-set-meta')]
-    expect(metas).toHaveLength(8)
-
-    // Seven of the eight are fed by an endpoint and go blank with it. The
-    // eighth — Controllers, row four — counts pads through the Gamepad API,
-    // which is the browser and is still up. It keeps answering, and that is
-    // the behaviour worth pinning: the row that says whether a pad is
-    // connected must not go dark because a backend service did.
-    const CONTROLLERS_ROW = 3
-    metas.forEach((m, i) => {
-      if (i === CONTROLLERS_ROW) expect(m.textContent).toMatch(/\d+ pads?$/)
-      else expect(m.textContent).toBe('')
+    expect(railLabels(container)).toHaveLength(8)
+    // Seven are fed by an endpoint and go blank with it. The eighth —
+    // Controllers, row four — counts pads through the Gamepad API, which is the
+    // browser and is still up. The row that says whether a pad is connected
+    // must not go dark because a backend service did.
+    railMetas(container).forEach((m, i) => {
+      if (i === 3) expect(m).toMatch(/\d+ pads?$/)
+      else expect(m).toBe('')
     })
   })
 
-  it('comes back from a System page to System, not to the top of the rail', async () => {
-    // The bug this shape exists to avoid: if the rail and its sub-list were two
-    // screens, returning from Storage would land on Wi-Fi and the player would
-    // have to walk back down eight rows to reach Standby.
+  it('names the category in the breadcrumb, and follows the rail cursor', async () => {
     const { screen, fireEvent } = await import('@testing-library/react')
-    await renderRail()
+    const { container } = await renderRail()
 
-    fireEvent.click(screen.getByText('System'))
-    expect(screen.getByText('Settings · System')).toBeTruthy()
-    expect(screen.queryByText('Wi-Fi')).toBeNull()
-
+    expect(container.querySelector('.cz-set-chip')?.textContent).toBe('WI-FI')
+    fireEvent.click(screen.getAllByText('System')[0])
+    expect(container.querySelector('.cz-set-chip')?.textContent).toBe('SYSTEM')
+    // The rail never leaves — that is the whole shape of this screen — so the
+    // eight rows are still there with a different one selected.
+    expect(railLabels(container)).toHaveLength(8)
+    expect(container.querySelector('.cz-set-row[data-sel="1"] .cz-set-label b')?.textContent)
+      .toBe('System')
   })
 
-  it('says so on screen when the host no longer has a page it lists', async () => {
-    // A menu entry the host has dropped renders `undefined` as a component and
-    // React throws, which under the shell's error boundary hands the whole
-    // frontend back to the default. A theme going dark because one page was
-    // renamed is the quiet failure worth answering in words.
+  it('gives every rail row a page, and says so in words if one ever goes missing', async () => {
+    // Two halves of one invariant. Every category resolves to a page — that is
+    // what the rewrite finished — and a category that ever stops resolving
+    // renders as a sentence rather than as `undefined` handed to React, which
+    // throws and, under the shell's error boundary, hands the whole frontend
+    // back to the default. A theme going dark because one page was renamed is
+    // the quiet failure worth answering in words.
     const { createSettings } = await load(`${THEME}/views/settings.js`)
-    const real = sdk()
-    const { wifi: _dropped, ...survivors } = real.defaults.DefaultSettingsPages
-    const patched = { ...real, defaults: { ...real.defaults, DefaultSettingsPages: survivors } }
-
-    const View = createSettings(patched)
     const { render, screen, fireEvent } = await import('@testing-library/react')
     const { createElement } = await import('react')
-    render(createElement(View, { onClose: vi.fn() }))
 
-    fireEvent.click(screen.getByText('Wi-Fi'))
-    expect(screen.getByText(/has no .*wifi.* page/)).toBeTruthy()
+    const { container } = render(createElement(createSettings(sdk()), { onClose: vi.fn() }))
+    for (const label of railLabels(container)) {
+      fireEvent.click(screen.getAllByText(String(label))[0])
+      expect(container.querySelector('.cz-set-main')).toBeTruthy()
+      expect(container.textContent).not.toMatch(/This build has no/)
+    }
 
+    // Now knock one out through the documented seam and watch it say so.
+    const holed = createSettings(sdk(), { inline: { bios: null } })
+    const { container: c2 } = render(createElement(holed, { onClose: vi.fn() }))
+    fireEvent.click([...c2.querySelectorAll('.cz-set-rail .cz-set-row')]
+      .find(r => r.textContent?.includes('BIOS'))!)
+    expect(c2.textContent).toMatch(/This build has no .*bios.* page/)
+  })
+})
+
+describe('Shelf v2 — the Wi-Fi page', () => {
+  it('draws the scan, and merges the radio detail onto it', async () => {
+    const { screen, waitFor } = await import('@testing-library/react')
+    const { container } = await renderRail()
+
+    // Every SSID from /networks, in the order the backend ranked them. Awaited:
+    // the scan is a fetch, and asserting before it lands tests the empty state.
+    await waitFor(() =>
+      expect(container.querySelectorAll('.cz-wifi-row').length).toBe(3))
+    const names = [...container.querySelectorAll('.cz-wifi-row .cz-wifi-name b')]
+      .map(e => e.textContent)
+    expect(names).toEqual(['Livebox-4F2A', 'FreeWifi_Secure', 'Console-Hotspot'])
+
+    // Band and channel come from /details, which is a different endpoint —
+    // this is the merge, and it is keyed on ssid.
+    expect(await screen.findByText('5 GHz · channel 44 · 82%')).toBeTruthy()
+    // Security label too: "Open" rather than the `secured: false` boolean.
+    expect(screen.getByText('Open')).toBeTruthy()
+  })
+
+  it('fills the detail column from the box, and omits what it has no value for', async () => {
+    const { screen, waitFor } = await import('@testing-library/react')
+    const { container } = await renderRail()
+    await waitFor(() =>
+      expect(container.querySelectorAll('.cz-set-fact').length).toBeGreaterThan(4))
+
+    const facts = Object.fromEntries(
+      [...container.querySelectorAll('.cz-set-fact')]
+        .map(f => [f.querySelector('dt')?.textContent, f.querySelector('dd')?.textContent]))
+
+    expect(facts).toMatchObject({
+      Status: 'Connected',
+      'IP address': '192.168.1.34',
+      Gateway: '192.168.1.1',
+      DNS: '9.9.9.9',
+      Security: 'WPA3',
+      'MAC address': 'DC:A6:32:11:8F:04',
+    })
+    expect(screen.getByText('Disconnect')).toBeTruthy()
+  })
+
+  it('drops a detail row rather than printing it blank', async () => {
+    // A box whose nmcli cannot answer for gateway or MAC. An empty "Gateway"
+    // row reads as "this network has none", which is a different and wrong
+    // statement — so the row is not drawn at all.
+    const thin: Record<string, unknown> = {
+      ...BOX,
+      '/api/settings/wifi/status': {
+        connected: true, ssid: 'Livebox-4F2A', ip: '192.168.1.34', iface: 'w0',
+        gateway: '', dns: [], mac: '',
+        ethernet: { connected: false, iface: '', ip: '' },
+      },
+    }
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      const hit = Object.keys(thin).find(k => url.endsWith(k))
+      if (!hit) return { ok: false, status: 404, statusText: 'nf', json: async () => ({}) }
+      return { ok: true, status: 200, statusText: 'OK', json: async () => thin[hit] }
+    }))
+
+    const { container } = await renderRail()
+    const { waitFor } = await import('@testing-library/react')
+    await waitFor(() => expect(container.querySelectorAll('.cz-set-fact').length).toBeGreaterThan(0))
+
+    const keys = [...container.querySelectorAll('.cz-set-fact dt')].map(e => e.textContent)
+    expect(keys).toContain('IP address')
+    expect(keys).not.toContain('Gateway')
+    expect(keys).not.toContain('DNS')
+    expect(keys).not.toContain('MAC address')
   })
 })
 
@@ -232,10 +313,14 @@ describe('Shelf v2 — the power menu', () => {
     expect(PowerModal.default).toBeTruthy()
 
     const options = [
+      // The unfiltered list, on purpose: this asserts the view renders whatever
+      // it is handed, including the two ids Shelf asks the host to omit. A view
+      // that quietly dropped them would pass a test built from the filtered list
+      // and still misplace the cursor for any theme that keeps them.
       { id: 'scan', label: 'Scan mapping', busy: 'Scanning…', icon: '◎', color: '#22c55e', desc: 'a' },
       { id: 'forget', label: 'Forget mapping', busy: 'Forgetting…', icon: '⌫', color: '#64748b', desc: 'b' },
-      { id: 'restart', label: 'Restart', busy: 'Restarting…', icon: '↺', color: '#f59e0b', desc: 'c' },
-      { id: 'shutdown', label: 'Shutdown', busy: 'Shutting down…', icon: '⏻', color: '#ef4444', desc: 'd' },
+      { id: 'shutdown', label: 'Shutdown', busy: 'Shutting down…', icon: '⏻', color: '#ef4444', desc: 'c' },
+      { id: 'restart', label: 'Restart', busy: 'Restarting…', icon: '↺', color: '#f59e0b', desc: 'd' },
       { id: 'desktop', label: 'Return to desktop', busy: 'Leaving…', icon: '⌘', color: '#38bdf8', desc: 'e' },
     ]
 
@@ -253,63 +338,99 @@ describe('Shelf v2 — the power menu', () => {
 
     for (const o of options) expect(screen.getByText(o.label)).toBeTruthy()
 
-    const rows = [...container.querySelectorAll('.cz-power-row')]
+    const rows = [...container.querySelectorAll('.cz-pwr-row')]
     expect(rows).toHaveLength(options.length)
-    expect(rows.map(r => r.querySelector('.cz-power-text b')?.textContent))
+    expect(rows.map(r => r.querySelector('.cz-pwr-text b')?.textContent))
       .toEqual(options.map(o => o.label))
 
   })
 
-  it('offers the way out of the front end that the box can actually perform', async () => {
-    // Return to desktop is `window.gamecore.quit()`, which exists. It is the
-    // third way a session ends and it was reachable only from a settings
-    // sub-page, four rows into a menu nobody opens in order to quit.
-    const PowerModal = await import('../components/modals/PowerModal')
-    const src = PowerModal.default.toString()
-    expect(src).toContain('desktop')
+  it('lets a theme move the mapping utilities out, but never the way off the box', async () => {
+    // The filter is the host's, not the view's: `focusIdx` indexes the array
+    // handed over, so a view hiding rows itself would leave the cursor landing
+    // on nothing. And a theme with a typo in its omit list must not be able to
+    // build a console that cannot be turned off from the sofa.
+    const PowerModal = (await import('../components/modals/PowerModal')).default
+    const { render } = await import('@testing-library/react')
+    const { createElement } = await import('react')
+
+    const seen: string[][] = []
+    const Spy = (props: { options: { id: string }[] }) => {
+      seen.push(props.options.map(o => o.id))
+      return null
+    }
+
+    render(createElement(PowerModal, {
+      onClose: vi.fn(), view: Spy as never, omit: ['scan', 'forget'],
+    }))
+    expect(seen[seen.length - 1]).toEqual(['shutdown', 'restart', 'desktop'])
+
+    seen.length = 0
+    render(createElement(PowerModal, {
+      onClose: vi.fn(), view: Spy as never, omit: ['shutdown', 'restart', 'desktop', 'scan'],
+    }))
+    // Everything that ends a session survives the request; only `scan` goes.
+    expect(seen[seen.length - 1]).toEqual(['forget', 'shutdown', 'restart', 'desktop'])
+
+    seen.length = 0
+    render(createElement(PowerModal, { onClose: vi.fn(), view: Spy as never }))
+    expect(seen[seen.length - 1]).toEqual(['scan', 'forget', 'shutdown', 'restart', 'desktop'])
   })
 })
 
 describe('Shelf v2 — the Controllers page', () => {
-  it('counts pads from the Gamepad API, not from the battery scan', async () => {
+  const withPads = (pads: unknown[]) =>
+    vi.stubGlobal('navigator', Object.assign(
+      Object.create(Object.getPrototypeOf(navigator)), navigator, { getGamepads: () => pads }))
+
+  async function renderControllers() {
+    const { createRows } = await load(`${THEME}/views/pages/rows.js`)
+    const { createControllersPage } = await load(`${THEME}/views/pages/controllers.js`)
+    const s = sdk()
+    const View = createControllersPage(s, createRows(s))
+    const { render } = await import('@testing-library/react')
+    const { createElement } = await import('react')
+    return render(createElement(View, { active: true, onLeave: vi.fn() }))
+  }
+
+  it('lists pads from the Gamepad API, not from the battery scan', async () => {
     // sysinfo.controllers is read_batteries(), a sysfs scan that only sees pads
     // exposing a battery. A wired pad has none, so counting it there would
     // report "no pad" on the one screen whose job is to say whether one is
     // connected — while the player is holding it.
-    const pads = [{ index: 0, id: 'Wired Controller (Vendor: 045e)', buttons: { length: 17 }, axes: { length: 4 } }]
-    vi.stubGlobal('navigator', Object.assign(Object.create(Object.getPrototypeOf(navigator)), navigator, {
-      getGamepads: () => pads,
-    }))
-
-    const { createControllersPage } = await load(`${THEME}/views/controllers.js`)
-    const View = createControllersPage(sdk())
-    const { render, screen } = await import('@testing-library/react')
-    const { createElement } = await import('react')
-    render(createElement(View, { onClose: vi.fn(), onBack: vi.fn() }))
-
-    expect(screen.getByText('Wired Controller (Vendor: 045e)')).toBeTruthy()
-    expect(screen.getByText('P1')).toBeTruthy()
-    // sysinfo reports no batteries for this pad, and the page still shows it.
-    expect(screen.getByText('17 buttons · 4 axes')).toBeTruthy()
-
+    withPads([{ index: 0, id: 'Wired Controller (Vendor: 045e)' }])
+    const { container } = await renderControllers()
+    expect(container.textContent).toMatch(/Player 1/)
+    expect(container.textContent).toMatch(/Wired Controller \(Vendor: 045e\)/)
   })
 
-  it('names where the real controller settings live', async () => {
-    // The page carries no sliders because the settings the capture drew there
-    // do not exist. What it must do instead is point at the three that do —
-    // all of them somewhere nobody would guess.
-    vi.stubGlobal('navigator', Object.assign(Object.create(Object.getPrototypeOf(navigator)), navigator, {
-      getGamepads: () => [],
-    }))
-    const { createControllersPage } = await load(`${THEME}/views/controllers.js`)
-    const View = createControllersPage(sdk())
-    const { render, screen } = await import('@testing-library/react')
-    const { createElement } = await import('react')
-    render(createElement(View, { onClose: vi.fn(), onBack: vi.fn() }))
+  it('arms Forget mapping before it fires, and disarms when focus moves', async () => {
+    // The protection that had to survive the move out of PowerModal. It deletes
+    // work the owner did by hand inside an emulator's own input UI, and there
+    // is no undo anywhere on this box.
+    withPads([])
+    const { container } = await renderControllers()
+    const { fireEvent } = await import('@testing-library/react')
 
-    expect(screen.getByText(/Vibration/)).toBeTruthy()
-    expect(screen.getByText(/Test a pad/)).toBeTruthy()
-    expect(screen.getByText(/forget a pad/)).toBeTruthy()
+    const rowFor = (text: string) => [...container.querySelectorAll('.cz-row2')]
+      .find(r => r.textContent?.includes(text))!
 
+    fireEvent.click(rowFor('Forget mapping'))
+    expect(container.textContent).toMatch(/Press again to forget/)
+
+    // Moving the cursor elsewhere must take the primed row back down.
+    fireEvent.click(rowFor('Scan mapping'))
+    expect(container.textContent).not.toMatch(/Press again to forget/)
+  })
+
+  it('carries no control the box cannot honour', async () => {
+    // The capture draws a stick dead zone and an exit-combination picker.
+    // Neither exists: dead zones are written per emulator by configgen and the
+    // exit hotkey is generated rather than chosen. A slider governing nothing
+    // is worse than an absent one.
+    withPads([])
+    const { container } = await renderControllers()
+    expect(container.textContent).not.toMatch(/dead zone/i)
+    expect(container.textContent).not.toMatch(/Exit combination/i)
   })
 })

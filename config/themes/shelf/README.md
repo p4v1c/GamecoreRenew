@@ -70,46 +70,81 @@ reload:
   drawn with inline styles and can only read `:root`, so chrome does not follow
   the artwork. The shelf does.
 
-## The settings rail, and why it is not the two-column screen
+## The settings screen
 
-The v2 capture draws Settings as a rail of numbered categories on the left and
-the selected category's contents on the right, both on screen at once. This is
-a rail that hands over to a full-screen page instead, and the reason is
-structural rather than a shortfall of effort.
+The reference capture draws Settings as **one screen**: a numbered rail on the
+left that never leaves, the category's contents beside it, and — for Wi-Fi — a
+third column of detail. That is what this is.
 
-Every page in `sdk.defaults.DefaultSettingsPages` renders its own `<Overlay>`,
-which is `position: fixed; inset: 0`. The handles a theme is given on it are
-`--gc-overlay-{scrim,blur,panel,border,radius}` — colour, blur, corners. None
-of them insets the layer, so a page drawn "on the right" covers the rail
-whatever the theme does; and boxing it into a column nests `position: fixed`
-inside a flex panel, which is the exact thing that shattered the Wi-Fi page and
-painted it black.
+An earlier pass here concluded the three-column layout was impossible, and it
+was, for as long as every category resolved to `sdk.defaults.DefaultSettingsPages`.
+Those pages are each a `position: fixed; inset: 0` overlay, and the only handles
+a theme gets on one are `--gc-overlay-{scrim,blur,panel,border,radius}` — colour,
+blur, corners. None insets the layer, so a host page shown "on the right" covers
+the rail whatever the theme does, and boxing it into a column nests
+`position: fixed` inside a flex parent, which is exactly what shattered the
+Wi-Fi page and painted it black.
 
-What carried the capture's meaning survives: the numbered rows, and the live
-value at the end of each one — the SSID you are on, how many pads answered,
-how many BIOS sets are complete. **Every one of those is read from the box or
-left blank.** The capture's own figures (−42 dBm, 82 % battery, `2.4.0 →
-2.4.2`) have no source on this machine, and a rail that invents them is a rail
-nobody can trust for the values that are real. A row whose endpoint did not
-answer shows nothing — not a dash, which reads as a measurement of "none".
+The way through is the one the SDK documents: `{ ...DefaultSettingsPages,
+...ownPages }`. A page written in `views/pages/` is ordinary markup, so it sits
+in the middle column and the rail stays put. All eight categories are written
+that way now, so nothing on this screen opens an overlay any more — but the
+merge is what let the rewrite happen one page at a time rather than all at once.
 
-Eight rows for ten host pages, which is not a page left behind: `Update`,
-`Standby`, `Storage` and `Desktop` sit one level down under `System`, and
-`theme.json` declares all ten. Returning from one of them lands back on
-`System` rather than at the top of the rail.
+**Pages are bare.** `views/settings.js` carries the overlay, once. A page that
+wrapped itself in a panel would rebuild the nested `position: fixed` that broke
+this screen before. The docstring in `frontend/src/components/defaults.tsx`
+still describes the host's pages the old way ("fragments, not modals"); the SDK
+table and `summer/views/settings.js` are the ones telling the truth.
 
-`Controllers` is this theme's own page — the host has none. It does not carry
-the capture's dead-zone slider or exit-combination picker, because neither
-exists on this box: dead zones are written per emulator by configgen and the
-exit hotkey is generated rather than chosen. It states what is connected, read
-from the Gamepad API rather than from `sysinfo.controllers` (that field is
-`read_batteries()`, which cannot see a wired pad), and says where the three
-real controller settings actually are.
+**Every value is read or absent.** The capture's own figures — `−42 dBm`, `82 %`
+battery, `2.4.0 → 2.4.2` — have no source on this box. A rail that invents them
+cannot be trusted for the ones that are real, so a row whose endpoint did not
+answer shows nothing. Not a dash: a dash reads as a measurement of "none".
+
+**Eight rows, ten declared pages.** `update`, `standby` and `storage` are
+sections of the System page; `desktop` is in the power menu, where the capture
+puts leaving the front end. `settings.pages` still lists all ten because the
+declaration is about what a player can REACH, and every one of those settings is
+reachable. If the host ever gains an eleventh page, `check-theme.mjs` will say
+so and somebody will have to give it a home — which is the guard working.
+
+**The palette is the capture's paper and teal**, not the shelf's seal gold. That
+is the one contestable reading of "the capture is the reference", and it lives
+in `--set-acc` in theme.css: one variable, one line to change.
+
+### The two host changes this needed
+
+Both are narrow, both serve any theme, and both are in the frontend rather than
+a router:
+
+- **`sdk.system.sound` and `sdk.input.haptics` gained setters.** They were
+  read-only, with a comment saying the setting "stays in Settings → Audio" —
+  true while that page was always the host's, and a hole the moment a theme
+  could render its own. Replacing the page silently deleted the interface-sound
+  switch, its volume and the vibration switch from the console, with the page
+  still there and nothing able to reach it. That is what `catalog` and `storage`
+  shipped as, arriving by a different door.
+- **`PowerModal` takes an `omit` list**, and `DefaultShell` forwards it as
+  `powerOmit`. "Scan mapping" and "Forget mapping" were in the power menu
+  because that modal had the two-press confirmation and no settings screen did —
+  not because saving a pad's controls ends a session. They are in
+  Settings → Controllers now, with the confirmation (see `views/pages/rows.js`).
+  The filter is applied by the host, not by the view: `focusIdx` indexes the
+  array handed over, so a view that hid rows itself would leave the cursor
+  landing on nothing. The host refuses to drop `restart`, `shutdown` or
+  `desktop` whatever a theme asks, so no theme can build a box that cannot be
+  turned off from the sofa.
 
 ## What this screen deliberately does not do
 
 The capture proposes more than the box can honestly answer. These are refusals,
 written down so the next person does not spend a day rediscovering them.
+
+These are refusals, not omissions. Each is a line the capture draws that this
+box cannot honour, and a control that governs nothing is worse than an absent
+one — it is a promise the console cannot keep, made to somebody three metres
+away who has no way to check.
 
 **Display — no resolution, refresh rate or VSync.** A mode switch needs a
 revert-unless-confirmed timer, and here that timer would have to run inside the
@@ -141,14 +176,22 @@ So the capture's `2.4.0 → 2.4.2`, its per-row Update buttons and its "Update
 all" describe an action that does not exist. This is the most tempting row on
 the screen and the most dishonest: it promises work nobody can perform.
 
-Also dropped for want of a source: Wi-Fi gateway/DNS/MAC/band/channel/link
-rate and WPA2-vs-WPA3 (the backend knows `secured`, a boolean, and a 0–100
-signal that is not dBm); the Wi-Fi and Bluetooth radio switches (no route);
-per-Bluetooth-device battery and RSSI (`BtDevice` is `{mac, name, connected,
-paired}`, and the battery levels that exist carry no MAC to join on); stick
-dead zone and exit combination; background music; the kernel version; and an
-ejectable internal disk — `storage.report()` excludes it on purpose, since an
-Eject button on your own root filesystem is not a feature.
+**Wi-Fi's gateway, DNS, MAC, band, channel and link rate are no longer on this
+list** — they were, and the backend learned to answer instead. See
+`GET /settings/wifi/details` and the three new keys on `/status`. What remains
+missing there is dBm (nmcli measures link quality 0–100 and does not expose dBm
+without privilege) and "Forget this network", which needs a route that does not
+exist and destroys a saved profile, so it wants the two-step treatment rather
+than a bare button.
+
+Also dropped for want of a source: the Wi-Fi and Bluetooth radio switches (no
+route turns either off); per-Bluetooth-device battery and RSSI (`BtDevice` is
+`{mac, name, connected, paired}`, and the battery levels that exist carry no MAC
+to join on — matching by name would be a guess, and a wrong guess reads as the
+box confusing player one with player two); stick dead zone and exit combination;
+background music; the kernel version; and an ejectable internal disk —
+`storage.report()` excludes it on purpose, since an Eject button on your own
+root filesystem is not a feature.
 
 ## Deliberate deviations
 
