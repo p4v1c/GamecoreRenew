@@ -107,6 +107,121 @@ async def scan_networks():
     return networks
 
 
+def _unescape(value: str) -> str:
+    r"""nmcli -t escapes ':' inside a value as '\:'.
+
+    A MAC address is the case that matters: `GENERAL.HWADDR` arrives as
+    `DC\:A6\:32\:11\:8F\:04`, and handing that to a UI shows the backslashes to
+    the player.
+    """
+    return value.replace("\\:", ":")
+
+
+def _parse_dev_show(text: str) -> dict:
+    """Gateway, DNS servers and MAC out of `nmcli -t ... dev show <iface>`.
+
+    Split on the FIRST colon, never the last: the key is fixed and the value is
+    not. `IP4.DNS[1]:9.9.9.9` and a MAC full of colons both parse correctly this
+    way and neither does the other way round.
+
+    Every field is optional. A box on DHCP with no DNS advertised, or a driver
+    that does not report a hardware address, answers with what it has — the
+    screen omits the rows it gets nothing for rather than printing a blank one,
+    which would read as "this network has no gateway".
+    """
+    gateway, dns, mac = "", [], ""
+    for line in text.splitlines():
+        key, sep, value = line.partition(":")
+        if not sep:
+            continue
+        value = _unescape(value.strip())
+        # nmcli prints the key with an empty value for anything it cannot
+        # answer, so emptiness is the absence test, not a missing line.
+        if not value or value == "--":
+            continue
+        if key == "IP4.GATEWAY":
+            gateway = value
+        elif key.startswith("IP4.DNS"):
+            dns.append(value)
+        elif key == "GENERAL.HWADDR":
+            mac = value
+    return {"gateway": gateway, "dns": dns, "mac": mac}
+
+
+def _band(freq: str) -> str:
+    """`5180 MHz` → `5 GHz`. Empty when the frequency is not a number.
+
+    Ranges rather than an exact table: a channel map would need updating for
+    every regulatory domain, and the only thing being answered here is which
+    of the three radios the player is on.
+    """
+    digits = "".join(ch for ch in freq if ch.isdigit())
+    if not digits:
+        return ""
+    mhz = int(digits)
+    if mhz >= 5925:
+        return "6 GHz"
+    if mhz >= 4900:
+        return "5 GHz"
+    if mhz >= 2400:
+        return "2.4 GHz"
+    return ""
+
+
+def _parse_wifi_details(text: str) -> list[dict]:
+    """`SSID,SECURITY,CHAN,FREQ,RATE` per network, from `nmcli -t dev wifi`.
+
+    `rsplit` on the four fixed trailing fields for the same reason
+    `scan_networks` does it: the SSID comes first and may itself contain a
+    colon, and it is the one field nobody here controls.
+
+    Kept apart from `/networks` deliberately. That endpoint's shape is what the
+    default UI and two shipped themes already read; widening its field list
+    would change how every one of them parses a scan, to add detail only one
+    screen wants.
+    """
+    out: dict[str, dict] = {}
+    for line in text.splitlines():
+        parts = line.rsplit(":", 4)
+        if len(parts) < 5:
+            continue
+        ssid = _unescape(parts[0]).strip()
+        if not ssid:
+            continue
+        security = parts[1].strip()
+        rate = parts[4].strip().replace("Mbit/s", "Mb/s")
+        try:
+            channel = int(parts[2].strip())
+        except ValueError:
+            channel = 0
+        # First entry wins: a scan lists one row per BSSID, so a mesh with three
+        # access points on one SSID appears three times. The strongest is first
+        # in nmcli's own ordering, which is the one the box would associate to.
+        out.setdefault(ssid, {
+            "ssid": ssid,
+            "security": "Open" if security in ("", "--") else security,
+            "channel": channel,
+            "band": _band(parts[3]),
+            "rate": rate,
+        })
+    return list(out.values())
+
+
+@router.get("/details")
+async def wifi_details():
+    """The radio detail behind each SSID: security, channel, band, link rate.
+
+    Additive on purpose — `/networks` keeps the exact shape it has always had.
+    A screen that wants to say "5 GHz · channel 44" asks for this as well; one
+    that does not is unaffected, and nothing that reads the scan today has to
+    change.
+    """
+    _, out, _ = await _run(
+        "nmcli", "-t", "-f", "SSID,SECURITY,CHAN,FREQ,RATE", "dev", "wifi"
+    )
+    return _parse_wifi_details(out)
+
+
 async def _iface_ip(iface: str) -> str:
     if not iface:
         return ""
@@ -115,6 +230,16 @@ async def _iface_ip(iface: str) -> str:
         if line.startswith("IP4.ADDRESS"):
             return line.split(":", 1)[-1].split("/")[0].strip()
     return ""
+
+
+async def _link_info(iface: str) -> dict:
+    """Gateway, DNS and MAC for the interface currently carrying the box."""
+    if not iface:
+        return {"gateway": "", "dns": [], "mac": ""}
+    _, out, _ = await _run(
+        "nmcli", "-t", "-f", "IP4.GATEWAY,IP4.DNS,GENERAL.HWADDR", "dev", "show", iface
+    )
+    return _parse_dev_show(out)
 
 
 async def _ethernet_status() -> dict:
@@ -144,8 +269,13 @@ async def wifi_status():
             ssid = parts[0].replace("\\:", ":")
             iface = parts[3] if len(parts) > 3 else ""
             return {"connected": True, "ssid": ssid, "ip": await _iface_ip(iface),
-                    "iface": iface, "ethernet": ethernet}
-    return {"connected": False, "ssid": "", "ip": "", "iface": "", "ethernet": ethernet}
+                    "iface": iface, "ethernet": ethernet,
+                    **await _link_info(iface)}
+    # The same keys either way. A screen that reads `body.gateway` must not
+    # have to know whether the box happened to be connected when it asked —
+    # that is how a disconnected box renders `undefined` into a table row.
+    return {"connected": False, "ssid": "", "ip": "", "iface": "", "ethernet": ethernet,
+            "gateway": "", "dns": [], "mac": ""}
 
 
 class ConnectRequest(BaseModel):

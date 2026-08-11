@@ -234,3 +234,106 @@ def test_a_failed_disconnect_reports_instead_of_raising(client, nmcli):
     body = client.request("DELETE", "/api/settings/wifi/connect").json()
     assert body["ok"] is False
     assert [c[:3] for c in nmcli["calls"]][-1] == ["nmcli", "dev", "disconnect"]
+
+
+# ── the radio detail behind a network ───────────────────────────────────────
+#
+# Parsed as pure functions wherever possible. The `nmcli` fixture answers every
+# spawn with one canned stdout, so a test that needs `dev wifi` and `dev show`
+# to say different things cannot be written against it — and widening the
+# fixture would change what every test above is standing on.
+
+from backend.routers.settings.wifi import (            # noqa: E402
+    _band, _parse_dev_show, _parse_wifi_details,
+)
+
+
+def test_a_mac_address_survives_the_colon_split():
+    """`GENERAL.HWADDR` is a value made entirely of the delimiter.
+
+    Splitting on the last colon — which is right for a scan line, where the
+    SSID leads — truncates it to `04` here. The key is what is fixed in this
+    file, so the split goes on the first colon instead.
+    """
+    parsed = _parse_dev_show("GENERAL.HWADDR:DC\\:A6\\:32\\:11\\:8F\\:04")
+    assert parsed["mac"] == "DC:A6:32:11:8F:04"
+
+
+def test_every_dns_server_is_kept_not_only_the_first():
+    parsed = _parse_dev_show("\n".join([
+        "IP4.GATEWAY:192.168.1.1",
+        "IP4.DNS[1]:9.9.9.9",
+        "IP4.DNS[2]:149.112.112.112",
+    ]))
+    assert parsed["gateway"] == "192.168.1.1"
+    assert parsed["dns"] == ["9.9.9.9", "149.112.112.112"]
+
+
+def test_a_field_nmcli_cannot_answer_is_absent_rather_than_blank():
+    """nmcli prints the key with an empty value, or '--', for what it does not
+    know. A row rendered from that reads as "this network has no gateway",
+    which is a different and wrong statement."""
+    parsed = _parse_dev_show("IP4.GATEWAY:\nIP4.DNS[1]:--\nGENERAL.HWADDR:")
+    assert parsed == {"gateway": "", "dns": [], "mac": ""}
+
+
+@pytest.mark.parametrize("freq,expected", [
+    ("2412 MHz", "2.4 GHz"),
+    ("5180 MHz", "5 GHz"),
+    ("5955 MHz", "6 GHz"),
+    ("", ""),
+    ("not a frequency", ""),
+])
+def test_the_band_is_named_from_the_frequency(freq, expected):
+    assert _band(freq) == expected
+
+
+def test_an_ssid_with_a_colon_keeps_its_detail_row():
+    """Same hazard as the scan: the SSID leads and is attacker-chosen, so the
+    four fixed fields are taken off the end."""
+    rows = _parse_wifi_details("Cafe\\:Central:WPA2:44:5180 MHz:866 Mbit/s")
+    assert rows[0]["ssid"] == "Cafe:Central"
+    assert rows[0]["channel"] == 44
+    assert rows[0]["band"] == "5 GHz"
+    assert rows[0]["rate"] == "866 Mb/s"
+
+
+def test_an_open_network_is_labelled_rather_than_left_as_two_dashes():
+    rows = _parse_wifi_details("Hotspot:--:36:5180 MHz:200 Mbit/s")
+    assert rows[0]["security"] == "Open"
+
+
+def test_one_row_per_ssid_however_many_access_points_answer():
+    """A mesh lists one line per BSSID. Three rows for one name would draw the
+    same network three times in the picker."""
+    rows = _parse_wifi_details("\n".join([
+        "Home:WPA2:44:5180 MHz:866 Mbit/s",
+        "Home:WPA2:1:2412 MHz:144 Mbit/s",
+    ]))
+    assert [r["ssid"] for r in rows] == ["Home"]
+    assert rows[0]["channel"] == 44          # nmcli orders strongest first
+
+
+def test_a_detail_line_that_is_short_or_junk_is_skipped_not_fatal():
+    rows = _parse_wifi_details("\n".join(["garbage", "", "A:B", ":WPA2:1:2412 MHz:1"]))
+    assert rows == []
+
+
+def test_the_details_endpoint_asks_nmcli_for_the_fields_it_parses(client, nmcli):
+    nmcli["stdout"] = "Livebox:WPA3:44:5180 MHz:866 Mbit/s"
+    body = client.get("/api/settings/wifi/details").json()
+    assert body == [{"ssid": "Livebox", "security": "WPA3", "channel": 44,
+                     "band": "5 GHz", "rate": "866 Mb/s"}]
+    assert nmcli["calls"][-1] == [
+        "nmcli", "-t", "-f", "SSID,SECURITY,CHAN,FREQ,RATE", "dev", "wifi"]
+
+
+def test_a_disconnected_box_still_reports_gateway_dns_and_mac(client, nmcli):
+    """The same keys either way. A screen reading `body.gateway` must not have
+    to know whether the box was connected when it asked — a missing key renders
+    as `undefined` into a table row."""
+    nmcli["stdout"] = ""
+    body = client.get("/api/settings/wifi/status").json()
+    assert body["gateway"] == ""
+    assert body["dns"] == []
+    assert body["mac"] == ""
