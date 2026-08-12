@@ -20,8 +20,13 @@
  * the whole wall looks slightly wrong.
  */
 
-const CELL = 60
-const GRID = 6                    // 6 × 60 = a 360px tile
+// 90, not 60. The wall was drawn to sit UNDER a wide soft worm and read as
+// texture; on its own it has to read as the pattern itself, and at 60 the
+// motif came out half the size of the reference and twice as busy. 6 × 90 is a
+// 540px tile, which puts roughly eight repeats across a 1080p screen — what
+// the owner's reference shows.
+const CELL = 90
+const GRID = 6                    // 6 × 90 = a 540px tile
 const K = 0.5523 * (CELL / 2)     // circle constant — quarter-turn control offset
 
 /** Deterministic, so the wall is the same wall on every boot. */
@@ -71,7 +76,14 @@ const tile = (seed, outer, inner) => {
  * Two layers, deliberately out of register: a wide soft worm and a narrow
  * outlined one drawn from a different seed. One layer read as wallpaper; two
  * read as a wall someone chose.
+ *
+ * The outline carries the wall now. It used to be a 34 %-opacity wash over the
+ * wide worm below it, so 2.5px of visible band on each side was plenty; on its
+ * own at full strength that reads as a hairline and the wall looks empty. The
+ * band is the difference between the two strokes — (30 − 18) / 2 = 6px — held
+ * at the same fraction of the cell as the reference, so the weight survives the
+ * change of scale instead of thinning out with it.
  */
-export const WALL_SOFT = tile(20411, 26, 0)
-export const WALL_LINE = tile(77213, 15, 10)
+export const WALL_SOFT = tile(20411, 39, 0)
+export const WALL_LINE = tile(77213, 30, 18)
 export const WALL_TILE = CELL * GRID

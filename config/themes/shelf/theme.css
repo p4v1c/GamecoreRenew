@@ -80,7 +80,13 @@
 .cz-wall-soft,
 .cz-wall-line {
   position: absolute;
-  inset: -1px -1px calc(var(--wall-tile) * -1) calc(var(--wall-tile) * -1);
+  /* Slack on all four sides, not just left and bottom.
+     Both layers drift by one tile, but the outlined one runs `reverse`, so it
+     starts translated DOWN-RIGHT and walks back — and with slack only at the
+     left and bottom that left a full tile of bare paper along the top edge,
+     sliding for the length of the cycle. It was invisible while this layer was
+     a 34 % wash over a fully covering one; it is the whole wall now. */
+  inset: calc(var(--wall-tile) * -1);
   -webkit-mask-repeat: repeat;
   mask-repeat: repeat;
   -webkit-mask-size: var(--wall-tile) var(--wall-tile);
@@ -90,14 +96,36 @@
   will-change: transform;
   animation: cz-drift 140s linear infinite;
 }
+/* The wall no longer follows the jacket.
+ *
+ * It used to: both layers took `--acc-h` from the cover of the box you were
+ * facing, and the room changed colour on every move along the shelf. That was
+ * the theme's own idea and it is being retired on the owner's call — switching
+ * emulator repainted the whole screen, which is a lot of movement behind a grid
+ * you are trying to read.
+ *
+ * Fixed sea-green on the same paper, sampled from the reference the owner
+ * supplied: #B8D5CD on #F2F2ED. The accent itself is untouched and still
+ * dresses the focus ring, the stamps and the box — only the wall stopped
+ * listening to it.
+ *
+ * The `transition` above is now inert here, and deliberately left in place:
+ * it costs nothing and it is what a fork flipping these back to `--acc-h` needs
+ * to have kept.
+ */
 .cz-wall-soft {
-  background-color: hsl(var(--acc-h) calc(var(--acc-s) * 0.6) 84%);
+  /* The faint under-layer the reference still shows between the loops — barely
+     off the paper, which is what gives the pattern depth without a second
+     colour. */
+  background-color: #EBEEE9;
   -webkit-mask-image: var(--wall-soft);
   mask-image: var(--wall-soft);
 }
 .cz-wall-line {
-  background-color: hsl(var(--acc-h) calc(var(--acc-s) * 0.5) 62%);
-  opacity: 0.34;
+  background-color: #B8D5CD;
+  /* Full strength: the reference's loops ARE this colour. At 0.34 they were a
+     wash over the wide worms below, which is the look being replaced. */
+  opacity: 1;
   -webkit-mask-image: var(--wall-line);
   mask-image: var(--wall-line);
   animation-duration: 190s;

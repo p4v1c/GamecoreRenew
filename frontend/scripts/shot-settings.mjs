@@ -217,7 +217,20 @@ const Settings = createSettings(sdk, {}, { TopBar: createTopBar(sdk) })
 // on its own — with the option list the host hands a theme that declares
 // `powerOmit: ['scan','forget']`, which is the whole point of the filter.
 let Root = Settings
-if (category === 'power') {
+if (category === 'home') {
+  // The wall and the bar over it, and nothing else — this shot exists to check
+  // one thing: that the top bar is still readable on the new pattern.
+  const { createBackground } = await import(`${THEME}/views/background.js`)
+  const { NEUTRAL } = await import(`${THEME}/lib/accent.js`)
+  const accent = { use: () => NEUTRAL, subscribe: () => () => {} }
+  const Background = createBackground(sdk, accent, () => false)
+  const TopBar = createTopBar(sdk)
+  Root = () => React.createElement(
+    'div', { style: { position: 'relative', width: '1920px', height: '1080px' } },
+    React.createElement(Background),
+    React.createElement(TopBar, { onSettings() {}, onPower() {} }),
+  )
+} else if (category === 'power') {
   const { createPowerView } = await import(`${THEME}/views/power.js`)
   const View = createPowerView(sdk)
   const options = [

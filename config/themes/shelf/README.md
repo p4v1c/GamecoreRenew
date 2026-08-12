@@ -62,10 +62,17 @@ reload:
 
 - **The live one** is read out of the jacket on screen — a 24px offscreen
   canvas, bucketed by hue, scored by saturation, clamped to something a UI can
-  actually wear. The wall, the stamps and the focus ring take it and cross-fade
-  when the selection settles. It is the signature of the reference capture and
-  the reason the wallpaper is a *mask* over a solid colour rather than a
-  picture: `background-color` transitions, an image does not.
+  actually wear. The stamps and the focus ring take it and cross-fade when the
+  selection settles.
+
+  **The wall no longer does.** It did, and that was the theme's signature:
+  moving along the shelf repainted the room. It is retired on the owner's call —
+  switching emulator recoloured the whole screen behind a grid you are trying to
+  read. The wall is now a fixed sea-green on the same paper (`#B8D5CD` on
+  `#F4F2ED`), sampled from the reference they supplied. The pattern is still a
+  *mask* over a solid colour rather than a picture, and the cross-fade is still
+  wired, so flipping the two `background-color` lines in `.cz-wall-*` back to
+  `hsl(var(--acc-h) …)` restores the old behaviour exactly.
 - **The fixed one** is seal gold, in `:root`. The host's settings widgets are
   drawn with inline styles and can only read `:root`, so chrome does not follow
   the artwork. The shelf does.
@@ -201,6 +208,13 @@ text in hardcoded white. A paper panel would hand you a menu in paper and a
 Wi-Fi page in white-on-white. So the theme's own menus join them in warm
 near-black — the drawer under the shelf — and `--gc-overlay-*` brings the
 reused pages the rest of the way.
+
+**The wall's outline carries the pattern alone.** It used to be a 34 % wash
+over a wide soft worm, so a 2.5px band and a 60px cell were enough to read as
+texture. Carrying the wall on its own it has to read as the pattern itself, so
+the cell is 90px and the band 6px — the same fraction of the cell, so the weight
+survives the change of scale. The soft layer stays, barely off the paper, for
+the depth the reference still shows between the loops.
 
 **The turned box does not use the host's `Cover`.** `Cover` draws at
 `object-fit: cover` in a frame the caller sizes; a shelf needs the opposite,
