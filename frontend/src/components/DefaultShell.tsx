@@ -113,6 +113,24 @@ function ModalScope({ children }: { children: React.ReactNode }) {
   return <div style={{ position: 'relative', zIndex: 500 }}>{children}</div>
 }
 
+/**
+ * What the built-in power menu leaves out, when a theme has not said.
+ *
+ * Saving a pad's controls is not a way to end a session. The two mapping rows
+ * were in this menu for one reason — it had the two-press confirmation and no
+ * settings screen did — and both shipped themes moved them to
+ * Settings → Controllers and declared `powerOmit` to drop them here.
+ *
+ * The built-in UI could not follow, because its settings screen was a list of
+ * ten host pages and Controllers was not one of them. It draws the same rail
+ * the themes draw now, Controllers included, so the reason is gone and the
+ * menu is the three ways a session ends.
+ *
+ * `??`, not `||`: a theme that deliberately passes `[]` wants the full menu,
+ * and an empty array is not an absent one.
+ */
+export const POWER_OMIT = ['scan', 'forget']
+
 export default function DefaultShell(parts: ShellParts = {}) {
   const Background = parts.background ?? Nothing
   const Decor = parts.decor ?? Nothing
@@ -223,7 +241,7 @@ export default function DefaultShell(parts: ShellParts = {}) {
       <AnimatePresence>
         {showPower && (
           <ModalScope key="power">
-            <PowerModal onClose={() => setShowPower(false)} view={parts.powerView} omit={parts.powerOmit} />
+            <PowerModal onClose={() => setShowPower(false)} view={parts.powerView} omit={parts.powerOmit ?? POWER_OMIT} />
           </ModalScope>
         )}
       </AnimatePresence>

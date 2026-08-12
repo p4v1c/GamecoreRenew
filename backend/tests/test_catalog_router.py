@@ -156,3 +156,58 @@ def test_a_cross_origin_page_cannot_install_anything(client, fake_cli):
                     headers={"Origin": "https://evil.example", "Host": "box.local"})
     assert r.status_code == 403
     assert fake_cli == []
+
+
+# ── the logo each pack ships ────────────────────────────────────────────────
+
+def test_every_pack_carries_the_url_of_its_own_logo(client):
+    """Settings → Emulators & apps drew a flat colour swatch per row, because a
+    colour was all the list gave it. Every pack ships `logo.png` and the box has
+    served it at /assets/logos/<id>.png all along — for the home grid, never for
+    the one screen where somebody is choosing WHICH system to install.
+
+    Sent rather than constructed by the caller: a screen that guessed the URL
+    would request a logo for every pack and take a 404 for the ones with none,
+    with no way to know in advance which those are — so it could not fall back
+    to `color` without first failing.
+    """
+    rows = client.get("/api/catalog").json()
+    assert rows, "the catalogue answered nothing"
+    for r in rows:
+        assert "logo" in r, f"{r['id']} has no logo field at all"
+    with_logo = [r for r in rows if r["logo"]]
+    assert with_logo, "not one pack advertises a logo"
+    for r in with_logo:
+        assert r["logo"] == f"assets/logos/{r['id']}.png", (
+            f"{r['id']} does not follow the one naming rule tiles.logo_path states"
+        )
+
+
+def test_a_pack_shipping_no_logo_says_so_rather_than_pointing_at_a_404(client, monkeypatch):
+    """`null`, never a URL that will not resolve. The row falls back to the
+    colour swatch it always had, which is a true statement; a broken image is
+    not."""
+    from backend.routers import catalog as router
+
+    real = router.load_catalog()
+    assert real, "no catalogue to borrow a pack from"
+    victim = sorted(real)[0]
+
+    class _NoLogo:
+        """The same pack, minus its logo file."""
+        def __init__(self, p):
+            self._p = p
+
+        def __getattr__(self, name):
+            return getattr(self._p, name)
+
+        @property
+        def logo(self):
+            return None
+
+    monkeypatch.setattr(router, "load_catalog",
+                        lambda: {k: (_NoLogo(v) if k == victim else v)
+                                 for k, v in real.items()})
+    rows = {r["id"]: r for r in client.get("/api/catalog").json()}
+    assert rows[victim]["logo"] is None
+    assert rows[victim]["color"], "the fallback the row drops back to is gone too"

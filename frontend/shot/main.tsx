@@ -15,6 +15,9 @@ import SettingsModal from '../src/components/modals/SettingsModal'
 import PowerModal from '../src/components/modals/PowerModal'
 import { WifiPage } from '../src/components/modals/settings/WifiPage'
 import SettingsScreen from '../src/components/modals/SettingsScreen'
+import { buildSdk } from '../src/lib/themeSdk'
+import { createCatalogPage } from '../src/settings/catalog'
+import '../src/settings/settings.css'
 import { Overlay } from '../src/components/ui'
 import { VirtualKeyboard } from '../src/components/ui/VirtualKeyboard'
 
@@ -40,7 +43,28 @@ const BOX: Record<string, unknown> = {
   '/api/settings/audio': { volume: 64, muted: false },
   '/api/storage/volumes': { ok: true, volumes: [{ device: '/dev/sdb1', label: 'SANDISK' }] },
   '/api/standby': { enabled: true, screensaver_mins: 6, sleep_mins: 16, state: 'awake' },
-  '/api/catalog': Array.from({ length: 18 }, (_, i) => ({ id: `p${i}`, installed: i < 15 })),
+  // The real shape, with the real ids, because the logos are keyed by id and a
+  // synthetic `p0` would prove nothing about whether they resolve.
+  '/api/catalog': [
+    ['azahar', 'Nintendo 3DS', 'Nintendo', 'Azahar', '#D63B4F', true],
+    ['melonds', 'Nintendo DS', 'Nintendo', 'melonDS', '#8B8992', true],
+    ['dolphin', 'GameCube / Wii', 'Nintendo', 'Dolphin', '#6C4FD6', true],
+    ['cemu', 'Wii U', 'Nintendo', 'Cemu', '#3AA6D6', false],
+    ['gopher64', 'Nintendo 64', 'Nintendo', 'Rosalie\'s Mupen GUI', '#2FA84F', true],
+    ['duckstation', 'PlayStation', 'Sony', 'DuckStation', '#4A4A55', true],
+    ['pcsx2', 'PlayStation 2', 'Sony', 'PCSX2', '#2F6FD6', true],
+    ['rpcs3', 'PlayStation 3', 'Sony', 'RPCS3', '#1B1B22', true],
+    ['ppsspp', 'PSP', 'Sony', 'PPSSPP', '#5A6ED6', false],
+    ['steam', 'Steam', 'Applications', 'Steam', '#1B2838', true],
+    ['youtube', 'YouTube', 'Applications', 'YouTube', '#FF0000', true],
+    ['twitch', 'Twitch', 'Applications', 'Twitch', '#9146FF', false],
+  ].map(([id, label, family, emulatorName, color, installed]) => ({
+    id, label, family, emulatorName, color, installed,
+    platform: label, kind: family === 'Applications' ? 'app' : 'emulator',
+    description: '', origin: 'shipped', restricted: [],
+    logo: `assets/logos/${id}.png`,
+  })),
+  '/api/catalog/busy': { busy: false },
   '/api/bios': Array.from({ length: 5 }, (_, i) => ({ id: `b${i}`, status: 'ok' })),
   '/api/sysinfo': { version: '1.0.172', controllers: [], bios: { ok: true, systems: {} } },
   '/api/themes': {
@@ -76,8 +100,9 @@ if (themeId) {
 }
 
 const Root = () =>
-  which === 'rail' ? <SettingsScreen onClose={() => {}} />
-  : which === 'power' ? <PowerModal onClose={() => {}} />
+  which === 'catalog' ? <CatalogFrame />
+  : which === 'rail' ? <SettingsScreen onClose={() => {}} />
+  : which === 'power' ? <PowerModal onClose={() => {}} omit={['scan', 'forget']} />
   : which === 'wifi' ? <WifiPage onClose={() => {}} onBack={() => {}} />
   : which === 'search' ? (
       <Overlay onClose={() => {}}>
@@ -86,5 +111,30 @@ const Root = () =>
       </Overlay>
     )
   : <SettingsModal onClose={() => {}} />
+
+/**
+ * The catalogue page on its own, in the frame it normally sits in.
+ *
+ * The full screen opens on Wi-Fi and there is no way to walk a headless
+ * browser six rows down the rail, so this mounts the middle column directly —
+ * with the classes that give it its width and background, and the skin that
+ * gives it the built-in UI's colours.
+ */
+function CatalogFrame() {
+  const Page = React.useMemo(
+    () => createCatalogPage(buildSdk('', { selectTheme: async () => {} })), [])
+  // With `?theme=` the theme's own stylesheet colours the screen from `:root`,
+  // and the default skin — two classes — would outrank it and repaint it.
+  return (
+    <div className={themeId ? 'gcs-set' : 'gcs-set gcs-skin-default'}>
+      <div className="gcs-set-head">
+        <h1 className="gcs-set-title">Settings</h1>
+      </div>
+      <div className="gcs-set-body" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
+        <Page active onLeave={() => {}} />
+      </div>
+    </div>
+  )
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<Root />)
