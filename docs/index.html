@@ -587,7 +587,7 @@ sudo dd if=gamecore-*.iso of=/dev/sdX bs=4M status=progress oflag=sync</code></p
     var tag = rel.tag_name || '';
     var building = newerTag
       ? '<p class="dl-meta"><span class="tag soon">Building</span> ' + esc(newerTag) +
-        ' was published minutes ago and its image is still being built. This is ' +
+        ' was published minutes ago and its image is still building or uploading. This is ' +
         esc(tag) + '.</p>'
       : '';
 
@@ -675,9 +675,25 @@ sudo dd if=gamecore-*.iso of=/dev/sdX bs=4M status=progress oflag=sync</code></p
     var list = (releases || []).filter(function (r) { return !r.draft; });
     if (!list.length) throw new Error('No published release.');
 
-    var withIso = list.filter(function (r) {
-      return (r.assets || []).some(function (a) { return /\.iso(\.\d+\.part)?$/.test(a.name); });
-    })[0];
+    /* A release whose image is COMPLETE, which is not the same as one that has
+       started uploading. The ISO job attaches its files one at a time and the
+       two ~2 GB parts take several minutes; the small `.sha256` lands first. A
+       release caught mid-upload can hold part 00 and not part 01, and a command
+       built from that produces a truncated image that boots halfway.
+
+       `split -b` writes equal-sized chunks and one smaller remainder, so a set
+       whose last part is smaller than its first is finished. (A file whose size
+       is an exact multiple of the chunk size would defeat this; for a 2.5 GB
+       image that is not a case worth designing around, and the checksum on the
+       page is the backstop either way.) */
+    var completeIso = function (r) {
+      var a = (r.assets || []);
+      if (a.some(function (x) { return /\.iso$/.test(x.name); })) return true;
+      var parts = a.filter(function (x) { return /\.iso\.\d+\.part$/.test(x.name); })
+                   .sort(function (x, y) { return x.name < y.name ? -1 : 1; });
+      return parts.length >= 2 && parts[parts.length - 1].size < parts[0].size;
+    };
+    var withIso = list.filter(completeIso)[0];
     var withInstaller = list.filter(function (r) {
       return (r.assets || []).some(function (a) { return a.name === 'gamecore-installer'; });
     })[0];
@@ -686,7 +702,7 @@ sudo dd if=gamecore-*.iso of=/dev/sdX bs=4M status=progress oflag=sync</code></p
     if (withIso) {
       renderIso(withIso, withIso !== list[0] ? list[0].tag_name : null);
     } else {
-      fallback('No release in the last ten carries an image.');
+      fallback('No release in the last ten carries a finished image.');
     }
   }).catch(function (e) {
     fallback(e && e.message ? e.message : 'The release could not be read.');
