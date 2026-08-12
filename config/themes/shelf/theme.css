@@ -1562,6 +1562,16 @@
   background: #F8F7F4; border: 1px solid var(--set-line);
   box-shadow: 0 40px 90px rgba(20, 18, 24, 0.35);
 }
+/* The host's on-screen keyboard, on something it can be read against.
+   It writes #fff on rgba(0,0,0,0.45) with only the accent themable, so a paper
+   dialog turned it into an invisible keyboard. Warm near-black, the same drawer
+   the reused host pages used to sit on. */
+.gcs-set-kb {
+  margin-top: 18px; padding: 18px 18px 12px; border-radius: 16px;
+  background: var(--gc-overlay-panel);
+  border: 1px solid var(--gc-overlay-border);
+}
+
 .gcs-set-dialog-title {
   margin-top: 6px; font-family: var(--font-display);
   font-size: 30px; font-weight: 700; letter-spacing: -0.015em;

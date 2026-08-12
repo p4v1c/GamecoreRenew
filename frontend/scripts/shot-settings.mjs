@@ -155,6 +155,11 @@ dom.window.navigator.getGamepads = () => ([
 
 // ── the SDK, stubbed at the surface the theme actually uses ─────────────────
 const html = htm.bind(React.createElement)
+
+// The host's real keyboard, imported rather than stubbed: its whole problem is
+// that it draws itself in hardcoded white, which a placeholder cannot show.
+const { VirtualKeyboard: KEYBOARD } = await import('../src/components/ui/VirtualKeyboard.tsx')
+  .catch(() => ({ VirtualKeyboard: () => html`<div class="cz-kb-stub">keyboard unavailable</div>` }))
 const noop = () => () => {}
 const api = {
   sysinfo: () => fetch('/api/sysinfo').then((r) => r.json()),
@@ -207,7 +212,7 @@ const sdk = {
     sound: { enabled: true, volume: 0.6 } },
   defaults: {
     DefaultSettingsPages: {},
-    DefaultKeyboard: () => html`<div class="cz-kb-stub">on-screen keyboard</div>`,
+    DefaultKeyboard: KEYBOARD,
   },
 }
 
@@ -264,13 +269,13 @@ await act(async () => { await new Promise((r) => setTimeout(r, 120)) })
 if (category === 'wifi-dialog') {
   // Click a secured network that is not the active one: that is the path that
   // raises the password dialog, and clicking it is how a player gets there.
-  const row = [...document.querySelectorAll('.cz-wifi-row')]
+  const row = [...document.querySelectorAll('.gcs-wifi-row')]
     .find((r) => r.textContent.includes('FreeWifi_Secure'))
   if (row) await act(async () => { row.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
   await act(async () => { await new Promise((r) => setTimeout(r, 80)) })
 } else if (category !== 'wifi') {
   // Click the rail row for another category, the way a player would.
-  const rows = [...document.querySelectorAll('.cz-set-row')]
+  const rows = [...document.querySelectorAll('.gcs-set-row')]
   const row = rows.find((r) => r.textContent.toLowerCase().includes(category.toLowerCase()))
   if (row) await act(async () => { row.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
   await act(async () => { await new Promise((r) => setTimeout(r, 80)) })

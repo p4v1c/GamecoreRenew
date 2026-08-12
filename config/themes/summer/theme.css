@@ -1180,6 +1180,12 @@
   box-shadow: 0 40px 90px rgba(0, 0, 0, 0.5);
 }
 .gcs-set-dialog-title { margin-top: 6px; font-size: 30px; font-weight: 700; }
+/* This dialog is already dark, so the keyboard needs no rescue — only a seam
+   so it reads as its own field rather than as loose keys on the glass. */
+.gcs-set-kb {
+  margin-top: 18px; padding: 18px 18px 12px; border-radius: var(--r-tile);
+  background: rgba(0, 0, 0, 0.22); border: 1px solid var(--glass-hairline);
+}
 
 /* ── Bluetooth ───────────────────────────────────────────────────────────── */
 .gcs-bt-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }

@@ -510,3 +510,32 @@ describe('Shelf v2 — what a page shows before its data arrives', () => {
     await waitFor(() => expect(bt.textContent).toMatch(/8BitDo Ultimate 2C/))
   })
 })
+
+describe('the shared screen — the host parts it borrows', () => {
+  it('puts the on-screen keyboard on a surface of its own', async () => {
+    // VirtualKeyboard draws itself in hardcoded white on a black field; only
+    // its accent is a variable. Shelf's password dialog is paper, so the
+    // keyboard shipped invisible — white letters at 1.05:1 against the card
+    // behind them. The wrapper is what each theme paints so that cannot happen
+    // again, and its absence is not visible in any screenshot of a theme whose
+    // dialog is already dark.
+    const { createWifiPage } = await load(`${SHARED}/wifi.js`)
+    const { createUseSlow } = await load(`${SHARED}/slow.js`)
+    const s = sdk()
+    const View = createWifiPage(s, createUseSlow(s))
+    const { render, waitFor, fireEvent } = await import('@testing-library/react')
+    const { createElement } = await import('react')
+    const { container } = render(createElement(View, { active: true, onLeave: vi.fn() }))
+
+    await waitFor(() => expect(container.querySelectorAll('.gcs-wifi-row').length).toBe(3))
+    const secured = [...container.querySelectorAll('.gcs-wifi-row')]
+      .find(r => r.textContent?.includes('FreeWifi_Secure'))!
+    fireEvent.click(secured)
+
+    await waitFor(() => expect(container.querySelector('.gcs-set-dialog')).toBeTruthy())
+    const kb = container.querySelector('.gcs-set-kb')
+    expect(kb, 'the keyboard must sit inside .gcs-set-kb, which themes paint').toBeTruthy()
+    // And it must be the keyboard inside it, not an empty box.
+    expect(kb!.children.length).toBeGreaterThan(0)
+  })
+})

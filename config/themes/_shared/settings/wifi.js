@@ -239,6 +239,14 @@ export const createWifiPage = (sdk, useSlow) => {
             <div class="gcs-set-kicker">Secured network</div>
             <div class="gcs-set-dialog-title">${asking}</div>
             <p class="gcs-set-sub">Enter the password to join this network.</p>
+            <!-- The keyboard is the host's, and it draws itself in hardcoded
+                 white on a black field — see VirtualKeyboard.tsx, where only the
+                 accent is a variable. On a light dialog that is a keyboard you
+                 cannot read, which is exactly what Shelf shipped. It gets its
+                 own dark surface here rather than each theme discovering the
+                 problem, and a theme whose dialog is already dark can make this
+                 transparent in one rule. -->
+            <div class="gcs-set-kb">
             <${Keyboard} title="" password=${true} placeholder="Password"
               onConfirm=${(pw) => {
                 const n = netsRef.current.find((x) => x.ssid === asking)
@@ -246,6 +254,7 @@ export const createWifiPage = (sdk, useSlow) => {
                 if (n) join(n, pw)
               }}
               onCancel=${() => setAsking(null)} />
+            </div>
           </div>
         </div>` : null}
       <//>`
