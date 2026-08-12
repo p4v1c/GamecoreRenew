@@ -52,6 +52,18 @@ import { createCartridge } from './views/cartridge.js'
 import { createSplash } from './views/splash.js'
 import { createGamepadView } from './views/gamepad.js'
 
+/**
+ * R2 turns the box on this shelf — `lib/browse.js` binds it and the library's
+ * own hint bar prints `R2  <mode>`. The host binds the same button to the
+ * per-game overlay picker, so one press did both: the box turned AND a menu
+ * nobody asked for opened over it, and the next press turned the box behind
+ * that menu.
+ *
+ * Declaring it here is what makes the host let go. The cost is stated in
+ * LibraryScreen: this theme then has no route to that picker.
+ */
+const LIBRARY_OMIT = ['options']
+
 export default (sdk) => {
   // The two screens this theme shares with Summer and with the built-in
   // default. They come off the sdk now rather than off a relative path:
@@ -91,6 +103,7 @@ export default (sdk) => {
       settings=${Settings}
       powerView=${createPowerView(sdk)}
       powerOmit=${['scan', 'forget']}
+      libraryOmit=${LIBRARY_OMIT}
       gamepadView=${createGamepadView(sdk)} />`
 
   return { splash: createSplash(sdk), shell: Shell }

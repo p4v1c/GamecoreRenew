@@ -25,9 +25,11 @@ import { SORT_KEYS, SORT_LABELS, type SortKey, type LibraryViewProps } from './t
 
 interface Props {
   view?: React.ComponentType<LibraryViewProps>
+  /** Shortcuts the theme binds itself; see ShellParts.libraryOmit. */
+  omit?: string[]
 }
 
-export default function LibraryScreen({ view: View = DefaultLibraryView }: Props = {}) {
+export default function LibraryScreen({ view: View = DefaultLibraryView, omit }: Props = {}) {
   const { selectedSystemId, selectedGameIdx, goHome, setSelectedGameIdx, setSession, modalDepth, screen, sessionGameKey } = useStore()
   const modalDepthRef = useRef(modalDepth)
   const screenRef = useRef(screen)
@@ -219,7 +221,19 @@ export default function LibraryScreen({ view: View = DefaultLibraryView }: Props
       onGp('gp:y',        () => { if (blocked()) return; setShowSearch(true) }),
       // R2, because every face button is already spoken for on this screen:
       // ✕ launches, ○ goes back, △ searches and □ is the controller screen.
-      onGp('gp:r2',       () => { if (blocked() || !settledGame) return; setShowOptions(true) }),
+      //
+      // Dropped entirely when the theme says it binds R2 itself — not merely
+      // deferred, because both handlers would still fire. Shelf turns the box
+      // with R2 and prints so in its own hint bar; leaving this here made one
+      // press do two things, the second of which was never advertised.
+      //
+      // A theme that takes this shortcut leaves the per-game overlay picker
+      // with no route on its screens. That is a real loss and it is stated
+      // here rather than discovered: a wrong bezel is then only fixable from
+      // the default UI or over SSH.
+      ...(omit?.includes('options') ? [] : [
+        onGp('gp:r2',     () => { if (blocked() || !settledGame) return; setShowOptions(true) }),
+      ]),
       onGp('gp:l1', () => {
         if (blocked()) return
         setSort(s => { const i = SORT_KEYS.indexOf(s); return SORT_KEYS[(i - 1 + SORT_KEYS.length) % SORT_KEYS.length] })
