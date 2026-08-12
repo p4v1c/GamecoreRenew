@@ -23,24 +23,30 @@
  *
  * ## Shared, and styled from outside
  *
- * This screen is not Shelf's any more. It lives in `config/themes/_shared/`
- * because two themes now draw it and one copy is the only way a fix reaches
- * both — the alternative was 1400 lines duplicated and drifting.
+ * This screen is not Shelf's, and it is not a theme's at all any more. Three
+ * surfaces draw it — Shelf, Summer, and the built-in default — and one copy is
+ * the only way a fix reaches all three.
  *
- * `_shared` is not a theme and never appears in the picker: `list_themes()`
- * skips any directory starting with `_`. It carries a `theme.json` with a
- * version for one reason — `update/linux.sh` walks every directory under
- * `config/themes` and decides what to deliver by comparing that field, so
- * without it a fix here would install once and never update again.
+ * It lived under `config/themes/_shared/` first, which was the right idea in
+ * the wrong place, for two reasons that both bit:
  *
- * (Written without the glob it describes on purpose: a star-slash inside a
- * block comment ends the comment, and the rest of this file became code the
- * first time it was written the obvious way.)
+ *   · **The updater.** `_shared` needed a `theme.json` purely so
+ *     `update/linux.sh` would compare its version and deliver it, and twice a
+ *     fix here shipped without a bump and simply never arrived on the box.
+ *     Code in the bundle has no version to forget.
+ *   · **Safe mode.** The built-in UI is what `themeSafety.ts` falls back TO
+ *     when a theme crashes — screen by screen first, then wholesale after
+ *     CRASH_LIMIT. A default settings screen reaching into a directory shipped
+ *     over the air would share the failure it exists to catch. Here it is in
+ *     the bundle, present whenever the front end is.
  *
- * It carries **no colour**. Every class is `gcs-*` and every theme supplies the
- * palette: Shelf paints it paper and teal, Summer paints it sea glass and
- * amber. Anything hardcoded here would be one theme's decision imposed on the
- * other, which is the whole reason the classes stopped being called `cz-`.
+ * Themes reach it through `sdk.defaults.createSettings`, the same way they
+ * already reach `sdk.defaults.DefaultKeyboard`.
+ *
+ * It carries **no colour**. Every class is `gcs-*` and each surface supplies
+ * the palette: Shelf paints it paper and teal, Summer sea glass and mandarin,
+ * the default dark and violet. Anything hardcoded here would be one of them
+ * imposing on the other two, which is why the classes stopped being `cz-`.
  */
 import { createUseSlow } from './slow.js'
 import { createRows } from './rows.js'
@@ -90,6 +96,20 @@ const CATS = [
 export const createSettings = (sdk, ownPages = {}, parts = {}) => {
   const { html, useState, useEffect, useRef } = sdk.ui
   const TopBar = parts.TopBar
+  /**
+   * An extra class on this screen's root, for whoever supplies the palette.
+   *
+   * The `gcs-*` rules carry no colour, so somebody has to. A theme does it from
+   * its own stylesheet on `:root`, which is enough while its stylesheet is the
+   * only one loaded. The built-in default cannot: its palette ships in the
+   * bundle and is therefore ALWAYS loaded, including while a theme is active
+   * and safe mode has swapped just this one screen back to the default.
+   *
+   * Hence a class rather than `:root`. `.gcs-set.gcs-skin-default` outranks a
+   * theme's `:root` on specificity, so each surface keeps its own colours no
+   * matter which stylesheets happen to be present.
+   */
+  const skin = parts.skin ? ` ${parts.skin}` : ''
 
   // Pages written for this screen, keyed the way the rail is. Every category
   // has one now; `ownPages.inline` is the seam a fork would use to replace one
@@ -227,7 +247,7 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
     const crumbMeta = meta[cat] || ''
 
     return html`
-      <div class="gcs-set" onClick=${(e) => e.target === e.currentTarget && onClose()}>
+      <div class=${`gcs-set${skin}`} onClick=${(e) => e.target === e.currentTarget && onClose()}>
         <div class="gcs-set-paper"></div>
 
         ${TopBar ? html`<${TopBar} onSettings=${() => {}} onPower=${() => {}} />` : null}

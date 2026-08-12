@@ -10,6 +10,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useStore } from '../../store'
 import { onGp } from '../../hooks/useGamepad'
 import DefaultPowerView from './power/DefaultPowerView'
+import { useSharedPowerView } from './power/useSharedPowerView'
 import type { PowerOption, PowerViewProps } from './power/types'
 
 interface Props {
@@ -72,7 +73,18 @@ const OPTIONS: PowerOption[] = [
 // (no sudo rights, systemctl error…) — unfreeze the UI instead of soft-locking.
 const POWER_FAILSAFE_MS = 10000
 
-export default function PowerModal({ onClose, view: View = DefaultPowerView, omit }: Props) {
+export default function PowerModal({ onClose, view, omit }: Props) {
+  /**
+   * The shared power menu — the same one both themes draw — in the built-in
+   * UI's colours, unless a theme passed its own view.
+   *
+   * `DefaultPowerView` is still the fallback under it, and not as dead code:
+   * the shared view is built from an sdk, and if building one ever throws, a
+   * box must still be able to turn itself off. That is the one screen where
+   * "render nothing" is not an acceptable outcome.
+   */
+  const Shared = useSharedPowerView()
+  const View = view ?? Shared ?? DefaultPowerView
   const options = useMemo(() => {
     const drop = new Set((omit ?? []).filter(id => !UNREMOVABLE.has(id)))
     return drop.size ? OPTIONS.filter(o => !drop.has(o.id)) : OPTIONS

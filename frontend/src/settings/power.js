@@ -42,8 +42,11 @@ const ICONS = {
 // nothing.
 const SESSION = new Set(['restart', 'shutdown', 'desktop'])
 
-export const createPowerView = (sdk) => {
+export const createPowerView = (sdk, parts = {}) => {
   const { html, React } = sdk.ui
+  // See screen.js: the palette rides on a class so the built-in default's
+  // always-loaded stylesheet cannot repaint a theme's power menu.
+  const skin = parts.skin ? ` ${parts.skin}` : ''
   const Fragment = React.Fragment
 
   return ({ options, focusIdx, confirmId, pendingId, scanning, scanResult, onActivate, onCancel }) => {
@@ -51,7 +54,7 @@ export const createPowerView = (sdk) => {
     const headAt = options.findIndex((o) => SESSION.has(o.id))
 
     return html`
-      <div class="gcs-pwr-scrim" onClick=${(e) => { if (e.target === e.currentTarget && !busy) onCancel() }}>
+      <div class=${`gcs-pwr-scrim${skin}`} onClick=${(e) => { if (e.target === e.currentTarget && !busy) onCancel() }}>
         <div class="gcs-pwr">
           <div class="gcs-pwr-title">System</div>
 

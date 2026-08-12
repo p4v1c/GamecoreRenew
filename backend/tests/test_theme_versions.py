@@ -49,10 +49,16 @@ def _shipped_themes():
     `list_themes()` skips them so nobody runs them. That reasoning was about the
     PICKER and this test is about DELIVERY, and `update/linux.sh` walks every
     directory under config/themes without caring about the prefix. The gap was
-    not theoretical: `_shared/` holds the settings screen both themes import,
+    not theoretical: `_shared/` held the settings screen both themes imported,
     its code was fixed, its version was not bumped, and the fix sat in the
     release while every box kept the broken copy — exactly the failure this file
     was written to make impossible, walking in through the one door left open.
+
+    That directory is gone: the screen is host code now, shipped in the bundle,
+    with no version for anyone to forget. The rule stays anyway. It cost two
+    releases to learn and it costs nothing to keep, and the next `_`-prefixed
+    directory somebody adds under config/themes will be delivered by the same
+    loop for the same reason.
 
     Only `.`-prefixed directories stay out: `.prev/` is the updater's own
     snapshot of what it replaced, not something it ships.

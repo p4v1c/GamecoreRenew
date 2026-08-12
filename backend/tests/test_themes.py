@@ -376,21 +376,60 @@ def host_settings_pages() -> list[str]:
 
 
 def themes_with_their_own_menu():
-    """Shipped themes that resolve pages through DefaultSettingsPages.
+    """Shipped themes that replace the host's settings menu with one of their own.
 
     Found by what they *do*, not by name: a test naming `summer` stops
     protecting the theme somebody adds next.
+
+    "What they do" used to mean "some .js under here mentions
+    DefaultSettingsPages", and that was wrong in a way nothing caught for a
+    long time. The only file that mentioned it was the shared settings screen,
+    which lived at `config/themes/_shared/` and carried a `theme.json` of its
+    own so the updater would deliver it — so the ONLY directory these two tests
+    ever ran against was `_shared`. Neither Shelf nor Summer was ever checked.
+    Moving that screen into the frontend bundle emptied the set entirely, which
+    is the only reason anyone found out.
+
+    The honest signal is `provides: ["shell"]`: a theme that owns the shell owns
+    everything the player sees, the host's settings menu included. There is no
+    other way for it to offer these pages, and `settings.pages` is its
+    declaration of which ones it still reaches.
     """
     if not SHIPPED_THEMES.is_dir():
         return
     for d in sorted(SHIPPED_THEMES.iterdir()):
-        if not d.is_dir() or d.name.startswith("."):
+        # `_`-prefixed the same way `list_themes()` skips them: a directory
+        # the picker never offers is not something a player can end up in.
+        # `_skeleton` is the template new themes are copied from, and holding a
+        # template to a shipped theme's contract is how this test fails for
+        # something nobody can select.
+        if not d.is_dir() or d.name[0] in "._":
             continue
-        if not (d / "theme.json").is_file():
+        manifest = d / "theme.json"
+        if not manifest.is_file():
             continue
-        if any("DefaultSettingsPages" in f.read_text()
-               for f in d.rglob("*.js")):
+        try:
+            m = json.loads(manifest.read_text())
+        except json.JSONDecodeError:
+            continue        # a broken manifest is test_theme_manifests' business
+        if "shell" in (m.get("provides") or []):
             yield d
+
+
+def test_there_is_something_to_check():
+    """The two tests below take their cases from the function above, and pytest
+    SKIPS a parametrised test whose parameter set comes out empty — quietly, in
+    a line nobody reads. That is exactly how they spent months checking a
+    directory that was not a theme and no themes at all.
+
+    A guard that silently passes forever is worse than no guard, which the
+    regex above already has a test for. This is the same protection for the
+    other half.
+    """
+    found = [d.name for d in themes_with_their_own_menu()]
+    assert len(found) >= 2, (
+        f"expected the shipped themes that build their own menu, found {found}"
+    )
 
 
 def test_the_host_page_list_is_readable():

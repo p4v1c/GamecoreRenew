@@ -15,9 +15,11 @@
  *           box.js        the solid and its spines   cartridge.js the media
  *           topbar.js     the shelf label            gamepad.js   the live pad
  *
- * The settings screen and the power menu are NOT here. They live in
- * `config/themes/_shared/settings/`, because Summer draws the same two screens
- * and one copy is the only way a fix reaches both. They carry no colour: this
+ * The settings screen and the power menu are NOT here. They are the host's,
+ * reached through `sdk.defaults.createSettings` and `sdk.defaults.createPowerView`
+ * — the same seam as `sdk.defaults.DefaultKeyboard`. Three surfaces draw them
+ * (this theme, Summer, and the built-in default), and code in the bundle is the
+ * only copy no theme can ship a stale version of. They carry no colour: this
  * theme dresses them through the `gcs-*` classes in theme.css.
  *
  *   lib/    accent.js     the colour                 names.js     titles, letters
@@ -48,11 +50,13 @@ import { createLibraryView } from './views/library.js'
 import { createBox } from './views/box.js'
 import { createCartridge } from './views/cartridge.js'
 import { createSplash } from './views/splash.js'
-import { createSettings } from '../_shared/settings/screen.js'
-import { createPowerView } from '../_shared/settings/power.js'
 import { createGamepadView } from './views/gamepad.js'
 
 export default (sdk) => {
+  // The two screens this theme shares with Summer and with the built-in
+  // default. They come off the sdk now rather than off a relative path:
+  // they are host code, so no theme can ship a stale copy of them.
+  const { createSettings, createPowerView } = sdk.defaults
   const { html } = sdk.ui
 
   // One accent, two trees. The wall lives in `background` and the thing that

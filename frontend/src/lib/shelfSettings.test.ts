@@ -26,9 +26,11 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { buildSdk } from './themeSdk'
 
 const THEME = '../../../config/themes/shelf'
-// The screen itself is shared: two themes draw it, so it does not live in
-// either one. Shelf is still what this file loads it AS.
-const SHARED = '../../../config/themes/_shared/settings'
+// The screen itself is the HOST's now — three surfaces draw it (Shelf, Summer,
+// and the built-in default), so it lives in the bundle and reaches themes
+// through `sdk.defaults`. Shelf is still what this file loads it AS: these
+// tests are about the rail Shelf shows, and Shelf's sdk is what it is given.
+const SHARED = '../settings'
 
 const sdk = () => buildSdk('shelf', { selectTheme: vi.fn(async () => {}) })
 

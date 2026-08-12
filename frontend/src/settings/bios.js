@@ -23,6 +23,8 @@ const STATE = {
   mismatch: 'WRONG FILE',
 }
 
+import { asList } from './list.js'
+
 export const createBiosPage = (sdk) => {
   const { html, useState, useEffect, useRef, React } = sdk.ui
   const Fragment = React.Fragment
@@ -33,7 +35,7 @@ export const createBiosPage = (sdk) => {
     const [failed, setFailed] = useState(false)
 
     useEffect(() => {
-      sdk.api.bios.list().then(setRows).catch(() => setFailed(true))
+      sdk.api.bios.list().then((r) => setRows(asList(r))).catch(() => setFailed(true))
     }, [])
 
     const ref = useRef({ idx, len: rows.length })

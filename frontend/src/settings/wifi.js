@@ -40,6 +40,8 @@ const REFRESH_MS = 10000
 /** 0–100 → four bars, the way the capture draws them. */
 const barsFor = (signal) => Math.max(1, Math.min(4, Math.ceil((signal || 0) / 25)))
 
+import { asList } from './list.js'
+
 export const createWifiPage = (sdk, useSlow) => {
   const { html, useState, useEffect, useRef, React } = sdk.ui
   const Fragment = React.Fragment
@@ -69,12 +71,12 @@ export const createWifiPage = (sdk, useSlow) => {
     const load = () => {
       sdk.api.wifi.status().then(setStatus).catch(() => {})
       sdk.api.wifi.networks()
-        .then((list) => { setNets(list); setLoaded(true) })
+        .then((list) => { setNets(asList(list)); setLoaded(true) })
         .catch(() => setLoaded(true))
       // Additive endpoint: a box whose backend predates it simply shows the
       // rows that do not depend on it, rather than an empty detail column.
       sdk.api.wifi.details()
-        .then((rows) => setDetail(Object.fromEntries(rows.map((r) => [r.ssid, r]))))
+        .then((rows) => setDetail(Object.fromEntries(asList(rows).map((r) => [r.ssid, r]))))
         .catch(() => {})
     }
 
