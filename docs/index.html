@@ -15,8 +15,35 @@
   set either.
 
   A page on github.io is crawlable, and every tag below is under our control.
-  That is the whole point; keep it a single self-contained file with no external
-  requests, so it cannot break and cannot leak a visitor to a third party.
+
+  ## Self-contained, with one documented exception
+
+  No stylesheet, script, font or image is fetched from anywhere: the page cannot
+  break because a CDN did, and it cannot hand a visitor to a third party.
+
+  The exception is one request to api.github.com, and only to fill in the
+  download section. It is there because the ISO's filename carries the version
+  (`gamecore-1.0.181-x86_64.iso`), so no fixed URL can point at it — unlike the
+  installer, which has a stable name and is therefore a plain static link that
+  works with JavaScript switched off.
+
+  Everything degrades: if that request fails, is rate-limited (60/hour per IP,
+  unauthenticated) or never runs, the section shows a link to the releases page
+  and says why. Nothing on this page is only reachable through JavaScript.
+
+  ## Why the ISO is not a single button
+
+  It cannot be. GitHub caps a release asset at 2 GiB and the image is larger, so
+  the release carries `.00.part`, `.01.part` … Reassembling them in the browser
+  is not possible either: release assets are served without an
+  `access-control-allow-origin` header — checked, including through the assets
+  API, whose 302 carries the header but whose final response does not — so a
+  cross-origin fetch of the parts is blocked before a byte arrives.
+
+  What is offered instead is one command that produces the finished `.iso`:
+  `curl` takes several URLs and writes them to stdout in order, so a shell
+  redirect concatenates them as it downloads. No temporary parts, no second
+  step, the correct filename.
 -->
 
 <title>GameCore — living-room emulation frontend for Arch Linux (PS3, PS4, Switch, Wii U)</title>
@@ -53,19 +80,25 @@
   "codeRepository": "https://github.com/p4v1c/GamecoreRenew",
   "license": "https://www.gnu.org/licenses/gpl-3.0.html",
   "isAccessibleForFree": true,
+  "downloadUrl": "https://github.com/p4v1c/GamecoreRenew/releases/latest",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
 }
 </script>
 
 <style>
   :root {
-    --bg: #0e1116;
-    --panel: #161b22;
-    --line: #262d38;
-    --ink: #e8edf5;
-    --dim: #9aa7b8;
+    --bg: #0b0e13;
+    --bg-2: #0e1219;
+    --panel: #141a23;
+    --panel-2: #19202b;
+    --line: #232c3a;
+    --ink: #e9eef6;
+    --dim: #94a3b8;
+    --faint: #64748b;
     --accent: #4ea3ff;
+    --accent-ink: #05121f;
     --warn: #f0b429;
+    --ok: #3ecf8e;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -78,40 +111,66 @@
     font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
-  .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 20px; }
   a { color: var(--accent); }
-  a:focus-visible, .btn:focus-visible {
+  a:focus-visible, .btn:focus-visible, button:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 3px;
   }
 
-  header { padding: 72px 0 56px; border-bottom: 1px solid var(--line); }
+  /* ── header ─────────────────────────────────────────────────────────── */
+  header {
+    padding: 76px 0 60px;
+    border-bottom: 1px solid var(--line);
+    background:
+      radial-gradient(900px 380px at 15% -10%, rgba(78,163,255,.13), transparent 70%),
+      radial-gradient(700px 320px at 90% 0%, rgba(62,207,142,.07), transparent 65%);
+  }
   .name {
     font-size: 13px; letter-spacing: .18em; text-transform: uppercase;
     color: var(--dim); margin: 0 0 18px;
   }
   h1 {
-    font-size: clamp(30px, 5.2vw, 46px); line-height: 1.15;
-    margin: 0 0 20px; letter-spacing: -.02em;
+    font-size: clamp(31px, 5.4vw, 48px); line-height: 1.12;
+    margin: 0 0 20px; letter-spacing: -.022em;
   }
-  .lede { font-size: clamp(17px, 2.3vw, 20px); color: var(--dim); margin: 0 0 32px; max-width: 62ch; }
+  .lede { font-size: clamp(17px, 2.3vw, 20px); color: var(--dim); margin: 0 0 30px; max-width: 62ch; }
 
   .btn {
-    display: inline-block; padding: 12px 22px; border-radius: 8px;
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 13px 22px; border-radius: 9px;
     text-decoration: none; font-weight: 600; margin: 0 10px 10px 0;
-    border: 1px solid var(--line);
+    border: 1px solid var(--line); color: var(--ink);
   }
-  .btn.primary { background: var(--accent); color: #06121f; border-color: var(--accent); }
-  .btn.ghost { color: var(--ink); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.primary:hover { filter: brightness(1.07); }
+  .btn.ghost:hover { border-color: var(--accent); }
+  .btn small { font-weight: 500; opacity: .75; }
 
-  section { padding: 52px 0; border-bottom: 1px solid var(--line); }
-  h2 { font-size: 25px; margin: 0 0 10px; letter-spacing: -.01em; }
+  .os-note {
+    /* flex, not inline-flex: as an inline box it ran on from the buttons and
+       read as a third one. */
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    margin: 14px 0 0; font-size: 14px; color: var(--dim);
+  }
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: 11.5px; font-weight: 700; letter-spacing: .04em;
+    border: 1px solid var(--line); color: var(--dim);
+  }
+  .tag.ok { color: var(--ok); border-color: rgba(62,207,142,.35); background: rgba(62,207,142,.09); }
+  .tag.soon { color: var(--warn); border-color: rgba(240,180,41,.32); background: rgba(240,180,41,.08); }
+
+  /* ── sections ───────────────────────────────────────────────────────── */
+  section { padding: 54px 0; border-bottom: 1px solid var(--line); }
+  section:nth-of-type(even) { background: var(--bg-2); }
+  h2 { font-size: 26px; margin: 0 0 10px; letter-spacing: -.012em; }
   h3 { font-size: 17px; margin: 0 0 6px; }
   p { max-width: 68ch; }
   .sub { color: var(--dim); margin: 0 0 28px; max-width: 68ch; }
 
   .grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 11px; padding: 20px; }
   .card p { color: var(--dim); margin: 0; font-size: 15px; }
 
   table { width: 100%; border-collapse: collapse; font-size: 15px; }
@@ -121,10 +180,61 @@
   tbody tr:last-child td { border-bottom: 0; }
 
   pre {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-    padding: 16px; overflow-x: auto; font-size: 14px;
+    background: #0a0d12; border: 1px solid var(--line); border-radius: 9px;
+    padding: 15px 16px; overflow-x: auto; font-size: 13.5px; line-height: 1.6;
+    margin: 0;
   }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  p code, li code, td code {
+    background: var(--panel-2); border: 1px solid var(--line);
+    padding: 1px 5px; border-radius: 5px; font-size: 13.5px;
+  }
+
+  /* ── downloads ──────────────────────────────────────────────────────── */
+  .dl { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .dl-card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 22px; display: flex; flex-direction: column;
+  }
+  .dl-card h3 { font-size: 19px; margin: 0 0 4px; }
+  .dl-card .why { color: var(--dim); font-size: 15px; margin: 0 0 16px; flex: 1; }
+  .dl-meta { color: var(--faint); font-size: 13px; margin: 12px 0 0; }
+  .dl-meta code { font-size: 12.5px; }
+
+  /* The download command carries two release URLs and is longer than any
+     sensible column. Wrapped rather than scrolled: a command whose right-hand
+     half is off-screen looks truncated, and the reader cannot tell whether the
+     part they cannot see matters. The backslash continuations are already
+     there, so wrapping changes nothing about running it. */
+  .cmd pre { padding-right: 76px; }
+  .cmd { position: relative; margin: 14px 0 0; }
+  .cmd button {
+    position: absolute; top: 8px; right: 8px;
+    background: var(--panel-2); color: var(--dim);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 4px 10px; font-size: 12px; cursor: pointer; font-family: inherit;
+  }
+  .cmd button:hover { color: var(--ink); border-color: var(--accent); }
+
+  .assemble {
+    margin: 22px 0 0; padding: 20px 22px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  }
+  .assemble h3 { margin: 0 0 6px; font-size: 18px; }
+  .assemble > p { color: var(--dim); font-size: 15px; margin: 0; }
+
+  .parts { list-style: none; padding: 0; margin: 12px 0 0; font-size: 14px; }
+  .parts li { padding: 5px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; }
+  .parts li:last-child { border-bottom: 0; }
+  .parts .sz { color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .note {
+    border-left: 3px solid var(--warn); background: rgba(240,180,41,.06);
+    padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 22px 0 0;
+    color: var(--dim); font-size: 15px;
+  }
+  .note strong { color: var(--ink); }
+  .note p { margin: 0; max-width: none; }
 
   .limits { list-style: none; padding: 0; margin: 0; }
   .limits li { padding: 9px 0 9px 26px; position: relative; color: var(--dim); max-width: 68ch; }
@@ -133,7 +243,19 @@
   }
   .limits strong { color: var(--ink); }
 
-  footer { padding: 40px 0 64px; color: var(--dim); font-size: 14px; }
+  .steps { counter-reset: s; list-style: none; padding: 0; margin: 0; }
+  .steps > li { counter-increment: s; position: relative; padding: 0 0 22px 42px; }
+  .steps > li::before {
+    content: counter(s); position: absolute; left: 0; top: 0;
+    width: 27px; height: 27px; border-radius: 50%;
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--dim); font-size: 13px; font-weight: 700;
+    display: grid; place-items: center;
+  }
+  .steps h3 { margin: 2px 0 6px; }
+  .steps p { color: var(--dim); margin: 0 0 10px; }
+
+  footer { padding: 42px 0 66px; color: var(--dim); font-size: 14px; }
   footer a { color: var(--dim); }
 </style>
 </head>
@@ -148,11 +270,122 @@
       entirely with a gamepad, on an Arch Linux machine that stays a real
       computer underneath.
     </p>
-    <a class="btn primary" href="https://github.com/p4v1c/GamecoreRenew/releases/latest">Download the installer</a>
+    <a class="btn primary" href="#download">Download</a>
     <a class="btn ghost" href="https://github.com/p4v1c/GamecoreRenew">Source on GitHub</a>
+    <p class="os-note">
+      <span class="tag ok">Linux</span> Arch and Manjaro
+      <span class="tag soon">Windows</span> not available yet
+    </p>
   </div>
 </header>
 
+<!-- ── Download ─────────────────────────────────────────────────────────── -->
+<section id="download">
+  <div class="wrap">
+    <h2>Download</h2>
+    <p class="sub">
+      Two ways in. The image installs the whole system on a bare machine and
+      needs no Linux beforehand; the installer adds GameCore to an Arch or
+      Manjaro you already run.
+    </p>
+
+    <div class="dl">
+      <div class="dl-card">
+        <h3>Installer <span class="tag ok">Linux</span></h3>
+        <p class="why">
+          For a machine already running Arch Linux or Manjaro. A graphical
+          installer: pick your emulators, hit Install, one password prompt
+          through polkit. Re-running it is safe.
+        </p>
+        <a class="btn primary" href="https://github.com/p4v1c/GamecoreRenew/releases/latest/download/gamecore-installer">
+          Download the installer
+        </a>
+        <div class="cmd">
+          <pre><code>chmod +x gamecore-installer
+./gamecore-installer</code></pre>
+          <button type="button" data-copy="chmod +x gamecore-installer&#10;./gamecore-installer">Copy</button>
+        </div>
+        <p class="dl-meta" id="installer-meta">A single x86-64 binary. No runtime to install.</p>
+      </div>
+
+      <div class="dl-card">
+        <h3>Installation image <span class="tag ok">Linux</span></h3>
+        <p class="why">
+          A bootable ISO that installs the system, GameCore included, with no
+          network at all. Nothing needs to be installed on the machine first.
+        </p>
+        <div id="iso-box">
+          <p class="dl-meta">Reading the latest release…</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="iso-cmd"></div>
+
+    <div class="note">
+      <p>
+        <strong>Linux only today.</strong> The installer configures systemd
+        services, SDDM auto-login and a KDE Plasma X11 kiosk session — all
+        specific to Arch and Manjaro. A Windows build is not available, and no
+        date is promised for one.
+      </p>
+    </div>
+
+    <div class="note">
+      <p>
+        <strong>Secure Boot must be off</strong> to boot the image — it is
+        unsigned. The machine wants UEFI, a 1080p display, 4&nbsp;GB of RAM and
+        about 80&nbsp;GB of storage before your ROM library.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ── From image to living room ────────────────────────────────────────── -->
+<section>
+  <div class="wrap">
+    <h2>From the image to a working box</h2>
+    <ol class="steps">
+      <li>
+        <h3>Write the image to a USB stick</h3>
+        <p>
+          Verify the checksum first. A truncated download produces a stick that
+          boots halfway, and that failure looks like broken hardware rather
+          than a bad copy.
+        </p>
+        <pre><code>sha256sum -c gamecore-*.iso.sha256
+sudo dd if=gamecore-*.iso of=/dev/sdX bs=4M status=progress oflag=sync</code></pre>
+      </li>
+      <li>
+        <h3>Boot it and install</h3>
+        <p>
+          The installer runs from the image. It partitions, installs the system
+          and GameCore, sets up auto-login and the kiosk session, and reboots
+          into the interface.
+        </p>
+      </li>
+      <li>
+        <h3>Plug a controller in</h3>
+        <p>
+          That is the configuration step. GameCore writes each emulator's own
+          config for the pads actually connected, per player slot. A pad nothing
+          recognises goes through a built-in mapping wizard — one button at a
+          time, no keyboard.
+        </p>
+      </li>
+      <li>
+        <h3>Add your ROMs, and let it update itself</h3>
+        <p>
+          Copy them into the per-system folders over the network or a USB disk.
+          After that the box updates over the air from its own settings screen —
+          no new image, no reinstall.
+        </p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ── Differentiators ──────────────────────────────────────────────────── -->
 <section>
   <div class="wrap">
     <h2>Three things it does differently</h2>
@@ -189,6 +422,7 @@
   </div>
 </section>
 
+<!-- ── Controllers ──────────────────────────────────────────────────────── -->
 <section>
   <div class="wrap">
     <h2>Plug a controller in. That's the configuration step.</h2>
@@ -217,6 +451,7 @@
   </div>
 </section>
 
+<!-- ── Systems ──────────────────────────────────────────────────────────── -->
 <section>
   <div class="wrap">
     <h2>Thirteen systems</h2>
@@ -244,28 +479,7 @@
   </div>
 </section>
 
-<section>
-  <div class="wrap">
-    <h2>Installing it</h2>
-    <p class="sub">
-      On a machine already running Arch Linux or Manjaro, a graphical installer
-      does the whole job — emulators, services, auto-login and the kiosk
-      session.
-    </p>
-    <pre><code>chmod +x gamecore-installer
-./gamecore-installer</code></pre>
-    <p>
-      Pick your emulators, hit Install. It asks for the administrator password
-      once, through polkit. Re-running it is safe. After that the box updates
-      itself over the air from the settings screen.
-    </p>
-    <p>
-      There is a command-line path too, for a machine you only reach over SSH —
-      see <a href="https://github.com/p4v1c/GamecoreRenew#installation-device">the README</a>.
-    </p>
-  </div>
-</section>
-
+<!-- ── Limits ───────────────────────────────────────────────────────────── -->
 <section>
   <div class="wrap">
     <h2>What it does not do</h2>
@@ -275,7 +489,7 @@
     <ul class="limits">
       <li><strong>Arch and Manjaro only.</strong> The installer is specific to them. If you run something else, this is not for you today.</li>
       <li><strong>X11 only.</strong> The overlay system, the fullscreen enforcer and the gamepad-to-keyboard bridge all depend on it. Wayland is not a small change.</li>
-      <li><strong>The first install needs a network</strong>, because the emulators come from Flathub.</li>
+      <li><strong>The installer needs a network</strong>, because the emulators come from Flathub. The ISO does not — it carries them.</li>
       <li><strong>Multi-controller setups are proven by a test harness, not by hardware.</strong> Two-, three- and four-pad configurations are replayed as synthetic controller sets against the real config generators and compared against recorded output. That is real evidence for the generated configs. It is not four people playing on a real box.</li>
       <li><strong>One developer.</strong> The bus factor is one.</li>
       <li><strong>No games, ROMs, BIOS files or keys</strong> are distributed, downloaded or included. Bring your own.</li>
@@ -291,6 +505,7 @@
       · <a href="https://github.com/p4v1c/GamecoreRenew">Source</a>
       · <a href="https://github.com/p4v1c/GamecoreRenew/issues">Issues</a>
       · <a href="https://github.com/p4v1c/GamecoreRenew#readme">Documentation</a>
+      · <a href="https://github.com/p4v1c/GamecoreRenew/releases">All releases</a>
     </p>
     <p>
       GameCore is not affiliated with Sony, Nintendo, Microsoft, or with any of
@@ -298,6 +513,186 @@
     </p>
   </div>
 </footer>
+
+<script>
+(function () {
+  'use strict';
+
+  var REPO = 'p4v1c/GamecoreRenew';
+  var RELEASES = 'https://github.com/' + REPO + '/releases/latest';
+
+  /* Copy buttons. Progressive: the command is readable and selectable whether
+     or not the clipboard API is there, so a failure costs a convenience. */
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-copy]');
+    if (!b || !navigator.clipboard) return;
+    navigator.clipboard.writeText(b.getAttribute('data-copy')).then(function () {
+      var was = b.textContent;
+      b.textContent = 'Copied';
+      setTimeout(function () { b.textContent = was; }, 1400);
+    }, function () {});
+  });
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function size(bytes) {
+    if (!bytes) return '';
+    var mb = bytes / 1048576;
+    return mb >= 1024 ? (mb / 1024).toFixed(2) + ' GB' : Math.round(mb) + ' MB';
+  }
+
+  var box = document.getElementById('iso-box');
+
+  /* The fallback, and the honest one: a link to the release page and the reason
+     this section could not fill itself in. Shown for a failed request, a rate
+     limit, a release with no image — anything. */
+  function fallback(why) {
+    box.innerHTML =
+      '<a class="btn ghost" href="' + RELEASES + '">Open the latest release</a>' +
+      '<p class="dl-meta">' + esc(why) + ' The image and its <code>.sha256</code> ' +
+      'are on the release page, with a <code>REASSEMBLE.txt</code> if it is split.</p>';
+  }
+
+  function assetsOf(rel) {
+    var assets = rel.assets || [];
+    return function (re) {
+      return assets.filter(function (a) { return re.test(a.name); })
+                   .sort(function (a, b) { return a.name < b.name ? -1 : 1; });
+    };
+  }
+
+  function renderInstaller(rel) {
+    var installer = assetsOf(rel)(/^gamecore-installer$/)[0];
+    if (!installer) return;
+    document.getElementById('installer-meta').innerHTML =
+      'A single x86-64 binary, ' + size(installer.size) + '. No runtime to install. ' +
+      '<code>' + esc(rel.tag_name || '') + '</code>';
+  }
+
+  /* `newerTag` is the tag of a release that exists but has no image yet —
+     named rather than hidden, so nobody wonders why the version here is one
+     behind the one on the releases page. */
+  function renderIso(rel, newerTag) {
+    var assets = rel.assets || [];
+    var byName = function (re) {
+      return assets.filter(function (a) { return re.test(a.name); })
+                   .sort(function (a, b) { return a.name < b.name ? -1 : 1; });
+    };
+    var whole = byName(/\.iso$/)[0];
+    var parts = byName(/\.iso\.\d+\.part$/);
+    var sha = byName(/\.iso\.sha256$/)[0];
+    var tag = rel.tag_name || '';
+    var building = newerTag
+      ? '<p class="dl-meta"><span class="tag soon">Building</span> ' + esc(newerTag) +
+        ' was published minutes ago and its image is still being built. This is ' +
+        esc(tag) + '.</p>'
+      : '';
+
+    /* One asset: an ordinary link, which is all it ever needed to be. */
+    if (whole) {
+      box.innerHTML = building +
+        '<a class="btn primary" href="' + esc(whole.browser_download_url) + '">Download the ISO</a>' +
+        (sha ? '<p class="dl-meta"><a href="' + esc(sha.browser_download_url) + '">' +
+               esc(sha.name) + '</a> — check it before writing the stick.</p>' : '');
+      return;
+    }
+
+    if (!parts.length) { fallback('This release ships no image.'); return; }
+
+    /* Split. The browser cannot join them — GitHub serves release assets with
+       no access-control-allow-origin, so fetching them cross-origin is refused
+       before a byte arrives — but curl takes several URLs and writes them to
+       stdout in order, so one shell redirect produces the finished file under
+       the right name. */
+    var isoName = parts[0].name.replace(/\.\d+\.part$/, '');
+    var total = parts.reduce(function (n, a) { return n + a.size; }, 0);
+    var base = parts[0].browser_download_url.replace(/\/[^/]+$/, '');
+
+    var html = building +
+      '<p class="dl-meta" style="margin-top:0">' + size(total) + ', over the 2 GiB ' +
+      'GitHub allows for one asset, so it is published in ' + parts.length +
+      ' parts. Join them with the command below, or take them one at a time:</p>' +
+      '<ul class="parts">';
+    parts.forEach(function (a) {
+      html += '<li><a href="' + esc(a.browser_download_url) + '">' + esc(a.name) + '</a>' +
+              '<span class="sz">' + size(a.size) + '</span></li>';
+    });
+    if (sha) {
+      html += '<li><a href="' + esc(sha.browser_download_url) + '">' + esc(sha.name) + '</a>' +
+              '<span class="sz">checksum</span></li>';
+    }
+    html += '</ul>';
+    box.innerHTML = html;
+
+    /* The base URL is factored into a variable so no line is longer than the
+       column. Written out in full it wrapped mid-word inside the card, and a
+       command broken across a word looks like one that will not run. */
+    var cmd =
+      'B=' + base + '\n\n' +
+      '# download both parts straight into one image\n' +
+      'curl -L \\\n' +
+      parts.map(function (a) { return '  "$B/' + a.name + '" \\'; }).join('\n') + '\n' +
+      '  > "' + isoName + '"';
+    if (sha) {
+      cmd += '\n\n# check it before writing a stick\n' +
+             'curl -LO "$B/' + sha.name + '"\n' +
+             'sha256sum -c "' + sha.name + '"';
+    }
+
+    document.getElementById('iso-cmd').innerHTML =
+      '<div class="assemble">' +
+      '<h3>The whole image, in one command</h3>' +
+      '<p>Downloads both parts and writes them straight into ' +
+      '<code>' + esc(isoName) + '</code> — no temporary files, no second step. ' +
+      'The checksum covers the joined image.</p>' +
+      '<div class="cmd"><pre><code>' + esc(cmd) + '</code></pre>' +
+      '<button type="button" data-copy="' + esc(cmd) + '">Copy</button></div>' +
+      '<p class="dl-meta">Already downloaded the parts by hand? ' +
+      '<code>cat ' + esc(isoName) + '.*.part &gt; ' + esc(isoName) + '</code> does the same join. ' +
+      'Release <code>' + esc(tag) + '</code>.</p>' +
+      '</div>';
+  }
+
+  /* Ten releases, not just the latest, and for a reason that shows up minutes
+     after every merge: the release is published by one CI job and the ISO is
+     attached by a second one that takes another twenty minutes. During that
+     window the newest release genuinely has no image, and a page that only
+     asked for `/releases/latest` would tell a visitor there is none at all.
+
+     So each artefact is taken from the newest release that actually carries it,
+     and both are labelled with the tag they came from. Nothing is presented as
+     newer than it is. */
+  fetch('https://api.github.com/repos/' + REPO + '/releases?per_page=10', {
+    headers: { 'Accept': 'application/vnd.github+json' }
+  }).then(function (r) {
+    if (r.status === 403) throw new Error('GitHub is rate-limiting this address.');
+    if (!r.ok) throw new Error('GitHub answered ' + r.status + '.');
+    return r.json();
+  }).then(function (releases) {
+    var list = (releases || []).filter(function (r) { return !r.draft; });
+    if (!list.length) throw new Error('No published release.');
+
+    var withIso = list.filter(function (r) {
+      return (r.assets || []).some(function (a) { return /\.iso(\.\d+\.part)?$/.test(a.name); });
+    })[0];
+    var withInstaller = list.filter(function (r) {
+      return (r.assets || []).some(function (a) { return a.name === 'gamecore-installer'; });
+    })[0];
+
+    if (withInstaller) renderInstaller(withInstaller);
+    if (withIso) {
+      renderIso(withIso, withIso !== list[0] ? list[0].tag_name : null);
+    } else {
+      fallback('No release in the last ten carries an image.');
+    }
+  }).catch(function (e) {
+    fallback(e && e.message ? e.message : 'The release could not be read.');
+  });
+})();
+</script>
 
 </body>
 </html>
