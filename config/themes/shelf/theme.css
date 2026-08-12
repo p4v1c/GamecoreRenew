@@ -2129,3 +2129,19 @@
   margin-top: 14px; text-align: center;
   font-family: var(--font-mono); font-size: 11px; color: var(--set-ink-3);
 }
+
+/* A wait that says what it is waiting for.
+   Distinct from `.cz-wifi-empty`, and that distinction is the point: "nothing
+   is paired" and "we have not asked yet" looked identical, so the Bluetooth
+   page greeted a box with two paired pads by saying it had none. */
+.cz-load {
+  display: flex; align-items: center; gap: 11px;
+  padding: 18px 2px; font-size: 15px; color: var(--set-ink-2);
+}
+.cz-load > i {
+  width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto;
+  background: var(--set-acc);
+  animation: cz-load-pulse 1.1s ease-in-out infinite;
+}
+@keyframes cz-load-pulse { 50% { opacity: 0.25; transform: scale(0.7); } }
+@media (prefers-reduced-motion: reduce) { .cz-load > i { animation: none; } }

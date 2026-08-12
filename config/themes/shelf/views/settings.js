@@ -26,6 +26,7 @@
  * arguing about. It lives in `--set-acc` in theme.css: one variable, one line
  * to change if the shelf's gold should win instead.
  */
+import { createUseSlow } from '../lib/slow.js'
 import { createRows } from './pages/rows.js'
 import { createWifiPage } from './pages/wifi.js'
 import { createBluetoothPage } from './pages/bluetooth.js'
@@ -73,9 +74,10 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
   // through `DefaultSettingsPages` and opens as the host's overlay, which is
   // what made the rewrite possible page by page instead of all at once.
   const Rows = createRows(sdk)
+  const useSlow = createUseSlow(sdk)
   const OwnPages = {
-    wifi: createWifiPage(sdk),
-    bluetooth: createBluetoothPage(sdk),
+    wifi: createWifiPage(sdk, useSlow),
+    bluetooth: createBluetoothPage(sdk, useSlow),
     audio: createAudioPage(sdk, Rows),
     controllers: createControllersPage(sdk, Rows),
     catalog: createCatalogPage(sdk),
@@ -92,6 +94,10 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
     // answers the d-pad has to be legible from the highlight alone.
     const [zone, setZone] = useState('rail')
     const [meta, setMeta] = useState({})
+    // The raw answers behind the rail's values. Wi-Fi and Bluetooth need the
+    // same two requests the rail already made, so the page opens with them in
+    // hand instead of fetching them a second time behind an empty card.
+    const [seed, setSeed] = useState({})
 
     const railFocusRef = useRef(railFocus)
     useEffect(() => { railFocusRef.current = railFocus }, [railFocus])
@@ -112,12 +118,20 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
       const put = (k, v) => { if (alive && v) setMeta((m) => ({ ...m, [k]: v })) }
       const api = sdk.api
 
+      const keep = (k, v) => { if (alive) setSeed((s) => ({ ...s, [k]: v })) }
+
       api.wifi.status()
-        .then((s) => put('wifi', s.connected ? s.ssid
-          : s.ethernet && s.ethernet.connected ? 'Wired' : 'Not connected'))
+        .then((s) => {
+          keep('wifi', s)
+          put('wifi', s.connected ? s.ssid
+            : s.ethernet && s.ethernet.connected ? 'Wired' : 'Not connected')
+        })
         .catch(() => {})
       api.bluetooth.devices()
-        .then((ds) => put('bluetooth', `${ds.filter((d) => d.connected).length} connected`))
+        .then((ds) => {
+          keep('bluetooth', ds)
+          put('bluetooth', `${ds.filter((d) => d.connected).length} connected`)
+        })
         .catch(() => {})
       api.audio.sinks()
         .then((ss) => { const d = ss.find((s) => s.default); put('audio', d && d.name) })
@@ -219,7 +233,7 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
           </nav>
 
           ${Inline
-            ? html`<${Inline} active=${zone === 'page'}
+            ? html`<${Inline} seed=${seed[cat]} active=${zone === 'page'}
                               onLeave=${() => { sdk.system.playSound('back'); setZone('rail') }}
                               onClose=${onClose} />`
             // A category with no page renders as words rather than as

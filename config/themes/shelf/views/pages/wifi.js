@@ -40,20 +40,26 @@ const REFRESH_MS = 10000
 /** 0–100 → four bars, the way the capture draws them. */
 const barsFor = (signal) => Math.max(1, Math.min(4, Math.ceil((signal || 0) / 25)))
 
-export const createWifiPage = (sdk) => {
+export const createWifiPage = (sdk, useSlow) => {
   const { html, useState, useEffect, useRef, React } = sdk.ui
   const Fragment = React.Fragment
   const Keyboard = sdk.defaults.DefaultKeyboard
 
-  return ({ active, onLeave }) => {
+  return ({ active, onLeave, seed }) => {
     const [nets, setNets] = useState([])
-    const [status, setStatus] = useState(null)
+    // Seeded from the rail, which already fetched the status to put the SSID at
+    // the end of this row. It is what the detail column is built from, so the
+    // page opens with it rather than asking again and drawing a blank panel.
+    const [status, setStatus] = useState(() => seed || null)
     const [detail, setDetail] = useState({})
     const [sel, setSel] = useState(0)
     const [asking, setAsking] = useState(null)   // ssid awaiting a password
     const [busy, setBusy] = useState(false)
     const [msg, setMsg] = useState('')
     const [loaded, setLoaded] = useState(false)
+    // `GET /networks` rescans before it answers, so a couple of seconds is
+    // normal and silence is not.
+    const slow = useSlow(!loaded, 2500)
 
     const selRef = useRef(sel)
     useEffect(() => { selRef.current = sel }, [sel])
@@ -71,6 +77,10 @@ export const createWifiPage = (sdk) => {
         .then((rows) => setDetail(Object.fromEntries(rows.map((r) => [r.ssid, r]))))
         .catch(() => {})
     }
+
+    // Same race as Bluetooth's: the rail's status request and the player's
+    // first press are not ordered, so the seed is taken whenever it lands.
+    useEffect(() => { if (seed && !status) setStatus(seed) }, [seed, status])
 
     useEffect(() => {
       load()
@@ -166,12 +176,21 @@ export const createWifiPage = (sdk) => {
         <p class="cz-set-sub">
           ${wired
             ? 'This box is on a cable. Wi-Fi stays available, and joining a network here does not unplug it.'
-            : `${nets.length || 'No'} network${nets.length === 1 ? '' : 's'} ${nets.length === 1 ? 'is' : 'are'} in range. Selecting one shows its details on the right; joining a secured network asks for its password.`}
+            : !loaded
+              ? 'Selecting a network shows its details on the right; joining a secured network asks for its password.'
+              // Only once the scan has answered may this screen say how many
+              // networks there are. It used to read the length of an
+              // as-yet-unfetched list, so the first thing on screen was "No
+              // networks are in range" — on a box that was connected to one.
+              : `${nets.length || 'No'} network${nets.length === 1 ? '' : 's'} ${nets.length === 1 ? 'is' : 'are'} in range. Selecting one shows its details on the right; joining a secured network asks for its password.`}
         </p>
 
         ${msg ? html`<div class="cz-wifi-msg">${msg}</div>` : null}
 
-        ${loaded && nets.length === 0
+        ${!loaded
+          ? html`<div class="cz-load"><i></i>${slow
+              ? 'Still scanning — the radio is taking its time.' : 'Scanning for networks…'}</div>`
+          : nets.length === 0
           ? html`<div class="cz-wifi-empty">No network is in range.</div>`
           : nets.map((n, i) => {
             const d = detail[n.ssid] || {}

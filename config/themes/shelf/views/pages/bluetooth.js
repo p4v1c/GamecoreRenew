@@ -28,24 +28,53 @@
  * screen: who is paired, who is connected, what is in range, and the two
  * buttons that change either.
  */
-export const createBluetoothPage = (sdk) => {
+// What the adapter is told to do, mirrored from SCAN_SECS in the router so the
+// screen can say how long it will be instead of just spinning.
+const SCAN_SECS = 10
+const SCAN_PATIENCE_MS = (SCAN_SECS + 4) * 1000
+
+export const createBluetoothPage = (sdk, useSlow) => {
   const { html, useState, useEffect, useRef, React } = sdk.ui
   const Fragment = React.Fragment
 
-  return ({ active, onLeave }) => {
-    const [paired, setPaired] = useState([])
+  return ({ active, onLeave, seed }) => {
+    // Seeded from the rail. The settings screen already fetched the paired list
+    // to put "2 connected" at the end of this row, so the page opens with it
+    // rather than fetching the same thing again and showing an empty card while
+    // it waits.
+    const [paired, setPaired] = useState(() => seed || [])
+    const [gotPaired, setGotPaired] = useState(() => !!seed)
     const [nearby, setNearby] = useState([])
     const [scanning, setScanning] = useState(false)
     const [busy, setBusy] = useState('')      // mac being worked on
     const [msg, setMsg] = useState('')
     const [col, setCol] = useState('paired')
     const [idx, setIdx] = useState(0)
+    // Nothing is wrong yet — it is just taking a while. The scan is ten seconds
+    // by design, so its patience is longer than the paired list's; a "still
+    // working" that fires during a normal scan would be crying wolf.
+    const slowPaired = useSlow(!gotPaired, 2500)
+    const slowScan = useSlow(scanning, SCAN_PATIENCE_MS)
 
     const stateRef = useRef({ col, idx, paired, nearby })
     useEffect(() => { stateRef.current = { col, idx, paired, nearby } },
       [col, idx, paired, nearby])
 
-    const loadPaired = () => sdk.api.bluetooth.devices().then(setPaired).catch(() => {})
+    const loadPaired = () => sdk.api.bluetooth.devices()
+      .then(setPaired)
+      .catch(() => {})
+      // Loaded means "the question has been answered", including answered
+      // badly. An adapter that is off has no paired devices and no error to
+      // show; leaving this false would spin for ever on a box with no radio.
+      .finally(() => setGotPaired(true))
+
+    // The seed can arrive AFTER this page has mounted — the rail's requests and
+    // a player pressing straight down to Bluetooth are in a race, and the seed
+    // loses it whenever the box is slow, which is exactly when it matters.
+    // Adopted whenever it turns up, until the page's own answer supersedes it.
+    useEffect(() => {
+      if (seed && !gotPaired) { setPaired(seed); setGotPaired(true) }
+    }, [seed, gotPaired])
 
     useEffect(() => { loadPaired() }, [])
 
@@ -163,9 +192,12 @@ export const createBluetoothPage = (sdk) => {
         <div class="cz-bt-cols">
           <div class="cz-bt-col">
             <div class="cz-set-kicker">Paired</div>
-            ${paired.length === 0
-              ? html`<div class="cz-wifi-empty">Nothing is paired yet.</div>`
-              : paired.map((d, i) => row(d, i, 'paired'))}
+            ${!gotPaired
+              ? html`<div class="cz-load"><i></i>${slowPaired
+                  ? 'Still asking the adapter…' : 'Reading the paired list…'}</div>`
+              : paired.length === 0
+                ? html`<div class="cz-wifi-empty">Nothing is paired yet.</div>`
+                : paired.map((d, i) => row(d, i, 'paired'))}
           </div>
 
           <div class="cz-bt-col">
@@ -176,9 +208,11 @@ export const createBluetoothPage = (sdk) => {
               </span>
             </div>
             ${nearby.length === 0
-              ? html`<div class="cz-wifi-empty">
-                       ${scanning ? 'Looking around…' : 'Nothing new in range.'}
-                     </div>`
+              ? (scanning
+                  ? html`<div class="cz-load"><i></i>${slowScan
+                      ? 'Still looking — some devices only advertise every few seconds.'
+                      : `Looking around for ${SCAN_SECS} seconds…`}</div>`
+                  : html`<div class="cz-wifi-empty">Nothing new in range.</div>`)
               : nearby.map((d, i) => row(d, i, 'nearby'))}
           </div>
         </div>

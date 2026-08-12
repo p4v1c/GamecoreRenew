@@ -434,3 +434,76 @@ describe('Shelf v2 — the Controllers page', () => {
     expect(container.textContent).not.toMatch(/Exit combination/i)
   })
 })
+
+describe('Shelf v2 — what a page shows before its data arrives', () => {
+  /** A fetch that never settles: the state between opening a page and the box
+   *  answering, which is the state the owner was actually seeing. */
+  const stall = () => vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+
+  async function renderPage(name: 'wifi' | 'bluetooth') {
+    const { createSettings } = await load(`${THEME}/views/settings.js`)
+    const { render, fireEvent } = await import('@testing-library/react')
+    const { createElement } = await import('react')
+    const { container } = render(createElement(createSettings(sdk()), { onClose: vi.fn() }))
+    if (name === 'bluetooth') {
+      const row = [...container.querySelectorAll('.cz-set-rail .cz-set-row')]
+        .find(r => r.textContent?.includes('Bluetooth'))!
+      fireEvent.click(row)
+    }
+    return container
+  }
+
+  it('says it is still asking, rather than that there is nothing', async () => {
+    // The bug as reported: opening Bluetooth greeted a box with two paired pads
+    // by announcing it had none, because "no devices yet" and "no devices" were
+    // the same empty array. Same shape on Wi-Fi, which claimed no network was
+    // in range while connected to one.
+    stall()
+    const bt = await renderPage('bluetooth')
+    expect(bt.querySelector('.cz-load')).toBeTruthy()
+    expect(bt.textContent).not.toMatch(/Nothing is paired yet/)
+
+    const wifi = await renderPage('wifi')
+    expect(wifi.querySelector('.cz-load')).toBeTruthy()
+    expect(wifi.textContent).not.toMatch(/No network is in range/)
+    expect(wifi.textContent).not.toMatch(/No networks are in range/)
+  })
+
+  it('still says "nothing" once the box has actually answered nothing', async () => {
+    // The other half. A guard that never resolves would trade a wrong message
+    // for a spinner that spins for ever, which is not an improvement.
+    const empty: Record<string, unknown> = { ...BOX, '/api/settings/bluetooth/devices': [] }
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      const hit = Object.keys(empty).find(k => url.endsWith(k))
+      if (!hit) return { ok: false, status: 404, statusText: 'nf', json: async () => ({}) }
+      return { ok: true, status: 200, statusText: 'OK', json: async () => empty[hit] }
+    }))
+    const { waitFor } = await import('@testing-library/react')
+    const bt = await renderPage('bluetooth')
+    await waitFor(() => expect(bt.textContent).toMatch(/Nothing is paired yet/))
+    expect(bt.querySelector('.cz-load')).toBeNull()
+  })
+
+  it('opens with what the rail already fetched instead of asking twice', async () => {
+    // The rail fetches the paired list to put "1 connected" at the end of the
+    // Bluetooth row. Handing that to the page is the difference between opening
+    // on the list and opening on a spinner.
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      calls.push(url)
+      const hit = Object.keys(BOX).find(k => url.endsWith(k))
+      // The page's own refetch never lands, so anything on screen came from the
+      // seed rather than from a second request.
+      if (calls.filter(c => c.endsWith('/api/settings/bluetooth/devices')).length > 1) {
+        return new Promise(() => {}) as never
+      }
+      if (!hit) return { ok: false, status: 404, statusText: 'nf', json: async () => ({}) }
+      return { ok: true, status: 200, statusText: 'OK', json: async () => BOX[hit] }
+    }))
+    const { waitFor } = await import('@testing-library/react')
+    const bt = await renderPage('bluetooth')
+    await waitFor(() => expect(bt.textContent).toMatch(/8BitDo Ultimate 2C/))
+  })
+})

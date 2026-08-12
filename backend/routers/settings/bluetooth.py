@@ -132,16 +132,28 @@ async def _known(kind: str = "") -> list[tuple[str, str]]:
 
 @router.get("/devices")
 async def list_devices():
-    devices = []
-    for mac, name in await _known("Paired"):
-        _, info = await _run("bluetoothctl", "--", "info", mac)
-        devices.append({
+    """Every paired device, with whether it is connected right now.
+
+    The `info` calls go out together rather than one after another. Each one is
+    a `bluetoothctl` process and the wait is entirely the round trip, so a box
+    with a pad, a second pad and a headset paid three of them end to end — long
+    enough that the settings screen drew its empty state first and "nothing is
+    paired yet" was the first thing the owner read. They do not depend on each
+    other, so there was never a reason to queue them.
+    """
+    known = await _known("Paired")
+    infos = await asyncio.gather(
+        *(_run("bluetoothctl", "--", "info", mac) for mac, _ in known)
+    )
+    return [
+        {
             "mac": mac,
             "name": name,
             "connected": "Connected: yes" in info,
             "paired": True,
-        })
-    return devices
+        }
+        for (mac, name), (_, info) in zip(known, infos)
+    ]
 
 
 @router.post("/scan")

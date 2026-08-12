@@ -13,7 +13,8 @@ import { JSDOM } from 'jsdom'
 import { readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 
-const [, , outPath = 'out.html', category = 'wifi'] = process.argv
+const [, , outPath = 'out.html'] = process.argv
+let category = process.argv[3] || 'wifi'
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>',
   { pretendToBeVisual: true, url: 'http://localhost/' })
@@ -133,8 +134,13 @@ const BOX = {
     bios: { ok: true, systems: {} },
   },
 }
+// `<category>@stall` freezes every request, so the shot shows what a page looks
+// like while it is still waiting — the state the empty-message bug lived in.
+const STALL = category.endsWith('@stall')
+if (STALL) category = category.slice(0, -6)
 globalThis.fetch = async (input) => {
   const url = String(input)
+  if (STALL) return new Promise(() => {})
   const key = Object.keys(BOX).find((k) => url.endsWith(k))
   return {
     ok: !!key, status: key ? 200 : 404, statusText: key ? 'OK' : 'Not Found',
