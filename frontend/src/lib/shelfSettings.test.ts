@@ -26,6 +26,9 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { buildSdk } from './themeSdk'
 
 const THEME = '../../../config/themes/shelf'
+// The screen itself is shared: two themes draw it, so it does not live in
+// either one. Shelf is still what this file loads it AS.
+const SHARED = '../../../config/themes/_shared/settings'
 
 const sdk = () => buildSdk('shelf', { selectTheme: vi.fn(async () => {}) })
 
@@ -106,7 +109,7 @@ afterEach(async () => {
 })
 
 async function renderRail() {
-  const { createSettings } = await load(`${THEME}/views/settings.js`)
+  const { createSettings } = await load(`${SHARED}/screen.js`)
   const View = createSettings(sdk())
   const { render } = await import('@testing-library/react')
   const { createElement } = await import('react')
@@ -119,9 +122,9 @@ async function renderRail() {
  *  (rail row, page heading, breadcrumb), so a text-wide query is ambiguous by
  *  construction and asking the rail directly is the honest question. */
 const railLabels = (c: HTMLElement) =>
-  [...c.querySelectorAll('.cz-set-rail .cz-set-row .cz-set-label b')].map(e => e.textContent)
+  [...c.querySelectorAll('.gcs-set-rail .gcs-set-row .gcs-set-label b')].map(e => e.textContent)
 const railMetas = (c: HTMLElement) =>
-  [...c.querySelectorAll('.cz-set-rail .cz-set-row .cz-set-label i')].map(e => e.textContent)
+  [...c.querySelectorAll('.gcs-set-rail .gcs-set-row .gcs-set-label i')].map(e => e.textContent)
 
 describe('Shelf v2 — the settings rail', () => {
   it('declares every host settings page, and draws the eight the capture has', async () => {
@@ -192,13 +195,13 @@ describe('Shelf v2 — the settings rail', () => {
     const { screen, fireEvent } = await import('@testing-library/react')
     const { container } = await renderRail()
 
-    expect(container.querySelector('.cz-set-chip')?.textContent).toBe('WI-FI')
+    expect(container.querySelector('.gcs-set-chip')?.textContent).toBe('WI-FI')
     fireEvent.click(screen.getAllByText('System')[0])
-    expect(container.querySelector('.cz-set-chip')?.textContent).toBe('SYSTEM')
+    expect(container.querySelector('.gcs-set-chip')?.textContent).toBe('SYSTEM')
     // The rail never leaves — that is the whole shape of this screen — so the
     // eight rows are still there with a different one selected.
     expect(railLabels(container)).toHaveLength(8)
-    expect(container.querySelector('.cz-set-row[data-sel="1"] .cz-set-label b')?.textContent)
+    expect(container.querySelector('.gcs-set-row[data-sel="1"] .gcs-set-label b')?.textContent)
       .toBe('System')
   })
 
@@ -209,21 +212,21 @@ describe('Shelf v2 — the settings rail', () => {
     // throws and, under the shell's error boundary, hands the whole frontend
     // back to the default. A theme going dark because one page was renamed is
     // the quiet failure worth answering in words.
-    const { createSettings } = await load(`${THEME}/views/settings.js`)
+    const { createSettings } = await load(`${SHARED}/screen.js`)
     const { render, screen, fireEvent } = await import('@testing-library/react')
     const { createElement } = await import('react')
 
     const { container } = render(createElement(createSettings(sdk()), { onClose: vi.fn() }))
     for (const label of railLabels(container)) {
       fireEvent.click(screen.getAllByText(String(label))[0])
-      expect(container.querySelector('.cz-set-main')).toBeTruthy()
+      expect(container.querySelector('.gcs-set-main')).toBeTruthy()
       expect(container.textContent).not.toMatch(/This build has no/)
     }
 
     // Now knock one out through the documented seam and watch it say so.
     const holed = createSettings(sdk(), { inline: { bios: null } })
     const { container: c2 } = render(createElement(holed, { onClose: vi.fn() }))
-    fireEvent.click([...c2.querySelectorAll('.cz-set-rail .cz-set-row')]
+    fireEvent.click([...c2.querySelectorAll('.gcs-set-rail .gcs-set-row')]
       .find(r => r.textContent?.includes('BIOS'))!)
     expect(c2.textContent).toMatch(/This build has no .*bios.* page/)
   })
@@ -237,8 +240,8 @@ describe('Shelf v2 — the Wi-Fi page', () => {
     // Every SSID from /networks, in the order the backend ranked them. Awaited:
     // the scan is a fetch, and asserting before it lands tests the empty state.
     await waitFor(() =>
-      expect(container.querySelectorAll('.cz-wifi-row').length).toBe(3))
-    const names = [...container.querySelectorAll('.cz-wifi-row .cz-wifi-name b')]
+      expect(container.querySelectorAll('.gcs-wifi-row').length).toBe(3))
+    const names = [...container.querySelectorAll('.gcs-wifi-row .gcs-wifi-name b')]
       .map(e => e.textContent)
     expect(names).toEqual(['Livebox-4F2A', 'FreeWifi_Secure', 'Console-Hotspot'])
 
@@ -253,10 +256,10 @@ describe('Shelf v2 — the Wi-Fi page', () => {
     const { screen, waitFor } = await import('@testing-library/react')
     const { container } = await renderRail()
     await waitFor(() =>
-      expect(container.querySelectorAll('.cz-set-fact').length).toBeGreaterThan(4))
+      expect(container.querySelectorAll('.gcs-set-fact').length).toBeGreaterThan(4))
 
     const facts = Object.fromEntries(
-      [...container.querySelectorAll('.cz-set-fact')]
+      [...container.querySelectorAll('.gcs-set-fact')]
         .map(f => [f.querySelector('dt')?.textContent, f.querySelector('dd')?.textContent]))
 
     expect(facts).toMatchObject({
@@ -291,9 +294,9 @@ describe('Shelf v2 — the Wi-Fi page', () => {
 
     const { container } = await renderRail()
     const { waitFor } = await import('@testing-library/react')
-    await waitFor(() => expect(container.querySelectorAll('.cz-set-fact').length).toBeGreaterThan(0))
+    await waitFor(() => expect(container.querySelectorAll('.gcs-set-fact').length).toBeGreaterThan(0))
 
-    const keys = [...container.querySelectorAll('.cz-set-fact dt')].map(e => e.textContent)
+    const keys = [...container.querySelectorAll('.gcs-set-fact dt')].map(e => e.textContent)
     expect(keys).toContain('IP address')
     expect(keys).not.toContain('Gateway')
     expect(keys).not.toContain('DNS')
@@ -307,7 +310,7 @@ describe('Shelf v2 — the power menu', () => {
     // not like leaves the cursor landing on nothing; one that reorders them
     // sends it jumping. Both are invisible until someone holds down and
     // shuts the box off by accident.
-    const { createPowerView } = await load(`${THEME}/views/power.js`)
+    const { createPowerView } = await load(`${SHARED}/power.js`)
     const View = createPowerView(sdk())
     const PowerModal = await import('../components/modals/PowerModal')
     expect(PowerModal.default).toBeTruthy()
@@ -338,9 +341,9 @@ describe('Shelf v2 — the power menu', () => {
 
     for (const o of options) expect(screen.getByText(o.label)).toBeTruthy()
 
-    const rows = [...container.querySelectorAll('.cz-pwr-row')]
+    const rows = [...container.querySelectorAll('.gcs-pwr-row')]
     expect(rows).toHaveLength(options.length)
-    expect(rows.map(r => r.querySelector('.cz-pwr-text b')?.textContent))
+    expect(rows.map(r => r.querySelector('.gcs-pwr-text b')?.textContent))
       .toEqual(options.map(o => o.label))
 
   })
@@ -384,8 +387,8 @@ describe('Shelf v2 — the Controllers page', () => {
       Object.create(Object.getPrototypeOf(navigator)), navigator, { getGamepads: () => pads }))
 
   async function renderControllers() {
-    const { createRows } = await load(`${THEME}/views/pages/rows.js`)
-    const { createControllersPage } = await load(`${THEME}/views/pages/controllers.js`)
+    const { createRows } = await load(`${SHARED}/rows.js`)
+    const { createControllersPage } = await load(`${SHARED}/controllers.js`)
     const s = sdk()
     const View = createControllersPage(s, createRows(s))
     const { render } = await import('@testing-library/react')
@@ -412,7 +415,7 @@ describe('Shelf v2 — the Controllers page', () => {
     const { container } = await renderControllers()
     const { fireEvent } = await import('@testing-library/react')
 
-    const rowFor = (text: string) => [...container.querySelectorAll('.cz-row2')]
+    const rowFor = (text: string) => [...container.querySelectorAll('.gcs-row2')]
       .find(r => r.textContent?.includes(text))!
 
     fireEvent.click(rowFor('Forget mapping'))
@@ -441,12 +444,12 @@ describe('Shelf v2 — what a page shows before its data arrives', () => {
   const stall = () => vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
 
   async function renderPage(name: 'wifi' | 'bluetooth') {
-    const { createSettings } = await load(`${THEME}/views/settings.js`)
+    const { createSettings } = await load(`${SHARED}/screen.js`)
     const { render, fireEvent } = await import('@testing-library/react')
     const { createElement } = await import('react')
     const { container } = render(createElement(createSettings(sdk()), { onClose: vi.fn() }))
     if (name === 'bluetooth') {
-      const row = [...container.querySelectorAll('.cz-set-rail .cz-set-row')]
+      const row = [...container.querySelectorAll('.gcs-set-rail .gcs-set-row')]
         .find(r => r.textContent?.includes('Bluetooth'))!
       fireEvent.click(row)
     }
@@ -460,11 +463,11 @@ describe('Shelf v2 — what a page shows before its data arrives', () => {
     // in range while connected to one.
     stall()
     const bt = await renderPage('bluetooth')
-    expect(bt.querySelector('.cz-load')).toBeTruthy()
+    expect(bt.querySelector('.gcs-load')).toBeTruthy()
     expect(bt.textContent).not.toMatch(/Nothing is paired yet/)
 
     const wifi = await renderPage('wifi')
-    expect(wifi.querySelector('.cz-load')).toBeTruthy()
+    expect(wifi.querySelector('.gcs-load')).toBeTruthy()
     expect(wifi.textContent).not.toMatch(/No network is in range/)
     expect(wifi.textContent).not.toMatch(/No networks are in range/)
   })
@@ -482,7 +485,7 @@ describe('Shelf v2 — what a page shows before its data arrives', () => {
     const { waitFor } = await import('@testing-library/react')
     const bt = await renderPage('bluetooth')
     await waitFor(() => expect(bt.textContent).toMatch(/Nothing is paired yet/))
-    expect(bt.querySelector('.cz-load')).toBeNull()
+    expect(bt.querySelector('.gcs-load')).toBeNull()
   })
 
   it('opens with what the rail already fetched instead of asking twice', async () => {

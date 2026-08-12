@@ -21,21 +21,37 @@
  * the pages the old way — `summer/views/settings.js` and the SDK table are the
  * ones telling the truth.
  *
- * The palette is the capture's paper and teal rather than Shelf's gold, which
- * is the one deliberate reading of "the capture is the reference" worth
- * arguing about. It lives in `--set-acc` in theme.css: one variable, one line
- * to change if the shelf's gold should win instead.
+ * ## Shared, and styled from outside
+ *
+ * This screen is not Shelf's any more. It lives in `config/themes/_shared/`
+ * because two themes now draw it and one copy is the only way a fix reaches
+ * both — the alternative was 1400 lines duplicated and drifting.
+ *
+ * `_shared` is not a theme and never appears in the picker: `list_themes()`
+ * skips any directory starting with `_`. It carries a `theme.json` with a
+ * version for one reason — `update/linux.sh` walks every directory under
+ * `config/themes` and decides what to deliver by comparing that field, so
+ * without it a fix here would install once and never update again.
+ *
+ * (Written without the glob it describes on purpose: a star-slash inside a
+ * block comment ends the comment, and the rest of this file became code the
+ * first time it was written the obvious way.)
+ *
+ * It carries **no colour**. Every class is `gcs-*` and every theme supplies the
+ * palette: Shelf paints it paper and teal, Summer paints it sea glass and
+ * amber. Anything hardcoded here would be one theme's decision imposed on the
+ * other, which is the whole reason the classes stopped being called `cz-`.
  */
-import { createUseSlow } from '../lib/slow.js'
-import { createRows } from './pages/rows.js'
-import { createWifiPage } from './pages/wifi.js'
-import { createBluetoothPage } from './pages/bluetooth.js'
-import { createControllersPage } from './pages/controllers.js'
-import { createAudioPage } from './pages/audio.js'
-import { createCatalogPage } from './pages/catalog.js'
-import { createBiosPage } from './pages/bios.js'
-import { createThemesPage } from './pages/themes.js'
-import { createSystemPage } from './pages/system.js'
+import { createUseSlow } from './slow.js'
+import { createRows } from './rows.js'
+import { createWifiPage } from './wifi.js'
+import { createBluetoothPage } from './bluetooth.js'
+import { createControllersPage } from './controllers.js'
+import { createAudioPage } from './audio.js'
+import { createCatalogPage } from './catalog.js'
+import { createBiosPage } from './bios.js'
+import { createThemesPage } from './themes.js'
+import { createSystemPage } from './system.js'
 
 /**
  * The rail. Eight rows where the capture has nine — `Display` is absent, and
@@ -203,29 +219,29 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
     const crumbMeta = meta[cat] || ''
 
     return html`
-      <div class="cz-set" onClick=${(e) => e.target === e.currentTarget && onClose()}>
-        <div class="cz-set-paper"></div>
+      <div class="gcs-set" onClick=${(e) => e.target === e.currentTarget && onClose()}>
+        <div class="gcs-set-paper"></div>
 
         ${TopBar ? html`<${TopBar} onSettings=${() => {}} onPower=${() => {}} />` : null}
 
-        <header class="cz-set-head">
-          <h1 class="cz-set-title">Settings</h1>
-          <div class="cz-set-crumb">
-            <span class="cz-set-chip">${current.label.toUpperCase()}</span>
+        <header class="gcs-set-head">
+          <h1 class="gcs-set-title">Settings</h1>
+          <div class="gcs-set-crumb">
+            <span class="gcs-set-chip">${current.label.toUpperCase()}</span>
             <span>${current.label}${crumbMeta ? ` · ${crumbMeta}` : ''}</span>
           </div>
         </header>
 
-        <div class="cz-set-body">
-          <nav class="cz-set-rail" data-zone=${zone === 'rail' ? 'on' : 'off'}>
+        <div class="gcs-set-body">
+          <nav class="gcs-set-rail" data-zone=${zone === 'rail' ? 'on' : 'off'}>
             ${list.map((it, i) => html`
-              <div key=${it.id} class="cz-set-row"
+              <div key=${it.id} class="gcs-set-row"
                    data-on=${zone === 'rail' && railFocus === i ? '1' : '0'}
                    data-sel=${it.id === cat ? '1' : '0'}
                    data-danger=${it.danger ? '1' : '0'}
                    onClick=${() => { setRailFocus(i); activate(it) }}>
-                ${it.n ? html`<span class="cz-set-num">${it.n}</span>` : null}
-                <span class="cz-set-label">
+                ${it.n ? html`<span class="gcs-set-num">${it.n}</span>` : null}
+                <span class="gcs-set-label">
                   <b>${it.label}</b>
                   <i>${meta[it.id] || ''}</i>
                 </span>
@@ -242,20 +258,20 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
             // A theme going dark because one page was renamed is the quiet
             // failure this whole guard exists to stop.
             : html`
-              <section class="cz-set-main cz-set-main-empty">
-                <div class="cz-set-h">${current.label}</div>
-                <p class="cz-set-sub">This build has no “${cat}” page.</p>
+              <section class="gcs-set-main gcs-set-main-empty">
+                <div class="gcs-set-h">${current.label}</div>
+                <p class="gcs-set-sub">This build has no “${cat}” page.</p>
               </section>`}
         </div>
 
-        <footer class="cz-set-foot">
+        <footer class="gcs-set-foot">
           <!-- The capture prints a library total here ("51 games across 11
                systems · 194h played"). It is real data, but it costs a walk of
                every system's game list plus the playtime table to compute, on a
                screen that is not about the library — so the corner stays empty
                rather than repeating a number the rail already shows. -->
-          <span class="cz-set-foot-l"></span>
-          <span class="cz-set-hints">
+          <span class="gcs-set-foot-l"></span>
+          <span class="gcs-set-hints">
             <span><kbd>✕</kbd>Select</span>
             <span><kbd>○</kbd>Back</span>
             <span><kbd>□</kbd>Controller</span>

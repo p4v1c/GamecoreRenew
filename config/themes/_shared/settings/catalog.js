@@ -125,18 +125,18 @@ export const createCatalogPage = (sdk) => {
 
     return html`
       <${Fragment}>
-      <section class="cz-set-main" data-zone=${active ? 'on' : 'off'}>
-        <div class="cz-set-h-row">
-          <div class="cz-set-h">Emulators & apps</div>
-          <div class="cz-wifi-state">${installed}/${packs.length} INSTALLED</div>
+      <section class="gcs-set-main" data-zone=${active ? 'on' : 'off'}>
+        <div class="gcs-set-h-row">
+          <div class="gcs-set-h">Emulators & apps</div>
+          <div class="gcs-wifi-state">${installed}/${packs.length} INSTALLED</div>
         </div>
-        <p class="cz-set-sub">
+        <p class="gcs-set-sub">
           Add a system, or take one off the shelf. Removing a system leaves its
           ROM folder and its saves untouched.
         </p>
 
-        ${msg ? html`<div class="cz-wifi-msg">${msg}</div>` : null}
-        ${busy ? html`<div class="cz-wifi-msg">Working — this streams to the log and can take a few minutes.</div>` : null}
+        ${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null}
+        ${busy ? html`<div class="gcs-wifi-msg">Working — this streams to the log and can take a few minutes.</div>` : null}
 
         ${groups.map((g) => {
           const isOpen = open === g.name
@@ -145,27 +145,27 @@ export const createCatalogPage = (sdk) => {
           const n = g.systems.filter((s) => s.installed).length
           return html`
             <${Fragment} key=${g.name}>
-              <div class="cz-grp" data-open=${isOpen ? '1' : '0'}
+              <div class="gcs-grp" data-open=${isOpen ? '1' : '0'}
                    data-on=${active && idx === gi ? '1' : '0'}
                    onClick=${() => { setIdx(gi); fire({ kind: 'group', group: g }) }}>
-                <span class="cz-grp-caret">${isOpen ? '▼' : '▶'}</span>
-                <span class="cz-grp-name">${g.name}</span>
-                <span class="cz-grp-count">${n} / ${g.systems.length}</span>
+                <span class="gcs-grp-caret">${isOpen ? '▼' : '▶'}</span>
+                <span class="gcs-grp-name">${g.name}</span>
+                <span class="gcs-grp-count">${n} / ${g.systems.length}</span>
               </div>
               ${isOpen ? html`
-                <div class="cz-grp-body">
+                <div class="gcs-grp-body">
                   ${g.systems.map((p) => {
                     cursor += 1
                     const si = cursor
                     return html`
-                      <div key=${p.id} class="cz-pack" data-on=${active && idx === si ? '1' : '0'}
+                      <div key=${p.id} class="gcs-pack" data-on=${active && idx === si ? '1' : '0'}
                            onClick=${() => { setIdx(si); fire({ kind: 'sys', pack: p }) }}>
-                        <span class="cz-pack-dot" style=${{ background: p.color || '#8B8992' }}></span>
-                        <span class="cz-pack-text">
+                        <span class="gcs-pack-dot" style=${{ background: p.color || '#8B8992' }}></span>
+                        <span class="gcs-pack-text">
                           <b>${p.label}</b>
                           <i>${p.emulatorName || ''}</i>
                         </span>
-                        <span class="cz-pack-btn" data-on=${p.installed ? '0' : '1'}>
+                        <span class="gcs-pack-btn" data-on=${p.installed ? '0' : '1'}>
                           ${working === p.id ? '…' : p.installed ? 'Remove' : 'Install'}
                         </span>
                       </div>`

@@ -212,8 +212,14 @@ const sdk = {
 }
 
 const THEME = resolve(import.meta.dirname, '../../config/themes/shelf')
-const { createSettings } = await import(`${THEME}/views/settings.js`)
-const { createTopBar } = await import(`${THEME}/views/topbar.js`)
+const SHARED = resolve(import.meta.dirname, '../../config/themes/_shared/settings')
+// Which theme dresses the shot. The screen is shared; the stylesheet and the
+// top bar are not, so both come from the same theme or the shot is a lie.
+const themeDir = process.env.SHOT_THEME
+  ? resolve(import.meta.dirname, `../../config/themes/${process.env.SHOT_THEME}`)
+  : THEME
+const { createSettings } = await import(`${SHARED}/screen.js`)
+const { createTopBar } = await import(`${themeDir}/views/topbar.js`)
 
 const Settings = createSettings(sdk, {}, { TopBar: createTopBar(sdk) })
 
@@ -235,7 +241,7 @@ if (category === 'home') {
     React.createElement(TopBar, { onSettings() {}, onPower() {} }),
   )
 } else if (category === 'power') {
-  const { createPowerView } = await import(`${THEME}/views/power.js`)
+  const { createPowerView } = await import(`${SHARED}/power.js`)
   const View = createPowerView(sdk)
   const options = [
     { id: 'shutdown', label: 'Shutdown', busy: 'Shutting down…', icon: '⏻', color: '#b23b3b', desc: 'Power off' },
@@ -270,7 +276,7 @@ if (category === 'wifi-dialog') {
   await act(async () => { await new Promise((r) => setTimeout(r, 80)) })
 }
 
-const css = readFileSync(`${THEME}/theme.css`, 'utf8')
+const css = readFileSync(`${themeDir}/theme.css`, 'utf8')
 writeFileSync(outPath, `<!doctype html><html><head><meta charset="utf-8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <style>${css}

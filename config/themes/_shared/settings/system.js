@@ -167,6 +167,6 @@ export const createSystemPage = (sdk, Rows) => {
         title="System"
         state=${info ? `V${info.version}` : ''}
         sub="The console image, standby behaviour, and the disks it reads from."
-        aside=${msg ? html`<div class="cz-wifi-msg">${msg}</div>` : null} />`
+        aside=${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null} />`
   }
 }

@@ -51,9 +51,9 @@ export const createPowerView = (sdk) => {
     const headAt = options.findIndex((o) => SESSION.has(o.id))
 
     return html`
-      <div class="cz-pwr-scrim" onClick=${(e) => { if (e.target === e.currentTarget && !busy) onCancel() }}>
-        <div class="cz-pwr">
-          <div class="cz-pwr-title">System</div>
+      <div class="gcs-pwr-scrim" onClick=${(e) => { if (e.target === e.currentTarget && !busy) onCancel() }}>
+        <div class="gcs-pwr">
+          <div class="gcs-pwr-title">System</div>
 
           ${options.map((o, i) => {
             const pending = pendingId === o.id
@@ -62,20 +62,20 @@ export const createPowerView = (sdk) => {
             return html`
               <${Fragment} key=${o.id}>
                 ${i === headAt && headAt > 0
-                  ? html`<div class="cz-pwr-head">Ending the session</div>` : null}
-                <div class="cz-pwr-row"
+                  ? html`<div class="gcs-pwr-head">Ending the session</div>` : null}
+                <div class="gcs-pwr-row"
                      data-on=${i === focusIdx ? '1' : '0'}
                      data-confirm=${confirmId === o.id ? '1' : '0'}
                      data-dim=${busy && !pending ? '1' : '0'}
                      style=${{ '--row-accent': o.color }}
                      onClick=${() => onActivate(o.id)}>
-                  <span class="cz-pwr-icon" data-pulse=${pulsing ? '1' : '0'}>
+                  <span class="gcs-pwr-icon" data-pulse=${pulsing ? '1' : '0'}>
                     <svg viewBox="0 0 24 24" width="22" height="22" fill="none"
                          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d=${ICONS[o.id] || ICONS.restart} />
                     </svg>
                   </span>
-                  <span class="cz-pwr-text">
+                  <span class="gcs-pwr-text">
                     <b>${isScan ? (scanning ? o.busy : o.label)
                           : pending ? o.busy
                           : confirmId === o.id ? `Press again to ${o.label.toLowerCase()}`
@@ -86,8 +86,8 @@ export const createPowerView = (sdk) => {
               <//>`
           })}
 
-          <button class="cz-pwr-cancel" onClick=${onCancel} disabled=${busy}>Cancel</button>
-          <div class="cz-pwr-hint">${busy ? ' ' : '↑↓ Move · ✕ Select · ○ Cancel'}</div>
+          <button class="gcs-pwr-cancel" onClick=${onCancel} disabled=${busy}>Cancel</button>
+          <div class="gcs-pwr-hint">${busy ? ' ' : '↑↓ Move · ✕ Select · ○ Cancel'}</div>
         </div>
       </div>`
   }

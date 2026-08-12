@@ -822,7 +822,35 @@ it, so the box is never left pointing at a directory that is not there.
 Step 6 validates the spec: if the default UI cannot be expressed through this
 SDK, the SDK is incomplete.
 
-## 17. The acceptance test, and its removal
+## 17. Shared code between themes
+
+`config/themes/_shared/settings/` holds the settings screen and the power menu.
+Shelf and Summer both import it; neither owns it.
+
+It is **not a theme** and never appears in the picker — `list_themes()` skips any
+directory starting with `_`. It lives under `config/themes` anyway because that
+is the only tree `update/linux.sh` ships to a box, and it carries a `version` in
+its `theme.json` for the same reason: that loop decides what to deliver by
+comparing that field, so without one a fix would install on a fresh box and
+never update an existing one.
+
+It carries **no colour**. Every class is `gcs-*`, and each theme paints them: the
+same screen comes out paper-and-teal under Shelf and sea-glass-and-mandarin
+under Summer. Anything hardcoded there is one theme's decision imposed on the
+other, which is why the classes are no longer named after either.
+
+Import it with a relative path from your own module — `/themes/<id>/…` and
+`/themes/_shared/…` are served from the same mount:
+
+```js
+import { createSettings } from '../_shared/settings/screen.js'
+```
+
+If you want a different settings screen, do not edit that folder: pass your own
+page through `createSettings(sdk, { inline: { wifi: MyWifiPage } })`, or write
+your own menu from scratch as both themes used to.
+
+## 18. The acceptance test, and its removal
 
 `config/themes/default-remake` **was** the default UI rebuilt as an ordinary
 third-party theme — the only test that answered the question step 6 asks, run by

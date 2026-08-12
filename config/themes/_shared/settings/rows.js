@@ -102,27 +102,27 @@ export const createRows = (sdk) => {
     }, [active, onLeave, rows])
 
     return html`
-      <section class="cz-set-main" data-zone=${active ? 'on' : 'off'}>
-        <div class="cz-set-h-row">
-          <div class="cz-set-h">${title}</div>
-          ${state ? html`<div class="cz-wifi-state">${state}</div>` : null}
+      <section class="gcs-set-main" data-zone=${active ? 'on' : 'off'}>
+        <div class="gcs-set-h-row">
+          <div class="gcs-set-h">${title}</div>
+          ${state ? html`<div class="gcs-wifi-state">${state}</div>` : null}
         </div>
-        ${sub ? html`<p class="cz-set-sub">${sub}</p>` : null}
+        ${sub ? html`<p class="gcs-set-sub">${sub}</p>` : null}
         ${aside || null}
 
         ${rows.length === 0
-          ? html`<div class="cz-wifi-empty">Nothing to set here yet.</div>`
+          ? html`<div class="gcs-wifi-empty">Nothing to set here yet.</div>`
           : rows.map((r, i) => {
             const head = sections && sections[r.id]
             const on = active && idx === i
             const isArmed = armed === r.id
             return html`
               <${React.Fragment} key=${r.id}>
-              ${head ? html`<div class="cz-set-kicker cz-row2-head">${head}</div>` : null}
-              <div class="cz-row2" data-on=${on ? '1' : '0'}
+              ${head ? html`<div class="gcs-set-kicker gcs-row2-head">${head}</div>` : null}
+              <div class="gcs-row2" data-on=${on ? '1' : '0'}
                    data-danger=${r.danger ? '1' : '0'}
                    onClick=${() => { setIdx(i); fire(r) }}>
-                <span class="cz-row2-text">
+                <span class="gcs-row2-text">
                   <b>${isArmed ? `Press again to ${String(r.label2 || r.label).toLowerCase()}` : r.label}</b>
                   ${r.desc ? html`<i>${r.desc}</i>` : null}
                   ${/* A usage bar belongs to the row it describes, so it is
@@ -130,31 +130,31 @@ export const createRows = (sdk) => {
                        which is also what keeps the disk reachable with a pad:
                        everything focusable on this screen is a row. */
                     r.bar != null ? html`
-                    <span class="cz-row2-bar"><i style=${{ width: `${r.bar}%` }}
+                    <span class="gcs-row2-bar"><i style=${{ width: `${r.bar}%` }}
                       data-level=${r.bar > 85 ? 'alert' : r.bar > 65 ? 'warn' : 'ok'}></i></span>` : null}
                 </span>
 
                 ${r.type === 'toggle' ? html`
-                  <span class="cz-tgl" data-v=${r.value ? '1' : '0'}><i></i></span>` : null}
+                  <span class="gcs-tgl" data-v=${r.value ? '1' : '0'}><i></i></span>` : null}
 
                 ${r.type === 'value' ? html`
-                  <span class="cz-val">
-                    <button class="cz-val-arrow" onClick=${(e) => { e.stopPropagation(); setIdx(i); step(r, -1) }}>‹</button>
-                    <span class="cz-val-now">${r.options[r.value]}</span>
-                    <button class="cz-val-arrow" onClick=${(e) => { e.stopPropagation(); setIdx(i); step(r, +1) }}>›</button>
+                  <span class="gcs-val">
+                    <button class="gcs-val-arrow" onClick=${(e) => { e.stopPropagation(); setIdx(i); step(r, -1) }}>‹</button>
+                    <span class="gcs-val-now">${r.options[r.value]}</span>
+                    <button class="gcs-val-arrow" onClick=${(e) => { e.stopPropagation(); setIdx(i); step(r, +1) }}>›</button>
                   </span>` : null}
 
                 ${r.type === 'slider' ? html`
-                  <span class="cz-sld">
-                    <span class="cz-sld-track"><i style=${{ width: `${r.value}%` }}></i></span>
-                    <span class="cz-sld-num">${r.value}${r.unit || '%'}</span>
+                  <span class="gcs-sld">
+                    <span class="gcs-sld-track"><i style=${{ width: `${r.value}%` }}></i></span>
+                    <span class="gcs-sld-num">${r.value}${r.unit || '%'}</span>
                   </span>` : null}
 
                 ${r.type === 'info' ? html`
-                  <span class="cz-row2-info">${r.display}</span>` : null}
+                  <span class="gcs-row2-info">${r.display}</span>` : null}
 
                 ${r.type === 'action' ? html`
-                  <span class="cz-act" data-danger=${r.danger ? '1' : '0'} data-armed=${isArmed ? '1' : '0'}>
+                  <span class="gcs-act" data-danger=${r.danger ? '1' : '0'} data-armed=${isArmed ? '1' : '0'}>
                     ${r.busy ? r.busy : isArmed ? 'Confirm' : (r.label2 || 'Run')}
                   </span>` : null}
               </div>

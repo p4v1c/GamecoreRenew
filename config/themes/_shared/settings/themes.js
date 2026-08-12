@@ -85,6 +85,6 @@ export const createThemesPage = (sdk, Rows) => {
         title="Themes"
         state=${String(current).toUpperCase()}
         sub="Applying one restarts the front end. Hold L1 + R1 for two seconds anywhere to force the default theme back."
-        aside=${msg ? html`<div class="cz-wifi-msg">${msg}</div>` : null} />`
+        aside=${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null} />`
   }
 }

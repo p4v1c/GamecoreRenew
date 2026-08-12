@@ -13,13 +13,12 @@
  *   views/  splash.js     the cartridge going in     home.js      the consoles
  *           background.js the wall                   library.js   the shelf
  *           box.js        the solid and its spines   cartridge.js the media
- *           topbar.js     the shelf label            settings.js  the rail
- *           power.js      restart/off                gamepad.js   the live pad
+ *           topbar.js     the shelf label            gamepad.js   the live pad
  *
- *   views/pages/  one file per settings category, all bare markup that sits in
- *           the settings screen's middle column: wifi, bluetooth, audio,
- *           controllers, catalog, bios, themes, system — and rows.js, the four
- *           controls the capture uses, shared so a toggle is the same toggle
+ * The settings screen and the power menu are NOT here. They live in
+ * `config/themes/_shared/settings/`, because Summer draws the same two screens
+ * and one copy is the only way a fix reaches both. They carry no colour: this
+ * theme dresses them through the `gcs-*` classes in theme.css.
  *
  *   lib/    accent.js     the colour                 names.js     titles, letters
  *           dossier.js    one lookup                 regions
@@ -49,8 +48,8 @@ import { createLibraryView } from './views/library.js'
 import { createBox } from './views/box.js'
 import { createCartridge } from './views/cartridge.js'
 import { createSplash } from './views/splash.js'
-import { createSettings } from './views/settings.js'
-import { createPowerView } from './views/power.js'
+import { createSettings } from '../_shared/settings/screen.js'
+import { createPowerView } from '../_shared/settings/power.js'
 import { createGamepadView } from './views/gamepad.js'
 
 export default (sdk) => {

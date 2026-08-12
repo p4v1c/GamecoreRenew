@@ -168,12 +168,12 @@ export const createWifiPage = (sdk, useSlow) => {
     // is not — the three are the middle column, the detail column and a modal.
     return html`
       <${Fragment}>
-      <section class="cz-set-main" data-zone=${active ? 'on' : 'off'}>
-        <div class="cz-set-h-row">
-          <div class="cz-set-h">Wi-Fi</div>
-          <div class="cz-wifi-state">${wired ? 'WIRED' : loaded ? 'ON' : ''}</div>
+      <section class="gcs-set-main" data-zone=${active ? 'on' : 'off'}>
+        <div class="gcs-set-h-row">
+          <div class="gcs-set-h">Wi-Fi</div>
+          <div class="gcs-wifi-state">${wired ? 'WIRED' : loaded ? 'ON' : ''}</div>
         </div>
-        <p class="cz-set-sub">
+        <p class="gcs-set-sub">
           ${wired
             ? 'This box is on a cable. Wi-Fi stays available, and joining a network here does not unplug it.'
             : !loaded
@@ -185,60 +185,60 @@ export const createWifiPage = (sdk, useSlow) => {
               : `${nets.length || 'No'} network${nets.length === 1 ? '' : 's'} ${nets.length === 1 ? 'is' : 'are'} in range. Selecting one shows its details on the right; joining a secured network asks for its password.`}
         </p>
 
-        ${msg ? html`<div class="cz-wifi-msg">${msg}</div>` : null}
+        ${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null}
 
         ${!loaded
-          ? html`<div class="cz-load"><i></i>${slow
+          ? html`<div class="gcs-load"><i></i>${slow
               ? 'Still scanning — the radio is taking its time.' : 'Scanning for networks…'}</div>`
           : nets.length === 0
-          ? html`<div class="cz-wifi-empty">No network is in range.</div>`
+          ? html`<div class="gcs-wifi-empty">No network is in range.</div>`
           : nets.map((n, i) => {
             const d = detail[n.ssid] || {}
             const bars = barsFor(n.signal)
             const sub = [d.band, d.channel ? `channel ${d.channel}` : '', `${n.signal}%`]
               .filter(Boolean).join(' · ')
             return html`
-              <div key=${n.ssid} class="cz-wifi-row"
+              <div key=${n.ssid} class="gcs-wifi-row"
                    data-on=${active && i === sel ? '1' : '0'}
                    data-sel=${i === sel ? '1' : '0'}
                    onClick=${() => { setSel(i); activate(n) }}>
-                <span class="cz-wifi-bars">
+                <span class="gcs-wifi-bars">
                   ${[1, 2, 3, 4].map((k) => html`
                     <i key=${k} data-fill=${k <= bars ? '1' : '0'} style=${{ height: `${k * 25}%` }} />`)}
                 </span>
-                <span class="cz-wifi-name">
+                <span class="gcs-wifi-name">
                   <b>${n.ssid}</b>
                   <i>${sub}</i>
                 </span>
-                <span class="cz-wifi-sec">${d.security || (n.secured ? 'Secured' : 'Open')}</span>
-                ${n.connected ? html`<span class="cz-wifi-conn">CONNECTED</span>` : null}
+                <span class="gcs-wifi-sec">${d.security || (n.secured ? 'Secured' : 'Open')}</span>
+                ${n.connected ? html`<span class="gcs-wifi-conn">CONNECTED</span>` : null}
               </div>`
           })}
 
         ${loaded ? html`
-          <div class="cz-wifi-scan"><i></i>${busy ? 'WORKING' : 'SCANNING'}</div>` : null}
+          <div class="gcs-wifi-scan"><i></i>${busy ? 'WORKING' : 'SCANNING'}</div>` : null}
       </section>
 
-      <aside class="cz-set-aside">
+      <aside class="gcs-set-aside">
         ${cur ? html`
-          <div class="cz-set-kicker">${isConn ? 'Active network' : 'Selected network'}</div>
-          <div class="cz-set-aside-title">${cur.ssid}</div>
-          <dl class="cz-set-facts">
+          <div class="gcs-set-kicker">${isConn ? 'Active network' : 'Selected network'}</div>
+          <div class="gcs-set-aside-title">${cur.ssid}</div>
+          <dl class="gcs-set-facts">
             ${rows.map(([k, v]) => html`
-              <div key=${k} class="cz-set-fact"><dt>${k}</dt><dd>${v}</dd></div>`)}
+              <div key=${k} class="gcs-set-fact"><dt>${k}</dt><dd>${v}</dd></div>`)}
           </dl>
-          <button class="cz-set-cta" disabled=${busy}
+          <button class="gcs-set-cta" disabled=${busy}
                   onClick=${() => activate(cur)}>
             ${isConn ? 'Disconnect' : 'Connect'}
           </button>` : null}
       </aside>
 
       ${asking ? html`
-        <div class="cz-set-dialog-scrim">
-          <div class="cz-set-dialog">
-            <div class="cz-set-kicker">Secured network</div>
-            <div class="cz-set-dialog-title">${asking}</div>
-            <p class="cz-set-sub">Enter the password to join this network.</p>
+        <div class="gcs-set-dialog-scrim">
+          <div class="gcs-set-dialog">
+            <div class="gcs-set-kicker">Secured network</div>
+            <div class="gcs-set-dialog-title">${asking}</div>
+            <p class="gcs-set-sub">Enter the password to join this network.</p>
             <${Keyboard} title="" password=${true} placeholder="Password"
               onConfirm=${(pw) => {
                 const n = netsRef.current.find((x) => x.ssid === asking)

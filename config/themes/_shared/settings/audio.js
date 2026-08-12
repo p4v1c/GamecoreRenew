@@ -87,6 +87,6 @@ export const createAudioPage = (sdk, Rows) => {
         title="Audio"
         state=${sinks.find((s) => s.default) ? 'ON' : ''}
         sub="Mixing runs wherever PipeWire points it. Menu sounds are attenuated separately from game output."
-        aside=${msg ? html`<div class="cz-wifi-msg">${msg}</div>` : null} />`
+        aside=${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null} />`
   }
 }

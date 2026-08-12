@@ -62,38 +62,38 @@ export const createBiosPage = (sdk) => {
 
     return html`
       <${Fragment}>
-      <section class="cz-set-main" data-zone=${active ? 'on' : 'off'}>
-        <div class="cz-set-h-row">
-          <div class="cz-set-h">BIOS & system files</div>
-          ${rows.length ? html`<div class="cz-wifi-state">${ready}/${rows.length} READY</div>` : null}
+      <section class="gcs-set-main" data-zone=${active ? 'on' : 'off'}>
+        <div class="gcs-set-h-row">
+          <div class="gcs-set-h">BIOS & system files</div>
+          ${rows.length ? html`<div class="gcs-wifi-state">${ready}/${rows.length} READY</div>` : null}
         </div>
-        <p class="cz-set-sub">
+        <p class="gcs-set-sub">
           Copy files over SSH or from Desktop Mode; nothing is downloaded here.
           The path under each system is where its files go.
         </p>
 
-        ${failed ? html`<div class="cz-wifi-msg">Could not read the BIOS report.</div>` : null}
+        ${failed ? html`<div class="gcs-wifi-msg">Could not read the BIOS report.</div>` : null}
 
-        <div class="cz-bios-grid">
+        <div class="gcs-bios-grid">
           ${rows.map((b, i) => html`
-            <div key=${b.id} class="cz-bios" data-on=${active && idx === i ? '1' : '0'}
+            <div key=${b.id} class="gcs-bios" data-on=${active && idx === i ? '1' : '0'}
                  data-off=${b.installed ? '0' : '1'}
                  onClick=${() => setIdx(i)}>
-              <div class="cz-bios-head">
-                <span class="cz-bios-dot" data-ok=${b.status === 'ok' ? '1' : '0'}></span>
-                <span class="cz-bios-name">${b.label}</span>
-                <span class="cz-bios-state" data-ok=${b.status === 'ok' ? '1' : '0'}>
+              <div class="gcs-bios-head">
+                <span class="gcs-bios-dot" data-ok=${b.status === 'ok' ? '1' : '0'}></span>
+                <span class="gcs-bios-name">${b.label}</span>
+                <span class="gcs-bios-state" data-ok=${b.status === 'ok' ? '1' : '0'}>
                   ${b.installed ? (b.status === 'ok' ? 'READY' : STATE[b.status] || 'INCOMPLETE')
                                 : 'NOT INSTALLED'}
                 </span>
               </div>
-              <div class="cz-bios-path">${b.dir}</div>
-              <div class="cz-bios-files">
+              <div class="gcs-bios-path">${b.dir}</div>
+              <div class="gcs-bios-files">
                 ${b.files.map((f) => html`
-                  <div key=${f.path} class="cz-bios-file">
-                    <div class="cz-bios-file-l">
-                      <span class="cz-bios-fname">${f.any_file ? 'any image in this directory' : f.file}</span>
-                      <span class="cz-bios-fstate" data-ok=${f.status === 'ok' ? '1' : '0'}>
+                  <div key=${f.path} class="gcs-bios-file">
+                    <div class="gcs-bios-file-l">
+                      <span class="gcs-bios-fname">${f.any_file ? 'any image in this directory' : f.file}</span>
+                      <span class="gcs-bios-fstate" data-ok=${f.status === 'ok' ? '1' : '0'}>
                         ${STATE[f.status] || f.status}${
                           // "present" and "present and its hash matches" are
                           // different assurances, and the screen that exists to
@@ -101,7 +101,7 @@ export const createBiosPage = (sdk) => {
                           f.status === 'ok' && f.verified ? ' · MD5 CHECKED' : ''}
                       </span>
                     </div>
-                    ${f.note ? html`<div class="cz-bios-note">${f.note}</div>` : null}
+                    ${f.note ? html`<div class="gcs-bios-note">${f.note}</div>` : null}
                   </div>`)}
               </div>
             </div>`)}

@@ -119,6 +119,6 @@ export const createControllersPage = (sdk, Rows) => {
         sub=${pads.length
           ? 'Press □ from anywhere for the live pad test, and to map a controller SDL does not recognise.'
           : 'No pad is answering. A wired pad appears as soon as it is plugged in; a Bluetooth one has to be connected from Bluetooth first.'}
-        aside=${msg ? html`<div class="cz-wifi-msg">${msg}</div>` : null} />`
+        aside=${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null} />`
   }
 }

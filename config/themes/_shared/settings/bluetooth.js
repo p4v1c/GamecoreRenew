@@ -160,59 +160,59 @@ export const createBluetoothPage = (sdk, useSlow) => {
       const on = active && col === kind && idx === i
       const working = busy === d.mac
       return html`
-        <div key=${d.mac} class="cz-bt-row" data-on=${on ? '1' : '0'}
+        <div key=${d.mac} class="gcs-bt-row" data-on=${on ? '1' : '0'}
              onClick=${() => { setCol(kind); setIdx(i); act(d, kind === 'paired' ? 'toggle' : 'pair') }}>
-          <span class="cz-bt-dot" data-live=${d.connected ? '1' : '0'}></span>
-          <span class="cz-bt-name">
+          <span class="gcs-bt-dot" data-live=${d.connected ? '1' : '0'}></span>
+          <span class="gcs-bt-name">
             <b>${d.name}</b>
             <i>${d.mac}</i>
           </span>
           ${kind === 'paired'
-            ? html`<span class="cz-bt-state" data-live=${d.connected ? '1' : '0'}>
+            ? html`<span class="gcs-bt-state" data-live=${d.connected ? '1' : '0'}>
                      ${working ? 'WORKING' : d.connected ? 'CONNECTED' : 'OFFLINE'}
                    </span>`
-            : html`<span class="cz-bt-btn">${working ? 'Pairing…' : 'Connect'}</span>`}
+            : html`<span class="gcs-bt-btn">${working ? 'Pairing…' : 'Connect'}</span>`}
         </div>`
     }
 
     return html`
       <${Fragment}>
-      <section class="cz-set-main" data-zone=${active ? 'on' : 'off'}>
-        <div class="cz-set-h-row">
-          <div class="cz-set-h">Bluetooth</div>
-          <div class="cz-wifi-state">${paired.some((d) => d.connected) ? 'ON' : ''}</div>
+      <section class="gcs-set-main" data-zone=${active ? 'on' : 'off'}>
+        <div class="gcs-set-h-row">
+          <div class="gcs-set-h">Bluetooth</div>
+          <div class="gcs-wifi-state">${paired.some((d) => d.connected) ? 'ON' : ''}</div>
         </div>
-        <p class="cz-set-sub">
+        <p class="gcs-set-sub">
           Pairing keeps what you have already introduced to the box. Controllers
           reconnect on their own when the console wakes.
         </p>
 
-        ${msg ? html`<div class="cz-wifi-msg">${msg}</div>` : null}
+        ${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null}
 
-        <div class="cz-bt-cols">
-          <div class="cz-bt-col">
-            <div class="cz-set-kicker">Paired</div>
+        <div class="gcs-bt-cols">
+          <div class="gcs-bt-col">
+            <div class="gcs-set-kicker">Paired</div>
             ${!gotPaired
-              ? html`<div class="cz-load"><i></i>${slowPaired
+              ? html`<div class="gcs-load"><i></i>${slowPaired
                   ? 'Still asking the adapter…' : 'Reading the paired list…'}</div>`
               : paired.length === 0
-                ? html`<div class="cz-wifi-empty">Nothing is paired yet.</div>`
+                ? html`<div class="gcs-wifi-empty">Nothing is paired yet.</div>`
                 : paired.map((d, i) => row(d, i, 'paired'))}
           </div>
 
-          <div class="cz-bt-col">
-            <div class="cz-bt-head">
-              <span class="cz-set-kicker">Nearby</span>
-              <span class="cz-wifi-scan" onClick=${rescan}>
+          <div class="gcs-bt-col">
+            <div class="gcs-bt-head">
+              <span class="gcs-set-kicker">Nearby</span>
+              <span class="gcs-wifi-scan" onClick=${rescan}>
                 <i data-idle=${scanning ? '0' : '1'}></i>${scanning ? 'SCANNING' : 'SCAN AGAIN'}
               </span>
             </div>
             ${nearby.length === 0
               ? (scanning
-                  ? html`<div class="cz-load"><i></i>${slowScan
+                  ? html`<div class="gcs-load"><i></i>${slowScan
                       ? 'Still looking — some devices only advertise every few seconds.'
                       : `Looking around for ${SCAN_SECS} seconds…`}</div>`
-                  : html`<div class="cz-wifi-empty">Nothing new in range.</div>`)
+                  : html`<div class="gcs-wifi-empty">Nothing new in range.</div>`)
               : nearby.map((d, i) => row(d, i, 'nearby'))}
           </div>
         </div>

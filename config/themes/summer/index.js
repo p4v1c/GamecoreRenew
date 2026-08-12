@@ -12,9 +12,11 @@
  *
  *   views/  splash.js  the boot animation   home.js      the dashboard
  *           background.js  the ocean        library.js   the game list
- *           decor.js   the dune             settings.js  the menu
- *           topbar.js  the status bar       themes.js    the theme picker
- *           power.js   restart / shutdown   gamepad.js   the live pad
+ *           decor.js   the dune             topbar.js    the status bar
+ *           gamepad.js the live pad
+ *
+ * The settings screen and the power menu are not here: they are shared with
+ * Shelf, in config/themes/_shared/settings/, and dressed by theme.css.
  *
  *   lib/    ocean.js   the WebGL renderer   idle.js      asleep or busy?
  *           ambience.js  the surf, synthesized
@@ -36,10 +38,9 @@ import { createDecor } from './views/decor.js'
 import { createTopBar } from './views/topbar.js'
 import { createHomeView } from './views/home.js'
 import { createLibraryView } from './views/library.js'
-import { createSettings } from './views/settings.js'
-import { createThemesPage } from './views/themes.js'
+import { createSettings } from '../_shared/settings/screen.js'
 import { createSplash } from './views/splash.js'
-import { createPowerView } from './views/power.js'
+import { createPowerView } from '../_shared/settings/power.js'
 import { createGamepadView } from './views/gamepad.js'
 import { createWarp } from './views/warp.js'
 import { createBox3D } from './views/box3d.js'
@@ -54,7 +55,11 @@ export default (sdk) => {
   const TopBar = createTopBar(sdk)
   const HomeView = createHomeView(sdk)
   const LibraryView = createLibraryView(sdk)
-  const Settings = createSettings(sdk, { themes: createThemesPage(sdk) })
+  // The same settings screen Shelf draws, from config/themes/_shared/. It
+  // carries no colour — theme.css dresses its `gcs-*` classes in sea glass, and
+  // the ocean stays visible behind it because the screen is a scrim rather than
+  // a page of its own.
+  const Settings = createSettings(sdk, {}, { TopBar })
 
   const Warp = createWarp(sdk)
   // The same box the detail panel draws, so a game asleep looks like the same
