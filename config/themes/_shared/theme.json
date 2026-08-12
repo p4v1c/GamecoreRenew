@@ -1,6 +1,6 @@
 {
   "note": "Not a theme, and never offered as one — `list_themes()` skips any directory starting with '_'. This is the settings screen and the power menu, shared by Shelf and Summer so a fix reaches both. It lives under config/themes because that is the only tree the updater ships to a box, and it carries a version for the same reason: update/linux.sh decides what to deliver by comparing that field.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "settings": {
     "pages": [
       "wifi",

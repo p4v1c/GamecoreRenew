@@ -42,13 +42,26 @@ def _git(*args):
 
 
 def _shipped_themes():
+    """Every directory the update loop ships — which is not the same set as the
+    themes a player can choose.
+
+    `_`-prefixed directories used to be excluded here, on the reasoning that
+    `list_themes()` skips them so nobody runs them. That reasoning was about the
+    PICKER and this test is about DELIVERY, and `update/linux.sh` walks every
+    directory under config/themes without caring about the prefix. The gap was
+    not theoretical: `_shared/` holds the settings screen both themes import,
+    its code was fixed, its version was not bumped, and the fix sat in the
+    release while every box kept the broken copy — exactly the failure this file
+    was written to make impossible, walking in through the one door left open.
+
+    Only `.`-prefixed directories stay out: `.prev/` is the updater's own
+    snapshot of what it replaced, not something it ships.
+    """
     if not THEMES.is_dir():
         return []
     return sorted(
         d.name for d in THEMES.iterdir()
-        # '_skeleton' is a template, not a theme anyone runs — list_themes()
-        # skips '_' and '.' for the same reason.
-        if d.is_dir() and not d.name.startswith(("_", "."))
+        if d.is_dir() and not d.name.startswith(".")
         and (d / "theme.json").is_file()
     )
 
