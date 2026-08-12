@@ -2163,3 +2163,8 @@
   background: rgba(23, 23, 26, 0.1); overflow: hidden;
 }
 .gcs-countdown > i { display: block; height: 100%; background: var(--set-acc); transition: width 1s linear; }
+
+/* The countdown's own hint line. It sits inside the card rather than in the
+   screen's footer, because it describes two buttons that exist only while it
+   is up. */
+.gcs-count-hints { margin-top: 18px; color: rgba(23, 23, 26, 0.42); }

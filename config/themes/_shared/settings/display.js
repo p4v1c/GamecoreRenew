@@ -111,13 +111,29 @@ export const createDisplayPage = (sdk, Rows) => {
       sdk.api.display.revert().then(() => { setMsg('Back to the previous mode.'); load() }).catch(() => {})
     }
 
-    // While the countdown is up it owns the buttons: ✕ keeps, ○ goes back now.
-    // The rows are not reachable then, which is deliberate — there is exactly
-    // one question on screen and it has two answers.
+    // The countdown owns the buttons while it is up, and its two answers are a
+    // LIST like every other list on this screen.
+    //
+    // They were not, at first: ✕ kept and ○ reverted, with no cursor and no way
+    // to move between them. That reads as a list whose selection is stuck —
+    // pressing down did nothing, and the second button looked unreachable. A
+    // screen that looks navigable has to be navigable; the shortcut is kept as
+    // a shortcut, not as the only way in.
+    const [pickIdx, setPickIdx] = useState(0)
+    useEffect(() => { if (left !== null) setPickIdx(0) }, [left === null])
+
+    const pickRef = useRef(pickIdx)
+    useEffect(() => { pickRef.current = pickIdx }, [pickIdx])
+
     useEffect(() => {
       if (!active || left === null) return
+      const move = (d) => { sdk.system.playSound('move'); setPickIdx((i) => (i + d + 2) % 2) }
       const offs = [
-        sdk.input.onGp('gp:confirm', keep),
+        sdk.input.onGp('gp:dpad-up', () => move(-1)),
+        sdk.input.onGp('gp:dpad-down', () => move(1)),
+        sdk.input.onGp('gp:confirm', () => (pickRef.current === 0 ? keep() : undo())),
+        // ○ still goes back immediately, wherever the cursor is: it is the
+        // button that means "undo" everywhere else on this box.
         sdk.input.onGp('gp:back', undo),
       ]
       return () => offs.forEach((off) => off())
@@ -132,13 +148,22 @@ export const createDisplayPage = (sdk, Rows) => {
             nothing, the previous mode comes back in ${left} second${left === 1 ? '' : 's'}.
           </p>
           <div class="gcs-countdown"><i style=${{ width: `${(left / ((info && info.revert_secs) || 12)) * 100}%` }}></i></div>
-          <div class="gcs-row2" data-on="1" onClick=${keep}>
-            <span class="gcs-row2-text"><b>Keep this mode</b><i>✕</i></span>
+          <div class="gcs-row2" data-on=${pickIdx === 0 ? '1' : '0'}
+               onClick=${() => { setPickIdx(0); keep() }}>
+            <span class="gcs-row2-text">
+              <b>Keep this mode</b><i>The screen stays as it is now</i>
+            </span>
             <span class="gcs-act">Keep</span>
           </div>
-          <div class="gcs-row2" data-danger="1" onClick=${undo}>
-            <span class="gcs-row2-text"><b>Go back now</b><i>○</i></span>
+          <div class="gcs-row2" data-danger="1" data-on=${pickIdx === 1 ? '1' : '0'}
+               onClick=${() => { setPickIdx(1); undo() }}>
+            <span class="gcs-row2-text">
+              <b>Go back now</b><i>Do not wait for the countdown — ○ does this too</i>
+            </span>
             <span class="gcs-act" data-danger="1">Revert</span>
+          </div>
+          <div class="gcs-set-hints gcs-count-hints">
+            <span><kbd>↑↓</kbd>Move</span><span><kbd>✕</kbd>Choose</span><span><kbd>○</kbd>Go back</span>
           </div>
         </section>`
     }

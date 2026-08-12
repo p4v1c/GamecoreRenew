@@ -73,6 +73,9 @@ const BOX: Record<string, unknown> = {
     current: { width: 1920, height: 1080, rate: 60 },
     pending: false, revert_secs: 12,
   },
+  '/api/settings/display/mode': { ok: true, changed: true, revert_secs: 12 },
+  '/api/settings/display/confirm': { ok: true, confirmed: true },
+  '/api/settings/display/revert': { ok: true, reverted: true },
   '/api/settings/audio/sinks': [
     { id: '49', name: 'Built-in Audio Analog Stereo', default: false },
     { id: '52', name: 'HDMI / DisplayPort', default: true },
@@ -550,5 +553,87 @@ describe('the shared screen — the host parts it borrows', () => {
     expect(kb, 'the keyboard must sit inside .gcs-set-kb, which themes paint').toBeTruthy()
     // And it must be the keyboard inside it, not an empty box.
     expect(kb!.children.length).toBeGreaterThan(0)
+  })
+})
+
+describe('the shared screen — Display, and its confirmation', () => {
+  /** An SDK whose gamepad bus records instead of listening, so a test can ask
+   *  "is anything bound to ✕ right now" — which is the whole question when a
+   *  screen stops answering the pad. */
+  function recordingSdk() {
+    const bound = new Map<string, Set<(d?: unknown) => void>>()
+    const real = sdk()
+    return {
+      s: {
+        ...real,
+        input: {
+          ...real.input,
+          onGp: (event: string, handler: (d?: unknown) => void) => {
+            if (!bound.has(event)) bound.set(event, new Set())
+            bound.get(event)!.add(handler)
+            return () => bound.get(event)!.delete(handler)
+          },
+        },
+      },
+      fire: (event: string) => [...(bound.get(event) ?? [])].forEach(h => h()),
+      count: (event: string) => (bound.get(event) ?? new Set()).size,
+    }
+  }
+
+  async function renderDisplay(active = true) {
+    const { createRows } = await load(`${SHARED}/rows.js`)
+    const { createDisplayPage } = await load(`${SHARED}/display.js`)
+    const { s, fire, count } = recordingSdk()
+    const View = createDisplayPage(s, createRows(s))
+    const { render } = await import('@testing-library/react')
+    const { createElement } = await import('react')
+    const r = render(createElement(View, { active, onLeave: vi.fn() }))
+    return { ...r, fire, count }
+  }
+
+  it('answers the pad on the confirmation screen', async () => {
+    // The bug as reported: the countdown appeared and neither stick nor buttons
+    // did anything, so the only way out was to wait — on the one screen where
+    // waiting is the choice you may not want.
+    const { container, fire, count } = await renderDisplay()
+    const { waitFor, fireEvent } = await import('@testing-library/react')
+
+    await waitFor(() => expect(container.textContent).toMatch(/Apply this mode/))
+    const apply = [...container.querySelectorAll('.gcs-row2')]
+      .find(r => r.textContent?.includes('Apply this mode'))!
+    fireEvent.click(apply)
+
+    await waitFor(() => expect(container.textContent).toMatch(/Can you read this/))
+    expect(count('gp:confirm'), '✕ is bound to nothing on the countdown').toBeGreaterThan(0)
+    expect(count('gp:back'), '○ is bound to nothing on the countdown').toBeGreaterThan(0)
+
+    fire('gp:confirm')
+    await waitFor(() => expect(container.textContent).not.toMatch(/Can you read this/))
+  })
+
+  it('lets the cursor reach the second answer', async () => {
+    // What made it feel broken: the screen looked like a list of two and the
+    // cursor could not leave the first one. Pressing down did nothing, so the
+    // second button read as unreachable — on the screen where choosing wrong
+    // means waiting out a countdown you did not want.
+    const { container, fire } = await renderDisplay()
+    const { waitFor, fireEvent } = await import('@testing-library/react')
+
+    await waitFor(() => expect(container.textContent).toMatch(/Apply this mode/))
+    fireEvent.click([...container.querySelectorAll('.gcs-row2')]
+      .find(r => r.textContent?.includes('Apply this mode'))!)
+    await waitFor(() => expect(container.textContent).toMatch(/Can you read this/))
+
+    const focused = () => [...container.querySelectorAll('.gcs-row2')]
+      .findIndex(r => r.getAttribute('data-on') === '1')
+    expect(focused()).toBe(0)
+
+    fire('gp:dpad-down')
+    await waitFor(() => expect(focused()).toBe(1))
+
+    // And ✕ there must revert rather than keep — a cursor that moves without
+    // changing what the button does is worse than no cursor at all.
+    fire('gp:confirm')
+    await waitFor(() => expect(container.textContent).toMatch(/previous mode/))
   })
 })
