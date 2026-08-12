@@ -27,6 +27,17 @@ interface Props {
   placeholder?: string
   onConfirm: (value: string) => void
   onCancel: () => void
+  /**
+   * A name for the surface this keyboard is sitting on, so a stylesheet can
+   * set `--gc-kb-*` for THAT surface and no other.
+   *
+   * The tokens have to be scoped to something, and the settings screens had
+   * their own wrapper to hang them on. The game search did not: it is rendered
+   * by the host, inside the host's overlay, and a theme had no selector that
+   * reached it — which is why every theme's search keyboard stayed the built-in
+   * grey while its password keyboard was dressed.
+   */
+  className?: string
 }
 
 /**
@@ -39,9 +50,10 @@ interface Props {
  * shipped white-on-white — a keyboard measured at 1.05:1 against the card
  * behind it, for the one password nobody can type any other way.
  *
- * Set them on the CONTAINER, not on :root. The same component draws the game
- * search inside the host's dark overlay, and a theme that recoloured it
- * globally would fix its settings dialog and break its search.
+ * Set them on the CONTAINER, not on :root. The same component draws several
+ * different surfaces — a settings dialog, the game search — and a theme that
+ * recoloured it globally would dress one and ruin the other. Each caller names
+ * its surface through `className`; the game search is `.gc-search-kb`.
  *
  *   --gc-kb-field       the typed-value box
  *   --gc-kb-field-ink   what you type, ON that box — not the same as the
@@ -56,7 +68,7 @@ interface Props {
  * The focus ring and the accent-tinted keys read `--gc-accent*`, which every
  * theme already sets.
  */
-export function VirtualKeyboard({ title, password = false, initialValue = '', placeholder, onConfirm, onCancel }: Props) {
+export function VirtualKeyboard({ title, password = false, initialValue = '', placeholder, onConfirm, onCancel, className }: Props) {
   const [value, setValue] = useState(initialValue)
   const [layout, setLayout] = useState<'letters' | 'symbols'>('letters')
   const [row, setRow] = useState(1)
@@ -140,7 +152,7 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
   const displayValue = password ? '●'.repeat(value.length) : value
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className={className} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {title && (
         <div style={{ fontSize: 13, color: 'var(--gc-accent-soft, #a78bfa)', textAlign: 'center', letterSpacing: 1, marginBottom: 2 }}>
           {title}
