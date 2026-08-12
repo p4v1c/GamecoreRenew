@@ -122,8 +122,6 @@ const BOX = {
   '/api/themes': { sdk_version: 1, active: 'shelf', themes: [
     { id: 'shelf', name: 'Shelf', version: '2.0.0', compatible: true, api: 1,
       description: 'Your library as boxed games on a papered wall' },
-    { id: 'shelf-v1', name: 'Shelf v1', version: '1.9.0', compatible: true, api: 1,
-      description: 'Shelf as it was before the settings rework' },
     { id: 'summer', name: 'Summer', version: '1.3.0', compatible: true, api: 1,
       description: 'A WebGL ocean that tracks the real sun, under glass panels' },
   ] },

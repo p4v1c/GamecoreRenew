@@ -822,27 +822,28 @@ it, so the box is never left pointing at a directory that is not there.
 Step 6 validates the spec: if the default UI cannot be expressed through this
 SDK, the SDK is incomplete.
 
-## 17. The acceptance test
+## 17. The acceptance test, and its removal
 
-`config/themes/default-remake` is the default UI **rebuilt as an ordinary
-third-party theme**, and it is the only test that answers the question step 6
-asks. It is worth reading before writing a theme of your own, and its README
-lists what it does *not* reproduce.
+`config/themes/default-remake` **was** the default UI rebuilt as an ordinary
+third-party theme — the only test that answered the question step 6 asks, run by
+the suite against the real `buildSdk()` output rather than a stub, because a
+stub would pass on exactly the day the SDK lost a key the theme needs.
 
-It is kept in the tree as a regression test, and it is run by the suite
-(`frontend/src/lib/defaultRemake.test.ts`) against the real `buildSdk()` output
-rather than a stub — a stub would pass on exactly the day the SDK lost a key the
-theme needs.
+It was removed with `shelf-v1` when the box was cut down to two themes. That is
+a real loss and it is recorded here rather than quietly dropped: the SDK no
+longer has a canary that fails when it stops being able to express the default
+frontend. What remains is `config/themes/shelf`, which exercises far more of the
+SDK but is not a remake of anything, so it cannot answer the same question — a
+gap it opens is a gap in Shelf, not necessarily one in the SDK.
 
-It passes eight of the ten shell parts. `background` and `decor` are the two it
-leaves out, and that is the faithful answer rather than a shortcut: the default
-UI has no full-screen layer behind or in front of itself, so a remake that
-supplied one would no longer be a remake. `config/themes/summer` is the worked
-example for those two.
+The six gaps the remake found, all closed before it went, were each of the same
+shape: none prevented a theme from *loading*, and every one let a theme load and
+then be quietly worse than the default. That is the failure mode to keep in mind
+without it — and `git log -- config/themes/default-remake` is where it lives now
+if it is ever worth restoring.
 
-The six gaps it found, all now closed, were each of the same shape: none
-prevented a theme from *loading*, and every one let a theme load and then be
-quietly worse than the default.
+`config/themes/summer` remains the worked example for `background` and `decor`,
+the two shell parts the remake deliberately left out.
 
 | Found | Was |
 |---|---|

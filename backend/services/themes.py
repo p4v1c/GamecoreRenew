@@ -24,6 +24,16 @@ STATE_FILE = config_dir() / "theme.json"
 # Bumped only when a surface or an SDK key is removed. Adding one does not.
 SDK_VERSION = 1
 
+# What a box shows when nobody has chosen — a fresh install, or one whose config
+# directory was replaced. Not a hardcoded look: it is a theme id like any other,
+# checked against what is actually installed before it is handed out, and any
+# selection the owner makes overrides it permanently.
+#
+# It is deliberately NOT what safe mode falls back to. That path still lands on
+# the built-in UI, because the whole point of a rescue is to reach something
+# that is not the theme you are escaping.
+SHIPPED_DEFAULT = "shelf"
+
 # The two surfaces a theme owns: the boot animation and the frontend body.
 # Both are mandatory — a theme dresses the whole UI or it does not load. Half a
 # theme (a beach dashboard behind the stock splash) is what made the first
@@ -285,11 +295,31 @@ def list_themes() -> list[dict]:
 
 
 def get_active() -> str | None:
-    """The selected theme id, or None for the built-in default."""
+    """The selected theme id, or None for the built-in default.
+
+    A box that has never been asked gets `SHIPPED_DEFAULT`, which is the
+    difference between "nobody chose" and "somebody chose the built-in UI".
+    Those two used to be the same answer — both landed here as None — and
+    conflating them is what would have broken the rescue: holding L1+R1 writes
+    `{"active": null}` on purpose, and a fallback that could not tell that from
+    a missing file would have put the themed UI straight back on a box whose
+    owner was trying to escape it.
+
+    So the fallback applies ONLY when the file cannot be read at all. An
+    explicit null is honoured as an explicit null, for ever.
+    """
     try:
-        return json.loads(STATE_FILE.read_text()).get("active") or None
+        raw = json.loads(STATE_FILE.read_text())
     except Exception:
+        # Never chosen — a fresh install, or a state file lost with the config
+        # directory. Verified rather than assumed: a shipped default that is
+        # missing or refused would otherwise leave the box quoting an id that
+        # loads nothing, and the built-in UI is the honest answer then.
+        if SHIPPED_DEFAULT and any(t["id"] == SHIPPED_DEFAULT and t.get("compatible")
+                                   for t in list_themes()):
+            return SHIPPED_DEFAULT
         return None
+    return raw.get("active") or None
 
 
 def set_active(theme_id: str | None) -> str | None:

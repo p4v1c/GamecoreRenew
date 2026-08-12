@@ -423,3 +423,59 @@ def test_a_shipped_theme_declares_only_pages_that_exist(theme_dir):
     pages = host_settings_pages()
     unknown = [p for p in declared if p not in pages]
     assert not unknown, f"{theme_dir.name} declares pages that do not exist: {unknown}"
+
+
+# ── the shipped default, and the rescue it must not swallow ──────────────────
+
+def test_a_box_nobody_has_configured_gets_the_shipped_theme(tmp_path, monkeypatch):
+    """A fresh install used to come up on the bare built-in UI, and the owner
+    had to go and pick the theme the box ships with. It now starts on it."""
+    monkeypatch.setattr(themes, "STATE_FILE", tmp_path / "theme.json")
+    # The themes directory is a runtime path this suite points elsewhere, so the
+    # installed set is stated here rather than read off the developer's disk.
+    monkeypatch.setattr(themes, "list_themes",
+                        lambda: [{"id": themes.SHIPPED_DEFAULT, "compatible": True}])
+    assert not (tmp_path / "theme.json").exists()
+    assert themes.get_active() == themes.SHIPPED_DEFAULT
+
+
+def test_a_shipped_default_that_will_not_load_is_not_handed_out(tmp_path, monkeypatch):
+    """Installed but refused — wrong SDK version, missing surface. Quoting it
+    would send a fresh box to a theme that cannot render."""
+    monkeypatch.setattr(themes, "STATE_FILE", tmp_path / "theme.json")
+    monkeypatch.setattr(themes, "list_themes",
+                        lambda: [{"id": themes.SHIPPED_DEFAULT, "compatible": False}])
+    assert themes.get_active() is None
+
+
+def test_choosing_the_built_in_ui_survives_and_is_not_overridden(tmp_path, monkeypatch):
+    """The rescue's whole job is to escape the themed UI: holding L1+R1 writes
+    an explicit null. A shipped default that could not tell that from an absent
+    file would hand the theme straight back to somebody trying to get away from
+    it — on a box where that theme is why nothing renders."""
+    state = tmp_path / "theme.json"
+    monkeypatch.setattr(themes, "STATE_FILE", state)
+    state.write_text(json.dumps({"active": None}))
+    assert themes.get_active() is None
+
+
+def test_the_shipped_default_is_verified_before_it_is_handed_out(tmp_path, monkeypatch):
+    """Naming a theme that is not installed would leave a fresh box quoting an
+    id that loads nothing. The built-in UI is the honest answer then."""
+    monkeypatch.setattr(themes, "STATE_FILE", tmp_path / "theme.json")
+    monkeypatch.setattr(themes, "SHIPPED_DEFAULT", "a-theme-nobody-installed")
+    assert themes.get_active() is None
+
+
+def test_the_shipped_default_names_a_theme_this_repository_ships():
+    """The constant and the directories drift apart silently otherwise: the id
+    is only ever read back through `list_themes()`, so a typo — or deleting the
+    theme it names — degrades every fresh box to the built-in UI, and nothing
+    anywhere says why.
+
+    Checked against the repository rather than against `list_themes()`, whose
+    directory this suite deliberately points somewhere empty."""
+    shipped = SHIPPED_THEMES / themes.SHIPPED_DEFAULT / "theme.json"
+    assert shipped.is_file(), (
+        f"SHIPPED_DEFAULT is {themes.SHIPPED_DEFAULT!r} but {shipped} does not exist"
+    )
