@@ -28,6 +28,7 @@ from fastapi import APIRouter, HTTPException
 
 from .. import ws
 from ..services.catalog import load_catalog, ota, signing
+from ..services.catalog.tiles import logo_path
 from ..services.paths import catalog_dir, config_dir, install_bin_dir
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
@@ -98,6 +99,19 @@ def list_catalog():
             # first time somebody ships a machine nobody here anticipated.
             "family": p.data.get("family", ""),
             "color": p.data["color"],
+            # The pack's own logo, or null when it ships none.
+            #
+            # Sent rather than left for the caller to construct, even though
+            # the rule is one line: a settings screen that guessed the URL
+            # would request a logo for every pack and take a 404 for the ones
+            # with none, and would have no way to know in advance which ones
+            # those are — so it could not fall back to `color` without first
+            # failing. `logo_path` is the same function the tiles use, so the
+            # naming rule stays in one place.
+            #
+            # Relative, like the `iconPath` systems.json records, and served by
+            # the same public route.
+            "logo": logo_path(p) if p.logo is not None else None,
             "emulatorName": p.data.get("emulatorName", p.data["label"]),
             "description": p.data.get("description", ""),
             "origin": p.origin,

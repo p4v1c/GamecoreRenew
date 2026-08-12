@@ -1,7 +1,7 @@
 {
   "id": "shelf",
   "name": "Shelf",
-  "version": "2.10.0",
+  "version": "2.11.0",
   "api": 1,
   "author": "Claude, from p4v1c's reference capture",
   "description": "Your library as boxed games on a papered wall \u2014 browse the spines, turn the box, slot the cartridge in",

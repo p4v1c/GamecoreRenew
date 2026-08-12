@@ -39,6 +39,45 @@ export const createCatalogPage = (sdk) => {
   const { html, useState, useEffect, useRef, React } = sdk.ui
   const Fragment = React.Fragment
 
+  /**
+   * The square at the head of a row: the pack's own logo.
+   *
+   * It was a flat colour swatch, which told the player nothing they could use.
+   * Every pack ships `logo.png` and the box has served it at
+   * `/assets/logos/<id>.png` all along — for the home grid, never for this
+   * screen, which is the one place someone is choosing WHICH system to
+   * install.
+   *
+   * The colour is still here, as the fallback it always was: a pack that ships
+   * no logo, or a logo that fails to load, gets exactly the swatch it had
+   * before. That is a component's worth of state because the failure is
+   * asynchronous — the URL looks fine until the image does not arrive.
+   *
+   * The tile behind the logo is a constant near-white on all three surfaces,
+   * and does NOT take the theme. That is deliberate: these logos are somebody
+   * else's artwork at somebody else's contrast. Several are dark line art
+   * (PS1, PS3, PSP) and several are near-white (Wii U, DS) — put them straight
+   * on a theme's card and half of them vanish on paper and the other half on
+   * glass. A light chip is what an app launcher does, and it is the only
+   * background that works for all of them at once.
+   */
+  const PackMark = ({ pack }) => {
+    const [failed, setFailed] = useState(false)
+    // Reset when the row is reused for another pack: `failed` is about one
+    // image, and React keeps this component mounted across a re-key.
+    useEffect(() => { setFailed(false) }, [pack.logo])
+
+    if (!pack.logo || failed) {
+      return html`<span class="gcs-pack-dot"
+                        style=${{ background: pack.color || '#8B8992' }}></span>`
+    }
+    return html`
+      <span class="gcs-pack-dot" data-logo="1">
+        <img src=${`/${pack.logo}`} alt="" loading="lazy"
+             onError=${() => setFailed(true)} />
+      </span>`
+  }
+
   return ({ active, onLeave }) => {
     const [packs, setPacks] = useState([])
     const [open, setOpen] = useState(null)
@@ -163,7 +202,7 @@ export const createCatalogPage = (sdk) => {
                     return html`
                       <div key=${p.id} class="gcs-pack" data-on=${active && idx === si ? '1' : '0'}
                            onClick=${() => { setIdx(si); fire({ kind: 'sys', pack: p }) }}>
-                        <span class="gcs-pack-dot" style=${{ background: p.color || '#8B8992' }}></span>
+                        <${PackMark} pack=${p} />
                         <span class="gcs-pack-text">
                           <b>${p.label}</b>
                           <i>${p.emulatorName || ''}</i>

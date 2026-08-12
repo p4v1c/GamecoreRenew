@@ -1251,7 +1251,19 @@
   background: var(--glass-700); border: 1px solid transparent;
 }
 .gcs-pack[data-on="1"] { border-color: var(--accent-mandarin); box-shadow: 0 0 0 1px var(--accent-mandarin) inset; }
-.gcs-pack-dot { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 9px; }
+/* 38, not the 30 the colour swatch had. A swatch only has to be seen; a logo
+   has to be read, and a Nintendo DS at 30px with padding is a grey smudge. */
+.gcs-pack-dot { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 10px; }
+/* With a logo in it, the square stops being a colour and becomes a chip to put
+   artwork on. Near-white on every surface and NOT themed: these logos are
+   somebody else's, at somebody else's contrast — several are dark line art
+   (PS1, PS3, PSP), several are near-white (Wii U, DS), and no single themed
+   background makes both readable. `contain` because they are not all square. */
+.gcs-pack-dot[data-logo="1"] {
+  display: grid; place-items: center; padding: 3px;
+  background: #F6F5F2; box-shadow: 0 0 0 1px rgba(23, 23, 26, 0.10) inset;
+}
+.gcs-pack-dot > img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .gcs-pack-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .gcs-pack-text b { font-size: 17px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gcs-pack-text i { font-style: normal; font-family: var(--font-mono, ui-monospace, monospace); font-size: 11.5px; color: var(--foam-400); }
