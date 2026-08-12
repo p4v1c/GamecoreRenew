@@ -42,8 +42,15 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
+      # v7, not v4: v4 runs on Node 20, which the hosted runners now force onto
+      # Node 24 with a deprecation warning and will eventually stop carrying.
+      # The two behaviour changes between them do not reach this repository —
+      # v6 moved the git credential out of .git/config (nothing here reuses it;
+      # the tag action builds its own authenticated remote), and v7 refuses to
+      # check out a fork PR under `pull_request_target` / `workflow_run`, and
+      # neither trigger is used.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Python
         uses: actions/setup-python@v5

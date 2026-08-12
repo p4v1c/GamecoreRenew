@@ -36,8 +36,15 @@ jobs:
       tag: ${{ steps.tag_version.outputs.new_tag || github.ref_name }}
 
     steps:
+      # v7, not v4: v4 runs on Node 20, which the hosted runners now force onto
+      # Node 24 with a deprecation warning and will eventually stop carrying.
+      # The two behaviour changes between them do not reach this repository —
+      # v6 moved the git credential out of .git/config (nothing here reuses it;
+      # the tag action builds its own authenticated remote), and v7 refuses to
+      # check out a fork PR under `pull_request_target` / `workflow_run`, and
+      # neither trigger is used.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0 # Important pour que l'auto-tag puisse voir l'historique
 
@@ -116,11 +123,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
+      # `npm run test:run` sits BEFORE the build and is blocking, like every
+      # other step in this file. There is no continue-on-error anywhere here
+      # and that is deliberate: this workflow is what let an installer that
+      # segfaulted reach a release, and a red step must mean no tag.
       - name: Build frontend
-        # `npm run test:run` sits BEFORE the build and is blocking, like every
-        # other step in this file. There is no continue-on-error anywhere here
-        # and that is deliberate: this workflow is what let an installer that
-        # segfaulted reach a release, and a red step must mean no tag.
         run: |
           cd frontend
           npm ci
@@ -203,7 +210,7 @@ jobs:
           pyinstaller --noconfirm --clean gamecore-installer.spec
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag_version.outputs.new_tag || github.ref_name }}
           files: |
@@ -300,8 +307,9 @@ jobs:
           node --version
           npm --version
 
+      # v7 for the same reason as the build job's checkout, above.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.build.outputs.tag }}
 
@@ -360,7 +368,7 @@ jobs:
           ls -lh
 
       - name: Attach the ISO to the release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.build.outputs.tag }}
           # The whole directory, because what is in it depends on the step
