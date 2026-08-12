@@ -21,9 +21,14 @@
  *           controllers, catalog, bios, themes, system — and rows.js, the four
  *           controls the capture uses, shared so a toggle is the same toggle
  *
- *   lib/    paper.js      the wallpaper, as a mask   accent.js    the colour
- *           names.js      titles, letters, regions   dossier.js   one lookup
+ *   lib/    accent.js     the colour                 names.js     titles, letters
+ *           dossier.js    one lookup                 regions
  *           browse.js     flip and restack           idle.js      is anyone here
+ *
+ * The wallpaper is not here any more: it is `--gc-paper-pattern` in theme.css,
+ * one definition the wall and the settings screen both paint. paper.js
+ * generated a Truchet weave for the wall alone, and two patterns that were
+ * meant to be one wall is exactly how they came to differ.
  *
  * This file holds no markup and no behaviour on purpose. Everything a screen
  * *does* — paging, focus, sorting, searching, launching, the modal stack, the

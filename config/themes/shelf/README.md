@@ -68,11 +68,13 @@ reload:
   **The wall no longer does.** It did, and that was the theme's signature:
   moving along the shelf repainted the room. It is retired on the owner's call —
   switching emulator recoloured the whole screen behind a grid you are trying to
-  read. The wall is now a fixed sea-green on the same paper (`#B8D5CD` on
-  `#F4F2ED`), sampled from the reference they supplied. The pattern is still a
-  *mask* over a solid colour rather than a picture, and the cross-fade is still
-  wired, so flipping the two `background-color` lines in `.cz-wall-*` back to
-  `hsl(var(--acc-h) …)` restores the old behaviour exactly.
+  read.
+
+  The wall is the paper pattern, fixed. That retint is also why the pattern used
+  to be a *mask* over a solid colour rather than a picture: `background-color`
+  transitions and an image does not. With the colour fixed the mask had nothing
+  left to do, which is what let the wall and the settings screen finally share
+  one definition.
 - **The fixed one** is seal gold, in `:root`. The host's settings widgets are
   drawn with inline styles and can only read `:root`, so chrome does not follow
   the artwork. The shelf does.
@@ -209,12 +211,13 @@ Wi-Fi page in white-on-white. So the theme's own menus join them in warm
 near-black — the drawer under the shelf — and `--gc-overlay-*` brings the
 reused pages the rest of the way.
 
-**The wall's outline carries the pattern alone.** It used to be a 34 % wash
-over a wide soft worm, so a 2.5px band and a 60px cell were enough to read as
-texture. Carrying the wall on its own it has to read as the pattern itself, so
-the cell is 90px and the band 6px — the same fraction of the cell, so the weight
-survives the change of scale. The soft layer stays, barely off the paper, for
-the depth the reference still shows between the loops.
+**One wallpaper, defined once.** `--gc-paper-pattern` in theme.css is the
+pattern; `.cz-wall-pattern` and `.cz-set-paper` both paint it, at the same size
+and the same 28 % strength. It did not start that way: the wall generated a
+Truchet weave of its own while Settings drew the reference capture's
+rings-and-arcs, and the two screens are meant to be the same wall seen from two
+places. They drifted because there were two definitions, so now there is one —
+and `lib/paper.js`, which existed only to generate the weave, is gone with it.
 
 **The turned box does not use the host's `Cover`.** `Cover` draws at
 `object-fit: cover` in a frame the caller sizes; a shelf needs the opposite,
