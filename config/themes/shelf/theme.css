@@ -2189,3 +2189,24 @@
    screen's footer, because it describes two buttons that exist only while it
    is up. */
 .gcs-count-hints { margin-top: 18px; color: rgba(23, 23, 26, 0.42); }
+
+/* ── the game search keyboard ─────────────────────────────────────────────
+   The other keyboard. This one is drawn by the host, inside the host's own
+   overlay, so it is a different surface from `.gcs-set-kb` and needs its own
+   block — the settings dialog is paper, this panel is the warm near-black
+   drawer, and one set of tokens cannot serve both.
+
+   It was left in the built-in blue-grey with a purple focus ring, which is the
+   only place in Shelf where the default UI's colour was still showing. The
+   panel behind it is already this theme's; the keys are now too. */
+.gc-search-kb {
+  --gc-kb-field:      rgba(12, 11, 10, 0.55);
+  --gc-kb-key:        rgba(244, 242, 237, 0.06);
+  --gc-kb-key-edge:   rgba(244, 242, 237, 0.13);
+  --gc-kb-ink:        rgba(244, 242, 237, 0.82);
+  --gc-kb-field-ink:  #F4F2ED;
+  --gc-kb-ink-strong: #FFF6E2;
+  --gc-kb-ink-dim:    rgba(244, 242, 237, 0.42);
+  --gc-kb-ink-faint:  rgba(244, 242, 237, 0.28);
+  font-family: var(--font-body);
+}

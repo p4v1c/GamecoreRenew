@@ -128,3 +128,8 @@ catalog-signing*.priv
 # The shot harness transpiles the host's TSX keyboard to a temp module so Node
 # can import it. Regenerated on every run; never edited by hand.
 frontend/scripts/.kb.generated.mjs
+
+# The default-UI darkroom's build output. `frontend/shot/` and
+# `vite.shot.config.mts` are the sources and are tracked; this is what vite
+# writes when they are built, and it is rebuilt on every run.
+frontend/.shot-dist/

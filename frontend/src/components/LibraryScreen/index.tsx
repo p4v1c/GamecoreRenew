@@ -269,6 +269,12 @@ export default function LibraryScreen({ view: View = DefaultLibraryView }: Props
         {showSearch && (
           <Overlay onClose={() => setShowSearch(false)}>
             <VirtualKeyboard
+              // The hook a theme needs to dress this one.
+              // Themes styled their settings keyboard and left this one in the
+              // built-in grey, not by choice: the settings screens own their
+              // wrapper and could scope `--gc-kb-*` to it, while this keyboard
+              // is drawn by the host and no theme selector reached it.
+              className="gc-search-kb"
               title="Search games"
               initialValue={search}
               placeholder="search a game…"

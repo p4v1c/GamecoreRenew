@@ -3,7 +3,7 @@
  * The flow lives in PowerModal; see power/types.ts.
  */
 import { motion } from 'framer-motion'
-import { Overlay, OverlayLabel } from '../../ui'
+import { Overlay, OverlayLabel, Glyph } from '../../ui'
 import type { PowerViewProps } from './types'
 
 export default function DefaultPowerView({
@@ -11,48 +11,58 @@ export default function DefaultPowerView({
   onActivate, onCancel,
 }: PowerViewProps) {
   return (
-    <Overlay onClose={onCancel} width={340}>
+    <Overlay onClose={onCancel} width={420}>
       <OverlayLabel text="SYSTEM" />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, pointerEvents: pendingId ? 'none' : 'auto' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, pointerEvents: pendingId ? 'none' : 'auto' }}>
         {options.map((o, idx) => {
           const isPending = pendingId === o.id
           const isScan = o.id === 'scan'
           const busyPulse = isPending || (isScan && scanning)
           const dimmed = pendingId !== null && !isPending
+          const awaiting = confirmId === o.id
           return (
             <div key={o.id} onClick={() => onActivate(o.id)} style={{
-              display: 'flex', alignItems: 'center', gap: 16, padding: '16px 18px',
-              borderRadius: 14, cursor: pendingId ? 'default' : 'pointer',
+              // Not a fixed height like the settings rows: the scan result and
+              // the confirmation both replace the subtitle with a longer line,
+              // and clipping the answer to a mapping scan would be losing the
+              // only thing the row exists to say.
+              display: 'flex', alignItems: 'center', gap: 15, padding: '13px 16px',
+              minHeight: 62, borderRadius: 13, cursor: pendingId ? 'default' : 'pointer',
               opacity: dimmed ? 0.25 : 1,
               background: isPending || idx === focusIdx
                 ? `${o.color}22`
-                : confirmId === o.id ? `${o.color}18` : 'rgba(255,255,255,0.04)',
+                : awaiting ? `${o.color}18` : 'rgba(255,255,255,0.04)',
               border: isPending || idx === focusIdx
                 ? `1px solid ${o.color}90`
-                : confirmId === o.id ? `1px solid ${o.color}70` : '1px solid rgba(255,255,255,0.07)',
+                : awaiting ? `1px solid ${o.color}70` : '1px solid rgba(255,255,255,0.07)',
               transition: 'all 0.2s',
             }}>
               <motion.div
                 animate={busyPulse ? { opacity: [1, 0.35, 1] } : { opacity: 1 }}
                 transition={busyPulse ? { duration: 1.1, repeat: Infinity, ease: 'easeInOut' } : undefined}
-                style={{ width: 44, height: 44, borderRadius: 12, background: `${o.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: o.color }}
+                style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 11, background: `${o.color}20`, display: 'grid', placeItems: 'center', color: o.color }}
               >
-                {o.icon}
+                {/* Drawn, like every other icon in this UI. These were text
+                    characters — ◎ ⌫ ⏻ ↺ ⌘ — which is a different font at a
+                    different weight in each row, and ⌘ for "desktop" is a key
+                    on a keyboard this box does not have. */}
+                <Glyph name={o.id} size={20} />
               </motion.div>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 15, color: '#fff' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 15.5, color: awaiting ? o.color : '#fff' }}>
                   {isScan ? (scanning ? o.busy : o.label)
-                          : isPending ? o.busy : confirmId === o.id ? `Confirm ${o.label}?` : o.label}
+                          : isPending ? o.busy : awaiting ? `Confirm ${o.label}?` : o.label}
                 </div>
-                <div style={{ fontSize: 12, color: isScan && scanResult ? o.color : 'rgba(255,255,255,0.35)', marginTop: 2 }}>
-                  {isScan && scanResult ? scanResult : o.desc}
+                <div style={{ fontSize: 12.5, color: isScan && scanResult ? o.color : 'rgba(255,255,255,0.35)', marginTop: 3, lineHeight: 1.35 }}>
+                  {isScan && scanResult ? scanResult
+                    : awaiting ? 'Press again to go ahead — ○ cancels' : o.desc}
                 </div>
               </div>
             </div>
           )
         })}
         <div onClick={onCancel} style={{
-          padding: '13px 18px', borderRadius: 14, cursor: pendingId ? 'default' : 'pointer',
+          padding: '12px 16px', borderRadius: 13, cursor: pendingId ? 'default' : 'pointer',
           background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
           color: 'rgba(255,255,255,0.4)', fontSize: 14, fontWeight: 500, textAlign: 'center', marginTop: 4,
           opacity: pendingId ? 0.25 : 1,
