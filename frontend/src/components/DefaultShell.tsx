@@ -47,6 +47,25 @@ export interface ShellParts {
   homeView?: React.ComponentType<HomeViewProps>
   /** The library's markup. Sorting, search and launching stay with the host. */
   libraryView?: React.ComponentType<LibraryViewProps>
+  /**
+   * Library shortcuts this theme binds itself, so the host lets go of them.
+   *
+   * The same idea as `powerOmit`, for the same reason: the host cannot know
+   * which buttons a theme has advertised on its own screen, and two handlers
+   * on one button is never what either of them meant.
+   *
+   * It exists because of exactly that. The host opens the per-game options on
+   * R2 — "because every face button is already spoken for on this screen" —
+   * and Shelf's library binds R2 to cycle how the shelf is stacked, and prints
+   * `R2  <mode>` in its own hint bar. Pressing it did both: the box turned AND
+   * a menu nobody asked for appeared over it, and pressing again turned the box
+   * behind the menu. Only `'options'` is recognised today.
+   *
+   * A theme that takes a shortcut takes responsibility for offering the thing
+   * some other way. Nothing here enforces that, because there is no honest way
+   * to check it — but see LibraryScreen, which says what is lost.
+   */
+  libraryOmit?: string[]
   settings?: React.ComponentType<{ onClose: () => void }>
   /**
    * Markup for the power menu and the controller screen. Their flows stay with
@@ -227,7 +246,7 @@ export default function DefaultShell(parts: ShellParts = {}) {
           <HomeScreen onLaunchApp={launchApp} view={parts.homeView} />
         </div>
         <div style={{ position: 'relative', zIndex: 1, flex: 1, display: screen === 'library' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-          <LibraryScreen view={parts.libraryView} />
+          <LibraryScreen view={parts.libraryView} omit={parts.libraryOmit} />
         </div>
       </div>
 
