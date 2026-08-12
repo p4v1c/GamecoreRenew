@@ -124,3 +124,7 @@ OPUS_HANDOFF_gamepad.md
 catalog-signing.key
 catalog-signing*.priv
 *-signing.key
+
+# The shot harness transpiles the host's TSX keyboard to a temp module so Node
+# can import it. Regenerated on every run; never edited by hand.
+frontend/scripts/.kb.generated.mjs
