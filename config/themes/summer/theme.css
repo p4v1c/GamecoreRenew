@@ -1180,9 +1180,22 @@
   box-shadow: 0 40px 90px rgba(0, 0, 0, 0.5);
 }
 .gcs-set-dialog-title { margin-top: 6px; font-size: 30px; font-weight: 700; }
-/* This dialog is already dark, so the keyboard needs no rescue — only a seam
-   so it reads as its own field rather than as loose keys on the glass. */
+/* This dialog is already dark, so the keyboard needed no rescue — but it was
+   still the host's grey-on-black rather than this theme's. Sea glass keys,
+   foam lettering, mandarin focus.
+
+   Set here rather than on :root: the same keyboard draws the game search
+   inside the host's own overlay, which is not this surface. */
 .gcs-set-kb {
+  --gc-kb-field:      rgba(0, 0, 0, 0.32);
+  --gc-kb-key:        rgba(255, 253, 247, 0.07);
+  --gc-kb-key-edge:   var(--glass-hairline);
+  --gc-kb-ink:        var(--foam-200);
+  --gc-kb-field-ink:  var(--foam-000);
+  --gc-kb-ink-strong: var(--foam-000);
+  --gc-kb-ink-dim:    var(--foam-400);
+  --gc-kb-ink-faint:  rgba(195, 183, 166, 0.55);
+
   margin-top: 18px; padding: 18px 18px 12px; border-radius: var(--r-tile);
   background: rgba(0, 0, 0, 0.22); border: 1px solid var(--glass-hairline);
 }

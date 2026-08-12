@@ -11,6 +11,7 @@
  */
 import { JSDOM } from 'jsdom'
 import { readFileSync, writeFileSync } from 'fs'
+import { pathToFileURL } from 'url'
 import { resolve } from 'path'
 
 const [, , outPath = 'out.html'] = process.argv
@@ -164,10 +165,27 @@ dom.window.navigator.getGamepads = () => ([
 // ── the SDK, stubbed at the surface the theme actually uses ─────────────────
 const html = htm.bind(React.createElement)
 
-// The host's real keyboard, imported rather than stubbed: its whole problem is
-// that it draws itself in hardcoded white, which a placeholder cannot show.
-const { VirtualKeyboard: KEYBOARD } = await import('../src/components/ui/VirtualKeyboard.tsx')
-  .catch(() => ({ VirtualKeyboard: () => html`<div class="cz-kb-stub">keyboard unavailable</div>` }))
+// The host's real keyboard, transpiled and imported rather than stubbed: the
+// whole question about it is what colour it comes out, which a placeholder
+// cannot answer. Node cannot load TSX, so esbuild — already here as one of
+// vite's own dependencies — turns it into something it can.
+const KEYBOARD = await (async () => {
+  try {
+    const esbuild = await import('esbuild')
+    const src = resolve(import.meta.dirname, '../src/components/ui/VirtualKeyboard.tsx')
+    const { code } = await esbuild.transform(readFileSync(src, 'utf8'), {
+      loader: 'tsx', format: 'esm', jsx: 'automatic', target: 'es2022',
+    })
+    const tmp = resolve(import.meta.dirname, '.kb.generated.mjs')
+    writeFileSync(tmp, code.replace(/from ['"]\.\.\/\.\.\/hooks\/useGamepad['"]/g,
+      "from 'data:text/javascript,export const onGp=()=>()=>{}'"))
+    const mod = await import(pathToFileURL(tmp).href)
+    return mod.VirtualKeyboard
+  } catch (e) {
+    console.error('[shot] keyboard unavailable:', e.message)
+    return () => html`<div class="cz-kb-stub">keyboard unavailable</div>`
+  }
+})()
 const noop = () => () => {}
 const api = {
   sysinfo: () => fetch('/api/sysinfo').then((r) => r.json()),

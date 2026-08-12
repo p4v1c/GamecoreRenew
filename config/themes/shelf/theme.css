@@ -1562,14 +1562,35 @@
   background: #F8F7F4; border: 1px solid var(--set-line);
   box-shadow: 0 40px 90px rgba(20, 18, 24, 0.35);
 }
-/* The host's on-screen keyboard, on something it can be read against.
-   It writes #fff on rgba(0,0,0,0.45) with only the accent themable, so a paper
-   dialog turned it into an invisible keyboard. Warm near-black, the same drawer
-   the reused host pages used to sit on. */
+/* The host's on-screen keyboard, in paper.
+   It used to sit on a slab of warm near-black dropped into this dialog — the
+   only way to read white lettering on a light card, and a black rectangle in
+   the middle of a paper screen. The component reads `--gc-kb-*` now, so the
+   keys can be paper too and the slab is gone.
+
+   Set here rather than on :root deliberately: the same keyboard draws the game
+   search inside the host's dark overlay, and paper ink there would be
+   invisible for exactly the reason this block exists. */
 .gcs-set-kb {
+  --gc-kb-field:      rgba(23, 23, 26, 0.05);
+  --gc-kb-key:        #FFFFFF;
+  --gc-kb-key-edge:   rgba(23, 23, 26, 0.14);
+  --gc-kb-ink:        var(--set-ink);
+  --gc-kb-field-ink:  var(--set-ink);
+  /* Stays white: it is the lettering on the focused key, which wears the
+     accent fill. */
+  --gc-kb-ink-strong: #FFFFFF;
+  --gc-kb-ink-dim:    var(--set-ink-2);
+  --gc-kb-ink-faint:  var(--set-ink-3);
+  /* The settings screen is teal, not the shelf's gold: the focus ring and the
+     accent-tinted keys have to agree with the card they are sitting in. */
+  --gc-accent:        var(--set-acc);
+  --gc-accent-soft:   var(--set-acc-deep);
+  --gc-accent-bright: var(--set-acc-deep);
+
   margin-top: 18px; padding: 18px 18px 12px; border-radius: 16px;
-  background: var(--gc-overlay-panel);
-  border: 1px solid var(--gc-overlay-border);
+  background: rgba(23, 23, 26, 0.03);
+  border: 1px solid var(--set-line);
 }
 
 .gcs-set-dialog-title {

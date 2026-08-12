@@ -29,6 +29,33 @@ interface Props {
   onCancel: () => void
 }
 
+/**
+ * The on-screen keyboard, themable through `--gc-kb-*`.
+ *
+ * Every colour below has a default equal to what this drew before, so the
+ * built-in UI and any theme that sets nothing are unchanged. The variables
+ * exist because this component is INSIDE whatever surface put it there, and
+ * that surface is not always dark: Shelf's password dialog is paper, and this
+ * shipped white-on-white — a keyboard measured at 1.05:1 against the card
+ * behind it, for the one password nobody can type any other way.
+ *
+ * Set them on the CONTAINER, not on :root. The same component draws the game
+ * search inside the host's dark overlay, and a theme that recoloured it
+ * globally would fix its settings dialog and break its search.
+ *
+ *   --gc-kb-field       the typed-value box
+ *   --gc-kb-field-ink   what you type, ON that box — not the same as the
+ *                       focused key's ink, which sits on an accent fill
+ *   --gc-kb-key         a key's face
+ *   --gc-kb-key-edge    its hairline, and the Cancel button's
+ *   --gc-kb-ink         key lettering
+ *   --gc-kb-ink-strong  the typed value, and the focused key
+ *   --gc-kb-ink-dim     Cancel
+ *   --gc-kb-ink-faint   the button legend
+ *
+ * The focus ring and the accent-tinted keys read `--gc-accent*`, which every
+ * theme already sets.
+ */
 export function VirtualKeyboard({ title, password = false, initialValue = '', placeholder, onConfirm, onCancel }: Props) {
   const [value, setValue] = useState(initialValue)
   const [layout, setLayout] = useState<'letters' | 'symbols'>('letters')
@@ -123,9 +150,14 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
       {/* Typed value display — long values are clipped on the left so the
           end of the input (what you're typing) always stays visible */}
       <div style={{
-        background: 'rgba(0,0,0,0.45)', border: '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 50%, transparent)',
+        background: 'var(--gc-kb-field, rgba(0,0,0,0.45))',
+        border: '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 50%, transparent)',
         borderRadius: 10, padding: '10px 16px', minHeight: 44,
-        fontSize: 20, letterSpacing: 4, color: '#fff',
+        // NOT `--gc-kb-ink-strong`: that one is the lettering on the focused
+        // key, which sits on an accent fill and stays light in every theme.
+        // This sits on `--gc-kb-field`, which a paper theme makes pale — one
+        // token for both put white text on a white field.
+        fontSize: 20, letterSpacing: 4, color: 'var(--gc-kb-field-ink, #fff)',
         fontFamily: 'monospace',
         display: 'flex', alignItems: 'center',
         justifyContent: displayValue ? 'flex-end' : 'center',
@@ -160,16 +192,23 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
                   height:     34,
                   borderRadius: 7,
                   border:     focused
-                    ? '2px solid #7c3aed'
-                    : '1px solid rgba(255,255,255,0.09)',
+                    // Was a hardcoded #7c3aed while the fill beside it already
+                    // read the accent, so the focus ring was the default
+                    // purple on every theme that changed its colour.
+                    ? '2px solid var(--gc-accent, #7c3aed)'
+                    : '1px solid var(--gc-kb-key-edge, rgba(255,255,255,0.09))',
                   background: focused
                     ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 38%, transparent)'
                     : (isShift && shifted) || isMode
                       ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 20%, transparent)'
                       : isEnter
                         ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 15%, transparent)'
-                        : 'rgba(255,255,255,0.05)',
-                  color:      focused ? '#fff' : isEnter || isMode ? 'var(--gc-accent-bright, #c4b5fd)' : 'rgba(255,255,255,0.78)',
+                        : 'var(--gc-kb-key, rgba(255,255,255,0.05))',
+                  color:      focused
+                    ? 'var(--gc-kb-ink-strong, #fff)'
+                    : isEnter || isMode
+                      ? 'var(--gc-accent-bright, #c4b5fd)'
+                      : 'var(--gc-kb-ink, rgba(255,255,255,0.78))',
                   fontSize:   isSpecial ? 11 : 13,
                   fontWeight: isSpecial ? 600 : 400,
                   cursor:     'pointer',
@@ -190,14 +229,15 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
         onClick={onCancelRef.current}
         style={{
           marginTop: 2, padding: '7px', borderRadius: 8, cursor: 'pointer',
-          background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
-          color: 'rgba(255,255,255,0.3)', fontSize: 12,
+          background: 'transparent',
+          border: '1px solid var(--gc-kb-key-edge, rgba(255,255,255,0.08))',
+          color: 'var(--gc-kb-ink-dim, rgba(255,255,255,0.3))', fontSize: 12,
         }}
       >
         Cancel
       </button>
 
-      <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
+      <div style={{ textAlign: 'center', fontSize: 10, color: 'var(--gc-kb-ink-faint, rgba(255,255,255,0.18))', letterSpacing: 1 }}>
         D-Pad navigate · ✕ type · ○ cancel · L1 shift · R1 symbols · ↵ OK
       </div>
     </div>
