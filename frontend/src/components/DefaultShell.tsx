@@ -6,7 +6,7 @@ import { onGp } from '../hooks/useGamepad'
 import TopBar from './TopBar'
 import HomeScreen from './HomeScreen'
 import LibraryScreen from './LibraryScreen'
-import SettingsModal from './modals/SettingsModal'
+import SettingsScreen from './modals/SettingsScreen'
 import PowerModal from './modals/PowerModal'
 import GamepadModal from './modals/GamepadModal'
 import Screensaver from './Screensaver'
@@ -118,7 +118,10 @@ export default function DefaultShell(parts: ShellParts = {}) {
   const Decor = parts.decor ?? Nothing
   const ScreensaverC = parts.screensaver ?? Screensaver
   const TopBarC = parts.topbar ?? TopBar
-  const SettingsC = parts.settings ?? SettingsModal
+  // The rail screen, the same one Shelf and Summer draw — see
+  // modals/SettingsScreen.tsx. `SettingsModal`, the centred list this used
+  // to be, is still exported for a theme that prefers it.
+  const SettingsC = parts.settings ?? SettingsScreen
 
   const [showSettings, setShowSettings] = useState(false)
   const [showPower, setShowPower] = useState(false)

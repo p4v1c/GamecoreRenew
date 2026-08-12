@@ -32,6 +32,8 @@ const nearest = (list, v) => {
   return best
 }
 
+import { asList } from './list.js'
+
 export const createSystemPage = (sdk, Rows) => {
   const { html, useState, useEffect } = sdk.ui
 
@@ -44,7 +46,7 @@ export const createSystemPage = (sdk, Rows) => {
     const [msg, setMsg] = useState('')
 
     const loadVolumes = () => sdk.api.storage.list()
-      .then((r) => setVolumes(r.volumes || [])).catch(() => {})
+      .then((r) => setVolumes(asList(r && r.volumes))).catch(() => {})
 
     useEffect(() => {
       sdk.api.sysinfo().then(setInfo).catch(() => {})

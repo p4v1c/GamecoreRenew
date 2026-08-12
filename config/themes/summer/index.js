@@ -16,7 +16,8 @@
  *           gamepad.js the live pad
  *
  * The settings screen and the power menu are not here: they are shared with
- * Shelf, in config/themes/_shared/settings/, and dressed by theme.css.
+ * Shelf — host code now, reached through `sdk.defaults` — and dressed by
+ * theme.css.
  *
  *   lib/    ocean.js   the WebGL renderer   idle.js      asleep or busy?
  *           ambience.js  the surf, synthesized
@@ -38,15 +39,17 @@ import { createDecor } from './views/decor.js'
 import { createTopBar } from './views/topbar.js'
 import { createHomeView } from './views/home.js'
 import { createLibraryView } from './views/library.js'
-import { createSettings } from '../_shared/settings/screen.js'
 import { createSplash } from './views/splash.js'
-import { createPowerView } from '../_shared/settings/power.js'
 import { createGamepadView } from './views/gamepad.js'
 import { createWarp } from './views/warp.js'
 import { createBox3D } from './views/box3d.js'
 import { createScreensaver } from './views/screensaver.js'
 
 export default (sdk) => {
+  // The two screens this theme shares with Summer and with the built-in
+  // default. They come off the sdk now rather than off a relative path:
+  // they are host code, so no theme can ship a stale copy of them.
+  const { createSettings, createPowerView } = sdk.defaults
   const { html } = sdk.ui
   const useIdle = createUseIdle(sdk)
 
@@ -55,7 +58,7 @@ export default (sdk) => {
   const TopBar = createTopBar(sdk)
   const HomeView = createHomeView(sdk)
   const LibraryView = createLibraryView(sdk)
-  // The same settings screen Shelf draws, from config/themes/_shared/. It
+  // The same settings screen Shelf draws, off `sdk.defaults`. It
   // carries no colour — theme.css dresses its `gcs-*` classes in sea glass, and
   // the ocean stays visible behind it because the screen is a scrim rather than
   // a page of its own.

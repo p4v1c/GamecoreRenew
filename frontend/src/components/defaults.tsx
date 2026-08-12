@@ -19,6 +19,7 @@ import GamepadModal from './modals/GamepadModal'
 import { VirtualKeyboard } from './ui/VirtualKeyboard'
 import Toasts, { DefaultToastsView } from './ui/Toasts'
 import SettingsModal from './modals/SettingsModal'
+import SettingsScreen from './modals/SettingsScreen'
 import DefaultShell from './DefaultShell'
 import { Overlay, OverlayLabel, BackHeader } from './ui'
 import { WifiPage } from './modals/settings/WifiPage'
@@ -59,6 +60,26 @@ export const DefaultTopBar = ({ onSettings, onPower }: TopBarProps) => (
 
 export const DefaultKeyboard = VirtualKeyboard
 
+/**
+ * The settings screen and the power menu, as factories.
+ *
+ * Not components: both are `(sdk) => Component`, because they are written in
+ * the theme SDK's own idiom — `sdk.ui.html`, `sdk.api`, `sdk.input.onGp` — and
+ * a theme passes its own sdk so the screen talks to the box through it.
+ *
+ * They used to live in `config/themes/_shared/` and be imported by relative
+ * path from each theme. That made them a delivery problem (`update/linux.sh`
+ * only ships a theme directory whose `version` moved, and a fix here twice
+ * failed to reach the box because nobody bumped it) and a safety problem (the
+ * built-in UI is safe mode's fallback, and could not depend on a directory
+ * shipped over the air). In the bundle they are simply always there.
+ *
+ * They carry no colour. `settings.css` gives the built-in UI its palette;
+ * a theme's own stylesheet gives it theirs.
+ */
+export { createSettings } from '../settings/screen'
+export { createPowerView } from '../settings/power'
+
 /** The whole default frontend. Render it with overrides to change one screen. */
 export const Shell = DefaultShell
 
@@ -78,7 +99,23 @@ export const SettingsOverlay = Overlay
 export const Label = OverlayLabel
 export const BackBar = BackHeader
 
-export const DefaultSettings = ({ onClose }: CloseProps) => <SettingsModal onClose={onClose} />
+/**
+ * The settings screen the built-in UI now shows: the rail, the same one both
+ * shipped themes draw, in the default's own dark and violet.
+ */
+export const DefaultSettings = ({ onClose }: CloseProps) => <SettingsScreen onClose={onClose} />
+
+/**
+ * The screen it replaced — a centred list of ten rows, each opening a
+ * full-screen overlay.
+ *
+ * Kept, and not as a courtesy: every one of those overlays is still what
+ * `DefaultSettingsPages` resolves to, so this is the menu that matches them. A
+ * theme that wants a short list rather than a rail can render it, and it is
+ * also the smaller thing to fall back on if the rail ever proves too much for
+ * a weak box.
+ */
+export const DefaultSettingsList = ({ onClose }: CloseProps) => <SettingsModal onClose={onClose} />
 
 /**
  * The settings sub-pages, so a theme can restyle the menu around them without

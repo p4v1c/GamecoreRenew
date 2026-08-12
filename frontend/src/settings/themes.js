@@ -16,6 +16,8 @@
  * An incompatible theme is listed and refused rather than hidden. "Where did
  * my theme go" has no answer on screen; "needs SDK v2" does.
  */
+import { asList } from './list.js'
+
 export const createThemesPage = (sdk, Rows) => {
   const { html, useState, useEffect } = sdk.ui
 
@@ -29,7 +31,7 @@ export const createThemesPage = (sdk, Rows) => {
     useEffect(() => {
       sdk.themes.list()
         .then((i) => {
-          setItems(i.themes || [])
+          setItems(asList(i && i.themes))
           setActiveId(i.active ?? null)
           const ids = [null, ...(i.themes || []).map((t) => t.id)]
           setOrder(ids.slice().sort((a, b) => (a === i.active ? -1 : b === i.active ? 1 : 0)))

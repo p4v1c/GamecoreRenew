@@ -14,6 +14,7 @@ import ReactDOM from 'react-dom/client'
 import SettingsModal from '../src/components/modals/SettingsModal'
 import PowerModal from '../src/components/modals/PowerModal'
 import { WifiPage } from '../src/components/modals/settings/WifiPage'
+import SettingsScreen from '../src/components/modals/SettingsScreen'
 import { Overlay } from '../src/components/ui'
 import { VirtualKeyboard } from '../src/components/ui/VirtualKeyboard'
 
@@ -75,7 +76,8 @@ if (themeId) {
 }
 
 const Root = () =>
-  which === 'power' ? <PowerModal onClose={() => {}} />
+  which === 'rail' ? <SettingsScreen onClose={() => {}} />
+  : which === 'power' ? <PowerModal onClose={() => {}} />
   : which === 'wifi' ? <WifiPage onClose={() => {}} onBack={() => {}} />
   : which === 'search' ? (
       <Overlay onClose={() => {}}>

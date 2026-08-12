@@ -248,7 +248,10 @@ const sdk = {
 }
 
 const THEME = resolve(import.meta.dirname, '../../config/themes/shelf')
-const SHARED = resolve(import.meta.dirname, '../../config/themes/_shared/settings')
+// The screen is host code now — the same module the built-in UI renders, and
+// the same one a theme gets off `sdk.defaults`. Loading it from the bundle is
+// what makes this shot show what a theme will actually draw.
+const SHARED = resolve(import.meta.dirname, '../src/settings')
 // Which theme dresses the shot. The screen is shared; the stylesheet and the
 // top bar are not, so both come from the same theme or the shot is a lie.
 const themeDir = process.env.SHOT_THEME

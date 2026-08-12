@@ -33,6 +33,8 @@
  * that changes meaning with the viewport is worse than one that is merely
  * linear.
  */
+import { asList } from './list.js'
+
 export const createCatalogPage = (sdk) => {
   const { html, useState, useEffect, useRef, React } = sdk.ui
   const Fragment = React.Fragment
@@ -46,7 +48,8 @@ export const createCatalogPage = (sdk) => {
     const [idx, setIdx] = useState(0)
 
     const load = () => sdk.api.catalog.list()
-      .then((list) => {
+      .then((raw) => {
+        const list = asList(raw)
         setPacks(list)
         // Open the first maker group rather than nothing: an accordion where
         // every row is shut looks like a screen that failed to load.

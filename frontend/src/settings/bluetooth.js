@@ -33,6 +33,8 @@
 const SCAN_SECS = 10
 const SCAN_PATIENCE_MS = (SCAN_SECS + 4) * 1000
 
+import { asList } from './list.js'
+
 export const createBluetoothPage = (sdk, useSlow) => {
   const { html, useState, useEffect, useRef, React } = sdk.ui
   const Fragment = React.Fragment
@@ -61,7 +63,7 @@ export const createBluetoothPage = (sdk, useSlow) => {
       [col, idx, paired, nearby])
 
     const loadPaired = () => sdk.api.bluetooth.devices()
-      .then(setPaired)
+      .then((r) => setPaired(asList(r)))
       .catch(() => {})
       // Loaded means "the question has been answered", including answered
       // badly. An adapter that is off has no paired devices and no error to
@@ -95,7 +97,7 @@ export const createBluetoothPage = (sdk, useSlow) => {
       if (scanning) return
       setScanning(true); setMsg('')
       sdk.api.bluetooth.scan()
-        .then((r) => setNearby(r.found || []))
+        .then((r) => setNearby(asList(r && r.found)))
         .catch(() => setMsg('Could not scan.'))
         .finally(() => setScanning(false))
     }

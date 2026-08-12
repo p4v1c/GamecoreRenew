@@ -17,6 +17,8 @@
  * · **Rumble is on the Controllers page**, where the capture puts it, rather
  *   than here where the host's own Audio page keeps it.
  */
+import { asList } from './list.js'
+
 export const createAudioPage = (sdk, Rows) => {
   const { html, useState, useEffect } = sdk.ui
 
@@ -29,7 +31,7 @@ export const createAudioPage = (sdk, Rows) => {
 
     useEffect(() => {
       sdk.api.audio.get().then((r) => setVolume(r.volume)).catch(() => {})
-      sdk.api.audio.sinks().then(setSinks).catch(() => {})
+      sdk.api.audio.sinks().then((r) => setSinks(asList(r))).catch(() => {})
     }, [])
 
     const sinkIdx = Math.max(0, sinks.findIndex((s) => s.default))

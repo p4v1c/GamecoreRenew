@@ -922,7 +922,7 @@
 
 /* ===========================================================================
    SETTINGS & POWER — the shared screen, in sea glass
-   The markup lives in config/themes/_shared/settings/ and carries no colour:
+   The markup is the host's (frontend/src/settings/) and carries no colour:
    every class is `gcs-*` and each theme paints it. Shelf paints it paper and
    teal; this is the same screen in the language of §2.1.
 
