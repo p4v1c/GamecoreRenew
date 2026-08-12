@@ -1,9 +1,10 @@
 """melonDS (DS) — single-player, and it binds RAW SDL2 joystick values.
 
 Those indices differ per controller AND per driver version: a DS4's shoulders
-are b9/b10, an Xbox's b6/b7; its D-pad is a hat, a DS4's is buttons 11-14. The
-vendored gamecontrollerdb even ships conflicting Linux entries for one pad. So
-the shoulders / start / select / D-pad are re-derived from the connected pad's
+are b9/b10, an Xbox's b6/b7. The D-pad is a hat on both — and a hat is NOT a
+button here, it carries its own encoding (see `_encode`). The vendored
+gamecontrollerdb even ships conflicting Linux entries for one pad. So the
+shoulders / start / select / D-pad are re-derived from the connected pad's
 live SDL2 mapping. Face buttons (A/B/X/Y = b0-b3) are consistent and left
 untouched.
 
@@ -44,14 +45,28 @@ _SHOULDER_KEYS = {
 _DPAD_KEYS = {
     "Up": "dpup", "Down": "dpdown", "Left": "dpleft", "Right": "dpright",
 }
-# Controllers whose D-pad melonDS's own SDL reads as BUTTONS, not the hat that
-# SDL's GameController mapping reports (verified by what melonDS records when
-# you bind the D-pad in-app). SDL says h0 for both a DS4 and an Xbox, but
-# melonDS latches buttons 11-14 on a DualShock 4 and the hat on an Xbox — so
-# the hat token can't be trusted here; list the button exceptions instead.
-_DPAD_BUTTONS = {
-    ("054c", "09cc"): {"Up": 11, "Down": 12, "Left": 13, "Right": 14},  # DualShock 4
-}
+# There used to be a _DPAD_BUTTONS table here, holding one entry: a DualShock 4
+# (054c:09cc) whose D-pad it forced to buttons 11-14, on the claim that melonDS
+# "latches buttons 11-14 on a DS4 and the hat on an Xbox". That claim is false,
+# and it is the whole reason a DS4's D-pad did nothing in melonDS while every
+# other button worked.
+#
+# 11/12/13/14 are the SDL_GameControllerButton enum (DPAD_UP..DPAD_RIGHT).
+# melonDS does not read that enum — it reads RAW SDL_Joystick indices. Measured
+# against melonDS's own SDL (2.32.70, the org.kde.Platform runtime it links),
+# a DS4 on Bluetooth goes through SDL's HIDAPI PS4 driver and reports:
+#
+#     buttons = 12  → valid indices 0..11, b11 is the TOUCHPAD click
+#     hats    = 1   → dpup:h0.1  dpright:h0.2  dpdown:h0.4  dpleft:h0.8
+#
+# So Up=11 fired the touchpad and Down/Left/Right=12/13/14 were out of range —
+# silently inert, no error, no log. The rest of the mapping looked fine only by
+# coincidence: SDL's HIDAPI drivers emit raw buttons in GameController-enum
+# order, so the two spaces agree from 0 to 10 and diverge at exactly 11.
+#
+# The lesson is the general one: never special-case a pad's D-pad into button
+# indices. Trust the SDL hat token below — every Linux entry for 054c:09cc in
+# the vendored gamecontrollerdb already said h0.
 
 
 def _encode(token: str) -> int | None:
@@ -69,38 +84,36 @@ def _encode(token: str) -> int | None:
 def generate(player_index: int, pad, opts: dict) -> str | None:
     """melonDS (DS) is single-player — only slot 1. It binds raw SDL2 joystick
     inputs, whose indices differ per controller (a DS4's shoulders are b9/b10,
-    an Xbox's b6/b7; its D-pad is a hat, a DS4's is buttons 11-14). Re-derive
-    the shoulders / start / select / D-pad from the connected pad's live SDL2
-    mapping so they land on the right physical inputs for any controller. Face
-    buttons (A/B/X/Y = b0-b3) are consistent and left untouched."""
+    an Xbox's b6/b7; the D-pad is a hat on both, encoded as 0x100|hat<<4|dir).
+    Re-derive the shoulders / start / select / D-pad from the connected pad's
+    live SDL2 mapping so they land on the right physical inputs for any
+    controller. Face buttons (A/B/X/Y = b0-b3) are consistent and left
+    untouched."""
     i = player_index
     toml = opts["target"]
     if i != 1 or not toml.is_file():
         return None
     mapping = pad.sdl2_mapping()
     vals: dict[str, int] = {}
+    # Shoulders and D-pad alike: trust the SDL token, for every pad and with no
+    # exceptions. The D-pad is a hat on a DS4 exactly as it is on an Xbox, and
+    # _encode() gives hats their own encoding.
     if mapping:
-        for key, sdl in _SHOULDER_KEYS.items():
-            enc = _encode(mapping.get(sdl, ""))
-            if enc is not None:
-                vals[key] = enc
-    # D-pad: a known button-exception controller wins; otherwise trust the SDL
-    # hat token (works for hat pads like the Xbox).
-    override = _DPAD_BUTTONS.get(pad.vidpid)
-    if override:
-        vals.update(override)
-    elif mapping:
-        for key, sdl in _DPAD_KEYS.items():
+        for key, sdl in (_SHOULDER_KEYS | _DPAD_KEYS).items():
             enc = _encode(mapping.get(sdl, ""))
             if enc is not None:
                 vals[key] = enc
     src = "SDL live"
     if not vals:                       # fallback: at least the D-pad, via evdev
-        hat = pad.has_hat()
-        if hat is None:
+        # has_hat() answers True / False / None. Only True is actionable: a hat
+        # always encodes the same way, whatever the pad. False and None both
+        # mean "we do not know this pad's raw button indices", and the hatless
+        # branch used to guess 11-14 there — the same wrong-index-space guess
+        # that killed the DS4. Leave the existing bindings instead, exactly as
+        # _encode() already does for axis tokens.
+        if not pad.has_hat():
             return None
-        vals = ({"Up": 257, "Right": 258, "Down": 260, "Left": 264} if hat
-                else {"Up": 11, "Down": 12, "Left": 13, "Right": 14})
+        vals = {"Up": 257, "Right": 258, "Down": 260, "Left": 264}
         src = "hat fallback"
     out, insec, n = [], False, 0
     for line in toml.read_text().splitlines():
