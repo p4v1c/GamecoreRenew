@@ -25,6 +25,11 @@
  *   the row is easy, the thing behind it does not exist.
  * · **One output.** Two screens need a layout, not a mode, and choosing between
  *   them blind would move a picture the owner cannot see.
+ *
+ * The list comes from whichever tool owns the outputs — `kscreen-doctor` on a
+ * Wayland session, `xrandr` on X11 — and this file does not know which. It
+ * asks for a width, a height and a rate; the router resolves that to whatever
+ * handle its tool uses.
  */
 export const createDisplayPage = (sdk, Rows) => {
   const { html, useState, useEffect, useRef } = sdk.ui

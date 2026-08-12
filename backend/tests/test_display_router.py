@@ -1,9 +1,11 @@
 """/api/settings/display — the mode, and the way back from a bad one.
 
-**No test here may change the developer's screen.** `xrandr` is stubbed in
-every one of them: run for real, this is the module that puts a machine into a
-mode its monitor may refuse, and a test suite that can blank the screen is a
-test suite nobody runs twice.
+**No test here may change the developer's screen.** Both tools are stubbed in
+every one of them, and `_kscreen_available` is forced rather than left to
+answer: the machine this suite runs on IS a Plasma Wayland box, so a test that
+reached the real chooser would run `kscreen-doctor output.HDMI-A-1.mode.N` and
+change the screen of whoever ran it. Run for real, this is the module that puts
+a machine into a mode its monitor may refuse.
 """
 from __future__ import annotations
 
@@ -43,9 +45,17 @@ def _clean():
     display._cancel_pending()
 
 
+KSCREEN = """Output: 1 HDMI-A-1 7038548a-81b0-4ac0-98f9-119c3723fadf
+	enabled
+	connected
+	Modes:  1:1920x1080@60.00*!  2:1920x1080@60.00  3:1920x1080@59.94  4:1920x1080@50.00  5:1280x720@60.00
+	Geometry: 0,0 1920x1080
+"""
+
+
 @pytest.fixture
 def xrandr(monkeypatch):
-    """Every xrandr call, captured and answered."""
+    """Every xrandr call, captured and answered — on a box with no Wayland."""
     state = {"calls": [], "query": QUERY, "code": 0}
 
     async def fake_run(*args):
@@ -55,6 +65,8 @@ def xrandr(monkeypatch):
         return state["code"], "" if state["code"] == 0 else "xrandr: cannot find mode"
 
     monkeypatch.setattr(display, "_run", fake_run)
+    # Forced, not asked: this suite runs on a Wayland box.
+    monkeypatch.setattr(display, "_kscreen_available", lambda: False)
     # `current_game` is a read-only property, so it is replaced on the class
     # rather than on the instance — patching the instance raises, and patching
     # it away entirely would stop this suite from testing the refusal at all.
@@ -162,7 +174,11 @@ def test_the_old_mode_comes_back_when_nobody_confirms(xrandr):
     request that armed it, which is the whole point, and a request-scoped test
     would be asserting the opposite of the design.
     """
-    previous = {"output": "HDMI-A-1", "width": 1920, "height": 1080, "rate": 60.0}
+    # `backend` travels with the mode: whatever applied it is what has to put
+    # it back, and a box that changed its mode through the compositor cannot be
+    # restored with xrandr.
+    previous = {"backend": "xrandr", "output": "HDMI-A-1",
+                "width": 1920, "height": 1080, "rate": 60.0}
 
     async def scenario():
         await display._revert_after(0.01, previous)
@@ -177,7 +193,8 @@ def test_a_confirmation_stops_the_revert_before_it_fires(xrandr):
     """Cancellation is the success path: /confirm cancels the task, and a
     cancelled timer must put nothing back — otherwise confirming a mode would
     undo it a few seconds later."""
-    previous = {"output": "HDMI-A-1", "width": 1920, "height": 1080, "rate": 60.0}
+    previous = {"backend": "xrandr", "output": "HDMI-A-1",
+                "width": 1920, "height": 1080, "rate": 60.0}
 
     async def scenario():
         task = asyncio.create_task(display._revert_after(5, previous))
@@ -187,3 +204,73 @@ def test_a_confirmation_stops_the_revert_before_it_fires(xrandr):
 
     asyncio.run(scenario())
     assert not [c for c in xrandr["calls"] if "--mode" in c]
+
+
+# ── the compositor path, which is what the reference box actually uses ───────
+
+@pytest.fixture
+def kscreen(monkeypatch):
+    """`kscreen-doctor`, captured and answered, with no session touched."""
+    state = {"calls": [], "out": KSCREEN, "code": 0}
+
+    async def fake_run_env(env, *args):
+        state["calls"].append(list(args))
+        if "-o" in args:
+            return 0, state["out"]
+        return state["code"], "" if state["code"] == 0 else "kscreen-doctor: invalid mode"
+
+    monkeypatch.setattr(display, "_kscreen_available", lambda: True)
+    monkeypatch.setattr(display, "_wayland_env", lambda: {"WAYLAND_DISPLAY": "wayland-0"})
+    monkeypatch.setattr(display, "_run_env", fake_run_env)
+    monkeypatch.setattr(type(display.process_manager), "current_game",
+                        property(lambda self: state.get("playing")))
+    return state
+
+
+def test_the_compositor_reports_the_rates_xwayland_hid(client, kscreen):
+    """Why the refresh rate could not be changed before: the session is Plasma
+    on Wayland, XWayland cannot set modes, and the synthetic list `xrandr` read
+    off it carried one rate. KWin's own list carries the real ones."""
+    body = client.get("/api/settings/display").json()
+    assert body["backend"] == "kscreen"
+    rates = sorted({m["rate"] for m in body["modes"]
+                    if m["width"] == 1920 and m["height"] == 1080})
+    assert rates == [50.0, 59.94, 60.0]
+
+
+def test_a_mode_is_addressed_by_id_not_by_its_name(client, kscreen):
+    """`1920x1080@60.00` appears twice under two IDs, so the name is not a
+    handle — asking by it is asking for whichever one matches first."""
+    r = client.post("/api/settings/display/mode",
+                    json={"width": 1920, "height": 1080, "rate": 59.94})
+    assert r.status_code == 200 and r.json()["changed"] is True
+    applied = [c for c in kscreen["calls"] if any("mode." in a for a in c)][-1]
+    assert "output.HDMI-A-1.mode.3" in applied
+
+
+def test_the_revert_goes_back_through_the_same_tool(kscreen):
+    """A box that changed its mode through the compositor cannot be restored
+    with xrandr — it would fail silently and leave the screen unreadable."""
+    previous = {"backend": "kscreen", "output": "HDMI-A-1",
+                "id": "1", "width": 1920, "height": 1080, "rate": 60.0}
+
+    async def scenario():
+        await display._revert_after(0.01, previous)
+
+    asyncio.run(scenario())
+    applied = [c for c in kscreen["calls"] if any("mode." in a for a in c)]
+    assert applied and "output.HDMI-A-1.mode.1" in applied[-1]
+
+
+def test_a_compositor_that_will_not_answer_falls_back_to_xrandr(client, monkeypatch, xrandr):
+    """kscreen present but broken must not leave the screen with no tool at
+    all: a genuine X11 box is still served."""
+    monkeypatch.setattr(display, "_kscreen_available", lambda: True)
+    monkeypatch.setattr(display, "_wayland_env", lambda: {"WAYLAND_DISPLAY": "wayland-0"})
+
+    async def broken(env, *args):
+        return 1, "kscreen-doctor: could not connect"
+    monkeypatch.setattr(display, "_run_env", broken)
+
+    body = client.get("/api/settings/display").json()
+    assert body["backend"] == "xrandr" and body["output"] == "HDMI-A-1"

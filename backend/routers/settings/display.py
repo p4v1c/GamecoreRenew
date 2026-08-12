@@ -1,8 +1,28 @@
 """Display mode — resolution and refresh rate, with a way back.
 
-`xrandr` acts on the GameCore user's own X session, so nothing here needs a
-sudoers rule and none is added: the same unprivileged path `standby.py` already
-uses for `xset dpms force off`, and `fullscreen_enforcer.py` for EWMH.
+Nothing here needs a sudoers rule and none is added: both tools below act on the
+session the GameCore user already owns, the same unprivileged path `standby.py`
+uses for `xset dpms force off`.
+
+## Two backends, because a box is not always on X
+
+This shipped talking to `xrandr` only, and on the reference box that was simply
+wrong: the session is Plasma on Wayland, `kwin_wayland --xwayland` provides
+`:1`, and **XWayland cannot set modes at all**. `xrandr` reads it a synthetic
+list and refuses every change with "invalid parameter" — resolution and refresh
+rate alike. The compositor owns the outputs there, not the X server.
+
+So the tool is chosen at runtime:
+
+  · `kscreen-doctor` when a Wayland session answers — KDE's own client, which
+    asks KWin. It reports the real mode list (43 on the reference box, with the
+    real refresh rates) where XWayland reported a handful of scaled sizes.
+  · `xrandr` otherwise, for a box genuinely running X11.
+
+Modes are addressed by kscreen's mode ID rather than by `WxH@rate`, because
+that string is not unique — the reference box lists `1920x1080@60.00` twice
+under two IDs, and asking by name would be asking for whichever one it happens
+to match.
 
 ## The revert timer, which is the whole reason this is safe to expose
 
@@ -27,7 +47,10 @@ crash, and the player is not looking at this screen then anyway.
 """
 import asyncio
 import logging
+import os
 import re
+import shutil
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -41,10 +64,80 @@ log = logging.getLogger(__name__)
 # a black screen is an inconvenience rather than a reinstall.
 REVERT_SECS = 12
 
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 _OUTPUT_RE = re.compile(r"^(\S+)\s+connected\b")
+# "Output: 1 HDMI-A-1 <uuid>"
+_KS_OUTPUT_RE = re.compile(r"^Output:\s+\d+\s+(\S+)")
+# "  12:1280x800@60.00*!"  — id, geometry, rate, then the current/preferred marks
+_KS_MODE_RE = re.compile(r"(\d+):(\d+)x(\d+)@([\d.]+)([*!]*)")
 # "   1920x1080     60.00*+  50.00    59.94"
 _MODE_RE = re.compile(r"^\s+(\d+)x(\d+)\s+(.*)$")
 _RATE_RE = re.compile(r"(\d+\.\d+)([*+]*)")
+
+
+def _wayland_env() -> dict | None:
+    """The session env `kscreen-doctor` needs, or None if there is no Wayland.
+
+    Discovered rather than assumed: the socket is `wayland-0` on most boxes and
+    is not guaranteed to be, and a hardcoded name would make this silently fall
+    back to the tool that cannot work here.
+    """
+    uid = os.getuid()
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{uid}"
+    try:
+        sockets = sorted(p.name for p in Path(runtime).glob("wayland-*")
+                         if not p.name.endswith(".lock"))
+    except OSError:
+        return None
+    if not sockets:
+        return None
+    env = os.environ.copy()
+    env["XDG_RUNTIME_DIR"] = runtime
+    env["WAYLAND_DISPLAY"] = sockets[0]
+    env.setdefault("DBUS_SESSION_BUS_ADDRESS", f"unix:path={runtime}/bus")
+    return env
+
+
+def _kscreen_available() -> bool:
+    return bool(shutil.which("kscreen-doctor")) and _wayland_env() is not None
+
+
+async def _run_env(env: dict, *args: str) -> tuple[int, str]:
+    proc = await asyncio.create_subprocess_exec(
+        *args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        env=env,
+    )
+    out, _ = await proc.communicate()
+    return proc.returncode or 0, _ANSI_RE.sub("", out.decode(errors="replace"))
+
+
+def parse_kscreen(text: str) -> dict:
+    """The first enabled output, its modes, and which one is live.
+
+    `*` marks the current mode and `!` the preferred one, and both can sit on
+    the same entry — matched as a group rather than compared, the same hazard as
+    xrandr's `60.00*+`.
+    """
+    output = ""
+    modes: list[dict] = []
+    current: dict | None = None
+    for line in text.splitlines():
+        m = _KS_OUTPUT_RE.match(line.strip())
+        if m:
+            if output:            # a second output: stop at the first
+                break
+            output = m.group(1)
+            continue
+        if not output or "Modes:" not in line:
+            continue
+        for mid, w, h, rate, flags in _KS_MODE_RE.findall(line):
+            entry = {"id": mid, "width": int(w), "height": int(h), "rate": float(rate)}
+            modes.append(entry)
+            if "*" in flags:
+                current = dict(entry)
+    return {"output": output, "modes": modes, "current": current}
 
 
 async def _run(*args: str) -> tuple[int, str]:
@@ -115,10 +208,39 @@ def _cancel_pending() -> None:
     _pending = None
 
 
-async def _apply(output: str, width: int, height: int, rate: float) -> tuple[bool, str]:
+async def read_state() -> dict:
+    """What the session's own tool says, whichever that is."""
+    env = _wayland_env() if _kscreen_available() else None
+    if env is not None:
+        code, out = await _run_env(env, "kscreen-doctor", "-o")
+        if code == 0:
+            data = parse_kscreen(out)
+            if data["output"]:
+                return dict(data, backend="kscreen")
+        log.warning("display: kscreen-doctor failed (%s) — falling back to xrandr", code)
+    code, out = await _run("xrandr", "--query")
+    if code != 0:
+        return {"output": "", "modes": [], "current": None, "backend": ""}
+    return dict(parse_modes(out), backend="xrandr")
+
+
+async def _apply(state_backend: str, output: str, mode: dict) -> tuple[bool, str]:
+    """Put one mode on screen.
+
+    kscreen is addressed by mode ID: `1920x1080@60.00` appears twice in the
+    reference box's list, so the name is not a handle. xrandr has no IDs and
+    takes the geometry, which is unambiguous there.
+    """
+    if state_backend == "kscreen":
+        env = _wayland_env()
+        if env is None:
+            return False, "no Wayland session"
+        code, out = await _run_env(env, "kscreen-doctor",
+                                   f"output.{output}.mode.{mode['id']}")
+        return code == 0, out.strip()
     code, out = await _run(
         "xrandr", "--output", output,
-        "--mode", f"{width}x{height}", "--rate", f"{rate:g}",
+        "--mode", f"{mode['width']}x{mode['height']}", "--rate", f"{mode['rate']:g}",
     )
     return code == 0, out.strip()
 
@@ -134,8 +256,7 @@ async def _revert_after(delay: float, previous: dict) -> None:
         await asyncio.sleep(delay)
     except asyncio.CancelledError:
         return
-    ok, detail = await _apply(previous["output"], previous["width"],
-                              previous["height"], previous["rate"])
+    ok, detail = await _apply(previous["backend"], previous["output"], previous)
     log.warning("display: no confirmation in %ss — reverted to %sx%s@%s (%s)",
                 delay, previous["width"], previous["height"], previous["rate"],
                 "ok" if ok else detail)
@@ -144,13 +265,9 @@ async def _revert_after(delay: float, previous: dict) -> None:
 
 @router.get("")
 async def get_display():
-    code, out = await _run("xrandr", "--query")
-    if code != 0:
-        # No X yet, or no display at all. An empty mode list is what the screen
-        # renders as "nothing to offer here", which is the truth.
-        return {"output": "", "modes": [], "current": None,
-                "pending": False, "revert_secs": REVERT_SECS}
-    data = parse_modes(out)
+    # No session yet, or no display at all. An empty mode list is what the
+    # screen renders as "nothing to offer here", which is the truth.
+    data = await read_state()
     data["pending"] = _pending is not None
     data["revert_secs"] = REVERT_SECS
     return data
@@ -167,33 +284,32 @@ async def set_mode(req: ModeRequest):
     if process_manager.current_game:
         raise HTTPException(409, "A game is running — close it before changing the display mode.")
 
-    code, out = await _run("xrandr", "--query")
-    if code != 0:
-        raise HTTPException(503, "Cannot reach the display.")
-    data = parse_modes(out)
+    data = await read_state()
     if not data["output"] or not data["current"]:
         raise HTTPException(503, "No connected output reports a mode.")
 
-    # Refused rather than passed through: xrandr takes any geometry and a mode
-    # the monitor never advertised is the black screen this endpoint exists to
-    # make survivable — no reason to walk into it deliberately.
-    wanted = {"width": req.width, "height": req.height, "rate": req.rate}
-    if not any(m["width"] == req.width and m["height"] == req.height
-               and abs(m["rate"] - req.rate) < 0.01 for m in data["modes"]):
+    # Refused rather than passed through: these tools take any geometry, and a
+    # mode the monitor never advertised is the black screen this endpoint
+    # exists to make survivable — no reason to walk into it deliberately.
+    wanted = next((m for m in data["modes"]
+                   if m["width"] == req.width and m["height"] == req.height
+                   and abs(m["rate"] - req.rate) < 0.01), None)
+    if wanted is None:
         raise HTTPException(400, "That mode is not one this output advertises.")
 
-    previous = dict(data["current"], output=data["output"])
+    previous = dict(data["current"], output=data["output"], backend=data["backend"])
     if (previous["width"], previous["height"]) == (req.width, req.height) \
             and abs(previous["rate"] - req.rate) < 0.01:
         return {"ok": True, "changed": False, "revert_secs": REVERT_SECS}
 
     _cancel_pending()
-    ok, detail = await _apply(data["output"], req.width, req.height, req.rate)
+    ok, detail = await _apply(data["backend"], data["output"], wanted)
     if not ok:
-        raise HTTPException(500, detail or "xrandr refused that mode.")
+        raise HTTPException(500, detail or "The compositor refused that mode.")
 
     global _pending, _revert_task
-    _pending = {"previous": previous, "wanted": dict(wanted, output=data["output"])}
+    _pending = {"previous": previous,
+                "wanted": dict(wanted, output=data["output"], backend=data["backend"])}
     _revert_task = asyncio.create_task(_revert_after(REVERT_SECS, previous))
     return {"ok": True, "changed": True, "revert_secs": REVERT_SECS}
 
@@ -222,8 +338,7 @@ async def revert_now():
         return {"ok": True, "reverted": False}
     previous = _pending["previous"]
     _cancel_pending()
-    ok, detail = await _apply(previous["output"], previous["width"],
-                              previous["height"], previous["rate"])
+    ok, detail = await _apply(previous["backend"], previous["output"], previous)
     if not ok:
         raise HTTPException(500, detail or "Could not restore the previous mode.")
     return {"ok": True, "reverted": True}
