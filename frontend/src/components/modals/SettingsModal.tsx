@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Overlay, OverlayLabel } from '../ui'
 import { useStore } from '../../store'
 import { onGp } from '../../hooks/useGamepad'
+import { api } from '../../api'
+import { fetchThemeIndex } from '../../lib/themeLoader'
 import { WifiPage }      from './settings/WifiPage'
 import { AudioPage }     from './settings/AudioPage'
 import { BluetoothPage } from './settings/BluetoothPage'
@@ -33,7 +35,48 @@ const ITEMS = [
 export default function SettingsModal({ onClose }: Props) {
   const [page, setPage] = useState<Page>('main')
   const [focusIdx, setFocusIdx] = useState(0)
+  const [meta, setMeta] = useState<Record<string, string>>({})
   const { openModal, closeModal } = useStore()
+
+  /**
+   * The live value at the end of each row — the SSID you are on, how many pads
+   * answered, how many BIOS sets are complete.
+   *
+   * Ten independent reads, each landing on its own: one service being down
+   * leaves one row without a value and the others intact. Nothing falls back to
+   * a plausible string, and a row whose endpoint did not answer shows nothing
+   * rather than a dash — a dash reads as a measurement of "none".
+   *
+   * This is the fallback UI, so every one of them is caught: a settings menu
+   * that fails to open because a service is unreachable is the last thing this
+   * screen may do.
+   */
+  useEffect(() => {
+    let alive = true
+    const put = (k: string, v?: string) => { if (alive && v) setMeta(m => ({ ...m, [k]: v })) }
+
+    api.wifi.status()
+      .then(s => put('wifi', s.connected ? s.ssid
+        : s.ethernet?.connected ? 'Wired' : 'Not connected')).catch(() => {})
+    api.bluetooth.devices()
+      .then(d => put('bluetooth', `${d.filter(x => x.connected).length} connected`)).catch(() => {})
+    api.audio.sinks()
+      .then(s => put('audio', s.find(x => x.default)?.name)).catch(() => {})
+    api.storage.list()
+      .then(r => put('storage', `${(r.volumes ?? []).length} external`)).catch(() => {})
+    api.standby.get()
+      .then(s => put('standby', s.enabled ? `On · ${s.screensaver_mins} min` : 'Off')).catch(() => {})
+    api.catalog.list()
+      .then(c => put('catalog', `${c.filter(x => x.installed).length} installed`)).catch(() => {})
+    api.bios.list()
+      .then(b => put('bios', `${b.filter(x => x.status === 'ok').length}/${b.length} ready`)).catch(() => {})
+    api.sysinfo().then(s => put('update', `v${s.version}`)).catch(() => {})
+    fetchThemeIndex()
+      .then(i => put('themes', i.themes.find(t => t.id === i.active)?.name ?? 'Default'))
+      .catch(() => {})
+
+    return () => { alive = false }
+  }, [])
 
   const back = useCallback(() => setPage('main'), [])
 
@@ -78,10 +121,17 @@ export default function SettingsModal({ onClose }: Props) {
             transition: 'all 0.15s',
           }}>
             <div style={{ fontSize: 26, width: 36, textAlign: 'center' }}>{it.icon}</div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 17, fontWeight: 600, color: (it as typeof it & { danger?: boolean }).danger ? '#fca5a5' : '#fff' }}>{it.label}</div>
               <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.38)', marginTop: 4 }}>{it.sub}</div>
             </div>
+            {meta[it.id] && (
+              <div style={{
+                fontFamily: 'ui-monospace, monospace', fontSize: 12,
+                color: 'var(--gc-accent-bright, #c4b5fd)', textAlign: 'right',
+                maxWidth: '38%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>{meta[it.id]}</div>
+            )}
             <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 22 }}>›</div>
           </div>
         ))}
