@@ -13,18 +13,24 @@
  * transitions and an image does not. The retint is retired on the owner's call,
  * so the mask had nothing left to do.
  *
- * The drift is one `translate3d` on one element, and it stops dead while a game
- * runs or the box sleeps. No z-index anywhere: the shell already placed this
- * behind everything.
+ * It does not move. It used to drift a tile every 140 s, and that is what put
+ * it out of step with the settings screen: that screen paints the same pattern
+ * on its own element, mounted when it opens, so it started its own timeline and
+ * the wallpaper visibly shifted as you went in. Two independently animated
+ * surfaces are in phase only by accident, and no amount of tuning fixes that —
+ * so the movement went and the pattern is continuous across the whole box.
+ *
+ * `useIdle` is still taken and still ignored here: it is the shell's, other
+ * surfaces read it, and the signature is what index.js passes.
+ *
+ * No z-index anywhere: the shell already placed this behind everything.
  */
 export const createBackground = (sdk, accent, useIdle) => {
   const { html } = sdk.ui
 
   return () => {
-    const idle = useIdle()
-
     return html`
-      <div class="cz-wall" data-idle=${idle ? '1' : '0'} aria-hidden="true">
+      <div class="cz-wall" aria-hidden="true">
         <div class="cz-wall-pattern" />
         <div class="cz-wall-vignette" />
       </div>`

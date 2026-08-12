@@ -77,27 +77,27 @@
    only reason the tint is a property that can transition at all. */
 .cz-wall { position: absolute; inset: 0; background: var(--paper); overflow: hidden; }
 
-/* One layer, the same pattern the settings screen paints, at the same size and
-   the same strength. The two masked Truchet layers this replaces existed so the
-   wall could take the colour of the jacket on screen; that retint is retired,
-   so the mask has nothing left to do and a plain background-image is what both
-   surfaces can share.
+/* One layer, the same pattern the settings screen paints, at the same size, the
+   same strength — and now from the same origin, which is what makes the two
+   screens line up.
 
-   Slack of one tile on every side, because it drifts: with slack on only two
-   sides it left a bare band along the edge it moved away from. */
+   The wall used to drift: one tile every 140 s. That is why it could not line
+   up. Settings is a separate element mounted when it opens, so its pattern
+   starts its own timeline, and two surfaces animating independently are in
+   phase only by accident — opening Settings visibly nudged the wallpaper
+   sideways. There is no fix that keeps the movement: any transform makes the
+   phase depend on when the element was mounted. So the drift goes, both layers
+   tile from `inset: 0`, and the pattern is continuous across every screen.
+
+   The two masked Truchet layers this replaces existed so the wall could take
+   the colour of the jacket on screen; that retint is retired, so the mask had
+   nothing left to do and a plain background-image is what both surfaces share. */
 .cz-wall-pattern {
   position: absolute;
-  inset: calc(var(--gc-paper-tile) * -1);
+  inset: 0;
   background-image: var(--gc-paper-pattern);
   background-size: var(--gc-paper-tile) var(--gc-paper-tile);
   opacity: 0.28;
-  will-change: transform;
-  animation: cz-drift 140s linear infinite;
-}
-.cz-wall[data-idle="1"] .cz-wall-pattern { animation-play-state: paused; }
-
-@keyframes cz-drift {
-  to { transform: translate3d(var(--gc-paper-tile), var(--gc-paper-tile), 0); }
 }
 
 .cz-wall-vignette {
@@ -1710,7 +1710,6 @@
    Quality floor
    =========================================================================== */
 @media (prefers-reduced-motion: reduce) {
-  .cz-wall-pattern { animation: none; }
   .cz-rail, .cz-box, .cz-cbox, .cz-cshade, .cz-lane, .cz-cslot { transition-duration: 1ms; }
   .cz-hold[data-phase],
   .cz-hold[data-phase] .cz-carry,
