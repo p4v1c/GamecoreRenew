@@ -119,6 +119,10 @@ describe('the catalogue page', () => {
     const Page = createCatalogPage(sdk()) as React.ComponentType<{ active: boolean; onLeave: () => void }>
     const { container } = render(<Page active onLeave={() => {}} />)
 
+    // Every group opens shut, so the rows have to be unfolded before there is
+    // anything to look at.
+    await waitFor(() => expect(container.querySelector('.gcs-grp')).toBeTruthy())
+    ;(container.querySelector('.gcs-grp') as HTMLElement).click()
     await waitFor(() => expect(container.querySelectorAll('img').length).toBe(2))
     // Absolute, because the row is rendered inside a settings screen that has
     // no base path of its own — a relative `assets/...` would resolve against
@@ -140,6 +144,8 @@ describe('the catalogue page', () => {
     // The swatch is what this screen showed for every row before, and it is
     // still the honest answer when there is no artwork: no image request, no
     // broken-image glyph, the colour the pack declares.
+    await waitFor(() => expect(container.querySelector('.gcs-grp')).toBeTruthy())
+    ;(container.querySelector('.gcs-grp') as HTMLElement).click()
     await waitFor(() => expect(container.querySelector('.gcs-pack-dot')).toBeTruthy())
     expect(container.querySelector('img')).toBeNull()
     const dot = container.querySelector('.gcs-pack-dot') as HTMLElement
@@ -178,5 +184,62 @@ describe('the built-in power menu', () => {
     // is a request, not an absent value, and `||` would have swallowed it.
     expect(render3([])).toHaveLength(5)
     expect(render3([])).toContain('Scan mapping')
+  })
+})
+
+describe('the catalogue accordion', () => {
+  const CATALOGUE = [
+    { id: 'azahar', label: 'Nintendo 3DS', family: 'Nintendo', color: '#a', emulatorName: 'Azahar', installed: true, logo: 'assets/logos/azahar.png' },
+    { id: 'dolphin', label: 'GameCube / Wii', family: 'Nintendo', color: '#b', emulatorName: 'Dolphin', installed: true, logo: 'assets/logos/dolphin.png' },
+    { id: 'melonds', label: 'Nintendo DS', family: 'Nintendo', color: '#c', emulatorName: 'melonDS', installed: false, logo: 'assets/logos/melonds.png' },
+    { id: 'pcsx2', label: 'PlayStation 2', family: 'Sony', color: '#d', emulatorName: 'PCSX2', installed: true, logo: 'assets/logos/pcsx2.png' },
+    { id: 'ppsspp', label: 'PSP', family: 'Sony', color: '#e', emulatorName: 'PPSSPP', installed: false, logo: 'assets/logos/ppsspp.png' },
+  ]
+
+  const mount = async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) =>
+      ({ ok: true, status: 200, statusText: 'OK',
+         json: async () => (String(url).endsWith('/api/catalog') ? CATALOGUE : {}) })))
+    const Page = createCatalogPage(sdk()) as React.ComponentType<{ active: boolean; onLeave: () => void }>
+    const { container } = render(<Page active onLeave={() => {}} />)
+    await waitFor(() => expect(container.querySelectorAll('.gcs-grp').length).toBe(2))
+    return container
+  }
+
+  const groups = (c: HTMLElement) => [...c.querySelectorAll('.gcs-grp')] as HTMLElement[]
+  const focused = (c: HTMLElement) =>
+    [...c.querySelectorAll('.gcs-grp, .gcs-pack')].find(e => e.getAttribute('data-on') === '1')
+
+  it('opens with every group shut', async () => {
+    const c = await mount()
+    // It used to force the first maker open, which picked a manufacturer for
+    // the player and pushed the rest below the fold. The `installed / total`
+    // count on each header is what says a shut list is not an empty one.
+    expect(groups(c).every(g => g.getAttribute('data-open') === '0')).toBe(true)
+    expect(c.querySelectorAll('.gcs-pack')).toHaveLength(0)
+    expect(groups(c)[0].textContent).toContain('2 / 3')
+  })
+
+  it('leaves the cursor on the group it just opened', async () => {
+    const c = await mount()
+    groups(c)[0].click()                       // Nintendo open, 3 systems shown
+    await waitFor(() => expect(c.querySelectorAll('.gcs-pack')).toHaveLength(3))
+
+    // Sony sits at flat index 4 while Nintendo is open, and at 1 once Nintendo
+    // shuts behind it. Opening it used to reset the cursor to 0 — the top of
+    // the page — so reaching what you had just unfolded meant pressing down
+    // again for every group above it.
+    groups(c)[1].click()
+    await waitFor(() => expect(c.querySelectorAll('.gcs-pack')).toHaveLength(2))
+    expect(focused(c)).toBe(groups(c)[1])
+  })
+
+  it('leaves the cursor on the group it just shut', async () => {
+    const c = await mount()
+    groups(c)[1].click()
+    await waitFor(() => expect(c.querySelectorAll('.gcs-pack')).toHaveLength(2))
+    groups(c)[1].click()
+    await waitFor(() => expect(c.querySelectorAll('.gcs-pack')).toHaveLength(0))
+    expect(focused(c)).toBe(groups(c)[1])
   })
 })

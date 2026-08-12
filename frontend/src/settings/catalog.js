@@ -88,12 +88,16 @@ export const createCatalogPage = (sdk) => {
 
     const load = () => sdk.api.catalog.list()
       .then((raw) => {
-        const list = asList(raw)
-        setPacks(list)
-        // Open the first maker group rather than nothing: an accordion where
-        // every row is shut looks like a screen that failed to load.
-        setOpen((o) => o ?? (list.find((p) => p.family && p.family !== 'Applications')
-          || list.find((p) => p.family) || {}).family ?? null)
+        setPacks(asList(raw))
+        // Nothing is opened here, and `open` is deliberately left alone across
+        // reloads so an install does not shut the group you were working in.
+        //
+        // This used to force the first maker group open on the reasoning that
+        // "an accordion where every row is shut looks like a screen that failed
+        // to load". It does not: every group row carries its own `installed /
+        // total` count, so a fully shut list still says what is on the box. What
+        // the forced-open group actually did was pick one maker for you and push
+        // the other four below the fold.
       })
       .catch(() => setMsg('Could not read the catalogue.'))
 
@@ -137,7 +141,21 @@ export const createCatalogPage = (sdk) => {
 
     const fire = (e) => {
       if (!e) return
-      if (e.kind === 'group') { setOpen((o) => (o === e.group.name ? null : e.group.name)); setIdx(0); return }
+      if (e.kind === 'group') {
+        setOpen((o) => (o === e.group.name ? null : e.group.name))
+        // Stay on the row that was just toggled.
+        //
+        // This was `setIdx(0)`, which threw the cursor to the top of the page
+        // every time a group was opened — so opening the fifth maker meant
+        // pressing down five times to get back to what you had just unfolded.
+        //
+        // The index of that row in the rebuilt list is simply how many group
+        // headers precede it: only one group is ever open, and after this
+        // toggle the open one is either this group or none, so no earlier group
+        // contributes system rows.
+        setIdx(groups.findIndex((g) => g.name === e.group.name))
+        return
+      }
       if (busy || working) return
       const p = e.pack
       setWorking(p.id); setBusy(true); setMsg('')
