@@ -2154,3 +2154,12 @@
 }
 @keyframes gcs-load-pulse { 50% { opacity: 0.25; transform: scale(0.7); } }
 @media (prefers-reduced-motion: reduce) { .gcs-load > i { animation: none; } }
+
+/* The revert countdown on Settings → Display: the backend's timer, made
+   visible. It is the only progress bar on this screen because it is the only
+   thing on it the player cannot undo by waiting. */
+.gcs-countdown {
+  height: 6px; border-radius: 3px; margin: 0 0 18px;
+  background: rgba(23, 23, 26, 0.1); overflow: hidden;
+}
+.gcs-countdown > i { display: block; height: 100%; background: var(--set-acc); transition: width 1s linear; }

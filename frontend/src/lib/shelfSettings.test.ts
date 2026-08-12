@@ -63,6 +63,16 @@ const BOX: Record<string, unknown> = {
     { mac: 'E4:17:D8:2A:9C:03', name: '8BitDo Ultimate 2C', connected: true, paired: true },
     { mac: 'A0:9E:1B:44:D2:18', name: 'Marshall Major IV', connected: false, paired: true },
   ],
+  '/api/settings/display': {
+    output: 'HDMI-A-1',
+    modes: [
+      { width: 1920, height: 1080, rate: 60 },
+      { width: 1920, height: 1080, rate: 50 },
+      { width: 1280, height: 720, rate: 60 },
+    ],
+    current: { width: 1920, height: 1080, rate: 60 },
+    pending: false, revert_secs: 12,
+  },
   '/api/settings/audio/sinks': [
     { id: '49', name: 'Built-in Audio Analog Stereo', default: false },
     { id: '52', name: 'HDMI / DisplayPort', default: true },
@@ -140,7 +150,7 @@ describe('Shelf v2 — the settings rail', () => {
 
     const { container } = await renderRail()
     expect(railLabels(container)).toEqual([
-      'Wi-Fi', 'Bluetooth', 'Audio', 'Controllers',
+      'Wi-Fi', 'Bluetooth', 'Display', 'Audio', 'Controllers',
       'Emulators & apps', 'BIOS', 'Themes', 'System',
     ])
   })
@@ -165,10 +175,10 @@ describe('Shelf v2 — the settings rail', () => {
     await waitFor(() => expect(railMetas(container)[0]).toBe('Livebox-4F2A'))
     const metas = railMetas(container)
     expect(metas[1]).toBe('1 connected')          // bluetooth devices
-    expect(metas[2]).toBe('HDMI / DisplayPort')   // default sink
-    expect(metas[4]).toBe('2 installed')          // catalog
-    expect(metas[5]).toBe('1/2 ready')            // bios status verdict
-    expect(metas[6]).toBe('Shelf')                // active theme
+    expect(metas[3]).toBe('HDMI / DisplayPort')   // default sink
+    expect(metas[5]).toBe('2 installed')          // catalog
+    expect(metas[6]).toBe('1/2 ready')            // bios status verdict
+    expect(metas[7]).toBe('Shelf')                // active theme
   })
 
   it('leaves a row blank when its endpoint does not answer', async () => {
@@ -180,13 +190,16 @@ describe('Shelf v2 — the settings rail', () => {
     })))
     const { container } = await renderRail()
 
-    expect(railLabels(container)).toHaveLength(8)
-    // Seven are fed by an endpoint and go blank with it. The eighth —
-    // Controllers, row four — counts pads through the Gamepad API, which is the
+    expect(railLabels(container)).toHaveLength(9)
+    // Eight are fed by an endpoint and go blank with it. The ninth —
+    // Controllers, row five — counts pads through the Gamepad API, which is the
     // browser and is still up. The row that says whether a pad is connected
-    // must not go dark because a backend service did.
+    // must not go dark because a backend service did. Its index is derived
+    // rather than written down: the rail has gained a row twice now, and a
+    // literal here silently starts asserting about the wrong one.
+    const controllersRow = railLabels(container).indexOf('Controllers')
     railMetas(container).forEach((m, i) => {
-      if (i === 3) expect(m).toMatch(/\d+ pads?$/)
+      if (i === controllersRow) expect(m).toMatch(/\d+ pads?$/)
       else expect(m).toBe('')
     })
   })
@@ -200,7 +213,7 @@ describe('Shelf v2 — the settings rail', () => {
     expect(container.querySelector('.gcs-set-chip')?.textContent).toBe('SYSTEM')
     // The rail never leaves — that is the whole shape of this screen — so the
     // eight rows are still there with a different one selected.
-    expect(railLabels(container)).toHaveLength(8)
+    expect(railLabels(container)).toHaveLength(9)
     expect(container.querySelector('.gcs-set-row[data-sel="1"] .gcs-set-label b')?.textContent)
       .toBe('System')
   })

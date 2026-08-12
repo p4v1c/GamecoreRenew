@@ -71,6 +71,14 @@ const BOX = {
     { id: '52', name: 'HDMI / DisplayPort', default: true },
   ],
   '/api/settings/audio': { volume: 64, muted: false },
+  '/api/settings/display': {
+    output: 'HDMI-A-1',
+    modes: [
+      { width: 1920, height: 1080, rate: 60 }, { width: 1920, height: 1080, rate: 50 },
+      { width: 1680, height: 1050, rate: 59.95 }, { width: 1280, height: 720, rate: 60 },
+    ],
+    current: { width: 1920, height: 1080, rate: 60 }, pending: false, revert_secs: 12,
+  },
   '/api/settings/bluetooth/scan': { ok: true, seconds: 8, found: [
     { mac: '7C:ED:8D:12:04:B1', name: 'Xbox Wireless Controller', connected: false, paired: false },
     { mac: '38:18:4C:9A:22:77', name: 'WH-1000XM4', connected: false, paired: false },
@@ -171,6 +179,11 @@ const api = {
     connect: async () => ({ ok: true }),
     disconnect: async () => ({ ok: true }),
   },
+  display: {
+    get: () => fetch('/api/settings/display').then((r) => r.json()),
+    setMode: async () => ({ ok: true, changed: true, revert_secs: 12 }),
+    confirm: async () => ({ ok: true }), revert: async () => ({ ok: true }),
+  },
   bluetooth: {
     devices: () => fetch('/api/settings/bluetooth/devices').then((r) => r.json()),
     scan: () => fetch('/api/settings/bluetooth/scan').then((r) => r.json()),
@@ -266,7 +279,16 @@ await act(async () => { root.render(React.createElement(Root, { onClose() {} }))
 // Let the eight independent reads land.
 await act(async () => { await new Promise((r) => setTimeout(r, 120)) })
 
-if (category === 'wifi-dialog') {
+if (category === 'display-confirm') {
+  const rows = [...document.querySelectorAll('.gcs-set-row')]
+  const row = rows.find((r) => r.textContent.includes('Display'))
+  if (row) await act(async () => { row.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
+  await act(async () => { await new Promise((r) => setTimeout(r, 60)) })
+  const apply = [...document.querySelectorAll('.gcs-row2')]
+    .find((r) => r.textContent.includes('Apply this mode'))
+  if (apply) await act(async () => { apply.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) })
+  await act(async () => { await new Promise((r) => setTimeout(r, 80)) })
+} else if (category === 'wifi-dialog') {
   // Click a secured network that is not the active one: that is the path that
   // raises the password dialog, and clicking it is how a player gets there.
   const row = [...document.querySelectorAll('.gcs-wifi-row')]

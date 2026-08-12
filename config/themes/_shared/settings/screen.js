@@ -46,6 +46,7 @@ import { createUseSlow } from './slow.js'
 import { createRows } from './rows.js'
 import { createWifiPage } from './wifi.js'
 import { createBluetoothPage } from './bluetooth.js'
+import { createDisplayPage } from './display.js'
 import { createControllersPage } from './controllers.js'
 import { createAudioPage } from './audio.js'
 import { createCatalogPage } from './catalog.js'
@@ -54,10 +55,15 @@ import { createThemesPage } from './themes.js'
 import { createSystemPage } from './system.js'
 
 /**
- * The rail. Eight rows where the capture has nine — `Display` is absent, and
- * that refusal is written up in the README: a mode switch whose "revert unless
- * confirmed" has to run inside the surface a bad mode makes invisible is a
- * safety net that cannot fire.
+ * The rail. Nine rows, the capture's own list.
+ *
+ * `Display` was absent for a long time, refused on the reasoning that its
+ * "revert unless confirmed" would have to run inside the surface a bad mode
+ * makes invisible. That was wrong twice over: the timer belongs in the backend,
+ * which survives a black screen, and `xrandr` needs no privilege because it
+ * acts on the session's own X server — the same unprivileged path `standby.py`
+ * already uses for `xset`. What is still refused is VSync, which is written per
+ * emulator by configgen and has no global switch to be.
  *
  * `page` names the host page a row falls back to while it has no own page yet.
  * `system` fans out to four of them, which is why the rail can be eight rows
@@ -66,12 +72,13 @@ import { createSystemPage } from './system.js'
 const CATS = [
   { id: 'wifi',        n: '01', label: 'Wi-Fi',            page: 'wifi' },
   { id: 'bluetooth',   n: '02', label: 'Bluetooth',        page: 'bluetooth' },
-  { id: 'audio',       n: '03', label: 'Audio',            page: 'audio' },
-  { id: 'controllers', n: '04', label: 'Controllers',      page: 'controllers' },
-  { id: 'catalog',     n: '05', label: 'Emulators & apps', page: 'catalog' },
-  { id: 'bios',        n: '06', label: 'BIOS',             page: 'bios' },
-  { id: 'themes',      n: '07', label: 'Themes',           page: 'themes' },
-  { id: 'system',      n: '08', label: 'System' },
+  { id: 'display',     n: '03', label: 'Display',          page: 'display' },
+  { id: 'audio',       n: '04', label: 'Audio',            page: 'audio' },
+  { id: 'controllers', n: '05', label: 'Controllers',      page: 'controllers' },
+  { id: 'catalog',     n: '06', label: 'Emulators & apps', page: 'catalog' },
+  { id: 'bios',        n: '07', label: 'BIOS',             page: 'bios' },
+  { id: 'themes',      n: '08', label: 'Themes',           page: 'themes' },
+  { id: 'system',      n: '09', label: 'System' },
 ]
 
 // `update`, `standby`, `storage` and `desktop` no longer have rail rows of
@@ -94,6 +101,7 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
   const OwnPages = {
     wifi: createWifiPage(sdk, useSlow),
     bluetooth: createBluetoothPage(sdk, useSlow),
+    display: createDisplayPage(sdk, Rows),
     audio: createAudioPage(sdk, Rows),
     controllers: createControllersPage(sdk, Rows),
     catalog: createCatalogPage(sdk),

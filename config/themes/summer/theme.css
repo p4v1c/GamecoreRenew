@@ -1319,3 +1319,12 @@
   margin-top: 14px; text-align: center;
   font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; color: var(--foam-400);
 }
+
+/* The revert countdown on Settings → Display: the backend's timer, made
+   visible. It is the only progress bar on this screen because it is the only
+   thing on it the player cannot undo by waiting. */
+.gcs-countdown {
+  height: 6px; border-radius: 3px; margin: 0 0 18px;
+  background: rgba(255, 253, 247, 0.16); overflow: hidden;
+}
+.gcs-countdown > i { display: block; height: 100%; background: var(--accent-mandarin); transition: width 1s linear; }

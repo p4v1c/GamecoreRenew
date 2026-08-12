@@ -408,6 +408,28 @@ export const api = {
     setVolume: (volume: number) => post('/settings/audio/volume', { volume }),
     setSink: (sink: string) => post('/settings/audio/sink', { sink }),
   },
+  /**
+   * The display mode, and the way back from a bad one.
+   *
+   * `setMode` arms a revert in the BACKEND: the previous mode returns unless
+   * `confirm()` is called. That is deliberate — a mode the television refuses
+   * is a black screen, and the screen that would have held the timer is the
+   * one that disappears.
+   */
+  display: {
+    get: () => get<{
+      output: string
+      modes: { width: number; height: number; rate: number }[]
+      current: { width: number; height: number; rate: number } | null
+      pending: boolean
+      revert_secs: number
+    }>('/settings/display'),
+    setMode: (width: number, height: number, rate: number) =>
+      postDetailed<{ ok: boolean; changed: boolean; revert_secs: number }>(
+        '/settings/display/mode', { width, height, rate }),
+    confirm: () => post<{ ok: boolean; confirmed: boolean }>('/settings/display/confirm'),
+    revert: () => post<{ ok: boolean; reverted: boolean }>('/settings/display/revert'),
+  },
   bluetooth: {
     devices: () => get<BtDevice[]>('/settings/bluetooth/devices'),
     /** Looks around for `seconds`, then answers with what is in range and NOT

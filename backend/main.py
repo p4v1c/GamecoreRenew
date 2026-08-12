@@ -21,7 +21,7 @@ from .routers import standby as standby_router
 from .routers import controllers as controllers_router
 from .routers import themes as themes_router
 from .routers import storage as storage_router
-from .routers.settings import wifi, audio, bluetooth
+from .routers.settings import wifi, audio, bluetooth, display
 from .services import (battery, gamepad_monitor, playtime_repair, prefetch,
                        standby, storage_monitor)
 from .services.process_manager import process_manager
@@ -180,6 +180,7 @@ app.include_router(storage_router.router, prefix="/api")
 app.include_router(themes_router.router, prefix="/api")
 app.include_router(wifi.router, prefix="/api")
 app.include_router(audio.router, prefix="/api")
+app.include_router(display.router, prefix="/api")
 app.include_router(bluetooth.router, prefix="/api")
 app.include_router(auth_routes.router, prefix="/api")
 
