@@ -324,10 +324,21 @@ if (category === 'display-confirm') {
   await act(async () => { await new Promise((r) => setTimeout(r, 80)) })
 }
 
+// BOTH stylesheets, in the order a box loads them: the host's is bundled with
+// the front end and is therefore always present, the theme's arrives after and
+// wins on ties.
+//
+// The theme's alone was enough while the theme carried a full copy of the
+// layout. It stopped being enough the moment that copy was deduplicated against
+// the host's — a shot with only the theme's sheet then showed a screen with a
+// palette and no geometry, which is not what any box renders. A harness that
+// does not load what the box loads is a harness that lies.
+const hostCss = readFileSync(resolve(import.meta.dirname, '../src/settings/settings.css'), 'utf8')
 const css = readFileSync(`${themeDir}/theme.css`, 'utf8')
 writeFileSync(outPath, `<!doctype html><html><head><meta charset="utf-8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<style>${css}
+<style>${hostCss}
+${css}
   html,body{margin:0;padding:0;width:1920px;height:1080px;overflow:hidden}
   .cz-kb-stub{margin-top:18px;padding:26px;border-radius:14px;text-align:center;
     background:rgba(23,23,26,0.05);border:1px dashed rgba(23,23,26,0.25);

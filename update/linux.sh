@@ -254,6 +254,45 @@ except Exception:
 PYEOF
 }
 
+# ── One-off: retire config/themes/_shared/ ──────────────────────────────────
+#
+# `_shared/` held the settings screen and the power menu that Shelf and Summer
+# both imported. They are host code now, shipped in the frontend bundle, and no
+# theme imports that path any more.
+#
+# The loop below cannot clear it. Its central promise is "on the box, not in the
+# release → never touched", which is what keeps an operator's own theme safe
+# from an update; a generic prune of anything missing from the release would
+# delete exactly the themes that promise protects. So this retirement is NAMED,
+# and it happens once.
+#
+# Left alone, the directory is inert — `list_themes()` skips any name starting
+# with `_`, so it is never offered and never loaded. It is removed because a
+# stale copy of a screen that moved is the kind of thing somebody edits in three
+# months wondering why nothing changes.
+#
+# Moved to .prev/ rather than deleted, the same recovery the replace path uses:
+# an operator who put something of their own in there gets it back from a known
+# place instead of from a backup they may not have.
+_retire_shared_dir() {
+  local _dir="${1}/_shared"
+  [[ -d "$_dir" ]] || return 0
+  # Only the directory this project shipped. Both markers, not either: an
+  # operator who keeps their own `_shared` for their own reasons has no reason
+  # to have our screen in it, and this must not take it from them.
+  [[ -f "${_dir}/theme.json" && -f "${_dir}/settings/screen.js" ]] || {
+    echo "[update] themes/_shared is not the one this project shipped — left untouched."
+    return 0
+  }
+  mkdir -p "${1}/.prev"
+  rm -rf "${1:?}/.prev/_shared"
+  if mv "$_dir" "${1}/.prev/_shared"; then
+    echo "[update] themes/_shared retired (moved to themes/.prev/_shared) — its code is in the bundle now."
+  else
+    echo "[update] WARNING: could not retire themes/_shared (non-fatal, it is inert)."
+  fi
+}
+
 if [[ -d "${SRC_DIR}/config/themes" ]]; then
   # The data root, not the install: a theme is installed content, and once the
   # two trees separate this loop would otherwise write into a read-only root
@@ -329,6 +368,7 @@ if [[ -d "${SRC_DIR}/config/themes" ]]; then
     fi
   done
   echo "[update] Themes: ${_installed} installed, ${_updated} updated, ${_kept} left untouched."
+  _retire_shared_dir "$_themes_dir"
 fi
 
 # frontend/dist is pure build output (CI ships it complete). Mirror it exactly
