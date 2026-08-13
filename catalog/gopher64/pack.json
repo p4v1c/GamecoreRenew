@@ -28,7 +28,7 @@
     "dest": "@FLATPAK_CONFIG@/RMG"
   },
   "controllers": {
-    "maxPlayers": 1,
+    "maxPlayers": 4,
     "order": 4,
     "strategy": "snapshot-restore",
     "target": "mupen64plus.cfg"
