@@ -60,3 +60,14 @@ declare module '*/settings/catalog' {
     sdk: unknown,
   ): (props: { active: boolean; onLeave: () => void }) => import('react').ReactNode
 }
+
+declare module '*/settings/themes' {
+  export function createThemesPage(
+    sdk: unknown,
+    Rows: unknown,
+  ): (props: { active: boolean; onLeave: () => void }) => import('react').ReactNode
+}
+
+declare module '*/settings/rows' {
+  export function createRows(sdk: unknown): unknown
+}
