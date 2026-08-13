@@ -21,8 +21,26 @@ import { playSound, getAudioContext, soundSettings } from './sounds'
 import { formatGameName, hexToRgb, fmtTime, fmtDate, systemColor } from './format'
 import * as defaults from '../components/defaults'
 
-/** SDK major. Bumped only when something is removed or changes shape. */
-export const SDK_VERSION = 1
+/**
+ * SDK major. Bumped when something is removed, changes shape, or becomes
+ * REQUIRED by a theme this repository ships.
+ *
+ * That last clause was learned the hard way. `sdk.defaults.createSettings` and
+ * `createPowerView` were added and both shipped themes were rewritten to
+ * destructure them — while this constant stayed at 1. So Shelf kept declaring
+ * `api: 1`, every bundle old and new answered "compatible", and on a box in the
+ * window between the theme landing on disk and the front end restarting onto
+ * the matching bundle, Shelf imported cleanly and then threw the moment it
+ * called a function that was not there.
+ *
+ * The player sees that as the theme silently becoming the default one, because
+ * the surface boundary catches the throw and swaps in the built-in shell — and
+ * after CRASH_LIMIT of those, safe mode refuses the theme outright.
+ *
+ * `compatible: api <= SDK_VERSION` is the gate that was supposed to prevent
+ * exactly this. It can only work if the number moves when the contract does.
+ */
+export const SDK_VERSION = 2
 
 /** Every gamepad event a theme may subscribe to. gp:guide is intentionally absent. */
 export const GP_EVENTS = [
