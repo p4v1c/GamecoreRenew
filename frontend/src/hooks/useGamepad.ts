@@ -104,12 +104,14 @@ function emit(name: string, detail?: unknown) {
   // Here rather than in the overlay, because a theme draws its own standby
   // screen and a guard living in the picture is lost with the picture.
   //
-  // gp:guide is not excepted the way it is for a running game: standby cannot
-  // happen while a game runs, so there is nothing for it to kill. A pad
-  // arriving or leaving is, because those are not presses — and a Bluetooth
-  // pad that re-pairs by itself in the night would otherwise wake the box
-  // every time it flapped.
-  if (!NOT_INPUT.has(name) && useStore.getState().standby !== 'off') {
+  // Two things are not guarded. A pad arriving or leaving, because those are
+  // not presses — a Bluetooth pad that re-pairs by itself in the night would
+  // otherwise wake the box every time it flapped. And anything at all while a
+  // game is running: the backend wakes the box on launch, but if those two ever
+  // disagree this guard would swallow gp:guide, which is the only way to end a
+  // game. A stuck flag must never cost the player the button that gets them
+  // out. The session rule below takes over there, unchanged.
+  if (!NOT_INPUT.has(name) && !isPlaying() && useStore.getState().standby !== 'off') {
     askToWake()
     return
   }
@@ -162,8 +164,9 @@ export function useGamepad() {
             // box. Checked here as well as in emit() because the two branches
             // below leave without going through it — the guide's first press
             // is only remembered, so a single PS on a sleeping box would have
-            // asked for nothing at all.
-            if (useStore.getState().standby !== 'off') {
+            // asked for nothing at all. Never while a game runs, for the reason
+            // emit() gives.
+            if (!playing && useStore.getState().standby !== 'off') {
               askToWake()
               prevButtons.current[i] = pressed
               return

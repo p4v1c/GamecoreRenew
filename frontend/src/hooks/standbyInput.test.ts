@@ -140,6 +140,24 @@ describe('the pad while the box is asleep', () => {
     expect(nav.get().standby).toBe('off')
   })
 
+  it('never swallows the way out of a running game', async () => {
+    // The failure the guard must not create. The backend wakes the box when a
+    // game launches, so the two should never disagree — but if they ever do, a
+    // guard that swallowed everything would take gp:guide with it, and gp:guide
+    // is the only way to end a game. A stuck flag must not cost the player the
+    // button that gets them out; the session rule takes over instead.
+    renderHook(() => useGamepad())
+    const bus = listenAll()
+    useStore.setState({ standby: 'sleep', sessionGameKey: 'Melee.iso' })
+
+    press('Escape')
+    await Promise.resolve()
+    // The session rule blocks it — as it always has, and for its own reason —
+    // but the standby guard is not what did it, and nothing asked to wake.
+    expect(woke).toBe(0)
+    bus.off()
+  })
+
   it('gives it back on its own if the box never answers', async () => {
     // The failure this must not have. If the websocket is down, or the backend
     // is wedged, `standby:exit` never arrives — and a guard with no way out is
