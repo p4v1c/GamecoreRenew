@@ -19,7 +19,7 @@
 import { asList } from './list.js'
 
 export const createThemesPage = (sdk, Rows) => {
-  const { html, useState, useEffect } = sdk.ui
+  const { html, useState, useEffect, useRef } = sdk.ui
 
   return ({ active, onLeave }) => {
     const [items, setItems] = useState([])
@@ -65,16 +65,51 @@ export const createThemesPage = (sdk, Rows) => {
       }
     })
 
+    /**
+     * How long "Applying…" may last before it is a lie.
+     *
+     * Selecting is meant to end by this screen ceasing to exist: the shell
+     * swaps to the chosen theme and takes the settings screen with it. So the
+     * page used to set `busy` and only ever clear it on a rejected promise —
+     * "the frontend reloads on success, so there is no done to handle".
+     *
+     * That is true only when the swap happens. It does not when the chosen
+     * theme fails to LOAD: the request succeeds, the box records the choice,
+     * `apply()` falls back to the built-in shell — and `ThemeSurface.Shell`
+     * renders that fallback bare, with no key, so nothing remounts and this
+     * component is still here. The promise resolved, nothing threw, and the
+     * button says "Applying…" for ever over a screen that has already given
+     * up. That is what a player reports as "it applies and nothing happens".
+     *
+     * A theme that is going to load has swapped the shell long before this.
+     */
+    const APPLY_GIVES_UP_MS = 6000
+    const timer = useRef(null)
+    useEffect(() => () => clearTimeout(timer.current), [])
+
     const onAct = (rid) => {
       const id = rid.slice(6) || null
       if (id === activeId) { setMsg('That one is already in use.'); return }
       const t = id && items.find((x) => x.id === id)
       if (t && !t.compatible) { setMsg('This build cannot load that theme.'); return }
       setBusy(rid); setMsg('')
-      // The frontend reloads on success, so there is no "done" to handle — only
-      // a failure, which has to give the button back.
+
+      clearTimeout(timer.current)
+      timer.current = setTimeout(() => {
+        setBusy(false)
+        // Deliberately not "failed": the box did take the choice, and it will
+        // be there at the next start. What did not happen is the swap.
+        setMsg('Selected, but the front end did not switch to it — that theme '
+             + 'may have failed to load. Restarting the box will use it, or '
+             + 'pick another one here.')
+      }, APPLY_GIVES_UP_MS)
+
       Promise.resolve(sdk.themes.select(id))
-        .catch(() => { setBusy(false); setMsg('Could not apply that theme.') })
+        .catch(() => {
+          clearTimeout(timer.current)
+          setBusy(false)
+          setMsg('Could not apply that theme.')
+        })
     }
 
     const current = activeId
