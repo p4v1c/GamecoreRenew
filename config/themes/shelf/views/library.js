@@ -32,14 +32,51 @@ import { sample, hexToHsl, vars, NEUTRAL } from '../lib/accent.js'
 import { jacket } from '../lib/dossier.js'
 
 /**
- * How many spines exist on either side of the cursor.
+ * The fewest spines that may stand either side of the cursor.
  *
- * Each one is a real `box-spine`, so the window is a request count as much as
- * a pixel count. It is deliberately small and the slots are keyed by filename:
- * the rail slides, the nodes persist, and a scroll costs one new image per
- * step rather than a fresh screenful.
+ * Each one is a real `box-spine`, so the row is a request count as much as a
+ * pixel count. The slots are keyed by filename: the rail slides, the nodes
+ * persist, and a scroll costs one new image per step rather than a screenful.
+ *
+ * This is a floor, not the count — see `reach` below for why a constant cannot
+ * be the count.
  */
-const WINDOW = 12
+const MIN_REACH = 12
+
+/**
+ * How far the mounted row must extend, in columns, for the shelf to be able to
+ * slide without anything appearing to move on its own.
+ *
+ * This was a flat 12 and that is the second half of the reported fault. The
+ * rail is ONE element that slides; the spines are placed inside it and have no
+ * animation of their own. So the only way a spine can appear to move by itself
+ * is to be mounted — or dropped — while the rail is mid-slide. A row that ends
+ * before the stage does gets exactly that, once per step, at the far end from
+ * wherever the player is looking: twelve columns is ±480px at a 40px pitch,
+ * inside a stage that is 717px wide either side of centre at 1080p, and wider
+ * still in `gallery`, where the card moves to the bottom and the stage takes
+ * the whole screen. A jacket materialised out of nothing 480px away on every
+ * press, and it got worse the faster you went because it happened more often.
+ *
+ * So the count is measured rather than chosen: half the stage, in columns, plus
+ * one so the newest column is mounted while still outside the frame. The pitch
+ * is read off the rail rather than repeated here, because it is a different
+ * number in `stack` (46px) and CSS is where all three are already written down.
+ * `stack` runs down the screen, so its span is the stage's height.
+ *
+ * Cost, since the old comment was right to count it: nineteen columns either
+ * side at 1080p instead of twelve. Fourteen more `box-spine` files, all of them
+ * already warmed for the whole library by the backend before this screen opens.
+ */
+const railReach = (stage, rail, mode) => {
+  if (!stage || !rail) return MIN_REACH
+  const declared = parseFloat(
+    getComputedStyle(rail).getPropertyValue('--pitch'))
+  const pitch = declared > 0 ? declared : 40
+  const span = mode === 'stack' ? stage.clientHeight : stage.clientWidth
+  if (!span) return MIN_REACH
+  return Math.max(MIN_REACH, Math.ceil(span / 2 / pitch) + 1)
+}
 
 const SORT_LABEL = { name: 'A–Z', lastPlayed: 'Recently played', playtime: 'Most played' }
 
@@ -142,8 +179,24 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
       return () => timers.forEach(clearTimeout)
     }, [launching])
 
-    const from = Math.max(0, selectedIdx - WINDOW)
-    const to = Math.min(games.length, selectedIdx + WINDOW + 1)
+    // Measured after the commit that lays the stage out, and again whenever
+    // the stacking or the screen changes size — those are the only two things
+    // that move it. No observer: reading `clientWidth` settles the layout by
+    // itself, and an effect runs after the DOM is in place, so the value is
+    // the one on screen. The first render uses the floor and the second the
+    // measurement, which is a mount, not a scroll.
+    const stageRef = useRef(null)
+    const railRef = useRef(null)
+    const [reach, setReach] = useState(MIN_REACH)
+    useEffect(() => {
+      const measure = () => setReach(railReach(stageRef.current, railRef.current, browse.mode))
+      measure()
+      window.addEventListener('resize', measure)
+      return () => window.removeEventListener('resize', measure)
+    }, [browse.mode, loading, loadError, games.length === 0])
+
+    const from = Math.max(0, selectedIdx - reach)
+    const to = Math.min(games.length, selectedIdx + reach + 1)
     const shown = games.slice(from, to)
 
     const meta = dossier.meta
@@ -300,10 +353,10 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
         </div>
 
         <div class="cz-body">
-          <div class="cz-stage">
+          <div class="cz-stage" ref=${stageRef}>
             <div class="cz-shelfline" aria-hidden="true" />
 
-            <div class="cz-rail" style=${{ '--i': String(selectedIdx) }}>
+            <div class="cz-rail" ref=${railRef} style=${{ '--i': String(selectedIdx) }}>
               ${shown.map((g, k) => {
                 const i = from + k
                 return html`
