@@ -126,53 +126,90 @@ export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }
     else if (pageItems.length > 0 && gridFocusIdx > pageItems.length - 1) setGridFocus(pageItems.length - 1)
   }, [pageCount, gridPage, pageItems.length, gridFocusIdx, setGridPage, setGridFocus])
 
+  // The list itself, live. The cards on a page are a slice of it, and which
+  // slice is a question only the CURRENT page can answer — see below.
+  const systemsRef = useRef(systems)
+  systemsRef.current = systems
+
+  /**
+   * Where the cursor is, at the moment a button is pressed.
+   *
+   * Not where it was when the handler was registered. The d-pad is
+   * edge-triggered, so a fast player sends several events before React has
+   * re-rendered, and every one of them computed its destination from the same
+   * stale focus and page — setting the same index again, which is a no-op.
+   * Three taps moved one card. `set()` is synchronous, so reading the store is
+   * always the truth, whether or not React has caught up.
+   *
+   * The page has to be read here too, not just the focus: past the last column
+   * a step is a page turn, and a second step arriving on the old page turned
+   * the same page twice to the same place. See homeBurst.test.tsx, and
+   * LibraryScreen for the same fix on the shelf.
+   */
+  const cursor = () => {
+    const { gridFocusIdx: focus, gridPage: page } = useStore.getState()
+    // How many cards this page actually holds — the last one is usually short.
+    const onPage = Math.max(0, Math.min(perPage, systemsRef.current.length - page * perPage))
+    return { focus, page, onPage }
+  }
+
   const navigate = useCallback((dir: 'up' | 'down' | 'left' | 'right') => {
-    const col = gridFocusIdx % cols
-    const row = Math.floor(gridFocusIdx / cols)
+    const { focus, page, onPage } = cursor()
+    const col = focus % cols
+    const row = Math.floor(focus / cols)
 
     if (dir === 'right') {
-      if (col < cols - 1 && gridFocusIdx < pageItems.length - 1) {
-        setGridFocus(gridFocusIdx + 1)
-      } else if (gridPage < pageCount - 1) {
-        setGridPage(gridPage + 1)
-        setGridFocus(Math.min(row * cols, lastIdxOf(gridPage + 1)))
+      if (col < cols - 1 && focus < onPage - 1) {
+        setGridFocus(focus + 1)
+      } else if (page < pageCount - 1) {
+        setGridPage(page + 1)
+        setGridFocus(Math.min(row * cols, lastIdxOf(page + 1)))
       }
     } else if (dir === 'left') {
       if (col > 0) {
-        setGridFocus(gridFocusIdx - 1)
-      } else if (gridPage > 0) {
-        setGridPage(gridPage - 1)
-        setGridFocus(Math.min(row * cols + cols - 1, lastIdxOf(gridPage - 1)))
+        setGridFocus(focus - 1)
+      } else if (page > 0) {
+        setGridPage(page - 1)
+        setGridFocus(Math.min(row * cols + cols - 1, lastIdxOf(page - 1)))
       }
     } else if (dir === 'down') {
-      const next = gridFocusIdx + cols
-      if (next < pageItems.length) {
+      const next = focus + cols
+      if (next < onPage) {
         setGridFocus(next)
-      } else if (gridPage < pageCount - 1) {
-        setGridPage(gridPage + 1)
-        setGridFocus(Math.min(col, lastIdxOf(gridPage + 1)))
+      } else if (page < pageCount - 1) {
+        setGridPage(page + 1)
+        setGridFocus(Math.min(col, lastIdxOf(page + 1)))
       }
     } else if (dir === 'up') {
       if (row > 0) {
-        setGridFocus(gridFocusIdx - cols)
-      } else if (gridPage > 0) {
-        setGridPage(gridPage - 1)
-        setGridFocus(Math.min((rows - 1) * cols + col, lastIdxOf(gridPage - 1)))
+        setGridFocus(focus - cols)
+      } else if (page > 0) {
+        setGridPage(page - 1)
+        setGridFocus(Math.min((rows - 1) * cols + col, lastIdxOf(page - 1)))
       }
     }
-  }, [gridFocusIdx, gridPage, pageCount, pageItems.length, lastIdxOf, setGridFocus, setGridPage, cols, rows])
+  }, [pageCount, perPage, lastIdxOf, setGridFocus, setGridPage, cols, rows]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Opens a card; defaults to the focused one, so the pad and the mouse agree. */
-  const activate = useCallback((idx: number = gridFocusIdx) => {
-    const system = pageItems[idx]
+  /**
+   * Opens a card; defaults to the focused one, so the pad and the mouse agree.
+   *
+   * Also reads live, and here a stale read is not a lost press but a wrong
+   * one: the card was resolved out of the page and focus of the last render,
+   * so a ✕ arriving in the same window as a move opened the system the player
+   * had just left. A mouse click passes its own index and is unaffected.
+   */
+  const activate = useCallback((idx?: number) => {
+    const { focus, page } = cursor()
+    const i = idx ?? focus
+    const system = systemsRef.current.slice(page * perPage, (page + 1) * perPage)[i]
     if (!system) return
-    if (idx !== gridFocusIdx) setGridFocus(idx)
+    if (i !== focus) setGridFocus(i)
     if (system.kind === 'app' || system.type === 'application') {
       onLaunchApp(system)
     } else {
       goLibrary(system.id)
     }
-  }, [pageItems, gridFocusIdx, setGridFocus, goLibrary, onLaunchApp])
+  }, [perPage, setGridFocus, goLibrary, onLaunchApp]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Gamepad events — all guarded so they don't fire when a modal is open
   useEffect(() => {
@@ -182,12 +219,14 @@ export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }
       onGp('gp:dpad-down',  () => { if (blocked()) return; navigate('down') }),
       onGp('gp:dpad-left',  () => { if (blocked()) return; navigate('left') }),
       onGp('gp:dpad-right', () => { if (blocked()) return; navigate('right') }),
-      onGp('gp:r1',  () => { if (blocked()) return; if (gridPage < pageCount - 1) { setGridPage(gridPage + 1); setGridFocus(0) } }),
-      onGp('gp:l1',  () => { if (blocked()) return; if (gridPage > 0) { setGridPage(gridPage - 1); setGridFocus(0) } }),
+      // Live for the same reason the d-pad is: three taps on R1 are three
+      // pages, and each one has to start from the page the one before landed on.
+      onGp('gp:r1',  () => { if (blocked()) return; const p = useStore.getState().gridPage; if (p < pageCount - 1) { setGridPage(p + 1); setGridFocus(0) } }),
+      onGp('gp:l1',  () => { if (blocked()) return; const p = useStore.getState().gridPage; if (p > 0) { setGridPage(p - 1); setGridFocus(0) } }),
       onGp('gp:confirm', () => { if (blocked()) return; activate() }),
     ]
     return () => offs.forEach(off => off())
-  }, [navigate, activate, gridPage, pageCount, setGridPage, setGridFocus])
+  }, [navigate, activate, pageCount, setGridPage, setGridFocus])
 
   // Stats
   const totalGames = Object.values(gameCountMap).reduce((a, b) => a + b, 0)
