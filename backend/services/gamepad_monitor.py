@@ -40,7 +40,79 @@ PROFILE_RETRIES = 5
 BTN_SOUTH = 0x130
 
 EV_KEY  = 1   # evdev event type for key/button events
+EV_ABS  = 3   # axes: sticks, triggers, and the d-pad on most modern pads
 KEY_DOWN = 1  # event value for key press
+
+# The d-pad, where the kernel puts it on a DualShock 4 and most other modern
+# pads: a hat, not four buttons. ABS_HAT0X/Y and their second-hat siblings.
+HAT_CODES = frozenset({0x10, 0x11, 0x12, 0x13})
+
+# How far an axis must move, as a fraction of its full travel, before it counts
+# as somebody being there.
+#
+# There has to be a threshold at all, and that is the whole difficulty of
+# reading axes for standby. A resting stick reports a trickle of noise forever;
+# a box that took that for activity would never sleep, which is a worse fault
+# than the one this fixes. A quarter of the travel is far past any drift and far
+# short of a deliberate push.
+STICK_TRAVEL = 0.25
+
+
+class ActivityFilter:
+    """Does this event mean somebody is at the controller?
+
+    Split out of the read loop so it can be asked directly — see
+    tests/test_standby_input.py. It only counted `EV_KEY` down before, and on
+    the pad this box is used with that misses the d-pad entirely: hid-playstation
+    reports it as a hat. Pressing a direction woke nothing and, worse, did not
+    reset the idle timer, so browsing with the stick alone brought the
+    screensaver up on somebody actively using the box.
+
+    Movement is what counts, not position: measured against the axis's last
+    reported value rather than its centre. Position would need to know where
+    each axis rests, and a trigger rests at its minimum while a stick rests in
+    the middle — a rule written as "far from the centre" calls every resting
+    trigger a held one. Travel needs to know nothing, and it also means a slow
+    drift never adds up to a press however far it wanders.
+    """
+
+    def __init__(self, dev):
+        self._dev = dev
+        self._last: dict[int, int] = {}
+        self._span: dict[int, float] = {}
+
+    def _threshold(self, code: int) -> float | None:
+        """How much travel is a lot, on this axis. None if the pad cannot say."""
+        if code in self._span:
+            return self._span[code] or None
+        try:
+            info = self._dev.absinfo(code)
+            span = (info.max - info.min) * STICK_TRAVEL
+        except Exception:
+            # No absinfo, no idea what "a long way" means here. Ignoring the
+            # axis keeps a device nobody can measure from holding the box awake.
+            span = 0.0
+        self._span[code] = span
+        return span or None
+
+    def is_activity(self, event) -> bool:
+        if event.type == EV_KEY:
+            return event.value == KEY_DOWN
+        if event.type != EV_ABS:
+            return False
+        if event.code in HAT_CODES:
+            return event.value != 0          # a hat is a d-pad: digital
+        threshold = self._threshold(event.code)
+        if threshold is None:
+            return False
+        previous = self._last.get(event.code)
+        self._last[event.code] = event.value
+        # The first reading of an axis only takes a bearing. A pad announces
+        # every axis as it connects, and a burst of "activity" then would wake
+        # the box each time a Bluetooth pad re-paired itself overnight.
+        if previous is None:
+            return False
+        return abs(event.value - previous) > threshold
 
 # Guide button must be pressed twice within this window (seconds) to trigger.
 DOUBLE_PRESS_WINDOW = 1.0
@@ -102,13 +174,18 @@ async def _watch_device(path: str) -> None:
         return
 
     log.info("gamepad_monitor: watching %s (%s)", path, dev.name)
+    activity = ActivityFilter(dev)
     try:
         async for event in dev.async_read_loop():
+            # Anything that means somebody is there — a button, the d-pad,
+            # a stick or a trigger — counts as activity and wakes the box.
+            # It used to be buttons alone, which on a DualShock 4 leaves out
+            # every direction: the d-pad is a hat, not four keys.
+            if activity.is_activity(event):
+                from . import standby
+                standby.on_input()
             if event.type != EV_KEY or event.value != KEY_DOWN:
                 continue
-            # Every button press counts as activity — wakes the box from standby
-            from . import standby
-            standby.on_input()
             if event.code in GUIDE_CODES:
                 log.info("gamepad_monitor: guide/PS button detected (code=%d) on %s",
                          event.code, path)
