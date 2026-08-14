@@ -30,7 +30,17 @@ interface Props {
 }
 
 export default function LibraryScreen({ view: View = DefaultLibraryView, omit }: Props = {}) {
-  const { selectedSystemId, selectedGameIdx, goHome, setSelectedGameIdx, setSession, modalDepth, screen, sessionGameKey } = useStore()
+  // One subscription per value. Bare, this screen re-rendered on every field
+  // in the store — `gridFocusIdx` among them, so walking the dashboard
+  // re-rendered the library hidden behind it. See shellRerender.test.tsx.
+  const selectedSystemId = useStore(s => s.selectedSystemId)
+  const selectedGameIdx = useStore(s => s.selectedGameIdx)
+  const goHome = useStore(s => s.goHome)
+  const setSelectedGameIdx = useStore(s => s.setSelectedGameIdx)
+  const setSession = useStore(s => s.setSession)
+  const modalDepth = useStore(s => s.modalDepth)
+  const screen = useStore(s => s.screen)
+  const sessionGameKey = useStore(s => s.sessionGameKey)
   const modalDepthRef = useRef(modalDepth)
   const screenRef = useRef(screen)
   useEffect(() => { modalDepthRef.current = modalDepth }, [modalDepth])
@@ -56,7 +66,8 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
 
   // The search keyboard counts as a modal: while it's open, global bindings
   // (Options → Settings, Share → Power) must not fire on top of it.
-  const { openModal, closeModal } = useStore()
+  const openModal = useStore(s => s.openModal)
+  const closeModal = useStore(s => s.closeModal)
   useEffect(() => {
     if (!showSearch) return
     openModal()
@@ -203,6 +214,33 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
     }
   }, [selectedSystemId, selectedGame, launching, setSession, ceremonyMs])
 
+  // Everything the bindings below read at the moment a button is pressed,
+  // rather than at the moment they were registered.
+  //
+  // The distinction is the whole of the fast-scroll bug. `onGp` handlers close
+  // over the render that registered them, and a new closure only reaches the
+  // window once React has rendered, committed, painted and flushed passive
+  // effects. Presses arriving inside that window all computed their next index
+  // from the same stale one and set it again — a no-op — so a burst of five
+  // taps moved the cursor one row. It got worse the faster the player scrolled,
+  // and worse again on a themed library over a few hundred games, because a
+  // longer render is a wider window.
+  //
+  // Written during render, so they are current from the first press after a
+  // change rather than one commit later. See libraryBurst.test.tsx.
+  const countRef = useRef(0)
+  const launchingRef = useRef(false)
+  const launchRef = useRef(launchGame)
+  const settledRef = useRef<GameEntry | null>(null)
+  countRef.current = sortedGames.length
+  launchingRef.current = launching
+  launchRef.current = launchGame
+  settledRef.current = settledGame
+
+  // `omit` is a prop and a fresh array on every parent render; the effect only
+  // cares whether one id is in it.
+  const omitOptions = !!omit?.includes('options')
+
   // Gamepad — guarded when modal is open or this screen is hidden behind home
   useEffect(() => {
     const blocked = () => {
@@ -210,13 +248,24 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
              modalDepthRef.current > 0 ||
              showSearchRef.current ||
              showOptionsRef.current ||
-             launching ||
-             sessionGameKey !== null
+             launchingRef.current ||
+             useStore.getState().sessionGameKey !== null
+    }
+    // The cursor is read out of the store, not out of a closure: `set()` is
+    // synchronous, so the second press of a burst steps from where the first
+    // one left it even though nothing has re-rendered in between.
+    const step = (delta: number) => {
+      if (blocked()) return
+      const n = countRef.current
+      if (!n) return
+      const from = useStore.getState().selectedGameIdx
+      const next = Math.max(0, Math.min(n - 1, from + delta))
+      if (next !== from) setSelectedGameIdx(next)
     }
     const offs = [
-      onGp('gp:dpad-up',  () => { if (blocked() || !sortedGames.length) return; setSelectedGameIdx(Math.max(0, selectedGameIdx - 1)) }),
-      onGp('gp:dpad-down',() => { if (blocked() || !sortedGames.length) return; setSelectedGameIdx(Math.min(sortedGames.length - 1, selectedGameIdx + 1)) }),
-      onGp('gp:confirm',  () => { if (blocked()) return; launchGame() }),
+      onGp('gp:dpad-up',  () => step(-1)),
+      onGp('gp:dpad-down',() => step(1)),
+      onGp('gp:confirm',  () => { if (blocked()) return; launchRef.current() }),
       onGp('gp:back',     () => { if (screenRef.current !== 'library' || modalDepthRef.current > 0 || showOptionsRef.current) return; if (showSearchRef.current) { setShowSearch(false); return } cancelPendingLaunch(); goHome() }),
       onGp('gp:y',        () => { if (blocked()) return; setShowSearch(true) }),
       // R2, because every face button is already spoken for on this screen:
@@ -231,8 +280,8 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
       // with no route on its screens. That is a real loss and it is stated
       // here rather than discovered: a wrong bezel is then only fixable from
       // the default UI or over SSH.
-      ...(omit?.includes('options') ? [] : [
-        onGp('gp:r2',     () => { if (blocked() || !settledGame) return; setShowOptions(true) }),
+      ...(omitOptions ? [] : [
+        onGp('gp:r2',     () => { if (blocked() || !settledRef.current) return; setShowOptions(true) }),
       ]),
       onGp('gp:l1', () => {
         if (blocked()) return
@@ -244,7 +293,11 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
       }),
     ]
     return () => offs.forEach(off => off())
-  }, [selectedGameIdx, sortedGames.length, launchGame, goHome, setSelectedGameIdx, launching, sessionGameKey, cancelPendingLaunch])
+    // Registered once, for the life of the screen. Every value the handlers
+    // need is read live above — a dependency list that changed on each step
+    // meant tearing eight listeners down and rebuilding them on every press,
+    // which is both the stale-cursor bug and needless work per frame.
+  }, [omitOptions, goHome, setSelectedGameIdx, cancelPendingLaunch])
 
   // When no system is selected, render nothing (screen is hidden by display:none anyway)
   if (!selectedSystemId) return null

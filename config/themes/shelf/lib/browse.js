@@ -36,8 +36,17 @@ export const createUseBrowse = (sdk) => {
     // The bindings are registered once and read live state through refs: this
     // effect must not re-run on every step of a scroll, or a held direction
     // drops events while the listener is torn down and rebuilt.
-    const live = useRef({ selectedIdx, count, launching, onSelect })
-    live.current = { selectedIdx, count, launching, onSelect }
+    //
+    // `selectedIdx` is deliberately NOT among them. A ref written during render
+    // is fresh as of the last render, which is not the same thing as fresh: the
+    // d-pad is edge-triggered, so five fast taps are five events, and any that
+    // land before React has re-rendered would all step from the same index and
+    // set it again. A burst of five moved the shelf one column. The cursor is
+    // read from the store instead — `sdk.nav.get()` exists for exactly this,
+    // and the store is written synchronously, so the second press of a burst
+    // steps from where the first one left it.
+    const live = useRef({ count, launching, onSelect })
+    live.current = { count, launching, onSelect }
 
     const screen = sdk.nav.use((s) => s.screen)
     const modalDepth = sdk.nav.use((s) => s.modalDepth)
@@ -49,8 +58,9 @@ export const createUseBrowse = (sdk) => {
       const blocked = () => !gate.current || live.current.launching
 
       const step = (delta) => {
-        const { selectedIdx: i, count: n, onSelect: pick } = live.current
+        const { count: n, onSelect: pick } = live.current
         if (blocked() || !n) return
+        const i = sdk.nav.get().selectedGameIdx
         const next = Math.max(0, Math.min(n - 1, i + delta))
         if (next === i) return
         sdk.system.playSound('move')
