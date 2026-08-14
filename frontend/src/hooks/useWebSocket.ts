@@ -68,6 +68,15 @@ export function useWebSocket() {
       goHome()
     })
 
-    return () => { off1(); off1b(); off2(); off3() }
+    // Standby, into the store rather than into whatever is drawing the
+    // screensaver. The input bus reads it to decide whether a press is a
+    // command or a wake, and that has to hold for a theme that draws its own
+    // standby screen (Summer) or none at all.
+    const setStandby = useStore.getState().setStandby
+    const off4 = onWsEvent('standby:screensaver', () => setStandby('screensaver'))
+    const off5 = onWsEvent('standby:sleep', () => setStandby('sleep'))
+    const off6 = onWsEvent('standby:exit', () => setStandby('off'))
+
+    return () => { off1(); off1b(); off2(); off3(); off4(); off5(); off6() }
   }, [])
 }

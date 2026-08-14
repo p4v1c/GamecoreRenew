@@ -38,6 +38,11 @@ SDK_TS = REPO / "frontend" / "src" / "lib" / "themeSdk.ts"
 SINCE = {
     2: ("sdk.defaults.createSettings", "sdk.defaults.createPowerView",
         "createSettings", "createPowerView"),
+    # The standby stage in the store. A theme drawing its own screensaver keys
+    # the whole overlay off it, and on a front end without it the read is
+    # `undefined`, which is not 'off' — so the overlay never comes down and the
+    # box is a black rectangle. Refusing the theme is the better failure.
+    3: ("s.standby", "standby !== 'off'"),
 }
 
 

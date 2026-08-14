@@ -16,8 +16,13 @@
  *                         against a dark panel.
  *   standby:exit        → gone
  *
- * and local pointer/keyboard input wakes the box, since controllers are handled
- * backend-side over evdev but a mouse is not.
+ * and local pointer/keyboard input wakes the box, since a mouse is not a
+ * controller — a pad's first press is swallowed into a wake by the host's input
+ * bus, which is also why the stage below is READ from the store rather than
+ * rebuilt from the three events: the bus lets go of the pad after a grace
+ * period if the box never answers, and an overlay built from its own copy would
+ * still be on screen at that point. A black rectangle over a live cursor is the
+ * fault the guard exists to prevent.
  *
  * One media catalogue is fetched per game *as it comes up*, not for the whole
  * library at once: a shelf of two hundred games would otherwise fire two
@@ -28,7 +33,7 @@
 const ROTATE_MS = 9000
 
 export const createScreensaver = (sdk, Box3D) => {
-  const { html, useState, useEffect, useRef } = sdk.ui
+  const { html, useState, useEffect } = sdk.ui
 
   /** Every game on the box, flattened, in one pass. */
   const useShelf = (active) => {
@@ -82,20 +87,9 @@ export const createScreensaver = (sdk, Box3D) => {
          onError=${(e) => { e.target.style.visibility = 'hidden' }} />`
 
   return () => {
-    const [stage, setStage] = useState('off')
+    const stage = sdk.nav.use(s => s.standby)
     const [idx, setIdx] = useState(0)
     const [clock, setClock] = useState('')
-    const stageRef = useRef(stage)
-    useEffect(() => { stageRef.current = stage }, [stage])
-
-    useEffect(() => {
-      const offs = [
-        sdk.system.onWsEvent('standby:screensaver', () => setStage('screensaver')),
-        sdk.system.onWsEvent('standby:sleep', () => setStage('sleep')),
-        sdk.system.onWsEvent('standby:exit', () => setStage('off')),
-      ]
-      return () => offs.forEach(o => o())
-    }, [])
 
     // A mouse is not a controller: the backend never sees it.
     useEffect(() => {

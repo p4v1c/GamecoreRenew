@@ -17,6 +17,21 @@ interface GamecoreStore {
   // jumps back on screen while the OS is powering off
   powerPending: string | null
 
+  /**
+   * What the box is doing about power, as the backend last said.
+   *
+   * Here rather than inside the standby overlay because it is not the
+   * overlay's business: the input bus has to know, and a theme may draw its
+   * own screensaver — Summer does — or none at all. A guard that lived in the
+   * picture would be lost with the picture.
+   *
+   *   'off'         awake
+   *   'screensaver' the slideshow is up, the panel is still lit
+   *   'sleep'       the backend has cut the panel through DPMS
+   */
+  standby: 'off' | 'screensaver' | 'sleep'
+  setStandby: (stage: 'off' | 'screensaver' | 'sleep') => void
+
   // Session
   sessionGameKey: string | null
   sessionSystemId: string | null
@@ -53,6 +68,7 @@ export const useStore = create<GamecoreStore>((set) => ({
   gridPage: 0,
   modalDepth: 0,
   powerPending: null,
+  standby: 'off',
   sessionGameKey: null,
   sessionSystemId: null,
   remapRequest: 0,
@@ -66,5 +82,6 @@ export const useStore = create<GamecoreStore>((set) => ({
   openModal: () => set(s => ({ modalDepth: s.modalDepth + 1 })),
   closeModal: () => set(s => ({ modalDepth: Math.max(0, s.modalDepth - 1) })),
   setPowerPending: (action) => set({ powerPending: action }),
+  setStandby: (stage) => set({ standby: stage }),
   requestRemap: () => set(s => ({ remapRequest: s.remapRequest + 1 })),
 }))
