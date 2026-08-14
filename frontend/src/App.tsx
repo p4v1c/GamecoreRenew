@@ -29,7 +29,12 @@ const SPLASH_WATCHDOG_MS = 20000
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true)
-  const { goHome, setSession, sessionGameKey } = useStore()
+  // One subscription per value: this is the root, so a re-render here is a
+  // re-render of the entire shell. Bare, it took one on every field in the
+  // store — the library cursor included. See components/shellRerender.test.tsx.
+  const goHome = useStore(s => s.goHome)
+  const setSession = useStore(s => s.setSession)
+  const sessionGameKey = useStore(s => s.sessionGameKey)
 
   const sessionRef = useRef(sessionGameKey)
   useEffect(() => { sessionRef.current = sessionGameKey }, [sessionGameKey])

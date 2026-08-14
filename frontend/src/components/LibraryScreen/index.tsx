@@ -30,7 +30,17 @@ interface Props {
 }
 
 export default function LibraryScreen({ view: View = DefaultLibraryView, omit }: Props = {}) {
-  const { selectedSystemId, selectedGameIdx, goHome, setSelectedGameIdx, setSession, modalDepth, screen, sessionGameKey } = useStore()
+  // One subscription per value. Bare, this screen re-rendered on every field
+  // in the store — `gridFocusIdx` among them, so walking the dashboard
+  // re-rendered the library hidden behind it. See shellRerender.test.tsx.
+  const selectedSystemId = useStore(s => s.selectedSystemId)
+  const selectedGameIdx = useStore(s => s.selectedGameIdx)
+  const goHome = useStore(s => s.goHome)
+  const setSelectedGameIdx = useStore(s => s.setSelectedGameIdx)
+  const setSession = useStore(s => s.setSession)
+  const modalDepth = useStore(s => s.modalDepth)
+  const screen = useStore(s => s.screen)
+  const sessionGameKey = useStore(s => s.sessionGameKey)
   const modalDepthRef = useRef(modalDepth)
   const screenRef = useRef(screen)
   useEffect(() => { modalDepthRef.current = modalDepth }, [modalDepth])
@@ -56,7 +66,8 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
 
   // The search keyboard counts as a modal: while it's open, global bindings
   // (Options → Settings, Share → Power) must not fire on top of it.
-  const { openModal, closeModal } = useStore()
+  const openModal = useStore(s => s.openModal)
+  const closeModal = useStore(s => s.closeModal)
   useEffect(() => {
     if (!showSearch) return
     openModal()

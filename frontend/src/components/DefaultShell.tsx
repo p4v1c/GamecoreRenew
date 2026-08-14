@@ -164,7 +164,19 @@ export default function DefaultShell(parts: ShellParts = {}) {
   const [showPower, setShowPower] = useState(false)
   const [showGamepad, setShowGamepad] = useState(false)
   const [startInWizard, setStartInWizard] = useState(false)
-  const { screen, sessionGameKey, remapRequest } = useStore()
+  /**
+   * One subscription per value, not one to the whole store.
+   *
+   * Both screens stay mounted for the session — the shell hides one with
+   * `display: none` so that going home does not re-fetch — which means anything
+   * that re-renders this component re-renders BOTH of them, plus the wall and
+   * the bar. `useStore()` with no selector subscribes to every field, so moving
+   * the cursor one game along the shelf re-rendered the whole dashboard behind
+   * it, invisibly, once per press. See shellRerender.test.tsx.
+   */
+  const screen = useStore(s => s.screen)
+  const sessionGameKey = useStore(s => s.sessionGameKey)
+  const remapRequest = useStore(s => s.remapRequest)
 
   // The unrecognised-controller toast asks for the wizard; the shell is what
   // can grant it, because it owns which modal is up. Straight into the wizard

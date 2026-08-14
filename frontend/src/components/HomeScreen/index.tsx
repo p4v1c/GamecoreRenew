@@ -31,7 +31,17 @@ interface Props {
 }
 
 export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }: Props) {
-  const { goLibrary, gridFocusIdx, gridPage, setGridFocus, setGridPage, modalDepth, screen } = useStore()
+  // One subscription per value. A bare `useStore()` subscribes to every field,
+  // so this screen re-rendered on `selectedGameIdx` — a value it does not read
+  // and cannot show — for every step the player took in the library, while it
+  // was hidden behind it. Same in DefaultShell, and see shellRerender.test.tsx.
+  const goLibrary = useStore(s => s.goLibrary)
+  const gridFocusIdx = useStore(s => s.gridFocusIdx)
+  const gridPage = useStore(s => s.gridPage)
+  const setGridFocus = useStore(s => s.setGridFocus)
+  const setGridPage = useStore(s => s.setGridPage)
+  const modalDepth = useStore(s => s.modalDepth)
+  const screen = useStore(s => s.screen)
 
   // A theme may ask for a different grid — one long row of big icons, say.
   // The navigation below is unchanged and still owns paging, focus and wrap:
