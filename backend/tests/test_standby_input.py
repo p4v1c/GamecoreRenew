@@ -1,0 +1,244 @@
+"""What the box counts as somebody being there.
+
+Reported from the sofa: standby "n'est pas très réactif, on dirait qu'il faut
+que j'appuie sur le pad de ma PS4 pour réveiller le boîtier". That is not a
+feeling, it is the rule the code had: `_watch_device` counted `EV_KEY` down and
+nothing else.
+
+On a DualShock 4 — the pad on the box — the d-pad is not EV_KEY. hid-playstation
+reports it as a hat, `ABS_HAT0X` / `ABS_HAT0Y`, and the sticks are `ABS_*` too.
+So the two most natural ways to say "I am here" were invisible:
+
+  · pressing a direction did not wake the box, and
+  · worse, it did not reset the idle timer either — browse a menu with the stick
+    alone and the screensaver comes up while you are using it.
+
+The fix cannot be "count every ABS event": a resting stick reports constantly,
+and a box that treats jitter as activity never sleeps at all. So movement is
+what counts, measured against the axis's own travel — which is why the decision
+is a function that can be asked directly, instead of a condition buried in an
+async read loop nobody can drive from a test.
+"""
+import sys
+import types
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+import pytest
+
+from backend.services import gamepad_monitor as gm
+
+
+EV_KEY, EV_ABS, EV_SYN = 1, 3, 0
+BTN_SOUTH = 0x130
+ABS_X, ABS_Y = 0x00, 0x01
+ABS_Z, ABS_RZ = 0x02, 0x05          # the triggers on a DualShock 4
+ABS_HAT0X, ABS_HAT0Y = 0x10, 0x11   # the d-pad
+
+
+class FakeAbsInfo:
+    def __init__(self, minimum, maximum):
+        self.min, self.max = minimum, maximum
+
+
+class FakePad:
+    """Just enough of evdev.InputDevice for the classifier: axis ranges."""
+
+    RANGES = {
+        ABS_X: (0, 255), ABS_Y: (0, 255),        # sticks, resting at 128
+        ABS_Z: (0, 255), ABS_RZ: (0, 255),       # triggers, resting at 0
+        ABS_HAT0X: (-1, 1), ABS_HAT0Y: (-1, 1),  # d-pad, three positions
+    }
+
+    name = "Wireless Controller"
+
+    def absinfo(self, code):
+        if code not in self.RANGES:
+            raise KeyError(code)
+        return FakeAbsInfo(*self.RANGES[code])
+
+
+def ev(type_, code, value):
+    return types.SimpleNamespace(type=type_, code=code, value=value)
+
+
+@pytest.fixture
+def watch():
+    return gm.ActivityFilter(FakePad())
+
+
+# ── buttons, which already worked and must go on working ─────────────────────
+
+def test_a_button_press_is_activity(watch):
+    assert watch.is_activity(ev(EV_KEY, BTN_SOUTH, 1))
+
+
+def test_releasing_a_button_is_not(watch):
+    # The press already counted. Counting the release too would double every
+    # press and, more to the point, a pad left with a button under a cushion
+    # would report forever.
+    assert not watch.is_activity(ev(EV_KEY, BTN_SOUTH, 0))
+
+
+def test_an_event_that_is_neither_key_nor_axis_is_not(watch):
+    assert not watch.is_activity(ev(EV_SYN, 0, 0))
+
+
+# ── the d-pad, which is a hat and was invisible ──────────────────────────────
+
+@pytest.mark.parametrize("code", [ABS_HAT0X, ABS_HAT0Y])
+@pytest.mark.parametrize("value", [-1, 1])
+def test_the_dpad_is_activity(watch, code, value):
+    # The reported symptom, exactly: a direction on a DualShock 4 is a hat, so
+    # it woke nothing and reset nothing.
+    assert watch.is_activity(ev(EV_ABS, code, value))
+
+
+def test_letting_the_dpad_go_is_not(watch):
+    watch.is_activity(ev(EV_ABS, ABS_HAT0X, 1))
+    assert not watch.is_activity(ev(EV_ABS, ABS_HAT0X, 0))
+
+
+# ── the sticks, where counting everything would be worse than counting none ──
+
+def test_a_stick_at_rest_is_not_activity(watch):
+    # The whole reason this is not simply "any ABS event". A resting stick
+    # reports a trickle of noise around its centre, and a box that treated that
+    # as somebody being there would never sleep — which is a worse bug than the
+    # one being fixed, and the one an obvious fix would have introduced.
+    watch.is_activity(ev(EV_ABS, ABS_X, 128))
+    for jitter in (127, 129, 128, 130, 126, 131, 125):
+        assert not watch.is_activity(ev(EV_ABS, ABS_X, jitter))
+
+
+def test_pushing_a_stick_is_activity(watch):
+    watch.is_activity(ev(EV_ABS, ABS_X, 128))
+    assert watch.is_activity(ev(EV_ABS, ABS_X, 255))
+
+
+def test_letting_a_pushed_stick_spring_back_is_activity(watch):
+    # Still the player's hand. Measured as travel rather than position, so the
+    # way back counts the same as the way out.
+    watch.is_activity(ev(EV_ABS, ABS_X, 128))
+    watch.is_activity(ev(EV_ABS, ABS_X, 255))
+    assert watch.is_activity(ev(EV_ABS, ABS_X, 128))
+
+
+def test_a_slow_drift_across_the_whole_axis_is_not(watch):
+    # A worn stick can wander a long way without anyone touching it, one step
+    # at a time. Travel is measured against the last reported value, so a drift
+    # never adds up to a press however far it goes.
+    watch.is_activity(ev(EV_ABS, ABS_X, 128))
+    for v in range(128, 256, 4):
+        assert not watch.is_activity(ev(EV_ABS, ABS_X, v))
+
+
+def test_pulling_a_trigger_is_activity(watch):
+    # Triggers rest at their minimum, not their centre — which is why the test
+    # is here: a rule written as "far from the middle" would call a resting
+    # trigger a held one, and the box would never sleep with a pad plugged in.
+    watch.is_activity(ev(EV_ABS, ABS_Z, 0))
+    assert watch.is_activity(ev(EV_ABS, ABS_Z, 255))
+
+
+def test_a_resting_trigger_is_not(watch):
+    watch.is_activity(ev(EV_ABS, ABS_Z, 0))
+    for v in (0, 1, 0, 2, 0):
+        assert not watch.is_activity(ev(EV_ABS, ABS_Z, v))
+
+
+def test_the_first_reading_of_an_axis_only_takes_a_bearing(watch):
+    # A pad announces every axis when it connects. Treating that burst as
+    # activity would wake the box each time a Bluetooth pad re-paired itself in
+    # the night, which is the same reason the frontend ignores gp:connected.
+    assert not watch.is_activity(ev(EV_ABS, ABS_X, 255))
+    assert not watch.is_activity(ev(EV_ABS, ABS_RZ, 255))
+
+
+def test_an_axis_the_pad_cannot_describe_is_ignored(watch):
+    # No absinfo, no way to know what "a long way" means on that axis. Silence
+    # is the safe answer: the alternative is a box that never sleeps because
+    # some device reports an axis nobody can measure.
+    assert not watch.is_activity(ev(EV_ABS, 0x28, 4000))
+    assert not watch.is_activity(ev(EV_ABS, 0x28, 0))
+
+
+def test_each_axis_is_judged_on_its_own(watch):
+    watch.is_activity(ev(EV_ABS, ABS_X, 128))
+    watch.is_activity(ev(EV_ABS, ABS_Y, 128))
+    assert watch.is_activity(ev(EV_ABS, ABS_Y, 255))
+    assert not watch.is_activity(ev(EV_ABS, ABS_X, 130))
+
+
+# ── and the wiring, because a correct rule the loop never asks is not a fix ───
+
+class FakeReadLoop:
+    """A device that hands the watcher a fixed script of events, then stops."""
+
+    name = "Wireless Controller"
+    RANGES = FakePad.RANGES
+
+    def __init__(self, events):
+        self._events = events
+        self.closed = False
+
+    def absinfo(self, code):
+        if code not in self.RANGES:
+            raise KeyError(code)
+        return FakeAbsInfo(*self.RANGES[code])
+
+    def async_read_loop(self):
+        async def gen():
+            for e in self._events:
+                yield e
+        return gen()
+
+    def close(self):
+        self.closed = True
+
+
+@pytest.fixture
+def watched(monkeypatch):
+    """Run `_watch_device` over a script and report what standby was told."""
+    import asyncio
+
+    def run(events):
+        seen = {"n": 0}
+        device = FakeReadLoop(events)
+
+        module = types.ModuleType("evdev")
+        module.InputDevice = lambda path: device
+        monkeypatch.setitem(sys.modules, "evdev", module)
+
+        from backend.services import standby
+        monkeypatch.setattr(standby, "on_input", lambda: seen.__setitem__("n", seen["n"] + 1))
+
+        asyncio.run(gm._watch_device("/dev/input/event0"))
+        return seen["n"]
+
+    return run
+
+
+def test_the_loop_reports_a_dpad_press_as_activity(watched):
+    # The whole report in one line: on the pad this box is used with, pressing
+    # a direction told standby nothing at all.
+    assert watched([ev(EV_ABS, ABS_HAT0X, 1)]) == 1
+
+
+def test_the_loop_still_reports_a_button(watched):
+    assert watched([ev(EV_KEY, BTN_SOUTH, 1)]) == 1
+
+
+def test_the_loop_reports_a_stick_being_pushed(watched):
+    assert watched([ev(EV_ABS, ABS_X, 128), ev(EV_ABS, ABS_X, 255)]) == 1
+
+
+def test_the_loop_stays_quiet_for_a_pad_sitting_on_the_sofa(watched):
+    # The failure an over-eager fix produces: a box that never sleeps. This is
+    # what a connected, untouched DualShock 4 actually sends.
+    noise = [ev(EV_ABS, ABS_X, 128), ev(EV_ABS, ABS_Y, 128), ev(EV_ABS, ABS_Z, 0)]
+    noise += [ev(EV_ABS, ABS_X, 128 + (i % 3) - 1) for i in range(30)]
+    noise += [ev(EV_SYN, 0, 0) for _ in range(30)]
+    noise += [ev(EV_KEY, BTN_SOUTH, 0)]
+    assert watched(noise) == 0

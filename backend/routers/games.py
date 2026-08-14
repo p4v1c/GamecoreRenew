@@ -16,6 +16,7 @@ from ..services import (
     fullscreen_enforcer,
     local_media,
     pergame,
+    standby,
     usb_devices,
 )
 from ..services import process_manager as process_manager_module
@@ -273,6 +274,25 @@ async def launch_game(req: LaunchRequest):
             })
         except Exception:
             log.exception("launch: failed to broadcast game:notice")
+
+    # A game starting is the end of standby, and the screen has to be back
+    # before there is anything to see on it.
+    #
+    # The pad is not the only thing that can start a game — the web UI on a
+    # phone posts this same endpoint — so a launch could arrive while the box
+    # was asleep, and nothing here undid it. `standby.run()` holds the idle
+    # clock while a game runs, but it never cancels a standby that had already
+    # begun: the emulator came up behind a panel switched off through DPMS.
+    #
+    # It matters more since the front end started reading that state to decide
+    # whether a press is a command or a wake. Left in "sleep", it swallows
+    # everything — gp:guide included, which is the only way to end a game. A
+    # black screen, a running emulator and a pad that cannot stop it.
+    #
+    # After the 404 and the BIOS/USB gates, so a request that was never going to
+    # launch anything cannot keep the box awake; before the emulator, and before
+    # the slot work, because none of that is worth doing onto a dark screen.
+    await standby.exit_standby()
 
     # Before launch, not after: the emulator reads its input config at startup,
     # so a slot freed a moment later is a slot the running game still sees.

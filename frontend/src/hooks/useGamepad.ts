@@ -22,6 +22,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { playSound, soundForGpEvent } from '../lib/sounds'
+import { api } from '../api'
 import { rumble, rumbleForGpEvent } from '../lib/rumble'
 
 const DEAD_ZONE = 0.5
@@ -44,7 +45,76 @@ const BTN = {
 type FrameListener = (gp: Gamepad | null) => void
 const frameListeners = new Set<FrameListener>()
 
+/**
+ * How long a press is allowed to mean "wake up" and nothing else.
+ *
+ * The guard below swallows input until the backend says the box is awake. If
+ * that word never comes — websocket down, backend wedged — the pad would stop
+ * working with no screen left to explain why, which is worse than anything the
+ * guard prevents. So the swallow is bounded: ask, wait this long, then let go
+ * whatever happened.
+ */
+export const WAKE_GRACE_MS = 4000
+
+/** Events that are news about the pad, not something the player did with it. */
+const NOT_INPUT = new Set(['gp:connected', 'gp:disconnected'])
+
+let wakePending = false
+let wakeTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearWake() {
+  if (wakeTimer) clearTimeout(wakeTimer)
+  wakeTimer = null
+  wakePending = false
+}
+
+/**
+ * Ask the box to wake, once per sleep, however hard the player mashes.
+ *
+ * The backend wakes on evdev already — but evdev is exactly what a box whose
+ * account is outside the `input` group does not have, and gamepad_monitor says
+ * so itself: a refused device is "invisible everywhere". Chromium still sees
+ * the pad, so the frontend asks too. Two routes to the same idempotent call.
+ */
+function askToWake() {
+  if (wakePending) return
+  wakePending = true
+  api.standby.exit().catch(() => {})
+  wakeTimer = setTimeout(() => {
+    wakeTimer = null
+    wakePending = false
+    if (useStore.getState().standby !== 'off') useStore.getState().setStandby('off')
+  }, WAKE_GRACE_MS)
+}
+
+// The flag follows the truth rather than being cleared by hand: the box waking
+// is what ends the wake, and that arrives over the websocket, not through here.
+useStore.subscribe((s, prev) => {
+  if (s.standby === 'off' && prev.standby !== 'off') clearWake()
+})
+
 function emit(name: string, detail?: unknown) {
+  // Asleep, the first press is a wake and only a wake.
+  //
+  // The standby overlay is a picture — it covers the screen and stops nothing
+  // — and in `sleep` there is not even a picture, because the panel is off
+  // through DPMS. Without this the cursor moved, menus opened and ✕ launched a
+  // game onto a television that was switched off. See standbyInput.test.ts.
+  //
+  // Here rather than in the overlay, because a theme draws its own standby
+  // screen and a guard living in the picture is lost with the picture.
+  //
+  // Two things are not guarded. A pad arriving or leaving, because those are
+  // not presses — a Bluetooth pad that re-pairs by itself in the night would
+  // otherwise wake the box every time it flapped. And anything at all while a
+  // game is running: the backend wakes the box on launch, but if those two ever
+  // disagree this guard would swallow gp:guide, which is the only way to end a
+  // game. A stuck flag must never cost the player the button that gets them
+  // out. The session rule below takes over there, unchanged.
+  if (!NOT_INPUT.has(name) && !isPlaying() && useStore.getState().standby !== 'off') {
+    askToWake()
+    return
+  }
   const sound = soundForGpEvent(name)
   if (sound) playSound(sound)
   // Both feedback channels fire from here, from the same decision, so a theme
@@ -90,6 +160,18 @@ export function useGamepad() {
           const wasPressed = prevButtons.current[i] ?? false
 
           if (pressed && !wasPressed) {
+            // Asleep, every button is the same button: the one that wakes the
+            // box. Checked here as well as in emit() because the two branches
+            // below leave without going through it — the guide's first press
+            // is only remembered, so a single PS on a sleeping box would have
+            // asked for nothing at all. Never while a game runs, for the reason
+            // emit() gives.
+            if (!playing && useStore.getState().standby !== 'off') {
+              askToWake()
+              prevButtons.current[i] = pressed
+              return
+            }
+
             // Guide/PS button always passes through — used to kill the emulator.
             // The browser may or may not expose it (Chromium often blocks it);
             // the backend evdev monitor is the primary path for this button.

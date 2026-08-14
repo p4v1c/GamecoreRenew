@@ -39,8 +39,14 @@ import * as defaults from '../components/defaults'
  *
  * `compatible: api <= SDK_VERSION` is the gate that was supposed to prevent
  * exactly this. It can only work if the number moves when the contract does.
+ *
+ * 3 adds `standby` to the store, and both shipped themes now read it — Summer's
+ * screensaver keys its whole overlay off it. On a front end that does not have
+ * it, `s.standby` is `undefined`, `undefined !== 'off'` is true, and Summer
+ * draws a black rectangle over the box forever. That is a refusal, not a
+ * degradation, so the number moves.
  */
-export const SDK_VERSION = 2
+export const SDK_VERSION = 3
 
 /** Every gamepad event a theme may subscribe to. gp:guide is intentionally absent. */
 export const GP_EVENTS = [
@@ -137,6 +143,20 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
           // Read-only on purpose: these are the core's focus and shutdown locks.
           modalDepth: s.modalDepth,
           powerPending: s.powerPending,
+          /**
+           * 'off' | 'screensaver' | 'sleep'.
+           *
+           * A theme drawing its own standby screen should read THIS rather than
+           * keep its own copy built from the three `standby:*` events. The bus
+           * swallows the first press into a wake and gives up after a grace
+           * period if the box never answers; a theme mirroring the events
+           * separately would keep its overlay on screen after that, which is a
+           * black rectangle over a live cursor — the exact fault the guard
+           * exists to prevent, reintroduced one level down.
+           *
+           * Reactive form: sdk.nav.use(s => s.standby).
+           */
+          standby: s.standby,
         }
       },
       goHome: () => useStore.getState().goHome(),

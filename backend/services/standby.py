@@ -164,25 +164,41 @@ def on_input() -> None:
         task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 
 
-async def run() -> None:
+async def _tick(cfg: dict) -> None:
+    """One pass of the watcher. A function so a test can ask for one.
+
+    Otherwise the only way to exercise any of this is to wait _POLL_SECS of real
+    time for the loop to come round, which is why none of it was covered.
+    """
+    global _last_input
     from .process_manager import process_manager
 
+    if not cfg["enabled"]:
+        # The clock stops with the switch, and this line is the fix.
+        #
+        # It used to `continue` and leave `_last_input` where it was, so the
+        # counter went on accumulating against a threshold nobody was
+        # measuring. Turn standby off, use the box all afternoon, turn it back
+        # on — and it slept within one poll, straight past the screensaver,
+        # because it believed nobody had touched it since lunchtime.
+        _last_input = time.monotonic()
+        return
+    if process_manager.is_running:
+        # A game counts as activity — idle starts when it exits
+        _last_input = time.monotonic()
+        return
+    idle_mins = (time.monotonic() - _last_input) / 60
+    if idle_mins >= cfg["sleep_mins"]:
+        await _enter("sleep")
+    elif idle_mins >= cfg["screensaver_mins"]:
+        await _enter("screensaver")
+
+
+async def run() -> None:
     log.info("standby: watcher started")
-    global _last_input
     while True:
         await asyncio.sleep(_POLL_SECS)
         try:
-            cfg = load_config()
-            if not cfg["enabled"]:
-                continue
-            if process_manager.is_running:
-                # A game counts as activity — idle starts when it exits
-                _last_input = time.monotonic()
-                continue
-            idle_mins = (time.monotonic() - _last_input) / 60
-            if idle_mins >= cfg["sleep_mins"]:
-                await _enter("sleep")
-            elif idle_mins >= cfg["screensaver_mins"]:
-                await _enter("screensaver")
+            await _tick(load_config())
         except Exception:
             log.exception("standby: tick failed")

@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { onWsEvent } from '../hooks/useWebSocket'
+import { useStore } from '../store'
 import { api } from '../api'
 
 type Stage = 'off' | 'screensaver' | 'sleep'
@@ -12,25 +12,21 @@ const ROTATE_MS = 9000
  *  standby:sleep       → black (the backend turns the screen off via DPMS;
  *                        black avoids a bright flash before/after)
  *  standby:exit        → hidden
- *  Local mouse/keyboard input also wakes the box (controllers are handled
- *  backend-side through evdev). */
+ *  Local mouse/keyboard input also wakes the box (controllers go through the
+ *  input bus, which swallows the first press into a wake — see useGamepad).
+ *
+ *  The stage is read from the store rather than from the websocket directly,
+ *  and that is not tidiness. The bus swallows input until the box says it is
+ *  awake and gives up after WAKE_GRACE_MS if it never does. Mirroring the same
+ *  events into a second piece of state meant that giving up restored the pad
+ *  while this overlay stayed on screen — a black rectangle with a live cursor
+ *  behind it, which is the bug this whole change exists to remove. One value,
+ *  so they cannot disagree. */
 export default function Screensaver() {
-  const [stage, setStage] = useState<Stage>('off')
+  const stage = useStore(s => s.standby) as Stage
   const [covers, setCovers] = useState<{ url: string; name: string }[]>([])
   const [idx, setIdx] = useState(0)
   const [clock, setClock] = useState('')
-  const stageRef = useRef(stage)
-  useEffect(() => { stageRef.current = stage }, [stage])
-
-  // WS wiring
-  useEffect(() => {
-    const offs = [
-      onWsEvent('standby:screensaver', () => setStage('screensaver')),
-      onWsEvent('standby:sleep', () => setStage('sleep')),
-      onWsEvent('standby:exit', () => setStage('off')),
-    ]
-    return () => offs.forEach(o => o())
-  }, [])
 
   // Local (non-gamepad) input wakes the box too
   useEffect(() => {
