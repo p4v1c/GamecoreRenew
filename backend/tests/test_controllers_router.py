@@ -107,7 +107,8 @@ def test_the_saved_mappings_are_listed_and_can_be_dropped(client, monkeypatch):
                         lambda g: bool(store.clear()) or True)
 
     listed = client.get("/api/controllers/mapping/saved").json()
-    assert listed["saved"] == [{"guid": GUID, "name": "Generic Pad", "line": LINE}]
+    assert listed["saved"] == [{"guid": GUID, "name": "Generic Pad",
+                                "line": LINE, "served": True}]
 
     assert client.post("/api/controllers/mapping/forget",
                        json={"guid": GUID}).json()["forgotten"] is True
@@ -142,3 +143,24 @@ def test_the_socket_says_so_when_no_session_is_open(client, monkeypatch):
         message = socket.receive_json()
 
     assert message["event"] == "error"
+
+
+def test_a_stored_mapping_that_is_not_in_force_says_so(client, monkeypatch):
+    """Stored and served are different states, and the screen must not show
+    them as one.
+
+    A capture is measured through /dev/input; for a pad SDL reads through a
+    HIDAPI driver it is another driver's numbering, so `mapping_db.servable`
+    keeps it out of the file SDL is given. It stays in the owner's file — but a
+    list that could not say which lines are live would show a mapping that is
+    doing nothing exactly like one that is working, which is how the reference
+    box came to be re-run through the wizard four times.
+    """
+    hidapi = "05008fe54c050000cc09000000006800"
+    line = f"{hidapi},PS4 Controller,a:b0,b:b1,platform:Linux,"
+    monkeypatch.setattr(mapping_db, "read_user", lambda: [LINE, line])
+
+    saved = client.get("/api/controllers/mapping/saved").json()["saved"]
+
+    assert [e["served"] for e in saved] == [True, False]
+

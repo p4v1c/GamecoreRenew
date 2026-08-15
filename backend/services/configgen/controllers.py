@@ -52,6 +52,39 @@ def vidpid_of(guid: str) -> tuple[str, str]:
     return vendor, product
 
 
+# SDL stamps the driver that read a pad into byte 14 of its GUID — `h` (0x68)
+# for one of the HIDAPI drivers, zero for the linux joystick driver that reads
+# /dev/input. Measured on this box, one DualShock 4, the two probes an instant
+# apart:
+#
+#     SDL_JOYSTICK_HIDAPI=1   05008fe54c050000cc09000000006800
+#     SDL_JOYSTICK_HIDAPI=0   05009b514c050000cc09000000810000
+#
+# `derive.evdev_driven()` reaches the same fact by asking SDL twice and
+# comparing, which needs the pad present. This reads it off a saved GUID alone,
+# which is what a caller holding a stored line and no connected pad can do.
+_GUID_DRIVER_BYTE = slice(28, 30)
+
+
+def guid_read_through_evdev(guid: str) -> bool:
+    """Whether the identity in `guid` was read by the driver that reads
+    /dev/input — and therefore whether indices captured from /dev/input are in
+    its numbering.
+
+    False for anything malformed: this answers a question whose wrong answer
+    publishes one driver's button order under another driver's name, so an
+    unreadable GUID is a no.
+    """
+    guid = guid.strip().lower()
+    if len(guid) != 32:
+        return False
+    try:
+        int(guid, 16)
+    except ValueError:
+        return False
+    return guid[_GUID_DRIVER_BYTE] == "00"
+
+
 def db_name_for(vendor: str, product: str) -> str | None:
     """Canonical SDL product name for a vendor:product, from the vendored
     gamecontrollerdb.txt — a LAST resort: it is the SDL2-era community name and

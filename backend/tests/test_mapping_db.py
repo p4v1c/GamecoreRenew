@@ -345,3 +345,73 @@ def test_the_probe_can_tell_the_two_orders_apart(db, tmp_path):
             f"{lib} answered {answer!r} for a file whose LAST line is the "
             f"community one. It is not reading the file under test, so the "
             f"precedence measurement means nothing.")
+
+
+# ── what a capture is allowed to override ────────────────────────────────────
+#
+# The measured cost of getting this wrong is larger than the wizard's whole
+# benefit. `SDL_GAMECONTROLLERCONFIG_FILE` is exported to EVERY game the box
+# launches, and the last line for a GUID wins — so a captured line does not sit
+# beside SDL's built-in mapping for that pad, it replaces it, in RPCS3, Dolphin,
+# Ryujinx, PCSX2 and DuckStation at once.
+#
+# A capture is read through /dev/input. That is the numbering of the linux
+# joystick driver, and it is the pad's real numbering only when SDL reads it the
+# same way. For the Sony, Microsoft and Nintendo families SDL uses a HIDAPI
+# driver instead, and stamps it into byte 14 of the GUID. Measured, one
+# DualShock 4, both probes an instant apart:
+#
+#     SDL_JOYSTICK_HIDAPI=1   05008fe54c050000cc09000000006800
+#     SDL_JOYSTICK_HIDAPI=0   05009b514c050000cc09000000810000
+
+HIDAPI_GUID = "05008fe54c050000cc09000000006800"
+HIDAPI_LINE = f"{HIDAPI_GUID},PS4 Controller,{PROBE_BODY}"
+
+
+def test_a_capture_for_a_hidapi_pad_is_not_served(db):
+    """It would replace SDL's own mapping with another driver's button order.
+
+    Measured on the reference box after the wizard ran: SDL answered `start:b6,
+    back:b4, leftshoulder:b9` for a DualShock 4 on its own, and `start:b9,
+    back:b8, leftshoulder:b4` once the served file reached it. Every emulator
+    that asks SDL what the pad is was being told the second.
+    """
+    mapping_db.upsert(HIDAPI_LINE)
+    served = mapping_db.served().read_text()
+
+    assert HIDAPI_LINE not in served
+    assert COMMUNITY_LINE in served, "the community database is untouched"
+
+
+def test_the_owners_file_still_holds_what_they_captured(db):
+    """Not served is not deleted. `USER_DB` is the owner's work, it survives
+    updates by design, and `remove()` is the one thing that drops a capture."""
+    mapping_db.upsert(HIDAPI_LINE)
+
+    assert mapping_db.read_user() == [HIDAPI_LINE]
+    assert HIDAPI_LINE in mapping_db.USER_DB.read_text()
+
+
+def test_a_capture_for_a_pad_sdl_does_not_drive_is_still_served(db):
+    """The case the wizard exists for, and the one this must not touch.
+
+    A pad SDL has no HIDAPI driver for is a pad SDL reads through /dev/input —
+    the same source the capture came from — so the numbers agree and SDL has no
+    mapping of its own to overrule.
+    """
+    mapping_db.upsert(USER_LINE)
+    served = mapping_db.served().read_text()
+
+    assert served.index(USER_LINE) > served.index(COMMUNITY_LINE), (
+        "the capture must still be the last word for its GUID")
+
+
+def test_the_driver_byte_is_read_and_not_guessed():
+    """Byte 14 is SDL's driver stamp. A GUID that cannot be read is a no: the
+    wrong answer here publishes one driver's button order under another's."""
+    from backend.services.configgen import controllers
+
+    assert controllers.guid_read_through_evdev(PROBE_GUID)
+    assert not controllers.guid_read_through_evdev(HIDAPI_GUID)
+    for junk in ("", "not-a-guid", PROBE_GUID[:-1], "zz" + PROBE_GUID[2:]):
+        assert not controllers.guid_read_through_evdev(junk), junk

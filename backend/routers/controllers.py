@@ -110,12 +110,19 @@ def mapping_saved():
     that survives an OTA, so it is also the only thing that can be trusted to
     describe what the box will still know tomorrow.
     """
+    lines = mapping_db.read_user()
+    live = set(mapping_db.servable(lines))
     saved = []
-    for line in mapping_db.read_user():
+    for line in lines:
         parsed = mapping_db.parse(line)
         if parsed:
             guid, name, _bindings = parsed
-            saved.append({"guid": guid, "name": name, "line": line})
+            # Stored and served are not the same thing — see `mapping_db.
+            # servable`. A capture for a pad SDL drives through HIDAPI is kept
+            # here and not handed to SDL, and a screen that could not say so
+            # would show the owner a mapping that is doing nothing.
+            saved.append({"guid": guid, "name": name, "line": line,
+                          "served": line in live})
     return {"ok": True, "saved": saved, "file": str(mapping_db.USER_DB)}
 
 
