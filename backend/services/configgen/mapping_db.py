@@ -45,6 +45,27 @@ an emulator that ignores it.
 
 `test_mapping_db.py` re-runs that probe against every SDL it can find, so the
 day an SDL release changes its mind the suite says so instead of the pad.
+
+## Winning is not always the right outcome
+
+That same property is why a captured line is not automatically served. Last
+wins means a capture REPLACES SDL's built-in mapping for its GUID rather than
+supplementing it — in every emulator the box launches at once, since
+`process_manager` exports this file to all of them.
+
+A capture is measured through /dev/input, so it is the pad's real numbering
+only for a pad SDL reads the same way. For the Sony, Microsoft and Nintendo
+families SDL uses a HIDAPI driver whose button order is different, and it says
+so in the GUID's byte 14. Measured on the reference box after the wizard first
+ran, one DualShock 4:
+
+    SDL on its own          x:b2  y:b3  back:b4  start:b6  leftshoulder:b9
+    SDL given this file     x:b3  y:b2  back:b8  start:b9  leftshoulder:b4
+
+`servable()` is the rule that follows: what the owner captured is stored for
+ever and served only where it is true. Stored and served are different states,
+and `/controllers/mapping/saved` reports both, because a capture that is doing
+nothing must not look like one that is working.
 """
 from __future__ import annotations
 
@@ -52,6 +73,7 @@ import logging
 import re
 from pathlib import Path
 
+from . import controllers
 from .controllers import DB_FILE
 from .helpers.base import atomic_write
 
@@ -145,6 +167,45 @@ def read_user() -> list[str]:
     return [ln.strip() for ln in text.splitlines() if parse(ln)]
 
 
+def servable(lines: list[str]) -> list[str]:
+    """The captured lines it is safe to hand SDL, out of everything stored.
+
+    **A capture is measured through /dev/input, and it is only true of a pad
+    SDL reads the same way.** The wizard files one line per SDL identity the
+    pad has, and for a Sony, Microsoft or Nintendo controller those identities
+    belong to a HIDAPI driver whose button order is a different one. SDL keeps
+    the LAST line it reads for a GUID — the property this file is built around
+    — so such a line does not sit harmlessly beside SDL's built-in mapping, it
+    REPLACES it, for every emulator the box launches.
+
+    Measured on the reference box, one DualShock 4, after the wizard ran:
+
+        SDL's own mapping   x:b2  y:b3  back:b4  start:b6  leftshoulder:b9
+        what the served     x:b3  y:b2  back:b8  start:b9  leftshoulder:b4
+        file made it say
+
+    The second is the capture, and every emulator that asks SDL what this pad
+    is — RPCS3, Dolphin, Ryujinx, PCSX2, DuckStation — was being told it. Those
+    five were last verified in game BEFORE the wizard first ran, so the cost of
+    this was never observed; it is measured here rather than reported.
+
+    The line stays in `USER_DB` untouched. That file is the owner's work and
+    nothing here deletes it — `remove()` is how a capture goes away, on
+    purpose. This decides only what is SERVED, which is a derived file.
+    """
+    keep, dropped = [], []
+    for line in lines:
+        parsed = parse(line)
+        guid = parsed[0] if parsed else ""
+        (keep if controllers.guid_read_through_evdev(guid) else dropped).append(line)
+    for line in dropped:
+        log.info("mapping_db: not serving the capture for %s — SDL reads that "
+                 "pad through a driver whose button order is not the one the "
+                 "wizard measured, and SDL already ships a mapping for it",
+                 (parse(line) or ("?",))[0])
+    return keep
+
+
 def upsert(line: str) -> str:
     """Add or replace one captured mapping, then rebuild what SDL reads.
 
@@ -195,13 +256,18 @@ def _write_user(lines: list[str]) -> None:
 
 
 def rebuild() -> Path | None:
-    """Regenerate the served file: community lines, then the owner's.
+    """Regenerate the served file: community lines, then the owner's servable ones.
 
     Returns the path written, or None when there is nothing to serve — no user
     mapping and no vendored database, which is a box with nothing to say and
     must NOT leave an empty file behind for SDL to read as an answer.
+
+    "Servable" and not "stored": see `servable()`. A capture whose GUID names a
+    pad SDL reads through another driver would not be added to SDL's knowledge
+    here, it would REPLACE it — the last-line-wins property this file is built
+    on, working against the box.
     """
-    user = read_user()
+    user = servable(read_user())
     try:
         community = DB_FILE.read_text(encoding="utf-8", errors="replace")
     except OSError:

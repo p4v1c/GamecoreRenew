@@ -665,9 +665,16 @@ def commit(bindings: dict[str, str], name: str = "") -> dict:
         lines.append(line)
 
     missing = sorted({step[0] for step in STEPS} - set(usable) - OPTIONAL)
+    # Saved is not the same as in force. A capture is measured through
+    # /dev/input, and `mapping_db.servable` withholds it from SDL for a pad SDL
+    # reads through a HIDAPI driver instead — where it would REPLACE SDL's own,
+    # correct mapping rather than add to it. Reporting the count rather than
+    # only "ok" is what lets the caller, and the log, tell a capture that took
+    # effect from one that was stored and set aside.
+    served = len(mapping_db.servable(lines))
     cancel()
-    log.info("controller_capture: saved %d line(s) for %s (%d bindings)",
-             len(lines), label, len(usable))
-    return {"ok": True, "controller": label, "lines": lines,
+    log.info("controller_capture: saved %d line(s) for %s (%d bindings), "
+             "%d handed to SDL", len(lines), label, len(usable), served)
+    return {"ok": True, "controller": label, "lines": lines, "served": served,
             "bindings": len(usable), "missing": missing,
             "database": str(mapping_db.USER_DB)}
