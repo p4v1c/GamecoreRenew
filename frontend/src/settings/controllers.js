@@ -138,10 +138,21 @@ export const createControllersPage = (sdk, Rows) => {
       ...(showPacks ? packs.map((p) => (autoOn ? {
         id: `pack:${p.id}`, type: 'toggle', value: p.enabled, confirm: true,
         label: p.label,
+        // Four emulators have no inverse — GameCore can write their config and
+        // cannot empty it. Promising a clear-out there would be warning about a
+        // loss that cannot happen, on the one screen whose whole job is to stop
+        // lying about what is in force.
         confirmText: p.enabled
-          ? `Press again — this clears what GameCore wrote for ${p.label}`
+          ? (p.releasable === false
+              ? `Press again — GameCore stops configuring ${p.label}. What it `
+                + 'already wrote stays as it is'
+              : `Press again — this clears what GameCore wrote for ${p.label}`)
           : `Press again — this replaces your own ${p.label} setup`,
-        desc: p.enabled ? 'Configured automatically' : 'Yours — left untouched',
+        desc: p.enabled
+          ? 'Configured automatically'
+          : (p.releasable === false
+              ? 'Yours — GameCore no longer writes it, and left what was there'
+              : 'Yours — left untouched'),
         danger: p.enabled,
         busy: busy === `pack:${p.id}` ? 'Applying…' : '',
       } : {
@@ -197,7 +208,16 @@ export const createControllersPage = (sdk, Rows) => {
             : (d.released && d.released.length
                 ? `Cleared: ${d.released.join(', ')}. Set your pads up inside `
                   + `${label ? label : 'each emulator'} now.`
-                : 'Nothing was configured, so there was nothing to clear.'))
+                // Two very different reasons for an empty list, and saying the
+                // wrong one is how somebody concludes the switch did nothing.
+                // The first four emulators keep their config because GameCore
+                // has no way to un-write it — the switch still took effect, it
+                // just has nothing to undo.
+                : (pack && (packs.find((p) => p.id === pack) || {}).releasable === false
+                    ? `${label} is yours now — GameCore will not write it again. `
+                      + 'What it wrote before is still there, so your pad keeps '
+                      + 'working until you change it inside the emulator.'
+                    : 'Nothing had been configured, so there was nothing to clear.')))
         })
         .catch(() => setMsg('Could not reach the backend.'))
         .finally(() => setBusy(''))

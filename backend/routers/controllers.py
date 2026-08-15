@@ -94,6 +94,10 @@ def _autoconfig_view() -> dict:
     global switch off, every emulator is off whatever its own row says. A screen
     that showed only `enabled` would present rows reading "on" for emulators
     that are not running, which is the one thing this feature must not do.
+
+    `releasable` is the second thing the screen cannot work out for itself: four
+    emulators have no inverse, so switching them off empties nothing and the
+    confirmation must not promise it does. See `configgen.can_release`.
     """
     st = controller_autoconfig.state()
     packs = []
@@ -104,6 +108,7 @@ def _autoconfig_view() -> dict:
             "label": pack.data.get("label") or pack.id,
             "enabled": own,
             "effective": st["enabled"] and own,
+            "releasable": controller_profiles.can_release(pack),
         })
     return {"ok": True, "enabled": st["enabled"], "packs": packs}
 

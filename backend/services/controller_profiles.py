@@ -35,6 +35,7 @@ from .configgen import (
     apply_profile,
     forget_mapping,
     autoconfigured_packs,
+    can_release,
     identification,
     profilable_packs,
     release_owned_slots,
@@ -76,7 +77,7 @@ __all__ = [
     # the clean-up it runs before it turns itself off; the two pack lists are
     # what the settings screen lists and what it shows as effectively off.
     "set_autoconfig", "release_owned_slots", "autoconfigured_packs",
-    "profilable_packs",
+    "profilable_packs", "can_release",
     # "can this pad be named at all" — the toast asks it on every arrival, so
     # the wizard is offered exactly where the player notices the pad is dead
     "identification",

@@ -573,6 +573,15 @@ export interface AutoconfigPack {
    * failure this whole feature is trying not to become.
    */
   effective: boolean
+  /**
+   * Whether this emulator has an inverse at all.
+   *
+   * Four of the ten do not — they bind by GUID and raw indices, so nothing
+   * frees them when a pad leaves either. Switching autoconfig off for one of
+   * those empties nothing, and the confirmation has to say so rather than
+   * promise a clear-out that cannot happen.
+   */
+  releasable?: boolean
 }
 
 export interface AutoconfigState {

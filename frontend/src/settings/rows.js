@@ -51,6 +51,31 @@ export const createRows = (sdk) => {
     const ref = useRef({ idx, rows, armed })
     useEffect(() => { ref.current = { idx, rows, armed } }, [idx, rows, armed])
 
+    // Keep the focused row on screen.
+    //
+    // `.gcs-set-main` has always been `overflow: auto`, and this component has
+    // always been the only thing drawing into it that could not scroll: every
+    // host settings page — Bluetooth, BIOS, Storage, Catalog — calls exactly
+    // this line on its own focus change. It went unnoticed here because no page
+    // built on `Rows` had ever been longer than the column, so the cursor could
+    // not leave the visible area. The Controllers page can now: the autoconfig
+    // switch, its exceptions row and one row per emulator take it past a
+    // screenful, and the d-pad walked the highlight down into rows nobody could
+    // see — pressing ✕ on a control that was not on screen.
+    //
+    // `block: 'nearest'` scrolls the minimum needed, so a list that already fits
+    // never moves at all and the top rows do not jump under the heading.
+    const rowRefs = useRef([])
+    useEffect(() => {
+      // `?.scrollIntoView?.()`, both optional. The element can be absent for a
+      // frame after the list changes, and the METHOD can be absent too: jsdom
+      // implements no layout and does not define it, so the plain call threw a
+      // TypeError inside a passive effect and took down every other page built
+      // on this component — Audio, Display, System, Themes — in a change that
+      // was only ever about Controllers.
+      if (active) rowRefs.current[idx]?.scrollIntoView?.({ block: 'nearest' })
+    }, [idx, active, rows.length])
+
     // An armed row that loses the cursor disarms. Otherwise a confirmation set
     // up minutes ago is still waiting under a single press.
     //
@@ -62,6 +87,15 @@ export const createRows = (sdk) => {
       const cur = rows[idx]
       if (armed && (!cur || cur.id !== armed)) setArmed(null)
     }, [idx, rows, armed])
+
+    // A list that shrinks under the cursor must not strand it past the end.
+    // `fire()` reads `rows[idx]` and simply does nothing when that is
+    // undefined, so the symptom is a screen where ✕ has stopped working and
+    // nothing says why. Collapsing the per-emulator exceptions is the first
+    // list on this screen that can shrink at all.
+    useEffect(() => {
+      if (idx >= rows.length) setIdx(Math.max(0, rows.length - 1))
+    }, [rows.length, idx])
 
     const step = (r, dir) => {
       if (r.type === 'value') {
@@ -135,6 +169,7 @@ export const createRows = (sdk) => {
               ${head ? html`<div class="gcs-set-kicker gcs-row2-head">${head}</div>` : null}
               <div class="gcs-row2" data-on=${on ? '1' : '0'}
                    data-danger=${r.danger ? '1' : '0'}
+                   ref=${(el) => { rowRefs.current[i] = el }}
                    onClick=${() => { setIdx(i); fire(r) }}>
                 <span class="gcs-row2-text">
                   ${/* `confirmText` is used verbatim; `label2` is lower-cased to

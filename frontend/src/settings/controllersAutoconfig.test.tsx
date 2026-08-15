@@ -22,13 +22,16 @@ import { buildSdk } from '../lib/themeSdk'
 import { createControllersPage } from '../settings/controllers'
 import { createRows } from '../settings/rows'
 
-const PACKS = [
+/** Mirrors AutoconfigPack — `releasable` is optional there and omitted here. */
+type Pack = { id: string; label: string; enabled: boolean; effective: boolean; releasable?: boolean }
+
+const PACKS: Pack[] = [
   { id: 'dolphin', label: 'GameCube / Wii', enabled: true, effective: true },
   { id: 'rpcs3', label: 'PlayStation 3', enabled: true, effective: true },
 ]
 
 /** The backend, with the switch in a given position. */
-const backend = (enabled: boolean, packs = PACKS, extra: object = {}) => {
+const backend = (enabled: boolean, packs: Pack[] = PACKS, extra: object = {}) => {
   const posts: { body: unknown }[] = []
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (String(url).includes('/controllers/autoconfig')) {
@@ -182,6 +185,32 @@ describe('the per-emulator exception', () => {
     // Named, because "set your pads up inside each emulator now" is wrong when
     // only one of them was handed back.
     expect(await screen.findByText(/inside GameCube \/ Wii now/)).toBeTruthy()
+  })
+
+  it('does not promise a clear-out for an emulator that has no inverse', async () => {
+    // azahar, mgba, Cemu and melonDS bind by GUID and raw indices: nothing
+    // frees them when a pad leaves, so nothing frees them here either. The
+    // switch still takes effect — it stops future writes — but the config that
+    // is already there stays, which is why the reference box's pad went on
+    // working in the 3DS after the 3DS was switched off.
+    const posts = backend(true, [
+      { id: 'azahar', label: 'Nintendo 3DS', enabled: true, effective: true, releasable: false },
+    ], { released: [] })
+    page()
+    await screen.findByText('Set up controllers automatically')
+    fireEvent.click((await screen.findByText('Per-emulator exceptions')).closest('.gcs-row2')!)
+
+    const row = (await screen.findByText('Nintendo 3DS')).closest('.gcs-row2')!
+    fireEvent.click(row)
+    expect(row.textContent).toContain('What it already wrote stays as it is')
+    expect(row.textContent).not.toContain('clears what GameCore wrote')
+
+    fireEvent.click(row)
+    await waitFor(() => expect(posts).toHaveLength(1))
+    // And afterwards it explains the empty result instead of claiming nothing
+    // had ever been configured — which is what would send somebody looking for
+    // a switch that had not worked.
+    expect(await screen.findByText(/GameCore will not write it again/)).toBeTruthy()
   })
 
   it('names the emulators taken over by hand without opening the list', async () => {

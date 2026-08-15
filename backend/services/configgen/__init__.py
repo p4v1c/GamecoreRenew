@@ -401,6 +401,25 @@ def release_profile(player_index: int,
     return results
 
 
+def can_release(pack) -> bool:
+    """Whether this emulator has an inverse at all.
+
+    Six of the ten do. azahar, mgba, Cemu and melonDS do not, and that is not an
+    oversight: they bind a pad by GUID and raw indices, so a config for an absent
+    controller names nothing and drives nothing — there is no ghost player to
+    remove, which is why nothing frees them when a pad leaves either.
+
+    It matters to the SCREEN. Turning autoconfig off for one of those four
+    empties nothing, and a confirmation reading "this clears what GameCore wrote
+    for Nintendo 3DS" would be warning about a loss that cannot occur. The switch
+    still takes effect — nothing is written there from now on — but what is
+    already in the file stays, and the owner has to be told which of the two they
+    are getting.
+    """
+    module = load_generator(pack)
+    return module is not None and hasattr(module, "release")
+
+
 def release_owned_slots(pack_ids: Collection[str] | None = None) -> list[str]:
     """Hand the emulators back: empty every slot GameCore filled.
 
