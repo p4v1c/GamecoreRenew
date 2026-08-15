@@ -15,11 +15,23 @@ const CLASS_LABELS: Record<string, string> = {
 }
 
 export default function DefaultGamepadView({
-  name, layoutLabel, controllers, usbDevices = [], glyphs, mappings, onClose, onRemap, Art, Battery,
+  name, layoutLabel, controllers, usbDevices = [], glyphs, mappings, notice = '',
+  onClose, onRemap, Art, Battery,
 }: GamepadViewProps) {
   return (
     <Overlay onClose={onClose} width={640}>
       <OverlayLabel text="CONTROLLER" />
+
+      {/* Above the diagram, not below it. The diagram is what draws the eye and
+          it will look perfect — it reads the pad straight from the Gamepad API
+          and knows nothing about whether any emulator was configured. */}
+      {notice ? (
+        <div style={{
+          margin: '0 0 14px', padding: '9px 12px', borderRadius: 8,
+          background: 'rgba(251,191,36,0.10)', border: '1px solid rgba(251,191,36,0.35)',
+          fontSize: 12, lineHeight: 1.45, color: '#fbbf24',
+        }}>{notice}</div>
+      ) : null}
 
       {/* Connected controller + battery from the backend registry */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>

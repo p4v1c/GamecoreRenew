@@ -475,6 +475,23 @@ export const api = {
      * adapter that is unplugged and one the box cannot see look identical.
      */
     devices: () => get<{ ok: boolean; devices: UsbDevice[] }>('/controllers/devices'),
+    /**
+     * Whether GameCore still writes emulator controller configs.
+     *
+     * `setAutoconfig` is BOTH destructive directions and the screen has to warn
+     * before either: off empties the slots GameCore filled, on overwrites
+     * whatever the owner set up by hand while it was off. The answer carries
+     * `released` — what was actually emptied, by name — so the screen reports
+     * what happened instead of assuming it.
+     *
+     * `pack` addresses one emulator's exception. Same call on purpose: the two
+     * settings compose (`effective` is the composed answer), and a separate
+     * route would let one change without the other being recomputed.
+     */
+    autoconfig: () => get<AutoconfigState>('/controllers/autoconfig'),
+    setAutoconfig: (enabled: boolean, pack?: string) =>
+      post<AutoconfigState & { released?: string[]; reprofiling?: boolean; error?: string }>(
+        '/controllers/autoconfig', pack ? { enabled, pack } : { enabled }),
     scanMapping: () => post<ScanResult>('/controllers/scan-mapping'),
     forgetScan: () => fetch(BASE + '/controllers/scan-mapping', { method: 'DELETE' })
       .then(r => r.json()) as Promise<ScanResult>,
@@ -538,6 +555,30 @@ export interface UsbDevice {
   /** What sysfs calls it, when it is here. Empty when absent. */
   detected_as: string
   status: 'present' | 'absent'
+}
+
+/** One emulator's row on the autoconfig screen. */
+export interface AutoconfigPack {
+  id: string
+  /** The system as a player names it — "GameCube / Wii", not "dolphin". */
+  label: string
+  /** Its own exception, which is what its row shows and what it sets. */
+  enabled: boolean
+  /**
+   * What is actually in force: `enabled` AND the global switch.
+   *
+   * The two differ exactly when the global switch is off, and that gap is the
+   * reason this field is sent rather than recomputed in the UI — a screen
+   * showing rows that read "on" for emulators that are not running is the
+   * failure this whole feature is trying not to become.
+   */
+  effective: boolean
+}
+
+export interface AutoconfigState {
+  ok: boolean
+  enabled: boolean
+  packs: AutoconfigPack[]
 }
 
 export interface ScanResult {

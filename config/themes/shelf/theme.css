@@ -1483,6 +1483,15 @@
 /* controller */
 .cz-pad-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
 .cz-pad-name { font-family: var(--font-display); font-size: 20px; font-weight: 700; }
+/* Automatic controller setup is off. Amber rather than red: nothing is broken,
+   somebody turned it off — but it has to outweigh a diagram that lights up
+   perfectly while no emulator answers the pad. */
+.cz-pad-notice {
+  margin: 8px 0 12px; padding: 9px 12px; border-radius: 8px;
+  background: rgba(251, 191, 36, 0.10);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fbbf24; font-size: 12px; line-height: 1.45;
+}
 .cz-pad-art { display: grid; place-items: center; min-height: 200px; position: relative; }
 .cz-pad-art[data-off="1"] { opacity: 0.3; }
 .cz-pad-empty {

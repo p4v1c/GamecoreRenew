@@ -322,6 +322,60 @@ each retry pays for SDL probes with an 8 s timeout apiece. `run()` also had to
 stop gating `_reconcile` on `was != live`: nothing about the pad changes while
 SDL is simply behind.
 
+## The autoconfig switch — one gate, and it has to be visible
+
+`Settings → Controllers` carries a switch that stops GameCore writing emulator
+controller configs at all, plus a per-emulator exception behind an advanced row
+("I configure Dolphin by hand, the rest can look after itself").
+
+**One control point.** `backend/services/controller_autoconfig.py` answers
+`enabled_for(pack_id)`, and exactly one function consults it:
+`configgen.autoconfigured_packs()`, which splits `profilable_packs()` into the
+ones still ours to write and the ones left alone. Both halves of the write path —
+`apply_profile` and `release_profile` — go through it. **A generator never learns
+the switch exists**, which is what makes a pack added tomorrow obey it for free.
+
+`profilable_packs()` itself stays unfiltered on purpose: it answers "does this
+pack profile pads AT ALL", a fact about the catalogue, and `controller_capture`
+uses it to find which SDL libraries to probe. **The wizard keeps working with
+autoconfig off** — it writes the user's SDL mapping database, not an emulator's
+config, and that database is precisely what makes the manual mode workable.
+
+| | |
+|---|---|
+| **Global off** | nothing is written anywhere; a per-emulator row saying "on" is overridden, and the settings screen shows those rows as readings rather than switches |
+| **Turning it off** | the slots GameCore filled are **emptied** — `Device = ""`, `id = ""`, multitap off. Not restored to the seed: that is the inverse of a write, and the owner is meant to open the emulator's own input UI and find nothing configured rather than inherit a mapping they cannot explain |
+| **Turning it on** | `gamepad_monitor.request_reprofile()` — the next scan, ≤3 s away, rewrites for the connected pads. It **overwrites** anything set up by hand meanwhile |
+
+**The order in `configgen.set_autoconfig` is load-bearing.** Going off, the
+clean-up runs *before* the new state is persisted, so `release_profile` meets an
+autoconfig that is still on and empties the slots through the ordinary gate.
+Persisting first would need a bypass, and a bypass that exists is one something
+else will eventually use. `autoconfig-turned-off-after` in the characterisation
+suite fails the moment that order is swapped.
+
+**A silent switch is a trap, not a feature.** The failure mode this was designed
+around: somebody turns it off to fiddle, forgets, plugs a new pad in three weeks
+later and nothing happens — no error, no log they will read. So "off" is said in
+five places: the settings rail row, the Controllers page heading and its own row,
+the controller screen the □ button opens (all three shipped views), the pad
+toast — in-app and on the Electron HUD, which is the one that reaches somebody
+mid-game — and one `configgen:` line in the journal naming both the systems and
+the reason.
+
+The toast rides the `Skip` transport (`skipped_labels` → `gp:connected` → toast)
+but on its own field. `ProfileResult.off_labels` is deliberately not
+`skipped_labels`, because `complete` is computed from the latter: a Skip is an
+unfinished pass and gets five retries, while this is the owner's instruction and
+retrying it would only produce a "still incomplete" warning about a box doing as
+it was told. It is only sent when the pad got **nothing at all** — one emulator
+carved out by hand is a choice, and toasting it on every connect is nagging.
+
+State lives at `<DATA>/config/controller-autoconfig.json`, written tmp +
+`os.replace` like `themes.set_active`. **Missing or unparseable reads as ON**:
+the failure of the setting has to be the harmless direction, and a lost config
+directory must not leave a box where plugging a pad in does nothing.
+
 ## The three entry points
 
 ### 1. Automatic — on connect/disconnect
@@ -477,3 +531,12 @@ call.
 - **Add an emulator by adding a directory**, not by editing a dispatch table. A
   pack missing from what used to be a tuple in `configgen` was not profiled at
   all, and the only symptom was a pad that did nothing in that one emulator.
+- **Never ask the autoconfig switch a second time.** It is answered once, in
+  `autoconfigured_packs()`. A second `if` somewhere else is the signal it went in
+  at the wrong level — and the two would drift, which for this setting means an
+  emulator being written while the screen says it is not.
+- **Never exercise the pipeline outside pytest.** `backend/tests/conftest.py`
+  redirects `HOME` before any import because `configgen.HOME` is `Path.home()`
+  evaluated at module scope. A hand-run script skips that and writes to the
+  developer's own emulator configs — measured: one ad-hoc `TestClient` emptied
+  Player 1 across RPCS3, Dolphin, Ryujinx and RMG.

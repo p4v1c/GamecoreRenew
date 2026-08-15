@@ -42,9 +42,13 @@ def box(request, tmp_path, monkeypatch):
     home = tmp_path / "home"
     home.mkdir()
     scenario = getattr(request.node, "callspec", None)
-    before = getattr(scenario.params.get("scenario"), "before", None) if scenario else None
-    ch.build_tree(home, before)
+    spec = scenario.params.get("scenario") if scenario else None
+    ch.build_tree(home, getattr(spec, "before", None))
     ch.install_stubs(cp, home, monkeypatch)
+    # After the stubs, which is what points the switch at this tree. Before the
+    # steps, because a scenario's `autoconfig` describes the box the pad
+    # arrives on, not something that happens to it.
+    ch.set_autoconfig_state(home, getattr(spec, "autoconfig", None))
     return home
 
 

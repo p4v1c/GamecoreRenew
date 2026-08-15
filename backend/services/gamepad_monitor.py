@@ -416,6 +416,32 @@ _scanned = False
 # (evdev missing, the service disabled, a test that does not run it) must not
 # pay the budget for a pass that is never coming.
 _running = False
+# Something outside the scan loop changed what a pass would produce, so the
+# next one must run even though no pad moved. Turning autoconfig back on is the
+# only setter today, and it is exactly the case the loop's own two triggers
+# cannot see: the roster is identical (`was == live`) and every footprint is
+# settled (`retries == 0`), so without this the pads on the box would keep the
+# configs the owner edited by hand until one of them was physically unplugged.
+_dirty = False
+
+
+def request_reprofile() -> None:
+    """Re-write every connected pad on the next scan, at most 3 s away.
+
+    Not done inline by the caller: `_reconcile` is what knows the roster, the
+    dup indexes and the slot compaction, and a second place computing them
+    would be a second answer to "who is player 2". The switch says "start
+    again"; the loop decides what that means.
+    """
+    global _dirty
+    _applied.clear()
+    _dirty = True
+
+
+def _take_dirty() -> bool:
+    global _dirty
+    was, _dirty = _dirty, False
+    return was
 
 
 def unprofiled() -> list[str]:
@@ -547,6 +573,13 @@ async def _reconcile(was: dict[str, tuple[str, str, str, int]],
     # loop that speaks to the player — so the answer has to be carried, not
     # recomputed. Re-profiling to find out would double every SDL probe.
     unconfigured: dict[str, list[str]] = {}
+    # And which ones were left alone on purpose. Same journey, opposite
+    # meaning: `unconfigured` is a failure the box would like to fix, this is
+    # the owner's own instruction being carried out. The toast has to be able
+    # to tell them apart — "the Switch will not respond to this pad" and "you
+    # turned autoconfig off" call for different sentences and only one of them
+    # is a fault.
+    autoconfig_off: dict[str, list[str]] = {}
 
     for key, dup in dup_indexes(roster).items():
         vendor, product, evdev_name, bustype = live[key]
@@ -576,6 +609,15 @@ async def _reconcile(was: dict[str, tuple[str, str, str, int]],
                      player, name, vendor, product, dup,
                      "; ".join(results) if results else "no emulator configured")
             unconfigured[key] = list(getattr(results, "skipped_labels", ()))
+            # Only when the pad got NOTHING. A per-emulator exception is a
+            # choice the owner made on one system and the pad still works on
+            # the other eight — toasting it on every connect would be nagging
+            # about something already visible on the settings screen. The trap
+            # this feature has to avoid is the OTHER shape: a pad plugged in
+            # weeks later that does nothing anywhere, with no thread back to
+            # the switch. That is this line, and only this line.
+            off = list(getattr(results, "off_labels", ()))
+            autoconfig_off[key] = off if off and not results else []
             if getattr(results, "complete", True):
                 applied[key] = (footprint, 0)          # done, stop asking
             elif retries - 1 <= 0:
@@ -628,7 +670,8 @@ async def _reconcile(was: dict[str, tuple[str, str, str, int]],
                                    {"player": player, "label": label,
                                     "vendor": vendor, "product": product,
                                     "unmapped": unmapped,
-                                    "unconfigured": unconfigured.get(key, [])})
+                                    "unconfigured": unconfigured.get(key, []),
+                                    "autoconfigOff": autoconfig_off.get(key, [])})
             except Exception:
                 log.exception("gamepad_monitor: error broadcasting gp:connected")
 
@@ -703,7 +746,12 @@ async def run() -> None:
             # `was != live` alone would never give a failed pass its retry: nothing
             # about the pad changes when SDL merely has not caught up with it yet.
             pending = any(retries > 0 for _, retries in applied.values())
-            if was != live or pending:
+            # Read before the test, not inside it: `or` short-circuits, so a
+            # request that happened to arrive on a pass where the roster also
+            # changed would never be consumed and would re-profile every three
+            # seconds for the life of the process.
+            dirty = _take_dirty()
+            if was != live or pending or dirty:
                 await _reconcile(was, live, applied, first_scan, ws)
             first_scan = False
             _scanned = True

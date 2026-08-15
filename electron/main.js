@@ -234,6 +234,21 @@ ipcMain.on('notify:controller', (_, data) => {
     ? d.unconfigured.filter(s => typeof s === 'string').slice(0, 3)
     : []
 
+  // Autoconfig is off, so this pad got nothing anywhere. First, and it names no
+  // systems: listing nine of them truncated to three would read as a fault in
+  // three consoles instead of one switch somebody flicked. This is also the one
+  // moment the player can be told at all — they are in a game, the app window
+  // is buried under the emulator, and the pad in their hands does not work.
+  if (d.connected && Array.isArray(d.autoconfigOff) && d.autoconfigOff.length > 0) {
+    showHudToast({
+      icon: '🎮',
+      title: `${who} was not configured`,
+      body: 'Automatic controller setup is off (Settings → Controllers).',
+      accent: '#fbbf24',
+    })
+    return
+  }
+
   if (d.connected && missing.length > 0) {
     showHudToast({
       icon: '⚠️',

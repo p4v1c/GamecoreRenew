@@ -96,12 +96,21 @@ class Step:
     depends on the other slots. The multitap is the case that proves it — it is
     a property of the roster, not of a slot, so `release(4)` alone can never
     know whether player 3 is still sitting there.
+
+    `autoconfig` makes this step a flip of the switch instead: `(False, None)`
+    turns the whole thing off, `(False, "dolphin")` carves out one emulator.
+    It goes through `cp.set_autoconfig`, the same function the HTTP endpoint
+    calls, because the ORDER inside it is the behaviour under test — the
+    clean-up has to run while the switch is still on. A harness that persisted
+    the state itself and then called `release_owned_slots` would prove the
+    clean-up works and prove nothing at all about the endpoint.
     """
     pad: str | None
     slot: int
     dup: int = 0
     release: bool = False
     occupied: tuple[int, ...] = ()
+    autoconfig: tuple[bool, str | None] | None = None
 
 
 @dataclass(frozen=True)
@@ -119,6 +128,11 @@ class Scenario:
     why: str
     steps: tuple[Step, ...]
     before: str | None = None
+    # The autoconfig switch as the scenario STARTS, written straight to the
+    # state file. Distinct from a flip step: this is a box that was already in
+    # that state when the pad arrived, which is the case the feature is really
+    # about — somebody turned it off weeks ago and has forgotten.
+    autoconfig: dict | None = None
 
 
 # ── The matrix ─────────────────────────────────────────────────────────────
@@ -202,6 +216,42 @@ SCENARIOS: tuple[Scenario, ...] = (
              "and say why; the ones that bind by SDL index or by GUID are "
              "unaffected and must keep working",
              (Step("unknown", 1, 0),)),
+
+    # ── the autoconfig switch ───────────────────────────────────────────────
+    # Three scenarios, and each one had to be watched failing before the gate
+    # existed: with no switch at all the first two produce the ordinary
+    # `one-ds4` output and the third leaves it standing.
+    Scenario("autoconfig-off",
+             "the switch off before the pad ever arrives — the state a box is "
+             "in weeks after somebody turned it off to fiddle and forgot. "
+             "NOTHING may be written: every file must still be its seed, byte "
+             "for byte, with no slot occupied. Proving this by reading the "
+             "code is what the brief refuses, so it is proved by the same "
+             "fixtures every other scenario uses",
+             (Step("ds4", 1, 0),),
+             autoconfig={"enabled": False}),
+
+    Scenario("autoconfig-off-dolphin-only",
+             "one emulator carved out while the rest keeps working — 'I "
+             "configure Dolphin by hand'. Dolphin's two files stay at their "
+             "seed and every other pack is written exactly as in `one-ds4`. "
+             "The comparison against that scenario's fixtures is the point: an "
+             "exception that quietly changed what the others produce would be "
+             "a leak, not a feature",
+             (Step("ds4", 1, 0),),
+             autoconfig={"enabled": True, "packs": {"dolphin": False}}),
+
+    Scenario("autoconfig-turned-off-after",
+             "two pads configured, then the switch is turned off. The slots "
+             "GameCore filled are EMPTIED — `Device = \"\"`, `id = \"\"`, the "
+             "multitap back off — which is the inverse of a write and not a "
+             "restore to the seed. The rest of every file is untouched to the "
+             "byte, which the fixtures check for free because they hold the "
+             "whole file. The flip goes through `set_autoconfig`, so this also "
+             "pins the ordering: persist first and the clean-up would find "
+             "itself locked out by its own gate and empty nothing",
+             (Step("ds4", 1, 0), Step("xbox", 2, 0),
+              Step(None, 0, autoconfig=(False, None)))),
 )
 
 # Files the profilers touch, relative to the fake HOME / install root. The
@@ -258,6 +308,23 @@ def build_tree(home: Path, before: str | None = None) -> None:
             _deploy(src, home / rel)
 
 
+def set_autoconfig_state(home: Path, state: dict | None) -> None:
+    """Write the switch's state file for a scenario, or clear it.
+
+    Clearing rather than writing `{"enabled": true}` for the default case, on
+    purpose: "no file at all" is what a box that has never been asked looks
+    like, and that path — an absent file reading as ON — is the one a lost
+    config directory takes. A harness that always wrote the file would never
+    exercise it.
+    """
+    path = home / "controller-autoconfig.json"
+    if state is None:
+        path.unlink(missing_ok=True)
+        return
+    import json
+    path.write_text(json.dumps(state))
+
+
 def install_stubs(cp, home: Path, monkeypatch) -> None:
     """Point the pipeline at the fake tree and make SDL deterministic.
 
@@ -267,8 +334,16 @@ def install_stubs(cp, home: Path, monkeypatch) -> None:
     lets the SAME harness and the SAME fixtures run on either side of the move
     — which is the only thing that makes "byte for byte" mean anything.
     """
-    from backend.services import configgen
+    from backend.services import configgen, controller_autoconfig
     from backend.services.configgen import controllers as cc
+
+    # The switch's state file, into the fake tree. Not optional: left alone it
+    # resolves under the real data root, so a developer who has turned
+    # autoconfig off on their own box would watch this suite go red for a
+    # reason no diff could explain. A scenario declares its environment.
+    monkeypatch.setattr(controller_autoconfig, "state_file",
+                        lambda: home / "controller-autoconfig.json",
+                        raising=False)
 
     # ── post-refactor seams ────────────────────────────────────────────────
     monkeypatch.setattr(configgen, "HOME", home, raising=False)
@@ -340,6 +415,14 @@ def run_scenario(cp, scenario: Scenario) -> list[str]:
     """Execute the steps, returning the messages each call produced."""
     messages: list[str] = []
     for step in scenario.steps:
+        if step.autoconfig is not None:
+            enabled, pack_id = step.autoconfig
+            released = cp.set_autoconfig(enabled, pack_id)
+            messages.append(
+                f"autoconfig({'on' if enabled else 'off'}"
+                f"{', ' + pack_id if pack_id else ''}): "
+                + ("; ".join(released) if released else "nothing to release"))
+            continue
         if step.release:
             messages.append(f"release({step.slot}): "
                             + "; ".join(cp.release_profile(step.slot,

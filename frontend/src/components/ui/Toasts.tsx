@@ -96,6 +96,43 @@ function useToastQueue() {
         return
       }
 
+      // The switch, said where the player is standing.
+      //
+      // This is the failure mode the feature had to be designed around: someone
+      // turns autoconfig off to fiddle, forgets, plugs a new pad in three weeks
+      // later and nothing happens. No error, no log they will read, nothing to
+      // attach the symptom to. The backend sends this only when the pad got
+      // NOTHING at all — a single emulator carved out by hand is a choice, and
+      // toasting it on every connect would be nagging.
+      //
+      // Before the `unconfigured` branch below, and it wins: with the switch
+      // off there are no give-ups to report, and "you turned this off" is a
+      // different sentence from "the Switch will not answer this pad" — only
+      // one of them is a fault.
+      const autoconfigOff = Array.isArray(d.autoconfigOff)
+        ? (d.autoconfigOff as unknown[]).filter((s): s is string => typeof s === 'string')
+        : []
+
+      if (connected && autoconfigOff.length > 0) {
+        const body = `${label || 'This controller'} was not set up, because `
+          + 'automatic controller setup is turned off in Settings → Controllers.'
+        // `unconfigured` deliberately NOT passed alongside: the HUD branches on
+        // it first and would draw "is not set up for Nintendo Switch, Nintendo
+        // 3DS, Game Boy Advance" — nine systems truncated to three, describing
+        // a fault, for a box doing exactly what it was told.
+        if (window.gamecore?.controllerToast) {
+          window.gamecore.controllerToast({ player, label, connected, autoconfigOff })
+          return
+        }
+        push({
+          icon: '🎮',
+          title: `${who} was not configured`,
+          body,
+          accent: '#fbbf24',
+        })
+        return
+      }
+
       // A pad that IS recognised can still be left out of one emulator. That
       // case took the green "connected" branch below, so the player was told
       // everything was fine while one console ignored the pad — the reference
