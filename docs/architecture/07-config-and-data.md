@@ -138,9 +138,11 @@ either way.
 `update/linux.sh` reports a box whose N64 entry still launches gopher64, with
 the commands to switch it.
 
-RMG's controller config is **captured, never synthesised** — it joins azahar,
-mGBA and Cemu on the "Scan mapping" path. Two attempts to write it failed
-against what RMG actually produces:
+RMG's controller config is **a saved snapshot when one exists, and RMG's own
+generic profile otherwise.** It used to be capture-only, and that made it the
+last red system on the 15 August 2026 bench: at its zero point the game says
+*"connect a controller to socket 1"*, and the only way out was to map the pad by
+hand in RMG. Two earlier attempts to write it failed against what RMG produces:
 
 ```ini
 [Rosalie's Mupen GUI - Input Plugin Profile 0]
@@ -154,16 +156,47 @@ A_Name = "cross"        # not the generic "a" of the shipped fallback_profile
 `PluggedIn` is what attaches a controller to the N64 port. Without it the game
 itself refuses to start — *"connect a controller to socket 1"* — however
 complete the rest of the section looks, and `ControllerMode 0` ("automatic")
-does not supply it. `DevicePath` is a host path that can move between boots,
-and the button names are per-controller. Reproducing that means reimplementing
-RMG's own dialog, and being wrong about it is silent; capturing what RMG wrote
-is not.
+does not supply it.
 
-Do it once per pad: configure the controller in RMG (Settings → Input), then
-press **Scan mapping** in GameCore. The snapshot is restored whenever that pad
-reconnects. `_rmg_extract` takes the `[Rosalie's Mupen GUI - Input Plugin…]`
-sections and nothing else, so a restore never rolls back the video settings
-living in the same `mupen64plus.cfg`.
+What the two attempts were missing is that **RMG identifies a pad by three
+strings compared at once** (`Source/RMG-Input/main.cpp:647`): `DeviceName`,
+`DevicePath` and `DeviceSerial`, read from `SDL_GetGamepadName / Path / Serial`.
+One of the three wrong and the profile does not attach, in the same silence a
+wrong GUID disposes Ryujinx's slot. None of the three is derivable from a
+vendor:product — SDL names the node of whichever driver it reads the pad
+through, and only a HIDAPI-driven pad has a serial at all. Measured, same
+instant:
+
+| pad | `DevicePath` | `DeviceSerial` |
+| --- | --- | --- |
+| DualShock 4 `054c:09cc` | `/dev/hidraw0` | `40:1b:5f:b9:ea:8d` |
+| Xbox Wireless `045e:02fd` | `/dev/input/event14` | `""` |
+
+`controllers.sdl3_identity()` takes the path and the serial from one SDL3 probe;
+`resolve_name()` answers the name, as it does for every other SDL3 consumer. A
+restored snapshot gets the same treatment, because a captured `DevicePath` pins
+the number the pad happened to hold that day and hidraw numbering follows
+connection order.
+
+The **bindings**, by contrast, are the same on every controller and are not
+guessed per pad. RMG's `InputType` 0 and 1 carry `SDL_GameControllerButton` and
+`SDL_GameControllerAxis` *constants*, not raw indices — types 2/3/4 are the raw
+space and nothing writes them. So the table is RMG's own `fallback_profile` from
+`Data/InputProfileDB.json`, which is also what RMG itself answers for any pad
+outside the three entries its database holds.
+
+The button *names* stay generic: they are cosmetic, RMG rewrites them to the
+pad's own vocabulary (`"cross"` for a DualShock 4's `a`) when the owner maps by
+hand, and a guessed label is a claim about a pad nobody measured.
+
+**A hand-made snapshot always wins.** Configure the controller in RMG
+(Settings → Input), then press **Scan mapping** in GameCore, and that mapping is
+restored whenever the pad reconnects — the reference box carries one whose N64
+`B` sits on SDL `b` rather than the generic profile's `x`. The test is
+`snapshots.exists()`, never a falsy return from `restore()`, which answers None
+both for "no snapshot" and for "already applied". `extract` takes the
+`[Rosalie's Mupen GUI - Input Plugin…]` sections and nothing else, so neither
+path rolls back the video settings living in the same `mupen64plus.cfg`.
 
 **Language.** ScreenScraper localises synopses **and genre names**, so a French
 preference gives `Course, Conduite` where an English one gives

@@ -47,9 +47,18 @@ was true: a vendor:product says nothing about raw button indices, so azahar and
 gopher64 sent the owner out to the emulator's own settings screen and mGBA
 shipped a seed carrying one particular DualShock 4's numbers. **What was missing
 was not a way to write them but a way to ask for them** — see
-[the abstract input model](#the-abstract-input-model) below. Cemu and RMG are
-still copy-only, for reasons recorded in `derive.cemu_is_not_derivable` and in
-`snapshots.block_disagrees`.
+[the abstract input model](#the-abstract-input-model) below. Cemu is still
+copy-only, for the reason recorded in `derive.cemu_is_not_derivable`.
+
+**RMG is the exception that proves the branch is about INDICES.** It sits here
+because it needs the owner's capture kept above anything synthesised and because
+it identifies a device by three strings that have to be read from SDL. But its
+`InputType` 0 and 1 carry SDL_GameControllerButton and Axis *constants*, not raw
+indices (`Source/RMG-Input/common.hpp`), so its binding table is the same on
+every pad and `catalog/gopher64/generator.py` writes RMG's own `fallback_profile`
+when no snapshot exists. Types 2/3/4 are the raw index space and it never writes
+those — which is the same distinction, drawn on the other side, that the abstract
+input model exists to hold.
 
 The strategy names in bold are the literal `controllers.strategy` values in each
 pack. `scripts/catalog-query.py` will print the current map; do not retype it
