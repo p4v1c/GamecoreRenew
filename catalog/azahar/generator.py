@@ -1,16 +1,31 @@
-"""azahar (3DS) — snapshot restore, NOT GUID substitution.
+"""azahar (3DS) — a saved snapshot first, otherwise built from azahar's own SDL.
 
-Its bindings are raw button indices tied to a GUID that cannot be synthesised
-from a VID:PID. Measured on the reference box: azahar records
-`button_up = "button:11"` for a DualShock 4 — the same raw index melonDS uses —
+Its bindings are raw button indices tied to a GUID, and for a long time neither
+could be produced: azahar records `button_up = "button:11"` for a DualShock 4
 while SDL's own GameController mapping calls that pad's D-pad a hat and button
-11 the touchpad. Different SDL versions, different joystick layout, same pad.
+11 the touchpad. That contradiction is what made this pack `snapshot-restore`
+and sent the owner out to azahar's own settings screen, which is where the
+validation session found it — "rien ne répond, comme prévu".
+
+**It is not a contradiction. It is two SDLs.** Measured on this box, same
+physical DualShock 4, same instant:
+
+    host libSDL2-2.0.so.0, which is sdl2-compat over SDL3
+        dpup:h0.1  dpdown:h0.4  dpleft:h0.8  dpright:h0.2   touchpad:b11
+    org.kde.Platform 6.9's real SDL 2.32.10, which is what azahar links
+        dpup:b11   dpdown:b12   dpleft:b13   dpright:b14    touchpad:b15
+
+The second line is azahar's snapshot, derived rather than copied. azahar ships
+no libSDL2 of its own, so `bundled_sdl2()` used to answer "" for it and the
+host's was substituted — see the note there. Asking the RUNTIME's instead makes
+this synthesisable, and the rule the whole package turns on is unbroken: the
+GUID and the indices come from the one SDL that will read them.
 
 Single-player here: only slot 1 is ever touched.
 """
 from __future__ import annotations
 
-from backend.services.configgen import derive, snapshots
+from backend.services.configgen import derive, inputs, snapshots
 from backend.services.configgen.helpers.base import atomic_write, backup
 
 import re
@@ -97,16 +112,22 @@ def _stick(axis_x, axis_y, guid: str, scale: str) -> str | None:
     return ",".join(f"{k}:{parts[k]}" for k in sorted(parts))
 
 
-def _derive_block(pad, prefix: str) -> str | None:
-    """azahar's whole input block, built from what the wizard captured.
+def _derive_block(pad, prefix: str, app_id: str = "") -> str | None:
+    """azahar's whole input block, built for the pad that is connected.
 
-    None when there is no capture for this pad, or when SDL does not read it
-    through the driver the capture came from — see derive.evdev_driven().
+    `app_id` is azahar's, and it is load-bearing rather than informational: it
+    is what sends the question to azahar's own SDL rather than the host's, and
+    those two disagree about this pad — see the module docstring. It used to be
+    `EMU_ID`, the pack id, which `derive.bindings_for` accepted and ignored.
+
+    None when neither source can describe the pad. Nothing plausible is
+    invented then: an azahar config of invented indices looks correct, survives
+    reboots, and is undiagnosable from a sofa.
     """
-    got = derive.bindings_for(pad.vendor, pad.product, EMU_ID)
-    if not got:
+    model = inputs.for_pad(pad, app_id)
+    if model is None:
         return None
-    guid, bindings = got
+    guid, bindings = model.guid, model.inputs
 
     lines: list[str] = []
 
@@ -138,7 +159,7 @@ def _derive_block(pad, prefix: str) -> str | None:
 
 
 def generate(player_index: int, pad, opts: dict) -> str | None:
-    """Restore this pad's saved mapping, or build one from the wizard's capture.
+    """Restore this pad's saved mapping, or build one for it.
 
     Slot 1 only. A hand-made snapshot ALWAYS wins: it is the owner's own work
     inside azahar's UI, and a derivation that overwrote it would be this
@@ -154,11 +175,11 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
     if not target.is_file():
         return None
     text = target.read_text()
-    block = _derive_block(pad, _az_prefix(text))
+    block = _derive_block(pad, _az_prefix(text), opts.get("app_id", ""))
     if not block:
         return None
     if extract(text).strip() == block.strip():
         return None                                   # already applied
     backup(target)
     atomic_write(target, replace(text, block))
-    return f"{EMU_ID}: built from the captured mapping ({pad.vendor}:{pad.product})"
+    return f"{EMU_ID}: built for {pad.vendor}:{pad.product}"

@@ -14,6 +14,17 @@ snapshot" with "snapshot already applied", so the synthesis ran every other
 connection and overwrote the mapping the owner had captured — one session in
 two was wrong.
 
+**The seed shipped `R = 86048778`, and that is now `10`.** `0x521000A` is
+neither a button index nor a hat encoding (`0x100 | hat<<4 | dir`, so
+0x101-0x1F8): no melonDS can read it, and R was simply dead. It survived
+because the synthesis below repaired it at the first connection — measured,
+86048778 before, 10 after — so the pack worked and nothing ever said the file
+it shipped did not. Ten is what every other value in that section already is:
+the DualShock 4's `rightshoulder:b10`, matching `L = 9`, `Start = 6`,
+`Select = 4`. A seed is a coherent starting point the generator completes for
+the pad in hand, and one whose only correct reading depends on a later repass
+is a seed that hides its own faults.
+
 Single-player: only slot 1 is ever touched, whatever player index arrives. It
 lacked that guard once, so plugging in a second pad rewrote melonDS's one and
 only player config for the wrong controller.
