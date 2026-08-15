@@ -13,14 +13,20 @@
  *   · slider  — a number 0–100. ← and → move it by `step`.
  *   · action  — a button. ✕ runs it.
  *
- * **Destructive actions arm before they fire.** A row marked `confirm` takes
- * two presses, and the label says so in between. That protection came from
+ * **Destructive rows arm before they fire.** A row marked `confirm` takes two
+ * presses, and the label says so in between. That protection came from
  * PowerModal, where "Forget mapping" used to live precisely because that modal
  * had it and no settings screen did. Moving the row without moving the
  * protection would have been the whole point of the move, undone: it deletes
  * work the owner did by hand inside an emulator's own input UI, and there is
  * no undo anywhere on this box. Moving focus away disarms it, so a row cannot
  * sit primed while somebody scrolls past it.
+ *
+ * `confirm` applies to TOGGLES as well as actions. It was action-only while the
+ * only destructive rows were buttons; the autoconfig switch is a boolean whose
+ * two directions each destroy something, and a switch that wipes a controller
+ * setup on one press is exactly what "arm before you fire" is for. A toggle
+ * gives `label2` the sentence for the direction it is ABOUT to move in.
  *
  * Slider step is 5 by default rather than 1. A stick on a settings screen is
  * a d-pad with extra steps, and 20 presses to cross a slider is what makes a
@@ -68,10 +74,18 @@ export const createRows = (sdk) => {
     }
 
     const fire = (r) => {
-      if (r.type === 'toggle') { onSet(r.id, !r.value); return }
-      if (r.type !== 'action') return
+      // `confirm` is not an action-row privilege any more. A toggle can destroy
+      // work too: the autoconfig switch empties the controller setup GameCore
+      // wrote when it goes off, and overwrites whatever the owner made by hand
+      // when it comes back on. Both directions cost somebody something, and
+      // there is no undo anywhere on this box.
+      //
+      // The caller supplies `label2` per DIRECTION, because "press again to
+      // turn autoconfig off" and "…to turn it on" warn about opposite things.
       if (r.confirm && ref.current.armed !== r.id) { setArmed(r.id); return }
       setArmed(null)
+      if (r.type === 'toggle') { onSet(r.id, !r.value); return }
+      if (r.type !== 'action') return
       onAct(r.id)
     }
 
@@ -123,7 +137,14 @@ export const createRows = (sdk) => {
                    data-danger=${r.danger ? '1' : '0'}
                    onClick=${() => { setIdx(i); fire(r) }}>
                 <span class="gcs-row2-text">
-                  <b>${isArmed ? `Press again to ${String(r.label2 || r.label).toLowerCase()}` : r.label}</b>
+                  ${/* `confirmText` is used verbatim; `label2` is lower-cased to
+                       finish the sentence "Press again to …". The verbatim form
+                       exists because the lower-casing eats proper nouns — a row
+                       warning about "gamecube / wii" and "gamecore" reads like a
+                       typo on the one screen that has to be trusted. */''}
+                  <b>${isArmed
+                    ? (r.confirmText || `Press again to ${String(r.label2 || r.label).toLowerCase()}`)
+                    : r.label}</b>
                   ${r.desc ? html`<i>${r.desc}</i>` : null}
                   ${/* A usage bar belongs to the row it describes, so it is
                        drawn inside it rather than in a block beside the list —

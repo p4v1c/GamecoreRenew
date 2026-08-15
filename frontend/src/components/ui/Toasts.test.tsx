@@ -125,6 +125,58 @@ describe('the unrecognised-controller toast', () => {
     })
   })
 
+  it('says when a pad got nothing because autoconfig is off', () => {
+    // The trap this feature had to be designed around: someone turns autoconfig
+    // off to fiddle, forgets, plugs a pad in three weeks later and nothing
+    // happens — no error, no log they will read. This toast is the one moment
+    // the symptom and the cause are in the same place.
+    render(<Toasts />)
+    emit('gp:connected', {
+      player: 2, label: 'PS4 Controller', unmapped: false,
+      unconfigured: [], autoconfigOff: ['PlayStation 3', 'GameCube / Wii'],
+    })
+
+    expect(screen.queryByText('Controller 2 connected')).toBeNull()
+    expect(screen.getByText('Controller 2 was not configured')).toBeTruthy()
+    // The cause, and where to undo it. Naming the nine systems instead would
+    // read as nine faults rather than one switch.
+    expect(screen.getByText(/Settings → Controllers/)).toBeTruthy()
+    expect(screen.queryByText(/PlayStation 3/)).toBeNull()
+  })
+
+  it('does not hand the HUD a system list it would report as a fault', () => {
+    // The HUD branches on `unconfigured` first and would draw "is not set up
+    // for PlayStation 3, GameCube / Wii, …" — three of nine systems, phrased as
+    // a defect, for a box doing exactly what it was told.
+    const controllerToast = vi.fn()
+    ;(window as { gamecore?: unknown }).gamecore = { controllerToast }
+
+    render(<Toasts />)
+    emit('gp:connected', {
+      player: 1, label: 'PS4 Controller', unmapped: false,
+      autoconfigOff: ['PlayStation 3'],
+    })
+
+    expect(controllerToast).toHaveBeenCalledOnce()
+    const sent = controllerToast.mock.calls[0][0] as Record<string, unknown>
+    expect(sent.autoconfigOff).toEqual(['PlayStation 3'])
+    expect(sent.unconfigured).toBeUndefined()
+  })
+
+  it('still offers the wizard for an unknown pad while autoconfig is off', () => {
+    // The wizard writes the user's SDL mapping database, not an emulator's
+    // config, and that database is what makes the manual mode workable at all.
+    // Suppressing the offer here would take away the tool somebody needs
+    // precisely because GameCore has stopped configuring for them.
+    render(<Toasts />)
+    emit('gp:connected', {
+      player: 1, label: 'Generic USB Gamepad', unmapped: true,
+      autoconfigOff: ['PlayStation 3'],
+    })
+
+    expect(screen.getByText('Map it now')).toBeTruthy()
+  })
+
   it('takes pointer events back so the button can actually be pressed', () => {
     // The stack is click-through so a toast never steals a press from the
     // screen behind it. A toast that OFFERS something has to take that back,

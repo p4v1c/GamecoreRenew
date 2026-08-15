@@ -34,9 +34,13 @@ from .configgen import (
     ProfileResult,
     apply_profile,
     forget_mapping,
+    autoconfigured_packs,
     identification,
+    profilable_packs,
+    release_owned_slots,
     release_profile,
     scan_mapping,
+    set_autoconfig,
 )
 from .configgen.controllers import (
     DB_FILE,
@@ -68,6 +72,11 @@ __all__ = [
     "apply_profile", "release_profile", "ProfileResult", "MAX_PLAYERS",
     # the Power-menu actions — routers/controllers.py
     "scan_mapping", "forget_mapping", "detect_pads",
+    # the autoconfig switch — routers/controllers.py. `release_owned_slots` is
+    # the clean-up it runs before it turns itself off; the two pack lists are
+    # what the settings screen lists and what it shows as effectively off.
+    "set_autoconfig", "release_owned_slots", "autoconfigured_packs",
+    "profilable_packs",
     # "can this pad be named at all" — the toast asks it on every arrival, so
     # the wizard is offered exactly where the player notices the pad is dead
     "identification",

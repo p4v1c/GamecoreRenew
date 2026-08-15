@@ -62,12 +62,18 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
   const [sysInfo, setSysInfo] = useState<SysInfo | null>(null)
   const [usbDevices, setUsbDevices] = useState<UsbDevice[]>([])
   const [wizard, setWizard] = useState(startInWizard)
+  // Whether GameCore is still configuring emulators for the connected pad.
+  // Asked HERE — this is the screen somebody opens when a controller does not
+  // work, and "the pad answers perfectly on the diagram and does nothing in
+  // game" is exactly what the switch being off looks like from a sofa.
+  const [autoOff, setAutoOff] = useState(false)
 
   // Live button/axis state — drives the drawing below, frame by frame
   const state = useGamepadState()
 
   useEffect(() => {
     api.sysinfo().then(setSysInfo).catch(() => {})
+    api.controllers.autoconfig().then(a => setAutoOff(!a.enabled)).catch(() => {})
     const refresh = () => setCtrl(detectControllerType())
     const offs = [onGp('gp:connected', refresh), onGp('gp:disconnected', refresh)]
 
@@ -145,6 +151,10 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
         : 'Standard layout'
       }
       connected={ctrl.name !== 'No controller detected'}
+      notice={autoOff && ctrl.name !== 'No controller detected'
+        ? 'Automatic setup is off, so this pad is not configured in any '
+          + 'emulator. Settings → Controllers turns it back on.'
+        : ''}
       controllers={sysInfo?.controllers ?? []}
       usbDevices={usbDevices}
       glyphs={g}

@@ -41,7 +41,14 @@ emulators be written from a capture instead of demanding a manual pass.
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from ..services import controller_capture, controller_profiles, usb_devices
+from ..services import (
+    controller_autoconfig,
+    controller_capture,
+    controller_profiles,
+    gamepad_monitor,
+    usb_devices,
+)
+from ..services.catalog import load_catalog
 from ..services.configgen import mapping_db
 
 router = APIRouter(tags=["controllers"])
@@ -69,6 +76,73 @@ def scan_mapping():
 @router.delete("/controllers/scan-mapping")
 def forget_mapping():
     return controller_profiles.forget_mapping()
+
+
+# ── the autoconfig switch ────────────────────────────────────────────────────
+#
+# Two writes, and BOTH of them destroy work somebody did. Turning it off empties
+# the slots GameCore filled; turning it back on overwrites whatever the owner
+# set up while it was off. The UI warns before each — see
+# `frontend/src/settings/controllers.js` — and the endpoints below are shaped so
+# that it can: each one answers with what it actually did, by name, so the
+# screen reports a fact rather than an assumption.
+
+def _autoconfig_view() -> dict:
+    """The switch, plus every emulator that profiles pads and where it stands.
+
+    `effective` is not `enabled` and the difference is the whole point: with the
+    global switch off, every emulator is off whatever its own row says. A screen
+    that showed only `enabled` would present rows reading "on" for emulators
+    that are not running, which is the one thing this feature must not do.
+    """
+    st = controller_autoconfig.state()
+    packs = []
+    for pack in controller_profiles.profilable_packs(load_catalog()):
+        own = st["packs"].get(pack.id, True)
+        packs.append({
+            "id": pack.id,
+            "label": pack.data.get("label") or pack.id,
+            "enabled": own,
+            "effective": st["enabled"] and own,
+        })
+    return {"ok": True, "enabled": st["enabled"], "packs": packs}
+
+
+@router.get("/controllers/autoconfig")
+def autoconfig_state():
+    return _autoconfig_view()
+
+
+class AutoconfigBody(BaseModel):
+    enabled: bool
+    # Absent means the global switch. A pack id means one emulator's exception,
+    # which is deliberately the same endpoint: the two settings compose, and
+    # splitting them into two routes would let a caller change one without the
+    # other ever recomputing what is effectively in force.
+    pack: str | None = None
+
+
+@router.post("/controllers/autoconfig")
+def set_autoconfig(body: AutoconfigBody):
+    """Flip the switch, and make the box match it straight away.
+
+    The clean-up and the ordering that makes it honest live in
+    `configgen.set_autoconfig` — with the pipeline, where the characterisation
+    suite can drive them. What is here is the HTTP shape: reject an unknown
+    emulator before anything is written, and answer with what actually
+    happened so the screen can report a fact rather than an assumption.
+    """
+    if body.pack is not None:
+        known = {p["id"] for p in _autoconfig_view()["packs"]}
+        if body.pack not in known:
+            return {"ok": False, "error": f"no such emulator: {body.pack}"}
+
+    released = controller_profiles.set_autoconfig(body.enabled, body.pack)
+    if body.enabled:
+        gamepad_monitor.request_reprofile()
+
+    return {**_autoconfig_view(), "released": released,
+            "reprofiling": body.enabled}
 
 
 # ── the wizard ───────────────────────────────────────────────────────────────

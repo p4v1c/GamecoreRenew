@@ -21,6 +21,21 @@ export interface GamepadViewProps {
   /** Human label for the layout, e.g. "PlayStation layout". */
   layoutLabel: string
   connected: boolean
+  /**
+   * One sentence to draw above the diagram, or empty. Today it says that
+   * automatic controller setup is switched off.
+   *
+   * It belongs on THIS screen because this is where somebody comes when a pad
+   * does not work, and the switch produces the most confusing symptom the box
+   * has: every button lights up on the diagram, and nothing answers in game.
+   * The diagram reads the pad directly through the Gamepad API and would look
+   * perfect either way.
+   *
+   * A view that drops it loses the notice, which is the same trade-off
+   * `onRemap` documents below — so both shipped themes draw it. Empty string
+   * rather than undefined: a view can render it unconditionally.
+   */
+  notice?: string
   /** Battery and player index per pad, from the backend registry. */
   controllers: NonNullable<SysInfo['controllers']>
   /**

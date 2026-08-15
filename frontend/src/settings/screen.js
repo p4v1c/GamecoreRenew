@@ -200,6 +200,16 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
       const pads = (navigator.getGamepads ? navigator.getGamepads() : []).filter(Boolean)
       put('controllers', pads.length === 1 ? '1 pad' : `${pads.length} pads`)
 
+      // …and it says "Auto setup off" instead when it is, which is the point of
+      // asking here at all. Somebody whose new pad does nothing opens Settings
+      // and reads this rail; without this they would have to guess that the
+      // answer is one screen further in, behind a row that looks fine.
+      // Overwrites the pad count on purpose: the two never both matter, and the
+      // one that explains a dead controller is the one to show.
+      api.controllers.autoconfig()
+        .then((a) => { if (!a.enabled) put('controllers', 'Auto setup off') })
+        .catch(() => {})
+
       return () => { alive = false }
     }, [])
 

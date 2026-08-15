@@ -26,7 +26,8 @@ const segsFor = (level) => Math.max(0, Math.min(SEGMENTS, Math.ceil((level || 0)
 export const createGamepadView = (sdk) => {
   const { html } = sdk.ui
 
-  return ({ name, layoutLabel, connected, controllers, glyphs, mappings, onClose, onRemap, Art }) => {
+  return ({ name, layoutLabel, connected, controllers, glyphs, mappings, notice = '',
+            onClose, onRemap, Art }) => {
     const pad = controllers[0]
     const segs = pad ? segsFor(pad.level) : 0
     return html`
@@ -37,6 +38,12 @@ export const createGamepadView = (sdk) => {
             <b class="sm-gamepad-name">${name}</b>
             ${pad ? html`<span class="sm-chip sm-gamepad-player">Player ${pad.player ?? 1}</span>` : null}
           </div>
+
+          ${/* Above the diagram, because the diagram will look perfect: it
+                reads the pad straight from the Gamepad API and knows nothing
+                about whether any emulator was configured for it. Destructured
+                here rather than left out — the same lesson as onRemap above. */''}
+          ${notice ? html`<div class="sm-gamepad-notice">${notice}</div>` : null}
 
           <div class="sm-gamepad-body">
             <div class="sm-gamepad-art" data-off=${connected ? '0' : '1'}>

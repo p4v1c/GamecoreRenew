@@ -23,6 +23,7 @@ import logging
 from collections.abc import Collection
 from pathlib import Path
 
+from .. import controller_autoconfig
 from ..catalog import load_catalog
 from . import snapshots
 from .controllers import SDL3_TRUSTED, Pad, detect_pads, display_name, resolve_name
@@ -167,6 +168,33 @@ def profilable_packs(packs: dict) -> list:
                   key=lambda p: (p.data["controllers"].get("order", 10_000), p.id))
 
 
+def autoconfigured_packs(packs: dict) -> tuple[list, list]:
+    """`profilable_packs`, split by whether the owner still lets us write it.
+
+    **The single control point.** `apply_profile` and `release_profile` are the
+    two halves of the write path and both go through here, so a generator never
+    has to know the switch exists — which is the property that makes a pack
+    added tomorrow obey it without doing anything.
+
+    The split is returned rather than filtered away because the ones left out
+    have to be NAMED. A pipeline that simply wrote nothing would reproduce the
+    exact failure this feature has to avoid: a pad plugged in three weeks later,
+    nothing happening, and no thread from the symptom back to a switch somebody
+    flicked. The second list is what the journal and the TV toast say out loud.
+
+    Not folded into `profilable_packs` itself, deliberately: that function
+    answers "does this pack profile controllers AT ALL", a fact about the
+    catalogue, and `controller_capture` asks it to find which SDL libraries to
+    probe. The wizard has to keep working with autoconfig off — it writes the
+    user's SDL mapping database, not an emulator's config, and it is what makes
+    the manual mode practical in the first place.
+    """
+    on, off = [], []
+    for pack in profilable_packs(packs):
+        (on if controller_autoconfig.enabled_for(pack.id) else off).append(pack)
+    return on, off
+
+
 # Patched by the characterisation harness, and by nothing else at runtime.
 HOME = Path.home()
 SNAP_DIR = HOME / ".local/share/gamecore/controller-snapshots"
@@ -192,7 +220,7 @@ class ProfileResult(list):
     connection.
     """
 
-    def __init__(self, results=(), skipped=(), skipped_labels=()):
+    def __init__(self, results=(), skipped=(), skipped_labels=(), off_labels=()):
         super().__init__(results)
         self.skipped: list[str] = list(skipped)
         # The same give-ups named the way the player names them. `skipped`
@@ -202,6 +230,14 @@ class ProfileResult(list):
         # out of the messages, because a pack id is not a system name and the
         # prefix of a Skip string is not a promise.
         self.skipped_labels: list[str] = list(skipped_labels)
+        # The systems left alone because autoconfig is off for them, named the
+        # same way. It rides beside `skipped_labels` rather than inside it, and
+        # the difference is `complete` below: a Skip is a pass that did not
+        # finish and gets retried, while this is the owner's decision and
+        # retrying it five times at three-second intervals would only produce
+        # a "still incomplete" warning about a box doing exactly as it was
+        # told. Same transport to the UI, opposite meaning.
+        self.off_labels: list[str] = list(off_labels)
 
     @property
     def complete(self) -> bool:
@@ -231,7 +267,18 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
     skipped: list[str] = []
     skipped_labels: list[str] = []
 
-    for pack in profilable_packs(load_catalog()):
+    on, off = autoconfigured_packs(load_catalog())
+    off_labels = [p.data.get("label") or p.id for p in off]
+    if off:
+        # One line, and it has to name both the systems and the reason, because
+        # this is the only trace the symptom leaves: a pad that is plugged in,
+        # says "connected", and does nothing in game. `journalctl -u gamecore |
+        # grep autoconfig` has to be enough to close the case.
+        log.info("configgen: player %d (%s:%s) — autoconfig is off for %s, "
+                 "their configs are left as the owner wrote them",
+                 player_index, vendor, product, ", ".join(off_labels))
+
+    for pack in on:
         ctl = pack.data.get("controllers") or {}
         strategy = ctl.get("strategy")
         # Single-player hardware: only slot 1 is ever touched, whatever player
@@ -278,7 +325,7 @@ def apply_profile(player_index: int, vendor: str, product: str, evdev_name: str,
     if skipped:
         log.warning("configgen: player %d (%s:%s) — not configured: %s",
                     player_index, vendor, product, "; ".join(skipped))
-    return ProfileResult(results, skipped, skipped_labels)
+    return ProfileResult(results, skipped, skipped_labels, off_labels)
 
 
 def release_profile(player_index: int,
@@ -322,7 +369,15 @@ def release_profile(player_index: int,
                     "profiles — nothing released", player_index, MAX_PLAYERS)
         return []
     results: list[str] = []
-    for pack in profilable_packs(load_catalog()):
+    # Gated by the same switch as the write, and it matters more here than it
+    # looks. An owner who has taken Dolphin over by hand and then unplugs a pad
+    # must not find their bindings blanked: releasing a slot is a WRITE, and
+    # "GameCore no longer touches this file" has to cover both directions or it
+    # covers nothing. The clean-up that runs when the switch is turned off is
+    # not an exception to that — it runs BEFORE the new state is persisted, so
+    # it passes this gate honestly rather than through a back door.
+    on, _off = autoconfigured_packs(load_catalog())
+    for pack in on:
         if pack_ids is not None and pack.id not in pack_ids:
             continue
         ctl = pack.data.get("controllers") or {}
@@ -344,6 +399,57 @@ def release_profile(player_index: int,
             log.exception("configgen: %s release failed for player %d",
                           pack.id, player_index)
     return results
+
+
+def release_owned_slots(pack_ids: Collection[str] | None = None) -> list[str]:
+    """Hand the emulators back: empty every slot GameCore filled.
+
+    What "handing back" means was decided deliberately, and it is NOT a restore
+    to the seed. `release()` empties the slot — `Device = ""`, `id = ""`, the
+    multitap off — which is the exact inverse of a write. The owner is meant to
+    open the emulator's own input UI and find no controller configured, and
+    build theirs; inheriting a mapping they did not make and cannot explain the
+    origin of is the state this whole feature exists to let them out of.
+
+    Only the sections the pipeline owns move. Resolution, filters, paths, save
+    directories are not ours and are not touched — the same rule every
+    generator already follows, reused rather than restated.
+
+    Slot by slot from the top with `occupied=()`, because that is the shape of
+    "nobody is here any more": the roster-wide state, the PS1/PS2 multitap, is
+    only turned off when no player at or above its port remains, and passing an
+    empty roster is the only way to say that truthfully.
+    """
+    done: list[str] = []
+    for slot in range(MAX_PLAYERS, 0, -1):
+        done.extend(release_profile(slot, (), pack_ids))
+    return done
+
+
+def set_autoconfig(enabled: bool, pack_id: str | None = None) -> list[str]:
+    """Flip the switch and leave the emulator configs in the state it implies.
+
+    **The order is the whole function.** Going off, the clean-up runs BEFORE the
+    new state is persisted, so `release_profile` meets an autoconfig that is
+    still on and empties the slots through the ordinary gate. Persisting first
+    would have meant handing the clean-up a way round its own control point, and
+    a bypass that exists is one something else will eventually use.
+
+    Going on, nothing is written here at all: `gamepad_monitor.request_reprofile`
+    is what resumes, because the roster, the dup indexes and the slot compaction
+    are its answers to give. This function's job on the way up is only to make
+    the state true before that pass runs.
+
+    Returns what the clean-up emptied, by name, so the caller reports a fact.
+    """
+    released: list[str] = []
+    if not enabled:
+        released = release_owned_slots([pack_id] if pack_id else None)
+    if pack_id:
+        controller_autoconfig.set_pack(pack_id, enabled)
+    else:
+        controller_autoconfig.set_enabled(enabled)
+    return released
 
 
 def identification(vendor: str, product: str, evdev_name: str) -> dict:
