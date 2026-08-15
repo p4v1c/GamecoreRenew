@@ -119,7 +119,7 @@
     "color": "#003087",
     "iconPath": "assets/logos/pcsx2.png",
     "path": "lib/pcsx2",
-    "args": "-fullscreen",
+    "args": "-nogui -fullscreen",
     "romsPath": "emu/pcsx2/",
     "extensions": [
       "*.iso",

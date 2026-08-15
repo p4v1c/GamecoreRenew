@@ -13,10 +13,10 @@
   },
   "launch": {
     "path": "flatpak",
-    "args": "run @APPID@ -fullscreen",
+    "args": "run @APPID@ -nogui -fullscreen",
     "preferIfPresent": {
       "path": "lib/pcsx2",
-      "args": "-fullscreen"
+      "args": "-nogui -fullscreen"
     }
   },
   "roms": {
