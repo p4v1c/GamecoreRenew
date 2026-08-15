@@ -25,6 +25,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { api, type MappingStep, type MappingSession } from '../../../api'
+import { onGp } from '../../../hooks/useGamepad'
 
 /** How long a press must last to count as "this pad has no such button". */
 const HOLD_MS = 900
@@ -64,6 +65,21 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
   const [idle, setIdle] = useState(false)
   const [result, setResult] = useState<{ lines: string[]; missing: string[] } | null>(null)
   const [copied, setCopied] = useState(false)
+  /**
+   * Which button of the LAST screen is selected — 0 "Copy & contribute",
+   * 1 "Done". It starts on Done because that is the way out.
+   *
+   * The last screen had no pad handling at all, and the owner hit it: "je n'ai
+   * pas pu le sélectionner avec mon joystick ou pad directionnel, j'ai dû le
+   * faire avec la souris." A wizard whose whole premise is "no keyboard, and
+   * nothing here may depend on a binding" ended on a mouse.
+   *
+   * It is also the screen where that is least excusable. By the time it is up
+   * the pad has just been mapped button by button — the box knows more about
+   * this controller than anywhere else in its life — and the mapping is exactly
+   * what drives the selection below.
+   */
+  const [focus, setFocus] = useState(1)
 
   const steps: MappingStep[] = session?.steps ?? []
   const step: MappingStep | undefined = steps[stepIdx]
@@ -80,9 +96,14 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const phaseRef = useRef<Phase>('starting')
   const bindingsRef = useRef<Record<string, string>>({})
+  const focusRef = useRef(1)
+  /** What the selected button of the last screen does. Kept in a ref because
+   *  the socket handler is installed once, like everything else here. */
+  const activateRef = useRef<() => void>(() => {})
   useEffect(() => { stepIdxRef.current = stepIdx }, [stepIdx])
   useEffect(() => { phaseRef.current = phase }, [phase])
   useEffect(() => { bindingsRef.current = bindings }, [bindings])
+  useEffect(() => { focusRef.current = focus }, [focus])
 
   const total = steps.length
   const isLast = stepIdx >= total - 1
@@ -105,6 +126,11 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
       .then(r => {
         if (!r.ok) { setError(r.error || 'could not save'); setPhase('error'); return }
         setResult({ lines: r.lines ?? [], missing: r.missing ?? [] })
+        setFocus(1)
+        // Arriving on the last screen is a state change like any other, so it
+        // opens a settle window too: whatever was still deflected when Save
+        // fired must not press the button that closes the wizard.
+        acceptAfter.current = Date.now() + SETTLE_MS
         setPhase('done')
         onSaved?.(r.lines ?? [])
       })
@@ -175,6 +201,25 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
             if (confirm && binding === confirm) { save(); return }
             const undoLast = lastPress.current.binding
             if (undoLast && binding === undoLast) back()
+            return
+          }
+
+          // ── the last screen ───────────────────────────────────────────────
+          // Driven by the mapping that was just captured, for the same reason
+          // the review screen is: these are the only inputs on this pad the box
+          // can be sure of, and they were confirmed one screen ago.
+          //
+          // The settle window is respected here where review ignores it. Review
+          // is reached by a press whose RELEASE triggers save(), so the same
+          // physical press cannot bleed through — but a stick still deflected
+          // from the last capture step can, and it would close the wizard
+          // before the owner has read a word of it.
+          if (phaseRef.current === 'done') {
+            if (pressed || now < acceptAfter.current) return
+            const b = bindingsRef.current
+            if (b.dpleft && binding === b.dpleft) { setFocus(0); return }
+            if (b.dpright && binding === b.dpright) { setFocus(1); return }
+            if (b.a && binding === b.a) activateRef.current()
             return
           }
           if (!current) return
@@ -258,6 +303,42 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
     setPhase('review')
   }, [stepIdx, total, phase])
 
+  const contribute = useCallback(() => {
+    const text = (result?.lines ?? []).join('\n')
+    navigator.clipboard?.writeText(text).then(
+      () => { setCopied(true); setTimeout(() => setCopied(false), 2500) },
+      () => setCopied(false))
+  }, [result])
+
+  // What the selected button does, refreshed whenever the selection or the
+  // result moves. The socket handler reads it through a ref; so does the
+  // gamepad route below.
+  useEffect(() => {
+    activateRef.current = () => (focus === 0 ? contribute() : onClose())
+  }, [focus, contribute, onClose])
+
+  // ── the pad, on the two screens that have no capture to protect ───────────
+  //
+  // The rest of this component ignores `gp:*` deliberately: those are the
+  // browser's own Gamepad API events, and a pad SDL cannot map does not produce
+  // them reliably — which is the entire population this wizard exists for.
+  //
+  // On the last two screens that reasoning inverts. Nothing is being captured,
+  // so nothing can be confused by a stray event, and one of the two screens is
+  // reached precisely when the session never opened at all — no capture stream,
+  // therefore no other way out but a mouse. A second route can only add
+  // reachability here, and reachability is the whole complaint.
+  useEffect(() => {
+    if (phase !== 'done' && phase !== 'error') return
+    const offs = [
+      onGp('gp:confirm', () => (phase === 'error' ? onClose() : activateRef.current())),
+      onGp('gp:back', () => onClose()),
+      onGp('gp:dpad-left', () => setFocus(0)),
+      onGp('gp:dpad-right', () => setFocus(1)),
+    ]
+    return () => offs.forEach(off => off())
+  }, [phase, onClose])
+
   // ── keyboard, for a desk ──────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -265,6 +346,12 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
       if (phase === 'review') {
         if (e.key === 'Enter') save()
         if (e.key === 'Backspace' || e.key === 'ArrowLeft') back()
+        return
+      }
+      if (phase === 'done') {
+        if (e.key === 'Enter' || e.key === ' ') activateRef.current()
+        if (e.key === 'ArrowLeft') setFocus(0)
+        if (e.key === 'ArrowRight') setFocus(1)
         return
       }
       if (phase !== 'capturing') return
@@ -275,13 +362,6 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
     return () => window.removeEventListener('keydown', onKey)
   }, [phase, onClose, skip, back, save])
 
-  const contribute = () => {
-    const text = (result?.lines ?? []).join('\n')
-    navigator.clipboard?.writeText(text).then(
-      () => { setCopied(true); setTimeout(() => setCopied(false), 2500) },
-      () => setCopied(false))
-  }
-
   const done = Object.keys(bindings).length
 
   return (
@@ -290,7 +370,14 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
 
       {phase === 'error' && (
         <Centered title="The wizard could not start" detail={error}>
-          <button style={S.button} onClick={onClose} autoFocus>Close</button>
+          <button style={{ ...S.button, ...S.selected }} onClick={onClose} autoFocus>
+            Close
+          </button>
+          {/* No capture session here — often there never was one — so the pad
+              route is the browser's own events. On a controller it cannot map
+              either, Escape and the mouse are what is left, and saying so beats
+              a screen that looks interactive and is not. */}
+          <div style={S.contribute}>✕ / A, ○ / B, or Escape.</div>
         </Centered>
       )}
 
@@ -372,12 +459,30 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
             {result.lines.map(l => <code key={l} style={S.line}>{l}</code>)}
           </div>
           <div style={S.buttons}>
-            <button style={S.button} onClick={contribute}>
+            <button
+              style={{ ...S.button, ...(focus === 0 ? S.selected : null) }}
+              onClick={() => { setFocus(0); contribute() }}
+            >
               {copied ? 'Copied ✓' : 'Copy & contribute'}
             </button>
-            <button style={{ ...S.button, ...S.primary }} onClick={onClose} autoFocus>
+            <button
+              style={{ ...S.button, ...S.primary, ...(focus === 1 ? S.selected : null) }}
+              onClick={() => { setFocus(1); onClose() }}
+              autoFocus
+            >
               Done
             </button>
+          </div>
+          {/* Named from the capture, not from a glyph table: the pad has just
+              been mapped, so these are the only two inputs on it the box is
+              entitled to promise anything about. */}
+          <div style={S.contribute}>
+            {bindings.a
+              ? <>Press <b>A / Cross</b> to choose{
+                  bindings.dpleft && bindings.dpright
+                    ? <>, <b>left</b> and <b>right</b> on the D-pad to move</>
+                    : null}.</>
+              : <>You skipped A / Cross, so this screen takes a mouse or Escape.</>}
           </div>
           <div style={S.contribute}>
             Paste it at <b>github.com/mdqinc/SDL_GameControllerDB</b> — every
@@ -517,6 +622,11 @@ const S: Record<string, React.CSSProperties> = {
   },
   primary: {
     background: 'var(--gc-accent, #7c3aed)', borderColor: 'transparent',
+  },
+  // Which button the pad will press. A ring rather than a colour change: the
+  // primary button is already coloured, and selection has to read on both.
+  selected: {
+    outline: '2px solid var(--gc-accent-bright, #c4b5fd)', outlineOffset: 3,
   },
   contribute: {
     fontSize: 11, color: 'rgba(255,255,255,0.3)', maxWidth: 460, lineHeight: 1.6,

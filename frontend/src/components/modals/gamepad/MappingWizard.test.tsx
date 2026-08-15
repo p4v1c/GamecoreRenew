@@ -246,4 +246,91 @@ describe('the mapping wizard', () => {
     expect(screen.getByText('The wizard could not start')).toBeTruthy()
     expect(screen.getByText('connect exactly one controller')).toBeTruthy()
   })
+
+  // ── the last screen ────────────────────────────────────────────────────────
+  //
+  // Reported by the owner after running the wizard end to end: "la dernière
+  // partie Done ou Copy & contribute, je n'ai pas pu le sélectionner avec mon
+  // joystick ou pad directionnel, j'ai dû le faire avec la souris."
+  //
+  // Every other screen here is driven by the pad. This one had no handling at
+  // all — the socket handler fell through `if (!current) return`, because past
+  // the last step there is no current step. So a wizard whose premise is "no
+  // keyboard, and nothing may depend on a binding" ended on a mouse, on the one
+  // screen where the box knows the pad best.
+
+  /** Answer every step, then confirm the review, landing on the last screen. */
+  async function reachTheEnd() {
+    await open()
+    tap('b0'); settle()          // a
+    tap('b1'); settle()          // b
+    tap('a2', '+a2'); settle()   // lefttrigger
+    await saveFromReview()
+    settle()                     // past the window that opens with the screen
+  }
+
+  it('closes from the last screen with the button captured as A', async () => {
+    let closed = false
+    render(<MappingWizard onClose={() => { closed = true }} />)
+    await act(async () => { await Promise.resolve() })
+    tap('b0'); settle()
+    tap('b1'); settle()
+    tap('a2', '+a2'); settle()
+    await saveFromReview()
+    settle()
+    expect(screen.getByText('Your controller is mapped')).toBeTruthy()
+
+    tap('b0')                    // the input the owner told us was A
+
+    expect(closed).toBe(true)
+  })
+
+  it('moves between the two buttons with the captured D-pad', async () => {
+    // jsdom ships no clipboard, and the component already guards for that with
+    // `navigator.clipboard?.` — a box in a kiosk without one must not crash on
+    // the way out. Stubbed here so the assertion has something to read.
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText }, configurable: true,
+    })
+
+    // Nothing here is a glyph table: `dpleft`/`dpright` are whatever the owner
+    // pressed for those steps, which is the only thing the box can promise.
+    vi.mocked(api.controllers.mapping.start).mockResolvedValue({
+      ok: true, session: 's1', controller: 'Generic Pad',
+      guids: ['0300aaaa'], nodes: ['/dev/input/event9'],
+      steps: [{ field: 'a', kind: 'button', label: 'A / Cross' },
+              { field: 'dpleft', kind: 'button', label: 'D-pad left' },
+              { field: 'dpright', kind: 'button', label: 'D-pad right' }],
+      optional: [],
+    })
+    await open()
+    tap('b0'); settle()
+    tap('h0.8'); settle()
+    tap('h0.2'); settle()
+    await saveFromReview()
+    settle()
+
+    tap('h0.8')                  // move to "Copy & contribute"
+    tap('b0')                    // and choose it
+
+    expect(writeText).toHaveBeenCalledWith(
+      '0300aaaa,Generic Pad,a:b0,platform:Linux,')
+  })
+
+  it('does not act on input that bled in from the last capture step', async () => {
+    // A trigger still deflected when Save fires must not press the button that
+    // closes the wizard before a word of it has been read.
+    let closed = false
+    render(<MappingWizard onClose={() => { closed = true }} />)
+    await act(async () => { await Promise.resolve() })
+    tap('b0'); settle()
+    tap('b1'); settle()
+    tap('a2', '+a2'); settle()
+    await saveFromReview()
+
+    tap('b0')                    // inside the settle window this screen opens
+
+    expect(closed).toBe(false)
+  })
 })
