@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useStore } from '../../store'
 import { api, SysInfo, UsbDevice } from '../../api'
-import { onGp, useGamepadState } from '../../hooks/useGamepad'
+import { GP_BTN, onGp, useGamepadState } from '../../hooks/useGamepad'
 import { ControllerBattery } from '../TopBar'
 import ControllerArt, { ControllerLayout } from './gamepad/ControllerArt'
 import DefaultGamepadView from './gamepad/DefaultGamepadView'
@@ -10,6 +10,29 @@ import type { GamepadViewProps } from './gamepad/types'
 
 // Ported from stremio-web's GamepadModal (□ toggles it there too), redrawn
 // to match GameCore's palette and its actual button mappings.
+
+/**
+ * How long △ must be held on this screen to open the mapping wizard.
+ *
+ * **The gesture lives here and not in a view, and that is the point.** The
+ * wizard was reachable through one button, in `DefaultGamepadView` — and
+ * neither shipped theme destructures `onRemap`, so on every box anyone
+ * actually runs it was invisible. A view is allowed to make that choice; what
+ * it must not be able to do is make the wizard unreachable, because for a pad
+ * SDL cannot name it is the only way to make the box usable at all. Owning the
+ * gesture in the host fixes the class rather than the two instances.
+ *
+ * And it had a second lock even when visible: a plain <button>, selectable
+ * with a mouse and nothing else. A controller screen reached from a sofa,
+ * offering the fix for a broken controller behind a pointer.
+ *
+ * A HOLD rather than a press, because this screen's rule is that every press
+ * is a test and must only light up its counterpart on the diagram — the same
+ * reason the wizard itself uses a hold for "this pad does not have that
+ * button". △ specifically: the library screen's own △ is guarded by
+ * `modalDepth`, so nothing else is listening while this is up.
+ */
+const REMAP_HOLD_MS = 1000
 
 function detectControllerType(): { type: ControllerLayout; name: string } {
   const gp = navigator.getGamepads?.().find(g => g !== null)
@@ -66,6 +89,20 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
   // No button binding here on purpose: on this screen every press is a test and
   // must only light up its counterpart on the pad. ○ does NOT go back, and
   // leaving takes a double □ — see CONTROLLER_CLOSE_MS in App.tsx.
+  //
+  // The one exception is a HOLD, which no press can be mistaken for. See
+  // REMAP_HOLD_MS: it is what makes the wizard reachable at all from a sofa,
+  // and reachable in a theme that never draws the button.
+  const holdingTop = !!state.pressed[GP_BTN.Y]
+  useEffect(() => {
+    if (!holdingTop || wizard) return
+    const timer = setTimeout(() => setWizard(true), REMAP_HOLD_MS)
+    // A boolean dependency on purpose: this component re-renders on every
+    // frame the pad moves, and a dependency that changed with it would restart
+    // the timer whenever a resting stick jittered — the hold would never
+    // complete for anyone holding the pad in their hands.
+    return () => clearTimeout(timer)
+  }, [holdingTop, wizard])
 
   const g = GLYPHS[ctrl.type]
 

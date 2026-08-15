@@ -834,6 +834,23 @@
 }
 .sm-gamepad-map span { font-size: 15px; color: var(--foam-200); }
 
+/* The way out for a pad none of the mappings above applies to. A controller
+   SDL cannot name lights nothing up in the diagram and matches none of the
+   bindings listed, so this screen is exactly where its owner ends up — and
+   until now this theme told them nothing they could act on. */
+.sm-gamepad-remap {
+  display: block; width: 100%; margin-bottom: 14px; padding: 13px 18px;
+  border: 1px solid var(--glass-hairline); border-radius: var(--r-sm, 8px);
+  background: var(--glass-500); color: inherit;
+  font-family: inherit; text-align: left; cursor: pointer;
+}
+.sm-gamepad-remap:hover { background: var(--glass-300, var(--glass-500)); }
+.sm-gamepad-remap b { display: block; font-size: 15px; font-weight: 700; }
+.sm-gamepad-remap i {
+  display: block; margin-top: 3px; font-style: normal; font-size: 13px;
+  color: var(--foam-200);
+}
+
 
 /* ── Launch transition (views/warp.js) ──────────────────────────────────────
  * The one place this theme stacks something itself. The rule against a theme

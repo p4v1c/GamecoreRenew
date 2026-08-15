@@ -7,6 +7,14 @@
  * must light up its counterpart and nothing else. ○ does not go back, and
  * leaving takes a double press of □, which the host owns.
  *
+ * `onRemap` opens the mapping wizard, and this file did not destructure it —
+ * neither did summer's. The button exists only in the fallback view, so on
+ * both shipped themes the wizard was invisible; verified both ways, by setting
+ * theme.json to `active: null` and watching it appear. For a controller SDL
+ * cannot name that button is the only way to make the box usable, so a theme
+ * leaving it out is not a style choice. The hold gesture in the hint bar is the
+ * host's and works whatever a theme draws — this is the discoverable half.
+ *
  * Props: frontend/src/components/modals/gamepad/types.ts
  */
 const SEGMENTS = 4
@@ -15,7 +23,7 @@ const segsFor = (level) => Math.max(0, Math.min(SEGMENTS, Math.ceil((level || 0)
 export const createGamepadView = (sdk) => {
   const { html } = sdk.ui
 
-  return ({ name, layoutLabel, connected, controllers, glyphs, mappings, onClose, Art }) => {
+  return ({ name, layoutLabel, connected, controllers, glyphs, mappings, onClose, onRemap, Art }) => {
     const pad = controllers[0]
     const segs = pad ? segsFor(pad.level) : 0
 
@@ -57,8 +65,15 @@ export const createGamepadView = (sdk) => {
               <div key=${k} class="cz-pad-map"><kbd>${k}</kbd><span>${action}</span></div>`)}
           </div>
 
+          ${onRemap ? html`
+            <button class="cz-pad-remap" onClick=${onRemap}>
+              <b>Buttons wrong or dead? — map this controller</b>
+              <i>Hold ${glyphs.top}. About a minute, no keyboard.</i>
+            </button>` : null}
+
           <div class="cz-hint cz-hint-modal">
-            Press any button to test · ${glyphs.left} ×2 to close
+            Press any button to test · Hold ${glyphs.top} to remap ·
+            ${glyphs.left} ×2 to close
           </div>
         </div>
       </div>`

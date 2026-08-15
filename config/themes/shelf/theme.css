@@ -1506,6 +1506,23 @@
 .cz-pad-readout .cz-bat > i { background: rgba(237, 234, 227, 0.22); }
 .cz-pad-readout .cz-bat > i[data-fill="1"] { background: var(--gc-accent-bright); }
 
+/* The way out for a pad none of the mappings above applies to. A controller
+   SDL cannot name lights nothing up in the diagram and matches none of the
+   bindings listed, so this screen is exactly where its owner ends up — and
+   until now this theme told them nothing they could act on. */
+.cz-pad-remap {
+  display: block; width: 100%; margin-top: 16px; padding: 11px 16px;
+  border: 1px solid var(--gc-overlay-border); border-radius: var(--r-chip);
+  background: rgba(237, 234, 227, 0.06); color: var(--paper);
+  font-family: var(--font-body); text-align: left; cursor: pointer;
+}
+.cz-pad-remap:hover { background: rgba(237, 234, 227, 0.12); }
+.cz-pad-remap b { display: block; font-size: 13px; font-weight: 500; }
+.cz-pad-remap i {
+  display: block; margin-top: 3px; font-style: normal; font-size: 11px;
+  font-family: var(--font-mono); color: rgba(237, 234, 227, 0.5);
+}
+
 /* themes */
 .cz-theme-dot {
   width: 13px; height: 13px; border-radius: 50%; flex: 0 0 auto;

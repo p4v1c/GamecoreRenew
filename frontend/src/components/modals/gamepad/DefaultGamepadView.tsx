@@ -116,13 +116,13 @@ export default function DefaultGamepadView({
         }}>
           Buttons wrong or dead? — map this controller
           <span style={{ display: 'block', fontSize: 10, fontWeight: 400, marginTop: 3, color: 'rgba(255,255,255,0.4)' }}>
-            About a minute, no keyboard. Works in all thirteen systems.
+            Hold {glyphs.top}, or click here. About a minute, no keyboard.
           </span>
         </button>
       )}
 
       <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
-        Press any button to test · {glyphs.left} ×2 Close
+        Press any button to test · Hold {glyphs.top} to remap · {glyphs.left} ×2 Close
       </div>
     </Overlay>
   )
