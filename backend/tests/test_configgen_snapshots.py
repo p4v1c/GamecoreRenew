@@ -195,6 +195,39 @@ def test_restore_still_applies_a_snapshot_that_agrees(tmp_path):
     assert msg and "restored" in msg
 
 
+def test_a_restore_that_would_change_nothing_says_nothing(tmp_path):
+    """"Already applied" is a question about the RESULT, not about the snapshot.
+
+    It used to be asked as "is the file byte-identical to what was captured",
+    which is a different question the moment a `replace` is anything but a
+    verbatim swap. Two packs answer it differently: gopher64 rewrites a restored
+    profile's DevicePath to where the pad sits on this boot, so its file can
+    never equal the snapshot; mgba's replace applies nothing at all, and the
+    reference box recorded it rewriting the file at 08:59:51 with an identical
+    md5 while announcing "restored saved mapping".
+
+    A write that changes nothing, announced as if it had, is the same defect in
+    both. The monitor reprofiles every three seconds — this is what stops it
+    from touching the file and filing a success each time.
+    """
+    cfg = tmp_path / "controller0.xml"
+    saved = f"<emulated_controller>\n{DS4_UUID}</emulated_controller>\n"
+    cfg.write_text(saved)
+
+    snaps = tmp_path / "snaps"
+    snap = snapshots.snap_path(snaps, "cemu", "054c", "09cc")
+    snap.parent.mkdir(parents=True)
+    snap.write_text(saved)
+
+    def _replace_that_does_nothing(text, block):
+        return text
+
+    assert snapshots.restore(snaps, "cemu", cfg, _whole_file,
+                             _replace_that_does_nothing, "054c", "09cc") is None
+    assert not cfg.with_name(cfg.name + ".bak-ctrlmodel").exists(), (
+        "a no-op restore took a backup of a file it was not going to change")
+
+
 def test_a_saved_mapping_can_be_forgotten(tmp_path):
     """The inverse that did not exist. A refused snapshot is unreachable from a
     sofa, and without this the only way out of one is a shell."""

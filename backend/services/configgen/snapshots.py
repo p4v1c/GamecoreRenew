@@ -180,10 +180,30 @@ def restore(snap_dir: Path, emu_id: str, path: Path, extract, replace,
         return (f"{emu_id}: saved mapping ignored — it describes {wrong}, "
                 f"not {vendor}:{product}")
 
-    if extract(text).strip() == block.strip():
+    # "Already applied" is asked of the RESULT, not of the snapshot. It used to
+    # compare `extract(text)` against the block, which answers a subtly
+    # different question — "is the file byte-identical to what was captured" —
+    # and those diverge the moment a `replace` is anything but a verbatim swap:
+    #
+    #   · gopher64 rewrites the restored profile's DevicePath and DeviceSerial
+    #     to where the pad sits on THIS boot, because RMG compares them by
+    #     equality and hidraw numbering follows connection order. The file can
+    #     therefore never equal the snapshot, so every single connection
+    #     rewrote it and reported "restored saved mapping";
+    #   · mgba's `_mgba_replace()` walks the snapshot's SECTIONS, and its
+    #     `device0=` line precedes every header, so it applies nothing at all.
+    #     Measured on the reference box: the file rewritten at 08:59:51 with an
+    #     identical md5, announcing a success.
+    #
+    # Both are the same defect — a write that changes nothing, announced as if
+    # it had. Comparing the result answers the question the caller actually
+    # asks, and it cannot introduce a write the old test avoided: a `replace`
+    # that produces the text already on disk is one that had nothing to do.
+    new = replace(text, block)
+    if new == text:
         return None                                   # already applied
     backup(path)
-    atomic_write(path, replace(text, block))
+    atomic_write(path, new)
     return f"{emu_id}: restored saved mapping ({vendor}:{product})"
 
 
