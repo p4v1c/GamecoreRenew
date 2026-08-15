@@ -89,3 +89,78 @@ def _raising(exc):
     def run(*a, **k):
         raise exc
     return run
+
+
+# ── what the probe is allowed to be told ─────────────────────────────────────
+#
+# The second failure this file records, and the more expensive one, because it
+# produced an answer instead of an absence.
+#
+# `sdl2_probe` is one of the two SOURCES `inputs.py` is built on: it is asked
+# what SDL ITSELF knows about a pad, precisely where the owner's capture must
+# not be believed. On the reference box it answered with the capture. SDL reads
+# a mapping table from SDL_GAMECONTROLLERCONFIG_FILE and keeps the LAST line it
+# finds for a GUID, so a table carrying the owner's line beats SDL's built-in —
+# and the same DualShock 4, the same code, at the same instant:
+#
+#     probe in a fresh process     start:b6  back:b4  leftshoulder:b9   dpup:b11
+#     probe in a backend that had  start:b9  back:b8  leftshoulder:b4   dpup:h0.1
+#     enumerated a pad once
+#
+# The second line is the capture, in the LINUX JOYSTICK driver's numbering, for
+# a pad SDL drives through HIDAPI. It reached azahar as `start` on that
+# driver's L1 and a D-pad bound to a hat SDL calls buttons 11-14 — reported in
+# game as "l1 = option, le pad directionnel ne fonctionne pas". `evdev_driven()`
+# answered False throughout: the guard was never wrong, it was bypassed.
+
+def test_a_probe_is_never_handed_a_mapping_table(monkeypatch):
+    """The fix, stated where it is enforced.
+
+    Both variables, not only the one that leaked: SDL reads a table from either,
+    and a rule with an exception is a rule someone re-derives wrongly later.
+    """
+    cc._sdl2_cache.clear()
+    seen = {}
+
+    def run(*a, **k):
+        seen.update(k.get("env") or {})
+        raise OSError(11, "Try again")     # the answer is not what is under test
+
+    monkeypatch.setenv("SDL_GAMECONTROLLERCONFIG_FILE", "/tmp/served.txt")
+    monkeypatch.setenv("SDL_GAMECONTROLLERCONFIG", "0500,Pad,a:b0,")
+    monkeypatch.setattr(cc.subprocess, "run", run)
+
+    cc.sdl2_probe("054c", "09cc")
+
+    assert "SDL_GAMECONTROLLERCONFIG_FILE" not in seen
+    assert "SDL_GAMECONTROLLERCONFIG" not in seen
+
+
+def test_the_rest_of_the_environment_reaches_the_probe(monkeypatch):
+    """Scrubbed, not replaced. The probe still needs this box's PATH and
+    LD_LIBRARY_PATH to load an emulator's bundled libSDL2.so at all."""
+    monkeypatch.setenv("GAMECORE_TEST_MARKER", "kept")
+
+    assert cc.probe_env().get("GAMECORE_TEST_MARKER") == "kept"
+
+
+def test_enumerating_a_pad_does_not_change_what_a_later_probe_is_told(monkeypatch):
+    """The leak itself: `os.environ.setdefault` outlives the call that made it.
+
+    `_sdl3_live_names` genuinely wants the served table — a NAME must match what
+    the emulators enumerate — and it took it by mutating the backend's own
+    environment, which is what every later subprocess inherits. The bug was
+    therefore ORDER-DEPENDENT: whether azahar got SDL's numbers or the owner's
+    depended on whether a pad had been enumerated earlier in that process.
+    """
+    from backend.services.configgen import mapping_db
+
+    monkeypatch.delenv("SDL_GAMECONTROLLERCONFIG_FILE", raising=False)
+    monkeypatch.setattr(mapping_db, "served", lambda: Path("/tmp/served.txt"))
+
+    with cc._served_db_in_env():
+        inside = cc.os.environ.get("SDL_GAMECONTROLLERCONFIG_FILE")
+
+    assert inside == "/tmp/served.txt", "the name lookup still gets its table"
+    assert "SDL_GAMECONTROLLERCONFIG_FILE" not in cc.os.environ, (
+        "the table outlived the call, and the next probe inherits it")

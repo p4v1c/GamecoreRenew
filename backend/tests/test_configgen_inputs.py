@@ -212,3 +212,75 @@ def test_a_native_emulator_is_asked_of_the_host_sdl(monkeypatch):
     _sdl(monkeypatch, DS4_GUID, DS4_MAP)
 
     assert inputs.for_pad(PAD, app_id="").source == "sdl"
+
+
+# ── the wizard source asks the right SDL ─────────────────────────────────────
+
+def _capture_line(guid: str) -> str:
+    return f"{guid},PS4 Controller,a:b0,start:b9,platform:Linux,"
+
+
+def test_the_capture_is_looked_up_under_the_emulators_own_identity(monkeypatch):
+    """`bindings_for` took `app_id` and dropped it, and the azahar generator's
+    docstring already said so: *"It used to be `EMU_ID`, the pack id, which
+    `derive.bindings_for` accepted and ignored."* It was still ignored.
+
+    The GUID it returns is written into a config the emulator's SDL2 reads, and
+    the host's SDL3 says bus `0x05` for a Bluetooth DualShock 4 where a real
+    SDL2 says `0x03` — measured, same pad, same instant. Filing the capture
+    under the host's identity names a device that emulator never enumerates.
+    """
+    seen: list[str] = []
+
+    def probe(vendor, product, lib=""):
+        seen.append(lib)
+        return {"guid": DS4_GUID}
+
+    monkeypatch.setattr(mapping_db, "read_user",
+                        lambda: [_capture_line(DS4_GUID)])
+    monkeypatch.setattr(controllers, "sdl2_probe", probe)
+    monkeypatch.setattr(controllers, "bundled_sdl2",
+                        lambda app_id: "/runtime/libSDL2-2.0.so.0")
+    monkeypatch.setattr(derive, "evdev_driven", lambda v, p: True)
+
+    got = derive.bindings_for("054c", "09cc", "org.azahar_emu.Azahar")
+
+    assert got is not None and got[0] == DS4_GUID
+    assert seen == ["/runtime/libSDL2-2.0.so.0"], (
+        "the capture was filed under the host SDL's identity, not azahar's")
+
+
+def test_an_emulator_whose_sdl_cannot_be_reached_is_refused(monkeypatch):
+    """The same rule `Pad.guid_for` states: refuse rather than answer with the
+    host's SDL2. A flatpak lookup fails for ordinary reasons — a busy flatpak,
+    a timeout, a system-vs-user install — and the silent substitution it used
+    to make is the exact bus-byte mismatch this package exists to prevent."""
+    monkeypatch.setattr(mapping_db, "read_user",
+                        lambda: [_capture_line(DS4_GUID)])
+    monkeypatch.setattr(controllers, "bundled_sdl2", lambda app_id: "")
+    monkeypatch.setattr(controllers, "sdl2_probe",
+                        lambda v, p, lib="": (_ for _ in ()).throw(
+                            AssertionError("asked an SDL it should not have")))
+
+    assert derive.bindings_for("054c", "09cc", "org.azahar_emu.Azahar") is None
+
+
+def test_a_hidapi_pad_is_still_refused_the_capture(monkeypatch):
+    """The guard, exercised on its own road.
+
+    It never stopped answering correctly — `evdev_driven('054c','09cc')` was
+    False every time it was asked, before the regression and after. What went
+    wrong was that the capture reached azahar without passing here at all, and
+    a guard is only worth its test if the road it guards is also tested.
+    """
+    monkeypatch.setattr(mapping_db, "read_user",
+                        lambda: [_capture_line(DS4_GUID)])
+    monkeypatch.setattr(controllers, "sdl2_probe",
+                        lambda v, p, lib="": {"guid": DS4_GUID})
+    monkeypatch.setattr(derive, "evdev_driven", lambda v, p: False)
+
+    assert derive.bindings_for("054c", "09cc") is None
+
+    monkeypatch.setattr(derive, "evdev_driven", lambda v, p: None)
+    assert derive.bindings_for("054c", "09cc") is None, (
+        "an unestablished answer is a refusal, not a yes")

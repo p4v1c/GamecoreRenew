@@ -254,7 +254,7 @@ def wizard_mapped(monkeypatch, tmp_path):
     user = tmp_path / "user.txt"
     user.write_text(CAPTURED + "\n")
     monkeypatch.setattr(mapping_db, "USER_DB", user)
-    monkeypatch.setattr(derive, "sdl2_probe",
+    monkeypatch.setattr(controllers, "sdl2_probe",
                         lambda v, p, lib="": {"guid": DERIVE_GUID})
     monkeypatch.setattr(derive, "evdev_driven", lambda v, p: True)
     return tmp_path
@@ -448,7 +448,7 @@ def test_a_capture_under_another_guid_is_not_this_emulators(wizard_mapped, monke
     written from the line matching the GUID ITS SDL computes — matching on
     vendor:product instead would hand it the host SDL3 line, whose indices are
     a different driver's."""
-    monkeypatch.setattr(derive, "sdl2_probe",
+    monkeypatch.setattr(controllers, "sdl2_probe",
                         lambda v, p, lib="": {"guid": "05008fe54c050000cc09000000006800"})
 
     assert derive.bindings_for("dead", "beef") is None
@@ -504,7 +504,7 @@ def test_a_box_that_never_ran_the_wizard_pays_nothing(monkeypatch, tmp_path):
     def must_not_run(*_a, **_k):
         raise AssertionError("an SDL subprocess ran for a box with no captures")
 
-    monkeypatch.setattr(derive, "sdl2_probe", must_not_run)
+    monkeypatch.setattr(controllers, "sdl2_probe", must_not_run)
     monkeypatch.setattr(derive, "evdev_driven", must_not_run)
 
     assert derive.bindings_for("054c", "09cc") is None

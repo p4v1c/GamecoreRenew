@@ -54,9 +54,13 @@ import logging
 import subprocess
 import sys
 
-from . import mapping_db
-from .controllers import sdl2_probe
+from . import controllers, mapping_db
 from .inputs import Input, parse_token
+
+# Through the module, never `from .controllers import sdl2_probe`: a name bound
+# at import time is a second seam, and a test replacing `controllers.sdl2_probe`
+# does not reach it. `inputs.py` states the same rule at its own call site; this
+# file used to be the exception to it.
 
 log = logging.getLogger(__name__)
 
@@ -130,7 +134,11 @@ def _guid_with_hidapi(vendor: str, product: str, enabled: str) -> str:
     try:
         r = subprocess.run(
             [sys.executable, "-c", _HIDAPI_PROBE, vendor, product, enabled],
-            capture_output=True, text=True, timeout=10)
+            capture_output=True, text=True, timeout=10,
+            # This one only ever reads a GUID, which no mapping table can
+            # change — scrubbed anyway, so that "an SDL probe runs without a
+            # mapping table" is one rule with no exception to remember.
+            env=controllers.probe_env())
     except (OSError, subprocess.SubprocessError):
         return ""
     return r.stdout.strip()
@@ -166,10 +174,25 @@ def bindings_for(vendor: str, product: str, app_id: str = "") -> tuple[str, dict
     has never run the wizard there is nothing to derive from, and finding that
     out has to cost a stat of one absent file rather than an SDL launch per
     emulator. Which is every box, until the day it is not.
+
+    **`app_id` is used, and it did not used to be.** It was accepted and
+    dropped, so the GUID came from the HOST's SDL2 whoever asked — and the
+    caller then wrote that id into a config the emulator's own SDL2 reads,
+    which is the bus-byte mismatch `Pad.guid_for` documents at length (`0x05`
+    against `0x03` for one Bluetooth DualShock 4). The capture would have been
+    filed under an identity that emulator never computes: a config naming a
+    device that is not there, which is not better than no config. Same three
+    cases as `guid_for`, and an emulator whose SDL2 cannot be reached is
+    refused rather than answered for by the host's.
     """
     if not mapping_db.read_user():
         return None
-    raw = sdl2_probe(vendor, product).get("guid", "")
+    lib = ""
+    if app_id:
+        lib = controllers.bundled_sdl2(app_id)
+        if not lib:
+            return None
+    raw = controllers.sdl2_probe(vendor, product, lib).get("guid", "")
     if not raw:
         return None
     bindings = captured(raw)

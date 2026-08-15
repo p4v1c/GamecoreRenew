@@ -23,6 +23,7 @@ the part of Batocera's structure worth taking — the flattening is not.
 """
 from __future__ import annotations
 
+import contextlib
 import glob
 import logging
 import os
@@ -84,6 +85,72 @@ SDL3_FALLBACK_NAMES = {
 
 _sdl3_cache: tuple[float, dict[tuple[str, str], str]] = (0.0, {})
 
+# The two variables SDL reads a mapping table from. Named once because two
+# places care about them for opposite reasons: this file's name lookup wants
+# the served table, and every SUBPROCESS PROBE wants none of it — see
+# `probe_env` below.
+_MAPPING_ENV = ("SDL_GAMECONTROLLERCONFIG_FILE", "SDL_GAMECONTROLLERCONFIG")
+
+
+@contextlib.contextmanager
+def _served_db_in_env():
+    """Point SDL at the served database for the duration of ONE in-process init.
+
+    It used to be an `os.environ.setdefault`, which is a permanent mutation of
+    the backend's own environment — and the environment is what every
+    `subprocess.run` below inherits. Measured on the reference box, one
+    DualShock 4, after the owner ran the wizard:
+
+        a fresh process asks azahar's SDL2 for its mapping
+            start:b6  back:b4  leftshoulder:b9  rightshoulder:b10  dpup:b11
+        the same call inside a backend that had enumerated a pad once
+            start:b9  back:b8  leftshoulder:b4  rightshoulder:b5  dpup:h0.1
+
+    The second is the owner's own capture, read back out of the served file and
+    returned as though SDL had said it. `inputs.py` is built on those two
+    sources never mixing, and this leak mixed them without passing the guard
+    that exists to stop exactly that — `evdev_driven()` was never asked,
+    because the capture no longer arrived by the wizard's road. What reached
+    the box was azahar bound to a hat its SDL calls buttons 11-14, `start` on
+    that driver's L1, and nothing at all on R1.
+
+    Restored on the way out, so the leak cannot outlive the call.
+    """
+    from . import mapping_db
+    db = mapping_db.served()
+    if not db:
+        yield
+        return
+    before = os.environ.get("SDL_GAMECONTROLLERCONFIG_FILE")
+    os.environ["SDL_GAMECONTROLLERCONFIG_FILE"] = str(db)
+    try:
+        yield
+    finally:
+        if before is None:
+            os.environ.pop("SDL_GAMECONTROLLERCONFIG_FILE", None)
+        else:
+            os.environ["SDL_GAMECONTROLLERCONFIG_FILE"] = before
+
+
+def probe_env() -> dict[str, str]:
+    """The environment an SDL probe subprocess runs in: this one, minus any
+    mapping table.
+
+    A probe asks SDL what IT knows about a pad. A mapping file on the way in
+    makes it answer with what the file knows instead — and SDL keeps the LAST
+    line it reads for a GUID, so a table containing the owner's capture wins
+    over SDL's built-in every time. The answer is then evdev indices wearing
+    the name of the driver's.
+
+    Scrubbed here rather than trusted to be absent: the backend is not the only
+    thing that can put it there, and a probe whose answer depends on who
+    started the process is a probe that gives one box two configs.
+    """
+    env = dict(os.environ)
+    for name in _MAPPING_ENV:
+        env.pop(name, None)
+    return env
+
 
 def _sdl3_live_names() -> dict[tuple[str, str], str]:
     """vendor:product → device name for every currently-connected gamepad, as
@@ -93,14 +160,6 @@ def _sdl3_live_names() -> dict[tuple[str, str], str]:
     import ctypes
 
     os.environ.setdefault("SDL_NO_SIGNAL_HANDLERS", "1")
-    # The SERVED database, not the vendored one: a pad the owner has just
-    # mapped by hand must be enumerated here exactly as the emulators will
-    # enumerate it, or the name we write into their configs comes from a
-    # different table than the one they read.
-    from . import mapping_db
-    db = mapping_db.served()
-    if db:
-        os.environ.setdefault("SDL_GAMECONTROLLERCONFIG_FILE", str(db))
     lib = ctypes.CDLL("libSDL3.so.0")
     lib.SDL_InitSubSystem.restype = ctypes.c_bool
     lib.SDL_InitSubSystem.argtypes = [ctypes.c_uint32]
@@ -116,22 +175,29 @@ def _sdl3_live_names() -> dict[tuple[str, str], str]:
     lib.SDL_free.argtypes = [ctypes.c_void_p]
 
     names: dict[tuple[str, str], str] = {}
-    if not lib.SDL_InitSubSystem(SDL_INIT_GAMEPAD):
-        return names
-    try:
-        count = ctypes.c_int(0)
-        pads = lib.SDL_GetGamepads(ctypes.byref(count))
-        if pads:
-            for k in range(count.value):
-                jid = pads[k]
-                raw = lib.SDL_GetGamepadNameForID(jid)
-                vendor = lib.SDL_GetGamepadVendorForID(jid)
-                product = lib.SDL_GetGamepadProductForID(jid)
-                if raw and vendor:
-                    names[(f"{vendor:04x}", f"{product:04x}")] = raw.decode()
-            lib.SDL_free(pads)
-    finally:
-        lib.SDL_QuitSubSystem(SDL_INIT_GAMEPAD)
+    # The SERVED database, not the vendored one: a pad the owner has just
+    # mapped by hand must be enumerated here exactly as the emulators will
+    # enumerate it, or the name we write into their configs comes from a
+    # different table than the one they read. A NAME is safe to take from the
+    # owner's table; an INDEX is not, which is the whole distinction
+    # `probe_env` draws.
+    with _served_db_in_env():
+        if not lib.SDL_InitSubSystem(SDL_INIT_GAMEPAD):
+            return names
+        try:
+            count = ctypes.c_int(0)
+            pads = lib.SDL_GetGamepads(ctypes.byref(count))
+            if pads:
+                for k in range(count.value):
+                    jid = pads[k]
+                    raw = lib.SDL_GetGamepadNameForID(jid)
+                    vendor = lib.SDL_GetGamepadVendorForID(jid)
+                    product = lib.SDL_GetGamepadProductForID(jid)
+                    if raw and vendor:
+                        names[(f"{vendor:04x}", f"{product:04x}")] = raw.decode()
+                lib.SDL_free(pads)
+        finally:
+            lib.SDL_QuitSubSystem(SDL_INIT_GAMEPAD)
     return names
 
 
@@ -452,6 +518,13 @@ def sdl2_probe(vendor: str, product: str, lib: str = "") -> dict[str, str]:
     """What SDL2 itself says about a connected pad: its raw 32-hex GUID and its
     GameController mapping. `{}` when SDL2 cannot be asked.
 
+    **Itself** is the load-bearing word, and `probe_env` is what enforces it:
+    the probe runs with no mapping table in its environment, so the mapping
+    that comes back is SDL's own built-in one for the driver it really uses.
+    Handed the served database instead, it returns the owner's capture — evdev
+    indices for a pad SDL reads through HIDAPI — and the caller has no way to
+    tell the two apart.
+
     `lib` picks WHICH SDL2 answers. Empty means the host's. Pass an emulator's
     bundled one whenever the answer is going into that emulator's config.
 
@@ -465,7 +538,8 @@ def sdl2_probe(vendor: str, product: str, lib: str = "") -> dict[str, str]:
         return cached
     try:
         r = subprocess.run([sys.executable, "-c", _SDL2_PROBE, vendor, product, lib],
-                           capture_output=True, text=True, timeout=8)
+                           capture_output=True, text=True, timeout=8,
+                           env=probe_env())
     except (OSError, subprocess.SubprocessError) as e:
         # Two different facts used to leave here as the same empty dict: "SDL
         # ran, and this pad is not among its joysticks" and "SDL was never

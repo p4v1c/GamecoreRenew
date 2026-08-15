@@ -66,6 +66,24 @@ So: the wizard first when it is offered (the owner measured that pad by hand,
 and `bindings_for` only offers it when the driver agrees), SDL's own mapping
 otherwise. Neither is ever used in the other's territory.
 
+**How that separation was breached, measured rather than reasoned.** The first
+box to run this shipped a DualShock 4 config with `start` on the driver's L1, a
+D-pad bound to a hat that SDL calls buttons 11-14, and nothing on R1 — while
+`evdev_driven('054c','09cc')` still answered `False` every time it was asked.
+The guard was intact and simply no longer on the road: the capture arrived
+through `_from_sdl`, because SDL had been handed the SERVED mapping table on
+its way in and read the owner's own line back out. SDL keeps the LAST line for
+a GUID, so the capture beat SDL's built-in, and `source` said "sdl" about a
+number the wizard had measured.
+
+The table came from `os.environ.setdefault` in `controllers._sdl3_live_names`,
+inherited by every probe subprocess started afterwards — which made the answer
+depend on whether a pad had been enumerated earlier in that process. The same
+pad, the same code, two different configs. `controllers.probe_env()` is what
+holds the two sources apart now: a probe asking what SDL knows runs with no
+mapping table at all. **A source is not a source if something else can speak
+into it.**
+
 ## The invariant
 
 A GUID and a set of indices must come from the SAME SDL. Mixing them is the
