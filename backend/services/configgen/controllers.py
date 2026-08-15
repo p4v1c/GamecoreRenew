@@ -441,6 +441,7 @@ _SDL2_PROBE = (
 
 _sdl2_cache: dict[tuple[str, str, str], tuple[float, dict[str, str]]] = {}
 _bundled_sdl_cache: dict[str, str] = {}
+_bundled_sdl3_cache: dict[str, str] = {}
 _flatpak_loc_cache: dict[str, str] = {}
 _runtime_loc_cache: dict[str, str] = {}
 
@@ -602,6 +603,161 @@ def sdl2_probe(vendor: str, product: str, lib: str = "") -> dict[str, str]:
             out[tag.lower()] = value.strip()
     if out:
         _sdl2_cache[key] = (time.monotonic(), out)
+    return out
+
+
+# ── asking a specific SDL3 who a pad IS ───────────────────────────────────
+
+# RMG-Input identifies a pad by three strings at once and compares them by
+# equality (Source/RMG-Input/main.cpp:647):
+#
+#     deviceName == profile->DeviceName && devicePath == profile->DevicePath
+#                                       && deviceSerial == profile->DeviceSerial
+#
+# read from SDL_GetGamepadName / Path / Serial. One field wrong and the profile
+# does not attach — silently, the way a wrong GUID silently disposes Ryujinx's
+# slot. The name has a source of its own (`resolve_name`, which is already what
+# every SDL3-name consumer uses); the other two are what this probe is for.
+#
+# **They are not derivable from the pad's ids, and not interchangeable.**
+# Measured on the reference box, same instant:
+#
+#     054c:09cc DualShock 4    path /dev/hidraw0     serial 40:1b:5f:b9:ea:8d
+#     045e:02fd Xbox Wireless  path /dev/input/event14   serial ""
+#
+# SDL names the node of whichever driver it reads the pad through — hidraw for
+# the HIDAPI families, the evdev node otherwise — and only a HIDAPI-driven pad
+# has a serial at all. So `_hidraw_for(serial)` can answer for the first pad
+# and can never answer for the second, and inventing an empty path for it
+# writes a profile RMG will not match.
+_SDL3_IDENTITY_PROBE = (
+    "import ctypes,os,sys\n"
+    "os.environ['SDL_VIDEODRIVER']='dummy'\n"
+    "os.environ.setdefault('SDL_NO_SIGNAL_HANDLERS','1')\n"
+    "v=int(sys.argv[1],16);p=int(sys.argv[2],16)\n"
+    "lib=sys.argv[3] if len(sys.argv)>3 and sys.argv[3] else 'libSDL3.so.0'\n"
+    "try: s=ctypes.CDLL(lib)\n"
+    "except OSError: sys.exit(0)\n"
+    "s.SDL_InitSubSystem.restype=ctypes.c_bool\n"
+    "s.SDL_InitSubSystem.argtypes=[ctypes.c_uint32]\n"
+    "s.SDL_GetGamepads.restype=ctypes.POINTER(ctypes.c_uint32)\n"
+    "s.SDL_GetGamepads.argtypes=[ctypes.POINTER(ctypes.c_int)]\n"
+    "s.SDL_GetGamepadVendorForID.restype=ctypes.c_uint16\n"
+    "s.SDL_GetGamepadProductForID.restype=ctypes.c_uint16\n"
+    "s.SDL_GetGamepadVendorForID.argtypes=[ctypes.c_uint32]\n"
+    "s.SDL_GetGamepadProductForID.argtypes=[ctypes.c_uint32]\n"
+    "s.SDL_GetGamepadPathForID.restype=ctypes.c_char_p\n"
+    "s.SDL_GetGamepadPathForID.argtypes=[ctypes.c_uint32]\n"
+    "s.SDL_OpenGamepad.restype=ctypes.c_void_p\n"
+    "s.SDL_OpenGamepad.argtypes=[ctypes.c_uint32]\n"
+    "s.SDL_GetGamepadSerial.restype=ctypes.c_char_p\n"
+    "s.SDL_GetGamepadSerial.argtypes=[ctypes.c_void_p]\n"
+    "s.SDL_CloseGamepad.argtypes=[ctypes.c_void_p]\n"
+    "if not s.SDL_InitSubSystem(0x2000): sys.exit(0)\n"
+    "n=ctypes.c_int(0)\n"
+    "ids=s.SDL_GetGamepads(ctypes.byref(n))\n"
+    "for i in range(n.value):\n"
+    " j=ids[i]\n"
+    " if s.SDL_GetGamepadVendorForID(j)!=v: continue\n"
+    " if s.SDL_GetGamepadProductForID(j)!=p: continue\n"
+    " q=s.SDL_GetGamepadPathForID(j)\n"
+    " print('PATH '+(q.decode() if q else ''))\n"
+    " g=s.SDL_OpenGamepad(j)\n"
+    " if g:\n"
+    "  r=s.SDL_GetGamepadSerial(g)\n"
+    "  print('SERIAL '+(r.decode() if r else ''))\n"
+    "  s.SDL_CloseGamepad(g)\n"
+    " break\n"
+    "s.SDL_Quit()\n"
+)
+
+_sdl3_identity_cache: dict[tuple[str, str, str], tuple[float, dict[str, str]]] = {}
+
+
+def bundled_sdl3(app_id: str) -> str:
+    """Absolute path of the libSDL3 a flatpak'd emulator really uses, or "".
+
+    `bundled_sdl2`'s twin, and same order — app first, runtime second — for the
+    same reason: an app that ships its own library is not answered by anybody
+    else's. RMG ships none and links `org.kde.Platform`'s.
+
+    **Where it differs from its twin: the host is an acceptable last resort
+    here, and it is measured rather than assumed.** `bundled_sdl2` says "host
+    never" because a GUID encodes the bus byte and two SDL builds disagree
+    about it. These three strings are properties of the DEVICE and the driver
+    reading it, not of the enumerating build. Measured, one DualShock 4, same
+    instant, on the reference box:
+
+        host libSDL3 3.4.12               PS4 Controller  /dev/hidraw0
+                                          40:1b:5f:b9:ea:8d
+        org.kde.Platform 6.10's
+        libSDL3 3.2.30 — RMG's own        PS4 Controller  /dev/hidraw0
+                                          40:1b:5f:b9:ea:8d
+
+    Byte-identical across two SDL3 generations. So the caller may fall back to
+    the host, and this returning "" is not a refusal to answer.
+    """
+    if app_id in _bundled_sdl3_cache:
+        return _bundled_sdl3_cache[app_id]
+    path = ""
+    loc = flatpak_location(app_id)
+    if loc:
+        lib = Path(loc) / "files" / "lib" / "libSDL3.so.0"
+        if lib.is_file():
+            path = str(lib)
+    if not path:
+        runtime = flatpak_runtime_location(app_id)
+        for rel in _RUNTIME_LIB_DIRS if runtime else ():
+            lib = Path(runtime) / rel / "libSDL3.so.0"
+            if lib.is_file():
+                path = str(lib)
+                break
+    _bundled_sdl3_cache[app_id] = path
+    return path
+
+
+def sdl3_identity(vendor: str, product: str, lib: str = "") -> dict[str, str]:
+    """`{"path": …, "serial": …}` for a connected pad, or `{}`.
+
+    A present key with an empty value is an ANSWER — "SDL read this pad through
+    a driver that gives it no serial" — and `{}` is the absence of one. The
+    caller must be able to tell those apart: writing `DeviceSerial = ""` is
+    correct for an Xbox pad and is a guess for a pad SDL never reported.
+
+    Run in a SUBPROCESS, like `sdl2_probe` and for one more reason besides. The
+    backend has libSDL3 loaded in its own address space already, so a second
+    build cannot be dlopen'd next to it; and reading a serial means OPENING the
+    gamepad, which hands the pad to SDL's HIDAPI driver for the duration. Doing
+    that inside the process that is also enumerating pads on a three-second
+    loop is a side effect nobody asked for.
+
+    `probe_env()` rather than the served mapping table, and the distinction is
+    the one `inputs.py` draws: a mapping table can rename a pad, so a NAME is
+    taken from `resolve_name`, which enumerates WITH the table exactly as the
+    emulators will. A path and a serial come from the device and no table can
+    speak into them.
+    """
+    key = (vendor.lower(), product.lower(), lib)
+    ts, cached = _sdl3_identity_cache.get(key, (0.0, {}))
+    if cached and time.monotonic() - ts <= 5.0:
+        return cached
+    try:
+        r = subprocess.run(
+            [sys.executable, "-c", _SDL3_IDENTITY_PROBE, vendor, product, lib],
+            capture_output=True, text=True, timeout=8, env=probe_env())
+    except (OSError, subprocess.SubprocessError) as e:
+        # Same distinction `sdl2_probe` makes, and not cached for the same
+        # reason: a probe that never ran said nothing about this pad.
+        log.warning("configgen: SDL3 identity probe for %s:%s could not be run "
+                    "(%s: %s)", vendor, product, e.__class__.__name__, e)
+        return {}
+    out: dict[str, str] = {}
+    for line in r.stdout.splitlines():
+        tag, _sep, value = line.partition(" ")
+        if tag in ("PATH", "SERIAL"):
+            out[tag.lower()] = value.strip()
+    if out:
+        _sdl3_identity_cache[key] = (time.monotonic(), out)
     return out
 
 
