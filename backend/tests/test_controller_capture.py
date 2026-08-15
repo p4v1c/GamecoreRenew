@@ -150,14 +150,55 @@ def test_the_hat_bitmask_is_sdls_and_not_the_kernels(layout):
     assert cap.binding_for(layout, cap.EV_ABS, ABS_HAT0X, 0) is None, "centred"
 
 
+# The two axes a DualShock 4 really declares, read from this box with the pad
+# connected. They are identical apart from where they sit — which is the whole
+# reason the old `flat` test could not work.
+DS4_STICK = cap.Axis(minimum=0, maximum=255, rest=128)
+DS4_TRIGGER = cap.Axis(minimum=0, maximum=255, rest=0)
+CENTRED_STICK = cap.Axis(minimum=-32768, maximum=32767, rest=0)
+
+
 def test_a_resting_stick_does_not_bind_anything(layout):
     """The single most common way a naive capture loop produces garbage: an
-    analogue stick at rest drifts by a few counts continuously, so the first
-    button the player is asked for gets bound to whichever axis twitched. The
-    kernel publishes the rest zone as `flat`; anything inside it is noise."""
-    assert cap.binding_for(layout, cap.EV_ABS, ABS_X, 40, flat=128) is None
-    assert cap.binding_for(layout, cap.EV_ABS, ABS_X, -128, flat=128) is None
-    assert cap.binding_for(layout, cap.EV_ABS, ABS_X, 30000, flat=128) == "a0"
+    analogue stick at rest drifts continuously, so the first button the player
+    is asked for gets bound to whichever axis twitched.
+
+    This used to compare `abs(value)` against the kernel's `flat`, which only
+    works for an axis centred on zero. A DualShock 4's ABS_X is `0..255` with
+    `flat=0` resting at 128, so the guard passed EVERY reading — the pad sitting
+    still on a table drove the wizard by itself.
+    """
+    assert cap.binding_for(layout, cap.EV_ABS, ABS_X, 128, DS4_STICK) is None
+    assert cap.binding_for(layout, cap.EV_ABS, ABS_X, 133, DS4_STICK) is None
+    assert cap.binding_for(layout, cap.EV_ABS, ABS_X, 255, DS4_STICK) == "a0"
+    assert cap.binding_for(layout, cap.EV_ABS, ABS_X, 0, DS4_STICK) == "a0", (
+        "pushed the other way is just as pushed")
+    # And the axis that DOES rest at zero still behaves.
+    assert cap.binding_for(layout, cap.EV_ABS, ABS_X, 900, CENTRED_STICK) is None
+    assert cap.binding_for(layout, cap.EV_ABS, ABS_X, 30000, CENTRED_STICK) == "a0"
+
+
+def test_a_trigger_is_told_from_a_stick_by_where_it_rests(layout):
+    """Nothing in the descriptor separates them — a DualShock 4 declares both
+    as `0..255`. Only the resting value does, and travel is therefore measured
+    per direction: a stick can move 127 from its midpoint, a trigger 255 from
+    its minimum, and dividing by the full span would make a fully pushed stick
+    read as half pressed."""
+    assert cap.binding_for(layout, cap.EV_ABS, ABS_Z, 255, DS4_TRIGGER) == "a2"
+    assert cap.binding_for(layout, cap.EV_ABS, ABS_Z, 20, DS4_TRIGGER) is None
+    # The same number read two ways. 160 is 63% of a trigger's travel and only
+    # 25% of a stick's; 51 is 61% of a stick's and 20% of a trigger's.
+    assert cap.binding_for(layout, cap.EV_ABS, ABS_Z, 160, DS4_TRIGGER) == "a2"
+    assert cap.binding_for(layout, cap.EV_ABS, ABS_X, 160, DS4_STICK) is None
+    assert cap.binding_for(layout, cap.EV_ABS, ABS_X, 51, DS4_STICK) == "a0"
+    assert cap.binding_for(layout, cap.EV_ABS, ABS_Z, 51, DS4_TRIGGER) is None
+
+
+def test_an_axis_nobody_can_describe_is_unmappable(layout):
+    """Refusal, not a guess. Without knowing where an axis rests there is no
+    way to read its value at all, and a wrong reading here is a binding on
+    something the player never touched."""
+    assert cap.binding_for(layout, cap.EV_ABS, ABS_X, 30000, None) is None
 
 
 def test_a_direction_can_be_narrowed_to_half_an_axis(layout):
@@ -167,6 +208,37 @@ def test_a_direction_can_be_narrowed_to_half_an_axis(layout):
     assert cap.half_axis("a2", 30000) == "+a2"
     assert cap.half_axis("a2", -30000) == "-a2"
     assert cap.half_axis("b3", 1) == "b3", "a button has no half"
+
+
+def test_which_half_is_measured_from_rest_not_from_zero(layout):
+    """A DualShock 4 stick runs 0..255 from its midpoint, so every reading is
+    positive: pushing it left came out `+a0`, the same token as pushing it
+    right, and a wizard step asking for a direction recorded the wrong one."""
+    assert cap.half_axis("a0", 255, DS4_STICK) == "+a0"
+    assert cap.half_axis("a0", 0, DS4_STICK) == "-a0"
+
+
+# ── which nodes a session reads ──────────────────────────────────────────────
+
+def test_a_motion_sensor_node_is_not_a_joystick():
+    """Measured on this box: a DualShock 4 lying untouched emitted 4335 events
+    in three seconds from its `Motion Sensors` node, which `binding_for` turned
+    into 2561 axis tokens named a0..a5 — the same names as the real pad's
+    sticks, because each node is numbered from its own capabilities. Every one
+    armed the wizard's hold timer, and a hold skips the step."""
+    assert cap._is_joystick(FACE)
+    assert not cap._is_joystick([]), "the DS4 motion node declares no keys"
+    # Its touchpad node: BTN_LEFT, BTN_TOOL_FINGER, BTN_TOUCH, BTN_TOOL_DOUBLETAP
+    assert not cap._is_joystick([0x110, 0x145, 0x14A, 0x14D])
+
+
+def test_a_pad_with_no_gamepad_names_is_still_a_joystick():
+    """The kernel's joystick range, not just the gamepad one: an arcade stick
+    or a clone declaring BTN_TRIGGER/BTN_THUMB must still be read, and so must
+    a pad with more buttons than names that spills into BTN_TRIGGER_HAPPY."""
+    assert cap._is_joystick([BTN_TRIGGER, BTN_THUMB])
+    assert cap._is_joystick([0x2C0, 0x2C1])
+    assert not cap._is_joystick([KEY_A, KEY_ENTER]), "a keyboard is not one"
 
 
 # ── the line ─────────────────────────────────────────────────────────────────

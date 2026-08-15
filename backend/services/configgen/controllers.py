@@ -343,6 +343,7 @@ _SDL2_PROBE = (
 _sdl2_cache: dict[tuple[str, str, str], tuple[float, dict[str, str]]] = {}
 _bundled_sdl_cache: dict[str, str] = {}
 _flatpak_loc_cache: dict[str, str] = {}
+_runtime_loc_cache: dict[str, str] = {}
 
 
 def flatpak_location(app_id: str) -> str:
@@ -361,8 +362,39 @@ def flatpak_location(app_id: str) -> str:
     return out
 
 
+def flatpak_runtime_location(app_id: str) -> str:
+    """Deploy directory of the RUNTIME an installed flatpak links against.
+
+    An app that ships no SDL of its own is not an app with no SDL: it links its
+    runtime's, and that library is on this filesystem and can be asked.
+    """
+    if app_id in _runtime_loc_cache:
+        return _runtime_loc_cache[app_id]
+    out = ""
+    try:
+        r = subprocess.run(["flatpak", "info", "--show-runtime", app_id],
+                           capture_output=True, text=True, timeout=8)
+        runtime = r.stdout.strip() if r.returncode == 0 else ""
+        if runtime:
+            r = subprocess.run(
+                ["flatpak", "info", "--show-location", f"runtime/{runtime}"],
+                capture_output=True, text=True, timeout=8)
+            if r.returncode == 0:
+                out = r.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    _runtime_loc_cache[app_id] = out
+    return out
+
+
+# Where a flatpak runtime keeps its shared libraries. One entry today, and a
+# list rather than a constant because the path is the runtime's convention and
+# not ours.
+_RUNTIME_LIB_DIRS = ("files/lib/x86_64-linux-gnu", "files/lib")
+
+
 def bundled_sdl2(app_id: str) -> str:
-    """Absolute path of the SDL2 a flatpak'd emulator ships, or "".
+    """Absolute path of the SDL2 a flatpak'd emulator really uses, or "".
 
     Measured on the reference box, same physical DualShock 4, same instant:
 
@@ -375,12 +407,43 @@ def bundled_sdl2(app_id: str) -> str:
     for anything HIDAPI drives, Bluetooth included. That one byte is the
     difference between Ryujinx binding the pad and its
     `_gamepadsIds.IndexOf(id)` returning -1 and disposing the slot in silence.
+
+    **The runtime is checked when the app ships nothing, and it is not a
+    nicety.** Ryujinx bundles `files/bin/libSDL2.so`; azahar, melonDS and RMG
+    ship none and link `org.kde.Platform`'s. Returning "" for those meant "ask
+    the host", and the host is sdl2-compat over SDL3 — a different library that
+    answers differently. Measured, one DualShock 4, same instant:
+
+        host sdl2-compat 2.32.70    dpup:h0.1  dpdown:h0.4  …  touchpad:b11
+        org.kde.Platform 6.9's
+        real SDL 2.32.10            dpup:b11   dpdown:b12  …  touchpad:b15
+
+    That second line is not a curiosity: `snapshots.py` records azahar writing
+    `button_up = 11` for this exact pad and calls it unexplainable next to SDL's
+    own mapping "which claims a hat and calls button 11 the touchpad". Both are
+    true, and this is why — two SDL2 builds, two answers, and azahar's is the
+    one in the runtime. Asking the host for an azahar binding produces a hat
+    where azahar wants button 11: a config full of plausible numbers binding the
+    wrong things, which is the failure the whole package is arranged to avoid.
+
+    App first, runtime second, host never: the order is the specificity order,
+    and an app that bundles its own SDL is not affected by any of this.
     """
     if app_id in _bundled_sdl_cache:
         return _bundled_sdl_cache[app_id]
+    path = ""
     loc = flatpak_location(app_id)
-    lib = Path(loc) / "files" / "bin" / "libSDL2.so" if loc else None
-    path = str(lib) if lib and lib.is_file() else ""
+    if loc:
+        lib = Path(loc) / "files" / "bin" / "libSDL2.so"
+        if lib.is_file():
+            path = str(lib)
+    if not path:
+        runtime = flatpak_runtime_location(app_id)
+        for rel in _RUNTIME_LIB_DIRS if runtime else ():
+            lib = Path(runtime) / rel / "libSDL2-2.0.so.0"
+            if lib.is_file():
+                path = str(lib)
+                break
     _bundled_sdl_cache[app_id] = path
     return path
 

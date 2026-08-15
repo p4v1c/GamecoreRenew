@@ -1,7 +1,7 @@
 {
   "id": "summer",
   "name": "Summer",
-  "version": "2.7.0",
+  "version": "2.7.1",
   "api": 3,
   "author": "Claude design \u00b7 ported by Claude Code",
   "description": "A WebGL ocean that tracks the real sun, under glass panels",

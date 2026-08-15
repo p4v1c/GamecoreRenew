@@ -31,8 +31,18 @@ class Skip(str):
 
 
 def backup(p: Path) -> None:
-    """Copy before EVERY write. A wrong write costs the user their manual
-    mapping; a truncated one costs them the whole config."""
+    """Keep ONE copy of the file as it was before GameCore first touched it.
+
+    The docstring used to say "copy before EVERY write", which is not what the
+    guard below does and not what is wanted. A copy per write would, after two
+    connections, hold a backup of a file GameCore had already rewritten — the
+    thing worth keeping is the state the owner or the installer left, and the
+    second write is exactly when that would be lost.
+
+    A wrong write costs the owner their manual mapping; a truncated one costs
+    them the whole config. This answers the first; `atomic_write` answers the
+    second.
+    """
     b = p.with_name(p.name + ".bak-ctrlmodel")
     if p.is_file() and not b.exists():
         shutil.copy2(p, b)

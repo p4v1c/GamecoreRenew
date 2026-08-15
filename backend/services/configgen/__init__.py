@@ -58,6 +58,29 @@ def load_generator(pack):
     return module
 
 
+def launches_flatpak(pack) -> bool:
+    """Whether THIS box starts this pack's Flatpak, or a native binary.
+
+    `pack.launcher(prefer_existing=True)` is the same answer the tile is built
+    from, resolved against what is on the box right now — so this asks the
+    question by consulting the decision rather than by guessing at it again.
+
+    Defaults to True, because that is what a pack with no `preferIfPresent`
+    means and what every failure to answer should degrade to: `dest` is the
+    declared home and `nativeDest` is the exception.
+    """
+    launch = pack.data.get("launch")
+    if not launch:
+        return True
+    try:
+        path, _args = pack.launcher(prefer_existing=True)
+    except Exception:
+        log.warning("configgen: could not resolve %s's launcher — assuming the "
+                    "flatpak", pack.id, exc_info=True)
+        return True
+    return Path(path).name == "flatpak"
+
+
 def resolve_config_dir(pack, home: Path) -> Path | None:
     """Where this emulator's config actually lives on THIS box.
 
@@ -65,27 +88,32 @@ def resolve_config_dir(pack, home: Path) -> Path | None:
     installs — that is what makes a phantom config directory unexpressible.
 
     `nativeDest` exists for the emulators a box can run outside Flatpak (mgba,
-    melonds). The tree that EXISTS wins, native first: a native tree kept as a
-    post-migration backup must not shadow a live flatpak, and a curated config
-    written next to an uninstalled flatpak is never read by anything.
+    melonds). **What the box LAUNCHES decides, not which directory exists.**
+
+    It used to be the second, and the reference box is the counter-example the
+    rule was missing. `io.mgba.mGBA` is not installed there; mGBA runs natively
+    through `preferIfPresent: /usr/bin/mgba-qt` and reads
+    `~/.config/mgba/config.ini`. But `~/.var/app/io.mgba.mGBA/` was still on
+    disk from an install months earlier — the flatpak was removed, its data
+    directory was not — so the "tree that exists" test chose the flatpak's, and
+    every mapping the pipeline wrote for a year went into a file nothing reads.
+    Both defences the old rule was built on survive the change, because they
+    were both really about which binary runs: a native tree kept as a
+    post-migration backup does not shadow a live flatpak (the box launches the
+    flatpak), and a config written next to an uninstalled flatpak cannot happen
+    at all (the box launches the native binary).
     """
     cfg = pack.data.get("config")
     if not cfg:
         return None
-    app_id = pack.app_id
 
     def expand(value: str) -> Path:
         return pack.expand(value, home)
 
-    flatpak_dir = expand(cfg["dest"])
     native = cfg.get("nativeDest")
-    if native:
-        native_dir = expand(native)
-        # The flatpak app directory, not the config subdir: it exists as soon
-        # as the app is installed, even before it has written a config.
-        if not (home / ".var/app" / app_id).is_dir() and native_dir.is_dir():
-            return native_dir
-    return flatpak_dir
+    if native and not launches_flatpak(pack):
+        return expand(native)
+    return expand(cfg["dest"])
 
 
 def generator_opts(pack, home: Path, snap_dir: Path) -> dict | None:
@@ -101,7 +129,15 @@ def generator_opts(pack, home: Path, snap_dir: Path) -> dict | None:
         "config_dir": config_dir,
         "target": config_dir / target if target else config_dir,
         "controllers": ctl,
-        "app_id": pack.app_id,
+        # Empty when the box runs the native binary, and that is the same
+        # correction `resolve_config_dir` makes one line up: an app id is how a
+        # consumer reaches THAT EMULATOR'S OWN SDL2 — `Pad.guid_for` and
+        # `inputs.for_pad` both take it — and an emulator running outside its
+        # flatpak does not have one. Passing the declared id anyway made
+        # `guid_for` refuse to answer at all for mGBA ("cannot locate
+        # io.mgba.mGBA"), when the truthful answer is that the host's SDL2 is
+        # the one it links.
+        "app_id": pack.app_id if launches_flatpak(pack) else "",
         "snap_dir": snap_dir,
         "home": home,
     }

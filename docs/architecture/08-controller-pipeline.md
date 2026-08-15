@@ -39,8 +39,17 @@ flowchart TD
     q -->|"by SDL role vocabulary<br/>PCSX2, DuckStation"| sdl["clone slot 1's role bindings<br/>onto an SDL index<br/><b>sdl-index-clone</b>"]
     q -->|"by device NAME string<br/>RPCS3, Dolphin"| nm["resolve_name() must be<br/>trusted, or nothing is written<br/><b>rewrite-player-block / -device-line</b>"]
     q -->|"by device GUID<br/>Ryujinx"| guid["ryu_guid_from_sdl2()<br/>exact, or the slot dies silently<br/><b>guid-rebind</b>"]
-    q -->|"by GUID + raw button indices<br/>Azahar, Cemu, mGBA, melonDS, RMG"| snap["no synthesis possible —<br/>capture and restore the owner's<br/>own config <b>snapshot-restore</b>"]
+    q -->|"by GUID + raw button indices<br/>Azahar, Cemu, mGBA, melonDS, RMG"| snap["ask THAT emulator's SDL for the<br/>indices — configgen/inputs.py —<br/>and keep the owner's own capture<br/>above it <b>snapshot-restore</b>"]
 ```
+
+That last branch used to read "no synthesis possible", and for a long time it
+was true: a vendor:product says nothing about raw button indices, so azahar and
+gopher64 sent the owner out to the emulator's own settings screen and mGBA
+shipped a seed carrying one particular DualShock 4's numbers. **What was missing
+was not a way to write them but a way to ask for them** — see
+[the abstract input model](#the-abstract-input-model) below. Cemu and RMG are
+still copy-only, for reasons recorded in `derive.cemu_is_not_derivable` and in
+`snapshots.block_disagrees`.
 
 The strategy names in bold are the literal `controllers.strategy` values in each
 pack. `scripts/catalog-query.py` will print the current map; do not retype it
@@ -57,7 +66,7 @@ fixed offsets.
 | `ryu_guid_vidpid(dashed_guid)` | the same, for Ryujinx's dashed dialect. For **reading** a config, never for deciding what to write |
 | `ryu_guid_from_sdl2(sdl_hex)` | the exact GUID Ryujinx will compute, from the one SDL2 reports — .NET `System.Guid` byte order, **name CRC (bytes 2-3) zeroed** |
 | `sdl2_probe(vendor, product, lib)` | what SDL2 itself says about a connected pad: raw GUID **and** GameController mapping, from a subprocess. `lib` picks *which* SDL2 answers |
-| `bundled_sdl2(app_id)` | the SDL2 a flatpak'd emulator ships, or `""`. Its answer, not the host's, is what goes in that emulator's config |
+| `bundled_sdl2(app_id)` | the SDL2 a flatpak'd emulator really uses — the one it **ships**, else the one its **runtime** provides — or `""`. Its answer, not the host's, is what goes in that emulator's config |
 
 > A GUID carries bus type, version and driver signature as well as
 > vendor/product, so two pads with the same vendor:product can have different
@@ -79,8 +88,22 @@ drives, Bluetooth included. Writing the host's answer made Ryujinx's
 `IndexOf(id)` return -1 and dispose the slot in silence — `Hid Remap: No
 matching controllers found` in its log, the controller applet on screen.
 
-Only Ryujinx is affected today: RPCS3 and PCSX2 ship SDL3, which agrees with the
-host, and Dolphin uses the runtime's.
+RPCS3 and PCSX2 ship SDL3, which agrees with the host, and Dolphin uses the
+runtime's. But Ryujinx is **not** the only one affected, and assuming it was is
+what kept azahar unsynthesisable. azahar, melonDS and RMG bundle no libSDL2 at
+all: they link `org.kde.Platform`'s, and `bundled_sdl2()` used to answer `""` for
+them, which means "ask the host". Measured on this box, same DualShock 4, same
+instant:
+
+| library | D-pad | touchpad |
+|---|---|---|
+| host `libSDL2-2.0.so.0` — sdl2-compat over SDL3 | `dpup:h0.1 dpdown:h0.4 dpleft:h0.8 dpright:h0.2` | `b11` |
+| `org.kde.Platform` 6.9 — real SDL 2.32.10 | `dpup:b11 dpdown:b12 dpleft:b13 dpright:b14` | `b15` |
+
+`docs/CONTROLLER_MODELS.md` and `snapshots.py` both record azahar writing
+`button_up = 11` for this pad and call it irreconcilable with "SDL's own mapping,
+which claims a hat and calls button 11 the touchpad". Both statements are true.
+They come from two SDL2 builds, and azahar's is the runtime's.
 
 **Ryujinx zeroes the name CRC.** SDL 2.26+ packs a CRC16 of the device name into
 bytes 2-3 to tell apart pads sharing a vendor:product. Ryujinx clears it before
@@ -145,6 +168,48 @@ moving from `sdl3_live` to `unknown` is a pad that went to sleep.
 
 `identification()` surfaces the same question at the API, so the Power menu can
 say "this pad cannot be named" at the moment the owner is holding it.
+
+## The abstract input model
+
+`backend/services/configgen/inputs.py`. One `Input(kind, index, direction)` per
+semantic control — `kind` being `button`, `hat` or `axis` — so a generator can
+ask "which raw index is this pad's L1, and is it even a button" and translate the
+answer into its own format. The shape is Recalbox's and Batocera's idea; the code
+and the convention are not, and neither is their model of regenerating every
+config at launch. **A generator here still writes only the sections it owns.**
+
+The kind is the load-bearing half. mGBA stores a button as `keyA=<n>` and a hat
+direction the other way round as `hat0Up=<gba key id>`; melonDS folds a hat into
+`0x100 | hat<<4 | dir`. A model carrying only a number makes both unwritable,
+which is exactly why those generators had nothing to write.
+
+### Where the indices come from
+
+The hard question, and the one that decides whether this helps or hurts. Two
+sources exist and they describe the same pad differently:
+
+| source | driver | authoritative for |
+|---|---|---|
+| the wizard's capture | SDL's **linux joystick** driver — it is what reads `/dev/input` | pads SDL has no HIDAPI driver for, i.e. the ones the wizard exists for |
+| SDL's own GameController mapping | whichever driver SDL uses — **HIDAPI** for Sony, Microsoft and Nintendo | everything else |
+
+`derive.evdev_driven()` refuses a capture whenever the two disagree, and that
+refusal is correct: azahar recorded `button_up = 11` for a DualShock 4 that SDL's
+HIDAPI driver describes with a hat. The refusal was read as the wizard being
+pointless for modern pads. **It is the opposite.** A pad SDL drives through
+HIDAPI is a pad SDL already ships a mapping for, so the two sources are
+complementary — each authoritative exactly where the other is silent — and
+`for_pad()` never uses one in the other's territory.
+
+`for_pad()` returns the GUID and the indices **from a single probe**, and callers
+must use the pair they were handed. Mixing them is the bus-byte failure above
+reached by another road: an id from one library beside indices from another binds
+nothing.
+
+`None` means neither source could answer, and a generator that gets it writes
+nothing at all. That is not a gap to fill with a plausible default — a config of
+invented indices looks correct, survives reboots, and is undiagnosable from a
+sofa.
 
 ## `Skip` — a give-up is an answer
 
@@ -273,6 +338,28 @@ sequenceDiagram
     gm->>reg: disconnect(key)
 ```
 
+**A launch waits for this to have happened.** An emulator reads its input config
+once, at startup, and never looks again — so a pass that lands a second later
+lands nowhere. Measured on the reference box, twice: RPCS3 started at 08:52:53
+and its config was written at 08:52:59; Dolphin's arrived two seconds after it
+started. Both times the pad was dead in game, both times it worked at the next
+launch.
+
+`routers/games.py` therefore calls `gamepad_monitor.await_profiled()` before
+`process_manager.launch()`. It **waits**, it does not profile: profiling means
+SDL probes carrying an eight-second timeout apiece, which cannot sit in front of
+a launch — the same reason `_free_stale_slots()` is the release half only.
+`gamepad_monitor` publishes its roster and its `applied` footprints for exactly
+this question, and `unprofiled()` answers it with three dict lookups and no I/O.
+
+Three states never wait: a settled roster (one scan period after boot, which is
+every launch but the first), a monitor that is not running (nothing will ever
+profile, so there is nothing to wait for), and a pad that has exhausted
+`PROFILE_RETRIES`. The budget — `PROFILE_BUDGET`, 8 s against the 6.36 s a cold
+pass measures — is a give-up, not a refusal: it broadcasts `game:notice` and
+launches anyway. A late config is a playable game; a launch that does not happen
+is a dead box.
+
 ### 2. "Scan mapping" — remember a config the owner made by hand
 
 For the `snapshot-restore` emulators: the owner configures the pad once in the
@@ -304,6 +391,27 @@ SDL-based emulator on the box reads at startup. **One gesture, thirteen systems.
 It is driven entirely by the pad being mapped — press to record, hold to skip a
 button the pad does not have, double-press to go back — because a controller the
 box cannot understand is exactly the one you cannot navigate a normal UI with.
+
+**Reaching it is the host's job, not a theme's.** The button lives in
+`GamepadViewProps.onRemap`, and a view is allowed to leave it out — but neither
+shipped theme destructured it, so on every box anyone actually runs the wizard
+was invisible. `GamepadModal` therefore owns a gesture as well: a one-second hold
+of △ on the controller screen. A hold and not a press, because that screen's rule
+is that every press is a test and must only light up its counterpart on the
+diagram. `test_shipped_theme_views.py` holds the two shipped themes to drawing
+the button too; `scripts/check-theme.mjs` cannot, since a view that ignores a
+prop is perfectly valid JavaScript.
+
+**A session reads only the pad's JOYSTICK nodes.** A DualShock 4 publishes three
+under one MAC — pad, touchpad, motion sensors — and reading all three meant the
+accelerometer drove the wizard by itself: 4335 events in three seconds with the
+pad lying still, 2561 of them turned into `a0`..`a5` tokens indistinguishable
+from the real sticks, each arming the hold timer that skips a step. SDL does not
+enumerate those nodes either, so an index taken from one names nothing any
+emulator will compute. Axis presses are measured as **deflection from where the
+axis rests**, not against the kernel's `flat`: a DualShock 4 declares its sticks
+`0..255 flat=0` resting at 128, so `abs(value) <= flat` passed every reading and
+never released.
 
 ## The mapping database — two files, and the order is measured
 

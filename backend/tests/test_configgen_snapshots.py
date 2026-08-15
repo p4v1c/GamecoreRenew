@@ -232,7 +232,7 @@ def test_azahar_follows_the_active_profile(tmp_path):
 # azahar/045e_02fd.snap for a hat D-pad, ~/.config/mgba/config.ini for the
 # whole [gba.input.SDLB] section). Nothing here is a guess about a format.
 
-from backend.services.configgen import derive                    # noqa: E402
+from backend.services.configgen import controllers, derive       # noqa: E402
 
 DERIVE_GUID = "03000325adde0000efbe000011010000"
 
@@ -299,6 +299,51 @@ def test_azahar_is_built_in_the_shape_azahar_itself_wrote(wizard_mapped):
     assert block.count("\\default=false") == block.count('="')
 
 
+def test_azahar_is_asked_of_azahars_own_sdl(monkeypatch):
+    """Why azahar could not be synthesised, and why it now can.
+
+    `snapshots.py` records azahar writing `button_up = 11` for a DualShock 4
+    and calls it unexplainable next to SDL's own mapping, "which claims a hat
+    and calls button 11 the touchpad". Measured on this box, same pad, same
+    instant, it is simply two libraries:
+
+        host sdl2-compat 2.32.70    dpup:h0.1 … touchpad:b11
+        org.kde.Platform 6.9's
+        real SDL 2.32.10            dpup:b11  … touchpad:b15
+
+    azahar links the second. Deriving from the first would write a hat where
+    azahar wants button 11 — a config of plausible numbers binding the wrong
+    things, which is worse than the untouched file it replaces.
+    """
+    from backend.services.configgen import inputs, mapping_db
+
+    host = (f"{DERIVE_GUID},A Pad,a:b0,dpup:h0.1,dpdown:h0.4,dpleft:h0.8,"
+            f"dpright:h0.2,touchpad:b11,platform:Linux,")
+    azahars = (f"{DERIVE_GUID},A Pad,a:b0,dpup:b11,dpdown:b12,dpleft:b13,"
+               f"dpright:b14,touchpad:b15,platform:Linux,")
+    monkeypatch.setattr(mapping_db, "read_user", list)   # the wizard never ran
+    monkeypatch.setattr(controllers, "bundled_sdl2",
+                        lambda app_id: "/azahar/libSDL2.so" if app_id else "")
+    monkeypatch.setattr(
+        controllers, "sdl2_probe",
+        lambda v, p, lib="": {"guid": DERIVE_GUID,
+                              "map": azahars if lib else host})
+
+    block = gens["azahar"]._derive_block(_Pad(), "profiles\\1\\",
+                                         "org.azahar_emu.Azahar")
+    assert f'button_up="button:11,engine:sdl,guid:{DERIVE_GUID},port:0"' in block
+
+    # And with no app id, the host answers — which is the WRONG source for
+    # azahar, and the test says so rather than pretending the two agree.
+    assert "direction:up,engine:sdl" in gens["azahar"]._derive_block(
+        _Pad(), "profiles\\1\\", "")
+
+    # One probe for both halves: an id from one library beside indices from
+    # another binds nothing.
+    model = inputs.for_pad(_Pad(), "org.azahar_emu.Azahar")
+    assert model.guid == DERIVE_GUID and model.button("dpup") == 11
+
+
 def test_azahars_sticks_carry_the_escaped_compound_form(wizard_mapped):
     """azahar escapes `:` as `$0` and `,` as `$1` inside a compound binding.
     Getting this wrong is not cosmetic: the `0` of `$0` is a hex digit, which
@@ -320,62 +365,82 @@ def test_mgba_writes_its_two_halves_in_opposite_directions(wizard_mapped):
     `key<Name>=<sdl button>` names the GBA key and stores the pad's button,
     while `hat0<Dir>=<gba key id>` is the other way round. Writing one in the
     other's shape gives a file mGBA loads in silence and ignores."""
-    block = gens["mgba"]._derive_block(_Pad())
+    keys = gens["mgba"]._bindings_for(_Pad(), "")
 
-    assert "keyA=0\n" in block and "keyB=1\n" in block
-    assert "keyL=4\n" in block and "keyR=5\n" in block
-    assert "keySelect=6\n" in block and "keyStart=7\n" in block
+    assert keys["keyA"] == "0" and keys["keyB"] == "1"
+    assert keys["keyL"] == "4" and keys["keyR"] == "5"
+    assert keys["keySelect"] == "6" and keys["keyStart"] == "7"
     # The hat half: hat0Up carries the GBA key id for Up, which is 6.
-    assert "hat0Up=6\n" in block
-    assert "hat0Down=7\n" in block and "hat0Left=5\n" in block
-    assert "hat0Right=4\n" in block
-    assert f"device0={DERIVE_GUID}\n" in block
+    assert keys["hat0Up"] == "6"
+    assert keys["hat0Down"] == "7" and keys["hat0Left"] == "5"
+    assert keys["hat0Right"] == "4"
+    assert keys["device0"] == DERIVE_GUID
 
 
 def test_mgba_unbinds_what_the_pad_does_not_have(wizard_mapped):
-    """The section is replaced wholesale, so a key simply left out KEEPS
-    whatever the previous controller put there — the box's own config still
-    carries `keyUp=11` from an Xbox pad next to a DualShock 4's hat."""
-    block = gens["mgba"]._derive_block(_Pad())
+    """Every owned key is cleared before the new ones land, so a key simply
+    left out would KEEP whatever the previous controller — or the seed — put
+    there. The box's own config still carries `keyUp=11` from an Xbox pad next
+    to a DualShock 4's hat."""
+    keys = gens["mgba"]._bindings_for(_Pad(), "")
 
-    assert "keyUp=-1\n" in block, "a hat D-pad must clear the button form"
-
-
-def test_mgba_falls_back_to_the_stick_when_there_is_no_dpad(wizard_mapped, monkeypatch):
-    """A GBA with no direction at all is unplayable, and plenty of pads report
-    their D-pad as nothing but a stick."""
-    from backend.services.configgen import mapping_db
-    no_dpad = CAPTURED
-    for token in ("dpup:h0.1,", "dpdown:h0.4,", "dpleft:h0.8,", "dpright:h0.2,"):
-        no_dpad = no_dpad.replace(token, "")
-    mapping_db.USER_DB.write_text(no_dpad + "\n")
-
-    block = gens["mgba"]._derive_block(_Pad())
-
-    assert "axisLeftAxis=-0\n" in block and "axisLeftValue=-12288\n" in block
-    assert "axisRightAxis=+0\n" in block and "axisRightValue=12288\n" in block
-    assert "axisUpAxis=-1\n" in block and "axisDownAxis=+1\n" in block
+    assert keys["keyUp"] == "-1", "a hat D-pad must clear the button form"
 
 
-def test_nothing_is_derived_for_a_pad_sdl_reads_through_hidapi(wizard_mapped, monkeypatch):
-    """The sharp rule. The capture's indices come from SDL's LINUX joystick
-    driver; a HIDAPI-driven pad reports a completely different button order for
-    the same controller — measured in snapshots.py, where azahar wrote
-    `button_up = 11` for a DualShock 4 whose SDL mapping calls button 11 the
-    touchpad. Writing evdev indices there is a config full of plausible numbers
-    binding the wrong things."""
+def test_mgba_binds_the_stick_as_well_as_the_dpad(wizard_mapped, monkeypatch):
+    """Not "instead of", and the difference is a regression that nearly
+    shipped. This used to be a fallback for a pad with no D-pad at all, which
+    reads sensibly — but the seed binds both, so the DualShock 4 the owner
+    reported working moves the character with the stick too, and a synthesis
+    that emitted the axis lines only when there was no hat would have taken
+    that away from every pad that has one."""
+    keys = gens["mgba"]._bindings_for(_Pad(), "")
+
+    assert keys["axisLeftAxis"] == "-0" and keys["axisLeftValue"] == "-12288"
+    assert keys["axisRightAxis"] == "+0" and keys["axisRightValue"] == "12288"
+    assert keys["axisUpAxis"] == "-1" and keys["axisDownAxis"] == "+1"
+    assert keys["hat0Up"] == "6", "and the hat is still bound"
+
+
+def test_the_wizards_indices_are_still_refused_for_a_hidapi_pad(wizard_mapped, monkeypatch):
+    """The sharp rule, unchanged. The capture's indices come from SDL's LINUX
+    joystick driver; a HIDAPI-driven pad reports a completely different button
+    order for the same controller — measured in snapshots.py, where azahar
+    wrote `button_up = 11` for a DualShock 4 whose SDL mapping calls button 11
+    the touchpad.
+
+    What CHANGED is what happens next. azahar still writes nothing. mGBA no
+    longer stops there: a pad SDL drives through HIDAPI is a pad SDL ships a
+    mapping for, and that mapping is the right source for exactly the case the
+    capture is wrong about. Refusing the capture and asking SDL are the same
+    decision seen from two sides — see `configgen/inputs.py`.
+    """
     monkeypatch.setattr(derive, "evdev_driven", lambda v, p: False)
+    monkeypatch.setattr(controllers, "sdl2_probe", lambda v, p, lib="": {})
 
     assert gens["azahar"]._derive_block(_Pad(), "profiles\\1\\") is None
-    assert gens["mgba"]._derive_block(_Pad()) is None
+    assert derive.bindings_for("dead", "beef") is None, (
+        "the capture must still be refused — it is the indices that are wrong")
+
+    # And with SDL able to answer, mGBA is written from SDL instead.
+    hidapi = (f"{DERIVE_GUID},A HIDAPI Pad,a:b0,b:b1,back:b8,start:b9,"
+              f"leftshoulder:b9,rightshoulder:b10,dpup:h0.1,dpdown:h0.4,"
+              f"dpleft:h0.8,dpright:h0.2,platform:Linux,")
+    monkeypatch.setattr(controllers, "sdl2_probe",
+                        lambda v, p, lib="": {"guid": DERIVE_GUID, "map": hidapi})
+
+    keys = gens["mgba"]._bindings_for(_Pad(), "")
+    assert keys["keyL"] == "9" and keys["keyR"] == "10", (
+        f"mGBA fell back to the capture's 4/5 rather than SDL's own: {keys}")
 
 
-def test_a_pad_sdl_cannot_be_asked_about_is_refused(wizard_mapped, monkeypatch):
+def test_a_pad_no_source_can_describe_is_refused(wizard_mapped, monkeypatch):
     """None is not a yes. An untouched config is recoverable; one full of
     another driver's indices looks correct and is not."""
     monkeypatch.setattr(derive, "evdev_driven", lambda v, p: None)
+    monkeypatch.setattr(controllers, "sdl2_probe", lambda v, p, lib="": {})
 
-    assert gens["mgba"]._derive_block(_Pad()) is None
+    assert gens["mgba"]._bindings_for(_Pad(), "") is None
 
 
 def test_a_capture_under_another_guid_is_not_this_emulators(wizard_mapped, monkeypatch):
@@ -418,7 +483,7 @@ def test_the_derivation_reaches_the_file_and_is_idempotent(wizard_mapped, tmp_pa
     written = cfg.read_text()
     second = gens["azahar"].generate(1, _Pad(), opts)
 
-    assert first and "captured mapping" in first
+    assert first and "built for" in first
     assert "button_a=" in written
     assert "somethingElse=1" in written, "the rest of the file must survive"
     assert second is None, "the second pass rewrote an identical block"

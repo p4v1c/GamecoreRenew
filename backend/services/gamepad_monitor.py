@@ -389,6 +389,77 @@ def _game_running() -> bool:
     except Exception:      # never let a bookkeeping question break reconciliation
         return False
 
+
+# ── "has this pad been profiled yet?" ────────────────────────────────────────
+# The scan loop's own bookkeeping, published so the LAUNCH path can ask it.
+#
+# It was local to run(), and that is the whole of the race measured on the
+# reference box: an emulator reads its input config once, at startup, and
+# nothing outside this module could tell a pad whose configs had been written
+# from one the loop had simply not reached yet. Both look like a connected pad.
+#
+#     RPCS3 started 08:52:53 · its config landed 08:52:59 — six seconds late,
+#     "Failed to bind device '' to handler SDL" ×4 in its log, dead pad in game.
+#     Dolphin, same protocol, two seconds. Both worked at the NEXT launch.
+#
+# Six seconds is not a slow disk: a cold apply_profile for one pad measures
+# 6.36 s on this box — nine generators, and the SDL probes carry an eight-second
+# timeout apiece. That is why the launch path cannot simply profile: those
+# probes cannot sit in front of a launch. It waits for THIS instead.
+_roster: dict[str, tuple[str, str, str, int]] = {}
+_applied: dict[str, tuple[tuple | None, int]] = {}
+# A first scan has completed. Distinct from an empty roster: "no pad" and "we
+# have not looked yet" are the same dict and only one of them is an answer.
+_scanned = False
+# The scan loop is alive. Without it nothing will ever profile anything, so
+# there is nothing to wait for — a launch on a box whose monitor never started
+# (evdev missing, the service disabled, a test that does not run it) must not
+# pay the budget for a pass that is never coming.
+_running = False
+
+
+def unprofiled() -> list[str]:
+    """Connected pads whose emulator configs have not been written yet.
+
+    Names, so a caller can say which pad; empty when every pad the scan loop
+    can see is done. A pad that has run OUT of retries counts as done — the
+    monitor has given up on it, and a launch that waited for it would wait for
+    something that is never going to happen.
+    """
+    if not _running:
+        return []
+    if not _scanned:
+        return ["the first controller scan"]
+    pending: list[str] = []
+    for key, (_vendor, _product, name, _bus) in _roster.items():
+        footprint, retries = _applied.get(key, (None, 1))
+        if footprint is None or retries > 0:
+            pending.append(name)
+    return pending
+
+
+async def await_profiled(budget: float) -> list[str]:
+    """Wait for `unprofiled()` to empty. Returns whatever is still pending.
+
+    Polled rather than event-driven, deliberately. An `asyncio.Event` created
+    at import time belongs to whichever loop first touches it, and this is
+    awaited from the request loop while it is set from the monitor's — the
+    TestClient alone builds a fresh loop per client. The predicate is three
+    dict lookups and no I/O, so a 100 ms poll costs nothing next to the six
+    seconds it is there to cover.
+
+    Deliberately NOT a scan of /dev/input: `_find_gamepad_devices()` measures
+    608 ms on this box, which is a poll that would cost more than the wait.
+    The roster the loop publishes is at most one scan period old.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + budget
+    while True:
+        pending = unprofiled()
+        if not pending or loop.time() >= deadline:
+            return pending
+        await asyncio.sleep(0.1)
+
 async def _reconcile(was: dict[str, tuple[str, str, str, int]],
                      live: dict[str, tuple[str, str, str, int]],
                      applied: dict[str, tuple[tuple[str, str, str, int] | None, int]],
@@ -564,6 +635,7 @@ async def _reconcile(was: dict[str, tuple[str, str, str, int]],
 
 async def run() -> None:
     """Main loop: scan for gamepad devices every few seconds and watch them."""
+    global _running, _scanned
     try:
         import evdev  # noqa: F401
     except ImportError:
@@ -571,6 +643,10 @@ async def run() -> None:
             "gamepad_monitor: evdev not installed — PS/guide button kill disabled. "
             "Fix: pip install evdev"
         )
+        # Left False on purpose, so `unprofiled()` answers "nothing to wait
+        # for" rather than "not scanned yet". No pad will ever be profiled on
+        # this box; a launch that waited for one would wait its whole budget,
+        # every time, for a pass that cannot happen.
         return
 
     log.info("gamepad_monitor: started (GUIDE_CODES=%s)", GUIDE_CODES)
@@ -593,32 +669,49 @@ async def run() -> None:
     # left. A slot is re-profiled when its footprint changes, which is what
     # makes the roster self-correcting — and now also when the last pass left
     # an emulator unconfigured, until the budget runs out.
-    applied: dict[str, tuple[tuple[str, str, str, int] | None, int]] = {}
+    #
+    # Module-level rather than local so the launch path can read it — see
+    # `unprofiled()`. Still passed explicitly to _reconcile, which keeps that
+    # function callable with a dict of its own from the tests.
+    applied = _applied
     live: dict[str, tuple[str, str, str]] = {}
     # Pads already plugged in when the backend starts get their slots
     # silently — a console doesn't toast for pads that were always there.
     first_scan = True
+    _running = True
 
-    while True:
-        devices = _find_gamepad_devices()
-        current = set(devices)
+    try:
+        while True:
+            devices = _find_gamepad_devices()
+            current = set(devices)
 
-        # Watch every device that declares a Guide button or is a pad. This is
-        # about the guide shortcut only; player slots are decided below, from
-        # the device list rather than from which watchers happen to be alive.
-        for path in sorted(current - set(watched), key=_event_sort_key):
-            watched[path] = asyncio.create_task(_watch_device(path), name=f"gpad:{path}")
-        for path in [p for p, t in watched.items() if t.done()]:
-            del watched[path]      # gone, or errored: re-watched next pass if still there
+            # Watch every device that declares a Guide button or is a pad. This is
+            # about the guide shortcut only; player slots are decided below, from
+            # the device list rather than from which watchers happen to be alive.
+            for path in sorted(current - set(watched), key=_event_sort_key):
+                watched[path] = asyncio.create_task(_watch_device(path), name=f"gpad:{path}")
+            for path in [p for p, t in watched.items() if t.done()]:
+                del watched[path]      # gone, or errored: re-watched next pass if still there
 
-        was, live = live, pads_by_key(devices)
-        # `was != live` alone would never give a failed pass its retry: nothing
-        # about the pad changes when SDL merely has not caught up with it yet.
-        pending = any(retries > 0 for _, retries in applied.values())
-        if was != live or pending:
-            await _reconcile(was, live, applied, first_scan, ws)
-        first_scan = False
-        await asyncio.sleep(3)
+            was, live = live, pads_by_key(devices)
+            # Published BEFORE the reconcile, not after: for the whole 6 s a
+            # cold pass takes, a pad that is plugged in and not yet written
+            # must read as pending. Publishing afterwards would leave the exact
+            # window this exists to close.
+            _roster.clear()
+            _roster.update(live)
+            # `was != live` alone would never give a failed pass its retry: nothing
+            # about the pad changes when SDL merely has not caught up with it yet.
+            pending = any(retries > 0 for _, retries in applied.values())
+            if was != live or pending:
+                await _reconcile(was, live, applied, first_scan, ws)
+            first_scan = False
+            _scanned = True
+            await asyncio.sleep(3)
+    finally:
+        # A cancelled monitor is a box where nothing will be profiled again.
+        # Saying so is what keeps a launch from waiting on it.
+        _running = False
 
 
 def _can_read(path: str) -> bool:

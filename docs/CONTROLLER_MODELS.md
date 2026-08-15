@@ -79,13 +79,21 @@ Ground-truthed by reading their actual configs on the box:
   of its model whatever slot it occupies. Ryujinx slots are objects in the
   `input_config` list, keyed by `player_index` (`Player1`…).
 
-- **azahar, mgba, Cemu**: **snapshot restore**, *not* GUID substitution. Their
-  bindings cannot be synthesised from a VID:PID alone. The real model is:
+- **azahar, mgba, Cemu**: **snapshot restore**, *not* GUID substitution. A
+  vendor:product alone still says nothing about a raw button index. The model is:
 
   1. the owner maps the pad once, inside the emulator, via **"Scan mapping"**;
-  2. `snapshot_capture()` stores that config block, indexed by `vendor:product`
+  2. `snapshots.capture()` stores that config block, indexed by `vendor:product`
      — refusing it when the block's own GUID names another controller;
-  3. `snapshot_restore()` puts it back when a pad of the same model reconnects.
+  3. `snapshots.restore()` puts it back when a pad of the same model reconnects.
+
+  **A saved snapshot still always wins. What changed is what happens when there
+  is none.** azahar and mgba are now built from the abstract input model
+  (`configgen/inputs.py`), which asks *that emulator's own SDL* for the pad's
+  indices — the question nobody was asking, and the reason this page could say
+  they were unsynthesisable. Cemu is not: its `<uuid>` is an identity no SDL on
+  the box computes and its `<button>` encoding is undocumented, both recorded in
+  `derive.cemu_is_not_derivable`.
 
   GUID-substituting versions of `_mgba()` and `_cemu()` used to exist in
   `controller_profiles.py`. They were never called by `apply_profile()` and have

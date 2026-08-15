@@ -51,55 +51,27 @@ assuming, and a pad it cannot answer for is refused.
 from __future__ import annotations
 
 import logging
-import re
 import subprocess
 import sys
-from dataclasses import dataclass
 
 from . import mapping_db
 from .controllers import sdl2_probe
+from .inputs import Input, parse_token
 
 log = logging.getLogger(__name__)
 
+# `Input` and `parse_token` live in `inputs.py` and are re-exported here.
+#
+# They were defined in this file, and a second copy grew in the abstract model
+# next door — same dataclass, same regex, same hat bitmask. Two parsers for one
+# grammar is two places for `h0.8` to stop meaning left, and only one of them
+# would have a test. The model is the lower layer: this module is one SOURCE of
+# it, the wizard's, and SDL's own mapping is the other.
+__all__ = ["Input", "parse_token", "captured", "evdev_driven", "bindings_for",
+           "azahar_binding", "azahar_compound", "cemu_is_not_derivable"]
+
 
 # ── the captured bindings ────────────────────────────────────────────────────
-
-@dataclass(frozen=True)
-class Input:
-    """One captured input, in the emulators' vocabulary rather than SDL's.
-
-    `kind` is "button", "axis" or "hat"; `index` is the raw SDL joystick index
-    the wizard measured; `direction` is "+"/"-" for an axis and
-    "up"/"down"/"left"/"right" for a hat.
-    """
-    kind: str
-    index: int
-    direction: str = ""
-
-
-_TOKEN_RE = re.compile(r"^(?P<sign>[-+])?(?:(?P<b>b)(?P<bi>\d+)"
-                       r"|(?P<a>a)(?P<ai>\d+)"
-                       r"|h(?P<hi>\d+)\.(?P<hm>\d+))$")
-
-# SDL's hat bitmask. Only the four cardinals are ever bound: a diagonal is two
-# bits and no emulator here has a binding for one.
-_HAT_DIRECTION = {1: "up", 2: "right", 4: "down", 8: "left"}
-
-
-def parse_token(token: str) -> Input | None:
-    """`b3` / `+a2` / `h0.1` → an Input, or None when it is not one of those."""
-    m = _TOKEN_RE.match(token.strip())
-    if not m:
-        return None
-    if m.group("b"):
-        return Input("button", int(m.group("bi")))
-    if m.group("a"):
-        return Input("axis", int(m.group("ai")), m.group("sign") or "+")
-    direction = _HAT_DIRECTION.get(int(m.group("hm")))
-    if not direction:
-        return None
-    return Input("hat", int(m.group("hi")), direction)
-
 
 def captured(guid: str) -> dict[str, Input] | None:
     """The wizard's bindings for one GUID, or None when it never mapped it.

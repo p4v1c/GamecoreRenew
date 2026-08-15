@@ -14,6 +14,7 @@ from ..services import (
     controller_profiles,
     controller_registry,
     fullscreen_enforcer,
+    gamepad_monitor,
     local_media,
     pergame,
     standby,
@@ -60,6 +61,73 @@ async def _gamepad_trigger(rounds: int = 3, delay: float = 3.0) -> None:
 # away must cost the player a slightly stale config, never a game that will not
 # start. Generous next to the real cost, tight next to a player's patience.
 RECONCILE_BUDGET = 0.2
+
+# How long a launch will wait for a pad that is connected but not yet profiled.
+#
+# A DIFFERENT budget from the one above, because it covers a different kind of
+# work. RECONCILE_BUDGET bounds file I/O this path performs itself. This one
+# bounds a wait on the monitor, and the thing being waited for was measured on
+# the reference box: a cold `apply_profile` for one pad takes 6.36 s — nine
+# generators, and the SDL probes carry an eight-second timeout each.
+#
+# That is exactly the race the validation session caught. RPCS3 started at
+# 08:52:53 and its config landed at 08:52:59; Dolphin's landed two seconds
+# after it started. Both times the pad was dead in game, both times it worked
+# at the next launch — an emulator reads its input config once, at startup, and
+# never looks again. A budget shorter than the pass keeps losing that race.
+#
+# Paid only when a connected pad is actually unprofiled, which is the first
+# launch after a cold boot and nothing else: one scan period later the roster is
+# settled and this costs zero.
+PROFILE_BUDGET = 8.0
+
+
+async def _await_controller_profiles(system_id: str, game_key: str) -> None:
+    """Hold the launch until every connected pad has its config written.
+
+    The other half of `_free_stale_slots`, and the half that was missing. That
+    one frees a slot naming a pad which is NOT there; this one covers a pad that
+    IS there and has not been written yet. Its own docstring said so — "that
+    stays the monitor's job, on its three-second loop" — and the monitor does do
+    it, just not always in time.
+
+    **Waiting rather than profiling, and that distinction is the whole design.**
+    Profiling here was considered and is wrong: it means asking SDL for names
+    and GUIDs, probes that carry an eight-second timeout apiece and cannot sit
+    in front of a launch. So the launch asks a question instead — has this
+    already happened? — and only blocks while the answer is "in progress".
+
+    Settled is the normal case and costs nothing: `unprofiled()` is three dict
+    lookups. The wait is paid on the first launch after a cold boot, which is
+    precisely where the race was measured.
+
+    Never raises, and a timeout is never a refusal: a config that is late is a
+    pad that may be wrong in this one session, which the player can fix by
+    quitting and starting again. A launch that does not happen is a dead box.
+    They are told which it was — the same reason `usb_devices.launch_notice`
+    speaks up rather than blocking.
+    """
+    try:
+        started = asyncio.get_running_loop().time()
+        pending = await gamepad_monitor.await_profiled(PROFILE_BUDGET)
+        waited = asyncio.get_running_loop().time() - started
+        if not pending:
+            if waited > 0.05:
+                log.info("launch: %s — waited %.1f s for the controller to be "
+                         "profiled", system_id, waited)
+            return
+        detail = (f"{', '.join(sorted(set(pending)))} was not configured in "
+                  f"time — if it does not work in game, quit and start again")
+        log.warning("launch: %s — %s (waited %.1f s)", system_id, detail, waited)
+        try:
+            await ws.broadcast("game:notice", {
+                "game_key": game_key, "system_id": system_id, "detail": detail,
+            })
+        except Exception:
+            log.exception("launch: failed to broadcast the profiling notice")
+    except Exception:
+        log.exception("launch: %s — could not check controller profiling, "
+                      "launching anyway", system_id)
 
 
 async def _free_stale_slots(system_id: str) -> None:
@@ -296,6 +364,12 @@ async def launch_game(req: LaunchRequest):
 
     # Before launch, not after: the emulator reads its input config at startup,
     # so a slot freed a moment later is a slot the running game still sees.
+    #
+    # The same sentence is why the wait comes first. Freeing a stale slot for an
+    # emulator whose config has not been written yet cleans a file that is about
+    # to be rewritten anyway; what the player needs is for the write to have
+    # LANDED before the emulator opens it.
+    await _await_controller_profiles(req.system_id, game_key)
     await _free_stale_slots(req.system_id)
     if req.rom_path:
         await _place_per_game_config(req.system_id, req.rom_path)
