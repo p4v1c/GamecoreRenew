@@ -4,7 +4,7 @@ Split out of gamescrape.py. Everything here takes an open database and answers
 a question about it: which game a parsed ROM name is, and what that game's
 record and images are.
 
-Two decisions in `find_game` are the reason this deserves reading rather than
+Three decisions in `find_game` are the reason this deserves reading rather than
 skimming:
 
   · an episode number that differs means a DIFFERENT game, whatever the text
@@ -13,7 +13,12 @@ skimming:
     that gap negligible;
   · a Virtual Console release is catalogued by LaunchBox under the ORIGINAL
     console, so the platform filter is dropped for one — otherwise Sonic &
-    Knuckles is searched for under Wii and never found.
+    Knuckles is searched for under Wii and never found;
+  · a disc identified by its PARAM.SFO gives the SHORT title, and the
+    catalogue may carry a subtitle on top of it. Text similarity cannot bridge
+    that — it is penalised by the length the two do not share — so `_subtitled`
+    asks the index a question about identity instead. See its docstring for why
+    it is not Skyscraper's containment rule.
 
 Imported by gamescrape.py, which re-exports every public name below — no caller
 outside this package changes an import.
@@ -106,7 +111,77 @@ def find_game(db: sqlite3.Connection, parsed: dict, platforms: list[str],
         best, best_score = row, score
     if best and best_score >= cutoff:
         return _pick(db, [best], parsed, names), best_score
+
+    # 4. Last resort: the catalogue carries a SUBTITLE the ROM does not.
+    hit = _subtitled(db, target, parsed, names, want_nums)
+    if hit:
+        return _pick(db, [hit], parsed, names), 1.0
     return None, max(best_score, rejected)
+
+
+# A LaunchBox title introduces a subtitle with a colon or a spaced dash, and
+# never with a plain extra word. That is the whole discrimination below.
+_SUBTITLE = re.compile(r"^(?P<stem>.+?)\s*(?::|\s-\s)\s*\S")
+
+
+def _subtitled(db: sqlite3.Connection, target: str, parsed: dict,
+               names: list[str], want_nums: list[int]):
+    """The one catalogue entry that is our title plus a subtitle, or None.
+
+    A PS3, PS4 or PSP dump is identified by the `TITLE` in its PARAM.SFO, and
+    that title is the SHORT one. Measured on the reference box: the disc says
+    `FIFA 19`, LaunchBox files it as `FIFA 19: Legacy Edition`, and no step
+    above can bridge that — `difflib` scores `fifa19` against
+    `fifa19legacyedition` at **0.48**, under any usable cutoff, because its
+    ratio is penalised by the length it does not share. Worse, the same measure
+    scores `FIFA 09` at **0.909**: the right answer is the worst-rated
+    candidate on the list, and only the episode-number guard keeps the wrong
+    ones out. One title in 64 on that box, and the only one that failed.
+
+    **Not a similarity rule, an identity one**, which is what a local index
+    allows and a remote search endpoint does not. Skyscraper — the reference
+    implementation for this whole problem — reaches for similarity because it
+    queries a search API: `scraperworker.cpp` promotes a candidate to 100 %
+    when the search name is CONTAINED in it and the edit-distance score is
+    already ≥ 50. That guard is exactly what a short title with a long
+    subtitle cannot clear (FIFA scores about 30), so their rule would not fire
+    here. And their own subtitle stripping sits commented out in
+    `nametools.cpp` — tried, and turned off. Neither is copied.
+
+    Three conditions, and each one is load-bearing:
+
+      · the candidate must introduce a SUBTITLE, with `:` or ` - `. A plain
+        extra word is a different game, and this is what separates
+        `FIFA 19: Legacy Edition` from `Mario Party Superstars`;
+      · its stem must normalise to EXACTLY our title, not merely start with it;
+      · it must be the ONLY such entry on the platform. Several means the ROM
+        carries a series name, not a title — measured: `Uncharted` on PS3 has 2,
+        `God of War` 4, `The Legend of Zelda` on Switch 7. All refused.
+
+    Plus the episode-number guard the fuzzy step already applies, unchanged.
+
+    Simulated over every ROM on the reference box before being written: it runs
+    only on the single title the chain above fails, and resolves that one.
+    Games that already match never reach here at all.
+    """
+    if len(target) < 6:
+        # A stem this short is a series ("Zelda", "Sonic"), and every subtitle
+        # under it would be a different game.
+        return None
+    sql = "SELECT id, name, platform, year FROM games WHERE norm LIKE ?"
+    args: tuple = (target + "%",)
+    if names:
+        sql += f" AND platform IN ({','.join('?' * len(names))})"
+        args += tuple(names)
+    found = []
+    for row in db.execute(sql, args):
+        m = _SUBTITLE.match(row[1])
+        if not m or normalize(m.group("stem")) != target:
+            continue
+        if numbers_of(row[1]) != want_nums:
+            continue
+        found.append(row)
+    return found[0] if len(found) == 1 else None
 
 
 def _pick(db: sqlite3.Connection, hits: list, parsed: dict,

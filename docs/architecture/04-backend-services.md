@@ -288,10 +288,14 @@ configured" are not, and a manifest carries `unreachable` to say so. Collapsing
 them is what would carve a permanent "no such game" over a whole library swept
 before the credentials were entered.
 
-**A media can be a picture of nothing, and that is a fifth state.** ScreenScraper
-does not omit a `box-2D-back` it lacks: it answers 200 with a **chroma-key
-plate**, a valid PNG of flat `#00FF00` cut to the exact box dimensions of the
-system. It downloads, it decodes and it draws, so nothing downstream could tell
+**A media can be a picture of nothing, and that is a fifth state.** Ask
+ScreenScraper for a `box-2D-back` and one of the answers is a **chroma-key
+plate**: a valid PNG of flat `#00FF00`, cut to the exact box dimensions of the
+system. This is not its convention for "I have none" — that answer is a 7-byte
+`NOMEDIA` body, which `_looks_like_media()` already rejects. Probed across nine
+regions for FIFA 19 on PS3: `de` serves the plate, the other eight serve
+`NOMEDIA`. The plate is a placeholder somebody contributed, indistinguishable
+from art by anything that does not look at the pixels. It downloads, it decodes and it draws, so nothing downstream could tell
 — the Shelf theme ended up recognising them in the browser by quantising the
 pixels, and every other consumer showed a green slab. Measured on the reference
 box: nine titles across five systems, four distinct files, one per box shape.
@@ -335,9 +339,26 @@ than the number. The two "misses" — FIFA 19 and Breath of the Wild — came fr
 querying the index with a hand-rolled normalisation instead of `find_game()`:
 one dropped the platform filter and matched FIFA's *Windows* entry, the other
 could not get `The Legend of Zelda: Breath of the Wild` past its own colon.
-`find_game()` has neither problem. Run over every ROM on that box it is **57 for
-57**, so the matcher was never the thing to improve — a probe that re-implements
-the code it is measuring measures the probe.
+`find_game()` has neither problem. That first re-measurement was also taken on
+FILENAMES, which is wrong for a PS3, PS4 or PSP dump — those are identified by
+the `TITLE` in their PARAM.SFO. Measured properly, through the same path the
+code takes, the matcher is **63 for 64**, and the one failure is instructive:
+the disc says `FIFA 19`, LaunchBox files it as `FIFA 19: Legacy Edition`, and
+`difflib` scores that pair at **0.48** while scoring `FIFA 09` at **0.909**.
+Text similarity ranks it exactly backwards, because its ratio is penalised by
+the length the two titles do not share.
+
+`search._subtitled()` is the last resort added for it — an identity question
+rather than a similarity one, which is what a local index allows and a remote
+search endpoint does not. It accepts an entry only when it is our title plus a
+subtitle (`:` or ` - `), the stem normalises to exactly our title, the episode
+numbers agree, and it is the ONLY such entry on the platform. Skyscraper solves
+the same problem with a containment rule (`scraperworker.cpp` promotes a
+candidate to 100 % when the search name appears in it and the edit-distance
+score is already ≥ 50) — a guard a short title with a long subtitle cannot
+clear, so it would not fire here; and its own subtitle stripping sits commented
+out in `nametools.cpp`, tried and turned off. Neither is copied. With the rule
+in, the library is **64 for 64**, and games that already matched never reach it.
 
 **And the trigger needed a caller.** `_manifest_complete()` refusing a plate is
 worth nothing on its own: `cover_pipeline.resolve()` returns as soon as
