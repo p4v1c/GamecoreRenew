@@ -1,5 +1,5 @@
 'use strict'
-const { app, BrowserWindow, ipcMain, screen, session } = require('electron')
+const { app, BrowserWindow, ipcMain, screen } = require('electron')
 const { exec, spawn } = require('child_process')
 const path = require('path')
 const fs   = require('fs')
@@ -506,10 +506,27 @@ ipcMain.on('system:quit',     () => { quitting = true; app.quit() })
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
-  // Everything is served from localhost, so the HTTP cache buys nothing —
-  // but a stale cached index.html after an OTA update keeps loading the OLD
-  // frontend bundle. Clear it on every start so updates always show up.
-  try { await session.defaultSession.clearCache() } catch (_) {}
+  // There used to be a `session.defaultSession.clearCache()` here, on the
+  // reasoning that a localhost cache buys nothing while a stale index.html
+  // after an OTA pins the OLD frontend bundle. The second half was right; the
+  // first was not. The cache holds the library's cover art, and wiping it on
+  // every start meant the box re-downloaded and re-decoded 47 MB of it on
+  // every single boot — measured here, 89 files, and the decode is the part
+  // the player waits on.
+  //
+  // What replaces it is a rule instead of a hammer (backend/services/http_cache.py):
+  //
+  //   · index.html          no-store    — never kept, so it can never pin
+  //   · assets/<name>-<hash>.<ext>      immutable — a new build is a new URL
+  //   · covers, media, logos            no-cache — kept, revalidated, 304
+  //
+  // The bundle is immutable BY CONSTRUCTION: Vite names it by content hash, so
+  // an old file is unreachable rather than merely unused. The only unhashed
+  // file that decides which code runs is index.html, and it is the one file
+  // the browser is now forbidden to store. That is why this may go.
+  //
+  // If an update ever fails to show up on the first launch again, this comment
+  // is the place to start — but put the header back, not the wipe.
   await startBackend()
   createWindow()
   startOverlayMonitor()
