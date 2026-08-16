@@ -276,8 +276,15 @@
    spends the ends of both animations being, precisely, a spine. */
 .cz-slot[data-gap="1"] { visibility: hidden; }
 
+/* `--face-w` / `--face-h`, NOT `--spine-w`/`--spine-h`: `--spine-h` is already
+   taken, and it is a HUE — views/box.js sets it per title and `.cz-spine-cap`
+   reads it as `hsl(var(--spine-h) 62% 52%)`. Writing a length into it here
+   would have painted every printed spine's marks with `hsl(320px …)`, which is
+   invalid and therefore silently transparent. */
 .cz-spine {
-  display: block; width: 34px; height: 320px; padding: 0;
+  --face-w: 34px; --face-h: 320px;
+  position: relative;
+  display: block; width: var(--face-w); height: var(--face-h); padding: 0;
   border: 0; border-radius: 2px; cursor: pointer;
   background: var(--board);
   box-shadow: 0 14px 26px -10px rgba(20, 18, 24, 0.5),
@@ -288,6 +295,16 @@
 }
 .cz-spine > img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .cz-spine:hover { transform: translateY(-8px); }
+
+/* A LANDSCAPE spine scan, stood upright. See `data-wide` in views/box.js.
+   The band is laid out at the face's own size turned on its side, then rotated
+   into it, so `cover` crops across the band's short axis instead of taking a
+   1.8 % vertical slice out of its middle. */
+.cz-spine > img[data-wide="1"] {
+  position: absolute; left: 50%; top: 50%;
+  width: var(--face-h); height: var(--face-w);
+  transform: translate(-50%, -50%) rotate(90deg);
+}
 
 /* No scan: a black field and a coloured wordmark, which is what the real
    cardboard is. */
@@ -694,6 +711,14 @@
 }
 .cz-f-top    { background: linear-gradient(180deg, var(--board-lit), var(--board)); }
 .cz-f-bottom { background: var(--board-dark); }
+
+/* Same correction on the solid's spine face — `--d` wide by `--h` tall, so a
+   landscape band needs the same quarter turn. */
+.cz-f-spine > img[data-wide="1"] {
+  position: absolute; left: 50%; top: 50%;
+  width: var(--h); height: var(--d);
+  transform: translate(-50%, -50%) rotate(90deg);
+}
 
 .cz-f-spine[data-scan="0"] {
   display: flex; align-items: center; justify-content: center;

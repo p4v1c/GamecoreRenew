@@ -21,6 +21,13 @@
  * the front is measured on load and the whole solid is built from what it
  * reports. Depth follows width, the way it does on a shelf.
  *
+ * ── …and so does the orientation of the spine scan ─────────────────────────
+ * `box-2D-side` is whichever face carries the title on a shelf, so for a
+ * LANDSCAPE box it is the wide top band and not the tall left side: 680x115
+ * for every N64 title on the reference box, against 42x680 for a Switch one.
+ * Both faces here are tall and narrow, so a band has to be turned before it is
+ * laid in — see `standUp` below for what happens when it is not.
+ *
  * ── Why a spine is not a box ───────────────────────────────────────────────
  * Twenty solids is sixty images and sixty compositing layers, for nineteen
  * boxes showing one face each. An unfocused game *is* its spine — one `<img>`,
@@ -90,6 +97,40 @@ export const createBox = (sdk) => {
   const { html, useState, useEffect } = sdk.ui
 
   /**
+   * Which way round a spine scan is, marked on the element for the CSS.
+   *
+   * ScreenScraper's `box-2D-side` is always the face that carries the title on
+   * a shelf — and which face that IS depends on the shape of the box. A PS1,
+   * DS or Switch box is portrait, so its side is the tall narrow left face and
+   * the scan is portrait too. **An N64 box is landscape**, wider than it is
+   * tall, so the printed band is its wide top face and the scan comes back a
+   * bandeau: measured on this box, 680x115 for every one of the eight N64
+   * titles, against 42x680 for a Switch one — a ratio of 6.2 against 0.06.
+   *
+   * The theme stands every game upright, and both faces it can go on are tall
+   * and narrow. Dropped in unturned, `object-fit: cover` scales the band up
+   * until it covers 320px of HEIGHT and then keeps 34px of a 1891px-wide
+   * picture — 1.8 % of it, taken from the horizontal centre. That centre is
+   * the gap between the logo and the publisher's mark on nearly every N64
+   * jacket, so what reaches the shelf is a black sliver. Measured over the
+   * eight: five come out under 10/255 of luminance, Mario Kart 64 at 9.
+   *
+   * Nothing is missing and nothing failed — the scan is on disk, complete and
+   * correct. So this is a framing decision and it belongs here rather than in
+   * the scraper: a landscape band is stood on its end, which is what standing a
+   * landscape box upright does to its printed side. The turn is clockwise so
+   * the title reads top-to-bottom, matching the `writing-mode: vertical-rl` of
+   * the printed spine this sits next to on the same shelf.
+   *
+   * Written on every load rather than only when true: the same <img> is reused
+   * when the source changes, and a stale `1` would turn a portrait scan on its
+   * side — the defect, with the sign flipped.
+   */
+  const standUp = (img) => {
+    img.dataset.wide = img.naturalWidth > img.naturalHeight ? '1' : '0'
+  }
+
+  /**
    * One game on the shelf, edge-on.
    *
    * `box-spine` is warmed for the whole library, so in the normal case this is
@@ -109,7 +150,9 @@ export const createBox = (sdk) => {
               onClick=${onClick} style=${{ '--spine-h': String(hueOf(name)) }}
               aria-label=${name}>
         ${scan
-          ? html`<img src=${src} alt="" onError=${() => setScan(false)} />`
+          ? html`<img src=${src} alt=""
+                      onLoad=${(e) => standUp(e.target)}
+                      onError=${() => setScan(false)} />`
           : html`
             <span class="cz-spine-print">
               <span class="cz-spine-cap" />
@@ -267,7 +310,9 @@ export const createBox = (sdk) => {
              style=${{ '--spine-h': String(hueOf(name)) }}>
           ${spineDead
             ? html`<span class="cz-spine-name">${name}</span>`
-            : html`<img src=${spine} alt="" onError=${() => setSpineDead(true)} />`}
+            : html`<img src=${spine} alt=""
+                        onLoad=${(e) => standUp(e.target)}
+                        onError=${() => setSpineDead(true)} />`}
         </div>
 
         <!-- The three faces nobody prints: the opening edge and the two ends.
