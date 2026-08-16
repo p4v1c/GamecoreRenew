@@ -363,8 +363,6 @@ function handleMonitorEvent(msg) {
         mainWindow.hide()
         console.log('[overlay] mainWindow hidden — isVisible now:', mainWindow.isVisible())
       }
-      // Wait for the overlay page to finish loading before sending the event,
-      // otherwise the React listener isn't mounted yet and the event is lost.
       if (overlayWindow) {
         // The asset travels with the geometry. Without it the overlay page
         // would rebuild the URL from system_id and always draw the system
@@ -372,9 +370,12 @@ function handleMonitorEvent(msg) {
         // away one process boundary before it was used.
         const shown = { ...msg, asset: overlayChoice?.asset ?? null,
                         source: overlayChoice?.source ?? 'declared' }
-        overlayWindow.webContents.once('did-finish-load', () => {
-          overlayWindow?.webContents.send('overlay:show', shown)
-        })
+        // Said out loud, next to the "hiding mainWindow" line above: those two
+        // used to be able to disagree — the window hidden, the bezel never
+        // sent — and the log gave no way to tell which half had happened.
+        console.log('[overlay] show:', shown.source, shown.asset ?? '(aucun bezel)',
+                    'chargement en cours:', overlayWindow.webContents.isLoading())
+        sendToOverlay('overlay:show', shown)
       }
       break
 
@@ -391,13 +392,11 @@ function handleMonitorEvent(msg) {
     // its hole now, so this game is right immediately; and the backend is
     // told, so the next launch starts out right without looking again.
     case 'window:measured':
-      if (overlayWindow) {
-        overlayWindow.webContents.send('overlay:show', {
-          ...msg, rect: msg.measured,
-          asset: overlayChoice?.asset ?? null,
-          source: overlayChoice?.source ?? 'declared',
-        })
-      }
+      sendToOverlay('overlay:show', {
+        ...msg, rect: msg.measured,
+        asset: overlayChoice?.asset ?? null,
+        source: overlayChoice?.source ?? 'declared',
+      })
       fetch(`${BACKEND_URL}/api/overlays/measured/${encodeURIComponent(msg.system_id)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
