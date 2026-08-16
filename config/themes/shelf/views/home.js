@@ -115,7 +115,6 @@ export const createHomeView = (sdk, accent) => {
             ${isApp ? null : html`<span class="cz-ps-sep">·</span><span>${count || 'no'} games</span>`}
             ${pt?.total_secs ? html`
               <span class="cz-ps-sep">·</span><span>${played(pt.total_secs)}</span>
-              <span class="cz-ps-sep">·</span><span>${pt.session_count || 0} sessions</span>
               <span class="cz-ps-sep">·</span><span>${day(pt.last_played)}</span>` : null}
           </div>
         </div>

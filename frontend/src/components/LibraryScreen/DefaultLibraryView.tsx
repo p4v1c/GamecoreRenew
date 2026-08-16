@@ -197,7 +197,6 @@ export default function DefaultLibraryView({
                     <div style={{ display: 'flex', gap: 24, marginBottom: 28 }}>
                       {[
                         { l: 'Play Time', v: fmtTime(playtime[detailGame.filename]?.total_secs || 0) },
-                        { l: 'Sessions', v: String(playtime[detailGame.filename]?.session_count || 0) },
                         { l: 'Last Played', v: fmtDate(playtime[detailGame.filename]?.last_played || null) },
                       ].map(s => (
                         <div key={s.l}>

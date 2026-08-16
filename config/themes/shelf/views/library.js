@@ -458,7 +458,6 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
 
               <dl class="cz-specs cz-specs-log">
                 <div><dt>Play time</dt><dd>${played(pt?.total_secs)}</dd></div>
-                <div><dt>Sessions</dt><dd>${pt?.session_count || '—'}</dd></div>
                 <div><dt>Last played</dt><dd>${day(pt?.last_played)}</dd></div>
               </dl>
             </div>
