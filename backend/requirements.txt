@@ -13,3 +13,13 @@ argon2-cffi>=23.1.0
 # no private key ever reaches one. Without it the channel refuses every bundle
 # rather than accepting an unverified one — see services/catalog/signing.py.
 cryptography>=42.0.0
+# Lossless WebP for the cover cache — services/cover_encode.py. Measured on the
+# reference box: 85 PNG jackets, 42.6 MB and 605 ms of decoding, become 29.6 MB
+# and 421 ms, pixel for pixel identical.
+#
+# Imported optionally, on purpose. install/iso/build.sh builds the offline
+# wheelhouse from this file, so an ISO cut after this line carries it, but a
+# box installed from an older ISO will not have it until its next OTA — and
+# must keep serving its library in the meantime. Without Pillow, covers simply
+# stay PNG and nothing else changes.
+Pillow>=10.0.0

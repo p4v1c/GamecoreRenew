@@ -1,7 +1,8 @@
 """Cover resolution pipeline — local-first, then exact ID lookup, then the
 legacy name scrapers. Order:
 
-  1. cache (emu/covers/<system>/<stem>.png|.jpg — drop a file there to force a cover)
+  1. cache (emu/covers/<system>/<stem>.webp|.png|.jpg — drop a file there to
+     force a cover; any of the three is honoured)
   2. icon embedded in the game itself (PS3/PS4 folders, PSP ISO) — offline, exact
   3. gamemedia: ScreenScraper by file hash, then the offline LaunchBox index
   4. disc-ID lookup: GameTDB (GC/Wii/PS3), xlenore repos (PS1/PS2) — exact
@@ -29,7 +30,7 @@ from pathlib import Path
 import httpx
 
 from ..utils import rom_in_root
-from . import gamemedia, local_media
+from . import cover_encode, gamemedia, local_media
 from .paths import covers_dir
 from .scraper import Unreachable, _is_transient, fetch_cover
 
@@ -172,13 +173,18 @@ async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | 
     stem = Path(filename).stem
     base = cache_dir / stem
     png, jpg = base.with_suffix(".png"), base.with_suffix(".jpg")
+    webp = base.with_suffix(".webp")
     miss = base.with_suffix(".miss")
 
     if refresh:
-        for p in (png, jpg, miss):
+        for p in (png, jpg, webp, miss):
             p.unlink(missing_ok=True)
 
-    for p in (png, jpg):
+    # .webp first: it is what a converted cover becomes, and on a migrated
+    # library it is the only one of the three that exists. The extension never
+    # appears in a URL — /api/covers is keyed by the GAME's filename — so which
+    # container won is invisible to every caller.
+    for p in (webp, png, jpg):
         if p.is_file():
             return p
 
@@ -186,7 +192,7 @@ async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | 
     legacy = COVERS_DIR / f"{stem}.png"
     if legacy.is_file():
         shutil.move(str(legacy), png)
-        return png
+        return cover_encode.to_webp(png)
 
     if miss.exists() and time.time() - miss.stat().st_mtime < _MISS_TTL \
             and not _miss_worth_another_look(miss):
@@ -205,7 +211,7 @@ async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | 
     if rom:
         # 1. Icon embedded in the game (offline, always right)
         if local_media.extract_icon(sid, rom, png):
-            return png
+            return cover_encode.to_webp(png)
 
     # 2. gamemedia — the hash when the ROM is a file, the PARAM.SFO title when
     #    it is a directory, the name otherwise. Passing the full path is what
@@ -218,7 +224,7 @@ async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | 
             log.warning("gamemedia lookup failed for %s/%s", sid, filename, exc_info=True)
             found, gm_unreachable = None, True
         if found:
-            return found
+            return cover_encode.to_webp(found)
         unreachable = unreachable or gm_unreachable
         if not gm_unreachable:
             tried.append("gamemedia")
@@ -232,7 +238,7 @@ async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | 
             except Unreachable:
                 unreachable, found = True, None
             if found:
-                return found
+                return cover_encode.to_webp(found)
 
     # 4./5. Name-based scraping (libretro CDN, then TheGamesDB)
     try:
@@ -245,7 +251,7 @@ async def resolve(system: dict, filename: str, refresh: bool = False) -> Path | 
         # An unexpected error says nothing about whether the cover exists.
         unreachable, scraped = True, None
     if scraped:
-        return Path(scraped)
+        return cover_encode.to_webp(Path(scraped))
 
     if unreachable:
         # No marker. This is the case that mattered most: prefetch starts 15 s
