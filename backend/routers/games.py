@@ -17,6 +17,7 @@ from ..services import (
     gamepad_monitor,
     local_media,
     pergame,
+    prefetch,
     standby,
     usb_devices,
 )
@@ -254,8 +255,22 @@ def list_games(system_id: str):
     if not roms_path:
         return []
 
-    return scan_roms(roms_path, system.get("extensions", []),
-                     scan_dirs=system.get("scanDirs", False), system_id=system["id"])
+    games = scan_roms(roms_path, system.get("extensions", []),
+                      scan_dirs=system.get("scanDirs", False), system_id=system["id"])
+
+    # This listing IS the box's ROM scan, and it runs whenever the grid opens.
+    # It is therefore the one place that learns a game was added since boot —
+    # which used to be learned by nobody, so a game added mid-session had no
+    # cover and no box-back until the next restart.
+    #
+    # Costs one set lookup per game and returns immediately; the fetching is a
+    # background worker's problem, and it defers itself while a game is running.
+    try:
+        prefetch.note_scan(system, [g["filename"] for g in games])
+    except Exception:
+        log.debug("prefetch: could not queue %s", system_id, exc_info=True)
+
+    return games
 
 
 class LaunchRequest(BaseModel):
