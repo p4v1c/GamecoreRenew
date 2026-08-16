@@ -145,14 +145,31 @@ describe('Shelf — the layout the player chose', () => {
   })
 
   it('still draws when storage refuses to answer', async () => {
-    const boom = () => { throw new Error('storage disabled') }
-    const spyGet = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(boom)
-    const spySet = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(boom)
+    // Scoped to THIS key, and that is not a nicety. Breaking `Storage` outright
+    // also breaks `sounds.ts`, which reads `gc:uiSounds` on every `playSound` —
+    // so the R2 handler died inside the host before it ever reached the theme,
+    // and the test proved nothing about the theme while appearing to. It went
+    // green locally and red in CI, which is the honest description of a test
+    // that depends on which module read storage first.
+    const realGet = Storage.prototype.getItem
+    const realSet = Storage.prototype.setItem
+    const spyGet = vi.spyOn(Storage.prototype, 'getItem')
+      .mockImplementation(function (this: Storage, k: string) {
+        if (k === KEY) throw new Error('storage disabled')
+        return realGet.call(this, k)
+      })
+    const spySet = vi.spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(function (this: Storage, k: string, v: string) {
+        if (k === KEY) throw new Error('storage disabled')
+        return realSet.call(this, k, v)
+      })
     try {
       const { container } = await shelf()
-      expect(layout(container)).toBe('shelf')
+      expect(layout(container)).toBe('shelf')      // the read gave up quietly
       await pressR2()
-      expect(layout(container)).toBe('stack')   // the session still works
+      expect(layout(container)).toBe('stack')      // the session still works
+      await pressR2()
+      expect(layout(container)).toBe('gallery')    // and keeps cycling
     } finally {
       spyGet.mockRestore()
       spySet.mockRestore()
