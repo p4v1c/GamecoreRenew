@@ -1,9 +1,9 @@
 """Systems + apps listing."""
 import json
 from pathlib import Path
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, Request
 from ..config import SYSTEMS_FILE, APPS_FILE, GAMECORE_ROOT
+from ..services import http_cache
 from ..services.paths import GAMECORE_DATA, logos_dir
 
 router = APIRouter(tags=["systems"])
@@ -117,7 +117,7 @@ def _pack_logos() -> dict[str, Path]:
 
 
 @public_router.get("/assets/logos/{filename}")
-def serve_logo(filename: str):
+def serve_logo(request: Request, filename: str):
     """Serve a system logo, operator override first.
 
     Two locations, in this order:
@@ -139,7 +139,7 @@ def serve_logo(filename: str):
 
     override = logos_dir() / filename
     if override.is_file():
-        return FileResponse(override)
+        return _logo_response(request, override)
 
     stem = Path(filename).stem.lower()
     logos = _pack_logos()
@@ -147,11 +147,27 @@ def serve_logo(filename: str):
     # the legacy platform name systems.json records ("3ds.png" -> azahar).
     for pack_id, logo in logos.items():
         if stem == pack_id.lower():
-            return FileResponse(logo)
+            return _logo_response(request, logo)
     for item in list_all():
         icon = item.get("iconPath", "")
         if icon and Path(icon).name.lower() == filename.lower():
             logo = logos.get(item["id"])
             if logo is not None:
-                return FileResponse(logo)
+                return _logo_response(request, logo)
     raise HTTPException(404)
+
+
+def _logo_response(request: Request, path: Path):
+    """A logo, kept by the browser but never reused without asking.
+
+    These are the only images on the box served under a name that does not
+    change when the picture does: `gamecube.png` is `gamecube.png` forever,
+    while `catalog/<id>/logo.png` IS carried by the OTA rsync and a corrected
+    logo is expected to arrive with an update. Give them the long lifetime the
+    hash-named bundle assets get and that correction never lands — the tile
+    keeps the old drawing until someone clears the cache by hand, which is the
+    failure mode this whole change is otherwise removing the need for.
+
+    So: revalidate, and answer 304 when nothing moved.
+    """
+    return http_cache.conditional_file_response(request, path)

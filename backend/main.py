@@ -22,8 +22,8 @@ from .routers import controllers as controllers_router
 from .routers import themes as themes_router
 from .routers import storage as storage_router
 from .routers.settings import wifi, audio, bluetooth, display
-from .services import (battery, gamepad_monitor, playtime_repair, prefetch,
-                       standby, storage_monitor)
+from .services import (battery, gamepad_monitor, http_cache, playtime_repair,
+                       prefetch, standby, storage_monitor)
 from .services.process_manager import process_manager
 from .config import BACKEND_PORT
 from .services.paths import (backend_data_dir, covers_dir, frontend_dist_dir,
@@ -190,7 +190,10 @@ app.include_router(auth_routes.router, prefix="/api")
 
 @app.get("/overlay", include_in_schema=False)
 def overlay_page():
-    return FileResponse(str(frontend_dist / "index.html"), media_type="text/html")
+    # Same file as the shell, and therefore the same rule: it names the bundle
+    # without being named by it, so keeping it is how an OTA stays invisible.
+    return FileResponse(str(frontend_dist / "index.html"), media_type="text/html",
+                        headers={"Cache-Control": http_cache.NEVER})
 
 
 @app.get("/gc/addons", include_in_schema=False)
@@ -220,13 +223,28 @@ def login_page():
 # routers/systems.py serves both, override first — see public_router there.
 app.include_router(systems.public_router)
 
+class _RevalidatedStatic(StaticFiles):
+    """Static content the browser keeps but must ask about before reusing.
+
+    Covers, overlays and the data directory are all files whose URL stays put
+    while their bytes may be replaced — a re-scraped jacket, a corrected
+    overlay. `no-cache` keeps them on disk and lets the ETag answer 304, so a
+    second boot transfers nothing and a replacement is still seen at once.
+    """
+
+    def file_response(self, *args, **kwargs):
+        resp = super().file_response(*args, **kwargs)
+        resp.headers["Cache-Control"] = http_cache.REVALIDATE
+        return resp
+
+
 for _dir, _route, _name in (
     (covers_dir(), "/covers", "covers"),
     (overlays_dir(), "/assets/overlays", "overlays"),
     (backend_data_dir(), "/data", "data"),
 ):
     _dir.mkdir(parents=True, exist_ok=True)
-    app.mount(_route, StaticFiles(directory=str(_dir)), name=_name)
+    app.mount(_route, _RevalidatedStatic(directory=str(_dir)), name=_name)
 
 
 class _NoCacheStatic(StaticFiles):
@@ -273,6 +291,29 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 # ── Serve built frontend (production) ────────────────────────────────────────
+class _BundleStatic(StaticFiles):
+    """The built frontend, cached by how it is named — see services/http_cache.
+
+    `index.html` is never stored; a hash-named asset is stored for a year. That
+    split is what lets electron/main.js stop clearing the whole HTTP cache on
+    every start: the only file that could pin an old bundle is the one file the
+    browser is now forbidden to keep.
+    """
+
+    def file_response(self, full_path, *args, **kwargs):
+        resp = super().file_response(full_path, *args, **kwargs)
+        # The path RELATIVE to the bundle root, because that is what the rule
+        # reads: `assets/index-Dr_k0yci.js` is a build artefact, and no file
+        # name on its own can prove that — plenty of covers end in a hyphen and
+        # eight word characters. See services/http_cache.is_hashed_asset.
+        try:
+            rel = str(Path(full_path).relative_to(self.directory))
+        except ValueError:
+            rel = Path(full_path).name
+        resp.headers["Cache-Control"] = http_cache.for_frontend(rel)
+        return resp
+
+
 frontend_dist = frontend_dist_dir()
 if frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+    app.mount("/", _BundleStatic(directory=str(frontend_dist), html=True), name="frontend")

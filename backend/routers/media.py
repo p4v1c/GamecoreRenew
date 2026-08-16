@@ -18,10 +18,9 @@ Nothing is downloaded until it is asked for. A scrape fetches the cover and
 records the rest with its URL, so the first request for a 3D box costs one HTTP
 call and no ScreenScraper quota, and every request after it costs a stat().
 """
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, Request
 
-from ..services import gamemedia
+from ..services import gamemedia, http_cache
 from ..utils import rom_in_root
 from .systems import list_all
 
@@ -54,7 +53,7 @@ def _target(system: dict, filename: str) -> str:
 
 
 @router.get("/media/{system_id}/{filename:path}/media/{media_type}")
-async def get_media(system_id: str, filename: str, media_type: str):
+async def get_media(request: Request, system_id: str, filename: str, media_type: str):
     """One media file, fetched on first request and cached from then on."""
     system = _system_or_404(system_id)
     sid = system["id"].lower()
@@ -81,12 +80,16 @@ async def get_media(system_id: str, filename: str, media_type: str):
     if not path:
         raise HTTPException(502, f"Could not fetch {media_type!r}")
 
-    return FileResponse(
-        path,
+    # Was `immutable`, on the reasoning that the 3D box of a given game never
+    # changes. The URL is stable; the bytes behind it are not. A `?refresh=1`
+    # on the catalogue re-resolves the manifest and `media_file` rewrites the
+    # same path from the new URL — so a year-long lifetime meant a corrected
+    # scrape could never be seen, which is the same defect the covers route
+    # had. Revalidation keeps the file and answers 304, so a second boot still
+    # transfers nothing.
+    return http_cache.conditional_file_response(
+        request, path,
         media_type=_MEDIA_TYPES.get(path.suffix.lower(), "application/octet-stream"),
-        # Same reasoning as the covers route: the content behind a given type
-        # for a given game never changes, and these files are large.
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
     )
 
 

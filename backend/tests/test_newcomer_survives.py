@@ -211,7 +211,14 @@ def test_the_newcomer_tile_gets_its_image_served(catalogue, monkeypatch, kind):
     from backend.routers import systems as systems_router
     monkeypatch.setattr(catalog_pkg, "load_catalog", lambda *a, **k: packs)
 
-    response = systems_router.serve_logo(f"{NEWCOMER}.png")
+    # A real Request, because the route is now a conditional one: it may answer
+    # 304 instead of the file. With no `If-None-Match` there is nothing to match
+    # and the file comes back, which is the case this test is about.
+    from starlette.requests import Request
+    request = Request({"type": "http", "method": "GET", "headers": [],
+                       "path": f"/assets/logos/{NEWCOMER}.png"})
+
+    response = systems_router.serve_logo(request, f"{NEWCOMER}.png")
     assert Path(response.path) == packs[NEWCOMER].logo
 
 
