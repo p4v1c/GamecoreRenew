@@ -237,9 +237,20 @@ def media_index(manifest: dict) -> dict[str, dict]:
     The stored URL is credential-free but still points at ScreenScraper; the
     frontend has no business calling it directly, and re-exposing it would
     hand the box's quota to any page that can reach the backend.
+
+    A `blank` slug is left OUT. It is a media the sources have nothing real
+    for — a chroma-key plate, and the other tier had no replacement — and
+    listing it is what makes a consumer ask for it, get a picture of nothing,
+    and have to work that out from the pixels. Shelf does exactly that today
+    (`lib/accent.js`) and keeps doing it for the plates already on disk; a
+    theme that does not is the one this spares. Absent means "this game has no
+    back cover", which is both true and directly actionable: Shelf's `pick()`
+    answers null and its printed reverse is drawn straight away.
     """
     out: dict[str, dict] = {}
     for slug, info in (manifest.get("media") or {}).items():
+        if info.get("blank"):
+            continue
         info = gm._normalise_media(slug, info)
         out[slug] = {
             "category": info.get("category", "unknown"),

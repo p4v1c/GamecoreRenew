@@ -529,9 +529,32 @@ def _manifest_complete(d: Path, manifest: dict) -> bool:
         # daily quota — every single time a theme displayed a cover.
         if info.get("deferred") and info.get("url"):
             continue
+        # `blank` is a FIFTH state, and it is settled rather than incomplete:
+        # the source served a chroma-key plate, the other tier was asked, and
+        # this is the answer. Reading it as a hole would rescrape the game — one
+        # jeuInfos out of the daily quota — every single time a theme drew a
+        # cover, to be handed the same plate again.
+        if info.get("blank"):
+            continue
         if info.get("pending") or info.get("failed") or not info.get("file"):
             return False
-        if not (d / Path(info["file"]).name).is_file():
+        path = d / Path(info["file"]).name
+        if not path.is_file():
+            return False
+        # A plate filed BEFORE this was recognised. Nine of them are on the
+        # reference box, recorded as ordinary scans, and nothing would ever
+        # revisit them: the manifest is complete, the file is there, and the
+        # greenness is only visible to something that reads pixels. Calling it
+        # incomplete costs one rescrape, once — the download path then records
+        # it `blank`, `_top_up_blanks` asks the other tier, and the next check
+        # takes the `blank` branch above and settles. It cannot loop.
+        #
+        # Gated on the size the manifest already stores, so this stays an
+        # integer comparison for every real media: the plates run 1 996 to
+        # 3 082 bytes, the smallest real scan on that box is over 100 KB. Only
+        # a genuinely tiny file is ever opened, and an icon — which IS tiny —
+        # fails the bytes-per-pixel test rather than the size one.
+        if info.get("bytes", 0) < _PLATE_SUSPECT_BYTES and gs.looks_like_flat_plate(path):
             return False
     return True
 
@@ -685,9 +708,15 @@ def resolve(system: str, filename: str, *, refresh: bool = False,
         workers = ss_threads() if is_ss else 8
         # Keep what is already there and valid: re-downloading 152 media
         # because one was missing wastes both quota and time.
+        # "Keep what is already there and VALID" — and a chroma-key plate filed
+        # before it could be recognised is not valid. Left in `have` it would be
+        # kept rather than re-fetched, so the rescrape `_manifest_complete` just
+        # asked for would preserve the very file it asked about.
         have = {k: v for k, v in ((cached or {}).get("media") or {}).items()
                 if v.get("file") and not v.get("failed") and not v.get("pending")
-                and (d / Path(v["file"]).name).is_file()}
+                and (d / Path(v["file"]).name).is_file()
+                and not (v.get("bytes", 0) < _PLATE_SUSPECT_BYTES
+                         and gs.looks_like_flat_plate(d / Path(v["file"]).name))}
         todo = {k: v for k, v in hit["media"].items() if k not in have
                 and (only is None or k in only)}
         fresh = _download_media(d, todo, workers, verbose, throttle=is_ss)
@@ -697,6 +726,7 @@ def resolve(system: str, filename: str, *, refresh: bool = False,
                  for k, v in hit["media"].items()
                  if k not in have and k not in fresh}
         manifest["media"] = {**have, **fresh, **later}
+        _top_up_blanks(d, manifest, hit, parsed, cutoff, notes, verbose)
         if have:
             notes.append(f"{len(have)} media already cached, {len(todo)} fetched")
         if later:
@@ -711,6 +741,57 @@ def resolve(system: str, filename: str, *, refresh: bool = False,
 
     write_json(d / MANIFEST, manifest)
     return manifest
+
+
+# Below this, a recorded media is small enough to be worth opening. The plates
+# measured run 1 996 to 3 082 bytes; the smallest real scan on the reference box
+# is over 100 KB. See `_manifest_complete`.
+_PLATE_SUSPECT_BYTES = 8192
+
+
+def _top_up_blanks(d: Path, manifest: dict, hit: dict, parsed: dict,
+                   cutoff: float, notes: list[str], verbose: bool) -> None:
+    """Ask the OTHER tier for the media this one had nothing real for.
+
+    The tier fallback was per GAME and all-or-nothing: `lb_everything` is
+    reached only when ScreenScraper does not find the title at all, is
+    unreachable, or has no credentials. So a game ScreenScraper knows keeps
+    every gap ScreenScraper has, however complete LaunchBox's record is — and
+    for `box-2D-back` the gap is not even empty, it is a chroma-key plate that
+    every consumer has to recognise for itself.
+
+    Measured on the reference box, on the LaunchBox index already sitting there
+    (234 MB, no network, no quota): of the nine titles whose ScreenScraper back
+    is a plate, **seven have a real `Box - Back`** — Pokémon Y, Inazuma Eleven,
+    Mario Party DS, Mario & Sonic, Cars, Mario Party Superstars, Mario Party
+    Jamboree. Only FIFA 19 and Breath of the Wild do not resolve.
+
+    Deliberately narrow. It runs only for slugs that came back BLANK, never for
+    ones that are merely deferred or that failed — a deferred media has a URL
+    that works and a failure deserves a retry, neither is a hole in the record.
+    It costs one index lookup, local, and one download per slug actually
+    replaced; a game with nothing blank costs nothing at all. And it never
+    touches `meta`: the text stays the tier's that answered, in one language,
+    which is what `lang` in the manifest is a promise about.
+    """
+    blanks = [k for k, v in manifest["media"].items() if v.get("blank")]
+    if not blanks or hit["source"] == "launchbox" or not gs.lb_index_ready():
+        return
+    other = lb_everything(parsed, cutoff)
+    if not other:
+        notes.append(f"launchbox: no match to replace {len(blanks)} blank media")
+        return
+    offered = {k: v for k, v in (other.get("media") or {}).items() if k in blanks}
+    if not offered:
+        notes.append(f"launchbox: nothing for {', '.join(sorted(blanks))}")
+        return
+    # LaunchBox's CDN limits nothing and this is never ScreenScraper's quota.
+    got = _download_media(d, offered, 8, verbose, throttle=False)
+    took = {k: v for k, v in got.items() if v.get("file")}
+    manifest["media"] = {**manifest["media"], **took}
+    if took:
+        notes.append(f"launchbox: {', '.join(sorted(took))} taken from the "
+                     f"second tier (screenscraper served a blank plate)")
 
 
 def _download_media(d: Path, wanted: dict[str, dict], workers: int,
@@ -749,7 +830,19 @@ def _download_media(d: Path, wanted: dict[str, dict], workers: int,
                 written, why = None, f"{type(e).__name__}: {e}"
             else:
                 why = "empty or non-media response"
-            if written:
+            if written and gs.looks_like_flat_plate(written):
+                # A chroma-key plate is a valid file and a picture of nothing —
+                # see `looks_like_flat_plate`. Recorded as `blank` rather than
+                # kept: `failed` would mean "retry me", and this one will come
+                # back identical every time. The URL stays so the state is
+                # explicable, and `resolve()` reads this to know which slugs are
+                # worth asking the other tier for.
+                if verbose:
+                    print(f"    · {kind} : flat plate, not a scan", file=sys.stderr)
+                written.unlink(missing_ok=True)
+                got[kind] = {"blank": True, "url": strip_creds(info["url"]),
+                             **_descriptors(info)}
+            elif written:
                 # If sniff_ext changed the extension, the old file would be
                 # orphaned and inflate cache_stats — remove it.
                 for old in d.glob(f"{kind}.*"):
@@ -789,6 +882,13 @@ def fetch_media(system: str, filename: str, slug: str,
     manifest = load_cached(system, filename)
     info = ((manifest or {}).get("media") or {}).get(slug)
     if not info:
+        return None
+
+    # A blank is a decision already taken, not a media waiting to be fetched.
+    # Its URL still works and still serves the same chroma-key plate, so going
+    # back for it would download a picture of nothing on every call and hand it
+    # over as a scan.
+    if info.get("blank"):
         return None
 
     if info.get("file"):

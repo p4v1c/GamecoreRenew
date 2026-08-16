@@ -288,6 +288,48 @@ configured" are not, and a manifest carries `unreachable` to say so. Collapsing
 them is what would carve a permanent "no such game" over a whole library swept
 before the credentials were entered.
 
+**A media can be a picture of nothing, and that is a fifth state.** ScreenScraper
+does not omit a `box-2D-back` it lacks: it answers 200 with a **chroma-key
+plate**, a valid PNG of flat `#00FF00` cut to the exact box dimensions of the
+system. It downloads, it decodes and it draws, so nothing downstream could tell
+— the Shelf theme ended up recognising them in the browser by quantising the
+pixels, and every other consumer showed a green slab. Measured on the reference
+box: nine titles across five systems, four distinct files, one per box shape.
+
+Recognised at download time by **compression, with no image decoder** (the
+backend has no Pillow, in neither `requirements.txt` nor either venv). A flat
+fill is the one thing PNG compresses to nothing, and the two populations do not
+touch:
+
+| | bytes per pixel |
+|---|---|
+| the nine plates | at most **0.0093** |
+| the 52 real scans | at least **1.3055** |
+
+`gamescrape.looks_like_flat_plate()` reads the dimensions out of the IHDR — a
+fixed offset, nothing decompressed — and compares against `FLAT_PLATE_BPP`,
+which sits 5× above the highest plate and 26× below the lowest real scan.
+
+Such a media is recorded `blank` rather than kept. `blank` is **settled, not
+incomplete**: `failed` would mean "retry me" and this one comes back identical
+every time, so `_manifest_complete()` accepts it and `media_index()` leaves it
+out entirely — absent means "this game has no back cover", which is true and
+directly actionable, where present-but-green makes every consumer work it out
+from the pixels. A plate filed before this existed is still caught: the
+completeness check opens any media the manifest records as under 8 KiB, so it
+costs one rescrape, once, and cannot loop.
+
+**The tier fallback is per MEDIA as well as per game.** `lb_everything()` used
+to be reachable only when ScreenScraper did not find the title at all, was
+unreachable, or had no credentials — so a game ScreenScraper knew kept every gap
+ScreenScraper had. `_top_up_blanks()` now asks the other tier for the blank
+slugs alone, never for a deferred or failed one, and never for `meta` (the text
+stays one tier's, in one language, which is what `lang` promises). It costs one
+local index lookup and one download per slug replaced; a game with nothing blank
+costs nothing. Measured on the reference box, against the index already sitting
+there: **seven of the nine plates have a real `Box - Back` in LaunchBox** — only
+FIFA 19 and Breath of the Wild resolve to nothing anywhere.
+
 Two design points that are GameCore's, not upstream's:
 
 - **Nothing is downloaded before it is asked for.** A scrape fetches

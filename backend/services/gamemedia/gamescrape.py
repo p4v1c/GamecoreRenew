@@ -32,6 +32,7 @@ import json
 import os
 import re
 import sqlite3
+import struct
 import sys
 import urllib.error
 import urllib.parse
@@ -446,6 +447,71 @@ def _looks_like_media(data: bytes) -> bool:
     if data[:4] == b"RIFF" and data[8:12] not in (b"WEBP", b"AVI "):
         return False
     return any(data.startswith(m) for m in _MAGIC) or data[4:8] == b"ftyp"
+
+
+# ── a picture of nothing ─────────────────────────────────────────────────────
+#
+# ScreenScraper does not omit a media it lacks: for `box-2D-back` it answers 200
+# with a CHROMA-KEY PLATE — a perfectly valid PNG of flat #00FF00, cut to the
+# exact box dimensions of the system. It downloads, it decodes, it draws, so
+# `_looks_like_media` waves it through and nothing downstream can tell.
+#
+# Measured on the reference box: nine titles across five systems, four distinct
+# files, one per box shape — 513x458 for the DS and 3DS, 421x680 for the Switch,
+# 578x680 for the PS3, 395x680 for the PSP. The shelf theme catches them in the
+# BROWSER (`lib/accent.js`, quantise to 24x24 and call it blank when 95 % lands
+# in one bucket) and draws its printed reverse instead. That rescue works and
+# stays; what it cannot do is stop the file being stored as though it were a
+# scan, which is what makes every other consumer — the default theme, the API,
+# the next theme somebody writes — show a green slab.
+#
+# **Detected by compression, not by colour, and with no image decoder.** The
+# backend has no Pillow (it is in neither requirements.txt nor either venv), and
+# a flat fill is the one thing PNG compresses to nothing. Measured over the 61
+# backs on that box:
+#
+#     the nine plates      at most  0.0093 byte per pixel
+#     the 52 real scans    at least 1.3055 byte per pixel
+#
+# A factor of 141, with nothing whatsoever in between: even the plainest real
+# back carries a barcode and a paragraph of small print. The threshold below
+# sits 5x above the highest plate and 26x below the lowest real scan.
+#
+# PNG only. The dimensions come out of the IHDR, which is at a fixed offset and
+# needs no decoding; JPEG would need the SOF scanned and every plate measured
+# has been a PNG. Answering False for anything else is the safe side — it keeps
+# today's behaviour, which is to trust the file.
+FLAT_PLATE_BPP = 0.05
+
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+
+def png_dimensions(head: bytes) -> tuple[int, int] | None:
+    """(width, height) from a PNG's IHDR, or None if it is not a PNG.
+
+    The first chunk of a PNG is always IHDR and always at offset 8, so the
+    first 24 bytes are enough. Nothing is decompressed.
+    """
+    if len(head) < 24 or not head.startswith(_PNG_MAGIC):
+        return None
+    if head[12:16] != b"IHDR":
+        return None
+    w, h = struct.unpack(">II", head[16:24])
+    return (w, h) if w and h else None
+
+
+def looks_like_flat_plate(path: Path) -> bool:
+    """Whether this file is a picture of nothing — see the note above."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(24)
+        size = path.stat().st_size
+    except OSError:
+        return False
+    dims = png_dimensions(head)
+    if not dims:
+        return False
+    return size / (dims[0] * dims[1]) < FLAT_PLATE_BPP
 
 
 def sniff_ext(data: bytes) -> str:
