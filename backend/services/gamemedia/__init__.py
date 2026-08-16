@@ -222,8 +222,34 @@ async def warm(system_id: str, target: Path | str,
     if not manifest or not manifest.get("found"):
         return 0
 
+    # A chroma-key plate filed before it could be recognised. `resolve()` knows
+    # how to replace it — it records the media `blank` and asks the other tier —
+    # but nothing was calling `resolve()` any more: `cover_pipeline.resolve()`
+    # returns as soon as the cover is on disk, so a library whose covers are all
+    # cached never reaches the tier again. Measured after the release that
+    # introduced the check: the nine plates on the reference box had not moved.
+    #
+    # Here, and not in the completeness check itself, because this pass already
+    # walks every game once per boot with the manifest open. It costs one
+    # jeuInfos per affected game, once — the rescrape records the plate `blank`,
+    # and `has_stale_plate` is False from then on, so it cannot repeat.
+    if gm.has_stale_plate(gm.entry_dir(system_id, name), manifest):
+        log.info("gamemedia: %s/%s carries a blank plate — rescraping once",
+                 system_id, Path(name).name)
+        refreshed = await resolve(system_id, target, only=types)
+        if refreshed and refreshed.get("found"):
+            manifest = refreshed
+
     media = manifest.get("media") or {}
-    missing = [t for t in types if t in media and not media[t].get("file")]
+    # `blank` has no `file` and is not missing: it is the settled answer that
+    # the sources have nothing real for this slug. `fetch_media` refuses it
+    # anyway, so including it only bought one pointless call per blank per
+    # boot — but a pass that keeps asking for what it has been told does not
+    # exist reads, in the log and in the next reader's head, like one that is
+    # still failing.
+    missing = [t for t in types
+               if t in media and not media[t].get("file")
+               and not media[t].get("blank")]
     got = 0
     for slug in missing:
         if await media_file(system_id, name, slug):

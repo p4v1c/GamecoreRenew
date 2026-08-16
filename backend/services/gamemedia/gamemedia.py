@@ -749,6 +749,30 @@ def resolve(system: str, filename: str, *, refresh: bool = False,
 _PLATE_SUSPECT_BYTES = 8192
 
 
+def has_stale_plate(d: Path, manifest: dict) -> bool:
+    """Whether this manifest records a chroma-key plate as if it were a scan.
+
+    `_manifest_complete` already refuses such an entry, and that refusal turned
+    out to be a trigger nothing ever pulled: `cover_pipeline.resolve()` returns
+    the moment `emu/covers/<game>.png` is on disk, so for a library whose covers
+    are all cached, `gamemedia.resolve()` — and therefore the completeness check
+    — is never reached again. The nine plates on the reference box sat exactly
+    where they were, through a release that was supposed to replace them.
+
+    So the migration needs its own caller, and `warm()` is the one: it already
+    walks every game once per boot, after the covers, and it already has the
+    manifest in hand. This function is what it asks — deliberately narrower
+    than `_manifest_complete`, which answers False for a language change or a
+    missing file too and would turn a warming pass into a rescrape storm.
+    """
+    for info in (manifest.get("media") or {}).values():
+        if not info.get("file") or info.get("bytes", 0) >= _PLATE_SUSPECT_BYTES:
+            continue
+        if gs.looks_like_flat_plate(d / Path(info["file"]).name):
+            return True
+    return False
+
+
 def _top_up_blanks(d: Path, manifest: dict, hit: dict, parsed: dict,
                    cutoff: float, notes: list[str], verbose: bool) -> None:
     """Ask the OTHER tier for the media this one had nothing real for.

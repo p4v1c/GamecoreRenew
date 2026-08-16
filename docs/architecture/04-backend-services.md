@@ -327,8 +327,27 @@ slugs alone, never for a deferred or failed one, and never for `meta` (the text
 stays one tier's, in one language, which is what `lang` promises). It costs one
 local index lookup and one download per slug replaced; a game with nothing blank
 costs nothing. Measured on the reference box, against the index already sitting
-there: **seven of the nine plates have a real `Box - Back` in LaunchBox** — only
-FIFA 19 and Breath of the Wild resolve to nothing anywhere.
+there: **all nine plates have a real `Box - Back` in LaunchBox, every one
+matched at a similarity of 1.00.**
+
+That number was first reported as seven, and how it was got wrong is worth more
+than the number. The two "misses" — FIFA 19 and Breath of the Wild — came from
+querying the index with a hand-rolled normalisation instead of `find_game()`:
+one dropped the platform filter and matched FIFA's *Windows* entry, the other
+could not get `The Legend of Zelda: Breath of the Wild` past its own colon.
+`find_game()` has neither problem. Run over every ROM on that box it is **57 for
+57**, so the matcher was never the thing to improve — a probe that re-implements
+the code it is measuring measures the probe.
+
+**And the trigger needed a caller.** `_manifest_complete()` refusing a plate is
+worth nothing on its own: `cover_pipeline.resolve()` returns as soon as
+`emu/covers/<game>.png` exists, so a library whose covers are all cached never
+reaches this tier again. Measured after the release that shipped the check — the
+nine plates had not moved. `warm()` is what pulls it now, via
+`has_stale_plate()`: it already walks every game once per boot with the manifest
+open, and it asks a question narrower than completeness on purpose, because that
+one answers False for a language change too and would turn a boot into a
+rescrape storm.
 
 Two design points that are GameCore's, not upstream's:
 

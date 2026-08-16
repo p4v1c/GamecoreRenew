@@ -17,6 +17,8 @@ and a blank slug is what makes the other tier worth asking.
 
 Run under pytest:  pytest backend/tests/test_gamemedia_blank_plate.py
 """
+import asyncio
+import json
 import os
 import struct
 import sys
@@ -38,6 +40,23 @@ import pytest
 from backend.services import gamemedia
 from backend.services.gamemedia import gamemedia as gm
 from backend.services.gamemedia import gamescrape as gs
+
+
+def await_(coro):
+    """Run one coroutine from a sync test — same helper, and same reason, as
+    test_gamemedia: nothing in this suite depends on pytest-asyncio, and the
+    release workflow installs only `requirements.txt` + `pytest`."""
+    return asyncio.run(coro)
+
+
+def _never(msg: str):
+    async def f(*a, **k):
+        pytest.fail(msg)
+    return f
+
+
+async def _nothing(*a, **k):
+    return None
 
 
 # ── building the two kinds of PNG, without an image library ──────────────────
@@ -309,6 +328,72 @@ def test_a_blank_is_never_fetched_on_demand(tmp_path, monkeypatch):
         "a picture of nothing was downloaded again"))
 
     assert gm.fetch_media("ryujinx", "Game.nsp", "box-back") is None
+
+
+def test_a_plate_on_disk_is_what_the_warming_pass_looks_for(tmp_path):
+    """Narrower than the completeness check on purpose: that one answers False
+    for a language change or a missing file too, and warming on it would turn a
+    boot into a rescrape storm."""
+    p = plate(tmp_path)
+    m = {"media": {"box-back": {"file": p.name, "bytes": p.stat().st_size}}}
+    assert gm.has_stale_plate(tmp_path, m) is True
+
+    s = scan(tmp_path, name="box-front.png")
+    ok = {"media": {"box-front": {"file": s.name, "bytes": s.stat().st_size}}}
+    assert gm.has_stale_plate(tmp_path, ok) is False
+
+
+def test_a_blank_already_recorded_is_not_a_stale_plate(tmp_path):
+    """Once the rescrape has run, the entry is `blank` and there is no file.
+    Answering True here again is what would make it repeat every boot."""
+    m = {"media": {"box-back": {"blank": True, "url": "https://ss/back"}}}
+    assert gm.has_stale_plate(tmp_path, m) is False
+
+
+def test_the_warming_pass_is_what_pulls_the_trigger(tmp_path, monkeypatch):
+    """`cover_pipeline.resolve()` returns as soon as `emu/covers/<game>.png` is
+    on disk, so a library whose covers are all cached never reaches this tier
+    again — and the completeness check that refuses a plate was a trigger with
+    nothing pulling it. Measured after the release that introduced it: the nine
+    plates on the reference box had not moved."""
+    d = gm.entry_dir("rpcs3", "FIFA.iso")
+    d.mkdir(parents=True, exist_ok=True)
+    p = plate(d)
+    (d / gm.MANIFEST).write_text(json.dumps({
+        "found": True,
+        "media": {"box-back": {"file": p.name, "bytes": p.stat().st_size}}}),
+        encoding="utf-8")
+
+    rescraped = []
+
+    async def fake_resolve(system_id, target, *, only=None, refresh=False):
+        rescraped.append((system_id, str(target)))
+        return {"found": True, "media": {"box-back": {"blank": True}}}
+
+    monkeypatch.setattr(gamemedia, "resolve", fake_resolve)
+    monkeypatch.setattr(gamemedia, "media_file",
+                        _never(msg="a blank was fetched after the rescrape"))
+
+    got = await_(gamemedia.warm("rpcs3", "FIFA.iso"))
+
+    assert rescraped == [("rpcs3", "FIFA.iso")], "the plate was not revisited"
+    assert got == 0
+
+
+def test_a_clean_library_costs_no_rescrape(tmp_path, monkeypatch):
+    d = gm.entry_dir("rpcs3", "Clean.iso")
+    d.mkdir(parents=True, exist_ok=True)
+    s = scan(d, name="box-back.png")
+    (d / gm.MANIFEST).write_text(json.dumps({
+        "found": True,
+        "media": {"box-back": {"file": s.name, "bytes": s.stat().st_size}}}),
+        encoding="utf-8")
+
+    monkeypatch.setattr(gamemedia, "resolve",
+                        _never(msg="a complete game was rescraped"))
+    monkeypatch.setattr(gamemedia, "media_file", _nothing)
+
+    assert await_(gamemedia.warm("rpcs3", "Clean.iso")) == 0
 
 
 def test_a_blank_is_not_offered_to_the_frontend():
