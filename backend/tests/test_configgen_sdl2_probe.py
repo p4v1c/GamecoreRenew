@@ -164,3 +164,50 @@ def test_enumerating_a_pad_does_not_change_what_a_later_probe_is_told(monkeypatc
     assert inside == "/tmp/served.txt", "the name lookup still gets its table"
     assert "SDL_GAMECONTROLLERCONFIG_FILE" not in cc.os.environ, (
         "the table outlived the call, and the next probe inherits it")
+
+
+# ── a bad second at boot must not last the session ───────────────────────────
+
+def test_a_failed_flatpak_lookup_is_not_cached(monkeypatch):
+    """One `flatpak info` that fails used to answer "" for the life of the
+    process, and every consumer then took the branch meant for "not installed".
+
+    Measured cost: `bundled_sdl3` returned "", its caller fell through to the
+    HOST's libSDL3, and RMG got a DualSense profile whose serial the library it
+    actually links spells differently — `50-ee-32-32-88-2d` against
+    `50:ee:32:32:88:2d`. A pad bound to nothing until the backend restarted.
+
+    A miss costs one `flatpak info`, 14 ms on the reference box. That is not
+    worth a session of wrong configs.
+    """
+    cc._flatpak_loc_cache.clear()
+    calls = []
+
+    class R:
+        def __init__(self, rc, out): self.returncode, self.stdout = rc, out
+
+    def run(cmd, **kw):
+        calls.append(cmd)
+        return R(1, "") if len(calls) == 1 else R(0, "/deploy/rmg\n")
+
+    monkeypatch.setattr(cc.subprocess, "run", run)
+
+    assert cc.flatpak_location("com.example.App") == ""
+    assert cc.flatpak_location("com.example.App") == "/deploy/rmg"
+    assert len(calls) == 2, "the failure was cached and never retried"
+
+
+def test_a_successful_flatpak_lookup_is_cached(monkeypatch):
+    """The retry must not become a subprocess on every profiling pass."""
+    cc._flatpak_loc_cache.clear()
+    calls = []
+
+    class R:
+        def __init__(self): self.returncode, self.stdout = 0, "/deploy/rmg\n"
+
+    monkeypatch.setattr(cc.subprocess, "run",
+                        lambda cmd, **kw: (calls.append(cmd), R())[1])
+
+    assert cc.flatpak_location("com.example.App") == "/deploy/rmg"
+    assert cc.flatpak_location("com.example.App") == "/deploy/rmg"
+    assert len(calls) == 1

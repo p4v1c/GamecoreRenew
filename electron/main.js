@@ -321,13 +321,36 @@ function stopOverlayMonitor() {
   }, 2000)
 }
 
+// Send to the overlay page, loaded or not.
+//
+// `once('did-finish-load')` on its own loses the event whenever the page has
+// ALREADY finished loading — and that is not a rare case:
+//
+//   · `createOverlayWindow()` returns early when a window is already there, so
+//     any window a previous launch left behind is reused fully loaded;
+//   · an emulator that recreates its window makes the monitor emit a second
+//     `window:ready`, and the listener attached then never fires either.
+//
+// The failure is silent and total: the `window:ready` branch still runs, still
+// hides the main window, still logs — and no bezel is ever drawn. Waiting only
+// when there is actually something to wait for removes the whole class.
+function sendToOverlay(channel, payload) {
+  if (!overlayWindow) return
+  const wc = overlayWindow.webContents
+  if (wc.isLoading()) {
+    wc.once('did-finish-load', () => overlayWindow?.webContents.send(channel, payload))
+  } else {
+    wc.send(channel, payload)
+  }
+}
+
 function handleMonitorEvent(msg) {
   if (DEBUG) console.log('[overlay-monitor]', JSON.stringify(msg))
 
   switch (msg.event) {
     case 'window:waiting':
-      if (overlayWindow) overlayWindow.webContents.send('overlay:waiting', msg)
-      if (mainWindow)    mainWindow.webContents.send('overlay:waiting', msg)
+      sendToOverlay('overlay:waiting', msg)
+      if (mainWindow) mainWindow.webContents.send('overlay:waiting', msg)
       break
 
     case 'window:ready':

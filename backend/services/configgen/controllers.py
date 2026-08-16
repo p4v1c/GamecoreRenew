@@ -447,8 +447,26 @@ _runtime_loc_cache: dict[str, str] = {}
 
 
 def flatpak_location(app_id: str) -> str:
-    """Deploy directory of an installed flatpak, or "". Cached per process."""
-    if app_id in _flatpak_loc_cache:
+    """Deploy directory of an installed flatpak, or "".
+
+    **Only a SUCCESS is cached**, and that is the difference between a bad
+    minute and a bad session. A `flatpak info` can fail transiently — a cold
+    boot with the repo lock still held, an OTA settling, a system that has not
+    finished mounting the user installation — and caching that "" pinned it for
+    the whole life of the backend process. Every consumer downstream then took
+    the branch meant for "this emulator is not installed": `Pad.guid_for`
+    refused for ever, and `bundled_sdl3` answered "" so its caller fell through
+    to the host's library.
+
+    Measured cost of one such minute: an RMG profile written from the HOST's
+    libSDL3 while RMG reads the runtime's, and those two do not agree about a
+    DualSense's serial (see `bundled_sdl3`). The pad was bound to nothing, in
+    silence, until the backend was restarted.
+
+    A miss costs one `flatpak info`, measured at 14 ms on the reference box.
+    That is not a price worth paying a session of wrong configs to avoid.
+    """
+    if _flatpak_loc_cache.get(app_id):
         return _flatpak_loc_cache[app_id]
     out = ""
     try:
@@ -458,7 +476,8 @@ def flatpak_location(app_id: str) -> str:
             out = r.stdout.strip()
     except (OSError, subprocess.SubprocessError):
         pass
-    _flatpak_loc_cache[app_id] = out
+    if out:
+        _flatpak_loc_cache[app_id] = out
     return out
 
 
@@ -467,8 +486,12 @@ def flatpak_runtime_location(app_id: str) -> str:
 
     An app that ships no SDL of its own is not an app with no SDL: it links its
     runtime's, and that library is on this filesystem and can be asked.
+
+    Only a success is cached, for the reason `flatpak_location` sets out: a
+    transient failure pinned here is a session of configs written from the
+    wrong library.
     """
-    if app_id in _runtime_loc_cache:
+    if _runtime_loc_cache.get(app_id):
         return _runtime_loc_cache[app_id]
     out = ""
     try:
@@ -483,7 +506,8 @@ def flatpak_runtime_location(app_id: str) -> str:
                 out = r.stdout.strip()
     except (OSError, subprocess.SubprocessError):
         pass
-    _runtime_loc_cache[app_id] = out
+    if out:
+        _runtime_loc_cache[app_id] = out
     return out
 
 
@@ -681,23 +705,30 @@ def bundled_sdl3(app_id: str) -> str:
     same reason: an app that ships its own library is not answered by anybody
     else's. RMG ships none and links `org.kde.Platform`'s.
 
-    **Where it differs from its twin: the host is an acceptable last resort
-    here, and it is measured rather than assumed.** `bundled_sdl2` says "host
-    never" because a GUID encodes the bus byte and two SDL builds disagree
-    about it. These three strings are properties of the DEVICE and the driver
-    reading it, not of the enumerating build. Measured, one DualShock 4, same
-    instant, on the reference box:
+    **"Host never", exactly like its twin — and this docstring used to say the
+    opposite.** It claimed the host was an acceptable last resort, on the
+    strength of one DualShock 4 answering identically from both builds. A
+    second pad settled it, same instant, same box:
 
-        host libSDL3 3.4.12               PS4 Controller  /dev/hidraw0
-                                          40:1b:5f:b9:ea:8d
-        org.kde.Platform 6.10's
-        libSDL3 3.2.30 — RMG's own        PS4 Controller  /dev/hidraw0
-                                          40:1b:5f:b9:ea:8d
+        pad                    host libSDL3 3.4.12   org.kde.Platform 6.10's
+                                                     libSDL3 3.2.30 (RMG's)
+        DualShock 4 054c:09cc  40:1b:5f:b9:ea:8d     40:1b:5f:b9:ea:8d
+        DualSense   054c:0ce6  50-ee-32-32-88-2d     50:ee:32:32:88:2d
+                               ^^ dashes            ^^ colons
 
-    Byte-identical across two SDL3 generations. So the caller may fall back to
-    the host, and this returning "" is not a refusal to answer.
+    The two builds format a DualSense's serial differently, and RMG-Input
+    compares `DeviceSerial` by string equality. A profile written from the
+    host's answer names a pad RMG will never recognise — the port stays empty
+    and nothing says why. The DualShock 4 kept working throughout, which is
+    what made a one-pad measurement look like a rule.
+
+    So a caller that has an `app_id` must treat "" as a REFUSAL and write
+    nothing, never as permission to ask the host. That is what `guid_for`
+    already does for the bus byte, and this is the same lesson reached by a
+    different road: a string is only comparable to itself if both sides came
+    from the same library.
     """
-    if app_id in _bundled_sdl3_cache:
+    if _bundled_sdl3_cache.get(app_id):
         return _bundled_sdl3_cache[app_id]
     path = ""
     loc = flatpak_location(app_id)
@@ -712,7 +743,8 @@ def bundled_sdl3(app_id: str) -> str:
             if lib.is_file():
                 path = str(lib)
                 break
-    _bundled_sdl3_cache[app_id] = path
+    if path:
+        _bundled_sdl3_cache[app_id] = path
     return path
 
 

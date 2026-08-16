@@ -368,15 +368,37 @@ replace = _replace_port(_CANON_PORT)
 
 
 def _live_identity(pad, opts: dict) -> dict[str, str]:
-    """What RMG's own SDL3 will call this pad's node and serial, or `{}`.
+    """What RMG's OWN SDL3 calls this pad's node and serial, or `{}`.
 
-    RMG ships no SDL and links `org.kde.Platform`'s; `bundled_sdl3` finds it,
-    and answering "" there is not a refusal — measured on the reference box, the
-    runtime's SDL3 3.2.30 and the host's 3.4.12 return the same three strings
-    for the same pad, byte for byte. See `controllers.bundled_sdl3`.
+    **It refuses rather than asking the host, and that refusal is the fix for a
+    measured bug.** This used to fall through to the host's libSDL3 whenever
+    `bundled_sdl3` answered "", on a docstring claiming the two agreed. They do
+    not. Same box, same instant, two pads:
+
+        DualShock 4 054c:09cc   host 40:1b:5f:b9:ea:8d   RMG 40:1b:5f:b9:ea:8d
+        DualSense   054c:0ce6   host 50-ee-32-32-88-2d   RMG 50:ee:32:32:88:2d
+
+    Dashes against colons. RMG compares `DeviceSerial` by string equality, so
+    the DualSense got a complete, plausible, permanently unmatched profile —
+    `PluggedIn = True`, the right name, the right path, and no controller in
+    game. The DualShock 4 worked throughout, which is what made one pad look
+    like a rule.
+
+    How the host ever got asked, since RMG's own library is right there: a
+    single failed `flatpak info` used to be cached for the life of the backend
+    process, so one bad second at boot answered "" for every profile afterwards.
+    `flatpak_location` now caches only successes; this refuses even so, because
+    a config written from the wrong library is undiagnosable from a sofa and an
+    untouched port is not.
     """
     app_id = opts.get("app_id") or ""
-    lib = controllers.bundled_sdl3(app_id) if app_id else ""
+    if not app_id:
+        # A native install: the host's SDL3 IS this emulator's SDL3, which is
+        # the same reasoning `generator_opts` uses to leave `app_id` empty.
+        return controllers.sdl3_identity(pad.vendor, pad.product, "")
+    lib = controllers.bundled_sdl3(app_id)
+    if not lib:
+        return {}
     return controllers.sdl3_identity(pad.vendor, pad.product, lib)
 
 
@@ -398,9 +420,11 @@ def _synthesise(port: int, pad, opts: dict) -> str | Skip | None:
 
     ident = _live_identity(pad, opts)
     if "path" not in ident:
-        return Skip(f"gopher64: SDL3 did not report a device path for "
-                    f"{pad.vendor}:{pad.product} — RMG compares it by equality "
-                    f"and an invented one binds nothing")
+        return Skip(f"gopher64: could not ask RMG's own SDL3 about "
+                    f"{pad.vendor}:{pad.product} — it compares the name, the "
+                    f"path and the serial by equality, and another SDL3 does "
+                    f"not spell them the same way, so port {port + 1} is left "
+                    f"as it is")
 
     text = target.read_text()
     body = _section_of(text, port)

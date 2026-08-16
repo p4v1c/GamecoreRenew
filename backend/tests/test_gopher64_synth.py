@@ -277,6 +277,53 @@ def test_a_pad_sdl3_cannot_name_is_left_alone(gen, opts, cfg):
     assert cfg.read_text() == before
 
 
+def test_the_hosts_sdl3_is_never_substituted_for_the_emulators(gen, opts, cfg,
+                                                               monkeypatch):
+    """The DualSense bug, in one assertion.
+
+    This used to fall through to the host's libSDL3 when the emulator's could
+    not be located. Measured, same box, same instant: the host spells a
+    DualSense's serial `50-ee-32-32-88-2d` and the library RMG actually links
+    spells it `50:ee:32:32:88:2d`. RMG compares that field by equality, so the
+    pad got a complete, plausible, permanently unmatched profile — the right
+    name, the right path, `PluggedIn = True`, and nothing in game.
+
+    A DualShock 4 answers identically from both builds, which is exactly why
+    one pad was not enough to establish the rule.
+    """
+    asked = []
+    monkeypatch.setattr(gen.controllers, "bundled_sdl3", lambda app_id: "")
+
+    def identity(vendor, product, lib=""):
+        asked.append(lib)
+        return {"path": "/dev/hidraw0", "serial": "50-ee-32-32-88-2d"}
+
+    monkeypatch.setattr(gen.controllers, "sdl3_identity", identity)
+    before = cfg.read_text()
+
+    got = gen.generate(1, FakePad(), opts)
+
+    assert asked == [], "the host's SDL3 was asked on the emulator's behalf"
+    assert isinstance(got, Skip)
+    assert cfg.read_text() == before
+
+
+def test_a_native_emulator_is_still_answered_by_the_host(gen, opts, cfg,
+                                                         monkeypatch):
+    """The refusal is about a flatpak whose own library is out of reach. With
+    no app id the box runs a native binary, and then the host's SDL3 IS its
+    SDL3 — the same reasoning `generator_opts` uses to leave the id empty."""
+    seen = []
+    monkeypatch.setattr(gen.controllers, "sdl3_identity",
+                        lambda v, p, lib="": seen.append(lib) or
+                        {"path": SDL_PATH, "serial": SDL_SERIAL})
+    monkeypatch.setattr(gen.controllers, "bundled_sdl3",
+                        lambda app_id: pytest.fail("asked for a native install"))
+
+    assert gen.generate(1, FakePad(), {**opts, "app_id": ""})
+    assert seen == [""]
+
+
 def test_no_device_path_is_a_refusal_not_a_guess(gen, opts, cfg, monkeypatch):
     """`{}` is "SDL was never asked", which is not a finding about the pad. An
     invented path is compared by equality and matches nothing."""
