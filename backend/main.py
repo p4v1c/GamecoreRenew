@@ -15,7 +15,16 @@ logging.basicConfig(level=logging.DEBUG if DEBUG else logging.WARNING)
 # only trace either leaves, and at WARNING they were all dropped. Everything
 # noisy in these two modules (a key code per press, a scan pass) is at DEBUG
 # and stays there.
-for _observable in ("backend.services.standby", "backend.services.gamepad_monitor"):
+#
+# desktop_power belongs here for the same reason and was left out of the first
+# pass, which cost a diagnosis immediately: it hands the screen timeout between
+# GameCore and the desktop, and every step it takes — claimed, restored, given
+# back — was logged at INFO and therefore invisible. Only its failure warning
+# got through, so the box could say "I could not take it" but never "I gave it
+# back", and there was no way to tell a handover that happened from one that
+# never ran.
+for _observable in ("backend.services.standby", "backend.services.gamepad_monitor",
+                    "backend.services.desktop_power"):
     logging.getLogger(_observable).setLevel(logging.INFO)
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect

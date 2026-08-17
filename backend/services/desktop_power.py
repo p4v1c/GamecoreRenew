@@ -87,7 +87,20 @@ async def _read() -> str | None:
 
 
 async def _write(value: str) -> bool:
-    code, _ = await _run("kwriteconfig6", "--file", _FILE, *_GROUPS, "--key", _KEY, value)
+    # `--` before the value, and it is not cosmetic: the value we care most
+    # about writing is `-1`, and without the separator kwriteconfig6 reads it as
+    # a command-line option and refuses the whole call —
+    #
+    #     $ kwriteconfig6 --file powerdevilrc … --key TurnOff… -1
+    #     kwriteconfig6: Unknown option '1'.        (exit 1)
+    #
+    # which is exactly how this shipped, and exactly what the box reported the
+    # first time it ran for real: "could not disable the desktop's screen-off —
+    # its timer still caps GameCore's (was 900 s)". Every positive value worked,
+    # so nothing in the tests noticed: they drive a fake `_run` and never meet
+    # the real argument parser.
+    code, _ = await _run("kwriteconfig6", "--file", _FILE, *_GROUPS, "--key", _KEY,
+                         "--", value)
     if code != 0:
         return False
     # Applied live. Without this the desktop goes on using the value it read at
@@ -116,6 +129,13 @@ def _remember(previous: str) -> None:
                     "screen-off will not be restorable", _HANDOFF)
 
 
+def _forget() -> None:
+    try:
+        _HANDOFF.unlink()
+    except OSError:
+        pass
+
+
 async def claim() -> bool:
     """Disable the desktop's screen-off, remembering what it was.
 
@@ -131,8 +151,17 @@ async def claim() -> bool:
         return False
     if current == _OFF:
         return True                     # already ours
+    # Written BEFORE the attempt: a write that half-succeeds must not take the
+    # only record of the owner's real setting with it.
     _remember(current)
     if not await _write(_OFF):
+        # And withdrawn when the attempt fails, because "there is a note" is
+        # what release() reads as "we hold the claim". Leaving one behind for a
+        # claim that never happened means a later release writes a value back
+        # over a desktop that was never touched — harmless today, since it
+        # rewrites what is already there, but it makes the note lie about who
+        # owns the timeout, and that note is the whole safety mechanism.
+        _forget()
         log.warning("desktop_power: could not disable the desktop's screen-off — "
                     "its timer still caps GameCore's (was %s s)", current)
         return False
@@ -155,9 +184,6 @@ async def release() -> bool:
         return False
     if not await _write(previous):
         return False
-    try:
-        _HANDOFF.unlink()
-    except OSError:
-        pass
+    _forget()
     log.info("desktop_power: desktop screen-off restored to %s s", previous)
     return True
