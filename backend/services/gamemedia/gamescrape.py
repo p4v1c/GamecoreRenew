@@ -102,6 +102,7 @@ try:
         REGIONS,
         TAG_RE,
         TYPE_ALIASES,
+        without_platform,
         normalize,
         parse_rom,
     )
@@ -142,6 +143,7 @@ except ImportError:                                    # plain-script CLI
         REGIONS,
         TAG_RE,
         TYPE_ALIASES,
+        without_platform,
         normalize,
         parse_rom,
     )

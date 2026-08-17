@@ -232,10 +232,17 @@ def hashes_for(path: Path) -> dict[str, str] | None:
 NAME_ACCEPT = 0.95
 
 
-def _title_score(parsed: dict, jeu: dict) -> float:
-    """Best similarity between the name we asked for and any name returned."""
+def _title_score(parsed: dict, jeu: dict, want: str | None = None) -> float:
+    """Best similarity between the name we asked for and any name returned.
+
+    `want` overrides what `parsed` says was asked for, and the caller that
+    passes it is the retry that drops the console's name from the query: scoring
+    a reply to "FIFA 22 Legacy Edition" against the original "FIFA 22 Nintendo
+    Switch Legacy Edition" would penalise it for the very words that were
+    removed on purpose, and the retry could never win.
+    """
     import difflib
-    want = gs.normalize(parsed.get("romnom") or parsed.get("title") or "")
+    want = gs.normalize(want or parsed.get("romnom") or parsed.get("title") or "")
     if not want:
         return 0.0
     names = [str(n.get("text") or "") for n in (jeu.get("noms") or [])

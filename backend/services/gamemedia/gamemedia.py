@@ -327,34 +327,82 @@ def ss_everything(parsed: dict, rom_path: Path | None,
     # nearly exact is accepted on the spot, so a game found on the first try
     # still costs one request. Only an unconvincing answer makes us ask the next
     # console, which is precisely when it is worth it.
-    best: tuple[float, dict, bool] | None = None
-    for sid, use_hash in attempts:
-        p = dict(params)
-        if sid:
-            p["systemeid"] = sid
-        else:
-            p.pop("systemeid", None)
-        if not use_hash:
-            for k in ("crc", "md5", "sha1"):
-                p.pop(k, None)          # romtaille stays: it helps the server
-        data = ss_request("jeuInfos.php", p, verbose)
-        if data is None:
-            continue
-        jeu = (data.get("response") or {}).get("jeu")
-        if not jeu:
-            continue
+    dropped_platform = False
 
-        # A digest the server echoed back is proof, not a guess. Nothing about
-        # a title can improve on it, and nothing may override it.
-        if use_hash and hashes and _hash_confirmed(jeu, hashes):
-            best = (1.0, jeu, use_hash)
-            break
+    def sweep(romnom: str, *, no_hash: bool = False,
+              want: str | None = None) -> tuple[float, dict, bool] | None:
+        """The candidate loop for ONE spelling of the name. Best answer, or None."""
+        found: tuple[float, dict, bool] | None = None
+        for sid, use_hash in attempts:
+            if no_hash:
+                use_hash = False
+            p = dict(params)
+            p["romnom"] = romnom
+            if sid:
+                p["systemeid"] = sid
+            else:
+                p.pop("systemeid", None)
+            if not use_hash:
+                for k in ("crc", "md5", "sha1"):
+                    p.pop(k, None)      # romtaille stays: it helps the server
+            data = ss_request("jeuInfos.php", p, verbose)
+            if data is None:
+                continue
+            jeu = (data.get("response") or {}).get("jeu")
+            if not jeu:
+                continue
 
-        score = _title_score(parsed, jeu)
-        if best is None or score > best[0]:
-            best = (score, jeu, use_hash)
-        if score >= NAME_ACCEPT:
-            break
+            # A digest the server echoed back is proof, not a guess. Nothing
+            # about a title can improve on it, and nothing may override it.
+            if use_hash and hashes and _hash_confirmed(jeu, hashes):
+                found = (1.0, jeu, use_hash)
+                break
+
+            score = _title_score(parsed, jeu, want=want)
+            if found is None or score > found[0]:
+                found = (score, jeu, use_hash)
+            if score >= NAME_ACCEPT:
+                break
+        return found
+
+    best = sweep(params["romnom"])
+
+    # GameCore: a second chance, on the name and nothing else.
+    #
+    # Release names habitually bury the console in the title —
+    # `FIFA 22 Nintendo Switch Legacy Edition [...].nsp`. ScreenScraper's
+    # romnom search does not forgive it: measured on this box, that exact file
+    # found nothing here and fell through to the LaunchBox index, which matched
+    # at 73 % and carries ONE media — a front. No back, no spine, no 3D box.
+    # The same file with "Nintendo Switch" removed is found first try, with 23.
+    #
+    # Two properties make this safe rather than clever:
+    #
+    #   · it runs ONLY when the first sweep found nothing convincing, so
+    #     `Nintendo Switch Sports` — which really is called that — matches on
+    #     its first attempt and never reaches here;
+    #   · the better score wins, so a reduction that lands on the wrong game
+    #     cannot displace a good answer. It can fail to help; it cannot harm.
+    #
+    # The quota is spent only on games that were already going to be wrong, and
+    # `without_platform` returns "" when there is nothing to drop — the common
+    # case costs not one extra request.
+    if best is None or best[0] < NAME_ACCEPT:
+        reduced = gs.without_platform(params["romnom"])
+        if reduced:
+            if verbose:
+                print(f"  screenscraper: retrying without the console name "
+                      f"({reduced!r})", file=sys.stderr)
+            # The query keeps its extension — `romnom` is a filename, and the
+            # server uses it — but the SCORE compares stems, exactly as the
+            # first sweep does through `parsed["title"]`. Leaving ".nsp" in the
+            # comparison costs a perfect answer 7 points and puts it under
+            # NAME_ACCEPT, which is the whole difference between this working
+            # and quietly doing nothing.
+            again = sweep(reduced, no_hash=True, want=Path(reduced).stem)
+            if again and (best is None or again[0] > best[0]):
+                best = again
+                dropped_platform = True
 
     if best is None:
         return None
@@ -424,6 +472,11 @@ def ss_everything(parsed: dict, rom_path: Path | None,
     # looked at as a mystery.
     if how.startswith("name") and name_score < NAME_ACCEPT:
         how = f"{how} (weak, {name_score:.0%})"
+    # Say that the console's name had to be dropped to find this. It is the one
+    # thing that explains an otherwise puzzling match, and it points straight at
+    # the fix: the file is misnamed, not the game unknown.
+    if dropped_platform:
+        how = f"{how}, console name dropped"
     return {"source": "screenscraper", "game_id": jeu.get("id"),
             "matched_by": how, "meta": meta, "media": media}
 

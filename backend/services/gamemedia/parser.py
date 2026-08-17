@@ -166,3 +166,48 @@ def normalize(s: str) -> str:
         if s.startswith(art):
             return s[len(art):]
     return s
+
+
+# ── Un nom de console au milieu d'un titre ───────────────────────────────────
+#
+# Les noms de release collent régulièrement la plateforme dans le titre :
+#     FIFA 22 Nintendo Switch Legacy Edition [0100216014472000][v0][US].nsp
+# Mesuré sur cette boîte : la recherche `romnom` de ScreenScraper échoue sur ce
+# nom, la requête retombe sur l'index LaunchBox, qui matche « FIFA 22: Legacy
+# Edition » à 73 % et ne porte QU'UNE face avant — donc pas de dos, pas de
+# tranche, pas de boîtier 3D. Le même fichier renommé sans « Nintendo Switch »
+# est trouvé par ScreenScraper du premier coup, avec 23 médias.
+#
+# Retirer la plateforme n'est PAS sûr en général : « Nintendo Switch Sports »
+# porte légitimement le nom de la console. C'est pourquoi cette fonction ne sert
+# qu'en DERNIER RECOURS, quand une recherche par nom a déjà échoué — un jeu dont
+# le titre contient vraiment une console est trouvé au premier essai et n'arrive
+# jamais ici.
+_PLATFORM_RE = re.compile(
+    "|".join(re.escape(name) for name in
+             sorted(set(PLATFORMS.values()), key=len, reverse=True)),
+    re.IGNORECASE)
+
+
+def without_platform(name: str) -> str:
+    """`name` sans le nom de console qu'il contient, ou "" s'il n'y en a pas.
+
+    Rend "" plutôt que le nom inchangé, pour que l'appelant distingue « il n'y
+    a rien à retenter » de « voici une seconde requête à payer ». Rend "" aussi
+    quand la réduction ne laisse plus de titre : chercher l'extension seule
+    coûterait une requête pour rien.
+
+    Les noms COMPLETS seulement (« Nintendo Switch », « Sony Playstation 3 »),
+    pas les clés courtes : retirer « wii » de « Mario Kart Wii » viserait un
+    autre jeu, et le gain ne vaut pas ce risque-là.
+    """
+    stem, dot, ext = name.rpartition(".")
+    base = stem if dot else name
+    reduced = _PLATFORM_RE.sub(" ", base)
+    if reduced == base:
+        return ""
+    # Espaces et séparateurs laissés béants par la découpe.
+    reduced = re.sub(r"\s+", " ", reduced).strip(" -_")
+    if not reduced or not re.search(r"[a-z0-9]", reduced, re.IGNORECASE):
+        return ""
+    return f"{reduced}.{ext}" if dot else reduced
