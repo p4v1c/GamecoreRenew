@@ -64,3 +64,44 @@ os.environ["HOME"] = str(_ROOT / "home")
 # suite would be green about maps that are simply absent.
 _REPO = Path(__file__).resolve().parents[2]
 (_ROOT / "catalog").symlink_to(_REPO / "catalog")
+
+
+# ── Le boîtier n'est pas un banc d'essai : ni sudo, ni xset ──────────────────
+#
+# Même famille que le piège HOME ci-dessus, et découvert de la même façon :
+# `TestClient(main.app)` exécute le lifespan, et le lifespan appelle
+# `standby.resume_after_restart()`, qui fait
+#
+#     xset dpms force on
+#     sudo -n cpupower frequency-set -g performance
+#
+# sur la VRAIE machine. 26 modules de la suite créent un TestClient : mesuré le
+# 2026-08-17, un seul passage de la suite a lancé 38 `sudo cpupower` contre 1
+# émis par le backend de production. La suite reconfigurait le gouverneur CPU du
+# boîtier et le laissait épinglé, et poussait `xset` dans le serveur X de la
+# session ouverte devant la télévision.
+#
+# Le même passage a coïncidé avec deux coupures franches de la machine (journal
+# interrompu net, sans séquence d'arrêt, watchdog désactivé). Le lien n'est PAS
+# démontré — mais une suite de tests n'a de toute façon aucune raison de
+# toucher au gouverneur d'une machine, et la question ne se pose plus.
+#
+# Neutralisé au niveau de `_run_cmd`, le seul point par lequel standby sort du
+# processus. Les trois modules qui veulent observer ce que standby A ESSAYÉ de
+# lancer (test_standby_switch, test_standby_launch, test_session_robustness)
+# posent leur propre `monkeypatch.setattr` par-dessus : function-scoped, donc
+# appliqué après celui-ci et défait vers celui-ci. Rien ne perd de couverture.
+import pytest as _pytest
+
+
+@_pytest.fixture(autouse=True, scope="session")
+def _no_real_commands_from_the_suite():
+    from backend.services import standby
+
+    async def refuse(*argv):
+        return True          # « ça a marché » : standby traite l'échec en best effort
+
+    original = standby._run_cmd
+    standby._run_cmd = refuse
+    yield
+    standby._run_cmd = original
