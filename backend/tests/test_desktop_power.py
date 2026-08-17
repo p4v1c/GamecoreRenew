@@ -31,13 +31,14 @@ def desktop(monkeypatch, tmp_path):
     outside world goes through `_run`, which is the whole reason that function
     exists.
     """
-    state = {"timeout": "900", "reparsed": 0, "writes": []}
+    state = {"timeout": "900", "reparsed": 0, "writes": [], "argv": []}
 
     async def fake_run(*argv, **kw):
         if argv[0] == "kreadconfig6":
             return 0, state["timeout"]
         if argv[0] == "kwriteconfig6":
             value = argv[-1]
+            state["argv"].append(list(argv))
             state["writes"].append(value)
             state["timeout"] = value
             return 0, ""
@@ -149,3 +150,41 @@ def test_turning_standby_off_hands_the_screen_back(desktop, monkeypatch, tmp_pat
         r = c.post("/api/standby/config", json={"enabled": False})
     assert r.status_code == 200, r.text
     assert desktop["timeout"] == "900", "the television would never go dark again"
+
+
+# ── the bug that shipped ─────────────────────────────────────────────────────
+
+def test_the_value_is_passed_after_a_separator(desktop):
+    """kwriteconfig6 reads a leading dash as an option, and the value we most
+    need to write is `-1`:
+
+        $ kwriteconfig6 --file powerdevilrc … --key TurnOff… -1
+        kwriteconfig6: Unknown option '1'.        (exit 1)
+
+    Which is how it shipped, and what the box said the first time it ran for
+    real: "could not disable the desktop's screen-off (was 900 s)". Every
+    positive value worked, so nothing here noticed — these tests drive a fake
+    `_run` and never meet the argument parser, which is precisely why this test
+    asserts the SHAPE of the command rather than its effect.
+    """
+    run(dp.claim())
+    argv = desktop["argv"][0]
+    assert argv[-2:] == ["--", "-1"], argv
+
+
+def test_a_claim_that_could_not_write_leaves_no_note_behind(monkeypatch, tmp_path):
+    """"There is a note" is what release() reads as "we hold the claim"."""
+    async def read_ok_write_fails(*argv, **kw):
+        if argv[0] == "kreadconfig6":
+            return 0, "900"
+        return 1, "kwriteconfig6: Unknown option '1'."
+
+    monkeypatch.setattr(dp, "_run", read_ok_write_fails)
+    monkeypatch.setattr(dp, "available", lambda: True)
+    monkeypatch.setattr(dp, "_HANDOFF", tmp_path / "handoff.json")
+
+    assert run(dp.claim()) is False
+    assert not (tmp_path / "handoff.json").exists()
+    # And release must then know it holds nothing, rather than writing a value
+    # back over a desktop nobody took.
+    assert run(dp.release()) is False
