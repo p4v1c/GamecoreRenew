@@ -2,7 +2,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from ..services import standby
+from ..services import desktop_power, standby
 
 router = APIRouter(tags=["standby"])
 
@@ -30,8 +30,17 @@ async def set_config(cfg: StandbyConfig):
     # Only OFF. Turning it on is not a reason to light the screen, and waking on
     # any config write would mean the box could never settle while somebody was
     # adjusting the timings.
+    # And the screen timeout goes back to the desktop, because GameCore has
+    # just stopped managing it. Without this the switch disarms BOTH: GameCore
+    # steps back and the desktop's own timer is still disabled behind it, so
+    # the television never goes dark again — the exact opposite of what a
+    # switch marked "standby" is understood to do, and invisible until somebody
+    # notices the TV has been on all night.
     if cfg.enabled is False:
+        await desktop_power.release()
         await standby.exit_standby()
+    elif cfg.enabled is True:
+        await desktop_power.claim()
     return {"ok": True, **saved}
 
 
