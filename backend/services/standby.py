@@ -65,8 +65,19 @@ def load_config() -> dict:
 def save_config(cfg: dict) -> dict:
     merged = {**load_config(), **{k: v for k, v in cfg.items() if k in DEFAULTS}}
     merged["screensaver_mins"] = max(1, int(merged["screensaver_mins"]))
-    # Screen-off always comes after (or with) the screensaver stage
-    merged["sleep_mins"] = max(merged["screensaver_mins"], int(merged["sleep_mins"]))
+    # 0 means NEVER turn the screen off, and it has to survive this function.
+    #
+    # The settings screen offers it — SLEEP_MINS ends in 0, labelled "Never" —
+    # and the clamp below used to swallow it whole: max(screensaver_mins, 0) is
+    # screensaver_mins, so choosing "never" set screen-off to the SAME minute as
+    # the screensaver. The most cautious option on the page produced the most
+    # aggressive setting there is, and it took the slideshow down with it —
+    # _tick tests sleep_mins first, so the screensaver stage became unreachable.
+    # Picking "Never" on a box at 4 minutes blacked the television at 4 minutes.
+    merged["sleep_mins"] = max(0, int(merged["sleep_mins"]))
+    if merged["sleep_mins"]:
+        # Otherwise screen-off always comes after (or with) the screensaver
+        merged["sleep_mins"] = max(merged["screensaver_mins"], merged["sleep_mins"])
     # tmp + os.replace, like auth._write_private: write_text truncates first,
     # so an interrupted write left a half-written standby.json and load_config
     # fell back to the defaults, quietly undoing the player's timings.
@@ -273,7 +284,10 @@ async def _tick(cfg: dict) -> None:
         await _signal_user_activity()
         return
     idle_mins = (time.monotonic() - _last_input) / 60
-    if idle_mins >= cfg["sleep_mins"]:
+    # `cfg["sleep_mins"] and` — 0 is "never turn the screen off", not "turn it
+    # off at zero minutes". Without the guard the box goes straight to sleep on
+    # the first tick, which is what the option is there to prevent.
+    if cfg["sleep_mins"] and idle_mins >= cfg["sleep_mins"]:
         await _enter("sleep")
     elif idle_mins >= cfg["screensaver_mins"]:
         await _enter("screensaver")

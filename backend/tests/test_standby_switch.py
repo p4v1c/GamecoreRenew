@@ -210,3 +210,65 @@ def test_a_game_still_holds_our_own_standby_off(playing, session_calls):
     idle_for(180)
     tick(CFG_ON)
     assert standby.get_state() == "active"
+
+
+# ── "Never" has to mean never ────────────────────────────────────────────────
+#
+# The settings screen offers it: SLEEP_MINS ends in 0, shown as "Never". It
+# never reached the watcher. save_config clamped screen-off up to the
+# screensaver stage — reasonable for any real number, fatal for 0, because
+# max(screensaver_mins, 0) IS screensaver_mins.
+#
+# So the most cautious option on the page produced the most aggressive setting
+# available, and silently removed the screensaver as well: _tick tests
+# sleep_mins first, so both stages fired on the same minute and only the black
+# one was ever seen. On this box, at 4 minutes.
+
+@pytest.fixture
+def stored(monkeypatch, tmp_path):
+    monkeypatch.setattr(standby, "CONFIG_FILE", tmp_path / "standby.json")
+    return standby
+
+
+def test_never_survives_being_saved(stored):
+    saved = stored.save_config({"screensaver_mins": 4, "sleep_mins": 0})
+    assert saved["sleep_mins"] == 0
+    assert saved["screensaver_mins"] == 4
+
+
+def test_never_is_still_never_when_read_back(stored):
+    stored.save_config({"screensaver_mins": 4, "sleep_mins": 0})
+    assert stored.load_config()["sleep_mins"] == 0
+
+
+def test_a_real_delay_is_still_pushed_past_the_screensaver(stored):
+    # The clamp the fix must not break: screen-off cannot precede the slideshow.
+    saved = stored.save_config({"screensaver_mins": 10, "sleep_mins": 3})
+    assert saved["sleep_mins"] == 10
+
+
+def test_a_negative_delay_reads_as_never(stored):
+    assert stored.save_config({"screensaver_mins": 4, "sleep_mins": -5})["sleep_mins"] == 0
+
+
+CFG_NEVER = {"enabled": True, "screensaver_mins": 4, "sleep_mins": 0}
+
+
+def test_never_does_not_black_the_screen_however_long_the_box_sits(not_playing):
+    idle_for(600)
+    tick(CFG_NEVER)
+    assert standby.get_state() == "screensaver"
+
+
+def test_never_still_lets_the_screensaver_through(not_playing):
+    idle_for(5)
+    tick(CFG_NEVER)
+    assert standby.get_state() == "screensaver"
+
+
+def test_never_is_not_zero_minutes(not_playing):
+    # The literal reading of the old code: idle >= 0 is true on the first tick,
+    # so "never" would have meant "immediately".
+    idle_for(0)
+    tick(CFG_NEVER)
+    assert standby.get_state() == "active"
