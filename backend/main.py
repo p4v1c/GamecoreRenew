@@ -7,6 +7,17 @@ from pathlib import Path
 from .config import DEBUG
 logging.basicConfig(level=logging.DEBUG if DEBUG else logging.WARNING)
 
+# Standby and the controller monitor speak at INFO whatever the rest does, and
+# that exception is deliberate. Both fail SILENTLY by nature: a screen that
+# does not come back produces no error, and a controller nobody is reading
+# looks exactly like a controller nobody is touching. Their log.info lines —
+# "watcher started", "watching /dev/input/event14", "active → sleep" — are the
+# only trace either leaves, and at WARNING they were all dropped. Everything
+# noisy in these two modules (a key code per press, a scan pass) is at DEBUG
+# and stays there.
+for _observable in ("backend.services.standby", "backend.services.gamepad_monitor"):
+    logging.getLogger(_observable).setLevel(logging.INFO)
+
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
