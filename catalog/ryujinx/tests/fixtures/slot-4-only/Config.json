@@ -175,10 +175,10 @@
         "button_zr": "RightTrigger",
         "button_sl": "Unbound",
         "button_sr": "Unbound",
-        "button_x": "X",
-        "button_b": "B",
-        "button_y": "Y",
-        "button_a": "A"
+        "button_x": "Y",
+        "button_b": "A",
+        "button_y": "X",
+        "button_a": "B"
       },
       "version": 1,
       "backend": "GamepadSDL2",
@@ -241,10 +241,10 @@
         "button_zr": "RightTrigger",
         "button_sl": "Unbound",
         "button_sr": "Unbound",
-        "button_x": "X",
-        "button_b": "B",
-        "button_y": "Y",
-        "button_a": "A"
+        "button_x": "Y",
+        "button_b": "A",
+        "button_y": "X",
+        "button_a": "B"
       },
       "version": 1,
       "backend": "GamepadSDL2",
@@ -307,10 +307,10 @@
         "button_zr": "RightTrigger",
         "button_sl": "Unbound",
         "button_sr": "Unbound",
-        "button_x": "X",
-        "button_b": "B",
-        "button_y": "Y",
-        "button_a": "A"
+        "button_x": "Y",
+        "button_b": "A",
+        "button_y": "X",
+        "button_a": "B"
       },
       "version": 1,
       "backend": "GamepadSDL2",
@@ -373,10 +373,10 @@
         "button_zr": "RightTrigger",
         "button_sl": "Unbound",
         "button_sr": "Unbound",
-        "button_x": "X",
-        "button_b": "B",
-        "button_y": "Y",
-        "button_a": "A"
+        "button_x": "Y",
+        "button_b": "A",
+        "button_y": "X",
+        "button_a": "B"
       },
       "version": 1,
       "backend": "GamepadSDL2",

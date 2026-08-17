@@ -27,6 +27,54 @@ from backend.services.configgen.helpers.base import Skip, atomic_write, backup
 
 EMU_ID = "ryujinx"
 
+# Nintendo puts A on the RIGHT and B at the BOTTOM; SDL — and every pad this
+# box will ever see — puts A at the bottom and B on the right. X and Y are
+# swapped the same way.
+#
+#            position      SDL / PlayStation      Nintendo Switch
+#            bottom        A  (Cross)             B
+#            right         B  (Circle)            A
+#            left          X  (Square)            Y
+#            top           Y  (Triangle)          X
+#
+# The seed shipped `button_a = A`, which reads as an identity and is not one:
+# it wires the Switch's A — drawn on the RIGHT of every on-screen prompt — to
+# the pad's BOTTOM button. Reported from the couch, DualShock 4: "X -> O,
+# carré -> triangle". It is not a pad-specific fault; all four slots carried
+# it, so an Xbox pad was equally wrong.
+#
+# Binding by POSITION is what makes an on-screen "press A" land under the
+# thumb that is already over the right-hand button.
+_FACE_BY_POSITION = {"button_a": "B", "button_b": "A",
+                     "button_x": "Y", "button_y": "X"}
+
+# The exact shape the old seed wrote. Repaired ONLY when it matches to the
+# letter: an owner who rebound their face buttons inside Ryujinx has made a
+# choice, and this is not the place to overrule it.
+_FACE_LETTER_IDENTITY = {"button_a": "A", "button_b": "B",
+                         "button_x": "X", "button_y": "Y"}
+
+
+def _repair_face_buttons(ic: list) -> int:
+    """Re-point the four face buttons of every slot still on the old seed map.
+
+    Returns how many slots were changed.
+
+    Applied to the WHOLE list rather than to the slot being profiled, and for
+    the same reason `_reconcile` re-profiles the whole roster: players 2-4
+    inherit their config from the seed and are never otherwise rewritten, so a
+    fix aimed at one slot would leave the other three wrong for ever.
+    """
+    fixed = 0
+    for entry in ic:
+        joycon = entry.get("right_joycon")
+        if not isinstance(joycon, dict):
+            continue
+        if all(joycon.get(k) == v for k, v in _FACE_LETTER_IDENTITY.items()):
+            joycon.update(_FACE_BY_POSITION)
+            fixed += 1
+    return fixed
+
 
 def generate(player_index: int, pad, opts: dict) -> str | None:
     """Ryujinx binds each slot in Config.json's `input_config` list by
@@ -65,6 +113,12 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
     ic = cfg.get("input_config")
     if not isinstance(ic, list):
         return Skip("ryujinx: Config.json has no input_config list")
+
+    # Before anything about THIS pad: repair the face buttons of every slot
+    # still carrying the old seed's letter-identity map. A box installed
+    # before the fix keeps that map for ever otherwise — nothing else in this
+    # generator ever touches the button table.
+    repaired = _repair_face_buttons(ic)
 
     # Ryujinx's OWN SDL2, not the host's. They disagree by one byte — the bus
     # type — and it is Ryujinx that has to recognise what we write. See
@@ -126,7 +180,12 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
         # `not stale` matters: on a box where the duplicate already exists, the
         # slot being profiled is usually the one that is *right*, and returning
         # early here would leave the phantom in place for good.
-        if slot.get("id") == new_id and slot.get("name") == new_name and not stale:
+        # `not repaired` for the same reason `not stale` is here: on a box
+        # that still carries the old face-button map, the slot being profiled
+        # is usually the one whose id and name are already right, and
+        # returning early would leave every slot's buttons wrong for good.
+        if (slot.get("id") == new_id and slot.get("name") == new_name
+                and not stale and not repaired):
             return None                     # already correct — do not rewrite 11 KB
         # Read before mutating: once the id is written it always equals new_id.
         action = "deduplicated" if slot.get("id") == new_id else "retargeted"
@@ -148,7 +207,9 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
             action = "created"
     backup(cfg_path)
     atomic_write(cfg_path, json.dumps(cfg, indent=2) + "\n")
-    return f"ryujinx: Player {i} {action} (dup {dup}, {new_guid}){freed}"
+    face = (f"; face buttons re-pointed by position on {repaired} slot"
+            f"{'s' if repaired > 1 else ''}") if repaired else ""
+    return f"ryujinx: Player {i} {action} (dup {dup}, {new_guid}){freed}{face}"
 
 
 def release(player_index: int, opts: dict,
