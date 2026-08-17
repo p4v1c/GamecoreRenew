@@ -11,6 +11,12 @@ gamepad_monitor):
 Any controller button exits both stages (DPMS on, governor restored,
 ws "standby:exit"). A running game blocks the whole machine.
 
+Controller input is ALSO reported to the desktop session, via
+_signal_user_activity(). That is not a duplicate of the above: on a Plasma
+box the session's own power manager blanks the screen on a timer of its own,
+and it cannot see a gamepad — libinput does not handle joystick devices. The
+two mechanisms cover different halves and neither replaces the other.
+
 Governor switching uses `sudo -n cpupower` — best effort: without a
 sudoers rule it silently does nothing (the big saving is the screen).
 Config lives in config/standby.json (kept across OTA updates).
@@ -23,6 +29,7 @@ import time
 
 from .paths import config_dir
 from .process_manager import display_env
+from .session import kscreen_available, wayland_env
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +38,34 @@ CONFIG_FILE = config_dir() / "standby.json"
 DEFAULTS = {"enabled": True, "screensaver_mins": 10, "sleep_mins": 20}
 
 _POLL_SECS = 15
+
+# How often, at most, the compositor is told somebody is at the controller.
+#
+# The call below is cheap but not free, and `on_input()` fires per RETAINED
+# event — a stick swung hard produces a burst of them, where a button press
+# produces one. Two seconds is three orders of magnitude below the timeout it
+# has to keep resetting (PowerDevil ships 900 s on this box), so throttling
+# costs nothing and a game's worth of stick movement no longer means a D-Bus
+# call per frame.
+_ACTIVITY_SIGNAL_GAP = 2.0
+_last_activity_signal = 0.0
+
+# How long a silence has to be before the NEXT press might be arriving at a
+# screen somebody else has switched off — and therefore has to pay for a real
+# screen-on, not just an activity signal.
+#
+# Needed because the two do different things, which was only settled by
+# measuring: SimulateUserActivity resets the session's idle timer but does NOT
+# lift a screen already blanked. So a press has to be able to turn the screen
+# back on. Doing that on EVERY press would spawn kscreen-doctor throughout a
+# game for nothing — while somebody is playing, input never stops long enough
+# for the screen to have gone out. A minute is far longer than any gap between
+# two presses in play, and far shorter than any idle timeout worth the name.
+_WAKE_AFTER_SILENCE = 60.0
+# Only on_input() writes this. _last_input is not usable for the job: _tick()
+# pushes it forward every fifteen seconds while a game runs, so after a long
+# cutscene it would report a silence of zero and no press would ever wake.
+_last_press = 0.0
 
 # state: "active" | "screensaver" | "sleep"
 _state = "active"
@@ -48,8 +83,19 @@ def load_config() -> dict:
 def save_config(cfg: dict) -> dict:
     merged = {**load_config(), **{k: v for k, v in cfg.items() if k in DEFAULTS}}
     merged["screensaver_mins"] = max(1, int(merged["screensaver_mins"]))
-    # Screen-off always comes after (or with) the screensaver stage
-    merged["sleep_mins"] = max(merged["screensaver_mins"], int(merged["sleep_mins"]))
+    # 0 means NEVER turn the screen off, and it has to survive this function.
+    #
+    # The settings screen offers it — SLEEP_MINS ends in 0, labelled "Never" —
+    # and the clamp below used to swallow it whole: max(screensaver_mins, 0) is
+    # screensaver_mins, so choosing "never" set screen-off to the SAME minute as
+    # the screensaver. The most cautious option on the page produced the most
+    # aggressive setting there is, and it took the slideshow down with it —
+    # _tick tests sleep_mins first, so the screensaver stage became unreachable.
+    # Picking "Never" on a box at 4 minutes blacked the television at 4 minutes.
+    merged["sleep_mins"] = max(0, int(merged["sleep_mins"]))
+    if merged["sleep_mins"]:
+        # Otherwise screen-off always comes after (or with) the screensaver
+        merged["sleep_mins"] = max(merged["screensaver_mins"], merged["sleep_mins"])
     # tmp + os.replace, like auth._write_private: write_text truncates first,
     # so an interrupted write left a half-written standby.json and load_config
     # fell back to the defaults, quietly undoing the player's timings.
@@ -64,29 +110,134 @@ def get_state() -> str:
     return _state
 
 
-async def _run_cmd(*argv: str) -> bool:
+# Output that means "I ran, I reported success, and I did nothing."
+#
+# This is the single most expensive thing that was wrong here, because it is
+# the one that cannot be seen. `xset dpms force on` on an XWayland server
+# prints "server does not have extension for dpms option", then "unknown option
+# force", then a usage dump — and EXITS 0. The old test was `returncode == 0`,
+# so _run_cmd returned True, _screen logged nothing, and the backend believed
+# it had turned the television back on every single time. A wake that silently
+# does nothing and reports success is worse than one that crashes.
+#
+# Checked as output rather than special-cased per tool: any command that says
+# this has failed, whatever it is.
+_INERT_OUTPUT = ("does not have extension", "unknown option")
+
+
+def _reported_nothing_done(text: str) -> bool:
+    """Did a command that exited 0 actually refuse the job?
+
+    A function so a test can ask it the exact bytes the box produces —
+    `_run_cmd` itself is neutralised suite-wide (tests/conftest.py) precisely
+    so nothing runs a real command, which would otherwise leave this
+    untestable.
+    """
+    return any(marker in text for marker in _INERT_OUTPUT)
+
+
+async def _run_cmd(*argv: str, env: dict | None = None) -> bool:
+    """Run a command, and be honest about whether it did anything.
+
+    THE choke point through which standby leaves the process — the test suite
+    neutralises this one function to keep itself off a real machine
+    (tests/conftest.py). Keep it that way: a second way out is a second thing
+    to remember.
+    """
     try:
-        # Same DISPLAY/XAUTHORITY resolution as game launches — under systemd
-        # there is no X env at all, and xset needs the xauth cookie, not just a
-        # DISPLAY guess. Awaited: the probe behind it can block for seconds the
-        # first time, and this runs on every standby transition.
-        env = await display_env()
+        if env is None:
+            # Same DISPLAY/XAUTHORITY resolution as game launches — under
+            # systemd there is no X env at all, and xset needs the xauth
+            # cookie, not just a DISPLAY guess. Awaited: the probe behind it
+            # can block for seconds the first time, and this runs on every
+            # standby transition.
+            env = await display_env()
         proc = await asyncio.create_subprocess_exec(
             *argv,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
             env=env,
         )
-        await proc.wait()
-        return proc.returncode == 0
-    except Exception:
+        out, _ = await proc.communicate()
+        text = out.decode(errors="replace")
+        if proc.returncode != 0:
+            log.info("standby: %s exited %s — %s",
+                     argv[0], proc.returncode, " ".join(text.split())[:200])
+            return False
+        if _reported_nothing_done(text):
+            log.warning("standby: %s reported success but did nothing — %s",
+                        " ".join(argv), " ".join(text.split())[:200])
+            return False
+        return True
+    except Exception as e:
+        log.info("standby: could not run %s — %s", argv[0], e)
         return False
 
 
 async def _screen(on: bool) -> None:
-    ok = await _run_cmd("xset", "dpms", "force", "on" if on else "off")
-    if not ok:
-        log.warning("standby: xset dpms force %s failed", "on" if on else "off")
+    """Turn the television on or off, with whatever this box actually answers to.
+
+    `xset dpms` was the only backend, and on the reference box it is inert:
+    the session is Plasma on Wayland and XWayland carries no DPMS extension at
+    all. routers/settings/display.py had already learned exactly this for
+    resolution — "XWayland cannot set modes" — and picks kscreen-doctor at
+    runtime; standby went on calling xset for years afterwards, which is why
+    the screen never came back and why nothing said so.
+
+    Measured on the box, with the television already blanked by the session's
+    own power manager:
+
+        kscreen-doctor --dpms show   →  off
+        kscreen-doctor --dpms on     →  on      ← this is what wakes it
+        SimulateUserActivity         →  off     ← this does NOT
+
+    So the two mechanisms are not alternatives and neither is redundant:
+    _signal_user_activity() keeps the idle timer from ever firing, and this
+    recovers the screen once it has.
+    """
+    want = "on" if on else "off"
+    if kscreen_available():
+        if await _run_cmd("kscreen-doctor", "--dpms", want, env=wayland_env()):
+            return
+        log.warning("standby: kscreen-doctor --dpms %s failed — falling back to xset",
+                    want)
+    if not await _run_cmd("xset", "dpms", "force", want):
+        log.warning("standby: could not turn the screen %s", want)
+
+
+async def _signal_user_activity() -> None:
+    """Tell the desktop session that somebody is at the controller.
+
+    This is the fix for "pressing a button does not wake the box", and the
+    reason it cannot be done with DPMS is that DPMS is not what put the screen
+    out. The box runs Plasma on Wayland; the screen is turned off by the
+    session's own power manager, on a timer GameCore never sees, and that timer
+    is reset by input the COMPOSITOR sees. It never sees a gamepad: the kernel
+    tags a DualShock 4's buttons `ID_INPUT_JOYSTICK`, and libinput does not
+    handle joysticks at all.
+
+    That is the whole of the reported fault, and it is why it looked like it
+    was "only the controller". The same physical pad exposes its touchpad as a
+    separate `ID_INPUT_TOUCHPAD` node, which libinput DOES handle — so sliding
+    a thumb across the pad woke the television and pressing any button on it
+    did not. Nothing in GameCore could produce that asymmetry, because
+    GameCore's own screen control (`xset dpms`) is inert here: XWayland carries
+    no DPMS extension, and `xset` reports success anyway.
+
+    So we say it out loud, on the session bus, in the one vocabulary the power
+    manager is listening to. `SimulateUserActivity` both resets the idle timer
+    and lifts a screen already blanked, which is exactly the pair of things a
+    button press is supposed to do.
+    """
+    if not await _run_cmd(
+            "gdbus", "call", "--session",
+            "--dest", "org.freedesktop.ScreenSaver",
+            "--object-path", "/org/freedesktop/ScreenSaver",
+            "--method", "org.freedesktop.ScreenSaver.SimulateUserActivity"):
+        # Best effort, and deliberately quiet at INFO: a box with no session bus
+        # (headless, a test, X11 without a screensaver service) is a legitimate
+        # state, and this runs off every button press.
+        log.debug("standby: could not signal user activity to the session")
 
 
 async def _governor(gov: str) -> None:
@@ -154,14 +305,38 @@ async def resume_after_restart() -> None:
     await _governor("performance")
 
 
+def _spawn(coro) -> None:
+    """Fire-and-forget from the evdev read loop, without an unretrieved warning."""
+    task = asyncio.create_task(coro)
+    task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+
+
 def on_input() -> None:
     """Any controller button — called from gamepad_monitor's evdev loop."""
-    global _last_input
-    _last_input = time.monotonic()
+    global _last_input, _last_activity_signal, _last_press
+    now = time.monotonic()
+    _last_input = now
+    silence, _last_press = now - _last_press, now
+
+    # Unconditional, and NOT folded into the `_state != "active"` branch below.
+    # That branch asks whether GAMECORE thinks it is asleep, and the screen
+    # being out is not GameCore's opinion to hold: on this box the session's
+    # power manager blanks the television on its own timer, while _state sits
+    # at "active" throughout. Waking only when GameCore believed itself asleep
+    # is precisely the bug exit_standby() already had to be cured of — the same
+    # mistake one layer up. Throttled instead, which costs a press nothing.
+    if now - _last_activity_signal >= _ACTIVITY_SIGNAL_GAP:
+        _last_activity_signal = now
+        _spawn(_signal_user_activity())
+
     if _state != "active":
-        # Fire-and-forget: we're inside the evdev read loop
-        task = asyncio.create_task(exit_standby())
-        task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+        _spawn(exit_standby())          # already turns the screen back on
+    elif silence >= _WAKE_AFTER_SILENCE:
+        # GameCore thinks it is awake, and the television may still be dark:
+        # the session's power manager blanks it on a timer of its own, without
+        # telling anyone. This is the press that comes back to a dark room, and
+        # the activity signal above cannot fix it — measured, see _screen().
+        _spawn(_screen(True))
 
 
 async def _tick(cfg: dict) -> None:
@@ -170,7 +345,7 @@ async def _tick(cfg: dict) -> None:
     Otherwise the only way to exercise any of this is to wait _POLL_SECS of real
     time for the loop to come round, which is why none of it was covered.
     """
-    global _last_input
+    global _last_input, _last_activity_signal
     from .process_manager import process_manager
 
     if not cfg["enabled"]:
@@ -186,9 +361,28 @@ async def _tick(cfg: dict) -> None:
     if process_manager.is_running:
         # A game counts as activity — idle starts when it exits
         _last_input = time.monotonic()
+        # And the session has to be told, because the line above only holds OUR
+        # standby off. The box also runs a desktop power manager with a timer of
+        # its own, which knows nothing about games and cannot see the pad: a
+        # cutscene, a pause menu, or a long turn in a strategy game is fifteen
+        # minutes of perfect silence to it, and it blanks the television in the
+        # middle of a session that never stopped.
+        #
+        # Said on every tick rather than held as a D-Bus inhibition on purpose.
+        # An inhibition would have to survive in a connection we do not keep —
+        # `gdbus call` closes its own the moment it returns, dropping the lock —
+        # and a lock we DID manage to hold would outlive a crashed emulator or a
+        # restarted backend, leaving a box that never sleeps again. That failure
+        # is silent and permanent; this one is neither. If the watcher stops,
+        # the box simply goes back to sleeping normally.
+        _last_activity_signal = _last_input
+        await _signal_user_activity()
         return
     idle_mins = (time.monotonic() - _last_input) / 60
-    if idle_mins >= cfg["sleep_mins"]:
+    # `cfg["sleep_mins"] and` — 0 is "never turn the screen off", not "turn it
+    # off at zero minutes". Without the guard the box goes straight to sleep on
+    # the first tick, which is what the option is there to prevent.
+    if cfg["sleep_mins"] and idle_mins >= cfg["sleep_mins"]:
         await _enter("sleep")
     elif idle_mins >= cfg["screensaver_mins"]:
         await _enter("screensaver")

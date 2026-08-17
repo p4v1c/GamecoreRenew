@@ -34,7 +34,7 @@ from backend.services import standby
 @pytest.fixture(autouse=True)
 def quiet_screen(monkeypatch):
     """xset and cpupower are not this file's business."""
-    async def fake_run_cmd(*argv):
+    async def fake_run_cmd(*argv, **kw):
         return True
     monkeypatch.setattr(standby, "_run_cmd", fake_run_cmd)
 
@@ -147,3 +147,195 @@ def test_changing_only_the_timings_does_not_wake(monkeypatch, tmp_path):
         r = c.post("/api/standby/config", json={"screensaver_mins": 5})
     assert r.status_code == 200, r.text
     assert standby.get_state() == "screensaver"
+
+
+# ── a game must hold the WHOLE box awake, not just our half ──────────────────
+#
+# `is_running` was doing its job and the television went dark anyway. The guard
+# above only holds GAMECORE's standby off; the box also runs a desktop power
+# manager with a timer of its own, which knows nothing about games and cannot
+# see a gamepad at all — the kernel tags a pad's buttons ID_INPUT_JOYSTICK and
+# libinput does not handle joysticks.
+#
+# So pad input is not enough to keep it quiet either: a cutscene, a pause menu
+# or a long turn in a strategy game is fifteen minutes of perfect silence to it.
+# Which is why this is said from the tick, on the clock, rather than only from
+# on_input() when somebody happens to press something.
+
+@pytest.fixture
+def playing(monkeypatch):
+    from backend.services import process_manager as pm
+    monkeypatch.setattr(type(pm.process_manager), "is_running", property(lambda self: True))
+
+
+@pytest.fixture
+def session_calls(quiet_screen, monkeypatch):
+    """Same silence as quiet_screen, but keeping the receipts."""
+    calls: list[tuple] = []
+
+    async def recording(*argv, **kw):
+        calls.append(argv)
+        return True
+
+    monkeypatch.setattr(standby, "_run_cmd", recording)
+    return calls
+
+
+def signals(calls) -> list[tuple]:
+    return [c for c in calls if c and c[0] == "gdbus"]
+
+
+def test_a_tick_during_a_game_tells_the_session_somebody_is_playing(playing, session_calls):
+    idle_for(180)
+    tick(CFG_ON)
+    assert len(signals(session_calls)) == 1
+
+
+def test_it_is_said_again_on_every_tick(playing, session_calls):
+    # The point of saying it on a clock: the timer it has to keep pushing back
+    # is minutes long, and nothing else will push it.
+    for _ in range(4):
+        tick(CFG_ON)
+    assert len(signals(session_calls)) == 4
+
+
+def test_a_tick_with_no_game_says_nothing(not_playing, session_calls):
+    # The failure the other way round: a box that can never sleep because it
+    # keeps announcing an activity nobody is producing.
+    tick(CFG_ON)
+    assert signals(session_calls) == []
+
+
+def test_a_game_still_holds_our_own_standby_off(playing, session_calls):
+    idle_for(180)
+    tick(CFG_ON)
+    assert standby.get_state() == "active"
+
+
+# ── "Never" has to mean never ────────────────────────────────────────────────
+#
+# The settings screen offers it: SLEEP_MINS ends in 0, shown as "Never". It
+# never reached the watcher. save_config clamped screen-off up to the
+# screensaver stage — reasonable for any real number, fatal for 0, because
+# max(screensaver_mins, 0) IS screensaver_mins.
+#
+# So the most cautious option on the page produced the most aggressive setting
+# available, and silently removed the screensaver as well: _tick tests
+# sleep_mins first, so both stages fired on the same minute and only the black
+# one was ever seen. On this box, at 4 minutes.
+
+@pytest.fixture
+def stored(monkeypatch, tmp_path):
+    monkeypatch.setattr(standby, "CONFIG_FILE", tmp_path / "standby.json")
+    return standby
+
+
+def test_never_survives_being_saved(stored):
+    saved = stored.save_config({"screensaver_mins": 4, "sleep_mins": 0})
+    assert saved["sleep_mins"] == 0
+    assert saved["screensaver_mins"] == 4
+
+
+def test_never_is_still_never_when_read_back(stored):
+    stored.save_config({"screensaver_mins": 4, "sleep_mins": 0})
+    assert stored.load_config()["sleep_mins"] == 0
+
+
+def test_a_real_delay_is_still_pushed_past_the_screensaver(stored):
+    # The clamp the fix must not break: screen-off cannot precede the slideshow.
+    saved = stored.save_config({"screensaver_mins": 10, "sleep_mins": 3})
+    assert saved["sleep_mins"] == 10
+
+
+def test_a_negative_delay_reads_as_never(stored):
+    assert stored.save_config({"screensaver_mins": 4, "sleep_mins": -5})["sleep_mins"] == 0
+
+
+CFG_NEVER = {"enabled": True, "screensaver_mins": 4, "sleep_mins": 0}
+
+
+def test_never_does_not_black_the_screen_however_long_the_box_sits(not_playing):
+    idle_for(600)
+    tick(CFG_NEVER)
+    assert standby.get_state() == "screensaver"
+
+
+def test_never_still_lets_the_screensaver_through(not_playing):
+    idle_for(5)
+    tick(CFG_NEVER)
+    assert standby.get_state() == "screensaver"
+
+
+def test_never_is_not_zero_minutes(not_playing):
+    # The literal reading of the old code: idle >= 0 is true on the first tick,
+    # so "never" would have meant "immediately".
+    idle_for(0)
+    tick(CFG_NEVER)
+    assert standby.get_state() == "active"
+
+
+# ── which tool actually turns this box's screen off ──────────────────────────
+#
+# `xset dpms` was the only backend, and on the reference box it does nothing at
+# all: the session is Plasma on Wayland and XWayland carries no DPMS extension.
+# Measured there, with the television already blanked by the session's own
+# power manager:
+#
+#     kscreen-doctor --dpms show   →  off
+#     kscreen-doctor --dpms on     →  on
+#
+# routers/settings/display.py had already learned this for resolution and picks
+# its tool at runtime; standby went on calling xset. Same choice, one place.
+
+def test_a_wayland_box_asks_kscreen(monkeypatch, session_calls):
+    monkeypatch.setattr(standby, "kscreen_available", lambda: True)
+    monkeypatch.setattr(standby, "wayland_env", lambda: {})
+    asyncio.run(standby._screen(True))
+    assert ("kscreen-doctor", "--dpms", "on") in session_calls
+    assert not [c for c in session_calls if c and c[0] == "xset"]
+
+
+def test_an_x11_box_still_asks_xset(monkeypatch, session_calls):
+    # The other half of the runtime choice: kscreen-doctor is installed on an
+    # X11 KDE box too, where xset is the tool that works.
+    monkeypatch.setattr(standby, "kscreen_available", lambda: False)
+    asyncio.run(standby._screen(False))
+    assert ("xset", "dpms", "force", "off") in session_calls
+
+
+def test_kscreen_failing_falls_back_to_xset(monkeypatch):
+    tried: list[tuple] = []
+
+    async def kscreen_is_broken(*argv, **kw):
+        tried.append(argv)
+        return argv[0] != "kscreen-doctor"
+
+    monkeypatch.setattr(standby, "_run_cmd", kscreen_is_broken)
+    monkeypatch.setattr(standby, "kscreen_available", lambda: True)
+    monkeypatch.setattr(standby, "wayland_env", lambda: {})
+    asyncio.run(standby._screen(True))
+    assert [c[0] for c in tried] == ["kscreen-doctor", "xset"]
+
+
+# ── "it exited 0" is not "it worked" ─────────────────────────────────────────
+#
+# The most expensive thing that was wrong, because it is the one nobody can
+# see. This is the real output of `xset dpms force on` against XWayland, and
+# xset exits 0 after printing it.
+
+XSET_ON_XWAYLAND = (
+    "server does not have extension for dpms option\n"
+    "xset:  unknown option force\n"
+    "usage:  xset [-display host:dpy] option ...\n"
+)
+
+
+def test_xsets_polite_refusal_is_a_failure():
+    assert standby._reported_nothing_done(XSET_ON_XWAYLAND)
+
+
+def test_a_command_that_says_nothing_is_a_success():
+    # kscreen-doctor prints nothing on success, and cpupower prints its new
+    # governor. Neither must be read as a refusal.
+    assert not standby._reported_nothing_done("")
+    assert not standby._reported_nothing_done("Setting cpu: 0\n")

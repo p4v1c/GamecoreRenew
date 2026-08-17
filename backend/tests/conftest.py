@@ -96,12 +96,21 @@ import pytest as _pytest
 
 @_pytest.fixture(autouse=True, scope="session")
 def _no_real_commands_from_the_suite():
-    from backend.services import standby
+    from backend.services import desktop_power, standby
 
-    async def refuse(*argv):
+    async def refuse(*argv, **kw):
         return True          # « ça a marché » : standby traite l'échec en best effort
 
-    original = standby._run_cmd
-    standby._run_cmd = refuse
+    # desktop_power écrit dans la config du BUREAU et parle à son bus de
+    # session. XDG_CONFIG_HOME et HOME sont déjà redirigés plus haut, donc
+    # kwriteconfig6 ne toucherait pas le vrai fichier — mais reparseConfiguration
+    # partirait sur le vrai bus, et un « ça a marché » suffit à faire croire à la
+    # suite qu'un bureau a répondu. (1, "") est le refus franc : « pas de KDE
+    # ici », donc claim() et release() ne font rien.
+    async def no_desktop(*argv, **kw):
+        return 1, ""
+
+    originals = (standby._run_cmd, desktop_power._run)
+    standby._run_cmd, desktop_power._run = refuse, no_desktop
     yield
-    standby._run_cmd = original
+    standby._run_cmd, desktop_power._run = originals

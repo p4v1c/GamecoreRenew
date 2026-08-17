@@ -13,7 +13,12 @@ from pathlib import Path
 
 from .services import paths
 
-DEBUG = False
+# Hardcoded False, with no way to change it without editing the file on the
+# box — which meant the whole backend logged nothing below WARNING, ever.
+# Diagnosing standby cost a read of /proc/<pid>/fd to establish that the
+# service was reading the controller at all, because every log.info that would
+# have said so was being dropped. An env var in the unit file is enough.
+DEBUG = os.environ.get("GAMECORE_DEBUG", "").strip().lower() in ("1", "true", "yes", "on")
 
 # Version is read from the VERSION file at the repo root so OTA updates
 # only need to change that one file, not config.py.

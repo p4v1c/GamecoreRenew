@@ -7,6 +7,17 @@ from pathlib import Path
 from .config import DEBUG
 logging.basicConfig(level=logging.DEBUG if DEBUG else logging.WARNING)
 
+# Standby and the controller monitor speak at INFO whatever the rest does, and
+# that exception is deliberate. Both fail SILENTLY by nature: a screen that
+# does not come back produces no error, and a controller nobody is reading
+# looks exactly like a controller nobody is touching. Their log.info lines —
+# "watcher started", "watching /dev/input/event14", "active → sleep" — are the
+# only trace either leaves, and at WARNING they were all dropped. Everything
+# noisy in these two modules (a key code per press, a scan pass) is at DEBUG
+# and stays there.
+for _observable in ("backend.services.standby", "backend.services.gamepad_monitor"):
+    logging.getLogger(_observable).setLevel(logging.INFO)
+
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -22,8 +33,8 @@ from .routers import controllers as controllers_router
 from .routers import themes as themes_router
 from .routers import storage as storage_router
 from .routers.settings import wifi, audio, bluetooth, display
-from .services import (battery, gamepad_monitor, http_cache, playtime_repair,
-                       prefetch, standby, storage_monitor)
+from .services import (battery, desktop_power, gamepad_monitor, http_cache,
+                       playtime_repair, prefetch, standby, storage_monitor)
 from .services.process_manager import process_manager
 from .config import BACKEND_PORT
 from .services.paths import (backend_data_dir, covers_dir, frontend_dist_dir,
@@ -60,6 +71,20 @@ async def lifespan(app: FastAPI):
     except Exception:
         log.exception("lifespan: could not force the screen back on")
 
+    # One owner for the screen. The desktop's own power manager was running a
+    # second, invisible timer that capped whatever the settings page said —
+    # "Never" meant fifteen minutes on the reference box. Claimed only while
+    # GameCore's standby is on; handed straight back otherwise, because the two
+    # disarmed together is a television that never goes dark behind a switch
+    # that promises the opposite.
+    try:
+        if standby.load_config()["enabled"]:
+            await desktop_power.claim()
+        else:
+            await desktop_power.release()
+    except Exception:
+        log.exception("lifespan: could not settle who owns the screen timeout")
+
     # Re-attach to a game a previous process left running, so the double-PS
     # shortcut can still close it.
     try:
@@ -75,6 +100,12 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(storage_monitor.run()),
     ]
     yield
+    # Handed back on the way out: a backend that stops and does not come back
+    # would otherwise leave the desktop's own screen-off disabled for good.
+    try:
+        await desktop_power.release()
+    except Exception:
+        log.exception("lifespan: could not hand the screen timeout back")
     for t in tasks:
         t.cancel()
     # Actually wait for them: cancel() only schedules the cancellation, so

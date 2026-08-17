@@ -47,15 +47,13 @@ crash, and the player is not looking at this screen then anyway.
 """
 import asyncio
 import logging
-import os
 import re
-import shutil
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ...services.process_manager import display_env, process_manager
+from ...services.session import kscreen_available, wayland_env
 
 router = APIRouter(prefix="/settings/display", tags=["display"])
 log = logging.getLogger(__name__)
@@ -75,31 +73,11 @@ _MODE_RE = re.compile(r"^\s+(\d+)x(\d+)\s+(.*)$")
 _RATE_RE = re.compile(r"(\d+\.\d+)([*+]*)")
 
 
-def _wayland_env() -> dict | None:
-    """The session env `kscreen-doctor` needs, or None if there is no Wayland.
-
-    Discovered rather than assumed: the socket is `wayland-0` on most boxes and
-    is not guaranteed to be, and a hardcoded name would make this silently fall
-    back to the tool that cannot work here.
-    """
-    uid = os.getuid()
-    runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{uid}"
-    try:
-        sockets = sorted(p.name for p in Path(runtime).glob("wayland-*")
-                         if not p.name.endswith(".lock"))
-    except OSError:
-        return None
-    if not sockets:
-        return None
-    env = os.environ.copy()
-    env["XDG_RUNTIME_DIR"] = runtime
-    env["WAYLAND_DISPLAY"] = sockets[0]
-    env.setdefault("DBUS_SESSION_BUS_ADDRESS", f"unix:path={runtime}/bus")
-    return env
-
-
-def _kscreen_available() -> bool:
-    return bool(shutil.which("kscreen-doctor")) and _wayland_env() is not None
+# Moved to services/session.py: standby.py needs the same two answers, for the
+# same reason, and a service cannot import from a router. Kept under the old
+# private names so the call sites below read unchanged.
+_wayland_env = wayland_env
+_kscreen_available = kscreen_available
 
 
 async def _run_env(env: dict, *args: str) -> tuple[int, str]:

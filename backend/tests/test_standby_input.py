@@ -242,3 +242,118 @@ def test_the_loop_stays_quiet_for_a_pad_sitting_on_the_sofa(watched):
     noise += [ev(EV_SYN, 0, 0) for _ in range(30)]
     noise += [ev(EV_KEY, BTN_SOUTH, 0)]
     assert watched(noise) == 0
+
+
+# ── and what the box does with what it counted ──────────────────────────────
+#
+# Counting the press was only ever half of it. Reported next, from the same
+# sofa: the television goes dark during a game and no button brings it back,
+# while the pad's own touchpad does.
+#
+# That asymmetry is not GameCore's doing and cannot be fixed in GameCore's own
+# standby. The box runs Plasma on Wayland; the screen is blanked by the
+# session's power manager on a timer of its own, and the compositor never sees
+# a button because the kernel tags those `ID_INPUT_JOYSTICK` and libinput does
+# not handle joysticks. The touchpad arrives on a separate node tagged
+# `ID_INPUT_TOUCHPAD`, which it does handle — hence "only the controller is
+# affected", on the very same controller.
+#
+# So on_input() now also says so on the session bus. These tests pin the two
+# properties that make that safe: it is said on a press, and it is NOT said
+# eighty times a second while somebody swings a stick.
+import asyncio  # noqa: E402
+
+from backend.services import standby  # noqa: E402
+
+
+@pytest.fixture
+def bus(monkeypatch):
+    """Record what standby would run, with the throttle wound back to zero."""
+    calls: list[tuple] = []
+
+    async def fake_run_cmd(*argv, **kw):
+        calls.append(argv)
+        return True
+
+    monkeypatch.setattr(standby, "_run_cmd", fake_run_cmd)
+    monkeypatch.setattr(standby, "_last_activity_signal", 0.0)
+    monkeypatch.setattr(standby, "_state", "active")
+    return calls
+
+
+def press(n: int = 1) -> None:
+    """n button presses, with the fire-and-forget tasks allowed to finish."""
+    async def scenario():
+        for _ in range(n):
+            standby.on_input()
+        await asyncio.sleep(0.01)
+    asyncio.run(scenario())
+
+
+def signals(calls) -> list[tuple]:
+    return [c for c in calls if c and c[0] == "gdbus"]
+
+
+def test_a_button_tells_the_session_somebody_is_there(bus):
+    press()
+    assert len(signals(bus)) == 1
+    assert "org.freedesktop.ScreenSaver.SimulateUserActivity" in signals(bus)[0]
+
+
+def test_it_is_said_even_when_gamecore_believes_it_is_awake(bus):
+    # The whole point. _state is "active" here — GameCore is not in standby and
+    # has nothing of its own to exit. The screen is out anyway, because someone
+    # else turned it off. A wake that only fires when GameCore thinks it is
+    # asleep is the exact bug exit_standby() already had to be cured of.
+    assert standby.get_state() == "active"
+    press()
+    assert len(signals(bus)) == 1
+
+
+def test_a_burst_of_input_is_not_a_burst_of_calls(bus):
+    # A stick swung hard produces a retained event per sample. Without the
+    # throttle this is one D-Bus round trip per frame, for the whole game.
+    press(50)
+    assert len(signals(bus)) == 1
+
+
+def test_it_is_said_again_once_the_gap_has_passed(bus):
+    press()
+    monkeypatched_past = standby._last_activity_signal - standby._ACTIVITY_SIGNAL_GAP - 1
+    standby._last_activity_signal = monkeypatched_past
+    press()
+    assert len(signals(bus)) == 2
+
+
+# ── and a press has to be able to bring the screen BACK ──────────────────────
+#
+# Measured on the box, with the television already blanked by the session's
+# power manager: SimulateUserActivity returns success and the screen stays off.
+# It resets the idle timer; it does not undo what the timer already did. So the
+# activity signal alone would have kept the box from going dark and left
+# somebody sitting in front of a dark one with no way back — which is exactly
+# the reported symptom, fixed only halfway.
+
+def test_the_first_press_after_a_long_silence_turns_the_screen_back_on(bus, monkeypatch):
+    monkeypatch.setattr(standby, "_last_press", 0.0)      # nobody has touched it
+    press()
+    assert [c for c in bus if "dpms" in " ".join(c)], bus
+
+
+def test_pressing_through_a_game_does_not_reassert_it_every_time(bus, monkeypatch):
+    # The reason this is gated on a silence rather than done on every press:
+    # while somebody is playing, input never stops long enough for the screen
+    # to have gone out, and spawning a screen tool per press would be pure cost.
+    monkeypatch.setattr(standby, "_last_press", 0.0)
+    press()
+    bus.clear()
+    press(20)
+    assert not [c for c in bus if "dpms" in " ".join(c)], bus
+
+
+def test_a_press_says_both_things_when_it_comes_back_to_a_dark_room(bus, monkeypatch):
+    # The pair, together: keep the timer down AND recover the screen.
+    monkeypatch.setattr(standby, "_last_press", 0.0)
+    press()
+    assert signals(bus), "the idle timer was not reset"
+    assert [c for c in bus if "dpms" in " ".join(c)], "the screen was not turned on"
