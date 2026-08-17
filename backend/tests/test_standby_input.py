@@ -271,7 +271,7 @@ def bus(monkeypatch):
     """Record what standby would run, with the throttle wound back to zero."""
     calls: list[tuple] = []
 
-    async def fake_run_cmd(*argv):
+    async def fake_run_cmd(*argv, **kw):
         calls.append(argv)
         return True
 
@@ -323,3 +323,37 @@ def test_it_is_said_again_once_the_gap_has_passed(bus):
     standby._last_activity_signal = monkeypatched_past
     press()
     assert len(signals(bus)) == 2
+
+
+# ── and a press has to be able to bring the screen BACK ──────────────────────
+#
+# Measured on the box, with the television already blanked by the session's
+# power manager: SimulateUserActivity returns success and the screen stays off.
+# It resets the idle timer; it does not undo what the timer already did. So the
+# activity signal alone would have kept the box from going dark and left
+# somebody sitting in front of a dark one with no way back — which is exactly
+# the reported symptom, fixed only halfway.
+
+def test_the_first_press_after_a_long_silence_turns_the_screen_back_on(bus, monkeypatch):
+    monkeypatch.setattr(standby, "_last_press", 0.0)      # nobody has touched it
+    press()
+    assert [c for c in bus if "dpms" in " ".join(c)], bus
+
+
+def test_pressing_through_a_game_does_not_reassert_it_every_time(bus, monkeypatch):
+    # The reason this is gated on a silence rather than done on every press:
+    # while somebody is playing, input never stops long enough for the screen
+    # to have gone out, and spawning a screen tool per press would be pure cost.
+    monkeypatch.setattr(standby, "_last_press", 0.0)
+    press()
+    bus.clear()
+    press(20)
+    assert not [c for c in bus if "dpms" in " ".join(c)], bus
+
+
+def test_a_press_says_both_things_when_it_comes_back_to_a_dark_room(bus, monkeypatch):
+    # The pair, together: keep the timer down AND recover the screen.
+    monkeypatch.setattr(standby, "_last_press", 0.0)
+    press()
+    assert signals(bus), "the idle timer was not reset"
+    assert [c for c in bus if "dpms" in " ".join(c)], "the screen was not turned on"

@@ -33,7 +33,7 @@ def screen_calls(monkeypatch):
     """Swallow xset/cpupower and record what standby tried to run."""
     calls: list[tuple[str, ...]] = []
 
-    async def fake_run_cmd(*argv):
+    async def fake_run_cmd(*argv, **kw):
         calls.append(argv)
         return True
 

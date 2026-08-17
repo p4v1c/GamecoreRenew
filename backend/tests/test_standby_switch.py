@@ -34,7 +34,7 @@ from backend.services import standby
 @pytest.fixture(autouse=True)
 def quiet_screen(monkeypatch):
     """xset and cpupower are not this file's business."""
-    async def fake_run_cmd(*argv):
+    async def fake_run_cmd(*argv, **kw):
         return True
     monkeypatch.setattr(standby, "_run_cmd", fake_run_cmd)
 
@@ -173,7 +173,7 @@ def session_calls(quiet_screen, monkeypatch):
     """Same silence as quiet_screen, but keeping the receipts."""
     calls: list[tuple] = []
 
-    async def recording(*argv):
+    async def recording(*argv, **kw):
         calls.append(argv)
         return True
 
@@ -272,3 +272,70 @@ def test_never_is_not_zero_minutes(not_playing):
     idle_for(0)
     tick(CFG_NEVER)
     assert standby.get_state() == "active"
+
+
+# ── which tool actually turns this box's screen off ──────────────────────────
+#
+# `xset dpms` was the only backend, and on the reference box it does nothing at
+# all: the session is Plasma on Wayland and XWayland carries no DPMS extension.
+# Measured there, with the television already blanked by the session's own
+# power manager:
+#
+#     kscreen-doctor --dpms show   →  off
+#     kscreen-doctor --dpms on     →  on
+#
+# routers/settings/display.py had already learned this for resolution and picks
+# its tool at runtime; standby went on calling xset. Same choice, one place.
+
+def test_a_wayland_box_asks_kscreen(monkeypatch, session_calls):
+    monkeypatch.setattr(standby, "kscreen_available", lambda: True)
+    monkeypatch.setattr(standby, "wayland_env", lambda: {})
+    asyncio.run(standby._screen(True))
+    assert ("kscreen-doctor", "--dpms", "on") in session_calls
+    assert not [c for c in session_calls if c and c[0] == "xset"]
+
+
+def test_an_x11_box_still_asks_xset(monkeypatch, session_calls):
+    # The other half of the runtime choice: kscreen-doctor is installed on an
+    # X11 KDE box too, where xset is the tool that works.
+    monkeypatch.setattr(standby, "kscreen_available", lambda: False)
+    asyncio.run(standby._screen(False))
+    assert ("xset", "dpms", "force", "off") in session_calls
+
+
+def test_kscreen_failing_falls_back_to_xset(monkeypatch):
+    tried: list[tuple] = []
+
+    async def kscreen_is_broken(*argv, **kw):
+        tried.append(argv)
+        return argv[0] != "kscreen-doctor"
+
+    monkeypatch.setattr(standby, "_run_cmd", kscreen_is_broken)
+    monkeypatch.setattr(standby, "kscreen_available", lambda: True)
+    monkeypatch.setattr(standby, "wayland_env", lambda: {})
+    asyncio.run(standby._screen(True))
+    assert [c[0] for c in tried] == ["kscreen-doctor", "xset"]
+
+
+# ── "it exited 0" is not "it worked" ─────────────────────────────────────────
+#
+# The most expensive thing that was wrong, because it is the one nobody can
+# see. This is the real output of `xset dpms force on` against XWayland, and
+# xset exits 0 after printing it.
+
+XSET_ON_XWAYLAND = (
+    "server does not have extension for dpms option\n"
+    "xset:  unknown option force\n"
+    "usage:  xset [-display host:dpy] option ...\n"
+)
+
+
+def test_xsets_polite_refusal_is_a_failure():
+    assert standby._reported_nothing_done(XSET_ON_XWAYLAND)
+
+
+def test_a_command_that_says_nothing_is_a_success():
+    # kscreen-doctor prints nothing on success, and cpupower prints its new
+    # governor. Neither must be read as a refusal.
+    assert not standby._reported_nothing_done("")
+    assert not standby._reported_nothing_done("Setting cpu: 0\n")

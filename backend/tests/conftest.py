@@ -98,7 +98,7 @@ import pytest as _pytest
 def _no_real_commands_from_the_suite():
     from backend.services import standby
 
-    async def refuse(*argv):
+    async def refuse(*argv, **kw):
         return True          # « ça a marché » : standby traite l'échec en best effort
 
     original = standby._run_cmd

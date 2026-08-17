@@ -30,7 +30,7 @@ from backend.services import standby
 def recorded_cmds(monkeypatch):
     calls: list[tuple[str, ...]] = []
 
-    async def fake_run_cmd(*argv):
+    async def fake_run_cmd(*argv, **kw):
         calls.append(argv)
         return True
 
@@ -50,18 +50,30 @@ def test_exit_standby_is_unconditional(recorded_cmds):
     assert any("dpms" in " ".join(c) for c in recorded_cmds), recorded_cmds
 
 
+
+def _turns_the_screen_on(argv: tuple) -> bool:
+    """Whatever tool this box answers to, did we ask for the screen back?
+
+    Asserted as intent rather than as `xset`, because the tool is chosen at
+    runtime: a Plasma-on-Wayland box gets kscreen-doctor, because XWayland has
+    no DPMS extension and xset there exits 0 having done nothing. Pinning the
+    command name made this test pass or fail on which machine ran it.
+    """
+    return "dpms" in " ".join(argv) and "on" in argv
+
+
 def test_exit_standby_from_sleep_still_wakes(recorded_cmds):
     standby._state = "sleep"
     asyncio.run(standby.exit_standby())
     assert standby.get_state() == "active"
-    assert any(c[:4] == ("xset", "dpms", "force", "on") for c in recorded_cmds), recorded_cmds
+    assert any(_turns_the_screen_on(c) for c in recorded_cmds), recorded_cmds
 
 
 def test_resume_after_restart_forces_the_screen_back_on(recorded_cmds):
     standby._state = "sleep"          # what the *previous* process had left behind
     asyncio.run(standby.resume_after_restart())
     assert standby.get_state() == "active"
-    assert any(c[:4] == ("xset", "dpms", "force", "on") for c in recorded_cmds), recorded_cmds
+    assert any(_turns_the_screen_on(c) for c in recorded_cmds), recorded_cmds
     assert any("performance" in " ".join(c) for c in recorded_cmds), recorded_cmds
 
 
