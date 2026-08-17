@@ -147,3 +147,66 @@ def test_changing_only_the_timings_does_not_wake(monkeypatch, tmp_path):
         r = c.post("/api/standby/config", json={"screensaver_mins": 5})
     assert r.status_code == 200, r.text
     assert standby.get_state() == "screensaver"
+
+
+# ── a game must hold the WHOLE box awake, not just our half ──────────────────
+#
+# `is_running` was doing its job and the television went dark anyway. The guard
+# above only holds GAMECORE's standby off; the box also runs a desktop power
+# manager with a timer of its own, which knows nothing about games and cannot
+# see a gamepad at all — the kernel tags a pad's buttons ID_INPUT_JOYSTICK and
+# libinput does not handle joysticks.
+#
+# So pad input is not enough to keep it quiet either: a cutscene, a pause menu
+# or a long turn in a strategy game is fifteen minutes of perfect silence to it.
+# Which is why this is said from the tick, on the clock, rather than only from
+# on_input() when somebody happens to press something.
+
+@pytest.fixture
+def playing(monkeypatch):
+    from backend.services import process_manager as pm
+    monkeypatch.setattr(type(pm.process_manager), "is_running", property(lambda self: True))
+
+
+@pytest.fixture
+def session_calls(quiet_screen, monkeypatch):
+    """Same silence as quiet_screen, but keeping the receipts."""
+    calls: list[tuple] = []
+
+    async def recording(*argv):
+        calls.append(argv)
+        return True
+
+    monkeypatch.setattr(standby, "_run_cmd", recording)
+    return calls
+
+
+def signals(calls) -> list[tuple]:
+    return [c for c in calls if c and c[0] == "gdbus"]
+
+
+def test_a_tick_during_a_game_tells_the_session_somebody_is_playing(playing, session_calls):
+    idle_for(180)
+    tick(CFG_ON)
+    assert len(signals(session_calls)) == 1
+
+
+def test_it_is_said_again_on_every_tick(playing, session_calls):
+    # The point of saying it on a clock: the timer it has to keep pushing back
+    # is minutes long, and nothing else will push it.
+    for _ in range(4):
+        tick(CFG_ON)
+    assert len(signals(session_calls)) == 4
+
+
+def test_a_tick_with_no_game_says_nothing(not_playing, session_calls):
+    # The failure the other way round: a box that can never sleep because it
+    # keeps announcing an activity nobody is producing.
+    tick(CFG_ON)
+    assert signals(session_calls) == []
+
+
+def test_a_game_still_holds_our_own_standby_off(playing, session_calls):
+    idle_for(180)
+    tick(CFG_ON)
+    assert standby.get_state() == "active"
