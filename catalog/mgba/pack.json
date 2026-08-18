@@ -9,7 +9,9 @@
   "order": 10,
   "install": {
     "provider": "flatpak",
-    "appIds": ["io.mgba.mGBA"]
+    "appIds": [
+      "io.mgba.mGBA"
+    ]
   },
   "launch": {
     "path": "flatpak",
@@ -26,6 +28,29 @@
       "*.gbc",
       "*.gb",
       "*.zip"
+    ],
+    "consoles": [
+      {
+        "id": "gba",
+        "label": "Game Boy Advance",
+        "extensions": [
+          "*.gba"
+        ]
+      },
+      {
+        "id": "gbc",
+        "label": "Game Boy Color",
+        "extensions": [
+          "*.gbc"
+        ]
+      },
+      {
+        "id": "gb",
+        "label": "Game Boy",
+        "extensions": [
+          "*.gb"
+        ]
+      }
     ]
   },
   "config": {

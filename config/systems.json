@@ -56,6 +56,23 @@
       "*.wad",
       "*.zip"
     ],
+    "consoles": [
+      {
+        "id": "gamecube",
+        "label": "GameCube",
+        "extensions": [
+          "*.gcm"
+        ]
+      },
+      {
+        "id": "wii",
+        "label": "Wii",
+        "extensions": [
+          "*.wbfs",
+          "*.wad"
+        ]
+      }
+    ],
     "libretroSystems": [
       "Nintendo - GameCube",
       "Nintendo - Wii"
@@ -212,6 +229,29 @@
       "*.gbc",
       "*.gb",
       "*.zip"
+    ],
+    "consoles": [
+      {
+        "id": "gba",
+        "label": "Game Boy Advance",
+        "extensions": [
+          "*.gba"
+        ]
+      },
+      {
+        "id": "gbc",
+        "label": "Game Boy Color",
+        "extensions": [
+          "*.gbc"
+        ]
+      },
+      {
+        "id": "gb",
+        "label": "Game Boy",
+        "extensions": [
+          "*.gb"
+        ]
+      }
     ],
     "libretroSystems": [
       "Nintendo - Game Boy Advance",

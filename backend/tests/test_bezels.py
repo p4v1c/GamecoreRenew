@@ -364,6 +364,11 @@ def test_a_system_the_config_never_heard_of_answers_rather_than_raising(library)
     out = bezels.for_launch("some-new-emulator", "Whatever (USA).iso")
     assert out == {"system_id": "some-new-emulator", "source": "none",
                    "asset": None, "hole": None, "frame": None,
+                   # A system nothing declares has no consoles either, and the
+                   # answer for that is None rather than an absent key: the
+                   # monitor hands this field straight back and a missing one
+                   # would be a different shape on the wire for some launches.
+                   "console": None,
                    # Nothing to look at, so nothing to look for.
                    "measure": False}
 

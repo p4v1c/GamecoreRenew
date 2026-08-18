@@ -9,7 +9,9 @@
   "order": 2,
   "install": {
     "provider": "flatpak",
-    "appIds": ["org.DolphinEmu.dolphin-emu"]
+    "appIds": [
+      "org.DolphinEmu.dolphin-emu"
+    ]
   },
   "launch": {
     "path": "flatpak",
@@ -24,6 +26,23 @@
       "*.wbfs",
       "*.wad",
       "*.zip"
+    ],
+    "consoles": [
+      {
+        "id": "gamecube",
+        "label": "GameCube",
+        "extensions": [
+          "*.gcm"
+        ]
+      },
+      {
+        "id": "wii",
+        "label": "Wii",
+        "extensions": [
+          "*.wbfs",
+          "*.wad"
+        ]
+      }
     ]
   },
   "config": {

@@ -176,8 +176,51 @@ def ratio_of(hole: dict) -> str:
     return f"{w // d}:{h // d}"
 
 
-def key_for(system_id: str, hole: dict) -> str:
+def key_for(system_id: str, hole: dict, console: str | None = None) -> str:
+    """The cache key: system, console when the pack has any, announced ratio.
+
+    Why the console is in the key at all
+    ------------------------------------
+    The elegant answer is that it need not be: give each console its own PNG
+    and the holes measured out of their alphas differ, so the ratios differ, so
+    the keys already differ. That is true and it is not enough — it holds only
+    once the player has supplied a PNG per console. Until then the three share
+    one image, one hole and one ratio, which is exactly the state the reference
+    box was found in: a single `mgba@1:1` correction of 1234x1080, learned from
+    a Game Boy, cutting 193 pixels off each side of every Game Boy Advance
+    game. And `for_launch` sets `"measure": False` as soon as an answer exists,
+    so the box never looks again. The key has to separate them on its own.
+
+    Why a pack with no consoles keeps the bare `<system>@<ratio>`
+    -------------------------------------------------------------
+    Because that string is on every box that exists. Eleven of the thirteen
+    packs declare one console, their corrections were learned under this exact
+    key, and changing it would silently discard all of them and make every box
+    re-measure — an operation with a real failure mode, run to fix nothing.
+
+    A pack that DOES declare consoles always carries a console segment, `"-"`
+    when the extension did not say which. That is deliberate rather than
+    falling back to the bare key: the bare key is where the old, console-blind
+    corrections are, and a `.zip` Game Boy Advance game must not inherit the
+    Game Boy rectangle that made this change necessary. Those entries are left
+    on disk — reverting this commit has to bring a box back exactly as it was —
+    but nothing can find them any more.
+    """
+    if console:
+        return f"{system_id}/{console}@{ratio_of(hole)}"
+    if _has_consoles(system_id):
+        return f"{system_id}/-@{ratio_of(hole)}"
     return f"{system_id}@{ratio_of(hole)}"
+
+
+def _has_consoles(system_id: str) -> bool:
+    """Does this pack declare consoles at all?
+
+    Imported here rather than at module scope: `bezels` imports this module,
+    and `consoles` is only ever needed inside this one function.
+    """
+    from . import consoles
+    return bool(consoles.declared(system_id))
 
 
 def _path() -> Path:
@@ -192,15 +235,17 @@ def corrections() -> dict[str, dict]:
         return {}
 
 
-def correction_for(system_id: str, hole: dict) -> dict | None:
+def correction_for(system_id: str, hole: dict,
+                   console: str | None = None) -> dict | None:
     """A hole already learned to be wrong at this ratio, corrected.
 
     Returns the replacement rectangle, or None to use the hole as announced.
     """
-    return corrections().get(key_for(system_id, hole))
+    return corrections().get(key_for(system_id, hole, console))
 
 
-def record(system_id: str, hole: dict, measured: tuple[int, int, int, int]) -> bool:
+def record(system_id: str, hole: dict, measured: tuple[int, int, int, int],
+           console: str | None = None) -> bool:
     """Learn a correction. False when the measurement was not worth keeping.
 
     Deliberately silent about *why* not, at this level: the caller has already
@@ -211,14 +256,15 @@ def record(system_id: str, hole: dict, measured: tuple[int, int, int, int]) -> b
         return False
     x, y, w, h = measured
     data = corrections()
-    data[key_for(system_id, hole)] = {"x": x, "y": y, "w": w, "h": h}
+    data[key_for(system_id, hole, console)] = {"x": x, "y": y, "w": w, "h": h}
     p = _path()
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(data, indent=2, sort_keys=True))
     tmp.replace(p)
-    log.info("bezels: %s renders at %dx%d+%d+%d, not %dx%d+%d+%d — corrected",
-             system_id, w, h, x, y, hole["w"], hole["h"], hole["x"], hole["y"])
+    log.info("bezels: %s%s renders at %dx%d+%d+%d, not %dx%d+%d+%d — corrected",
+             system_id, f"/{console}" if console else "",
+             w, h, x, y, hole["w"], hole["h"], hole["x"], hole["y"])
     return True
 
 

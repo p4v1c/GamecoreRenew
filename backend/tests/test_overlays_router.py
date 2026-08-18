@@ -86,6 +86,11 @@ def test_a_system_with_no_bezel_at_all_is_a_200_and_not_a_404(client, library):
                       params={"rom": "Whatever.pkg"}).json()
     assert body == {"system_id": "rpcs3", "source": "none",
                     "asset": None, "hole": None, "frame": None,
+                    # Always present, `None` for the eleven packs that are one
+                    # console: the monitor echoes this field back when it
+                    # reports a measurement, and a key that came and went would
+                    # make the request body a different shape per launch.
+                    "console": None,
                     "measure": False}
 
 

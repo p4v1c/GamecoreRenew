@@ -188,6 +188,20 @@ def merge_systems(live: list[dict], packs: dict, root: Path,
                 merged["libretroSystems"] = libretro
                 notes.append(f"{sid}: libretro systems filled in")
 
+        # Same rule, and it is the only way this reaches an existing box:
+        # `config/` is excluded from the OTA rsync, so a release that adds
+        # `roms.consoles` to a pack changes nothing in a systems.json that is
+        # already there. Filled in rather than overwritten — a console list the
+        # operator edited is a list they meant.
+        if not entry.get("consoles"):
+            declared = list((pack.data.get("roms") or {}).get("consoles", []))
+            if declared:
+                merged["consoles"] = [{"id": c["id"], "label": c["label"],
+                                       "extensions": list(c["extensions"])}
+                                      for c in declared]
+                notes.append(f"{sid}: consoles filled in "
+                             f"({', '.join(c['id'] for c in declared)})")
+
         out.append(merged)
 
     if add_missing:

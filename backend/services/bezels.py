@@ -51,7 +51,7 @@ import zlib
 from pathlib import Path
 from urllib.parse import quote
 
-from . import bezel_capture, gameid
+from . import bezel_capture, consoles, gameid
 from .paths import addons_dir, config_dir, overlays_dir
 
 log = logging.getLogger(__name__)
@@ -134,10 +134,28 @@ def _pack_index(system_id: str) -> dict[str, Path]:
     return index
 
 
+def console_png(system_id: str, console_id: str) -> Path:
+    """Where a bezel for one console of a pack lives.
+
+    `mgba.png` is the pack; `mgba.gb.png` and `mgba.gba.png` are two of its
+    three consoles. Beside the system bezel rather than inside `mgba/`, because
+    that directory is the per-game pack and a Bezel Project archive unpacked
+    into it would sit next to files that are not games.
+
+    The convention has to be guessable without documentation — a player who
+    drops a PNG in has to be able to name it — and "the system's name, then the
+    console's" is the shortest rule that stays true when a pack gains a
+    console. The console ids are the ones `roms.consoles` declares, and the
+    options screen lists them.
+    """
+    return overlays_dir() / f"{system_id}.{console_id}.png"
+
+
 def resolve(system_id: str, rom_name: str | None = None) -> tuple[Path | None, str]:
     """The bezel for this game, and which level of the cascade produced it.
 
     `(path, "game")` → a bezel named after this ROM;
+    `(path, "console")` → the bezel for this pack's console this ROM belongs to;
     `(path, "system")` → the system's own bezel;
     `(None, "off")` → the player turned this game's overlay off;
     `(None, "none")` → there is no bezel, and the caller must draw nothing.
@@ -150,10 +168,17 @@ def resolve(system_id: str, rom_name: str | None = None) -> tuple[Path | None, s
     hole is only ever correct for a system whose geometry someone measured;
     inventing one for a system with no bezel at all puts black bars over a game
     that was filling the screen correctly.
+
+    "console" is the level added last and it is an INSERTION, not a rewrite:
+    `consoles.for_rom` answers None for every pack that declares one console —
+    which is eleven of the thirteen — and the two lines below then do nothing
+    at all. A box whose systems.json predates `roms.consoles` takes exactly the
+    path it took before.
     """
     choice = preference(system_id, rom_name)
     if choice == "off":
         return None, "off"
+    console = consoles.for_rom(system_id, rom_name)
     if choice:
         # A named bezel is honoured only if it is still there. A pack removed
         # under a preference that names it must fall back to the cascade, not
@@ -161,11 +186,11 @@ def resolve(system_id: str, rom_name: str | None = None) -> tuple[Path | None, s
         picked = _pack_index(system_id).get(rom_key(choice))
         if picked:
             return picked, "chosen"
-        # The system bezel is a legitimate choice and does not live in the
-        # pack directory, so the index above cannot find it.
-        system_png = overlays_dir() / f"{system_id}.png"
-        if system_png.is_file() and rom_key(choice) == rom_key(system_png.name):
-            return system_png, "chosen"
+        # Neither the console bezels nor the system one live in the pack
+        # directory, so the index above cannot find either.
+        for candidate in _standalone(system_id):
+            if candidate.is_file() and rom_key(choice) == rom_key(candidate.name):
+                return candidate, "chosen"
         log.info("bezels: %s/%s names a bezel that is gone (%s) — falling back",
                  system_id, rom_name, choice)
 
@@ -173,10 +198,26 @@ def resolve(system_id: str, rom_name: str | None = None) -> tuple[Path | None, s
         hit = _pack_index(system_id).get(rom_key(rom_name))
         if hit:
             return hit, "game"
+    if console:
+        png = console_png(system_id, console)
+        if png.is_file():
+            return png, "console"
     system_png = overlays_dir() / f"{system_id}.png"
     if system_png.is_file():
         return system_png, "system"
     return None, "none"
+
+
+def _standalone(system_id: str) -> list[Path]:
+    """The bezels of this system that are not per-game, best first.
+
+    Only the consoles this pack DECLARES, never everything matching
+    `<system>.*.png` on disk: a leftover from a rename, or a per-game bezel
+    filed one directory too high, would otherwise become selectable and outrank
+    the system bezel with nothing to explain why.
+    """
+    return ([console_png(system_id, c["id"]) for c in consoles.declared(system_id)]
+            + [overlays_dir() / f"{system_id}.png"])
 
 
 # ── The player's own choice ──────────────────────────────────────────────────
@@ -249,6 +290,18 @@ def available(system_id: str, rom_name: str | None = None) -> list[dict]:
         if hit:
             out.append({"id": hit.name, "label": hit.stem, "level": "game",
                         "asset": _asset_url(hit)})
+    # Only the console this ROM actually is. Offering the pack's other two
+    # would let a Game Boy game be given the Game Boy Advance frame, which is
+    # the shape mismatch this whole level exists to stop.
+    console = consoles.for_rom(system_id, rom_name)
+    if console:
+        png = console_png(system_id, console)
+        if png.is_file():
+            label = next((c.get("label") or console
+                          for c in consoles.declared(system_id)
+                          if c["id"] == console), console)
+            out.append({"id": png.name, "label": label, "level": "console",
+                        "console": console, "asset": _asset_url(png)})
     system_png = overlays_dir() / f"{system_id}.png"
     if system_png.is_file():
         out.append({"id": system_png.name, "label": system_id, "level": "system",
@@ -629,22 +682,27 @@ def for_launch(system_id: str, rom_name: str | None = None) -> dict:
     window = cfg.get("window_rect") or {"x": 0, "y": 0, "w": 1920, "h": 1080}
     out = describe(system_id, rom_name, declared=cfg.get("hole"))
     hole = out["hole"]
+    # Travels with the answer so the monitor can hand it straight back when it
+    # reports what it saw: the correction is filed per console, and the process
+    # that looks at the screen has no way to work out which console this was.
+    console = consoles.for_rom(system_id, rom_name)
     if not hole:
         return {"system_id": system_id, "source": out["source"],
                 "asset": out["asset"], "hole": None, "frame": None,
-                "measure": False}
+                "console": console, "measure": False}
 
     placed = in_window(hole, window)
 
     # What the emulator was last seen to actually draw at this ratio, if the
     # two ever disagreed. Applied here rather than at capture time so it also
     # covers the launches where nothing is captured at all.
-    fixed = bezel_capture.correction_for(system_id, placed)
+    fixed = bezel_capture.correction_for(system_id, placed, console)
 
     return {
         "system_id": system_id,
         "source": out["source"],
         "asset": out["asset"],
+        "console": console,
         "hole": fixed or placed,
         "frame": {"w": hole["frame_w"], "h": hole["frame_h"]},
         # The announced hole, kept separate: it is the key the capture files

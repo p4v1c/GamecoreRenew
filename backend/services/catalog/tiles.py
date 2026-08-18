@@ -128,6 +128,13 @@ def tile_entry(pack, *, resolve_launcher: LauncherResolver | None = None) -> dic
         if roms.get("scanDirs"):
             entry["scanDirs"] = True
         entry["extensions"] = list(roms.get("extensions", []))
+        # Only when the pack declares any. An empty list in the tile would be
+        # indistinguishable from "this box's systems.json predates the field",
+        # which is exactly the case `merge.py` has to be able to fill in.
+        if consoles := roms.get("consoles"):
+            entry["consoles"] = [{"id": c["id"], "label": c["label"],
+                                  "extensions": list(c["extensions"])}
+                                 for c in consoles]
         entry["libretroSystems"] = list((pack.data.get("scraper") or {}).get("libretro", []))
 
     # Launch-time behaviour, read by games.py right after a successful launch.
