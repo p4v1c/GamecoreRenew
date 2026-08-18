@@ -104,9 +104,19 @@ Tetris (World).gb          -> source "declared"  asset null  hole {"x":343,"y":0
 Pokemon Emerald (USA).gba  -> source "declared"  asset null  hole {"x":343,"y":0,"w":1234,"h":1080}
 ```
 
-C'est le cas que `describe()` documente en toutes lettres : `declared` sans
-asset, **des bandes noires que personne n'a demandées**. La boîte est aujourd'hui
-dans cet état pour mgba, gopher64, duckstation et pcsx2.
+C'est le cas `declared` sans asset. **Vérifié plutôt que supposé** : le rendu
+côté React (`frontend/src/components/OverlayScreen/index.tsx`) garde les deux
+branches derrière `asset &&`, donc **rien n'est dessiné du tout** — ni
+illustration, ni bandes noires. Le commentaire du composant dit d'ailleurs que
+`!asset ||` était le bug et que `asset &&` est le correctif. La boîte n'a donc
+pas de bandes noires ; elle n'a simplement plus de bezel pour mgba, gopher64,
+duckstation et pcsx2. La fenêtre de l'émulateur reste forcée à `window_rect`.
+
+Chronologie, d'après les dates : `bezel-corrections.json` date du 17 août 18:20,
+le répertoire `assets/overlays/` du 18 août 11:53. **La correction a été apprise
+quand `mgba.png` était encore là**, et les PNG ont disparu ensuite. Le symptôme
+rapporté est donc bien réel, il date d'avant ce ménage, et il reviendra tel quel
+le jour où les PNG seront remis — la correction, elle, est restée.
 
 Et pour dolphin : `source "none"`, rien de dessiné — correct.
 

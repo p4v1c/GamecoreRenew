@@ -156,12 +156,42 @@ whose PNG is missing, and nothing else — see below.
 | level | source |
 |---|---|
 | `game` | `<DATA>/assets/overlays/<system_id>/<rom>.png` |
+| `console` | `<DATA>/assets/overlays/<system_id>.<console_id>.png` |
 | `system` | `<DATA>/assets/overlays/<system_id>.png` |
 | `declared` | the `hole` of `config/overlays.json`, no artwork |
 | `none` | nothing is drawn — **not** a frame |
 
 `chosen` and `off` sit in front of all of it: the player's own answer, set from
 the library with R2 and stored in `<DATA>/config/bezel-choices.json`.
+
+### The console level, and why it is not the system level
+
+One emulator is sometimes several machines. `mgba` runs Game Boy and Game Boy
+Color in 10:9 and Game Boy Advance in 3:2 behind one system id; `dolphin` runs
+GameCube and Wii. Everything keyed on the system id answered all of them at
+once — one PNG, one hole, one ratio, therefore **one drift-correction key**. The
+first console played taught the box a rectangle, `for_launch` then set
+`"measure": false` because the answer was known, and the other consoles
+inherited it permanently. Measured on the reference box: a single `mgba@1:1`
+entry of `1234x1080+343+0`, learned from a Game Boy, cutting 193 px off each
+side of every GBA game.
+
+Which console a ROM is comes from `services/consoles.py`, reading
+`roms.consoles` out of `config/systems.json`. **Declared, never derived**, and
+not `scraper.libretro` either — that is libretro's database, which lists two
+entries for melonDS's one machine and would rename under us. `.zip` says nothing
+about its contents, `.iso` serves GameCube and Wii, and `.rvz` is Dolphin's own
+container holding either; `gamemedia/registry.py` carries the scar of guessing.
+An extension no console claims resolves to `None` and the cascade stays at the
+system level, which is exactly the old behaviour.
+
+`scripts/check-catalog.py` fails the build on a console claiming an extension
+`roms.extensions` does not list, or on two consoles claiming the same one.
+
+`config/` is excluded from the OTA rsync, so `roms.consoles` reaches an existing
+box only through the `merge_file()` call `update/linux.sh` already makes — same
+conservative rule as `libretroSystems`: filled in when the box has none, never
+overwritten.
 
 Matching a ROM to a pack filename goes through `bezels.rom_key`, which is
 `parse_rom` + `normalize` from `services/gamemedia/parser.py` — the scraper's
@@ -189,8 +219,16 @@ alpha byte is unfiltered — 1.6 s → 0.4 s for a 1920x1080 bezel, cached in
 
 `services/bezel_capture.py`. A frame is captured a second into the game, the
 drawn region measured out of it, and the hole corrected if the two disagree —
-cached per system and announced ratio in `<DATA>/config/bezel-corrections.json`,
-so a box looks once and then stops.
+cached per system, console and announced ratio in
+`<DATA>/config/bezel-corrections.json`, so a box looks once per console and
+then stops.
+
+The key is `<system>@<ratio>` for a pack that declares no console — eleven of
+the thirteen, and every correction on every box that exists, so that string had
+to stay byte-identical — and `<system>/<console>@<ratio>` for one that does,
+with `-` where the extension did not say which. A pack that gains consoles
+therefore leaves its old console-blind entries unreachable rather than deleting
+them: reverting the change has to bring a box back exactly as it was.
 
 Most of that module is about refusing to believe the measurement, because a
 false correction moves a hole that was right. Two samples 1.5 s apart must
@@ -231,6 +269,22 @@ core's: a Bezel Project pack is gigabytes of other people's box art, and
 GameCore does not host it, ship it in the ISO, or fetch it unasked — the same
 posture as BIOS files and keys. The source must resolve inside `<DATA>/addons/`,
 only `.png` files are copied, and symlinks are skipped rather than followed.
+
+`POST /api/overlays/<system_id>/consoles/<console_id>` deposits a bezel for one
+console of a multi-console pack. **A core route rather than a widening of the
+addon contract**: ROM Manager is the natural place to offer this — the player is
+already looking at their Game Boy games — but `api: 1` says an addon writes
+inside its own data directory and nowhere else, and overlays belong to the core.
+Opening `assets/overlays/` to addons for one feature would open it to all of
+them. So the addon POSTs and the core decides the name and the destination; the
+console must be one `roms.consoles` declares, or it is a 404.
+
+Both upload routes now refuse an image with **no transparent area**. It was the
+one gap left: magic bytes right, size right, upload completes — and the result
+is a rectangle painted over the whole game, with nothing on screen to say so.
+`_HOLE_MAX_COVERAGE` catches the opposite end, an image that is all hole, which
+is also the shape a truncated download leaves. Note this guards the *route*, not
+the filesystem: a PNG copied in by hand is not validated.
 
 Coverage is uneven and worth checking per repository before promising anything:
 strong on PSX, N64, GBA and arcade, weak to absent on PS2, GameCube and 3DS.
