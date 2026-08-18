@@ -3,6 +3,23 @@
 
     scripts/make-console-bezel.py assets/overlays/mgba.gba.png --ratio 3:2
 
+The three mGBA bezels this repository ships were drawn with:
+
+    scripts/make-console-bezel.py assets/overlays/mgba.gb.png  --ratio 10:9 \
+        --top '#1b2418' --bottom '#080b06' --accent '#9bbc0f'
+    scripts/make-console-bezel.py assets/overlays/mgba.gbc.png --ratio 10:9 \
+        --top '#22162a' --bottom '#0a0710' --accent '#b76ff5'
+    scripts/make-console-bezel.py assets/overlays/mgba.gba.png --ratio 3:2 \
+        --top '#151b30' --bottom '#070912' --accent '#7c86ff'
+
+10:9 for the Game Boy is the machine's own 160x144. Note that mGBA with
+`sgb.borders=1` (the shipped seed) runs a Game Boy game through Super Game Boy
+mode and draws a 256x224 frame — 8:7 — around it; the reference box measured
+exactly that (1234x1080). A 10:9 hole then covers 17 px of that SGB border on
+each side and none of the game. That is the deliberate choice: the frame hugs
+the game, not the border. `--ratio 8:7` is one flag away for a box that wants
+the other reading.
+
 Why this script exists rather than three committed PNGs with no provenance
 --------------------------------------------------------------------------
 A bezel's hole is the part that has to be *right*, to the pixel: `bezels.py`
@@ -33,11 +50,26 @@ import sys
 import zlib
 from pathlib import Path
 
-# Wide enough to read as a frame edge at three metres, narrow enough not to eat
-# into the picture. The hole itself is never touched by it — the bevel is drawn
-# OUTSIDE the rectangle, so the transparent region stays exactly the ratio that
-# was asked for.
-_BEVEL = 28
+# The frame around the hole, from the hole outward. Distances in pixels of the
+# frame, all OUTSIDE the transparent rectangle — the hole itself is never
+# touched, so it stays exactly the ratio that was asked for.
+#
+#   0 .. _RECESS      a dark band, the "depth" of the cut-out
+#   _RECESS .. +_LINE a crisp bright line in the console's colour
+#   .. _GLOW          a soft halo fading back into the panel
+#   .. +_MAT         a flat matte band, the "mount" the picture sits in
+#   1 px              a thin dark seam closing the mount
+#   .. _GLOW          a soft halo of the console's colour fading into the panel
+_RECESS = 7
+_LINE = 3
+_MAT = 34
+_GLOW = 150
+
+# How much darker the far edges of the panels get. Draws the eye inward.
+_VIGNETTE = 0.55
+# Brushed texture: one row in three a hair lighter. Invisible from the sofa,
+# a material rather than a flat fill from up close.
+_BRUSH = 0.045
 
 
 def _chunk(kind: bytes, body: bytes) -> bytes:
@@ -48,6 +80,10 @@ def _chunk(kind: bytes, body: bytes) -> bytes:
 def _hex(s: str) -> tuple[int, int, int]:
     s = s.lstrip("#")
     return int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16)
+
+
+def _mix(a: tuple[int, int, int], b: tuple[int, int, int], k: float) -> tuple[int, int, int]:
+    return tuple(round(a[i] + (b[i] - a[i]) * k) for i in range(3))  # type: ignore[return-value]
 
 
 def hole_for(frame_w: int, frame_h: int, ratio_w: int, ratio_h: int,
@@ -72,39 +108,83 @@ def hole_for(frame_w: int, frame_h: int, ratio_w: int, ratio_h: int,
 def render(frame_w: int, frame_h: int, hole: tuple[int, int, int, int],
            top: tuple[int, int, int], bottom: tuple[int, int, int],
            accent: tuple[int, int, int]) -> bytes:
-    hx, hy, hw, hh = hole
-    rows = bytearray()
+    """Two panels, a vertical gradient, and a lit frame around the hole.
 
+    Everything is a function of two distances — how far a pixel is from the
+    hole, and how far it is from the frame's outer edge — so the picture is
+    the same shape whatever the ratio: a wide GBA hole gets narrow panels, a
+    square-ish Game Boy hole gets wide ones, and the frame around each looks
+    like the same object.
+    """
+    hx, hy, hw, hh = hole
+    # A pale version of the accent for the crisp line: pure accent reads as a
+    # coloured stripe, a lifted one reads as light catching an edge.
+    line = _mix(accent, (255, 255, 255), 0.35)
+
+    # Per column, once: distance to the hole in x, and the vignette factor.
+    dxs = [max(hx - x, x - (hx + hw - 1), 0) for x in range(frame_w)]
+    # Distance to the nearest outer edge, as a fraction of the panel's width
+    # on that side, so both panels darken the same way whatever their width.
+    left_w = max(1, hx)
+    right_w = max(1, frame_w - (hx + hw))
+    vig = []
+    for x in range(frame_w):
+        if x < hx:
+            t = x / left_w
+        elif x >= hx + hw:
+            t = (frame_w - 1 - x) / right_w
+        else:
+            t = 1.0
+        # 1.0 at the hole, (1 - _VIGNETTE) at the outer edge, eased.
+        vig.append(1.0 - _VIGNETTE * (1.0 - t) ** 1.6)
+
+    mat_end = _RECESS + _LINE + _MAT
+    rows = bytearray()
     for y in range(frame_h):
         t = y / max(1, frame_h - 1)
-        base = tuple(round(top[i] + (bottom[i] - top[i]) * t) for i in range(3))
+        base = _mix(top, bottom, t)
+        # Lit from a point at mid-height: the panels are a touch brighter
+        # level with the middle of the picture and fall off toward the top
+        # and bottom edges, which is what stops them reading as flat strips.
+        spot = 1.0 - 0.28 * abs(2 * t - 1) ** 1.5
+        brush = 1.0 + _BRUSH if y % 3 == 0 else 1.0
+        dy = max(hy - y, y - (hy + hh - 1), 0)
+        inside_y = dy == 0
 
-        # Every row starts as the flat gradient colour, then only the pixels
-        # that need to differ are written. Touching 2 million pixels one at a
-        # time in Python is seconds; this is milliseconds.
-        row = bytearray(bytes(base + (255,)) * frame_w)
-
-        inside_y = hy <= y < hy + hh
-        if inside_y:
-            # Punch the hole: alpha 0, colour irrelevant but kept black so a
-            # viewer that ignores alpha shows black bars rather than a colour.
-            row[hx * 4:(hx + hw) * 4] = b"\x00\x00\x00\x00" * hw
-
-        # The bevel: a band hugging the hole on all four sides, brightening
-        # toward it. Distance is to the RECTANGLE, so the corners round off on
-        # their own instead of forming a square notch.
-        for x in range(max(0, hx - _BEVEL), min(frame_w, hx + hw + _BEVEL)):
-            if inside_y and hx <= x < hx + hw:
-                continue                                   # the hole itself
-            dx = max(hx - x, x - (hx + hw - 1), 0)
-            dy = max(hy - y, y - (hy + hh - 1), 0)
-            d = max(dx, dy)
-            if d > _BEVEL:
+        row = bytearray(frame_w * 4)
+        for x in range(frame_w):
+            dx = dxs[x]
+            if inside_y and dx == 0:
+                # The hole. Alpha 0; colour kept black so a viewer that
+                # ignores alpha shows black bars rather than a colour.
                 continue
-            k = (1 - d / _BEVEL) ** 2                      # sharp at the edge
+            d = max(dx, dy)
+            v = vig[x] * spot
+            r, g, b = round(base[0] * v), round(base[1] * v), round(base[2] * v)
+
+            if d <= _RECESS:
+                # Into the shadow of the cut. Darkest right at the hole.
+                k = 0.5 + 0.5 * (d / _RECESS)
+                r, g, b = round(r * k), round(g * k), round(b * k)
+            elif d <= _RECESS + _LINE:
+                r, g, b = line
+            elif d <= mat_end:
+                # The mount: flat, a little lighter than the panel, untextured.
+                r, g, b = _mix((r, g, b), accent, 0.22)
+                r, g, b = _mix((r, g, b), (255, 255, 255), 0.06)
+            elif d == mat_end + 1:
+                r, g, b = round(r * 0.45), round(g * 0.45), round(b * 0.45)
+            else:
+                if d <= _GLOW:
+                    k = (1 - (d - mat_end) / (_GLOW - mat_end)) ** 2.0
+                    r, g, b = _mix((r, g, b), accent, k * 0.4)
+                r, g, b = round(r * brush), round(g * brush), round(b * brush)
+
             p = x * 4
-            row[p:p + 3] = bytes(
-                round(base[i] + (accent[i] - base[i]) * k * 0.85) for i in range(3))
+            row[p] = min(255, r)
+            row[p + 1] = min(255, g)
+            row[p + 2] = min(255, b)
+            row[p + 3] = 255
 
         rows += b"\x00" + row                              # filter 0: None
 
