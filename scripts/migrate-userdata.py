@@ -66,11 +66,20 @@ class Section:
         self.name, self.src, self.dest = name, src, dest
         self.files: list[Path] = []      # relative to src
         self.collisions: list[Path] = []
+        # Symlinks are NOT copied and are named rather than skipped in
+        # silence. A ROM directory that is really a link to another disk, or
+        # a `volumes/` entry, would otherwise vanish from the new tree with
+        # nothing in the plan to say so — and `rglob` does not descend into a
+        # linked directory either, so its contents are not in `files` at all.
+        self.symlinks: list[Path] = []
         self.bytes = 0
         if not src.is_dir():
             return
         for p in sorted(src.rglob("*")):
-            if p.is_symlink() or not p.is_file():
+            if p.is_symlink():
+                self.symlinks.append(p.relative_to(src))
+                continue
+            if not p.is_file():
                 continue
             rel = p.relative_to(src)
             self.files.append(rel)
@@ -115,11 +124,51 @@ def report(sections: list[Section], src_root: Path, dest_root: Path) -> None:
         if len(collisions) > 20:
             print(f"    … and {len(collisions) - 20} more")
 
+    symlinks = [(s, rel) for s in sections for rel in s.symlinks]
+    if symlinks:
+        print(f"\n  *** {len(symlinks)} symlink(s) will NOT be copied — recreate them "
+              "by hand at the destination: ***")
+        for s, rel in symlinks[:20]:
+            try:
+                target = os.readlink(s.src / rel)
+            except OSError:
+                target = "?"
+            print(f"    {s.src / rel}  ->  {target}")
+        if len(symlinks) > 20:
+            print(f"    … and {len(symlinks) - 20} more")
+
+    # A database is the one file whose copy can be wrong while every byte of
+    # it is present: SQLite writes in place, and a copy taken mid-transaction
+    # is a file that opens and then loses the last thing written. Small, so
+    # the copy is instantaneous — but "small" is not "atomic".
+    dbs = [s.src / rel for s in sections for rel in s.files
+           if rel.suffix in (".db", ".sqlite", ".sqlite3")]
+    if dbs:
+        print(f"\n  {len(dbs)} database file(s) — stop the backend for the copy "
+              "so none is caught mid-write:")
+        for db in dbs[:10]:
+            print(f"    {db}")
+        print("    sudo systemctl stop gamecore-ui gamecore-backend    "
+              "(and start them again after)")
+
     try:
-        free = shutil.disk_usage(_existing_ancestor(dest_root)).free
+        anchor = _existing_ancestor(dest_root)
+        free = shutil.disk_usage(anchor).free
         print(f"\n  Free at the destination: {_human(free)}")
+        same_fs = os.stat(src_root).st_dev == os.stat(anchor).st_dev
+        if same_fs:
+            # copy_file_range → a reflink on btrfs and XFS: the copy shares
+            # the source's extents and costs no space until one side changes.
+            # Measured on the reference box (btrfs): 321 GiB copied, 0 written.
+            print("  Same filesystem as the source: on btrfs or XFS the copy is a "
+                  "reflink and\n  costs no space; elsewhere it costs the size above.")
+        else:
+            print("  A different filesystem from the source: this is a full copy "
+                  "of every byte.")
         if free < total_bytes:
-            print("  *** NOT ENOUGH SPACE — this would fail partway through. ***")
+            print("  *** NOT ENOUGH SPACE for a full copy — on a reflink-capable "
+                  "filesystem it will\n  still succeed; anywhere else it fails "
+                  "partway through. ***")
     except OSError as e:
         print(f"\n  Could not measure free space at {dest_root}: {e}")
 
@@ -193,6 +242,27 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 2
 
+    # The destination has to be somewhere this user can create files, and a
+    # data root at `/userdata` is not — its parent is `/`, root's. Refusing
+    # here, with the commands, beats a PermissionError traceback out of the
+    # first `mkdir` after the plan was read and approved. The subvolume is
+    # what `install/arch.sh` (provision_userdata) creates on a fresh install:
+    # it snapshots and takes quota independently of the root, which is the
+    # point of separating the data at all.
+    anchor = _existing_ancestor(dest_root)
+    if not os.access(anchor, os.W_OK):
+        user = os.environ.get("USER") or os.environ.get("LOGNAME") or "<user>"
+        print(f"ERROR: {anchor} is not writable by {user}, so {dest_root} cannot "
+              "be created here.\n"
+              "Create it first, owned by the user that runs GameCore — as a btrfs "
+              "subvolume when the\nfilesystem is btrfs, a plain directory "
+              "otherwise:\n"
+              f"    sudo btrfs subvolume create {dest_root} "
+              f"&& sudo chown {user}:{user} {dest_root}\n"
+              f"    # or:  sudo install -d -o {user} -g {user} {dest_root}\n"
+              "then run this again.", file=sys.stderr)
+        return 2
+
     sections = plan(src_root, dest_root)
     report(sections, src_root, dest_root)
 
@@ -205,14 +275,64 @@ def main(argv: list[str] | None = None) -> int:
 
     copied = apply(sections)
     print(f"\n  Copied {copied} file(s). Every source is still in place.\n")
-    print("  The box does NOT use the new tree yet. To switch it over:")
-    print(f"    1. Add  Environment=GAMECORE_DATA={dest_root}  to")
-    print("       /etc/systemd/system/gamecore-backend.service.d/override.conf")
-    print("    2. systemctl daemon-reload && systemctl restart gamecore-backend")
-    print("    3. Check the library, the settings and the addons on the TV.")
-    print("    4. Only then, and only by hand, delete the old copies under")
-    print(f"       {src_root}.\n")
+    print(switch_over(src_root, dest_root))
     return 0
+
+
+def switch_over(src_root: Path, dest_root: Path) -> str:
+    """The steps that make the box read the new tree — printed, never run.
+
+    Every consumer of the data root has to learn about the move, and they do
+    not all learn the same way. The two systemd units read it from a drop-in;
+    the addon CLI reads it from the backend's unit; each addon's own unit is
+    rewritten by `gamecore-addon update` from what the CLI knows; and the CLI
+    itself is a root-owned copy in /usr/local/bin that only the installer
+    refreshes. Miss one and the box is split: the interface reads the new
+    tree, ROM uploads land in the old one, and nothing on screen says which.
+    """
+    d = str(dest_root)
+    return f"""  The box does NOT use the new tree yet. To switch it over, in this order:
+
+    1. Point both units at it — a drop-in each, so the installer's own files
+       and any THEGAMESDB key in override.conf are left exactly as they are:
+         sudo mkdir -p /etc/systemd/system/gamecore-backend.service.d \\
+                       /etc/systemd/system/gamecore-ui.service.d
+         printf '[Service]\\nEnvironment=GAMECORE_DATA={d}\\n' \\
+           | sudo tee /etc/systemd/system/gamecore-backend.service.d/userdata.conf
+         printf '[Service]\\nEnvironment=GAMECORE_DATA={d}\\n' \\
+           | sudo tee /etc/systemd/system/gamecore-ui.service.d/userdata.conf
+
+    2. The addon CLI in /usr/local/bin is a copy only the installer refreshes.
+       Put the one this release ships there (the old one does not know
+       GAMECORE_DATA and would bake the old root into every addon's unit):
+         sudo install -m 755 {src_root}/install/bin/gamecore-addon /usr/local/bin/gamecore-addon
+
+    3. Restart the core so the units take effect:
+         sudo systemctl daemon-reload
+         sudo systemctl restart gamecore-backend gamecore-ui
+
+    4. Re-run the addon installers: the CLI now reads GAMECORE_DATA from the
+       backend's unit and rewrites each addon's unit with it —
+         gamecore-addon update
+
+    5. Check, before playing anything:
+         systemctl show gamecore-backend -p Environment --value | tr ' ' '\\n' | grep GAMECORE_DATA
+         grep GAMECORE_DATA ~/.config/systemd/user/gamecore-addon-*.service
+       Both must say {d}. Then the library, the settings, the overlays and
+       an upload from ROM Manager, on the TV.
+
+    6. Only then, and only by hand, delete the old copies under
+         {src_root}
+       (on btrfs the copy was a reflink: deleting the old side frees nothing
+       until the new side diverges — read `btrfs filesystem du`, not `du`).
+
+  The way back, at any point before step 6:
+         sudo rm /etc/systemd/system/gamecore-backend.service.d/userdata.conf \\
+                 /etc/systemd/system/gamecore-ui.service.d/userdata.conf
+         sudo systemctl daemon-reload && sudo systemctl restart gamecore-backend gamecore-ui
+         gamecore-addon update
+  and the box reads {src_root} again, exactly as before — nothing there was touched.
+"""
 
 
 if __name__ == "__main__":

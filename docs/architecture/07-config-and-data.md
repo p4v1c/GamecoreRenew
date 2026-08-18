@@ -122,6 +122,36 @@ installer writes them into one systemd drop-in,
 | `GAMECORE_SCRAPER_LANG` | comma-separated, most preferred first. Default `en,fr` |
 | `GAMECORE_WARM_MEDIA` | which media `prefetch` downloads at boot beyond the cover. Comma-separated, empty to warm nothing. Default `box-front,box-3d,box-spine,box-back,screenshot-gameplay,screenshot-game-title` ([why](04-backend-services.md#prefetchpy-82-l)) |
 
+### Moving the data out — who has to be told
+
+`scripts/migrate-userdata.py` copies the bytes and stops; the epilogue it prints
+is the procedure, and it is longer than "set one variable" because the data
+root is read by more than one process, and they do not all learn it the same
+way. Each of these was found by reading the code that resolves the root, and
+each was wrong on the day the two trees first differed:
+
+| who | reads the root from | what goes wrong if it is missed |
+|---|---|---|
+| the backend | `gamecore-backend.service` (drop-in `userdata.conf`) | the whole point; nothing else matters until this is set |
+| Electron | `gamecore-ui.service` (same drop-in) — `loadOverlayConfig()` joins `config/overlays.json` onto it | reads the abandoned copy; window from one file, hole from another |
+| `update/linux.sh` | inherited from the backend that spawns it | the catalogue merge went into `$GAMECORE_PATH/config/systems.json` — the abandoned copy — so the live grid never gained a new emulator, a repaired launcher or a console list again. Fixed: the merge is handed both roots |
+| `gamecore-addon` | **the backend's unit**, when the caller's shell has none | typed at a shell, and the shell has no `GAMECORE_DATA`. It used to fall straight back to the install: the first `update` after the move would have handed every addon's `install.sh` the old root and baked it into their units. ROM uploads into the tree the box no longer reads |
+| each addon's unit | rewritten by `gamecore-addon update` from what the CLI knows | stays on the old root until `update` is run again |
+| `/usr/local/bin/gamecore-addon` itself | — it is a root-owned copy that only `install/arch.sh` writes | the OTA cannot refresh it and now says so, with the command. A copy from before the split does not know `GAMECORE_DATA` at all |
+
+The migration script prints all of it in order, plus a check to run before
+playing anything and the way back. `backend/tests/test_migration.py` asserts
+the epilogue names every row above; `test_ota_merge_roots.py` runs the OTA's
+merge with two roots that genuinely differ; `test_addon_contract.py` runs the
+CLI against a fake `systemctl`; `test_paths.py` reads `electron/*.js`.
+
+Two operational notes the script also prints: symlinks are **not** copied and
+are listed with their targets (`rglob` neither follows nor descends into them),
+and a live SQLite file should not be copied under a running backend. On btrfs
+`shutil.copy2` (Python ≥ 3.14, `copy_file_range`) is a reflink — measured on the
+reference box: 321 GiB copied, nothing written — so the copy is instant and the
+old side frees nothing when deleted until the new side diverges.
+
 **The N64 slot is keyed `gopher64` and runs Rosalie's Mupen GUI.** That
 mismatch is deliberate. gopher64 sets no `WM_CLASS` on its window, so
 `overlay_monitor` could never find it and the bezel never drew; RMG reports
