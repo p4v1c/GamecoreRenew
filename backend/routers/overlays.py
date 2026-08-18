@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from ..services import bezel_capture, bezels
+from ..services import bezel_capture, bezels, consoles
 from ..services.paths import overlays_dir
 
 router = APIRouter(tags=["overlays"])
@@ -72,6 +72,10 @@ class Measured(BaseModel):
     announced: dict           # the hole that was in force — the cache key
     measured: dict            # x/y/w/h of the drawn region
     window: dict              # the size the measurement was taken in
+    # Which console of the pack, echoed back from the resolve answer. Optional
+    # so an Electron that predates this field still records something, under
+    # the pack's undetermined key rather than under nothing.
+    console: str | None = None
 
 
 @router.post("/overlays/measured/{system_id}")
@@ -97,7 +101,13 @@ async def record_measurement(system_id: str, body: Measured):
 
     if not bezel_capture.is_plausible(box, win_w, win_h):
         return {"ok": True, "applied": False, "reason": "implausible"}
-    applied = bezel_capture.record(system_id, announced, box)
+    # Only a console this pack actually declares. The field arrives over the
+    # LAN like the rest of the body, and an arbitrary string here would let a
+    # caller write cache keys of its choosing into the corrections file.
+    console = body.console
+    if console and console not in {c["id"] for c in consoles.declared(system_id)}:
+        raise HTTPException(400, "No such console for this system")
+    applied = bezel_capture.record(system_id, announced, box, console)
     return {"ok": True, "applied": applied,
             "reason": None if applied else "within tolerance"}
 
@@ -165,11 +175,43 @@ def _looks_like_image(head: bytes) -> bool:
     )
 
 
+@router.post("/overlays/{system_id}/consoles/{console_id}")
+async def upload_console_overlay(system_id: str, console_id: str,
+                                 file: UploadFile = File(...)):
+    """A bezel for one console of a pack that runs several.
+
+    A route on the core rather than a widening of the addon contract. ROM
+    Manager is where a player is already looking at their Game Boy games, so it
+    is the natural place to offer this — but `api: 1` says an addon writes
+    inside its own data directory and nowhere else, and overlays belong to the
+    core. Extending the contract to let an addon write into `assets/overlays/`
+    would open that directory to every addon, for one feature. So the addon
+    POSTs here and the core decides the name and the destination.
+
+    `docs/SECURITY.md`: the core is never exposed to the LAN — Caddy answers
+    `/api/*` with a 403 — so this is reachable from the box's own UI and from an
+    addon running on it, not from a phone on the network.
+    """
+    if not _SYSTEM_ID_RE.match(system_id):
+        raise HTTPException(400, "Invalid system id")
+    # Against what the pack declares, not against a character class: the file
+    # is named `<system>.<console>.png` and the cascade only ever looks for the
+    # consoles in `roms.consoles`. A file under any other name would be written
+    # successfully and then never resolved by anything — a save that silently
+    # does nothing, which is the failure this codebase keeps refusing to ship.
+    if console_id not in {c["id"] for c in consoles.declared(system_id)}:
+        raise HTTPException(404, "No such console for this system")
+    return await _receive_bezel(file, bezels.console_png(system_id, console_id))
+
+
 @router.post("/overlays/{system_id}")
 async def upload_overlay(system_id: str, file: UploadFile = File(...)):
+    return await _receive_bezel(file, _overlay_path(system_id))
+
+
+async def _receive_bezel(file: UploadFile, p: Path) -> dict:
     if file.content_type not in ("image/png", "image/jpeg", "image/webp"):
         raise HTTPException(400, "Only PNG/JPEG/WebP images are accepted")
-    p = _overlay_path(system_id)
     # Write to a temp file, then swap atomically — an interrupted or oversize
     # upload must never destroy the existing overlay. The name is unique: it
     # used to be a fixed "<name>.part", so two uploads at once wrote into the
@@ -196,10 +238,31 @@ async def upload_overlay(system_id: str, file: UploadFile = File(...)):
         # bytes. Nothing is published unless something was actually checked.
         if written == 0:
             raise HTTPException(400, "Empty file")
+
+        # The case nothing used to catch, and the most insidious of the lot: a
+        # perfectly valid image with no transparent area is a rectangle painted
+        # over the entire game. Every other check here passes it — the magic
+        # bytes are right, the size is right, the upload completes — and the
+        # only symptom is a black screen with artwork on it, which reads as the
+        # emulator failing to start rather than as the bezel.
+        #
+        # `_HOLE_MAX_COVERAGE` covers the other end: an image that is ALL hole
+        # decorates nothing, and is also the shape a truncated download leaves.
+        hole = bezels.hole_of(tmp)
+        if hole is None:
+            raise HTTPException(
+                422, "A bezel needs a transparent area for the game to show "
+                     "through, and this image has none the decoder can read. "
+                     "Save it as a PNG with an alpha channel — JPEG cannot "
+                     "carry one at all.")
+
         os.replace(tmp, p)
     finally:
         tmp.unlink(missing_ok=True)
-    return {"ok": True, "path": str(p), "size": written}
+    # The hole is handed back so the caller can show what was understood.
+    # A bezel whose hole is not the shape the uploader expected is the failure
+    # that is invisible until a game is running.
+    return {"ok": True, "path": str(p), "size": written, "hole": hole}
 
 
 @router.delete("/overlays/{system_id}")

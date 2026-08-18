@@ -397,3 +397,97 @@ def test_the_declared_hole_answers_when_the_png_is_missing(client, library):
     assert body["source"] == "declared"
     assert body["asset"] is None
     assert body["hole"] == {"x": 240, "y": 52, "w": 1440, "h": 968}
+
+
+# ── Depositing a bezel, and the upload that used to be accepted ─────────────
+
+@pytest.fixture
+def multi(library):
+    """A box whose grid knows mgba runs three consoles."""
+    from backend.services import consoles
+    consoles.forget()
+    (library / "config" / "systems.json").write_text(json.dumps([{
+        "id": "mgba", "platform": "GBA",
+        "extensions": ["*.gba", "*.gbc", "*.gb", "*.zip"],
+        "consoles": [
+            {"id": "gba", "label": "Game Boy Advance", "extensions": ["*.gba"]},
+            {"id": "gb", "label": "Game Boy", "extensions": ["*.gb"]},
+        ],
+    }]))
+    yield library
+    consoles.forget()
+
+
+def _png_bytes(tmp_path, name, w, h, hole):
+    write_png(tmp_path / name, w, h, hole)
+    return (tmp_path / name).read_bytes()
+
+
+def test_a_console_bezel_can_be_deposited_and_is_then_resolved(client, multi, tmp_path):
+    """The whole point, end to end: drop a PNG for one console, and only that
+    console's games get it."""
+    blob = _png_bytes(tmp_path, "up.png", 1920, 1080, (150, 0, 1620, 1080))
+    r = client.post("/api/overlays/mgba/consoles/gba",
+                    files={"file": ("gba.png", blob, "image/png")})
+    assert r.status_code == 200, r.text
+    assert r.json()["hole"]["w"] == 1620
+    assert Path(r.json()["path"]).name == "mgba.gba.png"
+
+    gba = client.get("/api/overlays/resolve/mgba",
+                     params={"rom": "Pokemon Emerald (USA).gba"}).json()
+    assert gba["source"] == "console" and gba["console"] == "gba"
+
+    # The Game Boy has no bezel of its own yet and must not inherit that one.
+    gb = client.get("/api/overlays/resolve/mgba",
+                    params={"rom": "Tetris (World).gb"}).json()
+    assert gb["source"] == "none"
+
+
+def test_a_console_the_pack_never_declared_is_refused(client, multi, tmp_path):
+    """Not a character-class check: a file under a name the cascade never looks
+    for would upload happily and then do nothing at all."""
+    blob = _png_bytes(tmp_path, "up.png", 40, 20, (10, 0, 20, 20))
+    r = client.post("/api/overlays/mgba/consoles/gbc",
+                    files={"file": ("x.png", blob, "image/png")})
+    assert r.status_code == 404
+
+
+def test_an_image_with_no_transparent_area_is_refused(client, multi, tmp_path):
+    """The gap in the old validation, and the worst one.
+
+    Magic bytes right, size right, upload completes — and the result is a
+    rectangle painted over the whole game with nothing on screen to say so.
+    """
+    # `hole=None` is write_png's fully opaque frame: valid PNG, no hole.
+    blob = _png_bytes(tmp_path, "solid.png", 40, 20, None)
+
+    r = client.post("/api/overlays/mgba/consoles/gba",
+                    files={"file": ("solid.png", blob, "image/png")})
+    assert r.status_code == 422
+    assert "transparent" in r.json()["detail"]
+    # And nothing was published — the refusal must not leave the file behind.
+    assert not (multi / "assets" / "overlays" / "mgba.gba.png").exists()
+
+
+def test_a_refused_upload_does_not_destroy_the_bezel_already_there(client, multi, tmp_path):
+    good = _png_bytes(tmp_path, "good.png", 1920, 1080, (150, 0, 1620, 1080))
+    client.post("/api/overlays/mgba/consoles/gba",
+                files={"file": ("g.png", good, "image/png")})
+    solid = _png_bytes(tmp_path, "solid.png", 40, 20, None)
+    client.post("/api/overlays/mgba/consoles/gba",
+                files={"file": ("s.png", solid, "image/png")})
+
+    bezels.forget()
+    assert bezels.measure_hole(multi / "assets" / "overlays" / "mgba.gba.png")["w"] == 1620
+
+
+def test_a_measurement_may_only_name_a_console_the_pack_declares(client, multi):
+    """The body arrives over HTTP; an arbitrary string here would let a caller
+    write cache keys of its own choosing into the corrections file."""
+    payload = {"announced": {"x": 420, "y": 0, "w": 1080, "h": 1080},
+               "measured": {"x": 150, "y": 0, "w": 1620, "h": 1080},
+               "window": {"w": 1920, "h": 1080}}
+    assert client.post("/api/overlays/measured/mgba",
+                       json={**payload, "console": "gba"}).status_code == 200
+    assert client.post("/api/overlays/measured/mgba",
+                       json={**payload, "console": "../../etc"}).status_code == 400

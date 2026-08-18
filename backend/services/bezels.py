@@ -413,6 +413,23 @@ def _alpha_bbox(png: Path) -> tuple[int, int, int, int, int, int] | None:
     return (min_x, min_y, max_x - min_x + 1, max_y - min_y + 1, width, height)
 
 
+def hole_of(png: Path) -> dict | None:
+    """The transparent rectangle, measured now and not remembered.
+
+    Same answer as `measure_hole`, without the cache. For an upload being
+    validated before it is published: the file is still under a temporary name
+    at that point, so caching the result would file it under a path that is
+    about to stop existing and leave an entry nothing can ever hit again.
+    """
+    box = _alpha_bbox(png)
+    if not box:
+        return None
+    x, y, w, h, fw, fh = box
+    if (w * h) / (fw * fh) > _HOLE_MAX_COVERAGE:
+        return None
+    return {"x": x, "y": y, "w": w, "h": h, "frame_w": fw, "frame_h": fh}
+
+
 def measure_hole(png: Path) -> dict | None:
     """The transparent rectangle of a bezel, in its own pixel space.
 
@@ -435,14 +452,10 @@ def measure_hole(png: Path) -> dict | None:
     if hit and hit.get("sig") == sig:
         return hit["hole"]
 
-    box = _alpha_bbox(png)
-    hole = None
-    if box:
-        x, y, w, h, fw, fh = box
-        # A hole this large is a bezel that decorates nothing — see the
-        # constant. Reported as "no hole" so the caller keeps the declared one.
-        if (w * h) / (fw * fh) <= _HOLE_MAX_COVERAGE:
-            hole = {"x": x, "y": y, "w": w, "h": h, "frame_w": fw, "frame_h": fh}
+    # A hole covering nearly the whole frame is a bezel that decorates nothing
+    # — see `_HOLE_MAX_COVERAGE`. `hole_of` reports it as "no hole" so the
+    # caller keeps the declared one.
+    hole = hole_of(png)
 
     entry = {"sig": sig, "hole": hole}
     _memo[key] = entry
