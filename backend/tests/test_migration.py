@@ -163,22 +163,35 @@ def test_a_live_database_is_called_out(box):
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root can write anywhere")
-def test_a_destination_this_user_cannot_create_is_refused_before_the_plan(box, tmp_path):
-    """`/userdata` sits under `/`, which is root's. Refused up front with the
-    commands, rather than a PermissionError traceback out of the first mkdir
-    after the plan was read and approved."""
+def test_a_destination_this_user_cannot_create_is_planned_but_not_written(box, tmp_path):
+    """`/userdata` sits under `/`, which is root's.
+
+    The dry run still shows the plan — looking before deciding is what it is
+    for, and nobody should have to create the directory just to read it — and
+    says what to create. The write refuses up front with the same commands,
+    rather than a PermissionError traceback out of the first mkdir after the
+    plan was read and approved.
+    """
     old, _, _ = box
     locked = tmp_path / "locked"
     locked.mkdir()
     locked.chmod(0o555)
     try:
-        r = _run("--from", str(old), "--to", str(locked / "userdata"))
+        dry = _run("--from", str(old), "--to", str(locked / "userdata"))
+        wet = _run("--from", str(old), "--to", str(locked / "userdata"),
+                   "--i-know-what-i-am-doing")
     finally:
         locked.chmod(0o755)
-    assert r.returncode == 2
-    assert "not writable" in r.stderr
-    assert "btrfs subvolume create" in r.stderr and "install -d" in r.stderr
-    assert "section" not in r.stdout          # no plan was printed
+
+    assert dry.returncode == 0, dry.stderr
+    assert "section" in dry.stdout and "DRY RUN" in dry.stdout      # the plan
+    assert "not writable" in dry.stdout
+    assert "btrfs subvolume create" in dry.stdout and "install -d" in dry.stdout
+
+    assert wet.returncode == 2
+    assert "not writable" in wet.stderr and "btrfs subvolume create" in wet.stderr
+    assert "section" not in wet.stdout                              # nothing planned
+    assert not (locked / "userdata").exists()
 
 
 def test_the_switch_over_names_every_consumer_of_the_data_root(box):

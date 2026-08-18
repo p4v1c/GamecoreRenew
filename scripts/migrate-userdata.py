@@ -250,17 +250,25 @@ def main(argv: list[str] | None = None) -> int:
     # it snapshots and takes quota independently of the root, which is the
     # point of separating the data at all.
     anchor = _existing_ancestor(dest_root)
-    if not os.access(anchor, os.W_OK):
-        user = os.environ.get("USER") or os.environ.get("LOGNAME") or "<user>"
-        print(f"ERROR: {anchor} is not writable by {user}, so {dest_root} cannot "
-              "be created here.\n"
-              "Create it first, owned by the user that runs GameCore — as a btrfs "
-              "subvolume when the\nfilesystem is btrfs, a plain directory "
-              "otherwise:\n"
-              f"    sudo btrfs subvolume create {dest_root} "
-              f"&& sudo chown {user}:{user} {dest_root}\n"
-              f"    # or:  sudo install -d -o {user} -g {user} {dest_root}\n"
-              "then run this again.", file=sys.stderr)
+    creatable = os.access(anchor, os.W_OK)
+    user = os.environ.get("USER") or os.environ.get("LOGNAME") or "<user>"
+    how_to_create = (
+        f"{anchor} is not writable by {user}, so {dest_root} cannot be created "
+        "from here.\n"
+        "  Create it first, owned by the user that runs GameCore — a btrfs "
+        "subvolume when the\n  filesystem is btrfs (it snapshots and takes "
+        "quota on its own), a directory otherwise:\n"
+        f"    sudo btrfs subvolume create {dest_root} "
+        f"&& sudo chown {user}:{user} {dest_root}\n"
+        f"    # or:  sudo install -d -o {user} -g {user} {dest_root}")
+    # Only the write refuses. A dry run against a destination that does not
+    # exist yet is the normal way to look before deciding — `/userdata` is
+    # under `/`, which is root's, and nobody should have to create it just to
+    # read a plan. But once the flag is given, refusing up front with the
+    # commands beats a PermissionError traceback out of the first mkdir after
+    # the plan was read and approved.
+    if args.write and not creatable:
+        print(f"ERROR: {how_to_create}\nthen run this again.", file=sys.stderr)
         return 2
 
     sections = plan(src_root, dest_root)
@@ -268,6 +276,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.write:
         print("\n  DRY RUN — nothing was written.")
+        if not creatable:
+            print(f"\n  *** Before carrying it out: {how_to_create}\n")
         print("  Read the plan above. To carry it out:")
         print(f"    {sys.argv[0]} --from {src_root} --to {dest_root} "
               "--i-know-what-i-am-doing\n")
