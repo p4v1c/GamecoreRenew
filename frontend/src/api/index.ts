@@ -57,19 +57,24 @@ export interface OverlayOption {
   /** The filename, and what `choose()` takes back. */
   id: string
   label: string
-  level: 'game' | 'system'
+  /** `console` exists only for a pack that runs several — mgba, dolphin. */
+  level: 'game' | 'console' | 'system'
   asset: string
+  /** The console id, on a `console` row only. */
+  console?: string
 }
 
 export interface ResolvedOverlay {
   system_id: string
-  /** 'game' | 'system' | 'chosen' | 'declared' | 'off' | 'none'. `off` and
+  /** 'game' | 'console' | 'system' | 'chosen' | 'declared' | 'off' | 'none'. `off` and
    *  `none` draw the same thing and are different problems: one the player
    *  asked for, the other means no artwork was found. */
   source: string
   asset: string | null
   hole: { x: number; y: number; w: number; h: number } | null
   frame: { w: number; h: number } | null
+  /** Which console of a multi-console pack, `null` for the other eleven. */
+  console?: string | null
 }
 
 /** What a shipped profile is doing for this game, if anything.

@@ -181,3 +181,42 @@ def test_dry_run_changes_nothing(packs, tmp_path):
     notes = merge_file(f, packs, tmp_path, dry_run=True)
     assert any("dry run" in n for n in notes)
     assert f.read_text() == before
+
+
+# ── consoles: the only way roms.consoles reaches a box that already exists ──
+
+def test_a_box_gains_the_consoles_of_a_multi_console_pack(packs, tmp_path):
+    """`config/` is excluded from the OTA rsync, so a release that adds
+    `roms.consoles` to mgba changes nothing in a systems.json already on a box.
+    This merge is the whole delivery mechanism — without it the console level
+    ships and no installed machine ever sees it."""
+    live = [_entry("mgba", "flatpak", "run io.mgba.mGBA --fullscreen")]
+    merged, notes = merge_systems(live, packs, tmp_path)
+
+    assert [c["id"] for c in merged[0]["consoles"]] == ["gba", "gbc", "gb"]
+    assert any("mgba: consoles filled in" in n for n in notes)
+    # And every extension a console claims is one the pack really scans, or the
+    # console would name files the library never lists.
+    for console in merged[0]["consoles"]:
+        assert set(console["extensions"]) <= set(merged[0]["extensions"])
+
+
+def test_a_mono_console_pack_gains_nothing(packs, tmp_path):
+    """Eleven of the thirteen. The key is that no `consoles` appears at all —
+    an empty list would be indistinguishable from "this entry predates the
+    field", which is the state the fill-in above has to be able to detect."""
+    live = [_entry("pcsx2", "flatpak", "run net.pcsx2.PCSX2 -fullscreen -nogui")]
+    merged, notes = merge_systems(live, packs, tmp_path)
+    assert "consoles" not in merged[0]
+    assert not any("consoles" in n for n in notes)
+
+
+def test_a_console_list_the_operator_edited_is_left_alone(packs, tmp_path):
+    """Same rule as `libretroSystems`: filled in only when the box has none.
+    A list somebody changed by hand is a list they meant, and an OTA that
+    overwrote it would undo the edit on every update, silently."""
+    mine = [{"id": "gba", "label": "Mon GBA", "extensions": ["*.gba", "*.zip"]}]
+    live = [_entry("mgba", "flatpak", "run io.mgba.mGBA --fullscreen",
+                   consoles=mine)]
+    merged, _ = merge_systems(live, packs, tmp_path)
+    assert merged[0]["consoles"] == mine

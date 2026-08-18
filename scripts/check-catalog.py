@@ -121,6 +121,31 @@ def check(only: str | None = None) -> list[str]:
         # gopher64/RMG has a config directory and a seed that would be in the
         # wrong format entirely.
 
+        # A console list that does not agree with the extension list it sits
+        # next to. Caught here rather than at launch because the symptom is a
+        # bezel that quietly stays at the system level for one console of a
+        # pack — no error anywhere, just the wrong frame on one machine.
+        roms = pack.get("roms") or {}
+        exts = {e.lower() for e in roms.get("extensions") or []}
+        claimed: dict[str, str] = {}
+        for console in roms.get("consoles") or []:
+            cid = console.get("id")
+            for ext in console.get("extensions") or []:
+                low = ext.lower()
+                if low not in exts:
+                    problems.append(
+                        f"{pid}: console {cid!r} claims {ext} but roms.extensions "
+                        f"does not list it — the pack would never see that file")
+                # An extension under two consoles cannot name one, so the
+                # cascade would silently drop back to the system level for
+                # every game with it. Refused here, where it is visible, rather
+                # than degraded at launch where it is not.
+                if low in claimed:
+                    problems.append(
+                        f"{pid}: {ext} is claimed by both {claimed[low]!r} and "
+                        f"{cid!r} — an extension names one console or none")
+                claimed[low] = cid
+
         # ── coherence ─────────────────────────────────────────────────────
         app_ids = appid.declared(pack)
         app_id = app_ids[0] if app_ids else None

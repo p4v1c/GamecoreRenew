@@ -19,6 +19,32 @@ are the auto-incremented tags.
 
 ### Needs action on an already-installed box
 
+- **A bezel per console is now possible, and no bezel is supplied.** One
+  emulator is sometimes several machines: mGBA runs Game Boy and Game Boy Color
+  in 10:9 and Game Boy Advance in 3:2 behind one system id, so a single frame
+  bit into one of them — and the drift correction, keyed by the announced ratio,
+  was learned from whichever console was played first and then frozen for all
+  three (`for_launch` sets `measure: false` once an answer exists). Measured on
+  the reference box: one `mgba@1:1` entry of `1234x1080`, a Game Boy rectangle,
+  cutting 193 px off each side of every GBA game.
+
+  **Nothing is required.** `config/systems.json` gains `consoles` through the
+  `merge_file()` call the OTA already makes, and the old console-blind
+  corrections simply become unreachable, so each console re-measures itself —
+  which already makes the *hole* right per console even with the old artwork.
+  What no update can deliver is the artwork: `assets/overlays/` is excluded from
+  the rsync. To get a frame that actually fits, drop a PNG named
+  `<system>.<console>.png` beside the system one — `mgba.gba.png`,
+  `dolphin.wii.png`. `docs/rapports/bezels-par-console-phase3.md` has the
+  verification steps, the backup and the way back.
+
+- **An overlay upload with no transparent area is now refused (422).** A valid
+  image with no hole is a rectangle painted over the whole game; every previous
+  check passed it. This applies to the existing per-system upload too, which in
+  practice means JPEG is no longer usable as a bezel — it cannot carry an alpha
+  channel. A PNG copied in by hand is still not validated: the guard is on the
+  route, not the filesystem.
+
 - **Stremio launches windowed until its tile is patched.** The `fullscreen` and
   `gamepadTrigger` blocks were lost when the tile moved to a wrapper script, and
   an OTA cannot deliver them: `update/linux.sh` excludes `config/` wholesale and

@@ -400,8 +400,15 @@ function handleMonitorEvent(msg) {
       fetch(`${BACKEND_URL}/api/overlays/measured/${encodeURIComponent(msg.system_id)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // `console` comes from the resolve answer, not from the monitor: the
+        // monitor is handed a window id and reports geometry, and it has no
+        // way to know which of a pack's consoles this ROM was. Without it the
+        // correction lands under the pack's shared key and one console's
+        // measurement is applied to all of them — which is the whole reason
+        // the level exists.
         body: JSON.stringify({ announced: msg.announced, measured: msg.measured,
-                               window: msg.window }),
+                               window: msg.window,
+                               console: overlayChoice?.console ?? null }),
         signal: AbortSignal.timeout(4000),
       }).catch(() => { /* a correction not learned is next launch's problem */ })
       break

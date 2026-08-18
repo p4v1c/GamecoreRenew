@@ -129,7 +129,13 @@ export default function GameOptionsModal({ systemId, rom, title, onClose }: {
       selected: current === null, run: () => choose(null) },
     ...(state?.options ?? []).map(o => ({
       key: o.id,
-      label: o.level === 'game' ? 'This game’s bezel' : 'System bezel',
+      // `o.label` carries the console's own name for a `console` row — "Game
+      // Boy Advance" — so the row says which machine rather than repeating the
+      // emulator. Labelling it "System bezel" would be a lie on the one screen
+      // where the distinction is the whole point.
+      label: o.level === 'game' ? 'This game’s bezel'
+           : o.level === 'console' ? 'This console’s bezel'
+           : 'System bezel',
       hint: o.label,
       selected: current === o.id,
       run: () => choose(o.id),
@@ -272,6 +278,7 @@ function describeAuto(state: OverlayChoices | null): string {
   if (!state) return 'Reading…'
   switch (state.resolved.source) {
     case 'game':     return 'A bezel matching this game was found'
+    case 'console':  return 'No bezel for this game — this console’s is used'
     case 'system':   return 'No bezel for this game — the system’s is used'
     case 'declared': return 'No artwork installed — the configured frame is drawn'
     case 'chosen':   return 'Currently overridden below'

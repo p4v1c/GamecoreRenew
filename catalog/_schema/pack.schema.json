@@ -143,7 +143,31 @@
       "properties": {
         "dir":        { "type": "string", "pattern": "^emu/[a-z0-9_-]+$" },
         "scanDirs":   { "type": "boolean" },
-        "extensions": { "type": "array", "items": { "type": "string", "pattern": "^\\*\\.[A-Za-z0-9]+$" } }
+        "extensions": { "type": "array", "items": { "type": "string", "pattern": "^\\*\\.[A-Za-z0-9]+$" } },
+        "consoles": {
+          "description": "The DISTINCT MACHINES this one emulator runs, when it runs more than one. Omit it — as eleven of the thirteen packs do — and the emulator is its console; nothing downstream changes.\n\nDeclared because it cannot be derived. `scraper.libretro` is a list of names in libretro's database and the database does not enumerate consoles: melonDS declares 'Nintendo - Nintendo DS' AND 'Nintendo - Nintendo DS (Download Play)' for one machine. `scraper.mediaAlias` really is one entry per console but it is ScreenScraper's vocabulary, spaces and all ('nintendo 64'), so it is somebody else's name to rename. And `roms.extensions` cannot answer either: `.zip` is declared by nearly every pack and says nothing about its contents, `.iso` serves GameCube and Wii alike, and `.rvz` is Dolphin's own container which holds either — `gamemedia/registry.py` carries the scar, every Dolphin game was once looked up as a GameCube game.\n\nWhat this buys: a bezel per console. mGBA runs Game Boy in 10:9 and Game Boy Advance in 3:2 behind one system id, so one frame cut for one of them bites into the other — and the drift correction, keyed by the announced ratio, was learned once and applied to all three.\n\nClaim only the extensions that BELONG to one console. Leaving `.iso` unclaimed is the honest declaration, not a gap: an unclaimed extension resolves to no console and the cascade stays at the system level, exactly as before.",
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["id", "label", "extensions"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "description": "Short, stable, and answerable to nothing outside this repository — which is what lets it be part of a filename (`mgba.gba.png`) and of a drift-correction cache key without a rename elsewhere breaking both. No dots: the bezel filename is `<system>.<console>.png` and one there would make it unparseable.",
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+              },
+              "label": { "type": "string", "minLength": 1 },
+              "extensions": {
+                "description": "Must all appear in `roms.extensions`, and no two consoles of a pack may claim the same one — `scripts/check-catalog.py` fails the build on either.",
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "pattern": "^\\*\\.[A-Za-z0-9]+$" }
+              }
+            }
+          }
+        }
       }
     },
 
