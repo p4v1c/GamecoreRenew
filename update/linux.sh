@@ -448,6 +448,21 @@ if [[ -f /etc/systemd/system/gamecore-backend.service ]] \
   echo "[update]         ${GAMECORE_PATH}/install/arch.sh   (search: FastAPI Backend)"
 fi
 
+# The addon CLI lives in /usr/local/bin — a path root controls, so that an
+# addon's install.sh cannot rewrite the tool that runs it — and only
+# install/arch.sh puts it there. Same blind spot as the Caddyfile and the
+# units above: a fix to the CLI reaches GitHub, reaches this archive, lands in
+# install/bin/, and the copy every command actually runs is the one from the
+# day the box was installed. This one matters for the data split: a CLI from
+# before it does not know GAMECORE_DATA, and the first `gamecore-addon update`
+# after the data moves would bake the old root into every addon's unit.
+if [[ -f /usr/local/bin/gamecore-addon && -f "${GAMECORE_PATH}/install/bin/gamecore-addon" ]] \
+   && ! cmp -s /usr/local/bin/gamecore-addon "${GAMECORE_PATH}/install/bin/gamecore-addon"; then
+  echo "[update] NOTE: /usr/local/bin/gamecore-addon is not the one this release ships."
+  echo "[update]       An update cannot replace it (root). Apply the new one with:"
+  echo "[update]         sudo install -m 755 ${GAMECORE_PATH}/install/bin/gamecore-addon /usr/local/bin/gamecore-addon"
+fi
+
 # config/systems.json is excluded from the rsync above — deliberately, it is
 # the box's identity — so nothing shipped in a release used to reach the grid.
 # This block handled that by PRINTING the commands the owner was expected to

@@ -33,9 +33,38 @@ set -euo pipefail
 
 GCA_REPO_URL="${GCA_REPO_URL:-https://github.com/p4v1c/gamecore-addons.git}"
 GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
-# Defaults to the install, exactly like the backend's services/paths.py: until
-# the data physically moves (P12) the two are the same directory, and nothing
-# an addon touches changes location on the release that introduces this.
+
+# Where the player's data is, when the caller did not say.
+#
+# This CLI is typed at a shell, and a shell has no GAMECORE_DATA in it — the
+# variable is set on the backend's systemd unit, which is the one place the
+# migration procedure tells the operator to set it. Reading it from there means
+# `gamecore-addon update` follows the box's real data root instead of the
+# caller's environment; without this, the first update after a data move would
+# hand every addon's install.sh the OLD root, bake it into their units, and
+# ROM uploads would quietly land in the tree the box no longer reads.
+#
+# The unit is the source of truth and this only reads it. A caller who sets
+# GAMECORE_DATA explicitly (the installer, a sandbox, a test) still wins.
+_data_root_from_backend_unit() {
+  command -v systemctl >/dev/null 2>&1 || return 0
+  local env kv
+  env="$(systemctl show gamecore-backend.service -p Environment --value 2>/dev/null)" || return 0
+  # Space-separated KEY=VALUE pairs; the installer refuses a data path with a
+  # space or a quote in it (arch.sh, _conf_path), so this split is safe.
+  for kv in $env; do
+    if [[ "$kv" == GAMECORE_DATA=* ]]; then
+      printf '%s\n' "${kv#GAMECORE_DATA=}"
+      return 0
+    fi
+  done
+}
+if [[ -z "${GAMECORE_DATA:-}" ]]; then
+  GAMECORE_DATA="$(_data_root_from_backend_unit)"
+fi
+# Then the install, exactly like the backend's services/paths.py: until the
+# data physically moves the two are the same directory, and nothing an addon
+# touches changes location on the release that introduces this.
 GAMECORE_DATA="${GAMECORE_DATA:-$GAMECORE_PATH}"
 OFFLINE="${OFFLINE:-0}"
 PAYLOAD_DIR="${PAYLOAD_DIR:-}"
