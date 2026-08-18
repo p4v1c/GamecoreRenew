@@ -214,8 +214,16 @@ def test_without_a_unit_the_data_root_falls_back_to_the_install(tmp_path):
     _repo(tmp_path, "probe", {"version": "1.0", "type": "web", "api": 1})
     _registry_with(tmp_path / "install", "from-the-install")
 
-    # No systemctl on PATH at all.
-    r = _run_unset(tmp_path, None, "list", "--json")
+    # A systemctl that fails outright (no systemd, no bus). Faked rather than
+    # removed from PATH: /usr/bin is on it and holds the REAL one, and on a
+    # box whose backend unit already carries GAMECORE_DATA the real one would
+    # answer — which is exactly how this test once passed for the wrong reason
+    # and then failed the evening the reference box migrated.
+    bin_dir = tmp_path / "bin-broken"
+    bin_dir.mkdir()
+    (bin_dir / "systemctl").write_text("#!/usr/bin/env bash\nexit 1\n")
+    (bin_dir / "systemctl").chmod(0o755)
+    r = _run_unset(tmp_path, bin_dir, "list", "--json")
     assert r.returncode == 0, r.stderr
     assert "from-the-install" in json.loads(r.stdout)["installed"]
 

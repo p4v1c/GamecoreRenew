@@ -379,3 +379,25 @@ def test_a_single_candidate_never_touches_the_network(flatpak_world, tmp_path, m
 
     assert r.ok and flatpak_world["installs"] == ["org.example.Only"]
     assert asked == [], f"the remote was queried for a pack with no choice: {asked}"
+
+
+def test_the_sandbox_is_told_where_the_data_is_when_it_has_moved(packs):
+    """The bug that stopped every Flatpak emulator on the reference box the
+    evening its data moved to /userdata: the sandbox listed /opt/GameCore and
+    nothing else, the launch handed RPCS3 a path under /userdata, and RPCS3
+    said the game did not exist. It did. The sandbox could not see it.
+
+    Both roots when they differ — `lib/` and the seeds are still under the
+    install — and byte-identical to before when they do not, which is every
+    box that has not moved."""
+    moved = Context(gamecore_path=Path("/opt/GameCore"), gamecore_data=Path("/userdata"))
+    assert sandbox_flags(packs["rpcs3"], moved) == [
+        "--filesystem=/opt/GameCore", "--filesystem=/userdata",
+        "--device=all", "--socket=x11"]
+
+    same = Context(gamecore_path=Path("/opt/GameCore"), gamecore_data=Path("/opt/GameCore"))
+    assert sandbox_flags(packs["rpcs3"], same) == [
+        "--filesystem=/opt/GameCore", "--device=all", "--socket=x11"]
+
+    # A pack with its own policy (Stremio: the whole host) is not touched.
+    assert "--filesystem=/userdata" not in sandbox_flags(packs["stremio"], moved)

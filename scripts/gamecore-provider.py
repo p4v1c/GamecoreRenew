@@ -43,6 +43,13 @@ def main() -> int:
     ap.add_argument("--user-home", default="",
                     help="that user's home; @HOME@ in a pack resolves to it")
     ap.add_argument("--gamecore-path", type=Path, default=Path("/opt/GameCore"))
+    # The data root, for the sandbox: a Flatpak emulator has to be able to see
+    # the ROM directory, and that is under the DATA root. Defaults to the
+    # environment and then to the install, like everything else on a box that
+    # has not moved its data.
+    ap.add_argument("--gamecore-data", type=Path,
+                    default=Path(os.environ["GAMECORE_DATA"])
+                    if os.environ.get("GAMECORE_DATA") else None)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--catalog", type=Path, default=ROOT / "catalog")
     ap.add_argument("--local", type=Path, default=ROOT / "config" / "catalog.d")
@@ -76,6 +83,7 @@ def main() -> int:
                for pack in chosen for spec in pack.data.get("secrets", [])}
     ctx = AppContext(gamecore_path=args.gamecore_path, user=args.user,
                      dry_run=args.dry_run,
+                     gamecore_data=args.gamecore_data,
                      user_home=Path(args.user_home) if args.user_home
                                else Path.home(),
                      secrets=secrets)

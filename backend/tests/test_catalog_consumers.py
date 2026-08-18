@@ -634,3 +634,19 @@ def test_a_spent_fallback_is_reported_even_though_nothing_is_broken(monkeypatch,
     assert mod.main() == 1, "a spent fallback passed silently"
     out = capsys.readouterr().out
     assert "DEGRADED" in out and "org.example.Gone" in out
+
+
+def test_the_shell_side_sandbox_grants_the_data_root_too():
+    """arch.sh reads its sandbox flags from here, so the shell installer has
+    to grant the data root exactly as `providers.sandbox_flags` does — or a
+    box installed by hand with a separate /userdata launches every Flatpak
+    emulator against a directory its sandbox cannot see."""
+    moved = {row[0]: row[1] for row in
+             _catalog_query("sandbox", "--gamecore-data", "/userdata")}
+    assert "--filesystem=/opt/GameCore --filesystem=/userdata" in moved["net.rpcs3.RPCS3"]
+    # A pack with its own policy is not touched.
+    assert "/userdata" not in moved["com.stremio.Stremio"]
+    # And with the data still inside the install, byte-identical to before.
+    same = {row[0]: row[1] for row in
+            _catalog_query("sandbox", "--gamecore-data", "/opt/GameCore")}
+    assert same["net.rpcs3.RPCS3"] == "--filesystem=/opt/GameCore --device=all --socket=x11"

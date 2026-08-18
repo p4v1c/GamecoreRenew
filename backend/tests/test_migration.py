@@ -209,6 +209,12 @@ def test_the_switch_over_names_every_consumer_of_the_data_root(box):
     assert "install -m 755" in out and "/usr/local/bin/gamecore-addon" in out
     # the addons' own units, rewritten from what the CLI now knows
     assert "gamecore-addon update" in out
+    # every Flatpak emulator's sandbox — the one found the hard way: a launch
+    # hands RPCS3 a path under the new root and RPCS3 says the game is missing
+    assert "flatpak override --user --filesystem=" in out
+    assert "catalog-query.py flatpaks" in out
+    # and the emulators' own settings that still name the old tree
+    assert 'grep -rl' in out and "/emu" in out.split("Only then")[1]
     # a check before anything is played, and the way back
     assert "grep GAMECORE_DATA" in out
     assert "The way back" in out and "userdata.conf" in out.split("The way back")[1]

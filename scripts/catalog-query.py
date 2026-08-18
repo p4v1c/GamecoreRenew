@@ -19,6 +19,7 @@ decides anything.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -54,6 +55,9 @@ def main() -> int:
                     help="'all' (default) or a space-separated list of ids")
     ap.add_argument("--home", default=str(Path.home()))
     ap.add_argument("--gamecore-path", default="/opt/GameCore")
+    ap.add_argument("--gamecore-data", default=os.environ.get("GAMECORE_DATA") or "",
+                    help="the data root, when it is not the install — the "
+                         "sandbox has to be able to see the ROMs")
     # Default to the catalogue in THIS tree, not the one GAMECORE_PATH points
     # at. This script ships alongside the packs it describes: resolving through
     # the environment instead meant a caller with GAMECORE_PATH set elsewhere
@@ -130,8 +134,14 @@ def main() -> int:
             sb = p.data.get("sandbox")
             if sb is None:
                 # The emulator policy, and the reason it is the default: a pack
-                # that says nothing wants ROM access and a gamepad on X11.
-                flags = [f"--filesystem={args.gamecore_path}", "--device=all",
+                # that says nothing wants ROM access and a gamepad on X11. The
+                # ROMs are under the data root — granted as well when it is
+                # not the install, or a launch hands the emulator a path its
+                # sandbox cannot see and the game reads as missing.
+                roots = [args.gamecore_path]
+                if args.gamecore_data and args.gamecore_data != args.gamecore_path:
+                    roots.append(args.gamecore_data)
+                flags = [*(f"--filesystem={r}" for r in roots), "--device=all",
                          "--socket=x11"]
             else:
                 flags = ([f"--filesystem={v}" for v in sb.get("filesystem", [])]

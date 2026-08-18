@@ -730,7 +730,7 @@ if [[ "$MODE" == "full" ]]; then
     done < <(python3 "$GAMECORE_PATH/scripts/gamecore-provider.py" install \
                --kind emulator --select "$EMULATORS" \
                --user "$USER_NAME" --user-home "$USER_HOME" \
-               --gamecore-path "$GAMECORE_PATH" 2>&1 || true)
+               --gamecore-path "$GAMECORE_PATH" --gamecore-data "$GAMECORE_DATA" 2>&1 || true)
   else
     info "No emulator selected — nothing to install."
   fi
@@ -804,7 +804,7 @@ if [[ "$MODE" == "full" ]]; then
     done < <(python3 "$GAMECORE_PATH/scripts/gamecore-provider.py" install \
                --kind app --select "$APP_SEL" \
                --user "$USER_NAME" --user-home "$USER_HOME" \
-               --gamecore-path "$GAMECORE_PATH" 2>&1 || true)
+               --gamecore-path "$GAMECORE_PATH" --gamecore-data "$GAMECORE_DATA" 2>&1 || true)
     unset TWITCH_CLIENT_ID TWITCH_CLIENT_SECRET
   else
     info "No living-room application selected."

@@ -40,6 +40,15 @@ class Context:
     gamecore_path: Path
     user: str = ""
     dry_run: bool = False
+    # Where the player's files are. None means "the same directory as the
+    # install", which is every box created before the code/data split — the
+    # default keeps those boxes byte-identical. Set on a box whose data has
+    # moved, so the sandbox below can be told where the ROMs actually are.
+    gamecore_data: Path | None = None
+
+    @property
+    def data_root(self) -> Path:
+        return self.gamecore_data or self.gamecore_path
 
 
 @dataclass
@@ -191,7 +200,18 @@ def sandbox_flags(pack, ctx: Context) -> list[str]:
     """
     sb = pack.data.get("sandbox")
     if sb is None:
-        return [f"--filesystem={ctx.gamecore_path}", "--device=all", "--socket=x11"]
+        # The ROMs are under the DATA root, and the sandbox is a list of
+        # literal paths: granting the install root alone was correct for
+        # exactly as long as the data lived inside it. The day it moved, every
+        # Flatpak emulator kept launching, was handed a path under /userdata,
+        # and reported the game missing — the file was there, the sandbox
+        # could not see it. Both roots are granted when they differ: `lib/`
+        # (native binaries a pack may point at) and the seeds are still under
+        # the install.
+        roots = [ctx.gamecore_path]
+        if ctx.data_root != ctx.gamecore_path:
+            roots.append(ctx.data_root)
+        return [*(f"--filesystem={r}" for r in roots), "--device=all", "--socket=x11"]
     return ([f"--filesystem={v}" for v in sb.get("filesystem", [])]
             + [f"--device={v}" for v in sb.get("device", [])]
             + [f"--socket={v}" for v in sb.get("socket", [])])
