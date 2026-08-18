@@ -461,14 +461,23 @@ fi
 # The code-side fix (process_manager retries a failed probe instead of latching
 # it) ships with this update and is what actually repairs a running box; this
 # only removes the first failed launch after a cold boot.
-if [[ -f /etc/systemd/system/gamecore-backend.service ]] \
-   && ! grep -q 'ExecStartPre' /etc/systemd/system/gamecore-backend.service; then
+#
+# Read the unit as systemd sees it — file plus drop-ins — not the file alone.
+# An operator who applies the fix the right way, as a drop-in that leaves the
+# installer's file and override.conf untouched, must not be told on every
+# update that it is missing.
+if command -v systemctl >/dev/null 2>&1 \
+   && [[ -f /etc/systemd/system/gamecore-backend.service ]] \
+   && ! systemctl cat gamecore-backend.service 2>/dev/null | grep -q '^ExecStartPre='; then
   echo "[update] NOTE: gamecore-backend.service starts without waiting for the X display."
   echo "[update]       Harmless now — the backend retries the probe — but it costs one"
-  echo "[update]       failed launch after each cold boot. To apply the new ordering:"
-  echo "[update]         sudo systemctl edit --full gamecore-backend.service"
-  echo "[update]       and copy the ExecStartPre line from:"
+  echo "[update]       failed launch after each cold boot. To apply the new ordering"
+  echo "[update]       without touching the unit file or override.conf, put the"
+  echo "[update]       After=display-manager.service and ExecStartPre= lines from"
   echo "[update]         ${GAMECORE_PATH}/install/arch.sh   (search: FastAPI Backend)"
+  echo "[update]       in a drop-in:"
+  echo "[update]         /etc/systemd/system/gamecore-backend.service.d/x-display.conf"
+  echo "[update]       then: sudo systemctl daemon-reload   (takes effect at the next start)"
 fi
 
 # The addon CLI lives in /usr/local/bin — a path root controls, so that an
