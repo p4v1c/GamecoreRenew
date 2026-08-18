@@ -21,6 +21,7 @@ and the script refuses `--from`/`--to` pairs that are nested or equal anyway.
 from __future__ import annotations
 
 import ast
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -128,6 +129,89 @@ def test_it_stops_short_of_switching_the_box_over(box):
     out = _run("--from", str(old), "--to", str(new),
                "--i-know-what-i-am-doing").stdout
     assert "GAMECORE_DATA" in out and "does NOT use the new tree yet" in out
+
+
+# ── What the plan has to say out loud ────────────────────────────────────────
+
+def test_a_symlink_is_named_and_not_copied(box):
+    """`rglob` neither copies a link nor descends into a linked directory. A
+    ROM directory that is really a link to another disk would vanish from the
+    new tree — so the plan says so, with the target, instead of staying quiet."""
+    old, _, new = box
+    (old / "emu" / "duckstation" / "elsewhere.chd").symlink_to("/mnt/usb/x.chd")
+    (old / "emu" / "on-the-nas").symlink_to("/mnt/nas/roms")
+
+    out = _run("--from", str(old), "--to", str(new)).stdout
+    assert "2 symlink(s) will NOT be copied" in out
+    assert "elsewhere.chd  ->  /mnt/usb/x.chd" in out
+    assert "on-the-nas  ->  /mnt/nas/roms" in out
+
+    _run("--from", str(old), "--to", str(new), "--i-know-what-i-am-doing")
+    assert not (new / "emu" / "duckstation" / "elsewhere.chd").exists()
+    assert not (new / "emu" / "on-the-nas").exists()
+    assert (new / "emu" / "duckstation" / "Crash Bandicoot.bin").is_file()
+
+
+def test_a_live_database_is_called_out(box):
+    """SQLite writes in place; a copy taken mid-transaction opens fine and has
+    lost the last thing written. Small is not atomic."""
+    old, _, new = box
+    (old / "config" / "playtime.db").write_bytes(b"SQLite format 3\x00")
+    out = _run("--from", str(old), "--to", str(new)).stdout
+    assert "1 database file(s)" in out and "playtime.db" in out
+    assert "stop gamecore-ui gamecore-backend" in out
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root can write anywhere")
+def test_a_destination_this_user_cannot_create_is_planned_but_not_written(box, tmp_path):
+    """`/userdata` sits under `/`, which is root's.
+
+    The dry run still shows the plan — looking before deciding is what it is
+    for, and nobody should have to create the directory just to read it — and
+    says what to create. The write refuses up front with the same commands,
+    rather than a PermissionError traceback out of the first mkdir after the
+    plan was read and approved.
+    """
+    old, _, _ = box
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    locked.chmod(0o555)
+    try:
+        dry = _run("--from", str(old), "--to", str(locked / "userdata"))
+        wet = _run("--from", str(old), "--to", str(locked / "userdata"),
+                   "--i-know-what-i-am-doing")
+    finally:
+        locked.chmod(0o755)
+
+    assert dry.returncode == 0, dry.stderr
+    assert "section" in dry.stdout and "DRY RUN" in dry.stdout      # the plan
+    assert "not writable" in dry.stdout
+    assert "btrfs subvolume create" in dry.stdout and "install -d" in dry.stdout
+
+    assert wet.returncode == 2
+    assert "not writable" in wet.stderr and "btrfs subvolume create" in wet.stderr
+    assert "section" not in wet.stdout                              # nothing planned
+    assert not (locked / "userdata").exists()
+
+
+def test_the_switch_over_names_every_consumer_of_the_data_root(box):
+    """Miss one and the box is split: the interface reads the new tree, ROM
+    uploads land in the old one, and nothing on screen says which. Each of
+    these was found by reading the code that resolves the root, not by
+    guessing; the list is what a person has to type, so it is asserted on."""
+    old, _, new = box
+    out = _run("--from", str(old), "--to", str(new),
+               "--i-know-what-i-am-doing").stdout
+    # both units, as drop-ins that leave override.conf alone
+    assert "gamecore-backend.service.d/userdata.conf" in out
+    assert "gamecore-ui.service.d/userdata.conf" in out
+    # the root-owned CLI copy, refreshed by hand
+    assert "install -m 755" in out and "/usr/local/bin/gamecore-addon" in out
+    # the addons' own units, rewritten from what the CLI now knows
+    assert "gamecore-addon update" in out
+    # a check before anything is played, and the way back
+    assert "grep GAMECORE_DATA" in out
+    assert "The way back" in out and "userdata.conf" in out.split("The way back")[1]
 
 
 # ── The one that matters most ────────────────────────────────────────────────

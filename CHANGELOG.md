@@ -19,6 +19,18 @@ are the auto-incremented tags.
 
 ### Needs action on an already-installed box
 
+- **`/usr/local/bin/gamecore-addon` is a copy only the installer writes, and
+  it is stale on every box installed before 9 August.** The OTA cannot replace
+  it (root) and now says so with the command; the copy that runs today does
+  not know `GAMECORE_DATA` at all. Harmless while the data still lives inside
+  the install, and the thing that would split the box the day it does not — a
+  `gamecore-addon update` from the old CLI would bake the old root into every
+  addon's unit. Refresh it once:
+  `sudo install -m 755 /opt/GameCore/install/bin/gamecore-addon /usr/local/bin/gamecore-addon`.
+  The CLI now also finds the data root on its own, from the backend's unit,
+  when the shell that runs it has none — see `docs/architecture/07-config-and-data.md`,
+  *Moving the data out*.
+
 - **A bezel per console is now possible, and no bezel is supplied.** One
   emulator is sometimes several machines: mGBA runs Game Boy and Game Boy Color
   in 10:9 and Game Boy Advance in 3:2 behind one system id, so a single frame

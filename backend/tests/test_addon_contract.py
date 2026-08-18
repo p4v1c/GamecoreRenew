@@ -136,3 +136,97 @@ def test_an_unported_addon_can_still_be_removed(tmp_path):
     r = _run(tmp_path, "remove", "legacy")
     assert r.returncode == 0, r.stderr
     assert json.loads((tmp_path / "data" / "config" / "addons.json").read_text()) == {}
+
+
+# ── Where the data is, when nobody said ─────────────────────────────────────
+#
+# The CLI is typed at a shell, and the shell has no GAMECORE_DATA in it. The
+# variable lives on the backend's systemd unit — the one place the migration
+# procedure sets it — so that is where the CLI looks. Otherwise the first
+# `gamecore-addon update` after a data move would hand every addon's install.sh
+# the OLD root, and ROM uploads would land in a tree the box no longer reads.
+
+def _fake_systemctl(tmp_path: Path, environment: str) -> Path:
+    """A `systemctl` on PATH that answers `show -p Environment --value`."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    fake = bin_dir / "systemctl"
+    fake.write_text("#!/usr/bin/env bash\n"
+                    "case \"$*\" in\n"
+                    f"  *'-p Environment'*) printf '%s\\n' '{environment}' ;;\n"
+                    "  *) exit 0 ;;\n"
+                    "esac\n")
+    fake.chmod(0o755)
+    return bin_dir
+
+
+def _run_unset(tmp_path: Path, bin_dir: Path | None, *args: str,
+               data_env: str | None = None) -> subprocess.CompletedProcess:
+    """Like `_run`, but GAMECORE_DATA is NOT in the environment unless given."""
+    install = tmp_path / "install"
+    install.mkdir(exist_ok=True)
+    env = {"PATH": (f"{bin_dir}:" if bin_dir else "") + "/usr/bin:/bin",
+           "HOME": str(tmp_path), "GCA_REPO_DIR": str(tmp_path / "repo"),
+           "GAMECORE_PATH": str(install), "OFFLINE": "1"}
+    if data_env is not None:
+        env["GAMECORE_DATA"] = data_env
+    return subprocess.run(["bash", str(CLI), *args],
+                          capture_output=True, text=True, timeout=120, env=env)
+
+
+def _registry_with(root: Path, name: str) -> None:
+    (root / "config").mkdir(parents=True, exist_ok=True)
+    (root / "config" / "addons.json").write_text(json.dumps(
+        {name: {"version": "9.9", "type": "web", "label": name}}))
+
+
+def test_the_data_root_is_read_from_the_backend_unit_when_the_shell_has_none(tmp_path):
+    _repo(tmp_path, "probe", {"version": "1.0", "type": "web", "api": 1})
+    moved = tmp_path / "userdata"
+    _registry_with(moved, "from-the-unit")
+    _registry_with(tmp_path / "install", "from-the-install")
+
+    bin_dir = _fake_systemctl(tmp_path, f"GAMECORE_PATH=/x GAMECORE_DATA={moved} FOO=bar")
+    r = _run_unset(tmp_path, bin_dir, "list", "--json")
+    assert r.returncode == 0, r.stderr
+    installed = json.loads(r.stdout)["installed"]
+    assert "from-the-unit" in installed and "from-the-install" not in installed, installed
+
+
+def test_an_explicit_data_root_still_wins_over_the_unit(tmp_path):
+    """The installer, a sandbox and the tests all set it on purpose."""
+    _repo(tmp_path, "probe", {"version": "1.0", "type": "web", "api": 1})
+    explicit = tmp_path / "explicit"
+    _registry_with(explicit, "from-the-env")
+    _registry_with(tmp_path / "userdata", "from-the-unit")
+
+    bin_dir = _fake_systemctl(tmp_path, f"GAMECORE_DATA={tmp_path / 'userdata'}")
+    r = _run_unset(tmp_path, bin_dir, "list", "--json", data_env=str(explicit))
+    assert r.returncode == 0, r.stderr
+    installed = json.loads(r.stdout)["installed"]
+    assert "from-the-env" in installed and "from-the-unit" not in installed, installed
+
+
+def test_without_a_unit_the_data_root_falls_back_to_the_install(tmp_path):
+    """A box from before the split, an ISO, a sandbox with no systemd: the
+    old default, byte for byte, and no error for a systemctl that is absent
+    or that knows no such unit."""
+    _repo(tmp_path, "probe", {"version": "1.0", "type": "web", "api": 1})
+    _registry_with(tmp_path / "install", "from-the-install")
+
+    # No systemctl on PATH at all.
+    r = _run_unset(tmp_path, None, "list", "--json")
+    assert r.returncode == 0, r.stderr
+    assert "from-the-install" in json.loads(r.stdout)["installed"]
+
+    # A systemctl that answers with no GAMECORE_DATA (unit predates the split).
+    bin_dir = _fake_systemctl(tmp_path, "GAMECORE_PATH=/opt/GameCore GAMECORE_BACKEND_PORT=8765")
+    r = _run_unset(tmp_path, bin_dir, "list", "--json")
+    assert r.returncode == 0, r.stderr
+    assert "from-the-install" in json.loads(r.stdout)["installed"]
+
+    # A systemctl that answers nothing (no such unit): same.
+    bin_dir = _fake_systemctl(tmp_path, "")
+    r = _run_unset(tmp_path, bin_dir, "list", "--json")
+    assert r.returncode == 0, r.stderr
+    assert "from-the-install" in json.loads(r.stdout)["installed"]
