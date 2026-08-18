@@ -469,20 +469,28 @@ fi
 # The previous file is kept as systems.json.bak-merge. A malformed grid is
 # reported and left alone: an update must not take the interface down because
 # a hand edit left a trailing comma.
-echo "[update] Merging the shipped catalogue into config/systems.json..."
-"${GAMECORE_PATH}/.venv/bin/python3" - "${GAMECORE_PATH}" <<'PYEOF' || \
+# Two roots, and the merge is told both. The catalogue and `lib/` are code
+# and come from GAMECORE_PATH; systems.json, catalog.d/ (the operator's own
+# packs) and catalog-removed.json are the player's and come from GAMECORE_DATA.
+# One argument used to serve for both, which was correct for exactly as long
+# as the two directories were the same one — and silently wrong afterwards:
+# every update would have merged into the abandoned copy under the install,
+# and the grid the box actually reads would never have gained a new emulator,
+# a repaired launcher or a console list again.
+echo "[update] Merging the shipped catalogue into ${GAMECORE_DATA}/config/systems.json..."
+"${GAMECORE_PATH}/.venv/bin/python3" - "${GAMECORE_PATH}" "${GAMECORE_DATA}" <<'PYEOF' || \
   echo "[update] WARNING: catalogue merge failed (non-fatal) — the grid is unchanged."
 import sys
 from pathlib import Path
 
-root = Path(sys.argv[1])
+root, data = Path(sys.argv[1]), Path(sys.argv[2])
 sys.path.insert(0, str(root))
 from backend.services.catalog import load_catalog
 from backend.services.catalog.merge import merge_file
 
-notes = merge_file(root / "config" / "systems.json",
-                   load_catalog(root / "catalog", root / "config" / "catalog.d"),
-                   root)
+notes = merge_file(data / "config" / "systems.json",
+                   load_catalog(root / "catalog", data / "config" / "catalog.d"),
+                   root, data_root=data)
 for n in notes:
     print(f"[update]   {n}")
 if not notes:

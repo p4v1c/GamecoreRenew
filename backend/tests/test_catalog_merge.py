@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 
 from backend.services.catalog import load_catalog                    # noqa: E402
 from backend.services.catalog.merge import (                          # noqa: E402
-    merge_file, merge_systems,
+    REMOVED_FILE, merge_file, merge_systems,
 )
 
 CATALOG = ROOT / "catalog"
@@ -220,3 +220,28 @@ def test_a_console_list_the_operator_edited_is_left_alone(packs, tmp_path):
                    consoles=mine)]
     merged, _ = merge_systems(live, packs, tmp_path)
     assert merged[0]["consoles"] == mine
+
+
+# ── two roots ───────────────────────────────────────────────────────────────
+
+def test_the_removed_list_is_read_from_the_data_root_when_given(packs, tmp_path):
+    """`catalog-removed.json` lives beside the grid — on the data side. A
+    box whose data has moved keeps a stale copy under the install that lists
+    nothing, and reading THAT would resurrect every declined system."""
+    code, data = tmp_path / "code", tmp_path / "data"
+    (code / "config").mkdir(parents=True)
+    (data / "config").mkdir(parents=True)
+    grid = data / "config" / "systems.json"
+    grid.write_text("[]")
+    (data / "config" / REMOVED_FILE).write_text(json.dumps(["cemu", "xenia", "ryujinx"]))
+    (code / "config" / REMOVED_FILE).write_text("[]")           # the stale copy
+
+    merge_file(grid, packs, code, data_root=data)
+    ids = {s["id"] for s in json.loads(grid.read_text())}
+    assert not ids & {"cemu", "xenia", "ryujinx"}, ids
+
+    # Without data_root the old behaviour is exactly preserved.
+    grid.write_text("[]")
+    merge_file(grid, packs, code)
+    ids = {s["id"] for s in json.loads(grid.read_text())}
+    assert {"cemu", "xenia", "ryujinx"} <= ids

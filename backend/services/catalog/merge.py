@@ -218,11 +218,21 @@ def merge_systems(live: list[dict], packs: dict, root: Path,
 
 
 def merge_file(systems_file: Path, packs: dict, root: Path,
-               dry_run: bool = False, kind: str = "emulator") -> list[str]:
+               dry_run: bool = False, kind: str = "emulator",
+               data_root: Path | None = None) -> list[str]:
     """Apply the merge to a real systems.json. Returns the notes.
 
     Never raises on a malformed file: an update must not take the grid down
     because a hand edit left a trailing comma. It reports and changes nothing.
+
+    `root` is the installation — where `lib/` and the catalogue live, what a
+    launcher path resolves against. `data_root` is where the player's files
+    are, and it is where `catalog-removed.json` is read from. They are one
+    directory on every box installed so far, which is why the second defaults
+    to the first; but once the data has moved they are not, and reading the
+    removed list from the install root would read a stale copy that says
+    nothing was removed — and every system the operator took off the grid
+    would come back on the next update.
     """
     try:
         live = json.loads(systems_file.read_text(encoding="utf-8"))
@@ -232,7 +242,7 @@ def merge_file(systems_file: Path, packs: dict, root: Path,
         return ["systems.json is not a list — left untouched"]
 
     merged, notes = merge_systems(live, packs, root,
-                                  removed=load_removed(root), kind=kind)
+                                  removed=load_removed(data_root or root), kind=kind)
     if not notes:
         return []
     if dry_run:
