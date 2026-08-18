@@ -240,3 +240,35 @@ def test_the_data_root_comes_from_the_environment():
         os.environ.clear()
         os.environ.update(env)
         importlib.reload(paths)
+
+
+# ── The same rule, in Electron ───────────────────────────────────────────────
+
+def test_electron_reads_the_players_files_from_the_data_root():
+    """`electron/main.js` cannot be imported outside Electron, so this reads it.
+
+    It joins `config/overlays.json` onto a root, and that root used to be
+    `path.join(__dirname, '..')` — the install. Correct while the data lives
+    there; afterwards it is the abandoned copy, and a launch would take its
+    window from Electron's overlays.json and its hole from the backend's — two
+    files, identical on the day of the move, drifting from the first edit.
+
+    The rule: any `path.join(<root>, 'config' | 'emu' | 'assets', …)` must use
+    a root whose nearest preceding assignment reads GAMECORE_DATA. The code
+    roots (the venv, the monitor script) are joined onto `'.venv'` and
+    `'backend'`, which this deliberately does not match.
+    """
+    offenders = []
+    for js in sorted((REPO / "electron").glob("*.js")):
+        last_assign: dict[str, str] = {}
+        for n, line in enumerate(js.read_text(encoding="utf-8").splitlines(), 1):
+            m = re.match(r"\s*(?:const|let|var)\s+(\w+)\s*=\s*(.*)", line)
+            if m:
+                last_assign[m.group(1)] = m.group(2)
+            for var in re.findall(r"path\.join\(\s*(\w+)\s*,\s*'(?:config|emu|assets)'", line):
+                if "GAMECORE_DATA" not in last_assign.get(var, ""):
+                    offenders.append(f"{js.name}:{n}: {line.strip()}  "
+                                     f"(root `{var}` = {last_assign.get(var, '?')!r})")
+    assert not offenders, (
+        "these read player data under the install root; the root must come from "
+        "GAMECORE_DATA:\n  " + "\n  ".join(offenders))

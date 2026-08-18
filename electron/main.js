@@ -268,8 +268,18 @@ ipcMain.on('notify:controller', (_, data) => {
 })
 
 // ── Overlay monitor (Python) ──────────────────────────────────────────────────
+//
+// `config/overlays.json` is the player's — `config/` is excluded from the OTA
+// rsync for exactly that reason — so it is read from the DATA root, not from
+// the install this file happens to live in. The two are one directory on every
+// box installed so far, which is what the fallback preserves; once the data
+// has moved, reading it from `__dirname/..` would read the abandoned copy: the
+// backend (services/paths.py) and this process would then hold two different
+// overlays.json, identical on the day of the move and drifting apart from the
+// first edit, with a launch resolving its window from one and its hole from
+// the other. The unit passes GAMECORE_DATA to the UI for this line.
 function loadOverlayConfig() {
-  const root       = path.join(__dirname, '..')
+  const root       = process.env.GAMECORE_DATA || path.join(__dirname, '..')
   const configPath = path.join(root, 'config', 'overlays.json')
   try {
     return JSON.parse(fs.readFileSync(configPath, 'utf8'))
