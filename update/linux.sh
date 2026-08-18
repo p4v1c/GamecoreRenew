@@ -38,6 +38,29 @@ GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
 # release — dropping an exclude means the rsync deletes the ROM library on the
 # first update. The excludes go when the bytes have gone, not before, and the
 # check is `is_split` below rather than anybody's memory of which phase shipped.
+#
+# Where the data is, when the caller did not say. Launched from the Settings
+# screen this script inherits the backend's environment and knows. Typed at a
+# shell it does not — a shell has no GAMECORE_DATA — and it would fall back to
+# the install: the catalogue merge and every new theme would land in the copy
+# of config/ that a migrated box no longer reads, quietly, with a green log.
+# The backend's systemd unit is where the migration sets the variable, so it
+# is read from there. Same shape as install/bin/gamecore-addon, which must
+# stay self-contained (it is copied to /usr/local/bin) — hence the copy.
+_data_root_from_backend_unit() {
+  command -v systemctl >/dev/null 2>&1 || return 0
+  local env kv
+  env="$(systemctl show gamecore-backend.service -p Environment --value 2>/dev/null)" || return 0
+  for kv in $env; do
+    if [[ "$kv" == GAMECORE_DATA=* ]]; then
+      printf '%s\n' "${kv#GAMECORE_DATA=}"
+      return 0
+    fi
+  done
+}
+if [[ -z "${GAMECORE_DATA:-}" ]]; then
+  GAMECORE_DATA="$(_data_root_from_backend_unit)"
+fi
 GAMECORE_DATA="${GAMECORE_DATA:-$GAMECORE_PATH}"
 
 # Only one update at a time. The backend refuses a second /api/update/apply,

@@ -143,3 +143,52 @@ def test_the_operator_s_own_packs_are_read_from_the_data_root(two_roots):
     mgba = next(s for s in live if s["id"] == "mgba")
     assert [c["id"] for c in mgba["consoles"]] == ["gba", "gb"], \
         "the operator's catalog.d pack under the DATA root was not honoured"
+
+
+# ── Where the updater looks when nobody told it ─────────────────────────────
+
+def _updater_data_root(tmp_path: Path, environment: str | None,
+                       data_env: str | None = None) -> str:
+    """Run only the root-resolution prologue of update/linux.sh — everything
+    up to and including the GAMECORE_DATA line — with a fake `systemctl` on
+    PATH, and print what it decided."""
+    text = UPDATER.read_text(encoding="utf-8")
+    prologue = text[:text.index('GAMECORE_DATA="${GAMECORE_DATA:-$GAMECORE_PATH}"\n')
+                    + len('GAMECORE_DATA="${GAMECORE_DATA:-$GAMECORE_PATH}"\n')]
+    # The prologue must not need the network or a lock file to answer this.
+    assert "curl" not in prologue and "flock" not in prologue, \
+        "the root resolution moved below something that acts — keep it first"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    fake = bin_dir / "systemctl"
+    if environment is None:
+        fake.write_text("#!/usr/bin/env bash\nexit 1\n")
+    else:
+        fake.write_text("#!/usr/bin/env bash\ncase \"$*\" in\n"
+                        f"  *'-p Environment'*) printf '%s\\n' '{environment}' ;;\n"
+                        "  *) exit 0 ;;\nesac\n")
+    fake.chmod(0o755)
+    env = {"PATH": f"{bin_dir}:/usr/bin:/bin", "GAMECORE_PATH": "/opt/GameCore"}
+    if data_env is not None:
+        env["GAMECORE_DATA"] = data_env
+    r = subprocess.run(["bash", "-c", prologue + '\nprintf "%s" "$GAMECORE_DATA"'],
+                       capture_output=True, text=True, timeout=60, env=env)
+    assert r.returncode == 0, r.stderr
+    return r.stdout.strip()
+
+
+def test_the_updater_reads_the_data_root_from_the_backend_unit_when_the_shell_has_none(tmp_path):
+    """Typed at a shell after the data moved, the updater used to fall back
+    to the install and merge the catalogue into the abandoned config/ — with
+    a green log. Launched from Settings it inherits the backend's environment
+    and never saw the problem, which is why nobody did either."""
+    got = _updater_data_root(tmp_path, "GAMECORE_PATH=/opt/GameCore GAMECORE_DATA=/userdata")
+    assert got == "/userdata"
+
+
+def test_the_updater_keeps_an_explicit_data_root_and_the_old_default(tmp_path):
+    assert _updater_data_root(tmp_path, "GAMECORE_DATA=/userdata", data_env="/elsewhere") == "/elsewhere"
+    # No unit, unit without the variable, systemctl failing: the install.
+    assert _updater_data_root(tmp_path, "GAMECORE_PATH=/opt/GameCore") == "/opt/GameCore"
+    assert _updater_data_root(tmp_path, "") == "/opt/GameCore"
+    assert _updater_data_root(tmp_path, None) == "/opt/GameCore"
