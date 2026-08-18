@@ -295,10 +295,14 @@ def switch_over(src_root: Path, dest_root: Path) -> str:
     Every consumer of the data root has to learn about the move, and they do
     not all learn the same way. The two systemd units read it from a drop-in;
     the addon CLI reads it from the backend's unit; each addon's own unit is
-    rewritten by `gamecore-addon update` from what the CLI knows; and the CLI
+    rewritten by `gamecore-addon update` from what the CLI knows; the CLI
     itself is a root-owned copy in /usr/local/bin that only the installer
-    refreshes. Miss one and the box is split: the interface reads the new
-    tree, ROM uploads land in the old one, and nothing on screen says which.
+    refreshes; and every Flatpak emulator's sandbox is a list of literal
+    paths that the installer wrote with the install root in it. Miss one and
+    the box is split: the interface reads the new tree, ROM uploads land in
+    the old one, an emulator is handed a path it cannot see — and nothing on
+    screen says which. The last one was found the hard way, on the reference
+    box, the evening it moved: every launch answered "ROM not found".
     """
     d = str(dest_root)
     return f"""  The box does NOT use the new tree yet. To switch it over, in this order:
@@ -317,26 +321,41 @@ def switch_over(src_root: Path, dest_root: Path) -> str:
        GAMECORE_DATA and would bake the old root into every addon's unit):
          sudo install -m 755 {src_root}/install/bin/gamecore-addon /usr/local/bin/gamecore-addon
 
-    3. Restart the core so the units take effect:
+    3. Let every Flatpak emulator SEE the new tree. Their sandboxes list the
+       install root and nothing else — the installer wrote it that way — so a
+       launch would hand them a path under {d} and they would report the game
+       missing while it sits right there. No root needed:
+         cd {src_root} && python3 scripts/catalog-query.py flatpaks \\
+           | while IFS=$'\\t' read -r id app; do
+               flatpak info "$app" >/dev/null 2>&1 && flatpak override --user --filesystem={d} "$app"
+             done
+
+    4. Restart the core so the units take effect:
          sudo systemctl daemon-reload
          sudo systemctl restart gamecore-backend gamecore-ui
 
-    4. Re-run the addon installers: the CLI now reads GAMECORE_DATA from the
+    5. Re-run the addon installers: the CLI now reads GAMECORE_DATA from the
        backend's unit and rewrites each addon's unit with it —
          gamecore-addon update
 
-    5. Check, before playing anything:
+    6. Check, before playing anything:
          systemctl show gamecore-backend -p Environment --value | tr ' ' '\\n' | grep GAMECORE_DATA
          grep GAMECORE_DATA ~/.config/systemd/user/gamecore-addon-*.service
-       Both must say {d}. Then the library, the settings, the overlays and
-       an upload from ROM Manager, on the TV.
+         flatpak override --user --show net.rpcs3.RPCS3 | grep filesystems
+       All must name {d}. Then the library, the settings, the overlays, an
+       upload from ROM Manager, and ONE GAME PER EMULATOR, on the TV.
 
-    6. Only then, and only by hand, delete the old copies under
+    7. Only then, and only by hand, delete the old copies under
          {src_root}
        (on btrfs the copy was a reflink: deleting the old side frees nothing
        until the new side diverges — read `btrfs filesystem du`, not `du`).
+       Before that, know that the emulators' OWN settings still name the old
+       tree — game-list folders, recent files, and Ryujinx's DLC/update paths —
+       and keep working only because it is still there:
+         grep -rl "{src_root}/emu" ~/.var/app/*/config ~/.config 2>/dev/null
+       Repoint those inside each emulator, or leave the old tree in place.
 
-  The way back, at any point before step 6:
+  The way back, at any point before step 7:
          sudo rm /etc/systemd/system/gamecore-backend.service.d/userdata.conf \\
                  /etc/systemd/system/gamecore-ui.service.d/userdata.conf
          sudo systemctl daemon-reload && sudo systemctl restart gamecore-backend gamecore-ui
