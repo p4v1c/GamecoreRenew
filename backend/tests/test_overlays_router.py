@@ -491,3 +491,60 @@ def test_a_measurement_may_only_name_a_console_the_pack_declares(client, multi):
                        json={**payload, "console": "gba"}).status_code == 200
     assert client.post("/api/overlays/measured/mgba",
                        json={**payload, "console": "../../etc"}).status_code == 400
+
+
+# ── What is in place, and what is still empty ──────────────────────────────
+
+def test_the_slots_of_a_multi_console_pack_show_filled_and_empty(client, multi, tmp_path):
+    """The question a manager UI asks and `choices` cannot answer.
+
+    `choices` lists what exists, so a console with no bezel is simply absent
+    from it — indistinguishable, from a browser, from an upload that failed.
+    """
+    blob = _png_bytes(tmp_path, "up.png", 1920, 1080, (150, 0, 1620, 1080))
+    client.post("/api/overlays/mgba/consoles/gba",
+                files={"file": ("gba.png", blob, "image/png")})
+
+    slots = client.get("/api/overlays/mgba/slots").json()["slots"]
+    by = {s["console"]: s for s in slots}
+
+    assert [s["level"] for s in slots] == ["system", "console", "console"]
+    assert by[None]["present"] is False                   # no mgba.png here
+    assert by["gba"]["present"] is True
+    assert by["gba"]["ratio"] == "3:2"
+    assert by["gba"]["filename"] == "mgba.gba.png"
+    # The empty one still names the file it is waiting for: the convention has
+    # to be visible before anything exists, or it is not guessable at all.
+    assert by["gb"]["present"] is False
+    assert by["gb"]["filename"] == "mgba.gb.png"
+    assert by["gb"]["hole"] is None
+
+
+def test_a_mono_console_pack_has_exactly_one_slot(client, library, tmp_path):
+    slots = client.get("/api/overlays/duckstation/slots").json()["slots"]
+    assert len(slots) == 1
+    assert slots[0]["level"] == "system" and slots[0]["console"] is None
+
+
+def test_a_console_bezel_can_be_removed_and_the_cascade_falls_back(client, multi, tmp_path):
+    """Without a delete, a bezel dropped on the wrong console can only ever be
+    replaced — the cascade would keep resolving it ahead of the system one."""
+    write_png(multi / "assets" / "overlays" / "mgba.png", 1920, 1080, (420, 0, 1080, 1080))
+    blob = _png_bytes(tmp_path, "up.png", 1920, 1080, (150, 0, 1620, 1080))
+    client.post("/api/overlays/mgba/consoles/gba",
+                files={"file": ("gba.png", blob, "image/png")})
+    assert client.get("/api/overlays/resolve/mgba",
+                      params={"rom": "X (USA).gba"}).json()["source"] == "console"
+
+    assert client.delete("/api/overlays/mgba/consoles/gba").status_code == 200
+    bezels.forget()
+    assert client.get("/api/overlays/resolve/mgba",
+                      params={"rom": "X (USA).gba"}).json()["source"] == "system"
+
+    # Twice is a 404, not a silent success: the UI has to be able to tell
+    # "removed" from "there was nothing there".
+    assert client.delete("/api/overlays/mgba/consoles/gba").status_code == 404
+
+
+def test_removing_a_console_the_pack_never_declared_is_a_404(client, multi):
+    assert client.delete("/api/overlays/mgba/consoles/gbc").status_code == 404

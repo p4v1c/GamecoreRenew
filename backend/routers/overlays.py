@@ -175,6 +175,39 @@ def _looks_like_image(head: bytes) -> bool:
     )
 
 
+@router.get("/overlays/{system_id}/slots")
+async def overlay_slots(system_id: str):
+    """Every bezel this system can have, filled or not.
+
+    What a manager UI needs and `choices` does not answer: `choices` is about
+    one game and lists only what exists, so a missing console bezel is
+    invisible there. A player who uploads one and cannot tell whether it took
+    will upload it again, or conclude the feature is broken.
+    """
+    if not _SYSTEM_ID_RE.match(system_id):
+        raise HTTPException(400, "Invalid system id")
+    return {"system_id": system_id, "slots": bezels.slots(system_id)}
+
+
+@router.delete("/overlays/{system_id}/consoles/{console_id}")
+async def delete_console_overlay(system_id: str, console_id: str):
+    """Remove a console's bezel and fall back to the system's.
+
+    The counterpart of the upload, and not optional: without it a bezel dropped
+    on the wrong console can only be replaced, never removed, and the cascade
+    would keep resolving it ahead of the system bezel forever.
+    """
+    if not _SYSTEM_ID_RE.match(system_id):
+        raise HTTPException(400, "Invalid system id")
+    if console_id not in {c["id"] for c in consoles.declared(system_id)}:
+        raise HTTPException(404, "No such console for this system")
+    p = bezels.console_png(system_id, console_id)
+    if not p.exists():
+        raise HTTPException(404, "No overlay to delete")
+    p.unlink()
+    return {"ok": True}
+
+
 @router.post("/overlays/{system_id}/consoles/{console_id}")
 async def upload_console_overlay(system_id: str, console_id: str,
                                  file: UploadFile = File(...)):

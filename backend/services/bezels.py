@@ -277,6 +277,45 @@ def set_preference(system_id: str, rom_name: str, choice: str | None) -> None:
     tmp.replace(p)
 
 
+def slots(system_id: str) -> list[dict]:
+    """Every bezel this system CAN have, filled or not, system first.
+
+    `available()` answers "what may this game be offered" and therefore lists
+    only what exists. This answers the manager's question instead — "what is in
+    place and what is missing" — so an empty slot is a row, not an absence.
+    Without that, a player who uploads a bezel for one console of a pack cannot
+    tell whether it took, or which of the others are still bare; and from a
+    browser those two look identical.
+
+    The hole comes back measured for the same reason it does everywhere else:
+    it is the only number that says whether an image will actually fit the
+    machine, and a second decoder in the addon would be a second answer.
+    """
+    out = [{
+        "level": "system", "console": None, "label": system_id,
+        "filename": f"{system_id}.png",
+    }]
+    out += [{
+        "level": "console", "console": c["id"],
+        "label": c.get("label") or c["id"],
+        "filename": f"{system_id}.{c['id']}.png",
+        # What a file for this slot would be named, so the UI can say it before
+        # anything exists — the convention is guessable and should be visible.
+        "extensions": list(c.get("extensions") or []),
+    } for c in consoles.declared(system_id)]
+
+    for slot in out:
+        png = overlays_dir() / slot["filename"]
+        hole = measure_hole(png) if png.is_file() else None
+        slot["present"] = png.is_file()
+        slot["asset"] = _asset_url(png) if png.is_file() else None
+        slot["hole"] = hole
+        # Reduced, like the correction key: "3:2" is what a person compares
+        # against a console, "1620x1080" is not.
+        slot["ratio"] = bezel_capture.ratio_of(hole) if hole else None
+    return out
+
+
 def available(system_id: str, rom_name: str | None = None) -> list[dict]:
     """What the options screen may offer for this game, best first.
 

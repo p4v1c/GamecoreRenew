@@ -164,6 +164,27 @@ whose PNG is missing, and nothing else — see below.
 `chosen` and `off` sit in front of all of it: the player's own answer, set from
 the library with R2 and stored in `<DATA>/config/bezel-choices.json`.
 
+### The console bezels this repository ships
+
+Three, for mGBA: `mgba.gb.png` and `mgba.gbc.png` at 10:9, `mgba.gba.png` at
+3:2. Drawn by `scripts/make-console-bezel.py` rather than downloaded —
+community packs are other people's box art and logos, which GameCore does not
+host, ship in the ISO, or fetch unasked, the same posture it takes with BIOS
+files and keys. They are a gradient and a bevel, deliberately plain enough that
+replacing them is obviously an improvement.
+
+They reach a **fresh install** and only a fresh install: `assets/overlays/` is
+excluded from the OTA rsync *and* from `arch.sh`'s tar, and the `for _keep`
+loop copies the directory only when it is absent at the destination. So a
+player who already has bezels can never be overwritten by a release — at whole
+-directory granularity, which is why there is no per-file conflict to resolve.
+The other side of that coin is that an existing box gets them by hand or
+through ROM Manager, never automatically.
+
+`scripts/make-console-bezel.py` is stdlib-only for the same reason
+`_alpha_bbox` is: no install script puts an imaging library on a box or on a
+contributor's machine.
+
 ### The console level, and why it is not the system level
 
 One emulator is sometimes several machines. `mgba` runs Game Boy and Game Boy
@@ -278,6 +299,15 @@ inside its own data directory and nowhere else, and overlays belong to the core.
 Opening `assets/overlays/` to addons for one feature would open it to all of
 them. So the addon POSTs and the core decides the name and the destination; the
 console must be one `roms.consoles` declares, or it is a 404.
+
+`GET /api/overlays/<system_id>/slots` answers what a manager UI needs and
+`choices` cannot: every bezel a system *can* have, filled or not, with the
+measured hole and its reduced ratio. `choices` is about one game and lists only
+what exists, so a console with no bezel is simply absent from it — and from a
+browser, an upload that silently failed looks exactly the same.
+`DELETE /api/overlays/<system_id>/consoles/<console_id>` is its counterpart:
+without it a bezel dropped on the wrong console could be replaced but never
+removed, and the cascade would keep resolving it ahead of the system bezel.
 
 Both upload routes now refuse an image with **no transparent area**. It was the
 one gap left: magic bytes right, size right, upload completes — and the result
