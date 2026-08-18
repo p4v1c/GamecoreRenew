@@ -356,6 +356,31 @@ $NET_OK || warn "No network — installing from the artefacts staged in $GAMECOR
 # to migrate yet.
 GAMECORE_DATA="${GAMECORE_DATA:-$GAMECORE_PATH}"
 
+launcher_icon() {  # launcher_icon <install-dir> → an Icon= value
+  local logo="$1/frontend/src/assets/logo.png"
+  if [[ -f "$logo" ]]; then printf '%s\n' "$logo"; else printf '%s\n' "input-gaming"; fi
+}
+
+seed_data_tree() {  # seed_data_tree <from> <to> <user>
+  # See the call site ("The player's tree, on day one") for the why.
+  local from="$1" to="$2" user="$3" k src dst
+  [[ -d "$from" ]] || return 0
+  [[ "$(readlink -f "$from")" == "$(readlink -f "$to")" ]] && return 0
+  for k in emu config assets/overlays assets/logos; do
+    src="$from/$k"; dst="$to/$k"
+    [[ -d "$src" ]] || continue
+    # Absent or empty. `-A` so a dotfile counts as content; a directory that
+    # holds anything at all is the player's.
+    if [[ -e "$dst" && -n "$(ls -A "$dst" 2>/dev/null)" ]]; then
+      continue
+    fi
+    mkdir -p "$dst"
+    cp -a "$src/." "$dst/"
+    chown -R "${user}:${user}" "$dst"
+    ok "seeded $k → $dst"
+  done
+}
+
 provision_userdata() {  # provision_userdata <dir> <user>
   # A btrfs subvolume when the filesystem offers one — it snapshots and gets
   # quota independently of the root, which is the whole point of separating the
@@ -472,21 +497,34 @@ if [ "$PROJECT_ROOT" != "$GAMECORE_PATH" ]; then
     | tar -C "$GAMECORE_PATH" -xf - \
     || die "could not copy $PROJECT_ROOT → $GAMECORE_PATH"
 
-  # First run: those directories have to arrive from somewhere. Copy each only
-  # when it is absent at the destination, so an existing install keeps its own.
-  # config/systems.json and config/apps.json are regenerated from install/generated/*.dist
-  # further down either way, so excluding config/ above costs nothing.
-  for _keep in emu config assets/overlays assets/logos; do
-    if [ -d "$PROJECT_ROOT/$_keep" ] && [ ! -e "$GAMECORE_PATH/$_keep" ]; then
-      mkdir -p "$(dirname "$GAMECORE_PATH/$_keep")"
-      cp -a "$PROJECT_ROOT/$_keep" "$GAMECORE_PATH/$_keep"
-    fi
-  done
   ok "Copied $PROJECT_ROOT → $GAMECORE_PATH (user content preserved)"
 else
   ok "Already in place."
 fi
 chown -R "${USER_NAME}:${USER_NAME}" "$GAMECORE_PATH"
+
+# ── The player's tree, on day one ────────────────────────────────
+# What the DATA root needs before the first game, and never gets overwritten
+# afterwards: config/overlays.json (the declared bezel geometry — without it
+# Electron never starts the overlay monitor for any system), the bundled themes
+# under config/themes/, the shipped bezels in assets/overlays/ (the per-console
+# ones included) and assets/logos/. systems.json and apps.json are regenerated
+# from install/generated/*.dist further down, so seeding the checkout's copies
+# here costs nothing.
+#
+# This used to be a loop that copied each directory into GAMECORE_PATH when
+# absent there. On the layout every box had before the split that is the same
+# directory as GAMECORE_DATA and it worked. On a split install it seeded
+# NOTHING: provision_userdata had already created the (empty) directories under
+# GAMECORE_DATA, so "absent" was never true, and the files went — if anywhere —
+# into the install, where nothing reads them. A fresh /userdata box booted, ran
+# games, and drew no bezel around any of them, and nobody could say why. The
+# reference box only had its overlays because its migration had copied them.
+#
+# So: into GAMECORE_DATA, and "seed when the directory is absent OR empty".
+# A populated directory is the player's and is left exactly alone — a re-run
+# never puts back a bezel someone deleted on purpose.
+seed_data_tree "$PROJECT_ROOT" "$GAMECORE_DATA" "$USER_NAME"
 
 # ── System packages ──────────────────────────────────────────────
 # pacman is by far the longest phase of the install (a rolling-release
@@ -1048,10 +1086,24 @@ udevadm control --reload-rules 2>/dev/null && udevadm trigger 2>/dev/null && ok 
 progress 84 "Addon manager"
 msg "Addon manager (gamecore-addon)"
 install -m 755 "$GAMECORE_PATH/install/bin/gamecore-addon" /usr/local/bin/gamecore-addon
-# Pre-create the addons checkout dir owned by the user so `gamecore-addon
-# install` never needs root for user-level addons.
-install -d -o "$USER_NAME" -g "$USER_NAME" /opt/gamecore-addons
-ok "gamecore-addon CLI installed (addons live in /opt/gamecore-addons)."
+# Where the addons checkout lives. The CLI decides: an existing
+# /opt/gamecore-addons keeps being used (every box installed before the split
+# has one, with services pointing into it), otherwise it clones under
+# $GAMECORE_DATA/addons/_repo — the checkout is mutable code, installed and
+# removed by the player at runtime, and that belongs on the data side.
+#
+# So the directory is pre-created (owned by the user, so `gamecore-addon
+# install` never needs root) ONLY where the CLI would look on this box: /opt on
+# the layout every box had before the split, the data root once it is split.
+# Pre-creating /opt/gamecore-addons on a split box would make the CLI prefer
+# it, and a fresh /userdata box would carry mutable code in /opt again.
+if [[ "$GAMECORE_DATA" == "$GAMECORE_PATH" ]]; then
+  install -d -o "$USER_NAME" -g "$USER_NAME" /opt/gamecore-addons
+  ok "gamecore-addon CLI installed (addons live in /opt/gamecore-addons)."
+else
+  install -d -o "$USER_NAME" -g "$USER_NAME" "$GAMECORE_DATA/addons"
+  ok "gamecore-addon CLI installed (addons live in $GAMECORE_DATA/addons/_repo)."
+fi
 
 # ── Python backend ───────────────────────────────────────────────
 progress 86 "Python backend (venv)"
@@ -1477,12 +1529,17 @@ DESKTOP_DIR=$(sudo -u "$USER_NAME" bash -lc 'xdg-user-dir DESKTOP 2>/dev/null' |
 [[ -n "$DESKTOP_DIR" && -d "$DESKTOP_DIR" ]] || DESKTOP_DIR="$USER_HOME/Desktop"
 APPS_DIR="$USER_HOME/.local/share/applications"
 sudo -u "$USER_NAME" mkdir -p "$DESKTOP_DIR" "$APPS_DIR"
+# The GameCore logo, not the theme's generic gamepad. It is the file the
+# frontend bundles (frontend/src/assets/logo.png), which the OTA keeps in sync
+# under the install — a code path, stable across updates. The generic icon
+# stays as the fallback for a tree that somehow lacks it.
+LAUNCHER_ICON="$(launcher_icon "$GAMECORE_PATH")"
 LAUNCHER_DESKTOP="[Desktop Entry]
 Type=Application
 Name=GameCore
 Comment=Lancer l'interface GameCore
 Exec=$GAMECORE_PATH/install/bin/gamecore-launcher
-Icon=input-gaming
+Icon=$LAUNCHER_ICON
 Terminal=true
 Categories=Game;"
 echo "$LAUNCHER_DESKTOP" | sudo -u "$USER_NAME" tee "$APPS_DIR/gamecore.desktop" >/dev/null

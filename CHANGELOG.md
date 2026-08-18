@@ -66,6 +66,19 @@ are the auto-incremented tags.
 
 ### Changed
 
+- **A fresh install with its data outside the install now starts with its
+  bezels.** `install/arch.sh` seeded the player's starting tree — the shipped
+  bezels, `config/overlays.json`, the bundled themes — into the install "when
+  absent there"; on a split install (`GAMECORE_DATA=/userdata`, which is what
+  the ISO produces) the data directories already existed, empty, so nothing was
+  seeded and no game got a frame. Seeding now targets the data root and fills a
+  directory that is absent or empty; a populated one is left alone. Same
+  decision, three consequences: the addons checkout is pre-created in
+  `/opt/gamecore-addons` only on the old layout, the desktop shortcut carries
+  the GameCore logo instead of the theme's generic gamepad, and the graphical
+  installer asks for the data path (default `/userdata`) when it is not the ISO.
+  Boxes already installed are not affected — nothing here runs at OTA time.
+
 - **The power menu offers "Return to desktop".** Leaving the front end is the
   third way a session ends and it was reachable only from Settings → Desktop —
   four rows into a menu nobody opens in order to quit, while the button that

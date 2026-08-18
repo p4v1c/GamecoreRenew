@@ -75,6 +75,26 @@ Not "the script exits 0". On a fresh VM, after a full run:
 - the closing summary still lists the recoverable failures. Extracting a phase
   into a sourced file makes it easy to lose the `warn`-and-continue behaviour by
   making the phase exit instead — and that failure looks exactly like success.
+- **a game draws a bezel, on a box whose data is outside the install.** The
+  first split installs did not: `arch.sh` seeded the player's starting tree
+  (`assets/overlays/`, `config/overlays.json`, the bundled themes) into
+  GAMECORE_PATH "when absent there", and on a split box `provision_userdata`
+  had already created the empty directories under GAMECORE_DATA — so nothing
+  was seeded, Electron never started the overlay monitor (`if (!cfg) return`),
+  and no game got a frame. `seed_data_tree` now targets GAMECORE_DATA and seeds
+  a directory that is absent **or empty**; a populated one is the player's.
+  `backend/tests/test_installer_seeds_data_tree.py` runs the function out of
+  the script and asks `bezels.for_launch()` for the answer.
+
+Two smaller things `arch.sh` decides from the same fact (data root ≠ install):
+the addons checkout is pre-created in `/opt/gamecore-addons` **only** on the
+old layout — on a split box the CLI clones under `$GAMECORE_DATA/addons/_repo`,
+mutable code on the data side — and the desktop shortcut's `Icon=` is the
+shipped logo (`frontend/src/assets/logo.png`, kept in sync by the OTA), not the
+theme's generic gamepad. The graphical installer, off the ISO, asks for the data
+path (default `/userdata`) and refuses one nested inside the install; on the ISO
+the field is fixed, because `gamecore-disk-install.sh` writes
+`GAMECORE_DATA=/userdata` from the partition it mounted.
 
 ## Also noted, and also left alone
 
