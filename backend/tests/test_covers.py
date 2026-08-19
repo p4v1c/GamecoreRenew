@@ -447,9 +447,15 @@ def test_a_quota_or_server_error_is_not_a_miss(client, monkeypatch, status):
 @pytest.mark.network
 def test_gamecube_cover_is_looked_up_on_gametdb_by_id6(client):
     # No local icon → disc-ID lookup on GameTDB.
+    #
+    # The content-type is GameTDB's to choose, not ours to pin: they served PNG
+    # until 2026-08, WebP since. The pipeline keeps the suffix the server sent
+    # and the router maps it (_MEDIA_TYPES), so either is correct end to end —
+    # what this test guards is that the disc-ID lookup finds a real cover.
     r = client.get("/api/covers/dolphin/Melee.iso")
-    assert r.status_code == 200 and r.headers["content-type"] == "image/png" and len(r.content) > 10000, \
-        f"status={r.status_code} len={len(r.content)}"
+    assert r.status_code == 200 and r.headers["content-type"] in {"image/png", "image/webp"} \
+        and len(r.content) > 10000, \
+        f"status={r.status_code} type={r.headers.get('content-type')} len={len(r.content)}"
 
 
 @pytest.mark.network
