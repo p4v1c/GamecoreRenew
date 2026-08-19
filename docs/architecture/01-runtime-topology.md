@@ -163,6 +163,24 @@ The TheGamesDB key is added as a local drop-in
 (`systemctl edit gamecore-backend` → `Environment=THEGAMESDB_API_KEY=…`), never
 committed.
 
+On a box with a separate data root — what the ISO produces — the installer adds
+a second drop-in, `10-data.conf`, with `Environment=GAMECORE_DATA=/userdata`.
+That one variable is the split: `GAMECORE_PATH` is code (root-owned, replaced
+wholesale by an OTA), `GAMECORE_DATA` is everything the player accumulates
+(`config/`, `emu/`, `assets/overlays/`, `assets/logos/`, `addons/`). When the
+drop-in is absent, `backend/services/paths.py` falls back to `GAMECORE_PATH` — the
+pre-split single-root layout every older box still runs. The unit drop-in is
+the **source of truth** for the data root: `gamecore-ui.service` gets the same
+`Environment=` line, and the three consumers that cannot inherit it — the
+updater, the `gamecore-addon` CLI, addon units — each read it back from
+`systemctl cat gamecore-backend` rather than guessing
+([13-release-and-ota.md](13-release-and-ota.md) shows the exact mechanism).
+The Flatpak sandbox is the seventh consumer, and the one that fails silently:
+each emulator's override must list the data root
+(`flatpak override --user --filesystem=/userdata`), or every ROM under it is
+"not found" from inside the sandbox while every path check on the host passes
+([09-gotchas.md](09-gotchas.md)).
+
 `gamecore-ui.service` — starts `electron/start-ui.sh` after the display
 manager. That wrapper is not decoration: it exports `XDG_RUNTIME_DIR` (without
 it Chromium has **no audio at all** under a systemd service) and probes

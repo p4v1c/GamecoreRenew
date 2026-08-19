@@ -47,7 +47,7 @@ are the auto-incremented tags.
   What no update can deliver is the artwork: `assets/overlays/` is excluded from
   the rsync. To get a frame that actually fits, drop a PNG named
   `<system>.<console>.png` beside the system one — `mgba.gba.png`,
-  `dolphin.wii.png`. `docs/rapports/bezels-par-console-phase3.md` has the
+  `dolphin.wii.png`. `docs/reports/bezels-per-console-phase3.md` has the
   verification steps, the backup and the way back.
 
 - **An overlay upload with no transparent area is now refused (422).** A valid

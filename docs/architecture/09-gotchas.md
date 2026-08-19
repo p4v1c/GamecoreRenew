@@ -57,6 +57,27 @@ every standby transition; an unrelated `GET /api/systems` measured 4.7 s. It is
 memoised now, and the first probe runs off-thread. Same reason argon2 goes
 through `asyncio.to_thread` in the auth router.
 
+## The data root, seen from inside a sandbox
+
+**A Flatpak's filesystem is a literal list of paths, and moving the data
+invalidates it silently.** Every emulator override was granted
+`--filesystem=/opt/GameCore` when that was where ROMs lived. After the
+migration to `/userdata`, every host-side check still passed — the backend
+found the ROM, `test -f` found the ROM, the launch command was correct — and
+the emulator reported *ROM not found*, because inside its sandbox `/userdata`
+does not exist. Nothing errors at grant time or at mount time; the path is
+simply absent. The fix is one override per emulator
+(`flatpak override --user --filesystem=/userdata`); `install/arch.sh` grants
+**both** roots whenever they differ, and `scripts/migrate-userdata.py`'s
+epilogue prints the loop for existing boxes. When a launch fails with a
+file-not-found that the host disproves, check the sandbox before anything
+else: `flatpak override --user --show <app-id>`.
+
+The same shape applies in reverse to **config files**: a Flatpak emulator
+reads `~/.var/app/<id>/config/…`, not `~/.config/…`. Both trees usually
+exist, and editing the native one changes nothing
+([07-config-and-data.md](07-config-and-data.md)).
+
 ## Backend wiring
 
 **`/ws` must stay registered before the `/` static mount.**
