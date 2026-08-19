@@ -158,15 +158,29 @@ theme never has to guess twice.
 `get_game_playtime(game_key:path)` — straight reads of the `playtime` table
 ([schema](07-config-and-data.md#playtimedb)).
 
-## `overlays.py` (69 l.) — bezel upload
+## `overlays.py` (~310 l.) — resolve, measure, choose, deposit
+
+The whole bezel surface. Everything validates `system_id` against the shared
+`SYSTEM_ID_RE` (backend/utils.py) — the id names a directory under a served
+root, and `..` in one would read files anywhere the backend user can reach.
 
 | Function | Route | Notes |
 |---|---|---|
-| `_overlay_path(system_id)` | — | `assets/overlays/<id>.png` |
-| `get_overlay(system_id)` | `GET /overlays/{id}` | |
+| `resolve_overlay` | `GET /overlays/resolve/{id}?rom=` | what one launch draws: source/asset/hole/console/announced/measure. **Never 404s** — "no bezel" is the normal answer for the 16:9 systems |
+| `install_pack` | `POST /overlays/packs/{id}` | files a Bezel Project pack an addon downloaded; source must resolve inside `addons_dir()` |
+| `record_measurement` | `POST /overlays/measured/{id}` | the monitor's report; `console` in the body must be one the pack declares, or a LAN caller could write arbitrary cache keys |
+| `overlay_choices` | `GET /overlays/choices/{id}?rom=` | current preference + options that actually exist on this box |
+| `set_overlay_choice` | `PUT /overlays/choices/{id}` | `"off"`, a bezel filename, or null for automatic; validated against `available()` |
+| `overlay_slots` | `GET /overlays/{id}/slots` | every bezel this system CAN have, filled or not, with measured `ratio` and the pack-declared `expected_ratio` — what a manager UI needs and `choices` cannot answer |
+| `upload_console_overlay` | `POST /overlays/{id}/consoles/{cid}` | a bezel for ONE console of a multi-console pack; `cid` must be declared in `roms.consoles` |
+| `delete_console_overlay` | `DELETE /overlays/{id}/consoles/{cid}` | the counterpart — without it a bezel dropped on the wrong console could only ever be replaced |
+| `get_overlay` / `upload_overlay` / `delete_overlay` | `GET/POST/DELETE /overlays/{id}` | the system-level PNG |
+| `_receive_bezel` | — | shared upload body: magic bytes, 10 MB cap (`bezels.MAX_BEZEL_BYTES`), and **a 422 for an image with no transparent area** — a valid PNG with no hole is a rectangle painted over the whole game, and every other check passes it |
 | `_looks_like_image(head)` | — | **magic-byte check** — "the client Content-Type header proves nothing" |
-| `upload_overlay(system_id, file)` | `POST /overlays/{id}` | |
-| `delete_overlay(system_id)` | `DELETE /overlays/{id}` | |
+
+Uploads write through `tempfile.mkstemp` in the destination directory —
+deliberately NOT `utils.atomic_write`: two concurrent uploads must not share a
+temp name, which is a different problem from a power cut.
 
 ## `addons.py` (141 l.) — registry and lifecycle
 

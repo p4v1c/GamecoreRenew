@@ -242,7 +242,12 @@ alpha byte is unfiltered — 1.6 s → 0.4 s for a 1920x1080 bezel, cached in
 drawn region measured out of it, and the hole corrected if the two disagree —
 cached per system, console and announced ratio in
 `<DATA>/config/bezel-corrections.json`, so a box looks once per console and
-then stops.
+then stops. **And it only looks at all when the answer can be seen**: with a
+PNG resolved the artwork is drawn edge to edge and the hole only decides the
+fallback bars shown when there is no image, so `for_launch` keeps
+`measure: false` while an asset exists — the capture is for the declared
+frame, the one thing a correction visibly moves. Delete the PNG and measuring
+resumes on its own.
 
 The key is `<system>@<ratio>` for a pack that declares no console — eleven of
 the thirteen, and every correction on every box that exists, so that string had

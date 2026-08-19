@@ -214,6 +214,28 @@ convention, three would have been a rule to remember rather than import.
 `cover_pipeline._rom_in_root` remains as an alias, because that is the name the
 cover tests assert on.
 
+### `backend/utils.py` — the shared facts
+
+Three things live here precisely because they used to exist in several copies:
+
+- **`SYSTEM_ID_RE`** — the alphabet a system id must match before it is joined
+  onto any served root (`overlays.py` and `pergame.py` routers both import it;
+  each used to carry its own identical compile).
+- **`atomic_write(path, text)` / `atomic_write_json(path, data, **dumps_kwargs)`**
+  — write through a temp file in the same directory, then `os.replace()`, with
+  `encoding="utf-8"` spelled out. `write_text()` truncates first and writes
+  second, and much of what the backend writes happens at startup or at a launch
+  — the exact moments someone can cut the power at the wall. This implementation
+  existed six times (configgen `helpers/base.py`, `pergame`, `bezels` ×2,
+  `bezel_capture`, `merge` ×2, `ota` ×2) before converging; the dumps kwargs
+  pass through unchanged so every caller keeps its exact on-disk shape. The
+  overlay upload route deliberately does NOT use it — concurrent uploads need
+  unique temp names (`mkstemp`), a different problem from a power cut.
+- **`fmt_size(n)`** — 1024-based, and since v1.2.15 the labels say so
+  (KiB/MiB/GiB); the arithmetic always divided by 1024 while the labels claimed
+  decimal units. The rom-manager addon carries its own deliberate copy
+  (self-contained by contract) and moved in the same release.
+
 ## `local_media.py` (150 l.) — read the game itself
 
 Offline and exact. Nothing here guesses from a filename.
@@ -685,23 +707,56 @@ in **where it is read from**:
 
 Pluggable per system, because an N64 cartridge dump carries no serial at all.
 
-### `bezels.py` (656 l.) — which bezel, and where its window is
+### `bezels.py` (~775 l.) — which bezel, and where its window is
 
-Resolves game → system → nothing, like Batocera. The interesting half is **why
-the hole is measured rather than read**: `config/` and `assets/overlays/` are both
-excluded from the OTA rsync, deliberately, because they are the player's. The
-consequence is that a wrong `hole` in a shipped `overlays.json` can *never* be
-corrected on a box that already exists — the release carries the fix and the rsync
-drops it on the floor.
+Resolves **off → game → console → system → declared → nothing**, like Batocera
+plus one level: a pack that runs several distinct machines (mGBA: Game Boy 10:9,
+Game Boy Color 10:9, Game Boy Advance 3:2) resolves `<system>.<console>.png`
+between the per-game pack and the system PNG. Which console a ROM belongs to is
+answered by `consoles.py` (below); a pack that declares none takes exactly the
+old path. `slots()` lists every bezel a system *can* have — filled or not, with
+the measured `ratio` and the pack-declared `expected_ratio` — which is what the
+ROM Manager's deposit screen needs and `available()` (options for one game)
+cannot answer.
 
-### `bezel_capture.py` (228 l.) — when the emulator disagrees with itself
+The interesting half is **why the hole is measured rather than read**: `config/`
+and `assets/overlays/` are both excluded from the OTA rsync, deliberately,
+because they are the player's. The consequence is that a wrong `hole` in a
+shipped `overlays.json` can *never* be corrected on a box that already exists —
+the release carries the fix and the rsync drops it on the floor. `hole_of()` is
+the uncached variant, for validating an upload while it is still a temp file.
+`MAX_BEZEL_BYTES` (10 MB) is the one cap for a bezel wherever it enters — the
+upload route reads the same constant.
+
+### `consoles.py` (130 l.) — which console inside a pack a ROM belongs to
+
+Reads `roms.consoles` out of the box's `systems.json` (mtime-cached). Declared,
+never derived — `.zip` says nothing about its contents, `.iso` serves GameCube
+and Wii alike, and `.rvz` is Dolphin's own container holding either; the scraper
+already paid for guessing (`gamemedia/registry.py`). An extension no console
+claims resolves to `None` and the cascade stays at the system level, which is
+the pre-console behaviour. Not `libretroSystems` either: that is libretro's
+naming (melonDS declares two entries for one machine) and would rename under us.
+
+### `bezel_capture.py` (~273 l.) — when the emulator disagrees with itself
 
 A hole is cut for the ratio a system is *supposed* to render at, and the emulator
 does not always oblige (an aspect setting left on stretch, a core letterboxing 4:3
 inside 16:9, a widescreen hack). The overlay is then perfectly correct about a
 picture that is not there, with nothing on screen to suggest which of the two is
 wrong. The only witness is the screen: a frame is captured a second into the game,
-the drawn region measured, and a disagreement corrects the hole and is remembered.
+the drawn region measured, and a disagreement corrects the hole and is remembered
+— keyed `<system>@<ratio>` for a mono-console pack (byte-identical to what every
+installed box already carries) and `<system>/<console>@<ratio>` for one that
+declares consoles, so the first console played can no longer freeze its rectangle
+onto the other two.
+
+**Measuring only happens when it can be seen** (`for_launch` sets
+`measure: false` the moment an asset resolves): with a PNG on screen the overlay
+draws the artwork edge to edge and the hole only decides the fallback bars drawn
+when there is no image. The reference box spent weeks re-carrying an `mgba@1:1`
+correction no frame ever displayed. Delete the PNG and the declared frame — the
+thing a correction actually moves — turns measuring back on by itself.
 
 ### `controller_capture.py` (543 l.) — the mapping wizard's engine
 

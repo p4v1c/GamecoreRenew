@@ -126,6 +126,27 @@ emulator's config — deploying that stays a deliberate act
 When `GAMECORE_DATA` is set to something outside the install, the script says so
 in the log and notes the excludes are now redundant but harmless.
 
+### Where the updater finds the data root
+
+Launched from the Settings button it inherits the backend's environment and
+knows. Typed at a shell it does not — a shell has no `GAMECORE_DATA` — so since
+v1.2.13 it reads the variable **from the backend's systemd unit**
+(`_data_root_from_backend_unit`, same shape as `install/bin/gamecore-addon`,
+duplicated on purpose: the updater must not depend on the CLI's presence or
+version). Without this, a hand-typed update on a migrated box merged the
+catalogue into the abandoned `config/` under the install — green log, dead
+grid. The catalogue merge itself is handed **both roots** (`merge_file(...,
+data_root=...)`): the catalogue and `lib/` are code and come from
+`GAMECORE_PATH`; `systems.json`, `catalog.d/` and `catalog-removed.json` are
+the player's and come from `GAMECORE_DATA`. Themes install under the data root
+for the same reason.
+
+The updater also reports, with the exact command, when a root-owned copy it
+cannot replace has gone stale: `/usr/local/bin/gamecore-addon` (only
+`install/arch.sh` writes it), `/etc/caddy/Caddyfile`, and a backend unit whose
+merged definition (drop-ins included — it checks `systemctl cat`, not the file)
+lacks the X-display `ExecStartPre`.
+
 ## Going back — `${GAMECORE_PATH}.prev`
 
 Before overwriting anything, the updater snapshots the install with
