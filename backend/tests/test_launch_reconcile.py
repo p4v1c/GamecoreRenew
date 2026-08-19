@@ -58,6 +58,19 @@ def launcher(monkeypatch):
     monkeypatch.setattr(games_router, "list_all", lambda: [GHOST])
     monkeypatch.setattr(games_router, "PROFILE_BUDGET", 0.0)
     monkeypatch.setattr(gm, "_find_gamepad_devices", dict)
+    # And its slot sweep is severed at the function, not only at the input.
+    # `release_profile` is one module object shared by the whole process, so
+    # the recorder each test installs is reachable by ANY monitor pass alive
+    # anywhere — including one belonging to a previous test's app instance.
+    # That is exactly what the full suite produced: after test_gamemedia.py or
+    # test_http_cache.py (and only then), the launch-scoped assertions saw
+    # extra release calls carrying pack_ids=None — the monitor's signature
+    # (gamepad_monitor.py, the `_reconcile` sweep), not the launch's. Blinding
+    # the device list starves THIS client's monitor; no-opping `_reconcile`
+    # makes the recorder unreachable from every other one too.
+    async def _no_reconcile(was, live, applied, first_scan, ws) -> None:
+        return None
+    monkeypatch.setattr(gm, "_reconcile", _no_reconcile)
     reg._slots.clear(); reg._labels.clear()
     try:
         with TestClient(main.app) as c:
