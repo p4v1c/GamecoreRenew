@@ -17,22 +17,19 @@ does not know what a setting MEANS, and a screen that offered `Video` /
 editor on a television. The button opens the emulator's own window instead,
 and everything the player sets there GameCore then keeps, per game.
 """
-import re
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..services import configgen, pergame
+from ..utils import SYSTEM_ID_RE
 from ..services.catalog import launch as catalog_launch
 from ..services.process_manager import process_manager
 
 router = APIRouter(tags=["pergame"])
 
-# Same alphabet the overlays router pins, and for the same reason: a system id
-# names a directory under the records root, and `..` in one would let a request
-# read and write outside it.
-_SYSTEM_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+_SYSTEM_ID_RE = SYSTEM_ID_RE  # the shared boundary — see backend/utils.py
 
 
 def _checked(system_id: str) -> None:

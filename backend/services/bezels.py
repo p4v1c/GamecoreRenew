@@ -52,6 +52,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from . import bezel_capture, consoles, gameid
+from ..utils import atomic_write_json
 from .paths import addons_dir, config_dir, overlays_dir
 
 log = logging.getLogger(__name__)
@@ -267,14 +268,9 @@ def set_preference(system_id: str, rom_name: str, choice: str | None) -> None:
     else:
         per_system[key] = choice
 
-    p = _choices_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    # Written through a temp file in the same directory: this is the player's
-    # settings, and a power cut mid-write must not leave a truncated JSON that
-    # takes every preference on the box with it.
-    tmp = p.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(data, indent=2, sort_keys=True))
-    tmp.replace(p)
+    # Atomic: this is the player's settings, and a power cut mid-write must
+    # not leave a truncated JSON that takes every preference on the box with it.
+    atomic_write_json(_choices_path(), data, indent=2, sort_keys=True)
 
 
 def slots(system_id: str) -> list[dict]:
@@ -527,11 +523,7 @@ def _cache() -> dict[str, dict]:
 def _save_cache() -> None:
     """Best effort. A cache that cannot be written must not stop a game."""
     try:
-        p = _cache_path()
-        p.parent.mkdir(parents=True, exist_ok=True)
-        tmp = p.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(_cache()))
-        tmp.replace(p)
+        atomic_write_json(_cache_path(), _cache())
     except OSError as e:
         log.debug("bezels: hole cache not written — %s", e)
 
@@ -627,7 +619,11 @@ def _asset_url(png: Path) -> str:
 # It lives here rather than in the addon so that what may be written, and
 # where, is decided by the side that is not third-party code.
 
-_MAX_BEZEL_BYTES = 10 * 1024 * 1024
+# One cap for a bezel wherever it enters — the upload route and the pack
+# installer both read this. It was also spelled a second time in
+# routers/overlays.py as _MAX_OVERLAY_BYTES, same value, and the two could
+# only ever drift apart.
+MAX_BEZEL_BYTES = 10 * 1024 * 1024
 
 
 def install_pack(system_id: str, source: Path) -> dict:
@@ -663,7 +659,7 @@ def install_pack(system_id: str, source: Path) -> dict:
             skipped += 1
             continue
         try:
-            if p.stat().st_size > _MAX_BEZEL_BYTES:
+            if p.stat().st_size > MAX_BEZEL_BYTES:
                 skipped += 1
                 continue
             target = dest / p.name

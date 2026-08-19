@@ -25,10 +25,14 @@ frontend/.vite/
 electron/node_modules/
 electron/dist/
 # ROMs and Emulator Data
+# The ROM tree is player data, never repository content. It used to carry a
+# hand-kept skeleton of .gitkeep files, one per emulator — which had already
+# drifted (no shadps4, no xenia): the installer creates the ROM directories
+# from the catalogue (arch.sh, via catalog-query rom-dirs), provision_userdata
+# creates emu/ itself, and rom_scanner treats a missing directory as empty.
+# A second copy of "which emulators exist" is exactly the failure this
+# repository keeps writing down.
 emu/
-!emu/.gitkeep
-!emu/covers/
-!emu/covers/.gitkeep
 
 # Emulator binaries and console firmwares — live on the box only,
 # never in git (a branch switch must never be able to delete them).
@@ -39,11 +43,6 @@ emu/
 
 # Local backup copies (e.g. config/overlays.json.bak)
 *.bak
-
-# Exclude all files in emulator subdirs (ROMs)
-emu/*/*
-# But keep the directories themselves via .gitkeep
-!emu/*/.gitkeep
 
 # SQLite
 *.db

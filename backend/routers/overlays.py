@@ -1,23 +1,23 @@
 """Overlay bezel management — upload/serve per-system PNG, and resolve per game."""
 import os
-import re
 import tempfile
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from ..services import bezel_capture, bezels, consoles
+from ..utils import SYSTEM_ID_RE
 from ..services.paths import overlays_dir
 
 router = APIRouter(tags=["overlays"])
 
 OVERLAYS_DIR = overlays_dir()
-_MAX_OVERLAY_BYTES = 10 * 1024 * 1024  # 10 MB hard cap
+# One cap, owned by the service that also enforces it on pack installs.
+_MAX_OVERLAY_BYTES = bezels.MAX_BEZEL_BYTES
 
-# A system id names a directory and a file under the overlays root. Anything
-# outside this alphabet is not a system, and `..` in particular would make
-# `resolve` read PNGs from anywhere the backend user can reach.
-_SYSTEM_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+# `..` in a system id would make `resolve` read PNGs from anywhere the
+# backend user can reach — the shared regex is the boundary (backend/utils.py).
+_SYSTEM_ID_RE = SYSTEM_ID_RE
 
 
 def _overlay_path(system_id: str) -> Path:

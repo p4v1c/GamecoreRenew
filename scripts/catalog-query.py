@@ -27,6 +27,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from backend.services.catalog import appid, load_catalog  # noqa: E402
+from backend.services.installer.providers import (  # noqa: E402
+    Context as SandboxContext,
+    sandbox_flags,
+)
 
 
 def _resolve(value: str, home: str, gamecore: str, app_id: str) -> str:
@@ -131,22 +135,17 @@ def main() -> int:
         elif args.command == "sandbox":
             if not p.app_id:
                 continue
-            sb = p.data.get("sandbox")
-            if sb is None:
-                # The emulator policy, and the reason it is the default: a pack
-                # that says nothing wants ROM access and a gamepad on X11. The
-                # ROMs are under the data root — granted as well when it is
-                # not the install, or a launch hands the emulator a path its
-                # sandbox cannot see and the game reads as missing.
-                roots = [args.gamecore_path]
-                if args.gamecore_data and args.gamecore_data != args.gamecore_path:
-                    roots.append(args.gamecore_data)
-                flags = [*(f"--filesystem={r}" for r in roots), "--device=all",
-                         "--socket=x11"]
-            else:
-                flags = ([f"--filesystem={v}" for v in sb.get("filesystem", [])]
-                         + [f"--device={v}" for v in sb.get("device", [])]
-                         + [f"--socket={v}" for v in sb.get("socket", [])])
+            # THE sandbox policy, not a re-statement of it. This block used to
+            # carry its own copy of the emulator default, and the day the data
+            # root joined the flags both copies had to be edited in the same
+            # commit — the exact two-places-one-fact failure the head of this
+            # file exists to end. `providers.py` and its whole import chain are
+            # stdlib (the installer runs it before pip), so importing the real
+            # one costs nothing.
+            flags = sandbox_flags(p, SandboxContext(
+                gamecore_path=Path(args.gamecore_path),
+                gamecore_data=Path(args.gamecore_data)
+                if args.gamecore_data else None))
             out.append(p.app_id + "\t" + " ".join(flags))
 
         elif args.command == "packages":

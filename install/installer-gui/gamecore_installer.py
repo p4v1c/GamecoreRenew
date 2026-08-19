@@ -359,6 +359,29 @@ class DiskPage(QWizardPage):
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
 
 
+def data_path_problem(install_path: str, data_path: str) -> str:
+    """Why this data path cannot be used with this install path, or "".
+
+    The same alphabet arch.sh's _conf_path accepts (it lands unquoted in
+    systemd units), and never NESTED inside the install unless it IS the
+    install: the OTA rsyncs the install tree with a fixed list of excludes, and
+    a data directory under it that is not on that list would be replaced by
+    the release. Equal is fine — that is the layout every box had before the
+    split, and every exclude exists for it.
+    """
+    if not re.fullmatch(r"/[A-Za-z0-9._/+-]*", data_path) or data_path.endswith("/") and data_path != "/":
+        return ("The data path must be absolute and contain no spaces or special "
+                "characters.")
+    if data_path == "/":
+        return "The data path must not be / — that is the whole filesystem."
+    inst = install_path.rstrip("/")
+    if data_path != inst and (data_path + "/").startswith(inst + "/"):
+        return (f"The data path must not sit inside the install path ({inst}) — an "
+                "update replaces that tree. Use the install path itself, or a "
+                "directory outside it such as /userdata.")
+    return ""
+
+
 class SystemPage(QWizardPage):
     def __init__(self):
         super().__init__()
@@ -369,6 +392,15 @@ class SystemPage(QWizardPage):
                                "and the password protecting the web interface on your network."))
         self.user = QLineEdit(default_user())
         self.path = QLineEdit("/opt/GameCore")
+        # Where the player's files go — ROMs, saves, covers, settings — as
+        # opposed to where the code goes. Separate by default: a box installed
+        # with its data inside the install works, but moving the data out later
+        # is a migration (scripts/migrate-userdata.py), and every consumer of
+        # the data root has to be told. Deciding it here costs one field and
+        # saves that whole evening. On the ISO the field is not a choice: the
+        # disk installer mounts the data partition at /userdata and says so in
+        # the conf itself, so it is shown fixed (see initializePage).
+        self.data = QLineEdit("/userdata")
         self.port = QSpinBox()
         self.port.setRange(1, 65535)
         self.port.setValue(8765)
@@ -381,6 +413,7 @@ class SystemPage(QWizardPage):
         fields = (
             ("Username", self.user),
             ("Install path", self.path),
+            ("Data path (ROMs, saves, covers) — same as the install path to keep everything in one place", self.data),
             ("Backend port", self.port),
             ("Web password (ROM upload over the network)", self.web_pw),
             ("Confirm web password", self.web_pw2),
@@ -389,6 +422,18 @@ class SystemPage(QWizardPage):
             c = QLabel(cap.upper()); c.setObjectName("hint")
             lay.addSpacing(8); lay.addWidget(c); lay.addWidget(w)
         lay.addStretch()
+
+    def initializePage(self):
+        w = self.wizard()
+        if getattr(w, "iso_src", None) is not None:
+            # The ISO's disk installer creates the data partition and mounts it
+            # at /userdata; gamecore-disk-install.sh writes GAMECORE_DATA=/userdata
+            # into the conf itself. Anything typed here would disagree with the
+            # partition table, so the field states the fact and takes no input.
+            self.data.setText("/userdata")
+            self.data.setEnabled(False)
+            self.data.setToolTip("Fixed on the ISO: the guided disk install mounts "
+                                 "the data partition at /userdata.")
 
     def validatePage(self):
         if not re.fullmatch(r"[a-z_][a-z0-9_-]*", self.user.text().strip()):
@@ -401,6 +446,10 @@ class SystemPage(QWizardPage):
             QMessageBox.warning(self, "GameCore",
                                 "The install path must be absolute and contain no spaces "
                                 "or special characters.")
+            return False
+        problem = data_path_problem(self.path.text().strip(), self.data.text().strip())
+        if problem:
+            QMessageBox.warning(self, "GameCore", problem)
             return False
         if not self.web_pw.text():
             QMessageBox.warning(self, "GameCore",
@@ -602,7 +651,9 @@ class SummaryPage(QWizardPage):
             # First row on the ISO, and it names the disk one last time before
             # the install page starts erasing it.
             *([("Disk (ERASED)", c["target_disk"])] if w.iso_src is not None else []),
-            ("User", c["user"]), ("Install path", c["path"]), ("Backend port", str(c["port"])),
+            ("User", c["user"]), ("Install path", c["path"]),
+            ("Data path", c["data"] + (" (inside the install)" if c["data"] == c["path"] else "")),
+            ("Backend port", str(c["port"])),
             ("Type", c["mode"]), ("Emulators", emus), ("Applications", apps),
             ("Addons", c["addons"] or "none"),
             ("Web password", "set" if c["web_password"] else "NOT SET"),
@@ -657,6 +708,12 @@ class InstallPage(QWizardPage):
             "# gamecore-install.conf — generated by the GameCore installer",
             f"USER_NAME={shlex.quote(c['user'])}",
             f"GAMECORE_PATH={shlex.quote(c['path'])}",
+        ] + ([
+            # Not on the ISO: there gamecore-disk-install.sh appends
+            # GAMECORE_DATA=/userdata itself, from the partition it mounted —
+            # one writer for that fact, not two that could disagree.
+            f"GAMECORE_DATA={shlex.quote(c['data'])}",
+        ] if w.iso_src is None else []) + [
             f"WEB_PORT={c['port']}",
             f"MODE={c['mode']}",
             f"EMULATORS={shlex.quote(c['emulators'])}",
@@ -920,6 +977,7 @@ class InstallerWizard(QWizard):
             **disk,
             "user": sysp.user.text().strip(),
             "path": sysp.path.text().strip(),
+            "data": sysp.data.text().strip(),
             "port": sysp.port.value(),
             "mode": "minimal" if mode.minimal.isChecked() else "full",
             "emulators": "all" if len(checked) == len(EMULATORS) else " ".join(checked),

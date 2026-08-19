@@ -6,10 +6,11 @@ code, because they are the record of what each line is defending against.
 """
 from __future__ import annotations
 
-import os
 import shutil
 from collections.abc import Collection
 from pathlib import Path
+
+from ....utils import atomic_write as _atomic_write
 from typing import Protocol
 
 
@@ -49,22 +50,13 @@ def backup(p: Path) -> None:
 
 
 def atomic_write(p: Path, text: str) -> None:
-    """Write through a temp file in the same directory, then os.replace().
-
-    `write_text()` truncates first and writes second. This pipeline runs at
-    backend startup — the exact moment someone powers the box on, and the exact
-    moment they can cut the power again with the wall switch. A Config.json
-    caught between the two is invalid JSON, and Ryujinx starts over from
-    defaults. os.replace() is atomic within a filesystem, so a reader sees
-    either the whole old file or the whole new one.
+    """The shared one, re-exported under the name every configgen helper
+    imports. The power-cut reasoning lives with the implementation
+    (backend/utils.py); what is configgen-specific is only WHEN it bites:
+    this pipeline runs at backend startup, the exact moment the box is
+    switched on — and off again.
     """
-    tmp = p.with_name(p.name + ".gamecore-tmp")
-    try:
-        tmp.write_text(text)
-        os.replace(tmp, p)
-    except OSError:
-        tmp.unlink(missing_ok=True)
-        raise
+    _atomic_write(p, text)
 
 
 class Generator(Protocol):

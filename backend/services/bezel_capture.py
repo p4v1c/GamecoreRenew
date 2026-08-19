@@ -42,6 +42,7 @@ import logging
 from math import gcd
 from pathlib import Path
 
+from ..utils import atomic_write_json
 from .paths import config_dir
 
 log = logging.getLogger(__name__)
@@ -257,11 +258,9 @@ def record(system_id: str, hole: dict, measured: tuple[int, int, int, int],
     x, y, w, h = measured
     data = corrections()
     data[key_for(system_id, hole, console)] = {"x": x, "y": y, "w": w, "h": h}
-    p = _path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(data, indent=2, sort_keys=True))
-    tmp.replace(p)
+    # Atomic: a torn corrections file would take every learned rectangle on
+    # the box with it, and the symptom is bezels drifting back a week later.
+    atomic_write_json(_path(), data, indent=2, sort_keys=True)
     log.info("bezels: %s%s renders at %dx%d+%d+%d, not %dx%d+%d+%d — corrected",
              system_id, f"/{console}" if console else "",
              w, h, x, y, hole["w"], hole["h"], hole["x"], hole["y"])
