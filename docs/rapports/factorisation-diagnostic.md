@@ -91,4 +91,6 @@ aucune vieille constante (`_MAX_OVERLAY_BYTES`, `.json.tmp`) épinglée par un
 test ; simulation `merge-tree` vers main : zéro conflit. Suite complète :
 1707 verts, les 2 échecs = le flake `test_launch_reconcile` reproduit à
 l'identique sur la branche de base dans le même environnement (expérience
-témoin en worktree).
+témoin en worktree : mêmes totaux, mêmes deux échecs, et l'unique skip
+divergent tracé à la ligne — `test_electron_cache.py:70`, « no frontend build
+on disk », le worktree n'ayant pas de build : environnemental, pas de branche).
