@@ -94,3 +94,18 @@ l'identique sur la branche de base dans le même environnement (expérience
 témoin en worktree : mêmes totaux, mêmes deux échecs, et l'unique skip
 divergent tracé à la ligne — `test_electron_cache.py:70`, « no frontend build
 on disk », le worktree n'ayant pas de build : environnemental, pas de branche).
+
+## Le flake `test_launch_reconcile` — tué pendant la repasse
+
+Bissection par moitiés sur les 93 fichiers : reproductible à l'unité derrière
+`test_gamemedia.py` **ou** `test_http_cache.py`, et derrière eux seuls (quatre
+prédécesseurs « innocents », routers compris, restent verts). Les appels
+excédentaires portaient `pack_ids=None` — la signature du balayage du moniteur
+(`gamepad_monitor._reconcile`, l.564), pas celle du lancement.
+`release_profile` étant un objet de module unique, l'enregistreur qu'un test
+installe est joignable par toute passe de moniteur vivante dans le processus —
+celle d'une app d'un test précédent comprise. Le fixture, qui aveuglait déjà
+l'entrée du moniteur, no-ope désormais aussi `_reconcile` (signature exacte) :
+l'enregistreur devient injoignable de partout. Résultat : première suite
+complète entièrement verte du projet (1709/0), l'ancienne note « ligne de base
+rouge = manette » est caduque.
