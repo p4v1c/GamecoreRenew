@@ -44,8 +44,6 @@ emu/
 # Local backup copies (e.g. config/overlays.json.bak)
 *.bak
 
-# But keep the directories themselves via .gitkeep
-
 # SQLite
 *.db
 

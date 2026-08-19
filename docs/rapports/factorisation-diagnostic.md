@@ -58,3 +58,37 @@ Ces duplications **sont voulues**. Les fusionner casserait un contrat.
   utiles comme mémoire du projet ; à élaguer un jour si le dossier enfle.
 - `backend/utils.fmt_size` étiquette KB/MB en divisant par 1024 — cosmétique,
   figé par l'affichage existant des addons ; à corriger avec leur UI, pas ici.
+
+## Repasse du 2026-08-19 (revue d'une heure, chrono)
+
+Relecture hunk par hunk du diff complet, plus exécution réelle de chaque
+consommateur. Deux vraies trouvailles, deux resserrages :
+
+1. **Régression attrapée : `scripts/verify-emulators.py` ne tournait plus.**
+   Déplacé d'un cran, son `sys.path.insert(...parent)` visait `scripts/` au
+   lieu de la racine — `ModuleNotFoundError: backend` en exécution réelle. Le
+   test passait quand même : il charge le fichier avec un `sys.path` déjà
+   garni. La CI du lundi aurait cassé en silence. Corrigé (`parents[1]`,
+   comme les dix autres outils), prouvé en exécutant le job du lundi de bout
+   en bout — vert, réseau compris. Leçon écrite ici : un test qui importe un
+   script ne prouve pas que le script se lance.
+2. **`atomic_write` écrit désormais `encoding="utf-8"` explicitement.**
+   `merge.py` et `ota.py` le faisaient (JSON `ensure_ascii=False`) ; l'hériter
+   de la locale remettait ce choix au hasard de l'environnement d'une unit.
+   (PEP 540 couvre la locale `C` — vérifié —, pas une locale non-UTF-8.)
+3. `base.py` : import relatif comme partout ailleurs ; `.gitignore` : un
+   commentaire orphelin du vieux schéma `.gitkeep` retiré.
+4. **Sémantique unifiée dite tout haut** : le helper fait `mkdir(parents=True)`
+   là où le `base.py` d'origine ne le faisait pas. Vérifié site par site : les
+   cinq appelants configgen écrivent à côté d'un fichier qu'ils viennent de
+   lire ou après leur propre `mkdir` — l'unification est un no-op, pas un pari.
+
+Contre-vérifications rejouées : octets de sortie identiques à la forme
+historique (`merge_file` sur un label accentué, comparaison binaire) ; les
+neuf sous-commandes de `catalog-query` et `gamecore-provider --dry-run` au
+python3 système ; aucun lecteur ne globbe un `.gamecore-tmp` orphelin ;
+aucune vieille constante (`_MAX_OVERLAY_BYTES`, `.json.tmp`) épinglée par un
+test ; simulation `merge-tree` vers main : zéro conflit. Suite complète :
+1707 verts, les 2 échecs = le flake `test_launch_reconcile` reproduit à
+l'identique sur la branche de base dans le même environnement (expérience
+témoin en worktree).

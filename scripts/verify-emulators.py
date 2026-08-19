@@ -22,7 +22,12 @@ from pathlib import Path
 
 import requests
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# One directory deeper than it used to live (repo root → scripts/), so the
+# repo root is the PARENT of this file's parent. The old `.parent` kept
+# working for the tests — they import the file with sys.path already set up —
+# and broke only where it matters, in the weekly CI run that executes it as a
+# script. parents[1], like every other tool in scripts/.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from backend.services.catalog import load_catalog  # noqa: E402
 
 # --no-probe territory: this runs in CI, where no emulator is installed and

@@ -10,7 +10,7 @@ import shutil
 from collections.abc import Collection
 from pathlib import Path
 
-from backend.utils import atomic_write as _atomic_write
+from ....utils import atomic_write as _atomic_write
 from typing import Protocol
 
 

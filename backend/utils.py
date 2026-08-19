@@ -68,7 +68,11 @@ def atomic_write(p: Path, text: str) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_name(p.name + ".gamecore-tmp")
     try:
-        tmp.write_text(text)
+        # utf-8 spelled out, not inherited: two of the six writers this
+        # replaced (merge.py, ota.py) wrote ensure_ascii=False JSON with an
+        # explicit encoding, precisely so a unit running under a non-UTF-8
+        # locale cannot turn a pack label with an accent into a crash.
+        tmp.write_text(text, encoding="utf-8")
         os.replace(tmp, p)
     except OSError:
         tmp.unlink(missing_ok=True)
