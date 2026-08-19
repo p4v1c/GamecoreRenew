@@ -40,6 +40,66 @@ def _load(d: Path) -> dict:
 
 # ── the shipped catalogue ───────────────────────────────────────────────────
 
+def test_an_invalid_pack_is_reported_not_a_traceback(tmp_path, monkeypatch):
+    """check() must return its report even when a pack breaks the schema.
+
+    The deeper checks assume a schema-valid pack; run on one that is not,
+    they crash — a bios entry written `{"name": …}` instead of `{"file": …}`
+    raised KeyError before it raised a report. The report is the whole point:
+    the documented authoring loop (10-catalog-and-install.md §10) pastes
+    check-catalog's OUTPUT back to whoever drafted the JSON, and a traceback
+    names our line numbers, not their mistake.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "check_catalog_bad", ROOT / "scripts" / "check-catalog.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    bad = tmp_path / "catalog" / "badpack"
+    bad.mkdir(parents=True)
+    (bad / "logo.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    (bad / "pack.json").write_text(json.dumps({
+        "id": "badpack", "kind": "emulator", "label": "Bad", "platform": "BAD",
+        "color": "#000000",
+        "launch": {"path": "flatpak", "args": "run @APPID@"},
+        "roms": {"dir": "emu/badpack", "extensions": ["*.bad"]},
+        # the shape a chatbot plausibly invents: "name" instead of "file"
+        "bios": {"dir": "emu/badpack/bios", "files": [{"name": "bios.bin"}]},
+    }), encoding="utf-8")
+    monkeypatch.setattr(mod, "CATALOG", tmp_path / "catalog")
+
+    problems = mod.check(None)          # must not raise
+    assert any("badpack" in p for p in problems), problems
+
+
+def test_the_docs_example_packs_validate(tmp_path, monkeypatch):
+    """The two `myemu` examples in 10-catalog-and-install.md, verbatim.
+
+    §6's "minimum viable pack" shipped without `perGame` — schema-required on
+    every emulator — for as long as nobody pasted it. §10 exists precisely to
+    be pasted into a chatbot and copied literally, so both blocks go through
+    the real validator here, extracted from the prose, not re-typed.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "check_catalog_docs", ROOT / "scripts" / "check-catalog.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    doc = (ROOT / "docs/architecture/10-catalog-and-install.md").read_text(
+        encoding="utf-8")
+    blocks = re.findall(r'\{\n  "id": "myemu".*?\n\}', doc, re.S)
+    assert len(blocks) == 2, "expected §6 and §10 to carry one example each"
+    for block in blocks:
+        pack_dir = tmp_path / "catalog" / "myemu"
+        pack_dir.mkdir(parents=True, exist_ok=True)
+        (pack_dir / "logo.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+        (pack_dir / "pack.json").write_text(block, encoding="utf-8")
+        monkeypatch.setattr(mod, "CATALOG", tmp_path / "catalog")
+        assert mod.check("myemu") == [], block
+
+
 def test_the_repository_catalogue_is_clean():
     """Everything scripts/check-catalog.py checks, against the real packs."""
     import importlib.util

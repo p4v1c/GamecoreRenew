@@ -13,6 +13,30 @@ One rule holds the whole thing together:
 Everything below is a consequence of that rule, including the parts that took a
 broken install to get right.
 
+A pack is not an install-time artefact that dies once the box is provisioned.
+It is read at **four moments**, by four different readers:
+
+1. **Build time** — `scripts/gen-catalog.py` runs in the repository (and in CI)
+   and derives `install/generated/*.dist` from the packs: the tiles a fresh
+   install starts from (§4).
+2. **Install time** — `arch.sh` and the installer providers read the catalogue
+   through `scripts/catalog-query.py` for everything they do: which Flatpaks to
+   install, which ROM directories to create, which sandbox flags to grant,
+   where each `seed/` lands, which services to enable (§3, §8).
+3. **Update time** — the OTA ships the whole `catalog/` tree and
+   `merge_file()` uses it to add tiles the box does not have yet and to fill in
+   fields that did not exist when the box was installed — a box updated to
+   v1.2.15 gained `roms.consoles` ratios on its existing mGBA tile this way,
+   without its operator touching anything
+   ([13-release-and-ota.md](13-release-and-ota.md)).
+4. **Runtime** — the backend reads the pack tree on the box on every boot and
+   every launch: `configgen` imports each pack's `generator.py`, `bios.py`
+   answers from the `bios` block, `pergame`, `local_media` and the bezel
+   cascade's declared frames all read their blocks live (§2).
+
+So editing a pack is never "too late": the change reaches installed boxes at
+the next update, through moment 3.
+
 ---
 
 ## 1. What a pack looks like on disk
@@ -461,7 +485,8 @@ Minimum viable pack:
   "color": "#1e90ff",
   "install": { "provider": "flatpak", "appIds": ["org.example.MyEmu"] },
   "launch": { "path": "flatpak", "args": "run @APPID@ --fullscreen" },
-  "roms": { "dir": "emu/myemu", "extensions": ["*.bin", "*.zip"] }
+  "roms": { "dir": "emu/myemu", "extensions": ["*.bin", "*.zip"] },
+  "perGame": { "supported": false, "why": "Not verified on a real install yet." }
 }
 ```
 
@@ -470,6 +495,10 @@ config (`config.dest` says where it lands), `generator.py` + `controllers` for
 gamepad bindings, `sandbox` if the emulator needs different Flatpak permissions,
 `packages` for a system dependency, `overlay` and `scraper` for bezels and
 covers.
+
+Not comfortable writing the JSON by hand? §10 carries ready-to-paste prompts
+that let **any** AI chatbot — including free-tier ones — draft it, with
+`check-catalog.py` as the safety net.
 
 ## 7. Adding an application
 
@@ -525,3 +554,140 @@ box — and that the API answers.
 `"the install finished without an error"` and `"the box works"` are different
 statements. `arch.sh` warns and carries on for a dozen recoverable failures, and
 each one is a tile that is quietly absent.
+
+---
+
+## 10. Drafting a pack with a free AI chatbot
+
+A pack is a single JSON file, and everything that can go wrong in it is caught
+**locally** by `scripts/check-catalog.py` — schema, logo, ROM-dir collisions,
+app-id collisions, seed hygiene, `@APPID@` discipline (§2). That division of
+labour is what makes this workflow safe with *any* model, however small: the
+chatbot only has to produce a plausible draft, and the validator — not the
+model — is what guarantees correctness. No paid model required.
+
+The loop:
+
+```bash
+mkdir -p catalog/<id>            # 1. paste the chatbot's JSON as pack.json
+cp …/logo.png catalog/<id>/      # 2. a logo is required (logo.svg also works)
+python3 scripts/check-catalog.py <id>   # 3. errors? → paste them into prompt B
+python3 scripts/gen-catalog.py   # 4. clean → derive the .dist files
+```
+
+Repeat 3 until silent. Two or three rounds is normal with a small model.
+
+### Prompt A — interview, then draft
+
+Paste this into any chatbot, as is. It is self-contained on purpose: a
+free-tier model cannot open this repository, so everything it needs is in the
+prompt — and it is told to interview the human first, because the human knows
+the emulator and the model does not.
+
+````text
+You are helping me write a `pack.json` file for GameCore, an emulation box.
+A pack describes ONE emulator. The file will be machine-validated, so follow
+the rules below exactly.
+
+STEP 1 — Ask me these questions, ONE numbered list, then WAIT for my answers:
+1. Emulator name, and the console(s) it emulates?
+2. Is it on Flathub? If yes, the exact application id (like org.example.Emu).
+3. The command line that launches it fullscreen with a game file, if you
+   know it (otherwise I will test later).
+4. Which file extensions do the game dumps use? (like .gba, .iso, .zip)
+5. Does one emulator run SEVERAL distinct machines (like Game Boy AND
+   Game Boy Advance)? If yes: each machine's name, its own extensions, and
+   the aspect ratio it draws if known (like 3:2 or 10:9).
+6. Does it need BIOS/firmware files the user must supply? Which filenames?
+7. A hex color for the tile (or tell me the console's brand color).
+8. A short platform code, uppercase (like GBA, PS2, SWITCH).
+
+STEP 2 — After my answers, output ONLY a JSON code block, no prose.
+Start from this template and keep ONLY the keys you have answers for.
+NEVER invent a key that is not shown here. NEVER guess a value: if I did
+not answer something, leave that key out entirely.
+
+{
+  "id": "myemu",
+  "kind": "emulator",
+  "label": "Some Console",
+  "emulatorName": "MyEmu",
+  "platform": "SOMECONSOLE",
+  "color": "#1e90ff",
+  "install": { "provider": "flatpak", "appIds": ["org.example.MyEmu"] },
+  "launch": { "path": "flatpak", "args": "run @APPID@ --fullscreen" },
+  "perGame": { "supported": false,
+               "why": "One sentence: what stops per-game settings here." },
+  "roms": {
+    "dir": "emu/myemu",
+    "extensions": ["*.gb", "*.gba", "*.zip"],
+    "consoles": [
+      { "id": "gb", "label": "Game Boy", "ratio": "10:9",
+        "extensions": ["*.gb"] },
+      { "id": "gba", "label": "Game Boy Advance", "ratio": "3:2",
+        "extensions": ["*.gba"] }
+    ]
+  },
+  "bios": { "dir": "emu/myemu/bios",
+            "files": [ { "file": "bios.bin", "required": true,
+                         "note": "Where the user gets it, in one sentence." } ] }
+}
+
+HARD RULES:
+- "id": lowercase letters/digits only; it names the pack's directory.
+- "launch.args" for a Flatpak MUST write @APPID@, never the real app id.
+- Extensions always look like "*.ext", lowercase.
+- "consoles" means DISTINCT MACHINES one emulator runs — it is NOT a list
+  of extensions. One machine = one entry, and the block only exists to
+  tell several machines apart: it needs AT LEAST TWO entries. If the
+  emulator runs a single machine, leave "consoles" out entirely.
+- "ratio" is "W:H" with plain integers, like "4:3" or "10:9". If you are
+  not certain of a machine's ratio, leave "ratio" out — wrong is worse
+  than absent.
+- "color" is "#" + 6 hex digits.
+- "perGame" is REQUIRED on an emulator. Unless I tell you this emulator
+  supports one-game-at-a-time settings, keep `"supported": false` and put
+  a real reason in "why" — never the words "not implemented".
+- Every console's extensions MUST also appear in "roms.extensions" —
+  the outer list is everything the pack scans, the console lists split it.
+- Leave out "bios" entirely if the emulator needs no user-supplied files.
+  If present, every entry needs all three keys: "file" (exact filename),
+  "required" (true/false), "note" (one sentence: where the user gets it).
+- Output must be valid JSON: double quotes, no comments, no trailing commas.
+````
+
+### Prompt B — the fix loop
+
+When `check-catalog.py` prints errors, paste this — with the errors and the
+current JSON — into the same chat:
+
+````text
+The validator rejected the pack.json you produced. Here is its output,
+then the current file. Fix ONLY what the errors name, change nothing else,
+and reply with the complete corrected JSON code block, no prose.
+
+VALIDATOR OUTPUT:
+<paste the check-catalog.py lines here>
+
+CURRENT FILE:
+<paste pack.json here>
+````
+
+### When the pack needs an advanced block
+
+The template above covers the common case: a Flathub emulator with ROMs.
+For anything beyond it — `seed/` + `config`, `controllers` + `generator.py`,
+`sandbox` flags, `perGame`, `localMedia`, `usb`, or an app-kind pack with
+`services` and `postInstall` — do not ask the chatbot to invent the shape.
+Open the shipped pack that already does the same thing (§2 names which block
+each pack exercises; `catalog/mgba` for multi-console + seed, `catalog/rpcs3`
+for bios + perGame, `catalog/twitch` for an app with services) and paste that
+whole `pack.json` into the chat as a model, with one line: *"same shape as
+this, adapted to <emulator>"*. A small model copies a working example far
+more reliably than it follows an abstract description — and whatever it gets
+wrong, `check-catalog.py` names it, and prompt B closes the loop.
+
+What no chatbot can do is the part that was always manual: `logo.png` on
+disk, dropping real BIOS files, and pressing the buttons to confirm the
+launch line actually reaches fullscreen. The pack only *declares*; the box
+verifies (§9).

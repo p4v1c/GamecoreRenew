@@ -103,10 +103,20 @@ def check(only: str | None = None) -> list[str]:
             continue
 
         # ── schema ────────────────────────────────────────────────────────
-        problems += [f"{pid}: {p}" for p in validate(pack, schema, pid)]
+        schema_problems = validate(pack, schema, pid)
+        problems += [f"{pid}: {p}" for p in schema_problems]
 
         if pack.get("id") != pid:
             problems.append(f"{pid}: declares id={pack.get('id')!r} but lives in {pid!r}")
+
+        if schema_problems:
+            # Everything below assumes a schema-valid pack — a bios entry
+            # missing its `file` key would turn the report into a traceback,
+            # and the report is the deliverable: the authoring loop
+            # (10-catalog-and-install.md §10) pastes it back to whoever
+            # drafted the JSON. Fix the schema lines first, re-run, and the
+            # deeper checks get their turn.
+            continue
 
         # ── symmetry ──────────────────────────────────────────────────────
         if not any((d / n).is_file() for n in ("logo.png", "logo.svg")):
