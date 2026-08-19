@@ -33,11 +33,20 @@ def rom_in_root(system: dict, filename: str) -> Path | None:
 
 
 def fmt_size(n: int) -> str:
-    for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024:
-            return f"{n:.1f} {unit}"
-        n /= 1024  # type: ignore[assignment]
-    return f"{n:.1f} TB"
+    """1024-based, and the labels now say so (KiB, not KB).
+
+    The arithmetic always divided by 1024; the labels claimed decimal units.
+    A 4 GB card showing "3.7 GB" reads as missing space — with "3.7 GiB" the
+    number and the unit finally agree. The rom-manager addon carries its own
+    deliberate copy of this (self-contained by contract); its labels move in
+    its own repository.
+    """
+    x = float(n)
+    for unit in ("B", "KiB", "MiB", "GiB"):
+        if x < 1024:
+            return f"{x:.1f} {unit}" if unit != "B" else f"{int(x)} B"
+        x /= 1024
+    return f"{x:.1f} TiB"
 
 
 # A system id names a directory and a file under a served root ("mgba" →

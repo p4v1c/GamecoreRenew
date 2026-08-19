@@ -159,6 +159,11 @@
                 "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
               },
               "label": { "type": "string", "minLength": 1 },
+              "ratio": {
+                "description": "The aspect this machine renders at, as W:H (10:9, 3:2). Optional, and declared only when it is one answer: mGBA's consoles each have exactly one; dolphin's run 4:3 and 16:9 both, so they rightly say nothing. Consumed by the overlay slots endpoint so a manager UI can warn when a deposited bezel's measured hole does not match the machine — without it the mismatch is only discovered in game.",
+                "type": "string",
+                "pattern": "^[1-9][0-9]*:[1-9][0-9]*$"
+              },
               "extensions": {
                 "description": "Must all appear in `roms.extensions`, and no two consoles of a pack may claim the same one — `scripts/check-catalog.py` fails the build on either.",
                 "type": "array",

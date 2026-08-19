@@ -133,6 +133,7 @@ def tile_entry(pack, *, resolve_launcher: LauncherResolver | None = None) -> dic
         # which is exactly the case `merge.py` has to be able to fill in.
         if consoles := roms.get("consoles"):
             entry["consoles"] = [{"id": c["id"], "label": c["label"],
+                                  **({"ratio": c["ratio"]} if c.get("ratio") else {}),
                                   "extensions": list(c["extensions"])}
                                  for c in consoles]
         entry["libretroSystems"] = list((pack.data.get("scraper") or {}).get("libretro", []))

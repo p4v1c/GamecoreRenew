@@ -298,6 +298,11 @@ def slots(system_id: str) -> list[dict]:
         # What a file for this slot would be named, so the UI can say it before
         # anything exists — the convention is guessable and should be visible.
         "extensions": list(c.get("extensions") or []),
+        # What the machine renders at, when the pack declares it. Beside the
+        # measured ratio below, it is what lets a manager UI say "this PNG is
+        # 16:9, the Game Boy draws 10:9" at upload time instead of the
+        # mismatch being discovered in game.
+        "expected_ratio": c.get("ratio"),
     } for c in consoles.declared(system_id)]
 
     for slot in out:
@@ -757,6 +762,14 @@ def for_launch(system_id: str, rom_name: str | None = None) -> dict:
         # its answer under, and a corrected hole must not become the key or the
         # correction would be relearned against itself every launch.
         "announced": placed,
-        # Nothing to learn once the answer is known.
-        "measure": fixed is None,
+        # Nothing to learn once the answer is known — and nothing to learn
+        # when the answer could not be seen: with a PNG on screen the overlay
+        # draws the artwork edge to edge and the hole only ever decides the
+        # FALLBACK bars, drawn when there is no image. Measuring behind a
+        # working bezel cost two 8 MB screen reads per system and ratio for a
+        # correction nothing displayed; the reference box carried exactly such
+        # an orphan (`mgba@1:1`) for weeks. The day the PNG disappears, the
+        # asset is None, the declared frame is what is drawn — and measuring
+        # resumes on its own.
+        "measure": fixed is None and out["asset"] is None,
     }

@@ -191,14 +191,30 @@ def merge_systems(live: list[dict], packs: dict, root: Path,
         # `roms.consoles` to a pack changes nothing in a systems.json that is
         # already there. Filled in rather than overwritten — a console list the
         # operator edited is a list they meant.
+        declared = list((pack.data.get("roms") or {}).get("consoles", []))
         if not entry.get("consoles"):
-            declared = list((pack.data.get("roms") or {}).get("consoles", []))
             if declared:
                 merged["consoles"] = [{"id": c["id"], "label": c["label"],
+                                       **({"ratio": c["ratio"]} if c.get("ratio") else {}),
                                        "extensions": list(c["extensions"])}
                                       for c in declared]
                 notes.append(f"{sid}: consoles filled in "
                              f"({', '.join(c['id'] for c in declared)})")
+        else:
+            # The gentler half of the same rule: a box that already carries the
+            # console list gains a MISSING ratio and nothing else. Adding an
+            # absent key cannot undo an operator's edit; rewriting a present
+            # one could, so a ratio someone set by hand is left alone.
+            gained = []
+            by_id = {c["id"]: c for c in declared if c.get("id")}
+            for c in merged.get("consoles", []):
+                packed = by_id.get(c.get("id"))
+                if packed and packed.get("ratio") and "ratio" not in c:
+                    c["ratio"] = packed["ratio"]
+                    gained.append(c["id"])
+            if gained:
+                merged["consoles"] = list(merged["consoles"])
+                notes.append(f"{sid}: console ratio filled in ({', '.join(gained)})")
 
         out.append(merged)
 

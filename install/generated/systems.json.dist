@@ -251,6 +251,7 @@
       {
         "id": "gba",
         "label": "Game Boy Advance",
+        "ratio": "3:2",
         "extensions": [
           "*.gba"
         ]
@@ -258,6 +259,7 @@
       {
         "id": "gbc",
         "label": "Game Boy Color",
+        "ratio": "10:9",
         "extensions": [
           "*.gbc"
         ]
@@ -265,6 +267,7 @@
       {
         "id": "gb",
         "label": "Game Boy",
+        "ratio": "10:9",
         "extensions": [
           "*.gb"
         ]

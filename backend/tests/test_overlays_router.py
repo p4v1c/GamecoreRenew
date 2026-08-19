@@ -218,11 +218,13 @@ def test_a_reported_mismatch_moves_the_hole_on_the_next_launch(client, library):
     launch draws the announced hole and reports what it saw; the second starts
     out right and is told not to bother looking again.
     """
-    write_png(library / "assets" / "overlays" / "duckstation.png",
-              1920, 1080, (240, 0, 1440, 1080))
-
+    # No PNG on purpose. With artwork on screen the image covers everything
+    # and the hole only ever decides the fallback bars — so `measure` is now
+    # False the moment an asset resolves, and the loop below is exercised on
+    # the one shape it visibly corrects: the declared frame.
     first = client.get("/api/overlays/resolve/duckstation").json()
-    assert first["hole"] == {"x": 240, "y": 0, "w": 1440, "h": 1080}
+    assert first["source"] == "declared"
+    assert first["hole"] == {"x": 240, "y": 52, "w": 1440, "h": 968}
     assert first["measure"] is True
 
     r = client.post("/api/overlays/measured/duckstation", json={
@@ -237,24 +239,22 @@ def test_a_reported_mismatch_moves_the_hole_on_the_next_launch(client, library):
     # The announced rectangle is still reported, because it is the key the
     # correction was filed under — relearning against the corrected value
     # would move the hole a little further every single launch.
-    assert second["announced"] == {"x": 240, "y": 0, "w": 1440, "h": 1080}
+    assert second["announced"] == {"x": 240, "y": 52, "w": 1440, "h": 968}
     assert second["measure"] is False
 
 
 def test_a_logo_on_a_loading_screen_is_reported_and_refused(client, library):
     """The monitor can only decide the two samples agreed. Whether what they
     agreed on is a game is decided here, where it can be tested."""
-    write_png(library / "assets" / "overlays" / "duckstation.png",
-              1920, 1080, (240, 0, 1440, 1080))
     r = client.post("/api/overlays/measured/duckstation", json={
-        "announced": {"x": 240, "y": 0, "w": 1440, "h": 1080},
+        "announced": {"x": 240, "y": 52, "w": 1440, "h": 968},
         "measured": {"x": 860, "y": 470, "w": 200, "h": 140},
         "window": {"w": 1920, "h": 1080},
     })
     assert r.json()["applied"] is False
 
     body = client.get("/api/overlays/resolve/duckstation").json()
-    assert body["hole"] == {"x": 240, "y": 0, "w": 1440, "h": 1080}
+    assert body["hole"] == {"x": 240, "y": 52, "w": 1440, "h": 968}
     # Nothing was written, so the next launch looks again rather than giving up.
     assert body["measure"] is True
 
@@ -548,3 +548,23 @@ def test_a_console_bezel_can_be_removed_and_the_cascade_falls_back(client, multi
 
 def test_removing_a_console_the_pack_never_declared_is_a_404(client, multi):
     assert client.delete("/api/overlays/mgba/consoles/gbc").status_code == 404
+
+
+def test_with_artwork_on_screen_nothing_asks_the_monitor_to_look(client, library):
+    """The point of the change: with a PNG resolved, the image is drawn edge
+    to edge and the hole only ever decides fallback bars nobody sees — the
+    reference box spent weeks re-carrying an `mgba@1:1` correction that no
+    frame ever displayed. An asset therefore turns `measure` off; delete the
+    PNG and the declared frame — the thing a correction actually moves — turns
+    it back on by itself."""
+    png = library / "assets" / "overlays" / "duckstation.png"
+    write_png(png, 1920, 1080, (240, 52, 1440, 968))
+    body = client.get("/api/overlays/resolve/duckstation").json()
+    assert body["source"] == "system" and body["asset"]
+    assert body["measure"] is False
+
+    png.unlink()
+    bezels.forget()
+    body = client.get("/api/overlays/resolve/duckstation").json()
+    assert body["source"] == "declared" and body["asset"] is None
+    assert body["measure"] is True
