@@ -2,14 +2,14 @@ name: Verify the catalogue upstream
 
 # Weekly, not on every push, and that split is the point.
 #
-# verify_emulators.py needs the network: it asks Flathub and the GitHub
+# scripts/verify-emulators.py needs the network: it asks Flathub and the GitHub
 # releases API whether everything the catalogue says to install still exists.
 # Wired into the release job it would turn a slow Flathub into a red build and
 # block a release that has nothing to do with it — so it runs on its own
 # schedule.
 #
 # This is the job that would have caught the gopher64 migration: the N64 slot
-# moved to Rosalie's Mupen GUI while verify_emulators.py went on checking
+# moved to Rosalie's Mupen GUI while scripts/verify-emulators.py went on checking
 # io.github.gopher64.gopher64 — a real Flathub entry, so it stayed green while
 # pointing at an application nobody installs. It reads catalog/<id>/pack.json
 # now, so "what we verify" and "what we install" cannot come apart again.
@@ -69,7 +69,7 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          python verify_emulators.py 2>&1 | tee report.txt
+          python scripts/verify-emulators.py 2>&1 | tee report.txt
 
       - name: Open an issue when something upstream has moved
         if: steps.verify.outcome == 'failure'

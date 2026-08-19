@@ -9,7 +9,7 @@ curated N64 config to `~/.var/app/io.github.gopher64.gopher64/…`, the `mkdir -
 CREATED that phantom directory, copied the files, printed a green tick, and RMG
 — which reads `~/.var/app/com.github.Rosalie241.RMG/config/RMG/` — never saw any
 of it. `uninstall.sh` cleaned the same phantom, `flatpakify-systems.sh` would
-have rewritten the launcher to the old app id, and `verify_emulators.py`
+have rewritten the launcher to the old app id, and `scripts/verify-emulators.py`
 reported a healthy Flathub entry for an application nobody installs.
 
 Nothing detected it because nothing compared the four maps against each other.
@@ -131,7 +131,7 @@ def test_verify_emulators_checks_what_the_installer_installs(packs):
 
     This is the job that would have caught the whole thing.
     """
-    text = (ROOT / "verify_emulators.py").read_text(encoding="utf-8")
+    text = (ROOT / "scripts/verify-emulators.py").read_text(encoding="utf-8")
     m = re.search(r"FLATPAK_IDS = \[(.*?)\]", text, re.S)
     if not m:
         pytest.skip("FLATPAK_IDS is gone — the list comes from the catalogue")
@@ -283,7 +283,7 @@ def test_the_old_n64_app_id_is_gone_from_every_consumer():
     offenders = []
     for name in ("install/arch.sh", "install/steps/install-emu-configs.sh",
                  "install/uninstall.sh", "install/steps/flatpakify-systems.sh",
-                 "verify_emulators.py", "install/generated/systems.json.dist",
+                 "scripts/verify-emulators.py", "install/generated/systems.json.dist",
                  "backend/services/scraper.py",
                  "install/installer-gui/catalog_data.py"):
         text = (ROOT / name).read_text(encoding="utf-8")
@@ -581,7 +581,7 @@ def _run_verify(monkeypatch, alive):
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("verify_emulators",
-                                                  ROOT / "verify_emulators.py")
+                                                  ROOT / "scripts/verify-emulators.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
