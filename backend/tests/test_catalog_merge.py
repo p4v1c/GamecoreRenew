@@ -245,3 +245,21 @@ def test_the_removed_list_is_read_from_the_data_root_when_given(packs, tmp_path)
     merge_file(grid, packs, code)
     ids = {s["id"] for s in json.loads(grid.read_text())}
     assert {"cemu", "xenia", "ryujinx"} <= ids
+
+
+def test_a_missing_console_ratio_is_filled_in_and_a_set_one_is_kept(packs, tmp_path):
+    """The gentler half of the fill-in rule: a box that already carries the
+    console list gains a MISSING ratio and nothing else — adding an absent key
+    cannot undo an operator's edit; rewriting a present one could."""
+    mine = [{"id": "gba", "label": "Game Boy Advance", "extensions": ["*.gba"]},
+            {"id": "gb", "label": "Game Boy", "ratio": "8:7",
+             "extensions": ["*.gb", "*.gbc"]}]
+    live = [_entry("mgba", "flatpak", "run io.mgba.mGBA --fullscreen",
+                   consoles=mine)]
+    merged, notes = merge_systems(live, packs, tmp_path)
+    by = {c["id"]: c for c in merged[0]["consoles"]}
+    assert by["gba"]["ratio"] == "3:2"                # absent → filled from the pack
+    assert by["gb"]["ratio"] == "8:7"                 # the operator's SGB choice, kept
+    assert any("console ratio filled in (gba)" in n for n in notes)
+    # And the extensions the operator merged into one console are untouched.
+    assert by["gb"]["extensions"] == ["*.gb", "*.gbc"]

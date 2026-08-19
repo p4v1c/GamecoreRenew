@@ -336,3 +336,23 @@ def test_every_console_of_a_pack_that_ships_one_bezel_ships_them_all():
     missing = [c["id"] for c in packs["roms"]["consoles"]
                if not (SHIPPED / f"mgba.{c['id']}.png").is_file()]
     assert not missing, f"mgba ships bezels but not for: {', '.join(missing)}"
+
+
+def test_the_slots_carry_the_console_s_expected_ratio(library):
+    """`ratio` in roms.consoles → `expected_ratio` in the slots. Beside the
+    measured ratio, it is what lets a manager UI say "this PNG is 16:9, the
+    Game Boy draws 10:9" at upload time — without it the mismatch is only
+    discovered in game, three metres from the screen."""
+    (library / "config" / "systems.json").write_text(json.dumps([{
+        **MGBA,
+        "consoles": [
+            {"id": "gba", "label": "Game Boy Advance", "ratio": "3:2",
+             "extensions": ["*.gba"]},
+            {"id": "gb", "label": "Game Boy", "extensions": ["*.gb"]},
+        ],
+    }]))
+    consoles.forget()
+    by = {s["console"]: s for s in bezels.slots("mgba")}
+    assert by["gba"]["expected_ratio"] == "3:2"
+    assert by["gb"]["expected_ratio"] is None          # declared without one
+    assert by[None].get("expected_ratio") is None      # the system slot has no machine
