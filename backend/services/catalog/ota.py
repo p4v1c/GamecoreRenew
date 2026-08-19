@@ -48,6 +48,7 @@ import logging
 from pathlib import Path
 
 from .. import paths
+from ...utils import atomic_write
 from ..paths import catalog_dir
 from . import signing
 
@@ -164,12 +165,10 @@ def apply_bundle(envelope_bytes: bytes, *, public_key: Path,
                         pack_id, ", ".join(dropped))
         target = state / pack_id
         target.mkdir(parents=True, exist_ok=True)
-        # Atomic, like every other writer here: a pack.json caught half-written
-        # is a pack the loader refuses at the next boot.
-        tmp = target / "pack.json.gamecore-tmp"
-        tmp.write_text(json.dumps(clean, indent=2, ensure_ascii=False) + "\n",
-                       encoding="utf-8")
-        tmp.replace(target / "pack.json")
+        # Atomic (backend/utils.py): a pack.json caught half-written is a
+        # pack the loader refuses at the next boot.
+        atomic_write(target / "pack.json",
+                     json.dumps(clean, indent=2, ensure_ascii=False) + "\n")
         written.append(pack_id)
 
     if rejected:
@@ -180,10 +179,9 @@ def apply_bundle(envelope_bytes: bytes, *, public_key: Path,
 
     # Last, so a crash mid-write leaves the version behind rather than ahead:
     # re-applying is harmless, believing a half-written catalogue is not.
-    tmp = state / (APPLIED_FILE + ".gamecore-tmp")
-    tmp.write_text(json.dumps({"version": version, "packs": written},
-                              indent=2) + "\n", encoding="utf-8")
-    tmp.replace(state / APPLIED_FILE)
+    atomic_write(state / APPLIED_FILE,
+                 json.dumps({"version": version, "packs": written},
+                            indent=2) + "\n")
 
     log.info("catalog-ota: applied version %d — %d pack(s): %s",
              version, len(written), ", ".join(written))

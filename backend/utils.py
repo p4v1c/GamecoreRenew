@@ -1,4 +1,6 @@
 """Shared utilities used across multiple backend modules."""
+import json
+import os
 import re
 from pathlib import Path
 
@@ -36,3 +38,46 @@ def fmt_size(n: int) -> str:
             return f"{n:.1f} {unit}"
         n /= 1024  # type: ignore[assignment]
     return f"{n:.1f} TB"
+
+
+# A system id names a directory and a file under a served root ("mgba" →
+# assets/overlays/mgba.png, config/per-game/mgba/…). Anything outside this
+# alphabet is not a system, and `..` in particular would make a resolver read
+# files from anywhere the backend user can reach. One regex, imported by every
+# router that takes a system id off the wire — two routers each carried their
+# own identical copy, which is one edit away from two different boundaries.
+SYSTEM_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+
+def atomic_write(p: Path, text: str) -> None:
+    """Write through a temp file in the same directory, then os.replace().
+
+    `write_text()` truncates first and writes second. Much of what the backend
+    writes is written at startup or at a launch — the exact moments someone can
+    cut the power with the wall switch — and a JSON caught between truncate and
+    write is an invalid file that takes every setting in it to defaults.
+    os.replace() is atomic within a filesystem, so a reader sees either the
+    whole old file or the whole new one. Same directory, same filesystem: that
+    is what keeps the rename atomic.
+
+    This lived in configgen/helpers/base.py and was re-grown, slightly
+    differently, in pergame.py, bezels.py, bezel_capture.py, merge.py and
+    ota.py. One implementation now; the callers keep saying WHY their file
+    must not be torn, not how.
+    """
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".gamecore-tmp")
+    try:
+        tmp.write_text(text)
+        os.replace(tmp, p)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def atomic_write_json(p: Path, data, **dumps_kwargs) -> None:
+    """`atomic_write` for the JSON writers, dumps kwargs passed through
+    unchanged so every caller keeps its exact on-disk shape (indent, key
+    order, ascii) — a factoring that reformatted six files would show up as a
+    diff in every player's config on the next write."""
+    atomic_write(p, json.dumps(data, **dumps_kwargs))

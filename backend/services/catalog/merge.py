@@ -43,6 +43,7 @@ import json
 import shutil
 from pathlib import Path
 
+from ...utils import atomic_write
 from .tiles import APPID_TOKEN, flatpak_app_id, tile_entry
 
 REMOVED_FILE = "catalog-removed.json"
@@ -68,11 +69,8 @@ def load_removed(root: Path) -> set[str]:
 
 
 def save_removed(root: Path, ids: set[str]) -> None:
-    path = root / "config" / REMOVED_FILE
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".gamecore-tmp")
-    tmp.write_text(json.dumps(sorted(ids), indent=2) + "\n", encoding="utf-8")
-    tmp.replace(path)
+    atomic_write(root / "config" / REMOVED_FILE,
+                 json.dumps(sorted(ids), indent=2) + "\n")
 
 
 def _launcher_resolves(path: str, root: Path) -> bool:
@@ -248,17 +246,14 @@ def merge_file(systems_file: Path, packs: dict, root: Path,
     if dry_run:
         return notes + ["(dry run — nothing written)"]
 
-    # Same atomic shape the rest of the project uses: a grid caught half-written
-    # is a box with no interface.
-    tmp = systems_file.with_name(systems_file.name + ".gamecore-tmp")
+    # Atomic (backend/utils.py): a grid caught half-written is a box with no
+    # interface.
     backup = systems_file.with_name(systems_file.name + ".bak-merge")
     try:
         if systems_file.is_file() and not backup.exists():
             shutil.copy2(systems_file, backup)
-        tmp.write_text(json.dumps(merged, indent=2, ensure_ascii=False) + "\n",
-                       encoding="utf-8")
-        tmp.replace(systems_file)
+        atomic_write(systems_file,
+                     json.dumps(merged, indent=2, ensure_ascii=False) + "\n")
     except OSError as e:
-        tmp.unlink(missing_ok=True)
         return notes + [f"could not write systems.json ({e}) — left untouched"]
     return notes

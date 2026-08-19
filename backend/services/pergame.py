@@ -50,6 +50,7 @@ from .catalog import load_catalog
 from .configgen.helpers.ini import section as ini_section
 from .configgen.helpers.ini import set_key as ini_set_key
 from .configgen.helpers.ini import set_section as ini_set_section
+from ..utils import atomic_write, atomic_write_json
 from .paths import pergame_dir
 
 log = logging.getLogger(__name__)
@@ -172,10 +173,7 @@ def _write_record(system_id: str, game_id: str, data: dict) -> None:
         # and only one of them can also mean "a write failed halfway".
         p.unlink(missing_ok=True)
         return
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(data, indent=2, sort_keys=True))
-    tmp.replace(p)
+    atomic_write_json(p, data, indent=2, sort_keys=True)
 
 
 # ── the two file formats ─────────────────────────────────────────────────────
@@ -271,17 +269,6 @@ def _backup(p: Path) -> None:
         shutil.copy2(p, b)
 
 
-def _atomic_write(p: Path, text: str) -> None:
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_name(p.name + ".gamecore-tmp")
-    try:
-        tmp.write_text(text)
-        tmp.replace(p)
-    except OSError:
-        tmp.unlink(missing_ok=True)
-        raise
-
-
 def set_settings(system_id: str, game_id: str, settings: dict,
                  source: str = "player") -> None:
     """Record what GameCore should place on this game. Does not write the
@@ -373,7 +360,7 @@ def _apply(system_id: str, game_id: str, wanted: dict, home: Path) -> str | None
     if existed:
         _backup(path)
     try:
-        _atomic_write(path, text)
+        atomic_write(path, text)
     except OSError as e:
         log.warning("pergame: cannot write %s — %s", path, e)
         return None
@@ -408,7 +395,7 @@ def release(system_id: str, game_id: str, home: Path) -> str | None:
                 for sect, keys in restore.items():
                     for key, previous in keys.items():
                         text = put(text, sect, key, previous)
-                _atomic_write(path, text)
+                atomic_write(path, text)
             except OSError as e:
                 log.warning("pergame: cannot un-write %s — %s", path, e)
 
