@@ -1202,7 +1202,33 @@ WorkingDirectory=$GAMECORE_PATH
 # Always exits 0: a box with no X at all (headless, SSH install) must still get
 # its backend. The bound is 20 s, and process_manager retries the probe anyway,
 # so this is ordering — not a correctness dependency.
-ExecStartPre=/bin/bash -c 'command -v xdpyinfo >/dev/null || exit 0; for i in \$(seq 1 20); do for s in /tmp/.X11-unix/X*; do [ -S "\$s" ] || continue; for c in /run/user/\$(id -u)/xauth_* /tmp/xauth_* "\$HOME/.Xauthority" ""; do DISPLAY=":\${s##*/X}" XAUTHORITY="\$c" xdpyinfo >/dev/null 2>&1 && exit 0; done; done; sleep 1; done; exit 0'
+#
+# The doubled dollar below is load-bearing, and one character is the whole of
+# this bug. systemd expands the braced form in an Exec line ITSELF, against the
+# service's own environment, before bash ever sees the string; a bare sigil and
+# a command substitution it passes through untouched. The suffix-strip written
+# on the DISPLAY assignment is not a valid variable name, so systemd said so
+# and substituted nothing:
+#
+#   gamecore-backend.service: Invalid environment variable name evaluates to
+#   an empty string: s##*/X
+#
+# leaving DISPLAY=":" on every iteration. xdpyinfo could therefore never
+# succeed ONCE: the loop ran its full twenty rounds on every boot and exited 0
+# having proved nothing. Measured on the reference box: 20.4 s between
+# "Starting" and "Started" — and the UI unit waits for this one, so the desktop
+# wallpaper sat on the television for eighteen seconds before GameCore covered
+# it. Doubled, systemd hands bash a literal sigil and the same probe answers in
+# 0.05 s.
+#
+# The deeper lesson is the inlining, not the escaping: electron/start-ui.sh
+# carries this exact logic in a FILE, where only bash reads it, and there it
+# has always worked. A shell one-liner inside a unit is parsed by two languages
+# that share a sigil.
+#
+# NOTE: this comment lives inside the heredoc that writes the unit, so it must
+# stay free of sigils of its own — they would be expanded on the way in.
+ExecStartPre=/bin/bash -c 'command -v xdpyinfo >/dev/null || exit 0; for i in \$(seq 1 20); do for s in /tmp/.X11-unix/X*; do [ -S "\$s" ] || continue; for c in /run/user/\$(id -u)/xauth_* /tmp/xauth_* "\$HOME/.Xauthority" ""; do DISPLAY=":\$\${s##*/X}" XAUTHORITY="\$c" xdpyinfo >/dev/null 2>&1 && exit 0; done; done; sleep 1; done; exit 0'
 ExecStart=$GAMECORE_PATH/.venv/bin/python3 -m uvicorn backend.main:app --host 127.0.0.1 --port $WEB_PORT
 Restart=on-failure
 RestartSec=5
