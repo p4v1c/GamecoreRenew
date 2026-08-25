@@ -79,14 +79,7 @@ Two consequences, and only one deserves an action:
   kind. **For the owner to review.** I have not: judging what is publishable in
   the security model of your own machine is not a decision that delegates.
 
-## Now that the ISO ships
+## The `og:image` screenshot
 
-Two places in `docs/index.html`, and that is all:
-
-- the **Installing it** section: add the ISO as the first path, before the
-  graphical installer;
-- the header's primary button: `Download the installer` becomes
-  `Download the ISO`, keeping the installer as the secondary button.
-
-This is also the best moment to add the `og:image` screenshot — the comment in
-`<head>` says where and under what constraints.
+Still to add in `docs/index.html` — the comment in `<head>` says where and
+under what constraints.

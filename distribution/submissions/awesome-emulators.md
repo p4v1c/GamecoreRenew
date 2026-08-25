@@ -12,11 +12,6 @@ So, in order, every time:
    or not, alphabetical order or not;
 3. one PR per list, never a grouped PR.
 
-> **Now that the ISO ships** (pending, see [`../iso-blocker.md`](../iso-blocker.md)):
-> in the PR body, replace the line "Installs onto an existing Arch/Manjaro system
-> with a graphical installer" with "Ships a bootable ISO, or installs onto an
-> existing Arch/Manjaro system".
-
 ---
 
 ## The target lists, in order of relevance

@@ -13,11 +13,6 @@ none, and that must stay true.
 **Flair**: `Project` or `Discussion`, whichever exists. Without a flair the post
 is auto-removed on most of these subs.
 
-> **Now that the ISO ships** (pending, see [`../iso-blocker.md`](../iso-blocker.md)):
-> replace the "Getting it" paragraph with "There's a bootable ISO if the machine
-> has no Linux on it yet, or a graphical installer if it already runs Arch or
-> Manjaro."
-
 ---
 
 ## Title

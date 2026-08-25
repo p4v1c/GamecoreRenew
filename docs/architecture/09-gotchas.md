@@ -291,8 +291,7 @@ correct silently matches nothing on the two formats that needed it most.
 Unless `package.json` declares them under `allowScripts`. Electron's `postinstall`
 is the one that downloads the ~180 MB binary; blocked, it downloads nothing, npm
 reports success, and the build fails forty minutes later at an unrelated-looking
-guard. The only trace is one `npm warn install-scripts` line. This kept every ISO
-release red from the day the job was added.
+guard. The only trace is one `npm warn install-scripts` line.
 
 **Do not generate that entry with `npm install-scripts approve <pkg>`.** By
 default it writes a version-**pinned** entry (`"electron@31.7.7": true`). The
@@ -313,58 +312,6 @@ is indistinguishable.
 
 Two independent defects, stacked, the first hiding the second, both exiting 0.
 When a build produces nothing and reports success, suspect more than one cause.
-
-**archiso moved the microcode, and a profile written against the old layout
-boots nothing.** `mkarchiso` used to stage `intel-ucode.img` and `amd-ucode.img`
-into `${install_dir}/boot/` for the bootloaders to load as extra initrds. It does
-not any more ([archiso#226](https://gitlab.archlinux.org/archlinux/archiso/-/issues/226)):
-mkinitcpio's `microcode` hook packs them into the main initramfs, and the boot
-configs name one initrd. Every tutorial still shows the old shape, and the build
-says nothing — `mkarchiso` copies what it finds and never mentions what it did
-not. The two symptoms look unrelated and neither names a file:
-
-| firmware | bootloader | what you see |
-|---|---|---|
-| UEFI | systemd-boot | `call_image_start: Error preparing initrd: Not found` |
-| BIOS | syslinux | the menu counts down to 0, redraws, counts down again |
-
-systemd-boot concatenates its `initrd` lines before starting and fails the entry
-on the first path it cannot resolve; syslinux abandons the boot and returns to
-its own menu without a word. Two bootloaders sharing no code, failing differently
-for one missing file, is a symptom of the *image*, not of either loader — when
-both firmwares fail, stop reading bootloader documentation and mount the ISO.
-
-**A preset that names a configuration file switches the `conf.d` drop-in off.**
-`mkinitcpio -P` re-invokes itself with `-c <the preset's *_config>`, and `-c`
-sets `_optconfd=0` — the flag that decides whether `/etc/mkinitcpio.conf.d/*.conf`
-is sourced at all. So `ALL_config='/etc/mkinitcpio.conf'` does not mean "the main
-file, plus its drop-ins"; it means "this file, and nothing else". The ISO profile
-had that, and its `archiso.conf` — the hooks that find and mount the squashfs —
-was read by nothing at all. Measured, same kernel, same machine:
-
-    ALL_config=/etc/mkinitcpio.conf     → base udev autodetect microcode block …
-    archiso_config=…/archiso.conf       → base udev microcode modconf kms memdisk …
-
-The image was being built with the stock Arch hook list. Nothing reports this:
-the drop-in is a valid file that is simply never opened. Point the preset at the
-drop-in — which is what releng does, and the reason it does.
-
-**`microcode` after `autodetect` gives you the build host's CPU.** The hook asks
-`/proc/cpuinfo` when autodetect ran first and adds that vendor alone; with no
-autodetect it adds every microcode it finds. Measured on an AMD build host, the
-autodetect ordering produced an image carrying `AuthenticAMD.bin` and no
-`GenuineIntel.bin` — which is correct for an installed machine and wrong for a
-live medium, whose whole job is to boot hardware nobody has seen. Check with
-`lsinitcpio --early <img> | grep microcode`: one vendor on an ISO is a bug, two
-vendors on an installed box is only waste.
-
-**`sha256sum -c` looks for the filename recorded inside the `.sha256` file**, not
-one you reconstruct. The release splits the ISO into `.part` files, and the
-documented reassembly used to rebuild the image under a name derived from the
-version — while the checksum file names whatever `mkarchiso` actually produced.
-It failed on `No such file or directory`. The procedure now derives the name from
-the `.sha256` itself, so it is right whatever `mkarchiso` chooses; the old one was
-right for exactly one name.
 
 ## Testing
 

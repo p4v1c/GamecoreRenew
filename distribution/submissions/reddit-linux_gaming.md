@@ -26,12 +26,6 @@ is the difference between a thread that lives and a thread that dies.
   than everything the post earns. Correct without hesitation; tone matters less
   than accuracy.
 
-> **Now that the ISO ships** (pending, see [`../iso-blocker.md`](../iso-blocker.md)):
-> replace the "It only installs on Arch or Manjaro" bullet with "It ships an ISO
-> if you're starting from a bare machine, and an installer if you already run Arch
-> or Manjaro" — and **move that bullet out of the limitations section**, since it
-> is no longer one.
-
 ---
 
 ## Title

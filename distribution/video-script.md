@@ -12,12 +12,11 @@ holds 3 minutes without a single text slide.
 
 ## ⚠️ To settle before shooting
 
-> **The closing link.** The ISO now ships (see
-> [`iso-blocker.md`](iso-blocker.md)) — release `v1.0.157` carries it. The
-> closing shot (2:40) is still written for "download the installer"; the
-> substitution for the ISO wording is on that shot, and it is a better ending.
-> One caveat before using it: **nobody has booted the reassembled image yet.**
-> Boot it once before telling an audience to burn it.
+> **The entry condition.** The closing shot (2:40) sends the viewer to the
+> graphical installer, which means the video only speaks to people who already
+> run Arch or Manjaro. There is no image to offer instead — the ISO was removed
+> from the project — so that condition is real and the script should own it
+> rather than gloss over it.
 
 > **Nothing copyrighted on screen.** This is the easiest constraint to forget in
 > the edit and the most expensive: an emulation video showing commercial box art,
@@ -165,12 +164,6 @@ readable, still, until the end.
 **Voice-over** —
 > "It's free software, GPL. If the machine already runs Arch or Manjaro, there is
 > a graphical installer to download — the link is in the description."
-
-> **Now that the ISO ships**, replace that last sentence with:
-> "There's an ISO image to burn onto a stick: you don't need to install Arch
-> first, or even to have Linux. The link is in the description."
-> That is a much better ending — it removes the only entry condition. Boot the
-> image once yourself before using this wording.
 
 ---
 

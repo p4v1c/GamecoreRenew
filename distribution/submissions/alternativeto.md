@@ -9,10 +9,6 @@ pages, never from a search on the name. It is the one channel in this phase wher
 comparison is the mechanism rather than a weakness — but it stays in the linking
 fields, never in the description.
 
-> **Now that the ISO ships** (pending, see [`../iso-blocker.md`](../iso-blocker.md)):
-> add "or a bootable ISO if it does not" to the end of the long description's
-> second paragraph.
-
 ---
 
 ## Name

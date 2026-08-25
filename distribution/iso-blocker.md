@@ -1,4 +1,6 @@
-# The ISO blocker — **resolved**, kept as a record
+# The ISO blocker — kept as a record
+
+> **The ISO no longer exists.** The generation of the installation image and its `iso` job in `release.yml` were removed from the project. This document is kept for what it records — an outage whose two causes exited 0 and produced nothing — not as a description of anything current.
 
 **Raised 2026-08-09 against `main` = `7a5d62d`. Cleared the same day.**
 

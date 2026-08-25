@@ -21,29 +21,15 @@
   No stylesheet, script, font or image is fetched from anywhere: the page cannot
   break because a CDN did, and it cannot hand a visitor to a third party.
 
-  The exception is one request to api.github.com, and only to fill in the
-  download section. It is there because the ISO's filename carries the version
-  (`gamecore-1.0.181-x86_64.iso`), so no fixed URL can point at it — unlike the
-  installer, which has a stable name and is therefore a plain static link that
-  works with JavaScript switched off.
+  The exception is one request to api.github.com, and only to name the version
+  and the size of the installer in the download section. The download itself
+  never depends on it: `gamecore-installer` has a stable name, so the button is
+  a plain static link that works with JavaScript switched off.
 
   Everything degrades: if that request fails, is rate-limited (60/hour per IP,
-  unauthenticated) or never runs, the section shows a link to the releases page
-  and says why. Nothing on this page is only reachable through JavaScript.
-
-  ## Why the ISO is not a single button
-
-  It cannot be. GitHub caps a release asset at 2 GiB and the image is larger, so
-  the release carries `.00.part`, `.01.part` … Reassembling them in the browser
-  is not possible either: release assets are served without an
-  `access-control-allow-origin` header — checked, including through the assets
-  API, whose 302 carries the header but whose final response does not — so a
-  cross-origin fetch of the parts is blocked before a byte arrives.
-
-  What is offered instead is one command that produces the finished `.iso`:
-  `curl` takes several URLs and writes them to stdout in order, so a shell
-  redirect concatenates them as it downloads. No temporary parts, no second
-  step, the correct filename.
+  unauthenticated) or never runs, the button still works and the line under it
+  keeps its written default. Nothing on this page is only reachable through
+  JavaScript.
 -->
 
 <title>GameCore — living-room emulation frontend for Arch Linux (PS3, PS4, Switch, Wii U)</title>
@@ -308,19 +294,7 @@
         <p class="dl-meta" id="installer-meta">A single x86-64 binary. No runtime to install.</p>
       </div>
 
-      <div class="dl-card">
-        <h3>Installation image <span class="tag ok">Linux</span></h3>
-        <p class="why">
-          A bootable ISO that installs the system, GameCore included, with no
-          network at all. Nothing needs to be installed on the machine first.
-        </p>
-        <div id="iso-box">
-          <p class="dl-meta">Reading the latest release…</p>
-        </div>
-      </div>
     </div>
-
-    <div id="iso-cmd"></div>
 
     <div class="note">
       <p>
@@ -333,9 +307,9 @@
 
     <div class="note">
       <p>
-        <strong>Secure Boot must be off</strong> to boot the image — it is
-        unsigned. The machine wants UEFI, a 1080p display, 4&nbsp;GB of RAM and
-        about 80&nbsp;GB of storage before your ROM library.
+        <strong>What the machine needs.</strong> An Arch or Manjaro install
+        already on it, UEFI, a 1080p display, 4&nbsp;GB of RAM and about
+        80&nbsp;GB of storage before your ROM library.
       </p>
     </div>
   </div>
@@ -344,24 +318,24 @@
 <!-- ── From image to living room ────────────────────────────────────────── -->
 <section>
   <div class="wrap">
-    <h2>From the image to a working box</h2>
+    <h2>From the installer to a working box</h2>
     <ol class="steps">
       <li>
-        <h3>Write the image to a USB stick</h3>
+        <h3>Run the installer on the machine</h3>
         <p>
-          Verify the checksum first. A truncated download produces a stick that
-          boots halfway, and that failure looks like broken hardware rather
-          than a bad copy.
+          A step-by-step wizard: the user account, where the code and the
+          player's files go, which emulators and applications you want. It asks
+          for a password once, through the system's own dialog.
         </p>
-        <pre><code>sha256sum -c gamecore-*.iso.sha256
-sudo dd if=gamecore-*.iso of=/dev/sdX bs=4M status=progress oflag=sync</code></pre>
+        <pre><code>chmod +x gamecore-installer
+./gamecore-installer</code></pre>
       </li>
       <li>
-        <h3>Boot it and install</h3>
+        <h3>Let it finish, then reboot</h3>
         <p>
-          The installer runs from the image. It partitions, installs the system
-          and GameCore, sets up auto-login and the kiosk session, and reboots
-          into the interface.
+          It installs GameCore and the emulators, sets up auto-login and the
+          kiosk session, and the next boot comes up on the interface. It needs a
+          network: the emulators come from Flathub.
         </p>
       </li>
       <li>
@@ -489,7 +463,7 @@ sudo dd if=gamecore-*.iso of=/dev/sdX bs=4M status=progress oflag=sync</code></p
     <ul class="limits">
       <li><strong>Arch and Manjaro only.</strong> The installer is specific to them. If you run something else, this is not for you today.</li>
       <li><strong>X11 only.</strong> The overlay system, the fullscreen enforcer and the gamepad-to-keyboard bridge all depend on it. Wayland is not a small change.</li>
-      <li><strong>The installer needs a network</strong>, because the emulators come from Flathub. The ISO does not — it carries them.</li>
+      <li><strong>The installer needs a network</strong>, because the emulators come from Flathub, and it installs onto an Arch that is already there — there is no bootable image.</li>
       <li><strong>Multi-controller setups are proven by a test harness, not by hardware.</strong> Two-, three- and four-pad configurations are replayed as synthetic controller sets against the real config generators and compared against recorded output. That is real evidence for the generated configs. It is not four people playing on a real box.</li>
       <li><strong>One developer.</strong> The bus factor is one.</li>
       <li><strong>No games, ROMs, BIOS files or keys</strong> are distributed, downloaded or included. Bring your own.</li>
@@ -519,7 +493,6 @@ sudo dd if=gamecore-*.iso of=/dev/sdX bs=4M status=progress oflag=sync</code></p
   'use strict';
 
   var REPO = 'p4v1c/GamecoreRenew';
-  var RELEASES = 'https://github.com/' + REPO + '/releases/latest';
 
   /* Copy buttons. Progressive: the command is readable and selectable whether
      or not the clipboard API is there, so a failure costs a convenience. */
@@ -544,18 +517,6 @@ sudo dd if=gamecore-*.iso of=/dev/sdX bs=4M status=progress oflag=sync</code></p
     return mb >= 1024 ? (mb / 1024).toFixed(2) + ' GB' : Math.round(mb) + ' MB';
   }
 
-  var box = document.getElementById('iso-box');
-
-  /* The fallback, and the honest one: a link to the release page and the reason
-     this section could not fill itself in. Shown for a failed request, a rate
-     limit, a release with no image — anything. */
-  function fallback(why) {
-    box.innerHTML =
-      '<a class="btn ghost" href="' + RELEASES + '">Open the latest release</a>' +
-      '<p class="dl-meta">' + esc(why) + ' The image and its <code>.sha256</code> ' +
-      'are on the release page, with a <code>REASSEMBLE.txt</code> if it is split.</p>';
-  }
-
   function assetsOf(rel) {
     var assets = rel.assets || [];
     return function (re) {
@@ -572,99 +533,11 @@ sudo dd if=gamecore-*.iso of=/dev/sdX bs=4M status=progress oflag=sync</code></p
       '<code>' + esc(rel.tag_name || '') + '</code>';
   }
 
-  /* `newerTag` is the tag of a release that exists but has no image yet —
-     named rather than hidden, so nobody wonders why the version here is one
-     behind the one on the releases page. */
-  function renderIso(rel, newerTag) {
-    var assets = rel.assets || [];
-    var byName = function (re) {
-      return assets.filter(function (a) { return re.test(a.name); })
-                   .sort(function (a, b) { return a.name < b.name ? -1 : 1; });
-    };
-    var whole = byName(/\.iso$/)[0];
-    var parts = byName(/\.iso\.\d+\.part$/);
-    var sha = byName(/\.iso\.sha256$/)[0];
-    var tag = rel.tag_name || '';
-    var building = newerTag
-      ? '<p class="dl-meta"><span class="tag soon">Building</span> ' + esc(newerTag) +
-        ' was published minutes ago and its image is still building or uploading. This is ' +
-        esc(tag) + '.</p>'
-      : '';
-
-    /* One asset: an ordinary link, which is all it ever needed to be. */
-    if (whole) {
-      box.innerHTML = building +
-        '<a class="btn primary" href="' + esc(whole.browser_download_url) + '">Download the ISO</a>' +
-        (sha ? '<p class="dl-meta"><a href="' + esc(sha.browser_download_url) + '">' +
-               esc(sha.name) + '</a> — check it before writing the stick.</p>' : '');
-      return;
-    }
-
-    if (!parts.length) { fallback('This release ships no image.'); return; }
-
-    /* Split. The browser cannot join them — GitHub serves release assets with
-       no access-control-allow-origin, so fetching them cross-origin is refused
-       before a byte arrives — but curl takes several URLs and writes them to
-       stdout in order, so one shell redirect produces the finished file under
-       the right name. */
-    var isoName = parts[0].name.replace(/\.\d+\.part$/, '');
-    var total = parts.reduce(function (n, a) { return n + a.size; }, 0);
-    var base = parts[0].browser_download_url.replace(/\/[^/]+$/, '');
-
-    var html = building +
-      '<p class="dl-meta" style="margin-top:0">' + size(total) + ', over the 2 GiB ' +
-      'GitHub allows for one asset, so it is published in ' + parts.length +
-      ' parts. Join them with the command below, or take them one at a time:</p>' +
-      '<ul class="parts">';
-    parts.forEach(function (a) {
-      html += '<li><a href="' + esc(a.browser_download_url) + '">' + esc(a.name) + '</a>' +
-              '<span class="sz">' + size(a.size) + '</span></li>';
-    });
-    if (sha) {
-      html += '<li><a href="' + esc(sha.browser_download_url) + '">' + esc(sha.name) + '</a>' +
-              '<span class="sz">checksum</span></li>';
-    }
-    html += '</ul>';
-    box.innerHTML = html;
-
-    /* The base URL is factored into a variable so no line is longer than the
-       column. Written out in full it wrapped mid-word inside the card, and a
-       command broken across a word looks like one that will not run. */
-    var cmd =
-      'B=' + base + '\n\n' +
-      '# download both parts straight into one image\n' +
-      'curl -L \\\n' +
-      parts.map(function (a) { return '  "$B/' + a.name + '" \\'; }).join('\n') + '\n' +
-      '  > "' + isoName + '"';
-    if (sha) {
-      cmd += '\n\n# check it before writing a stick\n' +
-             'curl -LO "$B/' + sha.name + '"\n' +
-             'sha256sum -c "' + sha.name + '"';
-    }
-
-    document.getElementById('iso-cmd').innerHTML =
-      '<div class="assemble">' +
-      '<h3>The whole image, in one command</h3>' +
-      '<p>Downloads both parts and writes them straight into ' +
-      '<code>' + esc(isoName) + '</code> — no temporary files, no second step. ' +
-      'The checksum covers the joined image.</p>' +
-      '<div class="cmd"><pre><code>' + esc(cmd) + '</code></pre>' +
-      '<button type="button" data-copy="' + esc(cmd) + '">Copy</button></div>' +
-      '<p class="dl-meta">Already downloaded the parts by hand? ' +
-      '<code>cat ' + esc(isoName) + '.*.part &gt; ' + esc(isoName) + '</code> does the same join. ' +
-      'Release <code>' + esc(tag) + '</code>.</p>' +
-      '</div>';
-  }
-
-  /* Ten releases, not just the latest, and for a reason that shows up minutes
-     after every merge: the release is published by one CI job and the ISO is
-     attached by a second one that takes another twenty minutes. During that
-     window the newest release genuinely has no image, and a page that only
-     asked for `/releases/latest` would tell a visitor there is none at all.
-
-     So each artefact is taken from the newest release that actually carries it,
-     and both are labelled with the tag they came from. Nothing is presented as
-     newer than it is. */
+  /* Ten releases, not just the latest: a release is published before all of its
+     assets have finished uploading, so the newest one can genuinely not carry
+     the installer yet. The binary is taken from the newest release that
+     actually has it, and labelled with the tag it came from — nothing is
+     presented as newer than it is. */
   fetch('https://api.github.com/repos/' + REPO + '/releases?per_page=10', {
     headers: { 'Accept': 'application/vnd.github+json' }
   }).then(function (r) {
@@ -675,37 +548,15 @@ sudo dd if=gamecore-*.iso of=/dev/sdX bs=4M status=progress oflag=sync</code></p
     var list = (releases || []).filter(function (r) { return !r.draft; });
     if (!list.length) throw new Error('No published release.');
 
-    /* A release whose image is COMPLETE, which is not the same as one that has
-       started uploading. The ISO job attaches its files one at a time and the
-       two ~2 GB parts take several minutes; the small `.sha256` lands first. A
-       release caught mid-upload can hold part 00 and not part 01, and a command
-       built from that produces a truncated image that boots halfway.
-
-       `split -b` writes equal-sized chunks and one smaller remainder, so a set
-       whose last part is smaller than its first is finished. (A file whose size
-       is an exact multiple of the chunk size would defeat this; for a 2.5 GB
-       image that is not a case worth designing around, and the checksum on the
-       page is the backstop either way.) */
-    var completeIso = function (r) {
-      var a = (r.assets || []);
-      if (a.some(function (x) { return /\.iso$/.test(x.name); })) return true;
-      var parts = a.filter(function (x) { return /\.iso\.\d+\.part$/.test(x.name); })
-                   .sort(function (x, y) { return x.name < y.name ? -1 : 1; });
-      return parts.length >= 2 && parts[parts.length - 1].size < parts[0].size;
-    };
-    var withIso = list.filter(completeIso)[0];
     var withInstaller = list.filter(function (r) {
       return (r.assets || []).some(function (a) { return a.name === 'gamecore-installer'; });
     })[0];
 
     if (withInstaller) renderInstaller(withInstaller);
-    if (withIso) {
-      renderIso(withIso, withIso !== list[0] ? list[0].tag_name : null);
-    } else {
-      fallback('No release in the last ten carries a finished image.');
-    }
-  }).catch(function (e) {
-    fallback(e && e.message ? e.message : 'The release could not be read.');
+  }).catch(function () {
+    /* Nothing to do, and that is the point: the download button is a static
+       link and the line under it carries a written default. A failed request
+       costs the version number, not the download. */
   });
 })();
 </script>

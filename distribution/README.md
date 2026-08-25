@@ -10,25 +10,16 @@ and only once the front door holds.
 
 ---
 
-## The ISO blocker is cleared — [`iso-blocker.md`](iso-blocker.md)
+## There is no ISO — the entry condition is real
 
-The opening argument of every text here is "you don't have to install Arch
-first". For a while that was factually false: no release had ever carried an ISO,
-because the `iso` job in `release.yml` failed on every one since it was added.
+Every text here leads through the graphical installer, and that is now the only
+path: **the machine must already run Arch or Manjaro.** The ISO was removed from
+the project, so no text should promise "you don't have to install Arch first",
+and the substitution boxes that used to say so are gone.
 
-**That is fixed.** `v1.0.157` ships the image as split `.part` files with its
-`.sha256`. The cause, the two stacked defects behind it, and the trap that would
-have replayed it are in [`iso-blocker.md`](iso-blocker.md) — worth reading before
-touching the ISO job.
-
-One thing still nobody has done: **boot the reassembled image.** `sha256sum -c`
-proves the transfer, not that UEFI starts it. Do that before pointing an audience
-at it.
-
-The texts below still lead through the graphical installer, and each carries a
-`> **Now that the ISO ships**` box with the wording to substitute. Those
-substitutions are **pending** — they change the pitch, so they are the sender's
-to apply, not mine.
+[`iso-blocker.md`](iso-blocker.md) is kept as a record of the outage that
+preceded the removal — the two stacked defects and how they were found. It
+describes something that no longer exists.
 
 ---
 
@@ -62,7 +53,7 @@ video, and it is what demonstrates best in moving pictures.
 
 | File | What it is | Who sends it |
 |---|---|---|
-| [`iso-blocker.md`](iso-blocker.md) | The ISO outage, its two stacked causes, and the fix — **resolved**, kept as a record | read before touching the ISO job |
+| [`iso-blocker.md`](iso-blocker.md) | The ISO outage, its two stacked causes, and the fix — kept as a record of something since removed | history |
 | [`github-about.md`](github-about.md) | Description, topics, repo URL | to paste into the GitHub settings |
 | [`packaging/PKGBUILD`](packaging/PKGBUILD) | `gamecore-bin` package for the AUR | **do not submit** before reading [`packaging/README.md`](packaging/README.md) |
 | [`video-script.md`](video-script.md) | Script for a 3-minute video | to shoot |
@@ -83,22 +74,21 @@ on.
 This is not a shopping list. Each step feeds the next, and two of them cannot be
 undone.
 
-1. ~~Fix the ISO blocker.~~ **Done** — but boot the reassembled image before sending anyone at it.
-2. **The repo's About and topics.** Five minutes, reversible, and it is what every
+1. **The repo's About and topics.** Five minutes, reversible, and it is what every
    other link will point at. Today Google only has `Contribute to
    p4v1c/GamecoreRenew development by creating an account on GitHub.` — GitHub's
    default description, which is to say nothing.
-3. **The Pages site.** It gives a clean URL to put in the About, and a `<title>`
+2. **The Pages site.** It gives a clean URL to put in the About, and a `<title>`
    and a meta description we control — which the repo alone does not allow.
    GitHub blocks crawling of `/tree/` and `/blob/` in its `robots.txt`, so only
    the default branch's README is indexable.
-4. **The video.** It has to exist before the posts: in this niche it ranks better
+3. **The video.** It has to exist before the posts: in this niche it ranks better
    than any page, and it is what creates searches for the name. A post without a
    video demo gets "any screenshots?" as its first comment.
-5. **The Reddit and LinuxFr posts.** One channel a day, not all three the same
+4. **The Reddit and LinuxFr posts.** One channel a day, not all three the same
    day: posting everywhere at once reads as spam, and you only get one first post
    per community.
-6. **AlternativeTo and the awesome-lists.** Last: they are directories, they
+5. **AlternativeTo and the awesome-lists.** Last: they are directories, they
    benefit from a project that already has traces elsewhere, and a submission
    refused for "not established enough" is not easily retried.
 

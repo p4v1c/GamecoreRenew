@@ -91,10 +91,8 @@ the addons checkout is pre-created in `/opt/gamecore-addons` **only** on the
 old layout — on a split box the CLI clones under `$GAMECORE_DATA/addons/_repo`,
 mutable code on the data side — and the desktop shortcut's `Icon=` is the
 shipped logo (`frontend/src/assets/logo.png`, kept in sync by the OTA), not the
-theme's generic gamepad. The graphical installer, off the ISO, asks for the data
-path (default `/userdata`) and refuses one nested inside the install; on the ISO
-the field is fixed, because `gamecore-disk-install.sh` writes
-`GAMECORE_DATA=/userdata` from the partition it mounted.
+theme's generic gamepad. The graphical installer asks for the data path
+(default `/userdata`) and refuses one nested inside the install.
 
 ## Also noted, and also left alone
 

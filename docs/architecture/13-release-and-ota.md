@@ -46,9 +46,6 @@ flowchart LR
         pkg --> rel["Publish GitHub Release"]
     end
 
-    build --> iso["job: iso<br/>archiso, ~17 min<br/>splits >2 GiB into .part"]
-    iso --> rel2["attach ISO to the same release"]
-
     rel --> box["a box polls, sees a newer tag,<br/>fetches gamecore-ota.tar.gz"]
 ```
 
@@ -64,9 +61,6 @@ AUR package is not viable (see `distribution/packaging/README.md`).
 | `gamecore-ota.tar.gz` | ~2.7 MB. `backend/ frontend/ config/ electron/ update/ install/ catalog/ scripts/` + `VERSION` | every installed box, automatically |
 | `gamecore-full.tar.gz` | ~14 MB, adds the built frontend for a fresh install | `gamecore-setup`, the AUR PKGBUILD |
 | `gamecore-installer` | ~75 MB PyInstaller binary | a human installing onto an existing Arch |
-
-Plus, since `v1.0.157`, the ISO — as `.part` files with a `.sha256` and
-`REASSEMBLE.txt`, because the image is over GitHub's 2 GiB asset limit.
 
 Two things the packaging step gets right on purpose, both of which cost a real
 bug to learn:
