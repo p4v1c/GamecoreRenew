@@ -115,6 +115,20 @@ are the auto-incremented tags.
 
 ### Fixed
 
+- **The guard added to stop an unbootable ISO made every build fail instead,
+  and the image it rejected was fine.** It located `efiboot.img` by asking
+  `lsblk` for the partition typed with the EFI GUID `C12A7328-…`, which no
+  archiso image ever reports: xorriso describes the appended ESP in both tables,
+  but the isohybrid MBR it writes is not a *protective* MBR — no `0xEE` entry —
+  so Linux takes the DOS parser, never reads the GPT, and types the partition
+  `0xef`. The GUID is in the image, in the GPT the firmware reads; it is simply
+  never what the block layer says. The lookup now reads the table out of the
+  file with `sfdisk` and accepts either spelling, then hands mtools a byte
+  offset — so it needs no loop device, no partition node and no udev.
+  `bash install/iso/build.sh --esp-offset <image>` runs that lookup alone,
+  without root, and three tests in `test_iso_profile.py` hold it against
+  fixture tables of both kinds.
+
 - **The installation ISO booted on nothing — no machine, no firmware, neither
   bootloader.** BIOS showed the syslinux menu, counted down and started over,
   for ever; UEFI said `Error preparing initrd: Not found`. One cause under both:

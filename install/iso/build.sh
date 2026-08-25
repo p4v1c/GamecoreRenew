@@ -7,6 +7,7 @@
 #      sudo bash install/iso/build.sh --no-payload    # profile only, fast
 #      sudo bash install/iso/build.sh --verify-only out/gamecore-*.iso
 #                                                     # re-check an image
+#      bash install/iso/build.sh --esp-offset <image>  # where the ESP starts
 #
 #  ── Where to run this ───────────────────────────────────────────
 #
@@ -35,7 +36,47 @@ warn() { echo -e "  ${YLW}⚠  $*${RST}"; }
 die()  { echo -e "\n${RED}[ERROR]${RST} $*" >&2; exit 1; }
 info() { echo -e "  ${RST}$*"; }
 
+# ── Where the EFI system partition starts, in bytes ──────────────
+#
+# By OFFSET IN THE FILE, and never by a partition device node. That distinction
+# is the whole of why the first version of this check could not pass on any
+# image ever built.
+#
+# xorriso appends efiboot.img as a partition and describes it in BOTH tables:
+# the GPT entry carries the EFI type GUID C12A7328-…, the MBR entry carries type
+# 0xEF. But the MBR an isohybrid writes is not a PROTECTIVE MBR — there is no
+# 0xEE entry, only syslinux's boot entry and the ESP — so the kernel's scanner
+# takes the DOS parser, never looks at the GPT, and the partition it exposes is
+# typed 0xef. Asking lsblk for the GUID therefore matched nothing, while the
+# GUID sits right there in the GPT that the firmware, which does not care what
+# Linux decided, reads.
+#
+# So: accept EITHER spelling of "this is the ESP", and read the table out of the
+# file. That needs no loop device and no /dev/loopNpM, which only exists if udev
+# ran — in a container it may not.
+esp_offset() {  # esp_offset <image> → byte offset on stdout, or 1
+  local img="$1" dump line start secsz
+  # Fatal rather than "return 1": a missing tool would otherwise be reported as
+  # a missing partition, which is the one sentence that sends the reader to look
+  # at the profile instead of at their machine.
+  command -v sfdisk >/dev/null \
+    || die "sfdisk (util-linux) is not installed, so no partition table can be read."
+  dump="$(sfdisk --dump "$img" 2>/dev/null)" || return 1
+  # sfdisk reports in 512-byte units unless it says otherwise, and an ISO's
+  # 2048-byte logical block is NOT that unit — reading the line it prints is the
+  # only way not to be wrong by a factor of four.
+  secsz="$(sed -n 's/^sector-size:[[:space:]]*\([0-9]\+\).*/\1/p' <<<"$dump" | head -1)"
+  : "${secsz:=512}"
+  line="$(grep -iE 'type=(ef|c12a7328-f81f-11d2-ba4b-00a0c93ec93b)([,[:space:]]|$)' \
+          <<<"$dump" | head -1)"
+  [[ -n "$line" ]] || return 1
+  start="$(sed -n 's/.*start=[[:space:]]*\([0-9]\+\).*/\1/p' <<<"$line")"
+  [[ -n "$start" ]] || return 1
+  echo $(( start * secsz ))
+}
+
 VERIFY_ONLY=""
+ESP_OFFSET_ONLY=""
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 OUT="$REPO/out"
@@ -51,10 +92,23 @@ while [[ $# -gt 0 ]]; do
     # minutes; this makes it cost seconds. It is also what to reach for when an
     # ISO someone else built will not boot.
     --verify-only) VERIFY_ONLY="${2:?--verify-only needs an .iso}"; shift 2 ;;
-    -h|--help)    sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    # The partition-table half of that check, on its own: no root, no mounting,
+    # no build. It is the one piece here that has to read a partition table, it
+    # is the piece that was wrong, and this is what lets a test exercise it
+    # against a fixture image in milliseconds. Also the first thing to run by
+    # hand when an image will not boot a UEFI machine.
+    --esp-offset) ESP_OFFSET_ONLY="${2:?--esp-offset needs an image}"; shift 2 ;;
+    -h|--help)    sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)            die "unknown option '$1' (try --help)" ;;
   esac
 done
+
+if [[ -n "$ESP_OFFSET_ONLY" ]]; then
+  [[ -f "$ESP_OFFSET_ONLY" ]] || die "no such image: $ESP_OFFSET_ONLY"
+  esp_offset "$ESP_OFFSET_ONLY" \
+    || die "no EFI system partition in $(basename "$ESP_OFFSET_ONLY")."
+  exit 0
+fi
 
 [[ $EUID -eq 0 ]] || die "mkarchiso needs root (it pacstraps and mounts loop devices).
   Re-run with:  sudo bash install/iso/build.sh"
@@ -104,7 +158,7 @@ trap cleanup EXIT
 # here. mtools reads it without mounting anything; it is a hard dependency of
 # archiso, so it is present wherever mkarchiso is.
 verify_boot_paths() {  # verify_boot_paths <iso>
-  local iso="$1" mnt loop esp conf cfg key value part
+  local iso="$1" mnt loop esp_at conf cfg key value part
   local -a paths=() fat=() missing=()
 
   command -v mdir >/dev/null \
@@ -153,21 +207,22 @@ verify_boot_paths() {  # verify_boot_paths <iso>
   image, so this is not something to skip past."
 
   # ── the FAT image the firmware actually reads ──────────────────
-  esp="$(lsblk -nrpo NAME,PARTTYPE "$loop" \
-         | awk '$2 == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" { print $1; exit }')"
-  [[ -n "$esp" ]] \
+  esp_at="$(esp_offset "$iso")" \
     || die "no EFI system partition in $(basename "$iso").
-  xorriso appends efiboot.img as a second GPT partition; without it the image
-  cannot be booted by any UEFI machine, VM included."
+  xorriso appends efiboot.img as a partition of its own; without it the image
+  cannot be booted by any UEFI machine, VM included.
+  What the tables actually say:
+
+$(sfdisk --dump "$iso" 2>&1 | sed 's/^/    /')"
   # -b prints one full path per line ("::/EFI/BOOT/BOOTx64.EFI"), -/ recurses.
-  mapfile -t fat < <(mdir -i "$esp" -b -/ ::/ 2>/dev/null | sed 's|^::||; s|/$||')
+  mapfile -t fat < <(mdir -i "${iso}@@${esp_at}" -b -/ ::/ 2>/dev/null | sed 's|^::||; s|/$||')
   # A listing that came back empty is a tool problem, not a missing file, and
   # reporting it as "everything is missing" would send the next reader hunting
   # in the profile. /EFI is always at the root of efiboot.img.
   printf '%s\n' "${fat[@]}" | grep -qixF '/EFI' \
-    || die "could not read $esp (${#fat[@]} entries came back).
+    || die "could not read the ESP at byte $esp_at (${#fat[@]} entries came back).
   This is mtools failing to list the FAT image, not the profile — check that
-  'mdir -i $esp -b -/ ::/' works before believing anything below it."
+  'mdir -i ${iso}@@${esp_at} -b -/ ::/' works before believing anything below it."
 
   # ── resolve ────────────────────────────────────────────────────
   local ref name path

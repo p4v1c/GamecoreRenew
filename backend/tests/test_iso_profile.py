@@ -21,6 +21,7 @@ has already shipped.
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import textwrap
 from pathlib import Path
@@ -830,3 +831,93 @@ def test_the_disk_installer_guarantees_the_microcode_hook_on_the_target():
     assert re.search(r"for h in autodetect udev base", body), (
         "the hook is no longer anchored on autodetect. On the target that "
         "ordering is what keeps the image to this machine's own microcode.")
+
+
+# ── The ESP lookup, against fixture images ───────────────────────────────────
+#
+# `sfdisk` writes a partition table into a plain file, so the images below cost
+# a few kilobytes and no root — which is the point. The check they cover reads a
+# real 2.8 GB image inside a privileged container, forty minutes into a build,
+# and its first version shipped green and failed on the very next run.
+BUILD_SH = ISO / "build.sh"
+SECTOR = 512
+
+ISOHYBRID_TABLE = """\
+label: dos
+start=64, size=40000, type=0, bootable
+start=40064, size=20480, type=ef
+"""
+
+GPT_TABLE = """\
+label: gpt
+start=2048, size=20480, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+"""
+
+NO_ESP_TABLE = """\
+label: dos
+start=2048, size=4096, type=83
+"""
+
+
+def _image_with_table(tmp_path: Path, name: str, table: str) -> Path:
+    """A sparse image carrying `table`, or a skip if sfdisk cannot write it."""
+    if not shutil.which("sfdisk"):
+        pytest.skip("sfdisk (util-linux) is not installed")
+    img = tmp_path / name
+    with open(img, "wb") as fh:
+        fh.truncate(40 * 1024 * 1024)
+    done = subprocess.run(["sfdisk", "-q", str(img)], input=table,
+                          text=True, capture_output=True)
+    if done.returncode != 0:
+        pytest.skip(f"sfdisk refused the fixture table: {done.stderr.strip()}")
+    return img
+
+
+def _esp_offset(img: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(["bash", str(BUILD_SH), "--esp-offset", str(img)],
+                          text=True, capture_output=True)
+
+
+def test_the_esp_is_found_on_an_isohybrid_where_the_mbr_is_not_protective(tmp_path):
+    """The failure this helper exists for.
+
+    archiso's image describes its appended efiboot.img in both tables, and the
+    first version of the check looked for the GPT type GUID on the block layer —
+    where it can never appear. The MBR xorriso writes is not a PROTECTIVE MBR:
+    no 0xEE entry, just syslinux's boot entry and the ESP. So Linux takes the
+    DOS parser, ignores the GPT entirely, and types the partition 0xef.
+
+    The image was fine. `lsblk -o PARTTYPE` simply never says C12A7328- about
+    one, and the check failed every image it was pointed at — including the one
+    released the day before, whose GPT does carry that GUID.
+    """
+    img = _image_with_table(tmp_path, "isohybrid.img", ISOHYBRID_TABLE)
+    done = _esp_offset(img)
+    assert done.returncode == 0, f"the ESP was not found:\n{done.stderr}"
+    assert done.stdout.strip() == str(40064 * SECTOR)
+
+
+def test_the_esp_is_also_found_when_the_table_is_a_plain_gpt(tmp_path):
+    """The other spelling, so accepting 0xef did not quietly drop the first one.
+
+    An image whose ESP is described only in a GPT — anything not built as an
+    isohybrid — must still resolve, or the fix for the case above would have
+    traded one blind spot for another.
+    """
+    img = _image_with_table(tmp_path, "gpt.img", GPT_TABLE)
+    done = _esp_offset(img)
+    assert done.returncode == 0, f"the ESP was not found:\n{done.stderr}"
+    assert done.stdout.strip() == str(2048 * SECTOR)
+
+
+def test_an_image_with_no_esp_is_reported_rather_than_read_at_offset_zero(tmp_path):
+    """A lookup that finds nothing must fail, not fall back to the file's start.
+
+    Reading offset 0 as if it were the FAT would list the ISO 9660 tree, find no
+    /EFI, and blame mtools — sending the next reader to a working tool instead of
+    the missing partition.
+    """
+    img = _image_with_table(tmp_path, "noesp.img", NO_ESP_TABLE)
+    done = _esp_offset(img)
+    assert done.returncode != 0
+    assert "no EFI system partition" in done.stderr

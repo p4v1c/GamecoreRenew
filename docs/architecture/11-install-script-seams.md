@@ -165,6 +165,18 @@ exactly the path that failed. A single unresolved path is fatal, not a warning.
 `--verify-only <image>` re-runs that check on an ISO that already exists, which
 is the only affordable way to watch the guard fail.
 
+That second half has one trap, and the first version of the check fell in it:
+**the ESP is found by offset in the file, never by a partition device node.**
+xorriso describes the appended `efiboot.img` in both partition tables, but the
+isohybrid MBR is not a *protective* MBR — there is no `0xEE` entry, only
+syslinux's and the ESP's — so Linux takes the DOS parser, never looks at the
+GPT, and exposes the partition as type `0xef`. Asking `lsblk` for the EFI type
+GUID matched nothing on any image ever built, while that GUID sits in the GPT
+the firmware reads. `esp_offset()` reads the table out of the file with
+`sfdisk`, accepts either spelling, and hands mtools `image@@<byte offset>`;
+`--esp-offset <image>` runs just that, without root, which is what the tests
+exercise.
+
 **Where it can be built, and where it cannot.** `mkarchiso` needs root, loop
 mounts and ~25 GB of scratch, so the ISO cannot be built or verified on the box
 that plays the games, and it is not built on a development laptop by accident —
