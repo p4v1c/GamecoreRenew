@@ -23,6 +23,15 @@ mkinitcpio
 # The initramfs hooks that find and mount the squashfs. Without it the ISO
 # builds happily and then drops to an emergency shell at boot.
 mkinitcpio-archiso
+# BOTH stay, and no boot configuration names either of them any more — which is
+# exactly why this comment exists, because the next tidy-up will read them as
+# dead weight. They do not ship a boot file that is loaded; they ship
+# /usr/lib/firmware/{intel,amd}-ucode/, and that directory is what mkinitcpio's
+# `microcode` hook reads to build the early cpio inside initramfs-linux.img.
+# Remove them and the hook finds nothing, stays silent about it, and the ISO
+# boots every machine with no microcode update. The installed system is a copy
+# of this live root and rebuilds its own initramfs from the same firmware, so it
+# needs them for the same reason and has no mirror to fetch them from.
 intel-ucode
 amd-ucode
 

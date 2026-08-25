@@ -115,6 +115,38 @@ are the auto-incremented tags.
 
 ### Fixed
 
+- **The installation ISO booted on nothing — no machine, no firmware, neither
+  bootloader.** BIOS showed the syslinux menu, counted down and started over,
+  for ever; UEFI said `Error preparing initrd: Not found`. One cause under both:
+  every boot entry asked for `intel-ucode.img` and `amd-ucode.img` beside the
+  kernel, and archiso stopped putting them there (upstream
+  [archiso#226](https://gitlab.archlinux.org/archlinux/archiso/-/issues/226)) —
+  the microcode belongs inside the initramfs now, via mkinitcpio's `microcode`
+  hook, which this profile did not have either. The boot configs name one initrd
+  each and the hook is in place. `intel-ucode` and `amd-ucode` stay in
+  `packages.x86_64`: the hook builds the early cpio *from* them.
+- **The guided disk install wrote the same three-initrd boot entry onto the
+  machine it had just installed.** The files it named (`/intel-ucode.img`,
+  `/amd-ucode.img` on the ESP) do normally exist there, so this was an
+  assumption rather than a proven break — but the assumption is about what
+  `mkarchiso` leaves in the airootfs's `/boot`, and being wrong about it means
+  an install that completes and a box that never boots, which is strictly worse
+  than an ISO that refuses at the menu. The target now gets the `microcode` hook
+  in its own `/etc/mkinitcpio.conf` and a single-`initrd` entry, the same way
+  the ISO does. `gamecore-fallback.conf` already named no microcode, so the two
+  entries had disagreed with each other from the start; they now match.
+- **The installed box had its `/etc/mkinitcpio.conf.d/` switched off, for ever.**
+  The preset written for the target set `ALL_config`, which is the same `-c`
+  mechanism as above — any drop-in a package installs on that machine afterwards
+  would be written, be valid, and never be read. Arch's own preset keeps that
+  line commented out. It is now left out.
+- **The ISO's initramfs was never built from the ISO's own hook list.** Its
+  preset set `ALL_config=/etc/mkinitcpio.conf`, mkinitcpio turns the
+  `/etc/mkinitcpio.conf.d/` drop-in off whenever it is given a config file by
+  name, and so `archiso.conf` — `archiso`, `archiso_loop_mnt`, `memdisk` — was
+  read by nothing. The preset now names the drop-in, as releng's does. This was
+  hidden behind the boot failure above and would have surfaced as an emergency
+  shell the moment it was fixed alone.
 - The graphical installer segfaulted on the first key typed into any field —
   PyInstaller bundled the runner's `libxkbcommon` next to the host's
   `libxkbcommon-x11`. Fixed by a `.spec` that keeps host-provided libraries out
@@ -126,6 +158,19 @@ are the auto-incremented tags.
 
 ### Added
 
+- **`install/iso/build.sh` now refuses to finish a build whose image cannot
+  boot.** It mounts the ISO it just produced, resolves every path the shipped
+  boot configurations name (systemd-boot's `linux`/`initrd`, syslinux's
+  `LINUX`/`INITRD` — comma lists split, which is where the ucode images hid),
+  and checks each one against the ISO 9660 tree *and* against `efiboot.img`, the
+  FAT partition a machine booting the ISO in El Torito actually reads. One
+  missing path is fatal. `--verify-only <image>` re-runs the check on an
+  existing ISO, so watching the guard fail does not cost a second build.
+- Eight invariants in `backend/tests/test_iso_profile.py`, the millisecond
+  half of the same guarantee: the microcode is in the initramfs **or** named by
+  the boot configs and never both or neither, the ISO preset points at the
+  drop-in that carries those hooks, `microcode` stays ahead of any `autodetect`,
+  the ucode packages stay, and the installed system gets the same arrangement.
 - `ruff` and `shellcheck` in CI, and a single tile builder
   (`backend/services/catalog/tiles.py`) replacing the two that had drifted.
 - `docs/architecture/10-catalog-and-install.md` — the catalogue and the install
