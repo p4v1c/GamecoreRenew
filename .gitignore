@@ -72,15 +72,6 @@ dist_ota/
 dist_full/
 /tmp/
 
-# ISO build output. install/iso/build.sh defaults to out/ and stages its ~2 GB
-# payload in /var/tmp, never in the profile — but a --out pointed here, or an
-# mkarchiso run by hand on the profile, would otherwise drop several gigabytes
-# into the working tree.
-/out/
-install/iso/work/
-install/iso/out/
-install/iso/airootfs/usr/share/gamecore/
-
 # Qt old project build (already in GameCore/build but just in case)
 GameCore/
 

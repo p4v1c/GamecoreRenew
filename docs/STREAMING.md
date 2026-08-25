@@ -125,7 +125,7 @@ Moonlight finds hosts by mDNS, and Sunshine talks to Avahi over D-Bus
 `Failed to create client: Daemon not running` line in the box's journal was
 Sunshine finding Avahi disabled.
 
-mDNS is in the base install (`install/arch.sh`, `install/iso/packages.x86_64`)
+mDNS is in the base install (`install/arch.sh`)
 because the box needs a name of its own — the ROM manager, the save manager and
 the login page are all behind one DHCP address. That justification stands with no
 streaming on the box at all, and **streaming must never become the reason mDNS is
