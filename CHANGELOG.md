@@ -125,6 +125,21 @@ are the auto-incremented tags.
   hook, which this profile did not have either. The boot configs name one initrd
   each and the hook is in place. `intel-ucode` and `amd-ucode` stay in
   `packages.x86_64`: the hook builds the early cpio *from* them.
+- **The guided disk install wrote the same three-initrd boot entry onto the
+  machine it had just installed.** The files it named (`/intel-ucode.img`,
+  `/amd-ucode.img` on the ESP) do normally exist there, so this was an
+  assumption rather than a proven break — but the assumption is about what
+  `mkarchiso` leaves in the airootfs's `/boot`, and being wrong about it means
+  an install that completes and a box that never boots, which is strictly worse
+  than an ISO that refuses at the menu. The target now gets the `microcode` hook
+  in its own `/etc/mkinitcpio.conf` and a single-`initrd` entry, the same way
+  the ISO does. `gamecore-fallback.conf` already named no microcode, so the two
+  entries had disagreed with each other from the start; they now match.
+- **The installed box had its `/etc/mkinitcpio.conf.d/` switched off, for ever.**
+  The preset written for the target set `ALL_config`, which is the same `-c`
+  mechanism as above — any drop-in a package installs on that machine afterwards
+  would be written, be valid, and never be read. Arch's own preset keeps that
+  line commented out. It is now left out.
 - **The ISO's initramfs was never built from the ISO's own hook list.** Its
   preset set `ALL_config=/etc/mkinitcpio.conf`, mkinitcpio turns the
   `/etc/mkinitcpio.conf.d/` drop-in off whenever it is given a config file by

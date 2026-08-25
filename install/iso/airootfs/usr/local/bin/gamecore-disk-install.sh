@@ -288,17 +288,112 @@ run rm -f /mnt/etc/mkinitcpio.conf.d/archiso.conf
 # The preset shipped for the ISO builds one image and no fallback. An installed
 # machine wants the fallback: it is the image with every module in it, and it is
 # what boots when a kernel update autodetects the wrong storage driver.
+#
+# It also points at no configuration file at all, where the ISO's preset points
+# straight at the archiso drop-in. Both are deliberate and they are the same
+# fact seen from two sides: mkinitcpio re-invokes itself per preset with
+# `-c <the preset's *_config>`, and its `-c` handler sets `_optconfd=0` — the
+# flag that decides whether /etc/mkinitcpio.conf.d/*.conf is read at all. So
+# `ALL_config="/etc/mkinitcpio.conf"` does not mean "the main file and its
+# drop-ins", it means "this file, and nothing else", and every drop-in a package
+# installs on this machine later would be written, be valid, and never be
+# opened. Arch's own shipped preset keeps that line commented out for exactly
+# this reason. Left out, mkinitcpio resolves the config itself the way it does
+# on any Arch box.
 run tee /mnt/etc/mkinitcpio.d/linux.preset >/dev/null <<'PRESET'
 # mkinitcpio preset file for the 'linux' package
-ALL_config="/etc/mkinitcpio.conf"
+#
+# No ALL_config on purpose — naming a config file here switches the
+# /etc/mkinitcpio.conf.d/ drop-ins off. See gamecore-disk-install.sh.
 ALL_kver="/boot/vmlinuz-linux"
 
 PRESETS=('default' 'fallback')
 
 default_image="/boot/initramfs-linux.img"
 fallback_image="/boot/initramfs-linux-fallback.img"
+# -S autodetect skips the autodetect hook, so this image carries every module —
+# and, because the microcode hook keys off autodetect as well, every vendor's
+# microcode instead of only this machine's. That is the right trade for the
+# image whose job is to boot when the tailored one does not.
 fallback_options="-S autodetect"
 PRESET
+
+# ── The microcode, on the installed system ───────────────────────
+#
+# Same defect as the one that kept the ISO itself from booting, one step
+# further along: this script used to write a boot entry naming
+# /intel-ucode.img and /amd-ucode.img on the ESP. Those files do normally
+# exist there — the ucode packages put them in /boot and /boot is the target's
+# ESP — but "normally" is an assumption about what mkarchiso leaves in the
+# airootfs's /boot, and the failure when it is wrong is an install that
+# finishes cleanly and a box that never boots again. Strictly worse than an
+# ISO that refuses at the menu.
+#
+# So the target is aligned with the ISO rather than trusted: the microcode goes
+# INSIDE the initramfs, via the hook, and the boot entry names one initrd.
+#
+# The hook has to go in /etc/mkinitcpio.conf itself and not in a drop-in: the
+# archiso drop-in was deleted a few lines above, and the preset just written
+# deliberately does not name a config file.
+add_microcode_hook() {  # add_microcode_hook <path to a mkinitcpio.conf>
+  local conf="$1" lineno raw indent hooks anchor h
+  local -a rebuilt=()
+
+  if $DRY_RUN; then
+    printf '    [dry-run] ensure the microcode hook is in %s\n' "$conf"
+    return
+  fi
+
+  # The last uncommented single-line HOOKS=(…). Last, because a conf that had
+  # been edited before may carry the distribution's original above the live one.
+  lineno="$(grep -n '^[[:space:]]*HOOKS=(.*)[[:space:]]*$' "$conf" | tail -1 | cut -d: -f1 || true)"
+  [[ -n "$lineno" ]] || die "no single-line HOOKS=(…) in $conf — refusing to guess.
+  Without the microcode hook the installed box boots with no microcode update at
+  all, and nothing anywhere says so."
+
+  raw="$(sed -n "${lineno}p" "$conf")"
+  indent="${raw%%HOOKS=(*}"
+  hooks="${raw#*HOOKS=(}"
+  hooks="${hooks%)*}"
+
+  # Re-running the installer over an existing target must not add a second one.
+  if [[ " $hooks " == *" microcode "* ]]; then
+    ok "microcode is already in HOOKS."
+  else
+    # Placed AFTER autodetect, and that ordering is the point rather than an
+    # accident. autodetect narrows the build to this machine's hardware, and the
+    # microcode hook then contributes this CPU's vendor alone — which is exactly
+    # right for a box that will only ever boot on itself, and exactly wrong for
+    # the live medium (see airootfs/etc/mkinitcpio.conf.d/archiso.conf, which
+    # has no autodetect for that reason). udev and base are fallback anchors for
+    # a conf that has no autodetect; the hook needs to run after one of them.
+    anchor=""
+    for h in autodetect udev base; do
+      if [[ " $hooks " == *" $h "* ]]; then anchor="$h"; break; fi
+    done
+    [[ -n "$anchor" ]] || die "HOOKS in $conf has none of autodetect, udev or base:
+    $raw
+  This is not a mkinitcpio configuration this script knows how to extend."
+
+    for h in $hooks; do
+      rebuilt+=("$h")
+      if [[ "$h" == "$anchor" ]]; then rebuilt+=(microcode); fi
+    done
+    sed -i "${lineno}s|.*|${indent}HOOKS=(${rebuilt[*]})|" "$conf"
+    ok "microcode hook added after '$anchor'."
+  fi
+
+  # Read back what is on disk, not what we think we wrote. A HOOKS line is one
+  # line of shell in a file several things edit, and the cost of being wrong is
+  # only visible as a CPU erratum months later.
+  raw="$(sed -n "${lineno}p" "$conf")"
+  hooks="${raw#*HOOKS=(}"; hooks="${hooks%)*}"
+  [[ " $hooks " == *" microcode "* ]] \
+    || die "the microcode hook is still not in $conf after editing it:\n  $raw"
+  info "HOOKS: $hooks"
+}
+
+add_microcode_hook /mnt/etc/mkinitcpio.conf
 
 # The live ISO ships root with an EMPTY password (that is how the autologin
 # works). Copied as-is, every machine installed from this ISO would have a
@@ -371,11 +466,17 @@ timeout 0
 default gamecore.conf
 console-mode keep
 LOADER
+# One initrd line, matching what add_microcode_hook put inside the image. The
+# three-line version this replaced named /intel-ucode.img and /amd-ucode.img on
+# the ESP; systemd-boot concatenates every initrd it is given before starting
+# and fails the entry on the first one it cannot find, with no indication of
+# which. gamecore-fallback.conf below never named them, so the profile
+# disagreed with itself — the two entries now behave the same way.
 run tee /mnt/boot/loader/entries/gamecore.conf >/dev/null <<ENTRY
 title   GameCore
 linux   /vmlinuz-linux
-initrd  /intel-ucode.img
-initrd  /amd-ucode.img
+# The microcode is inside this image (mkinitcpio's `microcode` hook), not
+# loaded as a separate ucode initrd.
 initrd  /initramfs-linux.img
 options root=UUID=${ROOT_UUID} rw quiet loglevel=3
 ENTRY
