@@ -115,6 +115,23 @@ are the auto-incremented tags.
 
 ### Fixed
 
+- **The installation ISO booted on nothing — no machine, no firmware, neither
+  bootloader.** BIOS showed the syslinux menu, counted down and started over,
+  for ever; UEFI said `Error preparing initrd: Not found`. One cause under both:
+  every boot entry asked for `intel-ucode.img` and `amd-ucode.img` beside the
+  kernel, and archiso stopped putting them there (upstream
+  [archiso#226](https://gitlab.archlinux.org/archlinux/archiso/-/issues/226)) —
+  the microcode belongs inside the initramfs now, via mkinitcpio's `microcode`
+  hook, which this profile did not have either. The boot configs name one initrd
+  each and the hook is in place. `intel-ucode` and `amd-ucode` stay in
+  `packages.x86_64`: the hook builds the early cpio *from* them.
+- **The ISO's initramfs was never built from the ISO's own hook list.** Its
+  preset set `ALL_config=/etc/mkinitcpio.conf`, mkinitcpio turns the
+  `/etc/mkinitcpio.conf.d/` drop-in off whenever it is given a config file by
+  name, and so `archiso.conf` — `archiso`, `archiso_loop_mnt`, `memdisk` — was
+  read by nothing. The preset now names the drop-in, as releng's does. This was
+  hidden behind the boot failure above and would have surfaced as an emergency
+  shell the moment it was fixed alone.
 - The graphical installer segfaulted on the first key typed into any field —
   PyInstaller bundled the runner's `libxkbcommon` next to the host's
   `libxkbcommon-x11`. Fixed by a `.spec` that keeps host-provided libraries out

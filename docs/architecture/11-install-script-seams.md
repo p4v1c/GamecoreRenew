@@ -143,6 +143,19 @@ three installers and not one:
 | `gamecore-disk-install.sh` | the live ISO, `arch-chroot` | partitioning and payload only |
 | first-boot unit | the installed box | the systemd half |
 
+**The boot chain is three files that must agree, and nothing checks that they
+do.** `efiboot/loader/entries/*.conf` (systemd-boot), `syslinux/syslinux.cfg`
+(BIOS) and `airootfs/etc/mkinitcpio.conf.d/archiso.conf` (what is *in* the
+initramfs) describe the same boot from three directions. The bootloader configs
+name one `initrd` each and the microcode rides inside it, put there by the
+`microcode` hook — an arrangement archiso adopted in
+[archiso#226](https://gitlab.archlinux.org/archlinux/archiso/-/issues/226) and
+which every older tutorial contradicts. A fourth file joins them:
+`airootfs/etc/mkinitcpio.d/linux.preset` has to name the drop-in
+(`archiso_config=`), because a preset that names `/etc/mkinitcpio.conf` makes
+mkinitcpio ignore `conf.d/` entirely. All four failure modes are silent at build
+time and total at boot time; see [9](09-gotchas.md#build-and-release).
+
 **Where it can be built, and where it cannot.** `mkarchiso` needs root, loop
 mounts and ~25 GB of scratch, so the ISO cannot be built or verified on the box
 that plays the games, and it is not built on a development laptop by accident —

@@ -5,9 +5,23 @@
 # build a complete image because a live medium cannot autodetect the machine it
 # has not booted on yet. A second image would double the build time to produce a
 # copy of the first.
+#
+# `archiso_config` and NOT `ALL_config`, and this is load-bearing rather than a
+# cosmetic alignment with releng. mkinitcpio invokes itself per preset with
+# `-c <that value>`, and its `-c` handler sets `_optconfd=0` — which is the flag
+# that decides whether /etc/mkinitcpio.conf.d/*.conf is sourced at all. Point
+# this at /etc/mkinitcpio.conf and the archiso drop-in beside it is never read:
+# the image comes out with the stock Arch hook list, with no `archiso` and no
+# `archiso_loop_mnt` in it, and the ISO boots to an emergency shell with its own
+# squashfs sitting there unmounted. Naming the drop-in directly is what makes it
+# the configuration rather than an addition to one.
+#
+# Measured, same kernel, same machine:
+#   ALL_config=/etc/mkinitcpio.conf   → base udev autodetect microcode block …
+#   archiso_config=…/archiso.conf     → base udev microcode modconf kms memdisk …
 PRESETS=('archiso')
 
 ALL_kver='/boot/vmlinuz-linux'
-ALL_config='/etc/mkinitcpio.conf'
+archiso_config='/etc/mkinitcpio.conf.d/archiso.conf'
 
 archiso_image="/boot/initramfs-linux.img"
