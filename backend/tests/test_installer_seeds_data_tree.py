@@ -246,12 +246,20 @@ def test_the_wizard_refuses_a_data_path_arch_sh_could_not_use(install, data, ok)
     assert (problem == "") is ok, problem
 
 
-def test_the_wizard_writes_the_data_root_off_the_iso_and_leaves_it_to_the_disk_installer_on_it():
-    """One writer for GAMECORE_DATA on the ISO — gamecore-disk-install.sh, from
-    the partition it mounted. Off the ISO the wizard is the only one who knows."""
+def test_the_wizard_is_the_only_writer_of_the_data_root():
+    """The wizard is the sole writer of GAMECORE_DATA.
+
+    It used to be conditional: on the live ISO `gamecore-disk-install.sh` wrote
+    the key itself, from the partition it had just mounted, and the wizard had
+    to stay out of the way so the two could not disagree. With the ISO gone
+    there is one installer and one writer, and the key is unconditional — a
+    conf that reaches arch.sh without it silently falls back to the install
+    directory, which is the old layout and not what the field says.
+    """
     text = GUI.read_text(encoding="utf-8")
-    m = re.search(r'f"GAMECORE_DATA=\{shlex\.quote\(c\[\'data\'\]\)\}",\n\s*\] if w\.iso_src is None else \[\]',
-                  text)
-    assert m, "GAMECORE_DATA is not written conditionally on not being the ISO"
+    assert re.search(r'f"GAMECORE_DATA=\{shlex\.quote\(c\[\'data\'\]\)\}",', text), \
+        "the wizard no longer writes GAMECORE_DATA into the conf"
+    assert "w.iso_src" not in text, \
+        "an ISO branch is back in the wizard — there is only one installer now"
     assert 'self.data = QLineEdit("/userdata")' in text
     assert '"data": sysp.data.text().strip()' in text

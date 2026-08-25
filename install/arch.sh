@@ -17,14 +17,6 @@ info() { echo -e "  ${RST}$*"; }
 
 pacman_optional() {
   record_new_pkgs "$1"
-  # Offline, "not in repos" would be a lie — there are no repos to be in. Say
-  # what actually happened, because the same message on an ISO install sent
-  # people looking for a package that was sitting installed all along.
-  if ! $NET_OK; then
-    pacman -Qq "$1" >/dev/null 2>&1 && ok "$1 (already installed)" \
-      || warn "$1 absent and no network — skipping"
-    return 0
-  fi
   pacman -S --noconfirm --needed "$1" 2>/dev/null && ok "$1" || warn "$1 not in repos — skipping"
 }
 
@@ -214,8 +206,8 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 #   --full           : GameCore + all emulators/apps (Flatpak) + curated configs
 #   --minimal        : GameCore only — no emulator, no application
 #   --unattended <f> : zero prompt — read everything from conf file <f>
-#                      (written by install/installer-gui/, and the entry point
-#                      for the GameCore OS ISO. See install.conf.example)
+#                      (written by install/installer-gui/. See
+#                      install.conf.example)
 MODE="${1:-}"
 UNATTENDED=false
 CONF=""
@@ -305,43 +297,6 @@ fi
 
 want_emu() { [[ "$EMULATORS" == "all" || " $EMULATORS " == *" $1 "* ]]; }
 want_app() { [[ "$MODE" == "full" ]] && [[ "$APPS" == "all" || " $APPS " == *" $1 "* ]]; }
-
-# ── Offline installs ─────────────────────────────────────────────
-#
-# The ISO installs a machine that may never have been plugged into anything.
-# Everything this script normally downloads is staged into the image instead
-# (install/iso/build.sh): the packages are already in the copied root, the
-# Python dependencies are a wheelhouse, and node_modules for the frontend and
-# for Electron are prebuilt.
-#
-# OFFLINE is read from the conf: 0 (never), 1 (always), auto (probe once).
-# `auto` is what the ISO writes — a box with a cable in it should still get its
-# upgrades and its Flatpaks; a box without one must not fail because of it.
-#
-# What stays broken offline, deliberately: the Flatpak emulators. They are
-# gigabytes from Flathub and cannot be baked into an ISO that fits on a stick.
-# Those steps already warn instead of dying, so the box comes up with a working
-# interface and installs its emulators the first time it sees a network.
-OFFLINE="${OFFLINE:-0}"
-GAMECORE_OFFLINE="${GAMECORE_OFFLINE:-/usr/share/gamecore}"
-NET_OK=true
-case "$OFFLINE" in
-  0|false|no)  NET_OK=true ;;
-  1|true|yes)  NET_OK=false ;;
-  auto)
-    # One probe, against a host that is not a mirror: mirrors go down on their
-    # own and "this mirror is unreachable" is not "this machine has no network".
-    # `|| true` because a failing probe under `set -e` would end the install
-    # rather than answer the question it was asked.
-    if curl -fsS --connect-timeout 5 --max-time 10 -o /dev/null https://archlinux.org/ 2>/dev/null; then
-      NET_OK=true
-    else
-      NET_OK=false
-    fi
-    ;;
-  *) die "OFFLINE must be 0, 1 or auto (got '$OFFLINE')" ;;
-esac
-$NET_OK || warn "No network — installing from the artefacts staged in $GAMECORE_OFFLINE."
 
 # ── Where the player's data goes ─────────────────────────────────
 #
@@ -532,16 +487,7 @@ seed_data_tree "$PROJECT_ROOT" "$GAMECORE_DATA" "$USER_NAME"
 # bar sits at 6 % for up to 40 minutes and looks hung.
 progress 6 "Refreshing and upgrading system packages (this can take a while)"
 msg "System packages"
-if $NET_OK; then
-  pacman -Syu --noconfirm
-else
-  # Skipped rather than attempted: `pacman -Syu` with no route fails, and under
-  # `set -e` that ends the install at 6 % — before the user account, before a
-  # single service. On an ISO install the packages are already the ones the
-  # image shipped, which is the whole point of packages.x86_64.
-  warn "Offline — skipping the system upgrade."
-  info "  Run 'sudo pacman -Syu' once this box has a network."
-fi
+pacman -Syu --noconfirm
 
 progress 14 "Installing base packages (desktop, drivers, node, caddy)"
 PKGS=(
@@ -669,27 +615,8 @@ fi
 # no menu, which is what "Exit to Desktop gives me a black screen" was.
 
 record_new_pkgs "${PKGS[@]}"
-if $NET_OK; then
-  pacman -S --noconfirm --needed "${PKGS[@]}"
-  ok "System packages installed."
-else
-  # Offline this is a CHECK, not an install — there is nothing to install from.
-  # Reporting what is missing by name matters more here than anywhere else: the
-  # answer is always "add it to install/iso/packages.x86_64 and rebuild the
-  # ISO", and without the list nobody can tell which one.
-  MISSING_PKGS=()
-  for _p in "${PKGS[@]}"; do
-    pacman -Qq "$_p" >/dev/null 2>&1 || MISSING_PKGS+=("$_p")
-  done
-  if [[ ${#MISSING_PKGS[@]} -eq 0 ]]; then
-    ok "Offline — all ${#PKGS[@]} system packages are already installed."
-  else
-    warn "Offline, and ${#MISSING_PKGS[@]} package(s) are missing with no way to fetch them:"
-    warn "  ${MISSING_PKGS[*]}"
-    warn "  The box will come up degraded. If this was an ISO install, these"
-    warn "  belong in install/iso/packages.x86_64."
-  fi
-fi
+pacman -S --noconfirm --needed "${PKGS[@]}"
+ok "System packages installed."
 
 progress 20 "Optional packages"
 # The X11 session Plasma is hosted on. Manjaro ships it as its own package;
@@ -1109,24 +1036,7 @@ fi
 progress 86 "Python backend (venv)"
 msg "Python backend (venv)"
 sudo -u "$USER_NAME" -H python3 -m venv "$GAMECORE_PATH/.venv"
-# The wheelhouse the ISO stages. --find-links even when online, so a box WITH a
-# network still prefers the wheels it shipped with over whatever PyPI serves
-# today; --no-index only when there is nothing to reach anyway.
-#
-# evdev, argon2-cffi, cryptography and uvicorn's httptools/uvloop are C
-# extensions, so these wheels only fit the CPython the ISO was built against.
-# That holds because build.sh runs on the same Arch whose `python` mkarchiso
-# pacstraps — see the ABI note there.
-PIP_ARGS=()
-if [[ -d "$GAMECORE_OFFLINE/wheels" ]]; then
-  PIP_ARGS=(--find-links "$GAMECORE_OFFLINE/wheels")
-  $NET_OK || PIP_ARGS+=(--no-index)
-  info "Using the wheelhouse staged at $GAMECORE_OFFLINE/wheels."
-elif ! $NET_OK; then
-  die "Offline and no wheelhouse at $GAMECORE_OFFLINE/wheels — the backend cannot be installed.
-  This box was not installed from a GameCore ISO, or the payload was removed."
-fi
-sudo -u "$USER_NAME" -H "$GAMECORE_PATH/.venv/bin/pip" install -q "${PIP_ARGS[@]}" \
+sudo -u "$USER_NAME" -H "$GAMECORE_PATH/.venv/bin/pip" install -q \
   -r "$GAMECORE_PATH/backend/requirements.txt"
 ok "Python dependencies installed."
 
@@ -1597,18 +1507,10 @@ ok "SSH active."
 progress 93 "Building the frontend"
 msg "Node frontend build"
 cd "$GAMECORE_PATH/frontend"
-if $NET_OK; then
-  sudo -u "$USER_NAME" -H npm install
-elif [[ -d node_modules ]]; then
-  # Staged by install/iso/build.sh, built with the Node version the ISO ships.
-  ok "Offline — using the node_modules the ISO staged."
-else
-  die "Offline and frontend/node_modules is missing — there is nothing to build the UI from."
-fi
-# Built rather than trusted, even when the ISO already shipped a dist/: the
-# sources were just copied over the top of it by the file-copy step, and a dist/
-# older than the sources beside it is the exact failure the OTA packaging
-# comment warns about.
+sudo -u "$USER_NAME" -H npm install
+# Built rather than trusted: the sources were just copied over the top of any
+# existing dist/ by the file-copy step, and a dist/ older than the sources
+# beside it is the exact failure the OTA packaging comment warns about.
 sudo -u "$USER_NAME" -H npm run build
 cd "$SCRIPT_DIR"
 ok "Frontend built → frontend/dist/"
@@ -1622,17 +1524,8 @@ cd "$GAMECORE_PATH/electron"
 # abort the install. The explicit provisioning below exists precisely to
 # recover from a missing binary — so let control reach it.
 ELECTRON_DIR="$GAMECORE_PATH/electron/node_modules/electron"
-if $NET_OK; then
-  sudo -u "$USER_NAME" -H npm install \
-    || warn "npm install reported an error — trying explicit Electron provisioning."
-elif [[ -x "$ELECTRON_DIR/dist/electron" ]]; then
-  # build.sh refuses to produce an ISO whose payload lacks this binary, so
-  # reaching here with it present is the normal offline path.
-  ok "Offline — Electron already provisioned by the ISO."
-else
-  warn "Offline and no Electron binary — the kiosk will not start."
-  warn "  Re-run this installer once the box has a network."
-fi
+sudo -u "$USER_NAME" -H npm install \
+  || warn "npm install reported an error — trying explicit Electron provisioning."
 
 # The electron npm package downloads its actual binary from a postinstall
 # script (node install.js). On machines with hardened npm (ignore-scripts,
@@ -1640,17 +1533,7 @@ fi
 # node_modules/electron with no binary → "Electron failed to install
 # correctly" at runtime. Provision the binary explicitly so the install never
 # depends on the postinstall running.
-# ELECTRON_DIR is set above the npm step now — the offline branch needs it to
-# decide whether there is anything to skip.
-#
-# `&& $NET_OK`: this whole block ends in a `die` on a failed download, and
-# offline the download cannot succeed. Dying here would abort the install at
-# 96 %, after every service, sudoers rule and unit is already in place, over a
-# binary the box can be given later. The warning below is the offline answer.
-if [[ ! -x "$ELECTRON_DIR/dist/electron" ]] && ! $NET_OK; then
-  warn "No Electron binary and no network — the kiosk cannot start yet."
-  warn "  Re-run the installer with a network, or copy electron/node_modules in."
-elif [[ ! -x "$ELECTRON_DIR/dist/electron" ]]; then
+if [[ ! -x "$ELECTRON_DIR/dist/electron" ]]; then
   warn "Electron binary missing (npm postinstall was skipped) — downloading it directly."
   # `EV=$(…)` under set -e exits on failure BEFORE its own `|| die` can run, so
   # the version lookup is guarded rather than chained. When npm died early

@@ -256,9 +256,9 @@ otherwise unchanged — nothing new is *served*, and no GameCore data crosses it
 Why it is worth the exception: the box is reachable at exactly one address and
 that address is a DHCP lease. When the lease changes, every noted URL breaks at
 once — the login page, `/roms/`, `/saves/`, `/rpcs3/`. mDNS replaces the address
-with `<hostname>.local` (`gamecore.local` by default: `TARGET_HOSTNAME` in
-`install.conf.example`, defaulted by the wizard and written to `/etc/hostname` by
-`gamecore-disk-install.sh`).
+with `<hostname>.local`. **The installer does not set the hostname** — the box
+answers under whatever name the machine already had, so `gamecore.local` holds
+only if `/etc/hostname` says `gamecore`.
 
 What it exposes, precisely:
 
