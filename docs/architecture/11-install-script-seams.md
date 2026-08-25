@@ -154,7 +154,16 @@ which every older tutorial contradicts. A fourth file joins them:
 `airootfs/etc/mkinitcpio.d/linux.preset` has to name the drop-in
 (`archiso_config=`), because a preset that names `/etc/mkinitcpio.conf` makes
 mkinitcpio ignore `conf.d/` entirely. All four failure modes are silent at build
-time and total at boot time; see [9](09-gotchas.md#build-and-release).
+time and total at boot time; see [9](09-gotchas.md#build-and-release). Two
+things hold the four together, deliberately at different costs:
+`backend/tests/test_iso_profile.py` compares the profile against itself in
+milliseconds on every CI run, and `install/iso/build.sh` resolves every path the
+shipped boot configurations name against the image that was actually produced —
+in the ISO 9660 tree **and** inside `efiboot.img`, the FAT partition El Torito
+hands to the firmware, which is what a VM with an attached ISO reads and is
+exactly the path that failed. A single unresolved path is fatal, not a warning.
+`--verify-only <image>` re-runs that check on an ISO that already exists, which
+is the only affordable way to watch the guard fail.
 
 **Where it can be built, and where it cannot.** `mkarchiso` needs root, loop
 mounts and ~25 GB of scratch, so the ISO cannot be built or verified on the box

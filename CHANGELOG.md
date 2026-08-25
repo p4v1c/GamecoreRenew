@@ -158,6 +158,19 @@ are the auto-incremented tags.
 
 ### Added
 
+- **`install/iso/build.sh` now refuses to finish a build whose image cannot
+  boot.** It mounts the ISO it just produced, resolves every path the shipped
+  boot configurations name (systemd-boot's `linux`/`initrd`, syslinux's
+  `LINUX`/`INITRD` — comma lists split, which is where the ucode images hid),
+  and checks each one against the ISO 9660 tree *and* against `efiboot.img`, the
+  FAT partition a machine booting the ISO in El Torito actually reads. One
+  missing path is fatal. `--verify-only <image>` re-runs the check on an
+  existing ISO, so watching the guard fail does not cost a second build.
+- Eight invariants in `backend/tests/test_iso_profile.py`, the millisecond
+  half of the same guarantee: the microcode is in the initramfs **or** named by
+  the boot configs and never both or neither, the ISO preset points at the
+  drop-in that carries those hooks, `microcode` stays ahead of any `autodetect`,
+  the ucode packages stay, and the installed system gets the same arrangement.
 - `ruff` and `shellcheck` in CI, and a single tile builder
   (`backend/services/catalog/tiles.py`) replacing the two that had drifted.
 - `docs/architecture/10-catalog-and-install.md` — the catalogue and the install

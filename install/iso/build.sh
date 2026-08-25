@@ -5,6 +5,8 @@
 #      sudo bash install/iso/build.sh                 # → out/gamecore-<ver>.iso
 #      sudo bash install/iso/build.sh --out /tmp/iso  # somewhere else
 #      sudo bash install/iso/build.sh --no-payload    # profile only, fast
+#      sudo bash install/iso/build.sh --verify-only out/gamecore-*.iso
+#                                                     # re-check an image
 #
 #  ── Where to run this ───────────────────────────────────────────
 #
@@ -33,6 +35,7 @@ warn() { echo -e "  ${YLW}⚠  $*${RST}"; }
 die()  { echo -e "\n${RED}[ERROR]${RST} $*" >&2; exit 1; }
 info() { echo -e "  ${RST}$*"; }
 
+VERIFY_ONLY=""
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 OUT="$REPO/out"
@@ -42,6 +45,12 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --out)        OUT="${2:?--out needs a directory}"; shift 2 ;;
     --no-payload) WITH_PAYLOAD=false; shift ;;
+    # Re-run the post-build check against an image that already exists. The
+    # check is the kind of guard that is worth nothing until it has been seen to
+    # fail, and proving that by breaking the profile and rebuilding costs eighty
+    # minutes; this makes it cost seconds. It is also what to reach for when an
+    # ISO someone else built will not boot.
+    --verify-only) VERIFY_ONLY="${2:?--verify-only needs an .iso}"; shift 2 ;;
     -h|--help)    sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)            die "unknown option '$1' (try --help)" ;;
   esac
@@ -49,6 +58,165 @@ done
 
 [[ $EUID -eq 0 ]] || die "mkarchiso needs root (it pacstraps and mounts loop devices).
   Re-run with:  sudo bash install/iso/build.sh"
+
+# mkarchiso's work dir holds a mounted root filesystem. Leaving it behind on a
+# failure leaves loop mounts and several GB; cleaning it up unconditionally is
+# what keeps a second attempt from starting on top of the first.
+#
+# VERIFY_MNT / VERIFY_LOOP are set by verify_boot_paths. They are released here
+# rather than by a nested trap because there is only one EXIT trap to have, and a
+# `die` inside the verification must not leave the finished ISO attached to a
+# loop device — the next build then fails on "device busy" for a reason that has
+# nothing to do with the next build. The trap is armed HERE, before anything can
+# claim either resource, and every variable it touches may still be empty.
+WORKROOT=""; VERIFY_MNT=""; VERIFY_LOOP=""
+cleanup() {
+  if [[ -n "$VERIFY_MNT" ]] && mountpoint -q "$VERIFY_MNT"; then umount "$VERIFY_MNT" || true; fi
+  if [[ -n "$VERIFY_LOOP" ]]; then losetup -d "$VERIFY_LOOP" 2>/dev/null || true; fi
+  if [[ -n "$VERIFY_MNT" ]]; then rmdir "$VERIFY_MNT" 2>/dev/null || true; fi
+  if [[ -n "$WORKROOT" ]]; then rm -rf "$WORKROOT"; fi
+}
+trap cleanup EXIT
+
+# ── Prove the image can boot, before anyone burns it ─────────────
+#
+# This exists because an ISO that booted on NOTHING — no machine, neither
+# firmware, both bootloaders — came out of a green build. Every boot entry
+# named /%INSTALL_DIR%/boot/intel-ucode.img and /%INSTALL_DIR%/boot/amd-ucode.img,
+# and those two files were not in the image. mkarchiso stages them only when the
+# initramfs does not already carry microcode (`_check_if_initramfs_has_ucode`),
+# it had decided correctly that this one did, and it says nothing about a path a
+# configuration asks for and it did not produce. Nothing else does either:
+# systemd-boot reports `Error preparing initrd: Not found` on the machine, and
+# syslinux does not report at all — it abandons the boot and redraws its menu,
+# so the countdown restarts for ever.
+#
+# So: resolve every path the shipped boot configurations name, against the image
+# that was actually produced. A single missing one is fatal. Not a warning — a
+# warning here is a release, and the failure it precedes costs someone a USB
+# stick, a reboot cycle and an evening.
+#
+# BOTH copies are checked, and the second is the one that matters most. The
+# UEFI files exist twice: in the ISO 9660 tree (read after `dd` to a stick) and
+# inside efiboot.img, the FAT image xorriso appends as a second GPT partition
+# (`-append_partition 2`) and which El Torito hands to the firmware — that is
+# what any VM with an ISO attached reads, and it is exactly the path that failed
+# here. mtools reads it without mounting anything; it is a hard dependency of
+# archiso, so it is present wherever mkarchiso is.
+verify_boot_paths() {  # verify_boot_paths <iso>
+  local iso="$1" mnt loop esp conf cfg key value part
+  local -a paths=() fat=() missing=()
+
+  command -v mdir >/dev/null \
+    || die "mtools is not installed, so efiboot.img cannot be inspected.
+  It is a dependency of archiso, so this means something removed it:  pacman -S mtools"
+
+  loop="$(losetup --find --show --partscan --read-only -- "$iso")" \
+    || die "could not attach $iso to a loop device."
+  VERIFY_LOOP="$loop"
+  VERIFY_MNT="$(mktemp -d)"
+  mnt="$VERIFY_MNT"
+  mount -o ro "$loop" "$mnt" || die "could not mount $iso (loop $loop)."
+
+  # ── what the configurations ask for ────────────────────────────
+  #
+  # systemd-boot: one path per `linux`/`initrd` line.
+  # syslinux:     `LINUX`/`INITRD`, and INITRD is a COMMA-SEPARATED list — which
+  #               is precisely where the two ucode images hid, inside one line.
+  #
+  # Both directory globs, not one file: mkarchiso stages the profile's
+  # syslinux/*.cfg into /boot/syslinux/ and may generate more beside them, and a
+  # config reached through INCLUDE is another .cfg in the same directory.
+  shopt -s nullglob
+  for conf in "$mnt"/loader/entries/*.conf; do
+    while read -r key value _; do
+      case "$key" in
+        linux|initrd) paths+=("${conf##*/}|$value") ;;
+      esac
+    done < <(grep -vE '^[[:space:]]*#' "$conf")
+  done
+  for cfg in "$mnt"/boot/syslinux/*.cfg "$mnt"/isolinux/*.cfg "$mnt"/syslinux/*.cfg; do
+    while read -r key value _; do
+      case "$key" in
+        LINUX|INITRD)
+          local -a split=()
+          IFS=, read -ra split <<<"$value"
+          for part in "${split[@]}"; do paths+=("${cfg##*/}|$part"); done ;;
+      esac
+    done < <(grep -vE '^[[:space:]]*#' "$cfg")
+  done
+
+  (( ${#paths[@]} )) \
+    || die "no boot configuration in $(basename "$iso") names a kernel or an initrd.
+  Either the profile lost its loader entries and syslinux.cfg, or mkarchiso
+  staged them somewhere this check does not look — both produce an unbootable
+  image, so this is not something to skip past."
+
+  # ── the FAT image the firmware actually reads ──────────────────
+  esp="$(lsblk -nrpo NAME,PARTTYPE "$loop" \
+         | awk '$2 == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" { print $1; exit }')"
+  [[ -n "$esp" ]] \
+    || die "no EFI system partition in $(basename "$iso").
+  xorriso appends efiboot.img as a second GPT partition; without it the image
+  cannot be booted by any UEFI machine, VM included."
+  # -b prints one full path per line ("::/EFI/BOOT/BOOTx64.EFI"), -/ recurses.
+  mapfile -t fat < <(mdir -i "$esp" -b -/ ::/ 2>/dev/null | sed 's|^::||; s|/$||')
+  # A listing that came back empty is a tool problem, not a missing file, and
+  # reporting it as "everything is missing" would send the next reader hunting
+  # in the profile. /EFI is always at the root of efiboot.img.
+  printf '%s\n' "${fat[@]}" | grep -qixF '/EFI' \
+    || die "could not read $esp (${#fat[@]} entries came back).
+  This is mtools failing to list the FAT image, not the profile — check that
+  'mdir -i $esp -b -/ ::/' works before believing anything below it."
+
+  # ── resolve ────────────────────────────────────────────────────
+  local ref name path
+  for ref in "${paths[@]}"; do
+    name="${ref%%|*}"; path="${ref#*|}"
+    [[ -e "$mnt$path" ]] || missing+=("$name asks for $path — not in the ISO 9660 tree")
+    # syslinux runs before any of this exists; only the UEFI side is in the FAT.
+    if [[ "$name" == *.conf ]]; then
+      printf '%s\n' "${fat[@]}" | grep -qixF -- "$path" \
+        || missing+=("$name asks for $path — not in efiboot.img")
+    fi
+  done
+
+  if (( ${#missing[@]} )); then
+    die "the ISO references files it does not contain:
+
+$(printf '  · %s\n' "${missing[@]}")
+
+  Nothing will boot this image, and neither bootloader will say why: systemd-boot
+  stops with 'Error preparing initrd: Not found', syslinux silently returns to
+  its own menu and counts down again.
+
+  If these are the microcode images: they are not staged separately any more.
+  mkarchiso only copies intel-ucode.img/amd-ucode.img beside the kernel when the
+  initramfs does NOT already contain microcode, and the profile puts it inside
+  via mkinitcpio's 'microcode' hook. The fix is to remove the ucode lines from
+  the boot configuration, not to put the files back."
+  fi
+
+  ok "${#paths[@]} referenced boot paths resolve, in the ISO 9660 tree and in efiboot.img"
+
+  # Released here rather than left to the EXIT trap, so a second image in $OUT
+  # starts from a clean slate. Tolerant on purpose: a mount that will not release
+  # must not turn a verification that PASSED into a failed build, and the trap
+  # still holds both references if anything below does not take.
+  if umount "$mnt" && losetup -d "$loop"; then
+    rmdir "$mnt" 2>/dev/null || true
+    VERIFY_MNT=""; VERIFY_LOOP=""
+  else
+    warn "could not release $loop / $mnt here — the EXIT trap will retry."
+  fi
+}
+
+if [[ -n "$VERIFY_ONLY" ]]; then
+  [[ -f "$VERIFY_ONLY" ]] || die "no such image: $VERIFY_ONLY"
+  msg "Verifying $(basename "$VERIFY_ONLY")"
+  verify_boot_paths "$VERIFY_ONLY"
+  exit 0
+fi
 
 command -v mkarchiso >/dev/null \
   || die "mkarchiso not found — install the 'archiso' package (Arch only).
@@ -76,11 +244,6 @@ AVAIL_GB=$(df -BG "$SCRATCH" | awk 'NR==2 {gsub(/G/,"",$4); print $4+0}')
   || warn "only ${AVAIL_GB} GB free in $SCRATCH — mkarchiso needs about 25 GB."
 WORKROOT="$(mktemp -d "$SCRATCH/gamecore-iso.XXXXXX")"
 PROFILE="$WORKROOT/profile"
-# mkarchiso's work dir holds a mounted root filesystem. Leaving it behind on a
-# failure leaves loop mounts and several GB; cleaning it up unconditionally is
-# what keeps a second attempt from starting on top of the first.
-cleanup() { rm -rf "$WORKROOT"; }
-trap cleanup EXIT
 
 msg "GameCore ISO $GAMECORE_ISO_VERSION"
 info "Repository : $REPO"
@@ -209,6 +372,11 @@ fi
 msg "mkarchiso (this takes a while and needs several GB)"
 mkdir -p "$OUT"
 mkarchiso -v -w "$WORKROOT/work" -o "$OUT" "$PROFILE"
+
+
+msg "Verifying the boot paths"
+shopt -s nullglob
+for iso in "$OUT"/*.iso; do verify_boot_paths "$iso"; done
 
 # ── Checksum ─────────────────────────────────────────────────────
 # Beside the image and with a bare filename inside it, so that

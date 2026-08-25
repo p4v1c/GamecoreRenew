@@ -607,3 +607,226 @@ def test_a_mistyped_key_is_reported_rather_than_silently_ignored(tmp_path):
     r = _run_validate(tmp_path, "USER_NAME=pavic\nEMULATOR=rpcs3\n")
     assert "ACCEPTED" in r.stdout, r.stdout + r.stderr
     assert "EMULATOR" in r.stdout, f"the unknown key was not reported:\n{r.stdout}"
+
+
+# ── the microcode, and the two places that have to agree ───────────────────
+#
+# The failure this section stands for: the ISO booted on nothing — no machine,
+# neither firmware — and the build that produced it was green. Every boot entry
+# asked for `intel-ucode.img` and `amd-ucode.img` beside the kernel, and neither
+# file was in the image.
+#
+# It is not that archiso stopped shipping them. mkarchiso inspects the built
+# initramfs (`_check_if_initramfs_has_ucode`) and stages the external images ONLY
+# when the initramfs does not already contain microcode. mkinitcpio's `microcode`
+# hook puts it inside; the moment that hook is in the hook list, the separate
+# files correctly stop existing, and any boot configuration still naming them
+# names nothing. The two halves are one decision, and they live in different
+# files — which is exactly the shape of thing that drifts.
+#
+# So this asserts the equivalence rather than either half: microcode in the hooks
+# if and only if no boot configuration names a ucode image. Whichever half moves,
+# the other has to move with it or the suite says so — in milliseconds, where
+# install/iso/build.sh's post-build check needs a forty-minute build to say the
+# same thing about the image it actually produced.
+
+# mkarchiso's own list (`readonly ucodes=(…)`) — the definition of "a microcode
+# image staged beside the kernel", rather than a guess at what one is called.
+UCODE_IMAGES = ("intel-uc.img", "intel-ucode.img", "amd-uc.img", "amd-ucode.img",
+                "early_ucode.cpio", "microcode.cpio")
+
+ARCHISO_CONF = ISO / "airootfs/etc/mkinitcpio.conf.d/archiso.conf"
+ISO_PRESET = ISO / "airootfs/etc/mkinitcpio.d/linux.preset"
+
+
+def boot_configs() -> dict[str, str]:
+    """Every boot configuration the profile ships, comment-stripped.
+
+    Comment-stripped and not raw, and that is load-bearing here: these files
+    explain at length why they no longer name a ucode image, so a test reading
+    them raw would fail on the very prose that documents the fix.
+    """
+    files = sorted((ISO / "efiboot/loader/entries").glob("*.conf"))
+    files += sorted((ISO / "syslinux").glob("*.cfg"))
+    return {str(f.relative_to(REPO)): _uncommented(f) for f in files}
+
+
+def iso_initramfs_hooks() -> list[str]:
+    m = re.search(r"^\s*HOOKS=\(([^)]*)\)", _uncommented(ARCHISO_CONF), re.M)
+    assert m, f"{ARCHISO_CONF.relative_to(REPO)} no longer sets HOOKS"
+    return m.group(1).split()
+
+
+def ucode_references() -> list[str]:
+    return [f"{name}: {image}"
+            for name, text in boot_configs().items()
+            for image in UCODE_IMAGES if image in text]
+
+
+def test_the_microcode_is_either_in_the_initramfs_or_named_by_the_boot_configs():
+    """Never both, never neither — and the two live in different files.
+
+    With the `microcode` hook, mkarchiso stages no separate ucode image and a
+    boot entry naming one names a file that is not there: systemd-boot fails the
+    whole entry ("Error preparing initrd: Not found"), syslinux abandons the boot
+    and silently redraws its menu, so the countdown restarts for ever.
+
+    Without the hook, the images are staged and a configuration that does not
+    name them boots every machine with no microcode update at all — quiet, and
+    only ever visible as a CPU erratum months later.
+    """
+    hooked = "microcode" in iso_initramfs_hooks()
+    named = ucode_references()
+
+    if hooked:
+        assert named == [], (
+            "the initramfs carries the microcode (the `microcode` hook is in "
+            "HOOKS), so mkarchiso stages no separate ucode image — but these "
+            "boot configurations still ask for one:\n  "
+            + "\n  ".join(named)
+            + "\n\nRemove the ucode lines. Do not put the files back: "
+              "recreating the old layout is what this profile was fixed out of.")
+    else:
+        assert named, (
+            f"{ARCHISO_CONF.relative_to(REPO)} has no `microcode` hook and no "
+            "boot configuration names a ucode image either, so nothing puts "
+            "microcode anywhere. Add the hook — that is the arrangement archiso "
+            "moved to, and the one the rest of this profile is written for.")
+
+
+def test_the_iso_puts_the_microcode_inside_the_initramfs():
+    """Pins which half of the choice above is the shipped one.
+
+    The equivalence alone is satisfied by going back to the old layout, and the
+    old layout is what stopped working: it depends on mkarchiso staging files it
+    stages only conditionally, and the condition is not the profile's to control.
+    """
+    assert "microcode" in iso_initramfs_hooks(), (
+        f"{ARCHISO_CONF.relative_to(REPO)} lost the `microcode` hook. The ISO "
+        "would boot every machine with no microcode update, and the ucode images "
+        "are not a supported way back — mkarchiso stages them only when the "
+        "initramfs lacks microcode, which is not a thing to depend on.")
+
+
+def test_the_live_medium_carries_every_vendors_microcode_not_the_build_hosts():
+    """`autodetect` before `microcode` narrows the image to the builder's CPU.
+
+    The hook reads /proc/cpuinfo when autodetect ran first and contributes that
+    vendor alone; with no autodetect it adds every microcode it finds. Measured
+    on an AMD build host, the autodetect ordering produced an image carrying
+    AuthenticAMD.bin and no GenuineIntel.bin. A live medium boots machines nobody
+    has seen, and the ISO is built on a runner whose CPU vendor is not a decision
+    anyone made — so this profile ships no autodetect, and if one is ever added,
+    microcode has to come first.
+    """
+    hooks = iso_initramfs_hooks()
+    if "autodetect" in hooks:
+        assert hooks.index("microcode") < hooks.index("autodetect"), (
+            f"HOOKS is {hooks}\n\n`autodetect` runs before `microcode`, so the "
+            "ISO would carry only the build host's CPU vendor. Move `microcode` "
+            "ahead of it, or drop `autodetect` — a live image wants every vendor.")
+
+
+def test_the_iso_preset_points_at_the_drop_in_that_holds_those_hooks():
+    """Without this, everything above is a file nobody opens.
+
+    `mkinitcpio -P` re-invokes itself with `-c <the preset's *_config>`, and the
+    `-c` handler sets `_optconfd=0` — the flag that decides whether
+    /etc/mkinitcpio.conf.d/*.conf is sourced at all. A preset naming
+    /etc/mkinitcpio.conf therefore means "this file and nothing else", and
+    archiso.conf — the microcode hook, and `archiso`/`archiso_loop_mnt`, without
+    which the ISO boots to an emergency shell — is read by nothing. That is the
+    state this profile was found in, hidden behind the boot failure above.
+    """
+    text = _uncommented(ISO_PRESET)
+    assert re.search(r"^\s*\w+_config=.*mkinitcpio\.conf\.d/archiso\.conf", text, re.M), (
+        f"{ISO_PRESET.relative_to(REPO)} does not point at "
+        "/etc/mkinitcpio.conf.d/archiso.conf.\n"
+        "A preset that names /etc/mkinitcpio.conf switches the drop-in directory "
+        "off, and the image is then built with the stock Arch hook list — no "
+        "archiso hooks, no ISO.")
+    assert not re.search(r"^\s*ALL_config=", text, re.M), (
+        f"{ISO_PRESET.relative_to(REPO)} sets ALL_config, which applies `-c` to "
+        "every preset and disables the drop-in for all of them.")
+
+
+def test_the_ucode_packages_stay_although_no_boot_configuration_names_them():
+    """They are not boot files any more; they are the hook's raw material.
+
+    /usr/lib/firmware/{intel,amd}-ucode/ is what the `microcode` hook reads. With
+    nothing naming these two packages in any boot configuration, they read as
+    dead weight to the next person shrinking the image — and removing them leaves
+    the hook finding nothing, silently. The installed system is a copy of this
+    live root and rebuilds its own initramfs, so it needs them too, with no
+    mirror to fetch them from.
+    """
+    pkgs = iso_package_list()
+    for pkg in ("intel-ucode", "amd-ucode"):
+        assert pkg in pkgs, (
+            f"install/iso/packages.x86_64 no longer ships {pkg}. The `microcode` "
+            "hook builds the early cpio from that package's firmware directory — "
+            "without it the ISO and every box installed from it boot with no "
+            "microcode update, and nothing reports it.")
+
+
+def target_boot_entries() -> dict[str, str]:
+    """The systemd-boot entries gamecore-disk-install.sh writes on the target.
+
+    Read out of the heredocs in the shipped script rather than described here:
+    the point is what the installed machine gets, and a second copy of it in the
+    test would keep passing after the real one changed.
+    """
+    text = DISK_INSTALL.read_text(encoding="utf-8")
+    entries = {}
+    for m in re.finditer(
+            r"tee (/mnt/boot/loader/entries/\S+) >/dev/null <<ENTRY\n(.*?)\nENTRY\n",
+            text, re.S):
+        entries[m.group(1)] = "\n".join(
+            ln for ln in m.group(2).splitlines() if not ln.lstrip().startswith("#"))
+    assert entries, "no loader entry heredocs found — this harness needs updating"
+    return entries
+
+
+@pytest.mark.parametrize("entry", sorted(target_boot_entries()))
+def test_the_installed_system_gets_the_same_arrangement_as_the_iso(entry):
+    """Fixing the ISO alone would have moved the failure one step further on.
+
+    The disk installer wrote the target's entry with the same three initrds. Those
+    files usually do exist on the ESP — the ucode packages put them in /boot — so
+    this was an assumption rather than a proven break. But it is an assumption
+    about what mkarchiso leaves in the airootfs's /boot, and the symptom when it
+    is wrong is an install that completes and a machine that never boots: strictly
+    worse than an ISO that refuses at the menu, and discovered after the operator
+    has already erased their disk.
+    """
+    text = target_boot_entries()[entry]
+    named = [img for img in UCODE_IMAGES if img in text]
+    assert named == [], (
+        f"{entry} names {named} — the target's microcode goes inside its "
+        "initramfs, the same way the ISO's does. Nothing on the ESP is "
+        "guaranteed to carry those files.")
+    assert text.count("\ninitrd") + text.startswith("initrd") == 1, (
+        f"{entry} has more than one initrd line:\n{text}")
+
+
+def test_the_disk_installer_guarantees_the_microcode_hook_on_the_target():
+    """The other half of the same change, and the reason the entry above is safe.
+
+    The archiso drop-in is deleted on the target a few lines earlier and the
+    preset written for it deliberately names no config file, so the hook has to
+    land in /etc/mkinitcpio.conf itself. Without it the single initrd this test
+    asserts would contain no microcode at all — which is a quieter failure than
+    the one being fixed, and a worse one to ship.
+    """
+    body = _uncommented(DISK_INSTALL)
+    assert "add_microcode_hook /mnt/etc/mkinitcpio.conf" in body, (
+        "gamecore-disk-install.sh no longer ensures the microcode hook on the "
+        "target. Its boot entry names one initrd, so nothing else would put "
+        "microcode on the installed machine.")
+    # Ordering, which is the whole of the hook's behaviour: on the TARGET
+    # autodetect is present and must stay ahead of microcode — an installed box
+    # only ever boots on its own CPU and has no use for the other vendor. That is
+    # the opposite of the ISO, and both are deliberate.
+    assert re.search(r"for h in autodetect udev base", body), (
+        "the hook is no longer anchored on autodetect. On the target that "
+        "ordering is what keeps the image to this machine's own microcode.")
