@@ -7,7 +7,7 @@ const LETTERS: string[][] = [
   ['q','w','e','r','t','y','u','i','o','p'],
   ['a','s','d','f','g','h','j','k','l'],
   ['z','x','c','v','b','n','m'],
-  ['?123','SHIFT','SPACE','⌫','ENTER'],
+  ['?123','SHIFT','SPACE','⌫','CLR','ENTER'],
 ]
 
 const SYMBOLS: string[][] = [
@@ -15,7 +15,7 @@ const SYMBOLS: string[][] = [
   ['-','_','=','+','[',']','{','}','±','~'],
   [';',':','\'','"',',','.','<','>','?','/'],
   ['\\','|','`','€','£','¥','§','°','¿','¡'],
-  ['abc','SPACE','⌫','ENTER'],
+  ['abc','SPACE','⌫','CLR','ENTER'],
 ]
 
 interface Props {
@@ -104,6 +104,10 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
       case 'SHIFT': setShifted(s => !s); break
       case 'SPACE': setValue(v => v + ' '); break
       case '⌫':    setValue(v => v.slice(0, -1)); break
+      // Backspace is per-character, and a d-pad makes that twelve presses to
+      // empty a field nobody can read. On a masked field that is the
+      // difference between correcting a password and appending to one.
+      case 'CLR':   setValue(''); break
       case 'ENTER': onConfirmRef.current(value); break
       case '?123':
       case 'abc':   toggleLayout(); break
@@ -178,6 +182,17 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
         {displayValue || <span style={{ opacity: 0.25, fontSize: 14, letterSpacing: 1 }}>{placeholder ?? (password ? 'enter password' : 'start typing…')}</span>}
       </div>
 
+      {/* A masked field is the one place a stray character is invisible: the
+          dots clip on the left, and nobody counts them from a sofa. A box
+          shipped `<old password><new password>` to NetworkManager for exactly
+          that reason. The number is small, but it is the only thing on screen
+          that disagrees with "I typed eight characters". */}
+      {password && value.length > 0 && (
+        <div style={{ fontSize: 11, opacity: 0.45, textAlign: 'right', marginTop: -4 }}>
+          {value.length} character{value.length === 1 ? '' : 's'}
+        </div>
+      )}
+
       {/* Key rows */}
       {rows.map((keys, ri) => (
         <div key={`${layout}-${ri}`} style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
@@ -186,9 +201,10 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
             const isShift   = key === 'SHIFT'
             const isSpace   = key === 'SPACE'
             const isDel     = key === '⌫'
+            const isClr     = key === 'CLR'
             const isEnter   = key === 'ENTER'
             const isMode    = key === '?123' || key === 'abc'
-            const isSpecial = isShift || isSpace || isDel || isEnter || isMode
+            const isSpecial = isShift || isSpace || isDel || isClr || isEnter || isMode
             const label     = isShift ? (shifted ? '⇧●' : '⇧')
                             : isSpace ? 'SPACE'
                             : isEnter ? '↵ OK'
@@ -200,7 +216,7 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
                 key={`${layout}-${ri}-${ci}`}
                 onClick={() => pressKey(key)}
                 style={{
-                  minWidth:   isSpace ? 100 : isShift || isEnter ? 64 : isDel ? 52 : isMode ? 54 : 34,
+                  minWidth:   isSpace ? 100 : isShift || isEnter ? 64 : isDel || isClr ? 52 : isMode ? 54 : 34,
                   height:     34,
                   borderRadius: 7,
                   border:     focused
