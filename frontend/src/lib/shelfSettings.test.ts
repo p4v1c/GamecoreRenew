@@ -61,6 +61,9 @@ const BOX: Record<string, unknown> = {
     { ssid: 'FreeWifi_Secure', security: 'WPA2', channel: 100, band: '5 GHz', rate: '433 Mb/s' },
     { ssid: 'Console-Hotspot', security: 'Open', channel: 36, band: '5 GHz', rate: '200 Mb/s' },
   ],
+  // A refusal, because that is the interesting half: the player retries, and
+  // the prompt they are given the second time is what the test below is about.
+  '/api/settings/wifi/connect': { ok: false, wrong_password: true, error: 'Wrong password' },
   '/api/settings/bluetooth/devices': [
     { mac: 'E4:17:D8:2A:9C:03', name: '8BitDo Ultimate 2C', connected: true, paired: true },
     { mac: 'A0:9E:1B:44:D2:18', name: 'Marshall Major IV', connected: false, paired: true },
@@ -555,6 +558,63 @@ describe('the shared screen — the host parts it borrows', () => {
     expect(kb, 'the keyboard must sit inside .gcs-set-kb, which themes paint').toBeTruthy()
     // And it must be the keyboard inside it, not an empty box.
     expect(kb!.children.length).toBeGreaterThan(0)
+  })
+
+  it('opens the password prompt empty, every time', async () => {
+    // The bug this comes from, on a real box: the field still held the key
+    // from an earlier attempt, the player typed the new one after it, and
+    // `<old password><new password>` went to NetworkManager as one string.
+    // Nothing on screen contradicted them — a masked field is dots, and twenty
+    // dots look like eight from a sofa.
+    //
+    // Retyping is the whole flow here: the first attempt is refused, which is
+    // exactly when a prompt that remembers does its damage.
+    const { createWifiPage } = await load(`${SHARED}/wifi.js`)
+    const { createUseSlow } = await load(`${SHARED}/slow.js`)
+    const s = sdk()
+    const View = createWifiPage(s, createUseSlow(s))
+    const { render, waitFor, fireEvent } = await import('@testing-library/react')
+    const { createElement } = await import('react')
+    const { container } = render(createElement(View, { active: true, onLeave: vi.fn() }))
+
+    // Retried rather than clicked once: the page ignores the pad and the mouse
+    // while a join is in flight, so the second open lands a moment later.
+    const openPrompt = async () => {
+      await waitFor(() => expect(container.querySelectorAll('.gcs-wifi-row').length).toBe(3))
+      await waitFor(() => {
+        const row = [...container.querySelectorAll('.gcs-wifi-row')]
+          .find(r => r.textContent?.includes('FreeWifi_Secure'))!
+        fireEvent.click(row)
+        expect(container.querySelector('.gcs-set-kb')).toBeTruthy()
+      })
+      return container.querySelector('.gcs-set-kb') as HTMLElement
+    }
+    const press = (label: string) => {
+      const kb = container.querySelector('.gcs-set-kb')!
+      const key = [...kb.querySelectorAll('button')].find(b => b.textContent === label)
+      expect(key, `the keyboard has no "${label}" key`).toBeTruthy()
+      fireEvent.click(key!)
+    }
+
+    let kb = await openPrompt()
+    press('a'); press('b'); press('c')
+    // The count is the only thing on a masked field that can disagree with
+    // "I typed three characters".
+    await waitFor(() => expect(kb.textContent).toMatch(/3 characters/))
+
+    // And there is a way out of a field that already has something in it that
+    // is not twelve presses of backspace on a d-pad.
+    press('CLR')
+    await waitFor(() => expect(kb.textContent).not.toMatch(/character/))
+    press('a'); press('b'); press('c')
+
+    press('↵ OK')
+    await waitFor(() => expect(container.querySelector('.gcs-set-dialog')).toBeFalsy())
+
+    kb = await openPrompt()
+    expect(kb.textContent, 'the prompt reopened holding the last attempt').not.toContain('●')
+    expect(kb.textContent).not.toMatch(/character/)
+    expect(kb.textContent).toContain('Password')
   })
 })
 

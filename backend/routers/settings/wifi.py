@@ -1,5 +1,6 @@
 """WiFi management via nmcli."""
 import asyncio
+import contextlib
 import logging
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -7,7 +8,11 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/settings/wifi", tags=["wifi"])
 log = logging.getLogger(__name__)
 
-CONNECT_TIMEOUT = 30.0
+# Long enough for a join that is merely slow — a 5 GHz association plus DHCP on
+# a busy access point runs past 30s — and short enough that the screen is not
+# left saying nothing. Whatever is still running when it expires is killed, so
+# overshooting costs a wait rather than a process nobody owns; see `_run`.
+CONNECT_TIMEOUT = 45.0
 
 # Keep references to fire-and-forget background tasks so they aren't GC'd
 # mid-flight and so any exception is logged instead of swallowed.
@@ -28,15 +33,115 @@ def _spawn_bg(coro, label: str) -> None:
     task.add_done_callback(_log_err)
 
 
-async def _run(*args: str, stdin: str | None = None) -> tuple[int, str, str]:
+async def _run(*args: str, stdin: str | None = None,
+               timeout: float | None = None) -> tuple[int, str, str]:
+    """Spawn nmcli, wait for it, and kill it if `timeout` expires.
+
+    The kill is the point of the timeout being here rather than around the
+    call. `asyncio.wait_for` cancels the *await*, not the process: nmcli lives
+    on holding the secret agent it registered with NetworkManager, which then
+    keeps asking it for a password nobody is left to type. Two minutes later
+    the desktop's own agent inherits that request and puts a Wi-Fi password
+    dialog on screen — long after this box told the player the attempt had
+    failed, and with nothing on it naming GameCore. It reads as the system
+    demanding administrator rights out of nowhere.
+    """
     proc = await asyncio.create_subprocess_exec(
         *args,
         stdin=asyncio.subprocess.PIPE if stdin is not None else None,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await proc.communicate(stdin.encode() if stdin is not None else None)
+    payload = stdin.encode() if stdin is not None else None
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(payload), timeout)
+    except asyncio.TimeoutError:
+        proc.kill()
+        # Reap it too, so a timeout leaves neither an agent nor a zombie.
+        with contextlib.suppress(Exception):
+            await proc.wait()
+        raise
     return proc.returncode or 0, stdout.decode(), stderr.decode()
+
+
+async def _saved_profiles_for(ssid: str) -> list[str]:
+    """The UUIDs of every saved connection whose Wi-Fi SSID is `ssid`.
+
+    Matched on the SSID and never on the profile's name, because the names are
+    exactly what cannot be trusted here: nmcli calls its second profile for one
+    network `<SSID> 1`, and those near-misses are the ones this has to find.
+    """
+    _, out, _ = await _run("nmcli", "-t", "-f", "UUID,TYPE", "con", "show")
+    uuids: list[str] = []
+    for line in out.splitlines():
+        # UUID first and colon-free, so the type is what follows the last one.
+        parts = line.rsplit(":", 1)
+        if len(parts) != 2 or parts[1].strip() != "802-11-wireless":
+            continue
+        uuid = parts[0].strip()
+        if uuid:
+            uuids.append(uuid)
+
+    # nmcli only reports a profile's SSID one profile at a time, so this is a
+    # spawn each. Run in one round rather than in series: a box with a dozen
+    # saved networks would otherwise spend most of a second here, twice, on
+    # every attempt to join anything.
+    async def _ssid_of(uuid: str) -> str:
+        _, info, _ = await _run(
+            "nmcli", "-t", "-f", "802-11-wireless.ssid", "con", "show", uuid)
+        for row in info.splitlines():
+            key, sep, value = row.partition(":")
+            if sep and key.strip() == "802-11-wireless.ssid":
+                return _unescape(value.strip())
+        return ""
+
+    names = await asyncio.gather(*(_ssid_of(u) for u in uuids))
+    return [u for u, name in zip(uuids, names) if name == ssid]
+
+
+async def _forget(ssid: str) -> None:
+    """Delete every saved profile for `ssid`. Only ever called with a password.
+
+    Two separate things go wrong when one is left in place, and this box hit
+    both in the same sitting.
+
+    A saved profile holding the *old* key shadows the new one. `nmcli dev wifi
+    connect` reuses the profile it finds, NetworkManager answers its own secret
+    request with "secrets exist. No new secrets needed", and the password just
+    typed is never consulted — the box retries the stale key until the
+    supplicant gives up, thirteen times in one minute in the case that prompted
+    this.
+
+    And `nmcli dev wifi connect` will not overwrite a profile it did not
+    create: it adds `<SSID> 1`, then `<SSID> 2`, one per attempt, each carrying
+    a wrong secret of its own for the next attempt to trip over.
+
+    Deleting is confined to the case where a password was supplied, i.e. where
+    the player has just said what the key is and anything saved is out of date
+    by definition. A reconnect with no password — an open network, or rejoining
+    something the box already knows — keeps what it has.
+    """
+    for uuid in await _saved_profiles_for(ssid):
+        code, _, err = await _run("nmcli", "con", "delete", "uuid", uuid)
+        if code != 0:
+            log.warning("wifi: could not delete stale profile %s: %s",
+                        uuid, err.strip())
+
+
+async def _fail(ssid: str, password: str) -> None:
+    """Leave nothing behind after a password attempt that did not work.
+
+    The profile nmcli just created carries the key that was refused. Kept, it
+    shadows the next attempt exactly as the previous one shadowed this — and
+    NetworkManager holds the activation open for two more minutes asking any
+    agent it can find for a better key, which is what raises the desktop's own
+    password dialog after GameCore has already given up and said so.
+
+    A failure with no password to blame is left alone: there is nothing there
+    the player supplied, and the profile may be one they want.
+    """
+    if password:
+        await _forget(ssid)
 
 
 async def _wifi_iface() -> str:
@@ -293,6 +398,12 @@ async def connect_wifi(req: ConnectRequest):
         return {"ok": False, "wrong_password": False,
                 "error": "SSIDs starting with '-' are not supported"}
 
+    # A password means the player has just told the box what the key for this
+    # network is, so whatever is saved for it can only get in the way. See
+    # `_forget` for the two ways it does.
+    if req.password:
+        await _forget(req.ssid)
+
     args = ["nmcli", "dev", "wifi", "connect", req.ssid]
     stdin = None
     if req.password:
@@ -302,8 +413,13 @@ async def connect_wifi(req: ConnectRequest):
         args.insert(1, "--ask")
         stdin = req.password + "\n"
     try:
-        code, out, err = await asyncio.wait_for(_run(*args, stdin=stdin), timeout=CONNECT_TIMEOUT)
+        code, out, err = await _run(*args, stdin=stdin, timeout=CONNECT_TIMEOUT)
     except asyncio.TimeoutError:
+        # nmcli is dead by the time this runs, but the profile it made on the
+        # way is not, and NetworkManager will go on retrying the key in it.
+        await _fail(req.ssid, req.password)
+        log.warning("wifi: connect to %r timed out after %ss",
+                    req.ssid, CONNECT_TIMEOUT)
         return {"ok": False, "wrong_password": False, "error": "Connection timed out"}
 
     if code != 0:
@@ -312,11 +428,15 @@ async def connect_wifi(req: ConnectRequest):
             "secrets", "incorrect", "wrong", "authentication",
             "802-11-wireless-security.psk", "invalid password",
         ))
-        return {
-            "ok": False,
-            "wrong_password": wrong_pass,
-            "error": "Wrong password" if wrong_pass else (err.strip() or out.strip() or "Connection failed"),
-        }
+        error = ("Wrong password" if wrong_pass
+                 else (err.strip() or out.strip() or "Connection failed"))
+        await _fail(req.ssid, req.password)
+        # This endpoint answers 200 with `ok: false` — the shape the default UI
+        # and two shipped themes already parse — so a failed join is invisible
+        # in the journal unless it is written there. Five in a row read as five
+        # `200 OK` lines while the player was getting nowhere.
+        log.warning("wifi: connect to %r failed: %s", req.ssid, error)
+        return {"ok": False, "wrong_password": wrong_pass, "error": error}
     return {"ok": True, "wrong_password": False}
 
 

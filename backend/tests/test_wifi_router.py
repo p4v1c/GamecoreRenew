@@ -39,28 +39,61 @@ def nmcli(monkeypatch):
     actually reached the system". `stdin` records what was fed to it, which is
     where the Wi-Fi password is supposed to travel.
     """
-    state = {"calls": [], "stdin": [], "stdout": "", "returncode": 0}
+    state = {"calls": [], "stdin": [], "stdout": "", "returncode": 0,
+             # Optional argv -> stdout router, for the tests that need nmcli to
+             # answer `con show` with something other than the canned stdout.
+             "reply": None,
+             # Optional argv predicate: a spawn it matches never returns, which
+             # is how a test reaches the timeout path without waiting for one.
+             "hang": None}
 
     class _Proc:
         returncode = 0
+        killed = False
+        spawned: list = state.setdefault("procs", [])
 
         async def communicate(self, data=None):
             state["stdin"].append(data)
+            if state["hang"] and state["hang"](self.argv):
+                await asyncio.Event().wait()
             self.returncode = state["returncode"]
-            return state["stdout"].encode(), b""
+            return self.out.encode(), b""
 
         async def wait(self):
             return 0
 
+        def kill(self):
+            self.killed = True
+
     async def fake_exec(*argv, **kw):
-        state["calls"].append(list(argv))
+        argv = list(argv)
+        state["calls"].append(argv)
         proc = _Proc()
+        proc.argv = argv
+        proc.spawned.append(proc)
         proc.returncode = state["returncode"]
+        proc.out = state["reply"](argv) if state["reply"] else state["stdout"]
         return proc
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
     return state
 
+
+def connect_call(nmcli):
+    """The argv that actually joined a network.
+
+    A connect carrying a password clears the saved profiles for that SSID
+    first, so the join is no longer the first thing nmcli is asked to do.
+    """
+    for argv in nmcli["calls"]:
+        if "connect" in argv:
+            return argv
+    raise AssertionError(f"no connect among {nmcli['calls']}")
+
+
+def sent_stdin(nmcli):
+    """What was fed to a spawn that was actually given something."""
+    return [d for d in nmcli["stdin"] if d is not None]
 
 # ── the SSID never reaches a shell ─────────────────────────────────────────
 
@@ -87,7 +120,7 @@ def test_a_hostile_ssid_travels_as_one_argument_and_no_further(client, nmcli, ss
                     json={"ssid": ssid, "password": "hunter2"})
     assert r.status_code == 200, r.text
 
-    argv = nmcli["calls"][0]
+    argv = connect_call(nmcli)
     assert argv[0] == "nmcli"
     assert argv.count(ssid) == 1, argv
     # Whole and unaltered: not split on the space, not stripped of its quotes.
@@ -108,10 +141,14 @@ def test_the_password_goes_to_stdin_and_never_into_the_argv(client, nmcli):
     client.post("/api/settings/wifi/connect",
                 json={"ssid": "Home", "password": secret})
 
-    argv = nmcli["calls"][0]
+    argv = connect_call(nmcli)
     assert secret not in argv, argv
     assert "--ask" in argv
-    assert nmcli["stdin"][0] == (secret + "\n").encode()
+    assert sent_stdin(nmcli) == [(secret + "\n").encode()]
+    # And it reached nothing else on the way — a profile lookup must not be
+    # handed the password just because it runs in the same request.
+    for call, data in zip(nmcli["calls"], nmcli["stdin"]):
+        assert secret not in call, call
 
 
 def test_an_ssid_that_looks_like_an_option_is_refused_rather_than_guessed(client,
@@ -133,6 +170,127 @@ def test_a_connect_with_no_password_sends_no_stdin_at_all(client, nmcli):
     assert "--ask" not in nmcli["calls"][0]
     assert nmcli["stdin"][0] is None
 
+
+# ── a saved profile must never outlive the password that made it ───────────
+#
+# The failure these come from, in order: the box had a profile for the network
+# from before its key was changed. Joining it again created `<SSID> 1` rather
+# than replacing the first, NetworkManager answered its own secret request from
+# the stale profile ("secrets exist. No new secrets needed") and never asked
+# for the key that had just been typed, and every retry re-used the wrong one.
+# What reached the screen minutes later was the desktop's own password dialog,
+# which reads as the system asking for administrator rights.
+
+def _saved(**profiles):
+    """An nmcli that answers `con show` with the given profiles.
+
+    `_saved(abc="Home", def_="Home")` is two profiles for one SSID — the shape
+    that matters, because nmcli made the second one itself and called it
+    `Home 1`.
+    """
+    def reply(argv):
+        if argv[:5] == ["nmcli", "-t", "-f", "UUID,TYPE", "con"]:
+            return "".join(f"{u}:802-11-wireless\n" for u in profiles)
+        if argv[:4] == ["nmcli", "-t", "-f", "802-11-wireless.ssid"]:
+            return f"802-11-wireless.ssid:{profiles[argv[-1]]}\n"
+        return ""
+    return reply
+
+
+def _deleted(nmcli):
+    return [c[-1] for c in nmcli["calls"] if c[1:4] == ["con", "delete", "uuid"]]
+
+
+def test_a_password_attempt_clears_what_was_saved_for_that_ssid_first(client, nmcli):
+    """Both profiles go, and they go before the join.
+
+    Order is the whole assertion. Deleting afterwards would leave the stale key
+    in place for the one attempt that mattered, which is precisely the bug.
+    """
+    nmcli["reply"] = _saved(aaa="CrackMe", bbb="CrackMe")
+    client.post("/api/settings/wifi/connect",
+                json={"ssid": "CrackMe", "password": "aaaaaaaa"})
+
+    assert sorted(_deleted(nmcli)) == ["aaa", "bbb"]
+    names = ["/".join(c) for c in nmcli["calls"]]
+    assert max(i for i, n in enumerate(names) if "con/delete" in n) \
+        < min(i for i, n in enumerate(names) if "connect" in n)
+
+
+def test_a_profile_is_matched_on_its_ssid_not_on_its_name(client, nmcli):
+    """`nmcli` names its own second profile for a network `<SSID> 1`.
+
+    Matching on the name would walk straight past the duplicate it just made —
+    and past the one profile guaranteed to hold a key the player has replaced.
+    """
+    nmcli["reply"] = _saved(dup="CrackMe", other="Neighbour")
+    client.post("/api/settings/wifi/connect",
+                json={"ssid": "CrackMe", "password": "aaaaaaaa"})
+
+    assert _deleted(nmcli) == ["dup"], "a profile for another network was deleted"
+
+
+def test_a_connect_with_no_password_leaves_saved_profiles_alone(client, nmcli):
+    """Nothing was supplied, so nothing is out of date.
+
+    Rejoining an open network, or one the box already knows, must not cost the
+    player the profile they had.
+    """
+    nmcli["reply"] = _saved(aaa="OpenNet")
+    client.post("/api/settings/wifi/connect", json={"ssid": "OpenNet"})
+
+    assert _deleted(nmcli) == []
+
+
+def test_a_refused_password_is_not_left_saved_for_the_next_attempt(client, nmcli):
+    """The profile nmcli just wrote holds the key that was refused.
+
+    Left there it shadows the next attempt exactly as the previous one shadowed
+    this — the player retypes, correctly this time, and the box tries the wrong
+    key again without ever asking.
+    """
+    nmcli["returncode"] = 1
+    nmcli["stdout"] = "Error: Secrets were required, but not provided."
+    calls = {"n": 0}
+
+    def reply(argv):
+        # Nothing saved going in; one profile saved by the failed join.
+        if argv[:5] == ["nmcli", "-t", "-f", "UUID,TYPE", "con"]:
+            calls["n"] += 1
+            return "made-by-nmcli:802-11-wireless\n" if calls["n"] > 1 else ""
+        if argv[:4] == ["nmcli", "-t", "-f", "802-11-wireless.ssid"]:
+            return "802-11-wireless.ssid:CrackMe\n"
+        return nmcli["stdout"]
+
+    nmcli["reply"] = reply
+    r = client.post("/api/settings/wifi/connect",
+                    json={"ssid": "CrackMe", "password": "wrong"})
+
+    assert r.json()["wrong_password"] is True
+    assert _deleted(nmcli) == ["made-by-nmcli"]
+
+
+def test_a_connect_that_times_out_kills_nmcli_rather_than_orphaning_it(
+        client, nmcli, monkeypatch):
+    """A cancelled await is not a stopped process.
+
+    The abandoned nmcli keeps the secret agent it registered, NetworkManager
+    keeps asking it for a password nobody is left to type, and when it gives up
+    the request falls to the desktop's agent — which puts a Wi-Fi password
+    dialog on screen minutes after GameCore said the attempt had failed.
+    """
+    from backend.routers.settings import wifi as mod
+    monkeypatch.setattr(mod, "CONNECT_TIMEOUT", 0.05)
+    nmcli["reply"] = _saved()
+    nmcli["hang"] = lambda argv: "connect" in argv
+
+    r = client.post("/api/settings/wifi/connect",
+                    json={"ssid": "CrackMe", "password": "aaaaaaaa"})
+
+    assert r.json() == {"ok": False, "wrong_password": False,
+                        "error": "Connection timed out"}
+    hung = [p for p in nmcli["procs"] if "connect" in p.argv]
+    assert hung and all(p.killed for p in hung), "nmcli was left running"
 
 # ── a scan that fails is an empty list ─────────────────────────────────────
 

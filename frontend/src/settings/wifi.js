@@ -56,6 +56,16 @@ export const createWifiPage = (sdk, useSlow) => {
     const [detail, setDetail] = useState({})
     const [sel, setSel] = useState(0)
     const [asking, setAsking] = useState(null)   // ssid awaiting a password
+    // Bumped every time the prompt opens and used as the keyboard's `key`, so
+    // a prompt can only ever open on an empty field.
+    //
+    // This is a guard, not a repair: the dialog is unmounted on confirm, so the
+    // keyboard already remounts with `useState('')` and the test below passes
+    // without this line. It is here because the invariant is load-bearing and
+    // invisible — a box sent `<old password><new password>` to NetworkManager
+    // as one string, and nothing in this file would have looked wrong. A later
+    // refactor that keeps the dialog mounted would reintroduce it silently.
+    const [askSeq, setAskSeq] = useState(0)
     const [busy, setBusy] = useState(false)
     const [msg, setMsg] = useState('')
     const [loaded, setLoaded] = useState(false)
@@ -115,7 +125,7 @@ export const createWifiPage = (sdk, useSlow) => {
           .finally(() => setBusy(false))
         return
       }
-      if (n.secured) { setAsking(n.ssid); return }
+      if (n.secured) { setAskSeq((k) => k + 1); setAsking(n.ssid); return }
       join(n)
     }
 
@@ -249,7 +259,8 @@ export const createWifiPage = (sdk, useSlow) => {
                  problem, and a theme whose dialog is already dark can make this
                  transparent in one rule. -->
             <div class="gcs-set-kb">
-            <${Keyboard} title="" password=${true} placeholder="Password"
+            <${Keyboard} key=${`${asking}-${askSeq}`}
+              title="" password=${true} placeholder="Password"
               onConfirm=${(pw) => {
                 const n = netsRef.current.find((x) => x.ssid === asking)
                 setAsking(null)
