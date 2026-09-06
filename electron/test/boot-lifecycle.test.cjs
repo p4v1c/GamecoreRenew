@@ -38,12 +38,21 @@ function rig({ answers = [true], env = {} } = {}) {
   class Window {
     constructor(options) {
       this.options = options
+      this.loaded = []          // every document this window was given, in order
+      this.shown = false
+      this.handlers = new Map()
       windows.push(this)
       this.webContents = { isLoading: () => false, send: () => {}, once: () => {}, openDevTools: () => {} }
     }
     setIgnoreMouseEvents() {} setAlwaysOnTop() {} setBounds() {}
     getBounds() { return { x: 0, y: 0, width: 1920, height: 1080 } }
-    loadURL() {} on() {} close() {} show() {} hide() {} isVisible() { return true }
+    loadFile(p) { this.loaded.push({ kind: 'file', at: p }) }
+    loadURL(u) { this.loaded.push({ kind: 'url', at: u }) }
+    once(event, fn) { this.handlers.set(event, fn) }
+    on() {} close() {} hide() {} isVisible() { return true }
+    show() { this.shown = true }
+    /** What Electron does once the first document can be painted. */
+    readyToShow() { this.handlers.get('ready-to-show')?.() }
   }
 
   const child = { stdout: { on: () => {} }, stdin: { write: () => {} }, on: () => {} }
@@ -96,6 +105,52 @@ function rig({ answers = [true], env = {} } = {}) {
 /** Let the boot's promise chain and its polling run. */
 const settle = (ms = 60) => new Promise(r => setTimeout(r, ms))
 
+test('the screen is covered before anything is waited for', async () => {
+  // The order is the whole visible change. The window used to be created after
+  // the backend answered, so what covered the television during that wait was
+  // the desktop: wallpaper, panel, and whatever was left open.
+  const r = rig({ answers: [false], env: { INVOCATION_ID: 'x' } })
+  r.start()
+  await settle(120)
+  r.stop()
+  assert.equal(r.windows.length, 1, 'nothing was on screen while the backend started')
+  const first = r.windows[0].loaded[0]
+  assert.equal(first.kind, 'file', 'the first document came from the network')
+  assert.match(first.at, /boot[\\/]boot\.html$/)
+  assert.equal(r.windows[0].options.show, false, 'a window shown before its first paint is a white flash')
+})
+
+test('the interface replaces the boot screen in the same window', async () => {
+  // A second window would be a second thing for the compositor to stack and
+  // to focus, and neither is this code's decision to make.
+  const r = rig({ answers: [true], env: { INVOCATION_ID: 'x' } })
+  r.start()
+  await settle(200)
+  r.stop()
+  assert.equal(r.windows.length, 1)
+  const kinds = r.windows[0].loaded.map(l => l.kind)
+  assert.deepEqual(kinds, ['file', 'url'])
+})
+
+test('a backend that never answers leaves the boot screen up', async () => {
+  const r = rig({ answers: [false], env: { INVOCATION_ID: 'x' } })
+  r.start()
+  await settle(900)
+  r.stop()
+  assert.deepEqual(r.windows[0].loaded.map(l => l.kind), ['file'],
+    'the interface was loaded over a backend that cannot serve it')
+})
+
+test('the window is shown when it has something to show', async () => {
+  const r = rig({ answers: [false], env: { INVOCATION_ID: 'x' } })
+  r.start()
+  await settle(120)
+  r.stop()
+  assert.equal(r.windows[0].shown, false)
+  r.windows[0].readyToShow()
+  assert.equal(r.windows[0].shown, true)
+})
+
 test('a managed box never starts a second backend', async () => {
   // INVOCATION_ID is what systemd sets in every service it runs; start-ui.sh is
   // the unit's ExecStart, so Electron inherits it.
@@ -104,7 +159,6 @@ test('a managed box never starts a second backend', async () => {
   await settle(900)
   r.stop()
   assert.deepEqual(r.backends(), [], 'Electron competed with systemd for the port')
-  assert.equal(r.windows.length, 1, 'the window was never created')
 })
 
 test('an unmanaged box still starts one when nothing answers', async () => {
@@ -125,16 +179,6 @@ test('readiness is asked of /api/ready, not of the diagnostic endpoint', async (
   assert.ok(!r.asked.some(u => u.includes('/api/sysinfo')))
 })
 
-test('a backend that only answers 503 gets no window at all', async () => {
-  // "Not yet" must never be read as "carry on": carrying on means a home
-  // screen built from nothing, which is the outcome this step exists to stop.
-  const r = rig({ answers: [false], env: { INVOCATION_ID: 'x' } })
-  r.start()
-  await settle(900)
-  r.stop()
-  assert.equal(r.windows.length, 0, 'the interface was shown over a backend that cannot serve it')
-})
-
 test('the interface saying it is ready is what ends the boot', async () => {
   const r = rig({ answers: [true], env: { INVOCATION_ID: 'x' } })
   r.start()
@@ -143,4 +187,14 @@ test('the interface saying it is ready is what ends the boot', async () => {
   assert.equal(typeof r.ipc.get('boot:ready'), 'function',
     'the host has no way to say the interface is ready')
   r.ipc.get('boot:ready')(null, { steps: { theme: true, systems: true } })
+})
+
+test('the boot screen needs nothing but itself', () => {
+  // It is what covers the television when the backend is down, the network is
+  // absent and the bundle has not been built. Anything it has to fetch is a
+  // way for it to fail at exactly the moment it exists for.
+  const html = fs.readFileSync(path.join(__dirname, '..', 'boot', 'boot.html'), 'utf8')
+  assert.ok(!/https?:\/\//i.test(html), 'the boot screen reaches for the network')
+  assert.ok(!/<script/i.test(html), 'a boot screen that can hang is not a boot screen')
+  assert.ok(!/src=|href=/i.test(html), 'the boot screen loads a file of its own')
 })

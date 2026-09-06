@@ -45,6 +45,9 @@ function createWindow() {
     width: 1920,
     height: 1080,
     fullscreen: true,
+    // Presented on `ready-to-show`, never before: a window shown while its
+    // first document is still empty is a white rectangle over the desktop.
+    show: false,
     kiosk: !DEBUG && !DEV,
     frame: false,
     autoHideMenuBar: true,
@@ -61,16 +64,44 @@ function createWindow() {
     },
   })
 
-  // No `?splashHold=` any more. It asked the boot animation to hold its first
-  // frame for a fixed four seconds whenever the machine had booted recently —
-  // a duration measured on one box and paid by every box. The splash now holds
-  // its LAST frame instead, for exactly as long as the interface behind it is
-  // not ready, and the shell is told by `boot:ready` rather than by a clock.
-  mainWindow.loadURL(DEV ? DEV_URL : BACKEND_URL)
+  // The local boot screen, from disk, before anything is waited for.
+  //
+  // This window used to be created only after the backend answered, so what
+  // covered the television during that wait was the desktop: wallpaper, panel,
+  // and whatever the player had left open. Now the window exists first and the
+  // interface is loaded INTO it, which also means there is no second window to
+  // stack, focus or cross-fade — the two things a compositor is free to get
+  // wrong.
+  mainWindow.loadFile(path.join(__dirname, 'boot', 'boot.html'))
+
+  // Shown when it has something to show. Without this, Electron presents the
+  // window as soon as it exists and the first frame is white — a white flash
+  // on a dark boot is more noticeable than the desktop it replaced.
+  mainWindow.once('ready-to-show', () => { mainWindow?.show() })
 
   if (DEBUG) mainWindow.webContents.openDevTools({ mode: 'detach' })
 
   mainWindow.on('closed', () => { mainWindow = null })
+}
+
+/**
+ * Hand the window over to the interface.
+ *
+ * A navigation inside the same window rather than a second window: the frame
+ * between two documents is painted with the window's own `backgroundColor`,
+ * which is the same ground the boot screen uses, so the handover is a change
+ * of content on an unchanged colour. Two windows would have been a change of
+ * WINDOW, and which one the compositor draws on top — and which one has the
+ * pad's focus — is not something this code gets to decide.
+ *
+ * What the player then sees is the theme's own boot animation, which holds its
+ * last frame until the interface is ready (SDK 4). The local screen above is
+ * deliberately still, so the sequence is one animation, not two.
+ */
+function presentApp() {
+  if (!mainWindow) return
+  setBootState(BOOT.LOADING_UI)
+  mainWindow.loadURL(DEV ? DEV_URL : BACKEND_URL)
 }
 
 // ── Overlay window ────────────────────────────────────────────────────────────
@@ -752,12 +783,16 @@ app.whenReady().then(async () => {
   // If an update ever fails to show up on the first launch again, this comment
   // is the place to start — but put the header back, not the wipe.
   const generation = ++bootGeneration
-  await startBackend()
-  await waitForBackend(generation)
-  if (generation !== bootGeneration) return
-  setBootState(BOOT.LOADING_UI)
+  // The screen is covered first, and everything else happens behind it. This
+  // is the whole of the visible change: the order used to be "wait, then show
+  // something", and the wait is exactly when there was nothing to see.
   createWindow()
   startOverlayMonitor()
+
+  await startBackend()
+  const up = await waitForBackend(generation)
+  if (!up || generation !== bootGeneration) return
+  presentApp()
 
   // A television that changes mode, or an output plugged in mid-session, moves
   // the ground under a window that was placed by hand. Registered here and not

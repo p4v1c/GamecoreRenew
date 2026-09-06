@@ -22,7 +22,7 @@
       "target": "AppImage",
       "category": "Game"
     },
-    "files": ["main.js", "preload.js"]
+    "files": ["main.js", "preload.js", "boot/**"]
   },
   "allowScripts": {
     "electron": true
