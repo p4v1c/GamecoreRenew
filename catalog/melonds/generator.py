@@ -46,7 +46,18 @@ EMU_ID = "melonds"
 # closures in a central _SNAP_EMUS table, over the same section.
 SECTION = "Instance0.Joystick"
 extract = extract_section(SECTION)
-replace = replace_section(SECTION)
+_replace_joystick = replace_section(SECTION)
+
+
+def replace(text: str, block: str) -> str:
+    # A pre-daemon snapshot may bind L3 directly through SDL. With F12 selected
+    # for the layout daemon, restoring it would trigger a second recalculation.
+    # Leave legacy/custom configs alone unless the keyboard binding is F12.
+    keyboard = extract_section("Instance0.Keyboard")(text)
+    if re.search(r"^HK_SwapScreenEmphasis\s*=\s*16777275\s*$", keyboard, re.M):
+        block = re.sub(r"^HK_SwapScreenEmphasis\s*=\s*-?\d+\s*$",
+                       "HK_SwapScreenEmphasis = -1", block, flags=re.M)
+    return _replace_joystick(text, block)
 
 
 # melonDS [Instance0.Joystick] key → SDL GameController button name.

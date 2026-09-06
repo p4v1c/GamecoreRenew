@@ -1,0 +1,13 @@
+[Unit]
+Description=melonds layout toggle — L3 switches dual screen / top screen
+
+[Service]
+Type=simple
+Environment="GAMECORE_PATH=@GAMECORE_PATH@"
+Environment="GAMECORE_DATA=@GAMECORE_DATA@"
+ExecStart=/usr/bin/python3 %h/.local/share/gamecore/layout-toggle/melonds/melonds_layout_toggle.py --recalc uinput --no-widescreen
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

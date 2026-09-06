@@ -357,6 +357,13 @@ msg "User services"
 if [[ -n "$GC_HOME" && -d "$GC_HOME/.config/systemd/user" ]]; then
   UNIT_DIR="$GC_HOME/.config/systemd/user"
   USER_UNITS=(embertv.service gamepad-tv-bridge.service)
+  # Only the copies installed by the packs, not standalone daemons belonging
+  # to a user who never selected these emulators in GameCore.
+  for unit in azahar-layout-toggle.service melonds-layout-toggle.service; do
+    if grep -qF '.local/share/gamecore/layout-toggle/' "$UNIT_DIR/$unit" 2>/dev/null; then
+      USER_UNITS+=("$unit")
+    fi
+  done
   # Sweep-up net for addons whose own uninstall.sh failed or whose checkout
   # was already gone.
   while IFS= read -r u; do
@@ -372,6 +379,7 @@ if [[ -n "$GC_HOME" && -d "$GC_HOME/.config/systemd/user" ]]; then
     ok "$unit removed."
   done
   user_systemctl daemon-reload || true
+  safe_rm "$GC_HOME/.local/share/gamecore/layout-toggle"
 
   # rmdir, never rm -rf: the user may keep their own units in there.
   run rmdir "$UNIT_DIR/default.target.wants" 2>/dev/null
@@ -517,6 +525,14 @@ warn "The login screen will ask for a password again on the next boot."
 #  7. Helper binaries, sudoers, udev
 # ================================================================
 msg "System integration"
+if [[ -f /var/lib/gamecore/layout-access.json && -f "$GC_PATH/backend/services/installer/host_access.py" ]]; then
+  run python3 - "$GC_PATH" <<'LAYOUT_ACCESS'
+import sys
+sys.path.insert(0, sys.argv[1])
+from backend.services.installer.host_access import restore
+restore()
+LAYOUT_ACCESS
+fi
 # gamecore-addon last among the addon steps — its own `remove` needed it.
 safe_rm /usr/local/bin/gamecore-xsetup /usr/local/bin/gamecore-addon \
         /usr/local/bin/gamecore-session-select

@@ -47,7 +47,7 @@ LOCAL_DIR = config_dir() / "catalog.d"
 SCHEMA_FILE = CATALOG_DIR / "_schema" / "pack.schema.json"
 
 # Blocks a local pack may not use unless the operator opts in explicitly.
-PRIVILEGED_BLOCKS = ("postInstall", "services", "sources", "packages")
+PRIVILEGED_BLOCKS = ("postInstall", "services", "sources", "packages", "hostAccess")
 PRIVILEGED_FILES = ("generator.py",)
 
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")

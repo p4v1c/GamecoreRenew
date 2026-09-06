@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import pwd
 import sys
 from pathlib import Path
 
@@ -29,12 +30,13 @@ sys.path.insert(0, str(ROOT))
 
 from backend.services.catalog import load_catalog          # noqa: E402
 from backend.services.installer import AppContext, apply, enabled_units  # noqa: E402
+from backend.services.installer.applier import start_services  # noqa: E402
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=["install"])
+    ap.add_argument("command", choices=["install", "start-services"])
     ap.add_argument("ids", nargs="*", help="pack ids; empty means --select")
     ap.add_argument("--select", default="",
                     help="'all' or a space-separated list of ids")
@@ -84,8 +86,8 @@ def main() -> int:
     ctx = AppContext(gamecore_path=args.gamecore_path, user=args.user,
                      dry_run=args.dry_run,
                      gamecore_data=args.gamecore_data,
-                     user_home=Path(args.user_home) if args.user_home
-                               else Path.home(),
+                     user_home=Path(args.user_home) if args.user_home else
+                               Path(pwd.getpwnam(args.user).pw_dir) if args.user else Path.home(),
                      secrets=secrets)
     failed = bool(wanted) and bool(wanted - {p.id for p in chosen})
     for pack in chosen:
@@ -93,14 +95,15 @@ def main() -> int:
         # The emulator phase is by far the longest part of an install and a bar
         # that does not move for forty minutes reads as hung.
         print(f"PACK {pack.id}")
-        for result in apply(pack, ctx):
+        results = apply(pack, ctx) if args.command == "install" else start_services(pack, ctx)
+        for result in results:
             tag = "SAME" if result.already else ("OK" if result.ok else "FAIL")
             print(f"{tag} {result.message}")
             failed = failed or not result.ok
         # The caller has to daemon-reload and restart these: a user unit that was
         # symlinked by hand is invisible to a running user manager until it does,
         # so the service would sit dead until the next boot.
-        for unit in enabled_units(pack, ctx):
+        for unit in enabled_units(pack, ctx) if args.command == "install" else []:
             print(f"UNIT {unit}")
     return 1 if failed else 0
 

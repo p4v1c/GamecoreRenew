@@ -653,6 +653,7 @@ ok "Flathub ready."
 # Whatever failed, by pack id, with the message the provider gave.
 EMU_FAILED=()
 APP_FAILED=()
+RESTART_UNITS=()
 if [[ "$MODE" == "full" ]]; then
   msg "Installing emulators"
   # One call, one pack at a time, everything the pack declares. There is no
@@ -689,7 +690,7 @@ if [[ "$MODE" == "full" ]]; then
         OK*)   ok   "${_line#OK }" ;;
         SAME*) info "${_line#SAME }" ;;
         FAIL*) warn "${_line#FAIL }"; EMU_FAILED+=("${_line#FAIL }") ;;
-        UNIT*) : ;;   # emulators declare none; the app pass collects them
+        UNIT*) RESTART_UNITS+=("${_line#UNIT }") ;;
         *)     [[ -n "$_line" ]] && info "$_line" ;;
       esac
     done < <(python3 "$GAMECORE_PATH/scripts/gamecore-provider.py" install \
@@ -742,8 +743,7 @@ if [[ "$MODE" == "full" ]]; then
   # complete!". The chown further down deliberately covers only .config/systemd
   # (see the comment there), so it never repaired this.
   install -d -o "$USER_NAME" -g "$USER_NAME" -m 755 "$UNIT_DIR/default.target.wants"
-  # user services to (re)start once the user bus is up, filled from UNIT lines
-  RESTART_UNITS=()
+  # Keep the emulator units collected above; app units join the same list.
 
   APP_SEL=""
   for _app in $(python3 "$GAMECORE_PATH/scripts/catalog-query.py" ids --kind app); do

@@ -1,0 +1,12 @@
+[Unit]
+Description=azahar layout toggle — L3 switches dual screen / top screen
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/python3 %h/.local/share/gamecore/layout-toggle/azahar/apply_azahar_config.py
+ExecStart=/usr/bin/python3 %h/.local/share/gamecore/layout-toggle/azahar/azahar_layout_toggle.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

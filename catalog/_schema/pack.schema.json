@@ -530,6 +530,16 @@
       }
     },
 
+    "hostAccess": {
+      "description": "Fixed host prerequisites for user daemons. Applied as root; stripped from untrusted packs. ptrace permits same-user process memory access globally (Yama scope 0).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "uinput": { "type": "boolean" },
+        "ptrace": { "type": "boolean" }
+      }
+    },
+
     "services": {
       "description": "User units only. arch.sh:668 documents why creating this tree as root broke the kiosk.",
       "type": "array",

@@ -34,6 +34,14 @@ GAMECORE_USER="${GAMECORE_USER:-${SUDO_USER:-$(id -un)}}"
 die()  { echo "[gamecore-emu] ERROR: $*" >&2; exit 1; }
 info() { echo "[gamecore-emu] $*"; }
 
+as_gamecore_user() {
+  if [[ $EUID -eq 0 && "$GAMECORE_USER" != root ]]; then
+    sudo -u "$GAMECORE_USER" -H "$@"
+  else
+    "$@"
+  fi
+}
+
 command -v python3 >/dev/null || die "python3 not found"
 [[ -d "$GAMECORE_PATH/catalog" ]] || die "no catalogue at $GAMECORE_PATH/catalog"
 
@@ -113,36 +121,41 @@ if before & ids:
     save_removed(root, before - ids)
     print("[gamecore-emu] no longer declined: " + ", ".join(sorted(before & ids)))
 UNDECLINE
-  local id
+  local id failed=0
   for id in "$@"; do
     info "installing $id"
     # The provider prints OK/SAME/FAIL per line and exits non-zero on failure.
-    # `|| true`: one emulator that cannot be downloaded must not abort the
-    # others, exactly as in arch.sh.
+    # Continue with other packs, but report a failed installation to the UI.
     "$PY" "$PROVIDER" install "$id" \
-        --user "$GAMECORE_USER" --gamecore-path "$GAMECORE_PATH" || true
+        --user "$GAMECORE_USER" --gamecore-path "$GAMECORE_PATH" \
+        --gamecore-data "$GAMECORE_DATA" --local "$GAMECORE_DATA/config/catalog.d" || failed=1
 
     # Seed + generators + the tile, in one place so `install` and
     # `reconfigure` cannot drift apart.
-    apply_pack "$id" || warn_pack "$id"
+    apply_pack "$id" || { warn_pack "$id"; failed=1; }
+    "$PY" "$PROVIDER" start-services "$id" \
+        --user "$GAMECORE_USER" --gamecore-path "$GAMECORE_PATH" \
+        --gamecore-data "$GAMECORE_DATA" --local "$GAMECORE_DATA/config/catalog.d" || failed=1
   done
   refresh_grid
+  return "$failed"
 }
 
 warn_pack() { echo "[gamecore-emu] WARNING: $1 configured with errors." >&2; }
 
 apply_pack() {  # apply_pack <id> — seed, then generators
-  "$PY" - "$GAMECORE_PATH" "$1" "$GAMECORE_USER" <<'PY'
+  as_gamecore_user env GAMECORE_PATH="$GAMECORE_PATH" GAMECORE_DATA="$GAMECORE_DATA" \
+    "$PY" - "$GAMECORE_PATH" "$1" "$GAMECORE_USER" "$GAMECORE_DATA" <<'PY'
 import sys
 from pathlib import Path
 
-root, pack_id, user = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+root, pack_id, user, data = Path(sys.argv[1]), sys.argv[2], sys.argv[3], Path(sys.argv[4])
 sys.path.insert(0, str(root))
 from backend.services import configgen
 from backend.services.catalog import load_catalog
 from backend.services.configgen import seed as seedlib
 
-packs = load_catalog(root / "catalog", root / "config" / "catalog.d")
+packs = load_catalog(root / "catalog", data / "config" / "catalog.d")
 pack = packs[pack_id]
 home = Path("~" + user).expanduser()
 

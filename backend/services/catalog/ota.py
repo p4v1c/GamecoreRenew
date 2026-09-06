@@ -65,7 +65,7 @@ APPLIED_FILE = "applied.json"
 # `loader.PRIVILEGED_BLOCKS` — `files` and `secrets` are added because a remote
 # document that can name a destination path is a remote document that can write
 # one, and `sources` is a git clone from a URL of the sender's choosing.
-FORBIDDEN_BLOCKS = ("postInstall", "services", "sources", "packages",
+FORBIDDEN_BLOCKS = ("postInstall", "services", "sources", "packages", "hostAccess",
                     "files", "secrets")
 
 
