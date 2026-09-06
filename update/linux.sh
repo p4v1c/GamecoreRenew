@@ -480,6 +480,51 @@ if command -v systemctl >/dev/null 2>&1 \
   echo "[update]       then: sudo systemctl daemon-reload   (takes effect at the next start)"
 fi
 
+# ── the console session ──────────────────────────────────────────────────────
+#
+# A box installed before the console session existed still hosts the interface
+# over a desktop: SDDM logs into Plasma and a system-wide gamecore-ui.service
+# draws Electron on top of it, which is the several seconds of wallpaper and
+# panel the owner sees at every boot.
+#
+# The migration is APPLIED here, not announced. A line in an update log saying
+# "run this command" is not a migration — every box that nobody read the log
+# for stays on the old shape for ever, and the two shapes then have to be
+# supported side by side indefinitely.
+#
+# It runs through a one-shot system unit whose arguments come from the
+# root-owned manifest, started through a sudoers rule that names exactly that
+# unit (install/steps/setup-update-permissions.sh). The updater is
+# unprivileged; nothing here elevates anything else, and if the rule or the
+# unit is absent the migration is skipped and said out loud rather than forced.
+#
+# ARMING is deliberately NOT part of it: this installs the session and leaves
+# the box booting exactly as it did. Changing how somebody's console starts,
+# unattended, from an update, is not a decision an update gets to take.
+if command -v systemctl >/dev/null 2>&1 \
+   && [[ ! -f /usr/share/xsessions/gamecore.desktop ]] \
+   && [[ -f /etc/systemd/system/gamecore-session-migrate.service ]]; then
+  echo "[update] installing the console session (the interface becomes a session of its own)…"
+  if sudo -n systemctl start gamecore-session-migrate.service 2>/dev/null; then
+    # Verified by what is on disk, not by the exit code: a unit that starts and
+    # fails still exits 0 from the caller's side with --no-block, and even
+    # without it a green start is not a green result.
+    if [[ -f /usr/share/xsessions/gamecore.desktop && -x /usr/local/bin/gamecore-session ]]; then
+      echo "[update] ✅ console session installed. The box still boots the way it does today."
+      echo "[update]    to switch it over:  sudo gamecore-session-select gamecore"
+      echo "[update]    to go back:         sudo gamecore-session-select desktop"
+    else
+      echo "[update] ⚠  the migration unit ran but installed nothing — see:"
+      echo "[update]      journalctl -u gamecore-session-migrate"
+    fi
+  else
+    echo "[update] ⚠  could not start gamecore-session-migrate.service (no sudoers rule?)."
+    echo "[update]    run the installer once to get it, or apply the step by hand:"
+    echo "[update]      sudo ${GAMECORE_PATH}/install/steps/setup-gamecore-session.sh \\"
+    echo "[update]           <user> ${GAMECORE_PATH} <data> <port>"
+  fi
+fi
+
 # The addon CLI lives in /usr/local/bin — a path root controls, so that an
 # addon's install.sh cannot rewrite the tool that runs it — and only
 # install/arch.sh puts it there. Same blind spot as the Caddyfile and the

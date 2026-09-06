@@ -29,14 +29,27 @@ set -euo pipefail
 
 UNIT=gamecore-ui.service
 
-# Every session this machine offers. "<name>\t<dir>".
+# Overridable so this can be exercised against a staging tree instead of the
+# machine running the test. Defaults are the real locations.
+SDDM_CONF_DIR="${SDDM_CONF_DIR:-/etc/sddm.conf.d}"
+XSESSIONS_DIR="${XSESSIONS_DIR:-/usr/share/xsessions}"
+WAYLAND_SESSIONS_DIR="${WAYLAND_SESSIONS_DIR:-/usr/share/wayland-sessions}"
+
+# Every session this machine offers, EXCEPT our own. "<name>\t<dir>".
+#
+# Excluding `gamecore` is what makes "back to the desktop" mean something on a
+# box that has only ever had the console session: the ranking below falls back
+# to "anything at all before nothing", and without this the answer to "which
+# desktop should I return to" was GameCore itself — the switch reported success
+# and changed nothing.
 _sessions() {
   local d f n
-  for d in /usr/share/xsessions /usr/share/wayland-sessions; do
+  for d in "$XSESSIONS_DIR" "$WAYLAND_SESSIONS_DIR"; do
     [[ -d "$d" ]] || continue
     for f in "$d"/*.desktop; do
       [[ -e "$f" ]] || continue
       n=$(basename "$f" .desktop)
+      [[ "$n" == gamecore ]] && continue
       printf '%s\t%s\n' "$n" "$d"
     done
   done
@@ -72,7 +85,7 @@ _pick() {   # _pick [--x11]
 _autologin() {
   local s="" v
   # SDDM reads /etc/sddm.conf.d/* in name order and the LAST [Autologin] wins.
-  for f in /etc/sddm.conf.d/*.conf; do
+  for f in "$SDDM_CONF_DIR"/*.conf; do
     [[ -e "$f" ]] || continue
     v=$(sed -n 's/^Session=//p' "$f" | tail -1)
     [[ -n "$v" ]] && s="$v"
@@ -82,13 +95,13 @@ _autologin() {
 
 case "${1:-}" in
   status)
-    if systemctl is-enabled --quiet "$UNIT" 2>/dev/null; then
-      echo "mode          : gamecore (the kiosk starts at boot)"
+    if [[ "$(_autologin)" == gamecore ]]; then
+      echo "mode          : gamecore (the console session — no desktop behind it)"
     else
-      echo "mode          : desktop (the kiosk does not start at boot)"
+      echo "mode          : desktop (auto-login opens '$(_autologin)')"
     fi
-    echo "gamecore-ui   : $(systemctl is-enabled "$UNIT" 2>/dev/null || echo unknown)"\
-         "/ $(systemctl is-active "$UNIT" 2>/dev/null || echo inactive)"
+    echo "session entry : $([[ -f "$XSESSIONS_DIR/gamecore.desktop" ]] && echo present || echo 'ABSENT — this box has not been migrated')"
+    echo "old system ui : $(systemctl is-enabled "$UNIT" 2>/dev/null || echo absent)"
     echo "auto-login    : $(_autologin)"
     echo "sessions      :"
     _sessions | while IFS=$'\t' read -r n d; do
@@ -104,21 +117,84 @@ case "${1:-}" in
     echo
     exit 0
     ;;
-  gamecore|kiosk) ACTION=enable  ;;
-  desktop)        ACTION=disable ;;
+  gamecore|kiosk) MODE=gamecore ;;
+  desktop)        MODE=desktop  ;;
   *)
     echo "usage: $(basename "$0") gamecore|desktop|status|pick-desktop [--x11]" >&2
     exit 2
     ;;
 esac
 
-[[ $EUID -eq 0 ]] || { echo "run this with sudo" >&2; exit 1; }
+# Root, unless the caller has pointed the paths somewhere it owns.
+if [[ $EUID -ne 0 && "$SDDM_CONF_DIR" == /etc/sddm.conf.d ]]; then
+  echo "run this with sudo" >&2; exit 1
+fi
 
-systemctl "$ACTION" --now "$UNIT"
+# ── which session SDDM should open ───────────────────────────────
+#
+# This used to touch no SDDM configuration at all, and it was right not to:
+# there was one session, the machine's own desktop, and the only difference
+# between the two modes was whether the kiosk unit was enabled on top of it.
+#
+# There are two sessions now. `gamecore.desktop` starts a compositor and
+# GameCore and nothing else, so "desktop mode" can no longer mean "the same
+# session without the kiosk" — the desktop has to be asked for by name, and
+# picked the same way the installer picks it, which is what `_pick` is for.
+#
+# The file name is load-bearing: SDDM reads /etc/sddm.conf.d/* in name order
+# and the LAST [Autologin] wins. Manjaro's own kde_settings.conf carries one,
+# and 'k' sorts after 'a' — hence 'zz-'.
+_write_autologin() {   # _write_autologin <session-name> <user>
+  install -d -m 755 "$SDDM_CONF_DIR"
+  cat > "$SDDM_CONF_DIR/zz-gamecore-autologin.conf" <<CONF
+[Autologin]
+User=$2
+Session=$1
+Relogin=true
+CONF
+}
 
-if [[ "$ACTION" == enable ]]; then
-  echo "kiosk ON — GameCore starts at boot, over the desktop."
+_autologin_user() {
+  local u="" v
+  for f in "$SDDM_CONF_DIR"/*.conf; do
+    [[ -e "$f" ]] || continue
+    v=$(sed -n 's/^User=//p' "$f" | tail -1)
+    [[ -n "$v" ]] && u="$v"
+  done
+  printf '%s' "$u"
+}
+
+GC_USER="${GAMECORE_USER:-$(_autologin_user)}"
+GC_USER="${GC_USER:-${SUDO_USER:-}}"
+[[ -n "$GC_USER" ]] || { echo "cannot tell which user auto-logs in — set GAMECORE_USER" >&2; exit 1; }
+
+if [[ "$MODE" == gamecore ]]; then
+  if [[ ! -f "$XSESSIONS_DIR/gamecore.desktop" ]]; then
+    echo "no gamecore.desktop on this machine — this box has not been migrated." >&2
+    echo "  run: sudo install/steps/setup-gamecore-session.sh <user> <path> <data> <port>" >&2
+    exit 1
+  fi
+  _write_autologin gamecore "$GC_USER"
+  echo "console session ON — the next boot opens GameCore, with no desktop behind it."
+  echo "back to the desktop:  sudo $(basename "$0") desktop"
 else
-  echo "kiosk OFF — the box logs into its desktop and stays there."
-  echo "back on:  sudo $(basename "$0") gamecore"
+  DESKTOP_SESSION="$(_pick --x11 || true)"
+  if [[ -z "$DESKTOP_SESSION" ]]; then
+    echo "no X11 desktop session is installed — nothing to fall back to." >&2
+    echo "  install one (e.g. plasma-desktop) before leaving the console session." >&2
+    exit 1
+  fi
+  _write_autologin "$DESKTOP_SESSION" "$GC_USER"
+  echo "desktop ON — the next boot opens '$DESKTOP_SESSION'."
+  echo "back to the console:  sudo $(basename "$0") gamecore"
+fi
+
+# The session that is running now is not the one that was just chosen. Ending
+# it here would drop the player onto a greeter mid-sentence; it is theirs to
+# do, and saying so is the whole difference between a switch and a surprise.
+if systemctl --user -M "${GC_USER}@" is-active --quiet gamecore-session.target 2>/dev/null \
+   || systemctl is-active --quiet "$UNIT" 2>/dev/null; then
+  echo
+  echo "GameCore is running right now — the change takes effect at the next login."
+  echo "  now, if you want it now:  sudo systemctl restart sddm"
 fi

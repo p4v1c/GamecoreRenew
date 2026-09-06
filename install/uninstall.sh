@@ -482,10 +482,16 @@ fi
 msg "systemd units"
 safe_rm /etc/systemd/system/gamecore-backend.service \
         /etc/systemd/system/gamecore-ui.service \
+        /etc/systemd/system/gamecore-ui.service.pre-session \
         /etc/systemd/system/gamecore-restart.service \
         /etc/systemd/system/gamecore-backend.service.d \
         /etc/systemd/system/multi-user.target.wants/gamecore-backend.service \
         /etc/systemd/system/graphical.target.wants/gamecore-ui.service
+# The console session masked the old system unit, and a mask is a symlink to
+# /dev/null that outlives the file it was hiding. Left behind, it makes
+# `systemctl start gamecore-ui` fail on a machine where GameCore no longer
+# exists — which reads as systemd being broken rather than as a leftover.
+run systemctl unmask gamecore-ui.service 2>/dev/null
 run systemctl daemon-reload
 run systemctl reset-failed gamecore-backend.service gamecore-ui.service gamecore-restart.service 2>/dev/null
 ok "units removed (incl. the drop-in holding the TheGamesDB key)."
@@ -535,7 +541,23 @@ LAYOUT_ACCESS
 fi
 # gamecore-addon last among the addon steps — its own `remove` needed it.
 safe_rm /usr/local/bin/gamecore-xsetup /usr/local/bin/gamecore-addon \
-        /usr/local/bin/gamecore-session-select
+        /usr/local/bin/gamecore-session-select /usr/local/bin/gamecore-session
+
+# The console session: its entry, and the user units that belong to it.
+#
+# The entry goes first and it matters that it does: SDDM auto-logs into
+# `Session=gamecore`, and a Session= naming a .desktop that no longer exists
+# makes it fall back to its own default with no message at all. The SDDM
+# drop-in is removed a few lines below, but an interrupted uninstall must not
+# be able to leave the box pointing at a session that is gone.
+safe_rm /usr/share/xsessions/gamecore.desktop
+GC_HOME="$(getent passwd "${GC_USER:-}" 2>/dev/null | cut -d: -f6)"
+if [[ -n "$GC_HOME" && -d "$GC_HOME/.config/systemd/user" ]]; then
+  safe_rm "$GC_HOME/.config/systemd/user/gamecore-ui.service" \
+          "$GC_HOME/.config/systemd/user/gamecore-session.target" \
+          "$GC_HOME/.config/systemd/user/gamecore-session.target.wants/gamecore-ui.service" \
+          "$GC_HOME/.config/systemd/user/gamecore-session.target.wants"
+fi
 
 safe_rm /etc/sudoers.d/gamecore-power /etc/sudoers.d/gamecore-update /etc/sudoers.d/gamecore-standby
 if $DRY || visudo -c >/dev/null 2>&1; then

@@ -37,6 +37,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # the files and left the references behind — see the failure below.
 INSTALL_ROOT="$(cd "${HERE}/.." && pwd)"
 UNIT_SRC="${INSTALL_ROOT}/system/gamecore-restart.service"
+MIGRATE_SRC="${INSTALL_ROOT}/system/gamecore-session-migrate.service"
 EMU_SRC="${INSTALL_ROOT}/bin/gamecore-emu"
 
 # Fatal, and it did not used to be. With no `set -e`, a failed `install` here
@@ -53,6 +54,14 @@ EMU_SRC="${INSTALL_ROOT}/bin/gamecore-emu"
 
 install -m 644 "$UNIT_SRC" /etc/systemd/system/gamecore-restart.service \
   || { echo "ERROR: could not install gamecore-restart.service"; exit 1; }
+
+# The console-session migration, same shape and same reasoning: the updater
+# runs unprivileged, this writes to /usr/local/bin and /usr/share/xsessions.
+# Its arguments come from the root-owned manifest, so the rule below grants one
+# action with one set of arguments rather than a script with a free parameter.
+[[ -f "$MIGRATE_SRC" ]] || { echo "ERROR: missing $MIGRATE_SRC"; exit 1; }
+install -m 644 "$MIGRATE_SRC" /etc/systemd/system/gamecore-session-migrate.service \
+  || { echo "ERROR: could not install gamecore-session-migrate.service"; exit 1; }
 systemctl daemon-reload
 
 # The CLI has to live at a path root controls. Left in $GAMECORE_PATH it would
@@ -71,12 +80,13 @@ fi
 SUDOERS_FILE="/etc/sudoers.d/gamecore-update"
 {
   echo "${GC_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start --no-block gamecore-restart.service"
+  echo "${GC_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start gamecore-session-migrate.service"
   [[ -n "$EMU_RULE" ]] && echo "$EMU_RULE"
 } > "$SUDOERS_FILE"
 chmod 440 "$SUDOERS_FILE"
 visudo -cf "$SUDOERS_FILE" || { rm -f "$SUDOERS_FILE"; echo "sudoers validation failed, aborted"; exit 1; }
 
 echo "✅ Permissions installed for user '${GC_USER}'."
-echo "   Unit:    gamecore-restart.service"
+echo "   Units:   gamecore-restart.service, gamecore-session-migrate.service"
 echo "   Sudoers: ${SUDOERS_FILE}"
 [[ -n "$EMU_RULE" ]] && echo "   CLI:     /usr/local/bin/gamecore-emu (hot install)"

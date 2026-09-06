@@ -1,0 +1,23 @@
+[Unit]
+Description=GameCore — install the console session (one shot)
+# Runs `install/steps/setup-gamecore-session.sh` with the values the installer
+# recorded, as root, and exits.
+#
+# It exists because the updater runs UNPRIVILEGED, and the migration writes to
+# /usr/local/bin, /usr/share/xsessions and the systemd of the machine. The
+# alternative was a line in an update log telling the owner to run a command
+# themselves — which is not a migration, it is a hope.
+#
+# Nothing about it is parameterised by the caller: the arguments come from
+# /var/lib/gamecore/manifest.env, which is root-owned. The sudoers rule that
+# lets the GameCore user start this unit therefore grants exactly one action
+# with exactly one set of arguments — see install/steps/setup-update-permissions.sh.
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+EnvironmentFile=/var/lib/gamecore/manifest.env
+# The step is idempotent, so a second run is a no-op rather than a repair.
+ExecStart=/bin/bash -c '"${GAMECORE_PATH}/install/steps/setup-gamecore-session.sh" "${USER_NAME}" "${GAMECORE_PATH}" "${GAMECORE_DATA:-$GAMECORE_PATH}" "${WEB_PORT:-8765}"'
+StandardOutput=journal
+StandardError=journal

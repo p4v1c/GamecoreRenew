@@ -128,37 +128,53 @@ for unit in gamecore-backend sddm; do
   en=$(systemctl is-enabled "$unit" 2>/dev/null || echo unknown)
   [[ "$en" == enabled ]] && ok "$unit enabled" || bad "$unit" "is-enabled=$en — it will not start at boot"
 done
-# gamecore-ui is the one unit that is legitimately off: `gamecore-session-select
-# desktop` disables it on purpose, and calling that box broken would be wrong.
-# It is parked, and it says so.
-en=$(systemctl is-enabled gamecore-ui 2>/dev/null || echo unknown)
-case "$en" in
-  enabled)  ok   "gamecore-ui enabled" "kiosk mode" ;;
-  disabled) warn "gamecore-ui" "disabled — desktop mode, the kiosk will not start"$'\n'"      back to the kiosk: sudo gamecore-session-select gamecore" ;;
-  *)        bad  "gamecore-ui" "is-enabled=$en — it will not start at boot" ;;
+# The interface is a USER unit of the console session. A system-wide
+# gamecore-ui that is enabled — or merely startable — is the failure worth
+# shouting about: two Electrons, one X server, one backend.
+sys_ui=$(systemctl is-enabled gamecore-ui 2>/dev/null || echo absent)
+case "$sys_ui" in
+  masked|absent) ok  "no system-wide gamecore-ui" "the interface belongs to the session" ;;
+  *)             bad "system-wide gamecore-ui" "is-enabled=$sys_ui — it would start a SECOND interface"$'\n'"      fix: sudo bash install/steps/setup-gamecore-session.sh <user> <path> <data> <port>" ;;
 esac
+
+if [[ -f /usr/share/xsessions/gamecore.desktop && -x /usr/local/bin/gamecore-session ]]; then
+  ok "console session installed" "gamecore.desktop + gamecore-session"
+else
+  bad "console session" "missing gamecore.desktop or /usr/local/bin/gamecore-session"$'\n'"      this box still hosts the kiosk over a desktop"
+fi
+
+# The user unit, read from disk rather than from the user manager: this script
+# may well be run over SSH, where there is no session and `systemctl --user`
+# answers about a manager that is not the one running the console.
+gc_home=$(getent passwd "${GC_USER:-$USER}" | cut -d: -f6)
+if [[ -f "$gc_home/.config/systemd/user/gamecore-ui.service" ]]; then
+  ok "user unit present" "~/.config/systemd/user/gamecore-ui.service"
+else
+  bad "user unit" "the console session has nothing to start"
+fi
 act=$(systemctl is-active gamecore-backend 2>/dev/null)
 [[ "$act" == active ]] && ok "backend running" || bad "backend" "is-active=$act"
 
-# The kiosk is X11-only: overlays, the fullscreen enforcer, gamecore-xsetup and
-# the gamepad bridge all need X. It is hosted on the machine's own X11 desktop
-# session and draws over it.
-if compgen -G "/usr/share/xsessions/*.desktop" >/dev/null; then
-  ok "X11 session(s) present" "$(cd /usr/share/xsessions && echo *.desktop | sed 's/\.desktop//g')"
+# X11-only: overlays, the fullscreen enforcer, gamecore-xsetup and the gamepad
+# bridge all need X. Besides GameCore's own session, a desktop one is the way
+# BACK — `gamecore-session-select desktop` has nowhere to go without it.
+others=$(cd /usr/share/xsessions 2>/dev/null && echo *.desktop | sed 's/\.desktop//g; s/gamecore//' | xargs || true)
+if [[ -n "${others// /}" ]]; then
+  ok "a desktop session to fall back on" "$others"
 else
-  bad "no X11 session" "the box has no X session to host the kiosk"
+  warn "no desktop session" "'gamecore-session-select desktop' would have nowhere to go"$'\n'"      install one:  sudo pacman -S plasma-desktop"
 fi
 # SDDM reads /etc/sddm.conf.d/* in name order and the LAST [Autologin] wins, so
 # the effective session is the last Session= across every file — not the one in
 # GameCore's own drop-in, which a later-sorting file can override in silence.
 sess=$(grep -h '^Session=' /etc/sddm.conf.d/*.conf 2>/dev/null | tail -1 | cut -d= -f2)
-# What the session IS varies by box, so it is read back from the manifest rather
-# than compared to a literal — it is the machine's own desktop session, whatever
-# it is called here. Kiosk mode and desktop mode use the SAME session; only
-# gamecore-ui differs, which is what the check above covers.
+# Read back from the manifest rather than compared to a literal: a box in
+# desktop mode is pointing at its own desktop session on purpose, and calling
+# that broken would be wrong. `gamecore` is what the console session records.
 want=$(sed -n 's/^KIOSK_SESSION=//p' /var/lib/gamecore/manifest.env 2>/dev/null | tail -1 | tr -d "'\"")
 case "$sess" in
   "")      bad "SDDM autologin" "no Session= in /etc/sddm.conf.d — no auto-login" ;;
+  gamecore) ok "SDDM autologin session" "gamecore — the console session" ;;
   "$want") ok  "SDDM autologin session" "$sess" ;;
   *)       warn "SDDM autologin" "session is '$sess', the install recorded '$want'"$'\n'"      something else in /etc/sddm.conf.d/ sorts later and overrode it" ;;
 esac
