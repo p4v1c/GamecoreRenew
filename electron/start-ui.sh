@@ -59,13 +59,19 @@ if command -v unclutter >/dev/null 2>&1 && ! pgrep -x unclutter >/dev/null 2>&1;
         || { unclutter -idle 5 >/dev/null 2>&1 & }
 fi
 
-# Re-pin 1920x1080 inside the session. SDDM's DisplayCommand already did it
-# for the bare X server, but Plasma's KScreen module loads afterwards and
-# applies the output's EDID-preferred mode — 3840x2160 on a 4K TV — undoing
-# it. By the time this runs the session (and kded) is up, so the mode sticks.
-# The bezel overlays in main.js are sized to a fixed 1920x1080 and would
-# otherwise cover a quarter of the screen.
-[ -x /usr/local/bin/gamecore-xsetup ] && /usr/local/bin/gamecore-xsetup >/dev/null 2>&1
+# Re-pin the mode inside the session — but only where something is going to
+# undo it.
+#
+# In a DESKTOP session, Plasma's KScreen module loads after SDDM's
+# DisplayCommand and applies the output's EDID-preferred mode — 3840x2160 on a
+# 4K television — so the pin has to be replayed once the session is up.
+#
+# In the GameCore session there is no KScreen, nothing to undo it, and the
+# session script has already applied the mode. Replaying it here would be a
+# second modeset for nothing, and a modeset is a television resynchronising.
+if [ "${XDG_SESSION_DESKTOP:-}" != "gamecore" ] && [ -x /usr/local/bin/gamecore-xsetup ]; then
+    /usr/local/bin/gamecore-xsetup >/dev/null 2>&1
+fi
 
 # Resolve the install dir from this script's location — GAMECORE_PATH is not
 # necessarily /opt/GameCore.

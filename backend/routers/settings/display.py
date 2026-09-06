@@ -46,12 +46,14 @@ Changing the mode under a running emulator is the shortest way to make it
 crash, and the player is not looking at this screen then anyway.
 """
 import asyncio
+import json
 import logging
 import re
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from ...services.paths import config_dir
 from ...services.process_manager import display_env, process_manager
 from ...services.session import kscreen_available, wayland_env
 
@@ -332,6 +334,56 @@ async def _set_mode_locked(req: ModeRequest):
     return {"ok": True, "changed": True, "revert_secs": REVERT_SECS}
 
 
+#: Where a confirmed mode is written down, on the data side with the rest of
+#: the player's choices.
+PREFERENCE_FILE = "display.json"
+
+
+def _preference_path():
+    return config_dir() / PREFERENCE_FILE
+
+
+def preferred_mode() -> dict | None:
+    """The mode the player last confirmed, or None.
+
+    Read at startup by the backend itself (see backend/main.py). Until this
+    existed, nothing wrote the choice down at all: `gamecore-xsetup` forces
+    1080p at every boot for the pre-session X server, so a player who picked
+    1280x720 in the settings — and confirmed it, on a screen they could read —
+    found 1080p again at the next start, with nothing to say why.
+    """
+    try:
+        data = json.loads(_preference_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    try:
+        return {"width": int(data["width"]), "height": int(data["height"]),
+                "rate": float(data["rate"]), "output": str(data.get("output", ""))}
+    except (KeyError, TypeError, ValueError):
+        log.warning("display: %s is not a mode I can read — ignoring it",
+                    _preference_path())
+        return None
+
+
+def _remember(mode: dict) -> None:
+    """Only ever called from /confirm.
+
+    Confirmation is the whole difference between a mode that works and a mode
+    that was merely accepted by the compositor: somebody read the screen and
+    pressed a button on it. Writing an UNconfirmed mode down would persist
+    exactly the black screens the revert exists to undo.
+    """
+    try:
+        path = _preference_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({
+            "width": mode["width"], "height": mode["height"],
+            "rate": mode["rate"], "output": mode.get("output", ""),
+        }, indent=2) + "\n", encoding="utf-8")
+    except (OSError, KeyError, TypeError) as e:
+        log.warning("display: could not remember the confirmed mode — %s", e)
+
+
 @router.post("/confirm")
 async def confirm():
     """Keep the mode that is on screen.
@@ -342,7 +394,10 @@ async def confirm():
     """
     async with _mode_lock:
         pending = _pending is not None
+        wanted = _pending["wanted"] if pending else None
         _cancel_pending()
+    if wanted:
+        _remember(wanted)
     return {"ok": True, "confirmed": pending}
 
 

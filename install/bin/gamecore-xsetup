@@ -15,6 +15,16 @@
 OUT=$(xrandr 2>/dev/null | awk '/ connected/{print $1; exit}')
 [ -n "$OUT" ] || exit 0
 
+# Already there? Then say nothing and change nothing.
+#
+# xrandr asked for the mode that is already live still goes through a modeset,
+# and a modeset is a television resynchronising — seconds of black on the one
+# path where seconds of black are the whole complaint. The `*` is xrandr's own
+# marker for the current mode.
+if xrandr 2>/dev/null | grep -qE '^ +1920x1080 .*\*'; then
+    exit 0
+fi
+
 if ! xrandr --output "$OUT" --mode 1920x1080 2>/dev/null; then
     # EDID doesn't advertise 1080p (rare) — add a standard 60 Hz mode.
     if command -v cvt >/dev/null 2>&1; then

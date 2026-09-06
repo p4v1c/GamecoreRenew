@@ -43,6 +43,7 @@ from .routers import controllers as controllers_router
 from .routers import themes as themes_router
 from .routers import storage as storage_router
 from .routers.settings import wifi, audio, bluetooth, display
+from .routers.settings import display as display_router
 from .services import (battery, boot, desktop_power, gamepad_monitor, http_cache,
                        playtime_repair, prefetch, standby, storage_monitor)
 from .services.process_manager import process_manager
@@ -108,6 +109,36 @@ async def _settle_the_screen() -> None:
     except Exception:
         log.exception("lifespan: could not force the screen back on")
         boot.failed("screen")
+
+    # The mode the player chose, put back.
+    #
+    # `gamecore-xsetup` pins 1080p for the X server SDDM starts, before any
+    # session — which is right as a default and wrong as a verdict: a player
+    # who picked another resolution in the settings, and confirmed it on a
+    # screen they could read, found 1080p again at the next boot with nothing
+    # to say why. Applied here rather than by the session script because this
+    # is the process that knows where the data root is and already speaks to
+    # both display tools.
+    #
+    # A no-op when the preference matches what is already on screen, which is
+    # every box that never changed it — and one mode change fewer is one
+    # television resynchronisation fewer.
+    try:
+        wanted = display_router.preferred_mode()
+        if wanted:
+            state = await display_router.read_state()
+            current = state.get("current") or {}
+            same = (current.get("width") == wanted["width"]
+                    and current.get("height") == wanted["height"]
+                    and abs((current.get("rate") or 0) - wanted["rate"]) < 0.01)
+            if not same and state.get("output"):
+                ok, detail = await display_router._apply(
+                    state["backend"], state["output"], wanted)
+                log.info("display: restored the confirmed mode %sx%s@%s (%s)",
+                         wanted["width"], wanted["height"], wanted["rate"],
+                         "ok" if ok else detail)
+    except Exception:
+        log.exception("lifespan: could not restore the confirmed display mode")
 
     # One owner for the screen timeout. The desktop's own power manager was
     # running a second, invisible timer that capped whatever the settings page

@@ -353,3 +353,48 @@ def _always_ok():
     async def apply(backend, output, mode):
         return True, ""
     return apply
+
+
+# ── the mode the player chose, kept ─────────────────────────────────────────
+
+def test_a_confirmed_mode_is_written_down(client, xrandr, monkeypatch, tmp_path):
+    """Nothing used to write it down at all.
+
+    `gamecore-xsetup` pins 1080p for the X server SDDM starts, before any
+    session. A player who picked 1280x720 in the settings — and confirmed it,
+    on a screen they could read — found 1080p again at the next boot, with
+    nothing on screen to say why.
+    """
+    monkeypatch.setattr(display, "config_dir", lambda: tmp_path)
+    monkeypatch.setattr(display, "_apply", _always_ok())
+
+    client.post("/api/settings/display/mode",
+                json={"width": 1280, "height": 720, "rate": 60.0})
+    assert display.preferred_mode() is None, "an unconfirmed mode was persisted"
+
+    client.post("/api/settings/display/confirm")
+    assert display.preferred_mode() == {
+        "width": 1280, "height": 720, "rate": 60.0, "output": "HDMI-A-1"}
+
+
+def test_a_mode_that_was_never_confirmed_is_not_remembered(client, xrandr, monkeypatch, tmp_path):
+    """Confirmation is the difference between a mode that works and one the
+    compositor merely accepted: somebody read the screen and pressed a button
+    on it. Persisting an unconfirmed mode would persist the black screens the
+    revert exists to undo."""
+    monkeypatch.setattr(display, "config_dir", lambda: tmp_path)
+    monkeypatch.setattr(display, "_apply", _always_ok())
+
+    client.post("/api/settings/display/mode",
+                json={"width": 1280, "height": 720, "rate": 60.0})
+    # The timer fires instead of a confirmation.
+    asyncio.run(display._revert_after(0.01, display._pending["previous"]))
+    assert display.preferred_mode() is None
+
+
+def test_an_unreadable_preference_is_ignored_rather_than_fatal(monkeypatch, tmp_path):
+    monkeypatch.setattr(display, "config_dir", lambda: tmp_path)
+    (tmp_path / display.PREFERENCE_FILE).write_text("{ not json")
+    assert display.preferred_mode() is None
+    (tmp_path / display.PREFERENCE_FILE).write_text('{"width": "wide"}')
+    assert display.preferred_mode() is None
