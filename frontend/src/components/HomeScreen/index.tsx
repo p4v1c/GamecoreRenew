@@ -16,6 +16,7 @@ import { useStore } from '../../store'
 import { api, SystemEntry, PlaytimeEntry } from '../../api'
 import { onGp } from '../../hooks/useGamepad'
 import { onWsEvent } from '../../hooks/useWebSocket'
+import { markBootStep } from '../../lib/boot'
 import DefaultHomeView from './DefaultHomeView'
 import { useThemeCtx } from '../ThemeSurface'
 import type { HomeViewProps } from './types'
@@ -75,7 +76,15 @@ export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }
   const pageItems = systems.slice(gridPage * perPage, (gridPage + 1) * perPage)
 
   const loadSystems = useCallback(() => {
-    api.systems.list().then(setSystems).catch(console.error)
+    // The second of the boot's three facts, and it is settled by an ANSWER,
+    // not by a good one: a box with no emulator installed has a home that is
+    // ready to say so, and a backend that refuses has a home that is ready to
+    // offer the retry. Waiting for a non-empty list would be waiting for the
+    // player to have installed something. See lib/boot.ts.
+    api.systems.list()
+      .then(setSystems)
+      .catch(console.error)
+      .finally(() => markBootStep('systems'))
     api.playtime.all().then(rows => {
       const map: Record<string, PlaytimeEntry> = {}
       rows.forEach(r => {

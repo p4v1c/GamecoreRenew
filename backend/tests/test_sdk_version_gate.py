@@ -43,6 +43,13 @@ SINCE = {
     # `undefined`, which is not 'off' — so the overlay never comes down and the
     # box is a black rectangle. Refusing the theme is the better failure.
     3: ("s.standby", "standby !== 'off'"),
+    # The boot contract. A splash that holds its last frame until the host says
+    # the interface is ready reads `bootReady`; on a front end without it the
+    # prop is `undefined` — which the themes treat as "go", so an old host is
+    # merely the old behaviour rather than a box that never boots. Declaring it
+    # is still required: the theme is written against a host that HAS a gate,
+    # and one that has none shows the dashboard mid-fill instead.
+    4: ("bootReady",),
 }
 
 

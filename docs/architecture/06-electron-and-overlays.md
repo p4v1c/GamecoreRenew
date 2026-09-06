@@ -43,12 +43,21 @@ keyboard. On a controller-only kiosk the UI sounds would stay silent forever.
 All three use `nodeIntegration: false`, `contextIsolation: true`. The renderer
 reaches Electron only through `preload.js`.
 
-### Splash hold at cold boot
+### The boot, and what ends it
 
-`splashHoldMs()` (L36) reads uptime: under `BOOT_UPTIME_THRESHOLD_S` (180 s) it
-adds a hold parameter so the splash freezes on its first black frame for
-`SPLASH_BOOT_HOLD_MS` (4 s), while X finishes switching the mode and the TV
-re-syncs HDMI. A relaunch from the desktop gets no delay.
+`waitForBackend()` polls `GET /api/ready` and creates the window only once it
+answers 200. There is deliberately no deadline that gives up and carries on:
+carrying on means a dashboard built from nothing. `BACKEND_PATIENCE_MS` (20 s)
+ends the silence, not the wait — the boot moves to `RECOVERING`, says so, and
+slows its polling.
+
+The renderer then sends `boot:ready` when the interface is worth looking at.
+Both halves are facts; neither is a timer.
+
+The old `splashHoldMs()` held the splash's first black frame for 4 s whenever
+uptime was under 180 s, while X switched the mode and the TV re-synced HDMI. It
+is gone: the splash holds its last frame instead, for exactly as long as the
+interface behind it is not ready.
 
 ## The preload bridge — `preload.js`
 

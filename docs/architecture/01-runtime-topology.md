@@ -104,19 +104,30 @@ standby_task  = asyncio.create_task(standby.run())
 prefetch_task = asyncio.create_task(prefetch.run())
 ```
 
-Electron's `startBackend()` (`main.js:334`) is a **fallback for development**:
-on a box the systemd unit already owns the backend, and `backendAlive()`
-(`main.js:328`) detects it and skips spawning a second one.
+Electron's `startBackend()` is a **fallback for development only**: on a
+managed box systemd owns the backend, and Electron never competes for the port.
+"Managed" is read from `INVOCATION_ID`, which systemd sets in every service it
+runs — `start-ui.sh` is the unit's `ExecStart`, so Electron inherits it.
+`GAMECORE_MANAGED` overrides it either way.
 
-## Cold-boot display timing
+## When the interface appears
 
-`splashHoldMs()` (`electron/main.js:36`) reads system uptime. Under
-`BOOT_UPTIME_THRESHOLD_S` (180 s) it appends a hold parameter to the URL so
-the splash freezes on its first black frame for `SPLASH_BOOT_HOLD_MS` (4 s).
-Reason: at cold boot X has just started, `gamecore-xsetup` is switching the
-mode to 1080p, and the TV spends seconds re-syncing HDMI — the animation would
-otherwise play to nobody. A relaunch from the desktop (high uptime) gets no
-delay.
+Nothing is timed. The shell waits on `GET /api/ready` — 200 once the backend's
+required startup is done, 503 with the outstanding step until then — and the
+interface then tells the shell it is worth looking at through `boot:ready`
+(`electron/preload.js`), decided in the host by `frontend/src/lib/boot.ts`:
+the theme resolved, the dashboard's own data settled, and a frame painted.
+
+The states are `STARTING → WAITING_BACKEND → LOADING_UI → PRESENTABLE →
+RUNNING`, plus `RECOVERING`. Durations appear in exactly one role: bounding a
+failure so it can be reported. Nothing is promoted by a clock.
+
+A fixed 4 s hold used to be appended to the URL whenever the machine had booted
+recently (`splashHoldMs()`), so the boot animation would not play against a
+screen the TV had not finished re-syncing. The reason was real; the mechanism
+was a duration measured on one box and paid by all of them. The splash now
+holds its LAST frame until the host says the interface is ready — see
+`docs/themes/README.md` §8.
 
 ## Who talks to whom
 

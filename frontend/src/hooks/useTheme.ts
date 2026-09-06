@@ -23,6 +23,7 @@ import { clearThemeRumble } from '../lib/rumble'
 import { onGamepadFrame, isPlaying, GP_BTN } from './useGamepad'
 import { onWsEvent } from './useWebSocket'
 import { useStore } from '../store'
+import { markBootStep } from '../lib/boot'
 
 /** How long L1+R1 must be held to force the default theme. */
 const RESCUE_HOLD_MS = 2000
@@ -148,6 +149,10 @@ export function useTheme(): ThemeState {
   const mountedThemeRef = useRef<string | null | undefined>(undefined)
   useEffect(() => {
     if (loading) return
+    // The first of the three facts the boot waits on. "Resolved" includes a
+    // theme that failed and fell back to the default: either is an answer, and
+    // only "still asking" is not. See lib/boot.ts.
+    markBootStep('theme')
     if (mountedThemeRef.current === undefined) { mountedThemeRef.current = themeId; return }
     if (mountedThemeRef.current === themeId) return
     mountedThemeRef.current = themeId
