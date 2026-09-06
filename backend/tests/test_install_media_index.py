@@ -58,7 +58,11 @@ def box(tmp_path):
         stub.chmod(stub.stat().st_mode | stat.S_IXUSR)
 
     def run(extra_env: dict | None = None) -> subprocess.CompletedProcess:
-        env = {**os.environ, "CALLS": str(calls)}
+        # GAMECORE_DATA explicitly, and equal to the root: the suite exports one
+        # of its own (conftest.py, so no test can reach a real box), and the
+        # step reads it. Left to the environment, the index would be looked for
+        # in the pytest sandbox and this box's own answers would never be seen.
+        env = {**os.environ, "CALLS": str(calls), "GAMECORE_DATA": str(root)}
         env.update(extra_env or {})
         return subprocess.run(
             ["bash", str(STEP), str(root), os.environ.get("USER", "nobody")],

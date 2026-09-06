@@ -21,13 +21,46 @@
 #
 #  Env overrides (sandbox / ISO):
 #    GAMECORE_PATH  core install dir    (default: /opt/GameCore)
+#    GAMECORE_DATA  the player's files  (default: read off the backend unit,
+#                                        then GAMECORE_PATH)
 #    GAMECORE_USER  owner of the files  (default: the invoking user)
 # ================================================================
 set -euo pipefail
 
 GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
-# catalog/ is shipped code; config/catalog.d/ is the operator's own packs.
-# One on each side of the line, so they resolve against different roots.
+
+# Where the player's data is, when the caller did not say.
+#
+# The backend reaches this script through `sudo -n gamecore-emu …`, and sudo
+# hands it a clean environment: no GAMECORE_DATA, whatever the service has.
+# The variable is set on the backend's systemd unit, which is the one place the
+# migration procedure tells the operator to set it, so that is where it is read
+# from. Without this the CLI wrote the grid into the install directory on a box
+# whose grid is somewhere else — the operation reported success, and the
+# console showed no change at all.
+#
+# Deliberately a copy of the same block in gamecore-addon and update/linux.sh:
+# this file is installed to /usr/local/bin on its own and must not import
+# anything from a checkout it may not be able to see.
+_data_root_from_backend_unit() {
+  command -v systemctl >/dev/null 2>&1 || return 0
+  local env kv
+  env="$(systemctl show gamecore-backend.service -p Environment --value 2>/dev/null)" || return 0
+  # Space-separated KEY=VALUE pairs; the installer refuses a data path with a
+  # space or a quote in it (arch.sh, _conf_path), so this split is safe.
+  for kv in $env; do
+    if [[ "$kv" == GAMECORE_DATA=* ]]; then
+      printf '%s\n' "${kv#GAMECORE_DATA=}"
+      return 0
+    fi
+  done
+}
+if [[ -z "${GAMECORE_DATA:-}" ]]; then
+  GAMECORE_DATA="$(_data_root_from_backend_unit)"
+fi
+# catalog/ is shipped code; config/ — the grid, the operator's own packs, the
+# removals — is the player's. One on each side of the line, and the same
+# directory on every box that has not moved its data.
 GAMECORE_DATA="${GAMECORE_DATA:-$GAMECORE_PATH}"
 GAMECORE_USER="${GAMECORE_USER:-${SUDO_USER:-$(id -un)}}"
 
@@ -69,19 +102,21 @@ require_ids() {  # require_ids <id>...
 
 # ── list ─────────────────────────────────────────────────────────
 cmd_list() {
-  "$PY" - "$GAMECORE_PATH" "${1:-}" <<'PY'
+  "$PY" - "$GAMECORE_PATH" "$GAMECORE_DATA" "${1:-}" <<'PY'
 import json, subprocess, sys
 from pathlib import Path
 
-root, fmt = Path(sys.argv[1]), sys.argv[2]
+# Two roots, and every path below belongs to exactly one of them: the shipped
+# catalogue to the install, the grid and the operator's own packs to the data.
+root, data, fmt = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 sys.path.insert(0, str(root))
 from backend.services.catalog import load_catalog
 
-packs = load_catalog(root / "catalog", root / "config" / "catalog.d")
+packs = load_catalog(root / "catalog", data / "config" / "catalog.d")
 
 try:
-    live = {s["id"] for s in json.loads((root / "config" / "systems.json").read_text())}
-    live |= {a["id"] for a in json.loads((root / "config" / "apps.json").read_text())}
+    live = {s["id"] for s in json.loads((data / "config" / "systems.json").read_text())}
+    live |= {a["id"] for a in json.loads((data / "config" / "apps.json").read_text())}
 except (OSError, ValueError):
     live = set()
 
@@ -110,15 +145,15 @@ cmd_install() {
   require_ids "$@"
   # Installing lifts a previous removal — otherwise the merge below would
   # honour the old "declined" record and the tile would never come back.
-  "$PY" - "$GAMECORE_PATH" "$@" <<'UNDECLINE'
+  "$PY" - "$GAMECORE_PATH" "$GAMECORE_DATA" "$@" <<'UNDECLINE'
 import sys
 from pathlib import Path
-root, ids = Path(sys.argv[1]), set(sys.argv[2:])
+root, data, ids = Path(sys.argv[1]), Path(sys.argv[2]), set(sys.argv[3:])
 sys.path.insert(0, str(root))
 from backend.services.catalog.merge import load_removed, save_removed
-before = load_removed(root)
+before = load_removed(data)
 if before & ids:
-    save_removed(root, before - ids)
+    save_removed(data, before - ids)
     print("[gamecore-emu] no longer declined: " + ", ".join(sorted(before & ids)))
 UNDECLINE
   local id failed=0
@@ -190,14 +225,17 @@ cmd_remove() {
   # (saves, memory cards, BIOS) are left alone — `gamecore-emu remove` is
   # "take it off the grid", not "destroy my data". Removing the application
   # itself stays an explicit `flatpak uninstall`.
-  "$PY" - "$GAMECORE_PATH" "$@" <<'PY'
+  "$PY" - "$GAMECORE_PATH" "$GAMECORE_DATA" "$@" <<'PY'
 import json, sys
 from pathlib import Path
 
-root, ids = Path(sys.argv[1]), set(sys.argv[2:])
+# The grid is the player's file. It used to be read and written under the
+# INSTALL root, so on a box whose data lives elsewhere `remove` rewrote a
+# systems.json nothing reads, reported success, and left the tile on screen.
+root, data, ids = Path(sys.argv[1]), Path(sys.argv[2]), set(sys.argv[3:])
 sys.path.insert(0, str(root))
 for name in ("systems.json", "apps.json"):
-    path = root / "config" / name
+    path = data / "config" / name
     try:
         rows = json.loads(path.read_text())
     except (OSError, ValueError):
@@ -216,7 +254,7 @@ for name in ("systems.json", "apps.json"):
 #
 # config/ is excluded from the OTA rsync, so the choice survives updates.
 from backend.services.catalog.merge import load_removed, save_removed
-save_removed(root, load_removed(root) | ids)
+save_removed(data, load_removed(data) | ids)
 print("[gamecore-emu] recorded in config/catalog-removed.json — it will not come back.")
 print("[gamecore-emu] ROMs, save data and the application itself were kept.")
 PY
@@ -234,11 +272,11 @@ cmd_reconfigure() {
 
 # ── verify ───────────────────────────────────────────────────────
 cmd_verify() {
-  "$PY" - "$GAMECORE_PATH" "$@" <<'PY'
+  "$PY" - "$GAMECORE_PATH" "$GAMECORE_DATA" "$@" <<'PY'
 import json, shutil, subprocess, sys
 from pathlib import Path
 
-root, only = Path(sys.argv[1]), set(sys.argv[2:])
+root, data, only = Path(sys.argv[1]), Path(sys.argv[2]), set(sys.argv[3:])
 sys.path.insert(0, str(root))
 from backend.services.catalog import appid, load_catalog
 
@@ -246,7 +284,8 @@ from backend.services.catalog import appid, load_catalog
 # the same answer this loop prints, so `verify` cannot report a pack healthy
 # under an id the rest of the box is not using.
 installed = appid.probe()
-packs = load_catalog(root / "catalog", root / "config" / "catalog.d")
+# The binaries checked below are the install's; the local packs are the data's.
+packs = load_catalog(root / "catalog", data / "config" / "catalog.d")
 
 bad = 0
 for pack in sorted(packs.values(), key=lambda p: p.id):
@@ -291,20 +330,25 @@ PY
 # ── grid ─────────────────────────────────────────────────────────
 refresh_grid() {
   info "refreshing the grid"
-  "$PY" - "$GAMECORE_PATH" <<'PY'
+  "$PY" - "$GAMECORE_PATH" "$GAMECORE_DATA" <<'PY'
 import sys
 from pathlib import Path
 
-root = Path(sys.argv[1])
+root, data = Path(sys.argv[1]), Path(sys.argv[2])
 sys.path.insert(0, str(root))
 from backend.services.catalog import load_catalog
 from backend.services.catalog.merge import merge_file
 
-packs = load_catalog(root / "catalog", root / "config" / "catalog.d")
+packs = load_catalog(root / "catalog", data / "config" / "catalog.d")
 # Both halves. apps.json was never merged, so `install <app>` could remove a
 # tile it was then unable to put back.
+#
+# `root` is what a launcher path resolves against — the install; `data_root` is
+# where the grid and the declined list live. merge_file has taken both since
+# the data could move, and passing only the first made every removal come back
+# on the next install: the list it consults was in the other tree.
 for name, kind in (("systems.json", "emulator"), ("apps.json", "app")):
-    for n in merge_file(root / "config" / name, packs, root, kind=kind):
+    for n in merge_file(data / "config" / name, packs, root, kind=kind, data_root=data):
         print(f"[gamecore-emu]   {n}")
 PY
   info "done — the grid reloads on its own (no restart needed)."

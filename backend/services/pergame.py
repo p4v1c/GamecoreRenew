@@ -371,14 +371,39 @@ def _apply(system_id: str, game_id: str, wanted: dict, home: Path) -> str | None
     return f"{system_id}: {changed} setting(s) written for {game_id}"
 
 
+def _still_holds_settings(text: str) -> bool:
+    """Is there anything left in this file that somebody would miss?
+
+    Both writable formats are line-based, so this is read the same way for
+    each: a blank line, a comment, an `[ini section]` with nothing in it and a
+    `yaml-mapping:` with nothing under it are all structure. Anything else is a
+    setting, and a file that has one is a file to keep.
+    """
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith(("#", ";")):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            continue
+        if line.endswith(":"):
+            continue
+        return True
+    return False
+
+
 def release(system_id: str, game_id: str, home: Path) -> str | None:
     """Put the emulator's file back the way GameCore found it.
 
     Key by key, from the record made when each was written: the previous value,
-    or removal when there was none. The file itself goes only if GameCore
-    created it — otherwise it holds settings the player made in the emulator's
-    own window, and deleting those to undo ours would be a far larger act than
-    the one they asked for.
+    or removal when there was none. That is the whole of the undo, and it is
+    now the only thing that touches the file's contents.
+
+    `createdFile` used to mean "delete the file" — which is right the second
+    after GameCore wrote it, and wrong from then on. The emulator writes to
+    that same file: change the resolution in Dolphin's own window once, and
+    removing the GameCore profile took that with it. The flag now only decides
+    whether an EMPTY file is worth leaving behind, and what is left is judged
+    after the undo rather than assumed from before it.
     """
     data = record(system_id, game_id)
     restore = data.get("restore") or {}
@@ -387,17 +412,19 @@ def release(system_id: str, game_id: str, home: Path) -> str | None:
     path = target(system_id, game_id, home) if put else None
 
     if path is not None and path.is_file():
-        if data.get("createdFile"):
-            path.unlink(missing_ok=True)
-        else:
-            try:
-                text = path.read_text()
-                for sect, keys in restore.items():
-                    for key, previous in keys.items():
-                        text = put(text, sect, key, previous)
+        try:
+            text = path.read_text()
+            for sect, keys in restore.items():
+                for key, previous in keys.items():
+                    text = put(text, sect, key, previous)
+            if data.get("createdFile") and not _still_holds_settings(text):
+                # Nothing but the structure GameCore itself laid down: leaving
+                # it costs an empty file the emulator did not ask for.
+                path.unlink(missing_ok=True)
+            else:
                 atomic_write(path, text)
-            except OSError as e:
-                log.warning("pergame: cannot un-write %s — %s", path, e)
+        except OSError as e:
+            log.warning("pergame: cannot un-write %s — %s", path, e)
 
     data.pop("settings", None)
     data.pop("restore", None)
