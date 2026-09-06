@@ -593,46 +593,146 @@ ipcMain.on('overlay:stop', (_, { system_id }) => {
 })
 
 // ── Backend startup ───────────────────────────────────────────────────────────
-function backendAlive() {
-  return fetch(BACKEND_URL + '/api/sysinfo', { signal: AbortSignal.timeout(1500) })
-    .then(() => true)
+/**
+ * Is GameCore usable — not "is something listening".
+ *
+ * `/api/ready` answers 200 only once the backend's required startup is done,
+ * and 503 with the outstanding step until then. This used to ask
+ * `/api/sysinfo` and treat ANY response as success: an endpoint that opens a
+ * UDP socket towards 8.8.8.8 to find the box's address, walks the disk, reads
+ * the controller batteries and lists the BIOS files — polled, on the boot
+ * path, to answer a question it was never written for. It also answered
+ * perfectly well while the backend was still opening its database, so "alive"
+ * arrived several seconds before "usable".
+ */
+function backendReady() {
+  return fetch(BACKEND_URL + '/api/ready', { signal: AbortSignal.timeout(1500) })
+    .then(r => (r.ok ? r.json() : null))
+    .then(body => !!(body && body.ready))
     .catch(() => false)
+}
+
+/**
+ * Who owns the backend process.
+ *
+ * On an installed box, systemd does — `gamecore-backend.service`, with its own
+ * restart policy, its own environment and its own journal. Electron spawning a
+ * second uvicorn on the same port produced an EADDRINUSE crash loop next to a
+ * working backend, and the guard against it was a race: "nothing answered in
+ * the last 1.5 s" is true of a backend that is merely still starting.
+ *
+ * systemd sets INVOCATION_ID in every service it runs, and start-ui.sh is the
+ * unit's ExecStart, so Electron inherits it. That is the signal — no installer
+ * change, and it cannot drift out of sync with reality. GAMECORE_MANAGED
+ * overrides it either way, for a sandbox or a test.
+ */
+function backendIsManaged() {
+  const explicit = process.env.GAMECORE_MANAGED
+  if (explicit === '1') return true
+  if (explicit === '0') return false
+  return !!process.env.INVOCATION_ID
 }
 
 async function startBackend() {
   if (DEV) return  // dev: backend is started manually
+  if (await backendReady()) return
 
-  // In production gamecore-backend.service already runs uvicorn on BACKEND_PORT —
-  // spawning a second one just made it crash on EADDRINUSE at every boot.
-  // Only spawn when nothing answers (desktop launch without the service).
-  if (await backendAlive()) return
+  // Managed: wait for it, never compete with it. A backend that does not come
+  // up is a fault to report — see waitForBackend and the RECOVERING state —
+  // not a reason to start a second one.
+  if (backendIsManaged()) return
 
   const root   = path.join(__dirname, '..')
   const venv   = path.join(root, '.venv', 'bin', 'python')
   const python = fs.existsSync(venv) ? venv : 'python3'
 
+  console.log('[boot] no managed backend — starting one from', root)
   backendProcess = spawn(
     python, ['-m', 'uvicorn', 'backend.main:app',
              '--host', '127.0.0.1', '--port', BACKEND_PORT,
              '--log-level', DEBUG ? 'debug' : 'warning'],
     { cwd: root, detached: false, stdio: 'ignore' }
   )
+}
 
-  return new Promise((resolve) => {
-    const start = Date.now()
-    const check = () => {
-      fetch(BACKEND_URL + '/api/sysinfo')
-        .then(() => resolve())
-        .catch(() => {
-          if (Date.now() - start < 10000) setTimeout(check, 300)
-          else resolve()
-        })
+// ── The boot, as a state machine ─────────────────────────────────────────────
+//
+// STARTING → WAITING_BACKEND → LOADING_UI → PRESENTABLE → RUNNING, plus
+// RECOVERING when something has gone wrong for long enough to say so.
+//
+// The rule the whole of this file now follows: **no timer promotes anything**.
+// Each transition is a fact — the backend answered `/api/ready`, the renderer
+// said `boot:ready`. Durations appear in exactly one role, bounding a failure
+// so it can be reported rather than waited on for ever.
+const BOOT = {
+  STARTING: 'STARTING',
+  WAITING_BACKEND: 'WAITING_BACKEND',
+  LOADING_UI: 'LOADING_UI',
+  PRESENTABLE: 'PRESENTABLE',
+  RUNNING: 'RUNNING',
+  RECOVERING: 'RECOVERING',
+}
+let bootState = BOOT.STARTING
+// Which boot this is. A window reloaded, or a backend restarted underneath a
+// running shell, starts another one — and the answers of the previous one must
+// not decide anything for it.
+let bootGeneration = 0
+const bootStartedAt = Date.now()
+
+function setBootState(next) {
+  if (bootState === next) return
+  bootState = next
+  console.log(`[boot] ${next} (+${Date.now() - bootStartedAt}ms)`)
+}
+
+/** How long before a backend that is not answering stops being "slow". */
+const BACKEND_PATIENCE_MS = 20000
+/** Between two polls. Short enough not to add to the boot, long enough not to
+ *  be a load of its own on the machine it is measuring. */
+const BACKEND_POLL_MS = 250
+
+/**
+ * Wait for the backend, for as long as it takes.
+ *
+ * There is deliberately no deadline that gives up and carries on: carrying on
+ * means showing a home screen built from nothing, which is the one outcome
+ * this whole step exists to prevent. `BACKEND_PATIENCE_MS` does not end the
+ * wait — it ends the SILENCE, moving the boot into RECOVERING so the shell can
+ * say what is wrong. The polling then slows down rather than stopping.
+ */
+async function waitForBackend(generation) {
+  setBootState(BOOT.WAITING_BACKEND)
+  let slow = false
+  for (;;) {
+    if (generation !== bootGeneration) return false
+    if (await backendReady()) {
+      if (slow) console.log('[boot] the backend answered after all')
+      return true
     }
-    setTimeout(check, 500)
-  })
+    if (!slow && Date.now() - bootStartedAt > BACKEND_PATIENCE_MS) {
+      slow = true
+      setBootState(BOOT.RECOVERING)
+      console.warn('[boot] the backend is not answering /api/ready — still waiting')
+    }
+    await new Promise(r => setTimeout(r, slow ? BACKEND_POLL_MS * 8 : BACKEND_POLL_MS))
+  }
 }
 
 // ── IPC handlers ──────────────────────────────────────────────────────────────
+//
+// The renderer saying it has something worth looking at: the theme resolved or
+// its fallback took over, the home data settled, the input bindings are armed
+// and the first view has been painted. Decided in the host — see
+// frontend/src/lib/boot.ts — because a condition each theme defined for itself
+// would be a different condition per theme, and one of them would be a timer.
+ipcMain.on('boot:ready', (_, payload) => {
+  if (bootState === BOOT.RUNNING) return
+  console.log('[boot] the interface is ready',
+              payload && payload.steps ? JSON.stringify(payload.steps) : '')
+  setBootState(BOOT.PRESENTABLE)
+  setBootState(BOOT.RUNNING)
+})
+
 ipcMain.on('system:reboot',   () => exec('sudo systemctl reboot'))
 ipcMain.on('system:shutdown', () => exec('sudo systemctl poweroff'))
 // The ONLY way out. Settings → Desktop sends this; everything else that closes
@@ -663,7 +763,11 @@ app.whenReady().then(async () => {
   //
   // If an update ever fails to show up on the first launch again, this comment
   // is the place to start — but put the header back, not the wipe.
+  const generation = ++bootGeneration
   await startBackend()
+  await waitForBackend(generation)
+  if (generation !== bootGeneration) return
+  setBootState(BOOT.LOADING_UI)
   createWindow()
   startOverlayMonitor()
 

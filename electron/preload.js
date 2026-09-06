@@ -2,6 +2,10 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('gamecore', {
+  // The host, once it has something worth looking at. One signal, sent once,
+  // decided in frontend/src/lib/boot.ts — never by a theme and never by a
+  // timer. See the `boot:ready` handler in main.js.
+  bootReady: (payload) => ipcRenderer.send('boot:ready', payload || {}),
   reboot:   () => ipcRenderer.send('system:reboot'),
   shutdown: () => ipcRenderer.send('system:shutdown'),
   quit:     () => ipcRenderer.send('system:quit'),
