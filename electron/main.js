@@ -79,6 +79,26 @@ function createWindow() {
   // on a dark boot is more noticeable than the desktop it replaced.
   mainWindow.once('ready-to-show', () => { mainWindow?.show() })
 
+  // A renderer that dies takes the interface with it, and what is left is a
+  // window showing the last frame it painted — a console that looks frozen
+  // rather than broken. Put the boot screen back and start the sequence over:
+  // the backend is asked again, and `boot:ready` decides again.
+  //
+  // Bounded by the same rebuild budget the window itself uses, so a renderer
+  // that cannot survive its first frame stops rather than spinning.
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    if (quitting) return
+    console.error('[boot] the renderer is gone:', details.reason)
+    rebuilds = rebuilds.filter(t => Date.now() - t < REBUILD_WINDOW)
+    if (rebuilds.length >= REBUILD_LIMIT) {
+      console.error('[boot] too many renderer failures — stopping, systemd will decide')
+      app.quit()
+      return
+    }
+    rebuilds.push(Date.now())
+    restartBoot()
+  })
+
   if (DEBUG) mainWindow.webContents.openDevTools({ mode: 'detach' })
 
   mainWindow.on('closed', () => { mainWindow = null })
@@ -98,6 +118,23 @@ function createWindow() {
  * last frame until the interface is ready (SDK 4). The local screen above is
  * deliberately still, so the sequence is one animation, not two.
  */
+/**
+ * Start the boot again, in the same window.
+ *
+ * A new generation, so anything still waiting for the previous one — a poll
+ * against `/api/ready`, a `boot:ready` from a renderer that has since died —
+ * finds its number stale and decides nothing.
+ */
+async function restartBoot() {
+  if (!mainWindow) return
+  const generation = ++bootGeneration
+  setBootState(BOOT.STARTING)
+  mainWindow.loadFile(path.join(__dirname, 'boot', 'boot.html'))
+  const up = await waitForBackend(generation)
+  if (!up || generation !== bootGeneration) return
+  presentApp()
+}
+
 function presentApp() {
   if (!mainWindow) return
   setBootState(BOOT.LOADING_UI)
@@ -754,10 +791,37 @@ ipcMain.on('boot:ready', (_, payload) => {
 
 ipcMain.on('system:reboot',   () => exec('sudo systemctl reboot'))
 ipcMain.on('system:shutdown', () => exec('sudo systemctl poweroff'))
-// The ONLY way out. Settings → Desktop sends this; everything else that closes
-// a window is an accident, and window-all-closed below reads this flag to tell
-// the two apart.
-ipcMain.on('system:quit',     () => { quitting = true; app.quit() })
+
+/**
+ * The ONLY way out — and in the console session, leaving is a change of
+ * session rather than the end of a program.
+ *
+ * Quitting used to be enough: GameCore was drawn over the machine's desktop,
+ * so closing it revealed the desktop that was already there. There is no
+ * desktop behind it any more. Quitting on its own would end the session, SDDM
+ * would auto-log straight back in, and the player would watch GameCore start
+ * again — which reads as "the button does nothing", pressed harder.
+ *
+ * So the auto-login is pointed at the desktop FIRST, and only then does the
+ * session end. `gamecore-session-select` is the one command the sudoers rule
+ * names, with exactly this argument; if it is not there — an un-migrated box,
+ * where GameCore really is drawn over a desktop — quitting alone is still
+ * exactly right, which is why a failure here does not stop the exit.
+ *
+ * Everything else that closes a window is an accident, and window-all-closed
+ * below reads `quitting` to tell the two apart.
+ */
+ipcMain.on('system:quit', () => {
+  quitting = true
+  if (process.env.XDG_SESSION_DESKTOP !== 'gamecore') { app.quit(); return }
+  exec('sudo -n /usr/local/bin/gamecore-session-select desktop', (err) => {
+    if (err) {
+      console.warn('[session] could not hand the box back to the desktop:', err.message)
+      console.warn('[session] leaving anyway — the next login will be GameCore again')
+    }
+    app.quit()
+  })
+})
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {

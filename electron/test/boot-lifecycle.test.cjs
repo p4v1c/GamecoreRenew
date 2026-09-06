@@ -42,7 +42,12 @@ function rig({ answers = [true], env = {} } = {}) {
       this.shown = false
       this.handlers = new Map()
       windows.push(this)
-      this.webContents = { isLoading: () => false, send: () => {}, once: () => {}, openDevTools: () => {} }
+      // `on` as well as `once`: the window listens for a renderer that dies.
+      this.rendererHandlers = new Map()
+      this.webContents = {
+        isLoading: () => false, send: () => {}, once: () => {}, openDevTools: () => {},
+        on: (event, fn) => this.rendererHandlers.set(event, fn),
+      }
     }
     setIgnoreMouseEvents() {} setAlwaysOnTop() {} setBounds() {}
     getBounds() { return { x: 0, y: 0, width: 1920, height: 1080 } }
@@ -53,6 +58,10 @@ function rig({ answers = [true], env = {} } = {}) {
     show() { this.shown = true }
     /** What Electron does once the first document can be painted. */
     readyToShow() { this.handlers.get('ready-to-show')?.() }
+    /** What Electron does when the renderer process dies. */
+    rendererGone(reason = 'crashed') {
+      this.rendererHandlers.get('render-process-gone')?.({}, { reason })
+    }
   }
 
   const child = { stdout: { on: () => {} }, stdin: { write: () => {} }, on: () => {} }
@@ -197,4 +206,21 @@ test('the boot screen needs nothing but itself', () => {
   assert.ok(!/https?:\/\//i.test(html), 'the boot screen reaches for the network')
   assert.ok(!/<script/i.test(html), 'a boot screen that can hang is not a boot screen')
   assert.ok(!/src=|href=/i.test(html), 'the boot screen loads a file of its own')
+})
+
+test('a renderer that dies puts the boot screen back', async () => {
+  // What is left otherwise is a window showing the last frame it painted: a
+  // console that looks frozen rather than broken, with no way back but the
+  // power switch.
+  const r = rig({ answers: [true], env: { INVOCATION_ID: 'x' } })
+  r.start()
+  await settle(200)
+  const window = r.windows[0]
+  assert.deepEqual(window.loaded.map(l => l.kind), ['file', 'url'])
+
+  window.rendererGone('crashed')
+  await settle(200)
+  r.stop()
+  assert.deepEqual(window.loaded.map(l => l.kind), ['file', 'url', 'file', 'url'],
+    'the boot screen did not come back, or the interface never returned')
 })
