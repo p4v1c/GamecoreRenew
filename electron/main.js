@@ -86,14 +86,43 @@ function createWindow() {
 }
 
 // ── Overlay window ────────────────────────────────────────────────────────────
+/**
+ * The screen the game is on, in the units BrowserWindow speaks.
+ *
+ * The bezel was pinned to (0, 0) 1920×1080 while the main window is a genuine
+ * fullscreen one. On anything but a 1080p single-screen box that is a bezel
+ * covering a quarter of the picture, or sitting on the wrong output — and the
+ * distinction that matters is logical against physical: a 4K panel scaled to
+ * 200 % reports 1920×1080 of LOGICAL space, which is what `bounds` gives and
+ * what this window has to be measured in.
+ *
+ * `getDisplayMatching` because the game follows the interface, and the
+ * interface is where the player put it. Everything here is defensive: a screen
+ * API that answers nothing must cost the size of the bezel, never the launch.
+ */
+function overlayBounds() {
+  const fallback = { x: 0, y: 0, width: 1920, height: 1080 }
+  try {
+    const display = (mainWindow && typeof screen.getDisplayMatching === 'function')
+      ? screen.getDisplayMatching(mainWindow.getBounds())
+      : screen.getPrimaryDisplay()
+    const b = display?.bounds || screen.getPrimaryDisplay()?.bounds
+    if (!b || !b.width || !b.height) return fallback
+    return { x: b.x || 0, y: b.y || 0, width: b.width, height: b.height }
+  } catch {
+    return fallback
+  }
+}
+
 function createOverlayWindow() {
   if (overlayWindow) return
 
+  const at = overlayBounds()
   overlayWindow = new BrowserWindow({
-    x: 0,
-    y: 0,
-    width: 1920,
-    height: 1080,
+    x: at.x,
+    y: at.y,
+    width: at.width,
+    height: at.height,
     // Do NOT use fullscreen: true — on Linux X11 fullscreen windows are placed
     // in a separate compositor layer that prevents see-through transparency.
     // Explicit x/y/w/h with alwaysOnTop gives the same visual result.
@@ -130,6 +159,7 @@ function createOverlayWindow() {
 
   overlayWindow.on('closed', () => { overlayWindow = null })
 }
+
 
 function destroyOverlayWindow() {
   if (overlayWindow) {
@@ -354,8 +384,27 @@ function sendToOverlay(channel, payload) {
   }
 }
 
+/**
+ * The coordinate space the hole is measured in.
+ *
+ * `window_rect` is the rectangle the monitor forces the emulator into, and the
+ * backend places the hole inside it — so the two are in the same units, and
+ * neither is in the units of an overlay window that now follows the screen.
+ * Handing this along lets the page speak in fractions instead of pixels.
+ */
+function overlaySpace(system_id) {
+  const rect = loadOverlayConfig()[system_id]?.window_rect
+  return (rect && rect.w && rect.h) ? { w: rect.w, h: rect.h } : { w: 1920, h: 1080 }
+}
+
 function handleMonitorEvent(msg) {
   if (DEBUG) console.log('[overlay-monitor]', JSON.stringify(msg))
+
+  // A report about a system nobody is watching any more. The monitor is told
+  // to stop, but a message already on its way through the pipe still arrives,
+  // and acting on it would hide the interface behind a bezel for a game that
+  // has ended. `error` carries no system and is always worth reading.
+  if (msg.system_id && overlayWatching && msg.system_id !== overlayWatching) return
 
   switch (msg.event) {
     case 'window:waiting':
@@ -378,8 +427,14 @@ function handleMonitorEvent(msg) {
         // would rebuild the URL from system_id and always draw the system
         // bezel — the per-game resolution would be computed and then thrown
         // away one process boundary before it was used.
+        //
+        // `space` is the rectangle the hole's numbers are expressed in — the
+        // window the monitor forces the emulator into. The overlay page stops
+        // being able to assume 1920x1080 the moment its own window follows the
+        // screen, and it draws the fallback bars from the two together.
         const shown = { ...msg, asset: overlayChoice?.asset ?? null,
-                        source: overlayChoice?.source ?? 'declared' }
+                        source: overlayChoice?.source ?? 'declared',
+                        space: overlaySpace(msg.system_id) }
         // Said out loud, next to the "hiding mainWindow" line above: those two
         // used to be able to disagree — the window hidden, the bezel never
         // sent — and the log gave no way to tell which half had happened.
@@ -391,6 +446,7 @@ function handleMonitorEvent(msg) {
 
     case 'window:closed':
       destroyOverlayWindow()
+      overlayWatching = null
       if (mainWindow) {
         mainWindow.show()
         mainWindow.webContents.send('overlay:hide', msg)
@@ -406,6 +462,7 @@ function handleMonitorEvent(msg) {
         ...msg, rect: msg.measured,
         asset: overlayChoice?.asset ?? null,
         source: overlayChoice?.source ?? 'declared',
+        space: overlaySpace(msg.system_id),
       })
       fetch(`${BACKEND_URL}/api/overlays/measured/${encodeURIComponent(msg.system_id)}`, {
         method: 'POST',
@@ -434,15 +491,33 @@ function handleMonitorEvent(msg) {
 // back — the monitor reports geometry and knows nothing about artwork.
 let overlayChoice = null
 
+/**
+ * Which overlay run is current, and what it is watching.
+ *
+ * `overlay:start` awaits the backend before it tells the monitor anything, and
+ * a game can be gone by the time that answer arrives: press ✕, the emulator
+ * fails to start, `overlay:stop` tears the overlay down — and then the resolve
+ * came back and the old start carried on, sending `watch` for a game that is
+ * no longer running. The monitor then reported on whatever window it found,
+ * and the next launch inherited the argument.
+ *
+ * The number is taken before the await and compared after it. `overlayWatching`
+ * is the same guard one level further out: a report about a system nobody is
+ * watching any more decides nothing.
+ */
+let overlayRun = 0
+let overlayWatching = null
+let overlayResolveAbort = null
+
 // The backend measures the hole out of the PNG's own alpha channel, so the
 // answer follows whatever bezel is actually on this box. Deciding it here
 // instead would mean a second PNG decoder in JavaScript and two sets of
 // numbers to keep in agreement; `config/overlays.json` is the fallback for a
 // system with no PNG at all, and the backend already reads it.
-function resolveBezel(system_id, game_key) {
+function resolveBezel(system_id, game_key, signal) {
   const q = new URLSearchParams({ rom: game_key || '' })
   return fetch(`${BACKEND_URL}/api/overlays/resolve/${encodeURIComponent(system_id)}?${q}`,
-               { signal: AbortSignal.timeout(4000) })
+               { signal: signal || AbortSignal.timeout(4000) })
     .then(r => (r.ok ? r.json() : null))
     .catch(() => null)
 }
@@ -453,10 +528,24 @@ ipcMain.on('overlay:start', async (_, { system_id, game_key }) => {
   const cfg     = configs[system_id]
   if (!cfg) return
 
+  // Claimed before the first await. Anything that ends this run — a stop, or
+  // another launch — takes the next number, and this one then knows it is over.
+  const run = ++overlayRun
+  const ctl = (typeof AbortController === 'function') ? new AbortController() : null
+  overlayResolveAbort = ctl
+  const deadline = ctl ? setTimeout(() => ctl.abort(), 4000) : null
+
   // Awaited before the monitor starts, not raced against it: the monitor
   // emits 'window:ready' as soon as the emulator's window appears, and a
   // choice that arrived after that point would draw the previous game's bezel.
-  const choice = await resolveBezel(system_id, game_key)
+  const choice = await resolveBezel(system_id, game_key, ctl?.signal)
+  if (deadline) clearTimeout(deadline)
+  if (overlayResolveAbort === ctl) overlayResolveAbort = null
+
+  // The game this was resolved for is not the game the box is on any more.
+  // Nothing may be sent: `watch` here is the monitor looking at the next
+  // player's window on the last player's behalf.
+  if (run !== overlayRun) return
 
   // A backend that did not answer is not a reason to skip the overlay — the
   // declared geometry is exactly what this code used before there was an
@@ -464,6 +553,7 @@ ipcMain.on('overlay:start', async (_, { system_id, game_key }) => {
   overlayChoice = choice && choice.source !== 'none'
     ? choice
     : { source: 'declared', asset: null, hole: cfg.hole || null }
+  overlayWatching = system_id
 
   startOverlayMonitor()
 
@@ -488,6 +578,13 @@ ipcMain.on('overlay:stop', (_, { system_id }) => {
   // Cleared here rather than on the next start: a stale choice surviving a
   // failed launch is the previous game's bezel drawn over the new one.
   overlayChoice = null
+  // Ends the run, including one still waiting on the backend: it will find its
+  // number stale and send nothing. The request itself is dropped too — no
+  // point holding a socket open for an answer that has nowhere to go.
+  overlayRun += 1
+  overlayWatching = null
+  try { overlayResolveAbort?.abort() } catch { /* already settled */ }
+  overlayResolveAbort = null
 
   if (!monitorProcess) return
   try {
@@ -569,6 +666,21 @@ app.whenReady().then(async () => {
   await startBackend()
   createWindow()
   startOverlayMonitor()
+
+  // A television that changes mode, or an output plugged in mid-session, moves
+  // the ground under a window that was placed by hand. Registered here and not
+  // at module scope: the screen module cannot be talked to before the app is
+  // ready. Nothing here is fatal — an Electron whose `screen` cannot be
+  // subscribed to keeps the bezel the size it was given.
+  try {
+    const refit = () => {
+      if (!overlayWindow) return
+      try { overlayWindow.setBounds(overlayBounds()) } catch { /* window going away */ }
+    }
+    screen.on?.('display-metrics-changed', refit)
+    screen.on?.('display-added', refit)
+    screen.on?.('display-removed', refit)
+  } catch { /* no screen module to listen to */ }
 })
 
 // Electron's boilerplate here is `app.quit()`, which is right for a desktop

@@ -5,6 +5,10 @@ interface OverlayData {
   rect?: { x: number; y: number; w: number; h: number }
   asset?: string | null
   source?: string
+  /** The rectangle `rect` is measured in — the window the monitor forces the
+   *  emulator into. Absent from an Electron main older than this field, where
+   *  the box was 1080p by construction. */
+  space?: { w: number; h: number }
 }
 
 /** The bezel to draw, or null for "draw nothing".
@@ -23,17 +27,33 @@ function bezelSrc(d: OverlayData | null): string | null {
 
 type Status = 'hidden' | 'waiting' | 'visible'
 
+/** The space every bezel was cut in, and what an event without one means. */
+const REFERENCE = { w: 1920, h: 1080 }
+
+/** A length in the hole's space, as a percentage of the window drawing it. */
+const pct = (v: number, of: number) => `${(v / (of || 1)) * 100}%`
+
 export default function OverlayScreen() {
   const [status, setStatus] = useState<Status>('hidden')
   const [data, setData]     = useState<OverlayData | null>(null)
-  const [imgOk, setImgOk]   = useState(false)
+  /**
+   * The bezel URL that has actually loaded — not a boolean about the last event.
+   *
+   * `overlay:show` arrives again whenever the geometry is re-measured, and the
+   * picture has no part in that: same node, same URL, nothing to load a second
+   * time. Resetting a flag on every event therefore hid a bezel that was
+   * already on screen — opacity 1 to 0, and the drawn black bars taking over
+   * from artwork the player had been looking at — with no `load` event left to
+   * come and undo it. Tied to the URL, a new measurement changes nothing and a
+   * new bezel is the only thing that starts again.
+   */
+  const [loaded, setLoaded] = useState<string | null>(null)
 
   useEffect(() => {
     if (!window.gamecore) return
 
     window.gamecore.onOverlayShow((d: OverlayData) => {
       setData(d)
-      setImgOk(false)
       setStatus('visible')
     })
     window.gamecore.onOverlayWaiting((d: OverlayData) => {
@@ -64,14 +84,24 @@ export default function OverlayScreen() {
 
   const hole  = data?.rect
   const asset = bezelSrc(data)
+  const imgOk = !!asset && loaded === asset
+  const space = (data?.space?.w && data?.space?.h) ? data.space : REFERENCE
 
   return (
     <div style={styles.root}>
       {asset && (
         <img
+          // Keyed on the URL: a different bezel is a different element, so the
+          // `complete` check below runs for it and a stale one cannot linger.
+          key={asset}
           src={asset}
-          onLoad={() => setImgOk(true)}
-          onError={() => setImgOk(false)}
+          // `load` only reaches a listener that was already attached, and a
+          // cached bezel can be complete before React commits the handler —
+          // then nothing ever announced it and the artwork stayed invisible.
+          // Reading `complete` settles that without waiting for an event.
+          ref={(el) => { if (el?.complete && el.naturalWidth > 0) setLoaded(asset) }}
+          onLoad={() => setLoaded(asset)}
+          onError={() => setLoaded(null)}
           style={{ ...styles.bezel, opacity: imgOk ? 1 : 0 }}
           alt=""
           draggable={false}
@@ -84,12 +114,19 @@ export default function OverlayScreen() {
           over a game that was filling the screen correctly. `asset &&` is
           that distinction — it used to read `!asset ||`, which is the case
           that had to stop drawing. */}
+      {/* In fractions of the space the hole was measured in, not in pixels of
+          a screen assumed to be 1080p. The bezel image is stretched to the
+          window, so the hole's position within the picture is a proportion —
+          and now that the window follows the display, the bars have to be one
+          too, or a 4K panel gets a frame a quarter of the way across it.
+          The pair of numbers travels with the event; an older main process
+          that sends none means the box it came from was 1080p. */}
       {asset && !imgOk && hole && (
         <>
-          <div style={{ position: 'absolute', top: 0, left: 0,            width: hole.x,                        height: '100%', background: 'rgba(9,9,15,0.95)' }} />
-          <div style={{ position: 'absolute', top: 0, left: hole.x + hole.w, width: 1920 - hole.x - hole.w, height: '100%', background: 'rgba(9,9,15,0.95)' }} />
-          <div style={{ position: 'absolute', top: 0,            left: hole.x, width: hole.w, height: hole.y,                background: 'rgba(9,9,15,0.95)' }} />
-          <div style={{ position: 'absolute', top: hole.y + hole.h, left: hole.x, width: hole.w, height: 1080 - hole.y - hole.h, background: 'rgba(9,9,15,0.95)' }} />
+          <div style={{ ...styles.bar, top: 0, bottom: 0, left: 0, width: pct(hole.x, space.w) }} />
+          <div style={{ ...styles.bar, top: 0, bottom: 0, left: pct(hole.x + hole.w, space.w), right: 0 }} />
+          <div style={{ ...styles.bar, top: 0, left: pct(hole.x, space.w), width: pct(hole.w, space.w), height: pct(hole.y, space.h) }} />
+          <div style={{ ...styles.bar, top: pct(hole.y + hole.h, space.h), bottom: 0, left: pct(hole.x, space.w), width: pct(hole.w, space.w) }} />
         </>
       )}
     </div>
@@ -112,6 +149,11 @@ const styles: Record<string, React.CSSProperties> = {
     objectFit: 'fill',
     pointerEvents: 'none',
     transition: 'opacity 0.3s ease',
+  },
+  // The stand-in frame, drawn only when a bezel exists and failed to load.
+  bar: {
+    position: 'absolute',
+    background: 'rgba(9,9,15,0.95)',
   },
   waitingBox: {
     position: 'absolute',

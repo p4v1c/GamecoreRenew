@@ -124,6 +124,45 @@ export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }
     })
   }, [])
 
+  /**
+   * The dashboard after a pack is installed or removed.
+   *
+   * This screen stays mounted behind the settings, so neither of the two
+   * reloads above ever fires for it: the mount happened long ago, and it only
+   * asks again on becoming visible if its list is EMPTY. Installing melonDS
+   * from the catalogue page therefore left the dashboard showing the systems
+   * it had before, until a restart. The catalogue page reloaded its own list
+   * and nothing told this one.
+   *
+   * The focus is kept by identity rather than by index: the grid it lands in
+   * is a different grid, and holding position 3 when position 3 is now a
+   * different console moves the player's cursor for them. The system that has
+   * just been removed is the one case with no answer — the clamp below catches
+   * it, which is what it is for.
+   */
+  const keepFocusOn = useRef<string | null>(null)
+  const perPageRef = useRef(perPage)
+  perPageRef.current = perPage
+
+  useEffect(() => {
+    return onWsEvent('catalog:done', (data) => {
+      if (data?.success === false) return
+      const { gridFocusIdx: focus, gridPage: page } = useStore.getState()
+      keepFocusOn.current = systemsRef.current[page * perPageRef.current + focus]?.id ?? null
+      loadSystems()
+    })
+  }, [loadSystems])
+
+  useEffect(() => {
+    const id = keepFocusOn.current
+    if (!id) return
+    keepFocusOn.current = null
+    const at = systems.findIndex(s => s.id === id)
+    if (at < 0) return
+    setGridPage(Math.floor(at / perPage))
+    setGridFocus(at % perPage)
+  }, [systems, perPage, setGridPage, setGridFocus])
+
   // Last valid focus index on a given page (pages can be partially filled)
   const lastIdxOf = useCallback(
     (p: number) => Math.min(perPage, totalItems - p * perPage) - 1,

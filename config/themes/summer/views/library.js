@@ -59,19 +59,28 @@ export const createLibraryView = (sdk) => {
    * `sdk.api.media`, a box with no scraper account answers `available: false`,
    * and a game can simply have nothing. All three end as `null`, which every
    * consumer below already treats as "show the plain cover".
+   *
+   * The catalogue is returned WITH the game it describes, and that is not
+   * bookkeeping. The reset below happens in an effect, which runs after the
+   * render — so for one render the selection can already be gone while these
+   * captures are still here, and building their URLs read `detailGame.filename`
+   * off nothing at all. The theme fell into the error boundary; clearing a
+   * console, or a search that matches no game, is enough to do it. A caller
+   * that compares the pair cannot be caught out by an effect that has not run.
    */
   const useMedia = (systemId, filename) => {
-    const [media, setMedia] = useState(null)
+    const [held, setHeld] = useState({ of: null, media: null })
+    const key = filename ? `${systemId}::${filename}` : null
     useEffect(() => {
-      setMedia(null)
+      setHeld({ of: null, media: null })
       if (!sdk.api.media || !filename) return
       let cancelled = false
       sdk.api.media.list(systemId, filename)
-        .then((idx) => { if (!cancelled && idx?.found) setMedia(idx.media || null) })
+        .then((idx) => { if (!cancelled && idx?.found) setHeld({ of: key, media: idx.media || null }) })
         .catch(() => {})
       return () => { cancelled = true }
     }, [systemId, filename])
-    return media
+    return held.of && held.of === key ? held.media : null
   }
 
   return ({
@@ -89,7 +98,10 @@ export const createLibraryView = (sdk) => {
 
     const pt = detailGame ? playtime[detailGame.filename] : null
     const media = useMedia(systemId, detailGame?.filename)
-    const shots = (media ? SHOT_TYPES.filter(t => media[t]) : []).slice(0, MAX_SHOTS)
+    // `detailGame` is named twice on purpose: the hook only hands back a
+    // catalogue that belongs to this exact game, and the URL below is only
+    // built when there is a game to build it from.
+    const shots = (media && detailGame ? SHOT_TYPES.filter(t => media[t]) : []).slice(0, MAX_SHOTS)
       .map(t => ({ type: t, url: sdk.api.media.url(systemId, detailGame.filename, t) }))
 
     return html`
