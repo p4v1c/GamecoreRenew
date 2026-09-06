@@ -6,7 +6,7 @@
  * and the gamepad bindings are here, and a theme cannot replace them. The
  * search keyboard is here too, so a themed library cannot lose it.
  */
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { useStore } from '../../store'
 import { api, GameEntry, PlaytimeEntry, SystemEntry } from '../../api'
@@ -87,7 +87,27 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
   // same fallback chain.
   const color = systemColor({ id: selectedSystemId ?? '', color: system?.color })
 
+  /**
+   * Which load is allowed to write. Bumped by every call and by every change of
+   * console, so a response can be matched against the request that is still
+   * wanted.
+   *
+   * Three requests are in flight per load, none of them cancellable, and a
+   * console with four hundred ROMs answers slower than an empty one. Opening
+   * GameCube and stepping to PS2 before it answered used to render
+   * `ps2:GameCube.rom`: the late reply overwrote the list, the cover requests
+   * went out under the wrong console, and ✕ asked the backend to launch a pair
+   * that does not exist. Clearing the state in the effect below does not help —
+   * it runs before the reply, not after.
+   *
+   * A stale *failure* is the same bug wearing the other hat, and it was the
+   * worse one: an old timeout replaced a library that had loaded perfectly well
+   * with the retry screen.
+   */
+  const loadToken = useRef(0)
+
   const loadData = useCallback((systemId: string) => {
+    const token = ++loadToken.current
     setLoading(true)
     setLoadError(false)
     Promise.all([
@@ -95,6 +115,7 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
       api.games.list(systemId),
       api.playtime.forSystem(systemId),
     ]).then(([sys, gameList, rows]) => {
+      if (loadToken.current !== token) return
       setSystem(sys)
       setGames(gameList)
       const m: Record<string, PlaytimeEntry> = {}
@@ -102,19 +123,26 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
       setPlaytimeMap(m)
       setLoadError(false)
     }).catch(err => {
+      if (loadToken.current !== token) return
       console.error(err)
       setLoadError(true)
-    }).finally(() => setLoading(false))
+    }).finally(() => {
+      if (loadToken.current === token) setLoading(false)
+    })
   }, [])
 
   // Reset launching state when session changes
   useEffect(() => {
     if (sessionGameKey === null) {
+      launchLock.current = false
       setLaunching(false)
     }
   }, [sessionGameKey])
 
   useEffect(() => {
+    // Retires whatever is still in flight for the console being left, including
+    // the case this effect does not reload from: `selectedSystemId` back to null.
+    loadToken.current += 1
     setSystem(null)
     setGames([])
     setPlaytimeMap({})
@@ -122,15 +150,47 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
     setLoading(false)
     setLoadError(false)
     setLaunching(false) // Reset launching when system changes
+    launchLock.current = false
 
     if (!selectedSystemId) return
     loadData(selectedSystemId)
   }, [selectedSystemId, loadData])
 
-  const sortedGames = [...games]
-    .filter(g => formatGameName(g.display_name).toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => {
-      if (sort === 'name') return formatGameName(a.display_name).localeCompare(formatGameName(b.display_name))
+  /**
+   * The display name of every game, formatted once per library.
+   *
+   * `formatGameName` strips regions, revisions and bracketed tags with a chain
+   * of regexes. The list below called it twice per comparison, inside a sort,
+   * on an array rebuilt by every render — and a render is what moving the
+   * cursor causes. Measured on a thousand games, one step down the list cost
+   * 2 998 calls to produce exactly the order that was already on screen.
+   */
+  const names = useMemo(() => {
+    const m = new Map<GameEntry, { name: string; lower: string }>()
+    for (const g of games) {
+      const name = formatGameName(g.display_name)
+      m.set(g, { name, lower: name.toLowerCase() })
+    }
+    return m
+  }, [games])
+
+  /**
+   * Filtered and sorted, keyed on what actually decides the order.
+   *
+   * The cursor is deliberately not a dependency: a step must hand the view the
+   * same array instance it had before. Shelf memoises its alphabet index on
+   * that identity, and a fresh array per keypress threw the index away and
+   * rebuilt it — on the navigation path, at the exact moment the box is
+   * animating.
+   */
+  const sortedGames = useMemo(() => {
+    const q = search.toLowerCase()
+    const label = (g: GameEntry) => names.get(g)?.name ?? formatGameName(g.display_name)
+    const out = q
+      ? games.filter(g => (names.get(g)?.lower ?? label(g).toLowerCase()).includes(q))
+      : games.slice()
+    out.sort((a, b) => {
+      if (sort === 'name') return label(a).localeCompare(label(b))
       if (sort === 'playtime') return (playtimeMap[b.filename]?.total_secs || 0) - (playtimeMap[a.filename]?.total_secs || 0)
       if (sort === 'lastPlayed') {
         const da = playtimeMap[a.filename]?.last_played || ''
@@ -139,6 +199,8 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
       }
       return 0
     })
+    return out
+  }, [games, names, search, sort, playtimeMap])
 
   const selectedGame = sortedGames[selectedGameIdx] ?? sortedGames[0]
 
@@ -188,14 +250,43 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
    */
   const ceremonyMs = useThemeCtx()?.manifest?.launch?.ms ?? 0
   const launchToken = useRef(0)
+  /**
+   * The launch gate, held synchronously.
+   *
+   * `launching` is state, so it turns true one render after ✕ — and the whole
+   * point of the burst handling above is that presses arrive inside that
+   * window. Two ✕ before the next render both read `launching === false` and
+   * both sent a launch; on a theme with no ceremony the second one raced the
+   * first all the way to the API, where the backend's lock refused it. A ref
+   * is set before any `await`, so the second press has something to see.
+   */
+  const launchLock = useRef(false)
 
   const cancelPendingLaunch = useCallback(() => {
     launchToken.current += 1
+    launchLock.current = false
     setLaunching(false)
   }, [])
 
+  /**
+   * Reads the pair to launch out of live state, not out of the render that
+   * registered the handler.
+   *
+   * A step and a ✕ inside the same frame used to launch the *previous*
+   * selection: the step wrote the cursor into the store synchronously, while
+   * this closure still held the game from the last render. The cursor now comes
+   * from the store and the list from a ref written during render, so the pair
+   * is the one on screen at the moment of the press — and both halves come from
+   * the same read, so no console/ROM mix is possible either.
+   */
   const launchGame = useCallback(async () => {
-    if (!selectedSystemId || !selectedGame || launching) return
+    if (launchLock.current) return
+    const systemId = useStore.getState().selectedSystemId
+    const list = gamesRef.current
+    const idx = useStore.getState().selectedGameIdx
+    const game = list[idx] ?? list[0]
+    if (!systemId || !game) return
+    launchLock.current = true
     const token = ++launchToken.current
     setLaunching(true)
     playSound('launch')
@@ -204,15 +295,22 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
       if (launchToken.current !== token) return   // ○ was pressed — never sent
     }
     try {
-      await api.games.launch(selectedSystemId, selectedGame.path, selectedGame.filename)
+      await api.games.launch(systemId, game.path, game.filename)
+      // A launch that was cancelled or superseded while the request was in
+      // flight must not claim the session it no longer owns.
+      if (launchToken.current !== token) return
       // Block inputs immediately — don't wait for the WebSocket game:started event
-      setSession(selectedGame.filename, selectedSystemId)
+      setSession(game.filename, systemId)
     } catch (e) {
       console.error(e)
+      // Same reasoning the other way round: a late failure belongs to its own
+      // attempt, and must not clear a launch that has since succeeded.
+      if (launchToken.current !== token) return
+      launchLock.current = false
       setLaunching(false)
       setSession(null, null)
     }
-  }, [selectedSystemId, selectedGame, launching, setSession, ceremonyMs])
+  }, [setSession, ceremonyMs])
 
   // Everything the bindings below read at the moment a button is pressed,
   // rather than at the moment they were registered.
@@ -232,10 +330,13 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
   const launchingRef = useRef(false)
   const launchRef = useRef(launchGame)
   const settledRef = useRef<GameEntry | null>(null)
+  // The list as drawn, for the launch to index with the store's cursor.
+  const gamesRef = useRef<GameEntry[]>(sortedGames)
   countRef.current = sortedGames.length
   launchingRef.current = launching
   launchRef.current = launchGame
   settledRef.current = settledGame
+  gamesRef.current = sortedGames
 
   // `omit` is a prop and a fresh array on every parent render; the effect only
   // cares whether one id is in it.
