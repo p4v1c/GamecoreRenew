@@ -226,11 +226,13 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
     // degrade — it hides the jacket outright, for the rest of the session.
     // Hung off the swap, it cannot outlive it: no swap, nothing tucked.
     //
-    // The CSS delay on the arriving animation is the same PUSH_MS, so the pose
-    // it becomes visible in is the pose it was parked in — one flag flips both
-    // sides of the handoff in one render, and they cannot disagree.
+    // The arriving animation's delay ends at that same PUSH_MS, so the pose it
+    // becomes visible in is the pose it was parked in — one flag flips both
+    // sides of the handoff in one render, and they cannot disagree. It is
+    // `PUSH_MS` counted from the press rather than from the mount, because the
+    // arriving holder is mounted when the selection settles: see `waitRef`.
     const current = games[selectedIdx]?.filename || null
-    const [swap, setSwap] = useState(null)   // { game, dir, tucked }
+    const [swap, setSwap] = useState(null)   // { game, dir, tucked, at }
 
     const lastRef = useRef({ name: current, idx: selectedIdx })
     useEffect(() => {
@@ -256,8 +258,30 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
       // is left is what a shelf actually does — you slide along the row with
       // nothing in your hand, every spine drawn including the selected one,
       // and the jacket comes out of its gap once you stop.
-      setSwap((s) => (s ? { game: null, dir: s.dir, tucked: true }
-        : { game: gone, dir: selectedIdx > prev.idx ? 1 : -1, tucked: true }))
+      //
+      // But only while nothing has come out yet, and that is the distinction
+      // this used to miss. Cancelling means deleting the outgoing jacket and
+      // re-tucking the arriving one — and applied to a jacket that is ALREADY
+      // standing at the front of the stage, it deletes what the player is
+      // looking at: the audit measured zero unhidden solids after a second
+      // press half a second into the first. Nothing was overlapping; the shelf
+      // simply went empty.
+      //
+      // So a press that lands after the jacket is out is not a burst, it is a
+      // step: the box in your hand goes back and the next one comes out, which
+      // is the gesture this whole file describes. `tucked` is the flag that
+      // already knows the difference — while it is set, nothing is out.
+      //
+      // What that costs, stated rather than discovered: a press landing while
+      // the pull is still running mounts the outgoing jacket at its opening
+      // pose, so the box jumps to face-on before folding away. Continuity of
+      // presence over continuity of pose. Handing the live pose over to the
+      // outgoing animation needs a negative animation-delay computed from how
+      // far the pull got, and that is worth doing only against a television.
+      const at = Date.now()
+      setSwap((s) => (s && s.tucked
+        ? { game: null, dir: s.dir, tucked: true, at }
+        : { game: gone, dir: selectedIdx > prev.idx ? 1 : -1, tucked: true, at }))
       const timers = [
         setTimeout(() => setSwap((s) => (s ? { ...s, tucked: false } : s)), PUSH_MS),
         setTimeout(() => setSwap(null), PULL_MS),
@@ -275,6 +299,36 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
       ? swap : null
     const leaving = swapping?.game ? swapping : null
     const tucked = !!swapping?.tucked
+
+    /**
+     * One clock for the whole arriving gesture.
+     *
+     * The travel lives on `.cz-carry` and the turn on `.cz-box` inside it, and
+     * they used to start at different moments: the holder was keyed on the
+     * CURSOR and mounted on the press, while the solid was keyed on the
+     * SETTLED selection and therefore replaced 150 ms later — a fresh node
+     * with a fresh animation. Measured in a browser, half a second after a
+     * step: 500 ms elapsed on the travel and 333 ms on the turn. The box had
+     * set off down the shelf and was still standing edge-on, then caught up in
+     * a hurry.
+     *
+     * Both are keyed on the same thing now — the game actually drawn — so the
+     * solid is never replaced underneath a running animation, and the two
+     * halves cannot drift apart by construction.
+     *
+     * The lag has to be paid back somewhere, and it is paid here: `--wait` is
+     * the CSS delay that lets the outgoing jacket finish first, so the arrival
+     * subtracts the time already spent. Frozen for the life of the node — a
+     * delay edited on a running animation restarts it, which is the defect
+     * again with a different cause.
+     */
+    const inGame = detailGame || games[selectedIdx]
+    const inKey = inGame?.filename || 'none'
+    const waitRef = useRef({ key: null, ms: 0 })
+    if (waitRef.current.key !== inKey) {
+      const spent = swapping ? Math.max(0, Date.now() - swapping.at) : 0
+      waitRef.current = { key: inKey, ms: swapping ? Math.max(0, PUSH_MS - spent) : 0 }
+    }
 
     // ── states before there is a shelf ───────────────────────────────────
     if (loading || loadError || !games.length) {
@@ -392,10 +446,18 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
                  them and the box stops being a box mid-turn.
                  NO BACKTICKS IN HERE — see the note at the top of theme.css. -->
             ${leaving ? html`
-              <div class="cz-hold" key=${leaving.game.filename} data-phase="out"
+              <div class="cz-hold" key=${`out:${leaving.game.filename}`} data-phase="out"
                    style=${{ '--dir': String(leaving.dir),
                              '--lean': `${lean(games.findIndex((g) => g.filename === leaving.game.filename)).toFixed(2)}deg` }}
                    aria-hidden="true">
+                <!-- The phase is part of the key, and that is not decoration.
+                     Both holders are keyed on a filename, and for the 150 ms
+                     between a press and the artwork settling they are keyed on
+                     the SAME one: the jacket being put away is the jacket that
+                     was on screen. Two siblings with one key is a list React
+                     cannot reconcile — it kept the outgoing node alive through
+                     a render that had dropped it, which is a box that folds
+                     away and then stays there. -->
                 <div class="cz-carry">
                   <${Box.Face} key=${leaving.game.filename}
                                systemId=${systemId} game=${leaving.game}
@@ -403,28 +465,30 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
                 </div>
               </div>` : null}
 
-            <div class="cz-hold" key=${games[selectedIdx]?.filename || 'none'}
+            <div class="cz-hold" key=${`in:${inKey}`}
                  data-phase="in"
                  style=${{ '--dir': String(swapping?.dir || 1),
                            '--lean': `${lean(selectedIdx).toFixed(2)}deg`,
-                           '--wait': swapping ? `${PUSH_MS}ms` : '0ms' }}
+                           '--wait': `${waitRef.current.ms}ms` }}
                  data-tucked=${tucked ? '1' : '0'}
                  data-turning=${settled ? '0' : '1'}>
               <div class="cz-carry">
-                <!-- Keyed on the game it DRAWS, which is not what the wrapper
-                     above is keyed on. The cz-hold node keys on the CURSOR,
-                     games[selectedIdx], because that is what has to fire the
-                     jacket animation. This draws detailGame, the settled
-                     selection, 150 ms behind it. So the two disagree for the
-                     length of the debounce, and without its own key this
-                     component was reused across a change of game: it kept the
-                     previous title's measured proportions and drew the new
-                     artwork inside them. A different game is a different box.
+                <!-- Keyed on the game it DRAWS, and so is the holder above it.
+                     The key is needed: without it the component was reused
+                     across a change of game, kept the previous title's measured
+                     proportions and drew the new artwork inside them. A
+                     different game is a different box.
+                     What changed is the wrapper. It used to key on the CURSOR
+                     while this keyed on the SETTLED selection 150 ms behind, so
+                     this solid was torn down and rebuilt in the middle of the
+                     holder's animation — one gesture on two clocks. Both keys
+                     are the same value now, so a new box is a new holder and
+                     nothing is replaced mid-flight.
                      (No backticks in this comment: it sits inside a template
                      literal and one backtick would end it — the rest of the
                      markup then parses as JavaScript and the theme dies.) -->
-                <${Box.Face} key=${(detailGame || games[selectedIdx])?.filename || 'none'}
-                             systemId=${systemId} game=${detailGame || games[selectedIdx]}
+                <${Box.Face} key=${inKey}
+                             systemId=${systemId} game=${inGame}
                              meta=${meta} media=${media} flipped=${browse.flipped} />
               </div>
             </div>
