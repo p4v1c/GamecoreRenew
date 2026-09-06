@@ -270,6 +270,10 @@ class ProcessManager:
         # cannot await() something that is not our child, so it is tracked by
         # pgid and polled for liveness.
         self._orphan_pgid: int = 0
+        # Which run is current. Every launch and every adoption takes the next
+        # number; a watcher keeps the one it was started with, and compares
+        # before touching anything shared. See _watch().
+        self._session_id: int = 0
 
     # ── the session on disk ───────────────────────────────────────────────────
 
@@ -328,6 +332,7 @@ class ProcessManager:
             return
 
         self._orphan_pgid = pgid
+        self._session_id += 1
         self._game_key = str(data.get("game_key") or "")
         self._system_id = str(data.get("system_id") or "")
         self._exec_path = str(data.get("exec_path") or "")
@@ -338,7 +343,8 @@ class ProcessManager:
         except (TypeError, ValueError):
             self._start_time = time.time()
 
-        ws.set_current_game({"game_key": self._game_key, "system_id": self._system_id})
+        ws.set_current_game({"game_key": self._game_key, "system_id": self._system_id,
+                             "session": self._session_id})
         log.warning("adopted a game left running by a previous backend: %s (pgid %d)",
                     self._game_key or "?", pgid)
 
@@ -363,7 +369,7 @@ class ProcessManager:
         if not self.is_running:
             return None
         return {"game_key": self._game_key, "system_id": self._system_id,
-                "rom_path": self._rom_path}
+                "rom_path": self._rom_path, "session": self._session_id}
 
     async def launch(self, exec_path: str, exec_args: str, rom_path: str = "",
                      game_key: str = "", system_id: str = "") -> None:
@@ -384,6 +390,7 @@ class ProcessManager:
             self._game_key = game_key or (rom_path.split("/")[-1] if rom_path else exec_path.split("/")[-1])
             self._system_id = system_id
             self._start_time = time.time()
+            self._session_id += 1
 
             if exec_path == "flatpak":
                 cmd = ["flatpak"] + args
@@ -404,13 +411,18 @@ class ProcessManager:
             self._launching = False
 
         self._save_session()
-        ws.set_current_game({"game_key": self._game_key, "system_id": self._system_id})
+        ws.set_current_game({"game_key": self._game_key, "system_id": self._system_id,
+                             "session": self._session_id})
         await ws.broadcast("game:started", {
             "game_key": self._game_key,
             "system_id": self._system_id,
+            "session": self._session_id,
         })
 
-        watch_task = asyncio.create_task(self._watch())
+        # Its own process and its own session, so that resuming after this game
+        # ends says nothing about whatever is running by then.
+        watch_task = asyncio.create_task(self._watch(
+            self._proc, self._session_id, self._game_key, self._system_id, self._start_time))
 
         def _log_err(t: asyncio.Task) -> None:
             if t.cancelled():
@@ -443,6 +455,7 @@ class ProcessManager:
         """Kill a game adopted from a previous backend — no child handle, just the pgid."""
         pgid, self._orphan_pgid = self._orphan_pgid, 0
         game_key, system_id = self._game_key, self._system_id
+        session = self._session_id
         elapsed = int(time.time() - self._start_time)
         log.info("killing adopted game %s (pgid %d)", game_key or "?", pgid)
 
@@ -461,6 +474,7 @@ class ProcessManager:
         try:
             await ws.broadcast("game:finished", {
                 "game_key": game_key, "system_id": system_id, "elapsed": elapsed,
+                "session": session,
             })
         except Exception:
             log.exception("_kill_orphan: failed to broadcast game:finished")
@@ -493,16 +507,37 @@ class ProcessManager:
         """SIGKILL on the wrapper process and its group — skip SIGTERM to avoid confirm dialogs."""
         await kill_process_group(self._proc)
 
-    async def _watch(self) -> None:
-        if not self._proc:
+    async def _watch(self, proc: asyncio.subprocess.Process | None = None,
+                     session: int = 0, game_key: str = "", system_id: str = "",
+                     start_time: float = 0.0) -> None:
+        """Wait for one game to end, and speak only for that game.
+
+        Everything this needs is passed in, and nothing it writes back touches
+        the manager unless the session it watched is still the current one.
+
+        It used to read the manager's own fields after its `await`, which is a
+        window wide enough to hold a whole launch: `is_running` frees the slot
+        the moment the child has a return code, so a second game can start
+        while the first watcher is still suspended. When it resumed it read
+        fields describing the *new* game, set `_proc = None` on a process that
+        was running, deleted its session file and announced the wrong game as
+        finished. The player's game was then untrackable and unkillable.
+        """
+        proc = proc or self._proc
+        if not proc:
             return
-        await self._proc.wait()
-        elapsed = int(time.time() - self._start_time)
-        game_key = self._game_key
-        system_id = self._system_id
-        self._proc = None
-        self._clear_session()
-        ws.set_current_game(None)
+        game_key = game_key or self._game_key
+        system_id = system_id or self._system_id
+        start_time = start_time or self._start_time
+
+        await proc.wait()
+        elapsed = int(time.time() - start_time)
+
+        # Only the session that is still current may clear the shared state.
+        if session == self._session_id:
+            self._proc = None
+            self._clear_session()
+            ws.set_current_game(None)
 
         if elapsed > 5:
             try:
@@ -511,7 +546,7 @@ class ProcessManager:
                 await db.execute("""
                     INSERT INTO playtime (game_key, system_id, total_secs, session_count, last_played)
                     VALUES (?, ?, ?, 1, ?)
-                    ON CONFLICT(game_key) DO UPDATE SET
+                    ON CONFLICT(system_id, game_key) DO UPDATE SET
                         total_secs    = total_secs + excluded.total_secs,
                         session_count = session_count + 1,
                         last_played   = excluded.last_played
@@ -525,6 +560,10 @@ class ProcessManager:
                 "game_key": game_key,
                 "system_id": system_id,
                 "elapsed": elapsed,
+                # Which run ended. A finish belonging to a game the player has
+                # already left behind must not unlock the screen over the one
+                # they are playing now.
+                "session": session,
             })
         except Exception:
             log.exception("_watch: failed to broadcast game:finished")

@@ -175,7 +175,11 @@ def test_a_restarted_backend_finds_the_running_game(session_file):
         # came from. An adopted game that forgot its path would be the one case
         # where a disk pulled mid-session said nothing — precisely after a
         # backend restart, when the player is least likely to expect it.
-        assert fresh.current_game == {
+        game = fresh.current_game
+        # An adoption is a run, and runs are numbered: the UI tells this game's
+        # finish from that of a game it has already moved on from by the number.
+        assert game.pop("session") > 0
+        assert game == {
             "game_key": "Melee.iso", "system_id": "dolphin",
             "rom_path": "/run/media/gc/ROMS/gamecube/Melee.iso"}
     finally:
