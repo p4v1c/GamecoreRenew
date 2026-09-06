@@ -179,13 +179,28 @@ def install_flatpak(pack, ctx: Context) -> Result:
         appid.probe()
 
     # The sandbox override applies either way — hence a manifest of its own.
+    #
+    # Its exit code used to be dropped on the floor, and with it the only
+    # difference between an emulator that can read the ROM directory and one
+    # that cannot. `flatpak override` failing left the override recorded as
+    # applied and the installation reported as a success, so the catalogue said
+    # "installed" and the first launch found no games, no pad, or no display —
+    # each of which reads as a broken emulator rather than as a missing
+    # permission.
     flags = sandbox_flags(pack, ctx)
     try:
-        subprocess.run(["flatpak", "override", *flags, app_id],
-                       capture_output=True, text=True, timeout=120)
-        manifest.record_flatpak_override(app_id)
-    except (OSError, subprocess.SubprocessError):
-        log.warning("providers: could not set the sandbox override for %s", app_id)
+        r = subprocess.run(["flatpak", "override", *flags, app_id],
+                           capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError) as e:
+        log.warning("providers: could not set the sandbox override for %s — %s", app_id, e)
+        return Result(False, f"{app_id}: the sandbox override could not be run — {e}")
+    if r.returncode != 0:
+        detail = (r.stderr or r.stdout or "").strip().splitlines()
+        log.warning("providers: flatpak override for %s exited %d: %s",
+                    app_id, r.returncode, detail[-1] if detail else "(no output)")
+        return Result(False, f"{app_id}: flatpak override exited {r.returncode}"
+                             + (f" — {detail[-1]}" if detail else ""))
+    manifest.record_flatpak_override(app_id)
 
     return Result(True, f"{app_id} " + ("already present" if already else "installed"),
                   already=already)

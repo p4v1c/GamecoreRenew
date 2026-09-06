@@ -247,6 +247,11 @@ async def mapping_events(websocket: WebSocket):
     try:
         async for event in controller_capture.events(session):
             await websocket.send_json({"event": "input", "data": event})
+        # The stream ended by itself: every node of the pad is gone, or the
+        # session ran out of time. Say so instead of closing in silence — the
+        # wizard is a screen waiting for a press that can no longer come, and
+        # the only other way out of it was the pad that just left.
+        await websocket.send_json({"event": "ended", "data": {"reason": "no input left"}})
     except WebSocketDisconnect:
         pass
     except Exception:

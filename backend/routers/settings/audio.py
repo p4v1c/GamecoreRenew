@@ -39,17 +39,43 @@ async def get_audio():
     return {"volume": round(min(100, max(0, vol_float * 100))), "muted": muted}
 
 
+# `wpctl status` is a tree, and these two are how one reads which part of it a
+# line belongs to: a bare word in the first column opens a family (Audio,
+# Video), a branch opens a section inside it (Devices, Sinks, Sources, …).
+_FAMILY = re.compile(r"^([A-Za-z][A-Za-z ]*?)\s*$")
+_SECTION = re.compile(r"(?:├─|└─)\s+([A-Za-z][A-Za-z ]*?):")
+
+
 @router.get("/sinks")
 async def list_sinks():
+    """The audio outputs, and only those.
+
+    The section used to be left on one line and one line only — `Sink
+    endpoints:` — which is a heading this box's WirePlumber does not print.
+    Measured here on PipeWire 1.6.7: `Sinks:` is followed straight by
+    `Sources:`, so the loop stayed inside the sinks for the rest of the output
+    and the MICROPHONE was offered as a place to send sound to. Video's own
+    `Sinks:` was on the far side of the same gate.
+
+    So the tree is read as a tree: any heading ends the previous section, and
+    only the `Sinks` of the `Audio` family count. Nothing here depends on which
+    optional headings a given WirePlumber emits — the audit that found this
+    filed it as conditional for that reason, and the condition holds on the
+    box.
+    """
     _, out = await _run("wpctl", "status")
     sinks = []
+    family = ""
     in_sinks = False
     for line in out.splitlines():
-        if re.search(r"(├─|└─)\s+Sinks:", line):
-            in_sinks = True
+        head = _FAMILY.match(line)
+        if head:
+            family, in_sinks = head.group(1), False
             continue
-        if in_sinks and re.search(r"(├─|└─)\s+Sink endpoints:", line):
-            break
+        section = _SECTION.search(line)
+        if section:
+            in_sinks = family == "Audio" and section.group(1) == "Sinks"
+            continue
         if not in_sinks:
             continue
         # Lines look like:  │  *   49. Built-in Audio Analog Stereo  [vol: 0.50]
