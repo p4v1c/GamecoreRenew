@@ -18,6 +18,7 @@ want to understand how the box got here.
 | [bezels-artwork-and-deposit-report.md](bezels-artwork-and-deposit-report.md) | 2026-08-18 | the shipped mGBA frames and the ROM-Manager deposit path; the two-roots test that caught a live-backend false positive |
 | [refactoring-diagnostic.md](refactoring-diagnostic.md) | 2026-08-19 | dead code removed with proof, four facts converged to one copy each, the deliberate-duplication list, and the order-dependence flake killed at its root |
 | [audit-fixes-2026-09-04.md](audit-fixes-2026-09-04.md) | 2026-09-06 | the nineteen audit subjects corrected, each with a test that fails on the old code; the audio point that was not conditional on this box; the test that reached the live `/userdata`, and the two guards added after it |
+| [boot-console-2026-09-06.md](boot-console-2026-09-06.md) | 2026-09-06 | the console boot: a readiness protocol instead of timers, a session of GameCore's own instead of a kiosk over a desktop, and what still has to be judged on the television |
 
 A rule these files follow, worth keeping for future entries: **every claim
 names its evidence** (a command, a measurement, a failing test), and every
