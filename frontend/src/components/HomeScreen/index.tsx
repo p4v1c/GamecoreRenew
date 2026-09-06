@@ -94,6 +94,12 @@ export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }
   // Load systems on mount
   useEffect(() => { loadSystems() }, [loadSystems])
 
+  // The backend's playtime repair runs beside the server rather than in front
+  // of it — it walks every ROM directory, and that cost belongs to the size of
+  // the shelf, not to the boot. It announces itself only when it has actually
+  // moved rows, which is the only moment these totals can be stale.
+  useEffect(() => onWsEvent('playtime:rekeyed', () => loadSystems()), [loadSystems])
+
   // Re-fetch when home screen becomes visible with empty systems (e.g. after backend restart)
   useEffect(() => {
     if (screen === 'home' && systems.length === 0) {

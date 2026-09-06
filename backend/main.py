@@ -37,12 +37,13 @@ from .routers import systems, games, playtime, covers, media, metadata, sysinfo,
 from .routers import auth as auth_routes
 from .routers import bios as bios_router
 from .routers import pergame as pergame_router
+from .routers import ready as ready_router
 from .routers import standby as standby_router
 from .routers import controllers as controllers_router
 from .routers import themes as themes_router
 from .routers import storage as storage_router
 from .routers.settings import wifi, audio, bluetooth, display
-from .services import (battery, desktop_power, gamepad_monitor, http_cache,
+from .services import (battery, boot, desktop_power, gamepad_monitor, http_cache,
                        playtime_repair, prefetch, standby, storage_monitor)
 from .services.process_manager import process_manager
 from .config import BACKEND_PORT
@@ -51,48 +52,101 @@ from .services.paths import (backend_data_dir, covers_dir, frontend_dist_dir,
 
 log = logging.getLogger(__name__)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await init_db()
+async def _repair_playtime() -> None:
+    """Carry playtime across a change in what the library lists.
 
-    # A game's playtime is keyed by the filename the library listed, so a
-    # change in what gets listed silently orphans it. Hiding a .bin behind its
-    # .cue does exactly that — the hours are still in the database and nothing
-    # points at them any more. Runs once (idempotent), before anything can
-    # serve a library.
+    A game's playtime is keyed by the filename the library listed, so a change
+    in what gets listed silently orphans it. Hiding a .bin behind its .cue does
+    exactly that — the hours are still in the database and nothing points at
+    them any more. Idempotent: after the first pass no row matches a hidden
+    name any more.
+
+    Off the startup path, and this is the one step whose cost belongs to the
+    player's own machine rather than to GameCore: it walks every system's ROM
+    directory, so a shelf of two thousand games pays for two thousand, on
+    whatever disk that box has. It used to do that BEFORE the API answered
+    anything at all, which turned "how big is your library" into "how long is
+    your boot".
+
+    What that costs, stated: for the moment it is running, a library screen can
+    show the playtime a game had before its row was moved. The figures are on
+    disk either way and nothing on screen is untrue — so when rows do move, say
+    so, and the front end re-reads them.
+    """
     try:
         moved = await playtime_repair.rekey_shadowed_entries()
         if moved:
             log.info("playtime: %d entr%s re-keyed onto their disc descriptor",
                      moved, "y" if moved == 1 else "ies")
+            await ws.broadcast("playtime:rekeyed", {"moved": moved})
+        boot.done("playtime_repair")
     except Exception:
         log.exception("lifespan: playtime repair failed")
+        boot.failed("playtime_repair")
 
-    # Before anything else: the screen. Standby state lives in memory but its
-    # effect does not — `xset dpms force off` belongs to the X server, which
-    # SDDM owns and which does not restart with us. A box that went to sleep and
-    # then had its backend restarted came back believing it was awake with the
-    # TV still dark, and nothing could wake it: pad events arrive over evdev,
-    # not X, so DPMS never re-armed on its own. Unconditional, so restarting the
-    # backend — what anyone stuck like that will try — actually fixes it.
+
+async def _settle_the_screen() -> None:
+    """The screen, and who owns its timeout. Both off the startup path.
+
+    Standby state lives in memory but its effect does not — `xset dpms force
+    off` belongs to the X server, which SDDM owns and which does not restart
+    with us. A box that went to sleep and then had its backend restarted came
+    back believing it was awake with the TV still dark, and nothing could wake
+    it: pad events arrive over evdev, not X, so DPMS never re-armed on its own.
+    Unconditional, so restarting the backend — what anyone stuck like that will
+    try — actually fixes it.
+
+    It talks to the X server, which at cold boot is the one thing that may not
+    exist yet: the backend's own unit waits up to twenty seconds for a display
+    that answers. Awaiting it before serving made a screen that was slow to
+    appear into an API that was slow to answer, for a call whose entire effect
+    is on a screen nobody is looking at yet.
+    """
     try:
         await standby.resume_after_restart()
+        boot.done("screen")
     except Exception:
         log.exception("lifespan: could not force the screen back on")
+        boot.failed("screen")
 
-    # One owner for the screen. The desktop's own power manager was running a
-    # second, invisible timer that capped whatever the settings page said —
-    # "Never" meant fifteen minutes on the reference box. Claimed only while
-    # GameCore's standby is on; handed straight back otherwise, because the two
-    # disarmed together is a television that never goes dark behind a switch
-    # that promises the opposite.
+    # One owner for the screen timeout. The desktop's own power manager was
+    # running a second, invisible timer that capped whatever the settings page
+    # said — "Never" meant fifteen minutes on the reference box. Claimed only
+    # while GameCore's standby is on; handed straight back otherwise, because
+    # the two disarmed together is a television that never goes dark behind a
+    # switch that promises the opposite.
     try:
         if standby.load_config()["enabled"]:
             await desktop_power.claim()
         else:
             await desktop_power.release()
+        boot.done("power")
     except Exception:
         log.exception("lifespan: could not settle who owns the screen timeout")
+        boot.failed("power")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Everything that must be true before the first request, and nothing else.
+
+    Two steps are required, and the test for both is the same: would answering
+    without it make the front end tell the player something false?
+
+      · the database — every library screen reads it;
+      · the running-game adoption — serving before it means answering "nothing
+        is running" while an emulator is on screen, and handing the player a
+        home they can navigate over a live game with the pad driving both.
+
+    Everything else was here because this is where startup code accumulates,
+    not because anything depended on it. It now runs beside the server rather
+    than in front of it, and `/api/ready` reports each step by name — see
+    services/boot.py for the rule and for why each one is on the side it is.
+    """
+    boot.begin()
+
+    await init_db()
+    boot.done("database")
 
     # Re-attach to a game a previous process left running, so the double-PS
     # shortcut can still close it.
@@ -100,8 +154,16 @@ async def lifespan(app: FastAPI):
         await process_manager.adopt_orphan()
     except Exception:
         log.exception("lifespan: could not adopt the previous session")
+    # Marked done even when it raised: what this protects against is answering
+    # BEFORE the question has been asked. It has been asked now, and a failure
+    # to adopt is a box with no game running as far as anything can tell —
+    # which is exactly what the API will say. Blocking the boot on it would
+    # trade a rare wrong answer for a certain black screen.
+    boot.done("session")
 
     tasks = [
+        asyncio.create_task(_repair_playtime()),
+        asyncio.create_task(_settle_the_screen()),
         asyncio.create_task(gamepad_monitor.run()),
         asyncio.create_task(battery.run()),
         asyncio.create_task(standby.run()),
@@ -206,6 +268,8 @@ app.include_router(covers.router, prefix="/api")
 app.include_router(media.router, prefix="/api")
 app.include_router(metadata.router, prefix="/api")
 app.include_router(sysinfo.router, prefix="/api")
+# Asked in a loop by the shell while the box starts — see routers/ready.py.
+app.include_router(ready_router.router, prefix="/api")
 app.include_router(update.router, prefix="/api")
 app.include_router(overlays.router, prefix="/api")
 app.include_router(pergame_router.router, prefix="/api")

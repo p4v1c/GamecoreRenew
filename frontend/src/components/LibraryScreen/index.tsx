@@ -11,6 +11,7 @@ import { AnimatePresence } from 'framer-motion'
 import { useStore } from '../../store'
 import { api, GameEntry, PlaytimeEntry, SystemEntry } from '../../api'
 import { onGp } from '../../hooks/useGamepad'
+import { onWsEvent } from '../../hooks/useWebSocket'
 import { hexToRgb, Overlay } from '../ui'
 import { VirtualKeyboard } from '../ui/VirtualKeyboard'
 import { systemColor } from '../../lib/format'
@@ -130,6 +131,28 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
       if (loadToken.current === token) setLoading(false)
     })
   }, [])
+
+  /**
+   * The one moment the hours on this screen can be out of date.
+   *
+   * The backend's playtime repair — which moves a game's hours onto the file
+   * the library actually lists — no longer runs before the API answers: it
+   * walks every ROM directory, so it made the size of the player's shelf into
+   * the length of the boot. It runs beside the server now, and says so when it
+   * has actually moved rows. Only then, and only the figures.
+   */
+  useEffect(() => {
+    if (!selectedSystemId) return
+    return onWsEvent('playtime:rekeyed', () => {
+      const forSystem = selectedSystemId
+      api.playtime.forSystem(forSystem).then(rows => {
+        if (useStore.getState().selectedSystemId !== forSystem) return
+        const m: Record<string, PlaytimeEntry> = {}
+        rows.forEach(r => { m[r.game_key] = r })
+        setPlaytimeMap(m)
+      }).catch(() => {})
+    })
+  }, [selectedSystemId])
 
   // Reset launching state when session changes
   useEffect(() => {
