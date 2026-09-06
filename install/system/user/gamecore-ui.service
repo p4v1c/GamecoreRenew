@@ -1,0 +1,32 @@
+[Unit]
+Description=GameCore — Electron UI
+# Tied to the session rather than to the machine: `PartOf` stops it when the
+# session target stops, which is what makes leaving for the desktop a clean
+# exit rather than a kiosk that keeps coming back over it.
+PartOf=gamecore-session.target
+After=gamecore-session.target
+
+[Service]
+Type=simple
+Environment=GAMECORE_PATH=@GAMECORE_PATH@
+Environment=GAMECORE_DATA=@GAMECORE_DATA@
+Environment=GAMECORE_BACKEND_PORT=@BACKEND_PORT@
+# Told, not guessed: this is a session unit, and the session imported DISPLAY
+# and XAUTHORITY into the user manager before starting the target. `start-ui.sh`
+# still resolves them the hard way when they are absent, which is what keeps it
+# usable from a desktop session and from a developer's terminal.
+WorkingDirectory=@GAMECORE_PATH@
+ExecStart=@GAMECORE_PATH@/electron/start-ui.sh
+# The shell is not allowed to give up: a renderer that dies takes the console
+# with it. Bounded so a box that cannot start the UI at all stops rather than
+# spinning — five attempts in a minute, then systemd holds it and the journal
+# says why.
+Restart=on-failure
+RestartSec=3
+StartLimitIntervalSec=60
+StartLimitBurst=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=gamecore-session.target

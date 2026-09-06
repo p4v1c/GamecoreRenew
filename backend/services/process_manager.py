@@ -9,6 +9,7 @@ import signal
 import subprocess
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 from .. import ws
 from .paths import config_dir
@@ -184,6 +185,47 @@ def invalidate_display_cache() -> None:
     _probe_cache, _probe_retry_at = None, 0.0
 
 
+def session_env_file(uid: int | None = None) -> Path:
+    """Where the graphical session writes down what it is.
+
+    `install/bin/gamecore-session` creates this at login and removes it at
+    logout, in the user's own runtime directory. Its absence is meaningful: no
+    session, which is exactly what a headless box or an SSH install looks like.
+    """
+    uid = os.getuid() if uid is None else uid
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{uid}"
+    return Path(runtime) / "gamecore" / "session.env"
+
+
+def _session_display(uid: int) -> tuple[str, str] | None:
+    """(DISPLAY, XAUTHORITY) as the session itself declared them, or None.
+
+    The backend is a system unit — deliberately, so the API and the web
+    interface survive without a graphical session — and a system unit sees
+    nothing of one. Which left it probing: every X socket against every cookie
+    location, on every launch and every standby transition, with a 20 s bound
+    in its own unit for the cold-boot case.
+
+    A session that knows its own DISPLAY writing it down is both cheaper and
+    more truthful than this process guessing. The probe below stays for every
+    box that has not migrated, for a desktop session that is not ours, and for
+    the window between a backend restart and the next login.
+    """
+    try:
+        text = session_env_file(uid).read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return None
+    values: dict[str, str] = {}
+    for line in text.splitlines():
+        key, _, value = line.partition("=")
+        if key and value:
+            values[key.strip()] = value.strip()
+    display = values.get("DISPLAY")
+    if not display:
+        return None
+    return display, values.get("XAUTHORITY", "")
+
+
 def _display_env() -> dict:
     """Build an env dict for launching GUI apps from systemd (DISPLAY, XDG_RUNTIME_DIR, DBUS, XAUTHORITY).
 
@@ -202,6 +244,16 @@ def _display_env() -> dict:
         db = _controller_db()
         if db:
             env["SDL_GAMECONTROLLERCONFIG_FILE"] = str(db)
+    if not env.get("DISPLAY") or not env.get("XAUTHORITY"):
+        # Asked first, and it costs a file read. Only if there is no session
+        # file does this fall back to looking for a display by hand.
+        declared = _session_display(uid)
+        if declared:
+            env["DISPLAY"] = declared[0]
+            if declared[1]:
+                env["XAUTHORITY"] = declared[1]
+            else:
+                env.pop("XAUTHORITY", None)
     if not env.get("DISPLAY") or not env.get("XAUTHORITY"):
         if _probe_due():
             found = _probe_display(uid)
