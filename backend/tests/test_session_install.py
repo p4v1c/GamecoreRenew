@@ -150,17 +150,29 @@ def switch(tmp_path):
     stub.chmod(0o755)
     (xses / "plasmax11.desktop").write_text("[Desktop Entry]\nName=Plasma (X11)\n")
 
-    def run(*args) -> subprocess.CompletedProcess:
+    # A window manager, declared rather than inherited.
+    #
+    # Arming refuses when the machine has nothing to manage its windows. Left
+    # to the environment, these tests pass or fail on whether the machine
+    # running them happens to have KWin or openbox — green on a developer's
+    # desktop, red on a CI runner that has neither. That is not hypothetical:
+    # it is how this fixture came to say so.
+    (bins / "fake-wm").write_text("#!/bin/sh\nexit 0\n")
+    (bins / "fake-wm").chmod(0o755)
+
+    def run(*args, candidates: str = "fake-wm") -> subprocess.CompletedProcess:
         return subprocess.run(
             ["bash", str(SELECT), *args],
             env={**os.environ, "SDDM_CONF_DIR": str(sddm), "XSESSIONS_DIR": str(xses),
                  "WAYLAND_SESSIONS_DIR": str(tmp_path / "none"),
                  "GAMECORE_USER": "player", "GAMECORE_USER_HOME": str(tmp_path / "home"),
                  "SYSTEM_UNIT_DIR": str(tmp_path / "units"),
+                 "GAMECORE_WM_CANDIDATES": candidates,
                  "PATH": str(bins) + ":" + os.environ["PATH"]},
             text=True, capture_output=True, timeout=60)
 
-    return {"run": run, "sddm": sddm, "xsessions": xses, "units": tmp_path / "units", "log": log}
+    return {"run": run, "sddm": sddm, "xsessions": xses, "units": tmp_path / "units",
+            "log": log, "bin": bins}
 
 
 def _autologin(sddm: Path) -> str:
@@ -248,7 +260,7 @@ def test_preparation_keeps_a_file_by_file_undo(staged, tmp_path):
     assert not _staged(tmp_path, "usr/share/xsessions/gamecore.desktop").exists()
 
 
-def test_arming_without_a_window_manager_is_refused(switch, tmp_path, monkeypatch):
+def test_arming_without_a_window_manager_is_refused(switch):
     """The one command in the project that can leave somebody in front of a
     television with a half-working console.
 
@@ -261,18 +273,20 @@ def test_arming_without_a_window_manager_is_refused(switch, tmp_path, monkeypatc
     reading.
     """
     (switch["xsessions"] / "gamecore.desktop").write_text("[Desktop Entry]\nName=GameCore\n")
-    empty = tmp_path / "no-wm"
-    empty.mkdir()
-    r = subprocess.run(
-        ["bash", str(SELECT), "gamecore"],
-        env={"PATH": f"{empty}:/usr/bin:/bin", "SDDM_CONF_DIR": str(switch["sddm"]),
-             "XSESSIONS_DIR": str(switch["xsessions"]),
-             "WAYLAND_SESSIONS_DIR": str(tmp_path / "none"),
-             "GAMECORE_USER": "player",
-             # What this machine appears to have.
-             "GAMECORE_WM_CANDIDATES": "kwin_x11_absent openbox_absent"},
-        text=True, capture_output=True, timeout=60)
+    r = switch["run"]("gamecore", candidates="kwin_x11_absent openbox_absent")
     assert r.returncode != 0
     assert "no X11 window manager" in r.stdout + r.stderr
     assert "pacman -S kwin-x11" in r.stdout + r.stderr
     assert _autologin(switch["sddm"]) == "", "the box was armed anyway"
+
+
+def test_arming_with_only_openbox_says_what_that_costs(switch):
+    """openbox manages windows; it is not the compositor the bezels were tuned
+    against. Allowed, and said out loud."""
+    (switch["xsessions"] / "gamecore.desktop").write_text("[Desktop Entry]\nName=GameCore\n")
+    (switch["bin"] / "openbox").write_text("#!/bin/sh\nexit 0\n")
+    (switch["bin"] / "openbox").chmod(0o755)
+    r = switch["run"]("gamecore", candidates="kwin_x11_absent openbox")
+    assert r.returncode == 0, r.stderr
+    assert "will use openbox" in r.stdout
+    assert _autologin(switch["sddm"]) == "gamecore"
