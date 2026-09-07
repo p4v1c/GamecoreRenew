@@ -145,3 +145,66 @@ def test_the_preflight_asks_this_script_rather_than_testing_for_a_file():
     text = PREFLIGHT.read_text()
     assert "gamecore-session-migrate\" --check" in text or "--check" in text
     assert "manifest" in text.lower(), "the reason is not written down"
+
+
+# ── the same disease, the other helper ──────────────────────────────────────
+
+RESTART = REPO / "install" / "bin" / "gamecore-restart"
+
+
+@pytest.fixture
+def restart_box(tmp_path):
+    """A machine where systemctl records what it was asked to restart."""
+    binds = tmp_path / "bin"
+    binds.mkdir()
+    calls = tmp_path / "systemctl-calls"
+
+    def systemd(user: str = "") -> None:
+        (binds / "systemctl").write_text(textwrap.dedent(f"""
+            #!/usr/bin/env bash
+            printf '%s\\n' "$*" >> {calls}
+            case "$*" in
+              *"-p User"*)     printf '%s\\n' '{user}' ;;
+              *"is-active"*)   exit 1 ;;
+              *)               exit 0 ;;
+            esac
+        """).lstrip())
+        (binds / "systemctl").chmod(0o755)
+
+    systemd()
+
+    def run(manifest: str | None = None) -> subprocess.CompletedProcess:
+        env = {"PATH": f"{binds}:/usr/bin:/bin", "HOME": str(tmp_path),
+               "GAMECORE_MANIFEST": str(tmp_path / "manifest.env"),
+               "GAMECORE_BACKEND_UNIT": "gamecore-backend.service"}
+        if manifest is not None:
+            (tmp_path / "manifest.env").write_text(manifest)
+        return subprocess.run(["bash", str(RESTART)], env=env, text=True,
+                              capture_output=True, timeout=60)
+
+    return {"run": run, "systemd": systemd, "calls": calls}
+
+
+def test_the_restart_works_on_a_box_with_no_manifest(restart_box):
+    """The failure that ends an update after it has succeeded: the new version
+    is written, the restart is asked for, it dies on a missing file, and the
+    box keeps running the old code with nothing on screen to say why."""
+    restart_box["systemd"](user="pavic")
+    r = restart_box["run"]()
+    assert r.returncode == 0, r.stderr
+    asked = restart_box["calls"].read_text()
+    assert "restart gamecore-backend.service" in asked
+
+
+def test_the_manifest_still_wins_when_it_is_there(restart_box):
+    restart_box["systemd"](user="from-the-unit")
+    r = restart_box["run"](manifest="USER_NAME=from-the-manifest\n")
+    assert r.returncode == 0, r.stderr
+    assert "from-the-manifest@" in restart_box["calls"].read_text()
+
+
+def test_no_user_anywhere_is_said_rather_than_guessed(restart_box):
+    restart_box["systemd"](user="")
+    r = restart_box["run"]()
+    assert r.returncode != 0
+    assert "cannot tell which user" in r.stderr
