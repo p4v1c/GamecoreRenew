@@ -35,9 +35,8 @@ describe('what the host waits for', () => {
     expect(bootSteps()).toEqual({ theme: true, systems: true, painted: true })
   })
 
-  it('waits for an answer about the systems, not for a good one', async () => {
-    // A box with no emulator installed has a home that is ready to say so, and
-    // a backend that refused has a home that is ready to offer the retry.
+  it('accepts a successful empty systems response', async () => {
+    // A box with no emulator installed has a home that is ready to say so.
     // Waiting for a non-empty list is waiting for the player to have installed
     // something.
     markBootStep('theme')

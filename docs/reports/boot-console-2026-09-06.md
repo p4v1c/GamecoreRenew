@@ -1,5 +1,7 @@
 # The console boot — session report
 
+> Relecture ultérieure : [corrections du 2026-09-07](review-fixes-2026-09-07.md), notamment migration, mapping et démarrage.
+
 **Session:** 2026-09-06. **Branch:** `feat/boot-console`, out of
 `feat/packs-layout-et-corrections-audit` (the nineteen audit fixes).
 **Nothing was installed, armed or restarted on any box.**

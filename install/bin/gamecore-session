@@ -68,14 +68,7 @@ umask 077
 } > "$SESSION_ENV"
 log "session environment written to $SESSION_ENV (DISPLAY=$DISPLAY)"
 
-# ── the display mode, once, here ─────────────────────────────────
-# One owner. This used to run twice — from SDDM's DisplayCommand for the bare
-# X server, then again inside the session to undo what KScreen had just done —
-# and each application is a mode change the television resynchronises to.
-# There is no KScreen in this session.
-if [[ -x /usr/local/bin/gamecore-xsetup ]]; then
-  /usr/local/bin/gamecore-xsetup >/dev/null 2>&1 || true
-fi
+# start-ui.sh applies the saved mode with this session’s actual display.
 
 # ── teardown, whatever happens ───────────────────────────────────
 cleanup() {

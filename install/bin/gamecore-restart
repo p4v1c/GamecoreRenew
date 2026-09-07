@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Detached OTA restart, run as root by gamecore-restart.service.
+set -euo pipefail
+manifest="${GAMECORE_MANIFEST:-/var/lib/gamecore/manifest.env}"
+# Installer-owned shell assignments (manifest_set uses printf %q).
+# shellcheck disable=SC1090
+source "$manifest"
+: "${USER_NAME:?missing USER_NAME in manifest}"
+
+systemctl restart gamecore-backend.service
+userctl() { systemctl --user -M "${USER_NAME}@" "$@"; }
+# Preserve desktop mode: restart the UI only if one is already running, or
+# if the console session owns it. Never start an inactive legacy kiosk.
+if userctl is-active --quiet gamecore-session.target || userctl is-active --quiet gamecore-ui.service; then
+  userctl daemon-reload
+  userctl restart gamecore-ui.service
+elif systemctl is-active --quiet gamecore-ui.service; then
+  systemctl restart gamecore-ui.service
+fi

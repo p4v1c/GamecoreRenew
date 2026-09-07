@@ -483,7 +483,9 @@ msg "systemd units"
 safe_rm /etc/systemd/system/gamecore-backend.service \
         /etc/systemd/system/gamecore-ui.service \
         /etc/systemd/system/gamecore-ui.service.pre-session \
+        /etc/systemd/system/gamecore-ui.service.d/zz-session-retired.conf \
         /etc/systemd/system/gamecore-restart.service \
+        /etc/systemd/system/gamecore-session-migrate.service \
         /etc/systemd/system/gamecore-backend.service.d \
         /etc/systemd/system/multi-user.target.wants/gamecore-backend.service \
         /etc/systemd/system/graphical.target.wants/gamecore-ui.service
@@ -541,7 +543,8 @@ LAYOUT_ACCESS
 fi
 # gamecore-addon last among the addon steps — its own `remove` needed it.
 safe_rm /usr/local/bin/gamecore-xsetup /usr/local/bin/gamecore-addon \
-        /usr/local/bin/gamecore-session-select /usr/local/bin/gamecore-session
+        /usr/local/bin/gamecore-session-select /usr/local/bin/gamecore-session \
+        /usr/local/bin/gamecore-restart /usr/local/bin/gamecore-session-migrate
 
 # The console session: its entry, and the user units that belong to it.
 #

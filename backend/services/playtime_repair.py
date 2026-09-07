@@ -19,6 +19,7 @@ Idempotent by construction — after the first pass no row matches a hidden name
 any more — and silent when there is nothing to do, which is every start after
 the first and every box that owns no disc image.
 """
+import asyncio
 import logging
 
 from ..config import resolve_path
@@ -84,7 +85,7 @@ async def rekey_shadowed_entries() -> int:
     """Move playtime from files the library no longer lists onto what replaced
     them. Returns the number of rows moved."""
     try:
-        renames = _rename_map()
+        renames = await asyncio.to_thread(_rename_map)
     except Exception:
         log.exception("playtime repair: could not scan the libraries")
         return 0

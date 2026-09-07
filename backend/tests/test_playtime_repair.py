@@ -189,3 +189,27 @@ def test_a_group_nobody_lists_is_left_alone(tmp_path):
     ])
     assert moved == [0]
     assert rows[0][0] == "Dragon Ball Z .cue"
+
+
+def test_rom_scan_does_not_block_the_event_loop(monkeypatch):
+    import threading
+    from backend.services import playtime_repair
+
+    finished = threading.Event()
+    release = threading.Event()
+
+    def scan():
+        release.wait(1)
+        finished.set()
+        return {}
+
+    monkeypatch.setattr(playtime_repair, "_rename_map", scan)
+
+    async def scenario():
+        task = asyncio.create_task(playtime_repair.rekey_shadowed_entries())
+        await asyncio.sleep(.02)
+        responsive = not finished.is_set()
+        release.set()
+        await task
+        assert responsive, "ROM scan blocked the API event loop"
+    asyncio.run(scenario())

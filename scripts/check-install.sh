@@ -128,13 +128,20 @@ for unit in gamecore-backend sddm; do
   en=$(systemctl is-enabled "$unit" 2>/dev/null || echo unknown)
   [[ "$en" == enabled ]] && ok "$unit enabled" || bad "$unit" "is-enabled=$en — it will not start at boot"
 done
-# The interface is a USER unit of the console session. A system-wide
-# gamecore-ui that is enabled — or merely startable — is the failure worth
-# shouting about: two Electrons, one X server, one backend.
-sys_ui=$(systemctl is-enabled gamecore-ui 2>/dev/null || echo absent)
-case "$sys_ui" in
-  masked|absent) ok  "no system-wide gamecore-ui" "the interface belongs to the session" ;;
-  *)             bad "system-wide gamecore-ui" "is-enabled=$sys_ui — it would start a SECOND interface"$'\n'"      fix: sudo bash install/steps/setup-gamecore-session.sh <user> <path> <data> <port>" ;;
+# Before arming, the legacy kiosk remains the automatic UI. Only an enabled
+# legacy service together with the console autologin is a conflicting setup.
+sess=$(grep -h '^Session=' /etc/sddm.conf.d/*.conf 2>/dev/null | tail -1 | cut -d= -f2)
+sys_ui=$(systemctl is-enabled gamecore-ui 2>/dev/null || true)
+case "${sys_ui:-absent}" in
+  masked|absent|disabled) ok "legacy UI not enabled" "${sys_ui:-absent}" ;;
+  enabled)
+    if [[ "$sess" == gamecore ]]; then
+      bad "system-wide gamecore-ui" "the console is armed but the legacy kiosk is still enabled"
+    else
+      ok "legacy kiosk preserved" "the console session has not been armed"
+    fi
+    ;;
+  *) warn "system-wide gamecore-ui" "is-enabled=$sys_ui" ;;
 esac
 
 if [[ -f /usr/share/xsessions/gamecore.desktop && -x /usr/local/bin/gamecore-session ]]; then
@@ -148,7 +155,7 @@ fi
 # answers about a manager that is not the one running the console.
 gc_home=$(getent passwd "${GC_USER:-$USER}" | cut -d: -f6)
 if [[ -f "$gc_home/.config/systemd/user/gamecore-ui.service" ]]; then
-  ok "user unit present" "~/.config/systemd/user/gamecore-ui.service"
+  ok "user unit present" "$gc_home/.config/systemd/user/gamecore-ui.service"
 else
   bad "user unit" "the console session has nothing to start"
 fi
@@ -167,7 +174,6 @@ fi
 # SDDM reads /etc/sddm.conf.d/* in name order and the LAST [Autologin] wins, so
 # the effective session is the last Session= across every file — not the one in
 # GameCore's own drop-in, which a later-sorting file can override in silence.
-sess=$(grep -h '^Session=' /etc/sddm.conf.d/*.conf 2>/dev/null | tail -1 | cut -d= -f2)
 # Read back from the manifest rather than compared to a literal: a box in
 # desktop mode is pointing at its own desktop session on purpose, and calling
 # that broken would be wrong. `gamecore` is what the console session records.

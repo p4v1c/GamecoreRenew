@@ -7,23 +7,8 @@
 #      gamecore-session-select status           # what is set right now (no root)
 #      gamecore-session-select pick-desktop --x11   # used by install/arch.sh
 #
-#  It used to switch SDDM's auto-login between a bare openbox session and the
-#  machine's desktop. There is only one session now: the box auto-logs into its
-#  own X11 desktop and the kiosk is drawn over it. Both modes therefore pointed
-#  at the SAME Session=, and writing a drop-in to say so was ceremony — the only
-#  thing that ever differed is whether gamecore-ui.service is enabled.
-#
-#  So that is all this does. It touches no SDDM configuration at all, which also
-#  removes the way it used to fail: `desktop` picked the first .desktop file
-#  alphabetically, Wayland directory first, and landed a Plasma box on a Wayland
-#  session it could not draw. A black screen, with no message.
-#
-#  The name is kept because /etc/sudoers.d/gamecore-power grants exactly these
-#  two argument forms, and that rule is already on installed boxes.
-#
-#  enable/disable and --now, never start/stop: install/arch.sh ENABLES the unit,
-#  so merely stopping it brought the kiosk back over the desktop at the next
-#  boot — which reads as the switch not having worked.
+#  Installation preserves the legacy kiosk. Selecting either session retires
+#  its automatic startup; the console is armed only by the gamecore command.
 # ================================================================
 set -euo pipefail
 
@@ -146,12 +131,17 @@ fi
 # and 'k' sorts after 'a' — hence 'zz-'.
 _write_autologin() {   # _write_autologin <session-name> <user>
   install -d -m 755 "$SDDM_CONF_DIR"
-  cat > "$SDDM_CONF_DIR/zz-gamecore-autologin.conf" <<CONF
+  local conf="$SDDM_CONF_DIR/zz-gamecore-autologin.conf"
+  if [[ -f "$conf" && ! -e "$conf.pre-session" ]]; then
+    cp -a "$conf" "$conf.pre-session"
+  fi
+  cat > "$conf.tmp" <<CONF
 [Autologin]
 User=$2
 Session=$1
 Relogin=true
 CONF
+  mv "$conf.tmp" "$conf"
 }
 
 _autologin_user() {
@@ -168,12 +158,69 @@ GC_USER="${GAMECORE_USER:-$(_autologin_user)}"
 GC_USER="${GC_USER:-${SUDO_USER:-}}"
 [[ -n "$GC_USER" ]] || { echo "cannot tell which user auto-logs in — set GAMECORE_USER" >&2; exit 1; }
 
+# Each switch keeps its own snapshot: later switches must not overwrite the
+# state needed to undo the previous one.
+backup_switch() {
+  local home="${GAMECORE_USER_HOME:-$(getent passwd "$GC_USER" | cut -d: -f6)}" dest saved
+  [[ -n "$home" ]] || { echo "cannot find the player's home" >&2; return 1; }
+  if [[ ! -d "$home/verif-avant" ]]; then
+    if [[ "$SDDM_CONF_DIR" == /etc/sddm.conf.d ]]; then
+      install -d -o "$GC_USER" -g "$GC_USER" -m 755 "$home/verif-avant"
+    else
+      mkdir -p "$home/verif-avant"
+    fi
+  fi
+  SWITCH_BACKUP=$(mktemp -d "$home/verif-avant/gamecore-session-switch.XXXXXXXX")
+  printf '#!/bin/bash\nset -euo pipefail\n' > "$SWITCH_BACKUP/restore.sh"
+  local dir="${SYSTEM_UNIT_DIR:-/etc/systemd/system}"
+  for dest in "$dir/$UNIT" "$dir/$UNIT.pre-session" \
+      "$dir/$UNIT.d/zz-session-retired.conf" \
+      "$SDDM_CONF_DIR/zz-gamecore-autologin.conf" \
+      "$SDDM_CONF_DIR/zz-gamecore-autologin.conf.pre-session"; do
+    saved="$SWITCH_BACKUP/files$dest"
+    if [[ -e "$dest" || -L "$dest" ]]; then
+      mkdir -p "$(dirname "$saved")"
+      cp -a -- "$dest" "$saved"
+      printf 'rm -f -- %q; cp -a -- %q %q\n' "$dest" "$saved" "$dest" >> "$SWITCH_BACKUP/restore.sh"
+    else
+      printf 'rm -f -- %q\n' "$dest" >> "$SWITCH_BACKUP/restore.sh"
+    fi
+  done
+  printf 'systemctl daemon-reload\n' >> "$SWITCH_BACKUP/restore.sh"
+  local enabled
+  enabled=$(systemctl is-enabled "$UNIT" 2>/dev/null || true)
+  case "$enabled" in
+    enabled) printf 'systemctl enable %q\n' "$UNIT" >> "$SWITCH_BACKUP/restore.sh" ;;
+    disabled) printf 'systemctl disable %q\n' "$UNIT" >> "$SWITCH_BACKUP/restore.sh" ;;
+  esac
+  echo "Undo this switch: sudo bash $SWITCH_BACKUP/restore.sh"
+}
+
+# Do not stop the current UI here: this command can be its child (Desktop
+# Mode). Disable future starts, keep the original unit, and mask new starts.
+retire_legacy() {
+  local dir="${SYSTEM_UNIT_DIR:-/etc/systemd/system}" old
+  old="$dir/$UNIT"
+  if [[ -f "$old" && ! -L "$old" ]]; then
+    if [[ ! -e "$old.pre-session" ]]; then cp -a "$old" "$old.pre-session"; fi
+    systemctl disable "$UNIT"
+    # A running process is left until logout; Restart=no prevents it returning
+    # over the new session if the old display closes with an error.
+    mkdir -p "$dir/$UNIT.d"
+    printf '[Service]\nRestart=no\n' > "$dir/$UNIT.d/zz-session-retired.conf"
+    ln -sf /dev/null "$old"
+    systemctl daemon-reload
+  fi
+}
+
 if [[ "$MODE" == gamecore ]]; then
   if [[ ! -f "$XSESSIONS_DIR/gamecore.desktop" ]]; then
     echo "no gamecore.desktop on this machine — this box has not been migrated." >&2
     echo "  run: sudo install/steps/setup-gamecore-session.sh <user> <path> <data> <port>" >&2
     exit 1
   fi
+  backup_switch
+  retire_legacy
   _write_autologin gamecore "$GC_USER"
   echo "console session ON — the next boot opens GameCore, with no desktop behind it."
   echo "back to the desktop:  sudo $(basename "$0") desktop"
@@ -184,6 +231,8 @@ else
     echo "  install one (e.g. plasma-desktop) before leaving the console session." >&2
     exit 1
   fi
+  backup_switch
+  retire_legacy
   _write_autologin "$DESKTOP_SESSION" "$GC_USER"
   echo "desktop ON — the next boot opens '$DESKTOP_SESSION'."
   echo "back to the console:  sudo $(basename "$0") gamecore"

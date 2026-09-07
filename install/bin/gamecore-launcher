@@ -26,7 +26,9 @@ fi
 # The system unit is tried second and only if the user one is not installed:
 # a box that has not been migrated still has it, and the point of this script
 # is to work on both.
-if systemctl --user is-active --quiet gamecore-ui.service 2>/dev/null; then
+if systemctl is-active --quiet gamecore-ui.service 2>/dev/null; then
+  echo "🟢 The legacy kiosk is already running."
+elif systemctl --user is-active --quiet gamecore-ui.service 2>/dev/null; then
   echo "🟢 GameCore is already running."
 elif systemctl --user list-unit-files gamecore-ui.service >/dev/null 2>&1 \
      && systemctl --user cat gamecore-ui.service >/dev/null 2>&1; then

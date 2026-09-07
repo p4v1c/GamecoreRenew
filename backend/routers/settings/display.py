@@ -346,7 +346,7 @@ def _preference_path():
 def preferred_mode() -> dict | None:
     """The mode the player last confirmed, or None.
 
-    Read at startup by the backend itself (see backend/main.py). Until this
+    Read at graphical startup by gamecore-xsetup. Until this
     existed, nothing wrote the choice down at all: `gamecore-xsetup` forces
     1080p at every boot for the pre-session X server, so a player who picked
     1280x720 in the settings — and confirmed it, on a screen they could read —

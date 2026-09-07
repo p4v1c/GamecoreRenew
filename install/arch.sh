@@ -1266,10 +1266,8 @@ PY
   info "  Closing GameCore drops you on that desktop. Kiosk off for good: gamecore-session-select desktop"
 fi
 
-# Force 1920x1080 at the display-server level (never 4K). SDDM runs this as
-# root at X startup, before any session, so the whole X server — kiosk, games
-# and overlays — is pinned to 1080p. See install/bin/gamecore-xsetup.
-# (start-ui.sh re-applies it inside the session, after KScreen has had its say.)
+# The graphical UI applies the saved mode once X is available.
+# gamecore-xsetup without --session is a no-op for obsolete SDDM hooks.
 install -m755 "$GAMECORE_PATH/install/bin/gamecore-xsetup" /usr/local/bin/gamecore-xsetup
 
 # The desktop escape hatch. The box auto-logs into its desktop with the kiosk
@@ -1282,7 +1280,7 @@ cat > /etc/sddm.conf.d/zz-gamecore-display.conf <<EOF
 [X11]
 DisplayCommand=/usr/local/bin/gamecore-xsetup
 EOF
-ok "Display pinned to 1920x1080 (SDDM DisplayCommand)."
+ok "Display mode is applied by the UI session (saved preference, otherwise 1080p)."
 
 systemctl daemon-reload
 systemctl enable sddm.service

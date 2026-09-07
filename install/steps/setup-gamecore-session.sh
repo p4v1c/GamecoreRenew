@@ -16,12 +16,7 @@
 #    ~/.config/systemd/user/gamecore-session.target
 #    ~/.config/systemd/user/gamecore-ui.service   (tokens expanded)
 #
-#  What it retires, and this is the part that must not be half-done:
-#    the SYSTEM gamecore-ui.service is disabled AND masked. Two units starting
-#    two Electrons against one X server is the failure this step exists to make
-#    impossible, and "disabled" alone is not enough — anything that calls
-#    `systemctl start gamecore-ui` (gamecore-launcher did, for years) would
-#    bring the old one back on top of the new one.
+#  The legacy kiosk remains enabled until gamecore-session-select arms the session.
 #
 #  What it does NOT do: switch SDDM to the new session. Arming is a separate
 #  decision with a separate rollback — `gamecore-session-select gamecore`.
@@ -63,8 +58,41 @@ SESSION_SRC="${INSTALL_ROOT}/bin/gamecore-session"
 DESKTOP_SRC="${INSTALL_ROOT}/system/gamecore.desktop"
 UNITS_SRC="${INSTALL_ROOT}/system/user"
 
-for f in "$SESSION_SRC" "$DESKTOP_SRC" "$UNITS_SRC/gamecore-session.target" "$UNITS_SRC/gamecore-ui.service"; do
+for f in "$SESSION_SRC" "$DESKTOP_SRC" "$UNITS_SRC/gamecore-session.target" "$UNITS_SRC/gamecore-ui.service" "$INSTALL_ROOT/bin/gamecore-session-select" "$INSTALL_ROOT/bin/gamecore-xsetup"; do
   [[ -e "$f" ]] || { echo "ERROR: missing $f"; exit 1; }
+done
+
+# Keep the first pre-migration state, including absent destinations. Every
+# installed file has an executable undo command; repeated installs keep it.
+# The shared backup directory must remain writable by the player, who also
+# places the pre-update SQLite snapshot there. Leave existing ownership alone.
+if [[ ! -d "${DESTDIR}${USER_HOME}/verif-avant" ]]; then
+  if _live; then
+    install -d -o "$GC_USER" -g "$GC_USER" -m 755 "${DESTDIR}${USER_HOME}/verif-avant"
+  else
+    mkdir -p "${DESTDIR}${USER_HOME}/verif-avant"
+  fi
+fi
+BACKUP="${DESTDIR}${USER_HOME}/verif-avant/gamecore-session"
+backup() {
+  local dest="$1" key="${1#"$DESTDIR"}" saved
+  saved="$BACKUP/files$key"
+  [[ -e "$BACKUP/recorded$key" ]] && return 0
+  mkdir -p "$(dirname "$saved")" "$(dirname "$BACKUP/recorded$key")"
+  [[ -f "$BACKUP/restore.sh" ]] || printf '#!/bin/bash\nset -euo pipefail\n' > "$BACKUP/restore.sh"
+  if [[ -e "$dest" || -L "$dest" ]]; then
+    cp -a -- "$dest" "$saved"
+    printf 'rm -f -- %q; cp -a -- %q %q\n' "$dest" "$saved" "$dest" >> "$BACKUP/restore.sh"
+  else
+    printf 'rm -f -- %q\n' "$dest" >> "$BACKUP/restore.sh"
+  fi
+  touch "$BACKUP/recorded$key"
+}
+for dest in "$BIN_DIR/gamecore-session" "$BIN_DIR/gamecore-session-select" \
+            "$BIN_DIR/gamecore-xsetup" "$XSESSIONS_DIR/gamecore.desktop" \
+            "$UNIT_DIR/gamecore-session.target" "$UNIT_DIR/gamecore-ui.service" \
+            "$UNIT_DIR/gamecore-session.target.wants/gamecore-ui.service"; do
+  backup "$dest"
 done
 
 # ── the session program and its entry ────────────────────────────
@@ -79,6 +107,9 @@ else
   install -m 755 "$SESSION_SRC" "$BIN_DIR/gamecore-session"
   install -m 644 "$DESKTOP_SRC" "$XSESSIONS_DIR/gamecore.desktop"
 fi
+for name in gamecore-session-select gamecore-xsetup; do
+  install -m 755 "$INSTALL_ROOT/bin/$name" "$BIN_DIR/$name"
+done
 echo "  ✓ /usr/local/bin/gamecore-session, /usr/share/xsessions/gamecore.desktop"
 
 # ── the user units ───────────────────────────────────────────────
@@ -107,30 +138,22 @@ chmod 644 "$UNIT_DIR/gamecore-ui.service"
 ln -sf ../gamecore-ui.service "$UNIT_DIR/gamecore-session.target.wants/gamecore-ui.service"
 echo "  ✓ user units in $UNIT_DIR"
 
-# ── the old system unit, retired ─────────────────────────────────
-#
-# Masked, not merely disabled. `gamecore-launcher` and every habit built around
-# it call `systemctl start gamecore-ui.service`; on a migrated box that would
-# start a second Electron over the session's own, against the same X server and
-# the same backend. Masking makes that call fail loudly instead.
-OLD_UNIT="${DESTDIR}/etc/systemd/system/gamecore-ui.service"
-if [[ -f "$OLD_UNIT" ]]; then
-  _live && { systemctl disable --now gamecore-ui.service 2>/dev/null || true; }
-  # The unit file is kept, moved aside: an operator rolling back wants it, and
-  # the uninstaller needs to know it was ours.
-  mv -f "$OLD_UNIT" "${OLD_UNIT}.pre-session" 2>/dev/null || true
-fi
-if _live; then
-  systemctl mask gamecore-ui.service 2>/dev/null || true
-  systemctl daemon-reload
-fi
-echo "  ✓ the system-wide gamecore-ui.service is stopped and masked"
+# Keep the old system service and its enablement unchanged. Merely installing
+# a session must not remove the kiosk from the next desktop login.
 
-# ── linger ───────────────────────────────────────────────────────
-# The user manager must exist before the session starts, because the session
-# talks to it. It is already enabled on every box that has addons or a pack
-# daemon; doing it here makes the session independent of that.
-_live && { loginctl enable-linger "$GC_USER" 2>/dev/null || true; }
+# Install the privileged OTA entry points in the same preparation, including
+# their root-owned copies. Future updates can refresh them through this unit.
+for dest in "${DESTDIR}/etc/systemd/system/gamecore-restart.service" \
+            "${DESTDIR}/etc/systemd/system/gamecore-session-migrate.service" \
+            "${DESTDIR}/etc/sudoers.d/gamecore-update" \
+            "$BIN_DIR/gamecore-emu" "$BIN_DIR/gamecore-restart" "$BIN_DIR/gamecore-session-migrate"; do
+  backup "$dest"
+done
+bash "$HERE/setup-update-permissions.sh" "$GC_USER"
+echo "  Roll back installed files: sudo bash $BACKUP/restore.sh"
+
+# SDDM/PAM starts the user manager for the graphical login. Linger belongs
+# to the installer's background-daemon setup; this preparation does not alter it.
 
 echo "✅ Console session installed for '${GC_USER}'."
 echo "   Arm it with:  sudo gamecore-session-select gamecore"

@@ -1,5 +1,7 @@
 # The nineteen audit subjects, corrected — session report
 
+> Relecture ultérieure : [corrections du 2026-09-07](review-fixes-2026-09-07.md), notamment migration, mapping et démarrage.
+
 **Session:** 2026-09-06. **Base:** `de53579` (the commit the audit examined).
 **Branch:** `feat/packs-layout-et-corrections-audit`.
 

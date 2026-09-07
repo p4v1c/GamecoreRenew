@@ -16,8 +16,6 @@ Description=GameCore — install the console session (one shot)
 [Service]
 Type=oneshot
 RemainAfterExit=no
-EnvironmentFile=/var/lib/gamecore/manifest.env
-# The step is idempotent, so a second run is a no-op rather than a repair.
-ExecStart=/bin/bash -c '"${GAMECORE_PATH}/install/steps/setup-gamecore-session.sh" "${USER_NAME}" "${GAMECORE_PATH}" "${GAMECORE_DATA:-$GAMECORE_PATH}" "${WEB_PORT:-8765}"'
+ExecStart=/usr/local/bin/gamecore-session-migrate
 StandardOutput=journal
 StandardError=journal

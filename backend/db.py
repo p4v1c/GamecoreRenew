@@ -68,17 +68,30 @@ async def _widen_playtime_key(db: aiosqlite.Connection) -> None:
     if keyed.get("system_id"):
         return
 
-    await db.executescript("""
-        CREATE TABLE playtime_new (
-            game_key    TEXT NOT NULL,
-            system_id   TEXT NOT NULL,
-            total_secs  INTEGER NOT NULL DEFAULT 0,
-            session_count INTEGER NOT NULL DEFAULT 0,
-            last_played TEXT,
-            PRIMARY KEY (system_id, game_key)
-        );
-        INSERT INTO playtime_new (game_key, system_id, total_secs, session_count, last_played)
-            SELECT game_key, system_id, total_secs, session_count, last_played FROM playtime;
-        DROP TABLE playtime;
-        ALTER TABLE playtime_new RENAME TO playtime;
-    """)
+    # SAVEPOINT also works when the caller already owns a transaction. Avoid
+    # executescript here: it commits an existing transaction before executing.
+    await db.execute("SAVEPOINT widen_playtime")
+    try:
+        await db.execute("""
+            CREATE TABLE playtime_new (
+                game_key TEXT NOT NULL,
+                system_id TEXT NOT NULL,
+                total_secs INTEGER NOT NULL DEFAULT 0,
+                session_count INTEGER NOT NULL DEFAULT 0,
+                last_played TEXT,
+                PRIMARY KEY (system_id, game_key)
+            )
+        """)
+        await db.execute("""
+            INSERT INTO playtime_new
+                (game_key, system_id, total_secs, session_count, last_played)
+            SELECT game_key, system_id, total_secs, session_count, last_played FROM playtime
+        """)
+        await db.execute("DROP TABLE playtime")
+        await db.execute("ALTER TABLE playtime_new RENAME TO playtime")
+        await db.execute("RELEASE SAVEPOINT widen_playtime")
+    except BaseException:
+        # Cancellation must roll back too; callers must never observe half a schema.
+        await db.execute("ROLLBACK TO SAVEPOINT widen_playtime")
+        await db.execute("RELEASE SAVEPOINT widen_playtime")
+        raise

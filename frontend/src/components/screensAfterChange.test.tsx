@@ -20,6 +20,7 @@ import HomeScreen from './HomeScreen'
 import { api } from '../api'
 import { useStore } from '../store'
 import type { HomeViewProps } from './HomeScreen/types'
+import { bootSteps, resetBootForTests } from '../lib/boot'
 import { buildSdk } from '../lib/themeSdk'
 
 /** The websocket bus, replaced by something this file can fire by hand. */
@@ -174,4 +175,21 @@ describe('Summer, when the selection goes away', () => {
     expect(r.container.textContent).not.toContain('THEME CRASHED')
     expect(r.container.querySelector('.sm-lib-shot')).toBeNull()
   })
+})
+
+it('keeps the boot gate closed on systems failure, then accepts an empty successful retry', async () => {
+  resetBootForTests()
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const list = vi.spyOn(api.systems, 'list').mockRejectedValue(new Error('HTTP 503'))
+  vi.spyOn(api.playtime, 'all').mockResolvedValue([])
+  vi.spyOn(api.games, 'list').mockResolvedValue([])
+  useStore.setState({ screen: 'home', gridFocusIdx: 0, gridPage: 0, modalDepth: 0, sessionGameKey: null })
+  render(<HomeScreen view={() => <div />} onLaunchApp={() => {}} />)
+  await flush()
+  expect(bootSteps().systems).toBe(false)
+  list.mockResolvedValue([])
+  emit('playtime:rekeyed', {})
+  await flush()
+  expect(bootSteps().systems).toBe(true)
+  resetBootForTests()
 })

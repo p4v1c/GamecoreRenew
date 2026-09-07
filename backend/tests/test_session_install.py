@@ -99,18 +99,15 @@ def test_running_it_twice_changes_nothing_the_second_time(staged, tmp_path):
     assert before == after, "the migration is not idempotent"
 
 
-def test_the_old_system_unit_is_taken_out_of_the_way(staged, tmp_path):
-    """Two units starting two Electrons against one X server is the failure
-    this step exists to make impossible."""
+def test_the_old_system_unit_is_preserved_until_arming(staged, tmp_path):
+    """Installing the session must leave the current kiosk able to boot."""
     old = _staged(tmp_path, "etc/systemd/system/gamecore-ui.service")
     old.parent.mkdir(parents=True)
     old.write_text("[Service]\nExecStart=/opt/GameCore/electron/start-ui.sh\n")
 
     staged["install"]()
 
-    assert not old.exists(), "the old system unit is still in place"
-    assert old.with_suffix(".service.pre-session").exists(), (
-        "the old unit was deleted rather than kept for a rollback")
+    assert old.read_text() == "[Service]\nExecStart=/opt/GameCore/electron/start-ui.sh\n"
 
 
 def test_installing_does_not_change_how_the_box_boots(staged, tmp_path):
@@ -145,6 +142,12 @@ def switch(tmp_path):
     xses = tmp_path / "usr" / "share" / "xsessions"
     sddm.mkdir(parents=True)
     xses.mkdir(parents=True)
+    bins = tmp_path / "bin"
+    bins.mkdir()
+    log = tmp_path / "systemctl.log"
+    stub = bins / "systemctl"
+    stub.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "' + str(log) + '"\nexit 0\n')
+    stub.chmod(0o755)
     (xses / "plasmax11.desktop").write_text("[Desktop Entry]\nName=Plasma (X11)\n")
 
     def run(*args) -> subprocess.CompletedProcess:
@@ -152,10 +155,12 @@ def switch(tmp_path):
             ["bash", str(SELECT), *args],
             env={**os.environ, "SDDM_CONF_DIR": str(sddm), "XSESSIONS_DIR": str(xses),
                  "WAYLAND_SESSIONS_DIR": str(tmp_path / "none"),
-                 "GAMECORE_USER": "player"},
+                 "GAMECORE_USER": "player", "GAMECORE_USER_HOME": str(tmp_path / "home"),
+                 "SYSTEM_UNIT_DIR": str(tmp_path / "units"),
+                 "PATH": str(bins) + ":" + os.environ["PATH"]},
             text=True, capture_output=True, timeout=60)
 
-    return {"run": run, "sddm": sddm, "xsessions": xses}
+    return {"run": run, "sddm": sddm, "xsessions": xses, "units": tmp_path / "units", "log": log}
 
 
 def _autologin(sddm: Path) -> str:
@@ -206,3 +211,38 @@ def test_leaving_with_no_desktop_installed_refuses_rather_than_stranding(switch)
     assert r.returncode != 0
     assert "no X11 desktop session" in r.stdout + r.stderr
     assert _autologin(switch["sddm"]) == "gamecore", "the box was left pointing at nothing"
+
+
+def test_arming_retires_the_legacy_kiosk_without_killing_the_current_session(switch):
+    (switch["xsessions"] / "gamecore.desktop").write_text("[Desktop Entry]\n")
+    switch["units"].mkdir()
+    old = switch["units"] / "gamecore-ui.service"
+    old.write_text("[Service]\nRestart=on-failure\n")
+    assert switch["run"]("gamecore").returncode == 0
+    assert old.is_symlink() and os.readlink(old) == "/dev/null"
+    assert old.with_suffix(".service.pre-session").read_text() == "[Service]\nRestart=on-failure\n"
+    calls = switch["log"].read_text()
+    assert "disable gamecore-ui.service" in calls
+    assert "--now" not in calls and "stop gamecore-ui" not in calls
+
+
+def test_preparation_installs_the_complete_ota_chain(staged, tmp_path):
+    assert staged["install"]().returncode == 0
+    for name in ("gamecore-session-select", "gamecore-xsetup", "gamecore-restart", "gamecore-session-migrate"):
+        assert _staged(tmp_path, "usr/local/bin", name).read_bytes() == (REPO / "install/bin" / name).read_bytes()
+    for name in ("gamecore-restart.service", "gamecore-session-migrate.service"):
+        assert _staged(tmp_path, "etc/systemd/system", name).is_file()
+    assert "start gamecore-session-migrate.service" in _staged(tmp_path, "etc/sudoers.d/gamecore-update").read_text()
+
+
+def test_preparation_keeps_a_file_by_file_undo(staged, tmp_path):
+    before = _staged(tmp_path, "usr/local/bin/gamecore-session-select")
+    before.parent.mkdir(parents=True)
+    before.write_text("previous selector")
+    assert staged["install"]().returncode == 0
+    assert staged["install"]().returncode == 0
+    undo = staged["home"] / "verif-avant/gamecore-session/restore.sh"
+    result = subprocess.run(["bash", str(undo)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert before.read_text() == "previous selector"
+    assert not _staged(tmp_path, "usr/share/xsessions/gamecore.desktop").exists()

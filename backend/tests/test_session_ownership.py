@@ -273,3 +273,48 @@ def test_connecting_is_told_about_the_empty_session_too():
             ws.set_current_game(None)
 
     asyncio.run(scenario())
+
+
+def test_failed_migration_rolls_back_and_can_be_retried(tmp_path):
+    async def scenario():
+        for fail_at in ("INSERT INTO playtime_new", "DROP TABLE playtime", "ALTER TABLE playtime_new"):
+            path = tmp_path / (fail_at.split()[0] + ".db")
+            async with aiosqlite.connect(path) as conn:
+                conn.row_factory = aiosqlite.Row
+                await conn.executescript("""
+                    CREATE TABLE playtime (game_key TEXT PRIMARY KEY, system_id TEXT NOT NULL,
+                        total_secs INTEGER, session_count INTEGER, last_played TEXT);
+                    INSERT INTO playtime VALUES ('same.nds', 'melonds', 42, 1, NULL);
+                """)
+                import sqlite3
+                operation = {
+                    "INSERT INTO playtime_new": sqlite3.SQLITE_INSERT,
+                    "DROP TABLE playtime": sqlite3.SQLITE_DROP_TABLE,
+                    "ALTER TABLE playtime_new": sqlite3.SQLITE_ALTER_TABLE,
+                }[fail_at]
+
+                def authorizer(action, *args):
+                    return sqlite3.SQLITE_DENY if action == operation else sqlite3.SQLITE_OK
+
+                # Inject in SQLite itself, so executescript and execute are
+                # both tested at the actual failing statement.
+                await conn._execute(conn._conn.set_authorizer, authorizer)
+                try:
+                    await db._widen_playtime_key(conn)
+                except sqlite3.DatabaseError:
+                    pass
+                else:
+                    raise AssertionError("fault injection did not run")
+                finally:
+                    await conn._execute(conn._conn.set_authorizer, None)
+            # Reopen from disk, as on the next backend start.
+            async with aiosqlite.connect(path) as conn:
+                conn.row_factory = aiosqlite.Row
+                rows = await conn.execute_fetchall("SELECT * FROM playtime")
+                assert rows[0]["total_secs"] == 42
+                tables = await conn.execute_fetchall("SELECT name FROM sqlite_master WHERE type='table'")
+                assert [r["name"] for r in tables] == ["playtime"]
+                await db._widen_playtime_key(conn)
+                await conn.execute("INSERT INTO playtime VALUES ('same.nds', 'other', 9, 1, NULL)")
+                assert len(await conn.execute_fetchall("SELECT * FROM playtime")) == 2
+    asyncio.run(scenario())

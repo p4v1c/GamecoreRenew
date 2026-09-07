@@ -175,6 +175,13 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
         socket.onmessage = e => {
           let msg: { event: string; data: Record<string, unknown> }
           try { msg = JSON.parse(e.data) } catch { return }
+          if (msg.event === 'ended') {
+            if (!cancelled && ['capturing', 'review'].includes(phaseRef.current)) {
+              setError('La manette a été déconnectée ou la capture a expiré. Relancez le mapping.')
+              setPhase('error')
+            }
+            return
+          }
           if (msg.event === 'error') {
             setError(String(msg.data.error || 'the capture stream failed'))
             setPhase('error')
@@ -271,6 +278,12 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
           const token = current.kind === 'axis' && current.field.includes('trigger')
             ? start.signed : start.binding
           record(current.field, token)
+        }
+        socket.onclose = () => {
+          if (!cancelled && ['capturing', 'review'].includes(phaseRef.current)) {
+            setError('La connexion à la manette a été interrompue. Relancez le mapping.')
+            setPhase('error')
+          }
         }
         socket.onerror = () => { setError('the capture stream failed'); setPhase('error') }
       })
