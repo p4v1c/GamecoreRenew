@@ -7,7 +7,7 @@ import { api } from './api'
 
 import Splash from './components/Splash'
 import BootRecovery from './components/BootRecovery'
-import { bootSteps, isBootReady, onBootChange } from './lib/boot'
+import { bootBackground, bootSteps, isBootReady, onBootChange } from './lib/boot'
 import ErrorBoundary from './components/ErrorBoundary'
 import DefaultShell from './components/DefaultShell'
 import { useTheme } from './hooks/useTheme'
@@ -48,6 +48,10 @@ const SPLASH_WATCHDOG_MS = 20000
 const BOOT_WATCHDOG_MS = 25000
 
 export default function App() {
+  // The ground the shell is already painting — see lib/boot.ts. Read per
+  // render rather than at module scope: the value belongs to the shell, and
+  // reading it where it is used keeps that visible.
+  const bootBg = bootBackground()
   /** The animation is finished. NOT "the box is ready" — see below. */
   const [splashDone, setSplashDone] = useState(false)
   const [stuck, setStuck] = useState(false)
@@ -163,7 +167,7 @@ export default function App() {
           filling itself in. One mechanism, no theme sniffing, and the older
           theme keeps working. */}
       {!ready && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 8999, background: '#09090f' }} />
+        <div style={{ position: 'fixed', inset: 0, zIndex: 8999, background: bootBg }} />
       )}
 
       <AnimatePresence>
@@ -177,7 +181,7 @@ export default function App() {
             </ErrorBoundary>
           </div>
         ) : (
-          <div key="pre-splash" style={{ position: 'fixed', inset: 0, zIndex: 900, background: '#09090f' }} />
+          <div key="pre-splash" style={{ position: 'fixed', inset: 0, zIndex: 900, background: bootBg }} />
         ))}
       </AnimatePresence>
 

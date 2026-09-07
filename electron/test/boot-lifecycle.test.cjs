@@ -79,7 +79,10 @@ function rig({ answers = [true], env = {} } = {}) {
   const stubs = {
     electron,
     'child_process': { spawn: (bin, args) => { spawned.push({ bin, args }); return child }, exec: () => {} },
-    fs: { existsSync: () => true, readFileSync: () => '{}' },
+    // The real fs: this bench is partly ABOUT what main.js reads from disk —
+    // the active theme and its manifest — and a stub that answers `{}` to
+    // every read would make that test pass against a shell reading nothing.
+    fs,
     path,
     os: { uptime: () => 999 },
   }
@@ -223,4 +226,85 @@ test('a renderer that dies puts the boot screen back', async () => {
   r.stop()
   assert.deepEqual(window.loaded.map(l => l.kind), ['file', 'url', 'file', 'url'],
     'the boot screen did not come back, or the interface never returned')
+})
+
+// ── the colour the box boots to ─────────────────────────────────────────────
+
+/** A data root on disk: an active theme, and a manifest that may declare a ground. */
+function themeTree(active, manifest) {
+  const os = require('node:os')
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gamecore-boot-'))
+  fs.mkdirSync(path.join(root, 'config', 'themes', active), { recursive: true })
+  fs.writeFileSync(path.join(root, 'config', 'theme.json'), JSON.stringify({ active }))
+  if (manifest !== null) {
+    fs.writeFileSync(path.join(root, 'config', 'themes', active, 'theme.json'),
+                     JSON.stringify(manifest))
+  }
+  return root
+}
+
+/** main.js evaluated with a real data root, stopping at the window options. */
+function backgroundFor(dataRoot) {
+  const r = rig({ answers: [false], env: { GAMECORE_DATA: dataRoot, INVOCATION_ID: 'x' } })
+  r.context.createWindow()
+  return r.windows[0].options.backgroundColor
+}
+
+test('the boot colour is the active theme’s, not a constant', () => {
+  // Shelf's splash paints near-white paper. A shell hardcoded to a dark ground
+  // flashed dark-to-white at every boot on the theme the box actually runs.
+  const root = themeTree('shelf', { id: 'shelf', boot: { background: '#F4F2ED' } })
+  assert.equal(backgroundFor(root), '#F4F2ED')
+})
+
+test('a theme that declares nothing gets the old default', () => {
+  const root = themeTree('plain', { id: 'plain' })
+  assert.equal(backgroundFor(root), '#09090f')
+})
+
+test('anything that is not a colour is refused rather than passed on', () => {
+  // The value reaches a window's backgroundColor and the interface's own cover.
+  for (const declared of ['red; }', 'url(http://x/y)', '', 42, null, '#zzz']) {
+    const root = themeTree('odd', { id: 'odd', boot: { background: declared } })
+    assert.equal(backgroundFor(root), '#09090f', `accepted ${JSON.stringify(declared)}`)
+  }
+})
+
+test('a missing or unreadable theme costs the colour, never the boot', () => {
+  const os = require('node:os')
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'gamecore-boot-'))
+  assert.equal(backgroundFor(empty), '#09090f')
+
+  const broken = themeTree('shelf', null)              // no manifest at all
+  assert.equal(backgroundFor(broken), '#09090f')
+
+  fs.writeFileSync(path.join(broken, 'config', 'theme.json'), '{ not json')
+  assert.equal(backgroundFor(broken), '#09090f')
+})
+
+test('an active id that names a path is not followed', () => {
+  const root = themeTree('shelf', { id: 'shelf', boot: { background: '#F4F2ED' } })
+  fs.writeFileSync(path.join(root, 'config', 'theme.json'),
+                   JSON.stringify({ active: '../../../etc' }))
+  assert.equal(backgroundFor(root), '#09090f')
+})
+
+test('the interface is handed the same colour, before its first frame', () => {
+  const root = themeTree('shelf', { id: 'shelf', boot: { background: '#F4F2ED' } })
+  const r = rig({ answers: [false], env: { GAMECORE_DATA: root, INVOCATION_ID: 'x' } })
+  r.context.createWindow()
+  const args = r.windows[0].options.webPreferences.additionalArguments
+  assert.ok(args.includes('--gamecore-boot-bg=#F4F2ED'),
+    'the renderer would draw its cover in a different colour than the window')
+})
+
+test('the boot screen paints no ground of its own', () => {
+  // It is transparent so the window's colour shows through — one decision, one
+  // place, and no frame where the two disagree.
+  const html = fs.readFileSync(path.join(__dirname, '..', 'boot', 'boot.html'), 'utf8')
+  assert.match(html, /background:\s*transparent/)
+  assert.ok(!/#09090f/i.test(html), 'the boot screen hardcodes a colour again')
+  // `<title>` is not the screen; a wordmark drawn in the page is.
+  assert.ok(!/class="mark"/.test(html) && !/letter-spacing/.test(html),
+    'the boot screen draws a wordmark — the theme owns the intro')
 })

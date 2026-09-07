@@ -98,3 +98,27 @@ export function resetBootForTests(): void {
   announced = false
   startedAt = Date.now()
 }
+
+/** What every theme got before a theme could declare its own. */
+export const DEFAULT_BOOT_BACKGROUND = '#09090f'
+
+/**
+ * The ground everything before the theme's splash is painted on.
+ *
+ * The shell already knows it: it read the active theme's declared
+ * `boot.background` from disk before this bundle existed, and the window has
+ * been painting it since before the first document. Reading the same value
+ * here is what keeps the whole boot one colour — Shelf boots to paper
+ * (#F4F2ED), and a dark cover under its splash was a dark-to-white flash at
+ * every start.
+ *
+ * Validated again on this side, and not out of distrust of the shell: the
+ * value crossed a process boundary and ends up in a style attribute, so it is
+ * checked where it is used rather than only where it was read.
+ */
+export function bootBackground(): string {
+  const declared = typeof window !== 'undefined' ? window.gamecore?.bootBackground : null
+  return typeof declared === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(declared.trim())
+    ? declared.trim()
+    : DEFAULT_BOOT_BACKGROUND
+}

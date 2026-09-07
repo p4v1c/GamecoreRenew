@@ -39,8 +39,48 @@ const REBUILD_WINDOW = 10_000
 let monitorProcess = null
 
 
+/**
+ * The colour the box boots to — the active theme's, read from disk.
+ *
+ * Not a constant, and the reason is measurable: Shelf's boot animation paints
+ * `#F4F2ED`, near-white paper. A shell hardcoded to a dark ground therefore
+ * flashed dark-to-white at every single boot on the theme the box actually
+ * runs — the exact "image blanche entre deux fenêtres" the console boot exists
+ * to remove.
+ *
+ * Read from two files, both on disk, neither needing the backend: the active
+ * theme's id, then that theme's manifest. A theme that declares nothing gets
+ * the default below, which is what every theme got before this existed.
+ *
+ * Validated hard, because the value ends up in a window's `backgroundColor`
+ * and in the interface's own cover: anything that is not a plain hex colour is
+ * refused rather than passed along.
+ */
+const DEFAULT_BOOT_BG = '#09090f'
+const HEX_COLOUR = /^#[0-9a-fA-F]{3,8}$/
+
+function bootBackground() {
+  const dataRoot = process.env.GAMECORE_DATA
+    || process.env.GAMECORE_PATH
+    || path.join(__dirname, '..')
+  try {
+    const state = JSON.parse(fs.readFileSync(path.join(dataRoot, 'config', 'theme.json'), 'utf8'))
+    const id = String(state.active || '')
+    // The id names a directory; anything with a separator in it is not an id.
+    if (!id || !/^[A-Za-z0-9._-]+$/.test(id)) return DEFAULT_BOOT_BG
+    const manifest = JSON.parse(fs.readFileSync(
+      path.join(dataRoot, 'config', 'themes', id, 'theme.json'), 'utf8'))
+    const declared = manifest && manifest.boot && manifest.boot.background
+    if (typeof declared === 'string' && HEX_COLOUR.test(declared.trim())) {
+      return declared.trim()
+    }
+  } catch { /* no theme, no manifest, unreadable JSON — the default is correct */ }
+  return DEFAULT_BOOT_BG
+}
+
 // ── Main window ───────────────────────────────────────────────────────────────
 function createWindow() {
+  const bootBg = bootBackground()
   mainWindow = new BrowserWindow({
     width: 1920,
     height: 1080,
@@ -51,12 +91,20 @@ function createWindow() {
     kiosk: !DEBUG && !DEV,
     frame: false,
     autoHideMenuBar: true,
-    backgroundColor: '#09090f',
+    // Painted before any document exists, and again in the frame between the
+    // boot screen and the interface. `boot/boot.html` is transparent so this is
+    // the only place the boot colour is decided.
+    backgroundColor: bootBg,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
+      // Handed to the preload as an argument rather than fetched over IPC: the
+      // interface's own cover is drawn on its very first render, and a value
+      // that arrives one round trip later is a value that arrives after the
+      // frame it was needed for.
+      additionalArguments: [`--gamecore-boot-bg=${bootBg}`],
       // This window is the WebSocket bridge for battery alerts even while
       // buried under an emulator or hidden behind a bezel overlay — never
       // let Chromium throttle it in the background.

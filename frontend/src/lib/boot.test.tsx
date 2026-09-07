@@ -13,7 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import React from 'react'
 
 import {
-  BOOT_STEPS, bootSteps, isBootReady, markBootStep, onBootChange, resetBootForTests,
+  BOOT_STEPS, DEFAULT_BOOT_BACKGROUND, bootBackground, bootSteps, isBootReady,
+  markBootStep, onBootChange, resetBootForTests,
 } from './boot'
 
 /** Two frames, and enough slack for jsdom to actually run them. */
@@ -91,5 +92,30 @@ describe('who is watching', () => {
     await act(async () => { markBootStep('theme'); markBootStep('systems') })
     await frame()
     expect(r.getByTestId('ready').textContent).toBe('true')
+  })
+})
+
+describe('the ground the boot is painted on', () => {
+  it('is the one the shell is already painting', () => {
+    // The shell read the active theme's declared `boot.background` from disk
+    // before this bundle existed. Reading the same value is what keeps the
+    // whole boot one colour — Shelf boots to paper, and a dark cover under its
+    // splash was a dark-to-white flash at every start.
+    ;(window as unknown as { gamecore: unknown }).gamecore = { bootBackground: '#F4F2ED' }
+    expect(bootBackground()).toBe('#F4F2ED')
+  })
+
+  it('falls back where there is no shell to ask', () => {
+    expect(bootBackground()).toBe(DEFAULT_BOOT_BACKGROUND)
+    ;(window as unknown as { gamecore: unknown }).gamecore = { bootBackground: null }
+    expect(bootBackground()).toBe(DEFAULT_BOOT_BACKGROUND)
+  })
+
+  it('refuses anything that is not a colour', () => {
+    // It crossed a process boundary and ends up in a style attribute.
+    for (const bad of ['red; background:url(http://x)', '', 'transparent', 42, {}]) {
+      ;(window as unknown as { gamecore: unknown }).gamecore = { bootBackground: bad }
+      expect(bootBackground()).toBe(DEFAULT_BOOT_BACKGROUND)
+    }
   })
 })

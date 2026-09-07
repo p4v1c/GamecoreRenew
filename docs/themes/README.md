@@ -136,6 +136,25 @@ A themed splash draws what it likes but does not decide when booting ends: it
 must call `onDone`, and the host treats the animation as over regardless after
 20s.
 
+**SDK 4 — the boot ground.** Declare in `theme.json` the colour your splash
+paints first:
+
+```json
+"boot": { "background": "#F4F2ED" }
+```
+
+The shell reads it **from disk before your bundle exists** — before the backend
+has answered anything — and paints it from the window's very first frame, on
+the local boot screen, in the frame between that screen and the interface, and
+on the cover the host holds under your splash. Get it wrong and the player sees
+a flash of the wrong colour at every boot; leave it out and you get `#09090f`,
+which is what every theme got before this existed.
+
+Shelf declares `#F4F2ED`, the paper its splash starts on. Summer declares its
+night sky: its own gradient is computed from the clock, so no constant can
+match it at every hour — the sunrise rising out of a dark screen is the
+intended reading rather than a flash to be hidden.
+
 **SDK 4 — the boot contract.** Your splash receives `bootReady` as well as
 `onDone`. An animation has a duration; a box being usable does not, and the two
 used to be the same event: the splash ended, the dashboard appeared, and

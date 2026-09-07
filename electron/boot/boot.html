@@ -7,52 +7,50 @@
   The first thing on the television, and the only thing that has to work when
   nothing else does.
 
-  It is loaded from disk with `file://` — no backend, no network, no API, no
-  bundle. That is the whole point: the window used to be created only AFTER the
-  wait for the backend, so what covered the screen during that wait was the
-  desktop. Wallpaper, panel, and whatever the player had left open, for as long
-  as the box took to start.
+  Loaded from disk with `file://` — no backend, no network, no API, no bundle.
+  That is the whole point: the window used to be created only AFTER the wait for
+  the backend, so what covered the screen during that wait was the desktop.
 
-  Deliberately still. The theme's boot animation plays a few seconds later, and
-  two animations in a row with nothing between them read as a stutter rather
-  than as a start. So this is a ground and a wordmark: the same ground the
-  window is created with (`backgroundColor`), so the handover to the interface
-  is a change of content on an unchanged colour.
+  ── Two things it deliberately does NOT have ──────────────────────────────────
 
-  No JavaScript at all. A boot screen that can hang is not a boot screen — the
-  one line that appears late is a CSS animation, and it says nothing the
+  **No wordmark.** It had one, and that was one intro too many: the theme plays
+  its own boot animation a few seconds later, with its own wordmark, so the
+  player saw GameCore introduce itself twice. The theme owns the intro. This
+  owns the fact that the screen is never the desktop.
+
+  **No background colour of its own.** `html` and `body` are transparent, so
+  what shows through is the WINDOW's `backgroundColor` — set by main.js from the
+  active theme's declared `boot.background` before this page exists. That is
+  what makes the handover seamless whatever the theme: Shelf's splash paints
+  paper (#F4F2ED), and a page hardcoded to a dark ground meant a dark-to-white
+  flash at every boot on the default theme. One colour, decided once, painted
+  from the first frame — including the frame between this document and the
+  interface, which Chromium paints with that same window colour.
+
+  **No JavaScript at all.** A boot screen that can hang is not a boot screen.
+  The single line below appears through a CSS animation and says nothing the
   journal does not say better; it exists so that a box stuck here looks stuck
   rather than finished.
 -->
 <style>
   html, body {
     margin: 0; height: 100%;
-    background: #09090f;
-    color: #e8e8f0;
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: transparent;   /* the window owns the colour — see above */
     overflow: hidden;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   .wrap {
     height: 100%;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 28px;
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 8vh; box-sizing: border-box;
   }
-  .mark {
-    font-size: 34px; font-weight: 600;
-    letter-spacing: 0.42em; text-indent: 0.42em;
-    opacity: 0.92;
-  }
-  .dot {
-    display: inline-block; width: 10px; height: 10px;
-    border-radius: 3px; background: #B15BFF;
-    transform: translateY(-4px); margin-right: 18px;
-  }
-  /* Appears after eight seconds and stays. Nothing depends on it: it is there
-     so a box that is stuck looks stuck, on a screen with no keyboard. */
+  /* Appears after eight seconds and stays. Nothing depends on it.
+     A mid grey at half strength rather than a colour: it has to stay legible on
+     a theme that boots to paper and on one that boots to a night sky, and it
+     must never be the brightest thing on the screen. */
   .note {
     font-size: 14px; opacity: 0;
-    color: rgba(232, 232, 240, 0.45);
+    color: rgba(128, 128, 128, 0.9);
     animation: show 600ms ease 8s forwards;
   }
   @keyframes show { to { opacity: 1 } }
@@ -62,9 +60,6 @@
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="mark"><span class="dot"></span>GAMECORE</div>
-    <div class="note">Démarrage en cours…</div>
-  </div>
+  <div class="wrap"><div class="note">Démarrage en cours…</div></div>
 </body>
 </html>

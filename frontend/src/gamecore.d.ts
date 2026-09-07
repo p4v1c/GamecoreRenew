@@ -17,6 +17,12 @@ interface BootReadyReport {
 }
 
 interface GamecoreAPI {
+  /** The ground the shell is already painting — the active theme's declared
+   *  `boot.background`, or the default. `null` outside Electron. Used by the
+   *  covers the host draws before the theme's splash exists, so the whole boot
+   *  is one colour. */
+  bootBackground: string | null
+
   /** Sent once, when the interface is worth looking at. Absent outside
    *  Electron — the browser dev server has nothing to tell. */
   bootReady: (report?: BootReadyReport) => void

@@ -1,7 +1,21 @@
 'use strict'
 const { contextBridge, ipcRenderer } = require('electron')
 
+/**
+ * The colour the box is booting to — the active theme's, decided by main.js
+ * from the manifest on disk and handed over as a window argument.
+ *
+ * An argument rather than an IPC round trip: the interface's own cover is
+ * drawn on its first render, and a value that arrives a round trip later
+ * arrives after the frame it was needed for.
+ */
+const BOOT_BG = (process.argv.find(a => a.startsWith('--gamecore-boot-bg=')) || '')
+  .slice('--gamecore-boot-bg='.length) || null
+
 contextBridge.exposeInMainWorld('gamecore', {
+  /** `null` outside Electron and on an older shell: callers fall back. */
+  bootBackground: BOOT_BG,
+
   // The host, once it has something worth looking at. One signal, sent once,
   // decided in frontend/src/lib/boot.ts — never by a theme and never by a
   // timer. See the `boot:ready` handler in main.js.
