@@ -96,11 +96,39 @@ trap cleanup EXIT INT TERM
 # up costs the compositor — the interface is fullscreen and still visible, the
 # bezels and the window stacking are not — and says so in the journal, which is
 # a box someone can still fix.
+# KWin first, and openbox as the last resort.
+#
+# KWin is the target: the bezel overlay asks for the `screen-saver` layer
+# precisely because KWin puts a fullscreen emulator above an ordinary
+# always-on-top window, and that behaviour is what the overlay code was written
+# against.
+#
+# openbox is not a compositor and is not equivalent — but it IS a window
+# manager, and the difference that matters here is between "a window manager
+# whose stacking is not the one we tuned for" and "no window manager at all".
+# The second is what this box would have got: recent Plasma ships KWin's X11
+# binary in a separate `kwin-x11` package, and a machine running Plasma on
+# Wayland does not have it. The session would have started GameCore on a bare
+# X server — the interface shows, the bezels stack at random and a fullscreen
+# emulator answers to nobody.
+# The candidates, in order of preference. Overridable so a test can decide what
+# this machine appears to have — without it, a test for "no KWin here" would
+# have to hide a real binary from PATH, and the one that tried launched the
+# developer's actual KWin against a display that does not exist.
+WM_CANDIDATES="${GAMECORE_WM_CANDIDATES:-kwin_x11 kwin openbox}"
+
 COMPOSITOR="${GAMECORE_COMPOSITOR:-}"
+COMPOSITOR_KIND="compositor"
 if [[ -z "$COMPOSITOR" ]]; then
-  for candidate in kwin_x11 kwin; do
+  for candidate in $WM_CANDIDATES; do
     if command -v "$candidate" >/dev/null 2>&1; then COMPOSITOR="$candidate"; break; fi
   done
+fi
+if [[ "$COMPOSITOR" == openbox || "$COMPOSITOR" == *"/openbox" ]]; then
+  COMPOSITOR_KIND="window manager"
+  log "no KWin for X11 on this machine — falling back to openbox."
+  log "  the interface and the games are fine; the bezels are tuned for KWin."
+  log "  for the intended behaviour:  sudo pacman -S kwin-x11"
 fi
 
 # Set by the supervisor when the compositor exits cleanly, which is the only
@@ -111,29 +139,30 @@ rm -f "$COMPOSITOR_LEFT" 2>/dev/null || true
 supervise_compositor() {
   local restarts=0 window_start=$SECONDS status
   while :; do
-    log "starting compositor: $COMPOSITOR"
+    log "starting $COMPOSITOR_KIND: $COMPOSITOR"
     "$COMPOSITOR" &
     wait $! ; status=$?
     if [[ $status -eq 0 ]]; then
-      log "compositor exited cleanly"
+      log "$COMPOSITOR_KIND exited cleanly"
       : > "$COMPOSITOR_LEFT"
       return 0
     fi
     (( SECONDS - window_start > 60 )) && { restarts=0; window_start=$SECONDS; }
     restarts=$(( restarts + 1 ))
     if (( restarts > 3 )); then
-      log "the compositor failed $restarts times in a minute (last status $status)."
+      log "$COMPOSITOR_KIND failed $restarts times in a minute (last status $status)."
       log "  carrying on without one: the interface stays up, the bezels do not."
       return 1
     fi
-    log "compositor died (status $status) — restart $restarts of 3"
+    log "$COMPOSITOR_KIND died (status $status) — restart $restarts of 3"
     sleep 1
   done
 }
 
 if [[ -z "$COMPOSITOR" ]]; then
-  log "no KWin on this machine — running without a compositor."
+  log "no window manager on this machine — running without one."
   log "  the interface will show; bezels and window stacking will not."
+  log "  install one:  sudo pacman -S kwin-x11"
   SUPERVISOR_PID=""
 else
   supervise_compositor &

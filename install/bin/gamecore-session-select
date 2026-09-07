@@ -219,6 +219,36 @@ if [[ "$MODE" == gamecore ]]; then
     echo "  run: sudo install/steps/setup-gamecore-session.sh <user> <path> <data> <port>" >&2
     exit 1
   fi
+  # A console session with no window manager is worse than no console session:
+  # the interface shows, so it looks like it worked, and then the bezels stack
+  # at random and a fullscreen emulator answers to nobody. Recent Plasma ships
+  # KWin's X11 binary separately, so a box running Plasma on Wayland has none —
+  # which is exactly what the reference box turned out to be, one command
+  # before this would have armed it.
+  #
+  # Refused rather than warned: this is the one command in the whole project
+  # that can leave somebody in front of a television with a half-working
+  # console, and a warning scrolls past on a screen nobody is reading.
+  if [[ "${2:-}" != "--force" ]]; then
+    HAVE_WM=""
+    # Same list and same override as gamecore-session, so what is checked here
+    # is what will actually be looked for there.
+    for wm in ${GAMECORE_WM_CANDIDATES:-kwin_x11 kwin openbox}; do
+      command -v "$wm" >/dev/null 2>&1 && { HAVE_WM="$wm"; break; }
+    done
+    if [[ -z "$HAVE_WM" ]]; then
+      echo "no X11 window manager on this machine — the console session would" >&2
+      echo "have nothing to manage its windows." >&2
+      echo "  install one:  sudo pacman -S kwin-x11" >&2
+      echo "  or arm anyway: sudo $(basename "$0") gamecore --force" >&2
+      exit 1
+    fi
+    [[ "$HAVE_WM" == openbox ]] && {
+      echo "note: no KWin for X11 here — the session will use openbox."
+      echo "  games and interface are fine; the bezels are tuned for KWin."
+      echo "  for the intended behaviour:  sudo pacman -S kwin-x11"
+    }
+  fi
   backup_switch
   retire_legacy
   _write_autologin gamecore "$GC_USER"

@@ -246,3 +246,33 @@ def test_preparation_keeps_a_file_by_file_undo(staged, tmp_path):
     assert result.returncode == 0, result.stderr
     assert before.read_text() == "previous selector"
     assert not _staged(tmp_path, "usr/share/xsessions/gamecore.desktop").exists()
+
+
+def test_arming_without_a_window_manager_is_refused(switch, tmp_path, monkeypatch):
+    """The one command in the project that can leave somebody in front of a
+    television with a half-working console.
+
+    Recent Plasma ships KWin's X11 binary in its own package, so a box running
+    Plasma on Wayland has none — the reference box was exactly that, one
+    command away from arming a session with nothing to manage its windows. The
+    interface would have shown, so it would have looked like it worked, and
+    then the bezels stack at random and a fullscreen emulator answers to
+    nobody. Refused, not warned: a warning scrolls past on a screen nobody is
+    reading.
+    """
+    (switch["xsessions"] / "gamecore.desktop").write_text("[Desktop Entry]\nName=GameCore\n")
+    empty = tmp_path / "no-wm"
+    empty.mkdir()
+    r = subprocess.run(
+        ["bash", str(SELECT), "gamecore"],
+        env={"PATH": f"{empty}:/usr/bin:/bin", "SDDM_CONF_DIR": str(switch["sddm"]),
+             "XSESSIONS_DIR": str(switch["xsessions"]),
+             "WAYLAND_SESSIONS_DIR": str(tmp_path / "none"),
+             "GAMECORE_USER": "player",
+             # What this machine appears to have.
+             "GAMECORE_WM_CANDIDATES": "kwin_x11_absent openbox_absent"},
+        text=True, capture_output=True, timeout=60)
+    assert r.returncode != 0
+    assert "no X11 window manager" in r.stdout + r.stderr
+    assert "pacman -S kwin-x11" in r.stdout + r.stderr
+    assert _autologin(switch["sddm"]) == "", "the box was armed anyway"

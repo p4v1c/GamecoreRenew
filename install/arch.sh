@@ -625,6 +625,14 @@ progress 20 "Optional packages"
 # auto-log into — the whole stack (overlays, fullscreen enforcer,
 # gamecore-xsetup, the gamepad bridge) is X11 and cannot run on Wayland.
 pacman_optional plasma-x11-session
+# The console session's window manager. Recent Plasma ships KWin's X11 binary
+# in its own package, and a machine running Plasma on Wayland does not have it:
+# the reference box had kwin_wayland and no kwin_x11 at all. Without this the
+# console session starts GameCore on a bare X server — the interface shows, the
+# bezels stack at random, and a fullscreen emulator answers to nobody.
+# Optional because older Plasma carries both binaries in `kwin` and has no such
+# package to install.
+pacman_optional kwin-x11
 pacman_optional cpupower
 pacman_optional amd-ucode
 pacman_optional feh
