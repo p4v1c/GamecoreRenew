@@ -90,7 +90,7 @@ case "${1:-}" in
       echo "mode          : desktop (auto-login opens '$(_autologin)')"
     fi
     echo "session entry : $([[ -f "$XSESSIONS_DIR/gamecore.desktop" ]] && echo present || echo 'ABSENT — this box has not been migrated')"
-    echo "old system ui : $(systemctl is-enabled "$UNIT" 2>/dev/null || echo absent)"
+    echo "old system ui : $(systemctl is-enabled "$UNIT" 2>/dev/null | head -1 || true)$([[ -n "$(systemctl is-enabled "$UNIT" 2>/dev/null)" ]] || echo absent)"
     echo "auto-login    : $(_autologin)"
     echo "sessions      :"
     _sessions | while IFS=$'\t' read -r n d; do
@@ -136,9 +136,24 @@ fi
 _write_autologin() {   # _write_autologin <session-name> <user>
   install -d -m 755 "$SDDM_CONF_DIR"
   local conf="$SDDM_CONF_DIR/zz-gamecore-autologin.conf"
-  if [[ -f "$conf" && ! -e "$conf.pre-session" ]]; then
-    cp -a "$conf" "$conf.pre-session"
+
+  # The backup goes OUTSIDE the directory, and this is not tidiness.
+  #
+  # SDDM parses every file in /etc/sddm.conf.d/ whatever its extension, so a
+  # copy left beside the original is a second [Autologin] — and
+  # `…autologin.conf.pre-session` sorts AFTER `…autologin.conf`, so the backup
+  # beat the very file it was backing up. Measured on the reference box: armed
+  # at 01:44, and the session that started was the one the backup named.
+  #
+  # The same trap is documented in install/arch.sh for the KDE backup, which is
+  # why that one already lives with the manifest.
+  mkdir -p "$STATE_DIR" 2>/dev/null || true
+  if [[ -f "$conf" && ! -e "$STATE_DIR/autologin.pre-session" ]]; then
+    cp -a "$conf" "$STATE_DIR/autologin.pre-session" 2>/dev/null || true
   fi
+  # And take out any copy an older version left in there.
+  rm -f "$conf.pre-session" 2>/dev/null || true
+
   cat > "$conf.tmp" <<CONF
 [Autologin]
 User=$2
@@ -146,6 +161,60 @@ Session=$1
 Relogin=true
 CONF
   mv "$conf.tmp" "$conf"
+}
+
+# Files we named, carrying an [Autologin] that is not ours.
+#
+# `zz-gamecore-openbox.conf` was on the reference box from an older experiment,
+# sorted after `zz-gamecore-autologin.conf`, and quietly won every arming. A
+# leftover that bears our own prefix is ours to retire; anything else in that
+# directory belongs to the operator or the distribution and is left alone —
+# but it is REPORTED, because a competing [Autologin] we cannot touch is the
+# difference between "armed" and "armed and ignored".
+_retire_our_leftovers() {
+  local f base
+  mkdir -p "$STATE_DIR/retired-sddm" 2>/dev/null || true
+  for f in "$SDDM_CONF_DIR"/zz-gamecore-*; do
+    [[ -e "$f" ]] || continue
+    base=$(basename "$f")
+    [[ "$base" == zz-gamecore-autologin.conf ]] && continue
+    grep -q '^\[Autologin\]' "$f" 2>/dev/null || continue
+    mv -f "$f" "$STATE_DIR/retired-sddm/$base" 2>/dev/null \
+      && echo "retired a stale GameCore file that overrode the auto-login: $base"
+  done
+}
+
+# What SDDM will actually do — the LAST [Autologin] block in name order, which
+# is not necessarily the one we just wrote.
+#
+# Checked rather than assumed: writing a file and announcing success without
+# looking at what wins is how an arming reports "console session ON" and the
+# box boots the desktop anyway. That happened, twice, before this existed.
+_effective_session() {
+  local f last=""
+  for f in "$SDDM_CONF_DIR"/*; do
+    [[ -f "$f" ]] || continue
+    grep -q '^\[Autologin\]' "$f" 2>/dev/null || continue
+    local v
+    v=$(sed -n 's/^Session=//p' "$f" | tail -1)
+    [[ -n "$v" ]] && last="$v|$(basename "$f")"
+  done
+  printf '%s' "$last"
+}
+
+_verify_autologin() {   # _verify_autologin <wanted>
+  local got file
+  got="$(_effective_session)"
+  file="${got#*|}"; got="${got%%|*}"
+  if [[ "$got" == "$1" ]]; then
+    return 0
+  fi
+  echo >&2
+  echo "WARNING: the auto-login this box will actually use is '$got', not '$1'." >&2
+  echo "  it comes from: $SDDM_CONF_DIR/$file" >&2
+  echo "  SDDM reads every file in that directory and the LAST [Autologin] wins." >&2
+  echo "  move that file out of the directory, then run this command again." >&2
+  return 1
 }
 
 _autologin_user() {
@@ -284,7 +353,9 @@ if [[ "$MODE" == gamecore ]]; then
   _remember_previous "$(_autologin)"
   backup_switch
   retire_legacy
+  _retire_our_leftovers
   _write_autologin gamecore "$GC_USER"
+  _verify_autologin gamecore || VERIFY_FAILED=1
   echo "console session ON — the next boot opens GameCore, with no desktop behind it."
   echo "back to the desktop:  sudo $(basename "$0") desktop"
 else
@@ -303,7 +374,9 @@ else
   fi
   backup_switch
   retire_legacy
+  _retire_our_leftovers
   _write_autologin "$DESKTOP_SESSION" "$GC_USER"
+  _verify_autologin "$DESKTOP_SESSION" || VERIFY_FAILED=1
   echo "desktop ON — the next boot opens '$DESKTOP_SESSION'."
   echo "back to the console:  sudo $(basename "$0") gamecore"
 fi
@@ -317,3 +390,8 @@ if systemctl --user -M "${GC_USER}@" is-active --quiet gamecore-session.target 2
   echo "GameCore is running right now — the change takes effect at the next login."
   echo "  now, if you want it now:  sudo systemctl restart sddm"
 fi
+
+# An arming that was overridden is not an arming. The message above says which
+# file won; the exit code says it to whatever ran this.
+[[ -n "${VERIFY_FAILED:-}" ]] && exit 1
+exit 0

@@ -358,3 +358,52 @@ def test_a_box_whose_only_desktop_is_wayland_can_still_leave(switch, tmp_path):
     r = switch["run"]("desktop")
     assert r.returncode == 0, r.stderr
     assert _autologin(switch["sddm"]) == "plasma"
+
+
+# ── what SDDM will actually do, as opposed to what we wrote ─────────────────
+#
+# SDDM parses every file in /etc/sddm.conf.d/ whatever its extension, and the
+# LAST [Autologin] in name order wins. The reference box was armed twice and
+# booted the desktop both times: its own backup file — written beside the
+# original, sorting after it — named another session, and a leftover from an
+# older experiment sorted after that.
+
+def test_the_backup_is_not_written_where_sddm_reads_it(switch):
+    (switch["xsessions"] / "gamecore.desktop").write_text("[Desktop Entry]\nName=GameCore\n")
+    (switch["sddm"] / "zz-gamecore-autologin.conf").write_text(
+        "[Autologin]\nUser=player\nSession=plasmax11\nRelogin=true\n")
+
+    switch["run"]("gamecore")
+
+    beside = list(switch["sddm"].glob("*.pre-session"))
+    assert beside == [], f"a second [Autologin] was left where SDDM reads it: {beside}"
+    assert (switch["state"] / "autologin.pre-session").is_file(), "no backup was kept at all"
+    assert _autologin(switch["sddm"]) == "gamecore"
+
+
+def test_a_stale_gamecore_file_that_would_win_is_retired(switch):
+    """A leftover bearing our own prefix is ours to take out; it sorted after
+    the file we write and quietly won every arming."""
+    (switch["xsessions"] / "gamecore.desktop").write_text("[Desktop Entry]\nName=GameCore\n")
+    stale = switch["sddm"] / "zz-gamecore-openbox.conf"
+    stale.write_text("[Autologin]\nUser=player\nSession=plasmax11\nRelogin=true\n")
+
+    r = switch["run"]("gamecore")
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert not stale.exists(), "the stale file still overrides the arming"
+    assert "retired a stale GameCore file" in r.stdout
+    assert _autologin(switch["sddm"]) == "gamecore"
+
+
+def test_a_competing_file_we_may_not_touch_is_reported_and_fails(switch):
+    """Not ours to move — so say which file wins, and do not claim success."""
+    (switch["xsessions"] / "gamecore.desktop").write_text("[Desktop Entry]\nName=GameCore\n")
+    (switch["sddm"] / "zzz-operator.conf").write_text(
+        "[Autologin]\nUser=player\nSession=plasmax11\nRelogin=true\n")
+
+    r = switch["run"]("gamecore")
+
+    assert r.returncode != 0, "it announced an arming that SDDM will ignore"
+    assert "not 'gamecore'" in r.stderr or "not 'gamecore'" in r.stdout
+    assert "zzz-operator.conf" in r.stderr + r.stdout
