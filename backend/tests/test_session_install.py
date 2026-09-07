@@ -168,11 +168,13 @@ def switch(tmp_path):
                  "GAMECORE_USER": "player", "GAMECORE_USER_HOME": str(tmp_path / "home"),
                  "SYSTEM_UNIT_DIR": str(tmp_path / "units"),
                  "GAMECORE_WM_CANDIDATES": candidates,
+                 "GAMECORE_STATE_DIR": str(tmp_path / "state"),
                  "PATH": str(bins) + ":" + os.environ["PATH"]},
             text=True, capture_output=True, timeout=60)
 
     return {"run": run, "sddm": sddm, "xsessions": xses, "units": tmp_path / "units",
-            "log": log, "bin": bins}
+            "log": log, "bin": bins, "state": tmp_path / "state",
+            "wayland": tmp_path / "none"}
 
 
 def _autologin(sddm: Path) -> str:
@@ -221,7 +223,7 @@ def test_leaving_with_no_desktop_installed_refuses_rather_than_stranding(switch)
     switch["run"]("gamecore")
     r = switch["run"]("desktop")
     assert r.returncode != 0
-    assert "no X11 desktop session" in r.stdout + r.stderr
+    assert "no desktop session" in r.stdout + r.stderr
     assert _autologin(switch["sddm"]) == "gamecore", "the box was left pointing at nothing"
 
 
@@ -290,3 +292,69 @@ def test_arming_with_only_openbox_says_what_that_costs(switch):
     assert r.returncode == 0, r.stderr
     assert "will use openbox" in r.stdout
     assert _autologin(switch["sddm"]) == "gamecore"
+
+
+# ── the way back is the desktop they had, not one that would suit us ────────
+
+def _arm(switch) -> None:
+    (switch["xsessions"] / "gamecore.desktop").write_text("[Desktop Entry]\nName=GameCore\n")
+    switch["run"]("gamecore")
+
+
+def test_leaving_returns_to_the_desktop_the_box_was_using(switch, tmp_path):
+    """The reference box is why this exists: its Plasma is a WAYLAND session,
+    so the only X11 desktop to pick was openbox. Leaving the console would have
+    handed back somebody else's desktop — working, but not theirs, at one in
+    the morning, reading as a fault.
+
+    "Give me my desktop back" is not "give me a desktop that could host the
+    kiosk". The second question was the installer's.
+    """
+    wayland = tmp_path / "none"
+    wayland.mkdir(exist_ok=True)
+    (wayland / "plasma.desktop").write_text("[Desktop Entry]\nName=Plasma\n")
+    # The box auto-logs into Plasma-on-Wayland today.
+    (switch["sddm"] / "zz-gamecore-autologin.conf").write_text(
+        "[Autologin]\nUser=player\nSession=plasma\nRelogin=true\n")
+
+    _arm(switch)
+    assert _autologin(switch["sddm"]) == "gamecore"
+    assert (switch["state"] / "previous-session").read_text().strip() == "plasma"
+
+    switch["run"]("desktop")
+    assert _autologin(switch["sddm"]) == "plasma", "it went to some other desktop"
+
+
+def test_the_console_is_never_recorded_as_the_desktop_to_return_to(switch):
+    """Arming twice in a row must not make GameCore its own way out."""
+    (switch["sddm"] / "zz-gamecore-autologin.conf").write_text(
+        "[Autologin]\nUser=player\nSession=plasmax11\nRelogin=true\n")
+    _arm(switch)
+    switch["run"]("gamecore")
+    recorded = switch["state"] / "previous-session"
+    assert not recorded.exists() or recorded.read_text().strip() != "gamecore"
+    assert recorded.read_text().strip() == "plasmax11"
+
+
+def test_a_desktop_uninstalled_since_the_arming_is_not_used(switch, tmp_path):
+    """A Session= naming a .desktop that is gone makes SDDM fall back to its
+    own default, silently."""
+    (switch["state"]).mkdir(parents=True, exist_ok=True)
+    (switch["state"] / "previous-session").write_text("gone-since\n")
+    (switch["xsessions"] / "gamecore.desktop").write_text("[Desktop Entry]\nName=GameCore\n")
+    switch["run"]("desktop")
+    assert _autologin(switch["sddm"]) == "plasmax11", "it pointed at a session that is gone"
+
+
+def test_a_box_whose_only_desktop_is_wayland_can_still_leave(switch, tmp_path):
+    """It used to be told there was nowhere to go — on the machine where
+    leaving matters most."""
+    (switch["xsessions"] / "plasmax11.desktop").unlink()
+    wayland = tmp_path / "none"
+    wayland.mkdir(exist_ok=True)
+    (wayland / "plasma.desktop").write_text("[Desktop Entry]\nName=Plasma\n")
+    (switch["xsessions"] / "gamecore.desktop").write_text("[Desktop Entry]\nName=GameCore\n")
+
+    r = switch["run"]("desktop")
+    assert r.returncode == 0, r.stderr
+    assert _autologin(switch["sddm"]) == "plasma"

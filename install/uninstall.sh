@@ -553,7 +553,7 @@ safe_rm /usr/local/bin/gamecore-xsetup /usr/local/bin/gamecore-addon \
 # makes it fall back to its own default with no message at all. The SDDM
 # drop-in is removed a few lines below, but an interrupted uninstall must not
 # be able to leave the box pointing at a session that is gone.
-safe_rm /usr/share/xsessions/gamecore.desktop
+safe_rm /usr/share/xsessions/gamecore.desktop /var/lib/gamecore/previous-session
 GC_HOME="$(getent passwd "${GC_USER:-}" 2>/dev/null | cut -d: -f6)"
 if [[ -n "$GC_HOME" && -d "$GC_HOME/.config/systemd/user" ]]; then
   safe_rm "$GC_HOME/.config/systemd/user/gamecore-ui.service" \

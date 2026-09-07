@@ -17,6 +17,10 @@ UNIT=gamecore-ui.service
 # Overridable so this can be exercised against a staging tree instead of the
 # machine running the test. Defaults are the real locations.
 SDDM_CONF_DIR="${SDDM_CONF_DIR:-/etc/sddm.conf.d}"
+# Where the session the box was using BEFORE the console was armed is written
+# down. Not in /etc/sddm.conf.d: SDDM parses every file in that directory
+# whatever its extension, so a note left there is configuration.
+STATE_DIR="${GAMECORE_STATE_DIR:-/var/lib/gamecore}"
 XSESSIONS_DIR="${XSESSIONS_DIR:-/usr/share/xsessions}"
 WAYLAND_SESSIONS_DIR="${WAYLAND_SESSIONS_DIR:-/usr/share/wayland-sessions}"
 
@@ -154,6 +158,34 @@ _autologin_user() {
   printf '%s' "$u"
 }
 
+# The desktop to come back to, remembered at the moment the console is armed.
+#
+# Guessing it does not work, and this box is why: its Plasma is a WAYLAND
+# session, so the only X11 desktop `_pick --x11` can find is openbox. Leaving
+# the console session would have handed back somebody else's desktop — a
+# working one, but not theirs, at one in the morning, reading as a fault.
+#
+# "Give me my desktop back" is not "give me a desktop that could host the
+# kiosk". The second question was the installer's, and it is the wrong one here.
+_remember_previous() {   # _remember_previous <session-name>
+  local previous="$1"
+  [[ -n "$previous" && "$previous" != gamecore && "$previous" != "<none>" ]] || return 0
+  mkdir -p "$STATE_DIR" 2>/dev/null || return 0
+  printf '%s\n' "$previous" > "$STATE_DIR/previous-session" 2>/dev/null || true
+}
+
+_previous_session() {
+  local recorded
+  recorded=$(cat "$STATE_DIR/previous-session" 2>/dev/null || true)
+  [[ -n "$recorded" ]] || return 1
+  # Only if it is still installed: a desktop uninstalled since the arming is a
+  # Session= that makes SDDM fall back to its own default, silently.
+  while IFS=$'\t' read -r name _dir; do
+    [[ "$name" == "$recorded" ]] && { printf '%s' "$recorded"; return 0; }
+  done < <(_sessions)
+  return 1
+}
+
 GC_USER="${GAMECORE_USER:-$(_autologin_user)}"
 GC_USER="${GC_USER:-${SUDO_USER:-}}"
 [[ -n "$GC_USER" ]] || { echo "cannot tell which user auto-logs in — set GAMECORE_USER" >&2; exit 1; }
@@ -249,15 +281,23 @@ if [[ "$MODE" == gamecore ]]; then
       echo "  for the intended behaviour:  sudo pacman -S kwin-x11"
     }
   fi
+  _remember_previous "$(_autologin)"
   backup_switch
   retire_legacy
   _write_autologin gamecore "$GC_USER"
   echo "console session ON — the next boot opens GameCore, with no desktop behind it."
   echo "back to the desktop:  sudo $(basename "$0") desktop"
 else
-  DESKTOP_SESSION="$(_pick --x11 || true)"
+  # What the box was using before the console was armed, if it is still there.
+  # Then the ranked X11 pick — which is what a box that has never been armed
+  # wants — and finally ANY desktop, including a Wayland one: a machine whose
+  # only desktop is Wayland must not be told there is nowhere to go. GameCore
+  # cannot run there, and that is fine; leaving is leaving.
+  DESKTOP_SESSION="$(_previous_session || true)"
+  [[ -n "$DESKTOP_SESSION" ]] || DESKTOP_SESSION="$(_pick --x11 || true)"
+  [[ -n "$DESKTOP_SESSION" ]] || DESKTOP_SESSION="$(_pick || true)"
   if [[ -z "$DESKTOP_SESSION" ]]; then
-    echo "no X11 desktop session is installed — nothing to fall back to." >&2
+    echo "no desktop session is installed — nothing to fall back to." >&2
     echo "  install one (e.g. plasma-desktop) before leaving the console session." >&2
     exit 1
   fi
