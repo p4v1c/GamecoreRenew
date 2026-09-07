@@ -653,6 +653,7 @@ ok "Flathub ready."
 # Whatever failed, by pack id, with the message the provider gave.
 EMU_FAILED=()
 APP_FAILED=()
+RESTART_UNITS=()
 if [[ "$MODE" == "full" ]]; then
   msg "Installing emulators"
   # One call, one pack at a time, everything the pack declares. There is no
@@ -689,7 +690,7 @@ if [[ "$MODE" == "full" ]]; then
         OK*)   ok   "${_line#OK }" ;;
         SAME*) info "${_line#SAME }" ;;
         FAIL*) warn "${_line#FAIL }"; EMU_FAILED+=("${_line#FAIL }") ;;
-        UNIT*) : ;;   # emulators declare none; the app pass collects them
+        UNIT*) RESTART_UNITS+=("${_line#UNIT }") ;;
         *)     [[ -n "$_line" ]] && info "$_line" ;;
       esac
     done < <(python3 "$GAMECORE_PATH/scripts/gamecore-provider.py" install \
@@ -742,8 +743,7 @@ if [[ "$MODE" == "full" ]]; then
   # complete!". The chown further down deliberately covers only .config/systemd
   # (see the comment there), so it never repaired this.
   install -d -o "$USER_NAME" -g "$USER_NAME" -m 755 "$UNIT_DIR/default.target.wants"
-  # user services to (re)start once the user bus is up, filled from UNIT lines
-  RESTART_UNITS=()
+  # Keep the emulator units collected above; app units join the same list.
 
   APP_SEL=""
   for _app in $(python3 "$GAMECORE_PATH/scripts/catalog-query.py" ids --kind app); do
@@ -1177,35 +1177,20 @@ if [[ -n "$TGDB_API_KEY" || -n "$SS_DEV_ID" ]]; then
   fi
 fi
 
-cat > /etc/systemd/system/gamecore-ui.service <<EOF
-[Unit]
-Description=GameCore — Electron UI
-After=display-manager.service gamecore-backend.service
-Requires=gamecore-backend.service
-
-[Service]
-Type=simple
-User=$USER_NAME
-Group=$USER_NAME
-Environment=GAMECORE_PATH=$GAMECORE_PATH
-Environment=GAMECORE_DATA=$GAMECORE_DATA
-Environment=GAMECORE_BACKEND_PORT=$WEB_PORT
-WorkingDirectory=$GAMECORE_PATH
-# Wait for an X server socket to exist, nothing more: start-ui.sh does the real
-# display/cookie resolution and knows about all three cookie locations. The old
-# version searched only /run/user/<uid>/xauth_*, which is where kwin_wayland
-# puts the Xwayland cookie — SDDM's X11 session writes /tmp/xauth_XXXXXX, so it
-# waited 60 s, found nothing, and Electron crash-looped.
-ExecStartPre=/bin/bash -c 'for i in \$(seq 1 60); do compgen -G "/tmp/.X11-unix/X*" >/dev/null && exit 0; sleep 1; done; exit 0'
-ExecStart=$GAMECORE_PATH/electron/start-ui.sh
-Restart=on-failure
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=graphical.target
-EOF
+# ── the console session ──────────────────────────────────────────
+#
+# There is no system-wide `gamecore-ui.service` any more, and its absence is
+# the point. It was `WantedBy=graphical.target`, drawing Electron over whatever
+# session the machine had logged into — which is why the owner watched the
+# desktop, its panel and its wallpaper for several seconds at every boot.
+#
+# The interface is a USER unit belonging to a session of its own now. One
+# script installs it, and the OTA calls the same one: a migration written apart
+# from the installation is a migration that drifts from it.
+bash "$GAMECORE_PATH/install/steps/setup-gamecore-session.sh" \
+     "$USER_NAME" "$GAMECORE_PATH" "$GAMECORE_DATA" "$WEB_PORT" \
+  || die "the console session could not be installed"
+ok "Console session installed (gamecore.desktop + user units)."
 
 # ── SDDM auto-login ──────────────────────────────────────────────
 progress 90 "SDDM auto-login"
@@ -1216,11 +1201,20 @@ msg "SDDM auto-login"
 # installed to /usr/local/bin further down. One implementation of the ranking,
 # so the installer and the desktop escape hatch cannot disagree about which
 # session this machine has.
-KIOSK_SESSION=$(bash "$GAMECORE_PATH/install/bin/gamecore-session-select" pick-desktop --x11 2>/dev/null || true)
+# The session to auto-log into is ours. `pick-desktop` still runs, and what it
+# answers is recorded rather than used: it is the way BACK — the session
+# `gamecore-session-select desktop` returns to — and a box with no X11 desktop
+# installed has no way back, which is worth saying now rather than discovering
+# from a sofa.
+DESKTOP_SESSION=$(bash "$GAMECORE_PATH/install/bin/gamecore-session-select" pick-desktop --x11 2>/dev/null || true)
+manifest_set DESKTOP_SESSION "$DESKTOP_SESSION"
+KIOSK_SESSION=gamecore
 manifest_set KIOSK_SESSION "$KIOSK_SESSION"
+[[ -n "$DESKTOP_SESSION" ]] \
+  || warn "No X11 desktop session is installed — 'gamecore-session-select desktop' will have nowhere to go."
 
-if [[ -z "$KIOSK_SESSION" ]]; then
-  warn "No X11 session in /usr/share/xsessions — auto-login NOT configured."
+if [[ ! -f /usr/share/xsessions/gamecore.desktop ]]; then
+  warn "No gamecore.desktop in /usr/share/xsessions — auto-login NOT configured."
   warn "  GameCore cannot run on Wayland: the overlays, the fullscreen enforcer,"
   warn "  gamecore-xsetup and the gamepad bridge all need X11. Install a desktop"
   warn "  with an X11 session and re-run:"
@@ -1272,10 +1266,8 @@ PY
   info "  Closing GameCore drops you on that desktop. Kiosk off for good: gamecore-session-select desktop"
 fi
 
-# Force 1920x1080 at the display-server level (never 4K). SDDM runs this as
-# root at X startup, before any session, so the whole X server — kiosk, games
-# and overlays — is pinned to 1080p. See install/bin/gamecore-xsetup.
-# (start-ui.sh re-applies it inside the session, after KScreen has had its say.)
+# The graphical UI applies the saved mode once X is available.
+# gamecore-xsetup without --session is a no-op for obsolete SDDM hooks.
 install -m755 "$GAMECORE_PATH/install/bin/gamecore-xsetup" /usr/local/bin/gamecore-xsetup
 
 # The desktop escape hatch. The box auto-logs into its desktop with the kiosk
@@ -1288,12 +1280,14 @@ cat > /etc/sddm.conf.d/zz-gamecore-display.conf <<EOF
 [X11]
 DisplayCommand=/usr/local/bin/gamecore-xsetup
 EOF
-ok "Display pinned to 1920x1080 (SDDM DisplayCommand)."
+ok "Display mode is applied by the UI session (saved preference, otherwise 1080p)."
 
 systemctl daemon-reload
 systemctl enable sddm.service
 systemctl enable gamecore-backend.service
-systemctl enable gamecore-ui.service
+# The interface is a user unit of the console session — started by
+# `gamecore-session`, not by graphical.target. Enabling anything system-wide
+# here is what used to put a second Electron over the first.
 ok "Services enabled."
 
 # ── Caddy reverse-proxy — the only GameCore port exposed to the LAN ──
@@ -1649,10 +1643,14 @@ echo "  1. Reboot — GameCore launches automatically."
 echo "  2. Upload ROMs at https://${LOCAL_IP}:8443/roms  (drag & drop)"
 echo "  3. Only manual step left: copy BIOS/firmwares (PS1/PS2/PS3, DS/3DS, Switch keys)."
 echo
-if [[ -z "${KIOSK_SESSION:-}" ]]; then
-  warn "No X11 session was configured — GameCore will NOT start after the reboot."
-  warn "  Install a desktop with an X11 session, then re-run:"
-  warn "      sudo pacman -S plasma-desktop && sudo bash install/arch.sh"
+if [[ ! -f /usr/share/xsessions/gamecore.desktop ]]; then
+  warn "The console session was not installed — GameCore will NOT start after the reboot."
+  warn "  Re-run:  sudo bash install/arch.sh"
+  echo
+elif [[ -z "${DESKTOP_SESSION:-}" ]]; then
+  warn "No X11 desktop is installed besides GameCore's own session."
+  warn "  'sudo gamecore-session-select desktop' will have nowhere to go."
+  warn "  If you want that way out:  sudo pacman -S plasma-desktop"
   echo
 fi
 if $NVIDIA_REBOOT_NEEDED; then

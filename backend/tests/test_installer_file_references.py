@@ -67,6 +67,8 @@ def _sources(script: Path) -> list[str]:
     for line in script.read_text(encoding="utf-8").splitlines():
         if line.lstrip().startswith("#"):
             continue
+        if re.match(r"^\s*install\s+-d\b", line):
+            continue  # directory creation has no source file
         m = _SRC_RE.match(line)
         if m and (m.group(1).startswith("$") or "/" in m.group(1)):
             out.append(m.group(1))

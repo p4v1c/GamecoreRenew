@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --test test/*.test.cjs",
     "dev": "ELECTRON_DEV=1 electron .",
     "pack": "electron-builder --linux"
   },
@@ -21,7 +22,7 @@
       "target": "AppImage",
       "category": "Game"
     },
-    "files": ["main.js", "preload.js"]
+    "files": ["main.js", "preload.js", "boot/**"]
   },
   "allowScripts": {
     "electron": true

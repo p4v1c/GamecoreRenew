@@ -290,7 +290,9 @@ export const api = {
     launch: (systemId: string, romPath = '', gameKey = '') =>
       post('/games/launch', { system_id: systemId, rom_path: romPath, game_key: gameKey }),
     kill: () => post('/games/kill'),
-    session: () => get<{ game_key?: string; system_id?: string }>('/games/session'),
+    // `session` numbers the run, so a finish belonging to a previous one can be
+    // told apart from the finish of the game on screen. See useWebSocket.
+    session: () => get<{ game_key?: string; system_id?: string; session?: number }>('/games/session'),
   },
   metadata: {
     get: (systemId: string, filename: string) =>
@@ -356,7 +358,11 @@ export const api = {
   playtime: {
     all: () => get<PlaytimeEntry[]>('/playtime'),
     forSystem: (id: string) => get<PlaytimeEntry[]>(`/playtime/system/${encodeURIComponent(id)}`),
-    forGame: (key: string) => get<PlaytimeEntry>(`/playtime/game/${encodeURIComponent(key)}`),
+    // Without a console this is the total across all of them: the same
+    // filename can exist under two, and the table is keyed by the pair.
+    forGame: (key: string, systemId?: string) => get<PlaytimeEntry>(
+      `/playtime/game/${encodeURIComponent(key)}`
+      + (systemId ? `?system_id=${encodeURIComponent(systemId)}` : '')),
   },
   /**
    * The pack catalogue: everything this box COULD run, and adding it without

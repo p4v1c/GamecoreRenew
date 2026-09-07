@@ -164,6 +164,16 @@ jobs:
           npm run test:run
           npm run build
 
+      # The shell's own bench: `electron/main.js` run in a VM with Electron,
+      # the child processes and the network replaced. It needs no packages —
+      # `node --test` and nothing else — and it is the only check that can see
+      # the bezel window's geometry or a launch cancelled mid-resolution.
+      # `pytest` runs it too, but skips where there is no node; here there is.
+      - name: Test the Electron shell
+        run: |
+          cd electron
+          npm test
+
       - name: Package — OTA archive
         run: |
           mkdir -p dist_ota

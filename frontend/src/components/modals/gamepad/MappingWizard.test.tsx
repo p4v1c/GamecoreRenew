@@ -29,6 +29,7 @@ let socket: FakeSocket
 class FakeSocket {
   onmessage: ((e: { data: string }) => void) | null = null
   onerror: (() => void) | null = null
+  onclose: (() => void) | null = null
   closed = false
   close() { this.closed = true }
   send(event: string, data: Record<string, unknown>) {
@@ -333,4 +334,18 @@ describe('the mapping wizard', () => {
 
     expect(closed).toBe(false)
   })
+})
+
+it('ends capture when the backend reports that the pad is gone', async () => {
+  await open()
+  act(() => { socket.send('ended', { reason: 'no input left' }) })
+  expect(screen.queryByText('A / Cross')).toBeNull()
+  expect(screen.getByText(/La manette a été déconnectée/)).toBeTruthy()
+})
+
+it('ends capture when the socket closes without an ended event', async () => {
+  await open()
+  act(() => { socket.onclose?.() })
+  expect(screen.queryByText('A / Cross')).toBeNull()
+  expect(screen.getByText(/La connexion à la manette/)).toBeTruthy()
 })

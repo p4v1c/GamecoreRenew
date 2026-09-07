@@ -46,7 +46,7 @@ import * as defaults from '../components/defaults'
  * draws a black rectangle over the box forever. That is a refusal, not a
  * degradation, so the number moves.
  */
-export const SDK_VERSION = 3
+export const SDK_VERSION = 4
 
 /** Every gamepad event a theme may subscribe to. gp:guide is intentionally absent. */
 export const GP_EVENTS = [
@@ -257,22 +257,21 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
       },
       gamecore: window.gamecore,
 
-      /**
-       * How long a boot animation should hold its first frame, in ms.
+      /*
+       * `splashHoldMs` was here, and it is gone with SDK 4.
        *
-       * Electron asks for this at cold boot (`?splashHold=`) because the
-       * display path — the X mode switch, then the TV's HDMI re-sync — is
-       * still black when the splash mounts. Without the hold, the animation
-       * starts against a dead screen and the first thing the player actually
-       * sees is the middle of it.
+       * It held a boot animation's first frame for a fixed 4000 ms whenever
+       * the machine had booted recently, because the display path — the X mode
+       * switch, then the television's HDMI re-sync — is still black when the
+       * splash mounts. The reasoning was sound and the mechanism was not: a
+       * duration measured on one box, applied to every box, and paid in full
+       * on the ones that never needed it. Neither shipped theme ever read it.
        *
-       * The default splash honoured this and nothing said so, so every themed
-       * splash was starting mid-animation on the one boot that matters. Parsed
-       * and clamped here rather than left to each theme to rediscover from
-       * window.location.
+       * What replaces it is the `bootReady` prop the host passes to a splash:
+       * the animation ends on a held frame and leaves when the interface
+       * behind it is actually ready. A television still dark is a television
+       * that has nothing to miss.
        */
-      splashHoldMs: Math.min(10000, Math.max(0,
-        Number(new URLSearchParams(window.location.search).get('splashHold')) || 0)),
       /** Resolve a file shipped inside this theme's folder. */
       asset: (path: string) =>
         `/themes/${encodeURIComponent(themeId)}/${String(path).replace(/^\/+/, '')}`,

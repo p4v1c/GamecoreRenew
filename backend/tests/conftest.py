@@ -26,6 +26,19 @@ _ROOT.mkdir(parents=True, exist_ok=True)
 os.environ["GAMECORE_PATH"] = str(_ROOT)
 os.environ["GAMECORE_TEST_ROOT"] = str(_ROOT)
 
+# And the data root with it, for the same reason and with a sharper edge.
+#
+# `paths.py` defaults GAMECORE_DATA to GAMECORE_PATH, so leaving it unset was
+# harmless for anything importing the backend. It is not harmless for the two
+# CLIs: `gamecore-emu` and `gamecore-addon` are installed to /usr/local/bin and
+# have no checkout to read, so when the variable is absent they ask
+# `systemctl show gamecore-backend.service` for it — and on a developer's own
+# box that answers with the REAL data root. A test that runs either of them
+# without this line edits the grid of the machine it is running on. It is not
+# hypothetical: it happened while the CLI's own tests were being written, and
+# the console lost an emulator to a passing `pytest`.
+os.environ["GAMECORE_DATA"] = str(_ROOT)
+
 # Same rule for the ScreenScraper account. gamescrape reads the four variables
 # below, then falls back to ~/.config/gamescrape/credentials — a developer's own
 # file, which would make the suite behave differently on their machine than in

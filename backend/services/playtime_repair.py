@@ -19,6 +19,7 @@ Idempotent by construction — after the first pass no row matches a hidden name
 any more — and silent when there is nothing to do, which is every start after
 the first and every box that owns no disc image.
 """
+import asyncio
 import logging
 
 from ..config import resolve_path
@@ -84,7 +85,7 @@ async def rekey_shadowed_entries() -> int:
     """Move playtime from files the library no longer lists onto what replaced
     them. Returns the number of rows moved."""
     try:
-        renames = _rename_map()
+        renames = await asyncio.to_thread(_rename_map)
     except Exception:
         log.exception("playtime repair: could not scan the libraries")
         return 0
@@ -106,29 +107,36 @@ async def rekey_shadowed_entries() -> int:
             # The destination may already exist — the player launched the .cue
             # at some point too. Merge rather than pick one: both halves are
             # time actually spent on the same game.
+            #
+            # Every statement below names the console as well as the file. The
+            # key is (system_id, game_key), and a rename computed for one
+            # console must not reach a same-named file in another.
+            system = row["system_id"]
             existing = await (await db.execute(
                 "SELECT total_secs, session_count, last_played FROM playtime "
-                "WHERE game_key = ?", (new_key,))).fetchone()
+                "WHERE system_id = ? AND game_key = ?", (system, new_key))).fetchone()
 
             if existing:
                 await db.execute(
                     "UPDATE playtime SET total_secs = ?, session_count = ?, "
-                    "last_played = ? WHERE game_key = ?",
+                    "last_played = ? WHERE system_id = ? AND game_key = ?",
                     (existing["total_secs"] + row["total_secs"],
                      existing["session_count"] + row["session_count"],
                      max(filter(None, (existing["last_played"], row["last_played"])),
                          default=None),
-                     new_key))
-                await db.execute("DELETE FROM playtime WHERE game_key = ?",
-                                 (row["game_key"],))
+                     system, new_key))
+                await db.execute("DELETE FROM playtime WHERE system_id = ? AND game_key = ?",
+                                 (system, row["game_key"]))
             else:
-                await db.execute("UPDATE playtime SET game_key = ? WHERE game_key = ?",
-                                 (new_key, row["game_key"]))
+                await db.execute(
+                    "UPDATE playtime SET game_key = ? WHERE system_id = ? AND game_key = ?",
+                    (new_key, system, row["game_key"]))
 
             # The session history moves with it, so "Recent" keeps working and
             # a future feature reading `sessions` sees one continuous history.
-            await db.execute("UPDATE sessions SET game_key = ? WHERE game_key = ?",
-                             (new_key, row["game_key"]))
+            await db.execute(
+                "UPDATE sessions SET game_key = ? WHERE system_id = ? AND game_key = ?",
+                (new_key, system, row["game_key"]))
             moved += 1
             log.info("playtime repair: %s/%r → %r (%d min, %d sessions)",
                      row["system_id"], row["game_key"], new_key,

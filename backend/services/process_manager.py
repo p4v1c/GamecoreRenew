@@ -9,6 +9,7 @@ import signal
 import subprocess
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 from .. import ws
 from .paths import config_dir
@@ -184,6 +185,47 @@ def invalidate_display_cache() -> None:
     _probe_cache, _probe_retry_at = None, 0.0
 
 
+def session_env_file(uid: int | None = None) -> Path:
+    """Where the graphical session writes down what it is.
+
+    `install/bin/gamecore-session` creates this at login and removes it at
+    logout, in the user's own runtime directory. Its absence is meaningful: no
+    session, which is exactly what a headless box or an SSH install looks like.
+    """
+    uid = os.getuid() if uid is None else uid
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{uid}"
+    return Path(runtime) / "gamecore" / "session.env"
+
+
+def _session_display(uid: int) -> tuple[str, str] | None:
+    """(DISPLAY, XAUTHORITY) as the session itself declared them, or None.
+
+    The backend is a system unit — deliberately, so the API and the web
+    interface survive without a graphical session — and a system unit sees
+    nothing of one. Which left it probing: every X socket against every cookie
+    location, on every launch and every standby transition, with a 20 s bound
+    in its own unit for the cold-boot case.
+
+    A session that knows its own DISPLAY writing it down is both cheaper and
+    more truthful than this process guessing. The probe below stays for every
+    box that has not migrated, for a desktop session that is not ours, and for
+    the window between a backend restart and the next login.
+    """
+    try:
+        text = session_env_file(uid).read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return None
+    values: dict[str, str] = {}
+    for line in text.splitlines():
+        key, _, value = line.partition("=")
+        if key and value:
+            values[key.strip()] = value.strip()
+    display = values.get("DISPLAY")
+    if not display:
+        return None
+    return display, values.get("XAUTHORITY", "")
+
+
 def _display_env() -> dict:
     """Build an env dict for launching GUI apps from systemd (DISPLAY, XDG_RUNTIME_DIR, DBUS, XAUTHORITY).
 
@@ -202,6 +244,16 @@ def _display_env() -> dict:
         db = _controller_db()
         if db:
             env["SDL_GAMECONTROLLERCONFIG_FILE"] = str(db)
+    if not env.get("DISPLAY") or not env.get("XAUTHORITY"):
+        # Asked first, and it costs a file read. Only if there is no session
+        # file does this fall back to looking for a display by hand.
+        declared = _session_display(uid)
+        if declared:
+            env["DISPLAY"] = declared[0]
+            if declared[1]:
+                env["XAUTHORITY"] = declared[1]
+            else:
+                env.pop("XAUTHORITY", None)
     if not env.get("DISPLAY") or not env.get("XAUTHORITY"):
         if _probe_due():
             found = _probe_display(uid)
@@ -270,6 +322,10 @@ class ProcessManager:
         # cannot await() something that is not our child, so it is tracked by
         # pgid and polled for liveness.
         self._orphan_pgid: int = 0
+        # Which run is current. Every launch and every adoption takes the next
+        # number; a watcher keeps the one it was started with, and compares
+        # before touching anything shared. See _watch().
+        self._session_id: int = 0
 
     # ── the session on disk ───────────────────────────────────────────────────
 
@@ -328,6 +384,7 @@ class ProcessManager:
             return
 
         self._orphan_pgid = pgid
+        self._session_id += 1
         self._game_key = str(data.get("game_key") or "")
         self._system_id = str(data.get("system_id") or "")
         self._exec_path = str(data.get("exec_path") or "")
@@ -338,7 +395,8 @@ class ProcessManager:
         except (TypeError, ValueError):
             self._start_time = time.time()
 
-        ws.set_current_game({"game_key": self._game_key, "system_id": self._system_id})
+        ws.set_current_game({"game_key": self._game_key, "system_id": self._system_id,
+                             "session": self._session_id})
         log.warning("adopted a game left running by a previous backend: %s (pgid %d)",
                     self._game_key or "?", pgid)
 
@@ -363,7 +421,7 @@ class ProcessManager:
         if not self.is_running:
             return None
         return {"game_key": self._game_key, "system_id": self._system_id,
-                "rom_path": self._rom_path}
+                "rom_path": self._rom_path, "session": self._session_id}
 
     async def launch(self, exec_path: str, exec_args: str, rom_path: str = "",
                      game_key: str = "", system_id: str = "") -> None:
@@ -384,6 +442,7 @@ class ProcessManager:
             self._game_key = game_key or (rom_path.split("/")[-1] if rom_path else exec_path.split("/")[-1])
             self._system_id = system_id
             self._start_time = time.time()
+            self._session_id += 1
 
             if exec_path == "flatpak":
                 cmd = ["flatpak"] + args
@@ -404,13 +463,18 @@ class ProcessManager:
             self._launching = False
 
         self._save_session()
-        ws.set_current_game({"game_key": self._game_key, "system_id": self._system_id})
+        ws.set_current_game({"game_key": self._game_key, "system_id": self._system_id,
+                             "session": self._session_id})
         await ws.broadcast("game:started", {
             "game_key": self._game_key,
             "system_id": self._system_id,
+            "session": self._session_id,
         })
 
-        watch_task = asyncio.create_task(self._watch())
+        # Its own process and its own session, so that resuming after this game
+        # ends says nothing about whatever is running by then.
+        watch_task = asyncio.create_task(self._watch(
+            self._proc, self._session_id, self._game_key, self._system_id, self._start_time))
 
         def _log_err(t: asyncio.Task) -> None:
             if t.cancelled():
@@ -443,6 +507,7 @@ class ProcessManager:
         """Kill a game adopted from a previous backend — no child handle, just the pgid."""
         pgid, self._orphan_pgid = self._orphan_pgid, 0
         game_key, system_id = self._game_key, self._system_id
+        session = self._session_id
         elapsed = int(time.time() - self._start_time)
         log.info("killing adopted game %s (pgid %d)", game_key or "?", pgid)
 
@@ -461,6 +526,7 @@ class ProcessManager:
         try:
             await ws.broadcast("game:finished", {
                 "game_key": game_key, "system_id": system_id, "elapsed": elapsed,
+                "session": session,
             })
         except Exception:
             log.exception("_kill_orphan: failed to broadcast game:finished")
@@ -493,16 +559,37 @@ class ProcessManager:
         """SIGKILL on the wrapper process and its group — skip SIGTERM to avoid confirm dialogs."""
         await kill_process_group(self._proc)
 
-    async def _watch(self) -> None:
-        if not self._proc:
+    async def _watch(self, proc: asyncio.subprocess.Process | None = None,
+                     session: int = 0, game_key: str = "", system_id: str = "",
+                     start_time: float = 0.0) -> None:
+        """Wait for one game to end, and speak only for that game.
+
+        Everything this needs is passed in, and nothing it writes back touches
+        the manager unless the session it watched is still the current one.
+
+        It used to read the manager's own fields after its `await`, which is a
+        window wide enough to hold a whole launch: `is_running` frees the slot
+        the moment the child has a return code, so a second game can start
+        while the first watcher is still suspended. When it resumed it read
+        fields describing the *new* game, set `_proc = None` on a process that
+        was running, deleted its session file and announced the wrong game as
+        finished. The player's game was then untrackable and unkillable.
+        """
+        proc = proc or self._proc
+        if not proc:
             return
-        await self._proc.wait()
-        elapsed = int(time.time() - self._start_time)
-        game_key = self._game_key
-        system_id = self._system_id
-        self._proc = None
-        self._clear_session()
-        ws.set_current_game(None)
+        game_key = game_key or self._game_key
+        system_id = system_id or self._system_id
+        start_time = start_time or self._start_time
+
+        await proc.wait()
+        elapsed = int(time.time() - start_time)
+
+        # Only the session that is still current may clear the shared state.
+        if session == self._session_id:
+            self._proc = None
+            self._clear_session()
+            ws.set_current_game(None)
 
         if elapsed > 5:
             try:
@@ -511,7 +598,7 @@ class ProcessManager:
                 await db.execute("""
                     INSERT INTO playtime (game_key, system_id, total_secs, session_count, last_played)
                     VALUES (?, ?, ?, 1, ?)
-                    ON CONFLICT(game_key) DO UPDATE SET
+                    ON CONFLICT(system_id, game_key) DO UPDATE SET
                         total_secs    = total_secs + excluded.total_secs,
                         session_count = session_count + 1,
                         last_played   = excluded.last_played
@@ -525,6 +612,10 @@ class ProcessManager:
                 "game_key": game_key,
                 "system_id": system_id,
                 "elapsed": elapsed,
+                # Which run ended. A finish belonging to a game the player has
+                # already left behind must not unlock the screen over the one
+                # they are playing now.
+                "session": session,
             })
         except Exception:
             log.exception("_watch: failed to broadcast game:finished")

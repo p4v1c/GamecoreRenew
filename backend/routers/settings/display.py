@@ -46,12 +46,14 @@ Changing the mode under a running emulator is the shortest way to make it
 crash, and the player is not looking at this screen then anyway.
 """
 import asyncio
+import json
 import logging
 import re
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from ...services.paths import config_dir
 from ...services.process_manager import display_env, process_manager
 from ...services.session import kscreen_available, wayland_env
 
@@ -176,6 +178,14 @@ def parse_modes(text: str) -> dict:
 # armed it, and a second request has to be able to find it.
 _pending: dict | None = None
 _revert_task: asyncio.Task | None = None
+# One transaction at a time. Two clients — or one client and the revert timer —
+# could otherwise be inside `_apply` at the same moment, and which mode the
+# screen ends up in would be decided by whichever tool returned last.
+_mode_lock = asyncio.Lock()
+# Which transaction a timer belongs to. A task cancelled while it waits for the
+# lock never reaches its body, but the check costs nothing and says out loud
+# that a timer may not act for a transaction that is over.
+_pending_seq = 0
 
 
 def _cancel_pending() -> None:
@@ -223,7 +233,7 @@ async def _apply(state_backend: str, output: str, mode: dict) -> tuple[bool, str
     return code == 0, out.strip()
 
 
-async def _revert_after(delay: float, previous: dict) -> None:
+async def _revert_after(delay: float, previous: dict, seq: int = 0) -> None:
     """Put the old mode back unless someone confirms first.
 
     Cancellation is the success path: `/confirm` cancels this task, so arriving
@@ -234,11 +244,17 @@ async def _revert_after(delay: float, previous: dict) -> None:
         await asyncio.sleep(delay)
     except asyncio.CancelledError:
         return
-    ok, detail = await _apply(previous["backend"], previous["output"], previous)
-    log.warning("display: no confirmation in %ss — reverted to %sx%s@%s (%s)",
-                delay, previous["width"], previous["height"], previous["rate"],
-                "ok" if ok else detail)
-    _cancel_pending()
+    async with _mode_lock:
+        if _pending is not None and _pending.get("seq") != seq:
+            # A transaction of its own now owns the screen. Cancellation
+            # normally gets here first — a task waiting for the lock is
+            # cancelled where it waits — and this is what says so out loud.
+            return
+        ok, detail = await _apply(previous["backend"], previous["output"], previous)
+        log.warning("display: no confirmation in %ss — reverted to %sx%s@%s (%s)",
+                    delay, previous["width"], previous["height"], previous["rate"],
+                    "ok" if ok else detail)
+        _cancel_pending()
 
 
 @router.get("")
@@ -259,9 +275,30 @@ class ModeRequest(BaseModel):
 
 @router.post("/mode")
 async def set_mode(req: ModeRequest):
+    """Put a mode on screen, with a way back from it.
+
+    The way back is the whole feature, and it used to be given up before it was
+    known whether there was anything to replace it with. `_cancel_pending()`
+    ran first, so a second change that the compositor then REFUSED left the
+    first one — still unconfirmed, possibly on a screen showing nothing — with
+    no timer and no rollback at all: two requests during the confirmation
+    window, from two clients or one screen reopened, and the safety net was
+    gone while the risk stayed.
+
+    So nothing is given up until the new mode is actually on. And what is kept
+    is the last CONFIRMED mode, not the one that happens to be current: while a
+    change is unconfirmed the screen may be showing nothing, and reverting to
+    that would be reverting to the fault.
+    """
     if process_manager.current_game:
         raise HTTPException(409, "A game is running — close it before changing the display mode.")
 
+    async with _mode_lock:
+        return await _set_mode_locked(req)
+
+
+async def _set_mode_locked(req: ModeRequest):
+    global _pending, _revert_task, _pending_seq
     data = await read_state()
     if not data["output"] or not data["current"]:
         raise HTTPException(503, "No connected output reports a mode.")
@@ -280,16 +317,71 @@ async def set_mode(req: ModeRequest):
             and abs(previous["rate"] - req.rate) < 0.01:
         return {"ok": True, "changed": False, "revert_secs": REVERT_SECS}
 
-    _cancel_pending()
+    # The mode to come back to, which is not necessarily the one on screen.
+    fallback = _pending["previous"] if _pending else previous
+
     ok, detail = await _apply(data["backend"], data["output"], wanted)
     if not ok:
+        # The transaction already waiting keeps its timer: nothing about this
+        # refusal makes the screen it left any safer to be stuck on.
         raise HTTPException(500, detail or "The compositor refused that mode.")
 
-    global _pending, _revert_task
-    _pending = {"previous": previous,
+    _cancel_pending()
+    _pending_seq += 1
+    _pending = {"previous": fallback, "seq": _pending_seq,
                 "wanted": dict(wanted, output=data["output"], backend=data["backend"])}
-    _revert_task = asyncio.create_task(_revert_after(REVERT_SECS, previous))
+    _revert_task = asyncio.create_task(_revert_after(REVERT_SECS, fallback, _pending_seq))
     return {"ok": True, "changed": True, "revert_secs": REVERT_SECS}
+
+
+#: Where a confirmed mode is written down, on the data side with the rest of
+#: the player's choices.
+PREFERENCE_FILE = "display.json"
+
+
+def _preference_path():
+    return config_dir() / PREFERENCE_FILE
+
+
+def preferred_mode() -> dict | None:
+    """The mode the player last confirmed, or None.
+
+    Read at graphical startup by gamecore-xsetup. Until this
+    existed, nothing wrote the choice down at all: `gamecore-xsetup` forces
+    1080p at every boot for the pre-session X server, so a player who picked
+    1280x720 in the settings — and confirmed it, on a screen they could read —
+    found 1080p again at the next start, with nothing to say why.
+    """
+    try:
+        data = json.loads(_preference_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    try:
+        return {"width": int(data["width"]), "height": int(data["height"]),
+                "rate": float(data["rate"]), "output": str(data.get("output", ""))}
+    except (KeyError, TypeError, ValueError):
+        log.warning("display: %s is not a mode I can read — ignoring it",
+                    _preference_path())
+        return None
+
+
+def _remember(mode: dict) -> None:
+    """Only ever called from /confirm.
+
+    Confirmation is the whole difference between a mode that works and a mode
+    that was merely accepted by the compositor: somebody read the screen and
+    pressed a button on it. Writing an UNconfirmed mode down would persist
+    exactly the black screens the revert exists to undo.
+    """
+    try:
+        path = _preference_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({
+            "width": mode["width"], "height": mode["height"],
+            "rate": mode["rate"], "output": mode.get("output", ""),
+        }, indent=2) + "\n", encoding="utf-8")
+    except (OSError, KeyError, TypeError) as e:
+        log.warning("display: could not remember the confirmed mode — %s", e)
 
 
 @router.post("/confirm")
@@ -300,8 +392,12 @@ async def confirm():
     point. Calling it with nothing pending is not an error: a second press, or
     a reload after the timer already fired, means the same thing.
     """
-    pending = _pending is not None
-    _cancel_pending()
+    async with _mode_lock:
+        pending = _pending is not None
+        wanted = _pending["wanted"] if pending else None
+        _cancel_pending()
+    if wanted:
+        _remember(wanted)
     return {"ok": True, "confirmed": pending}
 
 
@@ -311,12 +407,12 @@ async def revert_now():
 
     For the player who can see the screen and simply does not want the mode.
     """
-    global _pending
-    if _pending is None:
-        return {"ok": True, "reverted": False}
-    previous = _pending["previous"]
-    _cancel_pending()
-    ok, detail = await _apply(previous["backend"], previous["output"], previous)
-    if not ok:
-        raise HTTPException(500, detail or "Could not restore the previous mode.")
+    async with _mode_lock:
+        if _pending is None:
+            return {"ok": True, "reverted": False}
+        previous = _pending["previous"]
+        _cancel_pending()
+        ok, detail = await _apply(previous["backend"], previous["output"], previous)
+        if not ok:
+            raise HTTPException(500, detail or "Could not restore the previous mode.")
     return {"ok": True, "reverted": True}

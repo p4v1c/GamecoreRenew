@@ -36,8 +36,14 @@ shellcheck -S warning $(git ls-files '*.sh') install/bin/*
 python3 scripts/check-catalog.py                # every pack against the schema
 python3 scripts/gen-catalog.py --check          # generated files are in sync
 python3 -m pytest backend/tests catalog -m "not network"
-cd frontend && npm run build                    # tsc, then the bundle
+cd frontend && npm run test:run && npm run build # vitest, tsc, then the bundle
+cd electron && npm test                         # the shell, in a VM with fakes
 ```
+
+The Electron bench is also run by `pytest` (`test_electron_overlay.py`), which
+skips it when there is no `node`. It is the only place the bezel window's
+geometry and the cancellation of a launch are checked at all — nothing in
+Python can see them.
 
 `gen-catalog.py --check` is the one people forget. Three committed files are
 **generated** from `catalog/*/pack.json` — `install/generated/*.dist` and

@@ -133,14 +133,48 @@ There is no per-surface fallback: half a theme — a beach dashboard behind the
 stock purple splash — is the exact look this rule exists to prevent.
 
 A themed splash draws what it likes but does not decide when booting ends: it
-must call `onDone`, and the host moves on regardless after 20s.
+must call `onDone`, and the host treats the animation as over regardless after
+20s.
 
-It should also start `sdk.system.splashHoldMs` late. At cold boot the display
+**SDK 4 — the boot contract.** Your splash receives `bootReady` as well as
+`onDone`. An animation has a duration; a box being usable does not, and the two
+used to be the same event: the splash ended, the dashboard appeared, and
+whether there was anything on it was a matter of machine speed. So:
+
+```js
+return ({ onDone, bootReady }) => {
+  const allowed = bootReady !== false      // an older host passes nothing
+  // …play the animation, then hold its LAST frame…
+  const leaving = useRef(0)
+  useEffect(() => () => clearTimeout(leaving.current), [])
+  useEffect(() => {
+    if (leaving.current || !finished || !allowed) return
+    setOut(true)
+    leaving.current = setTimeout(onDone, FADE_MS)   // armed once
+  }, [finished, allowed, onDone])
+}
+```
+
+Three things in that shape are load-bearing:
+
+* **`!== false`**, not `bootReady`. A front end older than SDK 4 passes no prop
+  at all, and a splash waiting for one that never arrives is a box that never
+  boots.
+* **Hold the LAST frame, not the first.** The held frame is the finished
+  picture — the cartridge seated, the sun up — so a box that was ready long ago
+  holds it for one frame and adds nothing to the boot.
+* **Arm the exit once, from a ref.** Writing it as an effect's own cleanup
+  cancels the timer the effect just armed as soon as any dependency changes;
+  Summer's splash did exactly that for one commit and stopped at its last frame
+  for good.
+
+`sdk.system.splashHoldMs` is **gone in SDK 4**. It held the first frame for a
+fixed 4000 ms whenever the machine had booted recently, because the display
 path — the X mode switch, then the TV's HDMI re-sync — is still black when the
-splash mounts, so an animation that begins immediately plays to nobody and the
-player's first glimpse is the middle of it. Start your clock at
-`-sdk.system.splashHoldMs` and clamp every phase at `t <= 0`; the value is 0
-outside Electron and outside a cold boot, so nothing changes while you develop.
+splash mounts. The reasoning was right and the mechanism was not: a duration
+measured on one box, applied to every box. A television still dark is a
+television with nothing to miss; the host now waits for the interface, and
+tells you.
 
 ### What is mandatory, and what is not
 
@@ -414,7 +448,7 @@ there is no import map to maintain and only one React instance exists.
 | `sdk.api` | `systems`, `games`, `metadata`, `media`, `playtime`, `sysinfo`, `standby`, `update`, `wifi`, `audio`, `bluetooth` | [full signatures](../architecture/05-frontend.md#apiindexts) |
 | `sdk.nav` | `use(selector)` for a reactive read inside a component, `get()` for a snapshot in a handler, plus `goHome`, `goLibrary`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx`, `openModal`, `closeModal` | [store reference](../architecture/05-frontend.md#store--storeindexts) |
 | `sdk.input` | `onGp(event, handler)`, `useGamepadState()`, `GP_BTN`, `events`, `rumble(pattern)`, `haptics` (read-only `enabled`) | [event bus](../architecture/05-frontend.md#the-gamepad-event-bus--hooksusegamepadts) |
-| `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `sound` (read-only `enabled` / `volume`), `gamecore`, `asset(path)`, `splashHoldMs` | `asset()` resolves a path inside the theme folder; `splashHoldMs` is the cold-boot hold your splash should sit on before it starts (§8) |
+| `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `sound` (read-only `enabled` / `volume`), `gamecore`, `asset(path)` | `asset()` resolves a path inside the theme folder. `splashHoldMs` was here and is gone in SDK 4 — the splash is told when the interface is ready instead of being told how long to wait (§8) |
 | `sdk.format` | `gameName`, `time`, `date`, `hexToRgb`, `systemColor` | how the rest of the UI renders the box's data. Reimplementing these does not fail, it *drifts* |
 | `sdk.themes` | `list()`, `select(id \| null)` | so a theme can dress its own theme picker. `select()` is the host's: it clears safe mode, resets the crash count and reloads the frontend |
 | `sdk.defaults` | `Shell` (the default frontend, takes parts), every screen, `DefaultSettingsPages`, `SettingsOverlay`, `Label`, `BackBar`, `DefaultKeyboard`, `launchApp` | compose instead of rewrite. The pages already carry their own overlay — render them bare; `SettingsOverlay`, `Label` and `BackBar` are the chrome to build a page of your own that matches them |
@@ -880,7 +914,7 @@ the two shell parts the remake deliberately left out.
 | `sdk.format.time` / `date` / `hexToRgb` | unreachable; a theme phrased playtime differently from the rest of the UI |
 | `sortKeys` / `sortLabels` | imported by the default view only; a theme's copy would drift from what L1/R1 actually cycles |
 | `toasts` | rendered by the shell, not a part; a theme with its own tree lost every notification |
-| `sdk.system.splashHoldMs` | read from the URL by the default splash and undocumented, so every themed splash started mid-animation at cold boot |
+| `sdk.system.splashHoldMs` | read from the URL by the default splash and undocumented, so every themed splash started mid-animation at cold boot — replaced in SDK 4 by the `bootReady` prop, which is a fact rather than a duration (§8) |
 
 If you add something to the default UI, add it to this theme. If you cannot, you
 have found the next gap.

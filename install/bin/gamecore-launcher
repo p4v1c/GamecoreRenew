@@ -8,20 +8,40 @@
 # via the NOPASSWD sudoers rule created by the installer.
 set -u
 
-SERVICES=("gamecore-backend.service" "gamecore-ui.service")
+# The backend is a system unit and stays one — the API and the web interface
+# are useful without a graphical session.
+if systemctl is-active --quiet gamecore-backend.service; then
+  echo "🟢 gamecore-backend.service is already running."
+else
+  echo "🔴 gamecore-backend.service is stopped. Starting..."
+  sudo -n systemctl start gamecore-backend.service 2>/dev/null \
+    && echo "✅ gamecore-backend.service started." \
+    || echo "❌ Could not start gamecore-backend.service."
+fi
 
-for SERVICE in "${SERVICES[@]}"; do
-  if systemctl is-active --quiet "$SERVICE"; then
-    echo "🟢 $SERVICE is already running."
-  else
-    echo "🔴 $SERVICE is stopped. Starting..."
-    if sudo -n systemctl start "$SERVICE" 2>/dev/null && systemctl is-active --quiet "$SERVICE"; then
-      echo "✅ $SERVICE started successfully."
-    else
-      echo "❌ Failed to start $SERVICE."
-    fi
-  fi
-done
+# The interface is a USER unit now, and this is the desktop escape hatch: from
+# a desktop session, starting it draws GameCore over that desktop exactly as
+# the old system-wide unit did. No sudo — it is this user's own manager.
+#
+# The system unit is tried second and only if the user one is not installed:
+# a box that has not been migrated still has it, and the point of this script
+# is to work on both.
+if systemctl is-active --quiet gamecore-ui.service 2>/dev/null; then
+  echo "🟢 The legacy kiosk is already running."
+elif systemctl --user is-active --quiet gamecore-ui.service 2>/dev/null; then
+  echo "🟢 GameCore is already running."
+elif systemctl --user list-unit-files gamecore-ui.service >/dev/null 2>&1 \
+     && systemctl --user cat gamecore-ui.service >/dev/null 2>&1; then
+  echo "🔴 GameCore is stopped. Starting..."
+  systemctl --user start gamecore-ui.service \
+    && echo "✅ GameCore started." \
+    || echo "❌ Could not start GameCore — see: journalctl --user -u gamecore-ui"
+else
+  echo "🔴 GameCore is stopped (this box has not been migrated). Starting..."
+  sudo -n systemctl start gamecore-ui.service 2>/dev/null \
+    && echo "✅ GameCore started." \
+    || echo "❌ Could not start GameCore."
+fi
 
 # Leave the window open a moment so the result is readable when clicked.
 sleep 3

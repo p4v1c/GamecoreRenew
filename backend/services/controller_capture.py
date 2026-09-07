@@ -536,6 +536,11 @@ def start() -> dict:
             "optional": sorted(OPTIONAL)}
 
 
+# Put on the queue by a reader that has finished, so the loop can count how
+# many are left. An object() rather than None: an evdev event is never this.
+_GONE = object()
+
+
 async def events(session: Session):
     """Yield `{binding, kind, code, value}` for every press on the pad.
 
@@ -580,9 +585,17 @@ async def events(session: Session):
             raise
         except Exception:
             log.debug("controller_capture: %s stopped", dev.path)
+        finally:
+            # The end of a reader is news, and it used to be kept to itself: a
+            # pad unplugged mid-wizard left every pump finished and this
+            # generator waiting on a queue with no producer left. Nothing was
+            # ever going to arrive, and nothing timed the wait out — the socket
+            # stayed open and the screen stayed on "press A" for ever.
+            queue.put_nowait((dev.path, _GONE))
 
     tasks = [asyncio.create_task(pump(d), name=f"capture:{d.path}")
              for d in devices]
+    live = len(devices)
 
     # What each input is currently reporting, so a return to rest can be sent
     # as the RELEASE of the thing that was held.
@@ -596,7 +609,26 @@ async def events(session: Session):
     active: dict[tuple[str, int], str] = {}
     try:
         while True:
-            path, event = await queue.get()
+            # The session's own deadline, as one wakeup rather than a poll. A
+            # capture nobody finishes has to end on its own too: `current()`
+            # forgets it after SESSION_TTL, and a stream still reading a pad
+            # for a session that no longer exists answers to nobody.
+            remaining = SESSION_TTL - (time.monotonic() - session.started)
+            if remaining <= 0:
+                log.info("controller_capture: session %s expired — ending the stream",
+                         session.id)
+                return
+            try:
+                path, event = await asyncio.wait_for(queue.get(), timeout=remaining)
+            except asyncio.TimeoutError:
+                continue                     # the check above ends it
+            if event is _GONE:
+                live -= 1
+                if live <= 0:
+                    log.info("controller_capture: every node of %s is gone — "
+                             "ending the stream", session.name)
+                    return
+                continue
             layout = session.layouts.get(path)
             if layout is None:
                 continue

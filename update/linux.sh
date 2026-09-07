@@ -63,6 +63,10 @@ if [[ -z "${GAMECORE_DATA:-}" ]]; then
 fi
 GAMECORE_DATA="${GAMECORE_DATA:-$GAMECORE_PATH}"
 
+# Privileged entry points must be prepared before this release can replace code.
+UPDATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+bash "$UPDATE_DIR/check-session-prerequisites.sh" || fail "session/OTA preparation required"
+
 # Only one update at a time. The backend refuses a second /api/update/apply,
 # but this is the guard that holds if it is ever started another way — two runs
 # used to share a fixed /tmp/gamecore_ota, and the second one's `rm -rf` landed
@@ -479,6 +483,18 @@ if command -v systemctl >/dev/null 2>&1 \
   echo "[update]         /etc/systemd/system/gamecore-backend.service.d/x-display.conf"
   echo "[update]       then: sudo systemctl daemon-reload   (takes effect at the next start)"
 fi
+
+# Refresh every shipped session helper and user unit, including on boxes
+# already migrated. Installing never changes which session boots.
+echo "[update] refreshing console session and OTA helpers…"
+sudo -n systemctl start gamecore-session-migrate.service \
+  || fail "session migration failed — see journalctl -u gamecore-session-migrate"
+for helper in gamecore-session gamecore-session-select gamecore-xsetup gamecore-restart gamecore-session-migrate; do
+  cmp -s "$GAMECORE_PATH/install/bin/$helper" "/usr/local/bin/$helper" \
+    || fail "session migration left an outdated $helper"
+done
+[[ -f /usr/share/xsessions/gamecore.desktop ]] || fail "session entry was not installed"
+echo "[update] Console helpers updated; the selected boot session is unchanged."
 
 # The addon CLI lives in /usr/local/bin — a path root controls, so that an
 # addon's install.sh cannot rewrite the tool that runs it — and only

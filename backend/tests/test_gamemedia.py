@@ -638,7 +638,10 @@ def test_a_standalone_gamescrape_still_caches_in_the_home(tmp_path):
     import subprocess
     import sys as _sys
 
-    env = {k: v for k, v in os.environ.items() if k != "GAMECORE_PATH"}
+    # Both roots, not just the first: the suite exports GAMECORE_DATA too
+    # (conftest.py), and "no GameCore install" means neither is set.
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("GAMECORE_PATH", "GAMECORE_DATA")}
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     r = subprocess.run(
         [_sys.executable, "-c",

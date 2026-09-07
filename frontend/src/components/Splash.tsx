@@ -16,7 +16,12 @@ import { onGp } from '../hooks/useGamepad'
 import { getAudioContext, soundSettings } from '../lib/sounds'
 import { useStore } from '../store'
 
-interface Props { onDone: () => void }
+interface Props {
+  onDone: () => void
+  /** The host's gate. `false` holds the last frame; absent means an older
+   *  host, and an animation that waited for it would never end. */
+  bootReady?: boolean
+}
 
 const ACCENT = '#B15BFF'
 
@@ -25,12 +30,10 @@ const T_PAD    = 850    // pad starts, fragments begin converging
 const T_IMPACT = 2050   // convergence lands: flash, shockwave, chime
 const T_END    = 3960   // hand over to the app (fade-out runs 3400→3940)
 
-// Hold requested by Electron at cold boot (?splashHold=<ms>): the display
-// path (X mode switch + TV HDMI re-sync) is still black when we mount, so the
-// timeline starts negative and the first visible frame is the real beginning
-// of the animation instead of its middle. 0 (no hold) outside Electron/boot.
-const HOLD_MS = Math.min(10000, Math.max(0,
-  Number(new URLSearchParams(window.location.search).get('splashHold')) || 0))
+// Where the fade-out begins. The timeline stops here while the host says the
+// interface is not ready yet: the animation ends on a held frame rather than
+// on a duration, and hands over when there is something to hand over to.
+const T_FADE = 3400
 
 const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x))
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
@@ -44,7 +47,7 @@ const FRAGMENTS = [
   { s: [560, -360, -80, 1.7],   n: [90, 54, 700, 0.66],  c: '#FF5BA8' },
 ] as const
 
-export default function Splash({ onDone }: Props) {
+export default function Splash({ onDone, bootReady }: Props) {
   const root = useRef<HTMLDivElement>(null)
   const splash = useRef<HTMLDivElement>(null)
   const bg = useRef<HTMLDivElement>(null)
@@ -58,6 +61,10 @@ export default function Splash({ onDone }: Props) {
 
   const onDoneRef = useRef(onDone)
   useEffect(() => { onDoneRef.current = onDone }, [onDone])
+  // Read inside the rAF loop, which is not a React consumer: a prop captured
+  // by the effect below would be the value from the render that started it.
+  const allowedRef = useRef(bootReady !== false)
+  useEffect(() => { allowedRef.current = bootReady !== false }, [bootReady])
 
   // The dashboard loads underneath us during the animation — count as a modal
   // so its gamepad handlers stay inert until the boot is over (a ✕ press must
@@ -69,10 +76,7 @@ export default function Splash({ onDone }: Props) {
   }, [])
 
   useEffect(() => {
-    // Negative start = hold the initial black frame for HOLD_MS. Every phase
-    // clamps at t<=0, so nothing moves (or plays) until the screen is live;
-    // skip() still fast-forwards through the hold at 4x.
-    let t = -HOLD_MS
+    let t = 0
     let last: number | null = null
     let rate = 1
     let raf = 0
@@ -250,7 +254,12 @@ export default function Splash({ onDone }: Props) {
       if (last == null) last = ts
       const dt = Math.min(64, ts - last)
       last = ts
-      t += dt * rate
+      // The clock stops at the fade while the box is not ready. Not a pause
+      // that hides something: this is the finished frame — core lit, wordmark
+      // up — and it holds until there is an interface behind it to reveal. On
+      // a box that was ready long ago the stop lasts one frame and nothing is
+      // added to the boot.
+      if (!(t >= T_FADE && !allowedRef.current)) t += dt * rate
 
       if (t >= T_PAD && !padStarted) { padStarted = true; startPad() }
       if (t >= T_IMPACT && !impacted) { impacted = true; stopPad(); playChime() }

@@ -274,3 +274,127 @@ def test_a_compositor_that_will_not_answer_falls_back_to_xrandr(client, monkeypa
 
     body = client.get("/api/settings/display").json()
     assert body["backend"] == "xrandr" and body["output"] == "HDMI-A-1"
+
+
+# ── two changes inside one confirmation window ──────────────────────────────
+
+def test_a_refused_second_mode_leaves_the_first_its_way_back(client, xrandr, monkeypatch):
+    """Finding 13 of the 2026-09-04 audit, and the worst shape it takes.
+
+    The rollback is the whole feature, and it was given up before anyone knew
+    whether there was anything to replace it with: `_cancel_pending()` ran
+    first, so a second change the compositor then REFUSED left the first —
+    still unconfirmed, possibly on a screen showing nothing — with no timer and
+    no way back at all. Two requests during the twelve seconds, from two
+    clients or one screen reopened, and the safety net was gone while the risk
+    stayed.
+    """
+    applied: list[dict] = []
+
+    async def apply(backend, output, mode):
+        applied.append(dict(mode))
+        # 1280x720 is the one this box refuses today.
+        if (mode["width"], mode["height"]) == (1280, 720):
+            return False, "mode rejected"
+        return True, ""
+    monkeypatch.setattr(display, "_apply", apply)
+
+    first = client.post("/api/settings/display/mode",
+                        json={"width": 1680, "height": 1050, "rate": 59.95})
+    assert first.status_code == 200 and first.json()["changed"]
+    assert display._pending is not None
+
+    # Nobody has confirmed. The screen is now 1680x1050, and 1920x1080 is the
+    # last mode anyone was known to be able to read.
+    xrandr["query"] = QUERY.replace("   1920x1080     60.00*+", "   1920x1080     60.00 +") \
+                           .replace("   1680x1050     59.95", "   1680x1050     59.95*")
+
+    refused = client.post("/api/settings/display/mode",
+                          json={"width": 1280, "height": 720, "rate": 60.0})
+    assert refused.status_code == 500
+
+    assert display._pending is not None, "the first change lost its rollback"
+    assert display._pending["previous"]["width"] == 1920
+    assert display._pending["previous"]["height"] == 1080
+
+
+def test_a_second_change_comes_back_to_the_last_confirmed_mode(client, xrandr, monkeypatch):
+    """Not to the one on screen, which nobody has said they can see."""
+    monkeypatch.setattr(display, "_apply", _always_ok())
+
+    client.post("/api/settings/display/mode",
+                json={"width": 1680, "height": 1050, "rate": 59.95})
+    xrandr["query"] = QUERY.replace("   1920x1080     60.00*+", "   1920x1080     60.00 +") \
+                           .replace("   1680x1050     59.95", "   1680x1050     59.95*")
+    client.post("/api/settings/display/mode",
+                json={"width": 1280, "height": 720, "rate": 60.0})
+
+    assert display._pending["previous"]["width"] == 1920, \
+        "the way back is the last mode somebody confirmed, not the last one applied"
+
+
+def test_a_confirmed_mode_becomes_the_one_to_come_back_to(client, xrandr, monkeypatch):
+    """And once it is confirmed, it is what the next change falls back to."""
+    monkeypatch.setattr(display, "_apply", _always_ok())
+
+    client.post("/api/settings/display/mode",
+                json={"width": 1680, "height": 1050, "rate": 59.95})
+    client.post("/api/settings/display/confirm")
+    assert display._pending is None
+
+    xrandr["query"] = QUERY.replace("   1920x1080     60.00*+", "   1920x1080     60.00 +") \
+                           .replace("   1680x1050     59.95", "   1680x1050     59.95*")
+    client.post("/api/settings/display/mode",
+                json={"width": 1280, "height": 720, "rate": 60.0})
+    assert display._pending["previous"]["width"] == 1680
+
+
+def _always_ok():
+    async def apply(backend, output, mode):
+        return True, ""
+    return apply
+
+
+# ── the mode the player chose, kept ─────────────────────────────────────────
+
+def test_a_confirmed_mode_is_written_down(client, xrandr, monkeypatch, tmp_path):
+    """Nothing used to write it down at all.
+
+    `gamecore-xsetup` pins 1080p for the X server SDDM starts, before any
+    session. A player who picked 1280x720 in the settings — and confirmed it,
+    on a screen they could read — found 1080p again at the next boot, with
+    nothing on screen to say why.
+    """
+    monkeypatch.setattr(display, "config_dir", lambda: tmp_path)
+    monkeypatch.setattr(display, "_apply", _always_ok())
+
+    client.post("/api/settings/display/mode",
+                json={"width": 1280, "height": 720, "rate": 60.0})
+    assert display.preferred_mode() is None, "an unconfirmed mode was persisted"
+
+    client.post("/api/settings/display/confirm")
+    assert display.preferred_mode() == {
+        "width": 1280, "height": 720, "rate": 60.0, "output": "HDMI-A-1"}
+
+
+def test_a_mode_that_was_never_confirmed_is_not_remembered(client, xrandr, monkeypatch, tmp_path):
+    """Confirmation is the difference between a mode that works and one the
+    compositor merely accepted: somebody read the screen and pressed a button
+    on it. Persisting an unconfirmed mode would persist the black screens the
+    revert exists to undo."""
+    monkeypatch.setattr(display, "config_dir", lambda: tmp_path)
+    monkeypatch.setattr(display, "_apply", _always_ok())
+
+    client.post("/api/settings/display/mode",
+                json={"width": 1280, "height": 720, "rate": 60.0})
+    # The timer fires instead of a confirmation.
+    asyncio.run(display._revert_after(0.01, display._pending["previous"]))
+    assert display.preferred_mode() is None
+
+
+def test_an_unreadable_preference_is_ignored_rather_than_fatal(monkeypatch, tmp_path):
+    monkeypatch.setattr(display, "config_dir", lambda: tmp_path)
+    (tmp_path / display.PREFERENCE_FILE).write_text("{ not json")
+    assert display.preferred_mode() is None
+    (tmp_path / display.PREFERENCE_FILE).write_text('{"width": "wide"}')
+    assert display.preferred_mode() is None

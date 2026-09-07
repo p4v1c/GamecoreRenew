@@ -1,0 +1,173 @@
+#!/usr/bin/env bash
+# ================================================================
+#  gamecore-session — the console session itself.
+#
+#  Run by SDDM as the session command for /usr/share/xsessions/gamecore.desktop.
+#  It is what replaces "log into the machine's desktop, then draw the kiosk on
+#  top of it": there is no desktop behind GameCore any more, so there is
+#  nothing to see before it.
+#
+#  What it starts, and nothing else:
+#    · KWin (X11) as the compositor — the overlays, the fullscreen enforcer and
+#      the window monitor are all written against its behaviour;
+#    · gamecore-session.target, the user units that belong to this session.
+#
+#  What it deliberately does NOT start: plasmashell, its panels, its wallpaper,
+#  its session restore. Those are the seconds the player was watching.
+#
+#  X11 on purpose, and stated so it is not mistaken for an oversight: the bezel
+#  overlays, the fullscreen enforcer, gamecore-xsetup and the gamepad bridge
+#  are X11 code. Wayland is a separate piece of work, not a flag.
+# ================================================================
+set -u
+
+log() { echo "[gamecore-session] $*"; }
+
+# ── the session's own identity ───────────────────────────────────
+export XDG_SESSION_DESKTOP=gamecore
+export XDG_CURRENT_DESKTOP=GameCore
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+if [[ -z "${DISPLAY:-}" ]]; then
+  log "no DISPLAY — this session is started by the display manager, on X11."
+  exit 1
+fi
+
+# ── hand the environment over, rather than let anything guess it ──
+#
+# Two consumers, and they cannot be served the same way.
+#
+# The user manager gets it by import: the units of this session (the UI) and
+# the ones that outlive it (the gamepad bridge, the packs' layout daemons) all
+# read DISPLAY from there. Without this they inherit whatever the last session
+# left, which is how a daemon ends up talking to a display that no longer
+# exists.
+systemctl --user import-environment \
+  DISPLAY XAUTHORITY XDG_SESSION_ID XDG_SESSION_TYPE \
+  XDG_SESSION_DESKTOP XDG_CURRENT_DESKTOP 2>/dev/null || true
+
+# The backend is a SYSTEM unit — deliberately, so the web interface and the
+# API survive without a graphical session — and a system unit cannot see any
+# of the above. It used to probe X for itself: a loop over every socket and
+# every cookie location, with a twenty-second bound in its unit, running on
+# every start whether or not anything needed a display.
+#
+# So the session writes it down instead, in the user's own runtime directory,
+# renewed at every login and removed on the way out. A file that is absent
+# means "no session", which is exactly what a headless box should look like.
+SESSION_ENV_DIR="$XDG_RUNTIME_DIR/gamecore"
+SESSION_ENV="$SESSION_ENV_DIR/session.env"
+mkdir -p "$SESSION_ENV_DIR"
+chmod 700 "$SESSION_ENV_DIR" 2>/dev/null || true
+umask 077
+{
+  printf 'DISPLAY=%s\n' "$DISPLAY"
+  [[ -n "${XAUTHORITY:-}" ]] && printf 'XAUTHORITY=%s\n' "$XAUTHORITY"
+  printf 'XDG_SESSION_DESKTOP=%s\n' "$XDG_SESSION_DESKTOP"
+  printf 'STARTED=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+} > "$SESSION_ENV"
+log "session environment written to $SESSION_ENV (DISPLAY=$DISPLAY)"
+
+# start-ui.sh applies the saved mode with this session’s actual display.
+
+# ── teardown, whatever happens ───────────────────────────────────
+cleanup() {
+  log "session ending — stopping GameCore units"
+  # The compositor goes with the session. Left behind, it holds the X server
+  # and the next session finds a screen with somebody else's windows on it.
+  if [[ -n "${SUPERVISOR_PID:-}" ]]; then
+    pkill -P "$SUPERVISOR_PID" 2>/dev/null || true
+    kill "$SUPERVISOR_PID" 2>/dev/null || true
+  fi
+  systemctl --user stop gamecore-session.target 2>/dev/null || true
+  systemctl --user unset-environment \
+    DISPLAY XAUTHORITY XDG_SESSION_ID XDG_SESSION_TYPE \
+    XDG_SESSION_DESKTOP XDG_CURRENT_DESKTOP 2>/dev/null || true
+  rm -f "$SESSION_ENV" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+# ── the compositor ───────────────────────────────────────────────
+#
+# Supervised in the background, and never allowed to end the session by itself.
+#
+# Ending it would return to SDDM, which auto-logs straight back in: a login
+# loop, on a television, with no keyboard. So a compositor that will not stay
+# up costs the compositor — the interface is fullscreen and still visible, the
+# bezels and the window stacking are not — and says so in the journal, which is
+# a box someone can still fix.
+COMPOSITOR="${GAMECORE_COMPOSITOR:-}"
+if [[ -z "$COMPOSITOR" ]]; then
+  for candidate in kwin_x11 kwin; do
+    if command -v "$candidate" >/dev/null 2>&1; then COMPOSITOR="$candidate"; break; fi
+  done
+fi
+
+# Set by the supervisor when the compositor exits cleanly, which is the only
+# compositor exit that means "the player is leaving".
+COMPOSITOR_LEFT="$SESSION_ENV_DIR/compositor-left"
+rm -f "$COMPOSITOR_LEFT" 2>/dev/null || true
+
+supervise_compositor() {
+  local restarts=0 window_start=$SECONDS status
+  while :; do
+    log "starting compositor: $COMPOSITOR"
+    "$COMPOSITOR" &
+    wait $! ; status=$?
+    if [[ $status -eq 0 ]]; then
+      log "compositor exited cleanly"
+      : > "$COMPOSITOR_LEFT"
+      return 0
+    fi
+    (( SECONDS - window_start > 60 )) && { restarts=0; window_start=$SECONDS; }
+    restarts=$(( restarts + 1 ))
+    if (( restarts > 3 )); then
+      log "the compositor failed $restarts times in a minute (last status $status)."
+      log "  carrying on without one: the interface stays up, the bezels do not."
+      return 1
+    fi
+    log "compositor died (status $status) — restart $restarts of 3"
+    sleep 1
+  done
+}
+
+if [[ -z "$COMPOSITOR" ]]; then
+  log "no KWin on this machine — running without a compositor."
+  log "  the interface will show; bezels and window stacking will not."
+  SUPERVISOR_PID=""
+else
+  supervise_compositor &
+  SUPERVISOR_PID=$!
+fi
+
+# ── the session's own units ──────────────────────────────────────
+if ! systemctl --user start gamecore-session.target; then
+  log "gamecore-session.target refused to start."
+  log "  see: journalctl --user -u gamecore-ui.service"
+fi
+
+# ── what keeps the session alive ─────────────────────────────────
+#
+# Two things can end it, and both have to be watched: the player leaving
+# (Settings → Desktop quits the interface) and the compositor exiting cleanly.
+# Neither is a timer — the poll below is supervision, not a countdown, and it
+# decides nothing except when this script has nothing left to wait for.
+log "session up"
+while :; do
+  [[ -e "$COMPOSITOR_LEFT" ]] && { log "the compositor was closed — ending the session"; break; }
+  if [[ -n "$SUPERVISOR_PID" ]] && ! kill -0 "$SUPERVISOR_PID" 2>/dev/null; then
+    # The supervisor gave up (a compositor that will not stay up). The session
+    # continues without one; the interface is what the player came for.
+    SUPERVISOR_PID=""
+  fi
+  if ! systemctl --user is-active --quiet gamecore-ui.service; then
+    # Also true for the seconds between two restarts, so it is confirmed once
+    # rather than acted on immediately.
+    sleep 3
+    if ! systemctl --user is-active --quiet gamecore-ui.service; then
+      log "the interface is no longer running — ending the session"
+      break
+    fi
+  fi
+  sleep 2
+done

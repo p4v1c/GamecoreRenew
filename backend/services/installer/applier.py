@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import logging
 import os
+import pwd
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -50,6 +51,7 @@ from pathlib import Path
 
 from .. import usb_devices
 from .providers import Context, Result, _chown, _pacman_install, install
+from .host_access import apply_host_access
 
 log = logging.getLogger(__name__)
 
@@ -84,6 +86,7 @@ def _tokens(pack, ctx: AppContext) -> dict[str, str]:
         "@HOME@": str(ctx.user_home),
         "@USER@": ctx.user,
         "@GAMECORE_PATH@": str(ctx.gamecore_path),
+        "@GAMECORE_DATA@": str(ctx.data_root),
     }
     for spec in pack.data.get("secrets", []):
         key = spec["key"]
@@ -260,7 +263,11 @@ def apply_files(pack, ctx: AppContext) -> list[Result]:
             # ~/.mozilla/firefox/<profile> breaks certutil (SEC_ERROR_BAD_DATABASE)
             # and Firefox's own caches, and the profile is created by this very
             # line the first time round.
-            dest.parent.mkdir(parents=True, exist_ok=True)
+            if spec.get("owner") == "user":
+                subprocess.run(_as_user(ctx, ["mkdir", "-p", str(dest.parent)]),
+                               check=True, capture_output=True, timeout=30)
+            else:
+                dest.parent.mkdir(parents=True, exist_ok=True)
             _own(dest.parent, spec.get("owner", "root"), ctx)
             if spec.get("template"):
                 dest.write_text(_expand(source.read_text(encoding="utf-8"), tokens),
@@ -269,7 +276,7 @@ def apply_files(pack, ctx: AppContext) -> list[Result]:
                 shutil.copyfile(source, dest)
             os.chmod(dest, int(spec.get("mode", "644"), 8))
             _own(dest, spec.get("owner", "root"), ctx)
-        except OSError as e:
+        except (OSError, subprocess.SubprocessError) as e:
             out.append(Result(False, f"{pack.id}: could not write {dest} — {e}"))
             continue
         out.append(Result(True, f"{pack.id}: {dest}"))
@@ -312,7 +319,8 @@ def apply_services(pack, ctx: AppContext) -> list[Result]:
             out.append(Result(True, f"{pack.id}: would install {name}"))
             continue
         try:
-            shutil.copyfile(source, target)
+            target.write_text(_expand(source.read_text(encoding="utf-8"), _tokens(pack, ctx)),
+                              encoding="utf-8")
             os.chmod(target, 0o644)
             _own(target, "user", ctx)
             if spec.get("enable", False):
@@ -337,6 +345,32 @@ def enabled_units(pack, ctx: AppContext) -> list[str]:
     """
     return [Path(s["unit"]).name for s in pack.data.get("services", [])
             if s.get("enable", False) and _wanted(s, ctx)]
+
+
+def start_services(pack, ctx: AppContext) -> list[Result]:
+    """Start installed units after seeds and controller generators have run."""
+    units = enabled_units(pack, ctx)
+    if not units:
+        return []
+    if ctx.dry_run:
+        return [Result(True, f"{pack.id}: would restart {', '.join(units)}")]
+    missing = [name for name in units if not (ctx.unit_dir / name).is_file()]
+    if missing:
+        return [Result(False, f"{pack.id}: units not installed: {', '.join(missing)}")]
+    uid = pwd.getpwnam(ctx.user).pw_uid if ctx.user else os.getuid()
+    runtime = Path(f"/run/user/{uid}")
+    if not (runtime / "bus").exists():
+        return [Result(True, f"{pack.id}: services enabled; no user session yet, starts at login")]
+    env = {"XDG_RUNTIME_DIR": str(runtime),
+           "DBUS_SESSION_BUS_ADDRESS": f"unix:path={runtime}/bus"}
+    try:
+        for args in (["daemon-reload"], ["restart", *units]):
+            r = _run_as_user(ctx, ["systemctl", "--user", *args], env, 30, ctx.user_home)
+            if r.returncode:
+                return [Result(False, f"{pack.id}: service start failed: {r.stderr.strip()}")]
+    except (OSError, subprocess.SubprocessError) as e:
+        return [Result(False, f"{pack.id}: service start failed: {e}")]
+    return [Result(True, f"{pack.id}: started {', '.join(units)}")]
 
 
 # ── udev ───────────────────────────────────────────────────────────────────
@@ -439,7 +473,7 @@ def apply(pack, ctx: AppContext) -> list[Result]:
     results = apply_packages(pack, ctx)
     if pack.data.get("install"):
         results.append(install(pack, ctx))
-    for step in (apply_sources, apply_files, apply_udev, apply_services,
+    for step in (apply_host_access, apply_sources, apply_files, apply_udev, apply_services,
                  run_post_install):
         try:
             results.extend(step(pack, ctx))

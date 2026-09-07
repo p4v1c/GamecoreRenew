@@ -415,3 +415,112 @@ def test_every_step_is_a_field_sdl_understands():
     assert set(fields) <= known, set(fields) - known
     assert len(fields) == len(set(fields)), "a step is listed twice"
     assert cap.OPTIONAL <= set(fields), "an optional field is not a step"
+
+
+# ── the stream, and how it ends ─────────────────────────────────────────────
+#
+# Finding 18 of the 2026-09-04 audit. Every reader caught its own error and
+# finished quietly, and none of them told the queue — so when the last one had
+# gone, the generator was still waiting on `queue.get()` with no producer left
+# and no deadline. The wizard sat on "press A" for a pad that had been
+# unplugged, and the only other way out of that screen was the pad.
+
+import asyncio                                                     # noqa: E402
+import time                                                        # noqa: E402
+import types                                                       # noqa: E402
+
+
+class _Unplugged:
+    """A node that raises the moment it is read, the way a removed one does."""
+
+    def __init__(self, path):
+        self.path = path
+        self.closed = False
+
+    def capabilities(self):
+        return {}
+
+    async def async_read_loop(self):
+        raise OSError("No such device")
+        yield  # pragma: no cover — makes this an async generator
+
+    def close(self):
+        self.closed = True
+
+
+def _session(monkeypatch, *paths, age: float = 0.0):
+    monkeypatch.setitem(sys.modules, "evdev",
+                        types.SimpleNamespace(InputDevice=_Unplugged))
+    return cap.Session(
+        id="probe-1", key="probe", vendor="054c", product="09cc", name="Probe",
+        nodes=list(paths), layouts={p: cap.Layout() for p in paths},
+        guids=["030000004c050000cc09000011810000"],
+        started=time.monotonic() - age)
+
+
+def test_the_stream_ends_when_the_last_node_disappears(monkeypatch):
+    session = _session(monkeypatch, "/fake/event0")
+
+    async def scenario():
+        stream = cap.events(session)
+        try:
+            with pytest.raises(StopAsyncIteration):
+                # The timeout is this test's deadlock detector, not a limit the
+                # code has: before the fix nothing here ever completed.
+                await asyncio.wait_for(anext(stream), timeout=2)
+        finally:
+            await stream.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_one_node_going_does_not_end_a_stream_that_still_has_another(monkeypatch):
+    """A DualShock 4 is three nodes. Losing the motion one is not losing the pad."""
+    session = _session(monkeypatch, "/fake/event0", "/fake/event1")
+    reads: list[str] = []
+
+    class OneAlive(_Unplugged):
+        async def async_read_loop(self):
+            if self.path == "/fake/event0":
+                raise OSError("No such device")
+            reads.append(self.path)
+            await asyncio.sleep(3600)      # a pad nobody is touching
+            yield  # pragma: no cover
+
+    monkeypatch.setitem(sys.modules, "evdev",
+                        types.SimpleNamespace(InputDevice=OneAlive))
+
+    async def scenario():
+        stream = cap.events(session)
+        try:
+            with pytest.raises(asyncio.TimeoutError):
+                await asyncio.wait_for(anext(stream), timeout=0.2)
+        finally:
+            await stream.aclose()
+
+    asyncio.run(scenario())
+    assert reads == ["/fake/event1"], "the surviving node was not being read"
+
+
+def test_an_expired_session_ends_its_stream_without_a_press(monkeypatch):
+    """`current()` forgets a session after SESSION_TTL, and a stream still
+    reading a pad for a session that no longer exists answers to nobody."""
+    session = _session(monkeypatch, "/fake/event0", age=cap.SESSION_TTL + 1)
+
+    class Silent(_Unplugged):
+        async def async_read_loop(self):
+            await asyncio.sleep(3600)
+            yield  # pragma: no cover
+
+    monkeypatch.setitem(sys.modules, "evdev",
+                        types.SimpleNamespace(InputDevice=Silent))
+
+    async def scenario():
+        stream = cap.events(session)
+        try:
+            with pytest.raises(StopAsyncIteration):
+                await asyncio.wait_for(anext(stream), timeout=2)
+        finally:
+            await stream.aclose()
+
+    asyncio.run(scenario())

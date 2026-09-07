@@ -26,7 +26,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # working. Nothing below depends on the caller's cwd; leave it somewhere
 # readable.
 cd "$SCRIPT_DIR"
-CATALOG_ROOT="$(dirname "$SCRIPT_DIR")/catalog"
+REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
+CATALOG_ROOT="$REPO_ROOT/catalog"
 GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
 
 [[ -d "$CATALOG_ROOT" ]] || { echo "catalog/ not found next to install/ — nothing to do."; exit 1; }
@@ -60,7 +61,7 @@ while IFS=$'\t' read -r emu dest native; do
   else
     DEST[$emu]="$dest"
   fi
-done < <(python3 "$(dirname "$SCRIPT_DIR")/scripts/catalog-query.py" config-dest \
+done < <(python3 "$REPO_ROOT/scripts/catalog-query.py" config-dest \
            --home "$HOME" --gamecore-path "$GAMECORE_PATH")
 
 [[ ${#DEST[@]} -gt 0 ]] || { echo "catalog: no pack declares a config destination."; exit 1; }

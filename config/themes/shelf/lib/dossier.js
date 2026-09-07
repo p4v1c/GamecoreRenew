@@ -16,26 +16,52 @@
  * one that can answer, so we ask it and draw what we get.
  */
 
+/**
+ * Answers the box actually gave. Only answers.
+ *
+ * The cache used to hold whatever came out of `load()`, and `load()` swallows
+ * every exception — so a backend that was busy restarting, or a scraper that
+ * timed out once, wrote an empty card into this map and it stayed there for
+ * the life of the page. Walking away and coming back showed the same blank
+ * card, with nothing to retry and nothing saying why. The same held for a game
+ * whose media were configured or scraped *after* the empty result was
+ * remembered: it could not appear.
+ *
+ * "Nothing is known about this game" is an answer and belongs here; "nobody
+ * answered" is not one and does not. There is no expiry, because there is
+ * nothing to expire: a failure is simply not written.
+ */
 const cache = new Map()
+
+/**
+ * Lookups in flight, so a return trip along the shelf asks once.
+ *
+ * Without it, leaving a game and coming straight back before the first request
+ * landed sent a second — and the first display of an uncached game is a real
+ * round trip to the scraper.
+ */
+const inflight = new Map()
 
 const key = (systemId, filename) => `${systemId}::${filename}`
 
 export const createUseDossier = (sdk) => {
   const { useState, useEffect } = sdk.ui
 
-  const load = async (systemId, filename) => {
-    const k = key(systemId, filename)
-    if (cache.has(k)) return cache.get(k)
-
+  const fetchOnce = async (systemId, filename) => {
     let media = {}
     let meta = {}
+    // Whether anything actually answered. Not the same question as whether
+    // anything was found.
+    let answered = false
 
     try {
       const index = await sdk.api.media.list(systemId, filename)
       media = index?.media || {}
       meta = index?.meta || {}
+      answered = true
     } catch {
-      // 404, no source, or an unreachable scraper — all the same to this card.
+      // 404, no source, or an unreachable scraper — all the same to the card,
+      // but not to the cache: this one is not remembered.
     }
 
     // Nothing usable came back, or the box has no media tier at all: the
@@ -44,12 +70,29 @@ export const createUseDossier = (sdk) => {
       try {
         const m = await sdk.api.metadata.get(systemId, filename)
         if (m?.found) meta = { ...m, ...meta }
-      } catch { /* unknown game — the card handles empty */ }
+      } catch {
+        // An unknown game answers `found: false` and does not come through
+        // here; this is the tier being unreachable, and the card stays
+        // retryable because of it.
+        answered = false
+      }
     }
 
     const out = { meta: meta || {}, media }
-    cache.set(k, out)
+    if (answered) cache.set(key(systemId, filename), out)
     return out
+  }
+
+  const load = (systemId, filename) => {
+    const k = key(systemId, filename)
+    if (cache.has(k)) return Promise.resolve(cache.get(k))
+
+    const running = inflight.get(k)
+    if (running) return running
+
+    const p = fetchOnce(systemId, filename).finally(() => inflight.delete(k))
+    inflight.set(k, p)
+    return p
   }
 
   return (systemId, filename) => {

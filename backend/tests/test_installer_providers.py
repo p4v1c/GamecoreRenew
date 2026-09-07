@@ -401,3 +401,44 @@ def test_the_sandbox_is_told_where_the_data_is_when_it_has_moved(packs):
 
     # A pack with its own policy (Stremio: the whole host) is not touched.
     assert "--filesystem=/userdata" not in sandbox_flags(packs["stremio"], moved)
+
+
+def test_a_sandbox_override_that_failed_is_not_reported_as_installed(flatpak_world, tmp_path,
+                                                                     monkeypatch, caplog):
+    """The override's exit code used to go nowhere at all.
+
+    It is the whole difference between an emulator that can read the ROM
+    directory and one that cannot, and `flatpak override` failing left the
+    override recorded as applied and the result reported as a success. The
+    catalogue said "installed", the first launch found no games — or no pad, or
+    no display — and every one of those reads as a broken emulator rather than
+    as a permission that was never granted.
+    """
+    flatpak_world["installed"] = {"org.example.App"}
+    recorded: list[str] = []
+    monkeypatch.setattr(prov.manifest, "record_flatpak_override", recorded.append)
+
+    def fake_run(cmd, *a, **k):
+        if cmd[:2] == ["flatpak", "override"]:
+            return subprocess.CompletedProcess(cmd, 1, "", "error: no such application")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+    monkeypatch.setattr(prov.subprocess, "run", fake_run)
+
+    r = install(_flatpak_pack(["org.example.App"]), Context(gamecore_path=tmp_path))
+
+    assert not r.ok, r.message
+    assert "override" in r.message
+    assert recorded == [], "a failed override was written to the manifest as applied"
+
+
+def test_an_override_that_worked_is_still_a_success(flatpak_world, tmp_path, monkeypatch):
+    """The other direction, so the check above cannot be satisfied by refusing
+    everything: the normal path is unchanged, override recorded and all."""
+    flatpak_world["installed"] = {"org.example.App"}
+    recorded: list[str] = []
+    monkeypatch.setattr(prov.manifest, "record_flatpak_override", recorded.append)
+
+    r = install(_flatpak_pack(["org.example.App"]), Context(gamecore_path=tmp_path))
+
+    assert r.ok and r.already
+    assert recorded == ["org.example.App"]

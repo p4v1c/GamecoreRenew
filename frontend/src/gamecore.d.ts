@@ -9,7 +9,18 @@ interface OverlayData {
   source?: string
 }
 
+/** What the host had to settle before the shell may show the interface.
+ *  Reported for the journal, never used to decide anything on this side. */
+interface BootReadyReport {
+  steps?: Record<string, boolean>
+  ms?: number
+}
+
 interface GamecoreAPI {
+  /** Sent once, when the interface is worth looking at. Absent outside
+   *  Electron — the browser dev server has nothing to tell. */
+  bootReady: (report?: BootReadyReport) => void
+
   reboot:   () => void
   shutdown: () => void
   quit:     () => void

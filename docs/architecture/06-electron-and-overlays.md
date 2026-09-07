@@ -43,12 +43,39 @@ keyboard. On a controller-only kiosk the UI sounds would stay silent forever.
 All three use `nodeIntegration: false`, `contextIsolation: true`. The renderer
 reaches Electron only through `preload.js`.
 
-### Splash hold at cold boot
+### What is on the screen while the box starts
 
-`splashHoldMs()` (L36) reads uptime: under `BOOT_UPTIME_THRESHOLD_S` (180 s) it
-adds a hold parameter so the splash freezes on its first black frame for
-`SPLASH_BOOT_HOLD_MS` (4 s), while X finishes switching the mode and the TV
-re-syncs HDMI. A relaunch from the desktop gets no delay.
+`createWindow()` runs FIRST, before the backend is waited for, and its first
+document is `electron/boot/boot.html` — from disk, with no backend, no network
+and no bundle. The window is created `show: false` and presented on
+`ready-to-show`, so its first visible frame is that document rather than white.
+
+The interface is then loaded into the SAME window (`presentApp()`). Not a
+second window: the frame between two documents is painted with the window's own
+`backgroundColor`, which is the ground the boot screen uses, whereas two
+windows would leave the compositor to decide which is on top and which has the
+pad — neither of which is this code's decision.
+
+The boot screen is deliberately still, and has no JavaScript. The theme's own
+animation plays a few seconds later and holds its last frame until the
+interface is ready; two animations back to back read as a stutter, not as a
+start.
+
+### The boot, and what ends it
+
+`waitForBackend()` polls `GET /api/ready` and creates the window only once it
+answers 200. There is deliberately no deadline that gives up and carries on:
+carrying on means a dashboard built from nothing. `BACKEND_PATIENCE_MS` (20 s)
+ends the silence, not the wait — the boot moves to `RECOVERING`, says so, and
+slows its polling.
+
+The renderer then sends `boot:ready` when the interface is worth looking at.
+Both halves are facts; neither is a timer.
+
+The old `splashHoldMs()` held the splash's first black frame for 4 s whenever
+uptime was under 180 s, while X switched the mode and the TV re-synced HDMI. It
+is gone: the splash holds its last frame instead, for exactly as long as the
+interface behind it is not ready.
 
 ## The preload bridge — `preload.js`
 

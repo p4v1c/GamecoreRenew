@@ -38,18 +38,6 @@ const REBUILD_LIMIT  = 3
 const REBUILD_WINDOW = 10_000
 let monitorProcess = null
 
-// At cold boot the UI loads while the display path is still black — X just
-// started, gamecore-xsetup switches the mode to 1080p and the TV spends a few
-// seconds re-syncing HDMI. The splash animation would play unseen during that
-// window (the user only catches the tail of it). So when the machine booted
-// recently, ask the splash to hold its first (black) frame before starting
-// the timeline. A relaunch from the desktop (uptime is high) gets no delay.
-const BOOT_UPTIME_THRESHOLD_S = 180
-const SPLASH_BOOT_HOLD_MS     = 4000
-
-function splashHoldMs() {
-  return os.uptime() < BOOT_UPTIME_THRESHOLD_S ? SPLASH_BOOT_HOLD_MS : 0
-}
 
 // ── Main window ───────────────────────────────────────────────────────────────
 function createWindow() {
@@ -57,6 +45,9 @@ function createWindow() {
     width: 1920,
     height: 1080,
     fullscreen: true,
+    // Presented on `ready-to-show`, never before: a window shown while its
+    // first document is still empty is a white rectangle over the desktop.
+    show: false,
     kiosk: !DEBUG && !DEV,
     frame: false,
     autoHideMenuBar: true,
@@ -73,27 +64,121 @@ function createWindow() {
     },
   })
 
-  const holdParam = `?splashHold=${splashHoldMs()}`
-  if (DEV) {
-    mainWindow.loadURL(DEV_URL + holdParam)
-  } else {
-    mainWindow.loadURL(BACKEND_URL + holdParam)
-  }
+  // The local boot screen, from disk, before anything is waited for.
+  //
+  // This window used to be created only after the backend answered, so what
+  // covered the television during that wait was the desktop: wallpaper, panel,
+  // and whatever the player had left open. Now the window exists first and the
+  // interface is loaded INTO it, which also means there is no second window to
+  // stack, focus or cross-fade — the two things a compositor is free to get
+  // wrong.
+  mainWindow.loadFile(path.join(__dirname, 'boot', 'boot.html'))
+
+  // Shown when it has something to show. Without this, Electron presents the
+  // window as soon as it exists and the first frame is white — a white flash
+  // on a dark boot is more noticeable than the desktop it replaced.
+  mainWindow.once('ready-to-show', () => { mainWindow?.show() })
+
+  // A renderer that dies takes the interface with it, and what is left is a
+  // window showing the last frame it painted — a console that looks frozen
+  // rather than broken. Put the boot screen back and start the sequence over:
+  // the backend is asked again, and `boot:ready` decides again.
+  //
+  // Bounded by the same rebuild budget the window itself uses, so a renderer
+  // that cannot survive its first frame stops rather than spinning.
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    if (quitting) return
+    console.error('[boot] the renderer is gone:', details.reason)
+    rebuilds = rebuilds.filter(t => Date.now() - t < REBUILD_WINDOW)
+    if (rebuilds.length >= REBUILD_LIMIT) {
+      console.error('[boot] too many renderer failures — stopping, systemd will decide')
+      app.quit()
+      return
+    }
+    rebuilds.push(Date.now())
+    restartBoot()
+  })
 
   if (DEBUG) mainWindow.webContents.openDevTools({ mode: 'detach' })
 
   mainWindow.on('closed', () => { mainWindow = null })
 }
 
+/**
+ * Hand the window over to the interface.
+ *
+ * A navigation inside the same window rather than a second window: the frame
+ * between two documents is painted with the window's own `backgroundColor`,
+ * which is the same ground the boot screen uses, so the handover is a change
+ * of content on an unchanged colour. Two windows would have been a change of
+ * WINDOW, and which one the compositor draws on top — and which one has the
+ * pad's focus — is not something this code gets to decide.
+ *
+ * What the player then sees is the theme's own boot animation, which holds its
+ * last frame until the interface is ready (SDK 4). The local screen above is
+ * deliberately still, so the sequence is one animation, not two.
+ */
+/**
+ * Start the boot again, in the same window.
+ *
+ * A new generation, so anything still waiting for the previous one — a poll
+ * against `/api/ready`, a `boot:ready` from a renderer that has since died —
+ * finds its number stale and decides nothing.
+ */
+async function restartBoot() {
+  if (!mainWindow) return
+  const generation = ++bootGeneration
+  setBootState(BOOT.STARTING)
+  mainWindow.loadFile(path.join(__dirname, 'boot', 'boot.html'))
+  const up = await waitForBackend(generation)
+  if (!up || generation !== bootGeneration) return
+  presentApp()
+}
+
+function presentApp() {
+  if (!mainWindow) return
+  setBootState(BOOT.LOADING_UI)
+  mainWindow.loadURL(DEV ? DEV_URL : BACKEND_URL)
+}
+
 // ── Overlay window ────────────────────────────────────────────────────────────
+/**
+ * The screen the game is on, in the units BrowserWindow speaks.
+ *
+ * The bezel was pinned to (0, 0) 1920×1080 while the main window is a genuine
+ * fullscreen one. On anything but a 1080p single-screen box that is a bezel
+ * covering a quarter of the picture, or sitting on the wrong output — and the
+ * distinction that matters is logical against physical: a 4K panel scaled to
+ * 200 % reports 1920×1080 of LOGICAL space, which is what `bounds` gives and
+ * what this window has to be measured in.
+ *
+ * `getDisplayMatching` because the game follows the interface, and the
+ * interface is where the player put it. Everything here is defensive: a screen
+ * API that answers nothing must cost the size of the bezel, never the launch.
+ */
+function overlayBounds() {
+  const fallback = { x: 0, y: 0, width: 1920, height: 1080 }
+  try {
+    const display = (mainWindow && typeof screen.getDisplayMatching === 'function')
+      ? screen.getDisplayMatching(mainWindow.getBounds())
+      : screen.getPrimaryDisplay()
+    const b = display?.bounds || screen.getPrimaryDisplay()?.bounds
+    if (!b || !b.width || !b.height) return fallback
+    return { x: b.x || 0, y: b.y || 0, width: b.width, height: b.height }
+  } catch {
+    return fallback
+  }
+}
+
 function createOverlayWindow() {
   if (overlayWindow) return
 
+  const at = overlayBounds()
   overlayWindow = new BrowserWindow({
-    x: 0,
-    y: 0,
-    width: 1920,
-    height: 1080,
+    x: at.x,
+    y: at.y,
+    width: at.width,
+    height: at.height,
     // Do NOT use fullscreen: true — on Linux X11 fullscreen windows are placed
     // in a separate compositor layer that prevents see-through transparency.
     // Explicit x/y/w/h with alwaysOnTop gives the same visual result.
@@ -130,6 +215,7 @@ function createOverlayWindow() {
 
   overlayWindow.on('closed', () => { overlayWindow = null })
 }
+
 
 function destroyOverlayWindow() {
   if (overlayWindow) {
@@ -354,8 +440,27 @@ function sendToOverlay(channel, payload) {
   }
 }
 
+/**
+ * The coordinate space the hole is measured in.
+ *
+ * `window_rect` is the rectangle the monitor forces the emulator into, and the
+ * backend places the hole inside it — so the two are in the same units, and
+ * neither is in the units of an overlay window that now follows the screen.
+ * Handing this along lets the page speak in fractions instead of pixels.
+ */
+function overlaySpace(system_id) {
+  const rect = loadOverlayConfig()[system_id]?.window_rect
+  return (rect && rect.w && rect.h) ? { w: rect.w, h: rect.h } : { w: 1920, h: 1080 }
+}
+
 function handleMonitorEvent(msg) {
   if (DEBUG) console.log('[overlay-monitor]', JSON.stringify(msg))
+
+  // A report about a system nobody is watching any more. The monitor is told
+  // to stop, but a message already on its way through the pipe still arrives,
+  // and acting on it would hide the interface behind a bezel for a game that
+  // has ended. `error` carries no system and is always worth reading.
+  if (msg.system_id && overlayWatching && msg.system_id !== overlayWatching) return
 
   switch (msg.event) {
     case 'window:waiting':
@@ -378,8 +483,14 @@ function handleMonitorEvent(msg) {
         // would rebuild the URL from system_id and always draw the system
         // bezel — the per-game resolution would be computed and then thrown
         // away one process boundary before it was used.
+        //
+        // `space` is the rectangle the hole's numbers are expressed in — the
+        // window the monitor forces the emulator into. The overlay page stops
+        // being able to assume 1920x1080 the moment its own window follows the
+        // screen, and it draws the fallback bars from the two together.
         const shown = { ...msg, asset: overlayChoice?.asset ?? null,
-                        source: overlayChoice?.source ?? 'declared' }
+                        source: overlayChoice?.source ?? 'declared',
+                        space: overlaySpace(msg.system_id) }
         // Said out loud, next to the "hiding mainWindow" line above: those two
         // used to be able to disagree — the window hidden, the bezel never
         // sent — and the log gave no way to tell which half had happened.
@@ -391,6 +502,7 @@ function handleMonitorEvent(msg) {
 
     case 'window:closed':
       destroyOverlayWindow()
+      overlayWatching = null
       if (mainWindow) {
         mainWindow.show()
         mainWindow.webContents.send('overlay:hide', msg)
@@ -406,6 +518,7 @@ function handleMonitorEvent(msg) {
         ...msg, rect: msg.measured,
         asset: overlayChoice?.asset ?? null,
         source: overlayChoice?.source ?? 'declared',
+        space: overlaySpace(msg.system_id),
       })
       fetch(`${BACKEND_URL}/api/overlays/measured/${encodeURIComponent(msg.system_id)}`, {
         method: 'POST',
@@ -434,15 +547,33 @@ function handleMonitorEvent(msg) {
 // back — the monitor reports geometry and knows nothing about artwork.
 let overlayChoice = null
 
+/**
+ * Which overlay run is current, and what it is watching.
+ *
+ * `overlay:start` awaits the backend before it tells the monitor anything, and
+ * a game can be gone by the time that answer arrives: press ✕, the emulator
+ * fails to start, `overlay:stop` tears the overlay down — and then the resolve
+ * came back and the old start carried on, sending `watch` for a game that is
+ * no longer running. The monitor then reported on whatever window it found,
+ * and the next launch inherited the argument.
+ *
+ * The number is taken before the await and compared after it. `overlayWatching`
+ * is the same guard one level further out: a report about a system nobody is
+ * watching any more decides nothing.
+ */
+let overlayRun = 0
+let overlayWatching = null
+let overlayResolveAbort = null
+
 // The backend measures the hole out of the PNG's own alpha channel, so the
 // answer follows whatever bezel is actually on this box. Deciding it here
 // instead would mean a second PNG decoder in JavaScript and two sets of
 // numbers to keep in agreement; `config/overlays.json` is the fallback for a
 // system with no PNG at all, and the backend already reads it.
-function resolveBezel(system_id, game_key) {
+function resolveBezel(system_id, game_key, signal) {
   const q = new URLSearchParams({ rom: game_key || '' })
   return fetch(`${BACKEND_URL}/api/overlays/resolve/${encodeURIComponent(system_id)}?${q}`,
-               { signal: AbortSignal.timeout(4000) })
+               { signal: signal || AbortSignal.timeout(4000) })
     .then(r => (r.ok ? r.json() : null))
     .catch(() => null)
 }
@@ -453,10 +584,24 @@ ipcMain.on('overlay:start', async (_, { system_id, game_key }) => {
   const cfg     = configs[system_id]
   if (!cfg) return
 
+  // Claimed before the first await. Anything that ends this run — a stop, or
+  // another launch — takes the next number, and this one then knows it is over.
+  const run = ++overlayRun
+  const ctl = (typeof AbortController === 'function') ? new AbortController() : null
+  overlayResolveAbort = ctl
+  const deadline = ctl ? setTimeout(() => ctl.abort(), 4000) : null
+
   // Awaited before the monitor starts, not raced against it: the monitor
   // emits 'window:ready' as soon as the emulator's window appears, and a
   // choice that arrived after that point would draw the previous game's bezel.
-  const choice = await resolveBezel(system_id, game_key)
+  const choice = await resolveBezel(system_id, game_key, ctl?.signal)
+  if (deadline) clearTimeout(deadline)
+  if (overlayResolveAbort === ctl) overlayResolveAbort = null
+
+  // The game this was resolved for is not the game the box is on any more.
+  // Nothing may be sent: `watch` here is the monitor looking at the next
+  // player's window on the last player's behalf.
+  if (run !== overlayRun) return
 
   // A backend that did not answer is not a reason to skip the overlay — the
   // declared geometry is exactly what this code used before there was an
@@ -464,6 +609,7 @@ ipcMain.on('overlay:start', async (_, { system_id, game_key }) => {
   overlayChoice = choice && choice.source !== 'none'
     ? choice
     : { source: 'declared', asset: null, hole: cfg.hole || null }
+  overlayWatching = system_id
 
   startOverlayMonitor()
 
@@ -488,6 +634,13 @@ ipcMain.on('overlay:stop', (_, { system_id }) => {
   // Cleared here rather than on the next start: a stale choice surviving a
   // failed launch is the previous game's bezel drawn over the new one.
   overlayChoice = null
+  // Ends the run, including one still waiting on the backend: it will find its
+  // number stale and send nothing. The request itself is dropped too — no
+  // point holding a socket open for an answer that has nowhere to go.
+  overlayRun += 1
+  overlayWatching = null
+  try { overlayResolveAbort?.abort() } catch { /* already settled */ }
+  overlayResolveAbort = null
 
   if (!monitorProcess) return
   try {
@@ -496,52 +649,179 @@ ipcMain.on('overlay:stop', (_, { system_id }) => {
 })
 
 // ── Backend startup ───────────────────────────────────────────────────────────
-function backendAlive() {
-  return fetch(BACKEND_URL + '/api/sysinfo', { signal: AbortSignal.timeout(1500) })
-    .then(() => true)
+/**
+ * Is GameCore usable — not "is something listening".
+ *
+ * `/api/ready` answers 200 only once the backend's required startup is done,
+ * and 503 with the outstanding step until then. This used to ask
+ * `/api/sysinfo` and treat ANY response as success: an endpoint that opens a
+ * UDP socket towards 8.8.8.8 to find the box's address, walks the disk, reads
+ * the controller batteries and lists the BIOS files — polled, on the boot
+ * path, to answer a question it was never written for. It also answered
+ * perfectly well while the backend was still opening its database, so "alive"
+ * arrived several seconds before "usable".
+ */
+function backendReady() {
+  return fetch(BACKEND_URL + '/api/ready', { signal: AbortSignal.timeout(1500) })
+    .then(r => (r.ok ? r.json() : null))
+    .then(body => !!(body && body.ready))
     .catch(() => false)
+}
+
+/**
+ * Who owns the backend process.
+ *
+ * On an installed box, systemd does — `gamecore-backend.service`, with its own
+ * restart policy, its own environment and its own journal. Electron spawning a
+ * second uvicorn on the same port produced an EADDRINUSE crash loop next to a
+ * working backend, and the guard against it was a race: "nothing answered in
+ * the last 1.5 s" is true of a backend that is merely still starting.
+ *
+ * systemd sets INVOCATION_ID in every service it runs, and start-ui.sh is the
+ * unit's ExecStart, so Electron inherits it. That is the signal — no installer
+ * change, and it cannot drift out of sync with reality. GAMECORE_MANAGED
+ * overrides it either way, for a sandbox or a test.
+ */
+function backendIsManaged() {
+  const explicit = process.env.GAMECORE_MANAGED
+  if (explicit === '1') return true
+  if (explicit === '0') return false
+  return !!process.env.INVOCATION_ID
 }
 
 async function startBackend() {
   if (DEV) return  // dev: backend is started manually
+  if (await backendReady()) return
 
-  // In production gamecore-backend.service already runs uvicorn on BACKEND_PORT —
-  // spawning a second one just made it crash on EADDRINUSE at every boot.
-  // Only spawn when nothing answers (desktop launch without the service).
-  if (await backendAlive()) return
+  // Managed: wait for it, never compete with it. A backend that does not come
+  // up is a fault to report — see waitForBackend and the RECOVERING state —
+  // not a reason to start a second one.
+  if (backendIsManaged()) return
 
   const root   = path.join(__dirname, '..')
   const venv   = path.join(root, '.venv', 'bin', 'python')
   const python = fs.existsSync(venv) ? venv : 'python3'
 
+  console.log('[boot] no managed backend — starting one from', root)
   backendProcess = spawn(
     python, ['-m', 'uvicorn', 'backend.main:app',
              '--host', '127.0.0.1', '--port', BACKEND_PORT,
              '--log-level', DEBUG ? 'debug' : 'warning'],
     { cwd: root, detached: false, stdio: 'ignore' }
   )
+}
 
-  return new Promise((resolve) => {
-    const start = Date.now()
-    const check = () => {
-      fetch(BACKEND_URL + '/api/sysinfo')
-        .then(() => resolve())
-        .catch(() => {
-          if (Date.now() - start < 10000) setTimeout(check, 300)
-          else resolve()
-        })
+// ── The boot, as a state machine ─────────────────────────────────────────────
+//
+// STARTING → WAITING_BACKEND → LOADING_UI → PRESENTABLE → RUNNING, plus
+// RECOVERING when something has gone wrong for long enough to say so.
+//
+// The rule the whole of this file now follows: **no timer promotes anything**.
+// Each transition is a fact — the backend answered `/api/ready`, the renderer
+// said `boot:ready`. Durations appear in exactly one role, bounding a failure
+// so it can be reported rather than waited on for ever.
+const BOOT = {
+  STARTING: 'STARTING',
+  WAITING_BACKEND: 'WAITING_BACKEND',
+  LOADING_UI: 'LOADING_UI',
+  PRESENTABLE: 'PRESENTABLE',
+  RUNNING: 'RUNNING',
+  RECOVERING: 'RECOVERING',
+}
+let bootState = BOOT.STARTING
+// Which boot this is. A window reloaded, or a backend restarted underneath a
+// running shell, starts another one — and the answers of the previous one must
+// not decide anything for it.
+let bootGeneration = 0
+const bootStartedAt = Date.now()
+
+function setBootState(next) {
+  if (bootState === next) return
+  bootState = next
+  console.log(`[boot] ${next} (+${Date.now() - bootStartedAt}ms)`)
+}
+
+/** How long before a backend that is not answering stops being "slow". */
+const BACKEND_PATIENCE_MS = 20000
+/** Between two polls. Short enough not to add to the boot, long enough not to
+ *  be a load of its own on the machine it is measuring. */
+const BACKEND_POLL_MS = 250
+
+/**
+ * Wait for the backend, for as long as it takes.
+ *
+ * There is deliberately no deadline that gives up and carries on: carrying on
+ * means showing a home screen built from nothing, which is the one outcome
+ * this whole step exists to prevent. `BACKEND_PATIENCE_MS` does not end the
+ * wait — it ends the SILENCE, moving the boot into RECOVERING so the shell can
+ * say what is wrong. The polling then slows down rather than stopping.
+ */
+async function waitForBackend(generation) {
+  setBootState(BOOT.WAITING_BACKEND)
+  let slow = false
+  for (;;) {
+    if (generation !== bootGeneration) return false
+    if (await backendReady()) {
+      if (slow) console.log('[boot] the backend answered after all')
+      return true
     }
-    setTimeout(check, 500)
-  })
+    if (!slow && Date.now() - bootStartedAt > BACKEND_PATIENCE_MS) {
+      slow = true
+      setBootState(BOOT.RECOVERING)
+      console.warn('[boot] the backend is not answering /api/ready — still waiting')
+    }
+    await new Promise(r => setTimeout(r, slow ? BACKEND_POLL_MS * 8 : BACKEND_POLL_MS))
+  }
 }
 
 // ── IPC handlers ──────────────────────────────────────────────────────────────
+//
+// The renderer saying it has something worth looking at: the theme resolved or
+// its fallback took over, the home data settled, the input bindings are armed
+// and the first view has been painted. Decided in the host — see
+// frontend/src/lib/boot.ts — because a condition each theme defined for itself
+// would be a different condition per theme, and one of them would be a timer.
+ipcMain.on('boot:ready', (_, payload) => {
+  if (bootState === BOOT.RUNNING) return
+  console.log('[boot] the interface is ready',
+              payload && payload.steps ? JSON.stringify(payload.steps) : '')
+  setBootState(BOOT.PRESENTABLE)
+  setBootState(BOOT.RUNNING)
+})
+
 ipcMain.on('system:reboot',   () => exec('sudo systemctl reboot'))
 ipcMain.on('system:shutdown', () => exec('sudo systemctl poweroff'))
-// The ONLY way out. Settings → Desktop sends this; everything else that closes
-// a window is an accident, and window-all-closed below reads this flag to tell
-// the two apart.
-ipcMain.on('system:quit',     () => { quitting = true; app.quit() })
+
+/**
+ * The ONLY way out — and in the console session, leaving is a change of
+ * session rather than the end of a program.
+ *
+ * Quitting used to be enough: GameCore was drawn over the machine's desktop,
+ * so closing it revealed the desktop that was already there. There is no
+ * desktop behind it any more. Quitting on its own would end the session, SDDM
+ * would auto-log straight back in, and the player would watch GameCore start
+ * again — which reads as "the button does nothing", pressed harder.
+ *
+ * So the auto-login is pointed at the desktop FIRST, and only then does the
+ * session end. `gamecore-session-select` is the one command the sudoers rule
+ * names, with exactly this argument; if it is not there — an un-migrated box,
+ * where GameCore really is drawn over a desktop — quitting alone is still
+ * exactly right, which is why a failure here does not stop the exit.
+ *
+ * Everything else that closes a window is an accident, and window-all-closed
+ * below reads `quitting` to tell the two apart.
+ */
+ipcMain.on('system:quit', () => {
+  quitting = true
+  if (process.env.XDG_SESSION_DESKTOP !== 'gamecore') { app.quit(); return }
+  exec('sudo -n /usr/local/bin/gamecore-session-select desktop', (err) => {
+    if (err) {
+      console.warn('[session] could not hand the box back to the desktop:', err.message)
+      console.warn('[session] leaving anyway — the next login will be GameCore again')
+    }
+    app.quit()
+  })
+})
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
@@ -566,9 +846,32 @@ app.whenReady().then(async () => {
   //
   // If an update ever fails to show up on the first launch again, this comment
   // is the place to start — but put the header back, not the wipe.
-  await startBackend()
+  const generation = ++bootGeneration
+  // The screen is covered first, and everything else happens behind it. This
+  // is the whole of the visible change: the order used to be "wait, then show
+  // something", and the wait is exactly when there was nothing to see.
   createWindow()
   startOverlayMonitor()
+
+  await startBackend()
+  const up = await waitForBackend(generation)
+  if (!up || generation !== bootGeneration) return
+  presentApp()
+
+  // A television that changes mode, or an output plugged in mid-session, moves
+  // the ground under a window that was placed by hand. Registered here and not
+  // at module scope: the screen module cannot be talked to before the app is
+  // ready. Nothing here is fatal — an Electron whose `screen` cannot be
+  // subscribed to keeps the bezel the size it was given.
+  try {
+    const refit = () => {
+      if (!overlayWindow) return
+      try { overlayWindow.setBounds(overlayBounds()) } catch { /* window going away */ }
+    }
+    screen.on?.('display-metrics-changed', refit)
+    screen.on?.('display-added', refit)
+    screen.on?.('display-removed', refit)
+  } catch { /* no screen module to listen to */ }
 })
 
 // Electron's boilerplate here is `app.quit()`, which is right for a desktop
