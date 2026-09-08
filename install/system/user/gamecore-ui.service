@@ -21,6 +21,11 @@ ExecStart=@GAMECORE_PATH@/electron/start-ui.sh
 # with it. Bounded so a box that cannot start the UI at all stops rather than
 # spinning — five attempts in a minute, then systemd holds it and the journal
 # says why.
+# A shell that will not leave costs ten seconds, not systemd's default ninety.
+# The signal handler in main.js is what makes this enough; this is the backstop
+# for the case where it cannot run at all, and the difference on a television
+# is between a blink and a minute and forty-five of dead interface.
+TimeoutStopSec=10
 Restart=on-failure
 RestartSec=3
 StartLimitIntervalSec=60

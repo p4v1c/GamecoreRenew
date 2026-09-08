@@ -1031,6 +1031,33 @@ app.on('window-all-closed', () => {
 // the app is on its way out.
 app.on('before-quit', () => { quitting = true })
 
+/**
+ * `systemctl stop` has to stop this, and it did not.
+ *
+ * Every update ends with `gamecore-restart.service` stopping the UI unit.
+ * SIGTERM reached the shell and the shell stayed up: systemd waited its full
+ * ninety seconds and then SIGKILLed both processes. Measured on the reference
+ * box, 08:34:04 → 08:35:35, one minute and forty-five seconds of interface
+ * left on the television with its backend already stopped underneath it — long
+ * enough to draw whatever a front end draws when nothing answers.
+ *
+ * The cause is the guard above this: `window-all-closed` cannot tell a
+ * teardown from a crash, so windows closing during a shutdown that never went
+ * through `before-quit` look like a fault, and it rebuilds one. The app then
+ * has a window again and no reason to leave.
+ *
+ * So the signal says what it means. `quitting` first, `app.quit()` second —
+ * in that order, because the quit closes the windows and the flag is what
+ * `window-all-closed` reads to let them stay closed.
+ */
+for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
+  process.on(signal, () => {
+    console.log(`[gamecore] ${signal} — leaving`)
+    quitting = true
+    app.quit()
+  })
+}
+
 app.on('will-quit', () => {
   stopOverlayMonitor()
   if (backendProcess) backendProcess.kill()

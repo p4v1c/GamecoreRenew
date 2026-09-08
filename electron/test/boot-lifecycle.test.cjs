@@ -97,10 +97,11 @@ function rig({ answers = [true], env = {}, execRefuses = [] } = {}) {
   }
 
   const queue = answers.slice()
+  const signals = new Map()
   const context = vm.createContext({
     require: (id) => stubs[id],
     __dirname: path.dirname(MAIN),
-    process: { env },
+    process: { env, on: (sig, fn) => signals.set(sig, fn) },
     console: { log: () => {}, warn: () => {}, error: () => {} },
     setTimeout, clearTimeout, URLSearchParams, AbortSignal, AbortController,
     fetch: (url) => {
@@ -112,6 +113,9 @@ function rig({ answers = [true], env = {}, execRefuses = [] } = {}) {
   vm.runInContext(fs.readFileSync(MAIN, 'utf8'), context, { filename: MAIN })
   return {
     context, windows, ipc, asked, execs, quits,
+    /** What systemd sends on `systemctl stop`. */
+    signal: (sig = 'SIGTERM') => signals.get(sig)?.(),
+    hasSignal: (sig) => signals.has(sig),
     /** What the renderer sends when the player picks Settings → Mode bureau. */
     quit: () => ipc.get('system:quit')?.(),
     // The overlay monitor is a legitimate child; only a second uvicorn is the
@@ -384,4 +388,30 @@ test('a session that cannot be told is switched the old way instead', async () =
   assert.equal(r.execs.length, 1, r.execs.join(' | '))
   assert.match(r.execs[0], /gamecore-session-select desktop --restart-dm$/)
   assert.equal(r.quits.length, 1)
+})
+
+test('systemctl stop actually stops the shell', async () => {
+  // It did not. Every update ends by stopping this unit, SIGTERM reached the
+  // shell, and the shell rebuilt its window and stayed: systemd waited ninety
+  // seconds and SIGKILLed it, with the backend already gone underneath. That
+  // is the minute and forty-five of dead interface the box showed after each
+  // update.
+  const r = rig({ env: { INVOCATION_ID: 'x' } })
+  r.start()
+  await settle(60)
+  r.stop()
+  const before = r.windows.length
+
+  r.signal('SIGTERM')
+
+  assert.equal(r.quits.length, 1, 'SIGTERM did not ask the app to leave')
+  r.context.eval?.('')
+  assert.equal(r.windows.length, before, 'it built a new window on the way out')
+})
+
+test('the interrupt signals are all handled, not just the one we tested', () => {
+  const r = rig({ env: { INVOCATION_ID: 'x' } })
+  for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
+    assert.ok(r.hasSignal(sig), `${sig} would kill the shell without a clean exit`)
+  }
 })
