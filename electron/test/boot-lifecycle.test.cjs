@@ -336,40 +336,52 @@ test('the boot screen paints no ground of its own', () => {
 const CONSOLE_ENV = { DESKTOP_SESSION: 'gamecore', XDG_SESSION_DESKTOP: 'GameCore',
                       XDG_CURRENT_DESKTOP: 'GameCore', INVOCATION_ID: 'x' }
 
-test('leaving the console session hands the auto-login back, and applies it', async () => {
-  const r = rig({ env: CONSOLE_ENV })
+const runtimeDir = () => fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'gc-rt-'))
+const marker = (dir) => path.join(dir, 'gamecore', 'leave-to-desktop')
+
+test('leaving the console session asks the session, and quits', async () => {
+  // The switch is the session teardown's job now — see main.js. What this
+  // process owes it is the marker and then its own exit, in that order.
+  const rt = runtimeDir()
+  const r = rig({ env: { ...CONSOLE_ENV, XDG_RUNTIME_DIR: rt } })
   r.quit()
   await settle(20)
-  assert.equal(r.execs.length, 1, r.execs.join(' | '))
-  assert.match(r.execs[0], /gamecore-session-select desktop --restart-dm$/)
-  assert.equal(r.quits.length, 1, 'the app stayed up after handing the box back')
+  assert.ok(fs.existsSync(marker(rt)), 'the session was never told to leave')
+  assert.deepEqual(r.execs, [], 'it ran the switch in the cgroup that is about to be torn down')
+  assert.equal(r.quits.length, 1, 'the app stayed up after asking to leave')
 })
 
 test('the capital letters in XDG_SESSION_DESKTOP are not a different session', async () => {
-  // The one that failed. `'GameCore' !== 'gamecore'` was the whole bug.
-  const r = rig({ env: { XDG_SESSION_DESKTOP: 'GameCore', INVOCATION_ID: 'x' } })
+  // SDDM fills XDG_SESSION_DESKTOP from DesktopNames=, which is `GameCore`,
+  // while the session script exports the file's name, `gamecore`. A shell that
+  // compares against one spelling answers wrongly in the other session.
+  const rt = runtimeDir()
+  const r = rig({ env: { XDG_SESSION_DESKTOP: 'GameCore', XDG_RUNTIME_DIR: rt, INVOCATION_ID: 'x' } })
   r.quit()
   await settle(20)
-  assert.equal(r.execs.length, 1, 'it quit without handing the auto-login back')
+  assert.ok(fs.existsSync(marker(rt)), 'it quit without asking for the desktop')
 })
 
 test("a window on somebody else's desktop just closes", async () => {
+  const rt = runtimeDir()
   const r = rig({ env: { DESKTOP_SESSION: 'plasma', XDG_SESSION_DESKTOP: 'KDE',
-                         XDG_CURRENT_DESKTOP: 'KDE', INVOCATION_ID: 'x' } })
+                         XDG_CURRENT_DESKTOP: 'KDE', XDG_RUNTIME_DIR: rt, INVOCATION_ID: 'x' } })
   r.quit()
   await settle(20)
-  assert.deepEqual(r.execs, [], 'it rewrote the auto-login of a machine it does not own')
+  assert.ok(!fs.existsSync(marker(rt)), 'it asked a desktop session to hand itself over')
+  assert.deepEqual(r.execs, [])
   assert.equal(r.quits.length, 1)
 })
 
-test('a box whose sudoers predates the flag still reaches the desktop', async () => {
-  // sudoers matches a command line exactly, so `desktop --restart-dm` is
-  // refused outright on a box that has not had the update that grants it. The
-  // switch itself must still happen: the next boot is then the desktop.
-  const r = rig({ env: CONSOLE_ENV, execRefuses: ['--restart-dm'] })
+test('a session that cannot be told is switched the old way instead', async () => {
+  // No runtime directory means no marker, which would leave the box in the
+  // console session with no way out from the sofa. The direct call is worth
+  // trying even though it is the one that failed on the reference box: it
+  // works everywhere else, and there is nothing better left to do.
+  const r = rig({ env: { ...CONSOLE_ENV, XDG_RUNTIME_DIR: '' } })
   r.quit()
   await settle(30)
-  assert.equal(r.execs.length, 2, r.execs.join(' | '))
-  assert.match(r.execs[1], /gamecore-session-select desktop$/)
-  assert.equal(r.quits.length, 1, 'a refused sudo left the box in the console session')
+  assert.equal(r.execs.length, 1, r.execs.join(' | '))
+  assert.match(r.execs[0], /gamecore-session-select desktop --restart-dm$/)
+  assert.equal(r.quits.length, 1)
 })

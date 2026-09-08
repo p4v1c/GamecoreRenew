@@ -15,6 +15,16 @@ set -euo pipefail
 
 UNIT=gamecore-ui.service
 
+# Every run says what it did, in the journal.
+#
+# The interface used to call this and throw the output away, so five switches
+# that changed nothing looked exactly like five switches that worked. Whoever
+# calls this, `journalctl -t gamecore-session-select` now has the record.
+_say() {
+  echo "$*"
+  command -v logger >/dev/null 2>&1 && logger -t gamecore-session-select -- "$*" || true
+}
+
 # Overridable so this can be exercised against a staging tree instead of the
 # machine running the test. Defaults are the real locations.
 SDDM_CONF_DIR="${SDDM_CONF_DIR:-/etc/sddm.conf.d}"
@@ -351,7 +361,7 @@ _restart_dm() {
   local unit
   for unit in display-manager.service sddm.service; do
     systemctl cat "$unit" >/dev/null 2>&1 || continue
-    echo "restarting $unit — a display manager only reads its configuration at start."
+    _say "restarting $unit — a display manager only reads its configuration at start."
     systemctl restart --no-block "$unit" || {
       echo "could not restart $unit — log out to apply the change." >&2
       return 1
@@ -404,7 +414,7 @@ if [[ "$MODE" == gamecore ]]; then
   _retire_our_leftovers
   _write_autologin gamecore "$GC_USER"
   _verify_autologin gamecore || VERIFY_FAILED=1
-  echo "console session ON — the next boot opens GameCore, with no desktop behind it."
+  _say "console session ON — the next boot opens GameCore, with no desktop behind it."
   echo "back to the desktop:  sudo $(basename "$0") desktop"
 else
   # What the box was using before the console was armed, if it is still there.
@@ -425,7 +435,7 @@ else
   _retire_our_leftovers
   _write_autologin "$DESKTOP_SESSION" "$GC_USER"
   _verify_autologin "$DESKTOP_SESSION" || VERIFY_FAILED=1
-  echo "desktop ON — the next boot opens '$DESKTOP_SESSION'."
+  _say "desktop ON — the next boot opens '$DESKTOP_SESSION'."
   echo "back to the console:  sudo $(basename "$0") gamecore"
 fi
 

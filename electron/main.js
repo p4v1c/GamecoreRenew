@@ -882,43 +882,62 @@ function inConsoleSession() {
 }
 
 /**
- * Hand the box back to the desktop, and make it true before we go.
+ * Ask the session to hand the box back to the desktop, and get out of the way.
  *
- * `--restart-dm` is the whole point: writing the SDDM drop-in does not apply
- * it — the daemon read its configuration when IT started, and ending a session
- * just makes it log back into what it already believes. The switch and the
- * restart belong to the same act, so they are one command.
+ * This used to run `sudo gamecore-session-select desktop` here and quit in the
+ * callback. On the reference box that call reached sudo every single time —
+ * the journal has all five invocations, each exiting 0 in about 30 ms — and
+ * the auto-login file was never touched. The same command, run by hand, from a
+ * systemd user unit, and from this service's own working directory, wrote it
+ * every time. The only thing the failing runs had in common is that they ran
+ * inside `gamecore-ui.service`, whose cgroup systemd tears down as soon as
+ * this process exits, which is the very next thing that happens.
  *
- * The plain form is tried after it, and not out of tidiness: sudoers matches a
- * command line exactly, so a box whose rules predate the flag refuses
- * `desktop --restart-dm` outright. Falling back means such a box still gets
- * its auto-login rewritten and reaches the desktop on the next boot, instead
- * of being trapped by an update it has not had yet.
+ * So the privileged part moved to where nothing is racing it: the session
+ * script's teardown, which runs in the session's own process after the units
+ * are stopped. All that is left here is to say what the player asked for.
+ * `install/bin/gamecore-session` reads this file and removes it; a marker left
+ * behind by a session that never tore down is cleared at the next login.
+ */
+function askSessionForDesktop() {
+  const runtime = process.env.XDG_RUNTIME_DIR
+  if (!runtime) return false
+  try {
+    const dir = path.join(runtime, 'gamecore')
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
+    fs.writeFileSync(path.join(dir, 'leave-to-desktop'), `${new Date().toISOString()}\n`)
+    return true
+  } catch (err) {
+    console.warn('[session] could not ask the session to leave:', err.message)
+    return false
+  }
+}
+
+/**
+ * The way out for a box whose session script predates the marker above.
+ *
+ * Kept only for that case: an installation updates its shell and its session
+ * script together, but a box can be running an old session from a login that
+ * happened before the update. Best effort, and its failure is not fatal — the
+ * next login is GameCore again, which is recoverable from a terminal.
  */
 function handBackToDesktop(done) {
   const SELECT = '/usr/local/bin/gamecore-session-select'
   let left = false
   const leave = () => { if (!left) { left = true; done() } }
-  // The restart tears this process down mid-callback on a box where it works,
-  // and a box where the helper hangs must not become a box that never quits.
   setTimeout(leave, 10_000).unref?.()
-
-  exec(`sudo -n ${SELECT} desktop --restart-dm`, (err) => {
-    if (!err) return leave()
-    console.warn('[session] restart-dm refused or failed:', err.message)
-    exec(`sudo -n ${SELECT} desktop`, (err2) => {
-      if (err2) {
-        console.warn('[session] could not hand the box back to the desktop:', err2.message)
-        console.warn('[session] leaving anyway — the next login will be GameCore again')
-      }
-      leave()
-    })
+  exec(`sudo -n ${SELECT} desktop --restart-dm`, (err, stdout, stderr) => {
+    if (err) console.warn('[session] the fallback switch failed:', err.message, stderr || '')
+    else console.log('[session] fallback switch:', String(stdout).trim())
+    leave()
   })
 }
 
 ipcMain.on('system:quit', () => {
   quitting = true
   if (!inConsoleSession()) { app.quit(); return }
+  // The session does the switch on its way out. Quitting is what starts it.
+  if (askSessionForDesktop()) { app.quit(); return }
   handBackToDesktop(() => app.quit())
 })
 

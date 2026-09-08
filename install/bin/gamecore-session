@@ -21,7 +21,16 @@
 # ================================================================
 set -u
 
-log() { echo "[gamecore-session] $*"; }
+# Both, and the journal is the one that matters.
+#
+# `echo` alone goes to SDDM's session log, and on the reference box that file
+# is zero bytes — so `journalctl -t gamecore-session` answered "No entries"
+# for a session that had started four times. A session that cannot say what it
+# did is a session nobody can debug from an SSH prompt.
+log() {
+  echo "[gamecore-session] $*"
+  command -v logger >/dev/null 2>&1 && logger -t gamecore-session -- "$*" || true
+}
 
 # ── the session's own identity ───────────────────────────────────
 export XDG_SESSION_DESKTOP=gamecore
@@ -57,6 +66,10 @@ systemctl --user import-environment \
 # means "no session", which is exactly what a headless box should look like.
 SESSION_ENV_DIR="$XDG_RUNTIME_DIR/gamecore"
 SESSION_ENV="$SESSION_ENV_DIR/session.env"
+# Set by the interface when the player picks Settings → Mode bureau, and read
+# by the teardown below. See the comment there for why the interface no longer
+# performs the switch itself.
+LEAVE_MARKER="$SESSION_ENV_DIR/leave-to-desktop"
 mkdir -p "$SESSION_ENV_DIR"
 chmod 700 "$SESSION_ENV_DIR" 2>/dev/null || true
 umask 077
@@ -66,6 +79,9 @@ umask 077
   printf 'XDG_SESSION_DESKTOP=%s\n' "$XDG_SESSION_DESKTOP"
   printf 'STARTED=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 } > "$SESSION_ENV"
+# A marker left by a session that was killed before its teardown ran would
+# send the NEXT login straight back to the desktop.
+rm -f "$LEAVE_MARKER" 2>/dev/null || true
 log "session environment written to $SESSION_ENV (DISPLAY=$DISPLAY)"
 
 # start-ui.sh applies the saved mode with this session’s actual display.
@@ -84,6 +100,36 @@ cleanup() {
     DISPLAY XAUTHORITY XDG_SESSION_ID XDG_SESSION_TYPE \
     XDG_SESSION_DESKTOP XDG_CURRENT_DESKTOP 2>/dev/null || true
   rm -f "$SESSION_ENV" 2>/dev/null || true
+
+  # ── the player asked for the desktop ───────────────────────────
+  #
+  # The switch is done HERE, and not by the interface that requested it.
+  #
+  # The interface used to run `sudo gamecore-session-select desktop` itself and
+  # then quit. On the reference box that call reached sudo — the journal has
+  # every invocation — and left the auto-login untouched, five times in a row,
+  # while the identical command run by hand from a shell, from a systemd user
+  # unit, and from the service's own working directory wrote the file every
+  # time. What the interface's attempts had in common is where they ran: inside
+  # `gamecore-ui.service`, whose cgroup systemd tears down the moment Electron
+  # exits — which is the very next thing the interface does.
+  #
+  # This runs in the session's own process, outside that cgroup, after the
+  # units are stopped and with nothing left to race. `--restart-dm` is part of
+  # it because writing the drop-in does not apply it: SDDM read its
+  # configuration when the daemon started and will otherwise log straight back
+  # into the session it already believes in.
+  if [[ -e "$LEAVE_MARKER" ]]; then
+    rm -f "$LEAVE_MARKER" 2>/dev/null || true
+    log "the player asked for the desktop — handing the auto-login back"
+    local out
+    if out=$(sudo -n /usr/local/bin/gamecore-session-select desktop --restart-dm 2>&1); then
+      while IFS= read -r line; do log "  $line"; done <<< "$out"
+    else
+      log "the switch failed — this box will open GameCore again:"
+      while IFS= read -r line; do log "  $line"; done <<< "$out"
+    fi
+  fi
 }
 trap cleanup EXIT INT TERM
 
