@@ -1,9 +1,9 @@
 {
   "id": "orbit",
   "name": "Orbit",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "api": 5,
-  "description": "A cinematic console interface, with real suspend and resume for games and apps.",
+  "description": "A cinematic console interface: games, consoles, library and applications, with real suspend and resume.",
   "author": "GameCore Community",
   "entry": "index.js",
   "styles": "theme.css",

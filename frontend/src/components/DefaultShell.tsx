@@ -66,6 +66,12 @@ export interface ShellParts {
    * to check it — but see LibraryScreen, which says what is lost.
    */
   libraryOmit?: string[]
+  /**
+   * Home-screen shortcuts the theme binds itself: 'nav' (the d-pad), 'pages'
+   * (L1/R1) and 'confirm' (✕). Same mechanism and same cost as `libraryOmit` —
+   * a theme that takes one owns the behaviour behind it.
+   */
+  homeOmit?: string[]
   settings?: React.ComponentType<{ onClose: () => void }>
   /**
    * Markup for the power menu and the controller screen. Their flows stay with
@@ -255,7 +261,7 @@ export default function DefaultShell(parts: ShellParts = {}) {
         {/* Both screens stay mounted at all times — toggled via display:none.
             This prevents the re-mount/re-fetch flash when navigating home. */}
         <div style={{ position: 'relative', zIndex: 1, flex: 1, display: screen === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-          <HomeScreen onLaunchApp={launchApp} view={parts.homeView} />
+          <HomeScreen onLaunchApp={launchApp} view={parts.homeView} omit={parts.homeOmit} />
         </div>
         <div style={{ position: 'relative', zIndex: 1, flex: 1, display: screen === 'library' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
           <LibraryScreen view={parts.libraryView} omit={parts.libraryOmit} />
