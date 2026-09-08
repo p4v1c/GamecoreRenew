@@ -1,9 +1,9 @@
 {
   "id": "summer",
   "name": "Summer",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "api": 4,
-  "author": "Claude design \u00b7 ported by Claude Code",
+  "author": "Claude design · ported by Claude Code",
   "description": "A WebGL ocean that tracks the real sun, under glass panels",
   "boot": {
     "background": "#0B1436"

@@ -1,0 +1,39 @@
+{
+  "id": "orbit",
+  "name": "Orbit",
+  "version": "2.0.0",
+  "api": 5,
+  "description": "A cinematic console interface, with real suspend and resume for games and apps.",
+  "author": "GameCore Community",
+  "entry": "index.js",
+  "styles": "theme.css",
+  "preview": "preview.svg",
+  "provides": [
+    "splash",
+    "shell"
+  ],
+  "boot": {
+    "background": "#080f1d"
+  },
+  "home": {
+    "rows": 1,
+    "paged": false
+  },
+  "launch": {
+    "ms": 500
+  },
+  "settings": {
+    "pages": [
+      "wifi",
+      "audio",
+      "bluetooth",
+      "standby",
+      "catalog",
+      "bios",
+      "storage",
+      "themes",
+      "update",
+      "desktop"
+    ]
+  }
+}

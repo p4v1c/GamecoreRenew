@@ -39,6 +39,16 @@ export interface SessionBarProps {
   onClose: (s: BackgroundSession) => void
 }
 
+/**
+ * `Zelda_(USA).iso` → `Zelda_`. Extension off, bracketed and parenthesised tags
+ * out — the same two things `clean_name` does in
+ * backend/services/rom_scanner.py, which is where a library entry's
+ * `display_name` comes from. The point is that a suspended game is named the
+ * way the library named it, not the way the disk did.
+ */
+const cleanRomName = (filename: string) =>
+  filename.replace(/\.[^.]+$/, '').replace(/[([{][^)\]}]*[)\]}]/g, '').trim()
+
 /** What the button says. An application is not a game, and saying so is the
  *  difference between an interface that knows what it started and one that
  *  calls Stremio a game. */
@@ -52,11 +62,8 @@ function DefaultSessionBarView(p: SessionBarProps) {
   const s = p.sessions[p.focusIdx] ?? p.sessions[0]
   if (!s) return null
   return (
-    <motion.div
-      initial={{ y: 90, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-      exit={{ y: 90, opacity: 0 }} transition={{ duration: 0.22 }}
+    <div
       style={{
-        position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 300,
         display: 'flex', alignItems: 'center', gap: 14,
         padding: '12px 22px',
         background: 'linear-gradient(0deg, rgba(9,9,15,0.98), rgba(9,9,15,0.86))',
@@ -95,7 +102,7 @@ function DefaultSessionBarView(p: SessionBarProps) {
           background: 'transparent', color: '#fff', fontSize: 14,
         }}
       >{closeLabel(s)}</button>
-    </motion.div>
+    </div>
   )
 }
 
@@ -156,18 +163,43 @@ export default function SessionBar({ view }: { view?: ComponentType<SessionBarPr
   }, [])
 
   const View = view ?? DefaultSessionBarView
+  /**
+   * What the player is shown, from what the box keys the session by.
+   *
+   * A session is identified by its ROM FILENAME — `Zelda_(USA).iso` — which is
+   * not a title. Everywhere else the library has already been through the
+   * backend's `clean_name` and hands the UI a `display_name`; here there is no
+   * library entry to ask, only the key. So the same two steps happen locally:
+   * drop the extension and the bracketed tags, then the shared
+   * `formatGameName`. Without it this bar would be the one place in the
+   * interface that calls a game by its file.
+   */
   const title = (s: BackgroundSession) =>
-    s.kind === 'app' ? (s.systemId || s.gameKey) : formatGameName(s.gameKey)
+    s.kind === 'app'
+      ? (s.systemId || s.gameKey)
+      : formatGameName(cleanRomName(s.gameKey))
 
   return (
     <AnimatePresence>
       {sessions.length > 0 && (
-        <View
+        /* The HOST supplies the layer and the theme draws inside it — the same
+           bargain as the themed splash in App.tsx, and for the same reason.
+           Themes are forbidden to write a z-index (docs/themes/README.md §6:
+           the shell owns stacking), and Shelf's stylesheet says so in its own
+           header. A bar that had to position itself would force every theme to
+           break that rule to be visible at all. */
+        <motion.div
           key="session-bar"
-          sessions={sessions} focusIdx={Math.min(focusIdx, sessions.length - 1)}
-          active={active} busy={busy} title={title}
-          onFocus={setFocusIdx} onResume={resume} onClose={close}
-        />
+          initial={{ y: 90, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 90, opacity: 0 }} transition={{ duration: 0.22 }}
+          style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 300 }}
+        >
+          <View
+            sessions={sessions} focusIdx={Math.min(focusIdx, sessions.length - 1)}
+            active={active} busy={busy} title={title}
+            onFocus={setFocusIdx} onResume={resume} onClose={close}
+          />
+        </motion.div>
       )}
     </AnimatePresence>
   )

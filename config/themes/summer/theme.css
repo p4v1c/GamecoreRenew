@@ -1397,3 +1397,69 @@
   --gc-kb-ink-faint:  rgba(195, 183, 166, 0.55);
   font-family: var(--font-body);
 }
+
+/* ===========================================================================
+   THE TIDELINE — a session on hold
+
+   Sea glass over the water, like every other panel here: translucent, blurred,
+   one hairline. What makes it read as *paused* is what it does not do — the
+   ocean behind it is still moving and this is not, apart from the buoy, which
+   breathes only while the bar has the pad.
+
+   No `z-index`: the host mounts this bar and owns the layer it sits in.
+   =========================================================================== */
+.sm-session {
+  display: flex; align-items: center; gap: clamp(14px, 2vw, 28px);
+  padding: 14px clamp(18px, 3vw, 46px);
+  background: var(--glass-900);
+  backdrop-filter: blur(18px) saturate(115%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+  border-top: 1px solid var(--glass-hairline);
+  font-family: var(--font-body); color: var(--foam-000);
+}
+.sm-session-buoy {
+  flex: none; width: 11px; height: 11px; border-radius: 50%;
+  background: var(--accent-mandarin);
+  box-shadow: 0 0 0 4px rgba(240, 118, 30, 0.18);
+}
+.sm-session[data-active='true'] .sm-session-buoy { animation: sm-session-bob 3.2s ease-in-out infinite; }
+@keyframes sm-session-bob {
+  50% { transform: translateY(-3px); box-shadow: 0 0 0 7px rgba(240, 118, 30, 0.10); }
+}
+.sm-session-text { flex: 1; min-width: 0; }
+.sm-session-label {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em;
+  color: var(--foam-400);
+}
+.sm-session-label i {
+  font-style: normal; padding-left: 8px;
+  border-left: 1px solid var(--glass-hairline);
+}
+.sm-session-text strong {
+  display: block; margin-top: 2px; font-size: 17px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sm-session-acts { display: flex; align-items: center; gap: 10px; flex: none; }
+.sm-session-btn {
+  display: inline-flex; align-items: center; gap: 12px;
+  padding: 10px 20px; border-radius: var(--r-chip); cursor: pointer;
+  border: 1px solid var(--glass-hairline); background: rgba(255, 253, 247, 0.06);
+  color: var(--foam-000); font-family: inherit; font-size: 14px; font-weight: 500;
+}
+.sm-session-btn:hover { background: rgba(255, 253, 247, 0.12); }
+.sm-session-btn[disabled] { opacity: .5; cursor: default; }
+.sm-session-go {
+  background: var(--accent-mandarin); border-color: transparent; color: var(--ink-900);
+  font-weight: 600;
+}
+.sm-session-go:hover { background: var(--accent-muskmelon); }
+.sm-session-btn kbd {
+  font-family: var(--font-mono); font-size: 11px; opacity: .75;
+  border: 1px solid currentColor; border-radius: 4px; padding: 0 5px;
+}
+
+@media (max-width: 900px) {
+  .sm-session { flex-wrap: wrap; gap: 12px; padding: 12px 18px; }
+  .sm-session-text { flex-basis: calc(100% - 30px); }
+}
