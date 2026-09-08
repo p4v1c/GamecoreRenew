@@ -476,3 +476,27 @@ def test_what_is_written_can_be_read_back(tmp_path, monkeypatch):
             ["a.iso", "b.iso"]
 
     asyncio.run(scenario())
+
+
+# ── the interface's own window ───────────────────────────────────────────────
+
+def test_the_shell_window_name_is_one_the_focus_helper_knows():
+    """Raising the interface over a frozen game means finding its window.
+
+    Electron takes WM_CLASS from `name` in electron/package.json. Renaming that
+    breaks nothing loudly: the lookup simply finds nothing, `hide()` logs and
+    returns, and the player is left looking at a frozen picture with the
+    interface alive underneath it. That is not a symptom anybody would trace
+    back to a package rename, so the link is pinned here instead.
+    """
+    import json
+    from backend.services import window_focus
+
+    name = json.loads(
+        (Path(__file__).resolve().parents[2] / "electron" / "package.json")
+        .read_text())["name"]
+    known = {c.lower() for c in window_focus.SHELL_WM_CLASSES}
+    assert name.lower() in known, (
+        f"electron/package.json is called {name!r}, which is not in "
+        f"window_focus.SHELL_WM_CLASSES {window_focus.SHELL_WM_CLASSES} — the "
+        f"interface cannot be raised over a suspended game")

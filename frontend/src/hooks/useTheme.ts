@@ -43,6 +43,13 @@ export interface ThemeState {
   shell?: SurfaceMap['shell']
   /** Its boot animation. Present whenever `shell` is — themes are all-or-nothing. */
   splash?: SurfaceMap['splash']
+  /**
+   * Its session bar, if it drew one. Optional in a way `shell` and `splash`
+   * are not: the host has a working one behind this, so a theme omitting it
+   * loses its own styling and nothing else. See themeLoader's
+   * OPTIONAL_SURFACES for why it may not be lost entirely.
+   */
+  sessionBar?: SurfaceMap['sessionBar']
   /** Kept for the settings page: what the loader actually resolved. */
   surfaces: SurfaceMap
   /** Active theme id, or null for the built-in default. */
@@ -217,7 +224,8 @@ export function useTheme(): ThemeState {
   useEffect(() => { selectRef.current = select }, [select])
 
   return {
-    shell: surfaces.shell, splash: surfaces.splash, surfaces, themeId, manifest, loading, safeMode,
+    shell: surfaces.shell, splash: surfaces.splash, sessionBar: surfaces.sessionBar,
+    surfaces, themeId, manifest, loading, safeMode,
     resetKey: `${themeId ?? 'default'}:${nonce}`,
     reload: () => setNonce(n => n + 1),
     select, noteShellCrash,

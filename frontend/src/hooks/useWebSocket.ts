@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { useStore } from '../store'
-import { api } from '../api'
+import { useStore, type BackgroundSession } from '../store'
+import { api, type SessionState } from '../api'
 
 const WS_URL = `ws://${window.location.host}/ws`
 
@@ -76,6 +76,35 @@ const writeSession = (gameKey: string | null, systemId: string | null,
 }
 
 /**
+ * The whole session state, both slots, from one payload.
+ *
+ * `/api/games/session` and the two suspend/resume events all carry this same
+ * shape, and it is written in one go rather than as "set the foreground, then
+ * set the background". A resume moves BOTH slots at once — the game coming
+ * forward and the application going behind it — and applying that as two
+ * writes renders a frame in which the box has neither.
+ */
+export const applySessionState = (data: SessionState | Record<string, unknown>) => {
+  sessionEpoch += 1
+  const d = data as Record<string, unknown>
+  const key = typeof d.game_key === 'string' ? d.game_key : null
+  currentSession = key && typeof d.session === 'number' ? d.session : null
+  const raw = Array.isArray(d.background) ? d.background : []
+  const background: BackgroundSession[] = raw
+    .filter((b): b is Record<string, unknown> => !!b && typeof b === 'object')
+    .map(b => ({
+      gameKey: String(b.game_key ?? ''),
+      systemId: String(b.system_id ?? ''),
+      session: typeof b.session === 'number' ? b.session : -1,
+      kind: b.kind === 'app' ? 'app' as const : 'game' as const,
+    }))
+    .filter(b => b.gameKey)
+  useStore.getState().setSessionState(
+    { gameKey: key, systemId: key ? String(d.system_id ?? '') : null },
+    background)
+}
+
+/**
  * Ask the box what it is running, instead of assuming nothing has changed.
  *
  * The socket carries `game:started` and `game:finished`, so a front end only
@@ -94,9 +123,12 @@ export async function syncSession(): Promise<void> {
   try {
     const s = await api.games.session()
     if (epoch !== sessionEpoch) return   // an event has since said better
-    const key = typeof s?.game_key === 'string' ? s.game_key : null
-    writeSession(key, key ? (s.system_id ?? null) : null,
-                 typeof s?.session === 'number' ? s.session : null)
+    // Both slots, for the same reason this function exists at all. A socket
+    // lost while a game was suspended and regained after it was closed would
+    // otherwise leave a session bar on screen offering to resume a game that
+    // is gone — the same class of fault as the stale `game_key` that used to
+    // block the pad, arriving through the other slot.
+    applySessionState(s)
   } catch { /* the websocket will correct us */ }
 }
 
@@ -147,21 +179,44 @@ export function useWebSocket() {
     // Sent on every connection: the session as the backend has it, which is
     // `{}` when there is none. An empty one is an answer — see backend/ws.py.
     const off1b = onWsEvent('game:running', (d) => {
-      const key = typeof d.game_key === 'string' ? d.game_key : null
-      writeSession(key, key ? (d.system_id as string) : null, runNumber(d))
+      applySessionState(d)
     })
     const off2 = onWsEvent('game:finished', (d) => {
+      const ended = runNumber(d)
+      // A finish belonging to a SUSPENDED run: the player closed it from the
+      // session bar, or it was killed from under us. It never had the screen,
+      // so nothing about the foreground changes — only the bar loses a row.
+      const held = useStore.getState().backgroundSessions
+      if (ended !== null && held.some(b => b.session === ended)) {
+        useStore.getState().setSessionState(
+          { gameKey: useStore.getState().sessionGameKey,
+            systemId: useStore.getState().sessionSystemId },
+          held.filter(b => b.session !== ended))
+        return
+      }
       // A finish from a run that is already over: the player has started
       // something else since, and this would unlock the screen underneath it.
-      const ended = runNumber(d)
       if (ended !== null && currentSession !== null && ended !== currentSession) return
       writeSession(null, null)
     })
-    // Backend evdev detected PS/guide button and killed the game
+    // The core's own gesture. It used to mean "the backend killed the game";
+    // it now means "the backend suspended it", and the snapshot that comes
+    // with the matching game:backgrounded is what moves the state. Going home
+    // is still right either way: the player asked to leave the game.
     const off3 = onWsEvent('gp:guide', () => {
+      if (!useStore.getState().sessionGameKey) { goHome(); return }
       writeSession(null, null)
       goHome()
     })
+    // Suspend and resume. Both carry the whole state after the transition,
+    // because a resume moves two slots at once and "run 3 came forward" alone
+    // says nothing about what happened to run 2.
+    const snapshot = (d: Record<string, unknown>) => {
+      const snap = d.state_snapshot
+      if (snap && typeof snap === 'object') applySessionState(snap as Record<string, unknown>)
+    }
+    const off7 = onWsEvent('game:backgrounded', snapshot)
+    const off8 = onWsEvent('game:foregrounded', snapshot)
 
     // Standby, into the store rather than into whatever is drawing the
     // screensaver. The input bus reads it to decide whether a press is a
@@ -172,6 +227,6 @@ export function useWebSocket() {
     const off5 = onWsEvent('standby:sleep', () => setStandby('sleep'))
     const off6 = onWsEvent('standby:exit', () => setStandby('off'))
 
-    return () => { off1(); off1b(); off2(); off3(); off4(); off5(); off6() }
+    return () => { off1(); off1b(); off2(); off3(); off4(); off5(); off6(); off7(); off8() }
   }, [])
 }

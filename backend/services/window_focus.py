@@ -36,6 +36,14 @@ _NET_WM_STATE_REMOVE = 0
 
 #: What the interface's own window is called. Raising it is how a backgrounded
 #: game stops covering the screen — see `hide()`.
+#:
+#: Electron derives WM_CLASS from the `name` in electron/package.json, so these
+#: are not free-form: `gamecore-electron` is that name and the rest are the
+#: shapes a window manager may report it in. Matched case-insensitively, which
+#: covers the capitalised second half of the WM_CLASS pair. A test pins the
+#: package name to this tuple — get it wrong and nothing raises, the interface
+#: simply stays under a frozen game, which is a symptom nobody would connect
+#: back to a rename.
 SHELL_WM_CLASSES = ("gamecore", "gamecore-electron", "GameCore")
 
 

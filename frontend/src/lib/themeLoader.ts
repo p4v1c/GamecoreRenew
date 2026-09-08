@@ -24,6 +24,20 @@ import { setThemeRumble, type RumblePattern } from './rumble'
  */
 export type SurfaceName = 'splash' | 'shell'
 
+/**
+ * Surfaces a theme MAY export, and the host draws itself when it does not.
+ *
+ * Not in `SURFACES`, and that difference is the whole point: those are
+ * all-or-nothing and a theme missing one is refused, while these have a
+ * working host version behind them. `sessionBar` is the way back to a
+ * suspended game, and a theme must not be able to lose it by omission — the
+ * player would be left with a frozen emulator holding several gigabytes and
+ * nothing on screen able to resume or close it. So the host always draws one,
+ * and a theme exporting this replaces the picture rather than the guarantee.
+ */
+export type OptionalSurfaceName = 'sessionBar'
+export const OPTIONAL_SURFACES: OptionalSurfaceName[] = ['sessionBar']
+
 export const SURFACES: SurfaceName[] = ['splash', 'shell']
 
 export interface ThemeManifest {
@@ -59,7 +73,7 @@ export interface ThemeIndex {
   themes: ThemeManifest[]
 }
 
-export type SurfaceMap = Partial<Record<SurfaceName, ComponentType<any>>>
+export type SurfaceMap = Partial<Record<SurfaceName | OptionalSurfaceName, ComponentType<any>>>
 
 export async function fetchThemeIndex(): Promise<ThemeIndex> {
   const r = await fetch('/api/themes')
@@ -185,6 +199,14 @@ export async function loadTheme(m: ThemeManifest, host: SdkHost): Promise<Surfac
 
   if (missing.length) {
     throw new Error(`theme is incomplete — a theme must provide every surface: ${missing.join(', ')}`)
+  }
+
+  // Optional, and taken without a manifest declaration: it is not part of the
+  // `provides` promise because the host has one either way. A theme that
+  // exports something which is not a component simply keeps the host's.
+  for (const name of OPTIONAL_SURFACES) {
+    const comp = (produced as Record<string, unknown>)[name]
+    if (typeof comp === 'function') out[name] = comp as ComponentType<any>
   }
 
   // After the completeness gate, so a theme that is about to be refused does
