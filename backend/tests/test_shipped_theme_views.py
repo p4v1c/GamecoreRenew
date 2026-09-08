@@ -31,13 +31,27 @@ THEMES = ROOT / "config" / "themes"
 # Themes that ship with the box. `_skeleton` is a template and is deliberately
 # not held to this: it exists to be copied, and a starting point that already
 # had every escape hatch wired would teach nothing about which are load-bearing.
-SHIPPED = ("shelf", "summer")
+SHIPPED = ("shelf", "summer", "orbit")
 
 
 def _gamepad_view(theme: str) -> str:
-    path = THEMES / theme / "views" / "gamepad.js"
-    assert path.is_file(), f"{theme} ships no gamepad view"
-    return path.read_text(encoding="utf-8")
+    """The theme's controller screen, whatever it chose to call the file.
+
+    Found by content and not by name, because the name is the theme's to pick:
+    the host takes this view as the `gamepadView` prop and never looks at the
+    path. Orbit calls it `views/controller.js`, which is how it sat outside
+    this file's reach while being exactly the kind of theme it was written for
+    — a shipped one, with a controller screen, able to lose the wizard.
+    """
+    views = THEMES / theme / "views"
+    assert views.is_dir(), f"{theme} ships no views directory"
+    named = [p for p in sorted(views.glob("*.js"))
+             if "layoutLabel" in (t := p.read_text(encoding="utf-8"))
+             and "mappings" in t]
+    assert named, (
+        f"{theme} ships no controller screen — no view takes the "
+        f"`layoutLabel`/`mappings` props the host passes to gamepadView")
+    return "\n".join(p.read_text(encoding="utf-8") for p in named)
 
 
 @pytest.mark.parametrize("theme", SHIPPED)

@@ -50,6 +50,19 @@ SINCE = {
     # is still required: the theme is written against a host that HAS a gate,
     # and one that has none shows the dashboard mid-fill instead.
     4: ("bootReady",),
+    # Suspending a session. `sdk.session` is a whole object on a host that has
+    # it and `undefined` on one that does not, so a theme drawing its session
+    # bar throws on the first read — which the surface boundary shows the
+    # player as their theme silently becoming the default one.
+    #
+    # This one is worse than the usual missing-function case, and that is why
+    # it is a refusal rather than a degradation. The actions behind it are the
+    # ONLY way to reach a suspended game: a theme that loaded far enough to
+    # suspend and then threw would leave a frozen emulator holding several
+    # gigabytes with nothing on screen able to resume or close it. The player's
+    # way out would be the power button.
+    5: ("sdk.session", "session.background", "session.resume",
+        "backgroundSessions"),
 }
 
 

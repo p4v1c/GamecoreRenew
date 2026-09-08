@@ -16,7 +16,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import React, { createElement } from 'react'
 import { buildSdk } from './themeSdk'
 
-const THEMES = ['shelf', 'summer'] as const
+const THEMES = ['shelf', 'summer', 'orbit'] as const
 
 /** Longer than either theme's whole timeline (shelf ~2.7s, summer ~6s). */
 const WHOLE_ANIMATION_MS = 12000

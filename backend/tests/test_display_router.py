@@ -67,11 +67,15 @@ def xrandr(monkeypatch):
     monkeypatch.setattr(display, "_run", fake_run)
     # Forced, not asked: this suite runs on a Wayland box.
     monkeypatch.setattr(display, "_kscreen_available", lambda: False)
-    # `current_game` is a read-only property, so it is replaced on the class
+    # `is_running` is a read-only property, so it is replaced on the class
     # rather than on the instance — patching the instance raises, and patching
     # it away entirely would stop this suite from testing the refusal at all.
-    monkeypatch.setattr(type(display.process_manager), "current_game",
-                        property(lambda self: state.get("playing")))
+    #
+    # `is_running` and not `current_game`: the refusal is about a session being
+    # RESIDENT, because a suspended emulator still holds the swapchain that a
+    # mode change would invalidate, and answers None to `current_game`.
+    monkeypatch.setattr(type(display.process_manager), "is_running",
+                        property(lambda self: bool(state.get("playing"))))
     return state
 
 
@@ -222,8 +226,8 @@ def kscreen(monkeypatch):
     monkeypatch.setattr(display, "_kscreen_available", lambda: True)
     monkeypatch.setattr(display, "_wayland_env", lambda: {"WAYLAND_DISPLAY": "wayland-0"})
     monkeypatch.setattr(display, "_run_env", fake_run_env)
-    monkeypatch.setattr(type(display.process_manager), "current_game",
-                        property(lambda self: state.get("playing")))
+    monkeypatch.setattr(type(display.process_manager), "is_running",
+                        property(lambda self: bool(state.get("playing"))))
     return state
 
 

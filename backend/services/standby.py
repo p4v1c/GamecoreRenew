@@ -358,8 +358,15 @@ async def _tick(cfg: dict) -> None:
         # because it believed nobody had touched it since lunchtime.
         _last_input = time.monotonic()
         return
-    if process_manager.is_running:
-        # A game counts as activity — idle starts when it exits
+    if process_manager.is_foreground:
+        # A game counts as activity — idle starts when it exits.
+        #
+        # `is_foreground`, so a SUSPENDED game does not hold the box awake. It
+        # is frozen: nobody is playing it, and holding the clock for it would
+        # mean a console that never sleeps again because someone backgrounded
+        # a game last Tuesday. What happens to that game when the box does
+        # sleep is nothing at all — SIGSTOP is already the state a sleeping
+        # process should be in, and it is still suspended on the way back.
         _last_input = time.monotonic()
         # And the session has to be told, because the line above only holds OUR
         # standby off. The box also runs a desktop power manager with a timer of

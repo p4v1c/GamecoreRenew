@@ -2,6 +2,15 @@ import { create } from 'zustand'
 
 type Screen = 'home' | 'library'
 
+/** One frozen session, as the backend describes it. */
+export interface BackgroundSession {
+  gameKey: string
+  systemId: string
+  session: number
+  /** A tile with no ROM launches with `game_key === system_id`. */
+  kind: 'game' | 'app'
+}
+
 interface GamecoreStore {
   // Navigation
   screen: Screen
@@ -32,9 +41,27 @@ interface GamecoreStore {
   standby: 'off' | 'screensaver' | 'sleep'
   setStandby: (stage: 'off' | 'screensaver' | 'sleep') => void
 
-  // Session
+  /**
+   * The session ON THE SCREEN — and it keeps that meaning exactly.
+   *
+   * Every reader of this asks the same question in different words: the pad
+   * guard (`isPlaying`), the shell's decor, the library's bindings. All of
+   * them mean "is a game in front of the player right now", and a suspended
+   * one is not. So a session moving to the background writes `null` here, and
+   * every one of those readers becomes correct without being touched — the
+   * pad comes back on the dashboard while the game stays alive behind it.
+   *
+   * The alternative — keeping the key set and teaching each reader to also
+   * check a state field — is the same fix written five times, with a sixth
+   * reader added later that nobody remembers to teach.
+   */
   sessionGameKey: string | null
   sessionSystemId: string | null
+
+  /** Every suspended session, oldest first. Drawn by the session bar. */
+  backgroundSessions: BackgroundSession[]
+  setSessionState: (fg: { gameKey: string | null; systemId: string | null },
+                    background: BackgroundSession[]) => void
 
   // Actions
   goHome: () => void
@@ -71,6 +98,7 @@ export const useStore = create<GamecoreStore>((set) => ({
   standby: 'off',
   sessionGameKey: null,
   sessionSystemId: null,
+  backgroundSessions: [],
   remapRequest: 0,
 
   goHome: () => set({ screen: 'home', selectedSystemId: null, gridPage: 0, gridFocusIdx: 0 }),
@@ -79,6 +107,13 @@ export const useStore = create<GamecoreStore>((set) => ({
   setGridPage: (page) => set({ gridPage: page }),
   setSelectedGameIdx: (idx) => set({ selectedGameIdx: idx }),
   setSession: (gameKey, systemId) => set({ sessionGameKey: gameKey, sessionSystemId: systemId }),
+  // Both halves in one write. Two `set` calls would render once with the game
+  // gone from the screen and still absent from the session bar, which is one
+  // frame of a box that has lost the player's game.
+  setSessionState: (fg, background) => set({
+    sessionGameKey: fg.gameKey, sessionSystemId: fg.systemId,
+    backgroundSessions: background,
+  }),
   openModal: () => set(s => ({ modalDepth: s.modalDepth + 1 })),
   closeModal: () => set(s => ({ modalDepth: Math.max(0, s.modalDepth - 1) })),
   setPowerPending: (action) => set({ powerPending: action }),

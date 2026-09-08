@@ -14,6 +14,37 @@ export interface SystemEntry {
   args?: string
 }
 
+/**
+ * What the box is running, as `/api/games/session` and the two lifecycle
+ * events describe it.
+ *
+ * The flat fields are the session ON THE SCREEN, which is the shape this
+ * endpoint has always had — so a client from before suspending existed reads a
+ * box whose only session is frozen as "nothing in front of me". That is true,
+ * and it is the answer that leaves its pad unblocked instead of freezing the
+ * interface over a game nobody can see.
+ */
+export interface SessionEntry {
+  game_key: string
+  system_id: string
+  rom_path?: string
+  session: number
+  state: 'foreground' | 'background'
+  /** A tile with no ROM launches with `game_key === system_id`. */
+  kind: 'game' | 'app'
+}
+
+export interface SessionState {
+  game_key?: string
+  system_id?: string
+  rom_path?: string
+  session?: number
+  state?: 'foreground'
+  kind?: 'game' | 'app'
+  /** Every suspended session, oldest first. Absent when there are none. */
+  background?: SessionEntry[]
+}
+
 export interface GameEntry {
   filename: string
   display_name: string
@@ -289,10 +320,21 @@ export const api = {
     list: (systemId: string) => get<GameEntry[]>(`/systems/${encodeURIComponent(systemId)}/games`),
     launch: (systemId: string, romPath = '', gameKey = '') =>
       post('/games/launch', { system_id: systemId, rom_path: romPath, game_key: gameKey }),
-    kill: () => post('/games/kill'),
+    /** Ends a run — the one on screen unless another is named. */
+    kill: (session?: number) =>
+      post('/games/kill', session === undefined ? {} : { session }),
+    /** Freezes the session on screen and gives the interface back. */
+    background: () => post<SessionState>('/games/background'),
+    /**
+     * Wakes a suspended session, putting whatever holds the screen behind it.
+     * With no number, the most recent suspended one.
+     */
+    foreground: (session?: number) =>
+      post<SessionState>('/games/foreground',
+                         session === undefined ? {} : { session }),
     // `session` numbers the run, so a finish belonging to a previous one can be
     // told apart from the finish of the game on screen. See useWebSocket.
-    session: () => get<{ game_key?: string; system_id?: string; session?: number }>('/games/session'),
+    session: () => get<SessionState>('/games/session'),
   },
   metadata: {
     get: (systemId: string, filename: string) =>

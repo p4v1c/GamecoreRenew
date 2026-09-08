@@ -17,6 +17,29 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+### Behaviour that changed on its own
+
+- **Pressing Home twice no longer quits the game — it suspends it.** The game
+  freezes exactly where it was, the interface comes back with the controller
+  working, and a session bar along the bottom of the screen offers *Resume* or
+  *Close*. Closing is now a separate, deliberate action.
+
+  Nothing to do, and nothing is lost: the previous behaviour destroyed an
+  unsaved save on two accidental presses, and this one cannot. But anyone used
+  to double-Home *ending* a game will press it twice, see the game suspended
+  instead, and need to be told once.
+
+  The suspended game keeps its memory — the box holds at most two sessions at a
+  time and refuses a third launch by naming what to close. Playtime does not
+  count the time a game spends suspended. `docs/reports/orbit-et-sessions-2026-09-08.md`
+  has the owner checklist, including the emulators that have **not** yet been
+  tried across a freeze.
+
+- **Themes: SDK 5.** `sdk.session` is new, and so is the optional `sessionBar`
+  surface. Existing themes keep working untouched — a theme only needs `api: 5`
+  if it *calls* `sdk.session`; taking the bar as props does not. See
+  `docs/themes/README.md` §5f.
+
 ### Needs action on an already-installed box
 
 - **`/usr/local/bin/gamecore-addon` is a copy only the installer writes, and
