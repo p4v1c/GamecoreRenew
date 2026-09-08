@@ -27,11 +27,13 @@ const MAIN = path.join(__dirname, '..', 'main.js')
  * @param answers  the sequence /api/ready gives back, `true` = 200 {ready}
  * @param env      the process environment main.js sees
  */
-function rig({ answers = [true], env = {} } = {}) {
+function rig({ answers = [true], env = {}, execRefuses = [] } = {}) {
   const windows = []
   const spawned = []
   const ipc = new Map()
   const asked = []
+  const execs = []          // every shell command the shell asked for, in order
+  const quits = []
   let readyResolve
   const appReady = new Promise((r) => { readyResolve = r })
 
@@ -69,7 +71,7 @@ function rig({ answers = [true], env = {} } = {}) {
     app: {
       commandLine: { appendSwitch: () => {} },
       whenReady: () => appReady,
-      on: () => {}, quit: () => {},
+      on: () => {}, quit: () => { quits.push(Date.now()) },
     },
     BrowserWindow: Window,
     ipcMain: { on: (key, fn) => ipc.set(key, fn) },
@@ -78,7 +80,14 @@ function rig({ answers = [true], env = {} } = {}) {
 
   const stubs = {
     electron,
-    'child_process': { spawn: (bin, args) => { spawned.push({ bin, args }); return child }, exec: () => {} },
+    'child_process': {
+      spawn: (bin, args) => { spawned.push({ bin, args }); return child },
+      exec: (cmd, cb) => {
+        execs.push(cmd)
+        const bad = execRefuses.some(frag => cmd.includes(frag))
+        setTimeout(() => cb?.(bad ? new Error('sudo: a password is required') : null), 0)
+      },
+    },
     // The real fs: this bench is partly ABOUT what main.js reads from disk —
     // the active theme and its manifest — and a stub that answers `{}` to
     // every read would make that test pass against a shell reading nothing.
@@ -102,7 +111,9 @@ function rig({ answers = [true], env = {} } = {}) {
   })
   vm.runInContext(fs.readFileSync(MAIN, 'utf8'), context, { filename: MAIN })
   return {
-    context, windows, ipc, asked,
+    context, windows, ipc, asked, execs, quits,
+    /** What the renderer sends when the player picks Settings → Mode bureau. */
+    quit: () => ipc.get('system:quit')?.(),
     // The overlay monitor is a legitimate child; only a second uvicorn is the
     // defect this file is about.
     backends: () => spawned.filter(s => s.args.join(' ').includes('uvicorn')),
@@ -307,4 +318,58 @@ test('the boot screen paints no ground of its own', () => {
   // `<title>` is not the screen; a wordmark drawn in the page is.
   assert.ok(!/class="mark"/.test(html) && !/letter-spacing/.test(html),
     'the boot screen draws a wordmark — the theme owns the intro')
+})
+
+// ── Leaving the console session ──────────────────────────────────
+//
+// On the reference box "Mode bureau" blacked the screen and came straight back
+// to GameCore. The shell asked one variable, spelled one way:
+//
+//     if (process.env.XDG_SESSION_DESKTOP !== 'gamecore') { app.quit() }
+//
+// and SDDM sets that one from `DesktopNames=`, which is `GameCore`. So every
+// press took the early exit, the auto-login was never handed back, and Relogin
+// brought the console up again. The three variables below are what the real
+// session actually carries — checked with `tr '\0' '\n' < /proc/<pid>/environ`
+// on the box, not assumed.
+
+const CONSOLE_ENV = { DESKTOP_SESSION: 'gamecore', XDG_SESSION_DESKTOP: 'GameCore',
+                      XDG_CURRENT_DESKTOP: 'GameCore', INVOCATION_ID: 'x' }
+
+test('leaving the console session hands the auto-login back, and applies it', async () => {
+  const r = rig({ env: CONSOLE_ENV })
+  r.quit()
+  await settle(20)
+  assert.equal(r.execs.length, 1, r.execs.join(' | '))
+  assert.match(r.execs[0], /gamecore-session-select desktop --restart-dm$/)
+  assert.equal(r.quits.length, 1, 'the app stayed up after handing the box back')
+})
+
+test('the capital letters in XDG_SESSION_DESKTOP are not a different session', async () => {
+  // The one that failed. `'GameCore' !== 'gamecore'` was the whole bug.
+  const r = rig({ env: { XDG_SESSION_DESKTOP: 'GameCore', INVOCATION_ID: 'x' } })
+  r.quit()
+  await settle(20)
+  assert.equal(r.execs.length, 1, 'it quit without handing the auto-login back')
+})
+
+test("a window on somebody else's desktop just closes", async () => {
+  const r = rig({ env: { DESKTOP_SESSION: 'plasma', XDG_SESSION_DESKTOP: 'KDE',
+                         XDG_CURRENT_DESKTOP: 'KDE', INVOCATION_ID: 'x' } })
+  r.quit()
+  await settle(20)
+  assert.deepEqual(r.execs, [], 'it rewrote the auto-login of a machine it does not own')
+  assert.equal(r.quits.length, 1)
+})
+
+test('a box whose sudoers predates the flag still reaches the desktop', async () => {
+  // sudoers matches a command line exactly, so `desktop --restart-dm` is
+  // refused outright on a box that has not had the update that grants it. The
+  // switch itself must still happen: the next boot is then the desktop.
+  const r = rig({ env: CONSOLE_ENV, execRefuses: ['--restart-dm'] })
+  r.quit()
+  await settle(30)
+  assert.equal(r.execs.length, 2, r.execs.join(' | '))
+  assert.match(r.execs[1], /gamecore-session-select desktop$/)
+  assert.equal(r.quits.length, 1, 'a refused sudo left the box in the console session')
 })

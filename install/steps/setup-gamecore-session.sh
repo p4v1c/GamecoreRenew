@@ -150,6 +150,37 @@ for dest in "${DESTDIR}/etc/systemd/system/gamecore-restart.service" \
   backup "$dest"
 done
 bash "$HERE/setup-update-permissions.sh" "$GC_USER"
+
+# ── Leaving the console session, from the console session ────────
+#
+# The interface's "Mode bureau" runs the switch as root through sudo, and
+# sudoers matches a command line exactly: `desktop --restart-dm` is a different
+# command from `desktop` and needs its own line. Written here rather than only
+# in arch.sh because arch.sh runs on a fresh install and this runs on every
+# update — a box armed before the flag existed would otherwise be refused the
+# one command that gets it back out.
+#
+# Three enumerated commands, no wildcard: the script writes SDDM configuration
+# and restarts the display manager as root, so "any argument" is not a thing to
+# hand out.
+SUDOERS_SESSION="${DESTDIR}/etc/sudoers.d/gamecore-session"
+backup "$SUDOERS_SESSION"
+SESSION_TMP=$(mktemp "${SUDOERS_SESSION}.XXXXXX")
+{
+  echo "# Installed by install/steps/setup-gamecore-session.sh — do not edit."
+  echo "${GC_USER} ALL=(root) NOPASSWD: /usr/local/bin/gamecore-session-select gamecore"
+  echo "${GC_USER} ALL=(root) NOPASSWD: /usr/local/bin/gamecore-session-select desktop"
+  echo "${GC_USER} ALL=(root) NOPASSWD: /usr/local/bin/gamecore-session-select desktop --restart-dm"
+} > "$SESSION_TMP"
+chmod 440 "$SESSION_TMP"
+if _live && ! visudo -cf "$SESSION_TMP" >/dev/null; then
+  rm -f "$SESSION_TMP"
+  echo "  ⚠ sudoers validation failed — 'Mode bureau' will not be able to leave."
+else
+  mv -f "$SESSION_TMP" "$SUDOERS_SESSION"
+  echo "  ✓ sudoers: leaving the console session (${SUDOERS_SESSION#"$DESTDIR"})"
+fi
+
 echo "  Roll back installed files: sudo bash $BACKUP/restore.sh"
 
 # SDDM/PAM starts the user manager for the graphical login. Linger belongs

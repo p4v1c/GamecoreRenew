@@ -859,16 +859,67 @@ ipcMain.on('system:shutdown', () => exec('sudo systemctl poweroff'))
  * Everything else that closes a window is an accident, and window-all-closed
  * below reads `quitting` to tell the two apart.
  */
+/**
+ * Are we the console session, or a window on somebody's desktop?
+ *
+ * Asked of three variables and case-insensitively, because the session sets
+ * them from three different places and they do not agree:
+ *
+ *     DESKTOP_SESSION=gamecore        the .desktop file's NAME
+ *     XDG_SESSION_DESKTOP=GameCore    its DesktopNames= field
+ *     XDG_CURRENT_DESKTOP=GameCore    idem, and a colon-list by specification
+ *
+ * This read `XDG_SESSION_DESKTOP !== 'gamecore'` and nothing else, so on the
+ * real box every "Mode bureau" took the early exit: the app quit without ever
+ * handing the auto-login back, SDDM's Relogin brought the console straight up
+ * again, and from the sofa it looked like the button flashed the screen black
+ * and did nothing. One capital letter, in a value we do not own.
+ */
+function inConsoleSession() {
+  return ['DESKTOP_SESSION', 'XDG_SESSION_DESKTOP', 'XDG_CURRENT_DESKTOP']
+    .some(name => (process.env[name] || '').split(':')
+      .some(word => word.trim().toLowerCase() === 'gamecore'))
+}
+
+/**
+ * Hand the box back to the desktop, and make it true before we go.
+ *
+ * `--restart-dm` is the whole point: writing the SDDM drop-in does not apply
+ * it — the daemon read its configuration when IT started, and ending a session
+ * just makes it log back into what it already believes. The switch and the
+ * restart belong to the same act, so they are one command.
+ *
+ * The plain form is tried after it, and not out of tidiness: sudoers matches a
+ * command line exactly, so a box whose rules predate the flag refuses
+ * `desktop --restart-dm` outright. Falling back means such a box still gets
+ * its auto-login rewritten and reaches the desktop on the next boot, instead
+ * of being trapped by an update it has not had yet.
+ */
+function handBackToDesktop(done) {
+  const SELECT = '/usr/local/bin/gamecore-session-select'
+  let left = false
+  const leave = () => { if (!left) { left = true; done() } }
+  // The restart tears this process down mid-callback on a box where it works,
+  // and a box where the helper hangs must not become a box that never quits.
+  setTimeout(leave, 10_000).unref?.()
+
+  exec(`sudo -n ${SELECT} desktop --restart-dm`, (err) => {
+    if (!err) return leave()
+    console.warn('[session] restart-dm refused or failed:', err.message)
+    exec(`sudo -n ${SELECT} desktop`, (err2) => {
+      if (err2) {
+        console.warn('[session] could not hand the box back to the desktop:', err2.message)
+        console.warn('[session] leaving anyway — the next login will be GameCore again')
+      }
+      leave()
+    })
+  })
+}
+
 ipcMain.on('system:quit', () => {
   quitting = true
-  if (process.env.XDG_SESSION_DESKTOP !== 'gamecore') { app.quit(); return }
-  exec('sudo -n /usr/local/bin/gamecore-session-select desktop', (err) => {
-    if (err) {
-      console.warn('[session] could not hand the box back to the desktop:', err.message)
-      console.warn('[session] leaving anyway — the next login will be GameCore again')
-    }
-    app.quit()
-  })
+  if (!inConsoleSession()) { app.quit(); return }
+  handBackToDesktop(() => app.quit())
 })
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────

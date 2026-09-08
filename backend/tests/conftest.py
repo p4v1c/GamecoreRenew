@@ -39,6 +39,20 @@ os.environ["GAMECORE_TEST_ROOT"] = str(_ROOT)
 # the console lost an emulator to a passing `pytest`.
 os.environ["GAMECORE_DATA"] = str(_ROOT)
 
+# And the runtime directory, which is how the box tells the backend about its
+# graphical session.
+#
+# `process_manager.session_env_file()` reads $XDG_RUNTIME_DIR/gamecore/session.env
+# — written by the console session at login — and `_display_env()` trusts it
+# ahead of probing for a display. Left inherited, the suite reads the session
+# file of the machine running it: on a developer's desktop there is none and
+# everything passes, and on an armed box the probe never runs and five tests in
+# test_session_robustness.py go red for a reason that has nothing to do with the
+# code under test. Found exactly that way, the first night the reference box ran
+# the console session.
+os.environ["XDG_RUNTIME_DIR"] = str(_ROOT.parent / "runtime")
+(_ROOT.parent / "runtime").mkdir(parents=True, exist_ok=True)
+
 # Same rule for the ScreenScraper account. gamescrape reads the four variables
 # below, then falls back to ~/.config/gamescrape/credentials — a developer's own
 # file, which would make the suite behave differently on their machine than in

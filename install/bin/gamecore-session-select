@@ -3,6 +3,7 @@
 #  gamecore-session-select — turn the GameCore kiosk on or off
 #
 #      sudo gamecore-session-select desktop     # kiosk off — plain desktop
+#      sudo gamecore-session-select desktop --restart-dm   # …and apply it now
 #      sudo gamecore-session-select gamecore    # kiosk back on
 #      gamecore-session-select status           # what is set right now (no root)
 #      gamecore-session-select pick-desktop --x11   # used by install/arch.sh
@@ -110,9 +111,23 @@ case "${1:-}" in
   desktop)        MODE=desktop  ;;
   *)
     echo "usage: $(basename "$0") gamecore|desktop|status|pick-desktop [--x11]" >&2
+    echo "       gamecore [--force]   desktop [--restart-dm]" >&2
     exit 2
     ;;
 esac
+
+# Flags, read from everything after the mode rather than from $2 alone: sudoers
+# matches a command line exactly, so `desktop --restart-dm` is its own granted
+# command and the position of the word has to be part of nothing.
+FORCE=false
+RESTART_DM=false
+for arg in "${@:2}"; do
+  case "$arg" in
+    --force)      FORCE=true ;;
+    --restart-dm) RESTART_DM=true ;;
+    *) echo "unknown option: $arg" >&2; exit 2 ;;
+  esac
+done
 
 # Root, unless the caller has pointed the paths somewhere it owns.
 if [[ $EUID -ne 0 && "$SDDM_CONF_DIR" == /etc/sddm.conf.d ]]; then
@@ -314,6 +329,39 @@ retire_legacy() {
   fi
 }
 
+# Make the choice above the one that is actually running, by restarting the
+# display manager.
+#
+# Writing the drop-in is not applying it. SDDM reads /etc/sddm.conf.d when the
+# DAEMON starts; ending a session only makes it build a new display, and with
+# Relogin=true it logs straight back into the session it was told about at its
+# own start. On the reference box that is a loop with no way out from the sofa:
+# "Mode bureau" ended the session, the screen went black, and GameCore came
+# back — the file said `desktop`, the running daemon still said `gamecore`.
+#
+# Not the default, and not something `status` or an arming does: run over SSH
+# this would end whatever session the operator is sitting in. It is one
+# explicitly granted command, used by the one caller that means it — the
+# interface, whose session is ending anyway.
+#
+# --no-block because this process is inside the session the restart tears down:
+# a systemctl that waits for the job to finish is a systemctl that gets killed
+# while waiting, and returns failure for something that worked.
+_restart_dm() {
+  local unit
+  for unit in display-manager.service sddm.service; do
+    systemctl cat "$unit" >/dev/null 2>&1 || continue
+    echo "restarting $unit — a display manager only reads its configuration at start."
+    systemctl restart --no-block "$unit" || {
+      echo "could not restart $unit — log out to apply the change." >&2
+      return 1
+    }
+    return 0
+  done
+  echo "no display manager unit here — log out to apply the change." >&2
+  return 1
+}
+
 if [[ "$MODE" == gamecore ]]; then
   if [[ ! -f "$XSESSIONS_DIR/gamecore.desktop" ]]; then
     echo "no gamecore.desktop on this machine — this box has not been migrated." >&2
@@ -330,7 +378,7 @@ if [[ "$MODE" == gamecore ]]; then
   # Refused rather than warned: this is the one command in the whole project
   # that can leave somebody in front of a television with a half-working
   # console, and a warning scrolls past on a screen nobody is reading.
-  if [[ "${2:-}" != "--force" ]]; then
+  if ! $FORCE; then
     HAVE_WM=""
     # Same list and same override as gamecore-session, so what is checked here
     # is what will actually be looked for there.
@@ -381,6 +429,19 @@ else
   echo "back to the console:  sudo $(basename "$0") gamecore"
 fi
 
+# An arming that was overridden is not an arming. The message above says which
+# file won; the exit code says it to whatever ran this. Checked BEFORE the
+# restart below: tearing the screen down to apply a choice that did not take is
+# how you turn a wrong auto-login into a wrong auto-login with no session left
+# to fix it from.
+[[ -n "${VERIFY_FAILED:-}" ]] && exit 1
+
+if $RESTART_DM; then
+  echo
+  _restart_dm || exit 1
+  exit 0
+fi
+
 # The session that is running now is not the one that was just chosen. Ending
 # it here would drop the player onto a greeter mid-sentence; it is theirs to
 # do, and saying so is the whole difference between a switch and a surprise.
@@ -388,10 +449,6 @@ if systemctl --user -M "${GC_USER}@" is-active --quiet gamecore-session.target 2
    || systemctl is-active --quiet "$UNIT" 2>/dev/null; then
   echo
   echo "GameCore is running right now — the change takes effect at the next login."
-  echo "  now, if you want it now:  sudo systemctl restart sddm"
+  echo "  now, if you want it now:  sudo $(basename "$0") $MODE --restart-dm"
 fi
-
-# An arming that was overridden is not an arming. The message above says which
-# file won; the exit code says it to whatever ran this.
-[[ -n "${VERIFY_FAILED:-}" ]] && exit 1
 exit 0

@@ -1442,9 +1442,12 @@ $USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl r
 # Enumerated like the governor rule below: unrestricted, it also granted
 # `udevadm control`, which reloads and can replace the device rules.
 $USER_NAME ALL=(root) NOPASSWD: /usr/bin/udevadm trigger
-# Desktop escape hatch — turn the kiosk on or off over the machine's desktop. Enumerated with its two arguments rather than left open:
-# the script writes an SDDM drop-in as root, so "any argument" is not a thing
-# to hand out.
+# Desktop escape hatch — turn the kiosk on or off over the machine's desktop.
+# Enumerated with its arguments rather than left open: the script writes an
+# SDDM drop-in as root, so "any argument" is not a thing to hand out.
+# The console session's own way out, `desktop --restart-dm`, is a separate
+# command line and lives in /etc/sudoers.d/gamecore-session, written by
+# install/steps/setup-gamecore-session.sh so that updates carry it too.
 $USER_NAME ALL=(root) NOPASSWD: /usr/local/bin/gamecore-session-select gamecore, /usr/local/bin/gamecore-session-select desktop
 # Desktop launcher (gamecore-launcher.sh) — start GameCore from the desktop
 $USER_NAME ALL=(root) NOPASSWD: /usr/bin/systemctl start gamecore-backend.service, /usr/bin/systemctl start gamecore-ui.service

@@ -407,3 +407,85 @@ def test_a_competing_file_we_may_not_touch_is_reported_and_fails(switch):
     assert r.returncode != 0, "it announced an arming that SDDM will ignore"
     assert "not 'gamecore'" in r.stderr or "not 'gamecore'" in r.stdout
     assert "zzz-operator.conf" in r.stderr + r.stdout
+
+
+# ── Leaving the console session, and making it true ──────────────
+#
+# The reference box could not get out. "Mode bureau" blacked the screen and
+# came straight back to GameCore, over and over, and the two reasons were both
+# of the same kind: a step that was written but never applied.
+#
+# The drop-in is not the auto-login. SDDM reads /etc/sddm.conf.d when the
+# daemon starts; ending a session only makes it build a new display and, with
+# Relogin=true, log back into what it was told at ITS start. So the switch that
+# the interface performs has to end with a display-manager restart, or it is a
+# note to a process that has stopped reading.
+
+def _restarts(log: Path) -> list[str]:
+    if not log.is_file():
+        return []
+    return [l for l in log.read_text().splitlines() if l.startswith("restart")]
+
+
+def test_leaving_with_restart_dm_actually_restarts_the_display_manager(switch):
+    (switch["xsessions"] / "gamecore.desktop").write_text("[Desktop Entry]\nName=GameCore\n")
+    switch["run"]("gamecore")
+    switch["log"].write_text("")          # forget the arming's own systemctl calls
+
+    r = switch["run"]("desktop", "--restart-dm")
+
+    assert r.returncode == 0, r.stderr
+    assert _autologin(switch["sddm"]) == "plasmax11"
+    assert _restarts(switch["log"]) == ["restart --no-block display-manager.service"], \
+        "the auto-login was rewritten and nothing was asked to re-read it"
+
+
+def test_leaving_without_the_flag_still_restarts_nothing(switch):
+    """Run over SSH this would end whatever session the operator is sitting in.
+    It stays opt-in, and the advice is printed instead."""
+    (switch["xsessions"] / "gamecore.desktop").write_text("[Desktop Entry]\nName=GameCore\n")
+    switch["run"]("gamecore")
+    switch["log"].write_text("")
+
+    r = switch["run"]("desktop")
+
+    assert r.returncode == 0, r.stderr
+    assert _restarts(switch["log"]) == []
+    assert "--restart-dm" in r.stdout, "it should say how to apply it now"
+
+
+def test_a_switch_that_did_not_take_restarts_nothing(switch):
+    """Tearing the screen down to apply a choice that was overridden leaves the
+    box on the wrong auto-login with no session left to fix it from."""
+    (switch["xsessions"] / "gamecore.desktop").write_text("[Desktop Entry]\nName=GameCore\n")
+    (switch["sddm"] / "zzz-operator.conf").write_text(
+        "[Autologin]\nUser=player\nSession=gamecore\nRelogin=true\n")
+
+    r = switch["run"]("desktop", "--restart-dm")
+
+    assert r.returncode != 0
+    assert _restarts(switch["log"]) == []
+    assert "zzz-operator.conf" in r.stderr + r.stdout
+
+
+def test_an_option_nobody_declared_is_refused(switch):
+    """sudoers matches a command line exactly, so every accepted word here is a
+    word that has to be granted somewhere. Unknown ones are a typo, not a hint."""
+    (switch["xsessions"] / "gamecore.desktop").write_text("[Desktop Entry]\nName=GameCore\n")
+    r = switch["run"]("desktop", "--restart-sddm")
+    assert r.returncode == 2
+    assert "unknown option" in r.stderr
+    assert _autologin(switch["sddm"]) == ""
+
+
+def test_the_sudoers_rule_for_leaving_is_installed_by_the_update_step(staged):
+    """The interface's way out is `desktop --restart-dm`, which sudoers treats
+    as a command of its own. A box armed before the flag existed must receive
+    the rule from an update, not from a reinstall it will never run."""
+    r = staged["install"]()
+    assert r.returncode == 0, r.stderr
+    rules = (staged["root"] / "etc" / "sudoers.d" / "gamecore-session").read_text()
+    assert "gamecore-session-select desktop --restart-dm" in rules
+    assert "gamecore-session-select desktop\n" in rules
+    assert "gamecore-session-select gamecore" in rules
+    assert "ALL=(root) NOPASSWD:" in rules
