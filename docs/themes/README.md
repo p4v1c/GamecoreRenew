@@ -124,9 +124,21 @@ A theme provides **both** of these, always:
 | `splash` | the boot animation |
 | `shell` | the whole frontend body |
 
+And **may** provide this one, which is the only optional surface:
+
+| Surface | What it is | If you leave it out |
+|---|---|---|
+| `sessionBar` | the bar over a suspended game or application (SDK 5, §5f) | the host draws its own |
+
+`sessionBar` is not listed in `provides` and does not take part in the
+all-or-nothing rule, because the host has a working one behind it. That is not
+a courtesy: it is the only way back to a suspended session, and a theme that
+simply forgot to draw one would leave a frozen emulator holding several
+gigabytes of memory with nothing on screen able to resume or close it.
+
 | Kept by the kernel, always |
 |---|
-| input bus, WebSocket, `gp:guide`, error boundaries, L1+R1 rescue, the *fact* that a splash runs |
+| input bus, WebSocket, `gp:guide`, error boundaries, L1+R1 rescue, the *fact* that a splash runs, the *fact* that a session bar is on screen |
 
 Picking a theme swaps the frontend, so a theme dresses all of it or none of it.
 There is no per-surface fallback: half a theme — a beach dashboard behind the
@@ -203,6 +215,7 @@ The all-or-nothing rule is about **surfaces**, not features. Read it as:
 |---|---|
 | `splash` and `shell` — declared in `provides` **and** exported by the module | **yes.** Miss either and the theme does not load at all |
 | Which parts of the shell you override (`homeView`, `library`, `topbar`, the modals…) | **no** |
+| `sessionBar` — exported only, never declared | **no.** The host draws one either way (§5f) |
 
 So a theme that ships a splash and a shell, and overrides only the dashboard, is
 a perfectly valid theme: everything it did not rewrite is the default UI,
@@ -401,6 +414,86 @@ how the first two got through.
 Declaring the empty list is not the same as saying nothing: it means your menu
 opens none of them, and you will be told so for every page.
 
+## 5f. The suspended session, and the bar over it — SDK 5
+
+Pressing Home twice used to **kill** the running game. It suspends it now: the
+process group is stopped, the interface comes back with the controller working,
+and closing the game is a separate, deliberate action. Two accidental presses
+cost an unsaved save before; they cost nothing now.
+
+That gesture belongs to the core — `gp:guide` is in the reserved set precisely
+so no theme can take the one binding that gets a player out of a game — so the
+way back belongs to the core too. **The host always mounts a session bar.** A
+theme exports `sessionBar` to replace the picture, never the guarantee.
+
+### What you get
+
+```js
+const SessionBar = ({ sessions, focusIdx, active, busy, title,
+                      onFocus, onResume, onClose }) => { … }
+
+return { splash, shell, sessionBar: SessionBar }   // not in `provides`
+```
+
+| Prop | |
+|---|---|
+| `sessions` | the suspended sessions, oldest first. Never empty when this renders |
+| `focusIdx` | which one the cursor is on |
+| `active` | the bar owns the pad right now — draw your cursor from this |
+| `busy` | a resume or close is in flight |
+| `title(session)` | the name the library would show, not the ROM filename |
+| `onResume(s)` / `onClose(s)` | act on that session, by its run number |
+
+Each session is `{ gameKey, systemId, session, kind }`. **`kind` is `'app'` or
+`'game'` — say which.** An application launches with `game_key === system_id`
+and that identity is the only thing telling the two apart once the session
+exists; a bar offering to close a "game" the player never started is the
+interface talking about something that does not exist.
+
+The host keeps the bindings — ✕ resumes, L1/R1 walk the list — so the gesture
+does not change with the theme, and it takes them only while `active`.
+
+**You do not position this.** The host supplies the layer, fixed to the bottom
+with the z-index you are not allowed to write (§6), and your markup draws
+inside it — the same bargain the themed splash has.
+
+### Driving it yourself
+
+`sdk.session` is there when a theme wants more than the bar — Orbit opens a
+full panel on L2:
+
+| | |
+|---|---|
+| `sdk.session.use()` | reactive, inside a component → `{ foreground, background }` |
+| `sdk.session.get()` | snapshot, in a handler |
+| `sdk.session.background()` | suspend what is on the screen |
+| `sdk.session.resume(id?)` | wake one; with no id, the most recent |
+| `sdk.session.close(id?)` | end one; with no id, the one on the screen |
+
+Every rule about them is the core's. How many sessions may exist, what happens
+when one is resumed while something else holds the screen, and whether a launch
+is refused are not a theme's decisions — a theme making its own would be a
+second answer to a question that has to have one. These calls reject with the
+host's own sentence when it refuses; show it or ignore it, but do not pretend
+the action worked.
+
+**Touching any of `sdk.session` means `"api": 5` in your manifest.** The version
+gate reads your sources, computes the level you actually use, and refuses the
+theme if the manifest declares less — an older front end would otherwise call
+it compatible and then throw on the first read.
+
+Taking the bar as *props only* does **not** need SDK 5, and both shipped themes
+deliberately stay at 4 for that reason: a front end without the lifecycle
+simply never mounts the bar, and the theme keeps working. Declaring 5 for a
+surface you do not call would take your theme off that box for nothing.
+
+### One thing that is not yours
+
+`sessionGameKey` still means **"a game owns the screen"** and still blocks the
+pad. A suspended session sets it to `null` — that is what gives the interface
+back to the player while the game stays alive — so anything you key off it
+keeps working unchanged.
+
 ## 5e. Check it loads before you ship it
 
 ```bash
@@ -467,6 +560,7 @@ there is no import map to maintain and only one React instance exists.
 | `sdk.api` | `systems`, `games`, `metadata`, `media`, `playtime`, `sysinfo`, `standby`, `update`, `wifi`, `audio`, `bluetooth` | [full signatures](../architecture/05-frontend.md#apiindexts) |
 | `sdk.nav` | `use(selector)` for a reactive read inside a component, `get()` for a snapshot in a handler, plus `goHome`, `goLibrary`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx`, `openModal`, `closeModal` | [store reference](../architecture/05-frontend.md#store--storeindexts) |
 | `sdk.input` | `onGp(event, handler)`, `useGamepadState()`, `GP_BTN`, `events`, `rumble(pattern)`, `haptics` (read-only `enabled`) | [event bus](../architecture/05-frontend.md#the-gamepad-event-bus--hooksusegamepadts) |
+| `sdk.session` | `use()` reactive, `get()` snapshot, `background()`, `resume(id?)`, `close(id?)` | **SDK 5.** Suspending and resuming a game or application — §5f. Touching any of it means declaring `"api": 5` |
 | `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `sound` (read-only `enabled` / `volume`), `gamecore`, `asset(path)` | `asset()` resolves a path inside the theme folder. `splashHoldMs` was here and is gone in SDK 4 — the splash is told when the interface is ready instead of being told how long to wait (§8) |
 | `sdk.format` | `gameName`, `time`, `date`, `hexToRgb`, `systemColor` | how the rest of the UI renders the box's data. Reimplementing these does not fail, it *drifts* |
 | `sdk.themes` | `list()`, `select(id \| null)` | so a theme can dress its own theme picker. `select()` is the host's: it clears safe mode, resets the crash count and reloads the frontend |
@@ -625,7 +719,10 @@ once, at load. Either the theme runs or the default does.
 - `api` major greater than the host's → theme is listed but **not selectable**,
   with the reason shown.
 - `api` major lower → loaded while the host still supports that version.
-- Adding a surface or an SDK key does **not** bump the major. Removing one does.
+- Adding a surface or an SDK key does **not** bump the major. Removing one does
+  — and so does a shipped theme coming to *require* one, which is what SDK 2
+  and SDK 5 both are. See `frontend/src/lib/themeSdk.ts` for the incident that
+  established the rule.
 - Theme files are never cached. The entry module's URL is timestamped, and
   `/themes` is served with `Cache-Control: no-store` — the entry's own relative
   imports and its stylesheet resolve without that query, so a header is the only
