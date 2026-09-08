@@ -122,7 +122,10 @@ async def open_emulator_settings(system_id: str, body: OpenSettings):
     launcher = pergame.settings_launcher(system_id)
     if launcher is None:
         raise HTTPException(404, "This emulator has no settings window to open")
-    if process_manager.is_running:
+    # The screen slot, not the resident count: this opens a window through
+    # process_manager exactly like a game, so it is refused for the same reason
+    # a launch is — something else is already in front of the player.
+    if process_manager.is_foreground:
         raise HTTPException(409, "A game is already running")
 
     exec_path, exec_args = launcher

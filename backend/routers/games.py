@@ -23,7 +23,7 @@ from ..services import (
 )
 from ..services import process_manager as process_manager_module
 from ..services.catalog import launch as catalog_launch
-from ..services.process_manager import process_manager
+from ..services.process_manager import SessionConflict, process_manager
 from ..services.rom_scanner import clean_name, iter_rom_files
 from .systems import list_all
 
@@ -285,7 +285,15 @@ async def launch_game(req: LaunchRequest):
     if not system:
         raise HTTPException(404, "System not found")
 
-    if process_manager.is_running:
+    # `is_foreground`, not `is_running`: a session that is only suspended must
+    # not refuse a launch. That refusal is what would have emptied the feature
+    # of its point — the player backgrounds a game precisely so they can open
+    # something else, and being told "a game is already running" about a game
+    # that is frozen behind the interface is the box arguing with itself.
+    #
+    # What is still refused is a SECOND thing on the screen, which is the same
+    # rule as before. The other slot is guarded in ProcessManager.background().
+    if process_manager.is_foreground:
         raise HTTPException(409, "A game is already running")
 
     # Validate rom_path stays inside the system's configured ROMs directory.
@@ -432,12 +440,59 @@ async def launch_game(req: LaunchRequest):
     return {"ok": True, "game_key": game_key}
 
 
+class KillRequest(BaseModel):
+    """Which run to end.
+
+    Optional, and omitted by everything that predates the second slot: with no
+    number this ends the session on the screen, exactly as it always has. A
+    number is how a session bar closes the suspended one while something else
+    is in front of it.
+    """
+    session: int | None = None
+
+
 @router.post("/games/kill")
-async def kill_game():
-    await process_manager.kill()
+async def kill_game(req: KillRequest | None = None):
+    await process_manager.kill(req.session if req else None)
     return {"ok": True}
+
+
+@router.post("/games/background")
+async def background_game():
+    """Freeze the session on the screen and give the interface back.
+
+    The process GROUP is suspended, not the process — an emulator is a tree,
+    and a Flatpak one is five processes deep. See ProcessManager.background().
+    """
+    try:
+        state = await process_manager.background()
+    except SessionConflict as e:
+        raise HTTPException(409, str(e)) from e
+    return {"ok": True, **state}
+
+
+class ResumeRequest(BaseModel):
+    """Which suspended run to bring forward. Omitted means the most recent."""
+    session: int | None = None
+
+
+@router.post("/games/foreground")
+async def foreground_game(req: ResumeRequest | None = None):
+    """Resume a frozen session, putting whatever holds the screen behind it."""
+    try:
+        state = await process_manager.foreground(req.session if req else None)
+    except SessionConflict as e:
+        raise HTTPException(409, str(e)) from e
+    return {"ok": True, **state}
 
 
 @router.get("/games/session")
 def get_session():
-    return process_manager.current_game or {}
+    """What the box is running, in one shape.
+
+    The flat fields describe the session on the SCREEN, which is what this
+    endpoint has always returned — so a front end that predates the second slot
+    reads a box whose only session is suspended as "nothing in front of me".
+    That is true, and it is the answer that leaves its pad unblocked.
+    """
+    return process_manager.session_state()

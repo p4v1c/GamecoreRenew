@@ -144,11 +144,17 @@ def _startup_jobs() -> list[tuple[dict, str]]:
 
 
 async def _wait_until_nobody_is_playing() -> None:
-    """Hold the batch while a game is on screen — see the module docstring."""
-    if not process_manager.is_running:
+    """Hold the batch while a game is on screen — see the module docstring.
+
+    On screen, and not merely resident: a suspended session is not reading its
+    disc and not competing for anything this worker wants. Waiting for it would
+    mean a box that stops fetching covers for as long as a game sits in the
+    background, which is a library that silently stops filling in.
+    """
+    if not process_manager.is_foreground:
         return
     log.info("prefetch: a game is running — deferring until it exits")
-    while process_manager.is_running:
+    while process_manager.is_foreground:
         await asyncio.sleep(_IDLE_POLL)
     log.info("prefetch: the game exited — resuming")
 
@@ -209,7 +215,7 @@ async def _migrate_covers() -> None:
     try:
         await asyncio.to_thread(
             cover_encode.migrate, covers_dir(),
-            should_continue=lambda: not process_manager.is_running)
+            should_continue=lambda: not process_manager.is_foreground)
     except Exception:
         log.exception("prefetch: cover migration failed")
 

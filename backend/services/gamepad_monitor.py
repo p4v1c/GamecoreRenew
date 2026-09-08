@@ -222,15 +222,42 @@ async def _on_guide_pressed() -> None:
     from .. import ws
 
     pm = pm_module.process_manager
-    if pm.is_running:
-        log.info("gamepad_monitor: killing running game")
+
+    # Double-Home used to KILL the running game, and that was the only thing it
+    # could do: there was no other way to get the screen back. It is a
+    # destructive default reached by a gesture two accidental presses away, and
+    # the number of times it has cost somebody an unsaved save is not knowable
+    # because nothing recorded it.
+    #
+    # It suspends now. The player lands back in the interface with their game
+    # frozen and intact, and closing it is a deliberate second action on the
+    # session bar — where the theme also gets to say "Close application" for an
+    # app. Nothing is lost by pressing this twice by mistake any more.
+    #
+    # The gesture stays the core's, which is why the choice is offered here
+    # rather than left to a theme: `gp:guide` is in RESERVED_EVENTS precisely
+    # so that no theme can take the one binding that gets a player out of a
+    # game. What a theme draws is the session bar that follows.
+    action = "home"
+    if pm.is_foreground:
         try:
-            await pm.kill()
+            await pm.background()
+            action = "backgrounded"
+            log.info("gamepad_monitor: suspended the running session")
         except Exception:
-            log.exception("gamepad_monitor: error killing game")
+            # Only reachable if the signal itself failed, which almost always
+            # means the process is already gone. Killing is the last resort and
+            # not the intent: a player must never be trapped inside a game
+            # because the polite way out did not work.
+            log.exception("gamepad_monitor: could not suspend — closing instead")
+            try:
+                await pm.kill()
+                action = "killed"
+            except Exception:
+                log.exception("gamepad_monitor: error killing game")
 
     try:
-        await ws.broadcast("gp:guide", {})
+        await ws.broadcast("gp:guide", {"action": action})
     except Exception:
         log.exception("gamepad_monitor: error broadcasting gp:guide")
 
@@ -381,11 +408,20 @@ def dup_indexes(roster: dict[str, tuple[int, str]]) -> dict[str, int]:
 
 
 def _game_running() -> bool:
-    """True while an emulator is up. Imported late: process_manager pulls in the
-    database and the websocket layer, and this module is imported at startup."""
+    """True while an emulator is on the screen. Imported late: process_manager
+    pulls in the database and the websocket layer, and this module is imported
+    at startup.
+
+    A suspended session counts as NOT running here, and that is the right
+    answer for the one thing this guards: renumbering the players. Slots are
+    renumbered only between games because doing it mid-session silently makes
+    the remaining player somebody else — and a frozen emulator is not reading
+    its input config, so it cannot be surprised by the change. It re-reads
+    nothing until it is resumed, by which time the roster has settled.
+    """
     try:
         from . import process_manager
-        return process_manager.process_manager.is_running
+        return process_manager.process_manager.is_foreground
     except Exception:      # never let a bookkeeping question break reconciliation
         return False
 

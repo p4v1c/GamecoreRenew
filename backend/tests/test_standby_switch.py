@@ -50,7 +50,7 @@ def awake():
 @pytest.fixture
 def not_playing(monkeypatch):
     from backend.services import process_manager as pm
-    monkeypatch.setattr(type(pm.process_manager), "is_running", property(lambda self: False))
+    monkeypatch.setattr(type(pm.process_manager), "is_foreground", property(lambda self: False))
 
 
 def idle_for(minutes: float) -> None:
@@ -98,7 +98,7 @@ def test_sleep_still_follows(not_playing):
 
 def test_a_running_game_still_holds_everything_off(monkeypatch):
     from backend.services import process_manager as pm
-    monkeypatch.setattr(type(pm.process_manager), "is_running", property(lambda self: True))
+    monkeypatch.setattr(type(pm.process_manager), "is_foreground", property(lambda self: True))
     idle_for(180)
     tick(CFG_ON)
     assert standby.get_state() == "active"
@@ -165,7 +165,7 @@ def test_changing_only_the_timings_does_not_wake(monkeypatch, tmp_path):
 @pytest.fixture
 def playing(monkeypatch):
     from backend.services import process_manager as pm
-    monkeypatch.setattr(type(pm.process_manager), "is_running", property(lambda self: True))
+    monkeypatch.setattr(type(pm.process_manager), "is_foreground", property(lambda self: True))
 
 
 @pytest.fixture

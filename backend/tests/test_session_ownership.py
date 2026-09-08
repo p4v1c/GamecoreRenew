@@ -48,7 +48,7 @@ def _silence(monkeypatch, manager=None):
     monkeypatch.setattr(pm.ws, "broadcast", AsyncMock())
     monkeypatch.setattr(pm.ws, "set_current_game", lambda data: None)
     if manager is not None:
-        monkeypatch.setattr(manager, "_save_session", lambda: None)
+        monkeypatch.setattr(manager, "_save_state", lambda: None)
         monkeypatch.setattr(manager, "_clear_session", lambda: None)
 
 
@@ -76,9 +76,10 @@ def test_an_old_watcher_does_not_clear_the_game_that_replaced_it(monkeypatch):
         first.done.set()
         await asyncio.sleep(0)
 
-        assert manager._proc is second, "the old watcher cleared the new process"
+        assert manager._fg is not None, "the old watcher cleared the new session"
+        assert manager._fg.proc is second, "the old watcher cleared the new process"
         assert manager.is_running
-        assert manager._game_key == "new.rom"
+        assert manager._fg.game_key == "new.rom"
 
     asyncio.run(scenario())
 
@@ -129,12 +130,12 @@ async def _play(monkeypatch, manager_system: str, game_key: str, seconds: int) -
     proc = FakeProcess()
     proc.returncode = 0
     proc.done.set()
-    manager._proc = proc
-    manager._game_key = game_key
-    manager._system_id = manager_system
-    manager._start_time = time.time() - seconds
+    session = pm.Session(proc=proc, game_key=game_key, system_id=manager_system,
+                         start_time=time.time() - seconds, session_id=1)
+    manager._sessions.append(session)
+    monkeypatch.setattr(manager, "_save_state", lambda: None)
     monkeypatch.setattr(manager, "_clear_session", lambda: None)
-    await manager._watch()
+    await manager._watch(session)
 
 
 def test_two_consoles_holding_the_same_filename_keep_their_own_hours(monkeypatch):
