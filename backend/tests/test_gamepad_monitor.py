@@ -531,6 +531,35 @@ def test_slots_are_not_renumbered_while_a_game_runs(roster, monkeypatch):
     assert reg._slots[gm.controller_registry.key_for("aa:bb:cc:dd:ee:ff", "")] == 2
 
 
+def test_slots_are_not_renumbered_while_a_game_is_only_suspended(roster,
+                                                                 monkeypatch):
+    """A suspended game is a session in progress, and renumbering under it costs
+    the same thing it costs under a running one — just later.
+
+    The reasoning that said otherwise stopped one step short: a frozen emulator
+    re-reads no input config, true, so nothing goes wrong *while* it is frozen.
+    It goes wrong on RESUME. The emulator comes back holding the binding it read
+    at startup, the registry has since made player 2 into player 1, and the
+    surviving pad now writes to a slot the game is not listening on.
+    """
+    from backend.services import process_manager as pm
+    manager = pm.ProcessManager()
+    manager._sessions.append(pm.Session(
+        proc=types.SimpleNamespace(pid=111, returncode=None),
+        game_key="held.iso", system_id="dolphin", state="background",
+        session_id=1))
+    monkeypatch.setattr(pm, "process_manager", manager)
+
+    a = _node("/dev/input/event20", "84:30:95:07:c8:1c")
+    b = _node("/dev/input/event21", "aa:bb:cc:dd:ee:ff", vendor="045e",
+              product="02fd")
+    roster(a)
+    roster({**a, **b})
+    roster(b)                       # player 1 leaves while the game is frozen
+
+    assert reg._slots[gm.controller_registry.key_for("aa:bb:cc:dd:ee:ff", "")] == 2
+
+
 # ── evdev refused: the failure that looks exactly like "no pad" ──────────────
 # `{}` is what a box with nothing plugged in returns AND what a box whose every
 # device was refused returns. Downstream cannot separate them: `was != live` is

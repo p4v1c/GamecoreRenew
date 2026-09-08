@@ -93,8 +93,9 @@ async def _on_departure(volume: storage.Volume, ws) -> None:
     because a player whose disk has just gone mid-session needs to be told what
     happened more than the box needs its symlink tidy.
     """
-    running = _running_game()
-    if running and storage.path_is_under(running.get("rom_path", ""), volume.mountpoint):
+    for running in _resident_games():
+        if not storage.path_is_under(running.get("rom_path", ""), volume.mountpoint):
+            continue
         # The one case that is genuinely bad and cannot be repaired from here.
         # The emulator holds an open file descriptor on a device that is gone:
         # it will fail on its next read, and — the part that costs something —
@@ -122,13 +123,40 @@ async def _on_departure(volume: storage.Volume, ws) -> None:
 
 
 def _running_game() -> dict | None:
-    """The game that is up, or None. Never raises — this is a question asked
+    """The game on the screen, or None. Never raises — this is a question asked
     while a disk is disappearing, and it must not be able to make that worse."""
     try:
         from . import process_manager
         return process_manager.process_manager.current_game
     except Exception:
         return None
+
+
+def _resident_games() -> list[dict]:
+    """Every session holding files on that disk — suspended ones included.
+
+    `current_game` answers about the SCREEN, and a suspended emulator is not on
+    it. But it is still a process with the disc image open: pulling the drive
+    breaks its next read and loses its next save exactly as it would for a game
+    being played, and the player is *more* likely to pull a disk when nothing
+    seems to be running. Asking only about the foreground made this warning
+    blind to the case where it matters most.
+
+    Never raises, for the same reason `_running_game` does not.
+    """
+    resident = []
+    front = _running_game()
+    if front:
+        resident.append(front)
+    try:
+        from . import process_manager
+        resident.extend(
+            {**s.describe(), "rom_path": s.rom_path}
+            for s in process_manager.process_manager.background_sessions)
+    except Exception:
+        log.warning("storage_monitor: could not inspect suspended sessions",
+                    exc_info=True)
+    return resident
 
 
 async def poll_once(was: dict[str, storage.Volume], ws, runner=None

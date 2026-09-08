@@ -405,6 +405,14 @@ async def launch_game(req: LaunchRequest):
             game_key=game_key,
             system_id=req.system_id,
         )
+    except SessionConflict as e:
+        # The resident cap, refused in the manager's own words because it is the
+        # only thing that knows WHICH sessions are in the way. Caught here for
+        # the same reason the two errors below are: unhandled, it left as a 500,
+        # and the player met a crash instead of the sentence naming what to
+        # close — a sentence written specifically so they would know.
+        log.info("launch refused — %s", e)
+        raise HTTPException(409, str(e)) from e
     except (FileNotFoundError, PermissionError) as e:
         # The emulator is not installed, or is not executable. This used to
         # escape as a bare 500 with an empty body: no reason on screen, and no

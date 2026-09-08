@@ -59,14 +59,21 @@ Console photo source/attribution pages are recorded in `assets/source-credits.js
 
 ### Weight
 
-The thirteen console photos are 5.1 MB, down from 28.8 MB. Ten of them were
-already 960 px on the long edge; three were 3760–6000 px, which is four to six
-times more pixel than this theme can draw — the largest any of them appears is
-`.orbit-feature-art`, capped at 450 px and 40vh, or 864 px on a 2160p panel. Those
-were resampled to the same 960 px norm and everything was recompressed. The ten
-that were not resampled are pixel for pixel what they were.
+The thirteen console photos are 5.1 MB, down from 28.8 MB. **Eight** were
+already 960 px on their long edge and are pixel for pixel what they were; the
+other **five** were resampled to that norm — `ps4` at 6000 px, `n64` and
+`gamecube` near 3800, plus `ps3` and `xbox360`, which were 960 px *wide* but
+1067 and 1322 px *tall*. That is four to six times more pixel than this theme
+can draw: the largest any of them appears is `.orbit-feature-art`, capped at
+450 px and 40vh, or 864 px on a 2160p panel.
+
+(An earlier version of this file said ten and three. It was counting width
+rather than the long edge, so the two tall ones were described as untouched
+while the resizing script had correctly shrunk them. The numbers above are
+`Image.tobytes()` hashes taken against the original archive.)
+
 `assets/source-credits.json` is unchanged: resampling a photograph does not
-change where it came from.
+change where it came from. Its thirteen entries still name the thirteen files.
 
 ## Validation
 

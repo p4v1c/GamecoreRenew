@@ -166,3 +166,27 @@ describe('a suspended session that ends on its own', () => {
     expect(s.sessionGameKey).toBe('stremio')
   })
 })
+
+describe('the gesture acknowledgement is not session state', () => {
+  it('does not unblock the pad when the suspend was refused', () => {
+    // `gp:guide` says "the player pressed Home twice", not "a game stopped".
+    // The backend now has a real outcome where it suspends NOTHING — the signal
+    // did not land — and it still acknowledges the gesture. Treating that as a
+    // finish unblocks the pad over a game that is still running fullscreen,
+    // which is the exact fault the session guard exists to prevent.
+    const socket = mount()
+    send(socket, 'game:started', GAME)
+    send(socket, 'gp:guide', { action: 'failed' })
+
+    expect(isPlaying()).toBe(true)
+    expect(useStore.getState().sessionGameKey).toBe('zelda.iso')
+  })
+
+  it('still takes the player home', () => {
+    const socket = mount()
+    send(socket, 'game:started', GAME)
+    useStore.setState({ screen: 'library' })
+    send(socket, 'gp:guide', { action: 'backgrounded' })
+    expect(useStore.getState().screen).toBe('home')
+  })
+})

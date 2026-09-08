@@ -25,7 +25,7 @@ from pydantic import BaseModel
 from ..services import configgen, pergame
 from ..utils import SYSTEM_ID_RE
 from ..services.catalog import launch as catalog_launch
-from ..services.process_manager import process_manager
+from ..services.process_manager import SessionConflict, process_manager
 
 router = APIRouter(tags=["pergame"])
 
@@ -139,7 +139,13 @@ async def open_emulator_settings(system_id: str, body: OpenSettings):
     # No ROM is passed. The emulator opens on its library, which is where its
     # per-title settings live — handing it a path would start the game instead,
     # which is the one thing the player did NOT ask for from this button.
-    await process_manager.launch(
-        exec_path=exec_path, exec_args=exec_args,
-        game_key=f"{system_id}:settings", system_id=system_id)
+    try:
+        await process_manager.launch(
+            exec_path=exec_path, exec_args=exec_args,
+            game_key=f"{system_id}:settings", system_id=system_id)
+    except SessionConflict as e:
+        # The resident cap. Same door as /games/launch: unhandled this is a 500,
+        # and a 500 tells the player nothing about the suspended sessions that
+        # are actually in the way.
+        raise HTTPException(409, str(e)) from e
     return {"ok": True, "opened": Path(body.rom).name or None}

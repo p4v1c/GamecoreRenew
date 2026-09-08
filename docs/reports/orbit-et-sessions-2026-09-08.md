@@ -138,8 +138,9 @@ actually asking:
 | `/pergame/{id}/open` | `is_foreground` | it takes the screen slot like a game |
 | `standby` | `is_foreground` | a frozen game is nobody playing; holding the idle clock for it would be a box that never sleeps again |
 | `prefetch` | `is_foreground` | a frozen game reads no disc; waiting on it would silently stop the library filling in |
-| `gamepad_monitor` (player renumbering) | `is_foreground` | a frozen emulator re-reads no input config until it is resumed |
-| `storage_monitor` | `is_running` | a suspended game is still on that disk |
+| `storage_monitor` | residence, via `_resident_games()` | a suspended game is still on that disk, still holding its disc image open |
+| `settings/display.py` | `is_running` | a frozen emulator still owns a swapchain a mode change would invalidate |
+| `gamepad_monitor` (player renumbering) | `is_running` | see §8: renumbering under a frozen game costs the same thing, on resume |
 
 **The pad guard.** `useGamepad` blocks every press while `sessionGameKey` is set.
 That rule is right and stays. The fix was *not* to teach every reader about
@@ -255,15 +256,22 @@ run. Everything was replayed.
    `gamepadView` prop and never looks at the path. It now finds the file by its
    content, and Orbit is in the shipped list. Orbit already passed both
    assertions; the coverage was what was missing.
-3. **29 MB of photographs for 5.1 MB of use.** Ten of the thirteen were already
-   960 px on the long edge; three were 3760–6000 px — four to six times more
-   pixel than this theme can draw, since the largest render is
+3. **29 MB of photographs for 5.1 MB of use.** Eight of the thirteen were
+   already 960 px on their long edge; **five** were not — `ps4` at 6000 px,
+   `n64` and `gamecube` near 3800, and `ps3` (960×1067) and `xbox360`
+   (960×1322), which are 960 px *wide* and taller than the norm. That is four to
+   six times more pixel than this theme can draw, since the largest render is
    `.orbit-feature-art`, capped at 450 px and 40vh (864 px even on a 2160p
-   panel). Those were resampled to the theme's own norm and everything was
-   recompressed. **The ten that were not resampled are pixel-for-pixel
-   identical**, asserted by hashing the decoded image before and after.
-   `source-credits.json` is untouched: resampling a photograph does not change
-   where it came from.
+   panel). All five were resampled and everything was recompressed. **The eight
+   that were not resampled are pixel-for-pixel identical**, asserted by hashing
+   the decoded image before and after.
+
+   > This paragraph said *ten and three* until an independent review recounted
+   > it (§8). The script had always been right — it keys on the long edge — and
+   > the prose was counting width, so the two tall images were described as
+   > untouched while they had in fact been resized. The claim was checkable and
+   > wrong, which is the same fault this report opens by finding in Orbit's own
+   > README. Corrected numbers, and the method, above.
 
 **And the preview is gone.** `lib/local-session.js` was a pure in-memory model
 with `foreground`, `background`, `askClose` and a session object no process ever
@@ -370,6 +378,47 @@ none of it has been seen working.
 ```
 
 ---
+
+## 8. What an independent review found afterwards
+
+The work above was handed to a second reviewer with instructions to treat every
+claim in this report as unproven. It found **seven real defects and one false
+statement in this document**. They are recorded here rather than quietly fixed,
+because the pattern is the point: most of them are places where the code was
+*described* correctly and *written* against a slightly older idea of itself.
+
+| | what was wrong | why it mattered |
+|---|---|---|
+| 1 | `launch()` raises `SessionConflict` for the resident cap, and the router caught only `FileNotFoundError`/`PermissionError` | the refusal left as an unhandled **500**. The player met a crash instead of the sentence naming what to close — a sentence written specifically so they would know. §2.1 claimed this worked at the HTTP level; only the manager had been tested |
+| 2 | double Home fell back to `pm.kill()` when suspending failed | `kill()` with no argument means "the one on the screen, **else the suspended one**", and the way a suspend fails is that the foreground has just exited. The fallback reached past the gap and **destroyed a suspended game the player never pointed at**. Nothing is closed on a failed suspend now |
+| 3 | `adopt_orphan` dropped sessions past `MAX_SESSIONS` | the cap governs how many sessions may be *created*. Applying it to *recovery* threw away the pgid — the only handle that can ever close that process — turning an over-full session file into an emulator holding its memory until reboot |
+| 4 | recovery resolved two recorded foregrounds by writing `state = "background"` and sending no signal | the box reported a freeze it had never performed. The session bar offered to "resume" a game still running at full speed behind the interface. Only a SIGSTOP that landed may be advertised |
+| 5 | the Electron bezel was driven off `game:started` / `game:finished` | `overlay:stop` is what tears the bezel down **and brings `mainWindow` back** — the overlay hides it. A suspend never sent it, so the player was left in front of a frozen bezel with the interface invisible behind it, holding a controller that worked and had nothing to point at. **The worst of the eight, and entirely missed.** The overlay follows the reconciled foreground now (`hooks/useEmulatorOverlay.ts`) |
+| 6 | a theme's `sessionBar` that *throws* removed the bar | §4 claimed a theme "replaces the picture, never the guarantee". Omitting it was covered; crashing was not, and the outcome is identical. Wrapped in an `ErrorBoundary` falling back to the host's own view |
+| 7 | `storage_monitor` asked `current_game`; `settings/display.py` too | both went blind to suspended sessions when `current_game` became foreground-only. A disk pulled from under a frozen game raised no warning, and a display-mode change could invalidate a frozen swapchain. The caller table in §2.3 named `storage_monitor` as already correct — it was not |
+| 8 | this report said **ten** images were untouched | eight. The script keys on the long edge and was right; the prose counted width, so `ps3` (960×1067) and `xbox360` (960×1322) were described as untouched while they had been resized |
+
+Two further hardenings came out of the same pass: `Session.pgid` no longer asks
+`getpgid()` for a pid that may already have been reaped and recycled (the child
+is spawned with `start_new_session=True`, so its pid *is* its group), and
+`foreground()` now guards against a launch in flight and describes a failed
+rollback truthfully instead of claiming the screen was restored.
+
+And one earlier decision was reversed. The roster stops renumbering players
+while a session is merely **suspended**, not only while one is on screen. The
+original reasoning — a frozen emulator re-reads no input config — was true and
+one step short: nothing goes wrong while it is frozen, it goes wrong on
+**resume**, when the emulator comes back holding the binding it read at startup
+and the registry has closed the gap underneath it. That is "the remaining player
+silently becomes somebody else", arriving a few minutes late.
+
+Six of the eight were reproduced as failing tests before being fixed
+(`backend/tests/test_session_audit_findings.py`, plus the crashing-theme case in
+`sessionBar.test.tsx`, the bezel in `emulatorOverlay.test.tsx` and the roster in
+`test_gamepad_monitor.py`). One reviewer suggestion was **not** taken: adding a
+host-drawn management modal and a "Manage suspended sessions" button on top of
+every theme's bar. It would have put hardcoded chrome over Shelf's paper and
+Summer's sea glass, which is the one thing the brief asked not to do.
 
 ## 7. Not done, on purpose
 

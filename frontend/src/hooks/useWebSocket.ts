@@ -132,6 +132,24 @@ export async function syncSession(): Promise<void> {
   } catch { /* the websocket will correct us */ }
 }
 
+/**
+ * Apply a request's own answer, unless an event has said better since.
+ *
+ * Same discipline as `syncSession` above and for the same reason: a reply
+ * describes the box as it was when the request was sent. Suspending answers
+ * with the whole state so the interface can move without waiting for the
+ * socket — but if the socket has spoken in the meantime, the socket is newer.
+ */
+export async function applyIfStillCurrent(
+  request: Promise<SessionState>): Promise<void> {
+  const epoch = sessionEpoch
+  try {
+    const s = await request
+    if (epoch !== sessionEpoch) return
+    applySessionState(s)
+  } catch { /* the websocket will correct us */ }
+}
+
 function connect() {
   if (socket && socket.readyState < 2) return
 
@@ -199,15 +217,23 @@ export function useWebSocket() {
       if (ended !== null && currentSession !== null && ended !== currentSession) return
       writeSession(null, null)
     })
-    // The core's own gesture. It used to mean "the backend killed the game";
-    // it now means "the backend suspended it", and the snapshot that comes
-    // with the matching game:backgrounded is what moves the state. Going home
-    // is still right either way: the player asked to leave the game.
-    const off3 = onWsEvent('gp:guide', () => {
-      if (!useStore.getState().sessionGameKey) { goHome(); return }
-      writeSession(null, null)
-      goHome()
-    })
+    /**
+     * The core's own gesture, and ONLY the gesture.
+     *
+     * It used to mean "the backend killed the game", so clearing the session
+     * here was the state change. It now means "the player pressed Home twice",
+     * and what happened as a result is carried by `game:backgrounded` — which
+     * the backend sends first, on the same socket, with the whole state.
+     *
+     * The two must not both write. The backend has a real outcome where it
+     * suspends nothing (the signal did not land, so the game is still running
+     * fullscreen) and acknowledges the gesture anyway; treating that
+     * acknowledgement as a finish unblocks the pad over a live emulator, which
+     * is the exact fault the session guard exists to prevent.
+     *
+     * Going home is still right either way: the player asked to leave.
+     */
+    const off3 = onWsEvent('gp:guide', () => { goHome() })
     // Suspend and resume. Both carry the whole state after the transition,
     // because a resume moves two slots at once and "run 3 came forward" alone
     // says nothing about what happened to run 2.

@@ -369,10 +369,14 @@ class Session:
             return self.orphan_pgid
         if self.proc is None:
             return 0
-        try:
-            return os.getpgid(self.proc.pid)
-        except OSError:
-            return 0
+        # The child's own pid IS its group: `launch()` spawns with
+        # `start_new_session=True`, which makes it a session and process-group
+        # leader. Asking the kernel again is not merely redundant — after the
+        # watcher has reaped the child the pid is free to be reused, and
+        # `getpgid()` would then answer for an unrelated process. Signalling
+        # SIGKILL at whatever that turns out to be is the kind of bug that is
+        # found once, in production, by something unrelated dying.
+        return self.proc.pid
 
     def alive(self) -> bool:
         if self.orphan_pgid:
@@ -502,9 +506,24 @@ class ProcessManager:
         keep = [s for s in self._sessions if s.alive()]
         if len(keep) == len(self._sessions):
             return False
+        # An adopted session has no watcher — we are not its parent, so nothing
+        # is awaiting it. Removing it from the list fixes what a NEW client is
+        # told, and leaves every client that is already connected showing a
+        # session bar for a game that no longer exists, with a Resume button
+        # that will 409 forever. Its finish has to be broadcast by the only
+        # thing that noticed: this.
+        departed = [s for s in self._sessions if s not in keep and s.orphan_pgid]
         self._sessions = keep
         self._save_state()
         self._publish()
+        for session in departed:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # A synchronous caller with no loop. The reconnect snapshot is
+                # already correct, which is the half that survives a reload.
+                break
+            loop.create_task(self._announce("game:finished", session))
         return True
 
     @property
@@ -678,19 +697,35 @@ class ProcessManager:
         seen_foreground = False
         for s in adopted:
             if len(self._sessions) >= MAX_SESSIONS:
-                log.warning("session file named more sessions than there are "
-                            "slots — ignoring %s", s.game_key or "?")
-                continue
+                # Kept, not dropped. The cap governs how many sessions may be
+                # CREATED; applying it to recovery threw away the pgid, which is
+                # the only handle that can ever close that process — turning an
+                # over-full session file into an emulator holding its memory
+                # until the box was restarted. New launches stay refused, which
+                # is the cap doing its actual job.
+                log.warning("recovering a session beyond the resident cap: %s "
+                            "— launches stay refused until it is closed",
+                            s.game_key or "?")
             if s.state == "background":
                 # It is still frozen: SIGSTOP outlives the backend that sent it.
                 if not s.bg_since:
                     s.bg_since = time.time()
             elif seen_foreground:
-                # Two foregrounds cannot both be true. The later one keeps the
-                # screen; the first is recorded as suspended rather than
-                # dropped, so it stays killable instead of becoming a leak.
-                s.state = "background"
-                s.bg_since = time.time()
+                # Two foregrounds cannot both be true — a crash mid-swap. The
+                # first keeps the screen and the second goes behind it.
+                #
+                # **Signalled, not merely relabelled.** Writing `state =
+                # "background"` on its own is the box reporting a freeze it never
+                # performed: the session bar would offer to "resume" a game that
+                # had never stopped, still running at full speed behind the
+                # interface. Only a SIGSTOP that landed may be advertised.
+                if self._signal(s, signal.SIGSTOP):
+                    s.state = "background"
+                    s.bg_since = time.time()
+                else:
+                    log.error("could not suspend the recovered session %s — it "
+                              "is left as it is rather than described wrongly",
+                              s.game_key or "?")
             else:
                 seen_foreground = True
             self._sessions.append(s)
@@ -859,6 +894,11 @@ class ProcessManager:
         With no number this resumes the most recent suspended session, which is
         what a session bar with one entry on it means.
         """
+        if self._launching:
+            # Same guard as `background()`. A launch in flight is about to claim
+            # the screen, and a resume racing it would put two sessions in front
+            # of the player — the one invariant this file has.
+            raise SessionConflict("A game is still starting")
         if session_id is None:
             s = self.background_session
         else:
@@ -875,12 +915,27 @@ class ProcessManager:
             outgoing.bg_since = time.time()
 
         if not self._signal(s, signal.SIGCONT):
-            # Put the screen back the way it was rather than leaving nothing
-            # in front of the player.
+            # Put the screen back the way it was rather than leaving nothing in
+            # front of the player — and describe truthfully whatever we actually
+            # managed, which is not always the way it was.
             if outgoing is not None:
-                self._signal(outgoing, signal.SIGCONT)
-                outgoing.state = "foreground"
-                outgoing.bg_since = 0.0
+                if self._signal(outgoing, signal.SIGCONT):
+                    outgoing.bg_total += max(0.0, time.time() - outgoing.bg_since)
+                    outgoing.bg_since = 0.0
+                    outgoing.state = "foreground"
+                # If the rollback ALSO failed, the outgoing session is frozen and
+                # nothing is on the screen. That is a worse state than the one we
+                # started in, so it is persisted and announced rather than
+                # swallowed by the exception below: a session bar that knows
+                # about it can still resume or close it, and a silent one leaves
+                # a frozen game nothing can reach.
+                self._save_state()
+                self._publish()
+                await self._announce(
+                    "game:foregrounded" if outgoing.state == "foreground"
+                    else "game:backgrounded", outgoing)
+                if outgoing.state == "background":
+                    await self._raise_interface(outgoing)
             raise SessionConflict("That session could not be resumed")
 
         now = time.time()

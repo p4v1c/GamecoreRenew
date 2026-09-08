@@ -245,16 +245,22 @@ async def _on_guide_pressed() -> None:
             action = "backgrounded"
             log.info("gamepad_monitor: suspended the running session")
         except Exception:
-            # Only reachable if the signal itself failed, which almost always
-            # means the process is already gone. Killing is the last resort and
-            # not the intent: a player must never be trapped inside a game
-            # because the polite way out did not work.
-            log.exception("gamepad_monitor: could not suspend — closing instead")
-            try:
-                await pm.kill()
-                action = "killed"
-            except Exception:
-                log.exception("gamepad_monitor: error killing game")
+            # **Nothing is closed here, and that is the correction.**
+            #
+            # This used to fall back to `pm.kill()`, reasoning that a player must
+            # never be trapped in a game because the polite way out failed. The
+            # reasoning was right and the call was wrong: `kill()` with no
+            # argument means "the one on the screen, else the suspended one",
+            # and the way a suspend fails is that the foreground has *just
+            # exited*. So by the time the fallback ran there was frequently no
+            # foreground left, and it reached past it to destroy a suspended
+            # game the player had never pointed at.
+            #
+            # A failed suspend is not consent to end anything. And the premise
+            # was false anyway: if the signal did not land, the process is gone,
+            # so there is no game left to be trapped in.
+            action = "failed"
+            log.exception("gamepad_monitor: could not suspend — session kept")
 
     try:
         await ws.broadcast("gp:guide", {"action": action})
@@ -408,20 +414,25 @@ def dup_indexes(roster: dict[str, tuple[int, str]]) -> dict[str, int]:
 
 
 def _game_running() -> bool:
-    """True while an emulator is on the screen. Imported late: process_manager
-    pulls in the database and the websocket layer, and this module is imported
-    at startup.
+    """True while a session is RESIDENT — suspended ones included. Imported
+    late: process_manager pulls in the database and the websocket layer, and
+    this module is imported at startup.
 
-    A suspended session counts as NOT running here, and that is the right
-    answer for the one thing this guards: renumbering the players. Slots are
-    renumbered only between games because doing it mid-session silently makes
-    the remaining player somebody else — and a frozen emulator is not reading
-    its input config, so it cannot be surprised by the change. It re-reads
-    nothing until it is resumed, by which time the roster has settled.
+    `is_running` and not `is_foreground`, and the distinction was got wrong once
+    here. The reasoning for the screen was that a frozen emulator re-reads no
+    input config, so renumbering the players under it could not surprise it.
+    True, and one step short: nothing goes wrong *while* it is frozen, it goes
+    wrong on RESUME. The emulator comes back holding the binding it read at
+    startup, the registry has since closed the gap left by a pad that was
+    unplugged, and the surviving player now writes to a slot the game is not
+    listening on — which is precisely "the remaining player silently becomes
+    somebody else", arriving a few minutes late.
+
+    A suspended game is a session in progress. The roster waits for it.
     """
     try:
         from . import process_manager
-        return process_manager.process_manager.is_foreground
+        return process_manager.process_manager.is_running
     except Exception:      # never let a bookkeeping question break reconciliation
         return False
 

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import { useWebSocket, onWsEvent, applySessionState } from './hooks/useWebSocket'
+import { useWebSocket, applyIfStillCurrent } from './hooks/useWebSocket'
 import { useGamepad, onGp } from './hooks/useGamepad'
+import { useEmulatorOverlay } from './hooks/useEmulatorOverlay'
 import { useStore } from './store'
 import { api } from './api'
 
@@ -68,7 +69,6 @@ export default function App() {
   // re-render of the entire shell. Bare, it took one on every field in the
   // store — the library cursor included. See components/shellRerender.test.tsx.
   const goHome = useStore(s => s.goHome)
-  const setSession = useStore(s => s.setSession)
   const sessionGameKey = useStore(s => s.sessionGameKey)
 
   const sessionRef = useRef(sessionGameKey)
@@ -115,23 +115,10 @@ export default function App() {
     return () => clearTimeout(t)
   }, [ready])
 
-  // Emulator overlay: show the bezel when a game starts, hide it when it ends.
-  useEffect(() => {
-    const offStart = onWsEvent('game:started', (d) => {
-      // `game_key` is the ROM filename the launcher recorded, and it is what
-      // picks this game's bezel out of a pack. Passing only system_id gets the
-      // system bezel for every game, which is the feature not existing.
-      const ev = d as { system_id: string; game_key?: string }
-      window.gamecore?.overlayStart(ev.system_id, ev.game_key)
-    })
-    const offDone = onWsEvent('game:finished', (d) => {
-      window.gamecore?.overlayStop((d as { system_id: string }).system_id)
-      setSession(null, null)
-    })
-    // Sync state with Electron events in case WS is slow or missed
-    window.gamecore?.onOverlayHide(() => setSession(null, null))
-    return () => { offStart(); offDone() }
-  }, [setSession])
+  // The bezel, following the session that is actually on screen rather than
+  // raw start/finish events — see hooks/useEmulatorOverlay.ts for why suspending
+  // made the old version leave the interface hidden behind a frozen bezel.
+  useEmulatorOverlay()
 
   /**
    * The one binding no theme may own: leaving a running game.
@@ -153,11 +140,9 @@ export default function App() {
    */
   useEffect(() => onGp('gp:guide', async () => {
     if (!sessionRef.current) { goHome(); return }
-    try {
-      applySessionState(await api.games.background())
-    } catch {
-      // The websocket's game:backgrounded is the other way this arrives.
-    }
+    // The answer moves the interface without waiting for the socket — but only
+    // if the socket has not said better while it was in flight.
+    await applyIfStillCurrent(api.games.background())
     goHome()
   }), [goHome])
 

@@ -22,6 +22,7 @@ import { onGp } from '../hooks/useGamepad'
 import { api } from '../api'
 import { playSound } from '../lib/sounds'
 import { formatGameName } from '../lib/formatGameName'
+import ErrorBoundary from './ErrorBoundary'
 
 export interface SessionBarProps {
   /** Suspended sessions, oldest first. Never empty when this renders. */
@@ -179,6 +180,11 @@ export default function SessionBar({ view }: { view?: ComponentType<SessionBarPr
       ? (s.systemId || s.gameKey)
       : formatGameName(cleanRomName(s.gameKey))
 
+  const viewProps: SessionBarProps = {
+    sessions, focusIdx: Math.min(focusIdx, Math.max(0, sessions.length - 1)),
+    active, busy, title, onFocus: setFocusIdx, onResume: resume, onClose: close,
+  }
+
   return (
     <AnimatePresence>
       {sessions.length > 0 && (
@@ -194,11 +200,17 @@ export default function SessionBar({ view }: { view?: ComponentType<SessionBarPr
           exit={{ y: 90, opacity: 0 }} transition={{ duration: 0.22 }}
           style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 300 }}
         >
-          <View
-            sessions={sessions} focusIdx={Math.min(focusIdx, sessions.length - 1)}
-            active={active} busy={busy} title={title}
-            onFocus={setFocusIdx} onResume={resume} onClose={close}
-          />
+          {/* A theme can lose the bar by CRASHING as surely as by omitting it,
+              and the outcome is identical: a frozen emulator holding gigabytes
+              with nothing on screen able to resume or close it, and the
+              player's only remaining move the power button. Omitting was
+              already covered by the host's default view; this covers throwing.
+
+              The fallback is that same default view, so what the player gets is
+              the wrong colours rather than no way out. */}
+          <ErrorBoundary fallback={<DefaultSessionBarView {...viewProps} />}>
+            <View {...viewProps} />
+          </ErrorBoundary>
         </motion.div>
       )}
     </AnimatePresence>

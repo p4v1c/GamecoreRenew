@@ -130,3 +130,19 @@ describe('who owns the pad', () => {
     expect(screen.getByTestId('active').textContent).toBe('true')
   })
 })
+
+describe('a theme whose bar throws', () => {
+  it('does not take the way back to the suspended game with it', () => {
+    // The guarantee, tested at its weakest point. A theme cannot remove the bar
+    // by OMITTING it — that was already covered — but it could remove it by
+    // CRASHING, which is the same outcome by a route nobody had checked: a
+    // frozen emulator holding gigabytes with nothing on screen able to reach it,
+    // and the player's only remaining move the power button.
+    const Exploding = () => { throw new Error('theme bar blew up') }
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    render(<SessionBar view={Exploding} />)
+    held(SUSPENDED)
+    expect(screen.getByRole('region', { name: /suspended/i })).toBeTruthy()
+    expect(screen.getByText(/close game/i)).toBeTruthy()
+  })
+})
