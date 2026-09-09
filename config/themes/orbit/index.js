@@ -27,7 +27,7 @@ import {createSplash} from './views/splash.js'
  * says a theme draws and does not reimplement.
  */
 export default function createOrbit(sdk) {
-  const {html, useRef} = sdk.ui
+  const {html} = sdk.ui
   const sessions = createSession(sdk)
   const tabs = createTabs(sdk)
 
@@ -46,18 +46,16 @@ export default function createOrbit(sdk) {
     <div className="backdrop" /><div className="shade" /><div className="grain" /></div>`
 
   function Shell() {
-    // One binding for the whole shell: L2 manages whatever is suspended, from
-    // any tab. Registered here rather than per view, so one press is one action.
-    sessions.useSessionShortcut()
-    useRef(null)
+    // L2 and the session menu belong to the host now — one binding for every
+    // theme, and no second panel to collide with it.
     return html`<div className="orbit-app">
       <${sdk.defaults.Shell} background=${Background} topbar=${TopBar}
         homeView=${Home} libraryView=${Library} settings=${Settings}
         powerView=${Power} gamepadView=${Controller}
         homeOmit=${['nav', 'pages', 'confirm']} />
-      <${sessions.Panel} />
     </div>`
   }
 
-  return {shell: Shell, splash: createSplash(sdk), sessionBar: sessions.Bar}
+  return {shell: Shell, splash: createSplash(sdk),
+          sessionBar: sessions.Bar, sessionMenu: sessions.Menu}
 }

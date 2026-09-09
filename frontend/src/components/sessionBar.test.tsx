@@ -66,12 +66,24 @@ describe('the host bar', () => {
     expect(resume).toHaveBeenCalledWith(1)
   })
 
-  it('closes the run it is showing, by number', async () => {
+  it('asks before closing, rather than ending a session on one click', async () => {
+    // This used to end the session outright. Ending one is the only action here
+    // that cannot be undone — an emulator with unsaved progress is gone — and it
+    // should not be one stray click away. The click now opens the same
+    // confirmation the pad gets.
     const kill = vi.spyOn(api.games, 'kill').mockResolvedValue({} as never)
     render(<SessionBar />)
     held(SUSPENDED)
+    await act(async () => { fireEvent.click(screen.getByText(/close game/i)) })
+    expect(kill).not.toHaveBeenCalled()
+    expect(screen.getByText(/anything it has not saved is lost/i)).toBeTruthy()
+
+    // Two buttons say "Close game" now — the bar's, which asks, and the
+    // confirmation's, which does it. The menu is rendered after the bar.
     await act(async () => {
-      fireEvent.click(screen.getByText(/close game/i))
+      const buttons = screen.getAllByRole('button', { name: /close game/i })
+      fireEvent.click(buttons[buttons.length - 1])
+      await Promise.resolve()
     })
     // By number and not bare: a bare kill ends whatever is on the SCREEN, which
     // while an app is running is the app, not the game the player pointed at.
@@ -144,5 +156,68 @@ describe('a theme whose bar throws', () => {
     held(SUSPENDED)
     expect(screen.getByRole('region', { name: /suspended/i })).toBeTruthy()
     expect(screen.getByText(/close game/i)).toBeTruthy()
+  })
+})
+
+describe('using it with a controller', () => {
+  const gp = (name: string) => act(() => { window.dispatchEvent(new CustomEvent(name)) })
+
+  it('does not take ✕ from the screen it is drawn over', () => {
+    // The bar sits on top of a live dashboard, and `HomeScreen` binds ✕ too.
+    // Taking it here meant one press resumed the session AND opened whatever
+    // tile the cursor was on.
+    const resume = vi.spyOn(api.games, 'foreground').mockResolvedValue({} as never)
+    render(<SessionBar />)
+    held(SUSPENDED)
+    gp('gp:confirm')
+    expect(resume).not.toHaveBeenCalled()
+  })
+
+  it('opens on L2, which the host binds to nothing', () => {
+    render(<SessionBar />)
+    held(SUSPENDED)
+    gp('gp:l2')
+    expect(screen.getByText(/keep it running|close game…/i)).toBeTruthy()
+  })
+
+  it('leaves L2 alone when there is nothing suspended', () => {
+    // A theme may use L2 for its own thing — Shelf turns its box with it — so
+    // the press only belongs to the session while there is a session.
+    render(<SessionBar />)
+    gp('gp:l2')
+    expect(screen.queryByText(/keep it running/i)).toBeNull()
+  })
+
+  it('reaches Close with the pad, which a pointer-only button never did', async () => {
+    const kill = vi.spyOn(api.games, 'kill').mockResolvedValue({} as never)
+    render(<SessionBar />)
+    held(SUSPENDED)
+    gp('gp:l2')
+    gp('gp:dpad-down')          // Resume → Close…
+    gp('gp:confirm')            // asks first
+    expect(screen.getByText(/anything it has not saved is lost/i)).toBeTruthy()
+    gp('gp:dpad-down')          // Keep → Close
+    await act(async () => { gp('gp:confirm'); await Promise.resolve() })
+    expect(kill).toHaveBeenCalledWith(1)
+  })
+
+  it('takes the pad away from everything underneath while it is up', () => {
+    render(<SessionBar />)
+    held(SUSPENDED)
+    expect(useStore.getState().modalDepth).toBe(0)
+    gp('gp:l2')
+    expect(useStore.getState().modalDepth).toBe(1)
+    gp('gp:back')
+    expect(useStore.getState().modalDepth).toBe(0)
+  })
+
+  it('backs out of the confirmation without ending anything', () => {
+    const kill = vi.spyOn(api.games, 'kill').mockResolvedValue({} as never)
+    render(<SessionBar />)
+    held(SUSPENDED)
+    gp('gp:l2'); gp('gp:dpad-down'); gp('gp:confirm')
+    gp('gp:back')
+    expect(screen.queryByText(/anything it has not saved is lost/i)).toBeNull()
+    expect(kill).not.toHaveBeenCalled()
   })
 })

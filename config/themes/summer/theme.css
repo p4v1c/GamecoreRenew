@@ -1463,3 +1463,29 @@
   .sm-session { flex-wrap: wrap; gap: 12px; padding: 12px 18px; }
   .sm-session-text { flex-basis: calc(100% - 30px); }
 }
+
+/* The pane the tideline opens — sea glass, held still over moving water. */
+.sm-session-panel{
+  width:min(470px,90vw);padding:32px;border-radius:var(--r-panel);
+  background:var(--glass-900);backdrop-filter:blur(20px) saturate(115%);
+  -webkit-backdrop-filter:blur(20px) saturate(115%);
+  border:1px solid var(--glass-hairline);color:var(--foam-000);font-family:var(--font-body);
+}
+.sm-session-panel-label{display:flex;align-items:center;gap:9px;font-family:var(--font-mono);
+  font-size:10px;letter-spacing:.14em;color:var(--foam-400)}
+.sm-session-panel-label i{font-style:normal;padding-left:9px;border-left:1px solid var(--glass-hairline)}
+.sm-session-panel h2{margin:8px 0 10px;font-size:24px;font-weight:600}
+.sm-session-panel-note{font-size:14px;line-height:1.5;color:var(--foam-400)}
+.sm-session-panel-actions{display:flex;flex-direction:column;gap:10px;margin-top:22px}
+.sm-session-panel-actions .sm-session-btn{justify-content:flex-start;padding:13px 18px;
+  border-radius:14px;width:100%}
+.sm-session-panel-actions .sm-session-btn[data-active='true']{
+  background:rgba(255,253,247,.16);border-color:transparent}
+.sm-session-panel-actions .sm-session-go[data-active='true']{
+  background:var(--accent-mandarin);color:var(--ink-900)}
+.sm-session-panel-actions .sm-session-danger[data-active='true']{
+  background:var(--state-alert);color:var(--ink-900)}
+.sm-session-panel-hints{margin-top:18px;font-family:var(--font-mono);font-size:10px;
+  letter-spacing:.1em;color:var(--foam-400)}
+
+.sm-session-key{font-family:var(--font-mono);font-size:10px;opacity:.5;flex:none}

@@ -1982,3 +1982,27 @@
   .cz-session-body { flex-wrap: wrap; gap: 12px; padding: 11px 18px; }
   .cz-session-title { flex-basis: 100%; order: -1; }
 }
+
+/* The card the ledge opens — same paper, set down on top of the shelf. */
+.cz-session-card{
+  width:min(460px,90vw);padding:30px 32px;border-radius:var(--r-card);
+  background:var(--card);color:var(--ink);font-family:var(--font-body);
+  box-shadow:var(--shadow-box);
+}
+.cz-session-card-rule{height:3px;margin:-30px -32px 22px;border-radius:var(--r-card) var(--r-card) 0 0;
+  background:var(--ink);opacity:.82}
+.cz-session-card-tab{display:flex;align-items:center;gap:10px;font-family:var(--font-mono);
+  font-size:10px;letter-spacing:.16em;color:var(--ink-3);text-transform:uppercase}
+.cz-session-card-tab span{padding-left:10px;border-left:1px solid var(--rule)}
+.cz-session-card h2{margin:6px 0 10px;font-family:var(--font-display);font-size:24px;font-weight:700}
+.cz-session-card-note{font-size:14px;line-height:1.5;color:var(--ink-2)}
+.cz-session-card-actions{display:flex;flex-direction:column;gap:10px;margin-top:22px}
+.cz-session-card-actions .cz-btn{margin-top:0;text-align:left;padding:13px 18px;border-radius:12px;
+  background:var(--paper-sink);color:var(--ink)}
+.cz-session-card-actions .cz-btn[data-active='true']{background:var(--ink);color:var(--paper)}
+.cz-session-card-actions .cz-btn-danger[data-active='true']{background:#8d2b3f;color:var(--paper)}
+.cz-session-card-actions .cz-btn[disabled]{opacity:.5}
+.cz-session-card-hints{margin-top:18px;font-family:var(--font-mono);font-size:10px;
+  letter-spacing:.1em;color:var(--ink-3)}
+
+.cz-session-key{font-family:var(--font-mono);font-size:10px;opacity:.45;flex:none}

@@ -24,6 +24,35 @@ import { playSound } from '../lib/sounds'
 import { formatGameName } from '../lib/formatGameName'
 import ErrorBoundary from './ErrorBoundary'
 
+/** One thing the menu can do, already resolved to a label and a handler. */
+export interface SessionAction {
+  id: 'resume' | 'close' | 'back' | 'keep' | 'confirm-close'
+  label: string
+  /** The one that ends a session. Themes draw it as the dangerous one. */
+  danger?: boolean
+  /** The one a player most likely wants. Themes draw it as the primary one. */
+  primary?: boolean
+  run: () => void
+}
+
+export interface SessionMenuProps {
+  /** The session being managed. */
+  session: BackgroundSession
+  /** Every suspended session, so a theme can show which of them this is. */
+  sessions: BackgroundSession[]
+  index: number
+  /** True once Close has been chosen and is waiting to be confirmed. */
+  confirming: boolean
+  busy: boolean
+  actions: SessionAction[]
+  /** Which action the pad is on. */
+  actionIdx: number
+  title: (s: BackgroundSession) => string
+  /** Mouse affordances; the pad goes through the host's own bindings. */
+  onFocus: (i: number) => void
+  onClose: () => void
+}
+
 export interface SessionBarProps {
   /** Suspended sessions, oldest first. Never empty when this renders. */
   sessions: BackgroundSession[]
@@ -55,6 +84,8 @@ const cleanRomName = (filename: string) =>
  *  calls Stremio a game. */
 export const closeLabel = (s: BackgroundSession) =>
   s.kind === 'app' ? 'Close application' : 'Close game'
+
+export const nounOf = (s: BackgroundSession) => s.kind === 'app' ? 'application' : 'game'
 
 export const resumeLabel = (s: BackgroundSession) =>
   s.kind === 'app' ? 'Back to application' : 'Resume game'
@@ -94,7 +125,7 @@ function DefaultSessionBarView(p: SessionBarProps) {
           background: p.active ? '#7c3aed' : 'rgba(124,58,237,0.35)',
           color: '#fff', fontWeight: 600, fontSize: 14,
         }}
-      >{p.busy ? 'Working…' : resumeLabel(s)} <kbd style={{ opacity: 0.7 }}>✕</kbd></button>
+      >{p.busy ? 'Working…' : resumeLabel(s)}</button>
       <button
         onClick={() => p.onClose(s)} disabled={p.busy}
         style={{
@@ -103,24 +134,65 @@ function DefaultSessionBarView(p: SessionBarProps) {
           background: 'transparent', color: '#fff', fontSize: 14,
         }}
       >{closeLabel(s)}</button>
+      <kbd style={{ opacity: 0.45, fontSize: 11 }}>L2</kbd>
     </div>
   )
 }
 
-export default function SessionBar({ view }: { view?: ComponentType<SessionBarProps> }) {
+function DefaultSessionMenuView(p: SessionMenuProps) {
+  return (
+    <div style={{
+      padding: 30, borderRadius: 18, minWidth: 340, maxWidth: 520,
+      background: '#12121b', border: '1px solid rgba(124,58,237,0.4)',
+      fontFamily: "'Outfit', sans-serif", color: '#fff',
+    }}>
+      <div style={{ fontSize: 10, letterSpacing: 1.6, opacity: 0.55 }}>
+        {p.confirming ? 'END THIS SESSION' : 'SUSPENDED SESSION'}
+        {p.sessions.length > 1 && ` · ${p.index + 1}/${p.sessions.length}`}
+      </div>
+      <h2 style={{ margin: '6px 0 10px', fontSize: 22 }}>{p.title(p.session)}</h2>
+      <p style={{ margin: '0 0 20px', fontSize: 14, opacity: 0.75, lineHeight: 1.5 }}>
+        {p.confirming
+          ? `This ends the ${p.session.kind === 'app' ? 'application' : 'game'}. Anything it has not saved is lost.`
+          : 'Frozen exactly where you left it. No playtime is counting.'}
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {p.actions.map((a, i) => (
+          <button key={a.id} disabled={p.busy} onFocus={() => p.onFocus(i)}
+            onClick={a.run}
+            style={{
+              padding: '13px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
+              textAlign: 'left', fontSize: 15, color: '#fff',
+              background: p.actionIdx === i
+                ? (a.danger ? '#b3324a' : '#7c3aed') : 'rgba(255,255,255,0.07)',
+            }}>{p.busy ? 'Working…' : a.label}</button>
+        ))}
+      </div>
+      <p style={{ marginTop: 18, fontSize: 11, opacity: 0.5 }}>
+        ↑ ↓ Choose · ✕ Confirm · ○ Back
+      </p>
+    </div>
+  )
+}
+
+export default function SessionBar(
+  { view, menuView }: { view?: ComponentType<SessionBarProps>
+                        menuView?: ComponentType<SessionMenuProps> }) {
   const sessions = useStore(s => s.backgroundSessions)
   const foreground = useStore(s => s.sessionGameKey)
   const modalDepth = useStore(s => s.modalDepth)
   const [focusIdx, setFocusIdx] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [menu, setMenu] = useState(false)
+  const [confirming, setConfirming] = useState(false)
 
-  // The bar only takes the pad when nothing is in front of it: no game on the
-  // screen, no modal open. Otherwise ✕ would both confirm here and launch
-  // whatever the cursor is on underneath.
+  // `active` is what a theme draws its cursor from: the bar can be acted on
+  // right now. It does not mean the bar owns any button — it owns none while it
+  // is just a bar, which is the correction. See the L2 effect below.
   const active = sessions.length > 0 && !foreground && modalDepth === 0
 
-  const stateRef = useRef({ sessions, focusIdx, active, busy })
-  stateRef.current = { sessions, focusIdx, active, busy }
+  const stateRef = useRef({ sessions, focusIdx, active, busy, menu, confirming })
+  stateRef.current = { sessions, focusIdx, active, busy, menu, confirming }
 
   useEffect(() => {
     if (focusIdx > sessions.length - 1) setFocusIdx(Math.max(0, sessions.length - 1))
@@ -134,36 +206,122 @@ export default function SessionBar({ view }: { view?: ComponentType<SessionBarPr
   }
 
   const resume = (s: BackgroundSession) => act(() => api.games.foreground(s.session))
-  const close = (s: BackgroundSession) => act(() => api.games.kill(s.session))
+  // A pointer click on Close goes through the same confirmation the pad does:
+  // ending a session is the one action here that cannot be undone, and it
+  // should not be one stray click away.
+  const close = (s: BackgroundSession) => {
+    setFocusIdx(sessions.indexOf(s))
+    setConfirming(true)
+    setActionIdx(0)
+    setMenu(true)
+  }
 
+  /**
+   * L2 opens the menu, and ✕ does NOT act on the bar.
+   *
+   * Both halves of that are corrections. The bar used to take `gp:confirm`
+   * whenever it was on screen — and `HomeScreen` takes it too, so one press
+   * resumed the suspended session *and* opened whatever tile the cursor was on.
+   * A bar drawn over a live screen cannot borrow that screen's buttons.
+   *
+   * And Close was reachable with a pointer and nothing else, which on a console
+   * is not reachable at all: the player could resume a session forever and
+   * never end one. So the actions live in a modal instead. A modal is what
+   * makes them safe — `openModal()` raises `modalDepth`, and every host handler
+   * already stands down on it — and it is also what gives Close somewhere to
+   * ask before doing something that cannot be undone.
+   *
+   * L2 because the host binds nothing to it. A theme may (Shelf turns its box
+   * with it), so it is only taken while something is actually suspended: the
+   * rest of the time the press goes through untouched.
+   */
   useEffect(() => {
-    const offs = [
-      // ✕ resumes. The single most likely thing the player wants from a bar
-      // that exists because they suspended something a moment ago.
-      onGp('gp:confirm', () => {
-        const { sessions: list, focusIdx: i, active: on } = stateRef.current
-        if (!on) return
-        const s = list[i]
-        if (s) { playSound('launch'); resume(s) }
-      }),
-      // L1/R1 walk the list when there is more than one. Not the d-pad: that
-      // belongs to the screen underneath, which is still live.
-      onGp('gp:l1', () => {
-        const { sessions: list, active: on } = stateRef.current
-        if (!on || list.length < 2) return
-        setFocusIdx(i => (i - 1 + list.length) % list.length)
-      }),
-      onGp('gp:r1', () => {
-        const { sessions: list, active: on } = stateRef.current
-        if (!on || list.length < 2) return
-        setFocusIdx(i => (i + 1) % list.length)
-      }),
-    ]
-    return () => offs.forEach(off => off())
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const off = onGp('gp:l2', () => {
+      const s = useStore.getState()
+      if (!s.backgroundSessions.length) return
+      if (stateRef.current.menu) { setMenu(false); return }
+      // Never over a game, a power action, standby, or another modal.
+      if (s.sessionGameKey || s.powerPending || s.standby !== 'off' || s.modalDepth) return
+      setMenu(true)
+    })
+    return off
   }, [])
 
+  // Nothing left to manage — closed from elsewhere, or killed from under us.
+  useEffect(() => {
+    if (!sessions.length && menu) setMenu(false)
+  }, [sessions.length, menu])
+
+  const [actionIdx, setActionIdx] = useState(0)
+  const current = sessions[Math.min(focusIdx, Math.max(0, sessions.length - 1))]
+
+  const actions: SessionAction[] = !current ? []
+    : confirming
+      ? [{ id: 'keep', label: 'Keep it running', primary: true,
+           run: () => { setConfirming(false); setActionIdx(0) } },
+         { id: 'confirm-close', label: `Close ${nounOf(current)}`, danger: true,
+           run: () => act(async () => { await api.games.kill(current.session); setMenu(false) }) }]
+      : [{ id: 'resume', label: resumeLabel(current), primary: true,
+           run: () => act(async () => {
+             playSound('launch'); await api.games.foreground(current.session); setMenu(false) }) },
+         { id: 'close', label: `${closeLabel(current)}…`,
+           run: () => { setConfirming(true); setActionIdx(0) } },
+         { id: 'back', label: 'Back', run: () => setMenu(false) }]
+
+  const menuRef = useRef({ actions, actionIdx, confirming })
+  menuRef.current = { actions, actionIdx, confirming }
+
+  useEffect(() => { setActionIdx(0) }, [confirming, focusIdx])
+  useEffect(() => { if (!menu) setConfirming(false) }, [menu])
+
+  /**
+   * While the menu is up it owns the pad, and it is allowed to because it is a
+   * real modal: `openModal()` raises `modalDepth`, which every host screen
+   * already checks before acting on anything.
+   */
+  useEffect(() => {
+    if (!menu) return
+    const previous = document.activeElement as HTMLElement | null
+    useStore.getState().openModal()
+    const depth = useStore.getState().modalDepth
+    const mine = () => useStore.getState().modalDepth === depth
+    const move = (d: number) => {
+      if (!mine()) return
+      const n = menuRef.current.actions.length
+      if (n) setActionIdx(i => (i + d + n) % n)
+    }
+    const offs = [
+      onGp('gp:dpad-up', () => move(-1)),
+      onGp('gp:dpad-down', () => move(1)),
+      onGp('gp:dpad-left', () => move(-1)),
+      onGp('gp:dpad-right', () => move(1)),
+      onGp('gp:confirm', () => {
+        if (!mine()) return
+        menuRef.current.actions[menuRef.current.actionIdx]?.run()
+      }),
+      onGp('gp:back', () => {
+        if (!mine()) return
+        if (menuRef.current.confirming) { setConfirming(false); setActionIdx(0) }
+        else setMenu(false)
+      }),
+      // More than one suspended session: L1/R1 walk between them, which is
+      // where that gesture belonged all along — on the bar it competed with a
+      // live screen's own page turns.
+      onGp('gp:l1', () => { if (mine()) setFocusIdx(i => (i - 1 + sessions.length) % sessions.length) }),
+      onGp('gp:r1', () => { if (mine()) setFocusIdx(i => (i + 1) % sessions.length) }),
+    ]
+    return () => {
+      offs.forEach(off => off())
+      useStore.getState().closeModal()
+      // Focus goes back where it was, or the player lands at the top of the
+      // document with a cursor they did not move.
+      if (previous?.isConnected) previous.focus({ preventScroll: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menu, sessions.length])
+
   const View = view ?? DefaultSessionBarView
+  const MenuView = menuView ?? DefaultSessionMenuView
   /**
    * What the player is shown, from what the box keys the session by.
    *
@@ -179,6 +337,12 @@ export default function SessionBar({ view }: { view?: ComponentType<SessionBarPr
     s.kind === 'app'
       ? (s.systemId || s.gameKey)
       : formatGameName(cleanRomName(s.gameKey))
+
+  const menuProps: SessionMenuProps = {
+    session: current!, sessions, index: Math.min(focusIdx, Math.max(0, sessions.length - 1)),
+    confirming, busy, actions, actionIdx, title,
+    onFocus: setActionIdx, onClose: () => setMenu(false),
+  }
 
   const viewProps: SessionBarProps = {
     sessions, focusIdx: Math.min(focusIdx, Math.max(0, sessions.length - 1)),
@@ -210,6 +374,19 @@ export default function SessionBar({ view }: { view?: ComponentType<SessionBarPr
               the wrong colours rather than no way out. */}
           <ErrorBoundary fallback={<DefaultSessionBarView {...viewProps} />}>
             <View {...viewProps} />
+          </ErrorBoundary>
+        </motion.div>
+      )}
+      {menu && current && (
+        <motion.div key="session-menu"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 700, display: 'grid',
+            placeItems: 'center', background: 'rgba(4,7,14,0.72)',
+          }}>
+          <ErrorBoundary fallback={<DefaultSessionMenuView {...menuProps} />}>
+            <MenuView {...menuProps} />
           </ErrorBoundary>
         </motion.div>
       )}

@@ -156,7 +156,7 @@ export default function App() {
           the core too — a theme that simply forgot to draw a session bar would
           otherwise leave a frozen emulator holding gigabytes of RAM with
           nothing on screen able to resume or close it. */}
-      <SessionBar view={theme.sessionBar} />
+      <SessionBar view={theme.sessionBar} menuView={theme.sessionMenu} />
 
       {/* Above the shell, and outside it. A theme draws its own boot animation
           but cannot remove it, and cannot decide when booting ends: onDone is

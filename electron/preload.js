@@ -31,6 +31,16 @@ contextBridge.exposeInMainWorld('gamecore', {
     ipcRenderer.send('overlay:start', { system_id, game_key }),
   overlayStop:  (system_id) => ipcRenderer.send('overlay:stop',  { system_id }),
 
+  /**
+   * Whether a session owns the screen. Told from the same value the input
+   * guard reads, so the window and the pad can never disagree.
+   *
+   * Not part of the overlay: a system with no bezel gets no overlay at all,
+   * and that is exactly the case where a resumed game stayed behind the
+   * interface — nothing had hidden it.
+   */
+  sessionScreen: (owned) => ipcRenderer.send('shell:session-screen', { owned: !!owned }),
+
   // Alert HUD — shown over fullscreen games where the UI is hidden
   batteryToast:    (data) => ipcRenderer.send('notify:battery', data),
   controllerToast: (data) => ipcRenderer.send('notify:controller', data),

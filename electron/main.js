@@ -552,7 +552,10 @@ function handleMonitorEvent(msg) {
       destroyOverlayWindow()
       overlayWatching = null
       if (mainWindow) {
-        mainWindow.show()
+        // The bezel's window went away. That is not the same thing as the
+        // session ending — a suspended game keeps its window — so the
+        // interface only comes back if nothing is holding the screen.
+        if (!sessionOwnsScreen) mainWindow.show()
         mainWindow.webContents.send('overlay:hide', msg)
       }
       break
@@ -611,6 +614,25 @@ let overlayChoice = null
  */
 let overlayRun = 0
 let overlayWatching = null
+
+/**
+ * A session owns the screen right now, so the interface must stay out of it.
+ *
+ * Set by the renderer from the SAME value the input guard reads, and it is what
+ * makes resuming a suspended game work at all. The interface used to be hidden
+ * by the bezel monitor's `window:ready` — but `overlay:start` returns early for
+ * a system with no overlay config, which is most of them, so nothing hid it.
+ *
+ * On a first launch that never showed: the emulator maps a fresh fullscreen
+ * window, which takes the screen by itself. On a RESUME there is no new window
+ * — SIGCONT wakes a process whose window is already mapped, and already
+ * underneath GameCore. The game came back and stayed behind the interface.
+ *
+ * Every `mainWindow.show()` in this file now asks this first, because the
+ * overlay path and the session path both reach for the same window and used to
+ * be able to contradict each other one message apart.
+ */
+let sessionOwnsScreen = false
 let overlayResolveAbort = null
 
 // The backend measures the hole out of the PNG's own alpha channel, so the
@@ -671,6 +693,29 @@ ipcMain.on('overlay:start', async (_, { system_id, game_key }) => {
   try { monitorProcess?.stdin.write(cmd) } catch { /* monitor not ready yet */ }
 })
 
+/**
+ * Who has the screen: the session, or the interface.
+ *
+ * Independent of bezels on purpose. `overlay:start` needs an overlay config and
+ * returns early without one, so tying the interface's visibility to it left
+ * every system with no bezel — most of them — with a resumed game behind the
+ * dashboard.
+ *
+ * `show()` is followed by `focus()`: on X11 a window that is mapped but not
+ * focused still leaves the pad pointing at whatever had focus before, which is
+ * the emulator that was just suspended.
+ */
+ipcMain.on('shell:session-screen', (_, { owned }) => {
+  sessionOwnsScreen = !!owned
+  if (!mainWindow) return
+  if (sessionOwnsScreen) {
+    if (mainWindow.isVisible()) mainWindow.hide()
+  } else if (!mainWindow.isVisible()) {
+    mainWindow.show()
+    mainWindow.focus()
+  }
+})
+
 ipcMain.on('overlay:stop', (_, { system_id }) => {
   // Tear the overlay down and bring the UI back FIRST, before anything that
   // depends on the monitor still being alive. This used to `return` when
@@ -678,7 +723,7 @@ ipcMain.on('overlay:stop', (_, { system_id }) => {
   // mainWindow, so the bezel stayed on screen with the interface invisible
   // behind it and no way to get back to it.
   destroyOverlayWindow()
-  if (mainWindow) mainWindow.show()
+  if (mainWindow && !sessionOwnsScreen) mainWindow.show()
   // Cleared here rather than on the next start: a stale choice surviving a
   // failed launch is the previous game's bezel drawn over the new one.
   overlayChoice = null

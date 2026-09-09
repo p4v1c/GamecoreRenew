@@ -39,12 +39,47 @@ export const createSessionBar = (sdk) => {
         <div class="sm-session-acts">
           <button class="sm-session-btn sm-session-go" disabled=${busy}
                   onClick=${() => onResume(s)}>
-            ${busy ? 'One moment…' : 'Dive back in'}<kbd>✕</kbd>
-          </button>
+            ${busy ? 'One moment…' : 'Dive back in'}</button>
           <button class="sm-session-btn" disabled=${busy} onClick=${() => onClose(s)}>
             Let ${app ? 'the app' : 'it'} go
           </button>
+          <kbd class="sm-session-key">L2</kbd>
         </div>
       </aside>`
   }
+}
+
+/**
+ * The menu the tideline opens, on L2.
+ *
+ * The bar alone could only be used with a pointer: ✕ belongs to the screen
+ * underneath, so Resume had no key and Close had no route. The host opens this
+ * instead — a real modal, so everything else stands down — and Summer draws it
+ * as another pane of sea glass, held still over the water.
+ */
+export const createSessionMenu = (sdk) => {
+  const { html } = sdk.ui
+
+  return ({ session, sessions, index, confirming, busy, actions, actionIdx, title }) => html`
+    <section class="sm-session-panel" role="dialog" aria-modal="true">
+      <p class="sm-session-panel-label">
+        ${confirming ? 'LETTING IT GO' : 'ON HOLD'}
+        ${sessions.length > 1 ? html`<i>${index + 1}/${sessions.length}</i>` : null}
+      </p>
+      <h2>${title(session)}</h2>
+      <p class="sm-session-panel-note">
+        ${confirming
+          ? `This ends the ${session.kind === 'app' ? 'app' : 'game'}. Anything it has not saved goes with it.`
+          : 'Held exactly where you left it. Nothing is running, and no time is counting.'}
+      </p>
+      <div class="sm-session-panel-actions">
+        ${actions.map((action, i) => html`
+          <button key=${action.id} disabled=${busy}
+                  class=${`sm-session-btn ${action.primary ? 'sm-session-go' : ''} ${action.danger ? 'sm-session-danger' : ''}`}
+                  data-active=${actionIdx === i ? 'true' : 'false'}
+                  onClick=${action.run}>${busy ? 'One moment…' : action.label}</button>`)}
+      </div>
+      <p class="sm-session-panel-hints">↑ ↓ Choose · ✕ Confirm · ○ Back${
+        sessions.length > 1 ? ' · L1 R1 Session' : ''}</p>
+    </section>`
 }

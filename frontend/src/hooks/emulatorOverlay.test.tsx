@@ -19,11 +19,13 @@ const Host = () => { useEmulatorOverlay(); return null }
 
 let start: ReturnType<typeof vi.fn>
 let stop: ReturnType<typeof vi.fn>
+let screenClaim: ReturnType<typeof vi.fn>
 
 function mount() {
-  start = vi.fn(); stop = vi.fn()
+  start = vi.fn(); stop = vi.fn(); screenClaim = vi.fn()
   ;(window as unknown as { gamecore: unknown }).gamecore = {
     overlayStart: start, overlayStop: stop, onOverlayHide: vi.fn(),
+    sessionScreen: screenClaim,
   }
   render(<Host />)
 }
@@ -83,5 +85,45 @@ describe('the bezel follows the session on the screen', () => {
     stop.mockClear()
     setState({ backgroundSessions: [] })
     expect(stop).not.toHaveBeenCalled()
+  })
+})
+
+describe('who owns the screen', () => {
+  it('tells the shell to get out of the way when a game is on screen', () => {
+    mount()
+    setState({ sessionGameKey: 'Zelda.iso', sessionSystemId: 'dolphin' })
+    expect(screenClaim).toHaveBeenCalledWith(true)
+  })
+
+  it('gives the screen back when the game is suspended', () => {
+    mount()
+    setState({ sessionGameKey: 'Zelda.iso', sessionSystemId: 'dolphin' })
+    screenClaim.mockClear()
+    setState({ sessionGameKey: null, sessionSystemId: null,
+               backgroundSessions: [HELD] })
+    expect(screenClaim).toHaveBeenCalledWith(false)
+  })
+
+  it('claims it again on resume — which is the case the bezel never covered', () => {
+    // A resumed emulator maps no new window: SIGCONT wakes a process whose
+    // window is already there, and already under the interface. If nothing
+    // hides GameCore the game comes back invisible, which is what a system
+    // with no overlay config did on every resume.
+    mount()
+    setState({ sessionGameKey: null, sessionSystemId: null,
+               backgroundSessions: [HELD] })
+    screenClaim.mockClear()
+    setState({ sessionGameKey: 'Zelda.iso', sessionSystemId: 'dolphin',
+               backgroundSessions: [] })
+    expect(screenClaim).toHaveBeenCalledWith(true)
+  })
+
+  it('says it once per change, not once per store write', () => {
+    mount()
+    setState({ sessionGameKey: 'Zelda.iso', sessionSystemId: 'dolphin' })
+    screenClaim.mockClear()
+    setState({ backgroundSessions: [HELD] })
+    setState({ modalDepth: 1 })
+    expect(screenClaim).not.toHaveBeenCalled()
   })
 })

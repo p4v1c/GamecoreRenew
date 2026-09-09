@@ -35,8 +35,8 @@ export type SurfaceName = 'splash' | 'shell'
  * nothing on screen able to resume or close it. So the host always draws one,
  * and a theme exporting this replaces the picture rather than the guarantee.
  */
-export type OptionalSurfaceName = 'sessionBar'
-export const OPTIONAL_SURFACES: OptionalSurfaceName[] = ['sessionBar']
+export type OptionalSurfaceName = 'sessionBar' | 'sessionMenu'
+export const OPTIONAL_SURFACES: OptionalSurfaceName[] = ['sessionBar', 'sessionMenu']
 
 export const SURFACES: SurfaceName[] = ['splash', 'shell']
 

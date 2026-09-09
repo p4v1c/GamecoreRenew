@@ -129,6 +129,7 @@ And **may** provide this one, which is the only optional surface:
 | Surface | What it is | If you leave it out |
 |---|---|---|
 | `sessionBar` | the bar over a suspended game or application (SDK 5, §5f) | the host draws its own |
+| `sessionMenu` | the panel that bar opens on **L2** (SDK 5, §5f) | the host draws its own |
 
 `sessionBar` is not listed in `provides` and does not take part in the
 all-or-nothing rule, because the host has a working one behind it. That is not
@@ -486,8 +487,35 @@ and that identity is the only thing telling the two apart once the session
 exists; a bar offering to close a "game" the player never started is the
 interface talking about something that does not exist.
 
-The host keeps the bindings — ✕ resumes, L1/R1 walk the list — so the gesture
-does not change with the theme, and it takes them only while `active`.
+**The bar takes no buttons at all.** It is drawn over a live screen, and that
+screen's ✕ belongs to that screen: an earlier version borrowed it, so one press
+resumed the session *and* opened whatever tile the cursor was on. The bar is a
+picture and a pointer affordance; the keys live in the menu.
+
+### The menu — `sessionMenu`
+
+**L2 opens it**, and it is a real modal: `openModal()` raises `modalDepth`, so
+every host screen stands down and the pad is unambiguously the menu's. That is
+also what gives Close somewhere to ask first.
+
+L2 rather than ✕ because the host binds nothing to it — and it is taken *only
+while something is suspended*, so a theme that uses L2 for its own thing (Shelf
+turns its box with it) keeps it the rest of the time.
+
+```js
+const SessionMenu = ({ session, sessions, index, confirming, busy,
+                       actions, actionIdx, title }) => …
+return { splash, shell, sessionBar, sessionMenu: SessionMenu }
+```
+
+`actions` arrives already resolved — `{ id, label, danger?, primary?, run }` —
+and `actionIdx` says which one the pad is on. Draw them and call `run` on click;
+**do not bind ✕ or the d-pad yourself**, the host is already holding them.
+`confirming` is true once Close has been chosen and is waiting to be confirmed.
+
+Without this, closing a session was reachable with a pointer and nothing else,
+which on a console is not reachable at all: a player could resume a session for
+ever and never end one.
 
 **You do not position this.** The host supplies the layer, fixed to the bottom
 with the z-index you are not allowed to write (§6), and your markup draws

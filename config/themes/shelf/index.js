@@ -51,7 +51,7 @@ import { createBox } from './views/box.js'
 import { createCartridge } from './views/cartridge.js'
 import { createSplash } from './views/splash.js'
 import { createGamepadView } from './views/gamepad.js'
-import { createSessionBar } from './views/session.js'
+import { createSessionBar, createSessionMenu } from './views/session.js'
 
 /**
  * R2 turns the box on this shelf — `lib/browse.js` binds it and the library's
@@ -110,5 +110,6 @@ export default (sdk) => {
   // `sessionBar` is optional: the host draws its own if a theme omits one, so
   // the way back to a suspended game can never be lost to a theme. Shelf draws
   // it as the ledge under the shelf — see views/session.js.
-  return { splash: createSplash(sdk), shell: Shell, sessionBar: createSessionBar(sdk) }
+  return { splash: createSplash(sdk), shell: Shell,
+           sessionBar: createSessionBar(sdk), sessionMenu: createSessionMenu(sdk) }
 }

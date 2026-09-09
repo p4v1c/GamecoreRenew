@@ -45,13 +45,51 @@ export const createSessionBar = (sdk) => {
           <div class="cz-session-acts">
             <button class="cz-btn cz-btn-primary" disabled=${busy}
                     onClick=${() => onResume(s)}>
-              ${busy ? 'One moment…' : 'Pick it back up'}<kbd>✕</kbd>
-            </button>
+              ${busy ? 'One moment…' : 'Pick it back up'}</button>
             <button class="cz-btn" disabled=${busy} onClick=${() => onClose(s)}>
               Put the ${noun} away
             </button>
+            <kbd class="cz-session-key">L2</kbd>
           </div>
         </div>
       </aside>`
   }
+}
+
+/**
+ * The menu the ledge opens, on L2.
+ *
+ * The bar alone was usable with a pointer and nothing else: ✕ could not be
+ * borrowed from the shelf underneath, so Resume had no key and Close had no
+ * route at all. The host opens this instead — a real modal, so the shelf stands
+ * down — and Shelf draws it as a card set down on the paper.
+ *
+ * Navigation, the modal lock and the actions are the host's. This file draws.
+ */
+export const createSessionMenu = (sdk) => {
+  const { html } = sdk.ui
+
+  return ({ session, sessions, index, confirming, busy, actions, actionIdx, title }) => html`
+    <section class="cz-session-card" role="dialog" aria-modal="true">
+      <div class="cz-session-card-rule" aria-hidden="true"></div>
+      <p class="cz-session-card-tab">
+        ${confirming ? 'PUTTING IT AWAY' : 'ON THE LEDGE'}
+        ${sessions.length > 1 ? html`<span>${index + 1} / ${sessions.length}</span>` : null}
+      </p>
+      <h2>${title(session)}</h2>
+      <p class="cz-session-card-note">
+        ${confirming
+          ? `Putting the ${session.kind === 'app' ? 'application' : 'game'} away ends it. Anything it has not saved is lost.`
+          : 'Still open, exactly where you left it. Nothing is running.'}
+      </p>
+      <div class="cz-session-card-actions">
+        ${actions.map((action, i) => html`
+          <button key=${action.id} disabled=${busy}
+                  class=${`cz-btn ${action.primary ? 'cz-btn-primary' : ''} ${action.danger ? 'cz-btn-danger' : ''}`}
+                  data-active=${actionIdx === i ? 'true' : 'false'}
+                  onClick=${action.run}>${busy ? 'One moment…' : action.label}</button>`)}
+      </div>
+      <p class="cz-session-card-hints">↑ ↓ Choose · ✕ Confirm · ○ Back${
+        sessions.length > 1 ? ' · L1 R1 Session' : ''}</p>
+    </section>`
 }
