@@ -4,6 +4,7 @@ import {
   isApp, systemName, systemMark, accent,
   isFavourite, onFavouritesChange, favouriteCount,
 } from '../lib/catalog.js'
+import {createJacket} from '../lib/jacket.js'
 
 const HEART = '<path d="M20.8 4.9a5.5 5.5 0 0 0-7.8 0L12 6l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.3a5.5 5.5 0 0 0 0-7.8Z"/>'
 const SEARCH = '<circle cx="10.7" cy="10.7" r="6.7"/><path d="m16 16 4.5 4.5"/>'
@@ -22,17 +23,19 @@ const reveal = (el, opts) => {
 export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
   const {html, useState, useEffect, useRef, useMemo} = sdk.ui
   const Details = createDetails(sdk)
+  const Jacket = createJacket(sdk)
   const useNavigation = createNavigation(sdk)
   const svg = (d) => html`<svg viewBox="0 0 24 24" aria-hidden="true"
     dangerouslySetInnerHTML=${{__html: d}} />`
 
   function GameCard({systemId, filename, title, favourite, held, onOpen, active,
-                     refFn, onSelect, CoverArt, color}) {
+                     refFn, onSelect}) {
     return html`<button className=${`library-card ${active ? 'selected' : ''}`} ref=${refFn}
       data-active=${active ? 'true' : 'false'} aria-current=${active ? 'true' : undefined}
       onFocus=${onSelect} onClick=${onOpen}>
       <span className="library-cover">
-        <${CoverArt} systemId=${systemId} filename=${filename} color=${color} />
+        <${Jacket} key=${`${systemId}:${filename}`} className="library-jacket"
+          systemId=${systemId} filename=${filename} title=${title} />
         ${favourite ? html`<span className="cover-heart" aria-label="Favourite">${svg(HEART)}</span>` : null}
         ${held ? html`<span className="session-badge">IN BACKGROUND</span>` : null}
       </span>
@@ -43,7 +46,7 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
   return function Library(props) {
     const {systemId, system, games, totalCount, selectedIdx, detailGame, sort, sortKeys,
       sortLabels, search, loading, loadError, launching, onSelect, onSearch, onLaunch,
-      onBack, onRetry, onSort, onOpenSearch, onOpenOptions, Cover: CoverArt, color} = props
+      onBack, onRetry, onSort, onOpenSearch, onOpenOptions} = props
     const [favouritesOnly, setFavouritesOnly] = useState(false)
     const [, bump] = useState(0)
     const grid = useRef(null)
@@ -162,7 +165,6 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
         : html`<div className="library-grid" ref=${grid}>
             ${shown.map((game) => html`<${GameCard} key=${identity(game)}
               systemId=${source(game)} filename=${game.filename} title=${title(game)}
-              CoverArt=${CoverArt} color=${color}
               favourite=${isFavourite(source(game), game.filename)}
               held=${!!sessions.heldMatch(background, game.filename, source(game))}
               active=${identity(game) === selectedFile}

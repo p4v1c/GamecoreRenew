@@ -46,12 +46,13 @@ const SLOW = 30_000
 /** A fresh module graph: the cache these tests are about is module state. */
 async function loadOrbit() {
   vi.resetModules()
-  const [cache, physical, backdrop] = await Promise.all([
+  const [cache, physical, backdrop, jacket] = await Promise.all([
     import(/* @vite-ignore */ `${THEME}/lib/media-cache.js`),
     import(/* @vite-ignore */ `${THEME}/lib/physical-media.js`),
     import(/* @vite-ignore */ `${THEME}/lib/backdrop.js`),
+    import(/* @vite-ignore */ `${THEME}/lib/jacket.js`),
   ])
-  return { ...cache, ...physical, ...backdrop }
+  return { ...cache, ...physical, ...backdrop, ...jacket }
 }
 
 /** The same `ui` surface `buildSdk` hands a theme — the theme renders with it. */
@@ -78,7 +79,61 @@ const withArt = (...types: string[]) => ({
   media: Object.fromEntries(types.map(t => [t, { kind: 'image' }])),
 })
 
+const loadsAs = async (img: HTMLImageElement, width: number, height: number) => {
+  Object.defineProperty(img, 'naturalWidth', { configurable: true, get: () => width })
+  Object.defineProperty(img, 'naturalHeight', { configurable: true, get: () => height })
+  await act(async () => { img.dispatchEvent(new Event('load')) })
+}
+
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
+
+describe('Orbit jackets', () => {
+  it('replaces FIFA 19\'s wide scraper banner with its real box front', async () => {
+    const list = vi.fn().mockResolvedValue(withArt('box-front'))
+    const { createJacket } = await loadOrbit()
+    const Jacket = createJacket(fakeSdk(list))
+    const r = render(createElement(Jacket, {
+      systemId: 'rpcs3', filename: 'FIFA 19.iso', title: 'FIFA 19',
+    }))
+
+    const banner = r.container.querySelector('img') as HTMLImageElement
+    expect(banner.getAttribute('src')).toBe('/api/covers/rpcs3/FIFA%2019.iso')
+    await loadsAs(banner, 320, 176)
+
+    await waitFor(() => expect(r.container.querySelector('img')?.getAttribute('src'))
+      .toContain('/media/box-front'))
+    const front = r.container.querySelector('img') as HTMLImageElement
+    await loadsAs(front, 581, 680)
+    expect(r.container.querySelector('.orbit-jacket')?.getAttribute('data-source')).toBe('scraped')
+    expect(list).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a legitimate landscape box and records its real shape', async () => {
+    const list = vi.fn()
+    const { createJacket } = await loadOrbit()
+    const Jacket = createJacket(fakeSdk(list))
+    const r = render(createElement(Jacket, {
+      systemId: 'gopher64', filename: 'F-Zero X.z64', title: 'F-Zero X',
+    }))
+
+    await loadsAs(r.container.querySelector('img') as HTMLImageElement, 680, 480)
+    const jacket = r.container.querySelector('.orbit-jacket') as HTMLElement
+    expect(Number(jacket.style.getPropertyValue('--jacket-ratio'))).toBeCloseTo(680 / 480)
+    expect(list).not.toHaveBeenCalled()
+  })
+
+  it('shows a clean title fallback when neither source is a jacket', async () => {
+    const list = vi.fn().mockResolvedValue(withArt())
+    const { createJacket } = await loadOrbit()
+    const Jacket = createJacket(fakeSdk(list))
+    const r = render(createElement(Jacket, {
+      systemId: 'rpcs3', filename: 'Bad.iso', title: 'Bad Art',
+    }))
+
+    await loadsAs(r.container.querySelector('img') as HTMLImageElement, 1920, 320)
+    await waitFor(() => expect(r.container.querySelector('.art-fallback')?.textContent).toBe('BA'))
+  })
+})
 
 // ── the request budget, on a library the size of a real one ──────────────────
 
@@ -133,7 +188,7 @@ describe('a library of two hundred games', () => {
     // Plain jackets use the cover endpoint directly; none asks the richer
     // media-index tier merely to appear in the grid.
     expect(mediaCalls.length).toBeLessThanOrEqual(1)
-    expect(r.container.querySelectorAll('.library-grid .library-cover > img').length).toBe(220)
+    expect(r.container.querySelectorAll('.library-grid .library-jacket > img').length).toBe(220)
     expect(r.container.querySelector('.library-grid .orbit-disc')).toBeNull()
   }, SLOW)
 

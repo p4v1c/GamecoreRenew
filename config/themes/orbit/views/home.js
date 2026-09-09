@@ -1,9 +1,10 @@
 import {createDetails} from './details.js'
 import {
   isApp, systemName, systemMark, systemMaker, systemYear, systemStory,
-  appStyle, accent, packLogo, consoleArt, coverUrl,
+  appStyle, accent, packLogo, consoleArt,
   isFavourite, toggleFavourite, onFavouritesChange, titleFromKey,
 } from '../lib/catalog.js'
+import {createJacket} from '../lib/jacket.js'
 
 const ICON = {
   play: '<path d="m7 4 14 8-14 8z"/>',
@@ -24,6 +25,7 @@ const reveal = (el, opts) => {
 export function createHome(sdk, tabs, sessions, systemsRef, backdrop, footer) {
   const {html, useState, useEffect, useRef, useMemo} = sdk.ui
   const Details = createDetails(sdk)
+  const Jacket = createJacket(sdk)
   const svg = (name) => html`<svg viewBox="0 0 24 24" aria-hidden="true"
     dangerouslySetInnerHTML=${{__html: ICON[name]}} />`
 
@@ -177,9 +179,8 @@ export function createHome(sdk, tabs, sessions, systemsRef, backdrop, footer) {
           return html`<button key=${it.key} className=${`game-tile home-game-tile ${on ? 'selected' : ''}`}
             data-active=${on ? 'true' : 'false'} aria-pressed=${String(on)}
             aria-label=${`Select ${it.title}`} onFocus=${() => setIdx(i)} onClick=${() => setIdx(i)}>
-            <span className="tile-art"><span className="home-game-cover">
-              <${Art} src=${coverUrl(it.systemId, it.gameKey)} alt=${it.title} />
-            </span>
+            <span className="tile-art"><${Jacket} key=${it.key} className="home-game-cover"
+              systemId=${it.systemId} filename=${it.gameKey} title=${it.title} />
               ${sessions.heldMatch(background, it.gameKey, it.systemId)
                 ? html`<span className="session-badge">IN BACKGROUND</span>` : null}</span>
             <span className="tile-label">${it.title}</span></button>`

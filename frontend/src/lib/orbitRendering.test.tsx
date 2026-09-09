@@ -98,7 +98,7 @@ it('fills the library with full 2:3 jackets', async () => {
   const r = await mountOrbit()
   await act(async () => { fireEvent.click(r.getByText('Library', { selector: '.nav-item' })) })
   await waitFor(() => expect(r.container.querySelectorAll('.library-card')).toHaveLength(2))
-  expect(r.container.querySelectorAll('.library-cover > img')).toHaveLength(2)
+  expect(r.container.querySelectorAll('.library-jacket > img')).toHaveLength(2)
   expect(r.container.querySelector('.library-grid .orbit-physical')).toBeNull()
 })
 

@@ -270,12 +270,12 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
   background: linear-gradient(145deg, #2b405dba, #101a2a);
 }
 .orbit-app .home-game-cover {
-  display: block; width: 58%; height: 78%; overflow: hidden;
+  display: block; width: 58%; max-height: 78%; aspect-ratio: var(--jacket-ratio, 2 / 3); overflow: hidden;
   border: 1px solid #e3f0ff52; border-radius: 5px;
   box-shadow: 0 8px 18px #0009, 0 0 24px #a8ceff16;
   transition: transform .3s, box-shadow .3s;
 }
-.orbit-app .home-game-cover img {
+.orbit-app .orbit-jacket img {
   display: block; width: 100%; height: 100%; object-fit: cover;
   object-position: center; transform: none;
 }
@@ -288,15 +288,21 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
   box-shadow: 0 10px 22px #000a, 0 0 28px #b9dcff2e;
 }
 
-/* The library is the jacket wall: full artwork at its real 2:3 case ratio,
+/* The library is the jacket wall: every scan keeps its measured box ratio,
    large enough to read from the sofa and never cropped into a disc or card. */
 .orbit-app .library-grid {
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: 30px 26px;
 }
-.orbit-app .library-cover { display: block; aspect-ratio: 2 / 3; }
-.orbit-app .library-cover > img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.orbit-app .library-cover > div { width: 100%; height: 100%; justify-content: center; }
+.orbit-app .library-cover { display: block; aspect-ratio: auto; overflow: visible; background: none; border: 0; }
+.orbit-app .library-jacket {
+  position: relative; display: block; width: 100%; aspect-ratio: var(--jacket-ratio, 2 / 3);
+  overflow: hidden; border-radius: 9px; background: linear-gradient(125deg,#2b405d,#121c2c);
+  border: 1px solid #d9e8ff24;
+}
+.orbit-app .library-jacket > .art-fallback { width: 100%; height: 100%; justify-content: center; }
+.orbit-app .library-card.selected .library-cover { outline: 0; }
+.orbit-app .library-card.selected .library-jacket { outline: 2px solid #e3f2ff; outline-offset: 5px; }
 
 .orbit-app .orbit-backdrop-crossfade { overflow: hidden; }
 .orbit-app .orbit-backdrop-layer {
