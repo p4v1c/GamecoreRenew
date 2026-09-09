@@ -67,6 +67,17 @@ export interface SessionBarProps {
   onFocus: (i: number) => void
   onResume: (s: BackgroundSession) => void
   onClose: (s: BackgroundSession) => void
+  /**
+   * Open the menu — the same thing L2 does, for a theme that would rather
+   * offer one button than repeat the menu's own choices on the bar.
+   *
+   * Orbit drew Resume and "Close game" side by side, which is the menu's first
+   * two options spelled out a second time, in a place where neither could be
+   * reached with a pad. One button that opens the menu is the honest version:
+   * every action lives in one place, and that place is the one the pad can
+   * drive.
+   */
+  onManage: () => void
 }
 
 /**
@@ -206,6 +217,16 @@ export default function SessionBar(
   }
 
   const resume = (s: BackgroundSession) => act(() => api.games.foreground(s.session))
+
+  /** The pointer's way to the menu, guarded exactly as the L2 binding is. */
+  const manage = () => {
+    const s = useStore.getState()
+    if (!s.backgroundSessions.length) return
+    if (s.sessionGameKey || s.powerPending || s.standby !== 'off' || s.modalDepth) return
+    setConfirming(false)
+    setActionIdx(0)
+    setMenu(true)
+  }
   // A pointer click on Close goes through the same confirmation the pad does:
   // ending a session is the one action here that cannot be undone, and it
   // should not be one stray click away.
@@ -347,6 +368,7 @@ export default function SessionBar(
   const viewProps: SessionBarProps = {
     sessions, focusIdx: Math.min(focusIdx, Math.max(0, sessions.length - 1)),
     active, busy, title, onFocus: setFocusIdx, onResume: resume, onClose: close,
+    onManage: manage,
   }
 
   return (

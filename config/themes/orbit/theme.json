@@ -1,7 +1,7 @@
 {
   "id": "orbit",
   "name": "Orbit",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "api": 6,
   "description": "A cinematic console interface: games, consoles, library and applications, with real suspend and resume.",
   "author": "GameCore Community",
