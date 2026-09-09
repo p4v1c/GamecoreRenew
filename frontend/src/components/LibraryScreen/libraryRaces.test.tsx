@@ -58,6 +58,28 @@ function setup(games = [game('Alpha'), game('Beta')]) {
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 describe('the library and the requests it has stopped waiting for', () => {
+  it('never renders the previous console games under the next console id', async () => {
+    setup()
+    const next = deferred<ReturnType<typeof game>[]>()
+    vi.mocked(api.games.list).mockImplementation(
+      id => id === 'gc' ? Promise.resolve([game('GameCube')]) : next.promise,
+    )
+    const seen: string[] = []
+    const Witness = (p: LibraryViewProps) => {
+      seen.push(`${p.systemId}:${p.games[0]?.filename || 'empty'}`)
+      return <div data-testid="probe">{seen[seen.length - 1]}</div>
+    }
+    render(<LibraryScreen view={Witness} />); await flush()
+    seen.length = 0
+
+    act(() => useStore.setState({ selectedSystemId: 'ps2' }))
+
+    // Effects clear the list later. The important render is the one before
+    // them: mounting an image there already starts a wrong cover request.
+    expect(seen).not.toContain('ps2:GameCube.rom')
+    expect(seen).toContain('ps2:empty')
+  })
+
   it('ignores a late reply from the console the player has left', async () => {
     setup()
     const old = deferred<ReturnType<typeof game>[]>()

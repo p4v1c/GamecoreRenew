@@ -109,8 +109,12 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
    * with the retry screen.
    */
   const loadToken = useRef(0)
+  // Written before a request starts. Unlike state, this already identifies the
+  // wanted console during the render that precedes the clearing effect below.
+  const requestedSystem = useRef<string | null>(null)
 
   const loadData = useCallback((systemId: string) => {
+    requestedSystem.current = systemId
     const token = ++loadToken.current
     setLoading(true)
     setLoadError(false)
@@ -173,6 +177,7 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
     // Retires whatever is still in flight for the console being left, including
     // the case this effect does not reload from: `selectedSystemId` back to null.
     loadToken.current += 1
+    requestedSystem.current = null
     setSystem(null)
     setGames([])
     setPlaytimeMap({})
@@ -232,7 +237,17 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
     return out
   }, [games, names, search, sort, playtimeMap])
 
-  const selectedGame = sortedGames[selectedGameIdx] ?? sortedGames[0]
+  // A store change renders before the clearing effect above runs. Never pair
+  // that new system id with the previous system's list during that one commit:
+  // an <img> starts its request as soon as it is mounted, before effects can
+  // remove it. Orbit exposed this as DS filenames requested under mgba and a
+  // temporarily unresponsive grid while those wrong covers decoded.
+  const dataReady = system?.id === selectedSystemId
+  const displayedGames = dataReady ? sortedGames : []
+  const effectiveError = requestedSystem.current === selectedSystemId && loadError
+  const effectiveLoading = loading || (!dataReady && !effectiveError)
+
+  const selectedGame = displayedGames[selectedGameIdx] ?? displayedGames[0]
 
   // Detail panel shows a debounced selection: updating it on every step of a
   // fast scroll thrashed AnimatePresence (the panel froze on the first game)
@@ -375,12 +390,12 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
   const launchRef = useRef(launchGame)
   const settledRef = useRef<GameEntry | null>(null)
   // The list as drawn, for the launch to index with the store's cursor.
-  const gamesRef = useRef<GameEntry[]>(sortedGames)
-  countRef.current = sortedGames.length
+  const gamesRef = useRef<GameEntry[]>(displayedGames)
+  countRef.current = displayedGames.length
   launchingRef.current = launching
   launchRef.current = launchGame
   settledRef.current = settledGame
-  gamesRef.current = sortedGames
+  gamesRef.current = displayedGames
 
   // `omit` is a prop and a fresh array on every parent render; the effect only
   // cares whether one id is in it.
@@ -455,8 +470,8 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
       <View
         systemId={selectedSystemId}
         system={system}
-        games={sortedGames}
-        totalCount={games.length}
+        games={displayedGames}
+        totalCount={dataReady ? games.length : 0}
         playtime={playtimeMap}
         selectedIdx={selectedGameIdx}
         detailGame={settledGame}
@@ -464,8 +479,8 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
         sortKeys={SORT_KEYS}
         sortLabels={SORT_LABELS}
         search={search}
-        loading={loading}
-        loadError={loadError}
+        loading={effectiveLoading}
+        loadError={effectiveError}
         launching={launching}
         color={color}
         onSelect={setSelectedGameIdx}
