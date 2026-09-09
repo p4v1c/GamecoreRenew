@@ -304,145 +304,484 @@ async def display_env() -> dict:
     return await asyncio.to_thread(_display_env)
 
 
+class SessionConflict(RuntimeError):
+    """A lifecycle request the box cannot honour in the state it is in.
+
+    Carries the sentence the player should read. Every raise site here is a
+    409 at the router, and the router does not invent the wording: the manager
+    is the only thing that knows *which* session is in the way.
+    """
+
+
+class Session:
+    """One launched thing — a game or an app — and everything needed to
+    describe it, suspend it, resume it, kill it and bill it for playtime.
+
+    It exists because a session outlived the fields that described it. The
+    manager used to keep `_proc`, `_game_key`, `_start_time` and the rest as
+    its own attributes, which is exactly one session's worth of room. Putting
+    a game in the background and starting something else then overwrote the
+    first one's identity in place: a frozen emulator with nothing left holding
+    its pgid, unkillable and invisible, holding its RAM until the box was
+    restarted. Two slots need two objects.
+    """
+
+    __slots__ = ("proc", "orphan_pgid", "game_key", "system_id", "rom_path",
+                 "exec_path", "launch_args", "start_time", "session_id",
+                 "state", "bg_since", "bg_total")
+
+    def __init__(self, *, proc=None, orphan_pgid: int = 0, game_key: str = "",
+                 system_id: str = "", rom_path: str = "", exec_path: str = "",
+                 launch_args: list[str] | None = None, start_time: float = 0.0,
+                 session_id: int = 0, state: str = "foreground",
+                 bg_since: float = 0.0, bg_total: float = 0.0):
+        self.proc = proc
+        # Set only for a session adopted from a previous backend: we cannot
+        # await() something that is not our child, so it is polled by pgid.
+        self.orphan_pgid = orphan_pgid
+        self.game_key = game_key
+        self.system_id = system_id
+        self.rom_path = rom_path
+        self.exec_path = exec_path
+        self.launch_args = launch_args or []
+        self.start_time = start_time
+        self.session_id = session_id
+        self.state = state
+        #: When the current suspended stretch began, 0.0 while in the foreground.
+        self.bg_since = bg_since
+        #: Seconds already spent suspended, over every stretch that has ended.
+        self.bg_total = bg_total
+
+    # ── identity ─────────────────────────────────────────────────────────────
+
+    @property
+    def pgid(self) -> int:
+        """The process GROUP, which is what every signal here is aimed at.
+
+        Never the bare pid. Measured on the reference box: a Flatpak emulator
+        is five processes — the outer bwrap, a second bwrap wrapping
+        xdg-dbus-proxy, the proxy, the inner bwrap and the application — and
+        they share one group because `start_new_session=True` made it and
+        nothing inside bwrap calls setsid. Signalling the group moves all five;
+        signalling the pid moves the wrapper and leaves the game running.
+        """
+        if self.orphan_pgid:
+            return self.orphan_pgid
+        if self.proc is None:
+            return 0
+        # The child's own pid IS its group: `launch()` spawns with
+        # `start_new_session=True`, which makes it a session and process-group
+        # leader. Asking the kernel again is not merely redundant — after the
+        # watcher has reaped the child the pid is free to be reused, and
+        # `getpgid()` would then answer for an unrelated process. Signalling
+        # SIGKILL at whatever that turns out to be is the kind of bug that is
+        # found once, in production, by something unrelated dying.
+        return self.proc.pid
+
+    def alive(self) -> bool:
+        if self.orphan_pgid:
+            return _pgid_alive(self.orphan_pgid)
+        return self.proc is not None and self.proc.returncode is None
+
+    @property
+    def is_app(self) -> bool:
+        """An application tile rather than a game.
+
+        A tile carrying no ROM launches with `game_key == system_id` — see
+        routers/games.py — and that identity is the only thing that tells the
+        two apart once the session exists. Themes need it to say "Close app"
+        rather than "Close game", so it is computed here and not in each of
+        them.
+        """
+        return bool(self.game_key) and self.game_key == self.system_id
+
+    # ── time ─────────────────────────────────────────────────────────────────
+
+    def background_secs(self, now: float) -> float:
+        """Suspended seconds, including the stretch still open."""
+        open_stretch = (now - self.bg_since
+                        if self.state == "background" and self.bg_since else 0.0)
+        return self.bg_total + max(0.0, open_stretch)
+
+    def played_secs(self, now: float) -> int:
+        """Wall time minus every second the process was frozen.
+
+        A SIGSTOPped emulator is not being played, and counting it would make
+        the box's own statistics reward leaving a game suspended overnight —
+        eight hours of "playtime" for a game nobody touched. Clamped at zero:
+        a clock that moved backwards must not subtract from a player's hours.
+        """
+        return max(0, int(now - self.start_time - self.background_secs(now)))
+
+    # ── how it is described to everyone else ─────────────────────────────────
+
+    def describe(self) -> dict:
+        return {
+            "game_key": self.game_key,
+            "system_id": self.system_id,
+            "rom_path": self.rom_path,
+            "session": self.session_id,
+            "state": self.state,
+            "kind": "app" if self.is_app else "game",
+        }
+
+    def to_disk(self) -> dict:
+        return {
+            "pgid": self.pgid,
+            "game_key": self.game_key,
+            "system_id": self.system_id,
+            "exec_path": self.exec_path,
+            "rom_path": self.rom_path,
+            "launch_args": self.launch_args,
+            "started_at": self.start_time,
+            "state": self.state,
+            "bg_since": self.bg_since,
+            "bg_total": self.bg_total,
+        }
+
+
+#: How many launched things may be resident at once, suspended or not.
+#:
+#: **Two, and the limit is memory rather than bookkeeping.** A suspended
+#: emulator has given back its CPU and nothing else: RPCS3 holds several
+#: gigabytes of RAM and its VRAM for as long as it is stopped. A third resident
+#: emulator on a fixed-memory box is the OOM killer, and the OOM killer takes
+#: whichever process it likes — which is to say, sooner or later, the player's
+#: suspended game. A feature sold as "your game is safe while you do something
+#: else" must not contain a path that ends in the kernel destroying it.
+MAX_SESSIONS = 2
+
+
 class ProcessManager:
+    """Two slots, one screen.
+
+    At most `MAX_SESSIONS` launched things exist at once, and at most one of
+    them is in front of the player. Every other combination is legal: two
+    suspended, one suspended and one playing, one playing, nothing.
+
+    **Suspending is never refused, and that is a rule rather than an
+    accident.** An earlier draft of this kept a single background slot and
+    refused a second, which reads as reasonable until the double-Home gesture
+    meets it: a player inside game B with game A already suspended asks to get
+    out, the suspend is refused, and the only way off that screen is to quit
+    the game they were playing. Moving a session from the screen to the
+    background does not create a session — the resident count is identical
+    either side of it — so there was never a memory argument for that refusal,
+    only a data-structure one. The cap belongs on launching, which really does
+    create one.
+    """
+
     def __init__(self):
-        self._proc: asyncio.subprocess.Process | None = None
+        #: Every resident session, in the order they were launched. At most one
+        #: carries `state == "foreground"`; see the class docstring.
+        self._sessions: list[Session] = []
         self._launching: bool = False  # claimed before the first await in launch()
-        self._game_key: str = ""
-        self._system_id: str = ""
-        # Kept so storage_monitor can answer "was the running game on the
-        # disk that just vanished". Without it the only honest answer to a
-        # disk pulled mid-session was silence, and the player got an
-        # emulator that froze for no stated reason.
-        self._rom_path: str = ""
-        self._start_time: float = 0.0
-        self._exec_path: str = ""   # "flatpak" or absolute path
-        self._launch_args: list[str] = []  # args passed after exec_path
-        # A game started by a previous backend process and still running. We
-        # cannot await() something that is not our child, so it is tracked by
-        # pgid and polled for liveness.
-        self._orphan_pgid: int = 0
         # Which run is current. Every launch and every adoption takes the next
         # number; a watcher keeps the one it was started with, and compares
         # before touching anything shared. See _watch().
-        self._session_id: int = 0
+        self._seq: int = 0
+        #: Named while a launch is in flight, so `current_game` is not None
+        #: during the window `_launching` covers. Cleared by launch()'s finally.
+        self._pending_key: str = ""
+        self._pending_system: str = ""
+
+    # ── what the box is doing ────────────────────────────────────────────────
+
+    def _reap(self) -> bool:
+        """Drop slots whose process has gone, and say whether anything changed.
+
+        Every dead session, not only the adopted ones. A child of ours is also
+        cleared by its own watcher, but the watcher only runs when the event
+        loop gets back to it, and `is_running` frees a child the instant it has
+        a return code — a window wide enough to hold a whole launch. A slot
+        still holding a game that has already exited would refuse the next
+        launch with "the box is already holding suspended sessions", naming
+        games that are gone.
+
+        Safe to remove one from under its watcher: the watcher holds the
+        `Session` object directly, so it still records that game's playtime and
+        still announces its finish under its own number. It merely finds the
+        list has moved on without it, which is exactly what it should do.
+        """
+        keep = [s for s in self._sessions if s.alive()]
+        if len(keep) == len(self._sessions):
+            return False
+        # An adopted session has no watcher — we are not its parent, so nothing
+        # is awaiting it. Removing it from the list fixes what a NEW client is
+        # told, and leaves every client that is already connected showing a
+        # session bar for a game that no longer exists, with a Resume button
+        # that will 409 forever. Its finish has to be broadcast by the only
+        # thing that noticed: this.
+        departed = [s for s in self._sessions if s not in keep and s.orphan_pgid]
+        self._sessions = keep
+        self._save_state()
+        self._publish()
+        for session in departed:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # A synchronous caller with no loop. The reconnect snapshot is
+                # already correct, which is the half that survives a reload.
+                break
+            loop.create_task(self._announce("game:finished", session))
+        return True
+
+    @property
+    def is_running(self) -> bool:
+        """A session EXISTS — on the screen or frozen behind it.
+
+        Deliberately still true for a suspended game: it is still a process,
+        still on that disk, still holding that RAM. The question "may I start
+        something" is `is_foreground`, and separating the two is the whole of
+        this feature.
+        """
+        self._reap()
+        return self._launching or any(s.alive() for s in self._sessions)
+
+    @property
+    def is_foreground(self) -> bool:
+        """Something owns the screen.
+
+        This is what gates a launch, holds the standby clock and defers the
+        cover prefetcher — every question that is really "is the player in a
+        game right now", which a frozen one is not.
+        """
+        self._reap()
+        return self._launching or self._fg is not None
+
+    @property
+    def _fg(self) -> Session | None:
+        """The one session on the screen, if there is one. Not reaped: callers
+        that need liveness go through the public properties below."""
+        return next((s for s in self._sessions
+                     if s.state == "foreground" and s.alive()), None)
+
+    @property
+    def foreground_session(self) -> Session | None:
+        self._reap()
+        return self._fg
+
+    @property
+    def background_sessions(self) -> list[Session]:
+        """Every suspended session, oldest first."""
+        self._reap()
+        return [s for s in self._sessions if s.state == "background" and s.alive()]
+
+    @property
+    def background_session(self) -> Session | None:
+        """The suspended session a bare "resume" means: the most recent one."""
+        held = self.background_sessions
+        return held[-1] if held else None
+
+    @property
+    def current_game(self) -> dict | None:
+        """The session on the screen, or None.
+
+        Unchanged in meaning: every caller that reads this is asking about the
+        game in front of the player. A suspended one answers None here and is
+        found through `session_state()`.
+        """
+        s = self.foreground_session
+        if s is None:
+            return {"game_key": self._pending_key, "system_id": self._pending_system,
+                    "rom_path": "", "session": self._seq} if self._launching else None
+        return {"game_key": s.game_key, "system_id": s.system_id,
+                "rom_path": s.rom_path, "session": s.session_id}
+
+    def session_state(self) -> dict:
+        """The whole of what the box is running, in one shape.
+
+        Flat fields describe the FOREGROUND session, which is exactly what
+        `/api/games/session` has always returned — so a client that predates
+        this feature keeps reading it correctly, and reads a box whose only
+        session is suspended as "nothing in front of me", which is true and is
+        the answer that unblocks its pad.
+
+        `background` carries the other slot when there is one.
+        """
+        state: dict = {}
+        fg = self.foreground_session
+        if fg is not None:
+            state.update(fg.describe())
+        held = self.background_sessions
+        if held:
+            state["background"] = [s.describe() for s in held]
+        return state
 
     # ── the session on disk ───────────────────────────────────────────────────
 
-    def _save_session(self) -> None:
-        """Remember the pgid so a restarted backend can still reach this game.
+    def _save_state(self) -> None:
+        """Remember the pgids so a restarted backend can still reach them.
 
         Without it, a backend restart — OTA, crash, `systemctl restart` — left
         the emulator fullscreen and untouchable: the new process came up with
-        _proc = None, so is_running was false, kill() returned at its first line
-        and the double-PS shortcut could never close the game again. The UI
-        keeps its own session state (it is a separate service and does not
+        no session, so `is_running` was false, kill() returned at its first
+        line and the double-PS shortcut could never close the game again. The
+        UI keeps its own session state (it is a separate service and does not
         restart with the backend), so it still asked; nothing answered.
+
+        Both slots are written. A suspended game is the one that most needs
+        finding again: it cannot exit on its own to clear itself.
         """
-        if not self._proc:
-            return
+        sessions = [s.to_disk() for s in self._sessions if s.pgid]
         try:
-            pgid = os.getpgid(self._proc.pid)
-        except OSError:
-            return
-        payload = {
-            "pgid": pgid,
-            "game_key": self._game_key,
-            "system_id": self._system_id,
-            "exec_path": self._exec_path,
-            "rom_path": self._rom_path,
-            "launch_args": self._launch_args,
-            "started_at": self._start_time,
-        }
-        try:
+            if not sessions:
+                SESSION_FILE.unlink(missing_ok=True)
+                return
             SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
             tmp = SESSION_FILE.with_name(SESSION_FILE.name + ".tmp")
+            # `sessions` is the shape this build writes; the top-level keys of
+            # the first one are kept beside it so a DOWNGRADE — an OTA rolled
+            # back onto a box with a game running — still finds a session to
+            # adopt instead of leaving an unkillable emulator on the screen.
+            payload = dict(sessions[0])
+            payload["sessions"] = sessions
             tmp.write_text(json.dumps(payload))
             os.replace(tmp, SESSION_FILE)
         except OSError:
             log.warning("could not record the running session in %s", SESSION_FILE)
 
     def _clear_session(self) -> None:
-        self._orphan_pgid = 0
+        """Forget both slots on disk. Kept for the tests that stub it out."""
         try:
             SESSION_FILE.unlink(missing_ok=True)
         except OSError:
             pass
 
     async def adopt_orphan(self) -> None:
-        """Re-attach at startup to a game a previous backend left running."""
+        """Re-attach at startup to sessions a previous backend left behind."""
         try:
             data = json.loads(SESSION_FILE.read_text())
         except (OSError, ValueError):
             return
-        try:
-            pgid = int(data.get("pgid") or 0)
-        except (TypeError, ValueError):
-            pgid = 0
-        if not _pgid_alive(pgid):
+
+        raw = data.get("sessions")
+        if not isinstance(raw, list) or not raw:
+            raw = [data]          # written by a build before the second slot
+
+        adopted: list[Session] = []
+        for entry in raw:
+            if not isinstance(entry, dict):
+                continue
+            try:
+                pgid = int(entry.get("pgid") or 0)
+            except (TypeError, ValueError):
+                continue
+            if not _pgid_alive(pgid):
+                continue
+            try:
+                started = float(entry.get("started_at") or time.time())
+            except (TypeError, ValueError):
+                started = time.time()
+            state = entry.get("state")
+            state = state if state in ("foreground", "background") else "foreground"
+            self._seq += 1
+            adopted.append(Session(
+                orphan_pgid=pgid,
+                game_key=str(entry.get("game_key") or ""),
+                system_id=str(entry.get("system_id") or ""),
+                exec_path=str(entry.get("exec_path") or ""),
+                rom_path=str(entry.get("rom_path") or ""),
+                launch_args=[str(a) for a in (entry.get("launch_args") or [])],
+                start_time=started,
+                session_id=self._seq,
+                state=state,
+                bg_since=_as_float(entry.get("bg_since")),
+                bg_total=_as_float(entry.get("bg_total")),
+            ))
+
+        if not adopted:
             self._clear_session()
             return
 
-        self._orphan_pgid = pgid
-        self._session_id += 1
-        self._game_key = str(data.get("game_key") or "")
-        self._system_id = str(data.get("system_id") or "")
-        self._exec_path = str(data.get("exec_path") or "")
-        self._rom_path = str(data.get("rom_path") or "")
-        self._launch_args = [str(a) for a in (data.get("launch_args") or [])]
+        seen_foreground = False
+        for s in adopted:
+            if len(self._sessions) >= MAX_SESSIONS:
+                # Kept, not dropped. The cap governs how many sessions may be
+                # CREATED; applying it to recovery threw away the pgid, which is
+                # the only handle that can ever close that process — turning an
+                # over-full session file into an emulator holding its memory
+                # until the box was restarted. New launches stay refused, which
+                # is the cap doing its actual job.
+                log.warning("recovering a session beyond the resident cap: %s "
+                            "— launches stay refused until it is closed",
+                            s.game_key or "?")
+            if s.state == "background":
+                # It is still frozen: SIGSTOP outlives the backend that sent it.
+                if not s.bg_since:
+                    s.bg_since = time.time()
+            elif seen_foreground:
+                # Two foregrounds cannot both be true — a crash mid-swap. The
+                # first keeps the screen and the second goes behind it.
+                #
+                # **Signalled, not merely relabelled.** Writing `state =
+                # "background"` on its own is the box reporting a freeze it never
+                # performed: the session bar would offer to "resume" a game that
+                # had never stopped, still running at full speed behind the
+                # interface. Only a SIGSTOP that landed may be advertised.
+                if self._signal(s, signal.SIGSTOP):
+                    s.state = "background"
+                    s.bg_since = time.time()
+                else:
+                    log.error("could not suspend the recovered session %s — it "
+                              "is left as it is rather than described wrongly",
+                              s.game_key or "?")
+            else:
+                seen_foreground = True
+            self._sessions.append(s)
+
+        self._save_state()
+        self._publish()
+        for s in self._sessions:
+            log.warning("adopted a session left by a previous backend: %s "
+                        "(pgid %d, %s)", s.game_key or "?", s.orphan_pgid, s.state)
+
+    # ── announcing ───────────────────────────────────────────────────────────
+
+    def _publish(self) -> None:
+        """Refresh what a newly connected websocket client is told."""
+        ws.set_current_game(self.session_state() or None)
+
+    async def _announce(self, event: str, session: Session) -> None:
+        """One lifecycle event, carrying the WHOLE state.
+
+        The run number alone is not enough for these two. A resume that swaps
+        the two slots moves both of them at once, and a client rebuilding its
+        picture from "run 3 came forward" cannot know what happened to run 2 —
+        it would drop the session that is still frozen and leave the player
+        with a game the interface no longer shows. So each event carries the
+        transition (`game_key`, `system_id`, `session`) *and* the state the box
+        is in once it has happened.
+        """
+        payload = dict(session.describe())
+        payload["state_snapshot"] = self.session_state()
         try:
-            self._start_time = float(data.get("started_at") or time.time())
-        except (TypeError, ValueError):
-            self._start_time = time.time()
+            await ws.broadcast(event, payload)
+        except Exception:
+            log.exception("failed to broadcast %s", event)
 
-        ws.set_current_game({"game_key": self._game_key, "system_id": self._system_id,
-                             "session": self._session_id})
-        log.warning("adopted a game left running by a previous backend: %s (pgid %d)",
-                    self._game_key or "?", pgid)
-
-    def _orphan_alive(self) -> bool:
-        if not self._orphan_pgid:
-            return False
-        if _pgid_alive(self._orphan_pgid):
-            return True
-        # It exited by itself since we adopted it.
-        self._clear_session()
-        ws.set_current_game(None)
-        return False
-
-    @property
-    def is_running(self) -> bool:
-        return (self._launching
-                or (self._proc is not None and self._proc.returncode is None)
-                or self._orphan_alive())
-
-    @property
-    def current_game(self) -> dict | None:
-        if not self.is_running:
-            return None
-        return {"game_key": self._game_key, "system_id": self._system_id,
-                "rom_path": self._rom_path, "session": self._session_id}
+    # ── launching ────────────────────────────────────────────────────────────
 
     async def launch(self, exec_path: str, exec_args: str, rom_path: str = "",
                      game_key: str = "", system_id: str = "") -> None:
-        if self.is_running:
-            raise RuntimeError("A game is already running")
+        if self.is_foreground:
+            raise SessionConflict("A game is already running")
+        self._reap()
+        if len(self._sessions) >= MAX_SESSIONS:
+            held = ", ".join(s.game_key or "?" for s in self._sessions)
+            raise SessionConflict(
+                f"The box is already holding {len(self._sessions)} suspended "
+                f"sessions ({held}) — close one before starting another")
         # Claim the slot synchronously — two concurrent launch() calls both
         # pass the check above otherwise (the subprocess spawn awaits below).
         self._launching = True
+        self._pending_key = game_key
+        self._pending_system = system_id
 
         try:
             args = shlex.split(exec_args) if exec_args else []
             if rom_path:
                 args.append(rom_path)
-
-            self._exec_path = exec_path
-            self._launch_args = args
-            self._rom_path = rom_path
-            self._game_key = game_key or (rom_path.split("/")[-1] if rom_path else exec_path.split("/")[-1])
-            self._system_id = system_id
-            self._start_time = time.time()
-            self._session_id += 1
 
             if exec_path == "flatpak":
                 cmd = ["flatpak"] + args
@@ -452,7 +791,7 @@ class ProcessManager:
             env = await display_env()
             log.info("launch: %s (DISPLAY=%s)", " ".join(cmd), env.get("DISPLAY", ""))
 
-            self._proc = await asyncio.create_subprocess_exec(
+            proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
@@ -461,20 +800,34 @@ class ProcessManager:
             )
         finally:
             self._launching = False
+            self._pending_key = ""
+            self._pending_system = ""
 
-        self._save_session()
-        ws.set_current_game({"game_key": self._game_key, "system_id": self._system_id,
-                             "session": self._session_id})
+        self._seq += 1
+        session = Session(
+            proc=proc,
+            game_key=game_key or (rom_path.split("/")[-1] if rom_path
+                                  else exec_path.split("/")[-1]),
+            system_id=system_id,
+            rom_path=rom_path,
+            exec_path=exec_path,
+            launch_args=args,
+            start_time=time.time(),
+            session_id=self._seq,
+        )
+        self._sessions.append(session)
+
+        self._save_state()
+        self._publish()
         await ws.broadcast("game:started", {
-            "game_key": self._game_key,
-            "system_id": self._system_id,
-            "session": self._session_id,
+            "game_key": session.game_key,
+            "system_id": session.system_id,
+            "session": session.session_id,
         })
 
         # Its own process and its own session, so that resuming after this game
         # ends says nothing about whatever is running by then.
-        watch_task = asyncio.create_task(self._watch(
-            self._proc, self._session_id, self._game_key, self._system_id, self._start_time))
+        watch_task = asyncio.create_task(self._watch(session))
 
         def _log_err(t: asyncio.Task) -> None:
             if t.cancelled():
@@ -484,63 +837,220 @@ class ProcessManager:
                 log.warning("watch task failed: %s", exc)
         watch_task.add_done_callback(_log_err)
 
-    async def kill(self) -> None:
-        if self._orphan_pgid:
-            await self._kill_orphan()
+    # ── suspend and resume ───────────────────────────────────────────────────
+
+    def _signal(self, session: Session, sig: int) -> bool:
+        """Signal the whole group, and say whether it landed.
+
+        The group and never the pid: see `Session.pgid`. A failure here is
+        reported rather than raised into the caller's face — the session may
+        have exited between the check and the signal, which is not an error,
+        it is the game having ended.
+        """
+        pgid = session.pgid
+        if not pgid:
+            return False
+        try:
+            os.killpg(pgid, sig)
+            return True
+        except (OSError, ProcessLookupError):
+            return False
+
+    async def background(self) -> dict:
+        """Freeze the session on the screen and give the interface back.
+
+        SIGSTOP to the process group, which is what makes this work at all for
+        the Flatpak emulators: measured on the reference box, all five
+        processes of a sandbox — both bwraps, the dbus proxy and the
+        application — take the signal together and all five report `T`.
+        """
+        if self._launching:
+            raise SessionConflict("A game is still starting")
+        s = self.foreground_session
+        if s is None:
+            raise SessionConflict("Nothing is running")
+
+        if not self._signal(s, signal.SIGSTOP):
+            raise SessionConflict("That session could not be suspended")
+
+        s.state = "background"
+        s.bg_since = time.time()
+        self._save_state()
+        self._publish()
+        log.info("session %s (%s) suspended", s.game_key or "?", s.system_id)
+        await self._announce("game:backgrounded", s)
+        await self._raise_interface(s)
+        return self.session_state()
+
+    async def foreground(self, session_id: int | None = None) -> dict:
+        """Wake a frozen session, and put whatever holds the screen behind it.
+
+        The swap is one operation rather than two on purpose. Only one thing
+        can own the screen, so resuming a game while an application is up
+        already implies suspending the application — making the player close it
+        first would be the interface asking them to do arithmetic the box can do
+        itself. The resident count is unchanged by a swap.
+
+        With no number this resumes the most recent suspended session, which is
+        what a session bar with one entry on it means.
+        """
+        if self._launching:
+            # Same guard as `background()`. A launch in flight is about to claim
+            # the screen, and a resume racing it would put two sessions in front
+            # of the player — the one invariant this file has.
+            raise SessionConflict("A game is still starting")
+        if session_id is None:
+            s = self.background_session
+        else:
+            s = next((x for x in self.background_sessions
+                      if x.session_id == session_id), None)
+        if s is None:
+            raise SessionConflict("Nothing is in the background")
+
+        outgoing = self.foreground_session
+        if outgoing is not None:
+            if not self._signal(outgoing, signal.SIGSTOP):
+                raise SessionConflict("The running session could not be suspended")
+            outgoing.state = "background"
+            outgoing.bg_since = time.time()
+
+        if not self._signal(s, signal.SIGCONT):
+            # Put the screen back the way it was rather than leaving nothing in
+            # front of the player — and describe truthfully whatever we actually
+            # managed, which is not always the way it was.
+            if outgoing is not None:
+                if self._signal(outgoing, signal.SIGCONT):
+                    outgoing.bg_total += max(0.0, time.time() - outgoing.bg_since)
+                    outgoing.bg_since = 0.0
+                    outgoing.state = "foreground"
+                # If the rollback ALSO failed, the outgoing session is frozen and
+                # nothing is on the screen. That is a worse state than the one we
+                # started in, so it is persisted and announced rather than
+                # swallowed by the exception below: a session bar that knows
+                # about it can still resume or close it, and a silent one leaves
+                # a frozen game nothing can reach.
+                self._save_state()
+                self._publish()
+                await self._announce(
+                    "game:foregrounded" if outgoing.state == "foreground"
+                    else "game:backgrounded", outgoing)
+                if outgoing.state == "background":
+                    await self._raise_interface(outgoing)
+            raise SessionConflict("That session could not be resumed")
+
+        now = time.time()
+        if s.bg_since:
+            s.bg_total += max(0.0, now - s.bg_since)
+        s.bg_since = 0.0
+        s.state = "foreground"
+        self._save_state()
+        self._publish()
+        log.info("session %s (%s) resumed", s.game_key or "?", s.system_id)
+        if outgoing is not None:
+            await self._announce("game:backgrounded", outgoing)
+        await self._announce("game:foregrounded", s)
+        await self._give_back_the_screen(s)
+        return self.session_state()
+
+    async def _give_back_the_screen(self, session: Session) -> None:
+        """Raise and re-fullscreen the window of a session coming forward.
+
+        Best effort by design, and never fatal: this is X11 through a library
+        that may not be installed, on a display the backend does not own. A
+        resumed game whose window is merely behind the interface is a game the
+        player can still reach; an exception here would be a resume that
+        reported failure after having already succeeded.
+        """
+        try:
+            from . import window_focus
+            await window_focus.activate(session.system_id, session.pgid)
+        except Exception:
+            log.debug("could not raise the resumed session's window",
+                      exc_info=True)
+
+    async def _raise_interface(self, session: Session) -> None:
+        """Put the interface in front of a session that has just been frozen.
+
+        Same contract as `_give_back_the_screen`, and the same reason it cannot
+        raise: the game IS suspended by the time this runs. Failing here would
+        report a suspend that did not happen, and the player would be looking at
+        a frozen picture with the interface telling them nothing had changed.
+        """
+        try:
+            from . import window_focus
+            await window_focus.hide(session.system_id, session.pgid)
+        except Exception:
+            log.debug("could not raise the interface over the frozen session",
+                      exc_info=True)
+
+    # ── killing ──────────────────────────────────────────────────────────────
+
+    async def kill(self, session_id: int | None = None) -> None:
+        """End a session. The one on the screen unless another is named.
+
+        With nothing on the screen this ends the suspended one, which is what
+        "close it" means from a session bar: the player is looking at a game
+        that is not in front of them and asking for it to be gone.
+        """
+        if session_id is None:
+            target = self.foreground_session or self.background_session
+        else:
+            target = next((s for s in self._sessions
+                           if s.session_id == session_id), None)
+        if target is None:
             return
-        if not self._proc:
+
+        # A stopped process cannot run its own exit path: `flatpak kill` sends
+        # SIGTERM inside the sandbox and a frozen process never handles it, so
+        # the sandbox would be torn down by SIGKILL alone with its files still
+        # open. Thawed first, killed immediately after.
+        if target.state == "background":
+            self._signal(target, signal.SIGCONT)
+
+        if "flatpak" in target.exec_path or target.launch_args[:1] == ["run"]:
+            await self._flatpak_kill(target)
+
+        if target.orphan_pgid:
+            await self._kill_orphan(target)
             return
+        await kill_process_group(target.proc)
 
-        # ── Flatpak: use 'flatpak kill <app-id>' first ────────────────────────
-        # Sending SIGTERM to the flatpak wrapper doesn't reach the sandboxed app.
-        # Mirror GameSession::kill() from the old C++ code: find the app-id that
-        # follows "run" in the args and run 'flatpak kill <app-id>'.
-        if "flatpak" in self._exec_path or (
-            self._launch_args and self._launch_args[0] == "run"
-        ):
-            await self._flatpak_kill()
-
-        # ── Generic kill: terminate process / process group ───────────────────
-        await self._proc_kill()
-
-    async def _kill_orphan(self) -> None:
-        """Kill a game adopted from a previous backend — no child handle, just the pgid."""
-        pgid, self._orphan_pgid = self._orphan_pgid, 0
-        game_key, system_id = self._game_key, self._system_id
-        session = self._session_id
-        elapsed = int(time.time() - self._start_time)
-        log.info("killing adopted game %s (pgid %d)", game_key or "?", pgid)
-
-        if "flatpak" in self._exec_path or self._launch_args[:1] == ["run"]:
-            await self._flatpak_kill()
+    async def _kill_orphan(self, target: Session) -> None:
+        """Kill a session adopted from a previous backend — no child handle."""
+        pgid = target.orphan_pgid
+        target.orphan_pgid = 0
+        log.info("killing adopted session %s (pgid %d)", target.game_key or "?", pgid)
         try:
             os.killpg(pgid, signal.SIGKILL)
         except (OSError, ProcessLookupError):
             pass
 
-        self._clear_session()
-        ws.set_current_game(None)
-        # Playtime is deliberately not recorded: _start_time came off disk from
+        self._sessions = [s for s in self._sessions if s is not target]
+        self._save_state()
+        self._publish()
+        # Playtime is deliberately not recorded: `start_time` came off disk from
         # a process that may have died long ago, so the elapsed figure would be
         # a guess written into the player's stats.
         try:
             await ws.broadcast("game:finished", {
-                "game_key": game_key, "system_id": system_id, "elapsed": elapsed,
-                "session": session,
+                "game_key": target.game_key, "system_id": target.system_id,
+                "elapsed": target.played_secs(time.time()),
+                "session": target.session_id,
             })
         except Exception:
             log.exception("_kill_orphan: failed to broadcast game:finished")
 
-    async def _flatpak_kill(self) -> None:
+    async def _flatpak_kill(self, target: Session) -> None:
         """Run 'flatpak kill <app-id>' non-blockingly, like the C++ startDetached."""
         # Read by tiles.py: the id is the first NON-OPTION argument after
         # `run`, not the token after it. This used to take args[idx + 1] and so
         # ran `flatpak kill --nosocket=wayland` for any tile carrying a flag —
         # killing nothing, warning about nothing, and leaving the sandbox up.
         from .catalog.tiles import flatpak_app_id
-        app_id = flatpak_app_id(" ".join(self._launch_args))
+        app_id = flatpak_app_id(" ".join(target.launch_args))
         if not app_id:
-            log.warning("flatpak_kill: could not find app-id in args %s", self._launch_args)
+            log.warning("flatpak_kill: could not find app-id in args %s",
+                        target.launch_args)
             return
 
         log.info("flatpak_kill: flatpak kill %s", app_id)
@@ -555,17 +1065,14 @@ class ProcessManager:
         except (asyncio.TimeoutError, OSError):
             pass
 
-    async def _proc_kill(self) -> None:
-        """SIGKILL on the wrapper process and its group — skip SIGTERM to avoid confirm dialogs."""
-        await kill_process_group(self._proc)
+    # ── the end of a session ─────────────────────────────────────────────────
 
-    async def _watch(self, proc: asyncio.subprocess.Process | None = None,
-                     session: int = 0, game_key: str = "", system_id: str = "",
-                     start_time: float = 0.0) -> None:
-        """Wait for one game to end, and speak only for that game.
+    async def _watch(self, session: Session | None = None) -> None:
+        """Wait for one session to end, and speak only for that session.
 
-        Everything this needs is passed in, and nothing it writes back touches
-        the manager unless the session it watched is still the current one.
+        Everything this needs is on the object it was handed, and nothing it
+        writes back touches a slot unless that slot still holds the session it
+        watched.
 
         It used to read the manager's own fields after its `await`, which is a
         window wide enough to hold a whole launch: `is_running` frees the slot
@@ -575,21 +1082,18 @@ class ProcessManager:
         was running, deleted its session file and announced the wrong game as
         finished. The player's game was then untrackable and unkillable.
         """
-        proc = proc or self._proc
-        if not proc:
+        session = session or self._fg
+        if session is None or session.proc is None:
             return
-        game_key = game_key or self._game_key
-        system_id = system_id or self._system_id
-        start_time = start_time or self._start_time
 
-        await proc.wait()
-        elapsed = int(time.time() - start_time)
+        await session.proc.wait()
+        elapsed = session.played_secs(time.time())
 
-        # Only the session that is still current may clear the shared state.
-        if session == self._session_id:
-            self._proc = None
-            self._clear_session()
-            ws.set_current_game(None)
+        # Only the slot that still holds this session may be cleared by it.
+        if session in self._sessions:
+            self._sessions = [s for s in self._sessions if s is not session]
+            self._save_state()
+            self._publish()
 
         if elapsed > 5:
             try:
@@ -602,23 +1106,31 @@ class ProcessManager:
                         total_secs    = total_secs + excluded.total_secs,
                         session_count = session_count + 1,
                         last_played   = excluded.last_played
-                """, (game_key, system_id, elapsed, now))
+                """, (session.game_key, session.system_id, elapsed, now))
                 await db.commit()
             except Exception:
-                log.exception("_watch: failed to save playtime for %s", game_key)
+                log.exception("_watch: failed to save playtime for %s",
+                              session.game_key)
 
         try:
             await ws.broadcast("game:finished", {
-                "game_key": game_key,
-                "system_id": system_id,
+                "game_key": session.game_key,
+                "system_id": session.system_id,
                 "elapsed": elapsed,
                 # Which run ended. A finish belonging to a game the player has
                 # already left behind must not unlock the screen over the one
                 # they are playing now.
-                "session": session,
+                "session": session.session_id,
             })
         except Exception:
             log.exception("_watch: failed to broadcast game:finished")
+
+
+def _as_float(value) -> float:
+    try:
+        return max(0.0, float(value or 0.0))
+    except (TypeError, ValueError):
+        return 0.0
 
 
 process_manager = ProcessManager()

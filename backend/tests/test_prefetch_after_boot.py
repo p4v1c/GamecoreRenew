@@ -190,7 +190,7 @@ def test_nothing_is_fetched_while_a_game_is_running(monkeypatch, wired):
 
     class FakePM:
         @property
-        def is_running(self):
+        def is_foreground(self):
             return playing["yes"]
 
     monkeypatch.setattr(prefetch, "process_manager", FakePM())

@@ -290,7 +290,12 @@ async def set_mode(req: ModeRequest):
     change is unconfirmed the screen may be showing nothing, and reverting to
     that would be reverting to the fault.
     """
-    if process_manager.current_game:
+    # `is_running`, not `current_game`: a SUSPENDED emulator still holds its
+    # GPU context and its swapchain, and cannot react to a mode change because
+    # it is stopped. Changing the resolution under it is how a game that was
+    # perfectly recoverable comes back to a dead window. The residence is what
+    # matters here, not who is on the screen.
+    if process_manager.is_running:
         raise HTTPException(409, "A game is running — close it before changing the display mode.")
 
     async with _mode_lock:

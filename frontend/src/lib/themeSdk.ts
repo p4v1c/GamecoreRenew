@@ -45,8 +45,29 @@ import * as defaults from '../components/defaults'
  * it, `s.standby` is `undefined`, `undefined !== 'off'` is true, and Summer
  * draws a black rectangle over the box forever. That is a refusal, not a
  * degradation, so the number moves.
+ *
+ * 5 adds `sdk.session` — suspending a game and resuming it — and all three
+ * shipped themes now draw a session bar from it. On a front end without it,
+ * `sdk.session` is `undefined` and the theme throws on its first read, which
+ * the surface boundary shows the player as their theme silently becoming the
+ * default one. Worse than the usual case, because the actions are the only way
+ * to reach a suspended game: a theme that half-loaded would leave a frozen
+ * emulator holding its memory with nothing on screen able to close it.
  */
-export const SDK_VERSION = 4
+// 6 adds spatial library omissions, search/options callbacks and __all__ libraries.
+export const SDK_VERSION = 6
+
+/**
+ * Game or application, from the identity the launcher gave the session.
+ *
+ * A tile with no ROM launches with `game_key === system_id` — see
+ * backend/routers/games.py — and that is the only thing telling the two apart
+ * once the session exists. Themes need it to say "Close application" rather
+ * than "Close game", and a theme getting that wrong is the interface talking
+ * about a game the player never started.
+ */
+const sessionKind = (gameKey: string, systemId: string | null): 'game' | 'app' =>
+  systemId !== null && gameKey === systemId ? 'app' : 'game'
 
 /** Every gamepad event a theme may subscribe to. gp:guide is intentionally absent. */
 export const GP_EVENTS = [
@@ -66,6 +87,7 @@ export interface ThemeSdk {
   api: typeof api
   format: Record<string, unknown>
   nav: Record<string, unknown>
+  session: Record<string, unknown>
   themes: Record<string, unknown>
   input: Record<string, unknown>
   system: Record<string, unknown>
@@ -166,6 +188,60 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
       setSelectedGameIdx: (i: number) => useStore.getState().setSelectedGameIdx(i),
       openModal: () => useStore.getState().openModal(),
       closeModal: () => useStore.getState().closeModal(),
+    },
+
+    /**
+     * What the box is running, and what may be done about it.
+     *
+     * The state is split the way the box is: `foreground` is the one thing on
+     * the screen, `background` is everything frozen behind it. A theme draws
+     * both — the second one is a session bar — and the host guarantees there
+     * is always some way to reach a suspended session, so a theme that omits
+     * the bar loses nothing but its own styling of it.
+     *
+     * `nav.sessionGameKey` still means "a game owns the screen" and is still
+     * what the pad guard reads. It goes null when a session is suspended,
+     * which is what gives the interface back to the player while their game
+     * stays alive — so a theme keying anything off it keeps working unchanged.
+     */
+    session: {
+      /** Reactive read — call it inside a component. */
+      use: () => {
+        const gameKey = useStore(s => s.sessionGameKey)
+        const systemId = useStore(s => s.sessionSystemId)
+        const background = useStore(s => s.backgroundSessions)
+        // Selected one field at a time and rebuilt here: a selector returning
+        // a fresh object compares unequal on every store write, which in
+        // Zustand's default `Object.is` equality is a render loop.
+        return useMemo(() => ({
+          foreground: gameKey
+            ? { gameKey, systemId, kind: sessionKind(gameKey, systemId) }
+            : null,
+          background,
+        }), [gameKey, systemId, background])
+      },
+      /** One-shot read, for event handlers. */
+      get: () => {
+        const s = useStore.getState()
+        return {
+          foreground: s.sessionGameKey
+            ? { gameKey: s.sessionGameKey, systemId: s.sessionSystemId,
+                kind: sessionKind(s.sessionGameKey, s.sessionSystemId) }
+            : null,
+          background: s.backgroundSessions,
+        }
+      },
+      /**
+       * Freeze what is on the screen. Resolves once the box has done it.
+       *
+       * Rejects with the host's own sentence when there is nothing to suspend,
+       * which is worth showing rather than swallowing.
+       */
+      background: () => api.games.background(),
+      /** Wake a suspended session. With no number, the most recent one. */
+      resume: (session?: number) => api.games.foreground(session),
+      /** End a session. With no number, the one on the screen. */
+      close: (session?: number) => api.games.kill(session),
     },
 
     input: {

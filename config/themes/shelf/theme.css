@@ -1922,3 +1922,87 @@
   --gc-kb-ink-faint:  rgba(244, 242, 237, 0.28);
   font-family: var(--font-body);
 }
+
+/* ===========================================================================
+   THE LEDGE — a session you put down
+
+   Not a notification and not a toast: it is the box you set down a moment ago,
+   still open, on the ledge under the shelf. Paper, ink, one hairline rule and
+   the seal gold, like every other surface here. Nothing glows.
+
+   No `z-index`, here or anywhere in this file. The host mounts this bar and
+   owns the layer it sits in — the same bargain the splash has.
+   =========================================================================== */
+.cz-session {
+  background: var(--card);
+  box-shadow: 0 -14px 34px rgba(20, 18, 24, 0.13);
+  font-family: var(--font-body); color: var(--ink);
+}
+.cz-session-rule { height: 3px; background: var(--ink); opacity: .82; }
+.cz-session-body {
+  display: flex; align-items: center; gap: clamp(16px, 2.4vw, 34px);
+  padding: 13px clamp(18px, 3.4vw, 52px);
+}
+.cz-session-tab {
+  display: flex; align-items: center; gap: 8px; flex: none;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em;
+  color: var(--ink-3); text-transform: uppercase;
+}
+/* The seal, the one warm mark on a paper surface. Filled while the bar has the
+   pad, hollow while something else does — so it reads as "this is what ✕ acts
+   on" without printing another line of text. */
+.cz-session-mark {
+  width: 9px; height: 9px; border-radius: 50%;
+  border: 1.5px solid var(--gc-accent, var(--ink)); background: transparent;
+}
+.cz-session[data-active='true'] .cz-session-mark { background: var(--gc-accent, var(--ink)); }
+.cz-session-count { padding-left: 8px; border-left: 1px solid var(--rule); }
+.cz-session-title { flex: 1; min-width: 0; }
+.cz-session-title strong {
+  display: block; font-family: var(--font-display); font-size: 17px; font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cz-session-title small { display: block; margin-top: 1px; font-size: 12px; color: var(--ink-2); }
+.cz-session-acts { display: flex; align-items: center; gap: 10px; flex: none; }
+/* `.cz-btn` carries a 10px top margin for the empty-state it was written for;
+   on a single row that pushes it off the baseline. */
+.cz-session-acts .cz-btn { margin-top: 0; display: inline-flex; align-items: center; gap: 12px; }
+.cz-session-acts .cz-btn[disabled] { opacity: .5; cursor: default; }
+.cz-session-acts .cz-btn-primary { background: var(--acc-deep, var(--ink)); }
+.cz-session-acts kbd {
+  font-family: var(--font-mono); font-size: 11px; opacity: .7;
+  border: 1px solid currentColor; border-radius: 4px; padding: 0 5px;
+}
+.cz-session-acts .cz-btn:not(.cz-btn-primary) {
+  background: transparent; color: var(--ink); border: 1px solid var(--rule);
+}
+.cz-session-acts .cz-btn:not(.cz-btn-primary):hover { background: var(--paper-sink); }
+
+@media (max-width: 900px) {
+  .cz-session-body { flex-wrap: wrap; gap: 12px; padding: 11px 18px; }
+  .cz-session-title { flex-basis: 100%; order: -1; }
+}
+
+/* The card the ledge opens — same paper, set down on top of the shelf. */
+.cz-session-card{
+  width:min(460px,90vw);padding:30px 32px;border-radius:var(--r-card);
+  background:var(--card);color:var(--ink);font-family:var(--font-body);
+  box-shadow:var(--shadow-box);
+}
+.cz-session-card-rule{height:3px;margin:-30px -32px 22px;border-radius:var(--r-card) var(--r-card) 0 0;
+  background:var(--ink);opacity:.82}
+.cz-session-card-tab{display:flex;align-items:center;gap:10px;font-family:var(--font-mono);
+  font-size:10px;letter-spacing:.16em;color:var(--ink-3);text-transform:uppercase}
+.cz-session-card-tab span{padding-left:10px;border-left:1px solid var(--rule)}
+.cz-session-card h2{margin:6px 0 10px;font-family:var(--font-display);font-size:24px;font-weight:700}
+.cz-session-card-note{font-size:14px;line-height:1.5;color:var(--ink-2)}
+.cz-session-card-actions{display:flex;flex-direction:column;gap:10px;margin-top:22px}
+.cz-session-card-actions .cz-btn{margin-top:0;text-align:left;padding:13px 18px;border-radius:12px;
+  background:var(--paper-sink);color:var(--ink)}
+.cz-session-card-actions .cz-btn[data-active='true']{background:var(--ink);color:var(--paper)}
+.cz-session-card-actions .cz-btn-danger[data-active='true']{background:#8d2b3f;color:var(--paper)}
+.cz-session-card-actions .cz-btn[disabled]{opacity:.5}
+.cz-session-card-hints{margin-top:18px;font-family:var(--font-mono);font-size:10px;
+  letter-spacing:.1em;color:var(--ink-3)}
+
+.cz-session-key{font-family:var(--font-mono);font-size:10px;opacity:.45;flex:none}

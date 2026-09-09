@@ -1,0 +1,80 @@
+[
+  {
+    "id": "ps2",
+    "file": "ps2.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/3/39/PS2-Versions.png",
+    "page": "https://en.wikipedia.org/wiki/PlayStation_2"
+  },
+  {
+    "id": "ps3",
+    "file": "ps3.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/PS3_consoles_montage_HQ.png/3840px-PS3_consoles_montage_HQ.png",
+    "page": "https://en.wikipedia.org/wiki/PlayStation_3"
+  },
+  {
+    "id": "psp",
+    "file": "psp.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/9/9a/PSP-1000.png",
+    "page": "https://en.wikipedia.org/wiki/PlayStation_Portable"
+  },
+  {
+    "id": "wiiu",
+    "file": "wiiu.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/4/4a/Wii_U_Console_and_Gamepad.png",
+    "page": "https://en.wikipedia.org/wiki/Wii_U"
+  },
+  {
+    "id": "ps1",
+    "file": "ps1.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/9/95/PSX-Console-wController.png",
+    "page": "https://commons.wikimedia.org/wiki/File:PSX-Console-wController.png"
+  },
+  {
+    "id": "switch",
+    "file": "switch.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/b/bc/Nintendo-Switch-wJoyCons-BlRd-Standing-FL.png",
+    "page": "https://commons.wikimedia.org/wiki/File:Nintendo-Switch-wJoyCons-BlRd-Standing-FL.png"
+  },
+  {
+    "id": "3ds",
+    "file": "3ds.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/0/0a/Nintendo-3DS-AquaOpen.png",
+    "page": "https://commons.wikimedia.org/wiki/File:Nintendo-3DS-AquaOpen.png"
+  },
+  {
+    "id": "gba",
+    "file": "gba.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/0/0b/Nintendo-Game-Boy-Advance-Purple-FL.png",
+    "page": "https://commons.wikimedia.org/wiki/File:Nintendo-Game-Boy-Advance-Purple-FL.png"
+  },
+  {
+    "id": "ds",
+    "file": "ds.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/a/a3/Nintendo-DS-Fat-Blue.png",
+    "page": "https://commons.wikimedia.org/wiki/File:Nintendo-DS-Fat-Blue.png"
+  },
+  {
+    "id": "xbox360",
+    "file": "xbox360.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Xbox-360S-Console-Set.png",
+    "page": "https://commons.wikimedia.org/wiki/File:Xbox-360S-Console-Set.png"
+  },
+  {
+    "id": "n64",
+    "file": "n64.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/0/02/N64-Console-Set.png",
+    "page": "https://commons.wikimedia.org/wiki/File:N64-Console-Set.png"
+  },
+  {
+    "id": "gamecube",
+    "file": "gamecube.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/2/2b/GameCube-Console-Set.png",
+    "page": "https://commons.wikimedia.org/wiki/File:GameCube-Console-Set.png"
+  },
+  {
+    "id": "ps4",
+    "file": "ps4.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/8/8c/PS4-Console-wDS4.png",
+    "page": "https://commons.wikimedia.org/wiki/File:PS4-Console-wDS4.png"
+  }
+]

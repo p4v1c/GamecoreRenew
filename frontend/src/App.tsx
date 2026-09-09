@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import { useWebSocket, onWsEvent } from './hooks/useWebSocket'
+import { useWebSocket, applyIfStillCurrent } from './hooks/useWebSocket'
 import { useGamepad, onGp } from './hooks/useGamepad'
+import { useEmulatorOverlay } from './hooks/useEmulatorOverlay'
 import { useStore } from './store'
 import { api } from './api'
 
@@ -10,6 +11,7 @@ import BootRecovery from './components/BootRecovery'
 import { bootBackground, bootSteps, isBootReady, onBootChange } from './lib/boot'
 import ErrorBoundary from './components/ErrorBoundary'
 import DefaultShell from './components/DefaultShell'
+import SessionBar from './components/SessionBar'
 import { useTheme } from './hooks/useTheme'
 import { ThemeProvider, Shell } from './components/ThemeSurface'
 
@@ -22,7 +24,8 @@ import { ThemeProvider, Shell } from './components/ThemeSurface'
  *
  *   · the input bus and the WebSocket
  *   · the fact that there *is* a splash — a theme may redraw it, not remove it
- *   · gp:guide, the double press that kills a running game
+ *   · gp:guide, the double press that suspends a running game
+ *   · the session bar — the only way back to a suspended one
  *   · the emulator overlay handshake with Electron
  *   · the error boundaries and the L1+R1 rescue (see useTheme)
  */
@@ -66,7 +69,6 @@ export default function App() {
   // re-render of the entire shell. Bare, it took one on every field in the
   // store — the library cursor included. See components/shellRerender.test.tsx.
   const goHome = useStore(s => s.goHome)
-  const setSession = useStore(s => s.setSession)
   const sessionGameKey = useStore(s => s.sessionGameKey)
 
   const sessionRef = useRef(sessionGameKey)
@@ -113,35 +115,48 @@ export default function App() {
     return () => clearTimeout(t)
   }, [ready])
 
-  // Emulator overlay: show the bezel when a game starts, hide it when it ends.
-  useEffect(() => {
-    const offStart = onWsEvent('game:started', (d) => {
-      // `game_key` is the ROM filename the launcher recorded, and it is what
-      // picks this game's bezel out of a pack. Passing only system_id gets the
-      // system bezel for every game, which is the feature not existing.
-      const ev = d as { system_id: string; game_key?: string }
-      window.gamecore?.overlayStart(ev.system_id, ev.game_key)
-    })
-    const offDone = onWsEvent('game:finished', (d) => {
-      window.gamecore?.overlayStop((d as { system_id: string }).system_id)
-      setSession(null, null)
-    })
-    // Sync state with Electron events in case WS is slow or missed
-    window.gamecore?.onOverlayHide(() => setSession(null, null))
-    return () => { offStart(); offDone() }
-  }, [setSession])
+  // The bezel, following the session that is actually on screen rather than
+  // raw start/finish events — see hooks/useEmulatorOverlay.ts for why suspending
+  // made the old version leave the interface hidden behind a frozen bezel.
+  useEmulatorOverlay()
 
-  // The one binding no theme may own: quitting a running game.
+  /**
+   * The one binding no theme may own: leaving a running game.
+   *
+   * It killed. It suspends now — the game is frozen and intact, and closing it
+   * is a deliberate second action on the session bar. Two accidental presses
+   * used to cost an unsaved save; they cost nothing at all now.
+   *
+   * The backend's own evdev monitor does the same thing when IT sees the
+   * double press, and both paths can fire for one press: Chromium exposes the
+   * guide button on some pads and not others, so neither path can be the only
+   * one. The second call finds nothing on the screen and is refused, which is
+   * why the failure is swallowed rather than shown.
+   *
+   * `background()` answers with the whole session state, and that answer is
+   * what moves the store — not an optimistic write here. A suspend that the
+   * backend refused must not leave the interface believing the game is safely
+   * frozen when it is still running behind the picture.
+   */
   useEffect(() => onGp('gp:guide', async () => {
-    if (!sessionRef.current) return
-    try { await api.games.kill() } catch {}
-    setSession(null, null)
+    if (!sessionRef.current) { goHome(); return }
+    // The answer moves the interface without waiting for the socket — but only
+    // if the socket has not said better while it was in flight.
+    await applyIfStillCurrent(api.games.background())
     goHome()
-  }), [goHome, setSession])
+  }), [goHome])
 
   return (
     <ThemeProvider value={theme}>
       <Shell fallback={DefaultShell} />
+
+      {/* Above the shell and outside it, for the same reason the splash is: a
+          theme may redraw this, and may not remove it. Suspending is reached
+          through a gesture the core owns, so the way back has to be owned by
+          the core too — a theme that simply forgot to draw a session bar would
+          otherwise leave a frozen emulator holding gigabytes of RAM with
+          nothing on screen able to resume or close it. */}
+      <SessionBar view={theme.sessionBar} menuView={theme.sessionMenu} />
 
       {/* Above the shell, and outside it. A theme draws its own boot animation
           but cannot remove it, and cannot decide when booting ends: onDone is

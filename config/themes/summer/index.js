@@ -41,6 +41,7 @@ import { createHomeView } from './views/home.js'
 import { createLibraryView } from './views/library.js'
 import { createSplash } from './views/splash.js'
 import { createGamepadView } from './views/gamepad.js'
+import { createSessionBar, createSessionMenu } from './views/session.js'
 import { createWarp } from './views/warp.js'
 import { createBox3D } from './views/box3d.js'
 import { createScreensaver } from './views/screensaver.js'
@@ -91,5 +92,9 @@ export default (sdk) => {
       <${Warp} />
     </div>`
 
-  return { splash: createSplash(sdk), shell: Shell }
+  // Optional surface: the host draws its own bar if a theme omits one, so the
+  // way back to a suspended game cannot be lost to a theme. Summer draws it as
+  // sea glass on the tideline — see views/session.js.
+  return { splash: createSplash(sdk), shell: Shell,
+           sessionBar: createSessionBar(sdk), sessionMenu: createSessionMenu(sdk) }
 }

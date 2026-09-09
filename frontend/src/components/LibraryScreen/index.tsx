@@ -24,6 +24,9 @@ import GameMetaPanel from './GameMetaPanel'
 import GameOptionsModal from '../modals/game/GameOptionsModal'
 import { SORT_KEYS, SORT_LABELS, type SortKey, type LibraryViewProps } from './types'
 
+const ALL_SYSTEMS = '__all__'
+const playtimeKey = (game: GameEntry) => game.system_id ? `${game.system_id}:${game.filename}` : game.filename
+
 interface Props {
   view?: React.ComponentType<LibraryViewProps>
   /** Shortcuts the theme binds itself; see ShellParts.libraryOmit. */
@@ -111,16 +114,19 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
     const token = ++loadToken.current
     setLoading(true)
     setLoadError(false)
-    Promise.all([
-      api.systems.get(systemId),
-      api.games.list(systemId),
-      api.playtime.forSystem(systemId),
-    ]).then(([sys, gameList, rows]) => {
+    const request: Promise<[SystemEntry, GameEntry[], PlaytimeEntry[]]> = systemId === ALL_SYSTEMS
+      ? Promise.all([api.systems.list(), api.playtime.all()]).then(async ([systems, rows]) => {
+          const lists = await Promise.all(systems.filter(s => s.kind === 'emulator' || s.type === 'emulator')
+            .map(async system => (await api.games.list(system.id)).map(game => ({...game, system_id: system.id}))))
+          return [{id: ALL_SYSTEMS, kind: 'emulator', label: 'All games'}, lists.flat(), rows]
+        })
+      : Promise.all([api.systems.get(systemId), api.games.list(systemId), api.playtime.forSystem(systemId)])
+    request.then(([sys, gameList, rows]) => {
       if (loadToken.current !== token) return
       setSystem(sys)
       setGames(gameList)
       const m: Record<string, PlaytimeEntry> = {}
-      rows.forEach(r => { m[r.game_key] = r })
+      rows.forEach(r => { m[systemId === ALL_SYSTEMS ? `${r.system_id}:${r.game_key}` : r.game_key] = r })
       setPlaytimeMap(m)
       setLoadError(false)
     }).catch(err => {
@@ -145,10 +151,11 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
     if (!selectedSystemId) return
     return onWsEvent('playtime:rekeyed', () => {
       const forSystem = selectedSystemId
-      api.playtime.forSystem(forSystem).then(rows => {
+      const request = forSystem === ALL_SYSTEMS ? api.playtime.all() : api.playtime.forSystem(forSystem)
+      request.then(rows => {
         if (useStore.getState().selectedSystemId !== forSystem) return
         const m: Record<string, PlaytimeEntry> = {}
-        rows.forEach(r => { m[r.game_key] = r })
+        rows.forEach(r => { m[forSystem === ALL_SYSTEMS ? `${r.system_id}:${r.game_key}` : r.game_key] = r })
         setPlaytimeMap(m)
       }).catch(() => {})
     })
@@ -214,10 +221,10 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
       : games.slice()
     out.sort((a, b) => {
       if (sort === 'name') return label(a).localeCompare(label(b))
-      if (sort === 'playtime') return (playtimeMap[b.filename]?.total_secs || 0) - (playtimeMap[a.filename]?.total_secs || 0)
+      if (sort === 'playtime') return (playtimeMap[playtimeKey(b)]?.total_secs || 0) - (playtimeMap[playtimeKey(a)]?.total_secs || 0)
       if (sort === 'lastPlayed') {
-        const da = playtimeMap[a.filename]?.last_played || ''
-        const db = playtimeMap[b.filename]?.last_played || ''
+        const da = playtimeMap[playtimeKey(a)]?.last_played || ''
+        const db = playtimeMap[playtimeKey(b)]?.last_played || ''
         return db.localeCompare(da)
       }
       return 0
@@ -245,7 +252,7 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
     if (!selectedGame || !selectedSystemId) { setSettled(null); return }
     const t = setTimeout(() => setSettled({ game: selectedGame, systemId: selectedSystemId }), 150)
     return () => clearTimeout(t)
-  }, [selectedGame?.filename, selectedSystemId])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedGame?.filename, selectedGame?.system_id, selectedSystemId])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // What the view receives — unchanged in shape, so no theme has to care.
   const settledGame = settled?.systemId === selectedSystemId ? settled.game : null
@@ -304,10 +311,11 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
    */
   const launchGame = useCallback(async () => {
     if (launchLock.current) return
-    const systemId = useStore.getState().selectedSystemId
+    const selectedLibrary = useStore.getState().selectedSystemId
     const list = gamesRef.current
     const idx = useStore.getState().selectedGameIdx
     const game = list[idx] ?? list[0]
+    const systemId = game?.system_id ?? selectedLibrary
     if (!systemId || !game) return
     launchLock.current = true
     const token = ++launchToken.current
@@ -364,6 +372,9 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
   // `omit` is a prop and a fresh array on every parent render; the effect only
   // cares whether one id is in it.
   const omitOptions = !!omit?.includes('options')
+  const omitNav = !!omit?.includes('nav')
+  const omitConfirm = !!omit?.includes('confirm')
+  const omitSort = !!omit?.includes('sort')
 
   // Gamepad — guarded when modal is open or this screen is hidden behind home
   useEffect(() => {
@@ -387,9 +398,9 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
       if (next !== from) setSelectedGameIdx(next)
     }
     const offs = [
-      onGp('gp:dpad-up',  () => step(-1)),
-      onGp('gp:dpad-down',() => step(1)),
-      onGp('gp:confirm',  () => { if (blocked()) return; launchRef.current() }),
+      onGp('gp:dpad-up',  () => { if (!omitNav) step(-1) }),
+      onGp('gp:dpad-down',() => { if (!omitNav) step(1) }),
+      onGp('gp:confirm',  () => { if (omitConfirm || blocked()) return; launchRef.current() }),
       onGp('gp:back',     () => { if (screenRef.current !== 'library' || modalDepthRef.current > 0 || showOptionsRef.current) return; if (showSearchRef.current) { setShowSearch(false); return } cancelPendingLaunch(); goHome() }),
       onGp('gp:y',        () => { if (blocked()) return; setShowSearch(true) }),
       // R2, because every face button is already spoken for on this screen:
@@ -408,11 +419,11 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
         onGp('gp:r2',     () => { if (blocked() || !settledRef.current) return; setShowOptions(true) }),
       ]),
       onGp('gp:l1', () => {
-        if (blocked()) return
+        if (omitSort || blocked()) return
         setSort(s => { const i = SORT_KEYS.indexOf(s); return SORT_KEYS[(i - 1 + SORT_KEYS.length) % SORT_KEYS.length] })
       }),
       onGp('gp:r1', () => {
-        if (blocked()) return
+        if (omitSort || blocked()) return
         setSort(s => { const i = SORT_KEYS.indexOf(s); return SORT_KEYS[(i + 1) % SORT_KEYS.length] })
       }),
     ]
@@ -421,7 +432,7 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
     // need is read live above — a dependency list that changed on each step
     // meant tearing eight listeners down and rebuilding them on every press,
     // which is both the stale-cursor bug and needless work per frame.
-  }, [omitOptions, goHome, setSelectedGameIdx, cancelPendingLaunch])
+  }, [omitOptions, omitNav, omitConfirm, omitSort, goHome, setSelectedGameIdx, cancelPendingLaunch])
 
   // When no system is selected, render nothing (screen is hidden by display:none anyway)
   if (!selectedSystemId) return null
@@ -446,10 +457,12 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
         color={color}
         onSelect={setSelectedGameIdx}
         onSearch={(q) => { setSearch(q); setSelectedGameIdx(0) }}
-        onSort={setSort}
+        onSort={key => { setSort(key); setSelectedGameIdx(0) }}
         onLaunch={launchGame}
         onBack={goHome}
         onRetry={() => selectedSystemId && loadData(selectedSystemId)}
+        onOpenSearch={() => setShowSearch(true)}
+        onOpenOptions={() => { if (settledGame) setShowOptions(true) }}
         Cover={CoverImage}
         Meta={GameMetaPanel}
       />
@@ -482,7 +495,7 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
       <AnimatePresence>
         {showOptions && settledGame && selectedSystemId && (
           <GameOptionsModal
-            systemId={selectedSystemId}
+            systemId={settledGame.system_id ?? selectedSystemId}
             rom={settledGame.filename}
             title={settledGame.display_name}
             onClose={() => setShowOptions(false)}

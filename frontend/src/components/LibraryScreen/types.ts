@@ -59,6 +59,9 @@ export interface LibraryViewProps {
   onLaunch: () => void
   onBack: () => void
   onRetry: () => void
+  /** SDK 6: pointer routes to the host-owned search and per-game options. */
+  onOpenSearch: () => void
+  onOpenOptions: () => void
 
   /**
    * Cover art and metadata, ready-made: both do their own fetching, caching and

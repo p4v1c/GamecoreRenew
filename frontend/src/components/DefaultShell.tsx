@@ -59,13 +59,20 @@ export interface ShellParts {
    * and Shelf's library binds R2 to cycle how the shelf is stacked, and prints
    * `R2  <mode>` in its own hint bar. Pressing it did both: the box turned AND
    * a menu nobody asked for appeared over it, and pressing again turned the box
-   * behind the menu. Only `'options'` is recognised today.
+   * behind the menu. SDK 6 also recognises 'nav', 'confirm' and 'sort' for spatial grids.
+   * Search (△), Back (○), launching and the options modal stay with the host.
    *
    * A theme that takes a shortcut takes responsibility for offering the thing
    * some other way. Nothing here enforces that, because there is no honest way
    * to check it — but see LibraryScreen, which says what is lost.
    */
   libraryOmit?: string[]
+  /**
+   * Home-screen shortcuts the theme binds itself: 'nav' (the d-pad), 'pages'
+   * (L1/R1) and 'confirm' (✕). Same mechanism and same cost as `libraryOmit` —
+   * a theme that takes one owns the behaviour behind it.
+   */
+  homeOmit?: string[]
   settings?: React.ComponentType<{ onClose: () => void }>
   /**
    * Markup for the power menu and the controller screen. Their flows stay with
@@ -255,7 +262,7 @@ export default function DefaultShell(parts: ShellParts = {}) {
         {/* Both screens stay mounted at all times — toggled via display:none.
             This prevents the re-mount/re-fetch flash when navigating home. */}
         <div style={{ position: 'relative', zIndex: 1, flex: 1, display: screen === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-          <HomeScreen onLaunchApp={launchApp} view={parts.homeView} />
+          <HomeScreen onLaunchApp={launchApp} view={parts.homeView} omit={parts.homeOmit} />
         </div>
         <div style={{ position: 'relative', zIndex: 1, flex: 1, display: screen === 'library' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
           <LibraryScreen view={parts.libraryView} omit={parts.libraryOmit} />

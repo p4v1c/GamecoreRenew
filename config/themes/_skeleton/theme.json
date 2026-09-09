@@ -1,10 +1,10 @@
 {
   "id": "_skeleton",
   "name": "Skeleton",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "api": 1,
   "author": "you",
-  "description": "Template \u2014 copy this folder, drop the underscore, make it yours",
+  "description": "Template — copy this folder, drop the underscore, make it yours",
   "provides": [
     "splash",
     "shell"

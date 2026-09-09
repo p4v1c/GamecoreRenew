@@ -29,9 +29,11 @@ const ROWS = 2
 interface Props {
   onLaunchApp: (system: SystemEntry) => void
   view?: React.ComponentType<HomeViewProps>
+  /** Shortcuts the theme binds itself; see ShellParts.homeOmit. */
+  omit?: string[]
 }
 
-export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }: Props) {
+export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView, omit }: Props) {
   // One subscription per value. A bare `useStore()` subscribes to every field,
   // so this screen re-rendered on `selectedGameIdx` — a value it does not read
   // and cannot show — for every step the player took in the library, while it
@@ -274,22 +276,49 @@ export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView }
     }
   }, [perPage, setGridFocus, goLibrary, onLaunchApp]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Gamepad events — all guarded so they don't fire when a modal is open
+  // `omit` is a prop and a fresh array on every parent render; the effect
+  // below only cares whether an id is in it.
+  const omitNav = !!omit?.includes('nav')
+  const omitPages = !!omit?.includes('pages')
+  const omitConfirm = !!omit?.includes('confirm')
+
+  /**
+   * Gamepad events — all guarded so they don't fire when a modal is open.
+   *
+   * Droppable, the way LibraryScreen's R2 is, and for the same reason: this
+   * screen's cursor walks the SYSTEM grid, and a theme whose dashboard is not a
+   * system grid has no use for it. Orbit's Games tab is a rail of games and its
+   * Applications tab a rail of apps, so the host's d-pad would be moving a
+   * selection nobody can see — the cursor landing on a console while the screen
+   * shows a game, and ✕ then opening the console.
+   *
+   * Dropped entirely rather than deferred, because both sets of handlers would
+   * otherwise fire on the same press. A theme that takes these owns the whole
+   * of the behaviour behind them, ✕ included; the cost is stated here rather
+   * than discovered, exactly as it is for `libraryOmit`.
+   */
   useEffect(() => {
     const blocked = () => screenRef.current !== 'home' || modalDepthRef.current > 0
     const offs = [
-      onGp('gp:dpad-up',    () => { if (blocked()) return; navigate('up') }),
-      onGp('gp:dpad-down',  () => { if (blocked()) return; navigate('down') }),
-      onGp('gp:dpad-left',  () => { if (blocked()) return; navigate('left') }),
-      onGp('gp:dpad-right', () => { if (blocked()) return; navigate('right') }),
+      ...(omitNav ? [] : [
+        onGp('gp:dpad-up',    () => { if (blocked()) return; navigate('up') }),
+        onGp('gp:dpad-down',  () => { if (blocked()) return; navigate('down') }),
+        onGp('gp:dpad-left',  () => { if (blocked()) return; navigate('left') }),
+        onGp('gp:dpad-right', () => { if (blocked()) return; navigate('right') }),
+      ]),
       // Live for the same reason the d-pad is: three taps on R1 are three
       // pages, and each one has to start from the page the one before landed on.
-      onGp('gp:r1',  () => { if (blocked()) return; const p = useStore.getState().gridPage; if (p < pageCount - 1) { setGridPage(p + 1); setGridFocus(0) } }),
-      onGp('gp:l1',  () => { if (blocked()) return; const p = useStore.getState().gridPage; if (p > 0) { setGridPage(p - 1); setGridFocus(0) } }),
-      onGp('gp:confirm', () => { if (blocked()) return; activate() }),
+      ...(omitPages ? [] : [
+        onGp('gp:r1',  () => { if (blocked()) return; const p = useStore.getState().gridPage; if (p < pageCount - 1) { setGridPage(p + 1); setGridFocus(0) } }),
+        onGp('gp:l1',  () => { if (blocked()) return; const p = useStore.getState().gridPage; if (p > 0) { setGridPage(p - 1); setGridFocus(0) } }),
+      ]),
+      ...(omitConfirm ? [] : [
+        onGp('gp:confirm', () => { if (blocked()) return; activate() }),
+      ]),
     ]
     return () => offs.forEach(off => off())
-  }, [navigate, activate, pageCount, setGridPage, setGridFocus])
+  }, [navigate, activate, pageCount, setGridPage, setGridFocus,
+      omitNav, omitPages, omitConfirm])
 
   // Stats
   const totalGames = Object.values(gameCountMap).reduce((a, b) => a + b, 0)

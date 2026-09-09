@@ -152,7 +152,7 @@ def test_the_settings_button_opens_a_window_and_never_starts_the_game(
                         lambda _s: ("flatpak", "run org.example.Emu"))
     from backend.services.process_manager import process_manager
     monkeypatch.setattr(process_manager, "launch", fake_launch)
-    monkeypatch.setattr(type(process_manager), "is_running",
+    monkeypatch.setattr(type(process_manager), "is_foreground",
                         property(lambda _self: False))
 
     r = client.post(f"/api/pergame/{SUPPORTING.id}/open",
@@ -167,7 +167,7 @@ def test_the_settings_window_does_not_start_over_a_running_game(client, monkeypa
     monkeypatch.setattr(pergame, "settings_launcher",
                         lambda _s: ("flatpak", "run org.example.Emu"))
     from backend.services.process_manager import process_manager
-    monkeypatch.setattr(type(process_manager), "is_running",
+    monkeypatch.setattr(type(process_manager), "is_foreground",
                         property(lambda _self: True))
     r = client.post(f"/api/pergame/{SUPPORTING.id}/open", json={"rom": ""})
     assert r.status_code == 409

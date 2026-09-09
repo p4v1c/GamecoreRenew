@@ -6,6 +6,10 @@
  * load — half a theme (a themed dashboard behind the stock boot animation) is
  * what made the first version feel broken.
  *
+ * `sessionBar` below is the one exception, and the difference is worth
+ * understanding before you copy it: it is OPTIONAL, it is not declared in
+ * "provides", and the host draws its own if you leave it out.
+ *
  * You are dressing the frontend, not rebuilding it: paging, focus, the modal
  * stack and the button bindings stay with the host, so your theme behaves
  * exactly like the default and only the UI changes.
@@ -58,5 +62,74 @@ export default (sdk) => {
   // a z-index.
   const Shell = () => html`<${sdk.defaults.Shell} />`
 
-  return { splash: Splash, shell: Shell }
+  /**
+   * The suspended-session bar — optional, and the only surface that is.
+   *
+   * Pressing Home twice suspends the running game instead of killing it, and
+   * this is the way back to it. The host mounts a bar whether or not you
+   * export one, because a theme that simply forgot would leave a frozen
+   * emulator holding several gigabytes of memory with nothing on screen able
+   * to resume or close it. Exporting `sessionBar` replaces the picture, never
+   * the guarantee — so delete this function and the box still works, it just
+   * stops looking like your theme for one bar.
+   *
+   * You get the state and the callbacks; the host keeps the bindings (✕
+   * resumes, L1/R1 walk the list) so the gesture does not change with the
+   * theme. `kind` is 'app' or 'game' — say which, or you will be offering to
+   * close a "game" the player never started.
+   *
+   * Reading the state yourself instead: `sdk.session.use()` in a component,
+   * `sdk.session.get()` in a handler, and `background()` / `resume(id)` /
+   * `close(id)` to act. Touching any of those means your theme.json must
+   * declare `"api": 5` — the version gate reads your sources and will refuse
+   * the theme if it does not.
+   *
+   * No `z-index` here either: the host owns the layer this sits in.
+   */
+  const SessionBar = ({ sessions, focusIdx, active, busy, title, onResume, onClose }) => {
+    const s = sessions[focusIdx] || sessions[0]
+    if (!s) return null
+    return html`
+      <div style=${{
+        display: 'flex', alignItems: 'center', gap: 14, padding: '12px 22px',
+        background: '#12121a', borderTop: '1px solid #2a2a38', color: '#fff',
+        opacity: active ? 1 : 0.75,
+      }}>
+        <div style=${{ flex: 1, minWidth: 0 }}>
+          <div style=${{ fontSize: 10, letterSpacing: '0.14em', opacity: 0.6 }}>
+            ${s.kind === 'app' ? 'APPLICATION SUSPENDED' : 'GAME SUSPENDED'}
+          </div>
+          <strong>${title(s)}</strong>
+        </div>
+        <button disabled=${busy} onClick=${() => onResume(s)}>Resume ✕</button>
+        <button disabled=${busy} onClick=${() => onClose(s)}>
+          Close ${s.kind === 'app' ? 'application' : 'game'}
+        </button>
+      </div>`
+  }
+
+  /**
+   * The menu the host opens on L2, when something is suspended. Optional in
+   * exactly the same way, and for the same reason: the host draws one either
+   * way, so a theme that omits it loses its own styling and nothing else.
+   *
+   * The host owns the navigation, the modal lock and the actions — `actions` is
+   * already resolved to labels and handlers, and `actionIdx` says which one the
+   * pad is on. Draw them; do not bind ✕ or the d-pad yourself.
+   */
+  const SessionMenu = ({ session, confirming, busy, actions, actionIdx, title }) => html`
+    <section style=${{ padding: 28, borderRadius: 14, background: '#12121b', minWidth: 320 }}>
+      <p style=${{ fontSize: 10, letterSpacing: '0.14em', opacity: 0.6 }}>
+        ${confirming ? 'END THIS SESSION' : 'SUSPENDED SESSION'}</p>
+      <h2>${title(session)}</h2>
+      <div style=${{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 18 }}>
+        ${actions.map((action, i) => html`
+          <button key=${action.id} disabled=${busy} onClick=${action.run}
+                  style=${{ padding: 12, textAlign: 'left',
+                            background: actionIdx === i ? '#7c3aed' : '#26263a', color: '#fff' }}>
+            ${action.label}</button>`)}
+      </div>
+    </section>`
+
+  return { splash: Splash, shell: Shell, sessionBar: SessionBar, sessionMenu: SessionMenu }
 }
