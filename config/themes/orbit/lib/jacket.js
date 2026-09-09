@@ -6,7 +6,6 @@ import {listMediaIndex} from './media-cache.js'
 // banners, including FIFA 19's 320x176 EA banner, rather than jackets.
 const RATIO_MIN = 0.5
 const RATIO_MAX = 1.5
-const DEFAULT_RATIO = 2 / 3
 const plausible = ratio => ratio >= RATIO_MIN && ratio <= RATIO_MAX
 
 const boxFront = (sdk, systemId, filename) =>
@@ -25,7 +24,6 @@ export const createJacket = sdk => {
     const direct = coverUrl(systemId, filename)
     const [src, setSrc] = useState(direct)
     const [stage, setStage] = useState('direct')
-    const [ratio, setRatio] = useState(DEFAULT_RATIO)
 
     useEffect(() => {
       if (stage !== 'resolving') return
@@ -49,14 +47,12 @@ export const createJacket = sdk => {
         setStage(stage === 'direct' ? 'resolving' : 'failed')
         return
       }
-      setRatio(next)
     }
 
     const failed = () => setStage(stage === 'direct' ? 'resolving' : 'failed')
     const fallback = stage === 'resolving' || stage === 'failed'
 
-    return html`<span className=${`orbit-jacket ${className}`}
-      style=${{'--jacket-ratio': String(ratio)}} data-source=${stage}>
+    return html`<span className=${`orbit-jacket ${className}`} data-source=${stage}>
       ${fallback
         ? html`<span className="art-fallback">${(title || '◇').slice(0, 2).toUpperCase()}</span>`
         : html`<img key=${src} src=${src} alt=${title} draggable="false" loading="lazy"
