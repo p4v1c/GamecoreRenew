@@ -229,7 +229,7 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
   --font-body: Inter, 'Segoe UI', Arial, sans-serif; --font-display: var(--font-body);
   --font-mono: ui-monospace, monospace; --r-chip: 999px; --gc-paper-pattern: none;
 }
-.orbit-app .orbit-settings-frame { position: relative; width: min(1150px, 100%); }
+.orbit-app .orbit-settings-frame { position: relative; width: min(1440px, 100%); }
 .orbit-app .gcs-set.orbit-settings { position: relative; inset: auto; width: 100%; height: min(790px, 90vh);
   border: 1px solid #bddbff35; border-radius: 23px; background: linear-gradient(125deg, #192a42f7, #0d182bf9 66%); }
 .orbit-app .orbit-settings-frame > .close-dialog { position: absolute; right: 23px; top: 22px; font-size: 26px; }
