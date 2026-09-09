@@ -1,4 +1,4 @@
-import {consoles, coverUrl} from './artwork.js'
+import {consoles, coverUrl} from './catalog.js'
 
 /** Orbit's session surface, over the real backend.
  *
@@ -14,9 +14,17 @@ import {consoles, coverUrl} from './artwork.js'
  * the core's rules — a theme making its own would be a second answer to a
  * question that has to have one.
  */
-export function createSession(sdk, artwork) {
+export function createSession(sdk) {
   const {html, useState, useEffect, useRef} = sdk.ui
-  const {Image} = artwork
+
+  /** Real artwork or initials — never a stand-in dressed as a cover. */
+  function Image({src, alt = '', className = ''}) {
+    const [failed, setFailed] = useState(false)
+    return src && !failed
+      ? html`<img className=${className} src=${src} alt=${alt} draggable="false"
+                  onError=${() => setFailed(true)} />`
+      : html`<span className="art-fallback">${(alt || '◇').slice(0, 2).toUpperCase()}</span>`
+  }
 
   /** Orbit may open its own surface only when nothing the core owns is up. */
   const available = () => {
@@ -172,11 +180,11 @@ export function createSession(sdk, artwork) {
 
     if (!open || !session) return null
     return html`<${sdk.defaults.SettingsOverlay} onClose=${close} width=${880}>
-      <section className="orbit-session-panel" role="dialog" aria-modal="true"
+      <section className="session-menu-body" role="dialog" aria-modal="true"
                aria-labelledby="orbit-session-title">
-        <span className="orbit-eyebrow">${confirm ? 'CLOSE THIS SESSION' : 'SUSPENDED SESSION'}${
+        <span className="eyebrow">${confirm ? 'CLOSE THIS SESSION' : 'SUSPENDED SESSION'}${
           background.length > 1 ? ` · ${pick + 1} / ${background.length}` : ''}</span>
-        <div className="orbit-session-identity">
+        <div className="session-menu-header">
           <${Image} src=${artOf(session)} alt=${titleOf(session)} />
           <div>
             <p>${session.kind === 'app' ? 'Application' : 'Game'}${
@@ -188,17 +196,17 @@ export function createSession(sdk, artwork) {
         <p>${confirm
           ? `This ends the ${noun(session)}. Anything it has not saved is lost.`
           : 'Frozen exactly where you left it. Nothing is running, and no playtime is counting.'}</p>
-        <div className="orbit-session-scene" aria-hidden="true">
-          <span className="orbit-orb" />
+        <div className="session-menu-scene" aria-hidden="true">
+          <span className="session-orb" />
           <span>${confirm ? 'This cannot be undone.' : 'Ready when you are.'}</span>
         </div>
-        <div className="orbit-actions">${actions.map((action, i) => html`<button
+        <div className="session-menu-options">${actions.map((action, i) => html`<button
           key=${action.key} ref=${(el) => {buttons.current[i] = el}}
           data-active=${idx === i ? 'true' : 'false'} disabled=${busy}
-          className=${`orbit-button ${action.primary ? 'orbit-primary' : ''} ${action.danger ? 'orbit-danger' : ''}`}
+          className=${`session-menu-option ${action.primary ? 'recommended' : ''} ${action.danger ? 'session-danger' : ''}`}
           onFocus=${() => setIdx(i)} onClick=${action.run}>${
             busy ? 'Working…' : action.label}</button>`)}</div>
-        <p className="orbit-muted">Directional pad · ✕ select · ○ / L2 back${
+        <p className="session-menu-hints">Directional pad · ✕ select · ○ / L2 back${
           background.length > 1 ? ' · L1 R1 switch session' : ''}</p>
       </section>
     <//>`
@@ -206,27 +214,37 @@ export function createSession(sdk, artwork) {
 
   // ── the bar, mounted by the host above the shell ──────────────────────────
 
-  /** Orbit's dock. The host mounts this and guarantees it is on screen: a theme
-   *  replaces the picture, never the way back to a suspended game. */
+  /** Orbit's dock — the mockup's `#session-dock`, drawn by the host.
+   *
+   * The host mounts it and guarantees it is on screen: a theme replaces the
+   * picture, never the way back to a suspended game. Class names are the
+   * mockup's so the design in theme.css applies unchanged.
+   */
   function Bar({sessions, focusIdx, active, busy, onResume, onClose}) {
     const s = sessions[focusIdx] || sessions[0]
     if (!s) return null
-    return html`<div className="orbit-session-dock" data-active=${active ? 'true' : 'false'}
-                     role="region" aria-label="Suspended session">
-      <span className="orbit-dock-orb" aria-hidden="true" />
-      <${Image} className="orbit-dock-art" src=${artOf(s)} alt=${titleOf(s)} />
-      <div className="orbit-dock-text">
-        <span className="orbit-eyebrow">${s.kind === 'app'
-          ? 'APPLICATION SUSPENDED' : 'GAME SUSPENDED'}${
+    return html`<aside className=${`session-dock ${active ? 'controller-active' : ''}`}
+                       aria-label="Background session">
+      <div className="session-dock-art"><${Image} src=${artOf(s)} alt=${titleOf(s)} /></div>
+      <div className="session-dock-info">
+        <span><i className="status-light" /> IN BACKGROUND${
           sessions.length > 1 ? ` · ${focusIdx + 1}/${sessions.length}` : ''}</span>
         <strong>${titleOf(s)}</strong>
+        <small>${s.kind === 'app' ? 'Application' : 'Game'} · <span
+          className="session-dock-idle-hint">L2 to manage</span><span
+          className="session-dock-active-hint">✕ Resume · ○ Back</span></small>
       </div>
-      <button className="orbit-button orbit-primary" disabled=${busy}
-              onClick=${() => onResume(s)}>${busy ? 'Working…' : 'Resume'} <kbd>✕</kbd></button>
-      <button className="orbit-button" disabled=${busy}
-              onClick=${() => onClose(s)}>Close ${noun(s)}</button>
-      <kbd className="orbit-dock-key">L2</kbd>
-    </div>`
+      <div className="session-dock-actions">
+        <button className="primary-button" disabled=${busy}
+                onClick=${() => onResume(s)}>${busy ? 'Working…' : 'Resume'}</button>
+        <button className="session-dock-more" disabled=${busy}
+                onClick=${() => onClose(s)}
+                aria-label=${`Close ${titleOf(s)} permanently`}>
+          <span>Close ${noun(s)}</span></button>
+      </div>
+      <button className="session-dock-shortcut" onClick=${openPanel}
+              aria-label="Manage session"><kbd>L2</kbd></button>
+    </aside>`
   }
 
   /** L2 anywhere: manage whatever is suspended. Bound once, by the shell. */

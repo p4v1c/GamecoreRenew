@@ -1,6 +1,7 @@
 # Orbit
 
-Installable GameCore theme. Requires GameCore SDK 5.
+Installable GameCore theme, built from the interactive mockup (`gamecore-orbit`).
+Requires GameCore SDK 5.
 
 ## Install
 
@@ -8,15 +9,38 @@ Run `gamecore-theme verify orbit.zip`, then `gamecore-theme install orbit.zip`.
 Select Orbit in Settings → Themes. Alternatively extract the `orbit` directory into GameCore’s `config/themes/` directory.
 No build, npm installation, backend patch, or changes to other themes are needed.
 
-## Controls
+## The four tabs
 
-- Home: Left/Right browse installed consoles and applications; Cross/A opens the selected entry.
-- Library: Up/Down select a game; Cross/A launches; Circle/B returns home.
-- Triangle/Y opens the host’s virtual search keyboard. L1/R1 changes the library sort. R2 opens the host’s per-game options.
-- Square/X opens live controller inputs; press it twice to close. Hold Triangle/Y there for the host mapping wizard.
-- Options/Menu opens all host settings, including catalog, controllers, network, storage and themes. Share/View opens power controls.
-- L2 manages a suspended session, when there is one. D-pad selects an action; Cross/A confirms; Circle/B or L2 goes back. L1/R1 switch between suspended sessions.
-- Home/Guide twice suspends the running game and returns here. That gesture belongs to the core, not to Orbit.
+The mockup’s whole shape is its navigation, and so is this theme’s.
+
+| Tab | What it is |
+|---|---|
+| **Games** | a rail of what you have actually been playing, with the applications on the same rail and the whole library one tile away at the end. A hero panel underneath: console, title, description, genre and year from the metadata, time played, Play and the favourite heart. |
+| **Consoles** | the showcase — maker, year, the console’s own photograph on a plinth, a line about the generation — over a grid of every console you have installed. |
+| **Library** | one console’s games as cover cards, with the other consoles as filter chips, a search field, and a favourites filter. |
+| **Applications** | the app rail and its feature panel: category, edition, description, and Open. |
+
+`L1` / `R1` walk the tabs on Games, Consoles and Applications. In the Library
+they sort, because that is the host’s binding and the host’s screen — `○` leaves.
+
+### Where this departs from the mockup, and why
+
+- **The rail is what you played, not every game you own.** The mockup listed
+  twelve invented titles. A real box has however many ROMs its owner put on it,
+  and “every game” is not a rail, it is a wall nobody reaches the end of. The
+  playtime table already knows the useful subset.
+- **There are no bundled games or consoles.** Everything on screen is a pack you
+  installed. The mockup’s `games` and `systems` arrays are gone; what survived
+  is the *presentation* — maker, year, accent, the sentence under the console
+  name — keyed by the real pack id, in `lib/catalog.js`.
+- **The Library is per console, and the filter chips switch console.** GameCore
+  keeps ROMs per console and the host’s library screen is scoped to one. “All of
+  them” is the Consoles tab, which is a better answer than a chip.
+- **Favourites are this theme’s, in this browser’s storage.** GameCore has no
+  favourites: no endpoint, no column. Nothing else on the box can see them.
+- **The control centre, the power menu, the search keyboard and the controller
+  diagram are the host’s.** The mockup drew its own with simulated data; a theme
+  that shipped those would be showing fixtures where the box has facts.
 
 ## Suspend and resume
 
@@ -77,13 +101,16 @@ change where it came from. Its thirteen entries still name the thirteen files.
 
 ## Validation
 
-Do not take the previous version’s “12 integration tests passed” on faith; that
-was an assertion in a README, not a test anyone else could run. What can be run
-is in the repository: `backend/tests/test_sdk_version_gate.py` computes the SDK
-level Orbit actually uses from its sources and compares it with the manifest,
-`backend/tests/test_shipped_theme_views.py` checks the controller screen still
-reaches the mapping wizard, `frontend/src/lib/themeSplashContract.test.tsx`
-holds the splash to the boot contract, and `scripts/check-theme.mjs` parses every
-module and verifies the settings menu reaches all ten host pages.
+`frontend/src/lib/orbitTabs.test.tsx` mounts the four tabs against the real host
+and the real SDK — the same assembly `index.js` builds, `homeOmit` included —
+and asserts which tab is drawn, that the rail comes from the playtime table
+rather than a bundled list, that consoles and applications are not mixed into
+each other, that the pad moves Orbit's cursor and not a hidden one underneath,
+and that Library goes to the host's screen. `backend/tests/test_sdk_version_gate.py`
+computes the SDK level Orbit actually uses from its sources,
+`test_shipped_theme_views.py` checks the controller screen still reaches the
+mapping wizard, `themeSplashContract.test.tsx` holds the splash to the boot
+contract, and `scripts/check-theme.mjs` parses every module and verifies the
+settings menu reaches all ten host pages.
 
-Physical-controller and on-device verification remain to be performed.
+How it *looks* on a television is not claimed by any of that.

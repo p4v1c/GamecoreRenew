@@ -237,6 +237,8 @@ which and why.
 | `topbar` | clock, IP, storage, controller battery |
 | `homeView` | the dashboard's **markup** (see below) |
 | `libraryView` | the game list, detail panel and metadata — **markup only**, like `homeView` |
+| `homeOmit` | home-screen shortcuts you bind yourself: `'nav'` (d-pad), `'pages'` (L1/R1), `'confirm'` (✕). Take one and you own what it does — see §5g |
+| `libraryOmit` | the same, for the library. Today only `'options'` (R2) |
 | `screensaver` | the standby slideshow |
 | `settings` | the settings screen |
 | `powerView` | the power menu's markup — the two-press confirmation, the pending lock and the failsafe stay with the host |
@@ -413,6 +415,40 @@ how the first two got through.
 
 Declaring the empty list is not the same as saying nothing: it means your menu
 opens none of them, and you will be told so for every page.
+
+## 5g. When your dashboard is not a grid of consoles — `homeOmit`
+
+The home screen's cursor walks the **system grid**: the d-pad moves
+`gridFocusIdx` across the systems on the page, L1/R1 turn the page, and ✕ opens
+whatever the cursor is on. `homeView` is markup over that, which is the right
+shape for a dashboard that IS a grid of consoles — the default one, Shelf,
+Summer.
+
+It is the wrong shape for a dashboard that is not. Orbit's home is three tabs:
+a rail of recently played games, a grid of consoles, a rail of applications.
+Only the middle one is the host's model. Left as it was, the host's d-pad moved
+a selection nobody could see — the cursor landing on a console while the screen
+showed a game — and ✕ then opened that console.
+
+So the home bindings are droppable, the same way the library's R2 is:
+
+```js
+html`<${sdk.defaults.Shell} homeView=${Home} homeOmit=${['nav', 'pages', 'confirm']} />`
+```
+
+| id | what you take |
+|---|---|
+| `nav` | the four d-pad directions |
+| `pages` | L1 / R1 |
+| `confirm` | ✕ |
+
+**Dropped entirely, not deferred.** Both sets of handlers would otherwise fire
+on the same press. And taking one means owning everything behind it: `confirm`
+in particular is what opens a console (`sdk.nav.goLibrary`) and what launches an
+application (`sdk.defaults.launchApp`), so a theme that takes ✕ has to do both.
+
+Take nothing and nothing changes — this is opt-in, and the two shipped themes
+whose dashboards *are* system grids take none of it.
 
 ## 5f. The suspended session, and the bar over it — SDK 5
 
