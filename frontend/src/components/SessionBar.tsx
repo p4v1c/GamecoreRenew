@@ -25,6 +25,9 @@ import { formatGameName } from '../lib/formatGameName'
 import ErrorBoundary from './ErrorBoundary'
 import { useThemeCtx } from './ThemeSurface'
 
+/** The menu must be gone before a theme starts drawing its handover. */
+const SESSION_MENU_EXIT_MS = 150
+
 /** One thing the menu can do, already resolved to a label and a handler. */
 export interface SessionAction {
   id: 'resume' | 'close' | 'back' | 'keep' | 'confirm-close'
@@ -229,7 +232,7 @@ export default function SessionBar(
    */
   const ceremonyMs = useThemeCtx()?.manifest?.launch?.ms ?? 0
 
-  const resume = (s: BackgroundSession) => act(async () => {
+  const resumeSession = async (s: BackgroundSession) => {
     const store = useStore.getState()
     store.setTransition('resume')
     try {
@@ -238,7 +241,9 @@ export default function SessionBar(
     } finally {
       store.setTransition(null)
     }
-  })
+  }
+
+  const resume = (s: BackgroundSession) => act(() => resumeSession(s))
 
   /** The pointer's way to the menu, guarded exactly as the L2 binding is. */
   const manage = () => {
@@ -310,14 +315,8 @@ export default function SessionBar(
              // The menu closes FIRST, so the theme's ceremony is drawn over the
              // interface rather than behind a dialog that is about to vanish.
              setMenu(false)
-             const store = useStore.getState()
-             store.setTransition('resume')
-             try {
-               if (ceremonyMs > 0) await new Promise(r => setTimeout(r, ceremonyMs))
-               await api.games.foreground(current.session)
-             } finally {
-               store.setTransition(null)
-             }
+             await new Promise(r => setTimeout(r, SESSION_MENU_EXIT_MS))
+             await resumeSession(current)
            }) },
          { id: 'close', label: `${closeLabel(current)}…`,
            run: () => { setConfirming(true); setActionIdx(0) } },
@@ -436,7 +435,7 @@ export default function SessionBar(
       {menu && current && (
         <motion.div key="session-menu"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
+          transition={{ duration: SESSION_MENU_EXIT_MS / 1000 }}
           style={{
             position: 'fixed', inset: 0, zIndex: 700, display: 'grid',
             placeItems: 'center', background: 'rgba(4,7,14,0.72)',

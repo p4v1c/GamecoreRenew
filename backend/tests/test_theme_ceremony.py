@@ -129,11 +129,27 @@ def test_a_theme_that_draws_a_handover_reads_the_hosts_flag(theme_dir: Path):
     say — is guessing, and it guesses wrong in exactly the cases that matter:
     a resume that failed, a game that exited on its own.
     """
-    ceremony = theme_dir / "views" / "ceremony.js"
-    if not ceremony.is_file():
+    candidates = [theme_dir / "views" / "ceremony.js",
+                  theme_dir / "views" / "warp.js"]
+    ceremony = next((path for path in candidates if path.is_file()), None)
+    if ceremony is None:
         pytest.skip(f"{theme_dir.name} draws no handover of its own")
     source = ceremony.read_text()
     assert "s.transition" in source, (
         f"{theme_dir.name}: views/ceremony.js does not read `transition` from "
         "the store, so whatever it draws is not driven by the handover itself"
     )
+
+
+@pytest.mark.parametrize(
+    ("theme", "total", "motion", "settle"),
+    [("orbit", "TRAVEL_MS", "TRAVEL_MOTION_MS", "TRAVEL_SETTLE_MS"),
+     ("shelf", "CLOSE_MS", "CLOSE_MOTION_MS", "CLOSE_SETTLE_MS"),
+     ("summer", "CLOSE_MS", "CLOSE_MOTION_MS", "CLOSE_SETTLE_MS")],
+)
+def test_a_closed_screen_settles_before_the_game_takes_it(
+        theme: str, total: str, motion: str, settle: str):
+    """The final closed frame needs time to register before the window changes."""
+    constants = _constants(THEMES / theme)
+    assert constants[total] == constants[motion] + constants[settle]
+    assert constants[settle] >= 100

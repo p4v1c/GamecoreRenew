@@ -52,6 +52,8 @@ export interface ThemeState {
   sessionBar?: SurfaceMap['sessionBar']
   /** Its session menu — the L2 panel. Optional for the same reason. */
   sessionMenu?: SurfaceMap['sessionMenu']
+  /** Its launch/resume/suspend handover, placed in a host-owned overlay. */
+  ceremony?: SurfaceMap['ceremony']
   /** Kept for the settings page: what the loader actually resolved. */
   surfaces: SurfaceMap
   /** Active theme id, or null for the built-in default. */
@@ -227,7 +229,7 @@ export function useTheme(): ThemeState {
 
   return {
     shell: surfaces.shell, splash: surfaces.splash, sessionBar: surfaces.sessionBar,
-    sessionMenu: surfaces.sessionMenu,
+    sessionMenu: surfaces.sessionMenu, ceremony: surfaces.ceremony,
     surfaces, themeId, manifest, loading, safeMode,
     resetKey: `${themeId ?? 'default'}:${nonce}`,
     reload: () => setNonce(n => n + 1),

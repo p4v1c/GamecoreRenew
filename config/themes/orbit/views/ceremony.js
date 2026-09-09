@@ -31,11 +31,16 @@
  * the two agree, because nothing else can.
  */
 
-/** The launch/resume travel. Must equal `launch.ms` in theme.json. */
+/** Motion plus a settled field of light. Must equal `launch.ms` in theme.json. */
+export const TRAVEL_MOTION_MS = 930
+export const TRAVEL_SETTLE_MS = 220
 export const TRAVEL_MS = 1150
 
 /** The return. Not held by anything — the game is frozen before this starts. */
 export const RETURN_MS = 900
+
+/** Lets React paint the last animation frame before removing the overlay. */
+const HIDE_GRACE_MS = 120
 
 export function createCeremony(sdk) {
   const {html, useState, useEffect} = sdk.ui
@@ -51,8 +56,7 @@ export function createCeremony(sdk) {
     useEffect(() => {
       if (transition) { setShown(transition); return }
       if (!shown) return
-      const hold = setTimeout(() => setShown(null),
-                              shown === 'suspend' ? RETURN_MS : 220)
+      const hold = setTimeout(() => setShown(null), HIDE_GRACE_MS)
       return () => clearTimeout(hold)
     }, [transition, shown])
 

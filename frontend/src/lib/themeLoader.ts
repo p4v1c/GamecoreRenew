@@ -25,18 +25,18 @@ import { setThemeRumble, type RumblePattern } from './rumble'
 export type SurfaceName = 'splash' | 'shell'
 
 /**
- * Surfaces a theme MAY export, and the host draws itself when it does not.
+ * Surfaces a theme MAY export, with host-owned placement and fallback.
  *
  * Not in `SURFACES`, and that difference is the whole point: those are
- * all-or-nothing and a theme missing one is refused, while these have a
- * working host version behind them. `sessionBar` is the way back to a
+ * all-or-nothing and a theme missing one is refused. `sessionBar` is the way back to a
  * suspended game, and a theme must not be able to lose it by omission — the
  * player would be left with a frozen emulator holding several gigabytes and
- * nothing on screen able to resume or close it. So the host always draws one,
- * and a theme exporting this replaces the picture rather than the guarantee.
+ * nothing on screen able to resume or close it. So the host always draws one.
+ * `ceremony` has no visual fallback, but the host still supplies its safe
+ * overlay layer.
  */
-export type OptionalSurfaceName = 'sessionBar' | 'sessionMenu'
-export const OPTIONAL_SURFACES: OptionalSurfaceName[] = ['sessionBar', 'sessionMenu']
+export type OptionalSurfaceName = 'sessionBar' | 'sessionMenu' | 'ceremony'
+export const OPTIONAL_SURFACES: OptionalSurfaceName[] = ['sessionBar', 'sessionMenu', 'ceremony']
 
 export const SURFACES: SurfaceName[] = ['splash', 'shell']
 
@@ -202,8 +202,7 @@ export async function loadTheme(m: ThemeManifest, host: SdkHost): Promise<Surfac
   }
 
   // Optional, and taken without a manifest declaration: it is not part of the
-  // `provides` promise because the host has one either way. A theme that
-  // exports something which is not a component simply keeps the host's.
+  // `provides` promise because omission cannot make the frontend incomplete.
   for (const name of OPTIONAL_SURFACES) {
     const comp = (produced as Record<string, unknown>)[name]
     if (typeof comp === 'function') out[name] = comp as ComponentType<any>

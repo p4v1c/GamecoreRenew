@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import SessionBar, { type SessionBarProps } from './SessionBar'
 import { useStore, type BackgroundSession } from '../store'
 import { api } from '../api'
+import { ThemeProvider } from './ThemeSurface'
 
 const SUSPENDED: BackgroundSession = {
   gameKey: 'Zelda_(USA).iso', systemId: 'dolphin', session: 1, kind: 'game' }
@@ -28,9 +29,21 @@ const held = (...s: BackgroundSession[]) =>
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  vi.useRealTimers()
   useStore.setState({ sessionGameKey: null, sessionSystemId: null,
-                      backgroundSessions: [], modalDepth: 0 })
+                      backgroundSessions: [], modalDepth: 0, transition: null })
 })
+
+const themeWithHold = {
+  manifest: { launch: { ms: 100 } }, surfaces: {}, themeId: 'test', loading: false,
+  safeMode: null, resetKey: 'test', reload: () => {}, select: async () => {},
+  noteShellCrash: () => {},
+} as any
+
+const renderWithHold = () => {
+  render(<ThemeProvider value={themeWithHold}><SessionBar /></ThemeProvider>)
+  held(SUSPENDED)
+}
 
 describe('the host bar', () => {
   it('is not on screen when nothing is suspended', () => {
@@ -88,6 +101,51 @@ describe('the host bar', () => {
     // By number and not bare: a bare kill ends whatever is on the SCREEN, which
     // while an app is running is the app, not the game the player pointed at.
     expect(kill).toHaveBeenCalledWith(1)
+  })
+})
+
+describe('the resume handover', () => {
+  it('waits for the theme ceremony before foregrounding the session', async () => {
+    vi.useFakeTimers()
+    const foreground = vi.spyOn(api.games, 'foreground').mockResolvedValue({} as never)
+    renderWithHold()
+
+    fireEvent.click(screen.getByText(/resume game/i))
+    expect(useStore.getState().transition).toBe('resume')
+    expect(foreground).not.toHaveBeenCalled()
+    await act(async () => { await vi.advanceTimersByTimeAsync(99) })
+    expect(foreground).not.toHaveBeenCalled()
+    await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+    expect(foreground).toHaveBeenCalledWith(1)
+    expect(useStore.getState().transition).toBeNull()
+  })
+
+  it('closes the session menu before running the same held resume', async () => {
+    vi.useFakeTimers()
+    const foreground = vi.spyOn(api.games, 'foreground').mockResolvedValue({} as never)
+    renderWithHold()
+    act(() => { window.dispatchEvent(new CustomEvent('gp:l2')) })
+    expect(screen.getByText(/suspended session/i)).toBeTruthy()
+
+    const resumeButtons = screen.getAllByText(/resume game/i)
+    fireEvent.click(resumeButtons[resumeButtons.length - 1])
+    expect(useStore.getState().transition).toBeNull()
+    await act(async () => { await vi.advanceTimersByTimeAsync(150) })
+    expect(useStore.getState().transition).toBe('resume')
+    expect(foreground).not.toHaveBeenCalled()
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+    expect(foreground).toHaveBeenCalledWith(1)
+    expect(useStore.getState().transition).toBeNull()
+  })
+
+  it('clears the ceremony after a failed resume', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(api.games, 'foreground').mockRejectedValue(new Error('resume failed'))
+    renderWithHold()
+    fireEvent.click(screen.getByText(/resume game/i))
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+    expect(useStore.getState().transition).toBeNull()
   })
 })
 

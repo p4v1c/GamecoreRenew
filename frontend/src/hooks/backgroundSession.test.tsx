@@ -58,16 +58,18 @@ afterEach(() => {
   vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers()
   FakeSocket.instances = []
   useStore.setState({ sessionGameKey: null, sessionSystemId: null,
-                      backgroundSessions: [] })
+                      backgroundSessions: [], transition: null })
 })
 
-function mount() {
+function mountView() {
   vi.stubGlobal('WebSocket', FakeSocket)
   vi.spyOn(api.standby, 'get').mockResolvedValue({ state: 'active' } as never)
   vi.spyOn(api.games, 'session').mockResolvedValue({} as never)
-  render(<Host />)
-  return FakeSocket.instances[0]
+  const view = render(<Host />)
+  return { socket: FakeSocket.instances[0], view }
 }
+
+const mount = () => mountView().socket
 
 describe('the pad while a game is suspended', () => {
   it('is blocked while the game is on the screen', () => {
@@ -100,6 +102,31 @@ describe('the pad while a game is suspended', () => {
 
     expect(isPlaying()).toBe(true)
     expect(useStore.getState().backgroundSessions).toEqual([])
+  })
+})
+
+describe('the suspend handover', () => {
+  it('keeps the theme beat up for 900ms and then clears it', async () => {
+    vi.useFakeTimers()
+    const socket = mount()
+    send(socket, 'game:backgrounded',
+         { ...SUSPENDED, state_snapshot: state(null, [SUSPENDED]) })
+    expect(useStore.getState().transition).toBe('suspend')
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(899) })
+    expect(useStore.getState().transition).toBe('suspend')
+    await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+    expect(useStore.getState().transition).toBeNull()
+  })
+
+  it('clears an unfinished beat when the websocket owner unmounts', () => {
+    vi.useFakeTimers()
+    const { socket, view } = mountView()
+    send(socket, 'game:backgrounded',
+         { ...SUSPENDED, state_snapshot: state(null, [SUSPENDED]) })
+    expect(useStore.getState().transition).toBe('suspend')
+    view.unmount()
+    expect(useStore.getState().transition).toBeNull()
   })
 })
 

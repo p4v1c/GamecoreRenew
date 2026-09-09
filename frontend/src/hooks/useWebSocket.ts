@@ -4,7 +4,7 @@ import { api, type SessionState } from '../api'
 
 /** How long the 'interface is back' beat lasts. Purely visual: nothing
  *  is waiting on it, and a theme that draws nothing never sees it. */
-const SUSPEND_BEAT_MS = 900
+export const SUSPEND_BEAT_MS = 900
 
 const WS_URL = `ws://${window.location.host}/ws`
 

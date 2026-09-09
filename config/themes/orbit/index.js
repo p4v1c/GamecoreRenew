@@ -46,19 +46,15 @@ export default function createOrbit(sdk) {
     // L2 and the session menu belong to the host now — one binding for every
     // theme, and no second panel to collide with it.
     //
-    // `Ceremony` is last in the tree on purpose: it has to sit above the shell,
-    // and a theme does not get to write a z-index (the shell owns stacking), so
-    // document order is what puts it there.
     return html`<div className="orbit-app">
       <${sdk.defaults.Shell} background=${Background} topbar=${TopBar}
         homeView=${Home} libraryView=${Library} settings=${Settings}
         powerView=${Power} gamepadView=${Controller}
         homeOmit=${['nav', 'pages', 'confirm']} libraryOmit=${['nav', 'confirm', 'sort']} />
       <${footer.Component} />
-      <${Ceremony} />
     </div>`
   }
 
   return {shell: Shell, splash: createSplash(sdk),
-          sessionBar: sessions.Bar, sessionMenu: sessions.Menu}
+          sessionBar: sessions.Bar, sessionMenu: sessions.Menu, ceremony: Ceremony}
 }

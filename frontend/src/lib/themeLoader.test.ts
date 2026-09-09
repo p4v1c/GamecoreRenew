@@ -18,6 +18,7 @@ import {
   resolveThemeRumble,
   resolveThemeSounds,
   setActiveTheme,
+  OPTIONAL_SURFACES,
   SURFACES,
   unreachablePages,
   type ThemeManifest,
@@ -76,6 +77,10 @@ describe('both surfaces are mandatory', () => {
     // dashboard behind the stock splash. The list is asserted so adding a
     // third surface is a deliberate change and not a silent one.
     expect(SURFACES).toEqual(['splash', 'shell'])
+  })
+
+  it('accepts host-placed optional surfaces without making them mandatory', () => {
+    expect(OPTIONAL_SURFACES).toEqual(['sessionBar', 'sessionMenu', 'ceremony'])
   })
 })
 

@@ -26,6 +26,7 @@ import { ThemeProvider, Shell } from './components/ThemeSurface'
  *   · the fact that there *is* a splash — a theme may redraw it, not remove it
  *   · gp:guide, the double press that suspends a running game
  *   · the session bar — the only way back to a suspended one
+ *   · the layer in which a theme draws session handovers
  *   · the emulator overlay handshake with Electron
  *   · the error boundaries and the L1+R1 rescue (see useTheme)
  */
@@ -92,6 +93,7 @@ export default function App() {
   const chosenSplash = useRef<React.ComponentType<{ onDone: () => void; bootReady?: boolean }> | null>(null)
   if (!chosenSplash.current && !theme.loading) chosenSplash.current = theme.splash ?? Splash
   const SplashC = chosenSplash.current
+  const Ceremony = theme.ceremony
 
   // A themed splash decides its own length, but not whether booting ever ends:
   // one that forgets to call onDone would leave the box on its title card for
@@ -149,6 +151,17 @@ export default function App() {
   return (
     <ThemeProvider value={theme}>
       <Shell fallback={DefaultShell} />
+
+      {/* The host owns the layer and the theme owns the picture. Keeping the
+          z-index here preserves the theme contract and guarantees that the
+          handover sits above every shell layer and below the boot splash. */}
+      {Ceremony && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 900, pointerEvents: 'none' }}>
+          <ErrorBoundary fallback={null}>
+            <Ceremony />
+          </ErrorBoundary>
+        </div>
+      )}
 
       {/* Above the shell and outside it, for the same reason the splash is: a
           theme may redraw this, and may not remove it. Suspending is reached

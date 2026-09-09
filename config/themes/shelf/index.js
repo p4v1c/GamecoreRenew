@@ -71,8 +71,7 @@ export default (sdk) => {
   // default. They come off the sdk now rather than off a relative path:
   // they are host code, so no theme can ship a stale copy of them.
   const { createSettings, createPowerView } = sdk.defaults
-  const { html, React } = sdk.ui
-  const Fragment = React.Fragment
+  const { html } = sdk.ui
 
   // One accent, two trees. The wall lives in `background` and the thing that
   // decides its colour lives in `libraryView`; they never meet, so the value
@@ -99,11 +98,7 @@ export default (sdk) => {
 
   const Ceremony = createCeremony(sdk)
 
-  // The ceremony sits after the shell in document order, which is what puts it
-  // above without a z-index — themes do not write stacking, and Shelf's own
-  // stylesheet says so in its header.
   const Shell = () => html`
-    <${Fragment}>
     <${sdk.defaults.Shell}
       background=${Background}
       topbar=${TopBar}
@@ -113,13 +108,12 @@ export default (sdk) => {
       powerView=${createPowerView(sdk)}
       powerOmit=${['scan', 'forget']}
       libraryOmit=${LIBRARY_OMIT}
-      gamepadView=${createGamepadView(sdk)} />
-    <${Ceremony} />
-    <//>`
+      gamepadView=${createGamepadView(sdk)} />`
 
   // `sessionBar` is optional: the host draws its own if a theme omits one, so
   // the way back to a suspended game can never be lost to a theme. Shelf draws
   // it as the ledge under the shelf — see views/session.js.
   return { splash: createSplash(sdk), shell: Shell,
-           sessionBar: createSessionBar(sdk), sessionMenu: createSessionMenu(sdk) }
+           sessionBar: createSessionBar(sdk), sessionMenu: createSessionMenu(sdk),
+           ceremony: Ceremony }
 }

@@ -378,7 +378,7 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
  * host holds the call for exactly that long, so a longer animation is one the
  * emulator interrupts. test_theme_ceremony.py holds the three together.
  */
-.orbit-app .orbit-ceremony {
+.orbit-ceremony {
   position: fixed; inset: 0; pointer-events: none;
   display: grid; place-items: center; overflow: hidden;
 }
@@ -386,7 +386,7 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 /* The interface falling back and away, rather than a cut. The shell is the
    only thing under this layer, so scaling the layer's own backdrop is what
    sells the depth without touching a single view. */
-.orbit-app .orbit-ceremony-field {
+.orbit-ceremony-field {
   position: absolute; inset: -10%;
   background: radial-gradient(circle at 50% 48%,
     rgba(11, 20, 36, 0) 0%, rgba(7, 13, 26, 0.62) 45%, rgba(4, 8, 17, 0.97) 78%);
@@ -396,14 +396,14 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 /* The light the box travels into. Two layers: a soft core that swells, and a
    thin ring that runs ahead of it — the ring is what makes it read as motion
    towards the viewer rather than a fade to white. */
-.orbit-app .orbit-ceremony-core {
+.orbit-ceremony-core {
   position: absolute; width: 42vmin; height: 42vmin; border-radius: 50%;
   background: radial-gradient(circle,
     #eaf4ff 0%, #bcdcff 34%, rgba(141, 192, 245, 0.35) 62%, rgba(141, 192, 245, 0) 74%);
   transform: scale(0); opacity: 0;
 }
 
-.orbit-app .orbit-ceremony-ring {
+.orbit-ceremony-ring {
   position: absolute; width: 42vmin; height: 42vmin; border-radius: 50%;
   border: 1px solid rgba(226, 241, 255, 0.85);
   box-shadow: 0 0 40px rgba(188, 220, 255, 0.45), inset 0 0 30px rgba(188, 220, 255, 0.3);
@@ -412,14 +412,14 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 
 /* ── going: launch and resume ─────────────────────────────────────────────── */
 
-.orbit-app .orbit-ceremony[data-dir="away"] .orbit-ceremony-field {
-  animation: orbit-ceremony-recede 1150ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+.orbit-ceremony[data-dir="away"] .orbit-ceremony-field {
+  animation: orbit-ceremony-recede 930ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
-.orbit-app .orbit-ceremony[data-dir="away"] .orbit-ceremony-core {
-  animation: orbit-ceremony-swell 1150ms cubic-bezier(0.5, 0, 0.75, 0) forwards;
+.orbit-ceremony[data-dir="away"] .orbit-ceremony-core {
+  animation: orbit-ceremony-swell 930ms cubic-bezier(0.5, 0, 0.75, 0) forwards;
 }
-.orbit-app .orbit-ceremony[data-dir="away"] .orbit-ceremony-ring {
-  animation: orbit-ceremony-ring 1150ms cubic-bezier(0.33, 0, 0.15, 1) forwards;
+.orbit-ceremony[data-dir="away"] .orbit-ceremony-ring {
+  animation: orbit-ceremony-ring 930ms cubic-bezier(0.33, 0, 0.15, 1) forwards;
 }
 
 @keyframes orbit-ceremony-recede {
@@ -446,13 +446,13 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
    they asked for their interface back, and making them wait for it is the one
    thing this animation must not do. */
 
-.orbit-app .orbit-ceremony[data-dir="back"] .orbit-ceremony-field {
+.orbit-ceremony[data-dir="back"] .orbit-ceremony-field {
   animation: orbit-ceremony-arrive 900ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
 }
-.orbit-app .orbit-ceremony[data-dir="back"] .orbit-ceremony-core {
+.orbit-ceremony[data-dir="back"] .orbit-ceremony-core {
   animation: orbit-ceremony-part 900ms cubic-bezier(0.3, 0.8, 0.4, 1) forwards;
 }
-.orbit-app .orbit-ceremony[data-dir="back"] .orbit-ceremony-ring {
+.orbit-ceremony[data-dir="back"] .orbit-ceremony-ring {
   animation: orbit-ceremony-ring-back 900ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
 }
 
@@ -472,8 +472,8 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 /* Somebody who has asked the box not to move things gets the handover without
    the travel: the light is still there, it simply does not fly. */
 @media (prefers-reduced-motion: reduce) {
-  .orbit-app .orbit-ceremony-field,
-  .orbit-app .orbit-ceremony-core,
-  .orbit-app .orbit-ceremony-ring { animation-duration: 1ms !important; }
+  .orbit-ceremony-field,
+  .orbit-ceremony-core,
+  .orbit-ceremony-ring { animation-duration: 1ms !important; }
 }
 /* === End Orbit ceremony =================================================== */

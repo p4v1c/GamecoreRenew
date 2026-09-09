@@ -22,11 +22,16 @@
  * keeps the two honest.
  */
 
-/** The close, on a resume. Must equal `launch.ms` in theme.json. */
+/** Motion plus settled black, on a resume. Must equal `launch.ms`. */
+export const CLOSE_MOTION_MS = 1520
+export const CLOSE_SETTLE_MS = 260
 export const CLOSE_MS = 1780
 
 /** The open, on a suspend. Held by nothing — the game is already frozen. */
 export const OPEN_MS = 760
+
+/** Lets React paint the last animation frame before removing the overlay. */
+const HIDE_GRACE_MS = 120
 
 export const createCeremony = (sdk) => {
   const { html, useState, useEffect } = sdk.ui
@@ -40,15 +45,15 @@ export const createCeremony = (sdk) => {
     useEffect(() => {
       if (transition === 'resume' || transition === 'suspend') { setShown(transition); return }
       if (!shown) return
-      const hold = setTimeout(() => setShown(null), shown === 'suspend' ? OPEN_MS : 200)
+      const hold = setTimeout(() => setShown(null), HIDE_GRACE_MS)
       return () => clearTimeout(hold)
     }, [transition, shown])
 
     if (!shown) return null
 
     return html`
-      <div class="cz-handover" data-move=${shown} aria-hidden="true">
-        <div class="cz-handover-iris"></div>
+      <div className="cz-handover" data-move=${shown} aria-hidden="true">
+        <div className="cz-handover-iris"></div>
       </div>`
   }
 }
