@@ -55,39 +55,57 @@ afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 // ── the dock ────────────────────────────────────────────────────────────────
 
-describe('the dock, while the bar can be acted on', () => {
-  const dock = async (active: boolean) => {
+describe('the dock', () => {
+  const dock = async (active: boolean, onManage = vi.fn()) => {
     const sessions = await orbitSession()
-    return render(createElement(sessions.Bar, {
+    const r = render(createElement(sessions.Bar, {
       sessions: [SESSION], focusIdx: 0, active, busy: false,
-      onResume: vi.fn(), onClose: vi.fn(),
+      onResume: vi.fn(), onClose: vi.fn(), onManage,
     }))
+    return { ...r, onManage }
   }
 
-  it('names L2, which is the only button the host binds here', async () => {
+  it('offers one action, not the menu\'s own choices written out again', async () => {
+    // Resume and "Close game" side by side were the menu's first two options
+    // repeated on a surface where a pad cannot reach either.
     const r = await dock(true)
-    const hint = r.container.querySelector('.session-dock-active-hint')
-    expect(hint?.textContent).toMatch(/L2/)
+    const buttons = r.container.querySelectorAll('.session-dock-actions button')
+    expect(buttons).toHaveLength(1)
+  })
+
+  it('opens the menu with it, which is where the pad works', async () => {
+    const r = await dock(true)
+    const button = r.container.querySelector('.session-dock-actions button') as HTMLButtonElement
+    button.click()
+    expect(r.onManage).toHaveBeenCalledTimes(1)
   })
 
   it('does not tell the player to press ✕ or ○, which do nothing on the bar', async () => {
-    // The defect, exactly. `active` is true whenever the bar is usable, and
-    // the CSS shows this span only then — so this text was what the player
-    // saw at the one moment they were trying to act.
+    // The defect this replaces: the dock printed "✕ Resume · ○ Back", and the
+    // CSS showed that text only while `active` — so it appeared at exactly the
+    // moment the player was trying to act, naming two buttons the host takes
+    // away from the bar on purpose.
     const r = await dock(true)
-    const hint = r.container.querySelector('.session-dock-active-hint')?.textContent ?? ''
-    expect(hint).not.toMatch(/✕/)
-    expect(hint).not.toMatch(/○/)
+    const text = r.container.textContent ?? ''
+    expect(text).not.toMatch(/✕/)
+    expect(text).not.toMatch(/○/)
   })
 
-  it('still names L2 when the bar is only sitting there', async () => {
-    const r = await dock(false)
-    expect(r.container.querySelector('.session-dock-idle-hint')?.textContent).toMatch(/L2/)
-  })
-
-  it('keeps the badge that says the same thing', async () => {
+  it('keeps the badge that names the shortcut', async () => {
     const r = await dock(true)
     expect(r.container.querySelector('.session-dock-shortcut')?.textContent).toBe('L2')
+  })
+
+  it('says the same thing when the bar is only sitting there', async () => {
+    const r = await dock(false)
+    expect(r.container.querySelectorAll('.session-dock-actions button')).toHaveLength(1)
+    expect(r.container.querySelector('.session-dock-shortcut')?.textContent).toBe('L2')
+  })
+
+  it('still names the session and what kind it is', async () => {
+    const r = await dock(true)
+    expect(r.container.textContent).toContain('Zelda')
+    expect(r.container.textContent).toContain('Game')
   })
 })
 

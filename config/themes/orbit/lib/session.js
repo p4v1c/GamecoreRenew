@@ -101,16 +101,21 @@ export function createSession(sdk) {
    * picture, never the way back to a suspended game. Class names are the
    * mockup's so the design in theme.css applies unchanged.
    *
-   * The hint names L2 in BOTH states, and that is the correction. The bar owns
-   * no button at all — the host took ✕ away from it on purpose, because the
-   * screen underneath takes ✕ too and one press resumed the session *and*
-   * opened whatever tile the cursor was on. This dock went on advertising
-   * "✕ Resume · ○ Back" anyway, and `active` is exactly when it is shown: so
-   * the moment the bar became usable, Orbit hid the one binding that works and
-   * offered two that do nothing. The player presses ✕, nothing happens, and
-   * there is nothing on screen left to try. Shelf's ledge says L2 and works.
+   * One button, and it opens the menu.
+   *
+   * There used to be two — Resume and "Close game" — which are the menu's own
+   * first two options written out a second time, on the one surface where a
+   * pad cannot reach them: the bar owns no button at all, because the screen
+   * underneath takes ✕ too and one press there resumed the session *and*
+   * opened whatever tile the cursor was on. So the dock offered a choice it
+   * could not deliver, and (until the hint was fixed) told the player to press
+   * ✕ and ○ to make it.
+   *
+   * Now the bar says what it is and offers the one thing it can actually do:
+   * open the menu, where resume, close and back all live and where the pad
+   * works. `L2` beside it is the same door without the pointer.
    */
-  function Bar({sessions, focusIdx, active, busy, onResume, onClose}) {
+  function Bar({sessions, focusIdx, active, busy, onManage}) {
     const s = sessions[focusIdx] || sessions[0]
     if (!s) return null
     return html`<aside className=${`session-dock ${active ? 'controller-active' : ''}`}
@@ -120,17 +125,13 @@ export function createSession(sdk) {
         <span><i className="status-light" /> IN BACKGROUND${
           sessions.length > 1 ? ` · ${focusIdx + 1}/${sessions.length}` : ''}</span>
         <strong>${titleOf(s)}</strong>
-        <small>${s.kind === 'app' ? 'Application' : 'Game'} · <span
-          className="session-dock-idle-hint">L2 to manage</span><span
-          className="session-dock-active-hint">L2 to resume or close</span></small>
+        <small>${s.kind === 'app' ? 'Application' : 'Game'}</small>
       </div>
       <div className="session-dock-actions">
         <button className="primary-button" disabled=${busy}
-                onClick=${() => onResume(s)}>${busy ? 'Working…' : 'Resume'}</button>
-        <button className="session-dock-more" disabled=${busy}
-                onClick=${() => onClose(s)}
-                aria-label=${`Close ${titleOf(s)} permanently`}>
-          <span>Close ${noun(s)}</span></button>
+                onClick=${() => onManage()}
+                aria-label=${`Manage ${titleOf(s)}`}>${
+          busy ? 'Working…' : 'Manage session'}</button>
       </div>
       <kbd className="session-dock-shortcut">L2</kbd>
     </aside>`

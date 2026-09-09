@@ -235,7 +235,13 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 .orbit-app .orbit-settings-frame > .close-dialog { position: absolute; right: 23px; top: 22px; font-size: 26px; }
 .orbit-app .gcs-set-head { padding: 27px 31px 22px; border-bottom: 1px solid var(--set-line); }
 .orbit-app .gcs-set-title { font-size: 29px; font-weight: 350; margin: 0 0 10px; }
-.orbit-app .gcs-set-body { grid-template-columns: 230px minmax(0, 1fr); }
+/* rail | main | aside. The third track is not optional: pages with a detail
+   column (Wi-Fi, Bluetooth, Controllers) put THREE children in this grid, and
+   an override with two tracks does not drop the third — it auto-places it on a
+   second row, under the rail, at its own 420px width. That is what the Wi-Fi
+   page looked like: the network list clipped in a short first row, and the
+   "Active network" card below the rail, cut off by the bottom of the frame. */
+.orbit-app .gcs-set-body { grid-template-columns: 230px minmax(0, 1fr) auto; }
 .orbit-app .gcs-set-rail { padding: 15px 12px; }
 .orbit-app .gcs-set-main { padding: 29px 32px 35px; }
 .orbit-app .gcs-set-row { border-radius: 7px; padding: 13px 14px; }
@@ -247,7 +253,10 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 .orbit-app .orbit-details { width: min(560px, 100%); padding: 40px; }
 .orbit-app .orbit-details .dialog-description { max-height: 22vh; overflow-y: auto; }
 @media (max-width: 650px) {
+  /* No room for three columns here, so the detail column stacks on purpose —
+     full width, rather than a 420px card wedged under the rail. */
   .orbit-app .gcs-set-body { grid-template-columns: 155px minmax(0, 1fr); }
+  .orbit-app .gcs-set-aside { width: auto; grid-column: 1 / -1; }
   .orbit-app .gcs-set-main { padding: 20px 16px; }
   .orbit-app .orbit-details { padding: 32px 24px; }
 }
