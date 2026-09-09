@@ -87,6 +87,21 @@ it('uses the selected game artwork and the mockup hero and selection styles', as
   expect(r.getByRole('button', { name: 'Game details' })).toBeTruthy()
 })
 
+it('puts a miniature jacket inside the square game tile instead of a disc', async () => {
+  const r = await mountOrbit()
+  const cover = r.container.querySelector('.home-game-tile.selected .home-game-cover img')
+  expect(cover?.getAttribute('src')).toBe('/api/covers/rpcs3/Journey.iso')
+  expect(r.container.querySelector('.orbit-disc')).toBeNull()
+})
+
+it('fills the library with full 2:3 jackets', async () => {
+  const r = await mountOrbit()
+  await act(async () => { fireEvent.click(r.getByText('Library', { selector: '.nav-item' })) })
+  await waitFor(() => expect(r.container.querySelectorAll('.library-card')).toHaveLength(2))
+  expect(r.container.querySelectorAll('.library-cover > img')).toHaveLength(2)
+  expect(r.container.querySelector('.library-grid .orbit-physical')).toBeNull()
+})
+
 it('shows installed games even before any have been played', async () => {
   emptyHistory = true
   const path = '../../../config/themes/orbit/index.js'

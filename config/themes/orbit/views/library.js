@@ -1,6 +1,5 @@
 import {createDetails} from './details.js'
 import {createNavigation} from '../lib/navigation.js'
-import {createPhysicalMedia} from '../lib/physical-media.js'
 import {
   isApp, systemName, systemMark, accent,
   isFavourite, onFavouritesChange, favouriteCount,
@@ -24,16 +23,16 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
   const {html, useState, useEffect, useRef, useMemo} = sdk.ui
   const Details = createDetails(sdk)
   const useNavigation = createNavigation(sdk)
-  const PhysicalMedia = createPhysicalMedia(sdk)
   const svg = (d) => html`<svg viewBox="0 0 24 24" aria-hidden="true"
     dangerouslySetInnerHTML=${{__html: d}} />`
 
-  function Cover({systemId, filename, ext, title, favourite, held, onOpen, active, refFn, onSelect}) {
+  function GameCard({systemId, filename, title, favourite, held, onOpen, active,
+                     refFn, onSelect, CoverArt, color}) {
     return html`<button className=${`library-card ${active ? 'selected' : ''}`} ref=${refFn}
       data-active=${active ? 'true' : 'false'} aria-current=${active ? 'true' : undefined}
       onFocus=${onSelect} onClick=${onOpen}>
       <span className="library-cover">
-        <${PhysicalMedia} systemId=${systemId} filename=${filename} ext=${ext} title=${title} active=${active} />
+        <${CoverArt} systemId=${systemId} filename=${filename} color=${color} />
         ${favourite ? html`<span className="cover-heart" aria-label="Favourite">${svg(HEART)}</span>` : null}
         ${held ? html`<span className="session-badge">IN BACKGROUND</span>` : null}
       </span>
@@ -44,7 +43,7 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
   return function Library(props) {
     const {systemId, system, games, totalCount, selectedIdx, detailGame, sort, sortKeys,
       sortLabels, search, loading, loadError, launching, onSelect, onSearch, onLaunch,
-      onBack, onRetry, onSort, onOpenSearch, onOpenOptions} = props
+      onBack, onRetry, onSort, onOpenSearch, onOpenOptions, Cover: CoverArt, color} = props
     const [favouritesOnly, setFavouritesOnly] = useState(false)
     const [, bump] = useState(0)
     const grid = useRef(null)
@@ -161,8 +160,9 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
             ${favouritesOnly ? html`<button className="primary-button"
               onClick=${() => setFavouritesOnly(false)}>Show every game</button>` : null}</div>`
         : html`<div className="library-grid" ref=${grid}>
-            ${shown.map((game) => html`<${Cover} key=${identity(game)}
-              systemId=${source(game)} filename=${game.filename} ext=${game.ext} title=${title(game)}
+            ${shown.map((game) => html`<${GameCard} key=${identity(game)}
+              systemId=${source(game)} filename=${game.filename} title=${title(game)}
+              CoverArt=${CoverArt} color=${color}
               favourite=${isFavourite(source(game), game.filename)}
               held=${!!sessions.heldMatch(background, game.filename, source(game))}
               active=${identity(game) === selectedFile}

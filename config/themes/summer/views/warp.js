@@ -13,12 +13,9 @@
  * which the theme replaced entirely, so it cannot paint over a screen it does
  * not own.
  *
- * It follows `sessionGameKey` and nothing else, which is what makes it safe:
- * that flag is set for a game and for an app alike (defaults.launchApp calls
- * the same setSession), and it is cleared on exit *and on failure*. A veil
- * that closed on launch but had no rule for failing would leave a black screen
- * over a box that is working perfectly well — the emulator that never started
- * is annoying, a launcher that looks dead is worse.
+ * It follows the host's `transition` flag: launch and resume close the vortex,
+ * while suspend opens it. The host owns those moments and the theme owns their
+ * appearance, just like Orbit and Shelf.
  *
  * The launch waits for the iris, and did not always. This used to say there was
  * no delay on purpose — that an emulator takes one to fifteen seconds to put a
@@ -36,8 +33,8 @@
  * the ceremony being a ceremony rather than a coin toss. Shelf pays the same
  * 1520 ms for the same reason.
  *
- * **`launch.ms` in theme.json must equal CLOSE_MS below.** Nothing enforces it;
- * they are two files.
+ * **`launch.ms` in theme.json must equal CLOSE_MS below.** The theme ceremony
+ * contract test keeps the two files in agreement.
  */
 
 // Long enough to feel deliberate. It used to also claim to be "short enough to
@@ -49,17 +46,19 @@
 //
 // It is no longer a race. `launch.ms` in theme.json holds the launch for this
 // long, so the two must stay equal — change one, change the other.
+const CLOSE_MOTION_MS = 1250
+const CLOSE_SETTLE_MS = 250
 const CLOSE_MS = 1500
 
 // Coming back is not the same gesture. The player has just quit and wants the
 // library, not a ceremony.
 const OPEN_MS = 560
 
-// After the iris shuts, a warm ember fades where it closed. Emulators take one
-// to fifteen seconds, so most of the wait is spent on a black screen; without
-// this it goes from motion to dead flat in a single frame and reads as a
-// freeze. With it the screen settles.
-const AFTERGLOW_MS = 1700
+// After the iris shuts, a warm ember fades where it closed. The fade uses most
+// of the settle, then leaves a short flat-black beat before the host launches.
+const AFTERGLOW_MS = 200
+
+const HIDE_GRACE_MS = 120
 
 // Five arms, turning most of a revolution as they close. A third of a turn —
 // where this started — reads as a star shrinking, not as water going down a
@@ -163,15 +162,24 @@ export function drawWarp(ctx, w, h, p, accent = '#F0761E', after = 0) {
 }
 
 export const createWarp = (sdk) => {
-  const { html, useRef, useEffect } = sdk.ui
+  const { html, useRef, useEffect, useState } = sdk.ui
 
   return () => {
     const ref = useRef(null)
-    const playing = sdk.nav.use(s => !!s.sessionGameKey)
+    const transition = sdk.nav.use(s => s.transition)
+    const [shown, setShown] = useState(null)
+
+    useEffect(() => {
+      if (transition) { setShown(transition); return }
+      if (!shown) return
+      const hold = setTimeout(() => setShown(null), HIDE_GRACE_MS)
+      return () => clearTimeout(hold)
+    }, [transition, shown])
 
     useEffect(() => {
       const canvas = ref.current
       if (!canvas) return
+      if (!shown) { canvas.hidden = true; return }
       const ctx = canvas.getContext('2d')
       if (!ctx) return
 
@@ -179,8 +187,9 @@ export const createWarp = (sdk) => {
         .getPropertyValue('--accent-mandarin').trim() || '#F0761E'
 
       let raf = 0, dead = false
-      let p = playing ? 1 : 0            // where it is
-      const target = playing ? 1 : 0     // where it is going
+      const closing = shown === 'launch' || shown === 'resume'
+      let p = closing ? 0 : 1            // where it is
+      const target = closing ? 1 : 0     // where it is going
       let last = 0
 
       const size = () => {
@@ -199,7 +208,7 @@ export const createWarp = (sdk) => {
         if (dead) return
         const dt = last ? now - last : 16
         last = now
-        const span = target === 1 ? CLOSE_MS : OPEN_MS
+        const span = target === 1 ? CLOSE_MOTION_MS : OPEN_MS
         p += (target - p >= 0 ? 1 : -1) * (dt / span)
         p = clamp01(p)
         if (p >= 1) after = Math.min(1, after + dt / AFTERGLOW_MS)
@@ -222,8 +231,8 @@ export const createWarp = (sdk) => {
         cancelAnimationFrame(raf)
         window.removeEventListener('resize', onResize)
       }
-    }, [playing])
+    }, [shown])
 
-    return html`<canvas class="sm-warp" ref=${ref} data-on=${playing ? '1' : '0'} />`
+    return html`<canvas className="sm-warp" ref=${ref} data-move=${shown || 'none'} />`
   }
 }

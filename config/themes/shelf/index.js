@@ -52,6 +52,7 @@ import { createCartridge } from './views/cartridge.js'
 import { createSplash } from './views/splash.js'
 import { createGamepadView } from './views/gamepad.js'
 import { createSessionBar, createSessionMenu } from './views/session.js'
+import { createCeremony } from './views/ceremony.js'
 
 /**
  * R2 turns the box on this shelf — `lib/browse.js` binds it and the library's
@@ -95,6 +96,8 @@ export default (sdk) => {
   // seam a fork uses to replace one page without editing views/settings.js.
   const Settings = createSettings(sdk, {}, { TopBar })
 
+  const Ceremony = createCeremony(sdk)
+
   const Shell = () => html`
     <${sdk.defaults.Shell}
       background=${Background}
@@ -111,5 +114,6 @@ export default (sdk) => {
   // the way back to a suspended game can never be lost to a theme. Shelf draws
   // it as the ledge under the shelf — see views/session.js.
   return { splash: createSplash(sdk), shell: Shell,
-           sessionBar: createSessionBar(sdk), sessionMenu: createSessionMenu(sdk) }
+           sessionBar: createSessionBar(sdk), sessionMenu: createSessionMenu(sdk),
+           ceremony: Ceremony }
 }

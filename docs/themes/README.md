@@ -246,6 +246,12 @@ which and why.
 | `gamepadView` | the controller screen's markup — the live pad diagram arrives ready-made and bound |
 | `toasts` | the notification stack's markup — the queue, the durations and the handover to the native HUD stay with the host |
 
+A theme may also return an optional `ceremony` component beside `shell` and
+`splash`. The host places it in a full-screen non-interactive layer above the
+shell; it reads `sdk.nav.use(s => s.transition)` to draw `launch`, `resume`, or
+`suspend`. The host owns the timing and stacking, so the component needs no
+`z-index`.
+
 So "add snow to the dashboard" is a shell that renders `sdk.defaults.Shell` with
 a `decor`, and "replace everything" is a shell that renders its own tree. Same
 mechanism, effort proportional to ambition.

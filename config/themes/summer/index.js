@@ -71,11 +71,8 @@ export default (sdk) => {
   // hint that the box turns, is what a screensaver wanted anyway.
   const Screensaver = createScreensaver(sdk, createBox3D(sdk))
 
-  // The launch veil is a sibling of the shell, not one of its parts. `decor` —
-  // the slot for painting over everything — is unmounted by the shell the
-  // moment a session opens, which is precisely when this has to start. See
-  // views/warp.js. The wrapper is `display: contents`, so it adds a name to
-  // the tree and nothing to the layout.
+  // The host mounts the warp in its handover layer. `decor` is unmounted when
+  // a session opens, which is precisely when this has to remain visible.
   const Shell = () => html`
     <div class="sm-root">
       <${sdk.defaults.Shell}
@@ -89,12 +86,12 @@ export default (sdk) => {
         powerView=${createPowerView(sdk)}
         powerOmit=${['scan', 'forget']}
         gamepadView=${createGamepadView(sdk)} />
-      <${Warp} />
     </div>`
 
   // Optional surface: the host draws its own bar if a theme omits one, so the
   // way back to a suspended game cannot be lost to a theme. Summer draws it as
   // sea glass on the tideline — see views/session.js.
   return { splash: createSplash(sdk), shell: Shell,
-           sessionBar: createSessionBar(sdk), sessionMenu: createSessionMenu(sdk) }
+           sessionBar: createSessionBar(sdk), sessionMenu: createSessionMenu(sdk),
+           ceremony: Warp }
 }

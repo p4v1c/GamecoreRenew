@@ -296,6 +296,7 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
     launchToken.current += 1
     launchLock.current = false
     setLaunching(false)
+    useStore.getState().setTransition(null)
   }, [])
 
   /**
@@ -320,10 +321,18 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
     launchLock.current = true
     const token = ++launchToken.current
     setLaunching(true)
+    // Said in the store as well as in this screen's own state, because a theme
+    // draws its ceremony from wherever it likes — the shell, a background
+    // layer, an overlay of its own — and `launching` only reaches the library
+    // view. See `transition` in the store.
+    useStore.getState().setTransition('launch')
     playSound('launch')
     if (ceremonyMs > 0) {
       await new Promise(r => setTimeout(r, ceremonyMs))
-      if (launchToken.current !== token) return   // ○ was pressed — never sent
+      if (launchToken.current !== token) {
+        useStore.getState().setTransition(null)
+        return                                    // ○ was pressed — never sent
+      }
     }
     try {
       await api.games.launch(systemId, game.path, game.filename)
@@ -332,6 +341,9 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
       if (launchToken.current !== token) return
       // Block inputs immediately — don't wait for the WebSocket game:started event
       setSession(game.filename, systemId)
+      // The game owns the screen from here: the emulator overlay is above the
+      // theme, so the ceremony has nothing left to cover.
+      useStore.getState().setTransition(null)
     } catch (e) {
       console.error(e)
       // Same reasoning the other way round: a late failure belongs to its own
@@ -339,6 +351,7 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
       if (launchToken.current !== token) return
       launchLock.current = false
       setLaunching(false)
+      useStore.getState().setTransition(null)
       setSession(null, null)
     }
   }, [setSession, ceremonyMs])

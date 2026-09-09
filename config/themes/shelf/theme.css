@@ -1621,6 +1621,7 @@
   .cz-hold[data-phase] .cz-carry,
   .cz-hold[data-phase] .cz-box { animation-duration: 1ms; animation-delay: 0ms; }
   .cz-boot-iris, .cz-boot::before, .cz-splash-cart, .cz-splash-word { animation-duration: 1ms; }
+  .cz-handover-iris { animation-duration: 1ms; }
   .cz-lib > .cz-head, .cz-lib > .cz-body, .cz-lib > .cz-foot,
   .cz-lib .cz-shelfline, .cz-lib .cz-card,
   .cz-home > .cz-body, .cz-home > .cz-foot { animation-duration: 1ms; }
@@ -2006,3 +2007,49 @@
   letter-spacing:.1em;color:var(--ink-3)}
 
 .cz-session-key{font-family:var(--font-mono);font-size:10px;opacity:.45;flex:none}
+
+/* ===========================================================================
+   HANDOVER — coming back to a frozen game, and it letting go
+   =========================================================================== */
+/*
+ * The launch keeps its own ceremony (.cz-boot, above): the cartridge rises off
+ * the shelf and the iris closes on its label. These two are the moments with no
+ * shelf to leave from — a resume, and a suspend — and they use the same iris so
+ * the box has one gesture for "the screen changes hands".
+ *
+ * The durations must agree with views/ceremony.js, and the close must equal
+ * `launch.ms` in theme.json: the host holds a resume for exactly that long.
+ */
+.cz-handover {
+  position: fixed; inset: 0; pointer-events: none;
+  display: grid; place-items: center; overflow: hidden;
+}
+
+.cz-handover-iris {
+  position: absolute; width: 150vmax; height: 150vmax; border-radius: 50%;
+  background: #0A0908;
+}
+
+/* Coming back to the game: the paper closes over the shelf. */
+.cz-handover[data-move="resume"] .cz-handover-iris {
+  animation: cz-handover-close 1520ms cubic-bezier(0.62, 0.02, 0.9, 0.34) forwards;
+}
+@keyframes cz-handover-close {
+  from { transform: scale(0); }
+  to   { transform: scale(1); }
+}
+
+/* The game let go: the paper opens and the shelf is behind it. Quicker, because
+   the player asked for their shelf back and waiting for it is the one thing
+   this must not make them do. */
+.cz-handover[data-move="suspend"] .cz-handover-iris {
+  animation: cz-handover-open 760ms cubic-bezier(0.2, 0.72, 0.28, 1) forwards;
+}
+@keyframes cz-handover-open {
+  from { transform: scale(1); }
+  to   { transform: scale(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cz-handover-iris { animation-duration: 1ms !important; }
+}

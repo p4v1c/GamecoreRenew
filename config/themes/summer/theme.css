@@ -862,16 +862,12 @@
 }
 
 
-/* ── Launch transition (views/warp.js) ──────────────────────────────────────
- * The one place this theme stacks something itself. The rule against a theme
- * writing a z-index exists so it cannot paint over host UI it did not replace;
- * Summer replaces the whole frontend, and this veil is meant to cover it. The
- * shell's own top layer is 400, so this sits above it — and above nothing else,
- * because there is nothing else. */
+/* ── Handover transition (views/warp.js) ────────────────────────────────────
+ * The host supplies the overlay level; Summer only paints inside it. */
 .sm-root { display: contents; }
 
 .sm-warp {
-  position: fixed; inset: 0; z-index: 900;
+  position: fixed; inset: 0;
   width: 100%; height: 100%;
   pointer-events: none;                /* never swallows a button press */
 }

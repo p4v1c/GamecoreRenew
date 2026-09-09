@@ -105,9 +105,23 @@ const SORT_LABEL = { name: 'A–Z', lastPlayed: 'Recently played', playtime: 'Mo
  */
 const lean = (i) => Math.sin(i * 0.9) * 0.45 + Math.sin(i * 1.53) * 0.3
 
-/** Boot: the cartridge rises, then the iris closes on the label. */
+/** Boot: the cartridge rises, the iris closes on the label, the screen settles.
+ *
+ * The three together are what `launch.ms` in theme.json must equal — the host
+ * holds the launch for exactly that long, and everything past it is animation
+ * the emulator interrupts.
+ *
+ * `DARK_MS` is the one that was missing. Rise and iris were 1520ms and so was
+ * the declared hold, which meant the call went out on the very frame the iris
+ * finished: the last thing the animation does is close to a point, and the
+ * screen changed on the same tick, so it never read as "closed" — it read as
+ * cut off. A beat of settled black after it is what makes the boot look like it
+ * ended rather than like it was interrupted.
+ */
 const RISE_MS = 900
 const IRIS_MS = 620
+const DARK_MS = 260
+export const BOOT_MS = RISE_MS + IRIS_MS + DARK_MS
 
 /** The whole swap: the jacket going back in, then the next one coming out.
  *  Must match theme.css — 360ms of `cz-push-*`, then 560ms of `cz-pull-*` after

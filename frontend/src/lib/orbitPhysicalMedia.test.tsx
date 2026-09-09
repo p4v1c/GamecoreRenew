@@ -130,13 +130,11 @@ describe('a library of two hundred games', () => {
     const r = await openLibrary()
     expect(r.container.querySelectorAll('.library-card')).toHaveLength(220)
 
-    // Before anything has settled: a card is a cartridge drawn in CSS, and a
-    // cartridge costs nothing to draw. This is the property the whole design
-    // exists for — 220 cards must not be 220 round trips.
+    // Plain jackets use the cover endpoint directly; none asks the richer
+    // media-index tier merely to appear in the grid.
     expect(mediaCalls.length).toBeLessThanOrEqual(1)
-    // Scoped to the grid: the home rail draws physical art too, and this
-    // assertion is about the library's cards.
-    expect(r.container.querySelectorAll('.library-grid .orbit-physical').length).toBe(220)
+    expect(r.container.querySelectorAll('.library-grid .library-cover > img').length).toBe(220)
+    expect(r.container.querySelector('.library-grid .orbit-disc')).toBeNull()
   }, SLOW)
 
   it('spends at most one lookup per settled game, however many are on screen', async () => {
