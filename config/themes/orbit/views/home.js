@@ -1,8 +1,7 @@
 import {createDetails} from './details.js'
-import {createPhysicalMedia} from '../lib/physical-media.js'
 import {
   isApp, systemName, systemMark, systemMaker, systemYear, systemStory,
-  appStyle, accent, packLogo, consoleArt,
+  appStyle, accent, packLogo, consoleArt, coverUrl,
   isFavourite, toggleFavourite, onFavouritesChange, titleFromKey,
 } from '../lib/catalog.js'
 
@@ -25,7 +24,6 @@ const reveal = (el, opts) => {
 export function createHome(sdk, tabs, sessions, systemsRef, backdrop, footer) {
   const {html, useState, useEffect, useRef, useMemo} = sdk.ui
   const Details = createDetails(sdk)
-  const PhysicalMedia = createPhysicalMedia(sdk)
   const svg = (name) => html`<svg viewBox="0 0 24 24" aria-hidden="true"
     dangerouslySetInnerHTML=${{__html: ICON[name]}} />`
 
@@ -176,11 +174,12 @@ export function createHome(sdk, tabs, sessions, systemsRef, backdrop, footer) {
                   ? html`<span className="session-badge">IN BACKGROUND</span>` : null}</span>
               <span className="tile-label">${systemName(it.system)}</span></button>`
           }
-          return html`<button key=${it.key} className=${`game-tile ${on ? 'selected' : ''}`}
+          return html`<button key=${it.key} className=${`game-tile home-game-tile ${on ? 'selected' : ''}`}
             data-active=${on ? 'true' : 'false'} aria-pressed=${String(on)}
             aria-label=${`Select ${it.title}`} onFocus=${() => setIdx(i)} onClick=${() => setIdx(i)}>
-            <span className="tile-art"><${PhysicalMedia} systemId=${it.systemId} filename=${it.gameKey}
-              ext=${it.ext} title=${it.title} active=${on} />
+            <span className="tile-art"><span className="home-game-cover">
+              <${Art} src=${coverUrl(it.systemId, it.gameKey)} alt=${it.title} />
+            </span>
               ${sessions.heldMatch(background, it.gameKey, it.systemId)
                 ? html`<span className="session-badge">IN BACKGROUND</span>` : null}</span>
             <span className="tile-label">${it.title}</span></button>`

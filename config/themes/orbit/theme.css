@@ -261,75 +261,42 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
   .orbit-app .orbit-details { padding: 32px 24px; }
 }
 
-/* === Orbit physical-media + backdrop stability fix ======================== */
-.orbit-app .orbit-physical {
-  position: relative; display: grid; place-items: center;
-  width: 100%; height: 100%; min-width: 0; min-height: 0;
+/* === Orbit cover art + backdrop stability ================================= */
+/* Home keeps the same square rhythm for games, apps and the collection. A game
+   carries a small, uncropped jacket inside that square; apps keep their logo
+   treatment, so the two kinds remain legible before their labels appear. */
+.orbit-app .home-game-tile .tile-art {
+  display: grid; place-items: center;
+  background: linear-gradient(145deg, #2b405dba, #101a2a);
 }
-.orbit-app .orbit-physical[data-kind='photo'] { padding: 5%; }
-.orbit-app .orbit-physical-photo {
-  display: block; width: 100%; height: 100%; object-fit: contain;
-  transform: none !important; border-radius: 7px;
+.orbit-app .home-game-cover {
+  display: block; width: 58%; height: 78%; overflow: hidden;
+  border: 1px solid #e3f0ff52; border-radius: 5px;
+  box-shadow: 0 8px 18px #0009, 0 0 24px #a8ceff16;
+  transition: transform .3s, box-shadow .3s;
 }
-.orbit-app .orbit-cart {
-  position: relative; width: min(78%, 178px); height: min(84%, 218px);
-  border-radius: 10px 10px 15px 15px; overflow: hidden;
-  background: linear-gradient(145deg, #3b3f47, #17191e 58%, #252930);
-  border: 1px solid #ffffff26; box-shadow: 0 10px 24px #0006, inset 0 0 0 5px #10121766;
-}
-.orbit-app .orbit-cart-shoulder {
-  position: absolute; left: 11%; right: 11%; top: 6%; height: 6%; border-radius: 999px;
-  background: linear-gradient(180deg, #ffffff15, #0005);
-}
-.orbit-app .orbit-cart-label {
-  position: absolute; left: 10%; right: 10%; top: 18%; bottom: 23%;
-  overflow: hidden; border-radius: 5px; background: #111923;
-  border: 1px solid #ffffff20;
-}
-.orbit-app .orbit-cart-label img,
-.orbit-app .orbit-disc-art img {
+.orbit-app .home-game-cover img {
   display: block; width: 100%; height: 100%; object-fit: cover;
-  transform: none !important;
+  object-position: center; transform: none;
 }
-.orbit-app .orbit-cart-grip {
-  position: absolute; left: 13%; right: 13%; bottom: 9%; height: 7%; border-radius: 3px;
-  background: repeating-linear-gradient(90deg, #0f1115 0 5px, #333841 5px 8px);
+.orbit-app .home-game-cover .art-fallback {
+  width: 100%; height: 100%; border-radius: 0; font-size: 14px;
 }
-.orbit-app .orbit-cart-screw {
-  position: absolute; bottom: 5%; width: 5px; height: 5px; border-radius: 50%;
-  background: #777e89; box-shadow: inset 0 0 0 1px #0c0d10;
+.orbit-app .home-game-tile:hover .home-game-cover,
+.orbit-app .home-game-tile.selected .home-game-cover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px #000a, 0 0 28px #b9dcff2e;
 }
-.orbit-app .orbit-cart-screw-l { left: 9%; }
-.orbit-app .orbit-cart-screw-r { right: 9%; }
-.orbit-app .orbit-disc {
-  position: relative; width: min(82%, 195px); aspect-ratio: 1; border-radius: 50%; overflow: hidden;
-  background: conic-gradient(from 20deg, #f0f4f8, #a9c8d6, #efe1ee, #a8b6db, #f4f5f5, #a5d6c9, #f0f4f8);
-  border: 1px solid #ffffff80; box-shadow: 0 10px 26px #0007, inset 0 0 0 4px #ffffff35;
+
+/* The library is the jacket wall: full artwork at its real 2:3 case ratio,
+   large enough to read from the sofa and never cropped into a disc or card. */
+.orbit-app .library-grid {
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 30px 26px;
 }
-.orbit-app .orbit-disc-art {
-  position: absolute; inset: 13%; overflow: hidden; border-radius: 50%; background: #141b25;
-}
-.orbit-app .orbit-disc-sheen {
-  position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
-  background: linear-gradient(115deg, transparent 28%, #ffffff4f 42%, transparent 53%);
-  mix-blend-mode: screen;
-}
-.orbit-app .orbit-disc-hub {
-  position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1; transform: translate(-50%, -50%);
-  border-radius: 50%; background: #dbe3e9d9; box-shadow: 0 0 0 4px #ffffff6b, inset 0 0 0 5px #6e7882;
-}
-.orbit-app .orbit-disc-hub i {
-  position: absolute; inset: 34%; border-radius: 50%; background: #121923;
-}
-.orbit-app .orbit-physical-fallback {
-  display: grid; place-items: center; width: 100%; height: 100%;
-  color: #eaf2ff; background: linear-gradient(145deg, #30445f, #182335);
-  font-size: clamp(15px, 2vw, 28px); font-weight: 750; letter-spacing: .08em;
-}
-.orbit-app .library-cover { display: grid; place-items: center; }
-.orbit-app .library-cover > .orbit-physical { position: absolute; inset: 0; padding: 5%; }
-.orbit-app .tile-art > .orbit-physical { position: absolute; inset: 0; padding: 5%; }
-.orbit-app .game-tile:hover .orbit-physical img { transform: none !important; }
+.orbit-app .library-cover { display: block; aspect-ratio: 2 / 3; }
+.orbit-app .library-cover > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.orbit-app .library-cover > div { width: 100%; height: 100%; justify-content: center; }
 
 .orbit-app .orbit-backdrop-crossfade { overflow: hidden; }
 .orbit-app .orbit-backdrop-layer {
