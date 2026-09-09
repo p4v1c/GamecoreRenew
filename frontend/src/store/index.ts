@@ -60,6 +60,22 @@ interface GamecoreStore {
 
   /** Every suspended session, oldest first. Drawn by the session bar. */
   backgroundSessions: BackgroundSession[]
+
+  /**
+   * The handover a theme may draw a ceremony over, or null between them.
+   *
+   * The host decides WHEN — it is the only thing that knows a launch has been
+   * held, a resume sent or a suspend confirmed — and the theme decides what it
+   * looks like. That split is the point: a ceremony is the most theme-specific
+   * thing on the box, and the timing is the least.
+   *
+   * `launch` and `resume` are held: the host waits `launch.ms` from the theme's
+   * manifest before it sends anything, so the animation is over before the
+   * emulator takes the screen. `suspend` is not held — the game is already
+   * frozen by the time this is set — so it is a beat, not a gate.
+   */
+  transition: 'launch' | 'resume' | 'suspend' | null
+  setTransition: (t: 'launch' | 'resume' | 'suspend' | null) => void
   setSessionState: (fg: { gameKey: string | null; systemId: string | null },
                     background: BackgroundSession[]) => void
 
@@ -99,6 +115,7 @@ export const useStore = create<GamecoreStore>((set) => ({
   sessionGameKey: null,
   sessionSystemId: null,
   backgroundSessions: [],
+  transition: null,
   remapRequest: 0,
 
   goHome: () => set({ screen: 'home', selectedSystemId: null, gridPage: 0, gridFocusIdx: 0 }),
@@ -107,6 +124,7 @@ export const useStore = create<GamecoreStore>((set) => ({
   setGridPage: (page) => set({ gridPage: page }),
   setSelectedGameIdx: (idx) => set({ selectedGameIdx: idx }),
   setSession: (gameKey, systemId) => set({ sessionGameKey: gameKey, sessionSystemId: systemId }),
+  setTransition: (transition) => set({ transition }),
   // Both halves in one write. Two `set` calls would render once with the game
   // gone from the screen and still absent from the session bar, which is one
   // frame of a box that has lost the player's game.

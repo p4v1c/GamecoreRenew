@@ -7,6 +7,7 @@ import {createHome} from './views/home.js'
 import {createLibrary} from './views/library.js'
 import {createController} from './views/controller.js'
 import {createSplash} from './views/splash.js'
+import {createCeremony} from './views/ceremony.js'
 
 /** Orbit's mockup over the host's real catalogue, library and session controls.
  * SDK 6 lets the grid own directional focus while the host keeps launch/search. */
@@ -29,6 +30,7 @@ export default function createOrbit(sdk) {
   const SettingsBase = sdk.defaults.createSettings(sdk, {}, {skin: 'orbit-settings'})
   const Power = sdk.defaults.createPowerView(sdk, {skin: 'orbit-power'})
   const Controller = createController(sdk)
+  const Ceremony = createCeremony(sdk)
 
   const Background = backdrop.Background
 
@@ -43,12 +45,17 @@ export default function createOrbit(sdk) {
   function Shell() {
     // L2 and the session menu belong to the host now — one binding for every
     // theme, and no second panel to collide with it.
+    //
+    // `Ceremony` is last in the tree on purpose: it has to sit above the shell,
+    // and a theme does not get to write a z-index (the shell owns stacking), so
+    // document order is what puts it there.
     return html`<div className="orbit-app">
       <${sdk.defaults.Shell} background=${Background} topbar=${TopBar}
         homeView=${Home} libraryView=${Library} settings=${Settings}
         powerView=${Power} gamepadView=${Controller}
         homeOmit=${['nav', 'pages', 'confirm']} libraryOmit=${['nav', 'confirm', 'sort']} />
       <${footer.Component} />
+      <${Ceremony} />
     </div>`
   }
 

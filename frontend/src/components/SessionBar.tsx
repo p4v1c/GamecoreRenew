@@ -23,6 +23,7 @@ import { api } from '../api'
 import { playSound } from '../lib/sounds'
 import { formatGameName } from '../lib/formatGameName'
 import ErrorBoundary from './ErrorBoundary'
+import { useThemeCtx } from './ThemeSurface'
 
 /** One thing the menu can do, already resolved to a label and a handler. */
 export interface SessionAction {
@@ -216,7 +217,28 @@ export default function SessionBar(
     finally { setBusy(false) }
   }
 
-  const resume = (s: BackgroundSession) => act(() => api.games.foreground(s.session))
+  /**
+   * Coming back to a frozen game is a launch as far as the player is concerned,
+   * so it gets the same ceremony and the same hold.
+   *
+   * `launch.ms` is the theme's own number and it already means "how long my
+   * handover animation runs". Resuming without honouring it was the same defect
+   * the launch had before the hold existed: the emulator takes the screen the
+   * moment the call returns, and whatever the theme was drawing is cut off
+   * mid-frame.
+   */
+  const ceremonyMs = useThemeCtx()?.manifest?.launch?.ms ?? 0
+
+  const resume = (s: BackgroundSession) => act(async () => {
+    const store = useStore.getState()
+    store.setTransition('resume')
+    try {
+      if (ceremonyMs > 0) await new Promise(r => setTimeout(r, ceremonyMs))
+      await api.games.foreground(s.session)
+    } finally {
+      store.setTransition(null)
+    }
+  })
 
   /** The pointer's way to the menu, guarded exactly as the L2 binding is. */
   const manage = () => {
@@ -284,7 +306,19 @@ export default function SessionBar(
            run: () => act(async () => { await api.games.kill(current.session); setMenu(false) }) }]
       : [{ id: 'resume', label: resumeLabel(current), primary: true,
            run: () => act(async () => {
-             playSound('launch'); await api.games.foreground(current.session); setMenu(false) }) },
+             playSound('launch')
+             // The menu closes FIRST, so the theme's ceremony is drawn over the
+             // interface rather than behind a dialog that is about to vanish.
+             setMenu(false)
+             const store = useStore.getState()
+             store.setTransition('resume')
+             try {
+               if (ceremonyMs > 0) await new Promise(r => setTimeout(r, ceremonyMs))
+               await api.games.foreground(current.session)
+             } finally {
+               store.setTransition(null)
+             }
+           }) },
          { id: 'close', label: `${closeLabel(current)}…`,
            run: () => { setConfirming(true); setActionIdx(0) } },
          { id: 'back', label: 'Back', run: () => setMenu(false) }]

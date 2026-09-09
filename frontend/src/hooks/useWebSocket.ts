@@ -2,6 +2,10 @@ import { useEffect, useRef } from 'react'
 import { useStore, type BackgroundSession } from '../store'
 import { api, type SessionState } from '../api'
 
+/** How long the 'interface is back' beat lasts. Purely visual: nothing
+ *  is waiting on it, and a theme that draws nothing never sees it. */
+const SUSPEND_BEAT_MS = 900
+
 const WS_URL = `ws://${window.location.host}/ws`
 
 interface WsEvent {
@@ -241,7 +245,28 @@ export function useWebSocket() {
       const snap = d.state_snapshot
       if (snap && typeof snap === 'object') applySessionState(snap as Record<string, unknown>)
     }
-    const off7 = onWsEvent('game:backgrounded', snapshot)
+    /**
+     * The interface coming back, for a theme that wants to draw it arriving.
+     *
+     * Not a gate, unlike launch and resume: by the time this event exists the
+     * game is already frozen and the screen is already ours, so there is
+     * nothing left to hold. It is a beat — set here, cleared on a timer — and a
+     * theme that draws nothing for it simply never notices.
+     *
+     * Cleared on the way out too: a socket that drops mid-beat would otherwise
+     * leave the flag set, and the next screen to read it would draw a ceremony
+     * for a handover that finished minutes ago.
+     */
+    const suspendBeat = { timer: 0 as ReturnType<typeof setTimeout> | 0 }
+    const off7 = onWsEvent('game:backgrounded', (d) => {
+      snapshot(d)
+      const store = useStore.getState()
+      store.setTransition('suspend')
+      if (suspendBeat.timer) clearTimeout(suspendBeat.timer)
+      suspendBeat.timer = setTimeout(() => {
+        if (useStore.getState().transition === 'suspend') store.setTransition(null)
+      }, SUSPEND_BEAT_MS)
+    })
     const off8 = onWsEvent('game:foregrounded', snapshot)
 
     // Standby, into the store rather than into whatever is drawing the
@@ -253,6 +278,10 @@ export function useWebSocket() {
     const off5 = onWsEvent('standby:sleep', () => setStandby('sleep'))
     const off6 = onWsEvent('standby:exit', () => setStandby('off'))
 
-    return () => { off1(); off1b(); off2(); off3(); off4(); off5(); off6(); off7(); off8() }
+    return () => {
+      if (suspendBeat.timer) clearTimeout(suspendBeat.timer)
+      if (useStore.getState().transition === 'suspend') useStore.getState().setTransition(null)
+      off1(); off1b(); off2(); off3(); off4(); off5(); off6(); off7(); off8()
+    }
   }, [])
 }

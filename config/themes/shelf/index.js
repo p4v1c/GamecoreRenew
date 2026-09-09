@@ -52,6 +52,7 @@ import { createCartridge } from './views/cartridge.js'
 import { createSplash } from './views/splash.js'
 import { createGamepadView } from './views/gamepad.js'
 import { createSessionBar, createSessionMenu } from './views/session.js'
+import { createCeremony } from './views/ceremony.js'
 
 /**
  * R2 turns the box on this shelf — `lib/browse.js` binds it and the library's
@@ -70,7 +71,8 @@ export default (sdk) => {
   // default. They come off the sdk now rather than off a relative path:
   // they are host code, so no theme can ship a stale copy of them.
   const { createSettings, createPowerView } = sdk.defaults
-  const { html } = sdk.ui
+  const { html, React } = sdk.ui
+  const Fragment = React.Fragment
 
   // One accent, two trees. The wall lives in `background` and the thing that
   // decides its colour lives in `libraryView`; they never meet, so the value
@@ -95,7 +97,13 @@ export default (sdk) => {
   // seam a fork uses to replace one page without editing views/settings.js.
   const Settings = createSettings(sdk, {}, { TopBar })
 
+  const Ceremony = createCeremony(sdk)
+
+  // The ceremony sits after the shell in document order, which is what puts it
+  // above without a z-index — themes do not write stacking, and Shelf's own
+  // stylesheet says so in its header.
   const Shell = () => html`
+    <${Fragment}>
     <${sdk.defaults.Shell}
       background=${Background}
       topbar=${TopBar}
@@ -105,7 +113,9 @@ export default (sdk) => {
       powerView=${createPowerView(sdk)}
       powerOmit=${['scan', 'forget']}
       libraryOmit=${LIBRARY_OMIT}
-      gamepadView=${createGamepadView(sdk)} />`
+      gamepadView=${createGamepadView(sdk)} />
+    <${Ceremony} />
+    <//>`
 
   // `sessionBar` is optional: the host draws its own if a theme omits one, so
   // the way back to a suspended game can never be lost to a theme. Shelf draws
