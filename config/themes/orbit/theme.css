@@ -251,3 +251,83 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
   .orbit-app .gcs-set-main { padding: 20px 16px; }
   .orbit-app .orbit-details { padding: 32px 24px; }
 }
+
+/* === Orbit physical-media + backdrop stability fix ======================== */
+.orbit-app .orbit-physical {
+  position: relative; display: grid; place-items: center;
+  width: 100%; height: 100%; min-width: 0; min-height: 0;
+}
+.orbit-app .orbit-physical[data-kind='photo'] { padding: 5%; }
+.orbit-app .orbit-physical-photo {
+  display: block; width: 100%; height: 100%; object-fit: contain;
+  transform: none !important; border-radius: 7px;
+}
+.orbit-app .orbit-cart {
+  position: relative; width: min(78%, 178px); height: min(84%, 218px);
+  border-radius: 10px 10px 15px 15px; overflow: hidden;
+  background: linear-gradient(145deg, #3b3f47, #17191e 58%, #252930);
+  border: 1px solid #ffffff26; box-shadow: 0 10px 24px #0006, inset 0 0 0 5px #10121766;
+}
+.orbit-app .orbit-cart-shoulder {
+  position: absolute; left: 11%; right: 11%; top: 6%; height: 6%; border-radius: 999px;
+  background: linear-gradient(180deg, #ffffff15, #0005);
+}
+.orbit-app .orbit-cart-label {
+  position: absolute; left: 10%; right: 10%; top: 18%; bottom: 23%;
+  overflow: hidden; border-radius: 5px; background: #111923;
+  border: 1px solid #ffffff20;
+}
+.orbit-app .orbit-cart-label img,
+.orbit-app .orbit-disc-art img {
+  display: block; width: 100%; height: 100%; object-fit: cover;
+  transform: none !important;
+}
+.orbit-app .orbit-cart-grip {
+  position: absolute; left: 13%; right: 13%; bottom: 9%; height: 7%; border-radius: 3px;
+  background: repeating-linear-gradient(90deg, #0f1115 0 5px, #333841 5px 8px);
+}
+.orbit-app .orbit-cart-screw {
+  position: absolute; bottom: 5%; width: 5px; height: 5px; border-radius: 50%;
+  background: #777e89; box-shadow: inset 0 0 0 1px #0c0d10;
+}
+.orbit-app .orbit-cart-screw-l { left: 9%; }
+.orbit-app .orbit-cart-screw-r { right: 9%; }
+.orbit-app .orbit-disc {
+  position: relative; width: min(82%, 195px); aspect-ratio: 1; border-radius: 50%; overflow: hidden;
+  background: conic-gradient(from 20deg, #f0f4f8, #a9c8d6, #efe1ee, #a8b6db, #f4f5f5, #a5d6c9, #f0f4f8);
+  border: 1px solid #ffffff80; box-shadow: 0 10px 26px #0007, inset 0 0 0 4px #ffffff35;
+}
+.orbit-app .orbit-disc-art {
+  position: absolute; inset: 13%; overflow: hidden; border-radius: 50%; background: #141b25;
+}
+.orbit-app .orbit-disc-sheen {
+  position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: linear-gradient(115deg, transparent 28%, #ffffff4f 42%, transparent 53%);
+  mix-blend-mode: screen;
+}
+.orbit-app .orbit-disc-hub {
+  position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1; transform: translate(-50%, -50%);
+  border-radius: 50%; background: #dbe3e9d9; box-shadow: 0 0 0 4px #ffffff6b, inset 0 0 0 5px #6e7882;
+}
+.orbit-app .orbit-disc-hub i {
+  position: absolute; inset: 34%; border-radius: 50%; background: #121923;
+}
+.orbit-app .orbit-physical-fallback {
+  display: grid; place-items: center; width: 100%; height: 100%;
+  color: #eaf2ff; background: linear-gradient(145deg, #30445f, #182335);
+  font-size: clamp(15px, 2vw, 28px); font-weight: 750; letter-spacing: .08em;
+}
+.orbit-app .library-cover { display: grid; place-items: center; }
+.orbit-app .library-cover > .orbit-physical { position: absolute; inset: 0; padding: 5%; }
+.orbit-app .tile-art > .orbit-physical { position: absolute; inset: 0; padding: 5%; }
+.orbit-app .game-tile:hover .orbit-physical img { transform: none !important; }
+
+.orbit-app .orbit-backdrop-crossfade { overflow: hidden; }
+.orbit-app .orbit-backdrop-layer {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: center 40%;
+}
+.orbit-app .orbit-backdrop-previous { opacity: 1; }
+.orbit-app .orbit-backdrop-current { animation: orbit-backdrop-in .36s ease both; }
+@keyframes orbit-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+/* === End Orbit physical-media fix ========================================= */

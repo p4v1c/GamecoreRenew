@@ -1,7 +1,8 @@
 import {createDetails} from './details.js'
 import {createNavigation} from '../lib/navigation.js'
+import {createPhysicalMedia} from '../lib/physical-media.js'
 import {
-  isApp, systemName, systemMark, accent, coverUrl,
+  isApp, systemName, systemMark, accent,
   isFavourite, onFavouritesChange, favouriteCount,
 } from '../lib/catalog.js'
 
@@ -23,18 +24,16 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
   const {html, useState, useEffect, useRef, useMemo} = sdk.ui
   const Details = createDetails(sdk)
   const useNavigation = createNavigation(sdk)
+  const PhysicalMedia = createPhysicalMedia(sdk)
   const svg = (d) => html`<svg viewBox="0 0 24 24" aria-hidden="true"
     dangerouslySetInnerHTML=${{__html: d}} />`
 
-  function Cover({systemId, filename, title, favourite, held, onOpen, active, refFn, onSelect}) {
-    const [failed, setFailed] = useState(false)
-    const src = coverUrl(systemId, filename)
+  function Cover({systemId, filename, ext, title, favourite, held, onOpen, active, refFn, onSelect}) {
     return html`<button className=${`library-card ${active ? 'selected' : ''}`} ref=${refFn}
       data-active=${active ? 'true' : 'false'} aria-current=${active ? 'true' : undefined}
       onFocus=${onSelect} onClick=${onOpen}>
       <span className="library-cover">
-        ${!failed ? html`<img src=${src} alt="" loading="lazy" onError=${() => setFailed(true)} />`
-          : html`<span className="art-fallback">${(title || '◇').slice(0, 2).toUpperCase()}</span>`}
+        <${PhysicalMedia} systemId=${systemId} filename=${filename} ext=${ext} title=${title} active=${active} />
         ${favourite ? html`<span className="cover-heart" aria-label="Favourite">${svg(HEART)}</span>` : null}
         ${held ? html`<span className="session-badge">IN BACKGROUND</span>` : null}
       </span>
@@ -163,7 +162,7 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
               onClick=${() => setFavouritesOnly(false)}>Show every game</button>` : null}</div>`
         : html`<div className="library-grid" ref=${grid}>
             ${shown.map((game) => html`<${Cover} key=${identity(game)}
-              systemId=${source(game)} filename=${game.filename} title=${title(game)}
+              systemId=${source(game)} filename=${game.filename} ext=${game.ext} title=${title(game)}
               favourite=${isFavourite(source(game), game.filename)}
               held=${!!sessions.heldMatch(background, game.filename, source(game))}
               active=${identity(game) === selectedFile}

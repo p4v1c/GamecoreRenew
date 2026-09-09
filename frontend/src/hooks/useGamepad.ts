@@ -15,6 +15,16 @@
  * continuous picture instead ("□ is held", "the left stick sits at 40%") —
  * i.e. the controller overlay — reads it through useGamepadState() below.
  *
+ * The left stick is the exception: it is edge-triggered into the same d-pad
+ * events, but with hysteresis (two thresholds, so a resting stick cannot
+ * chatter) and a repeat (so a held direction crosses a long library). See
+ * axisStep.
+ *
+ * With more than one pad connected, exactly one drives the interface at a
+ * time. It is whichever pad last did something deliberate — a button going
+ * down, or a stick crossing into the press ring — and not simply the first one
+ * the browser lists. See getActiveGamepadIndex.
+ *
  * IMPORTANT: When a game session is active, ALL events are suppressed except
  * gp:guide. This mirrors the old C++ behaviour (MainWindow.cpp line 344):
  *   if (m_session.isRunning()) return;  // block everything
@@ -25,7 +35,28 @@ import { playSound, soundForGpEvent } from '../lib/sounds'
 import { api } from '../api'
 import { rumble, rumbleForGpEvent } from '../lib/rumble'
 
-const DEAD_ZONE = 0.5
+/**
+ * Stick travel that starts a direction, and the lower travel that ends it.
+ *
+ * Two numbers, not one, because one is what made the cursor walk by itself. A
+ * single threshold means a stick left resting anywhere near it crosses back
+ * and forth on sensor noise alone, and every crossing was an edge and an
+ * event. The gap between these two is the noise floor: once a direction has
+ * started, the stick has to come most of the way home to end it.
+ */
+const AXIS_PRESS = 0.55
+const AXIS_RELEASE = 0.32
+
+/**
+ * How a held direction repeats.
+ *
+ * The first step is immediate — a menu that waits before its first move feels
+ * broken, not deliberate. Then a pause long enough that a single flick is
+ * still a single step, and after that a rate that crosses a four-hundred-game
+ * library without the player letting go and flicking again.
+ */
+const REPEAT_DELAY_MS = 275
+const REPEAT_INTERVAL_MS = 100
 
 // Guide/PS button must be pressed twice within this window to emit gp:guide
 // (single press ignored — avoids accidentally killing the running game).
@@ -135,29 +166,181 @@ export function isPlaying(): boolean {
   return useStore.getState().sessionGameKey !== null
 }
 
+// ── Which pad the box is listening to ─────────────────────────────────────────
+
+/**
+ * What each pad was doing last frame, keyed by `Gamepad.index`.
+ *
+ * Per pad, not one shared array, because an edge has to be an edge on the pad
+ * that made it. With a single history the pad nobody is holding rewrites the
+ * record the played one is compared against, and buttons read as pressed again
+ * every other frame.
+ */
+type PadMemory = { buttons: boolean[]; engaged: boolean[] }
+const padMemory = new Map<number, PadMemory>()
+
+/** The pad the interface obeys, or null while none is connected. */
+let activeGamepadIndex: number | null = null
+
+/**
+ * Which pad is driving the interface right now.
+ *
+ * Exported because the controller screen and anything diagnosing a two-pad box
+ * need the answer, and it is deliberately not React state: the poll loop
+ * decides it every frame and a re-render per frame is exactly what the rest of
+ * this module is written to avoid.
+ */
+export function getActiveGamepadIndex(): number | null {
+  return activeGamepadIndex
+}
+
+/**
+ * Did this pad just do something a person would call "using it"?
+ *
+ * Edge-triggered on both halves, and that is the point. A button has to go
+ * down; a stick has to *cross* into the press ring from outside the release
+ * one. Test the level instead and a worn stick resting at 0.6 claims the box
+ * back from the pad in someone's hands on every single frame — the drift wins
+ * and the player cannot. Crossing once when it is plugged in is the most a
+ * broken stick gets.
+ */
+function claimsControl(pad: Gamepad, memory: PadMemory | undefined): boolean {
+  const buttons = memory?.buttons ?? []
+  for (let i = 0; i < pad.buttons.length; i++) {
+    if (pad.buttons[i]?.pressed && !(buttons[i] ?? false)) return true
+  }
+  const engaged = memory?.engaged ?? []
+  for (let i = 0; i < pad.axes.length; i++) {
+    if (Math.abs(pad.axes[i] ?? 0) >= AXIS_PRESS && !(engaged[i] ?? false)) return true
+  }
+  return false
+}
+
+/** Record this frame, holding "engaged" across the hysteresis band. */
+function remember(pad: Gamepad) {
+  const previous = padMemory.get(pad.index)
+  const engaged = pad.axes.map((axis, i) => {
+    const travel = Math.abs(axis ?? 0)
+    if (travel >= AXIS_PRESS) return true
+    if (travel < AXIS_RELEASE) return false
+    return previous?.engaged[i] ?? false
+  })
+  padMemory.set(pad.index, { buttons: pad.buttons.map(b => b.pressed), engaged })
+}
+
+/** A direction being held on one axis, and when it is next allowed to repeat. */
+type AxisRepeat = { dir: -1 | 1 | null; next: number }
+
+/**
+ * One stick axis, from raw travel to zero or more d-pad events.
+ *
+ * Three things the single-threshold edge test this replaces got wrong:
+ *
+ *   · **Hysteresis.** A direction starts at AXIS_PRESS and ends only below
+ *     AXIS_RELEASE, so a stick parked near the threshold cannot chatter.
+ *   · **Repeat.** Holding a direction used to emit exactly one event ever, so
+ *     crossing a large library meant flicking the stick once per game. The
+ *     first step is immediate, then it repeats.
+ *   · **Flicking across.** Going left while right is still held is a new
+ *     direction and moves at once, rather than waiting out the old repeat.
+ */
+function axisStep(value: number, state: AxisRepeat, now: number,
+                  negative: string, positive: string, fire: (name: string) => void) {
+  if (state.dir !== null && Math.abs(value) < AXIS_RELEASE) {
+    state.dir = null
+    return
+  }
+
+  const direction = value >= AXIS_PRESS ? 1 : value <= -AXIS_PRESS ? -1 : null
+
+  if (direction !== null && direction !== state.dir) {
+    state.dir = direction
+    state.next = now + REPEAT_DELAY_MS
+    fire(direction > 0 ? positive : negative)
+    return
+  }
+
+  if (state.dir !== null && now >= state.next) {
+    state.next = now + REPEAT_INTERVAL_MS
+    fire(state.dir > 0 ? positive : negative)
+  }
+}
+
 export function useGamepad() {
-  const prevButtons = useRef<boolean[]>([])
-  const prevAxes = useRef<number[]>([])
   const rafId = useRef<number>(0)
   const lastGuidePress = useRef<number>(0)
+  const stickX = useRef<AxisRepeat>({ dir: null, next: 0 })
+  const stickY = useRef<AxisRepeat>({ dir: null, next: 0 })
 
   useEffect(() => {
-    const onConnect    = (e: GamepadEvent) => emit('gp:connected', e.gamepad.id)
-    const onDisconnect = () => emit('gp:disconnected')
+    const resetRepeat = () => {
+      stickX.current = { dir: null, next: 0 }
+      stickY.current = { dir: null, next: 0 }
+    }
+
+    const onConnect = (e: GamepadEvent) => emit('gp:connected', e.gamepad.id)
+    const onDisconnect = (e: GamepadEvent) => {
+      // Forget it completely. The browser hands a freed index to the next pad
+      // to arrive, and history left behind reads on that new pad as a button
+      // that was already down — or, worse, as one being released.
+      padMemory.delete(e.gamepad.index)
+      if (activeGamepadIndex === e.gamepad.index) {
+        activeGamepadIndex = null
+        resetRepeat()
+      }
+      emit('gp:disconnected')
+    }
     window.addEventListener('gamepadconnected',    onConnect)
     window.addEventListener('gamepaddisconnected', onDisconnect)
 
     function poll() {
-      const gamepads = navigator.getGamepads()
-      const gp = gamepads.find(g => g !== null)
+      const pads = navigator.getGamepads ? navigator.getGamepads() : []
+      const now = performance.now()
 
-      if (gp) {
+      // A pad that has gone is forgotten here too, not only on the event: the
+      // disconnect event is not guaranteed to arrive in every environment, and
+      // `getGamepads()` going null for a slot is the fact itself.
+      for (const index of [...padMemory.keys()]) {
+        if (!pads[index]) padMemory.delete(index)
+      }
+
+      // A pad seen for the first time only takes a bearing this frame. A pad
+      // announces its whole state as it connects, and a Bluetooth one that
+      // re-pairs by itself does it again — a button that reads as held in that
+      // first frame is not a press anybody made, and neither is it a reason to
+      // hand it the box.
+      const known = (pad: Gamepad) => padMemory.has(pad.index)
+
+      // The active pad keeps control until a *different* one does something
+      // deliberate. If it is unplugged, the first pad still connected takes
+      // over — an interface with a connected pad must never be unable to move.
+      let claimant: number | null = null
+      for (const pad of pads) {
+        if (!pad || pad.index === activeGamepadIndex || !known(pad)) continue
+        if (claimsControl(pad, padMemory.get(pad.index))) { claimant = pad.index; break }
+      }
+      const next = activeGamepadIndex === null || !pads[activeGamepadIndex]
+        ? claimant ?? pads.find(pad => pad !== null)?.index ?? null
+        : claimant ?? activeGamepadIndex
+      if (next !== activeGamepadIndex) {
+        // Handing over mid-direction would let the new pad inherit a repeat it
+        // never started.
+        activeGamepadIndex = next
+        resetRepeat()
+      }
+
+      const gp = activeGamepadIndex === null ? null : pads[activeGamepadIndex] ?? null
+
+      if (gp && known(gp)) {
         const playing = isPlaying()
+        // This pad's own history, so taking over mid-press neither swallows the
+        // press that took over nor replays one the other pad was holding.
+        const previous = padMemory.get(gp.index)?.buttons ?? []
 
         // Buttons
         gp.buttons.forEach((btn, i) => {
           const pressed = btn.pressed
-          const wasPressed = prevButtons.current[i] ?? false
+          const wasPressed = previous[i] ?? false
 
           if (pressed && !wasPressed) {
             // Asleep, every button is the same button: the one that wakes the
@@ -168,7 +351,6 @@ export function useGamepad() {
             // emit() gives.
             if (!playing && useStore.getState().standby !== 'off') {
               askToWake()
-              prevButtons.current[i] = pressed
               return
             }
 
@@ -184,17 +366,13 @@ export function useGamepad() {
               } else {
                 lastGuidePress.current = now
               }
-              prevButtons.current[i] = pressed
               return
             }
 
             // All other buttons are blocked while a game is running.
             // This prevents emulator inputs from accidentally triggering
             // GameCore UI actions (power menu, launching another game, etc.).
-            if (playing) {
-              prevButtons.current[i] = pressed
-              return
-            }
+            if (playing) return
 
             switch (i) {
               case BTN.DPAD_UP:    emit('gp:dpad-up');    break
@@ -213,25 +391,23 @@ export function useGamepad() {
               case BTN.R2:         emit('gp:r2');         break
             }
           }
-          prevButtons.current[i] = pressed
         })
 
-        // Left stick → d-pad equivalent (edge-triggered). Also blocked during gameplay.
+        // Left stick → d-pad equivalent, with hysteresis and repeat. Also
+        // blocked during gameplay.
         if (!playing) {
-          const ax = gp.axes[0] ?? 0
-          const ay = gp.axes[1] ?? 0
-          const prevAx = prevAxes.current[0] ?? 0
-          const prevAy = prevAxes.current[1] ?? 0
-
-          if (ax > DEAD_ZONE && prevAx <= DEAD_ZONE)   emit('gp:dpad-right')
-          if (ax < -DEAD_ZONE && prevAx >= -DEAD_ZONE) emit('gp:dpad-left')
-          if (ay > DEAD_ZONE && prevAy <= DEAD_ZONE)   emit('gp:dpad-down')
-          if (ay < -DEAD_ZONE && prevAy >= -DEAD_ZONE) emit('gp:dpad-up')
-
-          prevAxes.current[0] = ax
-          prevAxes.current[1] = ay
+          axisStep(gp.axes[0] ?? 0, stickX.current, now, 'gp:dpad-left', 'gp:dpad-right', emit)
+          axisStep(gp.axes[1] ?? 0, stickY.current, now, 'gp:dpad-up', 'gp:dpad-down', emit)
+        } else {
+          // The game owns the stick. Drop any direction we were repeating, so
+          // coming back to the interface does not inherit one already held.
+          resetRepeat()
         }
       }
+
+      // Every connected pad is remembered, not only the active one: that is what
+      // lets a pad be judged against its own last frame when it takes over.
+      for (const pad of pads) if (pad) remember(pad)
 
       // Raw snapshot, deliberately outside the `playing` guard above: the
       // controller screen has to keep mirroring the pad, and a held combo is not
@@ -268,9 +444,22 @@ export function useGamepad() {
 
     return () => {
       cancelAnimationFrame(rafId.current)
+      rafId.current = 0
       window.removeEventListener('gamepadconnected',    onConnect)
       window.removeEventListener('gamepaddisconnected', onDisconnect)
       window.removeEventListener('keydown', onKey)
+
+      // Nothing about the pads outlives the hook. Which pad is active and what
+      // each one was doing are module-level so `getActiveGamepadIndex()` can be
+      // read without a hook — which means a second mount would otherwise start
+      // against the first one's history and see presses nobody made. The wake
+      // timer goes with them: left running it fires into a store whose screen
+      // is gone.
+      padMemory.clear()
+      activeGamepadIndex = null
+      resetRepeat()
+      lastGuidePress.current = 0
+      clearWake()
     }
   }, [])
 }

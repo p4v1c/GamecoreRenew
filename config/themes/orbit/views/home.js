@@ -1,7 +1,8 @@
 import {createDetails} from './details.js'
+import {createPhysicalMedia} from '../lib/physical-media.js'
 import {
   isApp, systemName, systemMark, systemMaker, systemYear, systemStory,
-  appStyle, accent, packLogo, coverUrl, consoleArt,
+  appStyle, accent, packLogo, consoleArt,
   isFavourite, toggleFavourite, onFavouritesChange, titleFromKey,
 } from '../lib/catalog.js'
 
@@ -24,6 +25,7 @@ const reveal = (el, opts) => {
 export function createHome(sdk, tabs, sessions, systemsRef, backdrop, footer) {
   const {html, useState, useEffect, useRef, useMemo} = sdk.ui
   const Details = createDetails(sdk)
+  const PhysicalMedia = createPhysicalMedia(sdk)
   const svg = (name) => html`<svg viewBox="0 0 24 24" aria-hidden="true"
     dangerouslySetInnerHTML=${{__html: ICON[name]}} />`
 
@@ -46,7 +48,7 @@ export function createHome(sdk, tabs, sessions, systemsRef, backdrop, footer) {
           const key = `${game.system.id}:${game.filename}`
           const played = history.get(key)
           return {key, gameKey: game.filename, systemId: game.system.id, system: game.system,
-            title: game.display_name || titleFromKey(sdk, game.filename),
+            title: game.display_name || titleFromKey(sdk, game.filename), ext: game.ext,
             seconds: played?.total_secs || 0, lastPlayed: played?.last_played || null}
         }).sort((a, b) => String(b.lastPlayed || '').localeCompare(String(a.lastPlayed || ''))
           || a.title.localeCompare(b.title)).slice(0, 18))
@@ -177,7 +179,8 @@ export function createHome(sdk, tabs, sessions, systemsRef, backdrop, footer) {
           return html`<button key=${it.key} className=${`game-tile ${on ? 'selected' : ''}`}
             data-active=${on ? 'true' : 'false'} aria-pressed=${String(on)}
             aria-label=${`Select ${it.title}`} onFocus=${() => setIdx(i)} onClick=${() => setIdx(i)}>
-            <span className="tile-art"><${Art} src=${coverUrl(it.systemId, it.gameKey)} alt=${it.title} />
+            <span className="tile-art"><${PhysicalMedia} systemId=${it.systemId} filename=${it.gameKey}
+              ext=${it.ext} title=${it.title} active=${on} />
               ${sessions.heldMatch(background, it.gameKey, it.systemId)
                 ? html`<span className="session-badge">IN BACKGROUND</span>` : null}</span>
             <span className="tile-label">${it.title}</span></button>`
@@ -408,13 +411,32 @@ export function createHome(sdk, tabs, sessions, systemsRef, backdrop, footer) {
   function useHomeKeys(move, open, owns) {
     const live = useRef({move, open, owns})
     live.current = {move, open, owns}
+
+    // Bumped by every rail step the pad makes, and read by the effect below.
+    //
+    // The point is *when* that effect runs. `setIdx` and this counter are set
+    // in the same dispatch, so React batches them into one commit and the
+    // effect fires with the new tile already in the DOM. A `setTimeout(…, 0)`
+    // cannot promise that: React 18 is free to leave a low-priority render for
+    // a later task, and focusing on the next one lands on the tile we just
+    // left — whose `onFocus` sets the selection straight back to where it was.
+    // That is a stuck cursor on the box, not only a red test.
+    const [moved, setMoved] = useState(0)
+    const sectionOf = () => document.getElementById(
+      `${live.current.owns === 'home' ? 'home' : live.current.owns}-view`)
+
+    useEffect(() => {
+      if (!moved) return
+      sectionOf()?.querySelector('[data-active="true"]')?.focus({preventScroll: true})
+    }, [moved])
+
     useEffect(() => {
       const mine = () => {
         const s = sdk.nav.get()
         return s.screen === 'home' && !s.modalDepth && !s.sessionGameKey
           && !s.powerPending && s.standby === 'off' && tabs.get() === live.current.owns
       }
-      const section = () => document.getElementById(`${live.current.owns === 'home' ? 'home' : live.current.owns}-view`)
+      const section = sectionOf
       const actions = () => [...(section()?.querySelectorAll('.hero-actions button,.application-copy button,.console-story button') || [])]
       const focusRow = direction => {
         const el = direction > 0 ? actions()[0] : section()?.querySelector('[data-active="true"]')
@@ -423,7 +445,12 @@ export function createHome(sdk, tabs, sessions, systemsRef, backdrop, footer) {
       const horizontal = direction => {
         const buttons = actions(), at = buttons.indexOf(document.activeElement)
         if (at >= 0) buttons[(at + direction + buttons.length) % buttons.length]?.focus()
-        else live.current.move(direction)
+        else {
+          // Not on an action button, so the rail owns this press. Move it, and
+          // ask for DOM focus to follow the selection once React has committed.
+          live.current.move(direction)
+          setMoved((n) => n + 1)
+        }
       }
       const offs = [
         sdk.input.onGp('gp:dpad-left', () => {if (mine()) horizontal(-1)}),

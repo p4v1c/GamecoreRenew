@@ -163,6 +163,81 @@ trap cleanup EXIT INT TERM
 # developer's actual KWin against a display that does not exist.
 WM_CANDIDATES="${GAMECORE_WM_CANDIDATES:-kwin_x11 kwin openbox}"
 
+# ── the window manager's own keyboard, taken away ────────────────
+#
+# A console is not a desktop with a game on it. Alt+Tab walking to whatever is
+# behind the interface, Meta opening a launcher, Alt+F4 closing the kiosk —
+# those are the window manager's defaults, and on a television they are the
+# player falling out of the console with no way back that a gamepad can reach.
+#
+# Written into a config directory of the session's own, and handed ONLY to the
+# window manager process. Not exported into the session: the interface, the
+# gamepad bridge and the packs' layout daemons all read $XDG_CONFIG_HOME for
+# their own settings, and moving it under them would lose every one. This is
+# the smallest blast radius that still reaches the process doing the grabbing.
+#
+# The player's own ~/.config is never touched. The same account boots a desktop
+# session on this box, and a kiosk that rewrote the desktop's key bindings
+# would be a far worse bug than the one being fixed.
+WM_CONFIG_HOME="$SESSION_ENV_DIR/wm"
+
+write_wm_config() {
+  mkdir -p "$WM_CONFIG_HOME/openbox" || return 1
+
+  # KWin reads these two out of $XDG_CONFIG_HOME. `none,none,` is the documented
+  # way to say "this action has no key", as opposed to omitting the line, which
+  # leaves the compiled-in default in place.
+  {
+    echo '[kwin]'
+    for action in \
+      'Walk Through Windows' 'Walk Through Windows (Reverse)' \
+      'Walk Through Windows Alternative' 'Walk Through Windows Alternative (Reverse)' \
+      'Walk Through Windows of Current Application' \
+      'Walk Through Windows of Current Application (Reverse)' \
+      'Window Close' 'Window Operations Menu' 'Window Minimize' 'Window Maximize' \
+      'Window Fullscreen' 'Window Quick Tile Left' 'Window Quick Tile Right' \
+      'Kill Window' 'Suspend Compositing' 'Show Desktop' \
+      'Expose' 'ExposeAll' 'ExposeClass' \
+      'Switch to Next Desktop' 'Switch to Previous Desktop' \
+      'Switch One Desktop Down' 'Switch One Desktop Up' \
+      'Switch One Desktop to the Left' 'Switch One Desktop to the Right'
+    do
+      printf '%s=none,none,\n' "$action"
+    done
+  } > "$WM_CONFIG_HOME/kglobalshortcutsrc"
+
+  {
+    # Meta on its own opens Plasma's launcher. There is no Plasma here, but the
+    # binding is KWin's and it is spelled out rather than left to chance.
+    echo '[ModifierOnlyShortcuts]'
+    echo 'Meta='
+    echo
+    echo '[Windows]'
+    # No focus stealing prevention games, and no window switching by mouse
+    # wheel on the desktop — there is no desktop.
+    echo 'RollOverDesktops=false'
+  } > "$WM_CONFIG_HOME/kwinrc"
+
+  # openbox keeps its bindings in its own file, and an empty <keyboard> is a
+  # window manager with no keyboard at all. It is passed by path below, so this
+  # works whatever openbox would otherwise have read.
+  cat > "$WM_CONFIG_HOME/openbox/rc.xml" <<'RC'
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <!-- A console session: the window manager has no key bindings, because every
+       one of them is a way out of the interface that a gamepad cannot undo. -->
+  <keyboard></keyboard>
+  <mouse></mouse>
+</openbox_config>
+RC
+}
+
+if write_wm_config; then
+  log "window manager key bindings disabled for this session ($WM_CONFIG_HOME)"
+else
+  log "WARNING: could not write the window manager config — Alt+Tab may leave the console."
+fi
+
 COMPOSITOR="${GAMECORE_COMPOSITOR:-}"
 COMPOSITOR_KIND="compositor"
 if [[ -z "$COMPOSITOR" ]]; then
@@ -182,11 +257,25 @@ fi
 COMPOSITOR_LEFT="$SESSION_ENV_DIR/compositor-left"
 rm -f "$COMPOSITOR_LEFT" 2>/dev/null || true
 
+# The window manager, started with the locked configuration and nothing else
+# changed. `env` rather than an export, so $XDG_CONFIG_HOME is redirected for
+# this process alone — see write_wm_config for why that matters.
+start_wm() {
+  if [[ "$COMPOSITOR_KIND" == "window manager" ]]; then
+    # openbox takes the file by path, which is the only way to be sure it is
+    # the one being read.
+    env XDG_CONFIG_HOME="$WM_CONFIG_HOME" \
+      "$COMPOSITOR" --config-file "$WM_CONFIG_HOME/openbox/rc.xml" &
+  else
+    env XDG_CONFIG_HOME="$WM_CONFIG_HOME" "$COMPOSITOR" &
+  fi
+}
+
 supervise_compositor() {
   local restarts=0 window_start=$SECONDS status
   while :; do
     log "starting $COMPOSITOR_KIND: $COMPOSITOR"
-    "$COMPOSITOR" &
+    start_wm
     wait $! ; status=$?
     if [[ $status -eq 0 ]]; then
       log "$COMPOSITOR_KIND exited cleanly"

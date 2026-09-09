@@ -23,9 +23,7 @@
  * every exception — so a backend that was busy restarting, or a scraper that
  * timed out once, wrote an empty card into this map and it stayed there for
  * the life of the page. Walking away and coming back showed the same blank
- * card, with nothing to retry and nothing saying why. The same held for a game
- * whose media were configured or scraped *after* the empty result was
- * remembered: it could not appear.
+ * card, with nothing to retry and nothing saying why.
  *
  * "Nothing is known about this game" is an answer and belongs here; "nobody
  * answered" is not one and does not. There is no expiry, because there is
@@ -50,15 +48,16 @@ export const createUseDossier = (sdk) => {
   const fetchOnce = async (systemId, filename) => {
     let media = {}
     let meta = {}
-    // Whether anything actually answered. Not the same question as whether
-    // anything was found.
-    let answered = false
+    // Whether the tier that owns the artwork answered. Not the same question
+    // as whether anything was found, and — this is the correction — not the
+    // same question as whether the *metadata* tier answered either.
+    let mediaAnswered = false
 
     try {
       const index = await sdk.api.media.list(systemId, filename)
       media = index?.media || {}
       meta = index?.meta || {}
-      answered = true
+      mediaAnswered = true
     } catch {
       // 404, no source, or an unreachable scraper — all the same to the card,
       // but not to the cache: this one is not remembered.
@@ -71,15 +70,19 @@ export const createUseDossier = (sdk) => {
         const m = await sdk.api.metadata.get(systemId, filename)
         if (m?.found) meta = { ...m, ...meta }
       } catch {
-        // An unknown game answers `found: false` and does not come through
-        // here; this is the tier being unreachable, and the card stays
-        // retryable because of it.
-        answered = false
+        // The two tiers fail independently, and this one is the optional half.
+        // A single flag for "did anybody answer" was cleared here, which threw
+        // away a media answer already in hand because the *fallback* for a
+        // field the card may not even show had timed out. The artwork was then
+        // fetched again on every return trip to a game the box had already
+        // been told about.
       }
     }
 
     const out = { meta: meta || {}, media }
-    if (answered) cache.set(key(systemId, filename), out)
+    // Cache only when the media tier itself answered. If it failed, even a
+    // metadata answer must leave the artwork lookup retryable on a return trip.
+    if (mediaAnswered) cache.set(key(systemId, filename), out)
     return out
   }
 
@@ -119,14 +122,21 @@ export const createUseDossier = (sdk) => {
 /**
  * The best artwork this game actually has for a given job, or null.
  *
- * Asking for a type the game does not carry gets you the jacket instead, which
- * is the right fallback for a hero image and the wrong one for a cartridge
- * photograph — a jacket in a cartridge-shaped frame just looks like a bug. So
- * the card asks here first and draws its own cartridge when the answer is null.
+ * Asking for a type the game does not carry gets you nothing rather than the
+ * jacket, which is the right answer for a cartridge photograph — a jacket in a
+ * cartridge-shaped frame just looks like a bug. So the card asks here first and
+ * draws its own cartridge when the answer is null.
+ *
+ * A media entry that is not an image is not a photograph either. A video or a
+ * manual put in an `<img>` is a *broken* picture, which reads worse than the
+ * drawn shell it displaced. Indices written before entries said what they were
+ * carry no `kind` at all, and those stay valid: refusing them would blank
+ * artwork that has been on screen for as long as the box has existed.
  */
 export const pick = (sdk, systemId, filename, media, types) => {
   for (const t of types) {
-    if (media && media[t]) return sdk.api.media.url(systemId, filename, t)
+    const entry = media?.[t]
+    if (entry && (!entry.kind || entry.kind === 'image')) return sdk.api.media.url(systemId, filename, t)
   }
   return null
 }
