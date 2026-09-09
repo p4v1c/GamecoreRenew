@@ -82,11 +82,42 @@ _pick() {   # _pick [--x11]
   return 1
 }
 
+# Files in the SDDM directory this process cannot open, comma-separated.
+#
+# An unreadable drop-in is not an empty one, and the whole of this script used
+# to treat them the same: `sed` wrote to stderr, returned nothing, and the
+# answer quietly fell through to the file below. On the reference box that made
+# `status` — documented as needing no root — report 'desktop' for a box whose
+# own drop-in said 'gamecore', with three lines of `Permission denied` above it
+# that read like noise rather than the reason.
+_unreadable_conf() {
+  local f out=""
+  for f in "$SDDM_CONF_DIR"/*; do
+    [[ -f "$f" ]] || continue
+    [[ -r "$f" ]] && continue
+    out+="${out:+, }$(basename "$f")"
+  done
+  printf '%s' "$out"
+}
+
+_warn_unreadable() {
+  local hidden
+  hidden="$(_unreadable_conf)"
+  [[ -n "$hidden" ]] || return 0
+  echo "WARNING: cannot read $SDDM_CONF_DIR/$hidden" >&2
+  echo "  the answer below is taken from the files that could be read, and may" >&2
+  echo "  therefore be wrong. Re-run with sudo to be certain." >&2
+}
+
 _autologin() {
   local s="" v
   # SDDM reads /etc/sddm.conf.d/* in name order and the LAST [Autologin] wins.
   for f in "$SDDM_CONF_DIR"/*.conf; do
-    [[ -e "$f" ]] || continue
+    # Readable, or not counted. `sed` on a file it cannot open writes to stderr
+    # and returns nothing, which read as "no Session= in there" — so an
+    # unreadable drop-in silently handed the answer to the file below it.
+    # `_effective_session` is the one that says so out loud; this stays quiet.
+    [[ -r "$f" ]] || continue
     v=$(sed -n 's/^Session=//p' "$f" | tail -1)
     [[ -n "$v" ]] && s="$v"
   done
@@ -95,6 +126,8 @@ _autologin() {
 
 case "${1:-}" in
   status)
+    # Said before the answer, because it is what decides whether to believe it.
+    _warn_unreadable
     if [[ "$(_autologin)" == gamecore ]]; then
       echo "mode          : gamecore (the console session — no desktop behind it)"
     else
@@ -185,7 +218,23 @@ User=$2
 Session=$1
 Relogin=true
 CONF
-  mv "$conf.tmp" "$conf"
+  # 0644, explicitly, and not whatever umask this happened to run under.
+  #
+  # It ran under sudo, whose umask is 077, so the file came out root-only —
+  # and `status`, which this script's own usage says needs no root, could not
+  # read the one file that decides everything. What it did instead was skip it
+  # silently and report the next [Autologin] down, which on a Plasma box is
+  # kde_settings.conf: an armed console reported as "desktop". A box in that
+  # state cannot be diagnosed from its own shell, which is exactly where
+  # somebody stands when the console will not come up.
+  #
+  # There is nothing secret in it — a user name and a session name, both of
+  # which `who` and /usr/share/xsessions already give away — and SDDM reads it
+  # as root either way.
+  # chmod then rename, so the file is never briefly present with the wrong
+  # mode and the replacement stays atomic — SDDM may be reading this directory.
+  chmod 644 "$conf.tmp"
+  mv -f "$conf.tmp" "$conf"
 }
 
 # Files we named, carrying an [Autologin] that is not ours.
@@ -219,6 +268,9 @@ _effective_session() {
   local f last=""
   for f in "$SDDM_CONF_DIR"/*; do
     [[ -f "$f" ]] || continue
+    # A file we cannot read is not a file with no [Autologin] in it; the caller
+    # is warned by _warn_unreadable rather than told a confident wrong answer.
+    [[ -r "$f" ]] || continue
     grep -q '^\[Autologin\]' "$f" 2>/dev/null || continue
     local v
     v=$(sed -n 's/^Session=//p' "$f" | tail -1)
@@ -245,7 +297,7 @@ _verify_autologin() {   # _verify_autologin <wanted>
 _autologin_user() {
   local u="" v
   for f in "$SDDM_CONF_DIR"/*.conf; do
-    [[ -e "$f" ]] || continue
+    [[ -r "$f" ]] || continue
     v=$(sed -n 's/^User=//p' "$f" | tail -1)
     [[ -n "$v" ]] && u="$v"
   done

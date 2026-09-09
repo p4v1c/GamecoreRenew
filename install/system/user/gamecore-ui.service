@@ -5,6 +5,14 @@ Description=GameCore — Electron UI
 # exit rather than a kiosk that keeps coming back over it.
 PartOf=gamecore-session.target
 After=gamecore-session.target
+# Here, and not in [Service], which is where these two spent their whole life.
+# systemd parses the unit either way and says so once per load —
+# "Unknown key 'StartLimitIntervalSec' in section [Service], ignoring" — then
+# runs with its defaults. So the bound described below did not exist: the
+# interface was restarted without limit, and a box that could not start it at
+# all spun instead of stopping with a reason in the journal.
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -28,8 +36,6 @@ ExecStart=@GAMECORE_PATH@/electron/start-ui.sh
 TimeoutStopSec=10
 Restart=on-failure
 RestartSec=3
-StartLimitIntervalSec=60
-StartLimitBurst=5
 StandardOutput=journal
 StandardError=journal
 

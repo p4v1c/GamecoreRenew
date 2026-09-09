@@ -171,6 +171,11 @@ SESSION_TMP=$(mktemp "${SUDOERS_SESSION}.XXXXXX")
   echo "${GC_USER} ALL=(root) NOPASSWD: /usr/local/bin/gamecore-session-select gamecore"
   echo "${GC_USER} ALL=(root) NOPASSWD: /usr/local/bin/gamecore-session-select desktop"
   echo "${GC_USER} ALL=(root) NOPASSWD: /usr/local/bin/gamecore-session-select desktop --restart-dm"
+  # The way back IN, and it has to be here for the same reason its opposite is:
+  # `gamecore-launcher --session` is the only thing on a desktop that a player
+  # can click to return to the console, and without this line it asks for a
+  # password that a box on a television has no keyboard to type.
+  echo "${GC_USER} ALL=(root) NOPASSWD: /usr/local/bin/gamecore-session-select gamecore --restart-dm"
 } > "$SESSION_TMP"
 chmod 440 "$SESSION_TMP"
 if _live && ! visudo -cf "$SESSION_TMP" >/dev/null; then
