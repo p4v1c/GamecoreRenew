@@ -34,6 +34,16 @@ interface GamecoreAPI {
   overlayStart: (system_id: string, game_key?: string) => void
   overlayStop:  (system_id: string) => void
 
+  /**
+   * Whether a session owns the screen, so the shell can get out of its way.
+   *
+   * Optional: a box running an Electron shell older than this feature has no
+   * such handler, and the call is made with `?.` for that reason. Resuming
+   * there leaves the game behind the interface, which is the behaviour that
+   * shell already had.
+   */
+  sessionScreen?: (owned: boolean) => void
+
   batteryToast:    (data: { level: number; player?: number | null }) => void
   /**
    * `unconfigured` is systems the pipeline gave up on — a fault. `autoconfigOff`

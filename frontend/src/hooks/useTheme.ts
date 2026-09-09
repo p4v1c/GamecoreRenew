@@ -50,6 +50,8 @@ export interface ThemeState {
    * OPTIONAL_SURFACES for why it may not be lost entirely.
    */
   sessionBar?: SurfaceMap['sessionBar']
+  /** Its session menu — the L2 panel. Optional for the same reason. */
+  sessionMenu?: SurfaceMap['sessionMenu']
   /** Kept for the settings page: what the loader actually resolved. */
   surfaces: SurfaceMap
   /** Active theme id, or null for the built-in default. */
@@ -225,6 +227,7 @@ export function useTheme(): ThemeState {
 
   return {
     shell: surfaces.shell, splash: surfaces.splash, sessionBar: surfaces.sessionBar,
+    sessionMenu: surfaces.sessionMenu,
     surfaces, themeId, manifest, loading, safeMode,
     resetKey: `${themeId ?? 'default'}:${nonce}`,
     reload: () => setNonce(n => n + 1),

@@ -25,11 +25,25 @@ export function useEmulatorOverlay(): void {
     // run number in main.js — so it must be called on change, not on render.
     let shown: { key: string; system: string } | null = null
 
+    // Whether a session owns the screen at all, bezel or not. Told separately
+    // from the overlay because `overlay:start` needs an overlay config and
+    // returns early without one — which is most systems, and precisely the case
+    // where a resumed game came back UNDERNEATH the interface: the emulator's
+    // window was already mapped, nothing new took the screen, and nothing had
+    // hidden GameCore.
+    let owned: boolean | null = null
+    const claim = (next: boolean) => {
+      if (owned === next) return
+      owned = next
+      window.gamecore?.sessionScreen?.(next)
+    }
+
     const sync = () => {
       const s = useStore.getState()
       const next = s.sessionGameKey && s.sessionSystemId
         ? { key: s.sessionGameKey, system: s.sessionSystemId }
         : null
+      claim(!!s.sessionGameKey)
       if (shown?.key === next?.key && shown?.system === next?.system) return
       // Stop the old one before starting the new: a swap moves both slots at
       // once, and two live overlays is a bezel for a game nobody is playing.
@@ -50,6 +64,11 @@ export function useEmulatorOverlay(): void {
     // frequently is not: the box is asked instead.
     window.gamecore?.onOverlayHide(() => { void syncSession() })
 
-    return off
+    return () => {
+      off()
+      // Leaving this true would hide the interface for good: the shell outlives
+      // this hook on a theme swap, and nothing else would ever claim it back.
+      claim(false)
+    }
   }, [])
 }

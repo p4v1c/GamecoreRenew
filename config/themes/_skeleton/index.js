@@ -108,5 +108,28 @@ export default (sdk) => {
       </div>`
   }
 
-  return { splash: Splash, shell: Shell, sessionBar: SessionBar }
+  /**
+   * The menu the host opens on L2, when something is suspended. Optional in
+   * exactly the same way, and for the same reason: the host draws one either
+   * way, so a theme that omits it loses its own styling and nothing else.
+   *
+   * The host owns the navigation, the modal lock and the actions — `actions` is
+   * already resolved to labels and handlers, and `actionIdx` says which one the
+   * pad is on. Draw them; do not bind ✕ or the d-pad yourself.
+   */
+  const SessionMenu = ({ session, confirming, busy, actions, actionIdx, title }) => html`
+    <section style=${{ padding: 28, borderRadius: 14, background: '#12121b', minWidth: 320 }}>
+      <p style=${{ fontSize: 10, letterSpacing: '0.14em', opacity: 0.6 }}>
+        ${confirming ? 'END THIS SESSION' : 'SUSPENDED SESSION'}</p>
+      <h2>${title(session)}</h2>
+      <div style=${{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 18 }}>
+        ${actions.map((action, i) => html`
+          <button key=${action.id} disabled=${busy} onClick=${action.run}
+                  style=${{ padding: 12, textAlign: 'left',
+                            background: actionIdx === i ? '#7c3aed' : '#26263a', color: '#fff' }}>
+            ${action.label}</button>`)}
+      </div>
+    </section>`
+
+  return { splash: Splash, shell: Shell, sessionBar: SessionBar, sessionMenu: SessionMenu }
 }
