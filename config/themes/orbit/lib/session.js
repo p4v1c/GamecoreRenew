@@ -100,6 +100,15 @@ export function createSession(sdk) {
    * The host mounts it and guarantees it is on screen: a theme replaces the
    * picture, never the way back to a suspended game. Class names are the
    * mockup's so the design in theme.css applies unchanged.
+   *
+   * The hint names L2 in BOTH states, and that is the correction. The bar owns
+   * no button at all — the host took ✕ away from it on purpose, because the
+   * screen underneath takes ✕ too and one press resumed the session *and*
+   * opened whatever tile the cursor was on. This dock went on advertising
+   * "✕ Resume · ○ Back" anyway, and `active` is exactly when it is shown: so
+   * the moment the bar became usable, Orbit hid the one binding that works and
+   * offered two that do nothing. The player presses ✕, nothing happens, and
+   * there is nothing on screen left to try. Shelf's ledge says L2 and works.
    */
   function Bar({sessions, focusIdx, active, busy, onResume, onClose}) {
     const s = sessions[focusIdx] || sessions[0]
@@ -113,7 +122,7 @@ export function createSession(sdk) {
         <strong>${titleOf(s)}</strong>
         <small>${s.kind === 'app' ? 'Application' : 'Game'} · <span
           className="session-dock-idle-hint">L2 to manage</span><span
-          className="session-dock-active-hint">✕ Resume · ○ Back</span></small>
+          className="session-dock-active-hint">L2 to resume or close</span></small>
       </div>
       <div className="session-dock-actions">
         <button className="primary-button" disabled=${busy}
