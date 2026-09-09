@@ -625,6 +625,15 @@ there is no import map to maintain and only one React instance exists.
 | `sdk.nav` | `use(selector)` for a reactive read inside a component, `get()` for a snapshot in a handler, plus `goHome`, `goLibrary`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx`, `openModal`, `closeModal` | [store reference](../architecture/05-frontend.md#store--storeindexts) |
 | `sdk.input` | `onGp(event, handler)`, `useGamepadState()`, `GP_BTN`, `events`, `rumble(pattern)`, `haptics` (read-only `enabled`) | [event bus](../architecture/05-frontend.md#the-gamepad-event-bus--hooksusegamepadts) |
 | `sdk.session` | `use()` reactive, `get()` snapshot, `background()`, `resume(id?)`, `close(id?)` | **SDK 5.** Suspending and resuming a game or application — §5f. Touching any of it means declaring `"api": 5` |
+
+**SDK 6** adds three things a theme that draws its own library grid needs
+together: `onOpenSearch` and `onOpenOptions` on `libraryView` — the routes to
+the host's search keyboard and per-game options, which a theme taking
+`libraryOmit: ['nav','confirm','sort']` no longer reaches through △ and R2 —
+and `__all__` as a system id, the cross-console library. Touching any of them
+means `"api": 6`: on an older host the first two are `undefined` and the
+theme's own buttons throw, and `__all__` is a console that does not exist, so
+the screen renders empty and the tab looks broken rather than bare.
 | `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `sound` (read-only `enabled` / `volume`), `gamecore`, `asset(path)` | `asset()` resolves a path inside the theme folder. `splashHoldMs` was here and is gone in SDK 4 — the splash is told when the interface is ready instead of being told how long to wait (§8) |
 | `sdk.format` | `gameName`, `time`, `date`, `hexToRgb`, `systemColor` | how the rest of the UI renders the box's data. Reimplementing these does not fail, it *drifts* |
 | `sdk.themes` | `list()`, `select(id \| null)` | so a theme can dress its own theme picker. `select()` is the host's: it clears safe mode, resets the crash count and reloads the frontend |

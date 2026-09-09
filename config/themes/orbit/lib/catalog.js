@@ -72,7 +72,7 @@ export const systemStory = (s) => meta(s)?.[6]
   || 'Part of your collection. Open it to browse the games you have added.'
 export const appStyle = (s) => appStyles[s?.id] || DEFAULT_APP
 export const accent = (sdk, s) =>
-  isApp(s) ? appStyle(s).color : (meta(s)?.[4] || sdk.format.systemColor(s) || '#8dc0f5')
+  isApp(s) ? appStyle(s).color : (meta(s)?.[4] || (s && sdk.format.systemColor(s)) || '#8dc0f5')
 
 export const packLogo = (s) => s?.iconPath
   ? `/assets/logos/${encodeURIComponent(s.iconPath.replace(/\\/g, '/').split('/').pop())}`

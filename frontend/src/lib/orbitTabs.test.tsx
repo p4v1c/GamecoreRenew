@@ -5,7 +5,7 @@
  * navigation: Games, Consoles, Library, Applications. A syntax check says
  * nothing about whether those render, and the previous version of this theme
  * shipped a home that silently disagreed with the host's cursor. So the views
- * are mounted through the assembly `index.js` builds — same host screens, same
+ * are mounted through HomeScreen with the same
  * `homeOmit` — and asserted on what can be asserted from jsdom: which tab is
  * drawn, what is on it, and where the pad moves.
  *
@@ -39,7 +39,9 @@ beforeEach(() => {
     const url = String(typeof input === 'string' ? input : (input as Request).url ?? input)
     const body: unknown =
       url.includes('/playtime') ? PLAYTIME
-        : url.includes('/systems') ? SYSTEMS
+        : url.endsWith('/systems/rpcs3/games') ? [{filename: 'Journey.iso', display_name: 'Journey', path: '/test/Journey.iso'}]
+          : url.endsWith('/systems/dolphin/games') ? [{filename: 'Zelda_(USA).iso', display_name: 'Zelda', path: '/test/Zelda.iso'}]
+          : url.endsWith('/systems') ? SYSTEMS
           : url.includes('/metadata') ? { found: false }
             : []
     return { ok: true, status: 200, statusText: 'OK', json: async () => body }
@@ -88,7 +90,7 @@ describe('the Games tab', () => {
   })
 
   it('builds its rail from what was actually played, not from a bundled list', async () => {
-    // The mockup shipped twelve invented titles. A theme that kept them would
+    // The mockup shipped twelve demonstration titles. A theme that kept them would
     // be showing the player a library they do not own.
     const { container } = await orbit()
     const labels = [...container.querySelectorAll('.tile-label')].map(el => el.textContent)

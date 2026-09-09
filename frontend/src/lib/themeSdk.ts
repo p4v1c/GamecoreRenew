@@ -54,7 +54,8 @@ import * as defaults from '../components/defaults'
  * to reach a suspended game: a theme that half-loaded would leave a frozen
  * emulator holding its memory with nothing on screen able to close it.
  */
-export const SDK_VERSION = 5
+// 6 adds spatial library omissions, search/options callbacks and __all__ libraries.
+export const SDK_VERSION = 6
 
 /**
  * Game or application, from the identity the launcher gave the session.

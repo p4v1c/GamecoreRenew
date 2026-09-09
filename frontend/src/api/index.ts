@@ -46,6 +46,8 @@ export interface SessionState {
 }
 
 export interface GameEntry {
+  /** Present on the SDK 6 aggregate library; identifies the source console. */
+  system_id?: string
   filename: string
   display_name: string
   path: string

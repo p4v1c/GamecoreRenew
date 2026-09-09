@@ -1,39 +1,12 @@
 import {TABS} from '../lib/tabs.js'
 
-/** The header: the mark, the four tabs, and the box's own state on the right.
- *
- * The controller roster and the address arrive by push — `gp:connected`,
- * `gp:disconnected`, `gp:controllers` — rather than by polling, because
- * re-asking every second for four numbers that change once an hour is how a
- * launcher ends up warm to the touch.
- */
+/** The mockup header: brand, four tabs, power, settings and clock. */
 export function createTopBar(sdk, tabs, systemsRef) {
   const {html, useState, useEffect} = sdk.ui
 
   return function TopBar({onSettings, onPower}) {
     const tab = tabs.useTab()
-    const [info, setInfo] = useState(null)
     const [clock, setClock] = useState('')
-    const pad = sdk.input.useGamepadState()
-
-    useEffect(() => {
-      let live = true, timer
-      const load = async () => {
-        try {const next = await sdk.api.sysinfo(); if (live) setInfo(next)} catch { /* keep the last */ }
-        if (live) {clearTimeout(timer); timer = setTimeout(load, 60000)}
-      }
-      load()
-      const offs = [
-        sdk.system.onWsEvent('gp:connected', load),
-        sdk.system.onWsEvent('gp:disconnected', load),
-        sdk.system.onWsEvent('gp:controllers', (data) => {
-          if (live && Array.isArray(data?.controllers)) {
-            setInfo((prev) => ({...(prev || {}), controllers: data.controllers}))
-          }
-        }),
-      ]
-      return () => {live = false; clearTimeout(timer); offs.forEach((off) => off())}
-    }, [])
 
     useEffect(() => {
       const tick = () => setClock(new Date().toLocaleTimeString('en-GB',
@@ -43,7 +16,6 @@ export function createTopBar(sdk, tabs, systemsRef) {
       return () => clearInterval(timer)
     }, [])
 
-    const controllers = info?.controllers || []
     return html`<header className="topbar">
       <button className="brand" aria-label="GameCore, home"
               onClick=${() => tabs.go('home', systemsRef.current)}>
@@ -58,16 +30,6 @@ export function createTopBar(sdk, tabs, systemsRef) {
           onClick=${() => tabs.go(id, systemsRef.current)}>${label}</button>`)}
       </nav>
       <div className="utilities">
-        ${controllers.map((c, i) => html`<span className="topbar-pad"
-          key=${`${c.player}-${i}`} title=${c.name || c.label || 'Connected controller'}>
-          <b>P${c.player ?? i + 1}</b>
-          ${Number.isFinite(c.level) && c.level >= 0
-            ? html`<span className="topbar-battery"><i style=${{
-                width: `${Math.max(0, Math.min(100, c.level))}%`}} /></span>` : null}
-        </span>`)}
-        ${!controllers.length && pad.connected
-          ? html`<span className="topbar-pad"><b>P1</b></span>` : null}
-        ${info?.ip ? html`<span className="topbar-ip" title="Network address">⌁ ${info.ip}</span>` : null}
         <button className="icon-button" onClick=${onPower} aria-label="Power menu">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v9m-5-7a9 9 0 1 0 10 0" /></svg>
         </button>

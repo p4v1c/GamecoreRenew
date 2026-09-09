@@ -63,6 +63,23 @@ SINCE = {
     # way out would be the power button.
     5: ("sdk.session", "session.background", "session.resume",
         "backgroundSessions"),
+    # The library a theme can drive itself. Three surfaces arrived together and
+    # a theme that draws its own grid needs all of them:
+    #
+    #   · `onOpenSearch` / `onOpenOptions` — the routes to the host's search
+    #     keyboard and its per-game options. A theme taking `libraryOmit` loses
+    #     △ and R2, so without these two its own buttons call `undefined` and
+    #     the screen goes down on the first click. That is the loud failure.
+    #   · `__all__` as a system id — the cross-console library. On a host that
+    #     does not know the token there is no such console, so the screen
+    #     renders nothing at all and the tab looks broken rather than empty.
+    #     That is the quiet one, and it is worse.
+    #
+    # `libraryOmit` itself is deliberately NOT in this list. It has been read
+    # since SDK 2 and an older host simply ignores the ids it does not know —
+    # the theme then shares the bindings instead of owning them, which is
+    # cluttered and not broken. Only what THROWS or renders empty belongs here.
+    6: ("onOpenSearch", "onOpenOptions", "__all__"),
 }
 
 

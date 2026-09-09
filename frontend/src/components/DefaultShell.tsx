@@ -59,7 +59,8 @@ export interface ShellParts {
    * and Shelf's library binds R2 to cycle how the shelf is stacked, and prints
    * `R2  <mode>` in its own hint bar. Pressing it did both: the box turned AND
    * a menu nobody asked for appeared over it, and pressing again turned the box
-   * behind the menu. Only `'options'` is recognised today.
+   * behind the menu. SDK 6 also recognises 'nav', 'confirm' and 'sort' for spatial grids.
+   * Search (△), Back (○), launching and the options modal stay with the host.
    *
    * A theme that takes a shortcut takes responsibility for offering the thing
    * some other way. Nothing here enforces that, because there is no honest way

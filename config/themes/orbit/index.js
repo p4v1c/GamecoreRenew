@@ -1,3 +1,5 @@
+import {createFooter} from './views/footer.js'
+import {createBackdrop} from './lib/backdrop.js'
 import {createSession} from './lib/session.js'
 import {createTabs} from './lib/tabs.js'
 import {createTopBar} from './views/topbar.js'
@@ -6,44 +8,37 @@ import {createLibrary} from './views/library.js'
 import {createController} from './views/controller.js'
 import {createSplash} from './views/splash.js'
 
-/**
- * Orbit — the interactive mockup, over the real box.
- *
- * Four tabs: Games, Consoles, Library, Applications. Three of them are the
- * host's `home` screen with Orbit's own tab state on top; the fourth IS the
- * host's library screen. See lib/tabs.js for why that split is the honest one
- * rather than a workaround.
- *
- * `homeOmit` is the one thing Orbit takes back from the host. The home screen's
- * d-pad walks the SYSTEM grid, and two of Orbit's three home tabs are not a
- * system grid — a rail of recently played games, and a rail of applications. Left
- * in place, the host's cursor moved a selection nobody could see, and ✕ opened
- * whatever console it had landed on. Taking the bindings means owning what they
- * do, which views/home.js does; the cost is written down in HomeScreen beside
- * the same note for `libraryOmit`.
- *
- * The library keeps ALL of the host's behaviour — sort, search keyboard,
- * per-game options, launch, playtime — because that is the screen the contract
- * says a theme draws and does not reimplement.
- */
+/** Orbit's mockup over the host's real catalogue, library and session controls.
+ * SDK 6 lets the grid own directional focus while the host keeps launch/search. */
 export default function createOrbit(sdk) {
   const {html} = sdk.ui
+  const backdrop = createBackdrop(sdk)
   const sessions = createSession(sdk)
   const tabs = createTabs(sdk)
+  // After `tabs`: the footer's hints follow the tab, and a `const` read before
+  // its declaration is a ReferenceError, not an undefined.
+  const footer = createFooter(sdk, tabs)
 
   // Every tab needs the system list, and only `homeView` is handed it. Shared
   // through a ref rather than fetched twice: the host already has the answer.
   const systemsRef = {current: []}
 
   const TopBar = createTopBar(sdk, tabs, systemsRef)
-  const Home = createHome(sdk, tabs, sessions, systemsRef)
-  const Library = createLibrary(sdk, tabs, sessions, systemsRef)
-  const Settings = sdk.defaults.createSettings(sdk, {}, {skin: 'orbit-settings'})
-  const Power = sdk.defaults.createPowerView(sdk)
+  const Home = createHome(sdk, tabs, sessions, systemsRef, backdrop, footer)
+  const Library = createLibrary(sdk, tabs, sessions, systemsRef, backdrop)
+  const SettingsBase = sdk.defaults.createSettings(sdk, {}, {skin: 'orbit-settings'})
+  const Power = sdk.defaults.createPowerView(sdk, {skin: 'orbit-power'})
   const Controller = createController(sdk)
 
-  const Background = () => html`<div className="scenery" aria-hidden="true">
-    <div className="backdrop" /><div className="shade" /><div className="grain" /></div>`
+  const Background = backdrop.Background
+
+  function Settings({onClose}) {
+    return html`<div className="orbit-dialog-backdrop" onClick=${e => {if (e.target === e.currentTarget) onClose()}}>
+      <div className="orbit-settings-frame"><${SettingsBase} onClose=${onClose} />
+        <button className="close-dialog icon-button" aria-label="Close settings" onClick=${onClose}>×</button>
+      </div>
+    </div>`
+  }
 
   function Shell() {
     // L2 and the session menu belong to the host now — one binding for every
@@ -52,7 +47,8 @@ export default function createOrbit(sdk) {
       <${sdk.defaults.Shell} background=${Background} topbar=${TopBar}
         homeView=${Home} libraryView=${Library} settings=${Settings}
         powerView=${Power} gamepadView=${Controller}
-        homeOmit=${['nav', 'pages', 'confirm']} />
+        homeOmit=${['nav', 'pages', 'confirm']} libraryOmit=${['nav', 'confirm', 'sort']} />
+      <${footer.Component} />
     </div>`
   }
 
