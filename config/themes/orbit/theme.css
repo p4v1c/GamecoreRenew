@@ -331,3 +331,32 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 .orbit-app .orbit-backdrop-current { animation: orbit-backdrop-in .36s ease both; }
 @keyframes orbit-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
 /* === End Orbit physical-media fix ========================================= */
+
+/* === Orbit session menu — the option the pad is on ======================== */
+/*
+ * The host tracks which action the d-pad is on and marks it `data-active`; it
+ * does NOT move DOM focus, so `:hover` and `:focus-visible` never fire for a
+ * player on a gamepad. Orbit styled both of those and not `data-active`, so
+ * the menu opened, ↑/↓ moved a selection nothing drew, and ✕ confirmed
+ * whichever option the player could not see was chosen. Resume and "Close
+ * game" sat one invisible step apart, which is the worst possible pair to be
+ * uncertain between.
+ */
+.orbit-app .session-menu-option[data-active="true"],
+.session-menu-body .session-menu-option[data-active="true"] {
+  background: #bedcff2e;
+  border-color: #d2eaff;
+  box-shadow: 0 0 0 2px #bfdcff40, 0 10px 30px #0006;
+}
+.orbit-app .session-menu-option[data-active="true"] strong,
+.session-menu-body .session-menu-option[data-active="true"] strong { color: #f2f8ff; }
+
+/* Ending a session is the one thing here that cannot be undone: when the pad
+   is on it, it reads as the dangerous one rather than as another blue row. */
+.orbit-app .session-menu-option.session-danger[data-active="true"],
+.session-menu-body .session-menu-option.session-danger[data-active="true"] {
+  background: #ff6b8133;
+  border-color: #ffb3c1;
+  box-shadow: 0 0 0 2px #ff8fa340, 0 10px 30px #0006;
+}
+/* === End Orbit session menu fix =========================================== */
