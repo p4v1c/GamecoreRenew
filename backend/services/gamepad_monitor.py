@@ -4,8 +4,13 @@ Background service that reads gamepad events directly from /dev/input via evdev.
 This bypasses the Chromium Gamepad API which blocks button 16 (PS/guide button).
 When the PS/guide button is pressed twice within DOUBLE_PRESS_WINDOW seconds
 (a single press is ignored, to avoid accidental exits):
-  - If a game is running  → kill it and broadcast gp:guide so the frontend goes home
+  - If a game is running  → suspend it and broadcast gp:guide, so the player
+    lands back in the interface with the game frozen and intact
   - Otherwise             → broadcast gp:guide (frontend can choose to ignore)
+
+Start+Select held together for CHORD_HOLD_S is the same escape, for the pads
+whose guide button the kernel never reports at all. It acts only while a game
+holds the screen — see ChordWatcher.
 
 Permissions: the process must be able to open /dev/input/event* files.
 Either add the user to the 'input' group OR deploy the udev rule from install.sh.
@@ -42,6 +47,23 @@ BTN_SOUTH = 0x130
 EV_KEY  = 1   # evdev event type for key/button events
 EV_ABS  = 3   # axes: sticks, triggers, and the d-pad on most modern pads
 KEY_DOWN = 1  # event value for key press
+# Deliberately not called KEY_UP: evdev already has a KEY_UP and it is the
+# arrow key, code 103. This is the *value* a release carries.
+KEY_RELEASE = 0
+
+# BTN_SELECT and BTN_START. Held together, they are the second way out of a
+# game — see ChordWatcher for why a pad needs one.
+BTN_SELECT = 0x13A
+BTN_START = 0x13B
+CHORD_CODES = frozenset({BTN_SELECT, BTN_START})
+
+# How long Start+Select must be held before it counts.
+#
+# Long enough that an emulator's own use of the two buttons cannot reach it by
+# accident, short enough that somebody trying to get out does not conclude it
+# is not working and let go. Both are live buttons inside a game, which is the
+# whole reason this is a hold and not a chord tapped once.
+CHORD_HOLD_S = 1.0
 
 # The d-pad, where the kernel puts it on a DualShock 4 and most other modern
 # pads: a hat, not four buttons. ABS_HAT0X/Y and their second-hat siblings.
@@ -114,13 +136,75 @@ class ActivityFilter:
             return False
         return abs(event.value - previous) > threshold
 
+
+class ChordWatcher:
+    """Start+Select, held together, as a second way back to the interface.
+
+    Some pads report no guide button at all — neither BTN_MODE nor
+    KEY_HOMEPAGE reaches the kernel — and on those the double-press gesture
+    does not exist, which leaves a player with no way out of a game whatsoever.
+    This is that way out.
+
+    Held rather than tapped, because Start and Select are both live buttons
+    inside a game and a tapped chord is something an emulator's own bindings
+    can produce by accident; a full second of both is not. And *because* it is
+    held, it needs a timer: evdev speaks only when something changes, so
+    nothing else would ever come back to ask whether the second had passed.
+
+    Per device, so the chord means one pad's two buttons — not Start on one
+    pad and Select on another in a two-player living room.
+    """
+
+    def __init__(self, fire):
+        self._fire = fire                       # async callable, run on completion
+        self._down: set[int] = set()
+        self._task: asyncio.Task | None = None
+
+    def feed(self, event) -> None:
+        if event.type != EV_KEY or event.code not in CHORD_CODES:
+            return
+        if event.value == KEY_DOWN:
+            self._down.add(event.code)
+        elif event.value == KEY_RELEASE:
+            self._down.discard(event.code)
+        else:
+            return                              # autorepeat: nothing changed hands
+
+        if self._down == CHORD_CODES:
+            if self._task is None or self._task.done():
+                self._task = asyncio.create_task(self._hold())
+        else:
+            self.cancel()
+
+    async def _hold(self) -> None:
+        try:
+            await asyncio.sleep(CHORD_HOLD_S)
+        except asyncio.CancelledError:
+            return
+        # Re-read rather than trust the sleep: a release during it cancels the
+        # task, but a cancellation that arrives late must not still fire.
+        if self._down == CHORD_CODES:
+            await self._fire()
+
+    def cancel(self) -> None:
+        if self._task is not None and not self._task.done():
+            self._task.cancel()
+        self._task = None
+
+
 # Guide button must be pressed twice within this window (seconds) to trigger.
 DOUBLE_PRESS_WINDOW = 1.0
 # Presses closer than this are the same physical press reported twice
 # (e.g. a pad exposing both BTN_MODE and KEY_HOMEPAGE) — ignore them.
 DEBOUNCE = 0.05
 
-_last_guide_press: float = 0.0
+# When the last *accepted* guide press landed, and whether it is still waiting
+# for a partner. `None` rather than 0.0: `time.monotonic()` counts from an
+# arbitrary point, so 0.0 is not "long ago" everywhere — on a box where that
+# point is recent it reads as "pressed a moment ago", and the next press alone
+# would act.
+_last_guide_press: float | None = None
+_guide_armed = False
 
 # Paths already reported as "kept, but has no Guide button" — the scan runs
 # every few seconds and this should be said once per device, not per pass.
@@ -175,6 +259,7 @@ async def _watch_device(path: str) -> None:
 
     log.info("gamepad_monitor: watching %s (%s)", path, dev.name)
     activity = ActivityFilter(dev)
+    chord = ChordWatcher(lambda: _suspend_to_interface("start+select", foreground_only=True))
     try:
         async for event in dev.async_read_loop():
             # Anything that means somebody is there — a button, the d-pad,
@@ -184,6 +269,9 @@ async def _watch_device(path: str) -> None:
             if activity.is_activity(event):
                 from . import standby
                 standby.on_input()
+            # Before the KEY_DOWN filter below: a chord that is *held* has to
+            # see the release that ends it, and a release is not a key down.
+            chord.feed(event)
             if event.type != EV_KEY or event.value != KEY_DOWN:
                 continue
             if event.code in GUIDE_CODES:
@@ -198,6 +286,7 @@ async def _watch_device(path: str) -> None:
     except Exception:
         log.debug("gamepad_monitor: device %s disconnected or error", path)
     finally:
+        chord.cancel()
         try:
             dev.close()
         except Exception:
@@ -205,23 +294,54 @@ async def _watch_device(path: str) -> None:
 
 
 async def _on_guide_pressed() -> None:
-    global _last_guide_press
+    """One guide/PS press, from a pad that may well report it twice.
+
+    The pairing is deliberately written around a single "when did the last
+    press we believed land" clock, and every branch updates it. The version
+    before this one cleared that clock when the gesture fired, which left the
+    duplicate report of the *acting* press looking like a brand-new first
+    press — so on a pad that exposes the button on both BTN_MODE and
+    KEY_HOMEPAGE, a double press suspended the game and armed the next single
+    press to suspend or resume again on its own.
+    """
+    global _last_guide_press, _guide_armed
 
     now = time.monotonic()
-    elapsed = now - _last_guide_press
-    if elapsed < DEBOUNCE:
+    elapsed = None if _last_guide_press is None else now - _last_guide_press
+
+    # One physical press, reported twice by one pad. It is not a press of its
+    # own: the pairing is left exactly as it was, armed or not.
+    if elapsed is not None and elapsed < DEBOUNCE:
         return
-    if elapsed > DOUBLE_PRESS_WINDOW:
-        _last_guide_press = now
+
+    _last_guide_press = now
+
+    if not (_guide_armed and elapsed is not None and elapsed <= DOUBLE_PRESS_WINDOW):
+        _guide_armed = True
         log.info("gamepad_monitor: guide pressed once — press again within %.1fs to exit",
                  DOUBLE_PRESS_WINDOW)
         return
-    _last_guide_press = 0.0
 
+    _guide_armed = False
+    await _suspend_to_interface("guide")
+
+
+async def _suspend_to_interface(gesture: str, foreground_only: bool = False) -> None:
+    """Give the screen back: freeze whatever is running, and say so.
+
+    Shared by the two gestures that mean the same thing, so there is one
+    account of what "get me out" does and not a second one that drifts.
+    `foreground_only` is for the gesture that is *only* an escape from a game:
+    Start+Select are ordinary interface buttons when no game holds the screen,
+    and holding them there should not quietly send anybody home.
+    """
     from . import process_manager as pm_module
     from .. import ws
 
     pm = pm_module.process_manager
+
+    if foreground_only and not pm.is_foreground:
+        return
 
     # Double-Home used to KILL the running game, and that was the only thing it
     # could do: there was no other way to get the screen back. It is a
@@ -243,7 +363,7 @@ async def _on_guide_pressed() -> None:
         try:
             await pm.background()
             action = "backgrounded"
-            log.info("gamepad_monitor: suspended the running session")
+            log.info("gamepad_monitor: suspended the running session (%s)", gesture)
         except Exception:
             # **Nothing is closed here, and that is the correction.**
             #
@@ -263,7 +383,11 @@ async def _on_guide_pressed() -> None:
             log.exception("gamepad_monitor: could not suspend — session kept")
 
     try:
-        await ws.broadcast("gp:guide", {"action": action})
+        # Still `gp:guide`, whichever gesture asked: it is the event themes and
+        # the frontend already treat as "you are back in the interface", and it
+        # is in RESERVED_EVENTS so no theme can take it. `gesture` is additive,
+        # for anyone reading a log and asking which button did this.
+        await ws.broadcast("gp:guide", {"action": action, "gesture": gesture})
     except Exception:
         log.exception("gamepad_monitor: error broadcasting gp:guide")
 
