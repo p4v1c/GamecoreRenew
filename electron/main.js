@@ -13,6 +13,23 @@ app.commandLine.appendSwitch('enable-transparent-visuals')
 // kiosk the UI sounds would stay silent forever without this.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
+// This window talks to one thing: the backend on this machine's loopback.
+// Nothing it loads is on the internet — the scraper runs in the backend, the
+// themes are served by the backend, and the kiosk browsers for YouTube and
+// Twitch are separate processes. So a proxy lookup here can only ever cost.
+//
+// It cost two minutes fourteen. Measured on the reference box, 2026-09-09:
+// the backend was serving at 22:08:06, the interface asked for /api/ready and
+// got nothing, logged "the backend is not answering" at +20s, and the first
+// request actually reached the backend at 22:10:59 — 0.3 s after NetworkManager
+// finished associating with the Wi-Fi. Chromium had been resolving the proxy
+// configuration for a request to 127.0.0.1, and could not finish until the box
+// had a route it never needed.
+//
+// A console must come up on a box with no network at all. The Wi-Fi being slow
+// is not a reason for the interface to be absent.
+app.commandLine.appendSwitch('no-proxy-server')
+
 const DEBUG = false
 
 const DEV = DEBUG && process.env.ELECTRON_DEV === '1'
@@ -20,8 +37,13 @@ const DEV = DEBUG && process.env.ELECTRON_DEV === '1'
 // gamecore-ui.service (Environment=GAMECORE_BACKEND_PORT). Hardcoding 8765
 // here meant any other choice left the kiosk on a permanent black screen.
 const BACKEND_PORT = process.env.GAMECORE_BACKEND_PORT || '8765'
-const BACKEND_URL = `http://localhost:${BACKEND_PORT}`
-const DEV_URL     = 'http://localhost:5173'
+// The address, not a name for it. `main.py` binds 127.0.0.1 and nothing else,
+// so `localhost` bought a DNS lookup and an ambiguity — most resolvers answer
+// ::1 first, where there is no listener — for a host we already know the
+// number of. The proxy switch above is the other half of the same fix; this
+// half is the one that also rules out the IPv6 attempt.
+const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`
+const DEV_URL     = 'http://127.0.0.1:5173'
 
 let mainWindow     = null
 let backendProcess = null
