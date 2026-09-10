@@ -24,6 +24,7 @@ export const createJacket = sdk => {
     const direct = coverUrl(systemId, filename)
     const [src, setSrc] = useState(direct)
     const [stage, setStage] = useState('direct')
+    const [loaded, setLoaded] = useState(false)
 
     useEffect(() => {
       if (stage !== 'resolving') return
@@ -31,7 +32,7 @@ export const createJacket = sdk => {
       boxFront(sdk, systemId, filename)
         .then(url => {
           if (!live) return
-          if (url) { setSrc(url); setStage('scraped') }
+          if (url) { setLoaded(false); setSrc(url); setStage('scraped') }
           else setStage('failed')
         })
         .catch(() => { if (live) setStage('failed') })
@@ -42,6 +43,7 @@ export const createJacket = sdk => {
       const w = img?.naturalWidth || 0
       const h = img?.naturalHeight || 0
       if (!w || !h) return
+      setLoaded(true)
       const next = w / h
       if (!plausible(next)) {
         setStage(stage === 'direct' ? 'resolving' : 'failed')
@@ -52,7 +54,7 @@ export const createJacket = sdk => {
     const failed = () => setStage(stage === 'direct' ? 'resolving' : 'failed')
     const fallback = stage === 'resolving' || stage === 'failed'
 
-    return html`<span className=${`orbit-jacket ${className}`} data-source=${stage}>
+    return html`<span className=${`orbit-jacket ${className}`} data-source=${stage} data-loaded=${loaded || fallback ? 'true' : 'false'}>
       ${fallback
         ? html`<span className="art-fallback">${(title || '◇').slice(0, 2).toUpperCase()}</span>`
         : html`<img key=${src} src=${src} alt=${title} draggable="false" loading="lazy"

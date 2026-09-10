@@ -262,37 +262,55 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 }
 
 /* === Orbit cover art + backdrop stability ================================= */
-/* Home keeps the same square rhythm for games, apps and the collection. A game
-   carries a small, uncropped jacket inside that square; apps keep their logo
-   treatment, so the two kinds remain legible before their labels appear. */
+/* A larger rail at TV resolutions. The stage stays square for a stable mix
+   of games and apps; the full jacket fills it as far as its real ratio allows.
+   Explicit image dimensions also enlarge small source files, unlike max-size
+   constraints alone. A square DS jacket and a portrait PS2 box never crop. */
+.orbit-app {
+  --orbit-rail-size: clamp(124px, 8.125vw, 312px);
+  --orbit-rail-selected: clamp(150px, 10vw, 384px);
+}
+.orbit-app .game-tile {
+  width: var(--orbit-rail-size); flex-basis: var(--orbit-rail-size);
+}
+.orbit-app .game-tile.selected {
+  width: var(--orbit-rail-selected); flex-basis: var(--orbit-rail-selected);
+}
+.orbit-app .game-rail {
+  min-height: calc(var(--orbit-rail-selected) + 55px);
+  gap: clamp(18px, 1.3vw, 42px); padding: 10px 8px 25px;
+  scroll-padding-inline: 10px; align-items: flex-start;
+}
+.orbit-app .game-tile .tile-label {
+  opacity: 1; max-width: 100%; font-size: clamp(12px, .85vw, 24px);
+  color: #b9cce4; line-height: 1.4; margin-top: 12px;
+}
+.orbit-app .game-tile.selected .tile-label { color: #fff; }
 .orbit-app .home-game-tile .tile-art {
   display: grid; place-items: center;
-  background: linear-gradient(145deg, #2b405dba, #101a2a);
+  background: linear-gradient(145deg, #23364b90, #101a2a60);
 }
 .orbit-app .home-game-cover {
-  display: block; height: 78%; aspect-ratio: 2 / 3; overflow: hidden;
-  border: 1px solid #e3f0ff52; border-radius: 5px;
-  box-shadow: 0 8px 18px #0009, 0 0 24px #a8ceff16;
-  transition: transform .3s, box-shadow .3s;
+  position: relative; inset: auto;
+  display: block; width: 95%; height: 95%; overflow: hidden;
+  border: 0; border-radius: 4px; background: none;
 }
 .orbit-app .orbit-jacket img {
   display: block; width: 100%; height: 100%; object-fit: contain;
   object-position: center; transform: none;
 }
+.orbit-app .home-game-cover img { filter: drop-shadow(0 5px 9px #0006); }
 .orbit-app .home-game-cover .art-fallback {
-  width: 100%; height: 100%; border-radius: 0; font-size: 14px;
+  width: 100%; height: 100%; border-radius: 8px; font-size: 22px;
 }
-.orbit-app .home-game-tile:hover .home-game-cover,
-.orbit-app .home-game-tile.selected .home-game-cover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 22px #000a, 0 0 28px #b9dcff2e;
-}
+.orbit-app .home-game-tile:hover .home-game-cover img,
+.orbit-app .home-game-tile.selected .home-game-cover img { transform: none; }
 
 /* A stable jacket wall. Artwork keeps its full shape inside the frame; changing
    every card's grid geometry as hundreds of cached images decode stalls pad
    navigation on larger libraries. */
 .orbit-app .library-grid {
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(180px, 13vw, 480px)), 1fr));
   gap: 30px 26px;
 }
 .orbit-app .library-cover { display: block; aspect-ratio: auto; overflow: visible; background: none; border: 0; }
@@ -452,38 +470,146 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 }
 /* === End Orbit ceremony =================================================== */
 
-/* === Orbit jackets — the wrapper has to be a box ========================== */
-/*
- * `Jacket` wraps its <img> in a <span class="orbit-jacket">, and that span had
- * no rule at all. Both places that draw one size the picture the same way —
- * `.game-tile .tile-art img` and `.library-cover img` are `width:100%;
- * height:100%; object-fit:cover` — and a percentage height needs a parent with
- * a definite one. An unstyled inline span has neither a height nor a box, so
- * the height resolved to `auto` and the image fell back to its own proportions
- * inside a container it was supposed to fill.
- *
- * It showed worst on the home rail. `.tile-art` is `aspect-ratio: 1` and box
- * art is portrait, so a jacket that keeps its own shape sits small in the
- * middle of a square tile with the tile's own gradient around it. The library
- * hid the same defect because `.library-cover` is `aspect-ratio: 2/3`, which is
- * roughly the shape of a jacket already.
- *
- * Both containers are `position: relative`, so filling them is the whole fix.
- * Nothing here says how the picture is cropped: `object-fit` and the
- * `object-position: center 28%` that keeps a box front's title visible stay
- * where they were, in the rules that already knew about them.
- */
+/* Jackets have their own in-flow boxes. A generic absolute wrapper made the
+   library cards collapse and overrode the carefully sized home stage. */
 .orbit-app .orbit-jacket {
-  position: absolute;
-  inset: 0;
-  display: block;
+  position: relative; inset: auto; display: block; min-width: 0; min-height: 0;
+}
+.orbit-app .orbit-jacket > .art-fallback { width: 100%; height: 100%; }
+.orbit-app .library-card h3 {
+  font-size: clamp(14px, 1vw, 26px); line-height: 1.4;
+  white-space: normal; display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; min-height: 2.8em;
+}
+.orbit-app .details-identity {
+  display: grid; grid-template-columns: minmax(120px, 32%) minmax(0, 1fr);
+  align-items: center; gap: 26px; margin: 5px 0 24px;
+}
+.orbit-app .details-jacket { width: 100%; aspect-ratio: 2 / 3; }
+.orbit-app .details-jacket .art-fallback { border-radius: 8px; }
+.orbit-app .orbit-details { width: min(820px, 100%); }
+.orbit-app .hero { min-height: 0; padding-top: clamp(24px, 4vh, 70px); }
+@media (max-height: 800px) {
+  .orbit-app .topbar { padding-top: 18px; padding-bottom: 14px; }
+  .orbit-app .rail-heading { margin-top: 12px; margin-bottom: 10px; }
+  .orbit-app .hero { padding-top: 18px; padding-bottom: 22px; }
+  .orbit-app #hero-title { font-size: clamp(32px, 4vw, 60px); margin: 16px 0; }
+  .orbit-app .hero-copy #hero-description { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; -webkit-line-clamp: 2; }
+}
+@media (max-width: 650px) {
+  .orbit-app { --orbit-rail-size: 104px; --orbit-rail-selected: 128px; }
+  .orbit-app .details-identity { gap: 16px; grid-template-columns: 100px minmax(0, 1fr); }
+  .orbit-app .details-copy h2 { font-size: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orbit-app .game-tile, .orbit-app .tile-art { transition: none; }
 }
 
-/* The two-letter stand-in fills the same box, rather than sitting in a corner
-   of it. The library already had this rule for its own jacket; every jacket
-   needs it. */
-.orbit-app .orbit-jacket > .art-fallback {
-  width: 100%;
-  height: 100%;
+.orbit-app .orbit-meta-group { display: contents; }
+
+/* Native boot surface: light resolves into the mark, then reveals the shell. */
+.orbit-splash { position: fixed; inset: 0; z-index: 10000; overflow: hidden;
+  display: grid; place-items: center; background: #080f1d; color: #f0f6ff;
+  font-family: inherit; opacity: 1; transition: opacity var(--orbit-boot-fade,700ms) ease; }
+.orbit-splash[data-out="true"] { opacity: 0; pointer-events: none; }
+.orbit-boot-glow { position: absolute; width: min(110vw,1200px); aspect-ratio: 1;
+  border-radius: 50%; background: radial-gradient(ellipse,#3278b838, #18395820 40%,transparent 68%);
+  animation: orbit-boot-light 4200ms ease-out both; }
+.orbit-boot-ring { position: absolute; width: min(72vw,760px); aspect-ratio: 1;
+  border-radius: 50%; border: 1px solid #aacfff24; pointer-events: none; }
+.orbit-boot-ring-a { animation: orbit-boot-orbit 3800ms cubic-bezier(.16,1,.3,1) both; }
+.orbit-boot-ring-b { width: min(86vw,920px); border-color: #aacfff12;
+  animation: orbit-boot-orbit 4200ms 200ms cubic-bezier(.16,1,.3,1) both; }
+.orbit-boot-identity { position: relative; display: flex; flex-direction: column;
+  align-items: center; text-align: center; }
+.orbit-boot-mark { width: clamp(56px,5vw,100px); height: auto; color: #eaf5ff;
+  filter: drop-shadow(0 0 24px #87bcf344); animation: orbit-boot-reveal 1800ms 500ms both; }
+.orbit-splash-word { margin-top: 25px; font-size: clamp(18px,1.7vw,32px);
+  font-weight: 600; letter-spacing: .27em; padding-left: .27em;
+  animation: orbit-boot-reveal 1800ms 1100ms both; }
+.orbit-splash-word small { display: block; margin-top: 12px; font-size: .45em;
+  font-weight: 400; letter-spacing: .7em; padding-left: .43em; color: #afcae4; }
+.orbit-boot-line { margin-top: 30px; height: 1px; width: 80px;
+  background: linear-gradient(90deg,transparent,#b7d7f8,transparent);
+  animation: orbit-boot-line 1400ms 1900ms both; }
+.orbit-boot-identity p { margin: 19px 0 0; font-size: clamp(12px,1vw,17px);
+  font-weight: 300; letter-spacing: .09em; color: #9db1c9;
+  animation: orbit-boot-reveal 1600ms 2400ms both; }
+@keyframes orbit-boot-reveal { from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); } }
+@keyframes orbit-boot-light { from { opacity: 0; transform: scale(.65); }
+  to { opacity: 1; transform: scale(1); } }
+@keyframes orbit-boot-orbit { from { opacity: 0; transform: scale(.55) rotateX(58deg) rotate(-28deg); }
+  45% { opacity: 1; } to { opacity: .55; transform: scale(1) rotateX(58deg) rotate(-12deg); } }
+@keyframes orbit-boot-line { from { opacity: 0; transform: scaleX(0); }
+  to { opacity: 1; transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .orbit-splash *, .orbit-splash *::before, .orbit-splash *::after { animation: none !important; }
+  .orbit-splash { transition-duration: 150ms; }
 }
-/* === End Orbit jacket box ================================================= */
+
+/* Console navigation: a clear focus without changing grid geometry. */
+.orbit-app :is(.machine-tile,.library-card,.game-tile,.primary-button,.filter,.nav-item) {
+  transition: width 180ms ease, flex-basis 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+.orbit-app :is(button,input):focus-visible,
+.orbit-app .pad-focus {
+  outline: 2px solid #e0f1ff; outline-offset: 5px;
+  box-shadow: 0 0 0 7px #91c8ff12, 0 0 26px #83baff24;
+}
+.orbit-app .machine-tile.selected {
+  border-color: #c7e5ff; background: #80baff15;
+  box-shadow: 0 0 0 2px #b9dcff25, 0 0 26px #79b9ff18;
+}
+.orbit-app :is(#home-view,#systems-view,#applications-view,#library-view) {
+  animation: orbit-page-enter 240ms ease-out;
+}
+@keyframes orbit-page-enter {
+  from { opacity: 0; translate: 0 7px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orbit-app :is(#home-view,#systems-view,#applications-view,#library-view) { animation: none; }
+  .orbit-app :is(.machine-tile,.library-card,.game-tile,.primary-button,.filter,.nav-item) { transition: none; }
+}
+
+/* Artwork changes retain their geometry and only reveal decoded images. */
+.orbit-app .orbit-jacket { background-color: #17263a; }
+.orbit-app .orbit-jacket img { opacity: 1; transition: opacity 220ms ease; }
+.orbit-app .orbit-jacket[data-loaded="false"] img { opacity: 0; }
+.orbit-app .orbit-jacket[data-loaded="false"] {
+  background-image: linear-gradient(110deg,#17263a,#273c55,#17263a);
+  background-size: 200% 100%; animation: orbit-jacket-loading 1.8s ease-in-out infinite;
+}
+@keyframes orbit-jacket-loading { 50% { background-position: 100% 0; } }
+.orbit-app .orbit-backdrop-exit { animation: orbit-backdrop-out 380ms ease both; }
+@keyframes orbit-backdrop-out { to { opacity: 0; } }
+.orbit-library-summary { min-height: 76px; margin: 0 0 20px; padding: 12px 0;
+  border-block: 1px solid #b8d6f31a; display: flex; align-items: center; gap: 30px; }
+.orbit-library-summary > div { flex: 0 1 35%; min-width: 0; }
+.orbit-library-summary strong { display: block; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.orbit-library-summary span { display: block; font-size: 11px; color: #a5bad1; margin-top: 6px; }
+.orbit-library-summary p { flex: 1; font-size: 13px; color: #b7c7d9; line-height: 1.6;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.session-dock.orbit-compact-dock { right: auto; width: min(620px,calc(100% - 2 * var(--page-pad,24px)));
+  min-height: 64px; padding: 10px 14px; gap: 12px;
+  transition: width 220ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+.orbit-compact-dock .session-dock-art { width: 34px; height: 44px; flex-shrink: 0; }
+.orbit-compact-dock .session-dock-art img { width: 100%; height: 100%; object-fit: contain; }
+.orbit-compact-dock .session-dock-info { min-width: 0; flex: 1; }
+.orbit-compact-dock .session-dock-info strong { font-size: 14px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.orbit-compact-dock .session-dock-info small { display: none; }
+.orbit-compact-dock .session-dock-actions .primary-button { min-height: 34px; padding: 8px 15px; font-size: 12px; }
+.session-dock.orbit-compact-dock:is(:hover,:focus-within,.controller-active) { width: min(780px,calc(100% - 2 * var(--page-pad,24px))); border-color: #c5e3ff; }
+.orbit-compact-dock:is(:hover,:focus-within,.controller-active) .session-dock-info small { display: block; }
+@media(max-width:650px) {
+  .orbit-library-summary { gap: 15px; }
+  .orbit-library-summary > div { flex-basis: 45%; }
+  .orbit-library-summary strong { font-size: 14px; }
+  .session-dock.orbit-compact-dock { width: calc(100% - 28px); }
+  .orbit-compact-dock .session-dock-actions { flex: 0 0 auto; order: initial; padding: 0; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .orbit-app .orbit-jacket, .orbit-app .orbit-backdrop-exit { animation: none !important; }
+  .orbit-app .orbit-jacket img, .session-dock.orbit-compact-dock { transition: none; }
+}

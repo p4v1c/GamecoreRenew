@@ -1,13 +1,13 @@
-import {coverUrl, systemName, isFavourite, toggleFavourite} from '../lib/catalog.js'
+import {createJacket} from '../lib/jacket.js'
+import {systemName, isFavourite, toggleFavourite} from '../lib/catalog.js'
 
 export function createDetails(sdk) {
   const {html, useEffect, useRef, useState} = sdk.ui
+  const Jacket = createJacket(sdk)
   return function Details({game, onClose, onPlay}) {
     const root = useRef(null)
     const [meta, setMeta] = useState(null)
     const [fav, setFav] = useState(() => isFavourite(game.systemId, game.gameKey))
-    const [art, setArt] = useState(coverUrl(game.systemId, game.gameKey))
-    const [failed, setFailed] = useState(false)
     const live = useRef({onClose, onPlay})
     live.current = {onClose, onPlay}
     useEffect(() => {
@@ -26,23 +26,16 @@ export function createDetails(sdk) {
     useEffect(() => {
       let live = true
       sdk.api.metadata.get(game.systemId, game.gameKey).then(m => { if (live && m?.found) setMeta(m) }).catch(() => {})
-      sdk.api.media.list(game.systemId, game.gameKey).then(index => {
-        if (!live) return
-        const type = ['fanart-background', 'background', 'screenshot-gameplay'].find(t => index?.media?.[t]?.kind === 'image')
-        if (type) setArt(sdk.api.media.url(game.systemId, game.gameKey, type))
-      }).catch(() => {})
       return () => { live = false }
     }, [game.systemId, game.gameKey])
     return html`<div className="orbit-dialog-backdrop" onClick=${e => { if (e.target === e.currentTarget) onClose() }}>
       <section ref=${root} role="dialog" aria-modal="true" aria-labelledby="details-title" className="glass-dialog orbit-details">
         <button className="close-dialog icon-button" aria-label="Close game details" onClick=${onClose}>×</button>
-        ${!failed ? html`<img className="details-art" src=${art} alt="" onError=${() => {
-          const fallback = coverUrl(game.systemId, game.gameKey)
-          if (art !== fallback) setArt(fallback)
-          else setFailed(true)
-        }} />` : null}
-        <p className="eyebrow">${systemName(game.system)} ${meta?.year ? `· ${meta.year}` : ''}</p>
-        <h2 id="details-title">${meta?.title || game.title}</h2>
+        <div className="details-identity">
+          <${Jacket} systemId=${game.systemId} filename=${game.gameKey} title=${game.title} className="details-jacket" />
+          <div className="details-copy"><p className="eyebrow">${systemName(game.system)} ${meta?.year ? `· ${meta.year}` : ''}</p>
+            <h2 id="details-title">${meta?.title || game.title}</h2></div>
+        </div>
         <p className="dialog-description">${meta?.description || 'No description available for this game.'}</p>
         <dl className="details-grid">
           ${meta?.developer ? html`<div><dt>Studio</dt><dd>${meta.developer}</dd></div>` : null}

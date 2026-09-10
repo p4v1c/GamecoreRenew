@@ -62,25 +62,34 @@ const DEFAULT_APP = {color: '#8dc0f5', tile: '#203757', scale: 1,
   description: 'An application from your GameCore catalogue.'}
 
 export const isApp = (s) => s?.kind === 'app' || s?.type === 'app' || s?.type === 'application'
+/** Legacy tuple accessor retained for compatibility. */
 export const meta = (s) => consoles[s?.id] || null
+/** Named view over the legacy tuple, so existing runtime mutations remain observable. */
+const profile = (s) => {
+  const row = meta(s)
+  if (!row) return null
+  return {file: row[0], name: row[1], maker: row[2], year: row[3],
+    accent: row[4], mark: row[5], story: row[6]}
+}
 export const systemName = (s) =>
-  s?.platform || meta(s)?.[1] || s?.label || s?.id || 'Collection'
-export const systemMark = (s) => meta(s)?.[5] || (s?.label || s?.id || '?').slice(0, 6)
-export const systemMaker = (s) => meta(s)?.[2] || ''
-export const systemYear = (s) => meta(s)?.[3] || ''
-export const systemStory = (s) => meta(s)?.[6]
+  s?.platform || profile(s)?.name || s?.label || s?.id || 'Collection'
+export const systemMark = (s) => profile(s)?.mark || (s?.label || s?.id || '?').slice(0, 6)
+export const systemMaker = (s) => profile(s)?.maker || ''
+export const systemYear = (s) => profile(s)?.year || ''
+export const systemStory = (s) => profile(s)?.story
   || 'Part of your collection. Open it to browse the games you have added.'
 export const appStyle = (s) => appStyles[s?.id] || DEFAULT_APP
 export const accent = (sdk, s) =>
-  isApp(s) ? appStyle(s).color : (meta(s)?.[4] || (s && sdk.format.systemColor(s)) || '#8dc0f5')
+  isApp(s) ? appStyle(s).color : (profile(s)?.accent || (s && sdk.format.systemColor(s)) || '#8dc0f5')
 
 export const packLogo = (s) => s?.iconPath
   ? `/assets/logos/${encodeURIComponent(s.iconPath.replace(/\\/g, '/').split('/').pop())}`
   : null
 export const coverUrl = (systemId, filename) =>
   `/api/covers/${encodeURIComponent(systemId)}/${encodeURIComponent(filename)}`
+export const consoleFile = (s) => profile(s)?.file || null
 export const consoleArt = (sdk, s) => {
-  const file = meta(s)?.[0]
+  const file = consoleFile(s)
   return file ? sdk.system.asset(`assets/consoles/${file}`) : packLogo(s)
 }
 

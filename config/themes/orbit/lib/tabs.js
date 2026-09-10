@@ -1,21 +1,8 @@
-/** Orbit's four tabs, over a host that knows two screens.
- *
- * The mockup navigates between Games, Consoles, Library and Applications. The
- * host's store has `screen: 'home' | 'library'` and nothing else, so three of
- * the four live inside `home` as Orbit's own state and the fourth IS the host's
- * library screen.
- *
- * That mapping is not a workaround, it is the honest one: Library is the only
- * tab with behaviour behind it — sorting, the search keyboard, per-game
- * options, the launch itself — and all of that belongs to `LibraryScreen`. A
- * theme that drew its own would be reimplementing the one screen the contract
- * says not to (docs/themes/README.md §5, "Views, not screens"). The other three
- * are markup over data the host already hands to `homeView`.
- */
+/** Three visible tabs. The host library is a child view of Consoles.
+ * Keep the internal library state for the host screen and contextual hints. */
 export const TABS = [
   ['home', 'Games'],
   ['systems', 'Consoles'],
-  ['library', 'Library'],
   ['applications', 'Applications'],
 ]
 
@@ -35,9 +22,9 @@ export function createTabs(sdk) {
    *  end up on something that is actually being drawn. */
   const reconcile = () => {
     const s = sdk.nav.get()
-    if (s.selectedSystemId) lastSystemId = s.selectedSystemId
+    if (s.screen === 'library' && s.selectedSystemId && s.selectedSystemId !== '__all__') lastSystemId = s.selectedSystemId
     const next = s.screen === 'library' ? 'library'
-      : (current === 'library' ? 'home' : current)
+      : (current === 'library' ? 'systems' : current)
     if (next !== current) {current = next; publish()}
   }
 
@@ -62,7 +49,8 @@ export function createTabs(sdk) {
   }
 
   const step = (delta, systems) => {
-    const at = TABS.findIndex(([id]) => id === current)
+    const active = current === 'library' ? 'systems' : current
+    const at = TABS.findIndex(([id]) => id === active)
     go(TABS[(at + delta + TABS.length) % TABS.length][0], systems)
   }
 
@@ -83,5 +71,6 @@ export function createTabs(sdk) {
           launch: (game) => { pendingLaunch = game; sdk.nav.goLibrary(game.systemId) },
           pending: () => pendingLaunch,
           clearLaunch: () => { pendingLaunch = null },
-          rememberSystem: (id) => {if (id) lastSystemId = id}}
+          lastSystem: () => lastSystemId,
+          rememberSystem: (id) => {if (id && id !== '__all__') lastSystemId = id}}
 }
