@@ -1,11 +1,12 @@
 import {TABS} from '../lib/tabs.js'
 
-/** The mockup header: brand, four tabs, power, settings and clock. */
+/** The mockup header: brand, three tabs, power, settings and clock. */
 export function createTopBar(sdk, tabs, systemsRef) {
   const {html, useState, useEffect} = sdk.ui
 
   return function TopBar({onSettings, onPower}) {
-    const tab = tabs.useTab()
+    const view = tabs.useTab()
+    const tab = view === 'library' ? 'systems' : view
     const [clock, setClock] = useState('')
 
     useEffect(() => {

@@ -81,9 +81,11 @@ export function createBackdrop(sdk) {
         const neutralTimer = setTimeout(() => {
           if (generation.current !== mine || item?.kind === 'library') return
           if (fadeTimer.current) clearTimeout(fadeTimer.current)
+          const old = currentRef.current
           currentRef.current = null
+          setPrevious(old)
           setCurrent(null)
-          setPrevious(null)
+          fadeTimer.current = setTimeout(() => setPrevious(null), 380)
         }, 175)
         return () => clearTimeout(neutralTimer)
       }
@@ -111,7 +113,7 @@ export function createBackdrop(sdk) {
     return html`<div className="scenery" aria-hidden="true" data-kind=${item?.kind || 'collection'}
       style=${{'--scene-accent': item?.accent || '#8dc0f5'}}>
       <div className="backdrop orbit-backdrop-crossfade">
-        ${previous ? html`<img className="orbit-backdrop-layer orbit-backdrop-previous" src=${previous} alt="" />` : null}
+        ${previous ? html`<img className=${`orbit-backdrop-layer orbit-backdrop-previous ${!current ? 'orbit-backdrop-exit' : ''}`} src=${previous} alt="" />` : null}
         ${current ? html`<img key=${current} className="orbit-backdrop-layer orbit-backdrop-current" src=${current} alt="" />` : null}
       </div>
       <div className="shade" /><div className="grain" />

@@ -5,20 +5,13 @@ import {
   isFavourite, onFavouritesChange, favouriteCount,
 } from '../lib/catalog.js'
 import {createJacket} from '../lib/jacket.js'
+import {reveal} from '../lib/dom.js'
 
 const HEART = '<path d="M20.8 4.9a5.5 5.5 0 0 0-7.8 0L12 6l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.3a5.5 5.5 0 0 0 0-7.8Z"/>'
 const SEARCH = '<circle cx="10.7" cy="10.7" r="6.7"/><path d="m16 16 4.5 4.5"/>'
 
 /** Orbit's spatial library. The host owns loading, sorting, search, launching
  * and options; this view owns focus over the displayed grid and local favourites. */
-
-/** Scroll the selection into view where the browser can, and shrug where it
- *  cannot. `scrollIntoView` is absent in jsdom and stubbed out by some
- *  accessibility tools; an unguarded call takes the whole screen down with it,
- *  which is a high price for a smooth scroll. */
-const reveal = (el, opts) => {
-  try { el?.scrollIntoView?.(opts) } catch { /* not worth a blank screen */ }
-}
 
 export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
   const {html, useState, useEffect, useRef, useMemo} = sdk.ui
@@ -52,6 +45,7 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
     const grid = useRef(null)
     const root = useRef(null)
     const [details, setDetails] = useState(null)
+    const [summary, setSummary] = useState(null)
     const screen = sdk.nav.use((s) => s.screen)
     const {background} = sdk.session.use()
     const machines = useMemo(
@@ -75,6 +69,17 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
       reveal(grid.current?.querySelector('[data-active="true"]'),
              {block: 'nearest', behavior: 'smooth'})
     }, [selectedFile, search, screen, favouritesOnly])
+
+    useEffect(() => {
+      let live = true
+      setSummary(null)
+      if (!detailGame) return
+      const timer = setTimeout(() => {
+        sdk.api.metadata.get(source(detailGame), detailGame.filename)
+          .then(meta => { if (live && meta?.found) setSummary(meta) }).catch(() => {})
+      }, 180)
+      return () => { live = false; clearTimeout(timer) }
+    }, [detailGame?.filename, detailGame?.system_id, systemId])
 
     const title = (g) => g?.display_name || (g ? sdk.format.gameName(g.filename) : '')
     const descriptor = game => ({systemId: source(game),
@@ -122,8 +127,10 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
                          style=${{'--console-accent': accent(sdk, system)}}
                          aria-labelledby="library-title">
       <div className="page-heading">
-        <div><p className="eyebrow">ALL YOUR WORLDS, IN ONE PLACE</p>
-          <h1 id="library-title">Your library.</h1></div>
+        <div><button className="filter" onClick=${() => tabs.go('systems', systemsRef.current)}
+          aria-label="Back to consoles">← Consoles</button>
+          <p className="eyebrow">YOUR CONSOLE COLLECTION</p>
+          <h1 id="library-title">${systemId === '__all__' ? 'All games.' : (system?.label || 'Your library.')}</h1></div>
         <span className="page-count">${shown.length} of ${totalCount} game${totalCount === 1 ? '' : 's'}</span>
       </div>
 
@@ -152,6 +159,10 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
         <button className="icon-button" onClick=${onBack} aria-label="Back to consoles">←</button>
       </div>
 
+      ${detailGame && !loading ? html`<div className="orbit-library-summary">
+        <div><strong>${title(detailGame)}</strong><span>${systemName(machines.find(m => m.id === source(detailGame)) || system)}${summary?.year ? ` · ${summary.year}` : ''}</span></div>
+        <p>${summary?.description || 'Open details to explore this game.'}</p>
+      </div>` : null}
       ${loadError ? html`<div className="empty-state"><h2>Could not load this library.</h2>
           <button className="primary-button" onClick=${onRetry}>Try again</button></div>`
         : loading ? html`<div className="empty-state" role="status"><h2>Opening your collection…</h2></div>`

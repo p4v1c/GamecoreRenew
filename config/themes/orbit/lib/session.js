@@ -1,4 +1,4 @@
-import {consoles, coverUrl} from './catalog.js'
+import {consoleFile, coverUrl} from './catalog.js'
 
 /** Orbit's session surface, over the real backend.
  *
@@ -46,7 +46,7 @@ export function createSession(sdk) {
   const artOf = (s) => {
     if (!s) return null
     if (s.kind === 'app') {
-      const asset = consoles[s.systemId]?.[0]
+      const asset = consoleFile({id: s.systemId})
       return asset ? sdk.system.asset(`assets/consoles/${asset}`) : null
     }
     return s.systemId && s.gameKey ? coverUrl(s.systemId, s.gameKey) : null
@@ -118,7 +118,7 @@ export function createSession(sdk) {
   function Bar({sessions, focusIdx, active, busy, onManage}) {
     const s = sessions[focusIdx] || sessions[0]
     if (!s) return null
-    return html`<aside className=${`session-dock ${active ? 'controller-active' : ''}`}
+    return html`<aside className=${`session-dock orbit-compact-dock ${active ? 'controller-active' : ''}`}
                        aria-label="Background session">
       <div className="session-dock-art"><${Image} src=${artOf(s)} alt=${titleOf(s)} /></div>
       <div className="session-dock-info">
@@ -131,7 +131,7 @@ export function createSession(sdk) {
         <button className="primary-button" disabled=${busy}
                 onClick=${() => onManage()}
                 aria-label=${`Manage ${titleOf(s)}`}>${
-          busy ? 'Working…' : 'Manage session'}</button>
+          busy ? 'Working…' : 'Session options'}</button>
       </div>
       <kbd className="session-dock-shortcut">L2</kbd>
     </aside>`
