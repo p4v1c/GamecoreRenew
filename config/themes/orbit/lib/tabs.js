@@ -13,7 +13,6 @@ export function createTabs(sdk) {
   //: before the player has picked one, and so returning to it lands where they
   //: left rather than on the first pack in the list.
   let lastSystemId = null
-  let pendingLaunch = null
   const listeners = new Set()
   const publish = () => listeners.forEach((fn) => fn(current))
 
@@ -29,7 +28,7 @@ export function createTabs(sdk) {
   }
 
   const go = (tab, systems) => {
-    pendingLaunch = null
+    if (sdk.nav.get().transition === 'launch') return
     if (tab === 'library') {
       const id = lastSystemId
         || systems?.find((s) => !s.kind || s.kind === 'emulator')?.id
@@ -68,9 +67,6 @@ export function createTabs(sdk) {
   }
 
   return {useTab, go, step, get: () => current,
-          launch: (game) => { pendingLaunch = game; sdk.nav.goLibrary(game.systemId) },
-          pending: () => pendingLaunch,
-          clearLaunch: () => { pendingLaunch = null },
           lastSystem: () => lastSystemId,
           rememberSystem: (id) => {if (id && id !== '__all__') lastSystemId = id}}
 }

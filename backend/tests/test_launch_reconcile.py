@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import sys
 import time
+import threading
 from pathlib import Path
 
 import pytest
@@ -32,6 +33,34 @@ from backend.services import process_manager as pm            # noqa: E402
 
 GHOST = {"id": "ghost", "label": "Ghost", "kind": "emulator",
          "path": "/usr/bin/definitely-not-installed", "args": "", "romsPath": ""}
+
+
+def test_flatpak_resolution_does_not_freeze_the_event_loop(monkeypatch):
+    """The websocket/input loop must keep running while flatpak is busy."""
+    from fastapi import HTTPException
+
+    loop_responded = threading.Event()
+    observed = []
+
+    def resolve(*_args):
+        observed.append(loop_responded.wait(1))
+        return ""
+
+    monkeypatch.setattr(games_router, "list_all", lambda: [GHOST])
+    monkeypatch.setattr(games_router, "process_manager", pm.ProcessManager())
+    monkeypatch.setattr(games_router.catalog_launch, "resolve_args", resolve)
+    monkeypatch.setattr(games_router.bios, "launch_blocker", lambda _: "test stops before launch")
+
+    async def exercise():
+        request = asyncio.create_task(games_router.launch_game(games_router.LaunchRequest(system_id="ghost")))
+        await asyncio.sleep(0)
+        loop_responded.set()
+        with pytest.raises(HTTPException) as error:
+            await request
+        assert error.value.status_code == 424
+
+    asyncio.run(exercise())
+    assert observed == [True]
 
 
 @pytest.fixture

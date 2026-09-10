@@ -98,16 +98,6 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
       backdrop?.select({kind: 'library', systemId: source(detailGame), filename: detailGame?.filename,
         accent: accent(sdk, system)})
     }, [screen, systemId, detailGame?.filename])
-    useEffect(() => {
-      const pending = tabs.pending?.()
-      if (!pending || loading || loadError || system?.id !== systemId || screen !== 'library') return
-      if (pending.systemId !== systemId) {tabs.clearLaunch(); return}
-      const at = games.findIndex(g => g.filename === pending.gameKey)
-      tabs.clearLaunch()
-      if (at < 0) return
-      onSelect(at)
-      onLaunch()
-    }, [screen, systemId, system, games, loading, loadError])
     const play = () => {
       const game = games[sdk.nav.get().selectedGameIdx]
       const held = game && sessions.heldMatch(background, game.filename, source(game))

@@ -55,7 +55,8 @@ import * as defaults from '../components/defaults'
  * emulator holding its memory with nothing on screen able to close it.
  */
 // 6 adds spatial library omissions, search/options callbacks and __all__ libraries.
-export const SDK_VERSION = 6
+// 7 adds defaults.launchGame: a ROM can launch without navigating to Library.
+export const SDK_VERSION = 7
 
 /**
  * Game or application, from the identity the launcher gave the session.

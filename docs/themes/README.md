@@ -645,6 +645,14 @@ the screen renders empty and the tab looks broken rather than bare.
 | `sdk.themes` | `list()`, `select(id \| null)` | so a theme can dress its own theme picker. `select()` is the host's: it clears safe mode, resets the crash count and reloads the frontend |
 | `sdk.defaults` | `Shell` (the default frontend, takes parts), every screen, `DefaultSettingsPages`, `SettingsOverlay`, `Label`, `BackBar`, `DefaultKeyboard`, `launchApp` | compose instead of rewrite. The pages already carry their own overlay — render them bare; `SettingsOverlay`, `Label` and `BackBar` are the chrome to build a page of your own that matches them |
 
+SDK 7 adds `sdk.defaults.launchGame({systemId, path, gameKey})` for a ROM
+already listed by `sdk.api.games.list`. It sends the launch immediately,
+preserves navigation and selection, guards repeated calls, and sets
+`transition: 'launch'` while the request is pending. The returned promise
+rejects on failure so the view can display the error. Declare `"api": 7`
+when using it. A ceremony may animate during preparation; this direct path
+does not wait for `launch.ms` before contacting the backend.
+
 `DefaultSettingsPages` is deliberately not enumerated here. It gained `catalog`
 and `bios` after this table was written and the table did not follow, so the one
 document a theme author reads to find out what exists listed seven of the nine

@@ -33,7 +33,7 @@ beforeEach(() => {
   emptyHistory = false
   useStore.setState({ screen: 'home', selectedSystemId: null, selectedGameIdx: 0,
     gridFocusIdx: 0, gridPage: 0, modalDepth: 0, standby: 'off', powerPending: null,
-    sessionGameKey: null, sessionSystemId: null, backgroundSessions: [] })
+    sessionGameKey: null, sessionSystemId: null, backgroundSessions: [], transition: null })
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
     const body = url.endsWith('/systems') ? systems
@@ -129,10 +129,40 @@ it('shows installed games even before any have been played', async () => {
 
 it('Play on a recent game launches that ROM, not the first game in its console', async () => {
   const r = await mountOrbit()
+  const listings = vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/games')).length
+  const screens: string[] = []
+  const off = useStore.subscribe(s => screens.push(s.screen))
   await act(async () => { fireEvent.click(r.getByText('Play', { selector: '.primary-button' })) })
   await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/games/launch', expect.objectContaining({
     body: JSON.stringify({ system_id: 'rpcs3', rom_path: '/test/Journey.iso', game_key: 'Journey.iso' }),
   })))
+  act(() => useStore.getState().setSession(null, null))
+  off()
+  expect(screens).not.toContain('library')
+  expect(r.container.querySelector('#home-view')).toBeTruthy()
+  expect(r.container.querySelector('.home-game-tile.selected .tile-label')?.textContent).toBe('Journey')
+  expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/games'))).toHaveLength(listings)
+})
+
+it('sends one immediate launch for repeated Play clicks and recovers from failure', async () => {
+  const r = await mountOrbit()
+  let reject!: (e: Error) => void
+  const { api } = await import('../api')
+  const launch = vi.spyOn(api.games, 'launch').mockImplementationOnce(() => new Promise((_yes, no) => { reject = no }))
+  try {
+    act(() => {
+      fireEvent.click(r.getByText('Play', { selector: '.primary-button' }))
+      fireEvent.click(r.getByText('Play', { selector: '.primary-button' }))
+    })
+    expect(launch).toHaveBeenCalledTimes(1)
+    expect(useStore.getState().transition).toBe('launch')
+    await act(async () => reject(new Error('Emulator unavailable')))
+    expect(r.getByRole('alert').textContent).toBe('Emulator unavailable')
+    expect(useStore.getState().transition).toBeNull()
+    expect(useStore.getState().sessionGameKey).toBeNull()
+    await act(async () => fireEvent.click(r.getByText('Play', { selector: '.primary-button' })))
+    expect(launch).toHaveBeenCalledTimes(2)
+  } finally { launch.mockRestore() }
 })
 
 it('opens the search keyboard from its visible button', async () => {

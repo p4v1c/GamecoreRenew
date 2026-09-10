@@ -26,7 +26,7 @@ STATE_FILE = config_dir() / "theme.json"
 # to 2 when `sdk.defaults.createSettings` and `createPowerView` became required
 # by the shipped themes; see that file for what went wrong when it did not.
 # 6 adds the aggregate/spatial library contract required by Orbit.
-SDK_VERSION = 6
+SDK_VERSION = 7
 
 # What a box shows when nobody has chosen — a fresh install, or one whose config
 # directory was replaced. Not a hardcoded look: it is a theme id like any other,

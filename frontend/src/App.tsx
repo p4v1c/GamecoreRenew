@@ -141,11 +141,15 @@ export default function App() {
    * frozen when it is still running behind the picture.
    */
   useEffect(() => onGp('gp:guide', async () => {
-    if (!sessionRef.current) { goHome(); return }
+    if (!sessionRef.current) {
+      // The backend can suspend first for this same press. Its acknowledgement
+      // must not then turn the frontend's duplicate into a navigation command.
+      if (!useStore.getState().backgroundSessions.length) goHome()
+      return
+    }
     // The answer moves the interface without waiting for the socket — but only
     // if the socket has not said better while it was in flight.
     await applyIfStillCurrent(api.games.background())
-    goHome()
   }), [goHome])
 
   return (

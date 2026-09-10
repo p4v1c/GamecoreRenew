@@ -72,6 +72,13 @@ let sessionEpoch = 0
  */
 let currentSession: number | null = null
 
+/** A launch reply must not resurrect a run that already finished over WS. */
+export async function launchSession(systemId: string, path: string, gameKey: string): Promise<void> {
+  const epoch = sessionEpoch
+  await api.games.launch(systemId, path, gameKey)
+  if (epoch === sessionEpoch) writeSession(gameKey, systemId)
+}
+
 const writeSession = (gameKey: string | null, systemId: string | null,
                       session: number | null = null) => {
   sessionEpoch += 1
@@ -185,7 +192,6 @@ export function onWsEvent(event: string, handler: Handler): () => void {
 }
 
 export function useWebSocket() {
-  const goHome = useStore(s => s.goHome)
   const initialized = useRef(false)
 
   useEffect(() => {
@@ -235,9 +241,8 @@ export function useWebSocket() {
      * acknowledgement as a finish unblocks the pad over a live emulator, which
      * is the exact fault the session guard exists to prevent.
      *
-     * Going home is still right either way: the player asked to leave.
+     * Keep the originating screen and selection when returning to the UI.
      */
-    const off3 = onWsEvent('gp:guide', () => { goHome() })
     // Suspend and resume. Both carry the whole state after the transition,
     // because a resume moves two slots at once and "run 3 came forward" alone
     // says nothing about what happened to run 2.
@@ -281,7 +286,7 @@ export function useWebSocket() {
     return () => {
       if (suspendBeat.timer) clearTimeout(suspendBeat.timer)
       if (useStore.getState().transition === 'suspend') useStore.getState().setTransition(null)
-      off1(); off1b(); off2(); off3(); off4(); off5(); off6(); off7(); off8()
+      off1(); off1b(); off2(); off4(); off5(); off6(); off7(); off8()
     }
   }, [])
 }

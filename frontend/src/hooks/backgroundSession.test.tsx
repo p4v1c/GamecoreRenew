@@ -209,11 +209,11 @@ describe('the gesture acknowledgement is not session state', () => {
     expect(useStore.getState().sessionGameKey).toBe('zelda.iso')
   })
 
-  it('still takes the player home', () => {
+  it('preserves the screen the game was launched from', () => {
     const socket = mount()
     send(socket, 'game:started', GAME)
     useStore.setState({ screen: 'library' })
     send(socket, 'gp:guide', { action: 'backgrounded' })
-    expect(useStore.getState().screen).toBe('home')
+    expect(useStore.getState().screen).toBe('library')
   })
 })
