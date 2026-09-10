@@ -591,22 +591,26 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 .orbit-library-summary span { display: block; font-size: 11px; color: #a5bad1; margin-top: 6px; }
 .orbit-library-summary p { flex: 1; font-size: 13px; color: #b7c7d9; line-height: 1.6;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.session-dock.orbit-compact-dock { right: auto; width: min(620px,calc(100% - 2 * var(--page-pad,24px)));
+/* The ledge spans the page, as it did before 3.6.14 made it a floating panel.
+   The rest of the compact treatment — the smaller art, the tighter padding —
+   is kept; only the width went back. `right` is left to the base rule
+   (`left: var(--page-pad); right: var(--page-pad)`), so there is one place
+   that decides how wide this is. */
+.session-dock.orbit-compact-dock {
   min-height: 64px; padding: 10px 14px; gap: 12px;
-  transition: width 220ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+  transition: border-color 180ms ease, box-shadow 180ms ease; }
 .orbit-compact-dock .session-dock-art { width: 34px; height: 44px; flex-shrink: 0; }
 .orbit-compact-dock .session-dock-art img { width: 100%; height: 100%; object-fit: contain; }
 .orbit-compact-dock .session-dock-info { min-width: 0; flex: 1; }
 .orbit-compact-dock .session-dock-info strong { font-size: 14px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .orbit-compact-dock .session-dock-info small { display: none; }
 .orbit-compact-dock .session-dock-actions .primary-button { min-height: 34px; padding: 8px 15px; font-size: 12px; }
-.session-dock.orbit-compact-dock:is(:hover,:focus-within,.controller-active) { width: min(780px,calc(100% - 2 * var(--page-pad,24px))); border-color: #c5e3ff; }
+.session-dock.orbit-compact-dock:is(:hover,:focus-within,.controller-active) { border-color: #c5e3ff; }
 .orbit-compact-dock:is(:hover,:focus-within,.controller-active) .session-dock-info small { display: block; }
 @media(max-width:650px) {
   .orbit-library-summary { gap: 15px; }
   .orbit-library-summary > div { flex-basis: 45%; }
   .orbit-library-summary strong { font-size: 14px; }
-  .session-dock.orbit-compact-dock { width: calc(100% - 28px); }
   .orbit-compact-dock .session-dock-actions { flex: 0 0 auto; order: initial; padding: 0; }
 }
 @media(prefers-reduced-motion:reduce) {
