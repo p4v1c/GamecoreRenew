@@ -451,3 +451,39 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
   .orbit-ceremony-ring { animation-duration: 1ms !important; }
 }
 /* === End Orbit ceremony =================================================== */
+
+/* === Orbit jackets — the wrapper has to be a box ========================== */
+/*
+ * `Jacket` wraps its <img> in a <span class="orbit-jacket">, and that span had
+ * no rule at all. Both places that draw one size the picture the same way —
+ * `.game-tile .tile-art img` and `.library-cover img` are `width:100%;
+ * height:100%; object-fit:cover` — and a percentage height needs a parent with
+ * a definite one. An unstyled inline span has neither a height nor a box, so
+ * the height resolved to `auto` and the image fell back to its own proportions
+ * inside a container it was supposed to fill.
+ *
+ * It showed worst on the home rail. `.tile-art` is `aspect-ratio: 1` and box
+ * art is portrait, so a jacket that keeps its own shape sits small in the
+ * middle of a square tile with the tile's own gradient around it. The library
+ * hid the same defect because `.library-cover` is `aspect-ratio: 2/3`, which is
+ * roughly the shape of a jacket already.
+ *
+ * Both containers are `position: relative`, so filling them is the whole fix.
+ * Nothing here says how the picture is cropped: `object-fit` and the
+ * `object-position: center 28%` that keeps a box front's title visible stay
+ * where they were, in the rules that already knew about them.
+ */
+.orbit-app .orbit-jacket {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+/* The two-letter stand-in fills the same box, rather than sitting in a corner
+   of it. The library already had this rule for its own jacket; every jacket
+   needs it. */
+.orbit-app .orbit-jacket > .art-fallback {
+  width: 100%;
+  height: 100%;
+}
+/* === End Orbit jacket box ================================================= */
