@@ -121,9 +121,9 @@ cleanup() {
   # into the session it already believes in.
   if [[ -e "$LEAVE_MARKER" ]]; then
     rm -f "$LEAVE_MARKER" 2>/dev/null || true
-    log "the player asked for the desktop — handing the auto-login back"
+    log "the player asked for the desktop — for this session, not for good"
     local out
-    if out=$(sudo -n /usr/local/bin/gamecore-session-select desktop --restart-dm 2>&1); then
+    if out=$(sudo -n /usr/local/bin/gamecore-session-select desktop --once --restart-dm 2>&1); then
       while IFS= read -r line; do log "  $line"; done <<< "$out"
     else
       log "the switch failed — this box will open GameCore again:"

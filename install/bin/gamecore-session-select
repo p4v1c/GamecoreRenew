@@ -32,6 +32,24 @@ SDDM_CONF_DIR="${SDDM_CONF_DIR:-/etc/sddm.conf.d}"
 # down. Not in /etc/sddm.conf.d: SDDM parses every file in that directory
 # whatever its extension, so a note left there is configuration.
 STATE_DIR="${GAMECORE_STATE_DIR:-/var/lib/gamecore}"
+
+# "This trip to the desktop is a trip, not a move."
+#
+# Leaving the console used to be one-way, and nothing said so. The player picks
+# an entry called `desktop` — in the power menu, between Restart and Shut down
+# — and it rewrote the auto-login for every boot after it. Coming back meant
+# knowing the name of a command. Measured on the reference box: three
+# reboots in one day, each landing on Plasma, each time because a single exit
+# hours earlier had quietly changed how the machine starts.
+#
+# With `--once`, the switch still happens — the display manager has to be
+# pointed at the desktop for the player to land there — but this file is left
+# behind, and `gamecore-rearm-console.service` puts the console back before the
+# display manager reads its configuration at the next boot. The trip is a trip.
+#
+# Without `--once`, `desktop` still means what it always meant: stop opening
+# the console. That is a real thing to want, and it keeps its own command.
+RETURN_MARKER="$STATE_DIR/rearm-console"
 XSESSIONS_DIR="${XSESSIONS_DIR:-/usr/share/xsessions}"
 WAYLAND_SESSIONS_DIR="${WAYLAND_SESSIONS_DIR:-/usr/share/wayland-sessions}"
 
@@ -154,7 +172,7 @@ case "${1:-}" in
   desktop)        MODE=desktop  ;;
   *)
     echo "usage: $(basename "$0") gamecore|desktop|status|pick-desktop [--x11]" >&2
-    echo "       gamecore [--force]   desktop [--restart-dm]" >&2
+    echo "       gamecore [--force]   desktop [--restart-dm] [--once]" >&2
     exit 2
     ;;
 esac
@@ -164,10 +182,12 @@ esac
 # command and the position of the word has to be part of nothing.
 FORCE=false
 RESTART_DM=false
+ONCE=false
 for arg in "${@:2}"; do
   case "$arg" in
     --force)      FORCE=true ;;
     --restart-dm) RESTART_DM=true ;;
+    --once)       ONCE=true ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -466,6 +486,10 @@ if [[ "$MODE" == gamecore ]]; then
   _retire_our_leftovers
   _write_autologin gamecore "$GC_USER"
   _verify_autologin gamecore || VERIFY_FAILED=1
+  # Nothing left to put back: the console is armed, which is what the marker
+  # was for. Leaving it would re-arm an already-armed box and confuse the next
+  # person to read /var/lib/gamecore.
+  rm -f "$RETURN_MARKER" 2>/dev/null || true
   _say "console session ON — the next boot opens GameCore, with no desktop behind it."
   echo "back to the desktop:  sudo $(basename "$0") desktop"
 else
@@ -487,8 +511,18 @@ else
   _retire_our_leftovers
   _write_autologin "$DESKTOP_SESSION" "$GC_USER"
   _verify_autologin "$DESKTOP_SESSION" || VERIFY_FAILED=1
-  _say "desktop ON — the next boot opens '$DESKTOP_SESSION'."
-  echo "back to the console:  sudo $(basename "$0") gamecore"
+  if $ONCE; then
+    mkdir -p "$STATE_DIR" 2>/dev/null || true
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$RETURN_MARKER" 2>/dev/null || true
+    _say "desktop for this session only — the next boot opens GameCore again."
+    echo "to stay on the desktop:  sudo $(basename "$0") desktop"
+  else
+    # An explicit, permanent move. Any pending trip is cancelled by it: the
+    # player has now said the opposite of what the marker remembers.
+    rm -f "$RETURN_MARKER" 2>/dev/null || true
+    _say "desktop ON — the next boot opens '$DESKTOP_SESSION'."
+    echo "back to the console:  sudo $(basename "$0") gamecore"
+  fi
 fi
 
 # An arming that was overridden is not an arming. The message above says which

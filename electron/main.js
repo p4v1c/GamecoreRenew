@@ -993,7 +993,7 @@ function handBackToDesktop(done) {
   let left = false
   const leave = () => { if (!left) { left = true; done() } }
   setTimeout(leave, 10_000).unref?.()
-  exec(`sudo -n ${SELECT} desktop --restart-dm`, (err, stdout, stderr) => {
+  exec(`sudo -n ${SELECT} desktop --once --restart-dm`, (err, stdout, stderr) => {
     if (err) console.warn('[session] the fallback switch failed:', err.message, stderr || '')
     else console.log('[session] fallback switch:', String(stdout).trim())
     leave()

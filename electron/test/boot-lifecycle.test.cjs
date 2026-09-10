@@ -387,7 +387,11 @@ test('a session that cannot be told is switched the old way instead', async () =
   r.quit()
   await settle(30)
   assert.equal(r.execs.length, 1, r.execs.join(' | '))
-  assert.match(r.execs[0], /gamecore-session-select desktop --restart-dm$/)
+  // `--once`, like the marker path: this fallback is still the player asking
+  // for the desktop, not asking to stop booting the console. Leaving it out
+  // here would make the one box that needs the fallback the one box the trip
+  // is permanent on.
+  assert.match(r.execs[0], /gamecore-session-select desktop --once --restart-dm$/)
   assert.equal(r.quits.length, 1)
 })
 

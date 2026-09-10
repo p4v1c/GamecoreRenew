@@ -151,6 +151,32 @@ for dest in "${DESTDIR}/etc/systemd/system/gamecore-restart.service" \
 done
 bash "$HERE/setup-update-permissions.sh" "$GC_USER"
 
+# ── Putting the console back after a trip to the desktop ─────────
+#
+# Leaving the console has to point the display manager at a desktop session,
+# and that write is persistent — so every boot after it opened the desktop too.
+# This unit runs before the display manager and undoes it, but only when a
+# marker says the switch was a trip rather than a move. See `--once` in
+# gamecore-session-select.
+#
+# Enabled by symlink rather than `systemctl enable`: this runs as root during
+# an installation, when the manager it would have to ask may not be running.
+REARM_SRC="${INSTALL_ROOT}/system/gamecore-rearm-console.service"
+REARM_DEST="${DESTDIR}/etc/systemd/system/gamecore-rearm-console.service"
+if [[ -f "$REARM_SRC" ]]; then
+  backup "$REARM_DEST"
+  install -D -m 644 "$REARM_SRC" "$REARM_DEST"
+  install -d -m 755 "${DESTDIR}/etc/systemd/system/graphical.target.wants"
+  ln -sf ../gamecore-rearm-console.service \
+     "${DESTDIR}/etc/systemd/system/graphical.target.wants/gamecore-rearm-console.service"
+  # The state directory the marker lives in, so the first trip has somewhere to
+  # write and the unit's ConditionPathExists has something to test.
+  install -d -m 755 "${DESTDIR}/var/lib/gamecore"
+  echo "  ✓ gamecore-rearm-console.service"
+else
+  echo "  ⚠ $REARM_SRC missing — leaving the console will stay a one-way switch."
+fi
+
 # ── Leaving the console session, from the console session ────────
 #
 # The interface's "Mode bureau" runs the switch as root through sudo, and
@@ -176,6 +202,10 @@ SESSION_TMP=$(mktemp "${SUDOERS_SESSION}.XXXXXX")
   # can click to return to the console, and without this line it asks for a
   # password that a box on a television has no keyboard to type.
   echo "${GC_USER} ALL=(root) NOPASSWD: /usr/local/bin/gamecore-session-select gamecore --restart-dm"
+  # The trip, which is what the interface's exit uses now. Its own line,
+  # because sudoers matches a command line exactly and `--once` is part of it.
+  echo "${GC_USER} ALL=(root) NOPASSWD: /usr/local/bin/gamecore-session-select desktop --once --restart-dm"
+  echo "${GC_USER} ALL=(root) NOPASSWD: /usr/local/bin/gamecore-session-select desktop --once"
 } > "$SESSION_TMP"
 chmod 440 "$SESSION_TMP"
 if _live && ! visudo -cf "$SESSION_TMP" >/dev/null; then
