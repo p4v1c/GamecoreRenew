@@ -4,6 +4,18 @@ import { createElement } from 'react'
 import { buildSdk } from './themeSdk'
 import { useStore } from '../store'
 
+/**
+ * Open the library.
+ *
+ * Orbit 3.6.14 dropped the Library tab: there are three tabs now — Games,
+ * Consoles, Applications — and the library is a child view of Consoles. So
+ * reaching it is picking a console, which is also what a player does.
+ */
+async function openLibraryView(r: ReturnType<typeof render>) {
+  await act(async () => { fireEvent.click(r.getByText('Consoles', { selector: '.nav-item' })) })
+  await act(async () => { fireEvent.click(r.getByRole('button', { name: /Browse games/ })) })
+}
+
 const systems = [
   { id: 'rpcs3', label: 'RPCS3', kind: 'emulator', iconPath: 'rpcs3.svg' },
   { id: 'youtube', label: 'YouTube', kind: 'app', iconPath: 'youtube.svg' },
@@ -41,7 +53,7 @@ beforeEach(() => {
 
 it('offers All and keeps identically named ROMs from different consoles distinct', async () => {
   const r = await mountOrbit()
-  await act(async () => { fireEvent.click(r.getByText('Library', { selector: '.nav-item' })) })
+  await openLibraryView(r)
   await act(async () => { fireEvent.click(r.getByRole('button', { name: 'All' })) })
   await waitFor(() => expect(r.container.querySelectorAll('.library-card')).toHaveLength(3))
   await act(async () => { fireEvent.click(r.getByText('Another journey', { selector: '.library-card h3' })) })
@@ -62,18 +74,23 @@ async function mountOrbit() {
   return result
 }
 
-it('opens the complete library while its system is still loading', async () => {
+it('opens on the console it was entered from, and names it', async () => {
+  // Until 3.6.14 the library was a tab of its own, so it could be opened with
+  // no console resolved and the title fell back to "Your library.". It is a
+  // child view of Consoles now: you arrive from a machine, so the library
+  // knows which one and says so. The fallback is still in the markup for the
+  // case where nothing is resolved; this path no longer reaches it.
   const r = await mountOrbit()
-  await act(async () => { fireEvent.click(r.getByText('Library', { selector: '.nav-item' })) })
+  await openLibraryView(r)
   await waitFor(() => expect(r.container.querySelectorAll('.library-card')).toHaveLength(2))
-  expect(r.container.querySelector('#library-title')?.textContent).toBe('Your library.')
+  expect(r.container.querySelector('#library-title')?.textContent).toBe('RPCS3')
 })
 
 it('keeps the Applications view mounted when moving there from Library', async () => {
   const r = await mountOrbit()
   await act(async () => { fireEvent.click(r.getByText('Applications', { selector: '.nav-item' })) })
   expect(r.container.querySelector('#applications-view')).toBeTruthy()
-  await act(async () => { fireEvent.click(r.getByText('Library', { selector: '.nav-item' })) })
+  await openLibraryView(r)
   await act(async () => { fireEvent.click(r.getByText('Applications', { selector: '.nav-item' })) })
   expect(r.container.querySelector('#applications-view')).toBeTruthy()
 })
@@ -96,7 +113,7 @@ it('puts a miniature jacket inside the square game tile instead of a disc', asyn
 
 it('fills the library with full 2:3 jackets', async () => {
   const r = await mountOrbit()
-  await act(async () => { fireEvent.click(r.getByText('Library', { selector: '.nav-item' })) })
+  await openLibraryView(r)
   await waitFor(() => expect(r.container.querySelectorAll('.library-card')).toHaveLength(2))
   expect(r.container.querySelectorAll('.library-jacket > img')).toHaveLength(2)
   expect(r.container.querySelector('.library-grid .orbit-physical')).toBeNull()
@@ -120,14 +137,14 @@ it('Play on a recent game launches that ROM, not the first game in its console',
 
 it('opens the search keyboard from its visible button', async () => {
   const r = await mountOrbit()
-  await act(async () => { fireEvent.click(r.getByText('Library', { selector: '.nav-item' })) })
+  await openLibraryView(r)
   await act(async () => { fireEvent.click(r.getByRole('button', { name: 'Open the search keyboard' })) })
   expect(r.getByText('Search games')).toBeTruthy()
 })
 
 it('sorts with the visible buttons and changes tabs with R1 from Library', async () => {
   const r = await mountOrbit()
-  await act(async () => { fireEvent.click(r.getByText('Library', { selector: '.nav-item' })) })
+  await openLibraryView(r)
   await waitFor(() => expect(r.container.querySelectorAll('.library-card')).toHaveLength(2))
   await act(async () => { fireEvent.click(r.getByText('Recent', { selector: '.library-sort button' })) })
   expect(r.container.querySelector('.library-card h3')?.textContent).toBe('Journey')
@@ -140,7 +157,7 @@ it('opens only a visible favourite with the pad and restores focus after details
   const catalog = await import(/* @vite-ignore */ path)
   if (!catalog.isFavourite('rpcs3', 'Journey.iso')) catalog.toggleFavourite('rpcs3', 'Journey.iso')
   const r = await mountOrbit()
-  await act(async () => { fireEvent.click(r.getByText('Library', { selector: '.nav-item' })) })
+  await openLibraryView(r)
   await waitFor(() => expect(r.container.querySelectorAll('.library-card')).toHaveLength(2))
   await act(async () => { fireEvent.click(r.getByText('Favourites', { selector: 'button' })) })
   await act(async () => { window.dispatchEvent(new CustomEvent('gp:confirm')) })

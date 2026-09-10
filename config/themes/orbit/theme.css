@@ -613,3 +613,28 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
   .orbit-app .orbit-jacket, .orbit-app .orbit-backdrop-exit { animation: none !important; }
   .orbit-app .orbit-jacket img, .session-dock.orbit-compact-dock { transition: none; }
 }
+
+/* === Orbit jackets — le wrapper doit etre une boite ====================== */
+/*
+ * Restaure le correctif livre en 3.6.5 et perdu dans le paquet 3.6.14.
+ *
+ * `Jacket` enveloppe son <img> dans un <span class="orbit-jacket">. Les deux
+ * conteneurs qui en dessinent une posent `height: 100%` sur l'image
+ * (`.game-tile .tile-art img` et `.library-cover img`), et une hauteur en
+ * pourcentage se resout contre un parent qui en a une de definie. Un span sans
+ * boite est inline : la hauteur tombe a `auto` et l'image reprend ses propres
+ * proportions dans un conteneur ecrit pour etre rempli.
+ *
+ * Visible sur le rail d'accueil, dont les tuiles sont carrees et les jaquettes
+ * en portrait ; cache dans la bibliotheque, dont les cartes sont deja en 2/3.
+ *
+ * Les deux conteneurs sont `position: relative`, donc les remplir suffit. Le
+ * recadrage n'est pas touche : `object-fit` et le `object-position: center 28%`
+ * qui garde le titre d'une boite visible restent ou ils sont.
+ */
+.orbit-app .orbit-jacket {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+/* === Fin =================================================================== */
