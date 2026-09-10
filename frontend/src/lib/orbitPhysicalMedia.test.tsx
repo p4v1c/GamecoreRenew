@@ -25,6 +25,18 @@ import { useStore } from '../store'
 
 const THEME = '../../../config/themes/orbit'
 
+/**
+ * Open the library.
+ *
+ * Orbit 3.6.14 dropped the Library tab: there are three tabs now — Games,
+ * Consoles, Applications — and the library is a child view of Consoles. So
+ * reaching it is picking a console, which is also what a player does.
+ */
+async function openLibraryView(r: ReturnType<typeof render>) {
+  await act(async () => { fireEvent.click(r.getByText('Consoles', { selector: '.nav-item' })) })
+  await act(async () => { fireEvent.click(r.getByRole('button', { name: /Browse games/ })) })
+}
+
 const flush = (ms = 0) => act(async () => { await new Promise(r => setTimeout(r, ms)) })
 
 /**
@@ -174,7 +186,7 @@ describe('a library of two hundred games', () => {
     const sdk = buildSdk('orbit', { selectTheme: vi.fn(async () => {}) })
     const r = render(createElement(createOrbit(sdk).shell))
     await flush()
-    await act(async () => { fireEvent.click(r.getByText('Library', { selector: '.nav-item' })) })
+    await openLibraryView(r)
     await waitFor(() => expect(r.container.querySelectorAll('.library-card').length)
       .toBeGreaterThan(200))
     return r
