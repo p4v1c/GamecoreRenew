@@ -51,20 +51,29 @@ def test_the_picture_is_still_sized_against_its_wrapper(sheet: str):
         "file's premise is gone")
 
 
-def test_the_jacket_wrapper_has_a_box(sheet: str):
-    """`display` alone is not enough and `position` alone is not enough: the
-    span has to be laid out AND it has to fill the container it is in."""
+def test_the_jacket_wrapper_is_laid_out(sheet: str):
+    """The wrapper must be given a box. HOW is the theme's business.
+
+    The defect this guards is the wrapper having no rule at all: an unstyled
+    span is inline, and the image inside it sizes itself instead of filling
+    the card. That is what shipped once, and what "too small in a square tile"
+    looked like.
+
+    It deliberately does not say `position: absolute`. 3.6.5 fixed it that way
+    and 3.6.14 replaced it on purpose — "Jackets have their own in-flow boxes.
+    A generic absolute wrapper made the library cards collapse and overrode the
+    carefully sized home stage." A test that pinned the technique would have
+    been a test fighting the designer, and briefly was: the absolute rule was
+    re-appended over that one and collapsed the cards again.
+    """
     bodies = [b.replace(" ", "") for b in WRAPPER_RULE.findall(sheet)]
     assert bodies, (
-        ".orbit-jacket has no rule of its own. It wraps the image that both "
-        "the home tile and the library card size to 100% height, and an "
-        "unstyled span is inline: the height resolves to auto and the picture "
-        "sizes itself inside a container meant to be filled.")
+        ".orbit-jacket has no rule of its own. It wraps the image the cards "
+        "size, and an unstyled span is inline: the picture sizes itself "
+        "inside a container meant to hold it.")
     box = "".join(bodies)
-    assert "position:absolute" in box and "inset:0" in box, (
-        f".orbit-jacket is styled but does not fill its container: {box!r}. "
-        "Both .tile-art and .library-cover are position:relative, so inset:0 "
-        "is what makes the wrapper the size of the card.")
+    assert "display:" in box or "position:" in box, (
+        f".orbit-jacket is mentioned but never laid out: {box!r}")
 
 
 def test_the_fallback_fills_the_same_box(sheet: str):
