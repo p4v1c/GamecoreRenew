@@ -30,6 +30,7 @@ const MAIN = path.join(__dirname, '..', 'main.js')
 function rig({ answers = [true], env = {}, execRefuses = [] } = {}) {
   const windows = []
   const spawned = []
+  const switches = []       // every Chromium flag the shell asked for
   const ipc = new Map()
   const asked = []
   const execs = []          // every shell command the shell asked for, in order
@@ -69,7 +70,7 @@ function rig({ answers = [true], env = {}, execRefuses = [] } = {}) {
   const child = { stdout: { on: () => {} }, stdin: { write: () => {} }, on: () => {} }
   const electron = {
     app: {
-      commandLine: { appendSwitch: () => {} },
+      commandLine: { appendSwitch: (...a) => { switches.push(a.join('=')) } },
       whenReady: () => appReady,
       on: () => {}, quit: () => { quits.push(Date.now()) },
     },
@@ -112,7 +113,7 @@ function rig({ answers = [true], env = {}, execRefuses = [] } = {}) {
   })
   vm.runInContext(fs.readFileSync(MAIN, 'utf8'), context, { filename: MAIN })
   return {
-    context, windows, ipc, asked, execs, quits,
+    context, windows, ipc, asked, execs, quits, switches,
     /** What systemd sends on `systemctl stop`. */
     signal: (sig = 'SIGTERM') => signals.get(sig)?.(),
     hasSignal: (sig) => signals.has(sig),
@@ -414,4 +415,48 @@ test('the interrupt signals are all handled, not just the one we tested', () => 
   for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
     assert.ok(r.hasSignal(sig), `${sig} would kill the shell without a clean exit`)
   }
+})
+
+// ── the interface must not need the network to reach its own backend ────────
+
+test('nothing the shell loads is addressed by a name that has to be resolved', async () => {
+  /*
+   * Measured on the reference box, 2026-09-09. The backend was serving at
+   * 22:08:06. The interface asked for /api/ready, got nothing, and said "the
+   * backend is not answering" at +20s. The first request actually reached the
+   * backend at 22:10:59 — 0.3 seconds after NetworkManager finished associating
+   * with the Wi-Fi. Two minutes fourteen of black screen, for a request to a
+   * port on the same machine.
+   *
+   * `main.py` binds 127.0.0.1 and nothing else, so the number was never in
+   * doubt. Asking for `localhost` bought a resolver lookup, an ::1 attempt
+   * where nothing listens, and — the expensive part — Chromium's proxy
+   * resolution, which cannot finish on a box that has no route yet.
+   */
+  const r = rig({ answers: [true], env: { INVOCATION_ID: 'x' } })
+  r.start()
+  await settle(120)
+  r.stop()
+
+  const addressed = [...r.asked, ...r.windows.flatMap(w => w.loaded.map(d => d.at))]
+  assert.ok(addressed.length > 0, 'the shell asked for nothing at all')
+  for (const at of addressed) {
+    assert.ok(!/\/\/localhost[:/]/.test(at),
+      `${at} is addressed by name; the backend is bound to 127.0.0.1 and a box ` +
+      'with no network cannot always resolve one')
+  }
+})
+
+test('and it does not look for a proxy to reach its own loopback', async () => {
+  // The other half. Even addressed by number, Chromium consults the proxy
+  // configuration before it connects, and that is what actually stalled: it
+  // could not complete until the box had a default route. This window talks to
+  // one thing — the backend on this machine — so there is nothing a proxy could
+  // ever be for.
+  const r = rig({ answers: [true], env: { INVOCATION_ID: 'x' } })
+  r.start()
+  await settle(60)
+  r.stop()
+  assert.ok(r.switches.includes('no-proxy-server'),
+    `the shell did not switch the proxy lookup off; flags were ${JSON.stringify(r.switches)}`)
 })
