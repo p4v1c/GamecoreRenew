@@ -179,7 +179,7 @@ export async function loadTheme(m: ThemeManifest, host: SdkHost): Promise<Surfac
 
   applyStyles(m)
 
-  const produced = factory(buildSdk(m.id, host))
+  const produced = factory(buildSdk(m.id, { ...host, launchMs: m.launch?.ms }))
   if (!produced || typeof produced !== 'object') {
     throw new Error('theme factory must return an object of surfaces')
   }

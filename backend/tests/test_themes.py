@@ -50,6 +50,18 @@ def write_theme(root, tid, *, provides=("splash", "shell"), api=None, entry="ind
 
 # ── completeness ─────────────────────────────────────────────────────────────
 
+
+@pytest.mark.parametrize("duration", [0, 400, 1780, 5000])
+def test_manifest_preserves_the_launch_shape_consumed_by_the_frontend(themes_root, duration):
+    manifest = write_theme(themes_root, "animated", launch={"ms": duration})
+    assert manifest["launch"] == {"ms": duration}
+
+
+@pytest.mark.parametrize("launch", [None, {}, 1780, {"ms": True}, {"ms": -1}, {"ms": 5001}])
+def test_invalid_launch_duration_is_not_exposed_to_the_frontend(themes_root, launch):
+    manifest = write_theme(themes_root, "invalid", launch=launch)
+    assert manifest["launch"] is None
+
 def test_complete_theme_is_accepted_without_warnings(themes_root):
     full = write_theme(themes_root, "full")
     assert full is not None and full["compatible"], "a complete theme is accepted"

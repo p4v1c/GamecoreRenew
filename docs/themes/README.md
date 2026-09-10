@@ -646,12 +646,14 @@ the screen renders empty and the tab looks broken rather than bare.
 | `sdk.defaults` | `Shell` (the default frontend, takes parts), every screen, `DefaultSettingsPages`, `SettingsOverlay`, `Label`, `BackBar`, `DefaultKeyboard`, `launchApp` | compose instead of rewrite. The pages already carry their own overlay — render them bare; `SettingsOverlay`, `Label` and `BackBar` are the chrome to build a page of your own that matches them |
 
 SDK 7 adds `sdk.defaults.launchGame({systemId, path, gameKey})` for a ROM
-already listed by `sdk.api.games.list`. It sends the launch immediately,
+already listed by `sdk.api.games.list`. It plays the theme's launch handover,
 preserves navigation and selection, guards repeated calls, and sets
 `transition: 'launch'` while the request is pending. The returned promise
 rejects on failure so the view can display the error. Declare `"api": 7`
-when using it. A ceremony may animate during preparation; this direct path
-does not wait for `launch.ms` before contacting the backend.
+when using it. The host waits for the validated `launch.ms` duration before
+contacting the backend, just as it does from Library. Without a declared
+duration the request is immediate. The theme API preserves the manifest's
+`launch: {ms: number}` shape; an absent or invalid duration is `null`.
 
 `DefaultSettingsPages` is deliberately not enumerated here. It gained `catalog`
 and `bios` after this table was written and the table did not follow, so the one

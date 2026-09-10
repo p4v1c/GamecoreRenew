@@ -101,6 +101,8 @@ export interface ThemeSdk {
 export interface SdkHost {
   /** The host's own theme switch — clears safe mode and crash counts too. */
   selectTheme: (id: string | null) => Promise<void>
+  /** Validated duration from this theme's manifest, also for direct launches. */
+  launchMs?: number
 }
 
 export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
@@ -354,6 +356,9 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
         `/themes/${encodeURIComponent(themeId)}/${String(path).replace(/^\/+/, '')}`,
     },
 
-    defaults,
+    defaults: {
+      ...defaults,
+      launchGame: game => defaults.launchGame(game, host.launchMs),
+    },
   }
 }
