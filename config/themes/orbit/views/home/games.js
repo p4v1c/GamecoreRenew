@@ -16,6 +16,7 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
     const [idx, setIdx] = useState(0)
     const rail = useRef(null)
     const [showDetails, setShowDetails] = useState(false)
+    const [launchError, setLaunchError] = useState('')
     const screen = sdk.nav.use(s => s.screen)
     useFavourites()
     const {background} = sdk.session.use()
@@ -69,7 +70,9 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
       }
       const held = sessions.heldMatch(background, item.gameKey, item.systemId)
       if (held) {sdk.session.resume(held.session).catch(() => {}); return}
-      tabs.launch(item)
+      setShowDetails(false)
+      setLaunchError('')
+      sdk.defaults.launchGame(item).catch(error => setLaunchError(error.message || 'Could not launch game'))
     }
     useHomeKeys(move, open, 'home')
 
@@ -77,6 +80,7 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
       : item?.kind === 'game' ? accent(sdk, item.system) : '#8dc0f5'
 
     return html`<section id="home-view" aria-label="Games home">
+      ${launchError ? html`<p role="alert">${launchError}</p>` : null}
       <div className="rail-heading"><span>GAMES & APPS</span>
         <div className="home-rail-controls">
           <span id="rail-counter">${String(at + 1).padStart(2, '0')} <i>/ ${String(items.length).padStart(2, '0')}</i></span>

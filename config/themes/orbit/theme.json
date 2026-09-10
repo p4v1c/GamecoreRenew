@@ -1,8 +1,8 @@
 {
   "id": "orbit",
   "name": "Orbit",
-  "version": "3.6.16",
-  "api": 6,
+  "version": "3.6.17",
+  "api": 7,
   "description": "A cinematic console interface: games, consoles, library and applications, with real suspend and resume.",
   "author": "GameCore Community",
   "entry": "index.js",
@@ -20,7 +20,7 @@
     "paged": false
   },
   "launch": {
-    "ms": 1150
+    "ms": 400
   },
   "settings": {
     "pages": [

@@ -22,7 +22,7 @@
  */
 import { render, act, cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useWebSocket, syncSession } from './useWebSocket'
+import { useWebSocket, syncSession, launchSession } from './useWebSocket'
 import { useStore } from '../store'
 import { api } from '../api'
 
@@ -41,6 +41,20 @@ const send = (socket: FakeSocket, event: string, data: Record<string, unknown> =
   act(() => { socket.onmessage?.({ data: JSON.stringify({ event, data }) }) })
 
 const Host = () => { useWebSocket(); return null }
+
+it('does not resurrect a game that finishes before its launch HTTP reply', async () => {
+  vi.stubGlobal('WebSocket', FakeSocket)
+  useStore.setState({ sessionGameKey: null, sessionSystemId: null })
+  let resolve!: (value: any) => void
+  vi.spyOn(api.games, 'launch').mockImplementation(() => new Promise(yes => { resolve = yes }))
+  render(<Host />)
+  const request = launchSession('gc', '/test/quick.iso', 'quick.iso')
+  const socket = FakeSocket.instances[0]
+  send(socket, 'game:started', { game_key: 'quick.iso', system_id: 'gc', session: 91 })
+  send(socket, 'game:finished', { session: 91 })
+  await act(async () => { resolve({ ok: true }); await request })
+  expect(useStore.getState().sessionGameKey).toBeNull()
+})
 
 afterEach(() => {
   cleanup()

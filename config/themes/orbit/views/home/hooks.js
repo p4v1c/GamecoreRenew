@@ -21,7 +21,7 @@ export function createHomeHooks(sdk, tabs, systemsRef) {
         setRows(installed.map(game => {
           const key = `${game.system.id}:${game.filename}`
           const played = history.get(key)
-          return {key, gameKey: game.filename, systemId: game.system.id, system: game.system,
+          return {key, gameKey: game.filename, path: game.path, systemId: game.system.id, system: game.system,
             title: game.display_name || titleFromKey(sdk, game.filename), ext: game.ext,
             seconds: played?.total_secs || 0, lastPlayed: played?.last_played || null}
         }).sort((a, b) => String(b.lastPlayed || '').localeCompare(String(a.lastPlayed || ''))
@@ -84,7 +84,7 @@ export function createHomeHooks(sdk, tabs, systemsRef) {
     useEffect(() => {
       const mine = () => {
         const s = sdk.nav.get()
-        return s.screen === 'home' && !s.modalDepth && !s.sessionGameKey
+        return s.screen === 'home' && !s.modalDepth && !s.sessionGameKey && s.transition !== 'launch'
           && !s.powerPending && s.standby === 'off' && tabs.get() === live.current.owns
       }
       const section = sectionOf

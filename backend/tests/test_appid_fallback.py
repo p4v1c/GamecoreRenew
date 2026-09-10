@@ -154,6 +154,20 @@ def test_the_launcher_resolves_to_what_is_installed(monkeypatch):
         f"run {FALLBACK} -f"
 
 
+def test_launch_probe_has_a_short_budget(monkeypatch):
+    pack = _pack()
+    monkeypatch.setattr(catalog_launch, "load_catalog", lambda: {"probe": pack})
+    budgets = []
+
+    def probe(*, timeout):
+        budgets.append(timeout)
+        appid.set_installed({PRIMARY})
+
+    monkeypatch.setattr(appid, "probe", probe)
+    catalog_launch.resolve_args("probe", f"run {APPID_TOKEN}")
+    assert budgets == [2]
+
+
 def test_a_launcher_without_the_token_is_untouched(monkeypatch):
     """Every native emulator and every browser kiosk goes through here. They
     must not pay a `flatpak list` — nor be able to fail because of one."""

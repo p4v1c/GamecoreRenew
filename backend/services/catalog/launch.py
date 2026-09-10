@@ -44,7 +44,8 @@ def resolve_args(system_id: str, args: str) -> str:
             f"no pack declares an app id for it — the tile and the catalogue "
             f"have come apart")
 
-    appid.probe()
+    # A launch must not inherit the installer's one-minute probe budget.
+    appid.probe(timeout=2)
     resolved = appid.resolve(pack.app_ids)
     if appid.installed() is not None and resolved not in appid.installed():
         # Resolution fell through to the first candidate because none is

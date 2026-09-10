@@ -23,7 +23,9 @@
  *
  * ## Timing
  *
- * `TRAVEL_MS` below is the whole of the launch and resume animation, and it
+ * Games home starts preparation immediately and plays this over the request.
+ * Library and session-bar handovers use a short hold before their request.
+ * `TRAVEL_MS` below is the whole of that launch and resume animation, and it
  * MUST be what `theme.json` declares as `launch.ms`. The host holds the call
  * for exactly that long, so a smaller number here means the light is still
  * moving when the emulator takes the screen, and a larger one means the player
@@ -32,9 +34,9 @@
  */
 
 /** Motion plus a settled field of light. Must equal `launch.ms` in theme.json. */
-export const TRAVEL_MOTION_MS = 930
-export const TRAVEL_SETTLE_MS = 220
-export const TRAVEL_MS = 1150
+export const TRAVEL_MOTION_MS = 300
+export const TRAVEL_SETTLE_MS = 100
+export const TRAVEL_MS = 400
 
 /** The return. Not held by anything — the game is frozen before this starts. */
 export const RETURN_MS = 900

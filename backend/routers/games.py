@@ -315,7 +315,7 @@ async def launch_game(req: LaunchRequest):
     # what lets a dead upstream be corrected without rewriting every box's
     # systems.json. Resolved here, against what is installed right now.
     try:
-        exec_args = catalog_launch.resolve_args(system["id"], exec_args)
+        exec_args = await asyncio.to_thread(catalog_launch.resolve_args, system["id"], exec_args)
     except LookupError as e:
         log.warning("launch refused — %s", e)
         try:

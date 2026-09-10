@@ -9,6 +9,7 @@
 import { playSound } from '../lib/sounds'
 import { api } from '../api'
 import { useStore } from '../store'
+import { launchSession } from '../hooks/useWebSocket'
 
 import HomeScreen from './HomeScreen'
 import LibraryScreen from './LibraryScreen'
@@ -41,6 +42,23 @@ export async function launchApp(system: { id: string }): Promise<void> {
     useStore.getState().setSession(system.id, system.id)
   } catch (e) {
     console.error('Failed to launch app:', e)
+  }
+}
+
+let gameLaunchPending = false
+
+/** Launch a known ROM in place, without mounting or rescanning its library. */
+export async function launchGame(game: { systemId: string; path: string; gameKey: string }): Promise<void> {
+  if (gameLaunchPending || useStore.getState().sessionGameKey) return
+  if (!game.path) throw new Error('This game has no ROM path. Reopen the Games tab.')
+  gameLaunchPending = true
+  useStore.getState().setTransition('launch')
+  playSound('launch')
+  try {
+    await launchSession(game.systemId, game.path, game.gameKey)
+  } finally {
+    gameLaunchPending = false
+    if (useStore.getState().transition === 'launch') useStore.getState().setTransition(null)
   }
 }
 

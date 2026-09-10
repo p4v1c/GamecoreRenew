@@ -80,6 +80,7 @@ SINCE = {
     # the theme then shares the bindings instead of owning them, which is
     # cluttered and not broken. Only what THROWS or renders empty belongs here.
     6: ("onOpenSearch", "onOpenOptions", "__all__"),
+    7: ("sdk.defaults.launchGame",),
 }
 
 
