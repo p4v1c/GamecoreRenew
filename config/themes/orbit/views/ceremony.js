@@ -23,8 +23,8 @@
  *
  * ## Timing
  *
- * Games home starts preparation immediately and plays this over the request.
- * Library and session-bar handovers use a short hold before their request.
+ * Games home, Library and the session bar finish this short handover before
+ * their request lets the emulator take the screen.
  * `TRAVEL_MS` below is the whole of that launch and resume animation, and it
  * MUST be what `theme.json` declares as `launch.ms`. The host holds the call
  * for exactly that long, so a smaller number here means the light is still

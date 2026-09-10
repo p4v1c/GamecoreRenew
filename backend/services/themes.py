@@ -252,6 +252,7 @@ def _read_manifest(d: Path) -> dict | None:
 
     preview = m.get("preview", "preview.png")
     styles = m.get("styles", "theme.css")
+    launch_ms = _launch_ms(m.get("launch"), d.name)
     return {
         "id": m["id"],
         "name": m["name"],
@@ -265,7 +266,7 @@ def _read_manifest(d: Path) -> dict | None:
         "provides": [s for s in m["provides"] if s in SURFACES],
         "schedule": m.get("schedule"),
         "home": _home_grid(m.get("home"), d.name),
-        "launch": _launch_ms(m.get("launch"), d.name),
+        "launch": {"ms": launch_ms} if launch_ms is not None else None,
         "sounds": _sounds(m.get("sounds"), d),
         "settings": _settings(m.get("settings"), d.name),
         # The UI needs a reason, not just a boolean.

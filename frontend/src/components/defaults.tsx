@@ -48,13 +48,21 @@ export async function launchApp(system: { id: string }): Promise<void> {
 let gameLaunchPending = false
 
 /** Launch a known ROM in place, without mounting or rescanning its library. */
-export async function launchGame(game: { systemId: string; path: string; gameKey: string }): Promise<void> {
+export async function launchGame(
+  game: { systemId: string; path: string; gameKey: string },
+  ceremonyMs = 0,
+): Promise<void> {
   if (gameLaunchPending || useStore.getState().sessionGameKey) return
   if (!game.path) throw new Error('This game has no ROM path. Reopen the Games tab.')
   gameLaunchPending = true
   useStore.getState().setTransition('launch')
   playSound('launch')
   try {
+    // The emulator may take focus as soon as it spawns. Finish the theme's
+    // handover first, including on the direct path that stays on Games.
+    const hold = Number.isFinite(ceremonyMs) ? Math.max(0, Math.min(5000, ceremonyMs)) : 0
+    if (hold > 0) await new Promise(resolve => setTimeout(resolve, hold))
+    if (useStore.getState().transition !== 'launch') return
     await launchSession(game.systemId, game.path, game.gameKey)
   } finally {
     gameLaunchPending = false
