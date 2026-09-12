@@ -11,13 +11,13 @@ import { UpdatePage }    from './settings/UpdatePage'
 import { DesktopPage }   from './settings/DesktopPage'
 import { StandbyPage }   from './settings/StandbyPage'
 import { ThemesPage } from './settings/ThemesPage'
-import { CatalogPage } from './settings/CatalogPage'
+import { AppsPage } from './settings/AppsPage'
 import { BiosPage } from './settings/BiosPage'
 import { StoragePage } from './settings/StoragePage'
 
 interface Props { onClose: () => void }
 
-type Page = 'main' | 'wifi' | 'audio' | 'bluetooth' | 'storage' | 'standby' | 'themes' | 'catalog' | 'bios' | 'update' | 'desktop'
+type Page = 'main' | 'wifi' | 'audio' | 'bluetooth' | 'storage' | 'standby' | 'themes' | 'apps' | 'bios' | 'update' | 'desktop'
 
 const ITEMS = [
   { id: 'wifi',      label: 'Wi-Fi',            sub: 'Networks and passwords' },
@@ -26,7 +26,7 @@ const ITEMS = [
   { id: 'storage',   label: 'Storage',          sub: 'External disks and safe eject' },
   { id: 'standby',   label: 'Standby',          sub: 'Screensaver and low power' },
   { id: 'themes',    label: 'Themes',           sub: 'Change the look of the UI' },
-  { id: 'catalog',   label: 'Emulators & apps', sub: 'Add or remove systems' },
+  { id: 'apps',      label: 'Applications',     sub: 'Steam, Stremio and the rest' },
   { id: 'bios',      label: 'BIOS',             sub: 'System files each console needs' },
   { id: 'update',    label: 'Update',           sub: 'Check for a new version' },
   { id: 'desktop',   label: 'Desktop Mode',     sub: 'Leave for the system session', danger: true },
@@ -67,7 +67,10 @@ export default function SettingsModal({ onClose }: Props) {
     api.standby.get()
       .then(s => put('standby', s.enabled ? `On · ${s.screensaver_mins} min` : 'Off')).catch(() => {})
     api.catalog.list()
-      .then(c => put('catalog', `${c.filter(x => x.installed).length} installed`)).catch(() => {})
+      .then(c => {
+        const apps = c.filter(x => x.kind === 'app')
+        put('apps', `${apps.filter(x => x.installed).length}/${apps.length} installed`)
+      }).catch(() => {})
     api.bios.list()
       .then(b => put('bios', `${b.filter(x => x.status === 'ok').length}/${b.length} ready`)).catch(() => {})
     api.sysinfo().then(s => put('update', `v${s.version}`)).catch(() => {})
@@ -103,7 +106,7 @@ export default function SettingsModal({ onClose }: Props) {
   if (page === 'storage')   return <StoragePage   onClose={onClose} onBack={back} />
   if (page === 'standby')   return <StandbyPage   onClose={onClose} onBack={back} />
   if (page === 'themes')    return <ThemesPage    onClose={onClose} onBack={back} />
-  if (page === 'catalog')   return <CatalogPage   onClose={onClose} onBack={back} />
+  if (page === 'apps')      return <AppsPage      onClose={onClose} onBack={back} />
   if (page === 'bios')      return <BiosPage      onClose={onClose} onBack={back} />
   if (page === 'update')    return <UpdatePage    onClose={onClose} onBack={back} />
   if (page === 'desktop')   return <DesktopPage   onClose={onClose} onBack={back} />

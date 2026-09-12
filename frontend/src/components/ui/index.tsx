@@ -99,7 +99,7 @@ export const GLYPHS: Record<string, string> = {
   storage:   'M3 7a9 3 0 0 0 18 0 9 3 0 0 0-18 0v10a9 3 0 0 0 18 0V7M3 12a9 3 0 0 0 18 0',
   standby:   'M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z',
   themes:    'M12 3.5s5.5 6 5.5 9.5a5.5 5.5 0 0 1-11 0C6.5 9.5 12 3.5 12 3.5z',
-  catalog:   'M4 4.5h6.5V11H4zM13.5 4.5H20V11h-6.5zM4 13h6.5v6.5H4zM13.5 13H20v6.5h-6.5z',
+  apps:      'M4 4.5h6.5V11H4zM13.5 4.5H20V11h-6.5zM4 13h6.5v6.5H4zM13.5 13H20v6.5h-6.5z',
   bios:      'M7 7h10v10H7zM4 10h3M4 14h3M17 10h3M17 14h3M10 4v3M14 4v3M10 17v3M14 17v3',
   update:    'M12 4v11m0 0 4-4m-4 4-4-4M5 19h14',
   desktop:   'M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M16 17l5-5-5-5M21 12H9',

@@ -143,12 +143,14 @@ export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView, 
   /**
    * The dashboard after a pack is installed or removed.
    *
-   * This screen stays mounted behind the settings, so neither of the two
-   * reloads above ever fires for it: the mount happened long ago, and it only
-   * asks again on becoming visible if its list is EMPTY. Installing melonDS
-   * from the catalogue page therefore left the dashboard showing the systems
-   * it had before, until a restart. The catalogue page reloaded its own list
-   * and nothing told this one.
+   * This screen stays mounted behind the Store and behind the settings, so
+   * neither of the two reloads above ever fires for it: the mount happened
+   * long ago, and it only asks again on becoming visible if its list is EMPTY.
+   * Installing melonDS therefore left the dashboard showing the systems it had
+   * before, until a restart — the screen that ran the install reloaded its own
+   * list and nothing told this one. (That screen was the catalogue page in the
+   * settings when this was written; it is the Store's Consoles tab now, and
+   * `catalog:done` is what makes the difference not matter here.)
    *
    * The focus is kept by identity rather than by index: the grid it lands in
    * is a different grid, and holding position 3 when position 3 is now a

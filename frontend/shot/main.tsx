@@ -16,7 +16,7 @@ import PowerModal from '../src/components/modals/PowerModal'
 import { WifiPage } from '../src/components/modals/settings/WifiPage'
 import SettingsScreen from '../src/components/modals/SettingsScreen'
 import { buildSdk } from '../src/lib/themeSdk'
-import { createCatalogPage } from '../src/settings/catalog'
+import { createAppsPage } from '../src/settings/apps'
 import '../src/settings/settings.css'
 import { Overlay } from '../src/components/ui'
 import { VirtualKeyboard } from '../src/components/ui/VirtualKeyboard'
@@ -55,12 +55,16 @@ const BOX: Record<string, unknown> = {
     ['pcsx2', 'PlayStation 2', 'Sony', 'PCSX2', '#2F6FD6', true],
     ['rpcs3', 'PlayStation 3', 'Sony', 'RPCS3', '#1B1B22', true],
     ['ppsspp', 'PSP', 'Sony', 'PPSSPP', '#5A6ED6', false],
-    ['steam', 'Steam', 'Applications', 'Steam', '#1B2838', true],
-    ['youtube', 'YouTube', 'Applications', 'YouTube', '#FF0000', true],
-    ['twitch', 'Twitch', 'Applications', 'Twitch', '#9146FF', false],
+    // `kind` and not the family, which is how the box itself tells the two
+    // apart: no application pack declares a family at all, and this fixture
+    // pretending otherwise is what let the rail's old grouping look correct
+    // here while it filed Steam under "Other" on a real box.
+    ['steam', 'Steam', '', 'Steam', '#1B2838', true],
+    ['youtube', 'YouTube', '', 'YouTube', '#FF0000', true],
+    ['twitch', 'Twitch', '', 'Twitch', '#9146FF', false],
   ].map(([id, label, family, emulatorName, color, installed]) => ({
     id, label, family, emulatorName, color, installed,
-    platform: label, kind: family === 'Applications' ? 'app' : 'emulator',
+    platform: label, kind: family === '' ? 'app' : 'emulator',
     description: '', origin: 'shipped', restricted: [],
     logo: `assets/logos/${id}.png`,
   })),
@@ -100,7 +104,7 @@ if (themeId) {
 }
 
 const Root = () =>
-  which === 'catalog' ? <CatalogFrame />
+  which === 'apps' ? <AppsFrame />
   : which === 'rail' ? <SettingsScreen onClose={() => {}} />
   : which === 'power' ? <PowerModal onClose={() => {}} omit={['scan', 'forget']} />
   : which === 'wifi' ? <WifiPage onClose={() => {}} onBack={() => {}} />
@@ -113,16 +117,16 @@ const Root = () =>
   : <SettingsModal onClose={() => {}} />
 
 /**
- * The catalogue page on its own, in the frame it normally sits in.
+ * The applications page on its own, in the frame it normally sits in.
  *
  * The full screen opens on Wi-Fi and there is no way to walk a headless
  * browser six rows down the rail, so this mounts the middle column directly —
  * with the classes that give it its width and background, and the skin that
  * gives it the built-in UI's colours.
  */
-function CatalogFrame() {
+function AppsFrame() {
   const Page = React.useMemo(
-    () => createCatalogPage(buildSdk('', { selectTheme: async () => {} })), [])
+    () => createAppsPage(buildSdk('', { selectTheme: async () => {} })), [])
   // With `?theme=` the theme's own stylesheet colours the screen from `:root`,
   // and the default skin — two classes — would outrank it and repaint it.
   return (

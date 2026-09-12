@@ -55,8 +55,8 @@ declare module '*/settings/power' {
   ): (props: never) => import('react').ReactNode
 }
 
-declare module '*/settings/catalog' {
-  export function createCatalogPage(
+declare module '*/settings/apps' {
+  export function createAppsPage(
     sdk: unknown,
   ): (props: { active: boolean; onLeave: () => void }) => import('react').ReactNode
 }

@@ -34,6 +34,7 @@ import DefaultShell from '../DefaultShell'
 import StoreScreen from './index'
 import { useStore } from '../../store'
 import { api, type CatalogEntry } from '../../api'
+import { CATALOG_FAILED } from '../../lib/catalog'
 import type { StoreViewProps } from './types'
 
 const pack = (id: string, label: string, extra: Partial<CatalogEntry> = {}): CatalogEntry => ({
@@ -70,6 +71,12 @@ beforeEach(() => {
     ok: true, status: 200, statusText: 'OK', json: async () => [],
   })))
   vi.spyOn(api.catalog, 'list').mockResolvedValue(CATALOGUE)
+  vi.spyOn(api.catalog, 'busy').mockResolvedValue({ busy: false })
+  // The three verbs return as soon as the CLI has started; `catalog:done` is
+  // what closes a run, and this file fires that by hand.
+  vi.spyOn(api.catalog, 'install').mockResolvedValue({} as never)
+  vi.spyOn(api.catalog, 'remove').mockResolvedValue({} as never)
+  vi.spyOn(api.catalog, 'reconfigure').mockResolvedValue({} as never)
   useStore.setState({
     screen: 'store', selectedSystemId: null, modalDepth: 0, sessionGameKey: null,
     gridFocusIdx: 0, gridPage: 0,
@@ -228,7 +235,7 @@ describe('the Games tab', () => {
   })
 })
 
-describe('an install driven from the settings over this screen', () => {
+describe('a run that finishes while this screen is up', () => {
   it('re-reads the catalogue and keeps the cursor on the pack it was on', async () => {
     let seen!: StoreViewProps
     render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
@@ -238,7 +245,9 @@ describe('an install driven from the settings over this screen', () => {
     act(() => seen.onFocus(3))
     expect(seen.pageItems[seen.focusIdx].id).toBe('sys03')
 
-    // System 00 is removed from somewhere else — every index shifts by one.
+    // System 00 is removed — every index shifts by one. From this screen now,
+    // or from the applications page over it; the screen cannot tell and does
+    // not need to.
     vi.mocked(api.catalog.list).mockResolvedValue(CATALOGUE.filter(c => c.id !== 'sys00'))
     await emit('catalog:done', { action: 'remove', id: 'sys00', success: true })
     await flush()
@@ -247,12 +256,155 @@ describe('an install driven from the settings over this screen', () => {
     expect(seen.pageItems[seen.focusIdx].id).toBe('sys03')   // still the same console
   })
 
-  it('ignores an operation that failed', async () => {
-    render(<StoreScreen view={() => null} />)
+  it('re-reads after a failure too, and still does not move the cursor', async () => {
+    // It used to return early on `success: false` and re-read nothing. That is
+    // wrong for the failure that actually happens: `_run_cli` kills the CLI at
+    // `_CLI_TIMEOUT` and reports `success: false` after however much of the
+    // work it had already done, and `installed` is read from the systems.json
+    // that work writes. Skipping the re-read leaves the grid saying "not
+    // installed" about a pack that is now half on the box.
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
     await flush()
+
+    act(() => seen.onFocus(3))
     vi.mocked(api.catalog.list).mockClear()
-    await emit('catalog:done', { action: 'install', id: 'sys00', success: false })
+    await emit('catalog:done', { action: 'install', id: 'sys09', success: false })
     await flush()
-    expect(api.catalog.list).not.toHaveBeenCalled()
+
+    expect(api.catalog.list).toHaveBeenCalled()
+    expect(seen.pageItems[seen.focusIdx].id).toBe('sys03')
+    expect(seen.actionError).toBe(CATALOG_FAILED)
+    expect(seen.busy).toBe(false)          // and the grid is released
+  })
+})
+
+describe('installing a console, which is what this screen is for', () => {
+  it('installs on ✕ and holds the whole grid until it finishes', async () => {
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+
+    // System 03 is not installed — only the first three are.
+    act(() => seen.onFocus(3))
+    press('gp:confirm')
+    await flush()
+    expect(api.catalog.install).toHaveBeenCalledWith('sys03')
+    expect(seen.workingId).toBe('sys03')
+
+    // One action at a time, box-wide: the backend answers 409 to a second, so
+    // the cards are held rather than offering three presses that would fail.
+    expect(seen.busy).toBe(true)
+    act(() => seen.onFocus(4))
+    press('gp:confirm')
+    await flush()
+    expect(api.catalog.install).toHaveBeenCalledTimes(1)
+
+    await emit('catalog:done', { action: 'install', id: 'sys03', success: true })
+    expect(seen.workingId).toBe('')
+    expect(seen.busy).toBe(false)
+  })
+
+  it('asks twice before removing, and any direction is the answer no', async () => {
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+
+    // System 00 is installed. ✕ arms, it does not remove.
+    act(() => seen.onFocus(0))
+    press('gp:confirm')
+    await flush()
+    expect(seen.armedId).toBe('sys00')
+    expect(api.catalog.remove).not.toHaveBeenCalled()
+
+    // Stepping away disarms — ✕ lands wherever the cursor happens to be, and
+    // that is the whole reason the second press is safe to offer.
+    press('gp:dpad-right')
+    expect(seen.armedId).toBe('')
+    press('gp:dpad-left')
+    press('gp:confirm')
+    await flush()
+    expect(seen.armedId).toBe('sys00')
+    press('gp:confirm')
+    await flush()
+    expect(api.catalog.remove).toHaveBeenCalledWith('sys00')
+  })
+
+  it('reconfigures on △, and only something that is installed', async () => {
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+
+    act(() => seen.onFocus(3))          // not installed
+    press('gp:y')
+    await flush()
+    expect(api.catalog.reconfigure).not.toHaveBeenCalled()
+
+    act(() => seen.onFocus(0))          // installed
+    press('gp:y')
+    await flush()
+    expect(api.catalog.reconfigure).toHaveBeenCalledWith('sys00')
+  })
+
+  it('shows the run\u2019s output, so a slow Flatpak is not a frozen card', async () => {
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    await emit('catalog:log', { line: 'Installing org.DolphinEmu.dolphin-emu…' })
+    expect(seen.log).toEqual(['Installing org.DolphinEmu.dolphin-emu\u2026'])
+  })
+
+  it('holds the grid for a run another screen started', async () => {
+    // The settings modal opens over this screen and leaves it mounted. There
+    // is no `catalog:start` event, so output arriving with nothing of ours
+    // running is what says somebody else took the lock.
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    expect(seen.busy).toBe(false)
+    await emit('catalog:log', { line: 'Installing steam…' })
+    expect(seen.busy).toBe(true)
+    expect(seen.workingId).toBe('')      // not ours, so no card claims it
+  })
+
+  it('lets a theme take the two action buttons and keeps the actions', async () => {
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }}
+                        omit={['actions']} />)
+    await flush()
+
+    act(() => seen.onFocus(3))
+    press('gp:confirm')
+    press('gp:y')
+    await flush()
+    expect(api.catalog.install).not.toHaveBeenCalled()
+    expect(api.catalog.reconfigure).not.toHaveBeenCalled()
+
+    // The buttons are the theme's; what they mean is not. `onAct` still
+    // installs, and still through the host's one-at-a-time rule.
+    act(() => seen.onAct(seen.pageItems[3]))
+    await flush()
+    expect(api.catalog.install).toHaveBeenCalledWith('sys03')
+  })
+})
+
+describe('the default view now that the cards do something', () => {
+  it('draws the action the focused card offers, and no stale signpost', async () => {
+    const r = render(<StoreScreen />)
+    await flush()
+    expect(r.container.textContent).toContain('NOT INSTALLED')
+    // The line that said installing lived in the settings. It does not.
+    expect(r.container.textContent).not.toContain('Settings')
+    // The cursor opens on System 00, which is installed — so the hint is the
+    // pair of things an installed card offers, not "install".
+    expect(r.container.textContent).toContain('✕ remove · △ reconfigure')
+  })
+
+  it('says a card is armed rather than letting the first press look like nothing', async () => {
+    const r = render(<StoreScreen />)
+    await flush()
+    press('gp:confirm')                  // System 00, installed
+    await flush()
+    expect(r.container.textContent).toContain('✕ AGAIN')
   })
 })

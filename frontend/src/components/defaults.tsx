@@ -31,7 +31,7 @@ import { StandbyPage } from './modals/settings/StandbyPage'
 import { UpdatePage } from './modals/settings/UpdatePage'
 import { DesktopPage } from './modals/settings/DesktopPage'
 import { ThemesPage } from './modals/settings/ThemesPage'
-import { CatalogPage } from './modals/settings/CatalogPage'
+import { AppsPage } from './modals/settings/AppsPage'
 import { BiosPage } from './modals/settings/BiosPage'
 import { StoragePage } from './modals/settings/StoragePage'
 
@@ -169,13 +169,21 @@ export const DefaultSettingsPages = {
   themes: ThemesPage,
   update: UpdatePage,
   desktop: DesktopPage,
-  // Adding and removing systems was reachable from the built-in settings modal
-  // and from nowhere else. A theme builds its own menu and resolves each entry
-  // through this map, so leaving `catalog` out of it meant the two shipped
-  // themes had no way to install an emulator at all — the page existed, the
-  // route existed, and nothing could open them.
-  catalog: CatalogPage,
-  // Same reason as `catalog`, and it bites harder here: the BIOS screen is
+  // The four applications — Steam, Stremio, Twitch, YouTube — and nothing
+  // else. It was `catalog` and it showed the consoles too, which is why it is
+  // renamed rather than merely trimmed: a key a theme resolves to build its
+  // own menu is a promise about what opening it will offer, and thirty-one
+  // consoles left this page for the Store. Renaming it breaks a theme's
+  // manifest loudly, in `test_a_shipped_theme_declares_only_pages_that_exist`;
+  // leaving the name would have broken only the player's expectation, quietly.
+  //
+  // The entry itself stays for the original reason: adding and removing
+  // applications is reachable from the built-in settings modal and from
+  // nowhere else, and a theme builds its own menu and resolves each entry
+  // through this map — leaving `catalog` out of it once meant the two shipped
+  // themes had no way to install anything at all.
+  apps: AppsPage,
+  // Same reason as `apps`, and it bites harder here: the BIOS screen is
   // what someone opens BECAUSE their box is not working. A theme that could
   // not resolve it would leave them with the black screen this page exists to
   // explain, and no route to the explanation.

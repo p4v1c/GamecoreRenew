@@ -54,6 +54,42 @@ export interface StoreViewProps {
   loadError: boolean
 
   /**
+   * ── Installing, removing, reconfiguring ───────────────────────────────────
+   *
+   * The point of the whole block below is that a theme can draw an Install
+   * button without owning what pressing it means. `useCatalog` owns that — one
+   * action at a time box-wide, a removal armed before it is done, the re-read
+   * when `catalog:done` arrives — and a view that reimplemented any of it would
+   * be the fourth copy of a sequence this repo has already had three of.
+   */
+
+  /** The pack this screen is working on right now, `''` when none. */
+  workingId: string
+  /**
+   * Something is running on the box — this screen's action or another's.
+   *
+   * Draw the whole grid as held while it is true, not just the working card.
+   * The backend takes one action at a time and answers 409 to a second, so a
+   * view that let a player press ✕ on a second console would be offering three
+   * failures.
+   */
+  busy: boolean
+  /**
+   * The id whose removal is armed: ✕ once to arm it, ✕ again to do it.
+   *
+   * Removing is the one irreversible thing on this screen and ✕ lands wherever
+   * the cursor happens to be, so it asks twice. A view that drew no difference
+   * between armed and not would make the first press look like nothing
+   * happened and the second like a single-press delete.
+   */
+  armedId: string
+  /** `gamecore-emu`'s output for the run in progress — empty between runs. */
+  log: string[]
+  /** What a failed run left behind. Distinct from `loadError`, which is the
+   *  catalogue itself being unreadable. */
+  actionError: string
+
+  /**
    * Whether the Games tab has anything to list.
    *
    * `false` for the whole of this step, and stated in the contract rather than
@@ -70,4 +106,15 @@ export interface StoreViewProps {
   onPage: (page: number) => void
   onBack: () => void
   onRetry: () => void
+  /**
+   * Install it, or arm its removal and then remove it — one call for both, so
+   * a view never has to decide which verb a card is offering.
+   *
+   * ✕ is bound to this on the host's side. Wiring it to a click as well is
+   * what makes the card work under a pointer; it is the same call.
+   */
+  onAct: (pack: CatalogEntry) => void
+  /** Re-run an installed pack's configuration, leaving the install alone. △ on
+   *  the host's side; a no-op on a pack that is not installed. */
+  onReconfigure: (pack: CatalogEntry) => void
 }

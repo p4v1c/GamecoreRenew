@@ -1,7 +1,7 @@
 {
   "id": "orbit",
   "name": "Orbit",
-  "version": "3.6.20",
+  "version": "3.6.21",
   "api": 7,
   "description": "A cinematic console interface: games, consoles, library and applications, with real suspend and resume.",
   "author": "GameCore Community",
@@ -28,7 +28,7 @@
       "audio",
       "bluetooth",
       "standby",
-      "catalog",
+      "apps",
       "bios",
       "storage",
       "themes",

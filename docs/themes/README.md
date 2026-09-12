@@ -241,7 +241,7 @@ which and why.
 | `homeOmit` | home-screen shortcuts you bind yourself: `'nav'` (d-pad), `'pages'` (L1/R1), `'confirm'` (✕). Take one and you own what it does — see §5g |
 | `libraryOmit` | the same, for the library. Today only `'options'` (R2) |
 | `storeView` | the Store's markup — the destination where consoles are installed and, later, games are downloaded (§5h) |
-| `storeOmit` | Store shortcuts you bind yourself: `'nav'` (d-pad), `'tabs'` (L1/R1). ○ is never offered — it is the way off the screen |
+| `storeOmit` | Store shortcuts you bind yourself: `'nav'` (d-pad), `'tabs'` (L1/R1), `'actions'` (✕ install/remove, △ reconfigure). ○ is never offered — it is the way off the screen |
 | `screensaver` | the standby slideshow |
 | `settings` | the settings screen |
 | `powerView` | the power menu's markup — the two-press confirmation, the pending lock and the failsafe stay with the host |
@@ -395,8 +395,9 @@ through `sdk.defaults.DefaultSettingsPages`. Leaving one out costs nothing at
 load and shows nothing on screen: the page is still there, its route is still
 there, and there is simply no way to get to it.
 
-That has shipped twice. `catalog` was missing from the map, so **neither**
-bundled theme had any way to install an emulator. `storage` was missing from
+That has shipped twice. `catalog` — the page that is `apps` today — was missing
+from the map, so **neither** bundled theme had any way to install anything at
+all. `storage` was missing from
 the map itself, so no theme could offer safe-eject for an external disk even if
 its author had thought of it. Both were found by reading the code, not by a
 player — which is the problem, because the pages people go looking for are the
@@ -406,7 +407,7 @@ So declare what your menu reaches:
 
 ```json
 { "id": "shelf", "settings": { "pages": ["wifi", "audio", "bluetooth", "standby",
-                                         "catalog", "bios", "storage", "themes",
+                                         "apps", "bios", "storage", "themes",
                                          "update", "desktop"] } }
 ```
 
@@ -492,10 +493,30 @@ What you get, and what stays with the host:
 tab, the tab list and its labels, the emulator packs and the current page of
 them already sliced, the focus index within that page, the page count and the
 grid shape, how many are installed, the loading and error states, and the
-callbacks a pointer needs. The list is the catalogue — `GET /api/catalog`, the
-same endpoint Settings → Emulators & apps reads — filtered to `kind: 'emulator'`
-and ordered A–Z by label, because the order *is* the navigation and a theme
-reordering it would be steering a cursor through a list nobody can see.
+callbacks a pointer needs. The list is the catalogue — `GET /api/catalog` —
+filtered to `kind: 'emulator'` and ordered A–Z by label, because the order *is*
+the navigation and a theme reordering it would be steering a cursor through a
+list nobody can see. The four `kind: 'app'` packs are not here; they are
+Settings → Applications, which is a different screen for a different thing.
+
+**Drawing an Install button without owning what installing means.** That is what
+the rest of the props are for:
+
+| prop | what to draw |
+|---|---|
+| `workingId` | the card this screen is acting on — hold its own row rather than flickering back to "Install" |
+| `busy` | something is running *anywhere on the box*. Dim the whole grid: the backend takes one action at a time and answers 409 to a second |
+| `armedId` | the card whose removal is armed. Draw it unlike anything else, or the first ✕ reads as a press that did nothing and the second as a one-press delete |
+| `log` | `gamecore-emu`'s output for the run. A Flatpak on a slow line is minutes of nothing, and "Working…" alone is indistinguishable from a hang |
+| `actionError` | what a failed run left behind. Distinct from `loadError`, which is the catalogue itself being unreadable |
+| `onAct` | install, or arm-then-remove — one call for both, so you never decide which verb a card is offering |
+| `onReconfigure` | re-run an installed pack's configuration; a no-op on one that is not installed |
+
+None of that logic is yours even if you take `'actions'` in `storeOmit`: that
+drops the two *buttons*, and `onAct` / `onReconfigure` are still the only way in.
+It all lives in `useCatalog` (`frontend/src/lib/catalog.ts`), which the two
+applications pages consume too — there were three hand-written copies of this
+sequence before it and they disagreed about whether removing asks twice.
 
 `storeOmit` drops shortcuts you bind yourself, the same mechanism and the same
 cost as `homeOmit`:
@@ -508,13 +529,14 @@ cost as `homeOmit`:
 ○ is not on that list. It is the way off the screen, and the library makes the
 same exception for the same reason.
 
-**Two honest warnings about what is there today.** The Consoles tab is
-read-only: installing is still driven from Settings → Emulators & apps, so the
-cards carry a state and not a button, and a themed store that drew an Install
-button would be drawing one that does nothing. And the Games tab has nothing to
+**One honest warning about what is there today.** The Games tab has nothing to
 list — `gamesReady` is `false` in the props and says so — because searching and
 downloading arrive later. Draw a "not yet", not an empty grid: an empty grid
 reads as *you own no games*, which is a different sentence and a false one.
+
+The Consoles tab is no longer read-only; that warning was here until installing
+moved out of the settings and onto this screen, and a themed store may now draw
+the Install button it was previously told not to.
 
 ## 5f. The suspended session, and the bar over it — SDK 5
 
@@ -717,7 +739,9 @@ duration the request is immediate. The theme API preserves the manifest's
 `DefaultSettingsPages` is deliberately not enumerated here. It gained `catalog`
 and `bios` after this table was written and the table did not follow, so the one
 document a theme author reads to find out what exists listed seven of the nine
-pages that did. `Object.keys(sdk.defaults.DefaultSettingsPages)` is the list, at
+pages that did — and `catalog` has since been renamed `apps`, having handed the
+consoles to the Store, which is a second way for a written-out list to go
+stale. `Object.keys(sdk.defaults.DefaultSettingsPages)` is the list, at
 runtime, and it is the only copy of it that cannot go stale.
 
 `sdk.defaults` has the same property, one level up: it is the whole

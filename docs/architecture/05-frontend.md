@@ -94,6 +94,7 @@ opened from a themed box.
 | **route out** | ○, owned by `StoreScreen` and never droppable |
 | **tabs** | L1/R1. The dashboard spends those on paging and this screen cannot: the two tabs are its whole shape. Paging is the d-pad's edges, which already turn the page on the dashboard too |
 | **data** | `GET /api/catalog`, filtered to `kind: 'emulator'` and ordered A–Z by label. One catalogue, one endpoint — see [`10-catalog-and-install.md`](10-catalog-and-install.md) |
+| **actions** | ✕ installs, ✕ again removes (armed first), △ reconfigures. All three through `useCatalog`, never through this screen's own code |
 
 **Mounted only while it is open**, which is the one place the shell departs from
 the two screens beside it. Those stay mounted so that going home does not
@@ -102,11 +103,37 @@ re-fetch a library. The Store has the opposite need: its list is what the box
 freshly read catalogue is the correct answer rather than a cached one — and
 keeping it mounted would put a `/api/catalog` request on every boot for a screen
 most sessions never open. It also listens for `catalog:done` while it is up, so
-an install driven from the settings modal over it is reflected underneath.
+a run finished anywhere is reflected underneath.
 
-**What it does not do yet.** The Consoles tab is read-only: the install, remove
-and reconfigure routes are still driven from `Settings → Emulators & apps`, so a
-card carries a state and not a button. The Games tab lists nothing and says so —
+### One catalogue logic — `frontend/src/lib/catalog.ts`
+
+`useCatalog({ kind, onDone })` is the whole of it: read the list, post the verb,
+hold the screen until `catalog:done`, re-read after. **Three screens consume it
+and none of them reimplements any of it** — the Consoles tab here, and the two
+applications pages (`settings/apps.js` on the rail, `modals/settings/AppsPage.tsx`
+in the fallback modal).
+
+It exists because there *were* three copies, and they had already drifted:
+
+| | the rail page | the modal page | the Store |
+|---|---|---|---|
+| removing asks twice | no — one ✕ | yes | n/a |
+| asks `GET /catalog/busy` | yes | no | no |
+| where an application is filed | `family` → "Other" | `kind` → "Applications" | n/a |
+
+The split the hook takes is `kind`, which is the pack's own word for what it is.
+No `app` pack declares a `family`, which is why filing them by family put Steam
+and YouTube under "Other".
+
+What deliberately stays **out** of it is the ordering: which pack follows which
+is what a cursor walks, so it lives with the screen that owns the cursor.
+
+**On failure, it re-reads too.** `_run_cli` kills the CLI at `_CLI_TIMEOUT` and
+reports `success: false` after however much of the work it had already done, and
+`installed` is read from the `systems.json` that work writes — so skipping the
+re-read leaves a screen saying "not installed" about a half-installed pack.
+
+**What it does not do yet.** The Games tab lists nothing and says so —
 `gamesReady` is `false` in the view props — because searching and downloading
 arrive separately, and what a downloaded game has to *become* is six ingestion
 classes wide (see [`14-store-ingestion-matrix.md`](14-store-ingestion-matrix.md)

@@ -55,7 +55,7 @@ import { createBluetoothPage } from './bluetooth.js'
 import { createDisplayPage } from './display.js'
 import { createControllersPage } from './controllers.js'
 import { createAudioPage } from './audio.js'
-import { createCatalogPage } from './catalog.js'
+import { createAppsPage } from './apps.js'
 import { createBiosPage } from './bios.js'
 import { createThemesPage } from './themes.js'
 import { createSystemPage } from './system.js'
@@ -81,7 +81,7 @@ const CATS = [
   { id: 'display',     n: '03', label: 'Display',          page: 'display' },
   { id: 'audio',       n: '04', label: 'Audio',            page: 'audio' },
   { id: 'controllers', n: '05', label: 'Controllers',      page: 'controllers' },
-  { id: 'catalog',     n: '06', label: 'Emulators & apps', page: 'catalog' },
+  { id: 'apps',        n: '06', label: 'Applications',     page: 'apps' },
   { id: 'bios',        n: '07', label: 'BIOS',             page: 'bios' },
   { id: 'themes',      n: '08', label: 'Themes',           page: 'themes' },
   { id: 'system',      n: '09', label: 'System' },
@@ -124,7 +124,7 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
     display: createDisplayPage(sdk, Rows),
     audio: createAudioPage(sdk, Rows),
     controllers: createControllersPage(sdk, Rows),
-    catalog: createCatalogPage(sdk),
+    apps: createAppsPage(sdk),
     bios: createBiosPage(sdk),
     themes: createThemesPage(sdk, Rows),
     system: createSystemPage(sdk, Rows),
@@ -180,8 +180,14 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
       api.audio.sinks()
         .then((ss) => { const d = ss.find((s) => s.default); put('audio', d && d.name) })
         .catch(() => {})
+      // Applications only: the consoles left this screen for the Store, and a
+      // row labelled "Applications" whose value counted thirty-five packs
+      // would be reporting on a page it no longer opens.
       api.catalog.list()
-        .then((cs) => put('catalog', `${cs.filter((c) => c.installed).length} installed`))
+        .then((cs) => {
+          const apps = cs.filter((c) => c.kind === 'app')
+          put('apps', `${apps.filter((c) => c.installed).length}/${apps.length} installed`)
+        })
         .catch(() => {})
       api.bios.list()
         .then((bs) => put('bios', `${bs.filter((b) => b.status === 'ok').length}/${bs.length} ready`))

@@ -89,6 +89,10 @@ const BOX: Record<string, unknown> = {
     { id: 'rpcs3', kind: 'emulator', label: 'PlayStation 3', installed: true },
     { id: 'cemu', kind: 'emulator', label: 'Wii U', installed: false },
     { id: 'mgba', kind: 'emulator', label: 'Game Boy Advance', installed: true },
+    // The rail's row 06 is Applications now — the consoles above are the
+    // Store's — so the value beside it has to be counted from these two.
+    { id: 'steam', kind: 'app', label: 'Steam', installed: true },
+    { id: 'youtube', kind: 'app', label: 'YouTube', installed: false },
   ],
   '/api/bios': [
     { id: 'pcsx2', label: 'PlayStation 2', status: 'ok', installed: true, files: [] },
@@ -159,7 +163,7 @@ describe('Shelf v2 — the settings rail', () => {
     const { container } = await renderRail()
     expect(railLabels(container)).toEqual([
       'Wi-Fi', 'Bluetooth', 'Display', 'Audio', 'Controllers',
-      'Emulators & apps', 'BIOS', 'Themes', 'System',
+      'Applications', 'BIOS', 'Themes', 'System',
     ])
   })
 
@@ -184,7 +188,7 @@ describe('Shelf v2 — the settings rail', () => {
     const metas = railMetas(container)
     expect(metas[1]).toBe('1 connected')          // bluetooth devices
     expect(metas[3]).toBe('HDMI / DisplayPort')   // default sink
-    expect(metas[5]).toBe('2 installed')          // catalog
+    expect(metas[5]).toBe('1/2 installed')        // apps, not all 5 packs
     expect(metas[6]).toBe('1/2 ready')            // bios status verdict
     expect(metas[7]).toBe('Shelf')                // active theme
   })

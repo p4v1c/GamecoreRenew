@@ -97,9 +97,14 @@ export interface ShellParts {
    */
   storeView?: React.ComponentType<StoreViewProps>
   /**
-   * Store shortcuts this theme binds itself: 'nav' (the d-pad) and 'tabs'
-   * (L1/R1). Same mechanism and same cost as `homeOmit` — a theme that takes
-   * one owns the behaviour behind it, including the way between the two tabs.
+   * Store shortcuts this theme binds itself: 'nav' (the d-pad), 'tabs' (L1/R1)
+   * and 'actions' (✕ to install or remove, △ to reconfigure). Same mechanism
+   * and same cost as `homeOmit` — a theme that takes one owns the behaviour
+   * behind it, including the way between the two tabs.
+   *
+   * Taking 'actions' is taking the two BUTTONS, never what they do: `onAct`
+   * and `onReconfigure` are still the only way to act on a pack, and they keep
+   * the one-at-a-time rule and the armed removal with the host.
    *
    * ○ is deliberately not offered. It is the way off the screen, and the
    * library makes the same exception for the same reason.

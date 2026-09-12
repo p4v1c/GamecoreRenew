@@ -13,7 +13,7 @@ import { VirtualKeyboard } from './VirtualKeyboard'
 
 // The ids SettingsModal draws a row for, in its order.
 const ROW_IDS = ['wifi', 'audio', 'bluetooth', 'storage', 'standby',
-                 'themes', 'catalog', 'bios', 'update', 'desktop']
+                 'themes', 'apps', 'bios', 'update', 'desktop']
 // The ids the power menu draws a row for.
 const POWER_IDS = ['scan', 'forget', 'shutdown', 'restart', 'desktop']
 

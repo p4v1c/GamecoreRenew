@@ -16,7 +16,11 @@ const BOX: Record<string, unknown> = {
   '/api/settings/audio/sinks': [{ id: '1', name: 'HDMI', default: true }],
   '/api/storage/volumes': { ok: true, volumes: [{ device: '/dev/sdb1' }] },
   '/api/standby': { enabled: true, screensaver_mins: 6, sleep_mins: 16, state: 'awake' },
-  '/api/catalog': [{ id: 'a', installed: true }, { id: 'b', installed: false }],
+  '/api/catalog': [{ id: 'a', kind: 'app', installed: true },
+                   { id: 'b', kind: 'app', installed: false },
+                   // An emulator, to prove the Applications row counts the apps
+                   // and not the whole catalogue: the consoles are the Store's.
+                   { id: 'c', kind: 'emulator', installed: true }],
   '/api/bios': [{ id: 'a', status: 'ok' }, { id: 'b', status: 'absent' }],
   '/api/sysinfo': { version: '1.0.172', controllers: [], bios: { ok: true, systems: {} } },
   '/api/themes': { sdk_version: 1, active: 'shelf', themes: [{ id: 'shelf', name: 'Shelf' }] },
@@ -38,7 +42,7 @@ describe('the default settings menu', () => {
     const defaults = await import('../defaults')
     render(<SettingsModal onClose={vi.fn()} />)
     for (const label of ['Wi-Fi', 'Audio', 'Bluetooth', 'Storage', 'Standby',
-                         'Themes', 'Emulators & apps', 'BIOS', 'Update', 'Desktop Mode']) {
+                         'Themes', 'Applications', 'BIOS', 'Update', 'Desktop Mode']) {
       expect(screen.getByText(label)).toBeTruthy()
     }
     // The count is the claim: a page added to the host and forgotten here is a
@@ -51,6 +55,7 @@ describe('the default settings menu', () => {
     expect(await screen.findByText('patrice.5')).toBeTruthy()
     expect(await screen.findByText('1 connected')).toBeTruthy()
     expect(await screen.findByText('1/2 ready')).toBeTruthy()
+    expect(await screen.findByText('1/2 installed')).toBeTruthy()
     expect(await screen.findByText('v1.0.172')).toBeTruthy()
   })
 

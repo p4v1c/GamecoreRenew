@@ -5,7 +5,7 @@
  * bindings) stays in StoreScreen. This file only says what it looks like, which
  * is exactly the seam a theme replaces: same behaviour, different UI.
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { CatalogEntry } from '../../api'
 import type { StoreViewProps } from './types'
 
@@ -47,17 +47,42 @@ function PackMark({ pack }: { pack: CatalogEntry }) {
   )
 }
 
-function ConsoleCard({ pack, focused, onClick }: {
-  pack: CatalogEntry; focused: boolean; onClick: () => void
+const DANGER = '#f87171'
+
+/**
+ * What the card says it will do, and what it looks like saying it.
+ *
+ * Four states rather than two, because the two that were added are the ones a
+ * player is most likely to misread: `armed` has to look unlike anything else on
+ * the screen or the first ✕ reads as a press that did nothing, and `working`
+ * has to hold its own row rather than flicker back to "Install" between the
+ * post and the first line of output.
+ */
+function cardState(pack: CatalogEntry, working: boolean, armed: boolean) {
+  if (working) return { label: 'WORKING…', tint: BRIGHT, fill: 'rgba(124,58,237,0.22)' }
+  if (armed) return { label: 'REMOVE — ✕ AGAIN', tint: DANGER, fill: 'rgba(248,113,113,0.22)' }
+  if (pack.installed) return { label: '● ON THIS BOX', tint: '#4ade80', fill: 'transparent' }
+  return { label: '○ NOT INSTALLED', tint: 'rgba(255,255,255,0.3)', fill: 'transparent' }
+}
+
+function ConsoleCard({ pack, focused, working, armed, held, onClick }: {
+  pack: CatalogEntry; focused: boolean; working: boolean; armed: boolean
+  held: boolean; onClick: () => void
 }) {
+  const state = cardState(pack, working, armed)
   return (
     <div
       onClick={onClick}
       style={{
         display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
-        borderRadius: 14, cursor: 'pointer', minWidth: 0,
-        background: focused ? 'rgba(124,58,237,0.16)' : 'rgba(255,255,255,0.045)',
-        border: `1px solid ${focused ? 'rgba(124,58,237,0.55)' : 'transparent'}`,
+        borderRadius: 14, cursor: held ? 'default' : 'pointer', minWidth: 0,
+        // Held, and saying so: one action runs at a time box-wide, so every
+        // other card dims rather than offering a press that would 409.
+        opacity: held && !working ? 0.35 : 1,
+        background: armed ? 'rgba(248,113,113,0.14)'
+          : focused ? 'rgba(124,58,237,0.16)' : 'rgba(255,255,255,0.045)',
+        border: `1px solid ${armed ? 'rgba(248,113,113,0.55)'
+          : focused ? 'rgba(124,58,237,0.55)' : 'transparent'}`,
         transition: 'background 120ms ease, border-color 120ms ease',
       }}
     >
@@ -71,17 +96,40 @@ function ConsoleCard({ pack, focused, onClick }: {
           fontSize: 11.5, color: 'rgba(255,255,255,0.45)', marginTop: 2,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{pack.emulatorName}</div>
-        {/* A state, not a button. Installing is still driven from
-            Settings → Emulators & apps, and a card that offered to do it here
-            and did nothing would be the worst of the three options. */}
         <div style={{
           marginTop: 6, fontSize: 10, letterSpacing: '0.08em', fontWeight: 700,
-          color: pack.installed ? '#4ade80' : 'rgba(255,255,255,0.3)',
+          color: state.tint, background: state.fill,
+          padding: state.fill === 'transparent' ? 0 : '2px 6px',
+          borderRadius: 999, width: 'fit-content', maxWidth: '100%',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
-          {pack.installed ? '● ON THIS BOX' : '○ NOT INSTALLED'}
+          {state.label}
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * `gamecore-emu`'s output, while there is any.
+ *
+ * A Flatpak on a slow line is minutes of nothing, and a card that only said
+ * "Working…" for four of them is indistinguishable from one that has hung. The
+ * pane is the same answer the settings page has always given, and it is why
+ * `CATALOG_FAILED` does not have to name a place to look.
+ */
+function RunLog({ lines }: { lines: string[] }) {
+  const endRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [lines])
+  return (
+    <pre style={{
+      margin: '10px 0 0', padding: '8px 10px', maxHeight: '7rem', flexShrink: 0,
+      overflowY: 'auto', fontSize: 11, lineHeight: 1.45, whiteSpace: 'pre-wrap',
+      background: 'rgba(0,0,0,0.35)', borderRadius: 8,
+    }}>
+      {lines.join('\n')}
+      <div ref={endRef} />
+    </pre>
   )
 }
 
@@ -115,8 +163,9 @@ function GamesTab() {
 export default function DefaultStoreView({
   tab, tabs, tabLabels, pageItems, focusIdx, page, pageCount, cols, rows,
   consoles, installedCount, loading, loadError, onTab, onFocus, onPage, onBack,
-  onRetry,
+  onRetry, workingId, busy, armedId, log, actionError, onAct,
 }: StoreViewProps) {
+  const focusedPack = pageItems[focusIdx]
   return (
     <div style={{
       flex: 1, display: 'flex', flexDirection: 'column',
@@ -154,9 +203,10 @@ export default function DefaultStoreView({
         <>
           {/* The placeholder only while there is genuinely nothing to draw. A
               reload — the catalogue answering again after a pack was installed
-              from the settings over this screen — keeps the grid up rather
-              than dropping the player's cursor into a "loading" line and
-              putting it back a moment later. */}
+              — keeps the grid up rather than dropping the player's cursor into
+              a "loading" line and putting it back a moment later. That reload
+              follows every install, so it is the common case, not the rare
+              one. */}
           {loading && pageItems.length === 0 && !loadError && (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
               Loading the catalogue…
@@ -192,11 +242,25 @@ export default function DefaultStoreView({
                   key={pack.id}
                   pack={pack}
                   focused={i === focusIdx}
-                  onClick={() => onFocus(i)}
+                  working={workingId === pack.id}
+                  armed={armedId === pack.id}
+                  held={busy}
+                  // A click both moves the cursor and acts, the way the
+                  // settings list has always behaved under a pointer: the
+                  // second click on an installed pack is the confirmation.
+                  onClick={() => { onFocus(i); onAct(pack) }}
                 />
               ))}
             </div>
           )}
+
+          {actionError && (
+            <div style={{ color: DANGER, fontSize: 12, marginTop: 10, flexShrink: 0 }}>
+              {actionError}
+            </div>
+          )}
+
+          {log.length > 0 && <RunLog lines={log} />}
 
           {!loading && !loadError && consoles.length === 0 && (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}>
@@ -228,10 +292,17 @@ export default function DefaultStoreView({
       }}>
         <span>L1/R1 Tab</span>
         {tab === 'consoles' && <span>← → Navigate</span>}
+        {tab === 'consoles' && !busy && (
+          <span>
+            {armedId ? '✕ remove it · any direction cancels'
+              : focusedPack?.installed ? '✕ remove · △ reconfigure'
+                : '✕ install'}
+          </span>
+        )}
         <span onClick={onBack} style={{ cursor: 'pointer' }}>○ Back</span>
         <div style={{ flex: 1 }} />
-        {tab === 'consoles' && (
-          <span>Installing is still in Settings → Emulators &amp; apps</span>
+        {tab === 'consoles' && busy && (
+          <span>Working — the grid is held until this finishes</span>
         )}
       </div>
     </div>

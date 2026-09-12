@@ -11,20 +11,20 @@
  * guarantees they behave identically: the tabs, the focus, the paging and the
  * gamepad bindings are here, and a theme cannot replace them.
  *
- * ── What this screen reads, and what it deliberately does not ───────────────
- * `GET /api/catalog` — the same list `Settings → Emulators & apps` shows, from
- * the same endpoint, because there is one catalogue and a second copy of it
- * would be a second answer to "is melonDS installed". Nothing here posts: the
- * install and remove routes are still driven from that settings page, and
- * moving them is the next step rather than this one. So the cards carry a
- * state, not a button — a card that offered "Install" and did nothing would be
- * worse than one that says where installing lives.
+ * ── What this screen reads, and what it does with it ────────────────────────
+ * `GET /api/catalog`, filtered to `kind: 'emulator'`. Installing, removing and
+ * reconfiguring a console are done from here — this is the only screen that
+ * does them, the settings keep the four applications and nothing else. None of
+ * that sequence is written in this file: it is `useCatalog` in `lib/catalog.ts`,
+ * the one implementation, which the applications page consumes too. What IS
+ * this file's is the cursor, and therefore the two things the cursor touches —
+ * the order of the list, and which button acts on the row under it.
  */
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useStore } from '../../store'
-import { api, type CatalogEntry } from '../../api'
+import { type CatalogEntry } from '../../api'
 import { onGp } from '../../hooks/useGamepad'
-import { onWsEvent } from '../../hooks/useWebSocket'
+import { useCatalog } from '../../lib/catalog'
 import DefaultStoreView from './DefaultStoreView'
 import { STORE_TABS, STORE_TAB_LABELS, type StoreTab, type StoreViewProps } from './types'
 
@@ -54,9 +54,6 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
   const goHome = useStore(s => s.goHome)
 
   const [tab, setTab] = useState<StoreTab>('consoles')
-  const [consoles, setConsoles] = useState<CatalogEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(false)
   const [focusIdx, setFocusIdx] = useState(0)
   const [page, setPage] = useState(0)
 
@@ -66,33 +63,68 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
   useEffect(() => { modalDepthRef.current = modalDepth }, [modalDepth])
 
   /**
+   * Everything the bindings and the handlers below read at the moment they run,
+   * rather than at the moment they were registered.
+   *
+   * Same fix as HomeScreen and LibraryScreen, written for the same reason: the
+   * d-pad is edge-triggered, so a burst of presses arrives before React has
+   * re-rendered, and every handler closing over the render that registered it
+   * computes the same destination from the same stale cursor. Assigned during
+   * render further down, so they are current from the first press after a
+   * change; declared up here because `onDone` below reads them.
+   *
+   * The cursor is component state here and not the store's — `gridFocusIdx`
+   * belongs to the dashboard, and borrowing it would move the player's tile
+   * while they shopped. So these refs are the live read, where HomeScreen can
+   * use `useStore.getState()`.
+   */
+  const consolesRef = useRef<CatalogEntry[]>([])
+  const focusRef = useRef(focusIdx)
+  const pageRef = useRef(page)
+  const countRef = useRef(0)
+  const pageCountRef = useRef(0)
+  const tabRef = useRef(tab)
+
+  /**
+   * The list after a pack is installed or removed — here or anywhere else.
+   *
+   * The focus is kept by pack id rather than by index: the grid that comes back
+   * is a different grid, and holding position 7 when position 7 is now a
+   * different console moves the player's cursor for them. The pack that has
+   * just been removed is the one case with no answer, and the clamp below
+   * catches it.
+   *
+   * Recorded for a failed run too. A run that failed can still have changed the
+   * list — see `useCatalog`, which re-reads either way — and a cursor is no
+   * less worth keeping still when the news is bad.
+   */
+  const keepFocusOn = useRef<string | null>(null)
+
+  const catalog = useCatalog({
+    kind: 'emulator',
+    onDone: () => {
+      keepFocusOn.current =
+        consolesRef.current[pageRef.current * PER_PAGE + focusRef.current]?.id ?? null
+    },
+  })
+
+  const catalogRef = useRef(catalog)
+  catalogRef.current = catalog
+
+  /**
    * Consoles are the emulator packs, A–Z by label.
    *
-   * The filter is `kind`, which is the pack's own word for what it is: four of
-   * the thirty-five rows are applications and they are somebody else's screen.
    * The order is the label rather than the id the endpoint sorts by, because
    * the cursor walks this list and "Nintendo 64" is what is printed on the card
    * — an A–Z the player can see is the only ordering a d-pad can be steered
-   * through. It is decided here and not in the view for exactly that reason:
-   * the order IS the navigation, so it cannot be a theme's to change.
+   * through. It is decided here and not in `useCatalog` and not in the view for
+   * exactly that reason: the order IS the navigation, so it belongs with the
+   * cursor and cannot be a theme's to change.
    */
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const rows = await api.catalog.list()
-      setConsoles(rows
-        .filter(r => r.kind === 'emulator')
-        .sort((a, b) => a.label.localeCompare(b.label)))
-      setLoadError(false)
-    } catch (e) {
-      console.error(e)
-      setLoadError(true)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { void load() }, [load])
+  const consoles = useMemo(
+    () => [...(catalog.rows ?? [])].sort((a, b) => a.label.localeCompare(b.label)),
+    [catalog.rows],
+  )
 
   // A tab is a different list. Leaving the cursor at card 9 of a tab that has
   // none is a highlight nobody can see.
@@ -103,57 +135,13 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
   const pageCount = Math.ceil(totalItems / PER_PAGE)
   const pageItems = items.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
 
-  /**
-   * Everything the bindings below read at the moment a button is pressed,
-   * rather than at the moment they were registered.
-   *
-   * Same fix as HomeScreen and LibraryScreen, written for the same reason: the
-   * d-pad is edge-triggered, so a burst of presses arrives before React has
-   * re-rendered, and every handler closing over the render that registered it
-   * computes the same destination from the same stale cursor. Written during
-   * render, so they are current from the first press after a change.
-   *
-   * The cursor is component state here and not the store's — `gridFocusIdx`
-   * belongs to the dashboard, and borrowing it would move the player's tile
-   * while they shopped. So these refs are the live read, where HomeScreen can
-   * use `useStore.getState()`.
-   */
-  const consolesRef = useRef(consoles)
-  const focusRef = useRef(focusIdx)
-  const pageRef = useRef(page)
-  const countRef = useRef(totalItems)
-  const pageCountRef = useRef(pageCount)
-  const tabRef = useRef(tab)
+  // The live read the handlers take; see the declarations above.
   consolesRef.current = consoles
   focusRef.current = focusIdx
   pageRef.current = page
   countRef.current = totalItems
   pageCountRef.current = pageCount
   tabRef.current = tab
-
-  /**
-   * The list after a pack is installed or removed from somewhere else.
-   *
-   * Today that is the catalogue page in the settings, which opens as a modal
-   * over this screen and leaves it mounted behind — so without this, coming
-   * out of the settings shows the state the catalogue was in before the
-   * install. The dashboard already listens for the same event, for the same
-   * reason.
-   *
-   * The focus is kept by pack id rather than by index: the grid it lands in is
-   * a different grid, and holding position 7 when position 7 is now a different
-   * console moves the player's cursor for them. The pack that has just been
-   * removed is the one case with no answer, and the clamp below catches it.
-   */
-  const keepFocusOn = useRef<string | null>(null)
-  useEffect(() => {
-    return onWsEvent('catalog:done', (data) => {
-      if ((data as { success?: boolean } | null)?.success === false) return
-      keepFocusOn.current =
-        consolesRef.current[pageRef.current * PER_PAGE + focusRef.current]?.id ?? null
-      void load()
-    })
-  }, [load])
 
   useEffect(() => {
     const id = keepFocusOn.current
@@ -177,6 +165,7 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
   // only cares whether an id is in it.
   const omitNav = !!omit?.includes('nav')
   const omitTabs = !!omit?.includes('tabs')
+  const omitActions = !!omit?.includes('actions')
 
   useEffect(() => {
     const blocked = () =>
@@ -188,8 +177,17 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
     const held = () =>
       Math.max(0, Math.min(PER_PAGE, countRef.current - pageRef.current * PER_PAGE))
 
+    /** The pack under the cursor, or nothing — the Games tab has no cards. */
+    const focused = (): CatalogEntry | undefined =>
+      tabRef.current === 'consoles'
+        ? consolesRef.current[pageRef.current * PER_PAGE + focusRef.current]
+        : undefined
+
     const navigate = (dir: 'up' | 'down' | 'left' | 'right') => {
       if (blocked()) return
+      // Stepping away from an armed removal is how a player says no, and it is
+      // the whole reason the second press is safe to offer.
+      catalogRef.current.disarm()
       const focus = focusRef.current
       const at = pageRef.current
       const onPage = held()
@@ -221,6 +219,7 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
 
     const stepTab = (delta: number) => {
       if (blocked()) return
+      catalogRef.current.disarm()
       const i = STORE_TABS.indexOf(tabRef.current)
       setTab(STORE_TABS[(i + delta + STORE_TABS.length) % STORE_TABS.length])
     }
@@ -246,6 +245,31 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
         onGp('gp:r1', () => stepTab(1)),
       ]),
       /**
+       * ✕ installs, and removes on the second press. △ reconfigures.
+       *
+       * △ and not □: □ is the controller screen and the shell binds it with no
+       * guard at all, so a store that took it would be a store you cannot test
+       * a pad from. △ is free here — the shell's own △ is guarded to the
+       * dashboard, which is the screen it opens this one FROM.
+       *
+       * Both go through `useCatalog`, which holds every card while a run is in
+       * flight and asks twice before a removal. Neither rule is restated here:
+       * a second copy of "is anything running" is how the two settings pages
+       * came to disagree about it.
+       */
+      ...(omitActions ? [] : [
+        onGp('gp:confirm', () => {
+          if (blocked()) return
+          const pack = focused()
+          if (pack) void catalogRef.current.act(pack)
+        }),
+        onGp('gp:y', () => {
+          if (blocked()) return
+          const pack = focused()
+          if (pack) void catalogRef.current.reconfigure(pack)
+        }),
+      ]),
+      /**
        * ○ goes home, and stays with the host whatever a theme declares.
        *
        * The same rule as the library's: a store is a place the player has to
@@ -265,7 +289,7 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
     // need is read live above — a dependency list that changed on each step
     // would tear the listeners down and rebuild them on every press, which is
     // both the stale-cursor bug and needless work per frame.
-  }, [omitNav, omitTabs, goHome])
+  }, [omitNav, omitTabs, omitActions, goHome])
 
   return (
     <View
@@ -281,8 +305,13 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
       rows={ROWS}
       perPage={PER_PAGE}
       installedCount={consoles.filter((c: CatalogEntry) => c.installed).length}
-      loading={loading}
-      loadError={loadError}
+      loading={catalog.loading}
+      loadError={catalog.loadFailed}
+      workingId={catalog.workingId}
+      busy={catalog.busy}
+      armedId={catalog.armedId}
+      log={catalog.log}
+      actionError={catalog.actionError}
       // Downloading arrives with the acquisition steps; until then the tab says
       // so rather than drawing a list that is not there.
       gamesReady={false}
@@ -290,7 +319,9 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
       onFocus={setFocusIdx}
       onPage={(p) => { setPage(p); setFocusIdx(0) }}
       onBack={goHome}
-      onRetry={() => void load()}
+      onRetry={() => void catalog.load()}
+      onAct={(pack) => void catalog.act(pack)}
+      onReconfigure={(pack) => void catalog.reconfigure(pack)}
     />
   )
 }

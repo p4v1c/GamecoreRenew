@@ -15,18 +15,27 @@
  *      colours live on `.gcs-skin-default`, a class the host passes in; drop it
  *      and the screen comes out with a theme's colours or with none.
  */
-import { render, waitFor } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, waitFor, fireEvent, act, cleanup } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { buildSdk } from '../lib/themeSdk'
 import * as defaults from '../components/defaults'
 import SettingsScreen from '../components/modals/SettingsScreen'
 import { POWER_OMIT } from '../components/DefaultShell'
 // `../settings/...`, not `./...`: see index.d.ts — the ambient declarations
 // match on the specifier, and it has to carry the directory name.
-import { createCatalogPage } from '../settings/catalog'
+import { createAppsPage } from '../settings/apps'
 import { createPowerView } from '../settings/power'
 
 const sdk = () => buildSdk('shelf', { selectTheme: vi.fn(async () => {}) })
+
+// Unmount between tests. `globals: true` is deliberately off in the vite config,
+// so testing-library's automatic cleanup never runs and every tree rendered here
+// stayed mounted for the rest of the file. That was invisible while each test
+// only queried its own container — and stopped being invisible the moment one
+// of them dispatched a `gp:*` event, which every still-mounted settings screen
+// answers by switching category and rendering a page against another test's
+// fetch stub.
+afterEach(() => { cleanup() })
 
 beforeEach(() => {
   // Every endpoint answers `{}` — a 200 with the wrong shape, which is what a
@@ -78,7 +87,7 @@ describe('the built-in settings screen', () => {
     // Standby and Update as top-level rows; the rail folds them into System,
     // which is the difference that matters.
     for (const label of ['Wi-Fi', 'Bluetooth', 'Display', 'Audio', 'Controllers',
-                         'Emulators & apps', 'BIOS', 'Themes', 'System']) {
+                         'Applications', 'BIOS', 'Themes', 'System']) {
       expect(rows.some(r => r.includes(label)), `${label} is missing from the rail`).toBe(true)
     }
     expect(rows).toHaveLength(9)
@@ -101,56 +110,109 @@ describe('the built-in settings screen', () => {
   })
 })
 
-describe('the catalogue page', () => {
-  it('draws each pack\'s own logo, not a colour swatch', async () => {
-    const packs = [
-      { id: 'dolphin', label: 'GameCube / Wii', family: 'Nintendo', color: '#6C4FD6',
-        emulatorName: 'Dolphin', installed: true, logo: 'assets/logos/dolphin.png' },
-      // Same family on purpose: the page opens the first maker group and
-      // leaves the rest shut, so a second family would be collapsed and this
-      // would be asserting on a row nobody rendered.
-      { id: 'melonds', label: 'Nintendo DS', family: 'Nintendo', color: '#8B8992',
-        emulatorName: 'melonDS', installed: false, logo: 'assets/logos/melonds.png' },
-    ]
+describe('the applications page', () => {
+  /** Two apps and an emulator: the emulator is the assertion, not scenery. */
+  const CATALOGUE = [
+    { id: 'steam', kind: 'app', label: 'Steam', family: '', color: '#123456',
+      emulatorName: 'Steam', description: 'Big Picture', installed: true,
+      logo: 'assets/logos/steam.png', origin: 'shipped', restricted: [] },
+    { id: 'youtube', kind: 'app', label: 'YouTube', family: '', color: '#abcdef',
+      emulatorName: '', description: '', installed: false,
+      logo: null, origin: 'shipped', restricted: [] },
+    { id: 'dolphin', kind: 'emulator', label: 'GameCube / Wii', family: 'Nintendo',
+      color: '#6C4FD6', emulatorName: 'Dolphin', description: '', installed: true,
+      logo: 'assets/logos/dolphin.png', origin: 'shipped', restricted: [] },
+  ]
+
+  const mount = async (rows: unknown[] = CATALOGUE) => {
     vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) =>
       ({ ok: true, status: 200, statusText: 'OK',
-         json: async () => (String(url).endsWith('/api/catalog') ? packs : {}) })))
-
-    const Page = createCatalogPage(sdk()) as React.ComponentType<{ active: boolean; onLeave: () => void }>
+         json: async () => (String(url).endsWith('/api/catalog') ? rows : {}) })))
+    const Page = createAppsPage(sdk()) as React.ComponentType<{ active: boolean; onLeave: () => void }>
     const { container } = render(<Page active onLeave={() => {}} />)
+    await waitFor(() => expect(container.querySelector('.gcs-pack')).toBeTruthy())
+    return container
+  }
 
-    // Every group opens shut, so the rows have to be unfolded before there is
-    // anything to look at.
-    await waitFor(() => expect(container.querySelector('.gcs-grp')).toBeTruthy())
-    ;(container.querySelector('.gcs-grp') as HTMLElement).click()
-    await waitFor(() => expect(container.querySelectorAll('img').length).toBe(2))
+  const packs = (c: HTMLElement) => [...c.querySelectorAll('.gcs-pack')] as HTMLElement[]
+  const button = (row: HTMLElement) => row.querySelector('.gcs-pack-btn')?.textContent?.trim()
+
+  it('lists the applications and not the consoles', async () => {
+    // The whole point of the split. This page used to show all thirty-five
+    // packs behind an accordion of makers; the consoles are the Store's now,
+    // and a page still offering to install Dolphin would be two screens
+    // racing the one backend lock.
+    const c = await mount()
+    expect(packs(c)).toHaveLength(2)
+    expect(c.textContent).toContain('Steam')
+    expect(c.textContent).toContain('YouTube')
+    expect(c.textContent).not.toContain('GameCube')
+    // …and it is a flat list: no group headers left to unfold.
+    expect(c.querySelectorAll('.gcs-grp')).toHaveLength(0)
+  })
+
+  it('counts only the applications in its heading', async () => {
+    const c = await mount()
+    // Not "2/3": the emulator in the answer belongs to another screen, and a
+    // heading that counted it would be reporting on packs this page cannot
+    // touch.
+    expect(c.querySelector('.gcs-wifi-state')?.textContent).toBe('1/2 INSTALLED')
+  })
+
+  it("draws each pack's own logo, and keeps the swatch for one with none", async () => {
+    const c = await mount()
     // Absolute, because the row is rendered inside a settings screen that has
     // no base path of its own — a relative `assets/...` would resolve against
     // whatever route the front end happens to be on.
-    expect([...container.querySelectorAll('img')].map(i => i.getAttribute('src')))
-      .toEqual(['/assets/logos/dolphin.png', '/assets/logos/melonds.png'])
+    expect([...c.querySelectorAll('img')].map(i => i.getAttribute('src')))
+      .toEqual(['/assets/logos/steam.png'])
+    // The swatch is still the honest answer when there is no artwork: no image
+    // request, no broken-image glyph, the colour the pack declares.
+    const dots = [...c.querySelectorAll('.gcs-pack-dot')] as HTMLElement[]
+    expect(dots[1].getAttribute('data-logo')).toBeNull()
+    expect(dots[1].style.background).toBe('rgb(171, 205, 239)')   // #abcdef
   })
 
-  it('keeps the colour swatch for a pack that ships no logo', async () => {
-    const packs = [{ id: 'nologo', label: 'Something', family: 'Other', color: '#123456',
-                     emulatorName: '', installed: false, logo: null }]
+  it('asks twice before it removes something', async () => {
+    // This page removed on ONE press of ✕, on whatever row the cursor happened
+    // to be sitting, for as long as it existed. The arm-then-confirm rule lives
+    // in `useCatalog` now, so it arrived here with the shared hook.
+    const c = await mount()
+    const posts = () => vi.mocked(fetch).mock.calls
+      .filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST')
+
+    fireEvent.click(packs(c)[0])                       // Steam, installed
+    await waitFor(() => expect(button(packs(c)[0])).toBe('Confirm?'))
+    expect(posts()).toHaveLength(0)
+
+    fireEvent.click(packs(c)[0])
+    await waitFor(() => expect(posts()).toHaveLength(1))
+    expect(String(posts()[0][0])).toContain('/catalog/steam/remove')
+  })
+
+  it('installs on the first press, because installing is not destructive', async () => {
+    const c = await mount()
+    fireEvent.click(packs(c)[1])                       // YouTube, not installed
+    await waitFor(() => {
+      const posts = vi.mocked(fetch).mock.calls
+        .filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST')
+      expect(posts).toHaveLength(1)
+      expect(String(posts[0][0])).toContain('/catalog/youtube/install')
+    })
+  })
+
+  it('says so rather than drawing an empty list when there are no apps', async () => {
+    // A box whose only packs are consoles. Not an empty panel: an empty panel
+    // reads as a page that failed to load, which is the sentence this screen
+    // may least afford to say by accident.
     vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) =>
       ({ ok: true, status: 200, statusText: 'OK',
-         json: async () => (String(url).endsWith('/api/catalog') ? packs : {}) })))
-
-    const Page = createCatalogPage(sdk()) as React.ComponentType<{ active: boolean; onLeave: () => void }>
+         json: async () => (String(url).endsWith('/api/catalog') ? [CATALOGUE[2]] : {}) })))
+    const Page = createAppsPage(sdk()) as React.ComponentType<{ active: boolean; onLeave: () => void }>
     const { container } = render(<Page active onLeave={() => {}} />)
-
-    // The swatch is what this screen showed for every row before, and it is
-    // still the honest answer when there is no artwork: no image request, no
-    // broken-image glyph, the colour the pack declares.
-    await waitFor(() => expect(container.querySelector('.gcs-grp')).toBeTruthy())
-    ;(container.querySelector('.gcs-grp') as HTMLElement).click()
-    await waitFor(() => expect(container.querySelector('.gcs-pack-dot')).toBeTruthy())
-    expect(container.querySelector('img')).toBeNull()
-    const dot = container.querySelector('.gcs-pack-dot') as HTMLElement
-    expect(dot.getAttribute('data-logo')).toBeNull()
-    expect(dot.style.background).toBe('rgb(18, 52, 86)')   // #123456
+    await waitFor(() =>
+      expect(container.textContent).toContain('No application packs are installed'))
+    expect(container.querySelectorAll('.gcs-pack')).toHaveLength(0)
   })
 })
 
@@ -187,59 +249,77 @@ describe('the built-in power menu', () => {
   })
 })
 
-describe('the catalogue accordion', () => {
+describe('the applications list, walked with the pad', () => {
   const CATALOGUE = [
-    { id: 'azahar', label: 'Nintendo 3DS', family: 'Nintendo', color: '#a', emulatorName: 'Azahar', installed: true, logo: 'assets/logos/azahar.png' },
-    { id: 'dolphin', label: 'GameCube / Wii', family: 'Nintendo', color: '#b', emulatorName: 'Dolphin', installed: true, logo: 'assets/logos/dolphin.png' },
-    { id: 'melonds', label: 'Nintendo DS', family: 'Nintendo', color: '#c', emulatorName: 'melonDS', installed: false, logo: 'assets/logos/melonds.png' },
-    { id: 'pcsx2', label: 'PlayStation 2', family: 'Sony', color: '#d', emulatorName: 'PCSX2', installed: true, logo: 'assets/logos/pcsx2.png' },
-    { id: 'ppsspp', label: 'PSP', family: 'Sony', color: '#e', emulatorName: 'PPSSPP', installed: false, logo: 'assets/logos/ppsspp.png' },
+    { id: 'steam', kind: 'app', label: 'Steam', family: '', color: '#a',
+      emulatorName: 'Steam', description: '', installed: true,
+      logo: 'assets/logos/steam.png', origin: 'shipped', restricted: [] },
+    { id: 'stremio', kind: 'app', label: 'Stremio', family: '', color: '#b',
+      emulatorName: 'Stremio', description: '', installed: false,
+      logo: 'assets/logos/stremio.png', origin: 'shipped', restricted: [] },
+    { id: 'youtube', kind: 'app', label: 'YouTube', family: '', color: '#c',
+      emulatorName: 'YouTube', description: '', installed: false,
+      logo: 'assets/logos/youtube.png', origin: 'shipped', restricted: [] },
   ]
 
   const mount = async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) =>
       ({ ok: true, status: 200, statusText: 'OK',
          json: async () => (String(url).endsWith('/api/catalog') ? CATALOGUE : {}) })))
-    const Page = createCatalogPage(sdk()) as React.ComponentType<{ active: boolean; onLeave: () => void }>
+    const Page = createAppsPage(sdk()) as React.ComponentType<{ active: boolean; onLeave: () => void }>
     const { container } = render(<Page active onLeave={() => {}} />)
-    await waitFor(() => expect(container.querySelectorAll('.gcs-grp').length).toBe(2))
+    await waitFor(() => expect(container.querySelectorAll('.gcs-pack').length).toBe(3))
     return container
   }
 
-  const groups = (c: HTMLElement) => [...c.querySelectorAll('.gcs-grp')] as HTMLElement[]
+  const packs = (c: HTMLElement) => [...c.querySelectorAll('.gcs-pack')] as HTMLElement[]
   const focused = (c: HTMLElement) =>
-    [...c.querySelectorAll('.gcs-grp, .gcs-pack')].find(e => e.getAttribute('data-on') === '1')
+    packs(c).find(e => e.getAttribute('data-on') === '1')
+  const press = (event: string) =>
+    act(() => { window.dispatchEvent(new CustomEvent(event)) })
 
-  it('opens with every group shut', async () => {
+  it('opens on the first row, with nothing folded away', async () => {
+    // The accordion this replaced opened with every group shut, which was the
+    // right answer for twenty systems behind five makers. Three applications
+    // are not a wall, and a fold in front of them would be one press between
+    // the player and everything on the page.
     const c = await mount()
-    // It used to force the first maker open, which picked a manufacturer for
-    // the player and pushed the rest below the fold. The `installed / total`
-    // count on each header is what says a shut list is not an empty one.
-    expect(groups(c).every(g => g.getAttribute('data-open') === '0')).toBe(true)
-    expect(c.querySelectorAll('.gcs-pack')).toHaveLength(0)
-    expect(groups(c)[0].textContent).toContain('2 / 3')
+    expect(focused(c)).toBe(packs(c)[0])
+    expect(c.querySelectorAll('.gcs-grp')).toHaveLength(0)
   })
 
-  it('leaves the cursor on the group it just opened', async () => {
+  it('walks the rows on the d-pad and wraps at the end', async () => {
     const c = await mount()
-    groups(c)[0].click()                       // Nintendo open, 3 systems shown
-    await waitFor(() => expect(c.querySelectorAll('.gcs-pack')).toHaveLength(3))
-
-    // Sony sits at flat index 4 while Nintendo is open, and at 1 once Nintendo
-    // shuts behind it. Opening it used to reset the cursor to 0 — the top of
-    // the page — so reaching what you had just unfolded meant pressing down
-    // again for every group above it.
-    groups(c)[1].click()
-    await waitFor(() => expect(c.querySelectorAll('.gcs-pack')).toHaveLength(2))
-    expect(focused(c)).toBe(groups(c)[1])
+    press('gp:dpad-down')
+    await waitFor(() => expect(focused(c)).toBe(packs(c)[1]))
+    press('gp:dpad-up')
+    await waitFor(() => expect(focused(c)).toBe(packs(c)[0]))
+    press('gp:dpad-up')
+    await waitFor(() => expect(focused(c)).toBe(packs(c)[2]))
   })
 
-  it('leaves the cursor on the group it just shut', async () => {
+  it('disarms a removal when the cursor steps away', async () => {
     const c = await mount()
-    groups(c)[1].click()
-    await waitFor(() => expect(c.querySelectorAll('.gcs-pack')).toHaveLength(2))
-    groups(c)[1].click()
-    await waitFor(() => expect(c.querySelectorAll('.gcs-pack')).toHaveLength(0))
-    expect(focused(c)).toBe(groups(c)[1])
+    press('gp:confirm')                                  // Steam, installed
+    await waitFor(() => expect(c.textContent).toContain('Confirm?'))
+    press('gp:dpad-down')
+    await waitFor(() => expect(c.textContent).not.toContain('Confirm?'))
+    // …and the step really did cancel it, rather than only stop saying so.
+    const posts = vi.mocked(fetch).mock.calls
+      .filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST')
+    expect(posts).toHaveLength(0)
+  })
+
+  it('leaves on ○ and on ←, the way every page on this rail does', async () => {
+    const onLeave = vi.fn()
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) =>
+      ({ ok: true, status: 200, statusText: 'OK',
+         json: async () => (String(url).endsWith('/api/catalog') ? CATALOGUE : {}) })))
+    const Page = createAppsPage(sdk()) as React.ComponentType<{ active: boolean; onLeave: () => void }>
+    render(<Page active onLeave={onLeave} />)
+    await waitFor(() => expect(onLeave).not.toHaveBeenCalled())
+    press('gp:back')
+    press('gp:dpad-left')
+    expect(onLeave).toHaveBeenCalledTimes(2)
   })
 })
