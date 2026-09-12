@@ -22,13 +22,13 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
     dangerouslySetInnerHTML=${{__html: d}} />`
 
   function GameCard({systemId, filename, title, favourite, held, onOpen, active,
-                     refFn, onSelect}) {
+                     refFn, onSelect, onRatio}) {
     return html`<button className=${`library-card ${active ? 'selected' : ''}`} ref=${refFn}
       data-active=${active ? 'true' : 'false'} aria-current=${active ? 'true' : undefined}
       onFocus=${onSelect} onClick=${onOpen}>
       <span className="library-cover">
         <${Jacket} key=${`${systemId}:${filename}`} className="library-jacket"
-          systemId=${systemId} filename=${filename} title=${title} />
+          systemId=${systemId} filename=${filename} title=${title} onRatio=${onRatio} />
         ${favourite ? html`<span className="cover-heart" aria-label="Favourite">${svg(HEART)}</span>` : null}
         ${held ? html`<span className="session-badge">IN BACKGROUND</span>` : null}
       </span>
@@ -43,6 +43,26 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
     const [favouritesOnly, setFavouritesOnly] = useState(false)
     const [, bump] = useState(0)
     const grid = useRef(null)
+    // The shape of the SHELF, measured once per console.
+    //
+    // Every cell reserved a 2:3 portrait, which is right for a Switch case and
+    // wrong for everything else: a Game Boy box is nearly square and a
+    // Nintendo 64 carton is landscape, so each row carried a band of empty
+    // space as tall as the difference. 3.6.19 made the frame hug the artwork,
+    // which fixed the border and left the band.
+    //
+    // Letting each card size itself is the thing the fixed cell was protecting
+    // against — "changing every card's grid geometry as hundreds of cached
+    // images decode stalls pad navigation on larger libraries". But a console's
+    // boxes are all the same shape, and a library view is one console, so ONE
+    // ratio describes the whole grid: the wall relayouts once, when the first
+    // jacket decodes, and never again.
+    //
+    // The ref is what makes it once. State alone would take whichever picture
+    // decoded last and move the wall under the player's thumb every time a
+    // scraped cover arrived a few pixels off its neighbour.
+    const shelf = useRef(null)
+    const [shelfRatio, setShelfRatio] = useState(null)
     const root = useRef(null)
     const [details, setDetails] = useState(null)
     const [summary, setSummary] = useState(null)
@@ -53,6 +73,12 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
 
     useEffect(() => onFavouritesChange(() => bump((n) => n + 1)), [])
     useEffect(() => {tabs.rememberSystem(systemId)}, [systemId])
+    useEffect(() => {shelf.current = null; setShelfRatio(null)}, [systemId])
+    const noteShelf = ratio => {
+      if (shelf.current !== null) return
+      shelf.current = ratio
+      setShelfRatio(ratio)
+    }
 
     const source = game => game?.system_id || systemId
     const identity = game => game ? `${source(game)}:${game.filename}` : ''
@@ -163,14 +189,16 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
                 : 'Add games to this console to see them here.'}</p>
             ${favouritesOnly ? html`<button className="primary-button"
               onClick=${() => setFavouritesOnly(false)}>Show every game</button>` : null}</div>`
-        : html`<div className="library-grid" ref=${grid}>
+        : html`<div className="library-grid" ref=${grid}
+                    style=${shelfRatio ? {'--jacket-ratio': String(shelfRatio)} : null}>
             ${shown.map((game) => html`<${GameCard} key=${identity(game)}
               systemId=${source(game)} filename=${game.filename} title=${title(game)}
               favourite=${isFavourite(source(game), game.filename)}
               held=${!!sessions.heldMatch(background, game.filename, source(game))}
               active=${identity(game) === selectedFile}
               onSelect=${() => onSelect(games.indexOf(game))}
-              onOpen=${() => openGame(game)} />`)}
+              onOpen=${() => openGame(game)}
+              onRatio=${systemId === '__all__' ? null : noteShelf} />`)}
           </div>`}
 
       ${details ? html`<${Details} game=${details} onClose=${() => setDetails(null)} onPlay=${play} />` : null}
