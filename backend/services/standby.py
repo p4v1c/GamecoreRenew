@@ -11,11 +11,20 @@ gamepad_monitor):
 Any controller button exits both stages (DPMS on, governor restored,
 ws "standby:exit"). A running game blocks the whole machine.
 
-Controller input is ALSO reported to the desktop session, via
-_signal_user_activity(). That is not a duplicate of the above: on a Plasma
-box the session's own power manager blanks the screen on a timer of its own,
-and it cannot see a gamepad — libinput does not handle joystick devices. The
-two mechanisms cover different halves and neither replaces the other.
+None of which is enough on its own, because GameCore is not the only thing on
+the box with an idle timer, and the others cannot see a gamepad at all —
+libinput does not handle joystick devices, and the X server does not count
+`ID_INPUT_JOYSTICK` as input. Two more mechanisms, covering different halves:
+
+  · `_signal_user_activity()` reports controller input to the desktop
+    session's screensaver service. Plasma on Wayland only — GameCore's own
+    session has nothing that owns `org.freedesktop.ScreenSaver`, so there it
+    cannot land and is not what holds the screen up.
+  · `desktop_power.claim()` takes the idle timers themselves — PowerDevil's
+    screen-off and the X server's screen saver and DPMS delays — so that the
+    number the owner set from the sofa is the only one that decides. That is
+    the one that fixed a film going dark mid-play in GameCore's own session.
+    Re-asserted from `_tick`: see `_ensure_timers_owned()`.
 
 Governor switching uses `sudo -n cpupower` — best effort: without a
 sudoers rule it silently does nothing (the big saving is the screen).
@@ -27,6 +36,7 @@ import logging
 import os
 import time
 
+from . import desktop_power
 from .paths import config_dir
 from .process_manager import display_env
 from .session import kscreen_available, wayland_env
@@ -66,6 +76,21 @@ _WAKE_AFTER_SILENCE = 60.0
 # pushes it forward every fifteen seconds while a game runs, so after a long
 # cutscene it would report a silence of zero and no press would ever wake.
 _last_press = 0.0
+
+# Said once, not per call: see _signal_user_activity().
+_activity_signal_reported = False
+
+# The claim on the box's idle timers cannot be made at startup and left there.
+# The backend is a SYSTEM service: it starts at boot, before any session
+# exists, so the one attempt in main._settle_the_screen() runs against no
+# session at all and finds nothing to claim. Measured on the box — boot at
+# 07:39:06, the session's compositor at 07:39:20 — and it is not a race that
+# waiting would fix: the box switches between its own session and the desktop,
+# and each switch is a new X server with its timers back at the default. So it
+# is re-asserted from the watcher, which is the one thing here that runs for as
+# long as the box does.
+_CLAIM_RETRY_SECS = 60.0
+_last_claim_attempt = 0.0
 
 # state: "active" | "screensaver" | "sleep"
 _state = "active"
@@ -136,13 +161,21 @@ def _reported_nothing_done(text: str) -> bool:
     return any(marker in text for marker in _INERT_OUTPUT)
 
 
-async def _run_cmd(*argv: str, env: dict | None = None) -> bool:
+async def _run_cmd(*argv: str, env: dict | None = None, quiet: bool = False) -> bool:
     """Run a command, and be honest about whether it did anything.
 
     THE choke point through which standby leaves the process — the test suite
     neutralises this one function to keep itself off a real machine
     (tests/conftest.py). Keep it that way: a second way out is a second thing
     to remember.
+
+    `quiet=True` drops the failure line to DEBUG, for the callers that run on a
+    timer and whose failure is a legitimate state rather than news. Measured on
+    the box before it existed: the session-activity signal cannot be delivered
+    in GameCore's own session — nothing there owns `org.freedesktop.ScreenSaver`
+    — and its failure was logged at INFO from `_tick`, so the journal took one
+    identical line every fifteen seconds for the whole of every game. Seventy
+    minutes of Ryujinx is two hundred and eighty of them.
     """
     try:
         if env is None:
@@ -161,8 +194,9 @@ async def _run_cmd(*argv: str, env: dict | None = None) -> bool:
         out, _ = await proc.communicate()
         text = out.decode(errors="replace")
         if proc.returncode != 0:
-            log.info("standby: %s exited %s — %s",
-                     argv[0], proc.returncode, " ".join(text.split())[:200])
+            (log.debug if quiet else log.info)(
+                "standby: %s exited %s — %s",
+                argv[0], proc.returncode, " ".join(text.split())[:200])
             return False
         if _reported_nothing_done(text):
             log.warning("standby: %s reported success but did nothing — %s",
@@ -229,15 +263,28 @@ async def _signal_user_activity() -> None:
     and lifts a screen already blanked, which is exactly the pair of things a
     button press is supposed to do.
     """
+    global _activity_signal_reported
     if not await _run_cmd(
             "gdbus", "call", "--session",
             "--dest", "org.freedesktop.ScreenSaver",
             "--object-path", "/org/freedesktop/ScreenSaver",
-            "--method", "org.freedesktop.ScreenSaver.SimulateUserActivity"):
-        # Best effort, and deliberately quiet at INFO: a box with no session bus
-        # (headless, a test, X11 without a screensaver service) is a legitimate
-        # state, and this runs off every button press.
-        log.debug("standby: could not signal user activity to the session")
+            "--method", "org.freedesktop.ScreenSaver.SimulateUserActivity",
+            quiet=True):
+        # Best effort: a box with no session bus (headless, a test, X11 without
+        # a screensaver service) is a legitimate state, and this runs off every
+        # button press. GameCore's OWN session is one of them — it is an X11
+        # session with kwin_x11 and no PowerDevil, and nothing there owns
+        # `org.freedesktop.ScreenSaver` at all, so this can never land. What
+        # keeps the screen up there is desktop_power's X arm, not this.
+        #
+        # Said once rather than never: silence made it impossible to tell a
+        # signal that was landing from one that was refused every time, and
+        # said per call it was one journal line every fifteen seconds.
+        if not _activity_signal_reported:
+            _activity_signal_reported = True
+            log.info("standby: no session screensaver service answers here — "
+                     "the X server's own idle timers are what hold the screen "
+                     "up (see desktop_power)")
 
 
 async def _governor(gov: str) -> None:
@@ -339,6 +386,27 @@ def on_input() -> None:
         _spawn(_screen(True))
 
 
+async def _ensure_timers_owned() -> None:
+    """Re-assert GameCore's claim on the box's idle timers, at most once a minute.
+
+    A function so the watcher does not have to know how the claim works, and so
+    a test can watch how often it is attempted. `claim()` is idempotent and
+    reads before it writes, so an already-claimed box costs one read per minute
+    and changes nothing.
+    """
+    global _last_claim_attempt
+    now = time.monotonic()
+    if now - _last_claim_attempt < _CLAIM_RETRY_SECS:
+        return
+    _last_claim_attempt = now
+    try:
+        await desktop_power.claim()
+    except Exception:
+        # Never at the expense of the tick that follows it: the screensaver and
+        # sleep stages are what the player actually notices.
+        log.exception("standby: could not claim the box's idle timers")
+
+
 async def _tick(cfg: dict) -> None:
     """One pass of the watcher. A function so a test can ask for one.
 
@@ -358,6 +426,10 @@ async def _tick(cfg: dict) -> None:
         # because it believed nobody had touched it since lunchtime.
         _last_input = time.monotonic()
         return
+    # Before the foreground return below, and that is the whole point: a game
+    # running is exactly when the box's own idle timers must already be held,
+    # and it is also the branch that returns early.
+    await _ensure_timers_owned()
     if process_manager.is_foreground:
         # A game counts as activity — idle starts when it exits.
         #
@@ -382,6 +454,13 @@ async def _tick(cfg: dict) -> None:
         # restarted backend, leaving a box that never sleeps again. That failure
         # is silent and permanent; this one is neither. If the watcher stops,
         # the box simply goes back to sleeping normally.
+        #
+        # It is a best effort and not the protection, which is what the report
+        # of a film going dark mid-play settled: in GameCore's own session
+        # nothing owns `org.freedesktop.ScreenSaver`, so this lands nowhere and
+        # the journal said so fifteen times a minute for seventy minutes of
+        # Ryujinx. What actually holds the screen up is having taken the timers
+        # themselves — `_ensure_timers_owned()` above.
         _last_activity_signal = _last_input
         await _signal_user_activity()
         return

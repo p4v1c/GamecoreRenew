@@ -147,9 +147,36 @@ HUD instead, because the React toast is hidden under the emulator.
 | `exit_standby()` | wake — **unconditional** |
 | `resume_after_restart()` | called from the lifespan; forces the screen on at startup |
 | `on_input()` | called from the evdev loop on any controller button |
+| `_ensure_timers_owned()` | re-asserts `desktop_power.claim()`, at most once a minute |
 | `run()` | the idle poll loop |
 
-A running game blocks standby entirely.
+A running game blocks standby entirely — GameCore's standby, which is not the
+only one on the box.
+
+**Blocking GameCore's own standby is not enough, and a film going dark mid-play
+is how that was found.** Nothing in the journal accused the watcher, and it was
+innocent: Stremio for 27 minutes, melonDS for 43, Ryujinx for 74, and not one
+`active → screensaver` in any of them. What blanked the television was the
+**X server**. GameCore's session is an X11 session
+(`/usr/share/xsessions/gamecore.desktop` → `gamecore-session` → `kwin_x11`) and
+PowerDevil is not running in it, but a real X server is — with its own screen
+saver and its own DPMS delays, which nothing ever reset: a DualShock 4's buttons
+are tagged `ID_INPUT_JOYSTICK`, which the X server does not count as input, so a
+film in a kiosk browser is perfect silence to it.
+
+`_signal_user_activity()` cannot cover that. It speaks to
+`org.freedesktop.ScreenSaver`, which in GameCore's own session **nobody owns** —
+the box said `ServiceUnknown: The name is not activatable` fifteen times a
+minute for the whole of every game. It is a best effort for the desktop session,
+not the protection.
+
+What protects it is `desktop_power.claim()`, which takes the idle timers
+themselves (both arms: PowerDevil's screen-off *and* `xset s` / `xset dpms`).
+That claim cannot be made once at startup and left: the backend is a **system**
+service and starts at boot, before any session exists — boot at 07:39:06, the
+session's compositor at 07:39:20 — and each switch between GameCore's session
+and the desktop is a new X server with its delays back at the default. So
+`_tick()` re-asserts it, before the early return it takes for a foreground game.
 
 **The state is in memory; its effect is not.** `xset dpms force off` is a
 property of the X server, and X belongs to SDDM — it does not restart with the
