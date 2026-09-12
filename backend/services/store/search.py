@@ -2,8 +2,10 @@
 
 Three things live here and nothing else: the console a search is scoped to
 (`SearchSystem`), what a search comes back with (`SearchResult`), and the
-interface a provider implements (`SearchProvider`). The only implementation
-shipped today is the demo one beside this file.
+interface a provider implements (`SearchProvider`). Two implementations sit
+beside this file: `demo.py`, which invents its rows and says so, and
+`prowlarr.py`, which queries an indexer aggregator the box owner runs
+themselves — GameCore never installs, manages or removes it.
 
 ── Why a search is scoped to one console ──────────────────────────────────
 A player picks a system first and searches inside it. That is not a UI
@@ -21,8 +23,32 @@ preference, it is what makes the rest of the Store possible:
 
 So `SearchSystem` is an argument to `search()` rather than something a result
 carries back, and a provider is handed the pack's own declared extensions:
-that is how the demo provider below offers formats this console can actually
-hold, and how a real one will filter what an indexer hands it.
+that is how the demo provider offers formats this console can actually hold,
+and how the Prowlarr one filters what an indexer hands it.
+
+── What a console has to carry for an indexer to be queried ───────────────
+The question step 10 had to answer: is the pack enough to build an indexer
+request from? Almost. Two things are needed and only one of them was here.
+
+  · **Names the console goes by.** Derivable, and derived in the provider
+    rather than stored: `platform` and `label` between them already spell every
+    console twice — `N64`/`Nintendo 64`, `PS1`/`PlayStation`, `SNES`/`Super
+    Nintendo`. They are *display* strings, so they need splitting: `/` joins
+    two machines on four packs (`GameCube / Wii`, `Sega Mega Drive / Genesis`)
+    and parentheses hold a second name on one (`Arcade (MAME)`). That is a
+    deterministic split over shipped data, so nothing new is stored for it.
+  · **Which of its extensions name it and it alone** — `unique_suffixes`, the
+    field added for this. NOT derivable from a single pack: `.z64` is declared
+    by `gopher64` and nobody else, while `.iso` is declared by nine packs, and
+    a pack cannot see the other thirty. So a release named `… .iso` is not
+    evidence of a PlayStation 1 game, and a provider handed only this console
+    would have had to carry a hand-written list of which extensions are
+    distinctive — a per-system table, which is exactly the thing matrix §5.2
+    notes this design does not need anywhere else.
+
+Both feed one rule, which is the rule the third bullet above demands: a result
+is kept only when something about it names *this* console. No evidence is a
+drop, not a guess.
 
 ── Why only installed consoles are searchable ─────────────────────────────
 `searchable_systems()` joins the catalogue against `config/systems.json`.
@@ -36,6 +62,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -43,6 +70,15 @@ from ..catalog import load_catalog
 from ..paths import config_dir
 
 log = logging.getLogger(__name__)
+
+#: Suffixes a provider must neither offer nor recognise. One entry: `*.cmd` is
+#: declared by `catalog/mame/pack.json` and explained nowhere in this
+#: repository, and matrix §6.4 is explicit that until somebody knows what it is
+#: "the Store should neither produce nor rewrite one". It lives here rather
+#: than in one provider because both of them need it and for the same reason —
+#: the demo one must not invent a `.cmd` row, and the Prowlarr one must not
+#: accept a release as an arcade romset *because* it is named one.
+NEVER_OFFERED = ("cmd",)
 
 
 @dataclass(frozen=True)
@@ -66,6 +102,16 @@ class SearchSystem:
     extensions: tuple[str, ...] = ()
     #: `roms.scanDirs` — the game is a directory, not a file (matrix §5.1 F).
     scan_dirs: bool = False
+    #: The bare suffixes **no other pack in the catalogue declares**, so a
+    #: release named with one names this console and no other.
+    #:
+    #: Catalogue-wide and not box-wide on purpose: `.iso` is not evidence of a
+    #: PlayStation 1 game on a box where `duckstation` happens to be the only
+    #: console installed. That is a property of the format, not of the grid.
+    #:
+    #: This is the one thing the pack cannot answer on its own and the reason
+    #: this field exists — see the module note below.
+    unique_suffixes: tuple[str, ...] = ()
 
     @property
     def suffixes(self) -> tuple[str, ...]:
@@ -101,8 +147,17 @@ class SearchResult:
     title: str
     #: The name the download would arrive under, extension included.
     filename: str
-    #: The bare suffix (`"zip"`, `"chd"`), or `"folder"` on a `scanDirs`
-    #: console where the game is a directory and has no extension at all.
+    #: The bare suffix (`"zip"`, `"chd"`); `"folder"` on a `scanDirs` console
+    #: where the game is a directory and has no extension at all; or **empty
+    #: when the source does not say**.
+    #:
+    #: Empty is not a defect to be filled in with a plausible guess. An indexer
+    #: lists *releases*, and a release named "Zelda - Ocarina of Time (USA)"
+    #: names no format at all — the bytes decide, and the bytes have not been
+    #: fetched. Guessing here would put the guess in the one field matrix §5.1
+    #: keys its class predicates on, which is the design bug the matrix opens
+    #: by naming. The demo provider never emits it, because it invents the file
+    #: and therefore does know.
     format: str
     #: Bytes. `0` when the source does not say — not a small download.
     size: int
@@ -158,40 +213,91 @@ class SearchProvider(Protocol):
                      limit: int = 40) -> list[SearchResult]:
         ...
 
+    # Optional. A provider that needs credentials answers False until it has
+    # them, and `get_provider()` then hands back the demo one instead of a
+    # provider that can only fail. It is not in the Protocol body because the
+    # demo provider genuinely has nothing to be configured about, and a method
+    # it would have to implement to return True is a method that exists to
+    # satisfy a type checker.
+    #
+    #     @classmethod
+    #     def configured(cls) -> bool: ...
+
 
 # ── which provider this box uses ───────────────────────────────────────────
 #
-# One entry today, and the environment variable is what a later step adds a
-# second to. There is no secret store here and no settings row: a provider
-# that needs a URL and a key is step 10's problem, and building the store for
-# it now would be an abstraction with nothing behind it.
+# Two entries, and **configuration is the switch**. With no variable set, a box
+# uses the first provider that says it is ready; the demo one always is, and
+# says out loud that its rows are invented. Writing
+# `config/store-prowlarr.json` is therefore the whole of "turn the real Store
+# on", which matters because the alternative — an environment variable — lives
+# in a systemd unit the owner would have to edit and an OTA could replace.
+#
+# `GAMECORE_STORE_SEARCH_PROVIDER` stays, and it now overrides in both
+# directions: it names a provider, and naming `demo` on a configured box is how
+# the real one is turned off again without deleting the credentials.
 
 _ENV = "GAMECORE_STORE_SEARCH_PROVIDER"
 DEFAULT_PROVIDER = "demo"
 
 
 def _providers() -> dict[str, type]:
-    # Imported here rather than at module scope: the demo provider imports
-    # this file for its own types, and a top-level import would close the loop.
+    # Imported here rather than at module scope: both providers import this
+    # file for their own types, and a top-level import would close the loop.
+    #
+    # Insertion order is the autodetect order, so it is not incidental: the
+    # demo provider is last, because it is what is left when nothing else is
+    # configured rather than something a box would pick over a real indexer.
     from .demo import DemoSearchProvider
+    from .prowlarr import ProwlarrSearchProvider
 
-    return {DemoSearchProvider.name: DemoSearchProvider}
+    return {ProwlarrSearchProvider.name: ProwlarrSearchProvider,
+            DemoSearchProvider.name: DemoSearchProvider}
+
+
+def _ready(cls: type) -> bool:
+    """Whether a provider has what it needs to answer at all.
+
+    A provider without a `configured()` classmethod is always ready. One that
+    has it and answers False is not chosen — falling back to rows that are
+    honestly labelled invented beats an indexer client with no URL, which can
+    only turn every search into a 502.
+    """
+    ready = getattr(cls, "configured", None)
+    if ready is None:
+        return True
+    try:
+        return bool(ready())
+    except Exception as e:                                    # noqa: BLE001
+        # Reading a credential file must never be able to take the tab down.
+        log.warning("store: %s could not decide whether it is configured — %s",
+                    getattr(cls, "name", cls.__name__), e)
+        return False
 
 
 def get_provider(name: str | None = None) -> SearchProvider:
-    """The configured provider, falling back to the demo one by name.
+    """The provider this box uses, falling back to the demo one.
 
-    An unknown name is logged and ignored rather than raised: the Store going
-    quiet because somebody typed the variable wrong is worse than the Store
-    saying, on screen, that these results are not real.
+    An unknown name is logged and ignored rather than raised, and so is a named
+    provider that turns out not to be configured: the Store going quiet because
+    somebody typed the variable wrong, or because a credential file was
+    deleted, is worse than the Store saying on screen that these results are
+    not real.
     """
-    wanted = (name or os.environ.get(_ENV, "") or DEFAULT_PROVIDER).strip()
     known = _providers()
+    wanted = (name or os.environ.get(_ENV, "")).strip()
+    if not wanted:
+        # No variable: the first provider that is ready. The demo one closes
+        # the list, so an unconfigured box lands on it.
+        return next(c for c in known.values() if _ready(c))()
     if wanted not in known:
-        if wanted != DEFAULT_PROVIDER:
-            log.warning("store: no search provider named %r — using %r",
-                        wanted, DEFAULT_PROVIDER)
-        wanted = DEFAULT_PROVIDER
+        log.warning("store: no search provider named %r — using %r",
+                    wanted, DEFAULT_PROVIDER)
+        return known[DEFAULT_PROVIDER]()
+    if not _ready(known[wanted]):
+        log.warning("store: %r is selected but not configured — using %r",
+                    wanted, DEFAULT_PROVIDER)
+        return known[DEFAULT_PROVIDER]()
     return known[wanted]()
 
 
@@ -235,7 +341,39 @@ def _installed_ids() -> set[str]:
     return {r["id"] for r in rows if isinstance(r, dict) and "id" in r}
 
 
-def _from_pack(pack) -> SearchSystem:
+def _suffixes_of(pack) -> set[str]:
+    exts = (pack.data.get("roms") or {}).get("extensions") or []
+    return {e.lstrip("*.").lower() for e in exts
+            if isinstance(e, str) and e.strip("*.")}
+
+
+def _unique_suffixes() -> dict[str, frozenset[str]]:
+    """Per pack, the suffixes no other emulator pack declares.
+
+    Computed over the **whole catalogue** rather than over the installed
+    consoles, and over one pass rather than from a table, which is the property
+    that makes it survive a new pack: `catalog/*/pack.json` is the only input,
+    and a pack that starts declaring `*.iso` stops `.iso` being evidence for
+    everybody in the same commit that adds it.
+
+    Measured on the 31 emulator packs as they stand: 24 have at least one, and
+    nine suffixes are shared — `zip 7z iso bin cue ccd m3u chd pbp`. The seven
+    packs with none (`atomiswave` `megacd` `naomi` `naomigd` `pcsx2` `rpcs3`
+    `shadps4`) declare containers only, and `mame`'s single one is `cmd`, which
+    `NEVER_OFFERED` removes. Those eight are recognisable by name and by
+    nothing else — see the Prowlarr provider, which is where that matters.
+    """
+    per = {p.id: _suffixes_of(p) for p in load_catalog().values()
+           if p.kind == "emulator"}
+    counts: Counter[str] = Counter()
+    for suffixes in per.values():
+        counts.update(suffixes)
+    return {pid: frozenset(x for x in suffixes
+                           if counts[x] == 1 and x not in NEVER_OFFERED)
+            for pid, suffixes in per.items()}
+
+
+def _from_pack(pack, unique: frozenset[str] = frozenset()) -> SearchSystem:
     roms = pack.data.get("roms") or {}
     exts = roms.get("extensions") or []
     return SearchSystem(
@@ -245,6 +383,10 @@ def _from_pack(pack) -> SearchSystem:
         roms_dir=roms.get("dir", f"emu/{pack.id}"),
         extensions=tuple(e for e in exts if isinstance(e, str)),
         scan_dirs=bool(roms.get("scanDirs")),
+        # Sorted so that two runs hand a provider the same tuple: it ends up
+        # in log lines and in test fixtures, and a frozenset's order is not a
+        # promise.
+        unique_suffixes=tuple(sorted(unique)),
     )
 
 
@@ -255,7 +397,9 @@ def searchable_systems() -> list[SearchSystem]:
     it is a list a cursor walks, and "Nintendo 64" is what the card says.
     """
     live = _installed_ids()
-    rows = [_from_pack(p) for p in load_catalog().values()
+    unique = _unique_suffixes()
+    rows = [_from_pack(p, unique.get(p.id, frozenset()))
+            for p in load_catalog().values()
             if p.kind == "emulator" and p.id in live]
     return sorted(rows, key=lambda s: s.label.lower())
 

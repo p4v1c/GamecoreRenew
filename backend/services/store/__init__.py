@@ -12,8 +12,17 @@ an indexer itself: a search provider is configured with a URL and an API key,
 and a key that reaches the browser is a key in the page source, in the devtools
 network pane, and in anything the television's browser caches. The frontend
 asks `/api/store/...` and never learns how the answer was obtained.
+
+Two providers live here. The demo one invents its rows and says so; the
+Prowlarr one talks to an indexer aggregator **the box owner runs themselves** —
+GameCore never installs, manages or removes it, and knows only a URL and an API
+key, which is what keeps a .NET service and a second LAN port off the box. A
+box with no `config/store-prowlarr.json` keeps the demo provider and its
+banner, so nothing here has to be configured for the tab to work.
 """
+from .prowlarr import ProwlarrSearchProvider              # noqa: F401
 from .search import (                                     # noqa: F401
+    NEVER_OFFERED,
     SearchProvider,
     SearchResult,
     SearchSystem,

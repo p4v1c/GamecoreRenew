@@ -34,6 +34,7 @@ from __future__ import annotations
 import hashlib
 import re
 
+from .search import NEVER_OFFERED as _NEVER_OFFERED
 from .search import SearchResult, SearchSystem
 
 _MIB = 1024 * 1024
@@ -93,11 +94,13 @@ _ARCHIVES = ("zip", "7z")
 #: has to keep together (§5.1).
 _DESCRIPTORS = ("cue", "gdi", "ccd", "mds", "toc", "m3u")
 
-#: Declared, and never offered. `*.cmd` is in `catalog/mame/pack.json` and is
-#: explained nowhere in this repository; matrix §6.4 is explicit that until
-#: somebody knows what it is, "the Store should neither produce nor rewrite
-#: one". Inventing a plausible `.cmd` in a demo row is exactly producing one.
-_NEVER_OFFERED = ("cmd",)
+# Declared, and never offered — `_NEVER_OFFERED` is `search.NEVER_OFFERED`,
+# imported above. `*.cmd` is in `catalog/mame/pack.json` and is explained
+# nowhere in this repository; matrix §6.4 is explicit that until somebody knows
+# what it is, "the Store should neither produce nor rewrite one". Inventing a
+# plausible `.cmd` in a demo row is exactly producing one, and the Prowlarr
+# provider must not read one as proof a release is an arcade romset — one rule,
+# two readers, so it lives beside the interface rather than here.
 
 #: Plausible sizes, in bytes, per bare suffix. A range rather than a number:
 #: two results for the same console must not all weigh the same, or the one

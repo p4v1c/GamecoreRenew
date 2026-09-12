@@ -334,6 +334,7 @@ is why. See also the open decision on Flatpak saves below.
 | `standby.json` | `POST /api/standby/config`, atomically | `services/standby.py` | no |
 | `session.json` | `services/process_manager.py`, atomically | idem, at startup | no |
 | `auth.json`, `auth_secret` | `services/auth.py`, mode 0600 | idem | no |
+| `store-prowlarr.json` | by hand today, `services/store/prowlarr.py` mode 0600 | idem | no |
 | `playtime.db` | backend (SQLite) | backend | no |
 
 **The OTA rsync excludes `config/` entirely** — but "not in git" is *not* true of
@@ -345,9 +346,15 @@ is data loss:
   `install/generated/*.dist` on **every** run, so editing them in place is not durable —
   edit the `.dist` files.
 - The **state** (`theme.json`, `addons.json`, `standby.json`, `session.json`,
-  `auth.json`, `auth_secret`, `playtime.db`) is never in git and exists only on
-  the box. That is its identity: credentials, installed addons, play history,
-  the selected theme. Treat overwriting one as data loss.
+  `auth.json`, `auth_secret`, `store-prowlarr.json`, `playtime.db`) is never in
+  git and exists only on the box. That is its identity: credentials, installed
+  addons, play history, the selected theme. Treat overwriting one as data loss.
+
+The three files holding a **credential** — `auth.json`, `auth_secret` and
+`store-prowlarr.json` — are named one by one in `install/uninstall.sh` and
+deleted regardless of `--purge`. `config/` is otherwise kept, so a credential
+file nobody names survives a removal in silence; that is why the list is a list
+and why `backend/tests/test_store_secret_removal.py` pins it.
 
 Everything written here uses the tmp-file + `os.replace` pattern from
 `auth._write_private()`. `write_text()` truncates before it writes, so an
@@ -500,6 +507,54 @@ bytes, the HMAC key for session cookies. Both 0600, written atomically by
 `read_text()` raises that one on a non-UTF-8 file, and every LAN request goes
 through here — a truncated or foreign `auth.json` used to 500 the whole proxied
 surface, `/login` included, leaving no way back in short of SSH.
+
+## `config/store-prowlarr.json`
+
+The Store's Games tab, pointed at an indexer. `{url, apiKey, timeout,
+indexerIds, categories}`; `url` and `apiKey` are required, the rest have
+defaults. 0600, written atomically by `store.prowlarr.save_config()` — the same
+pattern as `auth.py`, for the same reason. Absent on a box that has never
+configured one, which is the normal state and not an error.
+
+```json
+{
+  "url": "http://192.0.2.10:9696",
+  "apiKey": "<Prowlarr → Settings → General → API Key>",
+  "timeout": 20,
+  "indexerIds": [],
+  "categories": []
+}
+```
+
+Created by hand today — there is no settings screen behind it yet — so both
+spellings of every key are accepted (`apiKey` and `api_key`, `indexerIds` and
+`indexer_ids`), and a file that is **absent, malformed or incomplete** falls
+back to the demo provider with a line in the journal rather than breaking the
+tab. A hand-made file is 0644 under a default umask: that is reported loudly
+and then used, because a Store that went quiet over a permission bit is a box
+that looks broken with no way to find out why. `chmod 600` it.
+
+**Prowlarr is external, always.** GameCore does not install it, manage it,
+update it or remove it — the owner runs their own instance, anywhere, and
+configures their own indexers in it. Two values buy that: the alternative is a
+.NET service unit on the box, a second port listening on the LAN, a
+managed/external split in every pack manifest, and GameCore owning the uptime
+of software whose whole job is talking to sites it has no relationship with.
+For the same reason **the list of indexers is not here**: `indexerIds` and
+`categories` are optional narrowing knobs holding ids the owner reads off their
+own instance, both empty by default, and this repository ships no tracker, no
+category map and no default source.
+
+The key never leaves the backend. It travels as an `X-Api-Key` header and never
+in a URL (a URL is what proxies log and exceptions print — a key pasted into
+`url` is stripped on load for exactly that reason), redirects are not followed
+(one would hand the header to whatever host it named), and every string lifted
+out of a response is redacted before it can become a `SearchResult`, because
+Prowlarr's own `downloadUrl` carries `?apikey=<this box's key>` and that field
+travels to the browser.
+
+Deleted by `install/uninstall.sh` with the other two credential files,
+`--purge` or not.
 
 ## `config/session.json`
 

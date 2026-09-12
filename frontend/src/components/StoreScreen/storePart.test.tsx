@@ -403,6 +403,28 @@ describe('the Games tab', () => {
     expect(seen.gamesAsked?.id).toBe('r1')
   })
 
+  it('says a format it was not told rather than inventing one', async () => {
+    // A real indexer lists *releases*, and a release named "Zelda - Ocarina
+    // of Time (USA)" names no format at all, so the backend sends an empty
+    // one (services/store/search.py, SearchResult.format). The badge is drawn
+    // like the region badge beside it — only when there is something in it —
+    // and the panel says so in words, because a plausible extension invented
+    // on this screen is the one thing the ingestion steps key on.
+    vi.mocked(api.store.search).mockResolvedValue({
+      ...ANSWER, results: [result('r1', 'Zelda A', { format: '' })],
+    })
+    const r = render(<StoreScreen />)
+    await flush()
+    press('gp:r1')
+    press('gp:confirm')
+    await flush()
+    await typeSearch('zelda')
+
+    press('gp:confirm')
+    await flush()
+    expect(r.container.textContent).toContain('not stated by the source')
+  })
+
   it('says out loud that invented results are invented', async () => {
     // The demo provider makes up rows that look exactly like an indexer's. A
     // tab that drew them identically would invite a player to press ✕ on a

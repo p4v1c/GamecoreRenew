@@ -91,6 +91,10 @@ RUNTIME_GENERATED = {
     "config/theme.json",      # the selected theme
     "config/standby.json",    # sleep/wake schedule
     "config/addons.json",     # installed addons registry
+    # The Store's Prowlarr URL + API key, 0600. Written by hand today (there is
+    # no settings screen yet), and its absence is the normal state of a box —
+    # that is what keeps the Games tab on the demo provider and its banner.
+    "config/store-prowlarr.json",
 }
 
 # Named on purpose although not there YET: a document describing how to turn a

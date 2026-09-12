@@ -254,11 +254,17 @@ function ResultRow({ result, focused, onClick }: {
           {result.region}
         </span>
       )}
-      <span style={{
-        fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', flexShrink: 0,
-        padding: '2px 7px', borderRadius: 999, color: BRIGHT,
-        background: 'rgba(124,58,237,0.20)',
-      }}>{result.format.toUpperCase()}</span>
+      {/* Empty when the source does not say — an indexer lists releases, and
+          a release named "Zelda - Ocarina of Time (USA)" names no format at
+          all. Drawn like `region` above rather than as an empty pill: a badge
+          with nothing in it reads as a rendering bug. */}
+      {result.format && (
+        <span style={{
+          fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', flexShrink: 0,
+          padding: '2px 7px', borderRadius: 999, color: BRIGHT,
+          background: 'rgba(124,58,237,0.20)',
+        }}>{result.format.toUpperCase()}</span>
+      )}
       <span style={{
         fontSize: 12, color: 'rgba(255,255,255,0.55)', flexShrink: 0,
         minWidth: 62, textAlign: 'right', fontVariantNumeric: 'tabular-nums',
@@ -295,7 +301,13 @@ function AskedPanel({ result, romsDir, downloadReady }: {
         {line('File', result.filename)}
         {line('Format', result.format === 'folder'
           ? 'a folder — this console’s games are directories'
-          : `.${result.format}`)}
+          : result.format
+            ? `.${result.format}`
+            // Said, not guessed. The panel's job is to tell the player what
+            // this is, and "the source did not say" is the true answer — a
+            // plausible extension invented here would be the one the ingestion
+            // steps key their whole decision on.
+            : 'not stated by the source')}
         {line('Size', formatSize(result.size))}
         {result.region && line('Region', result.region)}
         {result.languages.length > 0 && line('Languages', result.languages.join(', '))}

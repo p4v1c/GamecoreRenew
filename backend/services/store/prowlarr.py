@@ -1,0 +1,633 @@
+"""The Prowlarr search provider — one indexer aggregator, owned by somebody else.
+
+**Prowlarr is external, always.** GameCore does not install it, does not manage
+it, does not update it and does not remove it. The box owner runs their own
+instance, on whatever machine they like, and configures their own indexers in
+it. This file knows two things about it: a URL and an API key.
+
+That is a deliberate trade and it is worth naming, because the alternative is
+tempting and worse. A managed Prowlarr would mean a `.NET` service unit on the
+box, a second port listening on the LAN — the one thing
+[`docs/SECURITY.md`](../../../docs/SECURITY.md) spent the whole hardening pass
+reducing to Caddy on `:8443` — a managed/external split in the pack manifest,
+and GameCore owning the uptime of a piece of software whose whole job is to talk
+to sites GameCore has no relationship with. Two configuration values buy all of
+that back.
+
+The second half of the same decision: **the list of indexers is not here.** Not
+a tracker, not a category table, not a default source — those live in the
+owner's Prowlarr, which is the only place that can know what they have access
+to. `indexerIds` and `categories` in the configuration file are pass-throughs
+for ids the owner reads off their own instance; both default to "everything you
+have configured", and this repository ships no value for either.
+
+── The credential, and where it is not ────────────────────────────────────
+`config/store-prowlarr.json`, mode 0600, written the way
+[`services/auth.py`](../auth.py) writes `auth.json` — atomically, private from
+the first byte. `config/` is excluded from the OTA rsync, so it survives an
+update; `install/uninstall.sh` names it, so it does not survive a removal.
+
+The key never leaves this process. It travels as an `X-Api-Key` **header** and
+never in a URL, because a URL is what ends up in a proxy log and in an
+exception message; redirects are not followed, because following one would hand
+the header to whatever host the redirect named; and every string lifted out of a
+response is redacted before it becomes a `SearchResult`, because Prowlarr's own
+`downloadUrl` carries `?apikey=…` and that field would otherwise travel to the
+browser inside `source`.
+
+── Why a result has to prove which console it is for ──────────────────────
+An indexer has no idea what a GameCube is. It answers "zelda" with the N64
+game, the 3DS remake, a Wii U port, a soundtrack and a film, and
+[`search.py`](search.py) is explicit that guessing which machine each hit is for
+is a guess this repository would have to be right about every time. So it does
+not guess: a row survives only when something about it **names this console** —
+either a suffix only this console declares (`.z64` is `gopher64` and nothing
+else) or one of the names the console goes by. No evidence is a drop.
+
+The known limit of that rule, stated rather than papered over: a name match is
+a whole-word match, so "PlayStation" matches a PlayStation 2 release and "Wii"
+matches a Wii U one. Both consoles have distinctive suffixes that the stronger
+signal catches, and suffix-backed rows are sorted above name-only ones for
+exactly that reason, but a name-only row on a family with several members can
+be for the wrong member. Ranking by more than one bit is the acquisition step's
+problem; inventing a second heuristic here would be a second copy of it.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import os
+import re
+import stat
+from dataclasses import dataclass
+from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
+
+import httpx
+
+from ..paths import config_dir
+from .search import NEVER_OFFERED, SearchResult, SearchSystem
+
+log = logging.getLogger(__name__)
+
+#: Beside `auth.json` and gitignored with it. Namespaced rather than
+#: `prowlarr.json`, because `config/` is a directory the whole box shares and
+#: "which part of GameCore owns this file" is otherwise a guess.
+CONFIG_FILENAME = "store-prowlarr.json"
+
+#: Seconds. A search fans out to every indexer the owner configured and each of
+#: those is a third party on the far side of a home connection, so this is
+#: generous — but it is also a player holding a gamepad in front of a
+#: television, and a minute of nothing is a broken screen rather than a slow
+#: one. Overridable per box; clamped, because a zero here is a Store that can
+#: never answer and a thousand is one that hangs the tab.
+DEFAULT_TIMEOUT = 20.0
+_MIN_TIMEOUT, _MAX_TIMEOUT = 1.0, 120.0
+
+#: How many rows to ask Prowlarr for, regardless of how many the router wants.
+#: The console filter below runs *after* the answer arrives, so asking for
+#: forty would mean forty rows about every console and three about this one.
+_FETCH = 100
+
+#: Archive extensions an indexer serves whatever the pack declares. Wider than
+#: the demo provider's pair on purpose: this one is *recognising* a name it was
+#: handed, not choosing one to invent, and `.rar` is what half of usenet is.
+_ARCHIVES = ("zip", "7z", "rar")
+
+#: Region tags, as No-Intro and Redump spell them inside brackets. Recognised,
+#: never required — a release that carries none simply has no region, which is
+#: the honest answer rather than "World".
+_REGIONS = {
+    "usa": "USA", "us": "USA", "u": "USA", "ntsc-u": "USA",
+    "europe": "Europe", "eur": "Europe", "e": "Europe", "pal": "Europe",
+    "japan": "Japan", "jpn": "Japan", "jp": "Japan", "j": "Japan",
+    "ntsc-j": "Japan", "world": "World", "usa, europe": "USA, Europe",
+    "japan, usa": "Japan, USA", "korea": "Korea", "china": "China",
+    "australia": "Australia", "brazil": "Brazil", "spain": "Spain",
+    "france": "France", "germany": "Germany", "italy": "Italy",
+}
+#: `(En,Fr,De)` — the other bracketed group the same conventions use.
+_LANG_CODES = {"en", "fr", "de", "es", "it", "ja", "nl", "pt", "sv", "no",
+               "da", "fi", "zh", "ko", "ru", "pl"}
+_BRACKETED = re.compile(r"[(\[]([^)\]]{1,40})[)\]]")
+
+#: Query parameters whose value is a credential. Redacted out of everything
+#: lifted from a response, because Prowlarr answers a `downloadUrl` shaped
+#: `http://…/3/download?apikey=<the box's key>&link=…` and that field would
+#: otherwise reach the browser inside `SearchResult.source`.
+_CREDENTIAL_PARAM = re.compile(
+    r"(?i)\b(api[_-]?key|passkey|rss[_-]?key|auth[_-]?key|token|secret)"
+    r"=[^&;#\s]*")
+
+
+class ProwlarrError(RuntimeError):
+    """Prowlarr did not answer usefully.
+
+    Raised with a message that is safe to log: no key, no path, no query
+    string — see `_where()`. `routers/store.py` logs it and answers a generic
+    502, and the two halves of that only work together.
+    """
+
+
+# ── configuration ──────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class ProwlarrConfig:
+    """`config/store-prowlarr.json`, validated.
+
+    ``url``          scheme, host and port of the owner's Prowlarr. Path,
+                     query and fragment are dropped on load: a key pasted into
+                     the URL would otherwise be sent on every request *and*
+                     land in every log line.
+    ``api_key``      Settings → General → API Key, in that instance.
+    ``timeout``      seconds, clamped to [1, 120].
+    ``indexer_ids``  optional, ids from the owner's own instance. Empty means
+                     every indexer they have configured.
+    ``categories``   optional, Newznab category ids from the same place. Empty
+                     means no category filter — GameCore ships no mapping from
+                     console to category and will not: 17 of the 31 consoles
+                     have no console category at all, so a shipped table would
+                     silently return nothing for most of the library.
+    """
+
+    url: str
+    api_key: str
+    timeout: float = DEFAULT_TIMEOUT
+    indexer_ids: tuple[int, ...] = ()
+    categories: tuple[int, ...] = ()
+
+
+def config_file() -> Path:
+    """Resolved on every call, never at import.
+
+    `auth.py` binds its paths at import and the test suite works around it.
+    This one is read through `paths.config_dir()` each time, so a test that
+    moves the data root moves this file with it — and so does a box whose
+    `GAMECORE_DATA` is set after the unit is written.
+    """
+    return config_dir() / CONFIG_FILENAME
+
+
+#: Paths already complained about, so the warning below is one line in the
+#: journal rather than one per search.
+_warned: set[str] = set()
+
+
+def _warn_if_world_readable(path: Path) -> None:
+    """Say so, and read it anyway.
+
+    Not a refusal. This file is written by hand — `nano`, `scp`, a text editor
+    over SSH — and a default umask makes it 0644 without the owner doing
+    anything wrong. A Store that silently stayed on the demo provider because
+    of a permission bit would be a box that looks broken with no way to tell
+    why; a loud line in the journal and a working Store is the better trade.
+    `save_config()` below writes 0600 whenever GameCore is the one writing.
+    """
+    try:
+        mode = path.stat().st_mode
+    except OSError:
+        return
+    if not mode & (stat.S_IRGRP | stat.S_IROTH):
+        return
+    key = f"{path}:{stat.S_IMODE(mode):o}"
+    if key in _warned:
+        return
+    _warned.add(key)
+    log.warning("store: %s is readable by other accounts (mode %o) — it holds "
+                "an API key; chmod 600 it", path, stat.S_IMODE(mode))
+
+
+def _clean_url(raw: object) -> str:
+    """`http://host:9696`, or "" when that is not what was written.
+
+    Everything after the authority is dropped rather than trusted. A key pasted
+    into the URL is the shape this is really guarding against: it would be sent
+    on the wire in the clear on every search, and it would appear in any log
+    line that ever printed the configured address.
+    """
+    if not isinstance(raw, str) or not raw.strip():
+        return ""
+    parts = urlsplit(raw.strip())
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return ""
+    return urlunsplit((parts.scheme, parts.netloc, "", "", ""))
+
+
+def _int_list(raw: object) -> tuple[int, ...]:
+    """Ids, from whatever a hand-written file put there.
+
+    Accepts `[1, 2]` and `["1", "2"]` and ignores anything else in the list
+    rather than refusing the whole file: a typo in an optional narrowing knob
+    must not be the reason a configured box falls back to invented rows.
+    """
+    if not isinstance(raw, list):
+        return ()
+    out: list[int] = []
+    for item in raw:
+        try:
+            out.append(int(item))
+        except (TypeError, ValueError):
+            log.warning("store: %s — ignoring %r, which is not an id",
+                        CONFIG_FILENAME, item)
+    return tuple(out)
+
+
+def _pick(data: dict, *names: str) -> object:
+    """The first of several spellings that is present.
+
+    `apiKey` and `api_key` both work, and so do `indexerIds` and
+    `indexer_ids`. The file has no editor behind it — somebody types it at
+    midnight over SSH — and refusing it over a capital letter is a support
+    question this repository would then have to answer.
+    """
+    for name in names:
+        if name in data:
+            return data[name]
+    return None
+
+
+def load_config() -> ProwlarrConfig | None:
+    """The configuration, or `None` when there is not a usable one.
+
+    `None` covers absent, unreadable, malformed, and present-but-incomplete,
+    and they are one answer on purpose: the caller's behaviour is the same for
+    all four — fall back to the demo provider, which says out loud that its
+    rows are invented. A missing file is the *normal* state of a box and is not
+    logged above debug; a file that exists and cannot be used is a warning,
+    because somebody meant it to work.
+    """
+    path = config_file()
+    try:
+        raw = path.read_text()
+    except FileNotFoundError:
+        log.debug("store: no %s — the demo provider answers", CONFIG_FILENAME)
+        return None
+    except (OSError, UnicodeDecodeError) as e:
+        # UnicodeDecodeError is listed for the same reason `auth._auth()` lists
+        # it: `read_text()` raises that one, not a JSON error, on a file that
+        # is not UTF-8 — a half-written or foreign file.
+        log.warning("store: %s cannot be read — %s", CONFIG_FILENAME, e)
+        return None
+    _warn_if_world_readable(path)
+
+    try:
+        data = json.loads(raw)
+    except ValueError as e:
+        log.warning("store: %s is not valid JSON — %s", CONFIG_FILENAME, e)
+        return None
+    if not isinstance(data, dict):
+        log.warning("store: %s is not a JSON object", CONFIG_FILENAME)
+        return None
+
+    url = _clean_url(_pick(data, "url", "baseUrl", "base_url"))
+    api_key = _pick(data, "apiKey", "api_key")
+    api_key = api_key.strip() if isinstance(api_key, str) else ""
+    if not url or not api_key:
+        # Named without its value: "url" and "apiKey" are safe to print, the
+        # key itself never is.
+        missing = [n for n, ok in (("url", url), ("apiKey", api_key)) if not ok]
+        log.warning("store: %s is incomplete (%s) — the demo provider answers",
+                    CONFIG_FILENAME, ", ".join(missing))
+        return None
+
+    timeout = _pick(data, "timeout", "timeoutSeconds", "timeout_seconds")
+    try:
+        timeout = float(timeout)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        timeout = DEFAULT_TIMEOUT
+
+    return ProwlarrConfig(
+        url=url,
+        api_key=api_key,
+        timeout=min(max(timeout, _MIN_TIMEOUT), _MAX_TIMEOUT),
+        indexer_ids=_int_list(_pick(data, "indexerIds", "indexer_ids")),
+        categories=_int_list(_pick(data, "categories")),
+    )
+
+
+def save_config(cfg: ProwlarrConfig) -> Path:
+    """Write it the way `auth.py` writes a credential: atomically, 0600.
+
+    There is no settings screen behind this yet — the file is created by hand
+    today. It exists so that when one arrives it does not invent a second way
+    to write a secret, and so that the tests build their fixtures through the
+    same code the box would use rather than through a `write_text()` that
+    leaves a world-readable key behind.
+    """
+    path = config_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps({
+        "url": cfg.url,
+        "apiKey": cfg.api_key,
+        "timeout": cfg.timeout,
+        "indexerIds": list(cfg.indexer_ids),
+        "categories": list(cfg.categories),
+    }, indent=2) + "\n"
+    # 0600 from the first byte, and `os.replace` so a reader never sees half a
+    # file — the pattern `auth._write_private()` established and the reason
+    # `config/` has no `write_text()` in it anywhere.
+    tmp = path.with_name(path.name + ".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(payload)
+    os.replace(tmp, path)
+    return path
+
+
+# ── reading one release ────────────────────────────────────────────────────
+
+
+def _redact(text: str) -> str:
+    return _CREDENTIAL_PARAM.sub(lambda m: f"{m.group(1)}=<redacted>", text)
+
+
+def _where(cfg: ProwlarrConfig) -> str:
+    """The address, for a log line — scheme, host and port and nothing else.
+
+    `cfg.url` already has no path or query (see `_clean_url`), so this is
+    belt and braces. It is here because every message in this module ends up
+    in `routers/store.py`'s warning, and a module that formats its own
+    addresses in one place cannot grow a second one that formats them wrong.
+    """
+    return _redact(cfg.url)
+
+
+def console_terms(system: SearchSystem) -> tuple[str, ...]:
+    """The names this console goes by, from the pack and nothing else.
+
+    `platform` and `label` between them already spell every console at least
+    twice — `N64`/`Nintendo 64`, `PS1`/`PlayStation`, `SNES`/`Super Nintendo` —
+    but they are strings written to be read on a television, so they need
+    splitting rather than using:
+
+      · `/` joins two machines on four packs: `GameCube / Wii`,
+        `Sega Mega Drive / Genesis`, `Sega Mega-CD / Sega CD`,
+        `NEC PC Engine / TurboGrafx-16`. Unsplit, "GameCube/Wii" is a term no
+        release name has ever contained.
+      · parentheses hold a second name on one: `Arcade (MAME)`. Split rather
+        than dropped, because for that pack both halves are real vocabulary —
+        an arcade romset is as likely to say MAME as Arcade.
+
+    Derived here rather than stored on `SearchSystem` because it is a pure
+    function of two fields the pack already has. The thing that genuinely could
+    not be derived that way is `unique_suffixes`, which is why that one is a
+    field — see the note in `search.py`.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+    for source in (system.platform, system.label):
+        for chunk in re.split(r"[/()\[\]]", source or ""):
+            term = re.sub(r"\s+", " ", chunk).strip(" -\t")
+            if len(term) < 2 or term.lower() in seen:
+                continue
+            seen.add(term.lower())
+            out.append(term)
+    return tuple(out)
+
+
+def _term_pattern(system: SearchSystem) -> re.Pattern[str] | None:
+    terms = console_terms(system)
+    if not terms:
+        return None
+    # Whole-word, and the boundaries are lookarounds rather than `\b` because
+    # several terms end in a digit or a hyphen (`32X`, `SG-1000`,
+    # `TurboGrafx-16`) where `\b` sits in a different place than the eye does.
+    body = "|".join(re.escape(t.lower()) for t in
+                    sorted(terms, key=len, reverse=True))
+    return re.compile(rf"(?<!\w)(?:{body})(?!\w)")
+
+
+def _suffix_pattern(system: SearchSystem) -> re.Pattern[str] | None:
+    if not system.unique_suffixes:
+        return None
+    body = "|".join(re.escape(s.lower()) for s in system.unique_suffixes)
+    return re.compile(rf"\.(?:{body})(?!\w)")
+
+
+#: How strongly a row is tied to the console, biggest first. Only the ordering
+#: matters and only two values exist: a suffix only this console declares, and
+#: a name it goes by.
+_BY_SUFFIX, _BY_NAME, _NONE = 2, 1, 0
+
+
+def _suffix_of(name: str, system: SearchSystem) -> str:
+    """The row's format, or "" when the name does not carry one.
+
+    Recognised, never inferred. A suffix counts when the console declares it or
+    when it is an archive an indexer serves; anything else — including a
+    release named "… 1080p" or "… v1.02" whose last dotted group looks like an
+    extension — is not a format and is left empty. `search.SearchResult.format`
+    documents why empty is a real answer here and not a gap.
+    """
+    suffix = Path(name).suffix.lstrip(".").lower()
+    if not suffix or suffix in NEVER_OFFERED:
+        return ""
+    if suffix in system.suffixes or suffix in _ARCHIVES:
+        return suffix
+    return ""
+
+
+def _region_and_languages(title: str) -> tuple[str, tuple[str, ...]]:
+    """`(USA)` and `(En,Fr,De)`, when the release names them."""
+    region, langs = "", ()
+    for group in _BRACKETED.findall(title):
+        body = group.strip()
+        if not region and body.lower() in _REGIONS:
+            region = _REGIONS[body.lower()]
+            continue
+        parts = [p.strip().lower() for p in body.split(",") if p.strip()]
+        if not langs and parts and all(p in _LANG_CODES for p in parts):
+            langs = tuple(parts)
+    return region, langs
+
+
+def _result_from(row: object, system: SearchSystem,
+                 terms: re.Pattern[str] | None,
+                 suffixes: re.Pattern[str] | None) -> tuple[int, SearchResult] | None:
+    """One release, as a `SearchResult` — or `None` when it is not one for us.
+
+    Returns the evidence strength alongside, so the caller can rank without
+    asking twice. `None` means either the row is not usable at all or nothing
+    about it names this console, and the two are deliberately the same answer:
+    both end with the row not on screen.
+    """
+    if not isinstance(row, dict):
+        return None
+    title = row.get("title") or row.get("fileName")
+    if not isinstance(title, str) or not title.strip():
+        return None
+    title = _redact(re.sub(r"\s+", " ", title.strip()))
+    filename = row.get("fileName")
+    filename = _redact(filename.strip()) if isinstance(filename, str) and \
+        filename.strip() else title
+
+    haystack = f"{title} {filename}".lower()
+    if suffixes is not None and suffixes.search(haystack):
+        evidence = _BY_SUFFIX
+    elif terms is not None and terms.search(haystack):
+        evidence = _BY_NAME
+    else:
+        return None
+
+    try:
+        size = max(0, int(row.get("size") or 0))
+    except (TypeError, ValueError):
+        size = 0
+
+    # The locator, and the one field a leak would travel in. Prowlarr's
+    # `downloadUrl` and `magnetUrl` carry the box's own key as a query
+    # parameter, so neither is used: the indexer id and the release guid say
+    # the same thing and carry nothing. Redacted anyway, because a guid is
+    # whatever the indexer chose to put there.
+    guid = row.get("guid")
+    guid = guid if isinstance(guid, str) and guid.strip() else filename
+    indexer = row.get("indexerId")
+    indexer = indexer if isinstance(indexer, int) else 0
+    source = _redact(f"prowlarr://{indexer}/{guid.strip()}")
+
+    fmt = _suffix_of(filename, system)
+    region, languages = _region_and_languages(title)
+    display = title[:-(len(fmt) + 1)] if fmt and title.lower().endswith(
+        f".{fmt}") else title
+    return evidence, SearchResult(
+        id=f"prowlarr:{system.id}:"
+           f"{hashlib.blake2b(source.encode(), digest_size=6).hexdigest()}",
+        title=display or title,
+        filename=filename,
+        format=fmt,
+        size=size,
+        system_id=system.id,
+        provider=ProwlarrSearchProvider.name,
+        source=source,
+        region=region,
+        languages=languages,
+    )
+
+
+# ── the provider ───────────────────────────────────────────────────────────
+
+
+class ProwlarrSearchProvider:
+    """Real rows, from an indexer this box does not own."""
+
+    name = "prowlarr"
+    label = "Prowlarr"
+    live = True
+
+    def __init__(self, transport: httpx.BaseTransport | None = None) -> None:
+        # Tests only, and the only seam this class has. It exists because the
+        # alternative is a test that either reaches an indexer or patches
+        # httpx globally, and `search.get_provider()` never passes it.
+        self._transport = transport
+
+    @classmethod
+    def configured(cls) -> bool:
+        """Whether this box has a URL and a key for an instance.
+
+        `get_provider()` asks before choosing, so an unconfigured box lands on
+        the demo provider and its banner instead of on a client that can only
+        answer 502.
+        """
+        return load_config() is not None
+
+    async def search(self, system: SearchSystem, query: str,
+                     limit: int = 40) -> list[SearchResult]:
+        cfg = load_config()
+        if cfg is None:
+            # Only reachable if the file went away between `configured()` and
+            # here, or if something constructed this provider directly.
+            raise ProwlarrError(f"no usable {CONFIG_FILENAME}")
+
+        cleaned = query.strip()
+        if not cleaned:
+            return []
+
+        rows = await self._get(cfg, cleaned)
+        terms, suffixes = _term_pattern(system), _suffix_pattern(system)
+        scored = [s for s in (_result_from(r, system, terms, suffixes)
+                              for r in rows) if s is not None]
+        # Suffix-backed rows above name-only ones, and Prowlarr's own order
+        # kept inside each band — `sorted` is stable, and the indexer's
+        # ranking is a better tiebreak than anything invented here.
+        scored.sort(key=lambda s: -s[0])
+        kept = [r for _, r in scored][:max(0, limit)]
+        log.info("store: prowlarr answered %d rows for %r, %d for %s",
+                 len(rows), cleaned, len(kept), system.id)
+        return kept
+
+    async def _get(self, cfg: ProwlarrConfig, query: str) -> list:
+        """The one request, and every way it can fail.
+
+        Every branch raises `ProwlarrError` with a message safe to log, which
+        is the half of the 502 contract that lives here: `routers/store.py`
+        logs the reason and returns a generic answer precisely because the
+        reason *could* carry a URL or a key, and it is this function's job that
+        it never does.
+        """
+        params: dict[str, object] = {
+            "query": query,
+            # `search` and not `tvsearch`/`moviesearch`: the typed ones make
+            # the indexer expect a season or a year, and a ROM release has
+            # neither.
+            "type": "search",
+            "limit": _FETCH,
+            "offset": 0,
+        }
+        if cfg.indexer_ids:
+            params["indexerIds"] = list(cfg.indexer_ids)
+        if cfg.categories:
+            params["categories"] = list(cfg.categories)
+
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(cfg.timeout),
+                # Never followed. A redirect would carry the `X-Api-Key`
+                # header to whatever host the redirect named, which is a
+                # credential handed to a third party by a configuration
+                # mistake — or by an instance somebody else can reconfigure.
+                follow_redirects=False,
+                transport=self._transport,
+            ) as client:
+                r = await client.get(
+                    f"{cfg.url}/api/v1/search",
+                    params=params,
+                    # In the header and never in the query string: a URL is
+                    # what proxies log, what shells keep in history, and what
+                    # an exception prints.
+                    headers={"X-Api-Key": cfg.api_key,
+                             "Accept": "application/json"},
+                )
+        except httpx.TimeoutException:
+            raise ProwlarrError(
+                f"{_where(cfg)} did not answer within {cfg.timeout:g}s") from None
+        except httpx.HTTPError as e:
+            # Message deliberately not interpolated: httpx puts the full
+            # request URL in some of these, and this one is on its way to a
+            # log line.
+            raise ProwlarrError(
+                f"{_where(cfg)} could not be reached "
+                f"({type(e).__name__})") from None
+
+        if r.status_code in (401, 403):
+            raise ProwlarrError(
+                f"{_where(cfg)} refused the API key (HTTP {r.status_code})")
+        if r.status_code == 404:
+            raise ProwlarrError(
+                f"{_where(cfg)} has no /api/v1/search — is that URL the "
+                "Prowlarr root?")
+        if r.status_code >= 300:
+            # 3xx included: redirects are not followed, so one arriving here
+            # is a misconfiguration rather than a step on the way somewhere.
+            raise ProwlarrError(f"{_where(cfg)} answered HTTP {r.status_code}")
+
+        try:
+            body = r.json()
+        except ValueError:
+            raise ProwlarrError(
+                f"{_where(cfg)} answered something that is not JSON") from None
+        if not isinstance(body, list):
+            raise ProwlarrError(
+                f"{_where(cfg)} answered JSON that is not a list of releases")
+        return body

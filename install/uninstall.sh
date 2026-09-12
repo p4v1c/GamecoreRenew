@@ -818,10 +818,17 @@ fi
 #  13. Application files
 # ================================================================
 msg "Application files"
-# The stored web password and cookie key go regardless of --purge: they live
-# under config/, which the default path preserves, and leaving an argon2 hash
-# and an HMAC key behind after removal is not acceptable.
-safe_rm "$GC_DATA/config/auth.json" "$GC_DATA/config/auth_secret"
+# Stored credentials go regardless of --purge: they live under config/, which
+# the default path preserves, and leaving an argon2 hash, an HMAC key or an API
+# key behind after removal is not acceptable.
+#
+# store-prowlarr.json is the URL and API key of the box owner's OWN Prowlarr
+# (backend/services/store/prowlarr.py). GameCore never installed that instance
+# and does not touch it here — only the copy of its key that this box was
+# holding. Named explicitly, like the two above, because config/ is otherwise
+# kept on purpose and a file nobody names survives a removal in silence.
+safe_rm "$GC_DATA/config/auth.json" "$GC_DATA/config/auth_secret" \
+        "$GC_DATA/config/store-prowlarr.json"
 
 if [[ -d "$GC_PATH" ]]; then
   if $PURGE; then

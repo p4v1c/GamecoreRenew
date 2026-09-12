@@ -83,6 +83,20 @@ def test_the_box_ships_the_demo_provider_and_says_the_rows_are_not_real(client):
 
 
 def test_an_unknown_provider_name_falls_back_rather_than_going_quiet(monkeypatch):
+    """A typo in the variable must not be how the Games tab goes silent."""
+    monkeypatch.setenv("GAMECORE_STORE_SEARCH_PROVIDER", "prowlar")
+    assert get_provider().name == "demo"
+
+
+def test_a_real_provider_that_is_not_configured_falls_back_the_same_way(
+        monkeypatch):
+    """`prowlarr` is a name this box knows and an instance it does not have.
+
+    Selected-and-not-ready lands on the demo provider for the same reason an
+    unknown name does: rows that are honestly labelled invented beat a client
+    with no URL, which can only turn every search into a 502. What it takes to
+    be ready is `test_store_prowlarr.py`'s business.
+    """
     monkeypatch.setenv("GAMECORE_STORE_SEARCH_PROVIDER", "prowlarr")
     assert get_provider().name == "demo"
 
@@ -295,6 +309,34 @@ def test_searching_writes_nothing_anywhere(box, client):
     after = sorted(p.relative_to(box).as_posix() for p in box.rglob("*"))
     assert before == after
     assert not (box / "emu").exists()
+
+
+def test_what_a_console_carries_beyond_its_own_pack(client):
+    """The one field a pack cannot fill in on its own.
+
+    `unique_suffixes` is the suffixes **no other pack in the catalogue**
+    declares, which is what lets a provider read a release name as naming one
+    console rather than guessing. It is catalogue-wide and not box-wide: `.iso`
+    is not evidence of a PlayStation 1 game on a box where `duckstation`
+    happens to be the only console installed.
+    """
+    rows = {r["id"]: r for r in client.get("/api/store/systems").json()}
+    assert set(rows) == set(INSTALLED)
+
+    nes = system_for("nes")
+    assert set(nes.unique_suffixes) == {"nes", "unf", "unif"}
+    # `mame` declares `*.zip`, `*.7z` and `*.cmd`. The first two are shared
+    # with sixteen other packs and the third is the one matrix §6.4 says must
+    # neither be produced nor rewritten — so it has none, and is recognisable
+    # by name alone.
+    assert system_for("mame").unique_suffixes == ()
+    # `rpcs3` declares no extensions at all: the game is a directory (§5.1 F).
+    assert system_for("rpcs3").unique_suffixes == ()
+
+    # The field is additive. A provider that never heard of it — and the test
+    # below, which builds a console by hand — is unaffected.
+    assert SearchSystem(id="x", label="X", platform="X",
+                        roms_dir="emu/x").unique_suffixes == ()
 
 
 def test_a_provider_is_handed_a_console_and_a_query_and_nothing_else():

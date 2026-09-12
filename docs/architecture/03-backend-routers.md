@@ -342,15 +342,43 @@ catalogue channel — see [10](10-catalog-and-install.md#three-tiers-and-the-sig
 ### `store.py` (134 l.) — searching for a game, one console at a time
 
 `GET /store/provider`, `GET /store/systems`, `GET /store/search?system=&q=`.
+The three shapes are unchanged by the arrival of a real provider — that is the
+point of the seam, and `provider`/`live` are the fields that carry the
+difference to the screen.
 
 **Why a search runs here and not in the browser.** A search provider is
 configured with an indexer's URL and its API key, and a key that reaches the
 browser is a key in the page source and in the devtools pane of a television
 nobody logs out of. The frontend asks and never learns how the answer was
 obtained. The provider interface is
-[`services/store/search.py`](../../backend/services/store/search.py); the only
-implementation shipped is a demo one that invents its rows, says so (`live` is
-`false` in every answer), and reaches nothing.
+[`services/store/search.py`](../../backend/services/store/search.py).
+
+**Two providers.** The demo one invents its rows and says so (`live` is `false`
+in every answer) and reaches nothing. The
+[Prowlarr](../../backend/services/store/prowlarr.py) one queries an indexer
+aggregator **the box owner runs themselves**: GameCore never installs, manages,
+updates or removes it, and knows only a URL and an API key. That is what keeps
+a .NET service unit, a second LAN port and a managed/external split in the pack
+manifest off a box whose whole hardening pass was about reducing the LAN
+surface to Caddy on `:8443`. The list of indexers is not here either — it is in
+the owner's instance, which is the only place that can know what they have
+access to, and this repository ships no tracker, no category map and no default
+source.
+
+**Which one answers is a file, not a variable.** With
+`config/store-prowlarr.json` present and usable, the Prowlarr provider answers;
+without it — the state of every box that has never heard of Prowlarr — the demo
+one does, banner included. `GAMECORE_STORE_SEARCH_PROVIDER` overrides in both
+directions and is not needed in either. See
+[7 — `config/store-prowlarr.json`](07-config-and-data.md#configstore-prowlarrjson).
+
+**A 502 says nothing about why.** Down, refusing the key, slow, and answering
+something unexpected are four log lines and one answer to the browser: the
+reason is logged locally and never returned, because it can carry an address,
+and a provider's could carry a key. The provider holds up the other half — every
+message it raises is built from safe parts only, and nothing lifted out of a
+response reaches a `SearchResult` unredacted (Prowlarr's own `downloadUrl`
+carries `?apikey=…`).
 
 **Why `system` is required and never optional.** The ingestion class of a
 download is a property of the pair (system, incoming format) — the same `.zip`
