@@ -92,7 +92,8 @@ def render_system_colours(packs: dict) -> str:
         lines.append(f"  {pid}: '{colour}',")
     lines.append("  // Console short names with no pack of their own.")
     for pid, colour in extra.items():
-        lines.append(f"  {pid}: '{colour}',")
+        if pid not in rows:
+            lines.append(f"  {pid}: '{colour}',")
     lines.append("}")
     return "\n".join(lines) + "\n"
 

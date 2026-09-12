@@ -1,0 +1,71 @@
+{
+  "id": "atomiswave",
+  "kind": "emulator",
+  "label": "Sammy Atomiswave",
+  "emulatorName": "RetroArch / flycast",
+  "platform": "Atomiswave",
+  "family": "Sega",
+  "color": "#ad1457",
+  "order": 32,
+  "install": {
+    "provider": "pacman",
+    "packages": [
+      "retroarch",
+      "libretro-flycast"
+    ]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/atomiswave.cfg' --core /usr/lib/libretro/flycast_libretro.so --"
+  },
+  "roms": {
+    "dir": "emu/atomiswave",
+    "extensions": [
+      "*.zip",
+      "*.7z"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.config/gamecore-retroarch"
+  },
+  "controllers": {
+    "maxPlayers": 2,
+    "order": 32,
+    "strategy": "snapshot-restore",
+    "target": "atomiswave.cfg",
+    "seedMustNotContain": [
+      "^input_player[1-4]_.*(?:_btn|_axis|joypad_index)\\s*="
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "retroarch",
+        "RetroArch"
+      ]
+    },
+    "asset": "atomiswave.png"
+  },
+  "scraper": {
+    "libretro": [
+      "Atomiswave"
+    ],
+    "mediaAlias": [
+      "atomiswave"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."
+  },
+  "bios": {
+    "dir": "@HOME@/.config/gamecore-retroarch/system",
+    "files": [
+      {
+        "file": "dc/awbios.zip",
+        "required": false,
+        "note": "External Atomiswave BIOS archive; a non-merged game archive may embed the BIOS ROM, so absence must not hard-block launch."
+      }
+    ]
+  }
+}

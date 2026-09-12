@@ -1,0 +1,87 @@
+{
+  "id": "megacd",
+  "kind": "emulator",
+  "label": "Sega Mega-CD / Sega CD",
+  "emulatorName": "RetroArch / genesis-plus-gx",
+  "platform": "Mega-CD",
+  "family": "Sega",
+  "color": "#455a64",
+  "order": 26,
+  "install": {
+    "provider": "pacman",
+    "packages": [
+      "retroarch",
+      "libretro-genesis-plus-gx"
+    ]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/megacd.cfg' --core /usr/lib/libretro/genesis_plus_gx_libretro.so --"
+  },
+  "roms": {
+    "dir": "emu/megacd",
+    "extensions": [
+      "*.cue",
+      "*.iso",
+      "*.chd",
+      "*.m3u"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.config/gamecore-retroarch"
+  },
+  "controllers": {
+    "maxPlayers": 2,
+    "order": 26,
+    "strategy": "snapshot-restore",
+    "target": "megacd.cfg",
+    "seedMustNotContain": [
+      "^input_player[1-4]_.*(?:_btn|_axis|joypad_index)\\s*="
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "retroarch",
+        "RetroArch"
+      ]
+    },
+    "asset": "megacd.png"
+  },
+  "scraper": {
+    "libretro": [
+      "Sega - Mega-CD - Sega CD"
+    ],
+    "mediaAlias": [
+      "mega-cd",
+      "sega cd"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."
+  },
+  "bios": {
+    "dir": "@HOME@/.config/gamecore-retroarch/system",
+    "files": [
+      {
+        "file": "bios_CD_E.bin",
+        "md5": "e66fa1dc5820d254611fdcdba0662372",
+        "required": false,
+        "note": "Mega-CD Europe BIOS; needed for European Mega-CD content."
+      },
+      {
+        "file": "bios_CD_U.bin",
+        "md5": "2efd74e3232ff260e371b99f84024f7f",
+        "required": false,
+        "note": "Sega CD USA BIOS; needed for North-American Sega CD content."
+      },
+      {
+        "file": "bios_CD_J.bin",
+        "md5": "278a9397d192149e84e820ac621a8edd",
+        "required": false,
+        "note": "Mega-CD Japan BIOS; needed for Japanese Mega-CD content."
+      }
+    ]
+  }
+}

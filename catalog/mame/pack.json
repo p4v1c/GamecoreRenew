@@ -1,0 +1,63 @@
+{
+  "id": "mame",
+  "kind": "emulator",
+  "label": "Arcade (MAME)",
+  "emulatorName": "RetroArch / mame",
+  "platform": "Arcade",
+  "family": "Arcade",
+  "color": "#424242",
+  "order": 36,
+  "install": {
+    "provider": "pacman",
+    "packages": [
+      "retroarch",
+      "libretro-mame"
+    ]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/mame.cfg' --core /usr/lib/libretro/mame_libretro.so --"
+  },
+  "roms": {
+    "dir": "emu/mame",
+    "extensions": [
+      "*.zip",
+      "*.7z",
+      "*.cmd"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.config/gamecore-retroarch"
+  },
+  "controllers": {
+    "maxPlayers": 4,
+    "order": 36,
+    "strategy": "snapshot-restore",
+    "target": "mame.cfg",
+    "seedMustNotContain": [
+      "^input_player[1-4]_.*(?:_btn|_axis|joypad_index)\\s*="
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "retroarch",
+        "RetroArch"
+      ]
+    },
+    "asset": "mame.png"
+  },
+  "scraper": {
+    "libretro": [
+      "MAME"
+    ],
+    "mediaAlias": [
+      "mame",
+      "arcade"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "profile": "recommended-original",
+  "syncConfigDatabase": true,
+  "syncPatchDatabase": true,
+  "syncHours": 6,
+  "networkTimeoutSeconds": 10,
+  "patchEngineVersion": "1.2",
+  "imagePolicy": {
+    "resolutionScalePercent": 100,
+    "frameLimit": "PS3 Native",
+    "note": "GameCore's RPCS3 seed keeps Resolution Scale 100 and Frame limit PS3 Native. Smart sync does not modify these settings."
+  },
+  "autoPatch": {
+    "mode": "exact-whitelist",
+    "approved": [],
+    "note": "Empty by design in v1. Patches are synced, but none are auto-enabled until an exact hash/description/title/serial/version tuple is reviewed and shipped."
+  }
+}

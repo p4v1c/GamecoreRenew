@@ -1,0 +1,61 @@
+{
+  "id": "mastersystem",
+  "kind": "emulator",
+  "label": "Sega Master System",
+  "emulatorName": "RetroArch / genesis-plus-gx",
+  "platform": "Master System",
+  "family": "Sega",
+  "color": "#1565c0",
+  "order": 22,
+  "install": {
+    "provider": "pacman",
+    "packages": [
+      "retroarch",
+      "libretro-genesis-plus-gx"
+    ]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/mastersystem.cfg' --core /usr/lib/libretro/genesis_plus_gx_libretro.so --"
+  },
+  "roms": {
+    "dir": "emu/mastersystem",
+    "extensions": [
+      "*.sms",
+      "*.bms"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.config/gamecore-retroarch"
+  },
+  "controllers": {
+    "maxPlayers": 2,
+    "order": 22,
+    "strategy": "snapshot-restore",
+    "target": "mastersystem.cfg",
+    "seedMustNotContain": [
+      "^input_player[1-4]_.*(?:_btn|_axis|joypad_index)\\s*="
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "retroarch",
+        "RetroArch"
+      ]
+    },
+    "asset": "mastersystem.png"
+  },
+  "scraper": {
+    "libretro": [
+      "Sega - Master System - Mark III"
+    ],
+    "mediaAlias": [
+      "master system"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."
+  }
+}

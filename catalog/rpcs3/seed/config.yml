@@ -127,7 +127,7 @@ Video:
   Disable Asynchronous Memory Manager: false
   Output Scaling Mode: Bilinear
   Vulkan:
-    Adapter: AMD Radeon Graphics (RADV REMBRANDT)
+    Adapter: ""
     Force FIFO present mode: false
     Force primitive restart flag: false
     Exclusive Fullscreen Mode: Automatic

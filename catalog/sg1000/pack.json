@@ -1,0 +1,61 @@
+{
+  "id": "sg1000",
+  "kind": "emulator",
+  "label": "Sega SG-1000",
+  "emulatorName": "RetroArch / genesis-plus-gx",
+  "platform": "SG-1000",
+  "family": "Sega",
+  "color": "#0277bd",
+  "order": 24,
+  "install": {
+    "provider": "pacman",
+    "packages": [
+      "retroarch",
+      "libretro-genesis-plus-gx"
+    ]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/sg1000.cfg' --core /usr/lib/libretro/genesis_plus_gx_libretro.so --"
+  },
+  "roms": {
+    "dir": "emu/sg1000",
+    "extensions": [
+      "*.sg",
+      "*.sgd"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.config/gamecore-retroarch"
+  },
+  "controllers": {
+    "maxPlayers": 2,
+    "order": 24,
+    "strategy": "snapshot-restore",
+    "target": "sg1000.cfg",
+    "seedMustNotContain": [
+      "^input_player[1-4]_.*(?:_btn|_axis|joypad_index)\\s*="
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "retroarch",
+        "RetroArch"
+      ]
+    },
+    "asset": "sg1000.png"
+  },
+  "scraper": {
+    "libretro": [
+      "Sega - SG-1000"
+    ],
+    "mediaAlias": [
+      "sg-1000"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."
+  }
+}

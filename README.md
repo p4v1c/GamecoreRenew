@@ -267,6 +267,24 @@ regenerated from `install/generated/systems.json.dist` on every install;
 | Game Boy Advance | `emu/mgba/` | `.gba` `.gbc` `.gb` `.zip` |
 | Nintendo 64 | `emu/gopher64/` | `.n64` `.z64` `.v64` `.zip` |
 | Xbox 360 | `emu/xenia/` | `.iso` `.xex` |
+| Super Nintendo | `emu/snes9x/` | `.sfc` `.smc` `.fig` `.swc` `.jma` `.zip` `.gd3` `.gz` `.bs` |
+| Nintendo Entertainment System | `emu/nes/` | `.nes` `.unf` `.unif` |
+| Family Computer Disk System | `emu/fds/` | `.fds` |
+| Sega Master System | `emu/mastersystem/` | `.sms` `.bms` |
+| Sega Game Gear | `emu/gamegear/` | `.gg` |
+| Sega SG-1000 | `emu/sg1000/` | `.sg` `.sgd` |
+| Sega Mega Drive / Genesis | `emu/megadrive/` | `.md` `.mdx` `.smd` `.gen` `.68k` |
+| Sega Mega-CD / Sega CD | `emu/megacd/` | `.cue` `.iso` `.chd` `.m3u` |
+| Sega Mega Drive 32X | `emu/sega32x/` | `.32x` |
+| Sega Saturn | `emu/saturn/` | `.ccd` `.chd` `.cue` `.iso` `.mds` `.m3u` |
+| Sega Dreamcast | `emu/dreamcast/` | `.chd` `.cdi` `.cue` `.gdi` `.m3u` |
+| Sega Naomi | `emu/naomi/` | `.zip` `.7z` |
+| Sega Naomi GD-ROM | `emu/naomigd/` | `.zip` `.7z` |
+| Sammy Atomiswave | `emu/atomiswave/` | `.zip` `.7z` |
+| NEC PC Engine / TurboGrafx-16 | `emu/pcengine/` | `.pce` |
+| NEC PC Engine CD / TurboGrafx-CD | `emu/pcenginecd/` | `.cue` `.ccd` `.chd` `.toc` `.m3u` |
+| NEC PC Engine SuperGrafx | `emu/supergrafx/` | `.sgx` |
+| Arcade (MAME) | `emu/mame/` | `.zip` `.7z` `.cmd` |
 
 > A multi-track PS1 dump is `Game.cue` plus its `Game (Track NN).bin` files.
 > Launch the **`.cue`** — it is the one that knows about the other tracks.

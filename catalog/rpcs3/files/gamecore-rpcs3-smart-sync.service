@@ -1,0 +1,9 @@
+[Unit]
+Description=GameCore RPCS3 smart database sync
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 "@GAMECORE_PATH@/catalog/rpcs3/files/rpcs3-smart-sync.py" --gamecore-path "@GAMECORE_PATH@" --app-id net.rpcs3.RPCS3 --policy "@GAMECORE_PATH@/catalog/rpcs3/files/patch-policy.json"
+NoNewPrivileges=true
+PrivateTmp=true

@@ -1,0 +1,71 @@
+{
+  "id": "fds",
+  "kind": "emulator",
+  "label": "Family Computer Disk System",
+  "emulatorName": "RetroArch / mesen",
+  "platform": "FDS",
+  "family": "Nintendo",
+  "color": "#c62828",
+  "order": 21,
+  "install": {
+    "provider": "pacman",
+    "packages": [
+      "retroarch",
+      "libretro-mesen"
+    ]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/fds.cfg' --core /usr/lib/libretro/mesen_libretro.so --"
+  },
+  "roms": {
+    "dir": "emu/fds",
+    "extensions": [
+      "*.fds"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.config/gamecore-retroarch"
+  },
+  "controllers": {
+    "maxPlayers": 2,
+    "order": 21,
+    "strategy": "snapshot-restore",
+    "target": "fds.cfg",
+    "seedMustNotContain": [
+      "^input_player[1-4]_.*(?:_btn|_axis|joypad_index)\\s*="
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "retroarch",
+        "RetroArch"
+      ]
+    },
+    "asset": "fds.png"
+  },
+  "scraper": {
+    "libretro": [
+      "Nintendo - Family Computer Disk System"
+    ],
+    "mediaAlias": [
+      "fds"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."
+  },
+  "bios": {
+    "dir": "@HOME@/.config/gamecore-retroarch/system",
+    "files": [
+      {
+        "file": "disksys.rom",
+        "required": true,
+        "note": "Family Computer Disk System BIOS required by the Mesen core.",
+        "md5": "ca30b50f880eb660a320674ed365ef7a"
+      }
+    ]
+  }
+}

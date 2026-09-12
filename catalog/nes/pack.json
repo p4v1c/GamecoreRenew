@@ -1,0 +1,62 @@
+{
+  "id": "nes",
+  "kind": "emulator",
+  "label": "Nintendo Entertainment System",
+  "emulatorName": "RetroArch / mesen",
+  "platform": "NES",
+  "family": "Nintendo",
+  "color": "#d32f2f",
+  "order": 20,
+  "install": {
+    "provider": "pacman",
+    "packages": [
+      "retroarch",
+      "libretro-mesen"
+    ]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/nes.cfg' --core /usr/lib/libretro/mesen_libretro.so --"
+  },
+  "roms": {
+    "dir": "emu/nes",
+    "extensions": [
+      "*.nes",
+      "*.unf",
+      "*.unif"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.config/gamecore-retroarch"
+  },
+  "controllers": {
+    "maxPlayers": 2,
+    "order": 20,
+    "strategy": "snapshot-restore",
+    "target": "nes.cfg",
+    "seedMustNotContain": [
+      "^input_player[1-4]_.*(?:_btn|_axis|joypad_index)\\s*="
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "retroarch",
+        "RetroArch"
+      ]
+    },
+    "asset": "nes.png"
+  },
+  "scraper": {
+    "libretro": [
+      "Nintendo - Nintendo Entertainment System"
+    ],
+    "mediaAlias": [
+      "nes"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."
+  }
+}

@@ -265,6 +265,24 @@ WATCHED = {
     "pcsx2": [".var/app/net.pcsx2.PCSX2/config/PCSX2/inis/PCSX2.ini"],
     "duckstation": [".local/share/duckstation/settings.ini"],
     "melonds": [".var/app/net.kuribo64.melonDS/config/melonDS/melonDS.toml"],
+    "atomiswave": [".config/gamecore-retroarch/atomiswave.cfg"],
+    "dreamcast": [".config/gamecore-retroarch/dreamcast.cfg"],
+    "fds": [".config/gamecore-retroarch/fds.cfg"],
+    "gamegear": [".config/gamecore-retroarch/gamegear.cfg"],
+    "mame": [".config/gamecore-retroarch/mame.cfg"],
+    "mastersystem": [".config/gamecore-retroarch/mastersystem.cfg"],
+    "megacd": [".config/gamecore-retroarch/megacd.cfg"],
+    "megadrive": [".config/gamecore-retroarch/megadrive.cfg"],
+    "naomi": [".config/gamecore-retroarch/naomi.cfg"],
+    "naomigd": [".config/gamecore-retroarch/naomigd.cfg"],
+    "nes": [".config/gamecore-retroarch/nes.cfg"],
+    "pcengine": [".config/gamecore-retroarch/pcengine.cfg"],
+    "pcenginecd": [".config/gamecore-retroarch/pcenginecd.cfg"],
+    "saturn": [".config/gamecore-retroarch/saturn.cfg"],
+    "sega32x": [".config/gamecore-retroarch/sega32x.cfg"],
+    "sg1000": [".config/gamecore-retroarch/sg1000.cfg"],
+    "supergrafx": [".config/gamecore-retroarch/supergrafx.cfg"],
+    "snes9x": [".var/app/com.snes9x.Snes9x/config/snes9x/snes9x.conf"],
 }
 
 # Where each pack's seed lands in the fake HOME.
@@ -275,6 +293,24 @@ SEED_DEST = {
     "pcsx2": ".var/app/net.pcsx2.PCSX2/config/PCSX2/inis",
     "duckstation": ".local/share/duckstation",
     "melonds": ".var/app/net.kuribo64.melonDS/config/melonDS",
+    "atomiswave": ".config/gamecore-retroarch",
+    "dreamcast": ".config/gamecore-retroarch",
+    "fds": ".config/gamecore-retroarch",
+    "gamegear": ".config/gamecore-retroarch",
+    "mame": ".config/gamecore-retroarch",
+    "mastersystem": ".config/gamecore-retroarch",
+    "megacd": ".config/gamecore-retroarch",
+    "megadrive": ".config/gamecore-retroarch",
+    "naomi": ".config/gamecore-retroarch",
+    "naomigd": ".config/gamecore-retroarch",
+    "nes": ".config/gamecore-retroarch",
+    "pcengine": ".config/gamecore-retroarch",
+    "pcenginecd": ".config/gamecore-retroarch",
+    "saturn": ".config/gamecore-retroarch",
+    "sega32x": ".config/gamecore-retroarch",
+    "sg1000": ".config/gamecore-retroarch",
+    "supergrafx": ".config/gamecore-retroarch",
+    "snes9x": ".var/app/com.snes9x.Snes9x/config/snes9x",
 }
 
 
@@ -347,6 +383,14 @@ def install_stubs(cp, home: Path, monkeypatch) -> None:
 
     # ── post-refactor seams ────────────────────────────────────────────────
     monkeypatch.setattr(configgen, "HOME", home, raising=False)
+    # snes9x harness always models the declared Flatpak install; a developer's
+    # incidental /usr/bin/snes9x-gtk must not change fixture paths.
+    _real_launches_flatpak = configgen.launches_flatpak
+    monkeypatch.setattr(
+        configgen, "launches_flatpak",
+        lambda pack: True if pack.id == "snes9x" else _real_launches_flatpak(pack),
+        raising=False,
+    )
     monkeypatch.setattr(configgen, "SNAP_DIR", home / "snapshots", raising=False)
     monkeypatch.setattr(configgen, "_generator_cache", {}, raising=False)
 
@@ -389,6 +433,7 @@ def install_stubs(cp, home: Path, monkeypatch) -> None:
                    "leftshoulder:b6,rightshoulder:b7,start:b11,back:b15,"
                    "dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2")
         return {"guid": pad.sdl2_guid,
+                "axes": "6",
                 "map": f"{pad.sdl2_guid},{pad.sdl3_name},{mapping},"}
 
     for module, probe_name in ((cp, "_sdl2_probe"), (cc, "sdl2_probe")):
