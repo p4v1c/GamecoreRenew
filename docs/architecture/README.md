@@ -24,6 +24,7 @@ drawn.
 | 11 | [Install-script seams](11-install-script-seams.md) | How `arch.sh` and `uninstall.sh` would be split, and what must be true first |
 | 12 | [The addon contract](12-addon-contract.md) | `api: 1` — the **public** contract third-party addons must satisfy |
 | 13 | [Release & OTA](13-release-and-ota.md) | What a push to `main` sets in motion, what reaches a box, and how to go back |
+| 14 | [Store ingestion matrix](14-store-ingestion-matrix.md) | The 31 emulator packs, from "a file arrives" to "the game launches" — and the six ingestion classes that replace a per-system rule |
 
 Looking for something specific:
 
@@ -33,6 +34,8 @@ Looking for something specific:
 - *"Why did my UI change disappear after an update?"* → [9](09-gotchas.md#the-ota-rebuild-trap)
 - *"What events can the UI listen to?"* → [5](05-frontend.md#the-websocket-event-table)
 - *"How do I add an emulator or an app?"* → [10](10-catalog-and-install.md#6-adding-an-emulator)
+- *"Why must a MAME `.zip` never be unpacked, when a SNES one may be?"* → [14](14-store-ingestion-matrix.md#2-the-archive-decision--the-central-trap)
+- *"A game is in the folder but not in the grid — why?"* → [14](14-store-ingestion-matrix.md#1-what-the-library-scan-actually-is)
 - *"What installs EmberTV / the Firefox kiosk profiles?"* → [10](10-catalog-and-install.md#3-the-install-pipeline)
 - *"Why is `arch.sh` 1 300 lines, and can I split it?"* → [11](11-install-script-seams.md)
 - *"Which session does the box log into?"* → [1](01-runtime-topology.md#the-session-the-kiosk-runs-in)
