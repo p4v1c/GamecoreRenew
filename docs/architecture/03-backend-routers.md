@@ -324,7 +324,7 @@ the background), `connect_device`, `disconnect_device`, `remove_device(mac)`.
 
 ## Routers added by the recent phases
 
-These four arrived with features that did not exist when the inventory above was
+These arrived with features that did not exist when the inventory above was
 written. Each is listed with what it serves and the decision that is not visible
 from the endpoint list.
 
@@ -338,6 +338,34 @@ from the endpoint list.
 holding a gamepad: the screen has to be able to say "already working" rather than
 queue a second install behind the first. The `ota/*` pair drives the signed
 catalogue channel — see [10](10-catalog-and-install.md#three-tiers-and-the-signed-remote-one).
+
+### `store.py` (134 l.) — searching for a game, one console at a time
+
+`GET /store/provider`, `GET /store/systems`, `GET /store/search?system=&q=`.
+
+**Why a search runs here and not in the browser.** A search provider is
+configured with an indexer's URL and its API key, and a key that reaches the
+browser is a key in the page source and in the devtools pane of a television
+nobody logs out of. The frontend asks and never learns how the answer was
+obtained. The provider interface is
+[`services/store/search.py`](../../backend/services/store/search.py); the only
+implementation shipped is a demo one that invents its rows, says so (`live` is
+`false` in every answer), and reaches nothing.
+
+**Why `system` is required and never optional.** The ingestion class of a
+download is a property of the pair (system, incoming format) — the same `.zip`
+is the ROM on `mame` and packaging on `snes9x` — and the directory it has to
+land in belongs to the system
+([14](14-store-ingestion-matrix.md) §0, §1.3). A result with no console attached
+could be neither placed nor classified, and no indexer labels its own results by
+console reliably enough to attach one afterwards. A console that is **not
+installed** is a 409 rather than an empty answer: the download would land in a
+directory nothing scans, for a tile that is not on the grid.
+
+Unlike `catalog.py` above it starts nothing and holds no lock — a search is a
+question, not an action, so there is no busy state and no `catalog:done` to wait
+for. Nothing here downloads, writes, or remembers a request; acquisition and the
+job that survives a reboot are separate steps.
 
 ### `bios.py` (27 l.) — one row per system that needs a system file
 

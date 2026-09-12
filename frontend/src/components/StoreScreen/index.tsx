@@ -19,14 +19,30 @@
  * the one implementation, which the applications page consumes too. What IS
  * this file's is the cursor, and therefore the two things the cursor touches —
  * the order of the list, and which button acts on the row under it.
+ *
+ * The Games tab is the same shape with a second module behind it:
+ * `useStoreSearch` in `lib/storeSearch.ts` owns the chosen console, the query
+ * and what came back, and this file owns the cursor walking it. The tab is two
+ * steps — pick a console, search inside it — and the order is not a menu
+ * preference: the ingestion class of a download is a property of the pair
+ * (system, incoming format) and the target directory is a property of the
+ * system, so a result found without a console attached could be neither placed
+ * nor classified (`docs/architecture/14-store-ingestion-matrix.md` §0, §1.3).
  */
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { useStore } from '../../store'
-import { type CatalogEntry } from '../../api'
+import { type CatalogEntry, type StoreSearchResult } from '../../api'
 import { onGp } from '../../hooks/useGamepad'
 import { useCatalog } from '../../lib/catalog'
+import { useStoreSearch } from '../../lib/storeSearch'
+import { Overlay } from '../ui'
+import { VirtualKeyboard } from '../ui/VirtualKeyboard'
 import DefaultStoreView from './DefaultStoreView'
-import { STORE_TABS, STORE_TAB_LABELS, type StoreTab, type StoreViewProps } from './types'
+import {
+  STORE_TABS, STORE_TAB_LABELS,
+  type StoreGamesPhase, type StoreTab, type StoreViewProps,
+} from './types'
 
 /**
  * The grid, in cards per page.
@@ -38,6 +54,16 @@ import { STORE_TABS, STORE_TAB_LABELS, type StoreTab, type StoreViewProps } from
 const COLS = 4
 const ROWS = 3
 const PER_PAGE = COLS * ROWS
+
+/**
+ * A page of search results, which is a column and not a grid.
+ *
+ * A result is a filename, a size and a format — a line of text, not a card —
+ * and four of them side by side on a television is four truncated names. So
+ * the results phase pages one per row, and the shape travels to the view in
+ * `cols`/`rows`/`perPage` rather than being a second thing a theme has to know.
+ */
+const RESULT_ROWS = 7
 
 interface Props {
   view?: React.ComponentType<StoreViewProps>
@@ -56,6 +82,7 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
   const [tab, setTab] = useState<StoreTab>('consoles')
   const [focusIdx, setFocusIdx] = useState(0)
   const [page, setPage] = useState(0)
+  const [showSearch, setShowSearch] = useState(false)
 
   const screenRef = useRef(screen)
   const modalDepthRef = useRef(modalDepth)
@@ -84,6 +111,16 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
   const countRef = useRef(0)
   const pageCountRef = useRef(0)
   const tabRef = useRef(tab)
+  /** Whatever the cursor is walking — packs on one tab, results on the other. */
+  const itemsRef = useRef<(CatalogEntry | StoreSearchResult)[]>([])
+  /** The page shape, which is the results list's and not the grid's while the
+   *  Games tab is showing results. Read live for the same reason as the rest:
+   *  a burst of presses arrives before the render that changed them. */
+  const colsRef = useRef(COLS)
+  const rowsRef = useRef(ROWS)
+  const perPageRef = useRef(PER_PAGE)
+  const phaseRef = useRef<StoreGamesPhase>('systems')
+  const showSearchRef = useRef(showSearch)
 
   /**
    * The list after a pack is installed or removed — here or anywhere else.
@@ -103,13 +140,44 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
   const catalog = useCatalog({
     kind: 'emulator',
     onDone: () => {
-      keepFocusOn.current =
-        consolesRef.current[pageRef.current * PER_PAGE + focusRef.current]?.id ?? null
+      // Only the Consoles tab's cursor walks this list. On the Games tab the
+      // page and focus belong to another one entirely, and reading a pack out
+      // of them would pin the cursor to whatever that arithmetic happened to
+      // land on.
+      keepFocusOn.current = tabRef.current === 'consoles'
+        ? consolesRef.current[pageRef.current * PER_PAGE + focusRef.current]?.id ?? null
+        : null
     },
   })
 
   const catalogRef = useRef(catalog)
   catalogRef.current = catalog
+
+  /**
+   * The Games tab's own state — the console, the query, the rows.
+   *
+   * A second module beside `useCatalog`, and not a second copy of it: what
+   * they share is that neither of them may be reimplemented in a view. See
+   * `lib/storeSearch.ts` for what it owns and why the console comes first.
+   */
+  const search = useStoreSearch()
+  const searchRef = useRef(search)
+  searchRef.current = search
+
+  /**
+   * The on-screen keyboard counts as a modal while it is up.
+   *
+   * Same as the library's: the shell binds Options → Settings and Share →
+   * Power globally, and without this they open a second surface on top of a
+   * player who is typing.
+   */
+  const openModal = useStore(s => s.openModal)
+  const closeModal = useStore(s => s.closeModal)
+  useEffect(() => {
+    if (!showSearch) return
+    openModal()
+    return () => closeModal()
+  }, [showSearch]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * Consoles are the emulator packs, A–Z by label.
@@ -126,14 +194,60 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
     [catalog.rows],
   )
 
-  // A tab is a different list. Leaving the cursor at card 9 of a tab that has
-  // none is a highlight nobody can see.
-  useEffect(() => { setFocusIdx(0); setPage(0) }, [tab])
+  /**
+   * The consoles a game can be searched for: the installed ones.
+   *
+   * Filtered from the list the Consoles tab already holds rather than read
+   * again — two readers of one fact is how two screens come to disagree about
+   * it, which is the whole lesson `useCatalog` was written from. A game for a
+   * console that is not on the box would land in a directory nothing scans,
+   * for a tile that is not on the grid.
+   */
+  const gamesSystems = useMemo(
+    () => consoles.filter(c => c.installed),
+    [consoles],
+  )
 
-  const items = tab === 'consoles' ? consoles : []
+  /** Which step of the Games tab the player is on — the console decides it,
+   *  so there is no second copy of it to fall out of step. */
+  const gamesPhase: StoreGamesPhase = search.system ? 'results' : 'systems'
+
+  /**
+   * Which list the cursor is on, as one value.
+   *
+   * A tab is a different list, and so is a phase, and so is a new query. All
+   * three reset the cursor, and they are one key rather than three effects
+   * because of what the second one has to beat: the clamp below, which pulls
+   * the cursor back onto the last row that exists. Written as separate
+   * effects, switching to a shorter list ran BOTH — the reset to 0 and then
+   * the clamp to the end of the new list, which won by being declared second
+   * and left the cursor on the last row of a tab the player had just opened.
+   */
+  const listKey = `${tab}:${gamesPhase}:${search.query}`
+  const lastListKey = useRef(listKey)
+
+  /**
+   * The list under the cursor, and the shape it is paged in.
+   *
+   * One cursor for all three lists rather than one per tab: the d-pad handlers
+   * below read a count and a page size, and giving them three of each is how a
+   * page turn on one list starts reading the length of another.
+   */
+  const games = gamesPhase === 'results' ? search.results : gamesSystems
+  const items: (CatalogEntry | StoreSearchResult)[] = tab === 'consoles' ? consoles : games
+  const cols = tab === 'games' && gamesPhase === 'results' ? 1 : COLS
+  const rows = tab === 'games' && gamesPhase === 'results' ? RESULT_ROWS : ROWS
+  const perPage = cols * rows
   const totalItems = items.length
-  const pageCount = Math.ceil(totalItems / PER_PAGE)
-  const pageItems = items.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
+  const pageCount = Math.ceil(totalItems / perPage)
+  // `page` belongs to whichever list the cursor is on, so the Consoles tab's
+  // own slice reads it only while that tab is the one open. Otherwise it would
+  // be indexing the catalogue with the results list's page number, and a view
+  // reading `pageItems` from the Games tab would get whatever that landed on.
+  const consolePage = tab === 'consoles' ? page : 0
+  const pageItems = consoles.slice(consolePage * PER_PAGE, (consolePage + 1) * PER_PAGE)
+  const gamesSystemsPage = gamesSystems.slice(page * perPage, (page + 1) * perPage)
+  const gamesResultsPage = search.results.slice(page * perPage, (page + 1) * perPage)
 
   // The live read the handlers take; see the declarations above.
   consolesRef.current = consoles
@@ -142,6 +256,12 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
   countRef.current = totalItems
   pageCountRef.current = pageCount
   tabRef.current = tab
+  itemsRef.current = items
+  colsRef.current = cols
+  rowsRef.current = rows
+  perPageRef.current = perPage
+  phaseRef.current = gamesPhase
+  showSearchRef.current = showSearch
 
   useEffect(() => {
     const id = keepFocusOn.current
@@ -153,13 +273,29 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
     setFocusIdx(at % PER_PAGE)
   }, [consoles])
 
-  // The list can come back shorter than where the cursor was — remove the last
-  // pack and the index points past the end, which reads as the highlight
-  // vanishing rather than as a list that changed.
+  /**
+   * A new list starts at the top; the list it already had is only clamped.
+   *
+   * The clamp is for a list that came back shorter than where the cursor was —
+   * remove the last pack, or run a search that answers fewer rows than the
+   * last one, and the index points past the end, which reads as the highlight
+   * vanishing rather than as a list that changed.
+   *
+   * The two are one effect so that the order between them is stated rather
+   * than inherited from the order they happen to be declared in. See
+   * `listKey`: that ordering was a bug before it was a rule.
+   */
+  const heldNow = Math.max(0, Math.min(perPage, totalItems - page * perPage))
   useEffect(() => {
+    if (lastListKey.current !== listKey) {
+      lastListKey.current = listKey
+      setPage(0)
+      setFocusIdx(0)
+      return
+    }
     if (pageCount > 0 && page > pageCount - 1) setPage(pageCount - 1)
-    else if (pageItems.length > 0 && focusIdx > pageItems.length - 1) setFocusIdx(pageItems.length - 1)
-  }, [pageCount, page, pageItems.length, focusIdx])
+    else if (heldNow > 0 && focusIdx > heldNow - 1) setFocusIdx(heldNow - 1)
+  }, [listKey, pageCount, page, heldNow, focusIdx])
 
   // `omit` is a prop and a fresh array on every parent render; the effect below
   // only cares whether an id is in it.
@@ -171,17 +307,32 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
     const blocked = () =>
       screenRef.current !== 'store' ||
       modalDepthRef.current > 0 ||
+      // The keyboard has its own d-pad and its own ✕. Without this the grid
+      // underneath walks along with the letters, and ✕ picks a console while
+      // the player is spelling a title.
+      showSearchRef.current ||
+      // Same for the panel an asked-about result opens over the list: it is a
+      // detail view, so the cursor under it holds still and ○ is the way out.
+      // Without this, ✕ on it silently swaps it for whichever row the
+      // invisible cursor had moved to.
+      (tabRef.current === 'games' && !!searchRef.current.asked) ||
       useStore.getState().sessionGameKey !== null
 
     /** How many cards this page actually holds — the last one is usually short. */
     const held = () =>
-      Math.max(0, Math.min(PER_PAGE, countRef.current - pageRef.current * PER_PAGE))
+      Math.max(0, Math.min(perPageRef.current,
+                           countRef.current - pageRef.current * perPageRef.current))
 
-    /** The pack under the cursor, or nothing — the Games tab has no cards. */
-    const focused = (): CatalogEntry | undefined =>
-      tabRef.current === 'consoles'
-        ? consolesRef.current[pageRef.current * PER_PAGE + focusRef.current]
-        : undefined
+    /** Whatever the cursor is on: a pack on two of the three lists, a search
+     *  result on the third. */
+    const focused = () =>
+      itemsRef.current[pageRef.current * perPageRef.current + focusRef.current]
+
+    /** The pack under the cursor on the Consoles tab — the only list whose
+     *  rows are packs that `useCatalog` may be handed. The Games tab's
+     *  handlers return before this is reached. */
+    const focusedPack = (): CatalogEntry | undefined =>
+      tabRef.current === 'consoles' ? focused() as CatalogEntry | undefined : undefined
 
     const navigate = (dir: 'up' | 'down' | 'left' | 'right') => {
       if (blocked()) return
@@ -192,6 +343,12 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
       const at = pageRef.current
       const onPage = held()
       const pages = pageCountRef.current
+      // The shape of the list under the cursor, not the grid's: the results
+      // list is one column, and walking it with COLS = 4 would step four rows
+      // at a time and page at the wrong place.
+      const COLS = colsRef.current
+      const ROWS = rowsRef.current
+      const PER_PAGE = perPageRef.current
       const col = focus % COLS
       const row = Math.floor(focus / COLS)
       /** Last valid index on a page — pages can be partially filled. */
@@ -256,16 +413,42 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
        * flight and asks twice before a removal. Neither rule is restated here:
        * a second copy of "is anything running" is how the two settings pages
        * came to disagree about it.
+       *
+       * On the Games tab the same two buttons mean the tab's own two steps:
+       * ✕ picks the console and then asks about a result, △ opens the
+       * keyboard. Nothing there installs or removes anything, so neither goes
+       * near `useCatalog`.
        */
       ...(omitActions ? [] : [
         onGp('gp:confirm', () => {
           if (blocked()) return
-          const pack = focused()
+          if (tabRef.current === 'games') {
+            const row = focused()
+            if (!row) return
+            if (phaseRef.current === 'systems') {
+              // Picking the console is picking it AND asking what for: a
+              // console with nothing typed into it has nothing to show, so
+              // the keyboard opens with it rather than after another press.
+              searchRef.current.choose(row as CatalogEntry)
+              setShowSearch(true)
+            } else {
+              searchRef.current.ask(row as StoreSearchResult)
+            }
+            return
+          }
+          const pack = focusedPack()
           if (pack) void catalogRef.current.act(pack)
         }),
         onGp('gp:y', () => {
           if (blocked()) return
-          const pack = focused()
+          if (tabRef.current === 'games') {
+            // Search again, in the console already chosen. The library binds
+            // △ to its search for the same reason, and a player who has used
+            // one has used the other.
+            if (phaseRef.current === 'results') setShowSearch(true)
+            return
+          }
+          const pack = focusedPack()
           if (pack) void catalogRef.current.reconfigure(pack)
         }),
       ]),
@@ -278,9 +461,20 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
        * `blocked()`, so leaving still works while a game is suspended in the
        * background — the session bar is on screen then, and the Store is not
        * where the player wants to be.
+       *
+       * It steps back through the Games tab before it leaves, which is the
+       * library's shape too: an asked result, then the console, then home.
+       * The exception the library also makes is the keyboard — it is on top,
+       * so ○ closes that first and the screen underneath does not move.
        */
       onGp('gp:back', () => {
-        if (screenRef.current !== 'store' || modalDepthRef.current > 0) return
+        if (screenRef.current !== 'store') return
+        if (showSearchRef.current) { setShowSearch(false); return }
+        if (modalDepthRef.current > 0) return
+        if (tabRef.current === 'games') {
+          if (searchRef.current.asked) { searchRef.current.unask(); return }
+          if (phaseRef.current === 'results') { searchRef.current.leave(); return }
+        }
         goHome()
       }),
     ]
@@ -292,36 +486,90 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
   }, [omitNav, omitTabs, omitActions, goHome])
 
   return (
-    <View
-      tab={tab}
-      tabs={STORE_TABS}
-      tabLabels={STORE_TAB_LABELS}
-      consoles={consoles}
-      pageItems={pageItems}
-      focusIdx={focusIdx}
-      page={page}
-      pageCount={pageCount}
-      cols={COLS}
-      rows={ROWS}
-      perPage={PER_PAGE}
-      installedCount={consoles.filter((c: CatalogEntry) => c.installed).length}
-      loading={catalog.loading}
-      loadError={catalog.loadFailed}
-      workingId={catalog.workingId}
-      busy={catalog.busy}
-      armedId={catalog.armedId}
-      log={catalog.log}
-      actionError={catalog.actionError}
-      // Downloading arrives with the acquisition steps; until then the tab says
-      // so rather than drawing a list that is not there.
-      gamesReady={false}
-      onTab={setTab}
-      onFocus={setFocusIdx}
-      onPage={(p) => { setPage(p); setFocusIdx(0) }}
-      onBack={goHome}
-      onRetry={() => void catalog.load()}
-      onAct={(pack) => void catalog.act(pack)}
-      onReconfigure={(pack) => void catalog.reconfigure(pack)}
-    />
+    <>
+      <View
+        tab={tab}
+        tabs={STORE_TABS}
+        tabLabels={STORE_TAB_LABELS}
+        consoles={consoles}
+        pageItems={pageItems}
+        focusIdx={focusIdx}
+        page={page}
+        pageCount={pageCount}
+        cols={cols}
+        rows={rows}
+        perPage={perPage}
+        installedCount={consoles.filter((c: CatalogEntry) => c.installed).length}
+        loading={catalog.loading}
+        loadError={catalog.loadFailed}
+        workingId={catalog.workingId}
+        busy={catalog.busy}
+        armedId={catalog.armedId}
+        log={catalog.log}
+        actionError={catalog.actionError}
+        // Searching is here. Downloading is not, and the two are separate
+        // flags so a view can draw results without promising a download.
+        gamesReady
+        gamesPhase={gamesPhase}
+        gamesSystems={gamesSystems}
+        gamesSystemsPage={gamesSystemsPage}
+        gamesSystem={search.system}
+        gamesQuery={search.query}
+        gamesResults={search.results}
+        gamesResultsPage={gamesResultsPage}
+        gamesLoading={search.loading}
+        gamesError={search.error}
+        gamesAnswered={search.answered}
+        gamesLive={search.live}
+        gamesProvider={search.providerLabel}
+        gamesRomsDir={search.romsDir}
+        gamesAsked={search.asked}
+        gamesDownloadReady={false}
+        onTab={setTab}
+        onFocus={setFocusIdx}
+        onPage={(p) => { setPage(p); setFocusIdx(0) }}
+        onBack={goHome}
+        onRetry={() => void catalog.load()}
+        onAct={(pack) => void catalog.act(pack)}
+        onReconfigure={(pack) => void catalog.reconfigure(pack)}
+        onGamesSystem={(system) => { search.choose(system); setShowSearch(true) }}
+        onGamesSearch={() => setShowSearch(true)}
+        onGamesAsk={(result) => search.ask(result)}
+        onGamesBack={() => {
+          if (search.asked) search.unask()
+          else if (search.system) search.leave()
+        }}
+      />
+
+      {/* The host's, not the view's — the same rule and the same reason as the
+          library's: a themed store cannot ship without a way to type, and the
+          keyboard is what registers as a modal so the global shortcuts stand
+          down over it. */}
+      <AnimatePresence>
+        {showSearch && (
+          <Overlay onClose={() => setShowSearch(false)}>
+            <VirtualKeyboard
+              className="gc-search-kb"
+              title={search.system ? `Search ${search.system.label}` : 'Search'}
+              initialValue={search.query}
+              placeholder="search a game…"
+              onConfirm={val => {
+                setShowSearch(false)
+                void search.run(val)
+              }}
+              // Cancelling out of the first search leaves the console chosen
+              // and nothing searched for, which is a screen with an empty
+              // list and no way to read it as anything but empty. So it steps
+              // back to the consoles instead — unless a search has already
+              // answered, in which case there is something to go back TO.
+              onCancel={() => {
+                setShowSearch(false)
+                if (!searchRef.current.answered) searchRef.current.leave()
+              }}
+            />
+          </Overlay>
+        )}
+      </AnimatePresence>
+    </>
   )
 }

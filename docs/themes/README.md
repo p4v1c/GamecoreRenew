@@ -240,8 +240,8 @@ which and why.
 | `libraryView` | the game list, detail panel and metadata — **markup only**, like `homeView` |
 | `homeOmit` | home-screen shortcuts you bind yourself: `'nav'` (d-pad), `'pages'` (L1/R1), `'confirm'` (✕). Take one and you own what it does — see §5g |
 | `libraryOmit` | the same, for the library. Today only `'options'` (R2) |
-| `storeView` | the Store's markup — the destination where consoles are installed and, later, games are downloaded (§5h) |
-| `storeOmit` | Store shortcuts you bind yourself: `'nav'` (d-pad), `'tabs'` (L1/R1), `'actions'` (✕ install/remove, △ reconfigure). ○ is never offered — it is the way off the screen |
+| `storeView` | the Store's markup — the destination where consoles are installed and games are searched for, one console at a time (§5h) |
+| `storeOmit` | Store shortcuts you bind yourself: `'nav'` (d-pad), `'tabs'` (L1/R1), `'actions'` (✕ install/remove and the Games tab's own ✕, △ reconfigure and the Games tab's own △). ○ is never offered — it is the way off the screen, and on the Games tab it is also the way back a step |
 | `screensaver` | the standby slideshow |
 | `settings` | the settings screen |
 | `powerView` | the power menu's markup — the two-press confirmation, the pending lock and the failsafe stay with the host |
@@ -499,6 +499,13 @@ the navigation and a theme reordering it would be steering a cursor through a
 list nobody can see. The four `kind: 'app'` packs are not here; they are
 Settings → Applications, which is a different screen for a different thing.
 
+**`cols` / `rows` / `perPage` describe the list under the cursor, and they
+change.** The Consoles tab is a 4 × 3 grid; the Games tab's results are a single
+column, because a result is a filename, a size and a format — a line of text,
+and four of those side by side on a television is four truncated names. Read
+them rather than hard-coding 4 × 3, or a themed store draws twelve slots for
+eight results and pages them wrong.
+
 **Drawing an Install button without owning what installing means.** That is what
 the rest of the props are for:
 
@@ -517,6 +524,48 @@ drops the two *buttons*, and `onAct` / `onReconfigure` are still the only way in
 It all lives in `useCatalog` (`frontend/src/lib/catalog.ts`), which the two
 applications pages consume too — there were three hand-written copies of this
 sequence before it and they disagreed about whether removing asks twice.
+
+### The Games tab — a console first, then a search inside it
+
+Two steps, in that order, and it is not a preference about menus you may
+rearrange: the directory a download has to land in belongs to the console
+(`<DATA>/emu/<roms.dir>/`), and what has to be *done* to the download is a
+property of the **pair** (console, incoming format) — the same `.zip` is the ROM
+on `mame` and packaging on `snes9x`. A result found without a console attached
+could be neither placed nor classified. See
+[`14-store-ingestion-matrix.md`](../architecture/14-store-ingestion-matrix.md)
+§0 and §1.3. `gamesPhase` tells you which step you are drawing, and the host
+moves between them.
+
+Only **installed** consoles are searchable (`gamesSystems`): a game for a
+console that is not on the box lands in a directory nothing scans, for a tile
+that is not on the grid.
+
+| prop | what to draw |
+|---|---|
+| `gamesPhase` | `'systems'` — the console list — or `'results'` |
+| `gamesSystems` · `gamesSystemsPage` | the installed consoles, and the current page of them |
+| `gamesSystem` · `gamesQuery` | which console is being searched, and for what |
+| `gamesResults` · `gamesResultsPage` | what came back, and the current page of it. `size` is **bytes** — format it yourself |
+| `gamesLoading` | a search is in flight |
+| `gamesAnswered` · `gamesError` | **two different facts.** No results is not an error: blaming the query for a provider that did not answer sends the player off to retype a title that was fine. Draw them as two sentences |
+| `gamesLive` | **false means the rows are invented.** Say so, visibly. The only provider shipped today is a demo one that makes up plausible rows, and a tab that drew them exactly as it will draw an indexer's would invite a player to ask for a game that does not exist |
+| `gamesProvider` | what to call whatever answered |
+| `gamesRomsDir` | where a download for this console would land, `emu/<dir>` — known once a search has answered |
+| `gamesAsked` | the result the player asked about, or null |
+| `gamesDownloadReady` | **false.** Asking records a choice and downloads nothing: there is no queue behind this screen. Do not draw a Download button over it — that is the button that does nothing |
+| `onGamesSystem` · `onGamesSearch` · `onGamesAsk` · `onGamesBack` | pick a console · open the keyboard · ask about a result · step back one phase |
+
+The on-screen keyboard is the **host's**, like the library's: a themed store
+cannot ship without a way to type, and it is what registers as a modal so the
+global shortcuts stand down over it. `onGamesSearch` opens it; you never render
+one — it is `sdk.defaults.DefaultKeyboard` either way, and it carries the
+library search's own `.gc-search-kb` class, so a theme that already sets
+`--gc-kb-*` for that surface dresses this one with no extra rule (the tokens
+are listed in `frontend/src/components/ui/VirtualKeyboard.tsx`).
+`gamesReady` stays in the contract
+and is now `true` — it says the tab has something to list, and a view written
+while it was `false` still works.
 
 `storeOmit` drops shortcuts you bind yourself, the same mechanism and the same
 cost as `homeOmit`:
@@ -896,7 +945,13 @@ once, at load. Either the theme runs or the default does.
   and SDK 5 both are. See `frontend/src/lib/themeSdk.ts` for the incident that
   established the rule. The Store (§5h) is the rule's most recent application:
   `storeView`, `storeOmit` and `sdk.nav.goStore` all arrived at **SDK 7**,
-  because no theme in this repository calls any of them.
+  because no theme in this repository calls any of them. The Games tab's props
+  are the same case and stay at **SDK 7**: they are additions to
+  `StoreViewProps`, every shipped theme draws the host's own Store, and a theme
+  that ignores them renders exactly what it rendered before. `gamesReady`
+  changing from `false` to `true` is a value and not a contract — the flag it
+  was written as is still there, still says what it said, and a view that
+  branched on it keeps working.
 - Theme files are never cached. The entry module's URL is timestamped, and
   `/themes` is served with `Cache-Control: no-store` — the entry's own relative
   imports and its stylesheet resolve without that query, so a header is the only

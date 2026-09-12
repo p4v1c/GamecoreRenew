@@ -33,8 +33,9 @@ vi.mock('../../hooks/useWebSocket', async (orig) => ({
 import DefaultShell from '../DefaultShell'
 import StoreScreen from './index'
 import { useStore } from '../../store'
-import { api, type CatalogEntry } from '../../api'
+import { api, type CatalogEntry, type StoreSearchAnswer, type StoreSearchResult } from '../../api'
 import { CATALOG_FAILED } from '../../lib/catalog'
+import { SEARCH_FAILED } from '../../lib/storeSearch'
 import type { StoreViewProps } from './types'
 
 const pack = (id: string, label: string, extra: Partial<CatalogEntry> = {}): CatalogEntry => ({
@@ -53,7 +54,45 @@ const CATALOGUE: CatalogEntry[] = [
   pack('youtube', 'YouTube', { kind: 'app' }),
 ]
 
+/** Two results, which is enough to have a second one to walk to. */
+const result = (id: string, title: string, extra: Partial<StoreSearchResult> = {}): StoreSearchResult => ({
+  id, title, filename: `${title} (USA).zip`, format: 'zip', size: 4 * 1024 * 1024,
+  systemId: 'sys00', provider: 'demo', source: `demo://sys00/${title}`,
+  region: 'USA', languages: ['en'], ...extra,
+})
+
+const ANSWER: StoreSearchAnswer = {
+  system: 'sys00', label: 'System 00', romsDir: 'emu/sys00',
+  provider: 'demo', live: false, query: 'zelda',
+  results: [result('r1', 'Zelda A'), result('r2', 'Zelda B', { format: 'nes' })],
+}
+
 const flush = () => act(async () => { await new Promise(r => setTimeout(r, 0)) })
+
+/**
+ * Type into the host's on-screen keyboard and confirm.
+ *
+ * Through the keys rather than by calling the callback, because the keyboard
+ * being the host's is part of what this file pins: a themed store cannot ship
+ * without a way to type, and a test that bypassed it would still pass if the
+ * keyboard stopped being rendered.
+ */
+const typeSearch = async (text: string) => {
+  const key = (label: string) =>
+    [...document.querySelectorAll('button')].find(b => b.textContent === label)
+  if (!key('CLR')) throw new Error('the keyboard is not open')
+  // Reopening it prefills the last query — see `initialValue` in the host.
+  fireEvent.click(key('CLR')!)
+  for (const ch of text) {
+    const button = key(ch === ' ' ? 'SPACE' : ch)
+    if (!button) throw new Error(`the keyboard has no key for "${ch}"`)
+    fireEvent.click(button)
+  }
+  await act(async () => {
+    fireEvent.click(key('↵ OK')!)
+    await new Promise(r => setTimeout(r, 0))
+  })
+}
 // The handler reloads, so the state lands a microtask later — inside this act
 // rather than after it, which is what keeps React from warning about it.
 const emit = (name: string, data: unknown) =>
@@ -77,6 +116,12 @@ beforeEach(() => {
   vi.spyOn(api.catalog, 'install').mockResolvedValue({} as never)
   vi.spyOn(api.catalog, 'remove').mockResolvedValue({} as never)
   vi.spyOn(api.catalog, 'reconfigure').mockResolvedValue({} as never)
+  // The Games tab. `live: false` is the shipped answer — the only provider is
+  // the demo one — and the tab has to say so rather than draw its rows the way
+  // it will draw an indexer's.
+  vi.spyOn(api.store, 'provider').mockResolvedValue({
+    name: 'demo', label: 'Demo results', live: false, systemFirst: true })
+  vi.spyOn(api.store, 'search').mockResolvedValue(ANSWER)
   useStore.setState({
     screen: 'store', selectedSystemId: null, modalDepth: 0, sessionGameKey: null,
     gridFocusIdx: 0, gridPage: 0,
@@ -119,7 +164,10 @@ describe('the storeView part', () => {
     expect(seen.pageCount).toBe(2)
     expect(seen.installedCount).toBe(3)
     expect(seen.tabs).toEqual(['consoles', 'games'])
-    expect(seen.gamesReady).toBe(false)
+    // Searching is here; downloading is not, and they are two flags so a view
+    // can draw results without promising a download.
+    expect(seen.gamesReady).toBe(true)
+    expect(seen.gamesDownloadReady).toBe(false)
 
     // The callbacks are the view's only reach into any of it.
     act(() => seen.onFocus(4))
@@ -225,13 +273,240 @@ describe('the route in', () => {
 })
 
 describe('the Games tab', () => {
-  it('says it is not here yet rather than drawing an empty library', async () => {
+  it('offers the installed consoles first, and only those', async () => {
+    // Not a preference about menus. The ingestion class of a download is a
+    // property of the pair (system, incoming format) and the directory it
+    // lands in belongs to the system, so a result found without a console
+    // attached could be neither placed nor classified — matrix §0, §1.3. And
+    // a console that is not on the box would take the download into a
+    // directory nothing scans, for a tile that is not on the grid.
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    press('gp:r1')
+
+    expect(seen.gamesPhase).toBe('systems')
+    expect(seen.gamesSystem).toBeNull()
+    expect(seen.gamesSystems.map(s => s.id)).toEqual(['sys00', 'sys01', 'sys02'])
+    expect(seen.gamesSystems.every(s => s.installed)).toBe(true)
+  })
+
+  it('says so rather than drawing a list when no console is installed', async () => {
+    vi.mocked(api.catalog.list).mockResolvedValue(
+      CATALOGUE.map(c => ({ ...c, installed: false })))
     const r = render(<StoreScreen />)
     await flush()
     press('gp:r1')
-    expect(r.container.textContent).toContain('not here yet')
-    // No fake rows, and nothing to press that would do nothing.
-    expect(r.container.querySelectorAll('button')).toHaveLength(2)  // the two tabs
+    expect(r.container.textContent).toContain('No console to search yet')
+  })
+
+  it('picks a console on ✕ and opens the keyboard with it', async () => {
+    // One press rather than two: a console with nothing typed into it has
+    // nothing to show, so a screen that stopped there would be a dead end.
+    let seen!: StoreViewProps
+    const r = render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    press('gp:r1')
+    press('gp:confirm')
+    await flush()
+
+    expect(seen.gamesSystem?.id).toBe('sys00')
+    expect(seen.gamesPhase).toBe('results')
+    expect(r.container.textContent).toContain('Search System 00')
+  })
+
+  it('backs out of the keyboard all the way to the consoles', async () => {
+    // Picking the wrong console is one press, and cancelling out of the
+    // keyboard with nothing searched would otherwise leave the player looking
+    // at an empty results list with no way to read it as anything but empty.
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    press('gp:r1')
+    press('gp:confirm')
+    await flush()
+    expect(seen.gamesPhase).toBe('results')
+
+    press('gp:back')
+    await flush()
+    expect(seen.gamesPhase).toBe('systems')
+    expect(seen.gamesSystem).toBeNull()
+    expect(useStore.getState().screen).toBe('store')
+  })
+
+  it('searches inside that console and never across the catalogue', async () => {
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    press('gp:r1')
+    press('gp:confirm')
+    await flush()
+    await typeSearch('zelda')
+
+    expect(api.store.search).toHaveBeenCalledWith('sys00', 'zelda')
+    expect(seen.gamesQuery).toBe('zelda')
+    expect(seen.gamesResults).toHaveLength(2)
+    expect(seen.gamesRomsDir).toBe('emu/sys00')
+    expect(seen.gamesAnswered).toBe(true)
+  })
+
+  it('pages the results as a column, not as the console grid', async () => {
+    // A result is a filename, a size and a format — a line of text. Four side
+    // by side on a television is four truncated names, so the shape travels in
+    // `cols`/`rows` rather than being a second thing a theme has to know.
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    expect(seen.cols).toBe(4)
+
+    press('gp:r1')
+    expect(seen.cols).toBe(4)        // the console list is still a grid
+    press('gp:confirm')
+    await flush()
+    await typeSearch('zelda')
+    expect(seen.cols).toBe(1)
+    expect(seen.perPage).toBe(seen.rows)
+  })
+
+  it('asks about a result, and says plainly that nothing was downloaded', async () => {
+    const r = render(<StoreScreen />)
+    await flush()
+    press('gp:r1')
+    press('gp:confirm')
+    await flush()
+    await typeSearch('zelda')
+
+    press('gp:confirm')
+    await flush()
+    expect(r.container.textContent).toContain('Nothing has been downloaded or queued')
+    // The one thing knowing the console first buys, shown: where it would go.
+    expect(r.container.textContent).toContain('emu/sys00/')
+  })
+
+  it('holds the cursor still under the panel it opened', async () => {
+    // It is a detail view. Without this, ✕ on it quietly swaps it for
+    // whichever row the invisible cursor underneath had moved to.
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    press('gp:r1')
+    press('gp:confirm')
+    await flush()
+    await typeSearch('zelda')
+
+    press('gp:confirm')
+    await flush()
+    expect(seen.gamesAsked?.id).toBe('r1')
+    press('gp:dpad-down')
+    expect(seen.focusIdx).toBe(0)
+    press('gp:confirm')
+    expect(seen.gamesAsked?.id).toBe('r1')
+  })
+
+  it('says out loud that invented results are invented', async () => {
+    // The demo provider makes up rows that look exactly like an indexer's. A
+    // tab that drew them identically would invite a player to press ✕ on a
+    // game that does not exist — a worse lie than the empty state it replaced.
+    const r = render(<StoreScreen />)
+    await flush()
+    press('gp:r1')
+    press('gp:confirm')
+    await flush()
+    await typeSearch('zelda')
+    expect(r.container.textContent).toContain('These results are made up')
+  })
+
+  it('steps back through its phases before it leaves the screen', async () => {
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    press('gp:r1')
+    press('gp:confirm')
+    await flush()
+    await typeSearch('zelda')
+    press('gp:confirm')                       // ask about the first result
+    await flush()
+    expect(seen.gamesAsked).not.toBeNull()
+
+    press('gp:back')
+    expect(seen.gamesAsked).toBeNull()        // back to the results
+    expect(seen.gamesPhase).toBe('results')
+    press('gp:back')
+    expect(seen.gamesPhase).toBe('systems')   // back to the consoles
+    expect(useStore.getState().screen).toBe('store')
+    press('gp:back')
+    expect(useStore.getState().screen).toBe('home')   // and only then, home
+  })
+
+  it('tells a failed search apart from a query that matched nothing', async () => {
+    // Blaming the query for a provider that did not answer sends the player
+    // off to retype a title that was fine.
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    press('gp:r1')
+    press('gp:confirm')
+    await flush()
+
+    vi.mocked(api.store.search).mockRejectedValueOnce(new Error('502'))
+    await typeSearch('zelda')
+    expect(seen.gamesError).toBe(SEARCH_FAILED)
+    expect(seen.gamesAnswered).toBe(false)
+
+    // △ reopens the keyboard: the failed search closed it, and the error
+    // message says so rather than leaving the player on a dead screen.
+    press('gp:y')
+    vi.mocked(api.store.search).mockResolvedValueOnce({ ...ANSWER, results: [] })
+    await typeSearch('nothing at all')
+    expect(seen.gamesError).toBe('')
+    expect(seen.gamesAnswered).toBe(true)
+    expect(seen.gamesResults).toEqual([])
+  })
+
+  it('draws those two states as two different sentences', async () => {
+    const r = render(<StoreScreen />)
+    await flush()
+    press('gp:r1')
+    press('gp:confirm')
+    await flush()
+
+    vi.mocked(api.store.search).mockResolvedValueOnce({ ...ANSWER, results: [] })
+    await typeSearch('zelda')
+    expect(r.container.textContent).toContain('Nothing matched')
+
+    press('gp:y')
+    vi.mocked(api.store.search).mockRejectedValueOnce(new Error('502'))
+    await typeSearch('zelda')
+    expect(r.container.textContent).toContain(SEARCH_FAILED)
+    expect(r.container.textContent).not.toContain('Nothing matched')
+  })
+
+  it('lets a theme list results without owning the search', async () => {
+    // The same seam as the Consoles tab's: a view draws the rows, and the
+    // callbacks are its only reach into what pressing one means. A theme that
+    // ran its own search would be the second implementation of it.
+    let seen!: StoreViewProps
+    const Themed = (p: StoreViewProps) => {
+      seen = p
+      return <div data-testid="themed">{p.gamesResultsPage.map(x => x.title).join(',')}</div>
+    }
+    const r = render(<StoreScreen view={Themed} />)
+    await flush()
+    press('gp:r1')
+
+    // Driven through the props, the way a theme with its own buttons would.
+    act(() => seen.onGamesSystem(seen.gamesSystems[1]))
+    await flush()
+    expect(seen.gamesSystem?.id).toBe('sys01')
+    await typeSearch('zelda')
+
+    expect(api.store.search).toHaveBeenCalledWith('sys01', 'zelda')
+    expect(r.getByTestId('themed').textContent).toBe('Zelda A,Zelda B')
+
+    act(() => seen.onGamesAsk(seen.gamesResults[1]))
+    expect(seen.gamesAsked?.id).toBe('r2')
+    act(() => seen.onGamesBack())
+    expect(seen.gamesAsked).toBeNull()
   })
 })
 

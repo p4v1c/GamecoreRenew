@@ -34,6 +34,7 @@ from fastapi.staticfiles import StaticFiles
 from .db import init_db
 from . import ws
 from .routers import systems, games, playtime, covers, media, metadata, sysinfo, update, overlays, addons, catalog
+from .routers import store as store_router
 from .routers import auth as auth_routes
 from .routers import bios as bios_router
 from .routers import pergame as pergame_router
@@ -277,6 +278,11 @@ app.include_router(addons.router, prefix="/api")
 # The pack catalogue: what this box could run, and installing it without
 # re-running the installer. Same busy-lock and WebSocket shape as addons.
 app.include_router(catalog.router, prefix="/api")
+# The Store's Games tab: searching for a game, scoped to one installed console.
+# Behind the API and not in the browser because a provider is configured with an
+# indexer's URL and its key — see routers/store.py. It starts nothing and holds
+# no lock: a search is a question, not an action.
+app.include_router(store_router.router, prefix="/api")
 app.include_router(bios_router.router, prefix="/api")
 app.include_router(standby_router.router, prefix="/api")
 app.include_router(controllers_router.router, prefix="/api")

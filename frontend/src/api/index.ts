@@ -219,6 +219,56 @@ export interface CatalogEntry {
   restricted: string[]
 }
 
+/**
+ * One thing the Store could bring onto the box, for one console.
+ *
+ * The fields are what the ingestion steps will need and they are declared now
+ * so a provider written later does not invent them — see
+ * `backend/services/store/search.py`, and
+ * `docs/architecture/14-store-ingestion-matrix.md` §5.1, whose class
+ * predicates read the pack plus the shape of what arrives.
+ */
+export interface StoreSearchResult {
+  id: string
+  title: string
+  /** The name it would arrive under, extension included. Never normalised:
+   *  a §5.1 class C archive has to keep the name it came with, byte for byte. */
+  filename: string
+  /** The bare suffix — `'zip'`, `'chd'` — or `'folder'` on a `scanDirs`
+   *  console, where the game is a directory and has no extension at all. */
+  format: string
+  /** Bytes. `0` when the source does not say — not a small download. */
+  size: number
+  systemId: string
+  provider: string
+  /** How the provider finds this again. Opaque, and not a URL to follow. */
+  source: string
+  region: string
+  languages: string[]
+}
+
+export interface StoreSearchAnswer {
+  system: string
+  label: string
+  /** `emu/<dir>`, relative to `<DATA>` — where a download for this console
+   *  would have to land, and the reason the console is chosen first. */
+  romsDir: string
+  provider: string
+  /** False when the rows are not real sources. Drawn, never hidden. */
+  live: boolean
+  query: string
+  results: StoreSearchResult[]
+}
+
+export interface StoreProviderInfo {
+  name: string
+  label: string
+  live: boolean
+  /** Always true: a search is scoped to one console and there is no search
+   *  across the catalogue. Sent so the tab does not have to assume it. */
+  systemFirst: boolean
+}
+
 export interface PlaytimeEntry {
   game_key: string
   system_id: string
@@ -437,6 +487,25 @@ export const api = {
     install: (id: string) => post(`/catalog/${encodeURIComponent(id)}/install`),
     remove: (id: string) => post(`/catalog/${encodeURIComponent(id)}/remove`),
     reconfigure: (id: string) => post(`/catalog/${encodeURIComponent(id)}/reconfigure`),
+  },
+  /**
+   * The Store's Games tab — searching, and nothing else yet.
+   *
+   * The search runs on the backend rather than from here, and that is not
+   * about where the code is tidiest: a provider is configured with an
+   * indexer's URL and its API key, and a key that reaches the browser is a key
+   * in the page source and in the devtools of a television nobody logs out of.
+   *
+   * `search` is scoped to one console and there is no call that is not. The
+   * ingestion class of a download is a property of the pair (system, incoming
+   * format) and the target directory is a property of the system, so a result
+   * with no console attached could be neither placed nor classified — see
+   * `docs/architecture/14-store-ingestion-matrix.md` §0.
+   */
+  store: {
+    provider: () => get<StoreProviderInfo>('/store/provider'),
+    search: (systemId: string, q: string) => get<StoreSearchAnswer>(
+      `/store/search?system=${encodeURIComponent(systemId)}&q=${encodeURIComponent(q)}`),
   },
   standby: {
     get: () => get<{ state: string; enabled: boolean; screensaver_mins: number; sleep_mins: number }>('/standby'),

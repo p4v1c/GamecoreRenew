@@ -1,4 +1,4 @@
-import type { CatalogEntry } from '../../api'
+import type { CatalogEntry, StoreSearchResult } from '../../api'
 
 /** The Store's two tabs, in the order L1/R1 walk them. */
 export type StoreTab = 'consoles' | 'games'
@@ -9,6 +9,18 @@ export const STORE_TAB_LABELS: Record<StoreTab, string> = {
   consoles: 'Consoles',
   games: 'Games',
 }
+
+/**
+ * Which step of the Games tab the player is on.
+ *
+ * Two, and the order is not a menu preference: a game is searched for *inside*
+ * a console, because the ingestion class of a download is a property of the
+ * pair (system, incoming format) and the directory it lands in is a property
+ * of the system. A result found without a console attached could be neither
+ * placed nor classified — `docs/architecture/14-store-ingestion-matrix.md` §0,
+ * §1.3.
+ */
+export type StoreGamesPhase = 'systems' | 'results'
 
 /**
  * What a store screen is handed, and all it is allowed to do.
@@ -38,8 +50,22 @@ export interface StoreViewProps {
 
   /** Every emulator pack in the catalogue, in the order the cursor walks. */
   consoles: CatalogEntry[]
-  /** Just the current page, already sliced. */
+  /** Just the current page of them, already sliced — the Consoles tab. */
   pageItems: CatalogEntry[]
+  /**
+   * ── The cursor, wherever it happens to be ─────────────────────────────────
+   *
+   * One cursor, describing whichever list is under it: the Consoles tab's
+   * grid, the Games tab's console list, or its results. It resets when the
+   * tab changes and when the Games tab steps between its two phases, because
+   * a highlight at card 9 of a list with three rows is a highlight nobody can
+   * see.
+   *
+   * `cols` / `rows` / `perPage` describe **that same list** and change with
+   * it — a results page is a column of rows where a console page is a grid.
+   * Read them rather than hard-coding 4 × 3, or a themed store draws twelve
+   * slots for eight results and pages them wrong.
+   */
   /** Focus index *within the current page*, 0..perPage-1. */
   focusIdx: number
   page: number
@@ -92,13 +118,100 @@ export interface StoreViewProps {
   /**
    * Whether the Games tab has anything to list.
    *
-   * `false` for the whole of this step, and stated in the contract rather than
-   * left to the view to know: searching and downloading arrive later, and a
-   * theme that drew an empty grid instead of an honest "not yet" would be
-   * telling the player they own no games. When the tab gains its listing this
-   * turns true and a view written now keeps working.
+   * True since searching arrived. It stays in the contract because the
+   * promise it was written with still holds from the other side: a view built
+   * while it was `false` drew an honest "not yet" and still works, and one
+   * written now must not assume the tab can never be empty-handed again.
    */
   gamesReady: boolean
+
+  /**
+   * ── The Games tab ─────────────────────────────────────────────────────────
+   *
+   * Two steps: pick a console, then search inside it. The block below is what
+   * a view draws them with, and the same rule applies as to the Consoles tab
+   * above — which console is chosen, what was searched for, and what came back
+   * are the host's, through `useStoreSearch` (`frontend/src/lib/storeSearch.ts`).
+   * A view that ran its own search would be the second implementation this
+   * repository already learned not to have.
+   *
+   * **Why the console comes first**, since a theme will be tempted to offer a
+   * search box on the tab's first screen: the ingestion class of a download is
+   * a property of the pair (system, incoming format) — the same `.zip` is the
+   * ROM on `mame` and packaging on `snes9x` — and the directory it has to land
+   * in belongs to the system. A result found without a console attached can be
+   * neither placed nor classified, and no indexer labels its results by
+   * console reliably enough to attach one afterwards. See
+   * `docs/architecture/14-store-ingestion-matrix.md` §0 and §1.3.
+   */
+  gamesPhase: StoreGamesPhase
+  /**
+   * The consoles that can be searched: the installed ones, A–Z.
+   *
+   * Only the installed ones, and that is not a convenience either — a game for
+   * a console that is not on the box lands in a directory nothing scans, for a
+   * tile that is not on the grid. The list is `consoles` filtered, not a
+   * second read of the catalogue.
+   */
+  gamesSystems: CatalogEntry[]
+  /** Just the current page of them, already sliced — the `systems` phase. */
+  gamesSystemsPage: CatalogEntry[]
+  /** The console being searched; `null` in the `systems` phase. */
+  gamesSystem: CatalogEntry | null
+  /** What was searched for; `''` before the first search. */
+  gamesQuery: string
+  /** Everything that came back, in the order the cursor walks it. */
+  gamesResults: StoreSearchResult[]
+  /** Just the current page of them, already sliced — the `results` phase. */
+  gamesResultsPage: StoreSearchResult[]
+  /** A search is in flight. */
+  gamesLoading: boolean
+  /** The search failed. Empty when nothing is wrong — **no results is not an
+   *  error** and a view that drew it as one would be blaming the box for a
+   *  query that simply matched nothing. */
+  gamesError: string
+  /** True once a search has answered, so "nothing matched" can be told apart
+   *  from "nothing has been searched for yet". */
+  gamesAnswered: boolean
+  /**
+   * Whether the rows describe real sources.
+   *
+   * `false` while the only provider is the demo one, which invents them.
+   * **Draw it.** A tab that showed invented rows exactly as it will show an
+   * indexer's would be inviting a player to press ✕ on a game that does not
+   * exist, and that is a worse lie than the empty state this tab replaced.
+   */
+  gamesLive: boolean
+  /** What to call the provider that answered. */
+  gamesProvider: string
+  /**
+   * Where a download for the chosen console would land — `emu/<dir>`,
+   * relative to the data root. Known only after a search has answered.
+   */
+  gamesRomsDir: string
+  /** The result the player has asked about; `null` when none. */
+  gamesAsked: StoreSearchResult | null
+  /**
+   * Whether asking for a result can actually bring it onto the box.
+   *
+   * `false` for the whole of this step, and in the contract for the same
+   * reason `gamesReady` was: acquiring the bytes is a later step, and a view
+   * that drew a Download button over a call that downloads nothing would be
+   * the button that does nothing. Say what asking does and does not do. When
+   * it turns true a view written now keeps working.
+   */
+  gamesDownloadReady: boolean
+
+  /** Pick the console to search inside — the `systems` phase's action. */
+  onGamesSystem: (system: CatalogEntry) => void
+  /** Open the on-screen keyboard. The keyboard itself is the host's: a themed
+   *  store cannot ship without a way to type, and it is what registers as a
+   *  modal so the global shortcuts stand down over it. */
+  onGamesSearch: () => void
+  /** Ask about one result. Records the choice; downloads nothing. */
+  onGamesAsk: (result: StoreSearchResult) => void
+  /** Put an asked result back down, or step back to the console list. */
+  onGamesBack: () => void
 
   /** Mouse affordances. The gamepad path never goes through these. */
   onTab: (tab: StoreTab) => void

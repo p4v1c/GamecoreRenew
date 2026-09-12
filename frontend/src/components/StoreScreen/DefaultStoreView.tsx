@@ -6,7 +6,8 @@
  * is exactly the seam a theme replaces: same behaviour, different UI.
  */
 import { useState, useEffect, useRef } from 'react'
-import type { CatalogEntry } from '../../api'
+import type { CatalogEntry, StoreSearchResult } from '../../api'
+import { formatSize } from '../../lib/storeSearch'
 import type { StoreViewProps } from './types'
 
 const ACCENT = '#7c3aed'
@@ -134,37 +135,319 @@ function RunLog({ lines }: { lines: string[] }) {
 }
 
 /**
- * The Games tab, which has nothing to list and says so.
+ * A sentence the tab says instead of drawing a list it does not have.
  *
- * Not an empty grid and not a placeholder list: either would read as "you own
- * no games", which is a different sentence and a false one. The tab exists now
- * because the Store's shape is two tabs and a theme has to be able to dress
- * both of them; what fills it — searching, downloading, and the six ingestion
- * classes a download has to become (docs/architecture/14-store-ingestion-matrix.md
- * §5) — arrives in its own steps.
+ * Every empty state on this tab goes through here, because there are four of
+ * them and they are four different facts: no console installed, nothing
+ * searched for yet, nothing matched, and the search failed. Drawing one grid
+ * of nothing for all four would tell a player their query matched nothing when
+ * the truth was that the box could not reach the provider.
  */
-function GamesTab() {
+function Nothing({ glyph, title, children }: {
+  glyph: string; title: string; children?: React.ReactNode
+}) {
   return (
     <div style={{
       flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
       justifyContent: 'center', gap: 10, textAlign: 'center', padding: '0 48px',
     }}>
-      <div style={{ fontSize: 34, opacity: 0.25 }}>◌</div>
-      <div style={{ fontSize: 16, fontWeight: 700 }}>Downloading games is not here yet</div>
-      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', maxWidth: 460, lineHeight: 1.5 }}>
-        This tab is the place it will land. Nothing searches, downloads or
-        installs from it today — until it does, put your ROMs on the box the way
-        you already do and they appear in your library.
+      <div style={{ fontSize: 34, opacity: 0.25 }}>{glyph}</div>
+      <div style={{ fontSize: 16, fontWeight: 700 }}>{title}</div>
+      {children && (
+        <div style={{
+          fontSize: 13, color: 'rgba(255,255,255,0.4)', maxWidth: 460,
+          lineHeight: 1.5,
+        }}>{children}</div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The banner over invented results.
+ *
+ * Drawn whenever `gamesLive` is false, and it is the one thing on this tab
+ * that must not be quiet about itself: the demo provider makes up rows that
+ * look exactly like an indexer's, and a player pressing ✕ on one is asking for
+ * a game that does not exist. The honest empty state this tab replaced was
+ * better than a convincing lie.
+ */
+function NotRealNotice({ provider }: { provider: string }) {
+  return (
+    <div style={{
+      flexShrink: 0, marginTop: 12, padding: '7px 12px', borderRadius: 8,
+      fontSize: 11.5, lineHeight: 1.45,
+      background: 'rgba(250,204,21,0.10)',
+      border: '1px solid rgba(250,204,21,0.35)', color: '#fde68a',
+    }}>
+      <strong>These results are made up.</strong> {provider || 'The demo provider'} invents
+      them so this screen can be built and tested — no indexer is configured, nothing
+      here is a real download.
+    </div>
+  )
+}
+
+/** One console to search inside. The Games tab's first step. */
+function SystemCard({ pack, focused, onClick }: {
+  pack: CatalogEntry; focused: boolean; onClick: () => void
+}) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+        borderRadius: 14, cursor: 'pointer', minWidth: 0,
+        background: focused ? 'rgba(124,58,237,0.16)' : 'rgba(255,255,255,0.045)',
+        border: `1px solid ${focused ? 'rgba(124,58,237,0.55)' : 'transparent'}`,
+        transition: 'background 120ms ease, border-color 120ms ease',
+      }}
+    >
+      <PackMark pack={pack} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontWeight: 700, fontSize: 14, overflow: 'hidden',
+          textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{pack.label}</div>
+        <div style={{
+          fontSize: 11.5, color: 'rgba(255,255,255,0.45)', marginTop: 2,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{pack.platform || pack.emulatorName}</div>
       </div>
     </div>
   )
 }
 
-export default function DefaultStoreView({
-  tab, tabs, tabLabels, pageItems, focusIdx, page, pageCount, cols, rows,
-  consoles, installedCount, loading, loadError, onTab, onFocus, onPage, onBack,
-  onRetry, workingId, busy, armedId, log, actionError, onAct,
-}: StoreViewProps) {
+/**
+ * One result — a row, not a card.
+ *
+ * The format is drawn as its own chip beside the size because those two are
+ * what a player is actually choosing between when the same game is listed four
+ * times: a `.chd` and a `.cue` of one PlayStation disc are the same game and
+ * two different downloads.
+ */
+function ResultRow({ result, focused, onClick }: {
+  result: StoreSearchResult; focused: boolean; onClick: () => void
+}) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12, padding: '9px 14px',
+        borderRadius: 10, cursor: 'pointer', minWidth: 0,
+        background: focused ? 'rgba(124,58,237,0.16)' : 'rgba(255,255,255,0.035)',
+        border: `1px solid ${focused ? 'rgba(124,58,237,0.55)' : 'transparent'}`,
+        transition: 'background 120ms ease, border-color 120ms ease',
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontWeight: 700, fontSize: 13.5, overflow: 'hidden',
+          textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{result.title}</div>
+        <div style={{
+          fontSize: 11, color: 'rgba(255,255,255,0.38)', marginTop: 2,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{result.filename}</div>
+      </div>
+      {result.region && (
+        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>
+          {result.region}
+        </span>
+      )}
+      <span style={{
+        fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', flexShrink: 0,
+        padding: '2px 7px', borderRadius: 999, color: BRIGHT,
+        background: 'rgba(124,58,237,0.20)',
+      }}>{result.format.toUpperCase()}</span>
+      <span style={{
+        fontSize: 12, color: 'rgba(255,255,255,0.55)', flexShrink: 0,
+        minWidth: 62, textAlign: 'right', fontVariantNumeric: 'tabular-nums',
+      }}>{formatSize(result.size)}</span>
+    </div>
+  )
+}
+
+/**
+ * What one result is, and what asking for it does — which is not download it.
+ *
+ * The panel exists because ✕ has to do *something* real, and this is the real
+ * thing there is to do: say what the file is, where on this box it would have
+ * to land, and plainly that nothing has been queued. A Download button over a
+ * call that downloads nothing would be the button that does nothing, which is
+ * the failure the old "not here yet" empty state was written to avoid.
+ */
+function AskedPanel({ result, romsDir, downloadReady }: {
+  result: StoreSearchResult; romsDir: string; downloadReady: boolean
+}) {
+  const line = (k: string, v: string) => (
+    <div style={{ display: 'flex', gap: 12, fontSize: 12.5, minWidth: 0 }}>
+      <span style={{ color: 'rgba(255,255,255,0.35)', width: 96, flexShrink: 0 }}>{k}</span>
+      <span style={{ color: 'rgba(255,255,255,0.8)', wordBreak: 'break-word' }}>{v}</span>
+    </div>
+  )
+  return (
+    <div style={{
+      flex: 1, minHeight: 0, marginTop: 18, display: 'flex',
+      flexDirection: 'column', gap: 14, overflowY: 'auto',
+    }}>
+      <div style={{ fontSize: 19, fontWeight: 700 }}>{result.title}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {line('File', result.filename)}
+        {line('Format', result.format === 'folder'
+          ? 'a folder — this console’s games are directories'
+          : `.${result.format}`)}
+        {line('Size', formatSize(result.size))}
+        {result.region && line('Region', result.region)}
+        {result.languages.length > 0 && line('Languages', result.languages.join(', '))}
+        {/* The concrete reason the console is chosen before anything is
+            searched for: with it known, this is known too. */}
+        {romsDir && line('Would land in', `${romsDir}/`)}
+        {line('Found by', result.provider)}
+      </div>
+      {!downloadReady && (
+        <div style={{
+          marginTop: 'auto', padding: '10px 12px', borderRadius: 8,
+          fontSize: 12.5, lineHeight: 1.5,
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          color: 'rgba(255,255,255,0.62)',
+        }}>
+          <strong style={{ color: 'rgba(255,255,255,0.85)' }}>Nothing has been
+          downloaded or queued.</strong> Bringing a game onto the box is a
+          separate step and it is not built yet — there is no queue behind this
+          screen, so nothing is waiting and nothing resumes after a reboot.
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The Games tab: pick a console, then search inside it.
+ *
+ * Two steps and in that order, which is a decision the host makes and this
+ * view only draws — the ingestion class of a download is a property of the
+ * pair (system, incoming format) and the target directory belongs to the
+ * system, so a result found without a console attached could be neither placed
+ * nor classified. See docs/architecture/14-store-ingestion-matrix.md §0.
+ */
+function GamesTab(p: StoreViewProps) {
+  if (p.gamesSystems.length === 0) {
+    return (
+      <Nothing glyph="◌" title="No console to search yet">
+        A game is searched for inside a console, because where it has to land
+        and what has to be done to it both depend on which machine it is for.
+        Install one from the Consoles tab and it appears here.
+      </Nothing>
+    )
+  }
+
+  if (p.gamesPhase === 'systems') {
+    return (
+      <>
+        <div style={{
+          marginTop: 16, flexShrink: 0, fontSize: 12.5,
+          color: 'rgba(255,255,255,0.4)',
+        }}>
+          Which console are you looking for a game for?
+        </div>
+        <div style={{
+          flex: 1, minHeight: 0, marginTop: 12,
+          display: 'grid', gap: 12, alignContent: 'start',
+          gridTemplateColumns: `repeat(${p.cols}, minmax(0, 1fr))`,
+          gridTemplateRows: `repeat(${p.rows}, minmax(0, auto))`,
+        }}>
+          {p.gamesSystemsPage.map((pack, i) => (
+            <SystemCard
+              key={pack.id}
+              pack={pack}
+              focused={i === p.focusIdx}
+              onClick={() => { p.onFocus(i); p.onGamesSystem(pack) }}
+            />
+          ))}
+        </div>
+      </>
+    )
+  }
+
+  if (p.gamesAsked) {
+    return (
+      <AskedPanel
+        result={p.gamesAsked}
+        romsDir={p.gamesRomsDir}
+        downloadReady={p.gamesDownloadReady}
+      />
+    )
+  }
+
+  return (
+    <>
+      <div style={{
+        marginTop: 16, flexShrink: 0, display: 'flex', alignItems: 'baseline',
+        gap: 10, fontSize: 12.5, color: 'rgba(255,255,255,0.4)',
+      }}>
+        <span style={{ color: BRIGHT, fontWeight: 700 }}>{p.gamesSystem?.label}</span>
+        {p.gamesQuery && <span>“{p.gamesQuery}”</span>}
+        <div style={{ flex: 1 }} />
+        {p.gamesAnswered && !p.gamesLoading && (
+          <span>{p.gamesResults.length} result{p.gamesResults.length === 1 ? '' : 's'}</span>
+        )}
+      </div>
+
+      {!p.gamesLive && p.gamesAnswered && <NotRealNotice provider={p.gamesProvider} />}
+
+      {p.gamesLoading && (
+        <Nothing glyph="◌" title="Searching…" />
+      )}
+
+      {/* Told apart from "nothing matched" on purpose: one is the box failing
+          and the other is the query. Blaming the query for a provider that did
+          not answer sends the player off to retype a title that was fine. */}
+      {!p.gamesLoading && p.gamesError && (
+        <Nothing glyph="⚠" title={p.gamesError}>
+          Nothing was searched. Press △ to try again.
+        </Nothing>
+      )}
+
+      {!p.gamesLoading && !p.gamesError && p.gamesAnswered && p.gamesResults.length === 0 && (
+        <Nothing glyph="◌" title="Nothing matched">
+          No result for “{p.gamesQuery}” on {p.gamesSystem?.label}. Press △ to
+          search for something else.
+        </Nothing>
+      )}
+
+      {!p.gamesLoading && !p.gamesError && !p.gamesAnswered && (
+        <Nothing glyph="◌" title="Nothing searched for yet">
+          Press △ to type what you are looking for.
+        </Nothing>
+      )}
+
+      {!p.gamesLoading && !p.gamesError && p.gamesResultsPage.length > 0 && (
+        <div style={{
+          flex: 1, minHeight: 0, marginTop: 12,
+          display: 'flex', flexDirection: 'column', gap: 7,
+          alignContent: 'start',
+        }}>
+          {p.gamesResultsPage.map((result, i) => (
+            <ResultRow
+              key={result.id}
+              result={result}
+              focused={i === p.focusIdx}
+              onClick={() => { p.onFocus(i); p.onGamesAsk(result) }}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
+export default function DefaultStoreView(p: StoreViewProps) {
+  const {
+    tab, tabs, tabLabels, pageItems, focusIdx, page, pageCount, cols, rows,
+    consoles, installedCount, loading, loadError, onTab, onFocus, onPage, onBack,
+    onRetry, workingId, busy, armedId, log, actionError, onAct,
+  } = p
   const focusedPack = pageItems[focusIdx]
   return (
     <div style={{
@@ -199,7 +482,7 @@ export default function DefaultStoreView({
         )}
       </div>
 
-      {tab === 'games' ? <GamesTab /> : (
+      {tab === 'games' ? <GamesTab {...p} /> : (
         <>
           {/* The placeholder only while there is genuinely nothing to draw. A
               reload — the catalogue answering again after a pack was installed
@@ -268,22 +551,28 @@ export default function DefaultStoreView({
             </div>
           )}
 
-          {pageCount > 1 && (
-            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 14 }}>
-              {Array.from({ length: pageCount }).map((_, i) => (
-                <div
-                  key={i}
-                  onClick={() => onPage(i)}
-                  style={{
-                    width: i === page ? 20 : 6, height: 6, borderRadius: 3, cursor: 'pointer',
-                    background: i === page ? ACCENT : 'rgba(255,255,255,0.15)',
-                    transition: 'all 0.3s',
-                  }}
-                />
-              ))}
-            </div>
-          )}
         </>
+      )}
+
+      {/* Outside the tab branch: the Games tab pages too — up to three pages of
+          consoles and six of results — and a list that turns pages with no dot
+          to say so reads as a list that jumped. `pageCount` is already the
+          current list's, so one pager serves all three. The asked-about panel
+          is the exception: it is one thing, not a page of them. */}
+      {pageCount > 1 && !(tab === 'games' && p.gamesAsked) && (
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 14 }}>
+          {Array.from({ length: pageCount }).map((_, i) => (
+            <div
+              key={i}
+              onClick={() => onPage(i)}
+              style={{
+                width: i === page ? 20 : 6, height: 6, borderRadius: 3, cursor: 'pointer',
+                background: i === page ? ACCENT : 'rgba(255,255,255,0.15)',
+                transition: 'all 0.3s',
+              }}
+            />
+          ))}
+        </div>
       )}
 
       <div style={{
@@ -299,7 +588,21 @@ export default function DefaultStoreView({
                 : '✕ install'}
           </span>
         )}
-        <span onClick={onBack} style={{ cursor: 'pointer' }}>○ Back</span>
+        {/* The Games tab's hint follows its step, because the same two buttons
+            mean three different things across them and a bar that said one of
+            them everywhere would be wrong twice. */}
+        {tab === 'games' && p.gamesSystems.length > 0 && (
+          <span>
+            {p.gamesPhase === 'systems' ? '✕ search this console'
+              : p.gamesAsked ? '○ back to the results'
+                : '✕ what is this · △ search again'}
+          </span>
+        )}
+        {/* ○ steps back through the Games tab before it leaves the screen, so
+            the pointer affordance has to do the same or the two disagree. */}
+        {tab === 'games' && (p.gamesAsked || p.gamesSystem)
+          ? <span onClick={p.onGamesBack} style={{ cursor: 'pointer' }}>○ Back</span>
+          : <span onClick={onBack} style={{ cursor: 'pointer' }}>○ Back</span>}
         <div style={{ flex: 1 }} />
         {tab === 'consoles' && busy && (
           <span>Working — the grid is held until this finishes</span>

@@ -93,8 +93,8 @@ opened from a themed box.
 | **route in** | △ on the dashboard, bound in `DefaultShell` beside ⚙ and ⏻ — a destination's route belongs with the other destinations'. Plus a Store button on the default top bar, and `sdk.nav.goStore()` for a theme's own way in |
 | **route out** | ○, owned by `StoreScreen` and never droppable |
 | **tabs** | L1/R1. The dashboard spends those on paging and this screen cannot: the two tabs are its whole shape. Paging is the d-pad's edges, which already turn the page on the dashboard too |
-| **data** | `GET /api/catalog`, filtered to `kind: 'emulator'` and ordered A–Z by label. One catalogue, one endpoint — see [`10-catalog-and-install.md`](10-catalog-and-install.md) |
-| **actions** | ✕ installs, ✕ again removes (armed first), △ reconfigures. All three through `useCatalog`, never through this screen's own code |
+| **data** | `GET /api/catalog`, filtered to `kind: 'emulator'` and ordered A–Z by label. One catalogue, one endpoint — see [`10-catalog-and-install.md`](10-catalog-and-install.md). The Games tab adds `GET /api/store/search` |
+| **actions** | ✕ installs, ✕ again removes (armed first), △ reconfigures. All three through `useCatalog`, never through this screen's own code. On the Games tab the same buttons mean that tab's own steps — ✕ picks a console then asks about a result, △ opens the keyboard — and none of them goes near `useCatalog` |
 
 **Mounted only while it is open**, which is the one place the shell departs from
 the two screens beside it. Those stay mounted so that going home does not
@@ -133,11 +133,55 @@ reports `success: false` after however much of the work it had already done, and
 `installed` is read from the `systems.json` that work writes — so skipping the
 re-read leaves a screen saying "not installed" about a half-installed pack.
 
-**What it does not do yet.** The Games tab lists nothing and says so —
-`gamesReady` is `false` in the view props — because searching and downloading
-arrive separately, and what a downloaded game has to *become* is six ingestion
-classes wide (see [`14-store-ingestion-matrix.md`](14-store-ingestion-matrix.md)
-§5).
+### The Games tab — system first
+
+Two steps, in this order: **pick a console, then search inside it.** The order is
+the decision the whole tab is built on, and it is not a preference about menus.
+
+| why | |
+|---|---|
+| the target directory | `<DATA>/emu/<roms.dir>/` is a property of the system and of nothing else ([§1.3](14-store-ingestion-matrix.md)). With the console known it is known; without it, a download has nowhere to go |
+| the ingestion class | is a property of the **pair** (system, incoming format) — the same `.zip` is the ROM on `mame` and packaging on `snes9x` ([§0](14-store-ingestion-matrix.md), §2). A result with no console attached cannot be classified at all |
+| the indexers | none of them labels its own results by console reliably enough for the box to attach one afterwards |
+
+**Only installed consoles are searchable.** A game for a console that is not on
+the box lands in a directory nothing scans, for a tile that is not on the grid.
+The list is `consoles` filtered to `installed` — the same list the Consoles tab
+already holds, not a second read of the catalogue.
+
+### One search logic — `frontend/src/lib/storeSearch.ts`
+
+`useStoreSearch()` owns the chosen console, the query, the request, what came
+back and the result the player has asked about. Written as a module for the
+same reason `useCatalog` was: the second screen that wants a game search must
+not be able to start a second copy. What stays out of it is the cursor, which is
+navigation and belongs to the screen that owns it.
+
+Two things it does *differently* from `useCatalog`, both deliberate:
+
+- **A failed search drops its rows**, where a failed catalogue re-read keeps
+  them. The catalogue is a list the box maintains; results are the answer to one
+  request, and keeping them would leave the last query's rows under the new
+  query's heading.
+- **No results is not an error.** `error` and `answered` are separate, because
+  blaming the query for a provider that did not answer sends the player off to
+  retype a title that was fine.
+
+### Where the search runs, and why not here
+
+In the backend, behind `GET /api/store/search`
+([`backend/routers/store.py`](../../backend/routers/store.py)). A provider is
+configured with an indexer's URL and its API key, and a key that reaches the
+browser is a key in the page source and in the devtools of a television nobody
+logs out of. The frontend never learns how an answer was obtained.
+
+**What it does not do yet.** Downloading. `gamesDownloadReady` is `false` in the
+view props, the only provider is the demo one that invents its rows (and says so
+on screen — `gamesLive` is `false`), and asking about a result records a choice
+and queues nothing. Acquiring the bytes, the job that survives a reboot, and
+what a downloaded game has to *become* — six ingestion classes wide, see
+[`14-store-ingestion-matrix.md`](14-store-ingestion-matrix.md) §5 — arrive in
+their own steps.
 
 ## The gamepad event bus — `hooks/useGamepad.ts`
 
@@ -232,9 +276,9 @@ and returns an unsubscribe.
 | `components/LibraryScreen/types.ts` | 66 | `LibraryViewProps`, `SORT_KEYS`, `SORT_LABELS` |
 | `components/LibraryScreen/CoverImage.tsx` | 57 | cover art + missing-art fallback; handed to the view. Optional `type` prop draws any media type (`box-3d`, `clear-logo`, `screenshot-gameplay`…) — omitted, it is the jacket from `/api/covers`, byte for byte what it always was |
 | `components/LibraryScreen/GameMetaPanel.tsx` | 40 | year/genres/players; handed to the view |
-| `components/StoreScreen/index.tsx` | 270 | **behaviour**: the two tabs, the 4×3 grid (`COLS`, `ROWS`, `PER_PAGE`), paging, focus, the bindings |
-| `components/StoreScreen/DefaultStoreView.tsx` | 215 | **markup** of the default Store; `PackMark` falls back to the pack's colour |
-| `components/StoreScreen/types.ts` | 70 | `StoreViewProps`, `STORE_TABS`, `STORE_TAB_LABELS` |
+| `components/StoreScreen/index.tsx` | 565 | **behaviour**: the two tabs, the 4×3 grid (`COLS`, `ROWS`), the 1-column results page (`RESULT_ROWS`), paging, focus, the Games tab's two phases, the search keyboard, the bindings |
+| `components/StoreScreen/DefaultStoreView.tsx` | 607 | **markup** of the default Store; `PackMark` falls back to the pack's colour, `Nothing` draws the tab's four different empty states |
+| `components/StoreScreen/types.ts` | 233 | `StoreViewProps`, `STORE_TABS`, `STORE_TAB_LABELS`, `StoreGamesPhase` |
 | `components/TopBar/index.tsx` | 134 | clock, IP, storage, `ControllerBattery`, `TBtn` |
 | `components/Screensaver.tsx` | 136 | standby slideshow, `ROTATE_MS = 9000` |
 | `components/OverlayScreen/index.tsx` | 109 | what the transparent Electron overlay window renders |
@@ -313,14 +357,17 @@ rim to move against — without it the cap looks like it is floating.
 | `sounds.ts` | `playSound(name)`, `soundForGpEvent(event)`, `soundSettings`, `getAudioContext`. Sounds are **synthesised** with `note()` on a shared `AudioContext` — no audio assets. Settings persist in `localStorage` (`gc:uiSounds`, `gc:uiSoundsVolume`) |
 | `systemColors.ts` | `SYSTEM_COLORS` fallback palette per system id |
 | `formatGameName.ts` | `formatGameName(raw)` — strips trailing region and language-sequence noise (`REGION_RE`, `LANG_SEQ_RE`) |
+| `catalog.ts` | `useCatalog({ kind, onDone })`, `CATALOG_FAILED` — the one catalogue logic, consumed by the Store's Consoles tab and both applications pages |
+| `storeSearch.ts` | `useStoreSearch()`, `SEARCH_FAILED`, `formatSize(bytes)` — the one game-search logic: the chosen console, the query, the request, the asked-about result. `formatSize` is here and not in `format.ts` because that file is `sdk.format`, and growing it is an SDK version bump |
 
 ## `api/index.ts`
 
 `BASE = '/api'`, generic `get<T>` / `post<T>`, and the `api` object grouping
 `systems`, `games`, `metadata`, `media`, `playtime`, `sysinfo`, `update`,
-`wifi`, `audio`, `bluetooth`, `addons`, `standby`. Types exported for the UI:
-`SystemEntry`, `GameEntry`, `GameMeta`, `MediaEntry`, `GameMediaIndex`,
-`PlaytimeEntry`, `SysInfo`.
+`wifi`, `audio`, `bluetooth`, `addons`, `standby`, `catalog`, `store`. Types
+exported for the UI: `SystemEntry`, `GameEntry`, `GameMeta`, `MediaEntry`,
+`GameMediaIndex`, `PlaytimeEntry`, `SysInfo`, `CatalogEntry`,
+`StoreSearchResult`, `StoreSearchAnswer`, `StoreProviderInfo`.
 
 `api.media` is the one to read before drawing artwork that is not a jacket:
 
