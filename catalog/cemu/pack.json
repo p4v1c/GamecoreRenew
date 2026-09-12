@@ -60,11 +60,8 @@
     ]
   },
   "perGame": {
-    "supported": true,
-    "path": "@FLATPAK_CONFIG@/Cemu/gameProfiles/@GAMEID@.ini",
-    "format": "ini",
-    "key": "wiiu",
-    "settingsArgs": "run @APPID@",
-    "merge": "own-keys"
+    "supported": false,
+    "why": "The title id is only in meta/meta.xml beside an extracted dump, and the one layout this pack lists is a flat .rpx with no meta.xml next to it — the two layouts gameid._wiiu_title_id can read, <game>/ and <game>/code/*.rpx, are exactly the ones scanDirs: false never yields.",
+    "settingsArgs": "run @APPID@"
   }
 }

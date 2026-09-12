@@ -379,7 +379,7 @@ exist and they are not interchangeable:
 |---|---|---|---|---|
 | `atomiswave` | **none — never unpack** | archive opens; magic `PK`/`7z` | the `.zip`/`.7z`, byte-identical | display: filename · id: `filename` |
 | `azahar` | none (`.zip` declared) | magic; `.cia` vs `.3ds` distinction | single file | display: filename · id: `filename` |
-| `cemu` | none; **reject extracted trees** (§4.4) | magic; `keys.txt` optional (BIOS block) | single `.wux`/`.rpx`/`.iso` at top level | `perGame.key = wiiu` → meta.xml — **does not resolve, §4.4** |
+| `cemu` | none; **reject extracted trees** (§4.4) | magic; `keys.txt` optional (BIOS block) | single `.wux`/`.rpx`/`.iso` at top level | display: filename · `perGame.supported: false` since §7.1 — no title id is reachable (§4.4) |
 | `dolphin` | none (`.zip` declared) | 6-char disc id readable at header | single file | id: `gcwii` disc header · scraper: `gcwii` |
 | `dreamcast` | unpack if archived (`.zip` undeclared) | **`.gdi`/`.cue` + every track present** (§4.2) | descriptor + tracks flat, or one `.chd` | display: filename · id: `filename` |
 | `duckstation` | none (`.zip` declared) | **`.cue` + every `FILE` it names** | `.cue` listed, tracks hidden | scraper: `playstation` serial from SYSTEM.CNF |
@@ -555,9 +555,16 @@ identify('wiiu', <game>/  as a dir)    -> '0005000010143500'   reader works
 identify('wiiu', flat.rpx)             -> None                 the only listable shape
 ```
 
-**`cemu` declares `perGame.supported: true` with `key: wiiu`, and that key cannot
+**`cemu` declared `perGame.supported: true` with `key: wiiu`, and that key cannot
 resolve for any ROM the scanner is able to list.** The reader supports exactly
-the two layouts `scanDirs: false` forbids. Logged in §7; not fixed here.
+the two layouts `scanDirs: false` forbids.
+
+That was the state this matrix was written against. It has since been closed the
+honest way — the pack declares `supported: false` with its reason rather than a
+capability it cannot reach — and **the measurements above still hold**: a Wii U
+dump in its real extracted layout is still invisible to the grid. Only the
+promise was withdrawn, not the limitation. See §7.1 for why `scanDirs: true`
+would have cost more than it bought.
 
 ### 4.5 Updates and DLC
 
@@ -753,15 +760,28 @@ Each of these needs a real file, a real box, or a decision — not more reading.
 ## 7. Inconsistencies found and deliberately not fixed
 
 Found while writing this document, recorded rather than corrected: each needs a
-decision and a test change, and none of them is a documentation fix. No
-`pack.json` was modified.
+decision and a test change, and none of them is a documentation fix. Item 1 was
+decided by the owner immediately afterwards and is now closed; items 2 to 5 are
+still open, and no other `pack.json` has been modified.
 
-1. **`cemu` promises per-game settings it cannot deliver.** `perGame.supported:
-   true`, `key: wiiu`, and the reader resolves only for layouts `scanDirs: false`
-   makes unlistable (§4.4). Either `cemu` becomes `scanDirs: true`, or
-   `_wiiu_title_id` grows a flat-`.rpx` path, or the pack declares
-   `supported: false` with a reason. All three are real changes with test
-   consequences.
+1. ~~**`cemu` promises per-game settings it cannot deliver.**~~ **Closed.**
+   `perGame.supported: true` with `key: wiiu`, against a reader that resolves
+   only for layouts `scanDirs: false` makes unlistable (§4.4). Of the three
+   available answers — `scanDirs: true`, a flat-`.rpx` path in
+   `_wiiu_title_id`, or an honest `supported: false` — the owner chose the
+   third, and `catalog/cemu/pack.json` now declares it with its reason.
+
+   `scanDirs: true` was the tempting one and it was the trap: `iter_rom_files`
+   yields **only directories** in that mode and ignores `extensions` entirely
+   (`rom_scanner.py:129-131`), so it would have made every `.wux`, `.iso`,
+   `.zip` and flat `.rpx` on a real box disappear from the grid. Trading a
+   promise nobody could keep for a library nobody can see is not a fix.
+
+   One documented side effect: `settingsArgs` — the button that opens Cemu's
+   **own** settings window, which needs no title id at all — is gated on the
+   same flag (`pergame.py:656`, `if not args or not b.get("supported")`), so it
+   goes quiet too. The field is kept in the pack because it states something
+   true about Cemu; ungating it is a code change, not a data one.
 2. **`pcsx2` declares track extensions and no descriptor** (§4.2), so a `.cue`
    set lists one tile per track. Adding `*.cue` would turn on dedup — and would
    also change what an existing box lists, which is the exact class of change
