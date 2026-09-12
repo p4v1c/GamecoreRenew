@@ -56,6 +56,17 @@ import * as defaults from '../components/defaults'
  */
 // 6 adds spatial library omissions, search/options callbacks and __all__ libraries.
 // 7 adds defaults.launchGame: a ROM can launch without navigating to Library.
+//
+// The Store arrived WITHOUT moving this number, and deliberately: `goStore`
+// and the `storeView` part are both additions, no shipped theme calls either,
+// and §10 of docs/themes/README.md says adding an SDK key does not bump the
+// major — only removing one does, or a shipped theme coming to require one.
+// The day a theme in this repository draws its own route to the Store, that is
+// SDK 8, with an entry in the SINCE table of backend/tests/test_sdk_version_gate.py:
+// `sdk.nav.goStore` is `undefined` on a host without the destination, so the
+// call throws and the boundary shows the player their theme becoming the
+// default one. The part itself never needs a number — an older Shell ignores a
+// part it has not heard of, which is a box with no Store rather than a broken one.
 export const SDK_VERSION = 7
 
 /**
@@ -186,6 +197,16 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
       },
       goHome: () => useStore.getState().goHome(),
       goLibrary: (id: string) => useStore.getState().goLibrary(id),
+      /**
+       * The Store — where consoles are installed and, in time, games are
+       * downloaded.
+       *
+       * Here so a theme that draws its own status bar or its own tree can
+       * offer a route to it. The host binds △ on the dashboard whatever a
+       * theme does, so this is an addition to the way in and never the only
+       * one: a theme cannot strand the player without a Store.
+       */
+      goStore: () => useStore.getState().goStore(),
       setGridFocus: (i: number) => useStore.getState().setGridFocus(i),
       setGridPage: (p: number) => useStore.getState().setGridPage(p),
       setSelectedGameIdx: (i: number) => useStore.getState().setSelectedGameIdx(i),

@@ -240,6 +240,8 @@ which and why.
 | `libraryView` | the game list, detail panel and metadata — **markup only**, like `homeView` |
 | `homeOmit` | home-screen shortcuts you bind yourself: `'nav'` (d-pad), `'pages'` (L1/R1), `'confirm'` (✕). Take one and you own what it does — see §5g |
 | `libraryOmit` | the same, for the library. Today only `'options'` (R2) |
+| `storeView` | the Store's markup — the destination where consoles are installed and, later, games are downloaded (§5h) |
+| `storeOmit` | Store shortcuts you bind yourself: `'nav'` (d-pad), `'tabs'` (L1/R1). ○ is never offered — it is the way off the screen |
 | `screensaver` | the standby slideshow |
 | `settings` | the settings screen |
 | `powerView` | the power menu's markup — the two-press confirmation, the pending lock and the failsafe stay with the host |
@@ -258,10 +260,11 @@ mechanism, effort proportional to ambition.
 
 ### Views, not screens
 
-`homeView` and `libraryView` are those screens' *markup*, not the screens.
-Paging, focus, sorting, search, launching and the d-pad bindings stay in the
-host and are handed to the view as props — see
-`frontend/src/components/HomeScreen/types.ts` and `LibraryScreen/types.ts`.
+`homeView`, `libraryView` and `storeView` are those screens' *markup*, not the
+screens. Paging, focus, sorting, search, tabs, launching and the d-pad bindings
+stay in the host and are handed to the view as props — see
+`frontend/src/components/HomeScreen/types.ts`, `LibraryScreen/types.ts` and
+`StoreScreen/types.ts`.
 The library view is even given the cover-art and metadata components ready-made,
 so a theme never reimplements the missing-art or 404 paths.
 
@@ -457,6 +460,62 @@ application (`sdk.defaults.launchApp`), so a theme that takes ✕ has to do both
 Take nothing and nothing changes — this is opt-in, and the two shipped themes
 whose dashboards *are* system grids take none of it.
 
+## 5h. The Store — `storeView`
+
+The Store is a **destination**, not a settings page: `screen === 'store'` sits
+beside `'home'` and `'library'`, and the shell shows it the same way it shows
+those two. Settings is where the player changes what the box already does; the
+Store is where they change what it *has* — a console installed, and in time a
+game brought onto it.
+
+That distinction is why it reaches you as a part with a default and not as an
+entry in `settings.pages`. All three shipped themes compose `sdk.defaults.Shell`
+and none renders a tree of its own, so a part with a default arrived in every
+one of them without a line of any theme changing. The other shape would have
+needed each theme's menu to list it — which is exactly how `catalog`, `bios` and
+`storage` each shipped as a page that existed, a route that existed, and nothing
+able to open it. See §5d, which is the same lesson from the other side.
+
+The route in is the host's and cannot be lost: **△ on the dashboard** opens it,
+bound by the shell next to ⚙ and ⏻ because a destination's route belongs where
+the other destinations' routes are. `sdk.nav.goStore()` is there too, for a
+theme that wants a second way in from its own status bar or its own tree.
+
+What you get, and what stays with the host:
+
+| | |
+|---|---|
+| **yours** | the whole picture — the tabs, the cards, the empty state, the hints |
+| **the host's** | which tab is open, where the cursor is, which page it is on, how L1/R1 walk the tabs, how the d-pad's edges turn the pages, and that ○ goes home |
+
+`StoreViewProps` (`frontend/src/components/StoreScreen/types.ts`) hands you the
+tab, the tab list and its labels, the emulator packs and the current page of
+them already sliced, the focus index within that page, the page count and the
+grid shape, how many are installed, the loading and error states, and the
+callbacks a pointer needs. The list is the catalogue — `GET /api/catalog`, the
+same endpoint Settings → Emulators & apps reads — filtered to `kind: 'emulator'`
+and ordered A–Z by label, because the order *is* the navigation and a theme
+reordering it would be steering a cursor through a list nobody can see.
+
+`storeOmit` drops shortcuts you bind yourself, the same mechanism and the same
+cost as `homeOmit`:
+
+| id | what you take |
+|---|---|
+| `nav` | the four d-pad directions, page turns at the edges included |
+| `tabs` | L1 / R1 |
+
+○ is not on that list. It is the way off the screen, and the library makes the
+same exception for the same reason.
+
+**Two honest warnings about what is there today.** The Consoles tab is
+read-only: installing is still driven from Settings → Emulators & apps, so the
+cards carry a state and not a button, and a themed store that drew an Install
+button would be drawing one that does nothing. And the Games tab has nothing to
+list — `gamesReady` is `false` in the props and says so — because searching and
+downloading arrive later. Draw a "not yet", not an empty grid: an empty grid
+reads as *you own no games*, which is a different sentence and a false one.
+
 ## 5f. The suspended session, and the bar over it — SDK 5
 
 Pressing Home twice used to **kill** the running game. It suspends it now: the
@@ -607,7 +666,7 @@ not a gap waiting to be filled — the reasons are in §11.
 | **Make the pad buzz** | yes — declare a `rumble` table and the bus fires it (§13b). Nothing vibrates unless a theme asks |
 | **Read input** | yes — `sdk.input.onGp` for every pad event, `useGamepadState()` for the raw 60 fps state (that is how a live pad diagram works) |
 | **Know where the player is** | yes — `sdk.nav.use()` inside a component, `sdk.nav.get()` in a handler |
-| **Move the player** | yes — `goHome`, `goLibrary`, `setGridFocus`, `setGridPage` |
+| **Move the player** | yes — `goHome`, `goLibrary`, `goStore`, `setGridFocus`, `setGridPage` |
 | **Make sound** | yes — `sdk.system.getAudioContext()` for its own synthesis (Summer's surf), `sdk.system.playSound()` for the host's set, `sdk.system.sound` to respect the player's setting |
 | **Ship assets** | yes — anything in the theme folder, resolved with `sdk.system.asset('…')` |
 | **Change the five UI sounds** | yes — declare them in `sounds` and the bus plays yours instead (§13). What stays the host's is *when* they fire |
@@ -628,7 +687,7 @@ there is no import map to maintain and only one React instance exists.
 |---|---|---|
 | `sdk.ui` | `html` (tagged template), `React`, `useState`, `useEffect`, `useRef`, `useMemo`, `useCallback`, `motion`, `AnimatePresence` | Framer Motion is already bundled by the host |
 | `sdk.api` | `systems`, `games`, `metadata`, `media`, `playtime`, `sysinfo`, `standby`, `update`, `wifi`, `audio`, `bluetooth` | [full signatures](../architecture/05-frontend.md#apiindexts) |
-| `sdk.nav` | `use(selector)` for a reactive read inside a component, `get()` for a snapshot in a handler, plus `goHome`, `goLibrary`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx`, `openModal`, `closeModal` | [store reference](../architecture/05-frontend.md#store--storeindexts) |
+| `sdk.nav` | `use(selector)` for a reactive read inside a component, `get()` for a snapshot in a handler, plus `goHome`, `goLibrary`, `goStore`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx`, `openModal`, `closeModal` | [store reference](../architecture/05-frontend.md#store--storeindexts) |
 | `sdk.input` | `onGp(event, handler)`, `useGamepadState()`, `GP_BTN`, `events`, `rumble(pattern)`, `haptics` (read-only `enabled`) | [event bus](../architecture/05-frontend.md#the-gamepad-event-bus--hooksusegamepadts) |
 | `sdk.session` | `use()` reactive, `get()` snapshot, `background()`, `resume(id?)`, `close(id?)` | **SDK 5.** Suspending and resuming a game or application — §5f. Touching any of it means declaring `"api": 5` |
 
@@ -811,7 +870,9 @@ once, at load. Either the theme runs or the default does.
 - Adding a surface or an SDK key does **not** bump the major. Removing one does
   — and so does a shipped theme coming to *require* one, which is what SDK 2
   and SDK 5 both are. See `frontend/src/lib/themeSdk.ts` for the incident that
-  established the rule.
+  established the rule. The Store (§5h) is the rule's most recent application:
+  `storeView`, `storeOmit` and `sdk.nav.goStore` all arrived at **SDK 7**,
+  because no theme in this repository calls any of them.
 - Theme files are never cached. The entry module's URL is timestamped, and
   `/themes` is served with `Cache-Control: no-store` — the entry's own relative
   imports and its stylesheet resolve without that query, so a header is the only

@@ -6,6 +6,7 @@ import { onGp } from '../hooks/useGamepad'
 import TopBar from './TopBar'
 import HomeScreen from './HomeScreen'
 import LibraryScreen from './LibraryScreen'
+import StoreScreen from './StoreScreen'
 import SettingsScreen from './modals/SettingsScreen'
 import PowerModal from './modals/PowerModal'
 import GamepadModal from './modals/GamepadModal'
@@ -14,6 +15,7 @@ import Toasts from './ui/Toasts'
 import { launchApp } from './defaults'
 import type { HomeViewProps } from './HomeScreen/types'
 import type { LibraryViewProps } from './LibraryScreen/types'
+import type { StoreViewProps } from './StoreScreen/types'
 import type { PowerViewProps } from './modals/power/types'
 import type { GamepadViewProps } from './modals/gamepad/types'
 import type { ToastsViewProps } from './ui/toasts/types'
@@ -38,7 +40,15 @@ export interface ShellParts {
   background?: React.ComponentType
   decor?: React.ComponentType
   screensaver?: React.ComponentType
-  topbar?: React.ComponentType<{ onSettings: () => void; onPower: () => void }>
+  /**
+   * The status bar. `onStore` is the pointer's way to the Store, and is
+   * optional in every sense: a theme's own bar simply ignores the prop, and
+   * the pad reaches the Store either way — the shell binds △ on the dashboard,
+   * so the route can never be lost to a theme that draws its own bar.
+   */
+  topbar?: React.ComponentType<{
+    onSettings: () => void; onPower: () => void; onStore?: () => void
+  }>
   /**
    * The dashboard's *markup* — not the dashboard. Paging, focus and launching
    * stay in HomeScreen so a themed grid and the default one behave identically;
@@ -73,6 +83,28 @@ export interface ShellParts {
    * a theme that takes one owns the behaviour behind it.
    */
   homeOmit?: string[]
+  /**
+   * The Store's markup — the destination where consoles are installed and, in
+   * time, games are downloaded. Which tab is open, where the cursor is, which
+   * page it is on and the button bindings stay with the host, exactly as they
+   * do for the dashboard and the library.
+   *
+   * Optional with a working default, and that is the whole reason the Store is
+   * a part rather than a settings page: all three shipped themes compose this
+   * Shell with parts, so a part with a default reaches every one of them
+   * without a line of any theme changing. `settings.pages` is the opposite
+   * lesson — a theme that forgot to list a page left that page unreachable.
+   */
+  storeView?: React.ComponentType<StoreViewProps>
+  /**
+   * Store shortcuts this theme binds itself: 'nav' (the d-pad) and 'tabs'
+   * (L1/R1). Same mechanism and same cost as `homeOmit` — a theme that takes
+   * one owns the behaviour behind it, including the way between the two tabs.
+   *
+   * ○ is deliberately not offered. It is the way off the screen, and the
+   * library makes the same exception for the same reason.
+   */
+  storeOmit?: string[]
   settings?: React.ComponentType<{ onClose: () => void }>
   /**
    * Markup for the power menu and the controller screen. Their flows stay with
@@ -182,6 +214,7 @@ export default function DefaultShell(parts: ShellParts = {}) {
    * it, invisibly, once per press. See shellRerender.test.tsx.
    */
   const screen = useStore(s => s.screen)
+  const goStore = useStore(s => s.goStore)
   const sessionGameKey = useStore(s => s.sessionGameKey)
   const remapRequest = useStore(s => s.remapRequest)
 
@@ -212,6 +245,27 @@ export default function DefaultShell(parts: ShellParts = {}) {
       }),
       onGp('gp:power', () => {
         if (!busy()) setShowPower(s => s ? false : useStore.getState().modalDepth === 0)
+      }),
+      /**
+       * △ on the dashboard opens the Store.
+       *
+       * Bound here rather than in HomeScreen because the Store is a
+       * destination, and the shell is what owns the routes to destinations —
+       * the same place ⚙ opens the settings and ⏻ the power menu. A theme
+       * cannot drop it for the same reason it cannot drop those two: it is
+       * the only way in, and the box would otherwise ship a screen nothing
+       * can reach.
+       *
+       * △ and not another button: it is the one face button free on the
+       * dashboard — ✕ opens a console, ○ has nothing to go back to and □ is
+       * the controller screen — and the library already spends it on search,
+       * which is why the guard below is the home screen and not the box.
+       */
+      onGp('gp:y', () => {
+        const s = useStore.getState()
+        if (busy() || s.screen !== 'home' || s.modalDepth > 0) return
+        if (s.sessionGameKey !== null) return
+        s.goStore()
       }),
       // □ opens the controller screen on one press but closes it only on a
       // double press — every button has to stay free for testing in there.
@@ -256,7 +310,7 @@ export default function DefaultShell(parts: ShellParts = {}) {
           playtime and game counts are fetched while the boot animation plays,
           so the dashboard is already populated when it fades away. */}
       <div style={{ position: 'relative', zIndex: 1, display: 'contents' }}>
-        <TopBarC onSettings={() => setShowSettings(true)} onPower={() => setShowPower(true)} />
+        <TopBarC onSettings={() => setShowSettings(true)} onPower={() => setShowPower(true)} onStore={goStore} />
         <Toasts view={parts.toasts} />
 
         {/* Both screens stay mounted at all times — toggled via display:none.
@@ -267,6 +321,21 @@ export default function DefaultShell(parts: ShellParts = {}) {
         <div style={{ position: 'relative', zIndex: 1, flex: 1, display: screen === 'library' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
           <LibraryScreen view={parts.libraryView} omit={parts.libraryOmit} />
         </div>
+
+        {/* Mounted only while it is open, which is the one place this shell
+            departs from the two screens above — and deliberately. They stay
+            mounted so that going home does not re-fetch a library; the Store
+            has the opposite need. Its list is what the box COULD have, which
+            changes the moment a pack is installed, so arriving on a freshly
+            read catalogue is the correct answer rather than a cached one; and
+            keeping it mounted would put a /api/catalog request on every boot
+            for a screen most sessions never open. The route in is the shell's
+            △ above, which is always live. */}
+        {screen === 'store' && (
+          <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <StoreScreen view={parts.storeView} omit={parts.storeOmit} />
+          </div>
+        )}
       </div>
 
       <AnimatePresence>

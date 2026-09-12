@@ -30,15 +30,17 @@ keep a theme from breaking the launcher:
 |---|---|---|
 | **Kernel** | `App.tsx` | the input bus, the WebSocket, `gp:guide`, the Electron overlay handshake, the splash slot and its watchdog, the error boundaries. A theme cannot take any of it. |
 | **Shell** | `components/DefaultShell.tsx` | the whole frontend body: stacking, the modal stack, which button opens which screen. A theme renders *one* of these — the default one with parts overridden, or its own tree. |
-| **Views** | `HomeScreen/DefaultHomeView.tsx`, `LibraryScreen/DefaultLibraryView.tsx` | markup only. |
+| **Views** | `HomeScreen/DefaultHomeView.tsx`, `LibraryScreen/DefaultLibraryView.tsx`, `StoreScreen/DefaultStoreView.tsx` | markup only. |
 
-The view seam is the important one. `HomeScreen` and `LibraryScreen` keep every
-decision — paging, focus, sorting, search, launching, the d-pad bindings — and
-hand a plain props object to a view component (`HomeScreen/types.ts`,
-`LibraryScreen/types.ts`). A theme supplies `homeView` / `libraryView` and
-nothing else, so **a themed screen cannot behave differently from the default
-one**: it has no code that could. Every navigation bug in the first version of
-the theme system came from a theme reimplementing this logic slightly wrong.
+The view seam is the important one. `HomeScreen`, `LibraryScreen` and
+`StoreScreen` keep every decision — paging, focus, sorting, search, tabs,
+launching, the d-pad bindings — and hand a plain props object to a view
+component (`HomeScreen/types.ts`, `LibraryScreen/types.ts`,
+`StoreScreen/types.ts`). A theme supplies `homeView` / `libraryView` /
+`storeView` and nothing else, so **a themed screen cannot behave differently
+from the default one**: it has no code that could. Every navigation bug in the
+first version of the theme system came from a theme reimplementing this logic
+slightly wrong.
 
 `ThemeSurface.tsx` mounts the theme's shell behind an error boundary; if it
 throws, the default shell takes over and the crash is recorded (three strikes
@@ -50,7 +52,7 @@ One Zustand store, no context providers.
 
 | Slice | Fields | Actions |
 |---|---|---|
-| Navigation | `screen`, `selectedSystemId`, `selectedGameIdx`, `gridFocusIdx`, `gridPage` | `goHome()`, `goLibrary(id)`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx` |
+| Navigation | `screen` (`'home'` \| `'library'` \| `'store'`), `selectedSystemId`, `selectedGameIdx`, `gridFocusIdx`, `gridPage` | `goHome()`, `goLibrary(id)`, `goStore()`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx` |
 | Focus lock | `modalDepth` | `openModal()`, `closeModal()` |
 | Power | `powerPending` | `setPowerPending(action)` |
 | Session | `sessionGameKey`, `sessionSystemId` | `setSession(gameKey, systemId)` |
@@ -65,6 +67,50 @@ const blocked = () => screenRef.current !== 'home' || modalDepthRef.current > 0
 
 `powerPending` freezes the UI while the OS is shutting down, so nothing pops
 back on screen mid-poweroff.
+
+## The Store destination — `components/StoreScreen/`
+
+**Two different things are called "store" in this frontend, and it is worth
+saying so once.** The section above is `store/index.ts`, the Zustand state. This
+one is the *shop*: the screen where the player installs a console and, in time,
+downloads a game. They share a word and nothing else.
+
+The Store is a **destination**, not a settings page. `screen === 'store'` sits
+beside `'home'` and `'library'`, `goStore()` is how you get there, and ○ leaves
+the way it leaves the library. Settings is where the player changes what the box
+already does; the Store is where they change what it *has*.
+
+That is a shape decision and not a placement one, and it has a concrete
+consequence: it reaches themes as a shell part (`storeView`) with a working
+default, so all three shipped themes got the Store without a line of any of them
+changing. A settings page would have needed an entry in each theme's own menu —
+the failure mode `DefaultSettingsPages` already carries three comments about,
+where `catalog`, `bios` and `storage` each existed, had a route, and could not be
+opened from a themed box.
+
+| | |
+|---|---|
+| **route in** | △ on the dashboard, bound in `DefaultShell` beside ⚙ and ⏻ — a destination's route belongs with the other destinations'. Plus a Store button on the default top bar, and `sdk.nav.goStore()` for a theme's own way in |
+| **route out** | ○, owned by `StoreScreen` and never droppable |
+| **tabs** | L1/R1. The dashboard spends those on paging and this screen cannot: the two tabs are its whole shape. Paging is the d-pad's edges, which already turn the page on the dashboard too |
+| **data** | `GET /api/catalog`, filtered to `kind: 'emulator'` and ordered A–Z by label. One catalogue, one endpoint — see [`10-catalog-and-install.md`](10-catalog-and-install.md) |
+
+**Mounted only while it is open**, which is the one place the shell departs from
+the two screens beside it. Those stay mounted so that going home does not
+re-fetch a library. The Store has the opposite need: its list is what the box
+*could* have, which changes the moment a pack is installed, so arriving on a
+freshly read catalogue is the correct answer rather than a cached one — and
+keeping it mounted would put a `/api/catalog` request on every boot for a screen
+most sessions never open. It also listens for `catalog:done` while it is up, so
+an install driven from the settings modal over it is reflected underneath.
+
+**What it does not do yet.** The Consoles tab is read-only: the install, remove
+and reconfigure routes are still driven from `Settings → Emulators & apps`, so a
+card carries a state and not a button. The Games tab lists nothing and says so —
+`gamesReady` is `false` in the view props — because searching and downloading
+arrive separately, and what a downloaded game has to *become* is six ingestion
+classes wide (see [`14-store-ingestion-matrix.md`](14-store-ingestion-matrix.md)
+§5).
 
 ## The gamepad event bus — `hooks/useGamepad.ts`
 
@@ -159,6 +205,9 @@ and returns an unsubscribe.
 | `components/LibraryScreen/types.ts` | 66 | `LibraryViewProps`, `SORT_KEYS`, `SORT_LABELS` |
 | `components/LibraryScreen/CoverImage.tsx` | 57 | cover art + missing-art fallback; handed to the view. Optional `type` prop draws any media type (`box-3d`, `clear-logo`, `screenshot-gameplay`…) — omitted, it is the jacket from `/api/covers`, byte for byte what it always was |
 | `components/LibraryScreen/GameMetaPanel.tsx` | 40 | year/genres/players; handed to the view |
+| `components/StoreScreen/index.tsx` | 270 | **behaviour**: the two tabs, the 4×3 grid (`COLS`, `ROWS`, `PER_PAGE`), paging, focus, the bindings |
+| `components/StoreScreen/DefaultStoreView.tsx` | 215 | **markup** of the default Store; `PackMark` falls back to the pack's colour |
+| `components/StoreScreen/types.ts` | 70 | `StoreViewProps`, `STORE_TABS`, `STORE_TAB_LABELS` |
 | `components/TopBar/index.tsx` | 134 | clock, IP, storage, `ControllerBattery`, `TBtn` |
 | `components/Screensaver.tsx` | 136 | standby slideshow, `ROTATE_MS = 9000` |
 | `components/OverlayScreen/index.tsx` | 109 | what the transparent Electron overlay window renders |

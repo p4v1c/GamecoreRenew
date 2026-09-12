@@ -63,6 +63,8 @@ not invent new navigation.
 - [ ] `decor` — full-screen layer above everything, **non-interactive**
 - [ ] `homeView` — the dashboard: system tiles, library stats, page dots
 - [ ] `libraryView` — game list, search, per-game metadata panel
+- [ ] `storeView` — the Store: a Consoles tab of catalogue cards and a Games
+      tab that has nothing to list yet. Design the "not yet", not an empty grid
 - [ ] `topbar` — clock, IP address, storage bar, controller battery
 - [ ] `screensaver` — idle slideshow of game cover art
 - [ ] `powerModal` — Scan mapping / Forget mapping / Restart / Shutdown
@@ -191,9 +193,9 @@ A single directory, `config/themes/[THEME-ID]/`, containing:
   overlay; boxing it nests a `position: fixed` layer inside a flex container and
   shatters its layout. Restyle them with the `--gc-overlay-*` and `--gc-accent*`
   variables in your stylesheet instead.
-- **Supply views, not screens.** `homeView` and `libraryView` receive their data
-  and callbacks as props; paging, focus, sorting and launching stay with the
-  host. Design the states, not the navigation.
+- **Supply views, not screens.** `homeView`, `libraryView` and `storeView`
+  receive their data and callbacks as props; paging, focus, sorting, tabs and
+  launching stay with the host. Design the states, not the navigation.
 - **Read data through `sdk.api`**, navigation through `sdk.nav`, input through
   `sdk.input`. Never fetch a URL directly, never touch `window` beyond
   `sdk.system.gamecore`.

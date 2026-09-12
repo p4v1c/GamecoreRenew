@@ -195,6 +195,18 @@ export interface CatalogEntry {
    *  say, which groups it under "Other" rather than guessing from the id. */
   family: string
   color: string
+  /**
+   * The pack's own logo, relative — `assets/logos/<id>.png` — or null when it
+   * ships none, in which case `color` is the fallback the swatch has always
+   * been. Sent by the endpoint rather than constructed by the caller: a screen
+   * that guessed the URL would request one per pack and take a 404 for the
+   * ones with none, with no way to know in advance which those are.
+   *
+   * The field is answered by `GET /api/catalog` (backend/routers/catalog.py)
+   * and was already read by the themed settings page; it was simply never
+   * declared here.
+   */
+  logo: string | null
   /** The product name when it differs from the platform label: the N64 slot is
    *  labelled "Nintendo 64" and runs "Rosalie's Mupen GUI". */
   emulatorName: string

@@ -13,6 +13,7 @@ import { launchSession } from '../hooks/useWebSocket'
 
 import HomeScreen from './HomeScreen'
 import LibraryScreen from './LibraryScreen'
+import StoreScreen from './StoreScreen'
 import TopBar from './TopBar'
 import Screensaver from './Screensaver'
 import PowerModal from './modals/PowerModal'
@@ -72,6 +73,12 @@ export async function launchGame(
 
 export const DefaultHome = () => <HomeScreen onLaunchApp={launchApp} />
 export const DefaultLibrary = () => <LibraryScreen />
+/**
+ * The Store, whole — for a theme that writes its own tree instead of rendering
+ * `Shell` and would otherwise have no way to reach the destination at all.
+ * A theme composing `Shell` overrides only its markup, through `storeView`.
+ */
+export const DefaultStore = () => <StoreScreen />
 export const DefaultScreensaver = () => <Screensaver />
 
 /** The modals close themselves through the store-independent callbacks App owns. */
@@ -79,9 +86,15 @@ export type CloseProps = { onClose: () => void }
 export const DefaultPowerModal = ({ onClose }: CloseProps) => <PowerModal onClose={onClose} />
 export const DefaultGamepadModal = ({ onClose }: CloseProps) => <GamepadModal onClose={onClose} />
 
-export type TopBarProps = { onSettings: () => void; onPower: () => void }
-export const DefaultTopBar = ({ onSettings, onPower }: TopBarProps) => (
-  <TopBar onSettings={onSettings} onPower={onPower} />
+export type TopBarProps = {
+  onSettings: () => void
+  onPower: () => void
+  /** Left out, the bar simply does not draw its Store button — the shell's △
+   *  is the route that always exists. */
+  onStore?: () => void
+}
+export const DefaultTopBar = ({ onSettings, onPower, onStore }: TopBarProps) => (
+  <TopBar onSettings={onSettings} onPower={onPower} onStore={onStore} />
 )
 
 export const DefaultKeyboard = VirtualKeyboard

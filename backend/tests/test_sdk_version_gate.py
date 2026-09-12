@@ -81,6 +81,17 @@ SINCE = {
     # cluttered and not broken. Only what THROWS or renders empty belongs here.
     6: ("onOpenSearch", "onOpenOptions", "__all__"),
     7: ("sdk.defaults.launchGame",),
+    # `sdk.nav.goStore` — the route into the Store — is NOT here yet, and the
+    # absence is the rule rather than an oversight: no shipped theme calls it,
+    # and §10 of docs/themes/README.md moves the major only when one does. It
+    # belongs here as `8: ("sdk.nav.goStore", "goStore")` the moment one of the
+    # themes in this repository draws its own way in, because on a host without
+    # the destination that call is `undefined` and throws.
+    #
+    # `storeView` and `storeOmit` will never belong here, for the reason
+    # `libraryOmit` does not: an older Shell ignores a part it has never heard
+    # of, so the theme runs with no Store — the box it had before, not a broken
+    # one.
 }
 
 

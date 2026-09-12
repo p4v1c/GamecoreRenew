@@ -6,6 +6,13 @@ import logo from '../../assets/logo.png'
 interface Props {
   onSettings: () => void
   onPower: () => void
+  /**
+   * The pointer's way to the Store. Optional because this bar is also rendered
+   * by tests and by a theme that passes only what it has; the gamepad reaches
+   * the Store through the shell's △ either way, so the route never depends on
+   * this button existing.
+   */
+  onStore?: () => void
 }
 
 export function ControllerBattery({ player, level, charging }: { player?: number | null; level: number; charging?: boolean }) {
@@ -61,7 +68,7 @@ function TBtn({ icon, label, color, onClick }: { icon: string; label: string; co
   )
 }
 
-export default function TopBar({ onSettings, onPower }: Props) {
+export default function TopBar({ onSettings, onPower, onStore }: Props) {
   const [time, setTime] = useState('')
   const [sysInfo, setSysInfo] = useState<SysInfo | null>(null)
   // Kept out of sysInfo on purpose: controller state arrives pushed and must not
@@ -169,6 +176,7 @@ export default function TopBar({ onSettings, onPower }: Props) {
 
         <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.08)' }} />
         <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>{time}</span>
+        {onStore && <TBtn icon="▤" label="Store" color="#22d3ee" onClick={onStore} />}
         <TBtn icon="⚙" label="Settings" color="#7c3aed" onClick={onSettings} />
         <TBtn icon="⏻" label="Power" color="#ef4444" onClick={onPower} />
       </div>

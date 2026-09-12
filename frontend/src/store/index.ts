@@ -1,6 +1,11 @@
 import { create } from 'zustand'
 
-type Screen = 'home' | 'library'
+/**
+ * Where the player is. Three destinations, not two: the Store is one of them
+ * rather than a page of the settings, because installing a console and
+ * downloading a game is somewhere you GO — see docs/architecture/05-frontend.md.
+ */
+type Screen = 'home' | 'library' | 'store'
 
 /** One frozen session, as the backend describes it. */
 export interface BackgroundSession {
@@ -82,6 +87,7 @@ interface GamecoreStore {
   // Actions
   goHome: () => void
   goLibrary: (systemId: string) => void
+  goStore: () => void
   setGridFocus: (idx: number) => void
   setGridPage: (page: number) => void
   setSelectedGameIdx: (idx: number) => void
@@ -120,6 +126,10 @@ export const useStore = create<GamecoreStore>((set) => ({
 
   goHome: () => set({ screen: 'home', selectedSystemId: null, gridPage: 0, gridFocusIdx: 0 }),
   goLibrary: (id) => set({ screen: 'library', selectedSystemId: id, selectedGameIdx: 0 }),
+  // Nothing else moves. The dashboard's cursor and the library's selection are
+  // where the player left them, and ○ out of the Store puts them back on a
+  // dashboard that has not been rearranged underneath them.
+  goStore: () => set({ screen: 'store' }),
   setGridFocus: (idx) => set({ gridFocusIdx: idx }),
   setGridPage: (page) => set({ gridPage: page }),
   setSelectedGameIdx: (idx) => set({ selectedGameIdx: idx }),
