@@ -617,3 +617,85 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
   .orbit-app .orbit-jacket, .orbit-app .orbit-backdrop-exit { animation: none !important; }
   .orbit-app .orbit-jacket img, .session-dock.orbit-compact-dock { transition: none; }
 }
+
+/* === Orbit 3.6.19 — the frame follows the artwork ========================= */
+/*
+ * Reported from the sofa with a Game Boy shelf on screen: "tu vois les gros
+ * espaces, faut que ça s'adapte". The border, the rounded corners and the
+ * selection ring were drawn on the box that RESERVES a card's place, never on
+ * the picture inside it. That box is a 2:3 portrait on purpose — see "A stable
+ * jacket wall" above: letting every card resize as hundreds of cached images
+ * decode stalls pad navigation on a large library — so anything that is not
+ * 2:3 was framed together with its own empty space. A Game Boy box is nearly
+ * square and a Nintendo 64 carton is landscape: both got a tall frame with
+ * wide bands of card gradient above and below the art, and the ring drew round
+ * the bands rather than round the game. Switch covers looked right only
+ * because they happen to be the shape of the box.
+ *
+ * So the reserved box keeps its size and stops drawing, and the frame moves to
+ * the <img>: `max-width`/`max-height` at 100% with `width`/`height` auto make
+ * the element's own box exactly the artwork's box, whatever its ratio, inside
+ * the space reserved for it. The grid never moves — only what sits inside one
+ * fixed cell does — so the stable wall survives, and no JavaScript measures
+ * anything.
+ *
+ * The frame stays on the <img> and not on a box that shrink-wraps it, and that
+ * is load-bearing: a percentage `max-height` resolves against a parent with a
+ * DEFINITE height, and `.library-jacket` has one only because it keeps its own
+ * `aspect-ratio`. Wrap the picture in an auto-height box and the cap silently
+ * becomes `none` — a jacket taller than 2:3 (`plausible()` accepts down to
+ * 0.5, which is a PS3 sleeve) then overflows the cell and lands on the title.
+ *
+ * Bottom-aligned rather than centred: the slack goes above the art, so the
+ * picture sits on its title instead of floating with a gap either side of it.
+ */
+.orbit-app .library-jacket {
+  display: flex; align-items: flex-end; justify-content: center;
+  overflow: visible; background: none; border: 0; border-radius: 0;
+}
+.orbit-app .library-jacket > img {
+  width: auto; height: auto; max-width: 100%; max-height: 100%;
+  border-radius: 9px; border: 1px solid #d9e8ff24;
+  background: linear-gradient(125deg,#2b405d,#121c2c);
+}
+/* The two cases with nothing to hug, where the fixed box was the right answer:
+   the two-letter stand-in for art that will never arrive, and the shimmer
+   before a picture decodes. Both keep the whole cell, corners included. */
+.orbit-app .library-jacket > .art-fallback {
+  width: 100%; height: 100%; border-radius: 9px; border: 1px solid #d9e8ff24;
+}
+.orbit-app .library-jacket[data-loaded="false"] { border-radius: 9px; }
+/* And the ring goes round the game, not round the bands beside it. */
+.orbit-app .library-card.selected .library-jacket { outline: 0; }
+.orbit-app .library-card.selected .library-jacket > :is(img,.art-fallback) {
+  outline: 2px solid #e3f2ff; outline-offset: 5px;
+}
+
+/* === Orbit 3.6.19 — one ring per selection =============================== */
+/*
+ * A tile already draws its own ring, on its artwork. The generic pad ring
+ * further up drew a SECOND one round the whole button — logo, title, category
+ * and all — which is the square box the player sees around Steam.
+ *
+ * The rule written to prevent exactly this keys on `.using-gamepad`, and
+ * nothing in GameCore has ever set that class: `grep -rn using-gamepad` finds
+ * it only in this stylesheet. So the suppression never applied — and neither
+ * did the ring-on-the-artwork it is paired with, which is why the ring round a
+ * pad-focused tile's art comes from `.selected` and not from focus at all.
+ *
+ * What does apply is `.pad-focus`, which `lib/navigation.js` puts on the
+ * control it moves to. It has to be its own selector rather than lean on
+ * `:focus-visible`: a `.focus()` that follows a gamepad button is not keyboard
+ * interaction as far as the browser is concerned, so `:focus-visible` never
+ * matches for a player on the sofa — which is every player.
+ */
+.orbit-app :is(.application-tile,.game-tile,.library-card):is(.pad-focus,:focus-visible) {
+  outline: none; box-shadow: none;
+}
+.orbit-app .application-tile:is(.pad-focus,:focus-visible) .application-tile-image,
+.orbit-app .game-tile:is(.pad-focus,:focus-visible) .tile-art {
+  outline: 2px solid #f4f9ff; outline-offset: 5px;
+}
+.orbit-app .library-card:is(.pad-focus,:focus-visible) .library-jacket > :is(img,.art-fallback) {
+  outline: 2px solid #e3f2ff; outline-offset: 5px;
+}
