@@ -699,3 +699,29 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 .orbit-app .library-card:is(.pad-focus,:focus-visible) .library-jacket > :is(img,.art-fallback) {
   outline: 2px solid #e3f2ff; outline-offset: 5px;
 }
+
+/* === Orbit 3.6.20 — the cell follows the console ========================= */
+/*
+ * 3.6.19 made the frame hug the artwork and left the band it sat in. The photo
+ * of a Game Boy shelf says it plainly: every cover correctly framed, and a
+ * stripe of empty blue as tall as the difference between a Game Boy box and a
+ * 2:3 portrait between one row and the next. The Switch shelf beside it is
+ * tight, because a Switch case IS that shape.
+ *
+ * The cell has to follow, then — and the reason it was fixed is still true:
+ * "changing every card's grid geometry as hundreds of cached images decode
+ * stalls pad navigation on larger libraries". What breaks the deadlock is that
+ * a console's boxes are all the same shape and a library view is one console,
+ * so ONE ratio describes the whole grid. `views/library.js` measures the first
+ * jacket that decodes, sets `--jacket-ratio` on `.library-grid` and never
+ * touches it again: the wall relayouts once per console, not once per picture.
+ *
+ * The fallback is the old 2:3, and it is what the All view keeps: a shelf that
+ * mixes a PS3 sleeve with a Nintendo 64 carton has no single shape, so nothing
+ * is measured there and the frame-hugs-artwork rule above carries it alone.
+ *
+ * `aspect-ratio` and not a height: the cell must keep a DEFINITE height, or
+ * the `max-height: 100%` that bounds the picture silently becomes `none` and a
+ * jacket taller than its shelf overflows onto the title.
+ */
+.orbit-app .library-jacket { aspect-ratio: var(--jacket-ratio, 2 / 3); }

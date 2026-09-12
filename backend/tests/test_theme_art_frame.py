@@ -140,10 +140,19 @@ def test_the_reserved_cell_still_has_a_fixed_shape(sheet: str):
     overflows the cell and lands on the title.
     """
     cell = rules(sheet, r"\.library-jacket")
-    assert any("aspect-ratio:2/3" in body for body in cell), (
-        "the jacket cell no longer declares a fixed ratio, so nothing gives it "
+    ratios = [body for body in cell if "aspect-ratio:" in body]
+    assert ratios, (
+        "the jacket cell no longer declares a ratio at all, so nothing gives it "
         "a definite height and `max-height: 100%` on the picture is inert: "
         + repr(cell))
+    # 3.6.20 lets one measured ratio describe a whole shelf — see
+    # `views/library.js` — but a cell with nothing measured yet still needs a
+    # shape, and it is the old portrait. A `var()` with no fallback computes to
+    # `auto` and the cap goes with it.
+    assert any("2/3" in body for body in ratios), (
+        "the cell's ratio has no 2:3 fallback left, so a shelf that has not "
+        "been measured — the All view, or the moment before the first picture "
+        "decodes — reserves nothing: " + repr(ratios))
 
 
 def test_the_artwork_keeps_its_own_shape(sheet: str):

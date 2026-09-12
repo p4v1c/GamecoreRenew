@@ -20,7 +20,7 @@ const boxFront = (sdk, systemId, filename) =>
 export const createJacket = sdk => {
   const {html, useEffect, useState} = sdk.ui
 
-  function MeasuredJacket({systemId, filename, title = '', className = ''}) {
+  function MeasuredJacket({systemId, filename, title = '', className = '', onRatio}) {
     const direct = coverUrl(systemId, filename)
     const [src, setSrc] = useState(direct)
     const [stage, setStage] = useState('direct')
@@ -49,6 +49,11 @@ export const createJacket = sdk => {
         setStage(stage === 'direct' ? 'resolving' : 'failed')
         return
       }
+      // Reported, not applied here. A card that resizes itself is the defect
+      // the fixed frame was protecting against; the shape of a SHELF is a
+      // different question, and the caller is the only one that can see the
+      // whole of it. See library.js.
+      onRatio?.(next)
     }
 
     const failed = () => setStage(stage === 'direct' ? 'resolving' : 'failed')
@@ -67,6 +72,6 @@ export const createJacket = sdk => {
   return function Jacket(props) {
     return html`<${MeasuredJacket} key=${`${props.systemId}:${props.filename}`}
       systemId=${props.systemId} filename=${props.filename} title=${props.title}
-      className=${props.className} />`
+      className=${props.className} onRatio=${props.onRatio} />`
   }
 }
