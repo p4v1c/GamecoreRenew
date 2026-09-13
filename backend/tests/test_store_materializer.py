@@ -124,7 +124,7 @@ def test_complete_bytes_live_only_in_the_jobs_work_area_and_progress_is_queryabl
             # "nes fds megadrive … · any", and `nes` declares no archive
             # extension (§3.2). It read "D" until every bare file stopped
             # answering that.
-            assert after.reason == jobs.INSPECTED_NOT_IMPORTED.format(ingestion_class="A")
+            assert after.reason == jobs.TRANSFORMED_NOT_VALIDATED.format(ingestion_class="A")
             assert after.ingestion_class == "A"
             assert after.downloaded_bytes == 6
             assert after.download_total == 6

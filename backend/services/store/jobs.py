@@ -54,11 +54,20 @@ thing:
     until its owner puts one there;
   · `materializer()` fetches that target into the job-owned work area under
     `<DATA>/store/jobs/`. It never receives `roms_dir`, because inspection,
-    transformation, validation and import are later steps.
+    transformation, validation and import are later steps;
+  · `inspect_download()` classifies what arrived as one of matrix §5's six
+    ingestion classes and persists the verdict on the row, changing nothing on
+    disk;
+  · `transformer()` gives the classified bytes the shape their class
+    requires, beside the download in `store/jobs/<job-id>/ingest/`. It is the
+    first step that produces modified content, and it still writes nowhere
+    near a ROM directory.
 
-So an inspected job still fails, now with `INSPECTED_NOT_IMPORTED`: classified
-bytes in staging are not a game in the library. `NO_PROVIDER` and `NO_MATERIALIZER`
-remain distinct diagnostics for the two earlier missing seams.
+So a transformed job still fails, now with `TRANSFORMED_NOT_VALIDATED`: a
+correctly shaped download in staging is not a game in the library either.
+`NO_PROVIDER` and `NO_MATERIALIZER` remain distinct diagnostics for the two
+earlier missing seams, and a transformation that refuses says so in its own
+words rather than borrowing one of them.
 
 ── What a job must never do ───────────────────────────────────────────────
 Write into `<DATA>/emu/<system>/`. Nothing here goes near a ROM directory —
@@ -129,12 +138,15 @@ NO_PROVIDER = "no acquisition provider is configured on this box"
 #: working Real-Debrid and nothing to fix.
 NO_MATERIALIZER = "this box can find this download but cannot store it yet"
 
-#: Inspection succeeded and persisted its class, but import still does not
-#: exist. Distinct from the old materialization boundary: reading this reason
-#: must not send a player to troubleshoot downloading when the bytes and their
-#: ingestion shape have already been inspected.
-INSPECTED_NOT_IMPORTED = (
-    "download inspected as class {ingestion_class}; import is not implemented yet")
+#: The download now has the shape its class requires, and neither validation
+#: (16) nor import (17) exists. Distinct from the materialization and
+#: inspection boundaries on purpose: a player who reads the wrong reason goes
+#: and checks the wrong setting, so "it never downloaded", "it downloaded and
+#: could not be classified" and "it is classified, shaped, and nothing has
+#: put it in the library" are three sentences and not one.
+TRANSFORMED_NOT_VALIDATED = (
+    "download transformed into its class {ingestion_class} shape; validation "
+    "and import are not implemented yet")
 
 #: Why a job that was `running` when the process died is `failed` afterwards.
 INTERRUPTED = "the box stopped while this job was running"
@@ -217,6 +229,10 @@ class Job:
     download_total: int = 0
     #: Matrix §5 ingestion verdict. Empty until downloaded bytes are inspected.
     ingestion_class: str = ""
+    #: Transformation progress, on its own pair rather than sharing the
+    #: download's: the two phases move different bytes for different reasons.
+    transformed_bytes: int = 0
+    transform_total: int = 0
 
     @property
     def live(self) -> bool:
@@ -248,6 +264,8 @@ class Job:
             "downloadedBytes": self.downloaded_bytes,
             "downloadTotal": self.download_total,
             "ingestionClass": self.ingestion_class,
+            "transformedBytes": self.transformed_bytes,
+            "transformTotal": self.transform_total,
         }
 
 
@@ -387,6 +405,18 @@ def inspect_download(job: Job):
     return inspect(job.id, job.system_id)
 
 
+def transformer():
+    """The shape producer, injected with the queue's own progress sink.
+
+    A function and not a constant for the same reason `materializer()` is one:
+    it is the seam a test replaces. Unlike that one it never answers `None` —
+    transforming needs no account, no token and no service, only the bytes
+    already on the disk, so there is no box on which it is *not* configured.
+    """
+    from .transformer import ShapeTransformer
+    return ShapeTransformer(progress=_transform_progress)
+
+
 # ── reading and writing a row ──────────────────────────────────────────────
 
 
@@ -397,7 +427,8 @@ def _now() -> str:
 
 _COLUMNS = ("id, system_id, roms_dir, title, filename, format, size, provider, "
             "source, state, reason, queued_at, started_at, ended_at, "
-            "downloaded_bytes, download_total, ingestion_class")
+            "downloaded_bytes, download_total, ingestion_class, "
+            "transformed_bytes, transform_total")
 
 
 def _row(r: aiosqlite.Row) -> Job:
@@ -411,6 +442,8 @@ def _row(r: aiosqlite.Row) -> Job:
         downloaded_bytes=int(r["downloaded_bytes"] or 0),
         download_total=int(r["download_total"] or 0),
         ingestion_class=r["ingestion_class"] or "",
+        transformed_bytes=int(r["transformed_bytes"] or 0),
+        transform_total=int(r["transform_total"] or 0),
     )
 
 
@@ -518,6 +551,28 @@ async def _progress(job_id: str, received: int, total: int) -> None:
         "UPDATE store_jobs SET downloaded_bytes = ?, download_total = ?"
         " WHERE id = ? AND state = ?",
         (max(0, int(received)), max(0, int(total)), job_id, RUNNING))
+    changed = cur.rowcount
+    await cur.close()
+    await db.commit()
+    if changed:
+        job = await get(job_id)
+        if job is not None:
+            await _announce(job)
+
+
+async def _transform_progress(job_id: str, done: int, total: int) -> None:
+    """Persist and announce transformation progress, live jobs only.
+
+    Deliberately not `_progress`: an 8 GB archive being unpacked is not the
+    download happening again, and a screen that reuses one bar for both cannot
+    say which phase it is showing. Same guard as `_progress` — a late chunk
+    after cancellation cannot rewrite a terminal row.
+    """
+    db = await get_db()
+    cur = await db.execute(
+        "UPDATE store_jobs SET transformed_bytes = ?, transform_total = ?"
+        " WHERE id = ? AND state = ?",
+        (max(0, int(done)), max(0, int(total)), job_id, RUNNING))
     changed = cur.rowcount
     await cur.close()
     await db.commit()
@@ -800,11 +855,12 @@ async def _claim_next() -> Job | None:
 
 
 async def _acquire(job: Job) -> None:
-    """Resolve, materialize, then inspect/classify one job.
+    """Resolve, materialize, inspect/classify, then shape one job.
 
-    Import does not exist, so a complete inspection still ends `failed` with
-    the explicit `INSPECTED_NOT_IMPORTED` reason. The three seams are named
-    here rather than fused — see `AcquiredTarget` and matrix §5.
+    Neither validation nor import exists, so a complete transformation still
+    ends `failed` with the explicit `TRANSFORMED_NOT_VALIDATED` reason. The
+    four seams are named here rather than fused — see `AcquiredTarget` and
+    matrix §5.
 
     Separate from `drain` so that it is a task of its own and therefore
     cancellable on its own: cancelling the worker would stop the queue, and
@@ -835,9 +891,21 @@ async def _acquire(job: Job) -> None:
     await _record_inspection(job.id, verdict.ingestion_class)
     if not verdict.complete:
         raise RuntimeError(verdict.reason)
-    # Classified staging bytes are still not a library entry. `done` means
-    # playable, so stop at a new, inspection-specific honest failure.
-    raise RuntimeError(INSPECTED_NOT_IMPORTED.format(
+
+    # Transformation reads the persisted verdict and produces the class's final
+    # shape *beside* the download, under `store/jobs/<job-id>/ingest/`. It is
+    # the first step that writes content rather than a label, and it is still
+    # nowhere near `emu/<system>/`: placing bytes where the library scan finds
+    # them is import's (17). The source is never opened for writing and never
+    # removed here — on success or failure — so a job that fails at this step
+    # leaves its download byte-identical for the next one to use.
+    shape = await transformer().transform(job, verdict.ingestion_class)
+    log.info("store: job %s shaped as class %s into %s (%d bytes)",
+             job.id, shape.ingestion_class, shape.root.name, shape.bytes_written)
+
+    # Correctly shaped staging bytes are still not a library entry. `done`
+    # means playable, so stop at the transformation-specific honest failure.
+    raise RuntimeError(TRANSFORMED_NOT_VALIDATED.format(
         ingestion_class=verdict.ingestion_class))
 
 

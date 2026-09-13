@@ -301,6 +301,16 @@ export interface StoreJob {
   downloadTotal?: number
   /** Matrix §5 verdict, persisted after inspection; empty before it runs. */
   ingestionClass?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | ''
+  /**
+   * Bytes of the class's final shape produced so far, and how many there will
+   * be. Its own pair and not the download's on purpose: unpacking an archive
+   * is not the download happening again, so one bar cannot honestly show both.
+   * Nothing draws these yet — the screen stops at the download — and they are
+   * here so the row the backend sends and the row this file describes stay the
+   * same row.
+   */
+  transformedBytes?: number
+  transformTotal?: number
 }
 
 /**

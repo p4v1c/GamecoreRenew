@@ -225,8 +225,12 @@ learns which one they are getting.
   area, and running rows show percentage and received bytes. The values come
   from the database; `store:jobs` merely triggers a re-read.
 - **`gamesDownloadReady` remains `false`** because it promises bytes imported
-  into a ROM directory and therefore a playable tile. A materialized job ends
-  failed with the explicit not-imported reason until that later stage exists.
+  into a ROM directory and therefore a playable tile. A job now gets as far as
+  the final shape its ingestion class requires, in its own staging directory,
+  and still ends failed — with the explicit transformed-not-validated reason —
+  until validation and import exist. The row carries `transformedBytes` /
+  `transformTotal` for that stage; nothing draws them yet, because the screen
+  stops at the download.
 
 `gamesDownloadReady` is read from the backend rather than written in the screen,
 so a view built today is already right the day it turns true. What a downloaded

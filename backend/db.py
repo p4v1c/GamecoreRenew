@@ -70,7 +70,9 @@ async def init_db() -> None:
             ended_at    TEXT,
             downloaded_bytes INTEGER NOT NULL DEFAULT 0,
             download_total   INTEGER NOT NULL DEFAULT 0,
-            ingestion_class  TEXT NOT NULL DEFAULT ''
+            ingestion_class  TEXT NOT NULL DEFAULT '',
+            transformed_bytes INTEGER NOT NULL DEFAULT 0,
+            transform_total   INTEGER NOT NULL DEFAULT 0
         );
         CREATE INDEX IF NOT EXISTS store_jobs_by_state
             ON store_jobs (state, queued_at);
@@ -98,6 +100,16 @@ async def _widen_store_jobs(db: aiosqlite.Connection) -> None:
     if "ingestion_class" not in columns:
         await db.execute(
             "ALTER TABLE store_jobs ADD COLUMN ingestion_class TEXT NOT NULL DEFAULT ''")
+    # Transformation progress is its own pair and not a second writer of the
+    # download's: one bar that means "downloading" for a while and then
+    # "unpacking" is a bar nobody can read, and a test asserting how many
+    # bytes arrived would start asserting how many were produced.
+    if "transformed_bytes" not in columns:
+        await db.execute(
+            "ALTER TABLE store_jobs ADD COLUMN transformed_bytes INTEGER NOT NULL DEFAULT 0")
+    if "transform_total" not in columns:
+        await db.execute(
+            "ALTER TABLE store_jobs ADD COLUMN transform_total INTEGER NOT NULL DEFAULT 0")
 
 
 async def _widen_playtime_key(db: aiosqlite.Connection) -> None:

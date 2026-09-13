@@ -42,6 +42,7 @@ from backend import db as dbmod                                # noqa: E402
 from backend.main import app                                   # noqa: E402
 from backend.services import paths                             # noqa: E402
 from backend.services.store import jobs                        # noqa: E402
+from backend.services.store.transformer import SHAPE_DIR       # noqa: E402
 from backend.services.store.materializer import (              # noqa: E402
     HttpMaterializer, MIN_FREE_AFTER_DOWNLOAD)
 
@@ -151,17 +152,39 @@ class FakeMaterializer:
         self.seen.append((job, target))
 
 
-def _both(monkeypatch, provider):
-    """Inject an acquisition provider *and* a materializer.
+class FakeTransformer:
+    """The shape seam, for queue tests that have no bytes to shape.
 
-    The injected verdict lets queue tests reach the deliberate
-    inspected-not-imported boundary without filesystem I/O.
+    The real one is exercised on real files in
+    `backend/tests/test_store_transformer.py`; what these tests need from it is
+    that the worker reaches it and stops honestly afterwards.
+    """
+
+    name = "fake-shape"
+
+    def __init__(self):
+        self.seen: list[tuple[jobs.Job, str]] = []
+
+    async def transform(self, job, ingestion_class):
+        self.seen.append((job, ingestion_class))
+        from backend.services.store.transformer import Shape
+        return Shape(ingestion_class=ingestion_class,
+                     root=Path("store/jobs") / job.id / "ingest",
+                     names=(job.filename,))
+
+
+def _both(monkeypatch, provider):
+    """Inject an acquisition provider, a materializer *and* a transformer.
+
+    The injected verdict and shape let queue tests reach the deliberate
+    transformed-not-validated boundary without filesystem I/O.
     """
     monkeypatch.setattr(jobs, "acquisition_provider", lambda: provider)
     store = FakeMaterializer()
     monkeypatch.setattr(jobs, "materializer", lambda: store)
     from backend.services.store.inspector import Inspection
     monkeypatch.setattr(jobs, "inspect_download", lambda _job: Inspection("D"))
+    monkeypatch.setattr(jobs, "transformer", FakeTransformer)
     return store
 
 
@@ -410,7 +433,7 @@ def test_the_target_a_provider_answers_reaches_the_materializer(monkeypatch):
             await jobs.drain()
             after = await jobs.get(job.id)
             assert after.state == "failed"
-            assert after.reason == jobs.INSPECTED_NOT_IMPORTED.format(ingestion_class="D")
+            assert after.reason == jobs.TRANSFORMED_NOT_VALIDATED.format(ingestion_class="D")
             assert after.ingestion_class == "D"
             assert len(store.seen) == 1
             seen_job, target = store.seen[0]
@@ -488,8 +511,8 @@ def test_the_worker_runs_the_queue_in_the_order_it_was_filled(monkeypatch):
             second = await _queue(source="demo://nes/b", title="B")
             await jobs.drain()
             assert [j.title for j in fake.seen] == ["A", "B"]
-            assert (await jobs.get(first.id)).reason == jobs.INSPECTED_NOT_IMPORTED.format(ingestion_class="D")
-            assert (await jobs.get(second.id)).reason == jobs.INSPECTED_NOT_IMPORTED.format(ingestion_class="D")
+            assert (await jobs.get(first.id)).reason == jobs.TRANSFORMED_NOT_VALIDATED.format(ingestion_class="D")
+            assert (await jobs.get(second.id)).reason == jobs.TRANSFORMED_NOT_VALIDATED.format(ingestion_class="D")
         finally:
             await conn.close()
 
@@ -549,7 +572,7 @@ def test_a_job_cancelled_mid_download_stops_and_stays_cancelled(monkeypatch):
             assert (await jobs.get(slow.id)).state == "cancelled"
             # The queue did not die with the cancelled job: the one behind it
             # ran. Cancelling the acquisition must not cancel the worker.
-            assert (await jobs.get(after.id)).reason == jobs.INSPECTED_NOT_IMPORTED.format(ingestion_class="D")
+            assert (await jobs.get(after.id)).reason == jobs.TRANSFORMED_NOT_VALIDATED.format(ingestion_class="D")
             assert [j.title for j in fake.seen] == ["Slow", "Next"]
         finally:
             await conn.close()
@@ -997,7 +1020,7 @@ def test_queueing_and_running_write_only_into_job_work_areas_never_emu(
         assert settled["state"] == "failed"
         # `Zelda (USA).nes` is class A, not D: §5.1's A row covers `nes` for
         # any arriving format, and D is the disc images only.
-        assert settled["reason"] == jobs.INSPECTED_NOT_IMPORTED.format(ingestion_class="A")
+        assert settled["reason"] == jobs.TRANSFORMED_NOT_VALIDATED.format(ingestion_class="A")
         assert settled["ingestionClass"] == "A"
 
         second = _post(client, source="demo://nes/other",
@@ -1012,6 +1035,14 @@ def test_queueing_and_running_write_only_into_job_work_areas_never_emu(
         written = sorted(set(tree()) - before)
         assert written
         assert all(_inside_owned_work(path, allowed) for path in written), written
+
+        # The transformation is the first step that produces content, and it
+        # produced some: its shape is a *subdirectory* of the work area, so it
+        # is inside the guard above without the guard being loosened for it.
+        shaped = f"store/jobs/{first['id']}/{SHAPE_DIR}/Zelda (USA).nes"
+        assert shaped in written, written
+        # …and the download it was made from is still sitting beside it.
+        assert f"store/jobs/{first['id']}/Zelda (USA).nes" in written
 
     assert fake.seen, "the injected provider was never reached"
     assert not (box / "emu").exists()

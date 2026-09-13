@@ -761,7 +761,9 @@ CREATE TABLE store_jobs (
     ended_at    TEXT,
     downloaded_bytes INTEGER NOT NULL DEFAULT 0,
     download_total   INTEGER NOT NULL DEFAULT 0,
-    ingestion_class  TEXT NOT NULL DEFAULT '' -- A..F after inspection
+    ingestion_class  TEXT NOT NULL DEFAULT '', -- A..F after inspection
+    transformed_bytes INTEGER NOT NULL DEFAULT 0,
+    transform_total   INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX store_jobs_by_state ON store_jobs (state, queued_at);
 ```
@@ -769,6 +771,12 @@ CREATE INDEX store_jobs_by_state ON store_jobs (state, queued_at);
 Existing tables are widened idempotently with `ALTER TABLE ADD COLUMN` after a
 `PRAGMA table_info`; progress defaults to zero and `ingestion_class` to empty,
 so no old row is rewritten or assigned a guessed verdict.
+
+**Transformation progress is its own pair and not a second writer of the
+download's.** Unpacking an 8 GB archive is not the download happening again,
+and one bar that means "downloading" for a while and then "unpacking" is a bar
+nobody can read — while a test asserting how many bytes arrived would quietly
+start asserting how many were produced.
 
 **`roms_dir` is recorded and never written to.** It is `emu/<dir>` as the pack
 declared it at the moment the job was queued, which is what the box told the
@@ -780,7 +788,7 @@ placing bytes where the library scan finds them is the materializer's job
 across a queue → run → cancel cycle and permits new paths only below the owning
 `store/jobs/<job-id>/` directory.
 
-### `store/jobs/` — materialization work
+### `store/jobs/` — materialization and shaping work
 
 Each job owns exactly `<DATA>/store/jobs/<job-id>/`. The materializer writes a
 `.part`, fsyncs it, verifies the resolved length, then atomically renames it.
@@ -791,6 +799,25 @@ E lacks named companions or class F lacks its directory. It never changes the
 staged paths. Failure, cancellation, graceful shutdown
 and restart repair remove the job's partial work. Interrupted downloads restart
 from zero because no persistent HTTP validator exists to make Range safe.
+
+`store/jobs/<job-id>/ingest/` is the one directory below that, and it holds the
+final shape the job's class requires
+([14](14-store-ingestion-matrix.md) §5.1). It is a **subdirectory of the work
+area and not a sibling**, which is what keeps the whole-tree write guard in
+`backend/tests/test_store_jobs.py` valid without being loosened: every path
+this step creates still begins `store/jobs/<job-id>/`.
+
+**The download sits beside its shape, unchanged, and is deleted by nobody
+here.** That doubles the footprint for one job — an 8 GB `.xci` copied is 8 GB
+— which is the price of the guarantee and the reason the free-space reserve is
+checked before the first byte rather than discovered halfway through. It is
+preferred to writing in place with a backup, because a backup costs the same
+8 GB *and* can still be the thing that fills the disk, while a file never
+opened for writing cannot be damaged at all. Whether the download is still
+worth keeping once a game is in the library is import's decision, not this
+step's. A hardlink would have cost nothing and was rejected: two names for one
+inode means a later stage that opens the shape for writing silently rewrites
+the download too.
 
 The OTA excludes the data root. `install/uninstall.sh` explicitly removes only
 `$GC_DATA/store/jobs` even without `--purge`: staging may be many gigabytes and

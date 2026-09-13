@@ -122,7 +122,11 @@ def _top_level(root: Path) -> tuple[Path, ...]:
     return tuple(root / name for name in paths)
 
 
-def _declared_non_archive(name: str, extensions: tuple[str, ...]) -> bool:
+def declared_non_archive(name: str, extensions: tuple[str, ...]) -> bool:
+    """§5.2's B-vs-C predicate: does this member carry a declared, non-archive
+    extension?  Shared with `transformer.py`, which needs the same question to
+    pick the members §2.4 lets it unpack — two copies of it would be the drift
+    the matrix warns about."""
     suffix = PurePosixPath(name).suffix.lower()
     return suffix not in ARCHIVE_SUFFIXES and matches_ext(name, list(extensions))
 
@@ -254,7 +258,7 @@ def inspect(job_id: str, system_id: str) -> Inspection:
     # Predicates one and two: whether the archive itself is declared, then
     # whether one member has a declared non-archive extension.
     archive_declared = matches_ext(archive.name, list(extensions))
-    member_declared = any(_declared_non_archive(name, extensions) for name in members)
+    member_declared = any(declared_non_archive(name, extensions) for name in members)
     if archive_declared:
         return Inspection("B" if member_declared else "C")
     if not member_declared:

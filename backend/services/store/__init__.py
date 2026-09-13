@@ -9,14 +9,17 @@ of
 
 `jobs.py` is the persistent queue. Running one resolves through Real-Debrid,
 then `materializer.py` streams the bytes into the job-owned work area under
-`<DATA>/store/jobs/`. `inspector.py` classifies that unchanged staging shape;
-no import exists, so the row fails with the distinct
-`INSPECTED_NOT_IMPORTED` reason instead of claiming that a staged game is
-playable.
+`<DATA>/store/jobs/`. `inspector.py` classifies that unchanged staging shape,
+and `transformer.py` gives it the shape its class requires — beside the
+download, in `store/jobs/<job-id>/ingest/`, with the download itself never
+opened for writing and never removed. Neither validation nor import exists, so
+the row fails with the distinct `TRANSFORMED_NOT_VALIDATED` reason instead of
+claiming that a staged game is playable.
 
 **Nothing here writes into `emu/`.** An acquisition provider only answers an
-`AcquiredTarget`; the materializer downloads atomically into staging, while
-the later ingestion stages remain separate.
+`AcquiredTarget`; the materializer downloads atomically into staging, the
+transformer produces the final shape one directory below it, and placing a
+game where the library scan finds it remains a separate step.
 
 **Why searching lives in the backend at all**, when the browser could talk to
 an indexer itself: a search provider is configured with a URL and an API key,
@@ -44,7 +47,7 @@ from .jobs import (                                     # noqa: F401
     LIVE,
     NO_MATERIALIZER,
     NO_PROVIDER,
-    INSPECTED_NOT_IMPORTED,
+    TRANSFORMED_NOT_VALIDATED,
     QUEUED,
     RUNNING,
     STATES,

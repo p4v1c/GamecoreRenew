@@ -440,7 +440,7 @@ queued ──► running ──► done
   └──────────────────► cancelled
 ```
 
-**Running a job is resolve, materialize, then inspect/classify.**
+**Running a job is resolve, materialize, inspect/classify, then shape.**
 
 *Resolving* turns the job's opaque `source` into an `AcquiredTarget`: a direct
 HTTPS URL, plus the size and info hash it takes to check the bytes are the ones
@@ -454,7 +454,7 @@ there.
 `<DATA>/store/jobs/<job-id>/<filename>`, through `.part` and an atomic rename.
 It checks the resolved size and free space first (including 256 MiB left for
 the appliance), rejects HTTP errors, mismatched lengths and HTML error pages,
-and never receives `roms_dir`. Transformation, validation and import remain
+and never receives `roms_dir`. Validation and import remain
 [14](14-store-ingestion-matrix.md) §5's later stages.
 
 *Inspecting* reads the completed job work area and the selected pack, then
@@ -473,6 +473,48 @@ so a lone `.cue`/`.gdi` or any loose file for a `scanDirs` pack fails early and
 names what is missing. Inspection records the class before the worker settles
 the failure; it does not repair the multi-file acquisition.
 
+*Transforming* gives those classified bytes the shape their class requires —
+§5.1's transform column, read off the persisted verdict and never off a system
+list. `A` unpacks if archived, `B` and `C` do nothing (unpacking a `mame`
+romset deletes the game, §2.1), `D` unpacks only when the container extension
+is undeclared, `E` keeps the descriptor and its tracks together, and `F` keeps
+the game directory whole. A and D share one branch, because "is the archive's
+own extension declared?" is the one predicate both need (§2.4).
+
+It is the first step allowed to produce modified content, and three properties
+bound what that can cost:
+
+- **the source is never touched.** The shape is produced *beside* the download,
+  in a fresh `store/jobs/<job-id>/ingest/`; every source path is opened `"rb"`
+  and nothing else, every destination is created with `O_EXCL`, and the only
+  removal in the module computes its one path from the validated job id plus
+  that constant. The download is not deleted here on success or on failure —
+  tidying is import's decision. `test_store_transformer.py` fingerprints the
+  work area before and after every class, including a transformation that dies
+  halfway;
+- **space is checked before the first byte.** Producing beside the source
+  doubles the footprint, so the plan is built in full, priced, and compared to
+  the free space plus the same 256 MiB reserve the download keeps — a refused
+  transformation has created nothing at all;
+- **it is bounded, cancellable and it reports.** Production streams in chunks
+  inside the event loop, exactly as the download does, with progress persisted
+  and broadcast on `transformed_bytes` / `transform_total`. Cancellation and
+  failure both remove the produced directory and nothing else.
+
+Two rules that are not about bytes. A member whose stored name is absolute or
+carries `..` is refused, and containment does not depend on that refusal: §2.4
+requires flat extraction anyway, so a member is only ever written to
+`ingest/<last component of its name>`, with both separators folded first so a
+Windows-written `..\..\x.nes` cannot smuggle one past a POSIX basename.
+Symlink and directory members are never written. And a name the library scan
+would drop in silence — one starting with `.` or containing `example`, §5.3
+rule 2 — refuses the transformation and names the file, rather than emitting a
+download that reported success and left no tile, or renaming a ROM and filing
+the game under an identity that is not its own. The rule reaches the names that
+land at the top level of the ROM directory, which is what the scan iterates: a
+class F game directory is judged by its own name and never by its contents, and
+a track a descriptor already hides is not judged at all.
+
 `AcquiredTarget.info_hash` identifies the torrent; it is a hash of torrent
 metadata and piece hashes, not a checksum of the one unrestricted file (which
 may be one member of a multi-file torrent). The materializer therefore cannot
@@ -485,12 +527,17 @@ Every job still stops honestly before `done`, with distinct reasons:
 |---|---|
 | *"no acquisition provider is configured on this box"* | no Real-Debrid token; nothing was attempted |
 | *"this box can find this download but cannot store it yet"* | the source resolved, and there is nowhere to put what it found |
-| *"download inspected as class X; import is not implemented yet"* | complete staging bytes have a persisted ingestion verdict, but no playable library entry exists |
+| *"download transformed into its class X shape; validation and import are not implemented yet"* | staging bytes are classified **and** correctly shaped, and nothing has put them in the library |
+| *"this download cannot be added because its name starts with a dot: …"* | the library scan would drop the file without a word (§5.3 rule 2), so it is refused rather than emitted or renamed |
+| *"the archive contains a member that points outside the download …"* | an archive tried to write outside the work area; nothing was unpacked |
 | *"incomplete class E download: … is missing …"* | acquisition delivered a descriptor without all of its companions |
 | *"incomplete class F download: a complete game directory is missing …"* | acquisition delivered loose bytes where the pack requires a directory |
 
 A player who reads the second has a working account and nothing to fix, which
-the first would have told them wrongly. A `done` in either case would be a lie
+the first would have told them wrongly. The transformation reason is distinct
+from the inspection one for the same reason: "it downloaded and could not be
+classified" and "it is classified, correctly shaped, and nothing has imported
+it" send a reader to different settings. A `done` in either case would be a lie
 the player reads again after a reboot, because the row persists. `done` is
 reachable only when both seams are filled, which no box does and the tests do —
 exactly as the Prowlarr client is exercised by an `httpx.MockTransport` that
