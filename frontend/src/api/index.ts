@@ -295,6 +295,10 @@ export interface StoreJob {
   startedAt: string
   /** Empty until it stops, whichever way it stopped. */
   endedAt: string
+  /** Bytes written to the job's `.part`; queryable between events. */
+  downloadedBytes?: number
+  /** The resolved target size used for space and completeness checks. */
+  downloadTotal?: number
 }
 
 /**
@@ -313,12 +317,12 @@ export interface StoreJobsAnswer {
   /**
    * Whether a finished job means bytes in a ROM directory.
    *
-   * `false` for the whole of this step, and sent rather than inferred: nothing
-   * acquires anything yet, so every job fails with a true reason. A screen that
-   * drew this queue as a download in progress would be promising what no code
-   * on this box can deliver.
+   * `false` until import exists. Materialized staging bytes do not satisfy this
+   * promise and must not be drawn as a playable library entry.
    */
   downloadReady: boolean
+  /** Whether bytes can reach the job-owned work area (not the library). */
+  materializerReady?: boolean
 }
 
 export interface StoreProviderInfo {

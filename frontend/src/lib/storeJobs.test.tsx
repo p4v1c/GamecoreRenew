@@ -136,6 +136,15 @@ describe('reading the queue', () => {
     expect(s().downloadReady).toBe(true)
   })
 
+  it('keeps staging readiness separate from a playable library entry', async () => {
+    vi.mocked(api.store.jobs).mockResolvedValue({
+      jobs: [], downloadReady: false, materializerReady: true,
+    })
+    const s = await mount()
+    expect(s().materializerReady).toBe(true)
+    expect(s().downloadReady).toBe(false)
+  })
+
   it('re-reads when a job moves rather than patching its own list', async () => {
     // The socket is a signal, not a source of truth: a list assembled from
     // events is wrong for as long as the socket was down, and there is no way

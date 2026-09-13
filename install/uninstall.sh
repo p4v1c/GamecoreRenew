@@ -835,6 +835,11 @@ safe_rm "$GC_DATA/config/auth.json" "$GC_DATA/config/auth_secret" \
         "$GC_DATA/config/store-prowlarr.json" \
         "$GC_DATA/config/store-realdebrid.json"
 
+# Store work is downloaded staging, not the player's library. Completed files
+# wait here only for ingestion and partials are never useful after removal;
+# delete the narrowly named work root even when config/ and emu/ are kept.
+safe_rm "$GC_DATA/store/jobs"
+
 if [[ -d "$GC_PATH" ]]; then
   if $PURGE; then
     safe_rm "$GC_PATH"

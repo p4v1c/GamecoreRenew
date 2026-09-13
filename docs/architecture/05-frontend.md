@@ -198,6 +198,7 @@ GameCore.
 | `JOB_STATE_LABELS` | draw `cancelled` and `failed` as the same thing. They are two different things that happened |
 | `actionError` | swallow the box's own sentence. "already in the queue", "the queue is full", "not an installed console" — `api.store.queue` uses the POST that keeps FastAPI's `detail`, because "409 Conflict" on a television is a dead end |
 | re-reading on `store:jobs` | assemble the list from socket events, which is a second source of truth and wrong for as long as the socket was down |
+| persisted `downloadedBytes` / `downloadTotal` | hide a multi-gigabyte transfer behind a frozen-looking `WORKING…` label |
 
 **There is no retry.** A finished job is a record of what happened; asking again
 queues the result again — a new row. No endpoint restarts a job, and adding one
@@ -212,7 +213,7 @@ configured with an indexer's URL and its API key, and a key that reaches the
 browser is a key in the page source and in the devtools of a television nobody
 logs out of. The frontend never learns how an answer was obtained.
 
-### Asking queues. Queueing does not download.
+### Asking queues. Materializing is not importing.
 
 Two promises, and the screen has to keep them apart — this is where a player
 learns which one they are getting.
@@ -220,19 +221,18 @@ learns which one they are getting.
 - ✕ on the asked-about panel writes a **real, persistent row** and a worker
   really picks it up. The screen steps to the queue so the press that created
   it shows it.
-- **`gamesDownloadReady` is still `false`**, and it is not the same flag. It
-  promises *bytes in a ROM directory*, and nothing behind the worker can fetch a
-  game yet — every job ends `failed` with "no acquisition provider is configured
-  on this box". Both the asked panel and the queue say so out loud, on the same
-  rule as the banner over the demo provider's invented rows: a screen that looks
-  like something it is not is worse than an honest empty one, and unlike that
-  banner this lie would still be there after a reboot.
+- `gamesMaterializerReady` says the worker can download into the job-owned work
+  area, and running rows show percentage and received bytes. The values come
+  from the database; `store:jobs` merely triggers a re-read.
+- **`gamesDownloadReady` remains `false`** because it promises bytes imported
+  into a ROM directory and therefore a playable tile. A materialized job ends
+  failed with the explicit not-imported reason until that later stage exists.
 
 `gamesDownloadReady` is read from the backend rather than written in the screen,
 so a view built today is already right the day it turns true. What a downloaded
 game has to *become* — six ingestion classes wide, see
 [`14-store-ingestion-matrix.md`](14-store-ingestion-matrix.md) §5 — and the
-materializer that places it arrive in their own steps.
+importer that places it arrives in its own step.
 
 ### The Games tab's third place
 

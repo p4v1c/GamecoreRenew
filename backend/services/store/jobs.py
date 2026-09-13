@@ -43,7 +43,7 @@ motif as `playtime` and `sessions`. See that module's docstring for why one
 database and not two, and for what living under `config/` means the day
 somebody uninstalls GameCore.
 
-── Two halves, and only one of them exists ────────────────────────────────
+── Two halves, followed by an intentionally missing import ───────────────
 Running a job is **resolve, then store**, and they are deliberately not one
 thing:
 
@@ -52,22 +52,17 @@ thing:
     the right ones. It moves nothing. `realdebrid.py` is one, and it answers
     `None` on a box with no `config/store-realdebrid.json`, which is every box
     until its owner puts one there;
-  · `materializer()` fetches that target and puts it where the library scan
-    will find it. **It answers `None` on every box** and this module ships
-    none — matrix §5 is the step that builds it.
+  · `materializer()` fetches that target into the job-owned work area under
+    `<DATA>/store/jobs/`. It never receives `roms_dir`, because inspection,
+    transformation, validation and import are later steps.
 
-So a job still fails, and now it can fail for two different true reasons:
-`NO_PROVIDER` when nothing is configured, `NO_MATERIALIZER` when the source
-resolved and this box cannot store what it found. A `done` in either case would
-be a queue that lies about the one thing it exists to report, in a row that
-persists — the lie would still be on screen after a reboot. `done` is reachable
-only when both seams are filled, which no box does and a **test** does, exactly
-as the Prowlarr client is exercised by an `httpx.MockTransport` that reaches no
-network.
+So a materialized job still fails, now with `NOT_IMPORTED`: complete bytes in
+staging are not a game in the library. `NO_PROVIDER` and `NO_MATERIALIZER`
+remain distinct diagnostics for the two earlier missing seams.
 
 ── What a job must never do ───────────────────────────────────────────────
 Write into `<DATA>/emu/<system>/`. Nothing here goes near a ROM directory —
-placing bytes where the library scan will find them is the materializer's job
+placing bytes where the library scan will find them is the importer's job
 (matrix §5), and half of it built here would have to be undone. `roms_dir` is
 carried on the row because it is what the box told the player when they queued
 it, and for no other reason. `backend/tests/test_store_jobs.py` stands guard
@@ -133,6 +128,11 @@ NO_PROVIDER = "no acquisition provider is configured on this box"
 #: different half of the pipeline, and a player who reads the second has a
 #: working Real-Debrid and nothing to fix.
 NO_MATERIALIZER = "this box can find this download but cannot store it yet"
+
+#: Materialization succeeded, but the pipeline deliberately stops before the
+#: absent importer. A distinct reason prevents "downloaded" being mistaken for
+#: "playable" and tells the player not to troubleshoot Real-Debrid or storage.
+NOT_IMPORTED = "downloaded to the Store work area; import is not implemented yet"
 
 #: Why a job that was `running` when the process died is `failed` afterwards.
 INTERRUPTED = "the box stopped while this job was running"
@@ -211,6 +211,8 @@ class Job:
     queued_at: str
     started_at: str
     ended_at: str
+    downloaded_bytes: int = 0
+    download_total: int = 0
 
     @property
     def live(self) -> bool:
@@ -239,6 +241,8 @@ class Job:
             "queuedAt": self.queued_at,
             "startedAt": self.started_at,
             "endedAt": self.ended_at,
+            "downloadedBytes": self.downloaded_bytes,
+            "downloadTotal": self.download_total,
         }
 
 
@@ -267,10 +271,11 @@ class AcquiredTarget:
         `GET`. It is **not** shown to the player and not sent to the browser —
         it is credentialed by construction (it is minted against the box
         owner's debrid account) and it is short-lived;
-      · `size` and `info_hash` are what it takes to know the bytes are the
-        bytes that were asked for: the length to compare against, and the
-        BitTorrent hash the content is supposed to be. `0` and `""` are honest
-        answers where the service does not say, not defaults to trust;
+      · `size` is the completeness check the materializer can apply. The
+        `info_hash` identifies the torrent for acquisition, but is not a file
+        checksum (it hashes torrent metadata and piece hashes), so content
+        validation cannot compare the downloaded file to it. `0` and `""` are
+        honest answers where the service does not say, not defaults to trust;
       · `filename` is what the source calls it. The materializer decides what
         it lands as — matrix §1.3 — and does not take a name from here
         unchecked.
@@ -329,26 +334,23 @@ class AcquisitionProvider(Protocol):
 
 
 class Materializer(Protocol):
-    """What turns a resolved target into a game on the grid. Not here yet.
+    """What writes a resolved target into its job-owned work area.
 
     Named now for the same reason `AcquisitionProvider` was named before there
     was one: so the worker has a shape to be written against and one place to
-    ask. **No implementation of this ships and none is started here** — this is
-    the step that resolves, and fetching bytes is matrix §5's, with its own
-    disk checks, its own archive classes and its own tests.
+    ask. The shipped implementation stops in a private work directory; it does
+    not inspect, transform, validate or import the result.
 
-    The consequence is deliberate and visible on screen: a job whose source
-    resolves perfectly still ends `failed`, with `NO_MATERIALIZER` as its
-    reason, because nothing on this box can store what was resolved. `done`
-    would be the queue lying about the one thing it exists to report, and it
-    would lie in a row that survives the reboot — the same argument that put
-    `NO_PROVIDER` here in the first place.
+    The consequence is deliberate and visible on screen: after this returns,
+    the worker records `NOT_IMPORTED`, because complete staging bytes are not
+    yet a playable game. `NO_MATERIALIZER` remains the diagnosis when this seam
+    is explicitly disabled.
     """
 
     name: str
 
     async def materialize(self, job: Job, target: AcquiredTarget) -> None:
-        """Fetch the target and put it where the library will find it."""
+        """Fetch the target into the job-owned work area."""
         ...
 
 
@@ -370,13 +372,9 @@ def acquisition_provider() -> AcquisitionProvider | None:
 
 
 def materializer() -> Materializer | None:
-    """The materializer this box stores with. `None`, on every box.
-
-    The seam for matrix §5 and nothing behind it. One place to ask and one line
-    to change, and a test can answer something else — which is how the success
-    path is walked at all, since no box can walk it.
-    """
-    return None
+    """The HTTP materializer, injected here with the queue's progress sink."""
+    from .materializer import HttpMaterializer
+    return HttpMaterializer(progress=_progress)
 
 
 # ── reading and writing a row ──────────────────────────────────────────────
@@ -388,7 +386,8 @@ def _now() -> str:
 
 
 _COLUMNS = ("id, system_id, roms_dir, title, filename, format, size, provider, "
-            "source, state, reason, queued_at, started_at, ended_at")
+            "source, state, reason, queued_at, started_at, ended_at, "
+            "downloaded_bytes, download_total")
 
 
 def _row(r: aiosqlite.Row) -> Job:
@@ -399,6 +398,8 @@ def _row(r: aiosqlite.Row) -> Job:
         state=r["state"], reason=r["reason"] or "",
         queued_at=r["queued_at"], started_at=r["started_at"] or "",
         ended_at=r["ended_at"] or "",
+        downloaded_bytes=int(r["downloaded_bytes"] or 0),
+        download_total=int(r["download_total"] or 0),
     )
 
 
@@ -493,6 +494,26 @@ async def _announce(job: Job) -> None:
         await ws.broadcast("store:jobs", {"job": job.to_json()})
     except Exception:                                          # noqa: BLE001
         log.exception("store: could not announce job %s", job.id)
+
+
+async def _progress(job_id: str, received: int, total: int) -> None:
+    """Persist and announce progress while, and only while, the job is live.
+
+    The database is the queryable truth; the socket only makes the screen hear
+    sooner. A late chunk after cancellation cannot rewrite the terminal row.
+    """
+    db = await get_db()
+    cur = await db.execute(
+        "UPDATE store_jobs SET downloaded_bytes = ?, download_total = ?"
+        " WHERE id = ? AND state = ?",
+        (max(0, int(received)), max(0, int(total)), job_id, RUNNING))
+    changed = cur.rowcount
+    await cur.close()
+    await db.commit()
+    if changed:
+        job = await get(job_id)
+        if job is not None:
+            await _announce(job)
 
 
 # ── queueing ───────────────────────────────────────────────────────────────
@@ -644,11 +665,15 @@ async def cancel(job_id: str) -> Job:
         if moved is None:
             raise IllegalTransition("that job finished before it could be cancelled")
 
-    _interrupt(job_id)
+    await _interrupt(job_id)
+    # Also covers the last-byte race: materialization may have atomically
+    # renamed just before cancellation won the row transition.
+    from .materializer import cleanup_job
+    cleanup_job(job_id)
     return moved
 
 
-def _interrupt(job_id: str) -> None:
+async def _interrupt(job_id: str) -> None:
     """Stop the acquisition in flight, if it is this one.
 
     A no-op for a job that had not started: there is nothing to interrupt and
@@ -656,6 +681,7 @@ def _interrupt(job_id: str) -> None:
     """
     if _job_id == job_id and _job_task is not None and not _job_task.done():
         _job_task.cancel()
+        await asyncio.gather(_job_task, return_exceptions=True)
 
 
 # ── the worker ─────────────────────────────────────────────────────────────
@@ -748,11 +774,9 @@ async def _claim_next() -> Job | None:
 async def _acquire(job: Job) -> None:
     """The one job, through both halves of the pipeline — of which one exists.
 
-    Resolve, then store. The first half is real on a box that configured a
-    debrid account; the second is `materializer()`, which answers `None`
-    everywhere, so a job that resolves still ends `failed` and says why. Both
-    halves are named here rather than fused, because that is the whole point of
-    the split — see `AcquiredTarget`.
+    Resolve, then materialize into staging. Import does not exist, so a complete
+    transfer still ends `failed` with the explicit `NOT_IMPORTED` reason. Both
+    halves are named here rather than fused — see `AcquiredTarget`.
 
     Separate from `drain` so that it is a task of its own and therefore
     cancellable on its own: cancelling the worker would stop the queue, and
@@ -772,6 +796,9 @@ async def _acquire(job: Job) -> None:
     if store is None:
         raise RuntimeError(NO_MATERIALIZER)
     await store.materialize(job, target)
+    # The bytes are complete and durable, but no import exists yet. `done`
+    # means playable, so materialization ends at a distinct honest failure.
+    raise RuntimeError(NOT_IMPORTED)
 
 
 async def _settle(job: Job, error: BaseException | None) -> None:
@@ -820,6 +847,13 @@ async def resume_after_restart() -> int:
     Idempotent: after the first pass there is no `running` row to find.
     """
     db = await get_db()
+    cur = await db.execute("SELECT id FROM store_jobs WHERE state = ?", (RUNNING,))
+    stranded_ids = [row["id"] for row in await cur.fetchall()]
+    await cur.close()
+    # Restart-from-zero policy: a stale part has no persisted HTTP validator.
+    from .materializer import cleanup_job
+    for job_id in stranded_ids:
+        cleanup_job(job_id)
     cur = await db.execute(
         "UPDATE store_jobs SET state = ?, reason = ?, ended_at = ?"
         " WHERE state = ?", (FAILED, INTERRUPTED, _now(), RUNNING))
@@ -835,13 +869,12 @@ async def resume_after_restart() -> int:
 async def stop() -> None:
     """Put the worker down on the way out.
 
-    The job in flight is left as `running` on disk on purpose: the graceful
-    shutdown is the easy case and `resume_after_restart()` already has to
-    handle the crash, so writing a second answer here would be two code paths
-    for one fact — and the second one would be the one that never runs when it
-    matters.
+    A graceful stop has time to tell the truth immediately: cancel the transfer,
+    remove its owned work directory, then mark the row interrupted. A crash is
+    repaired by `resume_after_restart()` with the same state and cleanup.
     """
     global _worker, _job_task, _job_id
+    active_id = _job_id
     for task in (_job_task, _worker):
         if task is not None and not task.done():
             task.cancel()
@@ -850,6 +883,11 @@ async def stop() -> None:
     _job_id = None
     if pending:
         await asyncio.gather(*pending, return_exceptions=True)
+    if active_id is not None:
+        from .materializer import cleanup_job
+        cleanup_job(active_id)
+        await _move(active_id, FAILED, expect=RUNNING, reason=INTERRUPTED,
+                    stamp="ended_at")
 
 
 async def wait_idle() -> None:

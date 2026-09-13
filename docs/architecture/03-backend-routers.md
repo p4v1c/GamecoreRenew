@@ -34,7 +34,9 @@ Routers parse, validate and delegate; the logic lives in
 3. On shutdown, the four tasks are cancelled **and awaited**
    (`asyncio.gather(..., return_exceptions=True)`). `cancel()` alone only
    schedules the cancellation, so shutdown used to return with tasks still
-   mid-await. The running game is deliberately left alone.
+   mid-await. The Store worker is stopped first: its transfer is cancelled,
+   its job-owned partial is removed, and its row is settled as interrupted
+   before shutdown returns. The running game is deliberately left alone.
 
 ### The cross-origin guard
 
@@ -438,7 +440,7 @@ queued ──► running ──► done
   └──────────────────► cancelled
 ```
 
-**Running a job is resolve, then store — and only the first half exists.**
+**Running a job is resolve, then materialize.**
 
 *Resolving* turns the job's opaque `source` into an `AcquiredTarget`: a direct
 HTTPS URL, plus the size and info hash it takes to check the bytes are the ones
@@ -448,26 +450,46 @@ one, and `jobs.acquisition_provider()` answers `None` on a box with no
 `config/store-realdebrid.json` — which is every box until its owner puts one
 there.
 
-*Storing* fetches that target and puts it where the library scan will find it.
-`jobs.materializer()` answers **`None` on every box** and nothing here ships one:
-that is [14](14-store-ingestion-matrix.md) §5's step, with its own disk checks,
-its own archive classes and its own tests.
+*Materializing* streams that target to
+`<DATA>/store/jobs/<job-id>/<filename>`, through `.part` and an atomic rename.
+It checks the resolved size and free space first (including 256 MiB left for
+the appliance), rejects HTTP errors, mismatched lengths and HTML error pages,
+and never receives `roms_dir`. Inspection, transformation, validation and
+import remain [14](14-store-ingestion-matrix.md) §5's later stages.
 
-So **nothing downloads, and every job still says so** — now with two reasons
-instead of one, because they are two different facts:
+`AcquiredTarget.info_hash` identifies the torrent; it is a hash of torrent
+metadata and piece hashes, not a checksum of the one unrestricted file (which
+may be one member of a multi-file torrent). The materializer therefore cannot
+compare it to the downloaded bytes. Its available completeness proof is the
+resolved byte length over HTTPS; content validation belongs to the later stage.
+
+Every job still stops honestly before `done`, with distinct reasons:
 
 | reason | what it means |
 |---|---|
 | *"no acquisition provider is configured on this box"* | no Real-Debrid token; nothing was attempted |
 | *"this box can find this download but cannot store it yet"* | the source resolved, and there is nowhere to put what it found |
+| *"downloaded to the Store work area; import is not implemented yet"* | complete bytes are in this job's staging directory, but no playable library entry exists |
 
 A player who reads the second has a working account and nothing to fix, which
 the first would have told them wrongly. A `done` in either case would be a lie
 the player reads again after a reboot, because the row persists. `done` is
 reachable only when both seams are filled, which no box does and the tests do —
 exactly as the Prowlarr client is exercised by an `httpx.MockTransport` that
-reaches no network. `downloadReady` travels with `GET /store/jobs` saying
-`false`, and the screen draws it.
+reaches no network. `materializerReady` says bytes can reach staging;
+`downloadReady` remains false because it promises a playable library entry.
+
+Progress is persisted as `downloaded_bytes` / `download_total` and included in
+the queryable job row. Each throttled update also emits `store:jobs`; the socket
+is immediacy, not a second source of truth. Cancellation cancels the task and
+removes its job directory. Graceful shutdown does the same and settles the row
+as interrupted before returning. After a crash, startup removes the stranded
+job's work and settles the row before serving.
+
+Interrupted downloads restart from zero. A safe Range resume requires a
+persisted ETag or Last-Modified plus validation of a 206 Content-Range, while a
+Real-Debrid URL is short-lived. Appending without those facts could combine two
+objects; retaining the unusable partial would only consume disk.
 
 **Why acquiring is not downloading.** Fused, they were one step with two jobs:
 a conversation with somebody else's service (a token refused, a link nothing

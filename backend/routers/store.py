@@ -5,15 +5,12 @@ question: they start nothing, hold no lock, and remember nothing. The job
 routes write down a request that outlives the screen it was made on — one row
 per game the player asked for, in the database this box already has.
 
-What is still NOT here, and must not arrive by accident: acquisition itself and
-the six ingestion classes a download has to become
-(`docs/architecture/14-store-ingestion-matrix.md` §5). There is no
-`AcquisitionProvider` on this box and none ships, so every job that reaches the
-worker fails saying exactly that. That is the honest answer rather than a gap —
-a queue that reported `done` having downloaded nothing would be a lie the
-player reads after a reboot. Nothing on this router writes into a ROM
-directory, and `backend/tests/test_store_jobs.py` stands guard over the whole
-data root to keep it that way.
+What is still NOT here, and must not arrive by accident: the six ingestion
+classes a download has to become (`docs/architecture/14-store-ingestion-matrix.md`
+§5). Acquisition resolves and materialization writes only beneath the job's
+`<DATA>/store/jobs/<id>/`; inspection and import do not exist. A queue that
+reported `done` for those staging bytes would be a lie after a reboot. The
+data-tree guard permits only that owned work area and forbids `emu/`.
 
 **Why the search lives behind this router at all.** A provider is configured
 with an indexer's URL and its API key. A key that reaches the browser is a key
@@ -216,6 +213,10 @@ async def list_jobs():
         # box can deliver. It turns true when they actually land in a ROM
         # directory, and a view written now keeps working when it does.
         "downloadReady": False,
+        # Bytes can now arrive, but only in the job-owned work area. Kept
+        # separate from downloadReady, whose promise is a playable library
+        # entry and must remain false until import exists.
+        "materializerReady": jobs.materializer() is not None,
     }
 
 
@@ -229,10 +230,9 @@ async def queue_job(body: QueueRequest):
     holds a connection open for minutes and tells a player nothing while it
     does.
 
-    **It will fail.** There is no acquisition provider on this box, so every
-    job this route creates reaches the worker and fails saying so. That is the
-    honest answer and it is why the screen still says nothing has been
-    downloaded — see `services/store/jobs.py`.
+    A configured box downloads into `<DATA>/store/jobs/<job-id>/`, then fails
+    with the distinct not-imported reason until the later ingestion stages
+    exist. Nothing here places bytes in a ROM directory.
     """
     if not _ID_RE.fullmatch(body.systemId):
         raise HTTPException(400, "invalid system id")

@@ -53,6 +53,7 @@ flowchart TB
         d2["emu/<br/>ROMs · covers · scraped media"]
         d3["assets/overlays/<br/>assets/logos/"]
         d4["addons/ · volumes/<br/>config/per-game/"]
+        d5["store/jobs/&lt;job-id&gt;/<br/>download staging, never library"]
     end
 
     AMB["lib/xenia<br/><b>classified two ways — issue #36</b>"]
@@ -757,17 +758,16 @@ CREATE TABLE store_jobs (
     reason      TEXT NOT NULL DEFAULT '',
     queued_at   TEXT NOT NULL,
     started_at  TEXT,
-    ended_at    TEXT
+    ended_at    TEXT,
+    downloaded_bytes INTEGER NOT NULL DEFAULT 0,
+    download_total   INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX store_jobs_by_state ON store_jobs (state, queued_at);
 ```
 
-**The migration is the `IF NOT EXISTS`, and that is the whole of it.** The table
-is new and purely additive, so a box updating into this release creates it on
-its first start and no existing row is read, rewritten or moved. Compare
-[`_widen_playtime_key`](../../backend/db.py) above, which is what a real shape
-change costs here — a new table, a copy, a drop and a rename inside a
-`SAVEPOINT` — and which this one deliberately does not need.
+Existing tables are widened idempotently with `ALTER TABLE ADD COLUMN` after a
+`PRAGMA table_info`; both progress values default to zero, so no old row is
+rewritten or guessed.
 
 **`roms_dir` is recorded and never written to.** It is `emu/<dir>` as the pack
 declared it at the moment the job was queued, which is what the box told the
@@ -776,7 +776,22 @@ player it would do. Nothing in
 placing bytes where the library scan finds them is the materializer's job
 ([14](14-store-ingestion-matrix.md) §5), and
 `backend/tests/test_store_jobs.py` compares the whole data tree path for path
-across a queue → run → cancel cycle to keep it that way.
+across a queue → run → cancel cycle and permits new paths only below the owning
+`store/jobs/<job-id>/` directory.
+
+### `store/jobs/` — materialization work
+
+Each job owns exactly `<DATA>/store/jobs/<job-id>/`. The materializer writes a
+`.part`, fsyncs it, verifies the resolved length, then atomically renames it.
+A complete file stays there for the future inspection/import stages; it is not
+a ROM and the scanner never sees it. Failure, cancellation, graceful shutdown
+and restart repair remove the job's partial work. Interrupted downloads restart
+from zero because no persistent HTTP validator exists to make Range safe.
+
+The OTA excludes the data root. `install/uninstall.sh` explicitly removes only
+`$GC_DATA/store/jobs` even without `--purge`: staging may be many gigabytes and
+is not player library data. `emu/` and the persistent job history remain under
+their existing rules.
 
 **`id` is not the search result's id.** A `SearchResult.id` is stable across
 identical searches by design, so reusing it would make a retry collide with the

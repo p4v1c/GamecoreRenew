@@ -623,10 +623,10 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
         gamesProvider={search.providerLabel}
         gamesRomsDir={search.romsDir}
         gamesAsked={search.asked}
-        // Read from the backend rather than written here, and still false:
-        // a job is a real row that a worker really runs, but nothing is behind
-        // that worker, so no byte lands in a ROM directory. See the contract.
+        // Two backend facts: staging can accept bytes, while the playable
+        // library cannot until import exists.
         gamesDownloadReady={jobs.downloadReady}
+        gamesMaterializerReady={jobs.materializerReady}
         gamesJobs={jobs.jobs}
         gamesJobsPage={gamesJobsPage}
         gamesJobsLive={jobs.liveCount}

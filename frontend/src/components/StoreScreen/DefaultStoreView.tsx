@@ -287,9 +287,9 @@ function ResultRow({ result, focused, onClick }: {
  * stay as exact: "queued" and "downloaded" are not the same promise, and this
  * is the screen where a player learns which one they are getting.
  */
-function AskedPanel({ result, romsDir, downloadReady, queueing, error }: {
+function AskedPanel({ result, romsDir, downloadReady, materializerReady, queueing, error }: {
   result: StoreSearchResult; romsDir: string; downloadReady: boolean
-  queueing: boolean; error: string
+  materializerReady: boolean; queueing: boolean; error: string
 }) {
   const line = (k: string, v: string) => (
     <div style={{ display: 'flex', gap: 12, fontSize: 12.5, minWidth: 0 }}>
@@ -334,11 +334,10 @@ function AskedPanel({ result, romsDir, downloadReady, queueing, error }: {
           color: 'rgba(255,255,255,0.62)',
         }}>
           <strong style={{ color: 'rgba(255,255,255,0.85)' }}>✕ puts this in the
-          queue. It will not download.</strong> The queue is real — it is
-          written down, it survives a reboot, and you can see what happened to
-          it — but there is nothing behind it yet that can fetch a game, so this
-          job will end as failed, saying so. Nothing is written into your ROM
-          folder either way.
+          queue.</strong> {materializerReady
+            ? 'It downloads into this job’s private work area, with progress shown in the queue. It is not imported into your library yet, so the job says so instead of pretending the game is playable.'
+            : 'This box has no materializer, so no bytes can be fetched.'}
+          {' '}Nothing is written into your ROM folder either way.
         </div>
       )}
       {queueing && (
@@ -367,6 +366,10 @@ const JOB_TINT: Record<string, string> = {
 function JobRow({ job, focused, onClick }: {
   job: StoreJob; focused: boolean; onClick: () => void
 }) {
+  const total = job.downloadTotal || job.size
+  const progress = job.state === 'running' && total > 0
+    ? `${Math.min(100, Math.floor(((job.downloadedBytes || 0) / total) * 100))}% · ${formatSize(job.downloadedBytes || 0)}`
+    : formatSize(job.size)
   return (
     <div
       onClick={onClick}
@@ -398,7 +401,7 @@ function JobRow({ job, focused, onClick }: {
       <span style={{
         fontSize: 12, color: 'rgba(255,255,255,0.55)', flexShrink: 0,
         minWidth: 62, textAlign: 'right', fontVariantNumeric: 'tabular-nums',
-      }}>{formatSize(job.size)}</span>
+      }}>{progress}</span>
     </div>
   )
 }
@@ -434,10 +437,14 @@ function QueueView(p: StoreViewProps) {
           background: 'rgba(250,204,21,0.10)',
           border: '1px solid rgba(250,204,21,0.35)', color: '#fde68a',
         }}>
-          <strong>Nothing here downloads yet.</strong> These jobs are written
-          down and they survive a reboot, but there is no provider behind them
-          to fetch a game — so each one ends as failed and says why. No file is
-          written into any ROM folder.
+          {p.gamesMaterializerReady ? (
+            <><strong>Downloads stop before the library.</strong> Complete bytes
+            stay in each job’s private work area until inspection and import
+            exist. No file is written into any ROM folder.</>
+          ) : (
+            <><strong>Nothing here downloads yet.</strong> This box has no
+            materializer, so each job ends as failed and says why.</>
+          )}
         </div>
       )}
 
@@ -551,6 +558,7 @@ function GamesTab(p: StoreViewProps) {
         result={p.gamesAsked}
         romsDir={p.gamesRomsDir}
         downloadReady={p.gamesDownloadReady}
+        materializerReady={p.gamesMaterializerReady}
         queueing={p.gamesQueueing}
         error={p.gamesQueueError}
       />

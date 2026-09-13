@@ -196,8 +196,9 @@ async def lifespan(app: FastAPI):
     ]
     yield
     # The acquisition worker, stopped first: it is the one task that writes to
-    # the database on its way through, and the job it was on is deliberately
-    # left saying `running` for the next start to settle — see `jobs.stop()`.
+    # the database on its way through. `stop()` cancels the transfer, removes
+    # its work directory and settles the row before shutdown returns; startup
+    # performs the same repair after a crash — see `jobs.stop()`.
     try:
         await store_jobs.stop()
     except Exception:

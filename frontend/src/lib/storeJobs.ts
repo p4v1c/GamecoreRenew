@@ -10,13 +10,10 @@
  * before it was a module, and the three copies had already drifted.
  *
  * ── What the queue is honest about ──────────────────────────────────────────
- * **Nothing is downloaded.** There is no acquisition provider on this box and
- * none ships, so every job that reaches the worker fails with `NO_PROVIDER` as
- * its reason. `downloadReady` travels with the list saying exactly that, and a
- * screen must draw it: a queue that looked like a download in progress would
- * be promising bytes no code here can deliver, and — unlike the old "nothing
- * has been queued" panel — the promise would still be on screen after a
- * reboot.
+ * Materialization downloads into per-job staging. `materializerReady` carries
+ * that promise, while `downloadReady` remains false because it means imported
+ * into the playable library. Running rows carry persisted byte progress, and
+ * a complete transfer fails with the backend's explicit not-imported reason.
  *
  * That is why the queue is worth having anyway. It is the difference between
  * "the box forgot" and "the box tried and here is what happened", and the
@@ -90,6 +87,8 @@ export interface StoreJobsState {
    * already right.
    */
   downloadReady: boolean
+  /** Bytes can be downloaded into staging; this does not mean playable. */
+  materializerReady: boolean
   /** A queue request is in flight. */
   queueing: boolean
   /**
@@ -117,6 +116,7 @@ export function useStoreJobs(): StoreJobsState {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [downloadReady, setDownloadReady] = useState(false)
+  const [materializerReady, setMaterializerReady] = useState(false)
   const [queueing, setQueueing] = useState(false)
   const [actionError, setActionError] = useState('')
 
@@ -128,6 +128,7 @@ export function useStoreJobs(): StoreJobsState {
       // boolean, and an endpoint answering a shape nobody expected must not
       // put `undefined` where a theme is about to decide what to promise.
       setDownloadReady(!!answer?.downloadReady)
+      setMaterializerReady(!!answer?.materializerReady)
       setError('')
     } catch {
       // The rows are dropped rather than kept, and that is the honest answer
@@ -191,7 +192,8 @@ export function useStoreJobs(): StoreJobsState {
   const liveCount = jobs.filter(isLive).length
 
   return {
-    jobs, liveCount, loading, error, downloadReady, queueing, actionError,
+    jobs, liveCount, loading, error, downloadReady, materializerReady,
+    queueing, actionError,
     load, queue, cancel,
   }
 }

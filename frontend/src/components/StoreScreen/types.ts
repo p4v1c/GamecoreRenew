@@ -199,19 +199,17 @@ export interface StoreViewProps {
   /**
    * Whether asking for a result can actually bring it onto the box.
    *
-   * **Still `false`, and it is not the same flag as "there is a queue".**
-   * Asking now writes a real, persistent row and a worker really picks it up —
-   * what does not exist is anything behind that worker, so every job ends as
-   * `failed` with "no acquisition provider is configured on this box". This
-   * flag promises *bytes in a ROM directory*, and it turns true only the day
-   * they land there. A view that drew a Download button over it today would be
-   * the button that does nothing; a view that draws the queue and says what
-   * each row's state means is telling the truth.
+   * **Still `false`, and it is not the same flag as "materialized".** This
+   * promises *bytes imported into a ROM directory*. The worker can now fetch
+   * into private staging, but that is not a playable tile; the distinct
+   * `gamesMaterializerReady` flag says only that earlier promise.
    *
    * Read from the backend rather than decided here, so a view written now is
    * already right on the day it changes.
    */
   gamesDownloadReady: boolean
+  /** Bytes may reach per-job staging; this never promises a library tile. */
+  gamesMaterializerReady: boolean
 
   /**
    * ── The queue ─────────────────────────────────────────────────────────────

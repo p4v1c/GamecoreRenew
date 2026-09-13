@@ -466,11 +466,13 @@ class RealDebridAcquisition:
         the piece hashes and the file list, so that step is simply not needed.
         The file is the better input wherever there is one.
 
-        The hash is computed anyway, from the same bytes, because
-        `AcquiredTarget.info_hash` is what the materializer will check the
-        downloaded bytes against. Computing it is also what establishes that
-        these bytes are a torrent at all — before the owner's account is asked
-        anything, and before a login page can be mistaken for a release.
+        The hash is computed anyway to identify the torrent and check
+        Real-Debrid's torrent answer. It is not a checksum of the unrestricted
+        file — BitTorrent hashes metadata and pieces — so the materializer uses
+        the resolved byte length for transfer completeness. Computing it also
+        establishes that these bytes are a torrent at all, before the owner's
+        account is asked anything and before a login page can be mistaken for
+        a release.
         """
         try:
             blob = await prowlarr.fetch_torrent(

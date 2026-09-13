@@ -564,28 +564,31 @@ def test_a_failure_reaches_the_job_row_as_its_reason(configured, monkeypatch):
     asyncio.run(scenario())
 
 
-def test_a_job_that_resolves_still_fails_because_nothing_stores_it(
+def test_a_job_that_resolves_and_materializes_still_says_it_is_not_imported(
         configured, monkeypatch):
-    """The real box, with a real token, today.
+    """A resolved target reaching staging is still not a playable game.
 
-    Acquisition works and the job still ends `failed` — with `NO_MATERIALIZER`,
-    not `NO_PROVIDER`, because those are different facts and the player who
-    reads the second one would go and check an account that is fine.
+    The Real-Debrid conversation is the real provider over MockTransport; the
+    byte mover is the queue test's fake because materializer HTTP has its own
+    MockTransport suite. The boundary asserted here is `NOT_IMPORTED`.
     """
-    from backend.tests.test_store_jobs import _memory_db, _no_worker, _queue
+    from backend.tests.test_store_jobs import (
+        FakeMaterializer, _memory_db, _no_worker, _queue)
 
     async def scenario():
         conn = await _memory_db(monkeypatch)()
         _no_worker(monkeypatch)
         monkeypatch.setattr(jobs, "acquisition_provider",
                             lambda: _provider(_rd()))
+        store = FakeMaterializer()
+        monkeypatch.setattr(jobs, "materializer", lambda: store)
         try:
-            assert jobs.materializer() is None
             job = await _queue(source=SOURCE)
             await jobs.drain()
             after = await jobs.get(job.id)
             assert after.state == "failed"
-            assert after.reason == jobs.NO_MATERIALIZER
+            assert after.reason == jobs.NOT_IMPORTED
+            assert len(store.seen) == 1
         finally:
             await conn.close()
 

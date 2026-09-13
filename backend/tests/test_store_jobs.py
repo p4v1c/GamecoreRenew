@@ -1,11 +1,9 @@
 """The Store's acquisition queue — the states, the worker, and the restart.
 
-Nothing here reaches the network and nothing here writes a game anywhere. Both
-are asserted rather than assumed: there is no acquisition provider on this box
-and none ships, so the honest end of every real job is a failure — and the last
-test in this file stands guard over the whole data root, not just over the ROM
-directory, because a queue that started writing would do it somewhere nobody
-was looking.
+Nothing here reaches the real network and nothing writes a game into the
+library. The materializer's HTTP is supplied only by `httpx.MockTransport`,
+and the last test permits writes solely below the owning
+`store/jobs/<job-id>/` while guarding `emu/` by name.
 
 What is pinned:
 
@@ -33,6 +31,7 @@ import sys
 from pathlib import Path
 
 import aiosqlite
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -43,6 +42,8 @@ from backend import db as dbmod                                # noqa: E402
 from backend.main import app                                   # noqa: E402
 from backend.services import paths                             # noqa: E402
 from backend.services.store import jobs                        # noqa: E402
+from backend.services.store.materializer import (              # noqa: E402
+    HttpMaterializer, MIN_FREE_AFTER_DOWNLOAD)
 
 # The same four consoles as test_store_search.py, and for the same reason: they
 # are four different answers to "what does a download have to become".
@@ -139,15 +140,7 @@ class FakeAcquisition:
 
 
 class FakeMaterializer:
-    """What would store the bytes — and here, pointedly, does not.
-
-    `jobs.materializer()` answers `None` on every box, so `done` is a state no
-    box can reach in this step. It is still a state the machine has, and the
-    tests that assert the worker runs a queue to its end have to be able to
-    walk it, so this stands in for matrix §5. It writes nothing: the data-tree
-    guard in this file covers the success path too, and a fake that wrote a
-    file would make that guard measure the fake.
-    """
+    """A fast seam for queue-order tests; the real bytes have their own tests."""
 
     name = "fake-materializer"
 
@@ -161,11 +154,8 @@ class FakeMaterializer:
 def _both(monkeypatch, provider):
     """Inject an acquisition provider *and* a materializer.
 
-    Two seams now, so the tests that want a job to reach `done` have to fill
-    both. A test that fills only the first is asserting the box's real
-    behaviour — resolved, and nowhere to put it — which is what
-    `test_a_resolved_job_still_fails_because_nothing_can_store_it` does on
-    purpose.
+    Two seams now, so queue tests can reach the deliberate `NOT_IMPORTED`
+    boundary without doing HTTP. Materializer I/O is exercised separately.
     """
     monkeypatch.setattr(jobs, "acquisition_provider", lambda: provider)
     store = FakeMaterializer()
@@ -381,8 +371,9 @@ def test_a_resolved_job_still_fails_because_nothing_can_store_it(monkeypatch):
         _no_worker(monkeypatch)
         fake = FakeAcquisition()
         monkeypatch.setattr(jobs, "acquisition_provider", lambda: fake)
-        # …and NOT a materializer. `jobs.materializer()` answers None on every
-        # box and this test does not override it — that is the point.
+        # Remove only the second seam: this still pins the distinct diagnosis
+        # if a future configuration deliberately disables materialization.
+        monkeypatch.setattr(jobs, "materializer", lambda: None)
         try:
             assert jobs.materializer() is None
             job = await _queue()
@@ -415,7 +406,9 @@ def test_the_target_a_provider_answers_reaches_the_materializer(monkeypatch):
         try:
             job = await _queue(filename="Zelda.z64", size=1234)
             await jobs.drain()
-            assert (await jobs.get(job.id)).state == "done"
+            after = await jobs.get(job.id)
+            assert after.state == "failed"
+            assert after.reason == jobs.NOT_IMPORTED
             assert len(store.seen) == 1
             seen_job, target = store.seen[0]
             assert seen_job.id == job.id
@@ -463,8 +456,8 @@ def test_the_worker_runs_the_queue_in_the_order_it_was_filled(monkeypatch):
             second = await _queue(source="demo://nes/b", title="B")
             await jobs.drain()
             assert [j.title for j in fake.seen] == ["A", "B"]
-            assert (await jobs.get(first.id)).state == "done"
-            assert (await jobs.get(second.id)).state == "done"
+            assert (await jobs.get(first.id)).reason == jobs.NOT_IMPORTED
+            assert (await jobs.get(second.id)).reason == jobs.NOT_IMPORTED
         finally:
             await conn.close()
 
@@ -524,7 +517,7 @@ def test_a_job_cancelled_mid_download_stops_and_stays_cancelled(monkeypatch):
             assert (await jobs.get(slow.id)).state == "cancelled"
             # The queue did not die with the cancelled job: the one behind it
             # ran. Cancelling the acquisition must not cancel the worker.
-            assert (await jobs.get(after.id)).state == "done"
+            assert (await jobs.get(after.id)).reason == jobs.NOT_IMPORTED
             assert [j.title for j in fake.seen] == ["Slow", "Next"]
         finally:
             await conn.close()
@@ -827,9 +820,12 @@ def test_queueing_answers_the_row_and_the_worker_finishes_it_honestly(client):
     # The box's own answer for where it would land, not the client's.
     assert job["romsDir"] == "emu/nes"
     assert "source" not in job
+    assert job["downloadedBytes"] == 0
+    assert job["downloadTotal"] == 0
 
     listed = client.get("/api/store/jobs").json()
     assert listed["downloadReady"] is False
+    assert listed["materializerReady"] is True
 
     settled = _settled(client, job["id"])
     assert settled["state"] == "failed"
@@ -917,33 +913,57 @@ def test_the_queue_survives_a_restart_of_the_application(box, monkeypatch):
 # ── the guard ──────────────────────────────────────────────────────────────
 
 
-def test_queueing_and_running_write_nothing_into_the_data_tree(box, monkeypatch):
-    """The guard over the directory the ingestion steps will write into.
+def _inside_owned_work(path: str, roots: set[str]) -> bool:
+    return (path in {"store", "store/jobs"}
+            or any(path == root or path.startswith(f"{root}/") for root in roots))
+
+
+def test_the_write_guard_rejects_every_path_outside_the_owned_work_area():
+    """Pin the negative half: broadening the guard itself must turn red."""
+    roots = {"store/jobs/" + "a" * 32}
+    assert _inside_owned_work("store/jobs/" + "a" * 32 + "/game.nes", roots)
+    assert not _inside_owned_work("store/jobs/" + "b" * 32 + "/game.nes", roots)
+    assert not _inside_owned_work("emu/nes/game.nes", roots)
+    assert not _inside_owned_work("somewhere-else/game.nes", roots)
+
+
+def test_queueing_and_running_write_only_into_job_work_areas_never_emu(
+        box, monkeypatch):
+    """The queue writes only owned staging directories, never `emu/`.
 
     The upstream half of this is `test_store_search.py`'s
     `test_searching_writes_nothing_anywhere`; this is the same assertion one
     step later, and it is deliberately wider. Searching had no reason to touch
-    the disk at all, so its guard could watch everything. Queueing has exactly
-    one: the row in the database this box already keeps. So the tree is
-    compared path for path with the database excepted — and `emu/` is asserted
-    absent by name, because that is the directory whose failure mode is a
-    half-written file the library scan turns into a tile (matrix §1.1).
+    the disk at all, so its guard could watch everything. Queueing may add its
+    database row and paths below `store/jobs/<job-id>/`; every other new path
+    fails this test. `emu/` is asserted absent by name because a half-written
+    file there is immediately a tile (matrix §1.1).
 
-    A provider is injected so that the success path is walked too: "nothing was
-    written" must hold for a job that *worked*, not only for one that failed
-    before it started.
+    A provider and `MockTransport` walk the real materializer path, so this
+    measures actual bytes rather than a fake that writes nothing.
     """
     fake = FakeAcquisition()
-    _both(monkeypatch, fake)
+    monkeypatch.setattr(jobs, "acquisition_provider", lambda: fake)
+    payload = b"z" * 4096
+    transport = httpx.MockTransport(lambda request: httpx.Response(
+        200, content=payload,
+        headers={"content-length": str(len(payload))}, request=request))
+    monkeypatch.setattr(
+        jobs, "materializer",
+        lambda: HttpMaterializer(progress=jobs._progress, transport=transport,
+                                 free_bytes=lambda _path: len(payload) +
+                                 MIN_FREE_AFTER_DOWNLOAD))
 
     def tree():
         return sorted(p.relative_to(box).as_posix() for p in box.rglob("*")
                       if p.name != "playtime.db")
 
     with TestClient(app) as client:
-        before = tree()
+        before = set(tree())
         first = _post(client).json()
-        assert _settled(client, first["id"])["state"] == "done"
+        settled = _settled(client, first["id"])
+        assert settled["state"] == "failed"
+        assert settled["reason"] == jobs.NOT_IMPORTED
 
         second = _post(client, source="demo://nes/other",
                        filename="Metroid (USA).nes").json()
@@ -953,7 +973,10 @@ def test_queueing_and_running_write_nothing_into_the_data_tree(box, monkeypatch)
                       filename="BLES00000", format="folder").json()
         _settled(client, third["id"])
 
-        assert tree() == before
+        allowed = {f"store/jobs/{row['id']}" for row in (first, second, third)}
+        written = sorted(set(tree()) - before)
+        assert written
+        assert all(_inside_owned_work(path, allowed) for path in written), written
 
     assert fake.seen, "the injected provider was never reached"
     assert not (box / "emu").exists()

@@ -134,10 +134,10 @@ beforeEach(() => {
   vi.spyOn(api.store, 'provider').mockResolvedValue({
     name: 'demo', label: 'Demo results', live: false, systemFirst: true })
   vi.spyOn(api.store, 'search').mockResolvedValue(ANSWER)
-  // The queue. Empty by default and `downloadReady: false`, which is the
-  // shipped answer for the whole of this step: a job is a real row that a
-  // worker really runs, and nothing behind that worker can fetch a game.
-  vi.spyOn(api.store, 'jobs').mockResolvedValue({ jobs: [], downloadReady: false })
+  // The queue. Staging is ready; the playable-library promise remains false.
+  vi.spyOn(api.store, 'jobs').mockResolvedValue({
+    jobs: [], downloadReady: false, materializerReady: true,
+  })
   vi.spyOn(api.store, 'queue').mockImplementation(
     async (r: StoreSearchResult) => job(`job-${r.id}`, 'queued', { title: r.title }))
   vi.spyOn(api.store, 'cancel').mockImplementation(
@@ -402,7 +402,8 @@ describe('the Games tab', () => {
 
     press('gp:confirm')
     await flush()
-    expect(r.container.textContent).toContain('It will not download')
+    expect(r.container.textContent).toContain('private work area')
+    expect(r.container.textContent).toContain('not imported into your library')
     expect(r.container.textContent).toContain('Nothing is written into your ROM folder')
     // The one thing knowing the console first buys, shown: where it would go.
     expect(r.container.textContent).toContain('emu/sys00/')
@@ -895,6 +896,25 @@ describe('the queue, which is what asking for a game now means', () => {
     // banner over invented results: the screen must not look like something
     // it is not, and this one persists across a reboot.
     expect(r.container.textContent).toContain('Nothing here downloads yet')
+  })
+
+  it('draws persisted progress for the running download', async () => {
+    vi.mocked(api.store.jobs).mockResolvedValue({
+      jobs: [job('a', 'running', {
+        size: 4 * 1024 * 1024, downloadedBytes: 1024 * 1024,
+        downloadTotal: 4 * 1024 * 1024,
+      })],
+      downloadReady: false,
+      materializerReady: true,
+    })
+    const r = render(<StoreScreen />)
+    await flush()
+    press('gp:r1')
+    press('gp:y')
+    await flush()
+
+    expect(r.container.textContent).toContain('25% · 1.0 MB')
+    expect(r.container.textContent).toContain('Downloads stop before the library')
   })
 
   it('says nothing was asked for rather than drawing an empty list as an error', async () => {

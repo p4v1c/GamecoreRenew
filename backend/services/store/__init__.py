@@ -7,18 +7,15 @@ of
 ([`docs/architecture/14-store-ingestion-matrix.md`](../../../docs/architecture/14-store-ingestion-matrix.md)
 §5) — is a separate step and no part of it is here.
 
-`jobs.py` is the queue: one row per thing the player asked for, in the database
-the box already has, with the five states it may be in and the worker that runs
-them one at a time. Running one is **resolve, then store**, and only the first
-half exists: `realdebrid.py` turns a job's source into a direct URL, and
-`jobs.materializer()` — which would fetch it — answers `None` on every box.
-So a job still fails, now for one of two true reasons: nothing configured, or
-resolved and nowhere to put it. A queue that reported success having downloaded
-nothing would be a lie that persists across a reboot.
+`jobs.py` is the persistent queue. Running one resolves through Real-Debrid,
+then `materializer.py` streams the bytes into the job-owned work area under
+`<DATA>/store/jobs/`. It stops there: no inspection or import exists, so the
+row fails with the distinct `NOT_IMPORTED` reason instead of claiming that a
+game in staging is playable.
 
-**Nothing here downloads anything**, and that is what the split is for. An
-acquisition provider answers an `AcquiredTarget` — a URL and what it takes to
-check the bytes — and moves none of them; matrix §5 is the step that does.
+**Nothing here writes into `emu/`.** An acquisition provider only answers an
+`AcquiredTarget`; the materializer downloads atomically into staging, while
+the later ingestion stages remain separate.
 
 **Why searching lives in the backend at all**, when the browser could talk to
 an indexer itself: a search provider is configured with a URL and an API key,
@@ -46,6 +43,7 @@ from .jobs import (                                     # noqa: F401
     LIVE,
     NO_MATERIALIZER,
     NO_PROVIDER,
+    NOT_IMPORTED,
     QUEUED,
     RUNNING,
     STATES,

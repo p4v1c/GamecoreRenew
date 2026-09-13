@@ -82,6 +82,9 @@ _LAYOUT = {
     "addons":    "addons",            # per-addon writable state, <DATA>/addons/<id>/
     "volumes":   "volumes",           # symlinks to external disks, one per label
     "pergame":   "config/per-game",   # per-game settings, <system>/<game id>.json
+    # Bytes acquired by the Store, before inspection/import. One directory per
+    # persistent job; deliberately outside emu/, whose contents are live tiles.
+    "store_work": "store/jobs",
 }
 
 
@@ -123,6 +126,7 @@ def logos_dir() -> Path:       return data_dir("logos")
 def themes_dir() -> Path:      return data_dir("themes")
 def addons_dir() -> Path:      return data_dir("addons")
 def volumes_dir() -> Path:     return data_dir("volumes")
+def store_work_dir() -> Path:  return data_dir("store_work")
 
 
 def pergame_dir() -> Path:

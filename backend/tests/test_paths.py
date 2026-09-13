@@ -56,7 +56,7 @@ _CODE_ROOTS = {"GAMECORE_ROOT", "ASSETS_DIR", "REPO", "ROOT"}
 
 # First path segment of every writable location. Joining one of these onto a
 # code root is the mistake — `GAMECORE_ROOT / "catalog"` is fine, it is code.
-_WRITABLE_SEGMENTS = {"config", "emu", "overlays", "logos", "addons"}
+_WRITABLE_SEGMENTS = {"config", "emu", "overlays", "logos", "addons", "store"}
 
 
 def _sources() -> list[Path]:
@@ -204,6 +204,7 @@ def test_setting_a_data_root_moves_every_writable_path_and_no_code_path():
         for name in _LEGACY:
             assert data in paths.data_dir(name).parents, (
                 f"{name} is still inside the installation")
+        assert paths.store_work_dir() == data / "store/jobs"
         for code in (paths.catalog_dir(), paths.backend_data_dir(),
                      paths.frontend_dist_dir(), paths.install_bin_dir()):
             assert root in code.parents
