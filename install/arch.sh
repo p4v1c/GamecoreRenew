@@ -510,6 +510,12 @@ PKGS=(
   # update/linux.sh does all of its file installation with rsync, and rsync is
   # not in Arch's `base` — an OTA on a box without it failed at the first step.
   rsync
+  # Same shape as rsync above. The Store lists every archive it downloads with
+  # `7z l` before classifying it (backend/services/store/inspector.py), and
+  # p7zip is not in `base` either: it reached a box only as a dependency of the
+  # xenia pack, so a box with no Xbox 360 installed failed every archive
+  # download — classes A, B and C — at the first step.
+  p7zip
 )
 
 # Kernel series — needed by both the headers and the Manjaro NVIDIA module,

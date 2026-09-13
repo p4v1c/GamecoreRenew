@@ -995,8 +995,10 @@ def test_queueing_and_running_write_only_into_job_work_areas_never_emu(
         first = _post(client).json()
         settled = _settled(client, first["id"])
         assert settled["state"] == "failed"
-        assert settled["reason"] == jobs.INSPECTED_NOT_IMPORTED.format(ingestion_class="D")
-        assert settled["ingestionClass"] == "D"
+        # `Zelda (USA).nes` is class A, not D: §5.1's A row covers `nes` for
+        # any arriving format, and D is the disc images only.
+        assert settled["reason"] == jobs.INSPECTED_NOT_IMPORTED.format(ingestion_class="A")
+        assert settled["ingestionClass"] == "A"
 
         second = _post(client, source="demo://nes/other",
                        filename="Metroid (USA).nes").json()
