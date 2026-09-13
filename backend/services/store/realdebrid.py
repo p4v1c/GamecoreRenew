@@ -7,9 +7,9 @@ this file knows one thing about it: an API token.
 
 ── Why a debrid service at all, and what it buys ──────────────────────────
 Because it is what lets this box download a torrent **without being a torrent
-client**. Real-Debrid takes a magnet, fetches the content on its own machines,
-and answers with a plain HTTPS URL. What arrives on the box is therefore an
-ordinary `GET` over the connection it already has.
+client**. Real-Debrid takes a magnet — or a `.torrent` file — fetches the
+content on its own machines, and answers with a plain HTTPS URL. What arrives
+on the box is therefore an ordinary `GET` over the connection it already has.
 
 The alternative is the one this avoids, and it is worth naming because it is
 the obvious design and it is much worse. A torrent client on the box means a
@@ -21,11 +21,27 @@ and an uninstaller that has to know how to take all of it away again. One token
 in one file buys all of that back, and the day the owner stops paying, the file
 goes and the box is exactly what it was.
 
+── Two ways in, one way on ────────────────────────────────────────────────
+An indexer row names its payload one of two ways, and both end at the same
+torrent id:
+
+  · a **magnet**, when the row published an info hash — `POST
+    /torrents/addMagnet`, the original path, unchanged;
+  · a **`.torrent` file**, when it did not — `PUT /torrents/addTorrent`, whose
+    body is the file itself. On the box this was written for that is *every*
+    row: 0 of 8 for `mario kart`, one indexer, all `protocol=torrent`. The file
+    is fetched by [`prowlarr.fetch_torrent`](prowlarr.py), because that is
+    where the Prowlarr key lives, and it is never written to a disk.
+
+Which one is decided by `ResolvedSource.by_hash` and nowhere else. After it,
+steps 3 to 5 are identical and do not know which happened.
+
 ── Acquiring is resolving. It downloads nothing ───────────────────────────
 `acquire()` answers an `AcquiredTarget` and moves no bytes. See that class in
 [`jobs.py`](jobs.py) for why the split is where it is; the consequence here is
-that this whole file can be read as "what does this magnet become", and a
-reader looking for the code that writes a file will correctly find none.
+that this whole file can be read as "what does this release become", and a
+reader looking for the code that writes a file will correctly find none — the
+`.torrent`, when there is one, is `bytes` that are hashed and dropped.
 
 ── The credential, and where it is not ────────────────────────────────────
 `config/store-realdebrid.json`, mode 0600, written the way
@@ -54,7 +70,7 @@ it.
 
 ── What it does not do ────────────────────────────────────────────────────
 It does not add a torrent to the owner's account and walk away, it does not
-delete one, and it does not manage their torrent list. It adds the magnet,
+delete one, and it does not manage their torrent list. It adds the release,
 selects the one file this job is about, waits a bounded time for Real-Debrid to
 have it, and asks for a link. A torrent that is still caching when the wait runs
 out is left alone on purpose: Real-Debrid keeps fetching it, so queueing the
@@ -75,7 +91,7 @@ from urllib.parse import urlsplit, urlunsplit
 import httpx
 
 from ..paths import config_dir
-from . import resolve
+from . import prowlarr, resolve, torrentfile
 from .jobs import AcquiredTarget, Job
 
 log = logging.getLogger(__name__)
@@ -118,8 +134,11 @@ _WORKING = ("magnet_conversion", "queued", "downloading", "compressing",
 #: Terminal failures, mapped to the sentence the player reads. Each is true and
 #: each is different: a dead torrent is not a rejected file and neither is an
 #: account that ran out of traffic.
+#: `magnet_error` is Real-Debrid's own name for the state, and it is reached
+#: from `addTorrent` as well as from `addMagnet` — so the sentence says what
+#: happened rather than naming the way in, which the player did not choose.
 _DEAD = {
-    "magnet_error": "Real-Debrid could not read this release's magnet link",
+    "magnet_error": "Real-Debrid could not make sense of this release",
     "error": "Real-Debrid could not fetch this release",
     "virus": "Real-Debrid refused this release as unsafe",
     "dead": "nobody is sharing this release any more",
@@ -332,12 +351,19 @@ class RealDebridAcquisition:
     name = "realdebrid"
     label = "Real-Debrid"
 
-    def __init__(self, transport: httpx.BaseTransport | None = None) -> None:
-        # Tests only, and the only seam this class has — `ProwlarrSearchProvider`
+    def __init__(self, transport: httpx.BaseTransport | None = None,
+                 prowlarr_transport: httpx.BaseTransport | None = None) -> None:
+        # Tests only, and the only seams this class has — `ProwlarrSearchProvider`
         # has the same one for the same reason: the alternative is a test that
         # either reaches a real service with a real token or patches httpx
-        # globally. `jobs.acquisition_provider()` never passes it.
+        # globally. `jobs.acquisition_provider()` never passes either.
+        #
+        # Two of them rather than one, because the `.torrent` path talks to two
+        # different services with two different keys, and a single transport
+        # would let a test that meant to stub Prowlarr silently answer for
+        # Real-Debrid as well.
         self._transport = transport
+        self._prowlarr_transport = prowlarr_transport
 
     @classmethod
     def configured(cls) -> bool:
@@ -352,14 +378,20 @@ class RealDebridAcquisition:
         Five steps, each of which can fail with its own sentence:
 
           1. read the source — `resolve.py`, and the only step that touches no
-             network. A row the indexer published without an info hash stops
-             here, which is most of what "unsupported link" means in practice;
-          2. hand Real-Debrid the magnet;
+             network. A row the indexer published with neither an info hash nor
+             a torrent file stops here, which is what "unsupported link" means
+             in practice;
+          2. hand Real-Debrid the release. **Two ways in, one way on**, chosen
+             by `ResolvedSource.by_hash` — a magnet when the indexer published
+             a hash, the `.torrent` itself when it published a file. Both
+             answer the same torrent id, so steps 3 to 5 do not know which
+             happened;
           3. ask what is in it, and pick the one file this job is about;
           4. select that file, and wait — bounded — for the service to have it;
           5. unrestrict the link into a direct URL.
 
-        Returns an `AcquiredTarget` and writes nothing anywhere.
+        Returns an `AcquiredTarget` and writes nothing anywhere — the
+        `.torrent`, when there is one, is bytes in memory and never a file.
         """
         cfg = load_config()
         if cfg is None:
@@ -384,12 +416,17 @@ class RealDebridAcquisition:
             headers={"Authorization": f"Bearer {cfg.api_key}",
                      "Accept": "application/json"},
         ) as client:
-            torrent_id = await self._add_magnet(client, cfg, found)
+            if found.by_hash:
+                info_hash = found.info_hash
+                torrent_id = await self._add_magnet(client, cfg, found)
+            else:
+                torrent_id, info_hash = await self._add_torrent(
+                    client, cfg, found)
             file_id, filename, size = await self._choose_file(
                 client, cfg, torrent_id, job)
             await self._select(client, cfg, torrent_id, file_id)
             link = await self._wait_for_link(client, cfg, torrent_id)
-            return await self._unrestrict(client, cfg, link, found,
+            return await self._unrestrict(client, cfg, link, info_hash,
                                           filename, size)
 
     # ── the five steps ─────────────────────────────────────────────────────
@@ -404,6 +441,62 @@ class RealDebridAcquisition:
             raise RealDebridError(
                 f"{_where(cfg)} accepted the release but named no torrent")
         return body["id"]
+
+    async def _add_torrent(self, client: httpx.AsyncClient,
+                           cfg: RealDebridConfig,
+                           found: resolve.ResolvedSource) -> tuple[str, str]:
+        """Step 2, the other way — the file goes in, an id and a hash come out.
+
+        **Why a file at all, and why this endpoint.** Real-Debrid publishes
+        `PUT /torrents/addTorrent` beside `POST /torrents/addMagnet`, and its
+        reference declares *no body parameter for it* — only an optional `host`
+        in the query string — where `addMagnet` declares `POST magnet *`. That
+        is the documentation saying the torrent **is** the request body, and it
+        answers the same `201` with the same `{id, uri}` that `addMagnet`
+        answers. So the four steps after this one do not change, which is the
+        whole reason this path is worth having rather than a second pipeline.
+
+        **Why not compute the hash and reuse `addMagnet`.** It was the stated
+        fallback and it is genuinely worse here, for a reason specific to what
+        this box downloads. `ResolvedSource.magnet` is trackerless on purpose,
+        so a magnet made from a hash alone gives Real-Debrid nothing but 20
+        bytes: it has to find the metadata itself, which is the
+        `magnet_conversion` state, and for a release that lives on a **private**
+        tracker there is no public swarm to find it in. The `.torrent` carries
+        the piece hashes and the file list, so that step is simply not needed.
+        The file is the better input wherever there is one.
+
+        The hash is computed anyway, from the same bytes, because
+        `AcquiredTarget.info_hash` is what the materializer will check the
+        downloaded bytes against. Computing it is also what establishes that
+        these bytes are a torrent at all — before the owner's account is asked
+        anything, and before a login page can be mistaken for a release.
+        """
+        try:
+            blob = await prowlarr.fetch_torrent(
+                found.indexer_id, found.torrent_token,
+                transport=self._prowlarr_transport)
+        except prowlarr.ProwlarrError as e:
+            # Passed through as it is. The fault is this box's Prowlarr or the
+            # indexer behind it, and saying "Real-Debrid" here would send
+            # somebody to check an account that is working.
+            raise RealDebridError(str(e)) from None
+
+        # Before the account is touched: a login page that came back with a
+        # 200 is not a release, and finding that out here costs nothing and
+        # tells the truth. `NotATorrent` is a `ValueError` with a sentence
+        # written for a player, so it is re-raised as one.
+        try:
+            info_hash = torrentfile.info_hash_of(blob)
+        except torrentfile.NotATorrent as e:
+            raise RealDebridError(str(e)) from None
+
+        body = await self._call(client, cfg, "PUT", "/torrents/addTorrent",
+                                content=blob)
+        if not isinstance(body, dict) or not isinstance(body.get("id"), str):
+            raise RealDebridError(
+                f"{_where(cfg)} accepted the release but named no torrent")
+        return body["id"], info_hash
 
     async def _choose_file(self, client: httpx.AsyncClient,
                            cfg: RealDebridConfig, torrent_id: str,
@@ -516,8 +609,7 @@ class RealDebridAcquisition:
             await asyncio.sleep(_POLL_EVERY)
 
     async def _unrestrict(self, client: httpx.AsyncClient,
-                          cfg: RealDebridConfig, link: str,
-                          found: resolve.ResolvedSource,
+                          cfg: RealDebridConfig, link: str, info_hash: str,
                           filename: str, size: int) -> AcquiredTarget:
         """Step 5 — the account's link becomes a URL anything can `GET`."""
         body = await self._call(client, cfg, "POST", "/unrestrict/link",
@@ -540,22 +632,30 @@ class RealDebridAcquisition:
         except (TypeError, ValueError):
             pass
         return AcquiredTarget(url=url, filename=filename, size=size,
-                              info_hash=found.info_hash, provider=self.name)
+                              info_hash=info_hash, provider=self.name)
 
     # ── the one request, and every way it can fail ─────────────────────────
 
     async def _call(self, client: httpx.AsyncClient, cfg: RealDebridConfig,
-                    method: str, path: str,
-                    data: dict | None = None) -> object:
+                    method: str, path: str, data: dict | None = None,
+                    content: bytes | None = None) -> object:
         """Every branch raises `RealDebridError` with a message safe to show.
 
         That is the half of the contract that lives here: `jobs._settle()`
         copies the text onto a row a player reads, precisely because the text
         *could* carry a token or an unrestricted URL, and it is this function's
         job that it never does.
+
+        `data` is a form body, which is what every documented endpoint here
+        takes; `content` is a raw one, which only `PUT /torrents/addTorrent`
+        does. They are mutually exclusive and the caller picks — a function
+        that guessed from the method would be one more thing to be wrong about.
         """
+        headers = {"Content-Type": "application/x-bittorrent"} if content \
+            is not None else None
         try:
-            r = await client.request(method, f"{cfg.api_url}{path}", data=data)
+            r = await client.request(method, f"{cfg.api_url}{path}", data=data,
+                                     content=content, headers=headers)
         except httpx.TimeoutException:
             raise RealDebridError(
                 f"{_where(cfg)} did not answer within {cfg.timeout:g}s"

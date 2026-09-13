@@ -36,14 +36,29 @@ response is redacted before it becomes a `SearchResult`, because Prowlarr's own
 browser inside `source`.
 
 ── What `source` carries, and what it turned out to need ──────────────────
-`prowlarr://<indexerId>/<guid>`, plus a `#btih:<hash>` suffix when the release
-names one. The pair on its own was chosen to be re-resolvable against Prowlarr
-and it is not: measured against `Prowlarr.Api.V1.dll` 2.5.2.5491, the only
-endpoint that accepts it is the *grab*, which reads an in-memory cache that
-expires and then hands the release to a **download client** — a torrent daemon,
-which is the one thing this box does not have. The info hash is what makes the
-row resolvable a week later without a URL and without a credential.
-[`resolve.py`](resolve.py) holds the evidence and the parse.
+`prowlarr://<indexerId>/<guid>`, plus one of two suffixes. The pair on its own
+was chosen to be re-resolvable against Prowlarr and it is not: measured against
+`Prowlarr.Api.V1.dll` 2.5.2.5491, the only endpoint that accepts it is the
+*grab*, which reads an in-memory cache that expires and then hands the release
+to a **download client** — a torrent daemon, which is the one thing this box
+does not have.
+
+  · `#btih:<hash>` when the release names an info hash. That is what makes the
+    row resolvable a week later without a URL and without a credential, and it
+    is preferred whenever it is there;
+  · `#tor:<token>` when it does not, which on the box this was written for was
+    **every** row — 0 of 8 for `mario kart`, all `protocol=torrent`, all
+    publishing a `.torrent` file and no hash. The token is the `link` parameter
+    of `downloadUrl` and nothing else of it. It is safe to carry because
+    Prowlarr protects that parameter before handing it out (`ConvertToProxyLink`
+    → `IProtectionService`; `Aes` and `Base64UrlEncode` in `Prowlarr.Core.dll`),
+    so a private tracker's passkey inside it is unreadable to this box and to
+    the browser — and `torrent_token_of` refuses any `link` that is *not*
+    opaque, which is what makes that a checked property rather than a belief.
+
+[`resolve.py`](resolve.py) holds the evidence and both parses, and
+`fetch_torrent` at the foot of this file is the half that dereferences a token
+— here, because this is where the key lives.
 
 ── Why a result has to prove which console it is for ──────────────────────
 An indexer has no idea what a GameCube is. It answers "zelda" with the N64
@@ -101,7 +116,7 @@ from urllib.parse import urlsplit, urlunsplit
 import httpx
 
 from ..paths import config_dir
-from . import resolve
+from . import resolve, torrentfile
 # `console_terms` moved to `search.py` when the catalogue-wide pass there
 # needed the same split, and is imported back under its old name: it is used
 # below, and the tests still reach for it at this address.
@@ -639,14 +654,23 @@ def _result_from(row: object, system: SearchSystem,
     indexer = indexer if isinstance(indexer, int) else 0
     # …and the one thing the pair turned out not to be able to do without.
     # `(indexerId, guid)` is a key into a cache Prowlarr expires, not a
-    # locator — `resolve.py` holds the measurement — so the info hash rides
-    # along as a `#btih:` suffix. It is 20 bytes saying what the content *is*:
-    # no key, no session, no passkey, and it does not go stale the way a queue
-    # row must not. `info_hash_of` takes the hash out of a `magnetUrl` and
-    # leaves the tracker list, which on a private tracker carries the owner's
-    # own passkey, behind.
+    # locator — `resolve.py` holds the measurement — so a durable one rides
+    # along as a suffix. Two of them, tried in that order:
+    #
+    #   · the **info hash**, 20 bytes saying what the content *is*: no key, no
+    #     session, no passkey, and it does not go stale the way a queue row
+    #     must not. `info_hash_of` takes it out of a `magnetUrl` and leaves the
+    #     tracker list — which on a private tracker carries the owner's own
+    #     passkey — behind;
+    #   · failing that, Prowlarr's **protected download token**, which is the
+    #     only thing a row publishing a `.torrent` instead of a hash has to
+    #     offer. `torrent_token_of` reads exactly one parameter of
+    #     `downloadUrl` and refuses any that is not opaque ciphertext, so a
+    #     passkey cannot travel inside it either. `stamp` prefers the hash.
+    info_hash = resolve.info_hash_of(row)
+    token = resolve.torrent_token_of(row) if not info_hash else ""
     source = _redact(resolve.stamp(f"prowlarr://{indexer}/{guid.strip()}",
-                                   resolve.info_hash_of(row)))
+                                   info_hash, token))
 
     fmt = _suffix_of(filename, system)
     region, languages = _region_and_languages(title)
@@ -795,3 +819,126 @@ class ProwlarrSearchProvider:
             raise ProwlarrError(
                 f"{_where(cfg)} answered JSON that is not a list of releases")
         return body
+
+
+# ── the second way a release names its payload ─────────────────────────────
+
+
+#: Prowlarr's own download proxy, as `NewznabController.GetDownload` declares
+#: it. Measured in `Prowlarr.Api.V1.dll` 2.5.2.5491 rather than taken from a
+#: wiki: the action carries two route attributes, `/api/v1/indexer/{id:int}/
+#: download` and the short `{id:int}/download` that `ConvertToProxyLink` mints
+#: into `downloadUrl`. The versioned one is used here — same `/api/v1` space as
+#: the search this client already calls, and the one that is not an alias.
+_DOWNLOAD_PATH = "/api/v1/indexer/{indexer}/download"
+
+#: `file` is **required** — the same assembly holds the literal *"file must be
+#: provided"* — and it is only the name Prowlarr puts on the response. A
+#: constant, so that no release title ends up in a query string.
+_DOWNLOAD_FILE = "download"
+
+#: What Prowlarr says when it cannot decrypt the `link` it is given. Both
+#: literals are in `Prowlarr.Api.V1.dll`; both come back as HTTP 400, and both
+#: mean the same thing for a player — see `fetch_torrent`.
+_LINK_REFUSED = 400
+
+
+async def fetch_torrent(indexer_id: int, token: str,
+                        transport: httpx.BaseTransport | None = None) -> bytes:
+    """The `.torrent` behind a `#tor:` locator, in memory, never on disk.
+
+    This is the half of the second path that has to be on this side of the
+    house, and the reason is the same one that put the search here: **the key
+    lives in this process.** It travels as an `X-Api-Key` header, exactly as it
+    does for `/api/v1/search` — `Prowlarr.Http.dll`'s
+    `ApiKeyAuthenticationHandler.ParseApiKey` reads the header before it reads
+    an `apikey` query parameter, which is why the proxy link Prowlarr mints
+    carries the key in its URL and this request does not have to. Nothing here
+    ever builds that URL.
+
+    What comes back is a file a stranger's server chose to send, so it is
+    bounded while it is still arriving rather than after: the response is
+    streamed and abandoned the moment it passes `torrentfile.MAX_BYTES`. It is
+    **not written anywhere** — it exists as `bytes`, is hashed by
+    `torrentfile.info_hash_of`, and goes out of scope.
+
+    Every failure raises `ProwlarrError` with a sentence built from safe parts,
+    because `jobs._settle()` copies it onto a row a player reads:
+
+      · **HTTP 400** — Prowlarr could not decrypt the token (*"Invalid Prowlarr
+        link"*, *"Failed to normalize provided link"*). That is what a
+        regenerated `DownloadProtectionKey` looks like from here: a reinstalled
+        or reset Prowlarr, months after the row was queued. The only remedy is
+        to search again, so that is what the sentence says;
+      · **401/403** — the key. Same sentence shape as the search client's;
+      · **404** — the indexer id is gone from that instance;
+      · anything else, including a 5xx from an indexer that no longer serves
+        the link, says what the status was and nothing more.
+    """
+    cfg = load_config()
+    if cfg is None:
+        raise ProwlarrError(f"no usable {CONFIG_FILENAME}")
+    if not token:
+        raise ProwlarrError("this release names no torrent file to fetch")
+
+    url = f"{cfg.url}{_DOWNLOAD_PATH.format(indexer=int(indexer_id))}"
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(cfg.timeout),
+            # Never followed, for the reason the search client gives: a
+            # redirect would hand `X-Api-Key` to whatever host named it.
+            follow_redirects=False,
+            transport=transport,
+        ) as client:
+            async with client.stream(
+                "GET", url,
+                params={"link": token, "file": _DOWNLOAD_FILE},
+                headers={"X-Api-Key": cfg.api_key,
+                         "Accept": "application/x-bittorrent"},
+            ) as r:
+                _check_download(cfg, r, indexer_id)
+                chunks, total = [], 0
+                async for chunk in r.aiter_bytes():
+                    total += len(chunk)
+                    if total > torrentfile.MAX_BYTES:
+                        # Abandoned mid-flight. The `async with` closes the
+                        # response, so the rest of it is never read and never
+                        # allocated.
+                        raise ProwlarrError(
+                            "the indexer's torrent file is larger than this "
+                            "box will read")
+                    chunks.append(chunk)
+    except ProwlarrError:
+        raise
+    except httpx.TimeoutException:
+        raise ProwlarrError(
+            f"{_where(cfg)} did not answer within {cfg.timeout:g}s") from None
+    except httpx.HTTPError as e:
+        # Not interpolated: httpx puts the full request URL in some of these,
+        # and this one has a token in its query string.
+        raise ProwlarrError(
+            f"{_where(cfg)} could not be reached "
+            f"({type(e).__name__})") from None
+    return b"".join(chunks)
+
+
+def _check_download(cfg: ProwlarrConfig, r: httpx.Response,
+                    indexer_id: int) -> None:
+    """The status line, turned into something a player can act on."""
+    if r.status_code == _LINK_REFUSED:
+        raise ProwlarrError(
+            "this box's Prowlarr can no longer open the download link it gave "
+            "out for this release — search for the game again")
+    if r.status_code in (401, 403):
+        raise ProwlarrError(
+            f"{_where(cfg)} refused the API key (HTTP {r.status_code})")
+    if r.status_code == 404:
+        raise ProwlarrError(
+            f"{_where(cfg)} no longer has the indexer that offered this "
+            f"release (indexer {indexer_id}, HTTP 404)")
+    if r.status_code >= 300:
+        # 3xx included: redirects are not followed, so one arriving here is a
+        # misconfiguration rather than a step on the way somewhere.
+        raise ProwlarrError(
+            f"{_where(cfg)} could not fetch this release's torrent file "
+            f"(HTTP {r.status_code})")

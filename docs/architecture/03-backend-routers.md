@@ -478,9 +478,9 @@ nothing. Split, each says what actually happened — and a resolver has nowhere
 to put bytes even by accident, which is what keeps the data-tree guard in
 `test_store_jobs.py` meaningful across the success path.
 
-**Why Real-Debrid at all, and why it is external.** It takes a magnet and
-answers a plain HTTPS URL, so this box needs **no torrent client**: no daemon,
-no listening port on the LAN — the thing [`docs/SECURITY.md`](../../docs/SECURITY.md)
+**Why Real-Debrid at all, and why it is external.** It takes a magnet — or a
+`.torrent` file — and answers a plain HTTPS URL, so this box needs **no torrent
+client**: no daemon, no listening port on the LAN — the thing [`docs/SECURITY.md`](../../docs/SECURITY.md)
 spent the hardening pass reducing to Caddy on `:8443` — and nothing extra for
 the uninstaller to remove. The owner runs their own account exactly as they run
 their own Prowlarr; GameCore knows one token, in one 0600 file, named in
@@ -502,19 +502,102 @@ So the row carries one thing more: the release's **BitTorrent info hash**, as a
 saying what the content *is*, never a passkey, and a magnet's `tr=` trackers
 are dropped where they are found — it never expires, and it is exactly what a
 debrid service consumes, so resolution needs no second Prowlarr round trip and
-no guess about which release a re-search meant. A row an indexer published
-without one (usenet has none) is still offered and refused at the job, by name.
+no guess about which release a re-search meant.
 [`services/store/resolve.py`](../../backend/services/store/resolve.py) holds the
 evidence and the parse.
 
-How many of a given set of indexers actually publish that hash is a property of
+**And the rows that publish no hash, which were all of them.** Measured on the
+box this was written for, against its one configured indexer:
+
+```
+'mario kart' — Prowlarr returned 8 row(s)
+    0/8   rows carry an info hash (0%)
+```
+
+`protocol=torrent`, no `infoHash`, no `magnetUrl`, a `.torrent` `fileName`, and
+the payload behind Prowlarr's own credentialed proxy link. Refusing those rows
+was correct and it was also the entire library, so `source` grew a **second**
+locator beside the hash rather than a second excuse: `#tor:<token>`, where the
+token is the `link` parameter of Prowlarr's `downloadUrl` and nothing else of
+it. **The hash still wins** whenever a row has one, so no existing row changes
+path.
+
+Storing a link is exactly what the first design refused to do, so the objection
+had to be answered rather than waved at: *on a private tracker the indexer's own
+download URL carries the owner's passkey.* True of the indexer's URL — and not
+true of `link`, measured in Prowlarr's binaries the same way the cache finding
+was. `Prowlarr.Core.dll` builds the proxy link in `ConvertToProxyLink` and reads
+it back in `ConvertToNormalLink`; both go through `IProtectionService`
+(`Protect`/`UnProtect`), and the assembly holds `Aes`, `CreateEncryptor`,
+`CreateDecryptor`, `CryptoStream` and `SHA256` beside `Base64UrlEncode`. So
+`link` is **AES ciphertext**, keyed on `DownloadProtectionKey` — a `config.xml`
+element, hence written to disk and stable across restarts, which is the
+durability `remoteReleases` (an in-memory `ICached<T>`) did not have. A passkey
+inside it is unreadable to this box, to the browser and to the database; the
+only thing that can open it is the owner's own Prowlarr, and reaching that needs
+the API key, which never leaves the backend.
+
+That claim is **checked, not trusted**: `resolve.torrent_token_of` refuses any
+`link` that base64url-decodes to something containing `://`, because a Prowlarr
+handing out plaintext links would be handing out the passkey. Such a row is
+offered with no locator and refused at the job, by name.
+
+Acquisition then has two ways in and one way on:
+
+| the row published | locator | Real-Debrid |
+|---|---|---|
+| an info hash | `#btih:<40 hex>` | `POST /torrents/addMagnet`, trackerless magnet |
+| a `.torrent` | `#tor:<token>` | `PUT /torrents/addTorrent`, the file as the raw body |
+
+The file is fetched **server-side**, by
+[`prowlarr.fetch_torrent`](../../backend/services/store/prowlarr.py), from
+`/api/v1/indexer/{id}/download` with the key in an `X-Api-Key` header — the
+route and its `file` requirement are both declared in `Prowlarr.Api.V1.dll`, and
+`ApiKeyAuthenticationHandler.ParseApiKey` reads that header before it reads an
+`apikey` query parameter, which is why the proxy URL Prowlarr mints is never
+built here. The bytes are bounded while they arrive, hashed by
+[`torrentfile.py`](../../backend/services/store/torrentfile.py) — SHA-1 of the
+bencoded `info` value as it arrived, so the file's `announce` and
+`announce-list`, which are where a private tracker's passkey actually lives, are
+dropped exactly as a magnet's `tr=` is — and **never written to a disk**.
+
+`addTorrent` is taken over the stated fallback (compute the hash, reuse
+`addMagnet`) because `ResolvedSource.magnet` is trackerless on purpose: a magnet
+built from a hash alone leaves Real-Debrid to find the metadata itself, and a
+release that lives on a private tracker has no public swarm to find it in. The
+file carries the piece hashes already. The hash is computed anyway, because it
+is what the materializer will check the downloaded bytes against.
+
+It is fetched at **acquisition** and not while a search is being answered, and
+that is the same assembly's doing: it holds *"User configurable Indexer Grab
+Limit of {0} in last {1} hour(s) reached."* A search that grabbed all 8 rows to
+answer a question about 8 rows would spend the owner's hourly budget on 7
+releases nobody asked for, every time, and put a round trip per row in front of
+a player holding a gamepad. One queued game costs one grab.
+
+Every way it fails says which one, on the job: a token this Prowlarr can no
+longer decrypt (HTTP 400 — *"Invalid Prowlarr link"*) says to search for the game
+again, which is the only remedy and is what a reinstalled Prowlarr looks like
+from here; an unreachable indexer, a 5xx behind an expired link, an answer that
+is not a torrent (an HTML login page with a 200 is the common one), a file over
+the cap, and a Real-Debrid that refuses are each their own sentence, and none of
+them quotes a key, a token, a URL or the content that came back.
+
+A row with **neither** — usenet has no info hash and no torrent — is still
+offered and refused at the job, by name. That remains the honest answer rather
+than a re-search: searching again for the title and taking whatever comes back
+is a guess about which row was meant, and a wrong guess downloads the wrong game
+silently.
+
+How many of a given set of indexers publish which of the two is a property of
 those indexers and not of this code, so it is measured by hand with
-[`scripts/realdebrid-resolve-check.py`](../../scripts/realdebrid-resolve-check.py)
-— which takes both credentials from the environment, reads neither config file,
-writes nothing and downloads nothing. It is not a gate, for the same reason
-`prowlarr-filter-check.py` is not: the gates are
-`backend/tests/test_store_realdebrid.py` and `test_store_resolve.py`, and they
-run offline.
+[`scripts/realdebrid-resolve-check.py`](../../scripts/realdebrid-resolve-check.py),
+which now reports every row as `hash`, `.torrent` or `not at all` with a rate
+for each — so the 0 % above is a number that can be taken again. It takes both
+credentials from the environment, reads neither config file, writes nothing and
+downloads nothing. It is not a gate, for the same reason `prowlarr-filter-check.py`
+is not: the gates are `backend/tests/test_store_realdebrid.py`,
+`test_store_resolve.py` and `test_store_torrentfile.py`, and they run offline.
 
 **Cancelling is a state, not a `DELETE`.** Hence `POST /jobs/{id}/cancel` and
 no `DELETE /jobs/{id}`. A queue whose cancel removed the row cannot tell "I

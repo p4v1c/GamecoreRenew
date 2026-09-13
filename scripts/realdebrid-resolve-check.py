@@ -23,26 +23,40 @@ make the next attempt slower rather than faster.
 
 WHAT IT MEASURES
 
-  1. **That `(indexerId, guid)` really is not enough.** It is not, and the
-     evidence is static: `Prowlarr.Api.V1.dll` 2.5.2.5491 holds
-     `SearchController.GrabRelease`, a `_remoteReleaseCache` over a cache named
-     `remoteReleases`, and the literal *"Couldn't find requested release in
-     cache, cache timeout probably expired."* — so the pair is a key into an
-     expiring cache, and a successful grab hands the release to a **download
-     client**, which this box does not have. `backend/services/store/resolve.py`
-     records the whole finding. What this script measures is the consequence:
-     how many of your indexers' rows actually publish the info hash that
-     replaced the pair, because a row without one cannot be queued.
+  1. **How many of your rows can be acquired at all, and by which path.**
+     `(indexerId, guid)` is not a locator: `Prowlarr.Api.V1.dll` 2.5.2.5491
+     holds `SearchController.GrabRelease`, a `_remoteReleaseCache` over a cache
+     named `remoteReleases`, and the literal *"Couldn't find requested release
+     in cache, cache timeout probably expired."* — a key into an expiring
+     cache, whose successful grab hands the release to a **download client**
+     this box does not have. So a row has to carry something durable of its
+     own, and there are two:
 
-  2. **That a hash your indexers publish is one Real-Debrid accepts.** These
-     are two different services with no relationship, and "the row had a hash"
-     does not mean "the content can be fetched". Cached, still fetching, dead
-     and refused are four different outcomes and each prints as itself.
+       · **by hash** — `infoHash`, or the `xt=urn:btih:` of a `magnetUrl`;
+       · **by .torrent** — Prowlarr's protected `link` token, for a row that
+         published a file instead. It is AES ciphertext (`ConvertToProxyLink`
+         → `IProtectionService`; `Aes`, `CreateEncryptor`, `Base64UrlEncode`
+         in `Prowlarr.Core.dll`), so it carries no passkey even when the
+         indexer's own URL would have.
+
+     Every row prints as `hash`, `torrent` or `none`, with the rate for each.
+     That is the number this whole step exists to move: on the box it was
+     written for it was **0/8 by hash (0 %)** for `mario kart`, one indexer,
+     every row a `.torrent`.
+
+  2. **That what your indexers publish is what Real-Debrid accepts.** These
+     are two different services with no relationship, and "the row had a
+     locator" does not mean "the content can be fetched". Cached, still
+     fetching, dead and refused are four different outcomes and each prints as
+     itself. A `.torrent` row exercises the whole second path: fetched from
+     Prowlarr with the key in a header, hashed here, and `PUT` to
+     `/torrents/addTorrent` as a raw body.
 
   3. **That nothing leaks on the way.** Every line printed is passed through
-     the same redaction the product uses, and the direct URL is never printed
-     at all — it is minted against your account and anyone holding it spends
-     your bandwidth.
+     the same redaction the product uses; the direct URL is never printed at
+     all — it is minted against your account and anyone holding it spends your
+     bandwidth — and neither is the download token, which is a bearer reference
+     to a file that may carry your tracker passkey.
 
 USAGE
     export PROWLARR_URL=http://127.0.0.1:9696
@@ -51,9 +65,14 @@ USAGE
     .venv/bin/python scripts/realdebrid-resolve-check.py "mario kart"
 
 Run it from the repository root. Give it a **query**, and it resolves the first
-row that carries a hash; or give it a `prowlarr://<indexerId>/<guid>#btih:<hash>`
-source straight out of a job row or a `/api/store/search` answer, and it
-resolves exactly that one.
+row that carries a locator of either kind; or give it a
+`prowlarr://<indexerId>/<guid>#btih:<hash>` or `…#tor:<token>` source straight
+out of a job row or a `/api/store/search` answer, and it resolves exactly that
+one.
+
+`PROWLARR_URL` and `PROWLARR_API_KEY` are needed for the `.torrent` path even
+when a source is given on the command line: that path fetches the file from
+your Prowlarr, which is where the credential for your indexer lives.
 
 Without `REALDEBRID_API_KEY` it still runs and stops after the Prowlarr half,
 which is the useful half of 1. above and needs no paid account.
@@ -105,12 +124,13 @@ def realdebrid_config() -> RD.RealDebridConfig | None:
 
 
 async def sources_for(cfg: P.ProwlarrConfig, query: str) -> list[tuple[str, str]]:
-    """`(title, source)` for every row Prowlarr answers — hashes and all.
+    """`(title, source)` for every row Prowlarr answers — every kind of row.
 
-    Straight through the provider's own `_get`, so what is counted is what the
-    product would see, including the redaction. The console filter is
-    deliberately *not* applied: this script is about resolution, and a row's
-    console has nothing to do with whether it can be fetched.
+    Straight through the provider's own `_get` and its own `stamp`, so what is
+    counted is what the product would see, including the redaction and
+    including the rule that a hash wins over a `.torrent` token. The console
+    filter is deliberately *not* applied: this script is about resolution, and
+    a row's console has nothing to do with whether it can be fetched.
     """
     rows = await P.ProwlarrSearchProvider()._get(cfg, query)
     print(f"{BOLD}{query!r}{RST} — Prowlarr returned {len(rows)} row(s)\n")
@@ -124,32 +144,75 @@ async def sources_for(cfg: P.ProwlarrConfig, query: str) -> list[tuple[str, str]
         indexer = row.get("indexerId")
         indexer = indexer if isinstance(indexer, int) else 0
         source = P._redact(resolve.stamp(
-            f"prowlarr://{indexer}/{guid.strip()}", resolve.info_hash_of(row)))
+            f"prowlarr://{indexer}/{guid.strip()}",
+            resolve.info_hash_of(row), resolve.torrent_token_of(row)))
         out.append((P._redact(title), source))
     return out
 
 
-def report_hashes(rows: list[tuple[str, str]]) -> list[tuple[str, str]]:
-    """Finding 1: how many of these rows can be queued at all."""
-    usable, bare = [], []
+#: How a row is counted, and how the count reads. `none` is the only one that
+#: cannot be queued — and the whole point of the second path is that it used to
+#: be the only kind this box's indexer ever produced.
+_PATHS = (
+    ("hash", "#btih:", GRN, "by hash        "),
+    ("torrent", "#tor:", GRN, "by .torrent    "),
+    ("none", "", RED, "not at all     "),
+)
+
+
+def path_of(source: str) -> str:
+    """`hash`, `torrent` or `none` — read off the source, not guessed.
+
+    Read from the same string the queue row would hold, so this measures the
+    product rather than a parallel opinion about it.
+    """
+    for name, marker, _, _phrase in _PATHS:
+        if marker and marker in source:
+            return name
+    return "none"
+
+
+def report_paths(rows: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Finding 1: how many of these rows can be acquired, and by which path.
+
+    Prints a line per path with its rate, then names the rows that have none.
+    The rate is what to re-measure after a change: it was 0 % by hash and 0 %
+    overall on the box this was written for, and every one of those rows was a
+    `.torrent`.
+    """
+    by_path = {name: [] for name, _, _, _ in _PATHS}
     for title, source in rows:
-        (usable if "#btih:" in source else bare).append((title, source))
+        by_path[path_of(source)].append((title, source))
+
     total = len(rows) or 1
-    colour = GRN if len(usable) else RED
-    print(f"  {colour}{len(usable):3d}{RST}/{len(rows):<3d} rows carry an info "
-          f"hash {DIM}({100 * len(usable) // total}%){RST}")
+    for name, _, colour, phrase in _PATHS:
+        found = by_path[name]
+        shade = colour if found else DIM
+        print(f"  {shade}{len(found):3d}{RST}/{len(rows):<3d} rows resolve "
+              f"{shade}{phrase}{RST}{DIM}({100 * len(found) // total}%){RST}")
+
+    bare = by_path["none"]
     for title, _ in bare[:5]:
-        print(f"      {RED}no hash{RST} {DIM}{title[:72]}{RST}")
+        print(f"      {RED}neither{RST} {DIM}{title[:72]}{RST}")
     if bare:
-        print(f"  {DIM}A row with no hash cannot be resolved: (indexerId, guid)"
-              f" is a key into a Prowlarr cache that expires, not a locator."
-              f" Those rows queue and then fail saying so.{RST}")
+        print(f"  {DIM}A row with neither cannot be resolved: (indexerId, guid)"
+              f" is a key into a Prowlarr cache that expires, not a locator,"
+              f" and there is no file to fetch either. Usenet rows look like"
+              f" this. They queue and then fail saying so.{RST}")
+
+    usable = by_path["hash"] + by_path["torrent"]
+    if by_path["torrent"]:
+        print(f"  {DIM}A `.torrent` row is resolved by fetching the file from"
+              f" your Prowlarr with the key in a header, hashing it here, and"
+              f" PUTting it to /torrents/addTorrent. Its locator is"
+              f" Prowlarr's own protected token, which carries no"
+              f" passkey.{RST}")
     print()
     return usable
 
 
 async def resolve_one(cfg: RD.RealDebridConfig, title: str,
-                      source: str) -> int:
+                      source: str, prowlarr: P.ProwlarrConfig | None = None) -> int:
     """Finding 2 and 3: one source, all the way to a direct URL."""
     print(f"{BOLD}resolving{RST} {title[:72]}")
     print(f"  {DIM}source   {source}{RST}")
@@ -159,8 +222,19 @@ async def resolve_one(cfg: RD.RealDebridConfig, title: str,
         print(f"  {RED}✗ {e}{RST}\n")
         return 1
     print(f"  {DIM}indexer  {found.indexer_id}{RST}")
-    print(f"  {DIM}magnet   {found.magnet}{RST}   "
-          f"{DIM}(hash only — no trackers, so no passkey){RST}")
+    if found.by_hash:
+        print(f"  {DIM}path     hash → POST /torrents/addMagnet{RST}")
+        print(f"  {DIM}magnet   {found.magnet}{RST}   "
+              f"{DIM}(hash only — no trackers, so no passkey){RST}")
+    else:
+        # The token itself is never printed: it is a bearer reference to a file
+        # that may carry your tracker passkey, and this output gets pasted into
+        # issues.
+        print(f"  {DIM}path     .torrent → GET Prowlarr "
+              f"/api/v1/indexer/{found.indexer_id}/download "
+              f"→ PUT /torrents/addTorrent{RST}")
+        print(f"  {DIM}token    <{len(found.torrent_token)} characters, not "
+              f"printed>{RST}")
 
     # The job the box would have written down. Built here rather than read from
     # a database: this script touches no database, and `acquire` needs only the
@@ -172,8 +246,9 @@ async def resolve_one(cfg: RD.RealDebridConfig, title: str,
         started_at="", ended_at="")
 
     try:
-        target = await _acquire_with(cfg, job)
-    except (RD.RealDebridError, resolve.UnresolvableSource) as e:
+        target = await _acquire_with(cfg, job, prowlarr)
+    except (RD.RealDebridError, P.ProwlarrError,
+            resolve.UnresolvableSource) as e:
         # Exactly the sentence a player would have read on the job row.
         print(f"  {RED}✗ Real-Debrid: {e}{RST}\n")
         return 1
@@ -185,20 +260,25 @@ async def resolve_one(cfg: RD.RealDebridConfig, title: str,
     return 0
 
 
-async def _acquire_with(cfg: RD.RealDebridConfig, job: jobs.Job):
-    """`RealDebridAcquisition.acquire`, against a config from the environment.
+async def _acquire_with(cfg: RD.RealDebridConfig, job: jobs.Job,
+                        prowlarr: P.ProwlarrConfig | None = None):
+    """`RealDebridAcquisition.acquire`, against configs from the environment.
 
-    The provider reads `config/store-realdebrid.json` itself, and this script
-    must not create one — so `load_config` is answered from the environment for
-    the duration of the call and put back afterwards. Nothing on disk is read
-    or written either way.
+    The provider reads `config/store-realdebrid.json` itself, and the
+    `.torrent` path reads `config/store-prowlarr.json` — and this script must
+    not create either. So both `load_config`s are answered from the environment
+    for the duration of the call and put back afterwards. Nothing on disk is
+    read or written either way.
     """
-    original = RD.load_config
+    original_rd, original_p = RD.load_config, P.load_config
     RD.load_config = lambda: cfg                   # type: ignore[assignment]
+    if prowlarr is not None:
+        P.load_config = lambda: prowlarr           # type: ignore[assignment]
     try:
         return await RD.RealDebridAcquisition().acquire(job)
     finally:
-        RD.load_config = original                  # type: ignore[assignment]
+        RD.load_config = original_rd               # type: ignore[assignment]
+        P.load_config = original_p                 # type: ignore[assignment]
 
 
 async def run(query: str) -> int:
@@ -210,7 +290,13 @@ async def run(query: str) -> int:
 
     if query.startswith(f"{resolve.SCHEME}://"):
         rows = [(query, query)]
-        print(f"{BOLD}one source given{RST}, taken as it is\n")
+        print(f"{BOLD}one source given{RST}, taken as it is "
+              f"{DIM}({path_of(query)}){RST}\n")
+        # Needed only when that source is a `.torrent` one: the file is fetched
+        # from Prowlarr, which is where the indexer credential lives. A
+        # `#btih:` source still needs nothing but a Real-Debrid token, which is
+        # how this script has always been runnable with one credential.
+        cfg = prowlarr_config() if path_of(query) == "torrent" else None
     else:
         cfg = prowlarr_config()
         print(f"{BOLD}Prowlarr{RST} {P._where(cfg)}\n")
@@ -219,23 +305,25 @@ async def run(query: str) -> int:
         except P.ProwlarrError as e:
             print(f"{RED}✗{RST} {query!r}: {e}")
             return 1
-        rows = report_hashes(rows)
+        rows = report_paths(rows)
         if not rows:
-            print(f"{RED}No row carried an info hash, so there is nothing to "
-                  f"resolve.{RST} {DIM}Try a query your indexers actually have, "
-                  f"or an indexer that publishes torrents.{RST}")
+            print(f"{RED}No row carried a hash or a torrent file, so there is "
+                  f"nothing to resolve.{RST} {DIM}Try a query your indexers "
+                  f"actually have, or an indexer that publishes torrents "
+                  f"rather than usenet.{RST}")
             return 1
 
     if rd is None:
         return 0
     print(f"{BOLD}Real-Debrid{RST} {RD._where(rd)}   "
           f"{DIM}waiting up to {rd.wait:g}s for content{RST}\n")
-    return await resolve_one(rd, *rows[0])
+    return await resolve_one(rd, *rows[0], prowlarr=cfg)
 
 
 if __name__ == "__main__":
     args = sys.argv[1:]
     if len(args) != 1:
         sys.exit('give one query, e.g. "mario kart" — or one '
-                 'prowlarr://<indexerId>/<guid>#btih:<hash> source')
+                 'prowlarr://<indexerId>/<guid>#btih:<hash> or …#tor:<token> '
+                 'source')
     raise SystemExit(asyncio.run(run(args[0])))

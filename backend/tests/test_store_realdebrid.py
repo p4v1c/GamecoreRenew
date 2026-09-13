@@ -33,6 +33,7 @@ What is pinned, in the order it matters:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import stat
@@ -433,15 +434,17 @@ def test_a_demo_row_says_so_rather_than_blaming_real_debrid(configured):
 
 
 @pytest.mark.parametrize("state,expected", [
-    ("magnet_error", "could not read this release's magnet"),
+    ("magnet_error", "could not make sense of this release"),
     ("error", "could not fetch this release"),
     ("virus", "refused this release as unsafe"),
     ("dead", "nobody is sharing this release"),
 ])
 def test_a_release_real_debrid_will_not_serve_says_which_it_was(
         configured, state, expected):
-    """A dead torrent is not a rejected file and neither is a broken magnet.
-    One reason each, because the player's next move differs."""
+    """A dead torrent is not a rejected file and neither is one Real-Debrid
+    could not parse. One reason each, because the player's next move differs —
+    and none of them names the way in, since `magnet_error` is reached from
+    `addTorrent` too and the player did not choose which path their row took."""
     with pytest.raises(RealDebridError) as e:
         _acquire(_rd(status=state))
     assert expected in str(e.value)
@@ -630,3 +633,375 @@ def test_the_manual_check_reads_no_credential_file_from_disk():
                       "config_file(", "open("):
         assert forbidden not in body, (
             f"the manual check must not {forbidden} — it reads the environment")
+
+
+# ── the other way in: a row that published a file, not a hash ──────────────
+
+#: Prowlarr's protected download token: base64url, opaque, and not a URL when
+#: decoded. `ConvertToProxyLink` runs the indexer's own URL through
+#: `IProtectionService` (AES, keyed on `DownloadProtectionKey`) before it gets
+#: here, which is why one of these can sit in `source` at all.
+TOKEN = "Q2lwaGVydGV4dC1ub3QtYS1VUkwtMTIzNDU2Nzg5"
+TORRENT_SOURCE = f"prowlarr://3/https://tracker.invalid/details/1#tor:{TOKEN}"
+#: Reserved by RFC 2606 — the Prowlarr half of this conversation cannot reach
+#: anything either.
+FAKE_PROWLARR = "http://prowlarr.invalid:9696"
+FAKE_PROWLARR_KEY = "0000000000000000000000000000beef"
+#: An obvious pattern, in the one place a private tracker really puts one: the
+#: announce URL of every `.torrent` it serves.
+PASSKEY = "b7f3e1c95a2d4806b7f3e1c95a2d4806"
+
+
+def _be(value) -> bytes:
+    """Bencode, for fixtures only — see `test_store_torrentfile.py`."""
+    if isinstance(value, int):
+        return b"i%de" % value
+    if isinstance(value, bytes):
+        return b"%d:%s" % (len(value), value)
+    if isinstance(value, list):
+        return b"l" + b"".join(_be(v) for v in value) + b"e"
+    if isinstance(value, dict):
+        return b"d" + b"".join(_be(k) + _be(v)
+                               for k, v in value.items()) + b"e"
+    raise TypeError(value)
+
+
+#: The `info` dictionary whose SHA-1 is what this release *is*.
+TORRENT_INFO = {b"name": b"Zelda.z64", b"piece length": 16384,
+                b"length": 32 * 1024 * 1024, b"pieces": b"\x01" * 20}
+#: …and the whole file, announce URL and passkey included, exactly as a private
+#: tracker would serve it.
+TORRENT_BLOB = _be({
+    b"announce": f"https://private.invalid/announce/{PASSKEY}".encode(),
+    b"announce-list": [[f"https://private.invalid/announce/{PASSKEY}".encode()]],
+    b"comment": b"uploaded by somebody",
+    b"info": TORRENT_INFO,
+})
+TORRENT_HASH = hashlib.sha1(_be(TORRENT_INFO)).hexdigest()
+
+
+@pytest.fixture
+def both(configured, monkeypatch, tmp_path):
+    """Real-Debrid configured, and a Prowlarr beside it.
+
+    Both point at hosts RFC 2606 reserves, so a regression that dropped either
+    mock transport fails instead of reaching a stranger with a real key.
+    """
+    from backend.services.store.prowlarr import (
+        ProwlarrConfig, save_config as save_prowlarr)
+    save_prowlarr(ProwlarrConfig(url=FAKE_PROWLARR, api_key=FAKE_PROWLARR_KEY))
+    return configured
+
+
+def _prowlarr(*, status=200, body=None, capture=None):
+    """A Prowlarr that hands back one `.torrent`, unless a test says otherwise."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if capture is not None:
+            capture.append(request)
+        return httpx.Response(
+            status, content=TORRENT_BLOB if body is None else body,
+            headers={"Content-Type": "application/x-bittorrent"})
+    return handler
+
+
+def _rd_torrent(*, capture=None, overrides=None, **over):
+    """The Real-Debrid half, answering `addTorrent` instead of `addMagnet`.
+
+    `overrides` is consulted first, exactly as it is in `_rd`, so a test can
+    break this one step and leave the rest of the conversation honest.
+    """
+    inner = _rd(capture=capture, overrides=overrides, **over)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path.endswith("/torrents/addTorrent"):
+            if capture is not None:
+                capture.append(request)
+            for fragment, response in (overrides or {}).items():
+                if fragment in path:
+                    return response
+            return httpx.Response(201, json={
+                "id": "TORRENTID", "uri": "https://realdebrid.invalid/t/1"})
+        return inner(request)
+    return handler
+
+
+def _acquire_torrent(rd_handler, prowlarr_handler, job=None):
+    provider = RealDebridAcquisition(
+        transport=httpx.MockTransport(rd_handler),
+        prowlarr_transport=httpx.MockTransport(prowlarr_handler))
+    return asyncio.run(provider.acquire(job or _job(source=TORRENT_SOURCE)))
+
+
+def test_a_row_that_published_a_file_now_resolves_all_the_way(both):
+    """The whole point of the step, end to end and offline.
+
+    On the box this was written for, *every* row looks like this one: 0 of 8
+    for `mario kart` carried an info hash. Before, each of them queued and then
+    failed by name. Now the `.torrent` is fetched server-side, hashed, and
+    handed to Real-Debrid, and the four steps after that are the ones that were
+    already here.
+    """
+    target = _acquire_torrent(_rd_torrent(), _prowlarr())
+    assert target.url == "https://dl.invalid/x/Zelda.z64"
+    assert target.filename == "Zelda.z64"
+    assert target.provider == "realdebrid"
+    # The hash came out of the file, not out of the row — the row had none.
+    assert target.info_hash == TORRENT_HASH
+    assert len(target.info_hash) == 40
+
+
+def test_the_file_is_sent_as_the_request_body_to_add_torrent(both):
+    """`PUT /torrents/addTorrent`, whose reference declares no body parameter —
+    only an optional `host` in the query string — where `addMagnet` declares
+    `POST magnet *`. That is the documentation saying the torrent *is* the body.
+    """
+    seen = []
+    _acquire_torrent(_rd_torrent(capture=seen), _prowlarr())
+
+    put = [r for r in seen if r.url.path.endswith("/torrents/addTorrent")]
+    assert len(put) == 1
+    assert put[0].method == "PUT"
+    assert put[0].content == TORRENT_BLOB
+    assert put[0].headers["Content-Type"] == "application/x-bittorrent"
+    # The magnet endpoint was never asked. Two ways in, and this row took the
+    # other one.
+    assert not [r for r in seen if r.url.path.endswith("/torrents/addMagnet")]
+
+
+def test_the_four_steps_after_it_are_the_ones_that_were_already_there(both):
+    """`addTorrent` answers the same `{id, uri}` `addMagnet` answers, so
+    nothing downstream knows which happened. That is why this is a second way
+    in rather than a second pipeline."""
+    seen = []
+    _acquire_torrent(_rd_torrent(capture=seen), _prowlarr())
+    assert [_step(r) for r in seen] == [
+        "PUT /torrents/addTorrent",
+        "GET /torrents/info",
+        "POST /torrents/selectFiles",
+        "GET /torrents/info",
+        "POST /unrestrict/link",
+    ]
+
+
+def test_the_hash_path_is_untouched_by_any_of_this(configured):
+    """Decision one, pinned from the other side: a row that publishes a hash
+    still takes `addMagnet`, and never asks Prowlarr for anything."""
+    seen = []
+
+    def never(request):
+        raise AssertionError("the hash path asked Prowlarr for a file")
+
+    provider = RealDebridAcquisition(
+        transport=httpx.MockTransport(_rd(capture=seen)),
+        prowlarr_transport=httpx.MockTransport(never))
+    target = asyncio.run(provider.acquire(_job()))
+    assert target.info_hash == HASH
+    assert _step(seen[0]) == "POST /torrents/addMagnet"
+
+
+# ── the passkey, which is what the design was shaped around ────────────────
+
+def test_the_passkey_in_the_torrent_file_comes_back_out_nowhere(both, caplog):
+    """A `.torrent` from a private tracker carries the owner's passkey in its
+    `announce` and `announce-list` — the file's version of a magnet's `tr=`.
+
+    The file is read for one thing, the SHA-1 of its `info` value, and that is
+    the only thing that survives contact with this box. Nothing reaches the
+    job, the log, Real-Debrid or the `AcquiredTarget`.
+    """
+    seen = []
+    with caplog.at_level(logging.DEBUG):
+        target = _acquire_torrent(_rd_torrent(capture=seen), _prowlarr())
+
+    # The fixture really does carry one, or none of this proves anything.
+    assert PASSKEY.encode() in TORRENT_BLOB
+
+    assert PASSKEY not in target.redacted()
+    assert PASSKEY not in json.dumps(
+        [target.url, target.filename, target.info_hash, target.provider])
+    assert PASSKEY not in caplog.text
+    assert "private.invalid" not in caplog.text
+    # It went to Real-Debrid inside the file, because that is what a debrid
+    # service needs to fetch the content — and nowhere else.
+    body = b"".join(r.content for r in seen
+                    if r.url.path.endswith("/torrents/addTorrent"))
+    assert PASSKEY.encode() in body
+    for request in seen:
+        if not request.url.path.endswith("/torrents/addTorrent"):
+            assert PASSKEY not in str(request.url)
+            assert PASSKEY.encode() not in (request.content or b"")
+
+
+def test_the_token_goes_to_prowlarr_and_to_nothing_else(both, caplog):
+    """It is Prowlarr's, it is meaningless to anyone else, and it is a bearer
+    reference to a file that does carry a passkey. It goes to the one instance
+    that minted it, and it reaches Real-Debrid nowhere — not in a URL, not in a
+    body, and not in anything this repository writes to a journal.
+
+    It *is* in the query string of the one request that uses it, and that is
+    the deliberate half of the design rather than an oversight. The endpoint
+    takes it that way, so the rule this codebase actually holds to is the
+    stronger one: **nothing credentialed is ever in a URL.** The Prowlarr key
+    and the Real-Debrid token are headers precisely because httpx logs a
+    request line with the full URL in it — asserted below, since a box runs at
+    `WARNING` and never sees that line at all, but a developer with `DEBUG=1`
+    does.
+    """
+    seen = []
+    with caplog.at_level(logging.DEBUG):
+        _acquire_torrent(_rd_torrent(capture=seen), _prowlarr())
+
+    for request in seen:
+        assert TOKEN not in str(request.url)
+        assert TOKEN.encode() not in (request.content or b"")
+
+    # Nothing this repository logs carries it…
+    ours = "\n".join(r.getMessage() for r in caplog.records
+                     if r.name.startswith("backend."))
+    assert TOKEN not in ours
+    # …and no credential is anywhere in the log at all, httpx's own request
+    # lines included.
+    assert FAKE_PROWLARR_KEY not in caplog.text
+    assert FAKE_TOKEN not in caplog.text
+    assert PASSKEY not in caplog.text
+
+
+def test_the_prowlarr_key_is_not_the_real_debrid_one(both):
+    """Two services, two credentials, two transports. Each request carries the
+    one it belongs to and neither carries the other."""
+    to_prowlarr, to_rd = [], []
+    _acquire_torrent(_rd_torrent(capture=to_rd),
+                     _prowlarr(capture=to_prowlarr))
+
+    assert len(to_prowlarr) == 1
+    assert to_prowlarr[0].headers["X-Api-Key"] == FAKE_PROWLARR_KEY
+    assert "Authorization" not in to_prowlarr[0].headers
+    for request in to_rd:
+        assert request.headers["Authorization"] == f"Bearer {FAKE_TOKEN}"
+        assert "X-Api-Key" not in request.headers
+
+
+# ── every way the second path fails, and what the player reads ─────────────
+
+def test_a_login_page_is_refused_before_the_account_is_touched(both):
+    """The common failure of fetching a `.torrent` from a private tracker with
+    a stale cookie: HTML, served with a 200.
+
+    Checked here rather than by Real-Debrid, so the sentence is true and the
+    owner's account is never asked to make sense of somebody's login form.
+    """
+    seen = []
+    with pytest.raises(RealDebridError) as e:
+        _acquire_torrent(_rd_torrent(capture=seen),
+                         _prowlarr(body=b"<!DOCTYPE html><title>Log in</title>"))
+    assert "not a torrent file" in str(e.value)
+    assert not seen
+
+
+def test_a_page_that_came_back_is_never_quoted_on_the_job(both):
+    """The message becomes a row a player reads on a television, and when this
+    fires the content is most often somebody else's session page."""
+    with pytest.raises(RealDebridError) as e:
+        _acquire_torrent(_rd_torrent(),
+                         _prowlarr(body=b"<html>session=SECRETCOOKIE77</html>"))
+    assert "SECRETCOOKIE77" not in str(e.value)
+
+
+@pytest.mark.parametrize("status,expected", [
+    (400, "search for the game again"),
+    (401, "refused the API key"),
+    (404, "no longer has the indexer"),
+    (500, "could not fetch this release's torrent file"),
+])
+def test_a_prowlarr_failure_says_prowlarr_and_not_real_debrid(
+        both, status, expected):
+    """The fault is this box's Prowlarr or the indexer behind it. Saying
+    "Real-Debrid" here would send somebody to check an account that is working,
+    so `ProwlarrError`'s own sentence is passed through as it is.
+    """
+    seen = []
+    with pytest.raises(RealDebridError) as e:
+        _acquire_torrent(_rd_torrent(capture=seen),
+                         _prowlarr(status=status, body=b"no"))
+    assert expected in str(e.value)
+    assert "Real-Debrid" not in str(e.value)
+    assert FAKE_TOKEN not in str(e.value)
+    assert FAKE_PROWLARR_KEY not in str(e.value)
+    # Nothing was ever asked of the account.
+    assert not seen
+
+
+def test_an_expired_link_at_the_indexer_says_so_on_the_job(both):
+    """Months later, the indexer no longer serves what the token decrypts to.
+    Prowlarr answers 5xx and the job says what happened rather than "failed"."""
+    with pytest.raises(RealDebridError) as e:
+        _acquire_torrent(_rd_torrent(), _prowlarr(status=502, body=b"gone"))
+    assert "could not fetch this release's torrent file" in str(e.value)
+    assert "502" in str(e.value)
+
+
+def test_a_torrent_file_too_large_is_refused(both):
+    """A `.torrent` is piece hashes and filenames, so a 15 GB release is still
+    tens of kilobytes. The bound is applied while the body is arriving."""
+    from backend.services.store import torrentfile
+
+    with pytest.raises(RealDebridError) as e:
+        _acquire_torrent(_rd_torrent(), _prowlarr(
+            body=b"d" + b"\x00" * (torrentfile.MAX_BYTES + 1024)))
+    assert "larger than this box will read" in str(e.value)
+
+
+def test_real_debrid_refusing_the_file_says_which_service_refused(both):
+    """503 is what it answers for a release it will not serve, and its own
+    `error` text is a short English phrase carrying nothing private."""
+    with pytest.raises(RealDebridError) as e:
+        _acquire_torrent(
+            _rd_torrent(overrides={"/torrents/addTorrent": httpx.Response(
+                503, json={"error": "hoster_unavailable"})}),
+            _prowlarr())
+    assert "does not support this release" in str(e.value)
+    assert "hoster_unavailable" in str(e.value)
+
+
+def test_real_debrid_accepting_it_but_naming_no_torrent_is_a_failure(both):
+    with pytest.raises(RealDebridError) as e:
+        _acquire_torrent(
+            _rd_torrent(overrides={"/torrents/addTorrent": httpx.Response(
+                201, json={"uri": "https://realdebrid.invalid/t/1"})}),
+            _prowlarr())
+    assert "named no torrent" in str(e.value)
+
+
+def test_a_box_with_no_prowlarr_cannot_take_the_second_path(configured):
+    """Real-Debrid configured, Prowlarr not. The row says where it came from
+    and there is nothing left to ask."""
+    from backend.services.store.prowlarr import CONFIG_FILENAME as P_FILE
+
+    with pytest.raises(RealDebridError) as e:
+        _acquire_torrent(_rd_torrent(), _prowlarr())
+    assert P_FILE in str(e.value)
+
+
+def test_a_source_with_neither_locator_is_still_refused_by_name(configured):
+    """Usenet rows have no hash *and* no torrent. Unchanged, and still the
+    honest answer rather than a re-search."""
+    job = _job(source="prowlarr://3/https://tracker.invalid/details/1")
+    with pytest.raises(resolve.UnresolvableSource) as e:
+        _acquire_torrent(_rd_torrent(), _prowlarr(), job=job)
+    assert "without a torrent hash or a torrent file" in str(e.value)
+
+
+def test_the_second_path_writes_nothing_into_the_data_tree(both):
+    """The `.torrent` is `bytes` in memory and never a file.
+
+    Pinned here as well as in `test_store_jobs.py`, because this is the path
+    that *could* have been written as "save it and hand a path to something",
+    and the whole ingestion design depends on it not being.
+    """
+    before = sorted(p.relative_to(both).as_posix() for p in both.rglob("*"))
+    _acquire_torrent(_rd_torrent(), _prowlarr())
+    with pytest.raises(RealDebridError):
+        _acquire_torrent(_rd_torrent(), _prowlarr(body=b"<html>"))
+    after = sorted(p.relative_to(both).as_posix() for p in both.rglob("*"))
+    assert before == after

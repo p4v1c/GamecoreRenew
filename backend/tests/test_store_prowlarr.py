@@ -844,3 +844,294 @@ def test_a_working_search_reaches_the_endpoint_whole(configured, monkeypatch):
     assert body["romsDir"] == "emu/gopher64"
     assert [r["title"] for r in body["results"]] == ["Mario Kart 64 (USA)"]
     assert FAKE_KEY not in json.dumps(body)
+
+
+# ── the rows that publish a file instead of a hash ─────────────────────────
+
+#: Base64url, opaque, and not a URL when decoded — the shape
+#: `ConvertToProxyLink` produces, because it runs the indexer's own URL through
+#: `IProtectionService` (AES, keyed on `DownloadProtectionKey`) first.
+TOKEN = "Q2lwaGVydGV4dC1ub3QtYS1VUkwtMTIzNDU2Nzg5"
+
+
+def _torrent_release(**over) -> dict:
+    """A row shaped like the ones the box owner's one indexer actually answers.
+
+    Measured, not invented: `protocol=torrent`, a `.torrent` `fileName`, no
+    `infoHash`, no `magnetUrl`, and the payload behind Prowlarr's credentialed
+    proxy link. 0 of 8 rows for `mario kart` carried a hash.
+    """
+    fields = {
+        "title": "Mario Kart 64 (USA) - Nintendo 64",
+        "fileName": "Mario Kart 64 (USA) - Nintendo 64.torrent",
+        "downloadUrl": f"{FAKE_URL}/3/download?apikey={FAKE_KEY}"
+                       f"&link={TOKEN}&file=Mario+Kart+64",
+    }
+    fields.update(over)
+    return _release(**fields)
+
+
+def test_a_row_with_a_torrent_but_no_hash_is_now_resolvable(configured):
+    """The 0 % this step exists to move.
+
+    Before, every one of these rows queued and then failed by name because
+    `(indexerId, guid)` is a key into a Prowlarr cache that expires. Now the
+    row carries Prowlarr's own protected download token instead, and `resolve`
+    accepts it.
+    """
+    from backend.services.store import resolve
+
+    rows = _search(_provider(_answering([_torrent_release()])), "gopher64")
+    assert len(rows) == 1
+    found = resolve.resolve(rows[0].source)
+    assert found.by_hash is False
+    assert found.torrent_token == TOKEN
+    assert found.indexer_id == 3
+
+
+def test_the_hash_path_is_preferred_whenever_there_is_a_hash(configured):
+    """Decision one: a second way in, not a replacement.
+
+    A row that publishes both resolves the way it always did — no second
+    service, no extra request, and the tested path untouched.
+    """
+    from backend.services.store import resolve
+
+    rows = _search(_provider(_answering([
+        _torrent_release(infoHash="B1" * 20)])), "gopher64")
+    assert "#tor:" not in rows[0].source
+    assert resolve.resolve(rows[0].source).info_hash == "b1" * 20
+
+
+def test_the_box_key_in_the_download_url_still_never_reaches_a_result(
+        configured):
+    """The leak test, now that one parameter of `downloadUrl` *is* read.
+
+    `link` is lifted out; `apikey` is not, and the URL is not. This is the
+    assertion that keeps "reading one named parameter" different from "using
+    the credentialed URL".
+    """
+    rows = _search(_provider(_answering([_torrent_release()])), "gopher64")
+    assert len(rows) == 1
+    blob = json.dumps(rows[0].to_json())
+    assert FAKE_KEY not in blob
+    assert "apikey" not in rows[0].source
+    assert f"{FAKE_URL}/3/download" not in rows[0].source
+    assert f"#tor:{TOKEN}" in rows[0].source
+
+
+def test_a_plaintext_link_on_a_private_tracker_is_dropped_not_stored(
+        configured, caplog):
+    """The private-tracker gate, at the place the row is turned into a result.
+
+    Prowlarr protects `link`, so a real one is ciphertext. One that decodes to
+    a URL means this is not that Prowlarr — and on a private tracker that URL
+    carries the owner's passkey in a **path segment**, where `_redact` cannot
+    see it because it is not a query parameter. The row is offered with no
+    locator and refused later by name, rather than putting a credential in
+    `store_jobs`.
+    """
+    import base64
+
+    from backend.services.store import resolve
+
+    passkey = "b7f3e1c95a2d4806b7f3e1c95a2d4806"
+    plain = base64.urlsafe_b64encode(
+        f"https://private.invalid/download/{passkey}/4711".encode()
+    ).decode().rstrip("=")
+
+    with caplog.at_level("WARNING"):
+        rows = _search(_provider(_answering([_torrent_release(
+            downloadUrl=f"{FAKE_URL}/3/download?apikey={FAKE_KEY}"
+                        f"&link={plain}&file=x")])), "gopher64")
+
+    assert len(rows) == 1
+    blob = json.dumps(rows[0].to_json())
+    assert passkey not in blob
+    assert plain not in blob
+    assert "private.invalid" not in rows[0].source
+    assert "#tor:" not in rows[0].source
+    with pytest.raises(resolve.UnresolvableSource):
+        resolve.resolve(rows[0].source)
+    # …and it said so, without repeating the thing it dropped.
+    assert any("unprotected download link" in r.message for r in caplog.records)
+    assert passkey not in caplog.text
+
+
+def test_a_usenet_row_carries_no_torrent_locator(configured):
+    """Its `link` fetches a `.nzb`, which nothing downstream can use. Refused
+    where the row is rather than four steps later against a file that turned
+    out to be XML."""
+    rows = _search(_provider(_answering([
+        _torrent_release(protocol="usenet")])), "gopher64")
+    assert len(rows) == 1
+    assert "#tor:" not in rows[0].source
+
+
+# ── fetching the file, which is the half that holds the key ────────────────
+
+def _torrent_bytes(name=b"Mario Kart 64.z64") -> bytes:
+    """The smallest thing `torrentfile` will call a release."""
+    return (b"d8:announce36:https://private.invalid/announce/PK4:infod"
+            b"6:lengthi1024e4:name" + b"%d:%s" % (len(name), name) +
+            b"12:piece lengthi16384e6:pieces20:" + b"\x01" * 20 + b"ee")
+
+
+def _download_handler(*, status=200, body=None, capture=None):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if capture is not None:
+            capture.append(request)
+        return httpx.Response(
+            status, content=_torrent_bytes() if body is None else body,
+            headers={"Content-Type": "application/x-bittorrent"})
+    return handler
+
+
+def _fetch(handler, indexer_id=3, token=TOKEN) -> bytes:
+    from backend.services.store.prowlarr import fetch_torrent
+    return asyncio.run(fetch_torrent(
+        indexer_id, token, transport=httpx.MockTransport(handler)))
+
+
+def test_the_file_comes_back_and_the_key_travelled_in_a_header(configured):
+    """The same rule as the search, for the same reason: a URL is what proxies
+    log, what shells keep in history and what an exception prints.
+
+    `ApiKeyAuthenticationHandler.ParseApiKey` reads the `X-Api-Key` header
+    before it reads an `apikey` query parameter — which is why the proxy link
+    Prowlarr mints carries the key in its URL and this request does not have to.
+    """
+    seen = []
+    blob = _fetch(_download_handler(capture=seen))
+    assert blob == _torrent_bytes()
+
+    assert len(seen) == 1
+    request = seen[0]
+    assert request.headers["X-Api-Key"] == FAKE_KEY
+    assert FAKE_KEY not in str(request.url)
+    assert "apikey" not in str(request.url)
+    # The versioned route the assembly declares, not the short alias.
+    assert request.url.path == "/api/v1/indexer/3/download"
+    assert request.url.params["link"] == TOKEN
+    # `file` is required — *"file must be provided"* — and is a constant, so no
+    # release title ends up in a query string.
+    assert request.url.params["file"] == "download"
+
+
+def test_the_fetch_follows_no_redirect(configured):
+    """Following one would hand `X-Api-Key` to whatever host it named."""
+    from backend.services.store.prowlarr import ProwlarrError
+
+    with pytest.raises(ProwlarrError) as e:
+        _fetch(_download_handler(status=302, body=b""))
+    assert "302" in str(e.value)
+
+
+def test_a_key_prowlarr_can_no_longer_open_says_search_again(configured):
+    """HTTP 400 is *"Invalid Prowlarr link"* / *"Failed to normalize provided
+    link"* — both literals in `Prowlarr.Api.V1.dll`.
+
+    It means the token was encrypted under a `DownloadProtectionKey` this
+    instance no longer has: a reinstalled or reset Prowlarr, months after the
+    row was queued. That is the one durability limit of the locator, and it is
+    visible rather than silent — the only remedy is to search again, so that is
+    what the player is told.
+    """
+    from backend.services.store.prowlarr import ProwlarrError
+
+    with pytest.raises(ProwlarrError) as e:
+        _fetch(_download_handler(status=400, body=b"Invalid Prowlarr link"))
+    assert "search for the game again" in str(e.value)
+
+
+@pytest.mark.parametrize("status,expected", [
+    (401, "refused the API key"),
+    (403, "refused the API key"),
+    (404, "no longer has the indexer"),
+    (500, "could not fetch this release's torrent file"),
+    (502, "could not fetch this release's torrent file"),
+])
+def test_every_way_the_fetch_fails_says_which_one(configured, status, expected):
+    """Each of these becomes a job's reason, so "it did not work" is not an
+    acceptable answer for any of them."""
+    from backend.services.store.prowlarr import ProwlarrError
+
+    with pytest.raises(ProwlarrError) as e:
+        _fetch(_download_handler(status=status, body=b"nope"))
+    assert expected in str(e.value)
+    assert FAKE_KEY not in str(e.value)
+    assert TOKEN not in str(e.value)
+
+
+def test_an_indexer_that_cannot_be_reached_names_no_url(configured):
+    """httpx puts the full request URL in some of its errors, and this one has
+    a token in its query string — so the message is built, never interpolated."""
+    from backend.services.store.prowlarr import ProwlarrError
+
+    def refuse(request):
+        raise httpx.ConnectError("nope", request=request)
+
+    with pytest.raises(ProwlarrError) as e:
+        _fetch(refuse)
+    assert "could not be reached" in str(e.value)
+    assert TOKEN not in str(e.value)
+    assert FAKE_KEY not in str(e.value)
+
+
+def test_a_fetch_that_times_out_says_how_long_it_waited(configured):
+    from backend.services.store.prowlarr import ProwlarrError
+
+    def slow(request):
+        raise httpx.ReadTimeout("slow", request=request)
+
+    with pytest.raises(ProwlarrError) as e:
+        _fetch(slow)
+    assert "did not answer within" in str(e.value)
+
+
+def test_a_file_too_large_is_abandoned_rather_than_buffered(configured):
+    """The bound is applied while the body is still arriving, not after.
+
+    It is a file a stranger's server chose to send, and a `.torrent` for a
+    15 GB release is tens of kilobytes.
+    """
+    from backend.services.store import torrentfile
+    from backend.services.store.prowlarr import ProwlarrError
+
+    huge = b"d" + b"\x00" * (torrentfile.MAX_BYTES + 1024)
+    with pytest.raises(ProwlarrError) as e:
+        _fetch(_download_handler(body=huge))
+    assert "larger than this box will read" in str(e.value)
+
+
+def test_fetching_needs_a_configured_prowlarr(box):
+    """An unconfigured box has no search provider either, so this is only
+    reachable if the file went away mid-job."""
+    from backend.services.store.prowlarr import ProwlarrError
+
+    with pytest.raises(ProwlarrError) as e:
+        _fetch(_download_handler())
+    assert CONFIG_FILENAME in str(e.value)
+
+
+def test_a_row_with_no_token_is_refused_before_any_request(configured):
+    from backend.services.store.prowlarr import ProwlarrError
+
+    def never(request):
+        raise AssertionError("a request was made for a row with no token")
+
+    with pytest.raises(ProwlarrError) as e:
+        _fetch(never, token="")
+    assert "names no torrent file" in str(e.value)
+
+
+def test_fetching_a_torrent_writes_nothing_anywhere(configured):
+    """The bytes live in memory and go out of scope. This is the guard that
+    keeps `test_queueing_and_running_write_nothing_into_the_data_tree` true
+    across the new path."""
+    before = sorted(p.relative_to(configured).as_posix()
+                    for p in configured.rglob("*"))
+    assert _fetch(_download_handler())
+    after = sorted(p.relative_to(configured).as_posix()
+                   for p in configured.rglob("*"))
+    assert before == after

@@ -582,6 +582,18 @@ out of a response is redacted before it can become a `SearchResult`, because
 Prowlarr's own `downloadUrl` carries `?apikey=<this box's key>` and that field
 travels to the browser.
 
+**One parameter of that `downloadUrl` is now read**, and only one: `link`, for a
+row that published a `.torrent` instead of an info hash. Not the URL, not
+`apikey`, not `file`. Prowlarr protects `link` before it hands it out —
+`ConvertToProxyLink` runs it through `IProtectionService`, and `Prowlarr.Core.dll`
+holds `Aes`, `CreateEncryptor` and `Base64UrlEncode` — so it is ciphertext keyed
+on that instance's `DownloadProtectionKey`, and a private tracker's passkey
+inside it is unreadable to this box, the browser and the database. A `link` that
+decodes to a plaintext URL is **refused outright**, which is what makes that a
+checked property rather than a belief. The file it names is fetched by this same
+client, from `/api/v1/indexer/{id}/download`, with the key in the header as
+always. See [03](03-backend-routers.md) for the whole path.
+
 Deleted by `install/uninstall.sh` with the other credential files,
 `--purge` or not.
 
@@ -617,8 +629,9 @@ and `wait_seconds`), because the file is typed by hand over SSH. A file that is
 and a line in the journal, never a red screen.
 
 **Real-Debrid is external, always** — the same arrangement as Prowlarr, for a
-sharper reason. It takes a magnet and answers a plain HTTPS URL, which is what
-lets this box download a torrent **without being a torrent client**: no daemon,
+sharper reason. It takes a magnet — or a `.torrent` file — and answers a plain
+HTTPS URL, which is what lets this box download a torrent **without being a
+torrent client**: no daemon,
 no second port listening on the LAN, no software GameCore owns the uptime of,
 and nothing extra for the uninstaller to take away. The owner has their own
 account and pays for it themselves; GameCore never creates one, never manages
@@ -632,6 +645,22 @@ named), and **the URLs Real-Debrid answers are credentials in their own right**
 — anyone holding one spends the owner's bandwidth — so no journal line, no job
 row and no API answer ever carries one. `jobs.AcquiredTarget.redacted()` is the
 only spelling of one that reaches a log.
+
+**Both files are needed for some jobs, and that is new.** An indexer row that
+publishes a `.torrent` instead of an info hash — which on the box this was
+measured on is *every* row, 0 of 8 for `mario kart` — is acquired by fetching
+that file from **Prowlarr** and handing it to Real-Debrid, so such a job reads
+`store-prowlarr.json` as well as this one. A box with a Real-Debrid token and no
+Prowlarr cannot search in the first place, so the combination is not a state
+anyone configures; a job that reaches it says so by name rather than blaming the
+debrid account. Rows that publish a hash are unaffected and talk only to
+Real-Debrid.
+
+The `.torrent` is read into memory, hashed, and dropped. It is **never written**
+— not to `config/`, not to a temporary file, not under `emu/`. That is what
+keeps the whole of [03](03-backend-routers.md)'s "acquiring writes nothing" true
+across the second path, and `backend/tests/test_store_torrentfile.py` and
+`test_store_prowlarr.py` both stand over it.
 
 Deleted by `install/uninstall.sh` with the other credential files, `--purge` or
 not — the copy of the token, not the account.
