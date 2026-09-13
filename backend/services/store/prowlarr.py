@@ -44,13 +44,37 @@ not guess: a row survives only when something about it **names this console** �
 either a suffix only this console declares (`.z64` is `gopher64` and nothing
 else) or one of the names the console goes by. No evidence is a drop.
 
-The known limit of that rule, stated rather than papered over: a name match is
-a whole-word match, so "PlayStation" matches a PlayStation 2 release and "Wii"
-matches a Wii U one. Both consoles have distinctive suffixes that the stronger
-signal catches, and suffix-backed rows are sorted above name-only ones for
-exactly that reason, but a name-only row on a family with several members can
-be for the wrong member. Ranking by more than one bit is the acquisition step's
-problem; inventing a second heuristic here would be a second copy of it.
+── A console does not claim its successors' releases ──────────────────────
+The first version of that rule matched a name whole-word and stopped there,
+and a whole word is not enough: "PlayStation" is a whole word inside
+"PlayStation 3". Measured against a real indexer — 110 rows over three
+queries — `duckstation` kept all seven `gran turismo` rows, `Gran Turismo 6 -
+PlayStation 3` among them, and the same fault put Wii U releases on `dolphin`
+and anything with a stray "DS" in it on `melonds`. A player on the PlayStation
+1 screen was being offered games no PlayStation 1 emulator can run: the import
+would have worked, the tile would have appeared, and the screen would have
+stayed black.
+
+So the name band now weighs two claims instead of reading one. A name the
+catalogue *completes* — `PlayStation`, `Wii`, `DS`, all of them abbreviations
+of something longer another pack declares — proves this console only when no
+other console is named more precisely on the same row. A name nothing extends
+— `PlayStation 3`, `Wii U`, `Nintendo 64`, `MAME` — proves it outright. Which
+names are which is not written down anywhere: it is one pass over
+`catalog/*/pack.json`, the way `search.unique_suffixes` is, so a pack that
+arrives, is renamed or is removed changes the answer in the commit that
+changes the pack, and a hand-written console table — matrix §5.2 — never
+exists to go stale. `_ConsoleNames` holds the rule.
+
+── The suffix band fired zero times, and stays ────────────────────────────
+Same measurement, second finding: across those 110 rows, on every console, the
+"by suffix" count was 0. These indexers name a release `Title - Platform` and
+attach no file extension, so everything that survives today survives on its
+name — which is why the paragraph above is the one that matters. The band is
+kept because it is not wrong, only idle here: `.z64` is still the one kind of
+evidence that cannot be mistaken, other sources do name files, and Prowlarr
+answers a `fileName` field when the indexer sets one. Suffix-backed rows are
+still sorted above name-only ones for the same reason.
 """
 from __future__ import annotations
 
@@ -67,7 +91,10 @@ from urllib.parse import urlsplit, urlunsplit
 import httpx
 
 from ..paths import config_dir
-from .search import NEVER_OFFERED, SearchResult, SearchSystem
+# `console_terms` moved to `search.py` when the catalogue-wide pass there
+# needed the same split, and is imported back under its old name: it is used
+# below, and the tests still reach for it at this address.
+from .search import NEVER_OFFERED, SearchResult, SearchSystem, console_terms
 
 log = logging.getLogger(__name__)
 
@@ -354,52 +381,166 @@ def _where(cfg: ProwlarrConfig) -> str:
     return _redact(cfg.url)
 
 
-def console_terms(system: SearchSystem) -> tuple[str, ...]:
-    """The names this console goes by, from the pack and nothing else.
+def _alternation(terms: tuple[str, ...]) -> re.Pattern[str] | None:
+    r"""One pattern that finds any of these names, whole-word, longest first.
 
-    `platform` and `label` between them already spell every console at least
-    twice — `N64`/`Nintendo 64`, `PS1`/`PlayStation`, `SNES`/`Super Nintendo` —
-    but they are strings written to be read on a television, so they need
-    splitting rather than using:
+    Two properties, both load-bearing:
 
-      · `/` joins two machines on four packs: `GameCube / Wii`,
-        `Sega Mega Drive / Genesis`, `Sega Mega-CD / Sega CD`,
-        `NEC PC Engine / TurboGrafx-16`. Unsplit, "GameCube/Wii" is a term no
-        release name has ever contained.
-      · parentheses hold a second name on one: `Arcade (MAME)`. Split rather
-        than dropped, because for that pack both halves are real vocabulary —
-        an arcade romset is as likely to say MAME as Arcade.
-
-    Derived here rather than stored on `SearchSystem` because it is a pure
-    function of two fields the pack already has. The thing that genuinely could
-    not be derived that way is `unique_suffixes`, which is why that one is a
-    field — see the note in `search.py`.
+      · the boundaries are lookarounds rather than `\b`, because several terms
+        end in a digit or a hyphen (`32X`, `SG-1000`, `TurboGrafx-16`) where
+        `\b` sits in a different place than the eye does;
+      · the alternatives are sorted longest first, so at any one position the
+        match is the **longest** name that starts there — `PlayStation 3`
+        rather than `PlayStation`. Python's alternation is leftmost-first and
+        not longest-first, so this ordering is what makes the comparison in
+        `_ConsoleNames.claims()` measure what it says it measures.
     """
-    out: list[str] = []
-    seen: set[str] = set()
-    for source in (system.platform, system.label):
-        for chunk in re.split(r"[/()\[\]]", source or ""):
-            term = re.sub(r"\s+", " ", chunk).strip(" -\t")
-            if len(term) < 2 or term.lower() in seen:
-                continue
-            seen.add(term.lower())
-            out.append(term)
-    return tuple(out)
-
-
-def _term_pattern(system: SearchSystem) -> re.Pattern[str] | None:
-    terms = console_terms(system)
     if not terms:
         return None
-    # Whole-word, and the boundaries are lookarounds rather than `\b` because
-    # several terms end in a digit or a hyphen (`32X`, `SG-1000`,
-    # `TurboGrafx-16`) where `\b` sits in a different place than the eye does.
     body = "|".join(re.escape(t.lower()) for t in
                     sorted(terms, key=len, reverse=True))
     return re.compile(rf"(?<!\w)(?:{body})(?!\w)")
 
 
+def _longest(pattern: re.Pattern[str] | None, haystack: str) -> str:
+    """The longest of this pattern's matches, or "" when it has none."""
+    if pattern is None:
+        return ""
+    return max((m.group(0) for m in pattern.finditer(haystack)),
+               key=len, default="")
+
+
+def _words(term: str) -> tuple[str, ...]:
+    """`"Sega Mega-CD"` → `("sega", "mega", "cd")`.
+
+    Split on everything that is not a letter or a digit, so that a name is
+    compared by the words it is made of and not by its punctuation: nothing
+    should turn on whether a release writes `Mega-CD`, `Mega CD` or `MegaCD`
+    — only the first two are caught by this, which is the honest limit and is
+    the same one `_alternation()` has.
+    """
+    return tuple(re.findall(r"[a-z0-9]+", term.lower()))
+
+
+def _completed_by(term: str, others: tuple[str, ...]) -> bool:
+    """Is `term` a *part* of some longer name in this catalogue?
+
+    True when another console name contains this one word for word and says
+    more: `PlayStation` is completed by `PlayStation 3`, `Wii` by `Wii U`, `DS`
+    by `Nintendo DS`, `Sega Mega Drive` by `Sega Mega Drive 32X`. False for
+    `PlayStation 3`, `Wii U`, `Nintendo 64`, `MAME` — nothing in the catalogue
+    extends those, so a release that carries one has named a machine and not an
+    abbreviation of several.
+
+    Word-for-word and not substring: `NES` must not be read as a part of
+    `SNES`, and `DS` must not be read as a part of `Nintendo 3DS`. Those are
+    different machines whose short names happen to share letters, which is
+    exactly the confusion this function exists to keep out.
+    """
+    mine = _words(term)
+    if not mine:
+        return False
+    for other in others:
+        theirs = _words(other)
+        if len(theirs) <= len(mine):
+            continue
+        if any(theirs[i:i + len(mine)] == mine
+               for i in range(len(theirs) - len(mine) + 1)):
+            return True
+    return False
+
+
+@dataclass(frozen=True)
+class _ConsoleNames:
+    """Whether a release names *this* console, or only something it is part of.
+
+    Built once per search and asked once per row. Three fields, and the middle
+    one is the whole correction:
+
+    ``own``       the names this console goes by (`console_terms`).
+    ``complete``  those of them no other name in the catalogue extends. A
+                  release carrying one of these has named this machine.
+    ``rivals``    every name the other thirty consoles go by
+                  (`SearchSystem.rival_terms`).
+
+    **The rule.** A row names this console when it carries one of `own`, and
+    that name is either complete, or the most specific console name on the row.
+    An abbreviation loses to a fuller name: `PlayStation` is not evidence of a
+    PlayStation 1 game on a row that says `PlayStation 3`, and a bare `DS` is
+    not evidence of a Nintendo DS game on a row that says `PlayStation 3`
+    either. Length in characters is the measure of "more specific", and a tie
+    keeps both — two consoles named equally precisely on one row is a row about
+    two consoles, and dropping it for both would be inventing an answer.
+
+    **Why it is not the first rule.** It replaces one that compared this
+    console's names and nothing else, which looked right and was measured
+    wrong: on 110 rows from a real indexer, `duckstation` kept every one of the
+    seven `gran turismo` rows, `Gran Turismo 6 - PlayStation 3` included,
+    because `PlayStation` is a whole word inside `PlayStation 3`. Same fault,
+    same measurement, for `dolphin` on `Wii U` and `melonds` on any stray `DS`.
+    A player on the PlayStation 1 screen was being offered games that no
+    PlayStation 1 emulator can run: the import would have worked, the tile
+    would have appeared, and the screen would have stayed black.
+    """
+
+    own: re.Pattern[str]
+    complete: frozenset[str]
+    rivals: re.Pattern[str] | None
+
+    def claims(self, haystack: str) -> bool:
+        # The longest of this console's names the row carries: `PlayStation 2`
+        # rather than `PlayStation` where a pack declares both.
+        best = _longest(self.own, haystack)
+        if not best:
+            return False                      # nothing here names us at all
+        if best in self.complete:
+            return True                       # …and what it names is a machine
+        # An abbreviation. It still proves the console when nothing else on the
+        # row is named more precisely — `Crash Bandicoot - PlayStation` is a
+        # PlayStation 1 release and must stay one.
+        return len(_longest(self.rivals, haystack)) <= len(best)
+
+
+def _console_names(system: SearchSystem) -> _ConsoleNames | None:
+    """The matcher for one console, or `None` when the pack names none.
+
+    `complete` is computed against this console's own names *and* its rivals,
+    because both kinds of completion exist: `Wii` is completed by another
+    console's `Wii U`, and `Mega Drive` by its own pack's `Sega Mega Drive`.
+
+    A `SearchSystem` built by hand carries no `rival_terms` and therefore has
+    no rivals to lose to — every one of its names counts as complete, which is
+    what the filter did before any of this and the least surprising thing for a
+    console that does not know its neighbours exist.
+    """
+    own = console_terms(system)
+    pattern = _alternation(own)
+    if pattern is None:
+        return None
+    catalogue = (*own, *system.rival_terms)
+    return _ConsoleNames(
+        own=pattern,
+        complete=frozenset(t.lower() for t in own
+                           if not _completed_by(t, catalogue)),
+        rivals=_alternation(system.rival_terms),
+    )
+
+
 def _suffix_pattern(system: SearchSystem) -> re.Pattern[str] | None:
+    """`.z64` and the like — the suffixes only this console declares.
+
+    **Measured inert against the sources this box can reach, and kept anyway.**
+    Across 110 rows from a real Prowlarr — `gran turismo`, `street fighter`,
+    `mario` — this band fired zero times, on every console: those indexers name
+    a release `Title - Platform` and carry no file extension at all, so every
+    row that survives today survives on its name. That is a fact about one
+    owner's indexers and not about the rule: a release named
+    `Super Mario 64 (USA).z64` is still the only kind of evidence here that
+    cannot be wrong, other sources do name files, and `fileName` is a field
+    Prowlarr answers. Deleting the band would cost that for nothing, so it
+    stays — and knowing it is idle is what makes the name band's precision the
+    thing worth being careful about.
+    """
     if not system.unique_suffixes:
         return None
     body = "|".join(re.escape(s.lower()) for s in system.unique_suffixes)
@@ -444,7 +585,7 @@ def _region_and_languages(title: str) -> tuple[str, tuple[str, ...]]:
 
 
 def _result_from(row: object, system: SearchSystem,
-                 terms: re.Pattern[str] | None,
+                 names: _ConsoleNames | None,
                  suffixes: re.Pattern[str] | None) -> tuple[int, SearchResult] | None:
     """One release, as a `SearchResult` — or `None` when it is not one for us.
 
@@ -466,7 +607,7 @@ def _result_from(row: object, system: SearchSystem,
     haystack = f"{title} {filename}".lower()
     if suffixes is not None and suffixes.search(haystack):
         evidence = _BY_SUFFIX
-    elif terms is not None and terms.search(haystack):
+    elif names is not None and names.claims(haystack):
         evidence = _BY_NAME
     else:
         return None
@@ -545,8 +686,11 @@ class ProwlarrSearchProvider:
             return []
 
         rows = await self._get(cfg, cleaned)
-        terms, suffixes = _term_pattern(system), _suffix_pattern(system)
-        scored = [s for s in (_result_from(r, system, terms, suffixes)
+        # Built once and asked once per row: both patterns are alternations
+        # over every name in the catalogue, and compiling them per row would
+        # be a hundred compilations of the same thing.
+        names, suffixes = _console_names(system), _suffix_pattern(system)
+        scored = [s for s in (_result_from(r, system, names, suffixes)
                               for r in rows) if s is not None]
         # Suffix-backed rows above name-only ones, and Prowlarr's own order
         # kept inside each band — `sorted` is stable, and the indexer's

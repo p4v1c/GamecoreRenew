@@ -45,10 +45,12 @@ sys.path.insert(0, str(ROOT))
 from backend.main import app                                        # noqa: E402
 from backend.routers import store as store_router                   # noqa: E402
 from backend.services import paths                                  # noqa: E402
-from backend.services.store import get_provider, system_for         # noqa: E402
+from backend.services.catalog import load_catalog                   # noqa: E402
+from backend.services.store import (                                # noqa: E402
+    SearchSystem, get_provider, searchable_systems, system_for)
 from backend.services.store.prowlarr import (                       # noqa: E402
     CONFIG_FILENAME, ProwlarrConfig, ProwlarrError, ProwlarrSearchProvider,
-    config_file, console_terms, load_config, save_config)
+    _console_names, config_file, console_terms, load_config, save_config)
 
 INSTALLED = ["nes", "mame", "duckstation", "rpcs3", "gopher64", "dolphin"]
 
@@ -405,9 +407,10 @@ def test_a_release_that_names_no_console_is_dropped(configured):
 
 
 def test_evidence_by_extension_is_ranked_above_evidence_by_name(configured):
-    """"PlayStation" is a whole word inside "PlayStation 2", and "Wii" inside
-    "Wii U" — a name-only row on a console family can be the wrong member, so
-    the rows that carry a suffix only this console declares come first."""
+    """A suffix only this console declares names the machine; a name in a
+    title can be a mention — "the Wii U version of" — so the rows that carry
+    one come first. The section below is what keeps a *mention* of a
+    neighbouring console from being read as a claim in the first place."""
     rows = _search(_provider(_answering([
         _release(guid="a", title="Mario Kart 64 - Nintendo 64"),
         _release(guid="b", title="Mario Kart 64 (USA).z64"),
@@ -447,6 +450,162 @@ def test_a_name_that_only_looks_like_it_ends_in_an_extension_does_not(
     rows = _search(_provider(_answering(
         [_release(title="Mario Kart 64 - Nintendo 64 - v1.02")])), "gopher64")
     assert len(rows) == 1 and rows[0].format == ""
+
+
+# ── a console does not claim its successors' releases ──────────────────────
+#
+# The titles in this section are the ones a real Prowlarr answered, not
+# invented shapes: three queries — "gran turismo", "street fighter", "mario" —
+# run once by hand with `scripts/prowlarr-filter-check.py`, 110 rows between
+# them. `duckstation` kept 7 of the 7 `gran turismo` rows and 15 of the 43
+# `street fighter` ones, because "PlayStation" is a whole word inside
+# "PlayStation 3" and the filter asked for nothing more. The two titles that
+# are *not* from that run say so where they are used: they are the probes that
+# reproduced the same fault on a bare abbreviation, and the converse cases that
+# must keep working. Nothing here reaches a network; every request is served by
+# the mock transport this file has used from the first test.
+#
+# The assertions are exact sets over **every** console in the catalogue and not
+# just over the one that used to be wrong: "which consoles does this row belong
+# to" is the question, and a test that only named the guilty one would pass
+# again the day a different console started claiming it.
+
+
+@pytest.fixture
+def whole_catalogue(box):
+    """Every emulator pack installed, with Prowlarr configured.
+
+    Wider than `configured` on purpose. The fault these tests pin lives
+    *between* consoles — `duckstation` kept a PlayStation 3 release because the
+    rule never asked whether another console said it better — and a box with
+    six consoles on the grid can only show half of it.
+    """
+    (box / "config" / "systems.json").write_text(json.dumps(
+        [{"id": p.id} for p in load_catalog().values()
+         if p.kind == "emulator"]))
+    save_config(ProwlarrConfig(url=FAKE_URL, api_key=FAKE_KEY))
+    return box
+
+
+def _kept_by(title: str) -> set[str]:
+    """Which consoles, out of all of them, keep one release."""
+    provider = _provider(_answering([_release(title=title)]))
+    return {s.id for s in searchable_systems()
+            if asyncio.run(provider.search(s, "a query"))}
+
+
+def test_playstation_1_does_not_claim_a_playstation_3_release(whole_catalogue):
+    """The row that started this. One of seven `gran turismo` rows, all seven
+    of which `duckstation` kept: no PlayStation 1 emulator can run any of
+    them, so the import would have succeeded, the tile would have appeared,
+    and the screen would have stayed black."""
+    assert _kept_by("Gran Turismo 6 - PlayStation 3") == {"rpcs3"}
+
+
+def test_playstation_1_does_not_claim_a_handheld_either(whole_catalogue):
+    """Same fault, different successor: "PlayStation Portable" also begins
+    with the word `duckstation` calls itself."""
+    assert _kept_by("Gran Turismo - PlayStation Portable") == {"ppsspp"}
+
+
+def test_the_street_fighter_row_belongs_to_one_console(whole_catalogue):
+    """15 of the 43 `street fighter` rows went to `duckstation` on the
+    measurement, this one included. A long title changes nothing: the evidence
+    is still the platform the release names at the end of it."""
+    assert _kept_by(
+        "Street Fighter III: Third Strike - Online Edition - PlayStation 3"
+    ) == {"rpcs3"}
+
+
+def test_the_gamecube_console_does_not_claim_a_wii_u_release(whole_catalogue):
+    """`dolphin` is GameCube and Wii; `cemu` is the Wii U, which is a third
+    machine and not a Wii. "Wii" being a whole word inside "Wii U" is the same
+    fault as the PlayStation one, on a pack that spells it differently."""
+    assert _kept_by("Zelda Breath of the Wild - Wii U") == {"cemu"}
+
+
+def test_a_switch_release_is_claimed_by_the_switch_and_by_nothing_else(
+        whole_catalogue):
+    """The row from the "mario" query, and the check that the fix did not
+    simply move the problem to another family: `dolphin`, `azahar` and
+    `melonds` are the three Nintendo consoles whose names are close enough to
+    be at risk, and the Switch is the only console this release names."""
+    assert _kept_by(
+        "Super Mario Galaxy + Super Mario Galaxy 2 - Nintendo Switch"
+    ) == {"ryujinx"}
+
+
+def test_a_bare_abbreviation_loses_to_a_console_named_in_full(whole_catalogue):
+    """`melonds` calls itself `DS`, which is two letters that turn up in
+    ordinary words on an indexer. Two letters are not proof when the same row
+    names another machine completely — and they stay proof when nothing else
+    is named, which is the half that must not be broken to fix this one.
+
+    The title is the probe that reproduced this one rather than a row from the
+    run: the fault is what a bare `DS` does to *any* title, so the shortest
+    thing that shows it is the honest way to pin it.
+    """
+    assert _kept_by("Random DS Thing - PlayStation 3") == {"rpcs3"}
+    assert _kept_by("Random DS Thing") == {"melonds"}
+
+
+def test_a_release_that_plainly_names_its_console_is_still_kept(
+        whole_catalogue):
+    """The cost of the correction, checked rather than assumed.
+
+    Eight of the 31 consoles have no distinctive extension at all and their
+    name is the only evidence there is, so a specificity rule that quietly
+    tightened into "the full name or nothing" would empty those eight. It does
+    not: an abbreviation nothing outranks on the row is still evidence.
+
+    Constructed titles, and they have to be: the run that found the fault was
+    three queries for three games, and "the row where nobody argues" is the
+    case it could not contain by definition.
+    """
+    assert _kept_by("Crash Bandicoot - PlayStation") == {"duckstation"}
+    assert _kept_by("Zelda Twilight Princess (Wii)") == {"dolphin"}
+    assert _kept_by("Sonic the Hedgehog (Mega Drive)") == {"megadrive"}
+    assert _kept_by("Nintendo DS - Mario Kart DS") == {"melonds"}
+    assert _kept_by("Street Fighter II - MAME 0.245 romset.zip") == {"mame"}
+
+
+def test_which_names_are_complete_is_not_a_property_of_one_pack(
+        whole_catalogue):
+    """The reason `SearchSystem` grew a second field rather than none.
+
+    `duckstation` cannot know that `PlayStation` is an abbreviation: its pack
+    says `PS1` and `PlayStation` and that is all it can see. It takes the
+    catalogue to know that three other machines spell themselves with that
+    word in front, which is exactly the argument `unique_suffixes` was added
+    on — and it is one pass over `catalog/*/pack.json`, so no console table
+    exists anywhere to be updated or forgotten.
+    """
+    ps1 = system_for("duckstation")
+    assert {"PlayStation 2", "PlayStation 3", "PlayStation 4",
+            "PlayStation Portable"} <= set(ps1.rival_terms)
+    # Its own names are not in there, and nothing it does not share a word
+    # with is missing either — it is "every other console", not a shortlist.
+    assert "PlayStation" not in ps1.rival_terms
+    assert "Nintendo 64" in ps1.rival_terms
+
+    # `PS1` names one machine; `PlayStation` names the family.
+    assert _console_names(ps1).complete == {"ps1"}
+    assert "playstation 3" in _console_names(system_for("rpcs3")).complete
+    assert "wii" not in _console_names(system_for("dolphin")).complete
+    assert "gamecube" in _console_names(system_for("dolphin")).complete
+
+
+def test_a_console_that_knows_of_no_neighbours_filters_as_it_used_to(box):
+    """`rival_terms` defaults to empty, and empty has to mean something sane.
+
+    A `SearchSystem` built by hand — a test, a caller outside this package —
+    has no catalogue behind it and therefore no way to tell an abbreviation
+    from a name. It keeps what it would have kept before any of this existed
+    rather than dropping rows it cannot justify dropping.
+    """
+    lonely = SearchSystem(id="x", label="PlayStation", platform="PS1",
+                          roms_dir="emu/x")
+    assert _console_names(lonely).claims("gran turismo 6 - playstation 3")
 
 
 def test_the_region_and_languages_a_release_names_are_carried(configured):

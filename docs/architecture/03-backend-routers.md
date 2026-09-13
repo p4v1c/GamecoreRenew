@@ -372,6 +372,30 @@ one does, banner included. `GAMECORE_STORE_SEARCH_PROVIDER` overrides in both
 directions and is not needed in either. See
 [7 — `config/store-prowlarr.json`](07-config-and-data.md#configstore-prowlarrjson).
 
+**A result has to prove which console it is for, and prove it better than the
+neighbours.** A row survives only when something names this console — a file
+suffix only it declares, or one of the names it goes by — and when the name it
+carries is one the catalogue *completes*, only when no other console is named
+more precisely on the same row. `PlayStation` is a whole word inside
+`PlayStation 3`, so without that second half the PlayStation 1 console kept
+PlayStation 3, PlayStation 4 and PSP releases; `dolphin` kept Wii U ones, and
+`melonds` kept anything with a stray `DS` in it. Which names are abbreviations
+is one pass over `catalog/*/pack.json`, exactly like the unique-suffix rule
+beside it — there is no console table here to go stale
+([14](14-store-ingestion-matrix.md) §5.2).
+
+**The suffix band fired zero times on real rows, and is kept anyway.** Measured
+with [`scripts/prowlarr-filter-check.py`](../../scripts/prowlarr-filter-check.py)
+against a real Prowlarr — 110 rows over `gran turismo`, `street fighter` and
+`mario` — every console's "by suffix" count was 0: those indexers name a
+release `Title - Platform` and attach no file extension, so the name band is
+carrying the whole filter today. The band stays because it is idle, not wrong:
+`.z64` is the one kind of evidence that cannot be mistaken, other sources do
+name files, and Prowlarr answers a `fileName` field when the indexer sets one.
+That script needs an instance and an API key, so it is a manual check and not a
+gate; the gate is `backend/tests/test_store_prowlarr.py`, which runs offline
+against recorded answers.
+
 **A 502 says nothing about why.** Down, refusing the key, slow, and answering
 something unexpected are four log lines and one answer to the browser: the
 reason is logged locally and never returned, because it can carry an address,

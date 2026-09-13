@@ -28,27 +28,38 @@ and how the Prowlarr one filters what an indexer hands it.
 
 ── What a console has to carry for an indexer to be queried ───────────────
 The question step 10 had to answer: is the pack enough to build an indexer
-request from? Almost. Two things are needed and only one of them was here.
+request from? Almost. Three things are needed, and only the first of them is a
+property of one pack.
 
-  · **Names the console goes by.** Derivable, and derived in the provider
-    rather than stored: `platform` and `label` between them already spell every
-    console twice — `N64`/`Nintendo 64`, `PS1`/`PlayStation`, `SNES`/`Super
-    Nintendo`. They are *display* strings, so they need splitting: `/` joins
-    two machines on four packs (`GameCube / Wii`, `Sega Mega Drive / Genesis`)
-    and parentheses hold a second name on one (`Arcade (MAME)`). That is a
-    deterministic split over shipped data, so nothing new is stored for it.
-  · **Which of its extensions name it and it alone** — `unique_suffixes`, the
-    field added for this. NOT derivable from a single pack: `.z64` is declared
-    by `gopher64` and nobody else, while `.iso` is declared by nine packs, and
+  · **Names the console goes by.** Derivable from one pack: `platform` and
+    `label` between them already spell every console twice — `N64`/`Nintendo
+    64`, `PS1`/`PlayStation`, `SNES`/`Super Nintendo`. They are *display*
+    strings, so they need splitting: `/` joins two machines on four packs
+    (`GameCube / Wii`, `Sega Mega Drive / Genesis`) and parentheses hold a
+    second name on one (`Arcade (MAME)`). `console_terms()` below is that
+    split, and it is a deterministic function of shipped data.
+  · **The names the other thirty consoles go by** — `rival_terms`, the second
+    field added for this, and added because the first version of the filter
+    shipped without it and let a console claim its successors' releases. `PS1`
+    is spelled `PlayStation`, which is a whole word inside `PlayStation 3`,
+    so `duckstation` kept `Gran Turismo 6 - PlayStation 3` — measured, on a
+    real indexer, not supposed. One pack cannot see that: it takes the
+    catalogue to know that a fuller name for another machine exists, and
+    therefore that its own is an abbreviation rather than a claim.
+  · **Which of its extensions name it and it alone** — `unique_suffixes`,
+    the first field added for this. NOT derivable from a single pack: `.z64`
+    is declared by `gopher64` and nobody else, `.iso` by nine packs, and
     a pack cannot see the other thirty. So a release named `… .iso` is not
     evidence of a PlayStation 1 game, and a provider handed only this console
     would have had to carry a hand-written list of which extensions are
     distinctive — a per-system table, which is exactly the thing matrix §5.2
     notes this design does not need anywhere else.
 
-Both feed one rule, which is the rule the third bullet above demands: a result
-is kept only when something about it names *this* console. No evidence is a
-drop, not a guess.
+All three feed one rule — the one the third bullet of the previous section
+demands. A result is kept only when something about it names *this* console;
+and when the name it carries is one the catalogue completes, only when no
+other console is named more precisely on the same row. No evidence is a drop,
+not a guess, and weaker evidence than the neighbour's is a drop too.
 
 ── Why only installed consoles are searchable ─────────────────────────────
 `searchable_systems()` joins the catalogue against `config/systems.json`.
@@ -62,6 +73,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Protocol
@@ -109,9 +121,21 @@ class SearchSystem:
     #: PlayStation 1 game on a box where `duckstation` happens to be the only
     #: console installed. That is a property of the format, not of the grid.
     #:
-    #: This is the one thing the pack cannot answer on its own and the reason
-    #: this field exists — see the module note below.
+    #: This is one of the two things the pack cannot answer on its own and the
+    #: reason this field exists — see the module note below.
     unique_suffixes: tuple[str, ...] = ()
+    #: The names **every other emulator pack in the catalogue** goes by, as
+    #: `console_terms()` splits them. The other thing a pack cannot answer
+    #: alone, and for the same reason: `duckstation` spells itself
+    #: `PlayStation`, and only the catalogue knows that `PlayStation 3`,
+    #: `PlayStation 4` and `PlayStation Portable` are three other machines
+    #: whose names begin with that word.
+    #:
+    #: A provider uses it to tell an abbreviation from a claim — see
+    #: `prowlarr._ConsoleNames`. Empty is the honest default: a `SearchSystem`
+    #: built by hand knows of no neighbours, and behaves as the filter did
+    #: before they were known.
+    rival_terms: tuple[str, ...] = ()
 
     @property
     def suffixes(self) -> tuple[str, ...]:
@@ -341,6 +365,55 @@ def _installed_ids() -> set[str]:
     return {r["id"] for r in rows if isinstance(r, dict) and "id" in r}
 
 
+#: What a display string has to be split on to become names a release might
+#: actually use: `/` joins two machines on four packs and parentheses hold a
+#: second name on one.
+_TERM_SPLIT = re.compile(r"[/()\[\]]")
+
+
+def _terms(platform: str, label: str) -> tuple[str, ...]:
+    """The names a console goes by, from its two display strings.
+
+    `platform` and `label` between them already spell every console at least
+    twice — `N64`/`Nintendo 64`, `PS1`/`PlayStation`, `SNES`/`Super Nintendo` —
+    but they are strings written to be read on a television, so they need
+    splitting rather than using:
+
+      · `/` joins two machines on four packs: `GameCube / Wii`,
+        `Sega Mega Drive / Genesis`, `Sega Mega-CD / Sega CD`,
+        `NEC PC Engine / TurboGrafx-16`. Unsplit, "GameCube/Wii" is a term no
+        release name has ever contained.
+      · parentheses hold a second name on one: `Arcade (MAME)`. Split rather
+        than dropped, because for that pack both halves are real vocabulary —
+        an arcade romset is as likely to say MAME as Arcade.
+
+    Order is `platform` first, then `label`, and duplicates are dropped
+    case-insensitively: two packs spell both fields the same way (`cemu`,
+    `Wii U`) and a name listed twice would be a term that scores twice.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+    for source in (platform, label):
+        for chunk in _TERM_SPLIT.split(source or ""):
+            term = re.sub(r"\s+", " ", chunk).strip(" -\t")
+            if len(term) < 2 or term.lower() in seen:
+                continue
+            seen.add(term.lower())
+            out.append(term)
+    return tuple(out)
+
+
+def console_terms(system: SearchSystem) -> tuple[str, ...]:
+    """The names this console goes by, from the pack and nothing else.
+
+    Lives here rather than in a provider because the catalogue-wide pass below
+    needs the same split, and a second copy of it in `prowlarr.py` would be two
+    answers to "what is this console called" that drift apart on the first pack
+    that spells itself oddly.
+    """
+    return _terms(system.platform, system.label)
+
+
 def _suffixes_of(pack) -> set[str]:
     exts = (pack.data.get("roms") or {}).get("extensions") or []
     return {e.lstrip("*.").lower() for e in exts
@@ -373,7 +446,36 @@ def _unique_suffixes() -> dict[str, frozenset[str]]:
             for pid, suffixes in per.items()}
 
 
-def _from_pack(pack, unique: frozenset[str] = frozenset()) -> SearchSystem:
+def _terms_of(pack) -> tuple[str, ...]:
+    return _terms(pack.data.get("platform", ""),
+                  pack.data.get("label", pack.id))
+
+
+def _rival_terms() -> dict[str, tuple[str, ...]]:
+    """Per pack, the names every **other** emulator pack goes by.
+
+    The same shape as `_unique_suffixes()` above and for the same reason: it is
+    a fact about the catalogue, not about a pack, so it is computed in one pass
+    over `catalog/*/pack.json` rather than written down anywhere. A pack that
+    starts calling itself `PlayStation 5` makes `PlayStation` an abbreviation
+    for everybody in the commit that adds it, and a pack that is removed stops
+    contesting anything in the commit that removes it. No table to update, and
+    no table to get wrong — matrix §5.2 is about exactly this.
+
+    Catalogue-wide and not box-wide, like `_unique_suffixes()`: `Gran Turismo 6
+    - PlayStation 3` is not a PlayStation 1 release on a box that happens to
+    have no `rpcs3` installed. That is a property of the release, not of the
+    grid.
+    """
+    per = {p.id: _terms_of(p) for p in load_catalog().values()
+           if p.kind == "emulator"}
+    return {pid: tuple(sorted({t for other, terms in per.items()
+                               if other != pid for t in terms}))
+            for pid in per}
+
+
+def _from_pack(pack, unique: frozenset[str] = frozenset(),
+               rivals: tuple[str, ...] = ()) -> SearchSystem:
     roms = pack.data.get("roms") or {}
     exts = roms.get("extensions") or []
     return SearchSystem(
@@ -387,6 +489,7 @@ def _from_pack(pack, unique: frozenset[str] = frozenset()) -> SearchSystem:
         # in log lines and in test fixtures, and a frozenset's order is not a
         # promise.
         unique_suffixes=tuple(sorted(unique)),
+        rival_terms=rivals,
     )
 
 
@@ -398,7 +501,8 @@ def searchable_systems() -> list[SearchSystem]:
     """
     live = _installed_ids()
     unique = _unique_suffixes()
-    rows = [_from_pack(p, unique.get(p.id, frozenset()))
+    rivals = _rival_terms()
+    rows = [_from_pack(p, unique.get(p.id, frozenset()), rivals.get(p.id, ()))
             for p in load_catalog().values()
             if p.kind == "emulator" and p.id in live]
     return sorted(rows, key=lambda s: s.label.lower())
