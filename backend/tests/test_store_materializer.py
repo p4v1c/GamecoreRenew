@@ -24,7 +24,7 @@ async def _database(monkeypatch) -> aiosqlite.Connection:
     return conn
 
 
-def test_existing_job_tables_gain_queryable_progress_columns(monkeypatch):
+def test_existing_job_tables_gain_queryable_progress_and_inspection_columns(monkeypatch):
     async def scenario():
         conn = await aiosqlite.connect(":memory:")
         conn.row_factory = aiosqlite.Row
@@ -44,7 +44,7 @@ def test_existing_job_tables_gain_queryable_progress_columns(monkeypatch):
             await dbmod.init_db()
             columns = {row["name"] for row in
                        await conn.execute_fetchall("PRAGMA table_info(store_jobs)")}
-            assert {"downloaded_bytes", "download_total"} <= columns
+            assert {"downloaded_bytes", "download_total", "ingestion_class"} <= columns
         finally:
             await conn.close()
     asyncio.run(scenario())
@@ -120,7 +120,8 @@ def test_complete_bytes_live_only_in_the_jobs_work_area_and_progress_is_queryabl
             await asyncio.wait_for(jobs.drain(), 2)
             after = await jobs.get(job.id)
             assert after.state == jobs.FAILED
-            assert after.reason == jobs.NOT_IMPORTED
+            assert after.reason == jobs.INSPECTED_NOT_IMPORTED.format(ingestion_class="D")
+            assert after.ingestion_class == "D"
             assert after.downloaded_bytes == 6
             assert after.download_total == 6
             assert (job_dir(job.id) / "Zelda.nes").read_bytes() == b"abcdef"

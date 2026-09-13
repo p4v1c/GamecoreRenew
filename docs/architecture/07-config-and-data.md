@@ -760,14 +760,15 @@ CREATE TABLE store_jobs (
     started_at  TEXT,
     ended_at    TEXT,
     downloaded_bytes INTEGER NOT NULL DEFAULT 0,
-    download_total   INTEGER NOT NULL DEFAULT 0
+    download_total   INTEGER NOT NULL DEFAULT 0,
+    ingestion_class  TEXT NOT NULL DEFAULT '' -- A..F after inspection
 );
 CREATE INDEX store_jobs_by_state ON store_jobs (state, queued_at);
 ```
 
 Existing tables are widened idempotently with `ALTER TABLE ADD COLUMN` after a
-`PRAGMA table_info`; both progress values default to zero, so no old row is
-rewritten or guessed.
+`PRAGMA table_info`; progress defaults to zero and `ingestion_class` to empty,
+so no old row is rewritten or assigned a guessed verdict.
 
 **`roms_dir` is recorded and never written to.** It is `emu/<dir>` as the pack
 declared it at the moment the job was queued, which is what the box told the
@@ -783,8 +784,11 @@ across a queue → run → cancel cycle and permits new paths only below the own
 
 Each job owns exactly `<DATA>/store/jobs/<job-id>/`. The materializer writes a
 `.part`, fsyncs it, verifies the resolved length, then atomically renames it.
-A complete file stays there for the future inspection/import stages; it is not
-a ROM and the scanner never sees it. Failure, cancellation, graceful shutdown
+A complete file stays there while inspection reads it; it is not a ROM and the
+scanner never sees it. Inspection persists class A–F on `store_jobs`, lists an
+archive directory without extracting it, and may fail the job early when class
+E lacks named companions or class F lacks its directory. It never changes the
+staged paths. Failure, cancellation, graceful shutdown
 and restart repair remove the job's partial work. Interrupted downloads restart
 from zero because no persistent HTTP validator exists to make Range safe.
 

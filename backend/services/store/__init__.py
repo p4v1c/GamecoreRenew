@@ -9,9 +9,10 @@ of
 
 `jobs.py` is the persistent queue. Running one resolves through Real-Debrid,
 then `materializer.py` streams the bytes into the job-owned work area under
-`<DATA>/store/jobs/`. It stops there: no inspection or import exists, so the
-row fails with the distinct `NOT_IMPORTED` reason instead of claiming that a
-game in staging is playable.
+`<DATA>/store/jobs/`. `inspector.py` classifies that unchanged staging shape;
+no import exists, so the row fails with the distinct
+`INSPECTED_NOT_IMPORTED` reason instead of claiming that a staged game is
+playable.
 
 **Nothing here writes into `emu/`.** An acquisition provider only answers an
 `AcquiredTarget`; the materializer downloads atomically into staging, while
@@ -43,7 +44,7 @@ from .jobs import (                                     # noqa: F401
     LIVE,
     NO_MATERIALIZER,
     NO_PROVIDER,
-    NOT_IMPORTED,
+    INSPECTED_NOT_IMPORTED,
     QUEUED,
     RUNNING,
     STATES,

@@ -299,6 +299,8 @@ export interface StoreJob {
   downloadedBytes?: number
   /** The resolved target size used for space and completeness checks. */
   downloadTotal?: number
+  /** Matrix §5 verdict, persisted after inspection; empty before it runs. */
+  ingestionClass?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | ''
 }
 
 /**

@@ -440,7 +440,7 @@ queued ──► running ──► done
   └──────────────────► cancelled
 ```
 
-**Running a job is resolve, then materialize.**
+**Running a job is resolve, materialize, then inspect/classify.**
 
 *Resolving* turns the job's opaque `source` into an `AcquiredTarget`: a direct
 HTTPS URL, plus the size and info hash it takes to check the bytes are the ones
@@ -454,8 +454,24 @@ there.
 `<DATA>/store/jobs/<job-id>/<filename>`, through `.part` and an atomic rename.
 It checks the resolved size and free space first (including 256 MiB left for
 the appliance), rejects HTTP errors, mismatched lengths and HTML error pages,
-and never receives `roms_dir`. Inspection, transformation, validation and
-import remain [14](14-store-ingestion-matrix.md) §5's later stages.
+and never receives `roms_dir`. Transformation, validation and import remain
+[14](14-store-ingestion-matrix.md) §5's later stages.
+
+*Inspecting* reads the completed job work area and the selected pack, then
+persists one of matrix §5's classes A–F on the job as `ingestion_class`. Its
+four predicates are exactly the contract's: archive extension declared;
+declared non-archive member present; declared disc descriptor; `scanDirs`.
+There is no system table. Archive member names are streamed from `7z l` with
+hard limits on count and total name bytes; no member is extracted and no
+downloaded path is moved, renamed or deleted.
+
+Completeness is decided here because nothing after the Store checks it. A
+declared disc descriptor is class E only with every companion it names (`.ccd`
+also requires `.img` and `.sub`, `.mds` its `.mdf`); class F requires a
+top-level directory. The current acquisition contract materializes one file,
+so a lone `.cue`/`.gdi` or any loose file for a `scanDirs` pack fails early and
+names what is missing. Inspection records the class before the worker settles
+the failure; it does not repair the multi-file acquisition.
 
 `AcquiredTarget.info_hash` identifies the torrent; it is a hash of torrent
 metadata and piece hashes, not a checksum of the one unrestricted file (which
@@ -469,7 +485,9 @@ Every job still stops honestly before `done`, with distinct reasons:
 |---|---|
 | *"no acquisition provider is configured on this box"* | no Real-Debrid token; nothing was attempted |
 | *"this box can find this download but cannot store it yet"* | the source resolved, and there is nowhere to put what it found |
-| *"downloaded to the Store work area; import is not implemented yet"* | complete bytes are in this job's staging directory, but no playable library entry exists |
+| *"download inspected as class X; import is not implemented yet"* | complete staging bytes have a persisted ingestion verdict, but no playable library entry exists |
+| *"incomplete class E download: … is missing …"* | acquisition delivered a descriptor without all of its companions |
+| *"incomplete class F download: a complete game directory is missing …"* | acquisition delivered loose bytes where the pack requires a directory |
 
 A player who reads the second has a working account and nothing to fix, which
 the first would have told them wrongly. A `done` in either case would be a lie

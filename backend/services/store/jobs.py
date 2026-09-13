@@ -56,8 +56,8 @@ thing:
     `<DATA>/store/jobs/`. It never receives `roms_dir`, because inspection,
     transformation, validation and import are later steps.
 
-So a materialized job still fails, now with `NOT_IMPORTED`: complete bytes in
-staging are not a game in the library. `NO_PROVIDER` and `NO_MATERIALIZER`
+So an inspected job still fails, now with `INSPECTED_NOT_IMPORTED`: classified
+bytes in staging are not a game in the library. `NO_PROVIDER` and `NO_MATERIALIZER`
 remain distinct diagnostics for the two earlier missing seams.
 
 ── What a job must never do ───────────────────────────────────────────────
@@ -129,10 +129,12 @@ NO_PROVIDER = "no acquisition provider is configured on this box"
 #: working Real-Debrid and nothing to fix.
 NO_MATERIALIZER = "this box can find this download but cannot store it yet"
 
-#: Materialization succeeded, but the pipeline deliberately stops before the
-#: absent importer. A distinct reason prevents "downloaded" being mistaken for
-#: "playable" and tells the player not to troubleshoot Real-Debrid or storage.
-NOT_IMPORTED = "downloaded to the Store work area; import is not implemented yet"
+#: Inspection succeeded and persisted its class, but import still does not
+#: exist. Distinct from the old materialization boundary: reading this reason
+#: must not send a player to troubleshoot downloading when the bytes and their
+#: ingestion shape have already been inspected.
+INSPECTED_NOT_IMPORTED = (
+    "download inspected as class {ingestion_class}; import is not implemented yet")
 
 #: Why a job that was `running` when the process died is `failed` afterwards.
 INTERRUPTED = "the box stopped while this job was running"
@@ -213,6 +215,8 @@ class Job:
     ended_at: str
     downloaded_bytes: int = 0
     download_total: int = 0
+    #: Matrix §5 ingestion verdict. Empty until downloaded bytes are inspected.
+    ingestion_class: str = ""
 
     @property
     def live(self) -> bool:
@@ -243,6 +247,7 @@ class Job:
             "endedAt": self.ended_at,
             "downloadedBytes": self.downloaded_bytes,
             "downloadTotal": self.download_total,
+            "ingestionClass": self.ingestion_class,
         }
 
 
@@ -341,9 +346,8 @@ class Materializer(Protocol):
     ask. The shipped implementation stops in a private work directory; it does
     not inspect, transform, validate or import the result.
 
-    The consequence is deliberate and visible on screen: after this returns,
-    the worker records `NOT_IMPORTED`, because complete staging bytes are not
-    yet a playable game. `NO_MATERIALIZER` remains the diagnosis when this seam
+    After this returns, inspection classifies the staging bytes. They are still
+    not a playable game; `NO_MATERIALIZER` remains the diagnosis when this seam
     is explicitly disabled.
     """
 
@@ -377,6 +381,12 @@ def materializer() -> Materializer | None:
     return HttpMaterializer(progress=_progress)
 
 
+def inspect_download(job: Job):
+    """Inspect materialized bytes; one seam keeps worker tests filesystem-free."""
+    from .inspector import inspect
+    return inspect(job.id, job.system_id)
+
+
 # ── reading and writing a row ──────────────────────────────────────────────
 
 
@@ -387,7 +397,7 @@ def _now() -> str:
 
 _COLUMNS = ("id, system_id, roms_dir, title, filename, format, size, provider, "
             "source, state, reason, queued_at, started_at, ended_at, "
-            "downloaded_bytes, download_total")
+            "downloaded_bytes, download_total, ingestion_class")
 
 
 def _row(r: aiosqlite.Row) -> Job:
@@ -400,6 +410,7 @@ def _row(r: aiosqlite.Row) -> Job:
         ended_at=r["ended_at"] or "",
         downloaded_bytes=int(r["downloaded_bytes"] or 0),
         download_total=int(r["download_total"] or 0),
+        ingestion_class=r["ingestion_class"] or "",
     )
 
 
@@ -514,6 +525,23 @@ async def _progress(job_id: str, received: int, total: int) -> None:
         job = await get(job_id)
         if job is not None:
             await _announce(job)
+
+
+async def _record_inspection(job_id: str, ingestion_class: str) -> None:
+    """Persist the classifier's verdict while, and only while, the job runs."""
+    if ingestion_class not in {"A", "B", "C", "D", "E", "F"}:
+        raise ValueError("an ingestion class must be A through F")
+    db = await get_db()
+    cur = await db.execute(
+        "UPDATE store_jobs SET ingestion_class = ? WHERE id = ? AND state = ?",
+        (ingestion_class, job_id, RUNNING))
+    changed = cur.rowcount
+    await cur.close()
+    await db.commit()
+    if changed:
+        persisted = await get(job_id)
+        if persisted is not None:
+            await _announce(persisted)
 
 
 # ── queueing ───────────────────────────────────────────────────────────────
@@ -772,11 +800,11 @@ async def _claim_next() -> Job | None:
 
 
 async def _acquire(job: Job) -> None:
-    """The one job, through both halves of the pipeline — of which one exists.
+    """Resolve, materialize, then inspect/classify one job.
 
-    Resolve, then materialize into staging. Import does not exist, so a complete
-    transfer still ends `failed` with the explicit `NOT_IMPORTED` reason. Both
-    halves are named here rather than fused — see `AcquiredTarget`.
+    Import does not exist, so a complete inspection still ends `failed` with
+    the explicit `INSPECTED_NOT_IMPORTED` reason. The three seams are named
+    here rather than fused — see `AcquiredTarget` and matrix §5.
 
     Separate from `drain` so that it is a task of its own and therefore
     cancellable on its own: cancelling the worker would stop the queue, and
@@ -796,9 +824,21 @@ async def _acquire(job: Job) -> None:
     if store is None:
         raise RuntimeError(NO_MATERIALIZER)
     await store.materialize(job, target)
-    # The bytes are complete and durable, but no import exists yet. `done`
-    # means playable, so materialization ends at a distinct honest failure.
-    raise RuntimeError(NOT_IMPORTED)
+
+    # Inspection reads only the job-owned work area and the selected pack. Its
+    # verdict is durable so transform/validate/import consume it later instead
+    # of independently rediscovering a class that could drift between stages.
+    # Archive directories can contain thousands of names. Keep their bounded,
+    # read-only walk off the event loop so cancellation and the rest of the
+    # backend remain responsive while it runs.
+    verdict = await asyncio.to_thread(inspect_download, job)
+    await _record_inspection(job.id, verdict.ingestion_class)
+    if not verdict.complete:
+        raise RuntimeError(verdict.reason)
+    # Classified staging bytes are still not a library entry. `done` means
+    # playable, so stop at a new, inspection-specific honest failure.
+    raise RuntimeError(INSPECTED_NOT_IMPORTED.format(
+        ingestion_class=verdict.ingestion_class))
 
 
 async def _settle(job: Job, error: BaseException | None) -> None:

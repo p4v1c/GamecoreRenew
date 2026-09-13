@@ -69,7 +69,8 @@ async def init_db() -> None:
             started_at  TEXT,
             ended_at    TEXT,
             downloaded_bytes INTEGER NOT NULL DEFAULT 0,
-            download_total   INTEGER NOT NULL DEFAULT 0
+            download_total   INTEGER NOT NULL DEFAULT 0,
+            ingestion_class  TEXT NOT NULL DEFAULT ''
         );
         CREATE INDEX IF NOT EXISTS store_jobs_by_state
             ON store_jobs (state, queued_at);
@@ -80,7 +81,7 @@ async def init_db() -> None:
 
 
 async def _widen_store_jobs(db: aiosqlite.Connection) -> None:
-    """Add queryable download progress to databases made before materializing.
+    """Add later Store-job facts to databases made before they existed.
 
     SQLite has no ``ADD COLUMN IF NOT EXISTS``. Inspect first so this remains
     idempotent on every boot, like the table creation around it.
@@ -94,6 +95,9 @@ async def _widen_store_jobs(db: aiosqlite.Connection) -> None:
     if "download_total" not in columns:
         await db.execute(
             "ALTER TABLE store_jobs ADD COLUMN download_total INTEGER NOT NULL DEFAULT 0")
+    if "ingestion_class" not in columns:
+        await db.execute(
+            "ALTER TABLE store_jobs ADD COLUMN ingestion_class TEXT NOT NULL DEFAULT ''")
 
 
 async def _widen_playtime_key(db: aiosqlite.Connection) -> None:

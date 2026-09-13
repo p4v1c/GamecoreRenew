@@ -570,7 +570,7 @@ def test_a_job_that_resolves_and_materializes_still_says_it_is_not_imported(
 
     The Real-Debrid conversation is the real provider over MockTransport; the
     byte mover is the queue test's fake because materializer HTTP has its own
-    MockTransport suite. The boundary asserted here is `NOT_IMPORTED`.
+    MockTransport suite. The boundary asserted here is inspected-not-imported.
     """
     from backend.tests.test_store_jobs import (
         FakeMaterializer, _memory_db, _no_worker, _queue)
@@ -582,12 +582,15 @@ def test_a_job_that_resolves_and_materializes_still_says_it_is_not_imported(
                             lambda: _provider(_rd()))
         store = FakeMaterializer()
         monkeypatch.setattr(jobs, "materializer", lambda: store)
+        from backend.services.store.inspector import Inspection
+        monkeypatch.setattr(jobs, "inspect_download", lambda _job: Inspection("D"))
         try:
             job = await _queue(source=SOURCE)
             await jobs.drain()
             after = await jobs.get(job.id)
             assert after.state == "failed"
-            assert after.reason == jobs.NOT_IMPORTED
+            assert after.reason == jobs.INSPECTED_NOT_IMPORTED.format(ingestion_class="D")
+            assert after.ingestion_class == "D"
             assert len(store.seen) == 1
         finally:
             await conn.close()

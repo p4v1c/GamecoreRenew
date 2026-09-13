@@ -154,12 +154,14 @@ class FakeMaterializer:
 def _both(monkeypatch, provider):
     """Inject an acquisition provider *and* a materializer.
 
-    Two seams now, so queue tests can reach the deliberate `NOT_IMPORTED`
-    boundary without doing HTTP. Materializer I/O is exercised separately.
+    The injected verdict lets queue tests reach the deliberate
+    inspected-not-imported boundary without filesystem I/O.
     """
     monkeypatch.setattr(jobs, "acquisition_provider", lambda: provider)
     store = FakeMaterializer()
     monkeypatch.setattr(jobs, "materializer", lambda: store)
+    from backend.services.store.inspector import Inspection
+    monkeypatch.setattr(jobs, "inspect_download", lambda _job: Inspection("D"))
     return store
 
 
@@ -408,13 +410,43 @@ def test_the_target_a_provider_answers_reaches_the_materializer(monkeypatch):
             await jobs.drain()
             after = await jobs.get(job.id)
             assert after.state == "failed"
-            assert after.reason == jobs.NOT_IMPORTED
+            assert after.reason == jobs.INSPECTED_NOT_IMPORTED.format(ingestion_class="D")
+            assert after.ingestion_class == "D"
             assert len(store.seen) == 1
             seen_job, target = store.seen[0]
             assert seen_job.id == job.id
             assert isinstance(target, jobs.AcquiredTarget)
             assert target.filename == "Zelda.z64"
             assert target.provider == "fake"
+        finally:
+            await conn.close()
+
+    asyncio.run(scenario())
+
+
+def test_an_incomplete_class_is_persisted_and_fails_with_what_is_missing(monkeypatch):
+    """Completeness is decided before validation/import and survives reboot."""
+    async def scenario():
+        conn = await _memory_db(monkeypatch)()
+        _no_worker(monkeypatch)
+        fake = FakeAcquisition()
+        store = FakeMaterializer()
+        monkeypatch.setattr(jobs, "acquisition_provider", lambda: fake)
+        monkeypatch.setattr(jobs, "materializer", lambda: store)
+        from backend.services.store.inspector import Inspection
+        monkeypatch.setattr(
+            jobs, "inspect_download",
+            lambda _job: Inspection(
+                "E", False,
+                "incomplete class E download: Game.cue is missing Game.bin"))
+        try:
+            made = await _queue(filename="Game.cue", format="cue")
+            await jobs.drain()
+            after = await jobs.get(made.id)
+            assert after.state == jobs.FAILED
+            assert after.ingestion_class == "E"
+            assert after.reason == (
+                "incomplete class E download: Game.cue is missing Game.bin")
         finally:
             await conn.close()
 
@@ -456,8 +488,8 @@ def test_the_worker_runs_the_queue_in_the_order_it_was_filled(monkeypatch):
             second = await _queue(source="demo://nes/b", title="B")
             await jobs.drain()
             assert [j.title for j in fake.seen] == ["A", "B"]
-            assert (await jobs.get(first.id)).reason == jobs.NOT_IMPORTED
-            assert (await jobs.get(second.id)).reason == jobs.NOT_IMPORTED
+            assert (await jobs.get(first.id)).reason == jobs.INSPECTED_NOT_IMPORTED.format(ingestion_class="D")
+            assert (await jobs.get(second.id)).reason == jobs.INSPECTED_NOT_IMPORTED.format(ingestion_class="D")
         finally:
             await conn.close()
 
@@ -517,7 +549,7 @@ def test_a_job_cancelled_mid_download_stops_and_stays_cancelled(monkeypatch):
             assert (await jobs.get(slow.id)).state == "cancelled"
             # The queue did not die with the cancelled job: the one behind it
             # ran. Cancelling the acquisition must not cancel the worker.
-            assert (await jobs.get(after.id)).reason == jobs.NOT_IMPORTED
+            assert (await jobs.get(after.id)).reason == jobs.INSPECTED_NOT_IMPORTED.format(ingestion_class="D")
             assert [j.title for j in fake.seen] == ["Slow", "Next"]
         finally:
             await conn.close()
@@ -963,7 +995,8 @@ def test_queueing_and_running_write_only_into_job_work_areas_never_emu(
         first = _post(client).json()
         settled = _settled(client, first["id"])
         assert settled["state"] == "failed"
-        assert settled["reason"] == jobs.NOT_IMPORTED
+        assert settled["reason"] == jobs.INSPECTED_NOT_IMPORTED.format(ingestion_class="D")
+        assert settled["ingestionClass"] == "D"
 
         second = _post(client, source="demo://nes/other",
                        filename="Metroid (USA).nes").json()
