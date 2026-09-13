@@ -8,6 +8,10 @@ argon2 hash and an HMAC key on a machine somebody is about to sell or hand on
 is not acceptable. `config/store-prowlarr.json` holds the URL and API key of
 the owner's own Prowlarr instance and the argument is word for word the same.
 
+`config/store-realdebrid.json` holds the API token of the owner's own
+Real-Debrid account, which is a paid subscription somebody can spend, and the
+argument is word for word the same again.
+
 `docs/reports/store-installer-audit-2026-09-12.md` §S7 is where this failure
 mode is written down: a file nobody names survives in silence, and nothing
 anywhere reports it. So it is pinned here, twice and in two different ways:
@@ -38,7 +42,8 @@ REPO = Path(__file__).resolve().parents[2]
 UNINSTALL = REPO / "install/uninstall.sh"
 
 #: The files whose removal is a security property rather than tidying.
-CREDENTIALS = ("auth.json", "auth_secret", "store-prowlarr.json")
+CREDENTIALS = ("auth.json", "auth_secret", "store-prowlarr.json",
+               "store-realdebrid.json")
 #: Written by the installer, wanted by the player, and kept on purpose.
 KEPT = ("systems.json", "apps.json", "theme.json")
 
@@ -77,15 +82,20 @@ def test_the_uninstaller_names_every_stored_credential(name):
     )
 
 
-def test_the_store_credential_file_is_the_one_the_backend_reads():
+def test_the_store_credential_files_are_the_ones_the_backend_reads():
     """The pin is worthless if the two sides drift apart.
 
-    A rename in `prowlarr.py` that forgot this line would leave the old file
-    named in the uninstaller and the new one on disk forever.
+    A rename in `prowlarr.py` or `realdebrid.py` that forgot this line would
+    leave the old file named in the uninstaller and the new one on disk
+    forever. Both are asserted against the constant the backend actually
+    opens, not against a string typed twice.
     """
-    from backend.services.store.prowlarr import CONFIG_FILENAME
+    from backend.services.store.prowlarr import CONFIG_FILENAME as PROWLARR
+    from backend.services.store.realdebrid import CONFIG_FILENAME as REALDEBRID
 
-    assert f"$GC_DATA/config/{CONFIG_FILENAME}" in _removal_lines()
+    lines = _removal_lines()
+    assert f"$GC_DATA/config/{PROWLARR}" in lines
+    assert f"$GC_DATA/config/{REALDEBRID}" in lines
 
 
 def test_removing_a_credential_is_not_conditional_on_purge():

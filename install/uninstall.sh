@@ -823,12 +823,17 @@ msg "Application files"
 # key behind after removal is not acceptable.
 #
 # store-prowlarr.json is the URL and API key of the box owner's OWN Prowlarr
-# (backend/services/store/prowlarr.py). GameCore never installed that instance
-# and does not touch it here — only the copy of its key that this box was
-# holding. Named explicitly, like the two above, because config/ is otherwise
-# kept on purpose and a file nobody names survives a removal in silence.
+# (backend/services/store/prowlarr.py). store-realdebrid.json is the API token
+# of their OWN Real-Debrid account (backend/services/store/realdebrid.py).
+# GameCore never installed either service and does not touch them here — only
+# the copies of their credentials that this box was holding; the accounts
+# themselves stay exactly as they were, which is the owner's to cancel and not
+# an uninstaller's. Named explicitly, like the two above, because config/ is
+# otherwise kept on purpose and a file nobody names survives a removal in
+# silence.
 safe_rm "$GC_DATA/config/auth.json" "$GC_DATA/config/auth_secret" \
-        "$GC_DATA/config/store-prowlarr.json"
+        "$GC_DATA/config/store-prowlarr.json" \
+        "$GC_DATA/config/store-realdebrid.json"
 
 if [[ -d "$GC_PATH" ]]; then
   if $PURGE; then

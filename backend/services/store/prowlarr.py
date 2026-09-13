@@ -35,6 +35,16 @@ response is redacted before it becomes a `SearchResult`, because Prowlarr's own
 `downloadUrl` carries `?apikey=…` and that field would otherwise travel to the
 browser inside `source`.
 
+── What `source` carries, and what it turned out to need ──────────────────
+`prowlarr://<indexerId>/<guid>`, plus a `#btih:<hash>` suffix when the release
+names one. The pair on its own was chosen to be re-resolvable against Prowlarr
+and it is not: measured against `Prowlarr.Api.V1.dll` 2.5.2.5491, the only
+endpoint that accepts it is the *grab*, which reads an in-memory cache that
+expires and then hands the release to a **download client** — a torrent daemon,
+which is the one thing this box does not have. The info hash is what makes the
+row resolvable a week later without a URL and without a credential.
+[`resolve.py`](resolve.py) holds the evidence and the parse.
+
 ── Why a result has to prove which console it is for ──────────────────────
 An indexer has no idea what a GameCube is. It answers "zelda" with the N64
 game, the 3DS remake, a Wii U port, a soundtrack and a film, and
@@ -91,6 +101,7 @@ from urllib.parse import urlsplit, urlunsplit
 import httpx
 
 from ..paths import config_dir
+from . import resolve
 # `console_terms` moved to `search.py` when the catalogue-wide pass there
 # needed the same split, and is imported back under its old name: it is used
 # below, and the tests still reach for it at this address.
@@ -619,14 +630,23 @@ def _result_from(row: object, system: SearchSystem,
 
     # The locator, and the one field a leak would travel in. Prowlarr's
     # `downloadUrl` and `magnetUrl` carry the box's own key as a query
-    # parameter, so neither is used: the indexer id and the release guid say
-    # the same thing and carry nothing. Redacted anyway, because a guid is
+    # parameter, so neither is used whole: the indexer id and the release guid
+    # say the same thing and carry nothing. Redacted anyway, because a guid is
     # whatever the indexer chose to put there.
     guid = row.get("guid")
     guid = guid if isinstance(guid, str) and guid.strip() else filename
     indexer = row.get("indexerId")
     indexer = indexer if isinstance(indexer, int) else 0
-    source = _redact(f"prowlarr://{indexer}/{guid.strip()}")
+    # …and the one thing the pair turned out not to be able to do without.
+    # `(indexerId, guid)` is a key into a cache Prowlarr expires, not a
+    # locator — `resolve.py` holds the measurement — so the info hash rides
+    # along as a `#btih:` suffix. It is 20 bytes saying what the content *is*:
+    # no key, no session, no passkey, and it does not go stale the way a queue
+    # row must not. `info_hash_of` takes the hash out of a `magnetUrl` and
+    # leaves the tracker list, which on a private tracker carries the owner's
+    # own passkey, behind.
+    source = _redact(resolve.stamp(f"prowlarr://{indexer}/{guid.strip()}",
+                                   resolve.info_hash_of(row)))
 
     fmt = _suffix_of(filename, system)
     region, languages = _region_and_languages(title)

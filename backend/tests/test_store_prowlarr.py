@@ -675,6 +675,68 @@ def test_the_box_key_in_a_download_url_never_reaches_a_result(configured):
     assert "<redacted>" in rows[0].source
 
 
+def test_the_source_carries_the_info_hash_so_the_row_stays_resolvable(
+        configured):
+    """What `(indexerId, guid)` turned out not to be able to do alone.
+
+    That pair is a key into a Prowlarr cache that expires — the measurement is
+    in `services/store/resolve.py` — so the release's info hash rides along as
+    a `#btih:` suffix. It is the one thing that makes a queue row still
+    resolvable a week later, and it is not a credential, which is the whole
+    reason it and not `downloadUrl` is the field that was added.
+    """
+    from backend.services.store import resolve
+
+    rows = _search(_provider(_answering([_release(
+        title="Mario Kart 64 (USA).z64", indexerId=3,
+        guid="https://tracker.invalid/details/9",
+        infoHash="B1" * 20,
+    )])), "gopher64")
+
+    assert len(rows) == 1
+    found = resolve.resolve(rows[0].source)
+    assert found.info_hash == "b1" * 20
+    assert found.indexer_id == 3
+    assert found.guid == "https://tracker.invalid/details/9"
+
+
+def test_a_release_with_no_hash_is_still_offered_and_fails_later(configured):
+    """Usenet rows and torznab indexers that publish none are still rows.
+
+    Dropping them here would hide releases a player can see on their own
+    indexer; the honest place to refuse one is the job, where there is a
+    sentence to show. So the source is the bare pair and `resolve` is what
+    says no.
+    """
+    from backend.services.store import resolve
+
+    rows = _search(_provider(_answering([_release(
+        title="Mario Kart 64 (USA).z64")])), "gopher64")
+    assert len(rows) == 1
+    assert "#btih:" not in rows[0].source
+    with pytest.raises(resolve.UnresolvableSource):
+        resolve.resolve(rows[0].source)
+
+
+def test_a_passkey_in_a_magnet_is_left_where_it_was_found(configured):
+    """A private tracker's magnet carries the owner's passkey in `tr=`.
+
+    The hash is lifted out of it; nothing else is. `source` travels to the
+    browser, so this is the same property as the `downloadUrl` test above,
+    against the field that was newly read.
+    """
+    rows = _search(_provider(_answering([_release(
+        title="Mario Kart 64 (USA).z64",
+        magnetUrl=(f"magnet:?xt=urn:btih:{'c3' * 20}&dn=Mario"
+                   f"&tr=http://tracker.invalid/announce/{FAKE_KEY}"),
+    )])), "gopher64")
+
+    assert len(rows) == 1
+    assert f"#btih:{'c3' * 20}" in rows[0].source
+    assert FAKE_KEY not in json.dumps(rows[0].to_json())
+    assert "tr=" not in rows[0].source
+
+
 def test_a_search_writes_nothing_anywhere(configured):
     """The guard `test_store_search.py` stands over the ROM directory, kept
     across the provider that actually reaches something."""

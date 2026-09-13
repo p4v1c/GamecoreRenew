@@ -335,6 +335,7 @@ is why. See also the open decision on Flatpak saves below.
 | `session.json` | `services/process_manager.py`, atomically | idem, at startup | no |
 | `auth.json`, `auth_secret` | `services/auth.py`, mode 0600 | idem | no |
 | `store-prowlarr.json` | by hand today, `services/store/prowlarr.py` mode 0600 | idem | no |
+| `store-realdebrid.json` | by hand today, `services/store/realdebrid.py` mode 0600 | idem | no |
 | `playtime.db` | backend (SQLite) — play history **and the Store's download queue** | backend | no |
 
 **The OTA rsync excludes `config/` entirely** — but "not in git" is *not* true of
@@ -346,14 +347,14 @@ is data loss:
   `install/generated/*.dist` on **every** run, so editing them in place is not durable —
   edit the `.dist` files.
 - The **state** (`theme.json`, `addons.json`, `standby.json`, `session.json`,
-  `auth.json`, `auth_secret`, `store-prowlarr.json`, `playtime.db`) is never in
-  git and exists only on the box. That is its identity: credentials, installed
+  `auth.json`, `auth_secret`, `store-prowlarr.json`, `store-realdebrid.json`,
+  `playtime.db`) is never in git and exists only on the box. That is its identity: credentials, installed
   addons, play history, the download queue, the selected theme. Treat
   overwriting one as data loss.
 
-The three files holding a **credential** — `auth.json`, `auth_secret` and
-`store-prowlarr.json` — are named one by one in `install/uninstall.sh` and
-deleted regardless of `--purge`. `config/` is otherwise kept, so a credential
+The four files holding a **credential** — `auth.json`, `auth_secret`,
+`store-prowlarr.json` and `store-realdebrid.json` — are named one by one in
+`install/uninstall.sh` and deleted regardless of `--purge`. `config/` is otherwise kept, so a credential
 file nobody names survives a removal in silence; that is why the list is a list
 and why `backend/tests/test_store_secret_removal.py` pins it.
 
@@ -581,8 +582,59 @@ out of a response is redacted before it can become a `SearchResult`, because
 Prowlarr's own `downloadUrl` carries `?apikey=<this box's key>` and that field
 travels to the browser.
 
-Deleted by `install/uninstall.sh` with the other two credential files,
+Deleted by `install/uninstall.sh` with the other credential files,
 `--purge` or not.
+
+## `config/store-realdebrid.json`
+
+The Store's acquisition provider, pointed at the box owner's own Real-Debrid
+account. `{apiKey, apiUrl, timeout, wait}`; only `apiKey` is required. 0600,
+written atomically by `store.realdebrid.save_config()` — the same pattern as
+`auth.py`, for the same reason. Absent on a box that has never configured one,
+which is the normal state and not an error: with no file there is **no
+acquisition provider at all**, and every job fails with *"no acquisition
+provider is configured on this box"*, exactly as it did before this file
+existed.
+
+```json
+{
+  "apiKey": "<Real-Debrid → My Account → API token>",
+  "apiUrl": "https://api.real-debrid.com/rest/1.0",
+  "timeout": 20,
+  "wait": 120
+}
+```
+
+`apiUrl` has a working default and is there to be overridden — by a box behind
+a proxy, and by every test in this repository, which point it at a host that
+cannot resolve so that a regression which started making a real request fails
+instead of spending somebody's account. `wait` is how long a job may sit
+`running` while Real-Debrid fetches content it has not cached; `0` means "only
+if it is already cached", which is a reasonable thing for an owner to want.
+Both spellings of every key are accepted (`apiKey` and `api_key`, `waitSeconds`
+and `wait_seconds`), because the file is typed by hand over SSH. A file that is
+**absent, malformed or incomplete** leaves the box with no acquisition provider
+and a line in the journal, never a red screen.
+
+**Real-Debrid is external, always** — the same arrangement as Prowlarr, for a
+sharper reason. It takes a magnet and answers a plain HTTPS URL, which is what
+lets this box download a torrent **without being a torrent client**: no daemon,
+no second port listening on the LAN, no software GameCore owns the uptime of,
+and nothing extra for the uninstaller to take away. The owner has their own
+account and pays for it themselves; GameCore never creates one, never manages
+one, and the day the owner stops paying, the file goes and the box is exactly
+what it was.
+
+The token never leaves the backend. It travels as an `Authorization: Bearer`
+header and never in a URL (a token pasted into `apiUrl` is stripped on load),
+redirects are not followed (one would hand the header to whatever host it
+named), and **the URLs Real-Debrid answers are credentials in their own right**
+— anyone holding one spends the owner's bandwidth — so no journal line, no job
+row and no API answer ever carries one. `jobs.AcquiredTarget.redacted()` is the
+only spelling of one that reaches a log.
+
+Deleted by `install/uninstall.sh` with the other credential files, `--purge` or
+not — the copy of the token, not the account.
 
 ## `config/session.json`
 

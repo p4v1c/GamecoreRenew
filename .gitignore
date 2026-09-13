@@ -90,6 +90,8 @@ config/auth.json
 config/auth_secret
 # The Store's Prowlarr URL + API key — services/store/prowlarr.py, 0600.
 config/store-prowlarr.json
+# The Store's Real-Debrid API token — services/store/realdebrid.py, 0600.
+config/store-realdebrid.json
 # The selected theme is per-device state: committing it would impose one
 # machine's choice on every install, and an update would overwrite the
 # player's. The backend treats a missing file as "default theme".

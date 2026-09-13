@@ -43,19 +43,27 @@ motif as `playtime` and `sessions`. See that module's docstring for why one
 database and not two, and for what living under `config/` means the day
 somebody uninstalls GameCore.
 
-── What a job does today, and why that is a failure ───────────────────────
-Nothing acquires anything yet. There is no `AcquisitionProvider` on this box
-and this module ships none — not even a plausible one — so every job that
-reaches the worker fails, with `NO_PROVIDER` as its reason.
+── Two halves, and only one of them exists ────────────────────────────────
+Running a job is **resolve, then store**, and they are deliberately not one
+thing:
 
-That is deliberate and it is the honest answer. A job that reported `done`
-having downloaded nothing would be a queue that lies about the one thing it
-exists to report, and it would do so in a row that persists: the lie would
-still be on screen after a reboot. The seam is `acquisition_provider()`, which
-answers `None`, and the day something real sits behind it that is the one line
-that changes. The success path is exercised by a provider a **test** injects,
-exactly as the Prowlarr client is exercised by an `httpx.MockTransport` that
-reaches no network.
+  · `acquisition_provider()` turns the job's opaque `source` into an
+    `AcquiredTarget` — a direct URL, and what it takes to check the bytes are
+    the right ones. It moves nothing. `realdebrid.py` is one, and it answers
+    `None` on a box with no `config/store-realdebrid.json`, which is every box
+    until its owner puts one there;
+  · `materializer()` fetches that target and puts it where the library scan
+    will find it. **It answers `None` on every box** and this module ships
+    none — matrix §5 is the step that builds it.
+
+So a job still fails, and now it can fail for two different true reasons:
+`NO_PROVIDER` when nothing is configured, `NO_MATERIALIZER` when the source
+resolved and this box cannot store what it found. A `done` in either case would
+be a queue that lies about the one thing it exists to report, in a row that
+persists — the lie would still be on screen after a reboot. `done` is reachable
+only when both seams are filled, which no box does and a **test** does, exactly
+as the Prowlarr client is exercised by an `httpx.MockTransport` that reaches no
+network.
 
 ── What a job must never do ───────────────────────────────────────────────
 Write into `<DATA>/emu/<system>/`. Nothing here goes near a ROM directory —
@@ -117,6 +125,14 @@ _LEGAL: dict[str, frozenset[str]] = {
 #: exists. One string, in one place, because it is the sentence the player
 #: reads and the string the tests assert on.
 NO_PROVIDER = "no acquisition provider is configured on this box"
+
+#: Why a job whose source resolved *perfectly* still failed. Acquisition
+#: answers with a target; fetching it is the materializer's (matrix §5), and
+#: this box has none. Two reasons and not one, because "nothing is configured"
+#: and "it resolved and this box cannot store it" are different facts about a
+#: different half of the pipeline, and a player who reads the second has a
+#: working Real-Debrid and nothing to fix.
+NO_MATERIALIZER = "this box can find this download but cannot store it yet"
 
 #: Why a job that was `running` when the process died is `failed` afterwards.
 INTERRUPTED = "the box stopped while this job was running"
@@ -226,46 +242,139 @@ class Job:
         }
 
 
+@dataclass(frozen=True)
+class AcquiredTarget:
+    """What acquiring a job produces: one thing that can be fetched.
+
+    **Acquisition resolves; it does not download.** The previous shape of this
+    contract said "bring this job's bytes in" and returned nothing, and that
+    was one step doing two jobs. Turning an indexer's opaque locator into a URL
+    is a conversation with somebody else's service that can fail in its own
+    ways — a key refused, a link nothing supports, a wait that ran out — and
+    moving bytes onto a disk is a different activity with different failures:
+    no space, a name that will not sit in a directory, an archive that is not
+    what it claimed. Fused, every one of those is "the download failed" and the
+    player is told nothing useful. Split, each says what actually happened.
+
+    So a provider answers with this, and the **materializer** — matrix §5, the
+    step after this one — is what fetches it and puts it somewhere. That is
+    also what keeps this step honest about writing nothing: a resolver has
+    nowhere to put bytes even by accident.
+
+    The fields are what fetching and *checking* one needs, and no more:
+
+      · `url` is a direct HTTPS URL, already unrestricted, ready for a plain
+        `GET`. It is **not** shown to the player and not sent to the browser —
+        it is credentialed by construction (it is minted against the box
+        owner's debrid account) and it is short-lived;
+      · `size` and `info_hash` are what it takes to know the bytes are the
+        bytes that were asked for: the length to compare against, and the
+        BitTorrent hash the content is supposed to be. `0` and `""` are honest
+        answers where the service does not say, not defaults to trust;
+      · `filename` is what the source calls it. The materializer decides what
+        it lands as — matrix §1.3 — and does not take a name from here
+        unchecked.
+    """
+
+    url: str
+    filename: str
+    #: Bytes, as the acquisition service reports them. `0` when it does not
+    #: say — never a guess, and never the size the indexer claimed.
+    size: int
+    #: 40 lowercase hex, when the target came from a torrent. `""` otherwise.
+    info_hash: str
+    #: Which provider minted it, for the log line and for a materializer that
+    #: one day has to treat two of them differently.
+    provider: str
+
+    def redacted(self) -> str:
+        """The target, for a log line — never the URL.
+
+        Every acquisition URL is a credential: it is issued against the owner's
+        account and anyone holding it can spend their bandwidth. It goes in no
+        journal, no exception and no job reason, so this is the only spelling
+        of an `AcquiredTarget` that is safe to print.
+        """
+        return (f"{self.provider}:{self.filename} "
+                f"({self.size} bytes, {self.info_hash or 'no hash'})")
+
+
 class AcquisitionProvider(Protocol):
-    """Where the bytes would come from — the seam, and nothing behind it.
+    """How a job's source becomes something fetchable.
 
-    **No implementation of this ships.** `acquisition_provider()` answers
-    `None` on every box, and that is what makes every job fail honestly rather
-    than succeed by pretending. The Protocol exists now for the same reason
-    `SearchProvider` existed before there was a Prowlarr client: so the worker,
-    the states and the screen are written against the shape the real thing will
-    have rather than against the shape that is convenient today, and so a test
-    can inject one.
+    `acquisition_provider()` answers `None` on a box that has not configured
+    one, which is every box by default, and that is what makes an unconfigured
+    queue fail honestly rather than succeed by pretending.
 
-    One method, and it is deliberately thin. What acquisition *does* with what
-    it fetches — where it puts it, how it reports progress, what a resume looks
-    like — is the next step's to define, and a richer interface guessed here
-    would be guessed wrong. All this module needs to know is whether the job
-    finished or why it did not.
+    One method, and it stays thin — but it no longer returns `None`. The
+    previous version of this docstring said the next step would define what
+    acquisition does with what it fetches; that step is this one, and the
+    answer is that it does not fetch. See `AcquiredTarget`.
     """
 
     #: Short id, for the log line and the job's `reason` when it raises.
     name: str
 
-    async def acquire(self, job: Job) -> None:
-        """Bring this job's bytes in, or raise saying why not.
+    async def acquire(self, job: Job) -> AcquiredTarget:
+        """Resolve this job's source into a fetchable target, or raise.
 
-        Returning is success. Raising is failure and the exception's text
-        becomes the job's `reason`, so it must be safe to show a player — a
-        provider's own message can carry a URL and a URL can carry a key.
-        Being cancelled is neither: `asyncio.CancelledError` must propagate,
-        and the worker treats it as the player's cancel rather than an error.
+        Returning an `AcquiredTarget` is success and moves nothing. Raising is
+        failure and the exception's text becomes the job's `reason`, so it must
+        be safe to show a player — a provider's own message can carry a URL and
+        a URL can carry a key. Being cancelled is neither:
+        `asyncio.CancelledError` must propagate, and the worker treats it as
+        the player's cancel rather than an error.
         """
         ...
 
 
-def acquisition_provider() -> AcquisitionProvider | None:
-    """The provider this box acquires with. `None`, on every box.
+class Materializer(Protocol):
+    """What turns a resolved target into a game on the grid. Not here yet.
 
-    There is no acquisition provider yet and this repository ships none. The
-    function exists so that the worker has one place to ask and one line to
-    change, and so that a test can answer something else without the rest of
-    the module knowing the difference.
+    Named now for the same reason `AcquisitionProvider` was named before there
+    was one: so the worker has a shape to be written against and one place to
+    ask. **No implementation of this ships and none is started here** — this is
+    the step that resolves, and fetching bytes is matrix §5's, with its own
+    disk checks, its own archive classes and its own tests.
+
+    The consequence is deliberate and visible on screen: a job whose source
+    resolves perfectly still ends `failed`, with `NO_MATERIALIZER` as its
+    reason, because nothing on this box can store what was resolved. `done`
+    would be the queue lying about the one thing it exists to report, and it
+    would lie in a row that survives the reboot — the same argument that put
+    `NO_PROVIDER` here in the first place.
+    """
+
+    name: str
+
+    async def materialize(self, job: Job, target: AcquiredTarget) -> None:
+        """Fetch the target and put it where the library will find it."""
+        ...
+
+
+def acquisition_provider() -> AcquisitionProvider | None:
+    """The provider this box acquires with, or `None`.
+
+    `None` on a box with no `config/store-realdebrid.json`, which is the
+    normal state and not an error: the file is the switch, exactly as
+    `config/store-prowlarr.json` is the switch for searching. Imported inside
+    the function rather than at module scope so that `jobs.py` keeps having no
+    opinion about which provider exists — and so a test that injects one
+    replaces this whole function without loading a client it will not use.
+    """
+    from .realdebrid import RealDebridAcquisition
+
+    if not RealDebridAcquisition.configured():
+        return None
+    return RealDebridAcquisition()
+
+
+def materializer() -> Materializer | None:
+    """The materializer this box stores with. `None`, on every box.
+
+    The seam for matrix §5 and nothing behind it. One place to ask and one line
+    to change, and a test can answer something else — which is how the success
+    path is walked at all, since no box can walk it.
     """
     return None
 
@@ -637,7 +746,13 @@ async def _claim_next() -> Job | None:
 
 
 async def _acquire(job: Job) -> None:
-    """The one job, handed to the provider — of which there is none.
+    """The one job, through both halves of the pipeline — of which one exists.
+
+    Resolve, then store. The first half is real on a box that configured a
+    debrid account; the second is `materializer()`, which answers `None`
+    everywhere, so a job that resolves still ends `failed` and says why. Both
+    halves are named here rather than fused, because that is the whole point of
+    the split — see `AcquiredTarget`.
 
     Separate from `drain` so that it is a task of its own and therefore
     cancellable on its own: cancelling the worker would stop the queue, and
@@ -646,7 +761,17 @@ async def _acquire(job: Job) -> None:
     provider = acquisition_provider()
     if provider is None:
         raise RuntimeError(NO_PROVIDER)
-    await provider.acquire(job)
+    target = await provider.acquire(job)
+
+    # `redacted()` and never the target itself: an acquisition URL is minted
+    # against the owner's account and spends their bandwidth, so it belongs in
+    # no journal.
+    log.info("store: job %s resolved to %s", job.id, target.redacted())
+
+    store = materializer()
+    if store is None:
+        raise RuntimeError(NO_MATERIALIZER)
+    await store.materialize(job, target)
 
 
 async def _settle(job: Job, error: BaseException | None) -> None:

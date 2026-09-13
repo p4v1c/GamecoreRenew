@@ -95,6 +95,11 @@ RUNTIME_GENERATED = {
     # no settings screen yet), and its absence is the normal state of a box —
     # that is what keeps the Games tab on the demo provider and its banner.
     "config/store-prowlarr.json",
+    # The Store's Real-Debrid API token, 0600. Written by hand today too, and
+    # its absence is likewise the normal state of a box — that is what leaves
+    # the queue with no acquisition provider, which is why every job fails
+    # saying so rather than silently doing nothing.
+    "config/store-realdebrid.json",
     # The SQLite database: play history, and the Store's download queue. Created
     # by db.py:init_db() on first start. Named with its directory in 07 because
     # the paragraph there is precisely about WHERE it lives — config/ is kept by

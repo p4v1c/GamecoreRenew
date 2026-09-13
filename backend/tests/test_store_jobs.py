@@ -105,11 +105,15 @@ async def _queue(**over):
 class FakeAcquisition:
     """A provider that exists only inside a test.
 
+    Acquiring **resolves**: it answers an `AcquiredTarget` and moves nothing.
+    This one answers a target built from the job it was given, which is what a
+    real provider does in shape if not in effort.
+
     The success path has to be exercised somehow, and the one thing that must
-    not happen is a plausible provider shipping in `backend/` to do it — a box
-    would then have an acquisition provider, which is precisely the thing this
-    step does not have. So it lives here, like the `httpx.MockTransport` the
-    Prowlarr client is tested through.
+    not happen is a plausible provider shipping in `backend/` to do it. So it
+    lives here, like the `httpx.MockTransport` the Prowlarr client is tested
+    through — and `backend/tests/test_store_realdebrid.py` is where the real
+    one is put through the same kind of thing.
     """
 
     name = "fake"
@@ -120,7 +124,7 @@ class FakeAcquisition:
         self.blocks = blocks
         self.seen: list[jobs.Job] = []
 
-    async def acquire(self, job: jobs.Job) -> None:
+    async def acquire(self, job: jobs.Job) -> jobs.AcquiredTarget:
         self.seen.append(job)
         if self.raises is not None:
             raise self.raises
@@ -129,6 +133,44 @@ class FakeAcquisition:
         # queue" is asserted without the second job blocking for ever too.
         while self.blocks:
             await asyncio.sleep(0.01)
+        return jobs.AcquiredTarget(
+            url="https://download.invalid/whatever", filename=job.filename,
+            size=job.size, info_hash="", provider=self.name)
+
+
+class FakeMaterializer:
+    """What would store the bytes — and here, pointedly, does not.
+
+    `jobs.materializer()` answers `None` on every box, so `done` is a state no
+    box can reach in this step. It is still a state the machine has, and the
+    tests that assert the worker runs a queue to its end have to be able to
+    walk it, so this stands in for matrix §5. It writes nothing: the data-tree
+    guard in this file covers the success path too, and a fake that wrote a
+    file would make that guard measure the fake.
+    """
+
+    name = "fake-materializer"
+
+    def __init__(self):
+        self.seen: list[tuple[jobs.Job, jobs.AcquiredTarget]] = []
+
+    async def materialize(self, job, target) -> None:
+        self.seen.append((job, target))
+
+
+def _both(monkeypatch, provider):
+    """Inject an acquisition provider *and* a materializer.
+
+    Two seams now, so the tests that want a job to reach `done` have to fill
+    both. A test that fills only the first is asserting the box's real
+    behaviour — resolved, and nowhere to put it — which is what
+    `test_a_resolved_job_still_fails_because_nothing_can_store_it` does on
+    purpose.
+    """
+    monkeypatch.setattr(jobs, "acquisition_provider", lambda: provider)
+    store = FakeMaterializer()
+    monkeypatch.setattr(jobs, "materializer", lambda: store)
+    return store
 
 
 # ── the state machine ──────────────────────────────────────────────────────
@@ -322,6 +364,89 @@ def test_with_no_acquisition_provider_a_job_fails_and_says_why(monkeypatch):
     asyncio.run(scenario())
 
 
+def test_a_resolved_job_still_fails_because_nothing_can_store_it(monkeypatch):
+    """The box's real behaviour once a debrid account is configured.
+
+    Acquiring resolves; it does not download. So a job whose source resolves
+    perfectly has a URL and nowhere to put it, and it ends `failed` saying so
+    rather than `done`. `done` would be the queue lying about the one thing it
+    exists to report, in a row the player reads again after a reboot — the same
+    argument that made `NO_PROVIDER` a failure and not a silent success.
+
+    Two reasons and not one: a player who reads this has a working Real-Debrid
+    and nothing to fix, which `NO_PROVIDER` would have told them wrongly.
+    """
+    async def scenario():
+        conn = await _memory_db(monkeypatch)()
+        _no_worker(monkeypatch)
+        fake = FakeAcquisition()
+        monkeypatch.setattr(jobs, "acquisition_provider", lambda: fake)
+        # …and NOT a materializer. `jobs.materializer()` answers None on every
+        # box and this test does not override it — that is the point.
+        try:
+            assert jobs.materializer() is None
+            job = await _queue()
+            await jobs.drain()
+            after = await jobs.get(job.id)
+            assert after.state == "failed"
+            assert after.reason == jobs.NO_MATERIALIZER
+            assert after.reason != jobs.NO_PROVIDER
+            # The provider was reached, so this is not "nothing happened".
+            assert [j.id for j in fake.seen] == [job.id]
+        finally:
+            await conn.close()
+
+    asyncio.run(scenario())
+
+
+def test_the_target_a_provider_answers_reaches_the_materializer(monkeypatch):
+    """The two halves are joined by an `AcquiredTarget` and nothing else.
+
+    What acquisition produces is what storage consumes — the seam matrix §5
+    will be written against. Asserted here because `jobs.py` is the only place
+    that knows both sides, and a provider answering one shape while a
+    materializer expected another would otherwise only show up in step 13.
+    """
+    async def scenario():
+        conn = await _memory_db(monkeypatch)()
+        _no_worker(monkeypatch)
+        fake = FakeAcquisition()
+        store = _both(monkeypatch, fake)
+        try:
+            job = await _queue(filename="Zelda.z64", size=1234)
+            await jobs.drain()
+            assert (await jobs.get(job.id)).state == "done"
+            assert len(store.seen) == 1
+            seen_job, target = store.seen[0]
+            assert seen_job.id == job.id
+            assert isinstance(target, jobs.AcquiredTarget)
+            assert target.filename == "Zelda.z64"
+            assert target.provider == "fake"
+        finally:
+            await conn.close()
+
+    asyncio.run(scenario())
+
+
+def test_an_acquired_target_never_prints_its_url(monkeypatch):
+    """An unrestricted URL is a credential, so it has one safe spelling.
+
+    It is minted against the owner's debrid account and anyone holding it
+    spends their bandwidth, so `jobs._acquire` logs `redacted()` and nothing
+    else. The URL is not on the row either — `Job` has no field for it, which
+    is the stronger half of the same property.
+    """
+    target = jobs.AcquiredTarget(
+        url="https://sekret.invalid/d/0000-token-shaped-0000/Zelda.z64",
+        filename="Zelda.z64", size=99, info_hash="b" * 40, provider="fake")
+    printed = target.redacted()
+    assert "sekret.invalid" not in printed
+    assert "token-shaped" not in printed
+    assert target.url not in printed
+    # …and it still says enough to be worth a journal line.
+    assert "Zelda.z64" in printed and "99" in printed and "b" * 40 in printed
+
+
 def test_the_worker_runs_the_queue_in_the_order_it_was_filled(monkeypatch):
     """Oldest first, and one at a time.
 
@@ -332,7 +457,7 @@ def test_the_worker_runs_the_queue_in_the_order_it_was_filled(monkeypatch):
         conn = await _memory_db(monkeypatch)()
         _no_worker(monkeypatch)
         fake = FakeAcquisition()
-        monkeypatch.setattr(jobs, "acquisition_provider", lambda: fake)
+        _both(monkeypatch, fake)
         try:
             first = await _queue(source="demo://nes/a", title="A")
             second = await _queue(source="demo://nes/b", title="B")
@@ -379,7 +504,7 @@ def test_a_job_cancelled_mid_download_stops_and_stays_cancelled(monkeypatch):
         conn = await _memory_db(monkeypatch)()
         _no_worker(monkeypatch)
         fake = FakeAcquisition(blocks=True)
-        monkeypatch.setattr(jobs, "acquisition_provider", lambda: fake)
+        _both(monkeypatch, fake)
         try:
             slow = await _queue(source="demo://nes/slow", title="Slow")
             after = await _queue(source="demo://nes/next", title="Next")
@@ -809,7 +934,7 @@ def test_queueing_and_running_write_nothing_into_the_data_tree(box, monkeypatch)
     before it started.
     """
     fake = FakeAcquisition()
-    monkeypatch.setattr(jobs, "acquisition_provider", lambda: fake)
+    _both(monkeypatch, fake)
 
     def tree():
         return sorted(p.relative_to(box).as_posix() for p in box.rglob("*")

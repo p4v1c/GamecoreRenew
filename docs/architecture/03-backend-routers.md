@@ -438,16 +438,83 @@ queued ──► running ──► done
   └──────────────────► cancelled
 ```
 
-**Nothing downloads, and every job says so.** There is no `AcquisitionProvider`
-on this box and none ships — not even a plausible one — so a job that reaches
-the worker fails with *"no acquisition provider is configured on this box"*.
-That is the honest answer rather than a gap: a queue reporting `done` having
-fetched nothing would be a lie the player reads again after a reboot, because
-the row persists. The seam is `jobs.acquisition_provider()`, which answers
-`None`; the success path is exercised by a provider the tests inject, exactly as
-the Prowlarr client is exercised by an `httpx.MockTransport` that reaches no
-network. `downloadReady` travels with `GET /store/jobs` saying `false`, and the
-screen draws it.
+**Running a job is resolve, then store — and only the first half exists.**
+
+*Resolving* turns the job's opaque `source` into an `AcquiredTarget`: a direct
+HTTPS URL, plus the size and info hash it takes to check the bytes are the ones
+that were asked for. It moves no bytes.
+[`services/store/realdebrid.py`](../../backend/services/store/realdebrid.py) is
+one, and `jobs.acquisition_provider()` answers `None` on a box with no
+`config/store-realdebrid.json` — which is every box until its owner puts one
+there.
+
+*Storing* fetches that target and puts it where the library scan will find it.
+`jobs.materializer()` answers **`None` on every box** and nothing here ships one:
+that is [14](14-store-ingestion-matrix.md) §5's step, with its own disk checks,
+its own archive classes and its own tests.
+
+So **nothing downloads, and every job still says so** — now with two reasons
+instead of one, because they are two different facts:
+
+| reason | what it means |
+|---|---|
+| *"no acquisition provider is configured on this box"* | no Real-Debrid token; nothing was attempted |
+| *"this box can find this download but cannot store it yet"* | the source resolved, and there is nowhere to put what it found |
+
+A player who reads the second has a working account and nothing to fix, which
+the first would have told them wrongly. A `done` in either case would be a lie
+the player reads again after a reboot, because the row persists. `done` is
+reachable only when both seams are filled, which no box does and the tests do —
+exactly as the Prowlarr client is exercised by an `httpx.MockTransport` that
+reaches no network. `downloadReady` travels with `GET /store/jobs` saying
+`false`, and the screen draws it.
+
+**Why acquiring is not downloading.** Fused, they were one step with two jobs:
+a conversation with somebody else's service (a token refused, a link nothing
+supports, a wait that ran out) and moving bytes onto a disk (no space, a name
+that will not sit in a directory, an archive that is not what it claimed).
+Every one of those becomes "the download failed" and the player is told
+nothing. Split, each says what actually happened — and a resolver has nowhere
+to put bytes even by accident, which is what keeps the data-tree guard in
+`test_store_jobs.py` meaningful across the success path.
+
+**Why Real-Debrid at all, and why it is external.** It takes a magnet and
+answers a plain HTTPS URL, so this box needs **no torrent client**: no daemon,
+no listening port on the LAN — the thing [`docs/SECURITY.md`](../../docs/SECURITY.md)
+spent the hardening pass reducing to Caddy on `:8443` — and nothing extra for
+the uninstaller to remove. The owner runs their own account exactly as they run
+their own Prowlarr; GameCore knows one token, in one 0600 file, named in
+`install/uninstall.sh` and pinned by `test_store_secret_removal.py`.
+
+**Re-finding a release: what `source` had to grow.** `SearchResult.source` is
+`prowlarr://<indexerId>/<guid>` and carries no URL on purpose — Prowlarr's own
+`downloadUrl` is `…/download?apikey=<this box's key>&link=…`, and `source`
+travels to the browser. That pair was chosen to be re-resolvable against
+Prowlarr, and **it is not**. Measured against `Prowlarr.Api.V1.dll` 2.5.2.5491:
+the only endpoint that accepts it is the grab (`POST /api/v1/search`), which
+reads an in-memory cache — the assembly holds *"Couldn't find requested release
+in cache, cache timeout probably expired."* — and, on a hit, hands the release
+to a **download client**, the one thing this design exists to avoid. The proxy
+that `downloadUrl` points at is keyed on `link`, not on `guid`.
+
+So the row carries one thing more: the release's **BitTorrent info hash**, as a
+`#btih:<40 hex>` suffix inside `source`. It carries no credential — 20 bytes
+saying what the content *is*, never a passkey, and a magnet's `tr=` trackers
+are dropped where they are found — it never expires, and it is exactly what a
+debrid service consumes, so resolution needs no second Prowlarr round trip and
+no guess about which release a re-search meant. A row an indexer published
+without one (usenet has none) is still offered and refused at the job, by name.
+[`services/store/resolve.py`](../../backend/services/store/resolve.py) holds the
+evidence and the parse.
+
+How many of a given set of indexers actually publish that hash is a property of
+those indexers and not of this code, so it is measured by hand with
+[`scripts/realdebrid-resolve-check.py`](../../scripts/realdebrid-resolve-check.py)
+— which takes both credentials from the environment, reads neither config file,
+writes nothing and downloads nothing. It is not a gate, for the same reason
+`prowlarr-filter-check.py` is not: the gates are
+`backend/tests/test_store_realdebrid.py` and `test_store_resolve.py`, and they
+run offline.
 
 **Cancelling is a state, not a `DELETE`.** Hence `POST /jobs/{id}/cancel` and
 no `DELETE /jobs/{id}`. A queue whose cancel removed the row cannot tell "I
