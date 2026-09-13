@@ -21,6 +21,12 @@ the pad driving both. Serving before the repair means a few playtime figures
 are the ones from before it ran; the repair broadcasts when it has moved any,
 and nothing on screen is untrue in the meantime.
 
+`store_queue` is on the required side by the same test. A download the box was
+killed in the middle of is still written down as `running`, and nothing moves
+that row on its own — the only thing that ever moves a running job is the
+worker that died with the process. Serving before it is settled is answering
+"this is downloading" about a task that does not exist.
+
 Nothing here measures a duration or waits for one. The steps are facts.
 """
 from __future__ import annotations
@@ -31,7 +37,7 @@ import time
 log = logging.getLogger(__name__)
 
 #: Steps a client must not be told "ready" without.
-REQUIRED = ("database", "session")
+REQUIRED = ("database", "store_queue", "session")
 
 #: Steps that refine the box without gating it. Reported, never waited on.
 BACKGROUND = ("playtime_repair", "screen", "power")

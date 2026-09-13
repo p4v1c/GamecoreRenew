@@ -1,4 +1,4 @@
-import type { CatalogEntry, StoreSearchResult } from '../../api'
+import type { CatalogEntry, StoreJob, StoreSearchResult } from '../../api'
 
 /** The Store's two tabs, in the order L1/R1 walk them. */
 export type StoreTab = 'consoles' | 'games'
@@ -19,8 +19,13 @@ export const STORE_TAB_LABELS: Record<StoreTab, string> = {
  * of the system. A result found without a console attached could be neither
  * placed nor classified — `docs/architecture/14-store-ingestion-matrix.md` §0,
  * §1.3.
+ *
+ * The third is not a step of that sequence but a place the player goes: the
+ * queue of what has already been asked for. It is reachable from the first
+ * (△) and it is where asking for a result lands them, so that a press which
+ * created a row shows them the row.
  */
-export type StoreGamesPhase = 'systems' | 'results'
+export type StoreGamesPhase = 'systems' | 'results' | 'queue'
 
 /**
  * What a store screen is handed, and all it is allowed to do.
@@ -194,13 +199,53 @@ export interface StoreViewProps {
   /**
    * Whether asking for a result can actually bring it onto the box.
    *
-   * `false` for the whole of this step, and in the contract for the same
-   * reason `gamesReady` was: acquiring the bytes is a later step, and a view
-   * that drew a Download button over a call that downloads nothing would be
-   * the button that does nothing. Say what asking does and does not do. When
-   * it turns true a view written now keeps working.
+   * **Still `false`, and it is not the same flag as "there is a queue".**
+   * Asking now writes a real, persistent row and a worker really picks it up —
+   * what does not exist is anything behind that worker, so every job ends as
+   * `failed` with "no acquisition provider is configured on this box". This
+   * flag promises *bytes in a ROM directory*, and it turns true only the day
+   * they land there. A view that drew a Download button over it today would be
+   * the button that does nothing; a view that draws the queue and says what
+   * each row's state means is telling the truth.
+   *
+   * Read from the backend rather than decided here, so a view written now is
+   * already right on the day it changes.
    */
   gamesDownloadReady: boolean
+
+  /**
+   * ── The queue ─────────────────────────────────────────────────────────────
+   *
+   * What the player has already asked for, whatever became of it. A row and
+   * not a variable: it is written to the box's database, it survives the
+   * screen, the tab and a reboot, and a job the box was killed in the middle
+   * of comes back saying so rather than saying it is still running.
+   *
+   * The same rule as everything above — the list, the states and the two
+   * actions are the host's, through `useStoreJobs`
+   * (`frontend/src/lib/storeJobs.ts`). A view draws them. What a view must not
+   * do is invent a sixth state, or decide that a finished row can be cancelled.
+   */
+
+  /** Every job, newest first, in the order the cursor walks it. */
+  gamesJobs: StoreJob[]
+  /** Just the current page of them, already sliced — the `queue` phase. */
+  gamesJobsPage: StoreJob[]
+  /** How many are still queued or running. What a badge counts, and what makes
+   *  "△ the queue" worth pressing. */
+  gamesJobsLive: number
+  /** The queue could not be read. Empty when nothing is wrong — **an empty
+   *  queue is not an error** and a view that drew it as one would be blaming
+   *  the box for a player who has not asked for anything yet. */
+  gamesJobsError: string
+  /** A queue request is in flight. */
+  gamesQueueing: boolean
+  /**
+   * Why the last queue or cancel was refused, in the backend's own words:
+   * already in the queue, the queue is full, that console is not installed.
+   * Empty when nothing was refused. Draw it — it is the actionable half.
+   */
+  gamesQueueError: string
 
   /** Pick the console to search inside — the `systems` phase's action. */
   onGamesSystem: (system: CatalogEntry) => void
@@ -208,9 +253,23 @@ export interface StoreViewProps {
    *  store cannot ship without a way to type, and it is what registers as a
    *  modal so the global shortcuts stand down over it. */
   onGamesSearch: () => void
-  /** Ask about one result. Records the choice; downloads nothing. */
+  /** Ask about one result. Opens the panel; queues nothing. */
   onGamesAsk: (result: StoreSearchResult) => void
-  /** Put an asked result back down, or step back to the console list. */
+  /**
+   * Queue the result the player is looking at — the asked panel's one action,
+   * and ✕ on the host's side while that panel is up.
+   *
+   * It writes a row and steps to the queue, so that the press which created it
+   * shows it. It does **not** download anything: see `gamesDownloadReady`.
+   */
+  onGamesQueue: (result: StoreSearchResult) => void
+  /** Open the queue. △ on the host's side, from the console list. */
+  onGamesQueueOpen: () => void
+  /** Stop one job, whether it has started or not. A no-op on a finished row —
+   *  the host decides that, not the view. */
+  onGamesCancelJob: (job: StoreJob) => void
+  /** Put an asked result back down, leave the queue, or step back to the
+   *  console list — whichever the player is on. */
   onGamesBack: () => void
 
   /** Mouse affordances. The gamepad path never goes through these. */

@@ -46,6 +46,7 @@ from .routers import storage as storage_router
 from .routers.settings import wifi, audio, bluetooth, display
 from .services import (battery, boot, desktop_power, gamepad_monitor, http_cache,
                        playtime_repair, prefetch, standby, storage_monitor)
+from .services.store import jobs as store_jobs
 from .services.process_manager import process_manager
 from .config import BACKEND_PORT
 from .services.paths import (backend_data_dir, covers_dir, frontend_dist_dir,
@@ -131,10 +132,15 @@ async def _settle_the_screen() -> None:
 async def lifespan(app: FastAPI):
     """Everything that must be true before the first request, and nothing else.
 
-    Two steps are required, and the test for both is the same: would answering
-    without it make the front end tell the player something false?
+    Three steps are required, and the test for all three is the same: would
+    answering without it make the front end tell the player something false?
 
       · the database — every library screen reads it;
+      · the Store's queue — a job the box was killed in the middle of is still
+        written down as `running`, and serving before that is settled means
+        answering "this is downloading" about a task that died with the last
+        process. Nothing will ever move that row on its own: the only thing
+        that moves a running job is the worker that is no longer there;
       · the running-game adoption — serving before it means answering "nothing
         is running" while an emulator is on screen, and handing the player a
         home they can navigate over a live game with the pad driving both.
@@ -148,6 +154,23 @@ async def lifespan(app: FastAPI):
 
     await init_db()
     boot.done("database")
+
+    # What became of the downloads the last process was in the middle of, and
+    # the ones it had not started yet. `resume_after_restart` marks the first
+    # kind failed — honestly, rather than re-running an acquisition nobody
+    # asked to re-run — and `kick()` picks the second kind up, which is what
+    # makes a queue survive a reboot at all. See services/store/jobs.py.
+    try:
+        await store_jobs.resume_after_restart()
+        store_jobs.kick()
+    except Exception:
+        log.exception("lifespan: could not settle the Store's queue")
+    # Marked done even when it raised, for the same reason the session step
+    # below is: the row on disk is already wrong, and refusing to finish
+    # booting does not make it right. A required step left pending is a shell
+    # that polls /api/ready for ever — the whole console unusable because of
+    # one queue row. The next restart tries again; the log says what happened.
+    boot.done("store_queue")
 
     # Re-attach to a game a previous process left running, so the double-PS
     # shortcut can still close it.
@@ -172,6 +195,13 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(storage_monitor.run()),
     ]
     yield
+    # The acquisition worker, stopped first: it is the one task that writes to
+    # the database on its way through, and the job it was on is deliberately
+    # left saying `running` for the next start to settle — see `jobs.stop()`.
+    try:
+        await store_jobs.stop()
+    except Exception:
+        log.exception("lifespan: could not stop the Store's queue")
     # Handed back on the way out: a backend that stops and does not come back
     # would otherwise leave the desktop's own screen-off disabled for good.
     try:

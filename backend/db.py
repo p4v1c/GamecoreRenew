@@ -1,4 +1,20 @@
-"""SQLite database — playtime."""
+"""SQLite database — playtime, and the Store's acquisition queue.
+
+One database, `<DATA>/config/playtime.db`, and it holds both. A second store —
+a JSON file of jobs beside it, or a `store.db` of its own — would be a second
+schema to migrate, a second handle to keep alive across the box's suspend
+cycles, and a second answer to "is this file the player's data" for the
+uninstaller and the OTA to disagree about.
+
+**What that inherits, stated once here and again in
+`docs/architecture/07-config-and-data.md`:** `config/` is excluded from the OTA
+rsync and kept by `install/uninstall.sh` unless `--purge` is given — and on a
+box with separate roots the uninstaller does not touch the data root at all. So
+a download history survives an uninstall exactly as the play history does. That
+is the behaviour this product already has for `playtime`; the Store's queue
+joins it rather than inventing a second rule, and it is written down so that
+nobody has to discover it.
+"""
 import aiosqlite
 from .config import PLAYTIME_DB
 
@@ -37,6 +53,24 @@ async def init_db() -> None:
             ended_at    TEXT,
             duration    INTEGER
         );
+        CREATE TABLE IF NOT EXISTS store_jobs (
+            id          TEXT PRIMARY KEY,
+            system_id   TEXT NOT NULL,
+            roms_dir    TEXT NOT NULL DEFAULT '',
+            title       TEXT NOT NULL,
+            filename    TEXT NOT NULL,
+            format      TEXT NOT NULL DEFAULT '',
+            size        INTEGER NOT NULL DEFAULT 0,
+            provider    TEXT NOT NULL,
+            source      TEXT NOT NULL,
+            state       TEXT NOT NULL,
+            reason      TEXT NOT NULL DEFAULT '',
+            queued_at   TEXT NOT NULL,
+            started_at  TEXT,
+            ended_at    TEXT
+        );
+        CREATE INDEX IF NOT EXISTS store_jobs_by_state
+            ON store_jobs (state, queued_at);
     """)
     await _widen_playtime_key(db)
     await db.commit()

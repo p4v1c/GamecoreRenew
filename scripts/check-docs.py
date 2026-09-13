@@ -95,6 +95,12 @@ RUNTIME_GENERATED = {
     # no settings screen yet), and its absence is the normal state of a box —
     # that is what keeps the Games tab on the demo provider and its banner.
     "config/store-prowlarr.json",
+    # The SQLite database: play history, and the Store's download queue. Created
+    # by db.py:init_db() on first start. Named with its directory in 07 because
+    # the paragraph there is precisely about WHERE it lives — config/ is kept by
+    # the uninstaller and excluded from the OTA rsync, so a history survives a
+    # removal — and that sentence cannot be written without the path.
+    "config/playtime.db",
 }
 
 # Named on purpose although not there YET: a document describing how to turn a

@@ -33,7 +33,11 @@ vi.mock('../../hooks/useWebSocket', async (orig) => ({
 import DefaultShell from '../DefaultShell'
 import StoreScreen from './index'
 import { useStore } from '../../store'
-import { api, type CatalogEntry, type StoreSearchAnswer, type StoreSearchResult } from '../../api'
+import {
+  api,
+  type CatalogEntry, type StoreJob, type StoreJobState,
+  type StoreSearchAnswer, type StoreSearchResult,
+} from '../../api'
 import { CATALOG_FAILED } from '../../lib/catalog'
 import { SEARCH_FAILED } from '../../lib/storeSearch'
 import type { StoreViewProps } from './types'
@@ -66,6 +70,14 @@ const ANSWER: StoreSearchAnswer = {
   provider: 'demo', live: false, query: 'zelda',
   results: [result('r1', 'Zelda A'), result('r2', 'Zelda B', { format: 'nes' })],
 }
+
+/** One job, as the backend answers it. */
+const job = (id: string, state: StoreJobState, extra: Partial<StoreJob> = {}): StoreJob => ({
+  id, systemId: 'sys00', romsDir: 'emu/sys00', title: `Job ${id}`,
+  filename: `Job ${id}.zip`, format: 'zip', size: 2048, provider: 'demo',
+  state, reason: '', queuedAt: '2026-09-13T10:00:00+00:00', startedAt: '',
+  endedAt: '', ...extra,
+})
 
 const flush = () => act(async () => { await new Promise(r => setTimeout(r, 0)) })
 
@@ -122,6 +134,14 @@ beforeEach(() => {
   vi.spyOn(api.store, 'provider').mockResolvedValue({
     name: 'demo', label: 'Demo results', live: false, systemFirst: true })
   vi.spyOn(api.store, 'search').mockResolvedValue(ANSWER)
+  // The queue. Empty by default and `downloadReady: false`, which is the
+  // shipped answer for the whole of this step: a job is a real row that a
+  // worker really runs, and nothing behind that worker can fetch a game.
+  vi.spyOn(api.store, 'jobs').mockResolvedValue({ jobs: [], downloadReady: false })
+  vi.spyOn(api.store, 'queue').mockImplementation(
+    async (r: StoreSearchResult) => job(`job-${r.id}`, 'queued', { title: r.title }))
+  vi.spyOn(api.store, 'cancel').mockImplementation(
+    async (id: string) => job(id, 'cancelled'))
   useStore.setState({
     screen: 'store', selectedSystemId: null, modalDepth: 0, sessionGameKey: null,
     gridFocusIdx: 0, gridPage: 0,
@@ -368,7 +388,11 @@ describe('the Games tab', () => {
     expect(seen.perPage).toBe(seen.rows)
   })
 
-  it('asks about a result, and says plainly that nothing was downloaded', async () => {
+  it('asks about a result, and says plainly that queueing is not downloading', async () => {
+    // The sentence this replaced said nothing had been queued, because nothing
+    // had. Something is queued now — and the panel has to be exactly as clear
+    // about the difference, because this is the screen where a player learns
+    // which of the two promises they are getting.
     const r = render(<StoreScreen />)
     await flush()
     press('gp:r1')
@@ -378,7 +402,8 @@ describe('the Games tab', () => {
 
     press('gp:confirm')
     await flush()
-    expect(r.container.textContent).toContain('Nothing has been downloaded or queued')
+    expect(r.container.textContent).toContain('It will not download')
+    expect(r.container.textContent).toContain('Nothing is written into your ROM folder')
     // The one thing knowing the console first buys, shown: where it would go.
     expect(r.container.textContent).toContain('emu/sys00/')
   })
@@ -703,5 +728,227 @@ describe('the default view now that the cards do something', () => {
     press('gp:confirm')                  // System 00, installed
     await flush()
     expect(r.container.textContent).toContain('✕ AGAIN')
+  })
+})
+
+describe('the queue, which is what asking for a game now means', () => {
+  /** Walk to the Games tab, pick a console, search, and open one result. */
+  const toAskedPanel = async (seenOf?: () => StoreViewProps) => {
+    press('gp:r1')
+    press('gp:confirm')
+    await flush()
+    await typeSearch('zelda')
+    press('gp:confirm')
+    await flush()
+    return seenOf
+  }
+
+  it('hands a view the queue, its shape and its two actions', async () => {
+    // The contract, in one place: a theme must be able to draw a queue without
+    // owning what a state means, which row can still be stopped, or what
+    // happens when one is.
+    let seen!: StoreViewProps
+    vi.mocked(api.store.jobs).mockResolvedValue({
+      jobs: [job('a', 'running'), job('b', 'queued'), job('c', 'failed')],
+      downloadReady: false,
+    })
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+
+    expect(seen.gamesJobs.map(j => j.id)).toEqual(['a', 'b', 'c'])
+    expect(seen.gamesJobsLive).toBe(2)
+    expect(seen.gamesJobsError).toBe('')
+    expect(seen.gamesQueueError).toBe('')
+    expect(seen.gamesQueueing).toBe(false)
+    // Still false, and still the flag that promises bytes in a ROM directory.
+    // A queue existing is not the same promise as a download working.
+    expect(seen.gamesDownloadReady).toBe(false)
+    expect(typeof seen.onGamesQueue).toBe('function')
+    expect(typeof seen.onGamesCancelJob).toBe('function')
+    expect(typeof seen.onGamesQueueOpen).toBe('function')
+  })
+
+  it('✕ on the asked panel queues it and shows the player the row', async () => {
+    // The press wrote something down. A screen that stayed on the panel would
+    // have given no evidence of it — which is exactly how the version of this
+    // button that recorded a choice nothing acted on read as a button that
+    // does nothing.
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    await toAskedPanel()
+    expect(seen.gamesAsked?.id).toBe('r1')
+
+    vi.mocked(api.store.jobs).mockResolvedValue({
+      jobs: [job('job-r1', 'queued', { title: 'Zelda A' })],
+      downloadReady: false,
+    })
+    press('gp:confirm')
+    await flush()
+
+    expect(api.store.queue).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'r1', source: 'demo://sys00/Zelda A' }))
+    expect(seen.gamesPhase).toBe('queue')
+    expect(seen.gamesAsked).toBeNull()
+    expect(seen.gamesJobs.map(j => j.id)).toEqual(['job-r1'])
+  })
+
+  it('△ opens the queue from the console list, and ○ closes it again', async () => {
+    // The only free button left on this tab: ✕ picks and asks, ○ leaves, L1/R1
+    // walk the tabs, and □ is the shell's controller screen.
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    press('gp:r1')
+    expect(seen.gamesPhase).toBe('systems')
+
+    press('gp:y')
+    await flush()
+    expect(seen.gamesPhase).toBe('queue')
+
+    press('gp:back')
+    await flush()
+    expect(seen.gamesPhase).toBe('systems')
+  })
+
+  it('closes the queue onto whatever was underneath it', async () => {
+    // Its own flag and not a state of the search, which is what lets a player
+    // check the queue mid-search and come back to their results.
+    let seen!: StoreViewProps
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    await toAskedPanel()
+    press('gp:confirm')                     // queue it → the queue opens
+    await flush()
+    expect(seen.gamesPhase).toBe('queue')
+
+    press('gp:back')
+    await flush()
+    // Back onto the results, with the search still answered underneath.
+    expect(seen.gamesPhase).toBe('results')
+    expect(seen.gamesResults).toHaveLength(2)
+  })
+
+  it('walks the queue as a column and cancels the row under the cursor', async () => {
+    let seen!: StoreViewProps
+    vi.mocked(api.store.jobs).mockResolvedValue({
+      jobs: [job('a', 'running'), job('b', 'queued')],
+      downloadReady: false,
+    })
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    press('gp:r1')
+    press('gp:y')
+    await flush()
+
+    expect(seen.cols).toBe(1)
+    expect(seen.gamesJobsPage.map(j => j.id)).toEqual(['a', 'b'])
+    press('gp:dpad-down')
+    expect(seen.focusIdx).toBe(1)
+
+    press('gp:confirm')
+    await flush()
+    expect(api.store.cancel).toHaveBeenCalledWith('b')
+  })
+
+  it('absorbs ✕ on a job nothing can stop any more', async () => {
+    // A finished row takes the press silently rather than turning it into an
+    // error the player did not cause.
+    let seen!: StoreViewProps
+    vi.mocked(api.store.jobs).mockResolvedValue({
+      jobs: [job('a', 'failed', { reason: 'no acquisition provider is configured on this box' })],
+      downloadReady: false,
+    })
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    press('gp:r1')
+    press('gp:y')
+    await flush()
+
+    press('gp:confirm')
+    await flush()
+    expect(api.store.cancel).not.toHaveBeenCalled()
+    expect(seen.gamesQueueError).toBe('')
+  })
+
+  it('draws the queue, its states and the reason a job failed', async () => {
+    vi.mocked(api.store.jobs).mockResolvedValue({
+      jobs: [job('a', 'failed', {
+        title: 'Zelda A',
+        reason: 'no acquisition provider is configured on this box',
+      })],
+      downloadReady: false,
+    })
+    const r = render(<StoreScreen />)
+    await flush()
+    press('gp:r1')
+    press('gp:y')
+    await flush()
+
+    expect(r.container.textContent).toContain('Zelda A')
+    expect(r.container.textContent).toContain('FAILED')
+    // The reason is the half a player can act on: "no provider" and "the box
+    // stopped" are two different failures, and a row that only said FAILED
+    // would make them one.
+    expect(r.container.textContent).toContain('no acquisition provider is configured')
+    // And the queue says out loud that it is not a download. Same rule as the
+    // banner over invented results: the screen must not look like something
+    // it is not, and this one persists across a reboot.
+    expect(r.container.textContent).toContain('Nothing here downloads yet')
+  })
+
+  it('says nothing was asked for rather than drawing an empty list as an error', async () => {
+    const r = render(<StoreScreen />)
+    await flush()
+    press('gp:r1')
+    press('gp:y')
+    await flush()
+    expect(r.container.textContent).toContain('Nothing asked for yet')
+  })
+
+  it('tells a queue that could not be read from a queue with nothing in it', async () => {
+    vi.mocked(api.store.jobs).mockRejectedValue(new Error('down'))
+    const r = render(<StoreScreen />)
+    await flush()
+    press('gp:r1')
+    press('gp:y')
+    await flush()
+    expect(r.container.textContent).toContain('The queue could not be read')
+    expect(r.container.textContent).not.toContain('Nothing asked for yet')
+  })
+
+  it('shows why the box refused, in the box’s own words', async () => {
+    let seen!: StoreViewProps
+    vi.mocked(api.store.queue).mockRejectedValue(
+      new Error('that is already in the queue'))
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    await toAskedPanel()
+    press('gp:confirm')
+    await flush()
+
+    expect(seen.gamesQueueError).toBe('that is already in the queue')
+    // The panel is put down either way, and the queue is NOT opened: there is
+    // no new row to show, and the refusal is on screen where the player is.
+    expect(seen.gamesPhase).toBe('results')
+  })
+
+  it('hears about a job moving without being asked', async () => {
+    // The worker finishes jobs on its own, and the screen that queued one is
+    // usually still open when it does.
+    let seen!: StoreViewProps
+    vi.mocked(api.store.jobs).mockResolvedValue({
+      jobs: [job('a', 'running')], downloadReady: false })
+    render(<StoreScreen view={(p: StoreViewProps) => { seen = p; return null }} />)
+    await flush()
+    expect(seen.gamesJobs[0].state).toBe('running')
+
+    vi.mocked(api.store.jobs).mockResolvedValue({
+      jobs: [job('a', 'failed', { reason: 'no acquisition provider is configured on this box' })],
+      downloadReady: false,
+    })
+    await emit('store:jobs', { job: job('a', 'failed') })
+    expect(seen.gamesJobs[0].state).toBe('failed')
+    expect(seen.gamesJobsLive).toBe(0)
   })
 })

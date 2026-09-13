@@ -339,11 +339,17 @@ holding a gamepad: the screen has to be able to say "already working" rather tha
 queue a second install behind the first. The `ota/*` pair drives the signed
 catalogue channel — see [10](10-catalog-and-install.md#three-tiers-and-the-signed-remote-one).
 
-### `store.py` (134 l.) — searching for a game, one console at a time
+### `store.py` — searching for a game, and the queue of what was asked for
 
-`GET /store/provider`, `GET /store/systems`, `GET /store/search?system=&q=`.
-The three shapes are unchanged by the arrival of a real provider — that is the
-point of the seam, and `provider`/`live` are the fields that carry the
+`GET /store/provider`, `GET /store/systems`, `GET /store/search?system=&q=`,
+`GET /store/jobs`, `POST /store/jobs`, `POST /store/jobs/{job_id}/cancel`.
+
+Two halves, and the line between them is the point. The search routes ask a
+question: they start nothing, hold no lock and remember nothing. The job routes
+write down a request that outlives the screen it was made on.
+
+The three search shapes are unchanged by the arrival of a real provider — that
+is the point of the seam, and `provider`/`live` are the fields that carry the
 difference to the screen.
 
 **Why a search runs here and not in the browser.** A search provider is
@@ -414,10 +420,75 @@ console reliably enough to attach one afterwards. A console that is **not
 installed** is a 409 rather than an empty answer: the download would land in a
 directory nothing scans, for a tile that is not on the grid.
 
-Unlike `catalog.py` above it starts nothing and holds no lock — a search is a
-question, not an action, so there is no busy state and no `catalog:done` to wait
-for. Nothing here downloads, writes, or remembers a request; acquisition and the
-job that survives a reboot are separate steps.
+A **search** starts nothing and holds no lock — it is a question, not an
+action, so there is no busy state and no `catalog:done` to wait for.
+
+#### The queue — three routes, and deliberately three
+
+Put one in, read them back, take one out. No route restarts a job, no route
+deletes a row and there is no "clear finished": each would be a second way to
+change a state that
+[`services/store/jobs.py`](../../backend/services/store/jobs.py) owns exactly
+one way of changing, and that is the shape step 7 already learned not to ship.
+
+```
+queued ──► running ──► done
+  │           ├──────► failed
+  │           └──────► cancelled
+  └──────────────────► cancelled
+```
+
+**Nothing downloads, and every job says so.** There is no `AcquisitionProvider`
+on this box and none ships — not even a plausible one — so a job that reaches
+the worker fails with *"no acquisition provider is configured on this box"*.
+That is the honest answer rather than a gap: a queue reporting `done` having
+fetched nothing would be a lie the player reads again after a reboot, because
+the row persists. The seam is `jobs.acquisition_provider()`, which answers
+`None`; the success path is exercised by a provider the tests inject, exactly as
+the Prowlarr client is exercised by an `httpx.MockTransport` that reaches no
+network. `downloadReady` travels with `GET /store/jobs` saying `false`, and the
+screen draws it.
+
+**Cancelling is a state, not a `DELETE`.** Hence `POST /jobs/{id}/cancel` and
+no `DELETE /jobs/{id}`. A queue whose cancel removed the row cannot tell "I
+changed my mind" from "I never asked", and the player looking at the empty list
+is the one who needed to know. The row keeps its reason and its timestamps.
+
+**The worker is one task, not a lock.** Same shape as `_current` in
+`catalog.py` above and for the same reason — two requests in one loop tick both
+see a lock unlocked. It differs in the one way that matters: `catalog.py` holds
+its state in a module variable that dies with the process, and a download
+cannot. A row left saying `running` by a hard stop is rewritten to `failed` by
+`resume_after_restart()` in the lifespan, before the API answers anything, and
+`store_queue` is a required boot step for exactly that reason
+([`services/boot.py`](../../backend/services/boot.py)). It is not re-queued:
+that would restart an acquisition nobody asked to restart, from a position
+nothing recorded.
+
+**What the client is not trusted for.** `POST /jobs` takes the search result
+the browser is looking at, because there is nothing to look an id up in — a
+search is a question asked of somebody else's indexer and nothing here
+remembers the answer. Two facts are therefore taken from the box and not from
+the request: **where it would land** (`system_for().roms_dir`, the one field
+that decides a directory) and **which provider found it** (checked against the
+one answering now, so a tab left open across a change of provider cannot queue
+a stale row — a 409, because the request was well formed when it was made).
+A filename that is a path is refused where the row is *created*, not where it
+is used: the materializer will join that name onto a directory, and a row
+sitting in the database since before that code existed is exactly the input
+nobody re-checks.
+
+**Nothing here writes into a ROM directory.**
+`backend/tests/test_store_jobs.py` compares the whole data tree path for path
+across a queue → run → cancel cycle, with a provider injected so the *success*
+path is walked too — the upstream half of the same guard is
+`test_searching_writes_nothing_anywhere` in `test_store_search.py`.
+
+Every transition is announced on the existing WebSocket as `store:jobs`,
+carrying the row that changed. The front end uses it as a signal and re-reads
+the list, for the reason `useCatalog` re-reads on `catalog:done`: a list
+assembled from events is a second source of truth and it is wrong for as long
+as the socket was down.
 
 ### `bios.py` (27 l.) — one row per system that needs a system file
 

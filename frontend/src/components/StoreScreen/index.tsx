@@ -20,21 +20,29 @@
  * this file's is the cursor, and therefore the two things the cursor touches —
  * the order of the list, and which button acts on the row under it.
  *
- * The Games tab is the same shape with a second module behind it:
+ * The Games tab is the same shape with two more modules behind it:
  * `useStoreSearch` in `lib/storeSearch.ts` owns the chosen console, the query
- * and what came back, and this file owns the cursor walking it. The tab is two
- * steps — pick a console, search inside it — and the order is not a menu
- * preference: the ingestion class of a download is a property of the pair
- * (system, incoming format) and the target directory is a property of the
- * system, so a result found without a console attached could be neither placed
- * nor classified (`docs/architecture/14-store-ingestion-matrix.md` §0, §1.3).
+ * and what came back; `useStoreJobs` in `lib/storeJobs.ts` owns the queue of
+ * what the player has asked for. This file owns the cursor walking all three
+ * lists. The search order is not a menu preference: the ingestion class of a
+ * download is a property of the pair (system, incoming format) and the target
+ * directory is a property of the system, so a result found without a console
+ * attached could be neither placed nor classified
+ * (`docs/architecture/14-store-ingestion-matrix.md` §0, §1.3).
+ *
+ * **Asking for a game now queues it, and queueing it does not download it.**
+ * The row is real and it is in the box's database, so it survives this screen
+ * and a reboot; what is not real yet is anything behind the worker that runs
+ * it, so every job ends `failed` saying so. `gamesDownloadReady` stays false
+ * and is what a view must read before it promises bytes.
  */
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { useStore } from '../../store'
-import { type CatalogEntry, type StoreSearchResult } from '../../api'
+import { type CatalogEntry, type StoreJob, type StoreSearchResult } from '../../api'
 import { onGp } from '../../hooks/useGamepad'
 import { useCatalog } from '../../lib/catalog'
+import { useStoreJobs } from '../../lib/storeJobs'
 import { useStoreSearch } from '../../lib/storeSearch'
 import { Overlay } from '../ui'
 import { VirtualKeyboard } from '../ui/VirtualKeyboard'
@@ -83,6 +91,16 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
   const [focusIdx, setFocusIdx] = useState(0)
   const [page, setPage] = useState(0)
   const [showSearch, setShowSearch] = useState(false)
+  /**
+   * Whether the queue is the thing on screen.
+   *
+   * Its own flag rather than derived from the search state like the other two
+   * phases, because it is not a step of the search: the queue is reachable
+   * with nothing searched for and with no console chosen, and closing it has
+   * to put the player back wherever they were rather than somewhere the
+   * search state happens to imply.
+   */
+  const [queueOpen, setQueueOpen] = useState(false)
 
   const screenRef = useRef(screen)
   const modalDepthRef = useRef(modalDepth)
@@ -111,8 +129,9 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
   const countRef = useRef(0)
   const pageCountRef = useRef(0)
   const tabRef = useRef(tab)
-  /** Whatever the cursor is walking — packs on one tab, results on the other. */
-  const itemsRef = useRef<(CatalogEntry | StoreSearchResult)[]>([])
+  /** Whatever the cursor is walking: packs on the Consoles tab, and on the
+   *  Games tab a console, a result or a queued job depending on the phase. */
+  const itemsRef = useRef<(CatalogEntry | StoreSearchResult | StoreJob)[]>([])
   /** The page shape, which is the results list's and not the grid's while the
    *  Games tab is showing results. Read live for the same reason as the rest:
    *  a burst of presses arrives before the render that changed them. */
@@ -165,6 +184,18 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
   searchRef.current = search
 
   /**
+   * The queue — what has already been asked for, and what became of it.
+   *
+   * A third module and not a third copy, on the same rule as the two above: a
+   * view may draw the rows and may not decide what a state means, which row
+   * can still be stopped, or what happens when one is. Mounted with the
+   * screen, so a player who never opens the Store never asks for the list.
+   */
+  const jobs = useStoreJobs()
+  const jobsRef = useRef(jobs)
+  jobsRef.current = jobs
+
+  /**
    * The on-screen keyboard counts as a modal while it is up.
    *
    * Same as the library's: the shell binds Options → Settings and Share →
@@ -208,9 +239,16 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
     [consoles],
   )
 
-  /** Which step of the Games tab the player is on — the console decides it,
-   *  so there is no second copy of it to fall out of step. */
-  const gamesPhase: StoreGamesPhase = search.system ? 'results' : 'systems'
+  /**
+   * Which step of the Games tab the player is on.
+   *
+   * One expression, so there is no second copy of it to fall out of step. The
+   * queue wins over both because it is drawn over whatever the player was
+   * doing and ○ puts them straight back on it — closing it restores the two
+   * search phases without either of them having been touched.
+   */
+  const gamesPhase: StoreGamesPhase =
+    queueOpen ? 'queue' : search.system ? 'results' : 'systems'
 
   /**
    * Which list the cursor is on, as one value.
@@ -233,10 +271,16 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
    * below read a count and a page size, and giving them three of each is how a
    * page turn on one list starts reading the length of another.
    */
-  const games = gamesPhase === 'results' ? search.results : gamesSystems
-  const items: (CatalogEntry | StoreSearchResult)[] = tab === 'consoles' ? consoles : games
-  const cols = tab === 'games' && gamesPhase === 'results' ? 1 : COLS
-  const rows = tab === 'games' && gamesPhase === 'results' ? RESULT_ROWS : ROWS
+  const games = gamesPhase === 'queue' ? jobs.jobs
+    : gamesPhase === 'results' ? search.results
+      : gamesSystems
+  const items: (CatalogEntry | StoreSearchResult | StoreJob)[] =
+    tab === 'consoles' ? consoles : games
+  // A queue row is a line of text like a result is, so it is paged the same
+  // way — one column of rows, not a 4 × 3 grid of truncated names.
+  const asRows = tab === 'games' && gamesPhase !== 'systems'
+  const cols = asRows ? 1 : COLS
+  const rows = asRows ? RESULT_ROWS : ROWS
   const perPage = cols * rows
   const totalItems = items.length
   const pageCount = Math.ceil(totalItems / perPage)
@@ -248,6 +292,7 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
   const pageItems = consoles.slice(consolePage * PER_PAGE, (consolePage + 1) * PER_PAGE)
   const gamesSystemsPage = gamesSystems.slice(page * perPage, (page + 1) * perPage)
   const gamesResultsPage = search.results.slice(page * perPage, (page + 1) * perPage)
+  const gamesJobsPage = jobs.jobs.slice(page * perPage, (page + 1) * perPage)
 
   // The live read the handlers take; see the declarations above.
   consolesRef.current = consoles
@@ -304,27 +349,38 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
   const omitActions = !!omit?.includes('actions')
 
   useEffect(() => {
-    const blocked = () =>
+    /**
+     * Nothing on this screen may act at all.
+     *
+     * Split from `blocked()` below when the asked-about panel gained an
+     * action. The panel takes the cursor out of play — it is a detail view
+     * over the list — but ✕ on it now means something, so "the cursor holds
+     * still" and "no button does anything" stopped being the same sentence
+     * and had to stop being the same function.
+     */
+    const closed = () =>
       screenRef.current !== 'store' ||
       modalDepthRef.current > 0 ||
       // The keyboard has its own d-pad and its own ✕. Without this the grid
       // underneath walks along with the letters, and ✕ picks a console while
       // the player is spelling a title.
       showSearchRef.current ||
-      // Same for the panel an asked-about result opens over the list: it is a
-      // detail view, so the cursor under it holds still and ○ is the way out.
-      // Without this, ✕ on it silently swaps it for whichever row the
-      // invisible cursor had moved to.
-      (tabRef.current === 'games' && !!searchRef.current.asked) ||
       useStore.getState().sessionGameKey !== null
+
+    const blocked = () =>
+      closed() ||
+      // The panel an asked-about result opens over the list is a detail view,
+      // so the cursor under it holds still and ○ is the way out. Without this,
+      // navigating on it silently moves the invisible cursor underneath.
+      (tabRef.current === 'games' && !!searchRef.current.asked)
 
     /** How many cards this page actually holds — the last one is usually short. */
     const held = () =>
       Math.max(0, Math.min(perPageRef.current,
                            countRef.current - pageRef.current * perPageRef.current))
 
-    /** Whatever the cursor is on: a pack on two of the three lists, a search
-     *  result on the third. */
+    /** Whatever the cursor is on: a pack on two of the four lists, a search
+     *  result on the third, a queued job on the fourth. */
     const focused = () =>
       itemsRef.current[pageRef.current * perPageRef.current + focusRef.current]
 
@@ -333,6 +389,26 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
      *  handlers return before this is reached. */
     const focusedPack = (): CatalogEntry | undefined =>
       tabRef.current === 'consoles' ? focused() as CatalogEntry | undefined : undefined
+
+    /**
+     * Queue what the asked-about panel is showing, then show the queue.
+     *
+     * Stepping to the queue is the point of the second half: the press wrote a
+     * row, and a screen that stayed on the panel would have given the player
+     * no evidence of it — which is exactly how the previous version of this
+     * button, the one that recorded a choice nothing acted on, came to read as
+     * a button that does nothing.
+     *
+     * The panel is put down whether or not the request succeeded, and the
+     * refusal is carried by `useStoreJobs` as `actionError`: the failures are
+     * "already in the queue" and "the queue is full", and both are answered by
+     * looking at the queue.
+     */
+    const queueAsked = async (result: StoreSearchResult) => {
+      const job = await jobsRef.current.queue(result)
+      searchRef.current.unask()
+      if (job) setQueueOpen(true)
+    }
 
     const navigate = (dir: 'up' | 'down' | 'left' | 'right') => {
       if (blocked()) return
@@ -421,8 +497,14 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
        */
       ...(omitActions ? [] : [
         onGp('gp:confirm', () => {
-          if (blocked()) return
+          if (closed()) return
           if (tabRef.current === 'games') {
+            // The asked-about panel first, because it is the one place the
+            // cursor is out of play and the button still means something:
+            // ✕ on it queues what the player is reading about.
+            const asked = searchRef.current.asked
+            if (asked) { void queueAsked(asked); return }
+            if (blocked()) return
             const row = focused()
             if (!row) return
             if (phaseRef.current === 'systems') {
@@ -431,11 +513,18 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
               // the keyboard opens with it rather than after another press.
               searchRef.current.choose(row as CatalogEntry)
               setShowSearch(true)
+            } else if (phaseRef.current === 'queue') {
+              // Stop it. A no-op on a finished row, decided by `useStoreJobs`
+              // rather than here: ✕ lands wherever the cursor happens to be,
+              // and a finished job answering 409 would be an error the player
+              // did not cause.
+              void jobsRef.current.cancel(row as StoreJob)
             } else {
               searchRef.current.ask(row as StoreSearchResult)
             }
             return
           }
+          if (blocked()) return
           const pack = focusedPack()
           if (pack) void catalogRef.current.act(pack)
         }),
@@ -446,6 +535,11 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
             // △ to its search for the same reason, and a player who has used
             // one has used the other.
             if (phaseRef.current === 'results') setShowSearch(true)
+            // And from the console list it opens the queue, which is the only
+            // free button left on this tab: ✕ picks and asks, ○ leaves, L1/R1
+            // walk the tabs, and □ is the shell's controller screen, bound
+            // with no guard at all.
+            else if (phaseRef.current === 'systems') setQueueOpen(true)
             return
           }
           const pack = focusedPack()
@@ -463,15 +557,20 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
        * where the player wants to be.
        *
        * It steps back through the Games tab before it leaves, which is the
-       * library's shape too: an asked result, then the console, then home.
-       * The exception the library also makes is the keyboard — it is on top,
-       * so ○ closes that first and the screen underneath does not move.
+       * library's shape too: the queue, then an asked result, then the
+       * console, then home. The exception the library also makes is the
+       * keyboard — it is on top, so ○ closes that first and the screen
+       * underneath does not move.
        */
       onGp('gp:back', () => {
         if (screenRef.current !== 'store') return
         if (showSearchRef.current) { setShowSearch(false); return }
         if (modalDepthRef.current > 0) return
         if (tabRef.current === 'games') {
+          // The queue is on top of everything, so it closes first — and it
+          // closes onto whatever was underneath, which is why it is its own
+          // flag rather than a state of the search.
+          if (phaseRef.current === 'queue') { setQueueOpen(false); return }
           if (searchRef.current.asked) { searchRef.current.unask(); return }
           if (phaseRef.current === 'results') { searchRef.current.leave(); return }
         }
@@ -524,7 +623,16 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
         gamesProvider={search.providerLabel}
         gamesRomsDir={search.romsDir}
         gamesAsked={search.asked}
-        gamesDownloadReady={false}
+        // Read from the backend rather than written here, and still false:
+        // a job is a real row that a worker really runs, but nothing is behind
+        // that worker, so no byte lands in a ROM directory. See the contract.
+        gamesDownloadReady={jobs.downloadReady}
+        gamesJobs={jobs.jobs}
+        gamesJobsPage={gamesJobsPage}
+        gamesJobsLive={jobs.liveCount}
+        gamesJobsError={jobs.error}
+        gamesQueueing={jobs.queueing}
+        gamesQueueError={jobs.actionError}
         onTab={setTab}
         onFocus={setFocusIdx}
         onPage={(p) => { setPage(p); setFocusIdx(0) }}
@@ -535,8 +643,17 @@ export default function StoreScreen({ view: View = DefaultStoreView, omit }: Pro
         onGamesSystem={(system) => { search.choose(system); setShowSearch(true) }}
         onGamesSearch={() => setShowSearch(true)}
         onGamesAsk={(result) => search.ask(result)}
+        onGamesQueue={(result) => {
+          void jobs.queue(result).then(job => {
+            search.unask()
+            if (job) setQueueOpen(true)
+          })
+        }}
+        onGamesQueueOpen={() => setQueueOpen(true)}
+        onGamesCancelJob={(job) => void jobs.cancel(job)}
         onGamesBack={() => {
-          if (search.asked) search.unask()
+          if (queueOpen) setQueueOpen(false)
+          else if (search.asked) search.unask()
           else if (search.system) search.leave()
         }}
       />

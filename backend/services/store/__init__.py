@@ -1,11 +1,18 @@
-"""The Store's own services — searching for a game, and nothing else yet.
+"""The Store's own services — searching for a game, and queueing one.
 
-This package is the backend half of the Store's Games tab. It is deliberately
-narrow: it answers *what could be downloaded for this console*, and stops
-there. Acquiring the bytes, turning them into a playable game, and the six
-ingestion classes that decides
+This package is the backend half of the Store's Games tab: it answers *what
+could be downloaded for this console*, and it writes down *that the player
+asked for one*. Turning bytes into a playable game — the six ingestion classes
+of
 ([`docs/architecture/14-store-ingestion-matrix.md`](../../../docs/architecture/14-store-ingestion-matrix.md)
-§5) are separate steps and no part of them is here.
+§5) — is a separate step and no part of it is here.
+
+`jobs.py` is the queue: one row per thing the player asked for, in the database
+the box already has, with the five states it may be in and the worker that runs
+them one at a time. **Nothing acquires anything yet** — there is no
+`AcquisitionProvider` and this package ships none, so a job that reaches the
+worker fails saying exactly that. A queue that reported success having
+downloaded nothing would be a lie that persists across a reboot.
 
 **Why searching lives in the backend at all**, when the browser could talk to
 an indexer itself: a search provider is configured with a URL and an API key,
@@ -20,6 +27,23 @@ key, which is what keeps a .NET service and a second LAN port off the box. A
 box with no `config/store-prowlarr.json` keeps the demo provider and its
 banner, so nothing here has to be configured for the tab to work.
 """
+from .jobs import (                                     # noqa: F401
+    CANCELLED,
+    DONE,
+    FAILED,
+    LIVE,
+    NO_PROVIDER,
+    QUEUED,
+    RUNNING,
+    STATES,
+    TERMINAL,
+    AcquisitionProvider,
+    IllegalTransition,
+    InvalidJob,
+    Job,
+    QueueRefused,
+    UnknownJob,
+)
 from .prowlarr import ProwlarrSearchProvider              # noqa: F401
 from .search import (                                     # noqa: F401
     NEVER_OFFERED,

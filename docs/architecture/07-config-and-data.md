@@ -335,7 +335,7 @@ is why. See also the open decision on Flatpak saves below.
 | `session.json` | `services/process_manager.py`, atomically | idem, at startup | no |
 | `auth.json`, `auth_secret` | `services/auth.py`, mode 0600 | idem | no |
 | `store-prowlarr.json` | by hand today, `services/store/prowlarr.py` mode 0600 | idem | no |
-| `playtime.db` | backend (SQLite) | backend | no |
+| `playtime.db` | backend (SQLite) — play history **and the Store's download queue** | backend | no |
 
 **The OTA rsync excludes `config/` entirely** — but "not in git" is *not* true of
 all of it, and the distinction matters when deciding whether overwriting a file
@@ -348,13 +348,41 @@ is data loss:
 - The **state** (`theme.json`, `addons.json`, `standby.json`, `session.json`,
   `auth.json`, `auth_secret`, `store-prowlarr.json`, `playtime.db`) is never in
   git and exists only on the box. That is its identity: credentials, installed
-  addons, play history, the selected theme. Treat overwriting one as data loss.
+  addons, play history, the download queue, the selected theme. Treat
+  overwriting one as data loss.
 
 The three files holding a **credential** — `auth.json`, `auth_secret` and
 `store-prowlarr.json` — are named one by one in `install/uninstall.sh` and
 deleted regardless of `--purge`. `config/` is otherwise kept, so a credential
 file nobody names survives a removal in silence; that is why the list is a list
 and why `backend/tests/test_store_secret_removal.py` pins it.
+
+> ### ⚠ What "otherwise kept" means for a history
+>
+> Stated here rather than discovered later, because two of the files above are
+> **records of what the owner did**, not settings: `playtime.db` holds the play
+> history and, since the Store's queue, also every game that was ever asked
+> for. Follow `install/uninstall.sh` through and that means:
+>
+> | Removal | What happens to `config/playtime.db` |
+> |---|---|
+> | `uninstall.sh` (default) | **kept** — `emu\|config\|assets\|lib) continue` |
+> | `uninstall.sh --purge`, one root | deleted with `$GC_PATH` |
+> | `uninstall.sh --purge`, **split roots** | **kept** — `--purge` deletes the install, and the script refuses to delete a data tree that is somebody's own filesystem; it names it and stops |
+> | OTA (`update/linux.sh`) | **kept** — the rsync excludes `config/` entirely |
+>
+> So a download history survives an uninstall on most boxes, exactly as the
+> play history always has. That is not new behaviour and it is not a defect —
+> it is what "`config/` is the box's identity" already meant — but a queue of
+> titles somebody searched for reads differently from a table of hours played,
+> and nobody should meet that fact for the first time while writing the
+> uninstaller's tests. An owner who wants it gone deletes the file, or passes
+> `--purge` on a box with one root.
+>
+> It is deliberately **not** added to the credential list above. Those three are
+> deleted unconditionally because leaving an argon2 hash or an API key behind is
+> unacceptable; a play history is the player's data, and a removal tool that
+> silently deleted the player's data would be the opposite mistake.
 
 Everything written here uses the tmp-file + `os.replace` pattern from
 `auth._write_private()`. `write_text()` truncates before it writes, so an
@@ -623,6 +651,65 @@ renaming a ROM resets its history.
 
 `get_db()` re-opens the handle if the cached connection has gone stale — a
 long-lived aiosqlite connection can die under the box's suspend cycles.
+
+### `store_jobs` — the Store's download queue
+
+Same file, same `init_db()`, same `CREATE TABLE IF NOT EXISTS`. One database
+and not two, because a second store — a JSON file of jobs beside it, or a
+`store.db` of its own — would be a second schema to migrate, a second handle to
+keep alive across the suspend cycles above, and a second answer to "is this
+file the player's data" for the uninstaller and the OTA rsync to disagree
+about.
+
+```sql
+CREATE TABLE store_jobs (
+    id          TEXT PRIMARY KEY,   -- uuid4().hex, minted per job
+    system_id   TEXT NOT NULL,
+    roms_dir    TEXT NOT NULL DEFAULT '',
+    title       TEXT NOT NULL,
+    filename    TEXT NOT NULL,
+    format      TEXT NOT NULL DEFAULT '',
+    size        INTEGER NOT NULL DEFAULT 0,
+    provider    TEXT NOT NULL,
+    source      TEXT NOT NULL,      -- the search provider's opaque locator
+    state       TEXT NOT NULL,      -- queued|running|done|failed|cancelled
+    reason      TEXT NOT NULL DEFAULT '',
+    queued_at   TEXT NOT NULL,
+    started_at  TEXT,
+    ended_at    TEXT
+);
+CREATE INDEX store_jobs_by_state ON store_jobs (state, queued_at);
+```
+
+**The migration is the `IF NOT EXISTS`, and that is the whole of it.** The table
+is new and purely additive, so a box updating into this release creates it on
+its first start and no existing row is read, rewritten or moved. Compare
+[`_widen_playtime_key`](../../backend/db.py) above, which is what a real shape
+change costs here — a new table, a copy, a drop and a rename inside a
+`SAVEPOINT` — and which this one deliberately does not need.
+
+**`roms_dir` is recorded and never written to.** It is `emu/<dir>` as the pack
+declared it at the moment the job was queued, which is what the box told the
+player it would do. Nothing in
+[`services/store/jobs.py`](../../backend/services/store/jobs.py) opens it;
+placing bytes where the library scan finds them is the materializer's job
+([14](14-store-ingestion-matrix.md) §5), and
+`backend/tests/test_store_jobs.py` compares the whole data tree path for path
+across a queue → run → cancel cycle to keep it that way.
+
+**`id` is not the search result's id.** A `SearchResult.id` is stable across
+identical searches by design, so reusing it would make a retry collide with the
+row that recorded the failure — and the failure would vanish at the moment
+somebody wanted to read it.
+
+**A `running` row is settled at startup, not trusted.** `resume_after_restart()`
+runs in the lifespan before the API answers anything, and rewrites every
+`running` row to `failed` with "the box stopped while this job was running". It
+is `failed` and not `queued` on purpose: re-queueing would restart an
+acquisition nobody asked to restart, from a position nothing recorded, and
+would erase the only evidence that the box stopped mid-download. Queued rows
+are left alone and picked up normally, which is what makes the queue survive a
+reboot at all. See [3 — `store.py`](03-backend-routers.md#storepy--searching-for-a-game-and-the-queue-of-what-was-asked-for).
 
 ---
 

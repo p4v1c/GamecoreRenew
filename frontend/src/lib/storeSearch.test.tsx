@@ -52,6 +52,9 @@ beforeEach(() => {
   vi.spyOn(api.store, 'provider').mockResolvedValue({
     name: 'demo', label: 'Demo results', live: false, systemFirst: true })
   vi.spyOn(api.store, 'search').mockResolvedValue(ANSWER)
+  // Spied so the test below can assert this module never reaches it. It is
+  // `useStoreJobs`'s, and one queue belongs to one module.
+  vi.spyOn(api.store, 'queue').mockRejectedValue(new Error('not this module'))
 })
 
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
@@ -197,24 +200,32 @@ describe('answers arriving out of order', () => {
 })
 
 describe('asking for a result', () => {
-  it('records the choice and downloads nothing', async () => {
-    // The whole of what asking means at this step. A call that answered
-    // "accepted" while nothing downloaded would be the button that does
-    // nothing, and a queue behind it is a later step with its own seam.
+  it('records the choice and queues nothing by itself', async () => {
+    // `ask` opens the panel and stops there. Queueing is a second press on a
+    // second module (`useStoreJobs`), so that the screen which says what a
+    // result *is* is not also the screen that acts on it without being asked.
     const s = await mount()
     act(() => s().choose(NES))
     await act(async () => { await s().run('zelda') })
 
     act(() => s().ask(s().results[1]))
     expect(s().asked?.id).toBe('b')
-    // A tripwire, on purpose: the client has no verb that downloads anything,
-    // so there is nothing `ask` could have called. The step that adds
-    // acquisition updates this line deliberately rather than discovering that
-    // a queue grew here by accident.
-    expect(Object.keys(api.store)).toEqual(['provider', 'search'])
+    expect(api.store.queue).not.toHaveBeenCalled()
 
     act(() => s().unask())
     expect(s().asked).toBeNull()
+  })
+
+  it('is the only part of the client this module reaches', async () => {
+    // The tripwire the previous step left here, updated deliberately rather
+    // than discovered: the queue verbs now exist, and they belong to
+    // `storeJobs.ts`. This module must not grow a second way to call them —
+    // two modules queueing is the drift `catalog.ts` was written from.
+    expect(Object.keys(api.store))
+      .toEqual(['provider', 'search', 'jobs', 'queue', 'cancel'])
+    const source = useStoreSearch.toString()
+    expect(source).not.toContain('queue')
+    expect(source).not.toContain('cancel')
   })
 
   it('puts it down when the console changes under it', async () => {

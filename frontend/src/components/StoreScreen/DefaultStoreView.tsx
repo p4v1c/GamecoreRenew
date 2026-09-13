@@ -6,7 +6,8 @@
  * is exactly the seam a theme replaces: same behaviour, different UI.
  */
 import { useState, useEffect, useRef } from 'react'
-import type { CatalogEntry, StoreSearchResult } from '../../api'
+import type { CatalogEntry, StoreJob, StoreSearchResult } from '../../api'
+import { JOB_STATE_LABELS, isLive } from '../../lib/storeJobs'
 import { formatSize } from '../../lib/storeSearch'
 import type { StoreViewProps } from './types'
 
@@ -137,11 +138,13 @@ function RunLog({ lines }: { lines: string[] }) {
 /**
  * A sentence the tab says instead of drawing a list it does not have.
  *
- * Every empty state on this tab goes through here, because there are four of
- * them and they are four different facts: no console installed, nothing
- * searched for yet, nothing matched, and the search failed. Drawing one grid
- * of nothing for all four would tell a player their query matched nothing when
- * the truth was that the box could not reach the provider.
+ * Every empty state on this tab goes through here, because there are six of
+ * them and they are six different facts: no console installed, nothing
+ * searched for yet, nothing matched, the search failed, nothing has been asked
+ * for, and the queue could not be read. Drawing one grid of nothing for all of
+ * them would tell a player their query matched nothing when the truth was that
+ * the box could not reach the provider — or that they have never queued
+ * anything when the truth is that the queue would not answer.
  */
 function Nothing({ glyph, title, children }: {
   glyph: string; title: string; children?: React.ReactNode
@@ -274,16 +277,19 @@ function ResultRow({ result, focused, onClick }: {
 }
 
 /**
- * What one result is, and what asking for it does — which is not download it.
+ * What one result is, and what asking for it now does — which is queue it.
  *
- * The panel exists because ✕ has to do *something* real, and this is the real
- * thing there is to do: say what the file is, where on this box it would have
- * to land, and plainly that nothing has been queued. A Download button over a
- * call that downloads nothing would be the button that does nothing, which is
- * the failure the old "not here yet" empty state was written to avoid.
+ * The panel used to end by saying that nothing had been queued, because
+ * nothing had: ✕ recorded a choice in component state that died with the
+ * screen. It now writes a row to the box's database, and the paragraph at the
+ * bottom changed with it — it says what the row will do, which is fail, and
+ * why. That is a different sentence from the one it replaced and it has to
+ * stay as exact: "queued" and "downloaded" are not the same promise, and this
+ * is the screen where a player learns which one they are getting.
  */
-function AskedPanel({ result, romsDir, downloadReady }: {
+function AskedPanel({ result, romsDir, downloadReady, queueing, error }: {
   result: StoreSearchResult; romsDir: string; downloadReady: boolean
+  queueing: boolean; error: string
 }) {
   const line = (k: string, v: string) => (
     <div style={{ display: 'flex', gap: 12, fontSize: 12.5, minWidth: 0 }}>
@@ -316,6 +322,9 @@ function AskedPanel({ result, romsDir, downloadReady }: {
         {romsDir && line('Would land in', `${romsDir}/`)}
         {line('Found by', result.provider)}
       </div>
+      {error && (
+        <div style={{ color: DANGER, fontSize: 12.5, lineHeight: 1.5 }}>{error}</div>
+      )}
       {!downloadReady && (
         <div style={{
           marginTop: 'auto', padding: '10px 12px', borderRadius: 8,
@@ -324,13 +333,151 @@ function AskedPanel({ result, romsDir, downloadReady }: {
           border: '1px solid rgba(255,255,255,0.12)',
           color: 'rgba(255,255,255,0.62)',
         }}>
-          <strong style={{ color: 'rgba(255,255,255,0.85)' }}>Nothing has been
-          downloaded or queued.</strong> Bringing a game onto the box is a
-          separate step and it is not built yet — there is no queue behind this
-          screen, so nothing is waiting and nothing resumes after a reboot.
+          <strong style={{ color: 'rgba(255,255,255,0.85)' }}>✕ puts this in the
+          queue. It will not download.</strong> The queue is real — it is
+          written down, it survives a reboot, and you can see what happened to
+          it — but there is nothing behind it yet that can fetch a game, so this
+          job will end as failed, saying so. Nothing is written into your ROM
+          folder either way.
         </div>
       )}
+      {queueing && (
+        <div style={{ fontSize: 12.5, color: BRIGHT }}>Queueing…</div>
+      )}
     </div>
+  )
+}
+
+/**
+ * One job — what was asked for, and what became of it.
+ *
+ * The state is a chip and the reason is a line under it, because the reason is
+ * the half a player can act on: "no acquisition provider is configured on this
+ * box" and "the box stopped while this job was running" are two different
+ * failures and a row that only said FAILED would make them one.
+ */
+const JOB_TINT: Record<string, string> = {
+  queued: 'rgba(255,255,255,0.45)',
+  running: BRIGHT,
+  done: '#4ade80',
+  failed: DANGER,
+  cancelled: 'rgba(255,255,255,0.35)',
+}
+
+function JobRow({ job, focused, onClick }: {
+  job: StoreJob; focused: boolean; onClick: () => void
+}) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12, padding: '9px 14px',
+        borderRadius: 10, minWidth: 0,
+        // A finished row has nothing to press: ✕ on it is a no-op, so the
+        // pointer must not say otherwise.
+        cursor: isLive(job) ? 'pointer' : 'default',
+        background: focused ? 'rgba(124,58,237,0.16)' : 'rgba(255,255,255,0.035)',
+        border: `1px solid ${focused ? 'rgba(124,58,237,0.55)' : 'transparent'}`,
+        transition: 'background 120ms ease, border-color 120ms ease',
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontWeight: 700, fontSize: 13.5, overflow: 'hidden',
+          textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{job.title}</div>
+        <div style={{
+          fontSize: 11, color: 'rgba(255,255,255,0.38)', marginTop: 2,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{job.reason || job.filename}</div>
+      </div>
+      <span style={{
+        fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', flexShrink: 0,
+        color: JOB_TINT[job.state] ?? 'rgba(255,255,255,0.45)',
+      }}>{JOB_STATE_LABELS[job.state] ?? job.state.toUpperCase()}</span>
+      <span style={{
+        fontSize: 12, color: 'rgba(255,255,255,0.55)', flexShrink: 0,
+        minWidth: 62, textAlign: 'right', fontVariantNumeric: 'tabular-nums',
+      }}>{formatSize(job.size)}</span>
+    </div>
+  )
+}
+
+/**
+ * The queue — everything asked for, and what became of it.
+ *
+ * Finished rows stay. A download that failed at three in the morning is only
+ * ever read about afterwards, and a list that emptied itself on completion
+ * would be a list that never explains anything.
+ */
+function QueueView(p: StoreViewProps) {
+  return (
+    <>
+      <div style={{
+        marginTop: 16, flexShrink: 0, display: 'flex', alignItems: 'baseline',
+        gap: 10, fontSize: 12.5, color: 'rgba(255,255,255,0.4)',
+      }}>
+        <span style={{ color: BRIGHT, fontWeight: 700 }}>Queue</span>
+        <div style={{ flex: 1 }} />
+        {p.gamesJobs.length > 0 && (
+          <span>{p.gamesJobsLive} waiting of {p.gamesJobs.length}</span>
+        )}
+      </div>
+
+      {/* The same rule as the results banner above it: a queue that drew like
+          a download in progress would promise bytes nothing here can deliver,
+          and the promise would still be on screen after a reboot. */}
+      {!p.gamesDownloadReady && (
+        <div style={{
+          flexShrink: 0, marginTop: 12, padding: '7px 12px', borderRadius: 8,
+          fontSize: 11.5, lineHeight: 1.45,
+          background: 'rgba(250,204,21,0.10)',
+          border: '1px solid rgba(250,204,21,0.35)', color: '#fde68a',
+        }}>
+          <strong>Nothing here downloads yet.</strong> These jobs are written
+          down and they survive a reboot, but there is no provider behind them
+          to fetch a game — so each one ends as failed and says why. No file is
+          written into any ROM folder.
+        </div>
+      )}
+
+      {p.gamesQueueError && (
+        <div style={{ color: DANGER, fontSize: 12, marginTop: 10, flexShrink: 0 }}>
+          {p.gamesQueueError}
+        </div>
+      )}
+
+      {/* Told apart from an empty queue, which is not an error: one is the box
+          failing and the other is a player who has not asked for anything. */}
+      {p.gamesJobsError && (
+        <Nothing glyph="⚠" title={p.gamesJobsError}>
+          Press ○ to go back and try again.
+        </Nothing>
+      )}
+
+      {!p.gamesJobsError && p.gamesJobs.length === 0 && (
+        <Nothing glyph="◌" title="Nothing asked for yet">
+          Pick a console, search it, and press ✕ on a result to put it here.
+        </Nothing>
+      )}
+
+      {!p.gamesJobsError && p.gamesJobsPage.length > 0 && (
+        <div style={{
+          flex: 1, minHeight: 0, marginTop: 12,
+          display: 'flex', flexDirection: 'column', gap: 7,
+          alignContent: 'start',
+        }}>
+          {p.gamesJobsPage.map((job, i) => (
+            <JobRow
+              key={job.id}
+              job={job}
+              focused={i === p.focusIdx}
+              onClick={() => { p.onFocus(i); p.onGamesCancelJob(job) }}
+            />
+          ))}
+        </div>
+      )}
+    </>
   )
 }
 
@@ -344,6 +491,12 @@ function AskedPanel({ result, romsDir, downloadReady }: {
  * nor classified. See docs/architecture/14-store-ingestion-matrix.md §0.
  */
 function GamesTab(p: StoreViewProps) {
+  // The queue first, and before the no-console check below it: what has
+  // already been asked for is still worth reading on a box whose last console
+  // has just been removed, and a player who pressed △ must not land on a
+  // sentence about installing something.
+  if (p.gamesPhase === 'queue') return <QueueView {...p} />
+
   if (p.gamesSystems.length === 0) {
     return (
       <Nothing glyph="◌" title="No console to search yet">
@@ -358,10 +511,20 @@ function GamesTab(p: StoreViewProps) {
     return (
       <>
         <div style={{
-          marginTop: 16, flexShrink: 0, fontSize: 12.5,
-          color: 'rgba(255,255,255,0.4)',
+          marginTop: 16, flexShrink: 0, display: 'flex', alignItems: 'baseline',
+          gap: 10, fontSize: 12.5, color: 'rgba(255,255,255,0.4)',
         }}>
-          Which console are you looking for a game for?
+          <span>Which console are you looking for a game for?</span>
+          <div style={{ flex: 1 }} />
+          {/* The way in to the queue for a pointer, and the count that makes
+              △ worth pressing. Drawn whenever anything has ever been asked
+              for, not only while something is live: the finished rows are the
+              half a player comes back to read. */}
+          {p.gamesJobs.length > 0 && (
+            <span onClick={p.onGamesQueueOpen} style={{ cursor: 'pointer', color: BRIGHT }}>
+              △ queue ({p.gamesJobsLive || p.gamesJobs.length})
+            </span>
+          )}
         </div>
         <div style={{
           flex: 1, minHeight: 0, marginTop: 12,
@@ -388,6 +551,8 @@ function GamesTab(p: StoreViewProps) {
         result={p.gamesAsked}
         romsDir={p.gamesRomsDir}
         downloadReady={p.gamesDownloadReady}
+        queueing={p.gamesQueueing}
+        error={p.gamesQueueError}
       />
     )
   }
@@ -603,16 +768,17 @@ export default function DefaultStoreView(p: StoreViewProps) {
         {/* The Games tab's hint follows its step, because the same two buttons
             mean three different things across them and a bar that said one of
             them everywhere would be wrong twice. */}
-        {tab === 'games' && p.gamesSystems.length > 0 && (
+        {tab === 'games' && (p.gamesSystems.length > 0 || p.gamesPhase === 'queue') && (
           <span>
-            {p.gamesPhase === 'systems' ? '✕ search this console'
-              : p.gamesAsked ? '○ back to the results'
-                : '✕ what is this · △ search again'}
+            {p.gamesPhase === 'queue' ? '✕ stop a waiting job · ○ back'
+              : p.gamesPhase === 'systems' ? '✕ search this console · △ the queue'
+                : p.gamesAsked ? '✕ put it in the queue · ○ back to the results'
+                  : '✕ what is this · △ search again'}
           </span>
         )}
         {/* ○ steps back through the Games tab before it leaves the screen, so
             the pointer affordance has to do the same or the two disagree. */}
-        {tab === 'games' && (p.gamesAsked || p.gamesSystem)
+        {tab === 'games' && (p.gamesPhase === 'queue' || p.gamesAsked || p.gamesSystem)
           ? <span onClick={p.onGamesBack} style={{ cursor: 'pointer' }}>○ Back</span>
           : <span onClick={onBack} style={{ cursor: 'pointer' }}>○ Back</span>}
         <div style={{ flex: 1 }} />

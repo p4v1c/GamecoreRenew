@@ -33,8 +33,9 @@ keep a theme from breaking the launcher:
 | **Views** | `HomeScreen/DefaultHomeView.tsx`, `LibraryScreen/DefaultLibraryView.tsx`, `StoreScreen/DefaultStoreView.tsx` | markup only. |
 
 The view seam is the important one. `HomeScreen`, `LibraryScreen` and
-`StoreScreen` keep every decision — paging, focus, sorting, search, tabs,
-launching, the d-pad bindings — and hand a plain props object to a view
+`StoreScreen` keep every decision — paging, focus, sorting, search, tabs, the
+download queue, launching, the d-pad bindings — and hand a plain props object
+to a view
 component (`HomeScreen/types.ts`, `LibraryScreen/types.ts`,
 `StoreScreen/types.ts`). A theme supplies `homeView` / `libraryView` /
 `storeView` and nothing else, so **a themed screen cannot behave differently
@@ -91,9 +92,9 @@ opened from a themed box.
 | | |
 |---|---|
 | **route in** | △ on the dashboard, bound in `DefaultShell` beside ⚙ and ⏻ — a destination's route belongs with the other destinations'. Plus a Store button on the default top bar, and `sdk.nav.goStore()` for a theme's own way in |
-| **route out** | ○, owned by `StoreScreen` and never droppable |
+| **route out** | ○, owned by `StoreScreen` and never droppable. It steps back through the Games tab first: the queue, then an asked-about result, then the console, then home |
 | **tabs** | L1/R1. The dashboard spends those on paging and this screen cannot: the two tabs are its whole shape. Paging is the d-pad's edges, which already turn the page on the dashboard too |
-| **data** | `GET /api/catalog`, filtered to `kind: 'emulator'` and ordered A–Z by label. One catalogue, one endpoint — see [`10-catalog-and-install.md`](10-catalog-and-install.md). The Games tab adds `GET /api/store/search` |
+| **data** | `GET /api/catalog`, filtered to `kind: 'emulator'` and ordered A–Z by label. One catalogue, one endpoint — see [`10-catalog-and-install.md`](10-catalog-and-install.md). The Games tab adds `GET /api/store/search` and the three `/api/store/jobs` routes, plus the `store:jobs` socket event |
 | **actions** | ✕ installs, ✕ again removes (armed first), △ reconfigures. All three through `useCatalog`, never through this screen's own code. On the Games tab the same buttons mean that tab's own steps — ✕ picks a console then asks about a result, △ opens the keyboard — and none of them goes near `useCatalog` |
 
 **Mounted only while it is open**, which is the one place the shell departs from
@@ -175,13 +176,73 @@ configured with an indexer's URL and its API key, and a key that reaches the
 browser is a key in the page source and in the devtools of a television nobody
 logs out of. The frontend never learns how an answer was obtained.
 
-**What it does not do yet.** Downloading. `gamesDownloadReady` is `false` in the
-view props, the only provider is the demo one that invents its rows (and says so
-on screen — `gamesLive` is `false`), and asking about a result records a choice
-and queues nothing. Acquiring the bytes, the job that survives a reboot, and
-what a downloaded game has to *become* — six ingestion classes wide, see
-[`14-store-ingestion-matrix.md`](14-store-ingestion-matrix.md) §5 — arrive in
-their own steps.
+### One queue logic — `frontend/src/lib/storeJobs.ts`
+
+`useStoreJobs()` owns the list of what the player has already asked for, the
+two things that can be done to it, and the five words a state goes by. Third
+module beside `useCatalog` and `useStoreSearch`, and a module for the same
+reason: a theme may draw the rows and may not decide what a state means, which
+row can still be stopped, or what happens when one is.
+
+A job is a **row in the box's database**, not a variable. It outlives this
+screen, the tab, and the box being switched off — and a job the backend was
+killed in the middle of comes back saying so rather than saying it is still
+running. See
+[7 — `store_jobs`](07-config-and-data.md#store_jobs--the-stores-download-queue)
+for the table and what living under `config/` means the day somebody uninstalls
+GameCore.
+
+| it decides | so that a view cannot |
+|---|---|
+| `TERMINAL_STATES` / `isLive(job)` | offer ✕ on a finished row — the backend would answer 409, and ✕ lands wherever the cursor happens to be |
+| `JOB_STATE_LABELS` | draw `cancelled` and `failed` as the same thing. They are two different things that happened |
+| `actionError` | swallow the box's own sentence. "already in the queue", "the queue is full", "not an installed console" — `api.store.queue` uses the POST that keeps FastAPI's `detail`, because "409 Conflict" on a television is a dead end |
+| re-reading on `store:jobs` | assemble the list from socket events, which is a second source of truth and wrong for as long as the socket was down |
+
+**There is no retry.** A finished job is a record of what happened; asking again
+queues the result again — a new row. No endpoint restarts a job, and adding one
+would be a second way to change a state the backend owns exactly one way of
+changing.
+
+### Where the search runs, and why not here
+
+In the backend, behind `GET /api/store/search`
+([`backend/routers/store.py`](../../backend/routers/store.py)). A provider is
+configured with an indexer's URL and its API key, and a key that reaches the
+browser is a key in the page source and in the devtools of a television nobody
+logs out of. The frontend never learns how an answer was obtained.
+
+### Asking queues. Queueing does not download.
+
+Two promises, and the screen has to keep them apart — this is where a player
+learns which one they are getting.
+
+- ✕ on the asked-about panel writes a **real, persistent row** and a worker
+  really picks it up. The screen steps to the queue so the press that created
+  it shows it.
+- **`gamesDownloadReady` is still `false`**, and it is not the same flag. It
+  promises *bytes in a ROM directory*, and nothing behind the worker can fetch a
+  game yet — every job ends `failed` with "no acquisition provider is configured
+  on this box". Both the asked panel and the queue say so out loud, on the same
+  rule as the banner over the demo provider's invented rows: a screen that looks
+  like something it is not is worse than an honest empty one, and unlike that
+  banner this lie would still be there after a reboot.
+
+`gamesDownloadReady` is read from the backend rather than written in the screen,
+so a view built today is already right the day it turns true. What a downloaded
+game has to *become* — six ingestion classes wide, see
+[`14-store-ingestion-matrix.md`](14-store-ingestion-matrix.md) §5 — and the
+materializer that places it arrive in their own steps.
+
+### The Games tab's third place
+
+`StoreGamesPhase` is `'systems' | 'results' | 'queue'`. The first two are the
+steps of a search, in that order and for the reasons above. The third is not a
+step of that sequence but somewhere the player goes: △ from the console list
+opens it — the only free button left on the tab, since ✕ picks and asks, ○
+leaves, L1/R1 walk the tabs and □ is the shell's controller screen, bound with
+no guard at all. It is its own flag rather than a state of the search, which is
+what lets a player check the queue mid-search and come back to their results.
 
 ## The gamepad event bus — `hooks/useGamepad.ts`
 
@@ -276,9 +337,9 @@ and returns an unsubscribe.
 | `components/LibraryScreen/types.ts` | 66 | `LibraryViewProps`, `SORT_KEYS`, `SORT_LABELS` |
 | `components/LibraryScreen/CoverImage.tsx` | 57 | cover art + missing-art fallback; handed to the view. Optional `type` prop draws any media type (`box-3d`, `clear-logo`, `screenshot-gameplay`…) — omitted, it is the jacket from `/api/covers`, byte for byte what it always was |
 | `components/LibraryScreen/GameMetaPanel.tsx` | 40 | year/genres/players; handed to the view |
-| `components/StoreScreen/index.tsx` | 565 | **behaviour**: the two tabs, the 4×3 grid (`COLS`, `ROWS`), the 1-column results page (`RESULT_ROWS`), paging, focus, the Games tab's two phases, the search keyboard, the bindings |
-| `components/StoreScreen/DefaultStoreView.tsx` | 607 | **markup** of the default Store; `PackMark` falls back to the pack's colour, `Nothing` draws the tab's four different empty states |
-| `components/StoreScreen/types.ts` | 233 | `StoreViewProps`, `STORE_TABS`, `STORE_TAB_LABELS`, `StoreGamesPhase` |
+| `components/StoreScreen/index.tsx` | ~640 | **behaviour**: the two tabs, the 4×3 grid (`COLS`, `ROWS`), the 1-column results and queue pages (`RESULT_ROWS`), paging, focus, the Games tab's three phases, the search keyboard, the bindings |
+| `components/StoreScreen/DefaultStoreView.tsx` | ~800 | **markup** of the default Store; `PackMark` falls back to the pack's colour, `Nothing` draws the tab's several different empty states, `JobRow`/`QueueView` draw the queue |
+| `components/StoreScreen/types.ts` | ~290 | `StoreViewProps`, `STORE_TABS`, `STORE_TAB_LABELS`, `StoreGamesPhase` |
 | `components/TopBar/index.tsx` | 134 | clock, IP, storage, `ControllerBattery`, `TBtn` |
 | `components/Screensaver.tsx` | 136 | standby slideshow, `ROTATE_MS = 9000` |
 | `components/OverlayScreen/index.tsx` | 109 | what the transparent Electron overlay window renders |
@@ -359,6 +420,7 @@ rim to move against — without it the cap looks like it is floating.
 | `formatGameName.ts` | `formatGameName(raw)` — strips trailing region and language-sequence noise (`REGION_RE`, `LANG_SEQ_RE`) |
 | `catalog.ts` | `useCatalog({ kind, onDone })`, `CATALOG_FAILED` — the one catalogue logic, consumed by the Store's Consoles tab and both applications pages |
 | `storeSearch.ts` | `useStoreSearch()`, `SEARCH_FAILED`, `formatSize(bytes)` — the one game-search logic: the chosen console, the query, the request, the asked-about result. `formatSize` is here and not in `format.ts` because that file is `sdk.format`, and growing it is an SDK version bump |
+| `storeJobs.ts` | `useStoreJobs()`, `isLive(job)`, `JOB_STATE_LABELS`, `TERMINAL_STATES`, `QUEUE_FAILED` — the one download-queue logic: the list, queueing, cancelling, and what a state is called. Queueing is not downloading; see above |
 
 ## `api/index.ts`
 

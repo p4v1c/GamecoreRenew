@@ -260,6 +260,67 @@ export interface StoreSearchAnswer {
   results: StoreSearchResult[]
 }
 
+/**
+ * One thing the player has asked the box to bring in.
+ *
+ * A row in `<DATA>/config/playtime.db`, not a variable: the request outlives
+ * the screen it was made on, the box may be turned off in the middle of it,
+ * and a queue that forgot on a reboot would be a queue that cannot be trusted
+ * with a download that takes an hour. See `backend/services/store/jobs.py`.
+ *
+ * `source` — the provider's own locator — is deliberately not here. The screen
+ * draws a title, a state and a reason; the locator belongs to the indexer, and
+ * a queue row is already queued.
+ */
+export interface StoreJob {
+  id: string
+  systemId: string
+  /** `emu/<dir>` relative to the data root — where this would land, as the box
+   *  answered when it was queued. Recorded; nothing has written there. */
+  romsDir: string
+  title: string
+  filename: string
+  format: string
+  size: number
+  provider: string
+  state: StoreJobState
+  /**
+   * Why it is in that state, when there is a why: the acquisition failure, the
+   * interruption, the cancellation. Empty otherwise. **Draw it** — a failed row
+   * with no reason is a box that will not say what went wrong.
+   */
+  reason: string
+  queuedAt: string
+  /** Empty until the worker picks it up. */
+  startedAt: string
+  /** Empty until it stops, whichever way it stopped. */
+  endedAt: string
+}
+
+/**
+ * The five states a job moves between, and the only ones it ever has.
+ *
+ * `cancelled` is one of them rather than a deleted row: a queue whose cancel
+ * removed the line cannot tell "I changed my mind" from "I never asked", and
+ * the player looking at the empty list is the one who needed to know.
+ */
+export type StoreJobState = 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
+
+export interface StoreJobsAnswer {
+  /** Every job, newest first — finished ones included. A download that failed
+   *  at three in the morning is only ever read about afterwards. */
+  jobs: StoreJob[]
+  /**
+   * Whether a finished job means bytes in a ROM directory.
+   *
+   * `false` for the whole of this step, and sent rather than inferred: nothing
+   * acquires anything yet, so every job fails with a true reason. A screen that
+   * drew this queue as a download in progress would be promising what no code
+   * on this box can deliver.
+   */
+  downloadReady: boolean
+}
+
 export interface StoreProviderInfo {
   name: string
   label: string
@@ -506,6 +567,32 @@ export const api = {
     provider: () => get<StoreProviderInfo>('/store/provider'),
     search: (systemId: string, q: string) => get<StoreSearchAnswer>(
       `/store/search?system=${encodeURIComponent(systemId)}&q=${encodeURIComponent(q)}`),
+    /**
+     * The queue — put one in, read them back, take one out. Three calls and
+     * deliberately three: nothing restarts a job and nothing deletes a row,
+     * because both would be a second way to change a state the backend owns
+     * exactly one way of changing.
+     *
+     * `queue` hands the whole result back rather than an id, because there is
+     * nothing to look an id up in: a search is a question asked of somebody
+     * else's indexer and nothing remembers the answer. The backend refuses
+     * what it will not store and fills in where it would land itself.
+     *
+     * `cancel` is a POST onto the job and not a DELETE of it, for the reason
+     * `StoreJobState` gives.
+     */
+    jobs: () => get<StoreJobsAnswer>('/store/jobs'),
+    // `postDetailed`, not `post`: every refusal here carries the only
+    // actionable half of itself in FastAPI's `detail` — already in the queue,
+    // the queue is full, that console is not installed, that result came from
+    // a provider this box no longer uses. "409 Conflict" on a television is a
+    // dead end.
+    queue: (r: StoreSearchResult) => postDetailed<StoreJob>('/store/jobs', {
+      systemId: r.systemId, title: r.title, filename: r.filename,
+      source: r.source, provider: r.provider, format: r.format, size: r.size,
+    }),
+    cancel: (jobId: string) =>
+      postDetailed<StoreJob>(`/store/jobs/${encodeURIComponent(jobId)}/cancel`),
   },
   standby: {
     get: () => get<{ state: string; enabled: boolean; screensaver_mins: number; sleep_mins: number }>('/standby'),
