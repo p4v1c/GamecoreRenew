@@ -95,6 +95,14 @@ def test_an_incomplete_class_e_names_the_missing_track(work):
     assert "incomplete class E" in verdict.reason
 
 
+def test_a_dreamcast_archive_is_a_complete_set_or_names_its_missing_track(work):
+    archive(work, "Game.zip", {"Game.cue": b'FILE "Game.bin" BINARY\n'})
+    verdict = classify("dreamcast")
+    assert verdict.ingestion_class == "E"
+    assert verdict.complete is False
+    assert "Game.bin" in verdict.reason
+
+
 def test_a_loose_file_cannot_satisfy_class_f(work):
     (work / "PS3 release.pkg").write_bytes(b"not a game tree")
     verdict = classify("rpcs3")

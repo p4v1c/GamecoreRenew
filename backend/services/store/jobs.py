@@ -269,8 +269,19 @@ class Job:
 
 
 @dataclass(frozen=True)
+class AcquiredFile:
+    """One member of an acquired release, still represented only in memory."""
+
+    url: str
+    #: POSIX path relative to the release root.  It is validated again by the
+    #: materializer before it is allowed to name anything on disk.
+    path: str
+    size: int
+
+
+@dataclass(frozen=True, init=False)
 class AcquiredTarget:
-    """What acquiring a job produces: one thing that can be fetched.
+    """What acquiring a job produces: one release, possibly with many files.
 
     **Acquisition resolves; it does not download.** The previous shape of this
     contract said "bring this job's bytes in" and returned nothing, and that
@@ -287,32 +298,73 @@ class AcquiredTarget:
     also what keeps this step honest about writing nothing: a resolver has
     nowhere to put bytes even by accident.
 
+    ``files`` has a stable order after the provider has matched every returned
+    link to its selected filename. A relative path is retained for every
+    member: class E later flattens a descriptor set, while class F must keep
+    its internal tree.
+    Acquisition does not decide either shape; it merely transports enough
+    information for inspection to decide it from the bytes.
+
     The fields are what fetching and *checking* one needs, and no more:
 
-      · `url` is a direct HTTPS URL, already unrestricted, ready for a plain
+      · each member's `url` is a direct HTTPS URL, already unrestricted, ready for a plain
         `GET`. It is **not** shown to the player and not sent to the browser —
         it is credentialed by construction (it is minted against the box
         owner's debrid account) and it is short-lived;
-      · `size` is the completeness check the materializer can apply. The
+      · each member's `size` is the completeness check the materializer can apply. The
         `info_hash` identifies the torrent for acquisition, but is not a file
         checksum (it hashes torrent metadata and piece hashes), so content
         validation cannot compare the downloaded file to it. `0` and `""` are
         honest answers where the service does not say, not defaults to trust;
-      · `filename` is what the source calls it. The materializer decides what
+      · each member's `path` is what the source calls it. The materializer decides what
         it lands as — matrix §1.3 — and does not take a name from here
         unchecked.
     """
 
-    url: str
-    filename: str
-    #: Bytes, as the acquisition service reports them. `0` when it does not
-    #: say — never a guess, and never the size the indexer claimed.
-    size: int
+    files: tuple[AcquiredFile, ...]
     #: 40 lowercase hex, when the target came from a torrent. `""` otherwise.
     info_hash: str
     #: Which provider minted it, for the log line and for a materializer that
     #: one day has to treat two of them differently.
     provider: str
+
+    def __init__(self, url: str | None = None, filename: str | None = None,
+                 size: int | None = None, info_hash: str = "",
+                 provider: str = "", *,
+                 files: tuple[AcquiredFile, ...] | None = None):
+        """Build a release; accept the old spelling for one-file providers.
+
+        Keeping this compatibility costs no ambiguity: the singular spelling
+        can describe exactly one member and every consumer uses ``files``.
+        It lets third-party acquisition providers migrate without making an
+        otherwise unrelated Store update a flag day.
+        """
+        if files is None:
+            if url is None or filename is None or size is None:
+                raise TypeError("an acquired target needs files")
+            files = (AcquiredFile(url=url, path=filename, size=size),)
+        if not files:
+            raise ValueError("an acquired target needs at least one file")
+        object.__setattr__(self, "files", tuple(files))
+        object.__setattr__(self, "info_hash", info_hash)
+        object.__setattr__(self, "provider", provider)
+
+    @property
+    def url(self) -> str:
+        """Compatibility view for a one-file provider."""
+        if len(self.files) != 1:
+            raise ValueError("a multi-file acquired target has no single URL")
+        return self.files[0].url
+
+    @property
+    def filename(self) -> str:
+        if len(self.files) != 1:
+            raise ValueError("a multi-file acquired target has no single filename")
+        return self.files[0].path
+
+    @property
+    def size(self) -> int:
+        return sum(member.size for member in self.files)
 
     def redacted(self) -> str:
         """The target, for a log line — never the URL.
@@ -322,7 +374,9 @@ class AcquiredTarget:
         journal, no exception and no job reason, so this is the only spelling
         of an `AcquiredTarget` that is safe to print.
         """
-        return (f"{self.provider}:{self.filename} "
+        label = self.files[0].path if len(self.files) == 1 \
+            else f"{len(self.files)} files"
+        return (f"{self.provider}:{label} "
                 f"({self.size} bytes, {self.info_hash or 'no hash'})")
 
 

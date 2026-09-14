@@ -166,6 +166,31 @@ def test_disk_space_is_checked_before_the_request_or_job_directory(tmp_path, mon
     asyncio.run(scenario())
 
 
+def test_a_release_is_priced_as_a_whole_before_its_first_request(tmp_path,
+                                                                 monkeypatch):
+    async def scenario():
+        monkeypatch.setattr(paths, "GAMECORE_DATA", tmp_path)
+        job = _job_value()
+        target = jobs.AcquiredTarget(files=(
+            jobs.AcquiredFile("https://download.invalid/Game.cue", "Game.cue", 4),
+            jobs.AcquiredFile("https://download.invalid/Game.bin", "Game.bin", 5),
+        ), info_hash="", provider="fake")
+        seen = []
+        transport = httpx.MockTransport(
+            lambda request: seen.append(request) or httpx.Response(500))
+        try:
+            await _materializer(
+                transport, free=MIN_FREE_AFTER_DOWNLOAD + 8,
+                progress=_ignore_progress).materialize(job, target)
+        except MaterializationError as error:
+            assert "9 bytes needed" in str(error)
+        else:
+            raise AssertionError("the release should have been refused")
+        assert seen == []
+        assert not job_dir(job.id).exists()
+    asyncio.run(scenario())
+
+
 class SlowStream(httpx.AsyncByteStream):
     def __init__(self):
         self.started = asyncio.Event()

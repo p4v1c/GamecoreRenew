@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
@@ -158,30 +159,110 @@ def _plain_class(entries: tuple[Path, ...], extensions: tuple[str, ...]) -> str:
     return "B" if _declares_archive(extensions) else "A"
 
 
+def _descriptor_required_names(descriptor: Path) -> tuple[str, ...]:
+    """Names a loose descriptor requires, with the shared bounded read."""
+    suffix = descriptor.suffix.lower()
+    if suffix == ".ccd":
+        return (descriptor.with_suffix(".img").name,
+                descriptor.with_suffix(".sub").name)
+    if suffix == ".mds":
+        return (descriptor.with_suffix(".mdf").name,)
+    try:
+        with descriptor.open("rb") as stream:
+            raw = stream.read(MAX_DESCRIPTOR_BYTES + 1)
+    except OSError as exc:
+        raise InspectionError(f"the descriptor {descriptor.name} cannot be read") from exc
+    if len(raw) > MAX_DESCRIPTOR_BYTES:
+        raise InspectionError(
+            f"the descriptor {descriptor.name} is too large to inspect safely")
+    text = raw.decode("utf-8", errors="replace")
+    required = tuple(Path(ref.strip()).name
+                     for ref in _references(descriptor, text) if ref.strip())
+    return required or ("a companion named by the descriptor",)
+
+
 def _missing_descriptor_files(descriptor: Path, entries: tuple[Path, ...]) -> tuple[str, ...]:
     present = {entry.name.lower() for entry in entries}
-    suffix = descriptor.suffix.lower()
-    required: list[str]
-    if suffix == ".ccd":
-        required = [descriptor.with_suffix(".img").name,
-                    descriptor.with_suffix(".sub").name]
-    elif suffix == ".mds":
-        required = [descriptor.with_suffix(".mdf").name]
-    else:
-        try:
-            with descriptor.open("rb") as stream:
-                raw = stream.read(MAX_DESCRIPTOR_BYTES + 1)
-        except OSError as exc:
-            raise InspectionError(f"the descriptor {descriptor.name} cannot be read") from exc
-        if len(raw) > MAX_DESCRIPTOR_BYTES:
-            raise InspectionError(
-                f"the descriptor {descriptor.name} is too large to inspect safely")
-        text = raw.decode("utf-8", errors="replace")
-        required = [Path(ref.strip()).name for ref in _references(descriptor, text)
-                    if ref.strip()]
-        if not required:
-            return ("a companion named by the descriptor",)
+    required = _descriptor_required_names(descriptor)
     return tuple(name for name in required if name.lower() not in present)
+
+
+def _archive_member_bytes(archive: Path, member: str) -> bytes:
+    """Read one descriptor from an archive, bounded like a loose descriptor."""
+    try:
+        if archive.suffix.lower() == ".zip":
+            with zipfile.ZipFile(archive) as bundle, bundle.open(member) as stream:
+                raw = stream.read(MAX_DESCRIPTOR_BYTES + 1)
+        else:
+            process = subprocess.Popen(
+                ["7z", "x", "-so", "-spd", "--", str(archive), member],
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            assert process.stdout is not None
+            raw = process.stdout.read(MAX_DESCRIPTOR_BYTES + 1)
+            if len(raw) > MAX_DESCRIPTOR_BYTES:
+                process.kill()
+            try:
+                status = process.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                raise
+            if status and len(raw) <= MAX_DESCRIPTOR_BYTES:
+                raise InspectionError(
+                    f"the descriptor {PurePosixPath(member).name} cannot be read")
+    except FileNotFoundError as exc:
+        raise InspectionError(MISSING_7Z) from exc
+    except (OSError, zipfile.BadZipFile, KeyError, subprocess.TimeoutExpired) as exc:
+        raise InspectionError(
+            f"the descriptor {PurePosixPath(member).name} cannot be read") from exc
+    if len(raw) > MAX_DESCRIPTOR_BYTES:
+        raise InspectionError(
+            f"the descriptor {PurePosixPath(member).name} is too large to inspect safely")
+    return raw
+
+
+def _archive_set_members(archive: Path, members: tuple[str, ...],
+                         extensions: tuple[str, ...]) -> tuple[tuple[str, ...],
+                                                               tuple[str, ...]]:
+    """Return a class-E descriptor closure and the companions it lacks.
+
+    Member paths are compared by basename because matrix §2.4 requires a flat
+    emitted set and the scanner's descriptor resolver does the same. Duplicate
+    basenames remain the transformer's explicit refusal rather than silently
+    selecting one.
+    """
+    files = tuple(name for name in members if name and not name.endswith(("/", "\\")))
+    by_name: dict[str, list[str]] = {}
+    for name in files:
+        by_name.setdefault(PurePosixPath(name.replace("\\", "/")).name.lower(), []).append(name)
+    descriptors = tuple(name for name in files
+                        if PurePosixPath(name).suffix.lower() in _DISC_DESCRIPTORS
+                        and matches_ext(PurePosixPath(name).name, list(extensions)))
+    wanted = list(descriptors)
+    missing: list[str] = []
+    for stored in descriptors:
+        leaf = PurePosixPath(stored.replace("\\", "/")).name
+        suffix = PurePosixPath(leaf).suffix.lower()
+        if suffix == ".ccd":
+            required = [str(PurePosixPath(leaf).with_suffix(".img")),
+                        str(PurePosixPath(leaf).with_suffix(".sub"))]
+        elif suffix == ".mds":
+            required = [str(PurePosixPath(leaf).with_suffix(".mdf"))]
+        else:
+            text = _archive_member_bytes(archive, stored).decode(
+                "utf-8", errors="replace")
+            required = [Path(ref.strip()).name
+                        for ref in _references(Path(leaf), text) if ref.strip()]
+            if not required:
+                missing.append("a companion named by the descriptor")
+                continue
+        for required_name in required:
+            matches = by_name.get(required_name.lower(), [])
+            if not matches:
+                missing.append(required_name)
+            else:
+                wanted.extend(matches)
+    return tuple(dict.fromkeys(wanted)), tuple(dict.fromkeys(missing))
 
 
 def inspect(job_id: str, system_id: str) -> Inspection:
@@ -266,4 +347,17 @@ def inspect(job_id: str, system_id: str) -> Inspection:
             "A", False,
             "incomplete class A download: the archive contains no member with "
             "an extension declared by this pack")
+    descriptor_members = tuple(name for name in members
+                               if PurePosixPath(name).suffix.lower() in _DISC_DESCRIPTORS
+                               and matches_ext(PurePosixPath(name).name,
+                                               list(extensions)))
+    if descriptor_members:
+        _wanted, missing = _archive_set_members(archive, members, extensions)
+        first = PurePosixPath(descriptor_members[0]).name
+        if missing:
+            return Inspection(
+                "E", False,
+                f"incomplete class E download: {first} is missing "
+                f"{', '.join(missing)}")
+        return Inspection("E")
     return Inspection("A")

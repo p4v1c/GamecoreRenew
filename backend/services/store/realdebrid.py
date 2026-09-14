@@ -71,8 +71,9 @@ it.
 ── What it does not do ────────────────────────────────────────────────────
 It does not add a torrent to the owner's account and walk away, it does not
 delete one, and it does not manage their torrent list. It adds the release,
-selects the one file this job is about, waits a bounded time for Real-Debrid to
-have it, and asks for a link. A torrent that is still caching when the wait runs
+selects the one payload or complete descriptor/folder set this job needs,
+waits a bounded time for Real-Debrid to have it, and asks for its links. A
+torrent that is still caching when the wait runs
 out is left alone on purpose: Real-Debrid keeps fetching it, so queueing the
 same game again in a few minutes finds it ready. Tearing it down would throw
 away work the owner has already paid for.
@@ -83,16 +84,19 @@ import asyncio
 import json
 import logging
 import os
+import re
 import stat
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
+from ..catalog import load_catalog
 from ..paths import config_dir
+from ..rom_scanner import _DISC_DESCRIPTORS, matches_ext
 from . import prowlarr, resolve, torrentfile
-from .jobs import AcquiredTarget, Job
+from .jobs import AcquiredFile, AcquiredTarget, Job
 
 log = logging.getLogger(__name__)
 
@@ -123,6 +127,13 @@ _MIN_WAIT, _MAX_WAIT = 0.0, 900.0
 #: How often to ask again while waiting. Not configurable: it is a poll against
 #: somebody else's service and a knob whose only possible use is to hammer it.
 _POLL_EVERY = 3.0
+
+
+def _safe_release_name(raw: str) -> str:
+    """Make a harmless top-level wrapper for a rootless folder release."""
+    stem = PurePosixPath(raw.replace("\\", "/")).name.rsplit(".", 1)[0]
+    safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", stem).strip(" .")
+    return safe or "Game"
 
 #: Real-Debrid's torrent states, split by what they mean for one job.
 #: `downloaded` is the only one that produces links. The rest are either a
@@ -386,9 +397,9 @@ class RealDebridAcquisition:
              a hash, the `.torrent` itself when it published a file. Both
              answer the same torrent id, so steps 3 to 5 do not know which
              happened;
-          3. ask what is in it, and pick the one file this job is about;
-          4. select that file, and wait — bounded — for the service to have it;
-          5. unrestrict the link into a direct URL.
+          3. ask what is in it, and pick one payload or a complete E/F set;
+          4. select those file ids, and wait — bounded — for the service;
+          5. unrestrict every returned link into a direct URL.
 
         Returns an `AcquiredTarget` and writes nothing anywhere — the
         `.torrent`, when there is one, is bytes in memory and never a file.
@@ -422,12 +433,42 @@ class RealDebridAcquisition:
             else:
                 torrent_id, info_hash = await self._add_torrent(
                     client, cfg, found)
-            file_id, filename, size = await self._choose_file(
+            selected = await self._choose_files(
                 client, cfg, torrent_id, job)
-            await self._select(client, cfg, torrent_id, file_id)
-            link = await self._wait_for_link(client, cfg, torrent_id)
-            return await self._unrestrict(client, cfg, link, info_hash,
-                                          filename, size)
+            await self._select(client, cfg, torrent_id,
+                               tuple(item[0] for item in selected))
+            links = await self._wait_for_links(client, cfg, torrent_id,
+                                               len(selected))
+            unrestricted = []
+            for link, (_file_id, relative, size) in zip(links, selected):
+                unrestricted.append(await self._unrestrict(
+                    client, cfg, link, relative, size,
+                    require_name=len(selected) > 1))
+            if len(selected) == 1:
+                files = unrestricted
+            else:
+                # The API documents a links array but does not promise its
+                # order. Unrestrict answers the actual filename, so join on
+                # that fact and refuse ambiguity rather than attach bytes to
+                # the wrong path in a folder tree.
+                mapped: dict[int, AcquiredFile] = {}
+                for fetched in unrestricted:
+                    candidates = [index for index, (_fid, relative, _size)
+                                  in enumerate(selected)
+                                  if index not in mapped and
+                                  PurePosixPath(relative).name.lower()
+                                  == fetched.path.lower()]
+                    if len(candidates) != 1:
+                        raise RealDebridError(
+                            "Real-Debrid returned a multi-file link whose "
+                            f"name cannot be matched safely ({fetched.path})")
+                    index = candidates[0]
+                    mapped[index] = AcquiredFile(
+                        url=fetched.url, path=selected[index][1],
+                        size=fetched.size)
+                files = [mapped[index] for index in range(len(selected))]
+            return AcquiredTarget(files=tuple(files), info_hash=info_hash,
+                                  provider=self.name)
 
     # ── the five steps ─────────────────────────────────────────────────────
 
@@ -500,10 +541,10 @@ class RealDebridAcquisition:
                 f"{_where(cfg)} accepted the release but named no torrent")
         return body["id"], info_hash
 
-    async def _choose_file(self, client: httpx.AsyncClient,
-                           cfg: RealDebridConfig, torrent_id: str,
-                           job: Job) -> tuple[int, str, int]:
-        """Step 3 — which of the files in this release is the game.
+    async def _choose_files(self, client: httpx.AsyncClient,
+                            cfg: RealDebridConfig, torrent_id: str,
+                            job: Job) -> tuple[tuple[int, str, int], ...]:
+        """Step 3 — select one payload or the complete E/F release shape.
 
         A release is often one ROM and sometimes a folder of them plus a NFO, a
         cover and a readme. Two rules, in order:
@@ -515,8 +556,11 @@ class RealDebridAcquisition:
             several is the payload, and the biggest file in a ROM release is
             not the readme.
 
-        Selecting all of them instead would answer several links and leave the
-        same choice to be made one step later with less to make it on.
+        A pack which lists directories needs the subtree containing its
+        identity file. A pack declaring a disc descriptor needs that
+        descriptor's whole directory because its references are only readable
+        after materialisation. In both cases refusing surplus bytes later is
+        safe; failing to acquire a required byte is irrecoverable downstream.
         """
         body = await self._call(client, cfg, "GET",
                                 f"/torrents/info/{torrent_id}")
@@ -529,7 +573,7 @@ class RealDebridAcquisition:
             raise RealDebridError(_DEAD[state])
 
         files = body.get("files")
-        usable: list[tuple[int, str, int]] = []
+        usable: list[tuple[int, PurePosixPath, int]] = []
         for entry in files if isinstance(files, list) else []:
             if not isinstance(entry, dict):
                 continue
@@ -544,29 +588,75 @@ class RealDebridAcquisition:
                 nbytes = max(0, int(entry.get("bytes") or 0))
             except (TypeError, ValueError):
                 nbytes = 0
-            # Real-Debrid answers a path inside the torrent (`/Folder/rom.z64`).
-            # Only the last segment is a name, and it is compared, never joined
-            # onto anything — nothing here builds a path.
-            usable.append((fid, path.rsplit("/", 1)[-1], nbytes))
+            normalized = PurePosixPath(path.replace("\\", "/").lstrip("/"))
+            if (not normalized.parts
+                    or any(part in ("", ".", "..") for part in normalized.parts)):
+                continue
+            usable.append((fid, normalized, nbytes))
 
         if not usable:
             raise RealDebridError(
                 "Real-Debrid found no files in this release")
+        pack = load_catalog().get(job.system_id)
+        roms = pack.data.get("roms") if pack is not None else {}
+        roms = roms if isinstance(roms, dict) else {}
+        extensions = tuple(x for x in (roms.get("extensions") or [])
+                           if isinstance(x, str))
+
+        if bool(roms.get("scanDirs")):
+            markers = (("PS3_GAME", "PARAM.SFO"), ("sce_sys", "param.sfo"))
+            identity = next((item for item in usable
+                             if tuple(part.lower() for part in item[1].parts[-2:])
+                             in tuple(tuple(p.lower() for p in marker)
+                                      for marker in markers)), None)
+            if identity is None:
+                # There is no meaningful partial folder to acquire. Preserve
+                # all paths so class-F inspection can name the missing identity.
+                return tuple((fid, path.as_posix(), size)
+                             for fid, path, size in usable)
+            parts = identity[1].parts
+            marker_index = len(parts) - 2
+            game_root = parts[:marker_index]
+            if game_root:
+                base = game_root[:-1]
+                chosen = [item for item in usable
+                          if item[1].parts[:len(game_root)] == game_root]
+                return tuple((fid, PurePosixPath(*path.parts[len(base):]).as_posix(), size)
+                             for fid, path, size in chosen)
+            wrapper = _safe_release_name(job.filename or job.title)
+            return tuple((fid, (PurePosixPath(wrapper) / path).as_posix(), size)
+                         for fid, path, size in usable)
+
         wanted = job.filename.strip().lower()
-        for fid, name, nbytes in usable:
-            if name.lower() == wanted:
-                return fid, name, nbytes
-        return max(usable, key=lambda f: f[2])
+        exact = next((item for item in usable
+                      if item[1].name.lower() == wanted), None)
+        descriptors = [item for item in usable
+                       if item[1].suffix.lower() in _DISC_DESCRIPTORS
+                       and matches_ext(item[1].name, list(extensions))]
+        if exact in descriptors or (exact is None and descriptors):
+            descriptor = exact if exact is not None else descriptors[0]
+            assert descriptor is not None
+            parent = descriptor[1].parent
+            chosen = [item for item in usable if item[1].parent == parent]
+            flat = [item[1].name.lower() for item in chosen]
+            if len(flat) != len(set(flat)):
+                raise RealDebridError(
+                    "the selected disc set contains duplicate companion names")
+            return tuple((fid, path.name, size) for fid, path, size in chosen)
+
+        chosen = exact or max(usable, key=lambda item: item[2])
+        return ((chosen[0], chosen[1].name, chosen[2]),)
 
     async def _select(self, client: httpx.AsyncClient, cfg: RealDebridConfig,
-                      torrent_id: str, file_id: int) -> None:
-        """Step 4a — tell the service which file, which is what starts it."""
+                      torrent_id: str, file_ids: tuple[int, ...]) -> None:
+        """Step 4a — select all members in one documented comma-list."""
         await self._call(client, cfg, "POST",
                          f"/torrents/selectFiles/{torrent_id}",
-                         data={"files": str(file_id)})
+                         data={"files": ",".join(str(fid) for fid in file_ids)})
 
-    async def _wait_for_link(self, client: httpx.AsyncClient,
-                             cfg: RealDebridConfig, torrent_id: str) -> str:
+    async def _wait_for_links(self, client: httpx.AsyncClient,
+                              cfg: RealDebridConfig, torrent_id: str,
+                              expected: int) -> tuple[str, ...]:
         """Step 4b — wait, bounded, for the service to actually have it.
 
         A torrent Real-Debrid has cached is `downloaded` on the first ask. One
@@ -591,12 +681,14 @@ class RealDebridAcquisition:
                 raise RealDebridError(_DEAD[state])
             if state == _READY:
                 links = body.get("links")
-                first = links[0] if isinstance(links, list) and links else None
-                if not isinstance(first, str) or not first.strip():
+                usable = tuple(link.strip() for link in links
+                               if isinstance(link, str) and link.strip()) \
+                    if isinstance(links, list) else ()
+                if len(usable) != expected:
                     raise RealDebridError(
-                        "Real-Debrid has this release but offered no link "
-                        "for it")
-                return first.strip()
+                        f"Real-Debrid has this release but offered {len(usable)} "
+                        f"link(s) for {expected} selected file(s)")
+                return usable
             if state not in _WORKING:
                 # An unknown status is not assumed to be fatal and not assumed
                 # to be progress: it is reported as itself. The name is
@@ -611,8 +703,9 @@ class RealDebridAcquisition:
             await asyncio.sleep(_POLL_EVERY)
 
     async def _unrestrict(self, client: httpx.AsyncClient,
-                          cfg: RealDebridConfig, link: str, info_hash: str,
-                          filename: str, size: int) -> AcquiredTarget:
+                          cfg: RealDebridConfig, link: str,
+                          relative: str, size: int, *,
+                          require_name: bool) -> AcquiredFile:
         """Step 5 — the account's link becomes a URL anything can `GET`."""
         body = await self._call(client, cfg, "POST", "/unrestrict/link",
                                 data={"link": link})
@@ -627,14 +720,20 @@ class RealDebridAcquisition:
                 "Real-Debrid did not answer a usable download link")
 
         named = body.get("filename")
-        if isinstance(named, str) and named.strip():
-            filename = named.strip()
+        if (isinstance(named, str) and named.strip()
+                and "/" not in named and "\\" not in named):
+            relative = named.strip()
+        elif require_name:
+            raise RealDebridError(
+                "Real-Debrid returned a multi-file link without a filename")
+
         try:
             size = max(0, int(body.get("filesize") or 0)) or size
         except (TypeError, ValueError):
             pass
-        return AcquiredTarget(url=url, filename=filename, size=size,
-                              info_hash=info_hash, provider=self.name)
+        # The caller maps this hoster filename back to the retained torrent
+        # path before the materializer sees a multi-file release.
+        return AcquiredFile(url=url, path=relative, size=size)
 
     # ── the one request, and every way it can fail ─────────────────────────
 

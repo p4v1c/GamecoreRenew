@@ -104,9 +104,10 @@ from pathlib import Path, PurePosixPath
 from typing import Awaitable, Callable
 
 from ..catalog import load_catalog
-from ..rom_scanner import matches_ext, shadowed_by_a_descriptor
+from ..rom_scanner import _DISC_DESCRIPTORS, matches_ext, shadowed_by_a_descriptor
 from .inspector import (ARCHIVE_SUFFIXES, MAX_LISTING_ENTRIES,
-                        MISSING_7Z, declared_non_archive)
+                        MISSING_7Z, InspectionError, _archive_set_members,
+                        _descriptor_required_names, declared_non_archive)
 from .materializer import MIN_FREE_AFTER_DOWNLOAD, job_dir
 
 # The same reserve the download keeps, and for the same reason: it is the
@@ -442,7 +443,7 @@ def _plan(ingestion_class: str, entries: tuple[Path, ...],
                      total=total, sources=dirs, tree=tuple(tree),
                      tree_dirs=tuple(tree_dirs))
 
-    if ingestion_class in ("A", "D"):
+    if ingestion_class in ("A", "D", "E"):
         archives = tuple(f for f in files
                          if f.suffix.lower() in ARCHIVE_SUFFIXES)
         # One predicate for both classes (§2.4): unpack only when the
@@ -456,12 +457,23 @@ def _plan(ingestion_class: str, entries: tuple[Path, ...],
                 raise TransformError(
                     "this download has more than one payload to unpack")
             archive = undeclared[0]
+            listed = _members(archive)
             wanted: list[_Member] = []
-            for member in _members(archive):
+            set_names: set[str] | None = None
+            if ingestion_class == "E":
+                selected, missing = _archive_set_members(
+                    archive, tuple(member.name for member in listed), extensions)
+                if missing:
+                    raise TransformError(
+                        "the archived disc set is missing " + ", ".join(missing))
+                set_names = set(selected)
+            for member in listed:
                 if member.is_dir or member.is_link:
                     continue
                 _refuse_escape(member.name)
-                if declared_non_archive(_flat_name(member.name), extensions):
+                if ((set_names is not None and member.name in set_names)
+                        or (set_names is None and
+                            declared_non_archive(_flat_name(member.name), extensions))):
                     wanted.append(member)
             if not wanted:
                 # §2.4's third row: nothing inside carries an extension this
@@ -481,6 +493,19 @@ def _plan(ingestion_class: str, entries: tuple[Path, ...],
             return _Plan(kind="unpack", names=tuple(flat),
                          total=sum(m.size for m in wanted),
                          sources=(archive,), members=tuple(wanted))
+
+    if ingestion_class == "E":
+        descriptors = tuple(file for file in files
+                            if file.suffix.lower() in _DISC_DESCRIPTORS
+                            and matches_ext(file.name, list(extensions)))
+        wanted_names = {descriptor.name.lower() for descriptor in descriptors}
+        for descriptor in descriptors:
+            try:
+                required = _descriptor_required_names(descriptor)
+            except InspectionError as exc:
+                raise TransformError(str(exc)) from exc
+            wanted_names.update(name.lower() for name in required)
+        files = tuple(file for file in files if file.name.lower() in wanted_names)
 
     # B and C never unpack; A and D with a declared or absent container do not
     # either. E keeps its set together, flat. All four are the bytes as they

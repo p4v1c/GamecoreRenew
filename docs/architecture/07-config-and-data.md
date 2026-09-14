@@ -806,12 +806,15 @@ anything outside that one system directory.
 
 ### `store/jobs/` — materialization and shaping work
 
-Each job owns exactly `<DATA>/store/jobs/<job-id>/`. The materializer writes a
-`.part`, fsyncs it, verifies the resolved length, then atomically renames it.
-A complete file stays there while inspection reads it; it is not a ROM and the
-scanner never sees it. Inspection persists class A–F on `store_jobs`, lists an
-archive directory without extracting it, and may fail the job early when class
-E lacks named companions or class F lacks its directory. It never changes the
+Each job owns exactly `<DATA>/store/jobs/<job-id>/`. An acquired release is an
+ordered set of URL/path/size members. The materializer checks free space against
+their total before the first request, recreates each safe relative path, writes
+one `.part`, fsyncs it, verifies its resolved length, then atomically renames
+it. This is a flat set for class E and a preserved game tree for class F; it is
+still not a ROM location and the scanner never sees it. Inspection persists
+class A–F on `store_jobs`, lists archives without extracting them, and classifies
+an undeclared archive containing a descriptor set as E rather than A. It fails
+early, naming any absent companion or folder identity, and never changes the
 staged paths. Failure, cancellation, graceful shutdown
 and restart repair remove the job's partial work. Interrupted downloads restart
 from zero because no persistent HTTP validator exists to make Range safe.

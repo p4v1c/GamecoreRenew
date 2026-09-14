@@ -387,6 +387,71 @@ def test_real_debrid_may_correct_the_name_and_the_size(configured):
     assert target.size == 12345
 
 
+def test_a_disc_descriptor_selects_and_resolves_every_companion(configured):
+    """The documented comma-list selection and link array stay ordered."""
+    files = [
+        {"id": 3, "path": "/Release/Game.cue", "bytes": 24},
+        {"id": 4, "path": "/Release/Game.bin", "bytes": 5},
+        {"id": 9, "path": "/notes/readme.txt", "bytes": 2},
+    ]
+    # Deliberately reversed: the API documents an array, not its ordering.
+    links = ["https://real-debrid.invalid/d/bin",
+             "https://real-debrid.invalid/d/cue"]
+    seen = []
+    base = _rd(files=files, links=links, capture=seen)
+
+    def handler(request):
+        if request.url.path.endswith("/unrestrict/link"):
+            link = request.content.decode()
+            if "cue" in link:
+                return httpx.Response(200, json={
+                    "filename": "Game.cue", "filesize": 24,
+                    "download": "https://dl.invalid/Game.cue"})
+            return httpx.Response(200, json={
+                "filename": "Game.bin", "filesize": 5,
+                "download": "https://dl.invalid/Game.bin"})
+        return base(request)
+
+    target = _acquire(handler, _job(
+        system_id="dreamcast", roms_dir="emu/dreamcast",
+        filename="Game.cue", format="cue"))
+    select = next(request for request in seen if "selectFiles" in request.url.path)
+    assert "files=3%2C4" in select.content.decode()
+    assert [(item.path, item.size) for item in target.files] == [
+        ("Game.cue", 24), ("Game.bin", 5)]
+    with pytest.raises(ValueError, match="no single"):
+        _ = target.url
+
+
+def test_a_folder_release_keeps_the_game_root_and_internal_tree(configured):
+    files = [
+        {"id": 1, "path": "/Release/BLES00932/PS3_GAME/PARAM.SFO", "bytes": 9},
+        {"id": 2, "path": "/Release/BLES00932/PS3_GAME/USRDIR/EBOOT.BIN", "bytes": 3},
+        {"id": 8, "path": "/Release/readme.txt", "bytes": 2},
+    ]
+    links = ["https://real-debrid.invalid/d/sfo",
+             "https://real-debrid.invalid/d/eboot"]
+    base = _rd(files=files, links=links)
+
+    def handler(request):
+        if request.url.path.endswith("/unrestrict/link"):
+            link = request.content.decode()
+            name, size = (("PARAM.SFO", 9) if "sfo" in link else
+                          ("EBOOT.BIN", 3))
+            return httpx.Response(200, json={
+                "filename": name, "filesize": size,
+                "download": f"https://dl.invalid/{name}"})
+        return base(request)
+
+    target = _acquire(handler, _job(
+        system_id="rpcs3", roms_dir="emu/rpcs3",
+        filename="Demon Souls", format="folder"))
+    assert [item.path for item in target.files] == [
+        "BLES00932/PS3_GAME/PARAM.SFO",
+        "BLES00932/PS3_GAME/USRDIR/EBOOT.BIN",
+    ]
+
+
 # ── the failures, one sentence each ────────────────────────────────────────
 
 @pytest.mark.parametrize("status,expected", [

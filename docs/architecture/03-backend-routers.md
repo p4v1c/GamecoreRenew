@@ -443,20 +443,22 @@ queued ──► running ──► done
 **Running a job is resolve, materialize, inspect/classify, shape, check, then
 import.**
 
-*Resolving* turns the job's opaque `source` into an `AcquiredTarget`: a direct
-HTTPS URL, plus the size and info hash it takes to check the bytes are the ones
-that were asked for. It moves no bytes.
+*Resolving* turns the job's opaque `source` into an `AcquiredTarget`: an ordered
+set of `{direct HTTPS URL, relative path, size}` members, plus the torrent info
+hash. A one-file release is simply a set of one. It moves no bytes and no URL
+is persisted.
 [`services/store/realdebrid.py`](../../backend/services/store/realdebrid.py) is
 one, and `jobs.acquisition_provider()` answers `None` on a box with no
 `config/store-realdebrid.json` — which is every box until its owner puts one
 there.
 
-*Materializing* streams that target to
-`<DATA>/store/jobs/<job-id>/<filename>`, through `.part` and an atomic rename.
-It checks the resolved size and free space first (including 256 MiB left for
-the appliance), rejects HTTP errors, mismatched lengths and HTML error pages,
-and never receives `roms_dir`. Validation and import remain separate later
-stages ([14](14-store-ingestion-matrix.md) §5).
+*Materializing* streams every member below
+`<DATA>/store/jobs/<job-id>/`, retaining its safe relative path, through one
+`.part` and atomic rename per file. It checks the sum of all resolved sizes and
+free space before the first request (including 256 MiB left for the appliance),
+then checks each response length. Any member failure or cancellation removes
+the job-owned work as a unit. It never receives `roms_dir`; validation and
+import remain separate later stages ([14](14-store-ingestion-matrix.md) §5).
 
 *Inspecting* reads the completed job work area and the selected pack, then
 persists one of matrix §5's classes A–F on the job as `ingestion_class`. Its
@@ -469,18 +471,21 @@ downloaded path is moved, renamed or deleted.
 Completeness is decided here because nothing after the Store checks it. A
 declared disc descriptor is class E only with every companion it names (`.ccd`
 also requires `.img` and `.sub`, `.mds` its `.mdf`); class F requires a
-top-level directory. The current acquisition contract materializes one file,
-so a lone `.cue`/`.gdi` or any loose file for a `scanDirs` pack fails early and
-names what is missing. Inspection records the class before the worker settles
-the failure; it does not repair the multi-file acquisition.
+top-level directory. An undeclared packaging archive containing such a
+descriptor is also class E: inspection reads that descriptor in place, bounded,
+and checks its companions against the archive listing. It is never persisted as
+A. A missing companion or folder identity fails early and names what is
+missing.
 
 *Transforming* gives those classified bytes the shape their class requires —
 §5.1's transform column, read off the persisted verdict and never off a system
 list. `A` unpacks if archived, `B` and `C` do nothing (unpacking a `mame`
 romset deletes the game, §2.1), `D` unpacks only when the container extension
-is undeclared, `E` keeps the descriptor and its tracks together, and `F` keeps
-the game directory whole. A and D share one branch, because "is the archive's
-own extension declared?" is the one predicate both need (§2.4).
+is undeclared, `E` keeps the descriptor and its tracks together (extracting
+that exact closure when E arrived in an undeclared archive), and `F` keeps the
+game directory whole. A, D and archived E share the undeclared-container
+predicate (§2.4); E differs only in selecting companions as well as declared
+members.
 
 It is the first step allowed to produce modified content, and three properties
 bound what that can cost:
@@ -581,6 +586,19 @@ metadata and piece hashes, not a checksum of the one unrestricted file (which
 may be one member of a multi-file torrent). The materializer therefore cannot
 compare it to the downloaded bytes. Its available completeness proof is the
 resolved byte length over HTTPS; content validation belongs to the later stage.
+
+**Why acquisition is a set.** Real-Debrid's REST documentation gives
+`POST /torrents/selectFiles/{id}` a `files` field accepting `all` or a
+comma-separated list of file ids. `GET /torrents/info/{id}` then exposes the
+selected flags and the generated `links` array. The provider uses the explicit
+id list and requires exactly one link for every selected member before it
+unrestricts any of them. The documentation does not promise array order, so the
+provider maps the unrestricted filenames back to selected paths and refuses a
+duplicate-name ambiguity. Descriptor packs select the descriptor's release
+directory because its text is not available until download; folder packs
+select the subtree containing `PS3_GAME/PARAM.SFO` or `sce_sys/param.sfo` and
+retain the game root. Ordinary one-file packs keep the previous exact-name,
+then-largest choice. No torrent client, daemon or port is introduced.
 
 *Importing* is the only stage allowed to write below `<DATA>/emu/`. It takes
 the validated `ingest/` shape and the job's pack-derived `roms_dir`, verifies
