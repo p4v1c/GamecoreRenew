@@ -26,7 +26,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import aiosqlite
 import httpx
@@ -1126,7 +1126,20 @@ def _inside_owned_work(path: str, roots: set[str]) -> bool:
 
 
 def _inside_import_target(path: str, targets: set[str]) -> bool:
-    return any(path == target or path.startswith(f"{target}/") for target in targets)
+    """The target, what it holds, and the directories it had to be made in.
+
+    The ancestors are here for the same reason `store` and `store/jobs` are
+    listed above: placing `emu/nes/Zelda (USA).nes` on a box that has never had
+    a NES game means creating `emu` and `emu/nes` first, and a guard that calls
+    its own target's parent an escape fails on the very thing it is meant to
+    permit. Only ancestors *of a target* are tolerated — `emu/rpcs3` is still a
+    violation when the target is `emu/nes`, which is what the test below pins.
+    """
+    ancestors = {parent for target in targets
+                 for parent in PurePosixPath(target).parents
+                 if parent.as_posix() != "."}
+    return (any(path == target or path.startswith(f"{target}/") for target in targets)
+            or path in {parent.as_posix() for parent in ancestors})
 
 
 def test_the_write_guard_rejects_every_path_outside_the_owned_work_area():
