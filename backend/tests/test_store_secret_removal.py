@@ -13,8 +13,10 @@ Real-Debrid account, which is a paid subscription somebody can spend, and the
 argument is word for word the same again.
 
 `docs/reports/store-installer-audit-2026-09-12.md` §S7 is where this failure
-mode is written down: a file nobody names survives in silence, and nothing
-anywhere reports it. So it is pinned here, twice and in two different ways:
+mode is written down: the same applies to credentials below
+`<DATA>/addons/<id>/`, the writable home promised to addons. A path nobody
+names survives in silence, and nothing anywhere reports it. So it is pinned
+here, twice and in two different ways:
 
   · **statically** — the path appears on the `safe_rm` line, so deleting it
     from the script fails the build rather than a stranger's disk;
@@ -72,6 +74,14 @@ def _safe_rm_definition() -> str:
     return body.group(0)
 
 
+def _addon_removal_line() -> str:
+    line = next((line for line in _script().splitlines()
+                 if line.startswith('safe_rm "$GC_DATA/addons"')), None)
+    assert line is not None, (
+        "addon data may hold secrets and must be swept even when hooks fail")
+    return line
+
+
 # ── the static pin ─────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("name", CREDENTIALS)
@@ -111,6 +121,12 @@ def test_removing_a_credential_is_not_conditional_on_purge():
     assert removal < purge
 
 
+def test_addon_data_and_the_stale_registry_are_named_for_removal():
+    line = _addon_removal_line()
+    assert '"$GC_DATA/addons"' in line
+    assert '"$REGISTRY"' in line
+
+
 # ── the behavioural pin, on fixtures ───────────────────────────────────────
 
 @pytest.fixture
@@ -126,6 +142,10 @@ def fake_box(tmp_path):
     config.mkdir(parents=True)
     for name in CREDENTIALS + KEPT:
         (config / name).write_text('{"pretend": true}\n')
+    (config / "addons.json").write_text('{"store": {}}\n')
+    addon = tmp_path / "data/addons/store"
+    addon.mkdir(parents=True)
+    (addon / "api-token").write_text("pretend-secret\n")
     (tmp_path / "data/emu/nes").mkdir(parents=True)
     (tmp_path / "data/emu/nes/game.nes").write_bytes(b"\x00")
     return tmp_path
@@ -148,7 +168,9 @@ def test_the_uninstallers_own_safe_rm_removes_the_store_credential(fake_box):
         'run() { "$@"; }',
         _safe_rm_definition(),
         f'GC_DATA="{fake_box / "data"}"',
+        'REGISTRY="$GC_DATA/config/addons.json"',
         _removal_lines(),
+        _addon_removal_line(),
     ])
     script = fake_box / "harness.sh"
     script.write_text(harness)
@@ -166,6 +188,8 @@ def test_the_uninstallers_own_safe_rm_removes_the_store_credential(fake_box):
         assert not (config / name).exists(), f"config/{name} survived removal"
     for name in KEPT:
         assert (config / name).exists(), f"config/{name} should have been kept"
+    assert not (fake_box / "data/addons").exists(), "addon secret survived removal"
+    assert not (config / "addons.json").exists(), "stale addon registry survived removal"
     # And nothing beyond the three files it names.
     assert (fake_box / "data/emu/nes/game.nes").exists()
     assert (fake_box / "var/lib/gamecore/manifest.env").exists()

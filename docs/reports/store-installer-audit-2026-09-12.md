@@ -328,3 +328,76 @@ explicitly:
 - No file changed outside this report. No commit, no push, no merge.
 - Prowlarr's default bind address and port are stated as an upstream fact to
   verify, not as a measurement taken here.
+
+---
+
+## 4. Step 19 disposition — 2026-09-14
+
+This appendix records the second pass requested by the preamble.  It was made
+from `ba0b500`, after the Store and the 31-pack catalogue existed.  The audit
+above remains the historical input; the numbered findings are not rewritten.
+
+### Resolved here
+
+- **S4 — defended, and one real omission repaired.**
+  `scripts/catalog-query.py uninstall-targets` now projects every shipped
+  `sources`, `services` and `files` destination.  A consumer test compares
+  that complete set with the reviewed parent sweeps and unit names in
+  `install/uninstall.sh`.  It fails on a fixture that adds an unreviewed pack,
+  proving that a future side effect cannot arrive silently.  The lists remain
+  reviewed rather than becoming executable catalogue data: a current pack is
+  not a manifest proving what an older install created, and file cleanup may
+  mean restoring a configuration, deleting a GameCore-owned parent, or
+  preserving a pre-existing standalone unit.  The guard exposed two existing
+  missing entries, `gamecore-rpcs3-smart-sync.service` and its timer; both are
+  now swept.
+- **S7 — resolved.**  `<DATA>/addons/` is removed regardless of `--purge`,
+  after addon hooks have had their opportunity to run.  It is an explicitly
+  GameCore-owned writable root and can contain credentials; retaining one
+  after removal is no more acceptable than retaining `auth_secret`.  The
+  addon registry is removed with it so a failed or unavailable hook cannot
+  leave a stale claim that the addon remains installed.  This works the same
+  on split-root boxes, where the surrounding data tree is deliberately kept.
+- **S9 — removed rather than half-promised.**  `ASSET_MANIFEST` and
+  `record_asset()` were never written or read, while provider assets live
+  below the install root that the uninstaller already removes.  Both dead
+  declarations are gone.  A real outside-root asset manifest, if one is ever
+  needed, must arrive with writers, readers and an ownership rule together.
+- **The pacman consequence added by the preamble — exercised.**  The 17
+  pacman-provider packs currently reduce to eight unique packages:
+  `retroarch` and seven `libretro-*` cores.  Fixture tests prove that the
+  provider records all eight before installation when absent, records none
+  when they pre-exist, and that `--remove-packages` passes all eight through
+  its dependency and `NEVER` checks to the fake removal command.  `p7zip`, a
+  base-installer dependency rather than a pack-provider package, is covered by
+  the same new/pre-existing manifest test and by the removal fixture.  The
+  manifest-less message no longer claims that GameCore adds only caddy and
+  unclutter; it names RetroArch, every core and p7zip while still refusing to
+  guess ownership.
+- **Store work and credentials.**  The already-added named removals for
+  `store-prowlarr.json`, `store-realdebrid.json` and `<DATA>/store/jobs` remain
+  covered by fixture tests.  The addon-data sweep closes the corresponding
+  secret hole for future addons.
+- **`playtime.db` — keep it, and say so.**  It is player history: play records
+  and the Store download history share one database.  Default uninstall keeps
+  it; one-root `--purge` removes it with the install; split-root `--purge`
+  keeps it because the separate data filesystem is never recursively deleted.
+  The final summary now tells the owner when the play and Store histories were
+  retained instead of leaving that consequence implicit.
+
+### Not resolved here
+
+- **S1 and S2** remain outside the Store's final local-TV path, as the
+  preamble explains.  No trust boundary or Caddy API exposure changed.
+- **S3, S5 and S6** describe a managed companion daemon.  This step installs
+  none, opens no port and invents no second secret store; it only guarantees
+  cleanup for the addon data contract that such a component may use.
+- **S8** still has no AUR provider and `github-archive` still installs below
+  the GameCore root.  The now-important pacman branch is tested without
+  changing provider scope.
+- **S10** is OTA work and belongs to step 20.  Nothing in `update/linux.sh` was
+  changed or executed.
+- **S11** remains the documented risk of a hand-written unattended file at an
+  arbitrary path.  The Store does not route runtime credentials through that
+  installer input, and this step does not broaden uninstaller authority to
+  shred a caller-owned path it cannot identify safely.

@@ -33,12 +33,16 @@ from backend.services.installer.providers import (  # noqa: E402
 )
 
 
-def _resolve(value: str, home: str, gamecore: str, app_id: str) -> str:
+def _resolve(value: str, home: str, gamecore: str, app_id: str,
+             gamecore_data: str = "") -> str:
     """Expand the pack tokens. @FLATPAK_CONFIG@ derives from the SAME app id
     the box has installed — that is what makes a phantom config directory
     impossible to express."""
+    data = gamecore_data or gamecore
     return (value
             .replace("@FLATPAK_CONFIG@", f"{home}/.var/app/{app_id}/config")
+            .replace("@FLATPAK_DATA@", f"{home}/.var/app/{app_id}/data")
+            .replace("@GAMECORE_DATA@", data)
             .replace("@GAMECORE_PATH@", gamecore)
             .replace("@HOME@", home))
 
@@ -49,6 +53,7 @@ def main() -> int:
     ap.add_argument("command", choices=[
         "ids", "flatpaks", "config-dest", "rom-dirs", "launchers",
         "sandbox", "packages", "app-ids", "app-id-candidates",
+        "uninstall-targets",
     ])
     ap.add_argument("--no-probe", action="store_true",
                     help="do not ask flatpak what is installed; answer from the "
@@ -69,6 +74,8 @@ def main() -> int:
     # came back empty.
     ap.add_argument("--catalog", type=Path, default=ROOT / "catalog")
     ap.add_argument("--local", type=Path, default=ROOT / "config" / "catalog.d")
+    ap.add_argument("--ota", type=Path,
+                    help="override the signed-catalogue directory (tests/builds)")
     args = ap.parse_args()
 
     # A box, so the answer follows what is actually installed: a machine that
@@ -78,7 +85,7 @@ def main() -> int:
         appid.probe()
 
     try:
-        packs = load_catalog(args.catalog, args.local)
+        packs = load_catalog(args.catalog, args.local, args.ota)
     except OSError as e:
         print(f"catalog-query: cannot read the catalogue at {args.catalog} — {e}",
               file=sys.stderr)
@@ -151,6 +158,22 @@ def main() -> int:
         elif args.command == "packages":
             for pkg in (p.data.get("packages") or {}).get("pacman", []):
                 out.append(pkg)
+
+        elif args.command == "uninstall-targets":
+            # This is a CI/audit projection, not an instruction to delete
+            # blindly.  uninstall.sh has deliberately reviewed cleanup paths
+            # (some are parents, some need restore logic); the consumer test
+            # below makes a new declaration fail until that review happens.
+            for source in p.data.get("sources", []):
+                out.append(f"{p.id}\tsource\t" + _resolve(
+                    source["dest"], args.home, args.gamecore_path, p.app_id,
+                    args.gamecore_data))
+            for service in p.data.get("services", []):
+                out.append(f"{p.id}\tservice\t{Path(service['unit']).name}")
+            for spec in p.data.get("files", []):
+                out.append(f"{p.id}\tfile\t" + _resolve(
+                    spec["dest"], args.home, args.gamecore_path, p.app_id,
+                    args.gamecore_data))
 
     if args.command == "packages":       # aggregated across packs, deduplicated
         seen, uniq = set(), []

@@ -20,7 +20,9 @@ reads the catalogue instead of its own copy.
 """
 from __future__ import annotations
 
+import json
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -52,10 +54,76 @@ def _catalog_query(*args: str) -> list[list[str]]:
     r = subprocess.run(
         [sys.executable, str(ROOT / "scripts/catalog-query.py"), *args,
          "--home", "/home/USER", "--gamecore-path", "/opt/GameCore",
-         "--catalog", str(CATALOG), "--local", str(LOCAL)],
+         "--catalog", str(CATALOG), "--local", str(LOCAL),
+         "--ota", str(ROOT / ".test-no-ota")],
         capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stderr
     return [line.split("\t") for line in r.stdout.splitlines() if line]
+
+
+def _uninstall_targets(catalog: Path = CATALOG,
+                       local: Path = LOCAL) -> list[tuple[str, str, str]]:
+    import subprocess
+    r = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/catalog-query.py"),
+         "uninstall-targets", "--no-probe", "--home", "/home/USER",
+         "--gamecore-path", "/opt/GameCore", "--gamecore-data", "/userdata",
+         "--catalog", str(catalog), "--local", str(local),
+         "--ota", str(catalog.parent / ".test-no-ota")],
+        capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    return [tuple(line.split("\t", 2)) for line in r.stdout.splitlines() if line]
+
+
+def _uncovered_uninstall_targets(
+        targets: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+    """Compare declarations to reviewed cleanup, including parent sweeps.
+
+    This deliberately understands only the two cleanup constructs used by the
+    uninstaller: safe_rm paths and user-unit names.  A destination merely
+    mentioned in prose cannot make the guard pass.
+    """
+    lines = (ROOT / "install/uninstall.sh").read_text(encoding="utf-8").splitlines()
+    statements: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if line.lstrip().startswith("safe_rm "):
+            statement = line.strip()
+            while statement.endswith("\\"):
+                i += 1
+                statement = statement[:-1] + " " + lines[i].strip()
+            statements.append(statement)
+        i += 1
+
+    cleanup_paths: set[Path] = set()
+    roots = {"GC_HOME": "/home/USER", "GC_PATH": "/opt/GameCore",
+             "GC_DATA": "/userdata"}
+    for statement in statements:
+        for variable, relative, absolute in re.findall(
+                r'"\$(GC_HOME|GC_PATH|GC_DATA)([^" ]*)"|'
+                r'(?<!["\w])(/opt/[A-Za-z0-9_.\-/]+)',
+                statement):
+            cleanup_paths.add(Path(roots[variable] + relative
+                                   if variable else absolute))
+
+    live = "\n".join(line for line in lines
+                     if not line.lstrip().startswith("#"))
+    cleaned_units = set(re.findall(
+        r"[A-Za-z0-9_.@-]+\.(?:service|timer)", live))
+
+    missing = []
+    for row in targets:
+        _pack_id, kind, target = row
+        if kind == "service":
+            covered = target in cleaned_units
+        else:
+            path = Path(target)
+            covered = any(path == parent or path.is_relative_to(parent)
+                          for parent in cleanup_paths)
+        if not covered:
+            missing.append(row)
+    return missing
 
 
 def _python_dict(path: Path, name: str) -> dict:
@@ -102,6 +170,52 @@ def test_no_installer_hardcodes_a_flatpak_config_path():
                 offenders.append(f"{name}:{n}: {line.strip()}")
     assert offenders == [], (
         "a hardcoded Flatpak config path is back:\n" + "\n".join(offenders))
+
+
+def test_every_pack_side_effect_has_reviewed_uninstall_cleanup():
+    """A pack cannot add a file, checkout or unit behind the uninstaller.
+
+    The lists stay hand-reviewed because cleanup has semantics the catalogue
+    cannot express safely (restore a config, remove a GameCore-owned parent,
+    or keep a pre-existing standalone unit).  The catalogue supplies the
+    complete set; CI makes forgetting the review impossible to merge.
+    """
+    missing = _uncovered_uninstall_targets(_uninstall_targets())
+    assert missing == [], (
+        "catalogue side effects missing from install/uninstall.sh:\n" +
+        "\n".join(f"{pid}: {kind} {target}" for pid, kind, target in missing))
+
+
+def test_uninstall_guard_rejects_a_new_unreviewed_pack(tmp_path):
+    """Prove the guard goes red when a future pack declares new side effects."""
+    fixture = tmp_path / "catalog"
+    shutil.copytree(CATALOG, fixture)
+    local = tmp_path / "local"
+    local.mkdir()
+    pack_dir = fixture / "forgotten"
+    pack_dir.mkdir()
+    template = json.loads((CATALOG / "youtube/pack.json").read_text())
+    template.update({
+        "id": "forgotten",
+        "label": "Forgotten fixture",
+        "sources": [{"git": "https://invalid.example/repo.git",
+                     "dest": "/opt/Forgotten", "owner": "user"}],
+        "services": [{"unit": "files/forgotten.service", "scope": "user",
+                      "enable": True}],
+        "files": [{"src": "files/settings", "dest":
+                   "@HOME@/.local/share/gamecore/forgotten/settings",
+                   "owner": "user", "mode": "600"}],
+    })
+    (pack_dir / "pack.json").write_text(json.dumps(template))
+
+    missing = set(_uncovered_uninstall_targets(
+        _uninstall_targets(fixture, local)))
+    assert {
+        ("forgotten", "source", "/opt/Forgotten"),
+        ("forgotten", "service", "forgotten.service"),
+        ("forgotten", "file",
+         "/home/USER/.local/share/gamecore/forgotten/settings"),
+    } <= missing
 
 
 def test_flatpakify_rewrites_to_the_app_id_the_installer_installs(packs):

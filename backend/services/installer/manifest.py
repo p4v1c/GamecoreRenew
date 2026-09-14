@@ -26,11 +26,6 @@ MANIFEST_DIR = Path("/var/lib/gamecore")
 PKG_MANIFEST = MANIFEST_DIR / "pacman-installed"
 FLATPAK_MANIFEST = MANIFEST_DIR / "flatpak-installed"
 OVERRIDE_MANIFEST = MANIFEST_DIR / "flatpak-overrides"
-# Not written by the shell installer: things a provider dropped into
-# GAMECORE_PATH itself (an AppImage, an extracted archive). uninstall.sh
-# removes the install directory wholesale, so this is a record for `verify`
-# and for the hot-install path, not a removal list.
-ASSET_MANIFEST = MANIFEST_DIR / "assets-installed"
 
 
 def _append_unique(path: Path, value: str) -> None:
@@ -86,7 +81,3 @@ def record_flatpak_override(app_id: str) -> None:
     """A superset of what we installed: an emulator the user already had still
     gets a GameCore override, and the uninstaller has to reset it."""
     _append_unique(OVERRIDE_MANIFEST, app_id)
-
-
-def record_asset(path: str) -> None:
-    _append_unique(ASSET_MANIFEST, path)

@@ -356,7 +356,8 @@ fi
 msg "User services"
 if [[ -n "$GC_HOME" && -d "$GC_HOME/.config/systemd/user" ]]; then
   UNIT_DIR="$GC_HOME/.config/systemd/user"
-  USER_UNITS=(embertv.service gamepad-tv-bridge.service)
+  USER_UNITS=(embertv.service gamepad-tv-bridge.service
+              gamecore-rpcs3-smart-sync.service gamecore-rpcs3-smart-sync.timer)
   # Only the copies installed by the packs, not standalone daemons belonging
   # to a user who never selected these emulators in GameCore.
   for unit in azahar-layout-toggle.service melonds-layout-toggle.service; do
@@ -808,7 +809,10 @@ if $REMOVE_PACKAGES; then
     fi
   else
     warn "No package manifest — refusing to guess which packages predate GameCore."
-    info "GameCore realistically adds only:  caddy  unclutter"
+    info "For manual cleanup, check at least caddy, unclutter, p7zip, RetroArch and:"
+    info "  libretro-beetle-pce libretro-flycast libretro-genesis-plus-gx"
+    info "  libretro-kronos libretro-mame libretro-mesen libretro-picodrive"
+    info "This is not an ownership list; inspect packages explicitly before removing them."
   fi
 else
   info "kept (pass --remove-packages to remove the ones GameCore added)."
@@ -834,6 +838,12 @@ msg "Application files"
 safe_rm "$GC_DATA/config/auth.json" "$GC_DATA/config/auth_secret" \
         "$GC_DATA/config/store-prowlarr.json" \
         "$GC_DATA/config/store-realdebrid.json"
+
+# An addon's data directory is its writable, OTA-surviving home and may hold
+# credentials of exactly the same kind as auth_secret.  Remove the whole
+# GameCore-owned root even when an addon's hook or the CLI was already gone;
+# the now-empty registry must not keep claiming that removed addons exist.
+safe_rm "$GC_DATA/addons" "$REGISTRY"
 
 # Store work is downloaded staging, not the player's library. Completed files
 # wait here only for ingestion and partials are never useful after removal;
@@ -944,6 +954,7 @@ echo
 if ! $DRY; then
   ok "GameCore no longer starts at boot."
   { $PURGE && ! $SPLIT; } || info "Your ROMs are still in $GC_DATA/emu"
+  { $PURGE && ! $SPLIT; } || info "Your play and Store download history is still in $GC_DATA/config/playtime.db"
   echo
   echo -e "${YLW}  Left in place on purpose:${RST}"
   echo "  · sshd, bluetooth and sddm — system services that likely predate GameCore"
