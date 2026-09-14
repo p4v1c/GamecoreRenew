@@ -564,18 +564,19 @@ def test_a_failure_reaches_the_job_row_as_its_reason(configured, monkeypatch):
     asyncio.run(scenario())
 
 
-def test_a_job_that_resolves_and_materializes_still_says_it_is_not_imported(
+def test_a_job_that_resolves_and_materializes_can_finish_imported(
         configured, monkeypatch):
-    """A resolved target reaching staging is still not a playable game.
+    """The real provider conversation can reach the successful job boundary.
 
     The Real-Debrid conversation is the real provider over MockTransport; the
     byte mover, the shape producer and the judgement are the queue tests'
     fakes, because materializer HTTP, transformation and validation each have
-    their own suite. The boundary asserted here is validated-not-imported.
+    their own suite. A fake importer closes only the filesystem seam here.
     """
     from backend.tests.test_store_jobs import (
         FakeMaterializer, FakeTransformer, _memory_db, _no_worker, _queue,
         fake_validation)
+    from backend.services.store.importer import Imported
 
     async def scenario():
         conn = await _memory_db(monkeypatch)()
@@ -588,13 +589,15 @@ def test_a_job_that_resolves_and_materializes_still_says_it_is_not_imported(
         monkeypatch.setattr(jobs, "inspect_download", lambda _job: Inspection("D"))
         monkeypatch.setattr(jobs, "transformer", FakeTransformer)
         fake_validation(monkeypatch)
+        monkeypatch.setattr(
+            jobs, "import_shape",
+            lambda job, _shape: Imported(names=(job.filename,)))
         try:
             job = await _queue(source=SOURCE)
             await jobs.drain()
             after = await jobs.get(job.id)
-            assert after.state == "failed"
-            assert after.reason == jobs.VALIDATED_NOT_IMPORTED.format(
-                ingestion_class="D", verdict="verified")
+            assert after.state == "done"
+            assert after.reason == ""
             assert after.ingestion_class == "D"
             assert after.validation == "verified"
             assert len(store.seen) == 1

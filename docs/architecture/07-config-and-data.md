@@ -53,7 +53,7 @@ flowchart TB
         d2["emu/<br/>ROMs · covers · scraped media"]
         d3["assets/overlays/<br/>assets/logos/"]
         d4["addons/ · volumes/<br/>config/per-game/"]
-        d5["store/jobs/&lt;job-id&gt;/<br/>download staging, never library"]
+        d5["store/jobs/&lt;job-id&gt;/<br/>staging until import; cleaned on success"]
     end
 
     AMB["lib/xenia<br/><b>classified two ways — issue #36</b>"]
@@ -797,15 +797,12 @@ and one bar that means "downloading" for a while and then "unpacking" is a bar
 nobody can read — while a test asserting how many bytes arrived would quietly
 start asserting how many were produced.
 
-**`roms_dir` is recorded and never written to.** It is `emu/<dir>` as the pack
-declared it at the moment the job was queued, which is what the box told the
-player it would do. Nothing in
-[`services/store/jobs.py`](../../backend/services/store/jobs.py) opens it;
-placing bytes where the library scan finds them is the materializer's job
-([14](14-store-ingestion-matrix.md) §5), and
-`backend/tests/test_store_jobs.py` compares the whole data tree path for path
-across a queue → run → cancel cycle and permits new paths only below the owning
-`store/jobs/<job-id>/` directory.
+**`roms_dir` is the sole destination field.** It is `emu/<dir>` as the pack
+declared it when the job was queued; import checks it against that pack again
+and refuses a mismatch. Every earlier stage remains confined to
+`store/jobs/<job-id>/`. The write guard has two explicit halves: a non-import
+stage still fails if it touches any `emu/` path, and import fails if it targets
+anything outside that one system directory.
 
 ### `store/jobs/` — materialization and shaping work
 
@@ -834,15 +831,19 @@ that decision away from the player. `test_store_validator.py` fingerprints the
 source *and* the shape before and after, in every class, in success and in
 refusal alike.
 
-**The download sits beside its shape, unchanged, and is deleted by nobody
-here.** That doubles the footprint for one job — an 8 GB `.xci` copied is 8 GB
+Until import, **the download sits beside its shape, unchanged.** That doubles
+the footprint for one job — an 8 GB `.xci` copied is 8 GB
 — which is the price of the guarantee and the reason the free-space reserve is
 checked before the first byte rather than discovered halfway through. It is
 preferred to writing in place with a backup, because a backup costs the same
 8 GB *and* can still be the thing that fills the disk, while a file never
 opened for writing cannot be damaged at all. Whether the download is still
-worth keeping once a game is in the library is import's decision, not this
-step's. A hardlink would have cost nothing and was rejected: two names for one
+worth keeping once a game is in the library is import's decision. On success,
+import removes the whole job directory: the live library copy is sufficient,
+and retaining staging could consume another 8 GB. On an import refusal such as
+a name collision, it removes only `ingest/` and keeps the original download;
+this preserves one retryable copy without retaining both. A hardlink during
+transformation would have cost nothing and was rejected: two names for one
 inode means a later stage that opens the shape for writing silently rewrites
 the download too.
 

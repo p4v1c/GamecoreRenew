@@ -440,8 +440,8 @@ queued ──► running ──► done
   └──────────────────► cancelled
 ```
 
-**Running a job is resolve, materialize, inspect/classify, shape, then
-check.**
+**Running a job is resolve, materialize, inspect/classify, shape, check, then
+import.**
 
 *Resolving* turns the job's opaque `source` into an `AcquiredTarget`: a direct
 HTTPS URL, plus the size and info hash it takes to check the bytes are the ones
@@ -455,8 +455,8 @@ there.
 `<DATA>/store/jobs/<job-id>/<filename>`, through `.part` and an atomic rename.
 It checks the resolved size and free space first (including 256 MiB left for
 the appliance), rejects HTTP errors, mismatched lengths and HTML error pages,
-and never receives `roms_dir`. Validation and import remain
-[14](14-store-ingestion-matrix.md) §5's later stages.
+and never receives `roms_dir`. Validation and import remain separate later
+stages ([14](14-store-ingestion-matrix.md) §5).
 
 *Inspecting* reads the completed job work area and the selected pack, then
 persists one of matrix §5's classes A–F on the job as `ingestion_class`. Its
@@ -582,13 +582,36 @@ may be one member of a multi-file torrent). The materializer therefore cannot
 compare it to the downloaded bytes. Its available completeness proof is the
 resolved byte length over HTTPS; content validation belongs to the later stage.
 
-Every job still stops honestly before `done`, with distinct reasons:
+*Importing* is the only stage allowed to write below `<DATA>/emu/`. It takes
+the validated `ingest/` shape and the job's pack-derived `roms_dir`, verifies
+that field still equals the system pack's `emu/<dir>`, then publishes A–E as
+flat files and F as a top-level game directory. Each complete object crosses
+to a hidden name in the target filesystem with `os.rename`; publication is a
+no-replace operation, so an existing filename is named and left byte-identical.
+If rename reports `EXDEV`, the import is refused: copying is not a fallback,
+because a grid scan could observe the partial destination.
 
-| reason | what it means |
+The `.nsp` decision is **warn and import**. The repository can prove only that
+the bytes are a PFS0 package, not whether they are a base, update or DLC. The
+`800` title-id convention remains unverified by §6.2, so it refuses nothing.
+Refusing every `.nsp` would reject the working base games that make up the
+Switch library; importing silently would hide the known bad-tile risk. The
+successful `done` row therefore carries the ambiguity warning.
+
+On success the job work directory is removed, avoiding a second copy that may
+be 8 GB. An import refusal removes the produced `ingest/` duplicate but keeps
+the downloaded source for retry or diagnosis. Validation refusals retain both
+as before, because import was never entered and the validator is read-only.
+
+Jobs stop honestly, with distinct outcomes:
+
+| outcome / reason | what it means |
 |---|---|
 | *"no acquisition provider is configured on this box"* | no Real-Debrid token; nothing was attempted |
 | *"this box can find this download but cannot store it yet"* | the source resolved, and there is nowhere to put what it found |
-| *"download validated as class X (verified\|unverified); import is not implemented yet"* | staging bytes are classified, correctly shaped **and** checked, and nothing has put them in the library |
+| `done` | the validated shape was published in the pack's ROM directory |
+| *"the library already contains 'X'; it was not overwritten"* | import refused a collision; the existing game is unchanged |
+| *"the Store work area and ROM library are on different filesystems…"* | atomic rename is impossible, so no copy was attempted |
 | *"Zelda (USA).nes is not an iNES image: the bytes its format requires are not there …"* | validation refused: the file is not what its extension announces |
 | *"the download is empty: X has no content …"* | the floor every format has — a complete-looking download of nothing |
 | *"this download cannot be added because its name starts with a dot: …"* | the library scan would drop the file without a word (§5.3 rule 2), so it is refused rather than emitted or renamed |
@@ -597,17 +620,15 @@ Every job still stops honestly before `done`, with distinct reasons:
 | *"incomplete class F download: a complete game directory is missing …"* | acquisition delivered loose bytes where the pack requires a directory |
 
 A player who reads the second has a working account and nothing to fix, which
-the first would have told them wrongly. The validation reason is distinct from
-the transformation and inspection ones for the same reason: "it downloaded and
-could not be classified", "it is classified and nothing has checked it" and "it
-is checked, correct, and nothing has imported it" send a reader to three
-different settings. The verdict travels in the sentence *and* sits on its own
-column, because step 17 will rewrite the sentence. A `done` at any of them
-would be a lie the player reads again after a reboot, because the row persists. `done` is
-reachable only when both seams are filled, which no box does and the tests do —
-exactly as the Prowlarr client is exercised by an `httpx.MockTransport` that
-reaches no network. `materializerReady` says bytes can reach staging;
-`downloadReady` remains false because it promises a playable library entry.
+the first would have told them wrongly. Inspection, transformation, validation
+and import keep their own reasons for the same reason. `done` is reachable only
+after import returns; `downloadReady` is therefore true, while
+`materializerReady` continues to describe the separate acquisition capability.
+
+No refresh step follows import. `games.py:list_games()` is the filesystem scan
+and runs whenever the grid opens, so the newly published entry appears on that
+next listing and queues its normal media prefetch. The import-then-list test
+pins this existing design rather than adding an endpoint or database record.
 
 Progress is persisted as `downloaded_bytes` / `download_total` and included in
 the queryable job row. Each throttled update also emits `store:jobs`; the socket
@@ -780,11 +801,12 @@ is used: the materializer will join that name onto a directory, and a row
 sitting in the database since before that code existed is exactly the input
 nobody re-checks.
 
-**Nothing here writes into a ROM directory.**
-`backend/tests/test_store_jobs.py` compares the whole data tree path for path
-across a queue → run → cancel cycle, with a provider injected so the *success*
-path is walked too — the upstream half of the same guard is
-`test_searching_writes_nothing_anywhere` in `test_store_search.py`.
+**Only import writes into a ROM directory.**
+`backend/tests/test_store_jobs.py` compares the whole data tree path for path:
+all earlier writes must remain in the owning work area, and import's additions
+must remain below the pack's one directory. Separate negative tests fail if an
+earlier stage touches `emu/` or if import targets another system. The upstream
+half remains `test_searching_writes_nothing_anywhere` in `test_store_search.py`.
 
 Every transition is announced on the existing WebSocket as `store:jobs`,
 carrying the row that changed. The front end uses it as a signal and re-reads

@@ -43,7 +43,7 @@ motif as `playtime` and `sessions`. See that module's docstring for why one
 database and not two, and for what living under `config/` means the day
 somebody uninstalls GameCore.
 
-── Two halves, followed by an intentionally missing import ───────────────
+── The complete ingestion chain ──────────────────────────────────────────
 Running a job is **resolve, then store**, and they are deliberately not one
 thing:
 
@@ -65,22 +65,18 @@ thing:
   · `validate_shape()` judges that produced shape against its class — a
     signature, an archive directory, a descriptor's companions, an identity
     file — and persists a verdict. It changes nothing, on either the source or
-    the shape.
+    the shape;
+  · `import_shape()` publishes that accepted shape in the pack's ROM directory
+    without replacing an existing name, then removes staging.
 
-So a validated job still fails, now with `VALIDATED_NOT_IMPORTED`: a correctly
-shaped, checked download in staging is not a game in the library either.
-`NO_PROVIDER` and `NO_MATERIALIZER` remain distinct diagnostics for the two
-earlier missing seams, and a transformation or a validation that refuses says
-so in its own words rather than borrowing one of them.
+Only that last seam can make the row `done`. `NO_PROVIDER` and
+`NO_MATERIALIZER` remain distinct diagnostics for the earlier missing seams,
+and every later refusal says what actually stopped it.
 
-── What a job must never do ───────────────────────────────────────────────
-Write into `<DATA>/emu/<system>/`. Nothing here goes near a ROM directory —
-placing bytes where the library scan will find them is the importer's job
-(matrix §5), and half of it built here would have to be undone. `roms_dir` is
-carried on the row because it is what the box told the player when they queued
-it, and for no other reason. `backend/tests/test_store_jobs.py` stands guard
-over the whole data root, not just over `emu/`: after a full queue → run →
-cancel cycle the tree is byte-for-byte what it was, the database excepted.
+── What every stage except import must never do ───────────────────────────
+Write into `<DATA>/emu/<system>/`. The importer is the single exception and
+may write only below the one pack directory persisted as `roms_dir`.
+`backend/tests/test_store_jobs.py` keeps both halves of that guard.
 """
 from __future__ import annotations
 
@@ -141,22 +137,6 @@ NO_PROVIDER = "no acquisition provider is configured on this box"
 #: different half of the pipeline, and a player who reads the second has a
 #: working Real-Debrid and nothing to fix.
 NO_MATERIALIZER = "this box can find this download but cannot store it yet"
-
-#: The shape its class requires exists, it has been checked, and import (17)
-#: does not. Distinct from the three boundaries before it on purpose: a player
-#: who reads the wrong reason goes and checks the wrong setting, so "it never
-#: downloaded", "it downloaded and could not be classified", "it is shaped and
-#: nothing has checked it" and "it is checked and nothing has put it in the
-#: library" are four sentences and not one.
-#:
-#: The verdict travels in it because it is the one thing about a validated job
-#: a player may want to act on: `verified` says the bytes were proven to be
-#: what their name claims, `unverified` says the format carries no field this
-#: box can check and the import rests on the shape alone
-#: (`validator.py`'s docstring says which formats those are and why).
-VALIDATED_NOT_IMPORTED = (
-    "download validated as class {ingestion_class} ({verdict}); import is not "
-    "implemented yet")
 
 #: Why a job that was `running` when the process died is `failed` afterwards.
 INTERRUPTED = "the box stopped while this job was running"
@@ -446,6 +426,12 @@ def transformer():
     """
     from .transformer import ShapeTransformer
     return ShapeTransformer(progress=_transform_progress)
+
+
+def import_shape(job: Job, shape):
+    """Publish a validated shape; a seam for filesystem-free worker tests."""
+    from .importer import import_shape as publish
+    return publish(job, shape)
 
 
 # ── reading and writing a row ──────────────────────────────────────────────
@@ -890,7 +876,9 @@ async def drain() -> None:
             # A cancel asked for it, and `cancel()` has already written the
             # row. Nothing to settle.
             continue
-        await _settle(job, task.exception())
+        error = task.exception()
+        result = "" if error is not None else task.result()
+        await _settle(job, error, success_reason=result)
 
 
 async def _claim_next() -> Job | None:
@@ -915,12 +903,12 @@ async def _claim_next() -> Job | None:
             return claimed
 
 
-async def _acquire(job: Job) -> None:
-    """Resolve, materialize, inspect/classify, shape, then check one job.
+async def _acquire(job: Job) -> str:
+    """Resolve, materialize, classify, shape, check and import one job.
 
-    Import does not exist, so a validated download still ends `failed` with the
-    explicit `VALIDATED_NOT_IMPORTED` reason. The five seams are named here
-    rather than fused — see `AcquiredTarget` and matrix §5.
+    The six seams are named here rather than fused — see `AcquiredTarget` and
+    matrix §5. Only the final one receives ``roms_dir`` and can write in the
+    live library.
 
     Separate from `drain` so that it is a task of its own and therefore
     cancellable on its own: cancelling the worker would stop the queue, and
@@ -984,13 +972,13 @@ async def _acquire(job: Job) -> None:
     if not checked.ok:
         raise RuntimeError(checked.reason)
 
-    # Checked staging bytes are still not a library entry. `done` means
-    # playable, so stop at the validation-specific honest failure — with the
-    # BIOS sentence carried along when there is one, because the row's `reason`
-    # is the only channel a player actually reads today.
-    stopped = VALIDATED_NOT_IMPORTED.format(
-        ingestion_class=verdict.ingestion_class, verdict=checked.verdict)
-    raise RuntimeError(f"{stopped} {checked.bios_warning}".strip())
+    # This is the only call in the chain allowed to receive the destination.
+    # Its warning is a successful row's reason: `.nsp` ambiguity must be
+    # visible without pretending the package can be classified.
+    imported = await asyncio.to_thread(import_shape, job, shape)
+    log.info("store: job %s imported %s", job.id, _few(imported.names))
+    return " ".join(part for part in
+                    (imported.warning, checked.bios_warning) if part)
 
 
 def _few(items: tuple[str, ...], join: str = ", ", limit: int = 5) -> str:
@@ -1003,7 +991,8 @@ def _few(items: tuple[str, ...], join: str = ", ", limit: int = 5) -> str:
     return shown if len(items) <= limit else f"{shown} (+{len(items) - limit} more)"
 
 
-async def _settle(job: Job, error: BaseException | None) -> None:
+async def _settle(job: Job, error: BaseException | None,
+                  success_reason: str = "") -> None:
     """Write what became of a job that ran to its end.
 
     `expect=RUNNING` is the half that makes a cancel safe. A player who
@@ -1013,7 +1002,8 @@ async def _settle(job: Job, error: BaseException | None) -> None:
     did not ask for.
     """
     if error is None:
-        await _move(job.id, DONE, expect=RUNNING, stamp="ended_at")
+        await _move(job.id, DONE, expect=RUNNING,
+                    reason=success_reason[:_MAX_TEXT], stamp="ended_at")
         return
     # str(), not repr(), and whatever the provider chose to say. A provider's
     # own message is the only description of the failure there is; the contract

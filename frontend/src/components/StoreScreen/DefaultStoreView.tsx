@@ -282,10 +282,7 @@ function ResultRow({ result, focused, onClick }: {
  * The panel used to end by saying that nothing had been queued, because
  * nothing had: ✕ recorded a choice in component state that died with the
  * screen. It now writes a row to the box's database, and the paragraph at the
- * bottom changed with it — it says what the row will do, which is fail, and
- * why. That is a different sentence from the one it replaced and it has to
- * stay as exact: "queued" and "downloaded" are not the same promise, and this
- * is the screen where a player learns which one they are getting.
+ * bottom says exactly whether this backend can carry it into the library.
  */
 function AskedPanel({ result, romsDir, downloadReady, materializerReady, queueing, error }: {
   result: StoreSearchResult; romsDir: string; downloadReady: boolean
@@ -338,6 +335,18 @@ function AskedPanel({ result, romsDir, downloadReady, materializerReady, queuein
             ? 'It downloads into this job’s private work area, with progress shown in the queue. It is not imported into your library yet, so the job says so instead of pretending the game is playable.'
             : 'This box has no materializer, so no bytes can be fetched.'}
           {' '}Nothing is written into your ROM folder either way.
+        </div>
+      )}
+      {downloadReady && (
+        <div style={{
+          marginTop: 'auto', padding: '10px 12px', borderRadius: 8,
+          fontSize: 12.5, lineHeight: 1.5,
+          background: 'rgba(74,222,128,0.08)',
+          border: '1px solid rgba(74,222,128,0.25)',
+          color: 'rgba(255,255,255,0.68)',
+        }}>
+          <strong style={{ color: '#86efac' }}>✕ downloads and imports this game.</strong>
+          {' '}A successful job appears as DONE and the library sees it the next time the grid opens.
         </div>
       )}
       {queueing && (

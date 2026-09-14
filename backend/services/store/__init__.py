@@ -14,14 +14,10 @@ and `transformer.py` gives it the shape its class requires — beside the
 download, in `store/jobs/<job-id>/ingest/`, with the download itself never
 opened for writing and never removed. `validator.py` then judges that shape
 against its class and persists a verdict, reading a few bytes of each produced
-file and writing nowhere at all. Import does not exist, so the row fails with
-the distinct `VALIDATED_NOT_IMPORTED` reason instead of claiming that a staged
-game is playable.
-
-**Nothing here writes into `emu/`.** An acquisition provider only answers an
-`AcquiredTarget`; the materializer downloads atomically into staging, the
-transformer produces the final shape one directory below it, and placing a
-game where the library scan finds it remains a separate step.
+file and writing nowhere at all. `importer.py` then publishes only an accepted
+shape, and only inside the pack-derived ROM directory. That is the one point
+allowed to write below `emu/` and the one point after which the row may say
+`done`.
 
 **Why searching lives in the backend at all**, when the browser could talk to
 an indexer itself: a search provider is configured with a URL and an API key,
@@ -53,7 +49,6 @@ from .jobs import (                                     # noqa: F401
     RUNNING,
     STATES,
     TERMINAL,
-    VALIDATED_NOT_IMPORTED,
     AcquiredTarget,
     AcquisitionProvider,
     IllegalTransition,

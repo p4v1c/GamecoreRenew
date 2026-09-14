@@ -123,20 +123,19 @@ def test_complete_bytes_live_only_in_the_jobs_work_area_and_progress_is_queryabl
             job = await _job()
             await asyncio.wait_for(jobs.drain(), 2)
             after = await jobs.get(job.id)
-            assert after.state == jobs.FAILED
+            assert after.state == jobs.DONE
             # A bare `Zelda.nes` on `nes` is class A — matrix §5.1's A row is
             # "nes fds megadrive … · any", and `nes` declares no archive
             # extension (§3.2). It read "D" until every bare file stopped
             # answering that.
-            assert after.reason == jobs.VALIDATED_NOT_IMPORTED.format(
-                ingestion_class="A", verdict="verified")
+            assert after.reason == ""
             assert after.ingestion_class == "A"
             assert after.validation == "verified"
             assert after.downloaded_bytes == 6
             assert after.download_total == 6
-            assert (job_dir(job.id) / "Zelda.nes").read_bytes() == rom
+            assert (tmp_path / "emu" / "nes" / "Zelda.nes").read_bytes() == rom
+            assert not job_dir(job.id).exists()
             assert not list(tmp_path.rglob("*.part"))
-            assert not (tmp_path / "emu").exists()
         finally:
             await conn.close()
     asyncio.run(scenario())

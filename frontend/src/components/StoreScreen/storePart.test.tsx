@@ -898,6 +898,27 @@ describe('the queue, which is what asking for a game now means', () => {
     expect(r.container.textContent).toContain('Nothing here downloads yet')
   })
 
+  it('shows a successfully imported job as DONE', async () => {
+    vi.mocked(api.store.jobs).mockResolvedValue({
+      jobs: [job('a', 'done', {
+        title: 'Imported Zelda',
+        reason: 'Imported with caution: an .nsp can also be an update or DLC.',
+      })],
+      downloadReady: true,
+      materializerReady: true,
+    })
+    const r = render(<StoreScreen />)
+    await flush()
+    press('gp:r1')
+    press('gp:y')
+    await flush()
+
+    expect(r.container.textContent).toContain('Imported Zelda')
+    expect(r.container.textContent).toContain('DONE')
+    expect(r.container.textContent).toContain('Imported with caution')
+    expect(r.container.textContent).not.toContain('Downloads stop before the library')
+  })
+
   it('draws persisted progress for the running download', async () => {
     vi.mocked(api.store.jobs).mockResolvedValue({
       jobs: [job('a', 'running', {

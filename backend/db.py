@@ -113,9 +113,9 @@ async def _widen_store_jobs(db: aiosqlite.Connection) -> None:
         await db.execute(
             "ALTER TABLE store_jobs ADD COLUMN transform_total INTEGER NOT NULL DEFAULT 0")
     # The validation verdict is its own fact and not a spelling of `reason`:
-    # a job can be `verified` and still fail (nothing imports it yet), and a
-    # row that only carried the sentence could not be asked "which downloads
-    # on this box were never proven to be what they claimed".
+    # a job can be `verified` and later fail during import, and a row that only
+    # carried the sentence could not be asked "which downloads on this box were
+    # never proven to be what they claimed".
     if "validation" not in columns:
         await db.execute(
             "ALTER TABLE store_jobs ADD COLUMN validation TEXT NOT NULL DEFAULT ''")

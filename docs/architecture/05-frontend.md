@@ -213,7 +213,7 @@ configured with an indexer's URL and its API key, and a key that reaches the
 browser is a key in the page source and in the devtools of a television nobody
 logs out of. The frontend never learns how an answer was obtained.
 
-### Asking queues. Materializing is not importing.
+### Asking queues; a successful job is imported
 
 Two promises, and the screen has to keep them apart — this is where a player
 learns which one they are getting.
@@ -224,25 +224,20 @@ learns which one they are getting.
 - `gamesMaterializerReady` says the worker can download into the job-owned work
   area, and running rows show percentage and received bytes. The values come
   from the database; `store:jobs` merely triggers a re-read.
-- **`gamesDownloadReady` remains `false`** because it promises bytes imported
-  into a ROM directory and therefore a playable tile. A job now gets as far as
-  the final shape its ingestion class requires *and* a check of that shape, in
-  its own staging directory, and still ends failed — with the explicit
-  validated-not-imported reason — until import exists. The row carries
-  `transformedBytes` / `transformTotal` for the shaping stage and `validation`
-  for the verdict; nothing draws them yet, because the screen stops at the
-  download.
+- `gamesDownloadReady` is `true`: after shaping and validation, import
+  publishes complete entries in the pack's ROM directory and the row becomes
+  `done`. The queue draws that as `DONE`; an `.nsp` ambiguity or missing BIOS
+  may remain as explanatory text on that successful row.
 - `biosWarning` is on the row and is **not** a failure. A missing required BIOS
   file is refused by the launch gate, which names the file and can be fixed by
   copying one in ([§5.3](14-store-ingestion-matrix.md) rule 4); a screen that
   drew it as an error would send the player to re-download a game that
   downloaded correctly.
 
-`gamesDownloadReady` is read from the backend rather than written in the screen,
-so a view built today is already right the day it turns true. What a downloaded
-game has to *become* — six ingestion classes wide, see
-[`14-store-ingestion-matrix.md`](14-store-ingestion-matrix.md) §5 — and the
-importer that places it arrives in its own step.
+`gamesDownloadReady` is read from the backend rather than inferred from rows.
+The asked-about panel says that a successful job is imported and becomes
+visible on the next grid open; the queue keeps the five-state vocabulary and
+shows `DONE` without inventing a frontend success state.
 
 ### The Games tab's third place
 

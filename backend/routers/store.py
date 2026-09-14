@@ -5,12 +5,9 @@ question: they start nothing, hold no lock, and remember nothing. The job
 routes write down a request that outlives the screen it was made on — one row
 per game the player asked for, in the database this box already has.
 
-What is still NOT here, and must not arrive by accident: the six ingestion
-classes a download has to become (`docs/architecture/14-store-ingestion-matrix.md`
-§5). Acquisition resolves and materialization writes only beneath the job's
-`<DATA>/store/jobs/<id>/`; inspection and import do not exist. A queue that
-reported `done` for those staging bytes would be a lie after a reboot. The
-data-tree guard permits only that owned work area and forbids `emu/`.
+The worker owns the whole ingestion chain. Every stage through validation is
+confined to `<DATA>/store/jobs/<id>/`; import alone publishes below the one
+pack-derived `emu/<dir>/`, and only then may the row say `done`.
 
 **Why the search lives behind this router at all.** A provider is configured
 with an indexer's URL and its API key. A key that reaches the browser is a key
@@ -207,15 +204,11 @@ async def list_jobs():
     """
     return {
         "jobs": [j.to_json() for j in await jobs.list_jobs()],
-        # `false` for the whole of this step, and sent rather than inferred:
-        # nothing acquires anything yet, so a screen that drew this queue as a
-        # download in progress would be promising bytes that no code on this
-        # box can deliver. It turns true when they actually land in a ROM
-        # directory, and a view written now keeps working when it does.
-        "downloadReady": False,
-        # Bytes can now arrive, but only in the job-owned work area. Kept
-        # separate from downloadReady, whose promise is a playable library
-        # entry and must remain false until import exists.
+        # True means a successful row owns a live library entry, not merely
+        # staged bytes. The importer is now the last worker seam.
+        "downloadReady": True,
+        # Kept separate: a box may know how to import while lacking a configured
+        # acquisition/materialization path for a particular request.
         "materializerReady": jobs.materializer() is not None,
     }
 
@@ -230,9 +223,8 @@ async def queue_job(body: QueueRequest):
     holds a connection open for minutes and tells a player nothing while it
     does.
 
-    A configured box downloads into `<DATA>/store/jobs/<job-id>/`, then fails
-    with the distinct not-imported reason until the later ingestion stages
-    exist. Nothing here places bytes in a ROM directory.
+    A configured box downloads into `<DATA>/store/jobs/<job-id>/`, validates
+    the produced shape, then imports it atomically into the pack's ROM folder.
     """
     if not _ID_RE.fullmatch(body.systemId):
         raise HTTPException(400, "invalid system id")

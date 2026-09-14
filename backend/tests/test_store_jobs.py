@@ -1,9 +1,8 @@
 """The Store's acquisition queue — the states, the worker, and the restart.
 
-Nothing here reaches the real network and nothing writes a game into the
-library. The materializer's HTTP is supplied only by `httpx.MockTransport`,
-and the last test permits writes solely below the owning
-`store/jobs/<job-id>/` while guarding `emu/` by name.
+Nothing here reaches the real network. The materializer's HTTP is supplied
+only by `httpx.MockTransport`; the final guard attributes every pre-import
+write to `store/jobs/<job-id>/` and permits import only in the pack directory.
 
 What is pinned:
 
@@ -18,10 +17,9 @@ What is pinned:
     process died comes back `failed`, with the interruption as its reason, and
     never `running` and never silently re-run. Queued jobs survive and are
     picked up, which is the whole reason the queue is in a database;
-  · **the worker fails honestly.** With no provider it fails saying so. The
-    success path is exercised by a provider this file injects — the same rule
-    the Prowlarr client is tested by, where the seam is real and the thing
-    behind it is not shipped.
+  · **the worker finishes honestly.** With no provider it fails saying so; a
+    validated import reaches `done`. The success path uses injected network
+    seams, and its filesystem guard runs the real importer.
 """
 from __future__ import annotations
 
@@ -43,6 +41,7 @@ from backend.main import app                                   # noqa: E402
 from backend.services import paths                             # noqa: E402
 from backend.services.store import jobs                        # noqa: E402
 from backend.services.store.transformer import SHAPE_DIR       # noqa: E402
+from backend.services.store.importer import Imported           # noqa: E402
 from backend.services.store.materializer import (              # noqa: E402
     HttpMaterializer, MIN_FREE_AFTER_DOWNLOAD)
 
@@ -189,10 +188,10 @@ def fake_validation(monkeypatch, verdict=None, *, bios_warning=""):
 
 
 def _both(monkeypatch, provider):
-    """Inject a provider, a materializer, a transformer *and* a validation.
+    """Inject every filesystem/network seam of a successful worker run.
 
     The injected verdict, shape and judgement let queue tests reach the
-    deliberate validated-not-imported boundary without filesystem I/O.
+    successful terminal boundary without filesystem I/O.
     """
     monkeypatch.setattr(jobs, "acquisition_provider", lambda: provider)
     store = FakeMaterializer()
@@ -201,6 +200,9 @@ def _both(monkeypatch, provider):
     monkeypatch.setattr(jobs, "inspect_download", lambda _job: Inspection("D"))
     monkeypatch.setattr(jobs, "transformer", FakeTransformer)
     fake_validation(monkeypatch)
+    monkeypatch.setattr(
+        jobs, "import_shape",
+        lambda job, _shape: Imported(names=(job.filename,)))
     return store
 
 
@@ -448,9 +450,8 @@ def test_the_target_a_provider_answers_reaches_the_materializer(monkeypatch):
             job = await _queue(filename="Zelda.z64", size=1234)
             await jobs.drain()
             after = await jobs.get(job.id)
-            assert after.state == "failed"
-            assert after.reason == jobs.VALIDATED_NOT_IMPORTED.format(
-                ingestion_class="D", verdict="verified")
+            assert after.state == "done"
+            assert after.reason == ""
             assert after.ingestion_class == "D"
             assert len(store.seen) == 1
             seen_job, target = store.seen[0]
@@ -493,14 +494,11 @@ def test_an_incomplete_class_is_persisted_and_fails_with_what_is_missing(monkeyp
     asyncio.run(scenario())
 
 
-def test_a_validated_job_persists_its_verdict_and_stops_at_the_import_boundary(
+def test_a_validated_job_persists_its_verdict_and_reaches_done(
         monkeypatch):
     """The verdict is a column, not a turn of phrase in `reason`.
 
-    Step 17 will rewrite the sentence, and the question "which downloads on
-    this box were never proven to be what they claimed" has to survive that —
-    so `verified` / `unverified` lands on the row, and the reason carries it
-    as well because the reason is what the screen draws today.
+    Import changes the state, while the durable validation fact survives it.
     """
     async def scenario():
         conn = await _memory_db(monkeypatch)()
@@ -512,11 +510,10 @@ def test_a_validated_job_persists_its_verdict_and_stops_at_the_import_boundary(
             job = await _queue()
             await jobs.drain()
             after = await jobs.get(job.id)
-            assert after.state == jobs.FAILED
+            assert after.state == jobs.DONE
             assert after.validation == "unverified"
             assert after.bios_warning == ""
-            assert after.reason == jobs.VALIDATED_NOT_IMPORTED.format(
-                ingestion_class="D", verdict="unverified")
+            assert after.reason == ""
             assert after.to_json()["validation"] == "unverified"
         finally:
             await conn.close()
@@ -561,9 +558,8 @@ def test_a_missing_bios_is_recorded_and_is_not_what_stopped_the_job(monkeypatch)
     """Matrix §5.3 rule 4, at the level that could have broken it.
 
     The validator's own test proves the warning does not change its verdict;
-    this proves the *worker* does not turn the warning into a refusal on its
-    own — the job stops exactly where a job with no warning stops, at the
-    missing import, and the sentence rides along instead of replacing it.
+    this proves the *worker* does not turn the warning into a refusal. The
+    import succeeds and the warning remains visible on the successful row.
     """
     async def scenario():
         conn = await _memory_db(monkeypatch)()
@@ -577,14 +573,11 @@ def test_a_missing_bios_is_recorded_and_is_not_what_stopped_the_job(monkeypatch)
             job = await _queue()
             await jobs.drain()
             after = await jobs.get(job.id)
-            assert after.state == jobs.FAILED
+            assert after.state == jobs.DONE
             assert after.validation == "verified"
             assert after.bios_warning == warning
             assert after.to_json()["biosWarning"] == warning
-            # The job stopped at the import boundary and not at the BIOS.
-            assert after.reason.startswith(jobs.VALIDATED_NOT_IMPORTED.format(
-                ingestion_class="D", verdict="verified"))
-            assert warning in after.reason
+            assert after.reason == warning
         finally:
             await conn.close()
 
@@ -670,12 +663,8 @@ def test_the_worker_runs_the_queue_in_the_order_it_was_filled(monkeypatch):
             second = await _queue(source="demo://nes/b", title="B")
             await jobs.drain()
             assert [j.title for j in fake.seen] == ["A", "B"]
-            assert (await jobs.get(first.id)).reason == \
-                jobs.VALIDATED_NOT_IMPORTED.format(ingestion_class="D",
-                                                   verdict="verified")
-            assert (await jobs.get(second.id)).reason == \
-                jobs.VALIDATED_NOT_IMPORTED.format(ingestion_class="D",
-                                                   verdict="verified")
+            assert (await jobs.get(first.id)).state == jobs.DONE
+            assert (await jobs.get(second.id)).state == jobs.DONE
         finally:
             await conn.close()
 
@@ -735,9 +724,7 @@ def test_a_job_cancelled_mid_download_stops_and_stays_cancelled(monkeypatch):
             assert (await jobs.get(slow.id)).state == "cancelled"
             # The queue did not die with the cancelled job: the one behind it
             # ran. Cancelling the acquisition must not cancel the worker.
-            assert (await jobs.get(after.id)).reason == \
-                jobs.VALIDATED_NOT_IMPORTED.format(ingestion_class="D",
-                                                   verdict="verified")
+            assert (await jobs.get(after.id)).state == jobs.DONE
             assert [j.title for j in fake.seen] == ["Slow", "Next"]
         finally:
             await conn.close()
@@ -1044,7 +1031,7 @@ def test_queueing_answers_the_row_and_the_worker_finishes_it_honestly(client):
     assert job["downloadTotal"] == 0
 
     listed = client.get("/api/store/jobs").json()
-    assert listed["downloadReady"] is False
+    assert listed["downloadReady"] is True
     assert listed["materializerReady"] is True
 
     settled = _settled(client, job["id"])
@@ -1138,8 +1125,12 @@ def _inside_owned_work(path: str, roots: set[str]) -> bool:
             or any(path == root or path.startswith(f"{root}/") for root in roots))
 
 
+def _inside_import_target(path: str, targets: set[str]) -> bool:
+    return any(path == target or path.startswith(f"{target}/") for target in targets)
+
+
 def test_the_write_guard_rejects_every_path_outside_the_owned_work_area():
-    """Pin the negative half: broadening the guard itself must turn red."""
+    """Non-import stages remain forbidden from every live ROM directory."""
     roots = {"store/jobs/" + "a" * 32}
     assert _inside_owned_work("store/jobs/" + "a" * 32 + "/game.nes", roots)
     assert not _inside_owned_work("store/jobs/" + "b" * 32 + "/game.nes", roots)
@@ -1147,17 +1138,23 @@ def test_the_write_guard_rejects_every_path_outside_the_owned_work_area():
     assert not _inside_owned_work("somewhere-else/game.nes", roots)
 
 
-def test_queueing_and_running_write_only_into_job_work_areas_never_emu(
+def test_the_import_guard_accepts_only_the_pack_directory():
+    """Opening import wider than its one system directory turns this red."""
+    targets = {"emu/nes"}
+    assert _inside_import_target("emu/nes/Zelda.nes", targets)
+    assert not _inside_import_target("emu/rpcs3/Zelda.nes", targets)
+    assert not _inside_import_target("emu/Zelda.nes", targets)
+    assert not _inside_import_target("somewhere-else/Zelda.nes", targets)
+
+
+def test_queueing_and_running_write_only_into_work_until_import_opens_one_target(
         box, monkeypatch):
-    """The queue writes only owned staging directories, never `emu/`.
+    """Every write is owned staging, except import's one pack directory.
 
     The upstream half of this is `test_store_search.py`'s
     `test_searching_writes_nothing_anywhere`; this is the same assertion one
-    step later, and it is deliberately wider. Searching had no reason to touch
-    the disk at all, so its guard could watch everything. Queueing may add its
-    database row and paths below `store/jobs/<job-id>/`; every other new path
-    fails this test. `emu/` is asserted absent by name because a half-written
-    file there is immediately a tile (matrix §1.1).
+    step later. Searching writes nowhere; queueing may add paths below its job,
+    and import may publish below `emu/<the pack dir>` only.
 
     A provider and `MockTransport` walk the real materializer path, so this
     measures actual bytes rather than a fake that writes nothing.
@@ -1182,15 +1179,29 @@ def test_queueing_and_running_write_only_into_job_work_areas_never_emu(
         return sorted(p.relative_to(box).as_posix() for p in box.rglob("*")
                       if p.name != "playtime.db")
 
+    # Attribute the opening precisely. Immediately before the importer runs,
+    # every path produced by resolve/materialize/inspect/transform/validate
+    # must still be outside emu/. The final whole-tree check below then allows
+    # only what this wrapped call itself published.
+    real_import = jobs.import_shape
+    before_pipeline = set(tree())
+
+    def guarded_import(job, shape):
+        written_before_import = set(tree()) - before_pipeline
+        assert not any(path == "emu" or path.startswith("emu/")
+                       for path in written_before_import), written_before_import
+        return real_import(job, shape)
+
+    monkeypatch.setattr(jobs, "import_shape", guarded_import)
+
     with TestClient(app) as client:
         before = set(tree())
         first = _post(client).json()
         settled = _settled(client, first["id"])
-        assert settled["state"] == "failed"
+        assert settled["state"] == "done"
         # `Zelda (USA).nes` is class A, not D: §5.1's A row covers `nes` for
         # any arriving format, and D is the disc images only.
-        assert settled["reason"] == jobs.VALIDATED_NOT_IMPORTED.format(
-            ingestion_class="A", verdict="verified")
+        assert settled["reason"] == ""
         assert settled["ingestionClass"] == "A"
 
         second = _post(client, source="demo://nes/other",
@@ -1202,23 +1213,20 @@ def test_queueing_and_running_write_only_into_job_work_areas_never_emu(
         _settled(client, third["id"])
 
         allowed = {f"store/jobs/{row['id']}" for row in (first, second, third)}
+        targets = {"emu/nes"}
         written = sorted(set(tree()) - before)
         assert written
-        assert all(_inside_owned_work(path, allowed) for path in written), written
+        assert all(_inside_owned_work(path, allowed)
+                   or _inside_import_target(path, targets)
+                   for path in written), written
 
-        # The transformation is the first step that produces content, and it
-        # produced some: its shape is a *subdirectory* of the work area, so it
-        # is inside the guard above without the guard being loosened for it.
-        shaped = f"store/jobs/{first['id']}/{SHAPE_DIR}/Zelda (USA).nes"
-        assert shaped in written, written
-        # …and the download it was made from is still sitting beside it.
-        assert f"store/jobs/{first['id']}/Zelda (USA).nes" in written
+        # The one successful job left only its live library entry; its source
+        # and produced duplicate were deliberately cleaned after publication.
+        assert "emu/nes/Zelda (USA).nes" in written
+        assert not (box / "store" / "jobs" / first["id"]).exists()
 
     assert fake.seen, "the injected provider was never reached"
-    assert not (box / "emu").exists()
-    # Not even for the console the jobs named. `roms_dir` is recorded on the
-    # row and read by nothing that writes.
-    assert not (box / "emu" / "nes").exists()
+    assert (box / "emu" / "nes" / "Zelda (USA).nes").read_bytes() == payload
     assert not (box / "emu" / "rpcs3").exists()
 
 

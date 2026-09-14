@@ -11,9 +11,8 @@
  *
  * ── What the queue is honest about ──────────────────────────────────────────
  * Materialization downloads into per-job staging. `materializerReady` carries
- * that promise, while `downloadReady` remains false because it means imported
- * into the playable library. Running rows carry persisted byte progress, and
- * a complete transfer fails with the backend's explicit not-imported reason.
+ * that capability; `downloadReady` means a successful row was imported into
+ * the playable library. Running rows carry persisted byte progress.
  *
  * That is why the queue is worth having anyway. It is the difference between
  * "the box forgot" and "the box tried and here is what happened", and the
@@ -82,9 +81,8 @@ export interface StoreJobsState {
   /**
    * Whether a finished job means bytes in a ROM directory.
    *
-   * `false` for the whole of this step and read from the backend rather than
-   * hardcoded here, so that the day it turns true a screen written now is
-   * already right.
+   * Read from the backend rather than inferred from a row: it describes the
+   * worker's capability, not whether this particular job succeeded.
    */
   downloadReady: boolean
   /** Bytes can be downloaded into staging; this does not mean playable. */
