@@ -1,7 +1,7 @@
 # The Store chantier — handover
 
 **Branch:** `feature/gamecore-store` · **Base:** `main` at `59ea18d` ·
-**25 commits** · 603 files, +43,037 / −996 · 13–14 September 2026.
+**27 commits** · 604 files, +43,397 / −996 · 13–14 September 2026.
 
 Written in English like the rest of `docs/`, for the reason
 `docs/reports/README.md` gives: so that any developer — or any AI — picking the
@@ -233,7 +233,83 @@ pairs above.
 
 ---
 
-## 6. Picking this up
+## 6. How the work was actually run
+
+Worth knowing, because it explains the shape of everything above and it is not
+visible in the commits.
+
+One orchestrating session held the architecture and the order of work. It never
+wrote the feature code itself: for each step it produced a **written brief** —
+objective, decisions already taken and not open for re-litigation, the question
+that step had to settle, production-safety rules, files to read first, expected
+tests, and the exact report format — and stopped. A fresh session did the work
+against that brief and returned a structured report. The orchestrator then
+**re-measured the claims itself** before accepting: the suite, the gates, and
+whichever specific behaviour the step turned on.
+
+The dispatch is by hand and deliberately so — the owner carries each brief to a
+fresh session and carries the report back. No sub-agent tooling was used, which
+is what keeps every brief self-contained enough to be replayed by a human, and
+what forces each report to state its starting and ending commit, `Production
+touched: NO` and `Worked on main/master: NO`.
+
+That last part is not ceremony. Of the reports returned, several carried a
+number or a conclusion that did not survive re-measurement — a red test shipped
+unseen, a suite declared hung that was not, a class verdict that contradicted
+the contract. Every one of the seven findings in section 4 came out of
+re-measuring rather than re-reading.
+
+Two rules that earned their place:
+
+- **A guard that cannot fail guards nothing.** Every new guard was proved to go
+  red — a fake pack declaring a forgotten service, an archive trying to escape
+  its directory, a write outside the job's area. The two wrong ingestion classes
+  lived under 2,565 green tests precisely because no test could fail on them.
+- **Measure against reality once, early.** The console-claiming defect, the
+  fake `.xci`, the 0 %-resolvable indexer and the never-delivered `p7zip` were
+  all invisible offline and obvious within minutes of a real measurement.
+
+---
+
+## 7. Where this sits in the 23-step plan
+
+The chantier followed a numbered plan the owner wrote. Steps **1 to 20 are
+done**: clone, the ALL-PACKS analysis and port, the catalogue as source of
+truth, the ingestion matrix, the Store core and navigation, the migration out
+of Settings, the games tab, Prowlarr, persistent jobs, Real-Debrid,
+materializer, inspect, transform, validate, import, library rescan — which
+needed nothing, the listing already is the scan — installer and manifest, and
+OTA with rollback.
+
+**Step 21** (close the gaps the audit named) and **step 22** (the final audit)
+were reordered deliberately, and the reason is worth keeping: running the audit
+*first* turns step 21 from "add tests until it feels done" into "close these
+named holes". The audit is therefore already written —
+`docs/reports/store-final-audit-2026-09-14.md` — and step 21 is what remains.
+
+Phase 2, the deployment plan, was never written and must not be started without
+the owner saying so.
+
+---
+
+## 8. What lives outside this repository
+
+None of this is versioned; a fresh clone will not have it.
+
+| path | what it is |
+|---|---|
+| `~/src/gamecore-store-work/all-packs-v7/` | the extracted ALL-PACKS bundle, including the unported D1 patch and its two tests |
+| `~/gamecore-store-sandbox/` | an isolated data root, holding the 8 GB fake-release `.xci` and a full copy of it |
+| `~/prowlarr-app/`, `~/.config/Prowlarr/` | a hand-installed Prowlarr, loopback-only, with the owner's real key |
+| `~/prowlarr-can-download.py` | tests whether an indexer can actually hand over a file — Prowlarr's own Test button only tests *search*, and an indexer can pass it green and fail every grab |
+
+The sandbox is disposable. The Prowlarr install is the owner's to keep or
+remove; if it stays, its service and its Caddy route are a production decision
+nobody has taken yet.
+
+---
+
+## 9. Picking this up
 
 **Where things are.** Work in a clone, never in `/opt`, which is production.
 The backend runs on `.venv/bin/python`; the frontend on `npm` in `frontend/`.
