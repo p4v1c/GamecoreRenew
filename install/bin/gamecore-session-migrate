@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ================================================================
-#  gamecore-session-migrate — run the console-session step as root,
+#  gamecore-session-migrate — run the bounded release-migration step as root,
 #  with arguments nobody outside root can choose.
 #
 #  Started by `gamecore-session-migrate.service`, which the updater is allowed
@@ -20,6 +20,9 @@
 #  unit died, and the OTA aborted after the code had already been replaced.
 #  A migration that depends on one file is a migration that a box installed
 #  eighteen months ago cannot run.
+#
+#  The step refreshes the console/OTA helpers and carries the release's exact
+#  system prerequisites. It is not a general package or command entry point.
 #
 #  `--check` resolves and reports without doing anything. `update/check-session-
 #  prerequisites.sh` calls exactly that, so the preflight and the real run can

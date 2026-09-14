@@ -15,6 +15,7 @@
 #    /usr/share/xsessions/gamecore.desktop    the session SDDM can pick
 #    ~/.config/systemd/user/gamecore-session.target
 #    ~/.config/systemd/user/gamecore-ui.service   (tokens expanded)
+#    exact OTA system prerequisites absent from an already-installed box
 #
 #  The legacy kiosk remains enabled until gamecore-session-select arms the session.
 #
@@ -47,6 +48,11 @@ GC_PORT="${4:-8765}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_ROOT="$(cd "${HERE}/.." && pwd)"
+
+# This step is also the OTA's one narrow privileged entry point.  Carry exact,
+# reviewed distribution prerequisites to boxes installed before they existed;
+# update/linux.sh itself never receives a general sudo/pacman capability.
+bash "$HERE/install-ota-prerequisites.sh"
 
 USER_HOME="${GAMECORE_USER_HOME:-$(getent passwd "$GC_USER" | cut -d: -f6)}"
 [[ -n "$USER_HOME" ]] || { echo "ERROR: no home for user '$GC_USER'"; exit 1; }

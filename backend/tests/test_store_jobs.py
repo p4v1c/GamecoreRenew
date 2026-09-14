@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
+import sqlite3
 import sys
 from pathlib import Path, PurePosixPath
 
@@ -626,6 +628,58 @@ def test_the_two_validation_columns_are_added_to_a_database_made_without_them(
             assert rows[0]["bios_warning"] == ""
 
     asyncio.run(scenario())
+
+
+def test_the_first_store_code_still_reads_and_writes_the_migrated_table(tmp_path):
+    """The real rollback direction: old SQL over the widened database.
+
+    These are the columns and statements shipped by the first persistent Store
+    queue.  Extra SQLite columns with defaults must remain additive: rolling
+    code back never rolls the database back and must not require an inverse
+    migration.
+    """
+    conn = sqlite3.connect(tmp_path / "migrated.db")
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        "CREATE TABLE store_jobs (id TEXT PRIMARY KEY, system_id TEXT NOT NULL,"
+        " roms_dir TEXT NOT NULL DEFAULT '', title TEXT NOT NULL,"
+        " filename TEXT NOT NULL, format TEXT NOT NULL DEFAULT '',"
+        " size INTEGER NOT NULL DEFAULT 0, provider TEXT NOT NULL,"
+        " source TEXT NOT NULL, state TEXT NOT NULL,"
+        " reason TEXT NOT NULL DEFAULT '', queued_at TEXT NOT NULL,"
+        " started_at TEXT, ended_at TEXT)")
+
+    # Use the migration declarations themselves, so a later additive column is
+    # automatically part of this rollback fixture instead of being copied here.
+    source = Path(dbmod.__file__).read_text()
+    alterations = re.findall(
+        r'"(ALTER TABLE store_jobs ADD COLUMN [^"]+)"', source)
+    assert alterations
+    for statement in alterations:
+        conn.execute(statement)
+
+    conn.execute(
+        "INSERT INTO store_jobs (id, system_id, roms_dir, title, filename,"
+        " format, size, provider, source, state, reason, queued_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        ("legacy", "nes", "emu/nes", "Zelda", "Zelda.nes", "nes", 4,
+         "legacy", "fixture://zelda", "queued", "", "2026-01-01"))
+    legacy_columns = (
+        "id, system_id, roms_dir, title, filename, format, size, provider,"
+        " source, state, reason, queued_at, started_at, ended_at")
+    row = conn.execute(
+        f"SELECT {legacy_columns} FROM store_jobs WHERE id = ?", ("legacy",)
+    ).fetchone()
+    assert row["title"] == "Zelda" and row["state"] == "queued"
+    conn.execute(
+        "UPDATE store_jobs SET state = ?, reason = ?, ended_at = ?"
+        " WHERE id = ? AND state = ?",
+        ("failed", "interrupted", "2026-01-02", "legacy", "queued"))
+    conn.commit()
+    assert tuple(conn.execute(
+        "SELECT state, reason FROM store_jobs WHERE id = ?", ("legacy",)
+    ).fetchone()) == ("failed", "interrupted")
+    conn.close()
 
 
 def test_an_acquired_target_never_prints_its_url(monkeypatch):

@@ -159,15 +159,15 @@ PREV_DIR="${GAMECORE_PATH}.prev"
 if rm -rf "$PREV_DIR" 2>/dev/null && \
    rsync -a --delete \
      --exclude='.venv/' --exclude='node_modules/' --exclude='emu/' \
-     --exclude='config/' --exclude='VERSION' \
+     --exclude='config/' --exclude='store/' --exclude='VERSION' \
      --link-dest="${GAMECORE_PATH}/" "${GAMECORE_PATH}/" "${PREV_DIR}/" 2>/dev/null; then
   echo "[update] Snapshot of the current install: ${PREV_DIR}"
   restore_hint() {
     echo "[update] To go back to the code that was running before this update:"
     echo "[update]   sudo rsync -a ${PREV_DIR}/ ${GAMECORE_PATH}/"
     echo "[update]   sudo systemctl restart gamecore-backend gamecore-ui"
-    echo "[update] (no --delete: the snapshot excludes .venv, node_modules, emu/ and"
-    echo "[update]  config/, which must not be removed from the live install)"
+    echo "[update] (no --delete: the snapshot excludes .venv, node_modules, emu/,"
+    echo "[update]  config/ and store/, which must not be removed from the live install)"
   }
 else
   echo "[update] WARNING: could not snapshot the current install — no easy way back if this fails."
@@ -181,6 +181,7 @@ echo "[update] Installing new files..."
 # Excluded paths are user data — never overwrite them:
 #   config/     → systems.json, controller mappings, playtime DB
 #   emu/        → ROMs and covers
+#   store/      → job-owned downloads and transformation work
 #   assets/overlays/  → user-uploaded bezels
 #   assets/logos/     → user-uploaded logos
 #   .venv/      → Python virtualenv (rebuilt separately)
@@ -217,6 +218,7 @@ rsync -a \
   --exclude='.venv/' \
   --exclude='emu/' \
   --exclude='config/' \
+  --exclude='store/' \
   --exclude='assets/overlays/' \
   --exclude='assets/logos/' \
   "${SRC_DIR}/" "${GAMECORE_PATH}/" || fail "rsync failed"
@@ -485,10 +487,13 @@ if command -v systemctl >/dev/null 2>&1 \
 fi
 
 # Refresh every shipped session helper and user unit, including on boxes
-# already migrated. Installing never changes which session boots.
-echo "[update] refreshing console session and OTA helpers…"
+# already migrated.  The same bounded privileged step installs exact system
+# prerequisites declared by the release (currently p7zip); it never runs a
+# distribution upgrade and the updater cannot supply package names. Installing
+# never changes which session boots.
+echo "[update] refreshing console session, OTA helpers and prerequisites…"
 sudo -n systemctl start gamecore-session-migrate.service \
-  || fail "session migration failed — see journalctl -u gamecore-session-migrate"
+  || fail "privileged release migration failed — see journalctl -u gamecore-session-migrate"
 for helper in gamecore-session gamecore-session-select gamecore-xsetup gamecore-restart gamecore-session-migrate; do
   cmp -s "$GAMECORE_PATH/install/bin/$helper" "/usr/local/bin/$helper" \
     || fail "session migration left an outdated $helper"

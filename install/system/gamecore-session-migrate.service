@@ -1,7 +1,9 @@
 [Unit]
-Description=GameCore — install the console session (one shot)
+Description=GameCore — apply bounded release prerequisites (one shot)
 # Runs `install/steps/setup-gamecore-session.sh` with the values the installer
-# recorded, as root, and exits.
+# recorded, as root, and exits. Besides the console files, that step installs
+# the exact system prerequisites declared by the shipped release; callers
+# cannot provide package names or command arguments.
 #
 # It exists because the updater runs UNPRIVILEGED, and the migration writes to
 # /usr/local/bin, /usr/share/xsessions and the systemd of the machine. The

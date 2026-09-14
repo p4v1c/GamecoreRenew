@@ -55,6 +55,16 @@ def _release_excludes() -> list[str]:
     return found
 
 
+def _snapshot_excludes() -> list[str]:
+    """The exclusions of the hardlinked `.prev` tree, from the script."""
+    text = UPDATER.read_text(encoding="utf-8")
+    block = text.split("rsync -a --delete \\", 1)[1].split(
+        '"${GAMECORE_PATH}/" "${PREV_DIR}/"', 1)[0]
+    found = re.findall(r"--exclude='([^']+)'", block)
+    assert found, "could not find the snapshot rsync's excludes in update/linux.sh"
+    return found
+
+
 # What an installed box has that the release must not touch. Values are the
 # marker contents; the test asserts they come through byte-identical.
 _USER_DATA = {
@@ -66,6 +76,10 @@ _USER_DATA = {
     "assets/logos/duckstation.png": "a logo the operator replaced",
     "config/theme.json": '{"active": "shelf"}',
     "config/standby.json": '{"enabled": true, "screensaver_mins": 10}',
+    "config/playtime.db": "SQLite store_jobs and playtime, in spirit",
+    "config/store-prowlarr.json": '{"url": "http://indexer.invalid"}',
+    "config/store-realdebrid.json": '{"token": "fixture-secret"}',
+    "store/jobs/0123456789abcdef/Zelda.7z.part": "partial download",
 }
 
 
@@ -238,10 +252,30 @@ def test_the_excludes_stay_while_the_data_is_still_inside_the_install():
         pytest.skip("the suite is running with the roots already separate")
 
     excludes = _release_excludes()
-    for needed in ("emu/", "config/", "assets/overlays/", "assets/logos/"):
+    for needed in ("emu/", "config/", "store/", "assets/overlays/", "assets/logos/"):
         assert needed in excludes, (
             f"update/linux.sh no longer excludes {needed}, but the data still "
             "lives inside the install — the next OTA would delete it")
+
+
+def test_the_snapshot_never_hardlinks_store_work_or_store_state(box):
+    """Store state is data, and a `.part` is actively written in place.
+
+    Hardlinking it into `.prev` would make the snapshot retain gigabytes after
+    restart cleanup and could resurrect an unverifiable partial on rollback.
+    The DB and both credential files are already covered by `config/`; the
+    work area needs its own exclusion.
+    """
+    excludes = _snapshot_excludes()
+    assert "config/" in excludes
+    assert "store/" in excludes
+
+    prev = Path(str(box) + ".prev")
+    subprocess.run(
+        ["rsync", "-a", "--delete", *[f"--exclude={e}" for e in excludes],
+         f"{box}/", f"{prev}/"], check=True, capture_output=True)
+    assert not (prev / "config").exists()
+    assert not (prev / "store").exists()
 
 
 def test_rolling_back_returns_a_working_box(box, tmp_path):
@@ -256,7 +290,7 @@ def test_rolling_back_returns_a_working_box(box, tmp_path):
     subprocess.run(
         ["rsync", "-a", "--delete",
          "--exclude=.venv/", "--exclude=node_modules/", "--exclude=emu/",
-         "--exclude=config/", "--exclude=VERSION",
+         "--exclude=config/", "--exclude=store/", "--exclude=VERSION",
          f"{box}/", f"{prev}/"], check=True, capture_output=True)
 
     _deploy(_release(tmp_path), box)
@@ -271,3 +305,74 @@ def test_rolling_back_returns_a_working_box(box, tmp_path):
             f"{rel} did not survive update-then-rollback")
     assert json.loads((box / "config" / "systems.json").read_text())[0]["id"] \
         == "duckstation"
+
+
+def test_catalogue_added_by_an_update_survives_the_documented_rollback(tmp_path):
+    """Measure the real 13-system -> expanded-catalogue rollback.
+
+    `config/systems.json` stays advanced, but the restore command has no
+    `--delete`.  Therefore pack directories introduced by the newer release
+    stay beside the restored older code; the grid does not acquire dead tiles.
+    This uses the repository's actual pre-expansion release, not a hand-written
+    approximation of either catalogue.
+    """
+    old_revision = "c1a4df6^"
+    root = tmp_path / "GameCore"
+    prev = tmp_path / "GameCore.prev"
+    root.mkdir()
+    archive = subprocess.run(
+        ["git", "-C", str(REPO), "archive", old_revision],
+        check=True, capture_output=True).stdout
+    subprocess.run(["tar", "-x", "-C", str(root)], input=archive,
+                   check=True, capture_output=True)
+
+    old_systems = json.loads((root / "config" / "systems.json").read_text())
+    subprocess.run(
+        ["rsync", "-a", "--delete",
+         *[f"--exclude={e}" for e in _snapshot_excludes()],
+         f"{root}/", f"{prev}/"], check=True, capture_output=True)
+    _deploy(_release(tmp_path), root)
+    # The updater's conservative merge produces this shipped superset for the
+    # uncustomised historical grid.  Copying only the fixture isolates the
+    # rollback question from merge.py, which has its own tests.
+    shutil.copy2(REPO / "config" / "systems.json", root / "config" / "systems.json")
+    subprocess.run(["rsync", "-a", f"{prev}/", f"{root}/"],
+                   check=True, capture_output=True)
+
+    old_ids = {row["id"] for row in old_systems}
+    advanced = json.loads((root / "config" / "systems.json").read_text())
+    added_ids = [row["id"] for row in advanced if row["id"] not in old_ids]
+    assert added_ids, "the historical fixture no longer precedes the expansion"
+
+    probe = r'''
+import json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root))
+from backend.services.catalog import load_catalog
+from backend.routers.systems import get_systems
+from backend.routers.games import list_games
+packs = load_catalog(root / "catalog", root / "config" / "catalog.d",
+                     ota_dir=root / "no-remote-packs")
+systems = get_systems()
+added = json.loads(sys.argv[2])
+print(json.dumps({
+    "systems": len(systems),
+    "packs": len(packs),
+    "missing": [pack_id for pack_id in added if pack_id not in packs],
+    "games": list_games(added[0]),
+}))
+'''
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("GAMECORE_TEST_ROOT", "GAMECORE_TRUST_LOCAL_PACKS")}
+    env.update(GAMECORE_PATH=str(root), GAMECORE_DATA=str(root),
+               HOME=str(tmp_path / "home"))
+    Path(env["HOME"]).mkdir()
+    result = subprocess.run(
+        [sys.executable, "-c", probe, str(root), json.dumps(added_ids)],
+        env=env, text=True, capture_output=True, timeout=180)
+    assert result.returncode == 0, result.stderr
+    measured = json.loads(result.stdout)
+    assert measured["systems"] == len(advanced)
+    assert measured["missing"] == []
+    assert measured["games"] == []  # an empty library, not an error or dead tile

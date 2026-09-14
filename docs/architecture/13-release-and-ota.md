@@ -88,9 +88,12 @@ In order, and the order is the interesting part:
 2. **Snapshot to `${GAMECORE_PATH}.prev`** — see below.
 3. **rsync the release in**, with the excludes below.
 4. **Install/update themes** by comparing `version` in `theme.json`.
-5. **Merge `systems.json`**, keeping the previous file as
+5. **Update Python dependencies**, then run the existing bounded privileged
+   migration. Besides refreshing the session helpers, that migration installs
+   the exact system prerequisites declared by the release (currently `p7zip`).
+6. **Merge `systems.json`**, keeping the previous file as
    `systems.json.bak-merge`.
-6. **Start `gamecore-restart.service` with `--no-block`** and exit.
+7. **Start `gamecore-restart.service` with `--no-block`** and exit.
 
 That last step matters: `update/linux.sh` runs *inside the backend's cgroup*, so
 a direct `systemctl restart` would kill the script mid-update. The restart
@@ -100,6 +103,7 @@ happens in its own unit, about two seconds after the script exits.
 
 ```
 --exclude='.venv/'  --exclude='emu/'  --exclude='config/'
+--exclude='store/'
 --exclude='assets/overlays/'  --exclude='assets/logos/'
 ```
 
@@ -107,6 +111,9 @@ happens in its own unit, about two seconds after the script exits.
   update.**
 - `config/` — excluded *wholesale*, which is what preserves `config/catalog.d/`
   (the operator's own packs) and all the box state across every update.
+- `store/` — job-owned downloads and transformation work. A `.part` may be
+  several gigabytes and is being written while the updater is taking its
+  snapshot; it is data, never release content.
 - `assets/overlays/`, `assets/logos/` — uploaded by the player/operator.
 - `.venv/` — rebuilt separately.
 
@@ -119,6 +126,41 @@ emulator's config — deploying that stays a deliberate act
 
 When `GAMECORE_DATA` is set to something outside the install, the script says so
 in the log and notes the excludes are now redundant but harmless.
+
+### How a new system prerequisite reaches an old box
+
+`pip install` is not a system-package mechanism. Before the Store, that was an
+unwritten limitation; with archive inspection it became a fleet-wide failure:
+`7z l` is the first operation for ingestion classes A, B and C, while `p7zip`
+was installed only by a fresh `install/arch.sh`.
+
+The updater still does **not** run `pacman`, and it receives no general root
+package permission. It uses the privileged path that already exists:
+`check-session-prerequisites.sh` first proves that the root-owned
+`gamecore-session-migrate.service` and its argument-free sudo rule exist; after
+the release is copied, that unit runs `setup-gamecore-session.sh`, which calls
+`install-ota-prerequisites.sh`. The latter owns a reviewed array of exact
+package names and runs only:
+
+```
+pacman -Qq <exact-name>
+pacman -S --noconfirm --needed <missing-exact-names>
+```
+
+There is deliberately no `-Syu`, repository choice, package argument from the
+caller, or generic sudoers rule. A release may add a prerequisite, but cannot
+turn a feature dependency into authority to roll the whole distribution under
+a remote box. Packages GameCore actually adds are appended to
+`/var/lib/gamecore/pacman-installed`, so the existing opt-in uninstall path can
+remove them; a failed install records nothing.
+
+This makes the Store's message true: an OTA installs `p7zip` on an already
+prepared box. A box too old to have the bounded migration entry point is stopped
+by the read-only preflight before any running code is replaced and receives the
+existing one-time preparation command. Merely printing a `pacman` suggestion
+after installing the Store was rejected: the Settings log is not a reliable
+way to deliver a mandatory fleet migration, and it would leave all archive
+ingestion present but dead.
 
 ### Where the updater finds the data root
 
@@ -154,7 +196,8 @@ sudo systemctl restart gamecore-backend gamecore-ui
 ```
 
 **No `--delete`.** The snapshot excludes `.venv/`, `node_modules/`, `emu/`,
-`config/` and `VERSION`, and those must not be removed from the live install.
+`config/`, `store/` and `VERSION`, and those must not be removed from the live
+install.
 
 Two properties that are easy to get wrong:
 
@@ -172,6 +215,42 @@ Two properties that are easy to get wrong:
 
 There is **one** snapshot: the next update overwrites it. It gets you back one
 release, not to an arbitrary one.
+
+### What a Store rollback does and does not restore
+
+The snapshot restores code. It does not restore any Store state:
+
+- `config/systems.json`, `config/playtime.db` (including `store_jobs`) and the
+  two provider files `store-prowlarr.json` / `store-realdebrid.json` remain the
+  live data because `config/` is excluded wholesale;
+- `<GAMECORE_DATA>/store/jobs` remains live data too. When data is inside the
+  install, the explicit `store/` exclusion also keeps active `.part` files out
+  of the hardlinked snapshot. A graceful OTA restart cancels the transfer,
+  removes its job-owned work directory and marks the row `failed` with the
+  `interrupted` reason. After a hard stop, `resume_after_restart()` performs the
+  same cleanup and state transition. Queued rows remain queued.
+
+Database widening is additive and has no inverse. The rollback case was
+exercised by creating the current table, then running the first persistent
+Store queue's original `INSERT`, projected `SELECT` and `UPDATE` statements
+against it: all succeed, because later columns have defaults and the old code
+names only its own columns. Code from before the Store simply ignores the extra
+table.
+
+The advanced catalogue looks dangerous but the documented restore command has
+an important second effect. `catalog/` is part of the code snapshot, yet the
+restore has no `--delete`: old pack files overwrite matching ones, while pack
+directories introduced by the newer release remain. This was measured on
+temporary trees using the real pre-expansion state (13 systems) and the current
+state (31 systems, 35 shipped packs). After update and rollback, the old loader
+reported all 35 packs, none of the 18 system ids added to `systems.json` lacked
+a pack, and listing games for one of them returned an empty list rather than an
+error, dead tile or empty screen. No catalogue repair is therefore needed.
+
+Do not add `--delete` to the restore command. Besides risking excluded live
+state, it would remove those forward-added pack directories while leaving the
+advanced `systems.json` in place, creating exactly the split-brain catalogue
+the measured rollback avoids.
 
 Themes follow the same single-snapshot rule at
 `config/themes/.prev/<id>/`, for the same reason — a bundled theme with a bug
