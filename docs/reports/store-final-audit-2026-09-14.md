@@ -375,6 +375,42 @@ that documentation truth can drift while the docs gate remains green.
 | Uninstaller removes addon data on separate roots | **May wait only with explicit exclusive-root contract** | Operator-facing destructive scope, ownership proof, and a disposable multi-root uninstall exercise. |
 | BlueRoms searches but cannot download | **Operational blocker** for the owner's acceptance path | Repair the upstream definition or choose a working indexer; run one legal non-paid acceptance download. |
 
+## Owner decisions taken after this audit
+
+The audit is a finding, not a verdict on what to build. These were decided by
+the owner once the findings were on the table, and are recorded here so that a
+later reader does not mistake a choice for an oversight.
+
+### Blocker 2, credential escape — **accepted, not fixed** (2026-09-14)
+
+The three paths are real and were reproduced twice, once by the audit and once
+independently: a private-tracker passkey inside a `guid` **path** reaches
+`SearchResult.source`, `to_json()` and `store_jobs.source`; URL user-info
+survives both `_clean_url`s into every `_where()` diagnostic; and a remote error
+body is copied verbatim into a job's `reason`, which is logged and exposed.
+
+The owner's judgement, and it is sound on severity: none of this is reachable
+from the network. `/api/*` is 403 through Caddy, so the Store's API and screen
+are loopback-only; there is no privilege escalation and no remote exposure.
+The exposure is to whoever already has the box.
+
+What remains true, and was said before the decision rather than after: **logs
+get pasted.** During this chantier the owner pasted terminal output into a chat
+a dozen times, and a real Real-Debrid key was offered and declined for exactly
+that reason. A tracker passkey in a journal line would travel the same way.
+There is also a non-security cost: a `source` carrying a full tracker URL is no
+longer opaque, and opacity is the property the whole resolution redesign was
+built on — `(indexerId, guid)` was rejected precisely to obtain a clean,
+durable locator.
+
+Cost of closing it later: four small changes — redact URL paths, refuse
+user-info, refuse a non-HTTPS Real-Debrid endpoint, stop retaining remote error
+bodies — plus the taint test that keeps the class of bug from returning. The
+taint test is the expensive half and the only part that prevents recurrence.
+
+**This is a decision, not a gap.** It should be revisited before the box is
+ever used by someone other than its owner, and before any log from it is shared.
+
 ## What step 21 must close
 
 Step 21 should not be “add more coverage.”  It should add these named
