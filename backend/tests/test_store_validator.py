@@ -258,7 +258,12 @@ def test_every_signature_carries_the_source_it_came_from():
     hints = {s for s, sig in validator._SIGNATURES.items() if not sig.proof}
     # The extensions that name more than one format, or where this project has
     # material evidence of a variant without the field.
-    assert hints == {".iso", ".cdi", ".gen", ".32x", ".xci", ".wad", ".mds",
+    #
+    # `.xci` was in this set for one release and left it on evidence: the
+    # sample that contradicted switchbrew turned out to be a fake release, and
+    # a gamecard image that actually runs carries `HEAD` at 0x100 exactly as
+    # documented. It may refuse now — see `_XCI`.
+    assert hints == {".iso", ".cdi", ".gen", ".32x", ".wad", ".mds",
                      ".ccd"}, hints
 
 

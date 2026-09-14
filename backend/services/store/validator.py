@@ -166,21 +166,25 @@ class _Signature:
 _GB_LOGO = bytes.fromhex("ceed6666cc0d000b")
 _NINTENDO_LOGO = bytes.fromhex("24ffae51699aa221")
 
-#: `.xci` is a **hint** and not a proof, against the documentation, on
-#: evidence. Switchbrew's gamecard format puts `HEAD` at 0x100, after the
-#: 0x100-byte RSA-2048 signature — but the one real `.xci` this project has
-#: (an 8 GB download in the development sandbox) carries no `HEAD` there, no
-#: `HFS0` and no `PFS0` anywhere in its first 256 MiB — while measuring
-#: exactly 0x1DC000000 bytes, the size an untrimmed 8 GB gamecard image is
-#: documented to have, with its last 2.7 GiB zeroed. Either that file is not a
-#: gamecard image or the documented layout has a variant nobody wrote down. A
-#: refusal must not rest on an open question, so a match counts as proof of
-#: format and a miss counts as nothing. Nothing in the test suite reads that
-#: file (it is versioned nowhere), and this note is the whole of its
-#: contribution.
+#: `.xci` is a **proof**, and the question that once held it back is closed.
+#:
+#: It was a hint for one release, on evidence: the only `.xci` this project had
+#: was an 8 GB download that carried no `HEAD` at 0x100, no `HFS0` and no
+#: `PFS0` anywhere in its first 256 MiB — while measuring exactly
+#: 0x1DC000000 bytes, the size an untrimmed 8 GB gamecard image is documented
+#: to have, with its last 2.7 GiB zeroed. Either the file was not a gamecard
+#: image or the documented layout had a variant nobody wrote down, and a
+#: refusal must not rest on an open question.
+#:
+#: A second sample settled it: a `.xci` the box owner already plays carries
+#: `HEAD` at 0x100 exactly where switchbrew puts it, after the 0x100-byte
+#: RSA-2048 signature. The documentation is right, the download was a fake
+#: release, and this signature is now allowed to refuse one — which is the
+#: whole reason validation is a step. Neither file is read by the suite and
+#: neither is versioned; the fixtures below are synthetic.
 _XCI = _Signature(
-    "a Switch gamecard image", ((0x100, b"HEAD"),), False,
-    "switchbrew, Gamecard Format — contradicted by the one real sample, see above")
+    "a Switch gamecard image", ((0x100, b"HEAD"),), True,
+    "switchbrew, Gamecard Format; confirmed against a gamecard image that runs")
 
 #: Keyed on the suffix, never on the system: half of a pair predicate (§0).
 _SIGNATURES: dict[str, _Signature] = {
