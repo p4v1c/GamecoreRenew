@@ -12,9 +12,11 @@ then `materializer.py` streams the bytes into the job-owned work area under
 `<DATA>/store/jobs/`. `inspector.py` classifies that unchanged staging shape,
 and `transformer.py` gives it the shape its class requires — beside the
 download, in `store/jobs/<job-id>/ingest/`, with the download itself never
-opened for writing and never removed. Neither validation nor import exists, so
-the row fails with the distinct `TRANSFORMED_NOT_VALIDATED` reason instead of
-claiming that a staged game is playable.
+opened for writing and never removed. `validator.py` then judges that shape
+against its class and persists a verdict, reading a few bytes of each produced
+file and writing nowhere at all. Import does not exist, so the row fails with
+the distinct `VALIDATED_NOT_IMPORTED` reason instead of claiming that a staged
+game is playable.
 
 **Nothing here writes into `emu/`.** An acquisition provider only answers an
 `AcquiredTarget`; the materializer downloads atomically into staging, the
@@ -47,11 +49,11 @@ from .jobs import (                                     # noqa: F401
     LIVE,
     NO_MATERIALIZER,
     NO_PROVIDER,
-    TRANSFORMED_NOT_VALIDATED,
     QUEUED,
     RUNNING,
     STATES,
     TERMINAL,
+    VALIDATED_NOT_IMPORTED,
     AcquiredTarget,
     AcquisitionProvider,
     IllegalTransition,
@@ -73,4 +75,11 @@ from .search import (                                     # noqa: F401
     provider_info,
     searchable_systems,
     system_for,
+)
+from .validator import (                                  # noqa: F401
+    REFUSED,
+    UNVERIFIED,
+    VERIFIED,
+    Validation,
+    ValidationError,
 )

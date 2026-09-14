@@ -763,14 +763,33 @@ CREATE TABLE store_jobs (
     download_total   INTEGER NOT NULL DEFAULT 0,
     ingestion_class  TEXT NOT NULL DEFAULT '', -- A..F after inspection
     transformed_bytes INTEGER NOT NULL DEFAULT 0,
-    transform_total   INTEGER NOT NULL DEFAULT 0
+    transform_total   INTEGER NOT NULL DEFAULT 0,
+    validation        TEXT NOT NULL DEFAULT '', -- verified|unverified|refused
+    bios_warning      TEXT NOT NULL DEFAULT ''  -- a launch blocker, never an
+                                                -- ingest one (§5.3 rule 4)
 );
 CREATE INDEX store_jobs_by_state ON store_jobs (state, queued_at);
 ```
 
 Existing tables are widened idempotently with `ALTER TABLE ADD COLUMN` after a
-`PRAGMA table_info`; progress defaults to zero and `ingestion_class` to empty,
-so no old row is rewritten or assigned a guessed verdict.
+`PRAGMA table_info`; progress defaults to zero and `ingestion_class`,
+`validation` and `bios_warning` to empty, so no old row is rewritten or
+assigned a guessed verdict. SQLite has no `ADD COLUMN IF NOT EXISTS` and
+`init_db()` runs on every boot, so the guard is the migration — not a nicety.
+
+**`validation` is a column and not a turn of phrase in `reason`.** The sentence
+belongs to whichever step failed last and will be rewritten by the next one;
+the verdict is a durable fact about the bytes, and it is the only thing that
+can answer "which downloads on this box were never *proven* to be what they
+claimed". `verified` means a field the format requires was found where it
+belongs, `unverified` that the format carries no such field at all — a `.sfc`
+has none — and `refused` that the check ran and turned the download down.
+
+**`bios_warning` is a third fact again, and it is about the box.** A game can
+be `verified` and still unplayable for want of `saturn_bios.bin`. Folded into
+the verdict it would read as a fault of the file; folded into `reason` it would
+vanish the moment a later step rewrote the sentence. It is recorded, and read
+by nothing that decides ([14](14-store-ingestion-matrix.md) §5.3 rule 4).
 
 **Transformation progress is its own pair and not a second writer of the
 download's.** Unpacking an 8 GB archive is not the download happening again,
@@ -806,6 +825,14 @@ final shape the job's class requires
 area and not a sibling**, which is what keeps the whole-tree write guard in
 `backend/tests/test_store_jobs.py` valid without being loosened: every path
 this step creates still begins `store/jobs/<job-id>/`.
+
+Validation reads that shape and **creates no path at all** — no temporary file,
+no rewritten header, no removal on refusal. A download it turns down is still
+sitting there, byte for byte, beside a shape that is also still there: the fix
+may be one different release away, and deleting what was refused would take
+that decision away from the player. `test_store_validator.py` fingerprints the
+source *and* the shape before and after, in every class, in success and in
+refusal alike.
 
 **The download sits beside its shape, unchanged, and is deleted by nobody
 here.** That doubles the footprint for one job — an 8 GB `.xci` copied is 8 GB

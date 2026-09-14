@@ -440,7 +440,8 @@ queued ──► running ──► done
   └──────────────────► cancelled
 ```
 
-**Running a job is resolve, materialize, inspect/classify, then shape.**
+**Running a job is resolve, materialize, inspect/classify, shape, then
+check.**
 
 *Resolving* turns the job's opaque `source` into an `AcquiredTarget`: a direct
 HTTPS URL, plus the size and info hash it takes to check the bytes are the ones
@@ -501,6 +502,66 @@ bound what that can cost:
   and broadcast on `transformed_bytes` / `transform_total`. Cancellation and
   failure both remove the produced directory and nothing else.
 
+*Validating* judges the produced shape against its class — §5.1's validate
+column — and is the last thing that looks at it before import (17). `A` needs a
+member with a declared extension, `B` magic bytes, `C` an archive that opens
+under the name it arrived with, `D` a readable header, `E` the descriptor and
+every file it names, `F` the identity file. The completeness arithmetic is
+`inspector._missing_descriptor_files` and the identity parse is
+`gamemedia/identity.read_sfo` — the reader the scraper already uses on these
+trees, so a tree validation accepts is one the scraper can name.
+
+**It changes nothing.** No `mkdir`, no `unlink`, no `open` in a writing mode:
+the source and the produced shape are both byte-identical afterwards, in
+success and in refusal, and `test_store_validator.py` fingerprints both in
+every class. A download it turns down is still there — the fix may be one
+different release away, and deleting what was refused takes that decision away
+from the player.
+
+**It reads little.** A signature is a handful of bytes at a known offset, so
+that is what is read: `seek`, then `read(len(magic))`. An 8 GB `.xci` is judged
+by a few hundred bytes, and a `.cdi` by its *last* eight, which is where
+DiscJuggler puts its version word. A whole-file checksum was the obvious
+alternative and is worthless here — `AcquiredTarget.info_hash` hashes torrent
+metadata, not this file's content, so there is nothing to compare a digest
+against.
+
+**What "magic bytes" means when the format has none.** The table in
+[`services/store/validator.py`](../../backend/services/store/validator.py) is
+keyed on the **format** and never on the system (§0, §5.2), and every entry
+carries the source it was taken from plus one of two strengths:
+
+| strength | meaning | a miss |
+|---|---|---|
+| **proof** | the format's own readers require the field, and the extension names exactly one format | **refuses**: `.zip` `.7z` `.gz` `.chd` `.rvz` `.wbfs` `.cso` `.pbp` `.wux` `.gcm` `.rpx` `.xex` `.nsp` `.3ds` `.cia` `.nes` `.unf` `.unif` `.fds` `.gb` `.gbc` `.gba` `.nds` `.n64` `.z64` `.v64` |
+| **hint** | the extension names several formats, or there is material evidence of a variant without the field | **reports**: `.iso` `.cdi` `.wad` `.mds` `.ccd` `.gen` `.32x` `.xci` |
+
+Everything else is **unverifiable** and says so: `.sfc` `.smc` `.sms` `.gg`
+`.pce` `.sgx` `.sg` `.md` `.smd` `.bin` are raw memory or track dumps with no
+field any reader checks — which is exactly what §5.1 records when it says the
+SNES has no exclusive suffix usable as proof. Inventing a check for one of
+those would be worse than having none, because it would look like a filter and
+catch nothing.
+
+So no class ends in a check that cannot fail: **a file the library would list
+must not be empty**, and a set must carry every file its descriptor names. That
+floor is what lets a `.sfc` be refused when the download is 0 bytes — which
+happens, because the acquisition size is `0` whenever the service does not say
+and nothing before this point compared a length.
+
+And a signature never proves the download is the *right* game: the region, the
+revision, that it is not a bad dump. Those are questions about content, not
+about format, and no header answers them.
+
+**A required BIOS is named, never a refusal.** §5.3 rule 4. Seven systems
+declare a `required: true` file and the box refuses the launch without it,
+naming the file (`backend/services/bios.py:222-250`). Validation asks
+`bios.missing_required` — the same function that gate calls — one step earlier,
+so the player learns at download time; the answer lands on the row as
+`bios_warning` and changes no verdict. Refusing the import as well would delete
+the one thing the player could still act on: the game would not be there to
+play once they copied the BIOS in.
+
 Two rules that are not about bytes. A member whose stored name is absolute or
 carries `..` is refused, and containment does not depend on that refusal: §2.4
 requires flat extraction anyway, so a member is only ever written to
@@ -527,18 +588,22 @@ Every job still stops honestly before `done`, with distinct reasons:
 |---|---|
 | *"no acquisition provider is configured on this box"* | no Real-Debrid token; nothing was attempted |
 | *"this box can find this download but cannot store it yet"* | the source resolved, and there is nowhere to put what it found |
-| *"download transformed into its class X shape; validation and import are not implemented yet"* | staging bytes are classified **and** correctly shaped, and nothing has put them in the library |
+| *"download validated as class X (verified\|unverified); import is not implemented yet"* | staging bytes are classified, correctly shaped **and** checked, and nothing has put them in the library |
+| *"Zelda (USA).nes is not an iNES image: the bytes its format requires are not there …"* | validation refused: the file is not what its extension announces |
+| *"the download is empty: X has no content …"* | the floor every format has — a complete-looking download of nothing |
 | *"this download cannot be added because its name starts with a dot: …"* | the library scan would drop the file without a word (§5.3 rule 2), so it is refused rather than emitted or renamed |
 | *"the archive contains a member that points outside the download …"* | an archive tried to write outside the work area; nothing was unpacked |
 | *"incomplete class E download: … is missing …"* | acquisition delivered a descriptor without all of its companions |
 | *"incomplete class F download: a complete game directory is missing …"* | acquisition delivered loose bytes where the pack requires a directory |
 
 A player who reads the second has a working account and nothing to fix, which
-the first would have told them wrongly. The transformation reason is distinct
-from the inspection one for the same reason: "it downloaded and could not be
-classified" and "it is classified, correctly shaped, and nothing has imported
-it" send a reader to different settings. A `done` in either case would be a lie
-the player reads again after a reboot, because the row persists. `done` is
+the first would have told them wrongly. The validation reason is distinct from
+the transformation and inspection ones for the same reason: "it downloaded and
+could not be classified", "it is classified and nothing has checked it" and "it
+is checked, correct, and nothing has imported it" send a reader to three
+different settings. The verdict travels in the sentence *and* sits on its own
+column, because step 17 will rewrite the sentence. A `done` at any of them
+would be a lie the player reads again after a reboot, because the row persists. `done` is
 reachable only when both seams are filled, which no box does and the tests do —
 exactly as the Prowlarr client is exercised by an `httpx.MockTransport` that
 reaches no network. `materializerReady` says bytes can reach staging;

@@ -61,13 +61,17 @@ thing:
   · `transformer()` gives the classified bytes the shape their class
     requires, beside the download in `store/jobs/<job-id>/ingest/`. It is the
     first step that produces modified content, and it still writes nowhere
-    near a ROM directory.
+    near a ROM directory;
+  · `validate_shape()` judges that produced shape against its class — a
+    signature, an archive directory, a descriptor's companions, an identity
+    file — and persists a verdict. It changes nothing, on either the source or
+    the shape.
 
-So a transformed job still fails, now with `TRANSFORMED_NOT_VALIDATED`: a
-correctly shaped download in staging is not a game in the library either.
+So a validated job still fails, now with `VALIDATED_NOT_IMPORTED`: a correctly
+shaped, checked download in staging is not a game in the library either.
 `NO_PROVIDER` and `NO_MATERIALIZER` remain distinct diagnostics for the two
-earlier missing seams, and a transformation that refuses says so in its own
-words rather than borrowing one of them.
+earlier missing seams, and a transformation or a validation that refuses says
+so in its own words rather than borrowing one of them.
 
 ── What a job must never do ───────────────────────────────────────────────
 Write into `<DATA>/emu/<system>/`. Nothing here goes near a ROM directory —
@@ -138,15 +142,21 @@ NO_PROVIDER = "no acquisition provider is configured on this box"
 #: working Real-Debrid and nothing to fix.
 NO_MATERIALIZER = "this box can find this download but cannot store it yet"
 
-#: The download now has the shape its class requires, and neither validation
-#: (16) nor import (17) exists. Distinct from the materialization and
-#: inspection boundaries on purpose: a player who reads the wrong reason goes
-#: and checks the wrong setting, so "it never downloaded", "it downloaded and
-#: could not be classified" and "it is classified, shaped, and nothing has
-#: put it in the library" are three sentences and not one.
-TRANSFORMED_NOT_VALIDATED = (
-    "download transformed into its class {ingestion_class} shape; validation "
-    "and import are not implemented yet")
+#: The shape its class requires exists, it has been checked, and import (17)
+#: does not. Distinct from the three boundaries before it on purpose: a player
+#: who reads the wrong reason goes and checks the wrong setting, so "it never
+#: downloaded", "it downloaded and could not be classified", "it is shaped and
+#: nothing has checked it" and "it is checked and nothing has put it in the
+#: library" are four sentences and not one.
+#:
+#: The verdict travels in it because it is the one thing about a validated job
+#: a player may want to act on: `verified` says the bytes were proven to be
+#: what their name claims, `unverified` says the format carries no field this
+#: box can check and the import rests on the shape alone
+#: (`validator.py`'s docstring says which formats those are and why).
+VALIDATED_NOT_IMPORTED = (
+    "download validated as class {ingestion_class} ({verdict}); import is not "
+    "implemented yet")
 
 #: Why a job that was `running` when the process died is `failed` afterwards.
 INTERRUPTED = "the box stopped while this job was running"
@@ -233,6 +243,13 @@ class Job:
     #: download's: the two phases move different bytes for different reasons.
     transformed_bytes: int = 0
     transform_total: int = 0
+    #: `verified`, `unverified` or `refused` — `validator.py`'s verdict on the
+    #: produced shape. Empty until validation runs.
+    validation: str = ""
+    #: The launch blocker this console will hit for want of a BIOS file
+    #: (§5.3 rule 4). Recorded because it is true and useful; read by nothing
+    #: that decides whether the download may proceed.
+    bios_warning: str = ""
 
     @property
     def live(self) -> bool:
@@ -266,6 +283,8 @@ class Job:
             "ingestionClass": self.ingestion_class,
             "transformedBytes": self.transformed_bytes,
             "transformTotal": self.transform_total,
+            "validation": self.validation,
+            "biosWarning": self.bios_warning,
         }
 
 
@@ -405,6 +424,18 @@ def inspect_download(job: Job):
     return inspect(job.id, job.system_id)
 
 
+def validate_shape(job: Job, shape):
+    """Judge the produced shape; one seam keeps worker tests filesystem-free.
+
+    The same shape as `inspect_download` and for the same reason: validation
+    needs no account, no service and no progress sink — only a few bytes of a
+    file that is already on the disk — so there is nothing to inject and
+    nothing that can be unconfigured. A function, so a test can replace it.
+    """
+    from .validator import validate
+    return validate(shape, job.system_id)
+
+
 def transformer():
     """The shape producer, injected with the queue's own progress sink.
 
@@ -428,7 +459,7 @@ def _now() -> str:
 _COLUMNS = ("id, system_id, roms_dir, title, filename, format, size, provider, "
             "source, state, reason, queued_at, started_at, ended_at, "
             "downloaded_bytes, download_total, ingestion_class, "
-            "transformed_bytes, transform_total")
+            "transformed_bytes, transform_total, validation, bios_warning")
 
 
 def _row(r: aiosqlite.Row) -> Job:
@@ -444,6 +475,8 @@ def _row(r: aiosqlite.Row) -> Job:
         ingestion_class=r["ingestion_class"] or "",
         transformed_bytes=int(r["transformed_bytes"] or 0),
         transform_total=int(r["transform_total"] or 0),
+        validation=r["validation"] or "",
+        bios_warning=r["bios_warning"] or "",
     )
 
 
@@ -590,6 +623,34 @@ async def _record_inspection(job_id: str, ingestion_class: str) -> None:
     cur = await db.execute(
         "UPDATE store_jobs SET ingestion_class = ? WHERE id = ? AND state = ?",
         (ingestion_class, job_id, RUNNING))
+    changed = cur.rowcount
+    await cur.close()
+    await db.commit()
+    if changed:
+        persisted = await get(job_id)
+        if persisted is not None:
+            await _announce(persisted)
+
+
+async def _record_validation(job_id: str, verdict: str,
+                             bios_warning: str) -> None:
+    """Persist the verdict — including a refusal — while the job still runs.
+
+    Written *before* the job is failed, so a download refused by validation
+    leaves a row that says which of the two happened: the shape was checked and
+    found wrong (`refused`), or it was checked, found right, and stopped at the
+    missing import (`verified` / `unverified`). A row that carried only the
+    sentence would lose that the moment step 17 rewrites it.
+    """
+    from .validator import REFUSED, UNVERIFIED, VERIFIED
+    if verdict not in {VERIFIED, UNVERIFIED, REFUSED}:
+        raise ValueError("a validation verdict must be verified, unverified "
+                         "or refused")
+    db = await get_db()
+    cur = await db.execute(
+        "UPDATE store_jobs SET validation = ?, bios_warning = ?"
+        " WHERE id = ? AND state = ?",
+        (verdict, bios_warning[:_MAX_TEXT], job_id, RUNNING))
     changed = cur.rowcount
     await cur.close()
     await db.commit()
@@ -855,12 +916,11 @@ async def _claim_next() -> Job | None:
 
 
 async def _acquire(job: Job) -> None:
-    """Resolve, materialize, inspect/classify, then shape one job.
+    """Resolve, materialize, inspect/classify, shape, then check one job.
 
-    Neither validation nor import exists, so a complete transformation still
-    ends `failed` with the explicit `TRANSFORMED_NOT_VALIDATED` reason. The
-    four seams are named here rather than fused — see `AcquiredTarget` and
-    matrix §5.
+    Import does not exist, so a validated download still ends `failed` with the
+    explicit `VALIDATED_NOT_IMPORTED` reason. The five seams are named here
+    rather than fused — see `AcquiredTarget` and matrix §5.
 
     Separate from `drain` so that it is a task of its own and therefore
     cancellable on its own: cancelling the worker would stop the queue, and
@@ -903,10 +963,44 @@ async def _acquire(job: Job) -> None:
     log.info("store: job %s shaped as class %s into %s (%d bytes)",
              job.id, shape.ingestion_class, shape.root.name, shape.bytes_written)
 
-    # Correctly shaped staging bytes are still not a library entry. `done`
-    # means playable, so stop at the transformation-specific honest failure.
-    raise RuntimeError(TRANSFORMED_NOT_VALIDATED.format(
-        ingestion_class=verdict.ingestion_class))
+    # Validation reads the produced shape and the pack, and writes nothing: not
+    # the source, not the shape. Off the event loop for the same reason
+    # inspection is — it opens every produced file and may list an archive
+    # through `7z l` — and its verdict is persisted whichever way it goes, so a
+    # refused download leaves a row that says the check ran and what it found.
+    checked = await asyncio.to_thread(validate_shape, job, shape)
+    await _record_validation(job.id, checked.verdict, checked.bios_warning)
+    if checked.proven:
+        log.info("store: job %s verified — %s", job.id, _few(checked.proven, "; "))
+    if checked.unproven:
+        # Not a warning. A `.sfc` carries no field anybody checks, and saying
+        # so at INFO is the honest record; at WARNING it would read as a fault
+        # of the download.
+        log.info("store: job %s holds file(s) no signature can prove: %s",
+                 job.id, _few(checked.unproven))
+    if checked.bios_warning:
+        # §5.3 rule 4: said out loud, and read by nothing below.
+        log.warning("store: job %s — %s", job.id, checked.bios_warning)
+    if not checked.ok:
+        raise RuntimeError(checked.reason)
+
+    # Checked staging bytes are still not a library entry. `done` means
+    # playable, so stop at the validation-specific honest failure — with the
+    # BIOS sentence carried along when there is one, because the row's `reason`
+    # is the only channel a player actually reads today.
+    stopped = VALIDATED_NOT_IMPORTED.format(
+        ingestion_class=verdict.ingestion_class, verdict=checked.verdict)
+    raise RuntimeError(f"{stopped} {checked.bios_warning}".strip())
+
+
+def _few(items: tuple[str, ...], join: str = ", ", limit: int = 5) -> str:
+    """The first few of a list, for a log line that must not be a shape dump.
+
+    A shape may legitimately hold hundreds of files, and a journal entry that
+    reproduces all of them is one nobody reads twice.
+    """
+    shown = join.join(items[:limit])
+    return shown if len(items) <= limit else f"{shown} (+{len(items) - limit} more)"
 
 
 async def _settle(job: Job, error: BaseException | None) -> None:

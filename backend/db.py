@@ -72,7 +72,9 @@ async def init_db() -> None:
             download_total   INTEGER NOT NULL DEFAULT 0,
             ingestion_class  TEXT NOT NULL DEFAULT '',
             transformed_bytes INTEGER NOT NULL DEFAULT 0,
-            transform_total   INTEGER NOT NULL DEFAULT 0
+            transform_total   INTEGER NOT NULL DEFAULT 0,
+            validation        TEXT NOT NULL DEFAULT '',
+            bios_warning      TEXT NOT NULL DEFAULT ''
         );
         CREATE INDEX IF NOT EXISTS store_jobs_by_state
             ON store_jobs (state, queued_at);
@@ -110,6 +112,20 @@ async def _widen_store_jobs(db: aiosqlite.Connection) -> None:
     if "transform_total" not in columns:
         await db.execute(
             "ALTER TABLE store_jobs ADD COLUMN transform_total INTEGER NOT NULL DEFAULT 0")
+    # The validation verdict is its own fact and not a spelling of `reason`:
+    # a job can be `verified` and still fail (nothing imports it yet), and a
+    # row that only carried the sentence could not be asked "which downloads
+    # on this box were never proven to be what they claimed".
+    if "validation" not in columns:
+        await db.execute(
+            "ALTER TABLE store_jobs ADD COLUMN validation TEXT NOT NULL DEFAULT ''")
+    # And the BIOS warning is a third fact again — about the box, not about
+    # the download. Folded into the verdict it would read as a fault of the
+    # file; folded into `reason` it would vanish the moment a later step
+    # rewrote the sentence (matrix §5.3 rule 4).
+    if "bios_warning" not in columns:
+        await db.execute(
+            "ALTER TABLE store_jobs ADD COLUMN bios_warning TEXT NOT NULL DEFAULT ''")
 
 
 async def _widen_playtime_key(db: aiosqlite.Connection) -> None:

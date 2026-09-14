@@ -112,8 +112,12 @@ def test_complete_bytes_live_only_in_the_jobs_work_area_and_progress_is_queryabl
         monkeypatch.setattr(paths, "GAMECORE_DATA", tmp_path)
         monkeypatch.setattr(jobs, "kick", lambda: None)
         monkeypatch.setattr(jobs, "acquisition_provider", lambda: Provider())
+        # Six bytes, and the first four are the iNES header: this drain runs
+        # the real inspector, transformer *and* validator, and a `.nes` that
+        # does not open with them is refused by validation (16).
+        rom = b"NES\x1a!!"
         transport = httpx.MockTransport(lambda request: httpx.Response(
-            200, content=b"abcdef", headers={"content-length": "6"}, request=request))
+            200, content=rom, headers={"content-length": "6"}, request=request))
         monkeypatch.setattr(jobs, "materializer", lambda: _materializer(transport))
         try:
             job = await _job()
@@ -124,11 +128,13 @@ def test_complete_bytes_live_only_in_the_jobs_work_area_and_progress_is_queryabl
             # "nes fds megadrive … · any", and `nes` declares no archive
             # extension (§3.2). It read "D" until every bare file stopped
             # answering that.
-            assert after.reason == jobs.TRANSFORMED_NOT_VALIDATED.format(ingestion_class="A")
+            assert after.reason == jobs.VALIDATED_NOT_IMPORTED.format(
+                ingestion_class="A", verdict="verified")
             assert after.ingestion_class == "A"
+            assert after.validation == "verified"
             assert after.downloaded_bytes == 6
             assert after.download_total == 6
-            assert (job_dir(job.id) / "Zelda.nes").read_bytes() == b"abcdef"
+            assert (job_dir(job.id) / "Zelda.nes").read_bytes() == rom
             assert not list(tmp_path.rglob("*.part"))
             assert not (tmp_path / "emu").exists()
         finally:

@@ -311,6 +311,22 @@ export interface StoreJob {
    */
   transformedBytes?: number
   transformTotal?: number
+  /**
+   * What validation made of the produced shape, matrix §5.1's validate column.
+   * `verified` means a field the format requires was found where it belongs;
+   * `unverified` means the format carries no such field — a `.sfc` has none —
+   * so the import rests on the shape alone; `refused` means the check failed
+   * and the row's `reason` says how. Empty before validation runs.
+   */
+  validation?: 'verified' | 'unverified' | 'refused' | ''
+  /**
+   * The launch blocker this console will hit for want of a required BIOS file
+   * (§5.3 rule 4). **Never a reason the download failed** — a missing BIOS is
+   * refused by the launch gate, not by the Store, and drawing this as an error
+   * would tell the player to fix the download instead of copying a file in.
+   * Nothing draws it yet; the screen stops at the download.
+   */
+  biosWarning?: string
 }
 
 /**

@@ -173,11 +173,26 @@ class FakeTransformer:
                      names=(job.filename,))
 
 
-def _both(monkeypatch, provider):
-    """Inject an acquisition provider, a materializer *and* a transformer.
+def fake_validation(monkeypatch, verdict=None, *, bios_warning=""):
+    """Make validation answer without a filesystem, for queue-order tests.
 
-    The injected verdict and shape let queue tests reach the deliberate
-    transformed-not-validated boundary without filesystem I/O.
+    The real one is exercised on real bytes in
+    `backend/tests/test_store_validator.py`; what these tests need from it is
+    that the worker reaches it, persists its verdict and stops honestly
+    afterwards. Shared with `test_store_realdebrid.py`, which wires the same
+    four seams around a real Real-Debrid conversation.
+    """
+    from backend.services.store.validator import VERIFIED, Validation
+    answer = Validation(verdict=verdict or VERIFIED, bios_warning=bios_warning)
+    monkeypatch.setattr(jobs, "validate_shape", lambda _job, _shape: answer)
+    return answer
+
+
+def _both(monkeypatch, provider):
+    """Inject a provider, a materializer, a transformer *and* a validation.
+
+    The injected verdict, shape and judgement let queue tests reach the
+    deliberate validated-not-imported boundary without filesystem I/O.
     """
     monkeypatch.setattr(jobs, "acquisition_provider", lambda: provider)
     store = FakeMaterializer()
@@ -185,6 +200,7 @@ def _both(monkeypatch, provider):
     from backend.services.store.inspector import Inspection
     monkeypatch.setattr(jobs, "inspect_download", lambda _job: Inspection("D"))
     monkeypatch.setattr(jobs, "transformer", FakeTransformer)
+    fake_validation(monkeypatch)
     return store
 
 
@@ -433,7 +449,8 @@ def test_the_target_a_provider_answers_reaches_the_materializer(monkeypatch):
             await jobs.drain()
             after = await jobs.get(job.id)
             assert after.state == "failed"
-            assert after.reason == jobs.TRANSFORMED_NOT_VALIDATED.format(ingestion_class="D")
+            assert after.reason == jobs.VALIDATED_NOT_IMPORTED.format(
+                ingestion_class="D", verdict="verified")
             assert after.ingestion_class == "D"
             assert len(store.seen) == 1
             seen_job, target = store.seen[0]
@@ -476,6 +493,148 @@ def test_an_incomplete_class_is_persisted_and_fails_with_what_is_missing(monkeyp
     asyncio.run(scenario())
 
 
+def test_a_validated_job_persists_its_verdict_and_stops_at_the_import_boundary(
+        monkeypatch):
+    """The verdict is a column, not a turn of phrase in `reason`.
+
+    Step 17 will rewrite the sentence, and the question "which downloads on
+    this box were never proven to be what they claimed" has to survive that —
+    so `verified` / `unverified` lands on the row, and the reason carries it
+    as well because the reason is what the screen draws today.
+    """
+    async def scenario():
+        conn = await _memory_db(monkeypatch)()
+        _no_worker(monkeypatch)
+        _both(monkeypatch, FakeAcquisition())
+        from backend.services.store.validator import UNVERIFIED
+        fake_validation(monkeypatch, UNVERIFIED)
+        try:
+            job = await _queue()
+            await jobs.drain()
+            after = await jobs.get(job.id)
+            assert after.state == jobs.FAILED
+            assert after.validation == "unverified"
+            assert after.bios_warning == ""
+            assert after.reason == jobs.VALIDATED_NOT_IMPORTED.format(
+                ingestion_class="D", verdict="unverified")
+            assert after.to_json()["validation"] == "unverified"
+        finally:
+            await conn.close()
+
+    asyncio.run(scenario())
+
+
+def test_a_refused_validation_lands_on_the_row_before_the_job_fails(monkeypatch):
+    """A refusal is a finding, and a finding that is not written down is lost.
+
+    The row must be able to say *the check ran and turned this down*, which is
+    a different fact from "the job failed" — the queue is full of jobs that
+    failed for reasons that never reached a file.
+    """
+    async def scenario():
+        conn = await _memory_db(monkeypatch)()
+        _no_worker(monkeypatch)
+        _both(monkeypatch, FakeAcquisition())
+        from backend.services.store.validator import REFUSED, Validation
+        monkeypatch.setattr(
+            jobs, "validate_shape",
+            lambda _job, _shape: Validation(
+                verdict=REFUSED,
+                reason="Zelda (USA).nes is not an iNES image"))
+        try:
+            job = await _queue()
+            await jobs.drain()
+            after = await jobs.get(job.id)
+            assert after.state == jobs.FAILED
+            assert after.validation == "refused"
+            assert after.reason == "Zelda (USA).nes is not an iNES image"
+            # And the class it was refused *as* is still on the row, so the
+            # two verdicts read together.
+            assert after.ingestion_class == "D"
+        finally:
+            await conn.close()
+
+    asyncio.run(scenario())
+
+
+def test_a_missing_bios_is_recorded_and_is_not_what_stopped_the_job(monkeypatch):
+    """Matrix §5.3 rule 4, at the level that could have broken it.
+
+    The validator's own test proves the warning does not change its verdict;
+    this proves the *worker* does not turn the warning into a refusal on its
+    own — the job stops exactly where a job with no warning stops, at the
+    missing import, and the sentence rides along instead of replacing it.
+    """
+    async def scenario():
+        conn = await _memory_db(monkeypatch)()
+        _no_worker(monkeypatch)
+        _both(monkeypatch, FakeAcquisition())
+        warning = ("once imported this game will not start until "
+                   "saturn_bios.bin is in place — that is a launch blocker, "
+                   "not a reason to refuse the download")
+        fake_validation(monkeypatch, bios_warning=warning)
+        try:
+            job = await _queue()
+            await jobs.drain()
+            after = await jobs.get(job.id)
+            assert after.state == jobs.FAILED
+            assert after.validation == "verified"
+            assert after.bios_warning == warning
+            assert after.to_json()["biosWarning"] == warning
+            # The job stopped at the import boundary and not at the BIOS.
+            assert after.reason.startswith(jobs.VALIDATED_NOT_IMPORTED.format(
+                ingestion_class="D", verdict="verified"))
+            assert warning in after.reason
+        finally:
+            await conn.close()
+
+    asyncio.run(scenario())
+
+
+def test_the_two_validation_columns_are_added_to_a_database_made_without_them(
+        monkeypatch, tmp_path):
+    """The migration, and the only property it needs: it may run every boot.
+
+    `init_db()` runs on every start, so an `ALTER TABLE` that is not guarded
+    fails the second time and takes the whole boot with it — SQLite has no
+    `ADD COLUMN IF NOT EXISTS`. Written against a table built *without* the
+    columns, because that is the shape on a box that has been running since
+    before step 16.
+    """
+    async def scenario():
+        path = tmp_path / "old.db"
+        async with aiosqlite.connect(path) as conn:
+            conn.row_factory = aiosqlite.Row
+            await conn.execute(
+                "CREATE TABLE store_jobs (id TEXT PRIMARY KEY, system_id TEXT,"
+                " roms_dir TEXT, title TEXT, filename TEXT, format TEXT,"
+                " size INTEGER, provider TEXT, source TEXT, state TEXT,"
+                " reason TEXT, queued_at TEXT, started_at TEXT, ended_at TEXT)")
+            await conn.execute(
+                "INSERT INTO store_jobs (id, system_id, title, filename, state,"
+                " queued_at) VALUES ('old', 'nes', 'Zelda', 'Zelda.nes',"
+                " 'failed', '2026-01-01T00:00:00+00:00')")
+            await conn.commit()
+
+            await dbmod._widen_store_jobs(conn)
+            await dbmod._widen_store_jobs(conn)          # every boot, not once
+            await conn.commit()
+
+            cur = await conn.execute("PRAGMA table_info(store_jobs)")
+            columns = {r["name"] for r in await cur.fetchall()}
+            await cur.close()
+            assert {"validation", "bios_warning"} <= columns
+            rows = await conn.execute_fetchall("SELECT * FROM store_jobs")
+            # The row that was already there keeps its history and gains the
+            # honest empty verdict: nothing checked it, so nothing claims to.
+            assert len(rows) == 1
+            assert rows[0]["title"] == "Zelda"
+            assert rows[0]["validation"] == ""
+            assert rows[0]["bios_warning"] == ""
+
+    asyncio.run(scenario())
+
+
 def test_an_acquired_target_never_prints_its_url(monkeypatch):
     """An unrestricted URL is a credential, so it has one safe spelling.
 
@@ -511,8 +670,12 @@ def test_the_worker_runs_the_queue_in_the_order_it_was_filled(monkeypatch):
             second = await _queue(source="demo://nes/b", title="B")
             await jobs.drain()
             assert [j.title for j in fake.seen] == ["A", "B"]
-            assert (await jobs.get(first.id)).reason == jobs.TRANSFORMED_NOT_VALIDATED.format(ingestion_class="D")
-            assert (await jobs.get(second.id)).reason == jobs.TRANSFORMED_NOT_VALIDATED.format(ingestion_class="D")
+            assert (await jobs.get(first.id)).reason == \
+                jobs.VALIDATED_NOT_IMPORTED.format(ingestion_class="D",
+                                                   verdict="verified")
+            assert (await jobs.get(second.id)).reason == \
+                jobs.VALIDATED_NOT_IMPORTED.format(ingestion_class="D",
+                                                   verdict="verified")
         finally:
             await conn.close()
 
@@ -572,7 +735,9 @@ def test_a_job_cancelled_mid_download_stops_and_stays_cancelled(monkeypatch):
             assert (await jobs.get(slow.id)).state == "cancelled"
             # The queue did not die with the cancelled job: the one behind it
             # ran. Cancelling the acquisition must not cancel the worker.
-            assert (await jobs.get(after.id)).reason == jobs.TRANSFORMED_NOT_VALIDATED.format(ingestion_class="D")
+            assert (await jobs.get(after.id)).reason == \
+                jobs.VALIDATED_NOT_IMPORTED.format(ingestion_class="D",
+                                                   verdict="verified")
             assert [j.title for j in fake.seen] == ["Slow", "Next"]
         finally:
             await conn.close()
@@ -999,7 +1164,11 @@ def test_queueing_and_running_write_only_into_job_work_areas_never_emu(
     """
     fake = FakeAcquisition()
     monkeypatch.setattr(jobs, "acquisition_provider", lambda: fake)
-    payload = b"z" * 4096
+    # An iNES header and then filler: this walks the *whole* pipeline, and
+    # validation (16) now refuses a `.nes` that does not start with the four
+    # bytes nesdev records. 4096 bytes of `z` was a download claiming to be a
+    # ROM and being nothing, which is precisely what the step refuses.
+    payload = b"NES\x1a" + b"z" * 4092
     transport = httpx.MockTransport(lambda request: httpx.Response(
         200, content=payload,
         headers={"content-length": str(len(payload))}, request=request))
@@ -1020,7 +1189,8 @@ def test_queueing_and_running_write_only_into_job_work_areas_never_emu(
         assert settled["state"] == "failed"
         # `Zelda (USA).nes` is class A, not D: §5.1's A row covers `nes` for
         # any arriving format, and D is the disc images only.
-        assert settled["reason"] == jobs.TRANSFORMED_NOT_VALIDATED.format(ingestion_class="A")
+        assert settled["reason"] == jobs.VALIDATED_NOT_IMPORTED.format(
+            ingestion_class="A", verdict="verified")
         assert settled["ingestionClass"] == "A"
 
         second = _post(client, source="demo://nes/other",
@@ -1050,3 +1220,49 @@ def test_queueing_and_running_write_only_into_job_work_areas_never_emu(
     # row and read by nothing that writes.
     assert not (box / "emu" / "nes").exists()
     assert not (box / "emu" / "rpcs3").exists()
+
+
+def test_a_download_that_is_not_what_it_claims_is_refused_and_nothing_is_touched(
+        box, monkeypatch):
+    """The whole pipeline, on bytes that lie, with the disk measured after.
+
+    Everything here is real — provider seam aside: the materializer writes the
+    file, the inspector classifies it, the transformer produces the shape and
+    the validator reads four bytes and says no. What is asserted is what a
+    refusal is allowed to cost:
+
+      · the row says `refused`, and says which file and why;
+      · the download is still there, byte for byte. It took an hour of line to
+        fetch and the fix may be one re-download of a different release away —
+        a validation that deleted what it refused would decide that for the
+        player;
+      · the produced shape is still there too. Validation is not the step that
+        tidies; import (17) decides what happens to either.
+    """
+    fake = FakeAcquisition()
+    monkeypatch.setattr(jobs, "acquisition_provider", lambda: fake)
+    # Four thousand bytes of nothing under a `.nes` name — no iNES header, so
+    # neither an emulator nor this box can do anything with it.
+    payload = b"z" * 4096
+    transport = httpx.MockTransport(lambda request: httpx.Response(
+        200, content=payload,
+        headers={"content-length": str(len(payload))}, request=request))
+    monkeypatch.setattr(
+        jobs, "materializer",
+        lambda: HttpMaterializer(progress=jobs._progress, transport=transport,
+                                 free_bytes=lambda _path: len(payload) +
+                                 MIN_FREE_AFTER_DOWNLOAD))
+
+    with TestClient(app) as client:
+        row = _post(client).json()
+        settled = _settled(client, row["id"])
+
+        assert settled["state"] == "failed"
+        assert settled["validation"] == "refused"
+        assert settled["ingestionClass"] == "A"
+        assert "Zelda (USA).nes is not an iNES image" in settled["reason"]
+
+        work = box / "store" / "jobs" / row["id"]
+        assert (work / "Zelda (USA).nes").read_bytes() == payload
+        assert (work / SHAPE_DIR / "Zelda (USA).nes").read_bytes() == payload
+        assert not (box / "emu").exists()
