@@ -323,7 +323,7 @@ class Session:
     a game in the background and starting something else then overwrote the
     first one's identity in place: a frozen emulator with nothing left holding
     its pgid, unkillable and invisible, holding its RAM until the box was
-    restarted. Two slots need two objects.
+    restarted. Several slots need several objects.
     """
 
     __slots__ = ("proc", "orphan_pgid", "game_key", "system_id", "rom_path",
@@ -440,24 +440,56 @@ class Session:
         }
 
 
-#: How many launched things may be resident at once, suspended or not.
+#: RAM below which a third resident session is not offered.
 #:
-#: **Two, and the limit is memory rather than bookkeeping.** A suspended
-#: emulator has given back its CPU and nothing else: RPCS3 holds several
-#: gigabytes of RAM and its VRAM for as long as it is stopped. A third resident
-#: emulator on a fixed-memory box is the OOM killer, and the OOM killer takes
-#: whichever process it likes — which is to say, sooner or later, the player's
-#: suspended game. A feature sold as "your game is safe while you do something
-#: else" must not contain a path that ends in the kernel destroying it.
-MAX_SESSIONS = 2
+#: A suspended emulator has given back its CPU and nothing else: RPCS3 holds
+#: several gigabytes and its VRAM for as long as it is stopped, so the room for
+#: a third is real memory and not bookkeeping. 16 GiB is where a third fits
+#: beside the OS, the interface and two emulators without eating the margin
+#: that keeps the OOM killer away.
+_THIRD_SLOT_MIN_BYTES = 16 * 1024 ** 3
+
+
+def _resident_cap() -> int:
+    """How many launched things may be resident at once, suspended or not.
+
+    **The limit is memory rather than bookkeeping**, which is why it is read
+    from the box instead of written down. A third resident emulator on a small
+    box is the OOM killer, and the OOM killer takes whichever process it likes
+    — which is to say, sooner or later, the player's suspended game. A feature
+    sold as "your game is safe while you do something else" must not contain a
+    path that ends in the kernel destroying it.
+
+    This was a flat two, and two is one slot for what is on the screen and one
+    for everything else. That is the whole of it: put YouTube in the background
+    and the box is full, so the next game is refused — with both slots spent on
+    things nobody asked to be protected. A box with memory to spare was being
+    held to the rules of one that has none.
+
+    Two remains the floor, and the answer on any box that cannot prove it has
+    room. Nothing here reads free memory: a cap that moves with what is running
+    would refuse a launch that succeeded a minute ago, which is worse than a
+    cap that is simply low.
+    """
+    try:
+        total = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except (ValueError, OSError, AttributeError):
+        return 2
+    return 3 if total >= _THIRD_SLOT_MIN_BYTES else 2
+
+
+#: Read once: the cap must be the same for the whole run, and every test that
+#: fills the box to it monkeypatches this name.
+MAX_SESSIONS = _resident_cap()
 
 
 class ProcessManager:
-    """Two slots, one screen.
+    """A few slots, one screen.
 
-    At most `MAX_SESSIONS` launched things exist at once, and at most one of
-    them is in front of the player. Every other combination is legal: two
-    suspended, one suspended and one playing, one playing, nothing.
+    At most `MAX_SESSIONS` launched things exist at once — see `_resident_cap`,
+    which reads that number off the box — and at most one of them is in front
+    of the player. Every other combination is legal: all of them suspended,
+    some suspended and one playing, one playing, nothing.
 
     **Suspending is never refused, and that is a rule rather than an
     accident.** An earlier draft of this kept a single background slot and

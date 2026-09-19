@@ -29,11 +29,15 @@ are the auto-incremented tags.
   to double-Home *ending* a game will press it twice, see the game suspended
   instead, and need to be told once.
 
-  The suspended game keeps its memory — the box holds at most two sessions at a
-  time and refuses a third launch by naming what to close. Playtime does not
-  count the time a game spends suspended. `docs/reports/orbit-et-sessions-2026-09-08.md`
-  has the owner checklist, including the emulators that have **not** yet been
-  tried across a freeze.
+  The suspended game keeps its memory, so the number of sessions a box holds at
+  once is capped and the launch past it is refused by naming what to close. The
+  cap is **read off the box**: two, or three where there is 16 GiB or more. It
+  was a flat two, which is one slot for what is on the screen and one for
+  everything else — put YouTube in the background and the next game was refused
+  with both slots spent. Playtime does not count the time a game spends
+  suspended. `docs/reports/orbit-et-sessions-2026-09-08.md` has the owner
+  checklist, including the emulators that have **not** yet been tried across a
+  freeze.
 
 - **Themes: SDK 5.** `sdk.session` is new, and so is the optional `sessionBar`
   surface. Existing themes keep working untouched — a theme only needs `api: 5`

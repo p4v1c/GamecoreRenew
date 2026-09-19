@@ -72,6 +72,13 @@ not a thing to promise around.
 
 ### 2.1 Two slots, one screen
 
+> **Superseded on 2026-09-19.** The cap is no longer a constant: `_resident_cap()`
+> reads it off the box — two, or three from 16 GiB up. The reasoning below is
+> unchanged and is why there is a cap at all; only the number moved, because a
+> flat two spent one slot on the screen and one on everything else, so a
+> backgrounded YouTube refused the next game. The rest of this report is left as
+> it was written.
+
 `MAX_SESSIONS = 2`. At most two launched things are resident at once, at most
 one of them is in front of the player. Every other combination is legal: two
 suspended, one suspended and one playing, one playing, nothing.

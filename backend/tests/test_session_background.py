@@ -150,29 +150,58 @@ def test_a_second_thing_on_the_screen_is_still_refused(manager, signals,
     asyncio.run(scenario())
 
 
-def test_the_third_resident_session_is_refused_by_name(manager, signals,
-                                                       monkeypatch):
+def test_the_session_past_the_cap_is_refused_by_name(manager, signals,
+                                                     monkeypatch):
     """The cap is memory, and the refusal says what is holding it.
 
-    Two suspended emulators are already several gigabytes; a third is the OOM
+    A suspended emulator is already several gigabytes; one too many is the OOM
     killer, and the OOM killer would take the player's suspended game. So the
     launch is refused — and refused in words that name what to close, because
-    "a game is already running" about two games that are frozen is the box
-    arguing with itself.
+    "a game is already running" about games that are frozen is the box arguing
+    with itself.
+
+    Written against `MAX_SESSIONS` rather than against the number three:
+    `_resident_cap` reads the cap off the box, so a test that counts to a
+    literal is testing the reference machine's RAM.
     """
     async def scenario():
-        procs = [FakeProcess(pid=11), FakeProcess(pid=22), FakeProcess(pid=33)]
-        await _launch(manager, procs, game_key="a.iso", system_id="s1",
-                      monkeypatch=monkeypatch)
-        await manager.background()
-        await _launch(manager, procs, game_key="b.iso", system_id="s2",
+        cap = pm.MAX_SESSIONS
+        procs = [FakeProcess(pid=11 * (i + 1)) for i in range(cap + 1)]
+        held = [f"held{i}.iso" for i in range(cap)]
+        for i, key in enumerate(held):
+            await _launch(manager, procs, game_key=key, system_id=f"s{i}",
+                          monkeypatch=monkeypatch)
+            await manager.background()
+
+        with pytest.raises(pm.SessionConflict) as e:
+            await _launch(manager, procs, game_key="one-too-many.iso",
+                          system_id="sX", monkeypatch=monkeypatch)
+        for key in held:
+            assert key in str(e.value), f"{key} is holding a slot and goes unnamed"
+
+    asyncio.run(scenario())
+
+
+def test_the_cap_leaves_room_for_a_game_beside_a_backgrounded_app(
+        manager, signals, monkeypatch):
+    """One thing in the background must not fill the box.
+
+    The cap used to be a flat two: one slot for what is on the screen and one
+    for everything else. Put YouTube in the background and the next game was
+    refused — both slots spent, one of them on something nobody asked to have
+    protected. Whatever `_resident_cap` returns, a single suspended session
+    cannot be the end of it.
+    """
+    async def scenario():
+        procs = [FakeProcess(pid=11), FakeProcess(pid=22)]
+        await _launch(manager, procs, game_key="youtube", system_id="youtube",
                       monkeypatch=monkeypatch)
         await manager.background()
 
-        with pytest.raises(pm.SessionConflict) as e:
-            await _launch(manager, procs, game_key="c.iso", system_id="s3",
-                          monkeypatch=monkeypatch)
-        assert "a.iso" in str(e.value) and "b.iso" in str(e.value)
+        await _launch(manager, procs, game_key="a.iso", system_id="s1",
+                      monkeypatch=monkeypatch)   # must not raise
+        assert manager.foreground_session is not None
+        assert len(manager.background_sessions) == 1
 
     asyncio.run(scenario())
 

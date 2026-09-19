@@ -63,21 +63,25 @@ def _resident(manager, *, game_key, system_id, state="foreground", pid=4242,
 
 # ── 1. the refusal the player actually meets ─────────────────────────────────
 
-def test_a_third_launch_is_a_named_409_and_not_a_crash(client, manager):
-    """`ProcessManager.launch` refuses a third resident session by raising
-    `SessionConflict`. The router only caught FileNotFoundError and
+def test_a_launch_past_the_cap_is_a_named_409_and_not_a_crash(client, manager):
+    """`ProcessManager.launch` refuses a resident session past the cap by
+    raising `SessionConflict`. The router only caught FileNotFoundError and
     PermissionError, so that refusal left as an unhandled 500 — the player got a
     crash instead of the sentence naming what to close, and the sentence was
-    written specifically so they would know."""
-    _resident(manager, game_key="first.iso", system_id="one",
-              state="background", pid=11)
-    _resident(manager, game_key="second.iso", system_id="two",
-              state="background", pid=22)
+    written specifically so they would know.
+
+    Filled to `MAX_SESSIONS` rather than to two: `_resident_cap` reads the cap
+    off the box, so a test that counts to a literal is testing this machine's
+    RAM rather than the refusal."""
+    held = [f"held{i}.iso" for i in range(pm.MAX_SESSIONS)]
+    for i, key in enumerate(held):
+        _resident(manager, game_key=key, system_id=f"sys{i}",
+                  state="background", pid=11 * (i + 1))
 
     r = client.post("/api/games/launch", json={"system_id": "testpack"})
     assert r.status_code == 409, f"got {r.status_code}, not a refusal"
-    assert "first.iso" in r.json()["detail"]
-    assert "second.iso" in r.json()["detail"]
+    for key in held:
+        assert key in r.json()["detail"], f"{key} is holding a slot and goes unnamed"
 
 
 # ── 2. "close it" must close the thing that was asked for ────────────────────
