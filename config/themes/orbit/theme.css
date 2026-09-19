@@ -309,6 +309,13 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 .orbit-app .orbit-power .gcs-pwr { background: var(--gc-overlay-panel);
   border: 1px solid var(--gc-overlay-border); border-radius: var(--gc-overlay-radius);
   box-shadow: var(--gc-overlay-shadow); }
+/* What sits above the grid decides how much of it is on screen. The console
+   name was set at the size of the Consoles tab's headline, where it is the
+   only thing on the page; here it pushes the first row down by a third of a
+   row. Scoped to the library so the other tabs keep the mockup's scale. */
+.orbit-app #library-view .page-heading { margin-bottom: 12px; }
+.orbit-app #library-view .page-heading h1 { font-size: clamp(24px, 1.9vw, 34px); margin-top: 8px; }
+.orbit-app #library-view .library-toolbar { margin-bottom: 12px; row-gap: 8px; }
 .orbit-app .orbit-details { width: min(560px, 100%); padding: 40px; }
 .orbit-app .orbit-details .dialog-description { max-height: 22vh; overflow-y: auto; }
 @media (max-width: 650px) {
@@ -369,8 +376,16 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
    every card's grid geometry as hundreds of cached images decode stalls pad
    navigation on larger libraries. */
 .orbit-app .library-grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(180px, 13vw, 480px)), 1fr));
-  gap: 30px 26px;
+  /* Measured at 1920x1080 on 2:3 jackets, which is the worst case: 6 columns
+     and one and a half rows, nine games on a screen that holds a console's
+     whole library. The cell was sized for a jacket you could read a subtitle
+     off, on a surface nobody reads subtitles on — the art identifies the game
+     and the name is under it either way.
+     This is 15 columns and three and a half rows, about fifty games, jackets
+     120x172. Chosen over denser: at 21 columns five rows fit, but the titles
+     go to "Kingdom Heart..." and "Metal Gear Sol...". */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(96px, 5.5vw, 150px)), 1fr));
+  gap: 16px 14px;
 }
 .orbit-app .library-cover { display: block; aspect-ratio: auto; overflow: visible; background: none; border: 0; }
 .orbit-app .library-jacket {
@@ -535,10 +550,14 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
   position: relative; inset: auto; display: block; min-width: 0; min-height: 0;
 }
 .orbit-app .orbit-jacket > .art-fallback { width: 100%; height: 100%; }
+/* One line, not two. Two lines of a 19px title is 75px under every jacket —
+   a sixth of the row spent on text that repeats what the cover already says.
+   `min-height` stays so a one-word title and a wrapped one keep the same row
+   height; without it the grid shifts as titles load. */
 .orbit-app .library-card h3 {
-  font-size: clamp(14px, 1vw, 26px); line-height: 1.4;
-  white-space: normal; display: -webkit-box; -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical; min-height: 2.8em;
+  font-size: clamp(10px, .62vw, 13px); line-height: 1.3;
+  white-space: normal; display: -webkit-box; -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical; min-height: 1.3em; margin: 7px 0 0;
 }
 .orbit-app .details-identity {
   display: grid; grid-template-columns: minmax(120px, 32%) minmax(0, 1fr);
