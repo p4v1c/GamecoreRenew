@@ -195,8 +195,8 @@ UI has always used — nothing changes unless a theme defines them:
 
 | Variable | Default | Used by |
 |---|---|---|
-| `--gc-overlay-scrim` | `rgba(5,5,12,0.88)` | the full-screen backdrop behind a settings page |
-| `--gc-overlay-blur` | `blur(24px)` | same |
+| `--gc-overlay-scrim` | `rgba(5,5,12,0.88)` | the full-screen backdrop behind a settings page, and behind the session menu (where it falls back to `rgba(4,7,14,0.72)`) |
+| `--gc-overlay-blur` | `blur(24px)` | same (`blur(18px)` behind the session menu) |
 | `--gc-overlay-panel` | `rgba(255,255,255,0.035)` | the card itself |
 | `--gc-overlay-border` | `rgba(255,255,255,0.09)` | its hairline |
 | `--gc-overlay-radius` | `20px` | its corners |

@@ -776,6 +776,11 @@ A theme may ship a stylesheet for its own markup and load it from its folder.
 > alone on a light or photographic background and every settings page goes
 > black.
 >
+> `--gc-overlay-scrim` and `--gc-overlay-blur` also draw the layer behind the
+> **session menu**, which is worth knowing if your theme exports `sessionMenu`:
+> that markup is yours, but the surface under it is not, and a menu drawn with
+> no panel of its own sits straight on the backdrop of the suspended game.
+>
 > The same applies to the accent. The host's settings widgets — focus rings,
 > toggles, sliders, signal bars, the on-screen keyboard, the theme picker's
 > marker — are drawn with inline styles and read three more variables:

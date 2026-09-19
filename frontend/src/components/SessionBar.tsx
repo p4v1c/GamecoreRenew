@@ -437,8 +437,19 @@ export default function SessionBar(
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           transition={{ duration: SESSION_MENU_EXIT_MS / 1000 }}
           style={{
+            /* The same two variables every other overlay in the front end
+               reads for its scrim (components/ui/index.tsx), with the values
+               this one has always used as the fallback — so a theme that
+               defines them gets its own room here too, and one that does not
+               sees no change.
+               The blur is what makes a menu drawn straight on this layer
+               legible: underneath is the backdrop of whatever game is
+               suspended, at full contrast. */
             position: 'fixed', inset: 0, zIndex: 700, display: 'grid',
-            placeItems: 'center', background: 'rgba(4,7,14,0.72)',
+            placeItems: 'center', padding: 24,
+            background: 'var(--gc-overlay-scrim, rgba(4,7,14,0.72))',
+            backdropFilter: 'var(--gc-overlay-blur, blur(18px))',
+            WebkitBackdropFilter: 'var(--gc-overlay-blur, blur(18px))',
           }}>
           <ErrorBoundary fallback={<DefaultSessionMenuView {...menuProps} />}>
             <MenuView {...menuProps} />
