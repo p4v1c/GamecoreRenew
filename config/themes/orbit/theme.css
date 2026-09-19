@@ -376,16 +376,18 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
    every card's grid geometry as hundreds of cached images decode stalls pad
    navigation on larger libraries. */
 .orbit-app .library-grid {
-  /* Measured at 1920x1080 on 2:3 jackets, which is the worst case: 6 columns
-     and one and a half rows, nine games on a screen that holds a console's
-     whole library. The cell was sized for a jacket you could read a subtitle
-     off, on a surface nobody reads subtitles on — the art identifies the game
-     and the name is under it either way.
-     This is 15 columns and three and a half rows, about fifty games, jackets
-     120x172. Chosen over denser: at 21 columns five rows fit, but the titles
-     go to "Kingdom Heart..." and "Metal Gear Sol...". */
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(96px, 5.5vw, 150px)), 1fr));
-  gap: 16px 14px;
+  /* Measured at 1920x1080 on 2:3 jackets, which is the worst case. This was
+     6 columns and one and a half rows — nine games on a screen that holds a
+     console's whole library, because the cell was sized for a jacket you could
+     read a subtitle off, on a surface nobody reads subtitles on.
+     11 columns, jackets 142x213, about 30 games on screen. A first pass went
+     to 15 and that was too far: PS3 and PS2 boxes went small enough that the
+     wall read as thumbnails rather than as shelves.
+     The minimum is in `vw` so the column COUNT holds across resolutions —
+     eleven at 1920 and eleven at 2560 — rather than the cell size holding and
+     the count drifting. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(124px, 7.2vw, 200px)), 1fr));
+  gap: 20px 18px;
 }
 .orbit-app .library-cover { display: block; aspect-ratio: auto; overflow: visible; background: none; border: 0; }
 .orbit-app .library-jacket {
@@ -555,9 +557,9 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
    `min-height` stays so a one-word title and a wrapped one keep the same row
    height; without it the grid shifts as titles load. */
 .orbit-app .library-card h3 {
-  font-size: clamp(10px, .62vw, 13px); line-height: 1.3;
+  font-size: clamp(11px, .72vw, 15px); line-height: 1.35;
   white-space: normal; display: -webkit-box; -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical; min-height: 1.3em; margin: 7px 0 0;
+  -webkit-box-orient: vertical; min-height: 1.35em; margin: 9px 0 0;
 }
 .orbit-app .details-identity {
   display: grid; grid-template-columns: minmax(120px, 32%) minmax(0, 1fr);
@@ -662,13 +664,6 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 @keyframes orbit-jacket-loading { 50% { background-position: 100% 0; } }
 .orbit-app .orbit-backdrop-exit { animation: orbit-backdrop-out 380ms ease both; }
 @keyframes orbit-backdrop-out { to { opacity: 0; } }
-.orbit-library-summary { min-height: 76px; margin: 0 0 20px; padding: 12px 0;
-  border-block: 1px solid #b8d6f31a; display: flex; align-items: center; gap: 30px; }
-.orbit-library-summary > div { flex: 0 1 35%; min-width: 0; }
-.orbit-library-summary strong { display: block; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.orbit-library-summary span { display: block; font-size: 11px; color: #a5bad1; margin-top: 6px; }
-.orbit-library-summary p { flex: 1; font-size: 13px; color: #b7c7d9; line-height: 1.6;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 /* The ledge spans the page, as it did before 3.6.14 made it a floating panel.
    The rest of the compact treatment — the smaller art, the tighter padding —
    is kept; only the width went back. `right` is left to the base rule
@@ -686,9 +681,6 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 .session-dock.orbit-compact-dock:is(:hover,:focus-within,.controller-active) { border-color: #c5e3ff; }
 .orbit-compact-dock:is(:hover,:focus-within,.controller-active) .session-dock-info small { display: block; }
 @media(max-width:650px) {
-  .orbit-library-summary { gap: 15px; }
-  .orbit-library-summary > div { flex-basis: 45%; }
-  .orbit-library-summary strong { font-size: 14px; }
   .orbit-compact-dock .session-dock-actions { flex: 0 0 auto; order: initial; padding: 0; }
 }
 @media(prefers-reduced-motion:reduce) {
