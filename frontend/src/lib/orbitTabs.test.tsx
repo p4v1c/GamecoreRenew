@@ -149,6 +149,18 @@ describe('the tabs', () => {
     expect(useStore.getState().screen).toBe('library')
     expect(useStore.getState().selectedSystemId).toBe('rpcs3')
   })
+
+  it('forgets a console that was removed before reopening Library', async () => {
+    const { tabs } = await orbit()
+    await act(async () => { tabs.go('library', SYSTEMS) })
+    expect(useStore.getState().selectedSystemId).toBe('rpcs3')
+
+    // The catalogue removed RPCS3 while settings covered the screen. Orbit
+    // used to keep its id forever and reopen a library the host can only 404.
+    act(() => useStore.getState().goHome())
+    await act(async () => { tabs.go('library', SYSTEMS.filter(s => s.id !== 'rpcs3')) })
+    expect(useStore.getState().selectedSystemId).toBe('dolphin')
+  })
 })
 
 describe('the Consoles tab', () => {

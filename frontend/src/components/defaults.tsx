@@ -10,6 +10,7 @@ import { playSound } from '../lib/sounds'
 import { api } from '../api'
 import { useStore } from '../store'
 import { launchSession } from '../hooks/useWebSocket'
+import { gateGameLaunch } from '../lib/launchGate'
 
 import HomeScreen from './HomeScreen'
 import LibraryScreen from './LibraryScreen'
@@ -55,6 +56,14 @@ export async function launchGame(
   if (gameLaunchPending || useStore.getState().sessionGameKey) return
   if (!game.path) throw new Error('This game has no ROM path. Reopen the Games tab.')
   gameLaunchPending = true
+  try {
+    const gated = gateGameLaunch(game.systemId, game.gameKey)
+    const decision = typeof gated === 'string' ? gated : await gated
+    if (decision !== 'launch') { gameLaunchPending = false; return }
+  } catch (e) {
+    gameLaunchPending = false
+    throw e
+  }
   useStore.getState().setTransition('launch')
   playSound('launch')
   try {

@@ -30,7 +30,12 @@ export function createTabs(sdk) {
   const go = (tab, systems) => {
     if (sdk.nav.get().transition === 'launch') return
     if (tab === 'library') {
-      const id = lastSystemId
+      // A catalogue removal can happen while Settings covers this screen.
+      // Remembering a console is useful only while that console still exists;
+      // otherwise Orbit reopens a library whose API now correctly answers 404.
+      const remembered = systems?.some((s) => s.id === lastSystemId)
+        ? lastSystemId : null
+      const id = remembered
         || systems?.find((s) => !s.kind || s.kind === 'emulator')?.id
         || systems?.[0]?.id
       // No console, no library: the host's screen renders nothing without one,

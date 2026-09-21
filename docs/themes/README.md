@@ -493,6 +493,12 @@ and that identity is the only thing telling the two apart once the session
 exists; a bar offering to close a "game" the player never started is the
 interface talking about something that does not exist.
 
+Only one game may be resident. Selecting that same game calls `foreground` and
+resumes it; selecting a different game opens the host-owned “Another game is
+still running” dialog. The dialog uses the same `--gc-overlay-*` variables as
+settings, so themes style it without reimplementing the launch rule. Suspended
+applications may still coexist with a game, hence the plural `sessions` API.
+
 **The bar takes no buttons at all.** It is drawn over a live screen, and that
 screen's ✕ belongs to that screen: an earlier version borrowed it, so one press
 resumed the session *and* opened whatever tile the cursor was on. The bar is a

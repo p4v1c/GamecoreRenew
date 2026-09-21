@@ -53,7 +53,7 @@ One Zustand store, no context providers.
 | Navigation | `screen`, `selectedSystemId`, `selectedGameIdx`, `gridFocusIdx`, `gridPage` | `goHome()`, `goLibrary(id)`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx` |
 | Focus lock | `modalDepth` | `openModal()`, `closeModal()` |
 | Power | `powerPending` | `setPowerPending(action)` |
-| Session | `sessionGameKey`, `sessionSystemId` | `setSession(gameKey, systemId)` |
+| Session | `sessionGameKey`, `sessionSystemId`, `backgroundSessions`, `launchConflict` | `setSession`, `setSessionState`, `setLaunchConflict` |
 
 `modalDepth` is the mechanism that keeps gamepad handlers from firing twice.
 Every modal increments it on mount and decrements on unmount
@@ -65,6 +65,11 @@ const blocked = () => screenRef.current !== 'home' || modalDepthRef.current > 0
 
 `powerPending` freezes the UI while the OS is shutting down, so nothing pops
 back on screen mid-poweroff.
+
+`frontend/src/lib/launchGate.ts` is the common game-launch gate. It resumes the same
+background game, records a conflict for a different one, and lets a normal
+launch continue when no game is held. `DefaultShell` renders that conflict with
+the host `Overlay`, whose CSS variables are supplied by each theme.
 
 ## The gamepad event bus — `hooks/useGamepad.ts`
 
@@ -133,11 +138,12 @@ and returns an unsubscribe.
 
 | Event | Emitted by | Payload | UI effect |
 |---|---|---|---|
-| `game:started` | `process_manager.launch()` | `game_key`, `system_id` | Electron shows the bezel overlay |
-| `game:finished` | `process_manager._watch()` | + `elapsed` | clears the session, hides the overlay |
-| `game:running` | `ws.connect()` | current game | late-joining client catches up |
+| `game:started` | `process_manager.launch()` | `game_key`, `system_id`, `session` | Electron shows the bezel overlay |
+| `game:finished` | `process_manager._watch()` | + `elapsed`, `session` | removes that run and hides the overlay when foreground |
+| `game:running` | `ws.connect()` | foreground plus `background[]` | late-joining client catches up |
+| `game:backgrounded` / `game:foregrounded` | `process_manager` | transition plus complete state snapshot | atomically moves the run between screen and session bar |
 | `gp:battery` | `battery.run()` | `name`, `level`, `threshold` | toast, or native HUD in-game |
-| `gp:guide` | `gamepad_monitor` | — | relayed kill request |
+| `gp:guide` | `gamepad_monitor` | — | double press requests backgrounding |
 | standby events | `standby._enter()` | stage | drives `Screensaver` |
 | addon events | `POST /api/addons/notify` | free-form | e.g. refresh after a ROM upload |
 

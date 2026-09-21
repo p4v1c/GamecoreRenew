@@ -503,9 +503,11 @@ surface, `/login` included, leaving no way back in short of SSH.
 
 ## `config/session.json`
 
-`{pgid, game_key, system_id, exec_path, launch_args, started_at}` — the process
-group of the running game, written by `process_manager` at launch and removed
-when it exits.
+The current writer stores `{sessions: [...]}` plus the first session's legacy
+flat fields. Each row contains `pgid`, game/system identity, executable and
+arguments, start time, foreground/background state and suspended-time counters.
+It is written atomically whenever a session launches, suspends, resumes or
+exits; the file disappears when no session remains.
 
 It exists so a **restarted backend can still reach a game it did not start**.
 Without it the new process came up with `_proc = None`, so `is_running` was
@@ -519,6 +521,10 @@ adopted (reported by `/api/games/session`, killable via `POST /api/games/kill`);
 if not, the file is discarded. This was chosen over killing the game on shutdown,
 which would take unsaved progress with it on every OTA **and** would still leave
 a crash — where no shutdown code runs at all — stranding the player.
+
+Legacy flat files are still read. Recovery may therefore encounter an older
+multi-game state, but new launches enforce one resident game: selecting the
+same suspended identity resumes it and selecting another is refused by name.
 
 ---
 

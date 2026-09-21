@@ -126,20 +126,25 @@ def test_resuming_nothing_is_a_409(client, manager):
     assert r.status_code == 409
 
 
-def test_a_suspended_session_no_longer_refuses_a_launch(client, manager):
-    """The 409 that would have emptied the feature of its point.
-
-    A frozen process still has `returncode is None`, so the old gate — which
-    asked `is_running` — refused every launch for as long as a game sat in the
-    background. 503 here is the launch reaching the exec step and failing on a
-    binary that does not exist, which is exactly what proves nothing upstream
-    refused it.
-    """
+def test_a_suspended_game_refuses_a_different_launch_by_name(client, manager):
     _resident(manager, game_key="zelda.iso", system_id="dolphin",
               state="background")
-    r = client.post("/api/games/launch", json={"system_id": "testpack"})
-    assert r.status_code == 503, (
-        f"a suspended session refused the launch: {r.status_code} {r.text}")
+    r = client.post("/api/games/launch",
+                    json={"system_id": "testpack", "game_key": "mario.iso"})
+    assert r.status_code == 409
+    assert "zelda.iso" in r.json()["detail"]
+    assert "Close it" in r.json()["detail"]
+
+
+def test_launching_the_suspended_game_resumes_it(client, manager):
+    held = _resident(manager, game_key="zelda.iso", system_id="testpack",
+                     state="background")
+    r = client.post("/api/games/launch",
+                    json={"system_id": "testpack", "game_key": "zelda.iso"})
+    assert r.status_code == 200
+    assert r.json()["resumed"] is True
+    assert r.json()["session"] == held.session_id
+    assert manager.foreground_session is held
 
 
 def test_something_on_the_screen_still_refuses_a_launch(client, manager):

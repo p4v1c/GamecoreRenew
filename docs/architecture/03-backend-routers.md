@@ -91,9 +91,11 @@ invisible.
 |---|---|---|
 | `scan_roms(roms_path, extensions, scan_dirs, system_id)` | — | wraps `rom_scanner.iter_rom_files`; skips vanished files instead of 500-ing; for `scan_dirs` systems, prefers the title from `local_media.get_title()` over the folder name (a PS3 folder is often just `BLES01234`) |
 | `list_games(system_id)` | `GET /systems/{id}/games` | returns `[]` for apps |
-| `launch_game(req)` | `POST /games/launch` | 404 unknown system · 409 already running · **403 if the ROM path resolves outside the system's `romsPath`** |
-| `kill_game()` | `POST /games/kill` | |
-| `get_session()` | `GET /games/session` | `process_manager.current_game or {}` |
+| `launch_game(req)` | `POST /games/launch` | 404 unknown system · 409 foreground session or a different suspended game · resumes the same suspended game · **403 if the ROM path resolves outside the system's `romsPath`** |
+| `kill_game(req?)` | `POST /games/kill` | optional session number; otherwise the foreground or latest suspended session |
+| `background_game()` | `POST /games/background` | SIGSTOPs the foreground process group and returns the complete session state |
+| `foreground_game(req?)` | `POST /games/foreground` | SIGCONTs the named/latest suspended session |
+| `get_session()` | `GET /games/session` | flat foreground fields plus `background[]` |
 | `_gamepad_trigger(rounds=3, delay=3.0)` | — | `sudo udevadm trigger` ×3, for Flatpak apps that only see a pad after a udev re-fire |
 
 The path check is the security-critical line:
@@ -104,6 +106,11 @@ Path(req.rom_path).resolve().relative_to(roms_root.resolve())
 
 Without it, a crafted `rom_path` turns `/api/games/launch` into "run any
 binary on the box".
+
+The session invariant is one resident game, enforced both before launch-side
+preparation and again immediately before process creation. A matching suspended
+`(system_id, game_key)` is resumed; a different game gets a 409 that names the
+held title. Application tiles remain independent and may coexist.
 
 ## `covers.py` (28 l.) / `metadata.py` (19 l.)
 

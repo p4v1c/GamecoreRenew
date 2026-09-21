@@ -16,6 +16,7 @@ import { hexToRgb, Overlay } from '../ui'
 import { VirtualKeyboard } from '../ui/VirtualKeyboard'
 import { systemColor } from '../../lib/format'
 import { formatGameName } from '../../lib/formatGameName'
+import { gateGameLaunch } from '../../lib/launchGate'
 import { playSound } from '../../lib/sounds'
 import { useThemeCtx } from '../ThemeSurface'
 import DefaultLibraryView from './DefaultLibraryView'
@@ -247,6 +248,18 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
   const effectiveError = requestedSystem.current === selectedSystemId && loadError
   const effectiveLoading = loading || (!dataReady && !effectiveError)
 
+  // The library can shrink while this mounted screen is covered by a modal
+  // (a catalogue removal), or between two scans after a ROM is removed. The
+  // cursor lives in the global store, so it otherwise keeps pointing past the
+  // end forever. Most views happen to fall back to games[0]; Orbit matches its
+  // active card by identity and therefore drew a grid with no selection at all.
+  useEffect(() => {
+    if (!dataReady || !displayedGames.length) return
+    if (selectedGameIdx >= displayedGames.length) {
+      setSelectedGameIdx(displayedGames.length - 1)
+    }
+  }, [dataReady, displayedGames.length, selectedGameIdx, setSelectedGameIdx])
+
   const selectedGame = displayedGames[selectedGameIdx] ?? displayedGames[0]
 
   // Detail panel shows a debounced selection: updating it on every step of a
@@ -334,6 +347,15 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
     const systemId = game?.system_id ?? selectedLibrary
     if (!systemId || !game) return
     launchLock.current = true
+    try {
+      const gated = gateGameLaunch(systemId, game.filename)
+      const decision = typeof gated === 'string' ? gated : await gated
+      if (decision !== 'launch') { launchLock.current = false; return }
+    } catch (e) {
+      console.error(e)
+      launchLock.current = false
+      return
+    }
     const token = ++launchToken.current
     setLaunching(true)
     // Said in the store as well as in this screen's own state, because a theme

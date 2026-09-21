@@ -142,4 +142,13 @@ describe('the library and the requests it has stopped waiting for', () => {
     expect(spy.mock.calls.length).toBe(0)
     expect(r.getByTestId('probe').textContent).not.toBe(before)
   })
+
+  it('keeps the cursor on a real game when the library has shrunk', async () => {
+    setup([game('Alpha')])
+    useStore.setState({ selectedGameIdx: 7 })
+    const r = render(<LibraryScreen view={Probe} />); await flush()
+
+    expect(useStore.getState().selectedGameIdx).toBe(0)
+    expect(r.getByTestId('probe').textContent).toBe('gc:Alpha.rom')
+  })
 })

@@ -9,6 +9,7 @@ import LibraryScreen from './LibraryScreen'
 import SettingsScreen from './modals/SettingsScreen'
 import PowerModal from './modals/PowerModal'
 import GamepadModal from './modals/GamepadModal'
+import LaunchConflictModal from './modals/LaunchConflictModal'
 import Screensaver from './Screensaver'
 import Toasts from './ui/Toasts'
 import { launchApp } from './defaults'
@@ -184,6 +185,7 @@ export default function DefaultShell(parts: ShellParts = {}) {
   const screen = useStore(s => s.screen)
   const sessionGameKey = useStore(s => s.sessionGameKey)
   const remapRequest = useStore(s => s.remapRequest)
+  const launchConflict = useStore(s => s.launchConflict)
 
   // The unrecognised-controller toast asks for the wizard; the shell is what
   // can grant it, because it owns which modal is up. Straight into the wizard
@@ -269,6 +271,13 @@ export default function DefaultShell(parts: ShellParts = {}) {
         </div>
       </div>
 
+      <AnimatePresence>
+        {launchConflict && (
+          <ModalScope key="launch-conflict">
+            <LaunchConflictModal />
+          </ModalScope>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {showSettings && (
           <ModalScope key="settings">

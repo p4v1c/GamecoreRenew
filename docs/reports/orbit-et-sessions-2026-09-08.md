@@ -72,6 +72,12 @@ not a thing to promise around.
 
 ### 2.1 Two slots, one screen
 
+> **Game-launch policy superseded on 2026-09-21.** Applications may still
+> coexist with a suspended game, but a second game is no longer launched. The
+> same game resumes; a different game is refused with a named 409 and the UI
+> shows the themed close-first dialog. The text below records the policy this
+> report originally validated.
+
 > **Superseded on 2026-09-19.** The cap is no longer a constant: `_resident_cap()`
 > reads it off the box — two, or three from 16 GiB up. The reasoning below is
 > unchanged and is why there is a cap at all; only the number moved, because a

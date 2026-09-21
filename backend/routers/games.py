@@ -285,14 +285,10 @@ async def launch_game(req: LaunchRequest):
     if not system:
         raise HTTPException(404, "System not found")
 
-    # `is_foreground`, not `is_running`: a session that is only suspended must
-    # not refuse a launch. That refusal is what would have emptied the feature
-    # of its point — the player backgrounds a game precisely so they can open
-    # something else, and being told "a game is already running" about a game
-    # that is frozen behind the interface is the box arguing with itself.
-    #
-    # What is still refused is a SECOND thing on the screen, which is the same
-    # rule as before. The other slot is guarded in ProcessManager.background().
+    # A second thing on the screen is always refused. A suspended game is dealt
+    # with below once the requested identity is known: same means resume;
+    # different means the explicit one-game conflict. Applications retain the
+    # existing ability to coexist with a suspended game.
     if process_manager.is_foreground:
         raise HTTPException(409, "A game is already running")
 
@@ -310,6 +306,28 @@ async def launch_game(req: LaunchRequest):
     exec_path = system.get("path", "")
     exec_args = system.get("args", "")
     game_key = req.game_key or (Path(req.rom_path).name if req.rom_path else system["id"])
+
+    # Do this before BIOS, controller and display preparation: resuming an
+    # existing game is not a launch, and refusing another one must have no
+    # launch side effects. ProcessManager.launch repeats the gate immediately
+    # before spawn so a concurrent client cannot slip through this early read.
+    if system.get("kind") != "app" and system.get("type") != "application":
+        held_games = [s for s in process_manager.background_sessions if not s.is_app]
+        same = next((s for s in held_games
+                     if s.game_key == game_key and s.system_id == req.system_id), None)
+        if same is not None:
+            try:
+                state = await process_manager.foreground(same.session_id)
+            except SessionConflict as e:
+                raise HTTPException(409, str(e)) from e
+            return {"ok": True, "game_key": game_key, "resumed": True, **state}
+        if held_games:
+            title = held_games[0].game_key or "another game"
+            raise HTTPException(
+                409,
+                f"Another game is still running ({title}). Close it before "
+                "starting a different game",
+            )
 
     # The tile names no Flatpak app id — it defers to the catalogue, which is
     # what lets a dead upstream be corrected without rewriting every box's
@@ -398,7 +416,7 @@ async def launch_game(req: LaunchRequest):
         await _place_per_game_config(req.system_id, req.rom_path)
 
     try:
-        await process_manager.launch(
+        resumed = await process_manager.launch(
             exec_path=exec_path,
             exec_args=exec_args,
             rom_path=req.rom_path,
@@ -445,7 +463,7 @@ async def launch_game(req: LaunchRequest):
         fs_task = asyncio.create_task(fullscreen_enforcer.enforce(req.system_id, fs_cfg))
         fs_task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 
-    return {"ok": True, "game_key": game_key}
+    return {"ok": True, "game_key": game_key, "resumed": resumed}
 
 
 class KillRequest(BaseModel):

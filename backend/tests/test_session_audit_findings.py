@@ -73,12 +73,15 @@ def test_a_launch_past_the_cap_is_a_named_409_and_not_a_crash(client, manager):
     Filled to `MAX_SESSIONS` rather than to two: `_resident_cap` reads the cap
     off the box, so a test that counts to a literal is testing this machine's
     RAM rather than the refusal."""
-    held = [f"held{i}.iso" for i in range(pm.MAX_SESSIONS)]
+    # Applications still share the general resident cap; games now have the
+    # stricter one-game gate, which is a different refusal tested elsewhere.
+    held = [f"held{i}" for i in range(pm.MAX_SESSIONS)]
     for i, key in enumerate(held):
-        _resident(manager, game_key=key, system_id=f"sys{i}",
+        _resident(manager, game_key=key, system_id=key,
                   state="background", pid=11 * (i + 1))
 
-    r = client.post("/api/games/launch", json={"system_id": "testpack"})
+    r = client.post("/api/games/launch",
+                    json={"system_id": "testpack", "game_key": "new.iso"})
     assert r.status_code == 409, f"got {r.status_code}, not a refusal"
     for key in held:
         assert key in r.json()["detail"], f"{key} is holding a slot and goes unnamed"

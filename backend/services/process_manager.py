@@ -484,23 +484,17 @@ MAX_SESSIONS = _resident_cap()
 
 
 class ProcessManager:
-    """A few slots, one screen.
+    """A few slots, one screen, and at most one resident game.
 
     At most `MAX_SESSIONS` launched things exist at once — see `_resident_cap`,
     which reads that number off the box — and at most one of them is in front
-    of the player. Every other combination is legal: all of them suspended,
-    some suspended and one playing, one playing, nothing.
+    of the player. Applications may coexist with a game; a second game may not.
+    Selecting the suspended game resumes it, while selecting another is an
+    explicit conflict that names the game the player must close.
 
-    **Suspending is never refused, and that is a rule rather than an
-    accident.** An earlier draft of this kept a single background slot and
-    refused a second, which reads as reasonable until the double-Home gesture
-    meets it: a player inside game B with game A already suspended asks to get
-    out, the suspend is refused, and the only way off that screen is to quit
-    the game they were playing. Moving a session from the screen to the
-    background does not create a session — the resident count is identical
-    either side of it — so there was never a memory argument for that refusal,
-    only a data-structure one. The cap belongs on launching, which really does
-    create one.
+    The invariant is enforced on launch, not suspend. Moving the foreground
+    into the background creates no process; refusing the second *launch* is
+    what prevents the two-game state without trapping the player in a game.
     """
 
     def __init__(self):
@@ -795,10 +789,28 @@ class ProcessManager:
     # ── launching ────────────────────────────────────────────────────────────
 
     async def launch(self, exec_path: str, exec_args: str, rom_path: str = "",
-                     game_key: str = "", system_id: str = "") -> None:
+                     game_key: str = "", system_id: str = "") -> bool:
+        """Start a new session, or resume the matching suspended game.
+
+        Returns true when no child was started because the requested game was
+        already resident. This repeats the router's early gate at the last
+        possible moment, closing the race between validation and spawning.
+        """
         if self.is_foreground:
             raise SessionConflict("A game is already running")
         self._reap()
+        if game_key != system_id:  # application tiles intentionally coexist
+            games = [s for s in self.background_sessions if not s.is_app]
+            same = next((s for s in games
+                         if s.game_key == game_key and s.system_id == system_id), None)
+            if same is not None:
+                await self.foreground(same.session_id)
+                return True
+            if games:
+                title = games[0].game_key or "another game"
+                raise SessionConflict(
+                    f"Another game is still running ({title}). Close it before "
+                    "starting a different game")
         if len(self._sessions) >= MAX_SESSIONS:
             held = ", ".join(s.game_key or "?" for s in self._sessions)
             raise SessionConflict(
@@ -868,6 +880,7 @@ class ProcessManager:
             if exc:
                 log.warning("watch task failed: %s", exc)
         watch_task.add_done_callback(_log_err)
+        return False
 
     # ── suspend and resume ───────────────────────────────────────────────────
 
@@ -1108,7 +1121,7 @@ class ProcessManager:
 
         It used to read the manager's own fields after its `await`, which is a
         window wide enough to hold a whole launch: `is_running` frees the slot
-        the moment the child has a return code, so a second game can start
+        the moment the child has a return code, so another session can start
         while the first watcher is still suspended. When it resumed it read
         fields describing the *new* game, set `_proc = None` on a process that
         was running, deleted its session file and announced the wrong game as

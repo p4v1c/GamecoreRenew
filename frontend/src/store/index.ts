@@ -61,6 +61,10 @@ interface GamecoreStore {
   /** Every suspended session, oldest first. Drawn by the session bar. */
   backgroundSessions: BackgroundSession[]
 
+  /** The game which prevented a different game from being launched. */
+  launchConflict: BackgroundSession | null
+  setLaunchConflict: (session: BackgroundSession | null) => void
+
   /**
    * The handover a theme may draw a ceremony over, or null between them.
    *
@@ -115,6 +119,7 @@ export const useStore = create<GamecoreStore>((set) => ({
   sessionGameKey: null,
   sessionSystemId: null,
   backgroundSessions: [],
+  launchConflict: null,
   transition: null,
   remapRequest: 0,
 
@@ -132,6 +137,7 @@ export const useStore = create<GamecoreStore>((set) => ({
     sessionGameKey: fg.gameKey, sessionSystemId: fg.systemId,
     backgroundSessions: background,
   }),
+  setLaunchConflict: (launchConflict) => set({ launchConflict }),
   openModal: () => set(s => ({ modalDepth: s.modalDepth + 1 })),
   closeModal: () => set(s => ({ modalDepth: Math.max(0, s.modalDepth - 1) })),
   setPowerPending: (action) => set({ powerPending: action }),
