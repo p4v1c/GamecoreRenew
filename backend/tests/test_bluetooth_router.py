@@ -123,3 +123,48 @@ def test_a_box_with_nothing_paired_answers_an_empty_list_not_an_error(client, bt
     same thing."""
     btctl["answers"] = {"devices Paired": ""}
     assert client.get("/api/settings/bluetooth/devices").json() == []
+
+
+# ── Unpair and forget ────────────────────────────────────────────────────────
+MAC = "A0:9E:1B:44:D2:18"
+
+
+def test_forgetting_disconnects_then_removes_the_pairing(client, btctl):
+    """The two calls, in that order, on the address the player chose — and
+    nothing else touches the adapter."""
+    btctl["answers"] = {"devices Paired": "", "remove": "Device has been removed"}
+    body = client.delete(f"/api/settings/bluetooth/devices/{MAC}").json()
+    assert body["ok"] is True
+
+    verbs = [c[2:] for c in btctl["calls"] if c[:2] == ["bluetoothctl", "--"]]
+    assert verbs[:2] == [["disconnect", MAC], ["remove", MAC]]
+
+
+def test_a_device_still_paired_afterwards_was_not_forgotten(client, btctl):
+    """bluetoothctl's exit status is not the answer; the paired list is. A
+    removal that left the device paired must say so, or the screen hides a
+    device the adapter will happily reconnect."""
+    btctl["answers"] = {
+        "devices Paired": f"Device {MAC} Marshall Major IV",
+        "remove": "Failed to remove device: org.bluez.Error.Failed",
+    }
+    body = client.delete(f"/api/settings/bluetooth/devices/{MAC}").json()
+    assert body["ok"] is False
+    assert "Failed to remove device" in body["message"]
+
+
+def test_an_address_bluez_no_longer_knows_is_already_forgotten(client, btctl):
+    btctl["answers"] = {"devices Paired": "", "remove": f"Device {MAC} not available"}
+    assert client.delete(f"/api/settings/bluetooth/devices/{MAC}").json()["ok"] is True
+
+
+def test_a_lower_case_address_is_the_same_device(client, btctl):
+    btctl["answers"] = {"devices Paired": f"Device {MAC} Marshall Major IV"}
+    body = client.delete(f"/api/settings/bluetooth/devices/{MAC.lower()}").json()
+    assert body["ok"] is False
+
+
+def test_anything_but_an_address_never_reaches_bluetoothctl(client, btctl):
+    r = client.delete("/api/settings/bluetooth/devices/--help")
+    assert r.status_code == 400
+    assert btctl["calls"] == []

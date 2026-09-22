@@ -155,6 +155,20 @@ describe('the keyboard stand-in', () => {
     off()
   })
 
+  it('repeats a held direction but never a held confirm or back', () => {
+    // A pad's buttons are edge-triggered; a keyboard's auto-repeat is not. A
+    // held Enter that repeated would open a confirmation and then answer it.
+    const seen: string[] = []
+    const offs = ['gp:confirm', 'gp:back', 'gp:dpad-down'].map(n => onGp(n, () => seen.push(n)))
+    renderHook(() => useGamepad())
+
+    for (const key of ['Enter', 'Escape', 'ArrowDown']) {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key, repeat: true, cancelable: true }))
+    }
+    expect(seen).toEqual(['gp:dpad-down'])
+    offs.forEach(off => off())
+  })
+
   it('ignores a shortcut held with a modifier', () => {
     // Ctrl-P is print, not the power menu.
     let count = 0

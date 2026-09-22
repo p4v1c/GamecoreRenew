@@ -494,7 +494,17 @@ export const api = {
     pair: (mac: string) => post<{ ok: boolean; message: string }>('/settings/bluetooth/pair', { mac }),
     connect: (mac: string) => post<{ ok: boolean; message: string }>('/settings/bluetooth/connect', { mac }),
     disconnect: (mac: string) => post<{ ok: boolean }>('/settings/bluetooth/disconnect', { mac }),
-    remove: (mac: string) => fetch(`/api/settings/bluetooth/devices/${encodeURIComponent(mac)}`, { method: 'DELETE' }).then(r => r.json()) as Promise<{ ok: boolean }>,
+    /**
+     * Unpair and forget: disconnects, drops the pairing, and answers `ok` only
+     * once the paired list no longer holds the device — the device has to be
+     * paired again before it can reconnect.
+     */
+    remove: async (mac: string) => {
+      const r = await fetch(`${BASE}/settings/bluetooth/devices/${encodeURIComponent(mac)}`, { method: 'DELETE' })
+      const payload = await r.json().catch(() => null)
+      if (!r.ok) throw new Error(payload?.detail || `${r.status} ${r.statusText}`)
+      return payload as { ok: boolean; message: string }
+    },
   },
   /**
    * External disks.

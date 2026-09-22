@@ -37,7 +37,7 @@ import { asList } from './list.js'
 export const createSystemPage = (sdk, Rows) => {
   const { html, useState, useEffect } = sdk.ui
 
-  return ({ active, onLeave }) => {
+  return ({ active, onLeave, onLeft }) => {
     const [info, setInfo] = useState(null)
     const [standby, setStandby] = useState(null)
     const [volumes, setVolumes] = useState([])
@@ -164,7 +164,7 @@ export const createSystemPage = (sdk, Rows) => {
     }
 
     return html`
-      <${Rows} rows=${allRows} sections=${sections} active=${active} onLeave=${onLeave}
+      <${Rows} rows=${allRows} sections=${sections} active=${active} onLeave=${onLeave} onLeft=${onLeft}
         onSet=${onSet} onAct=${act}
         title="System"
         state=${info ? `V${info.version}` : ''}
