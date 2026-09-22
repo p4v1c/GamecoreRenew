@@ -31,14 +31,19 @@
  * ## Two layouts
  *
  * The two columns above are what the built-in UI and Summer draw, unchanged.
- * Orbit and Shelf pass `detail` and get one vertical list instead — paired
- * devices, then what is in range, then a scan button — because a single column
- * is the only shape where ↑↓ reaches everything and ←→ is left free:
+ * Orbit and Shelf pass `detail` and get one vertical list instead, because a
+ * single column is the only shape where ↑↓ reaches everything:
  *
- *   · `detail="inline"` (Shelf): each paired device is a card carrying its own
- *     two buttons, Connect/Disconnect and Unpair and forget.
- *   · `detail="dialog"` (Orbit): each paired device is one row, and ✕ opens its
- *     dialog with the same two actions.
+ *   · `detail="dialog"` (Orbit): paired devices, then what is in range, then a
+ *     scan button. Each paired device is one row, and ✕ opens its dialog.
+ *   · `detail="inline"` (Shelf): **adding a device comes first.** It used to
+ *     sit under one two-button card per paired device, so on a box with five
+ *     pads the search was off screen and ten presses away — on the one page
+ *     people open precisely to connect something new. Now the search, what it
+ *     found and "Search again" lead the page, and each paired device below is
+ *     ONE row: ✕ connects or disconnects it, → moves onto its Forget button,
+ *     ← comes back. Forgetting is the rare, destructive action, so it is the
+ *     small button, not a second full-width one.
  *
  * **Unpair and forget** is `DELETE /devices/{mac}`, which disconnects, removes
  * the pairing in BlueZ and reads the paired list back before it says yes. The
@@ -50,6 +55,11 @@
 // screen can say how long it will be instead of just spinning.
 const SCAN_SECS = 10
 const SCAN_PATIENCE_MS = (SCAN_SECS + 4) * 1000
+
+// BlueZ names a device that never said what it is after its own address,
+// written either way round (`7C:ED:…` or `7C-ED-…`).
+const MAC_NAME = /^([0-9A-F]{2}[-:]){5}[0-9A-F]{2}$/i
+const nameless = (d) => !d.name || MAC_NAME.test(String(d.name).trim())
 
 import { asList } from './list.js'
 import { createDialogs } from './dialog.js'
@@ -155,6 +165,38 @@ export const createBluetoothPage = (sdk, useSlow, OwnDialog) => {
     }
 
     return { paired, gotPaired, nearby, scanning, busy, msg, rescan, act, forget }
+  }
+
+  /**
+   * A cursor over a list of stops that can change under it.
+   *
+   * A key per stop so the cursor stays on the same device when the list is
+   * reloaded; and a stop that vanished (the device just forgotten, a nearby pad
+   * just paired) hands the cursor to whatever now occupies its place, rather
+   * than throwing it back to the top of the page.
+   */
+  const useCursor = (stops, active) => {
+    const [focusKey, setFocusKey] = useState(null)
+    const at = Math.max(0, stops.findIndex((s) => s.key === focusKey))
+    const lastAt = useRef(at)
+    useEffect(() => {
+      if (focusKey && !stops.some((s) => s.key === focusKey)) {
+        const next = stops[Math.min(lastAt.current, stops.length - 1)]
+        setFocusKey(next ? next.key : null)
+      } else lastAt.current = at
+    })
+
+    const ref = useRef({ stops, at })
+    useEffect(() => { ref.current = { stops, at } })
+
+    const refs = useRef({})
+    useEffect(() => {
+      const s = stops[at]
+      if (active && s) refs.current[s.key]?.scrollIntoView?.({ block: 'nearest' })
+    }, [at, active, stops.length])
+
+    const setRef = (key) => (el) => { refs.current[key] = el }
+    return { at, setFocusKey, ref, setRef }
   }
 
   // ── the two columns: the built-in UI and Summer ──────────────────────────
@@ -271,58 +313,28 @@ export const createBluetoothPage = (sdk, useSlow, OwnDialog) => {
       <//>`
   }
 
-  // ── one column: Orbit (dialog) and Shelf (inline cards) ──────────────────
-  const Stacked = ({ active, onLeave, onLeft, seed, detail }) => {
+  // ── one column, a dialog per device: Orbit ───────────────────────────────
+  const Stacked = ({ active, onLeave, onLeft, seed }) => {
     const { paired, gotPaired, nearby, scanning, busy, msg, rescan, act, forget } = useBluetooth(seed)
-    const cards = detail === 'inline'
     const slowPaired = useSlow(!gotPaired, 2500)
     const slowScan = useSlow(scanning, SCAN_PATIENCE_MS)
-    // The paired device whose dialog is up (Orbit), and the one waiting on
-    // "Unpair and forget?" (both). MACs, not objects: the list is reloaded
+    // The paired device whose dialog is up, and the one waiting on
+    // "Unpair and forget?". MACs, not objects: the list is reloaded
     // under both, and a stale object would describe a connection that ended.
     const [viewing, setViewing] = useState(null)
     const [forgetting, setForgetting] = useState(null)
 
-    // Every stop the cursor can land on, in reading order. A key per stop so
-    // the cursor stays on the same device when the list is reloaded under it.
+    // Every stop the cursor can land on, in reading order.
     const stops = []
-    for (const d of paired) {
-      if (cards) {
-        stops.push({ key: `toggle:${d.mac}`, kind: 'toggle', d })
-        stops.push({ key: `forget:${d.mac}`, kind: 'forget', d })
-      } else stops.push({ key: `device:${d.mac}`, kind: 'device', d })
-    }
+    for (const d of paired) stops.push({ key: `device:${d.mac}`, kind: 'device', d })
     for (const d of nearby) stops.push({ key: `pair:${d.mac}`, kind: 'pair', d })
     stops.push({ key: 'scan', kind: 'scan' })
-
-    const [focusKey, setFocusKey] = useState(null)
-    const at = Math.max(0, stops.findIndex((s) => s.key === focusKey))
-    const lastAt = useRef(at)
-    // A stop that vanished (the device just forgotten, a nearby pad just
-    // paired) hands the cursor to whatever now occupies its place, rather than
-    // throwing it back to the top of the page.
-    useEffect(() => {
-      if (focusKey && !stops.some((s) => s.key === focusKey)) {
-        const next = stops[Math.min(lastAt.current, stops.length - 1)]
-        setFocusKey(next ? next.key : null)
-      } else lastAt.current = at
-    })
-
-    const ref = useRef({ stops, at })
-    useEffect(() => { ref.current = { stops, at } })
-
-    const refs = useRef({})
-    useEffect(() => {
-      const s = stops[at]
-      if (active && s) refs.current[s.key]?.scrollIntoView?.({ block: 'nearest' })
-    }, [at, active, stops.length])
+    const { at, setFocusKey, ref, setRef } = useCursor(stops, active)
 
     const fire = (s) => {
       if (!s) return
       if (s.kind === 'scan') { rescan(); return }
       if (s.kind === 'pair') { act(s.d, 'pair'); return }
-      if (s.kind === 'toggle') { act(s.d, 'toggle'); return }
-      if (s.kind === 'forget') { setForgetting(s.d.mac); return }
       if (s.kind === 'device') setViewing(s.d.mac)
     }
 
@@ -350,7 +362,6 @@ export const createBluetoothPage = (sdk, useSlow, OwnDialog) => {
     }, [active, open, onLeave, busy, scanning])
 
     const on = (key) => active && !open && stops[at] && stops[at].key === key
-    const setRef = (key) => (el) => { refs.current[key] = el }
     const click = (key) => () => {
       const s = stops.find((x) => x.key === key)
       setFocusKey(key); fire(s)
@@ -374,9 +385,7 @@ export const createBluetoothPage = (sdk, useSlow, OwnDialog) => {
           <div class="gcs-wifi-state">${gotPaired ? `${connected} CONNECTED` : ''}</div>
         </div>
         <p class="gcs-set-sub">
-          ${cards
-            ? 'Manage your devices, disconnect them or remove their pairing. Controllers reconnect on their own when the console wakes.'
-            : 'Select a device to connect, disconnect or forget it. Controllers reconnect on their own when the console wakes.'}
+          Select a device to connect, disconnect or forget it. Controllers reconnect on their own when the console wakes.
         </p>
 
         ${msg ? html`<div class="gcs-wifi-msg" role="status">${msg}</div>` : null}
@@ -387,36 +396,7 @@ export const createBluetoothPage = (sdk, useSlow, OwnDialog) => {
               ? 'Still asking the adapter…' : 'Reading the paired list…'}</div>`
           : paired.length === 0
             ? html`<div class="gcs-wifi-empty">Nothing is paired yet.</div>`
-            : cards
-              ? html`<div class="gcs-bt-cards">
-                  ${paired.map((d) => {
-                    const working = busy === d.mac
-                    return html`
-                      <article key=${d.mac} class="gcs-bt-card" aria-label=${d.name}
-                               data-live=${d.connected ? '1' : '0'}>
-                        <div class="gcs-bt-card-head">
-                          <span class="gcs-bt-name"><b>${d.name}</b><i>${d.mac}</i></span>
-                          <span class="gcs-bt-chip" data-live=${d.connected ? '1' : '0'}>
-                            ${working ? 'WORKING' : d.connected ? 'CONNECTED' : 'DISCONNECTED'}
-                          </span>
-                        </div>
-                        <div class="gcs-bt-card-acts">
-                          <button type="button" class="gcs-bt-act" ref=${setRef(`toggle:${d.mac}`)}
-                                  data-on=${on(`toggle:${d.mac}`) ? '1' : '0'} disabled=${!!busy}
-                                  onClick=${click(`toggle:${d.mac}`)}>
-                            ${d.connected ? 'Disconnect' : 'Connect'}
-                          </button>
-                          <button type="button" class="gcs-bt-act" data-danger="1"
-                                  ref=${setRef(`forget:${d.mac}`)}
-                                  data-on=${on(`forget:${d.mac}`) ? '1' : '0'} disabled=${!!busy}
-                                  onClick=${click(`forget:${d.mac}`)}>
-                            Unpair and forget
-                          </button>
-                        </div>
-                      </article>`
-                  })}
-                </div>`
-              : paired.map((d) => html`
+            : paired.map((d) => html`
                   <div key=${d.mac} class="gcs-row2 gcs-bt-dev" role="button"
                        aria-label=${`${d.name}, ${d.connected ? 'connected' : 'disconnected'}`}
                        ref=${setRef(`device:${d.mac}`)}
@@ -494,7 +474,199 @@ export const createBluetoothPage = (sdk, useSlow, OwnDialog) => {
       <//>`
   }
 
-  return (props) => (props.detail
-    ? html`<${Stacked} ...${props} />`
-    : html`<${Columns} ...${props} />`)
+  // ── adding first, one row per device: Shelf ─────────────────────────────
+  const Inline = ({ active, onLeave, onLeft, seed }) => {
+    const { paired, gotPaired, nearby, scanning, busy, msg, rescan, act, forget } = useBluetooth(seed)
+    const slowPaired = useSlow(!gotPaired, 2500)
+    const slowScan = useSlow(scanning, SCAN_PATIENCE_MS)
+    const [forgetting, setForgetting] = useState(null)
+    // Which of a paired row's two buttons the cursor is on: 0 the main action,
+    // 1 Forget. Reset by every ↑↓, so a row is always entered on the safe one.
+    const [side, setSide] = useState(0)
+
+    // A device that advertises no name shows up as its own address. It is still
+    // listed — it may be the pad being paired, before it has said what it is —
+    // but after everything that did introduce itself.
+    const found = nearby.map((d, i) => ({ d, i, anon: nameless(d) }))
+      .sort((a, b) => (a.anon - b.anon) || (a.i - b.i)).map((x) => x.d)
+
+    const stops = []
+    for (const d of found) stops.push({ key: `pair:${d.mac}`, kind: 'pair', d })
+    stops.push({ key: 'scan', kind: 'scan' })
+    for (const d of paired) stops.push({ key: `mine:${d.mac}`, kind: 'mine', d })
+    const { at, setFocusKey, ref, setRef } = useCursor(stops, active)
+
+    const sideRef = useRef(side)
+    useEffect(() => { sideRef.current = side }, [side])
+
+    const fire = (s, which) => {
+      if (!s) return
+      if (s.kind === 'scan') { rescan(); return }
+      if (s.kind === 'pair') { act(s.d, 'pair'); return }
+      if (which === 1) setForgetting(s.d.mac)
+      else act(s.d, 'toggle')
+    }
+
+    const open = !!forgetting
+    useEffect(() => {
+      if (!active || open) return
+      const len = () => Math.max(1, ref.current.stops.length)
+      const cur = () => ref.current.stops[ref.current.at]
+      const move = (d) => {
+        sdk.system.playSound('move')
+        const s = ref.current.stops[(ref.current.at + d + len()) % len()]
+        setSide(0)
+        if (s) setFocusKey(s.key)
+      }
+      const offs = [
+        sdk.input.onGp('gp:dpad-up', () => move(-1)),
+        sdk.input.onGp('gp:dpad-down', () => move(1)),
+        sdk.input.onGp('gp:dpad-right', () => {
+          const s = cur()
+          if (s && s.kind === 'mine' && sideRef.current === 0) { sdk.system.playSound('move'); setSide(1) }
+        }),
+        // ← steps back off Forget first; only from a row's main button does it
+        // leave the page for the rail, which is what it does everywhere else.
+        sdk.input.onGp('gp:dpad-left', () => {
+          const s = cur()
+          if (s && s.kind === 'mine' && sideRef.current === 1) { sdk.system.playSound('move'); setSide(0); return }
+          ;(onLeft || onLeave)()
+        }),
+        sdk.input.onGp('gp:confirm', () => {
+          sdk.system.playSound('confirm')
+          fire(cur(), sideRef.current)
+        }),
+        sdk.input.onGp('gp:back', onLeave),
+      ]
+      return () => offs.forEach((off) => off())
+    }, [active, open, onLeave, busy, scanning])
+
+    const on = (key, which = 0) => active && !open && stops[at] && stops[at].key === key
+      && (!key.startsWith('mine:') || side === which)
+    const click = (key, which = 0) => (e) => {
+      if (e) e.stopPropagation()
+      setFocusKey(key); setSide(which)
+      fire(stops.find((x) => x.key === key), which)
+    }
+
+    const doomed = forgetting && paired.find((d) => d.mac === forgetting)
+    useEffect(() => {
+      if (gotPaired && forgetting && !doomed) setForgetting(null)
+    }, [gotPaired, forgetting, doomed])
+
+    const connected = paired.filter((d) => d.connected).length
+    const here = stops[at]
+
+    return html`
+      <${Fragment}>
+      <section class="gcs-set-main gcs-bt-shelf" data-zone=${active ? 'on' : 'off'}>
+        <div class="gcs-set-h-row">
+          <div class="gcs-set-h">Bluetooth</div>
+          <div class="gcs-wifi-state">${gotPaired ? `${connected} CONNECTED` : ''}</div>
+        </div>
+
+        ${msg ? html`<div class="gcs-wifi-msg" role="status">${msg}</div>` : null}
+
+        <div class="gcs-bt-add" data-scanning=${scanning ? '1' : '0'}>
+          <div class="gcs-bt-add-head">
+            <span class="gcs-bt-add-title">
+              <b>Add a device</b>
+              <i>Put the controller or headset in pairing mode, then choose it below.</i>
+            </span>
+            <span class="gcs-bt-add-state">
+              ${scanning ? 'SEARCHING' : `${found.length} FOUND`}
+            </span>
+          </div>
+          ${scanning ? html`<div class="gcs-bt-sweep" aria-hidden="true"><i></i></div>` : null}
+
+          ${found.length === 0
+            ? html`<div class="gcs-bt-add-empty">${scanning
+                ? (slowScan ? 'Still looking — some devices only advertise every few seconds.'
+                            : `Looking around for ${SCAN_SECS} seconds…`)
+                : 'Nothing found yet. Check the device is in pairing mode, then search again.'}</div>`
+            : found.map((d) => {
+                const anon = nameless(d)
+                return html`
+                  <div key=${d.mac} class="gcs-row2 gcs-bt-near" role="button"
+                       aria-label=${`Pair ${anon ? 'unnamed device ' + d.mac : d.name}`}
+                       data-anon=${anon ? '1' : '0'}
+                       ref=${setRef(`pair:${d.mac}`)}
+                       data-on=${on(`pair:${d.mac}`) ? '1' : '0'}
+                       onClick=${click(`pair:${d.mac}`)}>
+                    <span class="gcs-row2-text">
+                      <b>${anon ? 'Unnamed device' : d.name}</b>
+                      <i>${anon ? d.mac : 'Ready to pair'}</i>
+                    </span>
+                    <span class="gcs-act">${busy === d.mac ? 'Pairing…' : 'Pair'}</span>
+                  </div>`
+              })}
+
+          <button type="button" class="gcs-bt-act gcs-bt-scan" ref=${setRef('scan')}
+                  data-on=${on('scan') ? '1' : '0'} disabled=${scanning}
+                  onClick=${click('scan')}>
+            ${scanning ? 'Searching…' : 'Search again'}
+          </button>
+        </div>
+
+        <div class="gcs-set-kicker gcs-row2-head">
+          Your devices${gotPaired && paired.length ? ` · ${paired.length}` : ''}
+        </div>
+        ${!gotPaired
+          ? html`<div class="gcs-load"><i></i>${slowPaired
+              ? 'Still asking the adapter…' : 'Reading the paired list…'}</div>`
+          : paired.length === 0
+            ? html`<div class="gcs-wifi-empty">Nothing is paired yet.</div>`
+            : paired.map((d) => {
+                const key = `mine:${d.mac}`
+                const focused = here && here.key === key && active && !open
+                const working = busy === d.mac
+                return html`
+                  <div key=${d.mac} class="gcs-bt-mine" ref=${setRef(key)}
+                       aria-label=${`${d.name}, ${d.connected ? 'connected' : 'not connected'}`}
+                       data-live=${d.connected ? '1' : '0'} data-here=${focused ? '1' : '0'}>
+                    <span class="gcs-bt-dot" data-live=${d.connected ? '1' : '0'}></span>
+                    <span class="gcs-bt-name">
+                      <b>${d.name}</b>
+                      <i>${working ? 'Working…' : d.connected ? 'Connected' : 'Not connected'}${
+                        focused ? html`<span class="gcs-bt-mac"> · ${d.mac}</span>` : null}</i>
+                    </span>
+                    <button type="button" class="gcs-bt-act" data-primary=${d.connected ? '0' : '1'}
+                            data-on=${on(key, 0) ? '1' : '0'} disabled=${!!busy}
+                            onClick=${click(key, 0)}>
+                      ${d.connected ? 'Disconnect' : 'Connect'}
+                    </button>
+                    <button type="button" class="gcs-bt-act gcs-bt-forget" data-danger="1"
+                            data-on=${on(key, 1) ? '1' : '0'} disabled=${!!busy}
+                            onClick=${click(key, 1)}>
+                      Forget
+                    </button>
+                  </div>`
+              })}
+        <p class="gcs-bt-foot">
+          ✕ connects or disconnects · → then ✕ forgets a device. Controllers reconnect on their own when the console wakes.
+        </p>
+      </section>
+
+      ${doomed ? html`
+        <${Dialog}
+          kicker="Bluetooth"
+          title=${`Unpair and forget ${doomed.name}?`}
+          body="The device will be disconnected and removed from your devices. Pair it again to reconnect."
+          initial=${0}
+          onCancel=${() => setForgetting(null)}
+          actions=${[
+            { id: 'cancel', label: 'Cancel', run: () => setForgetting(null) },
+            {
+              id: 'forget', danger: true, primary: true, label: 'Unpair and forget',
+              run: () => { setForgetting(null); forget(doomed) },
+            },
+          ]} />` : null}
+      <//>`
+  }
+
+  return (props) => (props.detail === 'inline'
+    ? html`<${Inline} ...${props} />`
+    : props.detail
+      ? html`<${Stacked} ...${props} />`
+      : html`<${Columns} ...${props} />`)
 }

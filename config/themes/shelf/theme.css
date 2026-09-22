@@ -2157,7 +2157,7 @@
 .shelf-settings .gcs-grp,
 .shelf-settings .gcs-pack,
 .shelf-settings .gcs-bios,
-.shelf-settings .gcs-bt-card {
+.shelf-settings .gcs-bt-mine {
   background: #f3f4e9; border: 1px solid #c1ccba; border-radius: 4px; box-shadow: none;
 }
 .shelf-settings .gcs-row2, .shelf-settings .gcs-wifi-row { min-height: 78px; }
@@ -2183,16 +2183,30 @@
 .shelf-settings .gcs-wifi-name i, .shelf-settings .gcs-bt-name i { font-size: 13px; color: #53665b; }
 .shelf-settings .gcs-act { min-height: 44px; display: inline-flex; align-items: center; font-size: 15px; }
 
-/* Bluetooth device cards */
-.shelf-settings .gcs-bt-card { padding: 20px 22px; box-shadow: 3px 3px 0 #dfe5d6; }
-.shelf-settings .gcs-bt-card[data-live="1"] { background: #eef3e6; }
-.shelf-settings .gcs-bt-card-head .gcs-bt-name b { font-size: 22px; font-weight: 600; }
-.shelf-settings .gcs-bt-chip { background: #e5ebdc; border-color: rgba(54, 89, 68, 0.3); color: #45584d; }
-.shelf-settings .gcs-bt-chip[data-live="1"] { color: var(--set-acc-deep); border-color: var(--set-acc-deep); }
-.shelf-settings .gcs-bt-act {
-  background: #edf1e5; border-color: #a7b8a2; box-shadow: 0 2px 0 #80937840; color: var(--shelf-ink);
+/* Bluetooth: "Add a device" on graph paper, then one ruled row per device */
+.shelf-settings .gcs-bt-add {
+  background: repeating-linear-gradient(0deg, transparent 0 23px, #527b3a12 23px 24px), #f7f8ef;
+  border: 1px solid #becab1; border-radius: 4px; box-shadow: 3px 4px 0 #dfe5d6;
 }
-.shelf-settings .gcs-bt-act[data-danger="1"] { color: #8f2f2f; }
+.shelf-settings .gcs-bt-add-title b { font-size: 22px; font-weight: 600; color: var(--shelf-ink); }
+.shelf-settings .gcs-bt-add-title i { color: #3f5147; }
+.shelf-settings .gcs-bt-add-state { background: #e5ebdc; border-color: rgba(54, 89, 68, 0.3); color: #45584d; border-radius: 3px; }
+.shelf-settings .gcs-bt-add[data-scanning="1"] .gcs-bt-add-state { color: var(--set-acc-deep); border-color: var(--set-acc-deep); }
+.shelf-settings .gcs-bt-sweep { background: #dfe5d6; }
+.shelf-settings .gcs-bt-sweep i { background: var(--shelf-mark); }
+.shelf-settings .gcs-bt-add .gcs-row2 { min-height: 60px; padding-top: 8px; padding-bottom: 8px; background: #fffdf5; }
+.shelf-settings .gcs-bt-add .gcs-row2-text i { font-size: 14px; }
+.shelf-settings .gcs-bt-add .gcs-act { min-height: 40px; }
+.shelf-settings .gcs-bt-mine { border-radius: 4px; min-height: 72px; }
+.shelf-settings .gcs-bt-mine[data-live="1"] { background: #eef3e6; box-shadow: inset 4px 0 #467b52; }
+.shelf-settings .gcs-bt-mine[data-here="1"] { border-color: var(--shelf-mark); }
+.shelf-settings .gcs-bt-mine .gcs-bt-name b { font-size: 20px; font-weight: 600; color: var(--shelf-ink); }
+.shelf-settings .gcs-bt-act {
+  background: #edf1e5; border-color: #a7b8a2; box-shadow: 0 2px 0 #80937840; color: var(--shelf-ink); border-radius: 4px;
+}
+.shelf-settings .gcs-bt-act[data-primary="1"] { background: #dfe9d4; border-color: #7f9a7f; }
+.shelf-settings .gcs-bt-act[data-danger="1"] { color: #8f2f2f; background: transparent; box-shadow: none; }
+.shelf-settings .gcs-bt-foot { color: #53665b; }
 
 /* Display: the mode on screen, on graph paper */
 .shelf-settings .gcs-disp-now {
