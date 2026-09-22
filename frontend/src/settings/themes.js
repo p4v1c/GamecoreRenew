@@ -21,7 +21,7 @@ import { asList } from './list.js'
 export const createThemesPage = (sdk, Rows) => {
   const { html, useState, useEffect, useRef } = sdk.ui
 
-  return ({ active, onLeave }) => {
+  return ({ active, onLeave, onLeft }) => {
     const [items, setItems] = useState([])
     const [order, setOrder] = useState([])
     const [activeId, setActiveId] = useState(null)
@@ -117,7 +117,7 @@ export const createThemesPage = (sdk, Rows) => {
       : 'Default'
 
     return html`
-      <${Rows} rows=${rows} active=${active} onLeave=${onLeave}
+      <${Rows} rows=${rows} active=${active} onLeave=${onLeave} onLeft=${onLeft}
         onSet=${() => {}} onAct=${onAct}
         title="Themes"
         state=${String(current).toUpperCase()}

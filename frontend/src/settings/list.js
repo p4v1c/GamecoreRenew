@@ -43,7 +43,8 @@ export const versionLabel = (v) => (v ? `v${String(v).replace(/^v/i, '')}` : '')
  * page stopped with that row at the top edge and the title and sentence above
  * it scrolled away for good — with a pad, nothing could bring them back (a
  * mouse wheel could, which is why only the pad showed it). So the first row
- * takes every scroller between it and its page back to the top.
+ * takes every scroller between it and the settings screen back to the top —
+ * the page on Shelf, the body around it on Orbit, whichever one scrolls.
  *
  * Every call is optional-chained: jsdom has no layout and no scrollIntoView.
  */
@@ -51,8 +52,8 @@ export const follow = (el, first = false) => {
   if (!el) return
   if (first) {
     for (let p = el.parentElement; p; p = p.parentElement) {
+      if (p.classList?.contains('gcs-set')) break
       if (p.scrollHeight > p.clientHeight) p.scrollTop = 0
-      if (p.classList?.contains('gcs-set-main')) break
     }
     return
   }

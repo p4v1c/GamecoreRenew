@@ -22,7 +22,7 @@ import { asList } from './list.js'
 export const createAudioPage = (sdk, Rows) => {
   const { html, useState, useEffect } = sdk.ui
 
-  return ({ active, onLeave }) => {
+  return ({ active, onLeave, onLeft }) => {
     const [volume, setVolume] = useState(50)
     const [sinks, setSinks] = useState([])
     const [uiOn, setUiOn] = useState(() => sdk.system.sound.enabled)
@@ -84,7 +84,7 @@ export const createAudioPage = (sdk, Rows) => {
     }
 
     return html`
-      <${Rows} rows=${rows} active=${active} onLeave=${onLeave}
+      <${Rows} rows=${rows} active=${active} onLeave=${onLeave} onLeft=${onLeft}
         onSet=${onSet} onAct=${() => {}}
         title="Audio"
         state=${sinks.find((s) => s.default) ? 'ON' : ''}

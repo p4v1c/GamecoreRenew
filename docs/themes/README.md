@@ -1100,6 +1100,28 @@ If you want a different settings screen, do not edit that folder: pass your own
 page through `createSettings(sdk, { inline: { wifi: MyWifiPage } })`, or write
 your own menu from scratch as both themes used to.
 
+(The screen now ships in the bundle and is reached as
+`sdk.defaults.createSettings` — the `_shared` path above is its history.)
+
+Its third argument switches on the parts a theme's own design needs, and
+leaving them out draws the rail the built-in UI and Summer have always had:
+
+| Part | What it does | Who uses it |
+|---|---|---|
+| `Background` | your Home background **component**, drawn as the screen's first layer; the screen goes transparent over it | Orbit (`backdrop.Background`), Shelf (the wall) |
+| `layout: 'index'` | a category list that opens one page at a time; ○ walks back up a level | Orbit |
+| `pager: true` | L1/R1 change category whenever no dialog is open; the page names its place | Shelf |
+| `detail: 'dialog' \| 'inline'` | a network's or a device's detail in a dialog, or beside the list; Bluetooth is the same two-column page (Paired / Nearby, with Forget) in every layout | Orbit |
+| `skin`, `TopBar` | a class for your palette; your top bar above the screen | both |
+
+Pass the component, not a copy of its CSS. Two definitions of one wall is how
+the Home and Settings wallpapers drifted apart once already.
+
+Every dialog on that screen owns the pad while it is up — the rail, the page
+and L1/R1 stand down — and ignores a confirm that arrives within 350 ms of it
+opening, so a held or auto-repeated press cannot open a confirmation and answer
+it.
+
 ## 18. The acceptance test, and its removal
 
 `config/themes/default-remake` **was** the default UI rebuilt as an ordinary

@@ -39,7 +39,9 @@ export const createBluetoothPage = (sdk, useSlow) => {
   const { html, useState, useEffect, useRef, React } = sdk.ui
   const Fragment = React.Fragment
 
-  return ({ active, onLeave, seed }) => {
+  // `onLeft` is what ← out of the Paired column does; the screen passes a
+  // no-op in Orbit's index layout, where ○ is the only way back up.
+  return ({ active, onLeave, onLeft, seed }) => {
     // Seeded from the rail. The settings screen already fetched the paired list
     // to put "2 connected" at the end of this row, so the page opens with it
     // rather than fetching the same thing again and showing an empty card while
@@ -182,7 +184,7 @@ export const createBluetoothPage = (sdk, useSlow) => {
           const s = stateRef.current
           if (s.col === 'paired' && s.side === 1) { sdk.system.playSound('move'); setSide(0) }
           else if (s.col === 'nearby') { sdk.system.playSound('move'); setCol('paired'); setIdx(0) }
-          else onLeave()
+          else (onLeft || onLeave)()
         }),
         sdk.input.onGp('gp:dpad-right', () => {
           const s = stateRef.current
@@ -202,7 +204,7 @@ export const createBluetoothPage = (sdk, useSlow) => {
         sdk.input.onGp('gp:back', onLeave),
       ]
       return () => offs.forEach((off) => off())
-    }, [active, onLeave, busy, scanning])
+    }, [active, onLeave, onLeft, busy, scanning])
 
     const row = (d, i, kind) => {
       const here = active && col === kind && idx === i
