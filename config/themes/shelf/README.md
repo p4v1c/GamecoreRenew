@@ -134,16 +134,14 @@ a router:
   switch, its volume and the vibration switch from the console, with the page
   still there and nothing able to reach it. That is what `catalog` and `storage`
   shipped as, arriving by a different door.
-- **`PowerModal` takes an `omit` list**, and `DefaultShell` forwards it as
-  `powerOmit`. "Scan mapping" and "Forget mapping" were in the power menu
-  because that modal had the two-press confirmation and no settings screen did —
-  not because saving a pad's controls ends a session. They are in
-  Settings → Controllers now, with the confirmation (see `views/pages/rows.js`).
-  The filter is applied by the host, not by the view: `focusIdx` indexes the
-  array handed over, so a view that hid rows itself would leave the cursor
-  landing on nothing. The host refuses to drop `restart`, `shutdown` or
-  `desktop` whatever a theme asks, so no theme can build a box that cannot be
-  turned off from the sofa.
+- **The power menu is the three ways a session ends.** "Scan mapping" and
+  "Forget mapping" were in it because that modal had the two-press confirmation
+  and no settings screen did; they moved to Settings → Controllers, and were
+  later removed from GameCore altogether. The `omit` / `powerOmit` filter that
+  let a theme take them out of the power menu went with them: what is left —
+  `shutdown`, `restart`, `desktop` — is exactly what no theme was ever allowed
+  to drop. Settings → Controllers keeps the two-press confirmation for its
+  destructive rows (see `frontend/src/settings/rows.js`).
 
 ## What this screen deliberately does not do
 

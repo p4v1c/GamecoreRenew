@@ -72,11 +72,10 @@ function useToastQueue() {
       const label = typeof d.label === 'string' ? d.label : ''
       const who = player ? `Controller ${player}` : 'Controller'
 
-      // P1 made the give-up visible in the journal and at "Scan mapping".
-      // Neither is where the player is standing: they have just plugged a pad
-      // in and it does not work. This is, and it used to say "Controller 2
-      // connected" in green for a controller dead in every emulator that
-      // matches a device by name.
+      // P1 made the give-up visible in the journal. That is not where the
+      // player is standing: they have just plugged a pad in and it does not
+      // work. This is, and it used to say "Controller 2 connected" in green
+      // for a controller dead in every emulator that matches a device by name.
       //
       // Deliberately NOT handed to the Electron HUD, which every other toast
       // goes to when it exists. The HUD is a native always-on-top window that

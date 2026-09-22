@@ -215,7 +215,7 @@ const api = {
   },
   storage: { list: () => fetch('/api/storage/volumes').then((r) => r.json()), unmount: async () => ({ ok: true }) },
   update: { status: () => fetch('/api/update/status').then((r) => r.json()), check: async () => ({}), apply: async () => ({}) },
-  controllers: { scanMapping: async () => ({ ok: true }), forgetScan: async () => ({ ok: true }) },
+  controllers: { autoconfig: async () => ({ ok: true, enabled: true, packs: [] }) },
   audio: {
     get: () => fetch('/api/settings/audio').then((r) => r.json()),
     sinks: () => fetch('/api/settings/audio/sinks').then((r) => r.json()),
@@ -263,8 +263,7 @@ const { createTopBar } = await import(`${themeDir}/views/topbar.js`)
 const Settings = createSettings(sdk, {}, { TopBar: createTopBar(sdk) })
 
 // The power menu is PowerModal's, not the settings screen's, so it is rendered
-// on its own — with the option list the host hands a theme that declares
-// `powerOmit: ['scan','forget']`, which is the whole point of the filter.
+// on its own — with the option list the host hands every theme.
 let Root = Settings
 if (category === 'home') {
   // The wall and the bar over it, and nothing else — this shot exists to check
@@ -289,7 +288,6 @@ if (category === 'home') {
   ]
   Root = () => React.createElement(View, {
     options, focusIdx: 0, confirmId: null, pendingId: null,
-    scanning: false, scanResult: null,
     onFocus() {}, onActivate() {}, onCancel() {},
   })
 }

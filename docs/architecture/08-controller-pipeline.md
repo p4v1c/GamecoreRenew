@@ -229,8 +229,9 @@ do, nothing to say.
 Every writer used to return `str | None`, and only truthy values were collected.
 So "I retargeted Player 2" reached the log and "there is no Player 1 pad to clone
 from" reached nobody — a give-up was byte-for-byte indistinguishable from a
-success. **RPCS3's players 2-4 sat dead for a week that way**, and `scan_mapping()`
-answered `{"ok": True}` on a snapshot it had taken of the wrong controller.
+success. **RPCS3's players 2-4 sat dead for a week that way**, and the old
+`scan_mapping()` answered `{"ok": True}` on a snapshot it had taken of the wrong
+controller.
 
 `apply_profile` files Skips separately into `ProfileResult.skipped`;
 `.complete` is false when any is present, and that bit is what makes a retry
@@ -423,30 +424,34 @@ pass measures — is a give-up, not a refusal: it broadcasts `game:notice` and
 launches anyway. A late config is a playable game; a launch that does not happen
 is a dead box.
 
-### 2. "Scan mapping" — remember a config the owner made by hand
+### 2. Saved snapshots — restored, no longer created
 
-For the `snapshot-restore` emulators: the owner configures the pad once in the
-emulator's own input UI, then presses *Scan mapping* in the Power menu.
+For the `snapshot-restore` and `snapshot-or-synth` emulators, a snapshot under
+`~/.local/share/gamecore/controller-snapshots/<emu>/<vid>_<pid>.snap` is the
+owner's own input config for that pad model, and `snapshots.restore()` puts it
+back on every connect. **A saved snapshot always wins** over a synthesis.
 
-`POST /api/controllers/scan-mapping` captures each emulator's current input
-config for the connected pad; `DELETE` forgets it. An emulator whose config
-plainly describes a *different* controller is **refused** rather than filed under
-the connected pad, and comes back in `refused` — the box already holds a Cemu
-snapshot named for an Xbox pad that contains a DualShock 4's config, saved back
-when this returned a flat `ok`. That snapshot is also why DELETE exists: a
-refusal with no way to act on it is a nicer dead end, because the file sits in a
-directory nobody can reach from a sofa.
+The snapshots were created by "Scan mapping" (`POST
+/api/controllers/scan-mapping`) and deleted by "Forget mapping" (`DELETE` on the
+same path). **Both actions were removed** — the buttons, the route and
+`snapshots.capture()` / `snapshots.forget()`. What stays is everything that
+READS a snapshot: `exists()`, `restore()` and `block_disagrees()`. A snapshot
+whose config plainly describes a *different* controller is still **refused** on
+restore and reported (the box holds a Cemu snapshot named for an Xbox pad that
+contains a DualShock 4's config); with the forget button gone, the way out of
+one is deleting the file named in the warning.
 
-Ryujinx was listed here for a long time and never belonged: it has no snapshot
-adapter and needs none.
+An owner who wants their own mapping in one of these emulators now configures
+it in the emulator and turns that emulator's autoconfig off (Settings →
+Controllers → Per-emulator exceptions), so GameCore stops writing it.
 
 ### 3. The mapping wizard — for a pad SDL does not know
 
 `POST /api/controllers/mapping/{start,commit,cancel}`, plus a WebSocket at
 `/ws/controllers/mapping` pushing every press as an SDL token.
 
-This is the case *Scan mapping cannot help with at all*. There is no hand-made
-config to remember, because the owner cannot make one — the emulator's input UI
+This is the case no hand-made config can help with. There is no config to
+remember, because the owner cannot make one — the emulator's input UI
 will not bind a device its SDL never enumerated. So the pad is mapped here, once,
 button by button, and the result is written as an SDL mapping line every
 SDL-based emulator on the box reads at startup. **One gesture, thirteen systems.**

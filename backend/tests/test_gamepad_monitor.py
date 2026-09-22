@@ -653,10 +653,10 @@ def test_a_pad_unplugged_mid_scan_is_not_a_permission_problem(monkeypatch, caplo
 
 # ── the give-up reaches the player, not just the journal ─────────────────────
 #
-# P1 made "this pad cannot be named" visible in the log and at "Scan mapping".
-# Neither is where the player is standing: they have just plugged a controller
-# in and it does not work. The connect toast is, and it said "Controller 2
-# connected" in green for a pad dead in every emulator that matches by name.
+# P1 made "this pad cannot be named" visible in the log. That is not where
+# the player is standing: they have just plugged a controller in and it does
+# not work. The connect toast is, and it said "Controller 2 connected" in
+# green for a pad dead in every emulator that matches by name.
 
 
 class _RecordingWS:

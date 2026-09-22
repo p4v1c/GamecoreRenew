@@ -1,17 +1,10 @@
 /**
  * Settings → Controllers.
  *
- * This is where the two mapping utilities now live. They were in the power
- * menu, which is not where anyone looks for them: saving a pad's controls is
- * not a way to end a session, and they were only there because that modal had
- * the two-press confirmation and no settings screen did. The confirmation came
- * with them — see `rows.js`, where an `action` row marked `confirm` arms
- * before it fires and disarms when the cursor leaves.
- *
- * `powerOmit` in index.js is the other half of the move: the host filters those
- * two ids out of the power menu for this theme, so they are in one place rather
- * than two. It refuses to drop restart, shutdown or desktop whatever a theme
- * asks, so the move cannot cost anyone the ability to turn the box off.
+ * "Scan mapping" and "Forget mapping" used to live here, moved in from the
+ * power menu. Both were removed. Mappings they saved are still restored on
+ * connect by automatic setup; a pad SDL does not know is mapped with the
+ * wizard, which the □ button opens.
  *
  * ## Where this departs from the capture, and why
  *
@@ -167,24 +160,6 @@ export const createControllersPage = (sdk, Rows) => {
         id: 'rumble', type: 'toggle', value: rumble,
         label: 'Rumble', desc: 'Haptic feedback, in themes that ask for it',
       },
-      {
-        id: 'scan', type: 'action', label: 'Scan mapping', label2: 'Scan now',
-        busy: busy === 'scan' ? 'Scanning…' : '',
-        // Still works with the switch off — it only SAVES — but saying so
-        // matters: what it saves is restored on connect by the very pipeline
-        // that is switched off, so a green "Saved for PS4 Controller" would
-        // otherwise promise something the box will not do until it is back on.
-        desc: autoOn
-          ? 'Saves the connected pad’s controls (3DS, DS, GBA…)'
-          : 'Saves the connected pad’s controls — kept, but not applied again '
-            + 'until automatic setup is back on',
-      },
-      {
-        id: 'forget', type: 'action', label: 'Forget mapping', label2: 'Forget',
-        busy: busy === 'forget' ? 'Forgetting…' : '',
-        confirm: true, danger: true,
-        desc: 'Deletes the connected pad’s saved controls, then scan again',
-      },
     ]
 
     const applyAuto = (id, enabled, pack) => {
@@ -236,29 +211,7 @@ export const createControllersPage = (sdk, Rows) => {
     }
 
     const onAct = (id) => {
-      if (id === 'packs') { setShowPacks((v) => !v); return }
-      if (busy) return
-      setBusy(id); setMsg('')
-      const call = id === 'scan' ? sdk.api.controllers.scanMapping()
-                                 : sdk.api.controllers.forgetScan()
-      call
-        .then((d) => {
-          if (!d.ok) { setMsg(d.error || 'That did not work.'); return }
-          if (id === 'scan') {
-            setMsg([
-              `Saved for ${d.controller}: ${d.saved?.length ? d.saved.join(', ') : 'nothing found'}`,
-              // An emulator whose config plainly describes a DIFFERENT pad is
-              // refused rather than filed under this one. Silence here once let
-              // a DualShock 4's config be stored as the Xbox pad's.
-              d.refused?.length
-                ? `— skipped (configured for another pad): ${d.refused.join(', ')}` : '',
-            ].filter(Boolean).join(' '))
-          } else {
-            setMsg(`Forgot for ${d.controller}: ${d.forgotten?.length ? d.forgotten.join(', ') : 'nothing was saved'}`)
-          }
-        })
-        .catch(() => setMsg('Could not reach the backend.'))
-        .finally(() => setBusy(''))
+      if (id === 'packs') setShowPacks((v) => !v)
     }
 
     // The state a box can sit in for weeks without noticing: autoconfig off,

@@ -1,4 +1,4 @@
-"""Snapshot capture/restore — the emulators whose bindings cannot be synthesised.
+"""Snapshot restore — the emulators whose bindings cannot be synthesised.
 
 Shared by azahar, mgba, Cemu and gopher64/RMG, so the tests live with the
 mechanism rather than with any one pack. Moved out of
@@ -27,22 +27,19 @@ def _load(pack_id):
 gens = {p: _load(p) for p in ("azahar", "mgba", "cemu", "gopher64")}
 
 
-def test_a_snapshot_of_the_wrong_controller_is_refused(tmp_path):
+def test_a_cemu_block_names_the_controller_it_was_made_for():
     """cemu/045e_02fd.snap and cemu/054c_09cc.snap on the box are
-    byte-identical, both the DualShock 4's config: "Scan mapping" was pressed
-    with the Xbox pad connected while the file still held the DS4."""
-    xml = tmp_path / "controller0.xml"
-    xml.write_text("<emulated_controller>\n"
-                   "<uuid>0_05009b514c050000cc09000000810000</uuid>\n"
-                   "</emulated_controller>\n")
-    snaps = tmp_path / "snaps"
-    cemu = gens["cemu"]
+    byte-identical, both the DualShock 4's config: the old "Scan mapping"
+    capture ran with the Xbox pad connected while the file still held the DS4.
+    Those files are still restored on connect, and Cemu's `_0` GUID prefix is
+    what `block_disagrees` has to see through to refuse the wrong one."""
+    block = gens["cemu"].extract(
+        "<emulated_controller>\n"
+        "<uuid>0_05009b514c050000cc09000000810000</uuid>\n"
+        "</emulated_controller>\n")
 
-    with pytest.raises(snapshots.Refused):
-        snapshots.capture(snaps, "cemu", xml, cemu.extract, "045e", "02fd")
-
-    assert snapshots.capture(snaps, "cemu", xml, cemu.extract,
-                             "054c", "09cc") == "cemu"
+    assert snapshots.block_disagrees(block, "045e", "02fd")
+    assert snapshots.block_disagrees(block, "054c", "09cc") is None
 
 def test_mgba_captures_the_section_that_binds_buttons(tmp_path, monkeypatch):
     """The old extractor took [gba.input-profile.<GUID>], which holds tilt and
@@ -226,21 +223,6 @@ def test_a_restore_that_would_change_nothing_says_nothing(tmp_path):
                              _replace_that_does_nothing, "054c", "09cc") is None
     assert not cfg.with_name(cfg.name + ".bak-ctrlmodel").exists(), (
         "a no-op restore took a backup of a file it was not going to change")
-
-
-def test_a_saved_mapping_can_be_forgotten(tmp_path):
-    """The inverse that did not exist. A refused snapshot is unreachable from a
-    sofa, and without this the only way out of one is a shell."""
-    snaps = tmp_path / "snaps"
-    snap = snapshots.snap_path(snaps, "cemu", *XBOX)
-    snap.parent.mkdir(parents=True)
-    snap.write_text("anything")
-
-    assert snapshots.forget(snaps, "cemu", *XBOX) is True
-    assert not snap.exists()
-    # Idempotent: forgetting twice is the owner pressing the button twice, not
-    # an error to show them.
-    assert snapshots.forget(snaps, "cemu", *XBOX) is False
 
 
 def test_azahar_follows_the_active_profile(tmp_path):
@@ -488,9 +470,10 @@ def test_a_capture_under_another_guid_is_not_this_emulators(wizard_mapped, monke
 
 
 def test_a_hand_made_snapshot_always_beats_a_derivation(wizard_mapped, tmp_path):
-    """The owner configured the pad inside the emulator and pressed "Scan
-    mapping". That is their work, and a derivation that overwrote it would be
-    this pipeline destroying exactly what it exists to preserve."""
+    """A saved snapshot is the owner's own configuration, captured from the
+    emulator. Snapshots are no longer created, but the ones on disk are still
+    restored, and a derivation that overwrote one would be this pipeline
+    destroying exactly what it exists to preserve."""
     cfg = tmp_path / "qt-config.ini"
     cfg.write_text("[Controls]\nprofile=0\nprofiles\\1\\button_a=\"stale\"\n")
     snaps = tmp_path / "snaps"
@@ -547,8 +530,8 @@ def test_cemu_is_still_refused():
     """Two unknowns, both of which produce a config that looks right: its
     <uuid> is not an identity anything here can compute (measured: the name CRC
     and the driver tail both differ from every SDL we can ask), and its
-    <button> ids for axes are internal to Cemu. "Scan mapping" stays the way to
-    teach Cemu a pad."""
+    <button> ids for axes are internal to Cemu. Cemu's own input settings stay
+    the way to teach it a pad."""
     assert not hasattr(gens["cemu"], "_derive_block")
     assert "not an identity" in derive.cemu_is_not_derivable
 

@@ -221,10 +221,11 @@ The button *names* stay generic: they are cosmetic, RMG rewrites them to the
 pad's own vocabulary (`"cross"` for a DualShock 4's `a`) when the owner maps by
 hand, and a guessed label is a claim about a pad nobody measured.
 
-**A hand-made snapshot always wins.** Configure the controller in RMG
-(Settings → Input), then press **Scan mapping** in GameCore, and that mapping is
-restored whenever the pad reconnects — the reference box carries one whose N64
-`B` sits on SDL `b` rather than the generic profile's `x`. The test is
+**A saved snapshot always wins.** A snapshot saved by the former **Scan
+mapping** button (since removed) is restored whenever the pad reconnects — the
+reference box carries one whose N64 `B` sits on SDL `b` rather than the generic
+profile's `x`. To keep a new hand-made RMG mapping, turn the N64's autoconfig
+off in Settings → Controllers → Per-emulator exceptions. The test is
 `snapshots.exists()`, never a falsy return from `restore()`, which answers None
 both for "no snapshot" and for "already applied". `extract` takes the
 `[Rosalie's Mupen GUI - Input Plugin…]` sections and nothing else, so neither

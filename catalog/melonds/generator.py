@@ -39,11 +39,9 @@ from backend.services.configgen.helpers.ini import extract_section, replace_sect
 EMU_ID = "melonds"
 
 # The snapshot half of `snapshot-or-synth`. The dispatcher reads these off the
-# module by name, and so does "Scan mapping" — which skips any pack that has no
-# `extract`, silently. Leaving them out cost nothing at import time and broke
-# both paths at runtime: every pad connect raised AttributeError, and melonDS
-# dropped out of Scan mapping without a word. The old code kept the same two
-# closures in a central _SNAP_EMUS table, over the same section.
+# module by name. Leaving them out cost nothing at import time and broke it at
+# runtime: every pad connect raised AttributeError. The old code kept the same
+# two closures in a central _SNAP_EMUS table, over the same section.
 SECTION = "Instance0.Joystick"
 extract = extract_section(SECTION)
 _replace_joystick = replace_section(SECTION)

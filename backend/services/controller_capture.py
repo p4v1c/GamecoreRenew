@@ -490,10 +490,9 @@ def _pad_nodes(vendor: str, product: str) -> tuple[str, dict[str, Layout]]:
 def start() -> dict:
     """Open a capture session on the one connected pad.
 
-    Exactly one, deliberately, and it is the same rule "Scan mapping" applies
-    next door: with two pads connected there is no way to know which one the
-    owner is holding, and a mapping filed under the wrong GUID is worse than no
-    mapping — it is a wrong answer that survives reboots.
+    Exactly one, deliberately: with two pads connected there is no way to know
+    which one the owner is holding, and a mapping filed under the wrong GUID is
+    worse than no mapping — it is a wrong answer that survives reboots.
     """
     global _session
     pads = detect_pads()

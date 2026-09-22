@@ -14,10 +14,9 @@ longer a number nobody could have predicted; it is a number the capture holds.
 What has NOT changed is everything else that paragraph is defending, so the
 rules here are narrow on purpose:
 
-  1. **A hand-made snapshot always wins.** If the owner configured the pad
-     inside the emulator and pressed "Scan mapping", that is their work and a
-     derivation must not touch it. Derivation only fills the case where there
-     is nothing.
+  1. **A hand-made snapshot always wins.** A snapshot on disk is the owner's
+     own configuration, captured from the emulator, and a derivation must not
+     touch it. Derivation only fills the case where there is nothing.
   2. **Only emulators whose format is known from a REAL file.** azahar and mgba
      are derived because this box carries captured blocks for both, hats and
      analogue axes included, so every line emitted below has a measured
@@ -259,6 +258,7 @@ Its <button> values are the second problem. controller0.xml on this box uses
 internal to Cemu's SDLController that no file here documents and that cannot be
 checked without running Cemu and watching what it binds.
 
-Two unknowns, both of which produce a config that looks right. "Scan mapping"
-remains the way to teach Cemu a pad, and that path still works.
+Two unknowns, both of which produce a config that looks right. Cemu's own
+input settings remain the way to teach it a pad; a snapshot already on disk is
+still restored.
 """

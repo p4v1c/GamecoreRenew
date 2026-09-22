@@ -23,7 +23,7 @@
  *   measures it in.
  * · **No "Forget this network".** It would need `nmcli con delete`, which is a
  *   route that does not exist yet, and it destroys a saved profile — so it
- *   wants the same two-step protection as Forget mapping rather than a bare
+ *   wants the same two-step protection as the autoconfig switch rather than a bare
  *   button. Named in the README as outstanding.
  * · **The password dialog holds the on-screen keyboard.** The capture draws a
  *   text field, which is a mouse-and-keyboard drawing: nobody typing a WPA

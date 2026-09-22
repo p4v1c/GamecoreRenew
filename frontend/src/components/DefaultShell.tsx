@@ -51,9 +51,8 @@ export interface ShellParts {
   /**
    * Library shortcuts this theme binds itself, so the host lets go of them.
    *
-   * The same idea as `powerOmit`, for the same reason: the host cannot know
-   * which buttons a theme has advertised on its own screen, and two handlers
-   * on one button is never what either of them meant.
+   * The host cannot know which buttons a theme has advertised on its own
+   * screen, and two handlers on one button is never what either of them meant.
    *
    * It exists because of exactly that. The host opens the per-game options on
    * R2 — "because every face button is already spoken for on this screen" —
@@ -82,14 +81,6 @@ export interface ShellParts {
    * it wrong costs more than a misaligned pixel.
    */
   powerView?: React.ComponentType<PowerViewProps>
-  /**
-   * Power-menu ids this theme offers somewhere else, so they leave that menu.
-   *
-   * Only the mapping utilities can go; PowerModal refuses to drop restart,
-   * shutdown or desktop whatever is passed. A theme that moves "Scan mapping"
-   * into its own Controllers screen says so here and stops showing it twice.
-   */
-  powerOmit?: string[]
   gamepadView?: React.ComponentType<GamepadViewProps>
   /**
    * The notification stack's markup. The queue, the durations and the handover
@@ -139,24 +130,6 @@ function ModalScope({ children }: { children: React.ReactNode }) {
   // creates the stacking context and takes no space.
   return <div style={{ position: 'relative', zIndex: 500 }}>{children}</div>
 }
-
-/**
- * What the built-in power menu leaves out, when a theme has not said.
- *
- * Saving a pad's controls is not a way to end a session. The two mapping rows
- * were in this menu for one reason — it had the two-press confirmation and no
- * settings screen did — and both shipped themes moved them to
- * Settings → Controllers and declared `powerOmit` to drop them here.
- *
- * The built-in UI could not follow, because its settings screen was a list of
- * ten host pages and Controllers was not one of them. It draws the same rail
- * the themes draw now, Controllers included, so the reason is gone and the
- * menu is the three ways a session ends.
- *
- * `??`, not `||`: a theme that deliberately passes `[]` wants the full menu,
- * and an empty array is not an absent one.
- */
-export const POWER_OMIT = ['scan', 'forget']
 
 export default function DefaultShell(parts: ShellParts = {}) {
   const Background = parts.background ?? Nothing
@@ -288,7 +261,7 @@ export default function DefaultShell(parts: ShellParts = {}) {
       <AnimatePresence>
         {showPower && (
           <ModalScope key="power">
-            <PowerModal onClose={() => setShowPower(false)} view={parts.powerView} omit={parts.powerOmit ?? POWER_OMIT} />
+            <PowerModal onClose={() => setShowPower(false)} view={parts.powerView} />
           </ModalScope>
         )}
       </AnimatePresence>

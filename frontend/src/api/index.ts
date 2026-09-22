@@ -497,15 +497,6 @@ export const api = {
     remove: (mac: string) => fetch(`/api/settings/bluetooth/devices/${encodeURIComponent(mac)}`, { method: 'DELETE' }).then(r => r.json()) as Promise<{ ok: boolean }>,
   },
   /**
-   * Controller mapping — two mechanisms that must not be confused.
-   *
-   * `scanMapping` remembers a config the owner made BY HAND inside an
-   * emulator's own input UI (3DS/DS/GBA/Wii U bind by GUID and raw indices).
-   * The wizard is for the case that cannot help with: a pad SDL does not know,
-   * where no emulator will offer to bind it in the first place. It writes an
-   * SDL mapping line every SDL-based emulator reads at startup.
-   */
-  /**
    * External disks.
    *
    * `unmount` is the one that matters: pulling a disk with unwritten data is
@@ -547,9 +538,11 @@ export const api = {
     setAutoconfig: (enabled: boolean, pack?: string) =>
       post<AutoconfigState & { released?: string[]; reprofiling?: boolean; error?: string }>(
         '/controllers/autoconfig', pack ? { enabled, pack } : { enabled }),
-    scanMapping: () => post<ScanResult>('/controllers/scan-mapping'),
-    forgetScan: () => fetch(BASE + '/controllers/scan-mapping', { method: 'DELETE' })
-      .then(r => r.json()) as Promise<ScanResult>,
+    /**
+     * The mapping wizard: a pad SDL does not know, where no emulator will offer
+     * to bind it in the first place. It writes an SDL mapping line every
+     * SDL-based emulator reads at startup.
+     */
     mapping: {
       start: () => post<MappingSession>('/controllers/mapping/start'),
       commit: (bindings: Record<string, string>, name = '') =>
@@ -643,18 +636,6 @@ export interface AutoconfigState {
   ok: boolean
   enabled: boolean
   packs: AutoconfigPack[]
-}
-
-export interface ScanResult {
-  ok: boolean
-  controller?: string
-  saved?: string[]
-  refused?: string[]
-  forgotten?: string[]
-  /** False when no SDL on the box can name this pad — see the wizard. */
-  identified?: boolean
-  detail?: string
-  error?: string
 }
 
 /** One step of the wizard: an SDL field name, and what to ask the player for. */

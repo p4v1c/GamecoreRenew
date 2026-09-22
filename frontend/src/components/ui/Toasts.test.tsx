@@ -1,10 +1,10 @@
 /**
  * The toast that offers the mapping wizard.
  *
- * P1 made the give-up visible in the journal and at "Scan mapping". Neither is
- * where the player is standing: they have just plugged a pad in and it does not
- * work. This toast is, and before this it said "Controller 2 connected" in
- * green for a controller dead in every emulator that matches a device by name.
+ * P1 made the give-up visible in the journal. That is not where the player is
+ * standing: they have just plugged a pad in and it does not work. This toast
+ * is, and before this it said "Controller 2 connected" in green for a
+ * controller dead in every emulator that matches a device by name.
  *
  * Two things here are load-bearing and easy to lose in a refactor: the offer
  * must not go to the Electron HUD, which draws text and cannot carry a button;

@@ -15,7 +15,7 @@ import { VirtualKeyboard } from './VirtualKeyboard'
 const ROW_IDS = ['wifi', 'audio', 'bluetooth', 'storage', 'standby',
                  'themes', 'catalog', 'bios', 'update', 'desktop']
 // The ids the power menu draws a row for.
-const POWER_IDS = ['scan', 'forget', 'shutdown', 'restart', 'desktop']
+const POWER_IDS = ['shutdown', 'restart', 'desktop']
 
 describe('the icon set', () => {
   it('has a glyph for every row either menu can draw', () => {

@@ -1,14 +1,13 @@
-"""The two halves of the "Scan mapping" gesture.
+"""The controllers router: the mapping wizard's wiring, and what is gone.
 
-`restore()` refuses a snapshot whose GUID names another controller — the box
-already holds one, cemu/045e_02fd.snap containing a DualShock 4's config. A
-refusal is only an improvement if the owner can act on it, and for a long time
-they could not: this router exposed POST and nothing else, so a poisoned
-snapshot was permanent and re-applied on every connect.
+These tests assert the WIRING, not the services: that each route exists and
+reaches its function. What the wizard does with a capture is covered in
+test_controller_capture.py and test_mapping_db.py.
 
-These tests assert the WIRING, not the service: that both verbs exist on the
-path and reach their function. What each function does is covered in
-test_configgen_snapshots.py, on the mechanism itself.
+"Scan mapping" and "Forget mapping" (`POST`/`DELETE /controllers/scan-mapping`)
+were removed. The route must not come back half-alive — a stale theme or an old
+page still calling it has to get a plain 404, and must not reach the snapshot
+files the autoconfig pipeline still restores from.
 """
 from __future__ import annotations
 
@@ -32,31 +31,29 @@ def client():
     return TestClient(app)
 
 
-def test_a_saved_mapping_can_be_deleted(client, monkeypatch):
-    """The missing inverse. Without it a detected disagreement has no way out
-    and the owner trades a silent overwrite for a silent deadlock."""
-    seen = {}
+@pytest.mark.parametrize("verb", ["post", "delete"])
+def test_the_removed_scan_and_forget_routes_do_nothing(client, verb, tmp_path,
+                                                       monkeypatch):
+    """Both verbs of the old path answer 404 and leave the snapshots alone.
 
-    def fake_forget():
-        seen["called"] = True
-        return {"ok": True, "controller": "Xbox pad", "forgotten": ["cemu"]}
+    The snapshots are the one thing on disk the removed actions ever touched,
+    and autoconfig still restores them on every connect: a route that survived
+    the removal as a catch-all and deleted one would cost somebody a mapping
+    they can no longer re-create from the couch.
+    """
+    snaps = tmp_path / "controller-snapshots"
+    (snaps / "cemu").mkdir(parents=True)
+    kept = snaps / "cemu" / "054c_09cc.snap"
+    kept.write_text("<emulated_controller/>")
+    monkeypatch.setattr(controller_profiles, "SNAP_DIR", snaps)
+    monkeypatch.setattr("backend.services.configgen.SNAP_DIR", snaps)
 
-    monkeypatch.setattr(controller_profiles, "forget_mapping", fake_forget)
+    r = getattr(client, verb)("/api/controllers/scan-mapping")
 
-    r = client.delete("/api/controllers/scan-mapping")
-
-    assert r.status_code == 200
-    assert seen.get("called"), "DELETE did not reach forget_mapping()"
-    assert r.json()["forgotten"] == ["cemu"]
-
-
-def test_scanning_is_still_reachable(client, monkeypatch):
-    """Guard-rail: the new verb must not have displaced the existing one."""
-    monkeypatch.setattr(controller_profiles, "scan_mapping",
-                        lambda: {"ok": True, "controller": "pad",
-                                 "saved": [], "refused": []})
-
-    assert client.post("/api/controllers/scan-mapping").status_code == 200
+    assert r.status_code == 404, r.text
+    assert kept.read_text() == "<emulated_controller/>"
+    assert not hasattr(controller_profiles, "scan_mapping")
+    assert not hasattr(controller_profiles, "forget_mapping")
 
 
 # ── the wizard ───────────────────────────────────────────────────────────────
@@ -99,8 +96,9 @@ def test_commit_takes_a_body_so_the_cross_origin_guard_covers_it(client):
 
 
 def test_the_saved_mappings_are_listed_and_can_be_dropped(client, monkeypatch):
-    """A capture that turns out wrong must be undoable from the couch — the
-    same reason DELETE exists for the snapshots above it."""
+    """A capture that turns out wrong must be undoable from the couch. This is
+    the WIZARD's forget, and it stays: it drops one SDL mapping line the owner
+    made, not an emulator snapshot."""
     store = [LINE]
     monkeypatch.setattr(mapping_db, "read_user", lambda: list(store))
     monkeypatch.setattr(mapping_db, "remove",

@@ -304,9 +304,9 @@ def test_commit_without_a_session_is_refused(clean_session):
 
 
 def test_the_wizard_refuses_to_start_with_two_pads(clean_session, monkeypatch):
-    """The same rule "Scan mapping" applies: with two pads connected there is
-    no way to know which one is in the owner's hands, and a mapping filed under
-    the wrong GUID is a wrong answer that survives reboots."""
+    """With two pads connected there is no way to know which one is in the
+    owner's hands, and a mapping filed under the wrong GUID is a wrong answer
+    that survives reboots."""
     monkeypatch.setattr(cap, "detect_pads",
                         lambda *a, **k: [("054c", "09cc", "A"), ("045e", "02fd", "B")])
 

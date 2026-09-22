@@ -1,4 +1,4 @@
-"""Capture and restore, for the emulators whose bindings cannot be synthesised.
+"""Restore, for the emulators whose bindings cannot be synthesised.
 
 azahar (3DS), mgba (GBA), Cemu (Wii U), gopher64/RMG (N64) and melonDS (DS)
 bind by a device GUID plus RAW BUTTON INDICES, and neither can be derived from
@@ -13,13 +13,17 @@ sees. And azahar's `button_up = 11` is a raw joystick index — the same 11/12/1
 melonDS records for a DS4's D-pad, while SDL's own GameController mapping claims
 a hat and calls button 11 the touchpad.
 
-So nothing is synthesised. The real model is:
+So nothing is synthesised from a vendor:product alone (`derive.py` covers the
+one exception: a pad the wizard has measured). A snapshot is a config block indexed by
+vendor:product, and `restore()` puts it back when a pad of the same model
+reconnects — REFUSING it when the block's own GUID names another controller.
 
-  1. the owner maps the pad once, inside the emulator, then presses
-     "Scan mapping";
-  2. `capture()` stores that config block, indexed by vendor:product —
-     REFUSING it when the block's own GUID names another controller;
-  3. `restore()` puts it back when a pad of the same model reconnects.
+The snapshots were written by "Scan mapping", a button that copied the
+connected pad's hand-made config out of each emulator. The button and its
+inverse, "Forget mapping", were removed; `capture()` and `forget()` went with
+them. The files they wrote are still on disk on the boxes that used them and
+are still restored on every connect, which is why everything below that READS a
+snapshot stays exactly as careful as it was.
 
 GUID-substituting versions of the mgba and Cemu profilers used to exist and
 were never called by apply_profile. They were removed rather than kept as
@@ -77,10 +81,11 @@ def block_disagrees(block: str, vendor: str, product: str) -> str | None:
     a `guid:` per binding, so a captured block states which controller it is
     for. Nothing checked that against the pad the user said they had just
     mapped, and the box ended up with cemu/045e_02fd.snap byte-identical to
-    cemu/054c_09cc.snap — both the DualShock 4's config, because "Scan mapping"
-    was pressed with the Xbox pad connected while the file still held the DS4.
-    Restoring it is a no-op today, but the moment the owner maps the Xbox by
-    hand, the next connection overwrites their work with the DS4's config.
+    cemu/054c_09cc.snap — both the DualShock 4's config, because the capture
+    (the "Scan mapping" button, since removed) ran with the Xbox pad connected
+    while the file still held the DS4. Restoring it is a no-op today, but the
+    moment the owner maps the Xbox by hand, the next connection would overwrite
+    their work with the DS4's config.
     """
     want = (vendor.lower(), product.lower())
     for guid in _ANY_GUID_RE.findall(guid_scannable(block)):
@@ -113,34 +118,6 @@ def block_disagrees(block: str, vendor: str, product: str) -> str | None:
     return None
 
 
-def capture(snap_dir: Path, emu_id: str, path: Path, extract, vendor: str,
-            product: str) -> str | None:
-    """Save this emulator's CURRENT input config for this controller.
-
-    Returns the emulator id when saved, None when there was nothing to save,
-    and raises nothing. A block that plainly describes a different controller
-    is REFUSED rather than saved under this one's name — the caller reports it.
-    """
-    if not path.is_file():
-        return None
-    block = extract(path.read_text())
-    if not block.strip():
-        return None
-    wrong = block_disagrees(block, vendor, product)
-    if wrong:
-        log.warning("configgen: %s config describes %s, not %s:%s — refusing to "
-                    "save it as this pad's mapping", emu_id, wrong, vendor, product)
-        raise Refused(emu_id)
-    snap = snap_path(snap_dir, emu_id, vendor, product)
-    snap.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write(snap, block)
-    return emu_id
-
-
-class Refused(Exception):
-    """The emulator's config names a different controller."""
-
-
 def restore(snap_dir: Path, emu_id: str, path: Path, extract, replace,
             vendor: str, product: str) -> str | None:
     """Swap this controller's saved input config back in, on connect.
@@ -157,10 +134,9 @@ def restore(snap_dir: Path, emu_id: str, path: Path, extract, replace,
         return None
     block, text = snap.read_text(), path.read_text()
 
-    # The same question capture() asks, asked again here. capture() gained this
-    # guard AFTER the box had already filed cemu/045e_02fd.snap containing a
-    # DualShock 4's config, so the guard protects future captures only and the
-    # poisoned file stays on disk. Without this, restore() re-applies it on
+    # The capture that wrote these files gained the same guard AFTER the box
+    # had already filed cemu/045e_02fd.snap containing a DualShock 4's config,
+    # so the poisoned file stays on disk. Without this, restore() re-applies it on
     # EVERY connect, overwriting by hand whatever the owner remapped since —
     # the one failure in this module that destroys the owner's own work.
     #
@@ -171,12 +147,12 @@ def restore(snap_dir: Path, emu_id: str, path: Path, extract, replace,
     if wrong:
         log.warning("configgen: %s has a saved mapping for %s:%s whose config "
                     "describes %s — refusing to apply it. The pad will keep the "
-                    "mapping it has; forget the saved one to re-scan.",
-                    emu_id, vendor, product, wrong)
+                    "mapping it has; delete %s to stop this warning.",
+                    emu_id, vendor, product, wrong, snap)
         # Not a Skip: a Skip means "try again", and the monitor would retry
         # every three seconds forever. A GUID that names another pad is a
         # decision about a file on disk, not a transient failure — it can only
-        # change when someone forgets the snapshot.
+        # change when someone deletes the snapshot.
         return (f"{emu_id}: saved mapping ignored — it describes {wrong}, "
                 f"not {vendor}:{product}")
 
@@ -205,18 +181,3 @@ def restore(snap_dir: Path, emu_id: str, path: Path, extract, replace,
     backup(path)
     atomic_write(path, new)
     return f"{emu_id}: restored saved mapping ({vendor}:{product})"
-
-
-def forget(snap_dir: Path, emu_id: str, vendor: str, product: str) -> bool:
-    """Delete this controller's saved mapping for one emulator.
-
-    The missing inverse. Without it a refused snapshot has no way out: the
-    owner is told their mapping was not applied and can do nothing about it,
-    which trades a silent overwrite for a silent deadlock. Returns True when a
-    file was actually removed, so the caller can report what it did.
-    """
-    try:
-        snap_path(snap_dir, emu_id, vendor, product).unlink()
-        return True
-    except FileNotFoundError:
-        return False
