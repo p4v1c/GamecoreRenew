@@ -94,14 +94,7 @@ export default (sdk) => {
   // overlay — the two files that used to do that were superseded rather than
   // kept as dead routes. `ownPages` stays in the signature because it is the
   // seam a fork uses to replace one page without editing views/settings.js.
-  //
-  // It stands on the wall itself: `Background` is the component Home paints,
-  // passed in rather than restated in CSS, so the two screens cannot drift.
-  // L1/R1 turn the category, and a device's or a network's detail sits in
-  // the page rather than in a dialog.
-  const Settings = createSettings(sdk, {}, {
-    TopBar, Background, skin: 'shelf-settings', pager: true, detail: 'inline',
-  })
+  const Settings = createSettings(sdk, {}, { TopBar })
 
   const Ceremony = createCeremony(sdk)
 

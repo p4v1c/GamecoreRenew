@@ -34,14 +34,6 @@ declare module '*/settings/screen' {
     TopBar?: unknown
     /** Extra class on the root, carrying this surface's palette. */
     skin?: string
-    /** The theme's Home background component, drawn as the screen's ground. */
-    Background?: unknown
-    /** 'index': one page at a time behind a category list (Orbit). */
-    layout?: 'rail' | 'index'
-    /** L1/R1 change category when no dialog is open (Shelf). */
-    pager?: boolean
-    /** Where a network's or device's detail goes; absent is the legacy layout. */
-    detail?: 'dialog' | 'inline'
   }
 
   export function createSettings(

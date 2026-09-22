@@ -31,28 +31,15 @@
  * asks for a width, a height and a rate; the router resolves that to whatever
  * handle its tool uses.
  */
-import { createDialogs } from './dialog.js'
-
-/**
- * With `detail` set (Orbit, Shelf) the confirmation is the screen's dialog
- * instead of a card that replaces the page: the same backend timer, the same
- * two answers, ○ still reverting — drawn over the page the way their mockups
- * have it, and, being a dialog, it silences the rail and L1/R1 while it waits.
- * The built-in UI and Summer keep the card.
- */
-export const createDisplayPage = (sdk, Rows, OwnDialog) => {
-  // A page built on its own, outside the screen, still gets a working dialog.
-  const Dialog = OwnDialog || createDialogs(sdk).Dialog
-  const { html, useState, useEffect, useRef, React } = sdk.ui
-  const Fragment = React.Fragment
+export const createDisplayPage = (sdk, Rows) => {
+  const { html, useState, useEffect, useRef } = sdk.ui
 
   const label = (m) => `${m.width} × ${m.height}`
   const rateLabel = (r) => `${Number(r).toFixed(2).replace(/\.00$/, '')} Hz`
   const same = (a, b) => a && b && a.width === b.width && a.height === b.height
     && Math.abs(a.rate - b.rate) < 0.01
 
-  return ({ active, onLeave, onLeft, detail }) => {
-    const asDialog = !!detail && !!Dialog
+  return ({ active, onLeave }) => {
     const [info, setInfo] = useState(null)
     const [failed, setFailed] = useState(false)
     const [msg, setMsg] = useState('')
@@ -139,7 +126,7 @@ export const createDisplayPage = (sdk, Rows, OwnDialog) => {
     useEffect(() => { pickRef.current = pickIdx }, [pickIdx])
 
     useEffect(() => {
-      if (!active || left === null || asDialog) return
+      if (!active || left === null) return
       const move = (d) => { sdk.system.playSound('move'); setPickIdx((i) => (i + d + 2) % 2) }
       const offs = [
         sdk.input.onGp('gp:dpad-up', () => move(-1)),
@@ -152,7 +139,7 @@ export const createDisplayPage = (sdk, Rows, OwnDialog) => {
       return () => offs.forEach((off) => off())
     }, [active, left])
 
-    if (left !== null && !asDialog) {
+    if (left !== null) {
       return html`
         <section class="gcs-set-main" data-zone=${active ? 'on' : 'off'}>
           <div class="gcs-set-h">Can you read this?</div>
@@ -216,22 +203,8 @@ export const createDisplayPage = (sdk, Rows, OwnDialog) => {
       }
     }
 
-    // The mode on screen, stated before the controls that change it — the
-    // mockups' "current mode" panel. Only in the two layouts that draw it.
-    const preview = asDialog && cur ? html`
-      <div class="gcs-disp-now">
-        <span class="gcs-disp-monitor" aria-hidden="true">GAMECORE</span>
-        <span class="gcs-disp-now-text">
-          <b>${label(cur)}</b>
-          <i>Current mode · ${rateLabel(cur.rate)}${info && info.output ? ` · ${info.output}` : ''}</i>
-        </span>
-      </div>` : null
-
-    const revertIn = (info && info.revert_secs) || 12
-
     return html`
-      <${Fragment}>
-      <${Rows} rows=${rows} active=${active} onLeave=${onLeave} onLeft=${onLeft}
+      <${Rows} rows=${rows} active=${active} onLeave=${onLeave}
         onSet=${onSet} onAct=${() => chosen && apply(chosen)}
         title="Display"
         state=${cur ? `${cur.width}×${cur.height}` : ''}
@@ -240,26 +213,6 @@ export const createDisplayPage = (sdk, Rows, OwnDialog) => {
           : sizes.length
             ? 'Changing the mode affects the whole front end. Nothing changes while a game is running.'
             : 'No output is reporting any mode.'}
-        aside=${preview || msg ? html`<${Fragment}>
-          ${preview}
-          ${msg ? html`<div class="gcs-wifi-msg" role="status">${msg}</div>` : null}
-        <//>` : null} />
-
-      ${asDialog && left !== null ? html`
-        <${Dialog}
-          kicker="Display"
-          title="Keep these display settings?"
-          body=${`${chosen ? `${label(chosen)} at ${rateLabel(chosen.rate)}. ` : ''}If you do nothing, the previous mode comes back in ${left} second${left === 1 ? '' : 's'}.`}
-          onCancel=${undo}
-          actions=${[
-            { id: 'keep', primary: true, label: 'Keep this mode', run: keep },
-            { id: 'revert', danger: true, label: 'Revert now', run: undo },
-          ]}>
-          <div class="gcs-countdown" role="progressbar" aria-label="Time before the previous mode returns"
-               aria-valuemin="0" aria-valuemax=${revertIn} aria-valuenow=${left}>
-            <i style=${{ width: `${(left / revertIn) * 100}%` }}></i>
-          </div>
-        <//>` : null}
-      <//>`
+        aside=${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null} />`
   }
 }

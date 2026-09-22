@@ -60,16 +60,6 @@ pack logo or initials. Photo credits are in `assets/source-credits.json`.
 Only connected controllers are shown. The IP address is in the footer and storage
 information is in settings. Favourites are stored locally in this browser.
 
-## Settings
-
-Settings is a full screen in the PS5 manner: a list of categories, one page at a
-time, details and confirmations in dialogs, and ○ walking back up one level. It
-is the host's shared screen (`sdk.defaults.createSettings`) with
-`layout: 'index'` and `detail: 'dialog'`, and it is handed `backdrop.Background`
-— the component Home paints — so both screens stand on the same artwork, shade
-and grain. A second backdrop instance starts from the picture already on
-screen, so opening Settings does not fade the art out and back in.
-
 ## Sessions
 
 This release preserves the SDK 6 host session integration already present in

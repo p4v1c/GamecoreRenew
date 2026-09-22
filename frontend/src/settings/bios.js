@@ -29,7 +29,7 @@ export const createBiosPage = (sdk) => {
   const { html, useState, useEffect, useRef, React } = sdk.ui
   const Fragment = React.Fragment
 
-  return ({ active, onLeave, onLeft }) => {
+  return ({ active, onLeave }) => {
     const [rows, setRows] = useState([])
     const [idx, setIdx] = useState(0)
     const [failed, setFailed] = useState(false)
@@ -54,7 +54,7 @@ export const createBiosPage = (sdk) => {
         sdk.input.onGp('gp:dpad-down', () => {
           sdk.system.playSound('move'); setIdx((i) => (i + 1) % len())
         }),
-        sdk.input.onGp('gp:dpad-left', onLeft || onLeave),
+        sdk.input.onGp('gp:dpad-left', onLeave),
         sdk.input.onGp('gp:back', onLeave),
       ]
       return () => offs.forEach((off) => off())
