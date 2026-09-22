@@ -47,19 +47,26 @@ describe('follow — the pad\'s cursor stays on screen', () => {
     expect(spy).toHaveBeenCalledWith({ block: 'nearest' })
   })
 
-  it('takes every scroller back to the top on the first row, up to its page and no further', () => {
+  it('takes every scroller back to the top on the first row, up to the settings screen and no further', () => {
     // The bug: back on the first row, the title above it stayed scrolled away,
     // and only a mouse wheel could bring it back.
-    const outside = box('gcs-set-body', 900, 400)
+    // Orbit scrolls the body around the page, Shelf the page itself: both
+    // sit inside `.gcs-set`, and nothing outside it is the screen's to move.
+    const outside = box('app', 900, 400)
+    const screen = box('gcs-set', 900, 400)
+    const body = box('gcs-set-body', 900, 400)
     const page = box('gcs-set-main', 900, 400)
     const list = box('gcs-bt-list', 900, 400)
     const row = document.createElement('div')
-    outside.appendChild(page); page.appendChild(list); list.appendChild(row)
+    outside.appendChild(screen); screen.appendChild(body); body.appendChild(page)
+    page.appendChild(list); list.appendChild(row)
 
     follow(row, true)
 
     expect(list.scrollTop).toBe(0)
     expect(page.scrollTop).toBe(0)
+    expect(body.scrollTop).toBe(0)
+    expect(screen.scrollTop).toBe(120)
     expect(outside.scrollTop).toBe(120)
   })
 

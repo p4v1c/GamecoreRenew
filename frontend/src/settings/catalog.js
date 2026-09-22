@@ -78,7 +78,7 @@ export const createCatalogPage = (sdk) => {
       </span>`
   }
 
-  return ({ active, onLeave }) => {
+  return ({ active, onLeave, onLeft }) => {
     const [packs, setPacks] = useState([])
     const [open, setOpen] = useState(null)
     const [busy, setBusy] = useState(false)
@@ -180,7 +180,7 @@ export const createCatalogPage = (sdk) => {
         sdk.input.onGp('gp:dpad-down', () => {
           sdk.system.playSound('move'); setIdx((i) => (i + 1) % len())
         }),
-        sdk.input.onGp('gp:dpad-left', onLeave),
+        sdk.input.onGp('gp:dpad-left', onLeft || onLeave),
         sdk.input.onGp('gp:confirm', () => { sdk.system.playSound('confirm'); fire(ref.current.entries[ref.current.idx]) }),
         sdk.input.onGp('gp:back', onLeave),
       ]
