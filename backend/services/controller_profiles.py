@@ -13,7 +13,7 @@ that hotplug path must keep working exactly as it did.
 Where each piece went:
 
     controllers.py              SDL/GUID resolution, the `Pad` object
-    snapshots.py                capture/restore for the GUID-bound emulators
+    snapshots.py                restore for the GUID-bound emulators
     helpers/base.py             Skip, backup(), atomic_write(), the protocol
     helpers/ini.py              INI section surgery
     helpers/tier0.py            PCSX2 + DuckStation (shared, not duplicated)
@@ -33,14 +33,12 @@ from .configgen import (
     SNAP_DIR,
     ProfileResult,
     apply_profile,
-    forget_mapping,
     autoconfigured_packs,
     can_release,
     identification,
     profilable_packs,
     release_owned_slots,
     release_profile,
-    scan_mapping,
     set_autoconfig,
 )
 from .configgen.controllers import (
@@ -71,8 +69,8 @@ log = logging.getLogger(__name__)
 __all__ = [
     # the hotplug path — gamepad_monitor.py
     "apply_profile", "release_profile", "ProfileResult", "MAX_PLAYERS",
-    # the Power-menu actions — routers/controllers.py
-    "scan_mapping", "forget_mapping", "detect_pads",
+    # "which pads are plugged in" — `_main` below, apply-controller-model.sh
+    "detect_pads",
     # the autoconfig switch — routers/controllers.py. `release_owned_slots` is
     # the clean-up it runs before it turns itself off; the two pack lists are
     # what the settings screen lists and what it shows as effectively off.

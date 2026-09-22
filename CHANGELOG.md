@@ -44,6 +44,18 @@ are the auto-incremented tags.
   if it *calls* `sdk.session`; taking the bar as props does not. See
   `docs/themes/README.md` §5f.
 
+- **"Scan mapping" and "Forget mapping" are gone** — from Settings →
+  Controllers, from the power menu, and from the API (`POST`/`DELETE
+  /api/controllers/scan-mapping` now answer 404). Mappings they already saved
+  under `controller-snapshots/` are kept and still restored on connect. To keep
+  a hand-made mapping in one emulator, turn that emulator off under
+  Settings → Controllers → *Per-emulator exceptions*; a pad SDL does not know is
+  still mapped with the wizard, from the controller screen (□). A saved snapshot
+  that names another pad is still refused, and the warning in the journal now
+  names the file to delete, since there is no button for it any more. Themes:
+  the `powerOmit` shell part and the `scanning` / `scanResult` power-view props
+  are removed; a theme that still passes or reads them is unaffected.
+
 ### Needs action on an already-installed box
 
 - **`/usr/local/bin/gamecore-addon` is a copy only the installer writes, and

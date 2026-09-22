@@ -20,8 +20,8 @@ which nobody reads from a sofa. **The defect is not the wrong name, it is the
 silence.**
 
 Two things follow, and both are tested here: the guess is not written, and the
-give-up is said out loud — in our journal, and at the API where the owner is
-holding the pad and asking.
+give-up is said out loud — in our journal, and in the answer the arrival
+toast is given when the pad is plugged in.
 """
 from __future__ import annotations
 
@@ -222,48 +222,25 @@ def test_the_community_db_still_names_a_pad_for_a_human(
         f"db_name_for was removed rather than restricted")
 
 
-# ── it reaches the router ────────────────────────────────────────────────────
+# ── what the arrival toast is told ───────────────────────────────────────────
+#
+# These went through `POST /controllers/scan-mapping`, which carried the flag
+# in its answer. That route is gone; `identification()` is not — the arrival
+# toast asks it on every connect (gamepad_monitor), and it is what offers the
+# wizard for exactly the pads that need it.
 
-def test_the_router_says_the_pad_is_unidentified(box, monkeypatch):
-    """Where the owner is standing when they need to know.
+def test_an_unnameable_pad_is_reported_unidentified(box):
+    """A pad we cannot name gets no RPCS3 and no Dolphin config, and until the
+    toast asked this the only sign of that was a line in the emulator's log."""
+    body = cp.identification(PAD.vendor, PAD.product, PAD.evdev_name)
 
-    "Scan mapping" is the one gesture whose whole point is "tell me what you
-    know about the pad in my hands". A pad we cannot name gets no RPCS3 and no
-    Dolphin config, and until now the only sign of that was a line in the
-    emulator's own log.
-    """
-    from fastapi.testclient import TestClient
-
-    from backend import main
-    monkeypatch.setattr(cp, "detect_pads",
-                        lambda *_a, **_k: [(PAD.vendor, PAD.product, PAD.evdev_name)])
-    monkeypatch.setattr("backend.services.configgen.detect_pads",
-                        lambda *_a, **_k: [(PAD.vendor, PAD.product, PAD.evdev_name)])
-
-    with TestClient(main.app) as client:
-        body = client.post("/api/controllers/scan-mapping").json()
-
-    assert body["ok"] is True, (
-        f"an unnameable pad is not a failed scan — the GUID-bound emulators "
-        f"are fine: {json.dumps(body)}")
     assert body["identified"] is False, json.dumps(body)
     assert PAD.vendor in body["detail"], body["detail"]
 
 
-def test_the_router_says_nothing_special_about_a_known_pad(box, monkeypatch):
+def test_a_known_pad_is_reported_identified(box):
     """The flag must mean something. If it were always false it would be noise
     the first person to see it would learn to ignore."""
-    from fastapi.testclient import TestClient
+    body = cp.identification(ch.DS4.vendor, ch.DS4.product, ch.DS4.evdev_name)
 
-    from backend import main
-    pads = [(ch.DS4.vendor, ch.DS4.product, ch.DS4.evdev_name)]
-    monkeypatch.setattr(cp, "detect_pads", lambda *_a, **_k: pads)
-    monkeypatch.setattr("backend.services.configgen.detect_pads",
-                        lambda *_a, **_k: pads)
-
-    with TestClient(main.app) as client:
-        body = client.post("/api/controllers/scan-mapping").json()
-
-    assert body["identified"] is True, json.dumps(body)
-    assert "detail" not in body
-    assert body["controller"] == ch.DS4.sdl3_name
+    assert body == {"identified": True}, json.dumps(body)

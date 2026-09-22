@@ -18,7 +18,7 @@ drawn.
 | 5 | [Frontend](05-frontend.md) | Components, hooks, store, the gamepad event bus |
 | 6 | [Electron & overlays](06-electron-and-overlays.md) | Windows, IPC bridge, the overlay monitor subprocess protocol |
 | 7 | [Config & data](07-config-and-data.md) | Every config file schema, the SQLite schema, the caches |
-| 8 | [Controller pipeline](08-controller-pipeline.md) | SDL, GUIDs, per-emulator config writers, "Scan mapping" |
+| 8 | [Controller pipeline](08-controller-pipeline.md) | SDL, GUIDs, per-emulator config writers, snapshots, the mapping wizard |
 | 9 | [Gotchas](09-gotchas.md) | The invariants that are easy to break, and why they exist |
 | 10 | [Catalogue & install](10-catalog-and-install.md) | `catalog/<id>/` — one directory per system or app, and how a box is built from it |
 | 11 | [Install-script seams](11-install-script-seams.md) | How `arch.sh` and `uninstall.sh` would be split, and what must be true first |

@@ -84,7 +84,6 @@ export default (sdk) => {
         settings=${Settings}
         screensaver=${Screensaver}
         powerView=${createPowerView(sdk)}
-        powerOmit=${['scan', 'forget']}
         gamepadView=${createGamepadView(sdk)} />
     </div>`
 

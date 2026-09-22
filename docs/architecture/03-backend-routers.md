@@ -255,18 +255,16 @@ battery). The TopBar and the controller screen both read it.
 `get_standby()` (state + config), `set_config(cfg)` (`StandbyConfig` model,
 persisted to `config/standby.json`), `wake()` → `standby.exit_standby()`.
 
-## `controllers.py` (18 l.)
+## `controllers.py`
 
-One path, two verbs: `POST /controllers/scan-mapping` →
-`controller_profiles.scan_mapping()` and `DELETE` → `forget_mapping()`. The
-whole point is in [8](08-controller-pipeline.md): GUID-based emulators cannot
-be mapped programmatically, so the user configures the pad once in the
-emulator's own UI and this snapshots it per controller.
+`GET /controllers/devices` (declared non-SDL peripherals), `GET`/`POST
+/controllers/autoconfig` (the global switch and per-emulator exceptions), and the
+mapping wizard: `POST /controllers/mapping/{start,commit,cancel,forget}`, `GET
+/controllers/mapping/saved` and the `/ws/controllers/mapping` socket. See
+[8](08-controller-pipeline.md).
 
-`DELETE` is the inverse, and it exists because `restore()` refuses a snapshot
-whose GUID names a different pad. The box already carries one such file, so
-refusing without a way to remove it would only replace a silent overwrite with
-a silent deadlock.
+`POST`/`DELETE /controllers/scan-mapping` ("Scan mapping" / "Forget mapping")
+were removed and answer 404. Snapshots they saved are still restored on connect.
 
 ## `auth.py` (109 l.) — shared-password login
 

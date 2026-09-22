@@ -106,7 +106,6 @@ export default (sdk) => {
       libraryView=${LibraryView}
       settings=${Settings}
       powerView=${createPowerView(sdk)}
-      powerOmit=${['scan', 'forget']}
       libraryOmit=${LIBRARY_OMIT}
       gamepadView=${createGamepadView(sdk)} />`
 

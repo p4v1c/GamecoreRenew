@@ -20,7 +20,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { buildSdk } from '../lib/themeSdk'
 import * as defaults from '../components/defaults'
 import SettingsScreen from '../components/modals/SettingsScreen'
-import { POWER_OMIT } from '../components/DefaultShell'
 // `../settings/...`, not `./...`: see index.d.ts — the ambient declarations
 // match on the specifier, and it has to carry the directory name.
 import { createCatalogPage } from '../settings/catalog'
@@ -155,35 +154,20 @@ describe('the catalogue page', () => {
 })
 
 describe('the built-in power menu', () => {
-  const render3 = (omit?: string[]) => {
+  it('draws the three ways a session ends, and nothing else', () => {
+    // "Scan mapping" and "Forget mapping" used to be offered here and could be
+    // left out per theme. Both were removed; there is nothing left to omit.
     const View = createPowerView(sdk(), {}) as React.ComponentType<Record<string, unknown>>
     const options = [
-      { id: 'scan', label: 'Scan mapping', busy: '', color: '#22c55e', desc: '' },
-      { id: 'forget', label: 'Forget mapping', busy: '', color: '#64748b', desc: '' },
       { id: 'shutdown', label: 'Shutdown', busy: '', color: '#ef4444', desc: '' },
       { id: 'restart', label: 'Restart', busy: '', color: '#f59e0b', desc: '' },
       { id: 'desktop', label: 'Return to desktop', busy: '', color: '#38bdf8', desc: '' },
-    ].filter(o => !(omit ?? []).includes(o.id))
+    ]
     const { container } = render(
       <View options={options} focusIdx={0} confirmId={null} pendingId={null}
-        scanning={false} scanResult={null} onFocus={() => {}} onActivate={() => {}}
-        onCancel={() => {}} />)
-    return [...container.querySelectorAll('.gcs-pwr-row b')].map(b => b.textContent)
-  }
-
-  it('omits the two mapping rows by default', () => {
-    // They were here because this modal had the two-press confirmation and no
-    // settings screen did. The built-in settings screen has a Controllers page
-    // now — the same rail both themes draw — so the reason is gone and this is
-    // the three ways a session ends.
-    expect(render3(POWER_OMIT)).toEqual(['Shutdown', 'Restart', 'Return to desktop'])
-  })
-
-  it('still shows them to a surface that asks for the full menu', () => {
-    // `parts.powerOmit ?? POWER_OMIT` in DefaultShell: an explicit empty array
-    // is a request, not an absent value, and `||` would have swallowed it.
-    expect(render3([])).toHaveLength(5)
-    expect(render3([])).toContain('Scan mapping')
+        onFocus={() => {}} onActivate={() => {}} onCancel={() => {}} />)
+    expect([...container.querySelectorAll('.gcs-pwr-row b')].map(b => b.textContent))
+      .toEqual(['Shutdown', 'Restart', 'Return to desktop'])
   })
 })
 

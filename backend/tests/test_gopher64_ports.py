@@ -87,7 +87,8 @@ def test_a_port_is_written_once(gen, live):
 
 
 def test_the_legacy_four_section_snapshot_is_still_readable(gen):
-    """Every box that ever pressed "Scan mapping" has one of these on disk."""
+    """Every box that ever captured an N64 mapping has one of these on disk,
+    and the capture button is gone — so these files can only be read now."""
     legacy = (f"[{P}]\n\nProfiles = \"\"\n\n" + profile(0)
               + profile(1, **EMPTY) + profile(2, **EMPTY) + profile(3, **EMPTY))
     got = gen._snapshot_profile(legacy)

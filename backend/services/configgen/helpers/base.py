@@ -21,8 +21,8 @@ class Skip(str):
     the truthy ones. So "I retargeted Player 2" reached the log and "there is
     no Player 1 pad to clone from" reached nobody: a give-up was byte-for-byte
     indistinguishable from a success. RPCS3's players 2-4 sat dead for a week
-    that way, and `scan_mapping()` answered `{"ok": True}` on a snapshot it had
-    taken of the wrong controller.
+    that way, and the old "Scan mapping" capture answered `{"ok": True}` on a
+    snapshot it had taken of the wrong controller.
 
     A Skip is a str, so it logs and joins like any other message; it is a
     distinct type, so apply_profile can file it apart and log it as a warning.

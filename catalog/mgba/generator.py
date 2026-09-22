@@ -222,7 +222,7 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
             log.info("configgen: mgba's saved mapping for %s:%s holds no "
                      "[%s] — it was captured before that section was, so "
                      "there are no buttons in it. Building from the pad "
-                     "instead; \"Scan mapping\" replaces it with a real one.",
+                     "instead.",
                      pad.vendor, pad.product, SECTION)
 
     text = target.read_text()

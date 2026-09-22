@@ -15,7 +15,8 @@ So it shipped, and on the box every pad connect raised
     AttributeError: module 'gamecore_generator_melonds' has no attribute 'extract'
 
 which apply_profile catches and logs — melonDS was silently left unconfigured,
-and "Scan mapping" skipped it outright (`hasattr(module, "extract")`).
+and the old "Scan mapping" capture skipped it outright
+(`hasattr(module, "extract")`).
 
 The fix for the instance is two lines in the pack. The fix for the CLASS is
 here: derive what to check from `controllers.strategy` in pack.json, so a pack
@@ -35,7 +36,7 @@ sys.path.insert(0, str(ROOT))
 
 CATALOG = ROOT / "catalog"
 
-# strategy → names apply_profile / scan_mapping read off the module object.
+# strategy → names apply_profile and snapshot restore read off the module object.
 # Keep this table next to the dispatcher's behaviour, not next to a pack list.
 REQUIRED = {
     "snapshot-restore":     ("generate", "extract", "replace"),

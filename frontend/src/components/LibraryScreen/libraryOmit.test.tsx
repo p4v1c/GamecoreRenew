@@ -8,8 +8,7 @@
  * no theme surface advertised; the next press turned the box behind it.
  *
  * The host cannot detect that on its own — `onGp` has no notion of a claimed
- * event — so the theme declares it, the same way `powerOmit` already works for
- * the power menu.
+ * event — so the theme declares it.
  */
 import { render } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'

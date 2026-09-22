@@ -267,8 +267,8 @@ def test_an_unchanged_box_does_not_rewrite_600kb_on_every_launch(db, monkeypatch
 
 
 def test_a_capture_can_be_dropped(db):
-    """A wrong capture must be undoable from the couch. `forget_mapping` next
-    door exists for exactly this reason on the snapshot side."""
+    """A wrong capture must be undoable from the couch: the wizard's own
+    "forget" (`/controllers/mapping/forget`) is the only way back."""
     mapping_db.upsert(USER_LINE)
 
     assert mapping_db.remove(PROBE_GUID) is True

@@ -80,12 +80,12 @@ Ground-truthed by reading their actual configs on the box:
   `input_config` list, keyed by `player_index` (`Player1`…).
 
 - **azahar, mgba, Cemu**: **snapshot restore**, *not* GUID substitution. A
-  vendor:product alone still says nothing about a raw button index. The model is:
-
-  1. the owner maps the pad once, inside the emulator, via **"Scan mapping"**;
-  2. `snapshots.capture()` stores that config block, indexed by `vendor:product`
-     — refusing it when the block's own GUID names another controller;
-  3. `snapshots.restore()` puts it back when a pad of the same model reconnects.
+  vendor:product alone still says nothing about a raw button index.
+  `snapshots.restore()` puts a saved config block back when a pad of the same
+  model reconnects — refusing it when the block's own GUID names another
+  controller. New snapshots are no longer created: the "Scan mapping" and
+  "Forget mapping" actions that wrote and deleted them were removed; existing
+  ones on disk are still restored.
 
   **A saved snapshot still always wins. What changed is what happens when there
   is none.** azahar and mgba are now built from the abstract input model
@@ -163,8 +163,9 @@ was dead.
 - Non-Sony pads (Xbox, 8BitDo, generics): nothing special. Ryujinx reads the
   real GUID from SDL2 rather than assuming a driver family, PCSX2 and
   DuckStation bind by SDL role, and Dolphin/RPCS3 by SDL name. Only azahar, mgba
-  and Cemu — which store raw button indices — need one "Scan mapping" per
-  model, which then becomes the snapshot reused afterwards.
+  and Cemu store raw button indices: azahar and mgba are built from the pad
+  itself, and Cemu keeps whatever is configured in Cemu, unless a saved
+  snapshot exists for that model.
 
 > ⚠️ **An emulator already running when its config changes does not re-read the
 > file.** Quit and relaunch the game for the new mapping to apply to that

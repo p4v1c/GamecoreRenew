@@ -6,7 +6,7 @@ on its window, so the bezel overlay could never find it.
 **This module used to synthesise nothing, and that was the last red system on
 the 15 August 2026 bench.** At its zero point the game itself says "connect a
 controller to socket 1", and the only way out was to map the pad by hand inside
-RMG and press "Scan mapping". Two earlier attempts failed against what RMG
+RMG and capture it as a snapshot. Two earlier attempts failed against what RMG
 actually writes; what they were missing is written down below rather than left
 as folklore, because both failures are still the ways this can break.
 
@@ -73,9 +73,9 @@ measured on the reference box:
 
 So a snapshot holds ONE profile, stored as if it were port 1, and is replayed
 into whichever port the connecting player owns. Other ports are never touched.
-`scan_mapping()` refuses to run unless exactly one pad is connected, which is
-what makes "stored as port 1" safe: the pad being captured is the only one RMG
-can have put there.
+The capture that wrote them (the "Scan mapping" button, since removed) refused
+to run unless exactly one pad was connected, which is what made "stored as
+port 1" safe: the pad being captured was the only one RMG could have put there.
 
 `DevicePath` is a host path that MOVES — hidraw numbering follows connection
 order, so a Bluetooth mouse connecting first takes /dev/hidraw0 and the pad
@@ -268,7 +268,7 @@ def _snapshot_profile(block: str) -> str:
 
     Tolerates the LEGACY format, which captured every `Input Plugin` section at
     once: four profiles plus the plugin's own global section. Those files are on
-    disk on every box that ever pressed "Scan mapping", so reading them is not
+    disk on every box that ever captured an N64 mapping, so reading them is not
     optional. The one profile that names a device is the pad's; the empty ones
     are the sockets nobody assigned.
     """
@@ -359,8 +359,8 @@ def _replace_port(port: int, ident: dict[str, str] | None = None):
     return f
 
 
-# What the dispatcher and "Scan mapping" read off the module by name. Capture
-# reads port 1 because scan_mapping() runs only with a single pad connected.
+# What the dispatcher reads off the module by name. `extract` reads port 1
+# because a snapshot is always stored as port 1 — see the module docstring.
 # No identity is passed here: this pair is the file-to-file one, and asking SDL
 # for a live path belongs to a profiling pass that knows which pad it is for.
 extract = _extract_port(_CANON_PORT)

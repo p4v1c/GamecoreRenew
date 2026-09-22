@@ -337,12 +337,6 @@ describe('Shelf v2 — the power menu', () => {
     expect(PowerModal.default).toBeTruthy()
 
     const options = [
-      // The unfiltered list, on purpose: this asserts the view renders whatever
-      // it is handed, including the two ids Shelf asks the host to omit. A view
-      // that quietly dropped them would pass a test built from the filtered list
-      // and still misplace the cursor for any theme that keeps them.
-      { id: 'scan', label: 'Scan mapping', busy: 'Scanning…', icon: '◎', color: '#22c55e', desc: 'a' },
-      { id: 'forget', label: 'Forget mapping', busy: 'Forgetting…', icon: '⌫', color: '#64748b', desc: 'b' },
       { id: 'shutdown', label: 'Shutdown', busy: 'Shutting down…', icon: '⏻', color: '#ef4444', desc: 'c' },
       { id: 'restart', label: 'Restart', busy: 'Restarting…', icon: '↺', color: '#f59e0b', desc: 'd' },
       { id: 'desktop', label: 'Return to desktop', busy: 'Leaving…', icon: '⌘', color: '#38bdf8', desc: 'e' },
@@ -355,7 +349,6 @@ describe('Shelf v2 — the power menu', () => {
     // refuses. The view comes from a dynamic import and is already `any`.
     const props: Record<string, unknown> = {
       options, focusIdx: 0, confirmId: null, pendingId: null,
-      scanning: false, scanResult: null,
       onFocus: vi.fn(), onActivate: vi.fn(), onCancel: vi.fn(),
     }
     const { container } = render(createElement(View, props))
@@ -369,36 +362,35 @@ describe('Shelf v2 — the power menu', () => {
 
   })
 
-  it('lets a theme move the mapping utilities out, but never the way off the box', async () => {
-    // The filter is the host's, not the view's: `focusIdx` indexes the array
-    // handed over, so a view hiding rows itself would leave the cursor landing
-    // on nothing. And a theme with a typo in its omit list must not be able to
-    // build a console that cannot be turned off from the sofa.
+  it('hands over the three session rows, and the pad cannot lose the cursor', async () => {
+    // "Scan mapping" and "Forget mapping" were removed. What must hold after
+    // that: no row is left pointing at them, the d-pad stops on the first and
+    // last real rows instead of walking onto nothing, and ✕ on the row under
+    // the cursor arms it rather than firing — the cursor now opens on Shutdown.
     const PowerModal = (await import('../components/modals/PowerModal')).default
-    const { render } = await import('@testing-library/react')
+    const { render, act } = await import('@testing-library/react')
     const { createElement } = await import('react')
 
-    const seen: string[][] = []
-    const Spy = (props: { options: { id: string }[] }) => {
-      seen.push(props.options.map(o => o.id))
+    const seen: { ids: string[]; focusIdx: number; confirmId: string | null }[] = []
+    const Spy = (props: { options: { id: string }[]; focusIdx: number; confirmId: string | null }) => {
+      seen.push({ ids: props.options.map(o => o.id), focusIdx: props.focusIdx, confirmId: props.confirmId })
       return null
     }
+    const last = () => seen[seen.length - 1]
+    const gp = (name: string) => act(() => { window.dispatchEvent(new CustomEvent(name)) })
 
-    render(createElement(PowerModal, {
-      onClose: vi.fn(), view: Spy as never, omit: ['scan', 'forget'],
-    }))
-    expect(seen[seen.length - 1]).toEqual(['shutdown', 'restart', 'desktop'])
-
-    seen.length = 0
-    render(createElement(PowerModal, {
-      onClose: vi.fn(), view: Spy as never, omit: ['shutdown', 'restart', 'desktop', 'scan'],
-    }))
-    // Everything that ends a session survives the request; only `scan` goes.
-    expect(seen[seen.length - 1]).toEqual(['forget', 'shutdown', 'restart', 'desktop'])
-
-    seen.length = 0
     render(createElement(PowerModal, { onClose: vi.fn(), view: Spy as never }))
-    expect(seen[seen.length - 1]).toEqual(['scan', 'forget', 'shutdown', 'restart', 'desktop'])
+    expect(last().ids).toEqual(['shutdown', 'restart', 'desktop'])
+    expect(last().focusIdx).toBe(0)
+
+    for (let i = 0; i < 5; i++) gp('gp:dpad-down')
+    expect(last().focusIdx).toBe(2)
+    for (let i = 0; i < 5; i++) gp('gp:dpad-up')
+    expect(last().focusIdx).toBe(0)
+
+    gp('gp:confirm')
+    expect(last().confirmId).toBe('shutdown')
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
   })
 })
 
@@ -428,10 +420,29 @@ describe('Shelf v2 — the Controllers page', () => {
     expect(container.textContent).toMatch(/Wired Controller \(Vendor: 045e\)/)
   })
 
-  it('arms Forget mapping before it fires, and disarms when focus moves', async () => {
-    // The protection that had to survive the move out of PowerModal. It deletes
-    // work the owner did by hand inside an emulator's own input UI, and there
-    // is no undo anywhere on this box.
+  it('offers neither Scan mapping nor Forget mapping any more', async () => {
+    // Removed, not hidden: no row, and nothing any press on this screen can
+    // reach calls the old route.
+    withPads([])
+    const { container } = await renderControllers()
+    const { act } = await import('@testing-library/react')
+    const gp = (name: string) => act(() => { window.dispatchEvent(new CustomEvent(name)) })
+
+    expect(container.textContent).not.toMatch(/Scan mapping|Forget mapping/)
+
+    // Every row, pressed once, from the pad — the way a player would find a
+    // leftover binding.
+    const rows = container.querySelectorAll('.gcs-row2').length
+    expect(rows).toBeGreaterThan(1)
+    for (let i = 0; i < rows; i++) { gp('gp:confirm'); gp('gp:dpad-down') }
+    const urls = vi.mocked(fetch).mock.calls.map(([u]) => String(u))
+    expect(urls.filter(u => u.includes('scan-mapping'))).toEqual([])
+  })
+
+  it('still arms a destructive row before it fires, and disarms when focus moves', async () => {
+    // The protection "Forget mapping" used to exercise. The autoconfig switch
+    // is the destructive row that remains: it empties the setup GameCore wrote,
+    // and there is no undo anywhere on this box.
     withPads([])
     const { container } = await renderControllers()
     const { fireEvent } = await import('@testing-library/react')
@@ -439,12 +450,12 @@ describe('Shelf v2 — the Controllers page', () => {
     const rowFor = (text: string) => [...container.querySelectorAll('.gcs-row2')]
       .find(r => r.textContent?.includes(text))!
 
-    fireEvent.click(rowFor('Forget mapping'))
-    expect(container.textContent).toMatch(/Press again to forget/)
+    fireEvent.click(rowFor('Set up controllers automatically'))
+    expect(container.textContent).toMatch(/Press again — this clears/)
 
     // Moving the cursor elsewhere must take the primed row back down.
-    fireEvent.click(rowFor('Scan mapping'))
-    expect(container.textContent).not.toMatch(/Press again to forget/)
+    fireEvent.click(rowFor('Rumble'))
+    expect(container.textContent).not.toMatch(/Press again — this clears/)
   })
 
   it('carries no control the box cannot honour', async () => {

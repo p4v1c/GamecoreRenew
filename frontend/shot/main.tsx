@@ -102,7 +102,7 @@ if (themeId) {
 const Root = () =>
   which === 'catalog' ? <CatalogFrame />
   : which === 'rail' ? <SettingsScreen onClose={() => {}} />
-  : which === 'power' ? <PowerModal onClose={() => {}} omit={['scan', 'forget']} />
+  : which === 'power' ? <PowerModal onClose={() => {}} />
   : which === 'wifi' ? <WifiPage onClose={() => {}} onBack={() => {}} />
   : which === 'search' ? (
       <Overlay onClose={() => {}}>

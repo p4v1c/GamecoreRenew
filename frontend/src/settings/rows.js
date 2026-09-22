@@ -15,12 +15,10 @@
  *
  * **Destructive rows arm before they fire.** A row marked `confirm` takes two
  * presses, and the label says so in between. That protection came from
- * PowerModal, where "Forget mapping" used to live precisely because that modal
- * had it and no settings screen did. Moving the row without moving the
- * protection would have been the whole point of the move, undone: it deletes
- * work the owner did by hand inside an emulator's own input UI, and there is
- * no undo anywhere on this box. Moving focus away disarms it, so a row cannot
- * sit primed while somebody scrolls past it.
+ * PowerModal, where a destructive mapping action once lived because that modal
+ * had it and no settings screen did; there is no undo anywhere on this box.
+ * Moving focus away disarms it, so a row cannot sit primed while somebody
+ * scrolls past it.
  *
  * `confirm` applies to TOGGLES as well as actions. It was action-only while the
  * only destructive rows were buttons; the autoconfig switch is a boolean whose

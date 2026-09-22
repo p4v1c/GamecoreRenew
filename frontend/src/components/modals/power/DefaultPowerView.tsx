@@ -7,7 +7,7 @@ import { Overlay, OverlayLabel, Glyph } from '../../ui'
 import type { PowerViewProps } from './types'
 
 export default function DefaultPowerView({
-  options, focusIdx, confirmId, pendingId, scanning, scanResult,
+  options, focusIdx, confirmId, pendingId,
   onActivate, onCancel,
 }: PowerViewProps) {
   return (
@@ -16,16 +16,13 @@ export default function DefaultPowerView({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, pointerEvents: pendingId ? 'none' : 'auto' }}>
         {options.map((o, idx) => {
           const isPending = pendingId === o.id
-          const isScan = o.id === 'scan'
-          const busyPulse = isPending || (isScan && scanning)
           const dimmed = pendingId !== null && !isPending
           const awaiting = confirmId === o.id
           return (
             <div key={o.id} onClick={() => onActivate(o.id)} style={{
-              // Not a fixed height like the settings rows: the scan result and
-              // the confirmation both replace the subtitle with a longer line,
-              // and clipping the answer to a mapping scan would be losing the
-              // only thing the row exists to say.
+              // Not a fixed height like the settings rows: the confirmation
+              // replaces the subtitle with a longer line, and clipping it would
+              // lose the only warning there is.
               display: 'flex', alignItems: 'center', gap: 15, padding: '13px 16px',
               minHeight: 62, borderRadius: 13, cursor: pendingId ? 'default' : 'pointer',
               opacity: dimmed ? 0.25 : 1,
@@ -38,24 +35,22 @@ export default function DefaultPowerView({
               transition: 'all 0.2s',
             }}>
               <motion.div
-                animate={busyPulse ? { opacity: [1, 0.35, 1] } : { opacity: 1 }}
-                transition={busyPulse ? { duration: 1.1, repeat: Infinity, ease: 'easeInOut' } : undefined}
+                animate={isPending ? { opacity: [1, 0.35, 1] } : { opacity: 1 }}
+                transition={isPending ? { duration: 1.1, repeat: Infinity, ease: 'easeInOut' } : undefined}
                 style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 11, background: `${o.color}20`, display: 'grid', placeItems: 'center', color: o.color }}
               >
                 {/* Drawn, like every other icon in this UI. These were text
-                    characters — ◎ ⌫ ⏻ ↺ ⌘ — which is a different font at a
+                    characters — ⏻ ↺ ⌘ — which is a different font at a
                     different weight in each row, and ⌘ for "desktop" is a key
                     on a keyboard this box does not have. */}
                 <Glyph name={o.id} size={20} />
               </motion.div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 15.5, color: awaiting ? o.color : '#fff' }}>
-                  {isScan ? (scanning ? o.busy : o.label)
-                          : isPending ? o.busy : awaiting ? `Confirm ${o.label}?` : o.label}
+                  {isPending ? o.busy : awaiting ? `Confirm ${o.label}?` : o.label}
                 </div>
-                <div style={{ fontSize: 12.5, color: isScan && scanResult ? o.color : 'rgba(255,255,255,0.35)', marginTop: 3, lineHeight: 1.35 }}>
-                  {isScan && scanResult ? scanResult
-                    : awaiting ? 'Press again to go ahead — ○ cancels' : o.desc}
+                <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.35)', marginTop: 3, lineHeight: 1.35 }}>
+                  {awaiting ? 'Press again to go ahead — ○ cancels' : o.desc}
                 </div>
               </div>
             </div>
