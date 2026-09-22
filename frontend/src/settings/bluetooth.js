@@ -36,20 +36,20 @@
  *
  *   · `detail="dialog"` (Orbit): paired devices, then what is in range, then a
  *     scan button. Each paired device is one row, and ✕ opens its dialog.
- *   · `detail="inline"` (Shelf): **adding a device comes first.** It used to
- *     sit under one two-button card per paired device, so on a box with five
- *     pads the search was off screen and ten presses away — on the one page
- *     people open precisely to connect something new. Now the search, what it
- *     found and "Search again" lead the page, and each paired device below is
- *     ONE row: ✕ connects or disconnects it, → moves onto its Forget button,
- *     ← comes back. Forgetting is the rare, destructive action, so it is the
- *     small button, not a second full-width one.
+ *   · `detail="inline"` (Shelf): ONE list — the paired devices, then whatever
+ *     a search found, marked New — under a "Search for devices" button. It does
+ *     not search on its own: the owner presses the button when there is
+ *     something to add. Each row is one stop: ✕ connects, disconnects or pairs;
+ *     → reaches a paired device's small Forget button, ← comes back. (It was two
+ *     lists, the search first, and before that the search sat under one
+ *     two-button card per device, ten presses down on a box with five pads.)
  *
  * **Unpair and forget** is `DELETE /devices/{mac}`, which disconnects, removes
  * the pairing in BlueZ and reads the paired list back before it says yes. The
  * screen never hides a device on its own: the list is reloaded from the
- * adapter, and a fresh scan runs so the device can be paired again from here.
- * It always asks first, with the cursor on Cancel.
+ * adapter, and (except on Shelf, which only searches when asked) a fresh scan
+ * runs so the device can be paired again from here. It always asks first, with
+ * the cursor on Cancel.
  */
 // What the adapter is told to do, mirrored from SCAN_SECS in the router so the
 // screen can say how long it will be instead of just spinning.
@@ -71,7 +71,13 @@ export const createBluetoothPage = (sdk, useSlow, OwnDialog) => {
   const Fragment = React.Fragment
 
   /** What both layouts need from the adapter, and the calls that change it. */
-  const useBluetooth = (seed) => {
+  /**
+   * `autoScan` false (Shelf) means the adapter only searches when asked: no
+   * search on arrival, none after a device is forgotten. A search keeps the
+   * radio in discovery for ten seconds, which slows every connection meant
+   * for a pad already paired — and most visits here are for those.
+   */
+  const useBluetooth = (seed, { autoScan = true } = {}) => {
     // Seeded from the rail. The settings screen already fetched the paired list
     // to put "2 connected" at the end of this row, so the page opens with it
     // rather than fetching the same thing again and showing an empty card while
@@ -80,6 +86,9 @@ export const createBluetoothPage = (sdk, useSlow, OwnDialog) => {
     const [gotPaired, setGotPaired] = useState(() => !!seed)
     const [nearby, setNearby] = useState([])
     const [scanning, setScanning] = useState(false)
+    // Whether a search has run at all. "Nothing found" and "never looked" are
+    // different sentences, and only one of them is true on arrival.
+    const [searched, setSearched] = useState(false)
     const [busy, setBusy] = useState('')      // mac being worked on
     const [msg, setMsg] = useState('')
     const alive = useRef(true)
@@ -111,13 +120,16 @@ export const createBluetoothPage = (sdk, useSlow, OwnDialog) => {
       sdk.api.bluetooth.scan()
         .then((r) => { if (alive.current) setNearby(asList(r && r.found)) })
         .catch(() => { if (alive.current && !quiet) setMsg('Could not scan.') })
-        .finally(() => { scanningRef.current = false; if (alive.current) setScanning(false) })
+        .finally(() => {
+          scanningRef.current = false
+          if (alive.current) { setScanning(false); setSearched(true) }
+        })
     }
 
     // One scan on arrival. It blocks for SCAN_SECS on the other end, so it is
     // not on a timer: re-running it every few seconds would keep the adapter
     // permanently in discovery and make connecting to anything slower.
-    useEffect(() => { rescan(true) }, [])
+    useEffect(() => { if (autoScan) rescan(true) }, [])
 
     const act = (d, kind) => {
       if (busy) return
@@ -160,11 +172,11 @@ export const createBluetoothPage = (sdk, useSlow, OwnDialog) => {
           if (!alive.current) return
           setBusy('')
           loadPaired()
-          rescan(true)
+          if (autoScan) rescan(true)
         })
     }
 
-    return { paired, gotPaired, nearby, scanning, busy, msg, rescan, act, forget }
+    return { paired, gotPaired, nearby, scanning, searched, busy, msg, rescan, act, forget }
   }
 
   /**
@@ -474,9 +486,10 @@ export const createBluetoothPage = (sdk, useSlow, OwnDialog) => {
       <//>`
   }
 
-  // ── adding first, one row per device: Shelf ─────────────────────────────
+  // ── one list, search on demand: Shelf ────────────────────────────────────
   const Inline = ({ active, onLeave, onLeft, seed }) => {
-    const { paired, gotPaired, nearby, scanning, busy, msg, rescan, act, forget } = useBluetooth(seed)
+    const { paired, gotPaired, nearby, scanning, searched, busy, msg, rescan, act, forget } =
+      useBluetooth(seed, { autoScan: false })
     const slowPaired = useSlow(!gotPaired, 2500)
     const slowScan = useSlow(scanning, SCAN_PATIENCE_MS)
     const [forgetting, setForgetting] = useState(null)
@@ -490,18 +503,31 @@ export const createBluetoothPage = (sdk, useSlow, OwnDialog) => {
     const found = nearby.map((d, i) => ({ d, i, anon: nameless(d) }))
       .sort((a, b) => (a.anon - b.anon) || (a.i - b.i)).map((x) => x.d)
 
-    const stops = []
-    for (const d of found) stops.push({ key: `pair:${d.mac}`, kind: 'pair', d })
-    stops.push({ key: 'scan', kind: 'scan' })
+    const stops = [{ key: 'scan', kind: 'scan' }]
     for (const d of paired) stops.push({ key: `mine:${d.mac}`, kind: 'mine', d })
+    for (const d of found) stops.push({ key: `pair:${d.mac}`, kind: 'pair', d })
     const { at, setFocusKey, ref, setRef } = useCursor(stops, active)
 
     const sideRef = useRef(side)
     useEffect(() => { sideRef.current = side }, [side])
 
+    // A search the owner started from the button, which is where the cursor
+    // still is, ends on its first result: that is the row they are about to
+    // press. A cursor they have since moved is left where they put it.
+    // Flagged when the search is asked for rather than inferred from
+    // `scanning` going true then false: a fast answer can land in the same
+    // render as the request, and the true would never be seen.
+    const jump = useRef(false)
+    useEffect(() => {
+      if (!jump.current || scanning) return
+      jump.current = false
+      const { stops: now, at: i } = ref.current
+      if (found.length && now[i] && now[i].key === 'scan') setFocusKey(`pair:${found[0].mac}`)
+    }, [scanning, nearby])
+
     const fire = (s, which) => {
       if (!s) return
-      if (s.kind === 'scan') { rescan(); return }
+      if (s.kind === 'scan') { if (!scanning) { jump.current = true; rescan() } return }
       if (s.kind === 'pair') { act(s.d, 'pair'); return }
       if (which === 1) setForgetting(s.d.mac)
       else act(s.d, 'toggle')
@@ -556,6 +582,16 @@ export const createBluetoothPage = (sdk, useSlow, OwnDialog) => {
 
     const connected = paired.filter((d) => d.connected).length
     const here = stops[at]
+    const focusedRow = (key) => here && here.key === key && active && !open
+
+    const status = scanning
+      ? (slowScan ? 'Still looking — some devices only advertise every few seconds.'
+                  : `Searching for ${SCAN_SECS} seconds — put the device in pairing mode.`)
+      : searched
+        ? (found.length
+            ? `${found.length} new device${found.length > 1 ? 's' : ''} found — listed below.`
+            : 'No new device found. Check it is in pairing mode, then search again.')
+        : 'Put the controller or headset in pairing mode first.'
 
     return html`
       <${Fragment}>
@@ -567,83 +603,78 @@ export const createBluetoothPage = (sdk, useSlow, OwnDialog) => {
 
         ${msg ? html`<div class="gcs-wifi-msg" role="status">${msg}</div>` : null}
 
-        <div class="gcs-bt-add" data-scanning=${scanning ? '1' : '0'}>
-          <div class="gcs-bt-add-head">
-            <span class="gcs-bt-add-title">
-              <b>Add a device</b>
-              <i>Put the controller or headset in pairing mode, then choose it below.</i>
-            </span>
-            <span class="gcs-bt-add-state">
-              ${scanning ? 'SEARCHING' : `${found.length} FOUND`}
-            </span>
-          </div>
-          ${scanning ? html`<div class="gcs-bt-sweep" aria-hidden="true"><i></i></div>` : null}
-
-          ${found.length === 0
-            ? html`<div class="gcs-bt-add-empty">${scanning
-                ? (slowScan ? 'Still looking — some devices only advertise every few seconds.'
-                            : `Looking around for ${SCAN_SECS} seconds…`)
-                : 'Nothing found yet. Check the device is in pairing mode, then search again.'}</div>`
-            : found.map((d) => {
-                const anon = nameless(d)
-                return html`
-                  <div key=${d.mac} class="gcs-row2 gcs-bt-near" role="button"
-                       aria-label=${`Pair ${anon ? 'unnamed device ' + d.mac : d.name}`}
-                       data-anon=${anon ? '1' : '0'}
-                       ref=${setRef(`pair:${d.mac}`)}
-                       data-on=${on(`pair:${d.mac}`) ? '1' : '0'}
-                       onClick=${click(`pair:${d.mac}`)}>
-                    <span class="gcs-row2-text">
-                      <b>${anon ? 'Unnamed device' : d.name}</b>
-                      <i>${anon ? d.mac : 'Ready to pair'}</i>
-                    </span>
-                    <span class="gcs-act">${busy === d.mac ? 'Pairing…' : 'Pair'}</span>
-                  </div>`
-              })}
-
-          <button type="button" class="gcs-bt-act gcs-bt-scan" ref=${setRef('scan')}
+        <div class="gcs-bt-search" data-scanning=${scanning ? '1' : '0'}>
+          <button type="button" class="gcs-bt-act gcs-bt-scan" data-primary="1" ref=${setRef('scan')}
                   data-on=${on('scan') ? '1' : '0'} disabled=${scanning}
                   onClick=${click('scan')}>
-            ${scanning ? 'Searching…' : 'Search again'}
+            ${scanning ? 'Searching…' : searched ? 'Search again' : 'Search for devices'}
           </button>
+          <span class="gcs-bt-search-say" role="status">${status}</span>
+          ${scanning ? html`<div class="gcs-bt-sweep" aria-hidden="true"><i></i></div>` : null}
         </div>
 
         <div class="gcs-set-kicker gcs-row2-head">
-          Your devices${gotPaired && paired.length ? ` · ${paired.length}` : ''}
+          Devices${gotPaired && (paired.length || found.length)
+            ? ` · ${paired.length + found.length}` : ''}
         </div>
         ${!gotPaired
           ? html`<div class="gcs-load"><i></i>${slowPaired
               ? 'Still asking the adapter…' : 'Reading the paired list…'}</div>`
-          : paired.length === 0
-            ? html`<div class="gcs-wifi-empty">Nothing is paired yet.</div>`
-            : paired.map((d) => {
-                const key = `mine:${d.mac}`
-                const focused = here && here.key === key && active && !open
-                const working = busy === d.mac
-                return html`
-                  <div key=${d.mac} class="gcs-bt-mine" ref=${setRef(key)}
-                       aria-label=${`${d.name}, ${d.connected ? 'connected' : 'not connected'}`}
-                       data-live=${d.connected ? '1' : '0'} data-here=${focused ? '1' : '0'}>
-                    <span class="gcs-bt-dot" data-live=${d.connected ? '1' : '0'}></span>
-                    <span class="gcs-bt-name">
-                      <b>${d.name}</b>
-                      <i>${working ? 'Working…' : d.connected ? 'Connected' : 'Not connected'}${
-                        focused ? html`<span class="gcs-bt-mac"> · ${d.mac}</span>` : null}</i>
-                    </span>
-                    <button type="button" class="gcs-bt-act" data-primary=${d.connected ? '0' : '1'}
-                            data-on=${on(key, 0) ? '1' : '0'} disabled=${!!busy}
-                            onClick=${click(key, 0)}>
-                      ${d.connected ? 'Disconnect' : 'Connect'}
-                    </button>
-                    <button type="button" class="gcs-bt-act gcs-bt-forget" data-danger="1"
-                            data-on=${on(key, 1) ? '1' : '0'} disabled=${!!busy}
-                            onClick=${click(key, 1)}>
-                      Forget
-                    </button>
-                  </div>`
-              })}
+          : paired.length === 0 && found.length === 0
+            ? html`<div class="gcs-wifi-empty">No device yet. Press Search for devices to add one.</div>`
+            : null}
+
+        ${paired.map((d) => {
+          const key = `mine:${d.mac}`
+          const focused = focusedRow(key)
+          const working = busy === d.mac
+          return html`
+            <div key=${d.mac} class="gcs-bt-mine" ref=${setRef(key)}
+                 aria-label=${`${d.name}, ${d.connected ? 'connected' : 'not connected'}`}
+                 data-live=${d.connected ? '1' : '0'} data-here=${focused ? '1' : '0'}>
+              <span class="gcs-bt-dot" data-live=${d.connected ? '1' : '0'}></span>
+              <span class="gcs-bt-name">
+                <b>${d.name}</b>
+                <i>${working ? 'Working…' : d.connected ? 'Connected' : 'Not connected'}${
+                  focused ? html`<span class="gcs-bt-mac"> · ${d.mac}</span>` : null}</i>
+              </span>
+              <button type="button" class="gcs-bt-act" data-primary=${d.connected ? '0' : '1'}
+                      data-on=${on(key, 0) ? '1' : '0'} disabled=${!!busy}
+                      onClick=${click(key, 0)}>
+                ${d.connected ? 'Disconnect' : 'Connect'}
+              </button>
+              <button type="button" class="gcs-bt-act gcs-bt-forget" data-danger="1"
+                      data-on=${on(key, 1) ? '1' : '0'} disabled=${!!busy}
+                      onClick=${click(key, 1)}>
+                Forget
+              </button>
+            </div>`
+        })}
+
+        ${found.map((d) => {
+          const key = `pair:${d.mac}`
+          const anon = nameless(d)
+          const focused = focusedRow(key)
+          return html`
+            <div key=${d.mac} class="gcs-bt-mine gcs-bt-new" ref=${setRef(key)}
+                 aria-label=${`New device: ${anon ? 'unnamed, ' + d.mac : d.name}`}
+                 data-anon=${anon ? '1' : '0'} data-here=${focused ? '1' : '0'}>
+              <span class="gcs-bt-tag">NEW</span>
+              <span class="gcs-bt-name">
+                <b>${anon ? 'Unnamed device' : d.name}</b>
+                <i>${busy === d.mac ? 'Pairing…' : 'Not paired yet'}${
+                  focused || anon ? html`<span class="gcs-bt-mac"> · ${d.mac}</span>` : null}</i>
+              </span>
+              <button type="button" class="gcs-bt-act" data-primary="1"
+                      data-on=${on(key) ? '1' : '0'} disabled=${!!busy}
+                      onClick=${click(key)}>
+                ${busy === d.mac ? 'Pairing…' : 'Pair'}
+              </button>
+            </div>`
+        })}
+
         <p class="gcs-bt-foot">
-          ✕ connects or disconnects · → then ✕ forgets a device. Controllers reconnect on their own when the console wakes.
+          ✕ connects, disconnects or pairs · → then ✕ forgets a device. Controllers reconnect on their own when the console wakes.
         </p>
       </section>
 

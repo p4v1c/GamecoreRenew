@@ -23,3 +23,13 @@
  * about showing nothing rather than a dash.
  */
 export const asList = (v) => (Array.isArray(v) ? v : [])
+
+/**
+ * A version as the player reads it: one `v`, whatever the box answered.
+ *
+ * The tag an installed box writes to VERSION already carries its `v`
+ * (`v1.2.60`), and every screen that printed `v${version}` showed "vv1.2.60".
+ * Normalised here rather than in the backend, because other callers compare
+ * that string against release tags as it is.
+ */
+export const versionLabel = (v) => (v ? `v${String(v).replace(/^v/i, '')}` : '')

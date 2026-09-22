@@ -2095,6 +2095,13 @@
 .shelf-settings .gcs-set-rail {
   background: none; border: 0; padding: 2px 6px 6px 0; gap: 8px; align-self: stretch;
 }
+/* Centred on the sheet beside it rather than hung from the top, which left a
+   band of empty wall under the tabs on any screen taller than the list.
+   Auto margins, not `justify-content: center`: when the tabs do not fit, a
+   centred flex column overflows at BOTH ends and the first tab can no longer
+   be scrolled to, while auto margins collapse to nothing and it scrolls. */
+.shelf-settings .gcs-set-rail > :first-child { margin-top: auto; }
+.shelf-settings .gcs-set-rail > :last-child { margin-bottom: auto; }
 .shelf-settings .gcs-set-row {
   min-height: 58px; padding: 10px 14px; gap: 12px;
   border: 1px solid var(--shelf-edge); border-radius: 4px 14px 14px 4px;
@@ -2183,20 +2190,12 @@
 .shelf-settings .gcs-wifi-name i, .shelf-settings .gcs-bt-name i { font-size: 13px; color: #53665b; }
 .shelf-settings .gcs-act { min-height: 44px; display: inline-flex; align-items: center; font-size: 15px; }
 
-/* Bluetooth: "Add a device" on graph paper, then one ruled row per device */
-.shelf-settings .gcs-bt-add {
-  background: repeating-linear-gradient(0deg, transparent 0 23px, #527b3a12 23px 24px), #f7f8ef;
-  border: 1px solid #becab1; border-radius: 4px; box-shadow: 3px 4px 0 #dfe5d6;
-}
-.shelf-settings .gcs-bt-add-title b { font-size: 22px; font-weight: 600; color: var(--shelf-ink); }
-.shelf-settings .gcs-bt-add-title i { color: #3f5147; }
-.shelf-settings .gcs-bt-add-state { background: #e5ebdc; border-color: rgba(54, 89, 68, 0.3); color: #45584d; border-radius: 3px; }
-.shelf-settings .gcs-bt-add[data-scanning="1"] .gcs-bt-add-state { color: var(--set-acc-deep); border-color: var(--set-acc-deep); }
+/* Bluetooth: the search button, then one ruled list of devices */
+.shelf-settings .gcs-bt-search-say { color: #3f5147; }
 .shelf-settings .gcs-bt-sweep { background: #dfe5d6; }
 .shelf-settings .gcs-bt-sweep i { background: var(--shelf-mark); }
-.shelf-settings .gcs-bt-add .gcs-row2 { min-height: 60px; padding-top: 8px; padding-bottom: 8px; background: #fffdf5; }
-.shelf-settings .gcs-bt-add .gcs-row2-text i { font-size: 14px; }
-.shelf-settings .gcs-bt-add .gcs-act { min-height: 40px; }
+.shelf-settings .gcs-bt-new { background: #fffdf5; border-color: #9fb49a; }
+.shelf-settings .gcs-bt-tag { border-color: var(--shelf-mark); color: var(--shelf-mark); border-radius: 3px; }
 .shelf-settings .gcs-bt-mine { border-radius: 4px; min-height: 72px; }
 .shelf-settings .gcs-bt-mine[data-live="1"] { background: #eef3e6; box-shadow: inset 4px 0 #467b52; }
 .shelf-settings .gcs-bt-mine[data-here="1"] { border-color: var(--shelf-mark); }

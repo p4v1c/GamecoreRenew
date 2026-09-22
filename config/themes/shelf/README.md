@@ -126,11 +126,12 @@ in `--set-acc` in theme.css: one variable, one line to change.
 component Home paints, so the paper, the pattern and the vignette are Home's own
 rather than a second definition in CSS. In front of it: the numbered tab rail,
 one paper sheet per category ("PAGE 02 / CONNECTIONS"), L1/R1 to turn the
-category, network details beside the list, a Bluetooth page that opens on
-**Add a device** (the search and what it found, before anything else) with one
-row per paired device below it — ✕ connects or disconnects, → reaches its small
-**Forget** button, which asks first — and a focus mark filled in ink so it can
-be found from a sofa at a glance.
+category (the tabs centred on the sheet), network details beside the list, a
+Bluetooth page that is ONE list — paired devices, then what a search found,
+marked New — under a **Search for devices** button that is the only thing that
+starts a search; ✕ connects, disconnects or pairs, → reaches a paired device's
+small **Forget** button, which asks first — and a focus mark filled in ink so
+it can be found from a sofa at a glance.
 
 ### The two host changes this needed
 

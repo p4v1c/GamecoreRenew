@@ -32,7 +32,7 @@ const nearest = (list, v) => {
   return best
 }
 
-import { asList } from './list.js'
+import { asList, versionLabel } from './list.js'
 
 export const createSystemPage = (sdk, Rows) => {
   const { html, useState, useEffect } = sdk.ui
@@ -65,8 +65,8 @@ export const createSystemPage = (sdk, Rows) => {
         id: 'update', type: 'action',
         label: 'System update',
         desc: info
-          ? `GameCore v${info.version}${update === null ? ''
-              : update.update_available ? ` — v${update.latest} available`
+          ? `GameCore ${versionLabel(info.version)}${update === null ? ''
+              : update.update_available ? ` — ${versionLabel(update.latest)} available`
               : ' — up to date'}`
           : 'Checking this box’s version…',
         label2: update && update.update_available ? `Install ${update.latest}` : 'Check for updates',
@@ -167,7 +167,7 @@ export const createSystemPage = (sdk, Rows) => {
       <${Rows} rows=${allRows} sections=${sections} active=${active} onLeave=${onLeave} onLeft=${onLeft}
         onSet=${onSet} onAct=${act}
         title="System"
-        state=${info ? `V${info.version}` : ''}
+        state=${info ? versionLabel(info.version).toUpperCase() : ''}
         sub="The console image, standby behaviour, and the disks it reads from."
         aside=${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null} />`
   }
