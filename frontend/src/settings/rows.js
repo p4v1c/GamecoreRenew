@@ -41,11 +41,8 @@ export const createRows = (sdk) => {
    * @param active whether this column has the cursor
    * @param onSet  (id, value) for toggle / value / slider
    * @param onAct  (id) for action rows, already past any confirmation
-   * @param onLeft ← on a row that has nothing to adjust. The rail layout uses
-   *               it to go back to the rail; the index layout, where ← has
-   *               nowhere to go, passes a no-op and leaves ○ as the way out.
    */
-  return ({ rows, active, onLeave, onLeft, onSet, onAct, title, sub, aside, state, sections }) => {
+  return ({ rows, active, onLeave, onSet, onAct, title, sub, aside, state, sections }) => {
     const [idx, setIdx] = useState(0)
     const [armed, setArmed] = useState(null)
 
@@ -138,7 +135,7 @@ export const createRows = (sdk) => {
         sdk.input.onGp('gp:dpad-left', () => {
           const r = cur()
           if (r && (r.type === 'value' || r.type === 'slider')) { sdk.system.playSound('move'); step(r, -1) }
-          else (onLeft || onLeave)()
+          else onLeave()
         }),
         sdk.input.onGp('gp:dpad-right', () => {
           const r = cur()
@@ -148,7 +145,7 @@ export const createRows = (sdk) => {
         sdk.input.onGp('gp:back', onLeave),
       ]
       return () => offs.forEach((off) => off())
-    }, [active, onLeave, onLeft, rows])
+    }, [active, onLeave, rows])
 
     return html`
       <section class="gcs-set-main" data-zone=${active ? 'on' : 'off'}>
@@ -169,17 +166,7 @@ export const createRows = (sdk) => {
               <${React.Fragment} key=${r.id}>
               ${head ? html`<div class="gcs-set-kicker gcs-row2-head">${head}</div>` : null}
               <div class="gcs-row2" data-on=${on ? '1' : '0'}
-                   data-type=${r.type}
                    data-danger=${r.danger ? '1' : '0'}
-                   role=${r.type === 'toggle' ? 'switch'
-                     : r.type === 'slider' || r.type === 'value' ? 'slider'
-                     : r.type === 'info' ? undefined : 'button'}
-                   aria-label=${r.label}
-                   aria-checked=${r.type === 'toggle' ? String(!!r.value) : undefined}
-                   aria-valuemin=${r.type === 'slider' ? 0 : undefined}
-                   aria-valuemax=${r.type === 'slider' ? 100 : undefined}
-                   aria-valuenow=${r.type === 'slider' ? r.value : undefined}
-                   aria-valuetext=${r.type === 'value' ? r.options[r.value] : undefined}
                    ref=${(el) => { rowRefs.current[i] = el }}
                    onClick=${() => { setIdx(i); fire(r) }}>
                 <span class="gcs-row2-text">

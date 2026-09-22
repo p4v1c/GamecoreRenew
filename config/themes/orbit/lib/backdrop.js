@@ -39,14 +39,6 @@ export function createBackdrop(sdk) {
   const {html, useState, useEffect, useRef} = sdk.ui
   let selection = null
   const listeners = new Set()
-  // The picture on screen right now, shared by every mounted Background.
-  //
-  // Settings draws this same component over Home, so the two screens stand on
-  // one backdrop. A second instance used to start from nothing and resolve the
-  // art again — the scenery went neutral and faded back in each time Settings
-  // opened. Starting from what is already decoded makes the swap invisible, and
-  // the resolver below then finds `next === current` and leaves it alone.
-  let shown = null
 
   function select(next) {
     if (JSON.stringify(selection) === JSON.stringify(next)) return
@@ -56,8 +48,7 @@ export function createBackdrop(sdk) {
 
   function Background() {
     const [item, setItem] = useState(selection)
-    const [current, setCurrentState] = useState(shown)
-    const setCurrent = (next) => { shown = next; setCurrentState(next) }
+    const [current, setCurrent] = useState(null)
     const [previous, setPrevious] = useState(null)
     const currentRef = useRef(current)
     const generation = useRef(0)

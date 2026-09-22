@@ -27,17 +27,20 @@ export default function createOrbit(sdk) {
   const TopBar = createTopBar(sdk, tabs, systemsRef)
   const Home = createHome(sdk, tabs, sessions, systemsRef, backdrop, footer)
   const Library = createLibrary(sdk, tabs, sessions, systemsRef, backdrop)
-  const Background = backdrop.Background
-  // Settings is a full screen of its own, PS5-style: a category list, one page
-  // at a time, details in dialogs. It stands on Home's own backdrop — the same
-  // component, so the same picture, shade and grain — rather than on a panel
-  // floating over a blurred dashboard.
-  const Settings = sdk.defaults.createSettings(sdk, {}, {
-    skin: 'orbit-settings', Background, layout: 'index', detail: 'dialog',
-  })
+  const SettingsBase = sdk.defaults.createSettings(sdk, {}, {skin: 'orbit-settings'})
   const Power = sdk.defaults.createPowerView(sdk, {skin: 'orbit-power'})
   const Controller = createController(sdk)
   const Ceremony = createCeremony(sdk)
+
+  const Background = backdrop.Background
+
+  function Settings({onClose}) {
+    return html`<div className="orbit-dialog-backdrop" onClick=${e => {if (e.target === e.currentTarget) onClose()}}>
+      <div className="orbit-settings-frame"><${SettingsBase} onClose=${onClose} />
+        <button className="close-dialog icon-button" aria-label="Close settings" onClick=${onClose}>×</button>
+      </div>
+    </div>`
+  }
 
   function Shell() {
     // L2 and the session menu belong to the host now — one binding for every

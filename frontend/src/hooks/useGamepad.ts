@@ -438,10 +438,6 @@ export function useGamepad() {
       if (!name) return
       if (isPlaying() && name !== 'gp:guide') return
       e.preventDefault()
-      // A held key auto-repeats; a held pad button does not — the buttons
-      // above are edge-triggered. Directions may repeat, the way the stick
-      // does, but a held Enter must not open a confirmation and then answer it.
-      if (e.repeat && !name.startsWith('gp:dpad-')) return
       emit(name)
     }
     window.addEventListener('keydown', onKey)

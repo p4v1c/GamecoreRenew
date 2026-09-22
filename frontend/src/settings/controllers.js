@@ -54,7 +54,7 @@ export const createControllersPage = (sdk, Rows) => {
       .filter(Boolean)
       .map((p) => ({ index: p.index, id: p.id }))
 
-  return ({ active, onLeave, onLeft }) => {
+  return ({ active, onLeave }) => {
     const [pads, setPads] = useState(readPads)
     const [rumble, setRumble] = useState(() => sdk.input.haptics.enabled)
     const [busy, setBusy] = useState('')
@@ -226,7 +226,7 @@ export const createControllersPage = (sdk, Rows) => {
       : ''
 
     return html`
-      <${Rows} rows=${rows} active=${active} onLeave=${onLeave} onLeft=${onLeft}
+      <${Rows} rows=${rows} active=${active} onLeave=${onLeave}
         onSet=${onSet} onAct=${onAct}
         title="Controllers"
         state=${auto && !autoOn ? 'AUTO SETUP OFF'

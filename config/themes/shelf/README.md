@@ -122,17 +122,6 @@ so and somebody will have to give it a home — which is the guard working.
 is the one contestable reading of "the capture is the reference", and it lives
 in `--set-acc` in theme.css: one variable, one line to change.
 
-**It stands on the wall itself.** `index.js` hands the host the `Background`
-component Home paints, so the paper, the pattern and the vignette are Home's own
-rather than a second definition in CSS. In front of it: the numbered tab rail,
-one paper sheet per category ("PAGE 02 / CONNECTIONS"), L1/R1 to turn the
-category (the tabs centred on the sheet), network details beside the list, a
-Bluetooth page that is ONE list — paired devices, then what a search found,
-marked New — under a **Search for devices** button that is the only thing that
-starts a search; ✕ connects, disconnects or pairs, → reaches a paired device's
-small **Forget** button, which asks first — and a focus mark filled in ink so
-it can be found from a sofa at a glance.
-
 ### The two host changes this needed
 
 Both are narrow, both serve any theme, and both are in the frontend rather than
