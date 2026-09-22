@@ -49,6 +49,7 @@
  * imposing on the other two, which is why the classes stopped being `cz-`.
  */
 import { createUseSlow } from './slow.js'
+import { versionLabel } from './list.js'
 import { createRows } from './rows.js'
 import { createDialogs } from './dialog.js'
 import { createWifiPage } from './wifi.js'
@@ -249,7 +250,7 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
           put('themes', t ? t.name : 'Default')
         })
         .catch(() => {})
-      api.sysinfo().then((si) => put('system', `v${si.version}`)).catch(() => {})
+      api.sysinfo().then((si) => put('system', versionLabel(si.version))).catch(() => {})
 
       // Pads come from the Gamepad API, not from sysinfo: that list is
       // `read_batteries()`, a sysfs scan that cannot see a wired pad, and this

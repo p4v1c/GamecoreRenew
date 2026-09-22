@@ -213,7 +213,7 @@ describe('Unpair and forget', () => {
   it.each([
     ['Shelf', { pager: true, detail: 'inline' }, ['r1', 'dpad-right', 'dpad-down', 'dpad-right', 'confirm']],
     ['Orbit', { layout: 'index', detail: 'dialog' }, ['dpad-down', 'confirm', 'confirm', 'dpad-down', '*confirm']],
-  ])('%s removes the pairing on the adapter, then reloads and rescans', async (_, parts, keys) => {
+  ])('%s removes the pairing on the adapter, then reloads the list', async (_, parts, keys) => {
     const { container } = await screen(parts)
     for (const k of keys as string[]) {
       if (k.startsWith('*')) later()
@@ -232,8 +232,12 @@ describe('Unpair and forget', () => {
     const del = calls.find(c => c.method === 'DELETE')!
     expect(del.url).toContain(`/settings/bluetooth/devices/${encodeURIComponent(PAD.mac)}`)
     await waitFor(() => expect(text(container)).toContain('forgotten. Pair it again to reconnect.'))
-    await waitFor(() => expect(text(container)).toContain('Nothing is paired yet.'))
-    expect(calls.filter(c => c.url.endsWith('/bluetooth/scan')).length).toBeGreaterThan(scansBefore)
+    await waitFor(() => expect(text(container)).toMatch(/Nothing is paired yet\.|No device yet\./))
+    // Orbit looks around again so the device can be re-paired from there;
+    // Shelf only ever searches when the owner presses Search.
+    const scansAfter = calls.filter(c => c.url.endsWith('/bluetooth/scan')).length
+    if (_ === 'Orbit') expect(scansAfter).toBeGreaterThan(scansBefore)
+    else expect(scansAfter).toBe(scansBefore)
   })
 
   it('does nothing on Cancel', async () => {
@@ -249,7 +253,7 @@ describe('Unpair and forget', () => {
   })
 })
 
-describe('Shelf Bluetooth — adding a device comes first', () => {
+describe('Shelf Bluetooth — one list, and a search only when asked', () => {
   const PAIRED = [
     PAD,
     { mac: 'A0:9E:1B:44:D2:18', name: 'Xbox Wireless Controller', connected: false, paired: true },
@@ -258,6 +262,7 @@ describe('Shelf Bluetooth — adding a device comes first', () => {
     { mac: '00:1B:66:77:88:99', name: 'JBL Charge 2', connected: false, paired: true },
   ]
   const focused = (c: HTMLElement) => c.querySelector('.gcs-bt-shelf [data-on="1"]')
+  const scans = () => calls.filter(c => c.url.endsWith('/bluetooth/scan')).length
 
   const open = async () => {
     const r = await screen({ pager: true, detail: 'inline' })
@@ -266,18 +271,30 @@ describe('Shelf Bluetooth — adding a device comes first', () => {
     return r
   }
 
-  it('lands on what was found, above every paired device, however many there are', async () => {
-    // The complaint this layout answers: with five pads paired, the search sat
-    // under ten buttons and off the bottom of the screen.
+  it('does not search on arrival, and opens on the Search button', async () => {
+    // A search holds the adapter in discovery for ten seconds, which slows
+    // every reconnection meant for a pad that is already paired.
+    paired = PAIRED
+    const { container } = await open()
+    expect(scans()).toBe(0)
+    expect(focused(container)?.textContent?.trim()).toBe('Search for devices')
+    expect(container.querySelector('.gcs-bt-new')).toBeNull()
+  })
+
+  it('lists what a search found after the paired devices, in the same list, and lands on it', async () => {
     paired = PAIRED
     found = [{ mac: '7C:ED:8D:12:04:B1', name: '8BitDo Pro 2', connected: false, paired: false }]
     const { container } = await open()
-    await waitFor(() => expect(container.querySelector('.gcs-bt-near')).toBeTruthy())
 
-    const add = container.querySelector('.gcs-bt-add')!
-    const firstMine = container.querySelector('.gcs-bt-mine')!
-    expect(add.compareDocumentPosition(firstMine) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(focused(container)?.textContent).toContain('8BitDo Pro 2')
+    await press('confirm')                            // Search for devices
+    await waitFor(() => expect(container.querySelector('.gcs-bt-new')).toBeTruthy())
+    expect(scans()).toBe(1)
+
+    const rows = [...container.querySelectorAll('.gcs-bt-mine')]
+    expect(rows).toHaveLength(PAIRED.length + 1)
+    expect(rows[rows.length - 1].textContent).toContain('8BitDo Pro 2')
+    expect(rows[rows.length - 1].textContent).toContain('NEW')
+    await waitFor(() => expect(focused(container)?.closest('.gcs-bt-mine')?.textContent).toContain('8BitDo Pro 2'))
 
     await press('confirm')
     await waitFor(() => expect(calls.some(c => c.method === 'POST' && c.url.endsWith('/bluetooth/pair'))).toBe(true))
@@ -287,7 +304,7 @@ describe('Shelf Bluetooth — adding a device comes first', () => {
     paired = PAIRED
     const { container } = await open()
 
-    await press('dpad-down')                          // Search again → first device
+    await press('dpad-down')                          // Search → first device
     expect(focused(container)?.textContent?.trim()).toBe('Disconnect')
     for (let i = 0; i < 4; i++) await press('dpad-down')
     expect(focused(container)?.closest('.gcs-bt-mine')?.textContent).toContain('JBL Charge 2')
@@ -311,8 +328,9 @@ describe('Shelf Bluetooth — adding a device comes first', () => {
       { mac: '7C:ED:8D:12:04:B1', name: '8BitDo Pro 2', connected: false, paired: false },
     ]
     const { container } = await open()
-    await waitFor(() => expect(container.querySelectorAll('.gcs-bt-near').length).toBe(2))
-    const names = [...container.querySelectorAll('.gcs-bt-near b')].map(b => b.textContent)
+    await press('confirm')
+    await waitFor(() => expect(container.querySelectorAll('.gcs-bt-new').length).toBe(2))
+    const names = [...container.querySelectorAll('.gcs-bt-new b')].map(b => b.textContent)
     expect(names).toEqual(['8BitDo Pro 2', 'Unnamed device'])
   })
 })
