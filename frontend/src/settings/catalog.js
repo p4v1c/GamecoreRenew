@@ -33,7 +33,7 @@
  * that changes meaning with the viewport is worse than one that is merely
  * linear.
  */
-import { asList } from './list.js'
+import { asList, follow } from './list.js'
 
 export const createCatalogPage = (sdk) => {
   const { html, useState, useEffect, useRef, React } = sdk.ui
@@ -136,6 +136,13 @@ export const createCatalogPage = (sdk) => {
       if (open === g.name) for (const s of g.systems) entries.push({ kind: 'sys', pack: s })
     }
 
+    // The list scrolls with the pad's cursor — see `follow` in list.js. Only
+    // groups and packs: `.gcs-pack-btn` wears `data-on` for "installable".
+    const mainRef = useRef(null)
+    useEffect(() => {
+      if (active) follow(mainRef.current?.querySelector('.gcs-grp[data-on="1"], .gcs-pack[data-on="1"]'), idx === 0)
+    }, [idx, active, entries.length])
+
     const ref = useRef({ idx, entries })
     useEffect(() => { ref.current = { idx, entries } })
 
@@ -185,7 +192,7 @@ export const createCatalogPage = (sdk) => {
 
     return html`
       <${Fragment}>
-      <section class="gcs-set-main" data-zone=${active ? 'on' : 'off'}>
+      <section class="gcs-set-main" ref=${mainRef} data-zone=${active ? 'on' : 'off'}>
         <div class="gcs-set-h-row">
           <div class="gcs-set-h">Emulators & apps</div>
           <div class="gcs-wifi-state">${installed}/${packs.length} INSTALLED</div>

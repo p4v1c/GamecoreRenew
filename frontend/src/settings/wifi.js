@@ -40,7 +40,7 @@ const REFRESH_MS = 10000
 /** 0–100 → four bars, the way the capture draws them. */
 const barsFor = (signal) => Math.max(1, Math.min(4, Math.ceil((signal || 0) / 25)))
 
-import { asList } from './list.js'
+import { asList, follow } from './list.js'
 
 export const createWifiPage = (sdk, useSlow) => {
   const { html, useState, useEffect, useRef, React } = sdk.ui
@@ -72,6 +72,12 @@ export const createWifiPage = (sdk, useSlow) => {
     // `GET /networks` rescans before it answers, so a couple of seconds is
     // normal and silence is not.
     const slow = useSlow(!loaded, 2500)
+
+    // The list scrolls with the pad's cursor — see `follow` in list.js.
+    const mainRef = useRef(null)
+    useEffect(() => {
+      if (active) follow(mainRef.current?.querySelector('.gcs-wifi-row[data-on="1"]'), sel === 0)
+    }, [sel, active, nets.length])
 
     const selRef = useRef(sel)
     useEffect(() => { selRef.current = sel }, [sel])
@@ -180,7 +186,7 @@ export const createWifiPage = (sdk, useSlow) => {
     // is not — the three are the middle column, the detail column and a modal.
     return html`
       <${Fragment}>
-      <section class="gcs-set-main" data-zone=${active ? 'on' : 'off'}>
+      <section class="gcs-set-main" ref=${mainRef} data-zone=${active ? 'on' : 'off'}>
         <div class="gcs-set-h-row">
           <div class="gcs-set-h">Wi-Fi</div>
           <div class="gcs-wifi-state">${wired ? 'WIRED' : loaded ? 'ON' : ''}</div>

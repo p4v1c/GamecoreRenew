@@ -509,6 +509,27 @@
 
 .gcs-bt-col { min-width: 0; }
 
+/* The page stands still and each list scrolls inside its own column, so the
+   heading, the sentence and PAIRED / NEARBY never leave the screen. The page
+   keeps its own scroll only as a fallback, for a screen too short to hold two
+   lists of at least a couple of rows each. The padding keeps a focus ring,
+   drawn outside its row, from being clipped by the list's edge. */
+.gcs-set-main.gcs-bt-page { display: flex; flex-direction: column; }
+.gcs-bt-page .gcs-bt-cols { flex: 1 1 auto; min-height: 0; grid-auto-rows: minmax(150px, 1fr); }
+.gcs-bt-page .gcs-bt-col { display: flex; flex-direction: column; min-height: 0; }
+.gcs-bt-list {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding: 6px 8px 8px; margin: 0 -8px;
+}
+
+/* Stacked (the themes put the two lists one above the other under 1500px),
+   two short scroll boxes would each show a row and a half. One page scroll,
+   following the cursor, reads better there. */
+@media (max-width: 1500px) {
+  .gcs-set-main.gcs-bt-page { display: block; }
+  .gcs-bt-list { overflow: visible; margin: 0; padding: 0; }
+}
+
 .gcs-bt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
 .gcs-bt-row {

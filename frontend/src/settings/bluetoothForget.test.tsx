@@ -27,10 +27,12 @@ const { createUseSlow } = await import(/* @vite-ignore */ SLOW)
 const PAD = { mac: 'E4:17:D8:2A:9C:03', name: 'DualSense Wireless Controller', connected: true, paired: true }
 const NEAR = { mac: '7C:ED:8D:12:04:B1', name: '8BitDo Pro 2', connected: false, paired: false }
 let paired = [PAD]
+let near = [NEAR]
 let calls: { method: string, url: string }[] = []
 
 beforeEach(() => {
   paired = [PAD]
+  near = [NEAR]
   calls = []
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
@@ -39,7 +41,7 @@ beforeEach(() => {
     let body: unknown = {}
     if (method === 'DELETE') { paired = []; body = { ok: true, message: 'Forgotten — pair it again to reconnect' } }
     else if (url.endsWith('/bluetooth/devices')) body = paired
-    else if (url.endsWith('/bluetooth/scan')) body = { ok: true, seconds: 10, found: [NEAR] }
+    else if (url.endsWith('/bluetooth/scan')) body = { ok: true, seconds: 10, found: near }
     else body = { ok: true }
     return { ok: true, status: 200, statusText: 'OK', json: async () => body }
   }))
@@ -110,5 +112,34 @@ describe('Forget, on a paired device', () => {
     await act(async () => { forgetBtn(container).click() })
     await waitFor(() => expect(calls.some(c => c.method === 'DELETE')).toBe(true))
     expect(calls.some(c => c.url.endsWith('/bluetooth/disconnect'))).toBe(false)
+  })
+})
+
+describe('the lists follow the pad', () => {
+  it('scrolls the Nearby column to the row under the cursor, and back to its top', async () => {
+    // The column scrolls on its own; nothing followed the cursor before, so a
+    // pad could walk it off the bottom of the screen.
+    near = [NEAR,
+      { mac: '7C:ED:8D:12:04:B2', name: 'Second pad', connected: false, paired: false },
+      { mac: '7C:ED:8D:12:04:B3', name: 'Third pad', connected: false, paired: false }]
+    const seen: string[] = []
+    const proto = Element.prototype as unknown as { scrollIntoView?: unknown }
+    const had = proto.scrollIntoView
+    proto.scrollIntoView = function (this: Element) { seen.push(this.textContent || '') }
+    try {
+      const { container } = await page()
+      await press('dpad-right'); await press('dpad-right')   // Forget → Nearby
+      await press('dpad-down'); await press('dpad-down')
+      expect(seen[seen.length - 1]).toContain('Third pad')
+
+      const list = container.querySelector('.gcs-bt-col[data-col="nearby"] .gcs-bt-list') as HTMLElement
+      Object.defineProperty(list, 'scrollHeight', { value: 900 })
+      Object.defineProperty(list, 'clientHeight', { value: 300 })
+      list.scrollTop = 250
+      await press('dpad-up'); await press('dpad-up')         // back on the first
+      expect(list.scrollTop).toBe(0)
+    } finally {
+      proto.scrollIntoView = had
+    }
   })
 })

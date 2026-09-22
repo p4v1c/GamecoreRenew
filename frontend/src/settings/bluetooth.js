@@ -33,7 +33,7 @@
 const SCAN_SECS = 10
 const SCAN_PATIENCE_MS = (SCAN_SECS + 4) * 1000
 
-import { asList } from './list.js'
+import { asList, follow } from './list.js'
 
 export const createBluetoothPage = (sdk, useSlow) => {
   const { html, useState, useEffect, useRef, React } = sdk.ui
@@ -63,6 +63,15 @@ export const createBluetoothPage = (sdk, useSlow) => {
     // working" that fires during a normal scan would be crying wolf.
     const slowPaired = useSlow(!gotPaired, 2500)
     const slowScan = useSlow(scanning, SCAN_PATIENCE_MS)
+
+    // Each column scrolls on its own and the heading above them never moves:
+    // a long Nearby list used to push the whole page, and a pad's cursor could
+    // walk off the bottom of the screen with nothing following it.
+    const mainRef = useRef(null)
+    useEffect(() => {
+      if (!active) return
+      follow(mainRef.current?.querySelector(`.gcs-bt-col[data-col="${col}"] .gcs-bt-row[data-here="1"]`), idx === 0)
+    }, [col, idx, active, paired.length, nearby.length])
 
     const stateRef = useRef({ col, idx, paired, nearby, side, armed })
     useEffect(() => { stateRef.current = { col, idx, paired, nearby, side, armed } },
@@ -201,7 +210,7 @@ export const createBluetoothPage = (sdk, useSlow) => {
       const onForget = here && kind === 'paired' && side === 1
       const working = busy === d.mac
       return html`
-        <div key=${d.mac} class="gcs-bt-row" data-on=${on ? '1' : '0'}
+        <div key=${d.mac} class="gcs-bt-row" data-on=${on ? '1' : '0'} data-here=${here ? '1' : '0'}
              onClick=${() => { setCol(kind); setIdx(i); setSide(0); act(d, kind === 'paired' ? 'toggle' : 'pair') }}>
           <span class="gcs-bt-dot" data-live=${d.connected ? '1' : '0'}></span>
           <span class="gcs-bt-name">
@@ -224,7 +233,7 @@ export const createBluetoothPage = (sdk, useSlow) => {
 
     return html`
       <${Fragment}>
-      <section class="gcs-set-main" data-zone=${active ? 'on' : 'off'}>
+      <section class="gcs-set-main gcs-bt-page" ref=${mainRef} data-zone=${active ? 'on' : 'off'}>
         <div class="gcs-set-h-row">
           <div class="gcs-set-h">Bluetooth</div>
           <div class="gcs-wifi-state">${paired.some((d) => d.connected) ? 'ON' : ''}</div>
@@ -237,30 +246,34 @@ export const createBluetoothPage = (sdk, useSlow) => {
         ${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null}
 
         <div class="gcs-bt-cols">
-          <div class="gcs-bt-col">
+          <div class="gcs-bt-col" data-col="paired">
             <div class="gcs-set-kicker">Paired</div>
-            ${!gotPaired
-              ? html`<div class="gcs-load"><i></i>${slowPaired
-                  ? 'Still asking the adapter…' : 'Reading the paired list…'}</div>`
-              : paired.length === 0
-                ? html`<div class="gcs-wifi-empty">Nothing is paired yet.</div>`
-                : paired.map((d, i) => row(d, i, 'paired'))}
+            <div class="gcs-bt-list">
+              ${!gotPaired
+                ? html`<div class="gcs-load"><i></i>${slowPaired
+                    ? 'Still asking the adapter…' : 'Reading the paired list…'}</div>`
+                : paired.length === 0
+                  ? html`<div class="gcs-wifi-empty">Nothing is paired yet.</div>`
+                  : paired.map((d, i) => row(d, i, 'paired'))}
+            </div>
           </div>
 
-          <div class="gcs-bt-col">
+          <div class="gcs-bt-col" data-col="nearby">
             <div class="gcs-bt-head">
               <span class="gcs-set-kicker">Nearby</span>
               <span class="gcs-wifi-scan" onClick=${rescan}>
                 <i data-idle=${scanning ? '0' : '1'}></i>${scanning ? 'SCANNING' : 'SCAN AGAIN'}
               </span>
             </div>
-            ${nearby.length === 0
-              ? (scanning
-                  ? html`<div class="gcs-load"><i></i>${slowScan
-                      ? 'Still looking — some devices only advertise every few seconds.'
-                      : `Looking around for ${SCAN_SECS} seconds…`}</div>`
-                  : html`<div class="gcs-wifi-empty">Nothing new in range.</div>`)
-              : nearby.map((d, i) => row(d, i, 'nearby'))}
+            <div class="gcs-bt-list">
+              ${nearby.length === 0
+                ? (scanning
+                    ? html`<div class="gcs-load"><i></i>${slowScan
+                        ? 'Still looking — some devices only advertise every few seconds.'
+                        : `Looking around for ${SCAN_SECS} seconds…`}</div>`
+                    : html`<div class="gcs-wifi-empty">Nothing new in range.</div>`)
+                : nearby.map((d, i) => row(d, i, 'nearby'))}
+            </div>
           </div>
         </div>
       </section>

@@ -31,6 +31,8 @@
  * console feel broken from a sofa; the value is still shown exactly, so
  * nobody is guessing.
  */
+import { follow } from './list.js'
+
 const SLIDER_STEP = 5
 
 export const createRows = (sdk) => {
@@ -71,7 +73,7 @@ export const createRows = (sdk) => {
       // TypeError inside a passive effect and took down every other page built
       // on this component — Audio, Display, System, Themes — in a change that
       // was only ever about Controllers.
-      if (active) rowRefs.current[idx]?.scrollIntoView?.({ block: 'nearest' })
+      if (active) follow(rowRefs.current[idx], idx === 0)
     }, [idx, active, rows.length])
 
     // An armed row that loses the cursor disarms. Otherwise a confirmation set

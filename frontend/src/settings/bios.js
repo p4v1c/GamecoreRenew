@@ -23,7 +23,7 @@ const STATE = {
   mismatch: 'WRONG FILE',
 }
 
-import { asList } from './list.js'
+import { asList, follow } from './list.js'
 
 export const createBiosPage = (sdk) => {
   const { html, useState, useEffect, useRef, React } = sdk.ui
@@ -37,6 +37,12 @@ export const createBiosPage = (sdk) => {
     useEffect(() => {
       sdk.api.bios.list().then((r) => setRows(asList(r))).catch(() => setFailed(true))
     }, [])
+
+    // The list scrolls with the pad's cursor — see `follow` in list.js.
+    const mainRef = useRef(null)
+    useEffect(() => {
+      if (active) follow(mainRef.current?.querySelector('.gcs-bios[data-on="1"]'), idx === 0)
+    }, [idx, active, rows.length])
 
     const ref = useRef({ idx, len: rows.length })
     useEffect(() => { ref.current = { idx, len: rows.length } }, [idx, rows.length])
@@ -64,7 +70,7 @@ export const createBiosPage = (sdk) => {
 
     return html`
       <${Fragment}>
-      <section class="gcs-set-main" data-zone=${active ? 'on' : 'off'}>
+      <section class="gcs-set-main" ref=${mainRef} data-zone=${active ? 'on' : 'off'}>
         <div class="gcs-set-h-row">
           <div class="gcs-set-h">BIOS & system files</div>
           ${rows.length ? html`<div class="gcs-wifi-state">${ready}/${rows.length} READY</div>` : null}
