@@ -1111,7 +1111,7 @@ leaving them out draws the rail the built-in UI and Summer have always had:
 | `Background` | your Home background **component**, drawn as the screen's first layer; the screen goes transparent over it | Orbit (`backdrop.Background`), Shelf (the wall) |
 | `layout: 'index'` | a category list that opens one page at a time; ○ walks back up a level | Orbit |
 | `pager: true` | L1/R1 change category whenever no dialog is open; the page names its place | Shelf |
-| `detail: 'dialog' \| 'inline'` | a network's or a device's detail in a dialog, or beside the list; also turns on the one-column Bluetooth page with **Unpair and forget** | Orbit / Shelf |
+| `detail: 'dialog' \| 'inline'` | a network's or a device's detail in a dialog, or beside the list; also turns on the one-column Bluetooth page with **Unpair and forget** (`inline`: "Add a device" first, one row per paired device) | Orbit / Shelf |
 | `skin`, `TopBar` | a class for your palette; your top bar above the screen | both |
 
 Pass the component, not a copy of its CSS. Two definitions of one wall is how

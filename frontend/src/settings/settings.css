@@ -862,30 +862,6 @@
 .gcs-dlg-chev { font-size: 22px; color: var(--set-ink-3); }
 
 /* ── Bluetooth, one column ──────────────────────────────────────────────── */
-.gcs-bt-cards { display: grid; gap: 14px; }
-
-.gcs-bt-card {
-  padding: 20px 22px; border-radius: 14px;
-  background: var(--set-card); border: 1px solid var(--set-line);
-}
-
-.gcs-bt-card-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-
-.gcs-bt-card-head .gcs-bt-name b { white-space: normal; overflow-wrap: anywhere; }
-
-.gcs-bt-chip {
-  flex: 0 0 auto; padding: 5px 10px; border-radius: 6px;
-  border: 1px solid var(--set-line); font-family: var(--font-mono);
-  font-size: 12px; letter-spacing: 0.12em; color: var(--set-ink-2);
-}
-
-.gcs-bt-chip[data-live="1"] { color: var(--set-acc-deep); border-color: var(--set-acc); }
-
-.gcs-bt-card-acts {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-  gap: 10px; margin-top: 16px;
-}
-
 .gcs-bt-act {
   min-height: 48px; padding: 11px 18px; border-radius: 11px; cursor: pointer; text-align: left;
   border: 1px solid var(--set-line); background: rgba(var(--set-ink-rgb), 0.05);
@@ -901,6 +877,53 @@
 .gcs-bt-scanrow { margin-top: 18px; }
 
 .gcs-bt-dev .gcs-row2-text b, .gcs-bt-near .gcs-row2-text b { overflow-wrap: anywhere; }
+
+/* Shelf's layout: "Add a device" first, then one row per paired device. */
+.gcs-bt-add {
+  display: grid; gap: 10px; margin: 6px 0 22px; padding: 18px 20px 20px;
+  border: 1px solid var(--set-line); border-radius: 14px; background: var(--set-card);
+}
+
+.gcs-bt-add-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+
+.gcs-bt-add-title { display: grid; gap: 4px; min-width: 0; }
+.gcs-bt-add-title b { font-size: 21px; font-weight: 700; color: var(--set-ink); }
+.gcs-bt-add-title i { font-style: normal; font-size: 15px; color: var(--set-ink-2); }
+
+.gcs-bt-add-state {
+  flex: 0 0 auto; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--set-line);
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.12em; color: var(--set-ink-2);
+}
+.gcs-bt-add[data-scanning="1"] .gcs-bt-add-state { color: var(--set-acc-deep); border-color: var(--set-acc); }
+
+/* How far through the ten-second search, so "Searching" is not a spinner with
+   no end. Purely decorative: the real state is the label next to it. */
+.gcs-bt-sweep { height: 4px; border-radius: 2px; background: rgba(var(--set-ink-rgb), 0.08); overflow: hidden; }
+.gcs-bt-sweep i { display: block; height: 100%; width: 100%; background: var(--set-acc);
+  transform-origin: left; animation: gcs-bt-sweep 10s linear forwards; }
+@keyframes gcs-bt-sweep { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) { .gcs-bt-sweep i { animation: none; opacity: 0.5; } }
+
+.gcs-bt-add-empty { padding: 10px 2px; font-size: 16px; color: var(--set-ink-2); }
+
+.gcs-bt-near[data-anon="1"] .gcs-row2-text b { color: var(--set-ink-2); font-weight: 500; }
+
+.gcs-bt-add .gcs-bt-scan { justify-self: start; margin-top: 4px; }
+
+.gcs-bt-mine {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center;
+  gap: 14px; min-height: 68px; padding: 10px 14px 10px 18px; margin-bottom: 8px;
+  border: 1px solid var(--set-line); border-radius: 12px; background: var(--set-card);
+}
+.gcs-bt-mine[data-here="1"] { border-color: var(--set-acc); }
+.gcs-bt-mine .gcs-bt-name b { font-size: 19px; white-space: normal; overflow-wrap: anywhere; }
+.gcs-bt-mine .gcs-bt-name i { font-family: var(--font-body); font-size: 14px; color: var(--set-ink-2); }
+.gcs-bt-mine[data-live="1"] .gcs-bt-name i { color: var(--set-acc-deep); font-weight: 600; }
+.gcs-bt-mac { font-family: var(--font-mono); font-weight: 400; font-size: 12.5px; color: var(--set-ink-3); }
+.gcs-bt-mine .gcs-bt-act { min-height: 44px; min-width: 140px; text-align: center; }
+.gcs-bt-mine .gcs-bt-forget { min-width: 0; font-weight: 500; }
+
+.gcs-bt-foot { margin: 14px 2px 0; font-size: 14px; color: var(--set-ink-3); }
 
 /* ── Display: the mode on screen ────────────────────────────────────────── */
 .gcs-disp-now { display: flex; align-items: center; gap: 26px; padding: 12px 4px 26px; flex-wrap: wrap; }

@@ -28,6 +28,7 @@ async function load(path: string) {
 
 const PAD = { mac: 'E4:17:D8:2A:9C:03', name: 'DualSense Wireless Controller', connected: true, paired: true }
 let paired = [PAD]
+let found: { mac: string, name: string, connected: boolean, paired: boolean }[] = []
 let calls: { method: string, url: string }[] = []
 
 const BOX: [string, () => unknown][] = [
@@ -37,7 +38,7 @@ const BOX: [string, () => unknown][] = [
     { ssid: 'Home', signal: 82, secured: true, connected: true },
     { ssid: 'Guests', signal: 64, secured: true, connected: false }]],
   ['/api/settings/wifi/details', () => [{ ssid: 'Guests', security: 'WPA2', channel: 6, band: '2.4 GHz', rate: '144 Mb/s' }]],
-  ['/api/settings/bluetooth/scan', () => ({ ok: true, seconds: 10, found: [] })],
+  ['/api/settings/bluetooth/scan', () => ({ ok: true, seconds: 10, found })],
   ['/api/settings/bluetooth/devices/', () => {
     paired = []
     return { ok: true, message: 'Forgotten — pair it again to reconnect' }
@@ -56,6 +57,7 @@ const BOX: [string, () => unknown][] = [
 
 beforeEach(() => {
   paired = [PAD]
+  found = []
   calls = []
   useStore.setState({ screen: 'home', modalDepth: 0, standby: 'off', powerPending: null,
     sessionGameKey: null, sessionSystemId: null, backgroundSessions: [], transition: null } as never)
@@ -190,8 +192,9 @@ describe('a dialog owns the pad', () => {
     await press('r1')
     expect(cat()).toBe('bluetooth')
     await press('dpad-right')
-    await waitFor(() => expect(container.querySelector('.gcs-bt-card')).toBeTruthy())
-    await press('dpad-down')           // Unpair and forget, on the first card
+    await waitFor(() => expect(container.querySelector('.gcs-bt-mine')).toBeTruthy())
+    await press('dpad-down')           // Search again → the first device
+    await press('dpad-right')          // → its Forget button
     await press('confirm')
     await waitFor(() => expect(container.querySelector('[role="dialog"]')).toBeTruthy())
 
@@ -208,14 +211,14 @@ describe('a dialog owns the pad', () => {
 
 describe('Unpair and forget', () => {
   it.each([
-    ['Shelf', { pager: true, detail: 'inline' }, ['r1', 'dpad-right', 'dpad-down', 'confirm']],
+    ['Shelf', { pager: true, detail: 'inline' }, ['r1', 'dpad-right', 'dpad-down', 'dpad-right', 'confirm']],
     ['Orbit', { layout: 'index', detail: 'dialog' }, ['dpad-down', 'confirm', 'confirm', 'dpad-down', '*confirm']],
   ])('%s removes the pairing on the adapter, then reloads and rescans', async (_, parts, keys) => {
     const { container } = await screen(parts)
     for (const k of keys as string[]) {
       if (k.startsWith('*')) later()
       await press(k.replace('*', ''))
-      await waitFor(() => expect(container.querySelector('.gcs-bt-card, .gcs-bt-dev, [role="dialog"], .gcs-set-index')).toBeTruthy())
+      await waitFor(() => expect(container.querySelector('.gcs-bt-mine, .gcs-bt-dev, [role="dialog"], .gcs-set-index')).toBeTruthy())
     }
     const dialog = () => container.querySelector('[role="dialog"]')
     await waitFor(() => expect(dialog()?.textContent).toMatch(/Unpair and forget .*\?/))
@@ -236,13 +239,81 @@ describe('Unpair and forget', () => {
   it('does nothing on Cancel', async () => {
     const { container } = await screen({ pager: true, detail: 'inline' })
     await press('r1'); await press('dpad-right')
-    await waitFor(() => expect(container.querySelector('.gcs-bt-card')).toBeTruthy())
-    await press('dpad-down'); await press('confirm')
+    await waitFor(() => expect(container.querySelector('.gcs-bt-mine')).toBeTruthy())
+    await press('dpad-down'); await press('dpad-right'); await press('confirm')
     later()
     await press('confirm')             // the cursor starts on Cancel
     expect(container.querySelector('[role="dialog"]')).toBeNull()
     expect(calls.some(c => c.method === 'DELETE')).toBe(false)
-    expect(container.querySelectorAll('.gcs-bt-card').length).toBe(1)
+    expect(container.querySelectorAll('.gcs-bt-mine').length).toBe(1)
+  })
+})
+
+describe('Shelf Bluetooth — adding a device comes first', () => {
+  const PAIRED = [
+    PAD,
+    { mac: 'A0:9E:1B:44:D2:18', name: 'Xbox Wireless Controller', connected: false, paired: true },
+    { mac: '98:B6:E9:11:22:33', name: 'Pro Controller', connected: false, paired: true },
+    { mac: 'E8:47:3A:44:55:66', name: 'Wireless Controller', connected: true, paired: true },
+    { mac: '00:1B:66:77:88:99', name: 'JBL Charge 2', connected: false, paired: true },
+  ]
+  const focused = (c: HTMLElement) => c.querySelector('.gcs-bt-shelf [data-on="1"]')
+
+  const open = async () => {
+    const r = await screen({ pager: true, detail: 'inline' })
+    await press('r1'); await press('dpad-right')
+    await waitFor(() => expect(r.container.querySelectorAll('.gcs-bt-mine').length).toBe(paired.length))
+    return r
+  }
+
+  it('lands on what was found, above every paired device, however many there are', async () => {
+    // The complaint this layout answers: with five pads paired, the search sat
+    // under ten buttons and off the bottom of the screen.
+    paired = PAIRED
+    found = [{ mac: '7C:ED:8D:12:04:B1', name: '8BitDo Pro 2', connected: false, paired: false }]
+    const { container } = await open()
+    await waitFor(() => expect(container.querySelector('.gcs-bt-near')).toBeTruthy())
+
+    const add = container.querySelector('.gcs-bt-add')!
+    const firstMine = container.querySelector('.gcs-bt-mine')!
+    expect(add.compareDocumentPosition(firstMine) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(focused(container)?.textContent).toContain('8BitDo Pro 2')
+
+    await press('confirm')
+    await waitFor(() => expect(calls.some(c => c.method === 'POST' && c.url.endsWith('/bluetooth/pair'))).toBe(true))
+  })
+
+  it('costs one press per paired device, and → ← move between its two buttons', async () => {
+    paired = PAIRED
+    const { container } = await open()
+
+    await press('dpad-down')                          // Search again → first device
+    expect(focused(container)?.textContent?.trim()).toBe('Disconnect')
+    for (let i = 0; i < 4; i++) await press('dpad-down')
+    expect(focused(container)?.closest('.gcs-bt-mine')?.textContent).toContain('JBL Charge 2')
+
+    await press('dpad-right')
+    expect(focused(container)?.textContent?.trim()).toBe('Forget')
+    await press('dpad-left')                          // back to the main button, not the rail
+    expect(focused(container)?.textContent?.trim()).toBe('Connect')
+    await press('dpad-right'); await press('dpad-up') // a new row starts on its main button
+    expect(focused(container)?.textContent?.trim()).toBe('Disconnect')
+    expect(focused(container)?.closest('.gcs-bt-mine')?.textContent).toContain('Wireless Controller')
+
+    await press('confirm')
+    await waitFor(() => expect(calls.some(c => c.url.endsWith('/bluetooth/disconnect'))).toBe(true))
+    expect(calls.some(c => c.method === 'DELETE')).toBe(false)
+  })
+
+  it('lists a device that gave no name after the ones that did', async () => {
+    found = [
+      { mac: '4C:87:5D:0A:1B:2C', name: '4C-87-5D-0A-1B-2C', connected: false, paired: false },
+      { mac: '7C:ED:8D:12:04:B1', name: '8BitDo Pro 2', connected: false, paired: false },
+    ]
+    const { container } = await open()
+    await waitFor(() => expect(container.querySelectorAll('.gcs-bt-near').length).toBe(2))
+    const names = [...container.querySelectorAll('.gcs-bt-near b')].map(b => b.textContent)
+    expect(names).toEqual(['8BitDo Pro 2', 'Unnamed device'])
   })
 })
 
