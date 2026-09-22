@@ -33,3 +33,28 @@ export const asList = (v) => (Array.isArray(v) ? v : [])
  * that string against release tags as it is.
  */
 export const versionLabel = (v) => (v ? `v${String(v).replace(/^v/i, '')}` : '')
+
+/**
+ * Keep the row under the pad's cursor on screen — the one line every list in
+ * these settings calls when its cursor moves.
+ *
+ * `block: 'nearest'` scrolls the least it can, so a list that already fits
+ * never moves. But it only ever reveals the ROW: back on the first one, the
+ * page stopped with that row at the top edge and the title and sentence above
+ * it scrolled away for good — with a pad, nothing could bring them back (a
+ * mouse wheel could, which is why only the pad showed it). So the first row
+ * takes every scroller between it and its page back to the top.
+ *
+ * Every call is optional-chained: jsdom has no layout and no scrollIntoView.
+ */
+export const follow = (el, first = false) => {
+  if (!el) return
+  if (first) {
+    for (let p = el.parentElement; p; p = p.parentElement) {
+      if (p.scrollHeight > p.clientHeight) p.scrollTop = 0
+      if (p.classList?.contains('gcs-set-main')) break
+    }
+    return
+  }
+  el.scrollIntoView?.({ block: 'nearest' })
+}
