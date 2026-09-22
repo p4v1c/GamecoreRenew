@@ -37,7 +37,7 @@ import asyncio
 import logging
 import os
 import re
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/settings/bluetooth", tags=["bluetooth"])
@@ -249,7 +249,38 @@ async def disconnect_device(req: DeviceRequest):
     return {"ok": ok}
 
 
+_MAC_RE = re.compile(r'^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$', re.I)
+
+
 @router.delete("/devices/{mac}")
 async def remove_device(mac: str):
-    code, _ = await _run("bluetoothctl", "--", "remove", mac)
-    return {"ok": code == 0}
+    """Unpair and forget: disconnect, drop the pairing, and prove it went.
+
+    This is the settings screen's "Unpair and forget", and the promise on that
+    button is that the device has to be paired again before it reconnects. So
+    the answer is not bluetoothctl's exit code — `remove` of an address BlueZ
+    does not know exits 0 on some versions and 1 on others — but the paired
+    list read back afterwards. A device still in it was not forgotten, whatever
+    the tool printed.
+
+    Disconnect first although `remove` implies it: a headset mid-stream
+    answers the implicit disconnect late, and the removal then races it.
+    Asking explicitly costs one short process and orders the two.
+
+    The address is checked before it reaches argv. It is not a shell, so
+    nothing is injected, but `bluetoothctl -- remove --help` is still a
+    different command from the one this route exists to run.
+    """
+    mac = mac.upper()
+    if not _MAC_RE.match(mac):
+        raise HTTPException(status_code=400, detail="Not a Bluetooth address")
+
+    await _run("bluetoothctl", "--", "disconnect", mac)
+    _, out = await _run("bluetoothctl", "--", "remove", mac)
+
+    still = {m for m, _ in await _known("Paired")}
+    if mac in still:
+        return {"ok": False, "message": _failure(out, "The device is still paired")}
+    # "not available" is BlueZ saying it has no record of the address — which
+    # is the state this route exists to reach, so it is not an error.
+    return {"ok": True, "message": "Forgotten — pair it again to reconnect"}

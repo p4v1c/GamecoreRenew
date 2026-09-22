@@ -789,3 +789,130 @@
    screen's footer, because it describes two buttons that exist only while it
    is up. */
 .gcs-count-hints { margin-top: 18px; color: rgba(var(--set-ink-rgb), 0.42); }
+/* ===========================================================================
+   What the themed layouts add — Orbit's index, Shelf's pager, the dialogs.
+   Geometry only, in the screen's own tokens; each surface refines it. None of
+   these classes appear in the layout the built-in UI and Summer draw, except
+   the dialog, which keeps the classes the password prompt always wore.
+   =========================================================================== */
+
+/* The page wrapper exists for layouts that frame the page (Shelf's sheet,
+   Orbit's centred column). Everywhere else it is no box at all, so the
+   rail | main | aside grid reads exactly as it did. */
+.gcs-set-page { display: contents; }
+
+/* A theme's own Home background, drawn by the theme's own component. The
+   screen goes transparent over it: no page-wide fill may replace it, and any
+   readability surface belongs to the panels in front of it. */
+.gcs-set[data-bg="theme"] { background: transparent; }
+
+.gcs-set > .gcs-set-bg {
+  position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+}
+
+.gcs-set-chev { flex: 0 0 auto; font-size: 24px; line-height: 1; color: var(--set-ink-3); }
+
+.gcs-set-close, .gcs-set-back {
+  min-height: 44px; border: 0; cursor: pointer; background: none;
+  color: var(--set-ink-2); font-family: var(--font-body);
+}
+
+/* ── dialogs ─────────────────────────────────────────────────────────────
+   Above everything on this screen: the footer and a theme's top bar are
+   positioned siblings later in the tree, and would otherwise paint over it. */
+.gcs-set-dialog-scrim.gcs-dlg-scrim { z-index: 20; }
+
+.gcs-dlg { width: min(600px, 92vw); color: var(--set-ink); }
+
+.gcs-dlg.gcs-dlg-wide { width: min(760px, 92vw); }
+
+.gcs-dlg-body { margin-bottom: 14px; }
+
+.gcs-dlg .gcs-set-facts { margin-top: 6px; }
+
+.gcs-dlg-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+
+.gcs-dlg-btn {
+  min-height: 48px; padding: 12px 24px; border-radius: 12px; cursor: pointer;
+  border: 1px solid var(--set-line); background: rgba(var(--set-ink-rgb), 0.05);
+  color: var(--set-ink); font-family: var(--font-body); font-size: 16px; font-weight: 600;
+}
+
+.gcs-dlg-btn[data-primary="1"] { background: var(--set-acc-deep); border-color: transparent; color: #fff; }
+
+.gcs-dlg-btn[data-danger="1"] { background: var(--set-danger-deep); border-color: transparent; color: #fff; }
+
+.gcs-dlg-btn[data-on="1"], .gcs-dlg-row[data-on="1"] {
+  outline: 3px solid var(--set-acc); outline-offset: 3px;
+}
+
+.gcs-dlg-btn:disabled, .gcs-dlg-row:disabled { opacity: 0.5; cursor: default; }
+
+.gcs-dlg-rows { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+
+.gcs-dlg-row {
+  display: flex; align-items: center; gap: 18px; width: 100%; text-align: left;
+  min-height: 72px; padding: 14px 20px; border-radius: 14px; cursor: pointer;
+  background: var(--set-card); border: 1px solid var(--set-line);
+  color: var(--set-ink); font-family: var(--font-body);
+}
+
+.gcs-dlg-row[data-danger="1"] .gcs-row2-text b { color: var(--set-danger); }
+
+.gcs-dlg-chev { font-size: 22px; color: var(--set-ink-3); }
+
+/* ── Bluetooth, one column ──────────────────────────────────────────────── */
+.gcs-bt-cards { display: grid; gap: 14px; }
+
+.gcs-bt-card {
+  padding: 20px 22px; border-radius: 14px;
+  background: var(--set-card); border: 1px solid var(--set-line);
+}
+
+.gcs-bt-card-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+.gcs-bt-card-head .gcs-bt-name b { white-space: normal; overflow-wrap: anywhere; }
+
+.gcs-bt-chip {
+  flex: 0 0 auto; padding: 5px 10px; border-radius: 6px;
+  border: 1px solid var(--set-line); font-family: var(--font-mono);
+  font-size: 12px; letter-spacing: 0.12em; color: var(--set-ink-2);
+}
+
+.gcs-bt-chip[data-live="1"] { color: var(--set-acc-deep); border-color: var(--set-acc); }
+
+.gcs-bt-card-acts {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 10px; margin-top: 16px;
+}
+
+.gcs-bt-act {
+  min-height: 48px; padding: 11px 18px; border-radius: 11px; cursor: pointer; text-align: left;
+  border: 1px solid var(--set-line); background: rgba(var(--set-ink-rgb), 0.05);
+  color: var(--set-ink); font-family: var(--font-body); font-size: 16px; font-weight: 600;
+}
+
+.gcs-bt-act[data-danger="1"] { color: var(--set-danger-deep); }
+
+.gcs-bt-act[data-on="1"] { outline: 3px solid var(--set-acc); outline-offset: 2px; }
+
+.gcs-bt-act:disabled { opacity: 0.5; cursor: default; }
+
+.gcs-bt-scanrow { margin-top: 18px; }
+
+.gcs-bt-dev .gcs-row2-text b, .gcs-bt-near .gcs-row2-text b { overflow-wrap: anywhere; }
+
+/* ── Display: the mode on screen ────────────────────────────────────────── */
+.gcs-disp-now { display: flex; align-items: center; gap: 26px; padding: 12px 4px 26px; flex-wrap: wrap; }
+
+.gcs-disp-monitor {
+  flex: 0 0 auto; width: 150px; height: 88px; display: grid; place-items: center;
+  border: 2px solid var(--set-ink-3); border-radius: 6px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; color: var(--set-ink-2);
+}
+
+.gcs-disp-now-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+.gcs-disp-now-text b { font-family: var(--font-display); font-size: 26px; font-weight: 500; }
+
+.gcs-disp-now-text i { font-style: normal; font-size: 15px; color: var(--set-ink-2); }
