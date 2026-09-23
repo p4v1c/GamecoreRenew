@@ -391,7 +391,7 @@ def test_other_version_of_a_covered_game_is_not_covered(box):
     assert r["game"]["app_version"] == "01.00"
     assert r["coverage"] == "no-validated-patches"
     assert not (box.root / "patch_config.yml").exists()
-    assert "no validated patches" in r["notice"]
+    assert "no GameCore-validated patch" in r["notice"]
 
 
 def test_personal_activations_survive_and_are_not_owned(box):
@@ -987,3 +987,32 @@ def test_a_patch_applied_while_precompiling_is_not_proof(box):
     (box.cache / "RPCS3.log").write_text(log, encoding="utf-8")
     r = box.prepare(rom)
     assert not verdict(r, "Native PS3 Timing")["runtime"].startswith("applied")
+
+
+def test_notice_never_takes_credit_for_the_players_patches(box):
+    (box.root / "patch_config.yml").write_text(
+        f"{H_UC2}:\n  'Bug Fix: Quit to Menu Crash':\n    'Uncharted 2: Among Thieves':\n"
+        "      BCES00509:\n        '01.09':\n          Enabled: true\n")
+    rom = box.uc2()
+    box.prepare(rom)
+    log = (f"RPCS3 v0.0.41-1-a\n·! 0 SYS: Serial: BCES00509\n·! 0 SYS: Version: APP_VER=01.09 VERSION=01.00\n"
+           f"·S 0 PAT: Applied patch (hash='{H_UC2}', description='Bug Fix: Quit to Menu Crash', author='x', "
+           "patch_version='1.0', file_version='1.2') (<- 7)\n"
+           f"·S 0 PAT: Applied patch (hash='{H_UC2}', description='Disable SSAO', author='x', "
+           "patch_version='1.2', file_version='1.2') (<- 1)\n")
+    (box.cache / "RPCS3.log").write_text(log)
+    r = box.prepare(rom)
+    assert "you had already enabled" in r["notice"]
+    assert "enabled by GameCore" not in r["notice"]
+    assert r["personalPatchesAtLastBoot"] == ["Disable SSAO"]
+    assert "not managed by GameCore" in r["notice"]
+
+
+def test_second_launch_writes_nothing(box):
+    box.custom("BCES00791")
+    rom = box.gow()
+    first = box.prepare(rom)
+    assert first["written"]
+    second = box.prepare(rom)
+    assert second["written"] == []
+    assert verdict(second, "Native PS3 Timing")["verdict"] == "enabled"

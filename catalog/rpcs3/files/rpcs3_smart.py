@@ -1256,6 +1256,16 @@ def prepare(*, rom: Path, home: Path, exec_path: str, exec_args: str,
         confirm = confirmation(home, game, verdicts)
         for v in verdicts:
             v["runtime"] = confirm.get((v["hash"], v["description"]), "not yet observed")
+        # What RPCS3 applied at the last real boot of this exact version that
+        # is NOT in the selection: the player's own activations. Listed so the
+        # screen never lets them pass for GameCore's work.
+        selected = {(v["hash"], v["description"]) for v in verdicts}
+        runs = [r for r in observations(home)
+                if r.get("serial") == game.serial and r.get("appVersion") == game.app_version]
+        if runs:
+            report["personalPatchesAtLastBoot"] = sorted({
+                a["description"] for a in runs[-1].get("applied", [])
+                if not a.get("precompile") and (a["hash"], a["description"]) not in selected})
         report["coverage"] = ("covered" if sel and sel.get("patches") else
                               "settings-only" if sel else "no-validated-patches")
         return _finish(home, report, game)
@@ -1284,10 +1294,17 @@ def notice(report: dict) -> str | None:
     name = f"{game['title']} ({game['serial']} v{game['app_version']})"
     parts = []
     enabled = [v for v in report.get("patches", []) if v.get("verdict") == "enabled"]
+    mine = [v for v in enabled if v.get("owner") == "gamecore"]
+    theirs = [v for v in enabled if v.get("owner") == "player"]
     if report.get("coverage") == "no-validated-patches":
-        parts.append("no validated patches for this version")
-    elif enabled:
-        parts.append(f"{len(enabled)} validated patch(es) on")
+        parts.append("no GameCore-validated patch for this version")
+    if mine:
+        parts.append(f"{len(mine)} validated patch(es) enabled by GameCore")
+    if theirs:
+        parts.append(f"{len(theirs)} validated patch(es) you had already enabled")
+    others = report.get("personalPatchesAtLastBoot") or []
+    if others:
+        parts.append(f"{len(others)} patch(es) of your own also active (not managed by GameCore)")
     skipped = [v for v in report.get("patches", []) if v.get("verdict") in ("skipped", "kept-personal")]
     if skipped:
         parts.append(f"{len(skipped)} patch(es) not enabled — {skipped[0]['reason']}")
