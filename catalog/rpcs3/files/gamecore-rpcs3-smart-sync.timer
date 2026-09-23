@@ -1,0 +1,12 @@
+[Unit]
+Description=Refresh RPCS3 smart databases for GameCore
+
+[Timer]
+OnActiveSec=30s
+OnUnitActiveSec=6h
+AccuracySec=2m
+Persistent=true
+Unit=gamecore-rpcs3-smart-sync.service
+
+[Install]
+WantedBy=default.target

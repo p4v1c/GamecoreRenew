@@ -1,0 +1,12 @@
+[Unit]
+Description=GameCore RPCS3 smart database sync
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Exit status is meaningful: 1 when a database could not be refreshed (the last
+# valid copy is kept either way). Detail in ~/.local/share/gamecore/rpcs3-smart/state.json.
+ExecStart=/usr/bin/python3 "@GAMECORE_PATH@/catalog/rpcs3/files/rpcs3_smart.py" sync --gamecore-path "@GAMECORE_PATH@" --app-id net.rpcs3.RPCS3 --policy "@GAMECORE_PATH@/catalog/rpcs3/files/patch-policy.json"
+NoNewPrivileges=true
+PrivateTmp=true
+Nice=10

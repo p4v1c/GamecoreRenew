@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "syncConfigDatabase": true,
+  "syncPatchDatabase": true,
+  "syncHours": 6,
+  "networkTimeoutSeconds": 10,
+  "patchEngineVersion": "1.2",
+  "note": "Synchronisation only. Which patches are enabled is patch-selection.json, never this file."
+}

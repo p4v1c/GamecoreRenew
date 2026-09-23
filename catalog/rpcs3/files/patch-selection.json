@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "policy": "Only patches that restore the game's original behaviour or fix a crash. No cheats, no difficulty changes, no FPS unlocks, no optional visual changes. An entry is exact: hash, description, the title and app version it is filed under in RPCS3's patch.yml, and the sha256 of its body (Patch, Patch Version, Group) as reviewed. If upstream changes the body, the entry stops applying until it is reviewed again.",
+  "games": [
+    {
+      "serial": "BCES00791",
+      "appVersion": "01.01",
+      "title": "God of War Collection (Europe), update 01.01",
+      "patches": [
+        {
+          "hash": "PPU-e8e29268437430a42b01ccbdea814560150bc037",
+          "description": "Native PS3 Timing",
+          "patchTitle": "God of War: HD",
+          "patchVersion": "2.0",
+          "sha256": "bbbaaa42674a23d85b38d9df76974ae8914ec3f1fd229f9550e4bbbbc433f2d4",
+          "executable": "USRDIR/GOW1.self of the 01.01 update",
+          "class": "fidelity",
+          "rpcs3": ">=0.0.41",
+          "requires": {"Video": {"Vblank NTSC Fixup": true}},
+          "source": "RPCS3 official patch database (rpcs3.net, patch engine 1.2), author Dobrido. Notes: 'Restores exact PS3 behavior: forces the PS3 NTSC frametime (1/59.94) and caps logic at 59.94 steps/s, fixing RPCS3 overspeed while keeping frame-precise physics intact. Requires Vblank NTSC Fixup enabled.' Reviewed 2026-09-23: 39 be32/alloc writes, code only, no gameplay value touched. The earlier body (40 writes into a fixed 0x00aad000 scratch area) was replaced upstream by an alloc without a version bump; that earlier body is NOT approved."
+        },
+        {
+          "hash": "PPU-13e4d424f118d4305110d0218be9e8fa3fa27a87",
+          "description": "Native PS3 Timing",
+          "patchTitle": "God of War: II HD",
+          "patchVersion": "2.0",
+          "sha256": "8f150123abb5773a974d74b472ad2a8e7d1a9f5e661d1f66cb2ace8abdd0c26d",
+          "executable": "USRDIR/GOW2.self of the 01.01 update",
+          "class": "fidelity",
+          "rpcs3": ">=0.0.41",
+          "requires": {"Video": {"Vblank NTSC Fixup": true}},
+          "source": "RPCS3 official patch database (rpcs3.net, patch engine 1.2), author Dobrido. Same notes as the God of War: HD entry. Reviewed 2026-09-23: 39 writes, code only."
+        }
+      ]
+    },
+    {
+      "serial": "BCES00509",
+      "appVersion": "01.09",
+      "title": "Uncharted 2: Among Thieves (Europe), update 01.09",
+      "patches": [
+        {
+          "hash": "PPU-a3a5789c12711291dfe16a7d5d81c906d2b4c0c2",
+          "description": "Bug Fix: Quit to Menu Crash",
+          "patchTitle": "Uncharted 2: Among Thieves",
+          "patchVersion": "1.0",
+          "sha256": "289332bfc294d65464b75b0a89a4f737dc6a9c1ac26e9f5c0f8a7021dc95f798",
+          "executable": "USRDIR/EBOOT.BIN of the 01.09 update",
+          "class": "crash-fix",
+          "rpcs3": ">=0.0.41",
+          "requires": {},
+          "source": "RPCS3 official patch database, authors ZEROx, illusion. Notes: 'Fixes a rare bug where quitting to menu causes a game crash.' 7 writes. Not a cheat, no visual change."
+        }
+      ]
+    }
+  ]
+}
