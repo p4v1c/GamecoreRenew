@@ -1,6 +1,7 @@
 """Game scanning, launching, and session management."""
 import asyncio
 import logging
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -23,6 +24,7 @@ from ..services import (
 )
 from ..services import process_manager as process_manager_module
 from ..services.catalog import launch as catalog_launch
+from ..services.catalog import load_catalog
 from ..services.process_manager import SessionConflict, process_manager
 from ..services.rom_scanner import clean_name, iter_rom_files
 from .systems import list_all
@@ -209,6 +211,53 @@ async def _place_per_game_config(system_id: str, rom_path: str) -> None:
                     "with the config as it is", system_id, RECONCILE_BUDGET * 1000)
     except Exception:
         log.exception("launch: %s — per-game config failed, launching anyway",
+                      system_id)
+
+
+# A pack's own last step before its emulator opens a game — RPCS3's settings
+# and patch activations, which depend on the game's serial and installed
+# update and so cannot be written ahead of the launch. Its own budget, not
+# RECONCILE_BUDGET: identifying the update and extracting a patch from a
+# 900 KB database takes ~100 ms on the reference box, well past 0.2 s once the
+# disk is cold. The hook is handed a deadline and writes nothing it cannot
+# finish before it, so running out of time costs a launch with yesterday's
+# settings, never a file half-written under a starting emulator.
+PACK_PREPARE_BUDGET = 3.0
+
+
+async def _prepare_pack_launch(system_id: str, rom_path: str, exec_path: str,
+                               exec_args: str, game_key: str) -> None:
+    """Call `prepare_launch` in the pack's generator.py, if it has one.
+
+    Generic on purpose: the RPCS3 logic lives in catalog/rpcs3/, and the next
+    emulator that needs a per-launch step drops a function there instead of a
+    branch here. Whatever the hook has to tell the player — a patch it could
+    not enable, a recommendation their own setting overrides — goes out as
+    `game:notice`, the same channel a missing USB accessory uses.
+    """
+    try:
+        pack = load_catalog().get(system_id.lower())
+        module = configgen.load_generator(pack) if pack else None
+        hook = getattr(module, "prepare_launch", None)
+        if hook is None:
+            return
+        deadline = time.monotonic() + PACK_PREPARE_BUDGET
+        result = await asyncio.wait_for(
+            asyncio.to_thread(hook, rom_path=rom_path, home=configgen.HOME,
+                              exec_path=exec_path, exec_args=exec_args,
+                              deadline=deadline),
+            timeout=PACK_PREPARE_BUDGET + 0.5)
+        detail = (result or {}).get("notice")
+        if detail:
+            log.info("launch: %s", detail)
+            await ws.broadcast("game:notice", {
+                "game_key": game_key, "system_id": system_id, "detail": detail,
+            })
+    except TimeoutError:
+        log.warning("launch: %s — pack preparation exceeded %.1f s, launching "
+                    "as things are", system_id, PACK_PREPARE_BUDGET)
+    except Exception:
+        log.exception("launch: %s — pack preparation failed, launching anyway",
                       system_id)
 
 
@@ -414,6 +463,8 @@ async def launch_game(req: LaunchRequest):
     await _free_stale_slots(req.system_id)
     if req.rom_path:
         await _place_per_game_config(req.system_id, req.rom_path)
+        await _prepare_pack_launch(req.system_id, req.rom_path, exec_path,
+                                   exec_args, game_key)
 
     try:
         resumed = await process_manager.launch(
