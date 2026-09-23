@@ -993,3 +993,20 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
   .orbit-app .orbit-settings .gcs-set-hints { flex-wrap: wrap; gap: 12px; }
   .orbit-app .orbit-settings .gcs-dlg { padding: 24px 20px; }
 }
+
+/* Native HUD and in-app notifications: local fonts, no remote resources. */
+:root {
+  --gc-hud-panel: #18263bf5;
+  --gc-hud-border: #a8c8ef;
+  --gc-hud-text: #e2e9f5;
+  --gc-hud-radius: 24px;
+  --gc-hud-blur: 18px;
+  --gc-hud-font: Inter, Segoe UI, Arial, sans-serif;
+  --gc-hud-connected: #90e5bb;
+  --gc-hud-disconnected: #c2d0e3;
+  --gc-hud-warning: #fbd56a;
+  --gc-hud-battery-25: #a9cfef;
+  --gc-hud-battery-15: #fbd56a;
+  --gc-hud-battery-10: #ffad66;
+  --gc-hud-battery-5: #ff8080;
+}

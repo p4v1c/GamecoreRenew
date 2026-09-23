@@ -76,7 +76,7 @@ function rig({ display } = {}) {
   }
 
   const context = vm.createContext({
-    require: (id) => stubs[id],
+    require: (id) => id === './hud-tokens.json' ? require('../hud-tokens.json') : stubs[id],
     __dirname: path.dirname(MAIN),
     process: { env: {}, platform: 'linux', on: () => {} },
     console, setTimeout, clearTimeout, URLSearchParams, AbortSignal, AbortController,

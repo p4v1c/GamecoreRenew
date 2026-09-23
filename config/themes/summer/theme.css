@@ -1485,3 +1485,20 @@
   letter-spacing:.1em;color:var(--foam-400)}
 
 .sm-session-key{font-family:var(--font-mono);font-size:10px;opacity:.5;flex:none}
+
+/* Native HUD and in-app notifications: local fonts, no remote resources. */
+:root {
+  --gc-hud-panel: #fffdf7;
+  --gc-hud-border: #b4520f;
+  --gc-hud-text: #173039;
+  --gc-hud-radius: 22px;
+  --gc-hud-blur: 18px;
+  --gc-hud-font: Figtree, Outfit, sans-serif;
+  --gc-hud-connected: #21694e;
+  --gc-hud-disconnected: #4c606a;
+  --gc-hud-warning: #875800;
+  --gc-hud-battery-25: #235e76;
+  --gc-hud-battery-15: #875800;
+  --gc-hud-battery-10: #a34310;
+  --gc-hud-battery-5: #ae2834;
+}

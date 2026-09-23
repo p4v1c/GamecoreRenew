@@ -20,6 +20,7 @@ export interface Toast {
   title: string
   body: string
   accent: string
+  tone?: string
   /** An offer the player can take, drawn as a button inside the toast. */
   action?: { label: string; run: () => void }
 }

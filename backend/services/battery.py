@@ -1,7 +1,7 @@
 """Controller battery reading (sysfs) + low-battery watcher.
 
 read_batteries() is the single source of truth — sysinfo uses it for the
-TopBar pills, and run() watches thresholds (15/10/5 %) and broadcasts
+TopBar pills, and run() watches thresholds (25/15/10/5 %) and broadcasts
 "gp:battery" over the WebSocket so the UI can pop a toast.
 """
 import asyncio

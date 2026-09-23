@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { onWsEvent } from '../../hooks/useWebSocket'
 import { useStore } from '../../store'
 import type { Toast, ToastsViewProps } from './toasts/types'
+import { readHudTheme, batteryNotice } from './toasts/theme'
 
 const TOAST_MS = 10000
 
@@ -53,18 +54,13 @@ function useToastQueue() {
     // (dev / remote), where the Electron bridge doesn't exist.
     const offBattery = onWsEvent('gp:battery', (d) => {
       const level = d.level as number
+      if (typeof level !== 'number' || !Number.isFinite(level) || level < 0 || level > 100) return
       const player = (d.player ?? null) as number | null
       if (window.gamecore?.batteryToast) {
-        window.gamecore.batteryToast({ level, player })
+        window.gamecore.batteryToast({ level, player, theme: readHudTheme() })
         return
       }
-      const who = player ? `Controller ${player}` : 'Controller'
-      push({
-        icon: '🎮',
-        title: `${who} battery low`,
-        body: `${who} has ${level}% battery left`,
-        accent: level <= 5 ? '#ef4444' : '#fbbf24',
-      })
+      push(batteryNotice(level, player))
     })
 
     const onControllerEvent = (connected: boolean) => (d: Record<string, unknown>) => {
@@ -89,7 +85,7 @@ function useToastQueue() {
           body: `${label || 'This controller'} is not in any controller `
               + 'database, so emulators cannot bind it. Map it once — about a '
               + 'minute, no keyboard.',
-          accent: '#fbbf24',
+          accent: '#fbbf24', tone: 'warning',
           action: { label: 'Map it now', run: () => useStore.getState().requestRemap() },
         })
         return
@@ -120,14 +116,14 @@ function useToastQueue() {
         // 3DS, Game Boy Advance" — nine systems truncated to three, describing
         // a fault, for a box doing exactly what it was told.
         if (window.gamecore?.controllerToast) {
-          window.gamecore.controllerToast({ player, label, connected, autoconfigOff })
+          window.gamecore.controllerToast({ theme: readHudTheme(), player, label, connected, autoconfigOff })
           return
         }
         push({
           icon: '🎮',
           title: `${who} was not configured`,
           body,
-          accent: '#fbbf24',
+          accent: '#fbbf24', tone: 'warning',
         })
         return
       }
@@ -148,7 +144,7 @@ function useToastQueue() {
 
       if (connected && unconfigured.length > 0) {
         if (window.gamecore?.controllerToast) {
-          window.gamecore.controllerToast({ player, label, connected, unconfigured })
+          window.gamecore.controllerToast({ theme: readHudTheme(), player, label, connected, unconfigured })
           return
         }
         push({
@@ -157,20 +153,20 @@ function useToastQueue() {
           body: `It works everywhere else, but ${unconfigured.length === 1
             ? 'that system'
             : 'those systems'} will not respond to it.`,
-          accent: '#fbbf24',
+          accent: '#fbbf24', tone: 'warning',
         })
         return
       }
 
       if (window.gamecore?.controllerToast) {
-        window.gamecore.controllerToast({ player, label, connected })
+        window.gamecore.controllerToast({ theme: readHudTheme(), player, label, connected })
         return
       }
       push({
         icon: '🎮',
         title: `${who} ${connected ? 'connected' : 'disconnected'}`,
         body: label,
-        accent: connected ? '#4ade80' : '#94a3b8',
+        accent: connected ? '#4ade80' : '#94a3b8', tone: connected ? 'connected' : 'disconnected',
       })
     }
     const offConnected = onWsEvent('gp:connected', onControllerEvent(true))
@@ -184,7 +180,7 @@ function useToastQueue() {
         icon: '⚠️',
         title: 'Could not start the game',
         body: detail || 'The emulator could not be launched',
-        accent: '#ef4444',
+        accent: '#ef4444', tone: 'battery-5',
       })
     })
 
@@ -200,7 +196,7 @@ function useToastQueue() {
         icon: 'ℹ️',
         title: 'Before the game starts',
         body: detail,
-        accent: '#60a5fa',
+        accent: '#60a5fa', tone: 'battery-25',
       })
     })
 
@@ -221,54 +217,63 @@ function useToastQueue() {
 
 /** Top-right toast stack — the default look. */
 export function DefaultToastsView({ toasts, onDismiss }: ToastsViewProps) {
+  const theme = readHudTheme()
+  const themed = Object.keys(theme).length > 0
   return (
     <div style={{
-      position: 'fixed', top: 64, right: 16, zIndex: 100,
+      position: 'fixed', top: themed ? 148 : 64, right: 16, zIndex: 100,
       display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end',
       pointerEvents: 'none',
     }}>
       <AnimatePresence>
-        {toasts.map(t => (
-          <motion.div
-            key={t.id}
-            initial={{ opacity: 0, x: 60, scale: 0.95 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 60, scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '12px 16px', borderRadius: 12, minWidth: 280, maxWidth: 380,
-              background: 'rgba(18,18,26,0.92)', backdropFilter: 'blur(16px)',
-              border: `1px solid ${t.accent}40`,
-              boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 12px ${t.accent}20`,
-              // The stack is click-through so a toast never steals a press
-              // from the screen behind it. A toast that OFFERS something has
-              // to take that back, or its button is decorative.
-              pointerEvents: t.action ? 'auto' : 'none',
-            }}
-          >
-            <div style={{
-              width: 36, height: 36, borderRadius: 9, flexShrink: 0,
-              background: `${t.accent}20`, display: 'flex',
-              alignItems: 'center', justifyContent: 'center', fontSize: 18,
-            }}>{t.icon}</div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: t.accent }}>{t.title}</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>{t.body}</div>
-              {t.action && (
-                <button
-                  onClick={() => { t.action!.run(); onDismiss(t.id) }}
-                  style={{
-                    marginTop: 8, padding: '5px 12px', borderRadius: 8,
-                    background: `${t.accent}22`, border: `1px solid ${t.accent}66`,
-                    color: t.accent, fontSize: 12, fontWeight: 700,
-                    cursor: 'pointer', font: 'inherit',
-                  }}
-                >{t.action.label}</button>
-              )}
-            </div>
-          </motion.div>
-        ))}
+        {toasts.map(toast => {
+          const t = { ...toast, accent: theme[toast.tone || ''] || toast.accent }
+          const wash = t.accent.length === 7 ? `${t.accent}20` : t.accent
+          return (
+            <motion.div
+              key={t.id}
+              role="status"
+              initial={{ opacity: 0, x: 60, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 60, scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: themed ? 14 : 12,
+                padding: themed ? '14px 18px' : '12px 16px', borderRadius: theme.radius || (themed ? 14 : 12), minWidth: 280, maxWidth: themed ? 544 : 380,
+                width: themed ? 544 : undefined, boxSizing: themed ? 'border-box' : undefined,
+                fontFamily: themed ? theme.font || 'sans-serif' : undefined, lineHeight: themed ? 'normal' : undefined, overflowWrap: themed ? 'anywhere' : undefined,
+                background: theme.panel || (themed ? 'rgba(18,18,26,0.94)' : 'rgba(18,18,26,0.92)'), backdropFilter: `blur(${theme.blur || (themed ? '0px' : '16px')})`,
+                border: `1px solid ${theme.border || (themed ? t.accent : t.accent + '40')}`,
+                boxShadow: themed ? '0 8px 32px rgba(0,0,0,0.6)' : `0 8px 32px rgba(0,0,0,0.5), 0 0 12px ${t.accent}20`,
+                // The stack is click-through so a toast never steals a press
+                // from the screen behind it. A toast that OFFERS something has
+                // to take that back, or its button is decorative.
+                pointerEvents: t.action ? 'auto' : 'none',
+              }}
+            >
+              <div style={{
+                width: themed ? 40 : 36, height: themed ? 40 : 36, borderRadius: themed ? 10 : 9, flexShrink: 0,
+                background: themed && t.accent.length === 7 ? `${t.accent}33` : wash, display: 'flex',
+                alignItems: 'center', justifyContent: 'center', fontSize: themed ? 20 : 18,
+              }}>{t.icon}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: themed ? 20 : 13, fontWeight: 700, color: t.accent }}>{t.title}</div>
+                <div style={{ fontSize: themed ? 18 : 12, color: theme.text || (themed ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.65)'), marginTop: themed ? 3 : 2 }}>{t.body}</div>
+                {t.action && (
+                  <button
+                    onClick={() => { t.action!.run(); onDismiss(t.id) }}
+                    style={{
+                      marginTop: 8, padding: '5px 12px', borderRadius: 8,
+                      background: themed ? wash : `${t.accent}22`, border: `1px solid ${themed ? t.accent : t.accent + '66'}`,
+                      color: t.accent, fontSize: themed ? 18 : 12, fontWeight: 700,
+                      cursor: 'pointer', fontFamily: 'inherit', font: themed ? undefined : 'inherit',
+                    }}
+                  >{t.action.label}</button>
+                )}
+              </div>
+            </motion.div>
+          )
+        })}
       </AnimatePresence>
     </div>
   )

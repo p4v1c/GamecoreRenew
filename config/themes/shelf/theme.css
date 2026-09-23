@@ -2053,3 +2053,20 @@
 @media (prefers-reduced-motion: reduce) {
   .cz-handover-iris { animation-duration: 1ms !important; }
 }
+
+/* Native HUD and in-app notifications: local fonts, no remote resources. */
+:root {
+  --gc-hud-panel: #f8f7f4;
+  --gc-hud-border: #8b784c;
+  --gc-hud-text: #36333c;
+  --gc-hud-radius: 14px;
+  --gc-hud-blur: 0px;
+  --gc-hud-font: Outfit, system-ui, sans-serif;
+  --gc-hud-connected: #226342;
+  --gc-hud-disconnected: #55535c;
+  --gc-hud-warning: #805400;
+  --gc-hud-battery-25: #385d79;
+  --gc-hud-battery-15: #805400;
+  --gc-hud-battery-10: #974109;
+  --gc-hud-battery-5: #a52839;
+}

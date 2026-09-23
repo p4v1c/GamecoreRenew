@@ -38,6 +38,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  document.documentElement.removeAttribute('style')
   cleanup()
   vi.restoreAllMocks()
 })
@@ -264,4 +265,64 @@ describe('a theme that draws its own toasts', () => {
     expect(controllerToast).toHaveBeenCalledOnce()
     expect(screen.queryByText(/^themed:/)).toBeNull()
   })
+})
+
+
+describe('HUD appearance and battery severity', () => {
+  it('reads current root tokens for every IPC event, including a theme switch', () => {
+    const controllerToast = vi.fn(), batteryToast = vi.fn()
+    ;(window as { gamecore?: unknown }).gamecore = { controllerToast, batteryToast }
+    render(<Toasts />)
+    document.documentElement.style.setProperty('--gc-hud-panel', '#fffdf7')
+    emit('gp:connected', { player: 1 })
+    expect(controllerToast.mock.calls[0][0].theme.panel).toBe('#fffdf7')
+    document.documentElement.style.setProperty('--gc-hud-panel', '#18263b')
+    emit('gp:battery', { player: 1, level: 10, threshold: 10 })
+    expect(batteryToast.mock.calls[0][0].theme.panel).toBe('#18263b')
+    document.documentElement.style.removeProperty('--gc-hud-panel')
+    emit('gp:disconnected', { player: 1 })
+    expect(controllerToast.mock.calls[1][0].theme).toEqual({})
+  })
+
+  it('uses four distinct severity messages and theme colors in the browser', () => {
+    document.documentElement.style.setProperty('--gc-hud-panel', '#fffdf7')
+    document.documentElement.style.setProperty('--gc-hud-battery-5', '#ae2834')
+    render(<Toasts />)
+    for (const level of [25, 15, 10, 5]) emit('gp:battery', { player: 1, level })
+    expect(screen.getAllByRole('status')).toHaveLength(4)
+    expect(screen.getByText('Keep a charger nearby.')).toBeTruthy()
+    expect(screen.getByText('Battery is running low.')).toBeTruthy()
+    expect(screen.getByText('Battery very low — connect a charger.')).toBeTruthy()
+    expect(screen.getByText('Battery critical — charge it now.')).toBeTruthy()
+    expect(screen.getByText('Controller 1 battery at 5%').style.color).toBe('rgb(174, 40, 52)')
+  })
+
+  it('rejects hostile tokens and keeps the mapping offer in-app for 30 seconds', () => {
+    vi.useFakeTimers()
+    try {
+      const controllerToast = vi.fn()
+      ;(window as { gamecore?: unknown }).gamecore = { controllerToast }
+      document.documentElement.style.setProperty('--gc-hud-panel', 'red;}</style><script>')
+      document.documentElement.style.setProperty('--gc-hud-font', '"Outfit"')
+      document.documentElement.style.setProperty('--gc-hud-text', 'url(javascript:alert(1))')
+      render(<Toasts />)
+      emit('gp:connected', { unmapped: true })
+      expect(controllerToast).not.toHaveBeenCalled()
+      const card = screen.getByRole('status')
+      expect(card.style.background).toBe('rgba(18, 18, 26, 0.92)')
+      expect(card.style.fontFamily).toBe('')
+      act(() => vi.advanceTimersByTime(10000))
+      expect(screen.getByText('Map it now')).toBeTruthy()
+      act(() => { screen.getByText('Map it now').click() })
+      expect(useStore.getState().remapRequest).toBe(1)
+    } finally { vi.useRealTimers() }
+  })
+})
+
+
+it('keeps game errors readable when the shared toast panel is light', () => {
+  document.documentElement.style.setProperty('--gc-hud-panel', '#fffdf7')
+  render(<Toasts />)
+  emit('game:failed', { detail: 'Emulator unavailable' })
+  expect(screen.getByText('Could not start the game').style.color).toBe('rgb(165, 40, 57)')
 })

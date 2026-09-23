@@ -44,14 +44,14 @@ interface GamecoreAPI {
    */
   sessionScreen?: (owned: boolean) => void
 
-  batteryToast:    (data: { level: number; player?: number | null }) => void
+  batteryToast:    (data: { theme?: Record<string, string>; level: number; player?: number | null }) => void
   /**
    * `unconfigured` is systems the pipeline gave up on — a fault. `autoconfigOff`
    * is systems it was told not to touch — a setting. The HUD draws different
    * sentences for them and only ever receives one, because a pad that got
    * nothing because of the switch has no give-ups to report.
    */
-  controllerToast: (data: { player?: number | null; label?: string; connected: boolean; unconfigured?: string[]; autoconfigOff?: string[] }) => void
+  controllerToast: (data: { theme?: Record<string, string>; player?: number | null; label?: string; connected: boolean; unconfigured?: string[]; autoconfigOff?: string[] }) => void
 
   onOverlayShow:    (cb: (data: OverlayData) => void) => void
   onOverlayHide:    (cb: (data: OverlayData) => void) => void

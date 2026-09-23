@@ -1,0 +1,54 @@
+{
+  "patterns": {
+    "color": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+    "length": "^(?:[0-9]|[12][0-9]|3[0-2])px$",
+    "font": "^[a-zA-Z][a-zA-Z0-9 -]*(?:, *[a-zA-Z][a-zA-Z0-9 -]*)*$"
+  },
+  "tokens": {
+    "panel": "color",
+    "border": "color",
+    "text": "color",
+    "radius": "length",
+    "blur": "length",
+    "font": "font",
+    "connected": "color",
+    "disconnected": "color",
+    "warning": "color",
+    "battery-25": "color",
+    "battery-15": "color",
+    "battery-10": "color",
+    "battery-5": "color"
+  },
+  "battery": [
+    {
+      "threshold": 5,
+      "color": "#ff8080",
+      "message": "Battery critical \u2014 charge it now."
+    },
+    {
+      "threshold": 10,
+      "color": "#ffad66",
+      "message": "Battery very low \u2014 connect a charger."
+    },
+    {
+      "threshold": 15,
+      "color": "#fbd56a",
+      "message": "Battery is running low."
+    },
+    {
+      "threshold": 25,
+      "color": "#a9cfef",
+      "message": "Keep a charger nearby."
+    }
+  ],
+  "lightDefaults": {
+    "text": "#173039",
+    "connected": "#226342",
+    "disconnected": "#55535c",
+    "warning": "#805400",
+    "battery-25": "#385d79",
+    "battery-15": "#805400",
+    "battery-10": "#974109",
+    "battery-5": "#a52839"
+  }
+}

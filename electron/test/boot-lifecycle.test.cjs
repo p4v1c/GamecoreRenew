@@ -100,7 +100,7 @@ function rig({ answers = [true], env = {}, execRefuses = [] } = {}) {
   const queue = answers.slice()
   const signals = new Map()
   const context = vm.createContext({
-    require: (id) => stubs[id],
+    require: (id) => id === './hud-tokens.json' ? require('../hud-tokens.json') : stubs[id],
     __dirname: path.dirname(MAIN),
     process: { env, on: (sig, fn) => signals.set(sig, fn) },
     console: { log: () => {}, warn: () => {}, error: () => {} },

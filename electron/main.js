@@ -4,6 +4,7 @@ const { exec, spawn } = require('child_process')
 const path = require('path')
 const fs   = require('fs')
 const os   = require('os')
+const hudContract = require('./hud-tokens.json')
 
 // Required on Linux X11 for per-pixel transparency in BrowserWindow
 app.commandLine.appendSwitch('enable-transparent-visuals')
@@ -316,16 +317,38 @@ function safeColor(c) {
   return /^#[0-9a-fA-F]{3,8}$/.test(String(c)) ? c : '#fbbf24'
 }
 
-function showHudToast({ icon = '🎮', title = '', body = '', accent = '#fbbf24' } = {}) {
+// Both renderers interpret this small declarative contract. No theme code or
+// stylesheet crosses the IPC boundary, even if a LAN sender controls the data.
+function hudTokens(input) {
+  const result = {}
+  for (const [key, kind] of Object.entries(hudContract.tokens)) {
+    const value = input?.[key]
+    if (typeof value === 'string' && value.length <= 160 &&
+        new RegExp(hudContract.patterns[kind]).test(value)) result[key] = value
+  }
+  // A light panel without severity overrides must still have readable text.
+  const rgb = result.panel?.slice(1, 7).match(/../g)?.map(v => {
+    const n = parseInt(v, 16) / 255
+    return n <= 0.04045 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4
+  })
+  if (rgb && 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2] > 0.45) {
+    return { ...hudContract.lightDefaults, ...result }
+  }
+  return result
+}
+
+function showHudToast({ icon = '🎮', title = '', body = '', accent = '#fbbf24', theme, tone } = {}) {
   icon = escHtml(icon); title = escHtml(title); body = escHtml(body)
-  accent = safeColor(accent)
-  const html = `<!doctype html><html><body style="margin:0;background:transparent;overflow:hidden;font-family:sans-serif">
-    <div style="display:flex;align-items:center;gap:14px;margin:8px;padding:14px 18px;border-radius:14px;
-                background:rgba(18,18,26,0.94);border:1px solid ${accent};box-shadow:0 8px 32px rgba(0,0,0,0.6)">
-      <div style="width:40px;height:40px;border-radius:10px;background:${accent}33;display:flex;align-items:center;justify-content:center;font-size:20px">${icon}</div>
-      <div>
-        <div style="font-size:14px;font-weight:700;color:${accent}">${title}</div>
-        <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:3px">${body}</div>
+  const t = hudTokens(theme)
+  const themed = Object.keys(t).length > 0
+  accent = t[tone] || safeColor(accent)
+  const html = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"></head><body style="margin:0;background:transparent;overflow:hidden;font-family:${t.font || 'sans-serif'}">
+    <div style="display:flex;align-items:center;gap:14px;margin:8px;padding:14px 18px;border-radius:${t.radius || '14px'};
+                background:${t.panel || 'rgba(18,18,26,0.94)'};backdrop-filter:blur(${t.blur || '0px'});border:1px solid ${t.border || accent};box-shadow:0 8px 32px rgba(0,0,0,0.6)">
+      <div style="width:40px;height:40px;flex-shrink:${themed ? 0 : 1};border-radius:10px;background:${accent.length === 7 ? accent + '33' : accent};display:flex;align-items:center;justify-content:center;font-size:20px">${icon}</div>
+      <div style="${themed ? 'min-width:0;overflow-wrap:anywhere' : ''}">
+        <div style="font-size:${themed ? 20 : 14}px;font-weight:700;color:${accent}">${title}</div>
+        <div style="font-size:${themed ? 18 : 13}px;color:${t.text || 'rgba(255,255,255,0.7)'};margin-top:3px">${body}</div>
       </div>
     </div></body></html>`
 
@@ -335,11 +358,11 @@ function showHudToast({ icon = '🎮', title = '', body = '', accent = '#fbbf24'
   if (hudToastWindow) { hudToastWindow.destroy(); hudToastWindow = null }
 
   const { width } = screen.getPrimaryDisplay().workAreaSize
-  const W = 440, H = 100
+  const W = themed ? 560 : 440, H = themed ? 240 : 100
   hudToastWindow = new BrowserWindow({
-    // Below the TopBar (54px tall) so the HUD never covers the battery/IP/
-    // settings pills when it pops over the menu.
-    x: width - W - 24, y: 66, width: W, height: H,
+    // The shipped themed headers are taller than the default 54px bar.
+    // Keep their notifications below the header as well as over emulators.
+    x: width - W - 24, y: themed ? 140 : 66, width: W, height: H,
     transparent: true, backgroundColor: '#00000000', frame: false,
     alwaysOnTop: true, skipTaskbar: true, focusable: false,
     resizable: false, hasShadow: false,
@@ -361,14 +384,13 @@ function showHudToast({ icon = '🎮', title = '', body = '', accent = '#fbbf24'
   }, HUD_TOAST_MS)
 }
 
-function showBatteryToast({ level = 0, player = null } = {}) {
-  const accent = level <= 5 ? '#ef4444' : '#fbbf24'
+function showBatteryToast({ level = 0, player = null, theme } = {}) {
+  if (typeof level !== 'number' || !Number.isFinite(level) || level < 0 || level > 100) return
+  const stage = hudContract.battery.find(s => level <= s.threshold) || hudContract.battery.at(-1)
   const who = player ? `Controller ${player}` : 'Controller'
   showHudToast({
-    icon: '🎮',
-    title: `${who} battery low`,
-    body: `${who} has ${Math.round(Number(level))}% battery left`,
-    accent,
+    icon: '🎮', title: `${who} battery at ${Math.round(level)}%`,
+    body: stage.message, accent: stage.color, theme, tone: `battery-${stage.threshold}`,
   })
 }
 
@@ -400,7 +422,7 @@ ipcMain.on('notify:controller', (_, data) => {
       icon: '🎮',
       title: `${who} was not configured`,
       body: 'Automatic controller setup is off (Settings → Controllers).',
-      accent: '#fbbf24',
+      accent: '#fbbf24', theme: d.theme, tone: 'warning',
     })
     return
   }
@@ -410,7 +432,7 @@ ipcMain.on('notify:controller', (_, data) => {
       icon: '⚠️',
       title: `${who} is not set up for ${missing.join(', ')}`,
       body: `It works elsewhere — ${missing.length === 1 ? 'that system' : 'those systems'} will not respond to it.`,
-      accent: '#fbbf24',
+      accent: '#fbbf24', theme: d.theme, tone: 'warning',
     })
     return
   }
@@ -419,7 +441,8 @@ ipcMain.on('notify:controller', (_, data) => {
     icon: '🎮',
     title: d.connected ? `${who} connected` : `${who} disconnected`,
     body: d.label ? String(d.label) : '',
-    accent: d.connected ? '#4ade80' : '#94a3b8',
+    accent: d.connected ? '#4ade80' : '#94a3b8', theme: d.theme,
+    tone: d.connected ? 'connected' : 'disconnected',
   })
 })
 
