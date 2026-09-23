@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "syncConfigDatabase": true,
+  "syncPatchDatabase": true,
+  "syncHours": 6,
+  "networkTimeoutSeconds": 10,
+  "patchEngineVersion": "1.2",
+  "note": "Both official databases are kept fresh: the settings one GameCore applies, and RPCS3's patch catalogue (patches/patch.yml), so every official patch is already there to tick in RPCS3's patch manager or rpcs3-manager. Which patches are enabled stays the player's choice; patch_config.yml and imported_patch.yml are never written."
+}

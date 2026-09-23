@@ -5,6 +5,7 @@
   "emulatorName": "RPCS3",
   "platform": "PS3",
   "family": "Sony",
+  "description": "RPCS3 Smart Pack: RPCS3's official per-game settings applied automatically, even under hand-made custom configs, without overwriting the player's own values; the official patch catalogue kept fresh for the player to tick.",
   "color": "#00439c",
   "order": 6,
   "install": {
@@ -93,5 +94,9 @@
         "settings": { "Video": { "Write Color Buffers": true } }
       }
     ]
-  }
+  },
+  "services": [
+    { "unit": "files/gamecore-rpcs3-smart-sync.service", "scope": "user", "enable": false },
+    { "unit": "files/gamecore-rpcs3-smart-sync.timer", "scope": "user", "enable": true }
+  ]
 }

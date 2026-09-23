@@ -230,6 +230,13 @@ describe('a theme that draws its own toasts', () => {
     expect(screen.getByText('themed: Could not start the game')).toBeTruthy()
   })
 
+  it('shows what happened before a game started', () => {
+    render(<Toasts view={ThemedView} />)
+    emit('game:notice', { detail: 'PS3 · God of War: 2 validated patch(es) on' })
+
+    expect(screen.getByText('themed: Before the game starts')).toBeTruthy()
+  })
+
   it('replaces the markup and nothing else', () => {
     // The point of the seam: the theme draws, the host still decides what a
     // toast IS. A themed stack cannot quietly drop the one that carries a

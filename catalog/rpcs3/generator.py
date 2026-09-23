@@ -122,3 +122,38 @@ def release(player_index: int, opts: dict,
     backup(yml)
     atomic_write(yml, text[:m.start(1)] + new_block + text[m.end(1):])
     return [f"rpcs3: Player {player_index} unbound"]
+
+
+def _smart():
+    """files/rpcs3_smart.py, loaded once. It is also what the sync timer runs
+    under the system Python, so it cannot be imported as part of backend."""
+    global _SMART
+    if _SMART is None:
+        import importlib.util
+        import sys
+        from pathlib import Path
+        path = Path(__file__).resolve().parent / "files" / "rpcs3_smart.py"
+        spec = importlib.util.spec_from_file_location("gamecore_rpcs3_smart", path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module     # its dataclasses look themselves up there
+        spec.loader.exec_module(module)
+        _SMART = module
+    return _SMART
+
+
+_SMART = None
+
+
+def prepare_launch(*, rom_path, home, exec_path: str, exec_args: str,
+                   deadline: float) -> dict:
+    """RPCS3's recommended settings for this exact game, before RPCS3 starts.
+
+    Everything it decided is in ~/.local/share/gamecore/rpcs3-smart/
+    last-launch.json; what goes back to the launch is the one line for the
+    screen.
+    """
+    from pathlib import Path
+    report = _smart().prepare(rom=Path(rom_path), home=Path(home), exec_path=exec_path,
+                              exec_args=exec_args, pack_dir=Path(__file__).resolve().parent,
+                              deadline=deadline)
+    return {"notice": report.get("notice")}

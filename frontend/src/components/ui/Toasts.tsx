@@ -188,12 +188,29 @@ function useToastQueue() {
       })
     })
 
+    // Said, and the game starts anyway: an accessory that is not plugged in,
+    // or what a pack did (and could not do) to this game's settings before
+    // the emulator opened it. The backend has always broadcast it; nothing
+    // drew it, so a PS3 patch refused over the player's own setting was a
+    // line in a log nobody reads from a sofa.
+    const offNotice = onWsEvent('game:notice', (d) => {
+      const detail = typeof d.detail === 'string' ? d.detail : ''
+      if (!detail) return
+      push({
+        icon: 'ℹ️',
+        title: 'Before the game starts',
+        body: detail,
+        accent: '#60a5fa',
+      })
+    })
+
     const timersMap = timers.current
     return () => {
       offBattery()
       offConnected()
       offDisconnected()
       offFailed()
+      offNotice()
       timersMap.forEach(clearTimeout)
       timersMap.clear()
     }
