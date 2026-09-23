@@ -514,7 +514,20 @@ def parse_log(text: str) -> dict[str, Any]:
                                        "patchVersion": a.group(3), "changes": int(a.group(4)),
                                        "precompile": "{PPU Exec Worker}" in line})
     obs["fatal"] = [ln.strip()[:300] for ln in text.splitlines() if "·F " in ln][:10]
+    obs["usedConfigKeys"] = used_config_keys(text)
     return obs
+
+
+def used_config_keys(text: str) -> list[str]:
+    """Every setting key of the running build, from the "Used configuration"
+    dump RPCS3 writes at boot — its own g_cfg, so its own schema."""
+    m = re.search(r"SYS: Used configuration:\n((?:[^·\n][^\n]*\n|\n)+)", text)
+    if not m:
+        return []
+    try:
+        return sorted(keyname(k) for k in flatten(yload(m.group(1))))
+    except Exception:
+        return []
 
 
 def ingest_log(home: Path, runtime: Runtime) -> dict[str, Any] | None:
@@ -534,6 +547,10 @@ def ingest_log(home: Path, runtime: Runtime) -> dict[str, Any] | None:
             return run
     obs = parse_log(text)
     obs.update({"key": key, "runtime": runtime.kind, "logMtime": int(st.st_mtime)})
+    keys = obs.pop("usedConfigKeys", [])
+    if keys and obs.get("rpcs3"):
+        write_json(state_dir(home) / f"schema-{runtime.kind}.json",
+                   {"rpcs3": obs["rpcs3"], "keys": keys, "from": key})
     if not obs.get("serial"):
         return None
     runs.append(obs)
@@ -653,6 +670,14 @@ def pack_profile(pack: dict, serial: str, version: str | None) -> tuple[dict, st
         flat = {k: norm(v) for k, v in flatten(profile.get("settings") or {}).items()}
         return flat, profile.get("label")
     return {}, None
+
+
+def logged_schema(home: Path, runtime: Runtime, version: str | None) -> set | None:
+    """The schema RPCS3 itself printed, if it was printed by this very build."""
+    doc = read_json(state_dir(home) / f"schema-{runtime.kind}.json", {})
+    if not isinstance(doc, dict) or not doc.get("keys") or not version or doc.get("rpcs3") != version:
+        return None
+    return {tuple(k.split("/")) for k in doc["keys"]}
 
 
 def settings_schema(root: Path, base: dict | None) -> set | None:
@@ -1131,7 +1156,10 @@ def prepare(*, rom: Path, home: Path, exec_path: str, exec_args: str,
             base = flatten(yload((root / "config.yml").read_text(encoding="utf-8")))
         except Exception:
             base = None
-        schema = settings_schema(root, base)
+        schema = logged_schema(home, runtime, ver)
+        report["schemaSource"] = "RPCS3's own configuration dump" if schema else "config files (fallback)"
+        if schema is None:
+            schema = settings_schema(root, base)
         rec, rec_status = db_recommendation(root, game.serial)
         profile, profile_label = pack_profile(pack, game.serial, ver)
         prereq_layers = []

@@ -1016,3 +1016,29 @@ def test_second_launch_writes_nothing(box):
     second = box.prepare(rom)
     assert second["written"] == []
     assert verdict(second, "Native PS3 Timing")["verdict"] == "enabled"
+
+
+def test_schema_from_rpcs3s_own_dump_wins(box):
+    # config.yml and every custom config lack "Brand New Key"; the build's own
+    # "Used configuration" dump has it, and has no "Old Removed Key".
+    box.custom("BCES00509")
+    db = json.loads((box.root / "GuiConfigs/config_database.dat").read_text())
+    db["games"]["BCES00509"]["config"] = "Video:\n  Brand New Key: true\n  Old Removed Key: true"
+    (box.root / "GuiConfigs/config_database.dat").write_text(json.dumps(db))
+    dump = CUSTOM_YML.replace("  Vblank NTSC Fixup: false\n", "  Vblank NTSC Fixup: false\n  Brand New Key: false\n")
+    log = ("RPCS3 v0.0.41-19497-c0598f61 Alpha\n·! 0 SYS: Used configuration:\n" + dump +
+           "·! 0 SYS: Serial: BLES00001\n")
+    (box.cache / "RPCS3.log").write_text(log)
+    r = box.prepare(box.uc2(), version="0.0.41-19497-c0598f61")
+    assert r["schemaSource"] == "RPCS3's own configuration dump"
+    assert setting(r, "Video/Brand New Key")["action"] == "write"
+    assert setting(r, "Video/Old Removed Key")["action"] == "skipped"
+    # another build: the dump no longer counts
+    r = box.prepare(box.uc2(), version="0.0.42-1-x")
+    assert r["schemaSource"] == "config files (fallback)"
+
+
+def test_used_configuration_parsed_from_a_real_log_shape():
+    text = ("·! 0:00:00.14 SYS: Used configuration:\nCore:\n  PPU Decoder: LLVM\nVideo:\n  Vulkan:\n"
+            "    Asynchronous Texture Streaming: true\n·! 0:00:00.2 SYS: next\n")
+    assert smart.used_config_keys(text) == ["Core/PPU Decoder", "Video/Vulkan/Asynchronous Texture Streaming"]
