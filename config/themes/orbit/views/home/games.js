@@ -1,5 +1,5 @@
 import {
-  isApp, systemName, systemMark, appStyle, accent, packLogo,
+  systemName, systemMark, appStyle, accent, packLogo,
   isFavourite, toggleFavourite,
 } from '../../lib/catalog.js'
 import {reveal} from '../../lib/dom.js'
@@ -12,7 +12,6 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
 
   function GamesTab({systems, counts, totals}) {
     const recent = useRecent(systems)
-    const apps = useMemo(() => systems.filter(isApp), [systems])
     const [idx, setIdx] = useState(0)
     const rail = useRef(null)
     const [showDetails, setShowDetails] = useState(false)
@@ -21,25 +20,7 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
     useFavourites()
     const {background} = sdk.session.use()
 
-    /** Games, applications and the way into the whole library — the mockup's
-     *  mixed rail, built from what this box actually has. */
-    const items = useMemo(() => {
-      const out = []
-      let app = 0
-      recent.forEach((game, i) => {
-        out.push({kind: 'game', ...game})
-        if (i % 2 === 0 && app < apps.length) {
-          const s = apps[app++]
-          out.push({kind: 'app', key: `app:${s.id}`, system: s})
-        }
-      })
-      while (app < apps.length) {
-        const s = apps[app++]
-        out.push({kind: 'app', key: `app:${s.id}`, system: s})
-      }
-      out.push({kind: 'collection', key: 'collection'})
-      return out
-    }, [recent, apps])
+    const items = useMemo(() => [...recent, {kind: 'collection', key: 'collection'}], [recent])
 
     const at = Math.min(idx, Math.max(0, items.length - 1))
     const item = items[at]

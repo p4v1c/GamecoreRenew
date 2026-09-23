@@ -1,16 +1,17 @@
-import {isApp, onFavouritesChange, titleFromKey} from '../../lib/catalog.js'
+import {isApp, systemName, onFavouritesChange, titleFromKey} from '../../lib/catalog.js'
 
 export function createHomeHooks(sdk, tabs, systemsRef) {
   const {useState, useEffect, useRef} = sdk.ui
 
-  /** An installed collection, with recently played games first and a bounded rail. */
+  /** An installed collection, with recently used games and apps first and a bounded rail. */
   function useRecent(systems) {
     const [rows, setRows] = useState([])
     useEffect(() => {
       let live = true
       Promise.all([
         sdk.api.playtime.all().catch(() => []),
-        Promise.all(systems.filter(s => !isApp(s)).map(async system => {
+        Promise.all(systems.map(async system => {
+          if (isApp(system)) return [{filename: system.id, display_name: systemName(system), system}]
           const games = await sdk.api.games.list(system.id).catch(() => [])
           return Array.isArray(games) ? games.map(game => ({...game, system})) : []
         })),
@@ -21,7 +22,7 @@ export function createHomeHooks(sdk, tabs, systemsRef) {
         setRows(installed.map(game => {
           const key = `${game.system.id}:${game.filename}`
           const played = history.get(key)
-          return {key, gameKey: game.filename, path: game.path, systemId: game.system.id, system: game.system,
+          return {kind: isApp(game.system) ? 'app' : 'game', key, gameKey: game.filename, path: game.path, systemId: game.system.id, system: game.system,
             title: game.display_name || titleFromKey(sdk, game.filename), ext: game.ext,
             seconds: played?.total_secs || 0, lastPlayed: played?.last_played || null}
         }).sort((a, b) => String(b.lastPlayed || '').localeCompare(String(a.lastPlayed || ''))

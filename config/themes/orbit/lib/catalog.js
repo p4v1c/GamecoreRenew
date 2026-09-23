@@ -71,8 +71,9 @@ const profile = (s) => {
   return {file: row[0], name: row[1], maker: row[2], year: row[3],
     accent: row[4], mark: row[5], story: row[6]}
 }
-export const systemName = (s) =>
-  s?.platform || profile(s)?.name || s?.label || s?.id || 'Collection'
+export const systemName = (s) => isApp(s)
+  ? (s?.label || s?.id || 'Application')
+  : s?.platform || profile(s)?.name || s?.label || s?.id || 'Collection'
 export const systemMark = (s) => profile(s)?.mark || (s?.label || s?.id || '?').slice(0, 6)
 export const systemMaker = (s) => profile(s)?.maker || ''
 export const systemYear = (s) => profile(s)?.year || ''
