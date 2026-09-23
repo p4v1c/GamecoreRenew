@@ -1,9 +1,9 @@
-"""RPCS3 Smart Pack — identification, settings, patches, sync, all on fixtures.
+"""RPCS3 Smart Pack — identification, settings, sync, all on fixtures.
 
 Every tree here is built under tmp_path. The fixture files copy the shapes
 RPCS3 v0.0.41 itself writes and reads (config.yml's two-space layout,
-patch.yml's repeated `Anchors:` sections and repeated hash keys, the
-`Enabled:` nodes of patch_config.yml), because a test that only reads back what
+RPCS3's "Used configuration" log dump, a player's own patch_config.yml the
+pack must never touch), because a test that only reads back what
 this module wrote would confirm its own assumptions and nothing else.
 `test_yamlcpp_contract` goes further and re-reads the output with the yaml-cpp
 RPCS3 is built against, when its source is available.
@@ -219,8 +219,11 @@ class Box:
             BCES00509="Video:\n  Write Color Buffers: true\n  Vulkan:\n    Asynchronous Texture Streaming 2: true\n  Old Removed Key: true",
         ))
         (self.pack / "files").mkdir(parents=True)
-        shutil.copy(PACK / "pack.json", self.pack / "pack.json")
-        self.select()
+        pack = json.loads((PACK / "pack.json").read_text())
+        pack["perGame"]["profiles"].append({
+            "gameId": "BCES00791", "label": "test", "why": "test", "emulator": ">=0.0.41",
+            "settings": {"Video": {"Vblank NTSC Fixup": True}}})
+        (self.pack / "pack.json").write_text(json.dumps(pack))
 
     # ROMs and updates
     def disc(self, name: str, serial: str, app_ver: str = "01.00", category: str = "DG") -> Path:
@@ -249,27 +252,6 @@ class Box:
         self.update("BCES00509", "01.09")
         return rom
 
-    def entry(self, h: str, desc: str) -> dict:
-        e, why = smart.load_patch_entry(self.root / "patches/patch.yml", h, desc)
-        assert e is not None, why
-        return e
-
-    def select(self, games: list | None = None) -> None:
-        if games is None:
-            games = [
-                {"serial": "BCES00791", "appVersion": "01.01", "patches": [{
-                    "hash": H_GOW, "description": "Native PS3 Timing", "patchTitle": "God of War: HD",
-                    "sha256": smart.patch_digest(self.entry(H_GOW, "Native PS3 Timing")),
-                    "rpcs3": ">=0.0.41", "class": "fidelity", "source": "test",
-                    "requires": {"Video": {"Vblank NTSC Fixup": True}}}]},
-                {"serial": "BCES00509", "appVersion": "01.09", "patches": [{
-                    "hash": H_UC2, "description": "Bug Fix: Quit to Menu Crash",
-                    "patchTitle": "Uncharted 2: Among Thieves",
-                    "sha256": smart.patch_digest(self.entry(H_UC2, "Bug Fix: Quit to Menu Crash")),
-                    "rpcs3": ">=0.0.41", "class": "crash-fix", "source": "test", "requires": {}}]},
-            ]
-        (self.pack / "files/patch-selection.json").write_text(json.dumps({"version": 1, "games": games}))
-
     def custom(self, serial: str, text: str = CUSTOM_YML) -> Path:
         p = self.root / "custom_configs" / f"config_{serial}.yml"
         p.write_text(text)
@@ -281,10 +263,6 @@ class Box:
         return smart.prepare(rom=rom, home=self.home, exec_path=exec_path, exec_args=exec_args,
                              pack_dir=self.pack, proc=self.proc, **kw)
 
-    def pconf(self) -> dict:
-        p = self.root / "patch_config.yml"
-        return smart.yload(p.read_text()) or {} if p.is_file() else {}
-
     def running(self) -> None:
         d = self.proc / "4242"
         d.mkdir()
@@ -294,15 +272,6 @@ class Box:
 @pytest.fixture
 def box(tmp_path):
     return Box(tmp_path)
-
-
-def enabled(tree, h, d, t, s, v):
-    node = smart._get(tree, h, d, t, s, v)
-    return smart._enabled(node)
-
-
-def verdict(report, desc):
-    return next(v for v in report["patches"] if v["description"] == desc)
 
 
 def setting(report, key):
@@ -351,7 +320,7 @@ def test_bad_serial_is_not_identified_and_nothing_is_written(box, serial):
     (rom / "PS3_GAME/PARAM.SFO").write_bytes(sfo(TITLE_ID=serial, APP_VER="01.00", CATEGORY="DG"))
     before = sorted(p.name for p in box.root.rglob("*"))
     r = box.prepare(rom)
-    assert r["coverage"] == "unidentified"
+    assert "game" not in r and r["errors"]
     assert sorted(p.name for p in box.root.rglob("*")) == before
 
 
@@ -361,219 +330,13 @@ def test_missing_sfo_is_not_identified(box, tmp_path):
         smart.identify(tmp_path / "empty", box.root)
 
 
-def test_title_similarity_never_selects(box):
-    # Same title as a covered game, other serial: no patch, no setting.
-    rom = box.disc("God of War Collection", "BCUS98229")
-    box.update("BCUS98229", "01.01")
-    r = box.prepare(rom)
-    assert r["coverage"] == "no-validated-patches"
-    assert not (box.root / "patch_config.yml").exists()
-
-
-# ── patches ──────────────────────────────────────────────────────────────────
-
-def test_covered_game_gets_its_patch_and_prerequisite(box):
-    box.custom("BCES00791")
-    r = box.prepare(box.gow())
-    assert r["coverage"] == "covered"
-    assert verdict(r, "Native PS3 Timing")["verdict"] == "enabled"
-    assert enabled(box.pconf(), H_GOW, "Native PS3 Timing", "God of War: HD", "BCES00791", "01.01")
-    assert setting(r, "Video/Vblank NTSC Fixup")["action"] == "write"
-    custom = smart.flatten(smart.yload((box.root / "custom_configs/config_BCES00791.yml").read_text()))
-    assert custom[("Video", "Vblank NTSC Fixup")] == "true"
-    # First launch: written, not claimed as applied.
-    assert verdict(r, "Native PS3 Timing")["runtime"] == "not yet observed"
-
-
-def test_other_version_of_a_covered_game_is_not_covered(box):
-    rom = box.disc("God of War Collection", "BCES00791")      # disc only, 01.00
-    r = box.prepare(rom)
-    assert r["game"]["app_version"] == "01.00"
-    assert r["coverage"] == "no-validated-patches"
-    assert not (box.root / "patch_config.yml").exists()
-    assert "no GameCore-validated patch" in r["notice"]
-
-
-def test_personal_activations_survive_and_are_not_owned(box):
-    (box.root / "patch_config.yml").write_text(f"""\
-{H_UC2}:
-  'Bug Fix: Quit to Menu Crash':
-    'Uncharted 2: Among Thieves':
-      BCES00509:
-        '01.09':
-          Enabled: 'true'
-  60 FPS:
-    'Uncharted 2: Among Thieves':
-      BCES00509:
-        '01.09':
-          Enabled: 'true'
-PPU-{"d" * 40}:
-  Infinite Ammo:
-    'Ratchet & Clank Future: A Crack in Time':
-      BCUS98124:
-        '01.20':
-          Enabled: false
-          Configurable Values:
-            Ammo: 99
-""")
-    before = box.pconf()
-    r = box.prepare(box.uc2())
-    v = verdict(r, "Bug Fix: Quit to Menu Crash")
-    assert (v["verdict"], v["owner"]) == ("enabled", "player")
-    assert box.pconf() == before
-    assert smart.read_json(smart.state_dir(box.home) / "owned.json", {})["patches"][str(box.root)] == []
-
-
-def test_a_patch_the_player_disabled_stays_disabled(box):
-    (box.root / "patch_config.yml").write_text(f"""\
-{H_UC2}:
-  "Bug Fix: Quit to Menu Crash":
-    "Uncharted 2: Among Thieves":
-      BCES00509:
-        "01.09":
-          Enabled: false
-""")
-    r = box.prepare(box.uc2())
-    assert verdict(r, "Bug Fix: Quit to Menu Crash")["verdict"] == "kept-personal"
-    assert enabled(box.pconf(), H_UC2, "Bug Fix: Quit to Menu Crash",
-                   "Uncharted 2: Among Thieves", "BCES00509", "01.09") is False
-
-
-def test_group_conflict_is_not_enabled(box):
-    box.select([{"serial": "BCES00509", "appVersion": "01.09", "patches": [{
-        "hash": H_UC2, "description": "Unlock FPS", "patchTitle": "Uncharted 2: Among Thieves",
-        "sha256": smart.patch_digest(box.entry(H_UC2, "Unlock FPS")), "requires": {}}]}])
-    (box.root / "patch_config.yml").write_text(f"""\
-{H_UC2}:
-  60 FPS:
-    'Uncharted 2: Among Thieves':
-      BCES00509:
-        '01.09':
-          Enabled: true
-""")
-    r = box.prepare(box.uc2())
-    v = verdict(r, "Unlock FPS")
-    assert v["verdict"] == "skipped" and "60 FPS" in v["reason"]
-    assert enabled(box.pconf(), H_UC2, "Unlock FPS", "Uncharted 2: Among Thieves",
-                   "BCES00509", "01.09") is None
-
-
-def test_explicit_conflict_is_not_enabled(box):
-    sel = json.loads((box.pack / "files/patch-selection.json").read_text())
-    sel["games"][1]["patches"][0]["conflictsWith"] = ["60 FPS"]
-    box.select(sel["games"])
-    (box.root / "patch_config.yml").write_text(
-        f"{H_UC2}:\n  60 FPS:\n    'Uncharted 2: Among Thieves':\n      BCES00509:\n"
-        "        '01.09':\n          Enabled: true\n")
-    r = box.prepare(box.uc2())
-    assert verdict(r, "Bug Fix: Quit to Menu Crash")["verdict"] == "skipped"
-
-
-def test_unapproved_patches_are_never_enabled(box):
-    box.prepare(box.uc2())
-    tree = box.pconf()
-    for desc in ("60 FPS", "Unlock FPS"):
-        assert enabled(tree, H_UC2, desc, "Uncharted 2: Among Thieves", "BCES00509", "01.09") is None
-
-
-def test_changed_patch_body_is_not_enabled_and_our_approval_is_withdrawn(box):
-    box.custom("BCES00791")
-    rom = box.gow()
-    box.prepare(rom)
-    assert enabled(box.pconf(), H_GOW, "Native PS3 Timing", "God of War: HD", "BCES00791", "01.01")
-    # Upstream rewrites the patch without bumping its version — which happened
-    # to the real God of War: HD entry.
-    (box.root / "patches/patch.yml").write_text(
-        patch_yml(gow_ops="      - [ be32, 0x004cca58, 0x3d8000ab ]\n"))
-    r = box.prepare(rom)
-    v = verdict(r, "Native PS3 Timing")
-    assert v["verdict"] == "skipped" and "changed upstream" in v["reason"]
-    assert enabled(box.pconf(), H_GOW, "Native PS3 Timing", "God of War: HD",
-                   "BCES00791", "01.01") is None
-
-
-def test_changed_patch_body_does_not_touch_a_player_activation(box):
-    (box.root / "patch_config.yml").write_text(
-        f"{H_GOW}:\n  Native PS3 Timing:\n    'God of War: HD':\n      BCES00791:\n"
-        "        '01.01':\n          Enabled: true\n")
-    (box.root / "patches/patch.yml").write_text(
-        patch_yml(gow_ops="      - [ be32, 0x004cca58, 0x3d8000ab ]\n"))
-    box.prepare(box.gow())
-    assert enabled(box.pconf(), H_GOW, "Native PS3 Timing", "God of War: HD", "BCES00791", "01.01")
-
-
-def test_serial_or_version_missing_from_patch_file_is_skipped(box):
-    (box.root / "patches/patch.yml").write_text(patch_yml(uc2_versions="[ 01.00 ]"))
-    r = box.prepare(box.uc2())
-    v = verdict(r, "Bug Fix: Quit to Menu Crash")
-    assert v["verdict"] == "skipped" and "does not list" in v["reason"]
-
-
-def test_imported_patch_with_other_body_blocks_the_selection(box):
-    (box.root / "patches/imported_patch.yml").write_text(f"""\
-Version: 1.2
-
-{H_UC2}:
-  "Bug Fix: Quit to Menu Crash":
-    Games:
-      "Uncharted 2: Among Thieves":
-        BCES00509: [ 01.09 ]
-    Patch Version: 9.0
-    Patch:
-      - [ be32, 0x5, 0x7 ]
-""")
-    r = box.prepare(box.uc2())
-    assert "imported_patch.yml" in verdict(r, "Bug Fix: Quit to Menu Crash")["reason"]
-
-
-def test_rpcs3_version_outside_the_validated_range(box):
-    r = box.prepare(box.uc2(), version="0.0.40-1-abc")
-    assert "validated for RPCS3" in verdict(r, "Bug Fix: Quit to Menu Crash")["reason"]
-    r = box.prepare(box.uc2(), version=None)
-    assert verdict(r, "Bug Fix: Quit to Menu Crash")["verdict"] == "skipped"
-
-
-def test_deselected_patch_that_gamecore_enabled_is_withdrawn(box):
-    rom = box.uc2()
-    box.prepare(rom)
-    key = (H_UC2, "Bug Fix: Quit to Menu Crash", "Uncharted 2: Among Thieves", "BCES00509", "01.09")
-    assert enabled(box.pconf(), *key)
-    box.select([])
-    box.prepare(rom)
-    assert enabled(box.pconf(), *key) is None
-
-
-def test_patch_config_keeps_every_foreign_entry(box):
-    original = f"""\
-PPU-{"d" * 40}:
-  Infinite Ammo:
-    'Ratchet & Clank Future: A Crack in Time':
-      BCUS98124:
-        '01.20':
-          Enabled: 'false'
-          Configurable Values:
-            Ammo: 99.5
-  Legacy:
-    Title:
-      BCUS98124:
-        '01.00': true
-"""
-    (box.root / "patch_config.yml").write_text(original)
-    box.prepare(box.uc2())
-    tree = box.pconf()
-    before = smart.yload(original)
-    assert tree[f"PPU-{'d' * 40}"] == before[f"PPU-{'d' * 40}"]
-    assert (box.root / f"patch_config.yml{smart.BACKUP_SUFFIX}").read_text() == original
-
-
-# ── settings ─────────────────────────────────────────────────────────────────
-
 def test_no_custom_config_writes_nothing_and_lets_rpcs3_apply_its_database(box):
-    rom = box.disc("Rayman", "BCES00791")                      # no update, no selection
+    rom = box.disc("Uncharted 2", "BCES00509")                # no custom config, no profile
     r = box.prepare(rom)
-    assert not (box.root / "custom_configs/config_BCES00791.yml").exists()
+    assert not (box.root / "custom_configs/config_BCES00509.yml").exists()
     assert r["configSource"]["effective"].startswith("RPCS3 applies the official")
-    assert setting(r, "Video/Frame limit")["action"] == "native"
+    assert setting(r, "Video/Write Color Buffers")["action"] == "native"
+    assert r["written"] == []
 
 
 def test_creating_a_custom_config_carries_the_official_recommendation(box):
@@ -611,20 +374,6 @@ def test_personal_value_wins_and_is_reported(box):
     assert "Frame limit" in r["notice"]
     flat = smart.flatten(smart.yload((box.root / "custom_configs/config_BCES00791.yml").read_text()))
     assert flat[("Video", "Frame limit")] == "30"
-
-
-def test_personal_value_blocking_a_prerequisite_blocks_the_patch(box):
-    box.custom("BCES00791", CUSTOM_YML.replace("Vblank Rate: 60", "Vblank Rate: 50")
-               .replace("  Vblank NTSC Fixup: false", "  Vblank NTSC Fixup: false"))
-    # config.yml says false too, so make it personal: change the global instead
-    (box.root / "config.yml").write_text(CONFIG_YML.replace("Vblank NTSC Fixup: false",
-                                                            "Vblank NTSC Fixup: true"))
-    r = box.prepare(box.gow())
-    assert setting(r, "Video/Vblank NTSC Fixup")["action"] == "kept-personal"
-    v = verdict(r, "Native PS3 Timing")
-    assert v["verdict"] == "skipped" and "required setting" in v["reason"]
-    assert enabled(box.pconf(), H_GOW, "Native PS3 Timing", "God of War: HD",
-                   "BCES00791", "01.01") is None
 
 
 def test_pack_profile_beats_the_database(box):
@@ -672,7 +421,6 @@ def test_undo_restores_bytes_and_removes_what_it_created(box):
     smart.undo(box.home, box.root)
     assert p.read_text() == CUSTOM_YML
     assert not (box.root / "custom_configs/config_BCES00791.yml").exists()
-    assert box.pconf() == {}
 
 
 # ── robustness ───────────────────────────────────────────────────────────────
@@ -700,13 +448,6 @@ def test_nothing_is_written_past_the_deadline(box):
     assert r["errors"]
 
 
-def test_unreadable_patch_config_is_never_overwritten(box):
-    (box.root / "patch_config.yml").write_text("{ this: is: not yaml")
-    r = box.prepare(box.uc2())
-    assert (box.root / "patch_config.yml").read_text() == "{ this: is: not yaml"
-    assert any("patch_config.yml unreadable" in e for e in r["errors"])
-
-
 def test_runtime_follows_the_launch(tmp_path):
     rt = smart.runtime_for_launch("flatpak", f"run {APP} --no-gui", tmp_path)
     assert (rt.kind, rt.config) == ("flatpak", tmp_path / f".var/app/{APP}/config/rpcs3")
@@ -718,13 +459,15 @@ def test_native_launch_uses_the_native_tree(box, tmp_path):
     nat = box.home / ".config/rpcs3"
     shutil.copytree(box.root, nat)
     rom = box.disc("Uncharted 2", "BCES00509")
+    (nat / "custom_configs/config_BCES00509.yml").write_text(CUSTOM_YML)
     d = nat / "dev_hdd0/game/BCES00509"
     (d / "USRDIR").mkdir(parents=True)
     (d / "USRDIR/EBOOT.BIN").write_bytes(b"x")
     (d / "PARAM.SFO").write_bytes(sfo(TITLE_ID="BCES00509", APP_VER="01.09", CATEGORY="GD"))
     r = box.prepare(rom, launcher=("/opt/GameCore/lib/rpcs3", "--fullscreen --no-gui"))
     assert r["runtime"]["kind"] == "native"
-    assert (nat / "patch_config.yml").exists() and not (box.root / "patch_config.yml").exists()
+    assert "Write Color Buffers: true" in (nat / "custom_configs/config_BCES00509.yml").read_text()
+    assert not (box.root / "custom_configs/config_BCES00509.yml").exists()
 
 
 def test_sync_roots_follow_what_is_installed(tmp_path):
@@ -764,45 +507,6 @@ def test_log_parsing_matches_rpcs3s_wording():
     assert {"databaseIgnored": True} in o["configSources"]
 
 
-def test_application_is_claimed_only_from_the_log(box):
-    box.custom("BCES00791")
-    rom = box.gow()
-    assert verdict(box.prepare(rom), "Native PS3 Timing")["runtime"] == "not yet observed"
-    (box.cache / "RPCS3.log").write_text(REAL_LOG, encoding="utf-8")
-    r = box.prepare(rom)
-    assert verdict(r, "Native PS3 Timing")["runtime"].startswith("applied (RPCS3 log")
-
-
-# ── patch file reading ───────────────────────────────────────────────────────
-
-def test_extract_resolves_the_latest_anchor_before_use_and_merges_duplicates(box):
-    text = (box.root / "patches/patch.yml").read_text()
-    blocks = smart.extract_blocks(text, H_GOW)
-    assert len(blocks) == 2
-    e = box.entry(H_GOW, "Native PS3 Timing")
-    assert e["Games"]["God of War: HD"]["BCES00791"] == ["01.01"]     # second anchor, a string
-    assert box.entry(H_GOW, "Skip any videos with X button")
-
-
-def test_patch_digest_ignores_games_but_not_body():
-    a = {"Games": {"x": {"A": ["01.00"]}}, "Patch": [["be32", "0x1", "0x2"]], "Patch Version": "1.0"}
-    b = dict(a, Games={"x": {"A": ["01.00"], "B": ["01.00"]}})
-    c = dict(a, Patch=[["be32", "0x1", "0x3"]])
-    assert smart.patch_digest(a) == smart.patch_digest(b) != smart.patch_digest(c)
-
-
-def test_shipped_selection_is_well_formed():
-    sel = smart.load_selection(PACK / "files/patch-selection.json")
-    raw = json.loads((PACK / "files/patch-selection.json").read_text())
-    assert sum(len(g["patches"]) for g in sel) == sum(len(g["patches"]) for g in raw["games"]) > 0
-    for g in sel:
-        for p in g["patches"]:
-            assert p["class"] in ("fidelity", "crash-fix", "rendering-fix") and p["source"]
-            assert not any(w in p["description"].lower() for w in ("infinite", "unlock", "fps", "cheat"))
-
-
-# ── the timer ────────────────────────────────────────────────────────────────
-
 def patch_response(content: str, version: str = "1.2", code: int = 0) -> bytes:
     return json.dumps({"return_code": code, "version": version,
                        "sha256": hashlib.sha256(content.encode()).hexdigest(),
@@ -826,6 +530,7 @@ def fetcher(config: bytes | Exception, patch: bytes | Exception):
 
 def test_sync_updates_both_databases(box):
     pol = smart.load_policy(None)
+    pol["syncPatchDatabase"] = True
     rt = smart.flatpak_runtime(box.home)
     r = smart.sync_runtime(box.home, rt, pol, offline=False, force=True, proc=box.proc,
                            fetcher=fetcher(config_db().encode(), patch_response(big_patch())))
@@ -843,7 +548,9 @@ def test_sync_failure_keeps_the_last_valid_data(box, bad):
     before_c = (box.root / "GuiConfigs/config_database.dat").read_bytes()
     before_p = (box.root / "patches/patch.yml").read_bytes()
     rt = smart.flatpak_runtime(box.home)
-    r = smart.sync_runtime(box.home, rt, smart.load_policy(None), offline=False, force=True,
+    pol = smart.load_policy(None)
+    pol["syncPatchDatabase"] = True
+    r = smart.sync_runtime(box.home, rt, pol, offline=False, force=True,
                            proc=box.proc, fetcher=fetcher(bad, bad))
     assert all(v.startswith("error") for v in r.values())
     assert (box.root / "GuiConfigs/config_database.dat").read_bytes() == before_c
@@ -853,7 +560,9 @@ def test_sync_failure_keeps_the_last_valid_data(box, bad):
 def test_sync_defers_while_rpcs3_runs(box):
     box.running()
     before = (box.root / "patches/patch.yml").read_bytes()
-    r = smart.sync_runtime(box.home, smart.flatpak_runtime(box.home), smart.load_policy(None),
+    pol = smart.load_policy(None)
+    pol["syncPatchDatabase"] = True
+    r = smart.sync_runtime(box.home, smart.flatpak_runtime(box.home), pol,
                            offline=False, force=True, proc=box.proc,
                            fetcher=fetcher(config_db().encode(), patch_response(big_patch())))
     assert r["patchDatabase"] == "deferred:rpcs3-running"
@@ -869,7 +578,7 @@ def test_sync_exit_status_reflects_failure(box, monkeypatch, tmp_path):
     args = ["sync", "--gamecore-path", str(gc), "--force", "--home", str(box.home)]
     assert smart.main(args) == 1
     state = json.loads((smart.state_dir(box.home) / "state.json").read_text())
-    assert state["ok"] is False and state["runtimes"]["flatpak"]["patchDatabase"].startswith("error")
+    assert state["ok"] is False and state["runtimes"]["flatpak"]["configDatabase"].startswith("error")
     assert smart.main(args[:-3] + ["--offline", "--home", str(box.home)]) == 0
 
 
@@ -877,7 +586,7 @@ def test_offline_launch_still_works_from_cache(box, monkeypatch):
     monkeypatch.setattr(smart, "fetch", lambda *a, **k: (_ for _ in ()).throw(AssertionError("network")))
     box.custom("BCES00791")
     r = box.prepare(box.gow())
-    assert verdict(r, "Native PS3 Timing")["verdict"] == "enabled"
+    assert setting(r, "Video/Vblank NTSC Fixup")["action"] == "write" and not r["errors"]
 
 
 def test_policy_defaults_and_clamps(tmp_path):
@@ -922,20 +631,8 @@ def test_yamlcpp_contract(box, tmp_path):
     exe = tmp_path / "harness"
     subprocess.run(["g++", "-std=c++20", "-O1", f"-I{src}/include", str(HARNESS),
                     *map(str, sorted((src / "src").glob("*.cpp"))), "-o", str(exe)], check=True)
-    (box.root / "patch_config.yml").write_text(
-        f"PPU-{'d' * 40}:\n  Infinite Ammo:\n    'Ratchet & Clank Future: A Crack in Time':\n"
-        "      BCUS98124:\n        '01.20':\n          Enabled: 'true'\n")
     box.custom("BCES00791")
-    box.prepare(box.uc2())
     box.prepare(box.gow())
-    out = subprocess.run([str(exe), "patchconfig", str(box.root / "patch_config.yml")],
-                         capture_output=True, text=True, check=True).stdout.splitlines()
-    assert f"{H_GOW}|Native PS3 Timing|God of War: HD|BCES00791|01.01|on" in out
-    assert f"{H_UC2}|Bug Fix: Quit to Menu Crash|Uncharted 2: Among Thieves|BCES00509|01.09|on" in out
-    assert f"PPU-{'d' * 40}|Infinite Ammo|Ratchet & Clank Future: A Crack in Time|BCUS98124|01.20|on" in out
-    pf = subprocess.run([str(exe), "patchfile", str(box.root / "patches/patch.yml"), H_GOW],
-                        capture_output=True, text=True, check=True).stdout
-    assert f"{H_GOW}|Native PS3 Timing|God of War: HD|BCES00791|01.01|" in pf
     cfg = subprocess.run([str(exe), "config", str(box.root / "custom_configs/config_BCES00791.yml")],
                          capture_output=True, text=True, check=True).stdout
     assert "/Video/Vblank NTSC Fixup = true" in cfg and "/Video/Frame limit = 30" in cfg
@@ -979,35 +676,6 @@ def test_a_file_without_final_newline_keeps_it_that_way(box):
     assert after.replace("Vblank NTSC Fixup: true", "Vblank NTSC Fixup: false") == CUSTOM_YML.rstrip("\n")
 
 
-def test_a_patch_applied_while_precompiling_is_not_proof(box):
-    box.custom("BCES00791")
-    rom = box.gow()
-    box.prepare(rom)
-    log = REAL_LOG.replace("·S 0:00:09.100000 PAT:", "·S 0:00:09.100000 {PPU Exec Worker} PAT:")
-    (box.cache / "RPCS3.log").write_text(log, encoding="utf-8")
-    r = box.prepare(rom)
-    assert not verdict(r, "Native PS3 Timing")["runtime"].startswith("applied")
-
-
-def test_notice_never_takes_credit_for_the_players_patches(box):
-    (box.root / "patch_config.yml").write_text(
-        f"{H_UC2}:\n  'Bug Fix: Quit to Menu Crash':\n    'Uncharted 2: Among Thieves':\n"
-        "      BCES00509:\n        '01.09':\n          Enabled: true\n")
-    rom = box.uc2()
-    box.prepare(rom)
-    log = (f"RPCS3 v0.0.41-1-a\n·! 0 SYS: Serial: BCES00509\n·! 0 SYS: Version: APP_VER=01.09 VERSION=01.00\n"
-           f"·S 0 PAT: Applied patch (hash='{H_UC2}', description='Bug Fix: Quit to Menu Crash', author='x', "
-           "patch_version='1.0', file_version='1.2') (<- 7)\n"
-           f"·S 0 PAT: Applied patch (hash='{H_UC2}', description='Disable SSAO', author='x', "
-           "patch_version='1.2', file_version='1.2') (<- 1)\n")
-    (box.cache / "RPCS3.log").write_text(log)
-    r = box.prepare(rom)
-    assert "you had already enabled" in r["notice"]
-    assert "enabled by GameCore" not in r["notice"]
-    assert r["personalPatchesAtLastBoot"] == ["Disable SSAO"]
-    assert "not managed by GameCore" in r["notice"]
-
-
 def test_second_launch_writes_nothing(box):
     box.custom("BCES00791")
     rom = box.gow()
@@ -1015,7 +683,7 @@ def test_second_launch_writes_nothing(box):
     assert first["written"]
     second = box.prepare(rom)
     assert second["written"] == []
-    assert verdict(second, "Native PS3 Timing")["verdict"] == "enabled"
+    assert setting(second, "Video/Vblank NTSC Fixup")["action"] == "already"
 
 
 def test_schema_from_rpcs3s_own_dump_wins(box):
@@ -1044,26 +712,26 @@ def test_used_configuration_parsed_from_a_real_log_shape():
     assert smart.used_config_keys(text) == ["Core/PPU Decoder", "Video/Vulkan/Asynchronous Texture Streaming"]
 
 
-def test_a_community_patch_is_read_from_imported_patch_yml(box):
-    (box.root / "patches/imported_patch.yml").write_text(f"""\
-Version: 1.2
 
-{H_UC2}:
-  "Water fix [Communautaire]":
-    Games:
-      "Uncharted 2: Among Thieves":
-        BCES00509: [ 01.09 ]
-    Patch Version: 1.0
-    Patch:
-      - [ be32, 0x9, 0x9 ]
-""")
-    e, _ = smart.load_patch_entry(box.root / "patches/imported_patch.yml", H_UC2, "Water fix [Communautaire]")
-    box.select([{"serial": "BCES00509", "appVersion": "01.09", "patches": [{
-        "hash": H_UC2, "description": "Water fix [Communautaire]", "patchTitle": "Uncharted 2: Among Thieves",
-        "sha256": smart.patch_digest(e), "file": "imported_patch.yml", "requires": {}}]}])
-    r = box.prepare(box.uc2())
-    assert verdict(r, "Water fix [Communautaire]")["verdict"] == "enabled"
-    (box.root / "patches/imported_patch.yml").unlink()
-    r = box.prepare(box.uc2())
-    v = verdict(r, "Water fix [Communautaire]")
-    assert v["verdict"] == "skipped" and "imported_patch.yml" in v["reason"]
+
+def test_patches_are_never_touched(box):
+    original = f"{H_UC2}:\n  Anything:\n    Title:\n      BCES00509:\n        '01.09':\n          Enabled: true\n"
+    (box.root / "patch_config.yml").write_text(original)
+    before = (box.root / "patches/patch.yml").read_bytes()
+    box.custom("BCES00509")
+    box.prepare(box.uc2())
+    assert (box.root / "patch_config.yml").read_text() == original
+    assert (box.root / "patches/patch.yml").read_bytes() == before
+
+
+def test_shipped_policy_fetches_the_patch_catalogue_but_never_enables_anything(box):
+    activations = f"{H_UC2}:\n  Mine:\n    Title:\n      BCES00509:\n        '01.09':\n          Enabled: true\n"
+    (box.root / "patch_config.yml").write_text(activations)
+    (box.root / "patches/imported_patch.yml").write_text("Version: 1.2\n")
+    r = smart.sync_runtime(box.home, smart.flatpak_runtime(box.home), smart.load_policy(
+        PACK / "files/patch-policy.json"), offline=False, force=True, proc=box.proc,
+        fetcher=fetcher(config_db().encode(), patch_response(big_patch())))
+    assert r == {"configDatabase": "updated", "patchDatabase": "updated"}
+    assert (box.root / "patches/patch.yml").read_text() == big_patch()
+    assert (box.root / "patch_config.yml").read_text() == activations
+    assert (box.root / "patches/imported_patch.yml").read_text() == "Version: 1.2\n"

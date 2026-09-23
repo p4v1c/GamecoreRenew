@@ -146,7 +146,7 @@ _SMART = None
 
 def prepare_launch(*, rom_path, home, exec_path: str, exec_args: str,
                    deadline: float) -> dict:
-    """Settings and validated patches for this exact game, before RPCS3 starts.
+    """RPCS3's recommended settings for this exact game, before RPCS3 starts.
 
     Everything it decided is in ~/.local/share/gamecore/rpcs3-smart/
     last-launch.json; what goes back to the launch is the one line for the
@@ -156,4 +156,4 @@ def prepare_launch(*, rom_path, home, exec_path: str, exec_args: str,
     report = _smart().prepare(rom=Path(rom_path), home=Path(home), exec_path=exec_path,
                               exec_args=exec_args, pack_dir=Path(__file__).resolve().parent,
                               deadline=deadline)
-    return {"notice": report.get("notice"), "coverage": report.get("coverage")}
+    return {"notice": report.get("notice")}

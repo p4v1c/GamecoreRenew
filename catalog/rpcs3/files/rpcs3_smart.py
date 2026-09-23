@@ -1,48 +1,37 @@
 #!/usr/bin/env python3
-"""RPCS3 Smart Pack: the settings and patches a PS3 game should start with.
+"""RPCS3 Smart Pack: the settings a PS3 game should start with.
 
 What RPCS3 already does, and what this adds
 -------------------------------------------
-Read from RPCS3's own source (v0.0.41, `Emu/System.cpp`, `Utilities/bin_patch.cpp`)
-rather than assumed:
+Read from RPCS3's own source (v0.0.41, `Emu/System.cpp`) rather than assumed:
+a `--no-gui` boot in the default config mode reads
+`GuiConfigs/config_database.dat` and applies the official recommendation for
+the serial — *unless* `custom_configs/config_<SERIAL>.yml` exists, in which
+case the log says "Found custom config. Ignoring database config" and the
+recommendation is dropped entirely. Both are layered over `config.yml`, and
+only the keys present in the file change anything.
 
-* **Settings.** A `--no-gui` boot in the default config mode reads
-  `GuiConfigs/config_database.dat` and applies the official recommendation for
-  the serial — *unless* `custom_configs/config_<SERIAL>.yml` exists, in which
-  case the log says "Found custom config. Ignoring database config" and the
-  recommendation is dropped entirely. Both are layered over `config.yml`, and
-  only the keys present in the file change anything.
-
-  So on a game with no custom config RPCS3 is already right and nothing is
-  written. On a game WITH one — every hand-tuned game on a real box — the
-  official recommendation is silently lost. That is the gap this closes: the
-  recommendation (and the pack's own profile, and what a selected patch needs)
-  is merged into the custom config, key by key, and never over a value the
-  player chose.
-
-* **Patches.** RPCS3 applies an entry of `patch_config.yml` only when all five
-  of hash, description, title, serial and app version match the patch file and
-  the executable it is loading. The hash is of the DECRYPTED executable, which
-  cannot be computed here without reimplementing RPCS3's loader, and it is
-  exactly what makes an activation safe to write: an activation filed under a
-  hash RPCS3 does not load is inert. What cannot be claimed before RPCS3 has
-  loaded the executable is that the patch APPLIED — that is read back from its
-  log ("Applied patch (hash=…, description=…)") and only then called confirmed.
-
-  The official patch database is a catalogue, not a recommendation: most of
-  its entries are cheats, FPS unlocks and optional visual changes. Which ones
-  GameCore enables is `patch-selection.json` — exact hash, description, title,
-  serial, app version and a digest of the patch body, each with its source.
-  Nothing is inferred from a name.
+So on a game with no custom config RPCS3 is already right and nothing is
+written. On a game WITH one — every hand-tuned game on a real box — the
+official recommendation is silently lost. That is the gap this closes: the
+recommendation, and the pack's own profile, are merged into the custom config
+key by key, never over a value the player chose.
 
 Precedence, per key: RPCS3 default < `config.yml` < official recommendation <
-pack profile / patch prerequisite < the player's own value. "The player's own
-value" is a key in the custom config that differs from `config.yml` and that
-GameCore did not write — RPCS3's settings window saves a custom config as a
-full dump, so presence alone says nothing about intent.
+pack profile < the player's own value. "The player's own value" is a key in
+the custom config that differs from `config.yml` and that GameCore did not
+write — RPCS3's settings window saves a custom config as a full dump, so
+presence alone says nothing about intent. Which keys exist at all is read from
+the "Used configuration" RPCS3 prints at every boot.
 
-Everything written is recorded with what it displaced, so `undo` can put it
-back key by key.
+Written once: a second launch finds every key in place and writes nothing.
+Everything written is recorded with what it displaced, so `undo` puts it back
+key by key.
+
+Patches: the timer keeps RPCS3's official patch catalogue (patches/patch.yml)
+fresh, so every official patch is already there to tick. Which ones are
+enabled stays the player's call, made in RPCS3's patch manager or
+rpcs3-manager: patch_config.yml and imported_patch.yml are never written.
 """
 from __future__ import annotations
 
@@ -79,7 +68,6 @@ HERE = Path(__file__).resolve().parent
 _APP_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$")
 SERIAL_RE = re.compile(r"^[A-Z]{4}[0-9]{5}$")
 APP_VER_RE = re.compile(r"^[0-9]{2}\.[0-9]{2}$")
-HASH_RE = re.compile(r"^(PPU|SPU|PRX|OVL)-[0-9a-f]{40}$")
 
 # The third letter of a PS3 serial is the territory it was released in.
 _REGIONS = {"E": "Europe", "U": "USA", "J": "Japan", "A": "Asia", "K": "Korea",
@@ -767,329 +755,13 @@ def plan_config(*, custom: dict | None, base: dict | None, owned: dict,
     return writes, decisions
 
 
-# ── patches ──────────────────────────────────────────────────────────────────
-
-_TOP = re.compile(r"^[^\s#]", re.M)
-
-
-def _block_span(text: str, pos: int) -> tuple[int, int]:
-    """The top-level block containing offset `pos`."""
-    start = max((m.start() for m in _TOP.finditer(text, 0, pos + 1)), default=0)
-    n = _TOP.search(text, pos + 1)
-    return start, (n.start() if n else len(text))
-
-
-def extract_blocks(text: str, top_key: str) -> list[str]:
-    """Every top-level block for `top_key`. A hash can appear more than once
-    in patch.yml; yaml-cpp keeps duplicate keys and RPCS3 merges them."""
-    out = []
-    for m in re.finditer(rf"^(?:{_key_re(top_key)}):[ \t]*(?:#.*)?$", text, re.M):
-        out.append(_block_with_anchors(text, m.start()))
-    return out
-
-
-def extract_block(text: str, top_key: str) -> str | None:
-    blocks = extract_blocks(text, top_key)
-    return blocks[0] if blocks else None
-
-
-def _block_with_anchors(text: str, pos: int) -> str:
-    """One top-level mapping of a patch file, as parseable text, without
-    parsing the rest.
-
-    patch.yml is 900 KB and takes PyYAML 1.4 s — the whole budget of a launch
-    several times over. What makes a block not self-contained is its aliases:
-    the file has many `Anchors:` sections, each defining the anchors of the
-    patches after it, and a name may be defined again further down. yaml-cpp
-    resolves an alias to the LAST definition before it, so that is what is
-    prepended here, transitively, in file order.
-    """
-    start, end = _block_span(text, pos)
-    needed: dict[int, tuple[int, int]] = {}
-    todo = [(start, end)]
-    seen_alias: set[tuple[str, int]] = set()
-    while todo:
-        b0, b1 = todo.pop()
-        for alias in set(re.findall(r"\*([A-Za-z0-9_.-]+)", text[b0:b1])):
-            if (alias, b0) in seen_alias:
-                continue
-            seen_alias.add((alias, b0))
-            defs = [d.start() for d in re.finditer(rf"&{re.escape(alias)}(?![A-Za-z0-9_.-])", text, )
-                    if d.start() < b0 or b0 <= d.start() < b1]
-            before = [d for d in defs if d < b0]
-            if not before or any(b0 <= d < b1 for d in defs):
-                continue            # defined in the block itself, or nowhere
-            span = _block_span(text, before[-1])
-            if span[0] not in needed:
-                needed[span[0]] = span
-                todo.append(span)
-    prefix = "".join(text[a:b] for a, b in sorted(needed.values()))
-    return prefix + text[start:end]
-
-
-def patch_digest(entry: dict) -> str:
-    """What a reviewer approved: the patch body, its version and its group.
-
-    `Games` is left out on purpose — upstream adds a serial to a patch without
-    changing what it does, and that must not void an approval. The serial and
-    version being present is checked separately.
-    """
-    body = {"Patch": entry.get("Patch"), "Patch Version": entry.get("Patch Version"),
-            "Group": entry.get("Group")}
-    return hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False)
-                          .encode("utf-8")).hexdigest()
-
-
-def load_patch_entry(path: Path, hash_: str, description: str) -> tuple[dict | None, str]:
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None, f"{path.name} absent"
-    if not re.search(rf"(?m)^Version:\s*[\"']?{re.escape(PATCH_ENGINE_VERSION)}[\"']?\s*$", text):
-        return None, f"{path.name} is not patch engine {PATCH_ENGINE_VERSION}"
-    blocks = extract_blocks(text, hash_)
-    if not blocks:
-        return None, f"{hash_} not in {path.name}"
-    found = None
-    for block in blocks:
-        try:
-            doc = yload(block)
-        except Exception as exc:
-            return None, f"{hash_} in {path.name} unreadable ({type(exc).__name__})"
-        entry = (doc or {}).get(hash_, {}).get(description) if isinstance(doc, dict) else None
-        if not isinstance(entry, dict):
-            continue
-        # patch_engine::load keeps the first one unless a later one carries a
-        # strictly higher Patch Version.
-        if found is None or (_version_tuple(entry.get("Patch Version"))
-                             > _version_tuple(found.get("Patch Version"))):
-            found = entry
-    if found is None:
-        return None, f"'{description}' not under {hash_} in {path.name}"
-    return found, "ok"
-
-
-def load_selection(path: Path) -> list[dict]:
-    doc = read_json(path, {})
-    if not isinstance(doc, dict) or doc.get("version") != 1:
-        return []
-    out = []
-    for game in doc.get("games") or []:
-        if not isinstance(game, dict):
-            continue
-        serial, ver = game.get("serial"), game.get("appVersion")
-        if not (isinstance(serial, str) and SERIAL_RE.fullmatch(serial)
-                and isinstance(ver, str) and APP_VER_RE.fullmatch(ver)):
-            continue
-        patches = []
-        for p in game.get("patches") or []:
-            if (isinstance(p, dict) and isinstance(p.get("hash"), str) and HASH_RE.fullmatch(p["hash"])
-                    and isinstance(p.get("description"), str) and p["description"]
-                    and isinstance(p.get("patchTitle"), str) and p["patchTitle"]
-                    and isinstance(p.get("sha256"), str) and re.fullmatch(r"[0-9a-f]{64}", p["sha256"])):
-                patches.append(p)
-        out.append({**game, "patches": patches})
-    return out
-
-
-def selection_for(selection: list[dict], game: Game) -> dict | None:
-    return next((g for g in selection
-                 if g["serial"] == game.serial and g["appVersion"] == game.app_version), None)
-
-
-def load_patch_config(root: Path) -> dict:
-    path = root / "patch_config.yml"
-    if not path.is_file():
-        return {}
-    doc = yload(path.read_text(encoding="utf-8"))
-    if doc is None:
-        return {}
-    if not isinstance(doc, dict):
-        raise ValueError("patch_config.yml is not a mapping")
-    return doc
-
-
-def dump_patch_config(tree: dict) -> str:
-    """patch_config.yml in the layout RPCS3's `save_config` writes."""
-    out: list[str] = []
-
-    def emit(node: Any, depth: int, parent: str | None) -> None:
-        for key, value in node.items():
-            pad = "  " * depth
-            k = yaml_scalar(str(key))
-            if isinstance(value, dict):
-                out.append(f"{pad}{k}:\n")
-                emit(value, depth + 1, str(key))
-            elif parent == "Configurable Values" and re.fullmatch(r"-?[0-9.eE+-]+", str(value)):
-                out.append(f"{pad}{k}: {value}\n")
-            elif key == "Enabled" or depth == 4:
-                out.append(f"{pad}{k}: {yaml_scalar(norm(value), bare_bool=True)}\n")
-            else:
-                out.append(f"{pad}{k}: {yaml_scalar(str(value))}\n")
-    emit(tree, 0, None)
-    return "".join(out)
-
-
-def _enabled(node: Any) -> bool | None:
-    """An app-version node's switch: True, False, or None when unset."""
-    if isinstance(node, dict):
-        v = node.get("Enabled")
-        return None if v is None else norm(v) == "true"
-    if isinstance(node, str):
-        return norm(node) == "true"
-    return None
-
-
-def _get(tree: dict, *path: str) -> Any:
-    for p in path:
-        if not isinstance(tree, dict) or p not in tree:
-            return None
-        tree = tree[p]
-    return tree
-
-
-def plan_patches(*, game: Game, sel: dict | None, root: Path, pconf: dict,
-                 owned: list[dict], rpcs3_ver: str | None) -> tuple[list[dict], list[dict]]:
-    """Which activations to add or retract, and a verdict for each candidate.
-
-    Returns (changes, verdicts). A change is {"op": "enable"|"retract", key…}.
-    """
-    changes: list[dict] = []
-    verdicts: list[dict] = []
-    mine = {(o["hash"], o["description"], o["title"], o["serial"], o["appVersion"]): o
-            for o in owned}
-
-    # Approvals GameCore wrote earlier whose patch has since changed are
-    # withdrawn first, whatever happens below.
-    wanted_keys = set()
-    for p in (sel or {}).get("patches", []):
-        wanted_keys.add((p["hash"], p["description"], p["patchTitle"], game.serial,
-                         p.get("appVersionKey", game.app_version)))
-
-    for p in (sel or {}).get("patches", []):
-        key = (p["hash"], p["description"], p["patchTitle"], game.serial,
-               p.get("appVersionKey", game.app_version))
-        v = {"hash": p["hash"], "description": p["description"], "class": p.get("class"),
-             "source": p.get("source")}
-        if p.get("rpcs3") and not version_allows(p["rpcs3"], rpcs3_ver):
-            v.update(verdict="skipped", reason=f"validated for RPCS3 {p['rpcs3']}, this box runs {rpcs3_ver}")
-            verdicts.append(v)
-            continue
-        # Official database by default; a community patch (RPCS3 wiki, Discord)
-        # lives in the player's imported_patch.yml and is named as such.
-        src = p.get("file", "patch.yml")
-        if src not in ("patch.yml", "imported_patch.yml", f"{game.serial}_patch.yml"):
-            v.update(verdict="skipped", reason=f"unsupported patch file {src!r}")
-            verdicts.append(v)
-            continue
-        entry, why = load_patch_entry(root / "patches" / src, p["hash"], p["description"])
-        if entry is None:
-            v.update(verdict="skipped", reason=why)
-            verdicts.append(v)
-            continue
-        digest = patch_digest(entry)
-        if digest != p["sha256"]:
-            v.update(verdict="skipped", reason="the patch changed upstream since it was validated "
-                     f"(sha256 {digest[:12]} ≠ {p['sha256'][:12]})", staleDigest=digest)
-            verdicts.append(v)
-            if key in mine:
-                changes.append({"op": "retract", "key": key, "reason": "patch changed upstream"})
-            continue
-        listed = _get(entry, "Games", p["patchTitle"], game.serial)
-        if not isinstance(listed, list) or key[4] not in listed:
-            v.update(verdict="skipped", reason=f"patch.yml does not list {game.serial} {key[4]} "
-                     f"under '{p['patchTitle']}'")
-            verdicts.append(v)
-            continue
-        # A same-named patch in the player's imported file or a per-title file
-        # would be the one RPCS3 keeps if its version is higher — and that is
-        # not the body that was reviewed.
-        shadow = None
-        for other in (root / "patches/patch.yml", root / "patches/imported_patch.yml",
-                      root / f"patches/{game.serial}_patch.yml"):
-            if other.name == src:
-                continue
-            e2, _ = load_patch_entry(other, p["hash"], p["description"])
-            if e2 is not None and patch_digest(e2) != digest:
-                shadow = other.name
-        if shadow:
-            v.update(verdict="skipped", reason=f"a different '{p['description']}' in {shadow} may take precedence")
-            verdicts.append(v)
-            continue
-        node = _get(pconf, *key)
-        state = _enabled(node)
-        if state is False:
-            v.update(verdict="kept-personal", reason="you disabled this patch")
-            verdicts.append(v)
-            continue
-        group = entry.get("Group")
-        rival = None
-        for desc, titles in (_get(pconf, p["hash"]) or {}).items():
-            if desc == p["description"]:
-                continue
-            other_on = _enabled(_get(titles, *key[2:]))
-            if not other_on:
-                continue
-            if desc in (p.get("conflictsWith") or []):
-                rival = desc
-            elif group:
-                other, _ = load_patch_entry(root / "patches" / src, p["hash"], desc)
-                if other and other.get("Group") == group:
-                    rival = desc
-        if rival and state is not True:
-            v.update(verdict="skipped", reason=f"conflicts with '{rival}', which is enabled")
-            verdicts.append(v)
-            continue
-        if state is True:
-            v.update(verdict="enabled", reason="already enabled by you" if key not in mine
-                     else "enabled by GameCore", owner="player" if key not in mine else "gamecore")
-            verdicts.append(v)
-            continue
-        v.update(verdict="enable", requires=p.get("requires") or {})
-        verdicts.append(v)
-        changes.append({"op": "enable", "key": key, "digest": digest})
-
-    for key, o in mine.items():
-        if key[3] == game.serial and key[4] == game.app_version and key not in wanted_keys:
-            changes.append({"op": "retract", "key": key, "reason": "no longer selected"})
-    return changes, verdicts
-
-
-def apply_patch_changes(pconf: dict, changes: list[dict]) -> dict:
-    tree = json.loads(json.dumps(pconf))
-    for ch in changes:
-        h, d, t, s, v = ch["key"]
-        if ch["op"] == "enable":
-            node = tree.setdefault(h, {}).setdefault(d, {}).setdefault(t, {}).setdefault(s, {})
-            cur = node.get(v)
-            if isinstance(cur, dict):
-                cur["Enabled"] = "true"
-            else:
-                node[v] = {"Enabled": "true"}
-        elif ch["op"] == "retract":
-            node = _get(tree, h, d, t, s)
-            if isinstance(node, dict) and v in node:
-                cur = node[v]
-                if isinstance(cur, dict) and len(cur) > 1:
-                    cur.pop("Enabled", None)
-                else:
-                    node.pop(v)
-                # prune empty parents
-                for path in ((h, d, t, s), (h, d, t), (h, d), (h,)):
-                    parent = _get(tree, *path[:-1]) if len(path) > 1 else tree
-                    if isinstance(parent, dict) and parent.get(path[-1]) == {}:
-                        parent.pop(path[-1])
-    return tree
-
-
 # ── the launch ───────────────────────────────────────────────────────────────
 
 def _owned(home: Path) -> dict:
     data = read_json(state_dir(home) / "owned.json", {})
     if not isinstance(data, dict) or data.get("version") != 1:
-        data = {"version": 1, "config": {}, "patches": {}}
+        data = {"version": 1, "config": {}}
     data.setdefault("config", {})
-    data.setdefault("patches", {})
     return data
 
 
@@ -1097,15 +769,17 @@ def prepare(*, rom: Path, home: Path, exec_path: str, exec_args: str,
             pack_dir: Path = HERE.parent, deadline: float | None = None,
             app_id: str = DEFAULT_APP_ID, proc: Path = Path("/proc"),
             version: str | None = "auto") -> dict[str, Any]:
-    """Everything that should be true before RPCS3 opens this game.
+    """The settings this game should start with, in the file RPCS3 will read.
 
     Never raises. Writes nothing it cannot finish before `deadline`
-    (time.monotonic()), and nothing while an RPCS3 is running.
+    (time.monotonic()), and nothing while an RPCS3 is running. Patches are
+    the player's business (RPCS3's patch manager, rpcs3-manager) and are not
+    touched here.
     """
     started = time.time()
     deadline = deadline if deadline is not None else time.monotonic() + 5.0
-    report: dict[str, Any] = {"version": 1, "at": int(started), "rom": str(rom),
-                              "errors": [], "settings": [], "patches": [], "written": []}
+    report: dict[str, Any] = {"version": 2, "at": int(started), "rom": str(rom),
+                              "errors": [], "settings": [], "written": []}
     try:
         runtime = runtime_for_launch(exec_path, exec_args, home, app_id)
     except ValueError as exc:
@@ -1125,7 +799,6 @@ def prepare(*, rom: Path, home: Path, exec_path: str, exec_args: str,
         try:
             game = identify(Path(rom), runtime.config)
         except NotIdentified as exc:
-            report["coverage"] = "unidentified"
             report["errors"].append(str(exc))
             return _finish(home, report, None)
         report["game"] = dataclasses.asdict(game)
@@ -1137,31 +810,17 @@ def prepare(*, rom: Path, home: Path, exec_path: str, exec_args: str,
 
         root = runtime.config
         pack = read_json(pack_dir / "pack.json", {})
-        selection = load_selection(pack_dir / "files/patch-selection.json")
-        sel = selection_for(selection, game)
         owned = _owned(home)
         rkey = str(root)
         owned_cfg = owned["config"].setdefault(rkey, {}).get(game.serial, {"keys": {}})
-        owned_patches = owned["patches"].setdefault(rkey, [])
 
-        try:
-            pconf = load_patch_config(root)
-        except Exception as exc:
-            report["errors"].append(f"patch_config.yml unreadable ({exc}); no patch written")
-            pconf = None
-        pchanges, verdicts = ([], [])
-        if pconf is not None:
-            pchanges, verdicts = plan_patches(game=game, sel=sel, root=root, pconf=pconf,
-                                              owned=owned_patches, rpcs3_ver=ver)
-
-        # settings
         custom_path = root / "custom_configs" / f"config_{game.serial}.yml"
         try:
             custom_text = custom_path.read_text(encoding="utf-8") if custom_path.is_file() else None
             custom = flatten(yload(custom_text)) if custom_text is not None else None
         except Exception as exc:
             report["errors"].append(f"custom config unreadable ({exc}); settings not touched")
-            custom_text, custom = None, "broken"
+            return _finish(home, report, game)
         try:
             base = flatten(yload((root / "config.yml").read_text(encoding="utf-8")))
         except Exception:
@@ -1172,32 +831,25 @@ def prepare(*, rom: Path, home: Path, exec_path: str, exec_args: str,
             schema = settings_schema(root, base)
         rec, rec_status = db_recommendation(root, game.serial)
         profile, profile_label = pack_profile(pack, game.serial, ver)
-        prereq_layers = []
-        for v in verdicts:
-            if v.get("verdict") == "enable" and v.get("requires"):
-                prereq_layers.append((f"prerequisite of '{v['description']}'",
-                                      {k: norm(x) for k, x in flatten(v["requires"]).items()}))
         report["configSource"] = {
             "customConfig": str(custom_path) if custom_text is not None else None,
             "official": rec_status, "packProfile": profile_label,
         }
 
         writes: dict = {}
-        decisions: list = []
-        if custom == "broken":
-            pass
-        elif custom is None and not profile and not prereq_layers:
+        if custom is None and not profile:
             # RPCS3 applies the official recommendation itself when there is
             # no custom config. Creating one here would switch that OFF.
             report["configSource"]["effective"] = ("RPCS3 applies the official recommendation natively"
                                                    if rec else "config.yml only")
-            decisions = [{"key": keyname(k), "target": v, "source": "official",
-                          "action": "native", "reason": "applied by RPCS3 at boot (no custom config)"}
-                         for k, v in sorted(rec.items())]
+            report["settings"] = [{"key": keyname(k), "target": v, "source": "official",
+                                   "action": "native",
+                                   "reason": "applied by RPCS3 at boot (no custom config)"}
+                                  for k, v in sorted(rec.items())]
         else:
-            layers = [("official", rec), ("profile", profile)] + prereq_layers
             writes, decisions = plan_config(custom=custom, base=base, schema=schema,
-                                            owned=owned_cfg.get("keys", {}), layers=layers)
+                                            owned=owned_cfg.get("keys", {}),
+                                            layers=[("official", rec), ("profile", profile)])
             report["configSource"]["effective"] = "custom config (GameCore-merged)"
             if custom is None:
                 # The file is about to exist, which stops RPCS3 applying the
@@ -1209,27 +861,13 @@ def prepare(*, rom: Path, home: Path, exec_path: str, exec_args: str,
                             if d["key"] == keyname(k) and d["action"] == "already":
                                 d.update(action="write", reason="carried into the new custom config, "
                                          "whose existence stops RPCS3 applying the recommendation itself")
-        report["settings"] = decisions
+            report["settings"] = decisions
 
-        # A patch whose prerequisite could not be set is not enabled.
-        blocked = {d["source"] for d in decisions
-                   if d["source"].startswith("prerequisite") and d["action"] in ("kept-personal", "skipped")}
-        final_changes = []
-        for ch in pchanges:
-            if ch["op"] == "enable" and f"prerequisite of '{ch['key'][1]}'" in blocked:
-                for v in verdicts:
-                    if v["description"] == ch["key"][1] and v["hash"] == ch["key"][0]:
-                        v.update(verdict="skipped", reason="a required setting is held by your own value")
-                continue
-            final_changes.append(ch)
-        report["patches"] = verdicts
-
-        if time.monotonic() >= deadline:
+        if writes and time.monotonic() >= deadline:
             report["errors"].append("out of time before writing; nothing written")
             return _finish(home, report, game)
 
-        # commit: settings, then activations
-        if writes and custom != "broken":
+        if writes:
             try:
                 text = custom_text if custom_text is not None else ""
                 for key in sorted(writes):
@@ -1251,101 +889,19 @@ def prepare(*, rom: Path, home: Path, exec_path: str, exec_args: str,
                     entry["keys"][name] = {"written": value, "restore": restore, "at": int(time.time())}
                 report["written"].append({"file": str(custom_path), "keys": sorted(keyname(k) for k in writes),
                                           "created": custom_text is None})
+                write_json(state_dir(home) / "owned.json", owned)
             except Exception as exc:
                 report["errors"].append(f"settings not written: {exc}")
-                final_changes = [c for c in final_changes if c["op"] == "retract"]
-                for v in verdicts:
-                    if v.get("verdict") == "enable":
-                        v.update(verdict="skipped", reason="its settings could not be written")
-
-        if final_changes and pconf is not None:
-            try:
-                new = apply_patch_changes(pconf, final_changes)
-                text = dump_patch_config(new)
-                if (yload(text) or {}) != new:
-                    raise ValueError("re-read patch_config.yml does not match the intended edit")
-                pc = root / "patch_config.yml"
-                backup_once(pc)
-                atomic_write(pc, text)
-                for ch in final_changes:
-                    h, d, t, s, v = ch["key"]
-                    rec_ = {"hash": h, "description": d, "title": t, "serial": s, "appVersion": v}
-                    owned_patches[:] = [o for o in owned_patches
-                                        if (o["hash"], o["description"], o["title"], o["serial"],
-                                            o["appVersion"]) != ch["key"]]
-                    if ch["op"] == "enable":
-                        owned_patches.append({**rec_, "digest": ch["digest"], "at": int(time.time())})
-                report["written"].append({"file": str(pc), "changes": [
-                    {"op": c["op"], "hash": c["key"][0], "description": c["key"][1]} for c in final_changes]})
-                for v in verdicts:
-                    if v.get("verdict") == "enable":
-                        v.update(verdict="enabled", owner="gamecore", reason="activation written by GameCore")
-            except Exception as exc:
-                report["errors"].append(f"patch activations not written: {exc}")
-                for v in verdicts:
-                    if v.get("verdict") == "enable":
-                        v.update(verdict="skipped", reason="activation could not be written")
-        try:
-            write_json(state_dir(home) / "owned.json", owned)
-        except OSError as exc:
-            report["errors"].append(f"ownership record not saved: {exc}")
-
-        # What the log already proves, per selected patch.
-        confirm = confirmation(home, game, verdicts)
-        for v in verdicts:
-            v["runtime"] = confirm.get((v["hash"], v["description"]), "not yet observed")
-        # What RPCS3 applied at the last real boot of this exact version that
-        # is NOT in the selection: the player's own activations. Listed so the
-        # screen never lets them pass for GameCore's work.
-        selected = {(v["hash"], v["description"]) for v in verdicts}
-        runs = [r for r in observations(home)
-                if r.get("serial") == game.serial and r.get("appVersion") == game.app_version]
-        if runs:
-            report["personalPatchesAtLastBoot"] = sorted({
-                a["description"] for a in runs[-1].get("applied", [])
-                if not a.get("precompile") and (a["hash"], a["description"]) not in selected})
-        report["coverage"] = ("covered" if sel and sel.get("patches") else
-                              "settings-only" if sel else "no-validated-patches")
         return _finish(home, report, game)
 
 
-def confirmation(home: Path, game: Game, verdicts: list[dict]) -> dict:
-    out = {}
-    for run in observations(home):
-        if run.get("serial") != game.serial or run.get("appVersion") != game.app_version:
-            continue
-        for v in verdicts:
-            k = (v["hash"], v["description"])
-            if any(a["hash"] == v["hash"] and a["description"] == v["description"]
-                   and not a.get("precompile") for a in run.get("applied", [])):
-                out[k] = f"applied (RPCS3 log of {time.strftime('%Y-%m-%d %H:%M', time.localtime(run['logMtime']))})"
-            elif v["hash"] in run.get("exeHashes", []) and k not in out:
-                out[k] = "executable seen, patch not applied in that run"
-    return out
-
-
 def notice(report: dict) -> str | None:
-    """One line for the screen. English, like the rest of GameCore's UI."""
+    """One line for the screen, only when there is something to say.
+    English, like the rest of GameCore's UI."""
     game = report.get("game")
     if not game:
         return None
-    name = f"{game['title']} ({game['serial']} v{game['app_version']})"
     parts = []
-    enabled = [v for v in report.get("patches", []) if v.get("verdict") == "enabled"]
-    mine = [v for v in enabled if v.get("owner") == "gamecore"]
-    theirs = [v for v in enabled if v.get("owner") == "player"]
-    if report.get("coverage") == "no-validated-patches":
-        parts.append("no GameCore-validated patch for this version")
-    if mine:
-        parts.append(f"{len(mine)} validated patch(es) enabled by GameCore")
-    if theirs:
-        parts.append(f"{len(theirs)} validated patch(es) you had already enabled")
-    others = report.get("personalPatchesAtLastBoot") or []
-    if others:
-        parts.append(f"{len(others)} patch(es) of your own also active (not managed by GameCore)")
-    skipped = [v for v in report.get("patches", []) if v.get("verdict") in ("skipped", "kept-personal")]
-    if skipped:
-        parts.append(f"{len(skipped)} patch(es) not enabled — {skipped[0]['reason']}")
     written = [d for d in report.get("settings", []) if d["action"] == "write"]
     if written:
         parts.append(f"{len(written)} recommended setting(s) applied")
@@ -1355,7 +911,9 @@ def notice(report: dict) -> str | None:
                      + (" …" if len(kept) > 3 else "") + " (RPCS3 recommends otherwise)")
     if report.get("errors"):
         parts.append(report["errors"][0])
-    return f"PS3 · {name}: " + "; ".join(parts) if parts else None
+    if not parts:
+        return None
+    return f"PS3 · {game['title']} ({game['serial']} v{game['app_version']}): " + "; ".join(parts)
 
 
 def _finish(home: Path, report: dict, game: Game | None) -> dict:
@@ -1402,16 +960,6 @@ def undo(home: Path, root: Path, serial: str | None = None) -> list[str]:
                 atomic_write(path, text)
             done.append(f"{s}: settings restored in {path}")
         owned["config"][rkey].pop(s, None)
-    patches = owned["patches"].get(rkey, [])
-    keep = [o for o in patches if serial and o["serial"] != serial]
-    gone = [o for o in patches if o not in keep]
-    if gone and (root / "patch_config.yml").is_file():
-        pconf = load_patch_config(root)
-        changes = [{"op": "retract", "key": (o["hash"], o["description"], o["title"],
-                                             o["serial"], o["appVersion"])} for o in gone]
-        atomic_write(root / "patch_config.yml", dump_patch_config(apply_patch_changes(pconf, changes)))
-        done.append(f"{len(gone)} activation(s) withdrawn")
-    owned["patches"][rkey] = keep
     write_json(state_dir(home) / "owned.json", owned)
     return done
 
@@ -1623,16 +1171,6 @@ def sync_main(args: argparse.Namespace) -> int:
         res = sync_runtime(home, rt, policy, offline=offline, force=args.force)
         state["runtimes"][rt.kind] = {"config": str(rt.config), **res}
         failed |= any(v.startswith("error") or v.endswith(":no-cache") for v in res.values())
-        # Tell the reader, now rather than at the next launch, that a selected
-        # patch changed under its approval.
-        stale = []
-        for g in load_selection(HERE / "patch-selection.json"):
-            for p in g["patches"]:
-                e, _ = load_patch_entry(rt.config / "patches" / p.get("file", "patch.yml"),
-                                        p["hash"], p["description"])
-                if e is None or patch_digest(e) != p["sha256"]:
-                    stale.append(f"{g['serial']} {p['description']}")
-        state["runtimes"][rt.kind]["selectionStale"] = stale
     state["ok"] = not failed
     with contextlib.suppress(OSError):
         write_json(state_dir(home) / "state.json", state)
@@ -1676,11 +1214,6 @@ def main(argv: list[str] | None = None) -> int:
         rt = flatpak_runtime(home, args.app_id)
         obs = ingest_log(home, rt)
         last = read_json(state_dir(home) / "last-launch.json", {})
-        if last.get("game"):
-            g = Game(**last["game"])
-            for v in last.get("patches", []):
-                v["runtime"] = confirmation(home, g, [v]).get((v["hash"], v["description"]),
-                                                              "not yet observed")
         print(json.dumps({"lastLaunch": last, "lastRun": obs}, indent=2, ensure_ascii=False))
         return 0
     if args.cmd == "undo":
