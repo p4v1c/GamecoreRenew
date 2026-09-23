@@ -506,8 +506,13 @@ def parse_log(text: str) -> dict[str, Any]:
         else:
             a = _LOG_APPLIED.search(line)
             if a:
+                # {PPU Exec Worker} is RPCS3 precompiling every executable of
+                # the game in one process. A patch applied there proves nothing
+                # about the run — and one using a fixed `alloc` silently fails
+                # there for the second executable while it applies at boot.
                 obs["applied"].append({"hash": a.group(1), "description": a.group(2),
-                                       "patchVersion": a.group(3), "changes": int(a.group(4))})
+                                       "patchVersion": a.group(3), "changes": int(a.group(4)),
+                                       "precompile": "{PPU Exec Worker}" in line})
     obs["fatal"] = [ln.strip()[:300] for ln in text.splitlines() if "·F " in ln][:10]
     return obs
 
@@ -1264,7 +1269,7 @@ def confirmation(home: Path, game: Game, verdicts: list[dict]) -> dict:
         for v in verdicts:
             k = (v["hash"], v["description"])
             if any(a["hash"] == v["hash"] and a["description"] == v["description"]
-                   for a in run.get("applied", [])):
+                   and not a.get("precompile") for a in run.get("applied", [])):
                 out[k] = f"applied (RPCS3 log of {time.strftime('%Y-%m-%d %H:%M', time.localtime(run['logMtime']))})"
             elif v["hash"] in run.get("exeHashes", []) and k not in out:
                 out[k] = "executable seen, patch not applied in that run"

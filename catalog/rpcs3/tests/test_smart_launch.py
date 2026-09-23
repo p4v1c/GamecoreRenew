@@ -759,7 +759,7 @@ def test_log_parsing_matches_rpcs3s_wording():
     assert (o["rpcs3"], o["serial"], o["appVersion"], o["update"]) == \
         ("0.0.41-19497-c0598f61", "BCES00791", "01.01", True)
     assert o["applied"] == [{"hash": H_GOW, "description": "Native PS3 Timing",
-                             "patchVersion": "2.0", "changes": 39}]
+                             "patchVersion": "2.0", "changes": 39, "precompile": False}]
     assert H_GOW in o["exeHashes"]
     assert {"databaseIgnored": True} in o["configSources"]
 
@@ -977,3 +977,13 @@ def test_a_file_without_final_newline_keeps_it_that_way(box):
     after = p.read_text()
     assert not after.endswith("\n")
     assert after.replace("Vblank NTSC Fixup: true", "Vblank NTSC Fixup: false") == CUSTOM_YML.rstrip("\n")
+
+
+def test_a_patch_applied_while_precompiling_is_not_proof(box):
+    box.custom("BCES00791")
+    rom = box.gow()
+    box.prepare(rom)
+    log = REAL_LOG.replace("·S 0:00:09.100000 PAT:", "·S 0:00:09.100000 {PPU Exec Worker} PAT:")
+    (box.cache / "RPCS3.log").write_text(log, encoding="utf-8")
+    r = box.prepare(rom)
+    assert not verdict(r, "Native PS3 Timing")["runtime"].startswith("applied")
