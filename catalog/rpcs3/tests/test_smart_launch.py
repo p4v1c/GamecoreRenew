@@ -797,7 +797,7 @@ def test_shipped_selection_is_well_formed():
     assert sum(len(g["patches"]) for g in sel) == sum(len(g["patches"]) for g in raw["games"]) > 0
     for g in sel:
         for p in g["patches"]:
-            assert p["class"] in ("fidelity", "crash-fix") and p["source"]
+            assert p["class"] in ("fidelity", "crash-fix", "rendering-fix") and p["source"]
             assert not any(w in p["description"].lower() for w in ("infinite", "unlock", "fps", "cheat"))
 
 
@@ -1042,3 +1042,28 @@ def test_used_configuration_parsed_from_a_real_log_shape():
     text = ("·! 0:00:00.14 SYS: Used configuration:\nCore:\n  PPU Decoder: LLVM\nVideo:\n  Vulkan:\n"
             "    Asynchronous Texture Streaming: true\n·! 0:00:00.2 SYS: next\n")
     assert smart.used_config_keys(text) == ["Core/PPU Decoder", "Video/Vulkan/Asynchronous Texture Streaming"]
+
+
+def test_a_community_patch_is_read_from_imported_patch_yml(box):
+    (box.root / "patches/imported_patch.yml").write_text(f"""\
+Version: 1.2
+
+{H_UC2}:
+  "Water fix [Communautaire]":
+    Games:
+      "Uncharted 2: Among Thieves":
+        BCES00509: [ 01.09 ]
+    Patch Version: 1.0
+    Patch:
+      - [ be32, 0x9, 0x9 ]
+""")
+    e, _ = smart.load_patch_entry(box.root / "patches/imported_patch.yml", H_UC2, "Water fix [Communautaire]")
+    box.select([{"serial": "BCES00509", "appVersion": "01.09", "patches": [{
+        "hash": H_UC2, "description": "Water fix [Communautaire]", "patchTitle": "Uncharted 2: Among Thieves",
+        "sha256": smart.patch_digest(e), "file": "imported_patch.yml", "requires": {}}]}])
+    r = box.prepare(box.uc2())
+    assert verdict(r, "Water fix [Communautaire]")["verdict"] == "enabled"
+    (box.root / "patches/imported_patch.yml").unlink()
+    r = box.prepare(box.uc2())
+    v = verdict(r, "Water fix [Communautaire]")
+    assert v["verdict"] == "skipped" and "imported_patch.yml" in v["reason"]

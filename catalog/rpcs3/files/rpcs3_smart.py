@@ -975,7 +975,14 @@ def plan_patches(*, game: Game, sel: dict | None, root: Path, pconf: dict,
             v.update(verdict="skipped", reason=f"validated for RPCS3 {p['rpcs3']}, this box runs {rpcs3_ver}")
             verdicts.append(v)
             continue
-        entry, why = load_patch_entry(root / "patches/patch.yml", p["hash"], p["description"])
+        # Official database by default; a community patch (RPCS3 wiki, Discord)
+        # lives in the player's imported_patch.yml and is named as such.
+        src = p.get("file", "patch.yml")
+        if src not in ("patch.yml", "imported_patch.yml", f"{game.serial}_patch.yml"):
+            v.update(verdict="skipped", reason=f"unsupported patch file {src!r}")
+            verdicts.append(v)
+            continue
+        entry, why = load_patch_entry(root / "patches" / src, p["hash"], p["description"])
         if entry is None:
             v.update(verdict="skipped", reason=why)
             verdicts.append(v)
@@ -998,7 +1005,10 @@ def plan_patches(*, game: Game, sel: dict | None, root: Path, pconf: dict,
         # would be the one RPCS3 keeps if its version is higher — and that is
         # not the body that was reviewed.
         shadow = None
-        for other in (root / "patches/imported_patch.yml", root / f"patches/{game.serial}_patch.yml"):
+        for other in (root / "patches/patch.yml", root / "patches/imported_patch.yml",
+                      root / f"patches/{game.serial}_patch.yml"):
+            if other.name == src:
+                continue
             e2, _ = load_patch_entry(other, p["hash"], p["description"])
             if e2 is not None and patch_digest(e2) != digest:
                 shadow = other.name
@@ -1023,7 +1033,7 @@ def plan_patches(*, game: Game, sel: dict | None, root: Path, pconf: dict,
             if desc in (p.get("conflictsWith") or []):
                 rival = desc
             elif group:
-                other, _ = load_patch_entry(root / "patches/patch.yml", p["hash"], desc)
+                other, _ = load_patch_entry(root / "patches" / src, p["hash"], desc)
                 if other and other.get("Group") == group:
                     rival = desc
         if rival and state is not True:
@@ -1618,7 +1628,8 @@ def sync_main(args: argparse.Namespace) -> int:
         stale = []
         for g in load_selection(HERE / "patch-selection.json"):
             for p in g["patches"]:
-                e, _ = load_patch_entry(rt.config / "patches/patch.yml", p["hash"], p["description"])
+                e, _ = load_patch_entry(rt.config / "patches" / p.get("file", "patch.yml"),
+                                        p["hash"], p["description"])
                 if e is None or patch_digest(e) != p["sha256"]:
                     stale.append(f"{g['serial']} {p['description']}")
         state["runtimes"][rt.kind]["selectionStale"] = stale
