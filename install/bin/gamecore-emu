@@ -348,7 +348,8 @@ packs = load_catalog(root / "catalog", data / "config" / "catalog.d")
 # the data could move, and passing only the first made every removal come back
 # on the next install: the list it consults was in the other tree.
 for name, kind in (("systems.json", "emulator"), ("apps.json", "app")):
-    for n in merge_file(data / "config" / name, packs, root, kind=kind, data_root=data):
+    for n in merge_file(data / "config" / name, packs, root, kind=kind, data_root=data,
+                        only_present=True):
         print(f"[gamecore-emu]   {n}")
 PY
   info "done — the grid reloads on its own (no restart needed)."

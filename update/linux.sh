@@ -520,7 +520,9 @@ fi
 #
 # It merges now, conservatively (backend/services/catalog/merge.py):
 #   · a tile the operator added by hand is kept, untouched;
-#   · an emulator new in this release is added;
+#   · an emulator new in this release is added — once it is installed on the
+#     box: a tile for an emulator that is not there only fails at launch, and
+#     `gamecore-emu install <id>` adds it the moment it is;
 #   · a launcher is repaired ONLY when it is stale — it names a Flatpak app id
 #     no pack declares, or its path does not resolve on this box. A native
 #     binary in lib/ that exists is never pushed back to Flatpak;
@@ -553,7 +555,7 @@ from backend.services.catalog.merge import merge_file
 
 notes = merge_file(data / "config" / "systems.json",
                    load_catalog(root / "catalog", data / "config" / "catalog.d"),
-                   root, data_root=data)
+                   root, data_root=data, only_present=True)
 for n in notes:
     print(f"[update]   {n}")
 if not notes:

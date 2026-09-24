@@ -302,3 +302,26 @@ def test_the_updater_merges_bezels_from_the_release_tree():
     text = (ROOT / "update/linux.sh").read_text()
     assert '"${GAMECORE_PATH}" "${SRC_DIR}" "${GAMECORE_DATA}"' in text
     assert "merge_overlays(Path(sys.argv[2]), Path(sys.argv[3]))" in text
+
+
+def test_pack_present_by_provider(packs, tmp_path):
+    from backend.services.catalog.merge import pack_present
+    dolphin, duck = packs["dolphin"], packs["duckstation"]
+    assert pack_present(dolphin, tmp_path, None)        # flatpak unseen: keep the tile
+    assert not pack_present(dolphin, tmp_path, frozenset())
+    assert pack_present(dolphin, tmp_path, frozenset(dolphin.app_ids[:1]))
+    assert not pack_present(duck, tmp_path, None)
+    dest = tmp_path / duck.data["install"]["dest"]
+    dest.parent.mkdir(parents=True)
+    dest.write_bytes(b"\x7fELF")
+    assert pack_present(duck, tmp_path, None)
+    native = tmp_path / "native"
+    (native / "lib").mkdir(parents=True)
+    (native / "lib" / "duck").write_bytes(b"\x7fELF")   # preferIfPresent: lib/duck
+    assert pack_present(duck, native, None)
+
+
+def test_merge_keeps_an_absent_newcomer_off_the_grid(packs, tmp_path):
+    merged, notes = merge_systems([], packs, tmp_path, present=lambda p: p.id != "nes")
+    assert "nes" not in {e["id"] for e in merged}
+    assert "nes: not added — its emulator is not installed" in notes

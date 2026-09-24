@@ -137,15 +137,26 @@ def test_the_grid_merge_writes_where_the_backend_reads_and_honours_a_removal(tmp
     (data / "config" / "catalog-removed.json").write_text(json.dumps(["azahar"]))
     (code / "config" / "systems.json").write_text("[]")
 
+    # The merge adds a new system only once its emulator is installed, and asks
+    # flatpak and pacman which are. Stubbed: Dolphin is here, nothing else.
+    stubs = tmp_path / "stubs"
+    stubs.mkdir()
+    (stubs / "flatpak").write_text("#!/bin/sh\necho org.DolphinEmu.dolphin-emu\n")
+    (stubs / "pacman").write_text("#!/bin/sh\nexit 1\n")
+    for f in stubs.iterdir():
+        f.chmod(0o755)
+
     source = CLI.read_text().split("# ── dispatch")[0] + "\nrefresh_grid\n"
     r = subprocess.run(["bash"], input=source, text=True, capture_output=True, timeout=120,
-                       env={**os.environ, "GAMECORE_PATH": str(code),
+                       env={**os.environ, "PATH": f"{stubs}:{os.environ['PATH']}",
+                            "GAMECORE_PATH": str(code),
                             "GAMECORE_DATA": str(data),
                             "GAMECORE_USER": os.environ.get("USER", "nobody")})
     assert r.returncode == 0, r.stderr
 
     live = _ids(data / "config" / "systems.json")
-    assert live, "nothing reached the grid the backend reads"
+    assert "dolphin" in live, "nothing reached the grid the backend reads"
+    assert "nes" not in live, "a system whose emulator is absent reached the grid"
     assert "azahar" not in live, (
         "a declined pack came back: the removal list was read from the other tree")
     assert _ids(code / "config" / "systems.json") == []

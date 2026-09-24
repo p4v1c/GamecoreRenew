@@ -41,6 +41,8 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from ...utils import atomic_write
@@ -116,6 +118,36 @@ def launcher_is_stale(entry: dict, pack, known_app_ids: set[str], root: Path) ->
     return ""
 
 
+def pack_present(pack, root: Path, installed: frozenset[str] | None) -> bool:
+    """Is this pack's emulator actually on the box?
+
+    What decides whether an update may put a NEW tile on the grid: a tile for
+    an emulator that is not there only fails at launch. `installed` is
+    appid.probe(); None means flatpak could not be seen, and an unknown answer
+    keeps the tile — same rule as flatpakify's prune. The launcher cannot be
+    the test: the RetroArch packs launch /usr/bin/python3, always present.
+    """
+    prefer = (pack.data.get("launch") or {}).get("preferIfPresent")
+    if prefer and _launcher_resolves(prefer["path"], root):
+        return True                      # a native build the box prefers (mgba-qt, lib/duck)
+    spec = pack.data.get("install") or {}
+    provider = spec.get("provider")
+    if provider == "flatpak":
+        return installed is None or any(a in installed for a in pack.app_ids)
+    if provider == "pacman":
+        pkgs = spec.get("packages") or []
+        try:
+            return subprocess.run(["pacman", "-Q", *pkgs], capture_output=True,
+                                  timeout=30).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return True                  # cannot ask — unknown, keep the tile
+    if provider == "github-asset":
+        return (root / spec["dest"]).is_file()
+    if provider == "github-archive":
+        return (root / spec["dest"] / spec["entrypoint"]).is_file()
+    return True
+
+
 def nominal_launcher(pack, root: Path) -> tuple[str, str]:
     """What this box should launch: the reference-box preference when that
     binary is actually here, the nominal launcher otherwise."""
@@ -139,11 +171,14 @@ def entry_from_pack(pack, root: Path) -> dict:
 def merge_systems(live: list[dict], packs: dict, root: Path,
                   add_missing: bool = True,
                   removed: set[str] | None = None,
-                  kind: str = "emulator") -> tuple[list[dict], list[str]]:
+                  kind: str = "emulator",
+                  present: Callable | None = None) -> tuple[list[dict], list[str]]:
     """(merged entries, human-readable notes). Pure — writes nothing.
 
     `removed` is what the operator took off the grid on purpose; those ids are
     never added back. `kind` picks which half of the catalogue this file holds.
+    `present(pack)`, when given, keeps a newcomer off the grid until its
+    emulator is installed; `gamecore-emu install` adds it then.
     """
     removed = removed or set()
     # Every candidate, not just the resolved one: a box legitimately running a
@@ -228,6 +263,9 @@ def merge_systems(live: list[dict], packs: dict, root: Path,
             if pack.id in removed:
                 # Taken off deliberately. Not "missing" — declined.
                 continue
+            if present is not None and not present(pack):
+                notes.append(f"{pack.id}: not added — its emulator is not installed")
+                continue
             out.append(entry_from_pack(pack, root))
             notes.append(f"{pack.id}: added — new in this release")
 
@@ -236,7 +274,8 @@ def merge_systems(live: list[dict], packs: dict, root: Path,
 
 def merge_file(systems_file: Path, packs: dict, root: Path,
                dry_run: bool = False, kind: str = "emulator",
-               data_root: Path | None = None) -> list[str]:
+               data_root: Path | None = None,
+               only_present: bool = False) -> list[str]:
     """Apply the merge to a real systems.json. Returns the notes.
 
     Never raises on a malformed file: an update must not take the grid down
@@ -258,10 +297,16 @@ def merge_file(systems_file: Path, packs: dict, root: Path,
     if not isinstance(live, list):
         return ["systems.json is not a list — left untouched"]
 
+    present = None
+    if only_present and kind == "emulator":
+        from .appid import probe
+        installed = probe()
+        present = lambda p: pack_present(p, root, installed)  # noqa: E731
     merged, notes = merge_systems(live, packs, root,
-                                  removed=load_removed(data_root or root), kind=kind)
-    if not notes:
-        return []
+                                  removed=load_removed(data_root or root), kind=kind,
+                                  present=present)
+    if all("not added" in n for n in notes):
+        return notes                     # nothing changes on disk (or nothing to say)
     if dry_run:
         return notes + ["(dry run — nothing written)"]
 
