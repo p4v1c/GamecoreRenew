@@ -74,3 +74,14 @@ def test_shared_helper_has_no_private_subprocess_probe():
             imports.append(node.module)
     assert "subprocess" not in imports
     assert "controllers.sdl2_probe" in source
+
+
+def test_release_is_a_list_like_every_other_generator(tmp_path):
+    """configgen extends its results with release(): None raised TypeError on
+    every unplug, and a bare string would be split into characters."""
+    target = tmp_path / "nes.cfg"
+    assert retroarch.release("nes", 2, 1, {"target": str(target)}) == []
+    assert retroarch.release("nes", 2, 5, {"target": str(target)}) == []
+    target.write_text('input_player1_a_btn = "0"  # gamecore:p1\n')
+    out = retroarch.release("nes", 2, 1, {"target": str(target)})
+    assert isinstance(out, list)

@@ -217,17 +217,19 @@ def generate(emu_id: str, ports: int, player_index: int, pad, opts: dict):
 
 
 def release(emu_id: str, ports: int, player_index: int, opts: dict,
-            occupied: Collection[int] = ()):
+            occupied: Collection[int] = ()) -> list[str]:
+    """A list, like every other generator's release: configgen extends its
+    results with it, and a None raised TypeError on every unplug."""
     del occupied  # roster state is irrelevant when clearing one RetroArch slot
     if player_index < 1 or player_index > ports:
-        return None
+        return []
     path = Path(opts["target"])
     if not path.is_file():
-        return None
+        return []
     text = path.read_text(encoding="utf-8")
     new = remove_owned(text, player_index)
     if new != text:
         backup(path)
         atomic_write(path, new)
-        return f"{emu_id}: released P{player_index}"
-    return None
+        return [f"{emu_id}: released P{player_index}"]
+    return []
