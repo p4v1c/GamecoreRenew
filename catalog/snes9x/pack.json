@@ -1,0 +1,79 @@
+{
+  "id": "snes9x",
+  "kind": "emulator",
+  "label": "Super Nintendo",
+  "emulatorName": "Snes9x",
+  "platform": "SNES",
+  "family": "Nintendo",
+  "color": "#7c3aed",
+  "order": 19,
+  "install": {
+    "provider": "flatpak",
+    "appIds": [
+      "com.snes9x.Snes9x"
+    ]
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run @APPID@",
+    "preferIfPresent": {
+      "path": "/usr/bin/snes9x-gtk",
+      "args": ""
+    }
+  },
+  "roms": {
+    "dir": "emu/snes9x",
+    "extensions": [
+      "*.sfc",
+      "*.smc",
+      "*.fig",
+      "*.swc",
+      "*.jma",
+      "*.zip",
+      "*.gd3",
+      "*.gz",
+      "*.bs"
+    ]
+  },
+  "config": {
+    "dest": "@FLATPAK_CONFIG@/snes9x",
+    "nativeDest": "@HOME@/.config/snes9x"
+  },
+  "controllers": {
+    "maxPlayers": 2,
+    "order": 19,
+    "strategy": "snapshot-restore",
+    "target": "snes9x.conf",
+    "seedMustNotContain": [
+      "^b_(up|down|left|right|start|select|a|b|x|y|l|r)\\s*=\\s*Joystick\\s"
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "snes9x-gtk",
+        "Snes9x",
+        "snes9x",
+        "com.snes9x.Snes9x"
+      ]
+    },
+    "asset": "snes9x.png"
+  },
+  "scraper": {
+    "tgdbId": 6,
+    "screenscraper": [
+      4
+    ],
+    "libretro": [
+      "Nintendo - Super Nintendo Entertainment System"
+    ],
+    "mediaAlias": [
+      "snes",
+      "super nintendo"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "A SNES cartridge dump carries no stable serial and Snes9x keeps its GTK preferences in the global snes9x.conf. GameCore can still identify media by filename/hash, but there is no verified Snes9x per-game file contract for this pack to write safely."
+  }
+}

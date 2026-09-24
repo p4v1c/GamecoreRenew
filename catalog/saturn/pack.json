@@ -1,0 +1,76 @@
+{
+  "id": "saturn",
+  "kind": "emulator",
+  "label": "Sega Saturn",
+  "emulatorName": "RetroArch / kronos",
+  "platform": "Saturn",
+  "family": "Sega",
+  "color": "#37474f",
+  "order": 28,
+  "install": {
+    "provider": "pacman",
+    "packages": [
+      "retroarch",
+      "libretro-kronos"
+    ]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/saturn.cfg' --core /usr/lib/libretro/kronos_libretro.so --"
+  },
+  "roms": {
+    "dir": "emu/saturn",
+    "extensions": [
+      "*.ccd",
+      "*.chd",
+      "*.cue",
+      "*.iso",
+      "*.mds",
+      "*.m3u"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.config/gamecore-retroarch"
+  },
+  "controllers": {
+    "maxPlayers": 2,
+    "order": 28,
+    "strategy": "snapshot-restore",
+    "target": "saturn.cfg",
+    "seedMustNotContain": [
+      "^input_player[1-4]_.*(?:_btn|_axis|joypad_index)\\s*="
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "retroarch",
+        "RetroArch"
+      ]
+    },
+    "asset": "saturn.png"
+  },
+  "scraper": {
+    "libretro": [
+      "Sega - Saturn"
+    ],
+    "mediaAlias": [
+      "saturn"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."
+  },
+  "bios": {
+    "dir": "@HOME@/.config/gamecore-retroarch/system",
+    "files": [
+      {
+        "file": "kronos/saturn_bios.bin",
+        "required": true,
+        "note": "Sega Saturn BIOS required by the Kronos core.",
+        "md5": "af5828fdff51384f99b3c4926be27762"
+      }
+    ]
+  }
+}

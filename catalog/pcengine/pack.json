@@ -1,0 +1,60 @@
+{
+  "id": "pcengine",
+  "kind": "emulator",
+  "label": "NEC PC Engine / TurboGrafx-16",
+  "emulatorName": "RetroArch / beetle-pce",
+  "platform": "PC Engine",
+  "family": "NEC",
+  "color": "#eeeeee",
+  "order": 33,
+  "install": {
+    "provider": "pacman",
+    "packages": [
+      "retroarch",
+      "libretro-beetle-pce"
+    ]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/pcengine.cfg' --core /usr/lib/libretro/mednafen_pce_libretro.so --"
+  },
+  "roms": {
+    "dir": "emu/pcengine",
+    "extensions": [
+      "*.pce"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.config/gamecore-retroarch"
+  },
+  "controllers": {
+    "maxPlayers": 1,
+    "order": 33,
+    "strategy": "snapshot-restore",
+    "target": "pcengine.cfg",
+    "seedMustNotContain": [
+      "^input_player[1-4]_.*(?:_btn|_axis|joypad_index)\\s*="
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "retroarch",
+        "RetroArch"
+      ]
+    },
+    "asset": "pcengine.png"
+  },
+  "scraper": {
+    "libretro": [
+      "NEC - PC Engine - TurboGrafx 16"
+    ],
+    "mediaAlias": [
+      "pc engine"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."
+  }
+}

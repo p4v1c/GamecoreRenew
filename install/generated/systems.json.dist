@@ -310,5 +310,348 @@
     "scanDirs": true,
     "extensions": [],
     "libretroSystems": []
+  },
+  {
+    "id": "snes9x",
+    "type": "emulator",
+    "label": "Super Nintendo",
+    "platform": "SNES",
+    "color": "#7c3aed",
+    "iconPath": "assets/logos/snes9x.png",
+    "path": "/usr/bin/snes9x-gtk",
+    "args": "",
+    "romsPath": "emu/snes9x/",
+    "extensions": [
+      "*.sfc",
+      "*.smc",
+      "*.fig",
+      "*.swc",
+      "*.jma",
+      "*.zip",
+      "*.gd3",
+      "*.gz",
+      "*.bs"
+    ],
+    "libretroSystems": [
+      "Nintendo - Super Nintendo Entertainment System"
+    ]
+  },
+  {
+    "id": "nes",
+    "type": "emulator",
+    "label": "Nintendo Entertainment System",
+    "platform": "NES",
+    "color": "#d32f2f",
+    "iconPath": "assets/logos/nes.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/nes.cfg' --core /usr/lib/libretro/mesen_libretro.so --",
+    "romsPath": "emu/nes/",
+    "extensions": [
+      "*.nes",
+      "*.unf",
+      "*.unif"
+    ],
+    "libretroSystems": [
+      "Nintendo - Nintendo Entertainment System"
+    ]
+  },
+  {
+    "id": "fds",
+    "type": "emulator",
+    "label": "Family Computer Disk System",
+    "platform": "FDS",
+    "color": "#c62828",
+    "iconPath": "assets/logos/fds.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/fds.cfg' --core /usr/lib/libretro/mesen_libretro.so --",
+    "romsPath": "emu/fds/",
+    "extensions": [
+      "*.fds"
+    ],
+    "libretroSystems": [
+      "Nintendo - Family Computer Disk System"
+    ]
+  },
+  {
+    "id": "mastersystem",
+    "type": "emulator",
+    "label": "Sega Master System",
+    "platform": "Master System",
+    "color": "#1565c0",
+    "iconPath": "assets/logos/mastersystem.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/mastersystem.cfg' --core /usr/lib/libretro/genesis_plus_gx_libretro.so --",
+    "romsPath": "emu/mastersystem/",
+    "extensions": [
+      "*.sms",
+      "*.bms"
+    ],
+    "libretroSystems": [
+      "Sega - Master System - Mark III"
+    ]
+  },
+  {
+    "id": "gamegear",
+    "type": "emulator",
+    "label": "Sega Game Gear",
+    "platform": "Game Gear",
+    "color": "#37474f",
+    "iconPath": "assets/logos/gamegear.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/gamegear.cfg' --core /usr/lib/libretro/genesis_plus_gx_libretro.so --",
+    "romsPath": "emu/gamegear/",
+    "extensions": [
+      "*.gg"
+    ],
+    "libretroSystems": [
+      "Sega - Game Gear"
+    ]
+  },
+  {
+    "id": "sg1000",
+    "type": "emulator",
+    "label": "Sega SG-1000",
+    "platform": "SG-1000",
+    "color": "#0277bd",
+    "iconPath": "assets/logos/sg1000.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/sg1000.cfg' --core /usr/lib/libretro/genesis_plus_gx_libretro.so --",
+    "romsPath": "emu/sg1000/",
+    "extensions": [
+      "*.sg",
+      "*.sgd"
+    ],
+    "libretroSystems": [
+      "Sega - SG-1000"
+    ]
+  },
+  {
+    "id": "megadrive",
+    "type": "emulator",
+    "label": "Sega Mega Drive / Genesis",
+    "platform": "Mega Drive",
+    "color": "#212121",
+    "iconPath": "assets/logos/megadrive.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/megadrive.cfg' --core /usr/lib/libretro/genesis_plus_gx_libretro.so --",
+    "romsPath": "emu/megadrive/",
+    "extensions": [
+      "*.md",
+      "*.mdx",
+      "*.smd",
+      "*.gen",
+      "*.68k"
+    ],
+    "libretroSystems": [
+      "Sega - Mega Drive - Genesis"
+    ]
+  },
+  {
+    "id": "megacd",
+    "type": "emulator",
+    "label": "Sega Mega-CD / Sega CD",
+    "platform": "Mega-CD",
+    "color": "#455a64",
+    "iconPath": "assets/logos/megacd.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/megacd.cfg' --core /usr/lib/libretro/genesis_plus_gx_libretro.so --",
+    "romsPath": "emu/megacd/",
+    "extensions": [
+      "*.cue",
+      "*.iso",
+      "*.chd",
+      "*.m3u"
+    ],
+    "libretroSystems": [
+      "Sega - Mega-CD - Sega CD"
+    ]
+  },
+  {
+    "id": "sega32x",
+    "type": "emulator",
+    "label": "Sega Mega Drive 32X",
+    "platform": "32X",
+    "color": "#263238",
+    "iconPath": "assets/logos/sega32x.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/sega32x.cfg' --core /usr/lib/libretro/picodrive_libretro.so --",
+    "romsPath": "emu/sega32x/",
+    "extensions": [
+      "*.32x"
+    ],
+    "libretroSystems": [
+      "Sega - 32X"
+    ]
+  },
+  {
+    "id": "saturn",
+    "type": "emulator",
+    "label": "Sega Saturn",
+    "platform": "Saturn",
+    "color": "#37474f",
+    "iconPath": "assets/logos/saturn.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/saturn.cfg' --core /usr/lib/libretro/kronos_libretro.so --",
+    "romsPath": "emu/saturn/",
+    "extensions": [
+      "*.ccd",
+      "*.chd",
+      "*.cue",
+      "*.iso",
+      "*.mds",
+      "*.m3u"
+    ],
+    "libretroSystems": [
+      "Sega - Saturn"
+    ]
+  },
+  {
+    "id": "dreamcast",
+    "type": "emulator",
+    "label": "Sega Dreamcast",
+    "platform": "Dreamcast",
+    "color": "#f57c00",
+    "iconPath": "assets/logos/dreamcast.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/dreamcast.cfg' --core /usr/lib/libretro/flycast_libretro.so --",
+    "romsPath": "emu/dreamcast/",
+    "extensions": [
+      "*.chd",
+      "*.cdi",
+      "*.cue",
+      "*.gdi",
+      "*.m3u"
+    ],
+    "libretroSystems": [
+      "Sega - Dreamcast"
+    ]
+  },
+  {
+    "id": "naomi",
+    "type": "emulator",
+    "label": "Sega Naomi",
+    "platform": "Naomi",
+    "color": "#00838f",
+    "iconPath": "assets/logos/naomi.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/naomi.cfg' --core /usr/lib/libretro/flycast_libretro.so --",
+    "romsPath": "emu/naomi/",
+    "extensions": [
+      "*.zip",
+      "*.7z"
+    ],
+    "libretroSystems": [
+      "Sega - Naomi"
+    ]
+  },
+  {
+    "id": "naomigd",
+    "type": "emulator",
+    "label": "Sega Naomi GD-ROM",
+    "platform": "Naomi GD-ROM",
+    "color": "#00695c",
+    "iconPath": "assets/logos/naomigd.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/naomigd.cfg' --core /usr/lib/libretro/flycast_libretro.so --",
+    "romsPath": "emu/naomigd/",
+    "extensions": [
+      "*.zip",
+      "*.7z"
+    ],
+    "libretroSystems": [
+      "Sega - Naomi"
+    ]
+  },
+  {
+    "id": "atomiswave",
+    "type": "emulator",
+    "label": "Sammy Atomiswave",
+    "platform": "Atomiswave",
+    "color": "#ad1457",
+    "iconPath": "assets/logos/atomiswave.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/atomiswave.cfg' --core /usr/lib/libretro/flycast_libretro.so --",
+    "romsPath": "emu/atomiswave/",
+    "extensions": [
+      "*.zip",
+      "*.7z"
+    ],
+    "libretroSystems": [
+      "Atomiswave"
+    ]
+  },
+  {
+    "id": "pcengine",
+    "type": "emulator",
+    "label": "NEC PC Engine / TurboGrafx-16",
+    "platform": "PC Engine",
+    "color": "#eeeeee",
+    "iconPath": "assets/logos/pcengine.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/pcengine.cfg' --core /usr/lib/libretro/mednafen_pce_libretro.so --",
+    "romsPath": "emu/pcengine/",
+    "extensions": [
+      "*.pce"
+    ],
+    "libretroSystems": [
+      "NEC - PC Engine - TurboGrafx 16"
+    ]
+  },
+  {
+    "id": "pcenginecd",
+    "type": "emulator",
+    "label": "NEC PC Engine CD / TurboGrafx-CD",
+    "platform": "PC Engine CD",
+    "color": "#b71c1c",
+    "iconPath": "assets/logos/pcenginecd.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/pcenginecd.cfg' --core /usr/lib/libretro/mednafen_pce_libretro.so --",
+    "romsPath": "emu/pcenginecd/",
+    "extensions": [
+      "*.cue",
+      "*.ccd",
+      "*.chd",
+      "*.toc",
+      "*.m3u"
+    ],
+    "libretroSystems": [
+      "NEC - PC Engine CD - TurboGrafx-CD"
+    ]
+  },
+  {
+    "id": "supergrafx",
+    "type": "emulator",
+    "label": "NEC PC Engine SuperGrafx",
+    "platform": "SuperGrafx",
+    "color": "#6d4c41",
+    "iconPath": "assets/logos/supergrafx.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/supergrafx.cfg' --core /usr/lib/libretro/mednafen_pce_libretro.so --",
+    "romsPath": "emu/supergrafx/",
+    "extensions": [
+      "*.sgx"
+    ],
+    "libretroSystems": [
+      "NEC - PC Engine SuperGrafx"
+    ]
+  },
+  {
+    "id": "mame",
+    "type": "emulator",
+    "label": "Arcade (MAME)",
+    "platform": "Arcade",
+    "color": "#424242",
+    "iconPath": "assets/logos/mame.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/mame.cfg' --core /usr/lib/libretro/mame_libretro.so --",
+    "romsPath": "emu/mame/",
+    "extensions": [
+      "*.zip",
+      "*.7z",
+      "*.cmd"
+    ],
+    "libretroSystems": [
+      "MAME"
+    ]
   }
 ]

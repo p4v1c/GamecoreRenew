@@ -1,0 +1,75 @@
+{
+  "id": "dreamcast",
+  "kind": "emulator",
+  "label": "Sega Dreamcast",
+  "emulatorName": "RetroArch / flycast",
+  "platform": "Dreamcast",
+  "family": "Sega",
+  "color": "#f57c00",
+  "order": 29,
+  "install": {
+    "provider": "pacman",
+    "packages": [
+      "retroarch",
+      "libretro-flycast"
+    ]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/dreamcast.cfg' --core /usr/lib/libretro/flycast_libretro.so --"
+  },
+  "roms": {
+    "dir": "emu/dreamcast",
+    "extensions": [
+      "*.chd",
+      "*.cdi",
+      "*.cue",
+      "*.gdi",
+      "*.m3u"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.config/gamecore-retroarch"
+  },
+  "controllers": {
+    "maxPlayers": 4,
+    "order": 29,
+    "strategy": "snapshot-restore",
+    "target": "dreamcast.cfg",
+    "seedMustNotContain": [
+      "^input_player[1-4]_.*(?:_btn|_axis|joypad_index)\\s*="
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "retroarch",
+        "RetroArch"
+      ]
+    },
+    "asset": "dreamcast.png"
+  },
+  "scraper": {
+    "libretro": [
+      "Sega - Dreamcast"
+    ],
+    "mediaAlias": [
+      "dreamcast"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."
+  },
+  "bios": {
+    "dir": "@HOME@/.config/gamecore-retroarch/system",
+    "files": [
+      {
+        "file": "dc/dc_boot.bin",
+        "required": false,
+        "note": "Optional Dreamcast BIOS; Flycast can run many titles without it.",
+        "md5": "e10c53c2f8b90bab96ead2d368858623"
+      }
+    ]
+  }
+}
