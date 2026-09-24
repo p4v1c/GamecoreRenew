@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { fmtTime, fmtDate, hexToRgb, Chip } from '../ui'
 import { formatGameName } from '../../lib/formatGameName'
 import type { LibraryViewProps } from './types'
+import { PadHints } from '../../lib/padKey'
 
 export default function DefaultLibraryView({
   systemId, system, games, totalCount, playtime, selectedIdx, detailGame,
@@ -235,7 +236,7 @@ export default function DefaultLibraryView({
         borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(9,9,15,0.5)',
       }}>
         <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.15)' }}>
-          ↑↓ Navigate · ✕ Play · △ Search · □ Controller · L1/R1 Sort · R2 Options · ○ Back
+          <PadHints text="↑↓ Navigate · ✕ Play · △ Search · □ Controller · L1/R1 Sort · R2 Options · ○ Back" />
         </span>
       </div>
     </motion.div>

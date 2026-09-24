@@ -43,6 +43,9 @@ const logoOf = (sy) => (sy.iconPath ? String(sy.iconPath).split('/').pop() : nul
 
 export const createHomeView = (sdk, accent) => {
   const { html, useEffect } = sdk.ui
+  // Controller button prompts from the host; plain text on an older host.
+  const PadKey = sdk.ui.PadKey || (({ k }) => html`<kbd>${k}</kbd>`)
+  const PadHints = sdk.ui.PadHints || (({ text }) => text)
 
   return ({ systems, playtime, counts, focusIdx, page, pageCount, cols, rows, perPage, totals, onActivate, onPage }) => {
     const screen = sdk.nav.use((s) => s.screen)
@@ -156,11 +159,11 @@ export const createHomeView = (sdk, accent) => {
             ${totals.games} games across ${totals.systems} systems · ${totals.hours}h played
           </div>
           <div class="cz-keys">
-            <kbd>←</kbd><kbd>→</kbd><span>Move</span>
-            ${lanes > 1 ? html`<kbd>↑</kbd><kbd>↓</kbd><span>Row</span>` : null}
-            ${pageCount > 1 ? html`<kbd>L1</kbd><kbd>R1</kbd><span>Page</span>` : null}
-            <kbd class="cz-key-go">✕</kbd><span>${isApp ? 'Launch' : 'Open'}</span>
-            <kbd>□</kbd><span>Controller</span>
+            <${PadKey} k="← →" /><span>Move</span>
+            ${lanes > 1 ? html`<${PadKey} k="↑ ↓" /><span>Row</span>` : null}
+            ${pageCount > 1 ? html`<${PadKey} k="L1 R1" /><span>Page</span>` : null}
+            <${PadKey} k="✕" /><span>${isApp ? 'Launch' : 'Open'}</span>
+            <${PadKey} k="□" /><span>Controller</span>
           </div>
         </div>
       </div>`

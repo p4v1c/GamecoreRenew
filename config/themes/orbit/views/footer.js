@@ -16,6 +16,9 @@ const hintsFor = (tab) => tab === 'library'
 
 export function createFooter(sdk, tabs) {
   const {html, useState, useEffect} = sdk.ui
+  // Controller button prompts from the host; plain text on an older host.
+  const PadKey = sdk.ui.PadKey || (({k}) => html`<kbd>${k}</kbd>`)
+  const PadHints = sdk.ui.PadHints || (({text}) => text)
   let counts = {consoles: 0, games: 0, apps: 0}
   const listeners = new Set()
   function update(systems, totals) {
@@ -47,8 +50,8 @@ export function createFooter(sdk, tabs) {
       <div className="footer-status"><span className="status-light" />
         <span>${collection.consoles} consoles · ${collection.games} games · ${collection.apps} applications</span></div>
       <div className="keyboard-hints">${hintsFor(tab).map(([key, label]) =>
-        html`<span key=${label}><kbd>${labels[key] || key}</kbd> ${label}</span>`)}
-        ${background.length ? html`<span><kbd>${labels.L2 || 'L2'}</kbd> Session</span>` : null}</div>
+        html`<span key=${label}><${PadKey} k=${labels[key] || key} /> ${label}</span>`)}
+        ${background.length ? html`<span><${PadKey} k=${labels.L2 || 'L2'} /> Session</span>` : null}</div>
       <div className="status-bar" aria-label="Connected controllers and network">
         ${(info?.controllers || []).map((pad, i) => html`<span key=${i} className="topbar-pad" title=${pad.name || pad.label || 'Controller'}>
           <b>P${pad.player ?? i + 1}</b>${Number.isFinite(pad.level) && pad.level >= 0 ? html`<span>${pad.level}%</span>` : null}</span>`)}

@@ -3,6 +3,7 @@ import { Overlay, BackHeader } from '../../ui'
 import { api, type BiosSystem, type BiosFile } from '../../../api'
 import { onGp } from '../../../hooks/useGamepad'
 import { useSubPageGamepad } from './useSubPageGamepad'
+import { PadHints } from '../../../lib/padKey'
 
 /**
  * Settings → BIOS: what this box still needs, and exactly where to put it.
@@ -162,7 +163,7 @@ export function BiosPage({ onClose, onBack }: { onClose: () => void; onBack: () 
       )}
 
       <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
-        ↑↓ Scroll · ○ Back
+        <PadHints text="↑↓ Scroll · ○ Back" />
       </div>
     </Overlay>
   )

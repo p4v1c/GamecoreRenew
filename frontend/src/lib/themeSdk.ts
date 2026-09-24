@@ -10,6 +10,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import htm from 'htm'
+import { PadKey, PadHints } from './padKey.js'
 
 import { api } from '../api'
 import { fetchThemeIndex } from './themeLoader'
@@ -115,6 +116,9 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
       html, React,
       useState, useEffect, useRef, useMemo, useCallback,
       motion, AnimatePresence,
+      /** Controller button prompts (PlayStation glyphs): `<${PadKey} k="✕" />`,
+       *  `<${PadHints} text="↑↓ Navigate · ✕ Select" />`. Absent on older hosts. */
+      PadKey, PadHints,
     },
 
     api,

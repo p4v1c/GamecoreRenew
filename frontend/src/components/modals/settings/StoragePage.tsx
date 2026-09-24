@@ -3,6 +3,7 @@ import { Overlay, BackHeader } from '../../ui'
 import { api, type StorageVolume } from '../../../api'
 import { onGp } from '../../../hooks/useGamepad'
 import { useSubPageGamepad } from './useSubPageGamepad'
+import { PadHints } from '../../../lib/padKey'
 
 /**
  * Settings → Storage: the external disks, and the way to take one out safely.
@@ -163,7 +164,7 @@ export function StoragePage({ onClose, onBack }: { onClose: () => void; onBack: 
       ))}
 
       <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
-        ↑↓ Navigate · ✕ Eject · ○ Back
+        <PadHints text="↑↓ Navigate · ✕ Eject · ○ Back" />
       </div>
     </Overlay>
   )

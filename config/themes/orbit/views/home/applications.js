@@ -2,6 +2,9 @@ import {isApp, systemName, appStyle, packLogo} from '../../lib/catalog.js'
 
 export function createApplicationsTab({sdk, tabs, sessions, backdrop, Art, svg, hooks}) {
   const {html, useState, useEffect, useMemo} = sdk.ui
+  // Controller button prompts from the host; plain text on an older host.
+  const PadKey = sdk.ui.PadKey || (({k}) => html`<kbd>${k}</kbd>`)
+  const PadHints = sdk.ui.PadHints || (({text}) => text)
   const {useHomeKeys} = hooks
 
   // ── the Applications tab ──────────────────────────────────────────────────
@@ -59,7 +62,7 @@ export function createApplicationsTab({sdk, tabs, sessions, backdrop, Art, svg, 
           <h2>${systemName(app)}</h2>
           <p className="application-description">${s.description}</p>
           <button className="primary-button" onClick=${open}>${svg('play')}${
-            held ? 'Resume' : 'Open'} ${systemName(app)}<span className="application-confirm">✕</span></button>
+            held ? 'Resume' : 'Open'} ${systemName(app)}<span className="application-confirm"><${PadKey} k="✕" /></span></button>
           <span className="application-pack">GameCore pack · ${app.id}</span>
         </div>
         <div className="application-emblem" aria-hidden="true">

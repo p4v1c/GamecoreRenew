@@ -15,6 +15,9 @@ const SEARCH = '<circle cx="10.7" cy="10.7" r="6.7"/><path d="m16 16 4.5 4.5"/>'
 
 export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
   const {html, useState, useEffect, useRef, useMemo} = sdk.ui
+  // Controller button prompts from the host; plain text on an older host.
+  const PadKey = sdk.ui.PadKey || (({k}) => html`<kbd>${k}</kbd>`)
+  const PadHints = sdk.ui.PadHints || (({text}) => text)
   const Details = createDetails(sdk)
   const Jacket = createJacket(sdk)
   const useNavigation = createNavigation(sdk)
@@ -152,7 +155,7 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
                  placeholder="Search for a game…" aria-label="Search for a game"
                  onChange=${(e) => onSearch(e.target.value)} /></label>
         <button className="library-search-open" onClick=${onOpenSearch} aria-label="Open the search keyboard">
-          ${svg(SEARCH)}<span>Search</span><kbd>△</kbd></button>
+          ${svg(SEARCH)}<span>Search</span><${PadKey} k="△" /></button>
         <button className=${`filter-favorites ${favouritesOnly ? 'active' : ''}`}
                 aria-pressed=${String(favouritesOnly)}
                 onClick=${() => setFavouritesOnly((v) => !v)}>${svg(HEART)}Favourites</button>
@@ -187,7 +190,7 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
 
       ${details ? html`<${Details} game=${details} onClose=${() => setDetails(null)} onPlay=${play} />` : null}
       <div className="library-selection-actions">
-        ${detailGame ? html`<button onClick=${onOpenOptions}>Game options <kbd>R2</kbd></button>` : null}
+        ${detailGame ? html`<button onClick=${onOpenOptions}>Game options <${PadKey} k="R2" /></button>` : null}
       </div>
 
     </section></main>`

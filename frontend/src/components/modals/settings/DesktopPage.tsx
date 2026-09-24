@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Overlay, BackHeader } from '../../ui'
 import { onGp } from '../../../hooks/useGamepad'
 import { useSubPageGamepad } from './useSubPageGamepad'
+import { PadHints } from '../../../lib/padKey'
 
 export function DesktopPage({ onClose, onBack }: { onClose: () => void; onBack: () => void }) {
   const exitRef = useRef<() => void>(() => {})
@@ -35,7 +36,7 @@ export function DesktopPage({ onClose, onBack }: { onClose: () => void; onBack: 
         ✕ Exit to Desktop
       </div>
       <div style={{ marginTop: 8, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
-        ✕ Confirm · ○ Cancel
+        <PadHints text="✕ Confirm · ○ Cancel" />
       </div>
     </Overlay>
   )

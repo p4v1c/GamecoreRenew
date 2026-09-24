@@ -25,6 +25,9 @@ const segsFor = (level) => Math.max(0, Math.min(SEGMENTS, Math.ceil((level || 0)
 
 export const createGamepadView = (sdk) => {
   const { html } = sdk.ui
+  // Controller button prompts from the host; plain text on an older host.
+  const PadKey = sdk.ui.PadKey || (({ k }) => html`<kbd>${k}</kbd>`)
+  const PadHints = sdk.ui.PadHints || (({ text }) => text)
 
   return ({ name, layoutLabel, connected, controllers, glyphs, mappings, notice = '',
             onClose, onRemap, Art }) => {
@@ -76,7 +79,7 @@ export const createGamepadView = (sdk) => {
           <div class="sm-gamepad-maps">
             ${mappings.map(([key, action]) => html`
               <div key=${key} class="sm-gamepad-map">
-                <kbd>${key}</kbd><span>${action}</span>
+                <${PadKey} k=${key} /><span>${action}</span>
               </div>`)}
           </div>
 

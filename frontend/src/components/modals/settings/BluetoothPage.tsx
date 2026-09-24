@@ -3,6 +3,7 @@ import { Overlay, BackHeader } from '../../ui'
 import { api, type BtDevice } from '../../../api'
 import { onGp } from '../../../hooks/useGamepad'
 import { useSubPageGamepad } from './useSubPageGamepad'
+import { PadHints } from '../../../lib/padKey'
 
 type BtOp = 'connect' | 'disconnect' | 'scan' | 'pair' | null
 
@@ -278,10 +279,10 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
       })}
 
       <div style={{ marginTop: 8, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
-        ↑↓ Navigate · ✕ {
+        <PadHints text={`↑↓ Navigate · ✕ ${
           focusIdx === SCAN_SLOT ? 'Scan'
             : items[rowIdx(focusIdx)] && !items[rowIdx(focusIdx)].paired ? 'Pair'
-            : 'Connect/Disconnect'}
+            : 'Connect/Disconnect'}`} />
       </div>
     </Overlay>
   )

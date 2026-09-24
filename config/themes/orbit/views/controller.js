@@ -9,6 +9,9 @@
  */
 export function createController(sdk) {
   const {html} = sdk.ui
+  // Controller button prompts from the host; plain text on an older host.
+  const PadKey = sdk.ui.PadKey || (({k}) => html`<kbd>${k}</kbd>`)
+  const PadHints = sdk.ui.PadHints || (({text}) => text)
   return function Controller({name, layoutLabel, connected, notice, controllers,
                               usbDevices = [], glyphs, mappings, onClose, onRemap, Art}) {
     return html`<${sdk.defaults.SettingsOverlay} onClose=${onClose} width=${980}>
@@ -41,7 +44,7 @@ export function createController(sdk) {
         </div>
         <div className="controller-mappings">
           ${mappings.map(([button, action]) => html`<div key=${button}>
-            <kbd>${button}</kbd><span>${action}</span></div>`)}
+            <${PadKey} k=${button} /><span>${action}</span></div>`)}
         </div>
         ${onRemap ? html`<button className="secondary-button" onClick=${onRemap}>
           Map this controller · Hold ${glyphs.top}</button>` : null}

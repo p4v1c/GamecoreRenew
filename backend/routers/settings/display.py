@@ -82,6 +82,26 @@ _wayland_env = wayland_env
 _kscreen_available = kscreen_available
 
 
+#: How long a display tool may take before it counts as failed. Measured on the
+#: reference box: `kscreen-doctor -o` from the backend service never answers at
+#: all, and with no bound the whole Display page waited on it forever — Scale,
+#: on its own endpoint, was the only row that ever arrived.
+PROBE_SECS = 5
+_kscreen_hangs = False
+
+
+async def _communicate(proc, name: str) -> tuple[int, str]:
+    """(returncode, output), or (124, "") when the tool hangs — killed, not left behind."""
+    try:
+        out, _ = await asyncio.wait_for(proc.communicate(), PROBE_SECS)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        log.warning("display: %s did not answer in %ss", name, PROBE_SECS)
+        return 124, ""
+    return proc.returncode or 0, out.decode(errors="replace")
+
+
 async def _run_env(env: dict, *args: str) -> tuple[int, str]:
     proc = await asyncio.create_subprocess_exec(
         *args,
@@ -89,8 +109,8 @@ async def _run_env(env: dict, *args: str) -> tuple[int, str]:
         stderr=asyncio.subprocess.STDOUT,
         env=env,
     )
-    out, _ = await proc.communicate()
-    return proc.returncode or 0, _ANSI_RE.sub("", out.decode(errors="replace"))
+    code, out = await _communicate(proc, args[0])
+    return code, _ANSI_RE.sub("", out)
 
 
 def parse_kscreen(text: str) -> dict:
@@ -128,8 +148,7 @@ async def _run(*args: str) -> tuple[int, str]:
         stderr=asyncio.subprocess.STDOUT,
         env=env,
     )
-    out, _ = await proc.communicate()
-    return proc.returncode or 0, out.decode(errors="replace")
+    return await _communicate(proc, args[0])
 
 
 def parse_modes(text: str) -> dict:
@@ -198,9 +217,13 @@ def _cancel_pending() -> None:
 
 async def read_state() -> dict:
     """What the session's own tool says, whichever that is."""
-    env = _wayland_env() if _kscreen_available() else None
+    global _kscreen_hangs
+    env = _wayland_env() if _kscreen_available() and not _kscreen_hangs else None
     if env is not None:
         code, out = await _run_env(env, "kscreen-doctor", "-o")
+        # A tool that hung once hangs again: pay the timeout once per backend,
+        # not every time the page opens.
+        _kscreen_hangs = code == 124
         if code == 0:
             data = parse_kscreen(out)
             if data["output"]:

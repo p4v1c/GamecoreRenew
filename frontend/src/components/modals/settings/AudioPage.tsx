@@ -5,6 +5,7 @@ import { onGp } from '../../../hooks/useGamepad'
 import { useSubPageGamepad } from './useSubPageGamepad'
 import { playSound, soundSettings } from '../../../lib/sounds'
 import { rumble, rumbleSettings } from '../../../lib/rumble'
+import { PadHints } from '../../../lib/padKey'
 
 // Fixed row layout — the output picker is a single dropdown row
 const ROW_VOLUME = 0
@@ -267,7 +268,7 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
       </div>
 
       <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
-        {outputOpen ? '↑↓ Browse outputs · ✕ Apply · ○ Close' : '↑↓ Select · ←→ Adjust · ✕ Open/Toggle · ○ Back'}
+        <PadHints text={outputOpen ? '↑↓ Browse outputs · ✕ Apply · ○ Close' : '↑↓ Select · ←→ Adjust · ✕ Open/Toggle · ○ Back'} />
       </div>
     </Overlay>
   )

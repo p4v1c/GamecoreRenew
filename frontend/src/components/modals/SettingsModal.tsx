@@ -14,6 +14,7 @@ import { ThemesPage } from './settings/ThemesPage'
 import { CatalogPage } from './settings/CatalogPage'
 import { BiosPage } from './settings/BiosPage'
 import { StoragePage } from './settings/StoragePage'
+import { PadHints } from '../../lib/padKey'
 
 interface Props { onClose: () => void }
 
@@ -153,7 +154,7 @@ export default function SettingsModal({ onClose }: Props) {
         )})}
       </div>
       <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
-        ↑↓ Navigate · ✕ Select · ○ Close
+        <PadHints text="↑↓ Navigate · ✕ Select · ○ Close" />
       </div>
     </Overlay>
   )

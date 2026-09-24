@@ -412,3 +412,44 @@ def test_the_interface_scale_is_remembered_and_only_a_listed_size_is_taken(clien
     assert client.post("/api/settings/display/scale", json={"scale": 3}).status_code == 400
     assert client.get("/api/settings/display/scale").json()["scale"] == 1.25
     client.post("/api/settings/display/scale", json={"scale": 1.0})
+
+
+def test_a_kscreen_doctor_that_never_answers_falls_back_to_xrandr(monkeypatch):
+    """On the reference box `kscreen-doctor -o` never returns from the service.
+    Unbounded, the Display page waited forever and showed Scale alone."""
+    import time
+
+    class _Proc:
+        def __init__(self, argv):
+            self.args, self.returncode = argv, 0
+
+        async def communicate(self):
+            if self.args[0] == "kscreen-doctor":
+                await asyncio.sleep(60)
+            return QUERY.encode(), b""
+
+        def kill(self):
+            self.returncode = -9
+
+        async def wait(self):
+            return self.returncode
+
+    async def fake_exec(*argv, **kw):
+        return _Proc(list(argv))
+
+    async def no_display():
+        return {}
+
+    monkeypatch.setattr(display, "PROBE_SECS", 0.2)
+    monkeypatch.setattr(display, "_kscreen_hangs", False)
+    monkeypatch.setattr(display, "_kscreen_available", lambda: True)
+    monkeypatch.setattr(display, "_wayland_env", lambda: {})
+    monkeypatch.setattr(display, "display_env", no_display)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    started = time.monotonic()
+    data = asyncio.run(display.read_state())
+    assert time.monotonic() - started < 2
+    assert data["backend"] == "xrandr"
+    assert data["current"] == {"width": 1920, "height": 1080, "rate": 60.00}
+    # and the next read does not wait on it again
+    assert display._kscreen_hangs is True

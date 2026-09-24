@@ -45,6 +45,9 @@ const MAX_SHOTS = 2
 
 export const createLibraryView = (sdk) => {
   const { html, useEffect, useRef, useState } = sdk.ui
+  // Controller button prompts from the host; plain text on an older host.
+  const PadKey = sdk.ui.PadKey || (({ k }) => html`<kbd>${k}</kbd>`)
+  const PadHints = sdk.ui.PadHints || (({ text }) => text)
   const Box3D = createBox3D(sdk)
 
   /**
@@ -201,8 +204,8 @@ export const createLibraryView = (sdk) => {
              only when the game really has the faces to turn, because a hint
              for something that does not work is worse than no hint. -->
         <div class="sm-hint sm-lib-hint">
-          ↑↓ Navigate · ✕ Play · △ Search · □ Controller · L1/R1 Sort${
-            isTurnable(media) ? ' · ⟳ R-Stick Turn box' : ''} · ○ Back
+          <${PadHints} text=${'↑↓ Navigate · ✕ Play · △ Search · □ Controller · L1/R1 Sort' + (
+            isTurnable(media) ? ' · ⟳ R-Stick Turn box' : '') + ' · ○ Back'} />
         </div>
       </div>`
   }

@@ -1012,3 +1012,5 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 }
 /* Settings backdrop (lib/gears.js): fills the screen like .scenery does. */
 .orbit-gears{position:fixed;inset:0;z-index:-1;overflow:hidden;background:#0d121c}
+/* A key badge holding a drawn controller button needs no keycap frame around it. */
+.button-key.pad{border:0;padding:0}

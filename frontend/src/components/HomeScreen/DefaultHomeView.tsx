@@ -8,6 +8,7 @@
 import { motion } from 'framer-motion'
 import SystemCard from './SystemCard'
 import type { HomeViewProps } from './types'
+import { PadHints } from '../../lib/padKey'
 
 export default function DefaultHomeView({
   systems, playtime, counts, focusIdx, page, pageCount, cols, rows, perPage,
@@ -113,7 +114,7 @@ export default function DefaultHomeView({
 
       {/* Gamepad hint */}
       <div style={{ marginTop: 16, fontSize: 11, color: 'rgba(255,255,255,0.15)', letterSpacing: 1 }}>
-        {pageCount > 1 ? '← → Navigate · L1/R1 Page · ✕ Select · □ Controller' : '← → Navigate · ✕ Select · □ Controller'}
+        <PadHints text={pageCount > 1 ? '← → Navigate · L1/R1 Page · ✕ Select · □ Controller' : '← → Navigate · ✕ Select · □ Controller'} />
       </div>
     </div>
   )

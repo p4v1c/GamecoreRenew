@@ -24,6 +24,7 @@ import { playSound } from '../lib/sounds'
 import { formatGameName } from '../lib/formatGameName'
 import ErrorBoundary from './ErrorBoundary'
 import { useThemeCtx } from './ThemeSurface'
+import { PadHints } from '../lib/padKey'
 
 /** The menu must be gone before a theme starts drawing its handover. */
 const SESSION_MENU_EXIT_MS = 150
@@ -184,7 +185,7 @@ function DefaultSessionMenuView(p: SessionMenuProps) {
         ))}
       </div>
       <p style={{ marginTop: 18, fontSize: 11, opacity: 0.5 }}>
-        ↑ ↓ Choose · ✕ Confirm · ○ Back
+        <PadHints text="↑ ↓ Choose · ✕ Confirm · ○ Back" />
       </p>
     </div>
   )
