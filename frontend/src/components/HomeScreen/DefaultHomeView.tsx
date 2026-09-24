@@ -75,7 +75,7 @@ export default function DefaultHomeView({
             {Array.from({ length: Math.max(pageCount, 1) }).map((_, pi) => (
               <div key={pi} style={{
                 width: `${100 / Math.max(pageCount, 1)}%`, flexShrink: 0,
-                display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
                 gridTemplateRows: `repeat(${rows}, 1fr)`, alignContent: 'start', gap: 12,
               }}>
                 {systems.slice(pi * perPage, (pi + 1) * perPage).map((system, i) => (
