@@ -220,3 +220,20 @@ def test_the_installer_puts_the_unit_where_it_will_run(tmp_path):
     assert link.is_symlink() or link.is_file(), "installed but never enabled"
     # The marker's home, so the first trip has somewhere to write.
     assert (tmp_path / "var" / "lib" / "gamecore").is_dir()
+
+
+# ── and it leaves nothing behind ────────────────────────────────────────────
+
+def test_the_uninstaller_removes_the_unit_and_the_marker():
+    """A unit and a marker that outlive GameCore are a note asking something
+    that no longer exists to re-arm something else that no longer exists.
+
+    Read off the script rather than run: the uninstaller talks to the real
+    /etc and the real systemd, and there is no staging mode for it. That is a
+    limit of this test and not a claim about the uninstall having been tried.
+    """
+    script = (ROOT / "install" / "uninstall.sh").read_text()
+    for path in ("/etc/systemd/system/gamecore-rearm-console.service",
+                 "/etc/systemd/system/graphical.target.wants/gamecore-rearm-console.service",
+                 "/var/lib/gamecore/rearm-console"):
+        assert path in script, f"uninstall.sh never removes {path}"

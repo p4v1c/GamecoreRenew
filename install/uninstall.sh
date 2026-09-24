@@ -486,16 +486,18 @@ safe_rm /etc/systemd/system/gamecore-backend.service \
         /etc/systemd/system/gamecore-ui.service.d/zz-session-retired.conf \
         /etc/systemd/system/gamecore-restart.service \
         /etc/systemd/system/gamecore-session-migrate.service \
+        /etc/systemd/system/gamecore-rearm-console.service \
         /etc/systemd/system/gamecore-backend.service.d \
         /etc/systemd/system/multi-user.target.wants/gamecore-backend.service \
-        /etc/systemd/system/graphical.target.wants/gamecore-ui.service
+        /etc/systemd/system/graphical.target.wants/gamecore-ui.service \
+        /etc/systemd/system/graphical.target.wants/gamecore-rearm-console.service
 # The console session masked the old system unit, and a mask is a symlink to
 # /dev/null that outlives the file it was hiding. Left behind, it makes
 # `systemctl start gamecore-ui` fail on a machine where GameCore no longer
 # exists — which reads as systemd being broken rather than as a leftover.
 run systemctl unmask gamecore-ui.service 2>/dev/null
 run systemctl daemon-reload
-run systemctl reset-failed gamecore-backend.service gamecore-ui.service gamecore-restart.service 2>/dev/null
+run systemctl reset-failed gamecore-backend.service gamecore-ui.service gamecore-restart.service gamecore-rearm-console.service 2>/dev/null
 ok "units removed (incl. the drop-in holding the TheGamesDB key)."
 
 # ================================================================
@@ -554,6 +556,11 @@ safe_rm /usr/local/bin/gamecore-xsetup /usr/local/bin/gamecore-addon \
 # drop-in is removed a few lines below, but an interrupted uninstall must not
 # be able to leave the box pointing at a session that is gone.
 safe_rm /usr/share/xsessions/gamecore.desktop /var/lib/gamecore/previous-session
+# And the marker that says "a trip to the desktop is pending". Left behind, it
+# is a note asking a unit that no longer exists to re-arm a console that no
+# longer exists — harmless, and exactly the sort of leftover the unmask below
+# is written to avoid.
+safe_rm /var/lib/gamecore/rearm-console
 GC_HOME="$(getent passwd "${GC_USER:-}" 2>/dev/null | cut -d: -f6)"
 if [[ -n "$GC_HOME" && -d "$GC_HOME/.config/systemd/user" ]]; then
   safe_rm "$GC_HOME/.config/systemd/user/gamecore-ui.service" \
