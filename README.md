@@ -273,7 +273,7 @@ regenerated from `install/generated/systems.json.dist` on every install;
 | Sega Master System | `emu/mastersystem/` | `.sms` `.bms` |
 | Sega Game Gear | `emu/gamegear/` | `.gg` |
 | Sega SG-1000 | `emu/sg1000/` | `.sg` `.sgd` |
-| Sega Mega Drive / Genesis | `emu/megadrive/` | `.md` `.mdx` `.smd` `.gen` `.68k` |
+| Sega Mega Drive / Genesis | `emu/megadrive/` | `.md` `.mdx` `.smd` `.gen` `.68k` `.bin` |
 | Sega Mega-CD / Sega CD | `emu/megacd/` | `.cue` `.iso` `.chd` `.m3u` |
 | Sega Mega Drive 32X | `emu/sega32x/` | `.32x` |
 | Sega Saturn | `emu/saturn/` | `.ccd` `.chd` `.cue` `.iso` `.mds` `.m3u` |

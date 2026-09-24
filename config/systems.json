@@ -423,7 +423,8 @@
       "*.mdx",
       "*.smd",
       "*.gen",
-      "*.68k"
+      "*.68k",
+      "*.bin"
     ],
     "libretroSystems": [
       "Sega - Mega Drive - Genesis"
