@@ -5,6 +5,7 @@
 import { motion } from 'framer-motion'
 import { Overlay, OverlayLabel, Glyph } from '../../ui'
 import type { PowerViewProps } from './types'
+import { PadHints } from '../../../lib/padKey'
 
 export default function DefaultPowerView({
   options, focusIdx, confirmId, pendingId,
@@ -64,7 +65,7 @@ export default function DefaultPowerView({
         }}>Cancel</div>
       </div>
       <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
-        {pendingId ? ' ' : '↑↓ Navigate · ✕ Select · ○ Cancel'}
+        {pendingId ? ' ' : <PadHints text="↑↓ Navigate · ✕ Select · ○ Cancel" />}
       </div>
     </Overlay>
   )

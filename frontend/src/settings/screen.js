@@ -61,6 +61,7 @@ import { createCatalogPage } from './catalog.js'
 import { createBiosPage } from './bios.js'
 import { createThemesPage } from './themes.js'
 import { createSystemPage } from './system.js'
+import { PadKey } from '../lib/padKey.js'
 
 /**
  * The rail. Nine rows, the capture's own list.
@@ -462,7 +463,7 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
                rather than repeating a number the rail already shows. -->
           <span class="gcs-set-foot-l"></span>
           <span class="gcs-set-hints">
-            ${hints.map(([k, v]) => html`<span key=${v}><kbd>${k}</kbd>${v}</span>`)}
+            ${hints.map(([k, v]) => html`<span key=${v}><${PadKey} k=${k} />${v}</span>`)}
           </span>
         </footer>
       </div>`

@@ -4,6 +4,7 @@ import { VirtualKeyboard } from '../../ui/VirtualKeyboard'
 import { api } from '../../../api'
 import { onGp } from '../../../hooks/useGamepad'
 import { useSubPageGamepad } from './useSubPageGamepad'
+import { PadHints } from '../../../lib/padKey'
 
 type WifiNetwork = { ssid: string; signal: number; secured: boolean; connected: boolean }
 type WifiStatus  = { connected: boolean; ssid: string; ip: string; iface: string; ethernet: { connected: boolean; iface: string; ip: string } }
@@ -222,7 +223,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
       </div>
 
       <div style={{ marginTop: 14, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
-        ↑↓ Navigate · ✕ Connect/Disconnect
+        <PadHints text="↑↓ Navigate · ✕ Connect/Disconnect" />
       </div>
       </>}
     </Overlay>

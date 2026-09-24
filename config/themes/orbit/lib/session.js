@@ -16,6 +16,9 @@ import {consoleFile, coverUrl} from './catalog.js'
  */
 export function createSession(sdk) {
   const {html, useState, useEffect, useRef} = sdk.ui
+  // Controller button prompts from the host; plain text on an older host.
+  const PadKey = sdk.ui.PadKey || (({k}) => html`<kbd>${k}</kbd>`)
+  const PadHints = sdk.ui.PadHints || (({text}) => text)
 
   /** Real artwork or initials — never a stand-in dressed as a cover. */
   function Image({src, alt = '', className = ''}) {
@@ -88,8 +91,8 @@ export function createSession(sdk) {
             action.danger ? 'session-danger' : ''}`}
           onClick=${action.run}>${busy ? 'Working…' : action.label}</button>`)}
       </div>
-      <p className="session-menu-hints">↑ ↓ Choose · ✕ Confirm · ○ Back${
-        sessions.length > 1 ? ' · L1 R1 Session' : ''}</p>
+      <p className="session-menu-hints"><${PadHints} text=${'↑ ↓ Choose · ✕ Confirm · ○ Back' + (
+        sessions.length > 1 ? ' · L1 R1 Session' : '')} /></p>
     </section>`
   }
 
@@ -133,7 +136,7 @@ export function createSession(sdk) {
                 aria-label=${`Manage ${titleOf(s)}`}>${
           busy ? 'Working…' : 'Session options'}</button>
       </div>
-      <kbd className="session-dock-shortcut">L2</kbd>
+      <span className="session-dock-shortcut"><${PadKey} k="L2" /></span>
     </aside>`
   }
 

@@ -23,6 +23,7 @@
  *
  * Props: frontend/src/components/modals/power/types.ts
  */
+import { PadHints } from '../lib/padKey.js'
 const ICONS = {
   restart: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5',
   shutdown: 'M12 3v9M6.3 6.3a9 9 0 1 0 11.4 0',
@@ -79,7 +80,7 @@ export const createPowerView = (sdk, parts = {}) => {
           })}
 
           <button class="gcs-pwr-cancel" onClick=${onCancel} disabled=${busy}>Cancel</button>
-          <div class="gcs-pwr-hint">${busy ? ' ' : '↑↓ Move · ✕ Select · ○ Cancel'}</div>
+          <div class="gcs-pwr-hint">${busy ? ' ' : html`<${PadHints} text="↑↓ Move · ✕ Select · ○ Cancel" />`}</div>
         </div>
       </div>`
   }

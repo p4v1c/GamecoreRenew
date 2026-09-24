@@ -31,6 +31,9 @@ const Logo = (html) => (sy) => {
 
 export const createHomeView = (sdk) => {
   const { html, useMemo } = sdk.ui
+  // Controller button prompts from the host; plain text on an older host.
+  const PadKey = sdk.ui.PadKey || (({ k }) => html`<kbd>${k}</kbd>`)
+  const PadHints = sdk.ui.PadHints || (({ text }) => text)
   const logo = Logo(html)
 
   return ({ systems, playtime, counts, focusIdx, page, pageCount, perPage, totals, onActivate, onPage }) => {
@@ -97,7 +100,7 @@ export const createHomeView = (sdk) => {
           <span key=${i} class="sm-dot" data-on=${i === page ? '1' : '0'} />`)}
       </div>
 
-      <div class="sm-hint">↑↓←→ Navigate · L1/R1 Page · ✕ Open · □ Controller</div>
+      <div class="sm-hint"><${PadHints} text="↑↓←→ Navigate · L1/R1 Page · ✕ Open · □ Controller" /></div>
     </div>`
   }
 }

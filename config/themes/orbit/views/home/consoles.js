@@ -5,6 +5,9 @@ import {reveal} from '../../lib/dom.js'
 
 export function createConsolesTab({sdk, tabs, backdrop, Art, svg, hooks}) {
   const {html, useState, useEffect, useRef, useMemo} = sdk.ui
+  // Controller button prompts from the host; plain text on an older host.
+  const PadKey = sdk.ui.PadKey || (({k}) => html`<kbd>${k}</kbd>`)
+  const PadHints = sdk.ui.PadHints || (({text}) => text)
   const {useHomeKeys} = hooks
 
   // ── the Consoles tab ──────────────────────────────────────────────────────
@@ -55,14 +58,14 @@ export function createConsolesTab({sdk, tabs, backdrop, Art, svg, hooks}) {
           <p>${systemStory(s)}</p>
           <div className="console-facts"><span>${counts[s.id] ?? 0} game${(counts[s.id] ?? 0) === 1 ? '' : 's'}</span>
             <span className="dot" /><span>${s.label || s.id}</span></div>
-          <button className="primary-button" onClick=${open}>${svg('grid')}Browse games<span>✕</span></button>
+          <button className="primary-button" onClick=${open}>${svg('grid')}Browse games<span className="button-key pad"><${PadKey} k="✕" /></span></button>
         </div>
         <div className="console-exhibit"><span className="console-halo" /><span className="console-plinth" />
           <${Art} className="console-photo" src=${consoleArt(sdk, s)} alt=${systemName(s)} />
           <span className="exhibit-number">${String(at + 1).padStart(2, '0')}<small> / ${machines.length}</small></span>
         </div>
       </div>
-      <div className="section-heading machines-heading"><h2>Choose a console</h2><span>← → to browse</span></div>
+      <div className="section-heading machines-heading"><h2>Choose a console</h2><span><${PadKey} k="← →" /> to browse</span></div>
       <div className="systems-grid" ref=${grid}>
         ${machines.map((m, i) => html`<button key=${m.id}
           className=${`machine-tile ${i === at ? 'selected' : ''}`}

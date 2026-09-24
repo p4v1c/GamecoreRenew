@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { onGp } from '../../hooks/useGamepad'
+import { PadHints } from '../../lib/padKey'
 
 // Two layers: letters and symbols. '?123' / 'abc' switches (also R1).
 const LETTERS: string[][] = [
@@ -266,7 +267,7 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
       </button>
 
       <div style={{ textAlign: 'center', fontSize: 10, color: 'var(--gc-kb-ink-faint, rgba(255,255,255,0.18))', letterSpacing: 1 }}>
-        D-Pad navigate · ✕ type · ○ cancel · L1 shift · R1 symbols · ↵ OK
+        <PadHints text="D-Pad navigate · ✕ type · ○ cancel · L1 shift · R1 symbols · ↵ OK" />
       </div>
     </div>
   )

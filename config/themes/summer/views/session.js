@@ -17,6 +17,9 @@
  */
 export const createSessionBar = (sdk) => {
   const { html } = sdk.ui
+  // Controller button prompts from the host; plain text on an older host.
+  const PadKey = sdk.ui.PadKey || (({ k }) => html`<kbd>${k}</kbd>`)
+  const PadHints = sdk.ui.PadHints || (({ text }) => text)
 
   return ({ sessions, focusIdx, active, busy, title, onResume, onClose }) => {
     const s = sessions[focusIdx] || sessions[0]
@@ -43,7 +46,7 @@ export const createSessionBar = (sdk) => {
           <button class="sm-session-btn" disabled=${busy} onClick=${() => onClose(s)}>
             Let ${app ? 'the app' : 'it'} go
           </button>
-          <kbd class="sm-session-key">L2</kbd>
+          <${PadKey} k="L2" />
         </div>
       </aside>`
   }
@@ -59,6 +62,9 @@ export const createSessionBar = (sdk) => {
  */
 export const createSessionMenu = (sdk) => {
   const { html } = sdk.ui
+  // Controller button prompts from the host; plain text on an older host.
+  const PadKey = sdk.ui.PadKey || (({ k }) => html`<kbd>${k}</kbd>`)
+  const PadHints = sdk.ui.PadHints || (({ text }) => text)
 
   return ({ session, sessions, index, confirming, busy, actions, actionIdx, title }) => html`
     <section class="sm-session-panel" role="dialog" aria-modal="true">
@@ -79,7 +85,7 @@ export const createSessionMenu = (sdk) => {
                   data-active=${actionIdx === i ? 'true' : 'false'}
                   onClick=${action.run}>${busy ? 'One moment…' : action.label}</button>`)}
       </div>
-      <p class="sm-session-panel-hints">↑ ↓ Choose · ✕ Confirm · ○ Back${
-        sessions.length > 1 ? ' · L1 R1 Session' : ''}</p>
+      <p class="sm-session-panel-hints"><${PadHints} text=${'↑ ↓ Choose · ✕ Confirm · ○ Back' + (
+        sessions.length > 1 ? ' · L1 R1 Session' : '')} /></p>
     </section>`
 }

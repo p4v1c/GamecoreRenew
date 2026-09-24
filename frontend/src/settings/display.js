@@ -34,6 +34,7 @@
  * handle its tool uses.
  */
 import { createDialogs } from './dialog.js'
+import { PadKey } from '../lib/padKey.js'
 
 /**
  * With `detail` set (Orbit, Shelf) the confirmation is the screen's dialog
@@ -196,7 +197,7 @@ export const createDisplayPage = (sdk, Rows, OwnDialog) => {
             <span class="gcs-act" data-danger="1">Revert</span>
           </div>
           <div class="gcs-set-hints gcs-count-hints">
-            <span><kbd>↑↓</kbd>Move</span><span><kbd>✕</kbd>Choose</span><span><kbd>○</kbd>Go back</span>
+            <span><${PadKey} k="↑↓" />Move</span><span><${PadKey} k="✕" />Choose</span><span><${PadKey} k="○" />Go back</span>
           </div>
         </section>`
     }

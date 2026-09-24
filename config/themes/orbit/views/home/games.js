@@ -6,6 +6,9 @@ import {reveal} from '../../lib/dom.js'
 
 export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, Art, svg, hooks}) {
   const {html, useState, useEffect, useRef, useMemo} = sdk.ui
+  // Controller button prompts from the host; plain text on an older host.
+  const PadKey = sdk.ui.PadKey || (({k}) => html`<kbd>${k}</kbd>`)
+  const PadHints = sdk.ui.PadHints || (({text}) => text)
   const {useRecent, useGameMeta, useFavourites, useHomeKeys} = hooks
 
   // ── the Games tab ─────────────────────────────────────────────────────────
@@ -122,7 +125,7 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
           <h1 id="hero-title" className="home-app-title">Your library.</h1>
           <p id="hero-description">Find all your games, consoles, and favourites.</p>
           <div className="hero-actions">
-            <button className="primary-button" onClick=${onOpen}>${svg('grid')}Browse library<span className="button-key">✕</span></button>
+            <button className="primary-button" onClick=${onOpen}>${svg('grid')}Browse library<span className="button-key pad"><${PadKey} k="✕" /></span></button>
           </div>
         </div>
         <div className="home-service-art"><div className="home-service-orbit" />${svg('grid')}<span>YOUR ENTIRE COLLECTION</span></div>
@@ -139,7 +142,7 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
           <p id="hero-description">${s.description}</p>
           <div className="hero-actions">
             <button className="primary-button" onClick=${onOpen}>${svg('play')}${
-              held ? 'Resume' : 'Open'} ${systemName(item.system)}<span className="button-key">✕</span></button>
+              held ? 'Resume' : 'Open'} ${systemName(item.system)}<span className="button-key pad"><${PadKey} k="✕" /></span></button>
           </div>
         </div>
         <div className="home-service-art"><div className="home-service-orbit" />
@@ -166,7 +169,7 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
         </div>
         <div className="hero-actions">
           <button className="primary-button" onClick=${onOpen}>${svg('play')}${
-            held ? 'Resume' : 'Play'}<span className="button-key">✕</span></button>
+            held ? 'Resume' : 'Play'}<span className="button-key pad"><${PadKey} k="✕" /></span></button>
           <button className="round-button" aria-label="Game details" onClick=${onDetails}>${svg('more')}</button>
           <button className=${`round-button favorite-button ${fav ? 'is-favourite' : ''}`}
                   aria-pressed=${String(fav)}

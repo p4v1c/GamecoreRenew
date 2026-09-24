@@ -3,6 +3,7 @@ import { Overlay, BackHeader } from '../../ui'
 import { api } from '../../../api'
 import { onGp } from '../../../hooks/useGamepad'
 import { useSubPageGamepad } from './useSubPageGamepad'
+import { PadHints } from '../../../lib/padKey'
 
 const ROWS = ['enabled', 'screensaver', 'sleep'] as const
 
@@ -95,7 +96,7 @@ export function StandbyPage({ onClose, onBack }: { onClose: () => void; onBack: 
       </div>
 
       <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
-        ↑↓ Select · ←→ Adjust · ✕ Toggle · ○ Back
+        <PadHints text="↑↓ Select · ←→ Adjust · ✕ Toggle · ○ Back" />
       </div>
     </Overlay>
   )

@@ -140,6 +140,9 @@ const PULL_MS = PUSH_MS + 560
 
 export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Cartridge }) => {
   const { html, useState, useEffect, useMemo, useRef } = sdk.ui
+  // Controller button prompts from the host; plain text on an older host.
+  const PadKey = sdk.ui.PadKey || (({ k }) => html`<kbd>${k}</kbd>`)
+  const PadHints = sdk.ui.PadHints || (({ text }) => text)
 
   return ({
     systemId, system, games, totalCount, playtime, selectedIdx, detailGame,
@@ -397,7 +400,7 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
                 <span class="cz-search-n">${games.length}/${totalCount}</span>
                 <button class="cz-search-x" onClick=${() => onSearch('')}
                         aria-label="Clear the search">×</button>`
-              : html`<kbd>△</kbd>`}
+              : html`<${PadKey} k="△" />`}
           </div>
 
           <div class="cz-rail-index" data-live=${sort === 'name' ? '1' : '0'}>
@@ -416,7 +419,7 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
           </div>
 
           <div class="cz-sortchip">
-            <kbd>L1</kbd><kbd>R1</kbd> ${SORT_LABEL[sort]}
+            <${PadKey} k="L1 R1" /> ${SORT_LABEL[sort]}
           </div>
         </div>
 
@@ -550,12 +553,12 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
           </div>
 
           <div class="cz-keys">
-            <kbd>←</kbd><kbd>→</kbd><span>Scroll</span>
-            <kbd>L2</kbd><span>Flip</span>
-            <kbd>R2</kbd><span>${browse.modeLabel}</span>
-            <kbd>△</kbd><span>Search</span>
-            <kbd class="cz-key-go">✕</kbd><span>Start</span>
-            <kbd>○</kbd><span>Back</span>
+            <${PadKey} k="← →" /><span>Scroll</span>
+            <${PadKey} k="L2" /><span>Flip</span>
+            <${PadKey} k="R2" /><span>${browse.modeLabel}</span>
+            <${PadKey} k="△" /><span>Search</span>
+            <${PadKey} k="✕" /><span>Start</span>
+            <${PadKey} k="○" /><span>Back</span>
           </div>
         </div>
 

@@ -6,6 +6,7 @@ import { onGp } from '../../../hooks/useGamepad'
 import { onWsEvent } from '../../../hooks/useWebSocket'
 import { playSound } from '../../../lib/sounds'
 import { useSubPageGamepad } from './useSubPageGamepad'
+import { PadHints } from '../../../lib/padKey'
 
 /**
  * Add an emulator to a box that is already running, or take one off it.
@@ -455,12 +456,12 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
         padding: '0.5rem 1.5rem 0', fontSize: '0.72rem', opacity: 0.45,
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>
-        {busyId
+        <PadHints text={busyId
           ? 'Working — the list is held until this finishes.'
           : armed
             ? 'Press ✕ again to remove it · any direction cancels'
             : `✕ ${items[focusIdx]?.kind === 'head' ? 'open or close' : 'install or remove'}`
-              + ` · △ ${filter.trim() ? 'change filter' : 'search'} · ○ back`}
+              + ` · △ ${filter.trim() ? 'change filter' : 'search'} · ○ back`} />
       </div>
 
       {log.length > 0 && (
