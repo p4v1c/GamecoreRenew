@@ -76,5 +76,124 @@
     "file": "ps4.png",
     "source": "https://upload.wikimedia.org/wikipedia/commons/8/8c/PS4-Console-wDS4.png",
     "page": "https://commons.wikimedia.org/wiki/File:PS4-Console-wDS4.png"
+  },
+  {
+    "id": "nes",
+    "file": "nes.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/b/b2/NES-Console-Set.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:NES-Console-Set.png",
+    "license": "Public domain"
+  },
+  {
+    "id": "fds",
+    "file": "fds.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/f/f4/Nintendo-Famicom-Disk-System.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:Nintendo-Famicom-Disk-System.png",
+    "license": "Public domain"
+  },
+  {
+    "id": "snes",
+    "file": "snes.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/0/02/Nintendo-Super-Famicom-Set-FL-transparent.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:Nintendo-Super-Famicom-Set-FL-transparent.png",
+    "license": "Public domain"
+  },
+  {
+    "id": "mastersystem",
+    "file": "mastersystem.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/0/0b/Sega-Master-System-Set.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:Sega-Master-System-Set.png",
+    "license": "Public domain"
+  },
+  {
+    "id": "gamegear",
+    "file": "gamegear.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/c/cf/Sega-Game-Gear-WB.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:Sega-Game-Gear-WB.png",
+    "license": "Public domain"
+  },
+  {
+    "id": "sg1000",
+    "file": "sg1000.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/b/bf/Sega-SG-1000-Console-Set.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:Sega-SG-1000-Console-Set.png",
+    "license": "CC BY-SA 3.0"
+  },
+  {
+    "id": "megadrive",
+    "file": "megadrive.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/b/be/Sega-Mega-Drive-JP-Mk1-Console-Set.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:Sega-Mega-Drive-JP-Mk1-Console-Set.png",
+    "license": "Public domain"
+  },
+  {
+    "id": "megacd",
+    "file": "megacd.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/d/d1/Sega-CD-Model2-Set.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:Sega-CD-Model2-Set.png",
+    "license": "Public domain"
+  },
+  {
+    "id": "32x",
+    "file": "32x.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/8/8c/Sega-Genesis-Model2-32X.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:Sega-Genesis-Model2-32X.png",
+    "license": "Public domain"
+  },
+  {
+    "id": "saturn",
+    "file": "saturn.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/2/20/Sega-Saturn-Console-Set-Mk1.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:Sega-Saturn-Console-Set-Mk1.png",
+    "license": "Public domain"
+  },
+  {
+    "id": "dreamcast",
+    "file": "dreamcast.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/b/bf/Dreamcast-set-orange.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:Dreamcast-set-orange.png",
+    "license": "Public domain"
+  },
+  {
+    "id": "naomi",
+    "file": "naomi.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/b/b2/Arcade_cabinet.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:Arcade_cabinet.png",
+    "license": "CC0"
+  },
+  {
+    "id": "atomiswave",
+    "file": "atomiswave.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/2/20/Atomiswave.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:Atomiswave.jpg",
+    "license": "CC BY 4.0"
+  },
+  {
+    "id": "pcengine",
+    "file": "pcengine.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/e/e0/PC-Engine-Console-Set.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:PC-Engine-Console-Set.png",
+    "license": "Public domain"
+  },
+  {
+    "id": "pcenginecd",
+    "file": "pcenginecd.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/6/6e/NEC-TurboGrafx-16-CD-FL.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:NEC-TurboGrafx-16-CD-FL.png",
+    "license": "Public domain"
+  },
+  {
+    "id": "supergrafx",
+    "file": "supergrafx.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/e/e9/SuperGrafx-Console-Set.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:SuperGrafx-Console-Set.png",
+    "license": "CC BY-SA 3.0"
+  },
+  {
+    "id": "arcade",
+    "file": "arcade.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/9/91/Borne_arcade_Pacman.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "page": "https://commons.wikimedia.org/wiki/File:Borne_arcade_Pacman.png",
+    "license": "CC BY 4.0"
   }
 ]
