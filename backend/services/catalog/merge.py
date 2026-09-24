@@ -41,6 +41,8 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from ...utils import atomic_write
@@ -116,6 +118,36 @@ def launcher_is_stale(entry: dict, pack, known_app_ids: set[str], root: Path) ->
     return ""
 
 
+def pack_present(pack, root: Path, installed: frozenset[str] | None) -> bool:
+    """Is this pack's emulator actually on the box?
+
+    What decides whether an update may put a NEW tile on the grid: a tile for
+    an emulator that is not there only fails at launch. `installed` is
+    appid.probe(); None means flatpak could not be seen, and an unknown answer
+    keeps the tile — same rule as flatpakify's prune. The launcher cannot be
+    the test: the RetroArch packs launch /usr/bin/python3, always present.
+    """
+    prefer = (pack.data.get("launch") or {}).get("preferIfPresent")
+    if prefer and _launcher_resolves(prefer["path"], root):
+        return True                      # a native build the box prefers (mgba-qt, lib/duck)
+    spec = pack.data.get("install") or {}
+    provider = spec.get("provider")
+    if provider == "flatpak":
+        return installed is None or any(a in installed for a in pack.app_ids)
+    if provider == "pacman":
+        pkgs = spec.get("packages") or []
+        try:
+            return subprocess.run(["pacman", "-Q", *pkgs], capture_output=True,
+                                  timeout=30).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return True                  # cannot ask — unknown, keep the tile
+    if provider == "github-asset":
+        return (root / spec["dest"]).is_file()
+    if provider == "github-archive":
+        return (root / spec["dest"] / spec["entrypoint"]).is_file()
+    return True
+
+
 def nominal_launcher(pack, root: Path) -> tuple[str, str]:
     """What this box should launch: the reference-box preference when that
     binary is actually here, the nominal launcher otherwise."""
@@ -139,11 +171,14 @@ def entry_from_pack(pack, root: Path) -> dict:
 def merge_systems(live: list[dict], packs: dict, root: Path,
                   add_missing: bool = True,
                   removed: set[str] | None = None,
-                  kind: str = "emulator") -> tuple[list[dict], list[str]]:
+                  kind: str = "emulator",
+                  present: Callable | None = None) -> tuple[list[dict], list[str]]:
     """(merged entries, human-readable notes). Pure — writes nothing.
 
     `removed` is what the operator took off the grid on purpose; those ids are
     never added back. `kind` picks which half of the catalogue this file holds.
+    `present(pack)`, when given, keeps a newcomer off the grid until its
+    emulator is installed; `gamecore-emu install` adds it then.
     """
     removed = removed or set()
     # Every candidate, not just the resolved one: a box legitimately running a
@@ -219,11 +254,17 @@ def merge_systems(live: list[dict], packs: dict, root: Path,
         out.append(merged)
 
     if add_missing:
-        for pack in packs.values():
+        # Curated order, as gen-catalog.py writes the .dist: a fresh install and
+        # an updated box must list the newcomers the same way, not by folder name.
+        for pack in sorted(packs.values(),
+                           key=lambda p: (p.data.get("order", 10_000), p.id)):
             if pack.kind != kind or pack.id in seen:
                 continue
             if pack.id in removed:
                 # Taken off deliberately. Not "missing" — declined.
+                continue
+            if present is not None and not present(pack):
+                notes.append(f"{pack.id}: not added — its emulator is not installed")
                 continue
             out.append(entry_from_pack(pack, root))
             notes.append(f"{pack.id}: added — new in this release")
@@ -233,7 +274,8 @@ def merge_systems(live: list[dict], packs: dict, root: Path,
 
 def merge_file(systems_file: Path, packs: dict, root: Path,
                dry_run: bool = False, kind: str = "emulator",
-               data_root: Path | None = None) -> list[str]:
+               data_root: Path | None = None,
+               only_present: bool = False) -> list[str]:
     """Apply the merge to a real systems.json. Returns the notes.
 
     Never raises on a malformed file: an update must not take the grid down
@@ -255,10 +297,16 @@ def merge_file(systems_file: Path, packs: dict, root: Path,
     if not isinstance(live, list):
         return ["systems.json is not a list — left untouched"]
 
+    present = None
+    if only_present and kind == "emulator":
+        from .appid import probe
+        installed = probe()
+        present = lambda p: pack_present(p, root, installed)  # noqa: E731
     merged, notes = merge_systems(live, packs, root,
-                                  removed=load_removed(data_root or root), kind=kind)
-    if not notes:
-        return []
+                                  removed=load_removed(data_root or root), kind=kind,
+                                  present=present)
+    if all("not added" in n for n in notes):
+        return notes                     # nothing changes on disk (or nothing to say)
     if dry_run:
         return notes + ["(dry run — nothing written)"]
 
@@ -272,4 +320,38 @@ def merge_file(systems_file: Path, packs: dict, root: Path,
                      json.dumps(merged, indent=2, ensure_ascii=False) + "\n")
     except OSError as e:
         return notes + [f"could not write systems.json ({e}) — left untouched"]
+    return notes
+
+
+def merge_overlays(shipped: Path, data: Path) -> list[str]:
+    """Give an installed box the bezels of the systems this release adds.
+
+    The OTA rsync excludes `config/` and `assets/overlays/`, both the player's,
+    so a system new in a release reached the grid through `merge_file` and got
+    no bezel at all: no geometry in `config/overlays.json` — Electron never
+    starts the overlay monitor for it — and no PNG. Additive only: an entry or
+    a PNG the box already has, edited or uploaded by hand, is never touched.
+    `shipped` is the release tree, `data` the box's data root.
+    """
+    notes: list[str] = []
+    live_file = data / "config" / "overlays.json"
+    try:
+        ours = json.loads((shipped / "config" / "overlays.json").read_text())
+        live = json.loads(live_file.read_text()) if live_file.exists() else {}
+    except (OSError, json.JSONDecodeError) as e:
+        return [f"overlays.json left alone — {e}"]
+    if not isinstance(ours, dict) or not isinstance(live, dict):
+        return ["overlays.json left alone — not an object"]
+    added = [k for k in ours if k not in live]
+    if added:
+        live.update({k: ours[k] for k in added})
+        atomic_write(live_file, json.dumps(live, indent=2, ensure_ascii=False) + "\n")
+        notes += [f"{k}: bezel geometry added" for k in added]
+    src_dir, dst_dir = shipped / "assets" / "overlays", data / "assets" / "overlays"
+    for png in sorted(src_dir.glob("*.png")) if src_dir.is_dir() else []:
+        dst = dst_dir / png.name
+        if not dst.exists():
+            dst_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(png, dst)
+            notes.append(f"{png.stem}: bezel added")
     return notes

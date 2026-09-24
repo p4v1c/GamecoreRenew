@@ -1,0 +1,66 @@
+{
+  "id": "megadrive",
+  "kind": "emulator",
+  "label": "Sega Mega Drive / Genesis",
+  "emulatorName": "RetroArch / genesis-plus-gx",
+  "platform": "Mega Drive",
+  "family": "Sega",
+  "color": "#212121",
+  "order": 25,
+  "install": {
+    "provider": "pacman",
+    "packages": [
+      "retroarch",
+      "libretro-genesis-plus-gx"
+    ]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/megadrive.cfg' --core /usr/lib/libretro/genesis_plus_gx_libretro.so --"
+  },
+  "roms": {
+    "dir": "emu/megadrive",
+    "extensions": [
+      "*.md",
+      "*.mdx",
+      "*.smd",
+      "*.gen",
+      "*.68k",
+      "*.bin"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.config/gamecore-retroarch"
+  },
+  "controllers": {
+    "maxPlayers": 2,
+    "order": 25,
+    "strategy": "snapshot-restore",
+    "target": "megadrive.cfg",
+    "seedMustNotContain": [
+      "^input_player[1-4]_.*(?:_btn|_axis|joypad_index)\\s*="
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "retroarch",
+        "RetroArch"
+      ]
+    },
+    "asset": "megadrive.png"
+  },
+  "scraper": {
+    "libretro": [
+      "Sega - Mega Drive - Genesis"
+    ],
+    "mediaAlias": [
+      "megadrive",
+      "genesis"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."
+  }
+}

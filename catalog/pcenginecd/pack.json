@@ -1,0 +1,75 @@
+{
+  "id": "pcenginecd",
+  "kind": "emulator",
+  "label": "NEC PC Engine CD / TurboGrafx-CD",
+  "emulatorName": "RetroArch / beetle-pce",
+  "platform": "PC Engine CD",
+  "family": "NEC",
+  "color": "#b71c1c",
+  "order": 34,
+  "install": {
+    "provider": "pacman",
+    "packages": [
+      "retroarch",
+      "libretro-beetle-pce"
+    ]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/pcenginecd.cfg' --core /usr/lib/libretro/mednafen_pce_libretro.so --"
+  },
+  "roms": {
+    "dir": "emu/pcenginecd",
+    "extensions": [
+      "*.cue",
+      "*.ccd",
+      "*.chd",
+      "*.toc",
+      "*.m3u"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.config/gamecore-retroarch"
+  },
+  "controllers": {
+    "maxPlayers": 1,
+    "order": 34,
+    "strategy": "snapshot-restore",
+    "target": "pcenginecd.cfg",
+    "seedMustNotContain": [
+      "^input_player[1-4]_.*(?:_btn|_axis|joypad_index)\\s*="
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "retroarch",
+        "RetroArch"
+      ]
+    },
+    "asset": "pcenginecd.png"
+  },
+  "scraper": {
+    "libretro": [
+      "NEC - PC Engine CD - TurboGrafx-CD"
+    ],
+    "mediaAlias": [
+      "pc engine cd"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."
+  },
+  "bios": {
+    "dir": "@HOME@/.config/gamecore-retroarch/system",
+    "files": [
+      {
+        "file": "syscard3.pce",
+        "required": true,
+        "note": "Super CD-ROM² System Card v3 required for PC Engine CD titles.",
+        "md5": "38179df8f4ac870017db21ebcbf53114"
+      }
+    ]
+  }
+}

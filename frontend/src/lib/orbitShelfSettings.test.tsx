@@ -46,6 +46,7 @@ const BOX: [string, () => unknown][] = [
     return { ok: true, message: 'Forgotten — pair it again to reconnect' }
   }],
   ['/api/settings/bluetooth/devices', () => paired],
+  ['/api/settings/display/scale', () => ({ scale: 1, choices: [0.9, 1, 1.25, 1.5] })],
   ['/api/settings/display/mode', () => ({ ok: true, changed: true, revert_secs: 12 })],
   ['/api/settings/display/revert', () => ({ ok: true, reverted: true })],
   ['/api/settings/display/confirm', () => ({ ok: true, confirmed: true })],
@@ -172,7 +173,7 @@ describe('Orbit — one page at a time', () => {
 describe('a dialog owns the pad', () => {
   const openDisplayConfirm = async (container: HTMLElement, keys: string[]) => {
     for (const k of keys) await press(k)
-    await waitFor(() => expect(container.querySelectorAll('.gcs-row2').length).toBe(3))
+    await waitFor(() => expect(container.querySelectorAll('.gcs-row2').length).toBe(4))
     await press('dpad-right')          // 1280 × 720
     await press('dpad-down'); await press('dpad-down'); await press('confirm')
     await waitFor(() => expect(container.querySelector('[role="dialog"]')?.textContent)
@@ -238,7 +239,7 @@ describe('Display — the confirmation is a dialog, and doing nothing reverts', 
   it('reverts on ○, through the backend', async () => {
     const { container } = await screen({ pager: true, detail: 'inline' })
     await press('r1'); await press('r1'); await press('dpad-right')
-    await waitFor(() => expect(container.querySelectorAll('.gcs-row2').length).toBe(3))
+    await waitFor(() => expect(container.querySelectorAll('.gcs-row2').length).toBe(4))
     await press('dpad-right')          // 1280 × 720
     await press('dpad-down'); await press('dpad-down'); await press('confirm')
     const dialog = () => container.querySelector('[role="dialog"]')
@@ -252,6 +253,23 @@ describe('Display — the confirmation is a dialog, and doing nothing reverts', 
   })
 })
 
+describe('Display — Scale', () => {
+  it('applies the interface size at once and saves it, with no countdown', async () => {
+    const setUiScale = vi.fn()
+    vi.stubGlobal('gamecore', { setUiScale })
+    const { container } = await screen({ pager: true, detail: 'inline' })
+    await press('r1'); await press('r1'); await press('dpad-right')
+    await waitFor(() => expect(container.querySelectorAll('.gcs-row2').length).toBe(4))
+    expect(text(container)).toContain('Scale')
+    expect(text(container)).toContain('100 %')
+    await press('dpad-down'); await press('dpad-down'); await press('dpad-down')
+    await press('dpad-right')          // 125 %
+    await waitFor(() => expect(setUiScale).toHaveBeenCalledWith(1.25))
+    expect(calls.some(c => c.method === 'POST' && c.url.endsWith('/display/scale'))).toBe(true)
+    expect(container.querySelector('[role="dialog"]')).toBeNull()
+  })
+})
+
 describe('the background is Home\'s own', () => {
   it('draws the component it is handed, and no fill of its own', async () => {
     const Wall = () => createElement('div', { className: 'home-wall' })
@@ -262,21 +280,19 @@ describe('the background is Home\'s own', () => {
     expect(root.querySelector('.gcs-set-paper')).toBeNull()
   })
 
-  it.each([
-    ['orbit', '.scenery'],
-  ])('%s hands Settings the component its Home paints', async (id, cls) => {
-    const theme = (await load(`../../../config/themes/${id}/index.js`)).default(
-      buildSdk(id, { selectTheme: vi.fn(async () => {}) }))
+  it('orbit hands Settings its own backdrop: the gear movement, not Home\'s art', async () => {
+    const theme = (await load('../../../config/themes/orbit/index.js')).default(
+      buildSdk('orbit', { selectTheme: vi.fn(async () => {}) }))
     const r = render(createElement(theme.shell))
-    // The home background is there before Settings opens…
-    await waitFor(() => expect(r.container.querySelector(cls)).toBeTruthy())
+    await waitFor(() => expect(r.container.querySelector('.scenery')).toBeTruthy())
     await press('menu')
     const settings = await waitFor(() => {
       const el = r.container.querySelector('.gcs-set')
       expect(el).toBeTruthy()
       return el!
     })
-    // …and the same component draws Settings' ground.
-    expect(settings.querySelector(`.gcs-set-bg ${cls}`)).toBeTruthy()
+    expect(settings.getAttribute('data-bg')).toBe('theme')
+    expect(settings.querySelector('.gcs-set-bg .orbit-gears svg animateTransform')).toBeTruthy()
+    expect(settings.querySelector('.gcs-set-bg .scenery')).toBeNull()
   })
 })

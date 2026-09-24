@@ -27,6 +27,10 @@ interface GamecoreAPI {
    *  Electron — the browser dev server has nothing to tell. */
   bootReady: (report?: BootReadyReport) => void
 
+  /** Interface size on this screen (Settings → Display → Scale), as a page
+   *  zoom factor. Optional: an older shell has no such bridge. */
+  setUiScale?: (factor: number) => void
+
   reboot:   () => void
   shutdown: () => void
   quit:     () => void

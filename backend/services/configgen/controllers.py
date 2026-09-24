@@ -429,10 +429,17 @@ _SDL2_PROBE = (
     "s.SDL_JoystickGetDeviceProduct.restype=ctypes.c_uint16\n"
     "s.SDL_JoystickGetDeviceVendor.argtypes=[ctypes.c_int]\n"
     "s.SDL_JoystickGetDeviceProduct.argtypes=[ctypes.c_int]\n"
+    "s.SDL_JoystickOpen.restype=ctypes.c_void_p\n"
+    "s.SDL_JoystickOpen.argtypes=[ctypes.c_int]\n"
+    "s.SDL_JoystickNumAxes.restype=ctypes.c_int\n"
+    "s.SDL_JoystickNumAxes.argtypes=[ctypes.c_void_p]\n"
+    "s.SDL_JoystickClose.argtypes=[ctypes.c_void_p]\n"
     "if s.SDL_Init(0x2000)!=0: sys.exit(0)\n"
     "for i in range(s.SDL_NumJoysticks()):\n"
     " if s.SDL_JoystickGetDeviceVendor(i)==v and s.SDL_JoystickGetDeviceProduct(i)==p:\n"
     "  print('GUID '+bytes(s.SDL_JoystickGetDeviceGUID(i).data).hex())\n"
+    "  j=s.SDL_JoystickOpen(i)\n"
+    "  if j: print('AXES '+str(max(0,s.SDL_JoystickNumAxes(j)))); s.SDL_JoystickClose(j)\n"
     "  m=s.SDL_GameControllerMappingForDeviceIndex(i)\n"
     "  print('MAP '+m.decode()) if m else None\n"
     "  break\n"
@@ -623,7 +630,7 @@ def sdl2_probe(vendor: str, product: str, lib: str = "") -> dict[str, str]:
     out: dict[str, str] = {}
     for line in r.stdout.splitlines():
         tag, _, value = line.partition(" ")
-        if tag in ("GUID", "MAP") and value:
+        if tag in ("GUID", "MAP", "AXES") and value:
             out[tag.lower()] = value.strip()
     if out:
         _sdl2_cache[key] = (time.monotonic(), out)

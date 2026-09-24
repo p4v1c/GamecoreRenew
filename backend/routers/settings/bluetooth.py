@@ -124,6 +124,22 @@ def parse_devices(out: str) -> list[tuple[str, str]]:
     return found
 
 
+def unnamed(name: str, mac: str) -> bool:
+    """A device BlueZ has no name for yet, so it lists its address instead.
+
+    `bluetoothctl` writes that address with dashes (`AA-BB-…`), not the colons
+    of the MAC, so both separators are dropped before comparing.
+    """
+    bare = lambda v: v.replace(":", "").replace("-", "").strip().upper()  # noqa: E731
+    return not name.strip() or bare(name) == bare(mac)
+
+
+def named_first(devices: list[dict]) -> list[dict]:
+    """Devices with a real name first — those are the ones anybody recognises —
+    then the bare addresses, each group alphabetical."""
+    return sorted(devices, key=lambda d: (unnamed(d["name"], d["mac"]), d["name"].lower()))
+
+
 async def _known(kind: str = "") -> list[tuple[str, str]]:
     args = ["bluetoothctl", "--", "devices"] + ([kind] if kind else [])
     _, out = await _run(*args)
@@ -145,7 +161,7 @@ async def list_devices():
     infos = await asyncio.gather(
         *(_run("bluetoothctl", "--", "info", mac) for mac, _ in known)
     )
-    return [
+    return named_first([
         {
             "mac": mac,
             "name": name,
@@ -153,7 +169,7 @@ async def list_devices():
             "paired": True,
         }
         for (mac, name), (_, info) in zip(known, infos)
-    ]
+    ])
 
 
 @router.post("/scan")
@@ -183,9 +199,7 @@ async def start_scan():
     # A device whose name has not resolved yet shows up as its own address.
     # Keep it — it may be the pad you just woke — but put the named ones first,
     # because those are the ones anybody can recognise.
-    found.sort(key=lambda d: (d["name"].replace(":", "").upper() == d["mac"].replace(":", ""),
-                              d["name"].lower()))
-    return {"ok": True, "found": found, "seconds": SCAN_SECS}
+    return {"ok": True, "found": named_first(found), "seconds": SCAN_SECS}
 
 
 class DeviceRequest(BaseModel):

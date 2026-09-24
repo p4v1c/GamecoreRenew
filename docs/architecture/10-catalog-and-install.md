@@ -24,7 +24,10 @@ It is read at **four moments**, by four different readers:
    install, which ROM directories to create, which sandbox flags to grant,
    where each `seed/` lands, which services to enable (§3, §8).
 3. **Update time** — the OTA ships the whole `catalog/` tree and
-   `merge_file()` uses it to add tiles the box does not have yet and to fill in
+   `merge_file()` uses it to add tiles the box does not have yet — only once
+   their emulator is actually installed (`pack_present()`: the Flatpak, the
+   pacman packages, the downloaded binary or a `preferIfPresent` native build);
+   `gamecore-emu install <id>` adds the tile the moment it is — and to fill in
    fields that did not exist when the box was installed — a box updated to
    v1.2.15 gained `roms.consoles` ratios on its existing mGBA tile this way,
    without its operator touching anything

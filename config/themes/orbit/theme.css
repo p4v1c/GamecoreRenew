@@ -1010,3 +1010,5 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
   --gc-hud-battery-10: #ffad66;
   --gc-hud-battery-5: #ff8080;
 }
+/* Settings backdrop (lib/gears.js): fills the screen like .scenery does. */
+.orbit-gears{position:fixed;inset:0;z-index:-1;overflow:hidden;background:#0d121c}

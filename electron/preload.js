@@ -1,5 +1,5 @@
 'use strict'
-const { contextBridge, ipcRenderer } = require('electron')
+const { contextBridge, ipcRenderer, webFrame } = require('electron')
 
 /**
  * The colour the box is booting to — the active theme's, decided by main.js
@@ -20,6 +20,13 @@ contextBridge.exposeInMainWorld('gamecore', {
   // decided in frontend/src/lib/boot.ts — never by a theme and never by a
   // timer. See the `boot:ready` handler in main.js.
   bootReady: (payload) => ipcRenderer.send('boot:ready', payload || {}),
+  // Settings → Display → Scale: interface size on this screen. A page zoom,
+  // so every theme reflows instead of being cropped. Bounded here too — a
+  // factor from nowhere must not make the interface unusable.
+  setUiScale: (factor) => {
+    const n = Number(factor)
+    if (n >= 0.5 && n <= 2) webFrame.setZoomFactor(n)
+  },
   reboot:   () => ipcRenderer.send('system:reboot'),
   shutdown: () => ipcRenderer.send('system:shutdown'),
   quit:     () => ipcRenderer.send('system:quit'),

@@ -484,6 +484,10 @@ export const api = {
         '/settings/display/mode', { width, height, rate }),
     confirm: () => post<{ ok: boolean; confirmed: boolean }>('/settings/display/confirm'),
     revert: () => post<{ ok: boolean; reverted: boolean }>('/settings/display/revert'),
+    /** Interface size on this screen. Stored by the backend, applied by the
+     *  shell as a page zoom (lib/uiScale.ts). */
+    scale: () => get<{ scale: number; choices: number[] }>('/settings/display/scale'),
+    setScale: (scale: number) => post<{ ok: boolean; scale: number }>('/settings/display/scale', { scale }),
   },
   bluetooth: {
     devices: () => get<BtDevice[]>('/settings/bluetooth/devices'),

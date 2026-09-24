@@ -2,7 +2,9 @@
  * Settings → Display.
  *
  * Resolution and refresh rate, and the confirmation that makes them safe to
- * offer at all.
+ * offer at all. And Scale — the interface size on this screen, a page zoom
+ * applied by the shell, which needs no confirmation because the picture never
+ * goes away.
  *
  * ## Why there is a countdown on this screen and nowhere else
  *
@@ -66,6 +68,24 @@ export const createDisplayPage = (sdk, Rows, OwnDialog) => {
       .catch(() => setFailed(true))
 
     useEffect(() => { load() }, [])
+
+    // Interface size on this screen. Separate from the mode: it is a page zoom,
+    // nothing on the output changes, so it applies at once and needs no revert.
+    const [scale, setScale] = useState(null)
+    useEffect(() => {
+      sdk.api.display.scale?.()
+        .then((r) => { if (r && Array.isArray(r.choices) && r.choices.length) setScale(r) })
+        .catch(() => {})
+    }, [])
+    const scaleIdx = scale ? Math.max(0, scale.choices.indexOf(scale.scale)) : 0
+    const pickScale = (i) => {
+      const next = scale && scale.choices[i]
+      if (!next || next === scale.scale) return
+      setScale({ ...scale, scale: next })
+      window.gamecore?.setUiScale?.(next)
+      sdk.api.display.setScale(next)
+        .catch((e) => setMsg(String((e && e.message) || 'Could not save the scale.')))
+    }
 
     // The countdown is a mirror of the backend's timer, never its source. It
     // runs a second short so it can never claim time the backend has already
@@ -201,8 +221,14 @@ export const createDisplayPage = (sdk, Rows, OwnDialog) => {
         confirm: false,
       },
     ] : []
+    if (scale) rows.push({
+      id: 'scale', type: 'value', value: scaleIdx,
+      options: scale.choices.map((c) => `${Math.round(c * 100)} %`),
+      label: 'Scale', desc: 'Interface size on this screen',
+    })
 
     const onSet = (id, v) => {
+      if (id === 'scale') { pickScale(v); return }
       if (id === 'res') {
         const s = sizes[v]
         if (!s) return

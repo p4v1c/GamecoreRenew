@@ -1,0 +1,60 @@
+{
+  "id": "sega32x",
+  "kind": "emulator",
+  "label": "Sega Mega Drive 32X",
+  "emulatorName": "RetroArch / picodrive",
+  "platform": "32X",
+  "family": "Sega",
+  "color": "#263238",
+  "order": 27,
+  "install": {
+    "provider": "pacman",
+    "packages": [
+      "retroarch",
+      "libretro-picodrive"
+    ]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/sega32x.cfg' --core /usr/lib/libretro/picodrive_libretro.so --"
+  },
+  "roms": {
+    "dir": "emu/sega32x",
+    "extensions": [
+      "*.32x"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.config/gamecore-retroarch"
+  },
+  "controllers": {
+    "maxPlayers": 2,
+    "order": 27,
+    "strategy": "snapshot-restore",
+    "target": "sega32x.cfg",
+    "seedMustNotContain": [
+      "^input_player[1-4]_.*(?:_btn|_axis|joypad_index)\\s*="
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "retroarch",
+        "RetroArch"
+      ]
+    },
+    "asset": "sega32x.png"
+  },
+  "scraper": {
+    "libretro": [
+      "Sega - 32X"
+    ],
+    "mediaAlias": [
+      "32x"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."
+  }
+}

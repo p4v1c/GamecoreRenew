@@ -520,7 +520,9 @@ fi
 #
 # It merges now, conservatively (backend/services/catalog/merge.py):
 #   · a tile the operator added by hand is kept, untouched;
-#   · an emulator new in this release is added;
+#   · an emulator new in this release is added — once it is installed on the
+#     box: a tile for an emulator that is not there only fails at launch, and
+#     `gamecore-emu install <id>` adds it the moment it is;
 #   · a launcher is repaired ONLY when it is stale — it names a Flatpak app id
 #     no pack declares, or its path does not resolve on this box. A native
 #     binary in lib/ that exists is never pushed back to Flatpak;
@@ -553,11 +555,27 @@ from backend.services.catalog.merge import merge_file
 
 notes = merge_file(data / "config" / "systems.json",
                    load_catalog(root / "catalog", data / "config" / "catalog.d"),
-                   root, data_root=data)
+                   root, data_root=data, only_present=True)
 for n in notes:
     print(f"[update]   {n}")
 if not notes:
     print("[update]   nothing to change.")
+PYEOF
+
+# Same exclusion, same gap, for the bezels: config/overlays.json and
+# assets/overlays/ are the player's and never rsynced, so a system new in this
+# release had a tile and no bezel. Adds what is missing, never overwrites
+# (backend/services/catalog/merge.py:merge_overlays).
+echo "[update] Adding the bezels of new systems to ${GAMECORE_DATA}..."
+"${GAMECORE_PATH}/.venv/bin/python3" - "${GAMECORE_PATH}" "${SRC_DIR}" "${GAMECORE_DATA}" <<'PYEOF' || \
+  echo "[update] WARNING: bezel merge failed (non-fatal) — bezels unchanged."
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from backend.services.catalog.merge import merge_overlays
+
+for n in merge_overlays(Path(sys.argv[2]), Path(sys.argv[3])):
+    print(f"[update]   {n}")
 PYEOF
 
 # Third thing an OTA cannot rewrite: the desktop shortcut. arch.sh writes it

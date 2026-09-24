@@ -17,6 +17,7 @@ that does not separate them proves nothing.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -78,8 +79,18 @@ def _run_merge(code: Path, data: Path) -> subprocess.CompletedProcess:
     # As many positional arguments as the shell line passes, in its order.
     args = re.findall(r'"\$\{(GAMECORE_[A-Z]+)\}"', launcher.split(" - ", 1)[1])
     values = {"GAMECORE_PATH": str(code), "GAMECORE_DATA": str(data)}
+    # The merge now asks flatpak and pacman what is installed. Stubbed, so the
+    # answer is the fixture's and not that of the machine running the suite:
+    # nothing from either — a tile lands only when the fixture says so.
+    stubs = code.parent / "stubs"
+    stubs.mkdir(exist_ok=True)
+    (stubs / "flatpak").write_text("#!/bin/sh\nexit 0\n")
+    (stubs / "pacman").write_text("#!/bin/sh\nexit 1\n")
+    for f in stubs.iterdir():
+        f.chmod(0o755)
+    env = {**os.environ, "PATH": f"{stubs}:{os.environ.get('PATH', '')}"}
     return subprocess.run([sys.executable, "-", *(values[a] for a in args)],
-                          input=body, text=True, capture_output=True, timeout=120)
+                          input=body, text=True, capture_output=True, timeout=120, env=env)
 
 
 def test_the_updater_hands_the_merge_both_roots():
@@ -115,11 +126,24 @@ def test_the_operator_s_removed_list_is_read_from_the_data_root(two_roots):
     lists nothing, and every declined system would come back on each update."""
     code, data = two_roots
     (data / "config" / "catalog-removed.json").write_text(json.dumps(["cemu", "xenia"]))
+    (code / "bin").mkdir()
+    (code / "bin" / "duckstation.AppImage").write_bytes(b"\x7fELF")
     r = _run_merge(code, data)
     assert r.returncode == 0, r.stderr
     ids = {s["id"] for s in json.loads((data / "config" / "systems.json").read_text())}
     assert "cemu" not in ids and "xenia" not in ids, r.stdout
     assert "duckstation" in ids                    # a genuinely new one still lands
+
+
+def test_a_new_system_whose_emulator_is_absent_stays_off_the_grid(two_roots):
+    """A tile for an emulator the box does not have only fails at launch. The
+    RetroArch packs are the case: pacman says their core is not installed."""
+    code, data = two_roots
+    r = _run_merge(code, data)
+    assert r.returncode == 0, r.stderr
+    ids = {s["id"] for s in json.loads((data / "config" / "systems.json").read_text())}
+    assert "nes" not in ids and "dolphin" not in ids, r.stdout
+    assert "nes: not added — its emulator is not installed" in r.stdout
 
 
 def test_the_operator_s_own_packs_are_read_from_the_data_root(two_roots):

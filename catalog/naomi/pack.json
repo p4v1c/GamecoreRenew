@@ -1,0 +1,91 @@
+{
+  "id": "naomi",
+  "kind": "emulator",
+  "label": "Sega Naomi",
+  "emulatorName": "RetroArch / flycast",
+  "platform": "Naomi",
+  "family": "Sega",
+  "color": "#00838f",
+  "order": 30,
+  "install": {
+    "provider": "pacman",
+    "packages": [
+      "retroarch",
+      "libretro-flycast"
+    ]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/naomi.cfg' --core /usr/lib/libretro/flycast_libretro.so --"
+  },
+  "roms": {
+    "dir": "emu/naomi",
+    "extensions": [
+      "*.zip",
+      "*.7z"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.config/gamecore-retroarch"
+  },
+  "controllers": {
+    "maxPlayers": 2,
+    "order": 30,
+    "strategy": "snapshot-restore",
+    "target": "naomi.cfg",
+    "seedMustNotContain": [
+      "^input_player[1-4]_.*(?:_btn|_axis|joypad_index)\\s*="
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "retroarch",
+        "RetroArch"
+      ]
+    },
+    "asset": "naomi.png"
+  },
+  "scraper": {
+    "libretro": [
+      "Sega - Naomi"
+    ],
+    "mediaAlias": [
+      "naomi"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."
+  },
+  "bios": {
+    "dir": "@HOME@/.config/gamecore-retroarch/system",
+    "files": [
+      {
+        "file": "dc/naomi.zip",
+        "required": false,
+        "note": "External NAOMI BIOS archive for split/merged sets; non-merged game archives may embed the required BIOS, so GameCore must not block launch when this file is absent."
+      },
+      {
+        "file": "dc/hod2bios.zip",
+        "required": false,
+        "note": "Per-title NAOMI BIOS used by The House of the Dead 2 variants when the required BIOS ROM is not embedded in the game archive."
+      },
+      {
+        "file": "dc/f355dlx.zip",
+        "required": false,
+        "note": "Per-title NAOMI BIOS used by Ferrari F355 Challenge Deluxe variants when the required BIOS ROM is not embedded in the game archive."
+      },
+      {
+        "file": "dc/f355bios.zip",
+        "required": false,
+        "note": "Per-title NAOMI BIOS used by Ferrari F355 Challenge twin/deluxe variants when the required BIOS ROM is not embedded in the game archive."
+      },
+      {
+        "file": "dc/airlbios.zip",
+        "required": false,
+        "note": "Per-title NAOMI BIOS used by Airline Pilots Deluxe variants when the required BIOS ROM is not embedded in the game archive."
+      }
+    ]
+  }
+}

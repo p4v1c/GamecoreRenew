@@ -1,0 +1,60 @@
+{
+  "id": "supergrafx",
+  "kind": "emulator",
+  "label": "NEC PC Engine SuperGrafx",
+  "emulatorName": "RetroArch / beetle-pce",
+  "platform": "SuperGrafx",
+  "family": "NEC",
+  "color": "#6d4c41",
+  "order": 35,
+  "install": {
+    "provider": "pacman",
+    "packages": [
+      "retroarch",
+      "libretro-beetle-pce"
+    ]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/scripts/gamecore-retroarch-launch.py' --config '@HOME@/.config/gamecore-retroarch/supergrafx.cfg' --core /usr/lib/libretro/mednafen_pce_libretro.so --"
+  },
+  "roms": {
+    "dir": "emu/supergrafx",
+    "extensions": [
+      "*.sgx"
+    ]
+  },
+  "config": {
+    "dest": "@HOME@/.config/gamecore-retroarch"
+  },
+  "controllers": {
+    "maxPlayers": 1,
+    "order": 35,
+    "strategy": "snapshot-restore",
+    "target": "supergrafx.cfg",
+    "seedMustNotContain": [
+      "^input_player[1-4]_.*(?:_btn|_axis|joypad_index)\\s*="
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "retroarch",
+        "RetroArch"
+      ]
+    },
+    "asset": "supergrafx.png"
+  },
+  "scraper": {
+    "libretro": [
+      "NEC - PC Engine SuperGrafx"
+    ],
+    "mediaAlias": [
+      "supergrafx"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."
+  }
+}

@@ -168,3 +168,30 @@ def test_anything_but_an_address_never_reaches_bluetoothctl(client, btctl):
     r = client.delete("/api/settings/bluetooth/devices/--help")
     assert r.status_code == 400
     assert btctl["calls"] == []
+
+
+def test_named_devices_come_before_bare_addresses_in_both_lists(client, btctl):
+    """An unnamed device is listed as its own address, with DASHES — the old
+    check stripped colons only and never recognised one."""
+    btctl["answers"] = {
+        "devices Paired": "\n".join([
+            "Device 11:22:33:44:55:66 11-22-33-44-55-66",
+            "Device E4:17:D8:2A:9C:03 8BitDo Ultimate 2C",
+        ]),
+        "devices\n": "",
+    }
+    body = client.get("/api/settings/bluetooth/devices").json()
+    assert [d["name"] for d in body] == ["8BitDo Ultimate 2C", "11-22-33-44-55-66"]
+
+    btctl["answers"] = {
+        "devices Paired": "",
+        "-- devices": "\n".join([
+            "Device AA:BB:CC:DD:EE:01 AA-BB-CC-DD-EE-01",
+            "Device AA:BB:CC:DD:EE:02 JBL Flip 5",
+            "Device AA:BB:CC:DD:EE:03 AA:BB:CC:DD:EE:03",
+            "Device AA:BB:CC:DD:EE:04 Galaxy Buds2",
+        ]),
+    }
+    found = client.post("/api/settings/bluetooth/scan").json()["found"]
+    assert [d["name"] for d in found][:2] == ["Galaxy Buds2", "JBL Flip 5"]
+    assert {d["name"] for d in found[2:]} == {"AA-BB-CC-DD-EE-01", "AA:BB:CC:DD:EE:03"}

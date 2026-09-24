@@ -136,6 +136,13 @@ def test_a_new_emulator_reaches_an_installed_box(packs, tmp_path):
     assert any("new in this release" in n for n in notes)
 
 
+def test_new_emulators_arrive_in_the_curated_order(packs, tmp_path):
+    """Appended by pack `order`, like the .dist — not alphabetically by folder."""
+    merged, _ = merge_systems([], packs, tmp_path)
+    dist = json.loads((ROOT / "install/generated/systems.json.dist").read_text())
+    assert [e["id"] for e in merged] == [e["id"] for e in dist]
+
+
 def test_apps_are_not_added_to_the_systems_grid(packs, tmp_path):
     merged, _ = merge_systems([], packs, tmp_path)
     assert "twitch" not in {e["id"] for e in merged}
@@ -263,3 +270,58 @@ def test_a_missing_console_ratio_is_filled_in_and_a_set_one_is_kept(packs, tmp_p
     assert any("console ratio filled in (gba)" in n for n in notes)
     # And the extensions the operator merged into one console are untouched.
     assert by["gb"]["extensions"] == ["*.gb", "*.gbc"]
+
+
+# ── bezels: config/overlays.json and assets/overlays/ are never rsynced ───────
+
+def test_new_bezels_reach_an_installed_box_and_nothing_is_overwritten(tmp_path):
+    from backend.services.catalog.merge import merge_overlays
+    shipped, data = tmp_path / "release", tmp_path / "userdata"
+    (shipped / "config").mkdir(parents=True)
+    (shipped / "assets/overlays").mkdir(parents=True)
+    (data / "config").mkdir(parents=True)
+    (data / "assets/overlays").mkdir(parents=True)
+    (shipped / "config/overlays.json").write_text(json.dumps(
+        {"pcsx2": {"hole": "shipped"}, "nes": {"hole": "new"}}))
+    (data / "config/overlays.json").write_text(json.dumps({"pcsx2": {"hole": "mine"}}))
+    (shipped / "assets/overlays/pcsx2.png").write_bytes(b"shipped")
+    (shipped / "assets/overlays/nes.png").write_bytes(b"new")
+    (data / "assets/overlays/pcsx2.png").write_bytes(b"uploaded")
+
+    notes = merge_overlays(shipped, data)
+
+    live = json.loads((data / "config/overlays.json").read_text())
+    assert live == {"pcsx2": {"hole": "mine"}, "nes": {"hole": "new"}}
+    assert (data / "assets/overlays/pcsx2.png").read_bytes() == b"uploaded"
+    assert (data / "assets/overlays/nes.png").read_bytes() == b"new"
+    assert sorted(notes) == ["nes: bezel added", "nes: bezel geometry added"]
+    assert merge_overlays(shipped, data) == []
+
+
+def test_the_updater_merges_bezels_from_the_release_tree():
+    text = (ROOT / "update/linux.sh").read_text()
+    assert '"${GAMECORE_PATH}" "${SRC_DIR}" "${GAMECORE_DATA}"' in text
+    assert "merge_overlays(Path(sys.argv[2]), Path(sys.argv[3]))" in text
+
+
+def test_pack_present_by_provider(packs, tmp_path):
+    from backend.services.catalog.merge import pack_present
+    dolphin, duck = packs["dolphin"], packs["duckstation"]
+    assert pack_present(dolphin, tmp_path, None)        # flatpak unseen: keep the tile
+    assert not pack_present(dolphin, tmp_path, frozenset())
+    assert pack_present(dolphin, tmp_path, frozenset(dolphin.app_ids[:1]))
+    assert not pack_present(duck, tmp_path, None)
+    dest = tmp_path / duck.data["install"]["dest"]
+    dest.parent.mkdir(parents=True)
+    dest.write_bytes(b"\x7fELF")
+    assert pack_present(duck, tmp_path, None)
+    native = tmp_path / "native"
+    (native / "lib").mkdir(parents=True)
+    (native / "lib" / "duck").write_bytes(b"\x7fELF")   # preferIfPresent: lib/duck
+    assert pack_present(duck, native, None)
+
+
+def test_merge_keeps_an_absent_newcomer_off_the_grid(packs, tmp_path):
+    merged, notes = merge_systems([], packs, tmp_path, present=lambda p: p.id != "nes")
+    assert "nes" not in {e["id"] for e in merged}
+    assert "nes: not added — its emulator is not installed" in notes
