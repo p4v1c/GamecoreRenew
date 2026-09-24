@@ -402,3 +402,13 @@ def test_an_unreadable_preference_is_ignored_rather_than_fatal(monkeypatch, tmp_
     assert display.preferred_mode() is None
     (tmp_path / display.PREFERENCE_FILE).write_text('{"width": "wide"}')
     assert display.preferred_mode() is None
+
+
+def test_the_interface_scale_is_remembered_and_only_a_listed_size_is_taken(client):
+    assert client.get("/api/settings/display/scale").json() == {
+        "scale": 1.0, "choices": [0.9, 1.0, 1.25, 1.5]}
+    assert client.post("/api/settings/display/scale", json={"scale": 1.25}).json()["scale"] == 1.25
+    assert client.get("/api/settings/display/scale").json()["scale"] == 1.25
+    assert client.post("/api/settings/display/scale", json={"scale": 3}).status_code == 400
+    assert client.get("/api/settings/display/scale").json()["scale"] == 1.25
+    client.post("/api/settings/display/scale", json={"scale": 1.0})

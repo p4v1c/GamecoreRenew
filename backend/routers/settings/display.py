@@ -389,6 +389,46 @@ def _remember(mode: dict) -> None:
         log.warning("display: could not remember the confirmed mode — %s", e)
 
 
+#: Interface size on this screen, as a zoom factor of the whole front end.
+#: A fixed list rather than a free value: each one is a size someone checked
+#: the themes at, and a pad cycles through four choices, not a slider.
+SCALES = (0.9, 1.0, 1.25, 1.5)
+SCALE_FILE = "ui-scale.json"
+
+
+def ui_scale() -> float:
+    """The scale the player chose, 1.0 when nothing (valid) was written."""
+    try:
+        value = float(json.loads((config_dir() / SCALE_FILE).read_text(encoding="utf-8"))["scale"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return 1.0
+    return value if value in SCALES else 1.0
+
+
+class ScaleRequest(BaseModel):
+    scale: float
+
+
+@router.get("/scale")
+async def get_scale():
+    return {"scale": ui_scale(), "choices": list(SCALES)}
+
+
+@router.post("/scale")
+async def set_scale(req: ScaleRequest):
+    """Remember the interface size. The front end applies it itself: it is a
+    zoom of the page, nothing on the output changes, so there is no revert."""
+    if req.scale not in SCALES:
+        raise HTTPException(400, f"Scale must be one of {', '.join(f'{int(s * 100)} %' for s in SCALES)}.")
+    path = config_dir() / SCALE_FILE
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"scale": req.scale}) + "\n", encoding="utf-8")
+    except OSError as e:
+        raise HTTPException(500, f"Could not save the scale — {e}")
+    return {"ok": True, "scale": req.scale}
+
+
 @router.post("/confirm")
 async def confirm():
     """Keep the mode that is on screen.

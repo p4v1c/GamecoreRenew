@@ -264,6 +264,11 @@ function createOverlayWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
+      // A session of its own. Chromium keeps page zoom per session and origin,
+      // and this window loads the same origin as the interface: the player's
+      // Display → Scale would otherwise zoom the bezel too and move its hole
+      // off the game. In memory only — the loopback API needs no cookie.
+      partition: 'gamecore-overlay',
     },
   })
 

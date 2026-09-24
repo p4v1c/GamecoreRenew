@@ -3,11 +3,16 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import OverlayScreen from './components/OverlayScreen'
+import { api } from './api'
 
 const isOverlay = window.location.pathname === '/overlay'
 if (isOverlay) {
   document.documentElement.classList.add('overlay-mode')
   document.body.classList.add('overlay-mode')
+} else {
+  // Settings → Display → Scale, put back at every start. Never on the bezel
+  // page: it is drawn in window pixels and a zoom would move its hole.
+  api.display.scale().then((r) => window.gamecore?.setUiScale?.(r.scale)).catch(() => {})
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
