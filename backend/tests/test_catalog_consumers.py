@@ -650,3 +650,14 @@ def test_the_shell_side_sandbox_grants_the_data_root_too():
     same = {row[0]: row[1] for row in
             _catalog_query("sandbox", "--gamecore-data", "/opt/GameCore")}
     assert same["net.rpcs3.RPCS3"] == "--filesystem=/opt/GameCore --device=all --socket=x11"
+
+
+def test_the_ota_archive_carries_the_bezels_the_updater_merges():
+    """update/linux.sh's merge_overlays copies new bezel PNGs from the release
+    tree. v1.2.68 shipped without assets/ in the OTA archive: every new system
+    got its declared geometry and no picture on an updated box."""
+    workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    ota = set(re.findall(r"cp -r\s+(\S+)\s+dist_ota/", workflow))
+    assert "assets" in ota
+    updater = (ROOT / "update/linux.sh").read_text(encoding="utf-8")
+    assert "--exclude='assets/overlays/'" in updater  # still never deployed over the player's
