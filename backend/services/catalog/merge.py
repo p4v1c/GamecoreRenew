@@ -219,7 +219,10 @@ def merge_systems(live: list[dict], packs: dict, root: Path,
         out.append(merged)
 
     if add_missing:
-        for pack in packs.values():
+        # Curated order, as gen-catalog.py writes the .dist: a fresh install and
+        # an updated box must list the newcomers the same way, not by folder name.
+        for pack in sorted(packs.values(),
+                           key=lambda p: (p.data.get("order", 10_000), p.id)):
             if pack.kind != kind or pack.id in seen:
                 continue
             if pack.id in removed:
@@ -272,4 +275,38 @@ def merge_file(systems_file: Path, packs: dict, root: Path,
                      json.dumps(merged, indent=2, ensure_ascii=False) + "\n")
     except OSError as e:
         return notes + [f"could not write systems.json ({e}) — left untouched"]
+    return notes
+
+
+def merge_overlays(shipped: Path, data: Path) -> list[str]:
+    """Give an installed box the bezels of the systems this release adds.
+
+    The OTA rsync excludes `config/` and `assets/overlays/`, both the player's,
+    so a system new in a release reached the grid through `merge_file` and got
+    no bezel at all: no geometry in `config/overlays.json` — Electron never
+    starts the overlay monitor for it — and no PNG. Additive only: an entry or
+    a PNG the box already has, edited or uploaded by hand, is never touched.
+    `shipped` is the release tree, `data` the box's data root.
+    """
+    notes: list[str] = []
+    live_file = data / "config" / "overlays.json"
+    try:
+        ours = json.loads((shipped / "config" / "overlays.json").read_text())
+        live = json.loads(live_file.read_text()) if live_file.exists() else {}
+    except (OSError, json.JSONDecodeError) as e:
+        return [f"overlays.json left alone — {e}"]
+    if not isinstance(ours, dict) or not isinstance(live, dict):
+        return ["overlays.json left alone — not an object"]
+    added = [k for k in ours if k not in live]
+    if added:
+        live.update({k: ours[k] for k in added})
+        atomic_write(live_file, json.dumps(live, indent=2, ensure_ascii=False) + "\n")
+        notes += [f"{k}: bezel geometry added" for k in added]
+    src_dir, dst_dir = shipped / "assets" / "overlays", data / "assets" / "overlays"
+    for png in sorted(src_dir.glob("*.png")) if src_dir.is_dir() else []:
+        dst = dst_dir / png.name
+        if not dst.exists():
+            dst_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(png, dst)
+            notes.append(f"{png.stem}: bezel added")
     return notes
