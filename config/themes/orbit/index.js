@@ -1,5 +1,6 @@
 import {createFooter} from './views/footer.js'
 import {createBackdrop} from './lib/backdrop.js'
+import {settingsGears} from './lib/gears.js'
 import {createSession} from './lib/session.js'
 import {createTabs} from './lib/tabs.js'
 import {createTopBar} from './views/topbar.js'
@@ -32,8 +33,13 @@ export default function createOrbit(sdk) {
   // at a time, details in dialogs. It stands on Home's own backdrop — the same
   // component, so the same picture, shade and grain — rather than on a panel
   // floating over a blurred dashboard.
+  //
+  // Its backdrop is its own: a watch movement turning behind the list, instead
+  // of Home's game art. Only the backdrop — the settings screen is the host's.
+  const SettingsBackground = () => html`<div className="orbit-gears" aria-hidden="true"
+    dangerouslySetInnerHTML=${{__html: settingsGears()}} />`
   const Settings = sdk.defaults.createSettings(sdk, {}, {
-    skin: 'orbit-settings', Background, layout: 'index', detail: 'dialog',
+    skin: 'orbit-settings', Background: SettingsBackground, layout: 'index', detail: 'dialog',
   })
   const Power = sdk.defaults.createPowerView(sdk, {skin: 'orbit-power'})
   const Controller = createController(sdk)

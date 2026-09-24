@@ -262,21 +262,19 @@ describe('the background is Home\'s own', () => {
     expect(root.querySelector('.gcs-set-paper')).toBeNull()
   })
 
-  it.each([
-    ['orbit', '.scenery'],
-  ])('%s hands Settings the component its Home paints', async (id, cls) => {
-    const theme = (await load(`../../../config/themes/${id}/index.js`)).default(
-      buildSdk(id, { selectTheme: vi.fn(async () => {}) }))
+  it('orbit hands Settings its own backdrop: the gear movement, not Home\'s art', async () => {
+    const theme = (await load('../../../config/themes/orbit/index.js')).default(
+      buildSdk('orbit', { selectTheme: vi.fn(async () => {}) }))
     const r = render(createElement(theme.shell))
-    // The home background is there before Settings opens…
-    await waitFor(() => expect(r.container.querySelector(cls)).toBeTruthy())
+    await waitFor(() => expect(r.container.querySelector('.scenery')).toBeTruthy())
     await press('menu')
     const settings = await waitFor(() => {
       const el = r.container.querySelector('.gcs-set')
       expect(el).toBeTruthy()
       return el!
     })
-    // …and the same component draws Settings' ground.
-    expect(settings.querySelector(`.gcs-set-bg ${cls}`)).toBeTruthy()
+    expect(settings.getAttribute('data-bg')).toBe('theme')
+    expect(settings.querySelector('.gcs-set-bg .orbit-gears svg animateTransform')).toBeTruthy()
+    expect(settings.querySelector('.gcs-set-bg .scenery')).toBeNull()
   })
 })
