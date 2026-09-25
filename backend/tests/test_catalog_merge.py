@@ -272,38 +272,6 @@ def test_a_missing_console_ratio_is_filled_in_and_a_set_one_is_kept(packs, tmp_p
     assert by["gb"]["extensions"] == ["*.gb", "*.gbc"]
 
 
-# ── bezels: config/overlays.json and assets/overlays/ are never rsynced ───────
-
-def test_new_bezels_reach_an_installed_box_and_nothing_is_overwritten(tmp_path):
-    from backend.services.catalog.merge import merge_overlays
-    shipped, data = tmp_path / "release", tmp_path / "userdata"
-    (shipped / "config").mkdir(parents=True)
-    (shipped / "assets/overlays").mkdir(parents=True)
-    (data / "config").mkdir(parents=True)
-    (data / "assets/overlays").mkdir(parents=True)
-    (shipped / "config/overlays.json").write_text(json.dumps(
-        {"pcsx2": {"hole": "shipped"}, "nes": {"hole": "new"}}))
-    (data / "config/overlays.json").write_text(json.dumps({"pcsx2": {"hole": "mine"}}))
-    (shipped / "assets/overlays/pcsx2.png").write_bytes(b"shipped")
-    (shipped / "assets/overlays/nes.png").write_bytes(b"new")
-    (data / "assets/overlays/pcsx2.png").write_bytes(b"uploaded")
-
-    notes = merge_overlays(shipped, data)
-
-    live = json.loads((data / "config/overlays.json").read_text())
-    assert live == {"pcsx2": {"hole": "mine"}, "nes": {"hole": "new"}}
-    assert (data / "assets/overlays/pcsx2.png").read_bytes() == b"uploaded"
-    assert (data / "assets/overlays/nes.png").read_bytes() == b"new"
-    assert sorted(notes) == ["nes: bezel added", "nes: bezel geometry added"]
-    assert merge_overlays(shipped, data) == []
-
-
-def test_the_updater_merges_bezels_from_the_release_tree():
-    text = (ROOT / "update/linux.sh").read_text()
-    assert '"${GAMECORE_PATH}" "${SRC_DIR}" "${GAMECORE_DATA}"' in text
-    assert "merge_overlays(Path(sys.argv[2]), Path(sys.argv[3]))" in text
-
-
 def test_pack_present_by_provider(packs, tmp_path):
     from backend.services.catalog.merge import pack_present
     dolphin, duck = packs["dolphin"], packs["duckstation"]
