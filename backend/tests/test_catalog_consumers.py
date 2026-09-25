@@ -652,12 +652,16 @@ def test_the_shell_side_sandbox_grants_the_data_root_too():
     assert same["net.rpcs3.RPCS3"] == "--filesystem=/opt/GameCore --device=all --socket=x11"
 
 
-def test_the_ota_archive_carries_the_bezels_the_updater_merges():
-    """update/linux.sh's merge_overlays copies new bezel PNGs from the release
-    tree. v1.2.68 shipped without assets/ in the OTA archive: every new system
-    got its declared geometry and no picture on an updated box."""
+def test_an_update_never_touches_the_players_bezels():
+    """Bezels are the player's. v1.2.68/69 had the OTA add every shipped bezel
+    the box lacked — including ones the owner had deliberately removed (N64,
+    DS, 3DS, PS1, PS2) — so each update put them back. The OTA archive does not
+    carry assets/, and the updater writes nothing under assets/overlays/ or
+    into config/overlays.json."""
     workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
-    ota = set(re.findall(r"cp -r\s+(\S+)\s+dist_ota/", workflow))
-    assert "assets" in ota
+    assert "assets" not in set(re.findall(r"cp -r\s+(\S+)\s+dist_ota/", workflow))
     updater = (ROOT / "update/linux.sh").read_text(encoding="utf-8")
-    assert "--exclude='assets/overlays/'" in updater  # still never deployed over the player's
+    assert "--exclude='assets/overlays/'" in updater
+    assert "merge_overlays" not in updater
+    code = [l for l in updater.splitlines() if not l.lstrip().startswith("#")]
+    assert not any("overlays.json" in l for l in code)

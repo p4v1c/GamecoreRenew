@@ -186,11 +186,6 @@ jobs:
           # Layout matches the install dir, so the rsync lands each file in place.
           cp -r frontend      dist_ota/
           cp -r config        dist_ota/
-          # The bezel PNGs, for update/linux.sh's merge_overlays: the rsync
-          # excludes assets/overlays/ and assets/logos/ (they are the player's),
-          # so without them in the archive a new system got its geometry and
-          # never its picture. Nothing here is deployed into the install.
-          cp -r assets        dist_ota/
           cp -r electron      dist_ota/
           cp -r update        dist_ota/
           cp -r install       dist_ota/

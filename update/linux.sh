@@ -562,22 +562,6 @@ if not notes:
     print("[update]   nothing to change.")
 PYEOF
 
-# Same exclusion, same gap, for the bezels: config/overlays.json and
-# assets/overlays/ are the player's and never rsynced, so a system new in this
-# release had a tile and no bezel. Adds what is missing, never overwrites
-# (backend/services/catalog/merge.py:merge_overlays).
-echo "[update] Adding the bezels of new systems to ${GAMECORE_DATA}..."
-"${GAMECORE_PATH}/.venv/bin/python3" - "${GAMECORE_PATH}" "${SRC_DIR}" "${GAMECORE_DATA}" <<'PYEOF' || \
-  echo "[update] WARNING: bezel merge failed (non-fatal) — bezels unchanged."
-import sys
-from pathlib import Path
-sys.path.insert(0, sys.argv[1])
-from backend.services.catalog.merge import merge_overlays
-
-for n in merge_overlays(Path(sys.argv[2]), Path(sys.argv[3])):
-    print(f"[update]   {n}")
-PYEOF
-
 # Third thing an OTA cannot rewrite: the desktop shortcut. arch.sh writes it
 # pointing at install/bin/gamecore-launcher, which is maintained here — but a
 # box that was set up by hand, or before that shortcut existed, can be pointing
