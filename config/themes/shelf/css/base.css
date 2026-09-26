@@ -134,7 +134,7 @@
 
 /* Anything read on the wall sits on a paper plate: bare text over the
    pattern measured 1.8:1 where a stroke crosses it. */
-.cz-tab, .cz-top-right, .cz-ps-meta, .cz-foot > .cz-count, .cz-keys {
+.cz-tab, .cz-top-right, .cz-ps-meta, .cz-foot > .cz-count, .cz-keys, .cz-sortchip {
   width: fit-content; padding: 5px 14px; border-radius: var(--r-chip);
   background: var(--paper); box-shadow: 0 0 0 1px var(--rule);
 }

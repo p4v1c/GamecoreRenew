@@ -42,7 +42,9 @@ Exempt, and only these:
 - text drawn as part of an object, when the same fact is readable elsewhere
   (box spine, back-of-box fine print);
 - illustrations marked `aria-hidden="true"` (the controller drawing, the
-  ghost art when no pad is connected). If something carries information that
+  ghost art when no pad is connected);
+- disabled controls (`disabled` / `aria-disabled="true"`), e.g. index letters
+  with no game. The ones that do something must pass. If something carries information that
   is not repeated as readable text, it is not decoration.
 
 ## 3. Measure
