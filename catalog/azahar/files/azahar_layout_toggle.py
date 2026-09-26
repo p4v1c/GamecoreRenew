@@ -1,38 +1,22 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-azahar_layout_toggle.py  --  L3 bascule le layout d'ecran d'Azahar entre
-   A = affichage 3DS natif (les deux ecrans)
-   B = ecran du haut seul
+"""Azahar layout toggle — L3 switches between
+   A = native 3DS display (both screens)
+   B = top screen only
 
-PRINCIPE
-  Azahar sait deja tout faire : son raccourci "Toggle Screen Layout" (F10) fait
-  defiler le reglage `layouts_to_cycle`. Reduit a "0, 1", c'est exactement une
-  bascule Default <-> SingleScreen (ecran du haut, puisque swap_screen=false).
+Azahar's "Toggle Screen Layout" hotkey (F10) cycles `layouts_to_cycle`;
+reduced to "0, 1" it is exactly Default <-> SingleScreen. Azahar can bind
+hotkeys to keys only, never to a pad button, so this daemon reads L3 on
+/dev/input/event* and sends F10 through a uinput keyboard, only while Azahar
+runs. No memory writes, no offsets: an Azahar update cannot break it.
+Independent of the melonDS daemon and gamepad-tv-bridge (each acts only when
+its own emulator runs).
 
-  Il manque juste le lien manette -> clavier : Azahar ne sait lier ses raccourcis
-  qu'a des touches, jamais a un bouton de manette ([Controls] ne contient que les
-  boutons de la console emulee).
+Usage:
+  azahar_layout_toggle.py          daemon
+  azahar_layout_toggle.py --test   diagnosis: shows what is seen, injects nothing
 
-  Ce daemon lit L3 sur /dev/input/event* et envoie F10 via un clavier virtuel
-  uinput, uniquement quand Azahar tourne.
-
-  Aucune ecriture memoire, aucun offset, aucune dependance : une mise a jour
-  d'Azahar ne peut pas casser ce daemon.
-
-AUTONOME
-  Ce programme ne depend de rien d'autre : ni du gamepad-tv-bridge, ni du daemon
-  melonDS. Les deux peuvent tourner en meme temps sans se genrer (chacun ne fait
-  quelque chose que si SON emulateur tourne).
-
-USAGE
-  azahar-layout-toggle              daemon
-  azahar-layout-toggle --test       diagnostic : montre ce qui est vu, n'injecte rien
-
-PREREQUIS
-  - appartenir au groupe `input`            (lecture de /dev/input/event*)
-  - acces en ecriture a /dev/uinput         (ACL de session, deja le cas)
-  - cote Azahar : layouts_to_cycle = 0, 1   (sinon F10 fait defiler 7 layouts)
+Needs: `input` group, write access to /dev/uinput (session ACL),
+and layouts_to_cycle = 0, 1 in Azahar (apply_azahar_config.py sets it).
 """
 
 import os
@@ -46,10 +30,10 @@ import argparse
 # ===========================================================================
 # CONFIG
 # ===========================================================================
-PROC_NAME  = "azahar"       # /proc/<pid>/comm de l'emulateur
+PROC_NAME  = "azahar"       # the emulator's /proc/<pid>/comm
 
-KEY_NAMES = {              # codes evdev, /usr/include/linux/input-event-codes.h
-    "L3": 0x13d,           # BTN_THUMBL - clic du stick gauche
+KEY_NAMES = {              # evdev codes, /usr/include/linux/input-event-codes.h
+    "L3": 0x13d,           # BTN_THUMBL - left stick click
     "R3": 0x13e,           # BTN_THUMBR
     "L1": 0x136,
     "R1": 0x137,
@@ -57,12 +41,12 @@ KEY_NAMES = {              # codes evdev, /usr/include/linux/input-event-codes.h
 }
 TRIGGER_KEYCODES = {KEY_NAMES["L3"]}
 
-SEND_KEY   = 68            # KEY_F10 = raccourci "Toggle Screen Layout" d'Azahar
+SEND_KEY   = 68            # KEY_F10 = Azahar's "Toggle Screen Layout" hotkey
 DEBOUNCE_S = 0.35
-RESCAN_S   = 2.0           # la manette Bluetooth apparait/disparait a chaud
+RESCAN_S   = 2.0           # Bluetooth pads come and go (hotplug)
 
 # ===========================================================================
-IEV     = struct.Struct("llHHi")    # struct input_event (x86-64), 24 octets
+IEV     = struct.Struct("llHHi")    # struct input_event (x86-64), 24 bytes
 EV_SYN, EV_KEY = 0x00, 0x01
 SYN_REPORT = 0
 
@@ -70,16 +54,15 @@ def log(*a): print(time.strftime("%H:%M:%S"), *a, flush=True)
 
 
 # ---------- process ------------------------------------------------------
-# Balayer tout /proc chaque seconde coute plus cher que tout le reste du daemon
-# (~300 ouvertures de fichier par seconde). Tant que le PID connu repond, on ne
-# lit qu'un seul /proc/<pid>/comm ; sinon on ne rebalaye qu'a intervalle espace.
+# A full /proc scan every second costs more than the rest of the daemon (~300
+# opens/s): while the known pid answers only its /proc/<pid>/comm is read.
 SCAN_IDLE_S = 3.0
-SCAN_FULL_S = 10.0       # controle "une instance plus recente est-elle apparue ?"
+SCAN_FULL_S = 10.0       # "has a newer instance appeared?" check
 _pid_cache = {"pid": None, "next_scan": 0.0, "next_full": 0.0, "warned": None}
 
 
 def _starttime(pid):
-    """Champ 22 de /proc/<pid>/stat : date de demarrage, en ticks depuis le boot."""
+    """Field 22 of /proc/<pid>/stat: start time, in ticks since boot."""
     try:
         d = open("/proc/%d/stat" % pid).read()
         return int(d[d.rindex(")") + 2:].split()[19])
@@ -99,16 +82,8 @@ def _all_pids(name=PROC_NAME):
 
 
 def find_pid(name=PROC_NAME, force=False):
-    """PID de l'emulateur -- la plus RECENTE s'il y en a plusieurs.
-
-    La touche synthetique part vers la fenetre au premier plan, donc vers
-    l'instance que l'utilisateur vient d'ouvrir. Viser une autre instance ne
-    produirait rien de visible.
-
-    Balayer tout /proc chaque seconde coute plus cher que tout le reste du
-    daemon : tant que le PID connu repond on ne lit qu'un /proc/<pid>/comm, et
-    le balayage complet n'a lieu que toutes les SCAN_FULL_S.
-    """
+    """The emulator's pid — the NEWEST when several run (the synthetic key
+    goes to the foreground window). Full scan every SCAN_FULL_S only."""
     c = _pid_cache
     now = time.time()
 
@@ -136,7 +111,7 @@ def find_pid(name=PROC_NAME, force=False):
     best = max(pids, key=_starttime)
     if len(pids) > 1 and c["warned"] != best:
         c["warned"] = best
-        log("%d instances de %s (%s) -> j'utilise la plus recente : %d"
+        log("%d instances of %s (%s) -> using the newest: %d"
             % (len(pids), name, ",".join(str(x) for x in sorted(pids)), best))
     elif len(pids) == 1:
         c["warned"] = None
@@ -144,26 +119,24 @@ def find_pid(name=PROC_NAME, force=False):
     return best
 
 
-# ---------- clavier virtuel (uinput, ioctls bruts) -----------------------
+# ---------- virtual keyboard (uinput, raw ioctls) ------------------------
 UI_SET_EVBIT   = 0x40045564         # _IOW('U', 100, int)
 UI_SET_KEYBIT  = 0x40045565         # _IOW('U', 101, int)
 UI_DEV_CREATE  = 0x00005501         # _IO ('U', 1)
 UI_DEV_DESTROY = 0x00005502         # _IO ('U', 2)
 
 class VirtualKeyboard:
-    """Clavier virtuel minimal : une seule touche declaree.
-
-    On passe par l'ancienne mise en place (ecriture d'un struct uinput_user_dev
-    puis UI_DEV_CREATE), toujours supportee et plus simple que UI_DEV_SETUP.
-    """
+    """Minimal virtual keyboard declaring one key. Uses the legacy setup
+    (write struct uinput_user_dev, then UI_DEV_CREATE): still supported and
+    simpler than UI_DEV_SETUP."""
 
     def __init__(self, keycode, name=b"azahar-layout-toggle"):
         self.fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
         fcntl.ioctl(self.fd, UI_SET_EVBIT, EV_KEY)
         fcntl.ioctl(self.fd, UI_SET_EVBIT, EV_SYN)
         fcntl.ioctl(self.fd, UI_SET_KEYBIT, keycode)
-        # struct uinput_user_dev : name[80] + input_id(4x u16) + ff_effects_max
-        #                          + 4 tableaux abs* de 64 s32
+        # struct uinput_user_dev: name[80] + input_id(4x u16) + ff_effects_max
+        #                         + 4 abs* arrays of 64 s32
         dev = (name[:79].ljust(80, b"\0")
                + struct.pack("<HHHH", 0x03, 0x1209, 0x0001, 1)   # BUS_USB, vid, pid, ver
                + struct.pack("<I", 0)
@@ -171,7 +144,7 @@ class VirtualKeyboard:
         os.write(self.fd, dev)
         fcntl.ioctl(self.fd, UI_DEV_CREATE)
         self.keycode = keycode
-        time.sleep(0.3)          # laisse le compositeur ouvrir le peripherique
+        time.sleep(0.3)          # let the compositor open the device
 
     def _ev(self, etype, code, value):
         os.write(self.fd, IEV.pack(0, 0, etype, code, value))
@@ -195,41 +168,37 @@ class VirtualKeyboard:
 
 
 def open_keyboard(keycode):
-    """Cree le clavier virtuel, en attendant si /dev/uinput n'est pas encore la.
+    """Create the virtual keyboard, waiting for /dev/uinput access.
 
-    /dev/uinput est root:root 0660 avec le tag udev `uaccess` : l'acces vient
-    UNIQUEMENT de l'ACL posee par logind quand la session devient active. Au
-    demarrage de la machine, le service utilisateur (lingering) peut se lancer
-    avant. On attend au lieu de sortir en erreur."""
+    /dev/uinput is root:root 0660 with the `uaccess` udev tag: access comes
+    ONLY from logind's ACL once the session is active, and the (lingering)
+    user service may start before that. Wait instead of failing."""
     t0, warned = time.time(), 0
     while True:
         try:
             return VirtualKeyboard(keycode)
         except OSError as e:
             if warned == 0:
-                log("/dev/uinput pas encore accessible (%s) - j'attends l'ACL de session…" % e)
+                log("/dev/uinput not accessible yet (%s) - waiting for the session ACL…" % e)
                 warned = 1
             elif warned == 1 and time.time() - t0 > 60:
-                log("toujours rien apres 60 s. Verifier : getfacl /dev/uinput "
-                    "(il faut une ligne user:<toi>:rw-)")
+                log("still nothing after 60 s. Check: getfacl /dev/uinput "
+                    "(needs a user:<you>:rw- line)")
                 warned = 2
             time.sleep(3)
 
 
-# ---------- capacites : ne garder que les peripheriques utiles ------------
+# ---------- capabilities: keep only the useful devices -------------------
 def EVIOCGBIT(ev, length):
     """_IOC(_IOC_READ, 'E', 0x20 + ev, length)"""
     return (2 << 30) | (length << 16) | (ord("E") << 8) | (0x20 + ev)
 
-KEYBITS_LEN = 96        # KEY_CNT / 8 : couvre tous les codes jusqu'a 767
+KEYBITS_LEN = 96        # KEY_CNT / 8: covers every code up to 767
 
 def declares_trigger(fd):
-    """True si ce peripherique declare au moins un des boutons declencheurs.
+    """True when this device declares at least one trigger button.
 
-    Sans ce filtre on ouvre les 20+ autres entrees de la machine ; les capteurs
-    de mouvement de la DS4 emettent en continu et reveillaient `select` en
-    permanence pour des evenements qui ne nous concernent pas (~1 % de CPU en
-    continu). On ne garde que la manette."""
+    Without it the DS4 motion sensors wake `select` constantly (~1 % CPU)."""
     buf = bytearray(KEYBITS_LEN)
     try:
         fcntl.ioctl(fd, EVIOCGBIT(EV_KEY, KEYBITS_LEN), buf)
@@ -238,15 +207,15 @@ def declares_trigger(fd):
     return any(buf[c // 8] >> (c % 8) & 1 for c in TRIGGER_KEYCODES)
 
 
-# ---------- entrees manette ---------------------------------------------
+# ---------- pad inputs ---------------------------------------------------
 class Inputs:
-    """Tous les /dev/input/event* lisibles, re-scannes periodiquement : la
-    manette Bluetooth peut se connecter apres le demarrage du daemon, et
-    disparaitre quand elle s'eteint (sinon select() boucle sur un fd mort)."""
+    """Readable /dev/input/event* declaring the trigger, rescanned
+    periodically: a Bluetooth pad connects late and vanishes when it switches
+    off (select() would spin on a dead fd)."""
 
     def __init__(self):
         self.fds = {}
-        self.readable = 0            # entrees ouvrables, filtre compris
+        self.readable = 0            # openable inputs, filter included
         self.last_scan = 0.0
         self.rescan(force=True)
 
@@ -268,10 +237,10 @@ class Inputs:
                 continue
             self.readable += 1
             if not declares_trigger(fd):
-                os.close(fd)          # clavier, souris, capteurs… : rien pour nous
+                os.close(fd)          # keyboard, mouse, sensors…: nothing for us
                 continue
             self.fds[fd] = path
-            log("entree + %s" % path)
+            log("input + %s" % path)
         for fd, path in list(self.fds.items()):
             if path not in present:
                 self.drop(fd)
@@ -293,7 +262,7 @@ class Inputs:
             except BlockingIOError:
                 continue
             except OSError:
-                self.drop(fd)          # ENODEV : manette eteinte
+                self.drop(fd)          # ENODEV: pad switched off
                 continue
             for off in range(0, len(buf) - IEV.size + 1, IEV.size):
                 _, _, et, code, val = IEV.unpack_from(buf, off)
@@ -302,7 +271,7 @@ class Inputs:
         return hit
 
 
-# ---------- boucles ------------------------------------------------------
+# ---------- loop ----------------------------------------------------------
 def loop(test=False):
     from apply_azahar_config import INI, apply, azahar_running
 
@@ -311,26 +280,26 @@ def loop(test=False):
             try:
                 changes = apply(INI)
                 if changes:
-                    log("configuration Azahar :", "; ".join(changes))
+                    log("Azahar configuration:", "; ".join(changes))
             except OSError as e:
-                log("configuration Azahar indisponible :", e)
+                log("Azahar configuration unavailable:", e)
 
     configure()
     devs = Inputs()
     if not devs.readable:
-        print("Aucun /dev/input/event* lisible. Groupe 'input' requis "
-              "(sudo usermod -aG input $USER puis relogin).")
+        print("No readable /dev/input/event*. The 'input' group is required "
+              "(sudo usermod -aG input $USER, then log in again).")
         return 1
 
     kbd = open_keyboard(SEND_KEY) if not test else None
 
     names = ",".join(sorted(k for k, v in KEY_NAMES.items() if v in TRIGGER_KEYCODES))
-    log("daemon pret%s. %d peripherique(s) avec le bouton, sur %d lus. %s -> KEY_%d, cible '%s'"
-        % (" [TEST, aucune injection]" if test else "",
+    log("daemon ready%s. %d device(s) with the button, of %d read. %s -> KEY_%d, target '%s'"
+        % (" [TEST, no injection]" if test else "",
            len(devs.fds), devs.readable, names or sorted(TRIGGER_KEYCODES),
            SEND_KEY, PROC_NAME))
     if not devs.fds:
-        log("aucune manette avec ce bouton pour l'instant - je l'attends (hotplug)")
+        log("no pad with this button yet - waiting for one (hotplug)")
 
     seen_pid = None
     last_press = last_check = 0.0
@@ -345,7 +314,7 @@ def loop(test=False):
                 pid = find_pid()
                 if pid != seen_pid:
                     seen_pid = pid
-                    log("Azahar %s" % ("lance (pid %d)" % pid if pid else "ferme"))
+                    log("Azahar %s" % ("running (pid %d)" % pid if pid else "closed"))
                     if pid is None:
                         configure()
 
@@ -356,15 +325,15 @@ def loop(test=False):
             last_press = now
 
             if seen_pid is None:
-                seen_pid = find_pid(force=True)     # Azahar vient peut-etre de demarrer
+                seen_pid = find_pid(force=True)     # Azahar may have just started
             if seen_pid is None:
-                log("bouton recu, mais Azahar ne tourne pas -> rien envoye")
+                log("button received, but Azahar is not running -> nothing sent")
                 continue
             if test:
-                log("bouton recu, Azahar pid=%d -> j'enverrais KEY_%d" % (seen_pid, SEND_KEY))
+                log("button received, Azahar pid=%d -> would send KEY_%d" % (seen_pid, SEND_KEY))
                 continue
             kbd.tap()
-            log("bouton recu -> KEY_%d envoye (bascule du layout)" % SEND_KEY)
+            log("button received -> KEY_%d sent (layout toggle)" % SEND_KEY)
     except KeyboardInterrupt:
         pass
     finally:
@@ -375,13 +344,13 @@ def loop(test=False):
 
 def main():
     ap = argparse.ArgumentParser(
-        description="L3 bascule le layout d'ecran d'Azahar (via son raccourci F10)")
+        description="L3 toggles Azahar's screen layout (through its F10 hotkey)")
     ap.add_argument("--key", action="append",
-                    help="bouton declencheur : L3 (defaut), R3, L1, R1, PS, ou un code evdev")
+                    help="trigger button: L3 (default), R3, L1, R1, PS, or an evdev code")
     ap.add_argument("--send-key", type=int, metavar="CODE",
-                    help="code de la touche envoyee (defaut 68 = KEY_F10)")
+                    help="code of the key sent (default 68 = KEY_F10)")
     ap.add_argument("--test", action="store_true",
-                    help="diagnostic : affiche ce qui est vu, n'injecte rien")
+                    help="diagnosis: show what is seen, inject nothing")
     a = ap.parse_args()
 
     if a.key:
@@ -392,7 +361,7 @@ def main():
                 try:
                     k = int(v, 0)
                 except ValueError:
-                    ap.error("touche inconnue %r (noms : %s, ou un code evdev)"
+                    ap.error("unknown key %r (names: %s, or an evdev code)"
                              % (v, ", ".join(KEY_NAMES)))
             codes.add(k)
         TRIGGER_KEYCODES.clear(); TRIGGER_KEYCODES.update(codes)

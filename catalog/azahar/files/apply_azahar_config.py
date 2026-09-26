@@ -1,29 +1,21 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-apply_azahar_config.py  --  pose les 2 reglages Azahar dont la bascule L3 a besoin.
+"""Set the two Azahar settings the L3 toggle needs.
 
   [Layout]
-  layouts_to_cycle   = 0, 1     -> F10 bascule Default <-> SingleScreen
-                                   (au lieu de defiler les 7 layouts)
-  screen_top_stretch = true     -> en SingleScreen, l'ecran du haut remplit
-                                   toute la fenetre (16:9 plein cadre)
+  layouts_to_cycle   = 0, 1   → F10 switches Default <-> SingleScreen
+                                (instead of cycling all 7 layouts)
+  screen_top_stretch = true   → in SingleScreen the top screen fills the
+                                whole window (16:9 full frame)
 
-POURQUOI CE SCRIPT
-  Azahar reecrit tout son qt-config.ini quand il se ferme, a partir de son etat
-  en memoire : editer le fichier pendant qu'il tourne ne sert a rien. Ce script
-  refuse donc d'ecrire si Azahar tourne, et sait attendre qu'il se ferme.
+Azahar rewrites its whole qt-config.ini from memory on exit, so editing it
+while it runs is lost: this refuses to write while Azahar runs, and can wait.
 
-  A relancer si la config Azahar est un jour reinitialisee.
+  --wait [SECONDS]   wait for Azahar to exit (default 2 h), then apply
+  --check            write nothing, show the state
 
-  --wait [SECONDES]   attend la fermeture d'Azahar (defaut : 2 h) puis applique
-  --check             n'ecrit rien, dit juste ou on en est
-
-NOTE : `aspect_ratio` (l'enum AspectRatio::R16_9) existe dans le moteur de layout
-mais n'est ni lu ni ecrit par la config Qt en 2125.1.1 -- inutile de le poser
-dans le .ini, il ne serait jamais relu. D'ou `screen_top_stretch`, qui lui est
-bien persiste et n'agit que dans SingleFrameLayout (l'affichage natif n'y touche
-pas : il passe par LargeFrameLayout).
+`aspect_ratio` (AspectRatio::R16_9) is neither read nor written by the Qt
+config in 2125.1.1, hence `screen_top_stretch`, which is persisted and only
+acts in SingleFrameLayout.
 """
 
 import os
@@ -35,7 +27,7 @@ import argparse
 INI = os.path.expanduser(
     "~/.var/app/org.azahar_emu.Azahar/config/azahar-emu/qt-config.ini")
 SECTION = "[Layout]"
-WANT = {                       # cle -> (valeur voulue, flag \default voulu)
+WANT = {                       # key -> (wanted value, wanted \default flag)
     "layouts_to_cycle":   ("0, 1", "false"),
     "screen_top_stretch": ("true", "false"),
 }
@@ -52,7 +44,7 @@ def azahar_running():
 
 
 def read_state(path):
-    """Valeurs actuelles des cles surveillees dans [Layout]."""
+    """Current values of the watched keys in [Layout]."""
     cur, insec = {}, False
     for ln in open(path, encoding="utf-8"):
         s = ln.strip()
@@ -74,7 +66,7 @@ def apply(path):
         for key, value in wanted.items():
             if key not in seen:
                 out.append("%s=%s" % (key, value))
-                changed.append("%s : absent -> %s" % (key, value))
+                changed.append("%s: missing -> %s" % (key, value))
                 seen.add(key)
 
     found_section = False
@@ -93,7 +85,7 @@ def apply(path):
                 seen.add(k)
                 want = wanted[k]
                 if v != want:
-                    changed.append("%s : %s -> %s" % (k, v, want))
+                    changed.append("%s: %s -> %s" % (k, v, want))
                     out.append("%s=%s" % (k, want))
                     continue
         out.append(ln)
@@ -110,49 +102,49 @@ def apply(path):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="regle Azahar pour la bascule L3")
-    ap.add_argument("--wait", nargs="?", type=int, const=7200, metavar="SECONDES",
-                    help="attend la fermeture d'Azahar (defaut 7200 s) puis applique")
-    ap.add_argument("--check", action="store_true", help="n'ecrit rien, montre l'etat")
+    ap = argparse.ArgumentParser(description="configure Azahar for the L3 toggle")
+    ap.add_argument("--wait", nargs="?", type=int, const=7200, metavar="SECONDS",
+                    help="wait for Azahar to exit (default 7200 s), then apply")
+    ap.add_argument("--check", action="store_true", help="write nothing, show the state")
     a = ap.parse_args()
 
     if not os.path.isfile(INI):
-        print("Config Azahar introuvable : %s" % INI); return 1
+        print("Azahar config not found: %s" % INI); return 1
 
     if a.check:
         cur = read_state(INI)
         pid = azahar_running()
-        print("Azahar : %s" % ("lance (pid %d)" % pid if pid else "ferme"))
+        print("Azahar: %s" % ("running (pid %d)" % pid if pid else "closed"))
         for k, (want, _) in WANT.items():
-            got = cur.get(k, "(absent)")
+            got = cur.get(k, "(missing)")
             print("  %-20s = %-8s  %s" % (k, got, "OK" if got == want else "-> %s" % want))
         return 0
 
     if a.wait is not None:
         deadline = time.time() + a.wait
         if azahar_running():
-            print("Azahar tourne : il reecrira son .ini en quittant. J'attends…",
+            print("Azahar is running: it rewrites its .ini on exit. Waiting…",
                   flush=True)
         while azahar_running() and time.time() < deadline:
             time.sleep(3)
         if azahar_running():
-            print("Toujours lance apres %d s — rien fait." % a.wait); return 1
-        time.sleep(2)          # laisse Azahar finir d'ecrire son fichier
+            print("Still running after %d s — nothing done." % a.wait); return 1
+        time.sleep(2)          # let Azahar finish writing its file
 
     pid = azahar_running()
     if pid:
-        print("Azahar tourne (pid %d) : il ecraserait la modification en quittant." % pid)
-        print("Ferme-le, puis relance ce script (ou passe --wait).")
+        print("Azahar is running (pid %d): it would overwrite the change on exit." % pid)
+        print("Close it, then run this again (or pass --wait).")
         return 1
 
     changed = apply(INI)
     if changed:
-        print("Applique dans %s :" % SECTION)
+        print("Applied in %s:" % SECTION)
         for c in changed:
             print("   " + c)
-        print("Sauvegarde du fichier precedent a cote (.bak-*).")
+        print("Previous file backed up next to it (.bak-*).")
     else:
-        print("Rien a faire : les deux reglages sont deja bons.")
+        print("Nothing to do: both settings are already right.")
     return 0
 
 

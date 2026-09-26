@@ -32,7 +32,9 @@ Changes from the standalone copy:
 - exits with failure when inputs are unreadable, so systemd retries;
 - picks the config from the GameCore launcher, supports the optional native
   binary `lib/melon`; `MELONDS_CONFIG` can force a path;
-- offsets and caches stay per daemon and per melonDS version.
+- offsets and caches stay per daemon and per melonDS version;
+- split into modules (`melonds_common`, `melonds_config`, `melonds_memory`,
+  `melonds_input`) installed next to `melonds_layout_toggle.py`.
 
 On a box that already has the pack: `sudo gamecore-emu install melonds` adds
 the daemon. It reapplies the seed with a backup, as before; close the emulator
