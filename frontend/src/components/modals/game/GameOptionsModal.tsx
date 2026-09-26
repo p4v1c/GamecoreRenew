@@ -20,7 +20,7 @@ import { onGp } from '../../../hooks/useGamepad'
  * says so.
  */
 
-const ACCENT = 'var(--gc-accent, #7c3aed)'
+const ACCENT = 'var(--gc-accent, #b8501b)'
 const DIM = 'rgba(255,255,255,0.35)'
 const WARN = '#fbbf24'
 
@@ -120,7 +120,7 @@ export default function GameOptionsModal({ systemId, rom, title, onClose }: {
     // situations, and the third is the one a player would otherwise read as
     // the setting having silently failed.
     const hint = !profile.inRange
-      ? `Not applied — verified for ${profile.emulator}, this box runs `
+      ? `Not applied. Verified for ${profile.emulator}; this box runs `
         + `${profile.emulatorVersion ?? 'an unknown version'}`
       : profile.dismissed
         ? `Removed. ${profile.why}`
@@ -164,7 +164,7 @@ export default function GameOptionsModal({ systemId, rom, title, onClose }: {
 
   return (
     <Overlay onClose={onClose} width={520}>
-      <OverlayLabel text="GAME OPTIONS" />
+      <OverlayLabel text="Game options" />
       <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 4 }}>{title}</div>
       <div style={{ fontSize: 11, color: DIM, marginBottom: 22 }}>Overlay</div>
 
@@ -246,9 +246,9 @@ function describeAuto(state: OverlayChoices | null): string {
   if (!state) return 'Reading…'
   switch (state.resolved.source) {
     case 'game':     return 'A bezel matching this game was found'
-    case 'console':  return 'No bezel for this game — this console’s is used'
-    case 'system':   return 'No bezel for this game — the system’s is used'
-    case 'declared': return 'No artwork installed — the configured frame is drawn'
+    case 'console':  return 'No bezel for this game. Using the console’s.'
+    case 'system':   return 'No bezel for this game. Using the system’s.'
+    case 'declared': return 'No artwork installed. Drawing the configured frame.'
     case 'chosen':   return 'Currently overridden below'
     default:         return 'No overlay is available for this system'
   }

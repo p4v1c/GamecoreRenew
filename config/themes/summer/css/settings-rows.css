@@ -3,7 +3,7 @@
   position: fixed; inset: 0; z-index: 500;
   background: rgba(6, 18, 26, 0.55);
   display: flex; align-items: center; justify-content: center;
-  font-family: 'Figtree', 'Outfit', sans-serif; color: var(--foam-000);
+  font-family: var(--font-body); color: var(--foam-000);
 }
 .sm-panel {
   width: 520px; max-width: 90vw; max-height: 85vh; overflow-y: auto;
@@ -13,7 +13,7 @@
 }
 .sm-panel-wide { width: 620px; }
 .sm-panel-title {
-  font-size: 11px; letter-spacing: 0.28em; color: var(--foam-400);
+  font-size: 11px; color: var(--foam-400);
   font-weight: 700; margin-bottom: 18px;
 }
 .sm-row {

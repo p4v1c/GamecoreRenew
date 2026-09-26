@@ -80,17 +80,17 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
       <div key={i} onClick={() => apply(i)} style={{
         display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px',
         borderRadius: 12, marginBottom: 8, cursor: disabled ? 'default' : 'pointer',
-        background: focused ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 18%, transparent)' : 'rgba(255,255,255,0.03)',
-        border: `1px solid ${focused ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 55%, transparent)' : 'rgba(255,255,255,0.07)'}`,
+        background: focused ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 18%, transparent)' : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${focused ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 55%, transparent)' : 'rgba(255,255,255,0.07)'}`,
         opacity: disabled ? 0.45 : 1, transition: 'all 0.15s',
       }}>
         {/* A filled dot for the theme in use, a hollow ring for the rest: the
             marker is a shape before it is a colour, so it survives a TV. */}
         <span style={{
           width: 16, height: 16, borderRadius: 8, flexShrink: 0,
-          background: current ? 'var(--gc-accent, #7c3aed)' : 'transparent',
-          border: `2px solid ${current ? 'var(--gc-accent, #7c3aed)' : 'rgba(255,255,255,0.25)'}`,
-          boxShadow: current ? '0 0 0 3px color-mix(in srgb, var(--gc-accent, #7c3aed) 25%, transparent)' : 'none',
+          background: current ? 'var(--gc-accent, #b8501b)' : 'transparent',
+          border: `2px solid ${current ? 'var(--gc-accent, #b8501b)' : 'rgba(255,255,255,0.25)'}`,
+          boxShadow: current ? '0 0 0 3px color-mix(in srgb, var(--gc-accent, #b8501b) 25%, transparent)' : 'none',
         }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{title}</div>
@@ -98,11 +98,11 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
         </div>
         {current && (
           <span style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: 1, padding: '3px 9px',
-            borderRadius: 999, color: 'var(--gc-accent-bright, #c4b5fd)',
-            background: 'color-mix(in srgb, var(--gc-accent, #7c3aed) 22%, transparent)',
-            border: '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 45%, transparent)',
-          }}>IN USE</span>
+            fontSize: 10, fontWeight: 700, padding: '3px 9px',
+            borderRadius: 999, color: 'var(--gc-accent-bright, #f8cfa9)',
+            background: 'color-mix(in srgb, var(--gc-accent, #b8501b) 22%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--gc-accent, #b8501b) 45%, transparent)',
+          }}>In use</span>
         )}
       </div>
     )
@@ -110,7 +110,7 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
 
   return (
     <Overlay onClose={onClose}>
-      <BackHeader label="THEMES" onBack={onBack} />
+      <BackHeader label="Themes" onBack={onBack} />
 
       {/* Why the user landed back on the default look, if they did. */}
       {theme?.safeMode?.active && (
@@ -119,7 +119,7 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
           background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)',
           fontSize: 12, color: '#fca5a5',
         }}>
-          <b>{theme.safeMode.themeId}</b> was disabled — {theme.safeMode.reason}.
+          <b>{theme.safeMode.themeId}</b> was disabled: {theme.safeMode.reason}.
           Pick it again to retry.
         </div>
       )}
@@ -138,7 +138,7 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
             fontSize: 12, color: '#fbbf24',
           }}>
             <b>{active_?.name}</b> has no way to open: {lost.join(', ')}.
-            {' '}Those pages are still there — its menu just does not list them.
+            {' '}Those pages still exist; its menu does not list them.
           </div>
         )
       })()}
@@ -151,11 +151,11 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
           i,
           t.name,
           t.compatible
-            ? `v${t.version}${t.author ? ` · ${t.author}` : ''}${t.description ? ` · ${t.description}` : ''}`
+            ? `v${t.version}${t.author ? ` by ${t.author}` : ''}${t.description ? `. ${t.description}` : ''}`
             // The backend knows why — an old SDK, or a theme that does not dress
             // every surface. Saying "needs a newer build" for the second would
             // send the author looking in the wrong place.
-            : t.warnings.join(' · ') || `needs SDK v${t.api} — this build is older`,
+            : t.warnings.join('. ') || `Needs SDK v${t.api}; this build is older.`,
           !t.compatible,
         )
       })}
@@ -168,7 +168,7 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
 
       {error && <div style={{ fontSize: 12, color: '#fca5a5', marginTop: 10 }}>{error}</div>}
 
-      <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1, marginTop: 16 }}>
+      <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', marginTop: 16 }}>
         Hold L1 + R1 for 2s in the menu to force the default theme
       </div>
     </Overlay>

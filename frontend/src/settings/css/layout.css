@@ -12,8 +12,8 @@
 .gcs-set.gcs-skin-default,
 .gcs-pwr-scrim.gcs-skin-default {
   /* Violet, the accent the built-in UI has always used. */
-  --set-acc:        #7c3aed;
-  --set-acc-deep:   #6d28d9;
+  --set-acc:        #b8501b;
+  --set-acc-deep:   #9a3f12;
 
   /* Ink. `--set-ink-rgb` is the channel triplet on its own, because the shared
      rules ask for this colour at a dozen different alphas and a token can only
@@ -53,9 +53,9 @@
   --gc-paper-pattern: none;
   --gc-paper-tile:    120px;
 
-  --font-body:    'Outfit', system-ui, sans-serif;
-  --font-display: 'Outfit', system-ui, sans-serif;
-  --font-mono:    ui-monospace, 'JetBrains Mono', 'DejaVu Sans Mono', monospace;
+  --font-body:    var(--gc-font-ui);
+  --font-display: var(--gc-font-ui);
+  --font-mono:    var(--gc-font-code);
   --r-chip:       999px;
 }
 
@@ -89,7 +89,7 @@
 
 .gcs-set-crumb {
   display: flex; align-items: center; gap: 14px; margin-top: 8px;
-  font-family: var(--font-mono); font-size: 13px; color: var(--set-ink-2);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--set-ink-2);
 }
 
 .gcs-set-chip {
@@ -136,7 +136,7 @@
 
 .gcs-set-num {
   flex: 0 0 auto; width: 22px;
-  font-family: var(--font-mono); font-size: 12px;
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 12px;
   color: rgba(var(--set-ink-rgb), 0.35);
 }
 
@@ -155,7 +155,7 @@
 /* The live value. Empty when its endpoint did not answer — deliberately empty,
    never a dash, which reads as a measurement of "none". */
 .gcs-set-label i {
-  font-style: normal; font-family: var(--font-mono); font-size: 12px;
+  font-style: normal; font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 12px;
   color: rgba(var(--set-ink-rgb), 0.45);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -193,8 +193,7 @@
 .gcs-set-aside:empty { display: none; }
 
 .gcs-set-kicker {
-  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em;
-  text-transform: uppercase; color: var(--set-acc-deep);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 11px; color: var(--set-acc-deep);
 }
 
 .gcs-set-aside-title {
@@ -213,7 +212,7 @@
 .gcs-set-fact dt { font-size: 14px; color: var(--set-ink-2); }
 
 .gcs-set-fact dd {
-  margin: 0; font-family: var(--font-mono); font-size: 13px;
+  margin: 0; font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 13px;
   text-align: right; overflow-wrap: anywhere;
 }
 
@@ -228,7 +227,7 @@
 .gcs-set-foot {
   flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
   padding: 6px 40px 16px;
-  font-family: var(--font-mono); font-size: 12px; color: var(--set-ink-3);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 12px; color: var(--set-ink-3);
 }
 
 .gcs-set-hints { display: flex; gap: 22px; align-items: center; }

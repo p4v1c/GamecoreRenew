@@ -20,7 +20,7 @@ export default function DefaultGamepadView({
 }: GamepadViewProps) {
   return (
     <Overlay onClose={onClose} width={640}>
-      <OverlayLabel text="CONTROLLER" />
+      <OverlayLabel text="Controller" />
 
       {/* Above the diagram, not below it. The diagram is what draws the eye and
           it will look perfect — it reads the pad straight from the Gamepad API
@@ -60,7 +60,7 @@ export default function DefaultGamepadView({
             <kbd style={{
               minWidth: 52, textAlign: 'center', padding: '3px 8px', borderRadius: 6,
               background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
-              fontSize: 11, fontWeight: 700, color: 'var(--gc-accent-bright, #c4b5fd)', fontFamily: 'inherit',
+              fontSize: 11, fontWeight: 700, color: 'var(--gc-accent-bright, #f8cfa9)', fontFamily: 'inherit',
             }}>{key}</kbd>
             <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{action}</span>
           </div>
@@ -78,7 +78,7 @@ export default function DefaultGamepadView({
           something to check. */}
       {usbDevices.length > 0 && (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10, letterSpacing: 1, color: 'rgba(255,255,255,0.3)', marginBottom: 7 }}>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginBottom: 7 }}>
             PERIPHERALS
           </div>
           {usbDevices.map(d => (
@@ -95,7 +95,7 @@ export default function DefaultGamepadView({
                 <div style={{ fontSize: 12, color: '#fff' }}>
                   {d.label}
                   <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>
-                    {' · '}{CLASS_LABELS[d.class] ?? CLASS_LABELS.unknown}{' · '}{d.system_label}
+                    {', '}{CLASS_LABELS[d.class] ?? CLASS_LABELS.unknown}{', for '}{d.system_label}
                   </span>
                 </div>
                 {d.status === 'absent' && (
@@ -133,8 +133,8 @@ export default function DefaultGamepadView({
         </button>
       )}
 
-      <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
-        Press any button to test · Hold {glyphs.top} to remap · {glyphs.left} ×2 Close
+      <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
+        Press any button to test it. Hold {glyphs.top} to remap, {glyphs.left} twice to close.
       </div>
     </Overlay>
   )

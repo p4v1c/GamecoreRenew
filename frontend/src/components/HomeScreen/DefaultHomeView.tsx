@@ -22,7 +22,7 @@ export default function DefaultHomeView({
     }}>
       {/* Stats */}
       <div style={{ marginBottom: 32, textAlign: 'center' }}>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', letterSpacing: 3, marginBottom: 10 }}>
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', marginBottom: 10 }}>
           YOUR LIBRARY
         </div>
         <div style={{ display: 'flex', gap: 36, justifyContent: 'center' }}>
@@ -32,8 +32,8 @@ export default function DefaultHomeView({
             { v: `${totals.hours}h`, l: 'Played' },
           ].map(s => (
             <div key={s.l} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 26, fontWeight: 800, color: '#c4b5fd' }}>{s.v}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: 1, marginTop: 2 }}>{s.l}</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: '#f8cfa9' }}>{s.v}</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{s.l}</div>
             </div>
           ))}
         </div>
@@ -104,7 +104,7 @@ export default function DefaultHomeView({
               onClick={() => onPage(i)}
               style={{
                 width: i === page ? 20 : 6, height: 6, borderRadius: 3, cursor: 'pointer',
-                background: i === page ? '#7c3aed' : 'rgba(255,255,255,0.15)',
+                background: i === page ? '#b8501b' : 'rgba(255,255,255,0.15)',
                 transition: 'all 0.3s',
               }}
             />
@@ -113,7 +113,7 @@ export default function DefaultHomeView({
       )}
 
       {/* Gamepad hint */}
-      <div style={{ marginTop: 16, fontSize: 11, color: 'rgba(255,255,255,0.15)', letterSpacing: 1 }}>
+      <div style={{ marginTop: 16, fontSize: 11, color: 'rgba(255,255,255,0.15)', }}>
         <PadHints text={pageCount > 1 ? '← → Navigate · L1/R1 Page · ✕ Select · □ Controller' : '← → Navigate · ✕ Select · □ Controller'} />
       </div>
     </div>

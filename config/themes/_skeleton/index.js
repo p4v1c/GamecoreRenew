@@ -29,8 +29,8 @@ export default (sdk) => {
       <div style=${{
         position: 'fixed', inset: 0, zIndex: 900, background: '#09090f', color: '#fff',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        font: '600 34px/1 Outfit, sans-serif', letterSpacing: '0.2em',
-      }}>GAMECORE</div>`
+        font: '600 34px/1 system-ui, sans-serif',
+      }}>GameCore</div>`
   }
 
   // sdk.defaults.Shell IS the default frontend and takes views, so you rewrite
@@ -83,7 +83,7 @@ export default (sdk) => {
       }}>
         <div style=${{ flex: 1, minWidth: 0 }}>
           <div style=${{ fontSize: 10, letterSpacing: '0.14em', opacity: 0.6 }}>
-            ${s.kind === 'app' ? 'APPLICATION SUSPENDED' : 'GAME SUSPENDED'}
+            ${s.kind === 'app' ? 'Application suspended' : 'Game suspended'}
           </div>
           <strong>${title(s)}</strong>
         </div>
@@ -106,13 +106,13 @@ export default (sdk) => {
   const SessionMenu = ({ session, confirming, busy, actions, actionIdx, title }) => html`
     <section style=${{ padding: 28, borderRadius: 14, background: '#12121b', minWidth: 320 }}>
       <p style=${{ fontSize: 10, letterSpacing: '0.14em', opacity: 0.6 }}>
-        ${confirming ? 'END THIS SESSION' : 'SUSPENDED SESSION'}</p>
+        ${confirming ? 'End this session' : 'Suspended session'}</p>
       <h2>${title(session)}</h2>
       <div style=${{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 18 }}>
         ${actions.map((action, i) => html`
           <button key=${action.id} disabled=${busy} onClick=${action.run}
                   style=${{ padding: 12, textAlign: 'left',
-                            background: actionIdx === i ? '#7c3aed' : '#26263a', color: '#fff' }}>
+                            background: actionIdx === i ? '#b8501b' : '#26263a', color: '#fff' }}>
             ${action.label}</button>`)}
       </div>
     </section>`

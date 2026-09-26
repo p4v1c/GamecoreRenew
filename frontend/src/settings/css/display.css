@@ -4,7 +4,7 @@
 .gcs-disp-monitor {
   flex: 0 0 auto; width: 150px; height: 88px; display: grid; place-items: center;
   border: 2px solid var(--set-ink-3); border-radius: 6px;
-  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; color: var(--set-ink-2);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 11px; color: var(--set-ink-2);
 }
 
 .gcs-disp-now-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }

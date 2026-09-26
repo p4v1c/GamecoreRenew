@@ -57,7 +57,7 @@ it('offers All and keeps identically named ROMs from different consoles distinct
   await act(async () => { fireEvent.click(r.getByRole('button', { name: 'All' })) })
   await waitFor(() => expect(r.container.querySelectorAll('.library-card')).toHaveLength(3))
   await act(async () => { fireEvent.click(r.getByText('Another journey', { selector: '.library-card h3' })) })
-  await act(async () => { fireEvent.click(r.getByText('▶ Play')) })
+  await act(async () => { fireEvent.click(r.getByText('Play', { selector: '.orbit-details .primary-button' })) })
   await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/games/launch', expect.objectContaining({
     body: JSON.stringify({ system_id: 'pcsx2', rom_path: '/test/ps2/Journey.iso', game_key: 'Journey.iso' }),
   })))

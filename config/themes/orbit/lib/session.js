@@ -71,12 +71,12 @@ export function createSession(sdk) {
   function Menu({session, sessions, index, confirming, busy, actions, actionIdx, title}) {
     return html`<section className="session-menu-body" role="dialog" aria-modal="true"
                          aria-labelledby="orbit-session-title">
-      <span className="eyebrow">${confirming ? 'END THIS SESSION' : 'SUSPENDED SESSION'}${
-        sessions.length > 1 ? ` · ${index + 1} / ${sessions.length}` : ''}</span>
+      <span className="eyebrow">${confirming ? 'End this session' : 'Suspended session'}${
+        sessions.length > 1 ? ` (${index + 1} of ${sessions.length})` : ''}</span>
       <div className="session-menu-header">
         <${Image} src=${artOf(session)} alt=${title(session)} />
         <div><p>${session.kind === 'app' ? 'Application' : 'Game'}${
-          session.systemId ? ` · ${session.systemId}` : ''}</p>
+          session.systemId ? `, ${session.systemId}` : ''}</p>
           <h1 id="orbit-session-title">${title(session)}</h1></div>
       </div>
       <p>${confirming
@@ -126,7 +126,7 @@ export function createSession(sdk) {
       <div className="session-dock-art"><${Image} src=${artOf(s)} alt=${titleOf(s)} /></div>
       <div className="session-dock-info">
         <span><i className="status-light" /> IN BACKGROUND${
-          sessions.length > 1 ? ` · ${focusIdx + 1}/${sessions.length}` : ''}</span>
+          sessions.length > 1 ? ` (${focusIdx + 1} of ${sessions.length})` : ''}</span>
         <strong>${titleOf(s)}</strong>
         <small>${s.kind === 'app' ? 'Application' : 'Game'}</small>
       </div>

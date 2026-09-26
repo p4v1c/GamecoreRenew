@@ -50,7 +50,7 @@ export function createApplicationsTab({sdk, tabs, sessions, backdrop, Art, svg, 
             onClick=${() => (i === at ? open() : setIdx(i))}>
             <span className="application-tile-image"><${Art} src=${packLogo(a)} alt="" />
               ${sessions.heldMatch(background, a.id, a.id)
-                ? html`<span className="session-badge">IN BACKGROUND</span>` : null}</span>
+                ? html`<span className="session-badge">In the background</span>` : null}</span>
             <span className="application-tile-title">${systemName(a)}</span><small>${st.category}</small>
           </button>`
         })}
@@ -63,7 +63,7 @@ export function createApplicationsTab({sdk, tabs, sessions, backdrop, Art, svg, 
           <p className="application-description">${s.description}</p>
           <button className="primary-button" onClick=${open}>${svg('play')}${
             held ? 'Resume' : 'Open'} ${systemName(app)}<span className="application-confirm"><${PadKey} k="✕" /></span></button>
-          <span className="application-pack">GameCore pack · ${app.id}</span>
+          <span className="application-pack">GameCore pack: ${app.id}</span>
         </div>
         <div className="application-emblem" aria-hidden="true">
           <div className="application-emblem-orbit" />

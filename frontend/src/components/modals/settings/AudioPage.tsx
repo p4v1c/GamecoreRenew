@@ -155,21 +155,21 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
   // Focused rows get the same purple outline as the row cards
   const focusWrap = (focused: boolean): CSSProperties => ({
     padding: '0 12px', borderRadius: 10, transition: 'all 0.12s',
-    background: focused ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 12%, transparent)' : 'transparent',
-    border: focused ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 50%, transparent)' : '1px solid transparent',
+    background: focused ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 12%, transparent)' : 'transparent',
+    border: focused ? '1px solid color-mix(in srgb, var(--gc-accent, #b8501b) 50%, transparent)' : '1px solid transparent',
   })
 
   const rowCard = (focused: boolean): CSSProperties => ({
     padding: '14px 18px', borderRadius: 10, marginBottom: 6, cursor: 'pointer',
-    background: focused ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 20%, transparent)' : 'rgba(255,255,255,0.04)',
-    border: focused ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 60%, transparent)' : '1px solid rgba(255,255,255,0.07)',
+    background: focused ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 20%, transparent)' : 'rgba(255,255,255,0.04)',
+    border: focused ? '1px solid color-mix(in srgb, var(--gc-accent, #b8501b) 60%, transparent)' : '1px solid rgba(255,255,255,0.07)',
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     transition: 'all 0.12s',
   })
 
   return (
     <Overlay onClose={onClose}>
-      <BackHeader label="AUDIO" onBack={onBack} />
+      <BackHeader label="Audio" onBack={onBack} />
 
       {/* System volume — the sound that matters most, always on top */}
       <div style={focusWrap(focus === ROW_VOLUME)} onClick={() => setFocus(ROW_VOLUME)}>
@@ -177,7 +177,7 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
       </div>
       {error && (
         <div style={{ fontSize: 12, color: '#f87171', margin: '8px 0', padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
-          ⚠ {error}
+          {error}
         </div>
       )}
 
@@ -206,21 +206,21 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
           {sinks.map((s, i) => (
             <div key={s.id} onClick={() => { applySink(s.id); setOutputOpen(false) }} style={{
               padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
-              background: i === dropFocus ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 25%, transparent)' : 'transparent',
-              border: i === dropFocus ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 60%, transparent)' : '1px solid transparent',
+              background: i === dropFocus ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 25%, transparent)' : 'transparent',
+              border: i === dropFocus ? '1px solid color-mix(in srgb, var(--gc-accent, #b8501b) 60%, transparent)' : '1px solid transparent',
               fontSize: 13, color: '#fff',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               transition: 'all 0.12s',
             }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-              {s.default && <span style={{ fontSize: 11, color: 'var(--gc-accent-soft, #a78bfa)', fontWeight: 600, marginLeft: 10, flexShrink: 0 }}>Active</span>}
+              {s.default && <span style={{ fontSize: 11, color: 'var(--gc-accent-soft, #f2a46a)', fontWeight: 600, marginLeft: 10, flexShrink: 0 }}>Active</span>}
             </div>
           ))}
         </div>
       )}
 
       {/* UI sound effects */}
-      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', letterSpacing: 2, margin: '16px 0 8px' }}>UI SOUNDS</div>
+      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: '16px 0 8px' }}>UI sounds</div>
       <div style={rowCard(focus === ROW_UI_TOGGLE)}
         onClick={() => { setFocus(ROW_UI_TOGGLE); applyUiEnabled(!uiEnabled) }}>
         <div>
@@ -232,7 +232,7 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
         {/* Toggle pill */}
         <div style={{
           width: 46, height: 26, borderRadius: 13, position: 'relative', transition: 'background 0.2s',
-          background: uiEnabled ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 80%, transparent)' : 'rgba(255,255,255,0.12)', flexShrink: 0,
+          background: uiEnabled ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 80%, transparent)' : 'rgba(255,255,255,0.12)', flexShrink: 0,
         }}>
           <div style={{
             position: 'absolute', top: 3, left: uiEnabled ? 23 : 3, width: 20, height: 20,
@@ -247,7 +247,7 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
       </div>
 
       {/* Haptics */}
-      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', letterSpacing: 2, margin: '16px 0 8px' }}>HAPTICS</div>
+      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: '16px 0 8px' }}>Haptics</div>
       <div style={rowCard(focus === ROW_RUMBLE)}
         onClick={() => { setFocus(ROW_RUMBLE); applyRumble(!rumbleOn) }}>
         <div>
@@ -258,7 +258,7 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
         </div>
         <div style={{
           width: 46, height: 26, borderRadius: 13, position: 'relative', transition: 'background 0.2s',
-          background: rumbleOn ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 80%, transparent)' : 'rgba(255,255,255,0.12)', flexShrink: 0,
+          background: rumbleOn ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 80%, transparent)' : 'rgba(255,255,255,0.12)', flexShrink: 0,
         }}>
           <div style={{
             position: 'absolute', top: 3, left: rumbleOn ? 23 : 3, width: 20, height: 20,
@@ -267,7 +267,7 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
         </div>
       </div>
 
-      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
         <PadHints text={outputOpen ? '↑↓ Browse outputs · ✕ Apply · ○ Close' : '↑↓ Select · ←→ Adjust · ✕ Open/Toggle · ○ Back'} />
       </div>
     </Overlay>

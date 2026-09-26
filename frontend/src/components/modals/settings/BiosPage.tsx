@@ -17,7 +17,7 @@ import { PadHints } from '../../../lib/padKey'
  * backend/tests/test_bios.py.
  */
 
-const ACCENT = 'var(--gc-accent, #7c3aed)'
+const ACCENT = 'var(--gc-accent, #b8501b)'
 const GOOD = '#4ade80'
 const BAD = '#f87171'
 const WARN = '#fbbf24'
@@ -25,12 +25,12 @@ const WARN = '#fbbf24'
 /** Colour and words for one file's line — required decides the severity. */
 function fileTone(f: BiosFile): { colour: string; text: string } {
   if (f.status === 'ok') {
-    return { colour: GOOD, text: f.verified ? 'present · md5 checked' : 'present' }
+    return { colour: GOOD, text: f.verified ? 'present, MD5 checked' : 'present' }
   }
   if (f.status === 'mismatch') {
     return { colour: f.required ? BAD : WARN, text: 'wrong md5' }
   }
-  return { colour: f.required ? BAD : WARN, text: f.required ? 'missing' : 'optional · not present' }
+  return { colour: f.required ? BAD : WARN, text: f.required ? 'missing' : 'optional, not present' }
 }
 
 function systemTone(s: BiosSystem): { colour: string; text: string } {
@@ -72,7 +72,7 @@ export function BiosPage({ onClose, onBack }: { onClose: () => void; onBack: () 
 
   return (
     <Overlay onClose={onClose}>
-      <BackHeader label="BIOS & SYSTEM FILES" onBack={onBack} />
+      <BackHeader label="BIOS & system files" onBack={onBack} />
 
       <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 14, lineHeight: 1.5 }}>
         {error
@@ -132,7 +132,7 @@ export function BiosPage({ onClose, onBack }: { onClose: () => void; onBack: () 
                     // The hash they have, so support does not have to ask them
                     // to run md5sum over SSH to learn which dump this is.
                     <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 3, fontFamily: 'monospace' }}>
-                      expected {f.expected_md5} · found {f.actual_md5}
+                      expected {f.expected_md5}, found {f.actual_md5}
                     </div>
                   )}
                 </div>
@@ -148,7 +148,7 @@ export function BiosPage({ onClose, onBack }: { onClose: () => void; onBack: () 
         </div>
       )}
 
-      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
         <PadHints text="↑↓ Scroll · ○ Back" />
       </div>
     </Overlay>

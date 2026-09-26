@@ -229,7 +229,7 @@
   --gc-hud-text: #e2e9f5;
   --gc-hud-radius: 24px;
   --gc-hud-blur: 18px;
-  --gc-hud-font: Inter, Segoe UI, Arial, sans-serif;
+  --gc-hud-font: Red Hat Text, Noto Sans, sans-serif;
   --gc-hud-connected: #90e5bb;
   --gc-hud-disconnected: #c2d0e3;
   --gc-hud-warning: #fbd56a;

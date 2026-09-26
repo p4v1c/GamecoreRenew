@@ -115,13 +115,13 @@ export default function Screensaver() {
           <div style={{
             position: 'absolute', top: 48, right: 64,
             fontSize: 64, fontWeight: 200, color: 'rgba(255,255,255,0.5)',
-            fontVariantNumeric: 'tabular-nums', letterSpacing: 2,
+            fontVariantNumeric: 'tabular-nums', 
           }}>
             {clock}
           </div>
           <div style={{
             position: 'absolute', bottom: 36, left: 0, right: 0, textAlign: 'center',
-            fontSize: 12, color: 'rgba(255,255,255,0.18)', letterSpacing: 2,
+            fontSize: 12, color: 'rgba(255,255,255,0.18)', 
           }}>
             PRESS ANY BUTTON TO WAKE
           </div>

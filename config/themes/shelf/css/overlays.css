@@ -30,8 +30,7 @@
 
 .cz-panel-title {
   display: flex; align-items: center; gap: 12px; margin-bottom: 18px;
-  font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.28em;
-  text-transform: uppercase; color: var(--gc-accent-soft);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 11.5px; color: var(--gc-accent-soft);
 }
 .cz-panel-back {
   border: 0; background: none; color: inherit; cursor: pointer;

@@ -143,7 +143,7 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
   return (
     <div className={className} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {title && (
-        <div style={{ fontSize: 13, color: 'var(--gc-accent-soft, #a78bfa)', textAlign: 'center', letterSpacing: 1, marginBottom: 2 }}>
+        <div style={{ fontSize: 13, color: 'var(--gc-accent-soft, #f2a46a)', textAlign: 'center', marginBottom: 2 }}>
           {title}
         </div>
       )}
@@ -152,7 +152,7 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
           end of the input (what you're typing) always stays visible */}
       <div style={{
         background: 'var(--gc-kb-field, rgba(0,0,0,0.45))',
-        border: '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 50%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--gc-accent, #b8501b) 50%, transparent)',
         borderRadius: 10, padding: '10px 16px', minHeight: 44,
         // NOT `--gc-kb-ink-strong`: that one is the lettering on the focused
         // key, which sits on an accent fill and stays light in every theme.
@@ -164,7 +164,7 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
         justifyContent: displayValue ? 'flex-end' : 'center',
         overflow: 'hidden', whiteSpace: 'nowrap',
       }}>
-        {displayValue || <span style={{ opacity: 0.25, fontSize: 14, letterSpacing: 1 }}>{placeholder ?? (password ? 'enter password' : 'start typing…')}</span>}
+        {displayValue || <span style={{ opacity: 0.25, fontSize: 14, }}>{placeholder ?? (password ? 'enter password' : 'start typing…')}</span>}
       </div>
 
       {/* A masked field is the one place a stray character is invisible: the
@@ -205,22 +205,22 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
                   height:     34,
                   borderRadius: 7,
                   border:     focused
-                    // Was a hardcoded #7c3aed while the fill beside it already
+                    // Was a hardcoded #b8501b while the fill beside it already
                     // read the accent, so the focus ring was the default
                     // purple on every theme that changed its colour.
-                    ? '2px solid var(--gc-accent, #7c3aed)'
+                    ? '2px solid var(--gc-accent, #b8501b)'
                     : '1px solid var(--gc-kb-key-edge, rgba(255,255,255,0.09))',
                   background: focused
-                    ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 38%, transparent)'
+                    ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 38%, transparent)'
                     : (isShift && shifted) || isMode
-                      ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 20%, transparent)'
+                      ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 20%, transparent)'
                       : isEnter
-                        ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 15%, transparent)'
+                        ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 15%, transparent)'
                         : 'var(--gc-kb-key, rgba(255,255,255,0.05))',
                   color:      focused
                     ? 'var(--gc-kb-ink-strong, #fff)'
                     : isEnter || isMode
-                      ? 'var(--gc-accent-bright, #c4b5fd)'
+                      ? 'var(--gc-accent-bright, #f8cfa9)'
                       : 'var(--gc-kb-ink, rgba(255,255,255,0.78))',
                   fontSize:   isSpecial ? 11 : 13,
                   fontWeight: isSpecial ? 600 : 400,
@@ -250,7 +250,7 @@ export function VirtualKeyboard({ title, password = false, initialValue = '', pl
         Cancel
       </button>
 
-      <div style={{ textAlign: 'center', fontSize: 10, color: 'var(--gc-kb-ink-faint, rgba(255,255,255,0.18))', letterSpacing: 1 }}>
+      <div style={{ textAlign: 'center', fontSize: 10, color: 'var(--gc-kb-ink-faint, rgba(255,255,255,0.18))', }}>
         <PadHints text="D-Pad navigate · ✕ type · ○ cancel · L1 shift · R1 symbols · ↵ OK" />
       </div>
     </div>

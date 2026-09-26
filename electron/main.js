@@ -342,15 +342,24 @@ function hudTokens(input) {
   return result
 }
 
-function showHudToast({ icon = '🎮', title = '', body = '', accent = '#fbbf24', theme, tone } = {}) {
-  icon = escHtml(icon); title = escHtml(title); body = escHtml(body)
+// A known icon name draws the contract's SVG path; any other value (a theme's own
+// text icon) is escaped text, as before.
+function hudIcon(icon) {
+  const d = hudContract.icons && Object.hasOwn(hudContract.icons, icon) ? hudContract.icons[icon] : null
+  return d
+    ? `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`
+    : escHtml(icon)
+}
+
+function showHudToast({ icon = 'gamepad', title = '', body = '', accent = '#fbbf24', theme, tone } = {}) {
+  icon = hudIcon(icon); title = escHtml(title); body = escHtml(body)
   const t = hudTokens(theme)
   const themed = Object.keys(t).length > 0
   accent = t[tone] || safeColor(accent)
   const html = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"></head><body style="margin:0;background:transparent;overflow:hidden;font-family:${t.font || 'sans-serif'}">
     <div style="display:flex;align-items:center;gap:14px;margin:8px;padding:14px 18px;border-radius:${t.radius || '14px'};
                 background:${t.panel || 'rgba(18,18,26,0.94)'};backdrop-filter:blur(${t.blur || '0px'});border:1px solid ${t.border || accent};box-shadow:0 8px 32px rgba(0,0,0,0.6)">
-      <div style="width:40px;height:40px;flex-shrink:${themed ? 0 : 1};border-radius:10px;background:${accent.length === 7 ? accent + '33' : accent};display:flex;align-items:center;justify-content:center;font-size:20px">${icon}</div>
+      <div style="width:40px;height:40px;flex-shrink:${themed ? 0 : 1};border-radius:10px;background:${accent.length === 7 ? accent + '33' : accent};display:flex;align-items:center;justify-content:center;font-size:20px;color:${accent}">${icon}</div>
       <div style="${themed ? 'min-width:0;overflow-wrap:anywhere' : ''}">
         <div style="font-size:${themed ? 20 : 14}px;font-weight:700;color:${accent}">${title}</div>
         <div style="font-size:${themed ? 18 : 13}px;color:${t.text || 'rgba(255,255,255,0.7)'};margin-top:3px">${body}</div>
@@ -394,7 +403,7 @@ function showBatteryToast({ level = 0, player = null, theme } = {}) {
   const stage = hudContract.battery.find(s => level <= s.threshold) || hudContract.battery.at(-1)
   const who = player ? `Controller ${player}` : 'Controller'
   showHudToast({
-    icon: '🎮', title: `${who} battery at ${Math.round(level)}%`,
+    icon: 'gamepad', title: `${who} battery at ${Math.round(level)}%`,
     body: stage.message, accent: stage.color, theme, tone: `battery-${stage.threshold}`,
   })
 }
@@ -424,7 +433,7 @@ ipcMain.on('notify:controller', (_, data) => {
   // is buried under the emulator, and the pad in their hands does not work.
   if (d.connected && Array.isArray(d.autoconfigOff) && d.autoconfigOff.length > 0) {
     showHudToast({
-      icon: '🎮',
+      icon: 'gamepad',
       title: `${who} was not configured`,
       body: 'Automatic controller setup is off (Settings → Controllers).',
       accent: '#fbbf24', theme: d.theme, tone: 'warning',
@@ -434,7 +443,7 @@ ipcMain.on('notify:controller', (_, data) => {
 
   if (d.connected && missing.length > 0) {
     showHudToast({
-      icon: '⚠️',
+      icon: 'warning',
       title: `${who} is not set up for ${missing.join(', ')}`,
       body: `It works elsewhere — ${missing.length === 1 ? 'that system' : 'those systems'} will not respond to it.`,
       accent: '#fbbf24', theme: d.theme, tone: 'warning',
@@ -443,7 +452,7 @@ ipcMain.on('notify:controller', (_, data) => {
   }
 
   showHudToast({
-    icon: '🎮',
+    icon: 'gamepad',
     title: d.connected ? `${who} connected` : `${who} disconnected`,
     body: d.label ? String(d.label) : '',
     accent: d.connected ? '#4ade80' : '#94a3b8', theme: d.theme,

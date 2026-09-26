@@ -18,6 +18,7 @@ const segsFor = (level) => Math.max(0, Math.min(SEGMENTS, Math.ceil((level || 0)
 
 export const createTopBar = (sdk) => {
   const { html, useState, useEffect } = sdk.ui
+  const Glyph = sdk.ui.Glyph || (() => null)
 
   return ({ onSettings, onPower }) => {
     const [info, setInfo] = useState(null)
@@ -61,8 +62,8 @@ export const createTopBar = (sdk) => {
     }, [systemId])
 
     const tab = screen === 'library'
-      ? (system?.platform || system?.label || systemId || '').toUpperCase()
-      : 'GAMECORE'
+      ? (system?.platform || system?.label || systemId || '')
+      : 'GameCore'
 
     const pads = (info?.controllers || []).slice(0, 4)
     const extra = (info?.controllers || []).length - pads.length
@@ -70,7 +71,7 @@ export const createTopBar = (sdk) => {
 
     return html`
       <div class="cz-top">
-        <div class="cz-tab">${tab || 'GAMECORE'}</div>
+        <div class="cz-tab">${tab || 'GameCore'}</div>
 
         <div class="cz-top-right">
           ${pads.map((p, i) => {
@@ -83,7 +84,7 @@ export const createTopBar = (sdk) => {
                   ${Array.from({ length: SEGMENTS }, (_, k) => html`
                     <i key=${k} data-fill=${k < n ? '1' : '0'} />`)}
                 </span>
-                ${p.charging ? html`<em class="cz-bolt">⚡</em>` : null}
+                ${p.charging ? html`<em class="cz-bolt"><${Glyph} name="bolt" size=${12} width=${2} /></em>` : null}
               </span>`
           })}
           ${extra > 0 ? html`<span class="cz-pad cz-pad-more">+${extra}</span>` : null}

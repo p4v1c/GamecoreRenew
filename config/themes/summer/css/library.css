@@ -4,7 +4,7 @@
 .sm-lib {
   position: relative; z-index: 1;
   flex: 1; display: flex; flex-direction: column; overflow: hidden;
-  font-family: 'Figtree', 'Outfit', sans-serif; color: var(--foam-000);
+  font-family: var(--font-body); color: var(--foam-000);
   padding: 8px 48px 20px; gap: 20px;
 }
 
@@ -26,12 +26,12 @@
   width: 56px; height: 56px; border-radius: var(--r-tile); flex-shrink: 0;
   display: flex; align-items: center; justify-content: center; padding: 4px;
   background: color-mix(in srgb, var(--sys-accent) 22%, transparent);
-  font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 18px;
+  font-family: var(--font-body); font-weight: 700; font-size: 18px;
 }
 .sm-lib-logo img { width: 100%; height: 100%; object-fit: contain; }
 .sm-lib-title { display: flex; flex-direction: column; min-width: 0; }
 .sm-lib-title b {
-  font-family: 'Outfit', sans-serif; font-size: 38px; line-height: 44px; font-weight: 700;
+  font-family: var(--font-body); font-size: 38px; line-height: 44px; font-weight: 700;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .sm-lib-title i { font-style: normal; font-size: 14px; color: var(--foam-200); }
@@ -90,7 +90,7 @@
 .sm-lib-row-time {
   text-align: right; flex-shrink: 0; display: flex; flex-direction: column; gap: 3px;
 }
-.sm-lib-row-time b { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 500; }
+.sm-lib-row-time b { font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 500; }
 .sm-lib-row-time i { font-style: normal; font-size: 14px; color: var(--foam-400); }
 
 .sm-lib-empty { padding: 40px 20px; text-align: center; font-size: 18px; color: var(--foam-400); }

@@ -49,8 +49,8 @@ export const createThemesPage = (sdk, Rows) => {
         id: `theme:${id}`,
         label: t.name,
         desc: t.compatible
-          ? [t.version && `v${t.version}`, t.description].filter(Boolean).join(' · ')
-          : (t.warnings || []).join(' · ') || `needs SDK v${t.api}`,
+          ? [t.version && `v${t.version}`, t.description].filter(Boolean).join('. ')
+          : (t.warnings || []).join('. ') || `Needs SDK v${t.api}`,
         ok: t.compatible,
       }
     }
@@ -99,7 +99,7 @@ export const createThemesPage = (sdk, Rows) => {
         setBusy(false)
         // Deliberately not "failed": the box did take the choice, and it will
         // be there at the next start. What did not happen is the swap.
-        setMsg('Selected, but the front end did not switch to it — that theme '
+        setMsg('Selected, but the interface did not switch to it. That theme '
              + 'may have failed to load. Restarting the box will use it, or '
              + 'pick another one here.')
       }, APPLY_GIVES_UP_MS)
@@ -120,7 +120,7 @@ export const createThemesPage = (sdk, Rows) => {
       <${Rows} rows=${rows} active=${active} onLeave=${onLeave} onLeft=${onLeft}
         onSet=${() => {}} onAct=${onAct}
         title="Themes"
-        state=${String(current).toUpperCase()}
+        state=${String(current)}
         sub="Applying one restarts the front end. Hold L1 + R1 for two seconds anywhere to force the default theme back."
         aside=${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null} />`
   }

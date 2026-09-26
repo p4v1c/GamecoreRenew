@@ -1,7 +1,7 @@
 /** The status bar: controllers, storage, address, clock, and the two buttons. */
 import { currentTod } from '../lib/ocean.js'
 
-const TOD_GLYPH = (t) => (t === 'night' || t === 'sunset' ? '☾' : '☀')
+const TOD_GLYPH = (t) => (t === 'night' || t === 'sunset' ? 'moon' : 'sun')
 
 /**
  * Battery as a 4-segment bar — DESIGN-BRIEF.md §3.5.
@@ -16,6 +16,7 @@ const segsFor = (level) => Math.max(0, Math.min(SEGMENTS, Math.ceil((level || 0)
 
 export const createTopBar = (sdk) => {
   const { html, useState, useEffect } = sdk.ui
+  const Glyph = sdk.ui.Glyph || (() => null)
   return ({ onSettings, onPower }) => {
     const [info, setInfo] = useState(null)
     const [clock, setClock] = useState('')
@@ -54,7 +55,7 @@ export const createTopBar = (sdk) => {
     const used = info?.storage_total_gb ? info.storage_used_gb / info.storage_total_gb : 0
     return html`
       <div class="sm-topbar">
-        <div class="sm-brand"><span class="sm-diamond" /> GAMECORE</div>
+        <div class="sm-brand"><span class="sm-diamond" /> GameCore</div>
         <div class="sm-top-right">
           ${pads.map((p, i) => {
             const n = segsFor(p.level)
@@ -72,7 +73,7 @@ export const createTopBar = (sdk) => {
                   ${Array.from({ length: SEGMENTS }, (_, k) => html`
                     <i key=${k} data-fill=${k < n ? '1' : '0'} />`)}
                 </span>
-                ${p.charging ? html`<span class="sm-bolt">⚡</span>` : null}
+                ${p.charging ? html`<span class="sm-bolt"><${Glyph} name="bolt" size=${12} width=${2} /></span>` : null}
               </div>`
           })}
           ${extra > 0 ? html`<div class="sm-chip sm-pad-more">+${extra}</div>` : null}
@@ -88,9 +89,9 @@ export const createTopBar = (sdk) => {
               <span class="sm-store-txt">${Math.round(info.storage_free_gb)}G free</span>
             </div>` : null}
           ${info?.ip ? html`<div class="sm-chip sm-ip">${info.ip}</div>` : null}
-          <div class="sm-clock"><span class="sm-glyph">${TOD_GLYPH(tod)}</span>${clock}</div>
-          <button class="sm-icon" onClick=${onSettings} title="Settings">⚙</button>
-          <button class="sm-icon sm-icon-power" onClick=${onPower} title="Power">⏻</button>
+          <div class="sm-clock"><span class="sm-glyph"><${Glyph} name=${TOD_GLYPH(tod)} size=${16} /></span>${clock}</div>
+          <button class="sm-icon" onClick=${onSettings} title="Settings" aria-label="Settings"><${Glyph} name="settings" size=${18} /></button>
+          <button class="sm-icon sm-icon-power" onClick=${onPower} title="Power" aria-label="Power"><${Glyph} name="power" size=${18} /></button>
         </div>
       </div>`
   }

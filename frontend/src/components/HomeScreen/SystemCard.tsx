@@ -56,8 +56,8 @@ export default function SystemCard({ system, playtime, gameCount, focused, onCli
           <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {system.label || system.platform || system.id}
           </div>
-          <div style={{ fontSize: 10, fontWeight: 600, color, letterSpacing: 2, marginTop: 3 }}>
-            {system.id.toUpperCase()}
+          <div style={{ fontSize: 10, fontWeight: 600, color, marginTop: 3 }}>
+            {system.platform && system.platform !== system.label ? system.platform : ''}
           </div>
         </div>
         {system.kind === 'app' && (

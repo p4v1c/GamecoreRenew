@@ -18,9 +18,9 @@
  * question people arrive with, which is "what does this box still need".
  */
 const STATE = {
-  ok: 'PRESENT',
-  absent: 'MISSING',
-  mismatch: 'WRONG FILE',
+  ok: 'Present',
+  absent: 'Missing',
+  mismatch: 'Wrong file',
 }
 
 import { asList, follow } from './list.js'
@@ -91,8 +91,8 @@ export const createBiosPage = (sdk) => {
                 <span class="gcs-bios-dot" data-ok=${b.status === 'ok' ? '1' : '0'}></span>
                 <span class="gcs-bios-name">${b.label}</span>
                 <span class="gcs-bios-state" data-ok=${b.status === 'ok' ? '1' : '0'}>
-                  ${b.installed ? (b.status === 'ok' ? 'READY' : STATE[b.status] || 'INCOMPLETE')
-                                : 'NOT INSTALLED'}
+                  ${b.installed ? (b.status === 'ok' ? 'READY' : STATE[b.status] || 'Incomplete')
+                                : 'Not installed'}
                 </span>
               </div>
               <div class="gcs-bios-path">${b.dir}</div>
@@ -106,7 +106,7 @@ export const createBiosPage = (sdk) => {
                           // "present" and "present and its hash matches" are
                           // different assurances, and the screen that exists to
                           // diagnose a black window should not blur them.
-                          f.status === 'ok' && f.verified ? ' · MD5 CHECKED' : ''}
+                          f.status === 'ok' && f.verified ? ', MD5 checked' : ''}
                       </span>
                     </div>
                     ${f.note ? html`<div class="gcs-bios-note">${f.note}</div>` : null}

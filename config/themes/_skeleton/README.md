@@ -40,7 +40,7 @@ Example (light panel):
   --gc-hud-text: #173039;
   --gc-hud-radius: 22px;
   --gc-hud-blur: 18px;
-  --gc-hud-font: Figtree, Outfit, sans-serif;
+  --gc-hud-font: Atkinson Hyperlegible Next, Noto Sans, sans-serif;
   --gc-hud-battery-5: #ae2834;
 }
 ```
@@ -67,6 +67,12 @@ otherwise Chromium takes the next installed/generic family. Renderer `@font-face
 fonts are not transferred, and the HUD never fetches fonts or other resources
 (network and script blocked by CSP). Include a generic fallback. Do not rely on
 a downloaded font to make a long message fit.
+
+For the theme itself, ship the font: put the files and their licence in
+`fonts/<family>/` and declare them with `@font-face` in your stylesheet (see
+`config/themes/shelf/css/base.css`). Never load fonts from the internet: the
+box is often offline. Write the theme's choices down in a `DESIGN.md`
+(`.claude/skills/gamecore-human-touch`).
 
 The host owns icons, English wording, severity selection from actual battery
 level, routing, replacement/queue and timeouts (10 seconds, 30 seconds for an

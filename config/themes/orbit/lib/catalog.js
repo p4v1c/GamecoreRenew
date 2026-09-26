@@ -79,22 +79,22 @@ export const consoles = {
 
 /** The four application packs, dressed. Ids match catalog/<id>/pack.json. */
 export const appStyles = {
-  steam: {color: '#71b8e8', tile: '#1c2232', scale: 1.02, category: 'PC GAMES',
+  steam: {color: '#71b8e8', tile: '#1c2232', scale: 1.02, category: 'PC games',
     edition: 'Big Picture',
     description: 'Your PC library belongs in the living room. Explore Steam in an interface built for your controller.'},
-  youtube: {color: '#ff777f', tile: '#ff0000', scale: 1.43, category: 'VIDEOS',
+  youtube: {color: '#ff777f', tile: '#ff0000', scale: 1.43, category: 'Videos',
     edition: 'YouTube TV',
     description: 'New discoveries, your favorite creators, and videos you love. Settle in and find something to watch.'},
   twitch: {color: '#bd9aff', tile: '#a544ff', scale: 1.66, category: 'LIVE',
     edition: 'EmberTV',
     description: 'Your streams and communities on the big screen. Watch live with the TV interface in the GameCore pack.'},
-  stremio: {color: '#b6a0ff', tile: '#7b5bf5', scale: 1.04, category: 'MOVIES & SERIES',
+  stremio: {color: '#b6a0ff', tile: '#7b5bf5', scale: 1.04, category: 'Movies & series',
     edition: 'TV interface',
     description: 'Your home cinema, just a button away. Enjoy Stremio in an interface made for the living room.'},
 }
 
 const DEFAULT_APP = {color: '#8dc0f5', tile: '#203757', scale: 1,
-  category: 'APPLICATION', edition: 'GameCore pack',
+  category: 'Application', edition: 'GameCore pack',
   description: 'An application from your GameCore catalogue.'}
 
 export const isApp = (s) => s?.kind === 'app' || s?.type === 'app' || s?.type === 'application'

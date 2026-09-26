@@ -216,9 +216,9 @@ describe('Shelf v2 — the settings rail', () => {
     const { screen, fireEvent } = await import('@testing-library/react')
     const { container } = await renderRail()
 
-    expect(container.querySelector('.gcs-set-chip')?.textContent).toBe('WI-FI')
+    expect(container.querySelector('.gcs-set-chip')?.textContent).toBe('Wi-Fi')
     fireEvent.click(screen.getAllByText('System')[0])
-    expect(container.querySelector('.gcs-set-chip')?.textContent).toBe('SYSTEM')
+    expect(container.querySelector('.gcs-set-chip')?.textContent).toBe('System')
     // The rail never leaves — that is the whole shape of this screen — so the
     // eight rows are still there with a different one selected.
     expect(railLabels(container)).toHaveLength(9)
@@ -268,7 +268,7 @@ describe('Shelf v2 — the Wi-Fi page', () => {
 
     // Band and channel come from /details, which is a different endpoint —
     // this is the merge, and it is keyed on ssid.
-    expect(await screen.findByText('5 GHz · channel 44 · 82%')).toBeTruthy()
+    expect(await screen.findByText('5 GHz, channel 44, 82%')).toBeTruthy()
     // Security label too: "Open" rather than the `secured: false` boolean.
     expect(screen.getByText('Open')).toBeTruthy()
   })
@@ -451,11 +451,11 @@ describe('Shelf v2 — the Controllers page', () => {
       .find(r => r.textContent?.includes(text))!
 
     fireEvent.click(rowFor('Set up controllers automatically'))
-    expect(container.textContent).toMatch(/Press again — this clears/)
+    expect(container.textContent).toMatch(/Press again to clear/)
 
     // Moving the cursor elsewhere must take the primed row back down.
     fireEvent.click(rowFor('Rumble'))
-    expect(container.textContent).not.toMatch(/Press again — this clears/)
+    expect(container.textContent).not.toMatch(/Press again to clear/)
   })
 
   it('carries no control the box cannot honour', async () => {

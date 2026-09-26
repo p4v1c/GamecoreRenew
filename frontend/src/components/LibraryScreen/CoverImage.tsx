@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Glyph } from '../ui'
 import { api } from '../../api'
 import { hexToRgb } from '../ui'
 
@@ -39,7 +40,7 @@ export default function CoverImage({ filename, systemId, color, type }: {
   if (errored) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: 16 }}>
-        <div style={{ width: 48, height: 48, borderRadius: 12, background: `rgba(${rgb},0.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🎮</div>
+        <div style={{ width: 48, height: 48, borderRadius: 12, background: `rgba(${rgb},0.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.55)' }}><Glyph name="gamepad" size={26} /></div>
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center', wordBreak: 'break-all' }}>
           {filename.slice(0, 30)}
         </div>

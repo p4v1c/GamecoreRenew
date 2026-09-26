@@ -296,7 +296,7 @@ export const createBox = (sdk) => {
       return () => { live = false }
     }, [src])
     if (dead) return html`<${BackPrint} systemId=${systemId} game=${game} meta=${meta} media=${media} />`
-    return html`<img src=${src} alt=${`${name} — back cover`} onError=${() => setDead(true)} />`
+    return html`<img src=${src} alt=${`${name}, back cover`} onError=${() => setDead(true)} />`
   }
 
   /**
@@ -319,7 +319,7 @@ export const createBox = (sdk) => {
       <div class="cz-back">
         <div class="cz-back-head">
           <b>${name}</b>
-          ${meta?.genres?.length ? html`<i>${meta.genres.slice(0, 2).join(' · ')}</i>` : null}
+          ${meta?.genres?.length ? html`<i>${meta.genres.slice(0, 2).join(', ')}</i>` : null}
         </div>
 
         ${shots.length ? html`
@@ -333,8 +333,8 @@ export const createBox = (sdk) => {
         </p>
 
         <div class="cz-back-fine">
-          <span>${(meta?.publisher || meta?.developer || '').toUpperCase() || 'UNCREDITED'}</span>
-          <span>${region || 'REGION UNKNOWN'}</span>
+          <span>${(meta?.publisher || meta?.developer || '').toUpperCase() || 'Uncredited'}</span>
+          <span>${region || 'Region unknown'}</span>
           <span class="cz-back-code">${String(game.ext || '').replace('.', '').toUpperCase()}</span>
         </div>
 

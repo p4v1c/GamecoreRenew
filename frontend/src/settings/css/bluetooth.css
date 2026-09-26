@@ -54,11 +54,10 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-.gcs-bt-name i { font-style: normal; font-family: var(--font-mono); font-size: 11.5px; color: var(--set-ink-3); }
+.gcs-bt-name i { font-style: normal; font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 11.5px; color: var(--set-ink-3); }
 
 .gcs-bt-state {
-  flex: 0 0 auto; font-family: var(--font-mono); font-size: 11px;
-  letter-spacing: 0.13em; color: var(--set-ink-3);
+  flex: 0 0 auto; font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 11px; color: var(--set-ink-3);
 }
 
 .gcs-bt-state[data-live="1"] { color: var(--set-acc-deep); }

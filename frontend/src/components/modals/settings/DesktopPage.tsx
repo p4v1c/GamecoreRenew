@@ -19,7 +19,7 @@ export function DesktopPage({ onClose, onBack }: { onClose: () => void; onBack: 
 
   return (
     <Overlay onClose={onClose}>
-      <BackHeader label="DESKTOP MODE" onBack={onBack} />
+      <BackHeader label="Desktop mode" onBack={onBack} />
       <div style={{ padding: '20px 22px', borderRadius: 14, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', marginBottom: 24, color: '#fca5a5', fontSize: 15, lineHeight: 1.8 }}>
         Quit GameCore and hand the screen back to the desktop.
       </div>
@@ -35,7 +35,7 @@ export function DesktopPage({ onClose, onBack }: { onClose: () => void; onBack: 
       <div onClick={doExit} style={{ padding: 16, borderRadius: 14, cursor: 'pointer', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', color: '#fca5a5', fontWeight: 700, textAlign: 'center', fontSize: 16 }}>
         ✕ Exit to Desktop
       </div>
-      <div style={{ marginTop: 8, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
+      <div style={{ marginTop: 8, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
         <PadHints text="✕ Confirm · ○ Cancel" />
       </div>
     </Overlay>

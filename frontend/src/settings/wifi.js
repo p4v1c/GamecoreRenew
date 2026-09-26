@@ -118,7 +118,7 @@ export const createWifiPage = (sdk, useSlow, OwnDialog) => {
       sdk.api.wifi.connect(n.ssid, password)
         .then((r) => {
           if (r.ok) { setMsg(`Connected to ${n.ssid}.`); load() }
-          else setMsg(r.wrong_password ? 'Wrong password — try again'
+          else setMsg(r.wrong_password ? 'Wrong password. Try again.'
                                        : (r.error || 'Could not join that network.'))
         })
         .catch(() => setMsg('Could not reach the backend.'))
@@ -221,14 +221,14 @@ export const createWifiPage = (sdk, useSlow, OwnDialog) => {
 
         ${!loaded
           ? html`<div class="gcs-load"><i></i>${slow
-              ? 'Still scanning — the radio is taking its time.' : 'Scanning for networks…'}</div>`
+              ? 'Still scanning. The radio is slow to answer.' : 'Scanning for networks…'}</div>`
           : nets.length === 0
           ? html`<div class="gcs-wifi-empty">No network is in range.</div>`
           : nets.map((n, i) => {
             const d = detail[n.ssid] || {}
             const bars = barsFor(n.signal)
             const sub = [d.band, d.channel ? `channel ${d.channel}` : '', `${n.signal}%`]
-              .filter(Boolean).join(' · ')
+              .filter(Boolean).join(', ')
             return html`
               <div key=${n.ssid} class="gcs-wifi-row"
                    data-on=${active && i === sel ? '1' : '0'}
@@ -245,12 +245,12 @@ export const createWifiPage = (sdk, useSlow, OwnDialog) => {
                   <i>${sub}</i>
                 </span>
                 <span class="gcs-wifi-sec">${d.security || (n.secured ? 'Secured' : 'Open')}</span>
-                ${n.connected ? html`<span class="gcs-wifi-conn">CONNECTED</span>` : null}
+                ${n.connected ? html`<span class="gcs-wifi-conn">Connected</span>` : null}
               </div>`
           })}
 
         ${loaded ? html`
-          <div class="gcs-wifi-scan"><i></i>${busy ? 'WORKING' : 'SCANNING'}</div>` : null}
+          <div class="gcs-wifi-scan"><i></i>${busy ? 'Working' : 'Scanning'}</div>` : null}
       </section>
 
       ${asDialog ? null : html`

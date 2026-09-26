@@ -33,7 +33,7 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
         <${Jacket} key=${`${systemId}:${filename}`} className="library-jacket"
           systemId=${systemId} filename=${filename} title=${title} onRatio=${onRatio} />
         ${favourite ? html`<span className="cover-heart" aria-label="Favourite">${svg(HEART)}</span>` : null}
-        ${held ? html`<span className="session-badge">IN BACKGROUND</span>` : null}
+        ${held ? html`<span className="session-badge">In the background</span>` : null}
       </span>
       <h3>${title}</h3>
     </button>`
@@ -136,7 +136,7 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
       <div className="page-heading">
         <div><button className="filter" onClick=${() => tabs.go('systems', systemsRef.current)}
           aria-label="Back to consoles">← Consoles</button>
-          <p className="eyebrow">YOUR CONSOLE COLLECTION</p>
+          <p className="eyebrow">Your consoles</p>
           <h1 id="library-title">${systemId === '__all__' ? 'All games.' : (system?.label || 'Your library.')}</h1></div>
         <span className="page-count">${shown.length} of ${totalCount} game${totalCount === 1 ? '' : 's'}</span>
       </div>

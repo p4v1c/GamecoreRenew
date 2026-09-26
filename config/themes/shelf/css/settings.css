@@ -117,8 +117,7 @@
 /* power */
 .cz-power-head {
   margin: 16px 0 6px;
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.24em;
-  text-transform: uppercase; color: rgba(237, 234, 227, 0.32);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 10px; color: rgba(237, 234, 227, 0.32);
 }
 .cz-power-row { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 12px; cursor: pointer; border: 1px solid transparent; transition: background-color 160ms ease, border-color 160ms ease; }
 .cz-power-row[data-on="1"] { background: color-mix(in srgb, var(--row-accent, #B8892B) 16%, transparent); border-color: color-mix(in srgb, var(--row-accent, #B8892B) 55%, transparent); }
@@ -153,7 +152,7 @@
   flex: 0 0 auto; display: grid; place-items: center;
   min-width: 44px; height: 30px; padding: 0 8px; border-radius: 8px;
   background: color-mix(in srgb, var(--gc-accent) 18%, transparent);
-  font-family: var(--font-mono); font-size: 12px; color: var(--gc-accent-bright);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 12px; color: var(--gc-accent-bright);
 }
 .cz-ctl-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .cz-ctl-text b {
@@ -163,8 +162,7 @@
 .cz-ctl-text i { font-style: normal; font-size: 12px; color: rgba(237, 234, 227, 0.5); }
 .cz-ctl-head {
   margin: 18px 0 8px;
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.24em;
-  text-transform: uppercase; color: rgba(237, 234, 227, 0.32);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 10px; color: rgba(237, 234, 227, 0.32);
 }
 .cz-ctl-note {
   font-family: var(--font-body); font-size: 13px; line-height: 1.9;
@@ -200,7 +198,7 @@
   border: 1px solid var(--gc-overlay-border);
   font-family: var(--font-mono); font-size: 11px; color: var(--gc-accent-bright);
 }
-.cz-pad-readout { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 10px; font-family: var(--font-mono); font-size: 12px; color: rgba(237, 234, 227, 0.6); }
+.cz-pad-readout { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 10px; font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 12px; color: rgba(237, 234, 227, 0.6); }
 .cz-pad-readout b { color: var(--gc-accent-bright); font-weight: 500; }
 /* The battery segments are drawn for paper; on the drawer they invert. */
 .cz-pad-readout .cz-bat { display: inline-flex; vertical-align: middle; margin: 0 4px; }
@@ -221,7 +219,7 @@
 .cz-pad-remap b { display: block; font-size: 13px; font-weight: 500; }
 .cz-pad-remap i {
   display: block; margin-top: 3px; font-style: normal; font-size: 11px;
-  font-family: var(--font-mono); color: rgba(237, 234, 227, 0.5);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; color: rgba(237, 234, 227, 0.5);
 }
 
 /* themes */
@@ -232,7 +230,7 @@
 .cz-row[data-current="1"] .cz-theme-dot { background: var(--gc-accent); border-color: var(--gc-accent); }
 .cz-row[data-off="1"] { opacity: 0.4; cursor: default; }
 .cz-theme-tag {
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em;
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 10px;
   color: var(--gc-accent-soft);
 }
 .cz-note { padding: 14px; font-size: 14px; color: rgba(237, 234, 227, 0.55); }

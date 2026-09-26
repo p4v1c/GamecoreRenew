@@ -39,7 +39,7 @@
 .sm-gamepad-val { font-size: 20px; font-weight: 600; }
 .sm-gamepad-na { color: var(--foam-400); }
 .sm-gamepad-bat { display: flex; align-items: center; gap: 10px; }
-.sm-gamepad-pct { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 500; }
+.sm-gamepad-pct { font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 500; }
 .sm-gamepad-charging { font-size: 15px; font-weight: 600; color: var(--state-ok); }
 
 .sm-gamepad-maps {

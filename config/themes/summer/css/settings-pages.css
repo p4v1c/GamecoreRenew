@@ -1,6 +1,5 @@
 /* ── Wi-Fi ───────────────────────────────────────────────────────────────── */
 .gcs-wifi-state {
-  font-family: var(--font-mono, ui-monospace, monospace);
   color: var(--accent-muskmelon);
 }
 .gcs-wifi-row {
@@ -20,22 +19,18 @@
   font-size: 20px;
 }
 .gcs-wifi-name i {
-  font-family: var(--font-mono, ui-monospace, monospace);
   color: var(--foam-400);
 }
 .gcs-wifi-sec {
   background: rgba(255, 253, 247, 0.1);
-  font-family: var(--font-mono, ui-monospace, monospace);
   color: var(--foam-200);
 }
 .gcs-wifi-conn {
-  font-family: var(--font-mono, ui-monospace, monospace);
   color: var(--state-ok);
 }
 .gcs-wifi-scan, .gcs-load {
   display: flex; align-items: center; gap: 10px; padding: 8px 2px;
-  font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px;
-  letter-spacing: 0.16em; color: var(--foam-400);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 11px; color: var(--foam-400);
 }
 .gcs-load {
   font-family: inherit;
@@ -100,11 +95,9 @@
 }
 .gcs-bt-dot[data-live="1"] { background: var(--state-ok); border-color: var(--state-ok); }
 .gcs-bt-name i {
-  font-family: var(--font-mono, ui-monospace, monospace);
   color: var(--foam-400);
 }
 .gcs-bt-state {
-  font-family: var(--font-mono, ui-monospace, monospace);
   color: var(--foam-400);
 }
 .gcs-bt-state[data-live="1"] { color: var(--state-ok); }
@@ -120,7 +113,6 @@
   border-radius: var(--r-tile);
   background: var(--glass-700);
   border: 1px solid transparent;
-  font-family: var(--font-mono, ui-monospace, monospace);
   color: var(--foam-200);
 }
 .gcs-grp[data-open="1"] { background: var(--accent-mandarin); color: var(--ink-900); }
@@ -143,7 +135,6 @@
    (PS1, PS3, PSP), several are near-white (Wii U, DS), and no single themed
    background makes both readable. `contain` because they are not all square. */
 .gcs-pack-text i {
-  font-family: var(--font-mono, ui-monospace, monospace);
   color: var(--foam-400);
 }
 .gcs-pack-btn {
@@ -166,22 +157,20 @@
 }
 .gcs-bios-dot[data-ok="1"] { background: var(--state-ok); }
 .gcs-bios-state {
-  font-family: var(--font-mono, ui-monospace, monospace);
   color: var(--foam-400);
 }
 .gcs-bios-state[data-ok="1"] { color: var(--state-ok); }
 .gcs-bios-path {
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--font-body); font-variant-numeric: tabular-nums;
   color: var(--foam-400);
 }
 .gcs-bios-file {
   border-top: 1px solid var(--glass-hairline);
 }
 .gcs-bios-fname {
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--font-body); font-variant-numeric: tabular-nums;
 }
 .gcs-bios-fstate {
-  font-family: var(--font-mono, ui-monospace, monospace);
   color: var(--state-alert);
 }
 .gcs-bios-fstate[data-ok="1"] { color: var(--state-ok); }
@@ -203,8 +192,7 @@
   color: var(--foam-000);
 }
 .gcs-pwr-title, .gcs-pwr-head {
-  font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px;
-  letter-spacing: 0.2em; text-transform: uppercase; color: var(--foam-400); margin-bottom: 16px;
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 11px; color: var(--foam-400); margin-bottom: 16px;
 }
 .gcs-pwr-row {
   border-radius: var(--r-tile);
@@ -227,7 +215,6 @@
   color: var(--foam-200);
 }
 .gcs-pwr-hint {
-  font-family: var(--font-mono, ui-monospace, monospace);
   color: var(--foam-400);
 }
 

@@ -1,3 +1,12 @@
+/* Shelf's typeface, shipped with the theme (SIL OFL, fonts/archivo/OFL.txt). */
+@font-face {
+  font-family: 'Archivo';
+  src: url('../fonts/archivo/Archivo-var.woff2') format('woff2');
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-style: normal;
+  font-display: swap;
+}
 /* ===========================================================================
    Shelf — a wall, a shelf, and the box you are holding.
 
@@ -44,9 +53,9 @@
   --r-card: 14px;
   --r-chip: 999px;
 
-  --font-display: 'Space Grotesk', 'Outfit', system-ui, sans-serif;
-  --font-body:    'Outfit', system-ui, sans-serif;
-  --font-mono:    'JetBrains Mono', ui-monospace, 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+  --font-display: 'Archivo', 'Noto Sans', sans-serif;
+  --font-body:    'Archivo', 'Noto Sans', sans-serif;
+  --font-mono:    ui-monospace, 'DejaVu Sans Mono', monospace;
 
   /* ── the host's overlays ────────────────────────────────────────────────
      Wi-Fi, audio, Bluetooth, standby and the updater are reused as they are,
@@ -109,11 +118,11 @@
   position: relative;
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
   padding: 14px 30px 8px;
-  font-family: var(--font-mono); color: var(--ink-2);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; color: var(--ink-2);
 }
 .cz-tab {
-  font-size: 13px; font-weight: 500; letter-spacing: 0.34em;
-  color: var(--ink); text-transform: uppercase;
+  font-size: 13px; font-weight: 500;
+  color: var(--ink);
 }
 .cz-top-right { display: flex; align-items: center; gap: 14px; font-size: 11.5px; }
 

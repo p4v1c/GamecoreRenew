@@ -66,7 +66,7 @@ export default function SettingsModal({ onClose }: Props) {
     api.storage.list()
       .then(r => put('storage', `${(r.volumes ?? []).length} external`)).catch(() => {})
     api.standby.get()
-      .then(s => put('standby', s.enabled ? `On · ${s.screensaver_mins} min` : 'Off')).catch(() => {})
+      .then(s => put('standby', s.enabled ? `On, ${s.screensaver_mins} min` : 'Off')).catch(() => {})
     api.catalog.list()
       .then(c => put('catalog', `${c.filter(x => x.installed).length} installed`)).catch(() => {})
     api.bios.list()
@@ -111,7 +111,7 @@ export default function SettingsModal({ onClose }: Props) {
 
   return (
     <Overlay onClose={onClose} width={560}>
-      <OverlayLabel text="SETTINGS" />
+      <OverlayLabel text="Settings" />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {ITEMS.map((it, idx) => {
           const on = idx === focusIdx
@@ -123,15 +123,15 @@ export default function SettingsModal({ onClose }: Props) {
             // and the tallest one used to set its own rhythm.
             display: 'flex', alignItems: 'center', gap: 16, padding: '0 18px',
             height: 66, borderRadius: 14, cursor: 'pointer',
-            background: on ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 15%, transparent)' : 'rgba(255,255,255,0.04)',
-            border: on ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 40%, transparent)' : '1px solid rgba(255,255,255,0.07)',
+            background: on ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 15%, transparent)' : 'rgba(255,255,255,0.04)',
+            border: on ? '1px solid color-mix(in srgb, var(--gc-accent, #b8501b) 40%, transparent)' : '1px solid rgba(255,255,255,0.07)',
             transition: 'all 0.15s',
           }}>
             <div style={{
               flexShrink: 0, width: 38, height: 38, borderRadius: 11,
               display: 'grid', placeItems: 'center',
-              background: on ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 22%, transparent)' : 'rgba(255,255,255,0.05)',
-              color: danger ? '#fca5a5' : on ? 'var(--gc-accent-bright, #c4b5fd)' : 'rgba(255,255,255,0.55)',
+              background: on ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 22%, transparent)' : 'rgba(255,255,255,0.05)',
+              color: danger ? '#fca5a5' : on ? 'var(--gc-accent-bright, #f8cfa9)' : 'rgba(255,255,255,0.55)',
             }}>
               <Glyph name={it.id} />
             </div>
@@ -145,15 +145,15 @@ export default function SettingsModal({ onClose }: Props) {
             {meta[it.id] && (
               <div style={{
                 fontFamily: 'ui-monospace, monospace', fontSize: 12,
-                color: 'var(--gc-accent-bright, #c4b5fd)', textAlign: 'right',
+                color: 'var(--gc-accent-bright, #f8cfa9)', textAlign: 'right',
                 maxWidth: '38%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{meta[it.id]}</div>
             )}
-            <div style={{ color: on ? 'var(--gc-accent-bright, #c4b5fd)' : 'rgba(255,255,255,0.25)', fontSize: 22 }}>›</div>
+            <div style={{ color: on ? 'var(--gc-accent-bright, #f8cfa9)' : 'rgba(255,255,255,0.25)', fontSize: 22 }}>›</div>
           </div>
         )})}
       </div>
-      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
         <PadHints text="↑↓ Navigate · ✕ Select · ○ Close" />
       </div>
     </Overlay>

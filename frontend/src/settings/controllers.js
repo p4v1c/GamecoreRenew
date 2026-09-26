@@ -72,11 +72,11 @@ export const createControllersPage = (sdk, Rows) => {
         // these have to name what is lost, and a warning is not the place to
         // save four words.
         confirmText: autoOn
-          ? 'Press again — this clears the controller setup GameCore wrote'
-          : 'Press again — this replaces the controller setup you made yourself',
+          ? 'Press again to clear the controller setup GameCore wrote'
+          : 'Press again to replace the controller setup you made yourself',
         desc: autoOn
           ? 'Emulators are configured for your pads whenever one connects'
-          : 'OFF — no emulator is being configured. Pads you plug in will do '
+          : 'Off. No emulator is being configured, and pads you plug in do '
             + 'nothing until you set them up inside each emulator yourself',
         busy: busy === 'autoconfig' ? 'Applying…' : '',
       },
@@ -85,7 +85,7 @@ export const createControllersPage = (sdk, Rows) => {
       // create a problem.
       ...(auto && autoOn && carvedOut.length ? [{
         id: 'carved', type: 'info', label: 'Left to you',
-        desc: 'These are configured by hand — GameCore does not touch them',
+        desc: 'You configure these by hand. GameCore leaves them alone',
         display: carvedOut.join(', '),
       }] : []),
       ...(auto ? [{
@@ -104,15 +104,15 @@ export const createControllersPage = (sdk, Rows) => {
         // lying about what is in force.
         confirmText: p.enabled
           ? (p.releasable === false
-              ? `Press again — GameCore stops configuring ${p.label}. What it `
+              ? `Press again and GameCore stops configuring ${p.label}. What it `
                 + 'already wrote stays as it is'
-              : `Press again — this clears what GameCore wrote for ${p.label}`)
-          : `Press again — this replaces your own ${p.label} setup`,
+              : `Press again to clear what GameCore wrote for ${p.label}`)
+          : `Press again to replace your own ${p.label} setup`,
         desc: p.enabled
           ? 'Configured automatically'
           : (p.releasable === false
-              ? 'Yours — GameCore no longer writes it, and left what was there'
-              : 'Yours — left untouched'),
+              ? 'Yours. GameCore no longer writes it and left what was there'
+              : 'Yours, left untouched'),
         danger: p.enabled,
         busy: busy === `pack:${p.id}` ? 'Applying…' : '',
       } : {
@@ -120,7 +120,7 @@ export const createControllersPage = (sdk, Rows) => {
         // change nothing on the box — which is precisely the "setting that
         // governs nothing" this feature must not ship.
         id: `pack:${p.id}`, type: 'info', label: p.label,
-        desc: 'Everything is off — turn the switch above back on first',
+        desc: 'Everything is off. Turn the switch above back on first',
         display: 'Off',
       })) : []),
       {
@@ -145,7 +145,7 @@ export const createControllersPage = (sdk, Rows) => {
           // global switch and a wrong one for a single emulator.
           const who = label || 'GameCore'
           setMsg(enabled
-            ? `${who} is setting your connected controllers up again — anything `
+            ? `${who} is setting up your connected controllers again. Anything `
               + 'you configured by hand has been replaced.'
             : (d.released && d.released.length
                 ? `Cleared: ${d.released.join(', ')}. Set your pads up inside `
@@ -156,7 +156,7 @@ export const createControllersPage = (sdk, Rows) => {
                 // has no way to un-write it — the switch still took effect, it
                 // just has nothing to undo.
                 : (pack && (packs.find((p) => p.id === pack) || {}).releasable === false
-                    ? `${label} is yours now — GameCore will not write it again. `
+                    ? `${label} is yours now; GameCore will not write it again. `
                       + 'What it wrote before is still there, so your pad keeps '
                       + 'working until you change it inside the emulator.'
                     : 'Nothing had been configured, so there was nothing to clear.')))
@@ -196,7 +196,7 @@ export const createControllersPage = (sdk, Rows) => {
       <${Rows} rows=${rows} active=${active} onLeave=${onLeave} onLeft=${onLeft}
         onSet=${onSet} onAct=${onAct}
         title="Controllers"
-        state=${auto && !autoOn ? 'AUTO SETUP OFF'
+        state=${auto && !autoOn ? 'Auto setup off'
                 : pads.length ? `${pads.length} PAD${pads.length > 1 ? 'S' : ''}` : ''}
         sub=${pads.length
           ? 'Press □ from anywhere for the live pad test, and to map a controller SDL does not recognise.'

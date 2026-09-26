@@ -89,7 +89,7 @@ describe('the switch itself', () => {
     // The failure this feature had to be designed around: somebody turns it off
     // to fiddle, forgets, and three weeks later a new pad does nothing. The
     // heading is what a person chasing a dead controller actually reads.
-    expect(await screen.findByText('AUTO SETUP OFF')).toBeTruthy()
+    expect(await screen.findByText('Auto setup off')).toBeTruthy()
     expect(await screen.findByText(/not configured in any emulator/)).toBeTruthy()
   })
 
@@ -98,7 +98,7 @@ describe('the switch itself', () => {
     page()
     // Before the backend replies the switch is neither on nor off. Assuming OFF
     // would flash a warning at every player on every visit.
-    expect(screen.queryByText('AUTO SETUP OFF')).toBeNull()
+    expect(screen.queryByText('Auto setup off')).toBeNull()
   })
 })
 
@@ -111,9 +111,9 @@ describe('the two destructive directions', () => {
     fireEvent.click(row)
     // Armed, not fired: the first press has to say what the second one costs.
     expect(posts).toHaveLength(0)
-    expect(screen.getByText(/this clears the controller setup GameCore wrote/)).toBeTruthy()
+    expect(screen.getByText(/to clear the controller setup GameCore wrote/)).toBeTruthy()
 
-    fireEvent.click(screen.getByText(/this clears the controller setup GameCore wrote/).closest('.gcs-row2')!)
+    fireEvent.click(screen.getByText(/to clear the controller setup GameCore wrote/).closest('.gcs-row2')!)
     await waitFor(() => expect(posts).toHaveLength(1))
     expect(posts[0].body).toEqual({ enabled: false })
   })
@@ -128,7 +128,7 @@ describe('the two destructive directions', () => {
     // The opposite loss, so the opposite sentence. One `confirm` flag with a
     // fixed message would have warned about clearing a setup while it was about
     // to overwrite one.
-    expect(screen.getByText(/this replaces the controller setup you made yourself/)).toBeTruthy()
+    expect(screen.getByText(/to replace the controller setup you made yourself/)).toBeTruthy()
   })
 
   it('reports what was actually emptied, by name', async () => {
@@ -164,7 +164,7 @@ describe('the per-emulator exception', () => {
     // nothing on the box is a setting that governs nothing.
     const row = (await screen.findByText('GameCube / Wii')).closest('.gcs-row2')!
     expect(row.querySelector('.gcs-tgl')).toBeNull()
-    expect(row.textContent).toContain('turn the switch above back on first')
+    expect(row.textContent).toContain('Turn the switch above back on first')
     // A reading, and it says what it reads.
     expect(row.querySelector('.gcs-row2-info')?.textContent).toBe('Off')
   })
@@ -223,6 +223,6 @@ describe('the per-emulator exception', () => {
     // without saying where, and finding out means opening a list the owner may
     // not know exists.
     expect(await screen.findByText('GameCube / Wii')).toBeTruthy()
-    expect(await screen.findByText(/GameCore does not touch them/)).toBeTruthy()
+    expect(await screen.findByText(/GameCore leaves them alone/)).toBeTruthy()
   })
 })

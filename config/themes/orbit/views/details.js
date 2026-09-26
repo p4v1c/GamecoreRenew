@@ -3,6 +3,7 @@ import {systemName, isFavourite, toggleFavourite} from '../lib/catalog.js'
 
 export function createDetails(sdk) {
   const {html, useEffect, useRef, useState} = sdk.ui
+  const Glyph = sdk.ui.Glyph || (() => null)
   const Jacket = createJacket(sdk)
   return function Details({game, onClose, onPlay}) {
     const root = useRef(null)
@@ -39,14 +40,14 @@ export function createDetails(sdk) {
         <p className="dialog-description">${meta?.description || 'No description available for this game.'}</p>
         <dl className="details-grid">
           ${meta?.developer ? html`<div><dt>Studio</dt><dd>${meta.developer}</dd></div>` : null}
-          ${Array.isArray(meta?.genres) && meta.genres.length ? html`<div><dt>Genre</dt><dd>${meta.genres.join(' · ')}</dd></div>` : null}
+          ${Array.isArray(meta?.genres) && meta.genres.length ? html`<div><dt>Genre</dt><dd>${meta.genres.join(', ')}</dd></div>` : null}
           <div><dt>Emulator</dt><dd>${game.system?.label || game.systemId}</dd></div>
           <div><dt>Console</dt><dd>${systemName(game.system)}</dd></div>
           ${meta?.players ? html`<div><dt>Players</dt><dd>${meta.players_label || meta.players}</dd></div>` : null}
         </dl>
-        <div className="hero-actions"><button className="primary-button" onClick=${() => {onClose(); onPlay()}}>▶ Play</button>
+        <div className="hero-actions"><button className="primary-button" onClick=${() => {onClose(); onPlay()}}>Play</button>
           <button className="round-button" aria-label="Favourite" aria-pressed=${String(fav)}
-            onClick=${() => setFav(toggleFavourite(game.systemId, game.gameKey))}>${fav ? '♥' : '♡'}</button></div>
+            onClick=${() => setFav(toggleFavourite(game.systemId, game.gameKey))}><${Glyph} name="heart" size=${20} /></button></div>
       </section>
     </div>`
   }

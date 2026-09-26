@@ -52,9 +52,9 @@ export const createHomeView = (sdk) => {
     return html`
     <div class="sm-home">
       <div class="sm-stats">
-        <div><span>SYSTEMS</span><b>${totals.systems}</b></div>
+        <div><span>Systems</span><b>${totals.systems}</b></div>
         <div><span>GAMES</span><b>${totals.games}</b></div>
-        <div><span>PLAYED</span><b>${totals.hours}h</b></div>
+        <div><span>Played</span><b>${totals.hours}h</b></div>
         <div><span>LAST</span><b class="sm-stat-title">${last}</b></div>
       </div>
 
@@ -85,7 +85,7 @@ export const createHomeView = (sdk) => {
                   <div class="sm-tile-meta">
                     ${isApp ? (played === '0m' ? '' : `${played} played`)
                       : count === 0 ? 'No games'
-                      : `${count} games · ${played}`}
+                      : `${count} games, ${played}`}
                   </div>
                   <i class="sm-tile-rule" />
                   <span class="sm-tile-caret">▸</span>

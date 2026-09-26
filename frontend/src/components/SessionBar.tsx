@@ -115,19 +115,19 @@ function DefaultSessionBarView(p: SessionBarProps) {
         display: 'flex', alignItems: 'center', gap: 14,
         padding: '12px 22px',
         background: 'linear-gradient(0deg, rgba(9,9,15,0.98), rgba(9,9,15,0.86))',
-        borderTop: '1px solid rgba(124,58,237,0.45)',
-        fontFamily: "'Outfit', sans-serif", color: '#fff',
+        borderTop: '1px solid rgba(184,80,27,0.45)',
+        fontFamily: 'var(--gc-font-ui)', color: '#fff',
       }}
       role="region" aria-label="Suspended session"
     >
       <span style={{
-        width: 8, height: 8, borderRadius: '50%', background: '#7c3aed',
-        boxShadow: '0 0 10px #7c3aed', flex: '0 0 auto',
+        width: 8, height: 8, borderRadius: '50%', background: '#b8501b',
+        flex: '0 0 auto',
       }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 10, letterSpacing: 1.6, opacity: 0.55 }}>
-          {s.kind === 'app' ? 'APPLICATION IN THE BACKGROUND' : 'GAME IN THE BACKGROUND'}
-          {p.sessions.length > 1 && ` · ${p.focusIdx + 1}/${p.sessions.length}`}
+        <div style={{ fontSize: 10, opacity: 0.55 }}>
+          {s.kind === 'app' ? 'Application in the background' : 'Game in the background'}
+          {p.sessions.length > 1 && ` (${p.focusIdx + 1} of ${p.sessions.length})`}
         </div>
         <strong style={{
           fontSize: 16, display: 'block', overflow: 'hidden',
@@ -138,7 +138,7 @@ function DefaultSessionBarView(p: SessionBarProps) {
         onClick={() => p.onResume(s)} disabled={p.busy}
         style={{
           padding: '9px 18px', borderRadius: 9, border: 'none', cursor: 'pointer',
-          background: p.active ? '#7c3aed' : 'rgba(124,58,237,0.35)',
+          background: p.active ? '#b8501b' : 'rgba(184,80,27,0.35)',
           color: '#fff', fontWeight: 600, fontSize: 14,
         }}
       >{p.busy ? 'Working…' : resumeLabel(s)}</button>
@@ -159,12 +159,12 @@ function DefaultSessionMenuView(p: SessionMenuProps) {
   return (
     <div style={{
       padding: 30, borderRadius: 18, minWidth: 340, maxWidth: 520,
-      background: '#12121b', border: '1px solid rgba(124,58,237,0.4)',
-      fontFamily: "'Outfit', sans-serif", color: '#fff',
+      background: '#12121b', border: '1px solid rgba(184,80,27,0.4)',
+      fontFamily: 'var(--gc-font-ui)', color: '#fff',
     }}>
-      <div style={{ fontSize: 10, letterSpacing: 1.6, opacity: 0.55 }}>
-        {p.confirming ? 'END THIS SESSION' : 'SUSPENDED SESSION'}
-        {p.sessions.length > 1 && ` · ${p.index + 1}/${p.sessions.length}`}
+      <div style={{ fontSize: 10, opacity: 0.55 }}>
+        {p.confirming ? 'End this session' : 'Suspended session'}
+        {p.sessions.length > 1 && ` (${p.index + 1} of ${p.sessions.length})`}
       </div>
       <h2 style={{ margin: '6px 0 10px', fontSize: 22 }}>{p.title(p.session)}</h2>
       <p style={{ margin: '0 0 20px', fontSize: 14, opacity: 0.75, lineHeight: 1.5 }}>
@@ -180,7 +180,7 @@ function DefaultSessionMenuView(p: SessionMenuProps) {
               padding: '13px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
               textAlign: 'left', fontSize: 15, color: '#fff',
               background: p.actionIdx === i
-                ? (a.danger ? '#b3324a' : '#7c3aed') : 'rgba(255,255,255,0.07)',
+                ? (a.danger ? '#b3324a' : '#b8501b') : 'rgba(255,255,255,0.07)',
             }}>{p.busy ? 'Working…' : a.label}</button>
         ))}
       </div>

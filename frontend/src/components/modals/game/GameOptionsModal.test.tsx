@@ -101,7 +101,7 @@ describe('what the panel offers', () => {
     })
     open()
     // Otherwise the default row is the only one whose effect is invisible.
-    await screen.findByText('No bezel for this game — the system’s is used')
+    await screen.findByText('No bezel for this game. Using the system’s.')
   })
 
   it('says so when the system has no overlay at all', async () => {
@@ -264,7 +264,7 @@ describe('the settings that belong to this game', () => {
     open()
     // Otherwise "nothing happened" reads as the setting having silently
     // failed, which sends the owner looking in entirely the wrong place.
-    await screen.findByText(/verified for >=0\.0\.30, this box runs 0\.0\.12/)
+    await screen.findByText(/Verified for >=0\.0\.30; this box runs 0\.0\.12/)
   })
 
   it('opens the emulator’s own window and gets out of its way', async () => {

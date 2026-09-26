@@ -88,7 +88,7 @@ describe('the BIOS screen', () => {
     })])
 
     expect(screen.getByText('ready')).toBeTruthy()
-    expect(screen.getByText('optional · not present')).toBeTruthy()
+    expect(screen.getByText('optional, not present')).toBeTruthy()
     expect(screen.getByText(/Every system file this box needs is in place/)).toBeTruthy()
   })
 

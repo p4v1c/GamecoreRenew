@@ -72,7 +72,7 @@ export const createDisplayPage = (sdk, Rows, OwnDialog) => {
     useEffect(() => { leftRef.current = left }, [left])
     useEffect(() => {
       if (left === null) return
-      if (left <= 0) { setLeft(null); setMsg('Reverted — that mode could not be confirmed.'); load(); return }
+      if (left <= 0) { setLeft(null); setMsg('Reverted: that mode was not confirmed.'); load(); return }
       const t = setTimeout(() => setLeft((n) => (n === null ? null : n - 1)), 1000)
       return () => clearTimeout(t)
     }, [left])
@@ -169,7 +169,7 @@ export const createDisplayPage = (sdk, Rows, OwnDialog) => {
           <div class="gcs-row2" data-danger="1" data-on=${pickIdx === 1 ? '1' : '0'}
                onClick=${() => { setPickIdx(1); undo() }}>
             <span class="gcs-row2-text">
-              <b>Go back now</b><i>Do not wait for the countdown — ○ does this too</i>
+              <b>Go back now</b><i>Skip the countdown. ○ does this too</i>
             </span>
             <span class="gcs-act" data-danger="1">Revert</span>
           </div>
@@ -224,10 +224,10 @@ export const createDisplayPage = (sdk, Rows, OwnDialog) => {
     // mockups' "current mode" panel. Only in the two layouts that draw it.
     const preview = asDialog && cur ? html`
       <div class="gcs-disp-now">
-        <span class="gcs-disp-monitor" aria-hidden="true">GAMECORE</span>
+        <span class="gcs-disp-monitor" aria-hidden="true">GameCore</span>
         <span class="gcs-disp-now-text">
           <b>${label(cur)}</b>
-          <i>Current mode · ${rateLabel(cur.rate)}${info && info.output ? ` · ${info.output}` : ''}</i>
+          <i>Current mode, ${rateLabel(cur.rate)}${info && info.output ? ` on ${info.output}` : ''}</i>
         </span>
       </div>` : null
 

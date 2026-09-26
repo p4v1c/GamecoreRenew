@@ -17,7 +17,7 @@ import { PadHints } from '../../../lib/padKey'
  * The list repolls: the browser gets no event when a disk arrives.
  */
 
-const ACCENT = 'var(--gc-accent, #7c3aed)'
+const ACCENT = 'var(--gc-accent, #b8501b)'
 const GOOD = '#4ade80'
 const WARN = '#fbbf24'
 const DIM = 'rgba(255,255,255,0.3)'
@@ -76,13 +76,13 @@ export function StoragePage({ onClose, onBack }: { onClose: () => void; onBack: 
 
   return (
     <Overlay onClose={onClose}>
-      <BackHeader label="STORAGE" onBack={onBack} />
+      <BackHeader label="Storage" onBack={onBack} />
 
       <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 14, lineHeight: 1.5 }}>
         {error
           ? 'Could not read the attached disks.'
           : rows.length === 0
-            ? 'No external disk is attached. Plug one in and it is mounted automatically — point a system’s ROM folder at the path shown here and its games appear without restarting.'
+            ? 'No external disk is attached. Plug one in and it is mounted automatically. Point a system’s ROM folder at the path shown here and its games appear without restarting.'
             : 'Always eject before unplugging: it flushes anything still being written.'}
       </div>
 
@@ -111,7 +111,7 @@ export function StoragePage({ onClose, onBack }: { onClose: () => void; onBack: 
             <div style={{ fontSize: 15, fontWeight: 600, color: '#fff', flex: 1 }}>
               {v.label || v.device}
             </div>
-            <div style={{ fontSize: 12, color: DIM }}>{v.size} · {v.fstype}</div>
+            <div style={{ fontSize: 12, color: DIM }}>{v.size}, {v.fstype}</div>
           </div>
 
           {/* What a romsPath should be written against — never the mount point,
@@ -148,7 +148,7 @@ export function StoragePage({ onClose, onBack }: { onClose: () => void; onBack: 
         </div>
       ))}
 
-      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
         <PadHints text="↑↓ Navigate · ✕ Eject · ○ Back" />
       </div>
     </Overlay>

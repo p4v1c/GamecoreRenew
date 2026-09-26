@@ -66,15 +66,15 @@
   padding:30px 32px 24px;
   border:1px solid var(--gc-overlay-border);border-radius:var(--gc-overlay-radius);
   background:var(--gc-overlay-panel);box-shadow:var(--gc-overlay-shadow);
-  font-family:Inter,'Segoe UI',Arial,sans-serif;color:#f1f6ff}
+  font-family:var(--font-body);color:#f1f6ff}
 /* This panel lives outside `.orbit-app`, so the reset at the top of this file
    — which is scoped there on purpose, see the header comment — does not reach
    it. Without the reset below, the option rows keep the user agent's button
-   font and `buttontext` colour: 13px Arial in a menu that is otherwise Inter,
+   font and `buttontext` colour: 13px Arial in a menu that is otherwise Red Hat Text,
    on rows whose own background is #bfdcff05, i.e. nothing. */
 .session-menu-body button{font:inherit;color:inherit;cursor:pointer}
 .session-menu-body h1,.session-menu-body h2,.session-menu-body p{margin:0}
-.session-menu-body>.eyebrow{color:#a9c6ea;letter-spacing:2.4px;font-size:10px}
+.session-menu-body>.eyebrow{color:#a9c6ea;letter-spacing:0.5px;font-size:10px}
 .session-menu-body>p{font-size:14px;line-height:1.6;color:#c2d4ec}
 .session-menu-body .session-menu-option{color:#e8f1ff;font-size:15px;
   border-color:#bcdbff2e;background:#bfdcff0d}
@@ -100,7 +100,7 @@
 
 /* The mockup's viewport, inside the host's screen and background layers. */
 .orbit-app { --page-pad: clamp(24px, 4.8vw, 88px); color: #f8f9ff; }
-.orbit-app > div:first-child { font-family: Inter, "Segoe UI", Arial, sans-serif !important; }
+.orbit-app > div:first-child { font-family: var(--font-body) !important; }
 .orbit-app .scenery { z-index: 0; }
 .orbit-app .backdrop { background: #263949; }
 .orbit-app .backdrop img { width: 100%; height: 100%; object-fit: cover; object-position: center 40%; }
@@ -193,8 +193,8 @@
   --set-kbd: #eaf2ff; --set-kbd-ink: #101e33;
   --set-danger: #ef9ba9; --set-danger-deep: #c35e77; --set-danger-rgb: 239, 155, 169;
   --set-info: #90bfff; --set-ok: #90d5b8; --set-warn: #eed18e; --set-alert: #ef9ba9;
-  --font-body: Inter, 'Segoe UI', Arial, sans-serif; --font-display: var(--font-body);
-  --font-mono: ui-monospace, monospace; --r-chip: 999px; --gc-paper-pattern: none;
+  --font-body: 'Red Hat Text', 'Noto Sans', sans-serif; --font-display: 'Red Hat Display', 'Noto Sans', sans-serif;
+  --font-mono: ui-monospace, 'DejaVu Sans Mono', monospace; --r-chip: 999px; --gc-paper-pattern: none;
 }
 .orbit-app .orbit-power { background: var(--gc-overlay-scrim);
   backdrop-filter: var(--gc-overlay-blur); -webkit-backdrop-filter: var(--gc-overlay-blur); }

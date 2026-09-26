@@ -11,6 +11,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import htm from 'htm'
 import { PadKey, PadHints } from './padKey.js'
+import { Glyph } from '../components/ui'
 
 import { api } from '../api'
 import { fetchThemeIndex } from './themeLoader'
@@ -96,6 +97,9 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
       /** Controller button prompts (PlayStation glyphs): `<${PadKey} k="✕" />`,
        *  `<${PadHints} text="↑↓ Navigate · ✕ Select" />`. Absent on older hosts. */
       PadKey, PadHints,
+      /** Line icons shared with the host: `<${Glyph} name="bolt" size=${14} />`.
+       *  Absent on older hosts, so read it as `sdk.ui.Glyph || (() => null)`. */
+      Glyph,
     },
 
     api,
@@ -116,7 +120,7 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
       time: fmtTime,
       /** ISO date → the "last played" string. */
       date: fmtDate,
-      /** `#7c3aed` → `124, 58, 237`, for rgba() in your own styles. */
+      /** `#b8501b` → `184, 80, 27`, for rgba() in your own styles. */
       hexToRgb,
       /** A system's accent: its pack's colour, the catalogue's, then the default. */
       systemColor,

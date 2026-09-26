@@ -23,12 +23,12 @@
     {
       "threshold": 5,
       "color": "#ff8080",
-      "message": "Battery critical \u2014 charge it now."
+      "message": "Battery critical — charge it now."
     },
     {
       "threshold": 10,
       "color": "#ffad66",
-      "message": "Battery very low \u2014 connect a charger."
+      "message": "Battery very low — connect a charger."
     },
     {
       "threshold": 15,
@@ -50,5 +50,10 @@
     "battery-15": "#805400",
     "battery-10": "#974109",
     "battery-5": "#a52839"
+  },
+  "icons": {
+    "gamepad": "M8 11h.01M6.5 9.5v3M15.5 10.5h.01M17.5 12.5h.01M7 17h10a4 4 0 0 0 4-4 4 4 0 0 0-4-4H7a4 4 0 0 0-4 4 4 4 0 0 0 4 4z",
+    "warning": "M12 4 2.8 19.5h18.4zM12 10v4.5M12 17.2h.01",
+    "info": "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5.5M12 7.8h.01"
   }
 }

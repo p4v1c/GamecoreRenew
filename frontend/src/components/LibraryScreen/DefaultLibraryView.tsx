@@ -188,8 +188,8 @@ export default function DefaultLibraryView({
 
                   {/* Info */}
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: 3, marginBottom: 8 }}>
-                      {(system?.label || system?.platform || systemId).toUpperCase()}
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>
+                      {system?.label || system?.platform || systemId}
                     </div>
                     <h2 style={{ fontSize: 30, fontWeight: 900, letterSpacing: -0.5, lineHeight: 1.1, marginBottom: 16 }}>
                       {formatGameName(detailGame.display_name)}
@@ -201,8 +201,8 @@ export default function DefaultLibraryView({
                         { l: 'Last Played', v: fmtDate(playtime[detailGame.filename]?.last_played || null) },
                       ].map(s => (
                         <div key={s.l}>
-                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: 2, marginBottom: 4 }}>{s.l.toUpperCase()}</div>
-                          <div style={{ fontSize: 17, fontWeight: 700, color: '#c4b5fd' }}>{s.v}</div>
+                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginBottom: 4 }}>{s.l.toUpperCase()}</div>
+                          <div style={{ fontSize: 17, fontWeight: 700, color: '#f8cfa9' }}>{s.v}</div>
                         </div>
                       ))}
                     </div>
@@ -220,7 +220,7 @@ export default function DefaultLibraryView({
                         opacity: launching ? 0.7 : 1,
                       }}
                     >
-                      {launching ? '⏳ Launching...' : '▶ Play'}
+                      {launching ? 'Launching…' : 'Play'}
                     </button>
                   </div>
                 </div>

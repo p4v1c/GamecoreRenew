@@ -33,7 +33,7 @@ import type { SystemEntry } from '../api'
  * survives exactly until the next person runs the generator.
  */
 export function systemColor(system: Pick<SystemEntry, 'id' | 'color'>): string {
-  return system.color || SYSTEM_COLORS[String(system.id).toLowerCase()] || '#7c3aed'
+  return system.color || SYSTEM_COLORS[String(system.id).toLowerCase()] || '#5b6470'
 }
 
 export { formatGameName, hexToRgb, fmtTime, fmtDate, SYSTEM_COLORS }

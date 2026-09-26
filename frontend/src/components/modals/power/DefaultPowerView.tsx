@@ -13,7 +13,7 @@ export default function DefaultPowerView({
 }: PowerViewProps) {
   return (
     <Overlay onClose={onCancel} width={420}>
-      <OverlayLabel text="SYSTEM" />
+      <OverlayLabel text="System" />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, pointerEvents: pendingId ? 'none' : 'auto' }}>
         {options.map((o, idx) => {
           const isPending = pendingId === o.id
@@ -51,7 +51,7 @@ export default function DefaultPowerView({
                   {isPending ? o.busy : awaiting ? `Confirm ${o.label}?` : o.label}
                 </div>
                 <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.35)', marginTop: 3, lineHeight: 1.35 }}>
-                  {awaiting ? 'Press again to go ahead — ○ cancels' : o.desc}
+                  {awaiting ? 'Press again to confirm. ○ cancels.' : o.desc}
                 </div>
               </div>
             </div>
@@ -64,7 +64,7 @@ export default function DefaultPowerView({
           opacity: pendingId ? 0.25 : 1,
         }}>Cancel</div>
       </div>
-      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
         {pendingId ? ' ' : <PadHints text="↑↓ Navigate · ✕ Select · ○ Cancel" />}
       </div>
     </Overlay>
