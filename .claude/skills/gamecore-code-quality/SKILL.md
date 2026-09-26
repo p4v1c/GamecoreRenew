@@ -13,7 +13,7 @@ Pair with `gamecore-naming`, `gamecore-file-size`, `gamecore-comments`.
 | Layer | Owns | Must not |
 |---|---|---|
 | `backend/routers/` | parse, validate, HTTP status | hold logic — move it to a service |
-| `backend/services/` | decide and act | import FastAPI |
+| `backend/services/` | decide and act; refuse with `ServiceError(status, detail)` (`services/errors.py`) | import FastAPI |
 | `backend/services/paths.py` | both roots (`GAMECORE_ROOT`, `GAMECORE_DATA`) | — nobody else joins a writable dir onto a root; no `/opt/GameCore` literal |
 | `frontend/src/App.tsx` (kernel) | input bus, WS, error boundaries | be touched by themes |
 | `HomeScreen`/`LibraryScreen` `index.tsx` | every decision (focus, paging, launch) | render markup a theme could need to change |

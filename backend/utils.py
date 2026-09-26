@@ -15,7 +15,7 @@ def rom_in_root(system: dict, filename: str) -> Path | None:
     `filename` arrives from a `{filename:path}` route parameter, and the :path
     converter happily accepts slashes and '..' — so it has to be confined
     before anything opens it, the same way launch_game confines rom_path
-    (routers/games.py). docs/architecture/09-gotchas.md states the invariant.
+    (services/launch.py). docs/architecture/09-gotchas.md states the invariant.
 
     It lives here because three call sites need it — covers, metadata and
     media — and the third one is what turned two near-identical copies into a

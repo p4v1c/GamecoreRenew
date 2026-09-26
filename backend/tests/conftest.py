@@ -42,7 +42,7 @@ os.environ["GAMECORE_DATA"] = str(_ROOT)
 # And the runtime directory, which is how the box tells the backend about its
 # graphical session.
 #
-# `process_manager.session_env_file()` reads $XDG_RUNTIME_DIR/gamecore/session.env
+# `session.session_env_file()` reads $XDG_RUNTIME_DIR/gamecore/session.env
 # — written by the console session at login — and `_display_env()` trusts it
 # ahead of probing for a display. Left inherited, the suite reads the session
 # file of the machine running it: on a developer's desktop there is none and

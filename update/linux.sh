@@ -405,7 +405,7 @@ fi
 # box on its own. This one matters — without the wait, the backend starts
 # before X and every game launch fails until the service is restarted by hand.
 #
-# The code-side fix (process_manager retries a failed probe instead of latching
+# The code-side fix (services/session.py retries a failed probe instead of latching
 # it) ships with this update and is what actually repairs a running box; this
 # only removes the first failed launch after a cold boot.
 #

@@ -17,9 +17,9 @@ State: `_proc`, `_launching`, `_game_key`, `_system_id`, `_start_time`,
 
 | Member | Role |
 |---|---|
-| `_display_env()` | rebuilds a GUI environment for a systemd child — see [1](01-runtime-topology.md#environment-reconstruction). **Synchronous**; memoised |
-| `display_env()` | the `async` wrapper every event-loop caller must use |
-| `invalidate_display_cache()` | forget the probed display — called after a failed launch |
+| `session._display_env()` | (in `services/session.py`) rebuilds a GUI environment for a systemd child — see [1](01-runtime-topology.md#environment-reconstruction). **Synchronous**; memoised |
+| `session.display_env()` | the `async` wrapper every event-loop caller must use |
+| `session.invalidate_display_cache()` | forget the probed display — called by `services/launch.py` after a failed launch |
 | `kill_process_group(proc)` | module-level: SIGKILL a process **and its children**. Shared with `routers/update.py` |
 | `is_running` | `_launching or (_proc alive) or (_orphan_pgid alive)` |
 | `current_game` | `{game_key, system_id}` or `None` |

@@ -241,7 +241,7 @@ next boot.
 A process started by systemd has no session environment. Two places rebuild it:
 
 - `electron/start-ui.sh` — for the UI itself.
-- `backend/services/process_manager.py:_display_env()` — for every emulator:
+- `backend/services/session.py:_display_env()` — for every emulator:
   `DISPLAY`, `XDG_RUNTIME_DIR`, `DBUS_SESSION_BUS_ADDRESS`, `XAUTHORITY` and
   `SDL_GAMECONTROLLERCONFIG_FILE` → `backend/data/gamecontrollerdb.txt`.
   It also **removes `WAYLAND_DISPLAY`**, or Qt emulators try Wayland and fail

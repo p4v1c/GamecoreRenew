@@ -138,7 +138,7 @@ class Session:
         """An application tile rather than a game.
 
         A tile carrying no ROM launches with `game_key == system_id` — see
-        routers/games.py — and that identity is the only thing that tells the
+        services/launch.py — and that identity is the only thing that tells the
         two apart once the session exists. Themes need it to say "Close app"
         rather than "Close game", so it is computed here and not in each of
         them.

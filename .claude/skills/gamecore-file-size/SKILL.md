@@ -39,21 +39,28 @@ In `--diff` mode a FAIL on a file that was already over budget means: check
 
 ## How to split
 
-- **Python service** → package: `services/<name>/__init__.py` re-exports the
-  public API, one file per concern (see `services/configgen/`,
-  `services/gamemedia/`). Callers do not change.
-- **Router** → move logic to a service first; then split by resource
+- **Python service** → a sibling module per concern next to it
+  (`services/launch.py`, `services/gamepad_devices.py`,
+  `configgen/sdl_probe.py`). Callers and tests import the owning module; do
+  not keep re-exports only tests use (a second binding silently defeats a
+  monkeypatch). A package (`services/<name>/`) only when the concern itself
+  has several files.
+- **Router** → move logic to a service raising `ServiceError(status, detail)`
+  (`services/errors.py`; main.py maps it to HTTP), then split by resource
   (`routers/settings/` is the model).
 - **React screen** → decisions stay in `index.tsx`, markup in
   `Default*View.tsx`, pure helpers in `lib/`, state logic in a `use*` hook.
 - **`frontend/src/api/index.ts`** → one file per group (`api/games.ts`,
   `api/settings.ts`…) re-exported from `api/index.ts`.
-- **`electron/main.js`** → one module per window/IPC domain, `main.js` wires.
-- **Theme CSS** → one stylesheet per view (`views/library.css`…) imported by the theme.
-- **Pack daemon** (`catalog/*/files/*.py`) → split parsing/offsets from the
-  event loop; keep stdlib-only.
-- Keep the old import path working (re-export) so the split is a no-op for
-  callers, and snapshot behaviour first (`backend/tests/characterisation.py`).
+- **`electron/main.js`** → one module per window/IPC domain; update the VM
+  bench (`electron/test/`) that slices main.js by markers in the same change.
+- **Theme CSS / settings.css** → `css/<concern>.css`, `@import`ed in cascade
+  order from `theme.css`; tests read the whole sheet with `read_css`
+  (`backend/tests/css_bundle.py`). Bump the theme version.
+- **Pack daemon** (`catalog/*/files/*.py`) → sibling modules listed in
+  `pack.json` `files`; stdlib only; a test runs the installed copy's `--help`.
+- Snapshot behaviour first (`backend/tests/characterisation.py`) or compare
+  the AST of every moved function (string contents masked) before and after.
 
 ## Never
 

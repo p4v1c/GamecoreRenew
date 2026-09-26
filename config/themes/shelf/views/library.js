@@ -379,7 +379,7 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
                  through the perspective rather than across a picture of it),
                  and the solid inside turns on its own axis. Collapse any two of
                  them and the box stops being a box mid-turn.
-                 NO BACKTICKS IN HERE — see the note at the top of theme.css. -->
+                 NO BACKTICKS IN HERE — see scripts/check-theme.mjs. -->
             ${leaving ? html`
               <div class="cz-hold" key=${`out:${leaving.game.filename}`} data-phase="out"
                    style=${{ '--dir': String(leaving.dir),

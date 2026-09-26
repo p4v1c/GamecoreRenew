@@ -8,8 +8,12 @@ LIMIT=800
 EXEMPT='(^backend/services/gamemedia/(gamemedia|gamescrape)\.py$|^install/generated/|catalog_data\.py$|/tests/fixtures/|/seed/|gamecontrollerdb\.txt$|package-lock\.json$|^LICENSE$|^CHANGELOG\.md$|^install/(arch|uninstall)\.sh$)'
 CODE='\.(py|ts|tsx|js|mjs|sh|css)$|^install/bin/|^update/'
 
+# Paths below are repo-relative: run from the root whatever the caller's cwd.
+cd "$(git rev-parse --show-toplevel)"
+
 if [[ "${1:-}" == "--diff" ]]; then
-  files=$(git diff --name-only --diff-filter=AM "${2:-origin/main}"...HEAD)
+  # R: a file moved AND grown must not escape the budget.
+  files=$(git diff --name-only --diff-filter=AMR "${2:-origin/main}"...HEAD)
 else
   files=$(git ls-files)
 fi

@@ -1404,7 +1404,7 @@ ok "Bluetooth service enabled."
 msg "Sudoers — power management"
 cat > /etc/sudoers.d/gamecore-power <<EOF
 $USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl reboot
-# Gamepad hotplug (backend/routers/games.py) — the only udevadm this needs.
+# Gamepad hotplug (backend/services/launch.py) — the only udevadm this needs.
 # Enumerated like the governor rule below: unrestricted, it also granted
 # `udevadm control`, which reloads and can replace the device rules.
 $USER_NAME ALL=(root) NOPASSWD: /usr/bin/udevadm trigger

@@ -173,8 +173,10 @@ def generate(emu_id: str, ports: int, player_index: int, pad, opts: dict):
             f"{emu_id}: SDL2 probe unavailable for {pad.vendor}:{pad.product}"
         )
 
-    # Slot N is SDL device N-1 because controller_registry.compact() closes
-    # gaps before every launch; no private SDL enumeration here.
+    # Assumes slot N is SDL device N-1: controller_registry.compact() closes
+    # gaps on the monitor's scan when no game runs, so this holds unless a pad
+    # left less than one scan (3 s) before the launch. No private SDL
+    # enumeration here.
     device = player_index - 1
 
     if snapshots.exists(opts["snap_dir"], emu_id, pad.vendor, pad.product):
