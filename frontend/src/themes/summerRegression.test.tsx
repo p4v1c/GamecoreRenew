@@ -23,7 +23,7 @@
 import { render, act, cleanup, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createElement } from 'react'
-import { buildSdk } from './themeSdk'
+import { buildSdk } from '../lib/themeSdk'
 import { useStore } from '../store'
 
 const THEME = '../../../config/themes/summer'

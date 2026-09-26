@@ -14,7 +14,7 @@
 import { render, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React, { createElement } from 'react'
-import { buildSdk } from './themeSdk'
+import { buildSdk } from '../lib/themeSdk'
 import { useStore } from '../store'
 import LibraryScreen from '../components/LibraryScreen'
 

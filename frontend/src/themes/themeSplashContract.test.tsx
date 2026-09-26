@@ -14,7 +14,7 @@
 import { render, act, cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import React, { createElement } from 'react'
-import { buildSdk } from './themeSdk'
+import { buildSdk } from '../lib/themeSdk'
 
 const THEMES = ['shelf', 'summer', 'orbit'] as const
 

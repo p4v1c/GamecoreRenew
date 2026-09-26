@@ -20,7 +20,7 @@
 import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createElement } from 'react'
-import { buildSdk } from './themeSdk'
+import { buildSdk } from '../lib/themeSdk'
 import { useStore } from '../store'
 
 const SHARED = '../settings'

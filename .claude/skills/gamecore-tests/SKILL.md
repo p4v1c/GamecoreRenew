@@ -12,7 +12,7 @@ description: Testing rules for GameCore (GamecoreRenew) — pytest backend and p
 | `backend/**` | `backend/tests/test_<module>.py` |
 | `catalog/<id>/**` | `catalog/<id>/tests/test_*.py` (travels with the pack) |
 | `frontend/src/**` | `<file>.test.ts(x)` next to the file |
-| `config/themes/<name>/**` | `frontend/src/lib/<name>*.test.tsx` (current layout) |
+| `config/themes/<name>/**` | `frontend/src/themes/<name>*.test.tsx` |
 | `electron/**` | `electron` bench (`npm test`) |
 
 ## Rules

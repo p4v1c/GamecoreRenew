@@ -23,7 +23,7 @@
  * no declarations.
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { buildSdk } from './themeSdk'
+import { buildSdk } from '../lib/themeSdk'
 
 const THEME = '../../../config/themes/shelf'
 // The screen itself is the HOST's now — three surfaces draw it (Shelf, Summer,

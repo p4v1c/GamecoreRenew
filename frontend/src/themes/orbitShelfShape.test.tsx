@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createElement } from 'react'
-import { buildSdk } from './themeSdk'
+import { buildSdk } from '../lib/themeSdk'
 import { useStore } from '../store'
 
 /**

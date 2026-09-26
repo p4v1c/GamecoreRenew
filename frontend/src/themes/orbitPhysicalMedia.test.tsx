@@ -20,7 +20,7 @@ import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import React, { createElement, useEffect, useMemo, useRef, useState } from 'react'
 import htm from 'htm'
-import { buildSdk } from './themeSdk'
+import { buildSdk } from '../lib/themeSdk'
 import { useStore } from '../store'
 
 const THEME = '../../../config/themes/orbit'

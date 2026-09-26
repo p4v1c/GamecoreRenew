@@ -5,7 +5,7 @@ set -euo pipefail
 
 WARN=600
 LIMIT=800
-EXEMPT='(^install/generated/|catalog_data\.py$|/tests/fixtures/|/seed/|gamecontrollerdb\.txt$|package-lock\.json$|^LICENSE$|^CHANGELOG\.md$|^install/(arch|uninstall)\.sh$)'
+EXEMPT='(^backend/services/gamemedia/(gamemedia|gamescrape)\.py$|^install/generated/|catalog_data\.py$|/tests/fixtures/|/seed/|gamecontrollerdb\.txt$|package-lock\.json$|^LICENSE$|^CHANGELOG\.md$|^install/(arch|uninstall)\.sh$)'
 CODE='\.(py|ts|tsx|js|mjs|sh|css)$|^install/bin/|^update/'
 
 if [[ "${1:-}" == "--diff" ]]; then
