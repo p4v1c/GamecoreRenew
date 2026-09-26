@@ -23,7 +23,7 @@ export default function DefaultHomeView({
       {/* Stats */}
       <div style={{ marginBottom: 32, textAlign: 'center' }}>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', marginBottom: 10 }}>
-          YOUR LIBRARY
+          Your library
         </div>
         <div style={{ display: 'flex', gap: 36, justifyContent: 'center' }}>
           {[

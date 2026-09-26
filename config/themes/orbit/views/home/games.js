@@ -107,7 +107,7 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
       ${item ? html`<${Hero} item=${item} meta=${meta} tint=${tint}
                              counts=${counts} totals=${totals} onOpen=${open} onDetails=${() => setShowDetails(true)} />`
         : html`<div className="hero"><div className="hero-copy">
-            <div className="eyebrow"><span className="platform">GAMES</span><span>Nothing played yet</span></div>
+            <div className="eyebrow"><span className="platform">Games</span><span>Nothing played yet</span></div>
             <h1>Your collection starts here.</h1>
             <p>Add a console from Settings → Catalog, then open it to see your games.</p>
           </div></div>`}
@@ -120,7 +120,7 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
     if (item.kind === 'collection') {
       return html`<div className="hero" style=${{'--home-service-accent': tint}}>
         <div className="hero-copy">
-          <div className="eyebrow"><span className="platform">GAMES</span><span>Your collection</span>
+          <div className="eyebrow"><span className="platform">Games</span><span>Your collection</span>
             <span className="dot" /><span>${totals.games} games</span></div>
           <h1 id="hero-title" className="home-app-title">Your library.</h1>
           <p id="hero-description">Find all your games, consoles, and favourites.</p>
@@ -136,7 +136,7 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
       const held = sessions.heldMatch(background, item.system.id, item.system.id)
       return html`<div className="hero" style=${{'--home-service-accent': s.color}}>
         <div className="hero-copy">
-          <div className="eyebrow"><span className="platform">APP</span><span>${s.category}</span>
+          <div className="eyebrow"><span className="platform">App</span><span>${s.category}</span>
             <span className="dot" /><span>${s.edition}</span></div>
           <h1 id="hero-title" className="home-app-title">${systemName(item.system)}</h1>
           <p id="hero-description">${s.description}</p>

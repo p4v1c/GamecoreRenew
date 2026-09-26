@@ -90,7 +90,7 @@
 }
 .sm-brand {
   display: flex; align-items: center; gap: 12px;
-  font-weight: 700; letter-spacing: 0.14em; font-size: 18px;
+  font-weight: 700; letter-spacing: 0.01em; font-size: 18px;
 }
 .sm-diamond {
   width: 26px; height: 26px; border-radius: 8px; rotate: 45deg;

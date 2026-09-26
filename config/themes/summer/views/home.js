@@ -53,9 +53,9 @@ export const createHomeView = (sdk) => {
     <div class="sm-home">
       <div class="sm-stats">
         <div><span>Systems</span><b>${totals.systems}</b></div>
-        <div><span>GAMES</span><b>${totals.games}</b></div>
+        <div><span>Games</span><b>${totals.games}</b></div>
         <div><span>Played</span><b>${totals.hours}h</b></div>
-        <div><span>LAST</span><b class="sm-stat-title">${last}</b></div>
+        <div><span>Last played</span><b class="sm-stat-title">${last}</b></div>
       </div>
 
       <!-- Every page is rendered side by side on one rail, and the rail slides.

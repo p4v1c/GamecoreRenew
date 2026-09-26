@@ -28,7 +28,7 @@ export function createSplash(sdk) {
         <svg className="orbit-boot-mark" viewBox="0 0 36 36" aria-hidden="true">
           <path d="M19 3 5 11v15l13 8 13-8V15H18v7h6v1l-6 4-6-4V15l10-6z" fill="currentColor" />
         </svg>
-        <div className="orbit-splash-word">GameCore<small>ORBIT</small></div>
+        <div className="orbit-splash-word">GameCore<small>Orbit</small></div>
         <span className="orbit-boot-line" aria-hidden="true" />
         <p>Your next escape.</p>
       </div>
