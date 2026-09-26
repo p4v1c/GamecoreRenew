@@ -1,0 +1,14 @@
+/* ── Display: the mode on screen ────────────────────────────────────────── */
+.gcs-disp-now { display: flex; align-items: center; gap: 26px; padding: 12px 4px 26px; flex-wrap: wrap; }
+
+.gcs-disp-monitor {
+  flex: 0 0 auto; width: 150px; height: 88px; display: grid; place-items: center;
+  border: 2px solid var(--set-ink-3); border-radius: 6px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; color: var(--set-ink-2);
+}
+
+.gcs-disp-now-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+.gcs-disp-now-text b { font-family: var(--font-display); font-size: 26px; font-weight: 500; }
+
+.gcs-disp-now-text i { font-style: normal; font-size: 15px; color: var(--set-ink-2); }

@@ -24,6 +24,7 @@ import re
 from pathlib import Path
 
 import pytest
+from backend.tests.css_bundle import read_css  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 THEMES = ROOT / "config" / "themes"
@@ -83,7 +84,7 @@ def test_the_host_still_lays_the_screen_out_in_three():
     """Everything below is measured against this. If the host's own layout
     changes, these tests are comparing against a number that no longer means
     anything — so it is asserted rather than assumed."""
-    found = BODY_RULE.findall(HOST_CSS.read_text())
+    found = BODY_RULE.findall(read_css(HOST_CSS))
     assert found, "no .gcs-set-body grid-template-columns in the host stylesheet"
     assert _tracks(found[0]) == 3, (
         f"the host now lays the settings screen out in {_tracks(found[0])} "
@@ -98,7 +99,7 @@ def test_a_theme_that_narrows_the_grid_keeps_the_detail_column(theme_dir: Path):
     it a two-track override reads as "the details go somewhere, I have not said
     where", and where they go is under the rail, clipped.
     """
-    sheet = (theme_dir / "theme.css").read_text()
+    sheet = read_css(theme_dir / "theme.css")
     narrow = [decl for decl in BODY_RULE.findall(sheet) if _tracks(decl) < 3]
     if not narrow:
         return

@@ -1,0 +1,27 @@
+/* ===========================================================================
+   THE TRANSITION
+
+   The host toggles the two screens with `display`, so there is no outgoing
+   frame to animate — a hidden element cannot be tweened. But an element going
+   from `display: none` to visible restarts its animations, which is exactly
+   the hook needed: the arriving screen plays itself in, and choosing a console
+   reads as walking up to its shelf.
+
+   Applied to the *contents*, never to `.cz-lib` itself — an animated
+   `transform` on that element would become the containing block for the boot
+   overlay's `position: fixed`, and the iris would close on the wrong box.
+   =========================================================================== */
+.cz-lib > .cz-head   { animation: cz-in-down 420ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.cz-lib > .cz-body   { animation: cz-in-up 520ms cubic-bezier(0.22, 0.61, 0.36, 1) 60ms both; }
+.cz-lib > .cz-foot   { animation: cz-in-down 420ms ease 140ms both; }
+.cz-lib .cz-shelfline { animation: cz-draw 560ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.cz-lib .cz-card     { animation: cz-in-right 480ms cubic-bezier(0.22, 0.61, 0.36, 1) 100ms both; }
+
+.cz-home > .cz-body  { animation: cz-in-up 460ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.cz-home > .cz-foot  { animation: cz-in-down 400ms ease 120ms both; }
+
+@keyframes cz-in-up    { from { opacity: 0; transform: translateY(26px) scale(0.985); } }
+@keyframes cz-in-down  { from { opacity: 0; transform: translateY(-10px); } }
+@keyframes cz-in-right { from { opacity: 0; transform: translateX(26px); } }
+@keyframes cz-draw     { from { transform: scaleX(0.2); opacity: 0; } }
+

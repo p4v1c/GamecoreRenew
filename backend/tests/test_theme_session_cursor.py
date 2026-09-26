@@ -26,6 +26,7 @@ import re
 from pathlib import Path
 
 import pytest
+from backend.tests.css_bundle import read_css  # noqa: E402
 
 THEMES = Path(__file__).resolve().parents[2] / "config" / "themes"
 
@@ -192,7 +193,7 @@ def test_the_stylesheet_draws_that_mark(theme_dir: Path, view: Path):
     `[data-active='true']` somewhere else in the sheet does not count: Orbit
     had five of those, all for library tiles, while its menu drew nothing.
     """
-    sheet = (theme_dir / "theme.css").read_text()
+    sheet = read_css(theme_dir / "theme.css")
     classes = _option_classes(view)
     drawn = [c for c in classes
              if re.search(rf"\.{re.escape(c)}\s*\[data-active", sheet)]
@@ -209,7 +210,7 @@ def test_the_stylesheet_draws_that_mark(theme_dir: Path, view: Path):
 def test_the_action_that_cannot_be_undone_is_drawn_apart(theme_dir: Path, view: Path):
     """Closing a session is the one action here with no way back. When the pad
     is on it, it must not look like another row of the same colour."""
-    sheet = (theme_dir / "theme.css").read_text()
+    sheet = read_css(theme_dir / "theme.css")
     danger = [c for c in _option_classes(view) if "danger" in c]
     if not danger:
         pytest.skip(f"{theme_dir.name} does not mark a dangerous action by class")

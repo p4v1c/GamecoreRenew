@@ -1,0 +1,73 @@
+/* ── controller screen ───────────────────────────────────────────────────── */
+.sm-gamepad { width: 1040px; }
+.sm-gamepad-head {
+  display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap;
+}
+.sm-gamepad-eyebrow { margin-bottom: 0; }
+.sm-gamepad-name {
+  flex: 1; min-width: 0; font-size: 18px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sm-gamepad-player { flex-shrink: 0; }
+
+/* Automatic controller setup is off. Amber rather than red: nothing is broken,
+   somebody turned it off — but it has to outweigh a diagram that lights up
+   perfectly while no emulator answers the pad. */
+.sm-gamepad-notice {
+  margin: 0 0 18px; padding: 9px 12px; border-radius: 10px;
+  background: rgba(251, 191, 36, 0.10);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fbbf24; font-size: 12px; line-height: 1.45;
+}
+
+.sm-gamepad-body { display: flex; gap: 32px; align-items: flex-start; margin-bottom: 22px; }
+.sm-gamepad-art { position: relative; flex: 1; display: flex; justify-content: center; }
+/* No controller: the diagram fades out and says so, per the brief's empty state. */
+.sm-gamepad-art[data-off="1"] > *:first-child { opacity: 0.28; }
+.sm-gamepad-empty {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px; text-align: center;
+}
+.sm-gamepad-empty b { font-size: 26px; font-weight: 600; }
+.sm-gamepad-empty i { font-style: normal; font-size: 16px; color: var(--foam-200); }
+
+.sm-gamepad-readout { width: 240px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
+.sm-gamepad-cap {
+  font-size: 14px; font-weight: 600; letter-spacing: 0.14em;
+  color: var(--foam-400); margin-top: 10px;
+}
+.sm-gamepad-val { font-size: 20px; font-weight: 600; }
+.sm-gamepad-na { color: var(--foam-400); }
+.sm-gamepad-bat { display: flex; align-items: center; gap: 10px; }
+.sm-gamepad-pct { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 500; }
+.sm-gamepad-charging { font-size: 15px; font-weight: 600; color: var(--state-ok); }
+
+.sm-gamepad-maps {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px 28px; margin-bottom: 16px;
+}
+.sm-gamepad-map { display: flex; align-items: center; gap: 12px; }
+.sm-gamepad-map kbd {
+  min-width: 62px; text-align: center; padding: 5px 10px; border-radius: var(--r-sm, 8px);
+  background: var(--glass-500); border: 1px solid var(--glass-hairline);
+  font-family: inherit; font-size: 14px; font-weight: 700; color: var(--accent-muskmelon);
+}
+.sm-gamepad-map span { font-size: 15px; color: var(--foam-200); }
+
+/* The way out for a pad none of the mappings above applies to. A controller
+   SDL cannot name lights nothing up in the diagram and matches none of the
+   bindings listed, so this screen is exactly where its owner ends up — and
+   until now this theme told them nothing they could act on. */
+.sm-gamepad-remap {
+  display: block; width: 100%; margin-bottom: 14px; padding: 13px 18px;
+  border: 1px solid var(--glass-hairline); border-radius: var(--r-sm, 8px);
+  background: var(--glass-500); color: inherit;
+  font-family: inherit; text-align: left; cursor: pointer;
+}
+.sm-gamepad-remap:hover { background: var(--glass-300, var(--glass-500)); }
+.sm-gamepad-remap b { display: block; font-size: 15px; font-weight: 700; }
+.sm-gamepad-remap i {
+  display: block; margin-top: 3px; font-style: normal; font-size: 13px;
+  color: var(--foam-200);
+}
+
+

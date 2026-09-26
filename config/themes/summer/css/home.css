@@ -1,0 +1,193 @@
+/* ── home ────────────────────────────────────────────────────────────────── */
+/* Geometry is literal from DESIGN-BRIEF.md §3.3: 48px safe margin (--s7),
+   24px gutter (--s5), tiles 396x236. Nothing but background and decor is
+   allowed to cross the margin. */
+.sm-home {
+  flex: 1; display: flex; flex-direction: column; gap: 24px;
+  padding: 8px 48px 24px; overflow: hidden;
+  font-family: 'Figtree', 'Outfit', sans-serif; color: var(--foam-000);
+}
+
+/* Stats strip: one row, height 72, four equal cells. The brief draws 2px rules
+   between them; they read as clutter on the ocean, so the cells are spaced
+   instead — the grouping still holds without the lines. */
+.sm-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  height: 72px; flex-shrink: 0; gap: 2px;
+  border-radius: var(--r-panel); background: var(--glass-500);
+  /* On top of the column's 24px gap. The flex gap is uniform, and the grid
+     needs to breathe under the strip more than the page dots do below it. */
+  margin-bottom: 24px;
+}
+.sm-stats > div {
+  display: flex; flex-direction: column; justify-content: center; gap: 3px;
+  padding: 0 24px; min-width: 0;
+}
+.sm-stats span { font-size: 11px; letter-spacing: 0.2em; color: var(--foam-400); }
+.sm-stats b {
+  font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 600;
+}
+/* The fourth cell holds a title, not a number: display face, one line. */
+.sm-stat-title {
+  font-family: 'Outfit', sans-serif !important; font-size: 22px !important;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* The sliding rail.
+   Two things have to be true at once: the next page must never peek past the
+   edge, and the focus ring — which sits 7px outside a tile that also scales —
+   must not be shaved off. Widening the clip box does the second at the cost of
+   the first, so instead the pages are held --s7 apart on the rail and the clip
+   is allowed exactly half that margin: enough for the ring, never enough to
+   reach the neighbour.
+   Vertically nothing is clipped at all (clip, not hidden, so the axes stay
+   independent) — that is what was cutting the ring off the top row. */
+.sm-grid-view {
+  flex: 1; min-height: 0;
+  container-type: inline-size;
+  /* The clip box is grown 24px on every side by padding, and pulled back to
+     where it belongs by an equal negative margin — so the content box, and
+     with it 100cqw and the tile geometry, is unchanged. Plain overflow:hidden
+     on purpose: overflow-clip-margin is not reliably applied here, and the
+     ring was being shaved off at the first and last column because of it.
+     The 32px it buys stay under the 48px gap between pages, so the
+     neighbour still never shows. */
+  overflow: hidden;
+  margin: -32px;
+  padding: 32px;
+}
+.sm-grid-track {
+  display: flex; gap: 48px; width: max-content; height: 100%;
+  transform: translateX(calc(var(--sm-page, 0) * -1 * (100cqw + 48px)));
+  transition: transform 380ms cubic-bezier(.22,.61,.36,1);
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sm-grid-track { transition-duration: 1ms; }
+}
+
+.sm-grid {
+  flex: 0 0 100cqw; height: 100%;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  /* Floored, not just capped. minmax(0, …) let the rows collapse on a short
+     screen and the tile clipped its own title mid-line; below the floor the
+     grid overflows instead, which is visible and fixable rather than silent. */
+  grid-template-rows: repeat(2, minmax(196px, 236px)); gap: 24px;
+  align-content: start;
+}
+.sm-tile {
+  position: relative; border-radius: var(--r-panel); padding: 24px;
+  background: rgba(12, 26, 33, 0.78);  /* --glass-700 + 0.12: no per-tile blur */
+  overflow: hidden;
+  display: flex; flex-direction: column; justify-content: space-between;
+  box-shadow: 0 10px 28px rgba(4, 12, 18, 0.34);
+  transition: transform 140ms cubic-bezier(.22,.61,.36,1),
+              box-shadow 140ms, background 140ms, opacity 140ms;
+}
+/* A system with nothing in it reads as an outline, not a full tile. */
+.sm-tile[data-empty="1"] { border: 2px dashed rgba(195, 183, 166, 0.5); }
+
+/* Focus. The brief asks for four simultaneous signals — scale, ring, caret,
+   weight — never colour alone, because colour is what a TV washes out. */
+.sm-grid:has(.sm-tile[data-on="1"]) .sm-tile:not([data-on="1"]) { opacity: 0.82; }
+.sm-tile[data-on="1"] {
+  background: rgba(12, 26, 33, 0.94);
+  box-shadow: 0 0 0 3px var(--accent-mandarin),
+              0 0 0 7px rgba(240, 118, 30, 0.28),
+              0 10px 28px rgba(4, 12, 18, 0.34);
+  transform: scale(1.045);
+  opacity: 1;
+}
+.sm-tile-caret {
+  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+  font-size: 20px; color: var(--accent-mandarin);
+  opacity: 0; transition: opacity 140ms;
+}
+.sm-tile[data-on="1"] .sm-tile-caret { opacity: 1; }
+
+.sm-tile-head { display: flex; align-items: center; gap: 12px; }
+/* System logo 64x64 on a pad of the system's own accent. */
+.sm-sq {
+  width: 64px; height: 64px; border-radius: var(--r-tile); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 22px; color: var(--foam-000);
+  font-family: 'Outfit', sans-serif; letter-spacing: 0.04em;
+  background: color-mix(in srgb, var(--tile-accent) 22%, transparent);
+  padding: 4px;
+}
+.sm-sq img { width: 100%; height: 100%; object-fit: contain; }
+.sm-badge {
+  padding: 4px 10px; border-radius: var(--r-chip); font-size: 14px; font-weight: 600;
+  letter-spacing: 0.06em;
+  background: color-mix(in srgb, var(--tile-accent) 28%, transparent);
+  color: var(--foam-000);
+  transition: background 140ms, color 140ms;
+}
+/* Badge inverts on focus — the second colour-independent signal. */
+.sm-tile[data-on="1"] .sm-badge {
+  background: var(--accent-mandarin); color: var(--ink-900);
+}
+.sm-tile-name {
+  font-family: 'Outfit', sans-serif; font-size: 24px; line-height: 30px;
+  font-weight: 600; max-height: 60px; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  text-wrap: pretty;
+}
+.sm-tile[data-on="1"] .sm-tile-name { font-weight: 700; }
+.sm-tile-meta { font-size: 14px; font-weight: 500; color: var(--foam-200); margin-top: 6px; }
+.sm-tile[data-empty="1"] .sm-tile-meta { color: var(--foam-400); }
+/* Accent bar along the bottom edge, inset --s5, growing to full width on focus. */
+.sm-tile-rule {
+  position: absolute; left: 24px; right: 24px; bottom: 0; height: 3px;
+  background: color-mix(in srgb, var(--tile-accent) 80%, transparent);
+  transition: left 140ms, right 140ms, height 140ms;
+}
+.sm-tile[data-on="1"] .sm-tile-rule { left: 0; right: 0; height: 6px; }
+
+/* Page dots: shape changes, not just colour. */
+.sm-dots { display: flex; gap: 12px; justify-content: center; flex-shrink: 0; }
+.sm-dot {
+  width: 12px; height: 12px; border-radius: var(--r-chip);
+  background: rgba(195, 183, 166, 0.45); transition: width 140ms, background 140ms;
+}
+.sm-dot[data-on="1"] { width: 24px; background: var(--accent-mandarin); }
+
+.sm-hint {
+  text-align: center; font-size: 12px; color: var(--foam-400);
+  letter-spacing: 0.04em; flex-shrink: 0;
+}
+
+/* ── decor: dune foreground ──────────────────────────────────────────────── */
+/* The host already stops rendering decor while a game runs; these also idle
+   out during standby (the component returns null). Transform-only animation,
+   per the motion budget. */
+.sm-decor { position: absolute; inset: 0; overflow: hidden; }
+
+.sm-grass {
+  position: absolute; bottom: 0; height: 190px; overflow: visible;
+  opacity: 0.95;
+}
+.sm-grass-l { left: -30px; width: 620px; }
+.sm-grass-r { right: -30px; width: 590px; transform: scaleX(-1); }
+
+.sm-shell { position: absolute; overflow: visible; opacity: 0.9; }
+
+@keyframes smB1 {
+  0%, 100% { transform: rotate(-3deg) skewX(-2deg); }
+  30% { transform: rotate(6deg) skewX(4deg); }
+  52% { transform: rotate(2deg) skewX(1deg); }
+  74% { transform: rotate(7.5deg) skewX(5deg); }
+}
+@keyframes smB2 {
+  0%, 100% { transform: rotate(-5deg) skewX(-3deg) scaleY(1); }
+  28% { transform: rotate(10deg) skewX(7deg) scaleY(.985); }
+  55% { transform: rotate(3deg) skewX(2deg) scaleY(1); }
+  78% { transform: rotate(11deg) skewX(8deg) scaleY(.99); }
+}
+@keyframes smB3 {
+  0%, 100% { transform: rotate(-8deg) skewX(-5deg) scaleY(1); }
+  26% { transform: rotate(15deg) skewX(11deg) scaleY(.97); }
+  54% { transform: rotate(5deg) skewX(3deg) scaleY(1); }
+  80% { transform: rotate(16deg) skewX(12deg) scaleY(.98); }
+}
+

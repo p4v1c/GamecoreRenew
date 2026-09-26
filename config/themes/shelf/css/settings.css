@@ -1,0 +1,239 @@
+/* ===========================================================================
+   SETTINGS — the reference capture's screen
+   One surface: a numbered rail that never leaves, the category beside it, and
+   a third column of detail where there is detail to show.
+
+   Paper and teal, from the capture, rather than the drawer's near-black and
+   gold. That is the one contestable reading of "the capture is the reference"
+   — and it is one variable. Set --set-acc to var(--gc-accent) and the whole
+   screen wears the shelf's seal gold instead.
+
+   The host pages this screen still falls back to keep the dark --gc-overlay-*
+   treatment above: they write their text in hardcoded white, and a paper panel
+   behind them would hand you white-on-white.
+   =========================================================================== */
+/* THE paper pattern, defined once.
+   The home wall and the settings screen each used to draw their own — a Truchet
+   weave here, the reference capture's rings-and-arcs there — and they are meant
+   to be the same wall seen from two screens. Two definitions is how they came
+   to differ, so there is one, and both read it. */
+:root {
+  --gc-paper-pattern: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><g fill='none' stroke='%2316897a' stroke-width='6'><circle cx='30' cy='30' r='21'/><circle cx='90' cy='90' r='21'/><path d='M60 0a30 30 0 0 1 0 60 30 30 0 0 0 0 60'/><path d='M0 60a30 30 0 0 1 60 0 30 30 0 0 0 60 0'/></g></svg>");
+  --gc-paper-tile: 120px;
+}
+
+/* On :root rather than on .gcs-set: the power menu wears the same paper and is
+   not inside the settings screen. One palette, two surfaces. */
+:root {
+  --set-acc:      #16897a;
+  --set-acc-deep: #0d6459;
+  --set-ink:      #17171a;
+  --set-ink-2:    rgba(23, 23, 26, 0.62);
+  --set-ink-3:    rgba(23, 23, 26, 0.42);
+  --set-line:     rgba(23, 23, 26, 0.09);
+  --set-card:     rgba(255, 255, 255, 0.94);
+}
+
+.gcs-set {
+  background: var(--paper);
+}
+
+/* The capture's wallpaper: a mask over the paper, never a picture, so it costs
+   one paint and no decode. */
+/* rail | main | aside. The aside collapses when a page has no detail column. */
+/* Two different facts, two different marks: `sel` is the category the middle
+   column is showing, `on` is where the d-pad is. They are the same row until
+   the cursor moves into the middle column, and then they are not — which is
+   the only cue that the rail has stopped answering. */
+.gcs-set-row[data-danger="1"][data-on="1"] { background: #b23b3b; }
+
+.gcs-set-num {
+  color: rgba(23, 23, 26, 0.35);
+}
+.gcs-set-rail[data-zone="off"] .gcs-set-row[data-sel="1"] .gcs-set-num { color: rgba(23, 23, 26, 0.5); }
+
+/* The live value. Empty when its endpoint did not answer — deliberately empty,
+   never a dash, which reads as a measurement of "none". */
+.gcs-set-label i {
+  color: rgba(23, 23, 26, 0.45);
+}
+.gcs-set-rail[data-zone="off"] .gcs-set-row[data-sel="1"] .gcs-set-label i { color: rgba(23, 23, 26, 0.45); }
+
+.gcs-set-hints kbd {
+  border-radius: 7px;
+  background: var(--board);
+  color: var(--paper);
+}
+/* ── Wi-Fi ───────────────────────────────────────────────────────────────── */
+.gcs-wifi-row {
+  background: #fff;
+}
+/* The selected row is marked even when the rail has the cursor, so moving back
+   into this column does not lose your place. */
+/* The capture fills the selected row, and that fill is what the detail column
+   is describing — it has to be visible while the cursor is over on the rail,
+   or the right-hand panel is captioning nothing. Focus then reads as the
+   heavier border on top of the same fill. */
+.gcs-wifi-row[data-sel="1"] {
+  background: color-mix(in srgb, var(--set-acc) 12%, #fff);
+}
+.gcs-wifi-row[data-on="1"] {
+  background: color-mix(in srgb, var(--set-acc) 18%, #fff);
+}
+.gcs-wifi-bars i {
+  background: rgba(23, 23, 26, 0.16);
+}
+.gcs-wifi-sec {
+  background: rgba(23, 23, 26, 0.06);
+}
+/* The password dialog. The capture draws a text field; a box driven from a
+   sofa has no keyboard, so the host's on-screen one goes inside it. */
+.gcs-set-dialog {
+  background: #F8F7F4;
+}
+/* The host's on-screen keyboard, in paper.
+   It used to sit on a slab of warm near-black dropped into this dialog — the
+   only way to read white lettering on a light card, and a black rectangle in
+   the middle of a paper screen. The component reads `--gc-kb-*` now, so the
+   keys can be paper too and the slab is gone.
+
+   Set here rather than on :root deliberately: the same keyboard draws the game
+   search inside the host's dark overlay, and paper ink there would be
+   invisible for exactly the reason this block exists. */
+.gcs-set-kb {
+  --gc-kb-field: rgba(23, 23, 26, 0.05);
+  --gc-kb-key: #FFFFFF;
+  --gc-kb-key-edge: rgba(23, 23, 26, 0.14);
+  --gc-kb-ink: var(--set-ink);
+  --gc-kb-field-ink: var(--set-ink);
+  /* Stays white: it is the lettering on the focused key, which wears the accent fill. */ --gc-kb-ink-strong: #FFFFFF;
+  --gc-kb-ink-dim: var(--set-ink-2);
+  --gc-kb-ink-faint: var(--set-ink-3);
+  --gc-accent-soft: var(--set-acc-deep);
+  --gc-accent-bright: var(--set-acc-deep);
+  background: rgba(23, 23, 26, 0.03);
+}
+
+/* power */
+.cz-power-head {
+  margin: 16px 0 6px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.24em;
+  text-transform: uppercase; color: rgba(237, 234, 227, 0.32);
+}
+.cz-power-row { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 12px; cursor: pointer; border: 1px solid transparent; transition: background-color 160ms ease, border-color 160ms ease; }
+.cz-power-row[data-on="1"] { background: color-mix(in srgb, var(--row-accent, #B8892B) 16%, transparent); border-color: color-mix(in srgb, var(--row-accent, #B8892B) 55%, transparent); }
+.cz-power-row[data-confirm="1"] { background: rgba(200, 70, 50, 0.2); border-color: rgba(200, 70, 50, 0.6); }
+.cz-power-row[data-dim="1"] { opacity: 0.35; }
+.cz-power-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: rgba(237, 234, 227, 0.07); color: var(--row-accent, #B8892B); }
+.cz-power-icon[data-pulse="1"] { animation: cz-pulse 1.1s ease-in-out infinite; }
+@keyframes cz-pulse { 50% { opacity: 0.45; } }
+.cz-power-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.cz-power-text b { font-size: 16px; font-weight: 500; }
+.cz-power-text i { font-style: normal; font-size: 12.5px; color: rgba(237, 234, 227, 0.5); }
+.cz-power-cancel {
+  width: 100%; margin-top: 12px; padding: 11px; border-radius: 11px; cursor: pointer;
+  border: 1px solid var(--gc-overlay-border); background: transparent;
+  color: rgba(237, 234, 227, 0.7); font-family: var(--font-body); font-size: 15px;
+}
+.cz-power-cancel:disabled { opacity: 0.3; cursor: default; }
+
+/* ── Settings → Controllers ───────────────────────────────────────────────
+   This page renders inside the HOST's Overlay, which styles itself inline and
+   sets no colour on its children. Every rule here states its own ink; the
+   panel rows elsewhere in this file inherit theirs from .cz-panel, which is
+   not in this tree. */
+.cz-ctl-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 14px; margin-bottom: 6px; border-radius: 12px;
+  background: rgba(237, 234, 227, 0.05);
+  border: 1px solid var(--gc-overlay-border);
+  font-family: var(--font-body); color: #EDEAE3;
+}
+.cz-ctl-slot {
+  flex: 0 0 auto; display: grid; place-items: center;
+  min-width: 44px; height: 30px; padding: 0 8px; border-radius: 8px;
+  background: color-mix(in srgb, var(--gc-accent) 18%, transparent);
+  font-family: var(--font-mono); font-size: 12px; color: var(--gc-accent-bright);
+}
+.cz-ctl-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cz-ctl-text b {
+  font-size: 14px; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cz-ctl-text i { font-style: normal; font-size: 12px; color: rgba(237, 234, 227, 0.5); }
+.cz-ctl-head {
+  margin: 18px 0 8px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.24em;
+  text-transform: uppercase; color: rgba(237, 234, 227, 0.32);
+}
+.cz-ctl-note {
+  font-family: var(--font-body); font-size: 13px; line-height: 1.9;
+  color: rgba(237, 234, 227, 0.6);
+}
+.cz-ctl-note b { color: #EDEAE3; font-weight: 500; }
+
+/* controller */
+.cz-pad-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.cz-pad-name { font-family: var(--font-display); font-size: 20px; font-weight: 700; }
+/* Automatic controller setup is off. Amber rather than red: nothing is broken,
+   somebody turned it off — but it has to outweigh a diagram that lights up
+   perfectly while no emulator answers the pad. */
+.cz-pad-notice {
+  margin: 8px 0 12px; padding: 9px 12px; border-radius: 8px;
+  background: rgba(251, 191, 36, 0.10);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fbbf24; font-size: 12px; line-height: 1.45;
+}
+.cz-pad-art { display: grid; place-items: center; min-height: 200px; position: relative; }
+.cz-pad-art[data-off="1"] { opacity: 0.3; }
+.cz-pad-empty {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px; text-align: center;
+}
+.cz-pad-empty b { font-size: 16px; }
+.cz-pad-empty i { font-style: normal; font-size: 13px; color: rgba(237, 234, 227, 0.55); }
+.cz-pad-maps { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; margin-top: 14px; }
+.cz-pad-map { display: flex; align-items: center; gap: 10px; font-size: 13px; color: rgba(237, 234, 227, 0.7); }
+.cz-pad-map kbd {
+  display: inline-grid; place-items: center; min-width: 26px; height: 22px; padding: 0 7px;
+  border-radius: 6px; background: rgba(237, 234, 227, 0.1);
+  border: 1px solid var(--gc-overlay-border);
+  font-family: var(--font-mono); font-size: 11px; color: var(--gc-accent-bright);
+}
+.cz-pad-readout { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 10px; font-family: var(--font-mono); font-size: 12px; color: rgba(237, 234, 227, 0.6); }
+.cz-pad-readout b { color: var(--gc-accent-bright); font-weight: 500; }
+/* The battery segments are drawn for paper; on the drawer they invert. */
+.cz-pad-readout .cz-bat { display: inline-flex; vertical-align: middle; margin: 0 4px; }
+.cz-pad-readout .cz-bat > i { background: rgba(237, 234, 227, 0.22); }
+.cz-pad-readout .cz-bat > i[data-fill="1"] { background: var(--gc-accent-bright); }
+
+/* The way out for a pad none of the mappings above applies to. A controller
+   SDL cannot name lights nothing up in the diagram and matches none of the
+   bindings listed, so this screen is exactly where its owner ends up — and
+   until now this theme told them nothing they could act on. */
+.cz-pad-remap {
+  display: block; width: 100%; margin-top: 16px; padding: 11px 16px;
+  border: 1px solid var(--gc-overlay-border); border-radius: var(--r-chip);
+  background: rgba(237, 234, 227, 0.06); color: var(--paper);
+  font-family: var(--font-body); text-align: left; cursor: pointer;
+}
+.cz-pad-remap:hover { background: rgba(237, 234, 227, 0.12); }
+.cz-pad-remap b { display: block; font-size: 13px; font-weight: 500; }
+.cz-pad-remap i {
+  display: block; margin-top: 3px; font-style: normal; font-size: 11px;
+  font-family: var(--font-mono); color: rgba(237, 234, 227, 0.5);
+}
+
+/* themes */
+.cz-theme-dot {
+  width: 13px; height: 13px; border-radius: 50%; flex: 0 0 auto;
+  border: 2px solid rgba(237, 234, 227, 0.3);
+}
+.cz-row[data-current="1"] .cz-theme-dot { background: var(--gc-accent); border-color: var(--gc-accent); }
+.cz-row[data-off="1"] { opacity: 0.4; cursor: default; }
+.cz-theme-tag {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em;
+  color: var(--gc-accent-soft);
+}
+.cz-note { padding: 14px; font-size: 14px; color: rgba(237, 234, 227, 0.55); }
+

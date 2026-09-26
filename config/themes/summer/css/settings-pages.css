@@ -1,0 +1,270 @@
+/* ── Wi-Fi ───────────────────────────────────────────────────────────────── */
+.gcs-wifi-state {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--accent-muskmelon);
+}
+.gcs-wifi-row {
+  border-radius: var(--r-tile);
+  background: var(--glass-700);
+  border: 1px solid transparent;
+}
+.gcs-wifi-row[data-sel="1"] { border-color: var(--glass-hairline); }
+.gcs-wifi-row[data-on="1"] {
+  border-color: var(--accent-mandarin); box-shadow: 0 0 0 1px var(--accent-mandarin) inset;
+}
+.gcs-wifi-bars i {
+  background: rgba(255, 253, 247, 0.2);
+}
+.gcs-wifi-bars i[data-fill="1"] { background: var(--state-ok); }
+.gcs-wifi-name b {
+  font-size: 20px;
+}
+.gcs-wifi-name i {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--foam-400);
+}
+.gcs-wifi-sec {
+  background: rgba(255, 253, 247, 0.1);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--foam-200);
+}
+.gcs-wifi-conn {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--state-ok);
+}
+.gcs-wifi-scan, .gcs-load {
+  display: flex; align-items: center; gap: 10px; padding: 8px 2px;
+  font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px;
+  letter-spacing: 0.16em; color: var(--foam-400);
+}
+.gcs-load {
+  font-family: inherit;
+  letter-spacing: 0;
+}
+.gcs-wifi-scan i, .gcs-load > i {
+  width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: var(--state-ok);
+}
+@keyframes gcs-load-pulse { 50% { opacity: 0.25; transform: scale(0.7); } }
+@media (prefers-reduced-motion: reduce) { .gcs-load > i { animation: none; } }
+.gcs-wifi-msg {
+  border-radius: var(--r-tile);
+  background: color-mix(in srgb, var(--sea-brand) 30%, transparent);
+  border: 1px solid var(--glass-hairline);
+  color: var(--foam-000);
+}
+.gcs-wifi-empty {
+  color: var(--foam-400);
+}
+
+.gcs-set-dialog-scrim {
+  background: rgba(6, 18, 26, 0.7);
+}
+.gcs-set-dialog {
+  border-radius: var(--r-panel);
+  background: var(--glass-900);
+  border: 1px solid var(--glass-hairline);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.5);
+}
+/* This dialog is already dark, so the keyboard needed no rescue — but it was
+   still the host's grey-on-black rather than this theme's. Sea glass keys,
+   foam lettering, mandarin focus.
+
+   Set here rather than on :root: the same keyboard draws the game search
+   inside the host's own overlay, which is not this surface. */
+.gcs-set-kb {
+  --gc-kb-field: rgba(0, 0, 0, 0.32);
+  --gc-kb-key: rgba(255, 253, 247, 0.07);
+  --gc-kb-key-edge: var(--glass-hairline);
+  --gc-kb-ink: var(--foam-200);
+  --gc-kb-field-ink: var(--foam-000);
+  --gc-kb-ink-strong: var(--foam-000);
+  --gc-kb-ink-dim: var(--foam-400);
+  --gc-kb-ink-faint: rgba(195, 183, 166, 0.55);
+  border-radius: var(--r-tile);
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--glass-hairline);
+}
+
+/* ── Bluetooth ───────────────────────────────────────────────────────────── */
+@media (max-width: 1500px) { .gcs-bt-cols { grid-template-columns: 1fr; } }
+.gcs-bt-row {
+  border-radius: var(--r-tile);
+  background: var(--glass-700);
+  border: 1px solid transparent;
+}
+.gcs-bt-row[data-on="1"] { border-color: var(--accent-mandarin); box-shadow: 0 0 0 1px var(--accent-mandarin) inset; }
+.gcs-bt-dot {
+  border: 2px solid rgba(255, 253, 247, 0.25);
+}
+.gcs-bt-dot[data-live="1"] { background: var(--state-ok); border-color: var(--state-ok); }
+.gcs-bt-name i {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--foam-400);
+}
+.gcs-bt-state {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--foam-400);
+}
+.gcs-bt-state[data-live="1"] { color: var(--state-ok); }
+.gcs-bt-btn {
+  border-radius: var(--r-tile);
+  background: color-mix(in srgb, var(--sea-brand) 55%, transparent);
+  border: 1px solid var(--glass-hairline);
+  color: var(--foam-000);
+}
+
+/* ── Emulators & apps ────────────────────────────────────────────────────── */
+.gcs-grp {
+  border-radius: var(--r-tile);
+  background: var(--glass-700);
+  border: 1px solid transparent;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--foam-200);
+}
+.gcs-grp[data-open="1"] { background: var(--accent-mandarin); color: var(--ink-900); }
+.gcs-grp[data-on="1"] { box-shadow: 0 0 0 2px var(--accent-muskmelon) inset; }
+.gcs-grp-count {
+  opacity: 0.75;
+}
+@media (max-width: 1500px) { .gcs-grp-body { grid-template-columns: 1fr; } }
+.gcs-pack {
+  border-radius: var(--r-tile);
+  background: var(--glass-700);
+  border: 1px solid transparent;
+}
+.gcs-pack[data-on="1"] { border-color: var(--accent-mandarin); box-shadow: 0 0 0 1px var(--accent-mandarin) inset; }
+/* 38, not the 30 the colour swatch had. A swatch only has to be seen; a logo
+   has to be read, and a Nintendo DS at 30px with padding is a grey smudge. */
+/* With a logo in it, the square stops being a colour and becomes a chip to put
+   artwork on. Near-white on every surface and NOT themed: these logos are
+   somebody else's, at somebody else's contrast — several are dark line art
+   (PS1, PS3, PSP), several are near-white (Wii U, DS), and no single themed
+   background makes both readable. `contain` because they are not all square. */
+.gcs-pack-text i {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--foam-400);
+}
+.gcs-pack-btn {
+  border-radius: var(--r-tile);
+  background: rgba(255, 253, 247, 0.1);
+  color: var(--foam-200);
+}
+.gcs-pack-btn[data-on="1"] { background: color-mix(in srgb, var(--sea-brand) 55%, transparent); color: var(--foam-000); }
+
+/* ── BIOS ────────────────────────────────────────────────────────────────── */
+@media (max-width: 1500px) { .gcs-bios-grid { grid-template-columns: 1fr; } }
+.gcs-bios {
+  border-radius: var(--r-tile);
+  background: var(--glass-700);
+  border: 1px solid transparent;
+}
+.gcs-bios[data-on="1"] { border-color: var(--accent-mandarin); box-shadow: 0 0 0 1px var(--accent-mandarin) inset; }
+.gcs-bios-dot {
+  background: rgba(255, 253, 247, 0.3);
+}
+.gcs-bios-dot[data-ok="1"] { background: var(--state-ok); }
+.gcs-bios-state {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--foam-400);
+}
+.gcs-bios-state[data-ok="1"] { color: var(--state-ok); }
+.gcs-bios-path {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--foam-400);
+}
+.gcs-bios-file {
+  border-top: 1px solid var(--glass-hairline);
+}
+.gcs-bios-fname {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+.gcs-bios-fstate {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--state-alert);
+}
+.gcs-bios-fstate[data-ok="1"] { color: var(--state-ok); }
+.gcs-bios-note {
+  color: var(--foam-400);
+}
+
+/* ── the power menu ──────────────────────────────────────────────────────── */
+.gcs-pwr-scrim {
+  background: var(--scrim-focus);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.gcs-pwr {
+  border-radius: var(--r-panel);
+  background: var(--glass-900);
+  border: 1px solid var(--glass-hairline);
+  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.5);
+  color: var(--foam-000);
+}
+.gcs-pwr-title, .gcs-pwr-head {
+  font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px;
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--foam-400); margin-bottom: 16px;
+}
+.gcs-pwr-row {
+  border-radius: var(--r-tile);
+  background: var(--glass-700);
+}
+.gcs-pwr-row[data-on="1"] { border-color: var(--accent-mandarin); box-shadow: 0 0 0 1px var(--accent-mandarin) inset; }
+.gcs-pwr-row[data-confirm="1"] { background: color-mix(in srgb, var(--state-alert) 30%, transparent); border-color: var(--state-alert); }
+.gcs-pwr-icon {
+  background: rgba(255, 253, 247, 0.1);
+  color: var(--row-accent, var(--accent-mandarin));
+}
+.gcs-pwr-icon[data-pulse="1"] { animation: gcs-load-pulse 1.1s ease-in-out infinite; }
+.gcs-pwr-text i {
+  color: var(--foam-400);
+}
+.gcs-pwr-cancel {
+  border-radius: var(--r-tile);
+  border: 1px solid var(--glass-hairline);
+  background: var(--glass-700);
+  color: var(--foam-200);
+}
+.gcs-pwr-hint {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--foam-400);
+}
+
+/* The revert countdown on Settings → Display: the backend's timer, made
+   visible. It is the only progress bar on this screen because it is the only
+   thing on it the player cannot undo by waiting. */
+.gcs-countdown {
+  background: rgba(255, 253, 247, 0.16);
+}
+.gcs-countdown > i {
+  background: var(--accent-mandarin);
+}
+
+/* The countdown's own hint line. It sits inside the card rather than in the
+   screen's footer, because it describes two buttons that exist only while it
+   is up. */
+.gcs-count-hints {
+  color: var(--foam-400);
+}
+
+/* ── the game search keyboard ─────────────────────────────────────────────
+   Not the same surface as `.gcs-set-kb`: this one is drawn by the host inside
+   the host's overlay, which is `--gc-overlay-panel` — sea glass rather than
+   the settings dialog's. Scoped separately for that reason, and because a
+   token set on :root would follow the keyboard into every surface it draws.
+
+   Until now this was the one screen in Summer still wearing the default UI's
+   grey keys and purple focus ring. */
+.gc-search-kb {
+  --gc-kb-field:      rgba(0, 0, 0, 0.34);
+  --gc-kb-key:        rgba(255, 253, 247, 0.07);
+  --gc-kb-key-edge:   var(--glass-hairline);
+  --gc-kb-ink:        var(--foam-200);
+  --gc-kb-field-ink:  var(--foam-000);
+  --gc-kb-ink-strong: var(--foam-000);
+  --gc-kb-ink-dim:    var(--foam-400);
+  --gc-kb-ink-faint:  rgba(195, 183, 166, 0.55);
+  font-family: var(--font-body);
+}
+

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict')
 const rig = require('./hud-rig.cjs')
 const fs = require('node:fs')
 const path = require('node:path')
+const readCss = require('./css-bundle.cjs')
 const contract = require('../hud-tokens.json')
 
 test('missing and entirely invalid tokens preserve the original fallback', () => {
@@ -66,7 +67,7 @@ function luminance(hex) {
 
 test('shipped text and severity colors meet AA on their panels', () => {
   for (const name of ['orbit', 'shelf', 'summer']) {
-    const css = fs.readFileSync(path.join(__dirname, `../../config/themes/${name}/theme.css`), 'utf8')
+    const css = readCss(path.join(__dirname, `../../config/themes/${name}/theme.css`))
     const theme = Object.fromEntries([...css.matchAll(/--gc-hud-([\w-]+):\s*([^;]+);/g)].map(m => [m[1], m[2]]))
     const tokens = rig().context.hudTokens(theme)
     for (const key of ['text', 'connected', 'disconnected', 'warning', 'battery-25', 'battery-15', 'battery-10', 'battery-5']) {

@@ -1,0 +1,26 @@
+/* ── themes picker ───────────────────────────────────────────────────────── */
+.sm-panel-back {
+  background: none; border: none; cursor: pointer; padding: 0 6px 0 0;
+  color: var(--foam-400); font-size: 20px; line-height: 1; font-family: inherit;
+}
+.sm-theme-row { align-items: center; }
+.sm-theme-row[data-off="1"] { opacity: 0.45; cursor: default; }
+/* Shape first: filled disc = in use, hollow ring = available. */
+.sm-theme-dot {
+  width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid rgba(255, 253, 247, 0.28); background: transparent;
+}
+.sm-theme-row[data-current="1"] .sm-theme-dot {
+  background: var(--accent-mandarin); border-color: var(--accent-mandarin);
+  box-shadow: 0 0 0 4px rgba(240, 118, 30, 0.22);
+}
+.sm-theme-tag {
+  flex-shrink: 0; padding: 4px 10px; border-radius: var(--r-chip);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+  color: var(--ink-900); background: var(--accent-mandarin);
+}
+.sm-theme-empty, .sm-theme-err {
+  padding: 14px 4px; font-size: 14px; color: var(--foam-400);
+}
+.sm-theme-err { color: var(--state-alert); }
+

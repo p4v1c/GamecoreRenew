@@ -1,0 +1,66 @@
+/* ── Standby (views/screensaver.js) ─────────────────────────────────────────
+ * This one *does* need a z-index, unlike everything else in this theme. The
+ * shell renders <ScreensaverC /> bare, with no positioned wrapper of its own —
+ * the host's screensaver carries `position: fixed; zIndex: 9500` inline, and a
+ * replacement has to carry it too. Leaving it out put the dashboard straight
+ * through the black.
+ *
+ * 9500 is the host's own figure, kept so the two behave identically.
+ *
+ * Deep black rather than the theme's ink: the panel is about to be switched
+ * off, and a lit background would be the brightest thing in a dark room. */
+.sm-saver {
+  position: fixed; inset: 0; z-index: 9500;
+  background: #000; overflow: hidden;
+  font-family: 'Figtree', 'Outfit', sans-serif;
+  display: flex; align-items: center; justify-content: center;
+}
+.sm-saver[data-sleep="1"] { background: #000; }
+
+.sm-saver-stage {
+  display: flex; flex-direction: column; align-items: center; gap: 34px;
+  animation: smSaverIn 1500ms ease both;
+}
+/* Slower and gentler than anywhere else in the theme: this plays every nine
+ * seconds in a quiet room, and a snappy transition there reads as a flicker. */
+@keyframes smSaverIn {
+  from { opacity: 0; transform: scale(1.035); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.sm-saver-name {
+  font-size: 20px; font-weight: 600; letter-spacing: 0.02em;
+  color: rgba(255, 253, 247, 0.34);
+  max-width: 70vw; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sm-saver-clock {
+  position: absolute; top: 48px; right: 64px;
+  font-size: 64px; font-weight: 200; letter-spacing: 2px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 253, 247, 0.42);
+}
+.sm-saver-hint {
+  position: absolute; bottom: 36px; left: 0; right: 0; text-align: center;
+  font-size: 12px; letter-spacing: 2px; color: rgba(255, 253, 247, 0.16);
+}
+/* The fallback when nothing is scraped — the flat cover, as the host's own
+ * standby shows it. */
+.sm-saver-flat {
+  max-width: 38vw; max-height: 58vh; border-radius: 16px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+/* The box gets a deeper shadow here than in the library: it is the only lit
+ * thing on the screen, so it has to sit on something. */
+.sm-saver .sm-box3d-shadow { bottom: -30px; opacity: 0.85; }
+
+/* A spine stored lying down (the N64 one is 680x115 where the DS one is 63x458).
+ * Sized H x D and given a quarter turn, it covers the D x H face exactly, with
+ * the title upright instead of crushed. */
+.sm-box3d-spine-turned {
+  position: absolute; top: 50%; left: 50%;
+  background-size: 100% 100%; background-repeat: no-repeat;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+

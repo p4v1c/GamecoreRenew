@@ -26,6 +26,7 @@ import re
 from pathlib import Path
 
 import pytest
+from backend.tests.css_bundle import read_css  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 ORBIT = ROOT / "config" / "themes" / "orbit"
@@ -37,7 +38,7 @@ WRAPPER_RULE = re.compile(r"\.orbit-jacket\s*\{([^}]*)\}")
 
 @pytest.fixture(scope="module")
 def sheet() -> str:
-    return (ORBIT / "theme.css").read_text()
+    return read_css(ORBIT / "theme.css")
 
 
 def test_the_picture_is_still_sized_against_its_wrapper(sheet: str):

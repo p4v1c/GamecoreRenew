@@ -1,0 +1,119 @@
+/* ── Wi-Fi ───────────────────────────────────────────────────────────────── */
+.gcs-wifi-state {
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.18em;
+  color: var(--set-acc-deep);
+}
+
+.gcs-wifi-row {
+  display: flex; align-items: center; gap: 18px;
+  padding: 16px 20px; margin-bottom: 8px; cursor: pointer;
+  border-radius: 14px; background: var(--set-card);
+  border: 1px solid var(--set-line);
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+/* The capture fills the selected row, and that fill is what the detail column
+   is describing — it has to be visible while the cursor is over on the rail,
+   or the right-hand panel is captioning nothing. Focus then reads as the
+   heavier border on top of the same fill. */
+.gcs-wifi-row[data-sel="1"] {
+  background: color-mix(in srgb, var(--set-acc) 12%, var(--set-card));
+  border-color: color-mix(in srgb, var(--set-acc) 45%, transparent);
+}
+
+.gcs-wifi-row[data-on="1"] {
+  background: color-mix(in srgb, var(--set-acc) 18%, var(--set-card));
+  border-color: var(--set-acc);
+  box-shadow: 0 0 0 1px var(--set-acc) inset;
+}
+
+.gcs-wifi-bars { display: flex; align-items: flex-end; gap: 3px; width: 26px; height: 24px; flex: 0 0 auto; }
+
+.gcs-wifi-bars i { flex: 1; border-radius: 2px; background: rgba(var(--set-ink-rgb), 0.16); }
+
+.gcs-wifi-bars i[data-fill="1"] { background: var(--set-acc); }
+
+.gcs-wifi-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+
+.gcs-wifi-name b { font-family: var(--font-display); font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+
+.gcs-wifi-name i { font-style: normal; font-family: var(--font-mono); font-size: 12px; color: var(--set-ink-3); }
+
+.gcs-wifi-sec {
+  flex: 0 0 auto; padding: 5px 11px; border-radius: var(--r-chip);
+  background: rgba(var(--set-ink-rgb), 0.06);
+  font-family: var(--font-mono); font-size: 11px; color: var(--set-ink-2);
+}
+
+.gcs-wifi-conn {
+  flex: 0 0 auto; font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.14em; color: var(--set-acc-deep);
+}
+
+.gcs-wifi-scan {
+  display: flex; align-items: center; gap: 9px; padding: 6px 2px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em;
+  color: var(--set-ink-3);
+}
+
+.gcs-wifi-scan i { width: 6px; height: 6px; border-radius: 50%; background: var(--set-acc); }
+
+.gcs-wifi-msg {
+  margin-bottom: 14px; padding: 12px 16px; border-radius: 12px;
+  background: color-mix(in srgb, var(--set-acc) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--set-acc) 35%, transparent);
+  font-size: 14px; color: var(--set-acc-deep);
+}
+
+.gcs-wifi-empty { padding: 18px 2px; font-size: 15px; color: var(--set-ink-2); }
+
+/* The password dialog. The capture draws a text field; a box driven from a
+   sofa has no keyboard, so the host's on-screen one goes inside it. */
+.gcs-set-dialog-scrim {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  background: rgba(20, 18, 15, 0.42);
+}
+
+.gcs-set-dialog {
+  width: min(760px, 92vw); max-height: 88vh; overflow: auto;
+  padding: 28px 32px 24px; border-radius: 20px;
+  background: var(--set-card-2); border: 1px solid var(--set-line);
+  box-shadow: 0 40px 90px rgba(20, 18, 24, 0.35);
+}
+
+/* The host's on-screen keyboard, in paper.
+   It used to sit on a slab of warm near-black dropped into this dialog — the
+   only way to read white lettering on a light card, and a black rectangle in
+   the middle of a paper screen. The component reads `--gc-kb-*` now, so the
+   keys can be paper too and the slab is gone.
+
+   Set here rather than on :root deliberately: the same keyboard draws the game
+   search inside the host's dark overlay, and paper ink there would be
+   invisible for exactly the reason this block exists. */
+.gcs-set-kb {
+  --gc-kb-field:      rgba(var(--set-ink-rgb), 0.05);
+  --gc-kb-key:        var(--set-key);
+  --gc-kb-key-edge:   rgba(var(--set-ink-rgb), 0.14);
+  --gc-kb-ink:        var(--set-ink);
+  --gc-kb-field-ink:  var(--set-ink);
+  /* Stays white: it is the lettering on the focused key, which wears the
+     accent fill. */
+  --gc-kb-ink-strong: var(--set-key);
+  --gc-kb-ink-dim:    var(--set-ink-2);
+  --gc-kb-ink-faint:  var(--set-ink-3);
+  /* The settings screen is teal, not the shelf's gold: the focus ring and the
+     accent-tinted keys have to agree with the card they are sitting in. */
+  --gc-accent:        var(--set-acc);
+  --gc-accent-soft:   var(--set-acc-deep);
+  --gc-accent-bright: var(--set-acc-deep);
+
+  margin-top: 18px; padding: 18px 18px 12px; border-radius: 16px;
+  background: rgba(var(--set-ink-rgb), 0.03);
+  border: 1px solid var(--set-line);
+}
+
+.gcs-set-dialog-title {
+  margin-top: 6px; font-family: var(--font-display);
+  font-size: 30px; font-weight: 700; letter-spacing: -0.015em;
+}
+

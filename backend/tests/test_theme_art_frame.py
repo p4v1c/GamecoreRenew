@@ -32,6 +32,7 @@ import re
 from pathlib import Path
 
 import pytest
+from backend.tests.css_bundle import read_css  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 ORBIT = ROOT / "config" / "themes" / "orbit"
@@ -48,7 +49,7 @@ def sheet() -> str:
     classes, which is exactly what these tests match on. Left in, a rule was
     rejected for what the paragraph above it said about it.
     """
-    return re.sub(r"/\*.*?\*/", "", (ORBIT / "theme.css").read_text(), flags=re.S)
+    return re.sub(r"/\*.*?\*/", "", read_css(ORBIT / "theme.css"), flags=re.S)
 
 
 def parsed(sheet: str) -> list[tuple[str, str]]:

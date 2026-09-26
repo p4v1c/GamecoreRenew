@@ -1,0 +1,134 @@
+/* Summer — tokens are literal from DESIGN-BRIEF.md §2.1.
+   A theme owns its own markup, so real CSS is usable here; the default UI
+   styles itself inline and cannot be restyled from a stylesheet. */
+
+:root {
+  --accent-mandarin: #F0761E;
+  --accent-mandarin-deep: #B4520F;
+  --accent-muskmelon: #FE9D7C;
+  --foam-000: #FFFDF7;
+  --foam-200: #EFE6D6;
+  --foam-400: #C3B7A6;
+  --ink-900: #0C1A21;
+  --ink-700: #173039;
+  --sea-brand: #1D7E93;
+  --state-ok: #3FBF8F;
+  --state-warn: #E8B23A;
+  --state-alert: #E4553F;
+  --glass-900: rgba(12, 26, 33, 0.82);
+  --glass-700: rgba(12, 26, 33, 0.66);
+  --glass-500: rgba(12, 26, 33, 0.44);
+  --glass-hairline: rgba(255, 253, 247, 0.14);
+  --scrim-focus: rgba(12, 26, 33, 0.55);
+  /* The shared settings screen reads these two; Summer names its faces
+     literally everywhere else, so they are declared here for that one reader
+     rather than left to inherit whatever the document happens to be set in. */
+  --font-body: 'Figtree', 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --r-panel: 22px;
+  --r-tile: 18px;
+  --r-chip: 999px;
+
+  /* The default settings pages are reused as-is — each is its own overlay.
+     These four variables are the host's hook for restyling them, so Wi-Fi and
+     the updater come out as sea glass over the ocean instead of the dark UI's
+     near-opaque scrim. */
+  --gc-overlay-scrim: rgba(6, 18, 26, 0.55);
+  --gc-overlay-blur: blur(18px) saturate(115%);
+  --gc-overlay-panel: rgba(12, 26, 33, 0.82);
+  --gc-overlay-border: rgba(255, 253, 247, 0.14);
+  --gc-overlay-radius: 22px;
+
+  /* The accent the host's own settings widgets use — focus rings, toggles,
+     sliders, the keyboard, the "in use" marker. Without these the settings
+     screen stays purple on a beach. */
+  --gc-accent: #F0761E;
+  --gc-accent-soft: #FE9D7C;
+  --gc-accent-bright: #FFFDF7;
+}
+
+/* Every glass surface shares this. If backdrop-filter is unavailable the brief
+   says raise each alpha by 0.12 and change nothing else.
+
+   The tiles deliberately take that fallback even where it is available. Eight
+   blurred, scaling surfaces over a live WebGL canvas is the one thing this
+   theme cannot afford: each one forces its own backdrop snapshot every frame,
+   and paging the grid visibly stuttered because of it. Raised alpha, no blur —
+   the look the brief signs off on, at a fraction of the compositing cost. */
+.sm-topbar, .sm-chip, .sm-panel, .sm-stats > div {
+  backdrop-filter: blur(18px) saturate(115%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+  border: 1px solid var(--glass-hairline);
+}
+.sm-tile { border: 1px solid var(--glass-hairline); }
+
+/* ── background ──────────────────────────────────────────────────────────── */
+.sm-ocean {
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  display: block; z-index: 0; pointer-events: none;
+}
+
+/* Everything the host renders sits above the canvas. */
+.sm-topbar, .sm-home, .sm-modal-wrap { position: relative; z-index: 1; }
+
+/* ── topbar ──────────────────────────────────────────────────────────────── */
+.sm-topbar {
+  margin: 18px 24px 10px; padding: 12px 18px; border-radius: var(--r-panel);
+  background: var(--glass-500);
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: 'Figtree', 'Outfit', sans-serif; color: var(--foam-000);
+}
+.sm-brand {
+  display: flex; align-items: center; gap: 12px;
+  font-weight: 700; letter-spacing: 0.14em; font-size: 18px;
+}
+.sm-diamond {
+  width: 26px; height: 26px; border-radius: 8px; rotate: 45deg;
+  background: linear-gradient(150deg, var(--accent-mandarin), var(--accent-mandarin-deep));
+}
+.sm-top-right { display: flex; align-items: center; gap: 10px; }
+.sm-chip {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 11px; border-radius: var(--r-chip);
+  background: var(--glass-500); font-size: 12px; color: var(--foam-200);
+}
+.sm-ip { font-family: 'JetBrains Mono', monospace; letter-spacing: 0.04em; }
+.sm-storage { gap: 9px; }
+.sm-store-bar {
+  width: 62px; height: 8px; border-radius: 4px; overflow: hidden;
+  background: rgba(255, 253, 247, 0.16); display: block;
+}
+.sm-store-bar > i { display: block; height: 100%; transition: width 400ms ease; }
+.sm-store-txt { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--foam-400); }
+.sm-pad { gap: 8px; padding: 6px 12px; }
+.sm-pad-n {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700; font-size: 13px; color: var(--foam-400);
+}
+.sm-pad-glyph { display: flex; color: var(--foam-200); }
+/* Battery: 4 segments of 6x14, --s1 apart (DESIGN-BRIEF.md §3.5). */
+.sm-bat { display: flex; gap: 4px; align-items: center; }
+.sm-bat > i {
+  display: block; width: 6px; height: 14px; border-radius: 2px;
+  background: rgba(195, 183, 166, 0.3);
+}
+.sm-bat > i[data-fill="1"] { background: var(--foam-000); }
+/* One segment left: the fill turns alert AND the pill takes a border, so the
+   warning does not depend on a colour a TV may wash out. */
+.sm-pad[data-low="1"] { border: 2px solid var(--state-alert); }
+.sm-pad[data-low="1"] .sm-bat > i[data-fill="1"] { background: var(--state-alert); }
+.sm-bolt { color: var(--state-ok); font-size: 14px; margin-left: -4px; }
+.sm-pad-more { font-weight: 700; font-size: 13px; color: var(--foam-200); }
+.sm-clock {
+  display: flex; align-items: center; gap: 8px; margin-left: 4px;
+  font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 500;
+}
+.sm-glyph { color: var(--accent-mandarin); font-size: 15px; }
+.sm-icon {
+  width: 38px; height: 38px; border-radius: 50%; cursor: pointer;
+  background: var(--glass-700); border: 1px solid var(--glass-hairline);
+  color: var(--foam-000); font-size: 16px; line-height: 1;
+}
+.sm-icon-power { color: var(--state-alert); }
+

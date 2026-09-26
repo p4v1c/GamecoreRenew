@@ -1,0 +1,218 @@
+/* ===========================================================================
+   What the mockup did not need, and the box does.
+
+   The mockup was one page with one layout. A theme lives inside the host's
+   shell, next to its modals, and draws things the mockup only mimed: a live
+   controller panel, a library detail strip, real artwork that can 404.
+   =========================================================================== */
+
+/* The host mounts the shell; `.orbit-app` is the tree Orbit owns inside it. */
+/* The console footer is fixed to the viewport, so the scrolling area has to
+   end above it — 40px did not, and every view's own hint bar slid underneath
+   it. The two rows of hints in the Applications and Library screenshots were
+   one bar drawn over another, not a duplicated bar.
+   The session bar takes the same corner when it is up, and it is taller. */
+.orbit-app main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 var(--page-pad)}
+.orbit-app main::-webkit-scrollbar{width:0}
+
+/* Artwork that is not there yet, or never will be. Initials rather than a
+   broken frame: a grey box with a torn-image glyph reads as a fault. */
+.orbit-app .art-fallback{display:flex;align-items:center;justify-content:center;width:100%;height:100%;
+  font-size:clamp(13px,2vw,22px);font-weight:650;letter-spacing:.1em;color:#ffffff5c;
+  background:linear-gradient(145deg,#2a3e5b90,#13203488)}
+
+/* The topbar's right-hand side: pads and address, which the mockup drew as a
+   footer status bar. Up here they are next to the clock, where a console puts
+   them. */
+.orbit-app .topbar-pad{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;
+  background:#ffffff12;font-size:10px;letter-spacing:.08em}
+.orbit-app .topbar-pad b{font-weight:650}
+.orbit-app .topbar-battery{display:block;width:22px;height:6px;border-radius:3px;background:#ffffff26;overflow:hidden}
+.orbit-app .topbar-battery i{display:block;height:100%;background:#a2d9d0}
+.orbit-app .topbar-ip{font-size:11px;color:#b7c5d8;letter-spacing:.04em}
+.orbit-app .utilities time{font-variant-numeric:tabular-nums;font-size:14px}
+
+/* The favourite heart, filled when it is one. The mockup only ever drew the
+   library's small corner heart; the hero needs the toggle itself. */
+.orbit-app .favorite-button.is-favourite svg{fill:currentColor;color:#ff8292}
+
+/* The library's sort chips are the host's state, shown and not driven: L1/R1
+   change it, and a chip that looked pressable but was not would be a lie. */
+.orbit-app .library-sort{display:flex;gap:3px;padding:4px;border:1px solid #bfd6f522;border-radius:30px}
+.orbit-app .library-sort button{padding:7px 13px;border-radius:24px;font-size:12px;color:#b3c7e3;cursor:default}
+.orbit-app .library-sort button[data-active='true']{background:#bfd6f524;color:#fff}
+
+/* The detail strip under the grid: what the host's library screen settled on,
+   which the mockup showed as a dialog. A strip keeps the grid on screen. */
+.orbit-app .library-detail{display:flex;align-items:center;justify-content:space-between;gap:24px;
+  margin-top:22px;padding:18px 24px;border-radius:20px;border:1px solid #ffffff14;
+  background:linear-gradient(110deg,#1b2c46bc,#101c30d9)}
+.orbit-app .library-detail-copy h2{font-size:clamp(18px,2.4vw,26px);margin-top:4px}
+.orbit-app .library-detail-actions{display:flex;align-items:center;gap:12px;flex:none}
+.orbit-app .orbit-meta{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px}
+
+/* The live controller panel, in the control-center frame. */
+.orbit-app .controller-body{display:flex;gap:26px;margin-top:18px}
+.orbit-app .controller-art{flex:1.1;min-width:0;display:flex;align-items:center;justify-content:center}
+.orbit-app .controller-side{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
+.orbit-app .controller-mappings{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  gap:8px;margin-top:20px}
+.orbit-app .controller-mappings>div{display:flex;align-items:center;gap:10px;padding:8px 12px;
+  border-radius:12px;background:#ffffff0a;font-size:12px}
+
+/* The session menu, opened with L2 over any tab. */
+.session-menu-body{
+  width:min(560px,calc(100vw - 56px));max-height:min(86vh,880px);overflow-y:auto;
+  padding:30px 32px 24px;
+  border:1px solid var(--gc-overlay-border);border-radius:var(--gc-overlay-radius);
+  background:var(--gc-overlay-panel);box-shadow:var(--gc-overlay-shadow);
+  font-family:Inter,'Segoe UI',Arial,sans-serif;color:#f1f6ff}
+/* This panel lives outside `.orbit-app`, so the reset at the top of this file
+   — which is scoped there on purpose, see the header comment — does not reach
+   it. Without the reset below, the option rows keep the user agent's button
+   font and `buttontext` colour: 13px Arial in a menu that is otherwise Inter,
+   on rows whose own background is #bfdcff05, i.e. nothing. */
+.session-menu-body button{font:inherit;color:inherit;cursor:pointer}
+.session-menu-body h1,.session-menu-body h2,.session-menu-body p{margin:0}
+.session-menu-body>.eyebrow{color:#a9c6ea;letter-spacing:2.4px;font-size:10px}
+.session-menu-body>p{font-size:14px;line-height:1.6;color:#c2d4ec}
+.session-menu-body .session-menu-option{color:#e8f1ff;font-size:15px;
+  border-color:#bcdbff2e;background:#bfdcff0d}
+.session-menu-body .session-menu-option:hover{background:#bedcff1c;border-color:#c8e2ff65}
+.session-menu-body .session-menu-option:focus-visible{outline:2px solid #d2eaff;outline-offset:2px}
+.session-menu-body .session-menu-header{display:flex;align-items:center;gap:18px;margin:14px 0 18px}
+.session-menu-body .session-menu-header img,.session-menu-body .session-menu-header .art-fallback{
+  width:104px;height:104px;border-radius:14px;object-fit:cover;flex:none}
+/* The no-cover case is a `<span>` of initials, and a span is inline: the 104px
+   square above did nothing to it, so a game with no artwork got two letters of
+   body text where every other session shows a jacket. */
+.session-menu-body .session-menu-header .art-fallback{
+  display:grid;place-items:center;font-size:30px;letter-spacing:1px;color:#b9d2f2;
+  background:#bfdcff14;border:1px solid var(--gc-overlay-border)}
+.session-menu-body .session-menu-header h1{font-size:clamp(22px,3vw,34px)}
+.session-menu-scene{position:relative;display:flex;align-items:center;justify-content:center;
+  min-height:90px;margin:18px 0;font-size:12px;letter-spacing:.16em;color:#9fb6d6}
+.session-orb{position:absolute;width:120px;height:120px;border-radius:50%;opacity:.3;
+  border:1px solid #def2ff;box-shadow:inset 0 0 25px #80c7ff55,0 0 60px #80c7ff44;
+  transform:rotate(-35deg) scaleY(.7)}
+.session-menu-body .session-menu-options{display:flex;flex-direction:column;gap:10px}
+.session-menu-body .session-menu-hints{margin-top:18px;font-size:10px;letter-spacing:.14em;color:#8ba3c4}
+
+/* The mockup's viewport, inside the host's screen and background layers. */
+.orbit-app { --page-pad: clamp(24px, 4.8vw, 88px); color: #f8f9ff; }
+.orbit-app > div:first-child { font-family: Inter, "Segoe UI", Arial, sans-serif !important; }
+.orbit-app .scenery { z-index: 0; }
+.orbit-app .backdrop { background: #263949; }
+.orbit-app .backdrop img { width: 100%; height: 100%; object-fit: cover; object-position: center 40%; }
+.orbit-app .scenery[data-kind="app"] .shade,
+.orbit-app .scenery[data-kind="collection"] .shade,
+.orbit-app .scenery[data-kind="systems"] .shade {
+  background: radial-gradient(ellipse at 80% 45%, color-mix(in srgb, var(--scene-accent) 14%, #11223a), #0b1425 70%);
+}
+.orbit-app .scenery[data-kind="library"] .shade {
+  background: linear-gradient(90deg, #0b1422eb, #0b1422c9), linear-gradient(0deg, #0b1422, transparent);
+}
+/* Clear of the fixed footer, so the last row of a view can be scrolled
+   into sight instead of living under it. */
+.orbit-app .orbit-main { padding-bottom: 112px; }
+.orbit-app .utilities time { font-size: 20px; }
+/* Fixed, and it has to be: `sdk.defaults.Shell` is `height: 100vh`, so a footer
+   placed after it in the flow lands below the fold — measured at 900-975 in a
+   900px viewport, which is simply off screen.
+   What was actually wrong was not the position but the duplication: each view
+   printed its own row of pad hints a few pixels above this one's, so the bottom
+   of the Applications and Library screens carried two overlapping bars saying
+   different things about the same buttons. There is one bar now, and it
+   follows the tab — see views/footer.js.
+   `display: none` when a session bar is up: that bar is fixed to the same
+   corner and taller, so the footer gives up the space rather than sitting
+   invisibly underneath it. */
+.orbit-app .console-footer { position: fixed; inset: auto 0 0; z-index: 2; min-height: 68px;
+  background: linear-gradient(0deg, #0b1422, #0b1422eb 65%, transparent);
+  padding: 16px var(--page-pad); }
+.orbit-app .console-footer[data-sessions="true"] { display: none; }
+.orbit-app .library-toolbar { flex-wrap: wrap; row-gap: 14px; }
+.orbit-app .library-sort button { cursor: pointer; }
+.orbit-app .library-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.orbit-app .library-card { min-width: 0; }
+.orbit-app .library-card h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orbit-app .library-card.selected .library-cover { outline: 2px solid #e3f2ff; outline-offset: 5px; }
+.orbit-app .library-selection-actions { display: flex; justify-content: flex-end; margin-top: 20px; font-size: 12px; }
+.orbit-app .library-selection-actions button { padding: 10px 16px; border: 1px solid #bfd6f530; border-radius: 25px; }
+.orbit-app .pad-focus { outline: 2px solid #e3f2ff; outline-offset: 5px; }
+.orbit-app .orbit-dialog-backdrop { position: fixed; inset: 0; z-index: 500;
+  display: grid; place-items: center; padding: 28px;
+  background: var(--gc-overlay-scrim); backdrop-filter: var(--gc-overlay-blur);
+  -webkit-backdrop-filter: var(--gc-overlay-blur); }
+.orbit-app .orbit-details { position: relative; display: block; margin: 0; width: min(960px, 100%);
+  max-height: 88vh; overflow-y: auto; padding: 42px; color: #f8f9ff;
+  border: 1px solid var(--gc-overlay-border); border-radius: var(--gc-overlay-radius);
+  background: var(--gc-overlay-panel); box-shadow: var(--gc-overlay-shadow); }
+.orbit-app .details-layout { display: flex; gap: 36px; align-items: center; }
+.orbit-app .details-cover { width: 28%; max-height: 440px; object-fit: cover; border-radius: 12px; }
+.orbit-app .details-copy { flex: 1; min-width: 0; }
+.orbit-app .details-copy h2 { font-size: clamp(26px, 3.2vw, 44px); font-weight: 350; margin: 14px 0; }
+.orbit-app .details-copy .dialog-description { max-height: 30vh; overflow-y: auto; }
+.orbit-app .orbit-details .round-button { font-size: 26px; }
+.orbit-app .orbit-details .close-dialog { position: absolute; top: 15px; right: 15px; font-size: 26px; }
+@media (min-width: 1600px) {
+  .orbit-app .hero { min-height: 53vh; }
+  .orbit-app .game-tile { width: 106px; flex-basis: 106px; }
+  .orbit-app .game-tile.selected { width: 138px; flex-basis: 138px; }
+  .orbit-app .game-rail { min-height: 180px; }
+  .orbit-app .library-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+}
+@media (max-width: 950px) {
+  .orbit-app .console-footer .footer-status { display: none; }
+  .orbit-app .library-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+}
+@media (max-width: 650px) {
+  .orbit-app .console-footer .status-bar { display: none; }
+  .orbit-app .details-layout { gap: 16px; }
+  .orbit-app .orbit-details { padding: 30px 22px; }
+  .orbit-app .details-cover { display: none; }
+}
+
+.orbit-app .topbar { position: relative; z-index: 1; flex-shrink: 0; }
+.orbit-app .library-toolbar { display: flex; gap: 16px; align-items: center; }
+.orbit-app .library-toolbar .filters { flex: 1 0 100%; }
+.orbit-app .library-toolbar .search-field { flex: 1; width: auto; max-width: 360px; }
+.orbit-app .library-toolbar .search-field input { width: 100%; }
+.orbit-app .library-sort { margin-left: auto; }
+.orbit-app .hero-actions .round-button { flex-shrink: 0; }
+.orbit-app .library-grid { gap: 26px; }
+.orbit-app .application-footer { margin-bottom: 20px; }
+
+/* The same glass control center as the mockup, with the host's live pages. */
+.orbit-app {
+  --set-acc: #9fcdfb; --set-acc-deep: #76abdf;
+  --set-ink: #eaf2ff; --set-ink-rgb: 234, 242, 255;
+  --set-ink-2: #abc3df; --set-ink-3: #7997b9; --set-line: #c5dfff1f;
+  --set-bg: #101e33; --set-bg-deep: #0b1425; --set-card: #c0dcff09;
+  --set-card-2: #192a42; --set-key: #c0dcff12; --set-knob: #ffffff;
+  --set-kbd: #eaf2ff; --set-kbd-ink: #101e33;
+  --set-danger: #ef9ba9; --set-danger-deep: #c35e77; --set-danger-rgb: 239, 155, 169;
+  --set-info: #90bfff; --set-ok: #90d5b8; --set-warn: #eed18e; --set-alert: #ef9ba9;
+  --font-body: Inter, 'Segoe UI', Arial, sans-serif; --font-display: var(--font-body);
+  --font-mono: ui-monospace, monospace; --r-chip: 999px; --gc-paper-pattern: none;
+}
+.orbit-app .orbit-power { background: var(--gc-overlay-scrim);
+  backdrop-filter: var(--gc-overlay-blur); -webkit-backdrop-filter: var(--gc-overlay-blur); }
+/* The one panel in the theme that had a radius and a fill but no edge: over a
+   bright backdrop it faded into the blur instead of sitting on it. */
+.orbit-app .orbit-power .gcs-pwr { background: var(--gc-overlay-panel);
+  border: 1px solid var(--gc-overlay-border); border-radius: var(--gc-overlay-radius);
+  box-shadow: var(--gc-overlay-shadow); }
+/* What sits above the grid decides how much of it is on screen. The console
+   name was set at the size of the Consoles tab's headline, where it is the
+   only thing on the page; here it pushes the first row down by a third of a
+   row. Scoped to the library so the other tabs keep the mockup's scale. */
+.orbit-app #library-view .page-heading { margin-bottom: 12px; }
+.orbit-app #library-view .page-heading h1 { font-size: clamp(24px, 1.9vw, 34px); margin-top: 8px; }
+.orbit-app #library-view .library-toolbar { margin-bottom: 12px; row-gap: 8px; }
+.orbit-app .orbit-details { width: min(560px, 100%); padding: 40px; }
+.orbit-app .orbit-details .dialog-description { max-height: 22vh; overflow-y: auto; }
+@media (max-width: 650px) {
+  .orbit-app .orbit-details { padding: 32px 24px; }
+}
+
