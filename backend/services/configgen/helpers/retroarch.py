@@ -164,8 +164,10 @@ def generate(emu_id: str, ports: int, player_index: int, pad, opts: dict):
         return None
     path = Path(opts["target"])
     if not path.is_file():
-        # Stable fixture/toast text: never leak a tmp/home absolute path.
-        return Skip(f"{emu_id}: controller config is missing")
+        # Not installed: the seed lands at install time. Nothing to do, like
+        # every other generator — a Skip made each connect toast "not
+        # configured" for thirteen RetroArch systems the box does not have.
+        return None
 
     answer = _probe(pad, opts)
     if answer.get("error"):

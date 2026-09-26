@@ -91,6 +91,19 @@ def test_a_keyboard_is_still_refused_a_player_slot(fake_evdev):
     assert found["/dev/input/event1"][2] is False, "remote must not take a player slot"
 
 
+def test_a_virtual_keyboard_declaring_every_key_takes_no_player_slot(fake_evdev):
+    """Sunshine's "libvirtualhid Keyboard" (1209:0002) declares every EV_KEY
+    code, BTN_SOUTH included, so it took player 2 and toasted "not configured"
+    for every emulator."""
+    fake_evdev["/dev/input/event21"] = FakeDevice(
+        "/dev/input/event21", "libvirtualhid Keyboard", list(range(1, 0x2ff)),
+        vendor=0x1209, product=0x0002, bustype=0x03)
+
+    found = gm._find_gamepad_devices()
+    assert found["/dev/input/event21"][2] is False, "a keyboard is not a pad"
+    assert gdev.pads_by_key(found) == {}
+
+
 def test_a_pad_with_neither_guide_nor_south_is_ignored(fake_evdev):
     fake_evdev["/dev/input/event9"] = FakeDevice("/dev/input/event9", "Some sensor", [KEY_A])
     assert gm._find_gamepad_devices() == {}

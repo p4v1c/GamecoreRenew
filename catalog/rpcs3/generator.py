@@ -46,6 +46,9 @@ def _is_bound(block: str) -> bool:
 
 
 def generate(player_index: int, pad, opts: dict) -> str | None:
+    yml = opts["target"]
+    if not yml.is_file():
+        return None      # RPCS3 not installed here: nothing to retarget
     # RPCS3 matches this string against its own SDL3 enumeration, so a name
     # nobody could vouch for is not a lesser config — it is a dead pad plus a
     # config that looks right. The only symptom used to be "SDL: Adding empty
@@ -56,9 +59,6 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
                     f"({pad.evdev_name!r} is the kernel's name, not SDL3's) — "
                     f"Player {player_index} left as it was")
 
-    yml = opts["target"]
-    if not yml.is_file():
-        return Skip(f"rpcs3: no input config at {yml} — nothing to retarget")
     text = yml.read_text()
     m = _block(text, player_index)
     if not m:
