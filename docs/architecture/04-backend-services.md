@@ -93,8 +93,8 @@ emulator owns the display.
 | Function | Role |
 |---|---|
 | `run()` | main loop — rescans for devices every few seconds, watches each |
-| `_find_gamepad_devices()` | `path → (name, uniq, is_pad, vendor, product)` for every readable `/dev/input/event*` |
-| `_can_read(path)` | permission probe |
+| `_find_gamepad_devices()` | in `gamepad_devices.py`: `path → (name, uniq, is_pad, vendor, product)` for every readable `/dev/input/event*` |
+| `pads_by_key()`, `dup_indexes()`, `_can_read(path)` | in `gamepad_devices.py`: one entry per physical pad, per-name duplicate counters, permission probe |
 | `_watch_device(path)` | reads one device until it disconnects or is cancelled |
 | `_on_guide_pressed()` | the double-press logic, then `POST /api/games/kill` |
 

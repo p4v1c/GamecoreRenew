@@ -47,7 +47,7 @@ def nodes_by_key(nodes: list[tuple[str | None, str]]) -> dict[str, list[str]]:
     """registry key → EVERY devnode that belongs to that physical controller.
 
     `key_for()` already collapses a pad's nodes onto its MAC, and
-    `gamepad_monitor.pads_by_key()` uses that to count a controller once. But it
+    `gamepad_devices.pads_by_key()` uses that to count a controller once. But it
     keeps only the FIRST node it meets (`setdefault`), because all it needs is
     the pad's identity.
 

@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import pytest
 
 from backend.services import gamepad_monitor as gm
+from backend.services import gamepad_devices as gdev
 
 
 BTN_MODE = 0x13C        # Guide / PS / Home
@@ -99,7 +100,7 @@ def test_the_no_guide_notice_is_logged_once_per_device(fake_evdev, caplog):
     import logging
     fake_evdev["/dev/input/event5"] = FakeDevice("/dev/input/event5", "USB Gamepad", [BTN_SOUTH])
 
-    with caplog.at_level(logging.INFO, logger=gm.log.name):
+    with caplog.at_level(logging.INFO, logger=gdev.log.name):
         gm._find_gamepad_devices()
         gm._find_gamepad_devices()
         gm._find_gamepad_devices()
@@ -585,13 +586,13 @@ def denied_evdev(monkeypatch):
     monkeypatch.setitem(sys.modules, "evdev", module)
     monkeypatch.setattr(gm.glob, "glob", lambda pattern: list(paths))
     gm._logged_no_guide.clear()
-    gm._last_denied = None
+    gdev._last_denied = None
     return paths
 
 
 def test_a_refused_device_names_the_cause(denied_evdev, caplog):
     """The line has to carry the reason, not just the symptom: `input` group."""
-    with caplog.at_level(logging.WARNING, logger=gm.log.name):
+    with caplog.at_level(logging.WARNING, logger=gdev.log.name):
         assert gm._find_gamepad_devices() == {}
 
     warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
@@ -602,7 +603,7 @@ def test_a_refused_device_names_the_cause(denied_evdev, caplog):
 def test_the_refusal_is_not_repeated_every_pass(denied_evdev, caplog):
     """The scan loop runs every three seconds forever. One warning per pass is
     1200 an hour, which buries the one line that names the cause."""
-    with caplog.at_level(logging.WARNING, logger=gm.log.name):
+    with caplog.at_level(logging.WARNING, logger=gdev.log.name):
         for _ in range(5):
             gm._find_gamepad_devices()
 
@@ -612,8 +613,8 @@ def test_the_refusal_is_not_repeated_every_pass(denied_evdev, caplog):
 def test_a_box_with_no_controller_stays_silent(fake_evdev, caplog):
     """A console with nothing plugged in is a legitimate state, not a fault.
     If this ever warns, the diagnostic above becomes noise and gets ignored."""
-    gm._last_denied = None
-    with caplog.at_level(logging.DEBUG, logger=gm.log.name):
+    gdev._last_denied = None
+    with caplog.at_level(logging.DEBUG, logger=gdev.log.name):
         assert gm._find_gamepad_devices() == {}
 
     assert caplog.records == []
@@ -624,9 +625,9 @@ def test_a_missing_evdev_module_says_so(monkeypatch, caplog):
     wrote it nowhere."""
     monkeypatch.setitem(sys.modules, "evdev", None)   # `import evdev` raises
     monkeypatch.setattr(gm.glob, "glob", lambda pattern: [])
-    monkeypatch.setattr(gm, "_logged_no_evdev", False)
+    monkeypatch.setattr(gdev, "_logged_no_evdev", False)
 
-    with caplog.at_level(logging.DEBUG, logger=gm.log.name):
+    with caplog.at_level(logging.DEBUG, logger=gdev.log.name):
         assert gm._find_gamepad_devices() == {}
 
     assert any(r.levelno >= logging.ERROR for r in caplog.records)
@@ -643,9 +644,9 @@ def test_a_pad_unplugged_mid_scan_is_not_a_permission_problem(monkeypatch, caplo
     module.list_devices = lambda: ["/dev/input/event9"]
     monkeypatch.setitem(sys.modules, "evdev", module)
     monkeypatch.setattr(gm.glob, "glob", lambda pattern: ["/dev/input/event9"])
-    gm._last_denied = None
+    gdev._last_denied = None
 
-    with caplog.at_level(logging.DEBUG, logger=gm.log.name):
+    with caplog.at_level(logging.DEBUG, logger=gdev.log.name):
         assert gm._find_gamepad_devices() == {}
 
     assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
