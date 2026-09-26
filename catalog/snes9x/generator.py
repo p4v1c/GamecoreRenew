@@ -126,8 +126,8 @@ def _live_joystick(player_index: int, pad, opts: dict) -> tuple[int, int] | None
     """Return (Snes9x 1-based device slot, physical axis count).
 
     Discovery stays on GameCore's official, cached ``controllers.sdl2_probe``
-    seam.  The roster already assigned the player slot, so this generator does
-    not spawn another SDL process to rediscover device order.
+    seam. Player N is Joystick N: controller_registry.compact() keeps slots
+    contiguous at launch, so no private SDL enumeration is needed.
     """
     app_id = opts.get("app_id") or ""
     lib = ""

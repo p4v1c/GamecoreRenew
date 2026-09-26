@@ -57,8 +57,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install requests
-        run: pip install -q requests
+      - name: Install httpx
+        run: pip install -q httpx
 
       # `continue-on-error`, uniquely in this repository, and deliberately: a
       # finding must reach the issue step rather than end the job. Everything

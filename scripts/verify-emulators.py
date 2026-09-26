@@ -20,7 +20,7 @@ tell "nothing to report" from "Flathub said no".
 import sys
 from pathlib import Path
 
-import requests
+import httpx
 
 # One directory deeper than it used to live (repo root → scripts/), so the
 # repo root is the PARENT of this file's parent. The old `.parent` kept
@@ -51,7 +51,7 @@ def check_flatpak(app_id):
     # Flathub API v2
     url = f"https://flathub.org/api/v2/appstream/{app_id}"
     try:
-        response = requests.get(url, timeout=10)
+        response = httpx.get(url, timeout=10, follow_redirects=True)
         if response.status_code == 200:
             return True, "OK"
         elif response.status_code == 404:
@@ -64,7 +64,7 @@ def check_flatpak(app_id):
 def check_github_release_asset(repo, pattern):
     url = f"https://api.github.com/repos/{repo}/releases/latest"
     try:
-        response = requests.get(url, timeout=10)
+        response = httpx.get(url, timeout=10, follow_redirects=True)
         if response.status_code == 200:
             data = response.json()
             assets = data.get("assets", [])
@@ -81,7 +81,7 @@ def check_github_release_asset(repo, pattern):
 
 def check_url(url):
     try:
-        response = requests.head(url, timeout=10, allow_redirects=True)
+        response = httpx.head(url, timeout=10, follow_redirects=True)
         if response.status_code == 200:
             return True, "OK"
         else:

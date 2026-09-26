@@ -173,8 +173,8 @@ def generate(emu_id: str, ports: int, player_index: int, pad, opts: dict):
             f"{emu_id}: SDL2 probe unavailable for {pad.vendor}:{pad.product}"
         )
 
-    # The roster already chose the player's slot. Re-enumerating SDL here was
-    # both redundant and outside the official test/cache seam.
+    # Slot N is SDL device N-1 because controller_registry.compact() closes
+    # gaps before every launch; no private SDL enumeration here.
     device = player_index - 1
 
     if snapshots.exists(opts["snap_dir"], emu_id, pad.vendor, pad.product):
