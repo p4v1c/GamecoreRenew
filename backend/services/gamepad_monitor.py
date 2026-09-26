@@ -21,10 +21,8 @@ import logging
 import time
 
 from . import controller_profiles, controller_registry
-# Device discovery (which /dev/input nodes are pads, one entry per pad).
-from .gamepad_devices import (BTN_SOUTH, EV_KEY, GUIDE_CODES, _can_read,  # noqa: F401
-                              _event_sort_key, _find_gamepad_devices,
-                              _logged_no_guide, dup_indexes, pads_by_key)
+from .gamepad_devices import (EV_KEY, GUIDE_CODES, _can_read, _event_sort_key,
+                              _find_gamepad_devices, dup_indexes, pads_by_key)
 
 log = logging.getLogger(__name__)
 

@@ -11,8 +11,7 @@ from datetime import datetime, timezone
 from .. import ws
 from .paths import config_dir
 from ..db import get_db
-# The X11 session env lives with the Wayland one; re-exported for older imports.
-from .session import display_env, invalidate_display_cache  # noqa: F401
+from .session import display_env
 
 log = logging.getLogger(__name__)
 

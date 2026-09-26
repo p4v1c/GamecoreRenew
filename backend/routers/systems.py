@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from ..services import http_cache
 from ..services.paths import logos_dir
-from ..services.systems import find, get_apps, get_systems, list_all  # noqa: F401 — re-exported
+from ..services.systems import find, list_all
 
 router = APIRouter(tags=["systems"])
 

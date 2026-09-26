@@ -52,7 +52,7 @@ def fake_evdev(monkeypatch):
     module.list_devices = lambda: list(devices)
     monkeypatch.setitem(sys.modules, "evdev", module)
     monkeypatch.setattr(gm.glob, "glob", lambda pattern: list(devices))
-    gm._logged_no_guide.clear()
+    gdev._logged_no_guide.clear()
     return devices
 
 
@@ -340,7 +340,7 @@ if __name__ == "__main__":
         saved_mod, saved_glob = sys.modules.get("evdev"), gm.glob.glob
         sys.modules["evdev"] = module
         gm.glob.glob = lambda pattern: list(devices)
-        gm._logged_no_guide.clear()
+        gdev._logged_no_guide.clear()
         try:
             yield devices
         finally:
@@ -585,7 +585,7 @@ def denied_evdev(monkeypatch):
     module.list_devices = lambda: list(paths)
     monkeypatch.setitem(sys.modules, "evdev", module)
     monkeypatch.setattr(gm.glob, "glob", lambda pattern: list(paths))
-    gm._logged_no_guide.clear()
+    gdev._logged_no_guide.clear()
     gdev._last_denied = None
     return paths
 

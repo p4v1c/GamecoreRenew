@@ -130,7 +130,7 @@ root = sys.argv[1]
 sys.path.insert(0, root)
 
 from backend.services import paths
-from backend.routers import systems as sys_router
+from backend.services import systems as sys_router
 from backend.routers import addons as addons_router
 from backend import utils
 
