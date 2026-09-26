@@ -14,6 +14,7 @@ along one line:
 | | |
 |---|---|
 | `backend/services/configgen/` | everything common to all emulators — SDL resolution, the give-up type, snapshots, the mapping database, the write primitives |
+| `backend/services/configgen/sdl_probe.py` | which SDL a Flatpak loads (`bundled_sdl2/3`, `flatpak_location`) and the cached subprocess probes (`sdl2_probe`, `sdl3_identity`); re-exported by `controllers.py` |
 | `catalog/<id>/generator.py` | one emulator's own format. Nothing else knows it |
 
 The facade survives because `gamepad_monitor` and `routers/` import from it, and
