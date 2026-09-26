@@ -34,7 +34,7 @@ Looking for something specific:
 - *"What events can the UI listen to?"* → [5](05-frontend.md#the-websocket-event-table)
 - *"How do I add an emulator or an app?"* → [10](10-catalog-and-install.md#6-adding-an-emulator)
 - *"What installs EmberTV / the Firefox kiosk profiles?"* → [10](10-catalog-and-install.md#3-the-install-pipeline)
-- *"Why is `arch.sh` 1 300 lines, and can I split it?"* → [11](11-install-script-seams.md)
+- *"Why is `arch.sh` one long script, and can I split it?"* → [11](11-install-script-seams.md)
 - *"Which session does the box log into?"* → [1](01-runtime-topology.md#the-session-the-kiosk-runs-in)
 - *"I write an addon — where am I allowed to write?"* → [12](12-addon-contract.md)
 - *"What happens when I merge to `main`, and how do I undo it?"* → [13](13-release-and-ota.md)
@@ -100,7 +100,7 @@ LAN only ever sees Caddy. Details in [1](01-runtime-topology.md) and
   `paths.py` joins a writable directory onto a root by hand — `test_paths.py`
   fails the build when something does. See [7](07-config-and-data.md).
 - **`config/` is the box's identity** — never in git, never touched by OTA.
-- **The frontend has no CSS files.** Styling is inline objects, colocated with
+- **React components have no CSS files** (themes and `frontend/src/settings/` excepted). Styling is inline objects, colocated with
   the component.
 - **Gamepad input is an event bus, not props.** `onGp('gp:confirm', fn)`
   anywhere in the tree.

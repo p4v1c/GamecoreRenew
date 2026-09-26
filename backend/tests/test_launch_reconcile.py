@@ -26,7 +26,9 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from backend import main                                      # noqa: E402
-from backend.routers import games as games_router             # noqa: E402
+from backend.routers import games as games_router
+from backend.services import systems as systems_service
+from backend.services import launch as launch_service             # noqa: E402
 from backend.services import controller_registry as reg       # noqa: E402
 from backend.services import gamepad_monitor as gm            # noqa: E402
 from backend.services import process_manager as pm            # noqa: E402
@@ -37,7 +39,7 @@ GHOST = {"id": "ghost", "label": "Ghost", "kind": "emulator",
 
 def test_flatpak_resolution_does_not_freeze_the_event_loop(monkeypatch):
     """The websocket/input loop must keep running while flatpak is busy."""
-    from fastapi import HTTPException
+    from backend.services.errors import ServiceError
 
     loop_responded = threading.Event()
     observed = []
@@ -46,18 +48,18 @@ def test_flatpak_resolution_does_not_freeze_the_event_loop(monkeypatch):
         observed.append(loop_responded.wait(1))
         return ""
 
-    monkeypatch.setattr(games_router, "list_all", lambda: [GHOST])
-    monkeypatch.setattr(games_router, "process_manager", pm.ProcessManager())
-    monkeypatch.setattr(games_router.catalog_launch, "resolve_args", resolve)
-    monkeypatch.setattr(games_router.bios, "launch_blocker", lambda _: "test stops before launch")
+    monkeypatch.setattr(systems_service, "list_all", lambda: [GHOST])
+    monkeypatch.setattr(launch_service, "process_manager", pm.ProcessManager())
+    monkeypatch.setattr(launch_service.catalog_launch, "resolve_args", resolve)
+    monkeypatch.setattr(launch_service.bios, "launch_blocker", lambda _: "test stops before launch")
 
     async def exercise():
         request = asyncio.create_task(games_router.launch_game(games_router.LaunchRequest(system_id="ghost")))
         await asyncio.sleep(0)
         loop_responded.set()
-        with pytest.raises(HTTPException) as error:
+        with pytest.raises(ServiceError) as error:
             await request
-        assert error.value.status_code == 424
+        assert error.value.status == 424
 
     asyncio.run(exercise())
     assert observed == [True]
@@ -84,8 +86,8 @@ def launcher(monkeypatch):
     would only add up to eight seconds of real time whenever a pad happened to
     be connected.
     """
-    monkeypatch.setattr(games_router, "list_all", lambda: [GHOST])
-    monkeypatch.setattr(games_router, "PROFILE_BUDGET", 0.0)
+    monkeypatch.setattr(systems_service, "list_all", lambda: [GHOST])
+    monkeypatch.setattr(launch_service, "PROFILE_BUDGET", 0.0)
     monkeypatch.setattr(gm, "_find_gamepad_devices", dict)
     # And its slot sweep is severed at the function, not only at the input.
     # `release_profile` is one module object shared by the whole process, so
@@ -123,7 +125,7 @@ def test_a_cleanup_that_raises_does_not_stop_the_launch(launcher, monkeypatch):
     def boom(*_a, **_k):
         raise OSError("the flatpak config directory went away")
 
-    monkeypatch.setattr(games_router.controller_profiles, "release_profile", boom)
+    monkeypatch.setattr(launch_service.controller_profiles, "release_profile", boom)
 
     r = _launch(launcher)
     assert r.status_code == 503, (
@@ -139,8 +141,8 @@ def test_a_cleanup_that_hangs_does_not_hold_the_launch(launcher, monkeypatch):
     budget abandons WAITING on it. What this asserts is the launch moving on,
     which is the property the player experiences.
     """
-    monkeypatch.setattr(games_router, "RECONCILE_BUDGET", 0.05)
-    monkeypatch.setattr(games_router.controller_profiles, "release_profile",
+    monkeypatch.setattr(launch_service, "RECONCILE_BUDGET", 0.05)
+    monkeypatch.setattr(launch_service.controller_profiles, "release_profile",
                         lambda *a, **k: time.sleep(1.0) or [])
 
     start = time.monotonic()
@@ -157,14 +159,14 @@ def test_the_cleanup_runs_before_the_emulator_starts(launcher, monkeypatch):
     """Order is the whole point: an emulator reads its input config at startup,
     so a slot freed a moment later is a slot the running game still sees."""
     order: list[str] = []
-    monkeypatch.setattr(games_router.controller_profiles, "release_profile",
+    monkeypatch.setattr(launch_service.controller_profiles, "release_profile",
                         lambda *a, **k: order.append("release") or [])
 
     async def launch(**_kw):
         order.append("launch")
         raise FileNotFoundError("not installed")
 
-    monkeypatch.setattr(games_router.process_manager, "launch", launch)
+    monkeypatch.setattr(launch_service.process_manager, "launch", launch)
 
     _launch(launcher)
     assert order and order[0] == "release", (
@@ -179,14 +181,14 @@ def test_only_the_slots_nobody_holds_are_freed(launcher, monkeypatch):
     letting the monitor rewrite it would pass a "no ghosts" test while
     unbinding the pad in the player's hands for up to three seconds."""
     calls: list[tuple] = []
-    monkeypatch.setattr(games_router.controller_profiles, "release_profile",
+    monkeypatch.setattr(launch_service.controller_profiles, "release_profile",
                         lambda slot, occupied=(), pack_ids=None:
                         calls.append((slot, tuple(sorted(occupied)))) or [])
     # The roster is stated, not built with reg.connect(): TestClient runs the
     # app lifespan, which starts the gamepad monitor, which scans the REAL
     # /dev/input — so a developer with a pad plugged in had a third slot taken
     # under the test's feet and this assertion failed on their machine only.
-    monkeypatch.setattr(games_router.controller_registry, "snapshot",
+    monkeypatch.setattr(launch_service.controller_registry, "snapshot",
                         lambda: [{"player": 1, "label": "pad one"},
                                  {"player": 2, "label": "pad two"}])
 
@@ -205,7 +207,7 @@ def test_only_the_emulator_being_launched_is_touched(launcher, monkeypatch):
     """Rewriting Cemu because someone started PCSX2 is a side effect nobody
     asked for, and it is also what would put this over its time budget."""
     seen: list = []
-    monkeypatch.setattr(games_router.controller_profiles, "release_profile",
+    monkeypatch.setattr(launch_service.controller_profiles, "release_profile",
                         lambda slot, occupied=(), pack_ids=None:
                         seen.append(pack_ids) or [])
 
@@ -257,7 +259,7 @@ def _pad_is_connected(unprofiled: bool) -> None:
 def test_the_launch_waits_for_a_pad_that_is_not_profiled_yet(launcher, waiting):
     """The defect itself: an emulator that starts before its config is written
     is an emulator with a dead pad, and it will never re-read the file."""
-    waiting.setattr(games_router, "PROFILE_BUDGET", 0.6)
+    waiting.setattr(launch_service, "PROFILE_BUDGET", 0.6)
     _pad_is_connected(unprofiled=True)
 
     start = time.monotonic()
@@ -274,7 +276,7 @@ def test_a_settled_roster_costs_the_launch_nothing(launcher, waiting):
     """The normal case, and it must be free: one scan period after boot every
     pad is written, and a console that paused before every game would have
     traded one fault for a worse one."""
-    waiting.setattr(games_router, "PROFILE_BUDGET", 5.0)
+    waiting.setattr(launch_service, "PROFILE_BUDGET", 5.0)
     _pad_is_connected(unprofiled=False)
 
     start = time.monotonic()
@@ -289,14 +291,14 @@ def test_a_settled_roster_costs_the_launch_nothing(launcher, waiting):
 def test_the_wait_ends_as_soon_as_the_pad_is_written(launcher, waiting):
     """It waits for the event, not for the budget. The budget is only the
     point at which it gives up."""
-    waiting.setattr(games_router, "PROFILE_BUDGET", 5.0)
+    waiting.setattr(launch_service, "PROFILE_BUDGET", 5.0)
     _pad_is_connected(unprofiled=True)
 
     async def profiled_shortly() -> None:
         await asyncio.sleep(0.3)
         gm._applied["40:1b:5f:b9:ea:8d"] = (("footprint",), 0)
 
-    original = games_router._await_controller_profiles
+    original = launch_service._await_controller_profiles
 
     async def wrapped(*a, **k):
         task = asyncio.create_task(profiled_shortly())
@@ -305,7 +307,7 @@ def test_the_wait_ends_as_soon_as_the_pad_is_written(launcher, waiting):
         finally:
             await task
 
-    waiting.setattr(games_router, "_await_controller_profiles", wrapped)
+    waiting.setattr(launch_service, "_await_controller_profiles", wrapped)
 
     start = time.monotonic()
     r = _launch(launcher)
@@ -324,7 +326,7 @@ def test_giving_up_launches_the_game_anyway(launcher, waiting):
     looks like from this side. Reaching the exec step (503) is the proof the
     launch was not blocked.
     """
-    waiting.setattr(games_router, "PROFILE_BUDGET", 0.2)
+    waiting.setattr(launch_service, "PROFILE_BUDGET", 0.2)
     _pad_is_connected(unprofiled=True)
 
     r = _launch(launcher)
@@ -338,7 +340,7 @@ def test_a_monitor_that_never_started_is_not_waited_for(launcher, monkeypatch):
     """No monitor means nothing will ever profile anything. Waiting the full
     budget before every single launch, for a pass that is not coming, is how a
     fix for a cold-boot race becomes a permanent tax."""
-    monkeypatch.setattr(games_router, "PROFILE_BUDGET", 5.0)
+    monkeypatch.setattr(launch_service, "PROFILE_BUDGET", 5.0)
     monkeypatch.setattr(gm, "_running", False)
 
     start = time.monotonic()
@@ -352,11 +354,11 @@ def test_a_monitor_that_never_started_is_not_waited_for(launcher, monkeypatch):
 def test_the_wait_comes_before_the_emulator_starts(launcher, waiting):
     """Same reason the release sweep does: a config that lands after startup is
     a config the running emulator will never read."""
-    waiting.setattr(games_router, "PROFILE_BUDGET", 0.3)
+    waiting.setattr(launch_service, "PROFILE_BUDGET", 0.3)
     _pad_is_connected(unprofiled=True)
     order: list[str] = []
 
-    original = games_router._await_controller_profiles
+    original = launch_service._await_controller_profiles
 
     async def watched(*a, **k):
         await original(*a, **k)
@@ -366,8 +368,8 @@ def test_the_wait_comes_before_the_emulator_starts(launcher, waiting):
         order.append("launch")
         raise FileNotFoundError("not installed")
 
-    waiting.setattr(games_router, "_await_controller_profiles", watched)
-    waiting.setattr(games_router.process_manager, "launch", launch)
+    waiting.setattr(launch_service, "_await_controller_profiles", watched)
+    waiting.setattr(launch_service.process_manager, "launch", launch)
 
     _launch(launcher)
 

@@ -1,39 +1,11 @@
 /**
- * Settings → Wi-Fi, in this screen's own hand.
+ * Settings → Wi-Fi: middle column and detail column, bare markup (the frame
+ * carries the overlay). Behaviour is `sdk.api.wifi.*` (nmcli); `GET /networks`
+ * rescans by itself.
  *
- * Bare markup: the middle column and the detail column, nothing else. The
- * frame in views/settings.js carries the overlay — a panel of its own here is
- * the nested `position:fixed` that shattered this exact page once already.
- *
- * The behaviour stays the host's. Scanning, joining and disconnecting are
- * `sdk.api.wifi.*`, which is `nmcli` on the other end; this file decides what
- * the screen looks like and nothing about what it does. Rescanning happens
- * because `GET /networks` rescans, not because this asked it to.
- *
- * ## Where this departs from the capture, and why
- *
- * · **No ON/OFF switch.** The capture puts a toggle top-right. There is no
- *   route that turns the radio off — `wifi.py` connects and disconnects, and
- *   nothing more — so a switch here would be a control that governs nothing,
- *   which is worse than an absent one. The scanning indicator the capture also
- *   has is kept, and it is real.
- * · **Signal in per cent, not dBm.** nmcli reports link quality 0–100 and does
- *   not expose dBm without root. `-42 dBm` in the capture is a number this box
- *   cannot produce; 78 % is the same fact in the units the system actually
- *   measures it in.
- * · **No "Forget this network".** It would need `nmcli con delete`, which is a
- *   route that does not exist yet, and it destroys a saved profile — so it
- *   wants the same two-step protection as the autoconfig switch rather than a bare
- *   button. Named in the README as outstanding.
- * · **The password dialog holds the on-screen keyboard.** The capture draws a
- *   text field, which is a mouse-and-keyboard drawing: nobody typing a WPA
- *   passphrase from a sofa has either. `sdk.defaults.DefaultKeyboard` is the
- *   host's, brings its own bindings, and is the only way this is usable at all.
- *
- * Everything else in the detail column is now real. Gateway, DNS, MAC, band,
- * channel and link rate were the reason `/settings/wifi/details` and the three
- * new keys on `/status` were added — the capture asked for a panel the backend
- * could not fill, so the backend learned to fill it.
+ * Not drawn: an ON/OFF switch (no route turns the radio off), dBm (nmcli gives
+ * 0–100 % without root), "Forget this network" (no route yet; needs a
+ * two-step confirm). The password dialog uses the on-screen keyboard.
  */
 const REFRESH_MS = 10000
 

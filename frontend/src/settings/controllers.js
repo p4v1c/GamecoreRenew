@@ -1,50 +1,17 @@
 /**
  * Settings → Controllers.
  *
- * "Scan mapping" and "Forget mapping" used to live here, moved in from the
- * power menu. Both were removed. Mappings they saved are still restored on
- * connect by automatic setup; a pad SDL does not know is mapped with the
- * wizard, which the □ button opens.
+ * Not drawn: a global stick dead zone or exit combination (both are written
+ * per emulator by configgen), or a per-row "Remap" (the wizard lives on the
+ * controller screen, opened with □). Pads come from the Gamepad API:
+ * `sysinfo.controllers` only sees pads with a battery.
  *
- * ## Where this departs from the capture, and why
- *
- * · **No stick dead zone.** There is no global setting. Dead zones are written
- *   per emulator by configgen, and a slider here would either govern nothing
- *   or silently disagree with thirteen config files.
- * · **No exit combination.** The hotkey is generated, not chosen. A picker
- *   would be offering a choice the box does not have.
- * · **Player rows do not cycle "Mapped / Remap…".** Remapping a pad SDL does
- *   not know is the wizard, and the wizard lives in the controller screen the
- *   □ button opens — the shell owns whether that is up, so a settings row
- *   cannot raise it. The rows say what is connected and point at □.
- *
- * Pads come from the Gamepad API rather than `sysinfo.controllers`: that field
- * is `read_batteries()`, a sysfs scan that only sees pads exposing a battery,
- * so a wired pad would be reported as absent on the one screen whose job is to
- * say whether it is there.
- *
- * ## The autoconfig switch
- *
- * It is HERE and not in a theme, and that is not a filing decision. This file
- * is the shared settings screen — Shelf, Summer and the built-in default all
- * draw it — so the switch exists once and every surface gets it. A switch that
- * lived in one theme would vanish when somebody changed theme while the SETTING
- * stayed in force: a box with no autoconfig and no way left to turn it back on.
- *
- * The label says what it DOES. "Autoconfig" alone means nothing to somebody
- * opening this screen for the first time, and this is a shipped feature for
- * every player, not a support tool.
- *
- * **Both directions warn first**, through the `confirm` arming in rows.js:
- * turning it off empties the controller setup GameCore wrote, turning it on
- * overwrites whatever the owner did by hand while it was off. Neither has an
- * undo. The sentence differs per direction because the losses do.
- *
- * Per-emulator exceptions are behind a row that has to be opened. They are for
- * "I configure Dolphin myself and the rest can look after itself", which is not
- * a thing to trip over on the way to the rumble toggle. With the global switch
- * off they are shown as plain readings, not switches: the global one wins, and
- * a row you can still flick while it governs nothing is a lie you can operate.
+ * The autoconfig switch lives HERE, in the shared screen, so it exists on
+ * every surface (a theme-only switch could vanish while its setting stays on).
+ * Both directions warn first (`confirm` in rows.js): off empties GameCore's
+ * controller setup, on overwrites manual edits; neither has an undo.
+ * Per-emulator exceptions sit behind a row; with the global switch off they
+ * are shown as readings, not switches.
  */
 export const createControllersPage = (sdk, Rows) => {
   const { html, useState, useEffect } = sdk.ui

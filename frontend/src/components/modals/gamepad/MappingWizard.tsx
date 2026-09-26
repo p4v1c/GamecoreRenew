@@ -1,27 +1,16 @@
 /**
- * The mapping wizard — any controller playable in about a minute, no keyboard.
+ * Mapping wizard: any controller playable in about a minute, no keyboard.
  *
- * One button at a time, full frame, driven entirely by the pad being mapped.
- * That last point is the constraint everything here follows from: the player is
- * holding a controller the box does not understand, so nothing on this screen
- * may depend on a binding. The Gamepad API events the rest of the UI runs on
- * (`gp:confirm`, `gp:back`) are exactly what a pad SDL cannot map does not
- * produce reliably — so this screen ignores them and listens only to the raw
- * capture stream from the backend.
+ * The pad being mapped is not understood yet, so nothing here may depend on a
+ * binding: `gp:*` events are ignored and only the backend's raw capture stream
+ * is read.
  *
- * The four gestures, and why each exists:
+ *   press          record the input, next step
+ *   HOLD           skip a button the pad lacks (every pad can hold what it pressed)
+ *   double-press   back one step
+ *   nothing        after a while, an on-screen reminder of the two above
  *
- *   press          record this input for the current step and advance
- *   HOLD           skip a button the pad does not have. A hold rather than a
- *                  second button, because there is no second button we can
- *                  trust yet — every pad can hold the one it just pressed
- *   double-press   go back one step. Same reason
- *   nothing        after a while, an on-screen reminder of the two above. A
- *                  wizard whose escape hatch is invisible is a soft lock in
- *                  front of a television
- *
- * The keyboard shortcuts alongside are for a developer at a desk, never the
- * path the box is designed around.
+ * Keyboard shortcuts exist for development only.
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { api, type MappingStep, type MappingSession } from '../../../api'
@@ -69,9 +58,8 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
    * Which button of the LAST screen is selected — 0 "Copy & contribute",
    * 1 "Done". It starts on Done because that is the way out.
    *
-   * The last screen had no pad handling at all, and the owner hit it: "je n'ai
-   * pas pu le sélectionner avec mon joystick ou pad directionnel, j'ai dû le
-   * faire avec la souris." A wizard whose whole premise is "no keyboard, and
+   * The last screen had no pad handling at all, and the owner hit it: "I could
+   * not select it with the stick or the D-pad, I had to use the mouse." A wizard whose whole premise is "no keyboard, and
    * nothing here may depend on a binding" ended on a mouse.
    *
    * It is also the screen where that is least excusable. By the time it is up
@@ -177,7 +165,7 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
           try { msg = JSON.parse(e.data) } catch { return }
           if (msg.event === 'ended') {
             if (!cancelled && ['capturing', 'review'].includes(phaseRef.current)) {
-              setError('La manette a été déconnectée ou la capture a expiré. Relancez le mapping.')
+              setError('The controller was disconnected or the capture timed out. Start the mapping again.')
               setPhase('error')
             }
             return
@@ -281,7 +269,7 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
         }
         socket.onclose = () => {
           if (!cancelled && ['capturing', 'review'].includes(phaseRef.current)) {
-            setError('La connexion à la manette a été interrompue. Relancez le mapping.')
+            setError('The connection to the controller was lost. Start the mapping again.')
             setPhase('error')
           }
         }

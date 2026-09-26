@@ -1,7 +1,7 @@
 """One tile entry, built from one pack. The only implementation.
 
 A tile in `config/systems.json` or `config/apps.json` is a contract: the exact
-set of fields `backend/routers/games.py` reads to launch something and
+set of fields `backend/services/launch.py` reads to launch something and
 `frontend/` reads to draw it. That contract used to be written down twice —
 
     scripts/gen-catalog.py            _launcher()  system_entry()  app_entry()

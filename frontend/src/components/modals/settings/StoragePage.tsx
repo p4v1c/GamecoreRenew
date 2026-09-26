@@ -6,30 +6,15 @@ import { useSubPageGamepad } from './useSubPageGamepad'
 import { PadHints } from '../../../lib/padKey'
 
 /**
- * Settings → Storage: the external disks, and the way to take one out safely.
+ * Settings → Storage: external disks, and ejecting one safely.
  *
- * "I plug my ROM disk in" is one of the first three things anyone expects from
- * a console in a living room, and before this the box did nothing at all with
- * one. Three things this screen has to get right:
+ *  · Eject flushes and detaches — the reason this is a screen.
+ *  · Shown path is `<DATA>/volumes/<label>`, stable across replugs (udisks
+ *    renames a second mount `ROMS 1`); romsPath should use it.
+ *  · exFAT/NTFS carry no POSIX permissions: ROMs fine, saves not. Amber, never
+ *    red.
  *
- *  · **Eject is the point.** Pulling a disk with unwritten data is how a save
- *    is lost, and "has it finished writing" is not a question anyone can answer
- *    by looking at it. The button flushes and detaches; that is the whole
- *    reason this is a screen rather than a paragraph of documentation asking
- *    players to be careful.
- *
- *  · **The stable path, not the mount point.** udisks names the second mount of
- *    the same disk `ROMS 1`, so a library recorded against the real mount point
- *    scans nothing the day someone replugs it. What is shown here — and what a
- *    romsPath should be written against — is `<DATA>/volumes/<label>`.
- *
- *  · **exFAT and NTFS are not a fault, and not nothing either.** They carry no
- *    POSIX permissions, so ROMs are fine and emulator saves are not. Amber and
- *    a sentence, never red: a disk formatted the way every disk in a shop is
- *    formatted must not read as broken.
- *
- * The list repolls, because a disk arriving generates no event the browser can
- * see and the owner is standing there with a cable in their hand.
+ * The list repolls: the browser gets no event when a disk arrives.
  */
 
 const ACCENT = 'var(--gc-accent, #7c3aed)'

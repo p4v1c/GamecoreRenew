@@ -2,6 +2,7 @@
 // Real Chromium rendering, no Electron app, backend, display, or remote page.
 const fs = require('node:fs')
 const path = require('node:path')
+const readCss = require('../test/css-bundle.cjs')
 const os = require('node:os')
 const { spawn, execFileSync } = require('node:child_process')
 const rig = require('../test/hud-rig.cjs')
@@ -85,7 +86,7 @@ async function main() {
   })
   const layout = []
   for (const name of ['none', 'orbit', 'shelf', 'summer']) {
-    const css = name === 'none' ? '' : fs.readFileSync(path.join(root, `config/themes/${name}/theme.css`), 'utf8')
+    const css = name === 'none' ? '' : readCss(path.join(root, `config/themes/${name}/theme.css`))
     await document(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>${css}</style>`)
     const { result } = await call('Runtime.evaluate', {
       expression: `Object.fromEntries(${JSON.stringify(Object.keys(contract.tokens))}.map(k => [k, getComputedStyle(document.documentElement).getPropertyValue('--gc-hud-' + k).trim()]))`, returnByValue: true,

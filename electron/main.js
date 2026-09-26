@@ -68,7 +68,7 @@ let monitorProcess = null
  * Not a constant, and the reason is measurable: Shelf's boot animation paints
  * `#F4F2ED`, near-white paper. A shell hardcoded to a dark ground therefore
  * flashed dark-to-white at every single boot on the theme the box actually
- * runs — the exact "image blanche entre deux fenêtres" the console boot exists
+ * runs — the exact "white frame between two windows" the console boot exists
  * to remove.
  *
  * Read from two files, both on disk, neither needing the backend: the active
@@ -936,39 +936,18 @@ ipcMain.on('system:reboot',   () => exec('sudo systemctl reboot'))
 ipcMain.on('system:shutdown', () => exec('sudo systemctl poweroff'))
 
 /**
- * The ONLY way out — and in the console session, leaving is a change of
- * session rather than the end of a program.
- *
- * Quitting used to be enough: GameCore was drawn over the machine's desktop,
- * so closing it revealed the desktop that was already there. There is no
- * desktop behind it any more. Quitting on its own would end the session, SDDM
- * would auto-log straight back in, and the player would watch GameCore start
- * again — which reads as "the button does nothing", pressed harder.
- *
- * So the auto-login is pointed at the desktop FIRST, and only then does the
- * session end. `gamecore-session-select` is the one command the sudoers rule
- * names, with exactly this argument; if it is not there — an un-migrated box,
- * where GameCore really is drawn over a desktop — quitting alone is still
- * exactly right, which is why a failure here does not stop the exit.
- *
- * Everything else that closes a window is an accident, and window-all-closed
- * below reads `quitting` to tell the two apart.
+ * Exit to desktop. In the console session, leaving is a session change: point
+ * SDDM's autologin at the desktop FIRST (`gamecore-session-select`, allowed by
+ * sudoers), then end the session — otherwise SDDM logs straight back into
+ * GameCore. On an un-migrated box quitting alone is right, so a failure here
+ * does not block the exit. `quitting` lets window-all-closed tell this apart
+ * from an accidental close.
  */
 /**
- * Are we the console session, or a window on somebody's desktop?
- *
- * Asked of three variables and case-insensitively, because the session sets
- * them from three different places and they do not agree:
- *
- *     DESKTOP_SESSION=gamecore        the .desktop file's NAME
- *     XDG_SESSION_DESKTOP=GameCore    its DesktopNames= field
- *     XDG_CURRENT_DESKTOP=GameCore    idem, and a colon-list by specification
- *
- * This read `XDG_SESSION_DESKTOP !== 'gamecore'` and nothing else, so on the
- * real box every "Mode bureau" took the early exit: the app quit without ever
- * handing the auto-login back, SDDM's Relogin brought the console straight up
- * again, and from the sofa it looked like the button flashed the screen black
- * and did nothing. One capital letter, in a value we do not own.
+ * True when running as the console session. Checks DESKTOP_SESSION,
+ * XDG_SESSION_DESKTOP and XDG_CURRENT_DESKTOP case-insensitively: the session
+ * sets them from different places ("gamecore" vs "GameCore"), and a
+ * case-sensitive check made "Desktop mode" quit without handing autologin back.
  */
 function inConsoleSession() {
   return ['DESKTOP_SESSION', 'XDG_SESSION_DESKTOP', 'XDG_CURRENT_DESKTOP']

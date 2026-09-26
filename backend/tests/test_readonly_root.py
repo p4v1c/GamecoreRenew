@@ -76,7 +76,7 @@ code, data = sys.argv[1], sys.argv[2]
 sys.path.insert(0, code)
 
 from backend.services import paths, standby, themes
-from backend.routers import systems as sys_router
+from backend.services import systems as sys_router
 import backend.routers.overlays as ov
 
 done = {}
@@ -226,7 +226,7 @@ def test_a_tarball_of_the_data_tree_restores_the_box(frozen, tmp_path):
 import json, sys
 sys.path.insert(0, sys.argv[1])
 from backend.services import paths
-from backend.routers import systems as sys_router
+from backend.services import systems as sys_router
 rows = sys_router.get_systems()
 roms = paths.resolve_data_path(rows[0]["romsPath"])
 print(json.dumps({

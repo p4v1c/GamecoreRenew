@@ -1,0 +1,142 @@
+/* Jackets have their own in-flow boxes. A generic absolute wrapper made the
+   library cards collapse and overrode the carefully sized home stage. */
+.orbit-app .orbit-jacket {
+  position: relative; inset: auto; display: block; min-width: 0; min-height: 0;
+}
+.orbit-app .orbit-jacket > .art-fallback { width: 100%; height: 100%; }
+/* One line, not two. Two lines of a 19px title is 75px under every jacket —
+   a sixth of the row spent on text that repeats what the cover already says.
+   `min-height` stays so a one-word title and a wrapped one keep the same row
+   height; without it the grid shifts as titles load. */
+.orbit-app .library-card h3 {
+  font-size: clamp(11px, .72vw, 15px); line-height: 1.35;
+  white-space: normal; display: -webkit-box; -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical; min-height: 1.35em; margin: 9px 0 0;
+}
+.orbit-app .details-identity {
+  display: grid; grid-template-columns: minmax(120px, 32%) minmax(0, 1fr);
+  align-items: center; gap: 26px; margin: 5px 0 24px;
+}
+.orbit-app .details-jacket { width: 100%; aspect-ratio: 2 / 3; }
+.orbit-app .details-jacket .art-fallback { border-radius: 8px; }
+.orbit-app .orbit-details { width: min(820px, 100%); }
+.orbit-app .hero { min-height: 0; padding-top: clamp(24px, 4vh, 70px); }
+@media (max-height: 800px) {
+  .orbit-app .topbar { padding-top: 18px; padding-bottom: 14px; }
+  .orbit-app .rail-heading { margin-top: 12px; margin-bottom: 10px; }
+  .orbit-app .hero { padding-top: 18px; padding-bottom: 22px; }
+  .orbit-app #hero-title { font-size: clamp(32px, 4vw, 60px); margin: 16px 0; }
+  .orbit-app .hero-copy #hero-description { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; -webkit-line-clamp: 2; }
+}
+@media (max-width: 650px) {
+  .orbit-app { --orbit-rail-size: 104px; --orbit-rail-selected: 128px; }
+  .orbit-app .details-identity { gap: 16px; grid-template-columns: 100px minmax(0, 1fr); }
+  .orbit-app .details-copy h2 { font-size: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orbit-app .game-tile, .orbit-app .tile-art { transition: none; }
+}
+
+.orbit-app .orbit-meta-group { display: contents; }
+
+/* Native boot surface: light resolves into the mark, then reveals the shell. */
+.orbit-splash { position: fixed; inset: 0; z-index: 10000; overflow: hidden;
+  display: grid; place-items: center; background: #080f1d; color: #f0f6ff;
+  font-family: inherit; opacity: 1; transition: opacity var(--orbit-boot-fade,700ms) ease; }
+.orbit-splash[data-out="true"] { opacity: 0; pointer-events: none; }
+.orbit-boot-glow { position: absolute; width: min(110vw,1200px); aspect-ratio: 1;
+  border-radius: 50%; background: radial-gradient(ellipse,#3278b838, #18395820 40%,transparent 68%);
+  animation: orbit-boot-light 4200ms ease-out both; }
+.orbit-boot-ring { position: absolute; width: min(72vw,760px); aspect-ratio: 1;
+  border-radius: 50%; border: 1px solid #aacfff24; pointer-events: none; }
+.orbit-boot-ring-a { animation: orbit-boot-orbit 3800ms cubic-bezier(.16,1,.3,1) both; }
+.orbit-boot-ring-b { width: min(86vw,920px); border-color: #aacfff12;
+  animation: orbit-boot-orbit 4200ms 200ms cubic-bezier(.16,1,.3,1) both; }
+.orbit-boot-identity { position: relative; display: flex; flex-direction: column;
+  align-items: center; text-align: center; }
+.orbit-boot-mark { width: clamp(56px,5vw,100px); height: auto; color: #eaf5ff;
+  filter: drop-shadow(0 0 24px #87bcf344); animation: orbit-boot-reveal 1800ms 500ms both; }
+.orbit-splash-word { margin-top: 25px; font-size: clamp(18px,1.7vw,32px);
+  font-weight: 600; letter-spacing: .27em; padding-left: .27em;
+  animation: orbit-boot-reveal 1800ms 1100ms both; }
+.orbit-splash-word small { display: block; margin-top: 12px; font-size: .45em;
+  font-weight: 400; letter-spacing: .7em; padding-left: .43em; color: #afcae4; }
+.orbit-boot-line { margin-top: 30px; height: 1px; width: 80px;
+  background: linear-gradient(90deg,transparent,#b7d7f8,transparent);
+  animation: orbit-boot-line 1400ms 1900ms both; }
+.orbit-boot-identity p { margin: 19px 0 0; font-size: clamp(12px,1vw,17px);
+  font-weight: 300; letter-spacing: .09em; color: #9db1c9;
+  animation: orbit-boot-reveal 1600ms 2400ms both; }
+@keyframes orbit-boot-reveal { from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); } }
+@keyframes orbit-boot-light { from { opacity: 0; transform: scale(.65); }
+  to { opacity: 1; transform: scale(1); } }
+@keyframes orbit-boot-orbit { from { opacity: 0; transform: scale(.55) rotateX(58deg) rotate(-28deg); }
+  45% { opacity: 1; } to { opacity: .55; transform: scale(1) rotateX(58deg) rotate(-12deg); } }
+@keyframes orbit-boot-line { from { opacity: 0; transform: scaleX(0); }
+  to { opacity: 1; transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .orbit-splash *, .orbit-splash *::before, .orbit-splash *::after { animation: none !important; }
+  .orbit-splash { transition-duration: 150ms; }
+}
+
+/* Console navigation: a clear focus without changing grid geometry. */
+.orbit-app :is(.machine-tile,.library-card,.game-tile,.primary-button,.filter,.nav-item) {
+  transition: width 180ms ease, flex-basis 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+.orbit-app :is(button,input):focus-visible,
+.orbit-app .pad-focus {
+  outline: 2px solid #e0f1ff; outline-offset: 5px;
+  box-shadow: 0 0 0 7px #91c8ff12, 0 0 26px #83baff24;
+}
+.orbit-app .machine-tile.selected {
+  border-color: #c7e5ff; background: #80baff15;
+  box-shadow: 0 0 0 2px #b9dcff25, 0 0 26px #79b9ff18;
+}
+.orbit-app :is(#home-view,#systems-view,#applications-view,#library-view) {
+  animation: orbit-page-enter 240ms ease-out;
+}
+@keyframes orbit-page-enter {
+  from { opacity: 0; translate: 0 7px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orbit-app :is(#home-view,#systems-view,#applications-view,#library-view) { animation: none; }
+  .orbit-app :is(.machine-tile,.library-card,.game-tile,.primary-button,.filter,.nav-item) { transition: none; }
+}
+
+/* Artwork changes retain their geometry and only reveal decoded images. */
+.orbit-app .orbit-jacket { background-color: #17263a; }
+.orbit-app .orbit-jacket img { opacity: 1; transition: opacity 220ms ease; }
+.orbit-app .orbit-jacket[data-loaded="false"] img { opacity: 0; }
+.orbit-app .orbit-jacket[data-loaded="false"] {
+  background-image: linear-gradient(110deg,#17263a,#273c55,#17263a);
+  background-size: 200% 100%; animation: orbit-jacket-loading 1.8s ease-in-out infinite;
+}
+@keyframes orbit-jacket-loading { 50% { background-position: 100% 0; } }
+.orbit-app .orbit-backdrop-exit { animation: orbit-backdrop-out 380ms ease both; }
+@keyframes orbit-backdrop-out { to { opacity: 0; } }
+/* The ledge spans the page, as it did before 3.6.14 made it a floating panel.
+   The rest of the compact treatment — the smaller art, the tighter padding —
+   is kept; only the width went back. `right` is left to the base rule
+   (`left: var(--page-pad); right: var(--page-pad)`), so there is one place
+   that decides how wide this is. */
+.session-dock.orbit-compact-dock {
+  min-height: 64px; padding: 10px 14px; gap: 12px;
+  transition: border-color 180ms ease, box-shadow 180ms ease; }
+.orbit-compact-dock .session-dock-art { width: 34px; height: 44px; flex-shrink: 0; }
+.orbit-compact-dock .session-dock-art img { width: 100%; height: 100%; object-fit: contain; }
+.orbit-compact-dock .session-dock-info { min-width: 0; flex: 1; }
+.orbit-compact-dock .session-dock-info strong { font-size: 14px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.orbit-compact-dock .session-dock-info small { display: none; }
+.orbit-compact-dock .session-dock-actions .primary-button { min-height: 34px; padding: 8px 15px; font-size: 12px; }
+.session-dock.orbit-compact-dock:is(:hover,:focus-within,.controller-active) { border-color: #c5e3ff; }
+.orbit-compact-dock:is(:hover,:focus-within,.controller-active) .session-dock-info small { display: block; }
+@media(max-width:650px) {
+  .orbit-compact-dock .session-dock-actions { flex: 0 0 auto; order: initial; padding: 0; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .orbit-app .orbit-jacket, .orbit-app .orbit-backdrop-exit { animation: none !important; }
+  .orbit-app .orbit-jacket img, .session-dock.orbit-compact-dock { transition: none; }
+}
+

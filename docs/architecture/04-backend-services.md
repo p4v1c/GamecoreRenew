@@ -17,9 +17,9 @@ State: `_proc`, `_launching`, `_game_key`, `_system_id`, `_start_time`,
 
 | Member | Role |
 |---|---|
-| `_display_env()` | rebuilds a GUI environment for a systemd child — see [1](01-runtime-topology.md#environment-reconstruction). **Synchronous**; memoised |
-| `display_env()` | the `async` wrapper every event-loop caller must use |
-| `invalidate_display_cache()` | forget the probed display — called after a failed launch |
+| `session._display_env()` | (in `services/session.py`) rebuilds a GUI environment for a systemd child — see [1](01-runtime-topology.md#environment-reconstruction). **Synchronous**; memoised |
+| `session.display_env()` | the `async` wrapper every event-loop caller must use |
+| `session.invalidate_display_cache()` | forget the probed display — called by `services/launch.py` after a failed launch |
 | `kill_process_group(proc)` | module-level: SIGKILL a process **and its children**. Shared with `routers/update.py` |
 | `is_running` | `_launching or (_proc alive) or (_orphan_pgid alive)` |
 | `current_game` | `{game_key, system_id}` or `None` |
@@ -54,7 +54,7 @@ Decisions that look odd until you know why:
    nothing for the case that actually strands the player — a crash, where the
    lifespan never runs.
 
-`launch_game` (in `routers/games.py`) catches `FileNotFoundError` and
+`services/launch.py:_spawn` catches `FileNotFoundError` and
 `PermissionError` and answers **503** naming the system and the binary, plus a
 `game:failed` broadcast the UI turns into a toast. It used to escape as a bare
 500 with an empty body: the launch silently did not happen and nothing said why.
@@ -84,7 +84,7 @@ half-dressed UI.
 
 Covered by `backend/tests/test_themes.py`.
 
-## `gamepad_monitor.py` (280 l.) — evdev, the source of truth for input
+## `gamepad_monitor.py` — evdev, the source of truth for input
 
 Runs as a lifespan task. It exists because the browser Gamepad API cannot be
 trusted for the Guide button and cannot see anything while a fullscreen
@@ -93,8 +93,8 @@ emulator owns the display.
 | Function | Role |
 |---|---|
 | `run()` | main loop — rescans for devices every few seconds, watches each |
-| `_find_gamepad_devices()` | `path → (name, uniq, is_pad, vendor, product)` for every readable `/dev/input/event*` |
-| `_can_read(path)` | permission probe |
+| `_find_gamepad_devices()` | in `gamepad_devices.py`: `path → (name, uniq, is_pad, vendor, product)` for every readable `/dev/input/event*` |
+| `pads_by_key()`, `dup_indexes()`, `_can_read(path)` | in `gamepad_devices.py`: one entry per physical pad, per-name duplicate counters, permission probe |
 | `_watch_device(path)` | reads one device until it disconnects or is cancelled |
 | `_on_guide_pressed()` | the double-press logic, then `POST /api/games/kill` |
 
@@ -105,7 +105,7 @@ controller button wakes a sleeping box.
 
 ---
 
-## `controller_registry.py` (89 l.) — console-style player slots
+## `controller_registry.py` — console-style player slots
 
 Assigns P1…P4 and keeps them stable across reconnects.
 
@@ -121,7 +121,7 @@ Assigns P1…P4 and keeps them stable across reconnects.
 
 ---
 
-## `battery.py` (116 l.)
+## `battery.py`
 
 | Function | Role |
 |---|---|
@@ -134,7 +134,7 @@ HUD instead, because the React toast is hidden under the emulator.
 
 ---
 
-## `standby.py` (152 l.)
+## `standby.py`
 
 | Function | Role |
 |---|---|
@@ -197,7 +197,7 @@ every standby transition.
 
 ---
 
-## `cover_pipeline.py` (170 l.) — orchestration
+## `cover_pipeline.py` — orchestration
 
 | Function | Role |
 |---|---|
@@ -263,7 +263,7 @@ Three things live here precisely because they used to exist in several copies:
   decimal units. The rom-manager addon carries its own deliberate copy
   (self-contained by contract) and moved in the same release.
 
-## `local_media.py` (150 l.) — read the game itself
+## `local_media.py` — read the game itself
 
 Offline and exact. Nothing here guesses from a filename.
 
@@ -278,7 +278,7 @@ Offline and exact. Nothing here guesses from a filename.
 | `get_title(system_id, rom)` | real title from embedded metadata — why PS3 folders show a name, not `BLES01234` |
 | `disc_id(system_id, rom)` | `(kind, id)` for an exact online lookup, e.g. `("wii", "GALE01")` |
 
-## `iso9660.py` (106 l.) — minimal ISO reader
+## `iso9660.py` — minimal ISO reader
 
 `class Iso9660` with `open(path)` (classmethod, autodetects the sector layout,
 returns `None` for a non-ISO such as a compressed `.cso`), `_sector`,
@@ -286,7 +286,7 @@ returns `None` for a non-ISO such as a compressed `.cso`), `_sector`,
 (case-insensitive). Supports `with` via `__enter__`/`__exit__` — use it, the
 factory only closes the handle on its own failure paths.
 
-## `scraper.py` (242 l.) — the network tier
+## `scraper.py` — the network tier
 
 | Function | Role |
 |---|---|
@@ -459,7 +459,7 @@ The backend **never** builds it — 106 MB of download from inside an HTTP
 handler would block the request for minutes. A box with no index simply has no
 LaunchBox tier, and says so in the manifest notes.
 
-## `metadata.py` (135 l.)
+## `metadata.py`
 
 `resolve(system, filename)` → description, year, genres, players, rating.
 Disk-cached and negative-cached. Two sources: **gamemedia first** (hash
@@ -484,14 +484,14 @@ service's cache: gamemedia already caches its own negative, and only when the
 tiers really answered. A second copy with a 7-day TTL would outlive the retry
 gamemedia does for free the day the credentials appear or the quota resets.
 
-## `sfo.py` (34 l.)
+## `sfo.py`
 
 `parse_bytes(d)` and `parse(path)` — PARAM.SFO key/value table, `{}` on any
 error. Same binary format on PS3, PS4 and PSP. The addons repo has its own
 copy in `shared/py/`; this one additionally exposes `parse_bytes()` for data
 already in memory.
 
-## `rom_scanner.py` (126 l.)
+## `rom_scanner.py`
 
 `clean_name(filename)` (strips extension and bracketed tags like `[!]`,
 `(USA)`), `matches_ext(filename, extensions)`, and
@@ -534,7 +534,7 @@ something visible takes its place.
 The **value** of that mapping is what `playtime_repair` needs: hiding a file
 that a player has hours on would orphan them.
 
-## `playtime_repair.py` (105 l.)
+## `playtime_repair.py`
 
 `rekey_shadowed_entries()` → number of rows moved. Runs once in the lifespan,
 before anything can serve a library.
@@ -562,7 +562,7 @@ moving playtime onto an invisible entry only hides it further.
 The covers and metadata caches need no equivalent: both are keyed on the
 *stem*, which `.bin` and `.cue` share.
 
-## `prefetch.py` (82 l.)
+## `prefetch.py`
 
 `run()` walks the library at startup and calls `warm(system, filename)` so the
 first scroll is not a spinner. Two passes, in this order:
@@ -593,7 +593,7 @@ games nobody had opened yet, each one costing a round trip behind the scraper's
 
 ---
 
-## `overlay_monitor.py` (277 l.) — X11 watcher, runs as a subprocess
+## `overlay_monitor.py` — X11 watcher, runs as a subprocess
 
 Not imported by the backend: Electron spawns it and speaks JSON-lines over
 stdio.
@@ -624,7 +624,7 @@ directly (what it used to do) clears *every* state at once —
 
 `_WAYLAND_SESSION` disables the whole module when `WAYLAND_DISPLAY` is set.
 
-## `fullscreen_enforcer.py` (130 l.)
+## `fullscreen_enforcer.py`
 
 The same EWMH toolbox pointed the other way, for apps with no fullscreen CLI
 flag (`"fullscreen"` key on a system entry).
@@ -636,7 +636,7 @@ fire-and-forget `enforce(system_id, cfg)`.
 
 ---
 
-## `auth.py` (150 l.) — shared password
+## `auth.py` — shared password
 
 | Function | Role |
 |---|---|
@@ -673,7 +673,30 @@ tables. Schema in [7](07-config-and-data.md#playtimedb).
 Ten modules and two sub-packages arrived after the inventory above was written.
 These entries are **summaries, not full function inventories**: each names what
 the module is for and the one decision that is not recoverable by reading its
-signatures. The docstrings carry the rest, and they are unusually good.
+signatures. The docstrings carry the rest.
+
+### `launch.py` — everything before the spawn
+
+`launch(system, system_id, rom_path, game_key)` runs, in order: foreground
+check → ROM path inside `romsPath` → resume-or-refuse (one resident game) →
+catalogue args → BIOS gate → USB notice → `standby.exit_standby()` → wait for
+pad profiles → release stale slots → per-game config → pack
+`prepare_launch` → `process_manager.launch()` → udev re-fire / fullscreen
+tasks. Refusals raise `LaunchRefused(status, detail)`; the router maps them.
+Every preparation step is budgeted and never raises: a late config costs a
+session, a failed launch costs the box.
+
+### `systems.py` — the grid rows
+
+`get_systems()`, `get_apps()`, `list_all()`, `find(system_id)`. Hot-reloads
+`config/systems.json` and `config/apps.json` on mtime change and expands
+`@HOME@` / `@GAMECORE_DATA@` / `@GAMECORE_PATH@` at read time.
+
+### `display.py` — mode switching with a revert timer
+
+`state()`, `set_mode()`, `confirm()`, `revert_now()`, `ui_scale()`,
+`set_scale()`, `preferred_mode()`. The timer lives in the backend because a
+refused mode blanks the settings screen that would otherwise run it.
 
 ### `paths.py` — the two roots
 
@@ -695,7 +718,7 @@ refuses a pack that names a file it does not carry — the check the repository 
 not have when a refactor deleted a directory `arch.sh` still read, and an install
 died at 66 % on a fresh machine months later.
 
-### `bios.py` (253 l.) — three verdicts, not two
+### `bios.py` — three verdicts, not two
 
 Whether the system file an emulator needs is present **and right**. The support
 ticket it exists to delete: a missing or corrupt BIOS produces no message a player
@@ -708,7 +731,7 @@ need different sentences. What a pack declares is data (`bios` in `pack.json`);
 how it is checked is here. `required: false` matters: a BIOS gate that blocks a
 launch it should not is GameCore inventing a fault.
 
-### `pergame.py` (648 l.) — one game's settings
+### `pergame.py` — one game's settings
 
 `<DATA>/config/per-game/<system>/<id>.json` is the original; the emulator's file
 is **derived**. Nothing here knows what a setting *means* — no table maps
@@ -717,7 +740,7 @@ emulator releases is what makes Batocera's configgen impossible to keep current.
 Every write records what it displaced so removal can put it back key by key.
 Detail in [10](10-catalog-and-install.md#pergame--and-why-it-is-required-on-every-emulator-pack).
 
-### `gameid.py` (235 l.) — which game this is
+### `gameid.py` — which game this is
 
 A per-game config is a file named after a game, so something must answer "which
 game is this" before anything can be written. The answer differs per system only
@@ -734,7 +757,7 @@ in **where it is read from**:
 
 Pluggable per system, because an N64 cartridge dump carries no serial at all.
 
-### `bezels.py` (~775 l.) — which bezel, and where its window is
+### `bezels.py` — which bezel, and where its window is
 
 Resolves **off → game → console → system → declared → nothing**, like Batocera
 plus one level: a pack that runs several distinct machines (mGBA: Game Boy 10:9,
@@ -755,7 +778,7 @@ the uncached variant, for validating an upload while it is still a temp file.
 `MAX_BEZEL_BYTES` (10 MB) is the one cap for a bezel wherever it enters — the
 upload route reads the same constant.
 
-### `consoles.py` (130 l.) — which console inside a pack a ROM belongs to
+### `consoles.py` — which console inside a pack a ROM belongs to
 
 Reads `roms.consoles` out of the box's `systems.json` (mtime-cached). Declared,
 never derived — `.zip` says nothing about its contents, `.iso` serves GameCube
@@ -765,7 +788,7 @@ claims resolves to `None` and the cascade stays at the system level, which is
 the pre-console behaviour. Not `libretroSystems` either: that is libretro's
 naming (melonDS declares two entries for one machine) and would rename under us.
 
-### `bezel_capture.py` (~273 l.) — when the emulator disagrees with itself
+### `bezel_capture.py` — when the emulator disagrees with itself
 
 A hole is cut for the ratio a system is *supposed* to render at, and the emulator
 does not always oblige (an aspect setting left on stretch, a core letterboxing 4:3
@@ -785,7 +808,7 @@ when there is no image. The reference box spent weeks re-carrying an `mgba@1:1`
 correction no frame ever displayed. Delete the PNG and the declared frame — the
 thing a correction actually moves — turns measuring back on by itself.
 
-### `controller_capture.py` (543 l.) — the mapping wizard's engine
+### `controller_capture.py` — the mapping wizard's engine
 
 Turns "the owner pressed this" into an SDL mapping line. What arrives from the
 kernel is an evdev code (`BTN_SOUTH`, 0x130); what must be written is SDL's
@@ -798,7 +821,7 @@ this device declares" — and the same physical button is a different number on 
 pad that declares one extra key. `sdl_layout()` reproduces that walk. Guessing
 here produces a mapping that looks plausible and binds the wrong buttons.
 
-### `usb_devices.py` (260 l.) — the peripherals that are not SDL gamepads
+### `usb_devices.py` — the peripherals that are not SDL gamepads
 
 The autoconfig pipeline knows exactly one kind of device: a pad declaring
 `BTN_SOUTH` on an evdev node. Everything else — the GameCube adapter Dolphin
@@ -807,13 +830,13 @@ is that second roster, declared per pack under `usb`. It **never refuses a
 launch**: a USB accessory is optional by nature, so blocking would be GameCore
 inventing a fault. It only speaks.
 
-### `storage.py` (402 l.) — external disks
+### `storage.py` — external disks
 
 "I plug my ROM disk in" is one of the first three things anyone expects from a
 console in a living room, and before this there was no udisks, no mount, nothing
 anywhere in the repository — a disk plugged into the box did exactly nothing.
 
-### `storage_monitor.py` (206 l.) — reacting to a disk arriving or leaving
+### `storage_monitor.py` — reacting to a disk arriving or leaving
 
 Mounts an arrival, re-points its stable link, tells the frontend. **Nothing is
 invalidated on the way, and that is not an omission**: a system's games are

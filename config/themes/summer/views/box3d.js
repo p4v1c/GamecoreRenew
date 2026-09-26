@@ -1,32 +1,12 @@
 /**
- * The game box as an object you can turn, not a picture of one.
+ * The game box as a turnable CSS 3D cuboid (no WebGL: the ocean owns the GL
+ * context).
  *
- * ScreenScraper ships the faces separately — `box-front`, `box-spine`,
- * `box-back` — so the box can be rebuilt as an actual cuboid instead of
- * displayed as a pre-rendered photograph. Six faces in CSS 3D, no WebGL: the
- * ocean already owns a GL context and a second one competing for the GPU on a
- * mini PC is a poor trade for a piece of cover art.
- *
- * Two things this file is careful about, because both decide whether the
- * feature is pleasant or annoying:
- *
- *  · **Not every game has three faces.** Plenty have only a front. A cuboid
- *    built from a missing spine is a grey slab, which looks broken in a way a
- *    flat cover never does — so the box only becomes an object when the
- *    material is really there, and otherwise falls back, in order, to the
- *    pre-rendered `box-3d`, then to the host's Cover (which itself falls back
- *    to /api/covers). Three steps down, each one still a picture of the game.
- *
- *  · **Nothing on screen says it turns.** So it turns on its own: a slow, small
- *    drift that reads as "this is a physical thing" rather than as an
- *    animation. It stops the instant the player takes the stick and resumes a
- *    few seconds after they let go. The hint bar gains a line too — the drift
- *    suggests, the hint states.
- *
- * The stick is read through the SDK's per-frame state, but the transform is
- * written straight to the node from a rAF loop. Re-rendering React sixty times
- * a second beside a running WebGL canvas is exactly the kind of thing that
- * makes a launcher feel slow.
+ * Built only when front, spine and back all exist — a slab with a missing
+ * spine looks broken. Otherwise falls back to `box-3d`, then the host's Cover.
+ * It drifts on its own (nothing else says it turns), stops when the stick is
+ * used, resumes a few seconds later. The transform is written from a rAF loop,
+ * not through React renders.
  */
 
 // How far the box may turn, in degrees. Past about 55° the front face is edge

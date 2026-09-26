@@ -1,0 +1,253 @@
+/**
+ * The settings screen and power menu in the built-in UI's colours.
+ *
+ * `src/settings/` has no colour (`gcs-*` classes); each surface supplies its
+ * palette. The layout rules repeat the themes' on purpose: this sheet is ALWAYS
+ * loaded, so the screen has a shape in safe mode; a theme restates them at
+ * equal specificity and wins by source order.
+ * The palette sits on `.gcs-set.gcs-skin-default` (two classes), not :root,
+ * so it never fights a loaded theme and only matches the host's own screen.
+ */
+
+.gcs-set.gcs-skin-default,
+.gcs-pwr-scrim.gcs-skin-default {
+  /* Violet, the accent the built-in UI has always used. */
+  --set-acc:        #7c3aed;
+  --set-acc-deep:   #6d28d9;
+
+  /* Ink. `--set-ink-rgb` is the channel triplet on its own, because the shared
+     rules ask for this colour at a dozen different alphas and a token can only
+     be substituted whole. */
+  --set-ink:        #f4f4f8;
+  --set-ink-rgb:    255, 255, 255;
+  --set-ink-2:      rgba(255, 255, 255, 0.62);
+  --set-ink-3:      rgba(255, 255, 255, 0.38);
+  --set-line:       rgba(255, 255, 255, 0.09);
+
+  /* Surfaces, darkest to lightest: the screen, a card on it, a dialog above
+     that. The default UI is near-black rather than the themes' paper. */
+  --set-bg:         #0a0a12;
+  --set-bg-deep:    #06060c;
+  --set-card:       rgba(255, 255, 255, 0.045);
+  --set-card-2:     #14141f;
+  --set-key:        rgba(255, 255, 255, 0.06);
+  /* The toggle knob rides ON the accent track, so it stays white here too. */
+  --set-knob:       #ffffff;
+  /* The button-glyph chips, which invert: light chip, dark glyph. */
+  --set-kbd:        rgba(255, 255, 255, 0.86);
+  --set-kbd-ink:    #0a0a12;
+
+  --set-danger:     #ef4444;
+  --set-danger-deep:#b91c1c;
+  --set-danger-rgb: 239, 68, 68;
+
+  /* Status. The themes' versions are tuned for a light card; these are the
+     lighter siblings that survive on a dark one. */
+  --set-info:       #60a5fa;
+  --set-ok:         #4ade80;
+  --set-warn:       #fbbf24;
+  --set-alert:      #f87171;
+
+  /* No wallpaper behind this one. `.gcs-set-paper` still paints, it just has
+     nothing to paint — cheaper than special-casing the element away. */
+  --gc-paper-pattern: none;
+  --gc-paper-tile:    120px;
+
+  --font-body:    'Outfit', system-ui, sans-serif;
+  --font-display: 'Outfit', system-ui, sans-serif;
+  --font-mono:    ui-monospace, 'JetBrains Mono', 'DejaVu Sans Mono', monospace;
+  --r-chip:       999px;
+}
+
+/* ── the layout, shared by all three surfaces ─────────────────────────────── */
+
+.gcs-set {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  background: var(--set-bg);
+  color: var(--set-ink);
+  font-family: var(--font-body);
+  overflow: hidden;
+}
+
+/* The capture's wallpaper: a mask over the paper, never a picture, so it costs
+   one paint and no decode. */
+.gcs-set-paper {
+  position: absolute; inset: 0; opacity: 0.28; pointer-events: none;
+  background-image: var(--gc-paper-pattern);
+  background-size: var(--gc-paper-tile) var(--gc-paper-tile);
+}
+
+.gcs-set > *:not(.gcs-set-paper) { position: relative; }
+
+.gcs-set-head { padding: 10px 40px 18px; flex: 0 0 auto; }
+
+.gcs-set-title {
+  margin: 0; font-family: var(--font-display);
+  font-size: clamp(38px, 3.4vw, 58px); font-weight: 700; letter-spacing: -0.02em;
+}
+
+.gcs-set-crumb {
+  display: flex; align-items: center; gap: 14px; margin-top: 8px;
+  font-family: var(--font-mono); font-size: 13px; color: var(--set-ink-2);
+}
+
+.gcs-set-chip {
+  padding: 5px 12px; border-radius: var(--r-chip);
+  background: var(--set-acc); color: #fff;
+  font-size: 11px; letter-spacing: 0.16em;
+}
+
+/* rail | main | aside. The aside collapses when a page has no detail column. */
+.gcs-set-body {
+  flex: 1; min-height: 0; display: grid; gap: 22px;
+  grid-template-columns: 340px minmax(0, 1fr) auto;
+  padding: 0 40px 14px; align-items: stretch;
+}
+
+.gcs-set-rail {
+  background: var(--set-card); border: 1px solid var(--set-line);
+  border-radius: 20px; padding: 14px; overflow: auto;
+  display: flex; flex-direction: column; gap: 2px;
+}
+
+.gcs-set-row {
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 16px; border-radius: 14px; cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+/* Two different facts, two different marks: `sel` is the category the middle
+   column is showing, `on` is where the d-pad is. They are the same row until
+   the cursor moves into the middle column, and then they are not — which is
+   the only cue that the rail has stopped answering. */
+.gcs-set-row[data-sel="1"] { background: var(--set-acc); color: #fff; }
+
+.gcs-set-row[data-on="1"] { background: var(--set-acc); color: #fff; }
+
+.gcs-set-rail[data-zone="off"] .gcs-set-row[data-sel="1"] {
+  background: color-mix(in srgb, var(--set-acc) 14%, transparent);
+  color: var(--set-ink);
+  border-color: color-mix(in srgb, var(--set-acc) 45%, transparent);
+}
+
+.gcs-set-row[data-danger="1"][data-on="1"] { background: var(--set-danger); }
+
+.gcs-set-num {
+  flex: 0 0 auto; width: 22px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: rgba(var(--set-ink-rgb), 0.35);
+}
+
+.gcs-set-row[data-on="1"] .gcs-set-num,
+.gcs-set-row[data-sel="1"] .gcs-set-num { color: rgba(255, 255, 255, 0.9); }
+
+.gcs-set-rail[data-zone="off"] .gcs-set-row[data-sel="1"] .gcs-set-num { color: rgba(var(--set-ink-rgb), 0.5); }
+
+.gcs-set-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+
+.gcs-set-label b {
+  font-family: var(--font-display); font-size: 21px; font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* The live value. Empty when its endpoint did not answer — deliberately empty,
+   never a dash, which reads as a measurement of "none". */
+.gcs-set-label i {
+  font-style: normal; font-family: var(--font-mono); font-size: 12px;
+  color: rgba(var(--set-ink-rgb), 0.45);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.gcs-set-row[data-on="1"] .gcs-set-label i,
+.gcs-set-row[data-sel="1"] .gcs-set-label i { color: rgba(255, 255, 255, 0.8); }
+
+.gcs-set-rail[data-zone="off"] .gcs-set-row[data-sel="1"] .gcs-set-label i { color: rgba(var(--set-ink-rgb), 0.45); }
+
+.gcs-set-main {
+  background: var(--set-card); border: 1px solid var(--set-line);
+  border-radius: 20px; padding: 30px 32px; overflow: auto; min-width: 0;
+}
+
+.gcs-set-main-empty { display: flex; flex-direction: column; }
+
+.gcs-set-h {
+  font-family: var(--font-display); font-size: 32px; font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.gcs-set-h-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+
+.gcs-set-sub {
+  margin: 8px 0 22px; max-width: 62ch;
+  font-size: 15px; line-height: 1.6; color: var(--set-ink-2);
+}
+
+.gcs-set-aside {
+  width: 420px; background: var(--set-card); border: 1px solid var(--set-line);
+  border-radius: 20px; padding: 30px 30px 24px; overflow: auto;
+  display: flex; flex-direction: column;
+}
+
+.gcs-set-aside:empty { display: none; }
+
+.gcs-set-kicker {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--set-acc-deep);
+}
+
+.gcs-set-aside-title {
+  margin-top: 8px; font-family: var(--font-display);
+  font-size: 30px; font-weight: 700; letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
+}
+
+.gcs-set-facts { margin: 22px 0 0; }
+
+.gcs-set-fact {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 18px;
+  padding: 11px 0; border-bottom: 1px solid var(--set-line);
+}
+
+.gcs-set-fact dt { font-size: 14px; color: var(--set-ink-2); }
+
+.gcs-set-fact dd {
+  margin: 0; font-family: var(--font-mono); font-size: 13px;
+  text-align: right; overflow-wrap: anywhere;
+}
+
+.gcs-set-cta {
+  margin-top: auto; width: 100%; padding: 15px; border: 0; cursor: pointer;
+  border-radius: 14px; background: var(--set-acc-deep); color: #fff;
+  font-family: var(--font-body); font-size: 16px; font-weight: 600;
+}
+
+.gcs-set-cta:disabled { opacity: 0.45; cursor: default; }
+
+.gcs-set-foot {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 40px 16px;
+  font-family: var(--font-mono); font-size: 12px; color: var(--set-ink-3);
+}
+
+.gcs-set-hints { display: flex; gap: 22px; align-items: center; }
+
+.gcs-set-hints span { display: inline-flex; align-items: center; gap: 9px; }
+
+.gcs-set-hints kbd {
+  display: inline-grid; place-items: center; width: 22px; height: 22px;
+  /* Two tokens of its own, because this is the one chip whose colours are the
+     INVERSE of the screen's. Shelf reads them off `--set-bg-deep` on `--set-bg`
+     — a near-black chip with paper ink — and the same expression on a dark
+     surface is near-black on near-black, which is what this rendered before:
+     three blank rectangles where the button glyphs should be. The fallbacks
+     keep a theme that sets neither exactly where it was. */
+  border-radius: 7px;
+  background: var(--set-kbd, var(--set-bg-deep));
+  color: var(--set-kbd-ink, var(--set-bg));
+  font-family: var(--font-mono); font-size: 11px;
+}
+
+.gcs-set-fallback { position: fixed; inset: 0; display: grid; place-items: center; }
+

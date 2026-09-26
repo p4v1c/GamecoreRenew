@@ -25,7 +25,7 @@ exists and is documented — do not duplicate it here:
 
 ## 1. Why themes ship components, not stylesheets
 
-The frontend has **no CSS files**. 21 of its 22 components style themselves with
+React components have **no CSS files** (the shared settings screen in `frontend/src/settings/` is written in the SDK idiom and ships `settings.css`). Most components style themselves with
 inline style objects — 131 hardcoded hex colours and 172 `rgba(255,255,255,…)`
 values live inside the components. The only global CSS in the project is six
 lines in `frontend/index.html` (reset, scrollbar, overlay-mode, one keyframe).
@@ -54,6 +54,7 @@ and there is never a second React in memory.
 | `config/themes/<id>/index.js` | ES module, entry point |
 | `config/themes/<id>/views/`, `lib/` | one feature per file (§5) |
 | `config/themes/<id>/theme.css` | the theme's own stylesheet |
+| `config/themes/<id>/css/*.css` | the stylesheet split by concern; `theme.css` only `@import`s them in cascade order (served no-cache, so imports never go stale). Tests read the whole sheet with `backend/tests/css_bundle.py` |
 | `config/themes/<id>/preview.png` | thumbnail for the settings page |
 | `config/themes/<id>/assets/` | images, fonts, audio |
 | `config/theme.json` | the active theme, written by the API. Per-device: not in git, not in the OTA archive |

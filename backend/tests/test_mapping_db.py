@@ -314,12 +314,12 @@ def test_the_launcher_hands_emulators_the_served_file(db, monkeypatch):
     """The end of the chain, and the step that makes the rest matter: a capture
     that never reaches SDL_GAMECONTROLLERCONFIG_FILE is a file on disk nothing
     reads. This used to name the vendored database directly."""
-    from backend.services import process_manager
+    from backend.services import session
 
     mapping_db.upsert(USER_LINE)
     monkeypatch.delenv("SDL_GAMECONTROLLERCONFIG_FILE", raising=False)
 
-    env = process_manager._display_env()
+    env = session._display_env()
 
     named = env.get("SDL_GAMECONTROLLERCONFIG_FILE")
     assert named == str(mapping_db.SERVED_DB), named

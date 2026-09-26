@@ -42,7 +42,7 @@ os.environ["GAMECORE_DATA"] = str(_ROOT)
 # And the runtime directory, which is how the box tells the backend about its
 # graphical session.
 #
-# `process_manager.session_env_file()` reads $XDG_RUNTIME_DIR/gamecore/session.env
+# `session.session_env_file()` reads $XDG_RUNTIME_DIR/gamecore/session.env
 # — written by the console session at login — and `_display_env()` trusts it
 # ahead of probing for a display. Left inherited, the suite reads the session
 # file of the machine running it: on a developer's desktop there is none and
@@ -93,31 +93,15 @@ _REPO = Path(__file__).resolve().parents[2]
 (_ROOT / "catalog").symlink_to(_REPO / "catalog")
 
 
-# ── Le boîtier n'est pas un banc d'essai : ni sudo, ni xset ──────────────────
+# ── The box is not a test bench: no sudo, no xset ────────────────────────────
 #
-# Même famille que le piège HOME ci-dessus, et découvert de la même façon :
-# `TestClient(main.app)` exécute le lifespan, et le lifespan appelle
-# `standby.resume_after_restart()`, qui fait
-#
-#     xset dpms force on
-#     sudo -n cpupower frequency-set -g performance
-#
-# sur la VRAIE machine. 26 modules de la suite créent un TestClient : mesuré le
-# 2026-08-17, un seul passage de la suite a lancé 38 `sudo cpupower` contre 1
-# émis par le backend de production. La suite reconfigurait le gouverneur CPU du
-# boîtier et le laissait épinglé, et poussait `xset` dans le serveur X de la
-# session ouverte devant la télévision.
-#
-# Le même passage a coïncidé avec deux coupures franches de la machine (journal
-# interrompu net, sans séquence d'arrêt, watchdog désactivé). Le lien n'est PAS
-# démontré — mais une suite de tests n'a de toute façon aucune raison de
-# toucher au gouverneur d'une machine, et la question ne se pose plus.
-#
-# Neutralisé au niveau de `_run_cmd`, le seul point par lequel standby sort du
-# processus. Les trois modules qui veulent observer ce que standby A ESSAYÉ de
-# lancer (test_standby_switch, test_standby_launch, test_session_robustness)
-# posent leur propre `monkeypatch.setattr` par-dessus : function-scoped, donc
-# appliqué après celui-ci et défait vers celui-ci. Rien ne perd de couverture.
+# `TestClient(main.app)` runs the lifespan, which calls
+# `standby.resume_after_restart()` → `xset dpms force on` and
+# `sudo -n cpupower frequency-set -g performance` on the REAL machine.
+# Measured 2026-08-17: one suite run fired 38 `sudo cpupower` and pushed `xset`
+# into the TV session. Stubbed at `_run_cmd`, standby's only way out of the
+# process. test_standby_switch, test_standby_launch and test_session_robustness
+# add their own function-scoped patch on top to observe the attempts.
 import pytest as _pytest
 
 
@@ -126,14 +110,10 @@ def _no_real_commands_from_the_suite():
     from backend.services import desktop_power, standby
 
     async def refuse(*argv, **kw):
-        return True          # « ça a marché » : standby traite l'échec en best effort
+        return True          # "it worked": standby treats failure as best effort
 
-    # desktop_power écrit dans la config du BUREAU et parle à son bus de
-    # session. XDG_CONFIG_HOME et HOME sont déjà redirigés plus haut, donc
-    # kwriteconfig6 ne toucherait pas le vrai fichier — mais reparseConfiguration
-    # partirait sur le vrai bus, et un « ça a marché » suffit à faire croire à la
-    # suite qu'un bureau a répondu. (1, "") est le refus franc : « pas de KDE
-    # ici », donc claim() et release() ne font rien.
+    # desktop_power would reach the real session bus (reparseConfiguration).
+    # (1, "") is a plain "no KDE here", so claim() and release() do nothing.
     async def no_desktop(*argv, **kw):
         return 1, ""
 

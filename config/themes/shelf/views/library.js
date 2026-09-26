@@ -1,30 +1,13 @@
 /**
- * The shelf. This is the screen the theme exists for.
+ * The shelf: spines on the wall, the selected box turned to face you and
+ * flippable, a card with the cartridge and its details, ✕ slots it in.
  *
- * A system's games stand as spines on a papered wall; the selected one is
- * turned to face you and can be flipped over; a card beside it shows the
- * cartridge and its printing details; ✕ slots the cartridge in.
+ * R2 cycles three stackings: shelf (upright spines), stack (a pile, index on
+ * the left), gallery (flat row, card as a bottom strip).
  *
- * Three ways of stacking the same shelf, cycled with R2:
- *   shelf    spines upright, the turned box among them, card at the right
- *   stack    the boxes lying in a pile, index down the left edge
- *   gallery  spines flat-on in a straight row, the card as a strip along the
- *            bottom — the reading position, right before you press start
- *
- * ── What is the host's, and stays the host's ───────────────────────────────
- * Scrolling, sorting, searching, launching and ○ arrive as props. Nothing here
- * decides any of them, which is why a shelf and the default list behave
- * identically and only the picture differs. The two things this file does add
- * — turning the box over, and changing how it is stacked — move no selection
- * and survive no reload.
- *
- * ── Why the art follows the *settled* selection ────────────────────────────
- * `detailGame` lags `selectedIdx` by 150 ms, on purpose: a jacket that has
- * never been fetched costs a scrape, so a fast scroll through four hundred
- * games would otherwise queue four hundred of them. The turned box never
- * moves — it is centred in the stage, outside the rail — so the lag reads as
- * the artwork settling, not as the shelf stuttering.
- *
+ * Scrolling, sorting, searching, launching and ○ arrive as props — the host
+ * decides them. The art follows `detailGame`, which lags the cursor by 150 ms
+ * so a fast scroll does not queue a scrape per game.
  * Props: frontend/src/components/LibraryScreen/types.ts
  */
 import { LETTERS, initial, title, stamp, released, played, day } from '../lib/names.js'
@@ -44,29 +27,11 @@ import { jacket } from '../lib/dossier.js'
 const MIN_REACH = 12
 
 /**
- * How far the mounted row must extend, in columns, for the shelf to be able to
- * slide without anything appearing to move on its own.
- *
- * This was a flat 12 and that is the second half of the reported fault. The
- * rail is ONE element that slides; the spines are placed inside it and have no
- * animation of their own. So the only way a spine can appear to move by itself
- * is to be mounted — or dropped — while the rail is mid-slide. A row that ends
- * before the stage does gets exactly that, once per step, at the far end from
- * wherever the player is looking: twelve columns is ±480px at a 40px pitch,
- * inside a stage that is 717px wide either side of centre at 1080p, and wider
- * still in `gallery`, where the card moves to the bottom and the stage takes
- * the whole screen. A jacket materialised out of nothing 480px away on every
- * press, and it got worse the faster you went because it happened more often.
- *
- * So the count is measured rather than chosen: half the stage, in columns, plus
- * one so the newest column is mounted while still outside the frame. The pitch
- * is read off the rail rather than repeated here, because it is a different
- * number in `stack` (46px) and CSS is where all three are already written down.
- * `stack` runs down the screen, so its span is the stage's height.
- *
- * Cost, since the old comment was right to count it: nineteen columns either
- * side at 1080p instead of twelve. Fourteen more `box-spine` files, all of them
- * already warmed for the whole library by the backend before this screen opens.
+ * How many columns the mounted row must extend so nothing mounts or drops
+ * while the rail is mid-slide (the only way a spine appears to move on its
+ * own). Measured, not fixed: half the stage in columns, plus one off-screen.
+ * The pitch is read from the rail (it differs per mode); `stack` runs
+ * vertically, so its span is the stage height. At 1080p: 19 columns a side.
  */
 const railReach = (stage, rail, mode) => {
   if (!stage || !rail) return MIN_REACH
@@ -222,32 +187,13 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
     const pt = detailGame ? playtime[detailGame.filename] : null
     const settled = detailGame && games[selectedIdx]?.filename === detailGame.filename
 
-    // The jacket that is on its way back into the shelf.
-    //
-    // Held for exactly as long as the animation lasts, then dropped: a stale
-    // node left mounted would keep its `Face` — and its images — alive for
-    // every game you ever walked past. The timer is cleared on the way out, so
-    // walking the shelf quickly replaces the outgoing jacket rather than
-    // stacking a queue of them.
-    // `tucked` says whether the jacket you are moving TO is still standing in
-    // the row. It is, for the whole time the previous one is being put away —
-    // and while it is, its spine must be drawn like any other, because it IS
-    // one. Only when the solid takes over does that column become a hole. This
-    // is the difference between a shelf and a diorama with a permanent slot.
-    //
-    // It lives inside the same object as the departing jacket rather than in a
-    // state of its own, and that is not tidiness. Two states meant two timers
-    // that could be cleared independently, and the effect has three early
-    // returns that register no cleanup: an interrupted swap could leave the
-    // flag set with nothing left to clear it, and a stuck `tucked` does not
-    // degrade — it hides the jacket outright, for the rest of the session.
-    // Hung off the swap, it cannot outlive it: no swap, nothing tucked.
-    //
-    // The arriving animation's delay ends at that same PUSH_MS, so the pose it
-    // becomes visible in is the pose it was parked in — one flag flips both
-    // sides of the handoff in one render, and they cannot disagree. It is
-    // `PUSH_MS` counted from the press rather than from the mount, because the
-    // arriving holder is mounted when the selection settles: see `waitRef`.
+    // The jacket going back into the shelf, kept mounted only for its
+    // animation (a stale node would keep every walked-past Face alive).
+    // `tucked` = the jacket you are moving TO is still standing in the row and
+    // must be drawn as a spine until the solid takes over. It lives on the same
+    // object as the departing jacket so it cannot outlive the swap (a stuck
+    // flag hides the jacket for the session). The arriving animation's delay
+    // ends at PUSH_MS from the press, so one flag flips both sides at once.
     const current = games[selectedIdx]?.filename || null
     const [swap, setSwap] = useState(null)   // { game, dir, tucked, at }
 
@@ -258,43 +204,15 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
       if (!prev.name || prev.name === current) return
       const gone = games.find((g) => g.filename === prev.name)
       if (!gone) { setSwap(null); return }   // the shelf changed under us, not the cursor
-      // Which way along the row. The rail keeps the selection at the centre,
-      // so after a step forward the jacket you left is one pitch to the LEFT
-      // and the one arriving came from one pitch to the right.
+      // Direction along the row: after a step forward, the jacket you left is
+      // one pitch LEFT and the arriving one came from the right.
       //
-      // Unless one is already on its way back. You cannot put a box away and
-      // take another out four times a second, and trying to looked like it:
-      // the outgoing holder is keyed by filename, so every step unmounted the
-      // half-turned jacket and mounted the next one face-on at full size, and
-      // holding a direction became a stutter of boxes appearing at the centre
-      // and vanishing. Worse, the one in flight was aiming at a column one
-      // pitch away, and the rail had already moved two.
-      //
-      // So a second step cancels the ceremony rather than restarting it: no
-      // outgoing jacket, `tucked` held, timers re-armed from this step. What
-      // is left is what a shelf actually does — you slide along the row with
-      // nothing in your hand, every spine drawn including the selected one,
-      // and the jacket comes out of its gap once you stop.
-      //
-      // But only while nothing has come out yet, and that is the distinction
-      // this used to miss. Cancelling means deleting the outgoing jacket and
-      // re-tucking the arriving one — and applied to a jacket that is ALREADY
-      // standing at the front of the stage, it deletes what the player is
-      // looking at: the audit measured zero unhidden solids after a second
-      // press half a second into the first. Nothing was overlapping; the shelf
-      // simply went empty.
-      //
-      // So a press that lands after the jacket is out is not a burst, it is a
-      // step: the box in your hand goes back and the next one comes out, which
-      // is the gesture this whole file describes. `tucked` is the flag that
-      // already knows the difference — while it is set, nothing is out.
-      //
-      // What that costs, stated rather than discovered: a press landing while
-      // the pull is still running mounts the outgoing jacket at its opening
-      // pose, so the box jumps to face-on before folding away. Continuity of
-      // presence over continuity of pose. Handing the live pose over to the
-      // outgoing animation needs a negative animation-delay computed from how
-      // far the pull got, and that is worth doing only against a television.
+      // A second step while nothing is out yet cancels the ceremony (no
+      // outgoing jacket, `tucked` held, timers re-armed): you slide along the
+      // row empty-handed and the jacket comes out when you stop. Once a jacket
+      // IS out (`tucked` false), a press is a normal step, never a cancel —
+      // cancelling then emptied the shelf. Known cost: a press during the pull
+      // jumps the box to face-on before it folds away.
       const at = Date.now()
       setSwap((s) => (s && s.tucked
         ? { game: null, dir: s.dir, tucked: true, at }
@@ -461,7 +379,7 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
                  through the perspective rather than across a picture of it),
                  and the solid inside turns on its own axis. Collapse any two of
                  them and the box stops being a box mid-turn.
-                 NO BACKTICKS IN HERE — see the note at the top of theme.css. -->
+                 NO BACKTICKS IN HERE — see scripts/check-theme.mjs. -->
             ${leaving ? html`
               <div class="cz-hold" key=${`out:${leaving.game.filename}`} data-phase="out"
                    style=${{ '--dir': String(leaving.dir),

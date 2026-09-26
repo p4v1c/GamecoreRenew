@@ -40,9 +40,9 @@ class FakePack:
 @pytest.fixture
 def launcher(monkeypatch):
     from backend import main
-    from backend.routers import games as games_router
+    from backend.services import systems as systems_service
 
-    monkeypatch.setattr(games_router, "list_all", lambda: [_GHOST])
+    monkeypatch.setattr(systems_service, "list_all", lambda: [_GHOST])
     with TestClient(main.app) as client:
         yield client
 
@@ -150,18 +150,19 @@ def test_declaring_usb_asks_for_the_udev_re_fire(launcher, monkeypatch):
     firing proves the new condition is what asked for it.
     """
     fired = []
-    from backend.routers import games as games_router
-    monkeypatch.setattr(games_router, "list_all",
+    from backend.services import systems as systems_service
+    from backend.services import launch as launch_service
+    monkeypatch.setattr(systems_service, "list_all",
                         lambda: [{**_GHOST, "usb": [ADAPTER]}])
 
     async def fake_trigger(*a, **k):
         fired.append(True)
-    monkeypatch.setattr(games_router, "_gamepad_trigger", fake_trigger)
+    monkeypatch.setattr(launch_service, "_gamepad_trigger", fake_trigger)
 
     # Reaching the trigger needs a launch that did not raise.
     async def fake_launch(**_kw):
         return None
-    monkeypatch.setattr(games_router.process_manager, "launch", fake_launch)
+    monkeypatch.setattr(launch_service.process_manager, "launch", fake_launch)
 
     _declaring(monkeypatch, [ADAPTER])
     _adapter_present(monkeypatch)
@@ -174,15 +175,15 @@ def test_a_tile_declaring_neither_does_not_fire_the_trigger(launcher, monkeypatc
     """`udevadm trigger` re-fires the whole device tree and costs a sudo call
     three times over. A box whose systems ask for nothing must not pay it."""
     fired = []
-    from backend.routers import games as games_router
+    from backend.services import launch as launch_service
 
     async def fake_trigger(*a, **k):
         fired.append(True)
-    monkeypatch.setattr(games_router, "_gamepad_trigger", fake_trigger)
+    monkeypatch.setattr(launch_service, "_gamepad_trigger", fake_trigger)
 
     async def fake_launch(**_kw):
         return None
-    monkeypatch.setattr(games_router.process_manager, "launch", fake_launch)
+    monkeypatch.setattr(launch_service.process_manager, "launch", fake_launch)
 
     monkeypatch.setattr(usb_devices, "load_catalog", lambda *a, **k: {})
     _no_devices(monkeypatch)

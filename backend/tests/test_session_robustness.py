@@ -21,6 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import pytest
 
 from backend.services import process_manager as pm
+
+from backend.services import session as xsession
 from backend.services import standby
 
 
@@ -86,13 +88,13 @@ def test_the_display_probe_runs_once_not_per_launch(monkeypatch):
         probes.append(uid)
         return (":0", "/tmp/xauth_test")
 
-    monkeypatch.setattr(pm, "_probe_display", slow_probe)
+    monkeypatch.setattr(xsession, "_probe_display", slow_probe)
     monkeypatch.delenv("DISPLAY", raising=False)
     monkeypatch.delenv("XAUTHORITY", raising=False)
-    pm.invalidate_display_cache()
+    xsession.invalidate_display_cache()
 
     for _ in range(5):
-        env = pm._display_env()
+        env = xsession._display_env()
         assert env["DISPLAY"] == ":0"
 
     assert len(probes) == 1, f"probed {len(probes)}x — it used to run on every launch and every standby transition"
@@ -100,17 +102,17 @@ def test_the_display_probe_runs_once_not_per_launch(monkeypatch):
 
 def test_invalidating_the_cache_makes_the_next_call_probe_again(monkeypatch):
     probes = []
-    monkeypatch.setattr(pm, "_probe_display", lambda uid: probes.append(uid) or (":0", ""))
+    monkeypatch.setattr(xsession, "_probe_display", lambda uid: probes.append(uid) or (":0", ""))
     monkeypatch.delenv("DISPLAY", raising=False)
     monkeypatch.delenv("XAUTHORITY", raising=False)
 
-    pm.invalidate_display_cache()
-    pm._display_env()
-    pm._display_env()
+    xsession.invalidate_display_cache()
+    xsession._display_env()
+    xsession._display_env()
     assert len(probes) == 1
 
-    pm.invalidate_display_cache()
-    pm._display_env()
+    xsession.invalidate_display_cache()
+    xsession._display_env()
     assert len(probes) == 2
 
 
@@ -118,8 +120,8 @@ def test_display_env_does_not_block_the_event_loop(monkeypatch):
     """A slow probe must not stall unrelated requests — it stalled them 4.7 s."""
     monkeypatch.delenv("DISPLAY", raising=False)
     monkeypatch.delenv("XAUTHORITY", raising=False)
-    monkeypatch.setattr(pm, "_probe_display", lambda uid: time.sleep(0.5) or (":0", ""))
-    pm.invalidate_display_cache()
+    monkeypatch.setattr(xsession, "_probe_display", lambda uid: time.sleep(0.5) or (":0", ""))
+    xsession.invalidate_display_cache()
 
     async def scenario():
         ticks = 0
@@ -243,12 +245,12 @@ def test_no_session_file_is_the_normal_case(session_file):
 @pytest.fixture
 def client_with_ghost_system(monkeypatch):
     from fastapi.testclient import TestClient
-    from backend.routers import games as games_router
+    from backend.services import systems as systems_service
     from backend import main
 
     ghost = {"id": "ghost", "label": "Ghost", "kind": "emulator",
              "path": "/usr/bin/definitely-not-installed", "args": "", "romsPath": ""}
-    monkeypatch.setattr(games_router, "list_all", lambda: [ghost])
+    monkeypatch.setattr(systems_service, "list_all", lambda: [ghost])
     with TestClient(main.app) as c:
         yield c
 
@@ -289,18 +291,18 @@ def test_a_failed_probe_is_retried_not_latched(monkeypatch):
         # Fails while X is still starting, then succeeds — the real boot.
         return None if len(attempts) < 3 else (":1", "/run/user/1000/xauth_ok")
 
-    monkeypatch.setattr(pm, "_probe_display", probe)
-    monkeypatch.setattr(pm, "_PROBE_RETRY_SECS", 0)  # don't sleep through the backoff
+    monkeypatch.setattr(xsession, "_probe_display", probe)
+    monkeypatch.setattr(xsession, "_PROBE_RETRY_SECS", 0)  # don't sleep through the backoff
     monkeypatch.delenv("DISPLAY", raising=False)
     monkeypatch.delenv("XAUTHORITY", raising=False)
-    pm.invalidate_display_cache()
+    xsession.invalidate_display_cache()
 
     # While X is down the caller still gets an env — the old static fallback.
-    assert pm._display_env()["DISPLAY"] == ":0"
-    assert pm._display_env()["DISPLAY"] == ":0"
+    assert xsession._display_env()["DISPLAY"] == ":0"
+    assert xsession._display_env()["DISPLAY"] == ":0"
 
     # Once X answers, the real display is picked up without a restart.
-    env = pm._display_env()
+    env = xsession._display_env()
     assert env["DISPLAY"] == ":1", "the backend had to be restarted by hand to get here"
     assert env["XAUTHORITY"] == "/run/user/1000/xauth_ok"
     assert len(attempts) == 3
@@ -309,27 +311,27 @@ def test_a_failed_probe_is_retried_not_latched(monkeypatch):
 def test_a_successful_probe_is_still_latched(monkeypatch):
     """The retry must not cost a probe per call once X has answered."""
     attempts = []
-    monkeypatch.setattr(pm, "_probe_display",
+    monkeypatch.setattr(xsession, "_probe_display",
                         lambda uid: attempts.append(uid) or (":1", ""))
-    monkeypatch.setattr(pm, "_PROBE_RETRY_SECS", 0)
+    monkeypatch.setattr(xsession, "_PROBE_RETRY_SECS", 0)
     monkeypatch.delenv("DISPLAY", raising=False)
     monkeypatch.delenv("XAUTHORITY", raising=False)
-    pm.invalidate_display_cache()
+    xsession.invalidate_display_cache()
 
     for _ in range(5):
-        assert pm._display_env()["DISPLAY"] == ":1"
+        assert xsession._display_env()["DISPLAY"] == ":1"
     assert len(attempts) == 1
 
 
 def test_a_headless_box_does_not_probe_on_every_call(monkeypatch):
     """No X at all must not mean xdpyinfo's 5 s timeout on every standby tick."""
     attempts = []
-    monkeypatch.setattr(pm, "_probe_display", lambda uid: attempts.append(uid))
-    monkeypatch.setattr(pm, "_PROBE_RETRY_SECS", 300)
+    monkeypatch.setattr(xsession, "_probe_display", lambda uid: attempts.append(uid))
+    monkeypatch.setattr(xsession, "_PROBE_RETRY_SECS", 300)
     monkeypatch.delenv("DISPLAY", raising=False)
     monkeypatch.delenv("XAUTHORITY", raising=False)
-    pm.invalidate_display_cache()
+    xsession.invalidate_display_cache()
 
     for _ in range(10):
-        pm._display_env()
+        xsession._display_env()
     assert len(attempts) == 1, "the backoff must hold between retries"

@@ -1,0 +1,15 @@
+/* ── Handover transition (views/warp.js) ────────────────────────────────────
+ * The host supplies the overlay level; Summer only paints inside it. */
+.sm-root { display: contents; }
+
+.sm-warp {
+  position: fixed; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;                /* never swallows a button press */
+}
+/* Taken out of the compositor entirely once the frame is clear again — see the
+ * end of the loop in warp.js. A transparent full-screen canvas costs little,
+ * but it costs it for as long as the box is on. */
+.sm-warp[hidden] { display: none; }
+
+

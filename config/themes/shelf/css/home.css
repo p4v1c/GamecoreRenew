@@ -1,0 +1,166 @@
+/* ===========================================================================
+   HOME — consoles on rails that run sideways
+
+   One lane per grid row, all sliding together so the columns stay in register.
+   `[data-lanes]` comes from the host's ROWS, so a box set to ROWS = 1 gets a
+   single unbroken rail with no change to the markup.
+   =========================================================================== */
+.cz-home {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  padding: 0 30px 14px; gap: 10px;
+  font-family: var(--font-body); color: var(--ink);
+}
+.cz-home .cz-body { padding-top: 6px; }
+
+.cz-home-stage { display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+
+.cz-lane {
+  position: relative; flex: 1; min-height: 0;
+  transition: opacity 260ms ease;
+}
+/* The lane you are not on steps back rather than disappearing — you still
+   need to see what is on the other shelf to decide to go there. */
+.cz-home[data-lanes="2"] .cz-lane[data-on="0"] { opacity: 0.55; }
+
+/* The plank, running the full width of the stage and out past both edges. */
+.cz-shelf {
+  position: absolute; left: -30px; right: -30px; bottom: 12%; height: 1px;
+  background: rgba(23, 22, 26, 0.22);
+  box-shadow: 0 -12px 22px -12px rgba(23, 22, 26, 0.28);
+}
+
+.cz-cslot { --pitch: 150px; }
+.cz-home[data-lanes="1"] .cz-cslot { --pitch: 210px; }
+.cz-home .cz-rail { --pitch: 150px; }
+.cz-home[data-lanes="1"] .cz-rail { --pitch: 210px; }
+
+.cz-cslot {
+  bottom: 12%; top: auto;
+  transform: translate(-50%, 0) translateX(calc(var(--o) * var(--pitch)));
+  transform-origin: 50% 100%;
+  cursor: pointer;
+  transition: opacity 200ms ease;
+}
+.cz-cslot[data-empty="1"] { opacity: 0.5; }
+
+/* The perspective sits on the box's direct parent — it reaches direct
+   children only — and this element carries no opacity or filter, either of
+   which forces `preserve-3d` back to `flat` and quietly collapses the solid
+   into a flat picture. */
+.cz-stand { position: relative; perspective: 900px; perspective-origin: 50% 70%; }
+
+.cz-cbox {
+  --h: clamp(96px, 15vh, 150px);
+  --w: calc(var(--h) * 0.78);
+  --d: calc(var(--w) * 0.24);
+  --turn: 42deg;
+  --lift: 0px;
+
+  position: relative; width: var(--w); height: var(--h);
+  transform-style: preserve-3d;
+  transform: translateY(var(--lift)) rotateX(-7deg) rotateY(var(--turn));
+  transition: transform 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.cz-home[data-lanes="1"] .cz-cbox { --h: clamp(150px, 26vh, 260px); }
+
+/* Focus is a rotation and a lift before it is anything else: the box turns to
+   face you and comes off the plank. Shape survives a set that eats colour. */
+.cz-cslot[data-on="1"] .cz-cbox { --turn: 11deg; --lift: -14px; }
+.cz-cslot:hover .cz-cbox { --turn: 28deg; }
+
+.cz-cf {
+  position: absolute; left: 50%; top: 50%;
+  overflow: hidden; backface-visibility: hidden; background: var(--board);
+}
+.cz-cf-front {
+  width: var(--w); height: var(--h);
+  transform: translate(-50%, -50%) translateZ(calc(var(--d) / 2));
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 15px 10px 10px;
+  background: linear-gradient(165deg, var(--board-lit), var(--board-dark));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.cz-cf-band { position: absolute; left: 0; right: 0; top: 0; height: 6px; background: var(--sys); }
+.cz-cf-logo { display: grid; place-items: center; width: 100%; flex: 1; min-height: 0; }
+.cz-cf-logo img { max-width: 78%; max-height: 100%; object-fit: contain; }
+.cz-cf-logo b {
+  font-family: var(--font-display); font-size: 22px; font-weight: 700;
+  letter-spacing: 0.04em; color: #EDEAE3;
+}
+.cz-cf-plat {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: rgba(237, 234, 227, 0.5);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.cz-cf-spine, .cz-cf-edge { width: var(--d); height: var(--h); }
+.cz-cf-spine {
+  transform: translate(-50%, -50%) rotateY(-90deg) translateZ(calc(var(--w) / 2));
+  display: grid; place-items: center;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--sys) 40%, #0E0D0C),
+    color-mix(in srgb, var(--sys) 78%, #0E0D0C) 55%,
+    color-mix(in srgb, var(--sys) 40%, #0E0D0C));
+}
+.cz-cf-spine > span {
+  writing-mode: vertical-rl; text-orientation: mixed;
+  max-height: 84%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-display); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; color: #FFF; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+.cz-cf-edge {
+  transform: translate(-50%, -50%) rotateY(90deg) translateZ(calc(var(--w) / 2));
+  background: linear-gradient(90deg, var(--board-dark), var(--board-lit) 40%, var(--board-dark));
+}
+.cz-cf-top {
+  width: var(--w); height: var(--d);
+  transform: translate(-50%, -50%) rotateX(90deg) translateZ(calc(var(--h) / 2));
+  background: linear-gradient(180deg, var(--board-lit), var(--board));
+}
+
+/* Cast on the plank, not attached to the box: a filter on the solid would
+   flatten it. */
+.cz-cshade {
+  position: absolute; bottom: -8px; left: 50%;
+  width: 118%; height: 14px; transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(20, 18, 24, 0.34), transparent 76%);
+  filter: blur(5px);
+  transition: transform 420ms ease, opacity 420ms ease;
+}
+.cz-cslot[data-on="1"] .cz-cshade { transform: translateX(-50%) scale(1.2); opacity: 0.85; }
+
+/* The card: the console's own, in the library's frame. */
+.cz-home-card { flex: 0 0 340px; }
+.cz-bigmark {
+  display: grid; place-items: center; width: 100%; min-height: 130px;
+  border-radius: 10px; padding: 18px;
+  background: linear-gradient(165deg, var(--board-lit), var(--board-dark));
+  box-shadow: inset 0 6px 0 -2px var(--sys);
+}
+.cz-bigmark img { max-width: 74%; max-height: 110px; object-fit: contain; }
+.cz-bigmark b {
+  font-family: var(--font-display); font-size: 40px; font-weight: 700;
+  letter-spacing: 0.03em; color: #EDEAE3;
+}
+.cz-open {
+  display: flex; align-items: center; gap: 10px; padding-top: 4px;
+  font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-2);
+}
+.cz-open > kbd {
+  display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 6px;
+  border-radius: 6px; background: var(--acc-deep); color: var(--paper);
+  font-family: inherit; font-size: 10.5px;
+  box-shadow: 0 2px 0 rgba(23, 22, 26, 0.35);
+  transition: background-color 600ms ease;
+}
+
+.cz-dots { display: flex; justify-content: center; gap: 7px; }
+.cz-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(23, 22, 26, 0.2); transition: background-color 200ms ease, transform 200ms ease; }
+.cz-dot[data-on="1"] { background: var(--ink); transform: scale(1.35); }
+
+.cz-hint {
+  text-align: center; font-family: var(--font-mono); font-size: 11.5px;
+  color: var(--ink-3); letter-spacing: 0.04em;
+}
+

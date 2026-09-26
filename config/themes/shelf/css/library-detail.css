@@ -1,0 +1,142 @@
+/* ── the printed reverse ──────────────────────────────────────────────── */
+.cz-back {
+  width: 100%; height: 100%; padding: 18px 18px 14px;
+  display: flex; flex-direction: column; gap: 12px;
+  background: linear-gradient(170deg, #211F1C, #131211);
+  color: #E6E2DA;
+}
+.cz-back-head > b {
+  display: block; font-family: var(--font-display); font-size: 17px; font-weight: 700;
+  line-height: 1.15; letter-spacing: -0.01em;
+}
+.cz-back-head > i {
+  display: block; margin-top: 4px; font-style: normal;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: hsl(var(--spine-h, 40) 55% 66%);
+}
+.cz-back-shots { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; }
+.cz-back-shots[data-n="1"] { grid-template-columns: 1fr; }
+.cz-back-shots img {
+  display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
+  border: 1px solid rgba(237, 234, 227, 0.16); border-radius: 2px;
+}
+.cz-back-blurb {
+  flex: 1; min-height: 0; margin: 0;
+  font-size: 11.5px; line-height: 1.5; color: rgba(230, 226, 218, 0.66);
+  overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical;
+}
+.cz-back-fine {
+  display: flex; justify-content: space-between; gap: 10px;
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.12em;
+  color: rgba(230, 226, 218, 0.5);
+}
+.cz-back-code { color: rgba(230, 226, 218, 0.8); }
+.cz-back-bars {
+  height: 24px; border-radius: 2px; background: #EDEAE3;
+  background-image: repeating-linear-gradient(90deg,
+    #131211 0 1px, transparent 1px 3px, #131211 3px 5px, transparent 5px 6px,
+    #131211 6px 8px, transparent 8px 11px);
+  background-position: 6px 0; background-repeat: repeat-x;
+  background-size: auto 70%;
+}
+
+/* ── the card ─────────────────────────────────────────────────────────── */
+.cz-card {
+  flex: 0 0 400px;
+  display: flex; flex-direction: column;
+  border-radius: var(--r-card);
+  background: var(--card);
+  border: 1px solid var(--rule-2);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.cz-card-media {
+  display: grid; place-items: center;
+  padding: 26px 26px 22px;
+  background: var(--card-well);
+  border-bottom: 1px solid var(--rule-2);
+  min-height: 190px;
+}
+.cz-card-text { padding: 20px 24px 22px; display: flex; flex-direction: column; gap: 14px; }
+
+.cz-card-name {
+  margin: 0;
+  font-family: var(--font-display); font-size: 30px; font-weight: 700;
+  line-height: 1.1; letter-spacing: -0.022em; color: var(--ink);
+}
+.cz-stamps { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.cz-stamp {
+  padding: 4px 11px; border-radius: var(--r-chip);
+  background: var(--paper-sink); color: var(--ink-2);
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em;
+}
+.cz-stamp-std {
+  background: var(--acc-deep); color: #fff; font-weight: 500;
+  transition: background-color 600ms ease;
+}
+
+.cz-specs { margin: 0; display: flex; flex-direction: column; }
+.cz-specs > div {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  padding: 8px 0; border-bottom: 1px solid var(--rule-2);
+}
+.cz-specs > div:last-child { border-bottom: 0; }
+.cz-specs dt { font-size: 14px; color: var(--ink-3); }
+.cz-specs dd {
+  margin: 0; font-family: var(--font-mono); font-size: 14px; color: var(--ink);
+  text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cz-specs[data-loading="1"] dd { color: var(--ink-3); }
+.cz-specs-log { padding-top: 8px; border-top: 1px solid var(--rule); }
+.cz-specs-log dt, .cz-specs-log dd { font-size: 12.5px; }
+
+/* ── foot ─────────────────────────────────────────────────────────────── */
+.cz-foot {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 20px;
+  padding-top: 12px;
+  font-family: var(--font-mono); font-size: clamp(11px, 1.3vh, 14px); color: var(--ink-3);
+}
+/* The dashboard's foot is the last thing in its column, so `margin-top: auto`
+   drops it onto the bottom edge instead of leaving it wherever the row above
+   happens to end. */
+.cz-ps > .cz-foot { margin-top: auto; padding-bottom: 2px; }
+.cz-count { letter-spacing: 0.04em; }
+.cz-lib[data-booting="1"] .cz-count { color: var(--ink); }
+
+/* The button legend is the one thing on screen you look for while holding a
+   pad you cannot see, so it is pinned to the corner your thumb already points
+   at and set big enough to read from a sofa. It used to be 22px tall in a row
+   that floated wherever the flex spare space put it. */
+.cz-keys {
+  display: flex; align-items: center; gap: clamp(8px, 0.9vh, 12px);
+  margin-left: auto;                    /* hard right, whatever is on the left */
+  font-size: clamp(12px, 1.5vh, 17px);
+}
+.cz-keys > span { color: var(--ink-3); margin-right: clamp(8px, 1vh, 14px); }
+.cz-keys > kbd {
+  display: inline-grid; place-items: center;
+  min-width: clamp(30px, 3.4vh, 42px); height: clamp(28px, 3.2vh, 38px);
+  padding: 0 clamp(7px, 0.8vh, 11px); border-radius: clamp(7px, 0.9vh, 11px);
+  background: var(--ink); color: var(--paper);
+  font-family: inherit; font-size: clamp(12px, 1.45vh, 17px); line-height: 1;
+  box-shadow: 0 3px 0 rgba(23, 22, 26, 0.35);
+}
+.cz-keys > kbd.cz-key-go { background: var(--acc-deep); transition: background-color 600ms ease; }
+
+/* ── empty, loading, error ────────────────────────────────────────────── */
+.cz-empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; text-align: center;
+}
+.cz-empty-body { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.cz-empty b { font-family: var(--font-display); font-size: 26px; font-weight: 700; }
+.cz-empty i { font-style: normal; font-size: 15px; color: var(--ink-2); max-width: 52ch; line-height: 1.5; }
+.cz-btn {
+  margin-top: 10px; padding: 10px 22px; border: 0; border-radius: var(--r-chip);
+  background: var(--ink); color: var(--paper); cursor: pointer;
+  font-family: var(--font-body); font-size: 15px; font-weight: 500;
+}
+.cz-btn:hover { background: var(--acc-deep); }
+

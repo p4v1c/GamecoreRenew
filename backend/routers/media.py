@@ -22,7 +22,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from ..services import gamemedia, http_cache
 from ..utils import rom_in_root
-from .systems import list_all
+from ..services.systems import find
 
 router = APIRouter(tags=["media"])
 
@@ -35,7 +35,7 @@ _MEDIA_TYPES = {
 
 
 def _system_or_404(system_id: str) -> dict:
-    system = next((s for s in list_all() if s["id"].lower() == system_id.lower()), None)
+    system = find(system_id)
     if not system:
         raise HTTPException(404, "System not found")
     return system

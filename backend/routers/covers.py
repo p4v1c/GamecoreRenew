@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from ..services import http_cache
 from ..services.cover_pipeline import resolve
-from .systems import list_all
+from ..services.systems import find
 
 router = APIRouter(tags=["covers"])
 
@@ -18,7 +18,7 @@ _MEDIA_TYPES = {".png": "image/png", ".jpg": "image/jpeg",
 @router.get("/covers/{system_id}/{filename:path}")
 async def get_cover(request: Request, system_id: str, filename: str,
                     refresh: bool = False):
-    system = next((s for s in list_all() if s["id"].lower() == system_id.lower()), None)
+    system = find(system_id)
     if not system:
         raise HTTPException(404, "System not found")
 

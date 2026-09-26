@@ -17,36 +17,18 @@ fail() { echo "[update] ERROR: $*"; exit 1; }
 REPO="p4v1c/GamecoreRenew"
 ASSET="gamecore-ota.tar.gz"
 GAMECORE_PATH="${GAMECORE_PATH:-/opt/GameCore}"
-# Where the player's data lives. Defaults to the install, which is where every
-# box created before the code/data split keeps it — so on those boxes the two
-# variables name the same directory and this script behaves exactly as it did.
+# Where the player's data lives. Defaults to the install (every box created
+# before the code/data split), where both variables name the same directory.
 #
-# ── When the data has actually moved ────────────────────────────────────────
-# The excludes on the deploy rsync below (emu/, config/, assets/overlays/,
-# assets/logos/) exist for one reason: those directories sit INSIDE the tree
-# being rsynced into. Once GAMECORE_DATA is a separate tree they are no longer
-# inside it, the excludes protect nothing, and this script can do the simple
-# thing instead — replace the whole install, `--delete` included, so that a
-# file removed from a release actually disappears from the box rather than
-# lingering for ever.
+# The rsync excludes below (emu/, config/, assets/overlays/, assets/logos/)
+# only matter while data sits INSIDE the install. Once split, the update could
+# be a clean swap with --delete — but not before: dropping an exclude on an
+# unsplit box deletes the ROM library. `is_split` decides, not memory.
 #
-# That is the eventual shape and it is a real improvement: the case-by-case
-# preservation below is the only reason an update cannot be a clean swap.
-#
-# **Nothing is removed here, and the order matters.** While the data is still
-# inside the install — which is true of every box that will receive this
-# release — dropping an exclude means the rsync deletes the ROM library on the
-# first update. The excludes go when the bytes have gone, not before, and the
-# check is `is_split` below rather than anybody's memory of which phase shipped.
-#
-# Where the data is, when the caller did not say. Launched from the Settings
-# screen this script inherits the backend's environment and knows. Typed at a
-# shell it does not — a shell has no GAMECORE_DATA — and it would fall back to
-# the install: the catalogue merge and every new theme would land in the copy
-# of config/ that a migrated box no longer reads, quietly, with a green log.
-# The backend's systemd unit is where the migration sets the variable, so it
-# is read from there. Same shape as install/bin/gamecore-addon, which must
-# stay self-contained (it is copied to /usr/local/bin) — hence the copy.
+# When run from a shell (no GAMECORE_DATA), read it from the backend's systemd
+# unit, where the migration sets it; otherwise catalogue merges and themes
+# would land in the install's abandoned config/. Copied from
+# install/bin/gamecore-addon, which must stay self-contained.
 _data_root_from_backend_unit() {
   command -v systemctl >/dev/null 2>&1 || return 0
   local env kv
@@ -179,33 +161,16 @@ fail() { echo "[update] ERROR: $*"; restore_hint; exit 1; }
 
 echo "[update] Installing new files..."
 # Excluded paths are user data — never overwrite them:
-#   config/     → systems.json, controller mappings, playtime DB
+#   config/     → systems.json, controller mappings, playtime DB, catalog.d/
 #   emu/        → ROMs and covers
 #   assets/overlays/  → user-uploaded bezels
 #   assets/logos/     → user-uploaded logos
 #   .venv/      → Python virtualenv (rebuilt separately)
 #
-# catalog/ is deliberately NOT in this list, and that is the whole point of the
-# pack migration. It carries the shipped logos and the curated seeds, which are
-# project content, not user data: the emulators' real configs live in
-# ~/.var/app/**, and catalog/<id>/seed/ is only the reference tree
-# install-emu-configs.sh copies FROM — read-only at runtime, nothing in
-# backend/ or electron/ ever writes to it.
-#
-# Its predecessor emu-configs/ was excluded once, and it cost: a corrected
-# controller mapping could reach GitHub and never reach a box.
-# emu-configs/dolphin/GCPadNew.ini was fixed upstream, a test locked the fix in,
-# and the box kept its keyboard D-Pad for good. Same reasoning now applies to
-# the logos, which moved out of assets/logos/ into catalog/<id>/logo.png for
-# exactly this reason — assets/logos/ stays excluded below so a logo the
-# operator uploaded by hand is still never overwritten.
-#
-# Shipping catalog/ here does NOT touch a running emulator's config — deploying
-# that stays a deliberate act:
-#     bash /opt/GameCore/install/steps/install-emu-configs.sh
-#
-# config/ is excluded wholesale, which is what preserves config/catalog.d/ —
-# the operator's own packs — across every update.
+# catalog/ is NOT excluded: shipped logos and seeds are project content, and
+# excluding them (as emu-configs/ once was) means fixes never reach a box.
+# Shipping catalog/ does not touch a running emulator's config; deploying
+# seeds stays explicit: bash /opt/GameCore/install/steps/install-emu-configs.sh
 if [[ "${GAMECORE_DATA}" != "${GAMECORE_PATH}" ]]; then
   # Said out loud because it changes what the excludes below are worth, and
   # because an operator reading a log after a bad update needs to know which
@@ -221,39 +186,17 @@ rsync -a \
   --exclude='assets/logos/' \
   "${SRC_DIR}/" "${GAMECORE_PATH}/" || fail "rsync failed"
 
-# Themes: install what is missing, and update what the release ships a newer
-# version of.
+# Themes: install what is missing, update what the release ships newer.
+# config/ is excluded above, so this loop is the only way a theme arrives.
 #
-# A theme is code, so a new one shipped with a release has to be able to reach
-# the box — config/ is excluded wholesale above, so nothing else would bring it.
-# This used to stop there: a theme the box already had was skipped, always. The
-# reasoning was that a theme on the box is the player's, and it held right up
-# until a bundled theme had a bug. Then the fix reached GitHub, reached the
-# archive, reached this loop — and was thrown away on every box that had ever
-# installed that theme. Correcting one meant deleting its folder over SSH.
+#   on the box, not in the release   never touched (a theme you wrote is yours)
+#   in the release, not on the box   installed
+#   both, release version newer      replaced, previous kept in .prev/<id>
+#   both, same or older              left alone
 #
-# So the decision is now the same one the rest of this script makes about the
-# release itself: compare versions. `version` is a mandatory field of
-# theme.json (docs/themes/README.md §4), it is the author's own statement that
-# something changed, and it is already required — nothing new has to be
-# published for this to work.
-#
-#   on the box, not in the release   never touched. A theme you wrote is yours;
-#                                    this loop only ever looks at what shipped.
-#   in the release, not on the box   installed, as before.
-#   both, release version newer      replaced, previous kept in .prev/<id>.
-#   both, same or older              left alone. Re-running an update, or
-#                                    installing an older release, changes nothing.
-#
-# The cost is the honest one: editing a bundled theme in place without bumping
-# its version means a later release can replace your edit. The previous copy is
-# kept under config/themes/.prev/<id>/ so it is recoverable rather than gone —
-# `list_themes()` skips any directory starting with `.` or `_`, so nothing put
-# there is ever offered to a player. Only the most recent replacement is kept,
-# the same single-snapshot rule as ${GAMECORE_PATH}.prev above.
-#
-# The player's selection (config/theme.json) is untouched throughout — it is
-# not in the archive.
+# So an edited bundled theme without a version bump can be replaced by a later
+# release; the previous copy is kept in config/themes/.prev/<id>/ (skipped by
+# list_themes()). The player's selection (config/theme.json) is never touched.
 
 # Strictly-newer test, tolerant of anything a manifest might contain: this runs
 # on a version string written by a theme author, so it must not raise on
@@ -462,7 +405,7 @@ fi
 # box on its own. This one matters — without the wait, the backend starts
 # before X and every game launch fails until the service is restarted by hand.
 #
-# The code-side fix (process_manager retries a failed probe instead of latching
+# The code-side fix (services/session.py retries a failed probe instead of latching
 # it) ships with this update and is what actually repairs a running box; this
 # only removes the first failed launch after a cold boot.
 #
@@ -511,37 +454,18 @@ if [[ -f /usr/local/bin/gamecore-addon && -f "${GAMECORE_PATH}/install/bin/gamec
   echo "[update]         sudo install -m 755 ${GAMECORE_PATH}/install/bin/gamecore-addon /usr/local/bin/gamecore-addon"
 fi
 
-# config/systems.json is excluded from the rsync above — deliberately, it is
-# the box's identity — so nothing shipped in a release used to reach the grid.
-# This block handled that by PRINTING the commands the owner was expected to
-# type by hand to migrate the N64 slot from gopher64 to Rosalie's Mupen GUI.
-# Nobody types those, and the tile went on launching an emulator the installer
-# no longer installs.
-#
-# It merges now, conservatively (backend/services/catalog/merge.py):
-#   · a tile the operator added by hand is kept, untouched;
-#   · an emulator new in this release is added — once it is installed on the
-#     box: a tile for an emulator that is not there only fails at launch, and
-#     `gamecore-emu install <id>` adds it the moment it is;
-#   · a launcher is repaired ONLY when it is stale — it names a Flatpak app id
-#     no pack declares, or its path does not resolve on this box. A native
-#     binary in lib/ that exists is never pushed back to Flatpak;
-#   · `extensions` gains what it is missing and loses nothing. A machine
-#     installed before *.cue was added to duckstation scanned *.bin and not
-#     *.cue: the .cue shadowed the .bin and was then filtered out, and the
-#     library went from one PS1 game to none.
-#
-# The previous file is kept as systems.json.bak-merge. A malformed grid is
-# reported and left alone: an update must not take the interface down because
-# a hand edit left a trailing comma.
-# Two roots, and the merge is told both. The catalogue and `lib/` are code
-# and come from GAMECORE_PATH; systems.json, catalog.d/ (the operator's own
-# packs) and catalog-removed.json are the player's and come from GAMECORE_DATA.
-# One argument used to serve for both, which was correct for exactly as long
-# as the two directories were the same one — and silently wrong afterwards:
-# every update would have merged into the abandoned copy under the install,
-# and the grid the box actually reads would never have gained a new emulator,
-# a repaired launcher or a console list again.
+# config/systems.json is excluded from the rsync (it is the box's identity), so
+# shipped changes reach the grid through a conservative merge
+# (backend/services/catalog/merge.py):
+#   · hand-added tiles are kept untouched;
+#   · a new emulator is added once it is installed on the box;
+#   · a launcher is repaired ONLY when stale (unknown Flatpak id, or a path that
+#     does not resolve); an existing native lib/ binary is never replaced;
+#   · `extensions` gains what is missing and loses nothing.
+# The previous file is kept as systems.json.bak-merge; a malformed file is
+# reported and left alone.
+# The merge gets both roots: catalogue and lib/ from GAMECORE_PATH, the
+# player's systems.json, catalog.d/ and catalog-removed.json from GAMECORE_DATA.
 echo "[update] Merging the shipped catalogue into ${GAMECORE_DATA}/config/systems.json..."
 "${GAMECORE_PATH}/.venv/bin/python3" - "${GAMECORE_PATH}" "${GAMECORE_DATA}" <<'PYEOF' || \
   echo "[update] WARNING: catalogue merge failed (non-fatal) — the grid is unchanged."
@@ -603,31 +527,13 @@ echo "[update] Version set to ${LATEST_TAG}"
 
 # ── Privileges a release added after this box was installed ────────────────
 #
-# Sudoers rules are written ONCE, by arch.sh and setup-update-permissions.sh, at
-# INSTALL time. An OTA replaces code and nothing else — it runs as the backend's
-# user and cannot grant itself anything. So every rule added in a later release
-# is simply absent on every box installed before it, for ever, and the feature
-# it gates is dead without a word.
-#
-# Found on the reference box, running a release fourteen tags old:
-#   · no rule for /usr/local/bin/gamecore-emu, and the CLI not installed at all
-#     — so "install an emulator" from the Systems screen could not work. The
-#     endpoint exists, the catalogue lists seventeen packs, and the button was
-#     never going to do anything.
-#   · no rule for cpupower, so standby.py never dropped or raised the governor.
-#     It logs at debug and carries on, which is why nobody saw it: the only
-#     trace was `sudo: a password is required` in the journal.
-#
-# This cannot be repaired from here — that is the point of the rule being
-# root-owned. What it CAN do is stop the drift being invisible: check what the
-# release expects against what this box grants, and name the one command that
-# fixes it. A dead feature that says so is a support question; a dead feature
-# that does not is a bug report about something else entirely.
-# NOPASSWD is the only thing that counts, and `sudo -n -l <command>` does NOT
-# test it: on a box whose owner is in wheel, `(ALL) ALL` means every command is
-# permitted — with a password. The backend always calls `sudo -n`, which never
-# prompts, so a rule that is merely "allowed" is a rule that fails. The list is
-# therefore read once and searched for the NOPASSWD entries themselves.
+# Sudoers rules are written at INSTALL time only; an OTA runs unprivileged and
+# cannot grant itself anything, so a rule added later is missing on older boxes
+# and its feature is silently dead (seen: no gamecore-emu rule, no cpupower
+# rule). This cannot be fixed from here; it names the one command that does.
+# Only NOPASSWD counts: `sudo -n -l <cmd>` says yes for wheel users WITH a
+# password, and the backend always uses `sudo -n`. So the rule list is read
+# once and searched for NOPASSWD entries.
 sudo_rules="$(sudo -n -l 2>/dev/null || true)"
 
 # The rules to expect are READ FROM THE INSTALLERS THIS UPDATE JUST SHIPPED,

@@ -1,0 +1,78 @@
+/* ===========================================================================
+   THE OTHER TWO STACKINGS
+   Same markup, same solid, same rail. Only the axis and the card move.
+   =========================================================================== */
+
+/* stack — the boxes in a pile, index down the left edge */
+.cz-lib[data-view="stack"] .cz-body { flex-direction: row; }
+.cz-lib[data-view="stack"] .cz-head { display: flex; justify-content: space-between; }
+.cz-lib[data-view="stack"] .cz-rail-index {
+  position: absolute; left: 0; top: 50%;
+  transform: translateY(-50%);
+  flex-direction: column; justify-self: auto;
+  padding: 10px 4px;
+}
+.cz-lib[data-view="stack"] { position: relative; padding-left: 74px; }
+.cz-lib[data-view="stack"] .cz-rail {
+  --pitch: 46px;
+  transform: translate3d(0, calc(var(--i) * var(--pitch) * -1), 0);
+}
+/* Lying flat, a box does not lean — the shelf's jitter is dropped here.
+
+   The origin has to move to the middle. The shelf pivots its spines on their
+   bottom edge, which is right for a degree of lean and catastrophic for a
+   quarter turn: rotating a 380px bar about a corner swings its centre 190px
+   sideways, so every bar in the pile sits a long way from the slot it belongs
+   to. That is invisible while the pile is only ever bars — they are all thrown
+   by the same amount — and becomes obvious the moment a jacket has to land
+   among them, because the solid turns about its own centre and lands where its
+   slot actually is. Turning both about the middle is what makes the two agree. */
+.cz-lib[data-view="stack"] .cz-slot {
+  transform-origin: 50% 50%;
+  transform: translate(-50%, -50%) translateY(calc(var(--o) * var(--pitch))) rotate(-90deg);
+}
+/* Shorter and thinner than the pile used to be, and for the same reason the
+   shelf's spines are shorter than its box: a row has to draw SMALLER than the
+   jacket standing in front of it, or there is no depth for the jacket to go
+   back into and the gesture has to lunge towards you to reach it. 380 against
+   the solid's 400 is the recession `--dive` is derived from. */
+.cz-lib[data-view="stack"] .cz-spine { width: 40px; height: 380px; }
+.cz-lib[data-view="stack"] .cz-spine:hover { transform: translateY(-4px); }
+.cz-lib[data-view="stack"] .cz-shelfline { display: none; }
+.cz-lib[data-view="stack"] .cz-box { --turn: -16deg; --tilt: 12deg; }
+.cz-lib[data-view="stack"] .cz-hold { perspective: 1400px; perspective-origin: 42% 50%; }
+
+/* gallery — flat on, the card as a strip along the bottom */
+.cz-lib[data-view="gallery"] .cz-body { flex-direction: column; gap: 16px; }
+.cz-lib[data-view="gallery"] .cz-box {
+  --turn: 0deg; --tilt: 0deg;
+  --h: clamp(240px, 44vh, 440px);
+}
+.cz-lib[data-view="gallery"] .cz-hold { perspective: 2600px; }
+.cz-lib[data-view="gallery"] .cz-shelfline { bottom: 4%; }
+
+.cz-lib[data-view="gallery"] .cz-card {
+  flex: 0 0 auto;
+  flex-direction: row; align-items: stretch; gap: 0;
+}
+.cz-lib[data-view="gallery"] .cz-card-media {
+  flex: 0 0 190px; padding: 14px 18px; min-height: 0;
+  border-bottom: 0; border-right: 1px solid var(--rule-2);
+}
+.cz-lib[data-view="gallery"] .cz-card-text {
+  flex: 1; min-width: 0; flex-direction: row; align-items: center; gap: 28px;
+  padding: 14px 24px;
+}
+.cz-lib[data-view="gallery"] .cz-card-head { flex: 0 1 30%; min-width: 0; }
+.cz-lib[data-view="gallery"] .cz-card-name { font-size: 24px; }
+.cz-lib[data-view="gallery"] .cz-specs {
+  flex: 1; flex-direction: row; gap: 26px; align-items: flex-start;
+}
+.cz-lib[data-view="gallery"] .cz-specs > div {
+  flex-direction: column; align-items: flex-start; gap: 3px;
+  padding: 0; border-bottom: 0;
+}
+.cz-lib[data-view="gallery"] .cz-specs dt { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+.cz-lib[data-view="gallery"] .cz-specs dd { text-align: left; font-size: 13px; }
+.cz-lib[data-view="gallery"] .cz-specs-log { display: none; }
+

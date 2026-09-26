@@ -224,11 +224,12 @@ def test_the_rom_listing_is_what_notices(monkeypatch):
     this would put the old defect back with no other symptom.
     """
     from backend.routers import games
+    from backend.services import systems as systems_service
 
     seen = []
     monkeypatch.setattr(games.prefetch, "note_scan",
                         lambda system, names: seen.append((system["id"], names)))
-    monkeypatch.setattr(games, "list_all", lambda: [
+    monkeypatch.setattr(systems_service, "list_all", lambda: [
         {"id": "ppsspp", "kind": "emulator", "romsPath": "emu/ppsspp/",
          "extensions": ["*.iso"]}])
     monkeypatch.setattr(games, "resolve_path", lambda p: Path("/nonexistent"))
@@ -242,12 +243,13 @@ def test_the_rom_listing_is_what_notices(monkeypatch):
 def test_a_broken_prefetch_never_breaks_the_library(monkeypatch):
     """The grid must render even if the queue blows up."""
     from backend.routers import games
+    from backend.services import systems as systems_service
 
     def boom(system, names):
         raise RuntimeError("queue is on fire")
 
     monkeypatch.setattr(games.prefetch, "note_scan", boom)
-    monkeypatch.setattr(games, "list_all", lambda: [
+    monkeypatch.setattr(systems_service, "list_all", lambda: [
         {"id": "ppsspp", "kind": "emulator", "romsPath": "emu/ppsspp/",
          "extensions": ["*.iso"]}])
     monkeypatch.setattr(games, "resolve_path", lambda p: Path("/nonexistent"))

@@ -2,7 +2,7 @@
 
 The measurement that produced this file (issue #36): one tile shipped
 `args = "lib/<emu>/<emu>.exe --fullscreen=true"` — a bare relative path, and the
-only one in the catalogue. Nothing resolved it. `_expand` in routers/systems.py
+only one in the catalogue. Nothing resolved it. `_expand` in services/systems.py
 rewrites `@…@` tokens and returns anything else untouched; `resolve_args` only
 substitutes `@APPID@`; `process_manager.launch` hands the string to
 `shlex.split` and calls `create_subprocess_exec` with no `cwd=`. So the child
@@ -36,7 +36,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from backend.routers import systems as systems_router  # noqa: E402
+from backend.services import systems as systems_router  # noqa: E402
 from backend.services.catalog import load_catalog  # noqa: E402
 
 CATALOG = ROOT / "catalog"
@@ -97,7 +97,7 @@ def test_the_two_root_tokens_resolve_to_the_roots_they_name(monkeypatch):
     On the development box and on every box shipped so far, GAMECORE_PATH and
     GAMECORE_DATA are the same directory, so a version of this test that let
     them collapse would pass against code that confused the two. Both are
-    from-imports in routers/systems.py and therefore bound at import time:
+    from-imports in services/systems.py and therefore bound at import time:
     `paths.use_roots()` does not reach them, and a test that called it would be
     asserting on values it never changed.
     """

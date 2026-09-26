@@ -23,37 +23,14 @@ import { formatGameName, hexToRgb, fmtTime, fmtDate, systemColor } from './forma
 import * as defaults from '../components/defaults'
 
 /**
- * SDK major. Bumped when something is removed, changes shape, or becomes
- * REQUIRED by a theme this repository ships.
+ * SDK major. Bump it when anything is removed, changes shape, or becomes
+ * REQUIRED by a theme this repo ships: `compatible: api <= SDK_VERSION` only
+ * protects a box if the number moves with the contract. (Missing that once
+ * let Shelf load on an older bundle and throw, which players see as their
+ * theme silently becoming the default, then safe mode.)
  *
- * That last clause was learned the hard way. `sdk.defaults.createSettings` and
- * `createPowerView` were added and both shipped themes were rewritten to
- * destructure them — while this constant stayed at 1. So Shelf kept declaring
- * `api: 1`, every bundle old and new answered "compatible", and on a box in the
- * window between the theme landing on disk and the front end restarting onto
- * the matching bundle, Shelf imported cleanly and then threw the moment it
- * called a function that was not there.
- *
- * The player sees that as the theme silently becoming the default one, because
- * the surface boundary catches the throw and swaps in the built-in shell — and
- * after CRASH_LIMIT of those, safe mode refuses the theme outright.
- *
- * `compatible: api <= SDK_VERSION` is the gate that was supposed to prevent
- * exactly this. It can only work if the number moves when the contract does.
- *
- * 3 adds `standby` to the store, and both shipped themes now read it — Summer's
- * screensaver keys its whole overlay off it. On a front end that does not have
- * it, `s.standby` is `undefined`, `undefined !== 'off'` is true, and Summer
- * draws a black rectangle over the box forever. That is a refusal, not a
- * degradation, so the number moves.
- *
- * 5 adds `sdk.session` — suspending a game and resuming it — and all three
- * shipped themes now draw a session bar from it. On a front end without it,
- * `sdk.session` is `undefined` and the theme throws on its first read, which
- * the surface boundary shows the player as their theme silently becoming the
- * default one. Worse than the usual case, because the actions are the only way
- * to reach a suspended game: a theme that half-loaded would leave a frozen
- * emulator holding its memory with nothing on screen able to close it.
+ * 3: `standby` in the store (Summer's screensaver keys off it).
+ * 5: `sdk.session` — suspend/resume; every shipped theme draws a session bar.
  */
 // 6 adds spatial library omissions, search/options callbacks and __all__ libraries.
 // 7 adds defaults.launchGame: a ROM can launch without navigating to Library.

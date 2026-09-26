@@ -1,0 +1,177 @@
+/* ── The box as an object (views/box3d.js) ──────────────────────────────────
+ * Six faces in CSS 3D rather than WebGL: the ocean already holds a GL context,
+ * and a second one competing for the GPU is a poor trade for cover art.
+ * Geometry comes from the images' own proportions and is set inline — a DS
+ * case, a PS3 case and a PC big box agree on nothing. */
+.sm-box3d {
+  position: relative;
+  /* Roughly two box-widths away. 1400px was almost orthographic — the faces
+   * stayed parallel and the whole thing read as a rotating postcard, which is
+   * exactly what it looked like. Closer means the near edge is visibly larger
+   * than the far one, and that difference is the entire depth cue. */
+  perspective: 900px;
+  perspective-origin: 50% 42%;
+}
+.sm-box3d-stage {
+  position: absolute; inset: 0;
+  transform-style: preserve-3d;
+  will-change: transform;           /* it moves every frame; promote it once */
+}
+/* Faces are centred on the box's own centre — `left: 50%` plus a negative
+ * margin of half their own width, which the component sets since only it knows
+ * the proportions. Anything anchored with `inset: 0` would be forced to the
+ * container's width and could never be a side face. */
+.sm-box3d-face {
+  position: absolute; top: 0; left: 50%; height: 100%;
+  background-size: 100% 100%; background-repeat: no-repeat;
+  backface-visibility: hidden;
+  border-radius: 2px;
+}
+/* The thin top and bottom edges. The art supplies the colour (see box3d.js);
+ * only its outermost sliver is used, which is what the cut edge of the sleeve
+ * actually shows. A fixed grey here was wrong on every white case. */
+.sm-box3d-cap {
+  background-size: 100% 2600%;
+  background-repeat: no-repeat;
+  overflow: hidden;
+}
+.sm-box3d-cap-top { background-position: 0 0; }
+.sm-box3d-cap-bottom { background-position: 0 100%; }
+/* An edge is not lit like a face: it catches a highlight where the sleeve
+ * folds and falls into shadow towards the back of the case. Without this the
+ * top reads as a bright ribbon and flattens the whole box again. */
+.sm-box3d-cap::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(0, 0, 0, 0.10) 38%,
+    rgba(0, 0, 0, 0.52) 100%);
+}
+.sm-box3d-cap-bottom::after { transform: scaleY(-1); }
+/* The sheen slides with the rotation (--sheen is written by the rAF loop). A
+ * highlight that stays put is what makes CSS 3D read as flat cardboard. */
+.sm-box3d-front::after {
+  content: ''; position: absolute; inset: 0; border-radius: 2px;
+  background: linear-gradient(105deg,
+    rgba(255, 255, 255, 0) calc(var(--sheen, 50%) - 34%),
+    rgba(255, 255, 255, 0.16) var(--sheen, 50%),
+    rgba(255, 255, 255, 0) calc(var(--sheen, 50%) + 34%));
+  pointer-events: none;
+}
+/* A game with no scanned back gets the dark of a closed case rather than a
+ * mirrored front, which would read as a printing error. */
+.sm-box3d-back {
+  background-color: #14202b;
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.5);
+}
+/* Faces seen edge-on catch less light — flat lighting is the other half of
+ * what makes a CSS cuboid look like folded paper. */
+.sm-box3d-spine { filter: brightness(0.86); }
+.sm-box3d-edge {
+  background: linear-gradient(90deg, #0e1a22, #1b2c38 45%, #0b141b);
+  filter: brightness(0.7);
+}
+/* Contact shadow. It is the thing that stops the box floating; the loop
+ * squashes and slides it as the box turns. */
+.sm-box3d-shadow {
+  position: absolute; left: 8%; right: 8%; bottom: -22px; height: 26px;
+  background: radial-gradient(ellipse at center,
+    rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 70%);
+  filter: blur(6px);
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* Captures, under the description. Two at most: this panel also carries the
+ * play-time row and the Play button, and a wall of screenshots pushes the
+ * button off a 1080p screen. */
+/* The captures take whatever height the column has left, now that the stats
+ * and the button have moved out of it — 447px on a 1080p screen, measured.
+ * `min-height: 0` is what lets a flex child shrink to its container instead of
+ * insisting on its content; without it the row keeps its natural size and the
+ * growth never happens. */
+.sm-lib-shots {
+  display: flex; gap: 16px; min-width: 0;
+  flex: 1; min-height: 0; margin-top: 4px;
+  align-items: flex-start;          /* each picture keeps its own height */
+  /* Centred, because the pair no longer fills the row by construction. A 16:9
+   * pair happens to reach both edges and looked centred by accident; a DS pair
+   * is narrower and sat against the left with the gap all on one side. */
+  justify-content: center;
+}
+/* No wrapper: the image carries its own border and corners, so the frame is
+ * exactly the picture and there is nowhere for empty space to appear.
+ *
+ * A container would have to commit to a size before knowing the shape, and no
+ * single shape fits: a DS capture is two stacked screens and stands taller
+ * than it is wide, a 3DS or PS3 capture is 16:9. Cropping to fill loses half a
+ * DS screen; letterboxing to fit left a widescreen shot marooned in a tall
+ * empty square. Sizing to the image itself is the only answer that is right
+ * for both.
+ *
+ * The two caps are what keep a pair honest: at most half the row each, at most
+ * the height the column has left. */
+.sm-lib-shot {
+  max-width: calc(50% - 8px); max-height: 100%;
+  width: auto; height: auto;
+  display: block; object-fit: contain;
+  border-radius: var(--r-tile);
+  border: 1px solid var(--glass-hairline);
+  background: rgba(6, 14, 19, 0.55);
+  /* They arrive after the panel is drawn — fading them in stops the layout
+   * from appearing to flinch when a game has them and the previous one did not. */
+  animation: smFadeIn 220ms ease;
+}
+
+.sm-lib-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sm-lib-sys {
+  font-size: 14px; line-height: 18px; font-weight: 600;
+  letter-spacing: 0.14em; color: var(--foam-400); margin-bottom: 10px;
+}
+.sm-lib-name {
+  font-family: 'Outfit', sans-serif; font-size: 56px; line-height: 60px; font-weight: 700;
+  margin-bottom: 18px; text-wrap: balance;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.sm-lib-chip {
+  display: inline-block; padding: 6px 14px; border-radius: var(--r-chip);
+  font-size: 14px; font-weight: 500; color: var(--foam-000);
+  background: var(--glass-500); border: 1px solid var(--glass-hairline);
+}
+/* The left column: the box, its history, and the button. Grouping them means
+ * the reading column beside it holds nothing but text and pictures, and can
+ * give the captures its whole height. */
+.sm-lib-side {
+  flex-shrink: 0; width: 320px;
+  display: flex; flex-direction: column; align-items: center;
+}
+/* Two figures, not three. Sessions counted launches, which is not something
+ * anyone came to this screen to learn — and it crowded the two numbers that
+ * do say something about the game. */
+.sm-lib-stats {
+  display: flex; gap: 34px; margin: 26px 0 0; text-align: center;
+}
+.sm-lib-stats span {
+  display: block; font-size: 13px; font-weight: 600; letter-spacing: 0.14em;
+  color: var(--foam-400); margin-bottom: 6px;
+}
+.sm-lib-stats b {
+  font-family: 'JetBrains Mono', monospace; font-size: 26px; line-height: 28px; font-weight: 500;
+}
+/* Directly under the two figures it belongs with, not pinned to the floor.
+ * `margin-top: auto` pushed it to the bottom of the column, which made sense
+ * when the column was the whole panel and left a lake of empty space once it
+ * became just the box and its stats. */
+.sm-lib-play {
+  margin-top: 26px; cursor: pointer;
+  width: 240px; height: 68px; border-radius: var(--r-chip); border: none;
+  font-size: 22px; font-weight: 600; font-family: inherit; color: var(--ink-900);
+  background: var(--accent-mandarin);
+  box-shadow: 0 10px 28px rgba(4, 12, 18, 0.34);
+  transition: opacity 150ms ease;
+}
+.sm-lib-play[data-busy="1"] { opacity: 0.65; }
+
+.sm-lib-hint { flex-shrink: 0; }
+
+

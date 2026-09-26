@@ -211,20 +211,20 @@ def test_the_backend_takes_the_display_from_the_session_file(tmp_path, monkeypat
     """
     import sys
     sys.path.insert(0, str(REPO))
-    from backend.services import process_manager as pm
+    from backend.services import session as xsession
 
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
     monkeypatch.delenv("DISPLAY", raising=False)
     monkeypatch.delenv("XAUTHORITY", raising=False)
     # Any probe here would be the failure, not the fallback.
-    monkeypatch.setattr(pm, "_probe_display",
+    monkeypatch.setattr(xsession, "_probe_display",
                         lambda uid: pytest.fail("the backend probed X instead of reading the session"))
 
     session = tmp_path / "gamecore" / "session.env"
     session.parent.mkdir(parents=True)
     session.write_text("DISPLAY=:7\nXAUTHORITY=/tmp/cookie-7\nSTARTED=2026-09-06T21:00:00Z\n")
 
-    env = pm._display_env()
+    env = xsession._display_env()
     assert env["DISPLAY"] == ":7"
     assert env["XAUTHORITY"] == "/tmp/cookie-7"
 
@@ -233,17 +233,17 @@ def test_no_session_file_means_the_old_behaviour_exactly(tmp_path, monkeypatch):
     """Every box that has not migrated, and every SSH install."""
     import sys
     sys.path.insert(0, str(REPO))
-    from backend.services import process_manager as pm
+    from backend.services import session as xsession
 
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
     monkeypatch.delenv("DISPLAY", raising=False)
     monkeypatch.delenv("XAUTHORITY", raising=False)
-    monkeypatch.setattr(pm, "_probe_cache", None)
-    monkeypatch.setattr(pm, "_probe_retry_at", 0.0)
+    monkeypatch.setattr(xsession, "_probe_cache", None)
+    monkeypatch.setattr(xsession, "_probe_retry_at", 0.0)
     probed = []
-    monkeypatch.setattr(pm, "_probe_display", lambda uid: probed.append(uid) or (":3", ""))
+    monkeypatch.setattr(xsession, "_probe_display", lambda uid: probed.append(uid) or (":3", ""))
 
-    env = pm._display_env()
+    env = xsession._display_env()
     assert probed, "the fallback probe was skipped on a box with no session file"
     assert env["DISPLAY"] == ":3"
 

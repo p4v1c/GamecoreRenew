@@ -7,7 +7,7 @@ The paths worth knowing end to end. Every arrow names the function that runs.
 ```mermaid
 sequenceDiagram
     participant ui as LibraryScreen
-    participant r as routers/games.py
+    participant r as routers/games.py + services/launch.py
     participant pm as process_manager
     participant ws as ws.py
     participant el as Electron
@@ -20,7 +20,7 @@ sequenceDiagram
     r->>r: rom_path.resolve().relative_to(roms_root) → 403 if outside
     r->>pm: launch(exec_path, exec_args, rom_path, …)
     pm->>pm: _launching = True (synchronous claim)
-    pm->>pm: _display_env()
+    pm->>pm: session.display_env()
     pm->>emu: create_subprocess_exec(start_new_session=True)
     pm->>ws: set_current_game() + broadcast("game:started")
     pm->>pm: create_task(_watch())

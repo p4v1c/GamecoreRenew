@@ -45,6 +45,7 @@ from .routers import storage as storage_router
 from .routers.settings import wifi, audio, bluetooth, display
 from .services import (battery, boot, desktop_power, gamepad_monitor, http_cache,
                        playtime_repair, prefetch, standby, storage_monitor)
+from .services.errors import ServiceError
 from .services.process_manager import process_manager
 from .config import BACKEND_PORT
 from .services.paths import (backend_data_dir, covers_dir, frontend_dist_dir,
@@ -190,6 +191,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="GameCore", version="1.0.0", lifespan=lifespan)
+
+
+@app.exception_handler(ServiceError)
+async def _service_error(_request: Request, exc: ServiceError):
+    """A service's refusal, as the HTTPException it replaces: `{"detail": ...}`."""
+    return JSONResponse(status_code=exc.status, content={"detail": exc.detail})
 
 
 # ── Cross-origin guard ───────────────────────────────────────────────────────

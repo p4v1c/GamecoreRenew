@@ -1,37 +1,14 @@
 /**
- * Settings → Display.
+ * Settings → Display: resolution, refresh rate, and Scale (a page zoom, no
+ * confirmation needed).
  *
- * Resolution and refresh rate, and the confirmation that makes them safe to
- * offer at all. And Scale — the interface size on this screen, a page zoom
- * applied by the shell, which needs no confirmation because the picture never
- * goes away.
+ * A mode change arms a revert timer in the backend (services/display.py); the
+ * countdown here shows it and ✕ confirms. Confirmation is always a PRESS: a
+ * screen confirming itself would confirm a picture nobody can see.
  *
- * ## Why there is a countdown on this screen and nowhere else
- *
- * A mode the television refuses is a black screen, and this is a box driven
- * from a sofa. So the backend arms a revert when it applies a mode and puts the
- * old one back unless something confirms — see `routers/settings/display.py`.
- * The countdown here is that timer made visible; pressing ✕ is what cancels it.
- *
- * The confirmation is deliberately a PRESS, never an automatic call on render.
- * A screen that confirmed itself would confirm a picture nobody can see, which
- * is the entire failure this exists to prevent. If the mode is unreadable, the
- * player does nothing — and doing nothing is what brings the picture back.
- *
- * ## Where this departs from the capture
- *
- * · **No VSync.** The capture offers it. It is written per emulator by
- *   configgen, into thirteen generated configs, and nothing global governs it —
- *   so one switch here would misstate what it controls and fight the files that
- *   actually do. It is the same refusal as the emulator "Update all" button:
- *   the row is easy, the thing behind it does not exist.
- * · **One output.** Two screens need a layout, not a mode, and choosing between
- *   them blind would move a picture the owner cannot see.
- *
- * The list comes from whichever tool owns the outputs — `kscreen-doctor` on a
- * Wayland session, `xrandr` on X11 — and this file does not know which. It
- * asks for a width, a height and a rate; the router resolves that to whatever
- * handle its tool uses.
+ * Not drawn: VSync (per emulator, no global switch) and multi-output layout.
+ * The backend picks kscreen-doctor or xrandr; this file sends width, height,
+ * rate.
  */
 import { createDialogs } from './dialog.js'
 import { PadKey } from '../lib/padKey.js'

@@ -9,47 +9,16 @@ import { useSubPageGamepad } from './useSubPageGamepad'
 import { PadHints } from '../../../lib/padKey'
 
 /**
- * Add an emulator to a box that is already running, or take one off it.
+ * Add or remove an emulator on a running box.
  *
- * Before this screen the catalogue was frozen at install time: adding a system
- * meant re-running the installer over SSH, which overwrote config/systems.json
- * and took the box's own grid with it.
- *
- * One action at a time — the backend answers 409 to a second one — so the
- * whole list is disabled while something is running rather than letting a
- * player queue up four installs and watch three of them fail.
- *
- * ── What this screen has to survive ────────────────────────────────────────
- * It is the longest list in the settings modal and the only one that grows: a
- * box with the shipped catalogue plus local packs shows more rows than fit on
- * a television. Four things follow from that:
- *
- *  · **The focus has to drag the list with it.** The D-pad moved a highlight
- *    that the scroll container knew nothing about, so past the seventh row you
- *    were steering something off-screen.
- *
- *  · **Twenty systems in one column is a wall.** They are grouped by who made
- *    the hardware and the groups start CLOSED, so the screen opens on four
- *    lines — Microsoft, Nintendo, Sony, Applications — and you open the one you
- *    want. The grouping comes from `family` in pack.json, not from a table of
- *    ids in here: a pack for a machine nobody anticipated names its own maker
- *    and is grouped with its siblings without a line of this file changing.
- *
- *  · **A sticky heading hides the row underneath it.** `scrollIntoView` knows
- *    nothing about `position: sticky`: it aligns the row with the top of the
- *    scroll box, which is exactly where the heading is painted, so walking back
- *    up put the focused row behind it. `scroll-margin-top` is the seam for
- *    that — it tells the scroller the row starts higher than it does.
- *
- *  · **Removing is destructive and was one button press.** ✕ on a focused row
- *    removed a system with no confirmation, and the focused row is wherever
- *    the cursor happened to be. It now takes a second press, and moving the
- *    cursor disarms it.
- *
- *  · **Past a screenful, walking the list stops being navigation.** △ opens the
- *    virtual keyboard, and the filter runs over the label, the emulator's own
- *    name, the maker, the platform and the id — "dolphin" finds the GameCube
- *    slot, and so do "gamecube" and "nintendo".
+ * One action at a time (the backend answers 409), so the list is disabled
+ * while a job runs. This is the longest settings list, hence:
+ *  · focus scrolls the list with it;
+ *  · systems are grouped by maker (`family` in pack.json), groups start closed;
+ *  · `scroll-margin-top` keeps the focused row out from under the sticky
+ *    heading (`scrollIntoView` ignores it);
+ *  · Remove takes two presses, and moving the cursor disarms it;
+ *  · △ filters by label, emulator name, maker, platform and id.
  */
 
 const ACCENT = 'var(--gc-accent, #7c3aed)'

@@ -1,0 +1,138 @@
+/* ── library ─────────────────────────────────────────────────────────────── */
+/* Geometry from DESIGN-BRIEF.md §3.4: rail 560, --s7 gap, panel --r-xl with
+   --s7 padding, cover 300x420, Play 240x68. */
+.sm-lib {
+  position: relative; z-index: 1;
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  font-family: 'Figtree', 'Outfit', sans-serif; color: var(--foam-000);
+  padding: 8px 48px 20px; gap: 20px;
+}
+
+.sm-lib-head {
+  display: flex; align-items: center; gap: 20px; height: 88px; flex-shrink: 0;
+  padding: 0 24px; border-radius: var(--r-panel);
+  background: var(--glass-500);
+  backdrop-filter: blur(18px) saturate(115%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+  border: 1px solid var(--glass-hairline);
+}
+.sm-lib-spacer { flex: 1; }
+.sm-lib-back {
+  padding: 10px 20px; border-radius: var(--r-chip); cursor: pointer;
+  background: var(--glass-500); border: 1px solid var(--glass-hairline);
+  color: var(--foam-000); font-size: 18px; font-weight: 600; font-family: inherit;
+}
+.sm-lib-logo {
+  width: 56px; height: 56px; border-radius: var(--r-tile); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; padding: 4px;
+  background: color-mix(in srgb, var(--sys-accent) 22%, transparent);
+  font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 18px;
+}
+.sm-lib-logo img { width: 100%; height: 100%; object-fit: contain; }
+.sm-lib-title { display: flex; flex-direction: column; min-width: 0; }
+.sm-lib-title b {
+  font-family: 'Outfit', sans-serif; font-size: 38px; line-height: 44px; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sm-lib-title i { font-style: normal; font-size: 14px; color: var(--foam-200); }
+
+.sm-lib-search {
+  position: relative; display: flex; align-items: center; gap: 10px;
+  width: 360px; height: 52px; padding: 0 20px; border-radius: var(--r-chip);
+  background: var(--glass-700); border: 1px solid var(--glass-hairline);
+}
+.sm-lib-search svg { flex-shrink: 0; color: var(--foam-400); }
+.sm-lib-search input {
+  flex: 1; min-width: 0; background: none; border: none; outline: none;
+  color: var(--foam-000); font-size: 18px; font-weight: 600; font-family: inherit;
+}
+.sm-lib-search input::placeholder { color: var(--foam-400); font-weight: 600; }
+
+.sm-lib-sorts { display: flex; gap: 12px; }
+.sm-lib-sort {
+  position: relative; padding: 10px 20px; border-radius: var(--r-chip);
+  cursor: pointer; font-size: 18px; font-weight: 600; font-family: inherit;
+  background: var(--glass-700); border: 1px solid var(--glass-hairline);
+  color: var(--foam-200);
+}
+/* Selected: fill AND a full-width underline — two signals, per the brief. */
+.sm-lib-sort[data-on="1"] { background: var(--accent-mandarin); color: var(--ink-900); }
+.sm-lib-sort[data-on="1"]::after {
+  content: ''; position: absolute; left: 20px; right: 20px; bottom: 6px;
+  height: 2px; background: var(--ink-900);
+}
+
+.sm-lib-body { flex: 1; display: flex; gap: 48px; overflow: hidden; }
+
+/* Left: the list rail */
+.sm-lib-list {
+  width: 560px; flex-shrink: 0; overflow-y: auto; padding-right: 6px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.sm-lib-row {
+  display: flex; align-items: center; gap: 16px; cursor: pointer;
+  min-height: 76px; padding: 0 20px; border-radius: var(--r-tile);
+  background: rgba(12, 26, 33, 0.78);  /* --glass-700 + 0.12: no blur per row */
+  border: 2px solid transparent; flex-shrink: 0;
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+.sm-lib-row[data-on="1"] {
+  background: rgba(12, 26, 33, 0.94);
+  border-color: var(--accent-mandarin);
+  box-shadow: 0 0 0 4px rgba(240, 118, 30, 0.24);
+}
+.sm-lib-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.sm-lib-row-main b {
+  font-size: 18px; line-height: 24px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sm-lib-row-main i { font-style: normal; font-size: 14px; color: var(--foam-400); }
+.sm-lib-row-time {
+  text-align: right; flex-shrink: 0; display: flex; flex-direction: column; gap: 3px;
+}
+.sm-lib-row-time b { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 500; }
+.sm-lib-row-time i { font-style: normal; font-size: 14px; color: var(--foam-400); }
+
+.sm-lib-empty { padding: 40px 20px; text-align: center; font-size: 18px; color: var(--foam-400); }
+.sm-lib-err { color: var(--state-alert); font-size: 18px; margin-bottom: 16px; }
+.sm-lib-retry {
+  padding: 10px 24px; border-radius: var(--r-chip); cursor: pointer; font-size: 18px;
+  font-family: inherit; font-weight: 600;
+  background: var(--glass-700); border: 1px solid var(--glass-hairline); color: var(--foam-000);
+}
+
+/* Right: the metadata panel */
+.sm-lib-detail {
+  flex: 1; min-width: 0; display: flex; gap: 32px; overflow: hidden;
+  padding: 48px; border-radius: 28px;
+  background: var(--glass-900);
+  backdrop-filter: blur(18px) saturate(115%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+  border: 1px solid var(--glass-hairline);
+  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.7);
+  animation: smFadeIn 250ms ease;
+}
+@keyframes smFadeIn { from { opacity: 0 } to { opacity: 1 } }
+
+/* The hero art is the box in perspective (views/library.js: HERO_ART), which
+ * arrives on a transparent background with an irregular ratio — no two consoles
+ * agree on the shape of a box. So there is no frame and no fill here: a glass
+ * card behind a cut-out box would show its rectangle through the transparency,
+ * which is exactly what a 3D box is meant to avoid. The shadow is what seats it
+ * on the panel instead.
+ *
+ * A game with no 3D box falls back to its flat jacket (the host's Cover does it
+ * on error), and the same treatment suits it — a jacket with a drop shadow
+ * reads as a physical object rather than a sticker. */
+.sm-lib-cover {
+  width: 320px; height: 420px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+/* !important because the host's Cover sets object-fit inline, and an inline
+ * style beats a stylesheet. Its default crops to fill, which on a box seen at
+ * an angle cuts the spine off — the one part that makes it read as 3D. */
+.sm-lib-cover img {
+  width: 100%; height: 100%; object-fit: contain !important;
+  filter: drop-shadow(0 24px 34px rgba(0, 0, 0, 0.55));
+}
+

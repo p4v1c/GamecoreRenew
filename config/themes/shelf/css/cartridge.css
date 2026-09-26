@@ -1,0 +1,81 @@
+/* ===========================================================================
+   THE CARTRIDGE
+   `cart-front` is not in WARM_MEDIA, so most games do not have a photograph of
+   their media. The shell is built instead, with the jacket set into the label
+   window — which is what a cartridge label is. Disc dumps get a disc.
+   =========================================================================== */
+.cz-media { display: grid; place-items: center; width: 100%; }
+.cz-media[data-kind="photo"] img { display: block; max-width: 100%; max-height: 150px; }
+/* At boot the whole iris is scaled, so the media keeps its natural size. */
+
+.cz-cart {
+  position: relative; width: 210px; height: 138px;
+  border-radius: 7px 7px 4px 4px;
+  background:
+    linear-gradient(180deg, #E2E0DA, #CFCDC7 42%, #C2C0BA);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.18),
+    0 10px 20px -8px rgba(20, 18, 24, 0.4);
+}
+/* The ridged shoulders every cartridge has, on both flanks. */
+.cz-cart::before, .cz-cart::after {
+  content: ''; position: absolute; top: 8px; bottom: 30px; width: 22px;
+  background: repeating-linear-gradient(180deg,
+    rgba(0, 0, 0, 0.13) 0 1px, transparent 1px 9px);
+  border-radius: 3px;
+}
+.cz-cart::before { left: 7px; }
+.cz-cart::after  { right: 7px; }
+
+.cz-cart-shoulder {
+  position: absolute; left: 26px; right: 26px; top: 0; height: 7px;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, #EDEBE6, #DAD8D2);
+}
+.cz-cart-label {
+  position: absolute; left: 34px; right: 34px; top: 12px; height: 66px;
+  border-radius: 2px; overflow: hidden;
+  background: #111;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.cz-cart-art { width: 100%; height: 100%; background-size: cover; background-position: center 34%; }
+.cz-cart-grip {
+  position: absolute; left: 30px; right: 30px; bottom: 12px; height: 34px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.10), rgba(0, 0, 0, 0.03));
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.22), inset 0 -1px 0 rgba(255, 255, 255, 0.6);
+}
+.cz-cart-screw {
+  position: absolute; bottom: 5px; width: 6px; height: 6px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #F2F0EB, #A9A7A1);
+}
+.cz-cart-screw-l { left: 12px; }
+.cz-cart-screw-r { right: 12px; }
+
+.cz-disc { position: relative; width: 150px; height: 150px; }
+.cz-disc-art {
+  position: absolute; inset: 0; border-radius: 50%;
+  background-size: cover; background-position: center;
+  box-shadow: 0 10px 20px -8px rgba(20, 18, 24, 0.45);
+}
+.cz-disc-sheen {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(from 210deg,
+    rgba(255, 255, 255, 0) 0deg, rgba(255, 255, 255, 0.42) 40deg,
+    rgba(255, 255, 255, 0) 90deg, rgba(255, 255, 255, 0) 210deg,
+    rgba(255, 255, 255, 0.3) 250deg, rgba(255, 255, 255, 0) 300deg);
+  mix-blend-mode: screen;
+}
+.cz-disc-hub {
+  position: absolute; left: 50%; top: 50%; width: 44px; height: 44px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%; background: rgba(238, 236, 231, 0.92);
+  display: grid; place-items: center;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
+}
+.cz-disc-hub > i {
+  width: 17px; height: 17px; border-radius: 50%;
+  background: var(--card); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+

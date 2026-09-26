@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -69,6 +70,10 @@ def test_pack_installs_daemon_service_and_seed(tmp_path, monkeypatch, host_sandb
         assert "HK_SwapScreenEmphasis = 16777275" in (target / "melonDS.toml").read_text()
         assert "--no-widescreen" in unit.read_text()
         assert host.PTRACE.read_text().strip() == "0"
+        # The installed copy must start on its own: its modules import each other.
+        run = subprocess.run([sys.executable, str(daemon), "--help"],
+                             capture_output=True, text=True)
+        assert run.returncode == 0, run.stderr
 
 
 def test_host_prerequisites_are_idempotent_and_restore_originals(tmp_path, host_sandbox):
@@ -188,7 +193,9 @@ def test_melonds_snapshot_cannot_restore_a_second_layout_trigger():
 
 
 def test_melonds_uses_native_config_even_when_stale_flatpak_config_exists(tmp_path, monkeypatch):
-    daemon = module(ROOT / "catalog/melonds/files/melonds_layout_toggle.py")
+    # The daemon's modules import their siblings, as they do when run as a script.
+    monkeypatch.syspath_prepend(str(ROOT / "catalog/melonds/files"))
+    daemon = module(ROOT / "catalog/melonds/files/melonds_config.py")
     native, flatpak = tmp_path / "native.toml", tmp_path / "flatpak.toml"
     native.touch()
     flatpak.touch()

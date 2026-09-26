@@ -40,7 +40,7 @@ EMU_ID = "ryujinx"
 # The seed shipped `button_a = A`, which reads as an identity and is not one:
 # it wires the Switch's A — drawn on the RIGHT of every on-screen prompt — to
 # the pad's BOTTOM button. Reported from the couch, DualShock 4: "X -> O,
-# carré -> triangle". It is not a pad-specific fault; all four slots carried
+# square -> triangle". It is not a pad-specific fault; all four slots carried
 # it, so an Xbox pad was equally wrong.
 #
 # Binding by POSITION is what makes an on-screen "press A" land under the

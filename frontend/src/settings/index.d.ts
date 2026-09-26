@@ -1,27 +1,12 @@
 /**
- * Types for the two shared screens.
+ * Types for the two shared screens, which stay plain `.js` on purpose: they
+ * are written in the theme SDK's idiom (`sdk.ui.html` templates, sdk passed
+ * in), the same language theme authors write.
  *
- * They stay plain `.js` rather than becoming `.tsx`, and that is a decision
- * rather than an omission: they are written in the theme SDK's idiom — tagged
- * templates through `sdk.ui.html`, an sdk passed in rather than modules
- * imported — which is the idiom a theme author writes in and reads. Converting
- * them would make the host's copy and the thing themes are documented to write
- * two different languages, for no gain the box can see.
- *
- * A wildcard ambient module matches on the SPECIFIER, not on the file it
- * resolves to, so every declaration below has to contain `settings/` and a
- * caller inside this directory must write `../settings/x` rather than `./x`.
- * Ugly, and the alternative — a star-slash wildcard on the bare module name —
- * would claim every module called `catalog` anywhere in the tree.
- *
- * (Written out in words rather than shown: a star followed by a slash ENDS a
- * block comment, and writing the pattern literally here turned the rest of
- * this file into code. Second time in this repository.)
- *
- * So the boundary is typed instead of the bodies. `sdk` is `unknown` on
- * purpose: `ThemeSdk` is a bag of `Record<string, unknown>` fields, and
- * pretending these files consume a precise shape of it would be a claim the
- * compiler cannot check anyway.
+ * Ambient modules match the import SPECIFIER, so every declaration contains
+ * `settings/` and callers inside this directory import `../settings/x`.
+ * (The wildcard pattern is spelled out in words: a literal star-slash would
+ * close this comment.) `sdk` is `unknown` on purpose.
  */
 declare module '*/settings/screen' {
   /** A theme's own inline pages, keyed like the rail. */

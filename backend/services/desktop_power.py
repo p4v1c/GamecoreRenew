@@ -113,7 +113,7 @@ async def _run(*argv: str, x11: bool = False) -> tuple[int, str]:
         # Imported here and not at module scope: process_manager pulls in the
         # database and the websocket layer, and this module is otherwise light
         # enough that its own tests need neither.
-        from .process_manager import display_env
+        from .session import display_env
 
         env = await display_env() if x11 else (wayland_env() or None)
         proc = await asyncio.create_subprocess_exec(

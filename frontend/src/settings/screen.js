@@ -1,52 +1,15 @@
 /**
- * Settings — the reference capture's screen, not a menu that leads to it.
+ * Settings: one screen — a numbered rail that never leaves, the category
+ * beside it, a detail column for Wi-Fi and Bluetooth.
  *
- * The capture is ONE screen: a numbered rail on the left that never leaves,
- * the category's contents beside it, and for Wi-Fi and Bluetooth a third
- * column of detail. An earlier pass here read that as impossible, and it was
- * — for as long as every category resolved to `DefaultSettingsPages`, whose
- * pages are each a `position:fixed; inset:0` overlay that covers the rail
- * whatever a theme does to it.
+ * Pages are `{ ...DefaultSettingsPages, ...ownPages }`; own pages are ordinary
+ * markup in the middle column. ⛔ Own pages are BARE: this frame carries the
+ * overlay once; a page with its own fixed panel breaks the layout.
  *
- * The way through is the one the SDK documents: `{ ...DefaultSettingsPages,
- * ...ownPages }`. A page written here is ordinary markup, so it sits in the
- * middle column and the rail stays put. That is what let the rewrite happen
- * one category at a time — each finished page moved out of the host's
- * full-screen overlay and into this column — and all eight are here now, so
- * nothing on this screen opens an overlay any more.
- *
- * ⛔ Own pages are BARE. This frame carries the overlay, once. Wrapping a page
- * in a panel of its own is the nested position:fixed that shattered the Wi-Fi
- * page and painted it black, and the docstring in defaults.tsx still describes
- * the pages the old way — `summer/views/settings.js` and the SDK table are the
- * ones telling the truth.
- *
- * ## Shared, and styled from outside
- *
- * This screen is not Shelf's, and it is not a theme's at all any more. Three
- * surfaces draw it — Shelf, Summer, and the built-in default — and one copy is
- * the only way a fix reaches all three.
- *
- * It lived under `config/themes/_shared/` first, which was the right idea in
- * the wrong place, for two reasons that both bit:
- *
- *   · **The updater.** `_shared` needed a `theme.json` purely so
- *     `update/linux.sh` would compare its version and deliver it, and twice a
- *     fix here shipped without a bump and simply never arrived on the box.
- *     Code in the bundle has no version to forget.
- *   · **Safe mode.** The built-in UI is what `themeSafety.ts` falls back TO
- *     when a theme crashes — screen by screen first, then wholesale after
- *     CRASH_LIMIT. A default settings screen reaching into a directory shipped
- *     over the air would share the failure it exists to catch. Here it is in
- *     the bundle, present whenever the front end is.
- *
- * Themes reach it through `sdk.defaults.createSettings`, the same way they
- * already reach `sdk.defaults.DefaultKeyboard`.
- *
- * It carries **no colour**. Every class is `gcs-*` and each surface supplies
- * the palette: Shelf paints it paper and teal, Summer sea glass and mandarin,
- * the default dark and violet. Anything hardcoded here would be one of them
- * imposing on the other two, which is why the classes stopped being `cz-`.
+ * Shared by Shelf, Summer and the built-in default (via
+ * `sdk.defaults.createSettings`) and shipped in the bundle, not in a theme
+ * folder: no version to forget on update, and safe mode never depends on an
+ * OTA-delivered file. No colour: `gcs-*` classes, each surface paints them.
  */
 import { createUseSlow } from './slow.js'
 import { versionLabel } from './list.js'

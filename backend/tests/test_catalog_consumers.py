@@ -352,7 +352,7 @@ def test_a_launcher_token_is_resolved_when_the_grid_is_read():
     """
     from pathlib import Path as _P
 
-    from backend.routers.systems import _expand
+    from backend.services.systems import _expand
 
     rows = _expand([{"id": "youtube", "path": "firefox",
                      "args": "--profile '@HOME@/.mozilla/firefox/youtube-tv'"}])
@@ -362,7 +362,7 @@ def test_a_launcher_token_is_resolved_when_the_grid_is_read():
 
 def test_an_absolute_path_already_in_the_grid_is_untouched():
     """A box that predates the token must be unaffected."""
-    from backend.routers.systems import _expand
+    from backend.services.systems import _expand
 
     original = {"id": "youtube", "path": "firefox",
                 "args": "--profile '/home/someone/.mozilla/firefox/youtube-tv'"}

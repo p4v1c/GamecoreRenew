@@ -1,40 +1,13 @@
 /**
- * The launch transition: the screen closes into a turning iris, then the game
- * takes the display.
+ * Launch transition: the screen closes into a turning iris, then the game
+ * takes the display. Follows the host's `transition` (launch/resume close,
+ * suspend opens).
  *
- * Why it is not in `decor`, which is the slot meant for painting over
- * everything: the shell unmounts that layer the moment a session opens —
- *
- *     {!sessionGameKey && <div style={{ zIndex: 400 }}><Decor /></div>}
- *
- * — which is the exact instant this animation has to start. So the veil is a
- * sibling of the shell in the theme's own tree instead. That is the one place
- * a theme may stack something itself: it covers the theme's whole frontend,
- * which the theme replaced entirely, so it cannot paint over a screen it does
- * not own.
- *
- * It follows the host's `transition` flag: launch and resume close the vortex,
- * while suspend opens it. The host owns those moments and the theme owns their
- * appearance, just like Orbit and Shelf.
- *
- * The launch waits for the iris, and did not always. This used to say there was
- * no delay on purpose — that an emulator takes one to fifteen seconds to put a
- * window up while this runs in seven hundred milliseconds, so the two overlap
- * for free. Two things were wrong with that. The number had drifted: the close
- * is 1500 ms, not 700. And the premise does not hold — a warm mGBA or
- * DuckStation maps its window in a few hundred milliseconds, over the top of
- * everything, and cuts the iris mid-turn. Which emulator you picked decided
- * whether you saw the animation, which is the one thing an animation must not
- * depend on.
- *
- * So theme.json declares `launch.ms`, and the host holds the launch for exactly
- * that long before sending it (see LibraryScreen: it is awaited, and ○ cancels
- * it). The cost is real — 1.5 s added to every launch — and it is the price of
- * the ceremony being a ceremony rather than a coin toss. Shelf pays the same
- * 1520 ms for the same reason.
- *
- * **`launch.ms` in theme.json must equal CLOSE_MS below.** The theme ceremony
- * contract test keeps the two files in agreement.
+ * Not in `decor`: the shell unmounts that layer the instant a session opens,
+ * so the veil is a sibling of the shell in the theme's own tree.
+ * The host holds the launch for `launch.ms` (a warm emulator would otherwise
+ * cut the iris mid-turn). `launch.ms` in theme.json MUST equal CLOSE_MS; the
+ * ceremony contract test checks it.
  */
 
 // Long enough to feel deliberate. It used to also claim to be "short enough to

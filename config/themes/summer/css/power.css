@@ -1,0 +1,43 @@
+/* ── power menu ──────────────────────────────────────────────────────────── */
+/* §3.7: rows 544x104, --s3 apart, icon plate 56x56 tinted by the action. */
+.sm-power { width: 640px; }
+.sm-power-row {
+  display: flex; align-items: center; gap: 20px; cursor: pointer;
+  min-height: 104px; padding: 16px 24px; margin-bottom: 12px;
+  border-radius: var(--r-tile);
+  background: rgba(12, 26, 33, 0.78);
+  border: 2px solid transparent;
+  transition: background 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+}
+.sm-power-row[data-on="1"] {
+  background: rgba(12, 26, 33, 0.94);
+  border-color: var(--row-accent, var(--accent-mandarin));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--row-accent, var(--accent-mandarin)) 24%, transparent);
+}
+/* Awaiting a second press: the row states it in words too, never colour alone. */
+.sm-power-row[data-confirm="1"] { background: color-mix(in srgb, var(--row-accent) 18%, rgba(12, 26, 33, 0.94)); }
+.sm-power-row[data-dim="1"] { opacity: 0.25; pointer-events: none; }
+
+.sm-power-icon {
+  width: 56px; height: 56px; border-radius: var(--r-tile); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--row-accent) 18%, transparent);
+  color: var(--row-accent);
+}
+.sm-power-icon[data-pulse="1"] { animation: smPulse 1.1s ease-in-out infinite; }
+@keyframes smPulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.35 } }
+
+.sm-power-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.sm-power-text b { font-size: 22px; line-height: 28px; font-weight: 600; }
+.sm-power-text i { font-style: normal; font-size: 16px; color: var(--foam-200); }
+.sm-power-text i[data-result="1"] { color: var(--row-accent); }
+
+.sm-power-cancel {
+  display: block; width: 100%; min-height: 68px; margin-top: 4px;
+  border-radius: var(--r-chip); cursor: pointer; font-family: inherit;
+  font-size: 18px; font-weight: 600; color: var(--foam-200);
+  background: var(--glass-500); border: 1px solid var(--glass-hairline);
+}
+.sm-power-cancel:disabled { opacity: 0.25; cursor: default; }
+.sm-power[data-busy="1"] { pointer-events: none; }
+

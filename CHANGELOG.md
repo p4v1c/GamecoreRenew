@@ -105,6 +105,23 @@ are the auto-incremented tags.
 
 ### Changed
 
+- **Project rules as Claude Code skills** (`.claude/skills/`): English, short
+  comments; docs updated with the code area; layer boundaries; naming; an
+  800-line file budget with `check-file-size.sh`. CONTRIBUTING.md points at
+  them.
+- **Launch, display and the grid rows moved out of routers** into
+  `services/launch.py`, `services/display.py` and `services/systems.py`; the
+  X11 display env joined `services/session.py`; `configgen/sdl_probe.py` and
+  `services/gamepad_devices.py` split off their parents. Behaviour unchanged.
+- **Theme stylesheets are split by concern** under `config/themes/<id>/css/`;
+  `theme.css` only `@import`s them in cascade order. Editing a theme now means
+  editing the file under `css/`.
+- **The melonDS layout daemon is five files** installed together. A box keeps
+  running its current single-file copy until `sudo gamecore-emu install
+  melonds` redeploys the pack, as before.
+- The last French UI strings (boot recovery, Desktop mode, mapping wizard
+  errors) are English.
+
 - **A fresh install with its data outside the install now starts with its
   bezels.** `install/arch.sh` seeded the player's starting tree — the shipped
   bezels, `config/overlays.json`, the bundled themes — into the install "when

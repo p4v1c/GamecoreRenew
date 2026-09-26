@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from backend.services.configgen import controllers as cc        # noqa: E402
+from backend.services.configgen import sdl_probe as sp          # noqa: E402
 
 
 def test_a_probe_that_could_not_run_is_not_an_answer_about_the_pad(monkeypatch):
@@ -29,14 +30,14 @@ def test_a_probe_that_could_not_run_is_not_an_answer_about_the_pad(monkeypatch):
     subprocess that never ran is a finding about this box, and the two call for
     different things — the mapping wizard against a retry.
     """
-    cc._sdl2_cache.clear()
+    sp._sdl2_cache.clear()
     # EAGAIN, which is what a fork that cannot get a process slot raises — and
     # Python specialises it to BlockingIOError, so the reported class is read
     # off the exception rather than spelled out here.
     failure = OSError(11, "Try again")
-    monkeypatch.setattr(cc.subprocess, "run", _raising(failure))
+    monkeypatch.setattr(sp.subprocess, "run", _raising(failure))
 
-    out = cc.sdl2_probe("045e", "02fd")
+    out = sp.sdl2_probe("045e", "02fd")
 
     assert out.get("guid", "") == "", "no GUID either way — that part is unchanged"
     assert out.get("error") == type(failure).__name__, (
@@ -51,13 +52,13 @@ def test_a_timeout_is_reported_as_a_failure_to_run_not_as_a_missing_pad():
     1.8 s after the trigger, against an 8 s timeout, so they were NOT timeouts
     — and nothing in the log could have established that at the time.
     """
-    cc._sdl2_cache.clear()
-    real_run = cc.subprocess.run
+    sp._sdl2_cache.clear()
+    real_run = sp.subprocess.run
     try:
-        cc.subprocess.run = _raising(subprocess.TimeoutExpired("python", 8))
-        out = cc.sdl2_probe("045e", "02fd")
+        sp.subprocess.run = _raising(subprocess.TimeoutExpired("python", 8))
+        out = sp.sdl2_probe("045e", "02fd")
     finally:
-        cc.subprocess.run = real_run
+        sp.subprocess.run = real_run
 
     assert out.get("error") == "TimeoutExpired"
 
@@ -70,17 +71,17 @@ def test_a_failed_probe_is_not_remembered(monkeypatch):
     ever asking SDL again — and the whole PROFILE_RETRIES budget could burn
     inside one cache window.
     """
-    cc._sdl2_cache.clear()
+    sp._sdl2_cache.clear()
     calls = []
 
     def boom(*a, **k):
         calls.append(1)
         raise OSError(11, "Try again")
 
-    monkeypatch.setattr(cc.subprocess, "run", boom)
+    monkeypatch.setattr(sp.subprocess, "run", boom)
 
-    cc.sdl2_probe("045e", "02fd")
-    cc.sdl2_probe("045e", "02fd")
+    sp.sdl2_probe("045e", "02fd")
+    sp.sdl2_probe("045e", "02fd")
 
     assert len(calls) == 2, "the second call read a cached failure"
 
@@ -110,7 +111,7 @@ def _raising(exc):
 # The second line is the capture, in the LINUX JOYSTICK driver's numbering, for
 # a pad SDL drives through HIDAPI. It reached azahar as `start` on that
 # driver's L1 and a D-pad bound to a hat SDL calls buttons 11-14 — reported in
-# game as "l1 = option, le pad directionnel ne fonctionne pas". `evdev_driven()`
+# game as "L1 = Options, the D-pad does not work". `evdev_driven()`
 # answered False throughout: the guard was never wrong, it was bypassed.
 
 def test_a_probe_is_never_handed_a_mapping_table(monkeypatch):
@@ -119,7 +120,7 @@ def test_a_probe_is_never_handed_a_mapping_table(monkeypatch):
     Both variables, not only the one that leaked: SDL reads a table from either,
     and a rule with an exception is a rule someone re-derives wrongly later.
     """
-    cc._sdl2_cache.clear()
+    sp._sdl2_cache.clear()
     seen = {}
 
     def run(*a, **k):
@@ -128,9 +129,9 @@ def test_a_probe_is_never_handed_a_mapping_table(monkeypatch):
 
     monkeypatch.setenv("SDL_GAMECONTROLLERCONFIG_FILE", "/tmp/served.txt")
     monkeypatch.setenv("SDL_GAMECONTROLLERCONFIG", "0500,Pad,a:b0,")
-    monkeypatch.setattr(cc.subprocess, "run", run)
+    monkeypatch.setattr(sp.subprocess, "run", run)
 
-    cc.sdl2_probe("054c", "09cc")
+    sp.sdl2_probe("054c", "09cc")
 
     assert "SDL_GAMECONTROLLERCONFIG_FILE" not in seen
     assert "SDL_GAMECONTROLLERCONFIG" not in seen
@@ -141,7 +142,7 @@ def test_the_rest_of_the_environment_reaches_the_probe(monkeypatch):
     LD_LIBRARY_PATH to load an emulator's bundled libSDL2.so at all."""
     monkeypatch.setenv("GAMECORE_TEST_MARKER", "kept")
 
-    assert cc.probe_env().get("GAMECORE_TEST_MARKER") == "kept"
+    assert sp.probe_env().get("GAMECORE_TEST_MARKER") == "kept"
 
 
 def test_enumerating_a_pad_does_not_change_what_a_later_probe_is_told(monkeypatch):
@@ -159,10 +160,10 @@ def test_enumerating_a_pad_does_not_change_what_a_later_probe_is_told(monkeypatc
     monkeypatch.setattr(mapping_db, "served", lambda: Path("/tmp/served.txt"))
 
     with cc._served_db_in_env():
-        inside = cc.os.environ.get("SDL_GAMECONTROLLERCONFIG_FILE")
+        inside = sp.os.environ.get("SDL_GAMECONTROLLERCONFIG_FILE")
 
     assert inside == "/tmp/served.txt", "the name lookup still gets its table"
-    assert "SDL_GAMECONTROLLERCONFIG_FILE" not in cc.os.environ, (
+    assert "SDL_GAMECONTROLLERCONFIG_FILE" not in sp.os.environ, (
         "the table outlived the call, and the next probe inherits it")
 
 
@@ -180,7 +181,7 @@ def test_a_failed_flatpak_lookup_is_not_cached(monkeypatch):
     A miss costs one `flatpak info`, 14 ms on the reference box. That is not
     worth a session of wrong configs.
     """
-    cc._flatpak_loc_cache.clear()
+    sp._flatpak_loc_cache.clear()
     calls = []
 
     class R:
@@ -190,24 +191,24 @@ def test_a_failed_flatpak_lookup_is_not_cached(monkeypatch):
         calls.append(cmd)
         return R(1, "") if len(calls) == 1 else R(0, "/deploy/rmg\n")
 
-    monkeypatch.setattr(cc.subprocess, "run", run)
+    monkeypatch.setattr(sp.subprocess, "run", run)
 
-    assert cc.flatpak_location("com.example.App") == ""
-    assert cc.flatpak_location("com.example.App") == "/deploy/rmg"
+    assert sp.flatpak_location("com.example.App") == ""
+    assert sp.flatpak_location("com.example.App") == "/deploy/rmg"
     assert len(calls) == 2, "the failure was cached and never retried"
 
 
 def test_a_successful_flatpak_lookup_is_cached(monkeypatch):
     """The retry must not become a subprocess on every profiling pass."""
-    cc._flatpak_loc_cache.clear()
+    sp._flatpak_loc_cache.clear()
     calls = []
 
     class R:
         def __init__(self): self.returncode, self.stdout = 0, "/deploy/rmg\n"
 
-    monkeypatch.setattr(cc.subprocess, "run",
+    monkeypatch.setattr(sp.subprocess, "run",
                         lambda cmd, **kw: (calls.append(cmd), R())[1])
 
-    assert cc.flatpak_location("com.example.App") == "/deploy/rmg"
-    assert cc.flatpak_location("com.example.App") == "/deploy/rmg"
+    assert sp.flatpak_location("com.example.App") == "/deploy/rmg"
+    assert sp.flatpak_location("com.example.App") == "/deploy/rmg"
     assert len(calls) == 1

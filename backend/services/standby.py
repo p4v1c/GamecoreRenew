@@ -38,7 +38,7 @@ import time
 
 from . import desktop_power
 from .paths import config_dir
-from .process_manager import display_env
+from .session import display_env
 from .session import kscreen_available, wayland_env
 
 log = logging.getLogger(__name__)

@@ -51,7 +51,7 @@ log = logging.getLogger(__name__)
 #
 # Each error case is handled distinctly, and that is the whole point: "game not
 # found" is final and gets cached, "quota reached" is
-# temporaire et ne doit RIEN mettre en cache.
+# temporary and must cache NOTHING.
 
 SS_MIN_INTERVAL = 1.2
 SS_RETRIES = 3

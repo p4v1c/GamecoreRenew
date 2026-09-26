@@ -1,0 +1,149 @@
+/* ===========================================================================
+   Shelf — a wall, a shelf, and the box you are holding.
+
+   Two accents, with two jobs, and they never meet:
+
+     · the live one — `--acc-*` — is read out of the jacket on screen and set
+       on each surface's own root by JS. The wall, the stamps and the focus
+       ring wear it, and it cross-fades when the selection settles.
+     · the fixed one — `--gc-accent*` — is the seal gold below. It dresses the
+       host's own settings widgets, which are drawn with inline styles and can
+       only read `:root`. Chrome does not follow the artwork; the shelf does.
+
+   No `z-index` in this file, anywhere. The shell owns stacking and DOM order
+   does the rest — that is the rule the theme system rests on.
+   =========================================================================== */
+
+:root {
+  /* paper */
+  --paper:      #F4F2ED;
+  --paper-sink: #E7E4DC;
+  --card:       #F8F7F4;
+  --card-well:  #FFFFFF;
+
+  /* ink */
+  --ink:    #17161A;
+  --ink-2:  #55535C;
+  --ink-3:  #8B8992;
+  --rule:   rgba(23, 22, 26, 0.12);
+  --rule-2: rgba(23, 22, 26, 0.06);
+
+  /* cardboard — the three faces nobody prints */
+  --board:      #1C1B19;
+  --board-lit:  #2A2825;
+  --board-dark: #0E0D0C;
+
+  /* live accent, until a jacket says otherwise */
+  --acc-h: 262;
+  --acc-s: 42%;
+  --acc-l: 56%;
+
+  --shadow-box:  0 26px 54px rgba(20, 18, 24, 0.30), 0 4px 12px rgba(20, 18, 24, 0.16);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 30px rgba(20, 18, 24, 0.10);
+
+  --r-card: 14px;
+  --r-chip: 999px;
+
+  --font-display: 'Space Grotesk', 'Outfit', system-ui, sans-serif;
+  --font-body:    'Outfit', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+
+  /* ── the host's overlays ────────────────────────────────────────────────
+     Wi-Fi, audio, Bluetooth, standby and the updater are reused as they are,
+     and every one of them writes its text in hardcoded white. So they stay on
+     a dark panel — a warm near-black rather than the default's blue-black, so
+     it reads as the drawer under the shelf rather than as another app. */
+  --gc-overlay-scrim:  rgba(20, 18, 15, 0.74);
+  --gc-overlay-blur:   blur(16px) saturate(112%);
+  --gc-overlay-panel:  rgba(28, 26, 23, 0.94);
+  --gc-overlay-border: rgba(244, 242, 237, 0.14);
+  --gc-overlay-radius: 18px;
+
+  /* seal gold */
+  --gc-accent:        #B8892B;
+  --gc-accent-soft:   #E2C070;
+  --gc-accent-bright: #FFF6E2;
+}
+
+/* live accent, resolved */
+.cz-wall, .cz-lib, .cz-home, .cz-splash {
+  --acc:      hsl(var(--acc-h) var(--acc-s) var(--acc-l));
+  --acc-deep: hsl(var(--acc-h) var(--acc-s) 26%);
+  --acc-wash: hsl(var(--acc-h) calc(var(--acc-s) * 0.75) 90%);
+}
+
+/* ── the wall ─────────────────────────────────────────────────────────────
+   Three flat layers. The pattern is a mask, never a picture, which is the
+   only reason the tint is a property that can transition at all. */
+.cz-wall { position: absolute; inset: 0; background: var(--paper); overflow: hidden; }
+
+/* One layer, the same pattern the settings screen paints, at the same size, the
+   same strength — and now from the same origin, which is what makes the two
+   screens line up.
+
+   The wall used to drift: one tile every 140 s. That is why it could not line
+   up. Settings is a separate element mounted when it opens, so its pattern
+   starts its own timeline, and two surfaces animating independently are in
+   phase only by accident — opening Settings visibly nudged the wallpaper
+   sideways. There is no fix that keeps the movement: any transform makes the
+   phase depend on when the element was mounted. So the drift goes, both layers
+   tile from `inset: 0`, and the pattern is continuous across every screen.
+
+   The two masked Truchet layers this replaces existed so the wall could take
+   the colour of the jacket on screen; that retint is retired, so the mask had
+   nothing left to do and a plain background-image is what both surfaces share. */
+.cz-wall-pattern {
+  position: absolute;
+  inset: 0;
+  background-image: var(--gc-paper-pattern);
+  background-size: var(--gc-paper-tile) var(--gc-paper-tile);
+  opacity: 0.28;
+}
+
+.cz-wall-vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(120% 80% at 50% 42%, transparent 42%, rgba(28, 24, 20, 0.16) 100%);
+}
+/* ── top bar ──────────────────────────────────────────────────────────── */
+.cz-top {
+  position: relative;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  padding: 14px 30px 8px;
+  font-family: var(--font-mono); color: var(--ink-2);
+}
+.cz-tab {
+  font-size: 13px; font-weight: 500; letter-spacing: 0.34em;
+  color: var(--ink); text-transform: uppercase;
+}
+.cz-top-right { display: flex; align-items: center; gap: 14px; font-size: 11.5px; }
+
+.cz-pad { display: flex; align-items: center; gap: 6px; color: var(--ink-2); }
+.cz-pad > b { font-weight: 600; color: var(--ink-3); }
+.cz-bat { display: flex; gap: 2.5px; }
+.cz-bat > i { width: 5px; height: 12px; border-radius: 1.5px; background: rgba(23, 22, 26, 0.18); }
+.cz-bat > i[data-fill="1"] { background: var(--ink); }
+/* One segment left is a shape change as well as a colour change — a washed-out
+   TV eats the colour and keeps the rule. */
+.cz-pad[data-low="1"] { color: #A8321F; }
+.cz-pad[data-low="1"] .cz-bat > i[data-fill="1"] { background: #A8321F; }
+.cz-pad[data-low="1"] .cz-bat { box-shadow: 0 2px 0 #A8321F; padding-bottom: 2px; }
+.cz-bolt { font-style: normal; font-size: 11px; }
+.cz-pad-more { font-weight: 600; }
+
+.cz-store { display: flex; align-items: center; gap: 7px; }
+.cz-store-bar { display: block; width: 54px; height: 5px; border-radius: 3px; background: rgba(23, 22, 26, 0.14); overflow: hidden; }
+.cz-store-bar > i { display: block; height: 100%; background: var(--ink-2); transition: width 400ms ease; }
+.cz-store-bar > i[data-level="warn"]  { background: #9A7415; }
+.cz-store-bar > i[data-level="alert"] { background: #A8321F; }
+
+.cz-clock { font-size: 15px; font-weight: 500; color: var(--ink); letter-spacing: 0.04em; }
+
+.cz-tool {
+  display: grid; place-items: center; width: 30px; height: 30px;
+  border: 1px solid var(--rule); border-radius: 9px;
+  background: rgba(255, 255, 255, 0.5); color: var(--ink-2); cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+.cz-tool:hover { background: #fff; color: var(--ink); border-color: rgba(23, 22, 26, 0.24); }
+.cz-tool-power:hover { color: #A8321F; border-color: rgba(168, 50, 31, 0.45); }
+

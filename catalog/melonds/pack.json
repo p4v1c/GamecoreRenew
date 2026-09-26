@@ -77,6 +77,30 @@
       "dest": "@HOME@/.local/share/gamecore/layout-toggle/melonds/melonds_layout_toggle.py",
       "owner": "user",
       "mode": "755"
+    },
+    {
+      "src": "files/melonds_common.py",
+      "dest": "@HOME@/.local/share/gamecore/layout-toggle/melonds/melonds_common.py",
+      "owner": "user",
+      "mode": "644"
+    },
+    {
+      "src": "files/melonds_config.py",
+      "dest": "@HOME@/.local/share/gamecore/layout-toggle/melonds/melonds_config.py",
+      "owner": "user",
+      "mode": "644"
+    },
+    {
+      "src": "files/melonds_memory.py",
+      "dest": "@HOME@/.local/share/gamecore/layout-toggle/melonds/melonds_memory.py",
+      "owner": "user",
+      "mode": "644"
+    },
+    {
+      "src": "files/melonds_input.py",
+      "dest": "@HOME@/.local/share/gamecore/layout-toggle/melonds/melonds_input.py",
+      "owner": "user",
+      "mode": "644"
     }
   ],
   "services": [

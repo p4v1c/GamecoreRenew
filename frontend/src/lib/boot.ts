@@ -1,31 +1,13 @@
 /**
- * When the interface is worth looking at — decided here, once, for everyone.
+ * When the interface is ready to show — decided once, in the host, for every
+ * theme (a timer per theme was how boot got both slower and emptier).
  *
- * The shell used to show the dashboard when the boot animation ended, and the
- * boot animation ended on a timer. Two consequences, both reported: on a slow
- * box the home appeared empty and filled in underneath the player's thumb, and
- * on a fast one four seconds of animation were added to a boot that was
- * already over. Electron even had a constant for it — `?splashHold=4000` when
- * the machine had booted recently — which is a number chosen on one machine
- * for every machine.
+ *   theme    resolved, or its fallback took over
+ *   systems  the dashboard data settled (an empty list is a success)
+ *   painted  a frame drawn after the two above (`ready-to-show` is not that)
  *
- * So readiness is a set of facts, and it lives in the host rather than in each
- * theme: a condition every theme defined for itself would be a different
- * condition per theme, and one of them would be a timer.
- *
- *   · `theme`   — the theme resolved, or its fallback took over. Either is an
- *                 answer; only "still asking" is not.
- *   · `systems` — the dashboard's own data settled. An empty list is a valid
- *                 success: a box with no emulator installed is a box whose
- *                 home is ready to say so.
- *   · `painted` — marked here, after the two above, once the browser has been
- *                 given a frame to actually draw. `ready-to-show` is a first
- *                 render, not a first render OF SOMETHING.
- *
- * What is deliberately NOT in the list: the network, the cover art, the
- * metadata scraper, a full ROM scan, the playtime figures, a connected pad.
- * Every one of them can be absent on a perfectly good box, and a boot that
- * waits for something optional is a boot that hangs on a bad afternoon.
+ * Deliberately NOT waited for: network, covers, metadata, ROM scan, playtime,
+ * a connected pad — all can be absent on a good box.
  */
 
 export const BOOT_STEPS = ['theme', 'systems', 'painted'] as const

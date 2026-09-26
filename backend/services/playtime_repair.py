@@ -24,7 +24,7 @@ import logging
 
 from ..config import resolve_path
 from ..db import get_db
-from ..routers.systems import list_all
+from .systems import list_all
 from .rom_scanner import iter_rom_files, shadowed_by_a_descriptor
 
 log = logging.getLogger(__name__)

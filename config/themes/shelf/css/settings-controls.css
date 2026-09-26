@@ -1,0 +1,155 @@
+/* ===========================================================================
+   SETTINGS — the controls the capture uses
+   Four of them, shared by Controllers, Audio, Themes and System, so a toggle
+   is the same size and a slider moves by the same step wherever it appears.
+   =========================================================================== */
+.gcs-row2 {
+  background: #fff;
+}
+.gcs-row2[data-on="1"] {
+  background: color-mix(in srgb, var(--set-acc) 12%, #fff);
+}
+.gcs-row2[data-danger="1"][data-on="1"] {
+  background: rgba(178, 59, 59, 0.1); border-color: #b23b3b; box-shadow: 0 0 0 1px #b23b3b inset;
+}
+.gcs-row2-bar {
+  background: rgba(23, 23, 26, 0.1);
+}
+.gcs-row2-bar > i[data-level="warn"]  { background: #c08a2e; }
+.gcs-row2-bar > i[data-level="alert"] { background: #b23b3b; }
+
+/* toggle */
+.gcs-tgl {
+  background: rgba(23, 23, 26, 0.16);
+}
+.gcs-tgl > i {
+  background: #fff;
+}
+/* value stepper */
+.gcs-val-arrow {
+  background: rgba(23, 23, 26, 0.04);
+}
+/* slider */
+.gcs-sld-track {
+  background: rgba(23, 23, 26, 0.12);
+}
+/* action button */
+.gcs-act[data-danger="1"] { background: rgba(178, 59, 59, 0.12); color: #8f2f2f; }
+.gcs-act[data-armed="1"] {
+  background: #b23b3b;
+}
+
+/* ── Bluetooth: one card, two lists ─────────────────────────────────────── */
+@media (max-width: 1500px) { .gcs-bt-cols { grid-template-columns: 1fr; } }
+.gcs-bt-row {
+  background: #fff;
+}
+.gcs-bt-row[data-on="1"] {
+  background: color-mix(in srgb, var(--set-acc) 12%, #fff);
+}
+.gcs-bt-dot {
+  border: 2px solid rgba(23, 23, 26, 0.22);
+}
+.gcs-bt-dot[data-live="1"] { background: #2f7fe0; border-color: #2f7fe0; }
+/* ── Emulators & apps: accordion by maker ───────────────────────────────── */
+.gcs-grp {
+  background: #fff;
+}
+@media (max-width: 1500px) { .gcs-grp-body { grid-template-columns: 1fr; } }
+.gcs-pack {
+  background: #fff;
+}
+.gcs-pack[data-on="1"] {
+  background: color-mix(in srgb, var(--set-acc) 12%, #fff);
+}
+/* 38, not the 30 the colour swatch had. A swatch only has to be seen; a logo
+   has to be read, and a Nintendo DS at 30px with padding is a grey smudge. */
+/* With a logo in it, the square stops being a colour and becomes a chip to put
+   artwork on. Near-white on every surface and NOT themed: these logos are
+   somebody else's, at somebody else's contrast — several are dark line art
+   (PS1, PS3, PSP), several are near-white (Wii U, DS), and no single themed
+   background makes both readable. `contain` because they are not all square. */
+.gcs-pack-btn {
+  background: rgba(23, 23, 26, 0.06);
+}
+/* Install is the affirmative action and wears the accent; Remove is neutral,
+   because a destructive button that looks like the primary one gets pressed. */
+/* ── BIOS: two columns of cards ─────────────────────────────────────────── */
+@media (max-width: 1500px) { .gcs-bios-grid { grid-template-columns: 1fr; } }
+.gcs-bios {
+  background: #fff;
+}
+/* A system the owner has not added is dimmed, never hidden: it is how somebody
+   learns a file will be needed before installing the emulator. */
+.gcs-bios-dot {
+  background: rgba(23, 23, 26, 0.25);
+}
+.gcs-bios-dot[data-ok="1"] { background: #3aa76d; }
+.gcs-bios-fstate {
+  color: #97402c;
+}
+/* ── the power menu, in the capture's hand ──────────────────────────────────
+   Paper, like the screen it opens over. It used to wear the drawer's
+   near-black, which was right when it sat over a dark settings menu and is
+   now the only thing on this box that would not match. */
+.gcs-pwr {
+  background: #F8F7F4;
+}
+.gcs-pwr-row {
+  background: #fff;
+}
+.gcs-pwr-row[data-on="1"] {
+  background: color-mix(in srgb, var(--row-accent, #16897a) 12%, #fff);
+  border-color: color-mix(in srgb, var(--row-accent, #16897a) 55%, transparent);
+}
+.gcs-pwr-row[data-confirm="1"] {
+  background: rgba(178, 59, 59, 0.12); border-color: #b23b3b;
+}
+.gcs-pwr-icon {
+  background: color-mix(in srgb, var(--row-accent, #16897a) 14%, transparent);
+  color: var(--row-accent, #16897a);
+}
+.gcs-pwr-cancel {
+  background: #fff;
+}
+/* A wait that says what it is waiting for.
+   Distinct from `.gcs-wifi-empty`, and that distinction is the point: "nothing
+   is paired" and "we have not asked yet" looked identical, so the Bluetooth
+   page greeted a box with two paired pads by saying it had none. */
+@keyframes gcs-load-pulse { 50% { opacity: 0.25; transform: scale(0.7); } }
+@media (prefers-reduced-motion: reduce) { .gcs-load > i { animation: none; } }
+
+/* The revert countdown on Settings → Display: the backend's timer, made
+   visible. It is the only progress bar on this screen because it is the only
+   thing on it the player cannot undo by waiting. */
+.gcs-countdown {
+  background: rgba(23, 23, 26, 0.1);
+}
+/* The countdown's own hint line. It sits inside the card rather than in the
+   screen's footer, because it describes two buttons that exist only while it
+   is up. */
+.gcs-count-hints {
+  color: rgba(23, 23, 26, 0.42);
+}
+
+/* ── the game search keyboard ─────────────────────────────────────────────
+   The other keyboard. This one is drawn by the host, inside the host's own
+   overlay, so it is a different surface from `.gcs-set-kb` and needs its own
+   block — the settings dialog is paper, this panel is the warm near-black
+   drawer, and one set of tokens cannot serve both.
+
+   It was left in the built-in blue-grey with a purple focus ring, which is the
+   only place in Shelf where the default UI's colour was still showing. The
+   panel behind it is already this theme's; the keys are now too. */
+.gc-search-kb {
+  --gc-kb-field:      rgba(12, 11, 10, 0.55);
+  --gc-kb-key:        rgba(244, 242, 237, 0.06);
+  --gc-kb-key-edge:   rgba(244, 242, 237, 0.13);
+  --gc-kb-ink:        rgba(244, 242, 237, 0.82);
+  --gc-kb-field-ink:  #F4F2ED;
+  --gc-kb-ink-strong: #FFF6E2;
+  --gc-kb-ink-dim:    rgba(244, 242, 237, 0.42);
+  --gc-kb-ink-faint:  rgba(244, 242, 237, 0.28);
+  font-family: var(--font-body);
+}
+

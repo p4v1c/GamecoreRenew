@@ -1,0 +1,290 @@
+/* ── where -425px comes from, and why the box does not fade ───────────────
+   The row is a real row and the gesture has to end IN it, not near it. So the
+   box travels back until it is, to the pixel, one of the spines:
+
+     a spine is 320px tall; the solid is `--h`, 400px on the shelf's screen
+     perspective is 1700px, so an element at depth z draws at 1700 / (1700 - z)
+     320 / 400 = 0.8  ⇒  z = -425px
+
+   At the end of the push the box is therefore the same height, at the same
+   depth, in the same column as its neighbours: it IS a spine on the shelf. The
+   real one is swapped in underneath at that exact moment (the view holds the
+   slot open with `data-gap` for precisely as long as the jacket is in flight),
+   so there is nothing to cross-fade and nothing that pops.
+
+   Which is why no opacity is animated on the way out at all. An earlier version
+   dissolved the box as it went, and it read as the jacket giving up halfway
+   rather than being put away — you never saw it arrive.
+
+   -50px sideways, not -40: the depth divides it. 0.8 × 50 = 40, one rail pitch,
+   which is where the gap is.
+
+   `--tilt` unwinds to 0 over the same interval. A box lying back 5° is a box
+   being shown to you; a box in the row stands straight, like its neighbours.
+
+   And `translateZ(--w / -2)`, which is the whole reason the arithmetic above
+   was not enough on its own. Turning the box a quarter turn about its centre
+   swings the printed spine — the face you end up looking at — a half-width
+   TOWARDS you: at 90° the face that started at x = -w/2 is sitting at z = +w/2.
+   So the solid can be at the row's depth while the only part of it you can see
+   is 144px in front of the row, drawing ~11% too tall next to its neighbours.
+   That was visible: the box that had supposedly gone back on the shelf stayed
+   the tallest thing on it.
+
+   Pushing the solid back by half its own width cancels exactly that, and it has
+   to be `--w` rather than a number because the width is the artwork's: a PS1
+   box and a Mega Drive box do not swing the same distance. The result is that
+   the printed spine lands at the depth the row is at, whatever shape the box
+   is. Every keyframe carries all three functions, including the ones where the
+   translate is zero, so the list interpolates component-wise instead of being
+   flattened to matrices. */
+/* `--lean` is the last thing that made a landed jacket read as not belonging.
+   No spine on this shelf stands upright — each is tilted a degree or three by
+   its index, which is what stops the row looking like a printed pattern. A box
+   that arrives perfectly straight lands between two leaning neighbours, closes
+   the wedge of light on one side and opens it on the other, and the three of
+   them look like they are being pressed together. The view passes the lean of
+   the column being landed in, so the solid finishes at the angle the spine it
+   is replacing was already at, and comes back upright on the way out. */
+@keyframes cz-push-travel {
+  0%, 46% { animation-timing-function: cubic-bezier(0.5, 0, 0.3, 1);
+            transform: translate3d(0, 0, 0) rotateZ(0deg); }
+  100%    { transform: translate3d(calc(var(--dir, 1) * var(--slide) * -1), 0, var(--dive))
+                       rotateZ(var(--lean, 0deg)); }
+}
+@keyframes cz-push-turn {
+  0%      { animation-timing-function: cubic-bezier(0.45, 0, 0.35, 1);
+            transform: translateZ(0px) rotateX(var(--tilt)) rotateY(var(--turn)); }
+  46%     { transform: translateZ(calc(var(--w) / -2)) rotateX(0deg) rotateY(90deg); }
+  100%    { transform: translateZ(calc(var(--w) / -2)) rotateX(0deg) rotateY(90deg); }
+}
+
+/* Coming out is the same distances backwards, and it starts from the row: at 0%
+   the solid is spine-sized, at spine depth, in the column its own spine was
+   standing in a frame ago — the view hides that spine on the same tick. Nothing
+   fades in, because from the viewer's side nothing arrived. The row is still
+   full. Then this pulls forward, and the hole opens behind it because the thing
+   that was filling it is now in your hand.
+
+   There is no opacity anywhere in either direction. Every frame of the swap has
+   the same number of spines in the row plus one solid somewhere between the row
+   and the front of the stage. */
+@keyframes cz-pull-travel {
+  0%      { animation-timing-function: cubic-bezier(0.32, 0, 0.2, 1);
+            transform: translate3d(0, 0, var(--dive)) rotateZ(var(--lean, 0deg)); }
+  42%     { transform: translate3d(0, 0, 0) rotateZ(0deg); }
+  100%    { transform: translate3d(0, 0, 0) rotateZ(0deg); }
+}
+
+/* The pile runs down the screen instead of across it, and its spines lie on
+   their sides, so the same gesture needs the step on the other axis and a
+   quarter turn in the plane of the screen to match the bars it is joining.
+   Nothing else changes: same depth, same timings, same handoff, same reading
+   of the two keyframes above. The lean is dropped because a pile has none —
+   `.cz-lib[data-view="stack"] .cz-slot` sets a flat -90° and no jitter. */
+@keyframes cz-push-travel-y {
+  0%, 46% { animation-timing-function: cubic-bezier(0.5, 0, 0.3, 1);
+            transform: translate3d(0, 0, 0); }
+  100%    { transform: translate3d(0, calc(var(--dir, 1) * var(--slide) * -1), var(--dive)); }
+}
+@keyframes cz-pull-travel-y {
+  0%      { animation-timing-function: cubic-bezier(0.32, 0, 0.2, 1);
+            transform: translate3d(0, 0, var(--dive)); }
+  42%     { transform: translate3d(0, 0, 0); }
+  100%    { transform: translate3d(0, 0, 0); }
+}
+
+/* `rotateZ` sits outside `rotateY`, so the box is turned edge-on first and then
+   laid down — the printed spine ends up facing you along a horizontal bar. It
+   is outside the `translateZ` compensation too, and harmlessly so: spinning
+   about the viewing axis moves nothing in depth, so the half-width the quarter
+   turn brought forward is still exactly what gets pushed back. */
+@keyframes cz-push-turn-flat {
+  0%      { animation-timing-function: cubic-bezier(0.45, 0, 0.35, 1);
+            transform: translateZ(0px) rotateZ(0deg)
+                       rotateX(var(--tilt)) rotateY(var(--turn)); }
+  46%     { transform: translateZ(calc(var(--w) / -2)) rotateZ(-90deg)
+                       rotateX(0deg) rotateY(90deg); }
+  100%    { transform: translateZ(calc(var(--w) / -2)) rotateZ(-90deg)
+                       rotateX(0deg) rotateY(90deg); }
+}
+@keyframes cz-pull-turn-flat {
+  0%      { transform: translateZ(calc(var(--w) / -2)) rotateZ(-90deg)
+                       rotateX(0deg) rotateY(90deg); }
+  42%     { animation-timing-function: cubic-bezier(0.25, 0.8, 0.35, 1);
+            transform: translateZ(calc(var(--w) / -2)) rotateZ(-90deg)
+                       rotateX(0deg) rotateY(90deg); }
+  100%    { transform: translateZ(0px) rotateZ(0deg)
+                       rotateX(var(--tilt)) rotateY(var(--turn)); }
+}
+@keyframes cz-pull-turn {
+  0%      { transform: translateZ(calc(var(--w) / -2)) rotateX(0deg) rotateY(90deg); }
+  42%     { animation-timing-function: cubic-bezier(0.25, 0.8, 0.35, 1);
+            transform: translateZ(calc(var(--w) / -2)) rotateX(0deg) rotateY(90deg); }
+  100%    { transform: translateZ(0px) rotateX(var(--tilt)) rotateY(var(--turn)); }
+}
+
+/* One after the other, not both at once.
+
+   Run together, the two jackets crossed in the middle and neither read. A box
+   goes back on the shelf, and only then is the next one taken out — that is
+   the gesture, and it is a sequence.
+
+   The delay on the arriving lines is `--wait`, set by the view and only when
+   there IS something to put away: opening the shelf has no outgoing jacket, and
+   a fixed delay there would leave the first box invisible with nothing
+   happening. `backwards` holds the arriving one at its opening frame — edge-on,
+   deep in its gap, opacity 0 — for the whole wait.
+
+   No `forwards` on the arriving three: their last keyframe is the resting pose
+   the base rules already declare, so letting the fill lapse changes nothing on
+   screen and hands the box back to its `transition` for the flip.
+
+   PULL_MS in views/library.js is the sum of wait and pull, so the outgoing node
+   stays mounted for the whole sequence and `--dir` cannot change halfway. */
+.cz-hold[data-phase="out"] .cz-carry  { animation: cz-push-travel 360ms linear forwards; }
+.cz-hold[data-phase="out"] .cz-box    { animation: cz-push-turn   360ms linear forwards; }
+
+/* 560ms, not 440. The gesture is two moves in sequence — the box comes forward
+   out of its gap, then turns to face you — and the handover between them is the
+   percentage in the keyframes above. At 440ms with a handover at 54%, the turn
+   had 202ms to cover 90°, which read as dry: it arrived before the eye had
+   followed it round.
+
+   Lengthening the whole animation and moving the handover earlier gives the
+   turn the extra time WITHOUT slowing the part that was already right: the
+   travel keeps ~235ms (42% of 560, against 54% of 440), and the turn goes from
+   202ms to ~325ms.
+
+   PULL_MS in views/library.js is wait + this. Change one, change the other, or
+   the outgoing jacket is dropped while the arriving one is still turning. */
+.cz-hold[data-phase="in"] .cz-carry   { animation: cz-pull-travel 560ms linear var(--wait, 0ms) backwards; }
+.cz-hold[data-phase="in"] .cz-box     { animation: cz-pull-turn   560ms linear var(--wait, 0ms) backwards; }
+
+/* The other two stackings put the jacket away the same way, because they are
+   the same shelf seen from somewhere else — they have a row, the row has a gap
+   where the selected game is missing, and that gap is where the jacket goes.
+   They used to cross-fade, on the reasoning that a depth cue would read as a
+   glitch when the row is face-on or lying down. It reads as a glitch when the
+   jacket does not go anywhere; give it the gap and it reads as a shelf.
+
+   Gallery needs nothing but its own `--dive` and `--slide`: same row, same
+   pitch, same spines, only a longer box and a flatter perspective.
+
+   Stack changes axis, so it swaps the animation NAME and keeps everything the
+   base rules already set — duration, delay, fill, and the `--wait` that
+   sequences the two halves stay in one place for all three views. */
+.cz-lib[data-view="gallery"] .cz-hold { --dive: -975px; --slide: 55px; }
+.cz-lib[data-view="stack"]   .cz-hold { --dive: -74px;  --slide: 48px; }
+
+.cz-lib[data-view="stack"] .cz-hold[data-phase="out"] .cz-carry { animation-name: cz-push-travel-y; }
+.cz-lib[data-view="stack"] .cz-hold[data-phase="out"] .cz-box   { animation-name: cz-push-turn-flat; }
+.cz-lib[data-view="stack"] .cz-hold[data-phase="in"]  .cz-carry { animation-name: cz-pull-travel-y; }
+.cz-lib[data-view="stack"] .cz-hold[data-phase="in"]  .cz-box   { animation-name: cz-pull-turn-flat; }
+
+
+/* Cast on the shelf, not attached to the box: a filter on the solid itself
+   would flatten it. */
+.cz-castshadow {
+  position: absolute; left: 50%; top: 50%;
+  width: 380px; height: 46px;
+  transform: translate(-50%, 172px);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(20, 18, 24, 0.34), transparent 78%);
+  filter: blur(7px);
+  transition: opacity 200ms ease;
+}
+.cz-lib[data-view="stack"] .cz-castshadow { opacity: 0; }
+
+.cz-box {
+  --h: clamp(230px, 40vh, 400px);
+  --w: calc(var(--h) * var(--ratio));
+  --d: clamp(15px, calc(var(--w) * 0.13), 38px);
+  --turn: 25deg;
+  --tilt: -5deg;
+
+  position: relative; width: var(--w); height: var(--h);
+  transform-style: preserve-3d;
+  transform: rotateX(var(--tilt)) rotateY(var(--turn));
+
+  /* `width` and `height` are transitioned here on purpose, and removing them
+     was a mistake worth recording. --w is derived from --ratio, which changes
+     the moment a cover measures; without an ease, that change is a snap, and a
+     snap in the middle of the jacket coming out of the shelf is the "it
+     teleports, then sits down correctly" this theme was reported for.
+
+     They were dropped for a perf argument — easing a layout property re-runs
+     layout on the box and its six faces every frame — made without being able
+     to watch the result. The visible cost of removing them was immediate and
+     the invisible gain was speculative. views/box.js remembering each game's
+     proportions is what actually reduces how often this fires; the ease is what
+     makes the remaining times bearable.
+
+     No `will-change: transform` here either. It was added for the same perf
+     argument, on two elements carrying `transform-style: preserve-3d` — a
+     combination that promotes the layer and, depending on the engine, flattens
+     the 3D context. A box that flattens and un-flattens reads as a jump of
+     pose, which is the other half of the same report. */
+  transition: transform 620ms cubic-bezier(0.22, 0.61, 0.36, 1),
+              width 300ms ease, height 300ms ease;
+}
+/* Turning it over carries on the way it was already going, past the opening
+   edge — the gesture of a box in a hand, not a card flip. */
+.cz-box[data-flipped="1"] { transform: rotateX(var(--tilt)) rotateY(calc(var(--turn) + 180deg)); }
+
+.cz-f {
+  position: absolute; left: 50%; top: 50%;
+  overflow: hidden; backface-visibility: hidden;
+  background: var(--board);
+}
+.cz-f > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.cz-f-front, .cz-f-back { width: var(--w); height: var(--h); }
+.cz-f-front  { transform: translate(-50%, -50%) translateZ(calc(var(--d) / 2)); }
+.cz-f-back   { transform: translate(-50%, -50%) rotateY(180deg) translateZ(calc(var(--d) / 2)); }
+
+.cz-f-spine, .cz-f-edge { width: var(--d); height: var(--h); }
+.cz-f-spine  { transform: translate(-50%, -50%) rotateY(-90deg) translateZ(calc(var(--w) / 2)); }
+.cz-f-edge   { transform: translate(-50%, -50%) rotateY(90deg)  translateZ(calc(var(--w) / 2)); }
+
+.cz-f-top, .cz-f-bottom { width: var(--w); height: var(--d); }
+.cz-f-top    { transform: translate(-50%, -50%) rotateX(90deg)  translateZ(calc(var(--h) / 2)); }
+.cz-f-bottom { transform: translate(-50%, -50%) rotateX(-90deg) translateZ(calc(var(--h) / 2)); }
+
+/* Cardboard: the opening edge folds, the ends catch the light from above. */
+.cz-f-edge {
+  background: linear-gradient(90deg, var(--board-dark), var(--board-lit) 40%, var(--board-dark));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.cz-f-top    { background: linear-gradient(180deg, var(--board-lit), var(--board)); }
+.cz-f-bottom { background: var(--board-dark); }
+
+/* Same correction on the solid's spine face — `--d` wide by `--h` tall, so a
+   landscape band needs the same quarter turn. */
+.cz-f-spine > img[data-wide="1"] {
+  position: absolute; left: 50%; top: 50%;
+  width: var(--h); height: var(--d);
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.cz-f-spine[data-scan="0"] {
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(90deg, var(--board-dark), var(--board-lit) 55%, var(--board-dark));
+}
+.cz-f-spine[data-scan="0"] .cz-spine-name { margin: 12px 0; }
+
+.cz-noart {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 22px; text-align: center;
+  background: linear-gradient(160deg, var(--board-lit), var(--board-dark));
+}
+.cz-noart-name {
+  font-family: var(--font-display); font-size: 19px; font-weight: 700;
+  line-height: 1.25; color: #EDEAE3;
+}
+.cz-noart-note {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: rgba(237, 234, 227, 0.42);
+}
+

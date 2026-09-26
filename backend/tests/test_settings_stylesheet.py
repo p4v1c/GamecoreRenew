@@ -20,6 +20,7 @@ import re
 from pathlib import Path
 
 import pytest
+from backend.tests.css_bundle import read_css  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 HOST_CSS = REPO / "frontend" / "src" / "settings" / "settings.css"
@@ -76,7 +77,7 @@ def _shipped_themes() -> list[Path]:
 def test_the_host_stylesheet_carries_the_layout():
     """The frame the whole screen hangs off. If these lose their geometry there
     is no second copy to fall back on any more."""
-    rules = _rules(HOST_CSS.read_text())
+    rules = _rules(read_css(HOST_CSS))
     assert rules.get(".gcs-set", {}).get("position") == "fixed"
     assert "grid-template-columns" in rules.get(".gcs-set-body", {}), (
         "the three-column rail/main/aside grid is gone from the only file that has it"
@@ -98,8 +99,8 @@ def test_a_theme_does_not_restate_what_the_host_already_gives_it(theme_dir):
     start of the drift that one copy was supposed to end — the two files agree
     now and stop agreeing the first time only one of them is corrected.
     """
-    host = _rules(HOST_CSS.read_text())
-    theme = _rules((theme_dir / "theme.css").read_text())
+    host = _rules(read_css(HOST_CSS))
+    theme = _rules(read_css(theme_dir / "theme.css"))
 
     repeated = []
     for sel, props in theme.items():

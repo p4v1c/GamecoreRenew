@@ -1102,50 +1102,16 @@ Environment=GAMECORE_PATH=$GAMECORE_PATH
 Environment=GAMECORE_DATA=$GAMECORE_DATA
 Environment=GAMECORE_BACKEND_PORT=$WEB_PORT
 WorkingDirectory=$GAMECORE_PATH
-# Wait for a display that ANSWERS, not merely for a socket to exist.
+# Wait (max 20 s, always exit 0) for an X display that ANSWERS, not just a
+# socket: on a cold boot the backend starts before X, and the first socket
+# (X0) can appear before the only usable display (X1). Each socket is tried
+# with each cookie location, as session.py's probe does.
 #
-# The backend used to win the boot race against X on every cold boot: it
-# started at 14:56:19 on the reference box, main.py's lifespan reached
-# standby.resume_after_restart() → xset → the X probe at 14:56:20, and the
-# first socket only appeared at 14:56:22.8 — :1, the one that answers there,
-# at 14:56:24.3. Every emulator then launched against the wrong display and
-# died instantly, until someone restarted the service.
-#
-# Waiting for a socket is not enough, which is why this differs from the UI
-# unit's check: on that same boot X0 appeared 1.5 s before X1, so a socket
-# test would have passed while the only usable display still did not exist.
-# Each socket is tried with each cookie location — the same three the probe in
-# process_manager.py knows about.
-#
-# Always exits 0: a box with no X at all (headless, SSH install) must still get
-# its backend. The bound is 20 s, and process_manager retries the probe anyway,
-# so this is ordering — not a correctness dependency.
-#
-# The doubled dollar below is load-bearing, and one character is the whole of
-# this bug. systemd expands the braced form in an Exec line ITSELF, against the
-# service's own environment, before bash ever sees the string; a bare sigil and
-# a command substitution it passes through untouched. The suffix-strip written
-# on the DISPLAY assignment is not a valid variable name, so systemd said so
-# and substituted nothing:
-#
-#   gamecore-backend.service: Invalid environment variable name evaluates to
-#   an empty string: s##*/X
-#
-# leaving DISPLAY=":" on every iteration. xdpyinfo could therefore never
-# succeed ONCE: the loop ran its full twenty rounds on every boot and exited 0
-# having proved nothing. Measured on the reference box: 20.4 s between
-# "Starting" and "Started" — and the UI unit waits for this one, so the desktop
-# wallpaper sat on the television for eighteen seconds before GameCore covered
-# it. Doubled, systemd hands bash a literal sigil and the same probe answers in
-# 0.05 s.
-#
-# The deeper lesson is the inlining, not the escaping: electron/start-ui.sh
-# carries this exact logic in a FILE, where only bash reads it, and there it
-# has always worked. A shell one-liner inside a unit is parsed by two languages
-# that share a sigil.
-#
-# NOTE: this comment lives inside the heredoc that writes the unit, so it must
-# stay free of sigils of its own — they would be expanded on the way in.
+# The doubled dollar is load-bearing: systemd expands the braced form in an
+# Exec line itself, before bash sees it. Undoubled, DISPLAY became ":" and the
+# loop always ran its full 20 s at boot.
+# NOTE: this comment is inside the heredoc that writes the unit: keep it free
+# of sigils, they would be expanded on the way in.
 ExecStartPre=/bin/bash -c 'command -v xdpyinfo >/dev/null || exit 0; for i in \$(seq 1 20); do for s in /tmp/.X11-unix/X*; do [ -S "\$s" ] || continue; for c in /run/user/\$(id -u)/xauth_* /tmp/xauth_* "\$HOME/.Xauthority" ""; do DISPLAY=":\$\${s##*/X}" XAUTHORITY="\$c" xdpyinfo >/dev/null 2>&1 && exit 0; done; done; sleep 1; done; exit 0'
 ExecStart=$GAMECORE_PATH/.venv/bin/python3 -m uvicorn backend.main:app --host 127.0.0.1 --port $WEB_PORT
 Restart=on-failure
@@ -1438,7 +1404,7 @@ ok "Bluetooth service enabled."
 msg "Sudoers — power management"
 cat > /etc/sudoers.d/gamecore-power <<EOF
 $USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl reboot
-# Gamepad hotplug (backend/routers/games.py) — the only udevadm this needs.
+# Gamepad hotplug (backend/services/launch.py) — the only udevadm this needs.
 # Enumerated like the governor rule below: unrestricted, it also granted
 # `udevadm control`, which reloads and can replace the device rules.
 $USER_NAME ALL=(root) NOPASSWD: /usr/bin/udevadm trigger

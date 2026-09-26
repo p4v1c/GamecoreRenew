@@ -22,8 +22,8 @@ is what kept the synthesis below from ever running.
 keyStart=6` are that pad's raw SDL indices and nothing more general — measured
 live, SDL2 reports exactly `leftshoulder:b9 rightshoulder:b10 back:b4 start:b6`
 for a 054c:09cc. So mGBA "worked" on a Sony pad by numerical coincidence, and
-on an Xbox one the owner got: "Y ouvre la map, carré rien, L1 c'est mon
-inventaire". A seed is a starting point, not a config; completing it for the
+on an Xbox one the owner got: "Y opens the map, square does nothing, L1 is my
+inventory". A seed is a starting point, not a config; completing it for the
 pad that is actually here is this file's job, and `inputs.for_pad()` is where
 the indices come from.
 

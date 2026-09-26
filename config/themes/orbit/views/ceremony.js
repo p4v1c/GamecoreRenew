@@ -1,36 +1,13 @@
 /**
- * Orbit's handovers — the seconds between the interface and the game.
- *
- * Orbit had none. It declared `launch.ms: 500` in its manifest, so the host
- * dutifully held the launch for half a second and Orbit drew nothing in it:
- * the player pressed ✕, the screen sat still, and then the emulator appeared.
- * A pause with nothing in it does not read as ceremony, it reads as lag.
- *
- * Three moments, one shape. The reference is the PS5's: the console does not
- * cut to a game, it *travels* to one. A soft field of light gathers at the
- * centre, the interface falls back and away from the viewer, and the light
- * takes the screen. Coming back reverses it exactly — the light parts and the
- * interface returns from behind it — and suspending is the same reversal
- * played shorter, because the player did not ask to go anywhere.
+ * Orbit's handovers between the interface and the game (PS5-style travel):
  *
  *   launch   the interface recedes, the light closes over it
- *   resume   the same, for a game that was already frozen
- *   suspend  the light parts and the interface comes forward again
+ *   resume   the same, for a frozen game
+ *   suspend  the light parts and the interface comes forward
  *
- * The host decides when: `transition` in the store is set by the launch hold,
- * by the session bar's resume, and by the backgrounded event. This file is only
- * ever asked what it looks like — which is the half a theme should own.
- *
- * ## Timing
- *
- * Games home, Library and the session bar finish this short handover before
- * their request lets the emulator take the screen.
- * `TRAVEL_MS` below is the whole of that launch and resume animation, and it
- * MUST be what `theme.json` declares as `launch.ms`. The host holds the call
- * for exactly that long, so a smaller number here means the light is still
- * moving when the emulator takes the screen, and a larger one means the player
- * waits on a finished picture. `backend/tests/test_theme_ceremony.py` asserts
- * the two agree, because nothing else can.
+ * The host decides WHEN (`transition` in the store); this file only draws it.
+ * TRAVEL_MS MUST equal `launch.ms` in theme.json: the host holds the launch
+ * that long. backend/tests/test_theme_ceremony.py enforces it.
  */
 
 /** Motion plus a settled field of light. Must equal `launch.ms` in theme.json. */

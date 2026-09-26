@@ -1,33 +1,16 @@
 /**
- * useGamepad — Browser Gamepad API hook.
+ * useGamepad — Gamepad API polled at 60 fps, re-emitted as window CustomEvents:
  *
- * Polls at 60fps. Emits CustomEvents so any component can listen without
- * prop-drilling. Supports PS4, Xbox, and generic XInput controllers.
- *
- * Events dispatched on window:
  *   gp:dpad-up | gp:dpad-down | gp:dpad-left | gp:dpad-right
- *   gp:confirm (A/Cross)  | gp:back (B/Circle)  | gp:y (Y/Triangle) | gp:x (X/Square)
+ *   gp:confirm (A/Cross) | gp:back (B/Circle) | gp:y (Y/Triangle) | gp:x (X/Square)
  *   gp:menu (Start/Options) | gp:power (Share/Back) | gp:guide (PS/Home)
- *   gp:l1 | gp:r1 | gp:l2 | gp:r2
- *   gp:connected(name) | gp:disconnected
+ *   gp:l1 | gp:r1 | gp:l2 | gp:r2 | gp:connected(name) | gp:disconnected
  *
- * Those events are edge-triggered ("□ was pressed"). Anything that needs the
- * continuous picture instead ("□ is held", "the left stick sits at 40%") —
- * i.e. the controller overlay — reads it through useGamepadState() below.
- *
- * The left stick is the exception: it is edge-triggered into the same d-pad
- * events, but with hysteresis (two thresholds, so a resting stick cannot
- * chatter) and a repeat (so a held direction crosses a long library). See
- * axisStep.
- *
- * With more than one pad connected, exactly one drives the interface at a
- * time. It is whichever pad last did something deliberate — a button going
- * down, or a stick crossing into the press ring — and not simply the first one
- * the browser lists. See getActiveGamepadIndex.
- *
- * IMPORTANT: When a game session is active, ALL events are suppressed except
- * gp:guide. This mirrors the old C++ behaviour (MainWindow.cpp line 344):
- *   if (m_session.isRunning()) return;  // block everything
+ * Edge-triggered; continuous state (held buttons, stick position) is read via
+ * useGamepadState(). The left stick feeds the d-pad events with hysteresis and
+ * repeat (axisStep). With several pads, the one that last acted deliberately
+ * drives the UI (getActiveGamepadIndex).
+ * While a game session is active, every event except gp:guide is suppressed.
  */
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'

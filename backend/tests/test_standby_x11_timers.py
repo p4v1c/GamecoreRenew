@@ -1,24 +1,17 @@
-"""L'écran qui s'éteint en plein film, et le deuxième minuteur invisible.
+"""The screen blanking mid-film, and the second, invisible timer.
 
-Rapporté depuis le canapé : « la veille s'active même quand je lance une app ou
-un jeu, en plein film l'écran se met en veille ». La veille de GameCore n'y
-était pour rien, et le journal du boîtier le montre — Stremio 27 min, melonDS
-43 min, Ryujinx 74 min, pas une seule transition `active → screensaver`
-pendant. `_tick()` fait déjà ce qu'il faut : un jeu au premier plan compte comme
-de l'activité.
+Reported from the couch: "standby kicks in even when I launch an app or a
+game; mid-film the screen goes to sleep". GameCore's standby was not the cause
+— the journal shows Stremio 27 min, melonDS 43 min, Ryujinx 74 min with no
+`active → screensaver` transition; `_tick()` already counts a foreground game
+as activity.
 
-Ce qui éteignait la télévision, c'est le serveur X lui-même. La session de
-GameCore est une session X11 (`/usr/share/xsessions/gamecore.desktop`), et
-PowerDevil n'y tourne PAS — rien ne le démarre. Le serveur X, lui, tourne, avec
-son économiseur d'écran et ses délais DPMS à la valeur par défaut, et personne
-ne les remettait à zéro : les boutons d'une DualShock 4 sont marqués
-`ID_INPUT_JOYSTICK`, ce que le serveur X ne compte pas comme une entrée. Un film
-dans un navigateur en kiosque et un jeu dans un émulateur sont deux silences
-parfaits pour lui.
-
-Le contre-mesure existante ne pouvait pas y arriver non plus : elle passe par
-`org.freedesktop.ScreenSaver`, que personne ne possède dans cette session — le
-backend le disait quinze fois par minute, « The name is not activatable ».
+The X server blanked the TV. The GameCore session is X11
+(`/usr/share/xsessions/gamecore.desktop`) and PowerDevil does NOT run there.
+X keeps its default screensaver and DPMS delays, and DualShock 4 buttons are
+`ID_INPUT_JOYSTICK`, which X does not count as input. The existing
+counter-measure went through `org.freedesktop.ScreenSaver`, which nobody owns
+in this session ("The name is not activatable", fifteen times a minute).
 """
 import asyncio
 import json
@@ -33,8 +26,8 @@ import pytest
 from backend.services import desktop_power as dp
 
 
-# Ce que `xset q` répond vraiment. Non traduit, donc identique partout — et
-# relevé sur le boîtier plutôt qu'inventé, la moitié XWayland comprise.
+# Real `xset q` output captured on the box (untranslated, so identical
+# everywhere), XWayland half included.
 REAL_X = """Keyboard Control:
   auto repeat:  on    key click percent:  0
 Screen Saver:
@@ -48,8 +41,8 @@ DPMS (Display Power Management Signaling):
   Monitor is On
 """
 
-# Le serveur de la session de bureau : l'économiseur est déjà à zéro et
-# l'extension DPMS n'existe pas. Un boîtier avec UN minuteur, pas zéro.
+# The desktop session's server: screensaver already 0, no DPMS extension.
+# A box with ONE timer, not zero.
 XWAYLAND = """Screen Saver:
   prefer blanking:  yes    allow exposures:  yes
   timeout:  0    cycle:  0
@@ -64,10 +57,10 @@ def run(coro):
 
 @pytest.fixture
 def xserver(monkeypatch, tmp_path):
-    """Un serveur X qui répond, et ce qu'on lui a demandé de faire.
+    """An answering X server, and what it was asked to do.
 
-    Pas de KDE ici : `kreadconfig6` refuse, donc seul le bras X agit — c'est la
-    session de GameCore, où PowerDevil n'existe pas.
+    No KDE: `kreadconfig6` fails, so only the X arm acts (the GameCore
+    session, where PowerDevil does not exist).
     """
     state = {"q": REAL_X, "argv": []}
 
@@ -77,7 +70,7 @@ def xserver(monkeypatch, tmp_path):
         if argv[0] == "xset":
             state["argv"].append(list(argv))
             return 0, ""
-        return 1, ""            # ni kreadconfig6 ni kwriteconfig6 ne répondent
+        return 1, ""            # neither kreadconfig6 nor kwriteconfig6 answers
 
     monkeypatch.setattr(dp, "_run", fake_run)
     monkeypatch.setattr(dp, "available", lambda: True)
@@ -85,7 +78,7 @@ def xserver(monkeypatch, tmp_path):
     return state
 
 
-# ── prendre les minuteurs du serveur X ───────────────────────────────────────
+# ── taking the X server's timers ───────────────────────────────────────
 
 def test_the_x_servers_idle_timers_are_stopped(xserver):
     assert run(dp.claim()) is True
@@ -94,12 +87,8 @@ def test_the_x_servers_idle_timers_are_stopped(xserver):
 
 
 def test_the_extension_is_left_enabled(xserver):
-    """`xset dpms 0 0 0`, jamais `xset -dpms`.
-
-    Mettre les délais à zéro les empêche de se déclencher ; désactiver
-    l'extension aurait emporté avec elle le `xset dpms force off` de la veille
-    de GameCore — le correctif aurait cassé l'étage qu'il venait protéger.
-    """
+    """`xset dpms 0 0 0`, never `xset -dpms`: disabling the extension would
+    also kill GameCore standby's own `xset dpms force off`."""
     run(dp.claim())
     assert not any("-dpms" in argv for argv in xserver["argv"])
 
@@ -130,12 +119,11 @@ def test_claiming_twice_does_not_forget_the_real_delays(xserver):
     assert note["x_previous"] == {"s": "600 600", "dpms": "600 900 1200"}
 
 
-# ── les serveurs qui n'ont rien à prendre ────────────────────────────────────
+# ── servers with nothing to take ────────────────────────────────────
 
 def test_xwayland_has_nothing_to_take(xserver):
-    """L'économiseur est déjà à zéro et il n'y a pas de DPMS : rien à prendre,
-    et surtout pas de note — c'est la session de bureau, où le minuteur qui
-    compte est celui de PowerDevil et pas celui-ci."""
+    """Screensaver already 0 and no DPMS: nothing to take and no note (the
+    desktop session, where PowerDevil's timer is the one that matters)."""
     xserver["q"] = XWAYLAND
     assert run(dp.claim()) is True
     assert xserver["argv"] == []
@@ -143,9 +131,8 @@ def test_xwayland_has_nothing_to_take(xserver):
 
 
 def test_a_server_with_only_a_screen_saver_is_still_claimed(xserver):
-    """Les deux moitiés sont suivies séparément. Un serveur qui n'a que
-    l'économiseur doit être pris pour celui-là, pas ignoré pour l'absence de
-    l'autre."""
+    """The two halves are tracked separately: a screensaver-only server is
+    still claimed for that half."""
     xserver["q"] = XWAYLAND.replace("timeout:  0    cycle:  0",
                                     "timeout:  600    cycle:  600")
     assert run(dp.claim()) is True
@@ -165,7 +152,7 @@ def test_a_server_that_will_not_answer_is_not_claimed(monkeypatch, tmp_path):
 
 
 def test_a_claim_that_could_not_write_leaves_no_note_behind(monkeypatch, tmp_path):
-    """« Il y a une note » est ce que `release()` lit comme « on tient »."""
+    """"There is a note" is what `release()` reads as "we hold the timers"."""
     async def read_ok_write_fails(*argv, **kw):
         if argv[0] == "xset" and argv[1:] == ("q",):
             return 0, REAL_X
@@ -179,7 +166,7 @@ def test_a_claim_that_could_not_write_leaves_no_note_behind(monkeypatch, tmp_pat
     assert run(dp.release()) is False
 
 
-# ── les deux bras sur le même boîtier ────────────────────────────────────────
+# ── both arms on the same box ────────────────────────────────────────
 
 @pytest.fixture
 def both(monkeypatch, tmp_path):
@@ -215,8 +202,8 @@ def test_both_arms_are_taken_and_both_are_given_back(both):
 
 
 def test_an_old_note_with_only_the_kde_half_still_reads(both, tmp_path):
-    """Une note écrite avant que le bras X existe. Les bras sont retrouvés par
-    clé et pas par compte, donc elle doit encore se rendre."""
+    """A note written before the X arm existed: arms are found by key, not
+    by count, so it must still be released."""
     (tmp_path / "handoff.json").write_text(json.dumps({"previous": "900"}))
     both["kde"] = "-1"
     assert run(dp.release()) is True
@@ -224,11 +211,11 @@ def test_an_old_note_with_only_the_kde_half_still_reads(both, tmp_path):
     assert not dp._HANDOFF.exists()
 
 
-# ── la revendication doit être REFAITE, pas faite une fois ───────────────────
+# ── the claim must be RE-MADE, not made once ───────────────────
 
 @pytest.fixture
 def watcher(monkeypatch):
-    """Le veilleur, avec la revendication remplacée par un compteur."""
+    """The standby watcher, with the claim replaced by a counter."""
     from backend.services import standby
     from backend.services import process_manager as pm
 
@@ -258,28 +245,26 @@ CFG_OFF = {**CFG_ON, "enabled": False}
 
 
 def test_the_watcher_claims_the_timers(watcher):
-    """Le cœur du rapport. Le backend est un service SYSTÈME : il démarre au
-    boot, avant qu'aucune session n'existe — mesuré sur le boîtier, boot à
-    07:39:06 et le compositeur de la session à 07:39:20 — donc l'unique
-    tentative du démarrage ne trouve rien à prendre. Et ce n'est pas une course
-    que l'attente réglerait : le boîtier bascule entre sa session et le bureau,
-    et chaque bascule est un nouveau serveur X aux délais par défaut."""
+    """The core of the report. The backend is a SYSTEM service that starts
+    before any session (boot 07:39:06, compositor 07:39:20), so a one-shot
+    claim finds nothing; and every session switch brings a new X server with
+    default delays. The claim must be re-made."""
     from backend.services import standby
     asyncio.run(standby._tick(CFG_ON))
     assert len(watcher) == 1
 
 
 def test_it_is_claimed_before_the_foreground_return(watcher):
-    """Un jeu au premier plan est exactement le moment où les minuteurs doivent
-    déjà être tenus — et c'est aussi la branche qui sort tôt."""
+    """A foreground game is when the timers must already be held — and it is
+    the branch that returns early."""
     from backend.services import standby
     asyncio.run(standby._tick(CFG_ON))
-    assert watcher, "le retour anticipé du premier plan a sauté la revendication"
+    assert watcher, "the foreground early return skipped the claim"
 
 
 def test_it_is_not_re_attempted_every_fifteen_seconds(watcher):
-    """Idempotente mais pas gratuite : elle lit avant d'écrire, donc une fois
-    par minute suffit à réparer une bascule de session."""
+    """Idempotent but not free (reads before writing): once a minute is
+    enough to repair a session switch."""
     from backend.services import standby
     for _ in range(4):
         asyncio.run(standby._tick(CFG_ON))
@@ -295,8 +280,7 @@ def test_a_minute_later_it_is_attempted_again(watcher):
 
 
 def test_standby_switched_off_claims_nothing(watcher):
-    """L'inverse du bogue : les deux désarmés à la fois est l'état que personne
-    ne veut. Veille coupée, GameCore ne gère plus l'écran — il ne prend rien."""
+    """Standby off: GameCore no longer manages the screen and takes nothing."""
     from backend.services import standby
     asyncio.run(standby._tick(CFG_OFF))
     assert watcher == []

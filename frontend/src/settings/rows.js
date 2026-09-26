@@ -1,35 +1,13 @@
 /**
- * The capture's settings row, and the four controls it comes in.
+ * The settings row, shared by Controllers, Audio and System, and its four
+ * controls:
+ *   · toggle  — boolean, ✕ flips it
+ *   · value   — short list, ←/→ step (wraps)
+ *   · slider  — 0–100, ←/→ by `step` (default 5: 20 presses is too many)
+ *   · action  — button, ✕ runs it
  *
- * Controllers, Audio and System are the same screen with different contents:
- * one wide card, a stack of rows, each row a label, a sentence under it, and a
- * control on the right. Writing that three times would have produced three
- * subtly different rows — three focus rings, three toggle sizes, three ideas
- * of how far one press of ← moves a slider.
- *
- * The four controls, and what each is for:
- *   · toggle  — a boolean. ✕ flips it.
- *   · value   — a short list. ← and → step through it; it wraps.
- *   · slider  — a number 0–100. ← and → move it by `step`.
- *   · action  — a button. ✕ runs it.
- *
- * **Destructive rows arm before they fire.** A row marked `confirm` takes two
- * presses, and the label says so in between. That protection came from
- * PowerModal, where a destructive mapping action once lived because that modal
- * had it and no settings screen did; there is no undo anywhere on this box.
- * Moving focus away disarms it, so a row cannot sit primed while somebody
- * scrolls past it.
- *
- * `confirm` applies to TOGGLES as well as actions. It was action-only while the
- * only destructive rows were buttons; the autoconfig switch is a boolean whose
- * two directions each destroy something, and a switch that wipes a controller
- * setup on one press is exactly what "arm before you fire" is for. A toggle
- * gives `label2` the sentence for the direction it is ABOUT to move in.
- *
- * Slider step is 5 by default rather than 1. A stick on a settings screen is
- * a d-pad with extra steps, and 20 presses to cross a slider is what makes a
- * console feel broken from a sofa; the value is still shown exactly, so
- * nobody is guessing.
+ * Rows marked `confirm` (actions AND toggles) take two presses; `label2`
+ * states what the second press will do. Moving focus away disarms.
  */
 import { follow } from './list.js'
 

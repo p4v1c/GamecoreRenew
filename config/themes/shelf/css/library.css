@@ -1,0 +1,304 @@
+/* ===========================================================================
+   LIBRARY
+   =========================================================================== */
+.cz-lib {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  font-family: var(--font-body); color: var(--ink);
+  padding: 0 30px 14px;
+}
+
+/* ── header: search, index, sort ──────────────────────────────────────── */
+.cz-head {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  gap: 16px; padding-top: 2px;
+}
+
+/* The bar shows the query and names the button that opens the host's
+   keyboard. The field is for a mouse, and calls the host's own onSearch. */
+.cz-search {
+  display: flex; align-items: center; gap: 8px; justify-self: start;
+  padding: 6px 8px 6px 12px; border-radius: var(--r-chip);
+  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid var(--rule-2);
+  color: var(--ink-3);
+  transition: border-color 200ms ease, background-color 200ms ease;
+}
+.cz-search[data-live="1"] {
+  background: #fff; border-color: var(--acc-deep); color: var(--ink);
+}
+.cz-search input {
+  width: 168px; border: 0; background: none; outline: none; padding: 0;
+  font-family: var(--font-body); font-size: 14px; color: var(--ink);
+}
+.cz-search input::placeholder { color: var(--ink-3); }
+.cz-search > kbd {
+  display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 6px;
+  border-radius: 6px; background: var(--ink); color: var(--paper);
+  font-family: var(--font-mono); font-size: 10px;
+}
+.cz-search-n { font-family: var(--font-mono); font-size: 11px; color: var(--acc-deep); }
+.cz-search-x {
+  border: 0; background: none; cursor: pointer; padding: 0 4px;
+  font-size: 18px; line-height: 1; color: var(--ink-3);
+}
+.cz-search-x:hover { color: var(--ink); }
+
+.cz-sortchip {
+  justify-self: end; display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-3);
+}
+.cz-sortchip > kbd {
+  display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 6px;
+  border-radius: 6px; background: rgba(23, 22, 26, 0.1); color: var(--ink-2);
+  font-family: inherit; font-size: 10px;
+}
+
+.cz-rail-index {
+  display: flex; align-items: center; justify-content: center; gap: 2px;
+  justify-self: center;
+  padding: 4px 10px; border-radius: var(--r-chip);
+  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid var(--rule-2);
+  font-family: var(--font-mono); font-size: 12px;
+}
+.cz-letter {
+  width: 22px; height: 22px; border: 0; border-radius: 50%;
+  background: transparent; color: rgba(23, 22, 26, 0.22);
+  font: inherit; cursor: default; padding: 0;
+  transition: color 200ms ease, background-color 200ms ease;
+}
+.cz-letter[data-has="1"] { color: var(--ink-3); cursor: pointer; }
+.cz-letter[data-has="1"]:hover { color: var(--ink); }
+.cz-letter[data-on="1"] { background: var(--ink); color: var(--paper); }
+.cz-sortnote { display: flex; align-items: center; gap: 10px; padding: 0 6px; color: var(--ink-2); }
+.cz-sortback {
+  border: 0; background: none; padding: 0; cursor: pointer;
+  font: inherit; color: var(--acc-deep); text-decoration: underline; text-underline-offset: 3px;
+}
+
+/* ── the shelf ────────────────────────────────────────────────────────── */
+.cz-body { flex: 1; min-height: 0; display: flex; gap: 26px; padding-top: 10px; }
+
+.cz-stage { position: relative; flex: 1; min-width: 0; overflow: hidden; }
+
+/* The line the boxes stand on. One hairline; the shadow does the rest. */
+.cz-shelfline {
+  position: absolute; left: -30px; right: -30px; bottom: 12%;
+  height: 1px; background: rgba(23, 22, 26, 0.16);
+  box-shadow: 0 -14px 26px -12px rgba(23, 22, 26, 0.22);
+}
+
+.cz-rail {
+  position: absolute; inset: 0;
+  transform: translate3d(calc(var(--i) * var(--pitch) * -1), 0, 0);
+  transition: transform 340ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+  --pitch: 40px;
+}
+
+.cz-slot {
+  position: absolute; left: 50%; top: 50%;
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -50%) translateX(calc(var(--o) * var(--pitch))) rotate(var(--lean, 0deg));
+}
+/* A gap in the row is a gap because something left it, and for exactly as long
+   as that thing is out. Nothing else may hide a spine.
+
+   This used to be `[data-on="1"]` — hide whatever is selected, always. That is
+   true at rest and a lie during a swap: it left an empty column standing at the
+   centre for the whole time the previous jacket was being put away, so by the
+   time the next one came out its hole had been waiting for it. A shelf does not
+   work like that. The hole appears when the box does, because it IS the box
+   having left.
+
+   The view sets `data-gap` on two columns, and only ever while there is
+   movement:
+
+     the column being filled  — one pitch out, held open from the moment the
+                                jacket starts back until it has landed in it
+     the column being emptied — the centre, opened at the instant the arriving
+                                jacket takes over from its own spine
+
+   Hiding rather than removing keeps the rail's spacing exactly as it was, so
+   nothing shuffles when you move along the shelf. And the handoff needs no
+   crossfade in either direction: what appears and what disappears are the same
+   artwork, at the same size, in the same column, at the same depth — the solid
+   spends the ends of both animations being, precisely, a spine. */
+.cz-slot[data-gap="1"] { visibility: hidden; }
+
+/* `--face-w` / `--face-h`, NOT `--spine-w`/`--spine-h`: `--spine-h` is already
+   taken, and it is a HUE — views/box.js sets it per title and `.cz-spine-cap`
+   reads it as `hsl(var(--spine-h) 62% 52%)`. Writing a length into it here
+   would have painted every printed spine's marks with `hsl(320px …)`, which is
+   invalid and therefore silently transparent. */
+.cz-spine {
+  --face-w: 34px; --face-h: 320px;
+  position: relative;
+  display: block; width: var(--face-w); height: var(--face-h); padding: 0;
+  border: 0; border-radius: 2px; cursor: pointer;
+  background: var(--board);
+  box-shadow: 0 14px 26px -10px rgba(20, 18, 24, 0.5),
+              inset -6px 0 12px -8px rgba(0, 0, 0, 0.7),
+              inset 1px 0 0 rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+  transition: transform 200ms ease;
+}
+.cz-spine > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cz-spine:hover { transform: translateY(-8px); }
+
+/* A LANDSCAPE spine scan, stood upright. See `data-wide` in views/box.js.
+   The band is laid out at the face's own size turned on its side, then rotated
+   into it, so `cover` crops across the band's short axis instead of taking a
+   1.8 % vertical slice out of its middle. */
+.cz-spine > img[data-wide="1"] {
+  position: absolute; left: 50%; top: 50%;
+  width: var(--face-h); height: var(--face-w);
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+/* No scan: a black field and a coloured wordmark, which is what the real
+   cardboard is. */
+.cz-spine-print {
+  display: flex; flex-direction: column; align-items: center; height: 100%;
+  padding: 8px 0;
+  background: linear-gradient(90deg, var(--board-dark), var(--board-lit) 55%, var(--board-dark));
+}
+.cz-spine-cap, .cz-spine-foot {
+  flex: 0 0 auto; width: 18px; height: 4px; border-radius: 1px;
+  background: hsl(var(--spine-h) 62% 52%);
+}
+.cz-spine-foot { opacity: 0.5; }
+.cz-spine-name {
+  flex: 1; min-height: 0; margin: 8px 0;
+  writing-mode: vertical-rl; text-orientation: mixed;
+  font-family: var(--font-display); font-size: 12.5px; font-weight: 600;
+  letter-spacing: 0.06em; color: #EDEAE3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── the solid ────────────────────────────────────────────────────────── */
+/* The perspective sits here, one level above the solid, because it only ever
+   reaches direct children — and here rather than on .cz-stage because this is
+   also the element that fades, and `opacity` below 1 forces `preserve-3d` to
+   `flat` on the element carrying it. The solid keeps its depth; the fade is
+   applied to the finished scene. */
+.cz-hold {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  perspective: 1700px;
+  perspective-origin: 50% 46%;
+  transition: opacity 200ms ease;
+
+  /* Where the row is, in this stacking, and how far one step along it is.
+     Everything else about the swap is shared; these two numbers are all that
+     differ between a shelf, a pile and a gallery, and both fall out of the
+     geometry rather than being chosen:
+
+       --dive   the depth at which the solid draws the same size as a spine
+                = -perspective × (box length / spine length - 1)
+       --slide  one rail pitch, measured BEFORE the perspective divides it
+                = pitch × box length / spine length
+
+     shelf    1700 perspective, 400 box, 320 spine, 40 pitch  ->  -425 / 50
+     gallery  2600 perspective, 440 box, 320 spine, 40 pitch  ->  -975 / 55
+     stack    1400 perspective, 400 box, 380 spine, 46 pitch  ->   -74 / 48
+
+     If any of those six numbers is edited, the pair below is wrong and the
+     jacket stops landing flush — that is the whole contract of this block. */
+  --dive: -425px;
+  --slide: 50px;
+}
+
+/* The thing that carries the box about — and the reason the box stays a box.
+
+   .cz-hold is `transform-style: flat`, which is correct: it is the perspective
+   element and the element that fades. But that also means anything it holds is
+   rendered once and then composited as a picture into the holder's plane. A
+   rotation applied to .cz-hold therefore turns a photograph of a box, not a
+   box: the volume goes, which is exactly what an earlier version did.
+
+   So the travel lives here instead. `preserve-3d` extends the holder's 3D
+   context down to the solid, so translating this element moves the box THROUGH
+   the perspective — it recedes as it goes back into the row — while the box
+   itself keeps doing its own rotating one level below.
+
+   Nothing that groups (opacity, filter, clip) may ever be set here: any of them
+   silently forces this back to `flat` and the volume is lost again.
+
+   The origin is the bottom edge because that is where a box on a shelf pivots,
+   and because it is where `.cz-slot` pivots: the lean this element takes on at
+   the end of the journey has to be the same lean, about the same point, as the
+   spine standing in that column. A slot's origin is its own bottom, 40px above
+   the solid's — a 3° rotation about pivots 40px apart differs by two pixels,
+   which is close enough to hand off on. */
+.cz-carry {
+  display: block;
+  transform-style: preserve-3d;
+  transform-origin: 50% 100%;
+}
+/* The artwork settles 150ms behind the cursor. Rather than hide the lag, own
+   it: the box eases while the next jacket is on its way. */
+.cz-hold[data-turning="1"] { opacity: 0.62; }
+
+/* While the jacket you are moving to is still IN the row, the row draws it.
+   Not this.
+
+   The arriving solid is mounted from the first frame — it has to be, its
+   animation needs the delay to run against — and `backwards` parks it at its
+   opening pose, which is deliberately indistinguishable from a spine standing
+   in the row. Left on screen, that is a second copy of a spine the rail is
+   already drawing, sitting on top of the jacket that is still on its way out.
+   That is the doubled spine over the departing box.
+
+   So it waits its turn out of sight, and comes back at the instant the rail
+   gives its column up — one flag, one render, both sides of the handoff. Not
+   `opacity`: that would group the element and flatten the solid inside it,
+   which is the mistake this whole file exists to avoid. `visibility` reserves
+   the space, keeps the 3D context intact, and is the same mechanism the row
+   itself uses to hold a gap open. */
+.cz-hold[data-tucked="1"] { visibility: hidden; }
+
+/* ── The jacket coming out, and the last one going back in ────────────────
+   Two nodes live in the holder while one replaces the other, so the gesture
+   reads both ways: the box you left slides back down between its neighbours
+   and turns away, while the one you moved to is drawn forward and round to
+   face you. The outgoing node is dropped by the view when PULL_MS is up.
+
+   Same duration and the same curve for both, so they read as one movement
+   rather than two that happen to overlap. `backwards` matters: without it the
+   first frame shows the final pose before the animation starts. */
+/* Putting a box away is two movements, and they happen on two elements.
+
+   First it turns until it is edge-on — perpendicular to you, spine out, the
+   pose it holds between its neighbours. Only then does it move sideways into
+   the gap the row keeps open: the selected slot is not drawn
+   (`.cz-slot[data-on="1"] { visibility: hidden }`), and one rail pitch away is
+   where the jacket you just left belongs. Taking the next one out is the same
+   backwards — it comes out of its gap edge-on, travels to the middle, and only
+   there turns to face you.
+
+   Why three animations rather than one:
+
+     fade    on .cz-hold   — opacity groups, so it must NOT touch the 3D layer
+     travel  on .cz-carry  — preserve-3d, so the move happens inside the
+                             perspective and the box recedes as it goes back
+     turn    on .cz-box    — the solid's own rotateY, the only place a rotation
+                             can go without flattening the thing being rotated
+
+   The rotation must be the box's own `rotateY`, not the holder's: the holder is
+   flat, so turning it turns a rendered picture of the box and the thickness
+   disappears mid-gesture. Turning .cz-box instead means the spine, the top and
+   the opening edge all stay real — you watch the tranche widen as the front
+   narrows, which is the whole point of the box being assembled at all.
+
+   90 degrees, not 84. A flat picture at 90° has no width and blinks out, which
+   is why the earlier version stopped short. A solid at 90° is its spine, ~38px
+   of it, facing you — the same face the row is made of. Stopping short now
+   would leave it visibly crooked next to its neighbours.
+
+   `linear` on the elements, easing declared per keyframe: the two halves are
+   separate gestures and each wants its own curve, and — since three animations
+   have to stay in step — an easing applied to the whole would have to be
+   identical on all three anyway. This way the 50% mark is the 50% mark
+   everywhere. */

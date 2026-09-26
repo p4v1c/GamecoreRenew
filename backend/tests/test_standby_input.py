@@ -1,7 +1,7 @@
 """What the box counts as somebody being there.
 
-Reported from the sofa: standby "n'est pas très réactif, on dirait qu'il faut
-que j'appuie sur le pad de ma PS4 pour réveiller le boîtier". That is not a
+Reported from the sofa: standby "is not very responsive, it looks like I have
+to press the PS4 touchpad to wake the box". That is not a
 feeling, it is the rule the code had: `_watch_device` counted `EV_KEY` down and
 nothing else.
 
