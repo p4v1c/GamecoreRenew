@@ -37,7 +37,7 @@ export const createGamepadView = (sdk) => {
       <div class="sm-modal-wrap" onClick=${(e) => e.target === e.currentTarget && onClose()}>
         <div class="sm-panel sm-gamepad">
           <div class="sm-gamepad-head">
-            <span class="sm-panel-title sm-gamepad-eyebrow">CONTROLLER</span>
+            <span class="sm-panel-title sm-gamepad-eyebrow">Controller</span>
             <b class="sm-gamepad-name">${name}</b>
             ${pad ? html`<span class="sm-chip sm-gamepad-player">Player ${pad.player ?? 1}</span>` : null}
           </div>
@@ -50,7 +50,7 @@ export const createGamepadView = (sdk) => {
 
           <div class="sm-gamepad-body">
             <div class="sm-gamepad-art" data-off=${connected ? '0' : '1'}>
-              <${Art} />
+              <div aria-hidden=${connected ? null : 'true'}><${Art} /></div>
               ${connected ? null : html`
                 <div class="sm-gamepad-empty">
                   <b>No controller detected</b>
@@ -59,10 +59,10 @@ export const createGamepadView = (sdk) => {
             </div>
 
             <div class="sm-gamepad-readout">
-              <span class="sm-gamepad-cap">LAYOUT</span>
+              <span class="sm-gamepad-cap">Layout</span>
               <b class="sm-gamepad-val">${layoutLabel}</b>
 
-              <span class="sm-gamepad-cap">BATTERY</span>
+              <span class="sm-gamepad-cap">Battery</span>
               ${pad ? html`
                 <div class="sm-gamepad-bat">
                   <span class="sm-bat">
@@ -85,13 +85,13 @@ export const createGamepadView = (sdk) => {
 
           ${onRemap ? html`
             <button class="sm-gamepad-remap" onClick=${onRemap}>
-              <b>Buttons wrong or dead? — map this controller</b>
+              <b>Buttons wrong or dead? Map this controller.</b>
               <i>Hold ${glyphs.top}. About a minute, no keyboard.</i>
             </button>` : null}
 
           <div class="sm-hint sm-hint-modal">
-            Press any button to test · Hold ${glyphs.top} to remap ·
-            ${glyphs.left} ×2 Close
+            Press any button to test it. Hold ${glyphs.top} to remap,
+            ${glyphs.left} twice to close.
           </div>
         </div>
       </div>`

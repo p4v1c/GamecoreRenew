@@ -56,13 +56,13 @@ export default function SystemCard({ system, playtime, gameCount, focused, onCli
           <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {system.label || system.platform || system.id}
           </div>
-          <div style={{ fontSize: 10, fontWeight: 600, color, letterSpacing: 2, marginTop: 3 }}>
-            {system.id.toUpperCase()}
+          <div style={{ fontSize: 14, fontWeight: 600, color: `color-mix(in srgb, ${color} 45%, #fff)`, marginTop: 3 }}>
+            {system.platform && system.platform !== system.label ? system.platform : ''}
           </div>
         </div>
         {system.kind === 'app' && (
-          <div style={{ marginLeft: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>
-            APP
+          <div style={{ marginLeft: 'auto', fontSize: 14, color: 'var(--gc-ink-3)', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>
+            App
           </div>
         )}
       </div>
@@ -71,22 +71,22 @@ export default function SystemCard({ system, playtime, gameCount, focused, onCli
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
           {system.kind !== 'app' && (
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>
+            <div style={{ fontSize: 15, color: 'var(--gc-ink-3)' }}>
               {gameCount ?? 0} {gameCount === 1 ? 'game' : 'games'}
             </div>
           )}
           {playtime?.last_played && (
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>
+            <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 2 }}>
               Last: {fmtDate(playtime.last_played)}
             </div>
           )}
         </div>
         {playtime && playtime.total_secs > 0 && (
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: focused ? color : 'rgba(255,255,255,0.5)' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: focused ? color : 'var(--gc-ink-2)' }}>
               {fmtTime(playtime.total_secs)}
             </div>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', marginTop: 1 }}>played</div>
+            <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 1 }}>played</div>
           </div>
         )}
       </div>

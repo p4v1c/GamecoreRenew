@@ -48,7 +48,7 @@ export const createGamepadView = (sdk) => {
           ${notice ? html`<div class="cz-pad-notice">${notice}</div>` : null}
 
           <div class="cz-pad-art" data-off=${connected ? '0' : '1'}>
-            <${Art} />
+            <div class="cz-pad-ghost" aria-hidden=${connected ? null : 'true'}><${Art} /></div>
             ${connected ? null : html`
               <div class="cz-pad-empty">
                 <b>No controller detected</b>
@@ -77,13 +77,13 @@ export const createGamepadView = (sdk) => {
 
           ${onRemap ? html`
             <button class="cz-pad-remap" onClick=${onRemap}>
-              <b>Buttons wrong or dead? — map this controller</b>
+              <b>Buttons wrong or dead? Map this controller.</b>
               <i>Hold ${glyphs.top}. About a minute, no keyboard.</i>
             </button>` : null}
 
           <div class="cz-hint cz-hint-modal">
-            Press any button to test · Hold ${glyphs.top} to remap ·
-            ${glyphs.left} ×2 to close
+            Press any button to test it. Hold ${glyphs.top} to remap,
+            ${glyphs.left} twice to close.
           </div>
         </div>
       </div>`

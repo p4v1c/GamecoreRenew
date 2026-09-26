@@ -466,7 +466,7 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
         <div class="cz-foot">
           <div class="cz-count">
             ${phase ? 'Booting selected cartridge'
-              : search ? `${games.length} of ${totalCount} games · “${search}”`
+              : search ? `${games.length} of ${totalCount} games match “${search}”`
                 : `${totalCount} games indexed`}
           </div>
 

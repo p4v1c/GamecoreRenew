@@ -134,7 +134,7 @@ export const createBluetoothPage = (sdk, useSlow) => {
       if (stateRef.current.armed !== d.mac) { setArmed(d.mac); return }
       setArmed(''); setBusy(d.mac); setMsg('')
       sdk.api.bluetooth.remove(d.mac)
-        .then((r) => setMsg(r && r.ok ? `${d.name} forgotten — pair it again to reconnect.`
+        .then((r) => setMsg(r && r.ok ? `${d.name} forgotten. Pair it again to reconnect.`
                                        : ((r && r.message) || `${d.name} is still paired.`)))
         .catch(() => setMsg('Could not reach the backend.'))
         .finally(() => { setBusy(''); setSide(0); loadPaired() })
@@ -198,7 +198,7 @@ export const createBluetoothPage = (sdk, useSlow) => {
           </span>
           ${kind === 'paired'
             ? html`<span class="gcs-bt-state" data-live=${d.connected ? '1' : '0'}>
-                     ${working ? 'WORKING' : d.connected ? 'CONNECTED' : 'OFFLINE'}
+                     ${working ? 'Working' : d.connected ? 'Connected' : 'Offline'}
                    </span>
                    <span class="gcs-bt-forget" role="button" data-on=${onForget ? '1' : '0'}
                          data-armed=${armed === d.mac ? '1' : '0'}
@@ -241,14 +241,14 @@ export const createBluetoothPage = (sdk, useSlow) => {
             <div class="gcs-bt-head">
               <span class="gcs-set-kicker">Nearby</span>
               <span class="gcs-wifi-scan" onClick=${rescan}>
-                <i data-idle=${scanning ? '0' : '1'}></i>${scanning ? 'SCANNING' : 'SCAN AGAIN'}
+                <i data-idle=${scanning ? '0' : '1'}></i>${scanning ? 'Scanning' : 'Scan again'}
               </span>
             </div>
             <div class="gcs-bt-list">
               ${nearby.length === 0
                 ? (scanning
                     ? html`<div class="gcs-load"><i></i>${slowScan
-                        ? 'Still looking — some devices only advertise every few seconds.'
+                        ? 'Still looking. Some devices only advertise every few seconds.'
                         : `Looking around for ${SCAN_SECS} seconds…`}</div>`
                     : html`<div class="gcs-wifi-empty">Nothing new in range.</div>`)
                 : nearby.map((d, i) => row(d, i, 'nearby'))}

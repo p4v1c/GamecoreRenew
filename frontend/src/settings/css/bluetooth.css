@@ -54,11 +54,10 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-.gcs-bt-name i { font-style: normal; font-family: var(--font-mono); font-size: 11.5px; color: var(--set-ink-3); }
+.gcs-bt-name i { font-style: normal; font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px; color: var(--set-ink-3); }
 
 .gcs-bt-state {
-  flex: 0 0 auto; font-family: var(--font-mono); font-size: 11px;
-  letter-spacing: 0.13em; color: var(--set-ink-3);
+  flex: 0 0 auto; font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px; color: var(--set-ink-3);
 }
 
 .gcs-bt-state[data-live="1"] { color: var(--set-acc-deep); }
@@ -66,13 +65,13 @@
 .gcs-bt-btn {
   flex: 0 0 auto; padding: 8px 16px; border-radius: 10px;
   background: color-mix(in srgb, var(--set-acc) 14%, transparent);
-  color: var(--set-acc-deep); font-size: 13px; font-weight: 600;
+  color: var(--set-acc-deep); font-size: 14px; font-weight: 600;
 }
 
 /* Forget, on a paired row: small, and only red once it is armed. */
 .gcs-bt-forget {
   flex: 0 0 auto; padding: 6px 12px; border-radius: 8px; cursor: pointer;
-  border: 1px solid var(--set-line); font-size: 13px; font-weight: 600;
+  border: 1px solid var(--set-line); font-size: 14px; font-weight: 600;
   color: var(--set-ink-2); white-space: nowrap;
 }
 .gcs-bt-forget[data-on="1"] { outline: 3px solid var(--set-acc); outline-offset: 2px; color: var(--set-ink); }

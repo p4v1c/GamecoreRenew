@@ -36,14 +36,14 @@ export const createSessionBar = (sdk) => {
         <div class="cz-session-body">
           <div class="cz-session-tab">
             <span class="cz-session-mark" aria-hidden="true"></span>
-            <span>PUT DOWN</span>
+            <span>Put down</span>
             ${sessions.length > 1
               ? html`<span class="cz-session-count">${focusIdx + 1} / ${sessions.length}</span>`
               : null}
           </div>
           <div class="cz-session-title">
             <strong>${title(s)}</strong>
-            <small>${noun === 'app' ? 'Application' : 'Game'} · still open, not running</small>
+            <small>${noun === 'app' ? 'Application' : 'Game'} paused, still open</small>
           </div>
           <div class="cz-session-acts">
             <button class="cz-btn cz-btn-primary" disabled=${busy}
@@ -79,7 +79,7 @@ export const createSessionMenu = (sdk) => {
     <section class="cz-session-card" role="dialog" aria-modal="true">
       <div class="cz-session-card-rule" aria-hidden="true"></div>
       <p class="cz-session-card-tab">
-        ${confirming ? 'PUTTING IT AWAY' : 'ON THE LEDGE'}
+        ${confirming ? 'Putting it away' : 'On the ledge'}
         ${sessions.length > 1 ? html`<span>${index + 1} / ${sessions.length}</span>` : null}
       </p>
       <h2>${title(session)}</h2>

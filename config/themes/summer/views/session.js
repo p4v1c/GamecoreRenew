@@ -32,7 +32,7 @@ export const createSessionBar = (sdk) => {
         <span class="sm-session-buoy" aria-hidden="true"></span>
         <div class="sm-session-text">
           <span class="sm-session-label">
-            ${app ? 'APPLICATION ON HOLD' : 'GAME ON HOLD'}
+            ${app ? 'Application on hold' : 'Game on hold'}
             ${sessions.length > 1
               ? html`<i>${focusIdx + 1}/${sessions.length}</i>`
               : null}
@@ -69,7 +69,7 @@ export const createSessionMenu = (sdk) => {
   return ({ session, sessions, index, confirming, busy, actions, actionIdx, title }) => html`
     <section class="sm-session-panel" role="dialog" aria-modal="true">
       <p class="sm-session-panel-label">
-        ${confirming ? 'LETTING IT GO' : 'ON HOLD'}
+        ${confirming ? 'Letting it go' : 'On hold'}
         ${sessions.length > 1 ? html`<i>${index + 1}/${sessions.length}</i>` : null}
       </p>
       <h2>${title(session)}</h2>

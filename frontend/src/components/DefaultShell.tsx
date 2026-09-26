@@ -212,9 +212,9 @@ export default function DefaultShell(parts: ShellParts = {}) {
   return (
     <div style={{
       width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column',
-      fontFamily: "'Outfit', sans-serif", color: '#fff',
+      fontFamily: 'var(--gc-font-ui)', color: '#fff',
       background: screen === 'home'
-        ? 'radial-gradient(ellipse 70% 50% at 50% 30%, rgba(124,58,237,0.07) 0%, transparent 70%), #09090f'
+        ? 'radial-gradient(ellipse 70% 50% at 50% 30%, rgba(184,80,27,0.07) 0%, transparent 70%), #09090f'
         : '#09090f',
       overflow: 'hidden',
     }}>

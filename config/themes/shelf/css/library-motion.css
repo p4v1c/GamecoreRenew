@@ -284,7 +284,6 @@
   line-height: 1.25; color: #EDEAE3;
 }
 .cz-noart-note {
-  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.16em;
-  text-transform: uppercase; color: rgba(237, 234, 227, 0.42);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px; color: rgba(237, 234, 227, 0.78);
 }
 

@@ -17,8 +17,8 @@ export function createController(sdk) {
     return html`<${sdk.defaults.SettingsOverlay} onClose=${onClose} width=${980}>
       <section className="control-center controller-dialog">
         <div className="center-top">
-          <div><span className="eyebrow">ACCESSORIES / CONTROLLERS</span><h2>${name}</h2></div>
-          <span className="sample-badge">${connected ? 'CONNECTED' : 'NO CONTROLLER'}</span>
+          <div><span className="eyebrow">Accessories / Controllers</span><h2>${name}</h2></div>
+          <span className="sample-badge">${connected ? 'Connected' : 'No controller'}</span>
           <button className="close-dialog icon-button" onClick=${onClose}
                   aria-label="Close controllers">×</button>
         </div>
@@ -27,13 +27,13 @@ export function createController(sdk) {
           <div className="controller-art"><${Art} /></div>
           <div className="controller-side">
             <p className="eyebrow">${layoutLabel}</p>
-            <p>${connected ? 'Connected · live input display'
+            <p>${connected ? 'Connected. Press buttons to see them light up.'
               : 'Connect a controller to test its inputs.'}</p>
             ${controllers.map((c, i) => html`<div className="device-row" key=${i}>
               <span><strong>${c.label || c.name || 'Controller'}</strong>
                 <small>${c.player != null ? `Player ${c.player}` : 'Connected'}${
                   Number.isFinite(c.level) && c.level >= 0
-                    ? ` · ${c.level}%${c.charging ? ' · charging' : ''}` : ''}</small></span>
+                    ? `, ${c.level}%${c.charging ? ', charging' : ''}` : ''}</small></span>
             </div>`)}
             ${usbDevices.length ? html`<div><h4>Peripherals</h4>
               ${usbDevices.map((d, i) => html`<div className="device-row" key=${i}>
@@ -47,8 +47,8 @@ export function createController(sdk) {
             <${PadKey} k=${button} /><span>${action}</span></div>`)}
         </div>
         ${onRemap ? html`<button className="secondary-button" onClick=${onRemap}>
-          Map this controller · Hold ${glyphs.top}</button>` : null}
-        <p className="mock-footnote">Press any button to test · ${glyphs.left} ×2 to close
+          Map this controller. Hold ${glyphs.top}</button>` : null}
+        <p className="mock-footnote">Press any button to test it. ${glyphs.left} twice closes.
           · L2 manages a suspended game or application.</p>
       </section>
     <//>`

@@ -85,7 +85,7 @@ export const createCatalogPage = (sdk) => {
       // back on the socket rather than from the call that started it.
       const off = sdk.system.onWsEvent('catalog:done', (d) => {
         setBusy(false); setWorking('')
-        setMsg(d && d.success === false ? 'That did not finish — see the log.' : '')
+        setMsg(d && d.success === false ? 'That did not finish. See the log.' : '')
         load()
       })
       return off
@@ -180,7 +180,7 @@ export const createCatalogPage = (sdk) => {
         </p>
 
         ${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null}
-        ${busy ? html`<div class="gcs-wifi-msg">Working — this streams to the log and can take a few minutes.</div>` : null}
+        ${busy ? html`<div class="gcs-wifi-msg">Working. This can take a few minutes; the log shows progress.</div>` : null}
 
         ${groups.map((g) => {
           const isOpen = open === g.name

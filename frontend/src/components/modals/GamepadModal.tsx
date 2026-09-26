@@ -114,13 +114,13 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
 
   const MAPPINGS: [string, string][] = [
     [`D-Pad / L-stick`, 'Navigate'],
-    [g.bottom, 'Select · Play'],
+    [g.bottom, 'Select and play'],
     [g.right, 'Back'],
     [g.top, 'Search games (library)'],
     [g.left, 'This screen'],
     [g.menu, 'Settings'],
     [g.power, 'Power menu'],
-    [`${g.lb} / ${g.rb}`, 'Pages · Sorting'],
+    [`${g.lb} / ${g.rb}`, 'Pages and sorting'],
     ['PS ×2', 'Quit running game'],
   ]
 

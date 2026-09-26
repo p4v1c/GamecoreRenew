@@ -33,12 +33,12 @@ describe('systemColor', () => {
   })
 
   it('falls back to the house accent for a system nobody has described', () => {
-    expect(systemColor({ id: 'no-such-system', color: undefined })).toBe('#7c3aed')
+    expect(systemColor({ id: 'no-such-system', color: undefined })).toBe('#5b6470')
   })
 
   it('does not fall over on an empty id', () => {
     // LibraryScreen resolves the colour before the system has loaded, so this
     // is a real state and not a defensive flourish.
-    expect(systemColor({ id: '', color: undefined })).toBe('#7c3aed')
+    expect(systemColor({ id: '', color: undefined })).toBe('#5b6470')
   })
 })

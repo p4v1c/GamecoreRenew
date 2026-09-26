@@ -43,9 +43,9 @@
 .cz-ps-meta {
   display: flex; align-items: center; flex-wrap: wrap;
   gap: 8px; margin-top: 6px;
-  font-size: clamp(12px, 1.5vh, 15px); color: var(--ink-2, rgba(23, 22, 26, 0.62));
+  font-size: clamp(16px, 1.6vh, 18px); color: var(--ink-2);
 }
-.cz-ps-sep { opacity: 0.4; }
+.cz-ps-sep { color: var(--ink-3); }
 
 /* ── The row ─────────────────────────────────────────────────────────────── */
 .cz-ps-stage {

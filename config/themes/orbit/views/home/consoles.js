@@ -38,22 +38,22 @@ export function createConsolesTab({sdk, tabs, backdrop, Art, svg, hooks}) {
 
     if (!machines.length) {
       return html`<section id="systems-view" className="collection-view consoles-view">
-        <div className="page-heading"><div><p className="eyebrow">YOUR CONSOLE COLLECTION</p>
+        <div className="page-heading"><div><p className="eyebrow">Your consoles</p>
           <h1>No consoles yet.<br /><span>Add one to begin.</span></h1></div></div>
         <p className="mock-footnote">Settings → Catalog installs an emulator.</p></section>`
     }
     return html`<section id="systems-view" className="collection-view consoles-view"
                          aria-labelledby="systems-title">
       <div className="page-heading">
-        <div><p className="eyebrow">YOUR CONSOLE COLLECTION</p>
+        <div><p className="eyebrow">Your consoles</p>
           <h1 id="systems-title">Every generation.<br /><span>One place.</span></h1></div>
         <div className="console-summary"><strong>${machines.length}</strong>
           <span>console${machines.length === 1 ? '' : 's'} & handhelds</span></div>
       </div>
       <div className="console-showcase" style=${{'--console-accent': accent(sdk, s)}}>
         <div className="console-story">
-          <div className="console-kicker"><span className="console-maker">${(systemMaker(s) || 'GAMECORE').toUpperCase()}</span>
-            <span>${systemYear(s)}</span><span className="dot" /><span>CONSOLE</span></div>
+          <div className="console-kicker"><span className="console-maker">${systemMaker(s) || 'GameCore'}</span>
+            <span>${systemYear(s)}</span><span className="dot" /><span>Console</span></div>
           <h2>${systemName(s)}</h2>
           <p>${systemStory(s)}</p>
           <div className="console-facts"><span>${counts[s.id] ?? 0} game${(counts[s.id] ?? 0) === 1 ? '' : 's'}</span>

@@ -73,7 +73,7 @@ export const createSplash = (sdk) => {
              style=${{ background: c.disc, boxShadow: `0 0 90px 30px ${c.glow}` }} />
         <div class="sm-splash-sea" style=${{ background: `linear-gradient(180deg, ${c.seaDeep}, ${c.seaShallow})` }} />
         <div class="sm-splash-word" data-up=${risen ? '1' : '0'}>
-          <span class="sm-diamond" /> GAMECORE
+          <span class="sm-diamond" /> GameCore
         </div>
       </div>`
   }

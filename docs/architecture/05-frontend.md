@@ -1,6 +1,8 @@
 # 5 — Frontend
 
-React 18 + Vite + Zustand + Framer Motion. **No CSS files in React
+React 18 + Vite + Zustand + Framer Motion. The typeface (Source Sans 3) ships
+in the bundle via `src/fonts.css`; nothing is fetched from the internet, and
+`src/DESIGN.md` records the built-in look. **No CSS files in React
 components** — styling is inline style objects next to the markup. Two
 exceptions own their markup and ship a stylesheet: a *theme*
 (`docs/themes/README.md`) and the shared settings screen
@@ -219,11 +221,11 @@ UI has always used — nothing changes unless a theme defines them:
 | `--gc-overlay-panel` | `rgba(255,255,255,0.035)` | the card itself |
 | `--gc-overlay-border` | `rgba(255,255,255,0.09)` | its hairline |
 | `--gc-overlay-radius` | `20px` | its corners |
-| `--gc-accent` | `#7c3aed` | focus rings, toggles, sliders, the keyboard, the theme picker's marker |
-| `--gc-accent-soft` | `#a78bfa` | secondary accent text |
-| `--gc-accent-bright` | `#c4b5fd` | figures and emphasis |
+| `--gc-accent` | `#b8501b` | focus rings, toggles, sliders, the keyboard, the theme picker's marker |
+| `--gc-accent-soft` | `#f2a46a` | secondary accent text |
+| `--gc-accent-bright` | `#f8cfa9` | figures and emphasis |
 
-Write `var(--gc-accent, #7c3aed)` — never a bare `var(--gc-accent)` inside
+Write `var(--gc-accent, #b8501b)` — never a bare `var(--gc-accent)` inside
 `color-mix()`. Without the fallback the whole function is invalid when no theme
 is active, the declaration is dropped, and the *default* UI loses its accent.
 

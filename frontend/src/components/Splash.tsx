@@ -300,7 +300,7 @@ export default function Splash({ onDone, bootReady }: Props) {
       style={{
         position: 'fixed', inset: 0, zIndex: 9000, overflow: 'hidden',
         background: '#050409', cursor: 'pointer', userSelect: 'none',
-        fontFamily: "'Space Grotesk','Outfit',system-ui,sans-serif",
+        fontFamily: 'var(--gc-font-ui)',
       }}
     >
       <div ref={splash} style={{ position: 'absolute', inset: 0 }}>
@@ -366,10 +366,10 @@ export default function Splash({ onDone, bootReady }: Props) {
         <div ref={wordmark} style={{
           position: 'absolute', left: '50%', top: '60%', opacity: 0,
           transform: 'translate(-50%,0)', whiteSpace: 'nowrap',
-          fontSize: 'clamp(28px,4.6vw,62px)', fontWeight: 700, letterSpacing: '.42em',
-          color: '#fff', textShadow: `0 0 26px ${ACCENT}`, paddingLeft: '.42em',
+          fontSize: 'clamp(28px,4.6vw,62px)', fontWeight: 700,
+          color: '#fff',
         }}>
-          GAMECORE
+          GameCore
         </div>
 
         <div ref={flash} style={{

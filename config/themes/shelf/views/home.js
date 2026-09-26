@@ -75,7 +75,7 @@ export const createHomeView = (sdk, accent) => {
       return html`
         <div key=${sy.id} class=${big ? 'cz-tile' : 'cz-mini'}
              data-on=${on ? '1' : '0'} data-empty=${empty ? '1' : '0'}
-             style=${{ '--sys': sy.color || '#7c3aed' }}
+             style=${{ '--sys': sy.color || '#5b6470' }}
              onClick=${() => { if (cell.p === page) onActivate(cell.focus); else onPage(cell.p) }}>
           <div class="cz-tile-art">
             ${file
@@ -137,7 +137,7 @@ export const createHomeView = (sdk, accent) => {
              buttons on the right, so both screens are read the same way. -->
         <div class="cz-foot">
           <div class="cz-count">
-            ${totals.games} games across ${totals.systems} systems · ${totals.hours}h played
+            ${totals.games} games on ${totals.systems} systems, ${totals.hours} h played
           </div>
           <div class="cz-keys">
             <${PadKey} k="← →" /><span>Move</span>

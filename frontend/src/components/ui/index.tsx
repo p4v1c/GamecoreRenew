@@ -1,4 +1,5 @@
 import React from 'react'
+import contract from '../../../../electron/hud-tokens.json'
 
 // ── Colour helpers ────────────────────────────────────────────────────────────
 export function hexToRgb(hex: string): string {
@@ -35,7 +36,7 @@ export function Chip({ label, color = 'rgba(255,255,255,0.1)' }: { label: string
     <span style={{
       padding: '3px 9px', borderRadius: 6,
       background: `${color}28`, border: `1px solid ${color}50`,
-      fontSize: 11, fontWeight: 600, color,
+      fontSize: 14, fontWeight: 600, color,
     }}>{label}</span>
   )
 }
@@ -47,7 +48,7 @@ export function Toggle({ label, value, onChange }: { label: string; value: boole
       <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)' }}>{label}</span>
       <div onClick={() => onChange(!value)} style={{
         width: 46, height: 25, borderRadius: 13, cursor: 'pointer',
-        background: value ? 'var(--gc-accent, #7c3aed)' : 'rgba(255,255,255,0.12)',
+        background: value ? 'var(--gc-accent, #b8501b)' : 'rgba(255,255,255,0.12)',
         position: 'relative', transition: 'background 0.2s',
       }}>
         <div style={{
@@ -61,14 +62,14 @@ export function Toggle({ label, value, onChange }: { label: string; value: boole
 }
 
 // ── Slider ────────────────────────────────────────────────────────────────────
-export function SliderRow({ label, value, onChange, color = 'var(--gc-accent, #7c3aed)' }: {
+export function SliderRow({ label, value, onChange, color = 'var(--gc-accent, #b8501b)' }: {
   label: string; value: number; onChange: (v: number) => void; color?: string
 }) {
   return (
     <div style={{ padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
         <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)' }}>{label}</span>
-        <span style={{ fontSize: 13, color: 'var(--gc-accent-soft, #a78bfa)' }}>{value}%</span>
+        <span style={{ fontSize: 15, color: 'var(--gc-accent-soft, #f2a46a)' }}>{value}%</span>
       </div>
       <input type="range" min={0} max={100} value={value} onChange={e => onChange(+e.target.value)}
         style={{ width: '100%', accentColor: color, cursor: 'pointer' }} />
@@ -92,6 +93,8 @@ export function SliderRow({ label, value, onChange, color = 'var(--gc-accent, #7
  * the Bluetooth list have to be the same lock.
  */
 export const GLYPHS: Record<string, string> = {
+  // Toast icons are shared with the Electron HUD: one definition, in its contract.
+  ...contract.icons,
   // Settings rows
   wifi:      'M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0M12 19.5h.01',
   audio:     'M11 5 6 9H3v6h3l5 4V5zM16 9a4 4 0 0 1 0 6M19 6.5a8 8 0 0 1 0 11',
@@ -115,7 +118,12 @@ export const GLYPHS: Record<string, string> = {
   restart:   'M3.6 12a8.4 8.4 0 1 0 2.7-6.2M3.6 4.6v4.6h4.6',
   power:     'M12 4v8M18.4 7a8 8 0 1 1-12.8 0',
   shutdown:  'M12 3.5v8.5M17.7 6.6a8 8 0 1 1-11.4 0',
-  gamepad:   'M8 11h.01M6.5 9.5v3M15.5 10.5h.01M17.5 12.5h.01M7 17h10a4 4 0 0 0 4-4 4 4 0 0 0-4-4H7a4 4 0 0 0-4 4 4 4 0 0 0 4 4z',
+  settings:  'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4',
+  bolt:      'M13 3 5.5 13.5H12L11 21l7.5-10.5H12z',
+  search:    'M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM15.3 15.3 20 20',
+  heart:     'M12 19.5s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7a4.3 4.3 0 0 1 7.5 2.5c0 5.4-7.5 10-7.5 10z',
+  sun:       'M12 16.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zM12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4',
+  moon:      'M19.5 14.5A8 8 0 1 1 9.5 4.5a6.5 6.5 0 0 0 10 10z',
 }
 
 /**
@@ -142,7 +150,7 @@ export function Bars({ signal }: { signal: number }) {
       {[1, 2, 3, 4].map(i => (
         <div key={i} style={{
           width: 3, height: 4 + i * 3, borderRadius: 1,
-          background: i <= filled ? 'var(--gc-accent-soft, #a78bfa)' : 'rgba(255,255,255,0.15)',
+          background: i <= filled ? 'var(--gc-accent-soft, #f2a46a)' : 'rgba(255,255,255,0.15)',
         }} />
       ))}
     </div>
@@ -186,7 +194,7 @@ export function Overlay({ onClose, children, width = 480 }: {
 }
 
 export function OverlayLabel({ text }: { text: string }) {
-  return <div style={{ fontSize: 10, letterSpacing: 3, color: 'rgba(255,255,255,0.3)', marginBottom: 20, fontWeight: 700 }}>{text}</div>
+  return <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginBottom: 20, fontWeight: 700 }}>{text}</div>
 }
 
 /**
@@ -200,10 +208,10 @@ export function BackHeader({ label, onBack, right }: {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
       <button onClick={onBack} style={{
-        cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: 22,
+        cursor: 'pointer', color: 'var(--gc-ink-3)', fontSize: 22,
         background: 'none', border: 'none', lineHeight: 1, padding: 0,
       }}>‹</button>
-      <span style={{ fontSize: 10, letterSpacing: 3, color: 'rgba(255,255,255,0.35)', fontWeight: 700 }}>{label}</span>
+      <span style={{ fontSize: 14, color: 'var(--gc-ink-3)', fontWeight: 700 }}>{label}</span>
       {right && <div style={{ marginLeft: 'auto' }}>{right}</div>}
     </div>
   )

@@ -118,7 +118,7 @@ export function useTheme(): ThemeState {
         return
       }
       if (isBlocked(id)) {
-        setSafeMode(id, 'it crashed repeatedly — loading was refused')
+        setSafeMode(id, 'it crashed repeatedly, so loading was refused')
         setSafe(getSafeMode())
         setSurfaces({}); setThemeId(null); setManifest(m)
         return

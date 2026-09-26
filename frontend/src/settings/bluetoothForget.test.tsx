@@ -101,7 +101,7 @@ describe('Forget, on a paired device', () => {
     await waitFor(() => expect(calls.some(c => c.method === 'DELETE')).toBe(true))
     expect(calls.find(c => c.method === 'DELETE')!.url)
       .toContain(`/settings/bluetooth/devices/${encodeURIComponent(PAD.mac)}`)
-    await waitFor(() => expect(container.textContent).toContain('forgotten — pair it again to reconnect'))
+    await waitFor(() => expect(container.textContent).toContain('forgotten. Pair it again to reconnect'))
     await waitFor(() => expect(container.textContent).toContain('Nothing is paired yet.'))
   })
 

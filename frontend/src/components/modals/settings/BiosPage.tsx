@@ -17,7 +17,7 @@ import { PadHints } from '../../../lib/padKey'
  * backend/tests/test_bios.py.
  */
 
-const ACCENT = 'var(--gc-accent, #7c3aed)'
+const ACCENT = 'var(--gc-accent, #b8501b)'
 const GOOD = '#4ade80'
 const BAD = '#f87171'
 const WARN = '#fbbf24'
@@ -25,12 +25,12 @@ const WARN = '#fbbf24'
 /** Colour and words for one file's line — required decides the severity. */
 function fileTone(f: BiosFile): { colour: string; text: string } {
   if (f.status === 'ok') {
-    return { colour: GOOD, text: f.verified ? 'present · md5 checked' : 'present' }
+    return { colour: GOOD, text: f.verified ? 'present, MD5 checked' : 'present' }
   }
   if (f.status === 'mismatch') {
     return { colour: f.required ? BAD : WARN, text: 'wrong md5' }
   }
-  return { colour: f.required ? BAD : WARN, text: f.required ? 'missing' : 'optional · not present' }
+  return { colour: f.required ? BAD : WARN, text: f.required ? 'missing' : 'optional, not present' }
 }
 
 function systemTone(s: BiosSystem): { colour: string; text: string } {
@@ -72,9 +72,9 @@ export function BiosPage({ onClose, onBack }: { onClose: () => void; onBack: () 
 
   return (
     <Overlay onClose={onClose}>
-      <BackHeader label="BIOS & SYSTEM FILES" onBack={onBack} />
+      <BackHeader label="BIOS & system files" onBack={onBack} />
 
-      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 14, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 15, color: 'var(--gc-ink-3)', marginBottom: 14, lineHeight: 1.5 }}>
         {error
           ? 'Could not read the BIOS status.'
           : broken.length === 0
@@ -98,11 +98,11 @@ export function BiosPage({ onClose, onBack }: { onClose: () => void; onBack: () 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: tone.colour, flexShrink: 0 }} />
               <div style={{ fontSize: 15, fontWeight: 600, color: '#fff', flex: 1 }}>{s.label}</div>
-              <div style={{ fontSize: 12, color: tone.colour, fontWeight: 600 }}>{tone.text}</div>
+              <div style={{ fontSize: 15, color: tone.colour, fontWeight: 600 }}>{tone.text}</div>
             </div>
 
             <div style={{
-              fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 6,
+              fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 6,
               fontFamily: 'monospace', wordBreak: 'break-all',
             }}>
               {s.dir}
@@ -114,25 +114,25 @@ export function BiosPage({ onClose, onBack }: { onClose: () => void; onBack: () 
                 <div key={f.file || '(any)'} style={{ marginTop: 8, paddingLeft: 21 }}>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
                     <span style={{
-                      fontSize: 13, fontFamily: 'monospace', color: '#fff', wordBreak: 'break-all',
+                      fontSize: 15, fontFamily: 'monospace', color: '#fff', wordBreak: 'break-all',
                     }}>
                       {/* An emulator that scans its directory pins no name, and
                           the screen must not invent one — the pack's note is
                           what says which images that emulator accepts. */}
                       {f.file || 'any image in this directory'}
                     </span>
-                    <span style={{ fontSize: 11, color: ft.colour, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 14, color: ft.colour, fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {ft.text}
                     </span>
                   </div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2, lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 2, lineHeight: 1.4 }}>
                     {f.note}
                   </div>
                   {f.status === 'mismatch' && (
                     // The hash they have, so support does not have to ask them
                     // to run md5sum over SSH to learn which dump this is.
-                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 3, fontFamily: 'monospace' }}>
-                      expected {f.expected_md5} · found {f.actual_md5}
+                    <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 3, fontFamily: 'monospace' }}>
+                      expected {f.expected_md5}, found {f.actual_md5}
                     </div>
                   )}
                 </div>
@@ -143,12 +143,12 @@ export function BiosPage({ onClose, onBack }: { onClose: () => void; onBack: () 
       })}
 
       {!error && rows.length === 0 && (
-        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textAlign: 'center', padding: 20 }}>
+        <div style={{ fontSize: 15, color: 'var(--gc-ink-3)', textAlign: 'center', padding: 20 }}>
           No system on this box needs a BIOS file.
         </div>
       )}
 
-      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
         <PadHints text="↑↓ Scroll · ○ Back" />
       </div>
     </Overlay>

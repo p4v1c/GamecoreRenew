@@ -106,7 +106,7 @@ export default function Screensaver() {
                     border: '1px solid rgba(255,255,255,0.08)',
                   }}
                 />
-                <div style={{ fontSize: 18, color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>
+                <div style={{ fontSize: 18, color: 'var(--gc-ink-3)', fontWeight: 600 }}>
                   {cover.name}
                 </div>
               </motion.div>
@@ -114,14 +114,14 @@ export default function Screensaver() {
           </AnimatePresence>
           <div style={{
             position: 'absolute', top: 48, right: 64,
-            fontSize: 64, fontWeight: 200, color: 'rgba(255,255,255,0.5)',
-            fontVariantNumeric: 'tabular-nums', letterSpacing: 2,
+            fontSize: 64, fontWeight: 200, color: 'var(--gc-ink-2)',
+            fontVariantNumeric: 'tabular-nums', 
           }}>
             {clock}
           </div>
           <div style={{
             position: 'absolute', bottom: 36, left: 0, right: 0, textAlign: 'center',
-            fontSize: 12, color: 'rgba(255,255,255,0.18)', letterSpacing: 2,
+            fontSize: 15, color: 'var(--gc-ink-3)', 
           }}>
             PRESS ANY BUTTON TO WAKE
           </div>

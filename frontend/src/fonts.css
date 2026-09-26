@@ -1,0 +1,23 @@
+/* The built-in UI's typeface, shipped with the bundle: the box is often
+   offline, and a font fetched from the internet is a font it does not have.
+   Source Sans 3 (SIL OFL 1.1, see assets/fonts/source-sans-3/OFL.txt),
+   subset to Latin + the pad glyphs. */
+@font-face {
+  font-family: 'Source Sans 3';
+  src: url('./assets/fonts/source-sans-3/SourceSans3-var.woff2') format('woff2');
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  src: url('./assets/fonts/source-sans-3/SourceSans3-Italic-var.woff2') format('woff2');
+  font-weight: 200 900;
+  font-style: italic;
+  font-display: swap;
+}
+:root {
+  --gc-font-ui: 'Source Sans 3', 'Noto Sans', system-ui, sans-serif;
+  --gc-font-code: ui-monospace, 'DejaVu Sans Mono', monospace;
+}
+html, body { font-family: var(--gc-font-ui); }

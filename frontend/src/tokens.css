@@ -1,0 +1,8 @@
+/* Text inks for the built-in UI, on its #09090f background and dark cards.
+   Nothing the player reads goes fainter than --gc-ink-3 (≥ 4.5:1 on every
+   card), and nothing goes below 14px: see frontend/src/DESIGN.md. */
+:root {
+  --gc-ink:   #fff;
+  --gc-ink-2: rgba(255, 255, 255, 0.78);
+  --gc-ink-3: rgba(255, 255, 255, 0.6);
+}

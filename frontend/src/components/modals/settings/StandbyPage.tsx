@@ -54,26 +54,26 @@ export function StandbyPage({ onClose, onBack }: { onClose: () => void; onBack: 
 
   const rowStyle = (i: number): React.CSSProperties => ({
     padding: '14px 18px', borderRadius: 12, marginBottom: 10, cursor: 'pointer',
-    background: focus === i ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 15%, transparent)' : 'rgba(255,255,255,0.04)',
-    border: focus === i ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 40%, transparent)' : '1px solid rgba(255,255,255,0.07)',
+    background: focus === i ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 15%, transparent)' : 'rgba(255,255,255,0.04)',
+    border: focus === i ? '1px solid color-mix(in srgb, var(--gc-accent, #b8501b) 40%, transparent)' : '1px solid rgba(255,255,255,0.07)',
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     transition: 'all 0.15s',
   })
 
   return (
     <Overlay onClose={onClose}>
-      <BackHeader label="STANDBY" onBack={onBack} />
+      <BackHeader label="Standby" onBack={onBack} />
 
       <div onClick={() => save({ enabled: !enabled })} style={rowStyle(0)}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>Standby mode</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', marginTop: 3 }}>
+          <div style={{ fontSize: 15, color: 'var(--gc-ink-3)', marginTop: 3 }}>
             Slideshow, then screen off when idle — SSH and updates stay active. Any controller button wakes the box.
           </div>
         </div>
         <div style={{
           width: 46, height: 26, borderRadius: 13, position: 'relative', flexShrink: 0, transition: 'background 0.2s',
-          background: enabled ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 80%, transparent)' : 'rgba(255,255,255,0.12)',
+          background: enabled ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 80%, transparent)' : 'rgba(255,255,255,0.12)',
         }}>
           <div style={{ position: 'absolute', top: 3, left: enabled ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
         </div>
@@ -87,15 +87,15 @@ export function StandbyPage({ onClose, onBack }: { onClose: () => void; onBack: 
           <div key={label} style={rowStyle(i)}>
             <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>{label}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 18 }}>‹</span>
-              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--gc-accent-bright, #c4b5fd)', minWidth: 70, textAlign: 'center' }}>{mins} min</span>
-              <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 18 }}>›</span>
+              <span style={{ color: 'var(--gc-ink-3)', fontSize: 18 }}>‹</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--gc-accent-bright, #f8cfa9)', minWidth: 70, textAlign: 'center' }}>{mins} min</span>
+              <span style={{ color: 'var(--gc-ink-3)', fontSize: 18 }}>›</span>
             </div>
           </div>
         ))}
       </div>
 
-      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
         <PadHints text="↑↓ Select · ←→ Adjust · ✕ Toggle · ○ Back" />
       </div>
     </Overlay>

@@ -22,7 +22,7 @@ export function createTopBar(sdk, tabs, systemsRef) {
               onClick=${() => tabs.go('home', systemsRef.current)}>
         <svg viewBox="0 0 36 36" aria-hidden="true"><path
           d="M19 3 5 11v15l13 8 13-8V15H18v7h6v1l-6 4-6-4V15l10-6z" fill="currentColor" /></svg>
-        <span>GAMECORE<i>ORBIT</i></span>
+        <span>GameCore<i>Orbit</i></span>
       </button>
       <nav className="navigation" aria-label="Main navigation">
         ${TABS.map(([id, label]) => html`<button key=${id}

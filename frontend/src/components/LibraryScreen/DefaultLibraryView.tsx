@@ -32,7 +32,7 @@ export default function DefaultLibraryView({
       }}>
         <button onClick={onBack} style={{
           cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-          color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: 500,
+          color: 'var(--gc-ink-2)', fontSize: 15, fontWeight: 500,
           padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',
           background: 'transparent',
         }}>‹ Home</button>
@@ -49,7 +49,7 @@ export default function DefaultLibraryView({
             <div style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>
               {system?.label || system?.platform || systemId}
             </div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
+            <div style={{ fontSize: 14, color: 'var(--gc-ink-3)' }}>
               {totalCount} games
             </div>
           </div>
@@ -64,7 +64,7 @@ export default function DefaultLibraryView({
           placeholder="Search..."
           style={{
             background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 8, padding: '6px 12px', color: '#fff', fontSize: 13,
+            borderRadius: 8, padding: '6px 12px', color: '#fff', fontSize: 15,
             outline: 'none', width: 160,
           }}
         />
@@ -73,9 +73,9 @@ export default function DefaultLibraryView({
         <div style={{ display: 'flex', gap: 6 }}>
           {sortKeys.map(v => (
             <button key={v} onClick={() => onSort(v)} style={{
-              padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 500,
+              padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 15, fontWeight: 500,
               background: sort === v ? `rgba(${rgb},0.2)` : 'transparent',
-              color: sort === v ? color : 'rgba(255,255,255,0.35)',
+              color: sort === v ? color : 'var(--gc-ink-3)',
               border: sort === v ? `1px solid ${color}50` : '1px solid transparent',
               transition: 'all 0.15s',
             }}>{sortLabels[v]}</button>
@@ -88,20 +88,20 @@ export default function DefaultLibraryView({
         {/* Left: game list */}
         <div style={{ width: 340, flexShrink: 0, overflowY: 'auto', borderRight: '1px solid rgba(255,255,255,0.06)', background: 'rgba(9,9,15,0.3)' }}>
           {loading && (
-            <div style={{ padding: 32, textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 14 }}>
+            <div style={{ padding: 32, textAlign: 'center', color: 'var(--gc-ink-3)', fontSize: 14 }}>
               Loading…
             </div>
           )}
           {!loading && loadError && (
             <div style={{ padding: 32, textAlign: 'center' }}>
-              <div style={{ color: 'rgba(255,80,80,0.8)', fontSize: 13, marginBottom: 14 }}>
+              <div style={{ color: 'rgba(255,80,80,0.8)', fontSize: 15, marginBottom: 14 }}>
                 Could not reach backend
               </div>
               <button
                 onClick={onRetry}
                 style={{
                   padding: '8px 18px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)',
-                  background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 13, cursor: 'pointer',
+                  background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 15, cursor: 'pointer',
                 }}
               >
                 Retry
@@ -109,7 +109,7 @@ export default function DefaultLibraryView({
             </div>
           )}
           {!loading && !loadError && games.length === 0 && (
-            <div style={{ padding: 32, textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 14 }}>
+            <div style={{ padding: 32, textAlign: 'center', color: 'var(--gc-ink-3)', fontSize: 14 }}>
               {totalCount === 0 ? 'No ROMs found' : 'No results'}
             </div>
           )}
@@ -130,19 +130,19 @@ export default function DefaultLibraryView({
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
+                    fontSize: 15, fontWeight: 600, whiteSpace: 'nowrap',
                     overflow: 'hidden', textOverflow: 'ellipsis',
-                    color: isSel ? '#fff' : 'rgba(255,255,255,0.85)',
+                    color: isSel ? '#fff' : 'var(--gc-ink-2)',
                   }}>{formatGameName(g.display_name)}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>
+                  <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 3 }}>
                     {g.ext}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: isSel ? color : 'rgba(255,255,255,0.4)' }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: isSel ? color : 'var(--gc-ink-3)' }}>
                     {pt && pt.total_secs > 0 ? fmtTime(pt.total_secs) : '—'}
                   </div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>
+                  <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 2 }}>
                     {pt?.last_played ? fmtDate(pt.last_played) : ''}
                   </div>
                 </div>
@@ -188,8 +188,8 @@ export default function DefaultLibraryView({
 
                   {/* Info */}
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: 3, marginBottom: 8 }}>
-                      {(system?.label || system?.platform || systemId).toUpperCase()}
+                    <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginBottom: 8 }}>
+                      {system?.label || system?.platform || systemId}
                     </div>
                     <h2 style={{ fontSize: 30, fontWeight: 900, letterSpacing: -0.5, lineHeight: 1.1, marginBottom: 16 }}>
                       {formatGameName(detailGame.display_name)}
@@ -197,12 +197,12 @@ export default function DefaultLibraryView({
                     <Meta systemId={systemId} filename={detailGame.filename} extChip={<Chip label={detailGame.ext} color={color} />} color={color} />
                     <div style={{ display: 'flex', gap: 24, marginBottom: 28 }}>
                       {[
-                        { l: 'Play Time', v: fmtTime(playtime[detailGame.filename]?.total_secs || 0) },
-                        { l: 'Last Played', v: fmtDate(playtime[detailGame.filename]?.last_played || null) },
+                        { l: 'Play time', v: fmtTime(playtime[detailGame.filename]?.total_secs || 0) },
+                        { l: 'Last played', v: fmtDate(playtime[detailGame.filename]?.last_played || null) },
                       ].map(s => (
                         <div key={s.l}>
-                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: 2, marginBottom: 4 }}>{s.l.toUpperCase()}</div>
-                          <div style={{ fontSize: 17, fontWeight: 700, color: '#c4b5fd' }}>{s.v}</div>
+                          <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginBottom: 4 }}>{s.l}</div>
+                          <div style={{ fontSize: 17, fontWeight: 700, color: '#f8cfa9' }}>{s.v}</div>
                         </div>
                       ))}
                     </div>
@@ -220,7 +220,7 @@ export default function DefaultLibraryView({
                         opacity: launching ? 0.7 : 1,
                       }}
                     >
-                      {launching ? '⏳ Launching...' : '▶ Play'}
+                      {launching ? 'Launching…' : 'Play'}
                     </button>
                   </div>
                 </div>
@@ -235,7 +235,7 @@ export default function DefaultLibraryView({
         display: 'flex', justifyContent: 'flex-end', padding: '8px 24px',
         borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(9,9,15,0.5)',
       }}>
-        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.15)' }}>
+        <span style={{ fontSize: 14, color: 'var(--gc-ink-3)' }}>
           <PadHints text="↑↓ Navigate · ✕ Play · △ Search · □ Controller · L1/R1 Sort · R2 Options · ○ Back" />
         </span>
       </div>

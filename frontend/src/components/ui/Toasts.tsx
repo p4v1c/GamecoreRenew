@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, type ComponentType } from 'react'
+import { GLYPHS, Glyph } from '.'
 import { motion, AnimatePresence } from 'framer-motion'
 import { onWsEvent } from '../../hooks/useWebSocket'
 import { useStore } from '../../store'
@@ -80,10 +81,10 @@ function useToastQueue() {
       // it is clickable and reachable from the pad.
       if (connected && d.unmapped === true) {
         push({
-          icon: '🕹️',
+          icon: 'gamepad',
           title: `${who} is not recognised`,
           body: `${label || 'This controller'} is not in any controller `
-              + 'database, so emulators cannot bind it. Map it once — about a '
+              + 'database, so emulators cannot bind it. Map it once: about a '
               + 'minute, no keyboard.',
           accent: '#fbbf24', tone: 'warning',
           action: { label: 'Map it now', run: () => useStore.getState().requestRemap() },
@@ -120,7 +121,7 @@ function useToastQueue() {
           return
         }
         push({
-          icon: '🎮',
+          icon: 'gamepad',
           title: `${who} was not configured`,
           body,
           accent: '#fbbf24', tone: 'warning',
@@ -148,7 +149,7 @@ function useToastQueue() {
           return
         }
         push({
-          icon: '⚠️',
+          icon: 'warning',
           title: `${who} is not set up for ${unconfigured.join(', ')}`,
           body: `It works everywhere else, but ${unconfigured.length === 1
             ? 'that system'
@@ -163,7 +164,7 @@ function useToastQueue() {
         return
       }
       push({
-        icon: '🎮',
+        icon: 'gamepad',
         title: `${who} ${connected ? 'connected' : 'disconnected'}`,
         body: label,
         accent: connected ? '#4ade80' : '#94a3b8', tone: connected ? 'connected' : 'disconnected',
@@ -177,7 +178,7 @@ function useToastQueue() {
     const offFailed = onWsEvent('game:failed', (d) => {
       const detail = typeof d.detail === 'string' ? d.detail : ''
       push({
-        icon: '⚠️',
+        icon: 'warning',
         title: 'Could not start the game',
         body: detail || 'The emulator could not be launched',
         accent: '#ef4444', tone: 'battery-5',
@@ -193,7 +194,7 @@ function useToastQueue() {
       const detail = typeof d.detail === 'string' ? d.detail : ''
       if (!detail) return
       push({
-        icon: 'ℹ️',
+        icon: 'info',
         title: 'Before the game starts',
         body: detail,
         accent: '#60a5fa', tone: 'battery-25',
@@ -255,7 +256,7 @@ export function DefaultToastsView({ toasts, onDismiss }: ToastsViewProps) {
                 width: themed ? 40 : 36, height: themed ? 40 : 36, borderRadius: themed ? 10 : 9, flexShrink: 0,
                 background: themed && t.accent.length === 7 ? `${t.accent}33` : wash, display: 'flex',
                 alignItems: 'center', justifyContent: 'center', fontSize: themed ? 20 : 18,
-              }}>{t.icon}</div>
+              }}>{GLYPHS[t.icon] ? <Glyph name={t.icon} size={themed ? 22 : 20} /> : t.icon}</div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: themed ? 20 : 13, fontWeight: 700, color: t.accent }}>{t.title}</div>
                 <div style={{ fontSize: themed ? 18 : 12, color: theme.text || (themed ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.65)'), marginTop: themed ? 3 : 2 }}>{t.body}</div>

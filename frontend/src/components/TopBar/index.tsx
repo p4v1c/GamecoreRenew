@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Glyph } from '../ui'
 import { api, SysInfo } from '../../api'
 import { onWsEvent } from '../../hooks/useWebSocket'
 import logo from '../../assets/logo.png'
@@ -21,7 +22,7 @@ export function ControllerBattery({ player, level, charging }: { player?: number
       </svg>
       {/* Console-style slot from the backend controller registry */}
       {player != null && (
-        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: 700, fontFamily: 'monospace' }}>
+        <span style={{ fontSize: 14, color: 'var(--gc-ink-2)', fontWeight: 700, fontFamily: 'monospace' }}>
           P{player}
         </span>
       )}
@@ -34,8 +35,8 @@ export function ControllerBattery({ player, level, charging }: { player?: number
         {/* Terminal nub */}
         <div style={{ width: 2, height: 5, background: 'rgba(255,255,255,0.25)', borderRadius: '0 1px 1px 0', flexShrink: 0 }} />
       </div>
-      <span style={{ fontSize: 11, color, fontWeight: 700, fontFamily: 'monospace', minWidth: 28 }}>
-        {charging && '⚡'}{level}%
+      <span style={{ fontSize: 14, color, fontWeight: 700, fontFamily: 'monospace', minWidth: 28 }}>
+        {charging && <Glyph name="bolt" size={12} width={2} />}{level}%
       </span>
     </div>
   )
@@ -52,11 +53,11 @@ function TBtn({ icon, label, color, onClick }: { icon: string; label: string; co
         display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
         borderRadius: 8, cursor: 'pointer', border: hovered ? `1px solid ${color}50` : '1px solid transparent',
         background: hovered ? `${color}18` : 'transparent',
-        color: hovered ? color : 'rgba(255,255,255,0.45)',
-        fontSize: 13, fontWeight: 500, transition: 'all 0.15s',
+        color: hovered ? color : 'var(--gc-ink-2)',
+        fontSize: 15, fontWeight: 500, transition: 'all 0.15s',
       }}
     >
-      <span>{icon}</span> {label}
+      <Glyph name={icon} size={15} /> {label}
     </button>
   )
 }
@@ -121,7 +122,7 @@ export default function TopBar({ onSettings, onPower }: Props) {
   }, [])
 
   const usedPct = sysInfo ? Math.round((sysInfo.storage_used_gb / sysInfo.storage_total_gb) * 100) : 0
-  const barColor = usedPct > 85 ? '#ef4444' : usedPct > 65 ? '#fbbf24' : '#a78bfa'
+  const barColor = usedPct > 85 ? '#ef4444' : usedPct > 65 ? '#fbbf24' : '#f2a46a'
 
   return (
     <div style={{
@@ -134,9 +135,9 @@ export default function TopBar({ onSettings, onPower }: Props) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0 }}>
         <img src={logo} alt="" style={{
           width: 30, height: 30, objectFit: 'contain',
-          filter: 'drop-shadow(0 0 8px rgba(124,58,237,0.45))',
+          filter: 'drop-shadow(0 0 8px rgba(184,80,27,0.45))',
         }} />
-        <span style={{ fontSize: 16, fontWeight: 900, letterSpacing: -0.5 }}>GAMECORE</span>
+        <span style={{ fontSize: 16, fontWeight: 900, letterSpacing: -0.5 }}>GameCore</span>
       </div>
 
       <div style={{ flex: 1 }} />
@@ -147,7 +148,7 @@ export default function TopBar({ onSettings, onPower }: Props) {
           <>
             {/* IP */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 7, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace' }}>{sysInfo.ip}</span>
+              <span style={{ fontSize: 14, color: 'var(--gc-ink-3)', fontFamily: 'monospace' }}>{sysInfo.ip}</span>
             </div>
 
             {/* Storage */}
@@ -155,7 +156,7 @@ export default function TopBar({ onSettings, onPower }: Props) {
               <div style={{ width: 60, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.1)' }}>
                 <div style={{ width: `${usedPct}%`, height: '100%', borderRadius: 2, background: barColor, transition: 'width 0.3s' }} />
               </div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>
+              <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 3 }}>
                 {sysInfo.storage_used_gb}G / {sysInfo.storage_total_gb}G
               </div>
             </div>
@@ -168,9 +169,9 @@ export default function TopBar({ onSettings, onPower }: Props) {
         )}
 
         <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.08)' }} />
-        <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>{time}</span>
-        <TBtn icon="⚙" label="Settings" color="#7c3aed" onClick={onSettings} />
-        <TBtn icon="⏻" label="Power" color="#ef4444" onClick={onPower} />
+        <span style={{ fontSize: 15, color: 'var(--gc-ink-3)', fontWeight: 500 }}>{time}</span>
+        <TBtn icon="settings" label="Settings" color="#b8501b" onClick={onSettings} />
+        <TBtn icon="power" label="Power" color="#ef4444" onClick={onPower} />
       </div>
     </div>
   )

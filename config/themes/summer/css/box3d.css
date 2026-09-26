@@ -129,7 +129,7 @@
   letter-spacing: 0.14em; color: var(--foam-400); margin-bottom: 10px;
 }
 .sm-lib-name {
-  font-family: 'Outfit', sans-serif; font-size: 56px; line-height: 60px; font-weight: 700;
+  font-family: var(--font-body); font-size: 56px; line-height: 60px; font-weight: 700;
   margin-bottom: 18px; text-wrap: balance;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
@@ -152,11 +152,11 @@
   display: flex; gap: 34px; margin: 26px 0 0; text-align: center;
 }
 .sm-lib-stats span {
-  display: block; font-size: 13px; font-weight: 600; letter-spacing: 0.14em;
+  display: block; font-size: 14px; font-weight: 600; letter-spacing: 0.14em;
   color: var(--foam-400); margin-bottom: 6px;
 }
 .sm-lib-stats b {
-  font-family: 'JetBrains Mono', monospace; font-size: 26px; line-height: 28px; font-weight: 500;
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 26px; line-height: 28px; font-weight: 500;
 }
 /* Directly under the two figures it belongs with, not pinned to the floor.
  * `margin-top: auto` pushed it to the bottom of the column, which made sense

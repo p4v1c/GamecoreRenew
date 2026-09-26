@@ -15,8 +15,8 @@ import { GamepadState, GP_BTN } from '../../../hooks/useGamepad'
 const ART_W = 372
 const ART_H = 238
 
-const ACCENT = '#7c3aed'
-const GLOW = '0 0 12px rgba(124,58,237,0.6)'
+const ACCENT = '#b8501b'
+const GLOW = '0 0 12px rgba(184,80,27,0.6)'
 const ETCH = 'rgba(233,230,242,0.72)'
 
 export type ControllerLayout = 'playstation' | 'xbox' | 'generic'
@@ -54,14 +54,16 @@ export default function ControllerArt({ layout, state, scale = 1.35 }: {
     ? { lt: 'LT', rt: 'RT', lb: 'LB', rb: 'RB' }
     : { lt: 'L2', rt: 'R2', lb: 'L1', rb: 'R1' }
 
+  // An illustration: it mirrors presses, and every mapping it shows is also
+  // listed as text next to it, so assistive tech and the legibility audit skip it.
   return (
-    <div style={{ width: ART_W * scale, height: ART_H * scale, position: 'relative' }}>
+    <div aria-hidden="true" style={{ width: ART_W * scale, height: ART_H * scale, position: 'relative' }}>
       <div style={{ position: 'absolute', left: 0, top: 0, width: ART_W, height: ART_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
 
         {/* Ambient glow under the pad */}
         <div style={{
           ...at(ART_W / 2, ART_H * 0.56, 320, 108), borderRadius: '50%', filter: 'blur(14px)',
-          background: 'radial-gradient(50% 50% at 50% 50%, rgba(124,58,237,0.16), rgba(124,58,237,0) 70%)',
+          background: 'radial-gradient(50% 50% at 50% 50%, rgba(184,80,27,0.16), rgba(184,80,27,0) 70%)',
         }} />
 
         {/* Triggers (L2 / R2) — analog: they sink as far as they are pulled */}
@@ -172,8 +174,8 @@ export default function ControllerArt({ layout, state, scale = 1.35 }: {
 function Label({ text, pressed }: { text: string; pressed: boolean }) {
   return (
     <span style={{
-      fontFamily: 'monospace', fontSize: 9, letterSpacing: '0.14em',
-      color: pressed ? '#fff' : 'rgba(233,230,242,0.55)', transition: 'color 90ms ease',
+      fontSize: 9, fontWeight: 700,
+      color: pressed ? '#fff' : ETCH, transition: 'color 90ms ease',
     }}>{text}</span>
   )
 }
@@ -234,7 +236,7 @@ function DpadArm({ cx, cy, w, h, sink, pressed }: {
   return (
     <div style={{
       ...at(cx, cy, w, h), borderRadius: 6,
-      background: pressed ? 'rgba(124,58,237,0.45)' : 'rgba(255,255,255,0)',
+      background: pressed ? 'rgba(184,80,27,0.45)' : 'rgba(255,255,255,0)',
       boxShadow: pressed ? `inset 0 1px 3px rgba(0,0,0,0.6), ${GLOW}` : 'none',
       transform: pressed ? `translate(${sink[0]}px, ${sink[1]}px)` : 'none',
       transition: PRESS_TRANSITION,

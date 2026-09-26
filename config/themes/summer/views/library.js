@@ -173,15 +173,15 @@ export const createLibraryView = (sdk) => {
                             media=${media} color=${color} Cover=${Cover} />
                 </div>
                 <div class="sm-lib-stats">
-                  <div><span>PLAY TIME</span><b>${fmt(pt?.total_secs)}</b></div>
-                  <div><span>LAST PLAYED</span><b>${date(pt?.last_played) || '—'}</b></div>
+                  <div><span>Play time</span><b>${fmt(pt?.total_secs)}</b></div>
+                  <div><span>Last played</span><b>${date(pt?.last_played) || '—'}</b></div>
                 </div>
                 <button class="sm-lib-play" data-busy=${launching ? '1' : '0'} onClick=${onLaunch}>
-                  ${launching ? '⏳ Launching…' : '▶ Play'}
+                  ${launching ? 'Launching…' : 'Play'}
                 </button>
               </div>
               <div class="sm-lib-info">
-                <div class="sm-lib-sys">${(system?.label || system?.platform || systemId).toUpperCase()}</div>
+                <div class="sm-lib-sys">${system?.label || system?.platform || systemId}</div>
                 <h2 class="sm-lib-name">${clean(detailGame.display_name)}</h2>
                 <${Meta} systemId=${systemId} filename=${detailGame.filename}
                          color=${CHIP_INK} extChip=${html`<span class="sm-lib-chip">${detailGame.ext}</span>`} />

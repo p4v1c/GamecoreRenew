@@ -1,0 +1,26 @@
+/* Legibility floor, loaded last. Orbit's labels were drawn at 8-12px, which
+   reads on a monitor and not from a sofa: nothing the player reads goes under
+   14px at 1080p, hints get 16px. `.orbit-app` + the original selector outranks
+   every earlier rule, media queries included. */
+.orbit-app :is(.console-footer .footer-status, .home-rail-controls > span, .home-service-art > span,
+  .brand i, .eyebrow, .page-heading .eyebrow, .center-top .eyebrow, .platform,
+  .rail-heading, .rail-heading > span, .rail-heading > span:first-child, .topbar-ip,
+  .session-menu-body > .eyebrow, .session-menu-header .eyebrow, .keyboard-heading .eyebrow,
+  .application-copy > .eyebrow, .controller-info > .eyebrow, .launch-dialog .eyebrow,
+  .app-launch-dialog > .eyebrow, .session-close-dialog .eyebrow, .session-screen-copy > .eyebrow) {
+  font-size: 14px;
+}
+.orbit-app .console-footer .keyboard-hints { font-size: 16px; }
+.orbit-app .brand > span { font-size: 16px; }
+
+/* The primary button is near-white: the host's pale pad colours vanish on it. */
+.orbit-app .primary-button {
+  --gc-pad-cross: #2A55B8; --gc-pad-circle: #C0303C;
+  --gc-pad-square: #A8307E; --gc-pad-triangle: #0F6E52;
+}
+
+/* Controller screen. */
+.orbit-app :is(.device-row > span > small, .device-row > span > strong, .mock-footnote,
+  .center-top .sample-badge, .control-center .secondary-button, .controller-mappings > div > span) {
+  font-size: 14px;
+}

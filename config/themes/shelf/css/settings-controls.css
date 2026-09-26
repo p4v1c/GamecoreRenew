@@ -129,7 +129,7 @@
    screen's footer, because it describes two buttons that exist only while it
    is up. */
 .gcs-count-hints {
-  color: rgba(23, 23, 26, 0.42);
+  color: var(--set-ink-3);
 }
 
 /* ── the game search keyboard ─────────────────────────────────────────────

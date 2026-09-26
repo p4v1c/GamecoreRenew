@@ -5,7 +5,7 @@
 .sm-home {
   flex: 1; display: flex; flex-direction: column; gap: 24px;
   padding: 8px 48px 24px; overflow: hidden;
-  font-family: 'Figtree', 'Outfit', sans-serif; color: var(--foam-000);
+  font-family: var(--font-body); color: var(--foam-000);
 }
 
 /* Stats strip: one row, height 72, four equal cells. The brief draws 2px rules
@@ -14,7 +14,7 @@
 .sm-stats {
   display: grid; grid-template-columns: repeat(4, 1fr);
   height: 72px; flex-shrink: 0; gap: 2px;
-  border-radius: var(--r-panel); background: var(--glass-500);
+  border-radius: var(--r-panel); background: var(--glass-650);   /* 500 let the sky through: labels fell to 2:1 */
   /* On top of the column's 24px gap. The flex gap is uniform, and the grid
      needs to breathe under the strip more than the page dots do below it. */
   margin-bottom: 24px;
@@ -23,13 +23,13 @@
   display: flex; flex-direction: column; justify-content: center; gap: 3px;
   padding: 0 24px; min-width: 0;
 }
-.sm-stats span { font-size: 11px; letter-spacing: 0.2em; color: var(--foam-400); }
+.sm-stats span { font-size: 14px; color: var(--foam-200); }
 .sm-stats b {
-  font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 600;
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 26px; font-weight: 600;
 }
 /* The fourth cell holds a title, not a number: display face, one line. */
 .sm-stat-title {
-  font-family: 'Outfit', sans-serif !important; font-size: 22px !important;
+  font-family: var(--font-body) !important; font-size: 22px !important;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
@@ -77,7 +77,7 @@
 }
 .sm-tile {
   position: relative; border-radius: var(--r-panel); padding: 24px;
-  background: rgba(12, 26, 33, 0.78);  /* --glass-700 + 0.12: no per-tile blur */
+  background: rgba(12, 26, 33, 0.86);  /* no per-tile blur; opaque enough for its text over bright sand */
   overflow: hidden;
   display: flex; flex-direction: column; justify-content: space-between;
   box-shadow: 0 10px 28px rgba(4, 12, 18, 0.34);
@@ -89,7 +89,6 @@
 
 /* Focus. The brief asks for four simultaneous signals — scale, ring, caret,
    weight — never colour alone, because colour is what a TV washes out. */
-.sm-grid:has(.sm-tile[data-on="1"]) .sm-tile:not([data-on="1"]) { opacity: 0.82; }
 .sm-tile[data-on="1"] {
   background: rgba(12, 26, 33, 0.94);
   box-shadow: 0 0 0 3px var(--accent-mandarin),
@@ -111,7 +110,7 @@
   width: 64px; height: 64px; border-radius: var(--r-tile); flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: 22px; color: var(--foam-000);
-  font-family: 'Outfit', sans-serif; letter-spacing: 0.04em;
+  font-family: var(--font-body); letter-spacing: 0.04em;
   background: color-mix(in srgb, var(--tile-accent) 22%, transparent);
   padding: 4px;
 }
@@ -128,7 +127,7 @@
   background: var(--accent-mandarin); color: var(--ink-900);
 }
 .sm-tile-name {
-  font-family: 'Outfit', sans-serif; font-size: 24px; line-height: 30px;
+  font-family: var(--font-body); font-size: 24px; line-height: 30px;
   font-weight: 600; max-height: 60px; overflow: hidden;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   text-wrap: pretty;
@@ -152,9 +151,10 @@
 }
 .sm-dot[data-on="1"] { width: 24px; background: var(--accent-mandarin); }
 
+/* The hint sits over sand, so it gets the same glass as the chips. */
 .sm-hint {
-  text-align: center; font-size: 12px; color: var(--foam-400);
-  letter-spacing: 0.04em; flex-shrink: 0;
+  width: fit-content; margin-inline: auto; padding: 8px 18px; border-radius: var(--r-chip);
+  background: var(--glass-650); font-size: 16px; color: var(--foam-200); flex-shrink: 0;
 }
 
 /* ── decor: dune foreground ──────────────────────────────────────────────── */

@@ -110,7 +110,7 @@ describe('what is gone from both screens', () => {
   it('opens Shelf on Wi-Fi', async () => {
     const { container } = await screen({ pager: true, detail: 'inline' })
     await waitFor(() => expect(container.querySelector('.gcs-set-page')?.getAttribute('data-cat')).toBe('wifi'))
-    expect(text(container)).toContain('PAGE 01 / CONNECTIONS')
+    expect(text(container)).toContain('Page 1, Connections')
   })
 })
 

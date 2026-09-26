@@ -51,7 +51,7 @@
   --gc-hud-text: #36333c;
   --gc-hud-radius: 14px;
   --gc-hud-blur: 0px;
-  --gc-hud-font: Outfit, system-ui, sans-serif;
+  --gc-hud-font: Archivo, Noto Sans, sans-serif;
   --gc-hud-connected: #226342;
   --gc-hud-disconnected: #55535c;
   --gc-hud-warning: #805400;

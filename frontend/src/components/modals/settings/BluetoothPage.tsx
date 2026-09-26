@@ -119,7 +119,7 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
   const pairDevice = async (d: BtDevice) => {
     if (op) return
     setOp('pair'); setOpMac(d.mac)
-    setMsg(`Pairing with ${d.name} — keep it in pairing mode…`); setMsgError(false)
+    setMsg(`Pairing with ${d.name}. Keep it in pairing mode.`); setMsgError(false)
     try {
       const r = await api.bluetooth.pair(d.mac)
       setMsg(r.message || (r.ok ? 'Paired' : 'Pairing failed'))
@@ -134,13 +134,13 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
   const scan = async () => {
     if (op) return
     setOp('scan'); setMsgError(false)
-    setMsg('Looking for devices — put yours in pairing mode now…')
+    setMsg('Looking for devices. Put yours in pairing mode now.')
     try {
       const r = await api.bluetooth.scan()
       setFound(r.found ?? [])
       setMsg((r.found ?? []).length
         ? `Found ${r.found.length} device(s) not yet paired`
-        : 'Nothing new in range — hold the pairing button and scan again')
+        : 'Nothing new in range. Hold the pairing button and scan again.')
     } catch {
       setMsg('Scan failed'); setMsgError(true)
     }
@@ -170,7 +170,7 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
 
   return (
     <Overlay onClose={onClose}>
-      <BackHeader label="BLUETOOTH" onBack={onBack} />
+      <BackHeader label="Bluetooth" onBack={onBack} />
 
       {/* Scan button */}
       <button
@@ -179,32 +179,32 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
         disabled={busy}
         style={{
           width: '100%', marginBottom: 14, padding: '10px 16px', borderRadius: 10,
-          background: op === 'scan' ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 30%, transparent)'
-            : focusIdx === SCAN_SLOT ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 24%, transparent)'
-            : 'color-mix(in srgb, var(--gc-accent, #7c3aed) 15%, transparent)',
-          border: `1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) ${focusIdx === SCAN_SLOT ? 75 : 40}%, transparent)`,
-          color: 'var(--gc-accent-bright, #c4b5fd)',
-          cursor: busy ? 'default' : 'pointer', fontSize: 13, fontWeight: 600,
+          background: op === 'scan' ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 30%, transparent)'
+            : focusIdx === SCAN_SLOT ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 24%, transparent)'
+            : 'color-mix(in srgb, var(--gc-accent, #b8501b) 15%, transparent)',
+          border: `1px solid color-mix(in srgb, var(--gc-accent, #b8501b) ${focusIdx === SCAN_SLOT ? 75 : 40}%, transparent)`,
+          color: 'var(--gc-accent-bright, #f8cfa9)',
+          cursor: busy ? 'default' : 'pointer', fontSize: 15, fontWeight: 600,
           opacity: busy && op !== 'scan' ? 0.5 : 1,
         }}
       >
-        {op === 'scan' ? '⏳ Scanning…' : '🔍 Scan for devices'}
+        {op === 'scan' ? 'Scanning…' : 'Scan for devices'}
       </button>
 
       {/* Status message */}
       {msg && (
-        <div style={{ fontSize: 13, marginBottom: 12, padding: '8px 12px', borderRadius: 8,
+        <div style={{ fontSize: 15, marginBottom: 12, padding: '8px 12px', borderRadius: 8,
           background: msgError ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)',
-          color: msgError ? '#f87171' : 'var(--gc-accent-soft, #a78bfa)', fontWeight: msgError ? 600 : 400 }}>
+          color: msgError ? '#f87171' : 'var(--gc-accent-soft, #f2a46a)', fontWeight: msgError ? 600 : 400 }}>
           {msg}
         </div>
       )}
 
       {/* Device list — paired first, then whatever the scan turned up. */}
       {loading ? (
-        <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, textAlign: 'center', padding: 16 }}>Loading…</div>
+        <div style={{ color: 'var(--gc-ink-3)', fontSize: 15, textAlign: 'center', padding: 16 }}>Loading…</div>
       ) : items.length === 0 ? (
-        <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, textAlign: 'center', padding: 16 }}>
+        <div style={{ color: 'var(--gc-ink-3)', fontSize: 15, textAlign: 'center', padding: 16 }}>
           No paired devices yet — put yours in pairing mode, then press ✕ on Scan above
         </div>
       ) : items.map((d, di) => {
@@ -213,14 +213,14 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
         // A heading before the first of each list, so "already yours" and "in
         // the room right now" are never mistaken for one another.
         const head = di === 0 || items[di - 1].paired !== d.paired
-        const label = d.paired ? 'PAIRED' : 'FOUND — NOT PAIRED YET'
+        const label = d.paired ? 'Paired' : 'Found, not paired yet'
 
         return (
           <div key={d.mac}>
             {head && (
               <div style={{
-                fontSize: 10, letterSpacing: 1.4, fontWeight: 700,
-                color: 'rgba(255,255,255,0.3)', margin: '10px 2px 6px',
+                fontSize: 15, fontWeight: 600,
+                color: 'var(--gc-ink-3)', margin: '10px 2px 6px',
               }}>
                 {label}
               </div>
@@ -233,21 +233,26 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '13px 16px', borderRadius: 12, marginBottom: 8,
                 cursor: busy ? 'default' : 'pointer',
-                background: isFocused ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 18%, transparent)' : d.connected ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 8%, transparent)' : 'rgba(255,255,255,0.04)',
-                border: isFocused ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 60%, transparent)' : d.connected ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 25%, transparent)' : '1px solid rgba(255,255,255,0.07)',
+                background: isFocused ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 18%, transparent)' : d.connected ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 8%, transparent)' : 'rgba(255,255,255,0.04)',
+                border: isFocused ? '1px solid color-mix(in srgb, var(--gc-accent, #b8501b) 60%, transparent)' : d.connected ? '1px solid color-mix(in srgb, var(--gc-accent, #b8501b) 25%, transparent)' : '1px solid rgba(255,255,255,0.07)',
                 opacity: busy && !isThisBusy ? 0.5 : 1,
                 transition: 'all 0.15s',
               }}
             >
-              <div style={{ fontSize: 20, width: 28, textAlign: 'center' }}>
-                {d.connected ? '🔵' : d.paired ? '⚪' : '✨'}
+              {/* Filled = connected, ring = paired, faint = only seen. Shape as well as colour. */}
+              <div style={{ width: 28, display: 'flex', justifyContent: 'center' }}>
+                <span style={{
+                  width: 10, height: 10, borderRadius: '50%',
+                  background: d.connected ? 'var(--gc-accent, #b8501b)' : 'transparent',
+                  border: `2px solid ${d.connected ? 'var(--gc-accent, #b8501b)' : d.paired ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.25)'}`,
+                }} />
               </div>
 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {d.name}
                 </div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
+                <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 2 }}>
                   {isThisBusy
                     ? (!d.paired ? 'Pairing…' : d.connected ? 'Disconnecting…' : 'Connecting…')
                     : (d.connected ? 'Connected' : d.mac)}
@@ -255,10 +260,10 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
               </div>
 
               <div style={{
-                fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6,
-                background: d.connected ? 'rgba(248,113,113,0.12)' : 'color-mix(in srgb, var(--gc-accent, #7c3aed) 20%, transparent)',
-                border: `1px solid ${d.connected ? 'rgba(248,113,113,0.3)' : 'color-mix(in srgb, var(--gc-accent, #7c3aed) 35%, transparent)'}`,
-                color: d.connected ? '#f87171' : 'var(--gc-accent-bright, #c4b5fd)',
+                fontSize: 14, fontWeight: 600, padding: '4px 10px', borderRadius: 6,
+                background: d.connected ? 'rgba(248,113,113,0.12)' : 'color-mix(in srgb, var(--gc-accent, #b8501b) 20%, transparent)',
+                border: `1px solid ${d.connected ? 'rgba(248,113,113,0.3)' : 'color-mix(in srgb, var(--gc-accent, #b8501b) 35%, transparent)'}`,
+                color: d.connected ? '#f87171' : 'var(--gc-accent-bright, #f8cfa9)',
               }}>
                 {isThisBusy ? '…' : !d.paired ? 'Pair' : d.connected ? 'Disconnect' : 'Connect'}
               </div>
@@ -268,7 +273,7 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
                 <div
                   onClick={e => removeDevice(e, d.mac)}
                   title="Remove device"
-                  style={{ fontSize: 16, color: 'rgba(255,255,255,0.2)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}
+                  style={{ fontSize: 16, color: 'var(--gc-ink-3)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}
                 >
                   ×
                 </div>
@@ -278,7 +283,7 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
         )
       })}
 
-      <div style={{ marginTop: 8, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
+      <div style={{ marginTop: 8, textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
         <PadHints text={`↑↓ Navigate · ✕ ${
           focusIdx === SCAN_SLOT ? 'Scan'
             : items[rowIdx(focusIdx)] && !items[rowIdx(focusIdx)].paired ? 'Pair'

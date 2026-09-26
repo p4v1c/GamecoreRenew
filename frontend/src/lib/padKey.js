@@ -10,15 +10,17 @@
  *
  * Inline SVG and inline styles only: it has to look the same on Orbit's dark
  * glass, Shelf's paper and Summer's beach, so outlines follow `currentColor`
- * and only the four face symbols carry their own colour.
+ * and only the four face symbols carry their own colour. The defaults are
+ * pale, for dark screens; a light theme sets `--gc-pad-cross`, `-circle`,
+ * `-square` and `-triangle` to darker ones (≥ 3:1 on its background).
  */
 import { createElement } from 'react'
 
 const FACE = {
-  '✕': ['#7aa7ff', '<path d="M8 8l8 8M16 8l-8 8" stroke-width="2.2" stroke-linecap="round"/>'],
-  '○': ['#ff6f76', '<circle cx="12" cy="12" r="4.6" fill="none" stroke-width="2.2"/>'],
-  '□': ['#f58fd6', '<rect x="7.6" y="7.6" width="8.8" height="8.8" rx="0.8" fill="none" stroke-width="2.2"/>'],
-  '△': ['#4fd1a5', '<path d="M12 7.2l5 8.6H7z" fill="none" stroke-width="2.1" stroke-linejoin="round"/>'],
+  '✕': ['var(--gc-pad-cross, #7aa7ff)', '<path d="M8 8l8 8M16 8l-8 8" stroke-width="2.2" stroke-linecap="round"/>'],
+  '○': ['var(--gc-pad-circle, #ff6f76)', '<circle cx="12" cy="12" r="4.6" fill="none" stroke-width="2.2"/>'],
+  '□': ['var(--gc-pad-square, #f58fd6)', '<rect x="7.6" y="7.6" width="8.8" height="8.8" rx="0.8" fill="none" stroke-width="2.2"/>'],
+  '△': ['var(--gc-pad-triangle, #4fd1a5)', '<path d="M12 7.2l5 8.6H7z" fill="none" stroke-width="2.1" stroke-linejoin="round"/>'],
 }
 
 // Which arms of the d-pad are lit.
@@ -45,8 +47,8 @@ function dpad(lit) {
 
 function face(symbol) {
   const [colour, shape] = FACE[symbol]
-  return svg(`<circle cx="12" cy="12" r="10.4" fill="none" stroke="currentColor" stroke-opacity=".55" stroke-width="1.3"/>` +
-    `<g stroke="${colour}">${shape}</g>`, symbol)
+  return svg(`<circle cx="12" cy="12" r="10.4" fill="none" stroke="currentColor" stroke-opacity=".8" stroke-width="1.3"/>` +
+    `<g style="stroke:${colour}">${shape}</g>`, symbol)
 }
 
 // Buttons that are drawn as a labelled pill, the way PlayStation prompts show
@@ -58,8 +60,8 @@ const pill = (text, key) => createElement('span', {
   style: {
     display: 'inline-block', minWidth: '1.9em', padding: '0 .38em', textAlign: 'center',
     border: '1.5px solid currentColor', borderRadius: '.55em .55em .3em .3em',
-    fontSize: '.72em', fontWeight: 700, lineHeight: '1.45em', letterSpacing: '.02em',
-    verticalAlign: '.08em', opacity: 0.9,
+    fontSize: 'max(.8em, 14px)', fontWeight: 700, lineHeight: '1.45em', letterSpacing: '.02em',
+    verticalAlign: '.08em',
   },
 }, text)
 
@@ -91,7 +93,7 @@ export function PadKey({ k }) {
     const glyph = padGlyph(part)
     if (glyph) return raw(glyph, i)
     if (PILL.test(part)) return pill(part, i)
-    return createElement('span', { key: i, style: { opacity: part === '/' ? 0.6 : 1 } }, part)
+    return createElement('span', { key: i }, part)
   }))
 }
 

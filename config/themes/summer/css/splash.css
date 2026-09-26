@@ -4,7 +4,7 @@
 .sm-splash {
   position: fixed; inset: 0; z-index: 900; overflow: hidden;
   display: flex; align-items: center; justify-content: center;
-  font-family: 'Outfit', sans-serif; color: var(--foam-000);
+  font-family: var(--font-body); color: var(--foam-000);
   transition: opacity var(--sm-fade, 1800ms) cubic-bezier(.4, 0, .6, 1);
 }
 .sm-splash[data-out="1"] { opacity: 0; }
@@ -25,7 +25,7 @@
 
 .sm-splash-word {
   position: relative; display: flex; align-items: center; gap: 16px;
-  font-size: 40px; font-weight: 700; letter-spacing: 0.24em;
+  font-size: 40px; font-weight: 700; letter-spacing: 0.02em;
   text-shadow: 0 4px 30px rgba(4, 12, 18, 0.5);
   transform: translateY(14px); opacity: 0;
   transition: transform var(--sm-word, 950ms) cubic-bezier(.2, .5, .3, 1) var(--sm-word-delay, 150ms),

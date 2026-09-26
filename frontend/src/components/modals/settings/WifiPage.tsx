@@ -77,7 +77,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
         setMsg(`Connected to ${ssid}`); setMsgError(false)
         await refresh()
       } else {
-        setMsg(r.wrong_password ? 'Wrong password — try again' : (r.error ?? 'Connection failed'))
+        setMsg(r.wrong_password ? 'Wrong password. Try again.' : (r.error ?? 'Connection failed'))
         setMsgError(true)
       }
     } catch { setMsg('Connection failed'); setMsgError(true) }
@@ -94,7 +94,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
   if (showKeyboard) {
     return (
       <Overlay onClose={onClose} width={560}>
-        <BackHeader label="WI-FI" onBack={() => setShowKeyboard(false)} />
+        <BackHeader label="Wi-Fi" onBack={() => setShowKeyboard(false)} />
         <VirtualKeyboard
           title={`Password for "${pendingSsid}"`}
           password
@@ -115,15 +115,15 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
           In the body it was a lone pill that read as a first list item the
           cursor skipped over — it is a page action, and it belongs on the
           page's title line. */}
-      <BackHeader label="WI-FI" onBack={onBack} right={showList && (
+      <BackHeader label="Wi-Fi" onBack={onBack} right={showList && (
         <button
           onClick={() => { setLoading(true); refresh() }}
           disabled={busy || loading}
           style={{
             display: 'flex', alignItems: 'center', gap: 7, padding: '7px 13px',
             borderRadius: 9, border: '1px solid rgba(255,255,255,0.1)',
-            background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)',
-            fontSize: 12, cursor: busy || loading ? 'default' : 'pointer',
+            background: 'rgba(255,255,255,0.05)', color: 'var(--gc-ink-2)',
+            fontSize: 15, cursor: busy || loading ? 'default' : 'pointer',
             opacity: busy || loading ? 0.4 : 1,
           }}
         >
@@ -134,19 +134,19 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
       {/* Wired connection — no need for Wi-Fi */}
       {onEthernet && (
         <Banner icon="ethernet" title="Connected via Ethernet"
-          sub={`Wired network active${wifiStatus?.ethernet.ip ? ` · ${wifiStatus.ethernet.ip}` : ''}`
-            + `${wifiStatus?.ethernet.iface ? ` · ${wifiStatus.ethernet.iface}` : ''} — Wi-Fi not needed`} />
+          sub={`Wired network${wifiStatus?.ethernet.ip ? `, ${wifiStatus.ethernet.ip}` : ''}`
+            + `${wifiStatus?.ethernet.iface ? ` on ${wifiStatus.ethernet.iface}` : ''}. Wi-Fi is not needed.`} />
       )}
 
       {/* Current connection banner */}
       {!onEthernet && wifiStatus?.connected && (
         <Banner icon="check" title={wifiStatus.ssid}
-          sub={wifiStatus.ip ? `${wifiStatus.ip} · ${wifiStatus.iface}` : ''}
+          sub={wifiStatus.ip ? `${wifiStatus.ip} on ${wifiStatus.iface}` : ''}
           action={
             <button
               onClick={doDisconnect}
               disabled={busy}
-              style={{ padding: '6px 13px', borderRadius: 8, border: '1px solid rgba(248,113,113,0.4)', background: 'rgba(248,113,113,0.1)', color: '#f87171', fontSize: 12, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1 }}
+              style={{ padding: '6px 13px', borderRadius: 8, border: '1px solid rgba(248,113,113,0.4)', background: 'rgba(248,113,113,0.1)', color: '#f87171', fontSize: 15, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1 }}
             >
               Disconnect
             </button>
@@ -156,9 +156,9 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
       {/* Status/error message */}
       {msg && (
         <div style={{
-          fontSize: 13, marginBottom: 12, padding: '9px 13px', borderRadius: 9,
+          fontSize: 15, marginBottom: 12, padding: '9px 13px', borderRadius: 9,
           background: msgError ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)',
-          color: msgError ? '#f87171' : 'var(--gc-accent-soft, #a78bfa)', fontWeight: msgError ? 600 : 400,
+          color: msgError ? '#f87171' : 'var(--gc-accent-soft, #f2a46a)', fontWeight: msgError ? 600 : 400,
         }}>
           {msg}
         </div>
@@ -168,7 +168,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
       {onEthernet && !showWifiAnyway && (
         <div
           onClick={() => setShowWifiAnyway(true)}
-          style={{ textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.35)', cursor: 'pointer', padding: 8 }}
+          style={{ textAlign: 'center', fontSize: 15, color: 'var(--gc-ink-3)', cursor: 'pointer', padding: 8 }}
         >
           Show Wi-Fi networks anyway ›
         </div>
@@ -177,10 +177,10 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
       {showList && <>
       {/* Network list */}
       {loading && networks.length === 0 && (
-        <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, textAlign: 'center', padding: 20 }}>Scanning…</div>
+        <div style={{ color: 'var(--gc-ink-3)', fontSize: 15, textAlign: 'center', padding: 20 }}>Scanning…</div>
       )}
       {!loading && networks.length === 0 && (
-        <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, textAlign: 'center', padding: 20 }}>No networks found</div>
+        <div style={{ color: 'var(--gc-ink-3)', fontSize: 15, textAlign: 'center', padding: 20 }}>No networks found</div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
         {networks.map((n, ni) => {
@@ -194,8 +194,8 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
                 // and a list of settings read as the same kind of thing.
                 display: 'flex', alignItems: 'center', gap: 14, padding: '0 15px',
                 height: 60, borderRadius: 12, cursor: busy ? 'default' : 'pointer',
-                background: on ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 18%, transparent)' : n.connected ? 'rgba(74,222,128,0.06)' : 'rgba(255,255,255,0.04)',
-                border: on ? '1px solid color-mix(in srgb, var(--gc-accent, #7c3aed) 50%, transparent)' : n.connected ? '1px solid rgba(74,222,128,0.25)' : '1px solid rgba(255,255,255,0.07)',
+                background: on ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 18%, transparent)' : n.connected ? 'rgba(74,222,128,0.06)' : 'rgba(255,255,255,0.04)',
+                border: on ? '1px solid color-mix(in srgb, var(--gc-accent, #b8501b) 50%, transparent)' : n.connected ? '1px solid rgba(74,222,128,0.25)' : '1px solid rgba(255,255,255,0.07)',
                 opacity: busy && !n.connected ? 0.6 : 1,
                 transition: 'all 0.12s',
               }}
@@ -203,8 +203,8 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
               <div style={{
                 flexShrink: 0, width: 34, height: 34, borderRadius: 10,
                 display: 'grid', placeItems: 'center',
-                background: on ? 'color-mix(in srgb, var(--gc-accent, #7c3aed) 22%, transparent)' : 'rgba(255,255,255,0.05)',
-                color: n.connected ? '#4ade80' : on ? 'var(--gc-accent-bright, #c4b5fd)' : 'rgba(255,255,255,0.45)',
+                background: on ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 22%, transparent)' : 'rgba(255,255,255,0.05)',
+                color: n.connected ? '#4ade80' : on ? 'var(--gc-accent-bright, #f8cfa9)' : 'rgba(255,255,255,0.45)',
               }}>
                 <Glyph name={n.connected ? 'check' : n.secured ? 'lock' : 'unlock'} size={17} />
               </div>
@@ -212,7 +212,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
                 <div style={{ fontSize: 15, fontWeight: n.connected ? 700 : 500, color: n.connected ? '#4ade80' : '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {n.ssid}
                 </div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.32)', marginTop: 2 }}>
+                <div style={{ fontSize: 15, color: 'var(--gc-ink-3)', marginTop: 2 }}>
                   {n.connected ? 'Connected' : n.secured ? 'Secured' : 'Open'}
                 </div>
               </div>
@@ -222,7 +222,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
         })}
       </div>
 
-      <div style={{ marginTop: 14, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 }}>
+      <div style={{ marginTop: 14, textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
         <PadHints text="↑↓ Navigate · ✕ Connect/Disconnect" />
       </div>
       </>}
@@ -245,7 +245,7 @@ function Banner({ icon, title, sub, action }: {
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>{title}</div>
-        {sub && <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{sub}</div>}
+        {sub && <div style={{ fontSize: 14.5, color: 'var(--gc-ink-3)', marginTop: 2 }}>{sub}</div>}
       </div>
       {action}
     </div>

@@ -21,7 +21,7 @@ import { PadHints } from '../../../lib/padKey'
  *  · △ filters by label, emulator name, maker, platform and id.
  */
 
-const ACCENT = 'var(--gc-accent, #7c3aed)'
+const ACCENT = 'var(--gc-accent, #b8501b)'
 const mix = (pct: number) => `color-mix(in srgb, ${ACCENT} ${pct}%, transparent)`
 const DANGER = '#f87171'
 
@@ -185,7 +185,7 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
         setLog(l => [...l.slice(-200), String(d.line ?? '')])),
       onWsEvent('catalog:done', d => {
         setBusyId('')
-        if (!d.success) setError('The operation reported an error — see the log below.')
+        if (!d.success) setError('That did not finish. See the log below.')
         void load()
       }),
     ]
@@ -256,7 +256,7 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
   if (showSearch) {
     return (
       <Overlay onClose={onClose}>
-        <BackHeader label="SEARCH" onBack={() => setShowSearch(false)} />
+        <BackHeader label="Search" onBack={() => setShowSearch(false)} />
         <VirtualKeyboard
           title="Search emulators & apps"
           initialValue={filter}
@@ -270,7 +270,7 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
 
   return (
     <Overlay onClose={onClose}>
-      <BackHeader label="EMULATORS & APPS" onBack={onBack} />
+      <BackHeader label="Emulators & apps" onBack={onBack} />
 
       {filter.trim() && (
         <div style={{
@@ -279,7 +279,7 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
           border: `1px solid ${mix(45)}`, fontSize: '0.78rem', width: 'fit-content',
         }}>
           <span style={{ opacity: 0.6 }}>filter</span>
-          <b style={{ color: 'var(--gc-accent-bright, #c4b5fd)' }}>{filter.trim()}</b>
+          <b style={{ color: 'var(--gc-accent-bright, #f8cfa9)' }}>{filter.trim()}</b>
           <span style={{ opacity: 0.55 }}>{rowCount} of {rows?.length ?? 0}</span>
         </div>
       )}
@@ -311,8 +311,8 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
                   margin: '0.6rem 0 0.35rem', padding: '0.55rem 0.8rem',
                   borderRadius: 12, cursor: 'pointer',
                   position: 'sticky', top: 0, zIndex: 1,
-                  fontSize: '0.74rem', letterSpacing: '0.12em',
-                  textTransform: 'uppercase', fontWeight: 700,
+                  fontSize: '0.74rem', 
+                  fontWeight: 700,
                   background: focused ? mix(26) : 'var(--gc-overlay-bg, rgba(12,10,20,0.96))',
                   border: `1px solid ${focused ? mix(60) : 'transparent'}`,
                   transition: 'background 120ms ease, border-color 120ms ease',
@@ -371,9 +371,9 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
                   </span>
                   {row.origin === 'local' && (
                     <span style={{
-                      fontSize: '0.6rem', letterSpacing: '0.08em', padding: '2px 6px',
+                      fontSize: '0.6rem', padding: '2px 6px',
                       borderRadius: 999, background: mix(28),
-                      color: 'var(--gc-accent-bright, #c4b5fd)', flexShrink: 0,
+                      color: 'var(--gc-accent-bright, #f8cfa9)', flexShrink: 0,
                     }}>LOCAL</span>
                   )}
                 </div>
@@ -403,7 +403,7 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
                   : row.installed ? 'rgba(255,255,255,0.07)' : mix(30),
                 color: isArmed ? DANGER
                   : row.installed ? 'rgba(255,255,255,0.75)'
-                  : 'var(--gc-accent-bright, #c4b5fd)',
+                  : 'var(--gc-accent-bright, #f8cfa9)',
                 border: `1px solid ${isArmed ? 'rgba(248,113,113,0.5)' : 'transparent'}`,
               }}>
                 {running ? 'Working…' : isArmed ? 'Confirm?' : row.installed ? 'Remove' : 'Install'}
@@ -416,7 +416,7 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
           <div style={{ padding: '1rem 0', opacity: 0.6 }}>
             {filter.trim()
               ? `Nothing matches "${filter.trim()}".`
-              : 'The catalogue is empty — no packs are installed on this box.'}
+              : 'The catalogue is empty: no packs are installed on this box.'}
           </div>
         )}
       </div>
@@ -426,7 +426,7 @@ export function CatalogPage({ onClose, onBack }: { onClose: () => void; onBack: 
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>
         <PadHints text={busyId
-          ? 'Working — the list is held until this finishes.'
+          ? 'Working. The list unlocks when this finishes.'
           : armed
             ? 'Press ✕ again to remove it · any direction cancels'
             : `✕ ${items[focusIdx]?.kind === 'head' ? 'open or close' : 'install or remove'}`

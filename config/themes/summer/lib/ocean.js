@@ -18,11 +18,11 @@
 export const LOCATION = { lat: 48.86, lon: 2.35 }
 
 export const TOD = {
-  dawn:{skyTop:'#5E6FA8',skyMid:'#B98BA6',skyLow:'#F6B896',seaDeep:'#33607F',seaShallow:'#79A7B8',foam:'#FFF1E6',sandNear:'#E4C39B',sandWet:'#C0A183',grass:'#4E7A55',disc:'#FFE1B8',glow:[1.0,0.745,0.549,0.45],ambient:[0.47,0.353,0.588,0.14],energy:0.85,elev:4,azim:-62,accent:'#F0761E',glyph:'☀',night:0},
-  noon:{skyTop:'#2E86C8',skyMid:'#7EC0E8',skyLow:'#CDEBF7',seaDeep:'#0E6E92',seaShallow:'#3FB4C6',foam:'#FFFFFF',sandNear:'#F4DCB4',sandWet:'#D9C29B',grass:'#57904F',disc:'#FFFDF0',glow:[1,1,0.92,0.38],ambient:[1,1,1,0],energy:1.0,elev:78,azim:0,accent:'#F0761E',glyph:'☀',night:0},
-  afternoon:{skyTop:'#3E93C6',skyMid:'#8FC9E4',skyLow:'#E4EFF2',seaDeep:'#12718C',seaShallow:'#4FBAC2',foam:'#FDFBF4',sandNear:'#EFD3A4',sandWet:'#D3B78B',grass:'#4E8449',disc:'#FFF3D2',glow:[1,0.92,0.745,0.34],ambient:[1,0.784,0.47,0.08],energy:1.15,elev:40,azim:38,accent:'#F0761E',glyph:'☀',night:0},
-  sunset:{skyTop:'#6E3F86',skyMid:'#E2743C',skyLow:'#FBC06A',seaDeep:'#2A4C77',seaShallow:'#C98A55',foam:'#FFE3C2',sandNear:'#C98F4F',sandWet:'#A9713C',grass:'#5B4A2C',disc:'#FF9A3C',glow:[1,0.549,0.196,0.52],ambient:[0.784,0.353,0.118,0.16],energy:0.95,elev:2,azim:74,accent:'#F0761E',glyph:'☾',night:0},
-  night:{skyTop:'#0B1436',skyMid:'#152352',skyLow:'#22315F',seaDeep:'#0A1730',seaShallow:'#1B2C4C',foam:'#B9C7DA',sandNear:'#33405A',sandWet:'#243350',grass:'#1D3040',disc:'#E8EEFF',glow:[0.823,0.882,1,0.26],ambient:[0.039,0.078,0.196,0.34],energy:0.70,elev:32,azim:50,accent:'#FE9D7C',glyph:'☾',night:1}
+  dawn:{skyTop:'#5E6FA8',skyMid:'#B98BA6',skyLow:'#F6B896',seaDeep:'#33607F',seaShallow:'#79A7B8',foam:'#FFF1E6',sandNear:'#E4C39B',sandWet:'#C0A183',grass:'#4E7A55',disc:'#FFE1B8',glow:[1.0,0.745,0.549,0.45],ambient:[0.47,0.353,0.588,0.14],energy:0.85,elev:4,azim:-62,accent:'#F0761E',night:0},
+  noon:{skyTop:'#2E86C8',skyMid:'#7EC0E8',skyLow:'#CDEBF7',seaDeep:'#0E6E92',seaShallow:'#3FB4C6',foam:'#FFFFFF',sandNear:'#F4DCB4',sandWet:'#D9C29B',grass:'#57904F',disc:'#FFFDF0',glow:[1,1,0.92,0.38],ambient:[1,1,1,0],energy:1.0,elev:78,azim:0,accent:'#F0761E',night:0},
+  afternoon:{skyTop:'#3E93C6',skyMid:'#8FC9E4',skyLow:'#E4EFF2',seaDeep:'#12718C',seaShallow:'#4FBAC2',foam:'#FDFBF4',sandNear:'#EFD3A4',sandWet:'#D3B78B',grass:'#4E8449',disc:'#FFF3D2',glow:[1,0.92,0.745,0.34],ambient:[1,0.784,0.47,0.08],energy:1.15,elev:40,azim:38,accent:'#F0761E',night:0},
+  sunset:{skyTop:'#6E3F86',skyMid:'#E2743C',skyLow:'#FBC06A',seaDeep:'#2A4C77',seaShallow:'#C98A55',foam:'#FFE3C2',sandNear:'#C98F4F',sandWet:'#A9713C',grass:'#5B4A2C',disc:'#FF9A3C',glow:[1,0.549,0.196,0.52],ambient:[0.784,0.353,0.118,0.16],energy:0.95,elev:2,azim:74,accent:'#F0761E',night:0},
+  night:{skyTop:'#0B1436',skyMid:'#152352',skyLow:'#22315F',seaDeep:'#0A1730',seaShallow:'#1B2C4C',foam:'#B9C7DA',sandNear:'#33405A',sandWet:'#243350',grass:'#1D3040',disc:'#E8EEFF',glow:[0.823,0.882,1,0.26],ambient:[0.039,0.078,0.196,0.34],energy:0.70,elev:32,azim:50,accent:'#FE9D7C',night:1}
 };
 export const ORDER = ['dawn','noon','afternoon','sunset','night'];
 

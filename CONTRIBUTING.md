@@ -117,7 +117,8 @@ the intended behaviour. Work on a branch.
 
 `.claude/skills/` holds the working rules as Claude Code skills: comments,
 docs, code quality, naming, file size (`check-file-size.sh`), new features,
-catalogue packs, tests, commits and review. They apply to humans too.
+catalogue packs, tests, commits, review, and human touch (no AI-looking UI
+or copy; `slop-audit.py`). They apply to humans too.
 
 ## Licence
 

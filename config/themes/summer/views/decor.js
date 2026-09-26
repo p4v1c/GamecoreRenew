@@ -35,8 +35,9 @@ const makeBlades = (seed, count, spread) => {
 }
 
 // left, top, size, rotation — the mockup's placement, kept
+// Kept clear of the hint band (x 38-62 %, y > 88 %): decoration never covers text.
 const SHELLS = [
-  [13, 86, 34, -14], [27, 81, 24, 9], [41, 94, 40, -6], [52, 84, 26, 22],
+  [13, 86, 34, -14], [27, 81, 24, 9], [33, 91, 40, -6], [52, 84, 26, 22],
   [63, 90, 32, -19], [76, 82, 22, 6], [88, 92, 36, 15],
 ]
 
@@ -64,7 +65,7 @@ export const createDecor = (sdk, useIdle) => {
         }} />`
 
     return html`
-      <div class="sm-decor">
+      <div class="sm-decor" aria-hidden="true">
         ${SHELLS.map((v, i) => html`
           <svg key=${i} class="sm-shell" viewBox="0 0 40 32"
                style=${{ left: `${v[0]}%`, top: `${v[1]}%`, width: `${v[2]}px`,

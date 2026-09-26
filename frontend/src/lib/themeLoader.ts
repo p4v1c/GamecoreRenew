@@ -198,7 +198,7 @@ export async function loadTheme(m: ThemeManifest, host: SdkHost): Promise<Surfac
   }
 
   if (missing.length) {
-    throw new Error(`theme is incomplete — a theme must provide every surface: ${missing.join(', ')}`)
+    throw new Error(`theme is incomplete: a theme must provide every surface (${missing.join(', ')})`)
   }
 
   // Optional, and taken without a manifest declaration: it is not part of the

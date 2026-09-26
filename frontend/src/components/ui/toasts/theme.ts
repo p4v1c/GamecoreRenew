@@ -24,6 +24,6 @@ export function readHudTheme(): Record<string, string> {
 export function batteryNotice(level: number, player: number | null) {
   const stage = contract.battery.find(s => level <= s.threshold) || contract.battery[3]
   const who = player ? `Controller ${player}` : 'Controller'
-  return { icon: '🎮', title: `${who} battery at ${Math.round(level)}%`,
+  return { icon: 'gamepad', title: `${who} battery at ${Math.round(level)}%`,
     body: stage.message, accent: stage.color, tone: `battery-${stage.threshold}` }
 }

@@ -363,8 +363,8 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
           <header class="gcs-set-head">
             <h1 class="gcs-set-title">Settings</h1>
             <div class="gcs-set-crumb">
-              <span class="gcs-set-chip">${current.label.toUpperCase()}</span>
-              <span>${current.label}${crumbMeta ? ` · ${crumbMeta}` : ''}</span>
+              <span class="gcs-set-chip">${current.label}</span>
+              <span>${current.label}${crumbMeta ? `: ${crumbMeta}` : ''}</span>
             </div>
           </header>`}
 
@@ -411,8 +411,8 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
             <div class="gcs-set-page" data-cat=${cat}>
               ${pager ? html`
                 <div class="gcs-set-pagecrumb">
-                  <span>PAGE ${String(pageNo).padStart(2, '0')} / ${current.group.toUpperCase()}</span>
-                  <span class="gcs-set-pagekey">L1 / R1 · Categories</span>
+                  <span>Page ${pageNo}, ${current.group}</span>
+                  <span class="gcs-set-pagekey">L1 / R1 Categories</span>
                 </div>` : null}
               ${page}
             </div>

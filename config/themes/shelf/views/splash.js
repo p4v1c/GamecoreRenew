@@ -75,7 +75,7 @@ export const createSplash = (sdk) => {
           </div>
         </div>
 
-        <div class="cz-splash-word"><span class="cz-splash-mark" /> GAMECORE</div>
+        <div class="cz-splash-word"><span class="cz-splash-mark" /> GameCore</div>
       </div>`
   }
 }

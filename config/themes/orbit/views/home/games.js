@@ -65,7 +65,7 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
 
     return html`<section id="home-view" aria-label="Games home">
       ${launchError ? html`<p role="alert">${launchError}</p>` : null}
-      <div className="rail-heading"><span>GAMES & APPS</span>
+      <div className="rail-heading"><span>Games & apps</span>
         <div className="home-rail-controls">
           <span id="rail-counter">${String(at + 1).padStart(2, '0')} <i>/ ${String(items.length).padStart(2, '0')}</i></span>
           <button onClick=${() => move(-1)} aria-label="Previous item">←</button>
@@ -91,7 +91,7 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
               onFocus=${() => setIdx(i)} onClick=${() => setIdx(i)}>
               <span className="tile-art"><${Art} src=${packLogo(it.system)} alt=${systemName(it.system)} />
                 ${sessions.heldMatch(background, it.system.id, it.system.id)
-                  ? html`<span className="session-badge">IN BACKGROUND</span>` : null}</span>
+                  ? html`<span className="session-badge">In the background</span>` : null}</span>
               <span className="tile-label">${systemName(it.system)}</span></button>`
           }
           return html`<button key=${it.key} className=${`game-tile home-game-tile ${on ? 'selected' : ''}`}
@@ -100,14 +100,14 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
             <span className="tile-art"><${Jacket} key=${it.key} className="home-game-cover"
               systemId=${it.systemId} filename=${it.gameKey} title=${it.title} />
               ${sessions.heldMatch(background, it.gameKey, it.systemId)
-                ? html`<span className="session-badge">IN BACKGROUND</span>` : null}</span>
+                ? html`<span className="session-badge">In the background</span>` : null}</span>
             <span className="tile-label" title=${it.title}>${it.title}</span></button>`
         })}
       </div>
       ${item ? html`<${Hero} item=${item} meta=${meta} tint=${tint}
                              counts=${counts} totals=${totals} onOpen=${open} onDetails=${() => setShowDetails(true)} />`
         : html`<div className="hero"><div className="hero-copy">
-            <div className="eyebrow"><span className="platform">GAMES</span><span>Nothing played yet</span></div>
+            <div className="eyebrow"><span className="platform">Games</span><span>Nothing played yet</span></div>
             <h1>Your collection starts here.</h1>
             <p>Add a console from Settings → Catalog, then open it to see your games.</p>
           </div></div>`}
@@ -120,7 +120,7 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
     if (item.kind === 'collection') {
       return html`<div className="hero" style=${{'--home-service-accent': tint}}>
         <div className="hero-copy">
-          <div className="eyebrow"><span className="platform">GAMES</span><span>Your collection</span>
+          <div className="eyebrow"><span className="platform">Games</span><span>Your collection</span>
             <span className="dot" /><span>${totals.games} games</span></div>
           <h1 id="hero-title" className="home-app-title">Your library.</h1>
           <p id="hero-description">Find all your games, consoles, and favourites.</p>
@@ -128,7 +128,7 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
             <button className="primary-button" onClick=${onOpen}>${svg('grid')}Browse library<span className="button-key pad"><${PadKey} k="✕" /></span></button>
           </div>
         </div>
-        <div className="home-service-art"><div className="home-service-orbit" />${svg('grid')}<span>YOUR ENTIRE COLLECTION</span></div>
+        <div className="home-service-art"><div className="home-service-orbit" />${svg('grid')}<span>Everything you own</span></div>
       </div>`
     }
     if (item.kind === 'app') {
@@ -136,7 +136,7 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
       const held = sessions.heldMatch(background, item.system.id, item.system.id)
       return html`<div className="hero" style=${{'--home-service-accent': s.color}}>
         <div className="hero-copy">
-          <div className="eyebrow"><span className="platform">APP</span><span>${s.category}</span>
+          <div className="eyebrow"><span className="platform">App</span><span>${s.category}</span>
             <span className="dot" /><span>${s.edition}</span></div>
           <h1 id="hero-title" className="home-app-title">${systemName(item.system)}</h1>
           <p id="hero-description">${s.description}</p>
@@ -161,9 +161,9 @@ export function createGamesTab({sdk, tabs, sessions, backdrop, Details, Jacket, 
         <h1 id="hero-title">${meta?.title || item.title}</h1>
         <p id="hero-description">${meta?.description
           ? meta.description.split(/(?<=\.)\s+/).slice(0, 2).join(' ')
-          : item.lastPlayed ? `${sdk.format.time(item.seconds)} played · last ${sdk.format.date(item.lastPlayed)}` : 'Ready for your next adventure.'}</p>
+          : item.lastPlayed ? `${sdk.format.time(item.seconds)} played, last on ${sdk.format.date(item.lastPlayed)}` : 'Not played yet.'}</p>
         <div className="game-meta">
-          ${Array.isArray(meta?.genres) && meta.genres.length ? html`<span className="orbit-meta-group"><span>${meta.genres.slice(0, 2).join(' · ')}</span><span className="dot" /></span>` : null}
+          ${Array.isArray(meta?.genres) && meta.genres.length ? html`<span className="orbit-meta-group"><span>${meta.genres.slice(0, 2).join(', ')}</span><span className="dot" /></span>` : null}
           ${meta?.year ? html`<span className="orbit-meta-group"><span>${meta.year}</span><span className="dot" /></span>` : null}
           <span>${sdk.format.time(item.seconds)} played</span>
         </div>

@@ -114,7 +114,7 @@ export const createScreensaver = (sdk, Box3D) => {
             <div class="sm-saver-name">${game.name}</div>
           </div>` : null}
         <div class="sm-saver-clock">${clock}</div>
-        <div class="sm-saver-hint">PRESS ANY BUTTON TO WAKE</div>
+        <div class="sm-saver-hint">Press any button to wake</div>
       </div>`
   }
 }

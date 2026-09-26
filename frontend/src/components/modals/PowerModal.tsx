@@ -31,8 +31,8 @@ const OPTIONS: PowerOption[] = [
   // order of how often each is wanted. It leads, so the cursor opens on it:
   // the two-press confirmation is what stands between that and a
   // powered-off box, and it is the same for every row here.
-  { id: 'shutdown', label: 'Shutdown', busy: 'Shutting down…', icon: '⏻', color: '#ef4444', desc: 'Power off' },
-  { id: 'restart',  label: 'Restart',  busy: 'Restarting…',    icon: '↺', color: '#f59e0b', desc: 'Reboot the system' },
+  { id: 'shutdown', label: 'Shutdown', busy: 'Shutting down…', icon: '⏻', color: 'var(--set-danger, #ef4444)', desc: 'Power off' },
+  { id: 'restart',  label: 'Restart',  busy: 'Restarting…',    icon: '↺', color: 'var(--set-warn, #f59e0b)', desc: 'Reboot the system' },
   // Leaving for the desktop is the third way a session ends, and it belonged
   // in the menu the other two are in. It was reachable only from
   // Settings → Desktop, four rows into a menu nobody opens to quit — while the
@@ -40,7 +40,7 @@ const OPTIONS: PowerOption[] = [
   // restart it and shut it down but not step out of it.
   //
   // Last on purpose: leaving the front end is the least common of the three.
-  { id: 'desktop',  label: 'Return to desktop', busy: 'Leaving…', icon: '⌘', color: '#38bdf8', desc: 'Leave the front end for the system session' },
+  { id: 'desktop',  label: 'Return to desktop', busy: 'Leaving…', icon: '⌘', color: 'var(--set-info, #38bdf8)', desc: 'Leave the front end for the system session' },
 ]
 
 // If the OS is still alive after this delay the power command failed

@@ -49,8 +49,8 @@ export const createSystemPage = (sdk, Rows) => {
         label: 'System update',
         desc: info
           ? `GameCore ${versionLabel(info.version)}${update === null ? ''
-              : update.update_available ? ` — ${versionLabel(update.latest)} available`
-              : ' — up to date'}`
+              : update.update_available ? `. ${versionLabel(update.latest)} is available`
+              : ', up to date'}`
           : 'Checking this box’s version…',
         label2: update && update.update_available ? `Install ${update.latest}` : 'Check for updates',
         busy: busy === 'update' ? 'Working…' : '',
@@ -90,7 +90,7 @@ export const createSystemPage = (sdk, Rows) => {
     const onAct = (id) => {
       if (id !== 'update' || busy) return
       if (update && update.update_available) {
-        setBusy('update'); setMsg('Installing — the front end restarts when it finishes.')
+        setBusy('update'); setMsg('Installing. The interface restarts when it finishes.')
         sdk.api.update.apply().catch(() => { setBusy(''); setMsg('Could not start the update.') })
         return
       }
@@ -121,7 +121,7 @@ export const createSystemPage = (sdk, Rows) => {
         id: `disk:${v.device}`,
         type: v.mounted ? 'action' : 'info',
         label: v.label || v.name,
-        desc: `${v.device} · ${v.size}${v.mounted ? ` · ${v.stable_path}` : ' · not mounted'}`,
+        desc: `${v.device}, ${v.size}${v.mounted ? `, at ${v.stable_path}` : ', not mounted'}`,
         label2: 'Eject safely',
         display: v.mounted ? '' : 'Not mounted',
         busy: busy === v.device ? 'Ejecting…' : '',
@@ -150,7 +150,7 @@ export const createSystemPage = (sdk, Rows) => {
       <${Rows} rows=${allRows} sections=${sections} active=${active} onLeave=${onLeave} onLeft=${onLeft}
         onSet=${onSet} onAct=${act}
         title="System"
-        state=${info ? versionLabel(info.version).toUpperCase() : ''}
+        state=${info ? versionLabel(info.version) : ''}
         sub="The console image, standby behaviour, and the disks it reads from."
         aside=${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null} />`
   }
