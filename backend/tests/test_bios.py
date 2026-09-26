@@ -357,9 +357,9 @@ def launcher(monkeypatch):
     from fastapi.testclient import TestClient
 
     from backend import main
-    from backend.routers import games as games_router
+    from backend.services import systems as systems_service
 
-    monkeypatch.setattr(games_router, "list_all", lambda: [_GHOST])
+    monkeypatch.setattr(systems_service, "list_all", lambda: [_GHOST])
     with TestClient(main.app) as client:
         yield client
 

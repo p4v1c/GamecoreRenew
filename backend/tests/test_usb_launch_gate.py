@@ -40,9 +40,9 @@ class FakePack:
 @pytest.fixture
 def launcher(monkeypatch):
     from backend import main
-    from backend.routers import games as games_router
+    from backend.services import systems as systems_service
 
-    monkeypatch.setattr(games_router, "list_all", lambda: [_GHOST])
+    monkeypatch.setattr(systems_service, "list_all", lambda: [_GHOST])
     with TestClient(main.app) as client:
         yield client
 
@@ -150,9 +150,9 @@ def test_declaring_usb_asks_for_the_udev_re_fire(launcher, monkeypatch):
     firing proves the new condition is what asked for it.
     """
     fired = []
-    from backend.routers import games as games_router
+    from backend.services import systems as systems_service
     from backend.services import launch as launch_service
-    monkeypatch.setattr(games_router, "list_all",
+    monkeypatch.setattr(systems_service, "list_all",
                         lambda: [{**_GHOST, "usb": [ADAPTER]}])
 
     async def fake_trigger(*a, **k):

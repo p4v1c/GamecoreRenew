@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from backend import main                                      # noqa: E402
 from backend.routers import games as games_router
+from backend.services import systems as systems_service
 from backend.services import launch as launch_service             # noqa: E402
 from backend.services import controller_registry as reg       # noqa: E402
 from backend.services import gamepad_monitor as gm            # noqa: E402
@@ -38,7 +39,7 @@ GHOST = {"id": "ghost", "label": "Ghost", "kind": "emulator",
 
 def test_flatpak_resolution_does_not_freeze_the_event_loop(monkeypatch):
     """The websocket/input loop must keep running while flatpak is busy."""
-    from fastapi import HTTPException
+    from backend.services.errors import ServiceError
 
     loop_responded = threading.Event()
     observed = []
@@ -47,7 +48,7 @@ def test_flatpak_resolution_does_not_freeze_the_event_loop(monkeypatch):
         observed.append(loop_responded.wait(1))
         return ""
 
-    monkeypatch.setattr(games_router, "list_all", lambda: [GHOST])
+    monkeypatch.setattr(systems_service, "list_all", lambda: [GHOST])
     monkeypatch.setattr(launch_service, "process_manager", pm.ProcessManager())
     monkeypatch.setattr(launch_service.catalog_launch, "resolve_args", resolve)
     monkeypatch.setattr(launch_service.bios, "launch_blocker", lambda _: "test stops before launch")
@@ -56,9 +57,9 @@ def test_flatpak_resolution_does_not_freeze_the_event_loop(monkeypatch):
         request = asyncio.create_task(games_router.launch_game(games_router.LaunchRequest(system_id="ghost")))
         await asyncio.sleep(0)
         loop_responded.set()
-        with pytest.raises(HTTPException) as error:
+        with pytest.raises(ServiceError) as error:
             await request
-        assert error.value.status_code == 424
+        assert error.value.status == 424
 
     asyncio.run(exercise())
     assert observed == [True]
@@ -85,7 +86,7 @@ def launcher(monkeypatch):
     would only add up to eight seconds of real time whenever a pad happened to
     be connected.
     """
-    monkeypatch.setattr(games_router, "list_all", lambda: [GHOST])
+    monkeypatch.setattr(systems_service, "list_all", lambda: [GHOST])
     monkeypatch.setattr(launch_service, "PROFILE_BUDGET", 0.0)
     monkeypatch.setattr(gm, "_find_gamepad_devices", dict)
     # And its slot sweep is severed at the function, not only at the input.

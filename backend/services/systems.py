@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 from ..config import SYSTEMS_FILE, APPS_FILE, GAMECORE_ROOT
+from .errors import ServiceError
 from .paths import GAMECORE_DATA
 
 # path → (data, mtime)
@@ -21,7 +22,7 @@ def _hot_load(path: Path) -> list:
     except FileNotFoundError:
         pass
     except Exception as e:
-        raise RuntimeError(f"Failed to load {path.name}: {e}") from e
+        raise ServiceError(500, f"Failed to load {path.name}: {e}") from e
     return data
 
 

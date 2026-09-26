@@ -29,8 +29,8 @@ _SYSTEM = {"id": "testpack", "label": "Test System", "kind": "emulator",
 @pytest.fixture
 def client(monkeypatch):
     from backend import main
-    from backend.routers import games as games_router
-    monkeypatch.setattr(games_router, "list_all", lambda: [_SYSTEM])
+    from backend.services import systems as systems_service
+    monkeypatch.setattr(systems_service, "list_all", lambda: [_SYSTEM])
     with TestClient(main.app) as c:
         yield c
 

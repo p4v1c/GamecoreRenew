@@ -2,14 +2,14 @@
 from fastapi import APIRouter, HTTPException
 
 from ..services import metadata
-from ..services.systems import list_all
+from ..services.systems import find
 
 router = APIRouter(tags=["metadata"])
 
 
 @router.get("/metadata/{system_id}/{filename:path}")
 async def get_metadata(system_id: str, filename: str):
-    system = next((s for s in list_all() if s["id"].lower() == system_id.lower()), None)
+    system = find(system_id)
     if not system:
         raise HTTPException(404, "System not found")
 

@@ -245,12 +245,12 @@ def test_no_session_file_is_the_normal_case(session_file):
 @pytest.fixture
 def client_with_ghost_system(monkeypatch):
     from fastapi.testclient import TestClient
-    from backend.routers import games as games_router
+    from backend.services import systems as systems_service
     from backend import main
 
     ghost = {"id": "ghost", "label": "Ghost", "kind": "emulator",
              "path": "/usr/bin/definitely-not-installed", "args": "", "romsPath": ""}
-    monkeypatch.setattr(games_router, "list_all", lambda: [ghost])
+    monkeypatch.setattr(systems_service, "list_all", lambda: [ghost])
     with TestClient(main.app) as c:
         yield c
 

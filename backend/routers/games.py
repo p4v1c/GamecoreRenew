@@ -10,7 +10,7 @@ from ..services import launch as launch_service
 from ..services import local_media, prefetch
 from ..services.process_manager import SessionConflict, process_manager
 from ..services.rom_scanner import clean_name, iter_rom_files
-from ..services.systems import list_all
+from ..services.systems import find
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def scan_roms(roms_path: Path, extensions: list[str], scan_dirs: bool = False,
 
 @router.get("/systems/{system_id}/games")
 def list_games(system_id: str):
-    system = next((s for s in list_all() if s["id"].lower() == system_id.lower()), None)
+    system = find(system_id)
     if not system:
         raise HTTPException(404, "System not found")
 
@@ -83,13 +83,10 @@ class LaunchRequest(BaseModel):
 
 @router.post("/games/launch")
 async def launch_game(req: LaunchRequest):
-    system = next((s for s in list_all() if s["id"].lower() == req.system_id.lower()), None)
+    system = find(req.system_id)
     if not system:
         raise HTTPException(404, "System not found")
-    try:
-        return await launch_service.launch(system, req.system_id, req.rom_path, req.game_key)
-    except launch_service.LaunchRefused as e:
-        raise HTTPException(e.status, e.detail) from e
+    return await launch_service.launch(system, req.system_id, req.rom_path, req.game_key)
 
 
 class KillRequest(BaseModel):

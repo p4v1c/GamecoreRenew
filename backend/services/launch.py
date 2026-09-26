@@ -1,6 +1,6 @@
 """Launching a game or app: every gate and preparation step before the spawn.
 
-The router looks the system up and maps `LaunchRefused` to an HTTP status;
+The router looks the system up; `LaunchRefused` becomes the HTTP error in main.py;
 everything else — conflicts, BIOS/USB gates, controller and per-game config,
 the spawn itself — is decided here.
 """
@@ -24,6 +24,7 @@ from . import (
     usb_devices,
 )
 from .catalog import launch as catalog_launch
+from .errors import ServiceError
 from .catalog import load_catalog
 from .process_manager import SessionConflict, process_manager
 
@@ -43,13 +44,8 @@ PROFILE_BUDGET = 8.0
 PACK_PREPARE_BUDGET = 3.0
 
 
-class LaunchRefused(Exception):
-    """The launch did not happen. `status` is the HTTP code the router returns."""
-
-    def __init__(self, status: int, detail: str):
-        super().__init__(detail)
-        self.status = status
-        self.detail = detail
+class LaunchRefused(ServiceError):
+    """The launch did not happen."""
 
 
 def _is_app(system: dict) -> bool:
@@ -183,9 +179,7 @@ async def _prepare_pack_launch(system_id: str, rom_path: str, exec_path: str,
         detail = (result or {}).get("notice")
         if detail:
             log.info("launch: %s", detail)
-            await ws.broadcast("game:notice", {
-                "game_key": game_key, "system_id": system_id, "detail": detail,
-            })
+            await _broadcast("game:notice", game_key, system_id, detail)
     except TimeoutError:
         log.warning("launch: %s — pack preparation exceeded %.1f s, launching "
                     "as things are", system_id, PACK_PREPARE_BUDGET)

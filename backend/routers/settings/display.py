@@ -1,5 +1,5 @@
 """HTTP surface of the display settings. Logic: services/display.py."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from ...services import display
@@ -24,10 +24,7 @@ async def get_display():
 
 @router.post("/mode")
 async def set_mode(req: ModeRequest):
-    try:
-        return await display.set_mode(req.width, req.height, req.rate)
-    except display.DisplayError as e:
-        raise HTTPException(e.status, e.detail) from e
+    return await display.set_mode(req.width, req.height, req.rate)
 
 
 @router.get("/scale")
@@ -38,10 +35,7 @@ async def get_scale():
 @router.post("/scale")
 async def set_scale(req: ScaleRequest):
     """The front end applies the zoom itself; nothing to revert."""
-    try:
-        return display.set_scale(req.scale)
-    except display.DisplayError as e:
-        raise HTTPException(e.status, e.detail) from e
+    return display.set_scale(req.scale)
 
 
 @router.post("/confirm")
@@ -53,7 +47,4 @@ async def confirm():
 @router.post("/revert")
 async def revert_now():
     """Go back now instead of waiting out the timer."""
-    try:
-        return await display.revert_now()
-    except display.DisplayError as e:
-        raise HTTPException(e.status, e.detail) from e
+    return await display.revert_now()

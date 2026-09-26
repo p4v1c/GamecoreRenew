@@ -17,6 +17,7 @@ import json
 import logging
 import re
 
+from .errors import ServiceError
 from .paths import config_dir
 from .process_manager import process_manager
 from .session import display_env
@@ -25,13 +26,8 @@ from .session import kscreen_available, wayland_env
 log = logging.getLogger(__name__)
 
 
-class DisplayError(Exception):
-    """A refused request. `status` is the HTTP code the router returns."""
-
-    def __init__(self, status: int, detail: str):
-        super().__init__(detail)
-        self.status = status
-        self.detail = detail
+class DisplayError(ServiceError):
+    """A refused display request."""
 
 # Long enough to read a sentence and find a button on a pad, short enough that
 # a black screen is an inconvenience rather than a reinstall.
