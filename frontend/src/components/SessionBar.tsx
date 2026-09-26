@@ -19,12 +19,13 @@ import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore, type BackgroundSession } from '../store'
 import { onGp } from '../hooks/useGamepad'
+import { onWsEvent } from '../hooks/useWebSocket'
 import { api } from '../api'
 import { playSound } from '../lib/sounds'
 import { formatGameName } from '../lib/formatGameName'
 import ErrorBoundary from './ErrorBoundary'
 import { useThemeCtx } from './ThemeSurface'
-import { PadHints } from '../lib/padKey'
+import { PadHints, PadKey } from '../lib/padKey'
 
 /** The menu must be gone before a theme starts drawing its handover. */
 const SESSION_MENU_EXIT_MS = 150
@@ -73,7 +74,7 @@ export interface SessionBarProps {
   onResume: (s: BackgroundSession) => void
   onClose: (s: BackgroundSession) => void
   /**
-   * Open the menu — the same thing L2 does, for a theme that would rather
+   * Open the menu — the same thing PS ×2 does, for a theme that would rather
    * offer one button than repeat the menu's own choices on the bar.
    *
    * Orbit drew Resume and "Close game" side by side, which is the menu's first
@@ -150,7 +151,7 @@ function DefaultSessionBarView(p: SessionBarProps) {
           background: 'transparent', color: '#fff', fontSize: 14,
         }}
       >{closeLabel(s)}</button>
-      <kbd style={{ opacity: 0.45, fontSize: 14 }}>L2</kbd>
+      <span style={{ fontSize: 16 }}><PadKey k="PS ×2" /></span>
     </div>
   )
 }
@@ -204,7 +205,7 @@ export default function SessionBar(
 
   // `active` is what a theme draws its cursor from: the bar can be acted on
   // right now. It does not mean the bar owns any button — it owns none while it
-  // is just a bar, which is the correction. See the L2 effect below.
+  // is just a bar, which is the correction. See the PS effect below.
   const active = sessions.length > 0 && !foreground && modalDepth === 0
 
   const stateRef = useRef({ sessions, focusIdx, active, busy, menu, confirming })
@@ -246,7 +247,7 @@ export default function SessionBar(
 
   const resume = (s: BackgroundSession) => act(() => resumeSession(s))
 
-  /** The pointer's way to the menu, guarded exactly as the L2 binding is. */
+  /** Opens the menu, unless a game, a power action, standby or a modal is up. */
   const manage = () => {
     const s = useStore.getState()
     if (!s.backgroundSessions.length) return
@@ -255,6 +256,8 @@ export default function SessionBar(
     setActionIdx(0)
     setMenu(true)
   }
+  const manageRef = useRef(manage)
+  manageRef.current = manage
   // A pointer click on Close goes through the same confirmation the pad does:
   // ending a session is the one action here that cannot be undone, and it
   // should not be one stray click away.
@@ -266,7 +269,7 @@ export default function SessionBar(
   }
 
   /**
-   * L2 opens the menu, and ✕ does NOT act on the bar.
+   * PS ×2 opens the menu, and ✕ does NOT act on the bar.
    *
    * Both halves of that are corrections. The bar used to take `gp:confirm`
    * whenever it was on screen — and `HomeScreen` takes it too, so one press
@@ -280,21 +283,30 @@ export default function SessionBar(
    * already stands down on it — and it is also what gives Close somewhere to
    * ask before doing something that cannot be undone.
    *
-   * L2 because the host binds nothing to it. A theme may (Shelf turns its box
-   * with it), so it is only taken while something is actually suspended: the
-   * rest of the time the press goes through untouched.
+   * PS because it is the button that suspended the game, and no theme can bind
+   * it (RESERVED_EVENTS). L2 was used before and collided with Shelf's flip.
    */
   useEffect(() => {
-    const off = onGp('gp:l2', () => {
-      const s = useStore.getState()
-      if (!s.backgroundSessions.length) return
-      if (stateRef.current.menu) { setMenu(false); return }
-      // Never over a game, a power action, standby, or another modal.
-      if (s.sessionGameKey || s.powerPending || s.standby !== 'off' || s.modalDepth) return
-      setMenu(true)
-    })
-    return off
+    // PS twice, outside a game. The backend's evdev monitor sees the guide
+    // button on pads Chromium hides it on, and says so with action 'home'.
+    const openIfIdle = () => { if (!stateRef.current.menu) manageRef.current() }
+    const offs = [
+      onGp('gp:guide', openIfIdle),
+      onWsEvent('gp:guide', data => { if (data.action === 'home') openIfIdle() }),
+    ]
+    return () => offs.forEach(off => off())
   }, [])
+
+  // The power menu's "In the background" row, for pads with no guide button.
+  // It asks while its own modal is still up, so the request waits for depth 0.
+  const sessionMenuRequest = useStore(s => s.sessionMenuRequest)
+  const pendingRequest = useRef(false)
+  useEffect(() => { if (sessionMenuRequest) pendingRequest.current = true }, [sessionMenuRequest])
+  useEffect(() => {
+    if (!pendingRequest.current || modalDepth) return
+    pendingRequest.current = false
+    manage()
+  })
 
   // Nothing left to manage — closed from elsewhere, or killed from under us.
   useEffect(() => {

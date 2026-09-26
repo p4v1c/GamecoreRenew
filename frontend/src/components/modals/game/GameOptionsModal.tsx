@@ -4,7 +4,7 @@ import { api, type OverlayChoices, type PerGameState } from '../../../api'
 import { onGp } from '../../../hooks/useGamepad'
 
 /**
- * Per-game options (R2 in the library): which bezel this game gets, and its
+ * Per-game options (Options in the library): which bezel this game gets, and its
  * per-game emulator settings.
  *
  * Bezel, three states:
@@ -155,9 +155,9 @@ export default function GameOptionsModal({ systemId, rom, title, onClose }: {
         setFocus(f => Math.min(rowsRef.current.length - 1, f + 1))),
       onGp('gp:confirm', () => rowsRef.current[focusRef.current]?.run()),
       onGp('gp:back', onClose),
-      // R2 opened this panel; R2 closes it. A modal a player cannot leave with
-      // the button that opened it is a modal they leave by killing the box.
-      onGp('gp:r2', onClose),
+      // Options opened this panel; Options closes it. A modal a player cannot
+      // leave with the button that opened it is one they leave by killing the box.
+      onGp('gp:menu', onClose),
     ]
     return () => offs.forEach(off => off())
   }, [onClose])

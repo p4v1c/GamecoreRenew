@@ -46,7 +46,7 @@ export default function createOrbit(sdk) {
   const Ceremony = createCeremony(sdk)
 
   function Shell() {
-    // L2 and the session menu belong to the host now — one binding for every
+    // PS and the session menu belong to the host now — one binding for every
     // theme, and no second panel to collide with it.
     //
     return html`<div className="orbit-app">

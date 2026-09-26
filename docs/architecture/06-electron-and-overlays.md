@@ -189,7 +189,7 @@ whose PNG is missing, and nothing else — see below.
 | `none` | nothing is drawn — **not** a frame |
 
 `chosen` and `off` sit in front of all of it: the player's own answer, set from
-the library with R2 and stored in `<DATA>/config/bezel-choices.json`.
+the library with Options (≡) and stored in `<DATA>/config/bezel-choices.json`.
 
 ### The console bezels this repository ships
 

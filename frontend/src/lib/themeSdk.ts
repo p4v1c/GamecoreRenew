@@ -35,7 +35,8 @@ import * as defaults from '../components/defaults'
  */
 // 6 adds spatial library omissions, search/options callbacks and __all__ libraries.
 // 7 adds defaults.launchGame: a ROM can launch without navigating to Library.
-export const SDK_VERSION = 7
+// 8 reserves gp:menu and gp:power for the host and drops libraryOmit 'options'.
+export const SDK_VERSION = 8
 
 /**
  * Game or application, from the identity the launcher gave the session.
@@ -49,17 +50,20 @@ export const SDK_VERSION = 7
 const sessionKind = (gameKey: string, systemId: string | null): 'game' | 'app' =>
   systemId !== null && gameKey === systemId ? 'app' : 'game'
 
-/** Every gamepad event a theme may subscribe to. gp:guide is intentionally absent. */
+/** Every gamepad event a theme may subscribe to. The reserved ones are absent. */
 export const GP_EVENTS = [
   'gp:dpad-up', 'gp:dpad-down', 'gp:dpad-left', 'gp:dpad-right',
   'gp:confirm', 'gp:back', 'gp:y', 'gp:x',
-  'gp:menu', 'gp:power',
   'gp:l1', 'gp:r1', 'gp:l2', 'gp:r2',
   'gp:connected', 'gp:disconnected',
 ] as const
 
-/** The core owns this one: double-press kills a running game. */
-const RESERVED_EVENTS = new Set(['gp:guide'])
+/**
+ * The host's global buttons: PS (suspend, sessions), ≡ (Settings, per-game
+ * options) and Share (power). A theme binding one would run a second action
+ * on the same press, as Shelf's L2 flip did under the session menu.
+ */
+export const RESERVED_EVENTS = new Set(['gp:guide', 'gp:menu', 'gp:power'])
 
 export interface ThemeSdk {
   version: number

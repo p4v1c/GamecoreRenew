@@ -43,6 +43,15 @@ const OPTIONS: PowerOption[] = [
   { id: 'desktop',  label: 'Return to desktop', busy: 'Leaving…', icon: '⌘', color: 'var(--set-info, #38bdf8)', desc: 'Leave the front end for the system session' },
 ]
 
+/**
+ * The way to a suspended session for pads whose guide button never reaches the
+ * box (PS ×2 is the other way). Not a power action, so no second press.
+ */
+const SESSIONS: PowerOption = {
+  id: 'sessions', label: 'In the background', busy: 'Opening…', icon: '▶',
+  color: 'var(--set-ok, #22c55e)', desc: 'Resume or close a suspended game or app',
+}
+
 // If the OS is still alive after this delay the power command failed
 // (no sudo rights, systemctl error…) — unfreeze the UI instead of soft-locking.
 const POWER_FAILSAFE_MS = 10000
@@ -59,7 +68,10 @@ export default function PowerModal({ onClose, view }: Props) {
    */
   const Shared = useSharedPowerView()
   const View = view ?? Shared ?? DefaultPowerView
-  const options = OPTIONS
+  const hasSessions = useStore(s => s.backgroundSessions.length > 0)
+  const options = hasSessions ? [SESSIONS, ...OPTIONS] : OPTIONS
+  const optionsRef = useRef(options)
+  optionsRef.current = options
 
   const [confirm, setConfirm] = useState<string | null>(null)
   const [focusIdx, setFocusIdx] = useState(0)
@@ -80,6 +92,7 @@ export default function PowerModal({ onClose, view }: Props) {
 
   const handleAction = (id: string) => {
     if (useStore.getState().powerPending) return
+    if (id === SESSIONS.id) { onClose(); useStore.getState().requestSessionMenu(); return }
     if (confirmRef.current !== id) { setConfirm(id); return }
     setPowerPending(id)
     if (id === 'desktop') {
@@ -106,9 +119,9 @@ export default function PowerModal({ onClose, view }: Props) {
   useEffect(() => {
     const offs = [
       onGp('gp:dpad-up',   () => { if (!useStore.getState().powerPending) setFocusIdx(i => Math.max(0, i - 1)) }),
-      onGp('gp:dpad-down', () => { if (!useStore.getState().powerPending) setFocusIdx(i => Math.min(options.length - 1, i + 1)) }),
+      onGp('gp:dpad-down', () => { if (!useStore.getState().powerPending) setFocusIdx(i => Math.min(optionsRef.current.length - 1, i + 1)) }),
       onGp('gp:confirm',   () => {
-        const o = options[focusIdxRef.current]
+        const o = optionsRef.current[focusIdxRef.current]
         if (o) handleAction(o.id)
       }),
       onGp('gp:back',  safeClose),

@@ -419,9 +419,16 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
   settledRef.current = settledGame
   gamesRef.current = displayedGames
 
+  // Per-game options hang off ≡, which the shell owns: it asks the store what ≡
+  // opens here, so no theme can omit the route or bind a second action to it.
+  const setGameOptions = useStore(s => s.setGameOptions)
+  useEffect(() => {
+    setGameOptions(settledGame ? () => { if (!launchingRef.current) setShowOptions(true) } : null)
+    return () => setGameOptions(null)
+  }, [settledGame, setGameOptions])
+
   // `omit` is a prop and a fresh array on every parent render; the effect only
   // cares whether one id is in it.
-  const omitOptions = !!omit?.includes('options')
   const omitNav = !!omit?.includes('nav')
   const omitConfirm = !!omit?.includes('confirm')
   const omitSort = !!omit?.includes('sort')
@@ -453,21 +460,6 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
       onGp('gp:confirm',  () => { if (omitConfirm || blocked()) return; launchRef.current() }),
       onGp('gp:back',     () => { if (screenRef.current !== 'library' || modalDepthRef.current > 0 || showOptionsRef.current) return; if (showSearchRef.current) { setShowSearch(false); return } cancelPendingLaunch(); goHome() }),
       onGp('gp:y',        () => { if (blocked()) return; setShowSearch(true) }),
-      // R2, because every face button is already spoken for on this screen:
-      // ✕ launches, ○ goes back, △ searches and □ is the controller screen.
-      //
-      // Dropped entirely when the theme says it binds R2 itself — not merely
-      // deferred, because both handlers would still fire. Shelf turns the box
-      // with R2 and prints so in its own hint bar; leaving this here made one
-      // press do two things, the second of which was never advertised.
-      //
-      // A theme that takes this shortcut leaves the per-game overlay picker
-      // with no route on its screens. That is a real loss and it is stated
-      // here rather than discovered: a wrong bezel is then only fixable from
-      // the default UI or over SSH.
-      ...(omitOptions ? [] : [
-        onGp('gp:r2',     () => { if (blocked() || !settledRef.current) return; setShowOptions(true) }),
-      ]),
       onGp('gp:l1', () => {
         if (omitSort || blocked()) return
         setSort(s => { const i = SORT_KEYS.indexOf(s); return SORT_KEYS[(i - 1 + SORT_KEYS.length) % SORT_KEYS.length] })
@@ -482,7 +474,7 @@ export default function LibraryScreen({ view: View = DefaultLibraryView, omit }:
     // need is read live above — a dependency list that changed on each step
     // meant tearing eight listeners down and rebuilding them on every press,
     // which is both the stale-cursor bug and needless work per frame.
-  }, [omitOptions, omitNav, omitConfirm, omitSort, goHome, setSelectedGameIdx, cancelPendingLaunch])
+  }, [omitNav, omitConfirm, omitSort, goHome, setSelectedGameIdx, cancelPendingLaunch])
 
   // When no system is selected, render nothing (screen is hidden by display:none anyway)
   if (!selectedSystemId) return null

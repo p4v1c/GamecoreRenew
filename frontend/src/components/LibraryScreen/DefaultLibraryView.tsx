@@ -236,7 +236,7 @@ export default function DefaultLibraryView({
         borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(9,9,15,0.5)',
       }}>
         <span style={{ fontSize: 14, color: 'var(--gc-ink-3)' }}>
-          <PadHints text="↑↓ Navigate · ✕ Play · △ Search · □ Controller · L1/R1 Sort · R2 Options · ○ Back" />
+          <PadHints text="↑↓ Navigate · ✕ Play · △ Search · □ Controller · L1/R1 Sort · Options Game options · ○ Back" />
         </span>
       </div>
     </motion.div>

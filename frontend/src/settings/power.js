@@ -1,7 +1,7 @@
 /**
- * The power menu: Shutdown, Restart, Return to desktop, on paper. The host
- * hands over exactly those three rows, so no theme can build a box that
- * cannot be turned off.
+ * The power menu: Shutdown, Restart, Return to desktop, on paper, led by
+ * "In the background" while a session is suspended. The host hands over the
+ * rows, so no theme can build a box that cannot be turned off.
  *
  * Markup only: the two-press confirmation, the pending lock and the failsafe
  * stay in PowerModal. Rows render in the host's order — `focusIdx` indexes
@@ -10,14 +10,15 @@
  */
 import { PadHints } from '../lib/padKey.js'
 const ICONS = {
+  sessions: 'M8 5.5v13l10.5-6.5z',
   restart: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5',
   shutdown: 'M12 3v9M6.3 6.3a9 9 0 1 0 11.4 0',
   desktop: 'M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M16 17l5-5-5-5M21 12H9',
 }
 
 // The ids that end a session. Used only to place one heading, and only when
-// something precedes it — today nothing does, so the menu is three session
-// rows and no heading, because a heading over the entire list labels nothing.
+// something precedes it (the "In the background" row): a heading over the
+// entire list labels nothing.
 const SESSION = new Set(['restart', 'shutdown', 'desktop'])
 
 export const createPowerView = (sdk, parts = {}) => {

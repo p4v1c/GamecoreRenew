@@ -475,6 +475,7 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, Box, Car
             <${PadKey} k="L2" /><span>Flip</span>
             <${PadKey} k="R2" /><span>${browse.modeLabel}</span>
             <${PadKey} k="△" /><span>Search</span>
+            <${PadKey} k="Options" /><span>Game options</span>
             <${PadKey} k="✕" /><span>Start</span>
             <${PadKey} k="○" /><span>Back</span>
           </div>

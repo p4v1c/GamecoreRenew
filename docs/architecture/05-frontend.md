@@ -32,7 +32,7 @@ keep a theme from breaking the launcher:
 
 | Layer | File | What lives there |
 |---|---|---|
-| **Kernel** | `App.tsx` | the input bus, the WebSocket, `gp:guide`, the Electron overlay handshake, the splash slot and its watchdog, the error boundaries. A theme cannot take any of it. |
+| **Kernel** | `App.tsx` | the input bus, the WebSocket, `gp:guide` (reserved with `gp:menu` and `gp:power`, [themes §6a](../themes/README.md#6a-the-hosts-buttons-and-the-themes)), the Electron overlay handshake, the splash slot and its watchdog, the error boundaries. A theme cannot take any of it. |
 | **Shell** | `components/DefaultShell.tsx` | the whole frontend body: stacking, the modal stack, which button opens which screen. A theme renders *one* of these — the default one with parts overridden, or its own tree. |
 | **Views** | `HomeScreen/DefaultHomeView.tsx`, `LibraryScreen/DefaultLibraryView.tsx` | markup only. |
 
@@ -57,7 +57,8 @@ One Zustand store, no context providers.
 | Navigation | `screen`, `selectedSystemId`, `selectedGameIdx`, `gridFocusIdx`, `gridPage` | `goHome()`, `goLibrary(id)`, `setGridFocus`, `setGridPage`, `setSelectedGameIdx` |
 | Focus lock | `modalDepth` | `openModal()`, `closeModal()` |
 | Power | `powerPending` | `setPowerPending(action)` |
-| Session | `sessionGameKey`, `sessionSystemId`, `backgroundSessions`, `launchConflict` | `setSession`, `setSessionState`, `setLaunchConflict` |
+| Session | `sessionGameKey`, `sessionSystemId`, `backgroundSessions`, `launchConflict`, `sessionMenuRequest` | `setSession`, `setSessionState`, `setLaunchConflict`, `requestSessionMenu()` (the power menu's row; `SessionBar` opens once `modalDepth` is 0) |
+| Options button | `gameOptions` — opens the settled library game's options, or null | `setGameOptions` (LibraryScreen); `DefaultShell`'s ≡ handler calls it on the library, else opens Settings |
 
 `modalDepth` is the mechanism that keeps gamepad handlers from firing twice.
 Every modal increments it on mount and decrements on unmount
@@ -152,7 +153,7 @@ and returns an unsubscribe.
 | `gp:disconnected` | `gamepad_monitor` | `player`, `label` | departure toast |
 | `gp:battery` | `battery.run()` | `name`, `level`, `threshold` | toast, or native HUD in-game |
 | `gp:controllers` | `battery.run()` | `controllers[]` | battery levels for the controllers screen |
-| `gp:guide` | `gamepad_monitor` | — | double press requests backgrounding |
+| `gp:guide` | `gamepad_monitor` | `action` (`backgrounded`, `home`, `failed`), `gesture` | double press: suspends a game; `home` (nothing running) opens the session menu in `SessionBar` |
 | `standby:screensaver` / `standby:sleep` / `standby:exit` | `standby._enter()` / `exit_standby()` | — | drives `Screensaver` |
 | `theme:changed` | `routers/themes.py` | `active` | reloads the theme |
 | `update:log` / `update:done` | `routers/update.py` | `line` / `success`, `code` | OTA progress |

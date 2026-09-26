@@ -51,7 +51,7 @@ There are no bundled demonstration games or new scraping services.
 Use the directional controls to move focus, Cross/A to select and Circle/B to
 return. L1/R1 switch the main tabs. The Library includes All and console filters,
 search, favourites and sorting controls. Search uses the host's virtual keyboard;
-Square opens the host's controller inputs screen and R2 opens game options.
+Square opens the host's controller inputs screen and Options opens game options.
 
 Applications use installed pack logos. Console presentation assets belong to
 Orbit and do not replace other themes' assets. Unknown consoles fall back to the
@@ -108,7 +108,7 @@ session. Reduced-motion preferences disable the new transitions.
 - The library shows the selected title, console, year and a short description.
   Metadata requests wait until selection settles and stale replies are ignored.
 - Jackets keep their space while loading, then fade in. Missing art keeps initials.
-- The session dock is compact and expands on hover/focus. L2 still opens the
+- The session dock is compact and expands on hover/focus. PS ×2 opens the
   host menu for resume and close; process lifecycle is unchanged.
 - Footer hints remain contextual and use Xbox labels when the first controller
   reported by the host is identified as Xbox/XInput, otherwise PlayStation labels.

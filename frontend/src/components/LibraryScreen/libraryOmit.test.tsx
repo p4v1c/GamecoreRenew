@@ -1,14 +1,10 @@
 /**
- * Two handlers on one button, and the mechanism that ends it.
+ * What a theme may take from the library, and what it may not.
  *
- * The host opens the per-game overlay picker on R2 — "because every face
- * button is already spoken for on this screen". Shelf's library binds R2 to
- * cycle how the shelf is stacked and prints `R2  <mode>` in its own hint bar.
- * Both were live at once, so one press turned the box AND opened a menu that
- * no theme surface advertised; the next press turned the box behind it.
- *
- * The host cannot detect that on its own — `onGp` has no notion of a claimed
- * event — so the theme declares it.
+ * `libraryOmit` drops the host's own handler for a shortcut the theme binds
+ * itself. It used to accept 'options' (R2): Shelf took it for its restack, and
+ * the per-game overlay picker then had no route on Shelf at all. The picker is
+ * on ≡ now, owned by the shell, and no id reaches it.
  */
 import { render } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -35,32 +31,18 @@ beforeEach(() => {
 })
 afterEach(() => { vi.unstubAllGlobals() })
 
-const boundR2 = () => (listeners['gp:r2'] ?? []).length
+const bound = (ev: string) => (listeners[ev] ?? []).length
 
-describe('the library’s R2 shortcut', () => {
-  it('is bound when no theme has claimed it', () => {
-    // The built-in UI draws its own library and advertises nothing on R2, so
-    // the picker keeps its route there.
+describe('the library’s shortcuts', () => {
+  it('leaves both triggers to the theme', () => {
+    // L2 and R2 are theme territory: Shelf flips and restacks with them.
     render(<LibraryScreen />)
-    expect(boundR2()).toBe(1)
+    expect(bound('gp:l2')).toBe(0)
+    expect(bound('gp:r2')).toBe(0)
   })
 
-  it('is dropped when the theme says it binds R2 itself', () => {
-    render(<LibraryScreen omit={['options']} />)
-    expect(boundR2()).toBe(0)
-  })
-
-  it('is dropped rather than merely guarded', () => {
-    // Deferring instead of dropping would leave both handlers registered, and
-    // both would still run — which is the bug, not a fix for it.
-    render(<LibraryScreen omit={['options']} />)
-    expect(listeners['gp:r2']).toSatisfy((l: unknown) => l === undefined || (l as []).length === 0)
-  })
-
-  it('ignores an id it does not know', () => {
-    // A theme naming something that is not a shortcut must not silently take
-    // one away.
-    render(<LibraryScreen omit={['not-a-shortcut']} />)
-    expect(boundR2()).toBe(1)
+  it('does not bind ≡ itself, so the shell decides what one press opens', () => {
+    render(<LibraryScreen />)
+    expect(bound('gp:menu')).toBe(0)
   })
 })

@@ -190,7 +190,7 @@ export function createLibrary(sdk, tabs, sessions, systemsRef, backdrop) {
 
       ${details ? html`<${Details} game=${details} onClose=${() => setDetails(null)} onPlay=${play} />` : null}
       <div className="library-selection-actions">
-        ${detailGame ? html`<button onClick=${onOpenOptions}>Game options <${PadKey} k="R2" /></button>` : null}
+        ${detailGame ? html`<button onClick=${onOpenOptions}>Game options <${PadKey} k="Options" /></button>` : null}
       </div>
 
     </section></main>`

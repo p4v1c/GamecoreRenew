@@ -95,7 +95,7 @@ export default (sdk) => {
   }
 
   /**
-   * The menu the host opens on L2, when something is suspended. Optional in
+   * The menu the host opens on PS ×2, when something is suspended. Optional in
    * exactly the same way, and for the same reason: the host draws one either
    * way, so a theme that omits it loses its own styling and nothing else.
    *
