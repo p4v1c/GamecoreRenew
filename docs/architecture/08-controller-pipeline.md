@@ -280,7 +280,7 @@ The two extra parameters are not decoration:
   sitting there.
 - **`pack_ids`** — narrows the sweep. The hotplug path passes `None` and sweeps
   everything, because a pad leaving concerns every emulator. The **launch** path
-  (`routers/games.py`) passes only the emulator about to start: rewriting Cemu
+  (`services/launch.py`) passes only the emulator about to start: rewriting Cemu
   because someone launched PCSX2 is a side effect nobody asked for, and it is
   also what would make the pass too slow to sit in front of a launch. That sweep
   is bounded by `RECONCILE_BUDGET` and abandoned on timeout — the launch matters
@@ -409,7 +409,7 @@ and its config was written at 08:52:59; Dolphin's arrived two seconds after it
 started. Both times the pad was dead in game, both times it worked at the next
 launch.
 
-`routers/games.py` therefore calls `gamepad_monitor.await_profiled()` before
+`services/launch.py` therefore calls `gamepad_monitor.await_profiled()` before
 `process_manager.launch()`. It **waits**, it does not profile: profiling means
 SDL probes carrying an eight-second timeout apiece, which cannot sit in front of
 a launch — the same reason `_free_stale_slots()` is the release half only.

@@ -1,74 +1,67 @@
-# Packs Azahar et melonDS avec daemon
+# Azahar and melonDS packs with their layout daemon
 
-Base : GamecoreRenew `de53579f6802a229dbea3d5edcf3ca4eaab3a300`.
+Base: GamecoreRenew `de53579f6802a229dbea3d5edcf3ca4eaab3a300`.
 
-Chaque pack contient son daemon, son unité systemd utilisateur et ses réglages
-initiaux. L'installation depuis GameCore (`gamecore-emu install`) et depuis
-l'installateur général déploie le daemon avec l'émulateur. Les fichiers vont
-dans le home du joueur, même si l'installation s'exécute avec sudo. Les services
-sont activés puis démarrés après les configurations ; sans session ouverte,
-ils démarrent à la connexion suivante.
+Each pack ships its daemon, its systemd user unit and its seed settings.
+Installing from GameCore (`gamecore-emu install`) or from the main installer
+deploys the daemon with the emulator. Files go to the player's home even when
+the install runs under sudo. Services are enabled and started after the
+configs; with no open session they start at the next login.
 
-Les noms de services restent `azahar-layout-toggle.service` et
-`melonds-layout-toggle.service`, comme dans les projets autonomes. Installer le
-pack remplace l'unité de même nom plutôt que créer un deuxième daemon.
+Service names stay `azahar-layout-toggle.service` and
+`melonds-layout-toggle.service`, as in the standalone projects. Installing the
+pack replaces the unit of the same name instead of adding a second daemon.
 
-## Contenu
+## Contents
 
-- `catalog/azahar/` : L3 → F10, layouts 0/1, écran supérieur étiré.
-- `catalog/melonds/` : L3 → réglages mémoire → F12, raccourci joystick désactivé,
-  sans installation de cheats ni activation automatique des cheats.
-- `backend/services/installer/host_access.py` et schéma : prérequis déclaratifs
-  `hostAccess.uinput` et `hostAccess.ptrace`, réservés aux packs de confiance.
-- Installation commune : bon home, bons chemins des seeds, services des
-  émulateurs collectés et démarrés, échecs remontés au parcours GameCore.
-- Désinstallation : arrêt des unités installées par les packs, retrait des
-  scripts embarqués et restauration des prérequis dont l'installation a gardé
-  la trace, en préservant les fichiers système modifiés ensuite par l'opérateur.
+- `catalog/azahar/`: L3 → F10, layouts 0/1, top screen stretched.
+- `catalog/melonds/`: L3 → memory settings → F12, joystick hotkey disabled,
+  no cheats installed or enabled.
+- `backend/services/installer/host_access.py` + schema: declarative
+  prerequisites `hostAccess.uinput` and `hostAccess.ptrace`, for trusted packs
+  only.
+- Shared install: correct home, correct seed paths, emulator services
+  collected and started, failures reported to the GameCore flow.
+- Uninstall: stops the units the packs installed, removes the shipped
+  scripts, restores the prerequisites the install recorded, and keeps system
+  files the operator changed afterwards.
 
-L'archive livrée contient les deux répertoires de packs complets et les fichiers
-communs modifiés. Il faut intégrer les deux : les manifests utilisent le nouveau
-champ `hostAccess`. Copier seulement les deux dossiers dans une ancienne version
-ne suffit pas. Le patch représente les mêmes changements par rapport au commit
-de base. Utiliser soit l'archive, soit le patch, après vérification des éventuelles
-modifications locales ; ne pas appliquer les deux successivement.
+Both pack directories AND the shared files are required: the manifests use
+the new `hostAccess` field, so copying only the two folders onto an older
+version does not work.
 
-## Installation sur un GameCore existant
+## Installing on an existing box
 
-Après intégration de ces changements dans GameCore, fermer les émulateurs puis
-installer les packs depuis l'interface ou avec :
+Close the emulators, then install the packs from the UI or with:
 
 ```bash
 sudo gamecore-emu install azahar melonds
 ```
 
-Cette commande conserve le comportement existant de redéploiement des seeds
-(sauvegarde `.bak-preinstall`) : elle n'est pas une migration ciblée des seules
-clés de layout. Une simple mise à jour du dépôt ne copie pas les daemons dans
-le home. `reconfigure` seul ne les installe pas.
+This keeps the existing seed redeploy behaviour (`.bak-preinstall` backup):
+it is not a targeted migration of the layout keys only. Updating the
+repository alone does not copy the daemons into the home, and `reconfigure`
+alone does not install them.
 
-## Validation effectuée
+## Validation
 
-263 tests réussis, 5 tests ignorés par la suite existante. Couverture ciblée :
-installation de packs, exécution simulée des deux parcours, services utilisateur,
-permissions et restauration, catalogue et restriction OTA, configuration Azahar,
-chemin melonDS natif/Flatpak, profils manette et fixtures existantes.
+263 tests passed, 5 skipped. Targeted coverage: pack install, both flows
+simulated, user services, permissions and restore, catalogue and OTA
+restriction, Azahar config, melonDS native/Flatpak path, controller profiles
+and existing fixtures. Catalogue: 17 valid packs. Ruff, Bash syntax of the
+changed scripts and `git diff --check`: OK.
 
-Catalogue : 17 packs valides. Ruff, syntaxe Bash des scripts modifiés et
-`git diff --check` : OK.
+No daemon or emulator was run; system commands were simulated in tests and
+files written to temporary directories.
 
-Aucun daemon ni émulateur exécuté sur la machine ; commandes système simulées
-dans les tests et fichiers écrits dans des répertoires temporaires. Aucun push,
-aucune installation système effectuée lors de la préparation de ces livrables.
+## To check on the box
 
-## À vérifier sur le boîtier
+- First launch, two L3 presses, quit, new game.
+- Bluetooth disconnect/reconnect and controller change.
+- Back to the UI: the daemons detect processes, not focus.
+- Bezels are not synchronised. Disable the DS/3DS bezel to show the whole
+  game in single-screen mode.
 
-- Premier lancement, deux appuis L3, arrêt du jeu et nouvelle partie.
-- Déconnexion/reconnexion Bluetooth et changement de manette.
-- Retour à l'interface : les daemons détectent les processus, pas le focus.
-- Cadres décoratifs : leur synchronisation n'est pas incluse. Désactiver le
-  cadre DS/3DS pour afficher tout le jeu en mode écran seul.
-
-melonDS utilise un accès mémoire interne et demande `ptrace_scope=0` sur l'hôte.
-La recherche dynamique ne garantit pas toutes les futures versions de melonDS.
-Voir aussi les README de chacun des deux packs.
+melonDS reads its own memory and needs `ptrace_scope=0` on the host. The
+dynamic offset search is not guaranteed for future melonDS versions. See each
+pack's README.

@@ -7,7 +7,7 @@ The paths worth knowing end to end. Every arrow names the function that runs.
 ```mermaid
 sequenceDiagram
     participant ui as LibraryScreen
-    participant r as routers/games.py
+    participant r as routers/games.py + services/launch.py
     participant pm as process_manager
     participant ws as ws.py
     participant el as Electron

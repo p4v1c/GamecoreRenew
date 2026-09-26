@@ -25,7 +25,7 @@ exists and is documented — do not duplicate it here:
 
 ## 1. Why themes ship components, not stylesheets
 
-The frontend has **no CSS files**. 21 of its 22 components style themselves with
+React components have **no CSS files** (the shared settings screen in `frontend/src/settings/` is written in the SDK idiom and ships `settings.css`). Most components style themselves with
 inline style objects — 131 hardcoded hex colours and 172 `rgba(255,255,255,…)`
 values live inside the components. The only global CSS in the project is six
 lines in `frontend/index.html` (reset, scrollbar, overlay-mode, one keyframe).

@@ -7,7 +7,7 @@ All routers are mounted with `prefix="/api"` in `backend/main.py:41-55`.
 Routers parse, validate and delegate; the logic lives in
 [services](04-backend-services.md).
 
-## Wiring — `main.py` (111 l.)
+## Wiring — `main.py`
 
 | Symbol | What it does |
 |---|---|
@@ -73,35 +73,34 @@ invisible.
 > `@app.websocket("/ws")` **must** stay declared before the `/` mount. The SPA
 > catch-all would otherwise swallow the upgrade request.
 
-## `systems.py` (63 l.) — the catalogue
+## `systems.py` — the catalogue
+
+The listing itself lives in `backend/services/systems.py` (`get_systems`,
+`get_apps`, `list_all`, `find`): services need it too, and a service must not
+import a router.
 
 | Function | Route | Notes |
 |---|---|---|
-| `_hot_load(path)` | — | re-reads the JSON **on every call**; no restart needed after editing, and a syntax error breaks the API instantly |
-| `get_systems()` | — | `config/systems.json` |
-| `get_apps()` | — | `config/apps.json` |
-| `list_all()` | — | merged list — *the* lookup used by `games.py` and the covers pipeline |
-| `list_systems()` | `GET /systems` | |
-| `get_system(system_id)` | `GET /systems/{id}` | |
+| `list_systems()` | `GET /systems` | `services.systems.list_all()` — rows re-read when the file's mtime changes |
+| `get_system(system_id)` | `GET /systems/{id}` | `services.systems.find()`, else 404 |
 | `serve_logo(filename)` | `GET /assets/logos/{filename}` | |
 
-## `games.py` (138 l.) — scanning and launching
+## `games.py` — scanning and launching
 
 | Function | Route | Notes |
 |---|---|---|
 | `scan_roms(roms_path, extensions, scan_dirs, system_id)` | — | wraps `rom_scanner.iter_rom_files`; skips vanished files instead of 500-ing; for `scan_dirs` systems, prefers the title from `local_media.get_title()` over the folder name (a PS3 folder is often just `BLES01234`) |
 | `list_games(system_id)` | `GET /systems/{id}/games` | returns `[]` for apps |
-| `launch_game(req)` | `POST /games/launch` | 404 unknown system · 409 foreground session or a different suspended game · resumes the same suspended game · **403 if the ROM path resolves outside the system's `romsPath`** |
+| `launch_game(req)` | `POST /games/launch` | 404 unknown system, then `services.launch.launch()`; its `LaunchRefused(status, detail)` becomes the HTTP error: 409 foreground session or a different suspended game · resumes the same suspended game · **403 if the ROM path resolves outside the system's `romsPath`** · 424 catalogue/BIOS gate · 503 emulator missing |
 | `kill_game(req?)` | `POST /games/kill` | optional session number; otherwise the foreground or latest suspended session |
 | `background_game()` | `POST /games/background` | SIGSTOPs the foreground process group and returns the complete session state |
 | `foreground_game(req?)` | `POST /games/foreground` | SIGCONTs the named/latest suspended session |
 | `get_session()` | `GET /games/session` | flat foreground fields plus `background[]` |
-| `_gamepad_trigger(rounds=3, delay=3.0)` | — | `sudo udevadm trigger` ×3, for Flatpak apps that only see a pad after a udev re-fire |
 
-The path check is the security-critical line:
+The path check (`services/launch.py:_check_rom_path`) is the security-critical line:
 
 ```python
-Path(req.rom_path).resolve().relative_to(roms_root.resolve())
+Path(rom_path).resolve().relative_to(roms_root.resolve())
 ```
 
 Without it, a crafted `rom_path` turns `/api/games/launch` into "run any
@@ -112,7 +111,7 @@ preparation and again immediately before process creation. A matching suspended
 `(system_id, game_key)` is resumed; a different game gets a 409 that names the
 held title. Application tiles remain independent and may coexist.
 
-## `covers.py` (28 l.) / `metadata.py` (19 l.)
+## `covers.py` / `metadata.py`
 
 | Function | Route |
 |---|---|
@@ -122,7 +121,7 @@ held title. Application tiles remain independent and may coexist.
 `{filename:path}` (not `{filename}`) because ROM names contain slashes for
 folder-based games.
 
-## `media.py` (135 l.) — every artwork, not just the jacket
+## `media.py` — every artwork, not just the jacket
 
 | Function | Route |
 |---|---|
@@ -159,13 +158,13 @@ ScreenScraper requires between calls.
 A 404 on the file route carries the list of types the game *does* have, so a
 theme never has to guess twice.
 
-## `playtime.py` (36 l.)
+## `playtime.py`
 
 `get_all_playtime()`, `get_system_playtime(system_id)`,
 `get_game_playtime(game_key:path)` — straight reads of the `playtime` table
 ([schema](07-config-and-data.md#playtimedb)).
 
-## `overlays.py` (~310 l.) — resolve, measure, choose, deposit
+## `overlays.py` — resolve, measure, choose, deposit
 
 The whole bezel surface. Everything validates `system_id` against the shared
 `SYSTEM_ID_RE` (backend/utils.py) — the id names a directory under a served
@@ -189,7 +188,7 @@ Uploads write through `tempfile.mkstemp` in the destination directory —
 deliberately NOT `utils.atomic_write`: two concurrent uploads must not share a
 temp name, which is a different problem from a power cut.
 
-## `addons.py` (141 l.) — registry and lifecycle
+## `addons.py` — registry and lifecycle
 
 | Function | Route | Notes |
 |---|---|---|
@@ -208,7 +207,7 @@ why the registry stays consistent whoever ran the command.
 > `/api/addons/notify` is reachable from any addon and its payload ends up in
 > HUD toast HTML. See [gotchas](09-gotchas.md#untrusted-strings-reach-the-hud).
 
-## `update.py` (100 l.) — OTA
+## `update.py` — OTA
 
 | Function | Route | Notes |
 |---|---|---|
@@ -233,7 +232,7 @@ kills the **process group**, through the same helper `process_manager` uses to
 kill a game. Killing only `bash` left its `rsync`, `pip` and `npm` writing into
 `/opt/GameCore` after the UI had been told the update was aborted.
 
-## `themes.py` (37 l.) — the theme catalogue
+## `themes.py` — the theme catalogue
 
 | Route | What it does |
 |---|---|
@@ -244,13 +243,13 @@ kill a game. Killing only `bash` left its `rsync`, `pip` and `npm` writing into
 incomplete theme would otherwise be selectable, fail to load, and leave the
 player on the default UI wondering why their choice did nothing.
 
-## `sysinfo.py` (30 l.)
+## `sysinfo.py`
 
 `_primary_ip()` + `get_sysinfo()` → `GET /sysinfo`: IP, storage used/total/free,
 `APP_VERSION`, and `controller_registry.snapshot()` (the P1…P4 slots with
 battery). The TopBar and the controller screen both read it.
 
-## `standby.py` (30 l.)
+## `standby.py`
 
 `get_standby()` (state + config), `set_config(cfg)` (`StandbyConfig` model,
 persisted to `config/standby.json`), `wake()` → `standby.exit_standby()`.
@@ -266,7 +265,7 @@ mapping wizard: `POST /controllers/mapping/{start,commit,cancel,forget}`, `GET
 `POST`/`DELETE /controllers/scan-mapping` ("Scan mapping" / "Forget mapping")
 were removed and answer 404. Snapshots they saved are still restored on connect.
 
-## `auth.py` (109 l.) — shared-password login
+## `auth.py` — shared-password login
 
 | Function | Route | Notes |
 |---|---|---|
@@ -295,7 +294,22 @@ Each module wraps a CLI and is careful about the environment, because a
 systemd service has no session bus. All three define a local `_session_env()`
 and an async `_run(*args)`.
 
-### `settings/wifi.py` (183 l.) — `nmcli`
+### `settings/display.py` — resolution, refresh rate, UI scale
+
+Thin: six endpoints over `backend/services/display.py`, which picks
+`kscreen-doctor` (Wayland) or `xrandr`, arms the revert timer and writes
+`config/display.json` / `config/ui-scale.json`. `DisplayError(status, detail)`
+becomes the HTTP error.
+
+| Route | Notes |
+|---|---|
+| `GET /settings/display` | modes, current, backend, `pending`, `revert_secs` |
+| `POST /settings/display/mode` | 409 while a game is resident · 400 mode not advertised · arms the revert timer |
+| `POST /settings/display/confirm` | keeps the mode and persists it — the only writer of `display.json` |
+| `POST /settings/display/revert` | goes back now |
+| `GET/POST /settings/display/scale` | one of `SCALES`; applied by the front end as a zoom |
+
+### `settings/wifi.py` — `nmcli`
 
 | Function | Route |
 |---|---|
@@ -313,11 +327,11 @@ SSID beginning with `-` is refused rather than escaped: the SSID is positional
 with nothing marking the end of the options, such a network is vanishingly rare,
 and guessing at `nmcli`'s option parsing is not worth being clever about.
 
-### `settings/audio.py` (88 l.)
+### `settings/audio.py`
 
 `get_audio()`, `list_sinks()`, `set_volume(req)`, `set_sink(req)`.
 
-### `settings/bluetooth.py` (118 l.) — `bluetoothctl`
+### `settings/bluetooth.py` — `bluetoothctl`
 
 `list_devices()`, `start_scan()` (returns immediately, `_do_scan()` runs 8 s in
 the background), `connect_device`, `disconnect_device`, `remove_device(mac)`.
@@ -333,7 +347,7 @@ These four arrived with features that did not exist when the inventory above was
 written. Each is listed with what it serves and the decision that is not visible
 from the endpoint list.
 
-### `catalog.py` (292 l.) — installing while the box is running
+### `catalog.py` — installing while the box is running
 
 `GET /catalog`, `POST /catalog/{pack_id}/install`, `POST /{pack_id}/remove`,
 `POST /{pack_id}/reconfigure`, `GET /catalog/busy`, `GET /catalog/ota/status`,
@@ -344,12 +358,12 @@ holding a gamepad: the screen has to be able to say "already working" rather tha
 queue a second install behind the first. The `ota/*` pair drives the signed
 catalogue channel — see [10](10-catalog-and-install.md#three-tiers-and-the-signed-remote-one).
 
-### `bios.py` (27 l.) — one row per system that needs a system file
+### `bios.py` — one row per system that needs a system file
 
 `GET /bios`. Thin on purpose; the verdicts come from
 [`services/bios.py`](04-backend-services.md#biospy-253-l--three-verdicts-not-two).
 
-### `pergame.py` (145 l.) — per-game settings from the sofa
+### `pergame.py` — per-game settings from the sofa
 
 `GET /pergame/{system_id}`, `POST /pergame/{system_id}/profile`,
 `POST /pergame/{system_id}/open`.
@@ -359,6 +373,6 @@ half of the design: GameCore never translates a setting's meaning across thirtee
 emulators, so the escape hatch is opening the real UI rather than approximating
 it. See [10](10-catalog-and-install.md#pergame--and-why-it-is-required-on-every-emulator-pack).
 
-### `storage.py` (74 l.) — external disks
+### `storage.py` — external disks
 
 `GET /storage/volumes`, `POST /storage/mount`, `POST /storage/unmount`.

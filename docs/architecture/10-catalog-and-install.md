@@ -92,7 +92,7 @@ by `scripts/check-catalog.py`, which CI runs before anything else. Required:
 | `bios` | `backend/services/bios.py` | which system files the OWNER must supply, so the UI can answer "absent / wrong md5 / conforming" instead of a black screen |
 | `perGame` | `backend/services/pergame.py` | whether per-game settings are supported, and the strategy |
 | `localMedia` | `backend/services/local_media.py` | how covers/titles are read out of the dumps themselves (PARAM.SFO, disc headers) |
-| `usb` | the tile, `games.py` | non-gamepad accessories a launch should check for, and what to say when absent |
+| `usb` | the tile, `services/launch.py` | non-gamepad accessories a launch should check for, and what to say when absent |
 | `install` | `installer/providers.py` | how the **main artifact** is obtained |
 | `sandbox` | `installer/providers.py` | Flatpak override flags. Absent = the emulator default |
 | `packages` | `installer/applier.py` | extra system dependencies, *not* the main artifact |
@@ -159,7 +159,7 @@ page is still a failed download, and an optional `sha256`.
 ### `launch.fullscreen` and `launch.gamepadTrigger`
 
 Two things a tile may need once the app is up, both read by
-`backend/routers/games.py` right after the launch succeeds:
+`backend/services/launch.py` right after the launch succeeds:
 
 ```json
 "launch": {
@@ -228,7 +228,7 @@ Declaring one does four things:
 |---|---|
 | writes `/etc/udev/rules.d/99-gamecore-<pack>.rules` at install | `installer/applier.py:apply_udev` |
 | lists the device present-or-absent on the controller screen | `GET /api/controllers/devices` |
-| re-fires `udevadm trigger` after launch, so a device plugged in later reaches the Flatpak sandbox | `routers/games.py` |
+| re-fires `udevadm trigger` after launch, so a device plugged in later reaches the Flatpak sandbox | `services/launch.py` |
 | broadcasts `game:notice` with the pack's own note when the device is absent | `usb_devices.launch_notice` |
 
 Two rules worth stating out loud:

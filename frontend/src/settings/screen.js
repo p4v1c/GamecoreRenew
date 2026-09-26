@@ -17,9 +17,7 @@
  *
  * ⛔ Own pages are BARE. This frame carries the overlay, once. Wrapping a page
  * in a panel of its own is the nested position:fixed that shattered the Wi-Fi
- * page and painted it black, and the docstring in defaults.tsx still describes
- * the pages the old way — `summer/views/settings.js` and the SDK table are the
- * ones telling the truth.
+ * page and painted it black.
  *
  * ## Shared, and styled from outside
  *

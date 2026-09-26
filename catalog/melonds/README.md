@@ -1,51 +1,47 @@
-# melonDS — bascule L3 intégrée au pack
+# melonDS — L3 layout toggle built into the pack
 
-L'installation de ce pack installe melonDS, puis le daemon Python et le service
-utilisateur `melonds-layout-toggle.service`, depuis GameCore comme depuis
-l'installateur général. Le service démarre après la configuration ; sans
-session utilisateur ouverte, il démarre à la prochaine connexion.
+Installing this pack installs melonDS, then the Python daemon and the user
+service `melonds-layout-toggle.service`, from GameCore or from the main
+installer. The service starts after the config; with no open user session it
+starts at the next login.
 
-L3 alterne deux écrans et écran supérieur seul en 16:9. Le daemon modifie les
-réglages de disposition en mémoire, puis injecte F12 pour demander à melonDS
-de recalculer l'affichage. La configuration initiale lie F12 à
-`HK_SwapScreenEmphasis` et désactive la liaison joystick correspondante. La
-restauration d'un ancien profil manette conserve cette désactivation lorsque
-F12 est sélectionné. Le daemon répare aussi la liaison lorsque melonDS ferme.
+L3 switches between both screens and top screen only in 16:9. The daemon
+changes the layout settings in memory, then injects F12 so melonDS recomputes
+the display. The seed binds F12 to `HK_SwapScreenEmphasis` and unbinds the
+matching joystick hotkey. Restoring an old controller profile keeps that
+unbinding when F12 is selected. The daemon also repairs the binding when
+melonDS closes.
 
-Le pack déclare deux prérequis appliqués par le moteur d'installation :
+The pack declares two prerequisites applied by the install engine:
 
-- `hostAccess.uinput` : module, permissions du clavier virtuel et groupe input.
-- `hostAccess.ptrace` : `kernel.yama.ptrace_scope=0`, nécessaire au daemon
-  autonome pour accéder à un autre processus du même utilisateur. Ce réglage
-  concerne l'hôte entier. L'ancien réglage et les fichiers remplacés sont
-  conservés dans `/var/lib/gamecore/layout-access.json` pour la désinstallation.
+- `hostAccess.uinput`: module, virtual keyboard permissions, `input` group.
+- `hostAccess.ptrace`: `kernel.yama.ptrace_scope=0`, needed for the daemon to
+  read another process of the same user. Host-wide setting. The previous value
+  and replaced files are kept in `/var/lib/gamecore/layout-access.json` for
+  uninstall.
 
-Le daemon utilise uniquement Python 3 standard. Il est installé sous
-`~/.local/share/gamecore/layout-toggle/melonds/`. Le nom du service est celui du
-projet autonome afin d'éviter deux daemons simultanés.
+Python 3 stdlib only. Installed under
+`~/.local/share/gamecore/layout-toggle/melonds/`. The service keeps the
+standalone project's name to avoid two daemons at once.
 
-Adaptations de la copie embarquée :
+Changes from the standalone copy:
 
-- service lancé avec `--recalc uinput --no-widescreen` : aucun code de triche
-  installé ni activation automatique de `EnableCheats` ; le 16:9 est un étirement ;
-- aucune écriture de bascule tant que le clavier virtuel n'est pas disponible ;
-- sortie en échec si les entrées sont inaccessibles, pour permettre à systemd
-  de réessayer ;
-- choix de la configuration selon le lanceur GameCore, prise en charge du
-  binaire natif optionnel `lib/melon` ; `MELONDS_CONFIG` peut imposer un chemin ;
-- offsets et caches restent propres au daemon et à la version de melonDS.
+- run with `--recalc uinput --no-widescreen`: no cheat code installed and no
+  automatic `EnableCheats`; 16:9 is a stretch;
+- no toggle write until the virtual keyboard exists;
+- exits with failure when inputs are unreadable, so systemd retries;
+- picks the config from the GameCore launcher, supports the optional native
+  binary `lib/melon`; `MELONDS_CONFIG` can force a path;
+- offsets and caches stay per daemon and per melonDS version.
 
-Après déploiement de cette version de GameCore :
-`sudo gamecore-emu install melonds` installe aussi le daemon sur une installation
-existante. Cette commande réapplique la configuration initiale avec sauvegarde,
-comme auparavant ; fermer l'émulateur d'abord. Une mise à jour du code seule ne
-déploie pas les fichiers du daemon dans le home.
+On a box that already has the pack: `sudo gamecore-emu install melonds` adds
+the daemon. It reapplies the seed with a backup, as before; close the emulator
+first. A code update alone does not deploy the daemon into the home.
 
-Diagnostic : `systemctl --user status melonds-layout-toggle` et
+Diagnostics: `systemctl --user status melonds-layout-toggle` and
 `journalctl --user -u melonds-layout-toggle -f`.
 
-L'accès aux structures internes reste dépendant des versions de melonDS ; la
-recherche dynamique ne garantit pas la compatibilité avec toutes les futures
-versions. Le daemon teste le processus, pas le focus, et ne pilote pas les
-cadres décoratifs GameCore. Désactiver le cadre pour profiter du plein écran.
-Les tests automatisés ne remplacent pas une validation L3/Bluetooth sur le boîtier.
+Reading melonDS internals depends on its version; the dynamic search does not
+guarantee future versions. The daemon checks the process, not focus, and does
+not drive GameCore's bezels — disable the bezel for full screen. Automated
+tests do not replace an L3/Bluetooth check on the box.

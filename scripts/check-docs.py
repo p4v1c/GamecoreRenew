@@ -91,6 +91,8 @@ RUNTIME_GENERATED = {
     "config/theme.json",      # the selected theme
     "config/standby.json",    # sleep/wake schedule
     "config/addons.json",     # installed addons registry
+    "config/display.json",    # the confirmed display mode, written by /confirm
+    "config/ui-scale.json",   # the interface zoom chosen in Display
 }
 
 # Named on purpose although not there YET: a document describing how to turn a

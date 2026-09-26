@@ -1,23 +1,25 @@
 # 5 — Frontend
 
-React 18 + Vite + Zustand + Framer Motion. **No CSS files** — styling is
-inline style objects next to the markup, which is why components look long.
-(A *theme* is the exception: it owns its markup, so it ships a stylesheet.
-See `docs/themes/README.md`.)
+React 18 + Vite + Zustand + Framer Motion. **No CSS files in React
+components** — styling is inline style objects next to the markup. Two
+exceptions own their markup and ship a stylesheet: a *theme*
+(`docs/themes/README.md`) and the shared settings screen
+(`frontend/src/settings/`, SDK idiom, `settings.css`, `gcs-*` classes).
 
 ```
 src/
-  main.tsx                  createRoot
-  App.tsx           108 l.  the kernel — see below
-  store/index.ts     57 l.  Zustand store
-  api/index.ts      119 l.  typed fetch wrappers, BASE = "/api"
+  main.tsx          createRoot
+  App.tsx           the kernel — see below
+  store/index.ts    Zustand store
+  api/index.ts      typed fetch wrappers, BASE = "/api"
   hooks/
-    useGamepad.ts   215 l.  Gamepad API → CustomEvents + live state
-    useWebSocket.ts  73 l.  backend push → handler registry
-    useTheme.ts     178 l.  loads the active theme, crash counting, L1+R1 rescue
+    useGamepad.ts   Gamepad API → CustomEvents + live state
+    useWebSocket.ts backend push → handler registry
+    useTheme.ts     loads the active theme, crash counting, L1+R1 rescue
   lib/
-    themeLoader.ts  140 l.  imports a theme module, validates its surfaces
-    themeSdk.ts     138 l.  the object a theme receives — the whole contract
+    themeLoader.ts  imports a theme module, validates its surfaces
+    themeSdk.ts     the object a theme receives — the whole contract
+  settings/         the shared settings screen (SDK idiom, plain JS + index.d.ts)
   components/…
 ```
 
@@ -142,9 +144,20 @@ and returns an unsubscribe.
 | `game:finished` | `process_manager._watch()` | + `elapsed`, `session` | removes that run and hides the overlay when foreground |
 | `game:running` | `ws.connect()` | foreground plus `background[]` | late-joining client catches up |
 | `game:backgrounded` / `game:foregrounded` | `process_manager` | transition plus complete state snapshot | atomically moves the run between screen and session bar |
+| `game:failed` | `services/launch.py` | `game_key`, `system_id`, `detail` | launch refused (catalogue, BIOS, exec) — shows the reason |
+| `game:notice` | `services/launch.py` | `game_key`, `system_id`, `detail` | non-blocking warning: missing USB accessory, late pad profile, pack `prepare_launch` notice |
+| `gp:connected` | `gamepad_monitor` | `player`, `label`, `vendor`, `product`, `unmapped`… | arrival toast |
+| `gp:disconnected` | `gamepad_monitor` | `player`, `label` | departure toast |
 | `gp:battery` | `battery.run()` | `name`, `level`, `threshold` | toast, or native HUD in-game |
+| `gp:controllers` | `battery.run()` | `controllers[]` | battery levels for the controllers screen |
 | `gp:guide` | `gamepad_monitor` | — | double press requests backgrounding |
-| standby events | `standby._enter()` | stage | drives `Screensaver` |
+| `standby:screensaver` / `standby:sleep` / `standby:exit` | `standby._enter()` / `exit_standby()` | — | drives `Screensaver` |
+| `theme:changed` | `routers/themes.py` | `active` | reloads the theme |
+| `update:log` / `update:done` | `routers/update.py` | `line` / `success`, `code` | OTA progress |
+| `catalog:log` / `catalog:done` | `routers/catalog.py` | `line` / `action`, `id`, `success` | pack install/remove progress |
+| `catalog:updated` | `routers/catalog.py` | OTA summary | catalogue refreshed over the air |
+| `addon:log` / `addon:done` | `routers/addons.py` | `line` / `action`, `name`, `success` | addon install/remove progress |
+| `playtime:rekeyed` | `main.py` lifespan | `moved` | playtime rows moved to new game keys |
 | addon events | `POST /api/addons/notify` | free-form | e.g. refresh after a ROM upload |
 
 ## Components
@@ -184,7 +197,7 @@ and returns an unsubscribe.
 
 `WifiPage` (218), `AudioPage` (233), `BluetoothPage` (189), `StandbyPage`
 (102), `ThemesPage` (156), `UpdatePage` (143), `DesktopPage` (33). All share
-`useSubPageGamepad(onBack, onClose, enabled)` (18 l.), which binds ○ → back
+`useSubPageGamepad(onBack, onClose, enabled)`, which binds ○ → back
 and □ → close consistently, so no page reimplements it.
 
 **Each page wraps itself in `<Overlay>`.** They are not fragments: a page *is* a
