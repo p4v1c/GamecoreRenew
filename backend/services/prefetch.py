@@ -57,7 +57,7 @@ import logging
 import threading
 
 from ..config import resolve_path
-from ..routers.systems import list_all
+from .systems import list_all
 from ..utils import rom_in_root
 from . import cover_encode, gamemedia
 from .cover_pipeline import resolve as resolve_cover

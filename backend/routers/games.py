@@ -27,7 +27,7 @@ from ..services.catalog import launch as catalog_launch
 from ..services.catalog import load_catalog
 from ..services.process_manager import SessionConflict, process_manager
 from ..services.rom_scanner import clean_name, iter_rom_files
-from .systems import list_all
+from ..services.systems import list_all
 
 log = logging.getLogger(__name__)
 

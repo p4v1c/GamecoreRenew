@@ -2,7 +2,7 @@
 from fastapi import APIRouter, HTTPException
 
 from ..services import metadata
-from .systems import list_all
+from ..services.systems import list_all
 
 router = APIRouter(tags=["metadata"])
 

@@ -22,7 +22,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from ..services import gamemedia, http_cache
 from ..utils import rom_in_root
-from .systems import list_all
+from ..services.systems import list_all
 
 router = APIRouter(tags=["media"])
 

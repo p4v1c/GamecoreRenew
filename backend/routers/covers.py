@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from ..services import http_cache
 from ..services.cover_pipeline import resolve
-from .systems import list_all
+from ..services.systems import list_all
 
 router = APIRouter(tags=["covers"])
 

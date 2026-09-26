@@ -47,7 +47,7 @@ def _run(tmp_path: Path, seed: list[tuple], passes: int = 1) -> tuple[list, list
     belongs to the loop that opened it, and the module keeps a global one.
     """
     from backend import config, db as dbmod
-    from backend.routers import systems as systems_router
+    from backend.services import systems as systems_router
     from backend.services import paths, playtime_repair
 
     # config caches its paths at import; point them at this library.
