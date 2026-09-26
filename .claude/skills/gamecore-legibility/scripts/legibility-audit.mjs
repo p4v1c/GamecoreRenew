@@ -187,6 +187,7 @@ function collect() {
     const el = n.parentElement
     if (!text || !el || ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(el.tagName)) continue
     if (el.closest('[aria-hidden="true"]')) continue     // decoration carries no information
+    if (el.closest(':disabled, [aria-disabled="true"]')) continue   // inactive: exempt, as in WCAG
     const cs = getComputedStyle(el)
     if (cs.visibility !== 'visible') continue
     const range = document.createRange()

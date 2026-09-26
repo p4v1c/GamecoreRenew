@@ -42,17 +42,22 @@ Exempt, and only these:
 - text drawn as part of an object, when the same fact is readable elsewhere
   (box spine, back-of-box fine print);
 - illustrations marked `aria-hidden="true"` (the controller drawing, the
-  ghost art when no pad is connected). If something carries information that
+  ghost art when no pad is connected);
+- disabled controls (`disabled` / `aria-disabled="true"`), e.g. index letters
+  with no game. The ones that do something must pass. If something carries information that
   is not repeated as readable text, it is not decoration.
 
 ## 3. Measure
 
-Dev server (never the real lifespan: it runs `sudo -n cpupower`, and failed
-sudo attempts lock the account):
+Dev server. It is read-only (every write but the theme switch gets a 403:
+an audit press once launched Steam on the box) and never runs the real
+lifespan (`sudo -n cpupower`, and failed sudo attempts lock the account):
 
 ```bash
 mkdir -p /tmp/gcdata/config && cp install/generated/systems.json.dist /tmp/gcdata/config/systems.json \
   && cp install/generated/apps.json.dist /tmp/gcdata/config/apps.json && cp -r config/themes /tmp/gcdata/config/
+# a library with games: empty files with real names
+mkdir -p /tmp/gcdata/emu/azahar && touch "/tmp/gcdata/emu/azahar/"{"Mario Kart 7","Pokemon X","Kid Icarus - Uprising"}" (Europe).3ds"
 (cd frontend && npx vite build)
 GAMECORE_PATH=$PWD GAMECORE_DATA=/tmp/gcdata PYTHONPATH=$PWD \
   python3 .claude/skills/gamecore-legibility/scripts/devserve.py &
@@ -67,7 +72,7 @@ Audit, per theme and per screen:
 A=.claude/skills/gamecore-legibility/scripts/legibility-audit.mjs
 for t in default orbit shelf summer; do
   node $A --theme $t                           # home
-  node $A --theme $t --press confirm          # library
+  node $A --theme $t --press confirm          # library (Orbit: --press r1,confirm)
   node $A --theme $t --press x                # controller screen
   node $A --theme $t --press power            # power menu
   node $A --theme $t --press menu             # settings
@@ -81,7 +86,7 @@ How it measures: one screenshot with all text and icons hidden, then the
 backdrop is sampled under each item and the 10th-percentile ratio is kept.
 Items another screen covers are skipped.
 
-Limits: the dev data has no games, so the library opens on its empty state.
+Limits: empty ROM files all get the same scraped art; fine for layout.
 The built-in UI ignores synthetic presses, so only its home is audited here;
 its settings and power pages share `frontend/src/settings/css` with the
 themes. The TV is the final check: look at it before merging.

@@ -24,3 +24,11 @@
   .center-top .sample-badge, .control-center .secondary-button, .controller-mappings > div > span) {
   font-size: 14px;
 }
+
+/* Collection (library) screen and the pad status in the top bar. */
+.orbit-app :is(.library-toolbar .filter, .page-heading .filter, .library-toolbar .filter-favorites,
+  .library-sort > button, .library-search-open > span, .library-selection-actions > button,
+  .status-bar .topbar-pad > b, .status-bar .topbar-pad > span) {
+  font-size: 14px;
+}
+.orbit-app .library-grid .library-card > h3 { font-size: 15px; }

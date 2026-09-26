@@ -19,9 +19,9 @@
 .cz-search {
   display: flex; align-items: center; gap: 8px; justify-self: start;
   padding: 6px 8px 6px 12px; border-radius: var(--r-chip);
-  background: rgba(255, 255, 255, 0.42);
-  border: 1px solid var(--rule-2);
-  color: var(--ink-3);
+  background: var(--paper);                 /* opaque: the wallpaper showed through */
+  border: 1px solid var(--rule);
+  color: var(--ink-2);
   transition: border-color 200ms ease, background-color 200ms ease;
 }
 .cz-search[data-live="1"] {
@@ -46,7 +46,7 @@
 
 .cz-sortchip {
   justify-self: end; display: flex; align-items: center; gap: 6px;
-  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px; color: var(--ink-3);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px; color: var(--ink-2);
 }
 .cz-sortchip > kbd {
   display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 6px;
@@ -58,8 +58,8 @@
   display: flex; align-items: center; justify-content: center; gap: 2px;
   justify-self: center;
   padding: 4px 10px; border-radius: var(--r-chip);
-  background: rgba(255, 255, 255, 0.42);
-  border: 1px solid var(--rule-2);
+  background: var(--paper);                 /* opaque: the wallpaper showed through */
+  border: 1px solid var(--rule);
   font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px;
 }
 .cz-letter {
@@ -68,7 +68,7 @@
   font: inherit; cursor: default; padding: 0;
   transition: color 200ms ease, background-color 200ms ease;
 }
-.cz-letter[data-has="1"] { color: var(--ink-3); cursor: pointer; }
+.cz-letter[data-has="1"] { color: var(--ink-2); cursor: pointer; }
 .cz-letter[data-has="1"]:hover { color: var(--ink); }
 .cz-letter[data-on="1"] { background: var(--ink); color: var(--paper); }
 .cz-sortnote { display: flex; align-items: center; gap: 10px; padding: 0 6px; color: var(--ink-2); }
