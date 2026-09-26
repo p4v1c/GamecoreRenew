@@ -8,8 +8,8 @@ the GUID mGBA itself wrote into this box's snapshot for that controller.
 Those two lines are the whole of D7. Put the seed's numbers next to the Xbox
 mapping and the owner's report decodes word for word:
 
-    keySelect=4  → the Xbox pad's b4 is Y      → "Y ouvre la map"
-    keyStart=6   → its b6 is the left shoulder → "L1 c'est mon inventaire"
+    keySelect=4  → the Xbox pad's b4 is Y      → "Y opens the map"
+    keyStart=6   → its b6 is the left shoulder → "L1 is my inventory"
     keyL=9 keyR=10 → b9/b10 are the stick clicks — the GBA's shoulders landed
                      on L3/R3, which is exactly what was reported
     keyA=0 keyB=1  → b0/b1 really are A and B  → "A et B fonctionne"
@@ -113,10 +113,10 @@ def test_an_xbox_pad_no_longer_gets_a_dualshock_4s_numbers(box):
     keys = _keys(target)
     assert keys["keySelect"] == "15", (
         "Select is still on the DS4's b4, which is Y on this pad — the owner "
-        "reported 'Y ouvre la map'")
+        "reported 'Y opens the map'")
     assert keys["keyStart"] == "11", (
-        "Start is still on b6, the Xbox pad's left shoulder — 'L1 c'est mon "
-        "inventaire'")
+        "Start is still on b6, the Xbox pad's left shoulder — 'L1 is my "
+        "inventory'")
     assert keys["keyL"] == "6" and keys["keyR"] == "7", (
         f"the GBA's shoulders are on {keys['keyL']}/{keys['keyR']}; the DS4's "
         f"9/10 are this pad's stick clicks")

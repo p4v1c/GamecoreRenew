@@ -69,9 +69,8 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
    * Which button of the LAST screen is selected — 0 "Copy & contribute",
    * 1 "Done". It starts on Done because that is the way out.
    *
-   * The last screen had no pad handling at all, and the owner hit it: "je n'ai
-   * pas pu le sélectionner avec mon joystick ou pad directionnel, j'ai dû le
-   * faire avec la souris." A wizard whose whole premise is "no keyboard, and
+   * The last screen had no pad handling at all, and the owner hit it: "I could
+   * not select it with the stick or the D-pad, I had to use the mouse." A wizard whose whole premise is "no keyboard, and
    * nothing here may depend on a binding" ended on a mouse.
    *
    * It is also the screen where that is least excusable. By the time it is up
@@ -177,7 +176,7 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
           try { msg = JSON.parse(e.data) } catch { return }
           if (msg.event === 'ended') {
             if (!cancelled && ['capturing', 'review'].includes(phaseRef.current)) {
-              setError('La manette a été déconnectée ou la capture a expiré. Relancez le mapping.')
+              setError('The controller was disconnected or the capture timed out. Start the mapping again.')
               setPhase('error')
             }
             return
@@ -281,7 +280,7 @@ export default function MappingWizard({ onClose, onSaved }: Props) {
         }
         socket.onclose = () => {
           if (!cancelled && ['capturing', 'review'].includes(phaseRef.current)) {
-            setError('La connexion à la manette a été interrompue. Relancez le mapping.')
+            setError('The connection to the controller was lost. Start the mapping again.')
             setPhase('error')
           }
         }

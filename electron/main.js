@@ -68,7 +68,7 @@ let monitorProcess = null
  * Not a constant, and the reason is measurable: Shelf's boot animation paints
  * `#F4F2ED`, near-white paper. A shell hardcoded to a dark ground therefore
  * flashed dark-to-white at every single boot on the theme the box actually
- * runs — the exact "image blanche entre deux fenêtres" the console boot exists
+ * runs — the exact "white frame between two windows" the console boot exists
  * to remove.
  *
  * Read from two files, both on disk, neither needing the backend: the active

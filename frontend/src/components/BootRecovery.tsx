@@ -27,17 +27,17 @@ export default function BootRecovery({ steps, onRetry }: Props) {
   return (
     <div style={styles.root}>
       <div style={styles.box}>
-        <b style={styles.title}>GameCore n’a pas fini de démarrer</b>
+        <b style={styles.title}>GameCore has not finished starting</b>
         <p style={styles.body}>
           {waiting.length
-            ? `En attente : ${waiting.join(', ')}.`
-            : 'L’interface ne répond pas.'}
+            ? `Waiting for: ${waiting.join(', ')}.`
+            : 'The interface is not responding.'}
         </p>
         <p style={styles.hint}>
-          Le service peut être encore en train de démarrer. Réessayer ne perd rien.
+          The service may still be starting. Retrying loses nothing.
         </p>
         <button style={styles.button} onClick={onRetry} autoFocus>
-          ✕ Réessayer
+          ✕ Retry
         </button>
       </div>
     </div>

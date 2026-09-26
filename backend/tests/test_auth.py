@@ -50,7 +50,7 @@ def test_repeated_failures_block_the_offending_ip():
     ip = "10.1.2.3"
     for _ in range(auth._MAX_FREE_FAILS - 1):
         auth.register_failure(ip)
-    assert auth.blocked_for(ip) == 0, "les premiers essais sont gratuits"
+    assert auth.blocked_for(ip) == 0, "the first attempts are free"
 
     auth.register_failure(ip)
     assert auth.blocked_for(ip) > 0, "at the threshold, the IP is blocked"

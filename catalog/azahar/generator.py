@@ -5,7 +5,7 @@ could be produced: azahar records `button_up = "button:11"` for a DualShock 4
 while SDL's own GameController mapping calls that pad's D-pad a hat and button
 11 the touchpad. That contradiction is what made this pack `snapshot-restore`
 and sent the owner out to azahar's own settings screen, which is where the
-validation session found it — "rien ne répond, comme prévu".
+validation session found it — "nothing responds, as expected".
 
 **It is not a contradiction. It is two SDLs.** Measured on this box, same
 physical DualShock 4, same instant:

@@ -80,7 +80,7 @@ def test_disconnecting_forgets_the_alert_state():
 
 def test_two_pads_alert_independently():
     a = battery._check([pad(14, name="pad_a"), pad(80, name="pad_b")])
-    assert len(a) == 1, f"2 manettes: seule la faible alerte ({a})"
+    assert len(a) == 1, f"2 pads: only the low one alerts ({a})"
 
 
 if __name__ == "__main__":

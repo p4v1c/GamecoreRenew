@@ -664,8 +664,8 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.game-rail::-webkit-scrollbar,.a
 
 /* === Orbit 3.6.19 — the frame follows the artwork ========================= */
 /*
- * Reported from the sofa with a Game Boy shelf on screen: "tu vois les gros
- * espaces, faut que ça s'adapte". The border, the rounded corners and the
+ * Reported from the sofa with a Game Boy shelf on screen: "see the big gaps,
+ * it has to adapt". The border, the rounded corners and the
  * selection ring were drawn on the box that RESERVES a card's place, never on
  * the picture inside it. That box is a 2:3 portrait on purpose — see "A stable
  * jacket wall" above: letting every card resize as hundreds of cached images

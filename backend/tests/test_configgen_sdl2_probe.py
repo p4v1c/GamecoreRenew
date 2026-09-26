@@ -110,7 +110,7 @@ def _raising(exc):
 # The second line is the capture, in the LINUX JOYSTICK driver's numbering, for
 # a pad SDL drives through HIDAPI. It reached azahar as `start` on that
 # driver's L1 and a D-pad bound to a hat SDL calls buttons 11-14 — reported in
-# game as "l1 = option, le pad directionnel ne fonctionne pas". `evdev_driven()`
+# game as "L1 = Options, the D-pad does not work". `evdev_driven()`
 # answered False throughout: the guard was never wrong, it was bypassed.
 
 def test_a_probe_is_never_handed_a_mapping_table(monkeypatch):

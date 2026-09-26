@@ -250,9 +250,9 @@ describe('the mapping wizard', () => {
 
   // ── the last screen ────────────────────────────────────────────────────────
   //
-  // Reported by the owner after running the wizard end to end: "la dernière
-  // partie Done ou Copy & contribute, je n'ai pas pu le sélectionner avec mon
-  // joystick ou pad directionnel, j'ai dû le faire avec la souris."
+  // Reported by the owner after running the wizard end to end: "on the last
+  // part, Done or Copy & contribute, I could not select it with the stick or
+  // the D-pad, I had to use the mouse."
   //
   // Every other screen here is driven by the pad. This one had no handling at
   // all — the socket handler fell through `if (!current) return`, because past
@@ -340,12 +340,12 @@ it('ends capture when the backend reports that the pad is gone', async () => {
   await open()
   act(() => { socket.send('ended', { reason: 'no input left' }) })
   expect(screen.queryByText('A / Cross')).toBeNull()
-  expect(screen.getByText(/La manette a été déconnectée/)).toBeTruthy()
+  expect(screen.getByText(/The controller was disconnected/)).toBeTruthy()
 })
 
 it('ends capture when the socket closes without an ended event', async () => {
   await open()
   act(() => { socket.onclose?.() })
   expect(screen.queryByText('A / Cross')).toBeNull()
-  expect(screen.getByText(/La connexion à la manette/)).toBeTruthy()
+  expect(screen.getByText(/The connection to the controller/)).toBeTruthy()
 })

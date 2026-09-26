@@ -1,8 +1,8 @@
 /**
  * What the pad may do while the screen is off.
  *
- * Reported from the sofa: "pendant le changement d'état je peux me balader
- * avec ma manette même si l'écran est noir, lancer des jeux". Exactly that.
+ * Reported from the sofa: "while it changes state I can move around with
+ * the pad even though the screen is black, and launch games". Exactly that.
  * The standby overlay is a picture — it covers the screen and stops nothing —
  * and in `sleep` there is not even a picture, because the backend has cut the
  * panel through DPMS. The poll loop went on emitting `gp:*` the whole time, so
