@@ -22,7 +22,7 @@ export default function DefaultHomeView({
     }}>
       {/* Stats */}
       <div style={{ marginBottom: 32, textAlign: 'center' }}>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', marginBottom: 10 }}>
+        <div style={{ fontSize: 15, color: 'var(--gc-ink-3)', marginBottom: 10 }}>
           Your library
         </div>
         <div style={{ display: 'flex', gap: 36, justifyContent: 'center' }}>
@@ -33,7 +33,7 @@ export default function DefaultHomeView({
           ].map(s => (
             <div key={s.l} style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 26, fontWeight: 800, color: '#f8cfa9' }}>{s.v}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{s.l}</div>
+              <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 2 }}>{s.l}</div>
             </div>
           ))}
         </div>
@@ -113,7 +113,7 @@ export default function DefaultHomeView({
       )}
 
       {/* Gamepad hint */}
-      <div style={{ marginTop: 16, fontSize: 11, color: 'rgba(255,255,255,0.15)', }}>
+      <div style={{ marginTop: 16, fontSize: 14, color: 'var(--gc-ink-3)', }}>
         <PadHints text={pageCount > 1 ? '← → Navigate · L1/R1 Page · ✕ Select · □ Controller' : '← → Navigate · ✕ Select · □ Controller'} />
       </div>
     </div>

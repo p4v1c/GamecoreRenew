@@ -72,7 +72,7 @@
   flex-direction: column; align-items: flex-start; gap: 3px;
   padding: 0; border-bottom: 0;
 }
-.cz-lib[data-view="gallery"] .cz-specs dt { font-size: 11px; }
-.cz-lib[data-view="gallery"] .cz-specs dd { text-align: left; font-size: 13px; }
+.cz-lib[data-view="gallery"] .cz-specs dt { font-size: 14px; }
+.cz-lib[data-view="gallery"] .cz-specs dd { text-align: left; font-size: 14px; }
 .cz-lib[data-view="gallery"] .cz-specs-log { display: none; }
 

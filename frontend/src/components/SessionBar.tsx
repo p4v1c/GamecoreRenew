@@ -125,7 +125,7 @@ function DefaultSessionBarView(p: SessionBarProps) {
         flex: '0 0 auto',
       }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 10, opacity: 0.55 }}>
+        <div style={{ fontSize: 14, opacity: 0.55 }}>
           {s.kind === 'app' ? 'Application in the background' : 'Game in the background'}
           {p.sessions.length > 1 && ` (${p.focusIdx + 1} of ${p.sessions.length})`}
         </div>
@@ -150,7 +150,7 @@ function DefaultSessionBarView(p: SessionBarProps) {
           background: 'transparent', color: '#fff', fontSize: 14,
         }}
       >{closeLabel(s)}</button>
-      <kbd style={{ opacity: 0.45, fontSize: 11 }}>L2</kbd>
+      <kbd style={{ opacity: 0.45, fontSize: 14 }}>L2</kbd>
     </div>
   )
 }
@@ -162,7 +162,7 @@ function DefaultSessionMenuView(p: SessionMenuProps) {
       background: '#12121b', border: '1px solid rgba(184,80,27,0.4)',
       fontFamily: 'var(--gc-font-ui)', color: '#fff',
     }}>
-      <div style={{ fontSize: 10, opacity: 0.55 }}>
+      <div style={{ fontSize: 14, opacity: 0.55 }}>
         {p.confirming ? 'End this session' : 'Suspended session'}
         {p.sessions.length > 1 && ` (${p.index + 1} of ${p.sessions.length})`}
       </div>
@@ -184,7 +184,7 @@ function DefaultSessionMenuView(p: SessionMenuProps) {
             }}>{p.busy ? 'Working…' : a.label}</button>
         ))}
       </div>
-      <p style={{ marginTop: 18, fontSize: 11, opacity: 0.5 }}>
+      <p style={{ marginTop: 18, fontSize: 14, opacity: 0.5 }}>
         <PadHints text="↑ ↓ Choose · ✕ Confirm · ○ Back" />
       </p>
     </div>

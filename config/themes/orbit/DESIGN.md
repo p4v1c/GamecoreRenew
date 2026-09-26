@@ -25,3 +25,7 @@ on idle. `prefers-reduced-motion` gets the handover without movement.
 **Copy:** sentence case, no eyebrow caps. Metadata rows use Orbit's drawn
 `.dot` separator (a styled element, not a typed "·"), everywhere or nowhere.
 App and console lines are plain facts (`lib/catalog.js`), never slogans.
+
+**Legibility:** `css/legibility.css` (loaded last) floors every label at
+14px and the pad legend at 16px. Pad glyphs on the near-white primary button
+use the dark set (`--gc-pad-*`). Settings ink-3 `#8FA9C9`.

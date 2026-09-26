@@ -50,7 +50,7 @@ export default function DefaultPowerView({
                 <div style={{ fontWeight: 600, fontSize: 15.5, color: awaiting ? o.color : '#fff' }}>
                   {isPending ? o.busy : awaiting ? `Confirm ${o.label}?` : o.label}
                 </div>
-                <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.35)', marginTop: 3, lineHeight: 1.35 }}>
+                <div style={{ fontSize: 15.5, color: 'var(--gc-ink-3)', marginTop: 3, lineHeight: 1.35 }}>
                   {awaiting ? 'Press again to confirm. ○ cancels.' : o.desc}
                 </div>
               </div>
@@ -60,11 +60,11 @@ export default function DefaultPowerView({
         <div onClick={onCancel} style={{
           padding: '12px 16px', borderRadius: 13, cursor: pendingId ? 'default' : 'pointer',
           background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
-          color: 'rgba(255,255,255,0.4)', fontSize: 14, fontWeight: 500, textAlign: 'center', marginTop: 4,
+          color: 'var(--gc-ink-3)', fontSize: 14, fontWeight: 500, textAlign: 'center', marginTop: 4,
           opacity: pendingId ? 0.25 : 1,
         }}>Cancel</div>
       </div>
-      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
         {pendingId ? ' ' : <PadHints text="↑↓ Navigate · ✕ Select · ○ Cancel" />}
       </div>
     </Overlay>

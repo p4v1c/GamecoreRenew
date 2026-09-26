@@ -94,11 +94,11 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
         }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{title}</div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{sub}</div>
+          <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 2 }}>{sub}</div>
         </div>
         {current && (
           <span style={{
-            fontSize: 10, fontWeight: 700, padding: '3px 9px',
+            fontSize: 14, fontWeight: 700, padding: '3px 9px',
             borderRadius: 999, color: 'var(--gc-accent-bright, #f8cfa9)',
             background: 'color-mix(in srgb, var(--gc-accent, #b8501b) 22%, transparent)',
             border: '1px solid color-mix(in srgb, var(--gc-accent, #b8501b) 45%, transparent)',
@@ -117,7 +117,7 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
         <div style={{
           padding: '10px 12px', borderRadius: 10, marginBottom: 14,
           background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)',
-          fontSize: 12, color: '#fca5a5',
+          fontSize: 15, color: '#fca5a5',
         }}>
           <b>{theme.safeMode.themeId}</b> was disabled: {theme.safeMode.reason}.
           Pick it again to retry.
@@ -135,7 +135,7 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
           <div style={{
             padding: '10px 12px', borderRadius: 10, marginBottom: 14,
             background: 'rgba(251,191,36,0.10)', border: '1px solid rgba(251,191,36,0.3)',
-            fontSize: 12, color: '#fbbf24',
+            fontSize: 15, color: '#fbbf24',
           }}>
             <b>{active_?.name}</b> has no way to open: {lost.join(', ')}.
             {' '}Those pages still exist; its menu does not list them.
@@ -161,14 +161,14 @@ export function ThemesPage({ onClose, onBack }: { onClose: () => void; onBack: (
       })}
 
       {!items.length && (
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', padding: '10px 2px' }}>
+        <div style={{ fontSize: 15, color: 'var(--gc-ink-3)', padding: '10px 2px' }}>
           No theme installed. Drop a folder in <code>config/themes/</code> and it shows up here.
         </div>
       )}
 
-      {error && <div style={{ fontSize: 12, color: '#fca5a5', marginTop: 10 }}>{error}</div>}
+      {error && <div style={{ fontSize: 15, color: '#fca5a5', marginTop: 10 }}>{error}</div>}
 
-      <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', marginTop: 16 }}>
+      <div style={{ textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 16 }}>
         Hold L1 + R1 for 2s in the menu to force the default theme
       </div>
     </Overlay>

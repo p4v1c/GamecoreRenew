@@ -27,7 +27,7 @@ export default function LaunchConflictModal() {
       <div className="launch-conflict-dialog" role="alertdialog"
            aria-labelledby="launch-conflict-title"
            aria-describedby="launch-conflict-description">
-        <div style={{ fontSize: 10, opacity: 0.55, marginBottom: 16 }}>
+        <div style={{ fontSize: 14, opacity: 0.55, marginBottom: 16 }}>
           GAME STILL RUNNING
         </div>
         <h2 id="launch-conflict-title" style={{ fontSize: 28, margin: '0 0 14px' }}>

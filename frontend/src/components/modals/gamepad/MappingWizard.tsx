@@ -551,8 +551,8 @@ const S: Record<string, React.CSSProperties> = {
     position: 'absolute', top: 32, left: 40, right: 40, display: 'flex',
     justifyContent: 'space-between', alignItems: 'center',
   },
-  pad: { fontSize: 13, color: 'rgba(255,255,255,0.55)', fontWeight: 700 },
-  counter: { fontSize: 13, color: 'rgba(255,255,255,0.3)' },
+  pad: { fontSize: 15, color: 'var(--gc-ink-2)', fontWeight: 700 },
+  counter: { fontSize: 15, color: 'var(--gc-ink-3)' },
   bar: {
     position: 'absolute', top: 62, left: 40, right: 40, height: 3,
     borderRadius: 2, background: 'rgba(255,255,255,0.07)', overflow: 'hidden',
@@ -570,23 +570,23 @@ const S: Record<string, React.CSSProperties> = {
   },
   glyphFace: { fontSize: 56, color: '#fff', lineHeight: 1 },
   glyphWhere: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.3)',
+    fontSize: 15,
+    color: 'var(--gc-ink-3)',
   },
   ask: { fontSize: 26, fontWeight: 700, color: '#fff', textAlign: 'center' },
-  kind: { fontSize: 13, color: 'rgba(255,255,255,0.4)' },
-  seen: { fontSize: 11, color: 'rgba(255,255,255,0.22)' },
+  kind: { fontSize: 15, color: 'var(--gc-ink-3)' },
+  seen: { fontSize: 14, color: 'var(--gc-ink-3)' },
   hints: {
     position: 'absolute', bottom: 72, display: 'flex', gap: 28,
-    fontSize: 12, color: 'rgba(255,255,255,0.5)', transition: 'opacity 400ms ease',
+    fontSize: 15, color: 'var(--gc-ink-2)', transition: 'opacity 400ms ease',
   },
   footer: {
-    position: 'absolute', bottom: 36, fontSize: 11,
-    color: 'rgba(255,255,255,0.25)',
+    position: 'absolute', bottom: 36, fontSize: 14,
+    color: 'var(--gc-ink-3)',
   },
   link: {
-    background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)',
-    fontSize: 11, cursor: 'pointer', textDecoration: 'underline',
+    background: 'none', border: 'none', color: 'var(--gc-ink-2)',
+    fontSize: 14, cursor: 'pointer', textDecoration: 'underline',
     font: 'inherit', padding: 0,
   },
   centered: {
@@ -594,13 +594,13 @@ const S: Record<string, React.CSSProperties> = {
     maxWidth: 680, textAlign: 'center',
   },
   title: { fontSize: 24, fontWeight: 700, color: '#fff' },
-  detail: { fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 },
+  detail: { fontSize: 14, color: 'var(--gc-ink-2)', lineHeight: 1.6 },
   lineBox: {
     display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 640,
     maxHeight: 140, overflowY: 'auto', width: '100%',
   },
   line: {
-    fontSize: 10, color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.04)',
+    fontSize: 14, color: 'var(--gc-ink-3)', background: 'rgba(255,255,255,0.04)',
     padding: '6px 10px', borderRadius: 6, wordBreak: 'break-all', textAlign: 'left',
   },
   review: {
@@ -612,12 +612,12 @@ const S: Record<string, React.CSSProperties> = {
     gap: 10, padding: '3px 8px', borderRadius: 6,
     background: 'rgba(255,255,255,0.03)',
   },
-  reviewField: { fontSize: 11, color: 'rgba(255,255,255,0.45)' },
-  reviewToken: { fontSize: 11, color: 'var(--gc-accent-bright, #f8cfa9)' },
-  absent: { color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' },
+  reviewField: { fontSize: 14, color: 'var(--gc-ink-2)' },
+  reviewToken: { fontSize: 14, color: 'var(--gc-accent-bright, #f8cfa9)' },
+  absent: { color: 'var(--gc-ink-3)', fontStyle: 'italic' },
   buttons: { display: 'flex', gap: 12, marginTop: 6 },
   button: {
-    padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+    padding: '10px 22px', borderRadius: 10, fontSize: 15, fontWeight: 700,
     color: '#fff', background: 'rgba(255,255,255,0.07)',
     border: '1px solid rgba(255,255,255,0.14)', cursor: 'pointer', font: 'inherit',
   },
@@ -630,6 +630,6 @@ const S: Record<string, React.CSSProperties> = {
     outline: '2px solid var(--gc-accent-bright, #f8cfa9)', outlineOffset: 3,
   },
   contribute: {
-    fontSize: 11, color: 'rgba(255,255,255,0.3)', maxWidth: 460, lineHeight: 1.6,
+    fontSize: 14, color: 'var(--gc-ink-3)', maxWidth: 460, lineHeight: 1.6,
   },
 }

@@ -50,7 +50,7 @@ export const createGamepadView = (sdk) => {
 
           <div class="sm-gamepad-body">
             <div class="sm-gamepad-art" data-off=${connected ? '0' : '1'}>
-              <${Art} />
+              <div aria-hidden=${connected ? null : 'true'}><${Art} /></div>
               ${connected ? null : html`
                 <div class="sm-gamepad-empty">
                   <b>No controller detected</b>

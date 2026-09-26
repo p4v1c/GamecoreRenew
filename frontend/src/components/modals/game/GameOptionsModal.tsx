@@ -166,10 +166,10 @@ export default function GameOptionsModal({ systemId, rom, title, onClose }: {
     <Overlay onClose={onClose} width={520}>
       <OverlayLabel text="Game options" />
       <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 4 }}>{title}</div>
-      <div style={{ fontSize: 11, color: DIM, marginBottom: 22 }}>Overlay</div>
+      <div style={{ fontSize: 14, color: DIM, marginBottom: 22 }}>Overlay</div>
 
       {failed && (
-        <div style={{ fontSize: 12.5, color: WARN, marginBottom: 16 }}>
+        <div style={{ fontSize: 15.5, color: WARN, marginBottom: 16 }}>
           The overlay settings could not be read. The game still launches.
         </div>
       )}
@@ -179,7 +179,7 @@ export default function GameOptionsModal({ systemId, rom, title, onClose }: {
         return (
           <div key={row.key}>
             {row.key === gameRows[0]?.key && (
-              <div style={{ fontSize: 11, color: DIM, margin: '20px 0 10px' }}>
+              <div style={{ fontSize: 14, color: DIM, margin: '20px 0 10px' }}>
                 This game
               </div>
             )}
@@ -201,7 +201,7 @@ export default function GameOptionsModal({ systemId, rom, title, onClose }: {
               </span>
               <span style={{ flex: 1 }}>
                 <span style={{ fontSize: 14 }}>{row.label}</span>
-                <span style={{ display: 'block', fontSize: 11.5, color: DIM,
+                <span style={{ display: 'block', fontSize: 14.5, color: DIM,
                                marginTop: 2 }}>
                   {row.hint}
                 </span>
@@ -212,7 +212,7 @@ export default function GameOptionsModal({ systemId, rom, title, onClose }: {
       })}
 
       {perGame && !perGame.supported && perGame.why && (
-        <div style={{ fontSize: 11.5, color: DIM, marginTop: 20, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 14.5, color: DIM, marginTop: 20, lineHeight: 1.5 }}>
           <span style={{ display: 'block', color: 'inherit', marginBottom: 4 }}>
             This system has no per-game settings.
           </span>
@@ -221,14 +221,14 @@ export default function GameOptionsModal({ systemId, rom, title, onClose }: {
       )}
 
       {perGame?.supported && perGame.gameId === null && (
-        <div style={{ fontSize: 11.5, color: DIM, marginTop: 20, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 14.5, color: DIM, marginTop: 20, lineHeight: 1.5 }}>
           This copy carries no identifier GameCore can read, so a setting could
           not be told apart from the next game’s. The emulator’s own settings
           still work.
         </div>
       )}
 
-      <div style={{ fontSize: 11.5, color: DIM, marginTop: 18, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 14.5, color: DIM, marginTop: 18, lineHeight: 1.5 }}>
         Applies at the next launch. Overlays need an X11 session; on Wayland
         they are skipped.
       </div>

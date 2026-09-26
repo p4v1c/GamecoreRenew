@@ -74,7 +74,7 @@ export default function OverlayScreen() {
       <div style={styles.root}>
         <div style={styles.waitingBox}>
           <div style={styles.spinner} />
-          <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 12 }}>
+          <div style={{ color: 'var(--gc-ink-2)', fontSize: 15, marginTop: 12 }}>
             Launching…
           </div>
         </div>

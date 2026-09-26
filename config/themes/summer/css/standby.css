@@ -41,7 +41,7 @@
 }
 .sm-saver-hint {
   position: absolute; bottom: 36px; left: 0; right: 0; text-align: center;
-  font-size: 12px; letter-spacing: 2px; color: rgba(255, 253, 247, 0.16);
+  font-size: 14px; letter-spacing: 2px; color: rgba(255, 253, 247, 0.16);
 }
 /* The fallback when nothing is scraped — the flat cover, as the host's own
  * standby shows it. */

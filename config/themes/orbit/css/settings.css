@@ -115,22 +115,22 @@
 .orbit-app .orbit-settings .gcs-set-h-row { justify-content: flex-end; min-height: 0; padding: 4px 28px 0; }
 .orbit-app .orbit-settings .gcs-wifi-state:not(:empty) {
   padding: 5px 10px; border: 1px solid #ffffff2e; border-radius: 4px;
-  font-size: 12px; letter-spacing: 0.12em; color: var(--set-ink);
+  font-size: 14px; letter-spacing: 0.12em; color: var(--set-ink);
 }
 .orbit-app .orbit-settings .gcs-set-sub {
   margin: 6px 28px 22px; max-width: 62ch; font-size: 16px; line-height: 1.65; color: var(--set-ink-2);
 }
 .orbit-app .orbit-settings .gcs-set-kicker,
 .orbit-app .orbit-settings .gcs-row2-head {
-  margin: 28px 28px 10px; font-family: var(--font-body); font-size: 13px; letter-spacing: 0.1em; color: #c9d4e2;
+  margin: 28px 28px 10px; font-family: var(--font-body); font-size: 14px; letter-spacing: 0.1em; color: #c9d4e2;
 }
 .orbit-app .orbit-settings .gcs-wifi-msg,
 .orbit-app .orbit-settings .gcs-load,
 .orbit-app .orbit-settings .gcs-wifi-empty { margin: 0 28px 14px; font-size: 15px; }
 .orbit-app .orbit-settings .gcs-wifi-msg { color: var(--set-ink); background: #9fcdfb14; border-color: #9fcdfb44; }
-.orbit-app .orbit-settings .gcs-wifi-scan { padding: 16px 28px 4px; font-size: 12px; }
-.orbit-app .orbit-settings .gcs-wifi-sec { font-size: 12px; color: var(--set-ink-2); }
-.orbit-app .orbit-settings .gcs-wifi-conn { color: var(--set-acc); font-size: 12px; }
+.orbit-app .orbit-settings .gcs-wifi-scan { padding: 16px 28px 4px; font-size: 14px; }
+.orbit-app .orbit-settings .gcs-wifi-sec { font-size: 14px; color: var(--set-ink-2); }
+.orbit-app .orbit-settings .gcs-wifi-conn { color: var(--set-acc); font-size: 14px; }
 
 /* Controls on the right of a row. */
 .orbit-app .orbit-settings .gcs-act,
@@ -167,7 +167,7 @@
 
 .orbit-app .orbit-settings .gcs-set-foot {
   position: relative; padding: 18px var(--page-pad); border-top: 1px solid #ffffff18;
-  font-family: var(--font-body); font-size: 13px; color: var(--set-ink-2);
+  font-family: var(--font-body); font-size: 14px; color: var(--set-ink-2);
   background: linear-gradient(0deg, #0a121ee6, #0a121e99);
 }
 .orbit-app .orbit-settings .gcs-set-hints kbd {

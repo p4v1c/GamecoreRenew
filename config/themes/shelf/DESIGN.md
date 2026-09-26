@@ -23,3 +23,10 @@ or plastic.
 
 **Copy:** printed-label feel in sentence case; publisher on the box back may
 be uppercase like real print. No "·" meta, no em dashes as joiners.
+
+**Legibility:** ink-3 `#66646D` is the faintest text (4.6:1 on paper-sink).
+Anything read on the wall sits on a paper plate (`base.css`): bare text over
+the pattern measured 1.8:1. Pad glyphs on paper: `--gc-pad-cross #2A55B8`,
+`-circle #C0303C`, `-square #A8307E`, `-triangle #0F6E52`; the dark drawer
+resets them. Settings: accent `#127A6D` (white on it 5.2:1), ink-3 at 0.66.
+Box spines and back-of-box fine print are art, exempt from the 14px floor.

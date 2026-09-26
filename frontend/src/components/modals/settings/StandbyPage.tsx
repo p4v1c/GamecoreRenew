@@ -67,7 +67,7 @@ export function StandbyPage({ onClose, onBack }: { onClose: () => void; onBack: 
       <div onClick={() => save({ enabled: !enabled })} style={rowStyle(0)}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>Standby mode</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', marginTop: 3 }}>
+          <div style={{ fontSize: 15, color: 'var(--gc-ink-3)', marginTop: 3 }}>
             Slideshow, then screen off when idle — SSH and updates stay active. Any controller button wakes the box.
           </div>
         </div>
@@ -87,15 +87,15 @@ export function StandbyPage({ onClose, onBack }: { onClose: () => void; onBack: 
           <div key={label} style={rowStyle(i)}>
             <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>{label}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 18 }}>‹</span>
+              <span style={{ color: 'var(--gc-ink-3)', fontSize: 18 }}>‹</span>
               <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--gc-accent-bright, #f8cfa9)', minWidth: 70, textAlign: 'center' }}>{mins} min</span>
-              <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 18 }}>›</span>
+              <span style={{ color: 'var(--gc-ink-3)', fontSize: 18 }}>›</span>
             </div>
           </div>
         ))}
       </div>
 
-      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
         <PadHints text="↑↓ Select · ←→ Adjust · ✕ Toggle · ○ Back" />
       </div>
     </Overlay>

@@ -78,7 +78,7 @@ export function StoragePage({ onClose, onBack }: { onClose: () => void; onBack: 
     <Overlay onClose={onClose}>
       <BackHeader label="Storage" onBack={onBack} />
 
-      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 14, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 15, color: 'var(--gc-ink-3)', marginBottom: 14, lineHeight: 1.5 }}>
         {error
           ? 'Could not read the attached disks.'
           : rows.length === 0
@@ -88,7 +88,7 @@ export function StoragePage({ onClose, onBack }: { onClose: () => void; onBack: 
 
       {message && (
         <div style={{
-          fontSize: 12, color: WARN, marginBottom: 12, padding: '9px 12px',
+          fontSize: 15, color: WARN, marginBottom: 12, padding: '9px 12px',
           borderRadius: 8, background: 'rgba(251,191,36,0.08)',
         }}>{message}</div>
       )}
@@ -111,14 +111,14 @@ export function StoragePage({ onClose, onBack }: { onClose: () => void; onBack: 
             <div style={{ fontSize: 15, fontWeight: 600, color: '#fff', flex: 1 }}>
               {v.label || v.device}
             </div>
-            <div style={{ fontSize: 12, color: DIM }}>{v.size}, {v.fstype}</div>
+            <div style={{ fontSize: 15, color: DIM }}>{v.size}, {v.fstype}</div>
           </div>
 
           {/* What a romsPath should be written against — never the mount point,
               which udisks renames to "ROMS 1" on the second plug. */}
           {v.mounted && v.stable_path && (
             <div style={{
-              fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 6,
+              fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 6,
               fontFamily: 'monospace', wordBreak: 'break-all',
             }}>
               {v.stable_path}
@@ -126,7 +126,7 @@ export function StoragePage({ onClose, onBack }: { onClose: () => void; onBack: 
           )}
 
           {!v.keeps_permissions && (
-            <div style={{ fontSize: 11, color: WARN, marginTop: 8, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 14, color: WARN, marginTop: 8, lineHeight: 1.5 }}>
               {v.saves_warning}
             </div>
           )}
@@ -139,7 +139,7 @@ export function StoragePage({ onClose, onBack }: { onClose: () => void; onBack: 
                 marginTop: 10, padding: '8px 14px', borderRadius: 9,
                 background: 'rgba(255,255,255,0.05)',
                 border: '1px solid rgba(255,255,255,0.12)', color: '#fff',
-                fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit',
+                fontSize: 15, fontWeight: 700, cursor: 'pointer', font: 'inherit',
               }}
             >
               {busy === v.device ? 'Ejecting…' : 'Eject safely'}
@@ -148,7 +148,7 @@ export function StoragePage({ onClose, onBack }: { onClose: () => void; onBack: 
         </div>
       ))}
 
-      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
         <PadHints text="↑↓ Navigate · ✕ Eject · ○ Back" />
       </div>
     </Overlay>

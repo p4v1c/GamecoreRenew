@@ -138,13 +138,13 @@ export default function SettingsModal({ onClose }: Props) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 17, fontWeight: 600, color: danger ? '#fca5a5' : '#fff' }}>{it.label}</div>
               <div style={{
-                fontSize: 13, color: 'rgba(255,255,255,0.38)', marginTop: 3,
+                fontSize: 15, color: 'var(--gc-ink-3)', marginTop: 3,
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{it.sub}</div>
             </div>
             {meta[it.id] && (
               <div style={{
-                fontFamily: 'ui-monospace, monospace', fontSize: 12,
+                fontFamily: 'ui-monospace, monospace', fontSize: 15,
                 color: 'var(--gc-accent-bright, #f8cfa9)', textAlign: 'right',
                 maxWidth: '38%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{meta[it.id]}</div>
@@ -153,7 +153,7 @@ export default function SettingsModal({ onClose }: Props) {
           </div>
         )})}
       </div>
-      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
         <PadHints text="↑↓ Navigate · ✕ Select · ○ Close" />
       </div>
     </Overlay>

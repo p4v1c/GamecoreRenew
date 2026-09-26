@@ -152,7 +152,7 @@
   display: flex; gap: 34px; margin: 26px 0 0; text-align: center;
 }
 .sm-lib-stats span {
-  display: block; font-size: 13px; font-weight: 600; letter-spacing: 0.14em;
+  display: block; font-size: 14px; font-weight: 600; letter-spacing: 0.14em;
   color: var(--foam-400); margin-bottom: 6px;
 }
 .sm-lib-stats b {

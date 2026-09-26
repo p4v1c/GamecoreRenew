@@ -176,7 +176,7 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
         <SliderRow label="System volume" value={volume} onChange={applyVolume} />
       </div>
       {error && (
-        <div style={{ fontSize: 12, color: '#f87171', margin: '8px 0', padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+        <div style={{ fontSize: 15, color: '#f87171', margin: '8px 0', padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
           {error}
         </div>
       )}
@@ -187,13 +187,13 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
         <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>Output</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           <span style={{
-            fontSize: 13, color: 'rgba(255,255,255,0.55)', maxWidth: 260,
+            fontSize: 15, color: 'var(--gc-ink-2)', maxWidth: 260,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {activeSink ? activeSink.name : sinks.length === 0 ? 'No output found' : '—'}
           </span>
           <span style={{
-            fontSize: 11, color: 'rgba(255,255,255,0.4)', transition: 'transform 0.15s',
+            fontSize: 14, color: 'var(--gc-ink-3)', transition: 'transform 0.15s',
             transform: outputOpen ? 'rotate(180deg)' : 'none',
           }}>▼</span>
         </div>
@@ -208,24 +208,24 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
               padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
               background: i === dropFocus ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 25%, transparent)' : 'transparent',
               border: i === dropFocus ? '1px solid color-mix(in srgb, var(--gc-accent, #b8501b) 60%, transparent)' : '1px solid transparent',
-              fontSize: 13, color: '#fff',
+              fontSize: 15, color: '#fff',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               transition: 'all 0.12s',
             }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-              {s.default && <span style={{ fontSize: 11, color: 'var(--gc-accent-soft, #f2a46a)', fontWeight: 600, marginLeft: 10, flexShrink: 0 }}>Active</span>}
+              {s.default && <span style={{ fontSize: 14, color: 'var(--gc-accent-soft, #f2a46a)', fontWeight: 600, marginLeft: 10, flexShrink: 0 }}>Active</span>}
             </div>
           ))}
         </div>
       )}
 
       {/* UI sound effects */}
-      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: '16px 0 8px' }}>UI sounds</div>
+      <div style={{ fontSize: 15, color: 'var(--gc-ink-3)', margin: '16px 0 8px' }}>UI sounds</div>
       <div style={rowCard(focus === ROW_UI_TOGGLE)}
         onClick={() => { setFocus(ROW_UI_TOGGLE); applyUiEnabled(!uiEnabled) }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>Interface sounds</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', marginTop: 3 }}>
+          <div style={{ fontSize: 15, color: 'var(--gc-ink-3)', marginTop: 3 }}>
             Navigation ticks, select and launch chimes
           </div>
         </div>
@@ -247,12 +247,12 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
       </div>
 
       {/* Haptics */}
-      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: '16px 0 8px' }}>Haptics</div>
+      <div style={{ fontSize: 15, color: 'var(--gc-ink-3)', margin: '16px 0 8px' }}>Haptics</div>
       <div style={rowCard(focus === ROW_RUMBLE)}
         onClick={() => { setFocus(ROW_RUMBLE); applyRumble(!rumbleOn) }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>Controller vibration</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', marginTop: 3 }}>
+          <div style={{ fontSize: 15, color: 'var(--gc-ink-3)', marginTop: 3 }}>
             Only themes that ask for it — nothing vibrates by default
           </div>
         </div>
@@ -267,7 +267,7 @@ export function AudioPage({ onClose, onBack }: { onClose: () => void; onBack: ()
         </div>
       </div>
 
-      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
         <PadHints text={outputOpen ? '↑↓ Browse outputs · ✕ Apply · ○ Close' : '↑↓ Select · ←→ Adjust · ✕ Open/Toggle · ○ Back'} />
       </div>
     </Overlay>

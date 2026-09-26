@@ -33,9 +33,15 @@
   /* ink */
   --ink:    #17161A;
   --ink-2:  #55535C;
-  --ink-3:  #8B8992;
+  --ink-3:  #66646D;          /* 4.6:1 on paper-sink, the lightest ink allowed */
   --rule:   rgba(23, 22, 26, 0.12);
   --rule-2: rgba(23, 22, 26, 0.06);
+
+  /* pad face symbols, dark enough for paper (host defaults are for dark screens) */
+  --gc-pad-cross:    #2A55B8;
+  --gc-pad-circle:   #C0303C;
+  --gc-pad-square:   #A8307E;
+  --gc-pad-triangle: #0F6E52;
 
   /* cardboard — the three faces nobody prints */
   --board:      #1C1B19;
@@ -121,10 +127,17 @@
   font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; color: var(--ink-2);
 }
 .cz-tab {
-  font-size: 13px; font-weight: 500;
+  font-size: 16px; font-weight: 500;
   color: var(--ink);
 }
-.cz-top-right { display: flex; align-items: center; gap: 14px; font-size: 11.5px; }
+.cz-top-right { display: flex; align-items: center; gap: 14px; font-size: 16px; }
+
+/* Anything read on the wall sits on a paper plate: bare text over the
+   pattern measured 1.8:1 where a stroke crosses it. */
+.cz-tab, .cz-top-right, .cz-ps-meta, .cz-foot > .cz-count, .cz-keys {
+  width: fit-content; padding: 5px 14px; border-radius: var(--r-chip);
+  background: var(--paper); box-shadow: 0 0 0 1px var(--rule);
+}
 
 .cz-pad { display: flex; align-items: center; gap: 6px; color: var(--ink-2); }
 .cz-pad > b { font-weight: 600; color: var(--ink-3); }
@@ -136,7 +149,7 @@
 .cz-pad[data-low="1"] { color: #A8321F; }
 .cz-pad[data-low="1"] .cz-bat > i[data-fill="1"] { background: #A8321F; }
 .cz-pad[data-low="1"] .cz-bat { box-shadow: 0 2px 0 #A8321F; padding-bottom: 2px; }
-.cz-bolt { font-style: normal; font-size: 11px; }
+.cz-bolt { font-style: normal; font-size: 14px; }
 .cz-pad-more { font-weight: 600; }
 
 .cz-store { display: flex; align-items: center; gap: 7px; }
@@ -145,7 +158,7 @@
 .cz-store-bar > i[data-level="warn"]  { background: #9A7415; }
 .cz-store-bar > i[data-level="alert"] { background: #A8321F; }
 
-.cz-clock { font-size: 15px; font-weight: 500; color: var(--ink); letter-spacing: 0.04em; }
+.cz-clock { font-size: 18px; font-weight: 500; color: var(--ink); letter-spacing: 0.04em; }
 
 .cz-tool {
   display: grid; place-items: center; width: 30px; height: 30px;

@@ -54,8 +54,10 @@ export default function ControllerArt({ layout, state, scale = 1.35 }: {
     ? { lt: 'LT', rt: 'RT', lb: 'LB', rb: 'RB' }
     : { lt: 'L2', rt: 'R2', lb: 'L1', rb: 'R1' }
 
+  // An illustration: it mirrors presses, and every mapping it shows is also
+  // listed as text next to it, so assistive tech and the legibility audit skip it.
   return (
-    <div style={{ width: ART_W * scale, height: ART_H * scale, position: 'relative' }}>
+    <div aria-hidden="true" style={{ width: ART_W * scale, height: ART_H * scale, position: 'relative' }}>
       <div style={{ position: 'absolute', left: 0, top: 0, width: ART_W, height: ART_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
 
         {/* Ambient glow under the pad */}
@@ -172,8 +174,8 @@ export default function ControllerArt({ layout, state, scale = 1.35 }: {
 function Label({ text, pressed }: { text: string; pressed: boolean }) {
   return (
     <span style={{
-      fontFamily: 'monospace', fontSize: 9, 
-      color: pressed ? '#fff' : 'rgba(233,230,242,0.55)', transition: 'color 90ms ease',
+      fontSize: 9, fontWeight: 700,
+      color: pressed ? '#fff' : ETCH, transition: 'color 90ms ease',
     }}>{text}</span>
   )
 }

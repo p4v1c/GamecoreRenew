@@ -23,7 +23,7 @@ export function DesktopPage({ onClose, onBack }: { onClose: () => void; onBack: 
       <div style={{ padding: '20px 22px', borderRadius: 14, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', marginBottom: 24, color: '#fca5a5', fontSize: 15, lineHeight: 1.8 }}>
         Quit GameCore and hand the screen back to the desktop.
       </div>
-      <div style={{ padding: '14px 18px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', marginBottom: 24, color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.7 }}>
+      <div style={{ padding: '14px 18px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', marginBottom: 24, color: 'var(--gc-ink-2)', fontSize: 15, lineHeight: 1.7 }}>
         {/* Said here because it is no longer obvious: GameCore is a session of
             its own now, so leaving is a change of session and it lasts. The
             box will keep opening the desktop until it is told otherwise, and
@@ -35,7 +35,7 @@ export function DesktopPage({ onClose, onBack }: { onClose: () => void; onBack: 
       <div onClick={doExit} style={{ padding: 16, borderRadius: 14, cursor: 'pointer', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', color: '#fca5a5', fontWeight: 700, textAlign: 'center', fontSize: 16 }}>
         ✕ Exit to Desktop
       </div>
-      <div style={{ marginTop: 8, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
+      <div style={{ marginTop: 8, textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
         <PadHints text="✕ Confirm · ○ Cancel" />
       </div>
     </Overlay>

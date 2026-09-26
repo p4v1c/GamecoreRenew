@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import './fonts.css'
+import './tokens.css'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import OverlayScreen from './components/OverlayScreen'
@@ -28,7 +29,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           fontFamily: 'var(--gc-font-ui)', color: '#fff', textAlign: 'center', padding: 40,
         }}>
           <div style={{ fontSize: 18, fontWeight: 700 }}>GameCore could not start the interface</div>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
+          <div style={{ fontSize: 15, color: 'var(--gc-ink-2)' }}>
             Hold L1 + R1 for 2 seconds to force the default theme, then restart.
           </div>
         </div>

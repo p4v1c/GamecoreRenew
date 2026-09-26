@@ -122,8 +122,8 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
           style={{
             display: 'flex', alignItems: 'center', gap: 7, padding: '7px 13px',
             borderRadius: 9, border: '1px solid rgba(255,255,255,0.1)',
-            background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)',
-            fontSize: 12, cursor: busy || loading ? 'default' : 'pointer',
+            background: 'rgba(255,255,255,0.05)', color: 'var(--gc-ink-2)',
+            fontSize: 15, cursor: busy || loading ? 'default' : 'pointer',
             opacity: busy || loading ? 0.4 : 1,
           }}
         >
@@ -146,7 +146,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
             <button
               onClick={doDisconnect}
               disabled={busy}
-              style={{ padding: '6px 13px', borderRadius: 8, border: '1px solid rgba(248,113,113,0.4)', background: 'rgba(248,113,113,0.1)', color: '#f87171', fontSize: 12, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1 }}
+              style={{ padding: '6px 13px', borderRadius: 8, border: '1px solid rgba(248,113,113,0.4)', background: 'rgba(248,113,113,0.1)', color: '#f87171', fontSize: 15, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1 }}
             >
               Disconnect
             </button>
@@ -156,7 +156,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
       {/* Status/error message */}
       {msg && (
         <div style={{
-          fontSize: 13, marginBottom: 12, padding: '9px 13px', borderRadius: 9,
+          fontSize: 15, marginBottom: 12, padding: '9px 13px', borderRadius: 9,
           background: msgError ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)',
           color: msgError ? '#f87171' : 'var(--gc-accent-soft, #f2a46a)', fontWeight: msgError ? 600 : 400,
         }}>
@@ -168,7 +168,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
       {onEthernet && !showWifiAnyway && (
         <div
           onClick={() => setShowWifiAnyway(true)}
-          style={{ textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.35)', cursor: 'pointer', padding: 8 }}
+          style={{ textAlign: 'center', fontSize: 15, color: 'var(--gc-ink-3)', cursor: 'pointer', padding: 8 }}
         >
           Show Wi-Fi networks anyway ›
         </div>
@@ -177,10 +177,10 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
       {showList && <>
       {/* Network list */}
       {loading && networks.length === 0 && (
-        <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, textAlign: 'center', padding: 20 }}>Scanning…</div>
+        <div style={{ color: 'var(--gc-ink-3)', fontSize: 15, textAlign: 'center', padding: 20 }}>Scanning…</div>
       )}
       {!loading && networks.length === 0 && (
-        <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, textAlign: 'center', padding: 20 }}>No networks found</div>
+        <div style={{ color: 'var(--gc-ink-3)', fontSize: 15, textAlign: 'center', padding: 20 }}>No networks found</div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
         {networks.map((n, ni) => {
@@ -212,7 +212,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
                 <div style={{ fontSize: 15, fontWeight: n.connected ? 700 : 500, color: n.connected ? '#4ade80' : '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {n.ssid}
                 </div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.32)', marginTop: 2 }}>
+                <div style={{ fontSize: 15, color: 'var(--gc-ink-3)', marginTop: 2 }}>
                   {n.connected ? 'Connected' : n.secured ? 'Secured' : 'Open'}
                 </div>
               </div>
@@ -222,7 +222,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
         })}
       </div>
 
-      <div style={{ marginTop: 14, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
+      <div style={{ marginTop: 14, textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
         <PadHints text="↑↓ Navigate · ✕ Connect/Disconnect" />
       </div>
       </>}
@@ -245,7 +245,7 @@ function Banner({ icon, title, sub, action }: {
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>{title}</div>
-        {sub && <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{sub}</div>}
+        {sub && <div style={{ fontSize: 14.5, color: 'var(--gc-ink-3)', marginTop: 2 }}>{sub}</div>}
       </div>
       {action}
     </div>

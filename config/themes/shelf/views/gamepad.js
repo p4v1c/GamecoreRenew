@@ -48,7 +48,7 @@ export const createGamepadView = (sdk) => {
           ${notice ? html`<div class="cz-pad-notice">${notice}</div>` : null}
 
           <div class="cz-pad-art" data-off=${connected ? '0' : '1'}>
-            <${Art} />
+            <div class="cz-pad-ghost" aria-hidden=${connected ? null : 'true'}><${Art} /></div>
             ${connected ? null : html`
               <div class="cz-pad-empty">
                 <b>No controller detected</b>

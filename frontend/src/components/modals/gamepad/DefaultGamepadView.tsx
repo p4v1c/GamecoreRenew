@@ -29,7 +29,7 @@ export default function DefaultGamepadView({
         <div style={{
           margin: '0 0 14px', padding: '9px 12px', borderRadius: 8,
           background: 'rgba(251,191,36,0.10)', border: '1px solid rgba(251,191,36,0.35)',
-          fontSize: 12, lineHeight: 1.45, color: '#fbbf24',
+          fontSize: 15, lineHeight: 1.45, color: '#fbbf24',
         }}>{notice}</div>
       ) : null}
 
@@ -39,7 +39,7 @@ export default function DefaultGamepadView({
           <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {name}
           </div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
+          <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 2 }}>
             {layoutLabel}
           </div>
         </div>
@@ -60,9 +60,9 @@ export default function DefaultGamepadView({
             <kbd style={{
               minWidth: 52, textAlign: 'center', padding: '3px 8px', borderRadius: 6,
               background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
-              fontSize: 11, fontWeight: 700, color: 'var(--gc-accent-bright, #f8cfa9)', fontFamily: 'inherit',
+              fontSize: 14, fontWeight: 700, color: 'var(--gc-accent-bright, #f8cfa9)', fontFamily: 'inherit',
             }}>{key}</kbd>
-            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{action}</span>
+            <span style={{ fontSize: 15, color: 'var(--gc-ink-2)' }}>{action}</span>
           </div>
         ))}
       </div>
@@ -78,7 +78,7 @@ export default function DefaultGamepadView({
           something to check. */}
       {usbDevices.length > 0 && (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginBottom: 7 }}>
+          <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginBottom: 7 }}>
             PERIPHERALS
           </div>
           {usbDevices.map(d => (
@@ -92,21 +92,21 @@ export default function DefaultGamepadView({
                 background: d.status === 'present' ? '#4ade80' : 'rgba(255,255,255,0.2)',
               }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, color: '#fff' }}>
+                <div style={{ fontSize: 15, color: '#fff' }}>
                   {d.label}
-                  <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>
+                  <span style={{ color: 'var(--gc-ink-3)', fontWeight: 400 }}>
                     {', '}{CLASS_LABELS[d.class] ?? CLASS_LABELS.unknown}{', for '}{d.system_label}
                   </span>
                 </div>
                 {d.status === 'absent' && (
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
+                  <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 2 }}>
                     {d.note}
                   </div>
                 )}
               </div>
               <span style={{
-                fontSize: 10, flexShrink: 0,
-                color: d.status === 'present' ? '#4ade80' : 'rgba(255,255,255,0.3)',
+                fontSize: 14, flexShrink: 0,
+                color: d.status === 'present' ? '#4ade80' : 'var(--gc-ink-3)',
               }}>
                 {d.status === 'present' ? 'Detected' : 'Not detected'}
               </span>
@@ -124,16 +124,16 @@ export default function DefaultGamepadView({
           display: 'block', width: '100%', padding: '10px 14px', marginBottom: 12,
           borderRadius: 10, background: 'rgba(255,255,255,0.05)',
           border: '1px solid rgba(255,255,255,0.12)', color: '#fff',
-          fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit',
+          fontSize: 15, fontWeight: 700, cursor: 'pointer', font: 'inherit',
         }}>
           Buttons wrong or dead? — map this controller
-          <span style={{ display: 'block', fontSize: 10, fontWeight: 400, marginTop: 3, color: 'rgba(255,255,255,0.4)' }}>
+          <span style={{ display: 'block', fontSize: 14, fontWeight: 400, marginTop: 3, color: 'var(--gc-ink-3)' }}>
             Hold {glyphs.top}, or click here. About a minute, no keyboard.
           </span>
         </button>
       )}
 
-      <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
+      <div style={{ textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
         Press any button to test it. Hold {glyphs.top} to remap, {glyphs.left} twice to close.
       </div>
     </Overlay>

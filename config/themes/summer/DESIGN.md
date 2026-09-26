@@ -20,3 +20,8 @@ neutral shadow scale. Sun/moon are drawn icons, not emoji.
 (`views/warp.js`, `CLOSE_MS` = `launch.ms`). Standby boxes turn slowly.
 
 **Copy:** sentence case, calm, short. No "·" meta strings.
+
+**Legibility:** text over sky or sand sits on `--glass-650` (the hint pill,
+the stats band); tiles are 0.86 opaque and never dimmed with opacity. Sun
+glyph `--accent-mandarin-soft #FFB27A` (3.2:1 on glass). Shells stay clear of
+the hint band. Decoration lives in `aria-hidden` layers.

@@ -25,13 +25,22 @@
 /* On :root rather than on .gcs-set: the power menu wears the same paper and is
    not inside the settings screen. One palette, two surfaces. */
 :root {
-  --set-acc:      #16897a;
+  --set-acc:      #127a6d;   /* white on it 5.2:1 (#16897a was 4.3) */
   --set-acc-deep: #0d6459;
   --set-ink:      #17171a;
-  --set-ink-2:    rgba(23, 23, 26, 0.62);
-  --set-ink-3:    rgba(23, 23, 26, 0.42);
+  --set-ink-2:    rgba(23, 23, 26, 0.75);
+  --set-ink-3:    rgba(23, 23, 26, 0.66);   /* ≥ 4.5:1 on paper and on white cards */
   --set-line:     rgba(23, 23, 26, 0.09);
   --set-card:     rgba(255, 255, 255, 0.94);
+
+  /* status, dark enough for a white card (≥ 4.5:1 on their own 14 % tint) */
+  --set-danger:      #b23b3b;
+  --set-danger-deep: #8f2f2f;
+  --set-danger-rgb:  178, 59, 59;
+  --set-alert:       #b23b3b;
+  --set-warn:        #8a5a00;
+  --set-info:        #1d64a8;
+  --set-ok:          #1f7a3f;
 }
 
 .gcs-set {
@@ -48,16 +57,16 @@
 .gcs-set-row[data-danger="1"][data-on="1"] { background: #b23b3b; }
 
 .gcs-set-num {
-  color: rgba(23, 23, 26, 0.35);
+  color: var(--set-ink-3);
 }
-.gcs-set-rail[data-zone="off"] .gcs-set-row[data-sel="1"] .gcs-set-num { color: rgba(23, 23, 26, 0.5); }
+.gcs-set-rail[data-zone="off"] .gcs-set-row[data-sel="1"] .gcs-set-num { color: var(--set-ink-2); }
 
 /* The live value. Empty when its endpoint did not answer — deliberately empty,
    never a dash, which reads as a measurement of "none". */
 .gcs-set-label i {
-  color: rgba(23, 23, 26, 0.45);
+  color: var(--set-ink-3);
 }
-.gcs-set-rail[data-zone="off"] .gcs-set-row[data-sel="1"] .gcs-set-label i { color: rgba(23, 23, 26, 0.45); }
+.gcs-set-rail[data-zone="off"] .gcs-set-row[data-sel="1"] .gcs-set-label i { color: var(--set-ink-3); }
 
 .gcs-set-hints kbd {
   border-radius: 7px;
@@ -117,7 +126,7 @@
 /* power */
 .cz-power-head {
   margin: 16px 0 6px;
-  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 10px; color: rgba(237, 234, 227, 0.32);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px; color: rgba(237, 234, 227, 0.78);
 }
 .cz-power-row { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 12px; cursor: pointer; border: 1px solid transparent; transition: background-color 160ms ease, border-color 160ms ease; }
 .cz-power-row[data-on="1"] { background: color-mix(in srgb, var(--row-accent, #B8892B) 16%, transparent); border-color: color-mix(in srgb, var(--row-accent, #B8892B) 55%, transparent); }
@@ -128,7 +137,7 @@
 @keyframes cz-pulse { 50% { opacity: 0.45; } }
 .cz-power-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
 .cz-power-text b { font-size: 16px; font-weight: 500; }
-.cz-power-text i { font-style: normal; font-size: 12.5px; color: rgba(237, 234, 227, 0.5); }
+.cz-power-text i { font-style: normal; font-size: 14px; color: rgba(237, 234, 227, 0.78); }
 .cz-power-cancel {
   width: 100%; margin-top: 12px; padding: 11px; border-radius: 11px; cursor: pointer;
   border: 1px solid var(--gc-overlay-border); background: transparent;
@@ -152,21 +161,21 @@
   flex: 0 0 auto; display: grid; place-items: center;
   min-width: 44px; height: 30px; padding: 0 8px; border-radius: 8px;
   background: color-mix(in srgb, var(--gc-accent) 18%, transparent);
-  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 12px; color: var(--gc-accent-bright);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px; color: var(--gc-accent-bright);
 }
 .cz-ctl-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .cz-ctl-text b {
   font-size: 14px; font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.cz-ctl-text i { font-style: normal; font-size: 12px; color: rgba(237, 234, 227, 0.5); }
+.cz-ctl-text i { font-style: normal; font-size: 14px; color: rgba(237, 234, 227, 0.78); }
 .cz-ctl-head {
   margin: 18px 0 8px;
-  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 10px; color: rgba(237, 234, 227, 0.32);
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px; color: rgba(237, 234, 227, 0.78);
 }
 .cz-ctl-note {
-  font-family: var(--font-body); font-size: 13px; line-height: 1.9;
-  color: rgba(237, 234, 227, 0.6);
+  font-family: var(--font-body); font-size: 14px; line-height: 1.9;
+  color: rgba(237, 234, 227, 0.78);
 }
 .cz-ctl-note b { color: #EDEAE3; font-weight: 500; }
 
@@ -180,25 +189,26 @@
   margin: 8px 0 12px; padding: 9px 12px; border-radius: 8px;
   background: rgba(251, 191, 36, 0.10);
   border: 1px solid rgba(251, 191, 36, 0.35);
-  color: #fbbf24; font-size: 12px; line-height: 1.45;
+  color: #fbbf24; font-size: 14px; line-height: 1.45;
 }
 .cz-pad-art { display: grid; place-items: center; min-height: 200px; position: relative; }
-.cz-pad-art[data-off="1"] { opacity: 0.3; }
+/* Only the drawing fades: the message on top of it has to stay readable. */
+.cz-pad-art[data-off="1"] > .cz-pad-ghost { opacity: 0.3; }
 .cz-pad-empty {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 6px; text-align: center;
 }
 .cz-pad-empty b { font-size: 16px; }
-.cz-pad-empty i { font-style: normal; font-size: 13px; color: rgba(237, 234, 227, 0.55); }
+.cz-pad-empty i { font-style: normal; font-size: 14px; color: rgba(237, 234, 227, 0.78); }
 .cz-pad-maps { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; margin-top: 14px; }
-.cz-pad-map { display: flex; align-items: center; gap: 10px; font-size: 13px; color: rgba(237, 234, 227, 0.7); }
+.cz-pad-map { display: flex; align-items: center; gap: 10px; font-size: 14px; color: rgba(237, 234, 227, 0.7); }
 .cz-pad-map kbd {
   display: inline-grid; place-items: center; min-width: 26px; height: 22px; padding: 0 7px;
   border-radius: 6px; background: rgba(237, 234, 227, 0.1);
   border: 1px solid var(--gc-overlay-border);
-  font-family: var(--font-mono); font-size: 11px; color: var(--gc-accent-bright);
+  font-family: var(--font-mono); font-size: 14px; color: var(--gc-accent-bright);
 }
-.cz-pad-readout { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 10px; font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 12px; color: rgba(237, 234, 227, 0.6); }
+.cz-pad-readout { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 10px; font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px; color: rgba(237, 234, 227, 0.78); }
 .cz-pad-readout b { color: var(--gc-accent-bright); font-weight: 500; }
 /* The battery segments are drawn for paper; on the drawer they invert. */
 .cz-pad-readout .cz-bat { display: inline-flex; vertical-align: middle; margin: 0 4px; }
@@ -216,10 +226,10 @@
   font-family: var(--font-body); text-align: left; cursor: pointer;
 }
 .cz-pad-remap:hover { background: rgba(237, 234, 227, 0.12); }
-.cz-pad-remap b { display: block; font-size: 13px; font-weight: 500; }
+.cz-pad-remap b { display: block; font-size: 14px; font-weight: 500; }
 .cz-pad-remap i {
-  display: block; margin-top: 3px; font-style: normal; font-size: 11px;
-  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; color: rgba(237, 234, 227, 0.5);
+  display: block; margin-top: 3px; font-style: normal; font-size: 14px;
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; color: rgba(237, 234, 227, 0.78);
 }
 
 /* themes */
@@ -230,8 +240,8 @@
 .cz-row[data-current="1"] .cz-theme-dot { background: var(--gc-accent); border-color: var(--gc-accent); }
 .cz-row[data-off="1"] { opacity: 0.4; cursor: default; }
 .cz-theme-tag {
-  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 10px;
+  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px;
   color: var(--gc-accent-soft);
 }
-.cz-note { padding: 14px; font-size: 14px; color: rgba(237, 234, 227, 0.55); }
+.cz-note { padding: 14px; font-size: 14px; color: rgba(237, 234, 227, 0.78); }
 

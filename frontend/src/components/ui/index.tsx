@@ -36,7 +36,7 @@ export function Chip({ label, color = 'rgba(255,255,255,0.1)' }: { label: string
     <span style={{
       padding: '3px 9px', borderRadius: 6,
       background: `${color}28`, border: `1px solid ${color}50`,
-      fontSize: 11, fontWeight: 600, color,
+      fontSize: 14, fontWeight: 600, color,
     }}>{label}</span>
   )
 }
@@ -69,7 +69,7 @@ export function SliderRow({ label, value, onChange, color = 'var(--gc-accent, #b
     <div style={{ padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
         <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)' }}>{label}</span>
-        <span style={{ fontSize: 13, color: 'var(--gc-accent-soft, #f2a46a)' }}>{value}%</span>
+        <span style={{ fontSize: 15, color: 'var(--gc-accent-soft, #f2a46a)' }}>{value}%</span>
       </div>
       <input type="range" min={0} max={100} value={value} onChange={e => onChange(+e.target.value)}
         style={{ width: '100%', accentColor: color, cursor: 'pointer' }} />
@@ -194,7 +194,7 @@ export function Overlay({ onClose, children, width = 480 }: {
 }
 
 export function OverlayLabel({ text }: { text: string }) {
-  return <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginBottom: 20, fontWeight: 700 }}>{text}</div>
+  return <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginBottom: 20, fontWeight: 700 }}>{text}</div>
 }
 
 /**
@@ -208,10 +208,10 @@ export function BackHeader({ label, onBack, right }: {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
       <button onClick={onBack} style={{
-        cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: 22,
+        cursor: 'pointer', color: 'var(--gc-ink-3)', fontSize: 22,
         background: 'none', border: 'none', lineHeight: 1, padding: 0,
       }}>‹</button>
-      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 700 }}>{label}</span>
+      <span style={{ fontSize: 14, color: 'var(--gc-ink-3)', fontWeight: 700 }}>{label}</span>
       {right && <div style={{ marginLeft: 'auto' }}>{right}</div>}
     </div>
   )

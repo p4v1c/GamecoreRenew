@@ -40,8 +40,8 @@ export default function CoverImage({ filename, systemId, color, type }: {
   if (errored) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: 16 }}>
-        <div style={{ width: 48, height: 48, borderRadius: 12, background: `rgba(${rgb},0.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.55)' }}><Glyph name="gamepad" size={26} /></div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center', wordBreak: 'break-all' }}>
+        <div style={{ width: 48, height: 48, borderRadius: 12, background: `rgba(${rgb},0.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gc-ink-2)' }}><Glyph name="gamepad" size={26} /></div>
+        <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', textAlign: 'center', wordBreak: 'break-all' }}>
           {filename.slice(0, 30)}
         </div>
       </div>

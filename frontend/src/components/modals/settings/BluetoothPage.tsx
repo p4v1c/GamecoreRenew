@@ -184,7 +184,7 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
             : 'color-mix(in srgb, var(--gc-accent, #b8501b) 15%, transparent)',
           border: `1px solid color-mix(in srgb, var(--gc-accent, #b8501b) ${focusIdx === SCAN_SLOT ? 75 : 40}%, transparent)`,
           color: 'var(--gc-accent-bright, #f8cfa9)',
-          cursor: busy ? 'default' : 'pointer', fontSize: 13, fontWeight: 600,
+          cursor: busy ? 'default' : 'pointer', fontSize: 15, fontWeight: 600,
           opacity: busy && op !== 'scan' ? 0.5 : 1,
         }}
       >
@@ -193,7 +193,7 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
 
       {/* Status message */}
       {msg && (
-        <div style={{ fontSize: 13, marginBottom: 12, padding: '8px 12px', borderRadius: 8,
+        <div style={{ fontSize: 15, marginBottom: 12, padding: '8px 12px', borderRadius: 8,
           background: msgError ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)',
           color: msgError ? '#f87171' : 'var(--gc-accent-soft, #f2a46a)', fontWeight: msgError ? 600 : 400 }}>
           {msg}
@@ -202,9 +202,9 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
 
       {/* Device list — paired first, then whatever the scan turned up. */}
       {loading ? (
-        <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, textAlign: 'center', padding: 16 }}>Loading…</div>
+        <div style={{ color: 'var(--gc-ink-3)', fontSize: 15, textAlign: 'center', padding: 16 }}>Loading…</div>
       ) : items.length === 0 ? (
-        <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, textAlign: 'center', padding: 16 }}>
+        <div style={{ color: 'var(--gc-ink-3)', fontSize: 15, textAlign: 'center', padding: 16 }}>
           No paired devices yet — put yours in pairing mode, then press ✕ on Scan above
         </div>
       ) : items.map((d, di) => {
@@ -219,8 +219,8 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
           <div key={d.mac}>
             {head && (
               <div style={{
-                fontSize: 12, fontWeight: 600,
-                color: 'rgba(255,255,255,0.3)', margin: '10px 2px 6px',
+                fontSize: 15, fontWeight: 600,
+                color: 'var(--gc-ink-3)', margin: '10px 2px 6px',
               }}>
                 {label}
               </div>
@@ -252,7 +252,7 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
                 <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {d.name}
                 </div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
+                <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 2 }}>
                   {isThisBusy
                     ? (!d.paired ? 'Pairing…' : d.connected ? 'Disconnecting…' : 'Connecting…')
                     : (d.connected ? 'Connected' : d.mac)}
@@ -260,7 +260,7 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
               </div>
 
               <div style={{
-                fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6,
+                fontSize: 14, fontWeight: 600, padding: '4px 10px', borderRadius: 6,
                 background: d.connected ? 'rgba(248,113,113,0.12)' : 'color-mix(in srgb, var(--gc-accent, #b8501b) 20%, transparent)',
                 border: `1px solid ${d.connected ? 'rgba(248,113,113,0.3)' : 'color-mix(in srgb, var(--gc-accent, #b8501b) 35%, transparent)'}`,
                 color: d.connected ? '#f87171' : 'var(--gc-accent-bright, #f8cfa9)',
@@ -273,7 +273,7 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
                 <div
                   onClick={e => removeDevice(e, d.mac)}
                   title="Remove device"
-                  style={{ fontSize: 16, color: 'rgba(255,255,255,0.2)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}
+                  style={{ fontSize: 16, color: 'var(--gc-ink-3)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}
                 >
                   ×
                 </div>
@@ -283,7 +283,7 @@ export function BluetoothPage({ onClose, onBack }: { onClose: () => void; onBack
         )
       })}
 
-      <div style={{ marginTop: 8, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.18)', }}>
+      <div style={{ marginTop: 8, textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
         <PadHints text={`↑↓ Navigate · ✕ ${
           focusIdx === SCAN_SLOT ? 'Scan'
             : items[rowIdx(focusIdx)] && !items[rowIdx(focusIdx)].paired ? 'Pair'
