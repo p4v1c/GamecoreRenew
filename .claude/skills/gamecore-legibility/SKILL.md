@@ -1,0 +1,97 @@
+---
+name: gamecore-legibility
+description: Make every GameCore screen readable on a TV from the sofa. Use for ANY UI change (themes in config/themes/, frontend components, settings pages, pad hints, overlays, Electron HUD). Sets the contrast and size floors, says how to fix a failure without making the UI look generated, and ships legibility-audit.mjs, which renders the real screen and measures contrast against the pixels behind each text and icon.
+---
+
+# GameCore legibility
+
+GameCore is read at 3 m on a TV that washes out colour. A hint the player
+cannot read is a broken feature, whatever it looks like on a monitor.
+Measure it. Do not trust your eye on a laptop.
+
+Pairs with `gamecore-human-touch`: fix legibility with the theme's own
+material. Its paper, glass or ink. Never with a generic glow or gradient.
+
+## 1. Floors
+
+| What | Floor |
+|---|---|
+| Body text, labels, hints | contrast ≥ 4.5:1 against the pixels behind it |
+| Text ≥ 24px, or ≥ 18.66px bold | ≥ 3:1 |
+| Icons, pad glyphs (✕ ○ □ △, d-pad, L1 pills) | ≥ 3:1 |
+| Any text a player reads | ≥ 14px at 1080p; hints and legends 16px+ |
+| Focus | visible without colour: shape, ring, scale or weight too |
+
+"Behind it" means the real backdrop: wallpaper pattern, photo, sand, a
+panel's glass over the sky. The worst common pixel counts, not the average.
+
+## 2. What breaks it, and the fix
+
+| Cause | Fix |
+|---|---|
+| Hierarchy by low alpha (`rgba(255,255,255,.3)`, `opacity: .4`) | Named ink tokens (`--ink-2`, `--ink-3`, `--gc-ink-3`, `--set-ink-3`) each checked ≥ 4.5:1 on the surfaces they sit on. The faintest ink is still readable |
+| `opacity` on a container to dim it | Dim the drawing only; text inside keeps full ink. Unfocused tiles: no opacity, use the focus signals |
+| Text straight on a pattern, photo, sand | A plate in the theme's material behind it (Shelf: paper label; Summer: glass pill). Not a text-shadow, not a gradient scrim over everything |
+| Pale pad glyphs on a light surface | Set `--gc-pad-cross`, `-circle`, `-square`, `-triangle` on that surface (≥ 3:1). `padKey.js` defaults are for dark screens; `initial` restores them in a dark panel inside a light theme |
+| Brand colour as text on dark (PS blue `#003087`) | Lighten for text: `color-mix(in srgb, <brand> 45%, #fff)`; keep the raw brand colour for fills |
+| 8–12px labels "for elegance" | 14px floor, 16px for hints. Hierarchy from weight and ink, not from shrinking |
+| Decoration over text (a shell on the hint bar) | Move the decoration. Decoration never covers text |
+| Status colours tuned for dark (`#f59e0b`) on a light card | Theme sets `--set-warn/info/danger/ok` dark enough for its card |
+
+Exempt, and only these:
+- text drawn as part of an object, when the same fact is readable elsewhere
+  (box spine, back-of-box fine print);
+- illustrations marked `aria-hidden="true"` (the controller drawing, the
+  ghost art when no pad is connected). If something carries information that
+  is not repeated as readable text, it is not decoration.
+
+## 3. Measure
+
+Dev server (never the real lifespan: it runs `sudo -n cpupower`, and failed
+sudo attempts lock the account):
+
+```bash
+mkdir -p /tmp/gcdata/config && cp install/generated/systems.json.dist /tmp/gcdata/config/systems.json \
+  && cp install/generated/apps.json.dist /tmp/gcdata/config/apps.json && cp -r config/themes /tmp/gcdata/config/
+(cd frontend && npx vite build)
+GAMECORE_PATH=$PWD GAMECORE_DATA=/tmp/gcdata PYTHONPATH=$PWD \
+  python3 .claude/skills/gamecore-legibility/scripts/devserve.py &
+```
+
+Re-copy `config/themes` into `/tmp/gcdata` after each theme edit; rebuild the
+frontend after each `frontend/src` edit.
+
+Audit, per theme and per screen:
+
+```bash
+A=.claude/skills/gamecore-legibility/scripts/legibility-audit.mjs
+for t in default orbit shelf summer; do
+  node $A --theme $t                           # home
+  node $A --theme $t --press confirm          # library
+  node $A --theme $t --press x                # controller screen
+  node $A --theme $t --press power            # power menu
+  node $A --theme $t --press menu             # settings
+done
+node $A --theme shelf --press x --shot /tmp/shelf-pad.png --all   # every item + screenshot
+```
+
+It prints `FAIL` for contrast, text under 14px, or text under decoration, and
+counts 14–16px text as "small" (`--all` lists them). Exit 1 on any `FAIL`.
+How it measures: one screenshot with all text and icons hidden, then the
+backdrop is sampled under each item and the 10th-percentile ratio is kept.
+Items another screen covers are skipped.
+
+Limits: the dev data has no games, so the library opens on its empty state.
+The built-in UI ignores synthetic presses, so only its home is audited here;
+its settings and power pages share `frontend/src/settings/css` with the
+themes. The TV is the final check: look at it before merging.
+
+## 4. Checklist
+
+- [ ] audit run on every theme × screen the change touches: 0 `FAIL`
+- [ ] new colours are tokens in the theme's DESIGN.md, with their ratio
+- [ ] no text dimmed by `opacity` or by an alpha below the theme's ink-3
+- [ ] hints and legends 16px+, nothing read under 14px
+- [ ] pad glyphs checked on every surface they appear on (light buttons too)
+- [ ] fixes use the theme's material (see `gamecore-human-touch`), no glow
+- [ ] `--shot` screenshots before and after in the PR

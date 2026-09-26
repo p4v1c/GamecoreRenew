@@ -35,6 +35,8 @@ git log origin/main..HEAD --format=%s | grep -E '\b(le|la|les|une|pour|est|pas)\
 | gamecore-docs | every new public name in its doc table? no line counts? |
 | gamecore-tests | fix has a failing-first test? network marked? |
 | gamecore-commit-pr | English conventional commits? nothing pushed to main? |
+| gamecore-human-touch | UI or copy changed: slop-audit counts down? no AI tells added? |
+| gamecore-legibility | UI changed: legibility-audit 0 `FAIL` on each touched theme × screen? |
 
 Also run the generic reviews if available: `/code-review` (bugs),
 `/simplify` (reuse), `/ponytail-review` (over-engineering).

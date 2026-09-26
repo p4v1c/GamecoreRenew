@@ -45,7 +45,8 @@ Code reads the tokens; nothing hardcodes a hex the DESIGN.md does not name.
 | Decorative borders and hairlines everywhere | A border separates or states focus; otherwise remove it |
 
 TV rules still win: readable at 3 m, focus visible without colour alone,
-contrast ≥ 4.5:1 for text, pad-only navigation.
+contrast ≥ 4.5:1 for text, pad-only navigation. Measure them with the
+`gamecore-legibility` skill (`legibility-audit.mjs`).
 
 ## 2. Writing tells → what to do instead
 
