@@ -1,5 +1,5 @@
 """The Legacy Batch extends GameCore's official SDL2 seam with AXES."""
-from backend.services.configgen import controllers as cc
+from backend.services.configgen import sdl_probe as cc
 
 
 def test_sdl2_probe_parses_axis_count_without_changing_existing_fields(monkeypatch):
