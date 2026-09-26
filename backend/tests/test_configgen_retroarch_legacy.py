@@ -52,14 +52,14 @@ def test_wizard_mapping_becomes_gamecontroller_at_runtime(tmp_path, monkeypatch)
     assert '"44"' not in text
 
 
-def test_skip_text_never_contains_absolute_target(tmp_path, monkeypatch):
-    target = tmp_path / "ephemeral" / "missing.cfg"
+def test_a_system_that_is_not_installed_is_not_reported_unconfigured(tmp_path):
+    """No config = the pack was never installed (its seed lands at install
+    time). A Skip here toasted thirteen absent systems as "not configured"."""
     msg = retroarch.generate(
         "probe", 2, 1, Pad(),
-        {"target": target, "app_id": "", "snap_dir": tmp_path / "snap"},
+        {"target": tmp_path / "missing.cfg", "app_id": "", "snap_dir": tmp_path / "snap"},
     )
-    assert str(tmp_path) not in str(msg)
-    assert str(msg) == "probe: controller config is missing"
+    assert msg is None
 
 
 def test_shared_helper_has_no_private_subprocess_probe():
