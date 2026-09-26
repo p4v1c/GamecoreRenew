@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from backend.main import app                                    # noqa: E402
-from backend.routers.settings import display                    # noqa: E402
+from backend.services import display                            # noqa: E402
 
 QUERY = """Screen 0: minimum 320 x 200, current 1920 x 1080, maximum 16384 x 16384
 HDMI-A-1 connected primary 1920x1080+0+0 (normal left inverted right x axis y axis) 700mm x 390mm
