@@ -15,6 +15,12 @@ GUIDE_CODES = frozenset({0x13C, 172})
 # Used to decide which guide-capable devices deserve a player slot.
 BTN_SOUTH = 0x130
 
+# KEY_ESC (1) through KEY_S (31): udev's own keyboard test (input_id's
+# test_key). A virtual keyboard that declares every code declares BTN_SOUTH
+# too — Sunshine's "libvirtualhid Keyboard" (1209:0002) does, and it took
+# player 2 and a "not configured" toast on every box running Sunshine.
+KEYBOARD_KEYS = frozenset(range(1, 32))
+
 EV_KEY = 1   # evdev event type for key/button events
 
 # Paths already reported as "kept, but has no Guide button" — the scan runs
@@ -78,7 +84,8 @@ def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str, int]]:
     `is_pad` tells actual gamepads apart: KEY_HOMEPAGE (172) is also a plain
     multimedia key, so keyboards and remotes land here too — they must keep
     being watched for the guide/home behavior but must NOT take a player
-    slot. Every real pad declares BTN_SOUTH; no keyboard does.
+    slot. Every real pad declares BTN_SOUTH; a real keyboard does not, and a
+    virtual one that declares every code is told apart by its letter keys.
     """
     global _logged_no_evdev
     try:
@@ -114,7 +121,7 @@ def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str, int]]:
             bustype = getattr(info, "bustype", 0)
             dev.close()
             has_guide = any(code in GUIDE_CODES for code in keys)
-            is_pad = BTN_SOUTH in keys
+            is_pad = BTN_SOUTH in keys and not KEYBOARD_KEYS <= set(keys)
             # `or is_pad` is the second half of this test, and it was missing:
             # a device had to declare a Guide/Home code to be seen at all. A pad
             # without a Home button — a generic USB pad, an arcade stick, a SNES
