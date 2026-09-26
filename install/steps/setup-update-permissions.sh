@@ -1,27 +1,14 @@
 #!/usr/bin/env bash
-# One-time root setup for the two things the backend cannot do on its own.
+# One-time root setup for what the backend cannot do alone:
+#   - gamecore-restart.service (system unit doing the restart)
+#   - a sudoers drop-in letting the GameCore user, without a password:
+#       · start ONLY that unit;
+#       · run ONLY /usr/local/bin/gamecore-emu.
 #
-# Installs:
-#   - gamecore-restart.service  (system unit doing the actual restart)
-#   - a sudoers drop-in letting the GameCore user:
-#       · start ONLY that unit, without a password (the update script runs
-#         unprivileged);
-#       · run ONLY /usr/local/bin/gamecore-emu, so an emulator can be added
-#         from the interface without re-running the installer.
-#
-# Why gamecore-emu and not `flatpak install`:
-#
-#   A NOPASSWD rule for flatpak would let the GameCore user install ANY
-#   application from any configured remote, as root. The rule below names one
-#   script instead, and that script refuses any id the catalogue does not
-#   declare (`require_ids`) — so the argument an attacker could control selects
-#   among the packs that shipped with the release, and nothing else. There is
-#   deliberately no "install from this URL" anywhere in the chain.
-#
-#   That narrowness is also what makes the data-only rule for
-#   config/catalog.d/ load-bearing rather than decorative: a pack dropped there
-#   cannot carry generator.py, postInstall, services, sources or packages, so
-#   naming it here cannot run code either. See config/catalog.d/README.md.
+# gamecore-emu rather than `flatpak install`: a NOPASSWD flatpak rule would let
+# the user install ANY app as root. gamecore-emu refuses ids the catalogue does
+# not declare, and config/catalog.d/ packs are data-only (no generator,
+# postInstall, services…), so the rule cannot run arbitrary code.
 #
 # Usage:  sudo ./setup-update-permissions.sh [gamecore-user]
 set -euo pipefail

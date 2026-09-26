@@ -1,35 +1,12 @@
 /**
- * Settings → Bluetooth.
+ * Settings → Bluetooth: one card, Paired on the left, Nearby on the right.
+ * Bare markup; the router pairs, trusts, then connects, in that safe order.
  *
- * One card, two columns inside it — Paired on the left, Nearby on the right —
- * the way the capture draws it. Not a third top-level column like Wi-Fi's
- * detail panel: these are two lists of the same kind of thing, and the capture
- * treats them as one surface.
- *
- * Bare markup. Pairing, trusting and connecting stay in the host's router,
- * which does them in the one order that is safe (`pair`, then `trust`, then
- * `connect` — trusting an unpaired address tells BlueZ to accept a future
- * connection from something that has not proved who it is).
- *
- * ## Where this departs from the capture, and why
- *
- * · **No ON/OFF switch.** Same as Wi-Fi: no route turns the adapter off.
- * · **No battery bar per device.** `GET /devices` answers
- *   `{mac, name, connected, paired}` and nothing else. Battery levels do exist
- *   in `sysinfo.controllers`, but that list carries no MAC — matching a pad to
- *   a Bluetooth address by NAME would be a guess, and a wrong guess here reads
- *   as the box confusing player one with player two. Two lists that cannot be
- *   joined are better left unjoined than joined by hope.
- * · **No RSSI.** `-54 dBm` in the capture has no source: the scan reports what
- *   BlueZ remembers seeing, not how loudly.
- * · **No device-class tags** (PAD / AUD / KBD). Nothing reports a class.
- *
- * What remains is what the box can actually answer, and it is most of the
- * screen: who is paired, who is connected, what is in range, and the two
- * buttons that change either.
+ * Not drawn, because nothing reports them: an ON/OFF switch (no route turns
+ * the adapter off), per-device battery (sysinfo pads carry no MAC — matching
+ * by name would be a guess), RSSI, device class.
  */
-// What the adapter is told to do, mirrored from SCAN_SECS in the router so the
-// screen can say how long it will be instead of just spinning.
+// Mirrors SCAN_SECS in the router, so the screen can show how long it takes.
 const SCAN_SECS = 10
 const SCAN_PATIENCE_MS = (SCAN_SECS + 4) * 1000
 

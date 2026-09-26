@@ -1,28 +1,10 @@
 /**
- * A burst of steps must move the cursor by a burst of steps.
+ * A burst of d-pad presses moves the cursor by that many rows.
  *
- * The d-pad is edge-triggered: one press, one `gp:dpad-*`. Nothing repeats and
- * nothing coalesces, so five presses are five separate intentions and the only
- * correct answer to them is five rows.
- *
- * They were not. The handlers read `selectedGameIdx` out of the closure the
- * effect was registered with, and that closure is only replaced once React has
- * rendered, committed, painted and flushed its passive effects. Every press
- * that lands inside that window computes its next index from the value BEFORE
- * the previous press — so it sets the same index again, and `set()` on an
- * unchanged value is a no-op. The player's second, third and fourth taps
- * vanish; the shelf appears to stutter and lag behind the pad.
- *
- * It gets worse the faster you go, which is exactly what was reported, and it
- * is invisible in a slow test: press, await, press, await always passes.
- * Dispatching the five events without yielding is what reproduces it, and it
- * is also what a fast scroll on the box actually is — the render of a themed
- * library over four hundred games takes longer than the gap between two taps.
- *
- * The fix is not to make the render faster. It is to stop reading the cursor
- * from a snapshot: the store is synchronous and `getState()` is never stale,
- * so each press steps from where the previous press left the cursor, whether
- * or not React has caught up.
+ * Handlers used to read `selectedGameIdx` from their effect closure, which is
+ * refreshed only after React commits; presses inside that window recomputed
+ * the same index and were lost (the "stuttering shelf"). Dispatching without
+ * yielding reproduces it. Fix: step from `getState()`, never from a snapshot.
  */
 import { render, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'

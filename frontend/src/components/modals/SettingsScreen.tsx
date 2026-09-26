@@ -1,37 +1,13 @@
 /**
- * The built-in settings screen — the same one Shelf and Summer draw.
+ * The built-in settings screen — the same one Shelf and Summer draw
+ * (`src/settings/`, palette from settings.css). This file only builds the SDK
+ * that screen expects.
  *
- * ## What changed, and why it is not a rewrite
- *
- * The default UI used to have a settings screen of its own: a centred list of
- * ten rows, each opening a full-screen overlay on top of it. The two shipped
- * themes drew something else entirely — a numbered rail that never leaves, the
- * category beside it, and a third column of detail for Wi-Fi and Bluetooth —
- * and the two had nothing in common but the endpoints they called.
- *
- * They are one screen now. `src/settings/` holds it, `settings.css` gives this
- * surface its palette, and a theme gives its own. Nothing here reimplements a
- * rail: this file's whole job is to hand that screen an SDK.
- *
- * ## The SDK, built for the host itself
- *
- * The screen is written in the theme SDK's idiom, so it needs one — even when
- * no theme is active. `buildSdk` takes a theme id used only to resolve assets
- * inside a theme folder, and this screen loads none, so it is given the empty
- * string rather than a lie about which theme is running.
- *
- * `selectTheme` is real, though: the Themes page inside this screen switches
- * themes, and it is very often the reason someone opened this screen at all —
- * safe mode dropped them here because their theme crashed. Wiring it to a stub
- * would strand them on the one screen that can get them out.
- *
- * ## Why the host may not simply reuse a theme's copy
- *
- * It could not, before: the screen lived under `config/themes/_shared/`, which
- * `update/linux.sh` delivers over the air. The built-in UI is what
- * `themeSafety.ts` falls back TO, so depending on an OTA-delivered directory
- * would have made the fallback share the failure it exists to catch. Moving the
- * screen into the bundle is what made this file possible.
+ * `buildSdk` gets an empty theme id (no theme assets are loaded here), but a
+ * REAL `selectTheme`: safe mode lands players here after a theme crash, and
+ * the Themes page is their way out.
+ * The screen lives in the bundle, not in an OTA-delivered theme folder, so the
+ * safe-mode fallback cannot share a theme's failure.
  */
 import { useMemo, useRef, useEffect } from 'react'
 import { buildSdk } from '../../lib/themeSdk'

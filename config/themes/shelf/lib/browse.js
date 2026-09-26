@@ -1,45 +1,18 @@
 /**
- * Turning the box over, and changing how the shelf is stacked.
+ * Turning the box over (L2) and restacking the shelf (R2). View state only:
+ * this theme may add ways of LOOKING, never ways of MOVING.
  *
- * Both are view state and nothing else — they move no selection and launch
- * nothing. That is the line this theme is allowed to cross: it may add ways of
- * *looking*, never ways of *moving*. Scrolling, sorting, searching, launching
- * and ○ all stay exactly where the host put them, which is why a shelf and the
- * default list behave identically.
+ * The layout is remembered, the flip is not: a flip belongs to the box under
+ * the cursor; a layout is how the player reads a library.
  *
- * **The layout is remembered, the flip is not**, and the asymmetry is the
- * point. A flip is about the box under the cursor and is cleared the moment
- * the cursor moves — remembering it would answer ← with a wall of back covers.
- * A layout is about how the player likes to read a library, and it used to be
- * forgotten on the way out of every console: three presses of R2 to get back
- * to Gallery, every single time, and again after a power cycle.
+ * Stored in localStorage, not a new SDK call: `sdk.storage` would force an
+ * SDK/api bump and break older front ends for one string. The key is
+ * namespaced to Shelf (`gc:theme:*` is the host's — safe mode lives there).
+ * Every access is wrapped: a storage failure costs a preference, never the
+ * library.
  *
- * ## Why `localStorage` and not the SDK
- *
- * `SDK_VERSION` exists to refuse a theme that calls a function the front end
- * does not have — `test_sdk_version_gate.py` records what it cost when it
- * failed. Adding `sdk.storage` for this would mean SDK 4 and `api: 4` here,
- * which makes Shelf incompatible with every older front end for the sake of
- * one string. `localStorage` is a browser API present in all of them, so this
- * adds no compatibility surface at all and the gate keeps meaning what it says.
- *
- * The key is namespaced to this theme. `gc:theme:*` belongs to the host —
- * `themeSafety.ts` keeps `gc:theme:crashes` and `gc:theme:safeMode` there —
- * and a theme writing into that space is a theme that can break safe mode.
- *
- * Every read and write is wrapped: a browser with storage disabled, a quota
- * exceeded, or a value someone edited by hand must cost the player a forgotten
- * preference, never a library that does not draw.
- *
- * The two triggers are L2 and R2 because they are the only face-adjacent
- * buttons the library leaves free: ↑↓ scroll, ✕ launches, ○ goes home, △ opens
- * search, □ opens the controller screen, and L1/R1 change the sort.
- *
- * ←→ are also free, and are wired to the *host's* own selection callback
- * rather than to anything of ours: on a shelf that runs left to right, pressing
- * right and having nothing happen reads as a broken screen. It is the same
- * clamped step ↑↓ already take, so nothing about the navigation differs — only
- * the number of buttons that reach it.
+ * ←→ call the host's own selection callback (same clamped step as ↑↓): on a
+ * left-to-right shelf, a dead → reads as broken.
  */
 
 export const MODES = ['shelf', 'stack', 'gallery']

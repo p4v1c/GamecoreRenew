@@ -1,28 +1,13 @@
 /**
  * What the pad may do while the screen is off.
  *
- * Reported from the sofa: "while it changes state I can move around with
- * the pad even though the screen is black, and launch games". Exactly that.
- * The standby overlay is a picture — it covers the screen and stops nothing —
- * and in `sleep` there is not even a picture, because the backend has cut the
- * panel through DPMS. The poll loop went on emitting `gp:*` the whole time, so
- * every screen and every theme went on navigating: the cursor moved, menus
- * opened, and ✕ launched a game onto a television that was switched off.
- *
- * The rule is the one every console has: the first press wakes, and only that.
- * It cannot live in the overlay — Summer draws its own, and a theme that drew
- * none would lose the guard entirely — so it lives at the bus, above every
- * consumer, host and theme alike.
- *
- * The second half is the pad WAKING the box at all. That was the backend's job
- * alone, over evdev, and evdev is exactly what a box whose account is outside
- * the `input` group does not have: gamepad_monitor warns that a refused device
- * is "invisible everywhere", and standby is one of the places. Chromium still
- * sees the pad, so the frontend can ask — and now does.
- *
- * The poll loop needs requestAnimationFrame and a real Gamepad, so it is the
- * keyboard stand-in that is driven here. Both go through the same `emit`,
- * which is where the guard is, and that is the point of putting it there.
+ * Reported: "while it changes state I can move around with the pad even
+ * though the screen is black, and launch games". Rule: the first press wakes,
+ * and only that. It lives at the input bus (`emit`), above every host and
+ * theme consumer, not in an overlay a theme may not draw.
+ * The pad can also WAKE the box from the frontend, for boxes whose backend
+ * cannot read evdev (account outside the `input` group).
+ * Driven through the keyboard stand-in, which shares `emit` with the poll loop.
  */
 import { cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

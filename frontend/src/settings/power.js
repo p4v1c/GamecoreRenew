@@ -1,26 +1,11 @@
 /**
- * The power menu — the three ways a session ends.
+ * The power menu: Shutdown, Restart, Return to desktop, on paper. The host
+ * hands over exactly those three rows, so no theme can build a box that
+ * cannot be turned off.
  *
- * Shutdown, Restart, Return to desktop, on paper, over whatever was on screen.
- * It used to wear the drawer's near-black, which was right while it opened
- * over a dark settings menu and became the only surface on this box that did
- * not match once that menu became the capture's paper screen.
- *
- * It also used to carry "Scan mapping" and "Forget mapping", later moved to
- * Settings → Controllers and then removed altogether. The host hands over the
- * three session rows and nothing else, so no theme can build a box that cannot
- * be turned off.
- *
- * Markup only. The two-press confirmation, the pending lock that keeps every
- * close path inert while a command is in flight, and the failsafe that gives
- * the screen back when the OS never actually powers off all stay in
- * PowerModal — a view that could reimplement those could also get shutdown
- * wrong, and this is the screen where that costs the most.
- *
- * Rendered in the order the host hands them over, never reordered here:
- * `focusIdx` is an index into that array, so a view that rearranged its rows
- * would send the cursor jumping up the screen on a press of down.
- *
+ * Markup only: the two-press confirmation, the pending lock and the failsafe
+ * stay in PowerModal. Rows render in the host's order — `focusIdx` indexes
+ * that array.
  * Props: frontend/src/components/modals/power/types.ts
  */
 import { PadHints } from '../lib/padKey.js'

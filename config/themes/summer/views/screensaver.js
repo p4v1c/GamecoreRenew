@@ -1,33 +1,14 @@
 /**
- * Standby: the library's boxes, turning slowly in the dark.
+ * Standby: the library's boxes turning slowly in the dark (the same Box3D).
  *
- * The same `Box3D` the detail panel uses, so a game looks the same asleep as
- * awake — and the idle drift that exists there to hint "this turns" is exactly
- * what a screensaver wants anyway. Nobody is holding the stick at this point,
- * so the box simply turns on its own.
- *
- * The behaviour is the host's and is reproduced exactly, because getting it
- * wrong strands the box:
- *
- *   standby:screensaver → the slideshow
- *   standby:sleep       → plain black. The backend cuts the screen through
- *                         DPMS; black avoids a bright flash either side of it,
- *                         and everything here unmounts so nothing animates
- *                         against a dark panel.
+ *   standby:screensaver → slideshow
+ *   standby:sleep       → plain black, everything unmounted (DPMS is off)
  *   standby:exit        → gone
  *
- * and local pointer/keyboard input wakes the box, since a mouse is not a
- * controller — a pad's first press is swallowed into a wake by the host's input
- * bus, which is also why the stage below is READ from the store rather than
- * rebuilt from the three events: the bus lets go of the pad after a grace
- * period if the box never answers, and an overlay built from its own copy would
- * still be on screen at that point. A black rectangle over a live cursor is the
- * fault the guard exists to prevent.
- *
- * One media catalogue is fetched per game *as it comes up*, not for the whole
- * library at once: a shelf of two hundred games would otherwise fire two
- * hundred requests the moment the box goes idle, which is the opposite of what
- * standby is for.
+ * The stage is READ from the store, not rebuilt from events: the input bus
+ * releases the pad after a grace period, and a private copy would leave a
+ * black overlay over a live cursor. Pointer/keyboard input wakes the box.
+ * Media is fetched per game as it comes up, never for the whole library.
  */
 
 const ROTATE_MS = 9000

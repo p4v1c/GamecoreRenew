@@ -1,36 +1,17 @@
 /**
- * The dashboard — one row of big icons, the way a PS4 does it.
+ * The dashboard: one row of big icons, PS4-style.
  *
- * ── Why a row and not a grid ───────────────────────────────────────────────
- * `HomeScreen` owns the navigation and traverses a COLS × ROWS grid across
- * pages (4 × 2 today). A theme may not touch that. But read its `navigate()`
- * closely and the grid turns out to *already be* a set of horizontal lanes:
- * pressing right at the last column turns the page and lands on `row * COLS` —
- * the same row. So from system 3 you go to system 8, never to 4.
+ * HomeScreen pages a COLS × ROWS grid; pressing → at the last column lands on
+ * the same row of the next page, so each grid row already IS a lane:
  *
- *     grid, as the host pages it          the same thing, as lanes
  *     page 0      page 1                  lane 0 ▸ 0 1 2 3 8 9 10 11 …
  *     0 1 2 3     8  9 10 11              lane 1 ▸ 4 5 6 7 12 13 14 15 …
  *     4 5 6 7    12 13 14 15
  *
- * Lay one grid row out as a rail and ←→ walks it linearly, right through the
- * page boundary. Nothing is rebound and nothing is reimplemented: the pager
- * the host wrote is exactly what you feel under your thumb.
- *
- * Only the lane you are on is drawn at size. A single unbroken row of every
- * system would be a lie — ←→ cannot reach lane 1 from lane 0, and a row that
- * looks continuous but silently skips half its contents is worse than a
- * visible ↑↓. So the other lane is a strip of small marks: you can see it is
- * there, you can see what is on it, and the foot says which button goes.
- *
- * It reads `cols` and `rows` from props rather than assuming 4 and 2 — a host
- * set to ROWS = 1 gets one row and the strip disappears on its own.
- *
- * ── The icon is the whole tile ─────────────────────────────────────────────
- * No console solid here, unlike the library's spines: a dashboard is read at
- * three metres, and a logo at 200px carries where a box rendered at 40° does
- * not. The name of what you are on is set large above the row, because on a TV
- * a caption under an icon is the first thing to become unreadable.
+ * Only the current lane is drawn at size; the other is a strip of marks (a
+ * row that silently skips half its items is worse than a visible ↑↓). Reads
+ * `cols`/`rows` from props. The icon is the whole tile, the name is set large
+ * above the row: readable at 3 m.
  */
 import { hexToHsl, vars, NEUTRAL } from '../lib/accent.js'
 import { played, day } from '../lib/names.js'

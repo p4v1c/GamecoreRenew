@@ -1,38 +1,12 @@
 /**
- * The box, assembled.
+ * The box, assembled from the three faces the backend warmed (`box-front`,
+ * `box-spine`, `box-back`). This file is geometry only: six faces, a depth, a
+ * rotation. Top, bottom and opening edge are plain cardboard.
  *
- * The backend already did the hard part. `WARM_MEDIA` pulls down `box-front`,
- * `box-spine` and `box-back` for the whole library once the covers have landed
- * — its own comment calls them "the three faces the 3D box is built from" — so
- * nothing here scrapes, guesses or draws artwork. This file is geometry: six
- * faces, a depth, and a rotation.
- *
- *      ┌───────────┐
- *     ╱           ╱│     front  = box-front   (W × H)
- *    ┌───────────┐ │     spine  = box-spine   (D × H, the left face)
- *    │           │ │     back   = box-back    (W × H)
- *    │   front   │ ╱      top · bottom · opening edge — cardboard. No artwork
- *    │           │╱        exists for them because none is printed on a box.
- *    └───────────┘
- *
- * ── W and H come from the artwork, not from a token ────────────────────────
- * A SNES box is landscape, a PS1 box is portrait, a Mega Drive box is neither.
- * Fixing a ratio would crop or letterbox two thirds of a real collection, so
- * the front is measured on load and the whole solid is built from what it
- * reports. Depth follows width, the way it does on a shelf.
- *
- * ── …and so does the orientation of the spine scan ─────────────────────────
- * `box-2D-side` is whichever face carries the title on a shelf, so for a
- * LANDSCAPE box it is the wide top band and not the tall left side: 680x115
- * for every N64 title on the reference box, against 42x680 for a Switch one.
- * Both faces here are tall and narrow, so a band has to be turned before it is
- * laid in — see `standUp` below for what happens when it is not.
- *
- * ── Why a spine is not a box ───────────────────────────────────────────────
- * Twenty solids is sixty images and sixty compositing layers, for nineteen
- * boxes showing one face each. An unfocused game *is* its spine — one `<img>`,
- * the exact face a real shelf shows you. The solid is built for the one box
- * that is turned towards you.
+ * W and H come from the loaded front (SNES landscape, PS1 portrait), depth
+ * follows width. A landscape box's spine scan is a wide band and is turned
+ * upright (see `standUp`). Unfocused games are one spine <img>; only the
+ * selected one is a full solid (20 solids = 60 layers).
  */
 import { pick, jacket } from '../lib/dossier.js'
 import { title, stamp } from '../lib/names.js'
@@ -97,34 +71,13 @@ export const createBox = (sdk) => {
   const { html, useState, useEffect } = sdk.ui
 
   /**
-   * Which way round a spine scan is, marked on the element for the CSS.
+   * Mark a spine scan as landscape (data-wide) so the CSS stands it upright.
    *
-   * ScreenScraper's `box-2D-side` is always the face that carries the title on
-   * a shelf — and which face that IS depends on the shape of the box. A PS1,
-   * DS or Switch box is portrait, so its side is the tall narrow left face and
-   * the scan is portrait too. **An N64 box is landscape**, wider than it is
-   * tall, so the printed band is its wide top face and the scan comes back a
-   * bandeau: measured on this box, 680x115 for every one of the eight N64
-   * titles, against 42x680 for a Switch one — a ratio of 6.2 against 0.06.
-   *
-   * The theme stands every game upright, and both faces it can go on are tall
-   * and narrow. Dropped in unturned, `object-fit: cover` scales the band up
-   * until it covers 320px of HEIGHT and then keeps 34px of a 1891px-wide
-   * picture — 1.8 % of it, taken from the horizontal centre. That centre is
-   * the gap between the logo and the publisher's mark on nearly every N64
-   * jacket, so what reaches the shelf is a black sliver. Measured over the
-   * eight: five come out under 10/255 of luminance, Mario Kart 64 at 9.
-   *
-   * Nothing is missing and nothing failed — the scan is on disk, complete and
-   * correct. So this is a framing decision and it belongs here rather than in
-   * the scraper: a landscape band is stood on its end, which is what standing a
-   * landscape box upright does to its printed side. The turn is clockwise so
-   * the title reads top-to-bottom, matching the `writing-mode: vertical-rl` of
-   * the printed spine this sits next to on the same shelf.
-   *
-   * Written on every load rather than only when true: the same <img> is reused
-   * when the source changes, and a stale `1` would turn a portrait scan on its
-   * side — the defect, with the sign flipped.
+   * `box-2D-side` is the face carrying the title: tall for PS1/DS/Switch, a
+   * wide band for N64 (680x115 vs 42x680). Unturned, object-fit: cover keeps
+   * ~2 % of the band — a black sliver. Turned clockwise so the title reads
+   * top-to-bottom like the printed spines. Written on every load: the <img> is
+   * reused and a stale 1 would turn a portrait scan sideways.
    */
   const standUp = (img) => {
     img.dataset.wide = img.naturalWidth > img.naturalHeight ? '1' : '0'

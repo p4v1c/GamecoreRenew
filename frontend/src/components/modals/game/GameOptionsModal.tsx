@@ -4,52 +4,20 @@ import { api, type OverlayChoices, type PerGameState } from '../../../api'
 import { onGp } from '../../../hooks/useGamepad'
 
 /**
- * The per-game options panel — which bezel the game gets, and what settings
- * belong to this title and no other.
+ * Per-game options (R2 in the library): which bezel this game gets, and its
+ * per-game emulator settings.
  *
- * Opened with R2 from the library, on the game under the cursor — every face
- * button on that screen is already spoken for: ✕ launches, ○ goes back, △
- * searches and □ is the controller screen. It exists
- * because the automatic answer is right most of the time and visibly wrong
- * some of it: a pack whose artwork does not suit a game, a bezel someone
- * dislikes, or a title the cascade matched to the wrong PNG. Without a way to
- * say so from the sofa, the only remedy is an SSH session.
+ * Bezel, three states:
+ *  · Automatic — stored as the ABSENCE of a preference, so a pack installed
+ *    later still changes the answer;
+ *  · Off — draw nothing (distinct from "no bezel found", and labelled so);
+ *  · a named bezel — only ones present on this box; the backend refuses others.
  *
- * Three states for the overlay, and the distinction between two of them is the
- * whole design:
- *
- *  · **Automatic** — the cascade decides, and keeps deciding. Stored as the
- *    ABSENCE of a preference, so installing a pack later changes the answer.
- *    A box that had written today's answer down would keep it forever.
- *  · **Off** — draw nothing. Not "no bezel found": that is the same picture
- *    and a completely different problem, and the panel says which.
- *  · A named bezel — only ever one that exists on this box. The backend
- *    refuses anything else, because a setting that saves happily and does
- *    nothing at launch is worse than a setting that is not offered.
- *
- * ## The second section, and what it deliberately is NOT
- *
- * There are no sliders here, and no list of the emulator's options. Building
- * one would mean translating "internal resolution" into thirteen vocabularies
- * and then chasing every one of them through every emulator release — the
- * thing that makes Batocera's configgen impossible to port. So the panel does
- * two much smaller jobs instead:
- *
- *  · it reports the known-good profile, if this game has one, and lets the
- *    player take it off. A setting placed by the catalogue that cannot be
- *    removed is a bug of trust, however correct the setting is;
- *  · it opens the emulator's OWN settings window, where the vocabulary is
- *    already right and always current. What the player sets there, GameCore
- *    then keeps for this game and no other.
- *
- * A system that cannot do per-game settings says so in the pack's own words.
- * An empty section and an emulator that genuinely has no per-title config look
- * identical from four metres away, and only one of them is worth chasing.
- *
- * Nothing here is applied to a running game. The overlay is resolved when a
- * game starts and the per-game file is written just before the emulator reads
- * it, so a change takes effect at the next launch — which is said on screen
- * rather than left to be discovered.
+ * Settings: no sliders (one vocabulary per emulator would never stay current).
+ * The panel reports the catalogue's known-good profile and lets the player
+ * remove it, and opens the emulator's OWN settings window; what is set there
+ * is kept for this game only. Changes apply at the next launch, and the panel
+ * says so.
  */
 
 const ACCENT = 'var(--gc-accent, #7c3aed)'

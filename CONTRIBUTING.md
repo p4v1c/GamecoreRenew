@@ -74,11 +74,11 @@ model is missing something — say so in the PR rather than adding the line.
 
 ## Writing the code
 
-**Comment the why, never the what.** This codebase is unusual in how much it
-explains, and that is deliberate: nearly every non-obvious line carries the
-failure that produced it. That is what makes a bug diagnosable a year later by
-someone who was not there. Keep it up — a comment that says *what* the line does
-is noise, one that says *which install it broke* is the documentation.
+**Comment the why, never the what — in English, and short.** A comment names
+the constraint or the failure it prevents, in one to three lines; the story of
+how it was found belongs in the commit body or `docs/reports/`. A comment that
+says *what* the line does is noise. Rules and examples:
+`.claude/skills/gamecore-comments/SKILL.md`.
 
 **One source of truth.** Every serious bug in this project has the same shape:
 a fact recorded in two places, one of them updated. If you find yourself typing
@@ -104,7 +104,7 @@ closing summary. A missing emulator is a degraded box; an aborted installer at
 ## Commits
 
 Conventional prefixes (`fix:`, `feat:`, `refactor:`, `docs:`, `chore:`, `ci:`)
-with the touched area in parentheses. The body is where the value is: say what
+with the touched area in parentheses, **in English**. The body is where the value is: say what
 broke, how, and what the reader would otherwise re-derive. `git log` is the only
 document nobody forgets to update.
 
@@ -112,6 +112,12 @@ document nobody forgets to update.
 the air. `.github/workflows/release.yml` runs the lint, the catalogue checks and
 the test suite before it tags — a red step means no tag and no release, which is
 the intended behaviour. Work on a branch.
+
+## Project skills
+
+`.claude/skills/` holds the working rules as Claude Code skills: comments,
+docs, code quality, naming, file size (`check-file-size.sh`), new features,
+catalogue packs, tests, commits and review. They apply to humans too.
 
 ## Licence
 

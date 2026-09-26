@@ -1,33 +1,19 @@
 /**
- * Skeleton theme — copy this folder, rename it, and make it yours.
+ * Skeleton theme — copy this folder, rename it, make it yours.
  *
- * A theme is all-or-nothing: it must provide BOTH surfaces, `splash` and
- * `shell`, and list them in theme.json → "provides". Anything less does not
- * load — half a theme (a themed dashboard behind the stock boot animation) is
- * what made the first version feel broken.
+ * A theme must provide BOTH `splash` and `shell` and list them in theme.json
+ * "provides"; half a theme does not load. `sessionBar` is optional and not
+ * declared: the host draws its own if you leave it out.
  *
- * `sessionBar` below is the one exception, and the difference is worth
- * understanding before you copy it: it is OPTIONAL, it is not declared in
- * "provides", and the host draws its own if you leave it out.
+ * You dress the frontend, you do not rebuild it: paging, focus, the modal stack
+ * and button bindings stay with the host. One feature per file:
  *
- * You are dressing the frontend, not rebuilding it: paging, focus, the modal
- * stack and the button bindings stay with the host, so your theme behaves
- * exactly like the default and only the UI changes.
+ *     my-theme/  index.js  theme.json  theme.css
+ *       views/   splash.js  home.js  settings.js  …
+ *       lib/     what your views share
  *
- * Keep one feature per file, like config/themes/summer, and split the way the
- * frontend splits — `views/` for what a screen looks like, `lib/` for what it
- * needs to look like that:
- *
- *     my-theme/
- *       index.js  theme.json  theme.css
- *       views/    splash.js  home.js  settings.js  …
- *       lib/      whatever your views share
- *
- * The directory listing then doubles as your check-list. Subfolders and
- * relative imports work — there is no build, so the paths you write are the
- * paths the browser fetches.
- *
- * Full contract: docs/themes/README.md
+ * No build step: relative imports are the paths the browser fetches.
+ * Contract: docs/themes/README.md
  */
 export default (sdk) => {
   const { html, useEffect } = sdk.ui

@@ -1,27 +1,10 @@
 /**
- * Settings → System.
+ * Settings → System: the console image and its update, standby, and disks
+ * (the `update`, `standby`, `storage` pages; `desktop` is in the power menu).
  *
- * Four of the host's settings pages, on one screen, the way the capture draws
- * it: the console image and its update, standby behaviour, and the disks it
- * reads from. `theme.json` still declares `update`, `standby`, `storage` and
- * `desktop` — the declaration is about what a player can REACH, and all four
- * are reachable here (or, for `desktop`, from the power menu, which is where
- * the capture puts leaving the front end).
- *
- * ## Where this departs from the capture, and why
- *
- * · **No "Software update" row.** The capture offers to update every emulator
- *   and application. `gamecore-emu` has no `update` verb and nothing asks a
- *   remote what it offers, so the row would promise work nobody can perform.
- * · **No `pacman -Syu`.** Written up at length in the README: a NOPASSWD rule
- *   for pacman is a root shell obtainable by installing any package, and an
- *   interrupted system upgrade leaves a box with no front end, no pad and no
- *   way back from a sofa.
- * · **No kernel version.** `sysinfo` does not read one.
- * · **The internal disk is shown but cannot be ejected.** `storage.report()`
- *   deliberately lists external volumes only — an Eject button on your own root
- *   filesystem is not a feature — but its size is real and comes from
- *   `sysinfo`, so it is drawn as a bar with no button rather than left out.
+ * Not drawn: emulator "Software update" (no update verb), `pacman -Syu` (a
+ * NOPASSWD pacman rule is a root shell; see README), kernel version (not
+ * read). The internal disk shows a size bar but no Eject.
  */
 const SAVER_MINS = [2, 4, 6, 10, 15]
 const SLEEP_MINS = [10, 16, 30, 60, 0]           // 0 = never

@@ -42,32 +42,16 @@ interface Props {
 }
 
 /**
- * The on-screen keyboard, themable through `--gc-kb-*`.
+ * On-screen keyboard, themable through `--gc-kb-*` (defaults = the original
+ * dark look). Set them on the CONTAINER, not :root: one component serves
+ * several surfaces (a paper dialog shipped white-on-white at 1.05:1); callers
+ * name theirs via `className` (the game search is `.gc-search-kb`).
  *
- * Every colour below has a default equal to what this drew before, so the
- * built-in UI and any theme that sets nothing are unchanged. The variables
- * exist because this component is INSIDE whatever surface put it there, and
- * that surface is not always dark: Shelf's password dialog is paper, and this
- * shipped white-on-white — a keyboard measured at 1.05:1 against the card
- * behind it, for the one password nobody can type any other way.
+ *   --gc-kb-field / --gc-kb-field-ink   the typed-value box and its text
+ *   --gc-kb-key / --gc-kb-key-edge      key face, hairline (and Cancel's)
+ *   --gc-kb-ink / -strong / -dim / -faint   lettering, focused key, Cancel, legend
  *
- * Set them on the CONTAINER, not on :root. The same component draws several
- * different surfaces — a settings dialog, the game search — and a theme that
- * recoloured it globally would dress one and ruin the other. Each caller names
- * its surface through `className`; the game search is `.gc-search-kb`.
- *
- *   --gc-kb-field       the typed-value box
- *   --gc-kb-field-ink   what you type, ON that box — not the same as the
- *                       focused key's ink, which sits on an accent fill
- *   --gc-kb-key         a key's face
- *   --gc-kb-key-edge    its hairline, and the Cancel button's
- *   --gc-kb-ink         key lettering
- *   --gc-kb-ink-strong  the typed value, and the focused key
- *   --gc-kb-ink-dim     Cancel
- *   --gc-kb-ink-faint   the button legend
- *
- * The focus ring and the accent-tinted keys read `--gc-accent*`, which every
- * theme already sets.
+ * Focus ring and accent keys use `--gc-accent*`.
  */
 export function VirtualKeyboard({ title, password = false, initialValue = '', placeholder, onConfirm, onCancel, className }: Props) {
   const [value, setValue] = useState(initialValue)

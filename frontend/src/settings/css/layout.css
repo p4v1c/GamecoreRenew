@@ -1,38 +1,12 @@
 /**
- * The settings screen and the power menu, in the built-in UI's own colours.
+ * The settings screen and power menu in the built-in UI's colours.
  *
- * ## Why this file exists at all
- *
- * `src/settings/` is markup and behaviour with NO colour in it — every class is
- * `gcs-*` and whoever draws the screen supplies the palette. Shelf paints it
- * paper and teal, Summer sea glass and mandarin, and until now the built-in
- * default could not paint it at all, so it kept a second settings screen of its
- * own: a centred list that opened full-screen overlays, nothing like the one
- * both themes draw.
- *
- * This is the default's palette, so all three surfaces can share one layout.
- *
- * ## The geometry is here too, and that is deliberate
- *
- * The rules below are the layout the two themes already carry in their own
- * stylesheets. Having them here as well is not the duplication it looks like:
- * this copy is the one that is ALWAYS loaded, so the screen has a shape even
- * with no theme active — which is exactly the case safe mode lands in. A theme
- * loading afterwards restates them at equal specificity and wins by source
- * order, so nothing a theme does today changes.
- *
- * (The obvious follow-up is to strip the geometry back out of the two themes
- * and leave them only their palette. That is a change to two files that
- * currently work, and it is not what this pass is for.)
- *
- * ## Why the palette is on a class and not on :root
- *
- * Because this stylesheet is always loaded, `:root` here would be a global
- * declaration fighting every theme's. `.gcs-set.gcs-skin-default` is two
- * classes, so it outranks a theme's `:root` — and it only ever matches the
- * screen the host itself rendered. Safe mode can swap this one surface back to
- * the default while Shelf's stylesheet is still loaded, and each keeps its own
- * colours.
+ * `src/settings/` has no colour (`gcs-*` classes); each surface supplies its
+ * palette. The layout rules repeat the themes' on purpose: this sheet is ALWAYS
+ * loaded, so the screen has a shape in safe mode; a theme restates them at
+ * equal specificity and wins by source order.
+ * The palette sits on `.gcs-set.gcs-skin-default` (two classes), not :root,
+ * so it never fights a loaded theme and only matches the host's own screen.
  */
 
 .gcs-set.gcs-skin-default,

@@ -2,26 +2,17 @@
 # ================================================================
 #  setup-gamecore-session.sh — install (or migrate to) the console session.
 #
-#  One implementation, called by two callers: `install/arch.sh` on a fresh box
-#  and `update/linux.sh` on a box that already exists. That is deliberate — a
-#  migration written separately from the installation is a migration that
-#  drifts from it, and the drift is only ever discovered on somebody's console.
+#  One implementation for both callers (install/arch.sh and update/linux.sh),
+#  so install and migration cannot drift. Idempotent.
 #
-#  Idempotent by construction: every action is "make it be this", never "do
-#  this again". Running it twice changes nothing the second time.
-#
-#  What it installs:
+#  Installs:
 #    /usr/local/bin/gamecore-session          the session program
 #    /usr/share/xsessions/gamecore.desktop    the session SDDM can pick
 #    ~/.config/systemd/user/gamecore-session.target
 #    ~/.config/systemd/user/gamecore-ui.service   (tokens expanded)
 #
-#  The legacy kiosk remains enabled until gamecore-session-select arms the session.
-#
-#  What it does NOT do: switch SDDM to the new session. Arming is a separate
-#  decision with a separate rollback — `gamecore-session-select gamecore`.
-#  A migration that changed how a box boots without being asked would be
-#  discovered by the owner, on their television, at the worst moment.
+#  Does NOT switch SDDM to it: arming is `gamecore-session-select gamecore`,
+#  with its own rollback. The legacy kiosk stays enabled until then.
 #
 #  Usage:
 #    sudo ./setup-gamecore-session.sh <user> <GAMECORE_PATH> <GAMECORE_DATA> <port>

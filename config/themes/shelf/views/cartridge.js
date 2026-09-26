@@ -1,28 +1,11 @@
 /**
- * The thing you would actually be holding.
+ * The media you would be holding: the `cart-front` photo when it exists,
+ * otherwise a CSS shell with the jacket in its label window.
  *
- * The capture shows a photograph of the cartridge above every game's card, and
- * that photograph is `cart-front` — an artwork most games in most collections
- * do not have. Drawing the jacket in its place would look like a bug, so when
- * it is missing the media is *built*: a shell in CSS with the jacket set into
- * its label window, which is what a cartridge label is.
- *
- * Which shell depends on what the game actually shipped on — and that is read
- * off the PLATFORM first, not the file extension. Extensions were the whole
- * rule once, and they were wrong twice over: a Switch card dump is `.xci` or
- * `.nsp`, both of which the disc list claimed, so every Switch game in the
- * collection was drawn as an optical disc; and `.bin` is a PlayStation track
- * *and* a Mega Drive ROM, which no extension rule can separate. The console a
- * game is filed under can. The extension stays as the fallback, because a
- * community pack this theme has never heard of still deserves the right shape.
- *
- * The photograph is chosen the same way round: a disc game may only use a
- * `disc` picture and a cartridge game only a cartridge one. Asking for all
- * three and taking whichever existed put a cartridge in a disc frame, which is
- * a nicer-looking mistake than a broken image and still a mistake.
- *
- * Everything here is a gradient on a div. No raster asset, nothing to fetch,
- * and it scales cleanly to whatever the boot animation blows it up to.
+ * The shell is chosen from the PLATFORM first, the extension second: `.xci`
+ * and `.nsp` are Switch cards, and `.bin` is both a PS1 track and a Mega Drive
+ * ROM. The photo follows the same rule (disc game → disc picture only).
+ * Gradients only: nothing to fetch, scales cleanly for the boot animation.
  */
 import { pick, jacket } from '../lib/dossier.js'
 

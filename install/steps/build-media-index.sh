@@ -1,43 +1,15 @@
 #!/usr/bin/env bash
-# Build the offline LaunchBox index, so a fresh box has a metadata source at all.
+# Build the offline LaunchBox index, so a fresh box has a metadata source.
 #
 #     build-media-index.sh <GAMECORE_PATH> <USER_NAME>
 #
-# Why this exists
-# ---------------
-# GameCore has two metadata tiers. ScreenScraper matches by file hash and is
-# exact, but it needs DEVELOPER credentials granted on request on their forum —
-# most boxes have none. LaunchBox needs no account at all and works offline once
-# indexed: 185 000 games, 92 % hit rate measured over 1950 ROMs.
+# ScreenScraper needs developer credentials most boxes lack; LaunchBox works
+# offline once indexed (185 000 games, 92 % hit rate over 1950 ROMs). The
+# backend will not build it itself (106 MB download inside an HTTP handler).
 #
-# Nothing built it. The installer never mentioned gamescrape, and the backend
-# deliberately refuses to build it itself (106 MB of download from inside an
-# HTTP handler would block the request for minutes). So the tier only ever
-# existed if a human ran `--refresh` by hand — and until the fix that ships
-# alongside this file, doing that put the index in ~/.cache/gamescrape, where
-# the backend never looks.
-#
-# The result, found on the reference box: `status()` reporting
-# `launchbox_index: false` with 234 MB of index sitting on disk two directories
-# away, and every lookup falling through to a ScreenScraper account most
-# installs do not have. A box with neither tier shows no title, no synopsis and
-# no cover, and nothing anywhere says why.
-#
-# Never fatal
-# -----------
-# A failure here costs metadata, not the install. arch.sh warns and carries on
-# for a dozen recoverable failures and reports them in its closing summary,
-# because a missing description is a degraded box while an aborted installer at
-# 80 % is a machine that is neither installed nor clean. This script therefore
-# always exits 0, and says what went wrong.
-#
-# Skipping it
-# -----------
-#   GAMECORE_SKIP_MEDIA_INDEX=1   never build it
-#   --minimal                     arch.sh does not call this at all
-#
-# Either way the box works; it just resolves media online, or not at all.
-# Building it later is one command, printed below when it is skipped.
+# Never fatal: a failure costs metadata, not the install; always exits 0.
+# Skip with GAMECORE_SKIP_MEDIA_INDEX=1 (arch.sh --minimal never calls it);
+# the command to build it later is printed.
 set -uo pipefail
 
 GC_PATH="${1:?usage: build-media-index.sh <GAMECORE_PATH> <USER_NAME>}"

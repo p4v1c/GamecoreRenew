@@ -1,33 +1,11 @@
 /* === Orbit 3.6.19 — the frame follows the artwork ========================= */
 /*
- * Reported from the sofa with a Game Boy shelf on screen: "see the big gaps,
- * it has to adapt". The border, the rounded corners and the
- * selection ring were drawn on the box that RESERVES a card's place, never on
- * the picture inside it. That box is a 2:3 portrait on purpose — see "A stable
- * jacket wall" above: letting every card resize as hundreds of cached images
- * decode stalls pad navigation on a large library — so anything that is not
- * 2:3 was framed together with its own empty space. A Game Boy box is nearly
- * square and a Nintendo 64 carton is landscape: both got a tall frame with
- * wide bands of card gradient above and below the art, and the ring drew round
- * the bands rather than round the game. Switch covers looked right only
- * because they happen to be the shape of the box.
- *
- * So the reserved box keeps its size and stops drawing, and the frame moves to
- * the <img>: `max-width`/`max-height` at 100% with `width`/`height` auto make
- * the element's own box exactly the artwork's box, whatever its ratio, inside
- * the space reserved for it. The grid never moves — only what sits inside one
- * fixed cell does — so the stable wall survives, and no JavaScript measures
- * anything.
- *
- * The frame stays on the <img> and not on a box that shrink-wraps it, and that
- * is load-bearing: a percentage `max-height` resolves against a parent with a
- * DEFINITE height, and `.library-jacket` has one only because it keeps its own
- * `aspect-ratio`. Wrap the picture in an auto-height box and the cap silently
- * becomes `none` — a jacket taller than 2:3 (`plausible()` accepts down to
- * 0.5, which is a PS3 sleeve) then overflows the cell and lands on the title.
- *
- * Bottom-aligned rather than centred: the slack goes above the art, so the
- * picture sits on its title instead of floating with a gap either side of it.
+ * The reserved card box stays 2:3 (a resizing grid stalls pad navigation on a
+ * large library) but stops drawing; the frame moves to the <img>, whose
+ * max-width/max-height 100% make its box the artwork's box at any ratio.
+ * Must stay on the <img>: a % max-height needs a parent with a DEFINITE
+ * height, which .library-jacket has only through its own aspect-ratio.
+ * Bottom-aligned so the art sits on its title.
  */
 .orbit-app .library-jacket {
   display: flex; align-items: flex-end; justify-content: center;

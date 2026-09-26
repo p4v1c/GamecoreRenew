@@ -1,37 +1,14 @@
 /**
- * Settings → Emulators & apps.
+ * Settings → Emulators & apps: an accordion per hardware maker (pack
+ * `family`; none → "Other"), installed-of-total count, a two-column grid.
+ * Install/remove run in the router (`gamecore-emu`, narrow sudoers rule,
+ * output over the WebSocket); this file starts the job and waits for
+ * `catalog:done`.
  *
- * The capture's accordion: one group per hardware maker, the open one filled
- * teal with its installed-of-total count, and a two-column grid of systems
- * inside it. Grouping comes from the pack's own `family` field, and a pack that
- * does not declare one lands under "Other" — honest, where inferring a maker
- * from the id would be wrong the first time somebody ships a machine nobody
- * anticipated.
- *
- * Installing and removing stay in the host's router, which runs
- * `gamecore-emu` through the one narrow sudoers rule and streams its output
- * over the WebSocket. This file starts the job and listens for `catalog:done`;
- * it does not know how a Flatpak is installed and must not learn.
- *
- * ## Where this departs from the capture, and why
- *
- * · **No version under the emulator name.** `GET /catalog` answers with what a
- *   pack IS, not what is on disk. A version exists for Flatpak packs
- *   (`pergame.emulator_version()`) but no endpoint exposes it and it is blank
- *   for anything installed from a GitHub asset — so the row would be right for
- *   some systems and empty for others, which reads as those being broken.
- * · **No "Update" button and no "Update all".** `gamecore-emu` has `install`,
- *   `remove`, `reconfigure` and `verify` — there is no `update` verb, and
- *   nothing asks a remote what version it offers. This is the most tempting
- *   row on the screen and the most dishonest: it promises work nobody can
- *   perform. The capture's "4 updates" in the rail is the same fiction, so the
- *   rail counts what is installed instead.
- *
- * Focus runs in reading order — the group header, then its systems left to
- * right — rather than in two independent columns. Two columns look like two
- * lists and are not one: the grid reflows at narrower widths, and a cursor
- * that changes meaning with the viewport is worse than one that is merely
- * linear.
+ * Not drawn: emulator versions (no endpoint, blank for GitHub assets) and any
+ * "Update" button (`gamecore-emu` has no update verb).
+ * Focus runs in reading order (header, then systems left to right), not as two
+ * columns: the grid reflows with the viewport.
  */
 import { asList, follow } from './list.js'
 

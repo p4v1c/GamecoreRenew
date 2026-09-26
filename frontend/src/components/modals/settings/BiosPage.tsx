@@ -8,27 +8,13 @@ import { PadHints } from '../../../lib/padKey'
 /**
  * Settings → BIOS: what this box still needs, and exactly where to put it.
  *
- * This is the number one support ticket and it used to have no screen at all.
- * A missing or corrupt system file produces nothing a player can act on — the
- * emulator refuses to start, or starts on a black screen — so every case cost
- * three round trips before anyone knew which file was being talked about.
+ *  · Absent and wrong-md5 are different rows — different fixes.
+ *  · The full destination path on THIS box is shown, ready for an scp.
+ *  · Optional files (regional firmwares, per-title keys) are amber and never
+ *    change a system's verdict.
  *
- * Three things this screen has to get right:
- *
- *  · **Absent and wrong-md5 are not the same row.** They are different fixes.
- *    "Copy this file" is the wrong answer to a file that is already there.
- *
- *  · **The path, not just the name.** "Copy a BIOS" is the sentence that
- *    produced the support thread. The destination is printed in full,
- *    resolved on THIS box, so it can be read off the screen into an scp.
- *
- *  · **Optional is not a fault.** Regional firmwares and per-title keys are
- *    absent on working installations. They are listed in amber and never
- *    change the system's own verdict — red on a box that works is how a
- *    screen built to remove tickets starts generating them.
- *
- * No link to a BIOS, a firmware or a key appears here, ever. That is the legal
- * line of the project, and `backend/tests/test_bios.py` holds it.
+ * Never a link to a BIOS, firmware or key: the project's legal line, held by
+ * backend/tests/test_bios.py.
  */
 
 const ACCENT = 'var(--gc-accent, #7c3aed)'

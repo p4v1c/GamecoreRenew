@@ -1,30 +1,14 @@
 /**
- * The settings screen's own dialog — details, confirmations, the password.
+ * The settings dialog (details, confirmations, password), one component so
+ * the three safety rules are written once:
  *
- * One component rather than one per page, because the three things that make a
- * dialog safe on a console are invisible in its markup and easy to get wrong
- * each time:
+ *   · it traps the pad: the list, rail and L1/R1 read `useDialogOpen()`;
+ *   · the press that opened it cannot answer it: confirm is ignored for
+ *     ARM_MS (a held Enter auto-repeats); directions are not;
+ *   · focus returns to the element that had it, on the row it came from.
  *
- *   · **It traps the pad.** While one is up, nothing behind it may answer: the
- *     page's list, the rail, and Shelf's L1/R1 all stand down. Each of those
- *     reads `useDialogOpen()` rather than being told by the page, because a
- *     page that forgot to tell them is exactly how a press lands on a control
- *     nobody can see.
- *   · **A press that opened it cannot also answer it.** Pads are edge-triggered
- *     already, but the keyboard stand-in is not — a held Enter auto-repeats —
- *     and a dialog whose first action is "Unpair and forget" must not take the
- *     repeat of the press that opened it as a yes. Confirm is ignored for
- *     ARM_MS after opening. Directions are not: moving is never destructive.
- *   · **Focus comes back.** The element that had DOM focus when it opened gets
- *     it back when it closes, and the page's own cursor was never moved, so
- *     the player lands on the row they opened it from.
- *
- * `ownsInput` hands the pad to the children — the on-screen keyboard brings its
- * own bindings, and two sets on one press would type and act at once. The
- * dialog still counts as open, so the screen behind it stays down.
- *
- * Carries no colour, like everything under this directory: `gcs-*` classes,
- * each surface supplies the palette.
+ * `ownsInput` hands the pad to children (the on-screen keyboard); the dialog
+ * still counts as open. No colour: `gcs-*` classes.
  */
 const ARM_MS = 350
 
