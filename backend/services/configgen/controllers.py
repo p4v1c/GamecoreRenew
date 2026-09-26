@@ -30,6 +30,7 @@ import os
 import time
 from dataclasses import dataclass
 
+from ..gamepad_devices import KEYBOARD_KEYS
 from ..paths import backend_data_dir
 from . import sdl_probe
 # Public API for generators (`controllers.sdl2_probe`, `.bundled_sdl2`,
@@ -543,8 +544,10 @@ def detect_pads(max_n: int = 4) -> list[tuple[str, str, str]]:
     for path in sorted(glob.glob("/dev/input/event*")):
         try:
             dev = evdev.InputDevice(path)
-            caps = dev.capabilities()
-            if 0x130 not in caps.get(1, []):  # BTN_SOUTH
+            keys = dev.capabilities().get(1, [])
+            # BTN_SOUTH, and not a keyboard: the same rule as the arrival
+            # toast, or Sunshine's virtual keyboard takes player 2 here.
+            if 0x130 not in keys or KEYBOARD_KEYS <= set(keys):
                 dev.close()
                 continue
             info = dev.info
