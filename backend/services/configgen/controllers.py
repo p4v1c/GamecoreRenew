@@ -31,11 +31,12 @@ import time
 from dataclasses import dataclass
 
 from ..paths import backend_data_dir
-# SDL runtime discovery and subprocess probes; re-exported, generators call
-# `controllers.sdl2_probe` / `controllers.bundled_sdl2`.
+from . import sdl_probe
+# Public API for generators (`controllers.sdl2_probe`, `.bundled_sdl2`,
+# `.bundled_sdl3`, `.sdl3_identity`, `.probe_env`). Tests that stub the flatpak
+# lookup patch `sdl_probe.flatpak_location`: bundled_sdl2 resolves it there.
 from .sdl_probe import (_MAPPING_ENV, bundled_sdl2, bundled_sdl3,  # noqa: F401
-                        flatpak_location, flatpak_runtime_location, probe_env,
-                        sdl2_probe, sdl3_identity)
+                        flatpak_location, probe_env, sdl2_probe, sdl3_identity)
 
 log = logging.getLogger(__name__)
 
@@ -498,7 +499,7 @@ class Pad:
                                    runtime's and the host's is a fair proxy.
         """
         if app_id:
-            if not flatpak_location(app_id):
+            if not sdl_probe.flatpak_location(app_id):
                 log.warning("configgen: cannot locate %s — refusing to answer "
                             "with the host's SDL2, which disagrees on the bus byte",
                             app_id)

@@ -12,7 +12,7 @@ mapping and the owner's report decodes word for word:
     keyStart=6   → its b6 is the left shoulder → "L1 is my inventory"
     keyL=9 keyR=10 → b9/b10 are the stick clicks — the GBA's shoulders landed
                      on L3/R3, which is exactly what was reported
-    keyA=0 keyB=1  → b0/b1 really are A and B  → "A et B fonctionne"
+    keyA=0 keyB=1  → b0/b1 really are A and B  → "A and B work"
 
 Nothing is stubbed here except SDL and the wizard's database. `flatpak_location`
 and `sdl2_probe` shell out, and a test whose result depends on what the machine
@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from backend.services.configgen import controllers as cc     # noqa: E402
+from backend.services.configgen import sdl_probe  # noqa: E402
 from backend.services.configgen import mapping_db            # noqa: E402
 from backend.services.configgen.controllers import Pad       # noqa: E402
 from backend.services.configgen.helpers.ini import section   # noqa: E402
@@ -78,7 +79,7 @@ def sdl(monkeypatch):
         return {"guid": guid, "map": f"{guid},A Pad,{mapping},"}
 
     monkeypatch.setattr(cc, "sdl2_probe", probe)
-    monkeypatch.setattr(cc, "_sdl2_cache", {}, raising=False)
+    monkeypatch.setattr(sdl_probe, "_sdl2_cache", {})
     # No captured mapping: `derive.bindings_for` returns on the first line, so
     # nothing here reaches `evdev_driven()` and its subprocesses.
     monkeypatch.setattr(mapping_db, "read_user", list)

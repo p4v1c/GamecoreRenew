@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from backend.services.configgen import controllers as cc        # noqa: E402
+from backend.services.configgen import sdl_probe  # noqa: E402
 from backend.services.configgen.controllers import Pad          # noqa: E402
 from backend.services.configgen.helpers.base import Skip        # noqa: E402
 
@@ -102,7 +103,7 @@ def test_ryujinx_names_the_emulator_when_the_flatpak_is_gone(tmp_path, monkeypat
         {"player_index": "Player1", "backend": "GamepadSDL2",
          "id": "0-00000003-054c-0000-cc09-000000006800", "name": "PS4 Controller (0)"}]}))
     _CFG[0] = cfg
-    monkeypatch.setattr(cc, "flatpak_location", lambda app_id: "")
+    monkeypatch.setattr(sdl_probe, "flatpak_location", lambda app_id: "")
 
     before = cfg.read_text()
     msg = _ryujinx(2, 0, "045e", "02fd", "Xbox One Controller")
@@ -301,7 +302,7 @@ def test_an_unreachable_flatpak_produces_a_skip_not_the_hosts_guid(tmp_path, mon
     _CFG[0] = cfg
 
     # flatpak cannot be asked — a busy daemon, a timeout, a user/system split.
-    monkeypatch.setattr(cc, "flatpak_location", lambda app_id: "")
+    monkeypatch.setattr(sdl_probe, "flatpak_location", lambda app_id: "")
     monkeypatch.setattr(cc, "sdl2_probe",
                         lambda v, p, lib="": {"guid": DS4_SDL_GUID})   # host's answer
 
@@ -320,7 +321,7 @@ def test_a_reachable_flatpak_still_writes(tmp_path, monkeypatch):
         {"player_index": "Player1", "backend": "GamepadSDL2", "id": "", "name": ""}]}))
     _CFG[0] = cfg
 
-    monkeypatch.setattr(cc, "flatpak_location", lambda app_id: "/somewhere")
+    monkeypatch.setattr(sdl_probe, "flatpak_location", lambda app_id: "/somewhere")
     monkeypatch.setattr(cc, "bundled_sdl2", lambda app_id: "/somewhere/libSDL2.so")
     monkeypatch.setattr(cc, "sdl2_probe", lambda v, p, lib="": {"guid": DS4_SDL_GUID})
 

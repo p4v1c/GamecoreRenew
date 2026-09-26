@@ -372,6 +372,7 @@ def install_stubs(cp, home: Path, monkeypatch) -> None:
     """
     from backend.services import configgen, controller_autoconfig
     from backend.services.configgen import controllers as cc
+    from backend.services.configgen import sdl_probe
 
     # The switch's state file, into the fake tree. Not optional: left alone it
     # resolves under the real data root, so a developer who has turned
@@ -449,8 +450,7 @@ def install_stubs(cp, home: Path, monkeypatch) -> None:
         # depending on whether the machine happened to have Ryujinx installed
         # — green here, red on a clean runner, which is exactly backwards.
         # A scenario declares its environment; it does not inherit ours.
-        monkeypatch.setattr(module, "flatpak_location",
-                            lambda app_id: "/stub/flatpak", raising=False)
+    monkeypatch.setattr(sdl_probe, "flatpak_location", lambda app_id: "/stub/flatpak")
     # evdev is not available in CI and the pads are not there anyway.
     monkeypatch.setattr(cp, "_pad_has_hat", lambda v, p: True, raising=False)
     monkeypatch.setattr(cc, "pad_has_hat", lambda v, p: True, raising=False)

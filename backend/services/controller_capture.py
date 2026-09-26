@@ -62,12 +62,11 @@ import time
 from dataclasses import dataclass, field
 
 from . import controller_registry
-from .configgen import mapping_db
+from .configgen import mapping_db, sdl_probe
 from .configgen.controllers import (
     bundled_sdl2,
     detect_pads,
     display_name,
-    flatpak_location,
     sdl2_probe,
 )
 
@@ -357,7 +356,7 @@ def sdl_guids(vendor: str, product: str, app_ids=()) -> list[str]:
 
     add(sdl2_probe(vendor, product).get("guid"))
     for app_id in app_ids:
-        if not app_id or not flatpak_location(app_id):
+        if not app_id or not sdl_probe.flatpak_location(app_id):
             continue
         lib = bundled_sdl2(app_id)
         if lib:

@@ -23,12 +23,15 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from backend.services.configgen import controllers as cc  # noqa: E402
+from backend.services.configgen import sdl_probe  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
 def reachable_flatpak(monkeypatch):
-    monkeypatch.setattr(cc, "flatpak_location", lambda app_id: "/stub/flatpak")
+    monkeypatch.setattr(sdl_probe, "flatpak_location", lambda app_id: "/stub/flatpak")
     # The lookup memoises per process, so a real answer captured by an earlier
     # test would outlive its monkeypatch and leak into the next one.
-    monkeypatch.setattr(cc, "_flatpak_loc_cache", {}, raising=False)
+    monkeypatch.setattr(sdl_probe, "_flatpak_loc_cache", {})
+    monkeypatch.setattr(sdl_probe, "_bundled_sdl_cache", {})
+    # bundled_sdl2 also asks for the runtime (`flatpak info --show-runtime`).
+    monkeypatch.setattr(sdl_probe, "flatpak_runtime_location", lambda app_id: "")
