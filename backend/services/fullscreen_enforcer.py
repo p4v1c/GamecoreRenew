@@ -19,7 +19,7 @@ import logging
 import os
 import time
 
-from .process_manager import _display_env
+from .session import _display_env
 
 log = logging.getLogger(__name__)
 

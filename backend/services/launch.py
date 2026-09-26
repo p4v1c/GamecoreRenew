@@ -19,10 +19,10 @@ from . import (
     fullscreen_enforcer,
     gamepad_monitor,
     pergame,
+    session,
     standby,
     usb_devices,
 )
-from . import process_manager as process_manager_module
 from .catalog import launch as catalog_launch
 from .catalog import load_catalog
 from .process_manager import SessionConflict, process_manager
@@ -289,7 +289,7 @@ async def _spawn(system: dict, system_id: str, rom_path: str, exec_path: str,
                   + ("not installed" if isinstance(e, FileNotFoundError) else "not executable"))
         log.warning("launch failed — %s", detail)
         # X may have moved; force the next launch to re-probe the display.
-        process_manager_module.invalidate_display_cache()
+        session.invalidate_display_cache()
         await _broadcast("game:failed", game_key, system_id, detail)
         raise LaunchRefused(503, detail)
 
