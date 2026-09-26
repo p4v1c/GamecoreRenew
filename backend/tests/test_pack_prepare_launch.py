@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from backend.routers import games as games_router          # noqa: E402
+from backend.services import launch as launch_service        # noqa: E402
 from backend.services import configgen                       # noqa: E402
 
 
@@ -30,14 +30,14 @@ def _wire(monkeypatch, module):
     async def broadcast(event, data):
         sent.append((event, data))
 
-    monkeypatch.setattr(games_router, "load_catalog", lambda *a, **k: {"testpack": _Pack()})
+    monkeypatch.setattr(launch_service, "load_catalog", lambda *a, **k: {"testpack": _Pack()})
     monkeypatch.setattr(configgen, "load_generator", lambda pack: module)
-    monkeypatch.setattr(games_router.ws, "broadcast", broadcast)
+    monkeypatch.setattr(launch_service.ws, "broadcast", broadcast)
     return sent
 
 
 def _run(**kw):
-    asyncio.run(games_router._prepare_pack_launch(
+    asyncio.run(launch_service._prepare_pack_launch(
         "testpack", "/roms/game", "flatpak", "run net.rpcs3.RPCS3 --no-gui", "game", **kw))
 
 
@@ -52,7 +52,7 @@ def test_the_hook_gets_the_launch_and_its_notice_is_broadcast(monkeypatch):
     _run()
     assert seen["rom_path"] == "/roms/game"
     assert (seen["exec_path"], seen["exec_args"]) == ("flatpak", "run net.rpcs3.RPCS3 --no-gui")
-    assert 0 < seen["deadline"] - time.monotonic() <= games_router.PACK_PREPARE_BUDGET
+    assert 0 < seen["deadline"] - time.monotonic() <= launch_service.PACK_PREPARE_BUDGET
     assert sent == [("game:notice", {"game_key": "game", "system_id": "testpack",
                                      "detail": "PS3 · Game: 1 validated patch(es) on"})]
 
@@ -73,7 +73,7 @@ def test_a_failing_hook_does_not_stop_the_launch(monkeypatch):
 
 
 def test_a_slow_hook_is_abandoned(monkeypatch):
-    monkeypatch.setattr(games_router, "PACK_PREPARE_BUDGET", 0.05)
+    monkeypatch.setattr(launch_service, "PACK_PREPARE_BUDGET", 0.05)
 
     def prepare_launch(**kw):
         time.sleep(1.2)
@@ -84,7 +84,7 @@ def test_a_slow_hook_is_abandoned(monkeypatch):
 
     async def scenario():
         started = time.monotonic()
-        await games_router._prepare_pack_launch("testpack", "/roms/game", "flatpak", "",
+        await launch_service._prepare_pack_launch("testpack", "/roms/game", "flatpak", "",
                                                 "game")
         waited.append(time.monotonic() - started)
 
