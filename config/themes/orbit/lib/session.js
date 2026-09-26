@@ -61,7 +61,7 @@ export function createSession(sdk) {
 
   // ── the menu, drawn by the host ───────────────────────────────────────────
 
-  /** Orbit's session menu. The host opens it on L2, owns its navigation and
+  /** Orbit's session menu. The host opens it on PS ×2, owns its navigation and
    *  its modal lock, and hands it the actions already resolved — so this is
    *  markup, the same bargain as the bar.
    *
@@ -116,7 +116,7 @@ export function createSession(sdk) {
    *
    * Now the bar says what it is and offers the one thing it can actually do:
    * open the menu, where resume, close and back all live and where the pad
-   * works. `L2` beside it is the same door without the pointer.
+   * works. `PS ×2` beside it is the same door without the pointer.
    */
   function Bar({sessions, focusIdx, active, busy, onManage}) {
     const s = sessions[focusIdx] || sessions[0]
@@ -136,7 +136,7 @@ export function createSession(sdk) {
                 aria-label=${`Manage ${titleOf(s)}`}>${
           busy ? 'Working…' : 'Session options'}</button>
       </div>
-      <span className="session-dock-shortcut"><${PadKey} k="L2" /></span>
+      <span className="session-dock-shortcut"><${PadKey} k="PS ×2" /></span>
     </aside>`
   }
 

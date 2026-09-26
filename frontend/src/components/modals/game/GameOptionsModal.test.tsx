@@ -183,7 +183,7 @@ describe('leaving', () => {
     const onClose = vi.fn()
     open(onClose)
     await screen.findByText('Automatic')
-    press('gp:r2')
+    press('gp:menu')
     expect(onClose).toHaveBeenCalled()
   })
 })

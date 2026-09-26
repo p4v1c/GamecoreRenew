@@ -46,14 +46,14 @@ export const createSessionBar = (sdk) => {
           <button class="sm-session-btn" disabled=${busy} onClick=${() => onClose(s)}>
             Let ${app ? 'the app' : 'it'} go
           </button>
-          <${PadKey} k="L2" />
+          <${PadKey} k="PS ×2" />
         </div>
       </aside>`
   }
 }
 
 /**
- * The menu the tideline opens, on L2.
+ * The menu the tideline opens, on PS ×2.
  *
  * The bar alone could only be used with a pointer: ✕ belongs to the screen
  * underneath, so Resume had no key and Close had no route. The host opens this

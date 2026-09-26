@@ -285,7 +285,7 @@ export default function HomeScreen({ onLaunchApp, view: View = DefaultHomeView, 
   /**
    * Gamepad events — all guarded so they don't fire when a modal is open.
    *
-   * Droppable, the way LibraryScreen's R2 is, and for the same reason: this
+   * Droppable, the way LibraryScreen's sort is, and for the same reason: this
    * screen's cursor walks the SYSTEM grid, and a theme whose dashboard is not a
    * system grid has no use for it. Orbit's Games tab is a rail of games and its
    * Applications tab a rail of apps, so the host's d-pad would be moving a

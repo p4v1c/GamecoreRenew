@@ -204,7 +204,7 @@ export const createLibraryView = (sdk) => {
              only when the game really has the faces to turn, because a hint
              for something that does not work is worse than no hint. -->
         <div class="sm-hint sm-lib-hint">
-          <${PadHints} text=${'↑↓ Navigate · ✕ Play · △ Search · □ Controller · L1/R1 Sort' + (
+          <${PadHints} text=${'↑↓ Navigate · ✕ Play · △ Search · Options Game options · □ Controller · L1/R1 Sort' + (
             isTurnable(media) ? ' · ⟳ R-Stick Turn box' : '') + ' · ○ Back'} />
         </div>
       </div>`

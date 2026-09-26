@@ -130,7 +130,7 @@ And **may** provide this one, which is the only optional surface:
 | Surface | What it is | If you leave it out |
 |---|---|---|
 | `sessionBar` | the bar over a suspended game or application (SDK 5, §5f) | the host draws its own |
-| `sessionMenu` | the panel that bar opens on **L2** (SDK 5, §5f) | the host draws its own |
+| `sessionMenu` | the panel the host opens on **PS ×2** (SDK 5, §5f) | the host draws its own |
 
 `sessionBar` is not listed in `provides` and does not take part in the
 all-or-nothing rule, because the host has a working one behind it. That is not
@@ -140,7 +140,7 @@ gigabytes of memory with nothing on screen able to resume or close it.
 
 | Kept by the kernel, always |
 |---|
-| input bus, WebSocket, `gp:guide`, error boundaries, L1+R1 rescue, the *fact* that a splash runs, the *fact* that a session bar is on screen |
+| input bus, WebSocket, the global buttons (§6a), error boundaries, L1+R1 rescue, the *fact* that a splash runs, the *fact* that a session bar is on screen |
 
 Picking a theme swaps the frontend, so a theme dresses all of it or none of it.
 There is no per-surface fallback: half a theme — a beach dashboard behind the
@@ -240,7 +240,7 @@ which and why.
 | `homeView` | the dashboard's **markup** (see below) |
 | `libraryView` | the game list, detail panel and metadata — **markup only**, like `homeView` |
 | `homeOmit` | home-screen shortcuts you bind yourself: `'nav'` (d-pad), `'pages'` (L1/R1), `'confirm'` (✕). Take one and you own what it does — see §5g |
-| `libraryOmit` | the same, for the library. Today only `'options'` (R2) |
+| `libraryOmit` | the same, for the library: `'nav'`, `'confirm'`, `'sort'` (L1/R1). The per-game options on ≡ are not omittable (§6a) |
 | `screensaver` | the standby slideshow |
 | `settings` | the settings screen |
 | `powerView` | the power menu's markup — the two-press confirmation, the pending lock and the failsafe stay with the host |
@@ -438,7 +438,7 @@ Only the middle one is the host's model. Left as it was, the host's d-pad moved
 a selection nobody could see — the cursor landing on a console while the screen
 showed a game — and ✕ then opened that console.
 
-So the home bindings are droppable, the same way the library's R2 is:
+So the home bindings are droppable, the same way the library's sort is:
 
 ```js
 html`<${sdk.defaults.Shell} homeView=${Home} homeOmit=${['nav', 'pages', 'confirm']} />`
@@ -507,13 +507,15 @@ picture and a pointer affordance; the keys live in the menu.
 
 ### The menu — `sessionMenu`
 
-**L2 opens it**, and it is a real modal: `openModal()` raises `modalDepth`, so
-every host screen stands down and the pad is unambiguously the menu's. That is
-also what gives Close somewhere to ask first.
+**PS pressed twice opens it** (outside a game), and it is a real modal:
+`openModal()` raises `modalDepth`, so every host screen stands down and the pad
+is unambiguously the menu's. That is also what gives Close somewhere to ask
+first. On a pad whose guide button never reaches the box, the power menu (Share)
+leads with an *In the background* row that opens the same menu.
 
-L2 rather than ✕ because the host binds nothing to it — and it is taken *only
-while something is suspended*, so a theme that uses L2 for its own thing (Shelf
-turns its box with it) keeps it the rest of the time.
+It used to open on L2, while something was suspended. Shelf flips its box with
+L2, so one press did both. PS is the button that suspended the game, and it is
+reserved (§6a): no theme can take it.
 
 ```js
 const SessionMenu = ({ session, sessions, index, confirming, busy,
@@ -536,8 +538,7 @@ inside it — the same bargain the themed splash has.
 
 ### Driving it yourself
 
-`sdk.session` is there when a theme wants more than the bar — Orbit opens a
-full panel on L2:
+`sdk.session` is there when a theme wants more than the bar:
 
 | | |
 |---|---|
@@ -621,10 +622,34 @@ not a gap waiting to be filled — the reasons are in §11.
 | **Change how a screen behaves** | **no** — paging, focus, sorting, search, launching, the shutdown confirmation. It supplies the markup, the host keeps the decisions |
 | **Write a `z-index`** | **no** — the shell owns stacking. This is what let the first version paint over screens it had not replaced |
 | **Skip the boot animation** | **no** — a theme draws its own, but `onDone` is the host's and a 20s watchdog sits behind it |
-| **Take `gp:guide`** | **no** — the double press that kills a running game is reserved |
+| **Take the global buttons** | **no** — PS, ≡ and Share are the host's on every screen (§6a) |
 | **Take the rescue combo** | **no** — L1 + R1 held 2s forces the default theme, from anywhere |
 | **Remove itself from the picker** | **no** — Settings → Themes is always reachable, so a theme can always be left |
 | **Reach the network or the DOM outside its tree** | **no** — see §11 |
+
+## 6a. The host's buttons, and the theme's
+
+A button does one thing per screen. The host's global actions sit on buttons no
+theme can bind, so a theme cannot run a second action on the same press, and
+`homeOmit` / `libraryOmit` have no id that reaches them.
+
+| Button | Event | Owner | Does |
+|---|---|---|---|
+| PS / Guide ×2 | `gp:guide` | host, reserved | in a game: suspend it. In the menu: the session menu (§5f), or home when nothing is suspended |
+| Options / Start (≡) | `gp:menu` | host, reserved | on a library game: that game's options (bezel). Anywhere else: Settings |
+| Share / Select | `gp:power` | host, reserved | the power menu, which lists suspended sessions first |
+| □ | `gp:x` | host | the controller screen |
+| △ | `gp:y` | host | search, in the library |
+| L1 / R1 | `gp:l1` `gp:r1` | host, omittable | pages at home, sort in the library (`homeOmit: 'pages'`, `libraryOmit: 'sort'`) |
+| L2 / R2 | `gp:l2` `gp:r2` | **theme** | nothing from the host. Shelf turns the box (L2) and restacks (R2) |
+
+`sdk.input.onGp` refuses the three reserved events with a console warning and
+they are absent from `sdk.input.events`. Advertise the host's buttons in your
+hints with `<PadKey k="Options" />` and `<PadKey k="PS ×2" />`.
+
+Why: the per-game options were on R2 and sessions on L2. Shelf binds both, so
+it dropped the options (no bezel picker on Shelf at all) and L2 flipped the box
+*and* opened the session menu. SDK 8 moved them and reserved the buttons.
 
 ## 7. The SDK
 
@@ -641,8 +666,8 @@ there is no import map to maintain and only one React instance exists.
 
 **SDK 6** adds three things a theme that draws its own library grid needs
 together: `onOpenSearch` and `onOpenOptions` on `libraryView` — the routes to
-the host's search keyboard and per-game options, which a theme taking
-`libraryOmit: ['nav','confirm','sort']` no longer reaches through △ and R2 —
+the host's search keyboard and per-game options, for a theme that draws its
+own buttons for them —
 and `__all__` as a system id, the cross-console library. Touching any of them
 means `"api": 6`: on an older host the first two are `undefined` and the
 theme's own buttons throw, and `__all__` is a console that does not exist, so
@@ -662,6 +687,10 @@ contacting the backend, just as it does from Library. Without a declared
 duration the request is immediate. The theme API preserves the manifest's
 `launch: {ms: number}` shape; an absent or invalid duration is `null`.
 
+SDK 8 removes things rather than adding them: `gp:menu` and `gp:power` from
+`sdk.input` (reserved, §6a) and `'options'` from `libraryOmit`. No theme needs
+to declare `"api": 8`; a theme that bound either event just stops receiving it.
+
 `DefaultSettingsPages` is deliberately not enumerated here. It gained `catalog`
 and `bios` after this table was written and the table did not follow, so the one
 document a theme author reads to find out what exists listed seven of the nine
@@ -678,8 +707,8 @@ them.
 `modalDepth` and `powerPending` are readable through `get()` but there is no
 setter: they are the core's focus and shutdown locks.
 
-`sdk.input.onGp` silently refuses `gp:guide` — the core owns it, because a
-double press there kills a running game.
+`sdk.input.onGp` refuses `gp:guide`, `gp:menu` and `gp:power` — the host's
+global buttons, §6a.
 
 `sdk.defaults` is what makes "add a Santa on top of the existing dashboard" as
 cheap as "rewrite everything" — override `homeView`, render the default inside it,
@@ -854,7 +883,7 @@ the failure mode to close first. What is in place:
 
 Enforced by the core, not by convention:
 
-- a theme cannot capture `gp:guide` (double-press kills a running game);
+- a theme cannot bind `gp:guide`, `gp:menu` or `gp:power` (§6a);
 - it cannot write `modalDepth` or `powerPending`;
 - the `decor` layer is `pointer-events: none`;
 - a theme cannot remove the focus indicator.

@@ -7,7 +7,7 @@ import {isApp} from '../lib/catalog.js'
  * different things about the same pad. One bar, and it follows the tab. */
 const hintsFor = (tab) => tab === 'library'
   ? [['← → ↑ ↓', 'Browse'], ['✕', 'Details'], ['○', 'Back'], ['△', 'Search'],
-     ['L1 R1', 'Tabs'], ['R2', 'Options'], ['□', 'Inputs']]
+     ['L1 R1', 'Tabs'], ['Options', 'Game options'], ['□', 'Inputs']]
   : tab === 'systems'
     ? [['← →', 'Browse'], ['✕', 'Open'], ['L1 R1', 'Tabs'], ['□', 'Inputs']]
     : tab === 'applications'
@@ -45,13 +45,13 @@ export function createFooter(sdk, tabs) {
     }, [])
     const padName = (info?.controllers?.[0]?.name || info?.controllers?.[0]?.label || '').toLowerCase()
     const xbox = /xbox|xinput/.test(padName)
-    const labels = xbox ? {'✕':'A', '○':'B', '□':'X', '△':'Y', 'L1 R1':'LB RB', 'R2':'RT', 'L2':'LT'} : {}
+    const labels = xbox ? {'✕':'A', '○':'B', '□':'X', '△':'Y', 'L1 R1':'LB RB', 'Options':'Menu', 'PS ×2':'Guide ×2'} : {}
     return html`<footer className="console-footer" data-sessions=${background.length > 0 ? 'true' : 'false'}>
       <div className="footer-status"><span className="status-light" />
         <span>${collection.consoles} consoles, ${collection.games} games, ${collection.apps} apps</span></div>
       <div className="keyboard-hints">${hintsFor(tab).map(([key, label]) =>
         html`<span key=${label}><${PadKey} k=${labels[key] || key} /> ${label}</span>`)}
-        ${background.length ? html`<span><${PadKey} k=${labels.L2 || 'L2'} /> Session</span>` : null}</div>
+        ${background.length ? html`<span><${PadKey} k=${labels['PS ×2'] || 'PS ×2'} /> Session</span>` : null}</div>
       <div className="status-bar" aria-label="Connected controllers and network">
         ${(info?.controllers || []).map((pad, i) => html`<span key=${i} className="topbar-pad" title=${pad.name || pad.label || 'Controller'}>
           <b>P${pad.player ?? i + 1}</b>${Number.isFinite(pad.level) && pad.level >= 0 ? html`<span>${pad.level}%</span>` : null}</span>`)}

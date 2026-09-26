@@ -301,11 +301,15 @@ GameCore is designed for full gamepad control — no mouse or keyboard needed.
 | D-pad / Left stick | Navigate menus |
 | A / Cross | Confirm / Launch game |
 | B / Circle | Back |
-| Start / Options | Open Settings |
-| Guide / PS button | Kill current game and return home |
-| Select / Share | Open Power menu |
+| Start / Options | Open Settings; on a game in the library, open that game's options (bezel) |
+| Guide / PS, twice | In a game: suspend it and return to GameCore. In the menu: manage suspended games |
+| Select / Share | Open Power menu, which also lists suspended games |
 
-Inside a game, press the **Guide button** at any time to exit and return to GameCore.
+L2 and R2 belong to the theme (Shelf turns and restacks its boxes with them);
+the buttons above do the same thing on every theme.
+
+A pad whose Guide button never reaches the box can hold **Start + Select** for
+a second to leave a game, and reach suspended games from the Power menu.
 
 ---
 
@@ -411,8 +415,8 @@ ignored on both sides, so `Final Fantasy VII (USA) (Disc 1).chd` finds
 **A game with no bezel at all gets no frame** — not black bars from a
 rectangle nobody measured.
 
-Press **R2** on a game in the library to pick a specific bezel or turn the
-overlay off for that game alone.
+Press **Start / Options** on a game in the library to pick a specific bezel or
+turn the overlay off for that game alone.
 
 Coverage in the Bezel Project repositories is uneven: strong on PSX, N64, GBA
 and arcade, weak to absent on PS2, GameCube and 3DS. The five 16:9 systems

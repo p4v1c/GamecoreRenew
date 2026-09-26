@@ -54,8 +54,8 @@ reload:
 
 | Button | | Why that button |
 |---|---|---|
-| **L2** | turn the box over | the only face-adjacent buttons the library leaves free |
-| **R2** | restack the shelf | ↑↓ scroll, ✕ launches, ○ home, △ search, □ controller, L1/R1 sort |
+| **L2** | turn the box over | the triggers are the theme's; the host binds neither (docs/themes §6a) |
+| **R2** | restack the shelf | ↑↓ scroll, ✕ launches, ○ home, △ search, □ controller, L1/R1 sort, Options game options |
 | **←→** | scroll | wired to the host's own `onSelect`, same clamped step as ↑↓ — on a shelf that runs left to right, pressing right and having nothing happen reads as a broken screen |
 
 ## Two accents, two jobs

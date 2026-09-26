@@ -105,6 +105,23 @@ interface GamecoreStore {
    */
   remapRequest: number
   requestRemap: () => void
+
+  /**
+   * Opens the per-game options for the game the library has settled on, or
+   * null when there is none. Set by LibraryScreen, called by the shell's ≡
+   * binding: one handler decides between game options and Settings, so a
+   * single press can never open both.
+   */
+  gameOptions: (() => void) | null
+  setGameOptions: (open: (() => void) | null) => void
+
+  /**
+   * Bumped to open the suspended-session menu once nothing else is on screen.
+   * A counter for the same reason as `remapRequest`; the power menu asks for
+   * it as it closes, before its own modal depth has been released.
+   */
+  sessionMenuRequest: number
+  requestSessionMenu: () => void
 }
 
 export const useStore = create<GamecoreStore>((set) => ({
@@ -122,6 +139,8 @@ export const useStore = create<GamecoreStore>((set) => ({
   launchConflict: null,
   transition: null,
   remapRequest: 0,
+  gameOptions: null,
+  sessionMenuRequest: 0,
 
   goHome: () => set({ screen: 'home', selectedSystemId: null, gridPage: 0, gridFocusIdx: 0 }),
   goLibrary: (id) => set({ screen: 'library', selectedSystemId: id, selectedGameIdx: 0 }),
@@ -143,4 +162,6 @@ export const useStore = create<GamecoreStore>((set) => ({
   setPowerPending: (action) => set({ powerPending: action }),
   setStandby: (stage) => set({ standby: stage }),
   requestRemap: () => set(s => ({ remapRequest: s.remapRequest + 1 })),
+  setGameOptions: (gameOptions) => set({ gameOptions }),
+  requestSessionMenu: () => set(s => ({ sessionMenuRequest: s.sessionMenuRequest + 1 })),
 }))

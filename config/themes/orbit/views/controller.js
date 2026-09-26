@@ -49,7 +49,7 @@ export function createController(sdk) {
         ${onRemap ? html`<button className="secondary-button" onClick=${onRemap}>
           Map this controller. Hold ${glyphs.top}</button>` : null}
         <p className="mock-footnote">Press any button to test it. ${glyphs.left} twice closes.
-          · L2 manages a suspended game or application.</p>
+          PS twice manages a suspended game or application.</p>
       </section>
     <//>`
   }

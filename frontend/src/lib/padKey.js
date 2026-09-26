@@ -98,7 +98,7 @@ export function PadKey({ k }) {
 }
 
 const isKeyToken = (t) => /^[↑↓←→✕○□△]+$/.test(t) || /^[LR][123](\/[LR][123])?$/.test(t)
-  || t === 'D-Pad'
+  || /^(D-Pad|Options|PS|×2)$/.test(t)
 
 /**
  * `<PadHints text="↑↓ Navigate · ✕ Select · ○ Back" />` — the hint strings the

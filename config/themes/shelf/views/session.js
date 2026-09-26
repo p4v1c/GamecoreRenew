@@ -52,7 +52,7 @@ export const createSessionBar = (sdk) => {
             <button class="cz-btn" disabled=${busy} onClick=${() => onClose(s)}>
               Put the ${noun} away
             </button>
-            <${PadKey} k="L2" />
+            <${PadKey} k="PS ×2" />
           </div>
         </div>
       </aside>`
@@ -60,7 +60,7 @@ export const createSessionBar = (sdk) => {
 }
 
 /**
- * The menu the ledge opens, on L2.
+ * The menu the ledge opens, on PS ×2.
  *
  * The bar alone was usable with a pointer and nothing else: ✕ could not be
  * borrowed from the shelf underneath, so Resume had no key and Close had no

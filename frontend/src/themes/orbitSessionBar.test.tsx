@@ -1,7 +1,7 @@
 /**
  * Orbit's suspended-session surface, and the two ways it left a player stuck.
  *
- * The host owns every binding here — `SessionBar.tsx` opens the menu on L2,
+ * The host owns every binding here — `SessionBar.tsx` opens the menu on PS ×2,
  * moves the selection with the d-pad and runs the action on ✕. A theme supplies
  * markup and nothing else. That bargain is exactly what both defects broke, in
  * opposite directions:
@@ -93,13 +93,13 @@ describe('the dock', () => {
 
   it('keeps the badge that names the shortcut', async () => {
     const r = await dock(true)
-    expect(r.container.querySelector('.session-dock-shortcut')?.textContent).toBe('L2')
+    expect(r.container.querySelector('.session-dock-shortcut')?.textContent).toBe('PS ×2')
   })
 
   it('says the same thing when the bar is only sitting there', async () => {
     const r = await dock(false)
     expect(r.container.querySelectorAll('.session-dock-actions button')).toHaveLength(1)
-    expect(r.container.querySelector('.session-dock-shortcut')?.textContent).toBe('L2')
+    expect(r.container.querySelector('.session-dock-shortcut')?.textContent).toBe('PS ×2')
   })
 
   it('still names the session and what kind it is', async () => {

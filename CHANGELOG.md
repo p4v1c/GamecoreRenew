@@ -19,6 +19,13 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **Pad buttons moved so no theme can collide with them.** Per-game options
+  (bezel) are on **Start / Options** on a library game (was R2); the menu of
+  suspended games opens on **PS twice** outside a game (was L2), and from a new
+  first row of the Power menu. L2 and R2 now belong to the theme: on Shelf, L2
+  only turns the box and R2 only restacks, and Shelf gets the bezel picker it
+  never had. Theme SDK 8 reserves `gp:menu` and `gp:power` for the host.
+
 - **Pressing Home twice no longer quits the game — it suspends it.** The game
   freezes exactly where it was, the interface comes back with the controller
   working, and a session bar along the bottom of the screen offers *Resume* or

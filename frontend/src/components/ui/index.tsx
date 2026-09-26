@@ -119,6 +119,7 @@ export const GLYPHS: Record<string, string> = {
   power:     'M12 4v8M18.4 7a8 8 0 1 1-12.8 0',
   shutdown:  'M12 3.5v8.5M17.7 6.6a8 8 0 1 1-11.4 0',
   settings:  'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4',
+  sessions:  'M8 5.5v13l10.5-6.5z',
   bolt:      'M13 3 5.5 13.5H12L11 21l7.5-10.5H12z',
   search:    'M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM15.3 15.3 20 20',
   heart:     'M12 19.5s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7a4.3 4.3 0 0 1 7.5 2.5c0 5.4-7.5 10-7.5 10z',

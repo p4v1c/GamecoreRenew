@@ -18,6 +18,20 @@ import { useStore, type BackgroundSession } from '../store'
 import { api } from '../api'
 import { ThemeProvider } from './ThemeSurface'
 
+// The backend's evdev monitor reports PS ×2 over the socket, on pads where
+// Chromium never sees the guide button at all.
+const wsHandlers = new Map<string, Set<(d: Record<string, unknown>) => void>>()
+vi.mock('../hooks/useWebSocket', async (orig) => ({
+  ...await orig<Record<string, unknown>>(),
+  onWsEvent: (event: string, handler: (d: Record<string, unknown>) => void) => {
+    if (!wsHandlers.has(event)) wsHandlers.set(event, new Set())
+    wsHandlers.get(event)!.add(handler)
+    return () => { wsHandlers.get(event)?.delete(handler) }
+  },
+}))
+const ws = (event: string, data: Record<string, unknown>) =>
+  act(() => { wsHandlers.get(event)?.forEach(h => h(data)) })
+
 const SUSPENDED: BackgroundSession = {
   gameKey: 'Zelda_(USA).iso', systemId: 'dolphin', session: 1, kind: 'game' }
 const APP: BackgroundSession = {
@@ -32,6 +46,7 @@ afterEach(() => {
   vi.useRealTimers()
   useStore.setState({ sessionGameKey: null, sessionSystemId: null,
                       backgroundSessions: [], modalDepth: 0, transition: null })
+  wsHandlers.clear()
 })
 
 const themeWithHold = {
@@ -124,7 +139,7 @@ describe('the resume handover', () => {
     vi.useFakeTimers()
     const foreground = vi.spyOn(api.games, 'foreground').mockResolvedValue({} as never)
     renderWithHold()
-    act(() => { window.dispatchEvent(new CustomEvent('gp:l2')) })
+    act(() => { window.dispatchEvent(new CustomEvent('gp:guide')) })
     expect(screen.getByText(/suspended session/i)).toBeTruthy()
 
     const resumeButtons = screen.getAllByText(/resume game/i)
@@ -231,26 +246,59 @@ describe('using it with a controller', () => {
     expect(resume).not.toHaveBeenCalled()
   })
 
-  it('opens on L2, which the host binds to nothing', () => {
+  it('opens on PS ×2, the button that suspended the game', () => {
+    render(<SessionBar />)
+    held(SUSPENDED)
+    gp('gp:guide')
+    expect(screen.getByText(/close game…/i)).toBeTruthy()
+  })
+
+  it('opens on PS ×2 seen by the backend, when Chromium hides the button', () => {
+    render(<SessionBar />)
+    held(SUSPENDED)
+    ws('gp:guide', { action: 'home', gesture: 'guide' })
+    expect(screen.getByText(/close game…/i)).toBeTruthy()
+  })
+
+  it('stays shut on the PS ×2 that suspended the game', () => {
+    // The backend announces that suspend as `backgrounded`; the player asked
+    // to leave the game, not for a menu about it.
+    render(<SessionBar />)
+    held(SUSPENDED)
+    ws('gp:guide', { action: 'backgrounded', gesture: 'guide' })
+    expect(screen.queryByText(/close game…/i)).toBeNull()
+  })
+
+  it('leaves L2 to the theme, even with a session suspended', () => {
+    // Shelf flips its box on L2. The menu used to open on the same press.
     render(<SessionBar />)
     held(SUSPENDED)
     gp('gp:l2')
-    expect(screen.getByText(/keep it running|close game…/i)).toBeTruthy()
+    expect(screen.queryByText(/close game…/i)).toBeNull()
+    expect(useStore.getState().modalDepth).toBe(0)
   })
 
-  it('leaves L2 alone when there is nothing suspended', () => {
-    // A theme may use L2 for its own thing — Shelf turns its box with it — so
-    // the press only belongs to the session while there is a session.
+  it('stays shut on PS ×2 when there is nothing suspended', () => {
     render(<SessionBar />)
-    gp('gp:l2')
-    expect(screen.queryByText(/keep it running/i)).toBeNull()
+    gp('gp:guide')
+    expect(screen.queryByText(/keep it running|close game…/i)).toBeNull()
+  })
+
+  it('opens from the power menu once that menu has closed', () => {
+    // The power menu asks while its own modal is still counted.
+    render(<SessionBar />)
+    held(SUSPENDED)
+    act(() => { useStore.setState({ modalDepth: 1 }); useStore.getState().requestSessionMenu() })
+    expect(screen.queryByText(/close game…/i)).toBeNull()
+    act(() => { useStore.setState({ modalDepth: 0 }) })
+    expect(screen.getByText(/close game…/i)).toBeTruthy()
   })
 
   it('reaches Close with the pad, which a pointer-only button never did', async () => {
     const kill = vi.spyOn(api.games, 'kill').mockResolvedValue({} as never)
     render(<SessionBar />)
     held(SUSPENDED)
-    gp('gp:l2')
+    gp('gp:guide')
     gp('gp:dpad-down')          // Resume → Close…
     gp('gp:confirm')            // asks first
     expect(screen.getByText(/anything it has not saved is lost/i)).toBeTruthy()
@@ -263,7 +311,7 @@ describe('using it with a controller', () => {
     render(<SessionBar />)
     held(SUSPENDED)
     expect(useStore.getState().modalDepth).toBe(0)
-    gp('gp:l2')
+    gp('gp:guide')
     expect(useStore.getState().modalDepth).toBe(1)
     gp('gp:back')
     expect(useStore.getState().modalDepth).toBe(0)
@@ -273,7 +321,7 @@ describe('using it with a controller', () => {
     const kill = vi.spyOn(api.games, 'kill').mockResolvedValue({} as never)
     render(<SessionBar />)
     held(SUSPENDED)
-    gp('gp:l2'); gp('gp:dpad-down'); gp('gp:confirm')
+    gp('gp:guide'); gp('gp:dpad-down'); gp('gp:confirm')
     gp('gp:back')
     expect(screen.queryByText(/anything it has not saved is lost/i)).toBeNull()
     expect(kill).not.toHaveBeenCalled()

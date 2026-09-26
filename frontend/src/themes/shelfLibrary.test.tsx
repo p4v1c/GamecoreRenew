@@ -17,6 +17,7 @@ import React, { createElement } from 'react'
 import { buildSdk } from '../lib/themeSdk'
 import { useStore } from '../store'
 import LibraryScreen from '../components/LibraryScreen'
+import SessionBar from '../components/SessionBar'
 
 const THEME = '../../../config/themes/shelf'
 
@@ -85,10 +86,11 @@ async function shelf() {
     Box: box.createBox(sdk),
     Cartridge: cart.createCartridge(sdk),
   })
-  // Shelf declares `libraryOmit: ['options']`; passing it keeps the assembly
-  // the same one index.js builds.
-  const r = render(createElement(LibraryScreen as React.ComponentType<{ view: unknown; omit: string[] }>,
-    { view: View, omit: ['options'] }))
+  // SessionBar beside it, as the kernel mounts it: Shelf's L2 used to open the
+  // session menu on the same press that flipped the box.
+  const r = render(createElement(React.Fragment, null,
+    createElement(LibraryScreen as React.ComponentType<{ view: unknown }>, { view: View }),
+    createElement(SessionBar)))
   await act(async () => { await new Promise(res => setTimeout(res, 0)) })
   return r
 }
@@ -232,5 +234,27 @@ describe('Shelf’s shelf — how much of the row is standing', () => {
     expect(fresh).toHaveLength(1)
     expect(after.filter(el => before.get(label(el)) === el))
       .toHaveLength(after.length - fresh.length)
+  })
+})
+
+describe('Shelf’s triggers, beside the host’s global buttons', () => {
+  const SUSPENDED = { gameKey: 'zelda.iso', systemId: 'dolphin', session: 1, kind: 'game' as const }
+  afterEach(() => { useStore.setState({ backgroundSessions: [] }) })
+
+  it('flips the box on L2 and opens nothing else, even with a game suspended', async () => {
+    const { container } = await shelf()
+    act(() => { useStore.setState({ backgroundSessions: [SUSPENDED] }) })
+    await settle()
+    await burst('gp:l2', 1)
+    expect(container.querySelector('.cz-box[data-flipped="1"]')).toBeTruthy()
+    expect(useStore.getState().modalDepth).toBe(0)
+    expect(container.textContent).not.toMatch(/Keep it running|Close game…/)
+  })
+
+  it('advertises the game options on ≡, which it can no longer drop', async () => {
+    const { container } = await shelf()
+    const keys = container.querySelector('.cz-keys')
+    expect(keys?.querySelector('[data-k="Options"]')).toBeTruthy()
+    expect(keys?.textContent).toContain('Game options')
   })
 })

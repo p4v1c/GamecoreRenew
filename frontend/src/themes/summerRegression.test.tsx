@@ -22,9 +22,10 @@
  */
 import { render, act, cleanup, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createElement } from 'react'
+import React, { createElement } from 'react'
 import { buildSdk } from '../lib/themeSdk'
 import { useStore } from '../store'
+import LibraryScreen from '../components/LibraryScreen'
 
 const THEME = '../../../config/themes/summer'
 
@@ -121,6 +122,28 @@ describe('Summer, after the Orbit and Shelf work', () => {
     window.dispatchEvent(new CustomEvent('gp:guide'))
     expect(seen).toEqual([])
     off()
+  })
+
+  it('advertises game options on ≡, which the host binds in its library', async () => {
+    // R2 opened them before and Summer never said so.
+    const { sdk } = await summer()
+    const { createLibraryView } = await import(/* @vite-ignore */ `${THEME}/views/library.js`)
+    act(() => { useStore.setState({ screen: 'library', selectedSystemId: 'rpcs3' }) })
+    const { container } = render(createElement(LibraryScreen as React.ComponentType<{ view: unknown }>,
+      { view: createLibraryView(sdk) }))
+    await waitFor(() => expect(container.querySelector('.sm-lib-hint [data-k="Options"]')).toBeTruthy())
+    expect(container.querySelector('.sm-lib-hint')?.textContent).toContain('Game options')
+  })
+
+  it('names PS ×2 as the way into the session menu', async () => {
+    const { theme } = await summer()
+    const s = { gameKey: 'Journey.iso', systemId: 'rpcs3', session: 1, kind: 'game' }
+    const { container } = render(createElement(theme.sessionBar, {
+      sessions: [s], focusIdx: 0, active: true, busy: false, title: () => 'Journey',
+      onFocus: () => {}, onResume: () => {}, onClose: () => {}, onManage: () => {},
+    }))
+    expect(container.querySelector('[data-k="PS ×2"]')).toBeTruthy()
+    expect(container.querySelector('[data-k="L2"]')).toBeNull()
   })
 
   it('does not need anything Orbit grew during this work', async () => {

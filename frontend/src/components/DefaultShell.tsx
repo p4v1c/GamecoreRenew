@@ -49,22 +49,12 @@ export interface ShellParts {
   /** The library's markup. Sorting, search and launching stay with the host. */
   libraryView?: React.ComponentType<LibraryViewProps>
   /**
-   * Library shortcuts this theme binds itself, so the host lets go of them.
-   *
-   * The host cannot know which buttons a theme has advertised on its own
-   * screen, and two handlers on one button is never what either of them meant.
-   *
-   * It exists because of exactly that. The host opens the per-game options on
-   * R2 — "because every face button is already spoken for on this screen" —
-   * and Shelf's library binds R2 to cycle how the shelf is stacked, and prints
-   * `R2  <mode>` in its own hint bar. Pressing it did both: the box turned AND
-   * a menu nobody asked for appeared over it, and pressing again turned the box
-   * behind the menu. SDK 6 also recognises 'nav', 'confirm' and 'sort' for spatial grids.
-   * Search (△), Back (○), launching and the options modal stay with the host.
+   * Library shortcuts this theme binds itself, so the host lets go of them:
+   * 'nav', 'confirm', 'sort'. Global actions (per-game options on ≡, sessions,
+   * power) are not in the list, so a theme cannot drop them.
    *
    * A theme that takes a shortcut takes responsibility for offering the thing
-   * some other way. Nothing here enforces that, because there is no honest way
-   * to check it — but see LibraryScreen, which says what is lost.
+   * some other way. Two handlers on one button is never what either meant.
    */
   libraryOmit?: string[]
   /**
@@ -173,6 +163,8 @@ export default function DefaultShell(parts: ShellParts = {}) {
 
   const gamepadOpenRef = useRef(showGamepad)
   useEffect(() => { gamepadOpenRef.current = showGamepad }, [showGamepad])
+  const settingsOpenRef = useRef(showSettings)
+  useEffect(() => { settingsOpenRef.current = showSettings }, [showSettings])
   const lastClosePress = useRef(0)
 
   // Which screen a button opens is the shell's business, not the kernel's —
@@ -182,8 +174,15 @@ export default function DefaultShell(parts: ShellParts = {}) {
     const offs = [
       // Toggle-close always works; opening is refused while another modal is on
       // screen, otherwise both sets of handlers fire on every press.
+      // ≡ is per-game options on a library game, Settings everywhere else.
+      // Decided in this one handler so a press can never open both.
       onGp('gp:menu', () => {
-        if (!busy()) setShowSettings(s => s ? false : useStore.getState().modalDepth === 0)
+        if (busy()) return
+        if (settingsOpenRef.current) { setShowSettings(false); return }
+        const s = useStore.getState()
+        if (s.modalDepth) return
+        if (s.screen === 'library' && s.gameOptions) s.gameOptions()
+        else setShowSettings(true)
       }),
       onGp('gp:power', () => {
         if (!busy()) setShowPower(s => s ? false : useStore.getState().modalDepth === 0)
