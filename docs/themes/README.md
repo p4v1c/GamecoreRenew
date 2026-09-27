@@ -791,7 +791,9 @@ export default (sdk) => {
 }
 ```
 
-A theme may ship a stylesheet for its own markup and load it from its folder.
+A theme may ship a stylesheet for its own markup and load it from its folder. The host waits for
+that sheet (and its `@import`s) to load before it renders any surface, so a
+splash is never painted unstyled; a sheet that fails to load does not block.
 
 > **Reusing a default settings page?** Render it **bare** — each one already is
 > a full-screen overlay, so putting it in your own panel nests a `position:

@@ -12,6 +12,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  applyStyles,
   clearThemeStyles,
   fetchThemeIndex,
   loadTheme,
@@ -98,6 +99,32 @@ describe('the theme stylesheet', () => {
 
   it('is a no-op when there is no stylesheet to clear', () => {
     expect(() => clearThemeStyles()).not.toThrow()
+  })
+
+  it('settles only once the sheet has loaded, keeping the old one until then', async () => {
+    // A splash rendered before its sheet paints unstyled: Orbit's boot mark
+    // drew as a full-screen "G" for one frame at every start.
+    const old = document.createElement('link')
+    old.id = 'gc-theme-style'
+    document.head.appendChild(old)
+
+    let settled = false
+    const done = applyStyles(manifest({ styles: 'theme.css' })).then(() => { settled = true })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    expect(old.isConnected).toBe(true)
+
+    const links = document.querySelectorAll('link#gc-theme-style')
+    links[links.length - 1].dispatchEvent(new Event('load'))
+    await done
+    expect(old.isConnected).toBe(false)
+    expect(document.querySelectorAll('link#gc-theme-style')).toHaveLength(1)
+  })
+
+  it('settles on a sheet that fails to load, so boot never waits on it', async () => {
+    const done = applyStyles(manifest({ styles: 'missing.css' }))
+    document.getElementById('gc-theme-style')!.dispatchEvent(new Event('error'))
+    await expect(done).resolves.toBeUndefined()
   })
 })
 

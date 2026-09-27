@@ -101,15 +101,24 @@ const STYLE_ID = 'gc-theme-style'
  * until its author remembered to bump `version` — so a theme looked unchanged
  * no matter what they wrote, and a shipped fix could stay invisible after an
  * update.
+ *
+ * Settles once the sheet and its @imports have loaded (or failed): a surface
+ * rendered earlier paints unstyled, which drew Orbit's boot mark as a
+ * full-screen "G" at every start. The old sheet stays until then.
  */
-function applyStyles(m: ThemeManifest | null): void {
-  document.getElementById(STYLE_ID)?.remove()
-  if (!m?.styles) return
+export function applyStyles(m: ThemeManifest | null): Promise<void> {
+  const previous = document.getElementById(STYLE_ID)
+  if (!m?.styles) { previous?.remove(); return Promise.resolve() }
   const link = document.createElement('link')
   link.id = STYLE_ID
   link.rel = 'stylesheet'
   link.href = `/themes/${encodeURIComponent(m.id)}/${m.styles}?v=${encodeURIComponent(m.version)}&t=${Date.now()}`
-  document.head.appendChild(link)
+  return new Promise((resolve) => {
+    const settle = () => { previous?.remove(); resolve() }
+    link.onload = settle
+    link.onerror = settle
+    document.head.appendChild(link)
+  })
 }
 
 /** Called when falling back to the default theme. */
@@ -177,7 +186,7 @@ export async function loadTheme(m: ThemeManifest, host: SdkHost): Promise<Surfac
     throw new Error('theme entry must default-export a function')
   }
 
-  applyStyles(m)
+  await applyStyles(m)
 
   const produced = factory(buildSdk(m.id, { ...host, launchMs: m.launch?.ms }))
   if (!produced || typeof produced !== 'object') {
