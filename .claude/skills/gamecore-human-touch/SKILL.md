@@ -91,4 +91,4 @@ one that stays in the theme's DESIGN.md. It is a heuristic: read the samples.
 - [ ] glows/gradients/blur only where DESIGN.md says
 - [ ] every visible string read aloud: short, specific, no tells from §2
 - [ ] slop-audit before/after pasted in the PR
-- [ ] theme `version` bumped; seen on the TV (or screenshots) before merge
+- [ ] theme `version` bumped; screenshots reviewed twice (`gamecore-visual-review`) before merge
