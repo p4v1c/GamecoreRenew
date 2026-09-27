@@ -147,3 +147,19 @@ def test_an_unrelated_pack_still_may_not_share_an_app_id(tmp_path, monkeypatch):
     del pack["sharesEmulator"]
     manifest.write_text(json.dumps(pack))
     assert any("already claimed by gamecube" in p for p in mod.check(None))
+
+
+# ── the logo an unmigrated tile asks for ────────────────────────────────────
+
+def test_an_unmigrated_mgba_tile_keeps_its_own_logo(monkeypatch):
+    """Its systems.json row says `gba.png`, which is now also a pack id."""
+    from fastapi.testclient import TestClient
+
+    from backend.main import app
+    from backend.routers import systems as systems_router
+
+    monkeypatch.setattr(systems_router, "list_all",
+                        lambda: [{"id": "mgba", "iconPath": "assets/logos/gba.png"}])
+    r = TestClient(app).get("/assets/logos/gba.png")
+    assert r.status_code == 200
+    assert r.content == (CATALOG / "mgba" / "logo.png").read_bytes()
