@@ -79,6 +79,14 @@ are the auto-incremented tags.
 
 ### Needs action on an already-installed box
 
+- **An AMD GPU now runs at its top clock all the time.** The `auto` level
+  dropped a Radeon 680M to 400-533 MHz between frames, and the ramp-up added
+  input lag in heavy games while the frame rate looked fine. The installer
+  writes `/etc/udev/rules.d/99-gamecore-gpu.rules`; the OTA cannot (root), so
+  on a box installed earlier run once:
+  `echo 'SUBSYSTEM=="drm", KERNEL=="card[0-9]*", DRIVERS=="amdgpu", ATTR{device/power_dpm_force_performance_level}="high"' | sudo tee /etc/udev/rules.d/99-gamecore-gpu.rules && sudo udevadm control --reload-rules && sudo udevadm trigger -s drm`.
+  Intel and NVIDIA boxes are not affected.
+
 - **GameCube and Wii, and Game Boy, Color and Advance, are now one system
   each** (`gamecube`, `wii`, `gb`, `gbc`, `gba`), with their own ROM folder,
   tile, logo, bezel and playtime. A fresh install gets them directly. An
