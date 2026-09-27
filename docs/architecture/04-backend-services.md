@@ -562,6 +562,16 @@ moving playtime onto an invisible entry only hides it further.
 The covers and metadata caches need no equivalent: both are keyed on the
 *stem*, which `.bin` and `.cue` share.
 
+## `system_split.py`
+
+What `scripts/split-systems.py` does — move an unmigrated box's games from a
+split pack's tile (`dolphin`, `mgba`) to one tile per system. `plan(packs)`
+reads only; `edit_configs()` and `edit_grid()` are pure and return the new file
+contents, so the dry run prints exactly what `apply()` writes. `apply()` only
+renames, never overwrites, and keeps the old tile while a game is left in its
+folder. Nothing calls it but the script: the procedure and its guarantees are in
+[07](07-config-and-data.md#splitting-a-system-scriptssplit-systemspy).
+
 ## `prefetch.py`
 
 `run()` walks the library at startup and calls `warm(system, filename)` so the
