@@ -4,7 +4,8 @@
 // the pixels behind it and for TV size.
 //
 //   node legibility-audit.mjs [--url http://127.0.0.1:8766/] [--theme shelf|default]
-//                             [--press confirm,dpad-down] [--all] [--json] [--shot out.png [--crops] [--clip x,y,w,h]]
+//                             [--press confirm,dpad-down] [--init stub.js] [--eval "js;;js"]
+//                             [--all] [--json] [--shot out.png [--crops] [--clip x,y,w,h]]
 //
 // --theme switches the active theme through the API first (dev server only,
 // see devserve.py). --press sends pad events before the scan to reach a
@@ -14,7 +15,7 @@
 // 2x (out-clip.png), for a close visual review.
 // Exit 1 when something fails.
 import { spawn } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -30,6 +31,10 @@ const AS_JSON = process.argv.includes('--json')
 const SHOT = arg('shot')
 const CROPS = process.argv.includes('--crops')
 const CLIP = arg('clip')?.split(',').map(Number)
+// --init: a script run before the page's own (e.g. a fake navigator.getGamepads);
+// --eval: expressions run after --press, `;;`-separated, 900 ms apart.
+const INIT = arg('init')
+const EVALS = (arg('eval', '') || '').split(';;').filter(Boolean)
 const PORT = 9333
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -83,11 +88,16 @@ try {
   await send('Page.enable')
   // The box renders at 1920x1080; the headless window alone is a bit shorter.
   await send('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false })
+  if (INIT) await send('Page.addScriptToEvaluateOnNewDocument', { source: readFileSync(INIT, 'utf8') })
   await send('Page.navigate', { url: URL_ })
   await settle()
   // The same window events useGamepad emits and every theme listens to.
   for (const key of KEYS) {
     await send('Runtime.evaluate', { expression: `window.dispatchEvent(new CustomEvent('gp:${key}'))` })
+    await sleep(900)
+  }
+  for (const expression of EVALS) {
+    await send('Runtime.evaluate', { expression })
     await sleep(900)
   }
   await settle()
