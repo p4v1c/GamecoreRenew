@@ -9,8 +9,8 @@
  */
 import { pick, jacket } from '../lib/dossier.js'
 
-const CART_SYSTEMS = new Set(['mgba', 'gopher64', 'rmg', 'melonds', 'azahar', 'ryujinx'])
-const DISC_SYSTEMS = new Set(['duckstation', 'pcsx2', 'rpcs3', 'shadps4', 'ppsspp', 'dolphin', 'cemu', 'xenia'])
+const CART_SYSTEMS = new Set(['gb', 'gbc', 'gba', 'mgba', 'gopher64', 'rmg', 'melonds', 'azahar', 'ryujinx'])
+const DISC_SYSTEMS = new Set(['duckstation', 'pcsx2', 'rpcs3', 'shadps4', 'ppsspp', 'gamecube', 'wii', 'dolphin', 'cemu', 'xenia'])
 const DISC_EXT = /^\.?(iso|chd|cue|bin|img|mdf|mds|ccd|toc|pbp|rvz|wbfs|wia|gcm|gcz|ciso|cso)$/i
 const CART_EXT = /^\.?(xci|nsp|nes|fds|sfc|smc|gb|gbc|gba|nds|3ds|cia|n64|z64|v64|gen|md|smd|sms|gg|pce|a26|a52|a78|lnx|j64|ws|wsc)$/i
 

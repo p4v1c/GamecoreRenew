@@ -5,7 +5,7 @@
   "emulatorName": "mGBA",
   "platform": "GBC",
   "family": "Nintendo",
-  "color": "#6a5acd",
+  "color": "#d81b60",
   "sharesEmulator": "gba",
   "order": 10,
   "install": {

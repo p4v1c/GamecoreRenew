@@ -5,7 +5,7 @@
   "emulatorName": "Dolphin",
   "platform": "Wii",
   "family": "Nintendo",
-  "color": "#8fb8d8",
+  "color": "#1e88d0",
   "sharesEmulator": "gamecube",
   "order": 2,
   "install": {
