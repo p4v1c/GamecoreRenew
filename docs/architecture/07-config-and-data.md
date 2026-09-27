@@ -430,7 +430,10 @@ the disc header (`.iso`, `.rvz`, `.wia`, `.ciso`, `.wbfs`). A dump it cannot
 place, or whose destination already exists, **stays**, with its companions —
 and so does the old tile, so it remains playable. Re-running is safe: it finds
 nothing, or the same leftovers. Saves under `~/.var/app` (Dolphin's memory
-cards and NAND) are keyed by game id and are not touched.
+cards and NAND) are keyed by game id and are not touched. Not carried: Orbit's
+favourites, which live in the kiosk browser's storage (`orbit-favourites`,
+`system:filename`) where no script reaches; a favourite on a moved game has to
+be marked again.
 
 ## `config/apps.json`
 
