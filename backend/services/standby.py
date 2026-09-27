@@ -386,7 +386,7 @@ def on_input() -> None:
         _spawn(_screen(True))
 
 
-async def _ensure_timers_owned() -> None:
+async def _ensure_timers_owned(enabled: bool) -> None:
     """Re-assert GameCore's claim on the box's idle timers, at most once a minute.
 
     A function so the watcher does not have to know how the claim works, and so
@@ -400,7 +400,8 @@ async def _ensure_timers_owned() -> None:
         return
     _last_claim_attempt = now
     try:
-        await desktop_power.claim()
+        # Standby off still holds X's timers: they cannot see a pad or a game.
+        await (desktop_power.claim() if enabled else desktop_power.claim_x())
     except Exception:
         # Never at the expense of the tick that follows it: the screensaver and
         # sleep stages are what the player actually notices.
@@ -416,6 +417,7 @@ async def _tick(cfg: dict) -> None:
     global _last_input, _last_activity_signal
     from .process_manager import process_manager
 
+    await _ensure_timers_owned(cfg["enabled"])
     if not cfg["enabled"]:
         # The clock stops with the switch, and this line is the fix.
         #
@@ -426,10 +428,6 @@ async def _tick(cfg: dict) -> None:
         # because it believed nobody had touched it since lunchtime.
         _last_input = time.monotonic()
         return
-    # Before the foreground return below, and that is the whole point: a game
-    # running is exactly when the box's own idle timers must already be held,
-    # and it is also the branch that returns early.
-    await _ensure_timers_owned()
     if process_manager.is_foreground:
         # A game counts as activity — idle starts when it exits.
         #

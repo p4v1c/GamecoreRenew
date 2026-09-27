@@ -93,30 +93,19 @@ def test_the_extension_is_left_enabled(xserver):
     assert not any("-dpms" in argv for argv in xserver["argv"])
 
 
-def test_the_previous_delays_are_written_down(xserver):
-    run(dp.claim())
-    note = json.loads(dp._HANDOFF.read_text())
-    assert note["x_previous"] == {"s": "600 600", "dpms": "600 900 1200"}
-
-
-def test_releasing_gives_the_delays_back(xserver):
+def test_releasing_never_gives_the_x_delays_back(xserver):
+    """Standby switched off blanked Ryujinx after 10 min: the X server's
+    delays cannot see a pad or a game, so they are never handed back."""
     run(dp.claim())
     xserver["argv"].clear()
-    assert run(dp.release()) is True
-    assert ["xset", "s", "600", "600"] in xserver["argv"]
-    assert ["xset", "dpms", "600", "900", "1200"] in xserver["argv"]
+    run(dp.release())
+    assert xserver["argv"] == []
     assert not dp._HANDOFF.exists()
 
 
-def test_claiming_twice_does_not_forget_the_real_delays(xserver):
-    run(dp.claim())
-    xserver["q"] = REAL_X.replace("timeout:  600    cycle:  600",
-                                  "timeout:  0    cycle:  0") \
-                         .replace("Standby: 600    Suspend: 900    Off: 1200",
-                                  "Standby: 0    Suspend: 0    Off: 0")
-    run(dp.claim())
-    note = json.loads(dp._HANDOFF.read_text())
-    assert note["x_previous"] == {"s": "600 600", "dpms": "600 900 1200"}
+def test_claim_x_takes_only_the_x_timers(xserver):
+    assert run(dp.claim_x()) is True
+    assert ["xset", "dpms", "0", "0", "0"] in xserver["argv"]
 
 
 # ── servers with nothing to take ────────────────────────────────────
@@ -137,7 +126,6 @@ def test_a_server_with_only_a_screen_saver_is_still_claimed(xserver):
                                     "timeout:  600    cycle:  600")
     assert run(dp.claim()) is True
     assert ["xset", "s", "0", "0"] in xserver["argv"]
-    assert json.loads(dp._HANDOFF.read_text())["x_previous"] == {"s": "600 600"}
 
 
 def test_a_server_that_will_not_answer_is_not_claimed(monkeypatch, tmp_path):
@@ -190,14 +178,13 @@ def both(monkeypatch, tmp_path):
     return state
 
 
-def test_both_arms_are_taken_and_both_are_given_back(both):
+def test_both_arms_are_taken_and_only_the_desktop_is_given_back(both):
     assert run(dp.claim()) is True
-    note = json.loads(dp._HANDOFF.read_text())
-    assert note["previous"] == "900"
-    assert note["x_previous"]["dpms"] == "600 900 1200"
+    assert json.loads(dp._HANDOFF.read_text()) == {"previous": "900"}
+    both["argv"].clear()
     assert run(dp.release()) is True
     assert both["kde"] == "900"
-    assert ["xset", "dpms", "600", "900", "1200"] in both["argv"]
+    assert not any(argv[0] == "xset" for argv in both["argv"])
     assert not dp._HANDOFF.exists()
 
 
@@ -222,13 +209,18 @@ def watcher(monkeypatch):
     attempts = []
 
     async def fake_claim():
-        attempts.append(time.monotonic())
+        attempts.append("both")
+        return True
+
+    async def fake_claim_x():
+        attempts.append("x")
         return True
 
     async def fake_run_cmd(*argv, **kw):
         return True
 
     monkeypatch.setattr(dp, "claim", fake_claim)
+    monkeypatch.setattr(dp, "claim_x", fake_claim_x)
     monkeypatch.setattr(standby, "_run_cmd", fake_run_cmd)
     monkeypatch.setattr(type(pm.process_manager), "is_foreground",
                         property(lambda self: True))
@@ -279,8 +271,9 @@ def test_a_minute_later_it_is_attempted_again(watcher):
     assert len(watcher) == 2
 
 
-def test_standby_switched_off_claims_nothing(watcher):
-    """Standby off: GameCore no longer manages the screen and takes nothing."""
+def test_standby_switched_off_still_holds_the_x_timers(watcher):
+    """Standby off leaves the desktop's timer alone but must keep X's at zero:
+    a new X server (session switch) comes back with 600 s and blanks a game."""
     from backend.services import standby
     asyncio.run(standby._tick(CFG_OFF))
-    assert watcher == []
+    assert watcher == ["x"]
