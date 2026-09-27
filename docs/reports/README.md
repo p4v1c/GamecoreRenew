@@ -22,6 +22,7 @@ want to understand how the box got here.
 | [orbit-et-sessions-2026-09-08.md](orbit-et-sessions-2026-09-08.md) | 2026-09-08 | background sessions for games and apps: the two locks that decided whether it worked, the SIGSTOP/Flatpak/PipeWire/Vulkan measurements taken first, why double Home stopped killing, and the Orbit audit |
 | [all-packs-v7-port-2026-09-12.md](all-packs-v7-port-2026-09-12.md) | 2026-09-12 | the ALL-PACKS v7 payload ported onto the Store branch: why the bundle's own gate is red at its own base commit and why all three regressions belong to the D1 layer this port excludes, the same gate passing on the payload alone with both application orders converging to the digest the bundle itself claimed, every overwritten file classified against a newer HEAD, and the 31 `kind=emulator` packs the Store will read |
 | [themed-controller-hud-2026-09-23.md](themed-controller-hud-2026-09-23.md) | 2026-09-23 | theme tokens for the native controller/battery HUD, whitelisted by Electron; four battery severities; contrast measured |
+| [boot-logo-flash-2026-09-27.md](boot-logo-flash-2026-09-27.md) | 2026-09-27 | the one-frame "G" at boot: theme surfaces rendered before the theme stylesheet loaded; frame-by-frame proof on the four themes |
 
 A rule these files follow, worth keeping for future entries: **every claim
 names its evidence** (a command, a measurement, a failing test), and every
