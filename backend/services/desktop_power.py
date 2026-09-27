@@ -315,7 +315,7 @@ async def claim_x() -> bool:
 
 
 async def claim() -> bool:
-    """Take over whatever idle timers this box has, remembering what they were.
+    """Take over whatever idle timers this box has, noting the desktop's value.
 
     Idempotent, which matters because it runs on startup AND on every standby
     tick that finds itself unclaimed: an arm that is already ours re-reads as
@@ -328,11 +328,7 @@ async def claim() -> bool:
     """
     if not available():
         return False
-    # One note, passed through both arms: they add their own key to it and
-    # persist it themselves, so a claim that half-succeeds still leaves a
-    # record of the half it took.
-    note = _note()
-    kde = await _claim_kde(note)
+    kde = await _claim_kde(_note())
     x = await claim_x()
     return kde or x
 
