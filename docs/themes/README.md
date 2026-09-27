@@ -588,7 +588,8 @@ is still allowed, and then every prop below is yours to honour.
 
 Hooks: `.gcs-pwr`, `.gcs-pwr-title`, `.gcs-pwr-list`, `.gcs-pwr-sep` (the
 rule after *In the background*), `.gcs-pwr-row[data-id][data-on][data-confirm][data-dim]`,
-`.gcs-pwr-icon`, `.gcs-pwr-text b/i`, `.gcs-pwr-cancel`, `.gcs-pwr-hint`.
+`.gcs-pwr-icon`, `.gcs-pwr-text b/i`, `.gcs-pwr-hint`. No Cancel button: ○ closes,
+and a pointer closes by clicking outside the panel.
 
 **Controller** — `sdk.defaults.GamepadView`, handed every `gamepadView` prop:
 

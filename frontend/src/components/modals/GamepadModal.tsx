@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useStore } from '../../store'
-import { api, SysInfo, UsbDevice, RosterPad } from '../../api'
+import { api, SysInfo, RosterPad } from '../../api'
 import { GP_BTN, onGp, useGamepadState } from '../../hooks/useGamepad'
 import { ControllerBattery } from '../TopBar'
 import PadDiagram, { PadPosition } from './gamepad/PadDiagram'
@@ -63,7 +63,6 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
   const { openModal, closeModal } = useStore()
   const [roster, setRoster] = useState<RosterPad[]>([])
   const [sysInfo, setSysInfo] = useState<SysInfo | null>(null)
-  const [usbDevices, setUsbDevices] = useState<UsbDevice[]>([])
   const [wizard, setWizard] = useState(startInWizard)
   // Whether GameCore is still configuring emulators for the connected pad.
   // Asked HERE — this is the screen somebody opens when a controller does not
@@ -80,19 +79,9 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
     const readRoster = () => api.controllers.pads().then(r => setRoster(r.pads ?? [])).catch(() => {})
     const offs = [onGp('gp:connected', readRoster), onGp('gp:disconnected', readRoster)]
 
-    // Polled, not event-driven, and that is not laziness. gp:connected fires
-    // from gamepad_monitor, which only ever sees a device with an evdev node
-    // that declares BTN_SOUTH — precisely the devices this list is NOT about.
-    // A GameCube adapter emits no event when it is plugged in, so a screen
-    // that waited for one would sit on "absent" while the owner plugs the
-    // thing in and out in front of it, which is the exact moment this list
-    // exists to serve.
-    const readDevices = () => api.controllers.devices()
-      .then(r => setUsbDevices(r.devices ?? []))
-      .catch(() => {})
-    // The roster rides the same poll: the backend's scan lags the browser's
+    // Polled as well as on the events: the backend's scan lags the browser's
     // connect event by up to one pass, so a single read on the event misses it.
-    const readAll = () => { readDevices(); readRoster() }
+    const readAll = readRoster
     readAll()
     const timer = setInterval(readAll, 2000)
     return () => { offs.forEach(o => o()); clearInterval(timer) }
@@ -169,7 +158,6 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
           + 'emulator. Settings → Controllers turns it back on.'
         : ''}
       controllers={sysInfo?.controllers ?? []}
-      usbDevices={usbDevices}
       glyphs={LEGACY_GLYPHS}
       mappings={LEGACY_MAPPINGS}
       onClose={onClose}

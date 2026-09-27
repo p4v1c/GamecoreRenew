@@ -254,7 +254,7 @@ Declaring one does four things:
 | | where |
 |---|---|
 | writes `/etc/udev/rules.d/99-gamecore-<pack>.rules` at install | `installer/applier.py:apply_udev` |
-| lists the device present-or-absent on the controller screen | `GET /api/controllers/devices` |
+| lists the device present-or-absent (no screen draws it since the controller screen lists pads only) | `GET /api/controllers/devices` |
 | re-fires `udevadm trigger` after launch, so a device plugged in later reaches the Flatpak sandbox | `services/launch.py` |
 | broadcasts `game:notice` with the pack's own note when the device is absent | `usb_devices.launch_notice` |
 

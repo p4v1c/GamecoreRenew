@@ -79,20 +79,6 @@
 /* An empty side column (one pad, nothing to list) gives its width back. */
 .gcs-pad-body:has(> .gcs-pad-side:empty) { grid-template-columns: 1fr; }
 
-.gcs-pad-usbs {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 8px 28px;
-  margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--set-line);
-}
-.gcs-pad-usbs > .gcs-pad-hint { grid-column: 1 / -1; }
-.gcs-pad-usb { font-size: 16px; min-width: 0; }
-.gcs-pad-usb span, .gcs-pad-usb p { color: var(--set-ink-3); }
-.gcs-pad-usb > b { display: block; font-size: 15px; font-weight: 400; color: var(--set-ink-3); }
-.gcs-pad-usb[data-present="1"] > b { color: var(--set-ok); }
-.gcs-pad-usb > p {
-  margin: 2px 0 0; font-size: 15px; line-height: 1.35;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-
 .gcs-pad-actions {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 28px;
   margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--set-line);

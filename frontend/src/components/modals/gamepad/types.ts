@@ -64,16 +64,7 @@ export interface GamepadViewProps {
   notice?: string
   /** Battery and player index per pad, from the backend registry. */
   controllers: NonNullable<SysInfo['controllers']>
-  /**
-   * The declared peripherals that take no player slot — a GameCube adapter, a
-   * DolphinBar, a wheel. Empty when no installed system declares any, which is
-   * the common case and must draw nothing at all.
-   *
-   * These deliberately do NOT appear among `controllers`: a light gun is not
-   * player 2, and giving one a slot is how an emulator ends up writing pad
-   * bindings for a device that has no buttons. They are a separate list
-   * because they answer a separate question — "is it plugged in".
-   */
+  /** @deprecated since SDK 9: no longer filled; the controller screen lists pads only. */
   usbDevices?: UsbDevice[]
   /** @deprecated since SDK 9: PlayStation glyphs; use `actions` and `Position`. */
   glyphs: { top: string; right: string; bottom: string; left: string; lb: string; rb: string; menu: string; power: string }

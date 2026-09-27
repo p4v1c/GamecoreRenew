@@ -56,15 +56,6 @@
 /* Pad glyphs inside the confirmation sentence sit on its baseline. */
 .gcs-pwr-text i > * { vertical-align: -0.25em; margin: 0 0.15em; }
 
-/* Kept for a pointer; the pad closes with ○. */
-.gcs-pwr-cancel {
-  display: block; margin: 14px auto 0; padding: 8px 18px; border-radius: 10px; cursor: pointer;
-  border: 1px solid var(--set-line); background: none;
-  font-family: var(--font-body); font-size: 16px; color: var(--set-ink-2);
-}
-
-.gcs-pwr-cancel:disabled { opacity: 0.35; cursor: default; }
-
 .gcs-pwr-hint {
   margin-top: 14px; text-align: center;
   font-family: var(--font-body, inherit); font-size: 16px; color: var(--set-ink-3);

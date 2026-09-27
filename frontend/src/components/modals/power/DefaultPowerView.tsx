@@ -57,12 +57,6 @@ export default function DefaultPowerView({
             </div>
           )
         })}
-        <div onClick={onCancel} style={{
-          padding: '12px 16px', borderRadius: 13, cursor: pendingId ? 'default' : 'pointer',
-          background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
-          color: 'var(--gc-ink-3)', fontSize: 14, fontWeight: 500, textAlign: 'center', marginTop: 4,
-          opacity: pendingId ? 0.25 : 1,
-        }}>Cancel</div>
       </div>
       <div style={{ marginTop: 12, textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
         {pendingId ? ' ' : <PadHints text="↑↓ Navigate · ✕ Select · ○ Cancel" />}

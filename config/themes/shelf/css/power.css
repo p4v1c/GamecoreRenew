@@ -27,7 +27,7 @@
 .shelf-power .gcs-pwr-row[data-on="1"] .gcs-pwr-icon { background: #17161A; color: #F8F7F4; }
 .shelf-power .gcs-pwr-text b { font-weight: 700; font-stretch: 90%; }
 .shelf-power .gcs-pwr-text i { color: #66646D; }
-.shelf-power .gcs-pwr-cancel, .shelf-power .gcs-pwr-hint {
+.shelf-power .gcs-pwr-hint {
   display: inline-flex; align-items: center; height: 40px; vertical-align: top; margin: 12px 10px 0 0; padding: 0 16px; border: none; border-radius: 0;
   background: #F8F7F4; color: #3c3a40; box-shadow: 0 4px 8px rgba(40, 30, 15, 0.2);
 }
