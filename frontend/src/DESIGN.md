@@ -28,3 +28,9 @@ do. See `.claude/skills/gamecore-human-touch`.
 `--gc-ink-2` (0.78), `--gc-ink-3` (0.6, the faintest, ≥ 4.5:1 on every card).
 No text under 14px. Brand colours as text are mixed 45 % into white.
 Measured with `.claude/skills/gamecore-legibility`.
+
+**Power and controller screens:** one markup each, dressed per theme
+(`settings/css/power.css`, `settings/css/gamepad.css`). Here: neutral rows,
+focus = 7 % ink fill plus a 4 px `--gc-accent-soft` bar. The pad diagram is
+drawn by position (`PadDiagram.tsx`), lit ember-soft; status dots ok `#5fd39a`,
+warn `#f2b35a`.

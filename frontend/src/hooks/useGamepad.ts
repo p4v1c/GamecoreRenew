@@ -481,6 +481,12 @@ export const GP_BTN = BTN
 
 export interface GamepadState {
   connected: boolean
+  /** Which pad this is (`Gamepad.index`), -1 when none. */
+  index: number
+  /** The browser's id, which carries "Vendor: 054c Product: 09cc" on Linux. */
+  id: string
+  /** 'standard' when the browser maps it by position; '' means raw buttons. */
+  mapping: string
   /** Held state, indexed by GP_BTN. */
   pressed: boolean[]
   /** Analog travel 0..1, indexed by GP_BTN — only the triggers report in-between. */
@@ -489,7 +495,7 @@ export interface GamepadState {
   axes: number[]
 }
 
-const IDLE_STATE: GamepadState = { connected: false, pressed: [], values: [], axes: [0, 0, 0, 0] }
+const IDLE_STATE: GamepadState = { connected: false, index: -1, id: '', mapping: '', pressed: [], values: [], axes: [0, 0, 0, 0] }
 
 /** Quantise to 1/50th so a resting stick's jitter doesn't re-render every frame. */
 const quantise = (v: number) => Math.round(v * 50) / 50
@@ -511,6 +517,9 @@ export function useGamepadState(): GamepadState {
   useEffect(() => onGamepadFrame(gp => {
     const next: GamepadState = gp ? {
       connected: true,
+      index: gp.index,
+      id: gp.id,
+      mapping: gp.mapping,
       pressed: gp.buttons.map(b => b.pressed),
       values: gp.buttons.map(b => quantise(b.value)),
       axes: [0, 1, 2, 3].map(i => quantise(gp.axes[i] ?? 0)),

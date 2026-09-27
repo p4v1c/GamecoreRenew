@@ -22,7 +22,7 @@ import { api } from '../../../api'
 import { GP_BTN } from '../../../hooks/useGamepad'
 import type { GamepadState } from '../../../hooks/useGamepad'
 
-const IDLE: GamepadState = { connected: true, pressed: [], values: [], axes: [0, 0, 0, 0] }
+const IDLE: GamepadState = { connected: true, index: 0, id: '', mapping: 'standard', pressed: [], values: [], axes: [0, 0, 0, 0] }
 
 /**
  * The real hook re-renders its consumer on every frame the pad moves, so the
@@ -56,6 +56,8 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.spyOn(api, 'sysinfo').mockResolvedValue({ controllers: [] } as never)
   vi.spyOn(api.controllers, 'devices').mockResolvedValue({ devices: [] } as never)
+  vi.spyOn(api.controllers, 'pads').mockResolvedValue({ pads: [] } as never)
+  vi.spyOn(api.controllers, 'autoconfig').mockResolvedValue({ enabled: true } as never)
   // The wizard opens a session the moment it mounts; nothing here is about
   // what it does next, only about whether it was reached at all.
   vi.spyOn(api.controllers.mapping, 'start').mockResolvedValue(
@@ -110,5 +112,55 @@ describe('reaching the mapping wizard with the controller', () => {
     await advance(3000)
 
     expect(inWizard()).toBe(false)
+  })
+})
+
+describe('which pad the screen reads', () => {
+  const DS4 = 'Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 09cc)'
+  const GEN = 'USB Gamepad (Vendor: 0079 Product: 0006)'
+  const roster = (known: string) => ({ pads: [
+    { player: 1, name: 'PS4 Controller', kernelName: '', vendor: '054c', product: '09cc', connection: 'Bluetooth',
+      battery: 85, charging: false, known: 'sdl', controls: null, analogTriggers: true },
+    { player: 2, name: 'USB Gamepad', kernelName: '', vendor: '0079', product: '0006', connection: 'USB',
+      battery: null, charging: false, known, controls: null, analogTriggers: true },
+  ] })
+
+  beforeEach(() => {
+    vi.spyOn(navigator, 'getGamepads').mockReturnValue(
+      [{ index: 0, id: DS4, mapping: 'standard' }, { index: 1, id: GEN, mapping: 'standard' }] as never)
+  })
+
+  it('shows the pad that pressed □, player 2 here, and marks it', async () => {
+    vi.spyOn(api.controllers, 'pads').mockResolvedValue(roster('sdl') as never)
+    await mount()
+    await act(async () => { push?.({ ...IDLE, index: 1 }) })
+    expect(screen.getByText('Player 2, USB')).toBeTruthy()
+    expect(screen.getByText(/reading now/).closest('div')?.textContent).toContain('USB Gamepad')
+  })
+
+  it('switches when another pad is touched', async () => {
+    vi.spyOn(api.controllers, 'pads').mockResolvedValue(roster('sdl') as never)
+    await mount()
+    await act(async () => { push?.({ ...IDLE, index: 1 }) })
+    await act(async () => { push?.({ ...IDLE, index: 0 }) })
+    expect(screen.getByText(/Player 1, Bluetooth/)).toBeTruthy()
+  })
+
+  it('says a pad is not recognised and offers the wizard', async () => {
+    vi.spyOn(api.controllers, 'pads').mockResolvedValue(roster('unknown') as never)
+    await mount()
+    await act(async () => { push?.({ ...IDLE, index: 1 }) })
+    expect(screen.getByText(/^Not recognised/)).toBeTruthy()
+    expect(screen.getAllByText('Map this pad').length).toBeGreaterThan(0)
+  })
+  it('shows a raw pad by its own button numbers, never as positions', async () => {
+    vi.spyOn(navigator, 'getGamepads').mockReturnValue([{ index: 0, id: GEN, mapping: '' }] as never)
+    vi.spyOn(api.controllers, 'pads').mockResolvedValue({ pads: [roster('unknown').pads[1]] } as never)
+    await mount()
+    const pressed = Array(12).fill(false); pressed[4] = true
+    await act(async () => { push?.({ ...IDLE, index: 0, mapping: '', pressed }) })
+    expect(screen.getByText('B5').getAttribute('data-on')).toBe('1')
+    expect(screen.getByText(/raw buttons/)).toBeTruthy()
+    expect(screen.queryByText('Select and play')).toBeNull()      // no position legend
   })
 })

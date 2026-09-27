@@ -34,49 +34,50 @@ THEMES = ROOT / "config" / "themes"
 SHIPPED = ("shelf", "summer", "orbit")
 
 
+HOST_VIEW = ROOT / "frontend" / "src" / "components" / "modals" / "gamepad" / "DefaultGamepadView.tsx"
+
+
 def _gamepad_view(theme: str) -> str:
     """The theme's controller screen, whatever it chose to call the file.
 
     Found by content and not by name, because the name is the theme's to pick:
     the host takes this view as the `gamepadView` prop and never looks at the
     path. Orbit calls it `views/controller.js`, which is how it sat outside
-    this file's reach while being exactly the kind of theme it was written for
-    — a shipped one, with a controller screen, able to lose the wizard.
+    this file's reach while being exactly the kind of theme it was written for.
+    Since SDK 9 a shipped theme dresses the host's markup (`GamepadView`)
+    instead of writing its own.
     """
     views = THEMES / theme / "views"
     assert views.is_dir(), f"{theme} ships no views directory"
     named = [p for p in sorted(views.glob("*.js"))
-             if "layoutLabel" in (t := p.read_text(encoding="utf-8"))
-             and "mappings" in t]
-    assert named, (
-        f"{theme} ships no controller screen — no view takes the "
-        f"`layoutLabel`/`mappings` props the host passes to gamepadView")
+             if "GamepadView" in (t := p.read_text(encoding="utf-8"))
+             or ("layoutLabel" in t and "mappings" in t)]
+    assert named, f"{theme} ships no controller screen"
     return "\n".join(p.read_text(encoding="utf-8") for p in named)
 
 
 @pytest.mark.parametrize("theme", SHIPPED)
 def test_the_controller_screen_can_reach_the_mapping_wizard(theme):
     """The measured fault: 274 calls to /api/controllers/devices from this
-    screen and not one to /mapping/start, because the button was not there."""
+    screen and not one to /mapping/start, because the button was not there.
+
+    A theme that hands every prop to the host's markup keeps `onRemap` by
+    construction; one that writes its own must wire it."""
     source = _gamepad_view(theme)
+    delegates = re.search(r"GamepadView\}\s+\.\.\.\$\{", source)
+    assert delegates or re.search(r"onClick=\$\{onRemap\}", source), (
+        f"{theme}'s controller screen neither passes every prop to "
+        f"sdk.defaults.GamepadView nor invokes onRemap: the mapping wizard is "
+        f"unreachable from it. For a pad SDL cannot name it is the only way "
+        f"to make the box usable.")
 
-    assert "onRemap" in source, (
-        f"{theme}/views/gamepad.js never mentions onRemap, so the mapping "
-        f"wizard is unreachable from this theme. For a pad SDL cannot name it "
-        f"is the only way to make the box usable.")
-    assert re.search(r"onClick=\$\{onRemap\}", source), (
-        f"{theme} destructures onRemap but nothing invokes it")
 
-
-@pytest.mark.parametrize("theme", SHIPPED)
-def test_the_hold_gesture_is_written_where_it_is_used(theme):
+def test_the_host_view_offers_the_wizard_and_names_the_hold():
     """The button alone was not enough even when it existed: it was selectable
     with a mouse and nothing else, on a screen reached from a sofa. The host
-    owns the gesture (GamepadModal, REMAP_HOLD_MS) so a theme cannot lose it —
-    but a gesture nobody is told about is a gesture nobody makes."""
-    source = _gamepad_view(theme)
-
-    assert re.search(r"Hold \$\{glyphs\.top\}", source), (
-        f"{theme} does not say which button opens the wizard. `glyphs.top` "
-        f"rather than a literal △: the same screen serves an Xbox pad, where "
-        f"it is Y.")
+    owns the gesture (GamepadModal, REMAP_HOLD_MS) so a theme cannot lose it,
+    and the markup every shipped theme dresses says which button it is — by
+    position, so it is right on an Xbox pad too."""
+    source = HOST_VIEW.read_text(encoding="utf-8")
+    assert "onClick={onRemap}" in source
+    assert 'Hold <Position pos="north" />' in source

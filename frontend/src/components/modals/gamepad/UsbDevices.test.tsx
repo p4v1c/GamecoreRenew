@@ -26,8 +26,17 @@ function device(over: Partial<UsbDevice> = {}): UsbDevice {
   }
 }
 
+const PAD = { index: 0, player: 1, name: 'Test pad', connection: 'USB', battery: null, charging: false,
+  known: 'sdl' as const, raw: false, active: true }
+
 const draw = (usbDevices: UsbDevice[]) => render(
   <DefaultGamepadView
+    pads={[PAD]}
+    pad={PAD}
+    status={null}
+    missing=""
+    actions={[]}
+    Position={() => <i />}
     layout="generic"
     name="Test pad"
     layoutLabel="Standard layout"
@@ -77,7 +86,7 @@ describe('the peripherals list', () => {
        cost the owner the line. */
     draw([device({ class: 'dancemat' })])
     expect(screen.getByText('Check the switch is on Wii U.')).toBeTruthy()
-    expect(screen.getByText(/Peripheral/)).toBeTruthy()
+    expect(screen.getByText(/Peripheral, for/)).toBeTruthy()
   })
 
   it('says which system wants the device', () => {

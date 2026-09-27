@@ -1,141 +1,133 @@
 /**
- * The default controller screen's markup — and nothing else.
- * See gamepad/types.ts.
+ * The controller screen's markup — one markup, dressed per theme.
+ *
+ * Classes only (`gcs-pad-*`, styles in settings/css/gamepad.css), so a theme
+ * restyles it from its stylesheet instead of rewriting it: `skin` puts the
+ * theme's class on the scrim, `callouts` letters the diagram for a manual
+ * page. See gamepad/types.ts for what each prop means.
  */
-import { Overlay, OverlayLabel } from '../../ui'
 import type { GamepadViewProps } from './types'
+import type { PadInfo } from '../../../lib/padLayout'
 
 const CLASS_LABELS: Record<string, string> = {
-  adapter: 'Adapter',
-  wheel: 'Wheel',
-  lightgun: 'Light gun',
-  arcade: 'Arcade stick',
-  gamepad: 'Controller',
-  unknown: 'Peripheral',
+  adapter: 'Adapter', wheel: 'Wheel', lightgun: 'Light gun',
+  arcade: 'Arcade stick', gamepad: 'Controller', unknown: 'Peripheral',
+}
+
+// The manual page's key, in the diagram's letter order (A to K).
+const PARTS: [string, string][] = [['l2', 'L2'], ['l1', 'L1'], ['r2', 'R2'], ['r1', 'R1'], ['up', 'D-pad'],
+  ['south', 'Face buttons'], ['ls', 'Left stick, click L3'], ['rs', 'Right stick, click R3'],
+  ['select', 'Select'], ['start', 'Start'], ['home', 'Home']]
+
+/** "Bluetooth, battery 85%, charging" */
+function detail(p: Pick<PadInfo, 'connection' | 'battery' | 'charging'>) {
+  return [p.connection, p.battery != null ? `battery ${p.battery}%` : '', p.charging ? 'charging' : '']
+    .filter(Boolean).join(', ')
 }
 
 export default function DefaultGamepadView({
-  name, layoutLabel, controllers, usbDevices = [], glyphs, mappings, notice = '',
-  onClose, onRemap, Art, Battery,
-}: GamepadViewProps) {
+  pads, pad, status, missing, absent = [], rawButtons = [], actions, Position, usbDevices = [], notice = '',
+  onClose, onRemap, Art, skin = 'gcs-skin-default', callouts = false,
+}: GamepadViewProps & { skin?: string; callouts?: boolean }) {
+  const lost = pad?.raw || pad?.known === 'unknown'
   return (
-    <Overlay onClose={onClose} width={640}>
-      <OverlayLabel text="Controller" />
-
-      {/* Above the diagram, not below it. The diagram is what draws the eye and
-          it will look perfect — it reads the pad straight from the Gamepad API
-          and knows nothing about whether any emulator was configured. */}
-      {notice ? (
-        <div style={{
-          margin: '0 0 14px', padding: '9px 12px', borderRadius: 8,
-          background: 'rgba(251,191,36,0.10)', border: '1px solid rgba(251,191,36,0.35)',
-          fontSize: 15, lineHeight: 1.45, color: '#fbbf24',
-        }}>{notice}</div>
-      ) : null}
-
-      {/* Connected controller + battery from the backend registry */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {name}
+    <div className={`gcs-pad-scrim ${skin}`} onClick={e => e.target === e.currentTarget && onClose()}>
+      <section className="gcs-pad" data-pads={pads.length} data-state={!pad ? 'none' : pad.raw ? 'raw' : 'ok'}>
+        <header className="gcs-pad-head">
+          <div className="gcs-pad-id">
+            <div className="gcs-pad-eyebrow">Controller</div>
+            <h2 className="gcs-pad-name">{pad ? pad.name : 'No controller'}</h2>
+            {pad && <div className="gcs-pad-sub">{[pad.player ? `Player ${pad.player}` : '', detail(pad)].filter(Boolean).join(', ')}</div>}
           </div>
-          <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 2 }}>
-            {layoutLabel}
+          {status && <div className="gcs-pad-status" data-tone={status.tone}><i />{status.text}</div>}
+        </header>
+
+        {/* Above the diagram: it reads the pad straight from the browser and
+            looks perfect whether or not any emulator was configured. */}
+        {notice && <div className="gcs-pad-notice">{notice}</div>}
+
+        {!pad ? (
+          <div className="gcs-pad-empty">
+            <div className="gcs-pad-art" aria-hidden="true"><Art /></div>
+            <b>No controller</b>
+            <p>Pair one over Bluetooth, or plug it in. It shows here as soon as it wakes.</p>
           </div>
-        </div>
-        {controllers.map((c, i) => (
-          <Battery key={i} player={c.player} level={c.level} charging={c.charging} />
-        ))}
-      </div>
+        ) : (
+          <div className="gcs-pad-body">
+            <div className="gcs-pad-main">
+              <div className="gcs-pad-art" aria-hidden="true" data-raw={pad.raw ? '1' : '0'}><Art callouts={callouts} /></div>
+              {lost && onRemap && (
+                <button className="gcs-pad-map" onClick={onRemap}>
+                  <b>Map this pad</b>
+                  <span>Hold the top button for a second, or click here. About a minute, no keyboard.</span>
+                </button>
+              )}
+              {rawButtons.length > 0 && (
+                <div className="gcs-pad-raw">
+                  <p className="gcs-pad-line">The buttons it sends, as it numbers them:</p>
+                  <div>{rawButtons.map((on, i) => <span key={i} data-on={on ? '1' : '0'}>B{i + 1}</span>)}</div>
+                </div>
+              )}
+              {missing && <p className="gcs-pad-line">{missing}</p>}
+              {!pad.raw && <p className="gcs-pad-line">Press a button: the same spot lights up. Wrong spot, or nothing? Map this pad.</p>}
+            </div>
 
-      {/* The pad itself — mirrors the real controller in real time */}
-      <div style={{ display: 'flex', justifyContent: 'center', margin: '10px 0 20px' }}>
-        <Art />
-      </div>
-
-      {/* GameCore mappings */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7px 24px', marginBottom: 14 }}>
-        {mappings.map(([key, action]) => (
-          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <kbd style={{
-              minWidth: 52, textAlign: 'center', padding: '3px 8px', borderRadius: 6,
-              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
-              fontSize: 14, fontWeight: 700, color: 'var(--gc-accent-bright, #f8cfa9)', fontFamily: 'inherit',
-            }}>{key}</kbd>
-            <span style={{ fontSize: 15, color: 'var(--gc-ink-2)' }}>{action}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* The peripherals that take no player slot. Nothing is drawn when no
-          installed system declares one, which is most boxes — an empty
-          "Peripherals" heading is a question the owner did not ask.
-
-          Absent is not an error and must not be red: a box with no GameCube
-          adapter is a perfectly working box, and colouring it as a fault is
-          exactly the manufactured ticket the BIOS screen documents. The note
-          only appears on the absent ones, because that is when there is
-          something to check. */}
-      {usbDevices.length > 0 && (
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginBottom: 7 }}>
-            PERIPHERALS
-          </div>
-          {usbDevices.map(d => (
-            <div key={`${d.system_id}:${d.vid_pid}`} style={{
-              display: 'flex', alignItems: 'baseline', gap: 8, padding: '5px 0',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
-            }}>
-              <span style={{
-                width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                alignSelf: 'center',
-                background: d.status === 'present' ? '#4ade80' : 'rgba(255,255,255,0.2)',
-              }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, color: '#fff' }}>
-                  {d.label}
-                  <span style={{ color: 'var(--gc-ink-3)', fontWeight: 400 }}>
-                    {', '}{CLASS_LABELS[d.class] ?? CLASS_LABELS.unknown}{', for '}{d.system_label}
+            <aside className="gcs-pad-side">
+              {pads.length > 1 && pads.map(p => (
+                <div key={p.index} className="gcs-pad-card" data-on={p.active ? '1' : '0'}>
+                  <span className="gcs-pad-player">{p.player ? `P${p.player}` : '?'}</span>
+                  <span className="gcs-pad-card-text">
+                    <b>{p.name}</b>
+                    <i>{detail(p)}{p.active && <em>{detail(p) ? ', ' : ''}reading now</em>}</i>
                   </span>
                 </div>
-                {d.status === 'absent' && (
-                  <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 2 }}>
-                    {d.note}
-                  </div>
-                )}
+              ))}
+              {pads.length > 1 && <p className="gcs-pad-hint">Press a button on another pad to read that one.</p>}
+              {callouts && (
+                <ol className="gcs-pad-key" type="A">
+                  {PARTS.map(([c, t]) => absent.includes(c)
+                    ? <li key={c} data-gone="1">{t}, not on this pad</li> : <li key={c}>{t}</li>)}
+                </ol>
+              )}
+              {!lost && onRemap && <button className="gcs-pad-remap" onClick={onRemap}>Map this pad</button>}
+            </aside>
+          </div>
+        )}
+
+        {/* Absent is not an error: a box with no GameCube adapter works. A band
+            of its own: three adapters' notes in the side column pushed the
+            legend and the hints off a 1080p screen. */}
+        {usbDevices.length > 0 && (
+          <div className="gcs-pad-usbs">
+            <div className="gcs-pad-hint">Peripherals</div>
+            {usbDevices.map(d => (
+              <div key={`${d.system_id}:${d.vid_pid}`} className="gcs-pad-usb" data-present={d.status === 'present' ? '1' : '0'}>
+                <div>{d.label}<span>, {CLASS_LABELS[d.class] ?? CLASS_LABELS.unknown}, for {d.system_label}</span></div>
+                <b>{d.status === 'present' ? 'Detected' : 'Not detected'}</b>
+                {d.status === 'absent' && <p>{d.note}</p>}
               </div>
-              <span style={{
-                fontSize: 14, flexShrink: 0,
-                color: d.status === 'present' ? '#4ade80' : 'var(--gc-ink-3)',
-              }}>
-                {d.status === 'present' ? 'Detected' : 'Not detected'}
-              </span>
-            </div>
-          ))}
+            ))}
+          </div>
+        )}
+
+        {pad && !pad.raw && (
+          <div className="gcs-pad-actions">
+            {actions.map(a => (
+              <div key={a.action} className="gcs-pad-action">
+                {a.pos ? <><Position pos={a.pos} /><em>{a.label}</em></>
+                  : <span>{(a.keys ?? []).map(k => <kbd key={k}>{k}</kbd>)}</span>}
+                <span>{a.action}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="gcs-pad-hints">
+          {pad && <span>Press any button to test it</span>}
+          {pad && <span>Hold <Position pos="north" /> top to map this pad</span>}
+          <span><Position pos="west" /> left twice to close</span>
         </div>
-      )}
-
-      {/* The way out for a pad none of the above applies to. A controller SDL
-          cannot name lights nothing up in the diagram and matches none of the
-          bindings listed, so this screen is exactly where its owner ends up —
-          and until now it told them nothing they could act on. */}
-      {onRemap && (
-        <button onClick={onRemap} style={{
-          display: 'block', width: '100%', padding: '10px 14px', marginBottom: 12,
-          borderRadius: 10, background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.12)', color: '#fff',
-          fontSize: 15, fontWeight: 700, cursor: 'pointer', font: 'inherit',
-        }}>
-          Buttons wrong or dead? — map this controller
-          <span style={{ display: 'block', fontSize: 14, fontWeight: 400, marginTop: 3, color: 'var(--gc-ink-3)' }}>
-            Hold {glyphs.top}, or click here. About a minute, no keyboard.
-          </span>
-        </button>
-      )}
-
-      <div style={{ textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
-        Press any button to test it. Hold {glyphs.top} to remap, {glyphs.left} twice to close.
-      </div>
-    </Overlay>
+      </section>
+    </div>
   )
 }
