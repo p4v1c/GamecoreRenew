@@ -24,6 +24,7 @@ want to understand how the box got here.
 | [themed-controller-hud-2026-09-23.md](themed-controller-hud-2026-09-23.md) | 2026-09-23 | theme tokens for the native controller/battery HUD, whitelisted by Electron; four battery severities; contrast measured |
 | [boot-logo-flash-2026-09-27.md](boot-logo-flash-2026-09-27.md) | 2026-09-27 | the one-frame "G" at boot: theme surfaces rendered before the theme stylesheet loaded; frame-by-frame proof on the four themes |
 | [boot-ground-index-2026-09-27.md](boot-ground-index-2026-09-27.md) | 2026-09-27 | the dark frame before Shelf's paper: `index.html` hardcoded `#09090f` before any module ran; frame colours on the four themes |
+| [power-controller-ui-2026-09-27.md](power-controller-ui-2026-09-27.md) | 2026-09-27 | power menu and controller screen per theme: the universal pad diagram by position, the roster route, what each real pad shows, five review rounds with before/after |
 
 A rule these files follow, worth keeping for future entries: **every claim
 names its evidence** (a command, a measurement, a failing test), and every
