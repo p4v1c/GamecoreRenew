@@ -2,7 +2,7 @@
    over the dimmed beach, four tiles side by side (the host binds ← → too),
    the tile under the cursor rimmed in mandarin and lifted. The host's markup,
    settings/power.js, with `layout: 'row'`. */
-.summer-power.gcs-pwr-scrim { background: rgba(6, 18, 26, 0.62); }
+.summer-power.gcs-pwr-scrim { background: rgba(6, 18, 26, 0.78); }
 .summer-power .gcs-pwr {
   width: min(1320px, 94vw); padding: 22px 26px; border-radius: var(--r-panel);
   background: rgba(12, 40, 48, 0.82); border: 1px solid rgba(255, 253, 247, 0.16);
@@ -25,7 +25,7 @@
 .summer-power .gcs-pwr-text i { color: rgba(255, 253, 247, 0.8); }
 /* Pad glyphs on the mandarin tint: the default pale set measured 3.4:1. */
 .summer-power .gcs-pwr-row[data-on="1"] { --gc-pad-cross: #c9dcff; --gc-pad-circle: #ffc4c7; }
-.summer-power .gcs-pwr-cancel { border-radius: var(--r-chip); border-color: rgba(255, 253, 247, 0.16); color: var(--foam-200); }
+.summer-power .gcs-pwr-cancel { border-radius: 999px; border: 1px solid rgba(255, 253, 247, 0.3); background: rgba(255, 253, 247, 0.08); color: var(--foam-000); }
 .summer-power .gcs-pwr-hint { color: rgba(255, 253, 247, 0.8); }
 
 @media (prefers-reduced-motion: reduce) {

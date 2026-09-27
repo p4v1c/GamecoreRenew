@@ -1,7 +1,7 @@
 /* The controller screen as an instruction-manual page pinned on the wall:
    black line art on paper, parts lettered A to K with the key beside it, brass
    for what is lit. The host's markup, DefaultGamepadView.tsx. */
-.shelf-pad.gcs-pad-scrim { place-items: end center; padding-bottom: 60px; background: rgba(40, 34, 26, 0.22); color: #17161A; }
+.shelf-pad.gcs-pad-scrim { background: rgba(40, 34, 26, 0.22); color: #17161A; }
 .shelf-pad .gcs-pad {
   width: min(1440px, 94vw); padding: 40px 56px 28px; border-radius: 4px; border: none;
   background: #FBFAF7; box-shadow: 0 2px 0 #d9d5cb, 0 24px 40px rgba(40, 30, 15, 0.25);

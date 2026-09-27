@@ -48,7 +48,7 @@ function Label({ x, y, anchor, children, small, absent }: {
   x: number; y: number; anchor: 'start' | 'middle' | 'end'; children: ReactNode; small?: boolean; absent?: boolean
 }) {
   return <text x={x} y={y} textAnchor={anchor} className="gc-pd-label"
-    style={{ fill: C.label, fontSize: small ? 17 : 20, fontWeight: 600, opacity: absent ? 0.55 : 1 }}>{children}</text>
+    style={{ fill: C.label, fontSize: small ? 17 : 20, fontWeight: 600, opacity: absent ? 0.55 : 1, textShadow: 'none', paintOrder: 'normal' }}>{children}</text>
 }
 
 export default function PadDiagram({ pressed, triggers, axes, has, digitalTriggers = false, callouts = false }: PadDiagramProps) {
@@ -111,8 +111,10 @@ export default function PadDiagram({ pressed, triggers, axes, has, digitalTrigge
       {trigger(110, 'l2', 'L2', 'l')}{bumper(110, 62, 'l1', 'L1', 'l')}
       {trigger(380, 'r2', 'R2', 'r')}{bumper(380, 62, 'r1', 'R1', 'r')}
       {arm('up', 117, 149, 22, 30)}{arm('down', 117, 201, 22, 30)}
-      {arm('left', 76, 179, 30, 22)}{arm('right', 139, 179, 30, 22)}
-      <rect x={117} y={179} width={22} height={22} style={{ fill: C.part }} />
+      {arm('left', 87, 179, 30, 22)}{arm('right', 139, 179, 30, 22)}
+      {/* Wider than the gap so it covers the arms' inner strokes: a visible
+          square there reads as a fifth, pressed button. */}
+      <rect x={115} y={177} width={26} height={26} style={{ fill: C.part, stroke: 'none' }} />
       {dot('north', 512, 150)}{dot('east', 552, 190)}{dot('south', 512, 230)}{dot('west', 472, 190)}
       {stick(212, 'ls', 'l3', lx, ly)}{stick(428, 'rs', 'r3', rx, ry)}
       {pill('select', 262, 'Select')}{pill('start', 378, 'Start')}
@@ -137,7 +139,7 @@ const POS = `var(--pd-pos, ${C.lit})`
 export function PadPosition({ pos, size = 34 }: { pos: 'north' | 'east' | 'south' | 'west'; size?: number }) {
   const at = { north: [13, 5], east: [21, 13], south: [13, 21], west: [5, 13] } as const
   return (
-    <svg className="gc-pd-pos" width={size} height={size} viewBox="0 0 26 26" aria-hidden="true" style={{ verticalAlign: 'middle', flex: 'none' }}>
+    <svg className="gc-pd-pos" width={size} height={size} viewBox="0 0 26 26" aria-hidden="true" style={{ width: size, height: size, verticalAlign: 'middle', flex: 'none' }}>
       {(Object.keys(at) as (keyof typeof at)[]).map(k => (
         <circle key={k} cx={at[k][0]} cy={at[k][1]} r={k === pos ? 5.5 : 3.5} strokeWidth={1.6}
           style={{ fill: k === pos ? POS : 'none', stroke: k === pos ? POS : 'currentColor' }} />

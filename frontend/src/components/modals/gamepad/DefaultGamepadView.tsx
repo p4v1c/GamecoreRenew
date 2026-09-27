@@ -49,7 +49,6 @@ export default function DefaultGamepadView({
         {!pad ? (
           <div className="gcs-pad-empty">
             <div className="gcs-pad-art" aria-hidden="true"><Art /></div>
-            <b>No controller</b>
             <p>Pair one over Bluetooth, or plug it in. It shows here as soon as it wakes.</p>
           </div>
         ) : (
@@ -59,7 +58,7 @@ export default function DefaultGamepadView({
               {lost && onRemap && (
                 <button className="gcs-pad-map" onClick={onRemap}>
                   <b>Map this pad</b>
-                  <span>Hold the top button for a second, or click here. About a minute, no keyboard.</span>
+                  <span>Hold the top button for a second. About a minute, no keyboard.</span>
                 </button>
               )}
               {rawButtons.length > 0 && (
@@ -69,7 +68,14 @@ export default function DefaultGamepadView({
                 </div>
               )}
               {missing && <p className="gcs-pad-line">{missing}</p>}
-              {!pad.raw && <p className="gcs-pad-line">Press a button: the same spot lights up. Wrong spot, or nothing? Map this pad.</p>}
+              {!pad.raw && (
+                <p className="gcs-pad-line">
+                  Press a button: the same spot lights up. Wrong spot, or nothing?
+                  {!lost && onRemap
+                    ? <button className="gcs-pad-remap" onClick={onRemap}><Position pos="north" size={26} /> Map this pad</button>
+                    : ' Map this pad.'}
+                </p>
+              )}
             </div>
 
             <aside className="gcs-pad-side">
@@ -86,10 +92,9 @@ export default function DefaultGamepadView({
               {callouts && (
                 <ol className="gcs-pad-key" type="A">
                   {PARTS.map(([c, t]) => absent.includes(c)
-                    ? <li key={c} data-gone="1">{t}, not on this pad</li> : <li key={c}>{t}</li>)}
+                    ? <li key={c} data-gone="1">{t} (not on this pad)</li> : <li key={c}>{t}</li>)}
                 </ol>
               )}
-              {!lost && onRemap && <button className="gcs-pad-remap" onClick={onRemap}>Map this pad</button>}
             </aside>
           </div>
         )}

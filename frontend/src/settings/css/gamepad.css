@@ -68,13 +68,16 @@
 
 .gcs-pad-key { margin: 0; padding-left: 26px; columns: 2; font-size: 16px; color: var(--set-ink-2); }
 .gcs-pad-key > li { margin-bottom: 4px; }
-.gcs-pad-key > li[data-gone="1"] { text-decoration: line-through; color: var(--set-ink-3); }
+.gcs-pad-key > li[data-gone="1"] { color: var(--set-ink-3); }
 
 .gcs-pad-remap {
-  padding: 10px 14px; border-radius: 10px; cursor: pointer; text-align: left; font: inherit;
+  display: inline-flex; align-items: center; gap: 8px; margin-left: 10px; vertical-align: middle;
+  padding: 6px 14px 6px 10px; border-radius: 999px; cursor: pointer; font: inherit;
   font-size: 16px; font-weight: 600; color: var(--set-ink);
-  border: 1px solid var(--set-line); background: rgba(var(--set-ink-rgb), 0.04);
+  border: 1px solid rgba(var(--set-ink-rgb), 0.3); background: rgba(var(--set-ink-rgb), 0.06);
 }
+/* An empty side column (one pad, nothing to list) gives its width back. */
+.gcs-pad-body:has(> .gcs-pad-side:empty) { grid-template-columns: 1fr; }
 
 .gcs-pad-usbs {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 8px 28px;
@@ -87,7 +90,7 @@
 .gcs-pad-usb[data-present="1"] > b { color: var(--set-ok); }
 .gcs-pad-usb > p {
   margin: 2px 0 0; font-size: 15px; line-height: 1.35;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 
 .gcs-pad-actions {

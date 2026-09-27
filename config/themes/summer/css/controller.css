@@ -1,7 +1,7 @@
 /* The controller screen in sea glass: a sea-tinted glass sheet under the
    stats band, frosted outlines, mandarin for what is lit and the pad being
    read. The host's markup, DefaultGamepadView.tsx. */
-.summer-pad.gcs-pad-scrim { place-items: start center; padding-top: 110px; background: rgba(6, 18, 26, 0.62); color: var(--foam-000); }
+.summer-pad.gcs-pad-scrim { background: rgba(6, 18, 26, 0.78); color: var(--foam-000); }
 .summer-pad .gcs-pad {
   border-radius: var(--r-panel); background: rgba(12, 40, 48, 0.82); border: 1px solid rgba(255, 253, 247, 0.16);
   backdrop-filter: blur(18px) saturate(115%); -webkit-backdrop-filter: blur(18px) saturate(115%);
