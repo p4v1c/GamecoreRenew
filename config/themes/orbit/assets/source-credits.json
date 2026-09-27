@@ -195,5 +195,26 @@
     "source": "https://upload.wikimedia.org/wikipedia/commons/9/91/Borne_arcade_Pacman.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
     "page": "https://commons.wikimedia.org/wiki/File:Borne_arcade_Pacman.png",
     "license": "CC BY 4.0"
+  },
+  {
+    "id": "wii",
+    "file": "wii.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/f/f3/Wii-Console.png",
+    "page": "https://commons.wikimedia.org/wiki/File:Wii-Console.png",
+    "license": "Public domain"
+  },
+  {
+    "id": "gb",
+    "file": "gb.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/7/7c/Game-Boy-FL.png",
+    "page": "https://commons.wikimedia.org/wiki/File:Game-Boy-FL.png",
+    "license": "Public domain"
+  },
+  {
+    "id": "gbc",
+    "file": "gbc.png",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/3/35/Nintendo-Game-Boy-Color-FL.png",
+    "page": "https://commons.wikimedia.org/wiki/File:Nintendo-Game-Boy-Color-FL.png",
+    "license": "Public domain"
   }
 ]

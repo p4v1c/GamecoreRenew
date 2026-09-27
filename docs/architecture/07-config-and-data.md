@@ -396,6 +396,45 @@ use:
 | `"gamepadTrigger": true` | `_gamepad_trigger()` runs `sudo udevadm trigger` ×3 after launch, for Flatpak apps that only see a pad after a udev re-fire. Needs a sudoers rule. |
 | `"fullscreen": {…}` | `fullscreen_enforcer.enforce()` forces the window fullscreen over EWMH, for apps with no fullscreen flag |
 
+### Splitting a system — `scripts/split-systems.py`
+
+`dolphin` and `mgba` each covered several consoles. They are now one pack per
+system (`gamecube`, `wii`; `gb`, `gbc`, `gba`, see
+[10](10-catalog-and-install.md#one-emulator-several-systems)). A box installed
+before that keeps its old tile and it keeps launching; **nothing moves on its
+own**, not at an update, not at boot. The owner runs the move, by hand:
+
+| Step | Command |
+|---|---|
+| 1. back up the data root | `tar -czpf ~/userdata-before-split.tgz -C / userdata` |
+| 2. read the plan (writes nothing) | `/opt/GameCore/.venv/bin/python3 /opt/GameCore/scripts/split-systems.py --data /userdata` |
+| 3. close every game, then apply | same command with `--apply`, as the box's user (it refuses root) |
+| 4. reload the grid | restart GameCore or reboot; every game should be on its system's tile and launch |
+
+What it moves, **by rename on the same disk only** (never a copy, a delete or
+an overwrite):
+
+| Filed under the old id | Where it goes |
+|---|---|
+| the ROM, plus every file sharing its name (`.sav`, save states) | `emu/<system>/`; the dry run lists each `.sav` |
+| covers, metadata, scraped media | `emu/covers|metadata|gamemedia/<system>/` |
+| per-game bezels, per-game settings | `assets/overlays/<system>/`, `config/per-game/<system>/` |
+| `assets/overlays/mgba.<gb|gbc|gba>.png` | `assets/overlays/<system>.png` |
+| playtime rows (and `dolphin:settings`) | same row, new `system_id` |
+| `bezel-choices`, `bezel-corrections`, `overlays.json`, `controller-autoconfig.json` keys | the new ids; a choice naming `mgba.png` is dropped (no Game Boy system offers it) |
+| the old tile in `systems.json` | replaced in place by the new tiles, in catalogue order |
+
+Which system a dump belongs to: its extension when only one successor claims
+it, the file inside a single-file `.zip`, else the GameCube/Wii magic word in
+the disc header (`.iso`, `.rvz`, `.wia`, `.ciso`, `.wbfs`). A dump it cannot
+place, or whose destination already exists, **stays**, with its companions —
+and so does the old tile, so it remains playable. Re-running is safe: it finds
+nothing, or the same leftovers. Saves under `~/.var/app` (Dolphin's memory
+cards and NAND) are keyed by game id and are not touched. Not carried: Orbit's
+favourites, which live in the kiosk browser's storage (`orbit-favourites`,
+`system:filename`) where no script reaches; a favourite on a moved game has to
+be marked again.
+
 ## `config/apps.json`
 
 Same shape, minus the ROM keys, plus `"kind": "app"`:

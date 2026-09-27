@@ -74,6 +74,81 @@
         },
         "watch_timeout_s": 30
     },
+    "gba": {
+        "label": "Game Boy Advance",
+        "wm_class": {
+            "linux": [
+                "mgba-qt",
+                "mgba",
+                "mGBA",
+                "io.mgba.mGBA"
+            ]
+        },
+        "window_rect": {
+            "x": 0,
+            "y": 0,
+            "w": 1920,
+            "h": 1080
+        },
+        "overlay_asset": "assets/overlays/gba.png",
+        "hole": {
+            "x": 150,
+            "y": 0,
+            "w": 1620,
+            "h": 1080
+        },
+        "watch_timeout_s": 30
+    },
+    "gbc": {
+        "label": "Game Boy Color",
+        "wm_class": {
+            "linux": [
+                "mgba-qt",
+                "mgba",
+                "mGBA",
+                "io.mgba.mGBA"
+            ]
+        },
+        "window_rect": {
+            "x": 0,
+            "y": 0,
+            "w": 1920,
+            "h": 1080
+        },
+        "overlay_asset": "assets/overlays/gbc.png",
+        "hole": {
+            "x": 360,
+            "y": 0,
+            "w": 1200,
+            "h": 1080
+        },
+        "watch_timeout_s": 30
+    },
+    "gb": {
+        "label": "Game Boy",
+        "wm_class": {
+            "linux": [
+                "mgba-qt",
+                "mgba",
+                "mGBA",
+                "io.mgba.mGBA"
+            ]
+        },
+        "window_rect": {
+            "x": 0,
+            "y": 0,
+            "w": 1920,
+            "h": 1080
+        },
+        "overlay_asset": "assets/overlays/gb.png",
+        "hole": {
+            "x": 360,
+            "y": 0,
+            "w": 1200,
+            "h": 1080
+        },
+        "watch_timeout_s": 30
+    },
     "gopher64": {
         "label": "Nintendo 64",
         "wm_class": {

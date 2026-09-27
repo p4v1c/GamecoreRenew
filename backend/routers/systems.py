@@ -76,17 +76,19 @@ def serve_logo(request: Request, filename: str):
 
     stem = Path(filename).stem.lower()
     logos = _pack_logos()
-    # Either the pack id itself (catalog/youtube/logo.png -> "youtube.png") or
-    # the legacy platform name systems.json records ("3ds.png" -> azahar).
-    for pack_id, logo in logos.items():
-        if stem == pack_id.lower():
-            return _logo_response(request, logo)
+    # The tile that records this name first ("3ds.png" -> azahar), then the
+    # pack id itself (catalog/youtube/logo.png -> "youtube.png"). Tile first:
+    # an unmigrated mgba tile records "gba.png", which is now also a pack id,
+    # and must keep mGBA's own logo until the owner splits it.
     for item in list_all():
         icon = item.get("iconPath", "")
         if icon and Path(icon).name.lower() == filename.lower():
             logo = logos.get(item["id"])
             if logo is not None:
                 return _logo_response(request, logo)
+    for pack_id, logo in logos.items():
+        if stem == pack_id.lower():
+            return _logo_response(request, logo)
     raise HTTPException(404)
 
 

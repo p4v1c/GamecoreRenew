@@ -25,7 +25,7 @@ def _load(pack_id):
     return m
 
 
-gen = _load("dolphin")
+gen = _load("gamecube")
 
 GOOD_PAD = """\
 Device = SDL/0/PS4 Controller

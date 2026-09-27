@@ -77,6 +77,12 @@ describe('what the game shipped on', () => {
     expect(shellFor('.bin', 'mgba')).toBe('cart')
   })
 
+  it('knows each system split out of Dolphin and mGBA', async () => {
+    const { shellFor } = await loadShelf()
+    for (const id of ['gamecube', 'wii']) expect(shellFor('.rvz', id)).toBe('disc')
+    for (const id of ['gb', 'gbc', 'gba']) expect(shellFor('.zip', id)).toBe('cart')
+  })
+
   it('lets the platform overrule the extension both ways', async () => {
     const { shellFor } = await loadShelf()
     // A handheld emulator's game is a cartridge whatever the container says.

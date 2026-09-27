@@ -26,7 +26,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from backend.services.catalog import appid, load_catalog  # noqa: E402
+from backend.services.catalog import appid, load_catalog, selected  # noqa: E402
 from backend.services.installer.providers import (  # noqa: E402
     Context as SandboxContext,
     sandbox_flags,
@@ -85,11 +85,9 @@ def main() -> int:
         return 1
 
     chosen = None if args.select.strip() == "all" else set(args.select.split())
-    items = [p for p in packs.values()
-             if (args.kind is None or p.kind == args.kind)
-             and (chosen is None or p.id in chosen)]
-    # Stable output: a caller diffing two runs must not see reordering.
-    items.sort(key=lambda p: p.id)
+    # Sorted: a caller diffing two runs must not see reordering.
+    items = [p for p in selected(packs, chosen)
+             if args.kind is None or p.kind == args.kind]
 
     out: list[str] = []
     for p in items:

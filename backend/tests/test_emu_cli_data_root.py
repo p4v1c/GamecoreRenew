@@ -155,7 +155,8 @@ def test_the_grid_merge_writes_where_the_backend_reads_and_honours_a_removal(tmp
     assert r.returncode == 0, r.stderr
 
     live = _ids(data / "config" / "systems.json")
-    assert "dolphin" in live, "nothing reached the grid the backend reads"
+    assert "gamecube" in live, "nothing reached the grid the backend reads"
+    assert "dolphin" not in live, "a superseded pack was added to a fresh grid"
     assert "nes" not in live, "a system whose emulator is absent reached the grid"
     assert "azahar" not in live, (
         "a declined pack came back: the removal list was read from the other tree")

@@ -65,6 +65,24 @@ are the auto-incremented tags.
 
 ### Needs action on an already-installed box
 
+- **GameCube and Wii, and Game Boy, Color and Advance, are now one system
+  each** (`gamecube`, `wii`, `gb`, `gbc`, `gba`), with their own ROM folder,
+  tile, logo, bezel and playtime. A fresh install gets them directly. An
+  installed box keeps its **GameCube / Wii** and **Game Boy Advance** tiles
+  after the update, and they keep launching every game as before; nothing moves
+  until you run, as the box's user and with every game closed:
+
+  ```bash
+  tar -czpf ~/userdata-before-split.tgz -C / userdata          # back up first
+  /opt/GameCore/.venv/bin/python3 /opt/GameCore/scripts/split-systems.py --data /userdata
+  # read the plan, then the same command with --apply, then restart GameCore
+  ```
+
+  It moves each game (and its `.sav`, covers, hours and settings) by rename on
+  the same disk, never copies or overwrites, and leaves anything it cannot place
+  where it is, with the old tile. Details: `docs/architecture/07-config-and-data.md`.
+  The save-manager addon reads saves from both layouts.
+
 - **`/usr/local/bin/gamecore-addon` is a copy only the installer writes, and
   it is stale on every box installed before 9 August.** The OTA cannot replace
   it (root) and now says so with the command; the copy that runs today does

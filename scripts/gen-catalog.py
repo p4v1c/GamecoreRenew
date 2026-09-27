@@ -54,8 +54,11 @@ OVERLAYS       = ROOT / "config" / "overlays.json"
 #
 # A pack with no `order` sorts last, by id. Badly placed is recoverable; absent
 # is not.
+#
+# A superseded pack (dolphin, split into gamecube and wii) is left out: it only
+# keeps an unmigrated box's old tile launching, and a fresh box never has one.
 def ordered(packs: dict, kind: str) -> list:
-    return sorted((p for p in packs.values() if p.kind == kind),
+    return sorted((p for p in packs.values() if p.kind == kind and not p.superseded_by),
                   key=lambda p: (p.data.get("order", 10_000), p.id))
 
 

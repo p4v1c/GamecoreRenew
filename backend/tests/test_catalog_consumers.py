@@ -240,7 +240,8 @@ def test_the_installer_wizard_offers_the_catalogue(packs):
     sys.path.insert(0, str(ROOT / "install/installer-gui"))
     from catalog_data import EMULATORS
     offered = {e[0] for e in EMULATORS}
-    declared = {p.id for p in packs.values() if p.kind == "emulator"}
+    # A superseded pack (dolphin, mgba) only keeps an old tile launching.
+    declared = {p.id for p in packs.values() if p.kind == "emulator" and not p.superseded_by}
     assert offered == declared, (
         f"only in the wizard: {sorted(offered - declared)}; "
         f"only in the catalogue: {sorted(declared - offered)}")

@@ -87,7 +87,19 @@ def enabled() -> bool:
     return state()["enabled"]
 
 
-def enabled_for(pack_id: str) -> bool:
+def own_switch(st: dict, pack_id: str, aliases: tuple[str, ...] = ()) -> bool:
+    """This pack's exception, or the one recorded under an id it replaced.
+
+    `aliases` are the superseded ids (gamecube ← dolphin): a box that switched
+    Dolphin off before the split must not find GameCube switched back on.
+    """
+    for pid in (pack_id, *aliases):
+        if pid in st["packs"]:
+            return st["packs"][pid]
+    return True
+
+
+def enabled_for(pack_id: str, aliases: tuple[str, ...] = ()) -> bool:
     """Whether this ONE emulator's config may be written.
 
     The single question the pipeline asks. The global switch wins, so an
@@ -97,7 +109,7 @@ def enabled_for(pack_id: str) -> bool:
     st = state()
     if not st["enabled"]:
         return False
-    return st["packs"].get(pack_id, True)
+    return own_switch(st, pack_id, aliases)
 
 
 def _write(st: dict) -> dict:
@@ -117,7 +129,7 @@ def set_enabled(value: bool) -> dict:
     return _write(st)
 
 
-def set_pack(pack_id: str, value: bool) -> dict:
+def set_pack(pack_id: str, value: bool, aliases: tuple[str, ...] = ()) -> dict:
     """Add or clear one emulator's exception.
 
     Turning an exception back ON deletes the entry rather than storing `true`:
@@ -127,7 +139,8 @@ def set_pack(pack_id: str, value: bool) -> dict:
     """
     st = state()
     if value:
-        st["packs"].pop(pack_id, None)
+        for pid in (pack_id, *aliases):
+            st["packs"].pop(pid, None)
     else:
         st["packs"][pack_id] = False
     log.info("controller autoconfig: %s %s", pack_id,

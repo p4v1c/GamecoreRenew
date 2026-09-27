@@ -94,6 +94,8 @@ by `scripts/check-catalog.py`, which CI runs before anything else. Required:
 | `localMedia` | `backend/services/local_media.py` | how covers/titles are read out of the dumps themselves (PARAM.SFO, disc headers) |
 | `usb` | the tile, `services/launch.py` | non-gamepad accessories a launch should check for, and what to say when absent |
 | `install` | `installer/providers.py` | how the **main artifact** is obtained |
+| `sharesEmulator` | `scripts/check-catalog.py`, `catalog.selected()`, `gamecore-emu` | this system runs on another pack's emulator — see [One emulator, several systems](#one-emulator-several-systems) |
+| `supersededBy` | `gen-catalog.py`, `merge.py`, `catalog.selected()` | this pack was split into these; kept only so an unmigrated tile still launches |
 | `sandbox` | `installer/providers.py` | Flatpak override flags. Absent = the emulator default |
 | `packages` | `installer/applier.py` | extra system dependencies, *not* the main artifact |
 | `sources` | `installer/applier.py` | git checkouts the app needs beside it |
@@ -135,6 +137,31 @@ requests/hour/IP, and exhausting it is why fresh installs ended up with no
 PlayStation emulator), a `.part` temp file so an aborted transfer is never read
 as "already installed", magic-byte checking because a 200 carrying an HTML error
 page is still a failed download, and an optional `sha256`.
+
+### One emulator, several systems
+
+A system is a pack even when its emulator is not its own: GameCube and Wii both
+run on Dolphin, Game Boy, Color and Advance on mGBA. One pack **owns** the
+emulator (`gamecube`, `gba`): `install`, `config`, `seed/`, `controllers`,
+`generator.py`. The others declare `"sharesEmulator": "<owner>"` with the same
+`install` and `launch` and none of the owner's blocks, because those write the
+emulator's own files and two packs writing them overwrite each other.
+`scripts/check-catalog.py` allows a shared Flatpak app id only along that link.
+
+| Rule | Where |
+|---|---|
+| ticking `wii` alone also selects `gamecube` — otherwise Dolphin is installed with no seed | `catalog.selected()`, used by `gamecore-provider.py` and `catalog-query.py` |
+| `gamecore-emu install wii` deploys the owner's seed and bindings | `apply_pack` in `install/bin/gamecore-emu` |
+| `configgen` profiles the owner once; the others have no `controllers` block | `configgen.profilable_packs()` |
+
+The packs that were split stay in the catalogue as `supersededBy` packs
+(`dolphin` → `gamecube`, `wii`; `mgba` → `gba`, `gbc`, `gb`). They keep
+`sharesEmulator`, so the old tile on a box that has not migrated still launches
+exactly as before. They are never offered (`gen-catalog.py`, `selected()`), never
+added by the merge, and while their tile is on a grid the merge does **not** add
+their successors either: the old tile holds the games, and empty twins beside it
+would be a lie. The owner moves the games with `scripts/split-systems.py`, by
+hand, when they choose ([07](07-config-and-data.md#splitting-a-system-scriptssplit-systemspy)).
 
 ### `files` — `src`, `template`, `when`, `ifAbsent`
 

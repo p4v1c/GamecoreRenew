@@ -6,6 +6,11 @@
   "platform": "GameCube/Wii",
   "family": "Nintendo",
   "color": "#ff8c00",
+  "sharesEmulator": "gamecube",
+  "supersededBy": [
+    "gamecube",
+    "wii"
+  ],
   "order": 2,
   "install": {
     "provider": "flatpak",
@@ -45,9 +50,6 @@
       }
     ]
   },
-  "config": {
-    "dest": "@FLATPAK_CONFIG@/dolphin-emu"
-  },
   "usb": [
     {
       "vidPid": "057e:0337",
@@ -57,18 +59,6 @@
       "note": "Dolphin drives this adapter over raw libusb, so it never appears as a controller anywhere else on the box — not in the player slots, not in any other emulator. Check the cable, and that the switch on the adapter is on Wii U rather than PC."
     }
   ],
-  "controllers": {
-    "maxPlayers": 4,
-    "order": 5,
-    "strategy": "rewrite-device-line",
-    "target": [
-      "GCPadNew.ini",
-      "WiimoteNew.ini"
-    ],
-    "seedMustNotContain": [
-      "^Device = (?:SDL|evdev)/"
-    ]
-  },
   "localMedia": {
     "format": "gcwii",
     "discTag": "wii"

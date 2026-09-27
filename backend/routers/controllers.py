@@ -77,8 +77,10 @@ def _autoconfig_view() -> dict:
     """
     st = controller_autoconfig.state()
     packs = []
-    for pack in controller_profiles.profilable_packs(load_catalog()):
-        own = st["packs"].get(pack.id, True)
+    catalog = load_catalog()
+    for pack in controller_profiles.profilable_packs(catalog):
+        own = controller_autoconfig.own_switch(
+            st, pack.id, controller_profiles.superseded_ids(catalog, pack.id))
         packs.append({
             "id": pack.id,
             "label": pack.data.get("label") or pack.id,

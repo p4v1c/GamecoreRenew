@@ -254,14 +254,24 @@ def merge_systems(live: list[dict], packs: dict, root: Path,
         out.append(merged)
 
     if add_missing:
+        # A split pack's old tile still holds the games (dolphin: GameCube AND
+        # Wii); its successors appear when scripts/split-systems.py moves them,
+        # never as empty twins beside it.
+        held = {s: p.id for p in packs.values() if p.id in seen for s in p.superseded_by}
+        # Declining dolphin declined GameCube and Wii with it.
+        removed = removed | {s for p in packs.values() if p.id in removed for s in p.superseded_by}
         # Curated order, as gen-catalog.py writes the .dist: a fresh install and
         # an updated box must list the newcomers the same way, not by folder name.
         for pack in sorted(packs.values(),
                            key=lambda p: (p.data.get("order", 10_000), p.id)):
-            if pack.kind != kind or pack.id in seen:
+            if pack.kind != kind or pack.id in seen or pack.superseded_by:
                 continue
             if pack.id in removed:
                 # Taken off deliberately. Not "missing" — declined.
+                continue
+            if pack.id in held:
+                notes.append(f"{pack.id}: not added — the {held[pack.id]} tile still "
+                             f"holds its games (scripts/split-systems.py moves them)")
                 continue
             if present is not None and not present(pack):
                 notes.append(f"{pack.id}: not added — its emulator is not installed")

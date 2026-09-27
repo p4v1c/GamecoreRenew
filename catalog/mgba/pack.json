@@ -6,6 +6,12 @@
   "platform": "GBA",
   "family": "Nintendo",
   "color": "#96c800",
+  "sharesEmulator": "gba",
+  "supersededBy": [
+    "gba",
+    "gbc",
+    "gb"
+  ],
   "order": 10,
   "install": {
     "provider": "flatpak",
@@ -54,20 +60,6 @@
           "*.gb"
         ]
       }
-    ]
-  },
-  "config": {
-    "dest": "@FLATPAK_CONFIG@/mgba",
-    "nativeDest": "@HOME@/.config/mgba"
-  },
-  "controllers": {
-    "maxPlayers": 1,
-    "order": 2,
-    "strategy": "snapshot-restore",
-    "target": "config.ini",
-    "seedMustNotContain": [
-      "^device0=.",
-      "^\\[gba\\.input-profile\\."
     ]
   },
   "overlay": {

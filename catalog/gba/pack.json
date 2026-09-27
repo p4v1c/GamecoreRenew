@@ -1,0 +1,72 @@
+{
+  "id": "gba",
+  "kind": "emulator",
+  "label": "Game Boy Advance",
+  "emulatorName": "mGBA",
+  "platform": "GBA",
+  "family": "Nintendo",
+  "color": "#4f46c8",
+  "order": 10,
+  "install": {
+    "provider": "flatpak",
+    "appIds": [
+      "io.mgba.mGBA"
+    ]
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run @APPID@ --fullscreen",
+    "preferIfPresent": {
+      "path": "/usr/bin/mgba-qt",
+      "args": "--fullscreen"
+    }
+  },
+  "roms": {
+    "dir": "emu/gba",
+    "extensions": [
+      "*.gba",
+      "*.zip"
+    ]
+  },
+  "config": {
+    "dest": "@FLATPAK_CONFIG@/mgba",
+    "nativeDest": "@HOME@/.config/mgba"
+  },
+  "controllers": {
+    "maxPlayers": 1,
+    "order": 2,
+    "strategy": "snapshot-restore",
+    "target": "config.ini",
+    "seedMustNotContain": [
+      "^device0=.",
+      "^\\[gba\\.input-profile\\."
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "mgba-qt",
+        "mgba",
+        "mGBA",
+        "io.mgba.mGBA"
+      ]
+    },
+    "asset": "gba.png"
+  },
+  "scraper": {
+    "tgdbId": 5,
+    "screenscraper": [
+      12
+    ],
+    "libretro": [
+      "Nintendo - Game Boy Advance"
+    ],
+    "mediaAlias": [
+      "gba"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "mGBA stores its per-game overrides inside its own single config file, keyed by game code, rather than in a file per game. Writing that safely means editing a file mGBA rewrites wholesale, which is a different mechanism from this one."
+  }
+}

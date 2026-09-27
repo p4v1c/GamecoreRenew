@@ -95,6 +95,16 @@ class Pack:
         return self.data.get("kind", "emulator")
 
     @property
+    def superseded_by(self) -> list[str]:
+        """The packs that replaced this one. Non-empty = kept only for old tiles."""
+        return list(self.data.get("supersededBy") or [])
+
+    @property
+    def emulator_owner(self) -> str:
+        """The pack that owns the emulator this one launches: itself, or `sharesEmulator`."""
+        return self.data.get("sharesEmulator") or self.id
+
+    @property
     def app_ids(self) -> list[str]:
         """Every candidate this pack declares, in preference order."""
         return appid.declared(self.data)
@@ -240,6 +250,20 @@ def _scan(base: Path, origin: str, schema: dict) -> dict[str, Pack]:
         if pack is not None:
             out[pack.id] = pack
     return out
+
+
+def selected(packs: dict[str, Pack], ids: set[str] | None = None) -> list[Pack]:
+    """The packs an install acts on, in id order.
+
+    `None` = every current pack: a superseded one is never offered, it only
+    keeps an old tile launching. Named ids also bring the pack that owns their
+    emulator, or ticking Wii alone would install Dolphin with no seed.
+    """
+    if ids is None:
+        return sorted((p for p in packs.values() if not p.data.get("supersededBy")),
+                      key=lambda p: p.id)
+    wanted = set(ids) | {packs[i].data.get("sharesEmulator") or i for i in ids if i in packs}
+    return sorted((p for p in packs.values() if p.id in wanted), key=lambda p: p.id)
 
 
 def load_catalog(catalog_dir: Path | None = None,

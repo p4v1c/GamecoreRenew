@@ -12,13 +12,14 @@ from .loader import (
     SCHEMA_FILE,
     Pack,
     load_catalog,
+    selected,
 )
 from .schema import SchemaError, load_schema, validate
 
 __all__ = [
     "CATALOG_DIR", "LOCAL_DIR", "SCHEMA_FILE",
     "PRIVILEGED_BLOCKS", "PRIVILEGED_FILES",
-    "Pack", "load_catalog",
+    "Pack", "load_catalog", "selected",
     "SchemaError", "load_schema", "validate",
     "appid", "ota", "signing",
 ]

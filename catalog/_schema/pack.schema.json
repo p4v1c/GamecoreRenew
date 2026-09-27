@@ -29,6 +29,15 @@
       "minimum": 0
     },
     "platform": { "type": "string", "minLength": 1 },
+    "sharesEmulator": {
+      "description": "The pack that owns the emulator this system runs on, when one emulator serves several systems (Dolphin: GameCube and Wii). The two declare the same `install` and `launch`; only the owner may carry `config`, `controllers`, `seed/` and `generator.py`, because they write the emulator's own files. `scripts/check-catalog.py` allows a shared Flatpak app id only between packs linked this way.",
+      "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "supersededBy": {
+      "description": "The packs that replaced this one when it was split into one pack per system (dolphin → gamecube, wii). A superseded pack is never offered by the installer or added to a grid; it stays so a box that still has its tile keeps launching it until the owner runs `scripts/split-systems.py`.",
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" }
+    },
     "color":    { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
 
     "install": {

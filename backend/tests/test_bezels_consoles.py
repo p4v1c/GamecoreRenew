@@ -260,13 +260,13 @@ def test_a_mono_console_correction_keeps_its_old_key(library):
 
 SHIPPED = REPO / "assets" / "overlays"
 
-# Every console bezel in the tree, and the aspect its machine renders at.
-# `mgba.png` is deliberately absent: it is the pack-wide fallback and it is
-# 1:1, which is the shape that made this whole change necessary.
+# The Game Boy bezels, one per system since mgba was split into gb/gbc/gba,
+# and the aspect each machine renders at. `mgba.png` is deliberately absent:
+# it is the old pack-wide fallback and it is 1:1.
 CONSOLE_ASSETS = [
-    ("mgba.gb.png", "mgba", "gb", 10, 9),        # Game Boy      160x144
-    ("mgba.gbc.png", "mgba", "gbc", 10, 9),      # Game Boy Color 160x144
-    ("mgba.gba.png", "mgba", "gba", 3, 2),       # Game Boy Adv.  240x160
+    ("gb.png", "gb", "gb", 10, 9),               # Game Boy      160x144
+    ("gbc.png", "gbc", "gbc", 10, 9),            # Game Boy Color 160x144
+    ("gba.png", "gba", "gba", 3, 2),             # Game Boy Adv.  240x160
 ]
 
 
@@ -310,32 +310,15 @@ def test_a_shipped_console_bezel_is_centred_in_its_frame(
     assert abs(hole["y"] - (fh - hole["y"] - hole["h"])) <= 1
 
 
-def test_the_shipped_console_bezels_are_named_for_a_console_that_exists():
+def test_each_shipped_system_bezel_is_the_one_its_pack_declares():
     """A file the cascade will never look for is a file that does nothing.
 
-    `resolve()` only ever tries the consoles `roms.consoles` declares, so
-    `mgba.sgb.png` would sit in the tree looking installed and never resolve.
-    Read from the packs rather than from `config/systems.json`: the catalogue
-    is what a fresh install gets, and the box's grid is allowed to differ.
+    The system level resolves `<system_id>.png`, and `overlay.asset` is what
+    config/overlays.json is generated from; both must name the same file.
     """
-    packs = json.loads((REPO / "catalog" / "mgba" / "pack.json").read_text())
-    declared = {c["id"] for c in packs["roms"]["consoles"]}
-    for name, system_id, console, _, _ in CONSOLE_ASSETS:
-        assert console in declared, f"{name} names {console!r}, which mgba does not declare"
-        assert name == f"{system_id}.{console}.png"
-
-
-def test_every_console_of_a_pack_that_ships_one_bezel_ships_them_all():
-    """Partial coverage is the confusing state, not the incomplete one.
-
-    Two consoles of a pack with artwork and the third falling back to a frame
-    cut for neither is worse than three plain frames: the odd one out looks
-    like a bug in the cascade rather than a missing file.
-    """
-    packs = json.loads((REPO / "catalog" / "mgba" / "pack.json").read_text())
-    missing = [c["id"] for c in packs["roms"]["consoles"]
-               if not (SHIPPED / f"mgba.{c['id']}.png").is_file()]
-    assert not missing, f"mgba ships bezels but not for: {', '.join(missing)}"
+    for name, system_id, _, _, _ in CONSOLE_ASSETS:
+        pack = json.loads((REPO / "catalog" / system_id / "pack.json").read_text())
+        assert pack["overlay"]["asset"] == name == f"{system_id}.png"
 
 
 def test_the_slots_carry_the_console_s_expected_ratio(library):

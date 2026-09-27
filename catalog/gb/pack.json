@@ -1,0 +1,59 @@
+{
+  "id": "gb",
+  "kind": "emulator",
+  "label": "Game Boy",
+  "emulatorName": "mGBA",
+  "platform": "GB",
+  "family": "Nintendo",
+  "color": "#8b956d",
+  "sharesEmulator": "gba",
+  "order": 10,
+  "install": {
+    "provider": "flatpak",
+    "appIds": [
+      "io.mgba.mGBA"
+    ]
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run @APPID@ --fullscreen",
+    "preferIfPresent": {
+      "path": "/usr/bin/mgba-qt",
+      "args": "--fullscreen"
+    }
+  },
+  "roms": {
+    "dir": "emu/gb",
+    "extensions": [
+      "*.gb",
+      "*.zip"
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "mgba-qt",
+        "mgba",
+        "mGBA",
+        "io.mgba.mGBA"
+      ]
+    },
+    "asset": "gb.png"
+  },
+  "scraper": {
+    "tgdbId": 4,
+    "screenscraper": [
+      9
+    ],
+    "libretro": [
+      "Nintendo - Game Boy"
+    ],
+    "mediaAlias": [
+      "gb"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "mGBA stores its per-game overrides inside its own single config file, keyed by game code, rather than in a file per game. Writing that safely means editing a file mGBA rewrites wholesale, which is a different mechanism from this one."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "id": "gbc",
+  "kind": "emulator",
+  "label": "Game Boy Color",
+  "emulatorName": "mGBA",
+  "platform": "GBC",
+  "family": "Nintendo",
+  "color": "#d81b60",
+  "sharesEmulator": "gba",
+  "order": 10,
+  "install": {
+    "provider": "flatpak",
+    "appIds": [
+      "io.mgba.mGBA"
+    ]
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run @APPID@ --fullscreen",
+    "preferIfPresent": {
+      "path": "/usr/bin/mgba-qt",
+      "args": "--fullscreen"
+    }
+  },
+  "roms": {
+    "dir": "emu/gbc",
+    "extensions": [
+      "*.gbc",
+      "*.zip"
+    ]
+  },
+  "overlay": {
+    "wmClass": {
+      "linux": [
+        "mgba-qt",
+        "mgba",
+        "mGBA",
+        "io.mgba.mGBA"
+      ]
+    },
+    "asset": "gbc.png"
+  },
+  "scraper": {
+    "tgdbId": 41,
+    "screenscraper": [
+      10
+    ],
+    "libretro": [
+      "Nintendo - Game Boy Color"
+    ],
+    "mediaAlias": [
+      "gbc"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "mGBA stores its per-game overrides inside its own single config file, keyed by game code, rather than in a file per game. Writing that safely means editing a file mGBA rewrites wholesale, which is a different mechanism from this one."
+  }
+}

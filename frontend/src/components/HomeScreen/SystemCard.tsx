@@ -24,6 +24,7 @@ export default function SystemCard({ system, playtime, gameCount, focused, onCli
       onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onClick()}
       style={{
         padding: '20px 18px', borderRadius: 14, cursor: 'pointer',
+        display: 'flex', flexDirection: 'column',
         background: focused ? `rgba(${rgb}, 0.12)` : 'rgba(255,255,255,0.04)',
         border: focused ? `1px solid ${color}60` : '1px solid rgba(255,255,255,0.07)',
         transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
@@ -53,7 +54,9 @@ export default function SystemCard({ system, playtime, gameCount, focused, onCli
           )}
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {/* Two lines rather than an ellipsis: "Nintendo GameCube" was cut to
+              "Nintendo GameCu…" at 1080p, and shrinking the text is below the floor. */}
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', lineHeight: 1.2, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
             {system.label || system.platform || system.id}
           </div>
           <div style={{ fontSize: 14, fontWeight: 600, color: `color-mix(in srgb, ${color} 45%, #fff)`, marginTop: 3 }}>
@@ -67,8 +70,8 @@ export default function SystemCard({ system, playtime, gameCount, focused, onCli
         )}
       </div>
 
-      {/* Footer: game count + playtime */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      {/* Footer: game count + playtime, on one line across a row whatever the name's length */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 'auto' }}>
         <div>
           {system.kind !== 'app' && (
             <div style={{ fontSize: 15, color: 'var(--gc-ink-3)' }}>

@@ -24,7 +24,7 @@ def _load(pack_id):
     return m
 
 
-gens = {p: _load(p) for p in ("azahar", "mgba", "cemu", "gopher64")}
+gens = {p: _load(p) for p in ("azahar", "gba", "cemu", "gopher64")}
 
 
 def test_a_cemu_block_names_the_controller_it_was_made_for():
@@ -52,11 +52,11 @@ def test_mgba_captures_the_section_that_binds_buttons(tmp_path, monkeypatch):
            "gyroSensitivity=2,2e+09\n\n"
            "[ports.qt]\nsomething=1\n")
 
-    block = gens["mgba"].extract(ini)
+    block = gens["gba"].extract(ini)
     assert "keyA=0" in block and "keyL=9" in block, "the buttons must be in there"
     assert "gyroSensitivity" in block, "and the motion axes alongside"
-    assert gens["mgba"].replace(ini, block) == ini, "round-trip must not disturb the file"
-    assert "something=1" in gens["mgba"].replace(ini, block.replace("keyA=0", "keyA=2"))
+    assert gens["gba"].replace(ini, block) == ini, "round-trip must not disturb the file"
+    assert "something=1" in gens["gba"].replace(ini, block.replace("keyA=0", "keyA=2"))
 
 
 
@@ -380,7 +380,7 @@ def test_mgba_writes_its_two_halves_in_opposite_directions(wizard_mapped):
     `key<Name>=<sdl button>` names the GBA key and stores the pad's button,
     while `hat0<Dir>=<gba key id>` is the other way round. Writing one in the
     other's shape gives a file mGBA loads in silence and ignores."""
-    keys = gens["mgba"]._bindings_for(_Pad(), "")
+    keys = gens["gba"]._bindings_for(_Pad(), "")
 
     assert keys["keyA"] == "0" and keys["keyB"] == "1"
     assert keys["keyL"] == "4" and keys["keyR"] == "5"
@@ -397,7 +397,7 @@ def test_mgba_unbinds_what_the_pad_does_not_have(wizard_mapped):
     left out would KEEP whatever the previous controller — or the seed — put
     there. The box's own config still carries `keyUp=11` from an Xbox pad next
     to a DualShock 4's hat."""
-    keys = gens["mgba"]._bindings_for(_Pad(), "")
+    keys = gens["gba"]._bindings_for(_Pad(), "")
 
     assert keys["keyUp"] == "-1", "a hat D-pad must clear the button form"
 
@@ -409,7 +409,7 @@ def test_mgba_binds_the_stick_as_well_as_the_dpad(wizard_mapped, monkeypatch):
     reported working moves the character with the stick too, and a synthesis
     that emitted the axis lines only when there was no hat would have taken
     that away from every pad that has one."""
-    keys = gens["mgba"]._bindings_for(_Pad(), "")
+    keys = gens["gba"]._bindings_for(_Pad(), "")
 
     assert keys["axisLeftAxis"] == "-0" and keys["axisLeftValue"] == "-12288"
     assert keys["axisRightAxis"] == "+0" and keys["axisRightValue"] == "12288"
@@ -444,7 +444,7 @@ def test_the_wizards_indices_are_still_refused_for_a_hidapi_pad(wizard_mapped, m
     monkeypatch.setattr(controllers, "sdl2_probe",
                         lambda v, p, lib="": {"guid": DERIVE_GUID, "map": hidapi})
 
-    keys = gens["mgba"]._bindings_for(_Pad(), "")
+    keys = gens["gba"]._bindings_for(_Pad(), "")
     assert keys["keyL"] == "9" and keys["keyR"] == "10", (
         f"mGBA fell back to the capture's 4/5 rather than SDL's own: {keys}")
 
@@ -455,7 +455,7 @@ def test_a_pad_no_source_can_describe_is_refused(wizard_mapped, monkeypatch):
     monkeypatch.setattr(derive, "evdev_driven", lambda v, p: None)
     monkeypatch.setattr(controllers, "sdl2_probe", lambda v, p, lib="": {})
 
-    assert gens["mgba"]._bindings_for(_Pad(), "") is None
+    assert gens["gba"]._bindings_for(_Pad(), "") is None
 
 
 def test_a_capture_under_another_guid_is_not_this_emulators(wizard_mapped, monkeypatch):

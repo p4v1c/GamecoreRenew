@@ -1,0 +1,55 @@
+{
+  "id": "wii",
+  "kind": "emulator",
+  "label": "Nintendo Wii",
+  "emulatorName": "Dolphin",
+  "platform": "Wii",
+  "family": "Nintendo",
+  "color": "#1e88d0",
+  "sharesEmulator": "gamecube",
+  "order": 2,
+  "install": {
+    "provider": "flatpak",
+    "appIds": [
+      "org.DolphinEmu.dolphin-emu"
+    ]
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run @APPID@ -b"
+  },
+  "roms": {
+    "dir": "emu/wii",
+    "extensions": [
+      "*.iso",
+      "*.rvz",
+      "*.wbfs",
+      "*.wad",
+      "*.zip"
+    ]
+  },
+  "localMedia": {
+    "format": "gcwii",
+    "discTag": "wii"
+  },
+  "scraper": {
+    "tgdbId": 9,
+    "screenscraper": [
+      16
+    ],
+    "libretro": [
+      "Nintendo - Wii"
+    ],
+    "mediaAlias": [
+      "wii"
+    ]
+  },
+  "perGame": {
+    "supported": true,
+    "path": "@FLATPAK_DATA@/dolphin-emu/GameSettings/@GAMEID@.ini",
+    "format": "ini",
+    "key": "gcwii",
+    "settingsArgs": "run @APPID@",
+    "merge": "own-keys"
+  }
+}

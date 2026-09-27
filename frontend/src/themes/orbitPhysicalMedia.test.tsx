@@ -99,6 +99,14 @@ const loadsAs = async (img: HTMLImageElement, width: number, height: number) => 
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
+describe('what each system shipped on', () => {
+  it('knows each system split out of Dolphin and mGBA', async () => {
+    const { physicalKind } = await loadOrbit()
+    for (const id of ['gamecube', 'wii']) expect(physicalKind(id, 'Game.rvz')).toBe('disc')
+    for (const id of ['gb', 'gbc', 'gba']) expect(physicalKind(id, 'Game.zip')).toBe('cart')
+  })
+})
+
 describe('Orbit jackets', () => {
   it('replaces FIFA 19\'s wide scraper banner with its real box front', async () => {
     const list = vi.fn().mockResolvedValue(withArt('box-front'))

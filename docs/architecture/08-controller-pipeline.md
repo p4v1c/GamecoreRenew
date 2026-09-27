@@ -333,7 +333,9 @@ controller configs at all, plus a per-emulator exception behind an advanced row
 **One control point.** `backend/services/controller_autoconfig.py` answers
 `enabled_for(pack_id)`, and exactly one function consults it:
 `configgen.autoconfigured_packs()`, which splits `profilable_packs()` into the
-ones still ours to write and the ones left alone. Both halves of the write path —
+ones still ours to write and the ones left alone. A split pack keeps the owner's
+choice: `gamecube` also reads the record left under `dolphin`
+(`configgen.superseded_ids()`), and switching it back on clears both. Both halves of the write path —
 `apply_profile` and `release_profile` — go through it. **A generator never learns
 the switch exists**, which is what makes a pack added tomorrow obey it for free.
 
