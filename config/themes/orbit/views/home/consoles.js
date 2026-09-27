@@ -1,5 +1,5 @@
 import {
-  isApp, systemName, systemMark, systemMaker, systemYear, systemStory, accent, consoleArt,
+  isApp, systemName, systemTitle, systemMark, systemMaker, systemYear, systemStory, accent, consoleArt,
 } from '../../lib/catalog.js'
 import {reveal} from '../../lib/dom.js'
 
@@ -54,7 +54,7 @@ export function createConsolesTab({sdk, tabs, backdrop, Art, svg, hooks}) {
         <div className="console-story">
           <div className="console-kicker"><span className="console-maker">${systemMaker(s) || 'GameCore'}</span>
             <span>${systemYear(s)}</span><span className="dot" /><span>Console</span></div>
-          <h2>${systemName(s)}</h2>
+          <h2>${systemTitle(s)}</h2>
           <p>${systemStory(s)}</p>
           <div className="console-facts"><span>${counts[s.id] ?? 0} game${(counts[s.id] ?? 0) === 1 ? '' : 's'}</span>
             <span className="dot" /><span>${s.label || s.id}</span></div>

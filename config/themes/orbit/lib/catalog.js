@@ -121,6 +121,8 @@ const profile = (s) => {
 export const systemName = (s) => isApp(s)
   ? (s?.label || s?.id || 'Application')
   : s?.platform || profile(s)?.name || s?.label || s?.id || 'Collection'
+/** The console's full name for the showcase title ("Game Boy Color", not "GBC"). */
+export const systemTitle = (s) => (!isApp(s) && profile(s)?.name) || systemName(s)
 export const systemMark = (s) => profile(s)?.mark || (s?.label || s?.id || '?').slice(0, 6)
 export const systemMaker = (s) => profile(s)?.maker || ''
 export const systemYear = (s) => profile(s)?.year || ''
