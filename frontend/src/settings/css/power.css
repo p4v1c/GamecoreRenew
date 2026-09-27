@@ -14,7 +14,7 @@
   font-family: var(--font-body); color: var(--set-ink);
 }
 
-.gcs-pwr-title { font: 600 22px var(--font-display); color: var(--set-ink); margin: 0 4px 18px; }
+.gcs-pwr-title { font: 600 22px var(--font-display, var(--font-body)); color: var(--set-ink); margin: 0 4px 18px; }
 
 .gcs-pwr-list { display: flex; flex-direction: column; gap: 6px; }
 
@@ -49,7 +49,7 @@
 
 .gcs-pwr-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 
-.gcs-pwr-text b { font: 600 21px var(--font-display); }
+.gcs-pwr-text b { font: 600 21px var(--font-display, var(--font-body)); }
 
 .gcs-pwr-text i { font-style: normal; font-size: 16px; color: var(--set-ink-3); }
 

@@ -30,3 +30,9 @@ the pattern measured 1.8:1. Pad glyphs on paper: `--gc-pad-cross #2A55B8`,
 `-circle #C0303C`, `-square #A8307E`, `-triangle #0F6E52`; the dark drawer
 resets them. Settings: accent `#127A6D` (white on it 5.2:1), ink-3 at 0.66.
 Box spines and back-of-box fine print are art, exempt from the 14px floor.
+
+**Power / controller:** power is label strips pinned on the wall (no card):
+inked title strip, focus = brass tab and the strip slides 14 px; asking again
+uses danger ink `#9C1F28` (7.4:1 on card) with words, never colour alone.
+The controller screen is a manual page: black line art, parts lettered A–K,
+brass `--pd-lit` for what is pressed, ink `--pd-pos` for legend icons.

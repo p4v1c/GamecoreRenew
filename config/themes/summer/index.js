@@ -63,7 +63,7 @@ export default (sdk) => {
         libraryView=${LibraryView}
         settings=${Settings}
         screensaver=${Screensaver}
-        powerView=${createPowerView(sdk)}
+        powerView=${createPowerView(sdk, { skin: 'summer-power', layout: 'row' })}
         gamepadView=${createGamepadView(sdk)} />
     </div>`
 

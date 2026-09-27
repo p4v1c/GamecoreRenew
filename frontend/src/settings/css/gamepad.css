@@ -19,7 +19,7 @@
 .gcs-pad-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 18px; }
 .gcs-pad-id { min-width: 0; }
 .gcs-pad-eyebrow { font-size: 16px; color: var(--set-ink-3); }
-.gcs-pad-name { font: 700 34px var(--font-display); margin: 2px 0 4px; }
+.gcs-pad-name { font: 700 34px var(--font-display, var(--font-body)); margin: 2px 0 4px; }
 .gcs-pad-sub { font-size: 17px; color: var(--set-ink-2); }
 
 .gcs-pad-status {
@@ -46,7 +46,7 @@
   display: block; width: 100%; margin-top: 10px; padding: 14px 18px; text-align: left; cursor: pointer;
   border-radius: 12px; border: 2px solid var(--set-warn); background: none; font: inherit; color: var(--set-ink);
 }
-.gcs-pad-map > b { display: block; font: 700 24px var(--font-display); }
+.gcs-pad-map > b { display: block; font: 700 24px var(--font-display, var(--font-body)); }
 .gcs-pad-map > span { font-size: 17px; color: var(--set-ink-2); }
 
 .gcs-pad-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
@@ -57,7 +57,7 @@
 .gcs-pad-card[data-on="1"] { border-color: var(--pad-acc); background: rgba(var(--set-ink-rgb), 0.05); }
 .gcs-pad-player {
   width: 44px; height: 44px; border-radius: 10px; flex: none; display: grid; place-items: center;
-  font: 700 18px var(--font-display); background: rgba(var(--set-ink-rgb), 0.08);
+  font: 700 18px var(--font-display, var(--font-body)); background: rgba(var(--set-ink-rgb), 0.08);
 }
 .gcs-pad-card[data-on="1"] .gcs-pad-player { background: var(--pad-acc); color: #111; }
 .gcs-pad-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -108,7 +108,7 @@
 
 .gcs-pad-empty { text-align: center; padding: 10px 0 20px; }
 .gcs-pad-empty .gcs-pad-art { width: 560px; margin: 0 auto 24px; opacity: 0.3; }
-.gcs-pad-empty > b { display: block; font: 700 28px var(--font-display); }
+.gcs-pad-empty > b { display: block; font: 700 28px var(--font-display, var(--font-body)); }
 .gcs-pad-empty > p { margin: 8px 0 0; font-size: 18px; color: var(--set-ink-2); }
 
 /* A raw pad: its own numbering, lit as pressed, since positions would lie. */

@@ -36,7 +36,8 @@ import * as defaults from '../components/defaults'
 // 6 adds spatial library omissions, search/options callbacks and __all__ libraries.
 // 7 adds defaults.launchGame: a ROM can launch without navigating to Library.
 // 8 reserves gp:menu and gp:power for the host and drops libraryOmit 'options'.
-export const SDK_VERSION = 8
+// 9 adds defaults.GamepadView and the roster props of gamepadView (pads, pad, status…).
+export const SDK_VERSION = 9
 
 /**
  * Game or application, from the identity the launcher gave the session.

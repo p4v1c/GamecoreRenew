@@ -1,0 +1,26 @@
+/* The controller screen as an instruction-manual page pinned on the wall:
+   black line art on paper, parts lettered A to K with the key beside it, brass
+   for what is lit. The host's markup, DefaultGamepadView.tsx. */
+.shelf-pad.gcs-pad-scrim { place-items: end center; padding-bottom: 60px; background: rgba(40, 34, 26, 0.22); color: #17161A; }
+.shelf-pad .gcs-pad {
+  width: min(1440px, 94vw); padding: 40px 56px 28px; border-radius: 4px; border: none;
+  background: #FBFAF7; box-shadow: 0 2px 0 #d9d5cb, 0 24px 40px rgba(40, 30, 15, 0.25);
+  --set-ink: #17161A; --set-ink-rgb: 23, 22, 26; --set-ink-2: #3c3a40; --set-ink-3: #66646D;
+  --set-line: #cfcbc1; --set-ok: #127A6D; --set-warn: #9a5a00;
+  --pad-acc: #B8892B;
+  --pd-body: #FBFAF7; --pd-body-line: #17161A; --pd-part: #FBFAF7; --pd-line: #17161A;
+  --pd-lit: #B8892B; --pd-lit-line: #17161A; --pd-knob: #E7E4DC; --pd-label: #17161A;
+  --pd-callout: #17161A; --pd-callout-ink: #FBFAF7; --pd-pos: #17161A;
+}
+.shelf-pad .gcs-pad-head { border-bottom: 3px solid #17161A; padding-bottom: 14px; }
+.shelf-pad .gcs-pad-name { font-weight: 800; font-size: 40px; font-stretch: 80%; }
+.shelf-pad .gcs-pad-status { border-radius: 4px; border: 2px solid #17161A; }
+.shelf-pad .gcs-pad-card { border-radius: 4px; border-color: #bdb8ac; }
+.shelf-pad .gcs-pad-card[data-on="1"] { border: 2px solid #17161A; background: #E7E4DC; }
+.shelf-pad .gcs-pad-player { background: #fff; border: 2px solid #17161A; }
+.shelf-pad .gcs-pad-card[data-on="1"] .gcs-pad-player { background: #17161A; color: #FBFAF7; }
+.shelf-pad .gcs-pad-card-text em { color: #6e4f10; }
+.shelf-pad .gcs-pad-map { border-radius: 4px; }
+.shelf-pad .gcs-pad-remap { border-radius: 4px; border-color: #17161A; background: #fff; }
+.shelf-pad .gcs-pad-actions { border-top: 2px solid #17161A; }
+.shelf-pad .gcs-pad-action kbd { border-color: #17161A; }

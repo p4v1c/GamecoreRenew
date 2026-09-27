@@ -1,8 +1,8 @@
 {
   "id": "shelf",
   "name": "Shelf",
-  "version": "3.9.14",
-  "api": 4,
+  "version": "4.0.0",
+  "api": 9,
   "author": "Claude, from p4v1c's reference capture",
   "description": "Your library as boxed games on a papered wall — browse the spines, turn the box, slot the cartridge in",
   "boot": {

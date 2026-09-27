@@ -179,59 +179,6 @@
 }
 .cz-ctl-note b { color: #EDEAE3; font-weight: 500; }
 
-/* controller */
-.cz-pad-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
-.cz-pad-name { font-family: var(--font-display); font-size: 20px; font-weight: 700; }
-/* Automatic controller setup is off. Amber rather than red: nothing is broken,
-   somebody turned it off — but it has to outweigh a diagram that lights up
-   perfectly while no emulator answers the pad. */
-.cz-pad-notice {
-  margin: 8px 0 12px; padding: 9px 12px; border-radius: 8px;
-  background: rgba(251, 191, 36, 0.10);
-  border: 1px solid rgba(251, 191, 36, 0.35);
-  color: #fbbf24; font-size: 14px; line-height: 1.45;
-}
-.cz-pad-art { display: grid; place-items: center; min-height: 200px; position: relative; }
-/* Only the drawing fades: the message on top of it has to stay readable. */
-.cz-pad-art[data-off="1"] > .cz-pad-ghost { opacity: 0.3; }
-.cz-pad-empty {
-  position: absolute; inset: 0; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 6px; text-align: center;
-}
-.cz-pad-empty b { font-size: 16px; }
-.cz-pad-empty i { font-style: normal; font-size: 14px; color: rgba(237, 234, 227, 0.78); }
-.cz-pad-maps { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; margin-top: 14px; }
-.cz-pad-map { display: flex; align-items: center; gap: 10px; font-size: 14px; color: rgba(237, 234, 227, 0.7); }
-.cz-pad-map kbd {
-  display: inline-grid; place-items: center; min-width: 26px; height: 22px; padding: 0 7px;
-  border-radius: 6px; background: rgba(237, 234, 227, 0.1);
-  border: 1px solid var(--gc-overlay-border);
-  font-family: var(--font-mono); font-size: 14px; color: var(--gc-accent-bright);
-}
-.cz-pad-readout { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 10px; font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px; color: rgba(237, 234, 227, 0.78); }
-.cz-pad-readout b { color: var(--gc-accent-bright); font-weight: 500; }
-/* The battery segments are drawn for paper; on the drawer they invert. */
-.cz-pad-readout .cz-bat { display: inline-flex; vertical-align: middle; margin: 0 4px; }
-.cz-pad-readout .cz-bat > i { background: rgba(237, 234, 227, 0.22); }
-.cz-pad-readout .cz-bat > i[data-fill="1"] { background: var(--gc-accent-bright); }
-
-/* The way out for a pad none of the mappings above applies to. A controller
-   SDL cannot name lights nothing up in the diagram and matches none of the
-   bindings listed, so this screen is exactly where its owner ends up — and
-   until now this theme told them nothing they could act on. */
-.cz-pad-remap {
-  display: block; width: 100%; margin-top: 16px; padding: 11px 16px;
-  border: 1px solid var(--gc-overlay-border); border-radius: var(--r-chip);
-  background: rgba(237, 234, 227, 0.06); color: var(--paper);
-  font-family: var(--font-body); text-align: left; cursor: pointer;
-}
-.cz-pad-remap:hover { background: rgba(237, 234, 227, 0.12); }
-.cz-pad-remap b { display: block; font-size: 14px; font-weight: 500; }
-.cz-pad-remap i {
-  display: block; margin-top: 3px; font-style: normal; font-size: 14px;
-  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; color: rgba(237, 234, 227, 0.78);
-}
-
 /* themes */
 .cz-theme-dot {
   width: 13px; height: 13px; border-radius: 50%; flex: 0 0 auto;

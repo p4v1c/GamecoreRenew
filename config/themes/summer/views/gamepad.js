@@ -1,99 +1,11 @@
 /**
- * The controller screen — DESIGN-BRIEF.md §3.8.
+ * The controller screen, in sea glass over the ocean.
  *
- * The live diagram arrives ready-made and already bound to the pad, so this
- * file never touches the 60 fps state: it frames it. The brief's own layout —
- * eyebrow and pad name, diagram, a readout column on the right, mappings, hint
- * bar — in glass over the ocean.
- *
- * No gamepad bindings here, on purpose: on this screen every press is a test
- * and must only light up its counterpart. Leaving takes a double press of □,
- * which the host owns.
- *
- * `onRemap` opens the mapping wizard, and this file did not destructure it —
- * neither did shelf's. The button exists only in the fallback view, so on both
- * shipped themes the wizard was invisible; verified both ways, by setting
- * theme.json to `active: null` and watching it appear. For a controller SDL
- * cannot name that button is the only way to make the box usable, so a theme
- * leaving it out is not a style choice. The hold gesture in the hint bar is the
- * host's and works whatever a theme draws — this is the discoverable half.
- *
- * Props: frontend/src/components/modals/gamepad/types.ts
+ * The host's markup (`sdk.defaults.GamepadView`) dressed by css/controller.css:
+ * every prop passes through, so the diagram, the wizard and the hold gesture
+ * stay the host's. Props: frontend/src/components/modals/gamepad/types.ts
  */
-const SEGMENTS = 4
-const segsFor = (level) => Math.max(0, Math.min(SEGMENTS, Math.ceil((level || 0) / (100 / SEGMENTS))))
-
 export const createGamepadView = (sdk) => {
   const { html } = sdk.ui
-  // Controller button prompts from the host; plain text on an older host.
-  const PadKey = sdk.ui.PadKey || (({ k }) => html`<kbd>${k}</kbd>`)
-  const PadHints = sdk.ui.PadHints || (({ text }) => text)
-
-  return ({ name, layoutLabel, connected, controllers, glyphs, mappings, notice = '',
-            onClose, onRemap, Art }) => {
-    const pad = controllers[0]
-    const segs = pad ? segsFor(pad.level) : 0
-    return html`
-      <div class="sm-modal-wrap" onClick=${(e) => e.target === e.currentTarget && onClose()}>
-        <div class="sm-panel sm-gamepad">
-          <div class="sm-gamepad-head">
-            <span class="sm-panel-title sm-gamepad-eyebrow">Controller</span>
-            <b class="sm-gamepad-name">${name}</b>
-            ${pad ? html`<span class="sm-chip sm-gamepad-player">Player ${pad.player ?? 1}</span>` : null}
-          </div>
-
-          ${/* Above the diagram, because the diagram will look perfect: it
-                reads the pad straight from the Gamepad API and knows nothing
-                about whether any emulator was configured for it. Destructured
-                here rather than left out — the same lesson as onRemap above. */''}
-          ${notice ? html`<div class="sm-gamepad-notice">${notice}</div>` : null}
-
-          <div class="sm-gamepad-body">
-            <div class="sm-gamepad-art" data-off=${connected ? '0' : '1'}>
-              <div aria-hidden=${connected ? null : 'true'}><${Art} /></div>
-              ${connected ? null : html`
-                <div class="sm-gamepad-empty">
-                  <b>No controller detected</b>
-                  <i>Pair a pad over Bluetooth or plug it in</i>
-                </div>`}
-            </div>
-
-            <div class="sm-gamepad-readout">
-              <span class="sm-gamepad-cap">Layout</span>
-              <b class="sm-gamepad-val">${layoutLabel}</b>
-
-              <span class="sm-gamepad-cap">Battery</span>
-              ${pad ? html`
-                <div class="sm-gamepad-bat">
-                  <span class="sm-bat">
-                    ${Array.from({ length: SEGMENTS }, (_, k) => html`
-                      <i key=${k} data-fill=${k < segs ? '1' : '0'} />`)}
-                  </span>
-                  <b class="sm-gamepad-pct">${pad.level}%</b>
-                </div>
-                ${pad.charging ? html`<span class="sm-gamepad-charging">Charging</span>` : null}`
-              : html`<b class="sm-gamepad-val sm-gamepad-na">Battery n/a</b>`}
-            </div>
-          </div>
-
-          <div class="sm-gamepad-maps">
-            ${mappings.map(([key, action]) => html`
-              <div key=${key} class="sm-gamepad-map">
-                <${PadKey} k=${key} /><span>${action}</span>
-              </div>`)}
-          </div>
-
-          ${onRemap ? html`
-            <button class="sm-gamepad-remap" onClick=${onRemap}>
-              <b>Buttons wrong or dead? Map this controller.</b>
-              <i>Hold ${glyphs.top}. About a minute, no keyboard.</i>
-            </button>` : null}
-
-          <div class="sm-hint sm-hint-modal">
-            Press any button to test it. Hold ${glyphs.top} to remap,
-            ${glyphs.left} twice to close.
-          </div>
-        </div>
-      </div>`
-  }
+  return (props) => html`<${sdk.defaults.GamepadView} ...${props} skin="summer-pad" />`
 }

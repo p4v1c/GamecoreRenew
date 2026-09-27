@@ -1,8 +1,8 @@
 {
   "id": "summer",
   "name": "Summer",
-  "version": "3.2.7",
-  "api": 4,
+  "version": "3.3.0",
+  "api": 9,
   "author": "Claude design · ported by Claude Code",
   "description": "A WebGL ocean that tracks the real sun, under glass panels",
   "boot": {
