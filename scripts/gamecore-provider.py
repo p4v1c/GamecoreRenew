@@ -28,7 +28,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from backend.services.catalog import load_catalog          # noqa: E402
+from backend.services.catalog import load_catalog, selected  # noqa: E402
 from backend.services.installer import AppContext, apply, enabled_units  # noqa: E402
 from backend.services.installer.applier import start_services  # noqa: E402
 
@@ -70,9 +70,8 @@ def main() -> int:
     if wanted is None and args.select and args.select.strip() != "all":
         wanted = set(args.select.split())
 
-    chosen = [p for p in sorted(packs.values(), key=lambda p: p.id)
-              if (wanted is None or p.id in wanted)
-              and (args.kind is None or p.kind == args.kind)]
+    chosen = [p for p in selected(packs, wanted)
+              if args.kind is None or p.kind == args.kind]
 
     if wanted:
         for missing in sorted(wanted - {p.id for p in chosen}):

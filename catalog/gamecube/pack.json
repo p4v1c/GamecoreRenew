@@ -1,16 +1,11 @@
 {
-  "id": "dolphin",
+  "id": "gamecube",
   "kind": "emulator",
-  "label": "GameCube / Wii",
+  "label": "Nintendo GameCube",
   "emulatorName": "Dolphin",
-  "platform": "GameCube/Wii",
+  "platform": "GameCube",
   "family": "Nintendo",
   "color": "#ff8c00",
-  "sharesEmulator": "gamecube",
-  "supersededBy": [
-    "gamecube",
-    "wii"
-  ],
   "order": 2,
   "install": {
     "provider": "flatpak",
@@ -23,32 +18,16 @@
     "args": "run @APPID@ -b"
   },
   "roms": {
-    "dir": "emu/dolphin",
+    "dir": "emu/gamecube",
     "extensions": [
       "*.iso",
       "*.gcm",
       "*.rvz",
-      "*.wbfs",
-      "*.wad",
       "*.zip"
-    ],
-    "consoles": [
-      {
-        "id": "gamecube",
-        "label": "GameCube",
-        "extensions": [
-          "*.gcm"
-        ]
-      },
-      {
-        "id": "wii",
-        "label": "Wii",
-        "extensions": [
-          "*.wbfs",
-          "*.wad"
-        ]
-      }
     ]
+  },
+  "config": {
+    "dest": "@FLATPAK_CONFIG@/dolphin-emu"
   },
   "usb": [
     {
@@ -59,6 +38,18 @@
       "note": "Dolphin drives this adapter over raw libusb, so it never appears as a controller anywhere else on the box — not in the player slots, not in any other emulator. Check the cable, and that the switch on the adapter is on Wii U rather than PC."
     }
   ],
+  "controllers": {
+    "maxPlayers": 4,
+    "order": 5,
+    "strategy": "rewrite-device-line",
+    "target": [
+      "GCPadNew.ini",
+      "WiimoteNew.ini"
+    ],
+    "seedMustNotContain": [
+      "^Device = (?:SDL|evdev)/"
+    ]
+  },
   "localMedia": {
     "format": "gcwii",
     "discTag": "wii"
@@ -66,16 +57,13 @@
   "scraper": {
     "tgdbId": 2,
     "screenscraper": [
-      13,
-      16
+      13
     ],
     "libretro": [
-      "Nintendo - GameCube",
-      "Nintendo - Wii"
+      "Nintendo - GameCube"
     ],
     "mediaAlias": [
-      "gamecube",
-      "wii"
+      "gamecube"
     ]
   },
   "perGame": {

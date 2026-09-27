@@ -110,7 +110,7 @@ def test_the_numeric_suffix_is_not_the_player_number(box):
     ch.run_scenario(cp, next(s for s in ch.SCENARIOS if s.name == "ds4-in-slot-2"))
     snap = ch.snapshot(box)
     assert "Device: PS4 Controller 1" in snap["rpcs3"]["Default.yml"]
-    assert "Device = SDL/0/PS4 Controller" in snap["dolphin"]["GCPadNew.ini"]
+    assert "Device = SDL/0/PS4 Controller" in snap["gamecube"]["GCPadNew.ini"]
 
 
 def test_a_mixed_roster_gives_both_pads_index_zero(box):
@@ -182,8 +182,8 @@ def test_releasing_player_two_does_not_disturb_player_one(box):
     """release_profile resets the leaving slot and only that slot."""
     ch.run_scenario(cp, next(s for s in ch.SCENARIOS if s.name == "two-mixed"))
     p1_before = cp.section(
-        (box / ch.SEED_DEST["dolphin"] / "GCPadNew.ini").read_text(), "GCPad1")
+        (box / ch.SEED_DEST["gamecube"] / "GCPadNew.ini").read_text(), "GCPad1")
     cp.release_profile(2)
     p1_after = cp.section(
-        (box / ch.SEED_DEST["dolphin"] / "GCPadNew.ini").read_text(), "GCPad1")
+        (box / ch.SEED_DEST["gamecube"] / "GCPadNew.ini").read_text(), "GCPad1")
     assert p1_before == p1_after

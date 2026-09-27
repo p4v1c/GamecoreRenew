@@ -84,8 +84,8 @@ def test_readme_extensions_match_systems_dist(sid):
     ("duckstation", "*.chd"),
     ("duckstation", "*.pbp"),
     ("azahar", "*.cia"),
-    ("dolphin", "*.wbfs"),
-    ("dolphin", "*.wad"),
+    ("wii", "*.wbfs"),
+    ("wii", "*.wad"),
     ("pcsx2", "*.chd"),
     ("ppsspp", "*.pbp"),
 ])
@@ -93,8 +93,9 @@ def test_known_missing_extensions_are_declared(sid, ext):
     assert ext in systems(DIST)[sid]["extensions"]
 
 
-def test_dolphin_does_not_declare_a_format_that_does_not_exist():
-    assert "*.wii" not in systems(DIST)["dolphin"]["extensions"]
+@pytest.mark.parametrize("sid", ["gamecube", "wii"])
+def test_dolphin_does_not_declare_a_format_that_does_not_exist(sid):
+    assert "*.wii" not in systems(DIST)[sid]["extensions"]
 
 
 def test_a_multitrack_ps1_dump_shows_the_cue_and_the_tracks():
@@ -108,7 +109,7 @@ def test_a_multitrack_ps1_dump_shows_the_cue_and_the_tracks():
 
 def test_matches_ext_is_case_insensitive():
     from backend.services.rom_scanner import matches_ext
-    exts = systems(DIST)["dolphin"]["extensions"]
+    exts = systems(DIST)["gamecube"]["extensions"]
     assert matches_ext("Melee.ISO", exts)
     assert not matches_ext("readme.txt", exts)
 
@@ -122,11 +123,12 @@ if __name__ == "__main__":
         test_readme_extensions_match_systems_dist(_sid)
         print(f"[OK ] test_readme_extensions_match_systems_dist[{_sid}]")
     for _sid, _ext in (("duckstation", "*.cue"), ("duckstation", "*.chd"), ("duckstation", "*.pbp"),
-                       ("azahar", "*.cia"), ("dolphin", "*.wbfs"), ("dolphin", "*.wad"),
+                       ("azahar", "*.cia"), ("wii", "*.wbfs"), ("wii", "*.wad"),
                        ("pcsx2", "*.chd"), ("ppsspp", "*.pbp")):
         test_known_missing_extensions_are_declared(_sid, _ext)
         print(f"[OK ] test_known_missing_extensions_are_declared[{_sid},{_ext}]")
-    test_dolphin_does_not_declare_a_format_that_does_not_exist()
+    for _sid in ("gamecube", "wii"):
+        test_dolphin_does_not_declare_a_format_that_does_not_exist(_sid)
     print("[OK ] test_dolphin_does_not_declare_a_format_that_does_not_exist")
     test_a_multitrack_ps1_dump_shows_the_cue_and_the_tracks()
     print("[OK ] test_a_multitrack_ps1_dump_shows_the_cue_and_the_tracks")

@@ -38,7 +38,8 @@ You navigate with a gamepad, launch emulators, and never touch a keyboard.
 
 | ID | Emulator | System |
 |----|----------|--------|
-| `dolphin` | Dolphin | GameCube / Wii |
+| `gamecube` | Dolphin | Nintendo GameCube |
+| `wii` | Dolphin | Nintendo Wii |
 | `duckstation` | DuckStation | PlayStation 1 |
 | `pcsx2` | PCSX2 | PlayStation 2 |
 | `rpcs3` | RPCS3 | PlayStation 3 |
@@ -46,7 +47,9 @@ You navigate with a gamepad, launch emulators, and never touch a keyboard.
 | `cemu` | Cemu | Wii U |
 | `ryujinx` | Ryujinx | Nintendo Switch |
 | `azahar` | Azahar | Nintendo 3DS |
-| `mgba` | mGBA | Game Boy Advance |
+| `gb` | mGBA | Game Boy |
+| `gbc` | mGBA | Game Boy Color |
+| `gba` | mGBA | Game Boy Advance |
 | `melonds` | melonDS | Nintendo DS |
 | `gopher64` | Rosalie's Mupen GUI (Mupen64Plus core) | Nintendo 64 |
 | `xenia` | Xenia Canary | Xbox 360 |
@@ -227,7 +230,7 @@ If no ROMs are found, the library will be empty until you add some (see below).
 
 ## Adding ROMs
 
-ROMs are stored in `emu/<system_id>/` folders (e.g. `emu/melonds/`, `emu/dolphin/`).
+ROMs are stored in `emu/<system_id>/` folders (e.g. `emu/melonds/`, `emu/gamecube/`).
 
 **Option 1 — ROM Manager addon (recommended)**  
 The ROM Manager ships as an addon (installed by default by the installer —
@@ -254,7 +257,8 @@ regenerated from `install/generated/systems.json.dist` on every install;
 
 | System | Folder | Extensions |
 |--------|--------|-----------|
-| GameCube / Wii | `emu/dolphin/` | `.iso` `.gcm` `.rvz` `.wbfs` `.wad` `.zip` |
+| Nintendo GameCube | `emu/gamecube/` | `.iso` `.gcm` `.rvz` `.zip` |
+| Nintendo Wii | `emu/wii/` | `.iso` `.rvz` `.wbfs` `.wad` `.zip` |
 | PlayStation | `emu/duckstation/` | `.bin` `.iso` `.img` `.cue` `.chd` `.pbp` `.zip` |
 | PlayStation 2 | `emu/pcsx2/` | `.iso` `.bin` `.chd` `.zip` |
 | PlayStation 3 | `emu/rpcs3/` | disc-game **folders** (scanned as directories). Updates/DLC are `.pkg`, installed via the RPCS3 manager addon |
@@ -264,7 +268,9 @@ regenerated from `install/generated/systems.json.dist` on every install;
 | Nintendo Switch | `emu/ryujinx/` | `.xci` `.nsp` `.zip` |
 | Nintendo 3DS | `emu/azahar/` | `.3ds` `.cia` `.zip` |
 | Nintendo DS | `emu/melonds/` | `.nds` `.zip` |
-| Game Boy Advance | `emu/mgba/` | `.gba` `.gbc` `.gb` `.zip` |
+| Game Boy | `emu/gb/` | `.gb` `.zip` |
+| Game Boy Color | `emu/gbc/` | `.gbc` `.zip` |
+| Game Boy Advance | `emu/gba/` | `.gba` `.zip` |
 | Nintendo 64 | `emu/gopher64/` | `.n64` `.z64` `.v64` `.zip` |
 | Xbox 360 | `emu/xenia/` | `.iso` `.xex` |
 | Super Nintendo | `emu/snes9x/` | `.sfc` `.smc` `.fig` `.swc` `.jma` `.zip` `.gd3` `.gz` `.bs` |
@@ -470,11 +476,12 @@ magick your_image.png \
 
 | System | Native ratio | Hole `<W>x<H>` at `+<X>+<Y>` | Black bars |
 |--------|-------------|------------------------------|-----------|
-| GameCube / Wii (`dolphin`) | 4:3 | `1440x1080` at `+240+0` | 240px each side |
+| GameCube / Wii (`gamecube`, `wii`) | 4:3 | `1440x1080` at `+240+0` | 240px each side |
 | PlayStation 1 (`duckstation`) | 4:3 minus PS1 overscan | `1440x968` at `+240+52` | 240px sides, 52px top, 60px bottom |
 | PlayStation 2 (`pcsx2`) | 4:3 | `1440x1080` at `+240+0` | 240px each side |
 | Nintendo 64 (`gopher64`, Rosalie's Mupen GUI) | measured, not 4:3 | `1407x888` at `+258+90` | 258px sides, 90px top, 102px bottom |
-| Game Boy Advance (`mgba`) | 3:2 (240×160) | `1620x1080` at `+150+0` | 150px each side |
+| Game Boy Advance (`gba`) | 3:2 (240×160) | `1620x1080` at `+150+0` | 150px each side |
+| Game Boy / Color (`gb`, `gbc`) | 10:9 (160×144) | `1200x1080` at `+360+0` | 360px each side |
 | Nintendo DS (`melonds`) | 2:3 vertical (2 stacked screens) | `720x1080` at `+600+0` | 600px each side |
 | Nintendo 3DS (`azahar`) | Stacked (Top 5:3, Bot 4:3) | Two holes (see below) | Variable |
 
@@ -494,7 +501,7 @@ magick artwork.png \
   -background "rgb(0,0,0)" -flatten \
   -resize 1920x1080! \
   \( -size 1440x1080 xc:black \) -geometry +240+0 -compose DstOut -composite \
-  assets/overlays/pcsx2.png     # or gopher64.png / dolphin.png
+  assets/overlays/pcsx2.png     # or gopher64.png / gamecube.png / wii.png
 ```
 
 **Example — PlayStation 1 (DuckStation):**
@@ -526,11 +533,11 @@ checks that the shipped bezels and their declared holes agree.
 
 **Example — Game Boy Advance (3:2):**
 ```bash
-magick mgba.jpg \
+magick gba.jpg \
   -background "rgb(0,0,0)" -flatten \
   -resize 1920x1080! \
   \( -size 1620x1080 xc:black \) -geometry +150+0 -compose DstOut -composite \
-  assets/overlays/mgba.png
+  assets/overlays/gba.png
 ```
 
 **Example — Nintendo DS (stacked screens):**
@@ -837,7 +844,7 @@ config/           never touched by OTA. Two kinds of file live here:
   themes/         installed themes — an update adds ones you do not have,
                   and never touches ones you do
 assets/           logos/, overlays/
-emu/              ROMs per system (emu/dolphin/, emu/melonds/…), covers/ cache,
+emu/              ROMs per system (emu/gamecube/, emu/melonds/…), covers/ cache,
                   gamemedia/ manifests + artwork, gamescrape/ LaunchBox index
 catalog/          THE source of truth — one directory per emulator or app:
                   pack.json (declaration), logo.png, seed/ (curated config),

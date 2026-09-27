@@ -13,7 +13,7 @@ Four families of check:
              matches its own `seedMustNotContain`, and no seed carries a
              harvest-box absolute path
   coherence  no two packs claim the same ROM directory or any of the same
-             Flatpak app ids, no launcher spells an app id out instead of
+             Flatpak app ids (unless one `sharesEmulator` with the other), no launcher spells an app id out instead of
              using @APPID@, and @FLATPAK_CONFIG@ is only used by a Flatpak pack
 
 The last one is what makes the gopher64 class of bug structurally impossible:
@@ -86,7 +86,7 @@ def check(only: str | None = None) -> list[str]:
     schema = load_schema(SCHEMA)
     problems: list[str] = []
     seen_roms: dict[str, str] = {}
-    seen_appids: dict[str, str] = {}
+    seen_appids: dict[str, tuple[str, str]] = {}
     found = False
 
     for d in _iter_packs(only):
@@ -169,11 +169,14 @@ def check(only: str | None = None) -> list[str]:
         # the second one's seed overwriting the first one's config, on the day
         # the primary dies and nowhere before it. Uniqueness has to hold across
         # the whole list or it does not hold at all.
+        # Packs of ONE emulator (`sharesEmulator`: GameCube and Wii on Dolphin)
+        # share its id by design; `_shared_emulator_problems` checks the link.
+        owner = pack.get("sharesEmulator") or pid
         for candidate in app_ids:
-            if candidate in seen_appids:
+            if candidate in seen_appids and seen_appids[candidate][1] != owner:
                 problems.append(f"{pid}: Flatpak app id {candidate} already claimed "
-                                f"by {seen_appids[candidate]}")
-            seen_appids[candidate] = pid
+                                f"by {seen_appids[candidate][0]}")
+            seen_appids.setdefault(candidate, (pid, owner))
 
         # A launcher may name the token or nothing, never a literal id: a
         # hardcoded id is the half of the bug that survives a corrected
@@ -268,6 +271,48 @@ def check(only: str | None = None) -> list[str]:
 
     if only and not found:
         problems.append(f"no pack named {only!r} in {CATALOG}")
+    problems += [p for p in _shared_emulator_problems()
+                 if not only or p.startswith(f"{only}:")]
+    return problems
+
+
+# What only the emulator's owner may carry: they write the emulator's own files,
+# and two packs writing them would overwrite each other on every pad plug.
+OWNER_ONLY = ("config", "controllers")
+OWNER_ONLY_FILES = ("seed", "generator.py")
+
+
+def _shared_emulator_problems() -> list[str]:
+    """`sharesEmulator` and `supersededBy` point at real packs, the right way round."""
+    packs = {}
+    for d in _iter_packs(None):
+        try:
+            packs[d.name] = (json.loads((d / "pack.json").read_text(encoding="utf-8")), d)
+        except (OSError, ValueError):
+            continue                     # already reported by the main pass
+    problems = []
+    for pid, (pack, d) in packs.items():
+        owner = pack.get("sharesEmulator")
+        if owner:
+            target = packs.get(owner, (None,))[0]
+            if target is None or target.get("sharesEmulator"):
+                problems.append(f"{pid}: sharesEmulator {owner!r} must name a pack "
+                                f"that owns its emulator")
+                continue
+            for key in ("install", "launch"):
+                if pack.get(key) != target.get(key):
+                    problems.append(f"{pid}: {key} differs from {owner!r} — one emulator "
+                                    f"is installed and launched one way")
+            for key in OWNER_ONLY:
+                if key in pack:
+                    problems.append(f"{pid}: {key} belongs to {owner!r}, which owns the emulator")
+            for name in OWNER_ONLY_FILES:
+                if (d / name).exists():
+                    problems.append(f"{pid}: {name} belongs to {owner!r}, which owns the emulator")
+        for succ in pack.get("supersededBy") or []:
+            target = packs.get(succ, (None,))[0]
+            if target is None or target.get("supersededBy"):
+                problems.append(f"{pid}: supersededBy {succ!r} must name a current pack")
     return problems
 
 

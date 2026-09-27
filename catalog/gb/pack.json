@@ -1,17 +1,12 @@
 {
-  "id": "mgba",
+  "id": "gb",
   "kind": "emulator",
-  "label": "Game Boy Advance",
+  "label": "Game Boy",
   "emulatorName": "mGBA",
-  "platform": "GBA",
+  "platform": "GB",
   "family": "Nintendo",
-  "color": "#96c800",
+  "color": "#8b956d",
   "sharesEmulator": "gba",
-  "supersededBy": [
-    "gba",
-    "gbc",
-    "gb"
-  ],
   "order": 10,
   "install": {
     "provider": "flatpak",
@@ -28,38 +23,10 @@
     }
   },
   "roms": {
-    "dir": "emu/mgba",
+    "dir": "emu/gb",
     "extensions": [
-      "*.gba",
-      "*.gbc",
       "*.gb",
       "*.zip"
-    ],
-    "consoles": [
-      {
-        "id": "gba",
-        "label": "Game Boy Advance",
-        "ratio": "3:2",
-        "extensions": [
-          "*.gba"
-        ]
-      },
-      {
-        "id": "gbc",
-        "label": "Game Boy Color",
-        "ratio": "10:9",
-        "extensions": [
-          "*.gbc"
-        ]
-      },
-      {
-        "id": "gb",
-        "label": "Game Boy",
-        "ratio": "10:9",
-        "extensions": [
-          "*.gb"
-        ]
-      }
     ]
   },
   "overlay": {
@@ -71,23 +38,17 @@
         "io.mgba.mGBA"
       ]
     },
-    "asset": "mgba.png"
+    "asset": "gb.png"
   },
   "scraper": {
-    "tgdbId": 5,
+    "tgdbId": 4,
     "screenscraper": [
-      12,
-      10,
       9
     ],
     "libretro": [
-      "Nintendo - Game Boy Advance",
-      "Nintendo - Game Boy Color",
       "Nintendo - Game Boy"
     ],
     "mediaAlias": [
-      "gba",
-      "gbc",
       "gb"
     ]
   },

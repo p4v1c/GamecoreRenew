@@ -42,9 +42,9 @@ def _load(pack_id):
     return m
 
 
-gen = _load("mgba")
+gen = _load("gba")
 
-SEED = (ROOT / "catalog" / "mgba" / "seed" / "config.ini").read_text()
+SEED = (ROOT / "catalog" / "gba" / "seed" / "config.ini").read_text()
 
 DS4 = ("054c", "09cc")
 XBOX = ("045e", "02fd")

@@ -56,8 +56,8 @@ def _run(script: str, **env: str) -> subprocess.CompletedProcess:
 def _checkout(root: Path) -> Path:
     """What arch.sh's PROJECT_ROOT holds: the repository's data-bearing files."""
     src = root / "checkout"
-    for rel in ("assets/overlays/gopher64.png", "assets/overlays/mgba.gba.png",
-                "assets/overlays/mgba.gb.png", "assets/overlays/mgba.gbc.png",
+    for rel in ("assets/overlays/gopher64.png", "assets/overlays/gba.png",
+                "assets/overlays/gb.png", "assets/overlays/gbc.png",
                 "config/overlays.json", "config/systems.json",
                 "config/catalog.d/README.md", "assets/logos/README.md",
                 "config/themes/shelf/theme.json", "frontend/src/assets/logo.png"):
@@ -92,7 +92,7 @@ def test_a_fresh_split_install_gets_its_bezels_and_geometry(tmp_path):
     _seed(src, data)
 
     assert (data / "assets/overlays/gopher64.png").is_file()
-    assert (data / "assets/overlays/mgba.gba.png").is_file()
+    assert (data / "assets/overlays/gba.png").is_file()
     assert (data / "config/overlays.json").is_file()
     assert (data / "config/themes/shelf/theme.json").is_file()
     assert (data / "config/catalog.d/README.md").is_file()
@@ -112,7 +112,7 @@ def test_the_seeded_tree_resolves_a_bezel(tmp_path, monkeypatch):
     consoles.forget()
     try:
         assert bezels.for_launch("gopher64", "Mario Kart 64.z64")["source"] == "system"
-        assert bezels.for_launch("mgba", "Emerald.gba")["source"] == "console"
+        assert bezels.for_launch("gba", "Emerald.gba")["source"] == "system"
         # And the geometry Electron reads before starting the overlay monitor
         # at all — `if (!cfg) return` — is in the tree the backend serves.
         assert "gopher64" in json.loads((data / "config/overlays.json").read_text())

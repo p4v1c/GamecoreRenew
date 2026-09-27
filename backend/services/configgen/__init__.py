@@ -171,6 +171,12 @@ def profilable_packs(packs: dict) -> list:
                   key=lambda p: (p.data["controllers"].get("order", 10_000), p.id))
 
 
+def superseded_ids(packs: dict, pack_id: str) -> tuple[str, ...]:
+    """The old ids this pack's emulator switch was recorded under (gamecube ← dolphin)."""
+    return tuple(sorted(p.id for p in packs.values()
+                        if p.superseded_by and p.emulator_owner == pack_id))
+
+
 def autoconfigured_packs(packs: dict) -> tuple[list, list]:
     """`profilable_packs`, split by whether the owner still lets us write it.
 
@@ -194,7 +200,8 @@ def autoconfigured_packs(packs: dict) -> tuple[list, list]:
     """
     on, off = [], []
     for pack in profilable_packs(packs):
-        (on if controller_autoconfig.enabled_for(pack.id) else off).append(pack)
+        aliases = superseded_ids(packs, pack.id)
+        (on if controller_autoconfig.enabled_for(pack.id, aliases) else off).append(pack)
     return on, off
 
 
@@ -468,7 +475,8 @@ def set_autoconfig(enabled: bool, pack_id: str | None = None) -> list[str]:
     if not enabled:
         released = release_owned_slots([pack_id] if pack_id else None)
     if pack_id:
-        controller_autoconfig.set_pack(pack_id, enabled)
+        controller_autoconfig.set_pack(pack_id, enabled,
+                                       superseded_ids(load_catalog(), pack_id))
     else:
         controller_autoconfig.set_enabled(enabled)
     return released

@@ -39,43 +39,23 @@
     ]
   },
   {
-    "id": "dolphin",
+    "id": "gamecube",
     "type": "emulator",
-    "label": "GameCube / Wii",
-    "platform": "GameCube/Wii",
+    "label": "Nintendo GameCube",
+    "platform": "GameCube",
     "color": "#ff8c00",
-    "iconPath": "assets/logos/dolphin.png",
+    "iconPath": "assets/logos/gamecube.png",
     "path": "flatpak",
     "args": "run @APPID@ -b",
-    "romsPath": "emu/dolphin/",
+    "romsPath": "emu/gamecube/",
     "extensions": [
       "*.iso",
       "*.gcm",
       "*.rvz",
-      "*.wbfs",
-      "*.wad",
       "*.zip"
     ],
-    "consoles": [
-      {
-        "id": "gamecube",
-        "label": "GameCube",
-        "extensions": [
-          "*.gcm"
-        ]
-      },
-      {
-        "id": "wii",
-        "label": "Wii",
-        "extensions": [
-          "*.wbfs",
-          "*.wad"
-        ]
-      }
-    ],
     "libretroSystems": [
-      "Nintendo - GameCube",
-      "Nintendo - Wii"
+      "Nintendo - GameCube"
     ],
     "usb": [
       {
@@ -84,6 +64,27 @@
         "label": "GameCube controller adapter",
         "note": "Dolphin drives this adapter over raw libusb, so it never appears as a controller anywhere else on the box — not in the player slots, not in any other emulator. Check the cable, and that the switch on the adapter is on Wii U rather than PC."
       }
+    ]
+  },
+  {
+    "id": "wii",
+    "type": "emulator",
+    "label": "Nintendo Wii",
+    "platform": "Wii",
+    "color": "#8fb8d8",
+    "iconPath": "assets/logos/wii.png",
+    "path": "flatpak",
+    "args": "run @APPID@ -b",
+    "romsPath": "emu/wii/",
+    "extensions": [
+      "*.iso",
+      "*.rvz",
+      "*.wbfs",
+      "*.wad",
+      "*.zip"
+    ],
+    "libretroSystems": [
+      "Nintendo - Wii"
     ]
   },
   {
@@ -232,51 +233,57 @@
     ]
   },
   {
-    "id": "mgba",
+    "id": "gb",
+    "type": "emulator",
+    "label": "Game Boy",
+    "platform": "GB",
+    "color": "#8b956d",
+    "iconPath": "assets/logos/gb.png",
+    "path": "/usr/bin/mgba-qt",
+    "args": "--fullscreen",
+    "romsPath": "emu/gb/",
+    "extensions": [
+      "*.gb",
+      "*.zip"
+    ],
+    "libretroSystems": [
+      "Nintendo - Game Boy"
+    ]
+  },
+  {
+    "id": "gba",
     "type": "emulator",
     "label": "Game Boy Advance",
     "platform": "GBA",
     "color": "#96c800",
-    "iconPath": "assets/logos/mgba.png",
+    "iconPath": "assets/logos/gba.png",
     "path": "/usr/bin/mgba-qt",
     "args": "--fullscreen",
-    "romsPath": "emu/mgba/",
+    "romsPath": "emu/gba/",
     "extensions": [
       "*.gba",
-      "*.gbc",
-      "*.gb",
       "*.zip"
     ],
-    "consoles": [
-      {
-        "id": "gba",
-        "label": "Game Boy Advance",
-        "ratio": "3:2",
-        "extensions": [
-          "*.gba"
-        ]
-      },
-      {
-        "id": "gbc",
-        "label": "Game Boy Color",
-        "ratio": "10:9",
-        "extensions": [
-          "*.gbc"
-        ]
-      },
-      {
-        "id": "gb",
-        "label": "Game Boy",
-        "ratio": "10:9",
-        "extensions": [
-          "*.gb"
-        ]
-      }
+    "libretroSystems": [
+      "Nintendo - Game Boy Advance"
+    ]
+  },
+  {
+    "id": "gbc",
+    "type": "emulator",
+    "label": "Game Boy Color",
+    "platform": "GBC",
+    "color": "#6a5acd",
+    "iconPath": "assets/logos/gbc.png",
+    "path": "/usr/bin/mgba-qt",
+    "args": "--fullscreen",
+    "romsPath": "emu/gbc/",
+    "extensions": [
+      "*.gbc",
+      "*.zip"
     ],
     "libretroSystems": [
-      "Nintendo - Game Boy Advance",
-      "Nintendo - Game Boy Color",
-      "Nintendo - Game Boy"
+      "Nintendo - Game Boy Color"
     ]
   },
   {

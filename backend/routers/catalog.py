@@ -121,6 +121,9 @@ def list_catalog():
             "restricted": sorted(p.stripped),
         }
         for p in sorted(packs.values(), key=lambda p: (p.kind, p.id))
+        # A superseded pack is offered to no one; listed only while its old
+        # tile is still on the grid, so the owner can see and remove it.
+        if not p.superseded_by or p.id in live
     ]
 
 

@@ -125,7 +125,8 @@ except (OSError, ValueError):
 rows = [{"id": p.id, "kind": p.kind, "label": p.data["label"],
          "platform": p.data["platform"], "origin": p.origin,
          "installed": p.id in live}
-        for p in sorted(packs.values(), key=lambda p: (p.kind, p.id))]
+        for p in sorted(packs.values(), key=lambda p: (p.kind, p.id))
+        if not p.superseded_by or p.id in live]
 
 if fmt == "--json":
     print(json.dumps(rows, indent=2, ensure_ascii=False))
@@ -191,7 +192,8 @@ from backend.services.catalog import load_catalog
 from backend.services.configgen import seed as seedlib
 
 packs = load_catalog(root / "catalog", data / "config" / "catalog.d")
-pack = packs[pack_id]
+# Wii has no seed of its own: Dolphin's belongs to gamecube, which owns the emulator.
+pack = packs[packs[pack_id].emulator_owner]
 home = Path("~" + user).expanduser()
 
 dest = configgen.resolve_config_dir(pack, home)

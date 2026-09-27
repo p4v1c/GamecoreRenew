@@ -98,7 +98,7 @@ class Step:
     know whether player 3 is still sitting there.
 
     `autoconfig` makes this step a flip of the switch instead: `(False, None)`
-    turns the whole thing off, `(False, "dolphin")` carves out one emulator.
+    turns the whole thing off, `(False, "gamecube")` carves out one emulator.
     It goes through `cp.set_autoconfig`, the same function the HTTP endpoint
     calls, because the ORDER inside it is the behaviour under test — the
     clean-up has to run while the switch is still on. A harness that persisted
@@ -239,7 +239,7 @@ SCENARIOS: tuple[Scenario, ...] = (
              "exception that quietly changed what the others produce would be "
              "a leak, not a feature",
              (Step("ds4", 1, 0),),
-             autoconfig={"enabled": True, "packs": {"dolphin": False}}),
+             autoconfig={"enabled": True, "packs": {"gamecube": False}}),
 
     Scenario("autoconfig-turned-off-after",
              "two pads configured, then the switch is turned off. The slots "
@@ -259,7 +259,7 @@ SCENARIOS: tuple[Scenario, ...] = (
 # the input, and comparing them would only restate the fixtures.
 WATCHED = {
     "ryujinx": [".var/app/io.github.ryubing.Ryujinx/config/Ryujinx/Config.json"],
-    "dolphin": [".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu/GCPadNew.ini",
+    "gamecube": [".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu/GCPadNew.ini",
                 ".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu/WiimoteNew.ini"],
     "rpcs3": [".var/app/net.rpcs3.RPCS3/config/rpcs3/input_configs/global/Default.yml"],
     "pcsx2": [".var/app/net.pcsx2.PCSX2/config/PCSX2/inis/PCSX2.ini"],
@@ -288,7 +288,7 @@ WATCHED = {
 # Where each pack's seed lands in the fake HOME.
 SEED_DEST = {
     "ryujinx": ".var/app/io.github.ryubing.Ryujinx/config/Ryujinx",
-    "dolphin": ".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu",
+    "gamecube": ".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu",
     "rpcs3": ".var/app/net.rpcs3.RPCS3/config/rpcs3",
     "pcsx2": ".var/app/net.pcsx2.PCSX2/config/PCSX2/inis",
     "duckstation": ".local/share/duckstation",
@@ -399,7 +399,7 @@ def install_stubs(cp, home: Path, monkeypatch) -> None:
     for attr, value in (
         ("HOME", home),
         ("RYUJINX_CFG", home / SEED_DEST["ryujinx"] / "Config.json"),
-        ("DOLPHIN_DIR", home / SEED_DEST["dolphin"]),
+        ("DOLPHIN_DIR", home / SEED_DEST["gamecube"]),
         ("DUCK_INI", home / SEED_DEST["duckstation"] / "settings.ini"),
         ("AZAHAR", home / "azahar-absent.ini"),
         ("CEMU_PROFILES", home / "cemu-absent"),

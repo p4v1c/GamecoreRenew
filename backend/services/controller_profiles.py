@@ -40,6 +40,7 @@ from .configgen import (
     release_owned_slots,
     release_profile,
     set_autoconfig,
+    superseded_ids,
 )
 from .configgen.controllers import (
     DB_FILE,
@@ -75,7 +76,7 @@ __all__ = [
     # the clean-up it runs before it turns itself off; the two pack lists are
     # what the settings screen lists and what it shows as effectively off.
     "set_autoconfig", "release_owned_slots", "autoconfigured_packs",
-    "profilable_packs", "can_release",
+    "profilable_packs", "can_release", "superseded_ids",
     # "can this pad be named at all" — the toast asks it on every arrival, so
     # the wizard is offered exactly where the player notices the pad is dead
     "identification",
