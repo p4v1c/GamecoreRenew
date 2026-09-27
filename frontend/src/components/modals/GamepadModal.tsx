@@ -1,15 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useStore } from '../../store'
-import { api, SysInfo, UsbDevice } from '../../api'
+import { api, SysInfo, UsbDevice, RosterPad } from '../../api'
 import { GP_BTN, onGp, useGamepadState } from '../../hooks/useGamepad'
 import { ControllerBattery } from '../TopBar'
-import ControllerArt, { ControllerLayout } from './gamepad/ControllerArt'
+import PadDiagram, { PadPosition } from './gamepad/PadDiagram'
 import DefaultGamepadView from './gamepad/DefaultGamepadView'
 import MappingWizard from './gamepad/MappingWizard'
-import type { GamepadViewProps } from './gamepad/types'
-
-// Ported from stremio-web's GamepadModal (□ toggles it there too), redrawn
-// to match GameCore's palette and its actual button mappings.
+import type { GamepadViewProps, PadAction } from './gamepad/types'
+import { buildPads, matchRoster, missingSentence, padStatus, presentControls, pressedControls } from '../../lib/padLayout'
 
 /**
  * How long △ must be held on this screen to open the mapping wizard.
@@ -34,22 +32,27 @@ import type { GamepadViewProps } from './gamepad/types'
  */
 const REMAP_HOLD_MS = 1000
 
-function detectControllerType(): { type: ControllerLayout; name: string } {
-  const gp = navigator.getGamepads?.().find(g => g !== null)
-  if (!gp) return { type: 'generic', name: 'No controller detected' }
-  const id = gp.id.toLowerCase()
-  // Sony vendor id 054c — DualShock / DualSense / generic PlayStation
-  if (/sony|playstation|dualsense|dualshock|054c/.test(id)) return { type: 'playstation', name: gp.id }
-  // Microsoft vendor id 045e — Xbox / XInput (standard mapping mirrors it)
-  if (/xbox|microsoft|xinput|045e/.test(id) || gp.mapping === 'standard') return { type: 'xbox', name: gp.id }
-  return { type: 'generic', name: gp.id }
-}
+// What the buttons do across GameCore, by position. The pad-glyph hints
+// elsewhere keep their PlayStation symbols; this screen names positions
+// because it is the one place every pad is drawn the same way.
+const ACTIONS: PadAction[] = [
+  { pos: 'south', label: 'Bottom', action: 'Select and play' },
+  { pos: 'east', label: 'Right', action: 'Back' },
+  { pos: 'north', label: 'Top', action: 'Search the library' },
+  { pos: 'west', label: 'Left', action: 'This screen' },
+  { keys: ['Start'], action: 'Settings' },
+  { keys: ['Select'], action: 'Power menu' },
+  { keys: ['L1', 'R1'], action: 'Pages and sorting' },
+  { keys: ['Home ×2'], action: 'Suspend the game' },
+]
 
-const GLYPHS: Record<ControllerLayout, { top: string; right: string; bottom: string; left: string; lb: string; rb: string; menu: string; power: string }> = {
-  playstation: { top: '△', right: '○', bottom: '✕', left: '□', lb: 'L1', rb: 'R1', menu: 'Options', power: 'Share' },
-  xbox:        { top: 'Y', right: 'B', bottom: 'A', left: 'X', lb: 'LB', rb: 'RB', menu: 'Menu',    power: 'View'  },
-  generic:     { top: '△', right: '○', bottom: '✕', left: '□', lb: 'L1', rb: 'R1', menu: 'Options', power: 'Share' },
-}
+// Kept for themes written before SDK 9, which read `glyphs` and `mappings`.
+const LEGACY_GLYPHS = { top: '△', right: '○', bottom: '✕', left: '□', lb: 'L1', rb: 'R1', menu: 'Options', power: 'Share' }
+const LEGACY_MAPPINGS: [string, string][] = [
+  ['D-Pad / L-stick', 'Navigate'], ['✕', 'Select and play'], ['○', 'Back'],
+  ['△', 'Search games (library)'], ['□', 'This screen'], ['Options', 'Settings'],
+  ['Share', 'Power menu'], ['L1 / R1', 'Pages and sorting'], ['PS ×2', 'Quit running game'],
+]
 
 export default function GamepadModal({ onClose, startInWizard = false, view: View = DefaultGamepadView }: {
   onClose: () => void
@@ -58,7 +61,7 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
   view?: React.ComponentType<GamepadViewProps>
 }) {
   const { openModal, closeModal } = useStore()
-  const [ctrl, setCtrl] = useState(detectControllerType)
+  const [roster, setRoster] = useState<RosterPad[]>([])
   const [sysInfo, setSysInfo] = useState<SysInfo | null>(null)
   const [usbDevices, setUsbDevices] = useState<UsbDevice[]>([])
   const [wizard, setWizard] = useState(startInWizard)
@@ -74,8 +77,8 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
   useEffect(() => {
     api.sysinfo().then(setSysInfo).catch(() => {})
     api.controllers.autoconfig().then(a => setAutoOff(!a.enabled)).catch(() => {})
-    const refresh = () => setCtrl(detectControllerType())
-    const offs = [onGp('gp:connected', refresh), onGp('gp:disconnected', refresh)]
+    const readRoster = () => api.controllers.pads().then(r => setRoster(r.pads ?? [])).catch(() => {})
+    const offs = [onGp('gp:connected', readRoster), onGp('gp:disconnected', readRoster)]
 
     // Polled, not event-driven, and that is not laziness. gp:connected fires
     // from gamepad_monitor, which only ever sees a device with an evdev node
@@ -87,8 +90,11 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
     const readDevices = () => api.controllers.devices()
       .then(r => setUsbDevices(r.devices ?? []))
       .catch(() => {})
-    readDevices()
-    const timer = setInterval(readDevices, 2000)
+    // The roster rides the same poll: the backend's scan lags the browser's
+    // connect event by up to one pass, so a single read on the event misses it.
+    const readAll = () => { readDevices(); readRoster() }
+    readAll()
+    const timer = setInterval(readAll, 2000)
     return () => { offs.forEach(o => o()); clearInterval(timer) }
   }, [])
 
@@ -110,22 +116,25 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
     return () => clearTimeout(timer)
   }, [holdingTop, wizard])
 
-  const g = GLYPHS[ctrl.type]
-
-  const MAPPINGS: [string, string][] = [
-    [`D-Pad / L-stick`, 'Navigate'],
-    [g.bottom, 'Select and play'],
-    [g.right, 'Back'],
-    [g.top, 'Search games (library)'],
-    [g.left, 'This screen'],
-    [g.menu, 'Settings'],
-    [g.power, 'Power menu'],
-    [`${g.lb} / ${g.rb}`, 'Pages and sorting'],
-    ['PS ×2', 'Quit running game'],
-  ]
+  // The pad being read is the one the bus obeys: the last pad that did
+  // something deliberate. Pressing □ on pad 2 therefore opens this screen on
+  // pad 2, and touching another pad while it is up switches to that one.
+  const browserPads = (navigator.getGamepads?.() ?? []).filter((p): p is Gamepad => p !== null)
+  const pads = buildPads(browserPads, roster, state.index)
+  const pad = pads.find(p => p.active) ?? null
+  const entry = state.connected ? matchRoster(browserPads, roster).get(state.index) : undefined
+  const has = presentControls(state, entry)
+  const analog = entry?.analogTriggers ?? true
+  const raw = !!pad?.raw
+  const missing = pad && !raw ? missingSentence(has, analog) : ''
 
   // Bound here so a view mounts it with no props and cannot mis-wire the pad.
-  const Art = useCallback(() => <ControllerArt layout={ctrl.type} state={state} />, [ctrl.type, state])
+  const Art = useCallback(({ callouts = false }: { callouts?: boolean }) => (
+    // A raw pad's indices are not positions: lighting them on the drawing would lie.
+    <PadDiagram pressed={raw ? {} : pressedControls(state)} axes={raw ? [0, 0, 0, 0] : state.axes}
+      triggers={{ l2: state.values[GP_BTN.L2] ?? 0, r2: state.values[GP_BTN.R2] ?? 0 }}
+      has={state.connected ? has : new Set()} digitalTriggers={!analog} callouts={callouts} />
+  ), [state, has, analog, raw])
 
   // Full frame, over everything, and it owns the pad while it is up: the
   // wizard exists precisely for controllers whose buttons mean nothing yet, so
@@ -137,28 +146,32 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
       // screen deep with the pad that does not work yet.
       if (startInWizard) { onClose(); return }
       setWizard(false)
-      api.sysinfo().then(setSysInfo).catch(() => {})
+      api.controllers.pads().then(r => setRoster(r.pads ?? [])).catch(() => {})
     }} />
   }
 
   return (
     <View
-      layout={ctrl.type}
-      name={sysInfo?.controllers?.[0]?.label || sysInfo?.controllers?.[0]?.name || ctrl.name}
-      layoutLabel={
-        ctrl.type === 'playstation' ? 'PlayStation layout'
-        : ctrl.type === 'xbox' ? 'Xbox layout'
-        : 'Standard layout'
-      }
-      connected={ctrl.name !== 'No controller detected'}
-      notice={autoOff && ctrl.name !== 'No controller detected'
+      pads={pads}
+      pad={pad}
+      status={padStatus(pad)}
+      missing={missing}
+      rawButtons={raw ? state.pressed : []}
+      absent={pad && !pad.raw ? ['ls', 'rs', 'home', 'l2', 'r2', 'select'].filter(c => !has.has(c)) : []}
+      actions={ACTIONS}
+      Position={PadPosition}
+      layout="generic"
+      name={pad?.name ?? 'No controller detected'}
+      layoutLabel="Standard layout"
+      connected={state.connected}
+      notice={autoOff && state.connected
         ? 'Automatic setup is off, so this pad is not configured in any '
           + 'emulator. Settings → Controllers turns it back on.'
         : ''}
       controllers={sysInfo?.controllers ?? []}
       usbDevices={usbDevices}
-      glyphs={g}
-      mappings={MAPPINGS}
+      glyphs={LEGACY_GLYPHS}
+      mappings={LEGACY_MAPPINGS}
       onClose={onClose}
       onRemap={() => setWizard(true)}
       Art={Art}

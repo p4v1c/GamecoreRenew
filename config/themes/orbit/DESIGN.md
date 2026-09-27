@@ -29,3 +29,8 @@ App and console lines are plain facts (`lib/catalog.js`), never slogans.
 **Legibility:** `css/legibility.css` (loaded last) floors every label at
 14px and the pad legend at 16px. Pad glyphs on the near-white primary button
 use the dark set (`--gc-pad-*`). Settings ink-3 `#8FA9C9`.
+
+**Power / controller:** power is a control-centre drop-down under the top
+bar's power icon: the row under the cursor turns `--white` with `#101722` ink
+and grows 2 % (dark pad glyphs on it). The controller screen is a glass
+accessory sheet, pads as a rail on the left, the diagram lit `--blue`.

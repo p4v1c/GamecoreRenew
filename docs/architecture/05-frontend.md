@@ -91,7 +91,7 @@ flowchart LR
     win --> onGp["onGp(...) subscribers"]
     poll -->|raw snapshot| frame["frameListeners"]
     frame --> state["useGamepadState()"]
-    state --> art["ControllerArt"]
+    state --> art["PadDiagram"]
 ```
 
 ### Events
@@ -119,7 +119,7 @@ gp:connected(name)   gp:disconnected
 | API | Nature | Use for |
 |---|---|---|
 | `onGp(event, handler)` | edge-triggered | navigation, actions — "□ was pressed" |
-| `useGamepadState()` / `onGamepadFrame(cb)` | continuous | drawing — "□ is held", "the stick is at 40 %" |
+| `useGamepadState()` / `onGamepadFrame(cb)` | continuous | drawing — "□ is held", "the stick is at 40 %"; also `index`, `id`, `mapping` of the pad being read |
 
 `GamepadState` = `{connected, pressed[], values[], axes[]}`, indexed by
 `GP_BTN` (the standard mapping). Values are quantised to 1/50th so a resting
@@ -185,13 +185,13 @@ and returns an unsubscribe.
 | `components/Screensaver.tsx` | 136 | standby slideshow, `ROTATE_MS = 9000` |
 | `components/OverlayScreen/index.tsx` | 109 | what the transparent Electron overlay window renders |
 | `components/modals/SettingsModal.tsx` | 85 | menu; pages live in `settings/`. **Every id in `ITEMS` needs a matching `page === …` line** — `themes` was missing one and the button was silently dead. |
-| `components/modals/PowerModal.tsx` | 86 | **flow**: Shutdown · Restart · Return to desktop, two-press confirm, `POWER_FAILSAFE_MS = 10000` |
+| `components/modals/PowerModal.tsx` | 149 | **flow**: Shut down, Restart, Return to desktop (led by In the background), two-press confirm, ↑↓ and ←→ both move, `POWER_FAILSAFE_MS = 10000` |
 | `components/modals/power/DefaultPowerView.tsx` | 68 | **markup** of the default power menu |
 | `components/modals/power/types.ts` | 32 | `PowerViewProps` |
-| `components/modals/GamepadModal.tsx` | 85 | **flow**: pad detection, glyphs, live state |
-| `components/modals/gamepad/DefaultGamepadView.tsx` | 56 | **markup** of the default controller screen |
-| `components/modals/gamepad/types.ts` | 37 | `GamepadViewProps`; hands the view a bound `Art` |
-| `components/modals/gamepad/ControllerArt.tsx` | 323 | the pad drawing — see below |
+| `components/modals/GamepadModal.tsx` | 178 | **flow**: the pad being read (the bus's active pad), the roster (`api.controllers.pads`), live state, the △ hold to the wizard |
+| `components/modals/gamepad/DefaultGamepadView.tsx` | 120 | **markup** of the controller screen, classes only (`gcs-pad-*`, `settings/css/gamepad.css`); themes dress it as `sdk.defaults.GamepadView` |
+| `components/modals/gamepad/types.ts` | 98 | `GamepadViewProps`; hands the view a bound `Art` and `Position` |
+| `components/modals/gamepad/PadDiagram.tsx` | 147 | the universal pad diagram — see below |
 | `components/ui/index.tsx` | 144 | `Overlay`, `OverlayLabel`, `BackHeader`, `Toggle`, `SliderRow`, `Chip`, `Bars`, `hexToRgb`, `fmtTime`, `fmtDate` |
 | `components/ui/VirtualKeyboard.tsx` | 205 | on-screen keyboard (WiFi passwords, library search) |
 | `components/ui/Toasts.tsx` | 117 | top-right stack, `TOAST_MS = 10000` |
@@ -234,23 +234,23 @@ is active, the declaration is dropped, and the *default* UI loses its accent.
 `ROW_UI_VOLUME`, `ROW_COUNT`) rather than indexing by number — worth copying
 when adding a page.
 
-### `ControllerArt.tsx` — the pad drawing
+### `PadDiagram.tsx` — the pad drawing
 
-Ported from a design mock: absolutely positioned layers in the mock's own
-**372×238** space, scaled as a block via the `scale` prop (default 1.35).
+The standard layout (W3C / SDL GameController) **by position**: four face dots
+(south, east, west, north), d-pad, two sticks, L1/R1, L2/R2, Select, Start,
+Home. No brand shape and no face symbols, so any mapped pad is drawn right.
+`frontend/src/lib/padLayout.ts` decides what it is fed:
 
-| Symbol | Role |
+| Function | Role |
 |---|---|
-| `at(cx, cy, w, h)` | absolute box positioned **by its centre** — how every control is placed |
-| `DPAD_HOME` / `STICK_HOME` | the two anchor points that **swap** for the Xbox layout |
-| `RSTICK`, `FACE` | fixed anchors |
-| `STICK_TRAVEL = 13` | px of stick deflection at full axis — the calibration knob |
-| `Trigger` | analog: sinks by `values[L2/R2]`, brightness follows |
-| `Bumper`, `Pill`, `DpadArm`, `FaceButton`, `Socket`, `Stick` | the parts |
-| `glyph(seat, isXbox, pressed)` | PlayStation shapes or Xbox letters |
+| `buildPads(browser, roster, activeIndex)` | browser pads joined to `GET /api/controllers/pads` by vendor:product, the one being read marked |
+| `presentControls(state, entry)` | the pad's SDL controls when known, else the browser's (16 buttons = no Home); absent ones are drawn dashed |
+| `pressedControls(state)` | held buttons by name, in standard-mapping order |
+| `padStatus(pad)` | the one-line verdict: recognised, from the known-pads table, mapped on this box, not recognised, or raw |
+| `missingSentence(has, analog)` | "Not on this pad: …", and "Triggers are buttons, not analog." |
 
-The socket is drawn separately from the stick so the deflection has a fixed
-rim to move against — without it the cap looks like it is floating.
+`TRAVEL = 26` is the stick deflection at full axis, the calibration knob.
+Colours are `--pd-*` variables a theme sets from its stylesheet.
 
 ## `lib/`
 
@@ -266,7 +266,9 @@ rim to move against — without it the cap looks like it is floating.
 `systems`, `games`, `metadata`, `media`, `playtime`, `sysinfo`, `update`,
 `wifi`, `audio`, `bluetooth`, `addons`, `standby`. Types exported for the UI:
 `SystemEntry`, `GameEntry`, `GameMeta`, `MediaEntry`, `GameMediaIndex`,
-`PlaytimeEntry`, `SysInfo`.
+`PlaytimeEntry`, `SysInfo`. The controller types (`RosterPad`, `UsbDevice`,
+the autoconfig and mapping-wizard shapes) live in `api/controllers.ts` and are
+re-exported; `api.controllers.pads()` is the controller screen's roster.
 
 `api.media` is the one to read before drawing artwork that is not a jacket:
 

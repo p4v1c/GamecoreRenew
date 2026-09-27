@@ -26,7 +26,8 @@ describe('the power menu', () => {
     useStore.setState({ backgroundSessions: [SUSPENDED] })
     render(<PowerModal onClose={() => {}} />)
     expect(screen.getByText('In the background')).toBeTruthy()
-    expect(screen.getByText('Ending the session')).toBeTruthy()
+    // A rule, not a heading, sets the session row apart from the three that end one.
+    expect(screen.getByRole('separator')).toBeTruthy()
   })
 
   it('closes and asks for the session menu on one press', () => {
@@ -46,6 +47,17 @@ describe('the power menu', () => {
     press('gp:dpad-down')
     press('gp:confirm')
     expect(useStore.getState().powerPending).toBeNull()
-    expect(screen.getByText(/press again to shutdown/i)).toBeTruthy()
+    expect(screen.getByText('Shut down?')).toBeTruthy()
+    expect(screen.getByText(/again, or/).textContent).toMatch(/to cancel$/)
+  })
+
+  it('moves with left and right as well, for a menu laid out in a row', () => {
+    const seen: number[] = []
+    const Spy = ({ focusIdx }: { focusIdx: number }) => { seen.push(focusIdx); return null }
+    render(<PowerModal onClose={() => {}} view={Spy as never} />)
+    press('gp:dpad-right')
+    press('gp:dpad-right')
+    press('gp:dpad-left')
+    expect(seen[seen.length - 1]).toBe(1)
   })
 })

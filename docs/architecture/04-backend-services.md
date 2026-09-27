@@ -113,11 +113,26 @@ Assigns P1…P4 and keeps them stable across reconnects.
 |---|---|
 | `normalize_mac(value)` | extracts a lowercased `aa:bb:…` from any MAC-ish string |
 | `key_for(uniq, path)` | stable key: the MAC when known, else the device node |
-| `has(key)` / `label_for(key)` | lookups |
+| `has(key)` / `label_for(key)` / `player_for(key)` | lookups |
 | `connect(key, label)` | assigns the **lowest free slot**; idempotent for a known key |
 | `disconnect(key)` | frees the slot, returns the player number it held |
 | `player_for_mac(value)` | slot for any MAC-bearing string — used to attach a sysfs battery to a player |
 | `snapshot()` | `[{player, label}]` ordered by slot — what `/api/sysinfo` returns |
+
+---
+
+## `controller_roster.py` — the pads the controller screen draws
+
+`connected_pads()` joins `gamepad_monitor.roster()` (the last scan), the
+registry slot, the sysfs battery and the pad's identity into one row per pad:
+`{player, name, kernelName, vendor, product, connection, battery, charging,
+known, controls, analogTriggers}`.
+
+| Field | Source |
+|---|---|
+| `known` | `mapped` (a wizard capture exists for this vendor:product), `sdl` / `table` (`resolve_name` source in `SDL3_TRUSTED`), else `unknown` |
+| `controls` | the standard controls its SDL mapping binds (`parse_controls`): the capture first, else `sdl2_probe`'s built-in mapping; `null` when SDL has none |
+| `analogTriggers` | a trigger bound to an axis; `b6`-style triggers are buttons |
 
 ---
 

@@ -51,15 +51,6 @@
 .orbit-app .library-detail-actions{display:flex;align-items:center;gap:12px;flex:none}
 .orbit-app .orbit-meta{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px}
 
-/* The live controller panel, in the control-center frame. */
-.orbit-app .controller-body{display:flex;gap:26px;margin-top:18px}
-.orbit-app .controller-art{flex:1.1;min-width:0;display:flex;align-items:center;justify-content:center}
-.orbit-app .controller-side{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
-.orbit-app .controller-mappings{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
-  gap:8px;margin-top:20px}
-.orbit-app .controller-mappings>div{display:flex;align-items:center;gap:10px;padding:8px 12px;
-  border-radius:12px;background:#ffffff0a;font-size:12px}
-
 /* The session menu, opened with L2 over any tab. */
 .session-menu-body{
   width:min(560px,calc(100vw - 56px));max-height:min(86vh,880px);overflow-y:auto;
@@ -196,13 +187,6 @@
   --font-body: 'Red Hat Text', 'Noto Sans', sans-serif; --font-display: 'Red Hat Display', 'Noto Sans', sans-serif;
   --font-mono: ui-monospace, 'DejaVu Sans Mono', monospace; --r-chip: 999px; --gc-paper-pattern: none;
 }
-.orbit-app .orbit-power { background: var(--gc-overlay-scrim);
-  backdrop-filter: var(--gc-overlay-blur); -webkit-backdrop-filter: var(--gc-overlay-blur); }
-/* The one panel in the theme that had a radius and a fill but no edge: over a
-   bright backdrop it faded into the blur instead of sitting on it. */
-.orbit-app .orbit-power .gcs-pwr { background: var(--gc-overlay-panel);
-  border: 1px solid var(--gc-overlay-border); border-radius: var(--gc-overlay-radius);
-  box-shadow: var(--gc-overlay-shadow); }
 /* What sits above the grid decides how much of it is on screen. The console
    name was set at the size of the Consoles tab's headline, where it is the
    only thing on the page; here it pushes the first row down by a third of a

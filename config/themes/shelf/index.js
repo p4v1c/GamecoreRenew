@@ -70,7 +70,7 @@ export default (sdk) => {
       homeView=${HomeView}
       libraryView=${LibraryView}
       settings=${Settings}
-      powerView=${createPowerView(sdk)}
+      powerView=${createPowerView(sdk, { skin: 'shelf-power' })}
       gamepadView=${createGamepadView(sdk)} />`
 
   // `sessionBar` is optional: the host draws its own if a theme omits one, so

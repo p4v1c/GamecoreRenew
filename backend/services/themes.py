@@ -27,7 +27,7 @@ STATE_FILE = config_dir() / "theme.json"
 # by the shipped themes; see that file for what went wrong when it did not.
 # 6 adds the aggregate/spatial library contract required by Orbit.
 # 8 removes gp:menu/gp:power from theme input and libraryOmit 'options'.
-SDK_VERSION = 8
+SDK_VERSION = 9
 
 # What a box shows when nobody has chosen — a fresh install, or one whose config
 # directory was replaced. Not a hardcoded look: it is a theme id like any other,

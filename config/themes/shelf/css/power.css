@@ -1,0 +1,38 @@
+/* The power menu as label strips pinned straight on the papered wall: no
+   card, no dark modal. An inked title strip, one paper label per action, the
+   label under the cursor slides out with a brass tab. The host's markup,
+   settings/power.js. */
+.shelf-power.gcs-pwr-scrim { background: rgba(40, 34, 26, 0.18); }
+.shelf-power .gcs-pwr { width: 640px; padding: 0; background: none; border: none; box-shadow: none; color: #17161A; }
+.shelf-power .gcs-pwr-title {
+  display: inline-block; margin: 0 0 12px; padding: 8px 22px; background: #17161A; color: #F8F7F4;
+  font: 800 30px var(--font-display, var(--font-body)); font-stretch: 80%; box-shadow: 0 6px 12px rgba(40, 30, 15, 0.25);
+}
+.shelf-power .gcs-pwr-list { gap: 10px; }
+.shelf-power .gcs-pwr-sep { height: 0; margin: 4px 0; background: none; }
+.shelf-power .gcs-pwr-row {
+  border-radius: 0; padding: 14px 18px; background: #F8F7F4;
+  box-shadow: 0 1px 0 #d9d5cb, 0 8px 14px rgba(40, 30, 15, 0.22);
+  transition: transform 150ms ease-out;
+}
+.shelf-power .gcs-pwr-row::before { display: none; }
+.shelf-power .gcs-pwr-row[data-on="1"] {
+  background: #F8F7F4; transform: translateX(14px);
+  box-shadow: inset 8px 0 0 #B8892B, 0 1px 0 #d9d5cb, 0 14px 22px rgba(40, 30, 15, 0.3);
+}
+/* Asking again: the tab turns to the danger ink and the label says so. */
+.shelf-power .gcs-pwr-row[data-confirm="1"] { box-shadow: inset 8px 0 0 #9C1F28, 0 1px 0 #d9d5cb, 0 14px 22px rgba(40, 30, 15, 0.3); }
+.shelf-power .gcs-pwr-row[data-confirm="1"] b { color: #9C1F28; }
+.shelf-power .gcs-pwr-icon { width: 46px; height: 46px; border: 2px solid #17161A; border-radius: 6px; color: #17161A; }
+.shelf-power .gcs-pwr-row[data-on="1"] .gcs-pwr-icon { background: #17161A; color: #F8F7F4; }
+.shelf-power .gcs-pwr-text b { font-weight: 700; font-stretch: 90%; }
+.shelf-power .gcs-pwr-text i { color: #66646D; }
+.shelf-power .gcs-pwr-cancel, .shelf-power .gcs-pwr-hint {
+  display: inline-flex; align-items: center; height: 40px; vertical-align: top; margin: 12px 10px 0 0; padding: 0 16px; border: none; border-radius: 0;
+  background: #F8F7F4; color: #3c3a40; box-shadow: 0 4px 8px rgba(40, 30, 15, 0.2);
+}
+.shelf-power .gcs-pwr-hint { --gc-pad-cross: #2A55B8; --gc-pad-circle: #C0303C; }
+
+@media (prefers-reduced-motion: reduce) {
+  .shelf-power .gcs-pwr-row[data-on="1"] { transform: none; }
+}

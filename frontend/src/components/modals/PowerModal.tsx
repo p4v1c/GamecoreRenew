@@ -31,7 +31,7 @@ const OPTIONS: PowerOption[] = [
   // order of how often each is wanted. It leads, so the cursor opens on it:
   // the two-press confirmation is what stands between that and a
   // powered-off box, and it is the same for every row here.
-  { id: 'shutdown', label: 'Shutdown', busy: 'Shutting down…', icon: '⏻', color: 'var(--set-danger, #ef4444)', desc: 'Power off' },
+  { id: 'shutdown', label: 'Shut down', busy: 'Shutting down…', icon: '⏻', color: 'var(--set-danger, #ef4444)', desc: 'Power off' },
   { id: 'restart',  label: 'Restart',  busy: 'Restarting…',    icon: '↺', color: 'var(--set-warn, #f59e0b)', desc: 'Reboot the system' },
   // Leaving for the desktop is the third way a session ends, and it belonged
   // in the menu the other two are in. It was reachable only from
@@ -40,7 +40,7 @@ const OPTIONS: PowerOption[] = [
   // restart it and shut it down but not step out of it.
   //
   // Last on purpose: leaving the front end is the least common of the three.
-  { id: 'desktop',  label: 'Return to desktop', busy: 'Leaving…', icon: '⌘', color: 'var(--set-info, #38bdf8)', desc: 'Leave the front end for the system session' },
+  { id: 'desktop',  label: 'Return to desktop', busy: 'Leaving…', icon: '⌘', color: 'var(--set-info, #38bdf8)', desc: 'Leave for the desktop, come back from there' },
 ]
 
 /**
@@ -116,10 +116,15 @@ export default function PowerModal({ onClose, view }: Props) {
   // All close paths are inert while the power command is in flight
   const safeClose = () => { if (!useStore.getState().powerPending) onClose() }
 
+  const prev = () => { if (!useStore.getState().powerPending) setFocusIdx(i => Math.max(0, i - 1)) }
+  const next = () => { if (!useStore.getState().powerPending) setFocusIdx(i => Math.min(optionsRef.current.length - 1, i + 1)) }
+
   useEffect(() => {
     const offs = [
-      onGp('gp:dpad-up',   () => { if (!useStore.getState().powerPending) setFocusIdx(i => Math.max(0, i - 1)) }),
-      onGp('gp:dpad-down', () => { if (!useStore.getState().powerPending) setFocusIdx(i => Math.min(optionsRef.current.length - 1, i + 1)) }),
+      // ← → as well as ↑ ↓: a theme may lay the rows side by side, and the
+      // other axis moving nothing is a menu that feels frozen.
+      ...(['gp:dpad-up', 'gp:dpad-left'] as const).map(e => onGp(e, prev)),
+      ...(['gp:dpad-down', 'gp:dpad-right'] as const).map(e => onGp(e, next)),
       onGp('gp:confirm',   () => {
         const o = optionsRef.current[focusIdxRef.current]
         if (o) handleAction(o.id)

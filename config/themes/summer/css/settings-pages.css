@@ -178,46 +178,6 @@
   color: var(--foam-400);
 }
 
-/* ── the power menu ──────────────────────────────────────────────────────── */
-.gcs-pwr-scrim {
-  background: var(--scrim-focus);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-.gcs-pwr {
-  border-radius: var(--r-panel);
-  background: var(--glass-900);
-  border: 1px solid var(--glass-hairline);
-  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.5);
-  color: var(--foam-000);
-}
-.gcs-pwr-title, .gcs-pwr-head {
-  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px; color: var(--foam-400); margin-bottom: 16px;
-}
-.gcs-pwr-row {
-  border-radius: var(--r-tile);
-  background: var(--glass-700);
-}
-.gcs-pwr-row[data-on="1"] { border-color: var(--accent-mandarin); box-shadow: 0 0 0 1px var(--accent-mandarin) inset; }
-.gcs-pwr-row[data-confirm="1"] { background: color-mix(in srgb, var(--state-alert) 30%, transparent); border-color: var(--state-alert); }
-.gcs-pwr-icon {
-  background: rgba(255, 253, 247, 0.1);
-  color: var(--row-accent, var(--accent-mandarin));
-}
-.gcs-pwr-icon[data-pulse="1"] { animation: gcs-load-pulse 1.1s ease-in-out infinite; }
-.gcs-pwr-text i {
-  color: var(--foam-400);
-}
-.gcs-pwr-cancel {
-  border-radius: var(--r-tile);
-  border: 1px solid var(--glass-hairline);
-  background: var(--glass-700);
-  color: var(--foam-200);
-}
-.gcs-pwr-hint {
-  color: var(--foam-400);
-}
-
 /* The revert countdown on Settings → Display: the backend's timer, made
    visible. It is the only progress bar on this screen because it is the only
    thing on it the player cannot undo by waiting. */

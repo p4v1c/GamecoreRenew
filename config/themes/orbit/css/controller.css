@@ -1,0 +1,26 @@
+/* The controller screen as an accessory sheet: glass over the dimmed home,
+   the pads as a rail on the left, the diagram as the hero, one cool light for
+   what is lit. The host's markup, DefaultGamepadView.tsx. */
+.orbit-app .orbit-pad.gcs-pad-scrim { background: rgba(6, 10, 18, 0.86); }
+.orbit-app .orbit-pad .gcs-pad {
+  width: min(1720px, 94vw); padding: 36px 44px 26px; border-radius: 24px;
+  background: rgba(20, 29, 44, 0.97); border: 1px solid rgba(248, 249, 255, 0.12);
+  --pad-acc: #82beff;
+  --pd-body: #182233; --pd-body-line: rgba(248, 249, 255, 0.1); --pd-part: #24324a;
+  --pd-line: rgba(184, 194, 211, 0.45); --pd-lit: #82beff; --pd-lit-line: #cfe5ff;
+  --pd-knob: #33445f; --pd-label: #b8c2d3;
+}
+.orbit-app .orbit-pad .gcs-pad-name { font: 600 44px var(--font-display); }
+.orbit-app .orbit-pad .gcs-pad-status { border-radius: 25px; background: rgba(248, 249, 255, 0.06); border-color: transparent; }
+/* The rail: pads on the left, the diagram to their right. */
+.orbit-app .orbit-pad .gcs-pad-body { grid-template-columns: 380px 1fr; }
+.orbit-app .orbit-pad .gcs-pad-side { order: -1; }
+.orbit-app .orbit-pad .gcs-pad[data-pads="1"] .gcs-pad-body { grid-template-columns: 300px 1fr; }
+.orbit-app .orbit-pad .gcs-pad-card { border-color: transparent; background: rgba(248, 249, 255, 0.04); transition: transform 150ms ease-out; }
+.orbit-app .orbit-pad .gcs-pad-card[data-on="1"] { background: rgba(130, 190, 255, 0.12); border-color: rgba(130, 190, 255, 0.6); transform: scale(1.03); }
+.orbit-app .orbit-pad .gcs-pad-card[data-on="1"] .gcs-pad-player { color: #101722; }
+.orbit-app .orbit-pad .gcs-pad-actions { border-top-color: rgba(248, 249, 255, 0.08); }
+
+@media (prefers-reduced-motion: reduce) {
+  .orbit-app .orbit-pad .gcs-pad-card[data-on="1"] { transform: none; }
+}

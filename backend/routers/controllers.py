@@ -31,6 +31,7 @@ from ..services import (
     controller_autoconfig,
     controller_capture,
     controller_profiles,
+    controller_roster,
     gamepad_monitor,
     usb_devices,
 )
@@ -89,6 +90,13 @@ def _autoconfig_view() -> dict:
             "releasable": controller_profiles.can_release(pack),
         })
     return {"ok": True, "enabled": st["enabled"], "packs": packs}
+
+
+@router.get("/controllers/pads")
+def connected_pads():
+    """The connected pads for the controller screen: name, slot, battery,
+    whether SDL3 can name them and which standard controls they have."""
+    return {"pads": controller_roster.connected_pads()}
 
 
 @router.get("/controllers/autoconfig")

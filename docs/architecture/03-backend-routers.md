@@ -256,7 +256,8 @@ persisted to `config/standby.json`), `wake()` → `standby.exit_standby()`.
 
 ## `controllers.py`
 
-`GET /controllers/devices` (declared non-SDL peripherals), `GET`/`POST
+`GET /controllers/devices` (declared non-SDL peripherals), `GET /controllers/pads`
+(the connected pads for the controller screen, `controller_roster.py`), `GET`/`POST
 /controllers/autoconfig` (the global switch and per-emulator exceptions), and the
 mapping wizard: `POST /controllers/mapping/{start,commit,cancel,forget}`, `GET
 /controllers/mapping/saved` and the `/ws/controllers/mapping` socket. See

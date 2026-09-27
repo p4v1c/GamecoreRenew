@@ -81,6 +81,10 @@ SINCE = {
     # cluttered and not broken. Only what THROWS or renders empty belongs here.
     6: ("onOpenSearch", "onOpenOptions", "__all__"),
     7: ("sdk.defaults.launchGame",),
+    # The controller screen's shared markup. A theme that dresses it instead of
+    # drawing its own renders `undefined` on an older host: an empty screen
+    # where the pad test and the way to the mapping wizard used to be.
+    9: ("GamepadView",),
 }
 
 

@@ -19,6 +19,16 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **The controller screen draws any pad, by position.** No more PlayStation
+  drawing for every controller: the four face buttons are a diamond that
+  lights where you press, missing controls (an arcade stick's sticks) are
+  dashed, and the screen names the pad, says whether the box recognises it,
+  and follows whichever pad you touch. The power menu and this screen have a
+  design of their own on Orbit, Shelf and Summer; ← → also move in the power
+  menu. Theme SDK 9: `sdk.defaults.GamepadView`, new `gamepadView` props, and
+  `GET /api/controllers/pads`. A third-party theme with its own controller
+  view keeps working (the old props are still filled).
+
 - **Pad buttons moved so no theme can collide with them.** Per-game options
   (bezel) are on **Start / Options** on a library game (was R2); the menu of
   suspended games opens on **PS twice** outside a game (was L2), and from a new

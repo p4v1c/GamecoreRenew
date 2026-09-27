@@ -81,6 +81,21 @@ node $A --theme shelf --press x --shot /tmp/shelf-pad.png --all   # every item +
 node $A --theme orbit --press power --shot /tmp/p.png --crops --clip 660,300,600,560   # + 2x quarters, 2x region
 ```
 
+Controller states need pads. `--init` runs a script before the page and
+`--eval` runs expressions after the presses (`;;`-separated, 900 ms apart);
+`scripts/fake-pads.js` fakes the Gamepad API, the roster and a suspended game:
+
+```bash
+F=.claude/skills/gamecore-legibility/scripts/fake-pads.js
+# □ opens the controller screen; hold east, R2 at 60 %, left stick moved
+node $A --theme orbit --url 'http://127.0.0.1:8766/?pads=ds4,xbox' --init $F \
+  --eval '0;;0;;0;;__press(2);;__hold(1);;__hold(7,0.6);;__axes([0.8,-0.5,0,0])'
+node $A --theme shelf --url 'http://127.0.0.1:8766/?pads=ds4&bg=1' --init $F --eval '0;;0;;0;;__press(8)'  # power menu
+```
+
+The three `0` let the shell mount; the first real press after load only
+wakes the box. The built-in UI answers these presses too.
+
 It prints `FAIL` for contrast, text under 14px, or text under decoration, and
 counts 14–16px text as "small" (`--all` lists them). Exit 1 on any `FAIL`.
 How it measures: one screenshot with all text and icons hidden, then the
@@ -88,9 +103,8 @@ backdrop is sampled under each item and the 10th-percentile ratio is kept.
 Items another screen covers are skipped.
 
 Limits: empty ROM files all get the same scraped art; fine for layout.
-The built-in UI ignores synthetic presses, so only its home is audited here;
-its settings and power pages share `frontend/src/settings/css` with the
-themes. The TV is the final check: look at it before merging.
+The built-in UI ignores synthetic `--press` events; drive it with
+`fake-pads.js` instead. The TV is the final check: look at it before merging.
 
 ## 4. Checklist
 

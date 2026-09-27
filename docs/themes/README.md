@@ -244,8 +244,8 @@ which and why.
 | `libraryOmit` | the same, for the library: `'nav'`, `'confirm'`, `'sort'` (L1/R1). The per-game options on ≡ are not omittable (§6a) |
 | `screensaver` | the standby slideshow |
 | `settings` | the settings screen |
-| `powerView` | the power menu's markup — the two-press confirmation, the pending lock and the failsafe stay with the host |
-| `gamepadView` | the controller screen's markup — the live pad diagram arrives ready-made and bound |
+| `powerView` | the power menu's markup — the two-press confirmation, the pending lock and the failsafe stay with the host. Dress the host's with `sdk.defaults.createPowerView(sdk, { skin, layout })` (§5h) |
+| `gamepadView` | the controller screen's markup — the live pad diagram arrives ready-made and bound. Dress the host's with `sdk.defaults.GamepadView` (SDK 9, §5h) |
 | `toasts` | the notification stack's markup — the queue, the durations and the handover to the native HUD stay with the host |
 
 A theme may also return an optional `ceremony` component beside `shell` and
@@ -573,6 +573,51 @@ pad. A suspended session sets it to `null` — that is what gives the interface
 back to the player while the game stays alive — so anything you key off it
 keeps working unchanged.
 
+## 5h. The power menu and the controller screen — dress, don't rewrite (SDK 9)
+
+Both screens are **one markup each**, and a theme restyles it from its
+stylesheet. That is how all three shipped themes do it; writing your own view
+is still allowed, and then every prop below is yours to honour.
+
+**Power** — `sdk.defaults.createPowerView(sdk, { skin, layout })`:
+
+| Option | Effect |
+|---|---|
+| `skin` | a class on the scrim (`gcs-pwr-scrim <skin>`) your CSS keys on |
+| `layout: 'row'` | rows side by side (Summer) and a ← → hint; the host moves the cursor on ← → as well as ↑ ↓, so nothing else changes |
+
+Hooks: `.gcs-pwr`, `.gcs-pwr-title`, `.gcs-pwr-list`, `.gcs-pwr-sep` (the
+rule after *In the background*), `.gcs-pwr-row[data-id][data-on][data-confirm][data-dim]`,
+`.gcs-pwr-icon`, `.gcs-pwr-text b/i`, `.gcs-pwr-cancel`, `.gcs-pwr-hint`.
+
+**Controller** — `sdk.defaults.GamepadView`, handed every `gamepadView` prop:
+
+```js
+const Controller = (props) => html`<${sdk.defaults.GamepadView} ...${props} skin="my-pad" />`
+```
+
+Pass `callouts=${true}` to letter the diagram A–K with a key beside it (a
+manual page). The diagram's colours are CSS variables: `--pd-body`,
+`--pd-body-line`, `--pd-part`, `--pd-line`, `--pd-lit`, `--pd-lit-line`,
+`--pd-knob`, `--pd-label`, `--pd-callout`, `--pd-callout-ink`, `--pd-pos` (the
+legend's position icon: keep it ≥ 3:1). Hooks: `.gcs-pad-*`, with
+`.gcs-pad[data-pads][data-state]` and `.gcs-pad-card[data-on]`.
+
+The props a view gets, new in SDK 9:
+
+| Prop | What |
+|---|---|
+| `pads` | every connected pad `{index, player, name, connection, battery, charging, known, raw, active}` |
+| `pad` | the one being read: the last pad that did something deliberate. □ on pad 2 opens the screen on pad 2 |
+| `status` | `{tone: 'ok'\|'warn', text}` — recognised, known-pads table, mapped on this box, not recognised, or raw |
+| `missing` / `absent` | the sentence and the list of controls this pad lacks |
+| `actions` | `{pos?, label?, keys?, action}` — what each position and key does |
+| `Position` | the legend's icon: four dots, one filled (`<${Position} pos="north" />`) |
+
+`layout`, `layoutLabel`, `glyphs` and `mappings` are still filled for views
+written before SDK 9 (`layout` is always `'generic'`). The drawing is by
+position, so there is no family to pick any more.
+
 ## 5e. Check it loads before you ship it
 
 ```bash
@@ -687,6 +732,10 @@ when using it. The host waits for the validated `launch.ms` duration before
 contacting the backend, just as it does from Library. Without a declared
 duration the request is immediate. The theme API preserves the manifest's
 `launch: {ms: number}` shape; an absent or invalid duration is `null`.
+
+SDK 9 adds `sdk.defaults.GamepadView` and the roster props of `gamepadView`
+(§5h). A theme that dresses `GamepadView` renders nothing on an older host, so
+it declares `"api": 9`.
 
 SDK 8 removes things rather than adding them: `gp:menu` and `gp:power` from
 `sdk.input` (reserved, §6a) and `'options'` from `libraryOmit`. No theme needs

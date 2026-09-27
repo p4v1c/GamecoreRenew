@@ -18,6 +18,7 @@ import TopBar from './TopBar'
 import Screensaver from './Screensaver'
 import PowerModal from './modals/PowerModal'
 import GamepadModal from './modals/GamepadModal'
+import DefaultGamepadView from './modals/gamepad/DefaultGamepadView'
 import { VirtualKeyboard } from './ui/VirtualKeyboard'
 import Toasts, { DefaultToastsView } from './ui/Toasts'
 import SettingsModal from './modals/SettingsModal'
@@ -87,6 +88,12 @@ export const DefaultScreensaver = () => <Screensaver />
 export type CloseProps = { onClose: () => void }
 export const DefaultPowerModal = ({ onClose }: CloseProps) => <PowerModal onClose={onClose} />
 export const DefaultGamepadModal = ({ onClose }: CloseProps) => <GamepadModal onClose={onClose} />
+/**
+ * SDK 9. The controller screen's markup, for a theme to dress rather than
+ * rewrite: pass it the `gamepadView` props plus `skin` (a class on the scrim)
+ * and `callouts` (letter the diagram).
+ */
+export const GamepadView = DefaultGamepadView
 
 export type TopBarProps = { onSettings: () => void; onPower: () => void }
 export const DefaultTopBar = ({ onSettings, onPower }: TopBarProps) => (

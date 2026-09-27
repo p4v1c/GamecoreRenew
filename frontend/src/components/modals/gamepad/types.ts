@@ -1,24 +1,50 @@
 import type { ComponentType } from 'react'
-import type { ControllerLayout } from './ControllerArt'
 import type { SysInfo, UsbDevice } from '../../../api'
+import type { PadInfo, PadStatus } from '../../../lib/padLayout'
+
+/** Pre-SDK 9 family names. Always 'generic' now: the diagram is universal. */
+export type ControllerLayout = 'playstation' | 'xbox' | 'generic'
+
+export type PadPos = 'north' | 'east' | 'south' | 'west'
+
+/** One legend row: a face position, or a named key, and what it does. */
+export interface PadAction { pos?: PadPos; label?: string; keys?: string[]; action: string }
 
 /**
  * What a controller screen is handed.
  *
- * The live diagram comes ready-made: 300+ lines of SVG wired to the 60 fps pad
- * state, with a layout per controller family. A theme that redrew it would be
- * reimplementing the one thing this screen exists for.
+ * The live diagram comes ready-made: the standard layout by position, wired to
+ * the 60 fps state of the pad being read, with the controls it lacks drawn
+ * absent. A theme that redrew it would be reimplementing the one thing this
+ * screen exists for. SDK 9 adds `pads`, `pad`, `status`, `missing`, `actions`
+ * and `Position`; the older props stay filled for themes written before it.
  *
  * Note there are no gamepad bindings to hand over. On this screen every press
  * is a test and must only light up its counterpart — ○ does not go back, and
  * leaving takes a double press of □ (CONTROLLER_CLOSE_MS, in DefaultShell).
  */
 export interface GamepadViewProps {
-  /** Which family the connected pad belongs to — picks the glyphs and artwork. */
+  /** SDK 9. Every connected pad, by player; `active` marks the one being read. */
+  pads: PadInfo[]
+  /** SDK 9. The pad being read: the last one that did something deliberate. */
+  pad: PadInfo | null
+  /** SDK 9. How well the box knows this pad, or null with no pad. */
+  status: PadStatus | null
+  /** SDK 9. "Not on this pad: …" for the controls it lacks, or ''. */
+  missing: string
+  /** SDK 9. A raw pad's buttons by index, held or not; empty for a mapped pad. */
+  rawButtons?: boolean[]
+  /** SDK 9. The controls it lacks, by name (ls, rs, home, l2…). */
+  absent?: string[]
+  /** SDK 9. What each position and key does across GameCore. */
+  actions: PadAction[]
+  /** SDK 9. The legend's position icon: the four face dots, one filled. */
+  Position: ComponentType<{ pos: PadPos; size?: number }>
+  /** @deprecated since SDK 9: always 'generic'. */
   layout: ControllerLayout
   /** The pad's own name, or "No controller detected". */
   name: string
-  /** Human label for the layout, e.g. "PlayStation layout". */
+  /** @deprecated since SDK 9: always "Standard layout". */
   layoutLabel: string
   connected: boolean
   /**
@@ -49,9 +75,9 @@ export interface GamepadViewProps {
    * because they answer a separate question — "is it plugged in".
    */
   usbDevices?: UsbDevice[]
-  /** Button glyphs for this family: use these, never hardcoded ✕/○/△/□. */
+  /** @deprecated since SDK 9: PlayStation glyphs; use `actions` and `Position`. */
   glyphs: { top: string; right: string; bottom: string; left: string; lb: string; rb: string; menu: string; power: string }
-  /** [key, action] pairs — what each button does across GameCore. */
+  /** @deprecated since SDK 9: use `actions`. */
   mappings: [string, string][]
   onClose: () => void
   /**
@@ -65,10 +91,10 @@ export interface GamepadViewProps {
    */
   onRemap?: () => void
   /**
-   * The live diagram, already bound to the connected pad and its 60 fps state.
-   * Mount it with no props — there is nothing for a view to get wrong.
+   * The live diagram, already bound to the pad being read and its 60 fps
+   * state. `callouts` letters each part instead of naming it (a manual page).
    */
-  Art: ComponentType
+  Art: ComponentType<{ callouts?: boolean }>
   /** One battery pill, matching the top bar's. */
   Battery: ComponentType<{ player?: number | null; level: number; charging?: boolean }>
 }

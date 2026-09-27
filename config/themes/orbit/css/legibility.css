@@ -21,7 +21,7 @@
 
 /* Controller screen. */
 .orbit-app :is(.device-row > span > small, .device-row > span > strong, .mock-footnote,
-  .center-top .sample-badge, .control-center .secondary-button, .controller-mappings > div > span) {
+  .center-top .sample-badge, .control-center .secondary-button) {
   font-size: 14px;
 }
 

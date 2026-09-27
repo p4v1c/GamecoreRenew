@@ -406,6 +406,11 @@ _running = False
 _dirty = False
 
 
+def roster() -> dict[str, tuple[str, str, str, int]]:
+    """The pads the last scan saw: key → (vendor, product, name, bustype)."""
+    return dict(_roster)
+
+
 def request_reprofile() -> None:
     """Re-write every connected pad on the next scan, at most 3 s away.
 
