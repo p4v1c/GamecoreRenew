@@ -107,8 +107,9 @@ for emu in "${!DEST[@]}"; do
     cp "$f" "$staged"
     # Substitute the seed tokens (text configs only). @HOME@ replaces the
     # literal /home/pavic two independent sed passes used to chase.
-    if grep -qI '@HOME@\|@GAMECORE_PATH@' "$staged" 2>/dev/null; then
-      sed -i -e "s|@HOME@|${HOME}|g" -e "s|@GAMECORE_PATH@|${GAMECORE_PATH}|g" "$staged"
+    if grep -qI '@HOME@\|@GAMECORE_PATH@\|@GAMECORE_DATA@' "$staged" 2>/dev/null; then
+      sed -i -e "s|@HOME@|${HOME}|g" -e "s|@GAMECORE_PATH@|${GAMECORE_PATH}|g" \
+        -e "s|@GAMECORE_DATA@|${GAMECORE_DATA:-$GAMECORE_PATH}|g" "$staged"
     fi
 
     if [[ -f "$tgt" && ! -e "${tgt}.bak-preinstall" ]] && ! cmp -s "$staged" "$tgt"; then
