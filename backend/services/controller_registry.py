@@ -99,6 +99,10 @@ def disconnect(key: str) -> int | None:
     return player
 
 
+def player_for(key: str) -> int | None:
+    return _slots.get(key)
+
+
 def label_for(key: str) -> str:
     return _labels.get(key, "")
 
