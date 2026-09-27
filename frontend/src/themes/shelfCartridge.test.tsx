@@ -60,6 +60,7 @@ describe('what the game shipped on', () => {
     const { shellFor } = await loadShelf()
     expect(shellFor('.xci', 'ryujinx')).toBe('cart')
     expect(shellFor('.nsp', 'ryujinx')).toBe('cart')
+    expect(shellFor('.xci', 'switch')).toBe('cart')
   })
 
   it('draws an ISO or a CHD as a disc', async () => {
