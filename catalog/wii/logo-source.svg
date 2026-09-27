@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Wii console standing in its stand, three-quarter view: side face + narrow front face -->
+  <!-- stand -->
+  <path d="M86 436 L306 436 L296 470 L96 470 Z" fill="#999999"/>
+  <path d="M100 416 L292 416 L306 440 L86 440 Z" fill="#b3b3b3"/>
+  <!-- outline ring -->
+  <path d="M106 28 L150 16 L300 50 L300 420 L150 432 L106 420 Z" fill="#b3b3b3"/>
+  <!-- front face (narrow) -->
+  <path d="M116 38 L150 28 L150 420 L116 410 Z" fill="#f2f2f2"/>
+  <!-- disc slot and its blue light -->
+  <rect x="129" y="70" width="8" height="250" rx="4" fill="#999999"/>
+  <rect x="129" y="70" width="8" height="40" rx="4" fill="#3fa9f5"/>
+  <!-- power / reset buttons -->
+  <rect x="127" y="345" width="12" height="18" rx="3" fill="#d9d9d9"/>
+  <rect x="127" y="372" width="12" height="18" rx="3" fill="#d9d9d9"/>
+  <!-- side face -->
+  <path d="M150 28 L290 60 L290 410 L150 420 Z" fill="#e6e6e6"/>
+  <path d="M170 60 L272 83 L272 396 L170 402 Z" fill="none" stroke="#d9d9d9" stroke-width="6"/>
+
+  <!-- Wii Remote, standing in front -->
+  <rect x="282" y="160" width="124" height="324" rx="44" fill="#b3b3b3"/>
+  <rect x="294" y="172" width="100" height="300" rx="36" fill="#f7f7f7"/>
+  <!-- power -->
+  <circle cx="366" cy="196" r="7" fill="#b3b3b3"/>
+  <!-- d-pad -->
+  <rect x="324" y="210" width="40" height="14" rx="3" fill="#808080"/>
+  <rect x="337" y="197" width="14" height="40" rx="3" fill="#808080"/>
+  <!-- A -->
+  <circle cx="344" cy="275" r="17" fill="#999999"/>
+  <circle cx="344" cy="275" r="11" fill="#d9d9d9"/>
+  <!-- minus / home / plus -->
+  <circle cx="320" cy="322" r="6" fill="#bfbfbf"/>
+  <circle cx="344" cy="322" r="8" fill="#bfbfbf"/>
+  <circle cx="368" cy="322" r="6" fill="#bfbfbf"/>
+  <!-- 1 and 2 -->
+  <circle cx="344" cy="378" r="12" fill="#d9d9d9"/>
+  <circle cx="344" cy="414" r="12" fill="#d9d9d9"/>
+  <!-- player LEDs -->
+  <circle cx="320" cy="452" r="4" fill="#3fa9f5"/>
+  <circle cx="336" cy="452" r="4" fill="#bfbfbf"/>
+  <circle cx="352" cy="452" r="4" fill="#bfbfbf"/>
+  <circle cx="368" cy="452" r="4" fill="#bfbfbf"/>
+</svg>
