@@ -9,11 +9,6 @@
 import type { GamepadViewProps } from './types'
 import type { PadInfo } from '../../../lib/padLayout'
 
-const CLASS_LABELS: Record<string, string> = {
-  adapter: 'Adapter', wheel: 'Wheel', lightgun: 'Light gun',
-  arcade: 'Arcade stick', gamepad: 'Controller', unknown: 'Peripheral',
-}
-
 // The manual page's key, in the diagram's letter order (A to K).
 const PARTS: [string, string][] = [['l2', 'L2'], ['l1', 'L1'], ['r2', 'R2'], ['r1', 'R1'], ['up', 'D-pad'],
   ['south', 'Face buttons'], ['ls', 'Left stick, click L3'], ['rs', 'Right stick, click R3'],
@@ -26,7 +21,7 @@ function detail(p: Pick<PadInfo, 'connection' | 'battery' | 'charging'>) {
 }
 
 export default function DefaultGamepadView({
-  pads, pad, status, missing, absent = [], rawButtons = [], actions, Position, usbDevices = [], notice = '',
+  pads, pad, status, missing, absent = [], rawButtons = [], actions, Position, notice = '',
   onClose, onRemap, Art, skin = 'gcs-skin-default', callouts = false,
 }: GamepadViewProps & { skin?: string; callouts?: boolean }) {
   const lost = pad?.raw || pad?.known === 'unknown'
@@ -96,22 +91,6 @@ export default function DefaultGamepadView({
                 </ol>
               )}
             </aside>
-          </div>
-        )}
-
-        {/* Absent is not an error: a box with no GameCube adapter works. A band
-            of its own: three adapters' notes in the side column pushed the
-            legend and the hints off a 1080p screen. */}
-        {usbDevices.length > 0 && (
-          <div className="gcs-pad-usbs">
-            <div className="gcs-pad-hint">Peripherals</div>
-            {usbDevices.map(d => (
-              <div key={`${d.system_id}:${d.vid_pid}`} className="gcs-pad-usb" data-present={d.status === 'present' ? '1' : '0'}>
-                <div>{d.label}<span>, {CLASS_LABELS[d.class] ?? CLASS_LABELS.unknown}, for {d.system_label}</span></div>
-                <b>{d.status === 'present' ? 'Detected' : 'Not detected'}</b>
-                {d.status === 'absent' && <p>{d.note}</p>}
-              </div>
-            ))}
           </div>
         )}
 

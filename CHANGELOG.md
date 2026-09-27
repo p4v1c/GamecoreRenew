@@ -29,6 +29,10 @@ are the auto-incremented tags.
   `GET /api/controllers/pads`. A third-party theme with its own controller
   view keeps working (the old props are still filled).
 
+- **The power menu has no Cancel button and the controller screen no
+  peripherals list.** ○ closes the menu (the button could not be reached with a
+  pad); Orbit's power menu is a borderless PS5-style panel.
+
 - **Pad buttons moved so no theme can collide with them.** Per-game options
   (bezel) are on **Start / Options** on a library game (was R2); the menu of
   suspended games opens on **PS twice** outside a game (was L2), and from a new

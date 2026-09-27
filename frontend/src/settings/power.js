@@ -71,7 +71,6 @@ export const createPowerView = (sdk, parts = {}) => {
           })}
           </div>
 
-          <button class="gcs-pwr-cancel" onClick=${onCancel} disabled=${busy}>Cancel</button>
           <div class="gcs-pwr-hint">${busy ? ' ' : html`<${PadHints} text=${HINTS[layout]} />`}</div>
         </div>
       </div>`
