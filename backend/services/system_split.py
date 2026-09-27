@@ -342,6 +342,8 @@ def _apply_playtime(s: Split, log: list[str]) -> None:
 
 def apply(splits: list[Split], packs: dict) -> list[str]:
     """Carry the plan out. Returns one line per thing done or left."""
+    if not splits:
+        return []                        # a box already split: touch nothing
     log: list[str] = []
     for s in splits:
         failed = set()

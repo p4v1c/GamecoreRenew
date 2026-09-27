@@ -185,6 +185,9 @@ def test_a_second_run_changes_nothing(box, packs):
     system_split.apply(system_split.plan(packs), packs)
     after = _fingerprint(box)
     assert system_split.plan(packs) == []
+    stamp = (box / "config" / "systems.json").stat().st_mtime_ns
+    assert system_split.apply([], packs) == []
+    assert (box / "config" / "systems.json").stat().st_mtime_ns == stamp
     assert _fingerprint(box) == after
 
 
