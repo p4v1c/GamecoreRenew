@@ -4,12 +4,14 @@
 // the pixels behind it and for TV size.
 //
 //   node legibility-audit.mjs [--url http://127.0.0.1:8766/] [--theme shelf|default]
-//                             [--press confirm,dpad-down] [--all] [--json] [--shot out.png]
+//                             [--press confirm,dpad-down] [--all] [--json] [--shot out.png [--crops] [--clip x,y,w,h]]
 //
 // --theme switches the active theme through the API first (dev server only,
 // see devserve.py). --press sends pad events before the scan to reach a
 // screen, by their gp:* name: confirm (✕), back (○), x (□), menu (Start),
-// power (Select), l1, r1, dpad-up/down/left/right. --shot saves what was audited.
+// power (Select), l1, r1, dpad-up/down/left/right. --shot saves what was audited;
+// --crops adds its four quarters at 2x (out-q1..q4.png) and --clip one region at
+// 2x (out-clip.png), for a close visual review.
 // Exit 1 when something fails.
 import { spawn } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -26,6 +28,8 @@ const KEYS = (arg('press', '') || '').split(',').filter(Boolean)
 const SHOW_ALL = process.argv.includes('--all')
 const AS_JSON = process.argv.includes('--json')
 const SHOT = arg('shot')
+const CROPS = process.argv.includes('--crops')
+const CLIP = arg('clip')?.split(',').map(Number)
 const PORT = 9333
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -93,6 +97,19 @@ try {
   if (SHOT) {
     const seen = await send('Page.captureScreenshot', { format: 'png' })
     writeFileSync(SHOT, Buffer.from(seen.result.data, 'base64'))
+    if (CROPS) {
+      const quarters = [[0, 0], [960, 0], [0, 540], [960, 540]]
+      for (const [i, [x, y]] of quarters.entries()) {
+        const q = await send('Page.captureScreenshot', { format: 'png',
+          clip: { x, y, width: 960, height: 540, scale: 2 } })
+        writeFileSync(SHOT.replace(/\.png$/, '') + `-q${i + 1}.png`, Buffer.from(q.result.data, 'base64'))
+      }
+    }
+    if (CLIP?.length === 4) {
+      const [x, y, width, height] = CLIP
+      const c = await send('Page.captureScreenshot', { format: 'png', clip: { x, y, width, height, scale: 2 } })
+      writeFileSync(SHOT.replace(/\.png$/, '') + '-clip.png', Buffer.from(c.result.data, 'base64'))
+    }
   }
   await run(collect)
   await sleep(200)                 // hidden text and icons repaint

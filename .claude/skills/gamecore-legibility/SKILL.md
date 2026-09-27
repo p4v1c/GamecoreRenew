@@ -78,6 +78,7 @@ for t in default orbit shelf summer; do
   node $A --theme $t --press menu             # settings
 done
 node $A --theme shelf --press x --shot /tmp/shelf-pad.png --all   # every item + screenshot
+node $A --theme orbit --press power --shot /tmp/p.png --crops --clip 660,300,600,560   # + 2x quarters, 2x region
 ```
 
 It prints `FAIL` for contrast, text under 14px, or text under decoration, and
@@ -99,4 +100,4 @@ themes. The TV is the final check: look at it before merging.
 - [ ] hints and legends 16px+, nothing read under 14px
 - [ ] pad glyphs checked on every surface they appear on (light buttons too)
 - [ ] fixes use the theme's material (see `gamecore-human-touch`), no glow
-- [ ] `--shot` screenshots before and after in the PR
+- [ ] `--shot` screenshots before and after in the PR, reviewed with `gamecore-visual-review`

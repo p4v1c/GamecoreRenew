@@ -37,6 +37,7 @@ git log origin/main..HEAD --format=%s | grep -E '\b(le|la|les|une|pour|est|pas)\
 | gamecore-commit-pr | English conventional commits? nothing pushed to main? |
 | gamecore-human-touch | UI or copy changed: slop-audit counts down? no AI tells added? |
 | gamecore-legibility | UI changed: legibility-audit 0 `FAIL` on each touched theme × screen? |
+| gamecore-visual-review | UI changed: screenshots of every touched theme × screen, two review passes, findings fixed? |
 
 Also run the generic reviews if available: `/code-review` (bugs),
 `/simplify` (reuse), `/ponytail-review` (over-engineering).
