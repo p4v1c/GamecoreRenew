@@ -51,10 +51,9 @@ ever firing while leaving the extension enabled, so standby's own
 `xset dpms force off` still reaches the screen. Disabling the extension would
 have taken GameCore's sleep stage down with the bug it was fixing.
 
-The X arm needs nothing handed back for its own sake — an X server's settings
-die with the X server — but it is written down all the same, because the
-switch marked "standby" has to be able to give the screen back to whoever had
-it, and within one session that is still the X server's own timeout.
+The X arm is never handed back: X's own delays cannot see a pad or a game, so
+with standby switched off they blanked Ryujinx ten minutes in. Standby off in
+GameCore's session means the screen stays on (`claim_x()` keeps holding it).
 
 ## Not KDE, not X
 
@@ -214,12 +213,10 @@ async def _kde_write(value: str) -> bool:
 
 
 def _note() -> dict:
-    """What is outstanding, per arm: `previous` for KDE, `x_previous` for X.
+    """What is outstanding: `previous`, the desktop's screen-off timeout.
 
-    One note for both, because "there is a note" is what `release()` reads as
-    "we hold the claim" and two files would be two answers to that. A note
-    written before the X arm existed has only `previous` in it and still reads
-    correctly — the arms are looked up by key, not by count.
+    "There is a note" is what `release()` reads as "we hold the claim". Older
+    notes may also carry `x_previous`; `release()` drops it.
     """
     try:
         note = json.loads(_HANDOFF.read_text())
@@ -289,7 +286,7 @@ async def _claim_kde(note: dict) -> bool:
     return True
 
 
-async def _claim_x(note: dict) -> bool:
+async def claim_x() -> bool:
     """Take the X server's own idle timers — the ones that blanked the film.
 
     Only the halves this server has, and only when they are not already zero:
@@ -300,7 +297,7 @@ async def _claim_x(note: dict) -> bool:
 
     Ungated for the same reason as `_claim_kde`: `xset q` not answering is the
     test, and it is the one that works on a box where xset is installed but no
-    X server is listening.
+    X server is listening. No note: this arm is never handed back.
     """
     current = await _x_read()
     if current is None:
@@ -308,11 +305,7 @@ async def _claim_x(note: dict) -> bool:
     wanted = {key: _X_OFF[key] for key in current}
     if current == wanted:
         return True                     # already ours, or nothing to take
-    note["x_previous"] = current
-    _save(note)
     if not await _x_write(wanted):
-        note.pop("x_previous", None)
-        _save(note)
         log.warning("desktop_power: could not stop the X server's idle timers — "
                     "they still blank the screen under GameCore (were %s)", current)
         return False
@@ -340,20 +333,16 @@ async def claim() -> bool:
     # record of the half it took.
     note = _note()
     kde = await _claim_kde(note)
-    x = await _claim_x(note)
+    x = await claim_x()
     return kde or x
 
 
 async def release() -> bool:
-    """Give every timer back to whoever had it.
+    """Give the desktop's timer back. X's stays held — see the module docstring.
 
-    Called wherever GameCore stops managing the screen, because the two
-    together disarmed is the state nobody wants: a television that never goes
-    dark, behind a switch that says standby is off.
-
-    Per arm, and only the arms actually written down. An arm that cannot be
-    reached right now keeps its note, so the next release still has the value
-    to hand back — the note is only dropped once there is nothing left in it.
+    Called wherever GameCore stops managing the screen. A desktop that cannot
+    be reached right now keeps its note, so the next release still has the
+    value to hand back.
     """
     note = _note()
     if not note or not available():
@@ -364,11 +353,7 @@ async def release() -> bool:
             log.info("desktop_power: desktop screen-off restored to %s s",
                      note.pop("previous"))
             released = True
-    if "x_previous" in note:
-        if await _x_write(note["x_previous"]):
-            log.info("desktop_power: X server idle timers restored to %s",
-                     note.pop("x_previous"))
-            released = True
-    if released:
-        _save(note)
+    # A note from before the X arm stopped being handed back.
+    note.pop("x_previous", None)
+    _save(note)
     return released

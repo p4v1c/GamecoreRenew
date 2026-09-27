@@ -162,7 +162,7 @@ HUD instead, because the React toast is hidden under the emulator.
 | `exit_standby()` | wake — **unconditional** |
 | `resume_after_restart()` | called from the lifespan; forces the screen on at startup |
 | `on_input()` | called from the evdev loop on any controller button |
-| `_ensure_timers_owned()` | re-asserts `desktop_power.claim()`, at most once a minute |
+| `_ensure_timers_owned(enabled)` | re-asserts `desktop_power.claim()` (standby on) or `claim_x()` (standby off), at most once a minute |
 | `run()` | the idle poll loop |
 
 A running game blocks standby entirely — GameCore's standby, which is not the
@@ -192,6 +192,11 @@ service and starts at boot, before any session exists — boot at 07:39:06, the
 session's compositor at 07:39:20 — and each switch between GameCore's session
 and the desktop is a new X server with its delays back at the default. So
 `_tick()` re-asserts it, before the early return it takes for a foreground game.
+
+The X arm is never handed back, even with standby switched off: X's delays
+cannot see a pad or a game, and handing them back blanked Ryujinx ten minutes
+in. Standby off keeps X's timers at zero (`claim_x()`) and only gives the
+desktop's PowerDevil timeout back (`release()`).
 
 **The state is in memory; its effect is not.** `xset dpms force off` is a
 property of the X server, and X belongs to SDDM — it does not restart with the
