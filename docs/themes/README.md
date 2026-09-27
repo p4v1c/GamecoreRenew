@@ -160,7 +160,8 @@ paints first:
 The shell reads it **from disk before your bundle exists** — before the backend
 has answered anything — and paints it from the window's very first frame, on
 the local boot screen, in the frame between that screen and the interface, and
-on the cover the host holds under your splash. Get it wrong and the player sees
+on the interface page itself (`frontend/index.html`, before any module runs),
+and on the cover the host holds under your splash. Get it wrong and the player sees
 a flash of the wrong colour at every boot; leave it out and you get `#09090f`,
 which is what every theme got before this existed.
 
