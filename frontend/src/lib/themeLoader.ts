@@ -91,6 +91,9 @@ export async function setActiveTheme(id: string | null): Promise<void> {
 }
 
 const STYLE_ID = 'gc-theme-style'
+const SHEET_TIMEOUT_MS = 3000
+/** The sheet of the most recent applyStyles call; any other one is stale. */
+let latestSheet: HTMLLinkElement | null = null
 
 /**
  * A theme owns its own markup, so a stylesheet is useful again — unlike the
@@ -105,20 +108,44 @@ const STYLE_ID = 'gc-theme-style'
  * Settles once the sheet and its @imports have loaded (or failed): a surface
  * rendered earlier paints unstyled, which drew Orbit's boot mark as a
  * full-screen "G" at every start. The old sheet stays until then.
+ *
+ * Only the latest call's sheet survives: two quick calls (L1+R1, the theme
+ * picker) can settle in either order. A request that never answers is given
+ * up on after SHEET_TIMEOUT_MS, or the interface would never appear.
  */
 export function applyStyles(m: ThemeManifest | null): Promise<void> {
-  const previous = document.getElementById(STYLE_ID)
-  if (!m?.styles) { previous?.remove(); return Promise.resolve() }
+  if (!m?.styles) {
+    latestSheet = null
+    removeSheets(null)
+    return Promise.resolve()
+  }
   const link = document.createElement('link')
   link.id = STYLE_ID
   link.rel = 'stylesheet'
   link.href = `/themes/${encodeURIComponent(m.id)}/${m.styles}?v=${encodeURIComponent(m.version)}&t=${Date.now()}`
+  latestSheet = link
   return new Promise((resolve) => {
-    const settle = () => { previous?.remove(); resolve() }
+    let settled = false
+    const settle = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (latestSheet === link) removeSheets(link)
+      else link.remove()
+      resolve()
+    }
+    const timer = setTimeout(() => {
+      console.warn(`[gamecore] theme stylesheet ${m.styles} did not load in ${SHEET_TIMEOUT_MS} ms, showing the theme anyway`)
+      settle()
+    }, SHEET_TIMEOUT_MS)
     link.onload = settle
     link.onerror = settle
     document.head.appendChild(link)
   })
+}
+
+function removeSheets(keep: HTMLLinkElement | null): void {
+  document.querySelectorAll(`link#${STYLE_ID}`).forEach((el) => { if (el !== keep) el.remove() })
 }
 
 /** Called when falling back to the default theme. */

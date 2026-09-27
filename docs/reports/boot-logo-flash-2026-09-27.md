@@ -33,4 +33,10 @@ probe of the splash mark. Orbit, before: mark 1920×1920, opacity 1, from 449 ms
 ## Fix
 
 `applyStyles()` returns a promise settled on the link's `load` or `error`, and
-removes the previous theme's sheet only then; `loadTheme()` awaits it. No timer.
+removes the previous theme's sheet only then; `loadTheme()` awaits it.
+
+Review follow-ups: only the latest call's sheet survives when two loads settle
+in reverse order (L1+R1, theme picker), and a sheet that never answers is given
+up on after 3 s with a warning, so a stalled request cannot keep the interface
+off screen. The normal path is still the `load` event. Orbit and Shelf
+re-captured after both: 0 unstyled splash frames.

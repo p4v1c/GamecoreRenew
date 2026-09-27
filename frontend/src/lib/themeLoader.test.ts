@@ -126,6 +126,43 @@ describe('the theme stylesheet', () => {
     document.getElementById('gc-theme-style')!.dispatchEvent(new Event('error'))
     await expect(done).resolves.toBeUndefined()
   })
+
+  it('keeps only the last sheet when two loads settle in reverse order', async () => {
+    // L1+R1 or a quick theme picker: an orphaned first sheet, or the first
+    // theme's sheet winning because it finished last.
+    const current = document.createElement('link')
+    current.id = 'gc-theme-style'
+    document.head.appendChild(current)
+    const first = applyStyles(manifest({ id: 'first', styles: 'theme.css' }))
+    const second = applyStyles(manifest({ id: 'second', styles: 'theme.css' }))
+    const [, a, b] = Array.from(document.querySelectorAll<HTMLLinkElement>('link#gc-theme-style'))
+
+    b.dispatchEvent(new Event('load'))
+    await second
+    a.dispatchEvent(new Event('load'))
+    await first
+
+    const left = document.querySelectorAll<HTMLLinkElement>('link#gc-theme-style')
+    expect(left).toHaveLength(1)
+    expect(left[0].href).toContain('/themes/second/')
+  })
+
+  it('stops waiting for a sheet that never answers', async () => {
+    vi.useFakeTimers()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      let settled = false
+      const done = applyStyles(manifest({ styles: 'stalled.css' })).then(() => { settled = true })
+      await vi.advanceTimersByTimeAsync(2999)
+      expect(settled).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      await done
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('stylesheet'))
+    } finally {
+      warn.mockRestore()
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe('the theme sound set', () => {
