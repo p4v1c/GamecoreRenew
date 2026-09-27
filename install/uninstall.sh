@@ -572,6 +572,7 @@ fi
 safe_rm /etc/udev/rules.d/99-gamecore-input.rules \
         /etc/udev/rules.d/99-ds4-controllers.rules \
         /etc/udev/rules.d/99-uinput.rules \
+        /etc/udev/rules.d/99-gamecore-gpu.rules \
         /etc/modules-load.d/uinput.conf
 run udevadm control --reload-rules 2>/dev/null
 run udevadm trigger 2>/dev/null

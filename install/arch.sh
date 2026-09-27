@@ -649,6 +649,15 @@ else
   warn "cpupower not available."
 fi
 
+# ── GPU clock ────────────────────────────────────────────────────
+# amdgpu's `auto` level idles an APU at 400-533 MHz between frames; the
+# ramp-up queues frames and adds input lag while the frame rate looks fine
+# (measured on a Radeon 680M under Ryujinx). The rule re-applies on every boot.
+cat > /etc/udev/rules.d/99-gamecore-gpu.rules <<'UDEV'
+SUBSYSTEM=="drm", KERNEL=="card[0-9]*", DRIVERS=="amdgpu", ATTR{device/power_dpm_force_performance_level}="high"
+UDEV
+ok "GPU clock rule written (amdgpu only, applied at the udev reload below)."
+
 # ── Flatpak ──────────────────────────────────────────────────────
 progress 24 "Flatpak / Flathub"
 msg "Flatpak / Flathub"
