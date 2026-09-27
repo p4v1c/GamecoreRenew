@@ -6,6 +6,9 @@
   "platform": "Switch",
   "family": "Nintendo",
   "color": "#e6001a",
+  "supersededBy": [
+    "switch"
+  ],
   "order": 3,
   "install": {
     "provider": "flatpak",

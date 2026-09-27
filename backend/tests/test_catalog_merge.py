@@ -240,18 +240,18 @@ def test_the_removed_list_is_read_from_the_data_root_when_given(packs, tmp_path)
     (data / "config").mkdir(parents=True)
     grid = data / "config" / "systems.json"
     grid.write_text("[]")
-    (data / "config" / REMOVED_FILE).write_text(json.dumps(["cemu", "xenia", "ryujinx"]))
+    (data / "config" / REMOVED_FILE).write_text(json.dumps(["cemu", "xenia", "switch"]))
     (code / "config" / REMOVED_FILE).write_text("[]")           # the stale copy
 
     merge_file(grid, packs, code, data_root=data)
     ids = {s["id"] for s in json.loads(grid.read_text())}
-    assert not ids & {"cemu", "xenia", "ryujinx"}, ids
+    assert not ids & {"cemu", "xenia", "switch"}, ids
 
     # Without data_root the old behaviour is exactly preserved.
     grid.write_text("[]")
     merge_file(grid, packs, code)
     ids = {s["id"] for s in json.loads(grid.read_text())}
-    assert {"cemu", "xenia", "ryujinx"} <= ids
+    assert {"cemu", "xenia", "switch"} <= ids
 
 
 def test_a_missing_console_ratio_is_filled_in_and_a_set_one_is_kept(packs, tmp_path):

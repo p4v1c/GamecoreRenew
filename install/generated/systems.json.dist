@@ -88,19 +88,18 @@
     ]
   },
   {
-    "id": "ryujinx",
+    "id": "switch",
     "type": "emulator",
     "label": "Nintendo Switch",
     "platform": "Switch",
     "color": "#e6001a",
-    "iconPath": "assets/logos/ryujinx.png",
+    "iconPath": "assets/logos/switch.png",
     "path": "flatpak",
-    "args": "run @APPID@",
-    "romsPath": "emu/ryujinx/",
+    "args": "run @APPID@ -f -g",
+    "romsPath": "emu/switch/",
     "extensions": [
       "*.xci",
-      "*.nsp",
-      "*.zip"
+      "*.nsp"
     ],
     "libretroSystems": [
       "Nintendo - Switch"

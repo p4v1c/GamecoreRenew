@@ -225,3 +225,35 @@ def test_the_command_dry_runs_by_default(box):
     assert r.returncode == 0, r.stderr
     assert "Red.sav" in r.stdout and "Dry run" in r.stdout
     assert _fingerprint(box) == before
+
+
+# ── ryujinx → switch: a change of emulator, not of system ───────────────────
+
+@pytest.fixture
+def switch_box(tmp_path):
+    data = tmp_path / "userdata"
+    (data / "emu" / "ryujinx").mkdir(parents=True)
+    (data / "config").mkdir()
+    for name in ("Zelda.nsp", "Mario Kart.xci", "Old dump.zip"):
+        (data / "emu" / "ryujinx" / name).write_bytes(name.encode())
+    (data / "config" / "systems.json").write_text(json.dumps(
+        [_tile("ryujinx", ["*.xci", "*.nsp", "*.zip"])]))
+    (data / "config" / "controller-autoconfig.json").write_text(json.dumps(
+        {"enabled": True, "packs": {"ryujinx": False}}))
+    before = (paths.GAMECORE_ROOT, paths.GAMECORE_DATA)
+    paths.use_roots(ROOT, data)
+    try:
+        yield data
+    finally:
+        paths.use_roots(*before)
+
+
+def test_switch_games_move_to_eden_and_a_zip_keeps_the_ryujinx_tile(switch_box, packs):
+    system_split.apply(system_split.plan(packs), packs)
+    emu = switch_box / "emu"
+    assert sorted(p.name for p in (emu / "switch").iterdir()) == ["Mario Kart.xci", "Zelda.nsp"]
+    assert [p.name for p in (emu / "ryujinx").iterdir()] == ["Old dump.zip"]
+    assert _ids(switch_box) == ["switch", "ryujinx"]
+    # Ryujinx still owns its emulator, so its autoconfig switch stays its own.
+    autoconfig = json.loads((switch_box / "config" / "controller-autoconfig.json").read_text())
+    assert autoconfig["packs"] == {"ryujinx": False}

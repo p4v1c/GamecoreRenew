@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Give each system its own tile: dolphin → gamecube + wii, mgba → gb + gbc + gba.
+"""Move games off a superseded tile: dolphin → gamecube + wii, mgba → gb + gbc + gba,
+ryujinx → switch.
 
     scripts/split-systems.py --data /userdata            # dry run: prints the plan
     scripts/split-systems.py --data /userdata --apply    # does it
@@ -41,7 +42,7 @@ def _running(needles: set[str]) -> list[str]:
 
 def _print_plan(splits, config_notes, grid_notes) -> None:
     if not splits:
-        print("Nothing to split: no dolphin or mgba tile on this grid.")
+        print("Nothing to split: no superseded tile on this grid.")
         return
     for s in splits:
         print(f"\n== {s.old} -> {', '.join(s.new)}")

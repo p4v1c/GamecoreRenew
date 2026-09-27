@@ -79,6 +79,16 @@ are the auto-incremented tags.
 
 ### Needs action on an already-installed box
 
+- **Nintendo Switch runs Eden** (`switch` tile). A fresh install gets it
+  directly. A box with the **Ryujinx** tile keeps it, and it keeps launching
+  Ryujinx; nothing moves on its own. To switch, as the box's user, every game
+  closed: `sudo gamecore-emu install switch`, start Eden once and close it,
+  copy the keys, firmware and saves (Eden does not read Ryujinx's; one-shot
+  helper on branch `tools/ryujinx-to-eden`, not shipped), then move the games
+  with `scripts/split-systems.py --data /userdata` (dry run, then `--apply`)
+  and restart the backend and the UI. `.zip` dumps stay on the Ryujinx tile:
+  Eden does not open them. Keep one profile in Eden.
+
 - **An AMD GPU now runs at its top clock all the time.** The `auto` level
   dropped a Radeon 680M to 400-533 MHz between frames, and the ramp-up added
   input lag in heavy games while the frame rate looked fine. The installer

@@ -157,7 +157,9 @@ emulator's own files and two packs writing them overwrite each other.
 The packs that were split stay in the catalogue as `supersededBy` packs
 (`dolphin` → `gamecube`, `wii`; `mgba` → `gba`, `gbc`, `gb`). They keep
 `sharesEmulator`, so the old tile on a box that has not migrated still launches
-exactly as before. They are never offered (`gen-catalog.py`, `selected()`), never
+exactly as before. `ryujinx` → `switch` is the same mechanism for a change of
+emulator: the old pack keeps its own install, launch and generator (Ryujinx),
+the new one runs Eden. They are never offered (`gen-catalog.py`, `selected()`), never
 added by the merge, and while their tile is on a grid the merge does **not** add
 their successors either: the old tile holds the games, and empty twins beside it
 would be a lie. The owner moves the games with `scripts/split-systems.py`, by
