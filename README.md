@@ -3,6 +3,10 @@
 A retro gaming frontend built for kiosk / living-room use.  
 React + Electron shell + FastAPI backend — plug in a controller and play.
 
+![GameCore in the Orbit theme: a Nintendo 3DS picked in a row of consoles](docs/img/themes/orbit-home.webp)
+
+Website: [p4v1c.github.io/GamecoreRenew](https://p4v1c.github.io/GamecoreRenew/)
+
 ---
 
 > **Licence** — GPL-3.0-or-later, see [`LICENSE`](LICENSE).
@@ -334,6 +338,18 @@ Open Settings from the top-right icon or press **Start** on the controller.
 ---
 
 ## Themes
+
+Four themes ship with the box. Same screens, same pad controls, different looks.
+
+| Default: a quiet dark console | Orbit: night blue, one light on the focus |
+|---|---|
+| ![Default theme home](docs/img/themes/default-home.webp) | ![Orbit theme home](docs/img/themes/orbit-home.webp) |
+| ![Default theme controller screen](docs/img/themes/default-controller.webp) | ![Orbit theme controller screen](docs/img/themes/orbit-controller.webp) |
+
+| Shelf: boxed games on a papered wall | Summer: a live beach at the real hour |
+|---|---|
+| ![Shelf theme home](docs/img/themes/shelf-home.webp) | ![Summer theme home](docs/img/themes/summer-home.webp) |
+| ![Shelf theme controller screen](docs/img/themes/shelf-controller.webp) | ![Summer theme controller screen](docs/img/themes/summer-controller.webp) |
 
 Picking a theme swaps the frontend. Drop a folder in `config/themes/`, select it
 in **Settings → Themes**, and the launcher is redrawn — boot animation,
