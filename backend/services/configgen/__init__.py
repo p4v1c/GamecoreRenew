@@ -19,10 +19,12 @@ leaving invalidates the others.
 from __future__ import annotations
 
 import importlib.util
+import json
 import logging
 from collections.abc import Collection
 from pathlib import Path
 
+from ...config import SYSTEMS_FILE
 from .. import controller_autoconfig
 from ..catalog import load_catalog
 from . import snapshots
@@ -177,6 +179,15 @@ def superseded_ids(packs: dict, pack_id: str) -> tuple[str, ...]:
                         if p.superseded_by and p.emulator_owner == pack_id))
 
 
+def _grid_ids() -> frozenset[str] | None:
+    """The tile ids on this box's grid, or None when the grid cannot be read."""
+    try:
+        rows = json.loads(SYSTEMS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return frozenset(r.get("id") for r in rows if isinstance(r, dict))
+
+
 def autoconfigured_packs(packs: dict) -> tuple[list, list]:
     """`profilable_packs`, split by whether the owner still lets us write it.
 
@@ -199,7 +210,13 @@ def autoconfigured_packs(packs: dict) -> tuple[list, list]:
     the manual mode practical in the first place.
     """
     on, off = [], []
+    grid = _grid_ids()
     for pack in profilable_packs(packs):
+        # A superseded pack is only kept for its old tile. Once the games moved
+        # (ryujinx -> switch) its emulator may be gone, and asking it failed on
+        # every pad: a skipped slot, an 8 s launch wait and a "not configured" toast.
+        if pack.superseded_by and grid is not None and pack.id not in grid:
+            continue
         aliases = superseded_ids(packs, pack.id)
         (on if controller_autoconfig.enabled_for(pack.id, aliases) else off).append(pack)
     return on, off

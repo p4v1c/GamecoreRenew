@@ -153,6 +153,7 @@ emulator's own files and two packs writing them overwrite each other.
 | ticking `wii` alone also selects `gamecube` — otherwise Dolphin is installed with no seed | `catalog.selected()`, used by `gamecore-provider.py` and `catalog-query.py` |
 | `gamecore-emu install wii` deploys the owner's seed and bindings | `apply_pack` in `install/bin/gamecore-emu` |
 | `configgen` profiles the owner once; the others have no `controllers` block | `configgen.profilable_packs()` |
+| a superseded pack is profiled only while its tile is on the grid: once its games moved, its emulator may be uninstalled, and asking it failed on every pad (8 s launch wait, "not configured" toast). An unreadable grid changes nothing | `configgen.autoconfigured_packs()` |
 
 The packs that were split stay in the catalogue as `supersededBy` packs
 (`dolphin` → `gamecube`, `wii`; `mgba` → `gba`, `gbc`, `gb`). They keep
