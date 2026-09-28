@@ -44,7 +44,6 @@ _FROM_SDL = {
 _STICKS = {"lstick": ("leftx", "lefty"), "rstick": ("rightx", "righty")}
 
 
-
 def eden_guid(sdl_guid: str) -> str:
     """Eden's device id: SDL's GUID with the name CRC cleared."""
     return sdl_guid[:4] + "0000" + sdl_guid[8:]
