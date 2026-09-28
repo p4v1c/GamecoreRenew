@@ -19,6 +19,10 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **No more 8 s wait and "not configured in time" notice on the Switch tile
+  after Ryujinx is uninstalled.** The superseded `ryujinx` pack now profiles
+  controllers only while its old tile is still on the grid.
+
 - **The controller screen draws any pad, by position.** No more PlayStation
   drawing for every controller: the four face buttons are a diamond that
   lights where you press, missing controls (an arcade stick's sticks) are
