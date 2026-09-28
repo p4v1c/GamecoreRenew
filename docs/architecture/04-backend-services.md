@@ -96,6 +96,7 @@ emulator owns the display.
 | `_find_gamepad_devices()` | in `gamepad_devices.py`: `path → (name, uniq, is_pad, vendor, product)` for every readable `/dev/input/event*` |
 | `pads_by_key()`, `dup_indexes()`, `_can_read(path)` | in `gamepad_devices.py`: one entry per physical pad, per-name duplicate counters, permission probe |
 | `_watch_device(path)` | reads one device until it disconnects or is cancelled |
+| `ActivityFilter` | in `input_activity.py`: which events mean somebody is at the pad (a button down, the d-pad hat, a quarter of an axis's travel), for `standby.on_input()` |
 | `_on_guide_pressed()` | the double-press logic, then `POST /api/games/kill` |
 
 It also drives `controller_registry` on connect/disconnect,

@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import pytest
 
 from backend.services import gamepad_monitor as gm
+from backend.services.input_activity import ActivityFilter
 
 
 EV_KEY, EV_ABS, EV_SYN = 1, 3, 0
@@ -65,7 +66,7 @@ def ev(type_, code, value):
 
 @pytest.fixture
 def watch():
-    return gm.ActivityFilter(FakePad())
+    return ActivityFilter(FakePad())
 
 
 # ── buttons, which already worked and must go on working ─────────────────────

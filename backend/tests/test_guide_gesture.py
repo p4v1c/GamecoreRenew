@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from backend.services import gamepad_monitor as gm    # noqa: E402
+from backend.services.gamepad_devices import EV_ABS  # noqa: E402
 from backend.services import process_manager as pm    # noqa: E402
 
 
@@ -329,7 +330,7 @@ def test_other_buttons_are_not_part_of_the_chord(chord):
         w = chord.watcher()
         w.feed(_key(gm.BTN_START, gm.KEY_DOWN))
         w.feed(_key(BTN_SOUTH, gm.KEY_DOWN))
-        w.feed(_key(gm.EV_ABS, gm.KEY_DOWN))
+        w.feed(_key(EV_ABS, gm.KEY_DOWN))
         await _settle()
         w.cancel()
 
