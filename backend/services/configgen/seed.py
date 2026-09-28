@@ -5,7 +5,8 @@ install path of phase 5 and the shell installer share one implementation.
 
 Two things this owns:
 
-  · **Token substitution.** A seed carries `@HOME@` and `@GAMECORE_PATH@`, not
+  · **Token substitution.** A seed carries `@HOME@`, `@GAMECORE_PATH@` and
+    `@GAMECORE_DATA@` (the data root; the install root when unset), not
     absolute paths. The tree used to be harvested on a box where HOME was
     /home/pavic, and two independent `sed` passes chased that literal — one in
     arch.sh, one in install-emu-configs.sh. A personal username shipped in a
@@ -40,13 +41,15 @@ STAGED_SUFFIX = ".gamecore-staged"
 BINARY_SUFFIXES = {".png", ".jpg", ".jpeg", ".sqlite3", ".db", ".bin", ".dat"}
 
 
-def substitute(text: str, *, home: Path, gamecore_path: Path) -> str:
+def substitute(text: str, *, home: Path, gamecore_path: Path,
+               gamecore_data: Path | None = None) -> str:
     return (text.replace("@HOME@", str(home))
-                .replace("@GAMECORE_PATH@", str(gamecore_path)))
+                .replace("@GAMECORE_PATH@", str(gamecore_path))
+                .replace("@GAMECORE_DATA@", str(gamecore_data or gamecore_path)))
 
 
 def deploy(seed_dir: Path, dest: Path, *, home: Path, gamecore_path: Path,
-           dry_run: bool = False) -> list[str]:
+           gamecore_data: Path | None = None, dry_run: bool = False) -> list[str]:
     """Copy seed_dir/** into dest, substituting tokens. Returns what changed."""
     if not seed_dir.is_dir():
         return []
@@ -70,8 +73,8 @@ def deploy(seed_dir: Path, dest: Path, *, home: Path, gamecore_path: Path,
         else:
             try:
                 payload = substitute(src.read_text(encoding="utf-8"),
-                                     home=home, gamecore_path=gamecore_path
-                                     ).encode("utf-8")
+                                     home=home, gamecore_path=gamecore_path,
+                                     gamecore_data=gamecore_data).encode("utf-8")
             except UnicodeDecodeError:
                 payload = src.read_bytes()
 

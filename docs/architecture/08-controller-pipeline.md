@@ -76,7 +76,7 @@ fixed offsets.
 | `ryu_guid_vidpid(dashed_guid)` | the same, for Ryujinx's dashed dialect. For **reading** a config, never for deciding what to write |
 | `ryu_guid_from_sdl2(sdl_hex)` | the exact GUID Ryujinx will compute, from the one SDL2 reports — .NET `System.Guid` byte order, **name CRC (bytes 2-3) zeroed** |
 | `sdl2_probe(vendor, product, lib)` | what SDL2 itself says about a connected pad: raw GUID **and** GameController mapping, from a subprocess. `lib` picks *which* SDL2 answers |
-| `bundled_sdl2(app_id)` | the SDL2 a flatpak'd emulator really uses — the one it **ships**, else the one its **runtime** provides — or `""`. Its answer, not the host's, is what goes in that emulator's config |
+| `bundled_sdl2(app_id)` | the SDL2 a flatpak'd emulator really uses — the one it **ships**, else the one its **runtime** provides — or `""`. Its answer, not the host's, is what goes in that emulator's config. With two branches of one app installed, the lookup follows the app's `current` link (the one `flatpak run` starts) |
 
 > A GUID carries bus type, version and driver signature as well as
 > vendor/product, so two pads with the same vendor:product can have different
@@ -146,6 +146,12 @@ disconnect ever happens for the surviving slot. So the Ryujinx generator clears
 its own id from every other slot before writing, and its early "already correct,
 don't rewrite 11 KB" return is conditional on there being no duplicate —
 otherwise the slot that is right is exactly the one that hides the phantom.
+
+**Eden zeroes the name CRC too, and counts ports per GUID.** Its id is SDL's
+GUID with bytes 2-3 cleared (`sdl_driver.cpp` `GetGUID`), and `port` is the pad's
+rank among connected pads of that GUID, which is `Pad.dup_index`. Unlike Ryujinx
+it binds raw SDL indices, so they are asked of the SDL it links (the KDE
+runtime's), the azahar rule above. `catalog/switch/generator.py`.
 
 ## Naming a device — and refusing to guess
 

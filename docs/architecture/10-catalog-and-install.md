@@ -86,7 +86,7 @@ by `scripts/check-catalog.py`, which CI runs before anything else. Required:
 | `order` | `gen-catalog.py` | where the tile sits in the grid and in the wizard's list. A curated running order, not alphabetical. **Absent means last**, never absent — that ordering used to be a list of ids inside the script, and a pack missing from it was silently dropped from both |
 | `launch` | the backend, `flatpakify-systems.sh` | the command the tile runs. `preferIfPresent` picks a native binary over the Flatpak when one exists. `fullscreen` and `gamepadTrigger` cover what happens just after — see below |
 | `roms` | the backend, `arch.sh` | ROM directory and extensions. `roms.consoles` declares the DISTINCT MACHINES one emulator runs (mGBA: Game Boy, Color, Advance) with per-console extensions and an optional `ratio` (what the machine draws, `3:2`) — it feeds the per-console bezel cascade, the drift-correction cache keys and the overlay slots' expected ratio; see [06-electron-and-overlays](06-electron-and-overlays.md). Declared, never derived: `.zip` says nothing and `.rvz` holds two consoles |
-| `config` | `install-emu-configs.sh` | where `seed/` is deployed |
+| `config` | `install-emu-configs.sh` | where `seed/` is deployed. A seed may carry `@HOME@`, `@GAMECORE_PATH@` and `@GAMECORE_DATA@`, replaced at deploy time (`backend/services/configgen/seed.py`) |
 | `controllers` | `backend/services/configgen/` | which binding strategy `generator.py` implements |
 | `scraper` `overlay` | covers, bezel identification | metadata |
 | `bios` | `backend/services/bios.py` | which system files the OWNER must supply, so the UI can answer "absent / wrong md5 / conforming" instead of a black screen |
@@ -157,7 +157,9 @@ emulator's own files and two packs writing them overwrite each other.
 The packs that were split stay in the catalogue as `supersededBy` packs
 (`dolphin` → `gamecube`, `wii`; `mgba` → `gba`, `gbc`, `gb`). They keep
 `sharesEmulator`, so the old tile on a box that has not migrated still launches
-exactly as before. They are never offered (`gen-catalog.py`, `selected()`), never
+exactly as before. `ryujinx` → `switch` is the same mechanism for a change of
+emulator: the old pack keeps its own install, launch and generator (Ryujinx),
+the new one runs Eden. They are never offered (`gen-catalog.py`, `selected()`), never
 added by the merge, and while their tile is on a grid the merge does **not** add
 their successors either: the old tile holds the games, and empty twins beside it
 would be a lie. The owner moves the games with `scripts/split-systems.py`, by

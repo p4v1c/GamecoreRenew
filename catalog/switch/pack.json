@@ -1,0 +1,68 @@
+{
+  "id": "switch",
+  "kind": "emulator",
+  "label": "Nintendo Switch",
+  "emulatorName": "Eden",
+  "platform": "Switch",
+  "family": "Nintendo",
+  "color": "#e6001a",
+  "order": 3,
+  "install": {
+    "provider": "flatpak",
+    "appIds": ["dev.eden_emu.eden"]
+  },
+  "launch": {
+    "path": "flatpak",
+    "args": "run @APPID@ -f -g"
+  },
+  "roms": {
+    "dir": "emu/switch",
+    "extensions": [
+      "*.xci",
+      "*.nsp"
+    ]
+  },
+  "config": {
+    "dest": "@FLATPAK_CONFIG@/eden"
+  },
+  "bios": {
+    "dir": "@FLATPAK_DATA@/eden/keys",
+    "files": [
+      {
+        "file": "prod.keys",
+        "required": true,
+        "note": "Switch console keys. Without them Eden decrypts nothing."
+      },
+      {
+        "file": "title.keys",
+        "required": false,
+        "note": "Per-title keys. Only some dumps need them."
+      }
+    ]
+  },
+  "controllers": {
+    "maxPlayers": 4,
+    "order": 0,
+    "strategy": "snapshot-restore",
+    "target": "qt-config.ini",
+    "seedMustNotContain": [
+      "guid:[0-9a-f]{32}"
+    ]
+  },
+  "scraper": {
+    "tgdbId": 4971,
+    "screenscraper": [
+      225
+    ],
+    "libretro": [
+      "Nintendo - Switch"
+    ],
+    "mediaAlias": [
+      "switch"
+    ]
+  },
+  "perGame": {
+    "supported": false,
+    "why": "Eden keeps per-title settings in config/eden/custom/<TITLEID>.ini, but a dump's title id needs NCA decryption, which no reader in backend/services/gameid.py does."
+  }
+}

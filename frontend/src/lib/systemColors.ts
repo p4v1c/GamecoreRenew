@@ -37,6 +37,7 @@ export const SYSTEM_COLORS: Record<string, string> = {
   steam: '#1f6fb3',
   stremio: '#8a5fff',
   supergrafx: '#6d4c41',
+  switch: '#e6001a',
   twitch: '#800080',
   wii: '#1e88d0',
   xenia: '#107c10',

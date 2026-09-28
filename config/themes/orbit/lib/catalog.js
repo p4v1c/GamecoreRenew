@@ -27,6 +27,8 @@ export const consoles = {
     "Nintendo's cube-shaped console, on mini discs. Runs in Dolphin."],
   wii: ['wii.png', 'Wii', 'Nintendo', '2006', '#8ecdf0', 'Wii',
     'The motion-controlled console and its Wii Remote. Runs in Dolphin.'],
+  switch: ['switch.png', 'Nintendo Switch', 'Nintendo', '2017', '#ff8292', 'Switch',
+    'The hybrid console, docked on your TV. Runs in Eden; needs keys and firmware.'],
   // Tiles from before the split into one pack per system, until the owner moves them.
   dolphin: ['gamecube.png', 'GameCube & Wii', 'Nintendo', '2001 / 2006', '#ae91f5', 'GC',
     'GameCube and Wii discs in one emulator. Runs in Dolphin.'],

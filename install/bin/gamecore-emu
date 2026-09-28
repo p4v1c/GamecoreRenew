@@ -198,7 +198,8 @@ home = Path("~" + user).expanduser()
 
 dest = configgen.resolve_config_dir(pack, home)
 if pack.seed_dir and dest:
-    changed = seedlib.deploy(pack.seed_dir, dest, home=home, gamecore_path=root)
+    changed = seedlib.deploy(pack.seed_dir, dest, home=home, gamecore_path=root,
+                              gamecore_data=data)
     print(f"[gamecore-emu]   seed: {len(changed)} file(s) into {dest}")
 elif pack.seed_dir:
     print("[gamecore-emu]   seed: no destination declared — skipped")

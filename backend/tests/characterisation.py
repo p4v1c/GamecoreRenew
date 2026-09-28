@@ -259,6 +259,7 @@ SCENARIOS: tuple[Scenario, ...] = (
 # the input, and comparing them would only restate the fixtures.
 WATCHED = {
     "ryujinx": [".var/app/io.github.ryubing.Ryujinx/config/Ryujinx/Config.json"],
+    "switch": [".var/app/dev.eden_emu.eden/config/eden/qt-config.ini"],
     "gamecube": [".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu/GCPadNew.ini",
                 ".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu/WiimoteNew.ini"],
     "rpcs3": [".var/app/net.rpcs3.RPCS3/config/rpcs3/input_configs/global/Default.yml"],
@@ -288,6 +289,7 @@ WATCHED = {
 # Where each pack's seed lands in the fake HOME.
 SEED_DEST = {
     "ryujinx": ".var/app/io.github.ryubing.Ryujinx/config/Ryujinx",
+    "switch": ".var/app/dev.eden_emu.eden/config/eden",
     "gamecube": ".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu",
     "rpcs3": ".var/app/net.rpcs3.RPCS3/config/rpcs3",
     "pcsx2": ".var/app/net.pcsx2.PCSX2/config/PCSX2/inis",

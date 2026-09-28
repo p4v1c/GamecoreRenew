@@ -337,6 +337,7 @@ describe('what a game is drawn as', () => {
     const { physicalKind } = await loadOrbit()
     expect(physicalKind('ryujinx', 'Zelda.xci')).toBe('cart')
     expect(physicalKind('ryujinx', 'Mario.nsp')).toBe('cart')
+    expect(physicalKind('switch', 'Zelda.xci')).toBe('cart')
   })
 
   it('falls back to the extension for a pack it has never heard of', async () => {

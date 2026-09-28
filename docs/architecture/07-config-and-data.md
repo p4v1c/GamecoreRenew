@@ -430,7 +430,9 @@ the disc header (`.iso`, `.rvz`, `.wia`, `.ciso`, `.wbfs`). A dump it cannot
 place, or whose destination already exists, **stays**, with its companions —
 and so does the old tile, so it remains playable. Re-running is safe: it finds
 nothing, or the same leftovers. Saves under `~/.var/app` (Dolphin's memory
-cards and NAND) are keyed by game id and are not touched. Not carried: Orbit's
+cards and NAND) are keyed by game id and are not touched; so are Ryujinx's,
+which Eden does not read — a `ryujinx` → `switch` move leaves the Switch saves
+in Ryujinx, and copying them to Eden is a separate manual step. Not carried: Orbit's
 favourites, which live in the kiosk browser's storage (`orbit-favourites`,
 `system:filename`) where no script reaches; a favourite on a moved game has to
 be marked again.
@@ -657,6 +659,7 @@ skip the saves" is not an available option:
 | PCSX2, DuckStation | `memcards/` |
 | Cemu | `mlc01/usr/save/` |
 | Ryujinx | `bis/user/save/` |
+| Eden | `nand/user/save/` |
 | azahar | `sdmc/`, `nand/` |
 | mGBA, melonDS | `.sav` files **next to the ROMs** |
 

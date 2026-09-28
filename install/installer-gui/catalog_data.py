@@ -9,7 +9,7 @@ EMULATORS = [
     ('cemu', 'Cemu', 'Wii U'),
     ('gamecube', 'Dolphin', 'Nintendo GameCube'),
     ('wii', 'Dolphin', 'Nintendo Wii'),
-    ('ryujinx', 'Ryujinx', 'Nintendo Switch'),
+    ('switch', 'Eden', 'Nintendo Switch'),
     ('duckstation', 'DuckStation', 'PlayStation'),
     ('pcsx2', 'PCSX2', 'PlayStation 2'),
     ('rpcs3', 'RPCS3', "RPCS3 Smart Pack: RPCS3's official per-game settings applied automatically, even under hand-made custom configs, without overwriting the player's own values; the official patch catalogue kept fresh for the player to tick."),
