@@ -122,6 +122,10 @@ DEBOUNCE = 0.05
 # would act.
 _last_guide_press: float | None = None
 _guide_armed = False
+# Whether a game held the screen at the first press of the pending pair. The
+# browser sees the same presses and can suspend the game before the second one
+# lands here; the pair still means what the player began it over.
+_guide_from_game = False
 
 
 async def _watch_device(path: str) -> None:
@@ -184,7 +188,7 @@ async def _on_guide_pressed() -> None:
     KEY_HOMEPAGE, a double press suspended the game and armed the next single
     press to suspend or resume again on its own.
     """
-    global _last_guide_press, _guide_armed
+    global _last_guide_press, _guide_armed, _guide_from_game
 
     now = time.monotonic()
     elapsed = None if _last_guide_press is None else now - _last_guide_press
@@ -197,23 +201,27 @@ async def _on_guide_pressed() -> None:
     _last_guide_press = now
 
     if not (_guide_armed and elapsed is not None and elapsed <= DOUBLE_PRESS_WINDOW):
+        from . import process_manager as pm_module
         _guide_armed = True
+        _guide_from_game = pm_module.process_manager.is_foreground
         log.info("gamepad_monitor: guide pressed once — press again within %.1fs to exit",
                  DOUBLE_PRESS_WINDOW)
         return
 
     _guide_armed = False
-    await _suspend_to_interface("guide")
+    await _suspend_to_interface("guide", from_game=_guide_from_game)
 
 
-async def _suspend_to_interface(gesture: str, foreground_only: bool = False) -> None:
+async def _suspend_to_interface(gesture: str, foreground_only: bool = False,
+                                from_game: bool = False) -> None:
     """Give the screen back: freeze whatever is running, and say so.
 
     Shared by the two gestures that mean the same thing, so there is one
     account of what "get me out" does and not a second one that drifts.
     `foreground_only` is for the gesture that is *only* an escape from a game:
     Start+Select are ordinary interface buttons when no game holds the screen,
-    and holding them there should not quietly send anybody home.
+    and holding them there should not quietly send anybody home. `from_game`
+    says a game held the screen when the gesture began.
     """
     from . import process_manager as pm_module
     from .. import ws
@@ -261,6 +269,10 @@ async def _suspend_to_interface(gesture: str, foreground_only: bool = False) -> 
             # so there is no game left to be trapped in.
             action = "failed"
             log.exception("gamepad_monitor: could not suspend — session kept")
+    elif from_game:
+        # Already suspended by the browser's view of the same presses. `home`
+        # would open the session menu on a request to leave the game.
+        action = "backgrounded"
 
     try:
         # Still `gp:guide`, whichever gesture asked: it is the event themes and

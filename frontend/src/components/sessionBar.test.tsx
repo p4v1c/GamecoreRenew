@@ -269,6 +269,18 @@ describe('using it with a controller', () => {
     expect(screen.queryByText(/close game…/i)).toBeNull()
   })
 
+  it('stays shut when the browser reports that same PS ×2 after the suspend', () => {
+    // Chromium sees the presses a frame or two after evdev. By then the store
+    // already holds the game in the background, and the menu opened or not
+    // depending on which report won.
+    render(<SessionBar />)
+    held(SUSPENDED)
+    act(() => {
+      window.dispatchEvent(new CustomEvent('gp:guide', { detail: { fromGame: true } }))
+    })
+    expect(screen.queryByText(/close game…/i)).toBeNull()
+  })
+
   it('leaves L2 to the theme, even with a session suspended', () => {
     // Shelf flips its box on L2. The menu used to open on the same press.
     render(<SessionBar />)

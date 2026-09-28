@@ -110,7 +110,9 @@ gp:connected(name)   gp:disconnected
    `isPlaying()` reads Zustand synchronously. Otherwise emulator input would
    drive the launcher behind the game. Mirrors the old C++ behaviour.
 2. **`gp:guide` requires a double press within `GUIDE_DOUBLE_PRESS_MS` (1 s).**
-   One press must never kill a running game by accident.
+   One press must never kill a running game by accident. Its detail
+   `{fromGame}` is what held the screen at the first press: `SessionBar` opens
+   its menu only for a pair begun in the interface.
 3. **The left stick is edge-triggered into d-pad events** with `DEAD_ZONE = 0.5`,
    so a held stick emits once, not 60 times a second.
 
@@ -153,7 +155,7 @@ and returns an unsubscribe.
 | `gp:disconnected` | `gamepad_monitor` | `player`, `label` | departure toast |
 | `gp:battery` | `battery.run()` | `name`, `level`, `threshold` | toast, or native HUD in-game |
 | `gp:controllers` | `battery.run()` | `controllers[]` | battery levels for the controllers screen |
-| `gp:guide` | `gamepad_monitor` | `action` (`backgrounded`, `home`, `failed`), `gesture` | double press: suspends a game; `home` (nothing running) opens the session menu in `SessionBar` |
+| `gp:guide` | `gamepad_monitor` | `action` (`backgrounded`, `home`, `failed`), `gesture` | double press: suspends a game; `home` (a pair begun in the interface) opens the session menu in `SessionBar` |
 | `standby:screensaver` / `standby:sleep` / `standby:exit` | `standby._enter()` / `exit_standby()` | — | drives `Screensaver` |
 | `theme:changed` | `routers/themes.py` | `active` | reloads the theme |
 | `update:log` / `update:done` | `routers/update.py` | `line` / `success`, `code` | OTA progress |

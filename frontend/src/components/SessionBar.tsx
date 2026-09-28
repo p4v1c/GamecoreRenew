@@ -289,9 +289,12 @@ export default function SessionBar(
   useEffect(() => {
     // PS twice, outside a game. The backend's evdev monitor sees the guide
     // button on pads Chromium hides it on, and says so with action 'home'.
+    // A pair begun in a game is the one that suspended it, whoever reports it.
     const openIfIdle = () => { if (!stateRef.current.menu) manageRef.current() }
     const offs = [
-      onGp('gp:guide', openIfIdle),
+      onGp('gp:guide', d => {
+        if (!(d as { fromGame?: boolean } | null)?.fromGame) openIfIdle()
+      }),
       onWsEvent('gp:guide', data => { if (data.action === 'home') openIfIdle() }),
     ]
     return () => offs.forEach(off => off())
