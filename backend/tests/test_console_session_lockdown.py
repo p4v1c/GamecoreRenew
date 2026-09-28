@@ -128,6 +128,18 @@ def test_alt_tab_and_the_meta_key_are_taken_away(session):
     assert "Meta=" in kwinrc, "Meta on its own still opens a launcher"
 
 
+def test_the_window_manager_leaves_the_handovers_to_the_theme(session):
+    """The interface is unmapped while a game runs and mapped again on suspend.
+    KWin's defaults zoomed and faded it in for ~150 ms over the theme's own
+    handover, and morphed the game window as its fullscreen was dropped."""
+    session["run"]()
+    kwinrc = (_wm_config_dir(session) / "kwinrc").read_text()
+
+    assert "[Plugins]" in kwinrc
+    for effect in ("scale", "glide", "fade", "fullscreen"):
+        assert f"{effect}Enabled=false" in kwinrc, f"KWin still animates with {effect}"
+
+
 def test_openbox_is_given_a_keyboard_with_nothing_on_it(session):
     """The fallback window manager keeps its bindings in its own file, so
     disabling KWin's shortcuts would not have reached it."""

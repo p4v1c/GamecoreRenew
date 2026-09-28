@@ -229,6 +229,13 @@ competing `User`/`Session`/`Relogin` keys out of that file (keeping a backup in
 the manifest directory), because the Login Screen KCM rewrites it whenever
 someone opens it.
 
+The console session (`install/bin/gamecore-session`) hands `kwin_x11` a config
+directory of its own, `$XDG_RUNTIME_DIR/gamecore/wm`: no window-manager key
+bindings, and none of KWin's window animations (`fade`, `glide`, `scale`,
+`fullscreen`). The theme draws the handovers; KWin's zoomed and faded the
+interface in over them on every suspend, because the kiosk window is unmapped
+while a game runs.
+
 `sudo gamecore-session-select desktop` / `… gamecore` toggles the kiosk. There is
 only one session, so it changes **no SDDM configuration at all** — it is
 `systemctl enable|disable --now gamecore-ui.service` behind an argument-narrow
