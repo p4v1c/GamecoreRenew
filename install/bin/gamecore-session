@@ -216,6 +216,13 @@ write_wm_config() {
     # No focus stealing prevention games, and no window switching by mouse
     # wheel on the desktop — there is no desktop.
     echo 'RollOverDesktops=false'
+    echo
+    # The theme draws the handovers. KWin's window animations zoomed and faded
+    # the interface in over them on each suspend, and morphed the game window.
+    echo '[Plugins]'
+    for effect in fade glide scale fullscreen; do
+      printf '%sEnabled=false\n' "$effect"
+    done
   } > "$WM_CONFIG_HOME/kwinrc"
 
   # openbox keeps its bindings in its own file, and an empty <keyboard> is a

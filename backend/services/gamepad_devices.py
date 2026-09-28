@@ -22,6 +22,11 @@ BTN_SOUTH = 0x130
 KEYBOARD_KEYS = frozenset(range(1, 32))
 
 EV_KEY = 1   # evdev event type for key/button events
+EV_ABS  = 3   # axes: sticks, triggers, and the d-pad on most modern pads
+KEY_DOWN = 1  # event value for key press
+# Deliberately not called KEY_UP: evdev already has a KEY_UP and it is the
+# arrow key, code 103. This is the *value* a release carries.
+KEY_RELEASE = 0
 
 # Paths already reported as "kept, but has no Guide button" — the scan runs
 # every few seconds and this should be said once per device, not per pass.

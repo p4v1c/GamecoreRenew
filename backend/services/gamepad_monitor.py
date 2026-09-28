@@ -21,8 +21,10 @@ import logging
 import time
 
 from . import controller_profiles, controller_registry
-from .gamepad_devices import (EV_KEY, GUIDE_CODES, _can_read, _event_sort_key,
-                              _find_gamepad_devices, dup_indexes, pads_by_key)
+from .gamepad_devices import (EV_KEY, GUIDE_CODES, KEY_DOWN, KEY_RELEASE, _can_read,
+                              _event_sort_key, _find_gamepad_devices, dup_indexes,
+                              pads_by_key)
+from .input_activity import ActivityFilter
 
 log = logging.getLogger(__name__)
 
@@ -37,12 +39,6 @@ log = logging.getLogger(__name__)
 # DualShock 4's Ryujinx slot was lost exactly that way, and never recreated.
 PROFILE_RETRIES = 5
 
-EV_ABS  = 3   # axes: sticks, triggers, and the d-pad on most modern pads
-KEY_DOWN = 1  # event value for key press
-# Deliberately not called KEY_UP: evdev already has a KEY_UP and it is the
-# arrow key, code 103. This is the *value* a release carries.
-KEY_RELEASE = 0
-
 # BTN_SELECT and BTN_START. Held together, they are the second way out of a
 # game — see ChordWatcher for why a pad needs one.
 BTN_SELECT = 0x13A
@@ -56,77 +52,6 @@ CHORD_CODES = frozenset({BTN_SELECT, BTN_START})
 # is not working and let go. Both are live buttons inside a game, which is the
 # whole reason this is a hold and not a chord tapped once.
 CHORD_HOLD_S = 1.0
-
-# The d-pad, where the kernel puts it on a DualShock 4 and most other modern
-# pads: a hat, not four buttons. ABS_HAT0X/Y and their second-hat siblings.
-HAT_CODES = frozenset({0x10, 0x11, 0x12, 0x13})
-
-# How far an axis must move, as a fraction of its full travel, before it counts
-# as somebody being there.
-#
-# There has to be a threshold at all, and that is the whole difficulty of
-# reading axes for standby. A resting stick reports a trickle of noise forever;
-# a box that took that for activity would never sleep, which is a worse fault
-# than the one this fixes. A quarter of the travel is far past any drift and far
-# short of a deliberate push.
-STICK_TRAVEL = 0.25
-
-
-class ActivityFilter:
-    """Does this event mean somebody is at the controller?
-
-    Split out of the read loop so it can be asked directly — see
-    tests/test_standby_input.py. It only counted `EV_KEY` down before, and on
-    the pad this box is used with that misses the d-pad entirely: hid-playstation
-    reports it as a hat. Pressing a direction woke nothing and, worse, did not
-    reset the idle timer, so browsing with the stick alone brought the
-    screensaver up on somebody actively using the box.
-
-    Movement is what counts, not position: measured against the axis's last
-    reported value rather than its centre. Position would need to know where
-    each axis rests, and a trigger rests at its minimum while a stick rests in
-    the middle — a rule written as "far from the centre" calls every resting
-    trigger a held one. Travel needs to know nothing, and it also means a slow
-    drift never adds up to a press however far it wanders.
-    """
-
-    def __init__(self, dev):
-        self._dev = dev
-        self._last: dict[int, int] = {}
-        self._span: dict[int, float] = {}
-
-    def _threshold(self, code: int) -> float | None:
-        """How much travel is a lot, on this axis. None if the pad cannot say."""
-        if code in self._span:
-            return self._span[code] or None
-        try:
-            info = self._dev.absinfo(code)
-            span = (info.max - info.min) * STICK_TRAVEL
-        except Exception:
-            # No absinfo, no idea what "a long way" means here. Ignoring the
-            # axis keeps a device nobody can measure from holding the box awake.
-            span = 0.0
-        self._span[code] = span
-        return span or None
-
-    def is_activity(self, event) -> bool:
-        if event.type == EV_KEY:
-            return event.value == KEY_DOWN
-        if event.type != EV_ABS:
-            return False
-        if event.code in HAT_CODES:
-            return event.value != 0          # a hat is a d-pad: digital
-        threshold = self._threshold(event.code)
-        if threshold is None:
-            return False
-        previous = self._last.get(event.code)
-        self._last[event.code] = event.value
-        # The first reading of an axis only takes a bearing. A pad announces
-        # every axis as it connects, and a burst of "activity" then would wake
-        # the box each time a Bluetooth pad re-paired itself overnight.
-        if previous is None:
-            return False
-        return abs(event.value - previous) > threshold
 
 
 class ChordWatcher:
@@ -197,6 +122,10 @@ DEBOUNCE = 0.05
 # would act.
 _last_guide_press: float | None = None
 _guide_armed = False
+# Whether a game held the screen at the first press of the pending pair. The
+# browser sees the same presses and can suspend the game before the second one
+# lands here; the pair still means what the player began it over.
+_guide_from_game = False
 
 
 async def _watch_device(path: str) -> None:
@@ -259,7 +188,7 @@ async def _on_guide_pressed() -> None:
     KEY_HOMEPAGE, a double press suspended the game and armed the next single
     press to suspend or resume again on its own.
     """
-    global _last_guide_press, _guide_armed
+    global _last_guide_press, _guide_armed, _guide_from_game
 
     now = time.monotonic()
     elapsed = None if _last_guide_press is None else now - _last_guide_press
@@ -272,23 +201,27 @@ async def _on_guide_pressed() -> None:
     _last_guide_press = now
 
     if not (_guide_armed and elapsed is not None and elapsed <= DOUBLE_PRESS_WINDOW):
+        from . import process_manager as pm_module
         _guide_armed = True
+        _guide_from_game = pm_module.process_manager.is_foreground
         log.info("gamepad_monitor: guide pressed once — press again within %.1fs to exit",
                  DOUBLE_PRESS_WINDOW)
         return
 
     _guide_armed = False
-    await _suspend_to_interface("guide")
+    await _suspend_to_interface("guide", from_game=_guide_from_game)
 
 
-async def _suspend_to_interface(gesture: str, foreground_only: bool = False) -> None:
+async def _suspend_to_interface(gesture: str, foreground_only: bool = False,
+                                from_game: bool = False) -> None:
     """Give the screen back: freeze whatever is running, and say so.
 
     Shared by the two gestures that mean the same thing, so there is one
     account of what "get me out" does and not a second one that drifts.
     `foreground_only` is for the gesture that is *only* an escape from a game:
     Start+Select are ordinary interface buttons when no game holds the screen,
-    and holding them there should not quietly send anybody home.
+    and holding them there should not quietly send anybody home. `from_game`
+    says a game held the screen when the gesture began.
     """
     from . import process_manager as pm_module
     from .. import ws
@@ -336,6 +269,10 @@ async def _suspend_to_interface(gesture: str, foreground_only: bool = False) -> 
             # so there is no game left to be trapped in.
             action = "failed"
             log.exception("gamepad_monitor: could not suspend — session kept")
+    elif from_game:
+        # Already suspended by the browser's view of the same presses. `home`
+        # would open the session menu on a request to leave the game.
+        action = "backgrounded"
 
     try:
         # Still `gp:guide`, whichever gesture asked: it is the event themes and

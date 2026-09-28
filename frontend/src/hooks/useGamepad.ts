@@ -252,6 +252,7 @@ function axisStep(value: number, state: AxisRepeat, now: number,
 export function useGamepad() {
   const rafId = useRef<number>(0)
   const lastGuidePress = useRef<number>(0)
+  const guideFromGame = useRef(false)
   const stickX = useRef<AxisRepeat>({ dir: null, next: 0 })
   const stickY = useRef<AxisRepeat>({ dir: null, next: 0 })
 
@@ -345,9 +346,12 @@ export function useGamepad() {
               const now = performance.now()
               if (now - lastGuidePress.current <= GUIDE_DOUBLE_PRESS_MS) {
                 lastGuidePress.current = 0
-                emit('gp:guide')
+                // What was on screen at the FIRST press: the backend sees the
+                // same pair and may already have suspended the game by now.
+                emit('gp:guide', { fromGame: guideFromGame.current })
               } else {
                 lastGuidePress.current = now
+                guideFromGame.current = playing
               }
               return
             }

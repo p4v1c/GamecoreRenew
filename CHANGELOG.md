@@ -19,6 +19,16 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **PS twice in a game always lands on the interface, without the session
+  menu.** The menu opened on some suspends and not others, depending on
+  whether the browser or the backend saw the presses first. It now opens only
+  on PS twice from the interface.
+
+- **The interface no longer zooms and fades in over a suspended game.**
+  KWin's window animations are off in the console session, so the theme's own
+  handover plays alone at each launch, suspend and resume. Applies from the
+  next boot after the update.
+
 - **No more 8 s wait and "not configured in time" notice on the Switch tile
   after Ryujinx is uninstalled.** The superseded `ryujinx` pack now profiles
   controllers only while its old tile is still on the grid.

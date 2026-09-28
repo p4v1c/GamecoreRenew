@@ -192,6 +192,47 @@ describe('buttons', () => {
   })
 })
 
+describe('PS twice', () => {
+  const GUIDE = 16
+
+  /** Press and release PS, the press `gap` ms after the last frame. */
+  function tapGuide(gap: number) {
+    box.connect(pad({ index: 0, buttons: { [GUIDE]: true } }))
+    box.tick(gap)
+    box.connect(pad({ index: 0 }))
+    box.tick(16)
+  }
+
+  function pairs() {
+    const got: unknown[] = []
+    const off = onGp('gp:guide', d => got.push(d))
+    return { got, off }
+  }
+
+  it('is about the game it began in, even once the game has left the screen', () => {
+    // The backend sees the same presses through evdev and often suspends the
+    // game between them. Read at the second press, the pair meant "open the
+    // session menu" instead of "leave the game".
+    const { got, off } = pairs()
+    start(pad({ index: 0 }))
+    useStore.setState({ sessionGameKey: 'zelda.iso', sessionSystemId: 'dolphin' })
+    tapGuide(16)
+    useStore.setState({ sessionGameKey: null, sessionSystemId: null })
+    tapGuide(200)
+    off()
+    expect(got).toEqual([{ fromGame: true }])
+  })
+
+  it('is about the interface when it began there', () => {
+    const { got, off } = pairs()
+    start(pad({ index: 0 }))
+    tapGuide(16)
+    tapGuide(200)
+    off()
+    expect(got).toEqual([{ fromGame: false }])
+  })
+})
+
 describe('the stick, and the threshold it is read against', () => {
   it('moves at once when it is pushed past the press threshold', () => {
     start(pad({ index: 0 }))

@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from backend.services import gamepad_monitor as gm    # noqa: E402
+from backend.services.gamepad_devices import EV_ABS  # noqa: E402
 from backend.services import process_manager as pm    # noqa: E402
 
 
@@ -67,6 +68,7 @@ def guide(monkeypatch):
     monkeypatch.setattr(ws_module, "broadcast", broadcast)
     monkeypatch.setattr(gm, "_last_guide_press", None)
     monkeypatch.setattr(gm, "_guide_armed", False)
+    monkeypatch.setattr(gm, "_guide_from_game", False)
 
     clock = {"t": 100.0}
     monkeypatch.setattr(gm.time, "monotonic", lambda: clock["t"])
@@ -214,6 +216,28 @@ def test_with_nothing_running_it_only_says_so(manager, guide):
     assert guide.actions == [{"action": "home", "gesture": "guide"}]
 
 
+def test_a_pair_begun_in_a_game_never_opens_the_session_menu(manager, guide):
+    """The browser sees the same two presses and can suspend the game before
+    the second one reaches this monitor. Answering `home` then opened the
+    session menu on the press that asked to leave the game."""
+    _resident(manager, game_key="zelda.iso", system_id="dolphin")
+    guide.press()
+    guide.wait(0.2)
+    asyncio.run(manager.background())      # the browser's request lands first
+    guide.press()
+
+    assert guide.actions == [{"action": "backgrounded", "gesture": "guide"}]
+
+
+def test_a_pair_begun_in_the_interface_still_opens_it(manager, guide):
+    _resident(manager, game_key="zelda.iso", system_id="dolphin", state="background")
+    guide.press()
+    guide.wait(0.2)
+    guide.press()
+
+    assert guide.actions == [{"action": "home", "gesture": "guide"}]
+
+
 # ── Start+Select, for the pads with no guide button at all ───────────────────
 
 BTN_SOUTH = 0x130       # A / Cross — a button, but not one of these two
@@ -329,7 +353,7 @@ def test_other_buttons_are_not_part_of_the_chord(chord):
         w = chord.watcher()
         w.feed(_key(gm.BTN_START, gm.KEY_DOWN))
         w.feed(_key(BTN_SOUTH, gm.KEY_DOWN))
-        w.feed(_key(gm.EV_ABS, gm.KEY_DOWN))
+        w.feed(_key(EV_ABS, gm.KEY_DOWN))
         await _settle()
         w.cancel()
 

@@ -110,6 +110,11 @@ Otherwise emulator input drives the launcher hiding behind the game.
 Enforced in both `useGamepad.ts` and `gamepad_monitor.py`. A single press must
 never kill a running game.
 
+**A PS pair means what held the screen at its first press.** Both paths see
+the same presses, and the one that reports second finds the game already
+suspended. Judged at the second press, the pair that left the game opened the
+session menu on some suspends and not others.
+
 **The browser cannot see the Guide button reliably.**
 Chromium often hides it, and the UI has no focus under a fullscreen emulator.
 The evdev monitor in the backend is the primary path; the browser is the
