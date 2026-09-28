@@ -212,3 +212,30 @@ def test_a_successful_flatpak_lookup_is_cached(monkeypatch):
     assert sp.flatpak_location("com.example.App") == "/deploy/rmg"
     assert sp.flatpak_location("com.example.App") == "/deploy/rmg"
     assert len(calls) == 1
+
+
+def test_two_installed_branches_resolve_to_the_one_flatpak_run_starts(monkeypatch, tmp_path):
+    """A local Eden build (branch master) next to Flathub's (stable) made
+    `flatpak info dev.eden_emu.eden` fail with "multiple branches". The runtime
+    lookup then answered "", and the generator probed the host's SDL instead of
+    Eden's, in silence. The branch is read from the app's `current` link."""
+    sp._flatpak_loc_cache.clear()
+    sp._runtime_loc_cache.clear()
+    app = tmp_path / "flatpak/app/dev.eden_emu.eden"
+    app.mkdir(parents=True)
+    (app / "current").symlink_to("x86_64/master")
+    monkeypatch.setattr(sp, "_INSTALLATIONS", (tmp_path / "flatpak",))
+
+    class R:
+        def __init__(self, rc, out): self.returncode, self.stdout = rc, out
+
+    answers = {
+        ("--show-location", "dev.eden_emu.eden//master"): "/deploy/eden-master",
+        ("--show-runtime", "dev.eden_emu.eden//master"): "org.kde.Platform/x86_64/6.11",
+        ("--show-location", "runtime/org.kde.Platform/x86_64/6.11"): "/deploy/kde",
+    }
+    monkeypatch.setattr(sp.subprocess, "run", lambda cmd, **kw: (
+        R(0, answers[tuple(cmd[2:])] + "\n") if tuple(cmd[2:]) in answers else R(1, "")))
+
+    assert sp.flatpak_location("dev.eden_emu.eden") == "/deploy/eden-master"
+    assert sp.flatpak_runtime_location("dev.eden_emu.eden") == "/deploy/kde"

@@ -76,7 +76,7 @@ fixed offsets.
 | `ryu_guid_vidpid(dashed_guid)` | the same, for Ryujinx's dashed dialect. For **reading** a config, never for deciding what to write |
 | `ryu_guid_from_sdl2(sdl_hex)` | the exact GUID Ryujinx will compute, from the one SDL2 reports — .NET `System.Guid` byte order, **name CRC (bytes 2-3) zeroed** |
 | `sdl2_probe(vendor, product, lib)` | what SDL2 itself says about a connected pad: raw GUID **and** GameController mapping, from a subprocess. `lib` picks *which* SDL2 answers |
-| `bundled_sdl2(app_id)` | the SDL2 a flatpak'd emulator really uses — the one it **ships**, else the one its **runtime** provides — or `""`. Its answer, not the host's, is what goes in that emulator's config |
+| `bundled_sdl2(app_id)` | the SDL2 a flatpak'd emulator really uses — the one it **ships**, else the one its **runtime** provides — or `""`. Its answer, not the host's, is what goes in that emulator's config. With two branches of one app installed, the lookup follows the app's `current` link (the one `flatpak run` starts) |
 
 > A GUID carries bus type, version and driver signature as well as
 > vendor/product, so two pads with the same vendor:product can have different

@@ -86,6 +86,42 @@ _flatpak_loc_cache: dict[str, str] = {}
 _runtime_loc_cache: dict[str, str] = {}
 
 
+# Where `flatpak run` finds an app's current branch: user installation first.
+_INSTALLATIONS = (Path.home() / ".local/share/flatpak", Path("/var/lib/flatpak"))
+
+
+def _current_branch(app_id: str) -> str:
+    """The branch `flatpak run <app_id>` starts, from its `current` link, or "".
+
+    Needed only when two branches are installed (a locally built Eden next to
+    Flathub's): `flatpak info <app_id>` then refuses with "multiple branches",
+    and every SDL lookup below fell back to the host's library in silence.
+    """
+    for root in _INSTALLATIONS:
+        link = root / "app" / app_id / "current"
+        if link.is_symlink():
+            return Path(os.readlink(link)).name
+    return ""
+
+
+def _flatpak_info(flag: str, ref: str) -> str:
+    """`flatpak info <flag> <ref>`'s answer, or "" on any failure."""
+    try:
+        r = subprocess.run(["flatpak", "info", flag, ref],
+                           capture_output=True, text=True, timeout=8)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def _app_info(flag: str, app_id: str) -> str:
+    """`flatpak info` about an app, retried on its current branch."""
+    out = _flatpak_info(flag, app_id)
+    if not out and (branch := _current_branch(app_id)):
+        out = _flatpak_info(flag, f"{app_id}//{branch}")
+    return out
+
+
 def flatpak_location(app_id: str) -> str:
     """Deploy directory of an installed flatpak, or "".
 
@@ -108,14 +144,7 @@ def flatpak_location(app_id: str) -> str:
     """
     if _flatpak_loc_cache.get(app_id):
         return _flatpak_loc_cache[app_id]
-    out = ""
-    try:
-        r = subprocess.run(["flatpak", "info", "--show-location", app_id],
-                           capture_output=True, text=True, timeout=8)
-        if r.returncode == 0:
-            out = r.stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        pass
+    out = _app_info("--show-location", app_id)
     if out:
         _flatpak_loc_cache[app_id] = out
     return out
@@ -133,19 +162,8 @@ def flatpak_runtime_location(app_id: str) -> str:
     """
     if _runtime_loc_cache.get(app_id):
         return _runtime_loc_cache[app_id]
-    out = ""
-    try:
-        r = subprocess.run(["flatpak", "info", "--show-runtime", app_id],
-                           capture_output=True, text=True, timeout=8)
-        runtime = r.stdout.strip() if r.returncode == 0 else ""
-        if runtime:
-            r = subprocess.run(
-                ["flatpak", "info", "--show-location", f"runtime/{runtime}"],
-                capture_output=True, text=True, timeout=8)
-            if r.returncode == 0:
-                out = r.stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        pass
+    runtime = _app_info("--show-runtime", app_id)
+    out = _flatpak_info("--show-location", f"runtime/{runtime}") if runtime else ""
     if out:
         _runtime_loc_cache[app_id] = out
     return out
