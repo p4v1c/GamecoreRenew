@@ -1,16 +1,16 @@
 /**
- * The universal pad diagram: the standard layout by POSITION, no brand shape
- * and no face symbols, so every mapped pad is drawn correctly by construction.
+ * The live pad diagram: one standard layout, lit by POSITION, with the face
+ * symbols the on-screen prompts use.
  *
- * Colours are CSS variables with the built-in UI's values as fallbacks; a
- * theme repaints it from its stylesheet (`--pd-body`, `--pd-part`, `--pd-line`,
- * `--pd-lit`, `--pd-lit-line`, `--pd-knob`, `--pd-label`, `--pd-callout`,
- * `--pd-callout-ink`, and `--pd-pos` for the legend's position icon).
- * Controls the pad does not have are drawn dashed.
+ * Colours are CSS variables with Orbit-blue fallbacks; a theme repaints it from
+ * its stylesheet (`--pd-body`, `--pd-body-line`, `--pd-center`, `--pd-part`,
+ * `--pd-line`, `--pd-lit`, `--pd-lit-line`, `--pd-knob`, `--pd-well`, `--pd-label`, and
+ * `--pd-pos` for the legend's icon). Controls the pad does not have are faded
+ * and dashed.
  */
-import type { ReactNode } from 'react'
+import { useId } from 'react'
 
-export interface PadDiagramProps {
+type PadDiagramProps = {
   /** Held controls by name: south, east, l1, up, home, l3… */
   pressed: Record<string, boolean>
   /** Analog travel 0..1 for l2 / r2. */
@@ -19,131 +19,118 @@ export interface PadDiagramProps {
   axes: number[]
   /** Controls this pad has; the rest are drawn absent. */
   has: ReadonlySet<string>
-  /** Triggers are buttons: draw them like L1/R1, with no travel. */
+  /** Triggers are buttons: no travel figure. */
   digitalTriggers?: boolean
-  /** Letter every part, instruction-manual style, instead of naming it. */
-  callouts?: boolean
 }
 
 const v = (name: string, fallback: string) => `var(--pd-${name}, ${fallback})`
 const C = {
-  body: v('body', '#15151d'), bodyLine: v('body-line', 'rgba(255,255,255,0.08)'),
-  part: v('part', '#23232d'), line: v('line', 'rgba(255,255,255,0.3)'),
-  lit: v('lit', '#f2a46a'), litLine: v('lit-line', '#f8cfa9'),
-  knob: v('knob', '#3a3a47'), label: v('label', 'rgba(255,255,255,0.78)'),
-  callout: v('callout', '#17161A'), calloutInk: v('callout-ink', '#fff'),
+  body: v('body', '#e0e5ed'), bodyLine: v('body-line', '#fff'), center: v('center', '#171e29'),
+  part: v('part', '#202734'), line: v('line', '#616b79'), knob: v('knob', '#333c4a'), well: v('well', '#111923'),
+  lit: v('lit', '#63c7ff'), litLine: v('lit-line', '#c0ecff'), label: v('label', '#9aa9bd'),
 }
-const TRAVEL = 26
-const LETTERS = 'ABCDEFGHIJK'
-// Callout letter positions, one per part: L2 L1 R2 R1 d-pad face sticks×2 Select Start Home.
-const CALLOUTS: [number, number][] = [[80, 33], [80, 75], [560, 33], [560, 75], [128, 122],
-  [562, 122], [212, 318], [428, 318], [262, 116], [378, 116], [352, 186]]
+// Ink on a lit part: dark on every theme's light.
+const LIT_INK = '#152334'
+const STICK_TRAVEL = 13
+const ABSENT = 0.25
 
-function partStyle(present: boolean, on: boolean) {
-  if (!present) return { fill: 'none', stroke: C.line, strokeDasharray: '5 6', opacity: 0.7 }
-  return { fill: on ? C.lit : C.part, stroke: on ? C.litLine : C.line }
-}
-
-function Label({ x, y, anchor, children, small, absent }: {
-  x: number; y: number; anchor: 'start' | 'middle' | 'end'; children: ReactNode; small?: boolean; absent?: boolean
-}) {
-  return <text x={x} y={y} textAnchor={anchor} className="gc-pd-label"
-    style={{ fill: C.label, fontSize: small ? 17 : 20, fontWeight: 600, opacity: absent ? 0.55 : 1, textShadow: 'none', paintOrder: 'normal' }}>{children}</text>
+type Face = 'north' | 'east' | 'south' | 'west'
+const FACE_PATHS: Record<Face, string> = {
+  north: 'M0 -7 L7 6 L-7 6 Z',
+  east: 'M7 0 A7 7 0 1 1 -7 0 A7 7 0 1 1 7 0',
+  south: 'M-6 -6 L6 6 M6 -6 L-6 6',
+  west: 'M-6 -6 H6 V6 H-6 Z',
 }
 
-export default function PadDiagram({ pressed, triggers, axes, has, digitalTriggers = false, callouts = false }: PadDiagramProps) {
-  const text = !callouts
-  const is = (k: string) => !!pressed[k]
+export default function PadDiagram({ pressed, triggers, axes, has, digitalTriggers = false }: PadDiagramProps) {
+  const gradient = useId().replace(/:/g, '')
+  const partStyle = (k: string) => ({
+    fill: pressed[k] ? C.lit : C.part, stroke: pressed[k] ? C.litLine : C.line,
+    opacity: has.has(k) ? 1 : ABSENT, strokeDasharray: has.has(k) ? undefined : '3 4',
+  })
+  const ink = (k: string) => (pressed[k] ? LIT_INK : C.label)
 
-  const bumper = (x: number, y: number, k: string, label: string, side: 'l' | 'r') => (
+  const face = (k: Face, x: number, y: number) => (
     <g key={k}>
-      <rect x={x} y={y} width={150} height={26} rx={8} strokeWidth={2} style={partStyle(has.has(k), is(k))} />
-      {text && <Label x={side === 'l' ? x - 14 : x + 164} y={y + 19} anchor={side === 'l' ? 'end' : 'start'} absent={!has.has(k)}>{label}</Label>}
+      <circle cx={x} cy={y} r={15} strokeWidth={1.5} style={partStyle(k)} />
+      <path d={FACE_PATHS[k]} transform={`translate(${x} ${y})`} fill="none" stroke={ink(k)} strokeWidth={1.8}
+        strokeLinecap="round" strokeLinejoin="round" opacity={has.has(k) ? 1 : ABSENT} />
     </g>
   )
 
-  const trigger = (x: number, k: 'l2' | 'r2', label: string, side: 'l' | 'r') => {
-    if (digitalTriggers) return bumper(x, 20, k, label, side)
-    const value = Math.max(0, Math.min(1, triggers[k]))
-    const w = Math.round(142 * value)
-    // Fills from the inner edge, the way the trigger travels towards the pad.
-    const fx = side === 'l' ? x + 146 - w : x + 4
-    const pct = value > 0.02 && value < 0.98 ? ` ${Math.round(value * 100)}%` : ''
+  const stick = (k: 'ls' | 'rs', click: string, x: number, ax = 0, ay = 0) => {
+    const kx = x + ax * STICK_TRAVEL
+    const ky = 205 + ay * STICK_TRAVEL
     return (
-      <g key={k}>
-        <rect x={x} y={18} width={150} height={30} rx={15} strokeWidth={2} style={partStyle(has.has(k), false)} />
-        {has.has(k) && w > 0 && <rect x={fx} y={22} width={w} height={22} rx={11} style={{ fill: C.lit }} />}
-        {text && <Label x={side === 'l' ? x - 14 : x + 164} y={39} anchor={side === 'l' ? 'end' : 'start'} absent={!has.has(k)}>{label}{pct}</Label>}
+      <g key={k} opacity={has.has(k) ? 1 : ABSENT}>
+        <circle cx={x} cy={205} r={31} fill={C.well} stroke={C.line} />
+        <circle cx={kx} cy={ky} r={23} strokeWidth={2} fill={pressed[click] ? C.lit : C.knob}
+          stroke={Math.hypot(ax, ay) > 0.15 ? C.litLine : C.line} />
+        <circle cx={kx} cy={ky} r={18} fill="none" stroke={C.line} opacity={0.4} />
       </g>
     )
   }
 
-  const arm = (k: string, x: number, y: number, w: number, h: number) =>
-    <rect key={k} x={x} y={y} width={w} height={h} rx={6} strokeWidth={2} style={partStyle(has.has(k), is(k))} />
-
-  const dot = (k: string, x: number, y: number) =>
-    <circle key={k} cx={x} cy={y} r={19} strokeWidth={2} style={partStyle(has.has(k), is(k))} />
-
-  const stick = (cx: number, k: 'ls' | 'rs', click: string, ax: number, ay: number) => {
-    const moved = Math.hypot(ax, ay) > 0.15
+  const shoulder = (side: 'l' | 'r', x: number) => {
+    const value = triggers[side === 'l' ? 'l2' : 'r2']
+    const label = (k: string, y: number, size: number) => (
+      <text x={x + 34} y={y} textAnchor="middle" style={{ fill: ink(k), fontSize: size, fontWeight: 700, textShadow: 'none' }}>
+        {k.toUpperCase()}
+      </text>
+    )
     return (
-      <g key={k}>
-        <circle cx={cx} cy={262} r={40} strokeWidth={2} style={partStyle(has.has(k), false)} />
-        {has.has(k) && <circle cx={cx + ax * TRAVEL} cy={262 + ay * TRAVEL} r={23}
-          strokeWidth={moved ? 3 : 2}
-          style={{ fill: is(click) ? C.lit : C.knob, stroke: moved ? C.litLine : C.line }} />}
+      <g key={side}>
+        <rect x={x} y={18} width={68} height={29} rx={10} strokeWidth={1.5} style={partStyle(`${side}2`)} />
+        {label(`${side}2`, 38, 16)}
+        <rect x={x} y={54} width={68} height={25} rx={8} strokeWidth={1.5} style={partStyle(`${side}1`)} />
+        {label(`${side}1`, 72, 15)}
+        {!digitalTriggers && value > 0.02 && (
+          <text x={side === 'r' ? x + 78 : x - 10} y={38} textAnchor={side === 'r' ? 'start' : 'end'}
+            style={{ fill: C.label, fontSize: 12, fontWeight: 600, textShadow: 'none' }}>{Math.round(value * 100)}%</text>
+        )}
       </g>
     )
   }
 
-  const pill = (k: string, x: number, label: string) => (
-    <g key={k}>
-      <rect x={x - 22} y={138} width={44} height={18} rx={9} strokeWidth={2} style={partStyle(has.has(k), is(k))} />
-      {text && <Label x={x} y={182} anchor="middle" small absent={!has.has(k)}>{label}</Label>}
-    </g>
-  )
-
-  const [lx = 0, ly = 0, rx = 0, ry = 0] = axes
+  const [lx, ly, rx, ry] = axes
   return (
-    <svg className="gc-pd" viewBox="-40 0 720 340" aria-hidden="true" style={{ width: '100%', height: 'auto', display: 'block', overflow: 'visible' }}>
-      <path strokeWidth={2} style={{ fill: C.body, stroke: C.bodyLine }}
-        d="M150 104 H490 C590 104 640 170 640 236 C640 300 600 330 560 330 C520 330 500 300 470 280 H170 C140 300 120 330 80 330 C40 330 0 300 0 236 C0 170 50 104 150 104 Z" />
-      {trigger(110, 'l2', 'L2', 'l')}{bumper(110, 62, 'l1', 'L1', 'l')}
-      {trigger(380, 'r2', 'R2', 'r')}{bumper(380, 62, 'r1', 'R1', 'r')}
-      {arm('up', 117, 149, 22, 30)}{arm('down', 117, 201, 22, 30)}
-      {arm('left', 87, 179, 30, 22)}{arm('right', 139, 179, 30, 22)}
-      {/* Wider than the gap so it covers the arms' inner strokes: a visible
-          square there reads as a fifth, pressed button. */}
-      <rect x={115} y={177} width={26} height={26} style={{ fill: C.part, stroke: 'none' }} />
-      {dot('north', 512, 150)}{dot('east', 552, 190)}{dot('south', 512, 230)}{dot('west', 472, 190)}
-      {stick(212, 'ls', 'l3', lx, ly)}{stick(428, 'rs', 'r3', rx, ry)}
-      {pill('select', 262, 'Select')}{pill('start', 378, 'Start')}
-      <g>
-        <circle cx={320} cy={214} r={17} strokeWidth={2} style={partStyle(has.has('home'), is('home'))} />
-        {text && <Label x={320} y={258} anchor="middle" small absent={!has.has('home')}>Home</Label>}
-      </g>
-      {callouts && CALLOUTS.map(([x, y], i) => (
-        <g key={i}>
-          <circle cx={x} cy={y} r={12} style={{ fill: C.callout }} />
-          <text x={x} y={y + 5} textAnchor="middle" style={{ fill: C.calloutInk, fontSize: 15, fontWeight: 700 }}>{LETTERS[i]}</text>
-        </g>
+    <svg className="gc-pd" viewBox="0 0 500 320" aria-hidden="true" style={{ width: '100%', height: 'auto', display: 'block' }}>
+      <defs>
+        <linearGradient id={gradient} x2="0" y2="1">
+          <stop stopColor={C.body} />
+          <stop offset="1" stopColor={C.body} stopOpacity={0.8} />
+        </linearGradient>
+      </defs>
+      {shoulder('l', 80)}{shoulder('r', 352)}
+      <path fill={`url(#${gradient})`} stroke={C.bodyLine} strokeWidth={1.5}
+        d="M112 83 C76 81 61 115 50 158 L27 257 C19 295 51 310 72 285 L139 226 Q250 251 361 226 L428 285 C449 310 481 295 473 257 L450 158 C439 115 424 81 388 83 Q250 68 112 83Z" />
+      <path d="M166 104 Q250 89 334 104 L351 210 Q321 252 250 245 Q179 252 149 210Z" fill={C.center} />
+      <path d="M169 104 Q250 89 331 104" fill="none" stroke={C.lit} strokeWidth={3} opacity={0.8} />
+      <path d="M177 105 Q250 97 323 105 L316 155 Q250 163 184 155Z" fill={C.part} stroke={C.line} />
+      {face('north', 388, 120)}{face('east', 419, 151)}{face('south', 388, 182)}{face('west', 357, 151)}
+      {['up', 'right', 'down', 'left'].map((k, i) => (
+        <path key={k} d="M103 121 L121 121 L121 138 L112 145 L103 138Z" transform={`rotate(${i * 90} 112 151)`}
+          strokeWidth={1.5} style={partStyle(k)} />
       ))}
+      {stick('ls', 'l3', 191, lx, ly)}{stick('rs', 'r3', 309, rx, ry)}
+      <rect x={148} y={108} width={7} height={18} rx={3} style={partStyle('select')} />
+      <rect x={345} y={108} width={7} height={18} rx={3} style={partStyle('start')} />
+      <circle cx={250} cy={202} r={9} style={partStyle('home')} />
+      {[0, 1, 2, 3, 4].map(i => <circle key={i} cx={238 + i * 6} cy={177} r={1.2} fill={C.line} />)}
     </svg>
   )
 }
 
 // Its own variable: a legend icon must reach 3:1 where the diagram's light may not.
-const POS = `var(--pd-pos, ${C.lit})`
+const POS = 'var(--pd-pos, #b6dcff)'
+const FACE_NAMES: Record<Face, string> = { north: 'Triangle', east: 'Circle', south: 'Cross', west: 'Square' }
 
-/** The legend's position icon: the four face dots, one of them filled. */
-export function PadPosition({ pos, size = 34 }: { pos: 'north' | 'east' | 'south' | 'west'; size?: number }) {
-  const at = { north: [13, 5], east: [21, 13], south: [13, 21], west: [5, 13] } as const
+/** The legend's icon: the face symbol at that position, as drawn on the diagram. */
+export function PadPosition({ pos, size = 34 }: { pos: Face; size?: number }) {
   return (
-    <svg className="gc-pd-pos" width={size} height={size} viewBox="0 0 26 26" aria-hidden="true" style={{ width: size, height: size, verticalAlign: 'middle', flex: 'none' }}>
-      {(Object.keys(at) as (keyof typeof at)[]).map(k => (
-        <circle key={k} cx={at[k][0]} cy={at[k][1]} r={k === pos ? 5.5 : 3.5} strokeWidth={1.6}
-          style={{ fill: k === pos ? POS : 'none', stroke: k === pos ? POS : 'currentColor' }} />
-      ))}
+    <svg className="gc-pd-pos" width={size} height={size} viewBox="-13 -13 26 26" role="img" aria-label={FACE_NAMES[pos]}
+      style={{ width: size, height: size, verticalAlign: 'middle', flex: 'none' }}>
+      <path d={FACE_PATHS[pos]} fill="none" stroke={POS} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }

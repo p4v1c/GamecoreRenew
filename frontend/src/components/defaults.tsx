@@ -90,8 +90,7 @@ export const DefaultPowerModal = ({ onClose }: CloseProps) => <PowerModal onClos
 export const DefaultGamepadModal = ({ onClose }: CloseProps) => <GamepadModal onClose={onClose} />
 /**
  * SDK 9. The controller screen's markup, for a theme to dress rather than
- * rewrite: pass it the `gamepadView` props plus `skin` (a class on the scrim)
- * and `callouts` (letter the diagram).
+ * rewrite: pass it the `gamepadView` props plus `skin` (a class on the scrim).
  */
 export const GamepadView = DefaultGamepadView
 

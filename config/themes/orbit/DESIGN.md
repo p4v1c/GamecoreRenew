@@ -32,5 +32,6 @@ use the dark set (`--gc-pad-*`). Settings ink-3 `#8FA9C9`.
 
 **Power / controller:** power is a borderless PS5-style panel under the top
 bar's power icon (no pointer, no icon plates): the row under the cursor turns
-a `--white` pill with `#101722` ink and grows 3 % (dark pad glyphs on it). The controller screen is a glass
-accessory sheet, pads as a rail on the left, the diagram lit `--blue`.
+a `--white` pill with `#101722` ink and grows 3 % (dark pad glyphs on it). The controller screen is a deep
+blue panel over the blurred home: pale controller shell, quick guide on the
+right, lit `#63c7ff`, accent `#8ac8ff`.

@@ -134,8 +134,8 @@ describe('which pad the screen reads', () => {
     vi.spyOn(api.controllers, 'pads').mockResolvedValue(roster('sdl') as never)
     await mount()
     await act(async () => { push?.({ ...IDLE, index: 1 }) })
-    expect(screen.getByText('Player 2, USB')).toBeTruthy()
-    expect(screen.getByText(/reading now/).closest('div')?.textContent).toContain('USB Gamepad')
+    expect(screen.getByText('PLAYER 2')).toBeTruthy()
+    expect(document.querySelector('.gcs-pad-roster [data-active="1"]')?.textContent).toContain('USB Gamepad')
   })
 
   it('switches when another pad is touched', async () => {
@@ -143,7 +143,8 @@ describe('which pad the screen reads', () => {
     await mount()
     await act(async () => { push?.({ ...IDLE, index: 1 }) })
     await act(async () => { push?.({ ...IDLE, index: 0 }) })
-    expect(screen.getByText(/Player 1, Bluetooth/)).toBeTruthy()
+    expect(screen.getByText('PLAYER 1')).toBeTruthy()
+    expect(screen.getByText('Bluetooth · 85%')).toBeTruthy()
   })
 
   it('says a pad is not recognised and offers the wizard', async () => {
@@ -151,7 +152,7 @@ describe('which pad the screen reads', () => {
     await mount()
     await act(async () => { push?.({ ...IDLE, index: 1 }) })
     expect(screen.getByText(/^Not recognised/)).toBeTruthy()
-    expect(screen.getAllByText('Map this pad').length).toBeGreaterThan(0)
+    expect(screen.getByText('Map this controller')).toBeTruthy()
   })
   it('shows a raw pad by its own button numbers, never as positions', async () => {
     vi.spyOn(navigator, 'getGamepads').mockReturnValue([{ index: 0, id: GEN, mapping: '' }] as never)

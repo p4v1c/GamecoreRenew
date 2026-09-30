@@ -31,6 +31,7 @@ Measured with `.claude/skills/gamecore-legibility`.
 
 **Power and controller screens:** one markup each, dressed per theme
 (`settings/css/power.css`, `settings/css/gamepad.css`). Here: neutral rows,
-focus = 7 % ink fill plus a 4 px `--gc-accent-soft` bar. The pad diagram is
-drawn by position (`PadDiagram.tsx`), lit ember-soft; status dots ok `#5fd39a`,
+focus = 7 % ink fill plus a 4 px `--gc-accent-soft` bar. The controller
+screen is a near-black panel, drawing left and quick guide right; the diagram
+(`PadDiagram.tsx`) is lit ember-soft `#f2a46a`; status dots ok `#5fd39a`,
 warn `#f2b35a`.

@@ -1,116 +1,98 @@
 /**
- * The controller screen's markup — one markup, dressed per theme.
+ * The controller screen's markup: one panel, dressed per theme.
  *
  * Classes only (`gcs-pad-*`, styles in settings/css/gamepad.css), so a theme
  * restyles it from its stylesheet instead of rewriting it: `skin` puts the
- * theme's class on the scrim, `callouts` letters the diagram for a manual
- * page. See gamepad/types.ts for what each prop means.
+ * theme's class on the scrim. The drawing on the left, the quick guide on the
+ * right. See gamepad/types.ts for what each prop means.
  */
 import type { GamepadViewProps } from './types'
-import type { PadInfo } from '../../../lib/padLayout'
-
-// The manual page's key, in the diagram's letter order (A to K).
-const PARTS: [string, string][] = [['l2', 'L2'], ['l1', 'L1'], ['r2', 'R2'], ['r1', 'R1'], ['up', 'D-pad'],
-  ['south', 'Face buttons'], ['ls', 'Left stick, click L3'], ['rs', 'Right stick, click R3'],
-  ['select', 'Select'], ['start', 'Start'], ['home', 'Home']]
-
-/** "Bluetooth, battery 85%, charging" */
-function detail(p: Pick<PadInfo, 'connection' | 'battery' | 'charging'>) {
-  return [p.connection, p.battery != null ? `battery ${p.battery}%` : '', p.charging ? 'charging' : '']
-    .filter(Boolean).join(', ')
-}
 
 export default function DefaultGamepadView({
-  pads, pad, status, missing, absent = [], rawButtons = [], actions, Position, notice = '',
-  onClose, onRemap, Art, skin = 'gcs-skin-default', callouts = false,
+  pads, pad, status, missing, rawButtons = [], actions, Position, notice = '',
+  onClose, onRemap, Art, skin = 'gcs-skin-default',
 }: GamepadViewProps & { skin?: string; callouts?: boolean }) {
   const lost = pad?.raw || pad?.known === 'unknown'
+  const battery = pad?.battery != null ? ` · ${pad.battery}%${pad.charging ? ' ↯' : ''}` : ''
   return (
     <div className={`gcs-pad-scrim ${skin}`} onClick={e => e.target === e.currentTarget && onClose()}>
-      <section className="gcs-pad" data-pads={pads.length} data-state={!pad ? 'none' : pad.raw ? 'raw' : 'ok'}>
+      <section className="gcs-pad" role="dialog" aria-modal="true" aria-labelledby="gcs-pad-title"
+        data-pads={pads.length} data-state={!pad ? 'none' : pad.raw ? 'raw' : 'ok'}>
         <header className="gcs-pad-head">
-          <div className="gcs-pad-id">
-            <div className="gcs-pad-eyebrow">Controller</div>
-            <h2 className="gcs-pad-name">{pad ? pad.name : 'No controller'}</h2>
-            {pad && <div className="gcs-pad-sub">{[pad.player ? `Player ${pad.player}` : '', detail(pad)].filter(Boolean).join(', ')}</div>}
+          <div>
+            <span className="gcs-pad-kicker">GAMECORE / ACCESSORIES</span>
+            <h2 id="gcs-pad-title">Your controller<span>.</span></h2>
           </div>
-          {status && <div className="gcs-pad-status" data-tone={status.tone}><i />{status.text}</div>}
+          <button className="gcs-pad-close" onClick={onClose} aria-label="Close controller">✕</button>
         </header>
 
-        {/* Above the diagram: it reads the pad straight from the browser and
-            looks perfect whether or not any emulator was configured. */}
-        {notice && <div className="gcs-pad-notice">{notice}</div>}
+        {notice && <p className="gcs-pad-notice">{notice}</p>}
 
-        {!pad ? (
-          <div className="gcs-pad-empty">
-            <div className="gcs-pad-art" aria-hidden="true"><Art /></div>
-            <p>Pair one over Bluetooth, or plug it in. It shows here as soon as it wakes.</p>
-          </div>
-        ) : (
-          <div className="gcs-pad-body">
-            <div className="gcs-pad-main">
-              <div className="gcs-pad-art" aria-hidden="true" data-raw={pad.raw ? '1' : '0'}><Art callouts={callouts} /></div>
-              {lost && onRemap && (
-                <button className="gcs-pad-map" onClick={onRemap}>
-                  <b>Map this pad</b>
-                  <span>Hold the top button for a second. About a minute, no keyboard.</span>
-                </button>
-              )}
-              {rawButtons.length > 0 && (
-                <div className="gcs-pad-raw">
-                  <p className="gcs-pad-line">The buttons it sends, as it numbers them:</p>
-                  <div>{rawButtons.map((on, i) => <span key={i} data-on={on ? '1' : '0'}>B{i + 1}</span>)}</div>
-                </div>
-              )}
-              {missing && <p className="gcs-pad-line">{missing}</p>}
-              {!pad.raw && (
-                <p className="gcs-pad-line">
-                  Press a button: the same spot lights up. Wrong spot, or nothing?
-                  {!lost && onRemap
-                    ? <button className="gcs-pad-remap" onClick={onRemap}><Position pos="north" size={26} /> Map this pad</button>
-                    : ' Map this pad.'}
-                </p>
-              )}
+        <div className="gcs-pad-body">
+          <div className="gcs-pad-main">
+            <div className="gcs-pad-meta">
+              <span className="gcs-pad-player">{pad ? `PLAYER ${pad.player || 1}` : 'NOT CONNECTED'}</span>
+              <span className="gcs-pad-conn">{pad?.connection}{battery}</span>
             </div>
-
-            <aside className="gcs-pad-side">
-              {pads.length > 1 && pads.map(p => (
-                <div key={p.index} className="gcs-pad-card" data-on={p.active ? '1' : '0'}>
-                  <span className="gcs-pad-player">{p.player ? `P${p.player}` : '?'}</span>
-                  <span className="gcs-pad-card-text">
-                    <b>{p.name}</b>
-                    <i>{detail(p)}{p.active && <em>{detail(p) ? ', ' : ''}reading now</em>}</i>
-                  </span>
-                </div>
-              ))}
-              {pads.length > 1 && <p className="gcs-pad-hint">Press a button on another pad to read that one.</p>}
-              {callouts && (
-                <ol className="gcs-pad-key" type="A">
-                  {PARTS.map(([c, t]) => absent.includes(c)
-                    ? <li key={c} data-gone="1">{t} (not on this pad)</li> : <li key={c}>{t}</li>)}
-                </ol>
-              )}
-            </aside>
-          </div>
-        )}
-
-        {pad && !pad.raw && (
-          <div className="gcs-pad-actions">
-            {actions.map(a => (
-              <div key={a.action} className="gcs-pad-action">
-                {a.pos ? <><Position pos={a.pos} /><em>{a.label}</em></>
-                  : <span>{(a.keys ?? []).map(k => <kbd key={k}>{k}</kbd>)}</span>}
-                <span>{a.action}</span>
+            <div className="gcs-pad-art" aria-hidden="true" data-empty={!pad || !!pad.raw}><Art /></div>
+            <div className="gcs-pad-device">
+              <h3>{pad?.name || 'Ready when you are'}</h3>
+              <p>{!pad ? 'Connect a controller with Bluetooth or USB.'
+                : pad.raw ? 'Press a button to identify its number.' : 'Press any button to see it light up.'}</p>
+            </div>
+            {status && <div className="gcs-pad-status" data-tone={status.tone}><i />{status.text}</div>}
+            {missing && <p className="gcs-pad-note">{missing}</p>}
+            {rawButtons.length > 0 && (
+              <div className="gcs-pad-raw">
+                {rawButtons.map((on, i) => <span key={i} data-on={on ? '1' : '0'}>B{i + 1}</span>)}
               </div>
-            ))}
+            )}
           </div>
-        )}
 
-        <div className="gcs-pad-hints">
-          {pad && <span>Press any button to test it</span>}
-          {pad && <span>Hold <Position pos="north" /> top to map this pad</span>}
-          <span><Position pos="west" /> left twice to close</span>
+          <aside className="gcs-pad-guide">
+            <span className="gcs-pad-kicker">{lost ? 'SETUP' : 'QUICK GUIDE'}</span>
+            <h3>{lost ? 'Make it yours.' : 'Everything in reach.'}</h3>
+            {pad && !pad.raw ? (
+              <div className="gcs-pad-actions">
+                {actions.map(a => (
+                  <div className="gcs-pad-action" key={a.action}>
+                    {a.pos ? <Position pos={a.pos} size={28} />
+                      : <span className="gcs-pad-keys">{a.keys?.map(k => <kbd key={k}>{k}</kbd>)}</span>}
+                    <span>{a.action}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="gcs-pad-note">{lost
+                ? 'This controller needs a button mapping. Configure it to use it with GameCore.'
+                : 'Your shortcuts and live button feedback will appear here once connected.'}</p>
+            )}
+            {pad && onRemap && (
+              <button className="gcs-pad-map" title="Hold the top face button for one second to configure" onClick={onRemap}>
+                <span className="gcs-pad-map-copy">
+                  {lost ? 'Map this controller' : 'Configure controller'}
+                  <small>Hold <Position pos="north" size={12} /> for 1 s to configure</small>
+                </span>
+                <span aria-hidden="true">↗</span>
+              </button>
+            )}
+            {pads.length > 1 && (
+              <div className="gcs-pad-roster">
+                {pads.map(p => (
+                  <div key={p.index} data-active={p.active ? '1' : '0'}>
+                    <b>P{p.player}</b><span>{p.name}</span><i />
+                  </div>
+                ))}
+                <p>Press a button on another controller to test it.</p>
+              </div>
+            )}
+          </aside>
         </div>
+
+        <footer className="gcs-pad-foot">
+          <span><i /> {pad ? 'Live input preview' : 'Waiting for a controller'}</span>
+          <span><Position pos="west" size={22} /> Press twice to close</span>
+        </footer>
       </section>
     </div>
   )
