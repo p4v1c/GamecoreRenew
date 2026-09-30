@@ -191,9 +191,9 @@ and returns an unsubscribe.
 | `components/modals/power/DefaultPowerView.tsx` | 68 | **markup** of the default power menu |
 | `components/modals/power/types.ts` | 32 | `PowerViewProps` |
 | `components/modals/GamepadModal.tsx` | 178 | **flow**: the pad being read (the bus's active pad), the roster (`api.controllers.pads`), live state, the △ hold to the wizard |
-| `components/modals/gamepad/DefaultGamepadView.tsx` | 120 | **markup** of the controller screen, classes only (`gcs-pad-*`, `settings/css/gamepad.css`); themes dress it as `sdk.defaults.GamepadView` |
+| `components/modals/gamepad/DefaultGamepadView.tsx` | 100 | **markup** of the controller screen: drawing left, quick guide right; classes only (`gcs-pad-*`, `settings/css/gamepad.css`, repainted through `--pad-*`); themes dress it as `sdk.defaults.GamepadView` |
 | `components/modals/gamepad/types.ts` | 98 | `GamepadViewProps`; hands the view a bound `Art` and `Position` |
-| `components/modals/gamepad/PadDiagram.tsx` | 147 | the universal pad diagram — see below |
+| `components/modals/gamepad/PadDiagram.tsx` | 135 | the universal pad diagram — see below |
 | `components/ui/index.tsx` | 144 | `Overlay`, `OverlayLabel`, `BackHeader`, `Toggle`, `SliderRow`, `Chip`, `Bars`, `hexToRgb`, `fmtTime`, `fmtDate` |
 | `components/ui/VirtualKeyboard.tsx` | 205 | on-screen keyboard (WiFi passwords, library search) |
 | `components/ui/Toasts.tsx` | 117 | top-right stack, `TOAST_MS = 10000` |
@@ -238,20 +238,21 @@ when adding a page.
 
 ### `PadDiagram.tsx` — the pad drawing
 
-The standard layout (W3C / SDL GameController) **by position**: four face dots
-(south, east, west, north), d-pad, two sticks, L1/R1, L2/R2, Select, Start,
-Home. No brand shape and no face symbols, so any mapped pad is drawn right.
+The standard layout (W3C / SDL GameController) **by position**: four face
+buttons (south, east, west, north) marked with the ✕ ○ △ □ symbols the
+on-screen prompts use, d-pad, two sticks, L1/R1, L2/R2, Select, Start, Home.
+Lit by position, so any mapped pad lights the right spot.
 `frontend/src/lib/padLayout.ts` decides what it is fed:
 
 | Function | Role |
 |---|---|
 | `buildPads(browser, roster, activeIndex)` | browser pads joined to `GET /api/controllers/pads` by vendor:product, the one being read marked |
-| `presentControls(state, entry)` | the pad's SDL controls when known, else the browser's (16 buttons = no Home); absent ones are drawn dashed |
+| `presentControls(state, entry)` | the pad's SDL controls when known, else the browser's (16 buttons = no Home); absent ones are drawn faded (dashed, sticks faded only) |
 | `pressedControls(state)` | held buttons by name, in standard-mapping order |
 | `padStatus(pad)` | the one-line verdict: recognised, from the known-pads table, mapped on this box, not recognised, or raw |
 | `missingSentence(has, analog)` | "Not on this pad: …", and "Triggers are buttons, not analog." |
 
-`TRAVEL = 26` is the stick deflection at full axis, the calibration knob.
+`STICK_TRAVEL = 13` is the stick deflection at full axis, the calibration knob.
 Colours are `--pd-*` variables a theme sets from its stylesheet.
 
 ## `lib/`

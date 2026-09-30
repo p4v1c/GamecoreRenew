@@ -80,4 +80,4 @@ def test_the_host_view_offers_the_wizard_and_names_the_hold():
     position, so it is right on an Xbox pad too."""
     source = HOST_VIEW.read_text(encoding="utf-8")
     assert "onClick={onRemap}" in source
-    assert 'Hold <Position pos="north" />' in source
+    assert 'Hold <Position pos="north"' in source

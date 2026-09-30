@@ -28,5 +28,6 @@ the hint band. Decoration lives in `aria-hidden` layers.
 
 **Power / controller:** power is sea-glass tiles in a row on a sea-tinted
 glass tray `rgba(12,40,48,.82)` (← → move); focus = mandarin rim, a 4 px
-lift, pale pad glyphs `#c9dcff`/`#ffc4c7` on the tint. The controller sheet
-sits under the stats band, diagram lit mandarin, legend icons `#FFB27A`.
+lift, pale pad glyphs `#c9dcff`/`#ffc4c7` on the tint. The controller screen is a
+sea-tinted panel, sand-pale controller shell, lit mandarin `#F0761E`, legend
+symbols and accent `#FFB27A`.

@@ -118,11 +118,11 @@ export default function GamepadModal({ onClose, startInWizard = false, view: Vie
   const missing = pad && !raw ? missingSentence(has, analog) : ''
 
   // Bound here so a view mounts it with no props and cannot mis-wire the pad.
-  const Art = useCallback(({ callouts = false }: { callouts?: boolean }) => (
+  const Art = useCallback(() => (
     // A raw pad's indices are not positions: lighting them on the drawing would lie.
     <PadDiagram pressed={raw ? {} : pressedControls(state)} axes={raw ? [0, 0, 0, 0] : state.axes}
       triggers={{ l2: state.values[GP_BTN.L2] ?? 0, r2: state.values[GP_BTN.R2] ?? 0 }}
-      has={state.connected ? has : new Set()} digitalTriggers={!analog} callouts={callouts} />
+      has={state.connected ? has : new Set()} digitalTriggers={!analog} />
   ), [state, has, analog, raw])
 
   // Full frame, over everything, and it owns the pad while it is up: the

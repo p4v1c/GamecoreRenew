@@ -597,12 +597,15 @@ and a pointer closes by clicking outside the panel.
 const Controller = (props) => html`<${sdk.defaults.GamepadView} ...${props} skin="my-pad" />`
 ```
 
-Pass `callouts=${true}` to letter the diagram A–K with a key beside it (a
-manual page). The diagram's colours are CSS variables: `--pd-body`,
-`--pd-body-line`, `--pd-part`, `--pd-line`, `--pd-lit`, `--pd-lit-line`,
-`--pd-knob`, `--pd-label`, `--pd-callout`, `--pd-callout-ink`, `--pd-pos` (the
-legend's position icon: keep it ≥ 3:1). Hooks: `.gcs-pad-*`, with
-`.gcs-pad[data-pads][data-state]` and `.gcs-pad-card[data-on]`.
+Repaint it with CSS variables on `.<skin>.gcs-pad-scrim`. The panel's:
+`--pad-scrim`, `--pad-bg`, `--pad-shadow`, `--pad-radius`, `--pad-ink`,
+`--pad-muted`, `--pad-line`, `--pad-accent`, `--pad-control`, `--pad-hover`,
+`--pad-ok`, `--pad-warn` (set them all; the defaults sit on the built-in skin
+only). The diagram's: `--pd-body`, `--pd-body-line`, `--pd-center`,
+`--pd-part`, `--pd-line`, `--pd-lit`, `--pd-lit-line`, `--pd-knob`,
+`--pd-well`, `--pd-label`, `--pd-pos` (the legend's face symbol: keep it
+≥ 3:1). Hooks: `.gcs-pad-*`, with `.gcs-pad[data-pads][data-state]` and
+`.gcs-pad-roster > div[data-active]`. `callouts` is accepted and ignored.
 
 The props a view gets, new in SDK 9:
 

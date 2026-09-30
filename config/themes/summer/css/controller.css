@@ -1,19 +1,14 @@
-/* The controller screen in sea glass: a sea-tinted glass sheet under the
-   stats band, frosted outlines, mandarin for what is lit and the pad being
-   read. The host's markup, DefaultGamepadView.tsx. */
-.summer-pad.gcs-pad-scrim { background: rgba(6, 18, 26, 0.78); color: var(--foam-000); }
-.summer-pad .gcs-pad {
-  border-radius: var(--r-panel); background: rgba(12, 40, 48, 0.82); border: 1px solid rgba(255, 253, 247, 0.16);
-  backdrop-filter: blur(18px) saturate(115%); -webkit-backdrop-filter: blur(18px) saturate(115%);
-  --set-ink: #FFFDF7; --set-ink-rgb: 255, 253, 247; --set-ink-2: rgba(255, 253, 247, 0.86);
-  --set-ink-3: rgba(255, 253, 247, 0.74); --set-line: rgba(255, 253, 247, 0.16);
-  --set-ok: #3FBF8F; --set-warn: #E8B23A;
-  --pad-acc: #F0761E;
-  --pd-body: rgba(12, 26, 33, 0.55); --pd-body-line: rgba(255, 253, 247, 0.22); --pd-part: rgba(255, 253, 247, 0.1);
-  --pd-line: rgba(255, 253, 247, 0.5); --pd-lit: #F0761E; --pd-lit-line: #FFD2B0;
-  --pd-knob: rgba(255, 253, 247, 0.22); --pd-label: rgba(255, 253, 247, 0.86); --pd-pos: #FFB27A;
+/* The controller screen in sea glass: a sea-tinted sheet over the blurred
+   ocean, a sand-pale controller shell, mandarin for what is lit. The host's
+   markup, DefaultGamepadView.tsx; layout in settings/css/gamepad.css. */
+.summer-pad.gcs-pad-scrim {
+  --pad-scrim: rgba(6, 18, 26, 0.6); --pad-bg: linear-gradient(130deg, rgba(20, 62, 72, 0.97), rgba(8, 30, 38, 0.98));
+  --pad-shadow: 0 36px 110px #01101688; --pad-radius: var(--r-panel);
+  --pad-ink: #FFFDF7; --pad-muted: #a9c0c0; --pad-line: rgba(255, 253, 247, 0.14);
+  --pad-accent: #FFB27A; --pad-control: rgba(255, 253, 247, 0.07); --pad-hover: rgba(240, 118, 30, 0.16);
+  --pad-ok: #3FBF8F; --pad-warn: #E8B23A;
+  --pd-pos: #FFB27A; --pd-body: #efe6d6; --pd-body-line: #FFFDF7; --pd-center: #0f2a33;
+  --pd-part: #173a45; --pd-line: #6f8f94; --pd-knob: #24505a; --pd-label: #d9e6e4;
+  --pd-lit: #F0761E; --pd-lit-line: #FFD2B0;
 }
-.summer-pad .gcs-pad-status, .summer-pad .gcs-pad-card, .summer-pad .gcs-pad-map, .summer-pad .gcs-pad-remap { border-radius: var(--r-tile); }
-.summer-pad .gcs-pad-card[data-on="1"] { background: rgba(240, 118, 30, 0.16); }
-.summer-pad .gcs-pad-card[data-on="1"] .gcs-pad-player { color: #1b0d02; }
-.summer-pad .gcs-pad-card-text em { color: #FFB27A; }
+.summer-pad .gcs-pad-map { border-radius: var(--r-tile); }

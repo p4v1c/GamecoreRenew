@@ -34,5 +34,6 @@ Box spines and back-of-box fine print are art, exempt from the 14px floor.
 **Power / controller:** power is label strips pinned on the wall (no card):
 inked title strip, focus = brass tab and the strip slides 14 px; asking again
 uses danger ink `#9C1F28` (7.4:1 on card) with words, never colour alone.
-The controller screen is a manual page: black line art, parts lettered A–K,
-brass `--pd-lit` for what is pressed, ink `--pd-pos` for legend icons.
+The controller screen is an ivory paper panel with a 2 px ruled head: warm
+line art, brass `--pd-lit #c5a45a` for what is pressed, `--pd-pos #96732d`
+for legend symbols.

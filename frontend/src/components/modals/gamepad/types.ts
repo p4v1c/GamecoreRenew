@@ -38,7 +38,7 @@ export interface GamepadViewProps {
   absent?: string[]
   /** SDK 9. What each position and key does across GameCore. */
   actions: PadAction[]
-  /** SDK 9. The legend's position icon: the four face dots, one filled. */
+  /** SDK 9. The legend's position icon: the face symbol at that position. */
   Position: ComponentType<{ pos: PadPos; size?: number }>
   /** @deprecated since SDK 9: always 'generic'. */
   layout: ControllerLayout
@@ -83,7 +83,7 @@ export interface GamepadViewProps {
   onRemap?: () => void
   /**
    * The live diagram, already bound to the pad being read and its 60 fps
-   * state. `callouts` letters each part instead of naming it (a manual page).
+   * state. `callouts` is accepted and ignored since the panel redesign.
    */
   Art: ComponentType<{ callouts?: boolean }>
   /** One battery pill, matching the top bar's. */
