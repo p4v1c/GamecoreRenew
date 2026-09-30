@@ -600,8 +600,7 @@ const Controller = (props) => html`<${sdk.defaults.GamepadView} ...${props} skin
 Repaint it with CSS variables on `.<skin>.gcs-pad-scrim`. The panel's:
 `--pad-scrim`, `--pad-bg`, `--pad-shadow`, `--pad-radius`, `--pad-ink`,
 `--pad-muted`, `--pad-line`, `--pad-accent`, `--pad-control`, `--pad-hover`,
-`--pad-ok`, `--pad-warn` (set them all; the defaults sit on the built-in skin
-only). The diagram's: `--pd-body`, `--pd-body-line`, `--pd-center`,
+`--pad-ok`, `--pad-warn` (unset ones fall back to the built-in UI's). The diagram's: `--pd-body`, `--pd-body-line`, `--pd-center`,
 `--pd-part`, `--pd-line`, `--pd-lit`, `--pd-lit-line`, `--pd-knob`,
 `--pd-well`, `--pd-label`, `--pd-pos` (the legend's face symbol: keep it
 ≥ 3:1). Hooks: `.gcs-pad-*`, with `.gcs-pad[data-pads][data-state]` and

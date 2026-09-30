@@ -9,16 +9,19 @@
   background: var(--pad-scrim); backdrop-filter: blur(22px);
   color: var(--pad-ink); font-family: var(--font-body); font-variant-numeric: tabular-nums;
 }
-.gcs-pad-scrim.gcs-skin-default {
+/* Defaults on the scrim itself, so a theme skin that sets only some tokens
+   still gets a panel; theme skins override them with a longer selector. */
+.gcs-pad-scrim {
   --pad-scrim: rgba(4, 4, 8, 0.72); --pad-bg: linear-gradient(130deg, #1c1c29f8, #0c0c14f8);
   --pad-shadow: 0 36px 110px #0008; --pad-radius: 20px;
   --pad-ink: #f4f4f8; --pad-muted: #9d9daa; --pad-line: rgba(255, 255, 255, 0.1);
   --pad-accent: #f2a46a; --pad-control: rgba(255, 255, 255, 0.06); --pad-hover: rgba(242, 164, 106, 0.15);
-  --pad-ok: #5fd39a; --pad-warn: #f2b35a; --font-body: var(--gc-font-ui);
+  --pad-ok: #5fd39a; --pad-warn: #f2b35a;
   --pd-pos: #f8cfa9; --pd-body: #e4e2e6; --pd-body-line: #fff; --pd-center: #17161c;
   --pd-part: #24232b; --pd-line: #6c6a76; --pd-knob: #3a3842; --pd-label: #a9a7b3;
   --pd-lit: #f2a46a; --pd-lit-line: #f8cfa9;
 }
+.gcs-pad-scrim.gcs-skin-default { --font-body: var(--gc-font-ui); }
 
 .gcs-pad {
   width: min(1020px, 94vw); max-height: 92vh; overflow: auto; line-height: 1.4;
