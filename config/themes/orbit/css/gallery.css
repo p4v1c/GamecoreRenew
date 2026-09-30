@@ -21,6 +21,12 @@
 .orbit-app .details-jacket .art-fallback { border-radius: 8px; }
 .orbit-app .orbit-details { width: min(820px, 100%); }
 .orbit-app .hero { min-height: 0; padding-top: clamp(24px, 4vh, 70px); }
+/* A long scraped description at 445px ran to 7 lines and pushed Play under the
+   hint bar: use the copy's full width and stop at three lines. */
+.orbit-app .hero-copy #hero-description {
+  max-width: 100%; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; -webkit-line-clamp: 3;
+}
+@media (min-width: 1600px) { .orbit-app .hero-copy { max-width: 900px; } }
 @media (max-height: 800px) {
   .orbit-app .topbar { padding-top: 18px; padding-bottom: 14px; }
   .orbit-app .rail-heading { margin-top: 12px; margin-bottom: 10px; }
