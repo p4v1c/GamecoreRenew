@@ -66,12 +66,13 @@
 
 /* ── Consoles ── */
 .jl-consoles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: calc(24 * var(--px)); }
+/* Block flow, like .jl-card: a flex <button> can lay out as a row on the box. */
 .jl-console {
-  display: flex; flex-direction: column; text-align: left; overflow: hidden;
+  display: block; text-align: left; overflow: hidden;
   border-radius: calc(24 * var(--px)); background: var(--jl-paper); box-shadow: var(--jl-lift);
 }
 .jl-console-stage {
-  position: relative; display: grid; place-items: center; height: calc(250 * var(--px)); overflow: hidden;
+  position: relative; display: grid; place-items: center; width: 100%; height: calc(250 * var(--px)); overflow: hidden;
   background: repeating-linear-gradient(135deg, #ffffff12 0 calc(14 * var(--px)), transparent calc(14 * var(--px)) calc(28 * var(--px))), var(--cover);
 }
 .jl-console-photo {

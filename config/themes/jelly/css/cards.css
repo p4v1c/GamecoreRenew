@@ -5,7 +5,7 @@
 /* A jelly cover: the console's colour, two soft shapes, and the real jacket
    standing in it uncropped. Missing art becomes the title on the colour. */
 .jl-cover {
-  position: relative; display: grid; place-items: center; overflow: hidden; isolation: isolate;
+  position: relative; display: block; width: 100%; overflow: hidden; isolation: isolate;
   height: calc(178 * var(--px)); padding: calc(12 * var(--px)) calc(18 * var(--px));
   border-radius: calc(19 * var(--px)) calc(19 * var(--px)) 0 0; background: var(--cover, var(--jl-purple));
 }
@@ -56,8 +56,10 @@
   background: var(--jl-ink); color: var(--jl-yellow); font-size: max(14px, calc(16 * var(--px)));
 }
 
+/* Plain block flow, not flex: the box's engine laid a flex <button> out as a
+   row, which squeezed the cover to its padding beside the caption. */
 .jl-card {
-  position: relative; display: flex; flex-direction: column; min-width: 0; text-align: left;
+  position: relative; display: block; min-width: 0; text-align: left;
   border-radius: calc(20 * var(--px)); background: var(--jl-paper); box-shadow: var(--jl-lift);
 }
 .jl-card-caption { display: flex; flex-direction: column; gap: calc(5 * var(--px)); padding: calc(14 * var(--px)) calc(16 * var(--px)) calc(16 * var(--px)); min-width: 0; }
