@@ -17,7 +17,9 @@ const BOX: Record<string, unknown> = {
   '/api/storage/volumes': { ok: true, volumes: [{ device: '/dev/sdb1' }] },
   '/api/standby': { enabled: true, screensaver_mins: 6, sleep_mins: 16, state: 'awake' },
   '/api/catalog': [{ id: 'a', installed: true }, { id: 'b', installed: false }],
-  '/api/bios': [{ id: 'a', status: 'ok' }, { id: 'b', status: 'absent' }],
+  '/api/bios': [{ id: 'a', label: 'A', status: 'ok', installed: true },
+    { id: 'b', label: 'B', status: 'absent', installed: true },
+    { id: 'c', label: 'C', status: 'absent', installed: false }],
   '/api/sysinfo': { version: '1.0.172', controllers: [], bios: { ok: true, systems: {} } },
   '/api/themes': { sdk_version: 1, active: 'shelf', themes: [{ id: 'shelf', name: 'Shelf' }] },
 }

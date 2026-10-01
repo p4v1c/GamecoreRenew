@@ -364,6 +364,9 @@ catalogue channel — see [10](10-catalog-and-install.md#three-tiers-and-the-sig
 
 `GET /bios`. Thin on purpose; the verdicts come from
 [`services/bios.py`](04-backend-services.md#biospy-253-l--three-verdicts-not-two).
+Every row carries `installed`; Settings → BIOS lists only the installed ones,
+as one row each with the file detail of the selected one beside it
+(`frontend/src/settings/bios.js`).
 
 ### `pergame.py` — per-game settings from the sofa
 

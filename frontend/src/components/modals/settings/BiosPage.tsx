@@ -4,9 +4,11 @@ import { api, type BiosSystem, type BiosFile } from '../../../api'
 import { onGp } from '../../../hooks/useGamepad'
 import { useSubPageGamepad } from './useSubPageGamepad'
 import { PadHints } from '../../../lib/padKey'
+import { biosRows } from '../../../settings/bios'
 
 /**
  * Settings → BIOS: what this box still needs, and exactly where to put it.
+ * Only consoles installed on this box are listed (`biosRows`).
  *
  *  · Absent and wrong-md5 are different rows — different fixes.
  *  · The full destination path on THIS box is shown, ready for an scp.
@@ -34,7 +36,6 @@ function fileTone(f: BiosFile): { colour: string; text: string } {
 }
 
 function systemTone(s: BiosSystem): { colour: string; text: string } {
-  if (!s.installed) return { colour: 'rgba(255,255,255,0.3)', text: 'not installed' }
   if (s.status === 'absent') return { colour: BAD, text: 'file missing' }
   if (s.status === 'mismatch') return { colour: BAD, text: 'file does not match' }
   return { colour: GOOD, text: 'ready' }
@@ -49,7 +50,7 @@ export function BiosPage({ onClose, onBack }: { onClose: () => void; onBack: () 
   useEffect(() => { count.current = rows.length }, [rows])
 
   useEffect(() => {
-    api.bios.list().then(setRows).catch(() => setError(true))
+    api.bios.list().then(r => setRows(biosRows(r))).catch(() => setError(true))
   }, [])
 
   useSubPageGamepad(onBack, onClose)
@@ -68,7 +69,7 @@ export function BiosPage({ onClose, onBack }: { onClose: () => void; onBack: () 
     refs.current[focus]?.scrollIntoView({ block: 'nearest' })
   }, [focus])
 
-  const broken = rows.filter(s => s.installed && s.status !== 'ok')
+  const broken = rows.filter(s => s.status !== 'ok')
 
   return (
     <Overlay onClose={onClose}>
@@ -90,7 +91,6 @@ export function BiosPage({ onClose, onBack }: { onClose: () => void; onBack: () 
             ref={el => { refs.current[i] = el }}
             style={{
               padding: '14px 18px', borderRadius: 12, marginBottom: 10,
-              opacity: s.installed ? 1 : 0.45,
               background: focus === i ? `color-mix(in srgb, ${ACCENT} 15%, transparent)` : 'rgba(255,255,255,0.04)',
               border: focus === i ? `1px solid color-mix(in srgb, ${ACCENT} 40%, transparent)` : '1px solid rgba(255,255,255,0.07)',
             }}
@@ -144,7 +144,7 @@ export function BiosPage({ onClose, onBack }: { onClose: () => void; onBack: () 
 
       {!error && rows.length === 0 && (
         <div style={{ fontSize: 15, color: 'var(--gc-ink-3)', textAlign: 'center', padding: 20 }}>
-          No system on this box needs a BIOS file.
+          No console installed on this box needs a BIOS file.
         </div>
       )}
 
