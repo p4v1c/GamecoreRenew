@@ -1,13 +1,6 @@
-/** Settings: the host's nine-category screen, dressed in Jelly.
- *
- * Wi-Fi, Bluetooth, Display, Audio, Controllers, Emulators & apps, BIOS,
- * Themes and System are the host's pages (`sdk.defaults.createSettings`), with
- * their confirmations, timers and locks. Jelly sets the layout: the rail on the
- * left, L1/R1 between categories (`pager`), details in dialogs.
- *
- * What it adds is L2/R2, to scroll a long page by a screenful without walking
- * every row. Never under a dialog: a dialog owns the pad.
- */
+/** Settings: the host's nine categories (`createSettings`), dressed in Jelly:
+ * rail, L1/R1 between categories, details in dialogs. Jelly adds L2/R2 to
+ * scroll a long page, never under a dialog, which owns the pad. */
 export function createJellySettings(sdk) {
   const {html, useEffect} = sdk.ui
   const Host = sdk.defaults.createSettings(sdk, {}, {

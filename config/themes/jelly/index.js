@@ -1,12 +1,14 @@
 import {createTabs} from './lib/tabs.js'
 import {createCollection} from './lib/collection.js'
 import {createArt} from './lib/art.js'
+import {createIcon} from './lib/icons.js'
+import {createChips} from './views/chips.js'
 import {createCards} from './views/cards.js'
 import {createFooter} from './views/footer.js'
 import {createDetails} from './views/details.js'
-import {createSearch} from './views/search.js'
+import {createSearch} from './views/search/index.js'
 import {createHome} from './views/home.js'
-import {createLibrary} from './views/library.js'
+import {createLibrary} from './views/library/index.js'
 import {createTopBar} from './views/topbar.js'
 import {createBackground} from './views/background.js'
 import {createSplash} from './views/splash.js'
@@ -15,34 +17,32 @@ import {createSession} from './views/session.js'
 import {createJellySettings} from './views/settings.js'
 import {createController} from './views/controller.js'
 
-/** Jelly: the host's real collection, consoles and settings, in jelly.
- *
- * The wiring and nothing else. Behaviour that is the host's stays the host's:
- * launching, sessions, the library's loading and sort, the settings pages, the
- * power menu's confirmation and the controller screen.
- */
-export default function createJelly(sdk) {
-  const {html} = sdk.ui
+/** Every Jelly screen, built over one shared context. The theme and its tests
+ * both start here, so they cannot wire it differently. */
+export function createParts(sdk) {
   const tabs = createTabs(sdk)
   const collection = createCollection(sdk)
   const art = createArt(sdk)
-  const cards = createCards(sdk, art)
-  const Footer = createFooter(sdk)
-  const Details = createDetails(sdk, cards)
-  // Doors the shell owns (Settings, Power) and Home owns (search), handed to
-  // whichever screen needs one. Filled in as those components render.
+  const Icon = createIcon(sdk)
+  const cards = createCards(sdk, {art, Icon})
+  const Details = createDetails(sdk, {cards, Icon})
+  // Doors the shell (Settings, Power) and Home (search) own, filled in as
+  // those render, for screens that need to open one.
   const actions = {settings: null, power: null, search: null, retry: () => collection.retry()}
-  const Search = createSearch(sdk, {cards, Details})
-  const ctx = {tabs, collection, art, cards, Footer, Details, Search, actions}
+  const ctx = {tabs, collection, art, cards, Icon, Details, actions,
+    chips: createChips(sdk, {Icon}), Footer: createFooter(sdk), Search: createSearch(sdk, {cards, Details, Icon})}
+  return {ctx, Home: createHome(sdk, ctx), Library: createLibrary(sdk, ctx), TopBar: createTopBar(sdk, ctx),
+    Background: createBackground(sdk, {Icon}), session: createSession(sdk, {Icon})}
+}
 
-  const Home = createHome(sdk, ctx)
-  const Library = createLibrary(sdk, ctx)
-  const TopBar = createTopBar(sdk, ctx)
-  const Background = createBackground(sdk)
+/** Jelly: the wiring and nothing else. Launching, sessions, the library's
+ * loading and sort, settings, power and the controller screen stay the host's. */
+export default function createJelly(sdk) {
+  const {html} = sdk.ui
+  const {Home, Library, TopBar, Background, session} = createParts(sdk)
   const Settings = createJellySettings(sdk)
   const Power = sdk.defaults.createPowerView(sdk, {skin: 'jelly-power'})
   const Controller = createController(sdk)
-  const session = createSession(sdk)
 
   function Shell() {
     return html`<div className="jelly-app">

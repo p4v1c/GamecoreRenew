@@ -1,11 +1,6 @@
-/** Jelly's presentation of the real packs: name, mark and colour.
- *
- * Nothing here is a game, a console list or a picture. The box says which
- * packs exist (`sdk.api.systems`) and what pictures each one ships
- * (`system.art`, from catalog/<id>/art/); this only says how each is dressed,
- * keyed by pack id. A pack missing from the table still shows, with its
- * pack logo and the host's colour.
- */
+/** How each real pack is dressed: name, mark, colour, keyed by pack id. The box
+ * says which packs exist and which pictures each ships (`system.art`); a pack
+ * missing here still shows, with its logo and the host's colour. */
 
 // Jelly's eight cover colours, from the mockup.
 const PINK = '#e2508f'
@@ -100,5 +95,5 @@ export const coverUrl = (systemId, filename) =>
 export const titleFromKey = (sdk, key) => sdk.format.gameName(
   String(key || '').replace(/\.[^.]+$/, '').replace(/[([{][^)\]}]*[)\]}]/g, '').trim())
 
-/** "1 jeu", "3 jeux". */
-export const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
+/** "0 jeu", "1 jeu", "3 jeux": French keeps zero singular. */
+export const plural = (n, one, many) => `${n} ${n <= 1 ? one : many}`

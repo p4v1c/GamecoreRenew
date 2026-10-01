@@ -77,12 +77,8 @@ class Pack:
 
     @property
     def art(self) -> dict[str, Path]:
-        """Pictures shipped for themes to pick from: art/<name>.<ext>.
-
-        Named, not typed: `console.webp` is the hardware photo, and a theme
-        asks for a name it knows. Nothing here decides which one is shown.
-        """
-        from ..pack_art import pictures_in
+        """Pictures for themes, art/<name>.<ext>; `console` is the hardware photo."""
+        from ..pack_art import pictures_in     # pack_art reads the catalogue too
         return pictures_in(self.path / "art")
 
     @property

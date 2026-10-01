@@ -1,12 +1,8 @@
 import {coverUrl, titleFromKey} from '../lib/catalog.js'
 
-/** The suspended session: the bar over a frozen game and the menu PS ×2 opens.
- *
- * Both are markup over the host's lifecycle (`sessionBar` / `sessionMenu`,
- * SDK 5). The host mounts the bar, opens the menu, holds its pad and resolves
- * the actions; nothing here suspends, resumes or closes anything by itself.
- */
-export function createSession(sdk) {
+/** The bar over a suspended game and the menu PS ×2 opens: markup only. The
+ * host mounts both, holds the pad and resolves the actions (SDK 5). */
+export function createSession(sdk, {Icon}) {
   const {html, useState} = sdk.ui
   const PadKey = sdk.ui.PadKey || (({k}) => html`<kbd>${k}</kbd>`)
   const PadHints = sdk.ui.PadHints || (({text}) => text)
@@ -31,7 +27,7 @@ export function createSession(sdk) {
     if (!s) return null
     return html`<aside className="jl-dock" aria-label="Partie en pause">
       <span className="jl-dock-art"><${Art} s=${s} /></span>
-      <span className="jl-dock-text"><small>❚❚ En pause${sessions.length > 1 ? ` · ${focusIdx + 1}/${sessions.length}` : ''}</small>
+      <span className="jl-dock-text"><small><${Icon} name="pause" />En pause${sessions.length > 1 ? `, ${focusIdx + 1} sur ${sessions.length}` : ''}</small>
         <b>${titleOf(s)}</b></span>
       <button type="button" className="jl-dock-button" disabled=${busy} onClick=${() => onManage?.()}>
         ${busy ? 'Un instant…' : 'Gérer'}</button>
@@ -46,7 +42,7 @@ export function createSession(sdk) {
       <div className="jl-session-art"><${Art} s=${session} /></div>
       <div className="jl-session-copy">
         <span className="jl-eyebrow">${confirming ? 'On arrête vraiment ?' : session.kind === 'app' ? 'Application en pause' : 'Partie en pause'}${
-          sessions.length > 1 ? ` · ${index + 1} sur ${sessions.length}` : ''}</span>
+          sessions.length > 1 ? `, ${index + 1} sur ${sessions.length}` : ''}</span>
         <h2 id="jl-session-title">${title(session)}</h2>
         <p>${confirming
           ? `Fermer ${noun} perd tout ce qui n’a pas été sauvegardé.`

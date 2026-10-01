@@ -83,30 +83,9 @@ async function jelly() {
   ;(sdk.defaults as Record<string, unknown>).launchGame = launchGame
   const mod = await import(/* @vite-ignore */ `${THEME}/index.js`)
   const theme = mod.default(sdk)
-  // The Shell part list is what index.js hands the host; reach the views
-  // through the same factories it uses.
-  const [tabsMod, colMod, artMod, cardsMod, footMod, detMod, searchMod, homeMod, libMod] = await Promise.all([
-    import(/* @vite-ignore */ `${THEME}/lib/tabs.js`),
-    import(/* @vite-ignore */ `${THEME}/lib/collection.js`),
-    import(/* @vite-ignore */ `${THEME}/lib/art.js`),
-    import(/* @vite-ignore */ `${THEME}/views/cards.js`),
-    import(/* @vite-ignore */ `${THEME}/views/footer.js`),
-    import(/* @vite-ignore */ `${THEME}/views/details.js`),
-    import(/* @vite-ignore */ `${THEME}/views/search.js`),
-    import(/* @vite-ignore */ `${THEME}/views/home.js`),
-    import(/* @vite-ignore */ `${THEME}/views/library.js`),
-  ])
-  const tabs = tabsMod.createTabs(sdk)
-  const collection = colMod.createCollection(sdk)
-  const art = artMod.createArt(sdk)
-  const cards = cardsMod.createCards(sdk, art)
-  const Footer = footMod.createFooter(sdk)
-  const Details = detMod.createDetails(sdk, cards)
-  const actions = { settings: null, power: null, search: null, retry: () => collection.retry() }
-  const Search = searchMod.createSearch(sdk, { cards, Details })
-  const ctx = { tabs, collection, art, cards, Footer, Details, Search, actions }
-  const Home = homeMod.createHome(sdk, ctx)
-  const Library = libMod.createLibrary(sdk, ctx)
+  // The same parts the shell renders, from the same factory.
+  const { ctx, Home, Library } = mod.createParts(sdk)
+  const tabs = ctx.tabs
   return { sdk, theme, tabs, Home, Library, launchGame }
 }
 

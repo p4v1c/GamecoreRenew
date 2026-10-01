@@ -33,13 +33,9 @@ export function createArt(sdk) {
   const initials = (title) => String(title || '?').split(/\s+/).filter(Boolean)
     .slice(0, 3).map((w) => w[0]).join('').toUpperCase()
 
-  /** A jacket.
-   *
-   * With the 3D style: the game's `box-3d` when its media index lists one,
-   * drawn at its own irregular shape. Otherwise, or when that fails: the
-   * cover API, then the scraped box front, then a drawn cover with the title
-   * on it. Never a broken image.
-   */
+  /** A jacket: with the 3D style, the game's `box-3d` when its media index
+     * lists one; otherwise, or when that fails, the cover API, the scraped box
+     * front, then the title drawn on the colour. Never a broken image. */
   function JacketInner({systemId, filename, title, style}) {
     const [stage, setStage] = useState(style === 'box-3d' ? 'index' : 'cover')
     const [src, setSrc] = useState(stage === 'cover' ? coverUrl(systemId, filename) : null)

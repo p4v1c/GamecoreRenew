@@ -100,3 +100,4 @@
 }
 .jl-dot { width: calc(10 * var(--px)); height: calc(10 * var(--px)); min-width: 7px; min-height: 7px; border-radius: 50%; background: var(--jl-ok); }
 .jl-pad-none { color: var(--jl-ink-2); }
+.jl-shape svg { width: 1em; height: 1em; display: block; }

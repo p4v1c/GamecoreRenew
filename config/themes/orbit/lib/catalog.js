@@ -9,84 +9,85 @@
  * thirteen shows thirteen.
  */
 
-/** file, display name, maker, year, accent, short mark, and the line of copy. */
+/** display name, maker, year, accent, short mark, and the line of copy.
+ * The photo is the pack's own (`system.art.console`), not listed here. */
 export const consoles = {
-  duckstation: ['ps1.png', 'PlayStation', 'Sony', '1994', '#8d9aff', 'PS',
+  duckstation: ['PlayStation', 'Sony', '1994', '#8d9aff', 'PS',
     "Sony's first console, and the move to 3D on disc. Runs in DuckStation; needs its BIOS."],
-  pcsx2: ['ps2.png', 'PlayStation 2', 'Sony', '2000', '#749dff', 'PS2',
+  pcsx2: ['PlayStation 2', 'Sony', '2000', '#749dff', 'PS2',
     "Sony's DVD-era console. Runs in PCSX2; needs its BIOS."],
-  rpcs3: ['ps3.png', 'PlayStation 3', 'Sony', '2006', '#b59afa', 'PS3',
+  rpcs3: ['PlayStation 3', 'Sony', '2006', '#b59afa', 'PS3',
     'HD-era PlayStation, Blu-ray and all. Runs in RPCS3; needs its firmware.'],
-  shadps4: ['ps4.png', 'PlayStation 4', 'Sony', '2013', '#5cafff', 'PS4',
+  shadps4: ['PlayStation 4', 'Sony', '2013', '#5cafff', 'PS4',
     'The current PlayStation generation. Runs in shadPS4; compatibility varies by game.'],
-  ppsspp: ['psp.png', 'PlayStation Portable', 'Sony', '2004', '#9cacf2', 'PSP',
+  ppsspp: ['PlayStation Portable', 'Sony', '2004', '#9cacf2', 'PSP',
     "Sony's first handheld, upscaled for the TV. Runs in PPSSPP."],
-  cemu: ['wiiu.png', 'Nintendo Wii U', 'Nintendo', '2012', '#6cdae9', 'Wii U',
+  cemu: ['Nintendo Wii U', 'Nintendo', '2012', '#6cdae9', 'Wii U',
     'The GamePad console. Runs in Cemu; needs its keys.'],
-  gamecube: ['gamecube.png', 'GameCube', 'Nintendo', '2001 / 2002', '#ae91f5', 'GC',
+  gamecube: ['GameCube', 'Nintendo', '2001 / 2002', '#ae91f5', 'GC',
     "Nintendo's cube-shaped console, on mini discs. Runs in Dolphin."],
-  wii: ['wii.png', 'Wii', 'Nintendo', '2006', '#8ecdf0', 'Wii',
+  wii: ['Wii', 'Nintendo', '2006', '#8ecdf0', 'Wii',
     'The motion-controlled console and its Wii Remote. Runs in Dolphin.'],
-  switch: ['switch.png', 'Nintendo Switch', 'Nintendo', '2017', '#ff8292', 'Switch',
+  switch: ['Nintendo Switch', 'Nintendo', '2017', '#ff8292', 'Switch',
     'The hybrid console, docked on your TV. Runs in Eden; needs keys and firmware.'],
   // Tiles from before the split into one pack per system, until the owner moves them.
-  dolphin: ['gamecube.png', 'GameCube & Wii', 'Nintendo', '2001 / 2006', '#ae91f5', 'GC',
+  dolphin: ['GameCube & Wii', 'Nintendo', '2001 / 2006', '#ae91f5', 'GC',
     'GameCube and Wii discs in one emulator. Runs in Dolphin.'],
-  ryujinx: ['switch.png', 'Nintendo Switch', 'Nintendo', '2017', '#ff8292', 'Switch',
+  ryujinx: ['Nintendo Switch', 'Nintendo', '2017', '#ff8292', 'Switch',
     'The hybrid console, docked on your TV. Runs in Ryujinx; needs keys and firmware.'],
-  azahar: ['3ds.png', 'Nintendo 3DS', 'Nintendo', '2011', '#93cde9', '3DS',
+  azahar: ['Nintendo 3DS', 'Nintendo', '2011', '#93cde9', '3DS',
     'The 3D handheld with two screens. Runs in Azahar; L3 switches the layout.'],
-  melonds: ['ds.png', 'Nintendo DS', 'Nintendo', '2004', '#b9c7ef', 'DS',
+  melonds: ['Nintendo DS', 'Nintendo', '2004', '#b9c7ef', 'DS',
     'The two-screen handheld with a touchscreen. Runs in melonDS; L3 switches the layout.'],
-  gb: ['gb.png', 'Game Boy', 'Nintendo', '1989 / 1990', '#b4c98c', 'GB',
+  gb: ['Game Boy', 'Nintendo', '1989 / 1990', '#b4c98c', 'GB',
     'The original Game Boy, with its monochrome screen. Runs in mGBA.'],
-  gbc: ['gbc.png', 'Game Boy Color', 'Nintendo', '1998', '#f59ab9', 'GBC',
+  gbc: ['Game Boy Color', 'Nintendo', '1998', '#f59ab9', 'GBC',
     'The colour Game Boy, which also plays original Game Boy games. Runs in mGBA.'],
-  gba: ['gba.png', 'Game Boy Advance', 'Nintendo', '2001', '#aa97e8', 'GBA',
+  gba: ['Game Boy Advance', 'Nintendo', '2001', '#aa97e8', 'GBA',
     'The 32-bit pocket console. Runs in mGBA.'],
-  mgba: ['gba.png', 'Game Boy Advance', 'Nintendo', '2001', '#aa97e8', 'GBA',
+  mgba: ['Game Boy Advance', 'Nintendo', '2001', '#aa97e8', 'GBA',
     'The 32-bit pocket console. Runs in mGBA.'],
-  gopher64: ['n64.png', 'Nintendo 64', 'Nintendo', '1996', '#7cd0a0', 'N64',
+  gopher64: ['Nintendo 64', 'Nintendo', '1996', '#7cd0a0', 'N64',
     "Four controller ports and the first 3D Mario. Runs in Rosalie's Mupen GUI."],
-  rmg: ['n64.png', 'Nintendo 64', 'Nintendo', '1996', '#7cd0a0', 'N64',
+  rmg: ['Nintendo 64', 'Nintendo', '1996', '#7cd0a0', 'N64',
     "Four controller ports and the first 3D Mario. Runs in Rosalie's Mupen GUI."],
-  xenia: ['xbox360.png', 'Xbox 360', 'Microsoft', '2005', '#a5d998', '360',
+  xenia: ['Xbox 360', 'Microsoft', '2005', '#a5d998', '360',
     'The Xbox of the HD era. Runs in Xenia Canary; compatibility varies by game.'],
-  snes9x: ['snes.png', 'Super Nintendo', 'Nintendo', '1990 / 1992', '#b6a4ff', 'SNES',
+  snes9x: ['Super Nintendo', 'Nintendo', '1990 / 1992', '#b6a4ff', 'SNES',
     'The 16-bit Nintendo, Mode 7 included. Runs in Snes9x.'],
-  nes: ['nes.png', 'NES', 'Nintendo', '1983 / 1986', '#ff9a9a', 'NES',
+  nes: ['NES', 'Nintendo', '1983 / 1986', '#ff9a9a', 'NES',
     'The 8-bit console that restarted home gaming. Runs in RetroArch.'],
-  fds: ['fds.png', 'Famicom Disk System', 'Nintendo', '1986', '#ffab8a', 'FDS',
+  fds: ['Famicom Disk System', 'Nintendo', '1986', '#ffab8a', 'FDS',
     'The Famicom add-on that loaded games from disk. Japan only. Runs in RetroArch; needs its BIOS.'],
-  mastersystem: ['mastersystem.png', 'Master System', 'Sega', '1985 / 1987', '#8fb8ff', 'SMS',
+  mastersystem: ['Master System', 'Sega', '1985 / 1987', '#8fb8ff', 'SMS',
     "Sega's 8-bit home console. Runs in RetroArch."],
-  gamegear: ['gamegear.png', 'Game Gear', 'Sega', '1990', '#a9bccd', 'GG',
+  gamegear: ['Game Gear', 'Sega', '1990', '#a9bccd', 'GG',
     "Sega's colour handheld. Runs in RetroArch."],
-  sg1000: ['sg1000.png', 'SG-1000', 'Sega', '1983', '#8fd0ff', 'SG',
+  sg1000: ['SG-1000', 'Sega', '1983', '#8fd0ff', 'SG',
     "Sega's first home console, from 1983. Runs in RetroArch."],
-  megadrive: ['megadrive.png', 'Mega Drive', 'Sega', '1988 / 1990', '#aab4ff', 'MD',
+  megadrive: ['Mega Drive', 'Sega', '1988 / 1990', '#aab4ff', 'MD',
     "Sega's 16-bit console, the Genesis in America. Runs in RetroArch."],
-  megacd: ['megacd.png', 'Mega-CD', 'Sega', '1991 / 1993', '#9ec3d6', 'MCD',
+  megacd: ['Mega-CD', 'Sega', '1991 / 1993', '#9ec3d6', 'MCD',
     'The CD add-on for the Mega Drive. Runs in RetroArch; needs its BIOS.'],
-  sega32x: ['32x.png', '32X', 'Sega', '1994', '#ffb07a', '32X',
+  sega32x: ['32X', 'Sega', '1994', '#ffb07a', '32X',
     'The 32-bit add-on for the Mega Drive. Runs in RetroArch.'],
-  saturn: ['saturn.png', 'Saturn', 'Sega', '1994 / 1995', '#b9c2ce', 'SAT',
+  saturn: ['Saturn', 'Sega', '1994 / 1995', '#b9c2ce', 'SAT',
     "Sega's two-processor console. Runs in RetroArch; needs its BIOS."],
-  dreamcast: ['dreamcast.png', 'Dreamcast', 'Sega', '1998 / 1999', '#ffb562', 'DC',
+  dreamcast: ['Dreamcast', 'Sega', '1998 / 1999', '#ffb562', 'DC',
     "Sega's last console. Runs in RetroArch; needs its BIOS."],
-  naomi: ['naomi.png', 'Naomi', 'Sega', '1998', '#6fd6d6', 'NAOMI',
+  naomi: ['Naomi', 'Sega', '1998', '#6fd6d6', 'NAOMI',
     'The arcade board related to the Dreamcast. Runs in RetroArch; needs its BIOS.'],
-  naomigd: ['naomi.png', 'Naomi GD-ROM', 'Sega', '2001', '#6fd0b8', 'GD',
+  naomigd: ['Naomi GD-ROM', 'Sega', '2001', '#6fd0b8', 'GD',
     'Naomi arcade games shipped on GD-ROM. Runs in RetroArch; needs its BIOS.'],
-  atomiswave: ['atomiswave.png', 'Atomiswave', 'Sammy', '2003', '#ff9a6a', 'AW',
+  atomiswave: ['Atomiswave', 'Sammy', '2003', '#ff9a6a', 'AW',
     "Sammy's cartridge arcade board. Runs in RetroArch; needs its BIOS."],
-  pcengine: ['pcengine.png', 'PC Engine', 'NEC', '1987 / 1989', '#e8e8f0', 'PCE',
+  pcengine: ['PC Engine', 'NEC', '1987 / 1989', '#e8e8f0', 'PCE',
     "NEC's small console built for shooters, on HuCard. Runs in RetroArch."],
-  pcenginecd: ['pcenginecd.png', 'PC Engine CD', 'NEC', '1988 / 1989', '#ff9191', 'PCE CD',
+  pcenginecd: ['PC Engine CD', 'NEC', '1988 / 1989', '#ff9191', 'PCE CD',
     'The PC Engine with a CD-ROM drive. Runs in RetroArch; needs its BIOS.'],
-  supergrafx: ['supergrafx.png', 'SuperGrafx', 'NEC', '1989', '#d6b494', 'SGX',
+  supergrafx: ['SuperGrafx', 'NEC', '1989', '#d6b494', 'SGX',
     'An upgraded PC Engine with a handful of games. Runs in RetroArch.'],
-  mame: ['arcade.png', 'Arcade', 'MAME', '', '#ffd36a', 'ARC',
+  mame: ['Arcade', 'MAME', '', '#ffd36a', 'ARC',
     "Arcade machines, one ROM set per board. Runs in RetroArch's MAME core."],
 }
 
@@ -117,8 +118,8 @@ export const meta = (s) => consoles[s?.id] || null
 const profile = (s) => {
   const row = meta(s)
   if (!row) return null
-  return {file: row[0], name: row[1], maker: row[2], year: row[3],
-    accent: row[4], mark: row[5], story: row[6]}
+  return {name: row[0], maker: row[1], year: row[2],
+    accent: row[3], mark: row[4], story: row[5]}
 }
 export const systemName = (s) => isApp(s)
   ? (s?.label || s?.id || 'Application')
@@ -139,7 +140,6 @@ export const packLogo = (s) => s?.iconPath
   : null
 export const coverUrl = (systemId, filename) =>
   `/api/covers/${encodeURIComponent(systemId)}/${encodeURIComponent(filename)}`
-export const consoleFile = (s) => profile(s)?.file || null
 /** The pack's console photo (catalog/<id>/art/console.*, served as
  * `system.art.console`), else its logo. Orbit holds no copy of the photos. */
 export const consoleArt = (sdk, s) => s?.art?.console || packLogo(s)

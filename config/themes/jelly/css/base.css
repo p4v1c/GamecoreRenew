@@ -7,14 +7,9 @@
   font-display: swap;
 }
 
-/* ===========================================================================
-   Tokens. On :root because the session menu, the power menu and the host's
-   overlays are mounted outside the theme's tree and still read them.
-
-   `--px` is one pixel of a 1920x1080 design: 0.67px at 720p, 2px at 4K. Every
-   Jelly size is a multiple of it, so the layout keeps its proportions on any
-   TV instead of growing gaps at 4K or crushing the hero at 720p.
-   =========================================================================== */
+/* Tokens on :root: the session and power menus are mounted outside the theme
+   and read them too. --px is one pixel of the 1920x1080 design (0.67px at
+   720p, 2px at 4K), so the layout keeps its proportions on any TV. */
 :root {
   --px: min(0.0521vw, 0.0926vh);
 
@@ -91,3 +86,12 @@
   box-shadow: var(--jl-focus); transform: translateY(calc(-4 * var(--px))) scale(1.02);
 }
 .jelly-app [data-nav]:hover:not(:disabled) { transform: translateY(calc(-3 * var(--px))); }
+
+/* Icons (lib/icons.js) take the size and colour of the text around them. */
+.jl-svg { flex: none; width: 1.15em; height: 1.15em; vertical-align: -0.2em; }
+.jl-pill .jl-svg, .jl-dock-text .jl-svg { margin-right: 0.35em; }
+.jl-side-icon .jl-svg { width: 55%; height: 55%; }
+.jl-fav-dot .jl-svg { width: 60%; height: 60%; }
+.jl-arrow .jl-svg { width: 1em; height: 1em; }
+.jl-query-icon.jl-svg { width: calc(30 * var(--px)); height: calc(30 * var(--px)); color: var(--jl-purple); }
+.jl-key-del .jl-svg { width: 1.3em; height: 1.3em; }

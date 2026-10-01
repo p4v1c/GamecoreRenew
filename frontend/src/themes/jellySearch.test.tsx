@@ -72,18 +72,8 @@ async function home() {
   const sdk = buildSdk('jelly', { selectTheme: vi.fn(async () => {}) })
   const launchGame = vi.fn(async () => {})
   ;(sdk.defaults as Record<string, unknown>).launchGame = launchGame
-  const load = (p: string) => import(/* @vite-ignore */ `${THEME}/${p}`)
-  const [tabsMod, colMod, artMod, cardsMod, footMod, detMod, searchMod, homeMod] = await Promise.all(
-    ['lib/tabs.js', 'lib/collection.js', 'lib/art.js', 'views/cards.js', 'views/footer.js',
-      'views/details.js', 'views/search.js', 'views/home.js'].map(load))
-  const tabs = tabsMod.createTabs(sdk)
-  const collection = colMod.createCollection(sdk)
-  const cards = cardsMod.createCards(sdk, artMod.createArt(sdk))
-  const Details = detMod.createDetails(sdk, cards)
-  const ctx = { tabs, collection, art: artMod.createArt(sdk), cards, Footer: footMod.createFooter(sdk),
-    Details, Search: searchMod.createSearch(sdk, { cards, Details }),
-    actions: { settings: null, power: null, search: null, retry: () => {} } }
-  const View = homeMod.createHome(sdk, ctx)
+  const mod = await import(/* @vite-ignore */ `${THEME}/index.js`)
+  const View = mod.createParts(sdk).Home
   const r = render(createElement(HomeScreen as unknown as React.ComponentType<Record<string, unknown>>,
     { view: View, omit: ['nav', 'pages', 'confirm'], onLaunchApp: vi.fn() }))
   await settle()
@@ -204,8 +194,8 @@ describe('the fiche', () => {
 describe('the session parts', () => {
   const load = async () => {
     const sdk = buildSdk('jelly', { selectTheme: vi.fn(async () => {}) })
-    const { createSession } = await import(/* @vite-ignore */ `${THEME}/views/session.js`)
-    return createSession(sdk)
+    const mod = await import(/* @vite-ignore */ `${THEME}/index.js`)
+    return mod.createParts(sdk).session
   }
 
   it('the menu draws the host\'s actions and marks the one the pad is on', async () => {

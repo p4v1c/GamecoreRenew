@@ -1,14 +1,8 @@
 """Pictures a pack ships for themes: catalog/<id>/art/<name>.<ext>.
 
-A theme used to carry its own photo of every console, keyed by pack id in its
-JavaScript. Two themes meant two copies, a new pack meant editing every theme,
-and changing a photo meant editing code. The picture belongs to the pack; the
-theme only says which name it wants (`console`, …) and falls back when a pack
-has none.
-
-The operator can replace one without touching the release: a file at
-assets/art/<id>/<name>.<ext> wins over the pack's, the way assets/logos/ wins
-over a pack logo, and survives updates for the same reason.
+A theme asks for a name (`console` is the hardware photo) and falls back when
+it is absent. assets/art/<id>/<name>.<ext> replaces the pack's copy and is
+kept by updates. See docs/themes/README.md §7.0.
 """
 from __future__ import annotations
 
@@ -18,7 +12,7 @@ from pathlib import Path
 from .paths import art_dir
 
 SUFFIXES = (".webp", ".png", ".jpg", ".jpeg", ".svg")
-# Names travel in URLs and become dict keys a theme reads: keep them plain.
+# Names travel in URLs and become keys a theme reads: keep them plain.
 NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
 
 
@@ -44,9 +38,28 @@ def art_for(pack_id: str, pack_art: dict[str, Path] | None = None) -> dict[str, 
     return merged
 
 
-def art_urls(system_id: str, pictures: dict[str, Path]) -> dict[str, str]:
-    """What a theme reads off a system: name → URL. The file's mtime rides in
-    the query so a replaced picture is fetched again rather than revalidated
-    against a stale cache entry."""
+def _shipped() -> dict[str, dict[str, Path]]:
+    """Every pack's own pictures. A broken catalogue means none, never an error."""
+    try:
+        from .catalog import load_catalog
+        return {pid: pack.art for pid, pack in load_catalog().items()}
+    except Exception:
+        return {}
+
+
+def _urls(system_id: str, pictures: dict[str, Path]) -> dict[str, str]:
+    # The mtime in the query makes a replaced picture a new URL, not a stale hit.
     return {name: f"/api/systems/{system_id}/art/{name}?v={int(p.stat().st_mtime)}"
             for name, p in sorted(pictures.items())}
+
+
+def with_art(items: list[dict]) -> list[dict]:
+    """Grid rows plus `art`: {name: url}, the pictures a theme may choose from."""
+    shipped = _shipped()
+    return [{**item, "art": _urls(item["id"], art_for(item["id"], shipped.get(item["id"])))}
+            for item in items]
+
+
+def picture(system_id: str, name: str) -> Path | None:
+    """One picture by name, looked up rather than joined: both come from a URL."""
+    return art_for(system_id, _shipped().get(system_id)).get(name.lower())

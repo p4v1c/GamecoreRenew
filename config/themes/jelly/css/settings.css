@@ -1,9 +1,6 @@
-/* ===========================================================================
-   The host's settings screen, power menu and controller screen, in Jelly.
-   Markup and behaviour are the host's (frontend/src/settings); this sets the
-   `--set-*` palette they read and reshapes the frame into the mockup's card:
-   a purple rail, a paper page, one hint bar.
-   =========================================================================== */
+/* The host's settings, power menu and controller screen in Jelly: the --set-*
+   palette they read, and the frame reshaped into the mockup's card (purple
+   rail, paper page). Markup and behaviour: frontend/src/settings. */
 
 .gcs-set.jelly-settings,
 .gcs-pwr-scrim.jelly-power {
@@ -48,7 +45,7 @@
 }
 .jelly-settings .gcs-set-title { font-size: 0; letter-spacing: 0; }
 .jelly-settings .gcs-set-title::before {
-  content: 'Réglages · GameCore'; display: block; margin-bottom: 6px;
+  content: 'Réglages GameCore'; display: block; margin-bottom: 6px;
   font-size: 14px; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase; color: var(--set-ink-2);
 }
 .jelly-settings .gcs-set-title::after {
@@ -175,7 +172,7 @@
   padding: 14px 36px 18px; border-radius: 0 0 32px 32px; background: var(--set-bg); border-top: 2px solid #ece4f5;
   font-size: 16px; color: var(--set-ink);
 }
-.jelly-settings .gcs-set-foot-l::before { content: 'L2 R2 · Défiler'; font-weight: 800; }
+.jelly-settings .gcs-set-foot-l::before { content: 'L2 R2   Défiler'; font-weight: 800; }
 .jelly-settings .gcs-set-hints { font-weight: 700; }
 
 /* ── power menu ── */

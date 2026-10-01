@@ -50,7 +50,7 @@ export function createFooter(sdk) {
       <div className="jl-status" aria-label="Manettes et réseau">
         ${pads.length
           ? pads.map((p, i) => html`<span key=${i} className="jl-pad" title=${p.name || p.label || 'Manette'}>
-              <i className="jl-dot" />J${p.player ?? i + 1}${Number.isFinite(p.level) && p.level >= 0 ? ` · ${p.level} %` : ''}</span>`)
+              <i className="jl-dot" />J${p.player ?? i + 1}${Number.isFinite(p.level) && p.level >= 0 ? `, ${p.level} %` : ''}</span>`)
           : html`<span className="jl-pad jl-pad-none">Aucune manette</span>`}
         ${now?.ip ? html`<span className="jl-ip">${now.ip}</span>` : null}
       </div>

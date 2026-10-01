@@ -724,6 +724,14 @@ session, a failed launch costs the box.
 `config/systems.json` and `config/apps.json` on mtime change and expands
 `@HOME@` / `@GAMECORE_DATA@` / `@GAMECORE_PATH@` at read time.
 
+### `pack_art.py` — pictures a pack ships for themes
+
+`pictures_in(folder)` lists `art/<name>.<ext>` (webp, png, jpg, svg; plain
+names only). `art_for(id)` lays the operator's `assets/art/<id>/` over the
+pack's. `with_art(rows)` adds `art: {name: url}` to the grid rows served by
+`GET /systems`, and `picture(id, name)` is what `GET /systems/{id}/art/{name}`
+serves. Looked up by name, never joined into a path.
+
 ### `display.py` — mode switching with a revert timer
 
 `state()`, `set_mode()`, `confirm()`, `revert_now()`, `ui_scale()`,

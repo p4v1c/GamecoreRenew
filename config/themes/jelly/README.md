@@ -1,4 +1,4 @@
-# Jelly 1.1.0
+# Jelly 1.2.0
 
 A bright, rounded GameCore theme: a cyan playground, purple and pink jelly
 tiles, keys that press down, one burst of confetti at boot. Textures and
@@ -66,12 +66,16 @@ console.
 ## Files
 
 ```
-index.js            wiring
+index.js            createParts (every screen over one context) and the theme's surfaces
+DESIGN.md           idea, type, palette, shape, depth, motion, voice
 lib/                catalog (names, marks, colours), collection (all games + playtime),
-                    spatial (pad navigation), tabs, art (3D box / jacket fallbacks), jacket-style,
-                    favourites, format (French), drawings
-views/              home + home/{play,collection,consoles}, library, search, keyboard, details, cards,
-                    topbar, footer, background, splash, ceremony, session, settings, controller
+                    spatial (pad moves) + presses (who owns a press), search, launch,
+                    art (3D box / jacket fallbacks) + jacket-style, icons, favourites,
+                    format (French), tabs, drawings
+views/              home + home/{play,hero,shortcuts,collection,consoles},
+                    library/{index,toolbar,rows}, search/{index,header,zones,results,keyboard},
+                    details, cards, chips, topbar, footer, background, splash, ceremony,
+                    session, settings, controller
 css/                base, shell, cards, home, dialogs, moments, settings, motion
 fonts/red-hat/      Red Hat Display (SIL OFL)
 ```
@@ -82,7 +86,7 @@ confetti; focus keeps its ring.
 
 ## Checks
 
-- `node scripts/check-theme.mjs config/themes/jelly` — 27 modules, all ten settings pages reachable
+- `node scripts/check-theme.mjs config/themes/jelly` — 39 modules, all ten settings pages reachable
 - `npx vitest run src/themes/jelly src/themes/themeSplashContract.test.tsx` (frontend)
 - `pytest backend/tests -k theme` — the shared theme rules (ceremony length, settings grid, versions, controller wizard)
 

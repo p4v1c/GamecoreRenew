@@ -1,15 +1,8 @@
 import {isApp, titleFromKey} from './catalog.js'
 
-/** Every game on the box, across consoles, with its playtime.
- *
- * Play, Collection and search all draw from the same list, so it is loaded
- * once and shared. The host's `__all__` library does the same walk, but only
- * for the library screen; this one lives on the dashboard.
- *
- * A console whose list fails is skipped, not fatal: the rest of the collection
- * still shows. Only when every console fails is the whole thing an error, and
- * then the views offer a retry.
- */
+/** Every game on the box with its playtime, loaded once for Play, Collection
+ * and search. A console whose list fails is skipped; only when all fail is it
+ * an error, and the views offer a retry. */
 export function createCollection(sdk) {
   const {useState, useEffect} = sdk.ui
   let state = {status: 'idle', games: [], failed: 0}

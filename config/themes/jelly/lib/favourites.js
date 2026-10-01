@@ -1,9 +1,5 @@
-/** Favourites, kept in this browser and nowhere else.
- *
- * GameCore has no favourites of its own (no endpoint, no column), so they are
- * the theme's. Keyed by `system:filename`, the pair the playtime table uses,
- * because a filename alone collides across two consoles holding the same game.
- */
+/** Favourites, in this browser only: GameCore has none of its own. Keyed
+ * `system:filename`, as playtime is, so two consoles never share a favourite. */
 const KEY = 'jelly-favourites'
 const listeners = new Set()
 let saved = new Set()
