@@ -21,6 +21,10 @@ or plastic.
 **Motion:** the box turns (L2), restacks (R2), the cartridge goes in (launch,
 `launch.ms`). Spines never move on their own.
 
+**Sound:** cardboard, wood, plastic (`lib/sounds.js`): a fingertip tap on
+move, marimba notes on confirm and back, the cartridge sliding and clunking in
+on launch. Synthesized, played into the host's volume.
+
 **Copy:** printed-label feel in sentence case; publisher on the box back may
 be uppercase like real print. No "·" meta, no em dashes as joiners.
 

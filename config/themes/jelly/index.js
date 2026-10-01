@@ -16,6 +16,7 @@ import {createCeremony} from './views/ceremony.js'
 import {createSession} from './views/session.js'
 import {createJellySettings} from './views/settings.js'
 import {createController} from './views/controller.js'
+import {SOUNDS} from './lib/sounds.js'
 
 /** Every Jelly screen, built over one shared context. The theme and its tests
  * both start here, so they cannot wire it differently. */
@@ -57,6 +58,7 @@ export default function createJelly(sdk) {
     splash: createSplash(sdk),
     shell: Shell,
     ceremony: createCeremony(sdk),
+    sounds: SOUNDS,
     sessionBar: session.Bar,
     sessionMenu: session.Menu,
     rumble: {

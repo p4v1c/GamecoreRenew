@@ -116,3 +116,10 @@ session. Reduced-motion preferences disable the new transitions.
 - Reduced-motion preferences are respected.
 
 Targeted validation: 11 session tests and 26 physical-media/navigation tests pass.
+
+## Sounds
+
+The five UI sounds (`move`, `confirm`, `back`, `launch`, `startup`) are this
+theme's own, synthesized in `lib/sounds.js` from the two helpers in
+`lib/synth.js`; see DESIGN.md for their character. The host still decides when
+each one plays, and the player's sound setting and volume still apply.

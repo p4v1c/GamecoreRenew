@@ -1015,6 +1015,11 @@ return {
 The module wins over the manifest for the same name, exactly the way
 `{ ...DefaultSettingsPages, ...ownPages }` works.
 
+Every shipped theme but the default does this: `lib/sounds.js` in Jelly, Orbit,
+Shelf and Summer returns all five, built from two small helpers in
+`lib/synth.js` (an enveloped tone and a burst of filtered noise). Copy that
+pair as a starting point; the default theme keeps the host's bips.
+
 ### The cascade
 
 **Your sound → the host's sound → silence.**
