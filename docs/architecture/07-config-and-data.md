@@ -433,9 +433,9 @@ nothing, or the same leftovers. Saves under `~/.var/app` (Dolphin's memory
 cards and NAND) are keyed by game id and are not touched; so are Ryujinx's,
 which Eden does not read — a `ryujinx` → `switch` move leaves the Switch saves
 in Ryujinx, and copying them to Eden is a separate manual step. Not carried: Orbit's
-favourites, which live in the kiosk browser's storage (`orbit-favourites`,
-`system:filename`) where no script reaches; a favourite on a moved game has to
-be marked again.
+and Jelly's favourites, which live in the kiosk browser's storage
+(`orbit-favourites`, `jelly-favourites`, both `system:filename`) where no script
+reaches; a favourite on a moved game has to be marked again.
 
 ## `config/apps.json`
 

@@ -1,0 +1,11 @@
+/* Jelly — split by concern under css/. The order below is the cascade order;
+ * keep it. Tests read the whole sheet through read_css(), which inlines
+ * these @imports. */
+@import url("css/base.css");
+@import url("css/shell.css");
+@import url("css/cards.css");
+@import url("css/home.css");
+@import url("css/dialogs.css");
+@import url("css/moments.css");
+@import url("css/settings.css");
+@import url("css/motion.css");

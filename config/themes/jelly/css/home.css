@@ -1,0 +1,119 @@
+/* ===========================================================================
+   Jouer (hero, two shortcuts) and Consoles (photo cards, applications).
+   =========================================================================== */
+
+.jl-hero-grid { flex: none; display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr); gap: calc(24 * var(--px)); }
+.jl-hero {
+  position: relative; display: flex; height: calc(360 * var(--px)); overflow: hidden;
+  border-radius: var(--jl-radius); background: var(--jl-purple); color: #fff;
+  border: 1px solid #ffffff7a; box-shadow: 0 calc(8 * var(--px)) 0 #33264f22;
+}
+.jl-hero-copy { position: relative; width: 54%; display: flex; flex-direction: column; justify-content: center; padding: calc(36 * var(--px)) calc(40 * var(--px)); }
+.jl-pill {
+  align-self: flex-start; padding: calc(7 * var(--px)) calc(12 * var(--px)); border-radius: calc(9 * var(--px));
+  background: var(--jl-yellow); color: var(--jl-ink); transform: rotate(-3deg);
+  font-size: var(--jl-t-xs); font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.jl-hero h2 { margin: calc(18 * var(--px)) 0 calc(10 * var(--px)); font-size: var(--jl-t-xxl); font-weight: 900; line-height: 0.98; letter-spacing: -0.05em; }
+.jl-hero-game { font-size: var(--jl-t-m); font-weight: 800; }
+.jl-hero-game span { font-weight: 500; color: #ece5f8; }
+.jl-hero-actions { display: flex; gap: calc(14 * var(--px)); margin-top: calc(24 * var(--px)); }
+.jl-hero .jl-error { background: #ffe1eaee; }
+.jl-hero-art {
+  position: absolute; right: 0; top: 0; width: 52%; height: 100%; overflow: hidden;
+  background: #784eb0; clip-path: polygon(12% 0, 100% 0, 100% 100%, 0 100%);
+}
+.jl-hero-art > span:first-child, .jl-hero-art > span:first-child svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.jl-hero-jacket {
+  position: absolute; right: 8%; top: 13%; bottom: 13%; width: 38%;
+  transform: rotate(6deg); filter: drop-shadow(0 calc(10 * var(--px)) 0 #30204e55);
+  animation: jl-wobble 5s ease-in-out infinite;
+}
+.jl-hero-jacket .jl-cover { border: calc(6 * var(--px)) solid var(--jl-paper); }
+.jl-hero-tag { position: absolute; right: calc(26 * var(--px)); bottom: calc(18 * var(--px)); font-size: var(--jl-t-xs); font-weight: 900; letter-spacing: 0.3em; text-transform: uppercase; color: #fff; }
+.jl-hero-empty { background: var(--jl-purple-deep); }
+@keyframes jl-wobble { 50% { transform: rotate(3deg) translateY(calc(-8 * var(--px))) scale(1.02, 0.98); } }
+.jl-kart { animation: jl-lap 6s linear infinite; offset-path: path('M100 205V90q0-40 50-40h145q53 0 53 52v54q0 49-53 49z'); offset-rotate: auto 90deg; }
+.jl-kart-two { animation-delay: -3s; }
+@keyframes jl-lap { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+.jl-flag { animation: jl-flap 1.6s ease-in-out infinite; transform-origin: 96px 100px; }
+@keyframes jl-flap { 50% { transform: scaleX(0.82); } }
+.jl-star { animation: jl-bob 4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+.jl-side { display: grid; grid-template-rows: 1fr 1fr; gap: calc(20 * var(--px)); }
+.jl-side-card {
+  position: relative; display: flex; align-items: center; gap: calc(20 * var(--px)); text-align: left; overflow: hidden;
+  padding: calc(24 * var(--px)) calc(26 * var(--px)); border-radius: var(--jl-radius);
+  background: var(--jl-paper); box-shadow: var(--jl-lift);
+}
+.jl-side-card b { display: block; margin: calc(2 * var(--px)) 0 calc(6 * var(--px)); font-size: var(--jl-t-l); font-weight: 900; letter-spacing: -0.03em; }
+.jl-side-card small { display: block; font-size: var(--jl-t-xs); color: var(--jl-ink-2); }
+.jl-side-card .jl-eyebrow { margin-bottom: 0; font-size: max(14px, calc(13 * var(--px))); }
+.jl-side-icon {
+  flex: none; display: grid; place-items: center; width: calc(62 * var(--px)); height: calc(66 * var(--px));
+  border-radius: calc(18 * var(--px)); background: var(--jl-lilac); color: var(--jl-purple);
+  font-size: calc(32 * var(--px)); font-weight: 900; transform: rotate(-8deg); box-shadow: 0 calc(4 * var(--px)) 0 #30204e1c;
+}
+.jl-side-card .jl-arrow { position: absolute; right: calc(20 * var(--px)); top: calc(16 * var(--px)); }
+.jl-side-sun { background: #ffde75; }
+.jl-side-sun .jl-side-icon { background: #f4c84f; color: var(--jl-ink); }
+.jl-side-card::after {
+  content: ''; position: absolute; right: calc(-30 * var(--px)); bottom: calc(-40 * var(--px));
+  width: calc(110 * var(--px)); height: calc(110 * var(--px)); border-radius: calc(30 * var(--px));
+  border: calc(16 * var(--px)) solid #30204e0d; transform: rotate(30deg);
+}
+.jl-playpage .jl-row .jl-cover { height: calc(170 * var(--px)); }
+
+/* ── Consoles ── */
+.jl-consoles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: calc(24 * var(--px)); }
+.jl-console {
+  display: flex; flex-direction: column; text-align: left; overflow: hidden;
+  border-radius: calc(24 * var(--px)); background: var(--jl-paper); box-shadow: var(--jl-lift);
+}
+.jl-console-stage {
+  position: relative; display: grid; place-items: center; height: calc(250 * var(--px)); overflow: hidden;
+  background: repeating-linear-gradient(135deg, #ffffff12 0 calc(14 * var(--px)), transparent calc(14 * var(--px)) calc(28 * var(--px))), var(--cover);
+}
+.jl-console-photo {
+  position: relative; max-width: 82%; max-height: 80%; object-fit: contain;
+  filter: drop-shadow(0 calc(14 * var(--px)) calc(12 * var(--px)) #20123a55);
+  transition: transform 300ms cubic-bezier(.3, 1.6, .5, 1);
+}
+.jl-console:focus .jl-console-photo { transform: scale(1.06) rotate(-2deg); }
+.jl-console-tag {
+  position: absolute; left: calc(14 * var(--px)); top: calc(14 * var(--px)); padding: calc(5 * var(--px)) calc(11 * var(--px));
+  border-radius: calc(10 * var(--px)); background: var(--jl-paper); color: var(--jl-ink); transform: rotate(-4deg);
+  font-size: var(--jl-t-xs); font-weight: 900;
+}
+.jl-console-ghost {
+  position: absolute; left: calc(-6 * var(--px)); bottom: calc(-22 * var(--px));
+  font-size: calc(96 * var(--px)); font-weight: 900; letter-spacing: -0.05em; color: #ffffff26; white-space: nowrap;
+}
+.jl-console-caption { position: relative; display: flex; flex-direction: column; gap: calc(6 * var(--px)); padding: calc(20 * var(--px)) calc(70 * var(--px)) calc(22 * var(--px)) calc(24 * var(--px)); }
+.jl-console-caption b { font-size: var(--jl-t-l); font-weight: 900; letter-spacing: -0.03em; }
+.jl-console-caption small { font-size: var(--jl-t-xs); color: var(--jl-ink-3); }
+.jl-console-caption .jl-arrow {
+  position: absolute; right: calc(22 * var(--px)); top: 50%; transform: translateY(-50%);
+  display: grid; place-items: center; width: calc(38 * var(--px)); height: calc(38 * var(--px)); border-radius: 50%; background: var(--jl-lilac);
+}
+.jl-console:focus .jl-arrow { background: var(--jl-yellow); }
+.jl-console .jl-picture-mark { font-size: calc(64 * var(--px)); }
+
+.jl-apps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: calc(20 * var(--px)); padding-bottom: calc(10 * var(--px)); }
+.jl-app {
+  position: relative; display: flex; align-items: center; gap: calc(18 * var(--px)); text-align: left;
+  padding: calc(16 * var(--px)); border-radius: calc(22 * var(--px)); background: var(--jl-paper); box-shadow: var(--jl-lift);
+}
+.jl-app-logo {
+  flex: none; display: grid; place-items: center; width: calc(84 * var(--px)); height: calc(84 * var(--px)); overflow: hidden;
+  border-radius: calc(20 * var(--px)); background: var(--cover); transform: rotate(-6deg);
+}
+.jl-app-logo img { max-width: 72%; max-height: 72%; object-fit: contain; }
+.jl-app-logo .jl-picture-mark { font-size: calc(24 * var(--px)); }
+.jl-app-text b { display: block; font-size: var(--jl-t-m); font-weight: 900; }
+.jl-app-text small { font-size: var(--jl-t-xs); color: var(--jl-ink-3); }
+.jl-app .jl-badge { left: auto; right: calc(12 * var(--px)); }
+
+/* ── a console's library ── */
+.jl-lib-title { display: flex; align-items: center; gap: calc(22 * var(--px)); }
+.jl-lib-photo { width: calc(120 * var(--px)); height: calc(84 * var(--px)); object-fit: contain; filter: drop-shadow(0 calc(6 * var(--px)) calc(8 * var(--px)) #20123a40); }

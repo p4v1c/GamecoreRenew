@@ -1,0 +1,93 @@
+/* Red Hat Display, shipped with the theme (SIL OFL, fonts/red-hat/OFL.txt). */
+@font-face {
+  font-family: 'Jelly Red Hat';
+  src: url('../fonts/red-hat/RedHatDisplay-var.woff2') format('woff2');
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ===========================================================================
+   Tokens. On :root because the session menu, the power menu and the host's
+   overlays are mounted outside the theme's tree and still read them.
+
+   `--px` is one pixel of a 1920x1080 design: 0.67px at 720p, 2px at 4K. Every
+   Jelly size is a multiple of it, so the layout keeps its proportions on any
+   TV instead of growing gaps at 4K or crushing the hero at 720p.
+   =========================================================================== */
+:root {
+  --px: min(0.0521vw, 0.0926vh);
+
+  --jl-ink: #30204e;
+  --jl-ink-2: #4f3f68;          /* 7.9:1 on paper, 5.6:1 on the cyan floor */
+  --jl-ink-3: #64567a;          /* 5.9:1 on paper; never straight on cyan */
+  --jl-paper: #fffdf7;
+  --jl-paper-2: #f3eefb;
+  --jl-purple: #5931a0;
+  --jl-purple-deep: #3d2470;
+  --jl-pink: #f950a3;
+  --jl-pink-ink: #b51f66;       /* the pink, dark enough to read on paper */
+  --jl-yellow: #ffe66b;
+  --jl-yellow-deep: #c5a530;
+  --jl-cyan: #80deed;
+  --jl-cyan-pale: #c9f6f6;
+  --jl-lilac: #ebe2ff;
+  --jl-ok: #1d7a5c;
+  --jl-danger: #c0264f;
+
+  --jl-radius: calc(24 * var(--px));
+  --jl-lift: 0 calc(6 * var(--px)) 0 #30204e1f;
+  /* The focus: a yellow ring outlined in ink. Readable on cyan, purple and
+     paper alike, and it comes with a lift, so it is seen without colour. */
+  --jl-focus: 0 0 0 calc(5 * var(--px)) var(--jl-yellow), 0 0 0 calc(9 * var(--px)) var(--jl-ink);
+
+  --jl-t-xs: max(14px, calc(15 * var(--px)));
+  --jl-t-s: max(14px, calc(17 * var(--px)));
+  --jl-t-m: calc(20 * var(--px));
+  --jl-t-l: calc(26 * var(--px));
+  --jl-t-xl: calc(40 * var(--px));
+  --jl-t-xxl: calc(56 * var(--px));
+  --jl-pad: calc(72 * var(--px));
+
+  /* The host's overlays: settings dialogs, game options, the search keyboard
+     of a console's library, the session menu's backdrop. */
+  --gc-overlay-scrim: #2416389c;
+  --gc-overlay-blur: blur(9px);
+  --gc-overlay-panel: #fffdf7;
+  --gc-overlay-border: #ffffffaa;
+  --gc-overlay-radius: 28px;
+  --gc-accent: #5931a0;
+  --gc-accent-soft: #7a5bb8;
+  --gc-accent-bright: #30204e;
+
+  /* Pad glyphs dark enough for paper and the cyan floor (>= 3:1). */
+  --gc-pad-cross: #2448a8;
+  --gc-pad-circle: #b01f35;
+  --gc-pad-square: #9a2672;
+  --gc-pad-triangle: #0d6b4e;
+}
+
+/* Scoped resets: the host's own screens style themselves inline and expect
+   the document's defaults, so nothing here leaves `.jelly-app`. */
+.jelly-app { font-family: 'Jelly Red Hat', 'Trebuchet MS', Arial, sans-serif; font-synthesis: none; color: var(--jl-ink); }
+:where(.jelly-app) * { box-sizing: border-box; }
+:where(.jelly-app) button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+:where(.jelly-app) button:disabled { cursor: default; opacity: 0.5; }
+:where(.jelly-app) h1, :where(.jelly-app) h2, :where(.jelly-app) p, :where(.jelly-app) dl, :where(.jelly-app) dd { margin: 0; }
+:where(.jelly-app) [hidden] { display: none !important; }
+:where(.jelly-app) img { display: block; }
+
+.jl-eyebrow {
+  display: block; margin-bottom: calc(8 * var(--px));
+  font-size: var(--jl-t-xs); font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--jl-ink-2);
+}
+
+/* Every pad-reachable control. The ring is a box-shadow so it follows the
+   jelly radius; `outline` stays for a desk browser's Tab key. */
+.jelly-app [data-nav] { transition: transform 160ms cubic-bezier(.3, 1.6, .5, 1), box-shadow 120ms ease; }
+.jelly-app [data-nav]:focus { outline: none; }
+.jelly-app [data-nav]:focus-visible, .jelly-app [data-nav]:focus {
+  box-shadow: var(--jl-focus); transform: translateY(calc(-4 * var(--px))) scale(1.02);
+}
+.jelly-app [data-nav]:hover:not(:disabled) { transform: translateY(calc(-3 * var(--px))); }

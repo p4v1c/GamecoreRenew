@@ -31,7 +31,7 @@ THEMES = ROOT / "config" / "themes"
 # Themes that ship with the box. `_skeleton` is a template and is deliberately
 # not held to this: it exists to be copied, and a starting point that already
 # had every escape hatch wired would teach nothing about which are load-bearing.
-SHIPPED = ("shelf", "summer", "orbit")
+SHIPPED = ("shelf", "summer", "orbit", "jelly")
 
 
 HOST_VIEW = ROOT / "frontend" / "src" / "components" / "modals" / "gamepad" / "DefaultGamepadView.tsx"

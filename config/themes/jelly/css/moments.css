@@ -1,0 +1,100 @@
+/* ===========================================================================
+   Boot, launch handover, and the suspended session. All three are mounted by
+   the host outside the shell, so each names its own typeface.
+   =========================================================================== */
+
+/* ── splash ── */
+.jl-splash {
+  position: fixed; inset: 0; display: grid; place-items: center; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 40%, #c9f6f6 0, var(--jl-cyan) 62%);
+  font-family: 'Jelly Red Hat', 'Trebuchet MS', Arial, sans-serif; color: var(--jl-ink);
+  transition: opacity var(--jl-fade) ease, transform var(--jl-fade) ease;
+}
+.jl-splash[data-out="true"] { opacity: 0; transform: scale(1.04); }
+.jl-splash-floor {
+  position: absolute; inset: -40px;
+  background-image: radial-gradient(circle at 2px 2px, #328aa22e 1.8px, transparent 2.4px);
+  background-size: calc(22 * var(--px)) calc(22 * var(--px));
+}
+.jl-splash-stage { position: relative; display: flex; flex-direction: column; align-items: center; }
+.jl-splash-mark { width: calc(150 * var(--px)); height: calc(150 * var(--px)); animation: jl-land 900ms cubic-bezier(.3, 1.6, .5, 1) both; }
+.jl-splash-mark svg { width: 100%; height: 100%; font-family: inherit; }
+.jl-splash-word { display: flex; margin-top: calc(26 * var(--px)); font-size: calc(110 * var(--px)); font-weight: 900; letter-spacing: -0.05em; line-height: 1; }
+.jl-splash-word span {
+  display: inline-block; color: var(--jl-ink); text-shadow: 0 calc(8 * var(--px)) 0 #30204e30;
+  animation: jl-drop 760ms cubic-bezier(.3, 1.7, .5, 1) both; animation-delay: calc(500ms + var(--i) * 90ms);
+}
+.jl-splash-word span:nth-child(3n + 2) { color: var(--jl-purple); }
+.jl-splash-word span:nth-child(4) { color: var(--jl-pink-ink); }
+.jl-splash-edition {
+  margin-top: calc(22 * var(--px)); padding: calc(8 * var(--px)) calc(18 * var(--px)); border-radius: calc(12 * var(--px));
+  background: var(--jl-yellow); transform: rotate(-3deg); font-size: calc(22 * var(--px)); font-weight: 900; letter-spacing: 0.24em; text-transform: uppercase;
+  animation: jl-pop 500ms 1.5s cubic-bezier(.3, 1.6, .5, 1) both;
+}
+.jl-splash-burst { position: absolute; left: 50%; top: 32%; }
+.jl-splash-burst i {
+  position: absolute; width: calc(20 * var(--px)); height: calc(12 * var(--px)); border-radius: calc(5 * var(--px)); background: var(--c);
+  opacity: 0; animation: jl-confetti 1100ms ease-out both; animation-delay: calc(1300ms + var(--delay));
+}
+@keyframes jl-land { from { transform: translateY(-60vh) rotate(-30deg); } 70% { transform: translateY(0) scale(1.15, 0.85); } }
+@keyframes jl-drop { from { transform: translateY(calc(-220 * var(--px))) scale(0.8); opacity: 0; } 60% { transform: translateY(0) scale(1.12, 0.86); opacity: 1; } }
+@keyframes jl-confetti {
+  0% { opacity: 1; transform: rotate(var(--a)) translateX(0) rotate(0); }
+  100% { opacity: 0; transform: rotate(var(--a)) translateX(var(--d)) rotate(260deg); }
+}
+
+/* ── launch handover ── */
+.jl-ceremony {
+  position: fixed; inset: 0; display: grid; place-items: center; background: #2416388c;
+  font-family: 'Jelly Red Hat', 'Trebuchet MS', Arial, sans-serif; animation: jl-fade 200ms ease-out;
+}
+.jl-ceremony-blob {
+  position: absolute; width: calc(380 * var(--px)); height: calc(340 * var(--px)); background: var(--jl-yellow);
+  border-radius: 46% 54% 42% 58% / 52% 44% 56% 48%; box-shadow: 0 calc(16 * var(--px)) 0 var(--jl-yellow-deep);
+  animation: jl-jelly var(--jl-launch, 900ms) cubic-bezier(.3, 1.6, .5, 1) both;
+}
+.jl-ceremony[data-kind="suspend"] .jl-ceremony-blob { background: var(--jl-lilac); box-shadow: 0 calc(16 * var(--px)) 0 #b9a2de; }
+.jl-ceremony-word { position: relative; font-size: calc(52 * var(--px)); font-weight: 900; letter-spacing: -0.04em; color: var(--jl-ink); animation: jl-pop 500ms 120ms cubic-bezier(.3, 1.6, .5, 1) both; }
+@keyframes jl-jelly {
+  0% { transform: scale(0.2) rotate(-20deg); }
+  45% { transform: scale(1.12, 0.9) rotate(4deg); }
+  70% { transform: scale(0.95, 1.06) rotate(-2deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+/* ── the bar over a suspended game ── */
+.jl-dock {
+  display: flex; align-items: center; gap: 16px; margin: 0 auto 18px; width: max-content; max-width: 92vw;
+  padding: 10px 14px 10px 10px; border-radius: 22px; background: var(--jl-paper); color: var(--jl-ink);
+  box-shadow: 0 6px 0 #30204e30, 0 18px 50px #30204e40; font-family: 'Jelly Red Hat', 'Trebuchet MS', Arial, sans-serif;
+}
+.jl-dock-art { display: grid; place-items: center; width: 64px; height: 64px; overflow: hidden; border-radius: 14px; background: var(--jl-purple); }
+.jl-dock-art img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.jl-dock-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.jl-dock-text small { font-size: 14px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jl-pink-ink); }
+.jl-dock-text b { font-size: 20px; font-weight: 900; max-width: 40vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jl-dock-button { padding: 12px 20px; border: 0; border-radius: 14px; background: var(--jl-yellow); color: var(--jl-ink); box-shadow: 0 4px 0 var(--jl-yellow-deep); font: 900 16px 'Jelly Red Hat', sans-serif; cursor: pointer; }
+.jl-dock-key { font-size: 16px; font-weight: 800; }
+
+/* ── the session menu ── */
+.jl-session {
+  display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 32px; width: min(920px, 92vw); margin: 0 auto 6vh;
+  padding: 32px; border-radius: 30px; background: var(--jl-paper); color: var(--jl-ink);
+  box-shadow: 0 10px 0 #30204e30, 0 30px 100px #30204e66; font-family: 'Jelly Red Hat', 'Trebuchet MS', Arial, sans-serif;
+}
+.jl-session-art { display: grid; place-items: center; height: 300px; overflow: hidden; border-radius: 22px; background: var(--jl-purple); }
+.jl-session-art img { max-width: 88%; max-height: 88%; object-fit: contain; transform: rotate(-3deg); }
+.jl-session .jl-eyebrow { color: var(--jl-pink-ink); }
+.jl-session h2 { margin: 0 0 10px; font-size: 38px; font-weight: 900; letter-spacing: -0.04em; line-height: 1.05; }
+.jl-session p { margin: 0; font-size: 17px; line-height: 1.5; color: var(--jl-ink-2); }
+.jl-session-actions { display: flex; flex-direction: column; gap: 10px; margin: 22px 0 16px; }
+.jl-session-option {
+  padding: 15px 20px; border: 0; border-radius: 16px; text-align: left; cursor: pointer;
+  background: var(--jl-paper-2); color: var(--jl-ink); font: 800 18px 'Jelly Red Hat', sans-serif;
+  transition: transform 160ms cubic-bezier(.3, 1.6, .5, 1);
+}
+.jl-session-option.is-primary { background: var(--jl-yellow); }
+.jl-session-option.is-danger { color: var(--jl-danger); }
+.jl-session-option[data-active="true"] { box-shadow: var(--jl-focus); transform: translateX(6px); }
+.jl-session-option.is-danger[data-active="true"] { background: var(--jl-danger); color: #fff; }
+.jl-session-hints { font-size: 16px !important; font-weight: 700; color: var(--jl-ink) !important; }

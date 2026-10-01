@@ -1,0 +1,260 @@
+/**
+ * Jelly's dashboard and library, against the real host and the real SDK.
+ *
+ * Mounted through HomeScreen and LibraryScreen with the same omissions
+ * index.js declares, so the host's own bindings are live underneath and a
+ * press answered twice shows up here. What it looks like on a TV is checked
+ * in a browser, not claimed below.
+ */
+import { render, act, cleanup } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import React, { createElement } from 'react'
+import { buildSdk } from '../lib/themeSdk'
+import { useStore } from '../store'
+import HomeScreen from '../components/HomeScreen'
+import LibraryScreen from '../components/LibraryScreen'
+
+const THEME = '../../../config/themes/jelly'
+
+const SYSTEMS = [
+  { id: 'azahar', label: 'Azahar', kind: 'emulator' as const },
+  { id: 'duckstation', label: 'DuckStation', kind: 'emulator' as const },
+  { id: 'youtube', label: 'YouTube', kind: 'app' as const },
+]
+const GAMES: Record<string, unknown[]> = {
+  azahar: [
+    { filename: 'Mario Kart 7 (Europe).3ds', display_name: 'Mario Kart 7', path: '/r/mk7.3ds' },
+    { filename: 'Pokemon X (Europe).3ds', display_name: 'Pokémon X', path: '/r/px.3ds' },
+  ],
+  duckstation: [
+    { filename: 'Crash Bandicoot (Europe).chd', display_name: 'Crash Bandicoot', path: '/r/crash.chd' },
+  ],
+}
+const PLAYTIME = [
+  { game_key: 'Crash Bandicoot (Europe).chd', system_id: 'duckstation', total_secs: 1680,
+    session_count: 2, last_played: '2026-09-28T19:00:00Z' },
+]
+
+beforeEach(() => {
+  localStorage.clear()
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(typeof input === 'string' ? input : (input as Request).url ?? input)
+    const games = url.match(/\/systems\/([^/]+)\/games/)
+    const one = url.match(/\/systems\/([^/]+)$/)
+    const body: unknown =
+      url.includes('/playtime') ? PLAYTIME
+        : games ? (GAMES[decodeURIComponent(games[1])] ?? [])
+          : one ? SYSTEMS.find(x => x.id === decodeURIComponent(one[1]))
+          : url.endsWith('/systems') ? SYSTEMS
+            : url.includes('/metadata') ? { found: false }
+              : url.includes('/sysinfo') ? { ip: '10.0.0.2', controllers: [] }
+                : []
+    return { ok: true, status: 200, statusText: 'OK', json: async () => body }
+  }))
+  useStore.setState({
+    screen: 'home', selectedSystemId: null, selectedGameIdx: 0, gridFocusIdx: 0, gridPage: 0,
+    modalDepth: 0, sessionGameKey: null, sessionSystemId: null, transition: null,
+    backgroundSessions: [], powerPending: null, standby: 'off',
+  })
+})
+
+afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+
+const settle = () => act(async () => { for (let i = 0; i < 4; i++) await new Promise(r => setTimeout(r, 0)) })
+
+const press = async (event: string, n = 1) => {
+  await act(async () => {
+    for (let i = 0; i < n; i++) window.dispatchEvent(new CustomEvent(event))
+    await new Promise(r => setTimeout(r, 0))
+  })
+}
+
+const focused = () => (document.activeElement as HTMLElement | null)?.dataset?.nav
+
+async function jelly() {
+  const sdk = buildSdk('jelly', { selectTheme: vi.fn(async () => {}) })
+  const launchGame = vi.fn(async () => {})
+  ;(sdk.defaults as Record<string, unknown>).launchGame = launchGame
+  const mod = await import(/* @vite-ignore */ `${THEME}/index.js`)
+  const theme = mod.default(sdk)
+  // The Shell part list is what index.js hands the host; reach the views
+  // through the same factories it uses.
+  const [tabsMod, colMod, artMod, cardsMod, footMod, detMod, searchMod, homeMod, libMod] = await Promise.all([
+    import(/* @vite-ignore */ `${THEME}/lib/tabs.js`),
+    import(/* @vite-ignore */ `${THEME}/lib/collection.js`),
+    import(/* @vite-ignore */ `${THEME}/lib/art.js`),
+    import(/* @vite-ignore */ `${THEME}/views/cards.js`),
+    import(/* @vite-ignore */ `${THEME}/views/footer.js`),
+    import(/* @vite-ignore */ `${THEME}/views/details.js`),
+    import(/* @vite-ignore */ `${THEME}/views/search.js`),
+    import(/* @vite-ignore */ `${THEME}/views/home.js`),
+    import(/* @vite-ignore */ `${THEME}/views/library.js`),
+  ])
+  const tabs = tabsMod.createTabs(sdk)
+  const collection = colMod.createCollection(sdk)
+  const art = artMod.createArt(sdk)
+  const cards = cardsMod.createCards(sdk, art)
+  const Footer = footMod.createFooter(sdk)
+  const Details = detMod.createDetails(sdk, cards)
+  const actions = { settings: null, power: null, search: null, retry: () => collection.retry() }
+  const Search = searchMod.createSearch(sdk, { cards, Details })
+  const ctx = { tabs, collection, art, cards, Footer, Details, Search, actions }
+  const Home = homeMod.createHome(sdk, ctx)
+  const Library = libMod.createLibrary(sdk, ctx)
+  return { sdk, theme, tabs, Home, Library, launchGame }
+}
+
+async function mountHome() {
+  const j = await jelly()
+  const r = render(createElement('div', null,
+    createElement(HomeScreen as unknown as React.ComponentType<Record<string, unknown>>,
+      { view: j.Home, omit: ['nav', 'pages', 'confirm'], onLaunchApp: vi.fn() }),
+    createElement(LibraryScreen as unknown as React.ComponentType<Record<string, unknown>>,
+      { view: j.Library, omit: ['nav', 'confirm', 'sort'] })))
+  await settle()
+  return { ...r, ...j }
+}
+
+describe('the module', () => {
+  it('provides both surfaces and the session parts', async () => {
+    const { theme } = await jelly()
+    expect(typeof theme.splash).toBe('function')
+    expect(typeof theme.shell).toBe('function')
+    expect(typeof theme.sessionBar).toBe('function')
+    expect(typeof theme.sessionMenu).toBe('function')
+    expect(typeof theme.ceremony).toBe('function')
+  })
+})
+
+describe('Jouer', () => {
+  it('builds its hero from what was actually played, not from a bundled list', async () => {
+    const { container } = await mountHome()
+    expect(container.querySelector('.jl-hero-game')?.textContent).toContain('Crash Bandicoot')
+    const titles = [...container.querySelectorAll('.jl-card-caption strong')].map(e => e.textContent)
+    expect(titles).toEqual(['Crash Bandicoot'])
+    expect(container.textContent).not.toContain('Chrono Trigger')
+  })
+
+  it('starts the pad on the hero button and launches the real ROM', async () => {
+    const { launchGame } = await mountHome()
+    expect(focused()).toBe('hero-play')
+    await press('gp:confirm')
+    expect(launchGame).toHaveBeenCalledWith(
+      { systemId: 'duckstation', path: '/r/crash.chd', gameKey: 'Crash Bandicoot (Europe).chd' })
+  })
+
+  it('resumes a suspended game instead of starting it twice', async () => {
+    const { launchGame, sdk } = await mountHome()
+    const resume = vi.spyOn(sdk.session as { resume: (n?: number) => Promise<unknown> }, 'resume')
+      .mockResolvedValue({})
+    await act(async () => {
+      useStore.setState({ backgroundSessions: [{ gameKey: 'Crash Bandicoot (Europe).chd',
+        systemId: 'duckstation', session: 7, kind: 'game' }] } as never)
+    })
+    await settle()
+    expect(document.querySelector('.jl-pill')?.textContent).toContain('En pause')
+    ;(document.querySelector('[data-nav="hero-play"]') as HTMLElement).focus()
+    await press('gp:confirm')
+    expect(resume).toHaveBeenCalledWith(7)
+    expect(launchGame).not.toHaveBeenCalled()
+  })
+})
+
+describe('the tabs', () => {
+  it('walk with L1 and R1, and ○ comes back to Jouer', async () => {
+    const { container } = await mountHome()
+    await press('gp:r1')
+    expect(container.querySelector('.jl-collection')).toBeTruthy()
+    await press('gp:r1')
+    expect(container.querySelector('.jl-consoles-page')).toBeTruthy()
+    await press('gp:r1')
+    expect(container.querySelector('.jl-playpage')).toBeTruthy()
+    await press('gp:l1')
+    await press('gp:back')
+    expect(container.querySelector('.jl-playpage')).toBeTruthy()
+  })
+
+  it('Collection lists every game and filters favourites', async () => {
+    const { container } = await mountHome()
+    await press('gp:r1')
+    expect(container.querySelectorAll('.jl-grid .jl-card')).toHaveLength(3)
+    const { toggleFavourite } = await import(/* @vite-ignore */ `${THEME}/lib/favourites.js`)
+    await act(async () => { toggleFavourite('azahar', 'Pokemon X (Europe).3ds') })
+    ;(container.querySelector('[data-nav="f-fav"]') as HTMLElement).click()
+    await settle()
+    const titles = [...container.querySelectorAll('.jl-grid .jl-card strong')].map(e => e.textContent)
+    expect(titles).toEqual(['Pokémon X'])
+    expect(JSON.parse(localStorage.getItem('jelly-favourites') || '[]'))
+      .toEqual(['azahar:Pokemon X (Europe).3ds'])
+  })
+
+  it('Consoles shows a photo per console and the applications after them', async () => {
+    const { container } = await mountHome()
+    await press('gp:l1')
+    const photos = [...container.querySelectorAll('.jl-console-photo')].map(e => e.getAttribute('src'))
+    expect(photos).toEqual(['/themes/jelly/assets/consoles/3ds.png', '/themes/jelly/assets/consoles/ps1.png'])
+    expect(container.querySelectorAll('.jl-app')).toHaveLength(1)
+  })
+})
+
+describe('a console\'s library', () => {
+  it('opens from Consoles, and ○ goes back to Consoles rather than to Jouer', async () => {
+    // One ○ reaches the host (library → home) and then Jelly's Consoles tab,
+    // which would read the new screen and leave for Jouer on the same press.
+    const { container } = await mountHome()
+    await press('gp:l1')
+    ;(container.querySelector('[data-nav="c-azahar"]') as HTMLElement).focus()
+    await press('gp:confirm')
+    await settle()
+    expect(useStore.getState().screen).toBe('library')
+    expect(container.querySelectorAll('.jl-library .jl-card')).toHaveLength(2)
+    await press('gp:back')
+    await settle()
+    expect(useStore.getState().screen).toBe('home')
+    expect(container.querySelector('.jl-consoles-page')).toBeTruthy()
+    expect(focused()).toBe('c-azahar')
+  })
+
+  it('keeps the host\'s selection on the focused card, so Options and Play act on it', async () => {
+    const { container } = await mountHome()
+    await act(async () => { useStore.getState().goLibrary('azahar') })
+    await settle()
+    const cards = container.querySelectorAll('.jl-library .jl-card')
+    ;(cards[1] as HTMLElement).focus()
+    expect(useStore.getState().selectedGameIdx).toBe(1)
+  })
+})
+
+describe('the pad', () => {
+  it('a step goes straight along the row before it goes diagonally', async () => {
+    const { nextInDirection } = await import(/* @vite-ignore */ `${THEME}/lib/spatial.js`)
+    const at = (left: number, top: number) => {
+      const el = document.createElement('button')
+      el.getBoundingClientRect = () => ({ left, top, right: left + 100, bottom: top + 60,
+        width: 100, height: 60, x: left, y: top, toJSON: () => ({}) }) as DOMRect
+      return el
+    }
+    const from = at(0, 0)
+    const sameRow = at(400, 0)
+    const closerBelow = at(130, 70)
+    expect(nextInDirection(from, [from, closerBelow, sameRow], [1, 0])).toBe(sameRow)
+    // Nothing in line: the nearest one off to the side is still reachable.
+    expect(nextInDirection(from, [from, closerBelow], [1, 0])).toBe(closerBelow)
+    // Nothing that way at all: no step.
+    expect(nextInDirection(sameRow, [from, sameRow], [1, 0])).toBeNull()
+  })
+
+  it('the hint bar counts a controller that reconnects', async () => {
+    let pads: unknown[] = []
+    vi.stubGlobal('navigator', { ...navigator, getGamepads: () => pads })
+    const { container } = await mountHome()
+    expect(container.querySelector('.jl-pad-none')).toBeTruthy()
+    pads = [{ index: 0, id: 'pad', connected: true }]
+    await press('gp:connected')
+    expect(container.querySelector('.jl-pad-none')).toBeNull()
+    expect(container.querySelector('.jl-pad')?.textContent).toContain('J1')
+    pads = []
+    await press('gp:disconnected')
+    expect(container.querySelector('.jl-pad-none')).toBeTruthy()
+  })
+})

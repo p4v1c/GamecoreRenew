@@ -1,0 +1,35 @@
+{
+  "id": "jelly",
+  "name": "Jelly",
+  "version": "1.0.0",
+  "api": 9,
+  "description": "Un terrain de jeu en gelée : tes jeux, tes consoles et tes réglages, tout en rondeurs et en couleurs.",
+  "author": "GameCore Community",
+  "entry": "index.js",
+  "styles": "theme.css",
+  "preview": "preview.svg",
+  "provides": [
+    "splash",
+    "shell"
+  ],
+  "boot": {
+    "background": "#80deed"
+  },
+  "launch": {
+    "ms": 900
+  },
+  "settings": {
+    "pages": [
+      "wifi",
+      "audio",
+      "bluetooth",
+      "standby",
+      "catalog",
+      "bios",
+      "storage",
+      "themes",
+      "update",
+      "desktop"
+    ]
+  }
+}

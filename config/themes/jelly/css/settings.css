@@ -1,0 +1,226 @@
+/* ===========================================================================
+   The host's settings screen, power menu and controller screen, in Jelly.
+   Markup and behaviour are the host's (frontend/src/settings); this sets the
+   `--set-*` palette they read and reshapes the frame into the mockup's card:
+   a purple rail, a paper page, one hint bar.
+   =========================================================================== */
+
+.gcs-set.jelly-settings,
+.gcs-pwr-scrim.jelly-power {
+  --set-acc: #5931a0;
+  --set-acc-deep: #4a2789;
+  --set-ink: #30204e;
+  --set-ink-rgb: 48, 32, 78;
+  --set-ink-2: #4f3f68;
+  --set-ink-3: #64567a;
+  --set-line: #e3d9ef;
+  --set-bg: #fffdf7;
+  --set-bg-deep: #30204e;
+  --set-card: #ffffff;
+  --set-card-2: #fffdf7;
+  --set-key: #ece4f7;
+  --set-knob: #ffffff;
+  --set-kbd: #30204e;
+  --set-kbd-ink: #ffffff;
+  --set-danger: #c0264f;
+  --set-danger-deep: #9d1c3f;
+  --set-danger-rgb: 192, 38, 79;
+  --set-info: #2c5fb3;
+  --set-ok: #1d7a5c;
+  --set-warn: #8a5a00;
+  --set-alert: #b0263f;
+  --gc-paper-pattern: none;
+  --font-body: 'Jelly Red Hat', 'Trebuchet MS', Arial, sans-serif;
+  --font-display: 'Jelly Red Hat', 'Trebuchet MS', Arial, sans-serif;
+  --font-mono: ui-monospace, 'DejaVu Sans Mono', monospace;
+  --r-chip: 999px;
+}
+
+/* The frame: a card over the blurred dashboard. */
+.gcs-set.jelly-settings {
+  padding: 4.5vh 5vw; background: #2416389c; backdrop-filter: blur(9px);
+  animation: jl-fade 180ms ease-out;
+}
+.jelly-settings .gcs-set-paper { display: none; }
+.jelly-settings .gcs-set-head {
+  padding: 26px 36px 20px; border-radius: 32px 32px 0 0; background: var(--set-bg);
+  border-bottom: 2px solid #ece4f5;
+}
+.jelly-settings .gcs-set-title { font-size: 0; letter-spacing: 0; }
+.jelly-settings .gcs-set-title::before {
+  content: 'Réglages · GameCore'; display: block; margin-bottom: 6px;
+  font-size: 14px; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase; color: var(--set-ink-2);
+}
+.jelly-settings .gcs-set-title::after {
+  content: 'Les coulisses du jeu.'; display: block; font-size: 40px; font-weight: 900; letter-spacing: -0.045em;
+}
+.jelly-settings .gcs-set-crumb { font-size: 15px; }
+.jelly-settings .gcs-set-chip { background: var(--jl-pink-ink); letter-spacing: 0.08em; }
+
+.jelly-settings .gcs-set-body {
+  grid-template-columns: 320px minmax(0, 1fr) auto; gap: 0; padding: 0; background: var(--set-bg);
+}
+.jelly-settings .gcs-set-page { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+/* The rail: the mockup's purple panel. */
+.jelly-settings .gcs-set-rail {
+  gap: 6px; padding: 22px 16px; border: 0; border-radius: 0; background: #4a2d7c; color: #fff;
+}
+.jelly-settings .gcs-set-row { gap: 14px; padding: 13px 16px; border-radius: 16px; color: #fff; }
+.jelly-settings .gcs-set-row::before {
+  content: ''; flex: none; width: 26px; height: 26px; background: currentColor;
+  -webkit-mask: var(--jl-row-icon) center / contain no-repeat; mask: var(--jl-row-icon) center / contain no-repeat;
+}
+.jelly-settings .gcs-set-num { order: 3; width: auto; font-size: 14px; color: #d9cdf0; }
+.jelly-settings .gcs-set-label b { font-size: 19px; font-weight: 800; }
+.jelly-settings .gcs-set-label i { color: #e2d8f4; font-size: 14px; }
+.jelly-settings .gcs-set-chev { color: inherit; }
+.jelly-settings .gcs-set-row[data-sel="1"] { background: #ffffff1f; color: #fff; }
+.jelly-settings .gcs-set-row[data-on="1"] {
+  background: #6edced; color: var(--set-ink); box-shadow: 0 4px 0 #3aa9bd; transform: translateX(4px);
+}
+.jelly-settings .gcs-set-row[data-on="1"] .gcs-set-num,
+.jelly-settings .gcs-set-row[data-on="1"] .gcs-set-label i { color: var(--set-ink); }
+.jelly-settings .gcs-set-rail[data-zone="off"] .gcs-set-row[data-sel="1"] {
+  background: #ffffff26; color: #fff; border-color: #ffffff59;
+}
+.jelly-settings .gcs-set-rail[data-zone="off"] .gcs-set-row[data-sel="1"] .gcs-set-num,
+.jelly-settings .gcs-set-rail[data-zone="off"] .gcs-set-row[data-sel="1"] .gcs-set-label i { color: #e2d8f4; }
+
+
+/* The nine category icons, drawn once and used by the rail and the header. */
+.gcs-set.jelly-settings {
+  --jl-i-wifi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 9.5a12 12 0 0 1 16 0M7 13a7.5 7.5 0 0 1 10 0M10 16.5a3 3 0 0 1 4 0M12 20h.01'/%3E%3C/svg%3E");
+  --jl-i-bluetooth: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 7l10 10-5 4V3l5 4L7 17'/%3E%3C/svg%3E");
+  --jl-i-display: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M3 5h18v11H3zM8 20h8M12 16v4'/%3E%3C/svg%3E");
+  --jl-i-audio: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9v6h4l5 4V5L8 9zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11'/%3E%3C/svg%3E");
+  --jl-i-controllers: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9h12a4 4 0 0 1 3.9 4.9l-.8 3.4a2 2 0 0 1-3.4.9L15 16H9l-2.7 2.2a2 2 0 0 1-3.4-.9l-.8-3.4A4 4 0 0 1 6 9zM8 11.5v3M6.5 13h3M15.5 12.5h.01M17.5 14h.01'/%3E%3C/svg%3E");
+  --jl-i-catalog: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M4 4h4v16H4zM10 4h4v16h-4zM16 5l4 1-3 14-4-1z'/%3E%3C/svg%3E");
+  --jl-i-bios: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M7 7h10v10H7zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4'/%3E%3C/svg%3E");
+  --jl-i-themes: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M12 3a9 9 0 1 0 0 18c1.1 0 1.5-.8 1.5-1.6 0-1.2-.9-1.7-.9-2.6 0-.9.7-1.3 1.6-1.3H16a5 5 0 0 0 5-5c0-4.1-4-7.5-9-7.5zM7.5 11h.01M10 7.5h.01M14.5 7.5h.01'/%3E%3C/svg%3E");
+  --jl-i-system: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1'/%3E%3C/svg%3E");
+}
+.jelly-settings .gcs-set-row:nth-child(1) { --jl-row-icon: var(--jl-i-wifi); }
+.jelly-settings .gcs-set-row:nth-child(2) { --jl-row-icon: var(--jl-i-bluetooth); }
+.jelly-settings .gcs-set-row:nth-child(3) { --jl-row-icon: var(--jl-i-display); }
+.jelly-settings .gcs-set-row:nth-child(4) { --jl-row-icon: var(--jl-i-audio); }
+.jelly-settings .gcs-set-row:nth-child(5) { --jl-row-icon: var(--jl-i-controllers); }
+.jelly-settings .gcs-set-row:nth-child(6) { --jl-row-icon: var(--jl-i-catalog); }
+.jelly-settings .gcs-set-row:nth-child(7) { --jl-row-icon: var(--jl-i-bios); }
+.jelly-settings .gcs-set-row:nth-child(8) { --jl-row-icon: var(--jl-i-themes); }
+.jelly-settings .gcs-set-row:nth-child(9) { --jl-row-icon: var(--jl-i-system); }
+.jelly-settings:has(.gcs-set-page[data-cat="wifi"]) { --jl-cat-icon: var(--jl-i-wifi); --jl-tag: 'On capte !'; }
+.jelly-settings:has(.gcs-set-page[data-cat="bluetooth"]) { --jl-cat-icon: var(--jl-i-bluetooth); --jl-tag: 'Tout se connecte.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="display"]) { --jl-cat-icon: var(--jl-i-display); --jl-tag: 'Grand écran.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="audio"]) { --jl-cat-icon: var(--jl-i-audio); --jl-tag: 'Monte le son !'; }
+.jelly-settings:has(.gcs-set-page[data-cat="controllers"]) { --jl-cat-icon: var(--jl-i-controllers); --jl-tag: 'Prêt à jouer.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="catalog"]) { --jl-cat-icon: var(--jl-i-catalog); --jl-tag: 'La ludothèque.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="bios"]) { --jl-cat-icon: var(--jl-i-bios); --jl-tag: 'Sous le capot.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="themes"]) { --jl-cat-icon: var(--jl-i-themes); --jl-tag: 'À ta façon.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="system"]) { --jl-cat-icon: var(--jl-i-system); --jl-tag: 'Les coulisses.'; }
+
+/* The header's illustration: a tilted jelly tile with the category's icon,
+   and the mockup's line for it. Decoration: the category is named in the
+   crumb and on the page. */
+.jelly-settings .gcs-set-head { position: relative; }
+.jelly-settings .gcs-set-head::before {
+  content: ''; position: absolute; right: 64px; top: 22px; width: 92px; height: 92px; border-radius: 30px;
+  background: #6edced; box-shadow: 0 7px 0 #3aa9bd; transform: rotate(-8deg);
+}
+.jelly-settings .gcs-set-head::after {
+  content: ''; position: absolute; right: 88px; top: 46px; width: 44px; height: 44px; background: var(--jl-ink);
+  transform: rotate(-8deg);
+  -webkit-mask: var(--jl-cat-icon) center / contain no-repeat; mask: var(--jl-cat-icon) center / contain no-repeat;
+}
+.jelly-settings .gcs-set-crumb::after {
+  content: var(--jl-tag, ''); margin-left: auto; margin-right: 150px; transform: rotate(-3deg);
+  font-size: 30px; font-weight: 900; letter-spacing: -0.03em; color: var(--jl-pink-ink);
+}
+.jelly-settings .gcs-set-rail .gcs-set-chev { display: none; }
+
+/* The page. */
+.jelly-settings .gcs-set-pagecrumb {
+  display: flex; justify-content: space-between; gap: 16px; padding: 22px 40px 0;
+  font-size: 14px; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: var(--set-ink-2);
+}
+.jelly-settings .gcs-set-pagekey { letter-spacing: 0.06em; }
+.jelly-settings .gcs-set-main {
+  flex: 1; min-height: 0; padding: 18px 40px 30px; border: 0; border-radius: 0; background: transparent;
+}
+.jelly-settings .gcs-set-h { font-size: 40px; font-weight: 900; letter-spacing: -0.045em; }
+.jelly-settings .gcs-set-sub { font-size: 17px; }
+
+/* Every row the pages draw: white jelly cards with a soft step under them. */
+.jelly-settings .gcs-row2, .jelly-settings .gcs-wifi-row, .jelly-settings .gcs-bt-row,
+.jelly-settings .gcs-pack, .jelly-settings .gcs-bios, .jelly-settings .gcs-grp, .jelly-settings .gcs-dlg-row {
+  border-radius: 18px; border: 2px solid #ece4f5; background: #fff; box-shadow: 0 4px 0 #30204e12;
+}
+.jelly-settings .gcs-row2[data-on="1"], .jelly-settings .gcs-wifi-row[data-on="1"], .jelly-settings .gcs-bt-row[data-on="1"],
+.jelly-settings .gcs-pack[data-on="1"], .jelly-settings .gcs-bios[data-on="1"], .jelly-settings .gcs-grp[data-on="1"] {
+  background: #fff; border-color: var(--jl-ink); box-shadow: 0 0 0 4px var(--jl-yellow), 0 4px 0 #30204e30;
+}
+.jelly-settings .gcs-row2[data-danger="1"][data-on="1"] { border-color: var(--set-danger); }
+.jelly-settings .gcs-tgl[data-v="1"] { background: #2fb67e; }
+.jelly-settings .gcs-sld-track > i { background: linear-gradient(90deg, #6edced, #5931a0); }
+.jelly-settings .gcs-act { border-radius: 12px; font-weight: 800; }
+
+/* Dialogs on this screen. */
+.jelly-settings .gcs-dlg-scrim { background: #2416389c; }
+.jelly-settings .gcs-dlg { border-radius: 30px; background: var(--set-bg); box-shadow: 0 10px 0 #30204e30, 0 30px 100px #30204e66; }
+.jelly-settings .gcs-dlg-btn { border-radius: 14px; font-weight: 800; }
+.jelly-settings .gcs-dlg-btn[data-primary="1"] { background: var(--jl-yellow); color: var(--jl-ink); box-shadow: 0 4px 0 var(--jl-yellow-deep); }
+.jelly-settings .gcs-dlg-btn[data-on="1"], .jelly-settings .gcs-dlg-row[data-on="1"] { outline: 4px solid var(--jl-ink); outline-offset: 3px; }
+
+.jelly-settings .gcs-set-foot {
+  padding: 14px 36px 18px; border-radius: 0 0 32px 32px; background: var(--set-bg); border-top: 2px solid #ece4f5;
+  font-size: 16px; color: var(--set-ink);
+}
+.jelly-settings .gcs-set-foot-l::before { content: 'L2 R2 · Défiler'; font-weight: 800; }
+.jelly-settings .gcs-set-hints { font-weight: 700; }
+
+/* ── power menu ── */
+.gcs-pwr-scrim.jelly-power { background: #2416389c; backdrop-filter: blur(9px); }
+.jelly-power .gcs-pwr {
+  border: 0; border-radius: 30px; background: var(--set-bg); color: var(--set-ink);
+  box-shadow: 0 10px 0 #30204e30, 0 30px 100px #30204e66; font-family: var(--font-body);
+}
+.jelly-power .gcs-pwr-title { font-size: 26px; font-weight: 900; letter-spacing: -0.03em; }
+.jelly-power .gcs-pwr-row { border-radius: 18px; }
+.jelly-power .gcs-pwr-row[data-on="1"] { background: var(--jl-yellow); color: var(--set-ink); box-shadow: 0 0 0 4px var(--jl-ink); }
+.jelly-power .gcs-pwr-row[data-confirm="1"] { background: var(--set-danger); color: #fff; }
+.jelly-power .gcs-pwr-text b { font-weight: 900; }
+.jelly-power .gcs-pwr-text i { color: var(--set-ink-2); }
+.jelly-power .gcs-pwr-row[data-confirm="1"] .gcs-pwr-text i { color: #fff; }
+.jelly-power .gcs-pwr-hint { color: var(--set-ink); font-weight: 700; }
+
+/* ── controller screen ── */
+.jelly-pad.gcs-pad-scrim {
+  --pad-scrim: #2416389c; --pad-bg: #fffdf7; --pad-shadow: 0 10px 0 #30204e30, 0 30px 100px #30204e66; --pad-radius: 30px;
+  --pad-ink: #30204e; --pad-muted: #4f3f68; --pad-line: #e3d9ef; --pad-accent: #5931a0;
+  --pad-control: #f3eefb; --pad-hover: #ebe2ff; --pad-ok: #1d7a5c; --pad-warn: #8a5a00;
+  --pd-body: #f6f1ff; --pd-body-line: #89759f; --pd-center: #30204e; --pd-part: #ebe2ff; --pd-line: #89759f;
+  --pd-lit: #f950a3; --pd-lit-line: #b51f66; --pd-knob: #d8cdea; --pd-well: #e3d9ef; --pd-label: #30204e; --pd-pos: #5931a0;
+  font-family: 'Jelly Red Hat', 'Trebuchet MS', Arial, sans-serif;
+}
+/* The host draws this panel's small print at 9-12px, for a desk monitor.
+   On a TV from the sofa that is the 14px floor at least, 16px for sentences. */
+.jelly-pad .gcs-pad-kicker, .jelly-pad .gcs-pad-player, .jelly-pad .gcs-pad-conn,
+.jelly-pad .gcs-pad-foot, .jelly-pad .gcs-pad-raw > span, .jelly-pad .gcs-pad-map-copy small,
+.jelly-pad .gcs-pad-roster > div, .jelly-pad .gcs-pad-roster p, .jelly-pad .gcs-pad-notice {
+  font-size: 14px; letter-spacing: 0.08em;
+}
+.jelly-pad .gcs-pad-device p, .jelly-pad .gcs-pad-note, .jelly-pad .gcs-pad-action,
+.jelly-pad .gcs-pad-map { font-size: 16px; letter-spacing: 0; }
+.jelly-pad .gcs-pad-action kbd { font-size: 14px; }
+.jelly-pad .gcs-pad-head h2 { font-weight: 900; letter-spacing: -0.04em; }
+
+/* 720p: the header gives its height back to the rail and the page. */
+@media (max-height: 800px) {
+  .gcs-set.jelly-settings { padding: 3vh 4vw; }
+  .jelly-settings .gcs-set-head { padding: 16px 30px 12px; }
+  .jelly-settings .gcs-set-title::after { font-size: 30px; }
+  .jelly-settings .gcs-set-head::before { width: 70px; height: 70px; top: 14px; border-radius: 24px; }
+  .jelly-settings .gcs-set-head::after { width: 34px; height: 34px; right: 82px; top: 32px; }
+  .jelly-settings .gcs-set-crumb::after { font-size: 24px; margin-right: 120px; }
+  .jelly-settings .gcs-set-row { padding: 10px 14px; }
+}

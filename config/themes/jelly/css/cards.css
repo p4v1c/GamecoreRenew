@@ -1,0 +1,119 @@
+/* ===========================================================================
+   Covers, game cards, chips, grids and the empty states.
+   =========================================================================== */
+
+/* A jelly cover: the console's colour, two soft shapes, and the real jacket
+   standing in it uncropped. Missing art becomes the title on the colour. */
+.jl-cover {
+  position: relative; display: grid; place-items: center; overflow: hidden; isolation: isolate;
+  height: calc(178 * var(--px)); padding: calc(12 * var(--px)) calc(18 * var(--px));
+  border-radius: calc(19 * var(--px)) calc(19 * var(--px)) 0 0; background: var(--cover, var(--jl-purple));
+}
+.jl-cover::before {
+  content: ''; position: absolute; z-index: -1; width: calc(130 * var(--px)); height: calc(130 * var(--px));
+  right: calc(-20 * var(--px)); top: calc(-46 * var(--px)); border: calc(24 * var(--px)) solid #ffffff2b;
+  border-radius: calc(34 * var(--px)); transform: rotate(35deg);
+}
+.jl-cover::after {
+  content: ''; position: absolute; z-index: -1; width: calc(80 * var(--px)); height: calc(80 * var(--px));
+  left: calc(18 * var(--px)); bottom: calc(-48 * var(--px)); border-radius: 50%; background: #ffffff1f;
+}
+.jl-jacket {
+  position: absolute; inset: calc(12 * var(--px)) calc(18 * var(--px));
+  display: flex; flex-direction: column; justify-content: center;
+}
+/* Centred at its own shape, never cropped or stretched: an N64 carton stays
+   wide and a PS3 sleeve stays tall. */
+.jl-jacket img {
+  position: absolute; inset: 0; margin: auto; max-width: 100%; max-height: 100%; width: auto; height: auto;
+  border-radius: calc(5 * var(--px)); box-shadow: 0 calc(8 * var(--px)) calc(16 * var(--px)) #20123a55;
+  transform: rotate(-2deg); transition: opacity 220ms ease;
+}
+.jl-jacket[data-art="loading"] img { opacity: 0; }
+.jl-jacket[data-art="none"] { overflow: hidden; }
+.jl-jacket-title {
+  max-width: 100%; opacity: 0.85; color: #fff; font-size: calc(26 * var(--px)); font-weight: 900; line-height: 0.95;
+  letter-spacing: -0.04em; text-transform: uppercase; transform: rotate(-5deg);
+  text-shadow: 0 calc(3 * var(--px)) 0 #30204e40; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.jl-jacket-mark {
+  position: absolute; right: calc(-4 * var(--px)); bottom: calc(-16 * var(--px));
+  font-size: calc(80 * var(--px)); font-weight: 900; line-height: 1; color: #ffffff40; transform: rotate(-16deg);
+}
+.jl-cover-big { height: 100%; border-radius: calc(22 * var(--px)); }
+.jl-cover-big .jl-jacket { inset: calc(22 * var(--px)); }
+.jl-cover-big .jl-jacket-title { font-size: calc(44 * var(--px)); }
+.jl-fav-dot {
+  position: absolute; right: calc(11 * var(--px)); top: calc(10 * var(--px)); display: grid; place-items: center;
+  width: calc(30 * var(--px)); height: calc(30 * var(--px)); min-width: 22px; min-height: 22px; border-radius: 50%;
+  background: var(--jl-ink); color: var(--jl-yellow); font-size: max(14px, calc(16 * var(--px)));
+}
+
+.jl-card {
+  position: relative; display: flex; flex-direction: column; min-width: 0; text-align: left;
+  border-radius: calc(20 * var(--px)); background: var(--jl-paper); box-shadow: var(--jl-lift);
+}
+.jl-card-caption { display: flex; flex-direction: column; gap: calc(5 * var(--px)); padding: calc(14 * var(--px)) calc(16 * var(--px)) calc(16 * var(--px)); min-width: 0; }
+.jl-card-caption strong { font-size: var(--jl-t-m); font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jl-card-caption span { font-size: var(--jl-t-xs); color: var(--jl-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The ✕ bubble says what pressing does, on the one card that would do it. */
+.jl-card:focus::after {
+  content: '✕'; position: absolute; right: calc(12 * var(--px)); bottom: calc(16 * var(--px));
+  display: grid; place-items: center; width: calc(30 * var(--px)); height: calc(30 * var(--px)); min-width: 22px; min-height: 22px;
+  border-radius: 50%; background: var(--jl-ink); color: #fff; font-size: max(14px, calc(15 * var(--px))); font-weight: 900;
+}
+.jl-card:focus .jl-card-caption { padding-right: calc(52 * var(--px)); }
+.jl-badge {
+  position: absolute; left: calc(12 * var(--px)); top: calc(12 * var(--px)); padding: calc(5 * var(--px)) calc(11 * var(--px));
+  border-radius: calc(9 * var(--px)); background: var(--jl-yellow); color: var(--jl-ink);
+  font-size: var(--jl-t-xs); font-weight: 900; letter-spacing: 0.04em;
+}
+
+.jl-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: calc(20 * var(--px)); }
+.jl-grid {
+  flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; align-content: start;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: calc(26 * var(--px)) calc(20 * var(--px));
+  margin: 0 calc(-14 * var(--px)); padding: calc(14 * var(--px)) calc(14 * var(--px)) calc(24 * var(--px));
+}
+.jl-grid::-webkit-scrollbar { display: none; }
+.jl-grid .jl-cover { height: calc(214 * var(--px)); }
+.jl-more { padding: calc(8 * var(--px)) 0; font-size: var(--jl-t-xs); font-weight: 700; color: var(--jl-ink-2); text-align: center; }
+
+.jl-chips { flex: none; display: flex; flex-wrap: wrap; gap: calc(11 * var(--px)); margin: 0 0 calc(16 * var(--px)); }
+.jl-chip {
+  display: inline-flex; align-items: center; gap: calc(8 * var(--px));
+  padding: calc(11 * var(--px)) calc(19 * var(--px)); border-radius: calc(14 * var(--px));
+  background: #ffffffa0; font-size: var(--jl-t-s); font-weight: 800;
+}
+.jl-chip.is-on { background: var(--jl-ink); color: #fff; --gc-pad-triangle: #7fe8c4; }
+
+.jl-empty {
+  display: flex; flex-direction: column; align-items: center; gap: calc(12 * var(--px)); text-align: center;
+  padding: calc(56 * var(--px)); border-radius: var(--jl-radius); background: #fffdf7c4;
+}
+.jl-empty b { font-size: var(--jl-t-l); font-weight: 900; letter-spacing: -0.03em; }
+.jl-empty p { font-size: var(--jl-t-s); color: var(--jl-ink-2); }
+.jl-empty .jl-play { margin-top: calc(8 * var(--px)); }
+.jl-error { margin: calc(8 * var(--px)) 0; padding: calc(10 * var(--px)) calc(14 * var(--px)); border-radius: calc(12 * var(--px)); background: #ffe1ea; color: #8a1838; font-size: var(--jl-t-s); font-weight: 700; }
+
+.jl-picture-mark {
+  display: grid; place-items: center; width: 100%; height: 100%;
+  font-size: calc(40 * var(--px)); font-weight: 900; letter-spacing: -0.04em; color: #fff;
+}
+
+/* Buttons shared by the hero, the fiche and the empty states. */
+.jl-play {
+  display: inline-flex; align-items: center; gap: calc(26 * var(--px));
+  padding: calc(15 * var(--px)) calc(26 * var(--px)); border-radius: calc(16 * var(--px));
+  background: var(--jl-yellow); color: var(--jl-ink); box-shadow: 0 calc(5 * var(--px)) 0 var(--jl-yellow-deep);
+  font-size: var(--jl-t-m); font-weight: 900;
+}
+.jl-ghost, .jl-secondary {
+  display: inline-flex; align-items: center; gap: calc(14 * var(--px));
+  padding: calc(15 * var(--px)) calc(22 * var(--px)); border-radius: calc(16 * var(--px));
+  font-size: var(--jl-t-s); font-weight: 800;
+}
+.jl-ghost { background: #ffffff26; color: #fff; border: 2px solid #ffffff6b; }
+.jl-secondary { background: var(--jl-lilac); color: var(--jl-ink); }
+.jl-arrow { font-size: calc(24 * var(--px)); font-weight: 700; }

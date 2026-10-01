@@ -1,0 +1,8 @@
+/* Reduced motion: the jelly stops wobbling, focus still lifts by its ring. */
+@media (prefers-reduced-motion: reduce) {
+  .jelly-app *, .jl-splash *, .jl-ceremony *, .jl-session *, .jl-dock * {
+    animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important;
+  }
+  .jl-playground * { animation: none !important; }
+  .jelly-app [data-nav]:focus { transform: none; }
+}

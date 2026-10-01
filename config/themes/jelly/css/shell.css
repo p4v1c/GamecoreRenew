@@ -1,0 +1,102 @@
+/* ===========================================================================
+   The playground, the top bar, the page frame and the hint bar.
+   =========================================================================== */
+
+/* ── the floor ── */
+.jl-playground {
+  position: absolute; inset: 0; overflow: hidden;
+  background: radial-gradient(ellipse at 65% 5%, #d0faf4 0, transparent 55%), var(--jl-cyan);
+}
+.jl-texture {
+  position: absolute; inset: -60px;
+  background-image:
+    radial-gradient(circle at 2px 2px, #328aa224 1.8px, transparent 2.4px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cg fill='none' stroke='%23328aa2' stroke-opacity='.16' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M20 30l8 8m0-8l-8 8'/%3E%3Ccircle cx='110' cy='34' r='6'/%3E%3Cpath d='M58 112q6-10 12 0t12 0'/%3E%3Cpath d='M140 128l7 10 7-10'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: calc(22 * var(--px)) calc(22 * var(--px)), calc(180 * var(--px)) calc(180 * var(--px));
+  animation: jl-drift 38s linear infinite;
+}
+.jl-ring {
+  position: absolute; border-radius: 50%; border: calc(46 * var(--px)) solid;
+  animation: jl-float 14s ease-in-out infinite alternate;
+}
+.jl-ring-one { width: calc(560 * var(--px)); height: calc(560 * var(--px)); right: calc(-300 * var(--px)); top: calc(200 * var(--px)); border-color: #b9a6dc66; border-radius: 46% 54% 50% 50%; }
+.jl-ring-two { width: calc(360 * var(--px)); height: calc(360 * var(--px)); left: calc(-180 * var(--px)); bottom: calc(-170 * var(--px)); border-color: #ffe66b8c; animation-duration: 18s; }
+.jl-shape { position: absolute; font-weight: 900; line-height: 1; animation: jl-bob 7s ease-in-out infinite; }
+.jl-shape-one { left: calc(36 * var(--px)); top: 44%; font-size: calc(44 * var(--px)); color: var(--jl-pink); }
+.jl-shape-two { right: calc(52 * var(--px)); bottom: calc(110 * var(--px)); font-size: calc(54 * var(--px)); color: #fffdf7cc; animation-delay: -2s; }
+.jl-shape-three { left: 30%; top: calc(14 * var(--px)); font-size: calc(30 * var(--px)); color: #ffffff99; animation-delay: -4s; }
+.jl-shape-four { right: 26%; top: calc(-6 * var(--px)); width: calc(110 * var(--px)); color: #ffffffaa; animation-delay: -1s; }
+.jl-shape-four svg { width: 100%; height: auto; }
+.jl-playground[data-still="true"] * { animation-play-state: paused; }
+
+@keyframes jl-drift { to { transform: translate3d(calc(180 * var(--px)), calc(180 * var(--px)), 0); } }
+@keyframes jl-float { to { transform: translate3d(0, calc(40 * var(--px)), 0) rotate(14deg); } }
+@keyframes jl-bob { 50% { transform: translateY(calc(-14 * var(--px))) rotate(-10deg); } }
+
+/* ── the top bar ── */
+.jl-topbar {
+  position: relative; flex: none; height: calc(112 * var(--px)); padding: 0 var(--jl-pad);
+  display: flex; align-items: center; justify-content: space-between; gap: calc(28 * var(--px));
+  font-family: 'Jelly Red Hat', 'Trebuchet MS', Arial, sans-serif; color: var(--jl-ink);
+}
+.jl-brand { display: flex; align-items: center; gap: calc(14 * var(--px)); }
+.jl-brand-mark { display: block; width: calc(52 * var(--px)); height: calc(52 * var(--px)); }
+.jl-brand-mark svg { width: 100%; height: 100%; font-family: inherit; }
+.jl-brand-word { display: flex; flex-direction: column; align-items: flex-start; text-align: left; font-size: calc(24 * var(--px)); font-weight: 900; letter-spacing: -0.03em; line-height: 1; text-transform: uppercase; }
+.jl-brand-word small { margin-top: calc(7 * var(--px)); font-size: max(14px, calc(14 * var(--px))); letter-spacing: 0.24em; font-weight: 800; }
+.jl-tabs {
+  display: flex; align-items: center; gap: calc(8 * var(--px)); padding: calc(7 * var(--px)) calc(12 * var(--px));
+  border-radius: calc(24 * var(--px)); background: #ffffff70; border: 1px solid #ffffffb0;
+  font-size: var(--jl-t-s);
+}
+.jl-tab {
+  padding: calc(13 * var(--px)) calc(28 * var(--px)); border-radius: calc(17 * var(--px));
+  font-size: var(--jl-t-s); font-weight: 800; transition: background-color 150ms, color 150ms, transform 150ms;
+}
+.jl-tab.is-on { background: var(--jl-ink); color: #fff; box-shadow: 0 calc(4 * var(--px)) 0 #30204e30; transform: translateY(-1px); }
+.jl-top-actions { display: flex; align-items: center; gap: calc(12 * var(--px)); }
+.jl-icon {
+  display: grid; place-items: center; width: calc(46 * var(--px)); height: calc(46 * var(--px));
+  border-radius: calc(14 * var(--px)); background: #ffffff80;
+}
+.jl-icon svg { width: calc(24 * var(--px)); height: calc(24 * var(--px)); fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.jl-clock { margin-left: calc(6 * var(--px)); font-size: var(--jl-t-s); font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* ── the page frame ── */
+.jl-main {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  padding: 0 var(--jl-pad); font-family: 'Jelly Red Hat', 'Trebuchet MS', Arial, sans-serif; color: var(--jl-ink);
+}
+.jl-page { flex: 1; min-height: 0; display: flex; flex-direction: column; animation: jl-arrive 260ms cubic-bezier(.3, 1.4, .5, 1); }
+@keyframes jl-arrive { from { opacity: 0; transform: translateY(calc(14 * var(--px))); } }
+.jl-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: calc(24 * var(--px)); margin: calc(6 * var(--px)) 0 calc(22 * var(--px)); }
+.jl-head h1 { font-size: var(--jl-t-xl); font-weight: 900; letter-spacing: -0.045em; line-height: 1.05; }
+.jl-bang { display: inline-block; margin-left: calc(6 * var(--px)); color: var(--jl-pink-ink); transform: rotate(-12deg); }
+.jl-count {
+  display: flex; align-items: center; gap: calc(14 * var(--px)); padding: calc(12 * var(--px)) calc(20 * var(--px));
+  border-radius: calc(17 * var(--px)); background: #ffffffa8; border: 1px solid #fff; transform: rotate(2deg);
+  font-size: var(--jl-t-xs); font-weight: 700; line-height: 1.2;
+}
+.jl-count strong { font-size: calc(32 * var(--px)); letter-spacing: -0.04em; }
+.jl-scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; margin: 0 calc(-14 * var(--px)); padding: calc(14 * var(--px)); }
+.jl-scroll::-webkit-scrollbar { display: none; }
+
+.jl-rail-head { display: flex; align-items: center; justify-content: space-between; margin: calc(28 * var(--px)) 0 calc(16 * var(--px)); }
+.jl-rail-head h2 { font-size: var(--jl-t-l); font-weight: 900; letter-spacing: -0.03em; }
+.jl-text-button { padding: calc(8 * var(--px)) calc(12 * var(--px)); border-radius: calc(12 * var(--px)); font-size: var(--jl-t-s); font-weight: 800; }
+
+/* ── the hint bar ── */
+.jl-footer {
+  flex: none; margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: calc(18 * var(--px));
+  padding: calc(16 * var(--px)) 0 calc(20 * var(--px)); border-top: 2px solid #30204e26;
+  font-size: max(16px, calc(16 * var(--px))); color: var(--jl-ink);
+}
+.jl-hints, .jl-status { display: flex; align-items: center; gap: calc(24 * var(--px)); flex-wrap: wrap; }
+.jl-hint { display: inline-flex; align-items: center; font-weight: 700; }
+.jl-footer-label { font-size: var(--jl-t-xs); font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase; color: var(--jl-ink-2); }
+.jl-pad, .jl-ip {
+  display: inline-flex; align-items: center; gap: calc(8 * var(--px)); padding: calc(6 * var(--px)) calc(12 * var(--px));
+  border-radius: 999px; background: #ffffff8c; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.jl-dot { width: calc(10 * var(--px)); height: calc(10 * var(--px)); min-width: 7px; min-height: 7px; border-radius: 50%; background: var(--jl-ok); }
+.jl-pad-none { color: var(--jl-ink-2); }
