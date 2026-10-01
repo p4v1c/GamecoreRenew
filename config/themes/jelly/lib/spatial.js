@@ -39,6 +39,23 @@ export function nextInDirection(from, items, [dx, dy]) {
   return (inline || loose)?.el || null
 }
 
+/** The nearest ancestor that scrolls, or null. */
+const scrollerOf = (el) => {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p
+  }
+  return null
+}
+
+/** A step stays in the scrolled list it starts in while that list has
+ * something that way. Rows scrolled out of view keep their boxes above the
+ * list, past the controls over it, so geometry alone would jump out early. */
+export function stepFrom(from, items, dir) {
+  const box = scrollerOf(from)
+  const inside = box ? items.filter((el) => box.contains(el)) : []
+  return (inside.length && nextInDirection(from, inside, dir)) || nextInDirection(from, items, dir)
+}
+
 export function createSpatial(sdk) {
   const {useEffect, useRef} = sdk.ui
 
@@ -100,7 +117,7 @@ export function createSpatial(sdk) {
       const move = (dir) => {
         const from = root.current?.contains(document.activeElement) ? document.activeElement : null
         if (!from?.matches('[data-nav]')) { restore(); return }
-        const to = nextInDirection(from, items(), DIRS[dir])
+        const to = stepFrom(from, items(), DIRS[dir])
         if (to) { sdk.system.playSound('move'); focus(to) }
       }
       const confirm = () => {

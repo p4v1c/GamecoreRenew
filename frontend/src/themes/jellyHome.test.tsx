@@ -261,6 +261,32 @@ describe('the pad', () => {
     expect(nextInDirection(sameRow, [from, sameRow], [1, 0])).toBeNull()
   })
 
+  it('↑ in a scrolled list reaches the row above before the controls over the list', async () => {
+    const { stepFrom } = await import(/* @vite-ignore */ `${THEME}/lib/spatial.js`)
+    const at = (parent: HTMLElement, left: number, top: number) => {
+      const el = document.createElement('button')
+      el.getBoundingClientRect = () => ({ left, top, right: left + 100, bottom: top + 60,
+        width: 100, height: 60, x: left, y: top, toJSON: () => ({}) }) as DOMRect
+      parent.append(el)
+      return el
+    }
+    const page = document.createElement('div')
+    const grid = document.createElement('div')
+    grid.style.overflowY = 'auto'
+    page.append(grid)
+    document.body.append(page)
+    // The grid is scrolled: the row above sits higher than the filter chip.
+    const chip = at(page, 0, 100)
+    const hiddenAbove = at(grid, 0, -100)
+    const card = at(grid, 0, 300)
+    const firstRow = at(grid, 0, 200)
+    expect(stepFrom(card, [chip, hiddenAbove, firstRow, card], [0, -1])).toBe(firstRow)
+    expect(stepFrom(firstRow, [chip, hiddenAbove, firstRow, card], [0, -1])).toBe(hiddenAbove)
+    // Nothing left above in the grid: the step leaves it for the chip.
+    expect(stepFrom(firstRow, [chip, firstRow, card], [0, -1])).toBe(chip)
+    page.remove()
+  })
+
   it('the hint bar counts a controller that reconnects', async () => {
     let pads: unknown[] = []
     vi.stubGlobal('navigator', { ...navigator, getGamepads: () => pads })
