@@ -11,6 +11,12 @@ export interface SystemEntry {
   label?: string
   color?: string
   iconPath?: string
+  /**
+   * Pictures the pack ships for themes, name → URL: `console` is the hardware
+   * photo. From catalog/<id>/art/, or the operator's assets/art/<id>/. A theme
+   * picks the name it wants and falls back when it is absent.
+   */
+  art?: Record<string, string>
   romsPath?: string
   extensions?: string[]
   path?: string

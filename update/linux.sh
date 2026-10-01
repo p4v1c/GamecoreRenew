@@ -165,6 +165,7 @@ echo "[update] Installing new files..."
 #   emu/        → ROMs and covers
 #   assets/overlays/  → user-uploaded bezels
 #   assets/logos/     → user-uploaded logos
+#   assets/art/       → the operator's replacements for pack pictures
 #   .venv/      → Python virtualenv (rebuilt separately)
 #
 # catalog/ is NOT excluded: shipped logos and seeds are project content, and
@@ -184,6 +185,7 @@ rsync -a \
   --exclude='config/' \
   --exclude='assets/overlays/' \
   --exclude='assets/logos/' \
+  --exclude='assets/art/' \
   "${SRC_DIR}/" "${GAMECORE_PATH}/" || fail "rsync failed"
 
 # Themes: install what is missing, update what the release ships newer.

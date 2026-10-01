@@ -78,6 +78,7 @@ _LAYOUT = {
     "metadata":  "emu/metadata",      # scraped synopses and genres
     "overlays":  "assets/overlays",   # bezels uploaded by the player
     "logos":     "assets/logos",      # logo replacements uploaded by the operator
+    "art":       "assets/art",        # pack picture replacements, <DATA>/assets/art/<id>/<name>.*
     "themes":    "config/themes",     # installed themes (mutable code)
     "addons":    "addons",            # per-addon writable state, <DATA>/addons/<id>/
     "volumes":   "volumes",           # symlinks to external disks, one per label
@@ -120,6 +121,7 @@ def media_index_dir() -> Path: return data_dir("index")
 def metadata_dir() -> Path:    return data_dir("metadata")
 def overlays_dir() -> Path:    return data_dir("overlays")
 def logos_dir() -> Path:       return data_dir("logos")
+def art_dir() -> Path:         return data_dir("art")
 def themes_dir() -> Path:      return data_dir("themes")
 def addons_dir() -> Path:      return data_dir("addons")
 def volumes_dir() -> Path:     return data_dir("volumes")

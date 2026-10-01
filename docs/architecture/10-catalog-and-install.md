@@ -60,6 +60,9 @@ catalog/twitch/
 catalog/mgba/
 ├── pack.json
 ├── logo.png
+├── art/                          pictures for themes, by name: console.webp is the
+│   ├── console.webp              hardware photo. Served as `art` on GET /systems;
+│   └── SOURCE.md                 the operator's assets/art/<id>/ wins. Credits beside it
 ├── seed/                         curated config, copied to the emulator's config dir
 │   ├── config.ini
 │   └── qt.ini

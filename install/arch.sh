@@ -321,7 +321,7 @@ seed_data_tree() {  # seed_data_tree <from> <to> <user>
   local from="$1" to="$2" user="$3" k src dst
   [[ -d "$from" ]] || return 0
   [[ "$(readlink -f "$from")" == "$(readlink -f "$to")" ]] && return 0
-  for k in emu config assets/overlays assets/logos; do
+  for k in emu config assets/overlays assets/logos assets/art; do
     src="$from/$k"; dst="$to/$k"
     [[ -d "$src" ]] || continue
     # Absent or empty. `-A` so a dotfile counts as content; a directory that
@@ -366,7 +366,7 @@ provision_userdata() {  # provision_userdata <dir> <user>
   # a first boot never has to decide whether an absent directory means "empty"
   # or "broken".
   sudo -u "$user" mkdir -p "$dir/config" "$dir/emu" "$dir/assets/overlays" \
-                           "$dir/assets/logos" "$dir/addons"
+                           "$dir/assets/logos" "$dir/assets/art" "$dir/addons"
 }
 
 echo
@@ -448,6 +448,7 @@ if [ "$PROJECT_ROOT" != "$GAMECORE_PATH" ]; then
     --exclude='./config' \
     --exclude='./assets/overlays' \
     --exclude='./assets/logos' \
+    --exclude='./assets/art' \
     -cf - . \
     | tar -C "$GAMECORE_PATH" -xf - \
     || die "could not copy $PROJECT_ROOT → $GAMECORE_PATH"

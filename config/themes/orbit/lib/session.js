@@ -1,4 +1,4 @@
-import {consoleFile, coverUrl} from './catalog.js'
+import {coverUrl} from './catalog.js'
 
 /** Orbit's session surface, over the real backend.
  *
@@ -48,10 +48,8 @@ export function createSession(sdk) {
    */
   const artOf = (s) => {
     if (!s) return null
-    if (s.kind === 'app') {
-      const asset = consoleFile({id: s.systemId})
-      return asset ? sdk.system.asset(`assets/consoles/${asset}`) : null
-    }
+    // An application has no cover and no console photo: initials.
+    if (s.kind === 'app') return null
     return s.systemId && s.gameKey ? coverUrl(s.systemId, s.gameKey) : null
   }
 

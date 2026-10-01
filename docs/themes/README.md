@@ -767,6 +767,23 @@ global buttons, §6a.
 cheap as "rewrite everything" — override `homeView`, render the default inside it,
 add your layer.
 
+### 7.0 Pictures of a console — `system.art`
+
+A theme does not ship console photos. Each pack does, in
+`catalog/<id>/art/<name>.<ext>`, and every row of `sdk.api.systems.list()`
+carries them as `art: { name: url }`. The name says what the picture is
+(`console` is the hardware photo, the only one every console pack has); the
+theme picks the name it wants and falls back when a pack has none:
+
+```js
+const photo = system.art?.console || logoOf(system)
+```
+
+Changing a photo is changing that one file in the pack: no theme to edit, and
+every theme picks it up. An operator replaces one on a box without touching
+the release by dropping `assets/art/<id>/console.png` (it wins, and updates
+leave it alone). Orbit and Jelly read `art.console`; neither carries a copy.
+
 ### 7.1 Artwork other than the jacket
 
 The default library draws a flat box front, because that is what every game has.

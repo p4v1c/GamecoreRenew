@@ -2,6 +2,7 @@
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from ..services import http_cache
+from ..services.pack_art import art_for, art_urls
 from ..services.paths import logos_dir
 from ..services.systems import find, list_all
 
@@ -20,9 +21,26 @@ router = APIRouter(tags=["systems"])
 # Registered before the static mounts in main.py, so it wins the match.
 public_router = APIRouter(tags=["systems"])
 
+def _pack_art() -> dict[str, dict[str, Path]]:
+    """Every pack's own pictures, by pack id. A broken catalogue means none,
+    never a failed system list."""
+    try:
+        from ..services.catalog import load_catalog
+        return {pid: pack.art for pid, pack in load_catalog().items()}
+    except Exception:
+        return {}
+
+
+def _with_art(item: dict, packs: dict[str, dict[str, Path]]) -> dict:
+    """The row plus `art`: {name: url}, the pictures a theme may choose from."""
+    pictures = art_for(item["id"], packs.get(item["id"]))
+    return {**item, "art": art_urls(item["id"], pictures)}
+
+
 @router.get("/systems")
 def list_systems():
-    return list_all()
+    packs = _pack_art()
+    return [_with_art(item, packs) for item in list_all()]
 
 
 @router.get("/systems/{system_id}")
@@ -30,7 +48,22 @@ def get_system(system_id: str):
     item = find(system_id)
     if item is None:
         raise HTTPException(404, "System not found")
-    return item
+    return _with_art(item, _pack_art())
+
+
+@router.get("/systems/{system_id}/art/{name}")
+def get_system_art(request: Request, system_id: str, name: str):
+    """One picture of a pack, the operator's replacement first.
+
+    Looked up by name in what the pack and the override hold, never joined
+    into a path: both segments come straight from the URL."""
+    item = find(system_id)
+    if item is None:
+        raise HTTPException(404, "System not found")
+    picture = art_for(item["id"], _pack_art().get(item["id"])).get(name.lower())
+    if picture is None:
+        raise HTTPException(404, "No such picture")
+    return http_cache.conditional_file_response(request, picture)
 
 
 # The logo a pack ships, keyed by the historical assets/logos/ file name that

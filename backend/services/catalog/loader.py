@@ -76,6 +76,16 @@ class Pack:
         return None
 
     @property
+    def art(self) -> dict[str, Path]:
+        """Pictures shipped for themes to pick from: art/<name>.<ext>.
+
+        Named, not typed: `console.webp` is the hardware photo, and a theme
+        asks for a name it knows. Nothing here decides which one is shown.
+        """
+        from ..pack_art import pictures_in
+        return pictures_in(self.path / "art")
+
+    @property
     def generator(self) -> Path | None:
         if self.origin == "remote":
             return None                  # never, and with no way to opt in

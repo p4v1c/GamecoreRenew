@@ -17,9 +17,10 @@ import LibraryScreen from '../components/LibraryScreen'
 const THEME = '../../../config/themes/jelly'
 
 const SYSTEMS = [
-  { id: 'azahar', label: 'Azahar', kind: 'emulator' as const },
-  { id: 'duckstation', label: 'DuckStation', kind: 'emulator' as const },
-  { id: 'youtube', label: 'YouTube', kind: 'app' as const },
+  { id: 'azahar', label: 'Azahar', kind: 'emulator' as const,
+    art: { console: '/api/systems/azahar/art/console?v=1' } },
+  { id: 'duckstation', label: 'DuckStation', kind: 'emulator' as const, art: {} },
+  { id: 'youtube', label: 'YouTube', kind: 'app' as const, iconPath: 'assets/logos/youtube.png' },
 ]
 const GAMES: Record<string, unknown[]> = {
   azahar: [
@@ -41,7 +42,12 @@ beforeEach(() => {
     const url = String(typeof input === 'string' ? input : (input as Request).url ?? input)
     const games = url.match(/\/systems\/([^/]+)\/games/)
     const one = url.match(/\/systems\/([^/]+)$/)
-    const body: unknown =
+    // Mario Kart 7 has a 3D box on this box; nothing else does.
+    const media = url.match(/\/media\/[^/]+\/([^/]+)$/)
+    const body: unknown = media
+      ? { available: true, media: decodeURIComponent(media[1]).startsWith('Mario Kart')
+        ? { 'box-3d': { category: 'box', kind: 'image', cached: true } } : {} }
+      :
       url.includes('/playtime') ? PLAYTIME
         : games ? (GAMES[decodeURIComponent(games[1])] ?? [])
           : one ? SYSTEMS.find(x => x.id === decodeURIComponent(one[1]))
@@ -191,9 +197,41 @@ describe('the tabs', () => {
   it('Consoles shows a photo per console and the applications after them', async () => {
     const { container } = await mountHome()
     await press('gp:l1')
-    const photos = [...container.querySelectorAll('.jl-console-photo')].map(e => e.getAttribute('src'))
-    expect(photos).toEqual(['/themes/jelly/assets/consoles/3ds.png', '/themes/jelly/assets/consoles/ps1.png'])
+    // The photo is the pack's (system.art.console); a pack without one shows
+    // its mark, never a picture the theme carries itself.
+    const photos = [...container.querySelectorAll('img.jl-console-photo')].map(e => e.getAttribute('src'))
+    expect(photos).toEqual(['/api/systems/azahar/art/console?v=1'])
+    expect(container.querySelector('.jl-picture-mark.jl-console-photo')?.textContent).toBe('PS')
     expect(container.querySelectorAll('.jl-app')).toHaveLength(1)
+  })
+})
+
+describe('the jackets', () => {
+  const srcOf = (container: HTMLElement, title: string) => {
+    const card = [...container.querySelectorAll('.jl-grid .jl-card')]
+      .find(c => c.querySelector('strong')?.textContent === title)
+    return card?.querySelector('.jl-jacket img')?.getAttribute('src') ?? ''
+  }
+
+  it('stand on the 3D box when the game has one, and the flat jacket otherwise', async () => {
+    const { container } = await mountHome()
+    await press('gp:r1')
+    await settle()
+    expect(srcOf(container, 'Mario Kart 7')).toContain('/media/box-3d')
+    expect(container.querySelector('.jl-jacket[data-kind="3d"]')).toBeTruthy()
+    expect(srcOf(container, 'Crash Bandicoot')).toContain('/api/covers/duckstation/')
+  })
+
+  it('go flat for every game when the player says so, and remember it', async () => {
+    const { container } = await mountHome()
+    await press('gp:r1')
+    await settle()
+    ;(container.querySelector('[data-nav="f-style"]') as HTMLElement).click()
+    await settle()
+    expect(srcOf(container, 'Mario Kart 7')).toContain('/api/covers/azahar/')
+    expect(localStorage.getItem('jelly-jacket')).toBe('box-front')
+    ;(container.querySelector('[data-nav="f-style"]') as HTMLElement).click()
+    await settle()
   })
 })
 

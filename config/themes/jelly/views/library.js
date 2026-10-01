@@ -2,6 +2,7 @@ import {duration} from '../lib/format.js'
 import {systemName, systemMaker, systemYear, coverColor, consoleArt, plural} from '../lib/catalog.js'
 import {isFavourite, favouriteCount, createUseFavourites} from '../lib/favourites.js'
 import {createSpatial, libraryOwnsPad} from '../lib/spatial.js'
+import {toggleJacketStyle, createUseJacketStyle} from '../lib/jacket-style.js'
 
 const HINTS = [['← → ↑ ↓', 'Naviguer'], ['✕', 'Fiche'], ['○', 'Consoles'], ['△', 'Rechercher'],
   ['L1 R1', 'Onglets'], ['Options', 'Options du jeu']]
@@ -18,6 +19,7 @@ export function createLibrary(sdk, {tabs, cards, Footer, Details}) {
   const PadKey = sdk.ui.PadKey || (({k}) => html`<kbd>${k}</kbd>`)
   const useSpatial = createSpatial(sdk)
   const useFavourites = createUseFavourites(sdk)
+  const useJacketStyle = createUseJacketStyle(sdk)
 
   return function Library(props) {
     const {systemId, system, games, totalCount, playtime, selectedIdx, sort, sortKeys, sortLabels,
@@ -27,6 +29,7 @@ export function createLibrary(sdk, {tabs, cards, Footer, Details}) {
     const [favOnly, setFavOnly] = useState(false)
     const [details, setDetails] = useState(null)
     const {background} = sdk.session.use()
+    const style = useJacketStyle()
     useFavourites()
     useEffect(() => { setFavOnly(false); setDetails(null) }, [systemId])
 
@@ -78,6 +81,9 @@ export function createLibrary(sdk, {tabs, cards, Footer, Details}) {
             ⌕ ${search ? `« ${search} »` : 'Rechercher'}<${PadKey} k="△" /></button>
           ${search ? html`<button type="button" className="jl-chip" data-nav="clear"
             onClick=${() => onSearch('')}>Effacer la recherche</button>` : null}
+        <button type="button" className="jl-chip jl-chip-style" data-nav="style"
+                aria-pressed=${String(style === 'box-3d')} onClick=${toggleJacketStyle}>
+          ${style === 'box-3d' ? '▣ Boîtes 3D' : '▭ Jaquettes à plat'}</button>
           ${detailGame ? html`<button type="button" className="jl-chip" data-nav="options"
             onClick=${onOpenOptions}>Options du jeu<${PadKey} k="Options" /></button>` : null}
         </div>

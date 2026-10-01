@@ -30,6 +30,12 @@
   transform: rotate(-2deg); transition: opacity 220ms ease;
 }
 .jl-jacket[data-art="loading"] img { opacity: 0; }
+/* A 3D box is already a drawn object on transparency: no frame, no tilt,
+   just its own shadow on the jelly. */
+.jl-jacket[data-kind="3d"] img {
+  border-radius: 0; box-shadow: none; transform: none;
+  filter: drop-shadow(0 calc(10 * var(--px)) calc(10 * var(--px)) #20123a66);
+}
 .jl-jacket[data-art="none"] { overflow: hidden; }
 .jl-jacket-title {
   max-width: 100%; opacity: 0.85; color: #fff; font-size: calc(26 * var(--px)); font-weight: 900; line-height: 0.95;

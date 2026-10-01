@@ -1,4 +1,4 @@
-# Jelly 1.0.0
+# Jelly 1.1.0
 
 A bright, rounded GameCore theme: a cyan playground, purple and pink jelly
 tiles, keys that press down, one burst of confetti at boot. Textures and
@@ -22,6 +22,14 @@ touched.
 | Game fiche | jacket, metadata, playtime, Play / Resume, favourite | Jelly, launch by the host |
 | Settings (Options) | the host's nine categories, dressed | host (`createSettings`, `pager`, `detail: 'dialog'`) |
 | Power (Share), controller (□), session menu (PS ×2) | dressed host markup | host |
+
+**Pictures.** Game cards stand on the game's 3D box (`box-3d` in its media
+index) when it has one, drawn at its own shape on the jelly, and on the flat
+jacket otherwise (cover API, then scraped `box-front`, then the title drawn on
+the colour). A chip in Collection and in each library switches every card to
+flat jackets; the choice is kept as `jelly-jacket`. Console photos are the
+packs' (`system.art.console`, from `catalog/<id>/art/`): Jelly ships none, so
+changing one is changing that file. A pack without one shows its mark.
 
 Favourites live in this browser's storage (`jelly-favourites`, keyed
 `system:filename`): GameCore has no favourites of its own. Nothing else is
@@ -59,12 +67,12 @@ console.
 
 ```
 index.js            wiring
-lib/                catalog (console photos, names, colours), collection (all games + playtime),
-                    spatial (pad navigation), tabs, art (jacket fallbacks), favourites, format (French), drawings
+lib/                catalog (names, marks, colours), collection (all games + playtime),
+                    spatial (pad navigation), tabs, art (3D box / jacket fallbacks), jacket-style,
+                    favourites, format (French), drawings
 views/              home + home/{play,collection,consoles}, library, search, keyboard, details, cards,
                     topbar, footer, background, splash, ceremony, session, settings, controller
 css/                base, shell, cards, home, dialogs, moments, settings, motion
-assets/consoles/    console photos (credits in assets/source-credits.json)
 fonts/red-hat/      Red Hat Display (SIL OFL)
 ```
 
@@ -74,13 +82,13 @@ confetti; focus keeps its ring.
 
 ## Checks
 
-- `node scripts/check-theme.mjs config/themes/jelly` — 26 modules, all ten settings pages reachable
+- `node scripts/check-theme.mjs config/themes/jelly` — 27 modules, all ten settings pages reachable
 - `npx vitest run src/themes/jelly src/themes/themeSplashContract.test.tsx` (frontend)
 - `pytest backend/tests -k theme` — the shared theme rules (ceremony length, settings grid, versions, controller wizard)
 
 ## Credits
 
-Console photos: Wikimedia Commons, listed in `assets/source-credits.json`
-(shared with Orbit). Red Hat Display: Red Hat, SIL Open Font License
+Console photos: in the packs, with their Wikimedia Commons source beside each
+(`catalog/<id>/art/SOURCE.md`). Red Hat Display: Red Hat, SIL Open Font License
 (`fonts/red-hat/OFL.txt`). Game jackets come from the box's own cover service;
 none ship with the theme.

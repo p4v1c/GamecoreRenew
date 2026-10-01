@@ -81,8 +81,9 @@ import a router.
 
 | Function | Route | Notes |
 |---|---|---|
-| `list_systems()` | `GET /systems` | `services.systems.list_all()` — rows re-read when the file's mtime changes |
-| `get_system(system_id)` | `GET /systems/{id}` | `services.systems.find()`, else 404 |
+| `list_systems()` | `GET /systems` | `services.systems.list_all()` — rows re-read when the file's mtime changes — each with `art`: `{name: url}` of the pack's pictures |
+| `get_system(system_id)` | `GET /systems/{id}` | `services.systems.find()`, else 404; same `art` field |
+| `get_system_art(system_id, name)` | `GET /systems/{id}/art/{name}` | a pack picture, `assets/art/<id>/` first, then `catalog/<id>/art/` (`services/pack_art.py`); 404 on an unknown name |
 | `serve_logo(filename)` | `GET /assets/logos/{filename}` | |
 
 ## `games.py` — scanning and launching

@@ -1,6 +1,7 @@
 import {isApp, systemMark, systemName, plural} from '../../lib/catalog.js'
 import {isFavourite, favouriteCount, createUseFavourites} from '../../lib/favourites.js'
 import {createSpatial, homeOwnsPad} from '../../lib/spatial.js'
+import {toggleJacketStyle, createUseJacketStyle} from '../../lib/jacket-style.js'
 
 // Cards drawn at once. A box with thousands of games grows the grid as the
 // cursor nears its end, instead of building every card up front.
@@ -13,6 +14,7 @@ export function createCollectionTab(sdk, {tabs, cards, Footer, hints}) {
   const PadKey = sdk.ui.PadKey || (({k}) => html`<kbd>${k}</kbd>`)
   const useSpatial = createSpatial(sdk)
   const useFavourites = createUseFavourites(sdk)
+  const useJacketStyle = createUseJacketStyle(sdk)
 
   // Kept across tab switches, so coming back finds the same filter.
   let lastFilter = 'all'
@@ -22,6 +24,7 @@ export function createCollectionTab(sdk, {tabs, cards, Footer, hints}) {
     const [filter, setFilter] = useState(() => tabs.takeIntent()?.filter || lastFilter)
     const [limit, setLimit] = useState(PAGE)
     const {background} = sdk.session.use()
+    const style = useJacketStyle()
     useFavourites()
     useEffect(() => { lastFilter = filter; setLimit(PAGE) }, [filter])
 
@@ -61,6 +64,9 @@ export function createCollectionTab(sdk, {tabs, cards, Footer, hints}) {
         ${machines.map((m) => chip(m.id, systemMark(m)))}
         <button type="button" className="jl-chip jl-chip-search" data-nav="f-search" onClick=${onSearch}>
           ⌕ Rechercher<${PadKey} k="△" /></button>
+        <button type="button" className="jl-chip jl-chip-style" data-nav="f-style"
+                aria-pressed=${String(style === 'box-3d')} onClick=${toggleJacketStyle}>
+          ${style === 'box-3d' ? '▣ Boîtes 3D' : '▭ Jaquettes à plat'}</button>
       </div>
       ${data.status === 'error' ? html`<div className="jl-empty">
           <b>La collection ne répond pas.</b><p>Aucune console n’a pu donner sa liste de jeux.</p>

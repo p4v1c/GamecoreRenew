@@ -97,6 +97,7 @@ excludes all have to move together, and a migration has to carry existing saves.
 | `COVERS_DIR` | `<DATA>/emu/covers` |
 | `OVERLAYS_DIR` | `<DATA>/assets/overlays` |
 | `LOGOS_DIR` | `<DATA>/assets/logos` |
+| `art_dir()` | `<DATA>/assets/art` — `<id>/<name>.webp\|png\|jpg\|svg` replaces that pack picture; excluded from updates like `assets/logos` |
 | `ASSETS_DIR` | `<ROOT>/assets/` — the shipped tree |
 | `BACKEND_PORT` | `$GAMECORE_BACKEND_PORT` or 8765 |
 | `APP_VERSION` | contents of `VERSION` (written by the OTA script) |

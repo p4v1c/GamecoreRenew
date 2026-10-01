@@ -140,10 +140,9 @@ export const packLogo = (s) => s?.iconPath
 export const coverUrl = (systemId, filename) =>
   `/api/covers/${encodeURIComponent(systemId)}/${encodeURIComponent(filename)}`
 export const consoleFile = (s) => profile(s)?.file || null
-export const consoleArt = (sdk, s) => {
-  const file = consoleFile(s)
-  return file ? sdk.system.asset(`assets/consoles/${file}`) : packLogo(s)
-}
+/** The pack's console photo (catalog/<id>/art/console.*, served as
+ * `system.art.console`), else its logo. Orbit holds no copy of the photos. */
+export const consoleArt = (sdk, s) => s?.art?.console || packLogo(s)
 
 /** Favourites, in the browser and nowhere else.
  *

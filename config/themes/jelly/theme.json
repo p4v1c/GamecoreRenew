@@ -1,7 +1,7 @@
 {
   "id": "jelly",
   "name": "Jelly",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "api": 9,
   "description": "Un terrain de jeu en gelée : tes jeux, tes consoles et tes réglages, tout en rondeurs et en couleurs.",
   "author": "GameCore Community",

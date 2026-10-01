@@ -1,4 +1,4 @@
-import {coverUrl, consoleArt, titleFromKey} from '../lib/catalog.js'
+import {coverUrl, titleFromKey} from '../lib/catalog.js'
 
 /** The suspended session: the bar over a frozen game and the menu PS ×2 opens.
  *
@@ -13,7 +13,8 @@ export function createSession(sdk) {
 
   const titleOf = (s) => (s?.kind === 'app' ? (s.systemId || s.gameKey) : titleFromKey(sdk, s?.gameKey))
   const artOf = (s) => (s?.kind === 'app'
-    ? consoleArt(sdk, {id: s.systemId})
+    // The logo route matches a pack id as a file name: an app's own logo.
+    ? (s.systemId ? `/assets/logos/${encodeURIComponent(s.systemId)}.png` : null)
     : s?.systemId && s?.gameKey ? coverUrl(s.systemId, s.gameKey) : null)
 
   function Art({s}) {

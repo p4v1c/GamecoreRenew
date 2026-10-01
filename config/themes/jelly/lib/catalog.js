@@ -1,9 +1,10 @@
-/** Jelly's presentation of the real packs: photo, name, mark and colour.
+/** Jelly's presentation of the real packs: name, mark and colour.
  *
- * Nothing here is a game or a console list. The box says which packs exist
- * (`sdk.api.systems`), this only says how each one is dressed, keyed by its
- * pack id. A pack missing from the table still shows, with its pack logo and
- * the host's colour.
+ * Nothing here is a game, a console list or a picture. The box says which
+ * packs exist (`sdk.api.systems`) and what pictures each one ships
+ * (`system.art`, from catalog/<id>/art/); this only says how each is dressed,
+ * keyed by pack id. A pack missing from the table still shows, with its
+ * pack logo and the host's colour.
  */
 
 // Jelly's eight cover colours, from the mockup.
@@ -16,46 +17,46 @@ const LILAC = '#8c6fc0'
 const TEAL = '#24899c'
 const CORAL = '#d4613f'
 
-/** photo, full name, maker, year, short mark, cover colour. */
+/** full name, maker, year, short mark, cover colour. */
 const CONSOLES = {
-  duckstation: ['ps1.png', 'PlayStation', 'Sony', '1994', 'PS', PURPLE],
-  pcsx2: ['ps2.png', 'PlayStation 2', 'Sony', '2000', 'PS2', BLUE],
-  rpcs3: ['ps3.png', 'PlayStation 3', 'Sony', '2006', 'PS3', LILAC],
-  shadps4: ['ps4.png', 'PlayStation 4', 'Sony', '2013', 'PS4', BLUE],
-  ppsspp: ['psp.png', 'PlayStation Portable', 'Sony', '2004', 'PSP', TEAL],
-  cemu: ['wiiu.png', 'Wii U', 'Nintendo', '2012', 'Wii U', TEAL],
-  gamecube: ['gamecube.png', 'GameCube', 'Nintendo', '2001', 'GC', LILAC],
-  wii: ['wii.png', 'Wii', 'Nintendo', '2006', 'Wii', BLUE],
-  switch: ['switch.png', 'Nintendo Switch', 'Nintendo', '2017', 'Switch', CORAL],
-  dolphin: ['gamecube.png', 'GameCube & Wii', 'Nintendo', '2001', 'GC', LILAC],
-  ryujinx: ['switch.png', 'Nintendo Switch', 'Nintendo', '2017', 'Switch', CORAL],
-  azahar: ['3ds.png', 'Nintendo 3DS', 'Nintendo', '2011', '3DS', PINK],
-  melonds: ['ds.png', 'Nintendo DS', 'Nintendo', '2004', 'DS', TEAL],
-  gb: ['gb.png', 'Game Boy', 'Nintendo', '1989', 'GB', GREEN],
-  gbc: ['gbc.png', 'Game Boy Color', 'Nintendo', '1998', 'GBC', PINK],
-  gba: ['gba.png', 'Game Boy Advance', 'Nintendo', '2001', 'GBA', GREEN],
-  mgba: ['gba.png', 'Game Boy Advance', 'Nintendo', '2001', 'GBA', GREEN],
-  gopher64: ['n64.png', 'Nintendo 64', 'Nintendo', '1996', 'N64', GREEN],
-  rmg: ['n64.png', 'Nintendo 64', 'Nintendo', '1996', 'N64', GREEN],
-  xenia: ['xbox360.png', 'Xbox 360', 'Microsoft', '2005', '360', GREEN],
-  snes9x: ['snes.png', 'Super Nintendo', 'Nintendo', '1990', 'SNES', BLUE],
-  nes: ['nes.png', 'NES', 'Nintendo', '1983', 'NES', CORAL],
-  fds: ['fds.png', 'Famicom Disk System', 'Nintendo', '1986', 'FDS', ORANGE],
-  mastersystem: ['mastersystem.png', 'Master System', 'Sega', '1985', 'SMS', BLUE],
-  gamegear: ['gamegear.png', 'Game Gear', 'Sega', '1990', 'GG', TEAL],
-  sg1000: ['sg1000.png', 'SG-1000', 'Sega', '1983', 'SG', BLUE],
-  megadrive: ['megadrive.png', 'Mega Drive', 'Sega', '1988', 'MD', PURPLE],
-  megacd: ['megacd.png', 'Mega-CD', 'Sega', '1991', 'MCD', TEAL],
-  sega32x: ['32x.png', '32X', 'Sega', '1994', '32X', ORANGE],
-  saturn: ['saturn.png', 'Saturn', 'Sega', '1994', 'SAT', LILAC],
-  dreamcast: ['dreamcast.png', 'Dreamcast', 'Sega', '1998', 'DC', ORANGE],
-  naomi: ['naomi.png', 'Naomi', 'Sega', '1998', 'NAOMI', TEAL],
-  naomigd: ['naomi.png', 'Naomi GD-ROM', 'Sega', '2001', 'GD', TEAL],
-  atomiswave: ['atomiswave.png', 'Atomiswave', 'Sammy', '2003', 'AW', CORAL],
-  pcengine: ['pcengine.png', 'PC Engine', 'NEC', '1987', 'PCE', PINK],
-  pcenginecd: ['pcenginecd.png', 'PC Engine CD', 'NEC', '1988', 'PCE CD', CORAL],
-  supergrafx: ['supergrafx.png', 'SuperGrafx', 'NEC', '1989', 'SGX', ORANGE],
-  mame: ['arcade.png', 'Arcade', 'MAME', '', 'ARC', ORANGE],
+  duckstation: ['PlayStation', 'Sony', '1994', 'PS', PURPLE],
+  pcsx2: ['PlayStation 2', 'Sony', '2000', 'PS2', BLUE],
+  rpcs3: ['PlayStation 3', 'Sony', '2006', 'PS3', LILAC],
+  shadps4: ['PlayStation 4', 'Sony', '2013', 'PS4', BLUE],
+  ppsspp: ['PlayStation Portable', 'Sony', '2004', 'PSP', TEAL],
+  cemu: ['Wii U', 'Nintendo', '2012', 'Wii U', TEAL],
+  gamecube: ['GameCube', 'Nintendo', '2001', 'GC', LILAC],
+  wii: ['Wii', 'Nintendo', '2006', 'Wii', BLUE],
+  switch: ['Nintendo Switch', 'Nintendo', '2017', 'Switch', CORAL],
+  dolphin: ['GameCube & Wii', 'Nintendo', '2001', 'GC', LILAC],
+  ryujinx: ['Nintendo Switch', 'Nintendo', '2017', 'Switch', CORAL],
+  azahar: ['Nintendo 3DS', 'Nintendo', '2011', '3DS', PINK],
+  melonds: ['Nintendo DS', 'Nintendo', '2004', 'DS', TEAL],
+  gb: ['Game Boy', 'Nintendo', '1989', 'GB', GREEN],
+  gbc: ['Game Boy Color', 'Nintendo', '1998', 'GBC', PINK],
+  gba: ['Game Boy Advance', 'Nintendo', '2001', 'GBA', GREEN],
+  mgba: ['Game Boy Advance', 'Nintendo', '2001', 'GBA', GREEN],
+  gopher64: ['Nintendo 64', 'Nintendo', '1996', 'N64', GREEN],
+  rmg: ['Nintendo 64', 'Nintendo', '1996', 'N64', GREEN],
+  xenia: ['Xbox 360', 'Microsoft', '2005', '360', GREEN],
+  snes9x: ['Super Nintendo', 'Nintendo', '1990', 'SNES', BLUE],
+  nes: ['NES', 'Nintendo', '1983', 'NES', CORAL],
+  fds: ['Famicom Disk System', 'Nintendo', '1986', 'FDS', ORANGE],
+  mastersystem: ['Master System', 'Sega', '1985', 'SMS', BLUE],
+  gamegear: ['Game Gear', 'Sega', '1990', 'GG', TEAL],
+  sg1000: ['SG-1000', 'Sega', '1983', 'SG', BLUE],
+  megadrive: ['Mega Drive', 'Sega', '1988', 'MD', PURPLE],
+  megacd: ['Mega-CD', 'Sega', '1991', 'MCD', TEAL],
+  sega32x: ['32X', 'Sega', '1994', '32X', ORANGE],
+  saturn: ['Saturn', 'Sega', '1994', 'SAT', LILAC],
+  dreamcast: ['Dreamcast', 'Sega', '1998', 'DC', ORANGE],
+  naomi: ['Naomi', 'Sega', '1998', 'NAOMI', TEAL],
+  naomigd: ['Naomi GD-ROM', 'Sega', '2001', 'GD', TEAL],
+  atomiswave: ['Atomiswave', 'Sammy', '2003', 'AW', CORAL],
+  pcengine: ['PC Engine', 'NEC', '1987', 'PCE', PINK],
+  pcenginecd: ['PC Engine CD', 'NEC', '1988', 'PCE CD', CORAL],
+  supergrafx: ['SuperGrafx', 'NEC', '1989', 'SGX', ORANGE],
+  mame: ['Arcade', 'MAME', '', 'ARC', ORANGE],
 }
 
 /** The application packs. Ids match catalog/<id>/pack.json. */
@@ -73,25 +74,23 @@ const row = (s) => CONSOLES[s?.id] || null
 
 export const systemName = (s) => isApp(s)
   ? (s?.label || s?.id || 'Application')
-  : row(s)?.[1] || s?.platform || s?.label || s?.id || 'Console'
-export const systemMark = (s) => row(s)?.[4] || String(s?.label || s?.id || '?').slice(0, 6)
-export const systemMaker = (s) => row(s)?.[2] || ''
-export const systemYear = (s) => row(s)?.[3] || ''
+  : row(s)?.[0] || s?.platform || s?.label || s?.id || 'Console'
+export const systemMark = (s) => row(s)?.[3] || String(s?.label || s?.id || '?').slice(0, 6)
+export const systemMaker = (s) => row(s)?.[1] || ''
+export const systemYear = (s) => row(s)?.[2] || ''
 export const appStyle = (s) => APPS[s?.id] || DEFAULT_APP
 
 /** The colour a console's covers sit on. The host's colour for an unknown pack. */
 export const coverColor = (sdk, s) =>
-  isApp(s) ? appStyle(s).color : row(s)?.[5] || (s && sdk.format.systemColor(s)) || PURPLE
+  isApp(s) ? appStyle(s).color : row(s)?.[4] || (s && sdk.format.systemColor(s)) || PURPLE
 
 export const packLogo = (s) => s?.iconPath
   ? `/assets/logos/${encodeURIComponent(s.iconPath.replace(/\\/g, '/').split('/').pop())}`
   : null
 
-/** The console photo Jelly ships, else the pack's own logo. */
-export const consoleArt = (sdk, s) => {
-  const file = row(s)?.[0]
-  return file ? sdk.system.asset(`assets/consoles/${file}`) : packLogo(s)
-}
+/** The pack's console photo (catalog/<id>/art/console.*), else its logo.
+ * Changing the photo is changing that file; Jelly holds no copy. */
+export const consoleArt = (sdk, s) => s?.art?.console || packLogo(s)
 
 export const coverUrl = (systemId, filename) =>
   `/api/covers/${encodeURIComponent(systemId)}/${encodeURIComponent(filename)}`

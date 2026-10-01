@@ -53,9 +53,10 @@ return. L1/R1 switch the main tabs. The Library includes All and console filters
 search, favourites and sorting controls. Search uses the host's virtual keyboard;
 Square opens the host's controller inputs screen and Options opens game options.
 
-Applications use installed pack logos. Console presentation assets belong to
-Orbit and do not replace other themes' assets. Unknown consoles fall back to the
-pack logo or initials. Photo credits are in `assets/source-credits.json`.
+Applications use installed pack logos. Console photos come from each pack
+(`catalog/<id>/art/console.webp`, read as `system.art.console`), so changing one
+is changing that file; a pack without one falls back to its logo or initials.
+Photo credits sit beside each photo, in `art/SOURCE.md`.
 
 Only connected controllers are shown. The IP address is in the footer and storage
 information is in settings. Favourites are stored locally in this browser.

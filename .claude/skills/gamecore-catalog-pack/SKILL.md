@@ -12,6 +12,7 @@ except what `gen-catalog.py` regenerates.
 catalog/<id>/
 ├── pack.json     declaration — catalog/_schema/pack.schema.json
 ├── logo.png      tile
+├── art/          pictures for themes: console.webp (hardware photo) + SOURCE.md
 ├── seed/         curated emulator config (optional)
 ├── generator.py  controller bindings (optional)
 ├── files/        what `files` / `services` refer to
