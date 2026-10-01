@@ -1,7 +1,7 @@
 /** Jelly's three tabs. A console's library is the host's screen, opened from
  * Consoles; while it is up, the Consoles tab stays lit. */
 export const TABS = [
-  ['play', 'Jouer'],
+  ['play', 'Play'],
   ['collection', 'Collection'],
   ['consoles', 'Consoles'],
 ]

@@ -1,11 +1,11 @@
-# Jelly 1.2.1
+# Jelly 1.3.0
 
 A bright, rounded GameCore theme: a cyan playground, purple and pink jelly
 tiles, keys that press down, one burst of confetti at boot. Textures and
 interface only — no characters, no avatar, no profile circle (GameCore has no
 accounts). Built from the approved "GameCore · Jelly" mockup; its eight demo
 games, fake networks and fake BIOS states are gone, replaced by the box's own
-data. Interface text is French.
+data. Interface text is English.
 
 Requires SDK 9 (`GamepadView`, `launchGame`, sessions). Other themes are not
 touched.
@@ -14,12 +14,12 @@ touched.
 
 | Screen | What it shows | Whose behaviour |
 |---|---|---|
-| **Jouer** | the suspended game, else the last one played; *Mes favoris*, *Surprends-moi*; the last five adventures | Jelly draws, `sdk.defaults.launchGame` / `sdk.session.resume` act |
+| **Play** | the suspended game, else the last one played; *Favourites*, *Surprise me*; the last five games played | Jelly draws, `sdk.defaults.launchGame` / `sdk.session.resume` act |
 | **Collection** | every game on every console, filtered by console or favourites | Jelly |
 | **Consoles** | one photo card per installed console, then the applications | ✕ opens the host library or launches the app |
 | A console's library | the host's library screen in Jelly cards | host: loading, sort, △ search keyboard, Options per-game options, launch |
-| Search (△ from the dashboard) | *La bonne pioche*: keyboard, filters, results | Jelly |
-| Game fiche | jacket, metadata, playtime, Play / Resume, favourite | Jelly, launch by the host |
+| Search (△ from the dashboard) | keyboard, filters, results | Jelly |
+| Game details | jacket, metadata, playtime, Play / Resume, favourite | Jelly, launch by the host |
 | Settings (Options) | the host's nine categories, dressed | host (`createSettings`, `pager`, `detail: 'dialog'`) |
 | Power (Share), controller (□), session menu (PS ×2) | dressed host markup | host |
 
@@ -44,14 +44,14 @@ own d-pad and ✕ (`libraryOmit`); PS, Options and Share stay the host's.
 |---|---|---|---|
 | d-pad | move inside the tab, never diagonally when a straight step exists | move inside the lit zone | ↑↓ categories, → enter |
 | ✕ | choose | type / choose | enter / change |
-| ○ | back to Jouer | keyboard, then close | back to the categories, then close |
+| ○ | back to Play | keyboard, then close | back to the categories, then close |
 | △ | search | keyboard ↔ results, both remembered | — |
 | □ | controller screen | erase a letter | — |
 | L1 / R1 | tabs | zones: Keyboard, Filters, Games | categories |
 | L2 / R2 | — | L2 clears query and filters | scroll the page |
 
 The search opens with the cursor on A, never on a text field; typing never
-moves it; a fiche closes back onto the result it came from. Every layer Jelly
+moves it; a details panel closes back onto the result it came from. Every layer Jelly
 opens raises the modal depth, so the screen behind it stands down, and each
 press is judged by the state it started in (`navAtPress` in `lib/spatial.js`):
 when the host's ○ takes the library home, Jelly's dashboard does not act on the
@@ -71,7 +71,7 @@ DESIGN.md           idea, type, palette, shape, depth, motion, voice
 lib/                catalog (names, marks, colours), collection (all games + playtime),
                     spatial (pad moves) + presses (who owns a press), search, launch,
                     art (3D box / jacket fallbacks) + jacket-style, icons, favourites,
-                    format (French), tabs, drawings
+                    format (host playtime and dates), tabs, drawings
 views/              home + home/{play,hero,shortcuts,collection,consoles},
                     library/{index,toolbar,rows}, search/{index,header,zones,results,keyboard},
                     details, cards, chips, topbar, footer, background, splash, ceremony,
@@ -89,6 +89,15 @@ confetti; focus keeps its ring.
 - `node scripts/check-theme.mjs config/themes/jelly` — 39 modules, all ten settings pages reachable
 - `npx vitest run src/themes/jelly src/themes/themeSplashContract.test.tsx` (frontend)
 - `pytest backend/tests -k theme` — the shared theme rules (ceremony length, settings grid, versions, controller wizard)
+
+## Install, revert
+
+Jelly ships with GameCore: **Options → Settings → Themes → Jelly**. A zip of
+this folder installs on another box with `gamecore-theme install jelly.zip`
+(`verify` first checks it without installing). To leave it, pick another theme
+in the same menu; if the screen stops answering, hold **L1 + R1 for 2 s**
+anywhere to get the default theme back. `gamecore-theme remove jelly` deselects
+it before deleting it.
 
 ## Credits
 

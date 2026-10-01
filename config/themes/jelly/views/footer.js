@@ -41,17 +41,17 @@ export function createFooter(sdk) {
     }, [])
     const levels = Array.isArray(now?.controllers) ? now.controllers : []
     const pads = Array.from({length: Math.max(count, levels.length)}, (_, i) => levels[i] || {player: i + 1})
-    const all = background.length ? [...hints, ['PS ×2', 'Partie en pause']] : hints
+    const all = background.length ? [...hints, ['PS ×2', 'Paused game']] : hints
     return html`<footer className="jl-footer">
       <div className="jl-hints">
-        <span className="jl-footer-label">À toi de jouer</span>
+        <span className="jl-footer-label">Your turn</span>
         ${all.map(([k, label]) => html`<span key=${label} className="jl-hint"><${PadKey} k=${k} />${label}</span>`)}
       </div>
-      <div className="jl-status" aria-label="Manettes et réseau">
+      <div className="jl-status" aria-label="Controllers and network">
         ${pads.length
-          ? pads.map((p, i) => html`<span key=${i} className="jl-pad" title=${p.name || p.label || 'Manette'}>
-              <i className="jl-dot" />J${p.player ?? i + 1}${Number.isFinite(p.level) && p.level >= 0 ? `, ${p.level} %` : ''}</span>`)
-          : html`<span className="jl-pad jl-pad-none">Aucune manette</span>`}
+          ? pads.map((p, i) => html`<span key=${i} className="jl-pad" title=${p.name || p.label || 'Controller'}>
+              <i className="jl-dot" />P${p.player ?? i + 1}${Number.isFinite(p.level) && p.level >= 0 ? `, ${p.level} %` : ''}</span>`)
+          : html`<span className="jl-pad jl-pad-none">No controller</span>`}
         ${now?.ip ? html`<span className="jl-ip">${now.ip}</span>` : null}
       </div>
     </footer>`

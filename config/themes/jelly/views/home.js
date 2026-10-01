@@ -3,18 +3,18 @@ import {createCollectionTab} from './home/collection.js'
 import {createConsolesTab} from './home/consoles.js'
 
 const HINTS = {
-  play: [['← → ↑ ↓', 'Naviguer'], ['✕', 'Choisir'], ['L1 R1', 'Onglets'], ['△', 'Rechercher'],
-    ['□', 'Manette'], ['Options', 'Réglages']],
-  collection: [['← → ↑ ↓', 'Naviguer'], ['✕', 'Fiche'], ['○', 'Jouer'], ['L1 R1', 'Onglets'],
-    ['△', 'Rechercher'], ['Options', 'Réglages']],
-  consoles: [['← → ↑ ↓', 'Naviguer'], ['✕', 'Ouvrir'], ['○', 'Jouer'], ['L1 R1', 'Onglets'],
-    ['△', 'Rechercher'], ['Options', 'Réglages']],
+  play: [['← → ↑ ↓', 'Move'], ['✕', 'Select'], ['L1 R1', 'Tabs'], ['△', 'Search'],
+    ['□', 'Controller'], ['Options', 'Settings']],
+  collection: [['← → ↑ ↓', 'Move'], ['✕', 'Details'], ['○', 'Play'], ['L1 R1', 'Tabs'],
+    ['△', 'Search'], ['Options', 'Settings']],
+  consoles: [['← → ↑ ↓', 'Move'], ['✕', 'Open'], ['○', 'Play'], ['L1 R1', 'Tabs'],
+    ['△', 'Search'], ['Options', 'Settings']],
 }
 
-/** The dashboard: Jouer, Collection and Consoles over the host's home screen.
+/** The dashboard: Play, Collection and Consoles over the host's home screen.
  *
  * The host's d-pad, L1/R1 and ✕ are omitted for this screen (index.js), so
- * each tab binds its own through `useSpatial`. The fiche and the search are
+ * each tab binds its own through `useSpatial`. The details panel and the search are
  * drawn here, inside the screen, so the shell's stacking covers them. */
 export function createHome(sdk, ctx) {
   const {html, useState, useEffect} = sdk.ui

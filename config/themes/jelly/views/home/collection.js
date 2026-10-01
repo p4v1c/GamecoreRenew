@@ -20,25 +20,25 @@ export function createCollectionTab(sdk, {tabs, cards, chips, Icon, Footer, hint
 
   function Body({data, shown, filter, limit, background, onRetry, onShowAll, onDetails}) {
     if (data.status === 'error') {
-      return html`<div className="jl-empty"><b>La collection ne répond pas.</b>
-        <p>Aucune console n’a donné sa liste de jeux.</p>
-        <button type="button" className="jl-play" data-nav="retry" onClick=${onRetry}>Réessayer</button></div>`
+      return html`<div className="jl-empty"><b>The collection isn’t answering.</b>
+        <p>No console sent its game list.</p>
+        <button type="button" className="jl-play" data-nav="retry" onClick=${onRetry}>Try again</button></div>`
     }
     if ((data.status === 'loading' || data.status === 'idle') && !data.games.length) {
-      return html`<div className="jl-empty" role="status"><b>On ouvre la boîte à jeux.</b></div>`
+      return html`<div className="jl-empty" role="status"><b>Opening the game box.</b></div>`
     }
     if (!shown.length) {
       return html`<div className="jl-empty">
-        <b>${filter === 'fav' ? 'Pas encore de favori.' : 'Rien ici pour l’instant.'}</b>
-        <p>${filter === 'fav' ? 'Ouvre la fiche d’un jeu et appuie sur △ pour l’ajouter.'
-          : 'Ajoute des jeux à tes consoles pour les retrouver ici.'}</p>
-        ${filter !== 'all' ? html`<button type="button" className="jl-play" data-nav="show-all" onClick=${onShowAll}>Voir tous les jeux</button>` : null}</div>`
+        <b>${filter === 'fav' ? 'No favourites yet.' : 'Nothing here yet.'}</b>
+        <p>${filter === 'fav' ? 'Open a game’s details and press △ to add it.'
+          : 'Add games to your consoles to see them here.'}</p>
+        ${filter !== 'all' ? html`<button type="button" className="jl-play" data-nav="show-all" onClick=${onShowAll}>Show all games</button>` : null}</div>`
     }
     return html`<${Fragment}><div className="jl-grid">
         ${shown.slice(0, limit).map((g, i) => html`<${cards.GameCard} key=${g.key} game=${g} nav=${`g-${g.key}`}
           index=${i} held=${!!heldSession(background, g)} onPress=${() => onDetails(g)} />`)}
       </div>
-      ${shown.length > limit ? html`<p className="jl-more">${plural(shown.length - limit, 'autre jeu', 'autres jeux')} plus bas</p>` : null}<//>`
+      ${shown.length > limit ? html`<p className="jl-more">${plural(shown.length - limit, 'more game', 'more games')} below</p>` : null}<//>`
   }
 
   return function CollectionTab({data, systems, actions, onDetails, onSearch}) {
@@ -60,15 +60,15 @@ export function createCollectionTab(sdk, {tabs, cards, chips, Icon, Footer, hint
     const chip = (id, label) => html`<button type="button" key=${id} data-nav=${`f-${id}`}
       className=${`jl-chip ${filter === id ? 'is-on' : ''}`} aria-pressed=${String(filter === id)}
       onClick=${() => setFilter(id)}>${label}</button>`
-    const label = filter === 'all' ? 'Tous les jeux' : filter === 'fav' ? 'Favoris' : systemName(systems.find((s) => s.id === filter))
+    const label = filter === 'all' ? 'All games' : filter === 'fav' ? 'Favourites' : systemName(systems.find((s) => s.id === filter))
     return html`<section className="jl-page jl-collection" ref=${root} aria-labelledby="jl-col-title">
       <div className="jl-head">
-        <div><span className="jl-eyebrow">La collection</span><h1 id="jl-col-title">Le choix du prochain jeu.</h1></div>
+        <div><span className="jl-eyebrow">Collection</span><h1 id="jl-col-title">Pick the next game.</h1></div>
         <div className="jl-count"><strong>${String(shown.length).padStart(2, '0')}</strong><span>${label}</span></div>
       </div>
       <div className="jl-chips" role="group" aria-label="Filtrer la collection">
-        ${chip('all', `Tous les jeux (${data.games.length})`)}
-        ${chip('fav', html`<${Icon} name="star" filled=${filter === 'fav'} />Favoris (${favouriteCount()})`)}
+        ${chip('all', `All games (${data.games.length})`)}
+        ${chip('fav', html`<${Icon} name="star" filled=${filter === 'fav'} />Favourites (${favouriteCount()})`)}
         ${machines.map((m) => chip(m.id, systemMark(m)))}
         <${chips.SearchChip} nav="f-search" onClick=${onSearch} /><${chips.StyleChip} nav="f-style" />
       </div>

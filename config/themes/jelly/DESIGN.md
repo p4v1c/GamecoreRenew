@@ -29,8 +29,8 @@ Covers and console photos get a soft drop shadow, as objects.
 wobbles; all stop while a game runs or in standby, and reduced motion stops
 everything but the focus ring.
 
-**Voice.** French, second person, playful in titles from the mockup
-("À toi de jouer!", "La bonne pioche.", settings taglines). Messages, errors
-and buttons stay plain: a verb, no exclamation, no arrows, commas not "·".
+**Voice.** English, second person, light in titles ("Your turn.", "Find a
+game.", settings taglines). Messages, errors and buttons stay plain: a verb,
+no exclamation, no arrows, commas not "·".
 Eyebrows are small caps in tracked capitals: the mockup's one typographic
 signature, kept on purpose and nowhere else.

@@ -13,13 +13,13 @@ export function createCards(sdk, {art, Icon}) {
                       style=${{'--cover': coverColor(sdk, game.system)}}>
       <${Jacket} systemId=${game.systemId} filename=${game.gameKey} title=${game.title} />
       ${isFavourite(game.systemId, game.gameKey)
-        ? html`<span className="jl-fav-dot" aria-label="Favori"><${Icon} name="star" filled=${true} /></span>` : null}
+        ? html`<span className="jl-fav-dot" aria-label="Favourite"><${Icon} name="star" filled=${true} /></span>` : null}
     </span>`
   }
 
   function GameCard({game, nav, held, onPress, meta, index}) {
     const line = meta ?? (game.seconds
-      ? `${systemName(game.system)}, ${duration(game.seconds)} de jeu` : systemName(game.system))
+      ? `${systemName(game.system)}, ${duration(sdk, game.seconds)} played` : systemName(game.system))
     return html`<button type="button" className="jl-card" data-nav=${nav} data-index=${index}
                         aria-label=${`${game.title}, ${systemName(game.system)}`} onClick=${onPress}>
       <${Cover} game=${game} />

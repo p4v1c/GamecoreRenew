@@ -15,11 +15,11 @@ export function createShortcuts(sdk, {Icon}) {
 
   return function Shortcuts({favourites, gameCount, loading, onFavourites, onSurprise}) {
     return html`<div className="jl-side">
-      <${Card} nav="side-fav" icon="star" eyebrow="Le meilleur, à portée" title="Mes favoris"
-        line=${favourites ? `${plural(favourites, 'jeu', 'jeux')} qui font plaisir` : 'Marque un jeu avec △ depuis sa fiche'}
+      <${Card} nav="side-fav" icon="star" eyebrow="Within reach" title="Favourites"
+        line=${favourites ? plural(favourites, 'game', 'games') : 'Mark a game with △ from its details'}
         disabled=${loading} onClick=${onFavourites} />
-      <${Card} nav="side-surprise" sun=${true} icon="dice" eyebrow="On change un peu ?" title="Surprends-moi"
-        line="Un jeu au hasard de ta collection" disabled=${!gameCount} onClick=${onSurprise} />
+      <${Card} nav="side-surprise" sun=${true} icon="dice" eyebrow="Something different" title="Surprise me"
+        line="A random game from your collection" disabled=${!gameCount} onClick=${onSurprise} />
     </div>`
   }
 }

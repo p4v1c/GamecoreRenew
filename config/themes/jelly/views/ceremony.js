@@ -1,4 +1,4 @@
-const WORDS = {launch: 'C’est parti', resume: 'On reprend', suspend: 'En pause'}
+const WORDS = {launch: 'Let’s go', resume: 'Back in', suspend: 'Paused'}
 // The whole handover. `launch.ms` in theme.json is this number: the host holds
 // the game back exactly as long as the blob takes to land and settle.
 const LAUNCH_MS = 900

@@ -10,7 +10,7 @@ import {createUseZones} from './zones.js'
 import {createSearchFrame} from './header.js'
 
 const PAGE = 30
-/** "La bonne pioche": the whole collection, searched from the pad. Three zones
+/** The search: the whole collection, searched from the pad. Three zones
  * (keyboard, filters, results); the pad stays in the lit one, and there is no
  * text field to land on. Pad rules: theme README, "Pad". */
 export function createSearch(sdk, {cards, Details, Icon}) {
@@ -70,18 +70,18 @@ export function createSearch(sdk, {cards, Details, Icon}) {
           gamesUsable=${results.length > 0} onZone=${zones.go} onClose=${onClose} />
         <div className="jl-search-body">
           <div className=${`jl-search-keys ${lit('keys')}`} ref=${refs.keys}>
-            <span className="jl-eyebrow">Sous les pouces</span>
+            <span className="jl-eyebrow">Keyboard</span>
             <${Keyboard} page=${page} onKey=${type} onSpace=${() => type(' ')} onDelete=${erase} Icon=${Icon}
               onPage=${() => setPage((p) => (p === 'letters' ? 'symbols' : 'letters'))} />
             <button type="button" className="jl-results-button" data-nav="k-results" disabled=${!results.length}
-              onClick=${() => zones.go('games')}>Voir les ${plural(results.length, 'résultat', 'résultats')}</button>
+              onClick=${() => zones.go('games')}>Show ${plural(results.length, 'result', 'results')}</button>
           </div>
           <div className="jl-search-right">
             <div className=${`jl-search-filters ${lit('filters')}`} ref=${refs.filters}>
               <${Frame.Filters} games=${data.games} systems=${systems} filter=${filter} onFilter=${setFilter} />
             </div>
-            <div className="jl-results-head"><b>${words.length ? 'Résultats' : 'À découvrir'}</b>
-              <span>${plural(results.length, 'jeu', 'jeux')}</span></div>
+            <div className="jl-results-head"><b>${words.length ? 'Results' : 'To discover'}</b>
+              <span>${plural(results.length, 'game', 'games')}</span></div>
             <div className=${`jl-results ${lit('games')}`} ref=${refs.games}>
               <${Results} games=${results} limit=${limit} background=${background} status=${data.status}
                 searching=${words.length > 0 || filter !== 'all'} onPick=${setDetails} />

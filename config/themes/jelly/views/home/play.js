@@ -8,7 +8,7 @@ import {playOrResume, heldSession, launchError} from '../../lib/launch.js'
 import {createHero, pickHero} from './hero.js'
 import {createShortcuts} from './shortcuts.js'
 
-/** Jouer: the game to pick up, two shortcuts, and the last few adventures. */
+/** Play: the game to pick up, two shortcuts, and the last few adventures. */
 export function createPlayTab(sdk, {tabs, cards, Icon, Footer, hints}) {
   const {html, useState, useRef, useMemo} = sdk.ui
   const {Fragment} = sdk.ui.React
@@ -21,14 +21,14 @@ export function createPlayTab(sdk, {tabs, cards, Icon, Footer, hints}) {
     if (!games.length) return null
     const played = games.some((g) => g.lastPlayed)
     return html`<${Fragment}><div className="jl-rail-head">
-        <h2>${played ? 'Tes dernières aventures' : 'Dans ta collection'}</h2>
+        <h2>${played ? 'Recently played' : 'From your collection'}</h2>
         <button type="button" className="jl-text-button" data-nav="all"
-                onClick=${() => tabs.go('collection')}>Toute la collection</button>
+                onClick=${() => tabs.go('collection')}>Whole collection</button>
       </div>
       <div className="jl-row">
         ${games.map((g, i) => html`<${cards.GameCard} key=${g.key} game=${g} nav=${`recent-${g.key}`}
           index=${i} held=${!!heldSession(background, g)} onPress=${() => onDetails(g)}
-          meta=${g.lastPlayed ? `${systemName(g.system)}, ${lastPlayed(g.lastPlayed).toLowerCase()}` : systemName(g.system)} />`)}
+          meta=${g.lastPlayed ? `${systemName(g.system)}, ${lastPlayed(sdk, g.lastPlayed).toLowerCase()}` : systemName(g.system)} />`)}
       </div><//>`
   }
 
@@ -55,10 +55,10 @@ export function createPlayTab(sdk, {tabs, cards, Icon, Footer, hints}) {
 
     return html`<section className="jl-page jl-playpage" ref=${root} aria-labelledby="jl-play-title">
       <div className="jl-head">
-        <div><span className="jl-eyebrow">Ton terrain de jeu</span>
-          <h1 id="jl-play-title">À toi de jouer<span className="jl-bang">!</span></h1></div>
+        <div><span className="jl-eyebrow">Your playground</span>
+          <h1 id="jl-play-title">Your turn<span className="jl-bang">.</span></h1></div>
         <div className="jl-count"><strong>${String(games.length).padStart(2, '0')}</strong>
-          <span>${games.length === 1 ? 'jeu' : 'jeux'}<br />à explorer</span></div>
+          <span>${games.length === 1 ? 'game' : 'games'}<br />to explore</span></div>
       </div>
       <div className="jl-hero-grid">
         ${hero ? html`<${Hero.Filled} hero=${hero} error=${error} onStart=${start} onDetails=${() => onDetails(hero.game)} />`

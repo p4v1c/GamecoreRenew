@@ -2,9 +2,9 @@
  * its node when the query changes, so typing never moves the cursor. No
  * accented keys: the search ignores accents. */
 const LETTERS = [
-  ['A', 'Z', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
-  ['Q', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M'],
-  ['W', 'X', 'C', 'V', 'B', 'N', '\'', '-'],
+  ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+  ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', '\''],
+  ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '-'],
 ]
 const SYMBOLS = [
   ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
@@ -17,7 +17,7 @@ export function createKeyboard(sdk) {
 
   return function Keyboard({page, onKey, onPage, onSpace, onDelete, Icon}) {
     const rows = page === 'symbols' ? SYMBOLS : LETTERS
-    return html`<div className="jl-keys" role="group" aria-label="Clavier">
+    return html`<div className="jl-keys" role="group" aria-label="Keyboard">
       ${rows.map((row, r) => html`<div className="jl-keys-row" key=${r}>
         ${row.map((k) => html`<button type="button" key=${k} className="jl-key"
           data-nav=${`k-${k}`} onClick=${() => onKey(k)}>${k}</button>`)}
@@ -25,9 +25,9 @@ export function createKeyboard(sdk) {
           onClick=${onPage}>${page === 'symbols' ? 'ABC' : '123'}</button>` : null}
       </div>`)}
       <div className="jl-keys-row">
-        <button type="button" className="jl-key jl-key-space" data-nav="k-space" onClick=${onSpace}>Espace</button>
+        <button type="button" className="jl-key jl-key-space" data-nav="k-space" onClick=${onSpace}>Space</button>
         <button type="button" className="jl-key jl-key-del" data-nav="k-del" onClick=${onDelete}
-                aria-label="Effacer une lettre"><${Icon} name="erase" /></button>
+                aria-label="Delete a letter"><${Icon} name="erase" /></button>
       </div>
     </div>`
   }

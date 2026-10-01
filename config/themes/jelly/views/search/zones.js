@@ -1,6 +1,6 @@
 import {currentPress} from '../../lib/presses.js'
 
-export const ZONES = [['keys', 'Clavier'], ['filters', 'Filtres'], ['games', 'Jeux']]
+export const ZONES = [['keys', 'Keyboard'], ['filters', 'Filters'], ['games', 'Games']]
 
 /** Which zone of the search owns the pad, and the moves between them.
  *

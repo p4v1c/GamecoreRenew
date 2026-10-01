@@ -19,17 +19,17 @@ export const createUseLayer = (sdk) => function useLayer() {
 }
 
 /** The facts under the description; empty ones are left out, never a dash. */
-const factsOf = (game, meta) => [
+const factsOf = (sdk, game, meta) => [
   ['Console', systemName(game.system)],
-  [meta?.year || systemYear(game.system) ? 'Année' : null, meta?.year || systemYear(game.system)],
+  [meta?.year || systemYear(game.system) ? 'Year' : null, meta?.year || systemYear(game.system)],
   [meta?.developer ? 'Studio' : null, meta?.developer],
   [meta?.genres?.length ? 'Genre' : null, meta?.genres?.slice?.(0, 3).join(', ')],
-  [meta?.players ? 'Joueurs' : null, meta?.players_label || String(meta?.players)],
-  ['Temps de jeu', duration(game.seconds)],
-  [game.lastPlayed ? 'Dernière partie' : null, lastPlayed(game.lastPlayed)],
+  [meta?.players ? 'Players' : null, meta?.players_label || String(meta?.players)],
+  ['Playtime', duration(sdk, game.seconds)],
+  [game.lastPlayed ? 'Last played' : null, lastPlayed(sdk, game.lastPlayed)],
 ].filter(([k]) => k)
 
-/** A game's fiche. Play stays open until the launch resolves, so a refusal is
+/** A game's details panel. Play stays open until the launch resolves, so a refusal is
  * said here; a game frozen in the background is resumed, not started twice. */
 export function createDetails(sdk, {cards, Icon}) {
   const {html, useState, useEffect, useRef} = sdk.ui
@@ -44,7 +44,7 @@ export function createDetails(sdk, {cards, Icon}) {
       let alive = true
       sdk.api.metadata.get(game.systemId, game.gameKey)
         .then((m) => { if (alive && m?.found) setMeta(m) })
-        .catch(() => { /* no metadata: a shorter fiche */ })
+        .catch(() => { /* no metadata: a shorter panel */ })
       return () => { alive = false }
     }, [game.key])
     return meta
@@ -76,19 +76,19 @@ export function createDetails(sdk, {cards, Icon}) {
 
     return html`<div className="jl-scrim" onClick=${(e) => { if (e.target === e.currentTarget) onClose() }}>
       <section className="jl-dialog jl-details" ref=${root} role="dialog" aria-modal="true" aria-labelledby="jl-details-title">
-        <button type="button" className="jl-close" data-nav="close" aria-label="Fermer la fiche" onClick=${onClose}>×</button>
+        <button type="button" className="jl-close" data-nav="close" aria-label="Close details" onClick=${onClose}>×</button>
         <div className="jl-details-art"><${cards.Cover} game=${game} big=${true} /></div>
         <div className="jl-details-copy">
-          <span className="jl-eyebrow">${systemName(game.system)}${held ? ', en pause' : ''}</span>
+          <span className="jl-eyebrow">${systemName(game.system)}${held ? ', paused' : ''}</span>
           <h2 id="jl-details-title">${meta?.title || game.title}</h2>
-          <p className="jl-details-text">${meta?.description || 'Pas encore de description pour ce jeu.'}</p>
-          <dl className="jl-facts">${factsOf(game, meta).map(([k, v]) => html`<div key=${k}><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
+          <p className="jl-details-text">${meta?.description || 'No description for this game yet.'}</p>
+          <dl className="jl-facts">${factsOf(sdk, game, meta).map(([k, v]) => html`<div key=${k}><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
           ${error ? html`<p className="jl-error" role="alert">${error}</p>` : null}
           <div className="jl-actions">
             <button type="button" className="jl-play" data-nav="play" disabled=${busy} onClick=${play}>
-              ${busy ? 'Lancement…' : held ? 'Reprendre' : 'Jouer'}<${PadKey} k="✕" /></button>
+              ${busy ? 'Starting…' : held ? 'Resume' : 'Play'}<${PadKey} k="✕" /></button>
             <button type="button" className="jl-secondary" data-nav="fav" aria-pressed=${String(fav)} onClick=${favourite}>
-              <${Icon} name="star" filled=${fav} />${fav ? 'Retirer des favoris' : 'Ajouter aux favoris'}<${PadKey} k="△" /></button>
+              <${Icon} name="star" filled=${fav} />${fav ? 'Remove from favourites' : 'Add to favourites'}<${PadKey} k="△" /></button>
           </div>
         </div>
       </section>

@@ -351,7 +351,7 @@ Five themes ship with the box. Same screens, same pad controls, different looks.
 | ![Shelf theme home](docs/img/themes/shelf-home.webp) | ![Summer theme home](docs/img/themes/summer-home.webp) |
 | ![Shelf theme controller screen](docs/img/themes/shelf-controller.webp) | ![Summer theme controller screen](docs/img/themes/summer-controller.webp) |
 
-| Jelly: a cyan playground in jelly tiles (French) |
+| Jelly: a cyan playground in jelly tiles |
 |---|
 | ![Jelly theme consoles](docs/img/themes/jelly-home.webp) |
 | ![Jelly theme controller screen](docs/img/themes/jelly-controller.webp) |
