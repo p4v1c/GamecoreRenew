@@ -142,7 +142,12 @@ export const coverUrl = (systemId, filename) =>
   `/api/covers/${encodeURIComponent(systemId)}/${encodeURIComponent(filename)}`
 /** The pack's console photo (catalog/<id>/art/console.*, served as
  * `system.art.console`), else its logo. Orbit holds no copy of the photos. */
-export const consoleArt = (sdk, s) => s?.art?.console || packLogo(s)
+// Tiles older boxes still carry for a pack that no longer exists: the photo is
+// its successor's, served by that pack.
+const SUCCESSOR = {rmg: 'gopher64'}
+export const consoleArt = (sdk, s) => s?.art?.console
+  || (SUCCESSOR[s?.id] && `/api/systems/${SUCCESSOR[s.id]}/art/console`)
+  || packLogo(s)
 
 /** Favourites, in the browser and nowhere else.
  *

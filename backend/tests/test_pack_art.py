@@ -64,15 +64,33 @@ def test_unknown_names_and_escapes_are_refused(client):
 
 
 def test_the_operators_picture_wins_over_the_packs(tmp_path, monkeypatch):
-    shipped = tmp_path / "pack" / "art"
+    shipped = tmp_path / "catalog" / "azahar" / "art"
     shipped.mkdir(parents=True)
     (shipped / "console.webp").write_bytes(b"pack")
     mine = tmp_path / "data" / "assets" / "art" / "azahar"
     mine.mkdir(parents=True)
     (mine / "console.png").write_bytes(b"mine")
+    monkeypatch.setattr("backend.services.pack_art._tiers", lambda: [tmp_path / "catalog"])
     monkeypatch.setattr("backend.services.pack_art.art_dir", lambda: tmp_path / "data" / "assets" / "art")
-    merged = art_for("azahar", pictures_in(shipped))
-    assert merged["console"].read_bytes() == b"mine"
+    assert art_for("azahar")["console"].read_bytes() == b"mine"
+
+
+def test_a_pack_json_override_keeps_the_shipped_photo(tmp_path, monkeypatch):
+    """An OTA correction or a local pack writes pack.json alone: the photo stays."""
+    shipped = tmp_path / "catalog" / "azahar" / "art"
+    shipped.mkdir(parents=True)
+    (shipped / "console.webp").write_bytes(b"shipped")
+    for tier in ("ota", "local"):
+        (tmp_path / tier / "azahar").mkdir(parents=True)
+        (tmp_path / tier / "azahar" / "pack.json").write_text("{}")
+    monkeypatch.setattr("backend.services.pack_art._tiers", lambda: [
+        tmp_path / "catalog", tmp_path / "ota", tmp_path / "local"])
+    monkeypatch.setattr("backend.services.pack_art.art_dir", lambda: tmp_path / "none")
+    assert art_for("azahar")["console"].read_bytes() == b"shipped"
+    local_art = tmp_path / "local" / "azahar" / "art"
+    local_art.mkdir()
+    (local_art / "console.png").write_bytes(b"local")
+    assert art_for("azahar")["console"].read_bytes() == b"local"
 
 
 def test_only_plain_names_and_known_formats_count(tmp_path):

@@ -77,8 +77,9 @@ class Pack:
 
     @property
     def art(self) -> dict[str, Path]:
-        """Pictures for themes, art/<name>.<ext>; `console` is the hardware photo."""
-        from ..pack_art import pictures_in     # pack_art reads the catalogue too
+        """This folder's pictures, art/<name>.<ext>; `console` is the hardware photo.
+        What a theme gets is `pack_art.art_for`, merged across the tiers."""
+        from ..pack_art import pictures_in     # pack_art imports the catalog package
         return pictures_in(self.path / "art")
 
     @property

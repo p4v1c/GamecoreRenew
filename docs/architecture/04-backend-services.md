@@ -727,8 +727,10 @@ session, a failed launch costs the box.
 ### `pack_art.py` — pictures a pack ships for themes
 
 `pictures_in(folder)` lists `art/<name>.<ext>` (webp, png, jpg, svg; plain
-names only). `art_for(id)` lays the operator's `assets/art/<id>/` over the
-pack's. `with_art(rows)` adds `art: {name: url}` to the grid rows served by
+names only). `art_for(id)` merges `<tier>/<id>/art/` name by name over the
+catalogue's tiers (shipped, OTA, `config/catalog.d`), so a pack.json override
+keeps the shipped photo, then lays the operator's `assets/art/<id>/` on top.
+Folders only, no `load_catalog()`: a grid request costs a few stat calls. `with_art(rows)` adds `art: {name: url}` to the grid rows served by
 `GET /systems`, and `picture(id, name)` is what `GET /systems/{id}/art/{name}`
 serves. Looked up by name, never joined into a path.
 

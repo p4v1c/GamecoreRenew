@@ -85,7 +85,12 @@ export const packLogo = (s) => s?.iconPath
 
 /** The pack's console photo (catalog/<id>/art/console.*), else its logo.
  * Changing the photo is changing that file; Jelly holds no copy. */
-export const consoleArt = (sdk, s) => s?.art?.console || packLogo(s)
+// Tiles older boxes still carry for a pack that no longer exists: the photo is
+// its successor's, served by that pack.
+const SUCCESSOR = {rmg: 'gopher64'}
+export const consoleArt = (sdk, s) => s?.art?.console
+  || (SUCCESSOR[s?.id] && `/api/systems/${SUCCESSOR[s.id]}/art/console`)
+  || packLogo(s)
 
 export const coverUrl = (systemId, filename) =>
   `/api/covers/${encodeURIComponent(systemId)}/${encodeURIComponent(filename)}`
