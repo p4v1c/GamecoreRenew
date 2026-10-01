@@ -7,8 +7,8 @@ import {heldSession} from '../../lib/launch.js'
 import {libraryRows} from './rows.js'
 import {createToolbar} from './toolbar.js'
 
-const HINTS = [['← → ↑ ↓', 'Naviguer'], ['✕', 'Fiche'], ['○', 'Consoles'], ['△', 'Rechercher'],
-  ['L1 R1', 'Onglets'], ['Options', 'Options du jeu']]
+const HINTS = [['← → ↑ ↓', 'Move'], ['✕', 'Details'], ['○', 'Consoles'], ['△', 'Search'],
+  ['L1 R1', 'Tabs'], ['Options', 'Game options']]
 
 /** A console's games: the host's library screen, drawn in Jelly. Loading,
  * sort, △ search, per-game options and the launch stay the host's; the host's
@@ -22,19 +22,19 @@ export function createLibrary(sdk, {tabs, cards, chips, Icon, Footer, Details}) 
   function Body({props, shown, favOnly, label, background, onOpen}) {
     const {loadError, loading, search, onRetry} = props
     if (loadError) {
-      return html`<div className="jl-empty"><b>Cette console ne répond pas.</b><p>La liste de ses jeux n’a pas été lue.</p>
-        <button type="button" className="jl-play" data-nav="retry" onClick=${onRetry}>Réessayer</button></div>`
+      return html`<div className="jl-empty"><b>This console isn’t answering.</b><p>Its game list couldn’t be read.</p>
+        <button type="button" className="jl-play" data-nav="retry" onClick=${onRetry}>Try again</button></div>`
     }
     if (loading) return html`<div className="jl-empty" role="status"><b>On ouvre ${label}.</b></div>`
     if (!shown.length) {
       return html`<div className="jl-empty">
-        <b>${favOnly ? 'Pas de favori sur cette console.' : search ? 'Aucun jeu trouvé.' : 'Pas encore de jeu ici.'}</b>
-        <p>${favOnly ? 'Ouvre la fiche d’un jeu et appuie sur △ pour l’ajouter.'
-          : search ? 'Essaie un autre mot avec △.' : 'Ajoute des jeux à cette console pour les voir ici.'}</p></div>`
+        <b>${favOnly ? 'No favourites on this console.' : search ? 'No game found.' : 'No games here yet.'}</b>
+        <p>${favOnly ? 'Open a game’s details and press △ to add it.'
+          : search ? 'Try another word with △.' : 'Add games to this console to see them here.'}</p></div>`
     }
     return html`<div className="jl-grid">${shown.map((r) => html`<${cards.GameCard} key=${r.key} game=${r}
       nav=${`g-${r.key}`} index=${r.index} held=${!!heldSession(background, r)} onPress=${() => onOpen(r)}
-      meta=${duration(r.seconds)} />`)}</div>`
+      meta=${duration(sdk, r.seconds)} />`)}</div>`
   }
 
   return function Library(props) {
@@ -55,7 +55,7 @@ export function createLibrary(sdk, {tabs, cards, chips, Icon, Footer, Details}) 
       keys: {l1: () => tabs.step(-1), r1: () => tabs.step(1)},
     }, [systemId, loading, favOnly, sort, search])
 
-    const label = systemId === '__all__' ? 'Tous les jeux' : systemName(system)
+    const label = systemId === '__all__' ? 'All games' : systemName(system)
     const maker = [systemMaker(system), systemYear(system)].filter(Boolean).join(', ')
     return html`<main className="jl-main" data-tab="library">
       <section className="jl-page jl-library" ref=${root} aria-labelledby="jl-lib-title" style=${{'--cover': coverColor(sdk, system)}}>
@@ -65,7 +65,7 @@ export function createLibrary(sdk, {tabs, cards, chips, Icon, Footer, Details}) 
               onError=${(e) => { e.currentTarget.hidden = true }} />` : null}
             <div><span className="jl-eyebrow">${maker || 'Ta console'}</span><h1 id="jl-lib-title">${label}</h1></div>
           </div>
-          <div className="jl-count"><strong>${String(shown.length).padStart(2, '0')}</strong><span>sur ${plural(totalCount, 'jeu', 'jeux')}</span></div>
+          <div className="jl-count"><strong>${String(shown.length).padStart(2, '0')}</strong><span>of ${plural(totalCount, 'game', 'games')}</span></div>
         </div>
         <${Toolbar} props=${props} favOnly=${favOnly} onFavOnly=${() => setFavOnly((v) => !v)} />
         <${Body} props=${props} shown=${shown} favOnly=${favOnly} label=${label} background=${background} onOpen=${setDetails} />

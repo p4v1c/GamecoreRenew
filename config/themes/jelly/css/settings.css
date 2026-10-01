@@ -45,11 +45,11 @@
 }
 .jelly-settings .gcs-set-title { font-size: 0; letter-spacing: 0; }
 .jelly-settings .gcs-set-title::before {
-  content: 'Réglages GameCore'; display: block; margin-bottom: 6px;
+  content: 'GameCore settings'; display: block; margin-bottom: 6px;
   font-size: 14px; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase; color: var(--set-ink-2);
 }
 .jelly-settings .gcs-set-title::after {
-  content: 'Les coulisses du jeu.'; display: block; font-size: 40px; font-weight: 900; letter-spacing: -0.045em;
+  content: 'Behind the scenes.'; display: block; font-size: 40px; font-weight: 900; letter-spacing: -0.045em;
 }
 .jelly-settings .gcs-set-crumb { font-size: 15px; }
 .jelly-settings .gcs-set-chip { background: var(--jl-pink-ink); letter-spacing: 0.08em; }
@@ -106,15 +106,15 @@
 .jelly-settings .gcs-set-row:nth-child(7) { --jl-row-icon: var(--jl-i-bios); }
 .jelly-settings .gcs-set-row:nth-child(8) { --jl-row-icon: var(--jl-i-themes); }
 .jelly-settings .gcs-set-row:nth-child(9) { --jl-row-icon: var(--jl-i-system); }
-.jelly-settings:has(.gcs-set-page[data-cat="wifi"]) { --jl-cat-icon: var(--jl-i-wifi); --jl-tag: 'On capte !'; }
-.jelly-settings:has(.gcs-set-page[data-cat="bluetooth"]) { --jl-cat-icon: var(--jl-i-bluetooth); --jl-tag: 'Tout se connecte.'; }
-.jelly-settings:has(.gcs-set-page[data-cat="display"]) { --jl-cat-icon: var(--jl-i-display); --jl-tag: 'Grand écran.'; }
-.jelly-settings:has(.gcs-set-page[data-cat="audio"]) { --jl-cat-icon: var(--jl-i-audio); --jl-tag: 'Monte le son !'; }
-.jelly-settings:has(.gcs-set-page[data-cat="controllers"]) { --jl-cat-icon: var(--jl-i-controllers); --jl-tag: 'Prêt à jouer.'; }
-.jelly-settings:has(.gcs-set-page[data-cat="catalog"]) { --jl-cat-icon: var(--jl-i-catalog); --jl-tag: 'La ludothèque.'; }
-.jelly-settings:has(.gcs-set-page[data-cat="bios"]) { --jl-cat-icon: var(--jl-i-bios); --jl-tag: 'Sous le capot.'; }
-.jelly-settings:has(.gcs-set-page[data-cat="themes"]) { --jl-cat-icon: var(--jl-i-themes); --jl-tag: 'À ta façon.'; }
-.jelly-settings:has(.gcs-set-page[data-cat="system"]) { --jl-cat-icon: var(--jl-i-system); --jl-tag: 'Les coulisses.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="wifi"]) { --jl-cat-icon: var(--jl-i-wifi); --jl-tag: 'Signal found.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="bluetooth"]) { --jl-cat-icon: var(--jl-i-bluetooth); --jl-tag: 'Everything connects.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="display"]) { --jl-cat-icon: var(--jl-i-display); --jl-tag: 'Big screen.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="audio"]) { --jl-cat-icon: var(--jl-i-audio); --jl-tag: 'Turn it up.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="controllers"]) { --jl-cat-icon: var(--jl-i-controllers); --jl-tag: 'Ready to play.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="catalog"]) { --jl-cat-icon: var(--jl-i-catalog); --jl-tag: 'The game shelf.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="bios"]) { --jl-cat-icon: var(--jl-i-bios); --jl-tag: 'Under the hood.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="themes"]) { --jl-cat-icon: var(--jl-i-themes); --jl-tag: 'Your way.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="system"]) { --jl-cat-icon: var(--jl-i-system); --jl-tag: 'Behind the scenes.'; }
 
 /* The header's illustration: a tilted jelly tile with the category's icon,
    and the mockup's line for it. Decoration: the category is named in the
@@ -172,7 +172,7 @@
   padding: 14px 36px 18px; border-radius: 0 0 32px 32px; background: var(--set-bg); border-top: 2px solid #ece4f5;
   font-size: 16px; color: var(--set-ink);
 }
-.jelly-settings .gcs-set-foot-l::before { content: 'L2 R2   Défiler'; font-weight: 800; }
+.jelly-settings .gcs-set-foot-l::before { content: 'L2 R2   Scroll'; font-weight: 800; }
 .jelly-settings .gcs-set-hints { font-weight: 700; }
 
 /* ── power menu ── */

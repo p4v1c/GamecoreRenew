@@ -1,5 +1,5 @@
 /* ===========================================================================
-   Jouer (hero, two shortcuts) and Consoles (photo cards, applications).
+   Play (hero, two shortcuts) and Consoles (photo cards, applications).
    =========================================================================== */
 
 .jl-hero-grid { flex: none; display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr); gap: calc(24 * var(--px)); }

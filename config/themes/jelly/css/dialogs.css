@@ -1,5 +1,5 @@
 /* ===========================================================================
-   Jelly's own layers: the game fiche and the search.
+   Jelly's own layers: the game details and the search.
    =========================================================================== */
 
 .jl-scrim {
@@ -20,7 +20,7 @@
   background: var(--jl-paper-2); font-size: calc(26 * var(--px)); font-weight: 700;
 }
 
-/* ── the fiche ── */
+/* ── the details panel ── */
 .jl-details { width: min(calc(1180 * var(--px)), 100%); display: grid; grid-template-columns: calc(360 * var(--px)) minmax(0, 1fr); gap: calc(40 * var(--px)); padding: calc(44 * var(--px)); }
 .jl-details-art { height: calc(470 * var(--px)); }
 .jl-details-copy { display: flex; flex-direction: column; min-width: 0; padding-right: calc(40 * var(--px)); }

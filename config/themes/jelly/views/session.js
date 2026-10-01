@@ -25,35 +25,35 @@ export function createSession(sdk, {Icon}) {
   function Bar({sessions, focusIdx, busy, onManage}) {
     const s = sessions[focusIdx] || sessions[0]
     if (!s) return null
-    return html`<aside className="jl-dock" aria-label="Partie en pause">
+    return html`<aside className="jl-dock" aria-label="Paused game">
       <span className="jl-dock-art"><${Art} s=${s} /></span>
-      <span className="jl-dock-text"><small><${Icon} name="pause" />En pause${sessions.length > 1 ? `, ${focusIdx + 1} sur ${sessions.length}` : ''}</small>
+      <span className="jl-dock-text"><small><${Icon} name="pause" />Paused${sessions.length > 1 ? `, ${focusIdx + 1} of ${sessions.length}` : ''}</small>
         <b>${titleOf(s)}</b></span>
       <button type="button" className="jl-dock-button" disabled=${busy} onClick=${() => onManage?.()}>
-        ${busy ? 'Un instant…' : 'Gérer'}</button>
+        ${busy ? 'One moment…' : 'Manage'}</button>
       <span className="jl-dock-key"><${PadKey} k="PS ×2" /></span>
     </aside>`
   }
 
   /** Actions arrive resolved, with the pad already bound by the host. */
   function Menu({session, sessions, index, confirming, busy, actions, actionIdx, title}) {
-    const noun = session.kind === 'app' ? 'l’application' : 'la partie'
+    const noun = session.kind === 'app' ? 'the app' : 'the game'
     return html`<section className="jl-session" role="dialog" aria-modal="true" aria-labelledby="jl-session-title">
       <div className="jl-session-art"><${Art} s=${session} /></div>
       <div className="jl-session-copy">
-        <span className="jl-eyebrow">${confirming ? 'On arrête vraiment ?' : session.kind === 'app' ? 'Application en pause' : 'Partie en pause'}${
-          sessions.length > 1 ? `, ${index + 1} sur ${sessions.length}` : ''}</span>
+        <span className="jl-eyebrow">${confirming ? 'Close it for real?' : session.kind === 'app' ? 'App paused' : 'Game paused'}${
+          sessions.length > 1 ? `, ${index + 1} of ${sessions.length}` : ''}</span>
         <h2 id="jl-session-title">${title(session)}</h2>
         <p>${confirming
-          ? `Fermer ${noun} perd tout ce qui n’a pas été sauvegardé.`
-          : 'Figée exactement là où tu l’as laissée. Rien ne tourne, le temps de jeu ne compte pas.'}</p>
+          ? `Closing ${noun} loses anything not saved.`
+          : 'Frozen exactly where you left it. Nothing runs, and playtime isn’t counted.'}</p>
         <div className="jl-session-actions">
           ${actions.map((a, i) => html`<button type="button" key=${a.id} disabled=${busy}
             data-active=${actionIdx === i ? 'true' : 'false'}
             className=${`jl-session-option ${a.primary ? 'is-primary' : ''} ${a.danger ? 'is-danger' : ''}`}
-            onClick=${a.run}>${busy ? 'Un instant…' : a.label}</button>`)}
+            onClick=${a.run}>${busy ? 'One moment…' : a.label}</button>`)}
         </div>
-        <p className="jl-session-hints"><${PadHints} text=${'↑ ↓ Choisir · ✕ Valider · ○ Retour'
+        <p className="jl-session-hints"><${PadHints} text=${'↑ ↓ Choose · ✕ Confirm · ○ Back'
           + (sessions.length > 1 ? ' · L1 R1 Session' : '')} /></p>
       </div>
     </section>`

@@ -7,7 +7,7 @@ export function createChips(sdk, {Icon}) {
   const PadKey = sdk.ui.PadKey || (({k}) => html`<kbd>${k}</kbd>`)
   const useJacketStyle = createUseJacketStyle(sdk)
 
-  function SearchChip({nav, label = 'Rechercher', onClick}) {
+  function SearchChip({nav, label = 'Search', onClick}) {
     return html`<button type="button" className="jl-chip jl-chip-search" data-nav=${nav} onClick=${onClick}>
       <${Icon} name="search" />${label}<${PadKey} k="△" /></button>`
   }
@@ -17,7 +17,7 @@ export function createChips(sdk, {Icon}) {
     const solid = style === 'box-3d'
     return html`<button type="button" className="jl-chip jl-chip-style" data-nav=${nav}
                         aria-pressed=${String(solid)} onClick=${toggleJacketStyle}>
-      <${Icon} name=${solid ? 'box' : 'flat'} />${solid ? 'Boîtes 3D' : 'Jaquettes à plat'}</button>`
+      <${Icon} name=${solid ? 'box' : 'flat'} />${solid ? '3D boxes' : 'Flat covers'}</button>`
   }
 
   return {SearchChip, StyleChip}

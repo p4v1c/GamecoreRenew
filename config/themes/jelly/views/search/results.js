@@ -7,15 +7,15 @@ import {heldSession} from '../../lib/launch.js'
 export function createResults(sdk, {cards}) {
   const {html} = sdk.ui
 
-  const lineOf = (g, background) => [duration(g.seconds),
-    isFavourite(g.systemId, g.gameKey) ? 'favori' : null,
-    heldSession(background, g) ? 'en pause' : null].filter(Boolean).join(', ')
+  const lineOf = (g, background) => [duration(sdk, g.seconds),
+    isFavourite(g.systemId, g.gameKey) ? 'favourite' : null,
+    heldSession(background, g) ? 'paused' : null].filter(Boolean).join(', ')
 
   return function Results({games, limit, background, status, searching, onPick}) {
     if (!games.length) {
       return html`<div className="jl-empty jl-empty-small">
-        <b>${status === 'error' ? 'La collection ne répond pas.' : 'Aucun jeu ne correspond.'}</b>
-        <p>${searching ? 'Essaie un autre mot, ou vide tout avec L2.' : 'Ajoute des jeux à tes consoles.'}</p>
+        <b>${status === 'error' ? 'The collection isn’t answering.' : 'No game matches.'}</b>
+        <p>${searching ? 'Try another word, or clear everything with L2.' : 'Add games to your consoles.'}</p>
       </div>`
     }
     return games.slice(0, limit).map((g, i) => html`<button type="button" key=${g.key}

@@ -1,9 +1,10 @@
 /**
- * Jelly's search, its fiche, its session parts and its settings, against the
- * real SDK. The search is a layer Jelly opens itself, so the claims here are
- * the ones the brief makes: the pad starts on A, three zones, the cursor never
- * jumps on a keystroke, ○ goes back to the keyboard and then closes, a fiche
- * returns to the result it came from, and the modal depth is given back.
+ * Jelly's search, its details panel, its session parts and its settings,
+ * against the real SDK. The search is a layer Jelly opens itself, so the
+ * claims here are the ones the brief makes: the pad starts on A, three zones,
+ * the cursor never jumps on a keystroke, ○ goes back to the keyboard and then
+ * closes, a details panel returns to the result it came from, and the modal
+ * depth is given back.
  *
  * jsdom has no layout, so d-pad steps between keys are walked in a browser
  * (see the theme README); here the focused control is set, and every button
@@ -108,7 +109,7 @@ describe('the search', () => {
     await press('gp:x')
     expect(query()).toBe('POK')
     await press('gp:l2')
-    expect(query()).toBe('Un jeu, une console…')
+    expect(query()).toBe('A game, a console…')
     expect(titles()).toHaveLength(4)
   })
 
@@ -141,7 +142,7 @@ describe('the search', () => {
     expect(focused()).toBe(second.dataset.nav)
   })
 
-  it('opens a fiche from a result and comes back to that same result', async () => {
+  it('opens the details panel from a result and comes back to that same result', async () => {
     const { launchGame } = await home()
     await press('gp:y')
     await press('gp:y')
@@ -155,7 +156,7 @@ describe('the search', () => {
     await press('gp:back')
     expect(document.querySelector('.jl-details')).toBeNull()
     expect(focused()).toBe(result.dataset.nav)
-    // The fiche's Play launches the real ROM.
+    // The details panel's Play launches the real ROM.
     await press('gp:confirm')
     await settle()
     ;(document.querySelector('[data-nav="play"]') as HTMLElement).focus()
@@ -179,14 +180,14 @@ describe('the search', () => {
   })
 })
 
-describe('the fiche', () => {
+describe('the details panel', () => {
   it('toggles a favourite with △ and says so', async () => {
     await home()
     ;(document.querySelector('[data-nav="hero-details"]') as HTMLElement).focus()
     await press('gp:confirm')
     await settle()
     await press('gp:y')
-    expect(document.querySelector('[data-nav="fav"]')?.textContent).toContain('Retirer des favoris')
+    expect(document.querySelector('[data-nav="fav"]')?.textContent).toContain('Remove from favourites')
     expect(JSON.parse(localStorage.getItem('jelly-favourites') || '[]')).toHaveLength(1)
   })
 })
@@ -205,11 +206,11 @@ describe('the session parts', () => {
     const r = render(createElement(Menu, {
       session: s, sessions: [s], index: 0, confirming: false, busy: false, actionIdx: 1,
       title: () => 'YouTube',
-      actions: [{ id: 'resume', label: 'Reprendre', primary: true, run }, { id: 'close', label: 'Fermer', danger: true, run }],
+      actions: [{ id: 'resume', label: 'Resume', primary: true, run }, { id: 'close', label: 'Close', danger: true, run }],
     }))
     const options = r.container.querySelectorAll('.jl-session-option')
     expect(options[1].getAttribute('data-active')).toBe('true')
-    expect(r.container.textContent).toContain('Application en pause')
+    expect(r.container.textContent).toContain('App paused')
     ;(options[0] as HTMLElement).click()
     expect(run).toHaveBeenCalled()
   })

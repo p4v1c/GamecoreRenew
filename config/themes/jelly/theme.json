@@ -1,9 +1,9 @@
 {
   "id": "jelly",
   "name": "Jelly",
-  "version": "1.2.2",
+  "version": "1.3.0",
   "api": 9,
-  "description": "Un terrain de jeu en gelée : tes jeux, tes consoles et tes réglages, tout en rondeurs et en couleurs.",
+  "description": "A jelly playground: your games, consoles and settings, all round shapes and bright colours.",
   "author": "GameCore Community",
   "entry": "index.js",
   "styles": "theme.css",

@@ -137,7 +137,7 @@ describe('Jouer', () => {
         systemId: 'duckstation', session: 7, kind: 'game' }] } as never)
     })
     await settle()
-    expect(document.querySelector('.jl-pill')?.textContent).toContain('En pause')
+    expect(document.querySelector('.jl-pill')?.textContent).toContain('Paused')
     ;(document.querySelector('[data-nav="hero-play"]') as HTMLElement).focus()
     await press('gp:confirm')
     expect(resume).toHaveBeenCalledWith(7)
@@ -146,7 +146,7 @@ describe('Jouer', () => {
 })
 
 describe('the tabs', () => {
-  it('walk with L1 and R1, and ○ comes back to Jouer', async () => {
+  it('walk with L1 and R1, and ○ comes back to Play', async () => {
     const { container } = await mountHome()
     await press('gp:r1')
     expect(container.querySelector('.jl-collection')).toBeTruthy()
@@ -215,7 +215,7 @@ describe('the jackets', () => {
 })
 
 describe('a console\'s library', () => {
-  it('opens from Consoles, and ○ goes back to Consoles rather than to Jouer', async () => {
+  it('opens from Consoles, and ○ goes back to Consoles rather than to Play', async () => {
     // One ○ reaches the host (library → home) and then Jelly's Consoles tab,
     // which would read the new screen and leave for Jouer on the same press.
     const { container } = await mountHome()
@@ -269,7 +269,7 @@ describe('the pad', () => {
     pads = [{ index: 0, id: 'pad', connected: true }]
     await press('gp:connected')
     expect(container.querySelector('.jl-pad-none')).toBeNull()
-    expect(container.querySelector('.jl-pad')?.textContent).toContain('J1')
+    expect(container.querySelector('.jl-pad')?.textContent).toContain('P1')
     pads = []
     await press('gp:disconnected')
     expect(container.querySelector('.jl-pad-none')).toBeTruthy()

@@ -56,12 +56,12 @@ const CONSOLES = {
 
 /** The application packs. Ids match catalog/<id>/pack.json. */
 const APPS = {
-  steam: {color: '#1f3b5c', category: 'Jeux PC', blurb: 'Steam en mode Big Picture, fait pour la manette.'},
-  youtube: {color: '#c4302b', category: 'Vidéos', blurb: 'YouTube dans son interface TV.'},
-  twitch: {color: '#7b45d6', category: 'En direct', blurb: 'Twitch avec EmberTV, l’interface TV du pack GameCore.'},
-  stremio: {color: '#5b47c9', category: 'Films & séries', blurb: 'Stremio dans son interface TV.'},
+  steam: {color: '#1f3b5c', category: 'PC games', blurb: 'Steam in Big Picture mode, built for the pad.'},
+  youtube: {color: '#c4302b', category: 'Videos', blurb: 'YouTube in its TV interface.'},
+  twitch: {color: '#7b45d6', category: 'Live', blurb: 'Twitch through EmberTV, the TV interface in the GameCore pack.'},
+  stremio: {color: '#5b47c9', category: 'Films & series', blurb: 'Stremio in its TV interface.'},
 }
-const DEFAULT_APP = {color: PURPLE, category: 'Application', blurb: 'Une application de ton catalogue GameCore.'}
+const DEFAULT_APP = {color: PURPLE, category: 'Application', blurb: 'An app from your GameCore catalogue.'}
 
 export const isApp = (s) => s?.kind === 'app' || s?.type === 'app' || s?.type === 'application'
 
@@ -100,5 +100,5 @@ export const coverUrl = (systemId, filename) =>
 export const titleFromKey = (sdk, key) => sdk.format.gameName(
   String(key || '').replace(/\.[^.]+$/, '').replace(/[([{][^)\]}]*[)\]}]/g, '').trim())
 
-/** "0 jeu", "1 jeu", "3 jeux": French keeps zero singular. */
-export const plural = (n, one, many) => `${n} ${n <= 1 ? one : many}`
+/** "0 games", "1 game", "3 games". */
+export const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`

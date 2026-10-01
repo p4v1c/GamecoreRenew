@@ -34,7 +34,7 @@ export function createSplash(sdk) {
     }, [held, bootReady])
 
     return html`<div className="jl-splash" data-out=${leaving ? 'true' : 'false'}
-                     style=${{'--jl-fade': `${FADE_MS}ms`}} role="status" aria-label="GameCore démarre">
+                     style=${{'--jl-fade': `${FADE_MS}ms`}} role="status" aria-label="GameCore is starting">
       <div className="jl-splash-floor" aria-hidden="true" />
       <div className="jl-splash-stage">
         <span className="jl-splash-mark" aria-hidden="true" dangerouslySetInnerHTML=${{__html: mark()}} />

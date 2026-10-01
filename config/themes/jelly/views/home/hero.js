@@ -3,9 +3,9 @@ import {systemName, coverColor} from '../../lib/catalog.js'
 import {byRecent} from '../../lib/collection.js'
 import {track} from '../../lib/drawings.js'
 
-const PILL = {paused: 'En pause', recent: 'Dernière partie', new: 'À découvrir'}
+const PILL = {paused: 'Paused', recent: 'Last played', new: 'New here'}
 const PILL_ICON = {paused: 'pause', recent: 'again', new: 'sparkle'}
-const TITLE = {paused: 'On reprend ?', recent: 'Encore un petit tour ?', new: 'Et si on commençait ?'}
+const TITLE = {paused: 'Pick it back up', recent: 'One more round', new: 'Start with this one'}
 
 /** The suspended game first, then the last one played, then any game. */
 export const pickHero = (games, background) => {
@@ -17,7 +17,7 @@ export const pickHero = (games, background) => {
   return games[0] ? {game: games[0], mood: 'new'} : null
 }
 
-/** The big purple card on Jouer: the game to pick up, or why there is none. */
+/** The big purple card on Play: the game to pick up, or why there is none. */
 export function createHero(sdk, {cards, Icon}) {
   const {html} = sdk.ui
   const PadKey = sdk.ui.PadKey || (({k}) => html`<kbd>${k}</kbd>`)
@@ -33,12 +33,12 @@ export function createHero(sdk, {cards, Icon}) {
         <span className="jl-pill"><${Icon} name=${PILL_ICON[mood]} />${PILL[mood]}</span>
         <h2>${TITLE[mood]}</h2>
         <p className="jl-hero-game">${game.title}<span>, ${systemName(game.system)}${
-          game.seconds ? `, ${duration(game.seconds)} de jeu` : ''}</span></p>
+          game.seconds ? `, ${duration(sdk, game.seconds)} played` : ''}</span></p>
         ${error ? html`<p className="jl-error" role="alert">${error}</p>` : null}
         <div className="jl-hero-actions">
           <button type="button" className="jl-play" data-nav="hero-play" onClick=${onStart}>
-            ${mood === 'paused' ? 'Reprendre' : 'C’est parti'}<${PadKey} k="✕" /></button>
-          <button type="button" className="jl-ghost" data-nav="hero-details" onClick=${onDetails}>Voir la fiche</button>
+            ${mood === 'paused' ? 'Resume' : 'Play'}<${PadKey} k="✕" /></button>
+          <button type="button" className="jl-ghost" data-nav="hero-details" onClick=${onDetails}>Details</button>
         </div>
       </div>
     </div>`
@@ -46,16 +46,16 @@ export function createHero(sdk, {cards, Icon}) {
 
   function Empty({status, onRetry, onSettings}) {
     const loading = status === 'loading' || status === 'idle'
-    const [title, line] = loading ? ['On ouvre la boîte à jeux.', 'Les consoles et les jeux arrivent.']
-      : status === 'error' ? ['La collection ne répond pas.', 'Aucune console n’a donné sa liste de jeux.']
-        : ['Ta collection commence ici.', 'Installe un émulateur dans Réglages, puis ajoute tes jeux.']
+    const [title, line] = loading ? ['Opening the game box.', 'Consoles and games are on their way.']
+      : status === 'error' ? ['The collection isn’t answering.', 'No console sent its game list.']
+        : ['Your collection starts here.', 'Install an emulator in Settings, then add your games.']
     const action = loading ? null : status === 'error'
-      ? html`<button type="button" className="jl-play" data-nav="hero-retry" onClick=${onRetry}>Réessayer<${PadKey} k="✕" /></button>`
-      : html`<button type="button" className="jl-play" data-nav="hero-settings" onClick=${onSettings}>Ouvrir les réglages<${PadKey} k="✕" /></button>`
+      ? html`<button type="button" className="jl-play" data-nav="hero-retry" onClick=${onRetry}>Try again<${PadKey} k="✕" /></button>`
+      : html`<button type="button" className="jl-play" data-nav="hero-settings" onClick=${onSettings}>Open settings<${PadKey} k="✕" /></button>`
     return html`<div className="jl-hero jl-hero-empty">
       <div className="jl-hero-art" aria-hidden="true"><${Track} /></div>
       <div className="jl-hero-copy">
-        <span className="jl-pill">${loading ? 'Un instant' : 'Bienvenue'}</span>
+        <span className="jl-pill">${loading ? 'One moment' : 'Welcome'}</span>
         <h2>${title}</h2><p className="jl-hero-game">${line}</p>
         <div className="jl-hero-actions">${action}</div>
       </div>

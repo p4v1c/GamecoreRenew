@@ -24,7 +24,7 @@ export function createTopBar(sdk, {tabs, actions}) {
     actions.power = onPower
 
     useEffect(() => {
-      const tick = () => setClock(new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}))
+      const tick = () => setClock(new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'}))
       tick()
       const t = setInterval(tick, 15000)
       return () => clearInterval(t)
@@ -32,11 +32,11 @@ export function createTopBar(sdk, {tabs, actions}) {
 
     const lit = screen === 'library' ? 'consoles' : tab
     return html`<header className="jl-topbar">
-      <button type="button" className="jl-brand" aria-label="GameCore, accueil" onClick=${() => tabs.go('play')}>
+      <button type="button" className="jl-brand" aria-label="GameCore, home" onClick=${() => tabs.go('play')}>
         <span className="jl-brand-mark" dangerouslySetInnerHTML=${{__html: mark()}} />
         <span className="jl-brand-word">GameCore<small>Jelly edition</small></span>
       </button>
-      <nav className="jl-tabs" aria-label="Navigation principale">
+      <nav className="jl-tabs" aria-label="Main navigation">
         <${PadKey} k="L1" />
         ${TABS.map(([id, label]) => html`<button type="button" key=${id}
           className=${`jl-tab ${lit === id ? 'is-on' : ''}`} aria-current=${lit === id ? 'page' : undefined}
@@ -44,9 +44,9 @@ export function createTopBar(sdk, {tabs, actions}) {
         <${PadKey} k="R1" />
       </nav>
       <div className="jl-top-actions">
-        <button type="button" className="jl-icon" aria-label="Rechercher" onClick=${() => actions.search?.()}>${icon('search')}</button>
-        <button type="button" className="jl-icon" aria-label="Réglages" onClick=${onSettings}>${icon('settings')}</button>
-        <button type="button" className="jl-icon" aria-label="Alimentation" onClick=${onPower}>${icon('power')}</button>
+        <button type="button" className="jl-icon" aria-label="Search" onClick=${() => actions.search?.()}>${icon('search')}</button>
+        <button type="button" className="jl-icon" aria-label="Settings" onClick=${onSettings}>${icon('settings')}</button>
+        <button type="button" className="jl-icon" aria-label="Power" onClick=${onPower}>${icon('power')}</button>
         <time className="jl-clock">${clock}</time>
       </div>
     </header>`
