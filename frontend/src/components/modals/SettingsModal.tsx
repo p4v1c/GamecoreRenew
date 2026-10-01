@@ -15,6 +15,7 @@ import { CatalogPage } from './settings/CatalogPage'
 import { BiosPage } from './settings/BiosPage'
 import { StoragePage } from './settings/StoragePage'
 import { PadHints } from '../../lib/padKey'
+import { biosSummary } from '../../settings/bios'
 
 interface Props { onClose: () => void }
 
@@ -70,7 +71,7 @@ export default function SettingsModal({ onClose }: Props) {
     api.catalog.list()
       .then(c => put('catalog', `${c.filter(x => x.installed).length} installed`)).catch(() => {})
     api.bios.list()
-      .then(b => put('bios', `${b.filter(x => x.status === 'ok').length}/${b.length} ready`)).catch(() => {})
+      .then(b => put('bios', biosSummary(b))).catch(() => {})
     api.sysinfo().then(s => put('update', `v${s.version}`)).catch(() => {})
     fetchThemeIndex()
       .then(i => put('themes', i.themes.find(t => t.id === i.active)?.name ?? 'Default'))

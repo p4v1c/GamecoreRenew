@@ -13,12 +13,10 @@ router = APIRouter(tags=["bios"])
 def get_bios():
     """Every system declaring a `bios` block, with its verdict.
 
-    `installed` rather than a filter. A system the owner has not added is still
-    worth listing — it is how they learn, before installing PCSX2, that a file
-    will be needed — but it must not be painted as a fault, and the page dims
-    it. Hiding the row entirely would make the screen answer a question nobody
-    asked ("what is broken right now") instead of the one they came with
-    ("what does this box still need").
+    `installed` rather than a filter: the answer stays complete for any caller,
+    and the settings screen keeps the installed rows only (`biosRows` in
+    frontend/src/settings/bios.js). A file for an emulator the box does not
+    have is not something the box needs.
     """
     live = _live_ids()
     rows = bios_service.report()

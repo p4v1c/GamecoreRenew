@@ -73,8 +73,14 @@
 .orbit-app .orbit-settings .gcs-grp[data-open="1"] { color: var(--set-ink); background: #ffffff0a; }
 .orbit-app .orbit-settings .gcs-grp-body { gap: 4px; padding: 4px 0 8px; }
 .orbit-app .orbit-settings .gcs-pack { min-height: 70px; padding: 12px 24px; }
-.orbit-app .orbit-settings .gcs-bios { padding: 20px 28px; }
-.orbit-app .orbit-settings .gcs-bios-grid { gap: 4px; }
+.orbit-app .orbit-settings .gcs-bios { min-height: 64px; padding: 0 24px; }
+.orbit-app .orbit-settings .gcs-bios-split { grid-template-columns: minmax(0, 11fr) minmax(0, 9fr); }
+.orbit-app .orbit-settings .gcs-bios-list { gap: 4px; }
+.orbit-app .orbit-settings .gcs-bios-list .gcs-bios-name { font-size: 19px; }
+.orbit-app .orbit-settings .gcs-bios-detail {
+  border-radius: 12px; background: #ffffff0a; border: 1px solid var(--orbit-set-rowline);
+}
+.orbit-app .orbit-settings .gcs-bios-dname { font-family: var(--font-body); font-weight: 400; }
 
 .orbit-app .orbit-settings .gcs-set-index-row[data-on="1"],
 .orbit-app .orbit-settings .gcs-set-index-row:hover,

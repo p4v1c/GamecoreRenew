@@ -74,15 +74,15 @@
 }
 /* Install is the affirmative action and wears the accent; Remove is neutral,
    because a destructive button that looks like the primary one gets pressed. */
-/* ── BIOS: two columns of cards ─────────────────────────────────────────── */
-@media (max-width: 1500px) { .gcs-bios-grid { grid-template-columns: 1fr; } }
-.gcs-bios {
+/* ── BIOS: the list of installed consoles and the detail of one ─────────── */
+.gcs-bios, .gcs-bios-detail {
   background: #fff;
 }
-/* A system the owner has not added is dimmed, never hidden: it is how somebody
-   learns a file will be needed before installing the emulator. */
 .gcs-bios-dot {
-  background: rgba(23, 23, 26, 0.25);
+  background: #97402c;
+}
+.gcs-bios-state {
+  color: #97402c;
 }
 .gcs-bios-dot[data-ok="1"] { background: #3aa76d; }
 .gcs-bios-fstate {

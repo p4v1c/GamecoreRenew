@@ -92,7 +92,8 @@ const BOX: Record<string, unknown> = {
   ],
   '/api/bios': [
     { id: 'pcsx2', label: 'PlayStation 2', status: 'ok', installed: true, files: [] },
-    { id: 'cemu', label: 'Wii U', status: 'absent', installed: false, files: [] },
+    { id: 'cemu', label: 'Wii U', status: 'absent', installed: true, files: [] },
+    { id: 'xenia', label: 'Xbox 360', status: 'absent', installed: false, files: [] },
   ],
   '/api/themes': {
     sdk_version: 1, active: 'shelf',

@@ -149,7 +149,7 @@
 
 /* Every row the pages draw: white jelly cards with a soft step under them. */
 .jelly-settings .gcs-row2, .jelly-settings .gcs-wifi-row, .jelly-settings .gcs-bt-row,
-.jelly-settings .gcs-pack, .jelly-settings .gcs-bios, .jelly-settings .gcs-grp, .jelly-settings .gcs-dlg-row {
+.jelly-settings .gcs-pack, .jelly-settings .gcs-bios, .jelly-settings .gcs-bios-detail, .jelly-settings .gcs-grp, .jelly-settings .gcs-dlg-row {
   border-radius: 18px; border: 2px solid #ece4f5; background: #fff; box-shadow: 0 4px 0 #30204e12;
 }
 .jelly-settings .gcs-row2[data-on="1"], .jelly-settings .gcs-wifi-row[data-on="1"], .jelly-settings .gcs-bt-row[data-on="1"],

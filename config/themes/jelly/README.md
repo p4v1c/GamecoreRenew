@@ -1,4 +1,4 @@
-# Jelly 1.4.0
+# Jelly 1.4.1
 
 A bright, rounded GameCore theme: a cyan playground, purple and pink jelly
 tiles, keys that press down, one burst of confetti at boot. Textures and

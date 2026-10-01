@@ -71,3 +71,15 @@ declare module '*/settings/controllers' {
 declare module '*/settings/rows' {
   export function createRows(sdk: unknown): unknown
 }
+
+declare module '*/settings/bios' {
+  /** The installed systems from `GET /bios`, the ones needing a file first. */
+  export function biosRows<T extends { installed?: boolean; status: string; label: string }>(rows: T[]): T[]
+  /** A system's verdict for its row: "Ready", "File missing", "2 files missing", "Wrong file". */
+  export function systemVerdict(b: { status: string; files?: unknown[] }): string
+  /** One file's state; `tone` is ok, bad, or quiet for an optional absent file. */
+  export function fileVerdict(f: { status: string; required?: boolean; verified?: boolean }): { tone: 'ok' | 'bad' | 'quiet'; text: string }
+  /** "4/6 ready", counting installed systems only. */
+  export function biosSummary(rows: unknown): string
+  export function createBiosPage(sdk: unknown): (props: { active: boolean; onLeave: () => void }) => import('react').ReactNode
+}

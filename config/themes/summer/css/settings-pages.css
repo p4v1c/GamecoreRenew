@@ -145,19 +145,18 @@
 .gcs-pack-btn[data-on="1"] { background: color-mix(in srgb, var(--sea-brand) 55%, transparent); color: var(--foam-000); }
 
 /* ── BIOS ────────────────────────────────────────────────────────────────── */
-@media (max-width: 1500px) { .gcs-bios-grid { grid-template-columns: 1fr; } }
-.gcs-bios {
+.gcs-bios, .gcs-bios-detail {
   border-radius: var(--r-tile);
   background: var(--glass-700);
   border: 1px solid transparent;
 }
 .gcs-bios[data-on="1"] { border-color: var(--accent-mandarin); box-shadow: 0 0 0 1px var(--accent-mandarin) inset; }
 .gcs-bios-dot {
-  background: rgba(255, 253, 247, 0.3);
+  background: var(--state-alert);
 }
 .gcs-bios-dot[data-ok="1"] { background: var(--state-ok); }
 .gcs-bios-state {
-  color: var(--foam-400);
+  color: var(--state-alert);
 }
 .gcs-bios-state[data-ok="1"] { color: var(--state-ok); }
 .gcs-bios-path {
@@ -173,7 +172,9 @@
 .gcs-bios-fstate {
   color: var(--state-alert);
 }
-.gcs-bios-fstate[data-ok="1"] { color: var(--state-ok); }
+.gcs-bios-fstate[data-tone="ok"] { color: var(--state-ok); }
+.gcs-bios-fstate[data-tone="quiet"] { color: var(--foam-400); }
+.gcs-bios-label { color: var(--foam-400); }
 .gcs-bios-note {
   color: var(--foam-400);
 }

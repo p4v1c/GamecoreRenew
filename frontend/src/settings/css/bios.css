@@ -1,59 +1,77 @@
-/* ── BIOS: two columns of cards ─────────────────────────────────────────── */
-.gcs-bios-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+/* ── BIOS: a list of installed consoles, and the detail of one ─────────────
+   Every list row is the same height, so the column reads as a column; the
+   detail beside it carries the path, the files and their notes for the row
+   under the cursor only. */
+.gcs-bios-split {
+  display: grid; grid-template-columns: minmax(300px, 5fr) 7fr; gap: 18px; align-items: start;
+}
 
-@media (max-width: 1500px) { .gcs-bios-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1500px) { .gcs-bios-split { grid-template-columns: 1fr; } }
+
+.gcs-bios-list { display: grid; gap: 8px; }
 
 .gcs-bios {
-  padding: 18px 20px; border-radius: 14px;
+  display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 14px;
+  min-height: 58px; padding: 0 20px; border-radius: 14px; cursor: pointer;
   background: var(--set-card); border: 1px solid var(--set-line);
 }
 
-/* A system the owner has not added is dimmed, never hidden: it is how somebody
-   learns a file will be needed before installing the emulator. */
-.gcs-bios[data-off="1"] { opacity: 0.55; }
-
+.gcs-bios[data-sel="1"] { border-color: var(--set-acc); }
 .gcs-bios[data-on="1"] { border-color: var(--set-acc); box-shadow: 0 0 0 1px var(--set-acc) inset; }
 
-.gcs-bios-head { display: flex; align-items: center; gap: 11px; }
-
 .gcs-bios-dot {
-  width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto;
-  background: rgba(var(--set-ink-rgb), 0.25);
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--set-alert);
 }
 
 .gcs-bios-dot[data-ok="1"] { background: var(--set-ok); }
 
 .gcs-bios-name {
-  flex: 1; font-family: var(--font-display); font-size: 19px; font-weight: 700;
-  letter-spacing: -0.01em;
+  font-family: var(--font-display); font-size: 19px; font-weight: 700; letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 .gcs-bios-state {
-  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px;
-  color: var(--set-ink-3);
-}
-
-.gcs-bios-state[data-ok="1"] { color: var(--set-acc-deep); }
-
-.gcs-bios-path {
-  margin-top: 6px; font-family: var(--font-mono); font-size: 14px;
-  color: var(--set-ink-3); overflow-wrap: anywhere;
-}
-
-.gcs-bios-files { margin-top: 14px; display: grid; gap: 12px; }
-
-.gcs-bios-file { padding-top: 12px; border-top: 1px solid var(--set-line); }
-
-.gcs-bios-file-l { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-
-.gcs-bios-fname { font-family: var(--font-mono); font-size: 14px; }
-
-.gcs-bios-fstate {
-  font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px;
+  font-family: var(--font-body, inherit); font-size: 15px; font-weight: 600; white-space: nowrap;
   color: var(--set-alert);
 }
 
-.gcs-bios-fstate[data-ok="1"] { color: var(--set-acc-deep); }
+.gcs-bios-state[data-ok="1"] { color: var(--set-ok); }
 
-.gcs-bios-note { margin-top: 5px; font-size: 14px; line-height: 1.55; color: var(--set-ink-2); }
+.gcs-bios-detail {
+  position: sticky; top: 0; padding: 24px 26px; border-radius: 16px;
+  background: var(--set-card); border: 1px solid var(--set-line);
+}
 
+.gcs-bios-dhead { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+
+.gcs-bios-dname { font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+
+.gcs-bios-label {
+  margin-top: 18px; font-size: 14px; font-weight: 600; color: var(--set-ink-3);
+}
+
+.gcs-bios-path {
+  margin-top: 4px; font-family: var(--font-mono); font-size: 15px; overflow-wrap: anywhere;
+  color: var(--set-ink-2);
+}
+
+.gcs-bios-files { margin-top: 18px; display: grid; gap: 14px; }
+
+.gcs-bios-file { padding-top: 14px; border-top: 1px solid var(--set-line); }
+
+.gcs-bios-file-l { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+
+.gcs-bios-fname { font-family: var(--font-mono); font-size: 15px; overflow-wrap: anywhere; }
+
+.gcs-bios-fstate {
+  flex: none; font-family: var(--font-body, inherit); font-size: 15px; font-weight: 600;
+  color: var(--set-alert);
+}
+
+.gcs-bios-fstate[data-tone="ok"] { color: var(--set-ok); }
+.gcs-bios-fstate[data-tone="quiet"] { color: var(--set-ink-3); }
+
+.gcs-bios-note { margin-top: 6px; font-size: 15px; line-height: 1.5; color: var(--set-ink-2); }
+
+.gcs-bios-md5 { font-family: var(--font-mono); font-size: 14px; overflow-wrap: anywhere; }

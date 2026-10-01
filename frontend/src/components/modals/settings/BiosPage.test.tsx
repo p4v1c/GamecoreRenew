@@ -92,16 +92,15 @@ describe('the BIOS screen', () => {
     expect(screen.getByText(/Every system file this box needs is in place/)).toBeTruthy()
   })
 
-  it('counts only the systems that are actually on the box', async () => {
-    // A system the owner has not added yet is listed so they can see what it
-    // will need — but counting it as broken would make a working box read as
-    // five faults on first boot.
+  it('lists only the systems installed on the box', async () => {
+    // A file for an emulator the box does not have is not something it needs.
     await draw([
-      system({ installed: false, status: 'absent',
+      system({}),
+      system({ id: 'gone', installed: false, label: 'Not Here', status: 'absent',
                files: [file({ status: 'absent', verified: false })] }),
     ])
 
-    expect(screen.getByText('not installed')).toBeTruthy()
+    expect(screen.queryByText('Not Here')).toBeNull()
     expect(screen.getByText(/Every system file this box needs is in place/)).toBeTruthy()
   })
 

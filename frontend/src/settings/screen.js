@@ -21,7 +21,7 @@ import { createDisplayPage } from './display.js'
 import { createControllersPage } from './controllers.js'
 import { createAudioPage } from './audio.js'
 import { createCatalogPage } from './catalog.js'
-import { createBiosPage } from './bios.js'
+import { createBiosPage, biosSummary } from './bios.js'
 import { createThemesPage } from './themes.js'
 import { createSystemPage } from './system.js'
 import { PadKey } from '../lib/padKey.js'
@@ -206,7 +206,7 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
         .then((cs) => put('catalog', `${cs.filter((c) => c.installed).length} installed`))
         .catch(() => {})
       api.bios.list()
-        .then((bs) => put('bios', `${bs.filter((b) => b.status === 'ok').length}/${bs.length} ready`))
+        .then((bs) => put('bios', biosSummary(bs)))
         .catch(() => {})
       sdk.themes.list()
         .then((i) => {
