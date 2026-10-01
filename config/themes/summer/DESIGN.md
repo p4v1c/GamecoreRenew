@@ -19,6 +19,10 @@ neutral shadow scale. Sun/moon are drawn icons, not emoji.
 **Motion:** the ocean moves; the UI does not drift. Launch = iris
 (`views/warp.js`, `CLOSE_MS` = `launch.ms`). Standby boxes turn slowly.
 
+**Sound:** drops, a steel drum, a wave (`lib/sounds.js`): a water drop on
+move, pan notes on confirm, a wave rolling in on launch. Kept under the surf
+ambience. Synthesized, played into the host's volume.
+
 **Copy:** sentence case, calm, short. No "·" meta strings.
 
 **Legibility:** text over sky or sand sits on `--glass-650` (the hint pill,

@@ -22,6 +22,10 @@ session menu, settings panel. Soft cool glow = focus; no glow on text.
 `TRAVEL_MS` = `launch.ms`). Focus moves in ~150 ms ease-out. Nothing animates
 on idle. `prefers-reduced-motion` gets the handover without movement.
 
+**Sound:** glass and air (`lib/sounds.js`): a soft high tick on move, an open
+fifth with a short echo on confirm, rushing air into a chord on launch.
+Synthesized, played into the host's volume.
+
 **Copy:** sentence case, no eyebrow caps. Metadata rows use Orbit's drawn
 `.dot` separator (a styled element, not a typed "·"), everywhere or nowhere.
 App and console lines are plain facts (`lib/catalog.js`), never slogans.

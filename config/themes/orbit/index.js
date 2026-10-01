@@ -9,6 +9,7 @@ import {createLibrary} from './views/library.js'
 import {createController} from './views/controller.js'
 import {createSplash} from './views/splash.js'
 import {createCeremony} from './views/ceremony.js'
+import {SOUNDS} from './lib/sounds.js'
 
 /** Orbit's mockup over the host's real catalogue, library and session controls.
  * SDK 6 lets the grid own directional focus while the host keeps launch/search. */
@@ -58,6 +59,6 @@ export default function createOrbit(sdk) {
     </div>`
   }
 
-  return {shell: Shell, splash: createSplash(sdk),
+  return {shell: Shell, splash: createSplash(sdk), sounds: SOUNDS,
           sessionBar: sessions.Bar, sessionMenu: sessions.Menu, ceremony: Ceremony}
 }

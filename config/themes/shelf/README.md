@@ -373,3 +373,10 @@ lib/     paper.js      the wallpaper, as a mask  accent.js     the colour
          names.js      titles, letters, regions  dossier.js    one lookup
          browse.js     flip and restack          idle.js       is anyone here
 ```
+
+## Sounds
+
+The five UI sounds (`move`, `confirm`, `back`, `launch`, `startup`) are this
+theme's own, synthesized in `lib/sounds.js` from the two helpers in
+`lib/synth.js`; see DESIGN.md for their character. The host still decides when
+each one plays, and the player's sound setting and volume still apply.

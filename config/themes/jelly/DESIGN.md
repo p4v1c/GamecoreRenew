@@ -29,6 +29,10 @@ Covers and console photos get a soft drop shadow, as objects.
 wobbles; all stop while a game runs or in standby, and reduced motion stops
 everything but the focus ring.
 
+**Sound.** Bubbles and wobbly boings (`lib/sounds.js`): a pop on move, two
+bouncy plucks on confirm, a squish on back, a wobbly slide on launch.
+Synthesized, played into the host's volume.
+
 **Voice.** English, second person, light in titles ("Your turn.", "Find a
 game.", settings taglines). Messages, errors and buttons stay plain: a verb,
 no exclamation, no arrows, commas not "·".

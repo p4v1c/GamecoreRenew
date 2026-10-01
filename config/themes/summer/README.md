@@ -46,3 +46,10 @@ The shader compiles and links, and all four surfaces render with real data.
 A full-resolution screenshot of the ocean could not be produced under headless
 software rendering (SwiftShader is far too slow for this shader) — it needs a
 real GPU.
+
+## Sounds
+
+The five UI sounds (`move`, `confirm`, `back`, `launch`, `startup`) are this
+theme's own, synthesized in `lib/sounds.js` from the two helpers in
+`lib/synth.js`; see DESIGN.md for their character. The host still decides when
+each one plays, and the player's sound setting and volume still apply.

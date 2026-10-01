@@ -1,4 +1,4 @@
-# Jelly 1.3.1
+# Jelly 1.4.0
 
 A bright, rounded GameCore theme: a cyan playground, purple and pink jelly
 tiles, keys that press down, one burst of confetti at boot. Textures and
@@ -69,6 +69,7 @@ console.
 index.js            createParts (every screen over one context) and the theme's surfaces
 DESIGN.md           idea, type, palette, shape, depth, motion, voice
 lib/                catalog (names, marks, colours), collection (all games + playtime),
+                    sounds + synth (the five UI sounds),
                     spatial (pad moves) + presses (who owns a press), search, launch,
                     art (3D box / jacket fallbacks) + jacket-style, icons, favourites,
                     format (host playtime and dates), tabs, drawings
@@ -89,6 +90,13 @@ confetti; focus keeps its ring.
 - `node scripts/check-theme.mjs config/themes/jelly` — 39 modules, all ten settings pages reachable
 - `npx vitest run src/themes/jelly src/themes/themeSplashContract.test.tsx` (frontend)
 - `pytest backend/tests -k theme` — the shared theme rules (ceremony length, settings grid, versions, controller wizard)
+
+## Sounds
+
+The five UI sounds (`move`, `confirm`, `back`, `launch`, `startup`) are this
+theme's own, synthesized in `lib/sounds.js` from the two helpers in
+`lib/synth.js`; see DESIGN.md for their character. The host still decides when
+each one plays, and the player's sound setting and volume still apply.
 
 ## Install, revert
 
