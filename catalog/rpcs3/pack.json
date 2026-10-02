@@ -8,6 +8,11 @@
   "description": "RPCS3 Smart Pack: RPCS3's official per-game settings applied automatically, even under hand-made custom configs, without overwriting the player's own values; the official patch catalogue kept fresh for the player to tick.",
   "color": "#00439c",
   "order": 6,
+  "packages": {
+    "pacman": [
+      "python-yaml"
+    ]
+  },
   "install": {
     "provider": "flatpak",
     "appIds": ["net.rpcs3.RPCS3"]

@@ -59,7 +59,11 @@ def json_mode() -> bool:
 
 
 def out(*a, **kw) -> None:
-    print(*a, file=sys.stderr if _JSON_MODE else sys.stdout, **kw)
+    # An explicit file= wins: the "ScreenScraper returned nothing" lines pass
+    # sys.stderr, and passing it twice to print() crashed the scraper exactly
+    # when the credentials were wrong.
+    kw.setdefault("file", sys.stderr if _JSON_MODE else sys.stdout)
+    print(*a, **kw)
 
 
 def slug(text: str) -> str:

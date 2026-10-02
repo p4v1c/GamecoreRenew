@@ -12,7 +12,7 @@ EMULATORS = [
     ('switch', 'Eden', 'Nintendo Switch'),
     ('duckstation', 'DuckStation', 'PlayStation'),
     ('pcsx2', 'PCSX2', 'PlayStation 2'),
-    ('rpcs3', 'RPCS3', "RPCS3 Smart Pack: RPCS3's official per-game settings applied automatically, even under hand-made custom configs, without overwriting the player's own values; the official patch catalogue kept fresh for the player to tick."),
+    ('rpcs3', 'RPCS3', 'PlayStation 3'),
     ('ppsspp', 'PPSSPP', 'PlayStation Portable'),
     ('gopher64', "Rosalie's Mupen GUI", 'Nintendo 64'),
     ('melonds', 'melonDS', 'Nintendo DS'),

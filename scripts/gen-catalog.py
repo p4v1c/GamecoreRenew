@@ -115,7 +115,10 @@ def render_installer_data(packs: dict) -> str:
         out = []
         for p in ordered(packs, kind):
             name = p.data.get("emulatorName", p.data["label"])
-            desc = p.data.get("description", p.data["label"])
+            # An emulator tick box names its console; an app's line is its
+            # blurb. A pack's `description` can be a paragraph (RPCS3's is),
+            # and as a tick-box caption it stretched the wizard to 2000 px.
+            desc = p.data["label"] if kind == "emulator" else p.data.get("description", p.data["label"])
             out.append(f"    ({p.id!r}, {name!r}, {desc!r}),")
         return out
 

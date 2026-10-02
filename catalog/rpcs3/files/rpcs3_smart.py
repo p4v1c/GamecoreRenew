@@ -56,7 +56,7 @@ from typing import Any, Iterator
 
 try:
     import yaml
-except ImportError:  # pragma: no cover - both interpreters that run this have it
+except ImportError:  # pragma: no cover - the pack installs python-yaml (pack.json `packages`)
     yaml = None
 
 DEFAULT_APP_ID = "net.rpcs3.RPCS3"
