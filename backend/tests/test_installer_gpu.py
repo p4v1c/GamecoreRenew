@@ -30,12 +30,17 @@ LINES = {
     "nvidia": "01:00.0 VGA compatible controller [0300]: NVIDIA Corporation "
               "GA106 [GeForce RTX 3060] [10de:2504]",
     "vm": "00:01.0 VGA compatible controller [0300]: Red Hat, Inc. Virtio 1.0 GPU [1af4:1050]",
+    "pascal": "01:00.0 VGA compatible controller [0300]: NVIDIA Corporation "
+              "GP106 [GeForce GTX 1060 6GB] [10de:1c03]",
+    "kepler": "01:00.0 VGA compatible controller [0300]: NVIDIA Corporation "
+              "GK104 [GeForce GTX 760] [10de:1187]",
 }
 
 # What the Arch repos hold today: no bare `nvidia`.
 ARCH_REPO = ["nvidia-open", "nvidia-open-dkms", "nvidia-utils", "lib32-nvidia-utils", "dkms"]
 MANJARO_REPO = ["linux618-nvidia", "linux618-nvidia-open", "nvidia-open-dkms", "nvidia-utils",
-                "lib32-nvidia-utils", "dkms"]
+                "lib32-nvidia-utils", "dkms", "linux618-nvidia-580xx", "nvidia-580xx-dkms",
+                "nvidia-580xx-utils", "lib32-nvidia-580xx-utils"]
 
 
 def _gpu_block() -> str:
@@ -92,3 +97,33 @@ def test_a_vm_gets_software_vulkan_and_nothing_else():
 
 def test_no_gpu_line_adds_nothing():
     assert _packages([], repo=ARCH_REPO, kernel="6.17.1-arch1-1") == []
+
+
+def test_a_gtx_1000_never_gets_the_open_module():
+    """nvidia-open does not drive Pascal: installed, it boots to a black screen."""
+    arch = _packages(["pascal"], repo=ARCH_REPO, kernel="6.17.1-arch1-1")
+    assert not any("nvidia" in p for p in arch)          # AUR only on Arch: warned, not installed
+    manjaro = _packages(["pascal"], repo=MANJARO_REPO, kernel="6.18.49-1-MANJARO", manjaro=True)
+    assert manjaro == ["linux618-nvidia-580xx", "nvidia-580xx-utils", "lib32-nvidia-580xx-utils"]
+
+
+def test_a_card_older_than_maxwell_gets_no_nvidia_driver():
+    for repo, manjaro in ((ARCH_REPO, False), (MANJARO_REPO, True)):
+        assert _packages(["kepler"], repo=repo, kernel="6.18.49-1-MANJARO", manjaro=manjaro) == []
+
+
+def _ucode(vendor: str) -> list[str]:
+    text = ARCH.read_text(encoding="utf-8")
+    block = text[text.index("# Microcode for the CPU this box has"):]
+    block = block[:block.index("esac") + 4]
+    script = (f"pacman_optional() {{ echo \"$1\"; }}\n"
+              + block.replace("/proc/cpuinfo", "/dev/stdin"))
+    out = subprocess.run(["bash", "-c", script], input=f"vendor_id\t: {vendor}\n",
+                         capture_output=True, text=True, check=True)
+    return out.stdout.split()
+
+
+def test_microcode_follows_the_cpu_vendor():
+    assert _ucode("GenuineIntel") == ["intel-ucode"]
+    assert _ucode("AuthenticAMD") == ["amd-ucode"]
+    assert _ucode("VIA VIA VIA ") == []

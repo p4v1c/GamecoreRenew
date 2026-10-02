@@ -592,6 +592,19 @@ if echo "$GPU_INFO" | grep -qi 'intel'; then
 fi
 if echo "$GPU_INFO" | grep -qi 'nvidia'; then
   GPU_FOUND=true
+  # The generation decides the driver branch, and the PCI device id gives it:
+  # every Turing-or-newer id (GTX 16xx / RTX 20 and up) is >= 0x1e00, which is
+  # all the open module drives; Maxwell, Pascal and Volta (0x1340-0x1dff, GTX
+  # 900 / 1000) need the 580xx branch; anything older has no NVIDIA driver for
+  # a current kernel. nvidia-open on a GTX 1060 installs cleanly and boots to
+  # a black screen.
+  NV_DEV=$(echo "$GPU_INFO" | grep -i nvidia | grep -oiE '\[10de:[0-9a-f]{4}\]' | head -1 | cut -c7-10)
+  NV_GEN=current
+  if [[ -n "$NV_DEV" ]]; then
+    if (( 16#$NV_DEV < 16#1340 )); then NV_GEN=unsupported
+    elif (( 16#$NV_DEV < 16#1e00 )); then NV_GEN=580xx
+    fi
+  fi
   # NEVER pass the bare name `nvidia` on Manjaro: no package is called that.
   # ~20 packages merely *provide* it, and `--noconfirm` suppresses the
   # "N providers available" prompt, so pacman silently picks the first —
@@ -604,28 +617,44 @@ if echo "$GPU_INFO" | grep -qi 'nvidia'; then
   # repos made `pacman -S` fail, and under `set -e` that ended the install at
   # 14 %, after the upgrade and the user account. So every candidate is checked.
   NV_CANDS=()
-  if $IS_MANJARO; then
-    [[ -n "$KSHORT" ]] && NV_CANDS=("linux${KSHORT}${KRT}-nvidia" "linux${KSHORT}${KRT}-nvidia-open")
-    NV_CANDS+=(nvidia-open-dkms nvidia-dkms)
-  elif [[ $KERNEL == *-arch* ]]; then
-    NV_CANDS=(nvidia-open nvidia nvidia-open-dkms nvidia-dkms)
-  else
-    NV_CANDS=(nvidia-open-dkms nvidia-dkms)
-  fi
+  NV_UTILS=nvidia-utils
+  case "$NV_GEN" in
+    current)
+      if $IS_MANJARO; then
+        [[ -n "$KSHORT" ]] && NV_CANDS=("linux${KSHORT}${KRT}-nvidia" "linux${KSHORT}${KRT}-nvidia-open")
+        NV_CANDS+=(nvidia-open-dkms nvidia-dkms)
+      elif [[ $KERNEL == *-arch* ]]; then
+        NV_CANDS=(nvidia-open nvidia nvidia-open-dkms nvidia-dkms)
+      else
+        NV_CANDS=(nvidia-open-dkms nvidia-dkms)
+      fi ;;
+    580xx)
+      # Manjaro ships the branch; Arch only has it in the AUR, which pacman
+      # cannot install — unless the box added a repo that carries it.
+      NV_UTILS=nvidia-580xx-utils
+      $IS_MANJARO && [[ -n "$KSHORT" ]] && NV_CANDS=("linux${KSHORT}${KRT}-nvidia-580xx")
+      NV_CANDS+=(nvidia-580xx-dkms) ;;
+  esac
   NV_PKG=""
   for cand in "${NV_CANDS[@]}"; do
     if pacman -Si "$cand" >/dev/null 2>&1; then NV_PKG="$cand"; break; fi
   done
   if [[ -n "$NV_PKG" ]]; then
-    PKGS+=("$NV_PKG" nvidia-utils)
-    add_lib32 lib32-nvidia-utils
+    PKGS+=("$NV_PKG" "$NV_UTILS")
+    add_lib32 "lib32-$NV_UTILS"
     # A DKMS module builds against the installed kernel and therefore needs
     # dkms plus the headers added above.
     [[ "$NV_PKG" == *-dkms ]] && PKGS+=(dkms)
     NVIDIA_REBOOT_NEEDED=true
     info "GPU detected: NVIDIA ($NV_PKG)"
-    [[ "$NV_PKG" == *open* ]] \
-      && info "  The open module needs a GTX 16xx / RTX 20 or newer; an older card needs nvidia-580xx-dkms."
+  elif [[ "$NV_GEN" == unsupported ]]; then
+    warn "GPU detected: NVIDIA 10de:$NV_DEV, older than any NVIDIA driver for this kernel."
+    warn "  The open-source nouveau driver (mesa) runs it; expect low emulator speed."
+  elif [[ "$NV_GEN" == 580xx ]]; then
+    warn "GPU detected: NVIDIA 10de:$NV_DEV (GTX 900 / 1000 generation)."
+    warn "  Its driver is the 580xx branch, which Arch only has in the AUR. After the"
+    warn "  install:  yay -S nvidia-580xx-dkms nvidia-580xx-utils lib32-nvidia-580xx-utils"
+    warn "  then reboot. Until then the open-source nouveau driver runs it."
   else
     warn "GPU detected: NVIDIA, but no driver package matches this kernel."
     warn "  Install it yourself before rebooting:  sudo mhwd -a pci nonfree 0300"
@@ -673,7 +702,12 @@ pacman_optional plasma-x11-session
 # package to install.
 pacman_optional kwin-x11
 pacman_optional cpupower
-pacman_optional amd-ucode
+# Microcode for the CPU this box has: amd-ucode on every box left Intel CPUs
+# without their fixes. mkinitcpio's microcode hook loads whichever is present.
+case "$(grep -m1 '^vendor_id' /proc/cpuinfo 2>/dev/null)" in
+  *GenuineIntel*) pacman_optional intel-ucode ;;
+  *AuthenticAMD*) pacman_optional amd-ucode ;;
+esac
 pacman_optional feh
 
 # ── CPU governor ─────────────────────────────────────────────────
