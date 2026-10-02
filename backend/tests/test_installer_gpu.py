@@ -116,7 +116,7 @@ def _ucode(vendor: str) -> list[str]:
     text = ARCH.read_text(encoding="utf-8")
     block = text[text.index("# Microcode for the CPU this box has"):]
     block = block[:block.index("esac") + 4]
-    script = (f"pacman_optional() {{ echo \"$1\"; }}\n"
+    script = ("pacman_optional() { echo \"$1\"; }\n"
               + block.replace("/proc/cpuinfo", "/dev/stdin"))
     out = subprocess.run(["bash", "-c", script], input=f"vendor_id\t: {vendor}\n",
                          capture_output=True, text=True, check=True)
