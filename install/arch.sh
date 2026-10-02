@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ================================================================
 #  GameCore — Installation Script
-#  Manjaro / Arch Linux · AMD GPU · Flatpak
+#  Manjaro / Arch Linux · AMD, Intel or NVIDIA GPU · Flatpak
 #  Idempotent: safe to run multiple times
 # ================================================================
 set -euo pipefail
@@ -82,6 +82,13 @@ manifest_set() {  # manifest_set <KEY> <value>
 
 # Record only what pacman/flatpak did NOT already have. Called before the
 # install so "already present" never ends up on the removal list.
+manifest_owned() {  # manifest_owned <KEY> <0|1> — "did THIS install create it"
+  # Never downgraded. A re-run finds what the first run created already there
+  # and would record 0, erasing the uninstaller's only proof that the user
+  # account, the venv, linger or the input group were GameCore's to remove.
+  [[ "$2" == 0 ]] && grep -qx "$1=1" "$MANIFEST" 2>/dev/null && return 0
+  manifest_set "$1" "$2"
+}
 record_new_pkgs() {  # record_new_pkgs <pkg...>
   local p
   mkdir -p "$MANIFEST_DIR"; touch "$PKG_MANIFEST"
@@ -406,7 +413,7 @@ manifest_set GAMECORE_PATH  "$GAMECORE_PATH"
 manifest_set GAMECORE_DATA  "$GAMECORE_DATA"
 manifest_set WEB_PORT       "$WEB_PORT"
 manifest_set MODE           "$MODE"
-manifest_set USER_CREATED   "$USER_CREATED"
+manifest_owned USER_CREATED   "$USER_CREATED"
 manifest_set INSTALLED_AT   "$(date -Iseconds)"
 # Create the list files up front, even empty. "We installed no Flatpaks" and
 # "there is no record of what we installed" must not look the same to the
@@ -529,7 +536,14 @@ if $IS_MANJARO; then
     warn "  (running kernel: $KERNEL — reboot into the installed kernel and re-run if you need DKMS.)"
   fi
 else
-  [[ $KERNEL == *zen* ]] && PKGS+=("linux-zen-headers") || PKGS+=("linux-headers")
+  # Arch names a kernel's headers after the kernel package, and uname -r ends
+  # with that flavour: 6.12.50-1-lts, 6.17.1-zen1-1-zen, ...-hardened.
+  case "$KERNEL" in
+    *-zen)      PKGS+=("linux-zen-headers") ;;
+    *-lts)      PKGS+=("linux-lts-headers") ;;
+    *-hardened) PKGS+=("linux-hardened-headers") ;;
+    *)          PKGS+=("linux-headers") ;;
+  esac
 fi
 
 # The lib32-* drivers live in [multilib], which Manjaro enables and Arch does
@@ -557,50 +571,74 @@ if ! $HAS_MULTILIB; then
   warn "  run 'sudo pacman -Sy', then re-run this installer."
 fi
 
-# GPU drivers — detect the vendor instead of assuming AMD
+# GPU drivers — detect every vendor present, not the first one found. A laptop
+# or a desktop with its iGPU left on lists two: Intel or AMD for the panel and
+# NVIDIA for the games. An if/elif chain installed the iGPU's driver only and
+# left the card that runs the emulators without one.
 GPU_INFO=$(lspci -nn 2>/dev/null | grep -Ei 'vga|3d|display' || true)
 NVIDIA_REBOOT_NEEDED=false
+GPU_FOUND=false
 if echo "$GPU_INFO" | grep -qiE 'amd|radeon'; then
   PKGS+=(xf86-video-amdgpu vulkan-radeon)
   add_lib32 lib32-vulkan-radeon
   info "GPU detected: AMD (vulkan-radeon)"
-elif echo "$GPU_INFO" | grep -qi 'intel'; then
+  GPU_FOUND=true
+fi
+if echo "$GPU_INFO" | grep -qi 'intel'; then
   PKGS+=(vulkan-intel)
   add_lib32 lib32-vulkan-intel
   info "GPU detected: Intel (vulkan-intel)"
-elif echo "$GPU_INFO" | grep -qi 'nvidia'; then
+  GPU_FOUND=true
+fi
+if echo "$GPU_INFO" | grep -qi 'nvidia'; then
+  GPU_FOUND=true
   # NEVER pass the bare name `nvidia` on Manjaro: no package is called that.
   # ~20 packages merely *provide* it, and `--noconfirm` suppresses the
   # "N providers available" prompt, so pacman silently picks the first —
   # linux61-nvidia — which drags in the whole 6.1 LTS kernel and builds the
   # module for a kernel this box is not running. X then loads nvidia_drv.so,
   # finds no matching module, and the kiosk session never comes up.
-  NV_PKG=""
-  if $IS_MANJARO && [[ -n "$KSHORT" ]]; then
-    for cand in "linux${KSHORT}${KRT}-nvidia" "nvidia-dkms"; do
-      if pacman -Si "$cand" >/dev/null 2>&1; then NV_PKG="$cand"; break; fi
-    done
+  #
+  # Arch dropped `nvidia` for `nvidia-open`, built for the stock `linux` kernel
+  # only; any other kernel needs the DKMS flavour. A name that is not in the
+  # repos made `pacman -S` fail, and under `set -e` that ended the install at
+  # 14 %, after the upgrade and the user account. So every candidate is checked.
+  NV_CANDS=()
+  if $IS_MANJARO; then
+    [[ -n "$KSHORT" ]] && NV_CANDS=("linux${KSHORT}${KRT}-nvidia" "linux${KSHORT}${KRT}-nvidia-open")
+    NV_CANDS+=(nvidia-open-dkms nvidia-dkms)
+  elif [[ $KERNEL == *-arch* ]]; then
+    NV_CANDS=(nvidia-open nvidia nvidia-open-dkms nvidia-dkms)
   else
-    NV_PKG="nvidia"
+    NV_CANDS=(nvidia-open-dkms nvidia-dkms)
   fi
+  NV_PKG=""
+  for cand in "${NV_CANDS[@]}"; do
+    if pacman -Si "$cand" >/dev/null 2>&1; then NV_PKG="$cand"; break; fi
+  done
   if [[ -n "$NV_PKG" ]]; then
     PKGS+=("$NV_PKG" nvidia-utils)
     add_lib32 lib32-nvidia-utils
-    # nvidia-dkms builds against the installed kernel and therefore needs dkms
-    # plus the headers added above.
-    [[ "$NV_PKG" == "nvidia-dkms" ]] && PKGS+=(dkms)
+    # A DKMS module builds against the installed kernel and therefore needs
+    # dkms plus the headers added above.
+    [[ "$NV_PKG" == *-dkms ]] && PKGS+=(dkms)
     NVIDIA_REBOOT_NEEDED=true
     info "GPU detected: NVIDIA ($NV_PKG)"
+    [[ "$NV_PKG" == *open* ]] \
+      && info "  The open module needs a GTX 16xx / RTX 20 or newer; an older card needs nvidia-580xx-dkms."
   else
     warn "GPU detected: NVIDIA, but no driver package matches this kernel."
     warn "  Install it yourself before rebooting:  sudo mhwd -a pci nonfree 0300"
   fi
-elif echo "$GPU_INFO" | grep -qiE 'vmware|virtualbox|virtio|qxl|bochs'; then
-  # VM GPU — no hardware Vulkan; llvmpipe lets Vulkan apps at least start.
-  PKGS+=(vulkan-swrast)
-  info "GPU detected: virtual machine (software Vulkan via llvmpipe)"
-else
-  warn "GPU not identified — installing mesa only (add your Vulkan driver manually)."
+fi
+if ! $GPU_FOUND; then
+  if echo "$GPU_INFO" | grep -qiE 'vmware|virtualbox|virtio|qxl|bochs'; then
+    # VM GPU — no hardware Vulkan; llvmpipe lets Vulkan apps at least start.
+    PKGS+=(vulkan-swrast)
+    info "GPU detected: virtual machine (software Vulkan via llvmpipe)"
+  else
+    warn "GPU not identified — installing mesa only (add your Vulkan driver manually)."
+  fi
 fi
 
 # The whole GameCore stack is X11-only (overlays, fullscreen enforcer, the
@@ -813,10 +851,10 @@ if [[ "$MODE" == "full" ]]; then
     # the difference between "delete this, it is ours" and "pip uninstall just
     # our package out of theirs".
     if [[ -d "$USER_HOME/.venv" ]]; then
-      manifest_set BRIDGE_VENV_CREATED 0
+      manifest_owned BRIDGE_VENV_CREATED 0
     else
       sudo -u "$USER_NAME" -H python3 -m venv "$USER_HOME/.venv" 2>/dev/null \
-        && manifest_set BRIDGE_VENV_CREATED 1 || manifest_set BRIDGE_VENV_CREATED 0
+        && manifest_owned BRIDGE_VENV_CREATED 1 || manifest_owned BRIDGE_VENV_CREATED 0
     fi
     sudo -u "$USER_NAME" -H "$USER_HOME/.venv/bin/pip" install -q -e /opt/gamepad-tv-bridge \
       && ok "bridge installed in $USER_HOME/.venv (editable)." || warn "bridge pip install failed."
@@ -860,10 +898,10 @@ EOF
   # Record whether WE turned linger on, so the uninstaller does not switch it
   # off under a user who had it enabled for their own services.
   if loginctl show-user "$USER_NAME" -p Linger 2>/dev/null | grep -q 'Linger=yes'; then
-    manifest_set LINGER_ENABLED 0
+    manifest_owned LINGER_ENABLED 0
   else
     loginctl enable-linger "$USER_NAME" 2>/dev/null \
-      && { manifest_set LINGER_ENABLED 1; ok "user services will start at boot (linger)."; } || true
+      && { manifest_owned LINGER_ENABLED 1; ok "user services will start at boot (linger)."; } || true
   fi
 
   # Make the freshly written user units effective NOW, not only after reboot:
@@ -984,10 +1022,10 @@ msg "Gamepad input access"
 # unrelated software (Steam, retroarch, ydotool), so an uninstaller must not
 # revoke it from a user who already had it.
 if id -nG "$USER_NAME" 2>/dev/null | tr ' ' '\n' | grep -qx input; then
-  manifest_set INPUT_GROUP_ADDED 0
+  manifest_owned INPUT_GROUP_ADDED 0
   ok "$USER_NAME already in the 'input' group."
 elif usermod -aG input "$USER_NAME"; then
-  manifest_set INPUT_GROUP_ADDED 1
+  manifest_owned INPUT_GROUP_ADDED 1
   ok "$USER_NAME added to 'input' group."
 else
   warn "Could not add to input group."
@@ -1141,17 +1179,24 @@ EOF
 # Written as a single file rather than one per key: two drop-ins with the same
 # name overwrite each other, and two different names are two places to look when
 # a scrape stops working.
+# One `Environment=` line systemd reads back exactly: quoted, so a space does
+# not cut the value; `\` and `"` escaped, and `%` doubled, because systemd
+# expands %h, %u... in Environment= and a password holding "%h" reached the
+# backend as the home directory.
+sd_env() {  # sd_env <NAME> <value>
+  local v="$2"
+  v="${v//\\/\\\\}"; v="${v//\"/\\\"}"; v="${v//%/%%}"
+  printf 'Environment="%s=%s"\n' "$1" "$v"
+}
 if [[ -n "$TGDB_API_KEY" || -n "$SS_DEV_ID" ]]; then
   mkdir -p /etc/systemd/system/gamecore-backend.service.d
   {
     echo "[Service]"
-    [[ -n "$TGDB_API_KEY"    ]] && echo "Environment=THEGAMESDB_API_KEY=$TGDB_API_KEY"
-    # Quoted: a ScreenScraper password may contain spaces, and systemd would
-    # otherwise cut the value at the first one.
-    [[ -n "$SS_DEV_ID"       ]] && echo "Environment=\"SCREENSCRAPER_DEV_ID=$SS_DEV_ID\""
-    [[ -n "$SS_DEV_PASSWORD" ]] && echo "Environment=\"SCREENSCRAPER_DEV_PASSWORD=$SS_DEV_PASSWORD\""
-    [[ -n "$SS_USER"         ]] && echo "Environment=\"SCREENSCRAPER_USER=$SS_USER\""
-    [[ -n "$SS_PASSWORD"     ]] && echo "Environment=\"SCREENSCRAPER_PASSWORD=$SS_PASSWORD\""
+    [[ -n "$TGDB_API_KEY"    ]] && sd_env THEGAMESDB_API_KEY "$TGDB_API_KEY"
+    [[ -n "$SS_DEV_ID"       ]] && sd_env SCREENSCRAPER_DEV_ID "$SS_DEV_ID"
+    [[ -n "$SS_DEV_PASSWORD" ]] && sd_env SCREENSCRAPER_DEV_PASSWORD "$SS_DEV_PASSWORD"
+    [[ -n "$SS_USER"         ]] && sd_env SCREENSCRAPER_USER "$SS_USER"
+    [[ -n "$SS_PASSWORD"     ]] && sd_env SCREENSCRAPER_PASSWORD "$SS_PASSWORD"
   } > /etc/systemd/system/gamecore-backend.service.d/override.conf
   chmod 600 /etc/systemd/system/gamecore-backend.service.d/override.conf
   [[ -n "$TGDB_API_KEY" ]] && ok "TheGamesDB API key configured (local drop-in, never in git)."
@@ -1345,7 +1390,7 @@ fi
 #      production box was found in ("Daemon not running" in the journal).
 msg "mDNS (avahi) — reaching the box by name"
 systemctl enable --now avahi-daemon.service 2>/dev/null \
-  && ok "avahi-daemon enabled — the box answers to $(hostname).local." \
+  && ok "avahi-daemon enabled — the box answers to $(uname -n).local." \
   || warn "avahi-daemon failed to start — the box stays reachable by IP only."
 
 # nss-mdns being INSTALLED resolves nothing. glibc only consults it when
@@ -1400,7 +1445,7 @@ else
     rm -f "${NSS}.gamecore-new"
     cp "$NSS_BACKUP" "$NSS"
     warn "Could not add mdns_minimal to $NSS — left unchanged. The box stays"
-    warn "  reachable by IP; add it by hand to resolve $(hostname).local."
+    warn "  reachable by IP; add it by hand to resolve $(uname -n).local."
   fi
 fi
 
@@ -1416,12 +1461,12 @@ cat > /etc/sudoers.d/gamecore-power <<EOF
 $USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl reboot
 # Gamepad hotplug (backend/services/launch.py) — the only udevadm this needs.
 # Enumerated like the governor rule below: unrestricted, it also granted
-# `udevadm control`, which reloads and can replace the device rules.
+# "udevadm control", which reloads and can replace the device rules.
 $USER_NAME ALL=(root) NOPASSWD: /usr/bin/udevadm trigger
 # Desktop escape hatch — turn the kiosk on or off over the machine's desktop.
 # Enumerated with its arguments rather than left open: the script writes an
 # SDDM drop-in as root, so "any argument" is not a thing to hand out.
-# The console session's own way out, `desktop --restart-dm`, is a separate
+# The console session's own way out, "desktop --restart-dm", is a separate
 # command line and lives in /etc/sudoers.d/gamecore-session, written by
 # install/steps/setup-gamecore-session.sh so that updates carry it too.
 $USER_NAME ALL=(root) NOPASSWD: /usr/local/bin/gamecore-session-select gamecore, /usr/local/bin/gamecore-session-select desktop
@@ -1595,12 +1640,17 @@ if [[ -n "$ADDONS" ]]; then
   msg "Addons ($ADDONS)"
   USER_UID=$(id -u "$USER_NAME")
   if loginctl show-user "$USER_NAME" -p Linger 2>/dev/null | grep -q 'Linger=yes'; then
-    grep -q '^LINGER_ENABLED=' "$MANIFEST" 2>/dev/null || manifest_set LINGER_ENABLED 0
+    grep -q '^LINGER_ENABLED=' "$MANIFEST" 2>/dev/null || manifest_owned LINGER_ENABLED 0
   else
-    loginctl enable-linger "$USER_NAME" 2>/dev/null && manifest_set LINGER_ENABLED 1 || true
+    loginctl enable-linger "$USER_NAME" 2>/dev/null && manifest_owned LINGER_ENABLED 1 || true
   fi
   # systemctl --user needs the user manager's bus — wait for it briefly
   for _ in $(seq 1 10); do [ -S "/run/user/$USER_UID/bus" ] && break; sleep 1; done
+  # From /, not from wherever the installer was started: the GUI runs arch.sh
+  # through pkexec, whose working directory is /root, and git refuses to work
+  # in a directory the player cannot read ("Invalid path '/root/...'"), so the
+  # addon clone failed on every graphical install.
+  cd /
   for addon in $ADDONS; do
     if sudo -u "$USER_NAME" \
          env GAMECORE_PATH="$GAMECORE_PATH" GAMECORE_DATA="$GAMECORE_DATA" \

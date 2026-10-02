@@ -25,9 +25,9 @@ from pathlib import Path
 from PySide6.QtCore import QProcess, Qt, QThread, Signal
 from PySide6.QtGui import QFont, QTextCursor
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QGridLayout, QHBoxLayout, QLabel,
+    QApplication, QCheckBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
     QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton,
-    QRadioButton, QSpinBox, QVBoxLayout, QWizard, QWizardPage,
+    QRadioButton, QScrollArea, QSpinBox, QVBoxLayout, QWidget, QWizard, QWizardPage,
 )
 
 GITHUB_REPO = "p4v1c/GamecoreRenew"
@@ -55,6 +55,10 @@ FALLBACK_ADDONS = [
 
 DARK_QSS = """
 QWizard, QWizardPage { background: #0e1117; }
+QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }
+QScrollBar:vertical { background: #161b26; width: 10px; border-radius: 5px; margin: 0; }
+QScrollBar::handle:vertical { background: #3a4152; border-radius: 5px; min-height: 30px; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
 QLabel { color: #dde1ed; font-size: 13px; }
 QLabel#title { color: #ffffff; font-size: 22px; font-weight: 700; }
 QLabel#subtitle, QLabel#hint { color: #7d8499; font-size: 12px; }
@@ -298,12 +302,17 @@ class EmulatorsPage(QWizardPage):
         grid = QGridLayout(); grid.setSpacing(6)
         self.checks: dict[str, QCheckBox] = {}
         for i, (eid, label, platform) in enumerate(EMULATORS):
-            cb = QCheckBox(f"{label}  ·  {platform}")
+            cb = QCheckBox(f"{platform}  ·  {label}")
             cb.setChecked(True)
             self.checks[eid] = cb
-            grid.addWidget(cb, i // 2, i % 2)
-        self.lay.addLayout(grid)
-        self.lay.addStretch()
+            grid.addWidget(cb, i, 0)
+        # Thirty-odd tick boxes grew the window taller than a laptop screen and
+        # QWizard never shrinks back: they scroll inside the page instead.
+        box = QWidget(); box.setLayout(grid)
+        scroll = QScrollArea(); scroll.setWidget(box); scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.lay.addWidget(scroll, stretch=1)
         self.btn_all.clicked.connect(lambda: [c.setChecked(True) for c in self.checks.values()])
         self.btn_none.clicked.connect(lambda: [c.setChecked(False) for c in self.checks.values()])
 
