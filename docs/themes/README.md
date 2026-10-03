@@ -239,6 +239,7 @@ which and why.
 | `decor` | a full-screen layer above everything, non-interactive |
 | `topbar` | clock, IP, storage, controller battery |
 | `homeView` | the dashboard's **markup** (see below) |
+| `homeGameOptions` | SDK 10: return `{systemId, rom, title}` for the focused home game, or `null` to open Settings; the host opens its game options panel on Options |
 | `libraryView` | the game list, detail panel and metadata — **markup only**, like `homeView` |
 | `homeOmit` | home-screen shortcuts you bind yourself: `'nav'` (d-pad), `'pages'` (L1/R1), `'confirm'` (✕). Take one and you own what it does — see §5g |
 | `libraryOmit` | the same, for the library: `'nav'`, `'confirm'`, `'sort'` (L1/R1). The per-game options on ≡ are not omittable (§6a) |
@@ -685,7 +686,7 @@ theme can bind, so a theme cannot run a second action on the same press, and
 | Button | Event | Owner | Does |
 |---|---|---|---|
 | PS / Guide ×2 | `gp:guide` | host, reserved | in a game: suspend it. In the menu: the session menu (§5f), or home when nothing is suspended |
-| Options / Start (≡) | `gp:menu` | host, reserved | on a library game: that game's options (bezel). Anywhere else: Settings |
+| Options / Start (≡) | `gp:menu` | host, reserved | on a library game or a focused home game supplied by `homeGameOptions`: that game's options (bezel). Otherwise: Settings |
 | Share / Select | `gp:power` | host, reserved | the power menu, which lists suspended sessions first |
 | □ | `gp:x` | host | the controller screen |
 | △ | `gp:y` | host | search, in the library |
@@ -739,6 +740,9 @@ duration the request is immediate. The theme API preserves the manifest's
 SDK 9 adds `sdk.defaults.GamepadView` and the roster props of `gamepadView`
 (§5h). A theme that dresses `GamepadView` renders nothing on an older host, so
 it declares `"api": 9`.
+
+SDK 10 adds `homeGameOptions` to `sdk.defaults.Shell`. Themes using it declare
+`"api": 10`; the host keeps the game options panel and modal controls.
 
 SDK 8 removes things rather than adding them: `gp:menu` and `gp:power` from
 `sdk.input` (reserved, §6a) and `'options'` from `libraryOmit`. No theme needs

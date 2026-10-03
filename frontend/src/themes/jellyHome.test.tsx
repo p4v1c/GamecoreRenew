@@ -13,6 +13,8 @@ import { buildSdk } from '../lib/themeSdk'
 import { useStore } from '../store'
 import HomeScreen from '../components/HomeScreen'
 import LibraryScreen from '../components/LibraryScreen'
+import DefaultShell from '../components/DefaultShell'
+import { api } from '../api'
 
 const THEME = '../../../config/themes/jelly'
 
@@ -64,7 +66,7 @@ beforeEach(() => {
   })
 })
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 const settle = () => act(async () => { for (let i = 0; i < 4; i++) await new Promise(r => setTimeout(r, 0)) })
 
@@ -146,6 +148,34 @@ describe('Jouer', () => {
 })
 
 describe('the tabs', () => {
+  it('opens the host game options for the focused Collection card', async () => {
+    const sdk = buildSdk('jelly', { selectTheme: vi.fn(async () => {}) })
+    const mod = await import(/* @vite-ignore */ `${THEME}/index.js`)
+    const { ctx, Home, Library } = mod.createParts(sdk)
+    vi.spyOn(api.overlays, 'choices').mockResolvedValue({
+      system_id: 'duckstation', rom: 'Crash Bandicoot (Europe).chd', current: null,
+      resolved: { system_id: 'duckstation', source: 'none', asset: null, hole: null, frame: null },
+      options: [],
+    } as never)
+    vi.spyOn(api.perGame, 'state').mockRejectedValue(new Error('unavailable'))
+    const Inert = () => null
+    const r = render(createElement(DefaultShell as React.ComponentType<Record<string, unknown>>, {
+      topbar: Inert, homeView: Home, libraryView: Library,
+      homeGameOptions: () => ctx.actions.gameOptions?.() || null,
+      settings: () => createElement('div', null, 'Settings screen'),
+    }))
+    await settle()
+    await press('gp:r1')
+    const card = r.container.querySelector('[data-nav="g-duckstation:Crash Bandicoot (Europe).chd"]') as HTMLElement
+    expect(card).toBeTruthy()
+    act(() => card.focus())
+    await press('gp:menu')
+    expect(r.container.textContent).toContain('Game options')
+    expect(r.container.textContent).toContain('Crash Bandicoot')
+    expect(r.container.textContent).not.toContain('Settings screen')
+    expect(api.overlays.choices).toHaveBeenCalledWith('duckstation', 'Crash Bandicoot (Europe).chd')
+  })
+
   it('walk with L1 and R1, and ○ comes back to Play', async () => {
     const { container } = await mountHome()
     await press('gp:r1')

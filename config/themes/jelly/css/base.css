@@ -49,6 +49,12 @@
   --gc-overlay-scrim: #2416389c;
   --gc-overlay-blur: blur(9px);
   --gc-overlay-panel: #fffdf7;
+  --gc-overlay-ink: #30204e;
+  --gc-overlay-muted: #64567a;
+  --gc-overlay-row: #f3eefb;
+  --gc-overlay-row-border: #64567a66;
+  --gc-overlay-warn: #b51f66;
+  --gc-ink-3: #64567a;
   --gc-overlay-border: #ffffffaa;
   --gc-overlay-radius: 28px;
   --gc-accent: #5931a0;

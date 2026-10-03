@@ -10,6 +10,7 @@ import SettingsScreen from './modals/SettingsScreen'
 import PowerModal from './modals/PowerModal'
 import GamepadModal from './modals/GamepadModal'
 import LaunchConflictModal from './modals/LaunchConflictModal'
+import GameOptionsModal from './modals/game/GameOptionsModal'
 import Screensaver from './Screensaver'
 import Toasts from './ui/Toasts'
 import { launchApp } from './defaults'
@@ -36,6 +37,7 @@ import type { ToastsViewProps } from './ui/toasts/types'
 const CONTROLLER_CLOSE_MS = 1000
 
 export interface ShellParts {
+  homeGameOptions?: () => { systemId: string; rom: string; title: string } | null
   background?: React.ComponentType
   decor?: React.ComponentType
   screensaver?: React.ComponentType
@@ -134,6 +136,7 @@ export default function DefaultShell(parts: ShellParts = {}) {
   const [showSettings, setShowSettings] = useState(false)
   const [showPower, setShowPower] = useState(false)
   const [showGamepad, setShowGamepad] = useState(false)
+  const [homeOptionsGame, setHomeOptionsGame] = useState<ReturnType<NonNullable<ShellParts['homeGameOptions']>>>(null)
   const [startInWizard, setStartInWizard] = useState(false)
   /**
    * One subscription per value, not one to the whole store.
@@ -182,7 +185,11 @@ export default function DefaultShell(parts: ShellParts = {}) {
         const s = useStore.getState()
         if (s.modalDepth) return
         if (s.screen === 'library' && s.gameOptions) s.gameOptions()
-        else setShowSettings(true)
+        else if (s.screen === 'home' && parts.homeGameOptions) {
+          const game = parts.homeGameOptions()
+          if (game) setHomeOptionsGame(game)
+          else setShowSettings(true)
+        } else setShowSettings(true)
       }),
       onGp('gp:power', () => {
         if (!busy()) setShowPower(s => s ? false : useStore.getState().modalDepth === 0)
@@ -206,7 +213,7 @@ export default function DefaultShell(parts: ShellParts = {}) {
       }),
     ]
     return () => offs.forEach(off => off())
-  }, [])
+  }, [parts.homeGameOptions])
 
   return (
     <div style={{
@@ -247,6 +254,13 @@ export default function DefaultShell(parts: ShellParts = {}) {
         {launchConflict && (
           <ModalScope key="launch-conflict">
             <LaunchConflictModal />
+          </ModalScope>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {homeOptionsGame && (
+          <ModalScope key="home-game-options">
+            <GameOptionsModal {...homeOptionsGame} onClose={() => setHomeOptionsGame(null)} />
           </ModalScope>
         )}
       </AnimatePresence>

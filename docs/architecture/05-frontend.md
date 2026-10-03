@@ -58,7 +58,7 @@ One Zustand store, no context providers.
 | Focus lock | `modalDepth` | `openModal()`, `closeModal()` |
 | Power | `powerPending` | `setPowerPending(action)` |
 | Session | `sessionGameKey`, `sessionSystemId`, `backgroundSessions`, `launchConflict`, `sessionMenuRequest` | `setSession`, `setSessionState`, `setLaunchConflict`, `requestSessionMenu()` (the power menu's row; `SessionBar` opens once `modalDepth` is 0) |
-| Options button | `gameOptions` — opens the settled library game's options, or null | `setGameOptions` (LibraryScreen); `DefaultShell`'s ≡ handler calls it on the library, else opens Settings |
+| Options button | `gameOptions` opens the settled library game's options; `ShellParts.homeGameOptions` identifies a focused home game | `setGameOptions` (LibraryScreen); `DefaultShell`'s ≡ handler opens the host game options panel for that game, else Settings |
 
 `modalDepth` is the mechanism that keeps gamepad handlers from firing twice.
 Every modal increments it on mount and decrements on unmount

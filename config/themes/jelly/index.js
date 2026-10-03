@@ -29,7 +29,7 @@ export function createParts(sdk) {
   const Details = createDetails(sdk, {cards, Icon})
   // Doors the shell (Settings, Power) and Home (search) own, filled in as
   // those render, for screens that need to open one.
-  const actions = {settings: null, power: null, search: null, retry: () => collection.retry()}
+  const actions = {settings: null, power: null, search: null, gameOptions: null, retry: () => collection.retry()}
   const ctx = {tabs, collection, art, cards, Icon, Details, actions,
     chips: createChips(sdk, {Icon}), Footer: createFooter(sdk), Search: createSearch(sdk, {cards, Details, Icon})}
   return {ctx, Home: createHome(sdk, ctx), Library: createLibrary(sdk, ctx), TopBar: createTopBar(sdk, ctx),
@@ -40,7 +40,8 @@ export function createParts(sdk) {
  * loading and sort, settings, power and the controller screen stay the host's. */
 export default function createJelly(sdk) {
   const {html} = sdk.ui
-  const {Home, Library, TopBar, Background, session} = createParts(sdk)
+  const {ctx, Home, Library, TopBar, Background, session} = createParts(sdk)
+  const homeGameOptions = () => ctx.actions.gameOptions?.() || null
   const Settings = createJellySettings(sdk)
   const Power = sdk.defaults.createPowerView(sdk, {skin: 'jelly-power'})
   const Controller = createController(sdk)
@@ -49,6 +50,7 @@ export default function createJelly(sdk) {
     return html`<div className="jelly-app">
       <${sdk.defaults.Shell} background=${Background} topbar=${TopBar}
         homeView=${Home} libraryView=${Library} settings=${Settings}
+        homeGameOptions=${homeGameOptions}
         powerView=${Power} gamepadView=${Controller}
         homeOmit=${['nav', 'pages', 'confirm']} libraryOmit=${['nav', 'confirm', 'sort']} />
     </div>`

@@ -37,7 +37,8 @@ import * as defaults from '../components/defaults'
 // 7 adds defaults.launchGame: a ROM can launch without navigating to Library.
 // 8 reserves gp:menu and gp:power for the host and drops libraryOmit 'options'.
 // 9 adds defaults.GamepadView and the roster props of gamepadView (pads, pad, status…).
-export const SDK_VERSION = 9
+// 10 adds Shell.homeGameOptions for games selected on a custom home screen.
+export const SDK_VERSION = 10
 
 /**
  * Game or application, from the identity the launcher gave the session.
