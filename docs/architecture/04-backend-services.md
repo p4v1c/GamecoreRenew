@@ -68,7 +68,7 @@ database was silently ignored. The correct name is
 
 ## `themes.py` — discovery and the completeness rule
 
-`SURFACES = {"splash", "shell"}`, `SDK_VERSION = 1`.
+`SURFACES = {"splash", "shell"}`, `SDK_VERSION = 10`.
 
 `_read_manifest(dir)` returns a validated manifest or `None` with a logged
 reason. It rejects a folder whose `theme.json` is unreadable, whose `id` does

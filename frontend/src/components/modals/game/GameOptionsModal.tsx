@@ -21,8 +21,8 @@ import { onGp } from '../../../hooks/useGamepad'
  */
 
 const ACCENT = 'var(--gc-accent, #b8501b)'
-const DIM = 'rgba(255,255,255,0.35)'
-const WARN = '#fbbf24'
+const DIM = 'var(--gc-overlay-muted, rgba(255,255,255,0.35))'
+const WARN = 'var(--gc-overlay-warn, #fbbf24)'
 
 type Row = {
   /** Stable across re-renders; the focus index is positional, this is not. */
@@ -191,8 +191,8 @@ export default function GameOptionsModal({ systemId, rom, title, onClose }: {
                 display: 'flex', alignItems: 'center', gap: 12, width: '100%',
                 textAlign: 'left', cursor: 'pointer', marginBottom: 8,
                 padding: '12px 14px', borderRadius: 12,
-                background: focused ? 'rgba(255,255,255,0.07)' : 'transparent',
-                border: `1px solid ${focused ? ACCENT : 'rgba(255,255,255,0.08)'}`,
+                background: focused ? 'var(--gc-overlay-row, rgba(255,255,255,0.07))' : 'transparent',
+                border: `1px solid ${focused ? ACCENT : 'var(--gc-overlay-row-border, rgba(255,255,255,0.08))'}`,
                 color: 'inherit', font: 'inherit',
               }}
             >

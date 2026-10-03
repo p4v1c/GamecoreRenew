@@ -182,6 +182,7 @@ export function Overlay({ onClose, children, width = 480 }: {
     >
       <div style={{
         background: 'var(--gc-overlay-panel, rgba(255,255,255,0.035))',
+        color: 'var(--gc-overlay-ink, inherit)',
         border: '1px solid var(--gc-overlay-border, rgba(255,255,255,0.09))',
         borderRadius: 'var(--gc-overlay-radius, 20px)',
         padding: '32px 30px', width, maxWidth: '90vw',

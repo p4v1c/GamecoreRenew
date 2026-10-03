@@ -17,6 +17,8 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Jelly opens per-game overlay options with Options when a game is focused on Play or Collection.
+
 ### Behaviour that changed on its own
 
 - **PS twice in a game always lands on the interface, without the session

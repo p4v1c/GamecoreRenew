@@ -1,4 +1,4 @@
-# Jelly 1.4.1
+# Jelly 1.4.2
 
 A bright, rounded GameCore theme: a cyan playground, purple and pink jelly
 tiles, keys that press down, one burst of confetti at boot. Textures and
@@ -7,7 +7,7 @@ accounts). Built from the approved "GameCore · Jelly" mockup; its eight demo
 games, fake networks and fake BIOS states are gone, replaced by the box's own
 data. Interface text is English.
 
-Requires SDK 9 (`GamepadView`, `launchGame`, sessions). Other themes are not
+Requires SDK 10 (`homeGameOptions`, `GamepadView`, `launchGame`, sessions). Other themes are not
 touched.
 
 ## Screens
@@ -38,7 +38,8 @@ stored by the theme, and never a password.
 ## Pad
 
 The dashboard binds its own d-pad, L1/R1 and ✕ (`homeOmit`), the library its
-own d-pad and ✕ (`libraryOmit`); PS, Options and Share stay the host's.
+own d-pad and ✕ (`libraryOmit`); PS, Options and Share stay the host's. On a
+focused Play or Collection game, Options opens the host's game options panel.
 
 | | Dashboard | Search | Settings |
 |---|---|---|---|

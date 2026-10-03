@@ -1,12 +1,13 @@
 import {createPlayTab} from './home/play.js'
 import {createCollectionTab} from './home/collection.js'
 import {createConsolesTab} from './home/consoles.js'
+import {pickHero} from './home/hero.js'
 
 const HINTS = {
   play: [['← → ↑ ↓', 'Move'], ['✕', 'Select'], ['L1 R1', 'Tabs'], ['△', 'Search'],
     ['□', 'Controller'], ['Options', 'Settings']],
   collection: [['← → ↑ ↓', 'Move'], ['✕', 'Details'], ['○', 'Play'], ['L1 R1', 'Tabs'],
-    ['△', 'Search'], ['Options', 'Settings']],
+    ['△', 'Search'], ['Options', 'Game options']],
   consoles: [['← → ↑ ↓', 'Move'], ['✕', 'Open'], ['○', 'Play'], ['L1 R1', 'Tabs'],
     ['△', 'Search'], ['Options', 'Settings']],
 }
@@ -30,6 +31,14 @@ export function createHome(sdk, ctx) {
     const data = collection.useCollection(props.systems)
     const [details, setDetails] = useState(null)
     const [search, setSearch] = useState(false)
+
+    actions.gameOptions = () => {
+      const nav = document.activeElement?.getAttribute('data-nav') || ''
+      const key = nav.startsWith('g-') ? nav.slice(2) : nav.startsWith('recent-') ? nav.slice(7) : null
+      const game = key ? data.games.find((g) => g.key === key)
+        : tab === 'play' && nav.startsWith('hero-') ? pickHero(data.games, sdk.session.get().background)?.game : null
+      return game ? {systemId: game.systemId, rom: game.gameKey, title: game.title} : null
+    }
 
     const openSearch = () => { if (!sdk.nav.get().modalDepth) setSearch(true) }
     useEffect(() => {
