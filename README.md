@@ -356,7 +356,7 @@ Five themes ship with the box. Same screens, same pad controls, different looks.
 | ![Jelly theme consoles](docs/img/themes/jelly-home.webp) |
 | ![Jelly theme controller screen](docs/img/themes/jelly-controller.webp) |
 
-In Jelly, focus a game on Play or Collection and press **Options** to choose its overlay. The same menu is available in a console's library.
+In Jelly, focus a game in Collection and press **Options** to choose its overlay. On Play and Consoles, Options opens Settings. The game options menu is also available in a console's library.
 
 Picking a theme swaps the frontend. Drop a folder in `config/themes/`, select it
 in **Settings → Themes**, and the launcher is redrawn — boot animation,

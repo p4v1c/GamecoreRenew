@@ -17,7 +17,7 @@ are the auto-incremented tags.
 
 ## Unreleased
 
-- Jelly opens per-game overlay options with Options when a game is focused on Play or Collection.
+- Jelly opens per-game overlay options with Options on a focused Collection game. On Play and Consoles, Options opens Settings.
 
 ### Behaviour that changed on its own
 
