@@ -148,6 +148,29 @@ describe('Jouer', () => {
 })
 
 describe('the tabs', () => {
+  it('opens Settings from Play even when a game is focused', async () => {
+    const sdk = buildSdk('jelly', { selectTheme: vi.fn(async () => {}) })
+    const mod = await import(/* @vite-ignore */ `${THEME}/index.js`)
+    const { ctx, Home, Library } = mod.createParts(sdk)
+    const choices = vi.spyOn(api.overlays, 'choices').mockResolvedValue({
+      system_id: 'duckstation', rom: 'Crash Bandicoot (Europe).chd', current: null,
+      resolved: { system_id: 'duckstation', source: 'none', asset: null, hole: null, frame: null },
+      options: [],
+    } as never)
+    const Inert = () => null
+    const r = render(createElement(DefaultShell as React.ComponentType<Record<string, unknown>>, {
+      topbar: Inert, homeView: Home, libraryView: Library,
+      homeGameOptions: () => ctx.actions.gameOptions?.() || null,
+      settings: () => createElement('div', null, 'Settings screen'),
+    }))
+    await settle()
+    expect(focused()).toBe('hero-play')
+    await press('gp:menu')
+    expect(r.container.textContent).toContain('Settings screen')
+    expect(r.container.textContent).not.toContain('Game options')
+    expect(choices).not.toHaveBeenCalled()
+  })
+
   it('opens the host game options for the focused Collection card', async () => {
     const sdk = buildSdk('jelly', { selectTheme: vi.fn(async () => {}) })
     const mod = await import(/* @vite-ignore */ `${THEME}/index.js`)

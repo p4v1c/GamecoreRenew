@@ -1,4 +1,4 @@
-# Jelly 1.4.2
+# Jelly 1.4.3
 
 A bright, rounded GameCore theme: a cyan playground, purple and pink jelly
 tiles, keys that press down, one burst of confetti at boot. Textures and
@@ -38,8 +38,9 @@ stored by the theme, and never a password.
 ## Pad
 
 The dashboard binds its own d-pad, L1/R1 and ✕ (`homeOmit`), the library its
-own d-pad and ✕ (`libraryOmit`); PS, Options and Share stay the host's. On a
-focused Play or Collection game, Options opens the host's game options panel.
+own d-pad and ✕ (`libraryOmit`); PS, Options and Share stay the host's. Options
+opens Settings on Play and Consoles, and the host's game options panel on a
+focused Collection game.
 
 | | Dashboard | Search | Settings |
 |---|---|---|---|
