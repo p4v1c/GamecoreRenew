@@ -52,6 +52,11 @@ def emit_error(msg: str) -> None:
     emit({"event": "error", "message": msg})
 
 
+# The maintenance loop runs every 100 ms; counting windows walks the client
+# list, so it is done once a second.
+SIBLING_CHECK_TICKS = 10
+
+
 # ── Linux / X11 ───────────────────────────────────────────────────────────────
 class X11Manager:
     def __init__(self):
@@ -92,6 +97,20 @@ class X11Manager:
             except Exception:
                 continue
         return None
+
+    def count_main_windows(self, wm_classes: list[str]) -> int:
+        """Top-level windows of these classes, dialogs (transient) excluded."""
+        targets = {c.lower() for c in wm_classes}
+        count = 0
+        for win in self._client_windows():
+            try:
+                cls = win.get_wm_class()
+                if (cls and any(c.lower() in targets for c in cls)
+                        and win.get_wm_transient_for() is None):
+                    count += 1
+            except Exception:
+                continue
+        return count
 
     def dump_windows(self) -> list[dict]:
         """Debug helper — return WM_CLASS of all client windows."""
@@ -281,9 +300,18 @@ class OverlayMonitor:
             self._measure(system_id, wid, rect, cfg.get("announced") or hole)
 
         # ── Maintenance loop — reforce if window moves/resizes ────────────────
+        ticks = 0
         while not self._stop.is_set():
+            ticks += 1
             if not self._mgr.window_exists(wid):
                 emit({"event": "window:closed", "system_id": system_id})
+                return
+            # A bezel frames one game window. Several (melonDS local
+            # multiplayer, one per player) are laid out by their launcher;
+            # holding one in the bezel rect would fight it every 100 ms.
+            if ticks % SIBLING_CHECK_TICKS == 0 and self._mgr.count_main_windows(classes) > 1:
+                emit({"event": "window:closed", "system_id": system_id,
+                      "reason": "several-windows"})
                 return
 
             try:

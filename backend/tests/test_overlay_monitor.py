@@ -195,3 +195,41 @@ def test_a_game_that_ends_during_the_wait_stops_the_capture(monkeypatch, capsys)
     mon._measure("duckstation", 1, RECT, ANNOUNCED)
     assert mgr.captures == 0
     assert capsys.readouterr().out == ""
+
+
+# ── several game windows ───────────────────────────────────────────────────
+
+class WatchedManager:
+    """Enough of an X11Manager for `_run`: one window, then `extra` siblings."""
+
+    def __init__(self, siblings_after: int):
+        self.calls = 0
+        self.siblings_after = siblings_after
+
+    def find_window(self, classes):
+        return 7
+
+    def get_rect(self, wid):
+        return dict(RECT)
+
+    def force_rect(self, wid, x, y, w, h):
+        pass
+
+    def window_exists(self, wid):
+        return True
+
+    def count_main_windows(self, classes):
+        self.calls += 1
+        return 2 if self.calls >= self.siblings_after else 1
+
+
+def test_the_bezel_steps_aside_when_the_emulator_opens_more_game_windows(monkeypatch, capsys):
+    """melonDS local multiplayer: one window per player, laid out by its
+    launcher. Holding the first in the bezel rect would undo that layout."""
+    monkeypatch.setattr(om.time, "sleep", lambda _s: None)
+    mon = _monitor(monkeypatch, WatchedManager(siblings_after=2))
+    mon._run("melonds", {"window_rect": RECT, "wm_class": {"linux": ["melonDS"]}})
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert events[-1] == {"event": "window:closed", "system_id": "melonds",
+                          "reason": "several-windows"}
+    assert any(e["event"] == "window:ready" for e in events)

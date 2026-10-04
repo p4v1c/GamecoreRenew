@@ -322,6 +322,15 @@ the buttons above do the same thing on every theme.
 A pad whose Guide button never reaches the box can hold **Start + Select** for
 a second to leave a game, and reach suspended games from the Power menu.
 
+### Nintendo DS with friends
+
+Start a DS game with two to four controllers connected and each player gets
+their own DS, side by side on the TV. Every DS starts on its menu: pick the
+game on each DS for games where everyone has a cart, or **DS Download Play**
+on the others when the game shares from one cart (Mario Party DS). Each
+controller drives its own DS. The touch screen is the mouse: one cursor, any
+DS. With one controller nothing changes.
+
 ---
 
 ## Settings & Wi-Fi
