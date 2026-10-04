@@ -25,9 +25,10 @@ the DualShock 4's `rightshoulder:b10`, matching `L = 9`, `Start = 6`,
 the pad in hand, and one whose only correct reading depends on a later repass
 is a seed that hides its own faults.
 
-Single-player: only slot 1 is ever touched, whatever player index arrives. It
-lacked that guard once, so plugging in a second pad rewrote melonDS's one and
-only player config for the wrong controller.
+Profiling touches slot 1 only, whatever player index arrives. It lacked that
+guard once, so plugging in a second pad rewrote melonDS's one and only player
+config for the wrong controller. Players 2-4 get their own melonDS instance at
+launch: `launch_command` and multiplayer/.
 """
 from __future__ import annotations
 
@@ -101,18 +102,9 @@ def _encode(token: str) -> int | None:
     return None
 
 
-def generate(player_index: int, pad, opts: dict) -> str | None:
-    """melonDS (DS) is single-player — only slot 1. It binds raw SDL2 joystick
-    inputs, whose indices differ per controller (a DS4's shoulders are b9/b10,
-    an Xbox's b6/b7; the D-pad is a hat on both, encoded as 0x100|hat<<4|dir).
-    Re-derive the shoulders / start / select / D-pad from the connected pad's
-    live SDL2 mapping so they land on the right physical inputs for any
-    controller. Face buttons (A/B/X/Y = b0-b3) are consistent and left
-    untouched."""
-    i = player_index
-    toml = opts["target"]
-    if i != 1 or not toml.is_file():
-        return None
+def synth_values(pad) -> tuple[dict[str, int], str] | None:
+    """The joystick values melonDS needs for this pad: (key → value, source),
+    or None when nothing can be derived and the existing bindings must stay."""
     mapping = pad.sdl2_mapping()
     vals: dict[str, int] = {}
     # Shoulders and D-pad alike: trust the SDL token, for every pad and with no
@@ -123,30 +115,79 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
             enc = _encode(mapping.get(sdl, ""))
             if enc is not None:
                 vals[key] = enc
-    src = "SDL live"
-    if not vals:                       # fallback: at least the D-pad, via evdev
-        # has_hat() answers True / False / None. Only True is actionable: a hat
-        # always encodes the same way, whatever the pad. False and None both
-        # mean "we do not know this pad's raw button indices", and the hatless
-        # branch used to guess 11-14 there — the same wrong-index-space guess
-        # that killed the DS4. Leave the existing bindings instead, exactly as
-        # _encode() already does for axis tokens.
-        if not pad.has_hat():
-            return None
-        vals = {"Up": 257, "Right": 258, "Down": 260, "Left": 264}
-        src = "hat fallback"
+    if vals:
+        return vals, "SDL live"
+    # Fallback: at least the D-pad, via evdev. has_hat() answers True / False /
+    # None. Only True is actionable: a hat always encodes the same way, whatever
+    # the pad. False and None both mean "we do not know this pad's raw button
+    # indices", and the hatless branch used to guess 11-14 there — the same
+    # wrong-index-space guess that killed the DS4. Leave the existing bindings
+    # instead, exactly as _encode() already does for axis tokens.
+    if not pad.has_hat():
+        return None
+    return {"Up": 257, "Right": 258, "Down": 260, "Left": 264}, "hat fallback"
+
+
+def set_joystick_keys(text: str, header: str, vals: dict[str, int]) -> tuple[str, int]:
+    """Rewrite the bound keys of `[header]` in place. Returns (text, keys set)."""
     out, insec, n = [], False, 0
-    for line in toml.read_text().splitlines():
+    for line in text.splitlines():
         s = line.strip()
         if s.startswith("["):
-            insec = (s == "[Instance0.Joystick]")
+            insec = (s == f"[{header}]")
         m = re.match(r"^(L|R|Start|Select|Up|Down|Left|Right)\s*=\s*-?\d+\s*$", s)
         if insec and m and m.group(1) in vals:
             out.append(f"{m.group(1)} = {vals[m.group(1)]}"); n += 1
         else:
             out.append(line)
+    return "\n".join(out) + "\n", n
+
+
+def generate(player_index: int, pad, opts: dict) -> str | None:
+    """melonDS (DS): only slot 1 here; the other players' instances are written
+    at launch (`launch_command`). It binds raw SDL2 joystick inputs, whose
+    indices differ per controller (a DS4's shoulders are b9/b10, an Xbox's
+    b6/b7; the D-pad is a hat on both, encoded as 0x100|hat<<4|dir).
+    Re-derive the shoulders / start / select / D-pad from the connected pad's
+    live SDL2 mapping so they land on the right physical inputs for any
+    controller. Face buttons (A/B/X/Y = b0-b3) are consistent and left
+    untouched."""
+    toml = opts["target"]
+    if player_index != 1 or not toml.is_file():
+        return None
+    synth = synth_values(pad)
+    if synth is None:
+        return None
+    vals, src = synth
+    text, n = set_joystick_keys(toml.read_text(), SECTION, vals)
     if not n:
         return None
     backup(toml)
-    atomic_write(toml, "\n".join(out) + "\n")
+    atomic_write(toml, text)
     return f"melonds: {n} keys mapped ({src})"
+
+
+def launch_command(*, rom_path: str, exec_path: str, exec_args: str,
+                   players: list[dict], opts: dict | None) -> tuple[str, str] | None:
+    """Two to four pads: one melonDS instance per player (multiplayer/).
+    One pad, or no ROM: None, and the launch is exactly the solo one."""
+    return _multiplayer().launch_command(
+        rom_path=rom_path, exec_path=exec_path, exec_args=exec_args,
+        players=players, opts=opts, synth=synth_values, set_keys=set_joystick_keys)
+
+
+_SETUP = None
+
+
+def _multiplayer():
+    """multiplayer/setup.py, loaded once, the way rpcs3 loads rpcs3_smart."""
+    global _SETUP
+    if _SETUP is None:
+        import importlib.util
+        from pathlib import Path
+        path = Path(__file__).resolve().parent / "multiplayer" / "setup.py"
+        spec = importlib.util.spec_from_file_location("gamecore_melonds_multiplayer", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _SETUP = module
+    return _SETUP

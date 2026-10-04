@@ -47,3 +47,19 @@ Reading melonDS internals depends on its version; the dynamic search does not
 guarantee future versions. The daemon checks the process, not focus, and does
 not drive GameCore's bezels — disable the bezel for full screen. Automated
 tests do not replace an L3/Bluetooth check on the box.
+
+## Local multiplayer (2-4 controllers)
+
+With two to four pads connected, `generator.launch_command` replaces the
+launch with `multiplayer/launcher.py` around melonDS (no fullscreen). One pad:
+the solo launch, unchanged. Architecture and the reasons:
+`docs/architecture/10-catalog-and-install.md`, "melonDS local multiplayer".
+
+- One melonDS process, one instance per player, opened through melonDS's own
+  menus over AT-SPI (`gdbus`). Every instance boots its firmware with the cart
+  in: the DS menu offers the game and DS Download Play.
+- Each instance reads `[InstanceN] JoystickID`, written at launch from an SDL
+  probe run inside the flatpak.
+- Windows side by side in the DS aspect, decorations off. The L3 layout daemon
+  only knows instance 1; avoid L3 in multiplayer.
+- Diagnostics: `~/.cache/gamecore/melonds-multiplayer.log`.

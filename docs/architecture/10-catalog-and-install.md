@@ -215,6 +215,28 @@ The pack spells them in camelCase like the rest of the schema;
 `gen-catalog.py` writes the `wm_class` / `timeout_s` spelling the enforcer has
 always read into the tile entry.
 
+### melonDS local multiplayer
+
+`catalog/melonds/generator.py` implements the `launch_command` launch hook
+([4](04-backend-services.md#launchpy--everything-before-the-spawn)). One pad,
+or no ROM: it returns None and the launch is the solo one, untouched. Two to
+four pads:
+
+| Step | Where | What |
+|---|---|---|
+| SDL order | `catalog/melonds/multiplayer/setup.py` | runs a probe with melonDS's own SDL2 inside its sandbox; joins each SDL device path (`/dev/hidrawN` for a DS4) to a player through sysfs (HID directory or MAC) |
+| config | `setup.py` | `[Instance{N-1}] JoystickID` for every player, `[Instance{N-1}.Joystick]` for players 2-4 (the pad's snapshot, else the slot-1 synthesis); instance 1's solo `JoystickID` is parked and restored at the next solo launch |
+| command | `setup.py` | `launcher.py --players N -- <melonDS command without -f>`, with `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1` |
+| instances | `catalog/melonds/multiplayer/launcher.py`, `atspi.py` | presses melonDS's own menus over AT-SPI (`gdbus`): System > Multiplayer > Launch new instance, File > Open recent > 1., then File > Boot firmware in every instance (the cart stays in: DS menu with the game and DS Download Play) |
+| layout | `catalog/melonds/multiplayer/windows.py` | finds `[pN]` windows, drops decorations, side-by-side columns in the DS aspect (`columns()`) |
+
+melonDS 1.x links instances only inside one process (`LocalMP`); between
+processes it offers LAN mode, opened from dialogs only. Hence one process and
+its own menus, no patched emulator. Saves (`.sav.N`), firmware copies and MAC
+addresses are per instance in melonDS itself. The launcher runs in the game's
+process group, so suspend and quit reach melonDS; it never exits before
+melonDS. Log: `~/.cache/gamecore/melonds-multiplayer.log`.
+
 ### `usb` — the peripherals that are not SDL gamepads
 
 The autoconfig pipeline knows exactly one kind of device: a pad that declares

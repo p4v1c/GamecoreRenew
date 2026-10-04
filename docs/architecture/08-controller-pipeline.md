@@ -312,6 +312,16 @@ Ryujinx therefore presenting no Player 1 at all to a Switch game that wanted one
 mid-session would silently turn player 2 into player 1. The pads that move are
 re-profiled on their own, since the player number is part of the footprint.
 
+## melonDS: players 2-4 are written at launch, not on connect
+
+melonDS profiles slot 1 only (`maxPlayers: 1`): on connect, its one
+`[Instance0.Joystick]`. Players 2-4 exist only when melonDS runs one instance
+per pad, so their `[InstanceN]` sections are written by the pack's
+`launch_command` hook just before the spawn, and so is every `JoystickID`.
+melonDS picks a pad by SDL **index**, and only melonDS's own SDL, in its
+sandbox, knows that order (a DualShock 4 is `/dev/hidrawN` there, an event node
+to GameCore). Details in [10](10-catalog-and-install.md#melonds-local-multiplayer).
+
 ## A failed pass is not a finished pass
 
 `gamepad_monitor._reconcile` used to mark a pad done *before* attempting it, so a

@@ -21,6 +21,11 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **Nintendo DS local multiplayer.** With two to four controllers connected, a
+  DS game opens one melonDS instance per controller, side by side, each on its
+  DS menu, linked by melonDS's own local wireless. One controller launches
+  exactly as before. A bezel steps aside while several game windows are open.
+
 - **PS twice in a game always lands on the interface, without the session
   menu.** The menu opened on some suspends and not others, depending on
   whether the browser or the backend saw the presses first. It now opens only
