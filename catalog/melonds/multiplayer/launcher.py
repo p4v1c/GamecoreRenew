@@ -36,9 +36,12 @@ A11Y_ENV = "QT_LINUX_ACCESSIBILITY_ALWAYS_ON"
 APP_TIMEOUT = 40.0
 INSTANCE_TIMEOUT = 15.0
 POLL = 0.25
-# melonDS restores each window's saved geometry when it shows it; re-place
-# for a short while so the layout is the last word.
+# melonDS restores each window's saved geometry when it shows it, and the
+# fullscreen round trip moves it again; re-place for a short while so the
+# layout is the last word.
 TILE_PASSES = 8
+MENU_KEY_ATTEMPTS = 3
+MENU_KEY_TIMEOUT = 2.0
 LOG_PATH = Path.home() / ".cache/gamecore/melonds-multiplayer.log"
 
 log = logging.getLogger("melonds-multiplayer")
@@ -122,6 +125,22 @@ def has_cart(label: str) -> bool:
     return label.startswith("DS slot:") and "(none)" not in label
 
 
+def hide_menu_bar(frame: atspi.Node, player: int, alive) -> None:
+    """Have melonDS hide this window's menu bar; checked, because a key that
+    lands while the instance restarts its firmware is lost."""
+    bar = atspi.menu_bar(frame)
+    for _attempt in range(MENU_KEY_ATTEMPTS):
+        if bar is None or not windows.press_fullscreen_key(player):
+            break
+        try:
+            _wait(lambda: bar.extents()[3] == 0, MENU_KEY_TIMEOUT, "the menu bar", alive)
+            log.info("player %d: menu bar hidden", player)
+            return
+        except TimeoutError:
+            continue
+    log.warning("player %d: menu bar still shown", player)
+
+
 def tile(players: int) -> None:
     for _ in range(TILE_PASSES):
         try:
@@ -141,6 +160,8 @@ def orchestrate(players: int, rom: str, alive) -> None:
     frames = _frames(address)
     for player in range(1, players + 1):
         boot_firmware(frames[player], player, alive)
+    for player in range(1, players + 1):
+        hide_menu_bar(frames[player], player, alive)
     tile(players)
 
 

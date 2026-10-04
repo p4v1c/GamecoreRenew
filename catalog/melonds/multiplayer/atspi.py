@@ -77,6 +77,10 @@ class Node:
     def role(self) -> str:
         return self._call(f"{ACCESSIBLE}.GetRoleName")[0]
 
+    def extents(self) -> tuple[int, int, int, int]:
+        """(x, y, width, height) on screen."""
+        return tuple(self._call("org.a11y.atspi.Component.GetExtents", "0")[0])
+
     def press(self) -> None:
         if not self._call("org.a11y.atspi.Action.DoAction", "0")[0]:
             raise AtspiError(f"action refused on {self.path}")
@@ -93,6 +97,10 @@ def find_app(address: str, name: str = "melonDS") -> Node | None:
         except AtspiError:
             continue              # an app that died while we listed it
     return found
+
+
+def menu_bar(frame: Node) -> Node | None:
+    return next((c for c in frame.children() if c.role() == "menu bar"), None)
 
 
 def find_menu_item(frame: Node, path: list[str | Callable[[str], bool]]) -> Node | None:

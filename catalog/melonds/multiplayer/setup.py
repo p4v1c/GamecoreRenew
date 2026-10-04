@@ -32,9 +32,12 @@ A11Y_FLAG = "--env=QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1"
 FULLSCREEN_FLAGS = {"-f", "--fullscreen"}
 # Measured 1.1 s warm; the whole hook must fit the launch's 3 s budget.
 PROBE_TIMEOUT = 2.0
-# Instance 1 keeps its solo JoystickID outside multiplayer; the value replaced
-# for a session is parked here and put back at the next solo launch.
-STATE_FILE = ".local/share/gamecore/melonds-multiplayer/instance0-joystick.json"
+# Instance 1 keeps its solo settings outside multiplayer; the values replaced
+# for a session are parked here and put back at the next solo launch.
+STATE_FILE = ".local/share/gamecore/melonds-multiplayer/instance0-solo.json"
+# melonDS hides its menu bar only when it toggles fullscreen itself; the
+# launcher sends this key (Qt::Key_F11) to every window. F12 is the L3 daemon's.
+FULLSCREEN_KEY = "16777274"
 
 # Asks the SDL2 melonDS links (inside its sandbox) for its joystick order.
 # melonDS sets no hint that changes enumeration (main.cpp), so neither do we.
@@ -151,22 +154,30 @@ def command(exec_path: str, exec_args: str, players: int) -> tuple[str, str]:
     return sys.executable, shlex.join([str(LAUNCHER), "--players", str(players), "--", *cmd])
 
 
-def _set_joystick_id(text: str, instance: int, index: int) -> str:
-    header = f"Instance{instance}"
+def _set(text: str, header: str, key: str, value: str) -> str:
     if section(text, header) is None:
-        return set_section(text, header, f"JoystickID = {index}\n")
-    return set_key(text, header, "JoystickID", str(index))[0]
+        return set_section(text, header, f"{key} = {value}\n")
+    return set_key(text, header, key, value)[0]
+
+
+def _instance_settings(instance: int, joystick: int | None) -> list[tuple[str, str, str]]:
+    """(section, key, value) multiplayer sets on one instance."""
+    out = [(f"Instance{instance}.Keyboard", "HK_FullscreenToggle", FULLSCREEN_KEY)]
+    if joystick is not None:
+        out.append((f"Instance{instance}", "JoystickID", str(joystick)))
+    return out
 
 
 def write_instances(target: Path, players: list[dict], indices: dict[int, int],
                     snap_dir: Path, synth, set_keys) -> None:
-    """JoystickID for every player, bindings for players 2-4, one atomic write."""
+    """Pad and hotkey settings for every instance, bindings for players 2-4,
+    one atomic write."""
     text = target.read_text()
     base = section(text, "Instance0.Joystick") or ""
     for p in players:
         n = p["player"]
-        if n in indices:
-            text = _set_joystick_id(text, n - 1, indices[n])
+        for header, key, value in _instance_settings(n - 1, indices.get(n)):
+            text = _set(text, header, key, value)
         if n > 1:
             pad = Pad(vendor=p["vendor"], product=p["product"], evdev_name=p["name"])
             header = f"Instance{n - 1}.Joystick"
@@ -177,23 +188,29 @@ def write_instances(target: Path, players: list[dict], indices: dict[int, int],
 
 
 def _park_instance0(target: Path, state: Path) -> None:
-    """Remember instance 1's solo JoystickID before multiplayer replaces it."""
+    """Remember instance 1's solo values before multiplayer replaces them."""
     if state.exists():
         return
-    m = re.search(r"^JoystickID = (-?\d+)$", section(target.read_text(), "Instance0") or "", re.M)
-    if m:
-        state.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write(state, json.dumps({"JoystickID": int(m.group(1))}))
+    text = target.read_text()
+    parked = []
+    for header, key, _value in _instance_settings(0, 0):
+        m = re.search(rf"^{key} = (.*)$", section(text, header) or "", re.M)
+        if m:
+            parked.append([header, key, m.group(1)])
+    state.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(state, json.dumps(parked))
 
 
 def restore_instance0(target: Path, state: Path) -> None:
-    """Solo launch after multiplayer: give instance 1 its own JoystickID back."""
+    """Solo launch after multiplayer: give instance 1 its own values back."""
     try:
-        value = json.loads(state.read_text())["JoystickID"]
-    except (OSError, ValueError, KeyError):
+        parked = json.loads(state.read_text())
+    except (OSError, ValueError):
         return
     text = target.read_text()
-    atomic_write(target, _set_joystick_id(text, 0, int(value)))
+    for header, key, value in parked:
+        text = _set(text, header, key, value)
+    atomic_write(target, text)
     state.unlink(missing_ok=True)
 
 

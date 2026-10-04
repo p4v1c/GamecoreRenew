@@ -225,10 +225,11 @@ four pads:
 | Step | Where | What |
 |---|---|---|
 | SDL order | `catalog/melonds/multiplayer/setup.py` | runs a probe with melonDS's own SDL2 inside its sandbox; joins each SDL device path (`/dev/hidrawN` for a DS4) to a player through sysfs (HID directory or MAC) |
-| config | `setup.py` | `[Instance{N-1}] JoystickID` for every player, `[Instance{N-1}.Joystick]` for players 2-4 (the pad's snapshot, else the slot-1 synthesis); instance 1's solo `JoystickID` is parked and restored at the next solo launch |
+| config | `setup.py` | `[Instance{N-1}] JoystickID` and the fullscreen hotkey (F11) for every player, `[Instance{N-1}.Joystick]` for players 2-4 (the pad's snapshot, else the slot-1 synthesis); instance 1's solo values are parked and restored at the next solo launch |
 | command | `setup.py` | `launcher.py --players N -- <melonDS command without -f>`, with `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1` |
 | instances | `catalog/melonds/multiplayer/launcher.py`, `atspi.py` | presses melonDS's own menus over AT-SPI (`gdbus`): System > Multiplayer > Launch new instance, File > Open recent > 1., then File > Boot firmware in every instance (the cart stays in: DS menu with the game and DS Download Play) |
-| layout | `catalog/melonds/multiplayer/windows.py` | finds `[pN]` windows, drops decorations, side-by-side columns in the DS aspect (`columns()`) |
+| menu bar | `launcher.py`, `windows.py` | melonDS hides it only when it toggles fullscreen itself: each window is activated (Qt drops keys sent to an inactive window under KWin) and gets F11 held across a frame; the AT-SPI menu bar height confirms it, up to three tries |
+| layout | `catalog/melonds/multiplayer/windows.py` | finds `[pN]` windows, drops fullscreen and decorations, side-by-side columns in the DS shape (`columns()`): 2 players fill the height, 3-4 are limited by the width |
 
 melonDS 1.x links instances only inside one process (`LocalMP`); between
 processes it offers LAN mode, opened from dialogs only. Hence one process and

@@ -43,6 +43,9 @@ Down = 260
 Left = 264
 Right = 258
 
+[Instance0.Keyboard]
+HK_FullscreenToggle = -1
+
 [Instance0.Window0]
 Enabled = true
 """
@@ -137,14 +140,19 @@ def test_a_slot_gap_does_not_open_an_empty_window(tmp_path, monkeypatch):
     assert shlex.split(args)[2] == "2"
 
 
-def test_solo_after_multiplayer_gives_instance_1_its_joystick_back(tmp_path, monkeypatch):
+def test_solo_after_multiplayer_gives_instance_1_its_settings_back(tmp_path, monkeypatch):
     monkeypatch.setattr(setup, "sdl_joysticks", lambda app_id: [(0, "b"), (1, "a")])
     opts = _opts(tmp_path)
     _launch(opts, [{"player": 1, "key": "a", **DS4}, {"player": 2, "key": "b", **DS4}])
     from backend.services.configgen.helpers.ini import section
-    assert "JoystickID = 1" in section(opts["target"].read_text(), "Instance0")
+    text = opts["target"].read_text()
+    assert "JoystickID = 1" in section(text, "Instance0")
+    assert f"HK_FullscreenToggle = {setup.FULLSCREEN_KEY}" in section(text, "Instance0.Keyboard")
+    assert f"HK_FullscreenToggle = {setup.FULLSCREEN_KEY}" in section(text, "Instance1.Keyboard")
     _launch(opts, [{"player": 1, "key": "a", **DS4}])
-    assert "JoystickID = 0" in section(opts["target"].read_text(), "Instance0")
+    text = opts["target"].read_text()
+    for header in ("Instance0", "Instance0.Keyboard", "Instance0.Joystick"):
+        assert section(text, header).strip() == section(TOML, header).strip()
     assert not (tmp_path / setup.STATE_FILE).exists()
 
 

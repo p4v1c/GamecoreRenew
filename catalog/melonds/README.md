@@ -60,6 +60,9 @@ the solo launch, unchanged. Architecture and the reasons:
   in: the DS menu offers the game and DS Download Play.
 - Each instance reads `[InstanceN] JoystickID`, written at launch from an SDL
   probe run inside the flatpak.
-- Windows side by side in the DS aspect, decorations off. The L3 layout daemon
-  only knows instance 1; avoid L3 in multiplayer.
+- Windows side by side in the DS shape, no decorations, no menu bar (hidden
+  through melonDS's own fullscreen hotkey, F11 in multiplayer). melonDS
+  cannot stretch two stacked screens, so 3-4 players leave black bands above
+  and below. The L3 layout daemon only knows instance 1; avoid L3 in
+  multiplayer.
 - Diagnostics: `~/.cache/gamecore/melonds-multiplayer.log`.

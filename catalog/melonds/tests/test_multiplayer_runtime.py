@@ -21,11 +21,11 @@ def test_columns_touch_and_keep_the_ds_shape():
     for players in (2, 3, 4):
         cols = windows.columns(players, 1920, 1080)
         assert len(cols) == players
-        for (x1, y1, w1, h1), (x2, _y2, _w2, _h2) in zip(cols, cols[1:]):
+        for (x1, _y1, w1, _h1), (x2, _y2, _w2, _h2) in zip(cols, cols[1:]):
             assert x1 + w1 == x2                      # no gap between players
-        x0, _y, w, h = cols[0]
-        assert x0 >= 0 and cols[-1][0] + w <= 1920
-        assert h <= 1080 and (h - windows.MENU_BAR_HEIGHT) * 2 <= w * 3 + 3
+        for x, y, w, h in cols:
+            assert 0 <= y and y + h <= 1080 and h * 2 == w * 3
+        assert cols[0][0] >= 0 and cols[-1][0] + cols[-1][2] <= 1920
 
 
 def test_four_players_use_the_whole_width():
@@ -33,9 +33,9 @@ def test_four_players_use_the_whole_width():
     assert cols[0][0] == 0 and cols[-1][0] + cols[-1][2] == 1920
 
 
-def test_two_players_are_limited_by_the_height_and_centred():
-    (x1, y1, w, h), (x2, _, _, _) = windows.columns(2, 1920, 1080)
-    assert h == 1080 and y1 == 0
+def test_two_players_use_the_whole_height_and_are_centred():
+    (x1, y, w, h), (x2, _, _, _) = windows.columns(2, 1920, 1080)
+    assert (y, w, h) == (0, 720, 1080)
     assert x1 == 1920 - (x2 + w)
 
 
