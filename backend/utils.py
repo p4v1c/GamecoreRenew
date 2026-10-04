@@ -88,6 +88,18 @@ def atomic_write(p: Path, text: str) -> None:
         raise
 
 
+def atomic_write_bytes(p: Path, data: bytes) -> None:
+    """atomic_write for binary content (a game save): same temp-and-replace."""
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".gamecore-tmp")
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, p)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def atomic_write_json(p: Path, data, **dumps_kwargs) -> None:
     """`atomic_write` for the JSON writers, dumps kwargs passed through
     unchanged so every caller keeps its exact on-disk shape (indent, key

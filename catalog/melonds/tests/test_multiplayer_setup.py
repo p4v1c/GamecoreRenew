@@ -190,3 +190,46 @@ def test_device_ids_join_hidraw_and_event_nodes_of_one_pad(tmp_path):
 def test_a_pad_sdl_does_not_list_keeps_its_joystick_id():
     players = [{"player": 1, "key": "a"}, {"player": 2, "key": "gone"}]
     assert setup.assign_joysticks(players, [(0, "a")], ids_of=lambda p: {p}) == {1: 0}
+
+
+def test_a_new_player_gets_a_blank_save_not_a_copy_of_player_one(tmp_path):
+    """melonDS loads player 1's .sav when .sav.2 is missing: P2 played the owner's game."""
+    rom = tmp_path / "Pokemon - Platinum Version (Europe).nds"
+    rom.write_bytes(b"rom")
+    (tmp_path / "Pokemon - Platinum Version (Europe).sav").write_bytes(b"\x12" * 512)
+    made = setup.blank_player_saves(str(rom), 3)
+    assert [p.name for p in made] == ["Pokemon - Platinum Version (Europe).sav.2",
+                                      "Pokemon - Platinum Version (Europe).sav.3"]
+    assert made[0].read_bytes() == b"\xff" * 512
+    assert (tmp_path / "Pokemon - Platinum Version (Europe).sav").read_bytes() == b"\x12" * 512
+
+
+def test_an_existing_player_save_is_never_overwritten(tmp_path):
+    rom = tmp_path / "Game.nds"
+    rom.write_bytes(b"rom")
+    (tmp_path / "Game.sav").write_bytes(b"\x12" * 64)
+    (tmp_path / "Game.sav.2").write_bytes(b"\x34" * 64)
+    assert setup.blank_player_saves(str(rom), 2) == []
+    assert (tmp_path / "Game.sav.2").read_bytes() == b"\x34" * 64
+
+
+def test_no_player_one_save_leaves_melonds_to_start_everyone_fresh(tmp_path):
+    rom = tmp_path / "Game.nds"
+    rom.write_bytes(b"rom")
+    assert setup.blank_player_saves(str(rom), 4) == []
+    assert not list(tmp_path.glob("Game.sav*"))
+
+
+def test_a_player_save_folder_set_in_the_config_is_used(tmp_path):
+    rom = tmp_path / "roms" / "Game.nds"
+    rom.parent.mkdir()
+    rom.write_bytes(b"rom")
+    saves = tmp_path / "saves"
+    saves.mkdir()
+    (saves / "Game.sav").write_bytes(b"\x12" * 8)
+    config = f'[Instance1]\nSaveFilePath = "{saves}"\n'
+    assert [p.parent for p in setup.blank_player_saves(str(rom), 2, config)] == [saves]
+
+
+def test_archives_are_left_to_melonds(tmp_path):
+    assert setup.blank_player_saves(str(tmp_path / "Game.zip"), 2) == []

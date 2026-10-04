@@ -69,4 +69,6 @@ the solo launch, unchanged. Architecture and the reasons:
   player (order of first use), with its own arrow (the box's cursor theme, same for all) kept in that
   player's column; its click is that player's stylus, so two players can
   drag at once. One mouse keeps the normal pointer.
+- Saves: player 1 keeps `<rom>.sav`; players 2-4 get their own `<rom>.sav.N`,
+  blank the first time (a new game), never a copy of player 1's.
 - Diagnostics: `~/.cache/gamecore/melonds-multiplayer.log`.
