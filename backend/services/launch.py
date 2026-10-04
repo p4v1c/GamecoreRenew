@@ -188,6 +188,52 @@ async def _prepare_pack_launch(system_id: str, rom_path: str, exec_path: str,
                       system_id)
 
 
+def _connected_players() -> list[dict]:
+    """Every profiled pad with its slot, for a pack's `launch_command`."""
+    players = []
+    for key, (vendor, product, name, _bus) in gamepad_monitor.roster().items():
+        player = controller_registry.player_for(key)
+        if player is not None:
+            players.append({"player": player, "key": key, "vendor": vendor,
+                            "product": product, "name": name})
+    return sorted(players, key=lambda p: p["player"])
+
+
+async def _pack_launch_command(system_id: str, rom_path: str, exec_path: str,
+                               exec_args: str) -> tuple[str, str]:
+    """The pack's `launch_command(...)` hook may replace the command.
+
+    melonDS uses it for local multiplayer (one instance per pad). The hook
+    answers None to keep the command as it is; any failure keeps it too.
+    """
+    try:
+        pack = load_catalog().get(system_id.lower())
+        module = configgen.load_generator(pack) if pack else None
+        hook = getattr(module, "launch_command", None)
+        if hook is None:
+            return exec_path, exec_args
+        on, _off = configgen.autoconfigured_packs(load_catalog())
+        # Autoconfig off: the hook may still change the command, never the config.
+        opts = (configgen.generator_opts(pack, configgen.HOME, configgen.SNAP_DIR)
+                if pack.id in {p.id for p in on} else None)
+        result = await asyncio.wait_for(
+            asyncio.to_thread(hook, rom_path=rom_path, exec_path=exec_path,
+                              exec_args=exec_args, players=_connected_players(),
+                              opts=opts),
+            timeout=PACK_PREPARE_BUDGET)
+        if result:
+            log.info("launch: %s — command replaced by the pack: %s %s",
+                     system_id, *result)
+            return result
+    except TimeoutError:
+        log.warning("launch: %s — launch_command exceeded %.1f s, launching "
+                    "the usual command", system_id, PACK_PREPARE_BUDGET)
+    except Exception:
+        log.exception("launch: %s — launch_command failed, launching the usual "
+                      "command", system_id)
+    return exec_path, exec_args
+
+
 def _check_rom_path(system: dict, rom_path: str) -> None:
     """The ROM must sit inside the system's ROMs directory (no arbitrary exec)."""
     roms_root = resolve_path(system.get("romsPath", ""))
@@ -316,6 +362,8 @@ async def launch(system: dict, system_id: str, rom_path: str, game_key: str) -> 
 
     exec_args = await _gates(system, system_id, system.get("args", ""), game_key)
     await _prepare(system_id, rom_path, exec_path, exec_args, game_key)
+    exec_path, exec_args = await _pack_launch_command(system_id, rom_path,
+                                                      exec_path, exec_args)
     resumed_flag = await _spawn(system, system_id, rom_path, exec_path, exec_args, game_key)
     _start_background_tasks(system, system_id)
     return {"ok": True, "game_key": game_key, "resumed": resumed_flag}

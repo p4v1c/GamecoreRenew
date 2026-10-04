@@ -719,10 +719,18 @@ signatures. The docstrings carry the rest.
 check → ROM path inside `romsPath` → resume-or-refuse (one resident game) →
 catalogue args → BIOS gate → USB notice → `standby.exit_standby()` → wait for
 pad profiles → release stale slots → per-game config → pack
-`prepare_launch` → `process_manager.launch()` → udev re-fire / fullscreen
-tasks. Refusals raise `LaunchRefused(status, detail)`; the router maps them.
+`prepare_launch` → pack `launch_command` → `process_manager.launch()` → udev
+re-fire / fullscreen tasks. Refusals raise `LaunchRefused(status, detail)`; the router maps them.
 Every preparation step is budgeted and never raises: a late config costs a
 session, a failed launch costs the box.
+
+`_pack_launch_command()` calls a pack's optional `launch_command(rom_path,
+exec_path, exec_args, players, opts)` hook (`generator.py`), which may return
+another `(exec_path, exec_args)`. `players` comes from `_connected_players()`
+(slot, registry key, vendor, product, name); `opts` is `None` when autoconfig
+is off for the pack, so the hook may change the command but not the config.
+None, an exception or `PACK_PREPARE_BUDGET` keep the usual command. melonDS
+uses it for local multiplayer ([10](10-catalog-and-install.md#melonds-local-multiplayer)).
 
 ### `systems.py` — the grid rows
 
