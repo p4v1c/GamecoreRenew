@@ -21,6 +21,9 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **No more battery pill for a mouse.** A Bluetooth mouse's battery showed
+  as an extra controller pill, numbered like a player (a second "P2").
+
 - **One mouse per player in DS multiplayer.** With two mice or more, each
   mouse gets its own coloured arrow, stays on its player's DS and touches only
   that DS, so players can draw at the same time. One mouse works as before.

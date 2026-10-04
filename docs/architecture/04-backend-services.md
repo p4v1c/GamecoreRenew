@@ -142,7 +142,7 @@ known, controls, analogTriggers}`.
 
 | Function | Role |
 |---|---|
-| `read_batteries()` | sysfs → `[{name, level, charging}]` |
+| `read_batteries()` | sysfs → `[{name, level, charging}]`; only supplies whose device has a gamepad button (`_is_gamepad`): a mouse or keyboard battery is not a controller pill |
 | `_check(batteries)` | **pure** — returns the alerts to send for this poll, so it is unit-testable |
 | `run()` | polls and broadcasts `gp:battery` |
 
