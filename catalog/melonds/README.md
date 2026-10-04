@@ -66,7 +66,7 @@ the solo launch, unchanged. Architecture and the reasons:
   vertically to fill the screen. The L3 layout daemon only knows instance 1;
   avoid L3 in multiplayer.
 - Two mice or more: once a second mouse is used, each mouse belongs to one
-  player (order of first use), with its own coloured arrow kept in that
+  player (order of first use), with its own arrow (the box's cursor theme, same for all) kept in that
   player's column; its click is that player's stylus, so two players can
   drag at once. One mouse keeps the normal pointer.
 - Diagnostics: `~/.cache/gamecore/melonds-multiplayer.log`.

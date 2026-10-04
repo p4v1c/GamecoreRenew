@@ -329,7 +329,7 @@ their own DS, side by side on the TV. Every DS starts on its menu: pick the
 game on each DS for games where everyone has a cart, or **DS Download Play**
 on the others when the game shares from one cart (Mario Party DS). Each
 controller drives its own DS. The touch screen is the mouse. With one mouse,
-one cursor touches any DS; with two or more, each mouse gets its own coloured
+one cursor touches any DS; with two or more, each mouse gets its own
 arrow and touches only its player's DS (the first mouse used is player 1's).
 With one controller nothing changes.
 

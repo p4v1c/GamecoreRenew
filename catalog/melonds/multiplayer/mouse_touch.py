@@ -25,9 +25,13 @@ from arrows import Arrows
 
 log = logging.getLogger("melonds-multiplayer")
 
-# Mouse counts per screen pixel. A calibration knob: the kernel's raw counts
-# skip X's acceleration, so a fast mouse may want less, a slow one more.
+# Screen pixels per mouse count, constant like X's "flat" profile (the box's
+# own setting). Calibration knob.
 MOUSE_GAIN = 1.0
+# Arrows are windows the compositor redraws: moved once per frame at most,
+# raised above the game once a second.
+FRAME_SECONDS = 1 / 60
+RAISE_SECONDS = 1.0
 # Counts of movement (or one click) before a mouse is taken as used: a
 # keyboard's built-in pointer node never moves, and a desk bump stays under.
 ACTIVITY_THRESHOLD = 40
@@ -130,6 +134,8 @@ class MouseRouter:
         self.x11 = self.arrows = None
         self.routed = False
         self._last_scan = 0.0
+        self._arrow_due: dict[int, tuple[int, int]] = {}
+        self._last_frame = self._last_raise = 0.0
 
     def run(self, keep_going) -> None:
         self.x11 = windows.X11()
@@ -137,9 +143,11 @@ class MouseRouter:
         try:
             while keep_going():
                 self._rescan()
-                ready, _, _ = select.select(list(self.mice.values()), [], [], 0.5)
+                wait = FRAME_SECONDS if self._arrow_due else 0.5
+                ready, _, _ = select.select(list(self.mice.values()), [], [], wait)
                 for mouse in ready:
                     self._handle(mouse)
+                self._draw_arrows()
         finally:
             self.close()
 
@@ -172,11 +180,25 @@ class MouseRouter:
         if owner in self.pointers:
             self._apply(owner, self.pointers[owner].feed(events))
 
+    def _draw_arrows(self) -> None:
+        """Move each arrow to its latest position, at most once per frame."""
+        now = time.monotonic()
+        if not self._arrow_due or now - self._last_frame < FRAME_SECONDS:
+            return
+        for player, (x, y) in self._arrow_due.items():
+            self.arrows.move(player, x, y)
+        if now - self._last_raise >= RAISE_SECONDS:
+            self.arrows.raise_all()
+            self._last_raise = now
+        self.arrows.flush()
+        self._arrow_due.clear()
+        self._last_frame = now
+
     def _apply(self, player: int, actions: list[tuple]) -> None:
         touch = self.touches[player]
         for action in actions:
             if action[0] == "move":
-                self.arrows.move(player, action[1], action[2])
+                self._arrow_due[player] = (action[1], action[2])
             elif action[0] == "down":
                 touch.down(0, action[1], action[2])
             elif action[0] == "drag":
