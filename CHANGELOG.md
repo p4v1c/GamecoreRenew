@@ -21,6 +21,10 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **Players 2-4 start their own DS game.** In multiplayer, a player with no
+  save for a game now gets a blank one instead of a copy of player 1's
+  progress (Pokemon trading needs two different trainers).
+
 - **Smoother mouse arrows in DS multiplayer, in your cursor theme.** Every
   player's arrow uses the box's own cursor (a custom theme included) and is
   drawn once per frame instead of on every mouse report.

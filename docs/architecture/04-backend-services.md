@@ -270,7 +270,7 @@ Three things live here precisely because they used to exist in several copies:
 - **`SYSTEM_ID_RE`** — the alphabet a system id must match before it is joined
   onto any served root (`overlays.py` and `pergame.py` routers both import it;
   each used to carry its own identical compile).
-- **`atomic_write(path, text)` / `atomic_write_json(path, data, **dumps_kwargs)`**
+- **`atomic_write(path, text)` / `atomic_write_bytes(path, data)` / `atomic_write_json(path, data, **dumps_kwargs)`**
   — write through a temp file in the same directory, then `os.replace()`, with
   `encoding="utf-8"` spelled out. `write_text()` truncates first and writes
   second, and much of what the backend writes happens at startup or at a launch

@@ -23,6 +23,7 @@ from backend.services.configgen.controllers import Pad
 from backend.services.configgen.helpers.base import atomic_write, backup
 from backend.services.configgen.helpers.ini import section, set_key, set_section
 from backend.services.controller_registry import normalize_mac
+from backend.utils import atomic_write_bytes
 
 log = logging.getLogger(__name__)
 
@@ -227,6 +228,42 @@ def restore_instance0(target: Path, state: Path) -> None:
     state.unlink(missing_ok=True)
 
 
+# An erased DS save chip reads 0xFF: what a game takes for "no save yet".
+ERASED_BYTE = b"\xff"
+
+
+def _save_dir(config_text: str, instance: int, rom: Path) -> Path:
+    """Where melonDS keeps this instance's saves: its SaveFilePath, else the ROM's."""
+    m = re.search(r'^SaveFilePath = "(.*)"$', section(config_text, f"Instance{instance}") or "", re.M)
+    return Path(m.group(1)) if m and m.group(1) else rom.parent
+
+
+def blank_player_saves(rom_path: str, players: int, config_text: str = "") -> list[Path]:
+    """Give players 2-4 a blank save where they have none yet. Returns the new files.
+
+    melonDS opens <rom>.sav.N for instance N and, when that is missing, loads
+    player 1's <rom>.sav instead: player 2 started on a copy of the owner's
+    progress (Pokemon Platinum, measured). A blank file the size of player 1's
+    save makes the game offer a new one. Player 1's save and an existing
+    player save are never touched; no player 1 save means melonDS starts every
+    player fresh by itself. Archives are skipped: melonDS names their saves
+    after the file inside.
+    """
+    rom = Path(rom_path)
+    if rom.suffix.lower() != ".nds":
+        return []
+    made = []
+    for player in range(2, players + 1):
+        folder = _save_dir(config_text, player - 1, rom)
+        base = folder / f"{rom.stem}.sav"
+        mine = folder / f"{rom.stem}.sav.{player}"
+        if mine.exists() or not base.is_file():
+            continue
+        atomic_write_bytes(mine, ERASED_BYTE * base.stat().st_size)
+        made.append(mine)
+    return made
+
+
 def launch_command(*, rom_path: str, exec_path: str, exec_args: str,
                    players: list[dict], opts: dict | None,
                    synth, set_keys) -> tuple[str, str] | None:
@@ -248,4 +285,7 @@ def launch_command(*, rom_path: str, exec_path: str, exec_args: str,
         log.info("melonds multiplayer: %d players, SDL indices %s", count, indices)
         _park_instance0(target, state)
         write_instances(target, players, indices, Path(opts["snap_dir"]), synth, set_keys)
+    config_text = target.read_text() if target and target.is_file() else ""
+    for made in blank_player_saves(rom_path, count, config_text):
+        log.info("melonds multiplayer: blank save for a new player: %s", made.name)
     return command(exec_path, exec_args, count)
