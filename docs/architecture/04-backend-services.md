@@ -641,6 +641,7 @@ stdout → {"event":"window:ready","system_id":…,"rect":{x,y,w,h}}
 | `emit(obj)` / `emit_error(msg)` | one JSON object per line on stdout, flushed |
 | `X11Manager._client_windows()` | top-level windows via `_NET_CLIENT_LIST`, with a recursive fallback |
 | `X11Manager.find_window(wm_classes)` | first window whose `WM_CLASS` matches |
+| `X11Manager.count_main_windows(wm_classes)` | matching windows, dialogs (`WM_TRANSIENT_FOR`) excluded |
 | `X11Manager.dump_windows()` | debug helper — all `WM_CLASS` values |
 | `X11Manager.force_rect(wid, x, y, w, h)` | leaves fullscreen, removes decorations (Motif hints), moves and resizes |
 | `X11Manager.get_rect(wid)` | geometry translated to root coordinates |
@@ -653,6 +654,11 @@ stdout → {"event":"window:ready","system_id":…,"rect":{x,y,w,h}}
 root window**, as EWMH requires for a mapped window. Writing the property
 directly (what it used to do) clears *every* state at once —
 `_NET_WM_STATE_ABOVE` included — and desyncs the WM's bookkeeping.
+
+A bezel frames one window. Once a second checked `count_main_windows()`; more
+than one (melonDS local multiplayer opens one per player) ends the watch with
+`window:closed` / `several-windows`, because re-forcing the first window every
+100 ms would undo the launcher's layout.
 
 `_WAYLAND_SESSION` disables the whole module when `WAYLAND_DISPLAY` is set.
 
