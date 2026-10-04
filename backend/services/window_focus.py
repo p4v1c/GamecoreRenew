@@ -100,10 +100,12 @@ def _window_pid(disp, win) -> int:
 
 
 def _find_by_pids(disp, pids: set[int]):
-    for win in _client_windows(disp):
-        if _window_pid(disp, win) in pids:
-            return win
-    return None
+    wins = _find_all_by_pids(disp, pids)
+    return wins[0] if wins else None
+
+
+def _find_all_by_pids(disp, pids: set[int]) -> list:
+    return [win for win in _client_windows(disp) if _window_pid(disp, win) in pids]
 
 
 def _find_by_class(disp, wm_classes) -> object | None:
@@ -146,12 +148,21 @@ def _activate(disp, win) -> None:
 def _activate_sync(system_id: str, pgid: int) -> bool:
     disp = _open()
     try:
-        win = _find_by_pids(disp, _pids_of(pgid)) if pgid else None
-        if win is None:
+        wins = _find_all_by_pids(disp, _pids_of(pgid)) if pgid else []
+        if not wins:
             log.info("window_focus[%s]: no window found for pgid %s", system_id, pgid)
             return False
-        _activate(disp, win)
-        log.info("window_focus[%s]: resumed window raised", system_id)
+        if len(wins) == 1:
+            _activate(disp, wins[0])
+            log.info("window_focus[%s]: resumed window raised", system_id)
+            return True
+        # Several game windows (melonDS local multiplayer: one per screen and
+        # player, laid out by its launcher). Fullscreen on one of them covered
+        # the screen with a single DS screen; raise them all as they are.
+        for win in wins:
+            _send(disp, win, "_NET_ACTIVE_WINDOW", [2, X.CurrentTime, 0, 0, 0])
+        log.info("window_focus[%s]: %d resumed windows raised, layout kept",
+                 system_id, len(wins))
         return True
     finally:
         disp.close()

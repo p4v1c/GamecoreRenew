@@ -655,10 +655,15 @@ root window**, as EWMH requires for a mapped window. Writing the property
 directly (what it used to do) clears *every* state at once —
 `_NET_WM_STATE_ABOVE` included — and desyncs the WM's bookkeeping.
 
-A bezel frames one window. Once a second checked `count_main_windows()`; more
-than one (melonDS local multiplayer opens one per player) ends the watch with
-`window:closed` / `several-windows`, because re-forcing the first window every
-100 ms would undo the launcher's layout.
+A bezel frames one window. `count_main_windows()` is checked before the first
+`force_rect()` (on a resume every window exists already) and then once a
+second; more than one (melonDS local multiplayer opens one per player and
+screen) ends the watch with `window:closed` / `several-windows`, because
+forcing one window into the bezel rect undoes the launcher's layout.
+
+`window_focus.py` follows the same rule on resume: one game window is raised
+and put back in fullscreen; several are raised as they are, since fullscreen
+on one of them covered the screen with a single DS screen.
 
 `_WAYLAND_SESSION` disables the whole module when `WAYLAND_DISPLAY` is set.
 

@@ -233,3 +233,24 @@ def test_the_bezel_steps_aside_when_the_emulator_opens_more_game_windows(monkeyp
     assert events[-1] == {"event": "window:closed", "system_id": "melonds",
                           "reason": "several-windows"}
     assert any(e["event"] == "window:ready" for e in events)
+
+
+class SiblingsFromStart(WatchedManager):
+    def __init__(self):
+        super().__init__(siblings_after=1)
+        self.forced = 0
+
+    def force_rect(self, wid, x, y, w, h):
+        self.forced += 1
+
+
+def test_a_resumed_multi_window_game_is_never_forced_into_the_bezel(monkeypatch, capsys):
+    """On a resume every melonDS window exists already: no force_rect at all."""
+    monkeypatch.setattr(om.time, "sleep", lambda _s: None)
+    mgr = SiblingsFromStart()
+    mon = _monitor(monkeypatch, mgr)
+    mon._run("melonds", {"window_rect": RECT, "wm_class": {"linux": ["melonDS"]}})
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert mgr.forced == 0
+    assert events[-1]["reason"] == "several-windows"
+    assert not any(e["event"] == "window:ready" for e in events)

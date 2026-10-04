@@ -21,6 +21,9 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **DS multiplayer keeps its layout after a suspend.** Coming back to a
+  suspended multiplayer game put one DS screen in fullscreen over the others,
+  and a bezel could pull one window into its frame.
 - **No more battery pill for a mouse.** A Bluetooth mouse's battery showed
   as an extra controller pill, numbered like a player (a second "P2").
 
