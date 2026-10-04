@@ -1,7 +1,9 @@
 """Place the melonDS instance windows side by side (X11, ctypes, stdlib only).
 
-melonDS titles each window "[pN] ..." as soon as a second instance exists, so
-the player number is read from the title, never from creation order.
+Each player has two windows, top screen above touch screen, in one column.
+melonDS titles them "[pN:wM] ..." ("[wM]" while one instance runs, "[pN]"
+for a lone window), so player and window are read from the title, never from
+creation order.
 """
 from __future__ import annotations
 
@@ -12,7 +14,7 @@ import time
 
 # Two DS screens stacked: 256 x 384.
 DS_WIDTH, DS_HEIGHT = 2, 3
-_TITLE_RE = re.compile(r"^\[p(\d+)\]")
+_TITLE_RE = re.compile(r"^\[(?:p(\d+))?:?(?:w(\d+))?\]")
 _ANY_PROPERTY_TYPE = 0
 _MWM_HINTS_DECORATIONS = 2
 XK_F11 = 0xFFC8
@@ -28,13 +30,18 @@ KEY_HOLD = 0.15
 
 
 def columns(players: int, screen_w: int, screen_h: int) -> list[tuple[int, int, int, int]]:
-    """(x, y, w, h) per player: touching columns in the DS shape, as large as
-    the screen allows, the block centred. The menu bar is hidden."""
+    """(x, y, w, h) per player: touching full-height columns, as wide as the DS
+    shape allows, the block centred. Narrow columns stretch the image."""
     width = min(screen_w // players, screen_h * DS_WIDTH // DS_HEIGHT)
-    height = min(screen_h, width * DS_HEIGHT // DS_WIDTH)
     left = (screen_w - width * players) // 2
-    top = (screen_h - height) // 2
-    return [(left + i * width, top, width, height) for i in range(players)]
+    return [(left + i * width, 0, width, screen_h) for i in range(players)]
+
+
+def screen_rect(column: tuple[int, int, int, int], window: int) -> tuple[int, int, int, int]:
+    """Window 1 (top screen) takes the upper half of the column, window 2 the rest."""
+    x, y, w, h = column
+    half = h // 2
+    return (x, y, w, half) if window == 1 else (x, y + half, w, h - half)
 
 
 class _KeyEvent(ctypes.Structure):
@@ -60,9 +67,41 @@ class _Event(ctypes.Union):
     _fields_ = [("key", _KeyEvent), ("client", _ClientMessage), ("pad", ctypes.c_long * 24)]
 
 
-def player_of(title: str) -> int | None:
+def title_ids(title: str) -> tuple[int, int] | None:
+    """(player, window) from a melonDS title, or None for a foreign window."""
+    if "melonDS" not in title:
+        return None
     m = _TITLE_RE.match(title)
-    return int(m.group(1)) if m else None
+    if not m or not (m.group(1) or m.group(2)):
+        return (1, 1)                      # one instance, one window
+    return int(m.group(1) or 1), int(m.group(2) or 1)
+
+
+class _WindowAttributes(ctypes.Structure):
+    _fields_ = [("x", ctypes.c_int), ("y", ctypes.c_int), ("width", ctypes.c_int),
+                ("height", ctypes.c_int), ("border_width", ctypes.c_int),
+                ("depth", ctypes.c_int), ("visual", ctypes.c_void_p),
+                ("root", ctypes.c_ulong), ("class_", ctypes.c_int),
+                ("bit_gravity", ctypes.c_int), ("win_gravity", ctypes.c_int),
+                ("backing_store", ctypes.c_int), ("backing_planes", ctypes.c_ulong),
+                ("backing_pixel", ctypes.c_ulong), ("save_under", ctypes.c_int),
+                ("colormap", ctypes.c_ulong), ("map_installed", ctypes.c_int),
+                ("map_state", ctypes.c_int), ("all_event_masks", ctypes.c_long),
+                ("your_event_mask", ctypes.c_long),
+                ("do_not_propagate_mask", ctypes.c_long),
+                ("override_redirect", ctypes.c_int), ("screen", ctypes.c_void_p)]
+
+
+_IS_VIEWABLE = 2
+_ERROR_HANDLER = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p)
+
+
+@_ERROR_HANDLER
+def _ignore_x_error(_display, _event):
+    # Xlib's default handler exit()s the process, and the launcher exiting
+    # ends the GameCore session while melonDS runs. A request on a window
+    # that just changed state (BadMatch, BadWindow) costs one layout pass.
+    return 0
 
 
 class X11:
@@ -71,6 +110,9 @@ class X11:
     def __init__(self):
         name = ctypes.util.find_library("X11") or "libX11.so.6"
         self.lib = lib = ctypes.CDLL(name)
+        lib.XSetErrorHandler.argtypes = [_ERROR_HANDLER]
+        lib.XSetErrorHandler.restype = ctypes.c_void_p
+        lib.XSetErrorHandler(_ignore_x_error)
         lib.XOpenDisplay.restype = ctypes.c_void_p
         lib.XOpenDisplay.argtypes = [ctypes.c_char_p]
         lib.XDefaultRootWindow.restype = ctypes.c_ulong
@@ -93,6 +135,8 @@ class X11:
         lib.XMoveResizeWindow.argtypes = [ctypes.c_void_p, ctypes.c_ulong,
                                           ctypes.c_int, ctypes.c_int,
                                           ctypes.c_uint, ctypes.c_uint]
+        lib.XGetWindowAttributes.argtypes = [ctypes.c_void_p, ctypes.c_ulong,
+                                             ctypes.POINTER(_WindowAttributes)]
         lib.XFree.argtypes = [ctypes.c_void_p]
         lib.XFlush.argtypes = [ctypes.c_void_p]
         lib.XCloseDisplay.argtypes = [ctypes.c_void_p]
@@ -178,16 +222,30 @@ class X11:
         self.lib.XSetInputFocus(self.dpy, win, _REVERT_TO_PARENT, 0)
         self.lib.XFlush(self.dpy)
 
-    def leave_fullscreen(self, win: int) -> None:
-        """Ask the WM to drop fullscreen (EWMH: a ClientMessage to the root)."""
+    def _drop_states(self, win: int, *states: str) -> None:
+        """Ask the WM to remove up to two _NET_WM_STATE values (EWMH: a
+        ClientMessage to the root)."""
         ev = _Event()
         ev.client.type, ev.client.window, ev.client.format = _CLIENT_MESSAGE, win, 32
         ev.client.message_type = self.atom("_NET_WM_STATE")
         ev.client.data[0] = _NET_WM_STATE_REMOVE
-        ev.client.data[1] = self.atom("_NET_WM_STATE_FULLSCREEN")
+        for i, state in enumerate(states[:2], start=1):
+            ev.client.data[i] = self.atom(state)
         ev.client.data[3] = 1
         self.lib.XSendEvent(self.dpy, self.root, 0, _WM_REDIRECT, ctypes.byref(ev))
+
+    def unconstrain(self, win: int) -> None:
+        """Out of fullscreen and maximized: a maximized window keeps its
+        height whatever is asked (KWin restores melonDS's saved geometry so)."""
+        self._drop_states(win, "_NET_WM_STATE_FULLSCREEN")
+        self._drop_states(win, "_NET_WM_STATE_MAXIMIZED_VERT", "_NET_WM_STATE_MAXIMIZED_HORZ")
         self.lib.XFlush(self.dpy)
+
+    def is_viewable(self, win: int) -> bool:
+        attrs = _WindowAttributes()
+        if not self.lib.XGetWindowAttributes(self.dpy, win, ctypes.byref(attrs)):
+            return False
+        return attrs.map_state == _IS_VIEWABLE
 
     def place(self, win: int, x: int, y: int, w: int, h: int) -> None:
         """Drop the WM frame so columns touch, then move and size."""
@@ -198,23 +256,25 @@ class X11:
         self.lib.XFlush(self.dpy)
 
 
-def melonds_windows(x11: X11) -> dict[int, int]:
-    """player number → window, for every titled melonDS instance window."""
-    found: dict[int, int] = {}
+def melonds_windows(x11: X11) -> dict[tuple[int, int], int]:
+    """(player, window) → X window, for every shown melonDS window. Qt keeps
+    unmapped windows under the same title; without a WM they are listed too."""
+    found: dict[tuple[int, int], int] = {}
     for win in x11.top_windows():
-        player = player_of(x11.title(win))
-        if player is not None and "melonDS" in x11.title(win):
-            found[player] = win
+        ids = title_ids(x11.title(win))
+        if ids is not None and x11.is_viewable(win):
+            found[ids] = win
     return found
 
 
 def press_fullscreen_key(player: int) -> bool:
     """Send F11 (melonDS's fullscreen hotkey, set by setup.py) to one player's
-    window: the only path that makes melonDS hide its menu bar. `tile` then
-    takes the window out of fullscreen. False when the window is not there."""
+    first window; melonDS toggles all of the instance's windows, and that is
+    the only path that hides their menu bars. `tile` then takes the windows
+    out of fullscreen. False when the window is not there."""
     x11 = X11()
     try:
-        win = melonds_windows(x11).get(player)
+        win = melonds_windows(x11).get((player, 1))
         if win is None:
             return False
         x11.activate(win)
@@ -231,13 +291,12 @@ def tile(players: int) -> int:
     """Place every instance window that exists. Returns how many were placed."""
     x11 = X11()
     try:
-        wins = melonds_windows(x11)
-        slots = columns(players, *x11.screen_size())
+        cols = columns(players, *x11.screen_size())
         placed = 0
-        for player, win in wins.items():
-            if 1 <= player <= players:
-                x11.leave_fullscreen(win)
-                x11.place(win, *slots[player - 1])
+        for (player, window), win in melonds_windows(x11).items():
+            if 1 <= player <= players and window in (1, 2):
+                x11.unconstrain(win)
+                x11.place(win, *screen_rect(cols[player - 1], window))
                 placed += 1
         return placed
     finally:

@@ -36,8 +36,17 @@ PROBE_TIMEOUT = 2.0
 # for a session are parked here and put back at the next solo launch.
 STATE_FILE = ".local/share/gamecore/melonds-multiplayer/instance0-solo.json"
 # melonDS hides its menu bar only when it toggles fullscreen itself; the
-# launcher sends this key (Qt::Key_F11) to every window. F12 is the L3 daemon's.
+# launcher sends this key (Qt::Key_F11) to every instance. F12 is the L3 daemon's.
 FULLSCREEN_KEY = "16777274"
+# One window per DS screen, each stretched to fill its half of the column:
+# melonDS cannot stretch two stacked screens in one window. Values from
+# ScreenLayout.h (TopOnly = 4, BotOnly = 5) and Screen.h (aspect "window" = 3).
+SCREEN_WINDOWS = (("Window0", "4"), ("Window1", "5"))
+ASPECT_WINDOW = "3"
+# What melonDS assumes for a key absent from the file: restored when solo
+# put back a key multiplayer added.
+MELONDS_DEFAULTS = {"JoystickID": "0", "HK_FullscreenToggle": "-1", "Enabled": "false",
+                    "ScreenSizing": "0", "ScreenAspectTop": "0", "ScreenAspectBot": "0"}
 
 # Asks the SDL2 melonDS links (inside its sandbox) for its joystick order.
 # melonDS sets no hint that changes enumeration (main.cpp), so neither do we.
@@ -163,6 +172,11 @@ def _set(text: str, header: str, key: str, value: str) -> str:
 def _instance_settings(instance: int, joystick: int | None) -> list[tuple[str, str, str]]:
     """(section, key, value) multiplayer sets on one instance."""
     out = [(f"Instance{instance}.Keyboard", "HK_FullscreenToggle", FULLSCREEN_KEY)]
+    for window, sizing in SCREEN_WINDOWS:
+        header = f"Instance{instance}.{window}"
+        out += [(header, "Enabled", "true"), (header, "ScreenSizing", sizing),
+                (header, "ScreenAspectTop", ASPECT_WINDOW),
+                (header, "ScreenAspectBot", ASPECT_WINDOW)]
     if joystick is not None:
         out.append((f"Instance{instance}", "JoystickID", str(joystick)))
     return out
@@ -170,8 +184,8 @@ def _instance_settings(instance: int, joystick: int | None) -> list[tuple[str, s
 
 def write_instances(target: Path, players: list[dict], indices: dict[int, int],
                     snap_dir: Path, synth, set_keys) -> None:
-    """Pad and hotkey settings for every instance, bindings for players 2-4,
-    one atomic write."""
+    """Pad, hotkey and screen-window settings for every instance, bindings for
+    players 2-4, one atomic write."""
     text = target.read_text()
     base = section(text, "Instance0.Joystick") or ""
     for p in players:
@@ -195,8 +209,7 @@ def _park_instance0(target: Path, state: Path) -> None:
     parked = []
     for header, key, _value in _instance_settings(0, 0):
         m = re.search(rf"^{key} = (.*)$", section(text, header) or "", re.M)
-        if m:
-            parked.append([header, key, m.group(1)])
+        parked.append([header, key, m.group(1) if m else MELONDS_DEFAULTS[key]])
     state.parent.mkdir(parents=True, exist_ok=True)
     atomic_write(state, json.dumps(parked))
 

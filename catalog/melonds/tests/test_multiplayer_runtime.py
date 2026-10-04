@@ -17,14 +17,13 @@ import launcher   # noqa: E402
 import windows    # noqa: E402
 
 
-def test_columns_touch_and_keep_the_ds_shape():
+def test_columns_touch_and_fill_the_height():
     for players in (2, 3, 4):
         cols = windows.columns(players, 1920, 1080)
         assert len(cols) == players
         for (x1, _y1, w1, _h1), (x2, _y2, _w2, _h2) in zip(cols, cols[1:]):
             assert x1 + w1 == x2                      # no gap between players
-        for x, y, w, h in cols:
-            assert 0 <= y and y + h <= 1080 and h * 2 == w * 3
+        assert all(y == 0 and h == 1080 for _x, y, _w, h in cols)
         assert cols[0][0] >= 0 and cols[-1][0] + cols[-1][2] <= 1920
 
 
@@ -33,15 +32,24 @@ def test_four_players_use_the_whole_width():
     assert cols[0][0] == 0 and cols[-1][0] + cols[-1][2] == 1920
 
 
-def test_two_players_use_the_whole_height_and_are_centred():
-    (x1, y, w, h), (x2, _, _, _) = windows.columns(2, 1920, 1080)
-    assert (y, w, h) == (0, 720, 1080)
+def test_two_players_keep_the_native_shape_and_are_centred():
+    (x1, _y, w, _h), (x2, _, _, _) = windows.columns(2, 1920, 1080)
+    assert w == 720
     assert x1 == 1920 - (x2 + w)
 
 
-def test_player_number_comes_from_the_title():
-    assert windows.player_of("[p3] [59/60] melonDS 1.1") == 3
-    assert windows.player_of("melonDS 1.1") is None
+def test_top_screen_window_above_the_touch_screen_window():
+    col = (480, 0, 480, 1080)
+    assert windows.screen_rect(col, 1) == (480, 0, 480, 540)
+    assert windows.screen_rect(col, 2) == (480, 540, 480, 540)
+
+
+def test_player_and_window_come_from_the_title():
+    assert windows.title_ids("[p3:w2] [59/60] melonDS 1.1") == (3, 2)
+    assert windows.title_ids("[p3] melonDS 1.1") == (3, 1)
+    assert windows.title_ids("[w2] melonDS 1.1") == (1, 2)
+    assert windows.title_ids("melonDS 1.1") == (1, 1)
+    assert windows.title_ids("Firefox") is None
 
 
 def test_recent_entry_one_matches_even_shortened_and_with_ampersands():
@@ -75,3 +83,8 @@ def test_launcher_returns_melonds_exit_code_without_waiting_out_the_timeout(tmp_
         env=env, timeout=launcher.APP_TIMEOUT / 2)
     assert done.returncode == 3
     assert "multiplayer setup stopped" in (tmp_path / ".cache/gamecore/melonds-multiplayer.log").read_text()
+
+
+def test_an_x_error_does_not_end_the_launcher():
+    """Xlib's default handler exits; a launcher that exits ends the session."""
+    assert windows._ignore_x_error(None, None) == 0

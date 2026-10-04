@@ -149,10 +149,16 @@ def test_solo_after_multiplayer_gives_instance_1_its_settings_back(tmp_path, mon
     assert "JoystickID = 1" in section(text, "Instance0")
     assert f"HK_FullscreenToggle = {setup.FULLSCREEN_KEY}" in section(text, "Instance0.Keyboard")
     assert f"HK_FullscreenToggle = {setup.FULLSCREEN_KEY}" in section(text, "Instance1.Keyboard")
+    assert "ScreenSizing = 4" in section(text, "Instance0.Window0")
+    assert "Enabled = true" in section(text, "Instance0.Window1")
+    assert "ScreenSizing = 5" in section(text, "Instance1.Window1")
     _launch(opts, [{"player": 1, "key": "a", **DS4}])
     text = opts["target"].read_text()
     for header in ("Instance0", "Instance0.Keyboard", "Instance0.Joystick"):
         assert section(text, header).strip() == section(TOML, header).strip()
+    # Solo never opens the second window, though the seed had no Window1 at all.
+    assert "Enabled = false" in section(text, "Instance0.Window1")
+    assert "ScreenSizing = 0" in section(text, "Instance0.Window0")
     assert not (tmp_path / setup.STATE_FILE).exists()
 
 

@@ -66,22 +66,21 @@ def _wait(predicate, timeout: float, what: str, alive=lambda: True):
     raise TimeoutError(f"timed out waiting for {what}")
 
 
-def _frames(address: str) -> dict[int, atspi.Node]:
-    """player number → instance frame. A lone instance has no [pN] title."""
+def _all_frames(address: str) -> dict[tuple[int, int], atspi.Node]:
+    """(player, window) → frame, for every melonDS window."""
     app = atspi.find_app(address)
     if app is None:
         return {}
     frames = {}
     for node in app.children():
-        if node.role() != "frame":
-            continue
-        title = node.name()
-        player = windows.player_of(title)
-        if player is None and "melonDS" in title:
-            player = 1
-        if player is not None:
-            frames[player] = node
+        if node.role() == "frame" and (ids := windows.title_ids(node.name())):
+            frames[ids] = node
     return frames
+
+
+def _frames(address: str) -> dict[int, atspi.Node]:
+    """player → that instance's first window, the one menus are pressed in."""
+    return {p: f for (p, w), f in _all_frames(address).items() if w == 1}
 
 
 def recent_rom_matcher(rom: str):
@@ -125,16 +124,18 @@ def has_cart(label: str) -> bool:
     return label.startswith("DS slot:") and "(none)" not in label
 
 
-def hide_menu_bar(frame: atspi.Node, player: int, alive) -> None:
-    """Have melonDS hide this window's menu bar; checked, because a key that
-    lands while the instance restarts its firmware is lost."""
-    bar = atspi.menu_bar(frame)
+def hide_menu_bar(address: str, player: int, alive) -> None:
+    """Have melonDS hide the menu bars of this player's windows; checked,
+    because a key that lands while the instance restarts its firmware is lost."""
+    bars = [b for (p, _w), f in _all_frames(address).items()
+            if p == player and (b := atspi.menu_bar(f)) is not None]
     for _attempt in range(MENU_KEY_ATTEMPTS):
-        if bar is None or not windows.press_fullscreen_key(player):
+        if not bars or not windows.press_fullscreen_key(player):
             break
         try:
-            _wait(lambda: bar.extents()[3] == 0, MENU_KEY_TIMEOUT, "the menu bar", alive)
-            log.info("player %d: menu bar hidden", player)
+            _wait(lambda: all(b.extents()[3] == 0 for b in bars), MENU_KEY_TIMEOUT,
+                  "the menu bars", alive)
+            log.info("player %d: menu bars hidden", player)
             return
         except TimeoutError:
             continue
@@ -161,7 +162,7 @@ def orchestrate(players: int, rom: str, alive) -> None:
     for player in range(1, players + 1):
         boot_firmware(frames[player], player, alive)
     for player in range(1, players + 1):
-        hide_menu_bar(frames[player], player, alive)
+        hide_menu_bar(address, player, alive)
     tile(players)
 
 
