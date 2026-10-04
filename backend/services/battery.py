@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 
 from . import controller_registry
+from .gamepad_devices import BTN_SOUTH
 
 log = logging.getLogger(__name__)
 
@@ -30,13 +31,45 @@ _POLL_SECS = 10
 _REARM_MARGIN = 5
 
 
-def read_batteries() -> list[dict]:
+POWER_SUPPLY_ROOT = Path("/sys/class/power_supply")
+
+
+def _has_bit(bitmap: str, bit: int) -> bool:
+    """A sysfs capability bitmap: 64-bit hex words, most significant first."""
+    words = bitmap.split()
+    index = len(words) - 1 - bit // 64
+    return 0 <= index < len(words) and bool(int(words[index], 16) >> (bit % 64) & 1)
+
+
+def _is_gamepad(supply: Path) -> bool:
+    """Whether the device behind a battery has a gamepad button.
+
+    Mice and keyboards report batteries too (Logitech's hidpp_battery_N):
+    shown as controllers, a mouse took the pill "P2", numbered by the themes
+    from its place in the list. A supply whose device lists no input node
+    is kept, as before.
+    """
+    keys = sorted((supply / "device" / "input").glob("input*/capabilities/key"))
+    if not keys:
+        return True
+    for key in keys:
+        try:
+            if _has_bit(key.read_text(), BTN_SOUTH):
+                return True
+        except (OSError, ValueError):
+            continue
+    return False
+
+
+def read_batteries(root: Path = POWER_SUPPLY_ROOT) -> list[dict]:
     """Controller batteries from sysfs: [{name, level, charging}]."""
     result = []
-    for supply in sorted(glob.glob("/sys/class/power_supply/*")):
+    for supply in sorted(glob.glob(str(root / "*"))):
         p = Path(supply)
         name = p.name
         if any(name.upper().startswith(s.upper()) for s in _SKIP):
+            continue
+        if not _is_gamepad(p):
             continue
         cap_path = p / "capacity"
         if not cap_path.exists():

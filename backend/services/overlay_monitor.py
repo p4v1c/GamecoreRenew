@@ -275,6 +275,13 @@ class OverlayMonitor:
         # ── Force position and decorations ────────────────────────────────────
         # Give emulator 0.5s to finish drawing before we force the rect
         time.sleep(0.5)
+        # Checked before the first force_rect too: on a resume every window of
+        # a multi-window game already exists, and forcing one into the bezel
+        # rect broke the layout before the maintenance loop's check ran.
+        if self._mgr.count_main_windows(classes) > 1:
+            emit({"event": "window:closed", "system_id": system_id,
+                  "reason": "several-windows"})
+            return
         try:
             before = self._mgr.get_rect(wid)
             emit({"event": "debug", "msg": f"before force_rect: {before}"})

@@ -42,6 +42,16 @@ def test_the_button_becomes_a_touch_that_follows_the_drag():
     assert p.feed(_move(5, 5)) == [("move", 255, 545)]   # no drag once released
 
 
+def test_an_old_40hz_mouse_and_a_125hz_one_travel_alike():
+    """Same hand movement, fewer bigger reports: same distance (flat gain)."""
+    old, new = (mouse_touch.Pointer((0, 0, 1920, 1080), gain=1.0) for _ in range(2))
+    for _ in range(8):
+        old.feed(_move(25, 0))
+    for _ in range(25):
+        new.feed(_move(8, 0))
+    assert old.position == new.position
+
+
 def test_motion_before_the_button_in_one_frame_lands_first():
     p = mouse_touch.Pointer((0, 0, 480, 1080), gain=1.0)
     actions = p.feed([(EV_REL, REL_X, 20), (EV_KEY, BTN_LEFT, 1), (EV_SYN, 0, 0)])

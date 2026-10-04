@@ -21,8 +21,17 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **Smoother mouse arrows in DS multiplayer, in your cursor theme.** Every
+  player's arrow uses the box's own cursor (a custom theme included) and is
+  drawn once per frame instead of on every mouse report.
+- **DS multiplayer keeps its layout after a suspend.** Coming back to a
+  suspended multiplayer game put one DS screen in fullscreen over the others,
+  and a bezel could pull one window into its frame.
+- **No more battery pill for a mouse.** A Bluetooth mouse's battery showed
+  as an extra controller pill, numbered like a player (a second "P2").
+
 - **One mouse per player in DS multiplayer.** With two mice or more, each
-  mouse gets its own coloured arrow, stays on its player's DS and touches only
+  mouse gets its own arrow, stays on its player's DS and touches only
   that DS, so players can draw at the same time. One mouse works as before.
 
 - **Nintendo DS local multiplayer.** With two to four controllers connected, a

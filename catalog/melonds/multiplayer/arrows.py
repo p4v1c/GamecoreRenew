@@ -1,4 +1,5 @@
-"""One on-screen arrow per player, drawn as a tiny shaped X window.
+"""One on-screen arrow per player, drawn as a tiny shaped X window wearing the
+box's own cursor theme (cursor_theme.py).
 
 Plain windows rather than X pointers: extra X pointers (XInput2 masters)
 crash kwin_x11 when removed and Electron's GTK3 when added in a hurry. A
@@ -14,6 +15,7 @@ from __future__ import annotations
 import ctypes
 import ctypes.util
 
+import cursor_theme
 from windows import X11
 
 # The classic arrow, tip at (0, 0), drawn on a 16 x 25 grid and scaled:
@@ -24,11 +26,16 @@ OUTLINE = [(x * SCALE, y * SCALE) for x, y in
 INNER = [(x * SCALE, y * SCALE) for x, y in
          [(1, 2), (1, 18), (5, 14), (9, 22), (11, 21), (7, 14), (12, 14)]]
 SIZE = (16 * SCALE, 25 * SCALE)
-# Player colours: red, blue, green, yellow, like the DS's own player marks.
-COLOURS = {1: 0xE4202E, 2: 0x2A6FE8, 3: 0x2BB24C, 4: 0xF2C61F}
+# One look for every player, the classic white arrow: each stays in its own
+# column anyway (owner's choice over per-player colours).
+FILL_COLOUR = 0xFFFFFF
 OUTLINE_COLOUR = 0x000000
 
 _CW_OVERRIDE_REDIRECT = 1 << 9
+_Z_PIXMAP, _COORD_MODE_ORIGIN = 2, 0
+# A theme pixel this opaque is part of the arrow; softer edges are dropped,
+# since a shaped window is all-or-nothing.
+_ALPHA_SOLID = 128
 _SHAPE_BOUNDING, _SHAPE_INPUT, _SHAPE_SET = 0, 2, 0
 _COMPLEX, _COORD_ORIGIN = 0, 0
 
@@ -90,7 +97,21 @@ class Arrows:
         ext.XShapeCombineRectangles.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int,
                                                 ctypes.c_int, ctypes.c_int, ctypes.c_void_p,
                                                 ctypes.c_int, ctypes.c_int, ctypes.c_int]
+        lib.XDrawPoints.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_void_p,
+                                    ctypes.POINTER(_Point), ctypes.c_int, ctypes.c_int]
+        lib.XDefaultVisual.restype = ctypes.c_void_p
+        lib.XDefaultVisual.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        lib.XCreateImage.restype = ctypes.c_void_p
+        lib.XCreateImage.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint, ctypes.c_int,
+                                     ctypes.c_int, ctypes.c_char_p, ctypes.c_uint, ctypes.c_uint,
+                                     ctypes.c_int, ctypes.c_int]
+        lib.XPutImage.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_void_p, ctypes.c_void_p,
+                                  ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                  ctypes.c_uint, ctypes.c_uint]
         self.windows: dict[int, int] = {}
+        # The box's own pointer look (owner's theme); None: the drawn arrow.
+        self.image = cursor_theme.load_arrow()
+        self.hot = (self.image.hot_x, self.image.hot_y) if self.image else (0, 0)
 
     def _polygon(self, drawable, gc, colour, polygon) -> None:
         pts, n = _points(polygon)
@@ -99,40 +120,73 @@ class Arrows:
 
     def show(self, player: int, x: int, y: int) -> None:
         """Create player N's arrow, tip at (x, y)."""
-        lib, dpy, w, h = self.x11.lib, self.x11.dpy, *SIZE
+        lib, dpy = self.x11.lib, self.x11.dpy
+        w, h = (self.image.width, self.image.height) if self.image else SIZE
         attrs = _SetWindowAttributes(override_redirect=1)
-        win = lib.XCreateWindow(dpy, self.x11.root, x, y, w, h, 0, 0, 0, None,
-                                _CW_OVERRIDE_REDIRECT, ctypes.byref(attrs))
-        # Shape: the outline polygon, on a 1-bit mask.
+        win = lib.XCreateWindow(dpy, self.x11.root, x - self.hot[0], y - self.hot[1], w, h,
+                                0, 0, 0, None, _CW_OVERRIDE_REDIRECT, ctypes.byref(attrs))
         mask = lib.XCreatePixmap(dpy, win, w, h, 1)
-        gc = lib.XCreateGC(dpy, mask, 0, None)
-        lib.XSetForeground(dpy, gc, 0)
-        lib.XFillRectangle(dpy, mask, gc, 0, 0, w, h)
-        self._polygon(mask, gc, 1, OUTLINE)
+        art = lib.XCreatePixmap(dpy, win, w, h, lib.XDefaultDepth(dpy, 0))
+        if self.image:
+            self._paint_theme(mask, art)
+        else:
+            self._paint_drawn(mask, art, w, h)
         self.ext.XShapeCombineMask(dpy, win, _SHAPE_BOUNDING, 0, 0, mask, _SHAPE_SET)
-        lib.XFreeGC(dpy, gc)
-        lib.XFreePixmap(dpy, mask)
         # No input region: touches and clicks fall through to the DS.
         self.ext.XShapeCombineRectangles(dpy, win, _SHAPE_INPUT, 0, 0, None, 0, _SHAPE_SET, 0)
-        # Picture: black outline, the player's colour inside; the server repaints it.
-        art = lib.XCreatePixmap(dpy, win, w, h, lib.XDefaultDepth(dpy, 0))
-        gc = lib.XCreateGC(dpy, art, 0, None)
-        self._polygon(art, gc, OUTLINE_COLOUR, OUTLINE)
-        self._polygon(art, gc, COLOURS.get(player, 0xFFFFFF), INNER)
-        lib.XSetWindowBackgroundPixmap(dpy, win, art)
-        lib.XFreeGC(dpy, gc)
+        lib.XSetWindowBackgroundPixmap(dpy, win, art)   # the server repaints it
+        lib.XFreePixmap(dpy, mask)
         lib.XFreePixmap(dpy, art)
         lib.XMapRaised(dpy, win)
         lib.XFlush(dpy)
         self.windows[player] = win
 
+    def _paint_drawn(self, mask, art, w, h) -> None:
+        lib, dpy = self.x11.lib, self.x11.dpy
+        gc = lib.XCreateGC(dpy, mask, 0, None)
+        lib.XSetForeground(dpy, gc, 0)
+        lib.XFillRectangle(dpy, mask, gc, 0, 0, w, h)
+        self._polygon(mask, gc, 1, OUTLINE)
+        lib.XFreeGC(dpy, gc)
+        gc = lib.XCreateGC(dpy, art, 0, None)
+        self._polygon(art, gc, OUTLINE_COLOUR, OUTLINE)
+        self._polygon(art, gc, FILL_COLOUR, INNER)
+        lib.XFreeGC(dpy, gc)
+
+    def _paint_theme(self, mask, art) -> None:
+        lib, dpy, img = self.x11.lib, self.x11.dpy, self.image
+        gc = lib.XCreateGC(dpy, mask, 0, None)
+        lib.XSetForeground(dpy, gc, 0)
+        lib.XFillRectangle(dpy, mask, gc, 0, 0, img.width, img.height)
+        solid = [(i % img.width, i // img.width) for i in range(img.width * img.height)
+                 if img.argb[i * 4 + 3] >= _ALPHA_SOLID]
+        if solid:
+            pts, n = _points(solid)
+            lib.XSetForeground(dpy, gc, 1)
+            lib.XDrawPoints(dpy, mask, gc, pts, n, _COORD_MODE_ORIGIN)
+        lib.XFreeGC(dpy, gc)
+        # 32-bit ZPixmap: Xcursor's little-endian ARGB words are the server's layout.
+        self._pixels = ctypes.create_string_buffer(img.argb, len(img.argb))
+        ximage = lib.XCreateImage(dpy, lib.XDefaultVisual(dpy, 0), lib.XDefaultDepth(dpy, 0),
+                                  _Z_PIXMAP, 0, self._pixels, img.width, img.height, 32, 0)
+        gc = lib.XCreateGC(dpy, art, 0, None)
+        lib.XPutImage(dpy, art, gc, ximage, 0, 0, 0, 0, img.width, img.height)
+        lib.XFreeGC(dpy, gc)
+        lib.XFree(ximage)                        # the pixels stay ours
+
     def move(self, player: int, x: int, y: int) -> None:
         win = self.windows.get(player)
         if win:
-            # Raised on every move: a game window raised later would hide it.
-            self.x11.lib.XMoveWindow(self.x11.dpy, win, x, y)
+            self.x11.lib.XMoveWindow(self.x11.dpy, win, x - self.hot[0], y - self.hot[1])
+
+    def raise_all(self) -> None:
+        """A game window raised later would hide the arrows. Done now and
+        then, not on every move: each raise makes the compositor restack."""
+        for win in self.windows.values():
             self.x11.lib.XRaiseWindow(self.x11.dpy, win)
-            self.x11.lib.XFlush(self.x11.dpy)
+
+    def flush(self) -> None:
+        self.x11.lib.XFlush(self.x11.dpy)
 
     def hide_system_pointer(self, width: int, height: int) -> None:
         """Send X's own arrow to the last pixel, where it is drawn off screen:
