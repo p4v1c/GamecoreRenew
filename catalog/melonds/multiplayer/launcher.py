@@ -9,7 +9,8 @@ what a player does by hand. Every instance then boots its DS firmware with the
 cart inserted ("Boot firmware" keeps the cart), so each player lands on the DS
 menu: the game for multi-card play, DS Download Play for single-card games.
 The windows are laid out side by side. melonDS links its instances itself
-(local multiplayer inside one process).
+(local multiplayer inside one process). Once a second mouse is used, each
+mouse drives its own player's arrow and touch screen (mouse_touch.py).
 
 Runs in the game's process group, so GameCore's suspend and kill reach melonDS
 through it. Never exits before melonDS does: an early exit would end the
@@ -23,10 +24,12 @@ import logging
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
 import atspi
+import mouse_touch
 import windows
 
 MAX_PLAYERS = 4
@@ -41,6 +44,8 @@ POLL = 0.25
 # layout is the last word.
 TILE_PASSES = 8
 MENU_KEY_ATTEMPTS = 3
+# The mouse loop polls every 0.5 s, then gives the arrows back.
+MICE_STOP_TIMEOUT = 3.0
 MENU_KEY_TIMEOUT = 2.0
 LOG_PATH = Path.home() / ".cache/gamecore/melonds-multiplayer.log"
 
@@ -187,7 +192,19 @@ def main(argv: list[str]) -> int:
         log.info("all %d players started", players)
     except Exception:
         log.exception("multiplayer setup stopped; the players started so far keep playing")
-    return proc.wait()
+    mice = threading.Thread(target=_route_mice, args=(players, proc), daemon=True)
+    mice.start()
+    code = proc.wait()
+    mice.join(timeout=MICE_STOP_TIMEOUT)
+    return code
+
+
+def _route_mice(players: int, proc: subprocess.Popen) -> None:
+    """One mouse per player while melonDS runs; never fatal to the game."""
+    try:
+        mouse_touch.MouseRouter(players).run(keep_going=lambda: proc.poll() is None)
+    except Exception:
+        log.exception("per-player mice stopped; the shared pointer is back")
 
 
 if __name__ == "__main__":
