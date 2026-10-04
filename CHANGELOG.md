@@ -21,6 +21,10 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **One mouse per player in DS multiplayer.** With two mice or more, each
+  mouse gets its own coloured arrow, stays on its player's DS and touches only
+  that DS, so players can draw at the same time. One mouse works as before.
+
 - **Nintendo DS local multiplayer.** With two to four controllers connected, a
   DS game opens one melonDS instance per controller, side by side, each on its
   DS menu, linked by melonDS's own local wireless. One controller launches
