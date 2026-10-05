@@ -3,10 +3,14 @@
 Those indices differ per controller AND per driver version: a DS4's shoulders
 are b9/b10, an Xbox's b6/b7. The D-pad is a hat on both — and a hat is NOT a
 button here, it carries its own encoding (see `_encode`). The vendored
-gamecontrollerdb even ships conflicting Linux entries for one pad. So the
-shoulders / start / select / D-pad are re-derived from the connected pad's
-live SDL2 mapping. Face buttons (A/B/X/Y = b0-b3) are consistent and left
-untouched.
+gamecontrollerdb even ships conflicting Linux entries for one pad. So every
+button, the face buttons included, is re-derived from the connected pad's
+live SDL2 mapping.
+
+The face buttons used to be left at the seed's A/B/X/Y = b0-b3, on the claim
+that they were the same on every pad. An Xbox One / Series pad on Bluetooth
+reports `x:b3,y:b4` (b2 is a gap): its X fired the DS's Y, its Y did nothing,
+and the DS's X was on no button at all.
 
 **A saved snapshot always wins over the synthesis.** The caller must ask
 `snapshots.exists()` first: `restore(...) or _melonds(...)` conflated "no
@@ -59,7 +63,9 @@ def replace(text: str, block: str) -> str:
     return _replace_joystick(text, block)
 
 
-# melonDS [Instance0.Joystick] key → SDL GameController button name.
+# melonDS [Instance0.Joystick] key → SDL GameController button name. The DS's
+# A/B/X/Y take the pad's buttons of the same name, as the seed always did.
+_FACE_KEYS = {"A": "a", "B": "b", "X": "x", "Y": "y"}
 _SHOULDER_KEYS = {
     "L": "leftshoulder", "R": "rightshoulder", "Start": "start", "Select": "back",
 }
@@ -107,11 +113,11 @@ def synth_values(pad) -> tuple[dict[str, int], str] | None:
     or None when nothing can be derived and the existing bindings must stay."""
     mapping = pad.sdl2_mapping()
     vals: dict[str, int] = {}
-    # Shoulders and D-pad alike: trust the SDL token, for every pad and with no
-    # exceptions. The D-pad is a hat on a DS4 exactly as it is on an Xbox, and
-    # _encode() gives hats their own encoding.
+    # Face, shoulders and D-pad alike: trust the SDL token, for every pad and
+    # with no exceptions. The D-pad is a hat on a DS4 exactly as it is on an
+    # Xbox, and _encode() gives hats their own encoding.
     if mapping:
-        for key, sdl in (_SHOULDER_KEYS | _DPAD_KEYS).items():
+        for key, sdl in (_FACE_KEYS | _SHOULDER_KEYS | _DPAD_KEYS).items():
             enc = _encode(mapping.get(sdl, ""))
             if enc is not None:
                 vals[key] = enc
@@ -135,7 +141,7 @@ def set_joystick_keys(text: str, header: str, vals: dict[str, int]) -> tuple[str
         s = line.strip()
         if s.startswith("["):
             insec = (s == f"[{header}]")
-        m = re.match(r"^(L|R|Start|Select|Up|Down|Left|Right)\s*=\s*-?\d+\s*$", s)
+        m = re.match(r"^(A|B|X|Y|L|R|Start|Select|Up|Down|Left|Right)\s*=\s*-?\d+\s*$", s)
         if insec and m and m.group(1) in vals:
             out.append(f"{m.group(1)} = {vals[m.group(1)]}"); n += 1
         else:
@@ -147,11 +153,9 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
     """melonDS (DS): only slot 1 here; the other players' instances are written
     at launch (`launch_command`). It binds raw SDL2 joystick inputs, whose
     indices differ per controller (a DS4's shoulders are b9/b10, an Xbox's
-    b6/b7; the D-pad is a hat on both, encoded as 0x100|hat<<4|dir).
-    Re-derive the shoulders / start / select / D-pad from the connected pad's
-    live SDL2 mapping so they land on the right physical inputs for any
-    controller. Face buttons (A/B/X/Y = b0-b3) are consistent and left
-    untouched."""
+    b6/b7; a Bluetooth Xbox's X/Y are b3/b4; the D-pad is a hat, encoded as
+    0x100|hat<<4|dir). Re-derive every button from the connected pad's live
+    SDL2 mapping so it lands on the right physical input for any controller."""
     toml = opts["target"]
     if player_index != 1 or not toml.is_file():
         return None
