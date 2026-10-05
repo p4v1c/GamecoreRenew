@@ -286,6 +286,36 @@ def test_the_launcher_can_arm_the_console_session(tmp_path):
     assert r.returncode == 0, r.stdout
 
 
+def _run_launcher(tmp_path, *args):
+    """The launcher with sudo and systemctl stubbed; returns (result, sudo log)."""
+    bins = tmp_path / "bin"
+    bins.mkdir()
+    log = tmp_path / "sudo.log"
+    _stub(bins / "systemctl", "exit 0")
+    _stub(bins / "sudo", f'echo "$*" >> {log}\nexit 0\n')
+    _stub(bins / "sleep", "exit 0")
+    r = subprocess.run(["bash", str(LAUNCHER), *args],
+                       env={"PATH": f"{bins}:/usr/bin:/bin", "HOME": str(tmp_path)},
+                       text=True, capture_output=True, timeout=30)
+    return r, (log.read_text() if log.exists() else "")
+
+
+def test_the_desktop_icon_goes_back_to_the_console_session(tmp_path):
+    """The icon runs the launcher with no argument. Drawing the interface over
+    the desktop instead left the player with games that would not launch."""
+    r, asked = _run_launcher(tmp_path)
+    if "is missing" in r.stdout:
+        pytest.skip("no gamecore-session-select on this machine to point at")
+    assert "gamecore-session-select gamecore --restart-dm" in asked, asked
+    assert r.returncode == 0, r.stdout
+
+
+def test_over_the_desktop_only_on_request(tmp_path):
+    r, asked = _run_launcher(tmp_path, "--over-desktop")
+    assert r.returncode == 0, r.stderr
+    assert "--restart-dm" not in asked, asked
+
+
 def test_the_launcher_refuses_an_argument_it_does_not_know(tmp_path):
     r = subprocess.run(["bash", str(LAUNCHER), "--wat"],
                        env={"PATH": "/usr/bin:/bin", "HOME": str(tmp_path)},

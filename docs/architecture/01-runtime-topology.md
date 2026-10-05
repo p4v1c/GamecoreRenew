@@ -243,6 +243,11 @@ sudoers rule. `enable`/`disable`, never `start`/`stop`: the unit is enabled at
 install, so merely stopping it brought the kiosk back over the desktop at the
 next boot.
 
+The desktop's "GameCore" icon runs `install/bin/gamecore-launcher` with no
+argument: `gamecore-session-select gamecore --restart-dm`, back to the console
+session. It used to draw the interface over the desktop, where games failed to
+launch; that is now `gamecore-launcher --over-desktop`, for development only.
+
 ## Environment reconstruction
 
 A process started by systemd has no session environment. Two places rebuild it:

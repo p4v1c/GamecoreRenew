@@ -21,6 +21,11 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **The desktop's GameCore icon goes back to the console session.** It used
+  to draw the interface over the desktop, where games failed to launch and
+  Alt+Tab left it. `gamecore-launcher --over-desktop` keeps the old behaviour
+  for development.
+
 - **Bluetooth pairing works from GameCore again.** A mouse or a DualSense
   could only be paired from the desktop session; the console's pairing ran
   with no agent to answer the device.
