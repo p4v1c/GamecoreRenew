@@ -117,3 +117,33 @@ def test_find_mice_keeps_mice_oldest_first_and_skips_keyboards_and_our_own(tmp_p
 def test_capability_bitmaps_are_read_as_64_bit_words():
     assert inputdev._bits("3") == {0, 1}
     assert inputdev._bits("1f0000 0 0 0 0") == set(range(272, 277))  # BTN_LEFT = 0x110
+
+
+class _FakeArrows:
+    def __init__(self, answers):
+        self.answers, self.calls = list(answers), 0
+
+    def park_system_pointer(self, width, height):
+        self.calls += 1
+        return self.answers.pop(0)
+
+
+class _FakeX11:
+    def screen_size(self):
+        return 1920, 1080
+
+
+def test_x_pointer_goes_back_to_the_corner_after_a_touch_never_during_it():
+    """Each touch moves X's own arrow to the touch point; it stayed there."""
+    router = mouse_touch.MouseRouter(players=2)
+    router.x11, router.arrows = _FakeX11(), _FakeArrows([False, True])
+    router.pointers = {1: mouse_touch.Pointer((0, 0, 960, 1080))}
+    router._park_due = True
+    router.pointers[1].pressed = True
+    router._park_pointer()
+    assert router.arrows.calls == 0                   # mid-drag: left under the arrow
+    router.pointers[1].pressed = False
+    router._park_pointer()
+    assert router._park_due                           # warped, not confirmed yet
+    router._park_pointer()
+    assert not router._park_due and router.arrows.calls == 2
