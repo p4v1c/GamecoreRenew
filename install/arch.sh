@@ -1518,7 +1518,7 @@ else
   warn "sudoers validation failed — power menu and standby governor will not work."
 fi
 
-# ── Desktop launcher (clickable "GameCore" icon) ─────────────────
+# ── Desktop launcher (clickable "GameCore" icon: back to the console) ─
 msg "Desktop launcher"
 chmod +x "$GAMECORE_PATH/install/bin/gamecore-launcher"
 DESKTOP_DIR=$(sudo -u "$USER_NAME" bash -lc 'xdg-user-dir DESKTOP 2>/dev/null' || true)
@@ -1533,7 +1533,7 @@ LAUNCHER_ICON="$(launcher_icon "$GAMECORE_PATH")"
 LAUNCHER_DESKTOP="[Desktop Entry]
 Type=Application
 Name=GameCore
-Comment=Lancer l'interface GameCore
+Comment=Return to the GameCore console
 Exec=$GAMECORE_PATH/install/bin/gamecore-launcher
 Icon=$LAUNCHER_ICON
 Terminal=true
