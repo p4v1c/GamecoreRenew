@@ -424,7 +424,7 @@ def install_stubs(cp, home: Path, monkeypatch) -> None:
         return {(p.vendor, p.product): p.sdl3_name
                 for p in PADS.values() if p.sdl3_name}
 
-    def probe(vendor, product, lib=""):
+    def probe(vendor, product, lib="", *, sandbox=""):
         pad = by_vp.get((vendor.lower(), product.lower()))
         if pad is None:
             return {}

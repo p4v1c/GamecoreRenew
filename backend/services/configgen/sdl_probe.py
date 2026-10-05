@@ -230,7 +230,8 @@ def bundled_sdl2(app_id: str) -> str:
     return path
 
 
-def sdl2_probe(vendor: str, product: str, lib: str = "") -> dict[str, str]:
+def sdl2_probe(vendor: str, product: str, lib: str = "", *,
+               sandbox: str = "") -> dict[str, str]:
     """What SDL2 itself says about a connected pad: its raw 32-hex GUID and its
     GameController mapping. `{}` when SDL2 cannot be asked.
 
@@ -244,18 +245,32 @@ def sdl2_probe(vendor: str, product: str, lib: str = "") -> dict[str, str]:
     `lib` picks WHICH SDL2 answers. Empty means the host's. Pass an emulator's
     bundled one whenever the answer is going into that emulator's config.
 
+    `sandbox` (a flatpak app id) runs the probe INSIDE that app's sandbox
+    instead, with the SDL2 and the device access the emulator itself gets.
+    Loading the runtime's library from the host is not the same thing: the
+    host process sees what the sandbox may not (udev, for one), and SDL picks
+    its driver from that. Use it where a raw button index is written, as
+    melonDS does: one wrong driver choice moves every index.
+
     Run in a SUBPROCESS because the backend has already loaded SDL3 into its
     own address space, and because these answers must come from the same SDL2
     the emulators use.
     """
-    key = (vendor.lower(), product.lower(), lib)
+    key = (vendor.lower(), product.lower(), f"flatpak:{sandbox}" if sandbox else lib)
     ts, cached = _sdl2_cache.get(key, (0.0, {}))
     if cached and time.monotonic() - ts <= 5.0:
         return cached
+    if sandbox:
+        # The sandbox's python3 and its libSDL2-2.0.so.0: no `lib` to pass.
+        cmd = ["flatpak", "run", "--command=python3", sandbox, "-c", _SDL2_PROBE,
+               vendor, product, ""]
+    else:
+        cmd = [sys.executable, "-c", _SDL2_PROBE, vendor, product, lib]
     try:
-        r = subprocess.run([sys.executable, "-c", _SDL2_PROBE, vendor, product, lib],
-                           capture_output=True, text=True, timeout=8,
-                           env=probe_env())
+        # A cold `flatpak run` takes longer than the host probe's 8 s budget
+        # allows on a slow disk.
+        r = subprocess.run(cmd, capture_output=True, text=True,
+                           timeout=15 if sandbox else 8, env=probe_env())
     except (OSError, subprocess.SubprocessError) as e:
         # Two different facts used to leave here as the same empty dict: "SDL
         # ran, and this pad is not among its joysticks" and "SDL was never

@@ -512,13 +512,13 @@ class Pad:
                           else GUID_NO_GUID)
         return ryu_guid_from_sdl2(raw), ""
 
-    def sdl2_mapping(self, lib: str = "") -> dict[str, str] | None:
+    def sdl2_mapping(self, app_id: str = "") -> dict[str, str] | None:
         """Live SDL2 GameController mapping (SDL name → raw token like 'b6' or
-        'h0.1'), from the SDL2 at `lib` (empty: the host's). melonDS binds by
-        raw SDL2 joystick index, and those indices differ per controller AND
-        per SDL build — the vendored gamecontrollerdb even ships conflicting
-        Linux entries for one pad."""
-        line = sdl2_probe(self.vendor, self.product, lib).get("map", "")
+        'h0.1'), as SDL2 sees it inside flatpak `app_id` (empty: the host's).
+        melonDS binds by raw SDL2 joystick index, and those indices differ per
+        controller, per SDL build AND per driver SDL picks — the vendored
+        gamecontrollerdb even ships conflicting Linux entries for one pad."""
+        line = sdl2_probe(self.vendor, self.product, sandbox=app_id).get("map", "")
         if "," not in line:
             return None
         out = {k: v for tok in line.split(",")[2:]

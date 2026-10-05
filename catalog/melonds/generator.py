@@ -38,7 +38,6 @@ from __future__ import annotations
 
 import re
 
-from backend.services.configgen import controllers
 from backend.services.configgen.helpers.base import atomic_write, backup
 from backend.services.configgen.helpers.ini import extract_section, replace_section
 
@@ -109,26 +108,15 @@ def _encode(token: str) -> int | None:
     return None
 
 
-def sdl_lib(app_id: str) -> str | None:
-    """The SDL2 melonDS itself links: "" for a native build (the host's), the
-    flatpak runtime's library otherwise, None when that one cannot be found.
-
-    The host's SDL2 is sdl2-compat over SDL3 and drives an Xbox pad on
-    Bluetooth through HIDAPI (x:b2, y:b3). The org.kde.Platform SDL2 melonDS
-    runs on reads the same pad through evdev (x:b3, y:b4). Asking the host
-    wrote X = 2, a button that pad does not have: its X did nothing. A
-    flatpak whose library cannot be located is not handed the host's answer
-    either; its existing bindings stay."""
-    if not app_id:
-        return ""
-    return controllers.bundled_sdl2(app_id) or None
-
-
-def synth_values(pad, lib: str = "") -> tuple[dict[str, int], str] | None:
+def synth_values(pad, app_id: str = "") -> tuple[dict[str, int], str] | None:
     """The joystick values melonDS needs for this pad: (key → value, source),
     or None when nothing can be derived and the existing bindings must stay.
-    `lib` is the SDL2 melonDS links (`sdl_lib`)."""
-    mapping = pad.sdl2_mapping(lib)
+
+    The mapping is asked inside melonDS's flatpak (`app_id`; "" for a native
+    build, which runs on the host's SDL2). The host's answer is not melonDS's:
+    an Xbox pad on Bluetooth left X bound to a button melonDS never sees,
+    while the same pad worked everywhere else."""
+    mapping = pad.sdl2_mapping(app_id)
     vals: dict[str, int] = {}
     # Face, shoulders and D-pad alike: trust the SDL token, for every pad and
     # with no exceptions. The D-pad is a hat on a DS4 exactly as it is on an
@@ -152,10 +140,8 @@ def synth_values(pad, lib: str = "") -> tuple[dict[str, int], str] | None:
 
 
 def synth_for(app_id: str):
-    """`synth_values` bound to melonDS's own SDL2, for players 2-4: the same
-    library slot 1 reads its mapping from."""
-    lib = sdl_lib(app_id)
-    return (lambda _pad: None) if lib is None else (lambda pad: synth_values(pad, lib))
+    """`synth_values` for players 2-4, asking the same SDL2 as slot 1."""
+    return lambda pad: synth_values(pad, app_id)
 
 
 def set_joystick_keys(text: str, header: str, vals: dict[str, int]) -> tuple[str, int]:
@@ -184,10 +170,7 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
     toml = opts["target"]
     if player_index != 1 or not toml.is_file():
         return None
-    lib = sdl_lib(opts.get("app_id", ""))
-    if lib is None:
-        return None
-    synth = synth_values(pad, lib)
+    synth = synth_values(pad, opts.get("app_id", ""))
     if synth is None:
         return None
     vals, src = synth
