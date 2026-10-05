@@ -21,6 +21,11 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **L3 only acts in a solo DS game.** In multiplayer it could leave one
+  player's window showing the top screen alone; it is now ignored there.
+- **No stray system pointer in DS multiplayer.** A player's click no longer
+  shows the box's main mouse pointer at the touch point.
+
 - **Players 2-4 start their own DS game.** In multiplayer, a player with no
   save for a game now gets a blank one instead of a copy of player 1's
   progress (Pokemon trading needs two different trainers).

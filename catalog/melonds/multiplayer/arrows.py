@@ -189,10 +189,17 @@ class Arrows:
         self.x11.lib.XFlush(self.x11.dpy)
 
     def hide_system_pointer(self, width: int, height: int) -> None:
-        """Send X's own arrow to the last pixel, where it is drawn off screen:
-        with every mouse routed, nothing else would ever move it."""
+        """Park X's own arrow in the corner and hide it: the players' touch
+        screens drive the core pointer, so every touch would show it there.
+        The server shows it again when this connection closes, killed or not."""
         self.x11.lib.XWarpPointer(self.x11.dpy, 0, self.x11.root, 0, 0, 0, 0,
                                   width - 1, height - 1)
+        try:
+            xfixes = ctypes.CDLL(ctypes.util.find_library("Xfixes") or "libXfixes.so.3")
+            xfixes.XFixesHideCursor.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+            xfixes.XFixesHideCursor(self.x11.dpy, self.x11.root)
+        except (OSError, AttributeError):
+            pass                                 # parked in the corner is the fallback
         self.x11.lib.XFlush(self.x11.dpy)
 
     def close(self) -> None:
