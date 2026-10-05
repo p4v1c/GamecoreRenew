@@ -21,6 +21,10 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **Bluetooth pairing works from GameCore again.** A mouse or a DualSense
+  could only be paired from the desktop session; the console's pairing ran
+  with no agent to answer the device.
+
 - **DS multiplayer no longer falls back to one fullscreen DS.** With three
   different pads, getting the game ready took longer than the launch allowed,
   and melonDS started solo in fullscreen. melonDS now takes a few seconds

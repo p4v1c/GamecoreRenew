@@ -8,6 +8,7 @@ real `disconnect` drops whatever they are listening to.
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -195,3 +196,58 @@ def test_named_devices_come_before_bare_addresses_in_both_lists(client, btctl):
     found = client.post("/api/settings/bluetooth/scan").json()["found"]
     assert [d["name"] for d in found][:2] == ["Galaxy Buds2", "JBL Flip 5"]
     assert {d["name"] for d in found[2:]} == {"AA-BB-CC-DD-EE-01", "AA:BB:CC:DD:EE:03"}
+
+
+# ── Pairing needs an agent ───────────────────────────────────────────────────
+
+FAKE_BLUETOOTHCTL = r'''#!/usr/bin/env python3
+"""bluetoothctl 5.87 as measured: --agent does nothing in direct mode; the
+interactive agent asks "(yes/no):" with no newline."""
+import sys
+if "--" in sys.argv:
+    cmd = sys.argv[sys.argv.index("--") + 1]
+    if cmd == "pair":
+        print("Failed to pair: org.bluez.Error.AuthenticationRejected")
+    elif cmd == "connect":
+        print("Connection successful")
+    sys.exit(0)
+agent = any(a.startswith("--agent") for a in sys.argv)   # registered at start-up
+if agent:
+    print("Agent registered", flush=True)
+default = False
+for line in sys.stdin:
+    word = line.split()
+    if not word:
+        continue
+    if word[0] == "default-agent":
+        default = agent; print("Default agent request successful", flush=True)
+    elif word[0] == "pair":
+        if not default:
+            print("Failed to pair: org.bluez.Error.AuthenticationRejected", flush=True)
+            continue
+        sys.stdout.write("[agent] Confirm passkey 482913 (yes/no): "); sys.stdout.flush()
+        answer = sys.stdin.readline().strip()
+        print("Pairing successful" if answer == "yes" else "Failed to pair: Rejected", flush=True)
+    elif word[0] == "quit":
+        break
+'''
+
+
+def test_pairing_registers_an_agent_and_confirms_the_passkey(client, tmp_path, monkeypatch):
+    """`bluetoothctl --agent=X -- pair` registers no agent in 5.87: a mouse's
+    passkey confirmation and a DualSense's authorization were refused ("No
+    agent available") and pairing only worked from the desktop session."""
+    fake = tmp_path / "bluetoothctl"
+    fake.write_text(FAKE_BLUETOOTHCTL)
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
+    body = client.post("/api/settings/bluetooth/pair", json={"mac": "90:B6:85:FD:61:7D"}).json()
+    assert body == {"ok": True, "message": "Paired and connected"}
+
+
+def test_an_address_with_a_newline_never_reaches_the_pairing_session(client, btctl):
+    """The address is typed into an interactive bluetoothctl: "AA…\\nremove X"
+    would be a second command."""
+    r = client.post("/api/settings/bluetooth/pair", json={"mac": "90:B6:85:FD:61:7D\nremove 4C:B9:9B:C4:AB:B2"})
+    assert r.status_code == 400
+    assert btctl["calls"] == []
