@@ -185,3 +185,23 @@ def find_pid(force=False):
         c["warned"] = None
     c["pid"] = best
     return best
+
+
+# Set by the multiplayer launcher (catalog/melonds/multiplayer/launcher.py).
+PLAYERS_ENV = b"GAMECORE_MELONDS_PLAYERS="
+
+
+def in_multiplayer(pid, proc_root="/proc"):
+    """True for a local multiplayer melonDS, where L3 must do nothing: each
+    window shows one screen, and the A/B layout written over it left one
+    player's window showing the top screen alone."""
+    try:
+        with open(os.path.join(proc_root, str(pid), "environ"), "rb") as f:
+            environ = f.read().split(b"\0")
+    except OSError:
+        return False
+    value = next((v[len(PLAYERS_ENV):] for v in environ if v.startswith(PLAYERS_ENV)), b"1")
+    players = int(value) if value.isdigit() else 1
+    if players > 1:
+        log("L3 ignored: %d-player game, one window per screen" % players)
+    return players > 1

@@ -63,12 +63,15 @@ the solo launch, unchanged. Architecture and the reasons:
 - Each player is a full-height column of two windows, top screen above
   touch screen, no decorations, no menu bar (hidden through melonDS's own
   fullscreen hotkey, F11 in multiplayer). 3-4 players stretch the image
-  vertically to fill the screen. The L3 layout daemon only knows instance 1;
-  avoid L3 in multiplayer.
+  vertically to fill the screen. L3 does nothing in multiplayer: the
+  launcher sets `GAMECORE_MELONDS_PLAYERS` on melonDS and the daemon skips
+  any process with more than one player (its A/B layout broke the screen
+  windows).
 - Two mice or more: once a second mouse is used, each mouse belongs to one
   player (order of first use), with its own arrow (the box's cursor theme, same for all) kept in that
   player's column; its click is that player's stylus, so two players can
-  drag at once. One mouse keeps the normal pointer.
+  drag at once. X's own arrow is hidden meanwhile (the touches move it).
+  One mouse keeps the normal pointer.
 - Saves: player 1 keeps `<rom>.sav`; players 2-4 get their own `<rom>.sav.N`,
   blank the first time (a new game), never a copy of player 1's.
 - Diagnostics: `~/.cache/gamecore/melonds-multiplayer.log`.
