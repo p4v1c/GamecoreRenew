@@ -147,10 +147,11 @@ was dead.
   only Player 1 is ever touched — and by snapshot restore (see above), not GUID
   substitution.
 - `melonDS` (DS): **profiled**, contrary to what this page used to claim. A
-  saved snapshot wins; otherwise `_melonds()` synthesises the config from the
-  connected pad. Face buttons are consistent across pads — only the D-pad
-  differs (hat vs buttons), and that is the only thing adapted
-  (`_pad_has_hat`). Single-player, slot 1.
+  saved snapshot wins; otherwise `catalog/melonds/generator.py` synthesises
+  every button from the connected pad's SDL2 mapping: face buttons, shoulders,
+  Start/Select and the D-pad hat. Face buttons are not the same on every pad:
+  an Xbox One / Series on Bluetooth reports X/Y as b3/b4, not b2/b3. Slot 1 on
+  connect; players 2-4 at launch, in local multiplayer.
 - `ppsspp`: **deliberately not profiled, and that is the right answer** — not
   "never launched", which this page used to say and which was already false.
   `controls.ini` binds `NKCODE` role names under `DEVICE_ID_PAD_0` and carries
