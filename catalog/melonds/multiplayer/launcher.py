@@ -34,6 +34,9 @@ import windows
 
 MAX_PLAYERS = 4
 A11Y_ENV = "QT_LINUX_ACCESSIBILITY_ALWAYS_ON"
+# Read back by the L3 layout daemon (files/melonds_config.py), which must leave
+# the per-screen windows alone.
+PLAYERS_ENV = "GAMECORE_MELONDS_PLAYERS"
 # A cold flatpak start plus firmware boot measured ~5 s; Qt registers its
 # accessible tree a little later.
 APP_TIMEOUT = 40.0
@@ -186,7 +189,8 @@ def main(argv: list[str]) -> int:
     logging.basicConfig(filename=LOG_PATH, filemode="w", level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s")
     log.info("%d players: %s", players, " ".join(command))
-    proc = subprocess.Popen(command, env={**os.environ, A11Y_ENV: "1"})
+    proc = subprocess.Popen(command, env={**os.environ, A11Y_ENV: "1",
+                                            PLAYERS_ENV: str(players)})
     try:
         orchestrate(players, rom, alive=lambda: proc.poll() is None)
         log.info("all %d players started", players)

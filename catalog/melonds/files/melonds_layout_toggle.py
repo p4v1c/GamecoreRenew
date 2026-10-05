@@ -39,7 +39,7 @@ from melonds_common import (BLOB_HI, BLOB_LO, CACHE_PATH, CALIB_PATH, DEBOUNCE_S
                             EV_KEY, HOTKEY_CODE, IEV, KEY_NAMES, OBJ_WIN, QT_KEYS,
                             SETTLE_S, STATE_A, STATE_B, TRIGGER_KEYCODES,
                             UINPUT_KEYS, expected_numscreens, keyname, log)
-from melonds_config import ensure_binding, find_pid, melonds_toml, read_binding
+from melonds_config import ensure_binding, find_pid, in_multiplayer, melonds_toml, read_binding
 from melonds_input import (Inputs, KeyEmitter, declares, dev_keybits, dev_name,
                            uinput_status)
 from melonds_memory import (Mem, Target, build_fingerprint, load_cache,
@@ -341,8 +341,8 @@ def do_daemon(mode, recalc, hkcode, use_cheat=True):
             if tgt is None and find_pid(force=True) is None:
                 log("button from [%s] but melonDS is not attached." % who)
                 continue
-            if tgt is None:
-                continue        # melonDS just started: attach on the next pass
+            if tgt is None or in_multiplayer(tgt.pid):
+                continue        # just started (attach on the next pass), or multiplayer
 
             try:
                 if mode == "native":
