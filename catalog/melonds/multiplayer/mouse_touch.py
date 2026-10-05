@@ -136,6 +136,9 @@ class MouseRouter:
         self._last_scan = 0.0
         self._arrow_due: dict[int, tuple[int, int]] = {}
         self._last_frame = self._last_raise = 0.0
+        # X's arrow is left where a touch ended: send it back to the corner,
+        # checked until it is there (the touch's own motion may land after).
+        self._park_due = False
 
     def run(self, keep_going) -> None:
         self.x11 = windows.X11()
@@ -143,11 +146,12 @@ class MouseRouter:
         try:
             while keep_going():
                 self._rescan()
-                wait = FRAME_SECONDS if self._arrow_due else 0.5
+                wait = FRAME_SECONDS if self._arrow_due or self._park_due else 0.5
                 ready, _, _ = select.select(list(self.mice.values()), [], [], wait)
                 for mouse in ready:
                     self._handle(mouse)
                 self._draw_arrows()
+                self._park_pointer()
         finally:
             self.close()
 
@@ -205,6 +209,7 @@ class MouseRouter:
                 touch.move(0, action[1], action[2])
             elif action[0] == "up":
                 touch.up(0)
+                self._park_due = True
 
     def _route_all(self) -> None:
         """Second mouse used: every mouse leaves X, every owner gets an arrow."""
@@ -212,7 +217,7 @@ class MouseRouter:
         if not self.routed:
             log.info("one arrow per player from now on")
             self.routed = True
-            self.arrows.hide_system_pointer(*screen)
+            self._park_due = True
         for mouse in self.mice.values():
             self._grab(mouse)
         cols = windows.columns(self.players, *screen)
@@ -222,6 +227,13 @@ class MouseRouter:
                     inputdev.TOUCH_NAME.format(player), *screen, 1)
                 self.pointers[player] = Pointer(cols[player - 1])
                 self.arrows.show(player, *self.pointers[player].position)
+
+    def _park_pointer(self) -> None:
+        """Never mid-touch: a drag drives the core pointer, and it sits under
+        that player's arrow, which wears the same cursor image."""
+        if not self._park_due or any(p.pressed for p in self.pointers.values()):
+            return
+        self._park_due = not self.arrows.park_system_pointer(*self.x11.screen_size())
 
     def _grab(self, mouse: inputdev.Mouse) -> None:
         try:

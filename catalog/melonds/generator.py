@@ -173,7 +173,7 @@ def launch_command(*, rom_path: str, exec_path: str, exec_args: str,
     One pad, or no ROM: None, and the launch is exactly the solo one."""
     return _multiplayer().launch_command(
         rom_path=rom_path, exec_path=exec_path, exec_args=exec_args,
-        players=players, opts=opts, synth=synth_values, set_keys=set_joystick_keys)
+        players=players, opts=opts)
 
 
 _SETUP = None

@@ -21,6 +21,14 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **DS multiplayer no longer falls back to one fullscreen DS.** With three
+  different pads, getting the game ready took longer than the launch allowed,
+  and melonDS started solo in fullscreen. melonDS now takes a few seconds
+  longer to appear instead.
+- **The main pointer really stays out of DS multiplayer.** The previous fix
+  did not hide it on the box: it now goes back to the screen corner after
+  every touch.
+
 - **L3 only acts in a solo DS game.** In multiplayer it could leave one
   player's window showing the top screen alone; it is now ignored there.
 - **No stray system pointer in DS multiplayer.** A player's click no longer

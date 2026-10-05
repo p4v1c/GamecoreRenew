@@ -92,6 +92,9 @@ class Arrows:
         lib.XWarpPointer.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_int,
                                      ctypes.c_int, ctypes.c_uint, ctypes.c_uint, ctypes.c_int,
                                      ctypes.c_int]
+        ulong_p, int_p = ctypes.POINTER(ctypes.c_ulong), ctypes.POINTER(ctypes.c_int)
+        lib.XQueryPointer.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ulong_p, ulong_p, int_p,
+                                      int_p, int_p, int_p, ctypes.POINTER(ctypes.c_uint)]
         ext.XShapeCombineMask.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int,
                                           ctypes.c_int, ctypes.c_int, ctypes.c_ulong, ctypes.c_int]
         ext.XShapeCombineRectangles.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int,
@@ -188,19 +191,23 @@ class Arrows:
     def flush(self) -> None:
         self.x11.lib.XFlush(self.x11.dpy)
 
-    def hide_system_pointer(self, width: int, height: int) -> None:
-        """Park X's own arrow in the corner and hide it: the players' touch
-        screens drive the core pointer, so every touch would show it there.
-        The server shows it again when this connection closes, killed or not."""
-        self.x11.lib.XWarpPointer(self.x11.dpy, 0, self.x11.root, 0, 0, 0, 0,
-                                  width - 1, height - 1)
-        try:
-            xfixes = ctypes.CDLL(ctypes.util.find_library("Xfixes") or "libXfixes.so.3")
-            xfixes.XFixesHideCursor.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
-            xfixes.XFixesHideCursor(self.x11.dpy, self.x11.root)
-        except (OSError, AttributeError):
-            pass                                 # parked in the corner is the fallback
-        self.x11.lib.XFlush(self.x11.dpy)
+    def park_system_pointer(self, width: int, height: int) -> bool:
+        """Put X's own arrow on the last pixel, drawn off screen, unless it is
+        there already. True once it is. The players' touch screens drive the
+        core pointer, so each touch leaves it at the touch point; hiding it
+        (XFixesHideCursor) did not hold on the box, unclutter runs too."""
+        lib, dpy = self.x11.lib, self.x11.dpy
+        root_x, root_y = ctypes.c_int(), ctypes.c_int()
+        other, mask = ctypes.c_int(), ctypes.c_uint()
+        child, root = ctypes.c_ulong(), ctypes.c_ulong()
+        lib.XQueryPointer(dpy, self.x11.root, ctypes.byref(root), ctypes.byref(child),
+                          ctypes.byref(root_x), ctypes.byref(root_y), ctypes.byref(other),
+                          ctypes.byref(other), ctypes.byref(mask))
+        if (root_x.value, root_y.value) == (width - 1, height - 1):
+            return True
+        lib.XWarpPointer(dpy, 0, self.x11.root, 0, 0, 0, 0, width - 1, height - 1)
+        lib.XFlush(dpy)
+        return False
 
     def close(self) -> None:
         for win in self.windows.values():
