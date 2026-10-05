@@ -335,8 +335,14 @@ and guessing at `nmcli`'s option parsing is not worth being clever about.
 
 ### `settings/bluetooth.py` — `bluetoothctl`
 
-`list_devices()`, `start_scan()` (returns immediately, `_do_scan()` runs 8 s in
-the background), `connect_device`, `disconnect_device`, `remove_device(mac)`.
+`list_devices()`, `start_scan()` (scans 10 s, answers what is in range and not
+paired), `pair_device`, `connect_device`, `disconnect_device`, `remove_device(mac)`.
+
+> Pairing runs one *interactive* `bluetoothctl --agent=NoInputNoOutput`
+> (`_pair_with_agent`): in direct subcommand mode (`-- pair`) bluetoothctl 5.87
+> registers no agent, and bluetoothd refused every device that needed a
+> confirmation or an authorization ("No agent available"). A `(yes/no)`
+> prompt is answered yes: the player picked the device.
 
 > Bluetooth device names are attacker-controlled strings that reach the UI.
 > They are one of the reasons `escHtml()` exists in Electron.

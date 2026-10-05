@@ -7,11 +7,13 @@ never appear in it; `/scan` ran `scan on` for eight seconds with its output sent
 to DEVNULL, so whatever it discovered was thrown away; and there was no `pair`
 anywhere. A new pad had to be paired from a terminal before the box could see it.
 
-Pairing needs an *agent* — the object BlueZ calls back to confirm a request —
-and bluetoothctl 5.65+ can register one straight from the command line with
-`--agent <capability>`. That is what makes this possible with no new dependency
-and no long-lived interactive session to babysit: every operation is a short
-process that registers its agent, does one thing, and exits.
+Pairing needs an *agent* — the object BlueZ calls back to confirm a request.
+`--agent <capability>` does not register one in direct subcommand mode
+(bluetoothctl 5.87, measured): bluetoothd refused a mouse's passkey
+confirmation and a DualSense's authorization with "No agent available", and
+only the desktop session's KDE agent could pair them. So pairing runs one short
+*interactive* bluetoothctl (`_pair_with_agent`), where `--agent` does
+register: default-agent, pair, answer its prompts, quit. Everything else stays a direct subcommand.
 
 Measured on the reference box before writing any of this, because the D-Bus
 policy shipped by BlueZ reads as though it should forbid it:
@@ -26,8 +28,9 @@ client sends bearing that interface, not the replies an agent makes.
 
 `NoInputNoOutput` is the right capability for a living-room box and not merely
 the convenient one: it means "just works" pairing, which is exactly what pads and
-headsets implement. A device that insists on a passkey cannot be served by it —
-that is reported as its own failure rather than a silent hang.
+headsets implement. A confirmation prompt is answered yes: the player picked
+this device on screen. A device that insists on a typed passkey cannot be
+served — that is reported as its own failure rather than a silent hang.
 
 Nothing is ever paired automatically. The scan lists what is in range and the
 player picks: a box that paired with whatever was discoverable would happily
@@ -44,6 +47,7 @@ router = APIRouter(prefix="/settings/bluetooth", tags=["bluetooth"])
 log = logging.getLogger(__name__)
 
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*[mK]|\r')
+_MAC_RE = re.compile(r'^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$', re.I)
 _DEVICE_RE = re.compile(r'^Device\s+((?:[0-9A-F]{2}:){5}[0-9A-F]{2})\s+(.+)$', re.I)
 
 # How long the adapter looks around. Long enough for a pad that has just been
@@ -60,6 +64,11 @@ PAIR_SECS = 25
 # and headsets implement exactly this. A device that insists on one is reported
 # as such rather than left hanging.
 AGENT = "NoInputNoOutput"
+# bluetoothctl's agent asks "(yes/no):" without a newline, so output is read in
+# chunks, not lines; the session ends at the first of these.
+_CONFIRM = "(yes/no)"
+_PAIR_DONE = re.compile(
+    r"pairing successful|failed to pair|already exists|already paired|not available", re.I)
 
 
 def _session_env() -> dict:
@@ -103,6 +112,39 @@ async def _run(*args: str, timeout: float = 30.0) -> tuple[int, str]:
         return 1, ""
     out = _ANSI_RE.sub("", stdout.decode(errors="replace"))
     return proc.returncode or 0, out
+
+
+async def _pair_with_agent(mac: str, timeout: float = PAIR_SECS) -> str:
+    """Pair `mac` from one interactive bluetoothctl holding the default agent.
+    Returns everything it printed (ANSI stripped)."""
+    proc = await asyncio.create_subprocess_exec(
+        # Interactive mode registers its agent at start-up, with --agent's
+        # capability; a later `agent X` only answers "already registered".
+        "bluetoothctl", f"--agent={AGENT}", stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, env=_session_env())
+    proc.stdin.write(f"default-agent\npair {mac}\n".encode())
+    out, answered = "", 0
+    deadline = asyncio.get_running_loop().time() + timeout
+    try:
+        while not _PAIR_DONE.search(out):
+            left = deadline - asyncio.get_running_loop().time()
+            chunk = await asyncio.wait_for(proc.stdout.read(4096), timeout=max(left, 0.01))
+            if not chunk:
+                break
+            out += _ANSI_RE.sub("", chunk.decode(errors="replace"))
+            while answered < out.count(_CONFIRM):       # a prompt may span two chunks
+                proc.stdin.write(b"yes\n")
+                answered += 1
+    except asyncio.TimeoutError:
+        pass
+    finally:
+        try:
+            proc.stdin.write(b"quit\n")
+            await asyncio.wait_for(proc.wait(), timeout=3.0)
+        except (asyncio.TimeoutError, BrokenPipeError, ConnectionResetError):
+            proc.kill()
+            await proc.wait()
+    return out
 
 
 def parse_devices(out: str) -> list[tuple[str, str]]:
@@ -215,10 +257,11 @@ async def pair_device(req: DeviceRequest):
     who it is. The old `/connect` did it in that order because it could assume
     the pairing had already happened elsewhere.
     """
-    code, out = await _run(
-        "bluetoothctl", f"--agent={AGENT}", f"--timeout={PAIR_SECS}",
-        "--", "pair", req.mac, timeout=PAIR_SECS + 10)
-
+    # The address is typed into an interactive session: a newline in it would
+    # be a second bluetoothctl command.
+    if not _MAC_RE.fullmatch(req.mac):
+        raise HTTPException(status_code=400, detail="Not a Bluetooth address")
+    out = await _pair_with_agent(req.mac.upper())
     low = out.lower()
     ok = "pairing successful" in low or "already exists" in low or "already paired" in low
     if not ok:
@@ -261,9 +304,6 @@ async def disconnect_device(req: DeviceRequest):
     _, out = await _run("bluetoothctl", "--", "disconnect", req.mac)
     ok = "successful disconnected" in out.lower() or "not connected" in out.lower()
     return {"ok": ok}
-
-
-_MAC_RE = re.compile(r'^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$', re.I)
 
 
 @router.delete("/devices/{mac}")
