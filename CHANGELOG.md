@@ -217,6 +217,11 @@ are the auto-incremented tags.
   takes no touch). The cursor theme keeps its look, with a dark ring around
   it so a pale stylus reads on a white DS screen.
 
+- **The desktop's GameCore icon goes back to the console session.** It used
+  to draw the interface over the desktop, where games failed to launch and
+  Alt+Tab left it. `gamecore-launcher --over-desktop` keeps the old behaviour
+  for development.
+
 - **Bluetooth pairing works from GameCore again.** A mouse or a DualSense
   could only be paired from the desktop session; the console's pairing ran
   with no agent to answer the device.
