@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import re
 
+from backend.services.configgen import controllers
 from backend.services.configgen.helpers.base import atomic_write, backup
 from backend.services.configgen.helpers.ini import extract_section, replace_section
 
@@ -108,10 +109,26 @@ def _encode(token: str) -> int | None:
     return None
 
 
-def synth_values(pad) -> tuple[dict[str, int], str] | None:
+def sdl_lib(app_id: str) -> str | None:
+    """The SDL2 melonDS itself links: "" for a native build (the host's), the
+    flatpak runtime's library otherwise, None when that one cannot be found.
+
+    The host's SDL2 is sdl2-compat over SDL3 and drives an Xbox pad on
+    Bluetooth through HIDAPI (x:b2, y:b3). The org.kde.Platform SDL2 melonDS
+    runs on reads the same pad through evdev (x:b3, y:b4). Asking the host
+    wrote X = 2, a button that pad does not have: its X did nothing. A
+    flatpak whose library cannot be located is not handed the host's answer
+    either; its existing bindings stay."""
+    if not app_id:
+        return ""
+    return controllers.bundled_sdl2(app_id) or None
+
+
+def synth_values(pad, lib: str = "") -> tuple[dict[str, int], str] | None:
     """The joystick values melonDS needs for this pad: (key → value, source),
-    or None when nothing can be derived and the existing bindings must stay."""
-    mapping = pad.sdl2_mapping()
+    or None when nothing can be derived and the existing bindings must stay.
+    `lib` is the SDL2 melonDS links (`sdl_lib`)."""
+    mapping = pad.sdl2_mapping(lib)
     vals: dict[str, int] = {}
     # Face, shoulders and D-pad alike: trust the SDL token, for every pad and
     # with no exceptions. The D-pad is a hat on a DS4 exactly as it is on an
@@ -132,6 +149,13 @@ def synth_values(pad) -> tuple[dict[str, int], str] | None:
     if not pad.has_hat():
         return None
     return {"Up": 257, "Right": 258, "Down": 260, "Left": 264}, "hat fallback"
+
+
+def synth_for(app_id: str):
+    """`synth_values` bound to melonDS's own SDL2, for players 2-4: the same
+    library slot 1 reads its mapping from."""
+    lib = sdl_lib(app_id)
+    return (lambda _pad: None) if lib is None else (lambda pad: synth_values(pad, lib))
 
 
 def set_joystick_keys(text: str, header: str, vals: dict[str, int]) -> tuple[str, int]:
@@ -155,11 +179,15 @@ def generate(player_index: int, pad, opts: dict) -> str | None:
     indices differ per controller (a DS4's shoulders are b9/b10, an Xbox's
     b6/b7; a Bluetooth Xbox's X/Y are b3/b4; the D-pad is a hat, encoded as
     0x100|hat<<4|dir). Re-derive every button from the connected pad's live
-    SDL2 mapping so it lands on the right physical input for any controller."""
+    mapping in melonDS's own SDL2, so it lands on the right physical input
+    for any controller."""
     toml = opts["target"]
     if player_index != 1 or not toml.is_file():
         return None
-    synth = synth_values(pad)
+    lib = sdl_lib(opts.get("app_id", ""))
+    if lib is None:
+        return None
+    synth = synth_values(pad, lib)
     if synth is None:
         return None
     vals, src = synth

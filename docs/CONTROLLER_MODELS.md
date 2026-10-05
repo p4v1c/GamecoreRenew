@@ -149,9 +149,11 @@ was dead.
 - `melonDS` (DS): **profiled**, contrary to what this page used to claim. A
   saved snapshot wins; otherwise `catalog/melonds/generator.py` synthesises
   every button from the connected pad's SDL2 mapping: face buttons, shoulders,
-  Start/Select and the D-pad hat. Face buttons are not the same on every pad:
-  an Xbox One / Series on Bluetooth reports X/Y as b3/b4, not b2/b3. Slot 1 on
-  connect; players 2-4 at launch, in local multiplayer.
+  Start/Select and the D-pad hat. The mapping is asked of melonDS's own SDL2
+  (the flatpak runtime's, `bundled_sdl2`), never the host's: for an Xbox
+  One / Series on Bluetooth the host's sdl2-compat answers X/Y = b2/b3
+  (HIDAPI) while melonDS reads b3/b4 (evdev). Slot 1 on connect; players 2-4
+  at launch, in local multiplayer.
 - `ppsspp`: **deliberately not profiled, and that is the right answer** — not
   "never launched", which this page used to say and which was already false.
   `controls.ini` binds `NKCODE` role names under `DEVICE_ID_PAD_0` and carries

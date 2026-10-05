@@ -189,7 +189,7 @@ def prepare(job_path: Path, synth=None, set_keys=None) -> dict[int, int]:
     job = json.loads(job_path.read_text())
     if synth is None or set_keys is None:
         generator = _generator()
-        synth, set_keys = generator.synth_values, generator.set_joystick_keys
+        synth, set_keys = generator.synth_for(job["app_id"]), generator.set_joystick_keys
     target, players = Path(job["target"]), job["players"]
     _park_instance0(target, Path(job["state"]))
     indices = assign_joysticks(players, sdl_joysticks(job["app_id"]))

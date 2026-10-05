@@ -45,7 +45,7 @@ class Pad:
     def __init__(self, mapping):
         self._mapping = mapping
 
-    def sdl2_mapping(self):
+    def sdl2_mapping(self, lib=""):
         return self._mapping
 
     def has_hat(self):
@@ -86,3 +86,52 @@ def test_player_two_on_xbox_does_not_inherit_player_ones_face_buttons():
 def test_a_mapping_without_face_buttons_leaves_them_alone():
     vals, _src = generator.synth_values(Pad({"leftshoulder": "b4"}))
     assert vals == {"L": 4}
+
+
+# One Xbox Series pad on Bluetooth, two SDL2 builds. The host's (sdl2-compat
+# over SDL3) drives it through HIDAPI; the org.kde.Platform SDL2 melonDS runs
+# on reads it through evdev.
+HOST_HIDAPI = XBOX_BT | {"x": "b2", "y": "b3", "leftshoulder": "b9", "rightshoulder": "b10"}
+RUNTIME = "/runtime/libSDL2-2.0.so.0"
+
+
+class TwoSdlPad(Pad):
+    vendor, product = "045e", "0b13"
+
+    def __init__(self):
+        super().__init__(None)
+
+    def sdl2_mapping(self, lib=""):
+        return XBOX_BT if lib == RUNTIME else HOST_HIDAPI
+
+
+def test_the_flatpak_reads_its_mapping_from_melonds_own_sdl(tmp_path, monkeypatch):
+    monkeypatch.setattr(generator.controllers, "bundled_sdl2", lambda app_id: RUNTIME)
+    toml = tmp_path / "melonDS.toml"
+    toml.write_text(SEED)
+    assert generator.generate(1, TwoSdlPad(), {"target": toml, "app_id": "net.kuribo64.melonDS"})
+    body = section(toml.read_text(), "Instance0.Joystick")
+    assert "X = 3" in body and "Y = 4" in body
+
+
+def test_a_native_build_reads_the_hosts_sdl(tmp_path):
+    toml = tmp_path / "melonDS.toml"
+    toml.write_text(SEED)
+    assert generator.generate(1, TwoSdlPad(), {"target": toml, "app_id": ""})
+    assert "X = 2" in section(toml.read_text(), "Instance0.Joystick")
+
+
+def test_an_unlocated_flatpak_sdl_leaves_the_bindings(tmp_path, monkeypatch):
+    """Not the host's answer instead: that is the X = 2 this fixes."""
+    monkeypatch.setattr(generator.controllers, "bundled_sdl2", lambda app_id: "")
+    toml = tmp_path / "melonDS.toml"
+    toml.write_text(SEED)
+    assert generator.generate(1, TwoSdlPad(), {"target": toml, "app_id": "net.kuribo64.melonDS"}) is None
+    assert toml.read_text() == SEED
+    assert generator.synth_for("net.kuribo64.melonDS")(TwoSdlPad()) is None
+
+
+def test_players_two_to_four_use_the_same_sdl_as_slot_one(monkeypatch):
+    monkeypatch.setattr(generator.controllers, "bundled_sdl2", lambda app_id: RUNTIME)
+    vals, _src = generator.synth_for("net.kuribo64.melonDS")(TwoSdlPad())
+    assert (vals["X"], vals["Y"], vals["L"]) == (3, 4, 6)
