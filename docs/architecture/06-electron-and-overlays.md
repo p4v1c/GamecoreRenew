@@ -77,6 +77,14 @@ uptime was under 180 s, while X switched the mode and the TV re-synced HDMI. It
 is gone: the splash holds its last frame instead, for exactly as long as the
 interface behind it is not ready.
 
+### Interface errors in the journal
+
+The main window's `console-message` handler copies every error-level message
+of the renderer (uncaught exceptions, rejected promises, `console.error`) to
+stderr as `[renderer] <message> (<source>:<line>)`, so it lands in
+`journalctl --user -u gamecore-ui`. Before, those errors only existed in
+DevTools, which nobody opens on a TV.
+
 ## The preload bridge — `preload.js`
 
 Exactly ten methods on `window.gamecore`, nothing else:
