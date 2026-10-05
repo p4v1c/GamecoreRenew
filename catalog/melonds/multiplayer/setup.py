@@ -1,13 +1,18 @@
-"""melonDS local multiplayer, backend side: decide, write each instance's pad.
+"""melonDS local multiplayer: decide, then write each instance's pad.
 
-Runs in the backend just before the spawn (generator.launch_command). With
-two to four pads it writes, for every player N, `[Instance{N-1}] JoystickID`
-(the pad's SDL index as melonDS's own SDL sees it) and, for players 2-4, the
-`[Instance{N-1}.Joystick]` bindings; then it returns the command that runs
-launcher.py around melonDS. One pad: nothing is written, nothing changes.
+`launch_command` runs in the backend just before the spawn, inside the
+launch's 3 s budget, so it only decides: with two to four pads it writes a
+job file and returns the command that runs launcher.py around melonDS.
+The launcher calls `prepare` before starting melonDS: per player N,
+`[Instance{N-1}] JoystickID` (the pad's SDL index as melonDS's own SDL sees
+it), hotkey and screen windows, and for players 2-4 the
+`[Instance{N-1}.Joystick]` bindings. Those need SDL probes of about a second
+each; in the budget, three pads overran it and melonDS started solo.
+One pad: nothing is written, nothing changes.
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 import logging
 import os
@@ -31,11 +36,14 @@ MAX_PLAYERS = 4
 LAUNCHER = Path(__file__).resolve().parent / "launcher.py"
 A11Y_FLAG = "--env=QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1"
 FULLSCREEN_FLAGS = {"-f", "--fullscreen"}
-# Measured 1.1 s warm; the whole hook must fit the launch's 3 s budget.
-PROBE_TIMEOUT = 2.0
+# Measured 1.1 s warm; runs in the launcher, outside the launch budget.
+PROBE_TIMEOUT = 10.0
 # Instance 1 keeps its solo settings outside multiplayer; the values replaced
 # for a session are parked here and put back at the next solo launch.
 STATE_FILE = ".local/share/gamecore/melonds-multiplayer/instance0-solo.json"
+# What the backend hands the launcher: config path, pads, where snapshots live.
+JOB_FILE = ".local/share/gamecore/melonds-multiplayer/job.json"
+GENERATOR = Path(__file__).resolve().parent.parent / "generator.py"
 # melonDS hides its menu bar only when it toggles fullscreen itself; the
 # launcher sends this key (Qt::Key_F11) to every instance. F12 is the L3 daemon's.
 FULLSCREEN_KEY = "16777274"
@@ -151,8 +159,10 @@ def joystick_block(pad: Pad, header: str, base: str, snap_dir: Path,
     return section(text, header) or base
 
 
-def command(exec_path: str, exec_args: str, players: int) -> tuple[str, str]:
+def command(exec_path: str, exec_args: str, players: int,
+            job: Path | None = None) -> tuple[str, str]:
     """The launcher around melonDS. No fullscreen: the windows share the screen.
+    `job` given: the launcher runs `prepare` on it first.
     The ROM is appended by the process manager, last, as for any launch."""
     args = [a for a in shlex.split(exec_args) if a not in FULLSCREEN_FLAGS]
     if exec_path == "flatpak":
@@ -161,7 +171,30 @@ def command(exec_path: str, exec_args: str, players: int) -> tuple[str, str]:
             cmd.insert(cmd.index("run") + 1, A11Y_FLAG)
     else:
         cmd = [exec_path] + args
-    return sys.executable, shlex.join([str(LAUNCHER), "--players", str(players), "--", *cmd])
+    prepare_args = [f"--prepare={job}"] if job is not None else []
+    return sys.executable, shlex.join([str(LAUNCHER), "--players", str(players),
+                                       *prepare_args, "--", *cmd])
+
+
+def _generator():
+    spec = importlib.util.spec_from_file_location("gamecore_melonds_generator", GENERATOR)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def prepare(job_path: Path, synth=None, set_keys=None) -> dict[int, int]:
+    """Write every instance's settings from the backend's job file, before
+    melonDS starts. Returns player → SDL index."""
+    job = json.loads(job_path.read_text())
+    if synth is None or set_keys is None:
+        generator = _generator()
+        synth, set_keys = generator.synth_values, generator.set_joystick_keys
+    target, players = Path(job["target"]), job["players"]
+    _park_instance0(target, Path(job["state"]))
+    indices = assign_joysticks(players, sdl_joysticks(job["app_id"]))
+    write_instances(target, players, indices, Path(job["snap_dir"]), synth, set_keys)
+    return indices
 
 
 def _set(text: str, header: str, key: str, value: str) -> str:
@@ -265,8 +298,7 @@ def blank_player_saves(rom_path: str, players: int, config_text: str = "") -> li
 
 
 def launch_command(*, rom_path: str, exec_path: str, exec_args: str,
-                   players: list[dict], opts: dict | None,
-                   synth, set_keys) -> tuple[str, str] | None:
+                   players: list[dict], opts: dict | None) -> tuple[str, str] | None:
     """(exec_path, exec_args) for 2-4 pads, None for the solo launch.
     `opts` None (autoconfig off): the command changes, the config does not."""
     target = Path(opts["target"]) if opts else None
@@ -280,12 +312,15 @@ def launch_command(*, rom_path: str, exec_path: str, exec_args: str,
     # must not open a window nobody controls.
     players = [{**p, "player": rank} for rank, p in enumerate(
         sorted(players, key=lambda p: p["player"])[:MAX_PLAYERS], start=1)]
-    if target and target.is_file():
-        indices = assign_joysticks(players, sdl_joysticks(opts.get("app_id", "")))
-        log.info("melonds multiplayer: %d players, SDL indices %s", count, indices)
-        _park_instance0(target, state)
-        write_instances(target, players, indices, Path(opts["snap_dir"]), synth, set_keys)
-    config_text = target.read_text() if target and target.is_file() else ""
-    for made in blank_player_saves(rom_path, count, config_text):
+    configured = bool(target and target.is_file())
+    for made in blank_player_saves(rom_path, count, target.read_text() if configured else ""):
         log.info("melonds multiplayer: blank save for a new player: %s", made.name)
-    return command(exec_path, exec_args, count)
+    if not configured:
+        return command(exec_path, exec_args, count)
+    job = Path(opts["home"]) / JOB_FILE
+    job.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(job, json.dumps({
+        "target": str(target), "state": str(state), "snap_dir": str(opts["snap_dir"]),
+        "app_id": opts.get("app_id", ""), "players": players}, default=str))
+    log.info("melonds multiplayer: %d players", count)
+    return command(exec_path, exec_args, count, job)

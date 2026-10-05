@@ -58,8 +58,9 @@ the solo launch, unchanged. Architecture and the reasons:
 - One melonDS process, one instance per player, opened through melonDS's own
   menus over AT-SPI (`gdbus`). Every instance boots its firmware with the cart
   in: the DS menu offers the game and DS Download Play.
-- Each instance reads `[InstanceN] JoystickID`, written at launch from an SDL
-  probe run inside the flatpak.
+- Each instance reads `[InstanceN] JoystickID`, written by the launcher from
+  an SDL probe run inside the flatpak, before melonDS starts (too slow for
+  the backend's 3 s launch budget: overrunning it started melonDS solo).
 - Each player is a full-height column of two windows, top screen above
   touch screen, no decorations, no menu bar (hidden through melonDS's own
   fullscreen hotkey, F11 in multiplayer). 3-4 players stretch the image
@@ -70,7 +71,8 @@ the solo launch, unchanged. Architecture and the reasons:
 - Two mice or more: once a second mouse is used, each mouse belongs to one
   player (order of first use), with its own arrow (the box's cursor theme, same for all) kept in that
   player's column; its click is that player's stylus, so two players can
-  drag at once. X's own arrow is hidden meanwhile (the touches move it).
+  drag at once. X's own arrow, moved by every touch, goes back to the
+  off-screen corner when the touch ends.
   One mouse keeps the normal pointer.
 - Saves: player 1 keeps `<rom>.sav`; players 2-4 get their own `<rom>.sav.N`,
   blank the first time (a new game), never a copy of player 1's.

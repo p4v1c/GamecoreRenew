@@ -3,6 +3,7 @@ AT-SPI wire format, and the launcher's promise never to outlive melonDS's
 start-up by waiting on a dead process."""
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -88,3 +89,20 @@ def test_launcher_returns_melonds_exit_code_without_waiting_out_the_timeout(tmp_
 def test_an_x_error_does_not_end_the_launcher():
     """Xlib's default handler exits; a launcher that exits ends the session."""
     assert windows._ignore_x_error(None, None) == 0
+
+
+
+def test_launcher_writes_the_instances_before_starting_melonds(tmp_path):
+    """setup.prepare runs in the launcher, from GameCore's own tree."""
+    config = tmp_path / "melonDS.toml"
+    config.write_text("[Instance0]\nJoystickID = 0\n")
+    job = tmp_path / "job.json"
+    job.write_text(json.dumps({"target": str(config), "state": str(tmp_path / "solo.json"),
+                               "snap_dir": str(tmp_path), "app_id": "", "players": []}))
+    log_file = tmp_path / ".cache/gamecore/melonds-multiplayer.log"
+    started = "import sys; sys.exit(0 if 'instances written' in open(sys.argv[1]).read() else 4)"
+    done = subprocess.run(
+        [sys.executable, str(MP / "launcher.py"), "--players", "2", f"--prepare={job}",
+         "--", sys.executable, "-c", started, str(log_file)],
+        env={**os.environ, "HOME": str(tmp_path)}, timeout=launcher.APP_TIMEOUT / 2)
+    assert done.returncode == 0

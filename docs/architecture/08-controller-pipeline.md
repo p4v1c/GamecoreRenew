@@ -316,8 +316,10 @@ re-profiled on their own, since the player number is part of the footprint.
 
 melonDS profiles slot 1 only (`maxPlayers: 1`): on connect, its one
 `[Instance0.Joystick]`. Players 2-4 exist only when melonDS runs one instance
-per pad, so their `[InstanceN]` sections are written by the pack's
-`launch_command` hook just before the spawn, and so is every `JoystickID`.
+per pad, so their `[InstanceN]` sections are written by the multiplayer
+launcher (`setup.prepare`) just before melonDS starts, and so is every
+`JoystickID`: the SDL probes take about a second per pad model, too long for
+the `launch_command` hook's budget.
 melonDS picks a pad by SDL **index**, and only melonDS's own SDL, in its
 sandbox, knows that order (a DualShock 4 is `/dev/hidrawN` there, an event node
 to GameCore). Details in [10](10-catalog-and-install.md#melonds-local-multiplayer).

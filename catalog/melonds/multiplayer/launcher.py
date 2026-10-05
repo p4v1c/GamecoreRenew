@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Start melonDS for 2-4 local players: one process, one instance per player.
 
-    launcher.py --players N -- <melonDS command ...> <rom>
+    launcher.py --players N [--prepare JOB] -- <melonDS command ...> <rom>
 
-Starts melonDS with the ROM (instance 1), then presses melonDS's own
+With --prepare, first writes every instance's pad and windows (setup.prepare:
+SDL probes too slow for the backend's launch budget). Starts melonDS with
+the ROM (instance 1), then presses melonDS's own
 "Launch new instance" and "Open recent > 1." for each other player, exactly
 what a player does by hand. Every instance then boots its DS firmware with the
 cart inserted ("Boot firmware" keeps the cart), so each player lands on the DS
@@ -15,7 +17,8 @@ mouse drives its own player's arrow and touch screen (mouse_touch.py).
 Runs in the game's process group, so GameCore's suspend and kill reach melonDS
 through it. Never exits before melonDS does: an early exit would end the
 session while the game is still on screen. A failed step leaves the players
-started so far running. Stdlib only.
+started so far running. Stdlib only, except that pad step (setup.py, run by
+the backend's interpreter).
 """
 from __future__ import annotations
 
@@ -177,6 +180,7 @@ def orchestrate(players: int, rom: str, alive) -> None:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--players", type=int, required=True)
+    parser.add_argument("--prepare", type=Path)
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
@@ -189,6 +193,8 @@ def main(argv: list[str]) -> int:
     logging.basicConfig(filename=LOG_PATH, filemode="w", level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s")
     log.info("%d players: %s", players, " ".join(command))
+    if args.prepare:
+        _prepare(args.prepare)
     proc = subprocess.Popen(command, env={**os.environ, A11Y_ENV: "1",
                                             PLAYERS_ENV: str(players)})
     try:
@@ -201,6 +207,17 @@ def main(argv: list[str]) -> int:
     code = proc.wait()
     mice.join(timeout=MICE_STOP_TIMEOUT)
     return code
+
+
+def _prepare(job: Path) -> None:
+    """Each player's pad and windows in its instance. A failure costs the
+    per-player settings, never the game."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # GameCore root
+        import setup
+        log.info("instances written, SDL index per player: %s", setup.prepare(job))
+    except Exception:
+        log.exception("instance settings skipped; melonDS keeps the ones it had")
 
 
 def _route_mice(players: int, proc: subprocess.Popen) -> None:

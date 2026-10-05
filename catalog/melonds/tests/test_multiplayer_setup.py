@@ -66,8 +66,14 @@ def _fake_synth(pad):
 def _launch(opts, players, rom="/roms/Game.nds"):
     return setup.launch_command(
         rom_path=rom, exec_path="flatpak", exec_args="run net.kuribo64.melonDS -f",
-        players=players, opts=opts, synth=_fake_synth,
-        set_keys=generator.set_joystick_keys)
+        players=players, opts=opts)
+
+
+def _launch_and_prepare(opts, players):
+    """The backend's hook, then the launcher's part, as on the box."""
+    result = _launch(opts, players)
+    return result, setup.prepare(opts["home"] / setup.JOB_FILE, synth=_fake_synth,
+                                 set_keys=generator.set_joystick_keys)
 
 
 def test_one_pad_writes_nothing_and_keeps_the_command(tmp_path, monkeypatch):
@@ -83,13 +89,25 @@ def test_no_rom_is_never_multiplayer(tmp_path):
 
 
 def test_two_pads_wrap_melonds_without_fullscreen(tmp_path, monkeypatch):
-    monkeypatch.setattr(setup, "sdl_joysticks", lambda app_id: [])
     players = [{"player": n, "key": f"k{n}", **DS4} for n in (1, 2)]
-    exe, args = _launch(_opts(tmp_path), players)
+    opts = _opts(tmp_path)
+    exe, args = _launch(opts, players)
     argv = shlex.split(args)
     assert exe == sys.executable
-    assert argv[:4] == [str(setup.LAUNCHER), "--players", "2", "--"]
-    assert argv[4:] == ["flatpak", "run", setup.A11Y_FLAG, "net.kuribo64.melonDS"]
+    assert argv[:5] == [str(setup.LAUNCHER), "--players", "2",
+                        f"--prepare={tmp_path / setup.JOB_FILE}", "--"]
+    assert argv[5:] == ["flatpak", "run", setup.A11Y_FLAG, "net.kuribo64.melonDS"]
+
+
+def test_the_backend_hook_never_probes_sdl(tmp_path, monkeypatch):
+    """SDL probes cost ~1 s per pad model; three pads overran the launch's 3 s
+    budget and melonDS started solo, in fullscreen."""
+    monkeypatch.setattr(setup, "sdl_joysticks", lambda app_id: 1 / 0)
+    monkeypatch.setattr(setup, "write_instances", lambda *a: 1 / 0)
+    opts = _opts(tmp_path)
+    players = [{"player": 1, "key": "k1", **DS4}, {"player": 2, "key": "k2", **XBOX}]
+    assert _launch(opts, players) is not None
+    assert opts["target"].read_text() == TOML
 
 
 def test_more_than_four_pads_open_four_instances(tmp_path, monkeypatch):
@@ -111,7 +129,7 @@ def test_each_player_gets_its_sdl_index_and_players_2_on_their_bindings(tmp_path
     # Player 1 is the USB Xbox (keyed by its event node), player 2 the BT DS4.
     players = [{"player": 1, "key": "/dev/input/event5", **XBOX},
                {"player": 2, "key": "11:22:33:44:55:66", **DS4}]
-    _launch(opts, players)
+    assert _launch_and_prepare(opts, players)[1] == {1: 1, 2: 0}
     text = opts["target"].read_text()
     from backend.services.configgen.helpers.ini import section
     assert "JoystickID = 1" in section(text, "Instance0")
@@ -128,7 +146,7 @@ def test_a_captured_mapping_beats_the_synthesis(tmp_path, monkeypatch):
     snap = opts["snap_dir"] / "melonds" / "045e_02fd.snap"
     snap.parent.mkdir(parents=True)
     snap.write_text("[Instance0.Joystick]\nA = 1\nB = 0\nL = 6\nR = 7\n")
-    _launch(opts, [{"player": 1, "key": "k1", **DS4}, {"player": 2, "key": "k2", **XBOX}])
+    _launch_and_prepare(opts, [{"player": 1, "key": "k1", **DS4}, {"player": 2, "key": "k2", **XBOX}])
     from backend.services.configgen.helpers.ini import section
     assert section(opts["target"].read_text(), "Instance1.Joystick") == "A = 1\nB = 0\nL = 6\nR = 7\n"
 
@@ -143,7 +161,7 @@ def test_a_slot_gap_does_not_open_an_empty_window(tmp_path, monkeypatch):
 def test_solo_after_multiplayer_gives_instance_1_its_settings_back(tmp_path, monkeypatch):
     monkeypatch.setattr(setup, "sdl_joysticks", lambda app_id: [(0, "b"), (1, "a")])
     opts = _opts(tmp_path)
-    _launch(opts, [{"player": 1, "key": "a", **DS4}, {"player": 2, "key": "b", **DS4}])
+    _launch_and_prepare(opts, [{"player": 1, "key": "a", **DS4}, {"player": 2, "key": "b", **DS4}])
     from backend.services.configgen.helpers.ini import section
     text = opts["target"].read_text()
     assert "JoystickID = 1" in section(text, "Instance0")
