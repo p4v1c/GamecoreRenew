@@ -904,11 +904,15 @@ be debugged without `journalctl`:
 |---|---|---|
 | `logs/backend/backend.log` | `install()`, called by the lifespan: a `SectionFile` on the root logger, WARNING and above from every module | 2 MB × 3 |
 | `logs/<section>/<section>.log` | `install()`: one `SectionFile` per entry of `SECTIONS` (controllers, media, session, network, ota, addons, ui), on the loggers of the backend modules listed there, from INFO. `ota` is every line of `update/linux.sh` the backend reads; `addons` the `gamecore-addon` output and notify events; `ui` what the interface reports (`POST /api/logs/ui`) | 2 MB × 3 |
-| `logs/packs/<system>/` | a launched pack script, told by `child_env()` (`GAMECORE_LOG_DIR`) | the pack's own |
-| `logs/launch/<system>/<time>-<game>.log` | `launch_output()`, used by `process_manager.launch`: the emulator's stdout and stderr, written by the child itself | newest 10 per system, older ones cut to their last 4 MB on the next launch |
+| `logs/packs/<system>/` | a launched pack script, told by `child_env()` (`GAMECORE_LOG_DIR`); it must append | 4 MB, by `run()` |
+| `logs/launch/<system>/<time>-<game>.log` | `launch_output()`, used by `process_manager.launch`: the emulator's stdout and stderr, written by the child itself (append mode) | newest 10 per system, by name; `run()` empties one past 4 MB every 30 s while it is written |
 
-`SectionFile` creates its directory when it opens, and `purge()` closes it first,
-so a purge never needs a restart. `launch_output()` falls back to `DEVNULL`:
+`SectionFile` creates its directory when it opens, so a purge never needs a
+restart. `purge()` holds every section file's lock until the files are gone (a
+record in between would reopen a file the delete then removes), and empties
+rather than deletes what another process may still write: the newest launch log
+of each system and the pack logs. `POST /api/logs/ui` text goes through
+`one_line()`, so a newline cannot forge a record. `launch_output()` falls back to `DEVNULL`:
 a log must not cost the player the game. Nothing here names an emulator.
 
 A section's modules are raised to INFO, so their INFO lines also reach the

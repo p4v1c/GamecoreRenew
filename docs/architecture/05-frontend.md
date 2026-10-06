@@ -272,9 +272,12 @@ Colours are `--pd-*` variables a theme sets from its stylesheet.
 `PlaytimeEntry`, `SysInfo`. The controller types (`RosterPad`, `UsbDevice`,
 the autoconfig and mapping-wizard shapes) live in `api/controllers.ts` and are
 re-exported; `api.controllers.pads()` is the controller screen's roster.
-`StorageVolume` lives in `api/storage.ts`, and `api.logs` (`usage`, `purge`)
+The HTTP verbs (`get`, `put`, `post`, `postDetailed`, `del`) live in `api/http.ts`.
+`StorageVolume` lives in `api/storage.ts`, and `api.logs` (`usage`, `purge`, `ui`)
 in `api/logs.ts`: Settings → System → Logs in `frontend/src/settings/system.js`,
-the page every theme draws. `frontend/src/lib/reportErrors.ts` (installed in `main.tsx`, and
+the page every theme draws (the legacy `DefaultSettingsList` menu has
+`components/modals/settings/LogsPage.tsx`; Logs is not a `DefaultSettingsPages`
+entry, since a theme reaches it through its System page). `frontend/src/lib/reportErrors.ts` (installed in `main.tsx`, and
 called by `components/ErrorBoundary.tsx`) sends uncaught errors, rejected promises
 and render errors to `api.logs.ui`, 50 per page load at most.
 

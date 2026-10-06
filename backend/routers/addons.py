@@ -71,7 +71,7 @@ async def notify(body: NotifyBody):
     (e.g. the ROM Manager addon broadcasts rom_uploaded after an upload)."""
     if not body.event or len(body.event) > 64:
         raise HTTPException(400, "invalid event name")
-    log.info("addons: notify %s", body.event)
+    log.info("addons: notify %r", body.event)
     await ws.broadcast(body.event, body.data)
     return {"ok": True}
 
@@ -92,7 +92,7 @@ async def _run_cli(action: str, name: str) -> None:
             if proc.stdout:
                 async for line in proc.stdout:
                     text = line.decode(errors="replace").rstrip()
-                    log.info("addons: %s %s: %s", action, name, text)
+                    log.info("addons: %s %s: %r", action, name, text)
                     await ws.broadcast("addon:log", {"line": text})
             await proc.wait()
 

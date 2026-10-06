@@ -173,6 +173,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(standby.run()),
         asyncio.create_task(prefetch.run()),
         asyncio.create_task(storage_monitor.run()),
+        asyncio.create_task(logs.run()),
     ]
     yield
     # Handed back on the way out: a backend that stops and does not come back

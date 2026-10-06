@@ -80,7 +80,7 @@ export const createSystemPage = (sdk, Rows) => {
         id: 'logs', type: 'action',
         label: 'Logs',
         desc: logs.files ? `${logs.files} files, ${megabytes(logs.bytes)}` : 'Empty',
-        label2: 'Purge logs',
+        label2: 'Purge logs', danger: true,
         busy: busy === 'logs' ? 'Purging…' : '',
         confirm: logs.files > 0,
       }] : []),

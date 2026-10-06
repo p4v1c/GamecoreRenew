@@ -6,6 +6,7 @@ to read. Every path is under a throwaway data root (`paths.use_roots`).
 import asyncio
 import logging
 import sys
+import threading
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -51,21 +52,36 @@ def test_a_launch_keeps_what_the_emulator_printed(data, monkeypatch):
     assert f"dir={data / 'packs' / 'melonds'}\n" in text, "a pack is told where its own log goes"
 
 
-def test_only_the_newest_launches_are_kept_and_old_ones_are_cut(data):
+def test_only_the_newest_launches_are_kept(data):
+    """By name, which starts with the time: an mtime is moved by any rewrite."""
     folder = data / "launch" / "pcsx2"
     folder.mkdir(parents=True)
     for i in range(logs.LAUNCHES_KEPT + 3):
-        (folder / f"old{i:02d}.log").write_text("x")
-    big = folder / "old99.log"          # newest by name, written last
-    big.write_bytes(b"a" * (logs.LAUNCH_MAX_BYTES + 10) + b"END")
+        (folder / f"20260101-0000{i:02d}-game.log").write_text("x")
+    oldest = folder / "20260101-000000-game.log"
+    oldest.touch()                      # newest by mtime, oldest by name
 
     with logs.launch_output("pcsx2", "game.iso", ["pcsx2"]):
         pass
 
-    kept = list(folder.glob("*.log"))
+    kept = sorted(p.name for p in folder.glob("*.log"))
     assert len(kept) == logs.LAUNCHES_KEPT
-    assert big.read_bytes().endswith(b"END")
-    assert big.stat().st_size < logs.LAUNCH_MAX_BYTES + 100
+    assert oldest.name not in kept
+
+
+def test_a_log_growing_past_its_cap_is_emptied_while_it_is_written(data):
+    folder = data / "launch" / "rpcs3"
+    folder.mkdir(parents=True)
+    big, small = folder / "big.log", folder / "small.log"
+    with big.open("ab") as writer:                  # the child's append-mode fd
+        writer.write(b"a" * (logs.LAUNCH_MAX_BYTES + 1))
+        writer.flush()
+        small.write_text("fine")
+        logs.cap_child_logs()
+        writer.write(b"later\n")
+        writer.flush()
+    assert big.read_bytes() == b"[earlier output cut: over the size cap]\nlater\n"
+    assert small.read_text() == "fine"
 
 
 def test_a_log_that_cannot_be_written_never_costs_the_launch(data, monkeypatch):
@@ -73,6 +89,25 @@ def test_a_log_that_cannot_be_written_never_costs_the_launch(data, monkeypatch):
     data.write_text("a file where the directory should be")
     with logs.launch_output("gb", "game.gb", ["mgba"]) as out:
         assert out is pm.asyncio.subprocess.DEVNULL
+
+
+def test_a_purge_empties_the_logs_a_running_game_still_writes(data):
+    folder = data / "launch" / "gb"
+    folder.mkdir(parents=True)
+    (folder / "20260101-000000-old.log").write_text("old")
+    running = folder / "20260102-000000-now.log"
+    pack = data / "packs" / "melonds" / "melonds-multiplayer.log"
+    pack.parent.mkdir(parents=True)
+    pack.write_text("pack")
+    with running.open("ab") as writer:
+        writer.write(b"before")
+        writer.flush()
+        logs.purge()
+        writer.write(b"after")
+    assert sorted(p.name for p in folder.iterdir()) == [running.name], "the old one goes"
+    assert running.read_bytes() == b"after", "the open one is emptied, not unlinked"
+    assert pack.read_text() == ""
+    assert logs.usage()["files"] == 1
 
 
 def test_logging_keeps_working_after_a_purge(data):
@@ -167,5 +202,27 @@ def test_an_interface_error_lands_in_the_ui_log(installed):
     r = client.post("/api/logs/ui", json={"message": "x is undefined", "source": "index.js:42"})
     assert r.json() == {"ok": True}
     assert "x is undefined (index.js:42)" in (installed / "ui" / "ui.log").read_text()
+    client.post("/api/logs/ui", json={"message": "x\n2026-01-01 ERROR forged: line"})
+    assert "x\\n2026-01-01 ERROR forged" in (installed / "ui" / "ui.log").read_text(), \
+        "a newline in a report cannot forge a record"
     too_long = client.post("/api/logs/ui", json={"message": "a" * (logs.UI_MESSAGE_MAX + 1)})
     assert too_long.status_code == 422
+
+
+def test_a_record_written_during_a_purge_waits_and_lands_in_a_real_file(installed, monkeypatch):
+    """Closed, then a record reopens the file, then the delete removes it: that
+    section would log into a deleted file until its rollover."""
+    logger = logging.getLogger("backend.services.launch")
+    real_empty = logs._empty
+    writer = threading.Thread(target=lambda: logger.info("during"))
+
+    def empty_while_someone_logs(root):
+        writer.start()
+        writer.join(timeout=0.2)
+        assert writer.is_alive(), "the record did not wait for the purge"
+        real_empty(root)
+
+    monkeypatch.setattr(logs, "_empty", empty_while_someone_logs)
+    logs.purge()
+    writer.join()
+    assert "during" in (installed / "session" / "session.log").read_text()

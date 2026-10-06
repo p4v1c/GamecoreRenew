@@ -14,12 +14,13 @@ import { ThemesPage } from './settings/ThemesPage'
 import { CatalogPage } from './settings/CatalogPage'
 import { BiosPage } from './settings/BiosPage'
 import { StoragePage } from './settings/StoragePage'
+import { LogsPage } from './settings/LogsPage'
 import { PadHints } from '../../lib/padKey'
 import { biosSummary } from '../../settings/bios'
 
 interface Props { onClose: () => void }
 
-type Page = 'main' | 'wifi' | 'audio' | 'bluetooth' | 'storage' | 'standby' | 'themes' | 'catalog' | 'bios' | 'update' | 'desktop'
+type Page = 'main' | 'wifi' | 'audio' | 'bluetooth' | 'storage' | 'standby' | 'themes' | 'catalog' | 'bios' | 'update' | 'logs' | 'desktop'
 
 const ITEMS = [
   { id: 'wifi',      label: 'Wi-Fi',            sub: 'Networks and passwords' },
@@ -31,6 +32,7 @@ const ITEMS = [
   { id: 'catalog',   label: 'Emulators & apps', sub: 'Add or remove systems' },
   { id: 'bios',      label: 'BIOS',             sub: 'System files each console needs' },
   { id: 'update',    label: 'Update',           sub: 'Check for a new version' },
+  { id: 'logs',      label: 'Logs',             sub: 'Size, and purge' },
   { id: 'desktop',   label: 'Desktop Mode',     sub: 'Leave for the system session', danger: true },
 ]
 
@@ -108,6 +110,7 @@ export default function SettingsModal({ onClose }: Props) {
   if (page === 'catalog')   return <CatalogPage   onClose={onClose} onBack={back} />
   if (page === 'bios')      return <BiosPage      onClose={onClose} onBack={back} />
   if (page === 'update')    return <UpdatePage    onClose={onClose} onBack={back} />
+  if (page === 'logs')      return <LogsPage      onClose={onClose} onBack={back} />
   if (page === 'desktop')   return <DesktopPage   onClose={onClose} onBack={back} />
 
   return (

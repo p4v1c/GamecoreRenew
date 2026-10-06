@@ -29,5 +29,6 @@ def purge_logs():
 @router.post("/logs/ui")
 def report_ui_error(report: UiReport):
     """An error the interface caught (uncaught, rejected promise, render)."""
-    ui_log.error("%s%s", report.message, f" ({report.source})" if report.source else "")
+    source = f" ({logs.one_line(report.source)})" if report.source else ""
+    ui_log.error("%s%s", logs.one_line(report.message), source)
     return {"ok": True}

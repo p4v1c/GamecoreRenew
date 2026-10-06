@@ -194,7 +194,8 @@ hand, when they choose ([07](07-config-and-data.md#splitting-a-system-scriptsspl
 Everything `process_manager` starts gets `GAMECORE_LOG_DIR=<data>/logs/packs/<system>`
 (`services/logs.py:child_env`). Its stdout and stderr already land in
 `logs/launch/<system>/`; a pack script with a log of its own (the melonDS
-multiplayer launcher) writes it there, creating the directory. No `pack.json`
+multiplayer launcher) writes it there, creating the directory, in append mode:
+GameCore empties it in place past 4 MB and on a purge. No `pack.json`
 field: a pack that needs nothing more does nothing.
 
 ### `launch.fullscreen` and `launch.gamepadTrigger`

@@ -192,7 +192,8 @@ def main(argv: list[str]) -> int:
     rom = command[-1]
 
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    logging.basicConfig(filename=LOG_PATH, filemode="w", level=logging.INFO,
+    # Appended, not rewritten: GameCore empties this file in place when it grows.
+    logging.basicConfig(filename=LOG_PATH, filemode="a", level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s")
     log.info("%d players: %s", players, " ".join(command))
     if args.prepare:
