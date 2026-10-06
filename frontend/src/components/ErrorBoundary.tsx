@@ -1,4 +1,5 @@
 import React from 'react'
+import { reportError } from '../lib/reportErrors'
 
 /**
  * The project had no error boundary at all: any React throw produced a white
@@ -31,6 +32,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[gamecore] render error caught by boundary:', error, info.componentStack)
+    reportError(`Render error: ${error.message}`, (info.componentStack ?? '').trim().split('\n')[0] ?? '')
     this.props.onError?.(error)
   }
 

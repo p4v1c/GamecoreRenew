@@ -23,8 +23,8 @@ are the auto-incremented tags.
 
 - **Logs you can read without a terminal.** Each launch keeps the emulator's
   output and the backend writes its log under `<data>/logs/`, capped in size:
-  one file per area (controllers, media, session, network) and one for every
-  warning. Settings → System → Logs purges them.
+  one file per area (controllers, media, session, network, updates, addons,
+  interface errors) and one for every warning. Settings → System → Logs purges them.
 
 - **Bluetooth pairing works from GameCore again.** A mouse or a DualSense
   could only be paired from the desktop session; the console's pairing ran

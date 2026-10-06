@@ -580,7 +580,7 @@ class ProcessManager:
 
             cmd = [exec_path] + args
 
-            env = await display_env()
+            env = {**await display_env(), **logs.child_env(system_id)}
             log.info("launch: %s (DISPLAY=%s)", " ".join(cmd), env.get("DISPLAY", ""))
 
             with logs.launch_output(system_id, game_key or rom_path or exec_path, cmd) as out:

@@ -38,7 +38,7 @@ def test_a_launch_keeps_what_the_emulator_printed(data, monkeypatch):
     monkeypatch.setattr(manager, "_watch", AsyncMock())
 
     async def scenario():
-        await manager.launch("/bin/sh", "-c 'echo out; echo err >&2'",
+        await manager.launch("/bin/sh", "-c 'echo out; echo err >&2; echo dir=$GAMECORE_LOG_DIR'",
                              game_key="Some Game (Europe).nds", system_id="melonds")
         await manager._fg.proc.wait()
 
@@ -48,6 +48,7 @@ def test_a_launch_keeps_what_the_emulator_printed(data, monkeypatch):
     text = log.read_text()
     assert text.startswith("$ /bin/sh -c")
     assert "out\n" in text and "err\n" in text
+    assert f"dir={data / 'packs' / 'melonds'}\n" in text, "a pack is told where its own log goes"
 
 
 def test_only_the_newest_launches_are_kept_and_old_ones_are_cut(data):
@@ -156,3 +157,15 @@ def test_every_section_comes_back_after_a_purge(installed):
 def test_a_mac_is_masked_in_the_middle():
     assert logs.mask_mac("A0:5A:5C:12:34:FF") == "A0:5A:5C:xx:xx:FF"
     assert logs.mask_mac("not a mac") == "xx"
+
+
+def test_an_interface_error_lands_in_the_ui_log(installed):
+    app = FastAPI()
+    app.include_router(logs_router.router, prefix="/api")
+    client = TestClient(app)
+
+    r = client.post("/api/logs/ui", json={"message": "x is undefined", "source": "index.js:42"})
+    assert r.json() == {"ok": True}
+    assert "x is undefined (index.js:42)" in (installed / "ui" / "ui.log").read_text()
+    too_long = client.post("/api/logs/ui", json={"message": "a" * (logs.UI_MESSAGE_MAX + 1)})
+    assert too_long.status_code == 422

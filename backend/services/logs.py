@@ -30,6 +30,10 @@ LAUNCH_MAX_BYTES = 4 * 1024 * 1024
 FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 _UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
+# What the interface reports (`POST /api/logs/ui`) is logged under this name.
+UI_LOGGER = "gamecore.ui"
+UI_MESSAGE_MAX = 2000
+
 # Section → the backend modules (logger names) that write it. GameCore's own
 # modules only: what an emulator prints lands in launch/, whatever it is.
 SECTIONS = {
@@ -47,6 +51,9 @@ SECTIONS = {
                 "backend.services.window_focus"),
     "network": ("backend.routers.settings.wifi", "backend.routers.settings.bluetooth",
                 "backend.routers.settings.audio"),
+    "ota": ("backend.routers.update",),
+    "addons": ("backend.routers.addons",),
+    "ui": (UI_LOGGER,),
 }
 
 log = logging.getLogger(__name__)
@@ -88,6 +95,11 @@ def install() -> None:
             if logger.getEffectiveLevel() > logging.INFO:
                 logger.setLevel(logging.INFO)
             logger.addHandler(handler)
+
+
+def child_env(system_id: str) -> dict:
+    """What a launched process is told: where a pack's own log may go."""
+    return {"GAMECORE_LOG_DIR": str(logs_dir() / "packs" / _safe(system_id or "unknown"))}
 
 
 def mask_mac(mac: str) -> str:

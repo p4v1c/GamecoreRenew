@@ -189,6 +189,14 @@ hand, when they choose ([07](07-config-and-data.md#splitting-a-system-scriptsspl
   the installer is documented as safe, and for a file the owner is invited to
   hand-edit, safe has to mean untouched.
 
+### What a launched process is told: `GAMECORE_LOG_DIR`
+
+Everything `process_manager` starts gets `GAMECORE_LOG_DIR=<data>/logs/packs/<system>`
+(`services/logs.py:child_env`). Its stdout and stderr already land in
+`logs/launch/<system>/`; a pack script with a log of its own (the melonDS
+multiplayer launcher) writes it there, creating the directory. No `pack.json`
+field: a pack that needs nothing more does nothing.
+
 ### `launch.fullscreen` and `launch.gamepadTrigger`
 
 Two things a tile may need once the app is up, both read by
@@ -239,7 +247,7 @@ processes it offers LAN mode, opened from dialogs only. Hence one process and
 its own menus, no patched emulator. Saves (`.sav.N`), firmware copies and MAC
 addresses are per instance in melonDS itself. The launcher runs in the game's
 process group, so suspend and quit reach melonDS; it never exits before
-melonDS. Log: `~/.cache/gamecore/melonds-multiplayer.log`.
+melonDS. Log: `melonds-multiplayer.log` in `$GAMECORE_LOG_DIR`, else `~/.cache/gamecore/`.
 
 ### `usb` — the peripherals that are not SDL gamepads
 

@@ -903,7 +903,8 @@ be debugged without `journalctl`:
 | Section | Written by | Cap |
 |---|---|---|
 | `logs/backend/backend.log` | `install()`, called by the lifespan: a `SectionFile` on the root logger, WARNING and above from every module | 2 MB × 3 |
-| `logs/<section>/<section>.log` | `install()`: one `SectionFile` per entry of `SECTIONS` (controllers, media, session, network), on the loggers of the backend modules listed there, from INFO | 2 MB × 3 |
+| `logs/<section>/<section>.log` | `install()`: one `SectionFile` per entry of `SECTIONS` (controllers, media, session, network, ota, addons, ui), on the loggers of the backend modules listed there, from INFO. `ota` is every line of `update/linux.sh` the backend reads; `addons` the `gamecore-addon` output and notify events; `ui` what the interface reports (`POST /api/logs/ui`) | 2 MB × 3 |
+| `logs/packs/<system>/` | a launched pack script, told by `child_env()` (`GAMECORE_LOG_DIR`) | the pack's own |
 | `logs/launch/<system>/<time>-<game>.log` | `launch_output()`, used by `process_manager.launch`: the emulator's stdout and stderr, written by the child itself | newest 10 per system, older ones cut to their last 4 MB on the next launch |
 
 `SectionFile` creates its directory when it opens, and `purge()` closes it first,

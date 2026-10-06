@@ -86,6 +86,17 @@ def test_launcher_returns_melonds_exit_code_without_waiting_out_the_timeout(tmp_
     assert "multiplayer setup stopped" in (tmp_path / ".cache/gamecore/melonds-multiplayer.log").read_text()
 
 
+def test_launcher_logs_where_gamecore_says(tmp_path):
+    """GameCore passes its logs directory to what it launches."""
+    logs = tmp_path / "logs" / "packs" / "melonds"
+    env = {**os.environ, "HOME": str(tmp_path), "GAMECORE_LOG_DIR": str(logs)}
+    subprocess.run(
+        [sys.executable, str(MP / "launcher.py"), "--players", "2", "--",
+         sys.executable, "-c", "import sys; sys.exit(3)", "/roms/Game.nds"],
+        env=env, timeout=launcher.APP_TIMEOUT / 2)
+    assert "multiplayer setup stopped" in (logs / "melonds-multiplayer.log").read_text()
+
+
 def test_an_x_error_does_not_end_the_launcher():
     """Xlib's default handler exits; a launcher that exits ends the session."""
     assert windows._ignore_x_error(None, None) == 0

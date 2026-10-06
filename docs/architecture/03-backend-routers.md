@@ -387,7 +387,8 @@ it. See [10](10-catalog-and-install.md#pergame--and-why-it-is-required-on-every-
 ### `logs.py` — the logs directory
 
 `GET /logs` → `{files, bytes}`; `DELETE /logs` → `{ok, freed}`, every file under
-`<DATA>/logs/`. Logic in `services/logs.py`.
+`<DATA>/logs/`. `POST /logs/ui` `{message, source}` (2000 / 300 chars max) → an
+error line in `logs/ui/ui.log`. Logic in `services/logs.py`.
 
 ### `storage.py` — external disks
 
