@@ -76,4 +76,4 @@ the solo launch, unchanged. Architecture and the reasons:
   One mouse keeps the normal pointer.
 - Saves: player 1 keeps `<rom>.sav`; players 2-4 get their own `<rom>.sav.N`,
   blank the first time (a new game), never a copy of player 1's.
-- Diagnostics: `~/.cache/gamecore/melonds-multiplayer.log`.
+- Diagnostics: `melonds-multiplayer.log` in `$GAMECORE_LOG_DIR` (`<data>/logs/packs/melonds/` when GameCore launches it), else in `~/.cache/gamecore/`.

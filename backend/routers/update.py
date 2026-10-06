@@ -99,12 +99,15 @@ async def apply_update():
             # closes stdout, so a timeout on proc.wait() alone never fires
             if proc.stdout:
                 async for line in proc.stdout:
-                    await ws.broadcast("update:log", {"line": line.decode().rstrip()})
+                    text = line.decode(errors="replace").rstrip()
+                    log.info("ota: %s", text)
+                    await ws.broadcast("update:log", {"line": text})
             await proc.wait()
 
         try:
             await asyncio.wait_for(_pump(), timeout=_UPDATE_TIMEOUT)
             code = proc.returncode or 0
+            log.info("ota: script exited with %d", code)
             await ws.broadcast("update:done", {"success": code == 0, "code": code})
         except asyncio.TimeoutError:
             log.warning("update script timed out after %ss — killing", _UPDATE_TIMEOUT)

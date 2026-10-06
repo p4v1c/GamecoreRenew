@@ -2,7 +2,7 @@
 __pycache__/
 *.py[cod]
 *.pyo
-.venv/
+.venv
 venv/
 *.egg-info/
 dist/
@@ -130,3 +130,6 @@ frontend/scripts/.kb.generated.mjs
 # `vite.shot.config.mts` are the sources and are tracked; this is what vite
 # writes when they are built, and it is rebuilt on every run.
 frontend/.shot-dist/
+
+# Runtime logs, when the data root is the checkout (backend/services/logs.py)
+/logs/

@@ -43,6 +43,8 @@ import re
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from ...services.logs import mask_mac
+
 router = APIRouter(prefix="/settings/bluetooth", tags=["bluetooth"])
 log = logging.getLogger(__name__)
 
@@ -265,11 +267,15 @@ async def pair_device(req: DeviceRequest):
     low = out.lower()
     ok = "pairing successful" in low or "already exists" in low or "already paired" in low
     if not ok:
+        log.warning("bluetooth: pairing %s failed: %s", mask_mac(req.mac), _failure(out, "no answer"))
         return {"ok": False, "message": _failure(out, "Pairing failed")}
 
     await _run("bluetoothctl", "--", "trust", req.mac)
     _, cout = await _run("bluetoothctl", "--", "connect", req.mac, timeout=25.0)
-    if "connection successful" in cout.lower():
+    connected = "connection successful" in cout.lower()
+    log.info("bluetooth: paired %s, %s", mask_mac(req.mac),
+             "connected" if connected else "not connected yet")
+    if connected:
         return {"ok": True, "message": "Paired and connected"}
     # Paired but not connected is a real, useful state: the device is known now
     # and the Connect button will work. Saying "failed" here would be a lie.
@@ -295,7 +301,9 @@ async def connect_device(req: DeviceRequest):
     await _run("bluetoothctl", "--", "trust", req.mac)
     _, out = await _run("bluetoothctl", "--", "connect", req.mac, timeout=25.0)
     if "connection successful" in out.lower():
+        log.info("bluetooth: connected %s", mask_mac(req.mac))
         return {"ok": True, "message": "Connected"}
+    log.warning("bluetooth: connecting %s failed: %s", mask_mac(req.mac), _failure(out, "no answer"))
     return {"ok": False, "message": _failure(out, "Failed")}
 
 
@@ -334,7 +342,9 @@ async def remove_device(mac: str):
 
     still = {m for m, _ in await _known("Paired")}
     if mac in still:
+        log.warning("bluetooth: %s is still paired after remove", mask_mac(mac))
         return {"ok": False, "message": _failure(out, "The device is still paired")}
+    log.info("bluetooth: forgot %s", mask_mac(mac))
     # "not available" is BlueZ saying it has no record of the address — which
     # is the state this route exists to reach, so it is not an error.
     return {"ok": True, "message": "Forgotten — pair it again to reconnect"}

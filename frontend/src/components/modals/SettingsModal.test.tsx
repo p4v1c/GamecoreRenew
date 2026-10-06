@@ -40,7 +40,7 @@ describe('the default settings menu', () => {
     const defaults = await import('../defaults')
     render(<SettingsModal onClose={vi.fn()} />)
     for (const label of ['Wi-Fi', 'Audio', 'Bluetooth', 'Storage', 'Standby',
-                         'Themes', 'Emulators & apps', 'BIOS', 'Update', 'Desktop Mode']) {
+                         'Themes', 'Emulators & apps', 'BIOS', 'Update', 'Logs', 'Desktop Mode']) {
       expect(screen.getByText(label)).toBeTruthy()
     }
     // The count is the claim: a page added to the host and forgotten here is a

@@ -346,6 +346,15 @@ Open Settings from the top-right icon or press **Start** on the controller.
 - **Update** — check for and apply OTA updates
 - **System** — reboot / shutdown
 
+**Logs.** Each game launch keeps the emulator's output, and the backend keeps
+its own log, under `logs/` in the data folder (`/userdata/logs` on a box set up
+that way): `logs/launch/<system>/` holds the last 10 launches per system,
+`logs/controllers/`, `logs/media/`, `logs/session/`, `logs/network/`, `logs/ota/`,
+`logs/addons/` and `logs/ui/` (interface errors) one area each, `logs/packs/` what
+a pack script writes, and `logs/backend/backend.log` every warning and error. Read them when a game will not start or
+crashes. **Settings → System → Logs** shows their size and purges them, after a
+second press to confirm.
+
 ---
 
 ## Themes

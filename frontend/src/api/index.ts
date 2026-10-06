@@ -1,7 +1,11 @@
 import type { RosterPad, UsbDevice, AutoconfigPack, AutoconfigState, MappingStep, MappingSession, MappingCommit, SavedMapping } from './controllers'
 export type { RosterPad, UsbDevice, AutoconfigPack, AutoconfigState, MappingStep, MappingSession, MappingCommit, SavedMapping } from './controllers'
+import type { StorageVolume } from './storage'
+export type { StorageVolume } from './storage'
+import { logs } from './logs'
+export type { LogsUsage } from './logs'
 
-const BASE = '/api'
+import { BASE, get, put, post, postDetailed } from './http'
 
 export interface SystemEntry {
   id: string
@@ -277,51 +281,6 @@ export interface SysInfo {
   bios: { ok: boolean | null; systems: Record<string, 'ok' | 'absent' | 'mismatch'> }
 }
 
-async function get<T>(path: string): Promise<T> {
-  const r = await fetch(BASE + path)
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
-  return r.json()
-}
-
-async function put<T>(path: string, body?: unknown): Promise<T> {
-  const r = await fetch(BASE + path, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
-  return r.json()
-}
-
-async function post<T>(path: string, body?: unknown): Promise<T> {
-  const r = await fetch(BASE + path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
-  return r.json()
-}
-
-/**
- * A POST whose FastAPI `detail` survives into the thrown Error.
- *
- * `post()` above throws "409 Conflict", which is exactly the generic failure
- * the storage screen must not show: udisks answers "target is busy" — a game
- * is still reading the disk — and that sentence is the only actionable part of
- * the response. Losing it turns a fixable state into a dead end.
- */
-async function postDetailed<T>(path: string, body?: unknown): Promise<T> {
-  const r = await fetch(BASE + path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
-  const payload = await r.json().catch(() => null)
-  if (!r.ok) throw new Error(payload?.detail || `${r.status} ${r.statusText}`)
-  return payload as T
-}
-
 export const api = {
   systems: {
     list: () => get<SystemEntry[]>('/systems'),
@@ -534,6 +493,7 @@ export const api = {
     unmount: (device: string) =>
       postDetailed<{ ok: boolean; detail: string }>('/storage/unmount', { device }),
   },
+  logs,
   controllers: {
     /**
      * The peripherals that are NOT SDL pads, present or absent.
@@ -588,28 +548,4 @@ export const api = {
       socket: () => new WebSocket(`ws://${window.location.host}/api/ws/controllers/mapping`),
     },
   },
-}
-
-/** One external disk — see api.storage. */
-export interface StorageVolume {
-  name: string
-  /** `/dev/sdb1`. The handle for mount/unmount: a row number is not one, since
-   *  a disk arriving while the screen is open renumbers the list. */
-  device: string
-  label: string
-  uuid: string
-  fstype: string
-  size: string
-  /** Where udisks put it. Not stable across replugs — do not record it. */
-  mountpoint: string
-  mounted: boolean
-  slug: string
-  /** `<DATA>/volumes/<slug>` — what a romsPath should point at. Survives a
-   *  replug, which the mount point does not: udisks calls the second mount of
-   *  the same disk "ROMS 1". */
-  stable_path: string
-  /** false for exFAT/NTFS: ROMs are fine, emulator saves are not. */
-  keeps_permissions: boolean
-  /** The sentence to show when keeps_permissions is false; "" otherwise. */
-  saves_warning: string
 }

@@ -83,6 +83,7 @@ _LAYOUT = {
     "addons":    "addons",            # per-addon writable state, <DATA>/addons/<id>/
     "volumes":   "volumes",           # symlinks to external disks, one per label
     "pergame":   "config/per-game",   # per-game settings, <system>/<game id>.json
+    "logs":      "logs",              # one folder per section, see services/logs.py
 }
 
 
@@ -125,6 +126,7 @@ def art_dir() -> Path:         return data_dir("art")
 def themes_dir() -> Path:      return data_dir("themes")
 def addons_dir() -> Path:      return data_dir("addons")
 def volumes_dir() -> Path:     return data_dir("volumes")
+def logs_dir() -> Path:        return data_dir("logs")
 
 
 def pergame_dir() -> Path:

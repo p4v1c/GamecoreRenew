@@ -1,11 +1,13 @@
 """Audio management via wpctl (PipeWire/WirePlumber)."""
 import asyncio
+import logging
 import os
 import re
 from fastapi import APIRouter
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/settings/audio", tags=["audio"])
+log = logging.getLogger(__name__)
 
 
 def _session_env() -> dict:
@@ -110,5 +112,7 @@ class SinkRequest(BaseModel):
 async def set_sink(req: SinkRequest):
     code, out = await _run("wpctl", "set-default", req.sink)
     if code != 0:
+        log.warning("audio: output %s refused: %s", req.sink, out)
         return {"ok": False, "error": out}
+    log.info("audio: output set to node %s", req.sink)
     return {"ok": True}

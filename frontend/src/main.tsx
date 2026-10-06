@@ -6,6 +6,9 @@ import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import OverlayScreen from './components/OverlayScreen'
 import { api } from './api'
+import { installErrorReports } from './lib/reportErrors'
+
+installErrorReports()
 
 const isOverlay = window.location.pathname === '/overlay'
 if (isOverlay) {

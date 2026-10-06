@@ -9,6 +9,7 @@ import time
 from datetime import datetime, timezone
 
 from .. import ws
+from . import logs
 from .paths import config_dir
 from ..db import get_db
 from .session import display_env
@@ -577,21 +578,19 @@ class ProcessManager:
             if rom_path:
                 args.append(rom_path)
 
-            if exec_path == "flatpak":
-                cmd = ["flatpak"] + args
-            else:
-                cmd = [exec_path] + args
+            cmd = [exec_path] + args
 
-            env = await display_env()
+            env = {**await display_env(), **logs.child_env(system_id)}
             log.info("launch: %s (DISPLAY=%s)", " ".join(cmd), env.get("DISPLAY", ""))
 
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-                start_new_session=True,  # isolates child into its own process group so killpg doesn't hit the backend
-                env=env,
-            )
+            with logs.launch_output(system_id, game_key or rom_path or exec_path, cmd) as out:
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=out,
+                    stderr=asyncio.subprocess.STDOUT,
+                    start_new_session=True,  # isolates child into its own process group so killpg doesn't hit the backend
+                    env=env,
+                )
         finally:
             self._launching = False
             self._pending_key = ""

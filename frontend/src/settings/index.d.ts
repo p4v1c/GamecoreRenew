@@ -68,6 +68,13 @@ declare module '*/settings/controllers' {
   ): (props: { active: boolean; onLeave: () => void }) => import('react').ReactNode
 }
 
+declare module '*/settings/system' {
+  export function createSystemPage(
+    sdk: unknown,
+    Rows: unknown,
+  ): (props: { active: boolean; onLeave: () => void }) => import('react').ReactNode
+}
+
 declare module '*/settings/rows' {
   export function createRows(sdk: unknown): unknown
 }

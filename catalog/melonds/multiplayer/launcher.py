@@ -53,7 +53,9 @@ MENU_KEY_ATTEMPTS = 3
 # The mouse loop polls every 0.5 s, then gives the arrows back.
 MICE_STOP_TIMEOUT = 3.0
 MENU_KEY_TIMEOUT = 2.0
-LOG_PATH = Path.home() / ".cache/gamecore/melonds-multiplayer.log"
+# GameCore's logs directory for this pack when the backend says where it is.
+LOG_PATH = Path(os.environ.get("GAMECORE_LOG_DIR") or Path.home() / ".cache/gamecore") \
+    / "melonds-multiplayer.log"
 
 log = logging.getLogger("melonds-multiplayer")
 
@@ -190,7 +192,8 @@ def main(argv: list[str]) -> int:
     rom = command[-1]
 
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    logging.basicConfig(filename=LOG_PATH, filemode="w", level=logging.INFO,
+    # Appended, not rewritten: GameCore empties this file in place when it grows.
+    logging.basicConfig(filename=LOG_PATH, filemode="a", level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s")
     log.info("%d players: %s", players, " ".join(command))
     if args.prepare:

@@ -638,6 +638,7 @@ a 234 MB index and the artwork all survive an update. Upstream defaults to
 `~/.cache`, which under systemd resolves against whichever `HOME` the unit
 happens to have.
 | `~/.config/gamecore-electron/Cache` | Chromium HTTP cache | cleared by the OTA script and on every Electron start |
+| `logs/<section>/…` | backend log, each launch's output (`services/logs.py`) | capped per file; Settings → System → Logs purges all of it |
 
 ## OPEN DECISION — Flatpak saves are in neither tree
 

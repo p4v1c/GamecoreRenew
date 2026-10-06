@@ -23,7 +23,7 @@ State: `_proc`, `_launching`, `_game_key`, `_system_id`, `_start_time`,
 | `kill_process_group(proc)` | module-level: SIGKILL a process **and its children**. Shared with `routers/update.py` |
 | `is_running` | `_launching or (_proc alive) or (_orphan_pgid alive)` |
 | `current_game` | `{game_key, system_id}` or `None` |
-| `launch(...)` | builds argv (`shlex.split` + ROM), spawns, records the session, broadcasts `game:started`, starts `_watch()` |
+| `launch(...)` | builds argv (`shlex.split` + ROM), spawns with its output in `logs.launch_output()`, records the session, broadcasts `game:started`, starts `_watch()` |
 | `_save_session()` / `_clear_session()` | write/remove `config/session.json` atomically |
 | `adopt_orphan()` | at startup, re-attach to a game a previous backend left running |
 | `kill()` | orphan → `_kill_orphan()`; otherwise `_flatpak_kill()` then `_proc_kill()` |
@@ -894,6 +894,31 @@ drives over raw libusb, light guns, dance mats — is invisible to it. This modu
 is that second roster, declared per pack under `usb`. It **never refuses a
 launch**: a USB accessory is optional by nature, so blocking would be GameCore
 inventing a fault. It only speaks.
+
+### `logs.py` — the logs directory
+
+One folder per section under `paths.logs_dir()` (`<DATA>/logs`), so the box can
+be debugged without `journalctl`:
+
+| Section | Written by | Cap |
+|---|---|---|
+| `logs/backend/backend.log` | `install()`, called by the lifespan: a `SectionFile` on the root logger, WARNING and above from every module | 2 MB × 3 |
+| `logs/<section>/<section>.log` | `install()`: one `SectionFile` per entry of `SECTIONS` (controllers, media, session, network, ota, addons, ui), on the loggers of the backend modules listed there, from INFO. `ota` is every line of `update/linux.sh` the backend reads; `addons` the `gamecore-addon` output and notify events; `ui` what the interface reports (`POST /api/logs/ui`) | 2 MB × 3 |
+| `logs/packs/<system>/` | a launched pack script, told by `child_env()` (`GAMECORE_LOG_DIR`); it must append | 4 MB, by `run()` |
+| `logs/launch/<system>/<time>-<game>.log` | `launch_output()`, used by `process_manager.launch`: the emulator's stdout and stderr, written by the child itself (append mode) | newest 10 per system, by name; `run()` empties one past 4 MB every 30 s while it is written |
+
+`SectionFile` creates its directory when it opens, so a purge never needs a
+restart. `purge()` holds every section file's lock until the files are gone (a
+record in between would reopen a file the delete then removes), and empties
+rather than deletes what another process may still write: the newest launch log
+of each system and the pack logs. `POST /api/logs/ui` text goes through
+`one_line()`, so a newline cannot forge a record. `launch_output()` falls back to `DEVNULL`:
+a log must not cost the player the game. Nothing here names an emulator.
+
+A section's modules are raised to INFO, so their INFO lines also reach the
+journal, as `standby`'s already did. A new module joins a section by adding its
+logger name to `SECTIONS`. MAC addresses go through `mask_mac()`
+(`AA:BB:CC:xx:xx:FF`). Wi-Fi passwords are never logged.
 
 ### `storage.py` — external disks
 
