@@ -233,12 +233,7 @@ async def warm(system_id: str, target: Path | str,
     # walks every game once per boot with the manifest open. It costs one
     # jeuInfos per affected game, once — the rescrape records the plate `blank`,
     # and `has_stale_plate` is False from then on, so it cannot repeat.
-    if gm.has_stale_plate(gm.entry_dir(system_id, name), manifest):
-        log.info("gamemedia: %s/%s carries a blank plate — rescraping once",
-                 system_id, Path(name).name)
-        refreshed = await resolve(system_id, target, only=types)
-        if refreshed and refreshed.get("found"):
-            manifest = refreshed
+    manifest = await _replace_stale_plate(system_id, target, manifest, types)
 
     media = manifest.get("media") or {}
     # `blank` has no `file` and is not missing: it is the settled answer that
@@ -254,7 +249,23 @@ async def warm(system_id: str, target: Path | str,
     for slug in missing:
         if await media_file(system_id, name, slug):
             got += 1
+    # A deferred back fetched just now can be a plate too; replace it in this
+    # pass, not at the next boot.
+    if got:
+        await _replace_stale_plate(system_id, target, cached(system_id, name) or {}, types)
     return got
+
+
+async def _replace_stale_plate(system_id: str, target: Path | str,
+                               manifest: dict, types: set[str]) -> dict:
+    """Rescrape once when `manifest` files a plate as a scan; the manifest to use."""
+    name = str(target)
+    if not gm.has_stale_plate(gm.entry_dir(system_id, name), manifest):
+        return manifest
+    log.info("gamemedia: %s/%s carries a blank plate — rescraping once",
+             system_id, Path(name).name)
+    refreshed = await resolve(system_id, target, only=types)
+    return refreshed if refreshed and refreshed.get("found") else manifest
 
 
 def media_index(manifest: dict) -> dict[str, dict]:
