@@ -21,6 +21,10 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **Logs you can read without a terminal.** Each launch keeps the emulator's
+  output and the backend writes its log under `<data>/logs/`, capped in size.
+  Settings → System → Logs purges them.
+
 - **Bluetooth pairing works from GameCore again.** A mouse or a DualSense
   could only be paired from the desktop session; the console's pairing ran
   with no agent to answer the device.

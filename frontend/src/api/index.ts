@@ -1,5 +1,9 @@
 import type { RosterPad, UsbDevice, AutoconfigPack, AutoconfigState, MappingStep, MappingSession, MappingCommit, SavedMapping } from './controllers'
 export type { RosterPad, UsbDevice, AutoconfigPack, AutoconfigState, MappingStep, MappingSession, MappingCommit, SavedMapping } from './controllers'
+import type { StorageVolume } from './storage'
+export type { StorageVolume } from './storage'
+import { logs } from './logs'
+export type { LogsUsage } from './logs'
 
 const BASE = '/api'
 
@@ -534,6 +538,7 @@ export const api = {
     unmount: (device: string) =>
       postDetailed<{ ok: boolean; detail: string }>('/storage/unmount', { device }),
   },
+  logs,
   controllers: {
     /**
      * The peripherals that are NOT SDL pads, present or absent.
@@ -588,28 +593,4 @@ export const api = {
       socket: () => new WebSocket(`ws://${window.location.host}/api/ws/controllers/mapping`),
     },
   },
-}
-
-/** One external disk — see api.storage. */
-export interface StorageVolume {
-  name: string
-  /** `/dev/sdb1`. The handle for mount/unmount: a row number is not one, since
-   *  a disk arriving while the screen is open renumbers the list. */
-  device: string
-  label: string
-  uuid: string
-  fstype: string
-  size: string
-  /** Where udisks put it. Not stable across replugs — do not record it. */
-  mountpoint: string
-  mounted: boolean
-  slug: string
-  /** `<DATA>/volumes/<slug>` — what a romsPath should point at. Survives a
-   *  replug, which the mount point does not: udisks calls the second mount of
-   *  the same disk "ROMS 1". */
-  stable_path: string
-  /** false for exFAT/NTFS: ROMs are fine, emulator saves are not. */
-  keeps_permissions: boolean
-  /** The sentence to show when keeps_permissions is false; "" otherwise. */
-  saves_warning: string
 }

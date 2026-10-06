@@ -272,6 +272,9 @@ Colours are `--pd-*` variables a theme sets from its stylesheet.
 `PlaytimeEntry`, `SysInfo`. The controller types (`RosterPad`, `UsbDevice`,
 the autoconfig and mapping-wizard shapes) live in `api/controllers.ts` and are
 re-exported; `api.controllers.pads()` is the controller screen's roster.
+`StorageVolume` lives in `api/storage.ts`, and `api.logs` (`usage`, `purge`)
+in `api/logs.ts`: Settings → System → Logs in `frontend/src/settings/system.js`,
+the page every theme draws.
 
 `api.media` is the one to read before drawing artwork that is not a jacket:
 

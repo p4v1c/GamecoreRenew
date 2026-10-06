@@ -23,7 +23,7 @@ State: `_proc`, `_launching`, `_game_key`, `_system_id`, `_start_time`,
 | `kill_process_group(proc)` | module-level: SIGKILL a process **and its children**. Shared with `routers/update.py` |
 | `is_running` | `_launching or (_proc alive) or (_orphan_pgid alive)` |
 | `current_game` | `{game_key, system_id}` or `None` |
-| `launch(...)` | builds argv (`shlex.split` + ROM), spawns, records the session, broadcasts `game:started`, starts `_watch()` |
+| `launch(...)` | builds argv (`shlex.split` + ROM), spawns with its output in `logs.launch_output()`, records the session, broadcasts `game:started`, starts `_watch()` |
 | `_save_session()` / `_clear_session()` | write/remove `config/session.json` atomically |
 | `adopt_orphan()` | at startup, re-attach to a game a previous backend left running |
 | `kill()` | orphan → `_kill_orphan()`; otherwise `_flatpak_kill()` then `_proc_kill()` |
@@ -894,6 +894,20 @@ drives over raw libusb, light guns, dance mats — is invisible to it. This modu
 is that second roster, declared per pack under `usb`. It **never refuses a
 launch**: a USB accessory is optional by nature, so blocking would be GameCore
 inventing a fault. It only speaks.
+
+### `logs.py` — the logs directory
+
+One folder per section under `paths.logs_dir()` (`<DATA>/logs`), so the box can
+be debugged without `journalctl`:
+
+| Section | Written by | Cap |
+|---|---|---|
+| `logs/backend/backend.log` | `install()`, called by the lifespan: a `SectionFile` on the root logger, same records as the journal | 2 MB × 3 |
+| `logs/launch/<system>/<time>-<game>.log` | `launch_output()`, used by `process_manager.launch`: the emulator's stdout and stderr, written by the child itself | newest 10 per system, older ones cut to their last 4 MB on the next launch |
+
+`SectionFile` creates its directory when it opens, and `purge()` closes it first,
+so a purge never needs a restart. `launch_output()` falls back to `DEVNULL`:
+a log must not cost the player the game. Nothing here names an emulator.
 
 ### `storage.py` — external disks
 

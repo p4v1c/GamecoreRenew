@@ -1,5 +1,5 @@
 /**
- * Settings → System: the console image and its update, standby, and disks
+ * Settings → System: the console image and its update, standby, logs and disks
  * (the `update`, `standby`, `storage` pages; `desktop` is in the power menu).
  *
  * Not drawn: emulator "Software update" (no update verb), `pacman -Syu` (a
@@ -9,6 +9,7 @@
 const SAVER_MINS = [2, 4, 6, 10, 15]
 const SLEEP_MINS = [10, 16, 30, 60, 0]           // 0 = never
 const label = (m) => (m === 0 ? 'Never' : m >= 60 ? `${m / 60} h` : `${m} min`)
+const megabytes = (b) => `${(b / 1048576).toFixed(b < 10485760 ? 1 : 0)} MB`
 const nearest = (list, v) => {
   let best = 0
   list.forEach((x, i) => { if (Math.abs(x - v) < Math.abs(list[best] - v)) best = i })
@@ -27,6 +28,7 @@ export const createSystemPage = (sdk, Rows) => {
     const [update, setUpdate] = useState(null)      // null = not checked yet
     const [busy, setBusy] = useState('')
     const [msg, setMsg] = useState('')
+    const [logs, setLogs] = useState(null)
 
     const loadVolumes = () => sdk.api.storage.list()
       .then((r) => setVolumes(asList(r && r.volumes))).catch(() => {})
@@ -35,6 +37,7 @@ export const createSystemPage = (sdk, Rows) => {
       sdk.api.sysinfo().then(setInfo).catch(() => {})
       sdk.api.standby.get().then(setStandby).catch(() => {})
       loadVolumes()
+      sdk.api.logs.usage().then(setLogs).catch(() => {})
       // Whether one is already running is the backend's to know: the flag does
       // not survive leaving the page, and an update outlives that by minutes.
       sdk.api.update.status().then((r) => { if (r.running) setBusy('update') }).catch(() => {})
@@ -73,7 +76,24 @@ export const createSystemPage = (sdk, Rows) => {
           options: SLEEP_MINS.map(label), label: 'Screen off after', desc: '',
         },
       ] : []),
+      ...(logs ? [{
+        id: 'logs', type: 'action',
+        label: 'Logs',
+        desc: logs.files ? `${logs.files} files, ${megabytes(logs.bytes)}` : 'Empty',
+        label2: 'Purge logs',
+        busy: busy === 'logs' ? 'Purging…' : '',
+        confirm: logs.files > 0,
+      }] : []),
     ]
+
+    const purgeLogs = () => {
+      if (!logs || !logs.files) return
+      setBusy('logs'); setMsg('')
+      sdk.api.logs.purge()
+        .then((r) => { setLogs({ files: 0, bytes: 0 }); setMsg(`Logs purged, ${megabytes(r.freed.bytes)} freed.`) })
+        .catch(() => setMsg('Could not purge the logs.'))
+        .finally(() => setBusy(''))
+    }
 
     const onSet = (id, v) => {
       if (!standby) return
@@ -88,6 +108,7 @@ export const createSystemPage = (sdk, Rows) => {
     }
 
     const onAct = (id) => {
+      if (id === 'logs' && !busy) return purgeLogs()
       if (id !== 'update' || busy) return
       if (update && update.update_available) {
         setBusy('update'); setMsg('Installing. The interface restarts when it finishes.')
@@ -151,7 +172,7 @@ export const createSystemPage = (sdk, Rows) => {
         onSet=${onSet} onAct=${act}
         title="System"
         state=${info ? versionLabel(info.version) : ''}
-        sub="The console image, standby behaviour, and the disks it reads from."
+        sub="The console image, standby behaviour, logs, and the disks it reads from."
         aside=${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null} />`
   }
 }

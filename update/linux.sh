@@ -141,7 +141,7 @@ PREV_DIR="${GAMECORE_PATH}.prev"
 if rm -rf "$PREV_DIR" 2>/dev/null && \
    rsync -a --delete \
      --exclude='.venv/' --exclude='node_modules/' --exclude='emu/' \
-     --exclude='config/' --exclude='VERSION' \
+     --exclude='config/' --exclude='logs/' --exclude='VERSION' \
      --link-dest="${GAMECORE_PATH}/" "${GAMECORE_PATH}/" "${PREV_DIR}/" 2>/dev/null; then
   echo "[update] Snapshot of the current install: ${PREV_DIR}"
   restore_hint() {

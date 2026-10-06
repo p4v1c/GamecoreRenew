@@ -42,8 +42,9 @@ from .routers import standby as standby_router
 from .routers import controllers as controllers_router
 from .routers import themes as themes_router
 from .routers import storage as storage_router
+from .routers import logs as logs_router
 from .routers.settings import wifi, audio, bluetooth, display
-from .services import (battery, boot, desktop_power, gamepad_monitor, http_cache,
+from .services import (battery, boot, desktop_power, gamepad_monitor, http_cache, logs,
                        playtime_repair, prefetch, standby, storage_monitor)
 from .services.errors import ServiceError
 from .services.process_manager import process_manager
@@ -145,6 +146,8 @@ async def lifespan(app: FastAPI):
     services/boot.py for the rule and for why each one is on the side it is.
     """
     boot.begin()
+    # Here, not at import: importing the app (tests, tools) must not write logs.
+    logs.install()
 
     await init_db()
     boot.done("database")
@@ -288,6 +291,7 @@ app.include_router(bios_router.router, prefix="/api")
 app.include_router(standby_router.router, prefix="/api")
 app.include_router(controllers_router.router, prefix="/api")
 app.include_router(storage_router.router, prefix="/api")
+app.include_router(logs_router.router, prefix="/api")
 app.include_router(themes_router.router, prefix="/api")
 app.include_router(wifi.router, prefix="/api")
 app.include_router(audio.router, prefix="/api")

@@ -384,6 +384,11 @@ half of the design: GameCore never translates a setting's meaning across thirtee
 emulators, so the escape hatch is opening the real UI rather than approximating
 it. See [10](10-catalog-and-install.md#pergame--and-why-it-is-required-on-every-emulator-pack).
 
+### `logs.py` — the logs directory
+
+`GET /logs` → `{files, bytes}`; `DELETE /logs` → `{ok, freed}`, every file under
+`<DATA>/logs/`. Logic in `services/logs.py`.
+
 ### `storage.py` — external disks
 
 `GET /storage/volumes`, `POST /storage/mount`, `POST /storage/unmount`.
