@@ -441,6 +441,10 @@ open, and it asks a question narrower than completeness on purpose, because that
 one answers False for a language change too and would turn a boot into a
 rescrape storm.
 
+`warm()` asks twice: before its downloads, for plates already on disk, and
+after, for a deferred media it just fetched. `fetch_media()` does not check for
+plates, so a new game's back used to stay a green slab until the next boot.
+
 Two design points that are GameCore's, not upstream's:
 
 - **Nothing is downloaded before it is asked for.** A scrape fetches

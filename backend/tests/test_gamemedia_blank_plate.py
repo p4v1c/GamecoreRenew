@@ -380,6 +380,40 @@ def test_the_warming_pass_is_what_pulls_the_trigger(tmp_path, monkeypatch):
     assert got == 0
 
 
+def test_a_plate_the_warming_pass_downloads_is_replaced_in_the_same_pass(
+        tmp_path, monkeypatch):
+    """A new game's back is deferred, then warmed. The plate check ran before
+    the download, so the plate it fetched stayed until the next boot: three DS
+    backs on the reference box were green slabs LaunchBox had real scans for."""
+    d = gm.entry_dir("melonds", "New.nds")
+    d.mkdir(parents=True, exist_ok=True)
+    (d / gm.MANIFEST).write_text(json.dumps({
+        "found": True,
+        "media": {"box-back": {"url": "https://example.invalid/back"}}}),
+        encoding="utf-8")
+
+    async def fake_media_file(system_id, filename, slug):
+        p = plate(d)
+        (d / gm.MANIFEST).write_text(json.dumps({
+            "found": True,
+            "media": {"box-back": {"file": p.name, "bytes": p.stat().st_size}}}),
+            encoding="utf-8")
+        return p
+
+    rescraped = []
+
+    async def fake_resolve(system_id, target, *, only=None, refresh=False):
+        rescraped.append((system_id, str(target)))
+        return {"found": True, "media": {"box-back": {"file": "box-back.jpg"}}}
+
+    monkeypatch.setattr(gamemedia, "media_file", fake_media_file)
+    monkeypatch.setattr(gamemedia, "resolve", fake_resolve)
+
+    await_(gamemedia.warm("melonds", "New.nds", types={"box-back"}))
+
+    assert rescraped == [("melonds", "New.nds")], "the fresh plate was kept"
+
+
 def test_a_clean_library_costs_no_rescrape(tmp_path, monkeypatch):
     d = gm.entry_dir("rpcs3", "Clean.iso")
     d.mkdir(parents=True, exist_ok=True)
