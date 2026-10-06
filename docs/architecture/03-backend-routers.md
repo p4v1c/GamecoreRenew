@@ -390,6 +390,18 @@ it. See [10](10-catalog-and-install.md#pergame--and-why-it-is-required-on-every-
 `<DATA>/logs/`. `POST /logs/ui` `{message, source}` (2000 / 300 chars max) → an
 error line in `logs/ui/ui.log`. Logic in `services/logs.py`.
 
+### `profiles.py` — who plays on this box
+
+| Route | Does |
+|---|---|
+| `GET /profiles` | `{active, profiles, palette}`; the first call creates the primary profile |
+| `POST /profiles` `{name, color?, avatar?}` | a new profile; 400 on a bad name, colour or avatar, 409 on a name taken |
+| `PATCH /profiles/{id}` `{name?, color?, avatar?}` | rename, recolour; the id never changes |
+| `DELETE /profiles/{id}` | the record only → `{active}`; 409 on the last profile |
+| `GET /profiles/active`, `PUT /profiles/active` `{id}` | the profile the interface is used as |
+
+Logic in `services/profiles.py`.
+
 ### `storage.py` — external disks
 
 `GET /storage/volumes`, `POST /storage/mount`, `POST /storage/unmount`.

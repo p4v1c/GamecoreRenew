@@ -920,6 +920,24 @@ journal, as `standby`'s already did. A new module joins a section by adding its
 logger name to `SECTIONS`. MAC addresses go through `mask_mac()`
 (`AA:BB:CC:xx:xx:FF`). Wi-Fi passwords are never logged.
 
+### `profiles.py` — who plays on this box
+
+One file, `paths.profiles_dir()/profiles.json`: `{active, profiles: [{id, name,
+color, avatar, created, primary}]}`, read and written under one lock,
+atomically.
+
+| Function | Does |
+|---|---|
+| `list_profiles()` | the state plus `PALETTE`; with no file, creates one primary profile ("Player 1") that owns everything the box held before profiles |
+| `create(name, color, avatar)` | trims the name, refuses empty, over `NAME_MAX`, non-printable, or taken (case-insensitive); colour from `PALETTE` (default: the first unused), avatar from `AVATARS` (empty: no art ships yet) |
+| `update(id, fields)` | the same checks; the id never changes, so nothing keyed on it moves |
+| `delete(id)` | the record only; refuses the last profile; `primary` and `active` pass to the oldest profile left |
+| `active()`, `set_active(id)` | the profile the interface is used as |
+
+A file that does not parse is renamed `profiles.json.broken-<time>` and a fresh
+primary profile is created: the old one stays readable for a repair by hand.
+Favourites, recently played and playtime are not per profile yet.
+
 ### `storage.py` — external disks
 
 "I plug my ROM disk in" is one of the first three things anyone expects from a

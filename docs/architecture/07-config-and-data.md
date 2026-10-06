@@ -337,6 +337,7 @@ is why. See also the open decision on Flatpak saves below.
 | `session.json` | `services/process_manager.py`, atomically | idem, at startup | no |
 | `auth.json`, `auth_secret` | `services/auth.py`, mode 0600 | idem | no |
 | `playtime.db` | backend (SQLite) | backend | no |
+| `profiles/profiles.json` | `services/profiles.py`, atomically | idem | no |
 
 **The OTA rsync excludes `config/` entirely** — but "not in git" is *not* true of
 all of it, and the distinction matters when deciding whether overwriting a file
@@ -347,7 +348,7 @@ is data loss:
   `install/generated/*.dist` on **every** run, so editing them in place is not durable —
   edit the `.dist` files.
 - The **state** (`theme.json`, `addons.json`, `standby.json`, `session.json`,
-  `auth.json`, `auth_secret`, `playtime.db`) is never in git and exists only on
+  `auth.json`, `auth_secret`, `playtime.db`, `profiles/`) is never in git and exists only on
   the box. That is its identity: credentials, installed addons, play history,
   the selected theme. Treat overwriting one as data loss.
 
@@ -543,6 +544,14 @@ bytes, the HMAC key for session cookies. Both 0600, written atomically by
 `read_text()` raises that one on a non-UTF-8 file, and every LAN request goes
 through here — a truncated or foreign `auth.json` used to 500 the whole proxied
 surface, `/login` included, leaving no way back in short of SSH.
+
+## `config/profiles/profiles.json`
+
+`{active, profiles: [{id, name, color, avatar, created, primary}]}`. `id` is 16
+random hex digits and never derived from the name, so a rename moves nothing.
+`primary` marks the profile that owns what the box held before profiles. Created
+with one "Player 1" on first read. Schema and checks:
+[`profiles.py`](04-backend-services.md#profilespy--who-plays-on-this-box).
 
 ## `config/session.json`
 
