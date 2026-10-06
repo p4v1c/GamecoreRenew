@@ -197,6 +197,7 @@ and returns an unsubscribe.
 | `components/ui/index.tsx` | 144 | `Overlay`, `OverlayLabel`, `BackHeader`, `Toggle`, `SliderRow`, `Chip`, `Bars`, `hexToRgb`, `fmtTime`, `fmtDate` |
 | `components/ui/VirtualKeyboard.tsx` | 205 | on-screen keyboard (WiFi passwords, library search) |
 | `components/ui/Toasts.tsx` | 117 | top-right stack, `TOAST_MS = 10000` |
+| `components/WhoIsPlaying.tsx` | — | "Who's playing?" at start, drawn by the kernel over every shell (z 950, under the splash): asked once per interface start (sessionStorage survives a theme reload) when `shouldAskWhoIsPlaying()` (2+ profiles) and no game holds the screen; raises `modalDepth`; markup in `settings/whoIsPlaying.js`, built-in palette |
 
 ### Settings pages — `components/modals/settings/`
 

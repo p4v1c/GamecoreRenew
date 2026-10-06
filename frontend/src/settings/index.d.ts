@@ -101,6 +101,14 @@ declare module '*/settings/profiles' {
   ): (props: { active: boolean; onLeave: () => void }) => import('react').ReactNode
 }
 
+declare module '*/settings/whoIsPlaying' {
+  /** Props: `ViewProps` in components/WhoIsPlaying.tsx; the caller asserts the shape. */
+  export function createWhoIsPlaying(
+    sdk: unknown,
+    parts?: { skin?: string },
+  ): (props: never) => import('react').ReactNode
+}
+
 declare module '*/settings/dialog' {
   export function createDialogs(sdk: unknown): { Dialog: unknown; useDialogOpen: () => boolean }
 }

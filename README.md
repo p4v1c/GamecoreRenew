@@ -345,6 +345,13 @@ Open Settings from the top-right icon or press **Start** on the controller.
 - **Themes** — change the look of the whole UI
 - **Update** — check for and apply OTA updates
 - **System** — reboot / shutdown
+- **Profiles** — who plays on this box: add, rename, recolour, delete, switch
+
+**Profiles.** A box starts with one profile, "Player 1", and behaves exactly
+as before. Add a second one in **Settings → Profiles** and the console asks
+"Who's playing?" each time the interface starts; **○** keeps the last one. A
+profile is a name and a colour for now: favourites, playtime and saves are
+still shared by the whole box.
 
 **Logs.** Each game launch keeps the emulator's output, and the backend keeps
 its own log, under `logs/` in the data folder (`/userdata/logs` on a box set up

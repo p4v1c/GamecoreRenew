@@ -10,7 +10,9 @@
  */
 
 .gcs-set.gcs-skin-default,
-.gcs-pwr-scrim.gcs-skin-default {
+.gcs-pwr-scrim.gcs-skin-default,
+.gcs-who.gcs-skin-default,
+.gcs-who-kb.gcs-skin-default {
   /* Ember, the built-in UI's accent. */
   --set-acc:        #b8501b;
   --set-acc-deep:   #9a3f12;

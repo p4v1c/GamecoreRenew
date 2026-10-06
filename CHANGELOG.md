@@ -21,6 +21,11 @@ are the auto-incremented tags.
 
 ### Behaviour that changed on its own
 
+- **Profiles.** Settings → Profiles adds, renames, recolours and deletes the
+  people who play on the box. With two or more, "Who's playing?" opens when
+  the interface starts. A box with one profile (the default "Player 1",
+  created on first start in `config/profiles/`) looks exactly as before.
+
 - **Logs you can read without a terminal.** Each launch keeps the emulator's
   output and the backend writes its log under `<data>/logs/`, capped in size:
   one file per area (controllers, media, session, network, updates, addons,

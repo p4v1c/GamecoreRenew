@@ -89,7 +89,8 @@
    Set here rather than on :root deliberately: the same keyboard draws the game
    search inside the host's dark overlay, and paper ink there would be
    invisible for exactly the reason this block exists. */
-.gcs-set-kb {
+.gcs-set-kb,
+.gcs-who-kb {
   --gc-kb-field:      rgba(var(--set-ink-rgb), 0.05);
   --gc-kb-key:        var(--set-key);
   --gc-kb-key-edge:   rgba(var(--set-ink-rgb), 0.14);
@@ -105,7 +106,9 @@
   --gc-accent:        var(--set-acc);
   --gc-accent-soft:   var(--set-acc-deep);
   --gc-accent-bright: var(--set-acc-deep);
+}
 
+.gcs-set-kb {
   margin-top: 18px; padding: 18px 18px 12px; border-radius: 16px;
   background: rgba(var(--set-ink-rgb), 0.03);
   border: 1px solid var(--set-line);

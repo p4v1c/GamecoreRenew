@@ -622,6 +622,22 @@ The props a view gets, new in SDK 9:
 written before SDK 9 (`layout` is always `'generic'`). The drawing is by
 position, so there is no family to pick any more.
 
+## 5i. Profiles — nothing to write, one thing to check
+
+**"Who's playing?"** (2+ profiles, once per interface start) is drawn by the
+host over your shell, in the built-in palette, from
+`frontend/src/components/WhoIsPlaying.tsx`. It raises `modalDepth` while it is
+up, so a theme that already pauses its pad handlers on `modalDepth` (§5f) needs
+nothing. No SDK change.
+
+**Settings → Profiles** is the tenth category of the shared settings screen
+(`frontend/src/settings/profiles.js`), drawn with the same `gcs-row2` rows as
+System; a round `.gcs-row2-badge` carries each profile's initial on its colour.
+It is not a `DefaultSettingsPages` id, so `settings.pages` in `theme.json` does
+not change. Check one thing: a stylesheet that keys the rail by position
+(`.gcs-set-row:nth-child(n)`) needs a tenth entry, and the rail has to fit ten
+rows at 1080p. Jelly 1.4.4 does both.
+
 ## 5e. Check it loads before you ship it
 
 ```bash
