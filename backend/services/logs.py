@@ -1,6 +1,7 @@
 """The logs directory: one folder per section, readable without journalctl.
 
-    <DATA>/logs/backend/backend.log      what the backend logs (journal level)
+    <DATA>/logs/backend/backend.log      every warning and error, whoever wrote it
+    <DATA>/logs/<section>/<section>.log  one area's story, from INFO (SECTIONS)
     <DATA>/logs/launch/<system>/*.log    each launch's own output, newest kept
 
 Every file is capped, and every directory is created on the write that needs
@@ -29,6 +30,25 @@ LAUNCH_MAX_BYTES = 4 * 1024 * 1024
 FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 _UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
+# Section → the backend modules (logger names) that write it. GameCore's own
+# modules only: what an emulator prints lands in launch/, whatever it is.
+SECTIONS = {
+    "controllers": ("backend.services.gamepad_monitor", "backend.services.gamepad_devices",
+                    "backend.services.controller_autoconfig", "backend.services.controller_capture",
+                    "backend.services.controller_profiles", "backend.services.controller_registry",
+                    "backend.services.controller_roster", "backend.services.configgen",
+                    "backend.services.usb_devices"),
+    "media": ("backend.services.gamemedia", "backend.services.cover_pipeline",
+              "backend.services.prefetch", "backend.services.metadata",
+              "backend.services.scraper", "backend.services.local_media"),
+    "session": ("backend.services.process_manager", "backend.services.launch",
+                "backend.services.session", "backend.services.standby",
+                "backend.services.desktop_power", "backend.services.fullscreen_enforcer",
+                "backend.services.window_focus"),
+    "network": ("backend.routers.settings.wifi", "backend.routers.settings.bluetooth",
+                "backend.routers.settings.audio"),
+}
+
 log = logging.getLogger(__name__)
 
 
@@ -45,11 +65,35 @@ class SectionFile(RotatingFileHandler):
         return super()._open()
 
 
+def _handlers() -> list[SectionFile]:
+    loggers = [logging.getLogger()] + [logging.getLogger(n) for ns in SECTIONS.values() for n in ns]
+    return [h for lg in loggers for h in lg.handlers if isinstance(h, SectionFile)]
+
+
 def install() -> None:
-    """Copy the backend's log records into `backend/backend.log`. Idempotent."""
-    root = logging.getLogger()
-    if not any(isinstance(h, SectionFile) for h in root.handlers):
-        root.addHandler(SectionFile(logs_dir() / "backend" / "backend.log"))
+    """Attach the section files. Idempotent.
+
+    A section's modules log from INFO: their INFO lines are the story a file is
+    for, and they reach the journal too, as standby's already did.
+    """
+    if _handlers():
+        return
+    backend = SectionFile(logs_dir() / "backend" / "backend.log")
+    backend.setLevel(logging.WARNING)
+    logging.getLogger().addHandler(backend)
+    for section, names in SECTIONS.items():
+        handler = SectionFile(logs_dir() / section / f"{section}.log")
+        for name in names:
+            logger = logging.getLogger(name)
+            if logger.getEffectiveLevel() > logging.INFO:
+                logger.setLevel(logging.INFO)
+            logger.addHandler(handler)
+
+
+def mask_mac(mac: str) -> str:
+    """`AA:BB:CC:xx:xx:FF`: enough to tell two devices apart, not to track one."""
+    parts = mac.split(":")
+    return ":".join(parts[:3] + ["xx", "xx"] + parts[5:]) if len(parts) == 6 else "xx"
 
 
 def _safe(name: str) -> str:
@@ -103,9 +147,8 @@ def usage() -> dict:
 def purge() -> dict:
     """Delete every log. Returns what was freed, as `usage()` measured it."""
     freed = usage()
-    for h in logging.getLogger().handlers:
-        if isinstance(h, SectionFile):
-            h.close()           # reopened (and its directory recreated) on the next record
+    for h in _handlers():
+        h.close()               # reopened (and its directory recreated) on the next record
     root = logs_dir()
     if root.is_dir():
         for child in root.iterdir():

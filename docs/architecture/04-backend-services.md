@@ -902,12 +902,18 @@ be debugged without `journalctl`:
 
 | Section | Written by | Cap |
 |---|---|---|
-| `logs/backend/backend.log` | `install()`, called by the lifespan: a `SectionFile` on the root logger, same records as the journal | 2 MB × 3 |
+| `logs/backend/backend.log` | `install()`, called by the lifespan: a `SectionFile` on the root logger, WARNING and above from every module | 2 MB × 3 |
+| `logs/<section>/<section>.log` | `install()`: one `SectionFile` per entry of `SECTIONS` (controllers, media, session, network), on the loggers of the backend modules listed there, from INFO | 2 MB × 3 |
 | `logs/launch/<system>/<time>-<game>.log` | `launch_output()`, used by `process_manager.launch`: the emulator's stdout and stderr, written by the child itself | newest 10 per system, older ones cut to their last 4 MB on the next launch |
 
 `SectionFile` creates its directory when it opens, and `purge()` closes it first,
 so a purge never needs a restart. `launch_output()` falls back to `DEVNULL`:
 a log must not cost the player the game. Nothing here names an emulator.
+
+A section's modules are raised to INFO, so their INFO lines also reach the
+journal, as `standby`'s already did. A new module joins a section by adding its
+logger name to `SECTIONS`. MAC addresses go through `mask_mac()`
+(`AA:BB:CC:xx:xx:FF`). Wi-Fi passwords are never logged.
 
 ### `storage.py` — external disks
 

@@ -104,3 +104,55 @@ def test_the_api_reports_and_purges(data):
     assert client.get("/api/logs").json() == {"files": 1, "bytes": 5}
     assert client.delete("/api/logs").json() == {"ok": True, "freed": {"files": 1, "bytes": 5}}
     assert client.get("/api/logs").json() == {"files": 0, "bytes": 0}
+
+
+@pytest.fixture
+def installed(data):
+    """`install()` on the real loggers, undone afterwards."""
+    names = [""] + [n for ns in logs.SECTIONS.values() for n in ns]
+    levels = {n: logging.getLogger(n).level for n in names}
+
+    def strip():
+        # Another test may have run the lifespan, which installs on its own root.
+        for h in logs._handlers():
+            h.close()
+        for n in names:
+            lg = logging.getLogger(n)
+            lg.handlers = [h for h in lg.handlers if not isinstance(h, logs.SectionFile)]
+
+    strip()
+    logs.install()
+    yield data
+    strip()
+    for n in names:
+        logging.getLogger(n).setLevel(levels[n])
+
+
+def test_each_area_writes_its_own_file(installed):
+    logging.getLogger("backend.routers.settings.bluetooth").info("paired")
+    logging.getLogger("backend.services.configgen.sdl_probe").warning("probe failed")
+
+    network = (installed / "network" / "network.log").read_text()
+    controllers = (installed / "controllers" / "controllers.log").read_text()
+    backend = (installed / "backend" / "backend.log").read_text()
+    assert "paired" in network
+    assert "probe failed" in controllers, "a submodule reaches its package's section"
+    assert "probe failed" in backend and "paired" not in backend, "backend.log is the warnings"
+
+
+def test_installing_twice_writes_each_line_once(installed):
+    logs.install()
+    logging.getLogger("backend.services.launch").info("once")
+    assert (installed / "session" / "session.log").read_text().count("once") == 1
+
+
+def test_every_section_comes_back_after_a_purge(installed):
+    logging.getLogger("backend.services.prefetch").info("before")
+    logs.purge()
+    logging.getLogger("backend.services.prefetch").info("after")
+    assert (installed / "media" / "media.log").read_text().strip().endswith("after")
+
+
+def test_a_mac_is_masked_in_the_middle():
+    assert logs.mask_mac("A0:5A:5C:12:34:FF") == "A0:5A:5C:xx:xx:FF"
+    assert logs.mask_mac("not a mac") == "xx"

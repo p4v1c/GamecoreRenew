@@ -437,6 +437,7 @@ async def connect_wifi(req: ConnectRequest):
         # `200 OK` lines while the player was getting nowhere.
         log.warning("wifi: connect to %r failed: %s", req.ssid, error)
         return {"ok": False, "wrong_password": wrong_pass, "error": error}
+    log.info("wifi: connected to %r", req.ssid)
     return {"ok": True, "wrong_password": False}
 
 
