@@ -61,9 +61,10 @@
 
 /* The rail: the mockup's purple panel. */
 .jelly-settings .gcs-set-rail {
-  gap: 6px; padding: 22px 16px; border: 0; border-radius: 0; background: #4a2d7c; color: #fff;
+  gap: 4px; padding: 18px 16px; border: 0; border-radius: 0; background: #4a2d7c; color: #fff;
 }
-.jelly-settings .gcs-set-row { gap: 14px; padding: 13px 16px; border-radius: 16px; color: #fff; }
+/* Ten rows fit at 1080p without the rail scrolling. */
+.jelly-settings .gcs-set-row { gap: 14px; padding: 11px 16px; border-radius: 16px; color: #fff; }
 .jelly-settings .gcs-set-row::before {
   content: ''; flex: none; width: 26px; height: 26px; background: currentColor;
   -webkit-mask: var(--jl-row-icon) center / contain no-repeat; mask: var(--jl-row-icon) center / contain no-repeat;
@@ -85,7 +86,7 @@
 .jelly-settings .gcs-set-rail[data-zone="off"] .gcs-set-row[data-sel="1"] .gcs-set-label i { color: #e2d8f4; }
 
 
-/* The nine category icons, drawn once and used by the rail and the header. */
+/* The category icons, drawn once and used by the rail and the header. */
 .gcs-set.jelly-settings {
   --jl-i-wifi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 9.5a12 12 0 0 1 16 0M7 13a7.5 7.5 0 0 1 10 0M10 16.5a3 3 0 0 1 4 0M12 20h.01'/%3E%3C/svg%3E");
   --jl-i-bluetooth: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 7l10 10-5 4V3l5 4L7 17'/%3E%3C/svg%3E");
@@ -96,6 +97,7 @@
   --jl-i-bios: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M7 7h10v10H7zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4'/%3E%3C/svg%3E");
   --jl-i-themes: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M12 3a9 9 0 1 0 0 18c1.1 0 1.5-.8 1.5-1.6 0-1.2-.9-1.7-.9-2.6 0-.9.7-1.3 1.6-1.3H16a5 5 0 0 0 5-5c0-4.1-4-7.5-9-7.5zM7.5 11h.01M10 7.5h.01M14.5 7.5h.01'/%3E%3C/svg%3E");
   --jl-i-system: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1'/%3E%3C/svg%3E");
+  --jl-i-profiles: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0'/%3E%3C/svg%3E");
 }
 .jelly-settings .gcs-set-row:nth-child(1) { --jl-row-icon: var(--jl-i-wifi); }
 .jelly-settings .gcs-set-row:nth-child(2) { --jl-row-icon: var(--jl-i-bluetooth); }
@@ -106,6 +108,7 @@
 .jelly-settings .gcs-set-row:nth-child(7) { --jl-row-icon: var(--jl-i-bios); }
 .jelly-settings .gcs-set-row:nth-child(8) { --jl-row-icon: var(--jl-i-themes); }
 .jelly-settings .gcs-set-row:nth-child(9) { --jl-row-icon: var(--jl-i-system); }
+.jelly-settings .gcs-set-row:nth-child(10) { --jl-row-icon: var(--jl-i-profiles); }
 .jelly-settings:has(.gcs-set-page[data-cat="wifi"]) { --jl-cat-icon: var(--jl-i-wifi); --jl-tag: 'Signal found.'; }
 .jelly-settings:has(.gcs-set-page[data-cat="bluetooth"]) { --jl-cat-icon: var(--jl-i-bluetooth); --jl-tag: 'Everything connects.'; }
 .jelly-settings:has(.gcs-set-page[data-cat="display"]) { --jl-cat-icon: var(--jl-i-display); --jl-tag: 'Big screen.'; }
@@ -115,6 +118,7 @@
 .jelly-settings:has(.gcs-set-page[data-cat="bios"]) { --jl-cat-icon: var(--jl-i-bios); --jl-tag: 'Under the hood.'; }
 .jelly-settings:has(.gcs-set-page[data-cat="themes"]) { --jl-cat-icon: var(--jl-i-themes); --jl-tag: 'Your way.'; }
 .jelly-settings:has(.gcs-set-page[data-cat="system"]) { --jl-cat-icon: var(--jl-i-system); --jl-tag: 'Behind the scenes.'; }
+.jelly-settings:has(.gcs-set-page[data-cat="profiles"]) { --jl-cat-icon: var(--jl-i-profiles); --jl-tag: 'Who plays here.'; }
 
 /* The header's illustration: a tilted jelly tile with the category's icon,
    and the mockup's line for it. Decoration: the category is named in the

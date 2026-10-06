@@ -24,10 +24,11 @@ import { createCatalogPage } from './catalog.js'
 import { createBiosPage, biosSummary } from './bios.js'
 import { createThemesPage } from './themes.js'
 import { createSystemPage } from './system.js'
+import { createProfilesPage } from './profiles.js'
 import { PadKey } from '../lib/padKey.js'
 
 /**
- * The rail. Nine rows, the capture's own list.
+ * The rail. The capture's nine rows, then Profiles.
  *
  * `Display` was absent for a long time, refused on the reasoning that its
  * "revert unless confirmed" would have to run inside the surface a bad mode
@@ -54,6 +55,7 @@ const CATS = [
   { id: 'bios',        n: '07', label: 'BIOS',             page: 'bios',        group: 'Collection' },
   { id: 'themes',      n: '08', label: 'Themes',           page: 'themes',      group: 'Collection' },
   { id: 'system',      n: '09', label: 'System',                                group: 'Console' },
+  { id: 'profiles',    n: '10', label: 'Profiles',                              group: 'Console' },
 ]
 
 // `update`, `standby`, `storage` and `desktop` no longer have rail rows of
@@ -64,7 +66,7 @@ const CATS = [
 
 /**
  * Line icons for the index layout, 24×24, stroked in `currentColor`. Drawn for
- * this screen rather than borrowed, so the bundle carries no icon set for nine
+ * this screen rather than borrowed, so the bundle carries no icon set for ten
  * glyphs.
  */
 const ICONS = {
@@ -76,6 +78,7 @@ const ICONS = {
   catalog: 'M4 4h4v16H4zM10 4h4v16h-4zM16 5l4 1-3 14-4-1z',
   bios: 'M7 7h10v10H7zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4',
   themes: 'M12 3a9 9 0 1 0 0 18c1.1 0 1.5-.8 1.5-1.6 0-1.2-.9-1.7-.9-2.6 0-.9.7-1.3 1.6-1.3H16a5 5 0 0 0 5-5c0-4.1-4-7.5-9-7.5zM7.5 11h.01M10 7.5h.01M14.5 7.5h.01',
+  profiles: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
   system: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1',
 }
 
@@ -138,6 +141,7 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
     bios: createBiosPage(sdk),
     themes: createThemesPage(sdk, Rows),
     system: createSystemPage(sdk, Rows),
+    profiles: createProfilesPage(sdk, Rows, Dialog),
     ...ownPages.inline,
   }
 
@@ -173,8 +177,8 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
     /**
      * The values at the end of the rows, and in the breadcrumb.
      *
-     * Eight independent reads, each landing on its own: one endpoint being down
-     * leaves one row without a value and the other seven intact. Nothing here
+     * Independent reads, each landing on its own: one endpoint being down
+     * leaves one row without a value and the others intact. Nothing here
      * falls back to a plausible string — the capture's own figures have no
      * source on this box, and a rail that invents them cannot be trusted for
      * the ones that are real.
@@ -215,6 +219,9 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
         })
         .catch(() => {})
       api.sysinfo().then((si) => put('system', versionLabel(si.version))).catch(() => {})
+      api.profiles.list()
+        .then((s) => { const p = s.profiles.find((x) => x.id === s.active); put('profiles', p && p.name) })
+        .catch(() => {})
 
       // Pads come from the Gamepad API, not from sysinfo: that list is
       // `read_batteries()`, a sysfs scan that cannot see a wired pad, and this

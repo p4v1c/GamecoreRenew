@@ -103,7 +103,7 @@ describe('what is gone from both screens', () => {
     const { container } = await screen(parts)
     const labels = [...container.querySelectorAll('.gcs-set-label b')].map(b => b.textContent)
     expect(labels).toEqual(['Wi-Fi', 'Bluetooth', 'Display', 'Audio', 'Controllers',
-      'Emulators & apps', 'BIOS', 'Themes', 'System'])
+      'Emulators & apps', 'BIOS', 'Themes', 'System', 'Profiles'])
     expect(text(container)).not.toMatch(/General|Scan mapping|Forget mapping/)
   })
 

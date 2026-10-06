@@ -1,4 +1,4 @@
-# Jelly 1.4.3
+# Jelly 1.4.4
 
 A bright, rounded GameCore theme: a cyan playground, purple and pink jelly
 tiles, keys that press down, one burst of confetti at boot. Textures and
@@ -20,7 +20,7 @@ touched.
 | A console's library | the host's library screen in Jelly cards | host: loading, sort, △ search keyboard, Options per-game options, launch |
 | Search (△ from the dashboard) | keyboard, filters, results | Jelly |
 | Game details | jacket, metadata, playtime, Play / Resume, favourite | Jelly, launch by the host |
-| Settings (Options) | the host's nine categories, dressed | host (`createSettings`, `pager`, `detail: 'dialog'`) |
+| Settings (Options) | the host's ten categories, dressed | host (`createSettings`, `pager`, `detail: 'dialog'`) |
 | Power (Share), controller (□), session menu (PS ×2) | dressed host markup | host |
 
 **Pictures.** Game cards stand on the game's 3D box (`box-3d` in its media

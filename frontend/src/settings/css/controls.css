@@ -30,6 +30,13 @@
 
 .gcs-row2-text i { font-style: normal; font-size: 14px; color: var(--set-ink-2); }
 
+/* A profile's initial on its colour. White on every palette colour is >= 5:1. */
+.gcs-row2-badge {
+  flex: 0 0 auto; display: grid; place-items: center;
+  width: 44px; height: 44px; border-radius: 50%;
+  color: #fff; font: 700 21px var(--font-display);
+}
+
 .gcs-row2-info {
   flex: 0 0 auto; font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px; color: var(--set-ink-3);
 }

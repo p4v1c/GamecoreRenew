@@ -8,6 +8,7 @@
  *
  * Rows marked `confirm` (actions AND toggles) take two presses; `label2`
  * states what the second press will do. Moving focus away disarms.
+ * `badge: { color, text }` draws a round mark before the label (a profile).
  */
 import { follow } from './list.js'
 
@@ -162,6 +163,9 @@ export const createRows = (sdk) => {
                    aria-valuetext=${r.type === 'value' ? r.options[r.value] : undefined}
                    ref=${(el) => { rowRefs.current[i] = el }}
                    onClick=${() => { setIdx(i); fire(r) }}>
+                ${r.badge ? html`
+                  <span class="gcs-row2-badge" aria-hidden="true"
+                        style=${{ background: r.badge.color }}>${r.badge.text}</span>` : null}
                 <span class="gcs-row2-text">
                   ${/* `confirmText` is used verbatim; `label2` is lower-cased to
                        finish the sentence "Press again to …". The verbatim form

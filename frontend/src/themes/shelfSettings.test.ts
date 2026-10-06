@@ -160,7 +160,7 @@ describe('Shelf v2 — the settings rail', () => {
     const { container } = await renderRail()
     expect(railLabels(container)).toEqual([
       'Wi-Fi', 'Bluetooth', 'Display', 'Audio', 'Controllers',
-      'Emulators & apps', 'BIOS', 'Themes', 'System',
+      'Emulators & apps', 'BIOS', 'Themes', 'System', 'Profiles',
     ])
   })
 
@@ -199,8 +199,8 @@ describe('Shelf v2 — the settings rail', () => {
     })))
     const { container } = await renderRail()
 
-    expect(railLabels(container)).toHaveLength(9)
-    // Eight are fed by an endpoint and go blank with it. The ninth —
+    expect(railLabels(container)).toHaveLength(10)
+    // All but one are fed by an endpoint and go blank with it. The other —
     // Controllers, row five — counts pads through the Gamepad API, which is the
     // browser and is still up. The row that says whether a pad is connected
     // must not go dark because a backend service did. Its index is derived
@@ -222,7 +222,7 @@ describe('Shelf v2 — the settings rail', () => {
     expect(container.querySelector('.gcs-set-chip')?.textContent).toBe('System')
     // The rail never leaves — that is the whole shape of this screen — so the
     // eight rows are still there with a different one selected.
-    expect(railLabels(container)).toHaveLength(9)
+    expect(railLabels(container)).toHaveLength(10)
     expect(container.querySelector('.gcs-set-row[data-sel="1"] .gcs-set-label b')?.textContent)
       .toBe('System')
   })

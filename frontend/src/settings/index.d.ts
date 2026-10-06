@@ -90,3 +90,17 @@ declare module '*/settings/bios' {
   export function biosSummary(rows: unknown): string
   export function createBiosPage(sdk: unknown): (props: { active: boolean; onLeave: () => void }) => import('react').ReactNode
 }
+
+declare module '*/settings/profiles' {
+  /** The letter drawn on a profile's colour while no avatar art exists. */
+  export function initial(name: string): string
+  export function createProfilesPage(
+    sdk: unknown,
+    Rows: unknown,
+    Dialog: unknown,
+  ): (props: { active: boolean; onLeave: () => void }) => import('react').ReactNode
+}
+
+declare module '*/settings/dialog' {
+  export function createDialogs(sdk: unknown): { Dialog: unknown; useDialogOpen: () => boolean }
+}

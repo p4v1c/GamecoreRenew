@@ -280,6 +280,10 @@ the page every theme draws (the legacy `DefaultSettingsList` menu has
 entry, since a theme reaches it through its System page). `frontend/src/lib/reportErrors.ts` (installed in `main.tsx`, and
 called by `components/ErrorBoundary.tsx`) sends uncaught errors, rejected promises
 and render errors to `api.logs.ui`, 50 per page load at most.
+`api.profiles` (`list`, `create`, `update`, `remove`, `setActive`) lives in
+`api/profiles.ts`; its errors carry the backend's sentence (`sendDetailed` in
+`api/http.ts`). Settings → Profiles is `frontend/src/settings/profiles.js`, the
+tenth rail category every theme draws.
 
 `api.media` is the one to read before drawing artwork that is not a jacket:
 

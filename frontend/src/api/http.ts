@@ -36,8 +36,13 @@ export async function post<T>(path: string, body?: unknown): Promise<T> {
  * the response. Losing it turns a fixable state into a dead end.
  */
 export async function postDetailed<T>(path: string, body?: unknown): Promise<T> {
+  return sendDetailed<T>('POST', path, body)
+}
+
+/** Any verb, with the same `detail`-keeping error as `postDetailed`. */
+export async function sendDetailed<T>(method: string, path: string, body?: unknown): Promise<T> {
   const r = await fetch(BASE + path, {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
