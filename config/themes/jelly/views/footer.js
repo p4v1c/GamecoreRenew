@@ -27,7 +27,7 @@ export function createFooter(sdk) {
   // battery, so it is used for the levels and nothing else.
   const connected = () => (navigator.getGamepads ? [...navigator.getGamepads()] : []).filter(Boolean)
 
-  // Player 1 shows the active profile's name; a host without `sdk.players` says P1.
+  // A pad linked to a profile shows its name; a host without `sdk.players` says P<n>.
   const usePadLabel = sdk.players?.useLabel ?? (() => (n) => `P${n}`)
   return function Footer({hints}) {
     const padLabel = usePadLabel()

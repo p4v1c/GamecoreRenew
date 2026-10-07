@@ -26,7 +26,7 @@ export function createFooter(sdk, tabs) {
       apps: systems.filter(isApp).length, games: totals.games}
     listeners.forEach(fn => fn(counts))
   }
-  // Player 1 shows the active profile's name; a host without `sdk.players` says P1.
+  // A pad linked to a profile shows its name; a host without `sdk.players` says P<n>.
   const usePadLabel = sdk.players?.useLabel ?? (() => (n) => `P${n}`)
   function Footer() {
     const padLabel = usePadLabel()

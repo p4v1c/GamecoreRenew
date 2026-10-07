@@ -52,7 +52,7 @@ async def _wear_theme(profile: dict) -> None:
 
 
 async def _changed(switched: bool = False) -> None:
-    # Player 1 is shown by the active profile's name: every write may change it.
+    # Labels follow names and linked pads: every write may change them.
     await ws.broadcast("profiles:changed", {"active": profiles.active()})
     if switched:
         # Playtime and recents are the active profile's: what reloads them

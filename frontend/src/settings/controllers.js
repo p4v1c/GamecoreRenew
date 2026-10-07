@@ -13,6 +13,9 @@
  * Per-emulator exceptions sit behind a row; with the global switch off they
  * are shown as readings, not switches.
  */
+import { matchRoster } from '../lib/padLayout'
+import { playerTitle } from '../lib/players'
+
 export const createControllersPage = (sdk, Rows) => {
   const { html, useState, useEffect } = sdk.ui
 
@@ -31,8 +34,10 @@ export const createControllersPage = (sdk, Rows) => {
     // assumed ON would hide a real one.
     const [auto, setAuto] = useState(null)
     const [showPacks, setShowPacks] = useState(false)
-    // Player 1 is the active profile, shown by its name once profiles exist.
-    const playerOneName = sdk.nav.use((s) => s.playerOneName)
+    // The browser has no MAC: its pads meet the backend's slots by vendor:product.
+    const roster = sdk.nav.use((s) => s.padRoster)
+    const owners = sdk.nav.use((s) => s.padOwners)
+    const slots = matchRoster(pads, roster)
 
     useEffect(() => {
       const sync = () => setPads(readPads())
@@ -62,7 +67,7 @@ export const createControllersPage = (sdk, Rows) => {
     const rows = [
       ...pads.map((p, i) => ({
         id: `pad${p.index}`, type: 'info',
-        label: i === 0 && playerOneName ? playerOneName : `Player ${i + 1}`, desc: p.id, display: 'Connected',
+        label: playerTitle(slots.get(p.index)?.player || i + 1, owners), desc: p.id, display: 'Connected',
       })),
       {
         id: 'autoconfig', type: 'toggle', value: autoOn, confirm: true,

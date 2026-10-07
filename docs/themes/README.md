@@ -627,10 +627,11 @@ position, so there is no family to pick any more.
 
 ## 5i. Profiles — one name to draw, one thing to check
 
-**Player labels.** Once the box has profiles, player 1 is the profile playing
-and is shown by its name, never "P1". Wherever a theme writes a player number,
-it draws `sdk.players.useLabel()(n)` instead: `"Max"` for player 1 on a box
-with profiles, `"P2"`, and `"P1"` on a box without. `sdk.players.label(n)` is
+**Player labels.** A pad linked to a profile (the profile's page →
+Controllers) is shown by that profile's name, whichever profile is active.
+Wherever a theme writes a player number, it draws `sdk.players.useLabel()(n)`
+instead: `"Max"` for a slot whose pad is Max's, `"P<n>"` for any other, and
+`"P1"` to `"P4"` on a box without profiles. `sdk.players.label(n)` is
 the one-shot read for a handler. A theme that must load on an older host guards
 it: `const usePadLabel = sdk.players?.useLabel ?? (() => (n) => \`P${n}\`)`,
 as the four shipped themes do in their status bars.

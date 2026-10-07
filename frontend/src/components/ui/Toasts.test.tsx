@@ -326,3 +326,30 @@ it('keeps game errors readable when the shared toast panel is light', () => {
   emit('game:failed', { detail: 'Emulator unavailable' })
   expect(screen.getByText('Could not start the game').style.color).toBe('rgb(165, 40, 57)')
 })
+
+describe('the controller named after its profile', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    useStore.getState().setActiveProfile('', ''); useStore.getState().setPads([], {})
+  })
+
+  it('names an arriving linked pad after its profile, not the active one', async () => {
+    const DS4 = '84:30:95:07:c8:1c'
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
+      ok: true, status: 200, statusText: 'OK',
+      json: async () => (String(url).endsWith('/controllers/pads')
+        ? { pads: [{ id: DS4, player: 1 }] }
+        : { active: 'a', palette: [], profiles: [
+            { id: 'a', name: 'louis', primary: true },
+            { id: 'b', name: 'jimmy', primary: false, controllers: [{ id: DS4, name: 'PS4 Controller' }] }] }),
+    })))
+    useStore.getState().setActiveProfile('louis', '')
+    render(<Toasts />)
+    emit('gp:connected', { player: 1, label: 'PS4 Controller', unmapped: false })
+    expect(await screen.findByText('jimmy’s controller connected')).toBeTruthy()
+
+    // Leaving: the label it had, before the roster drops it.
+    emit('gp:disconnected', { player: 1, label: 'PS4 Controller' })
+    expect(screen.getByText('jimmy’s controller disconnected')).toBeTruthy()
+  })
+})

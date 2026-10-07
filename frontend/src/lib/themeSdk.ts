@@ -152,16 +152,16 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
     },
 
     /**
-     * How to name a player slot: the active profile's name for player 1 once
-     * the box has profiles, "P<n>" otherwise. A theme draws `useLabel()(n)`
-     * wherever it would have written `P${n}`, so a renamed profile shows up
-     * without the theme knowing profiles exist.
+     * How to name a player slot: the name of the profile its pad is linked to
+     * (whichever profile is active), "P<n>" otherwise. A theme draws
+     * `useLabel()(n)` wherever it would have written `P${n}`, so a renamed
+     * profile shows up without the theme knowing profiles exist.
      */
     players: {
       /** Reactive: `(player) => label`. Call it inside a component. */
       useLabel: usePlayerLabel,
       /** One-shot read, for event handlers. */
-      label: (player: number) => playerLabel(player, useStore.getState().playerOneName),
+      label: (player: number) => playerLabel(player, useStore.getState().padOwners),
       /**
        * What the theme keeps per person (favourites): `storageKey('x')` is
        * 'x' for the primary profile, so what it saved before profiles stays
