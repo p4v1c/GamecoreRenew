@@ -352,8 +352,9 @@ controllers are P1 to P4. **Settings → Profiles → Set up profiles** names th
 first one, which keeps the saves the box already had, beside the ROMs; from
 then on player 1 is shown by the name of the profile playing (status bar,
 controller screen, notifications), and others can be added. With two or more,
-the console asks "Who's playing?" each time the interface starts; **○** keeps
-the last one. A profile is a name, a colour and a picture, shown at the top
+the console asks "Who's using this controller?" each time the interface
+starts, as a PS5 does; **○** keeps the last one, and **Log in automatically**
+(Settings → Profiles) skips the question and starts as the last profile. A profile is a name, a colour and a picture, shown at the top
 right of every theme beside Settings and Power (press it to open Profiles), with its own saves, playtime,
 recently played and favourites. Saves follow the profile playing (player 1)
 on every system but the Xbox 360: the first profile keeps the saves the box

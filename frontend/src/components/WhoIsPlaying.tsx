@@ -2,8 +2,9 @@
  * "Who's playing?" at start, drawn by the host over whichever shell is up, so
  * every theme has it without drawing it. Markup: `settings/whoIsPlaying.js`.
  *
- * Asked once per interface start, and only with two profiles or more: a box
- * with one player starts exactly as it did before profiles. A theme switch
+ * Asked once per interface start, only with two profiles or more and
+ * "Log in automatically" off: a box with one player starts exactly as it did
+ * before profiles. A theme switch
  * reloads the page, so "once" is kept in sessionStorage, which a reload keeps
  * and a restart of the interface clears.
  */
@@ -17,8 +18,10 @@ import '../settings/settings.css'
 
 const ASKED_KEY = 'gamecore-who-asked'
 
+// Not with "Log in automatically" on (Settings → Profiles): the box starts
+// as the last profile, as a console set to log in by itself does.
 export const shouldAskWhoIsPlaying = (s: ProfilesState | null): boolean =>
-  !!s && Array.isArray(s.profiles) && s.profiles.length >= 2
+  !!s && Array.isArray(s.profiles) && s.profiles.length >= 2 && !s.auto_login
 
 /** Already asked since the interface started; storage errors count as not. */
 function askedThisStart(): boolean {

@@ -155,3 +155,9 @@ it('moves between Select and Edit with the d-pad', async () => {
   window.dispatchEvent(new CustomEvent('gp:confirm'))
   expect(await findByText('Play as Sam')).toBeTruthy()
 })
+
+it('turns "Log in automatically" on', async () => {
+  const { findByText } = page()
+  fireEvent.click(row(await findByText('Log in automatically')))
+  await waitFor(() => expect(sent('PUT')[0]).toMatchObject({ url: '/api/profiles/auto-login', body: { enabled: true } }))
+})

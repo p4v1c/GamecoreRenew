@@ -22,6 +22,10 @@ class ProfileEdit(BaseModel):
     avatar: str | None = None
 
 
+class AutoLogin(BaseModel):
+    enabled: bool
+
+
 class ActiveProfile(BaseModel):
     id: str = Field(max_length=64)
 
@@ -48,6 +52,11 @@ async def create_profile(body: NewProfile):
     made = profiles.create(body.name, body.color, body.avatar)
     await _changed()
     return made
+
+
+@router.put("/profiles/auto-login")
+def set_auto_login(body: AutoLogin):
+    return {"auto_login": profiles.set_auto_login(body.enabled)}
 
 
 @router.get("/profiles/active")

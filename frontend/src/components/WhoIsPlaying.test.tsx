@@ -26,6 +26,8 @@ it('asks only with two profiles or more', () => {
   expect(shouldAskWhoIsPlaying(null)).toBe(false)
   expect(shouldAskWhoIsPlaying({ active: 'a', profiles: [profile('a', 'Player 1')], palette: [], separate_saves: [] })).toBe(false)
   expect(shouldAskWhoIsPlaying({ active: 'a', profiles: [profile('a', 'P1'), profile('b', 'Sam')], palette: [], separate_saves: [] })).toBe(true)
+  // "Log in automatically": the box starts as the last profile.
+  expect(shouldAskWhoIsPlaying({ active: 'a', auto_login: true, profiles: [profile('a', 'P1'), profile('b', 'Sam')], palette: [], separate_saves: [] })).toBe(false)
 })
 
 it('stays away on a box with one profile', async () => {
@@ -42,7 +44,7 @@ it('waits for the boot, then asks once and switches on a pick', async () => {
   const { rerender, findByText, container } = render(<WhoIsPlaying enabled={false} />)
   expect(calls).toHaveLength(0)
   rerender(<WhoIsPlaying enabled />)
-  expect(await findByText('Who’s playing?')).toBeTruthy()
+  expect(await findByText('Who’s using this controller?')).toBeTruthy()
   expect(useStore.getState().modalDepth).toBe(1)
   fireEvent.click((await findByText('Sam')).closest('button')!)
   await waitFor(() => expect(calls).toContainEqual(['PUT', '/api/profiles/active']))
@@ -69,7 +71,7 @@ it('stays open and says why when the switch is refused', async () => {
   const { findByText } = render(<WhoIsPlaying enabled />)
   fireEvent.click((await findByText('Sam')).closest('button')!)
   expect(await findByText('Close mario.nds before switching profile.')).toBeTruthy()
-  expect(await findByText('Who’s playing?')).toBeTruthy()
+  expect(await findByText('Who’s using this controller?')).toBeTruthy()
 })
 
 it('asks again later when the profiles could not be read at start', async () => {
@@ -80,5 +82,5 @@ it('asks again later when the profiles could not be read at start', async () => 
   cleanup()
   serve([profile('a', 'Max'), profile('b', 'Sam')])
   const { findByText } = render(<WhoIsPlaying enabled />)
-  expect(await findByText('Who’s playing?')).toBeTruthy()
+  expect(await findByText('Who’s using this controller?')).toBeTruthy()
 })

@@ -396,10 +396,11 @@ error line in `logs/ui/ui.log`. Logic in `services/logs.py`.
 
 | Route | Does |
 |---|---|
-| `GET /profiles` | `{active, profiles, palette, separate_saves, shared_saves}`; the first call creates the primary profile. `separate_saves`: labels of the systems whose saves follow the profile; `shared_saves`: the emulators whose saves every profile shares (`profile_saves`) |
+| `GET /profiles` | `{active, auto_login, profiles, palette, separate_saves, shared_saves}`; the first call creates the primary profile. `separate_saves`: labels of the systems whose saves follow the profile; `shared_saves`: the emulators whose saves every profile shares (`profile_saves`) |
 | `POST /profiles` `{name, color?, avatar?}` | a new profile; 400 on a bad name, colour or avatar, 409 on a name taken or while the primary profile has no name |
 | `PATCH /profiles/{id}` `{name?, color?, avatar?}` | rename, recolour; the id never changes |
 | `DELETE /profiles/{id}` | the record only, saves stay on disk → `{active}`; 409 on the last profile |
+| `PUT /profiles/auto-login` `{enabled}` | "Log in automatically": start as the last profile without asking who is playing → `{auto_login}` |
 | `GET /profiles/active`, `PUT /profiles/active` `{id}` | the profile the interface is used as; 409 while a game is on screen or suspended |
 
 Every write broadcasts `profiles:changed` `{active}`; a change of active profile also broadcasts `playtime:rekeyed`, so whatever lists playtime and recents reloads them for the new profile. Logic in `services/profiles.py`.

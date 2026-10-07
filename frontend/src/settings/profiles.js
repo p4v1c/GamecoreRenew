@@ -71,6 +71,12 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
           : [{ id: `select:${p.id}`, label: 'Select' }, { id: `edit:${p.id}`, label: 'Edit' }],
       })),
       { id: 'add', type: 'action', label: 'Add profile', desc: 'A name and a colour', label2: 'Add' },
+      {
+        id: 'autologin', type: 'toggle', value: !!(state && state.auto_login), label: 'Log in automatically',
+        desc: state && state.auto_login
+          ? `Starts as ${(list.find((p) => p.id === state.active) || {}).name || 'the last profile'}, without asking.`
+          : 'Off: the console asks who is using the controller when it starts.',
+      },
     ]
 
     const colorIdx = current ? Math.max(0, palette.findIndex((c) => c.color === current.color)) : 0
@@ -123,6 +129,10 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
     }
 
     const onSet = (id, v) => {
+      if (id === 'autologin') {
+        run(sdk.api.profiles.setAutoLogin(v), (r) => (r.auto_login ? 'Logs in automatically.' : 'Asks who is playing at start.'))
+        return
+      }
       if (!current) return
       if (id === 'color' && palette[v]) {
         run(sdk.api.profiles.update(current.id, { color: palette[v].color }), () => '')
@@ -159,7 +169,7 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
         state=${current ? '' : unnamed ? 'No profiles' : list.length === 1 ? '1 profile' : `${list.length} profiles`}
         sub=${current
           ? 'Rename, change the colour or picture, or delete this profile.'
-          : `Who plays on this box. With two or more, the console asks who is playing when it starts. ${savesLine(state && state.separate_saves, state && state.shared_saves)}`}
+          : `Who plays on this box. ${savesLine(state && state.separate_saves, state && state.shared_saves)}`}
         aside=${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null} />
 
       ${naming ? html`

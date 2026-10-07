@@ -22,8 +22,9 @@ are the auto-incremented tags.
 ### Behaviour that changed on its own
 
 - **Profiles.** Settings → Profiles adds, renames, recolours and deletes the
-  people who play on the box. With two or more, "Who's playing?" opens when
-  the interface starts. A box starts with one unnamed profile (created on
+  people who play on the box. With two or more, "Who's using this
+  controller?" opens when the interface starts, unless "Log in automatically"
+  is on (`PUT /api/profiles/auto-login`). A box starts with one unnamed profile (created on
   first start in `config/profiles/`) and looks exactly as before; naming it
   ("Set up profiles") starts profiles, and player 1 is then shown by the
   active profile's name instead of P1 in every theme, the controller screen

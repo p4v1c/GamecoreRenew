@@ -239,3 +239,9 @@ def test_a_picture_is_set_and_cleared(named):
     assert profiles.update(me, {"avatar": None})["avatar"] is None
     with pytest.raises(ServiceError):
         profiles.update(me, {"avatar": "dragon"})
+
+
+def test_log_in_automatically_is_off_until_turned_on(client):
+    assert client.get("/api/profiles").json()["auto_login"] is False
+    assert client.put("/api/profiles/auto-login", json={"enabled": True}).json() == {"auto_login": True}
+    assert client.get("/api/profiles").json()["auto_login"] is True

@@ -2,8 +2,8 @@
 
 One JSON file, `<DATA>/config/profiles/profiles.json`:
 
-    {"active": "<id>", "profiles": [{"id", "name", "color", "avatar",
-                                     "created", "primary"}]}
+    {"active": "<id>", "auto_login": false,
+     "profiles": [{"id", "name", "color", "avatar", "created", "primary"}]}
 
 The `id` is random and never derived from the name: later work keys saves and
 controllers on it, and a rename must never move anything. `primary` marks the
@@ -142,10 +142,22 @@ def _refuse_switch_mid_game() -> None:
 
 
 def list_profiles() -> dict:
-    """`{"active": id, "profiles": [...], "palette": [{"color", "name"}]}`."""
+    """`{"active": id, "auto_login": bool, "profiles": [...], "palette": [{"color", "name"}]}`."""
     with _lock:
         state = _load()
-    return {**state, "palette": [{"color": c, "name": n} for c, n in PALETTE.items()]}
+    return {**state, "auto_login": bool(state.get("auto_login")),
+            "palette": [{"color": c, "name": n} for c, n in PALETTE.items()]}
+
+
+def set_auto_login(enabled: bool) -> bool:
+    """Start as the last profile without asking who is playing, as a console's
+    "log in automatically" does. Off by default: with two profiles, asking is
+    what keeps one person's progress out of another's save."""
+    with _lock:
+        state = _load()
+        state["auto_login"] = bool(enabled)
+        _save(state)
+        return state["auto_login"]
 
 
 def create(name: str, color: str | None = None, avatar: str | None = None) -> dict:

@@ -45,7 +45,7 @@ export const createWhoIsPlaying = (sdk, parts = {}) => {
 
     return html`
       <div class=${`gcs-who${skin}`} role="dialog" aria-modal="true" aria-labelledby="gcs-who-title">
-        <h1 class="gcs-who-title" id="gcs-who-title">Who’s playing?</h1>
+        <h1 class="gcs-who-title" id="gcs-who-title">Who’s using this controller?</h1>
         <div class="gcs-who-tiles">
           ${profiles.map((p, i) => html`
             <button key=${p.id} type="button" class="gcs-who-tile"

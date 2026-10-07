@@ -13,6 +13,8 @@ export interface Profile {
 
 export interface ProfilesState {
   active: string
+  /** Start as the active profile without asking who is playing. */
+  auto_login?: boolean
   profiles: Profile[]
   palette: { color: string; name: string }[]
   /** Labels of the systems whose saves follow the profile playing. */
@@ -31,4 +33,6 @@ export const profiles = {
     sendDetailed<Profile>('PATCH', `/profiles/${encodeURIComponent(id)}`, fields),
   remove: (id: string) => sendDetailed<{ active: string }>('DELETE', `/profiles/${encodeURIComponent(id)}`),
   setActive: (id: string) => sendDetailed<Profile>('PUT', '/profiles/active', { id }),
+  setAutoLogin: (enabled: boolean) =>
+    sendDetailed<{ auto_login: boolean }>('PUT', '/profiles/auto-login', { enabled }),
 }

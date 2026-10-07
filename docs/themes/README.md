@@ -649,7 +649,8 @@ primary profile (so what it had before profiles stays its own) and
 Playtime and recents need nothing: `/api/playtime` already answers for the
 active profile, and a switch sends `playtime:rekeyed`.
 
-**"Who's playing?"** (2+ profiles, once per interface start) is drawn by the
+**"Who's using this controller?"** (2+ profiles, "Log in automatically" off,
+once per interface start) is drawn by the
 host over your shell, in the built-in palette, from
 `frontend/src/components/WhoIsPlaying.tsx`. It raises `modalDepth` while it is
 up, so a theme that already pauses its pad handlers on `modalDepth` (§5f) needs
