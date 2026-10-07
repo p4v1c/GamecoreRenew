@@ -21,7 +21,13 @@ it('draws the initial, then the picture, on the profile colour', () => {
   expect(button.style.background).toContain('rgb(18, 122, 109)')
   fireEvent.click(button)
   expect(onClick).toHaveBeenCalled()
-  useStore.getState().setActiveProfile('Max', '', { color: '#127a6d', avatar: 'rocket' })
+  useStore.getState().setActiveProfile('Max', '', { color: '#127a6d', avatar: 'fox' })
   rerender(<ProfileAvatar onClick={onClick} />)
   expect(getByRole('button').querySelector('svg path')).toBeTruthy()
+})
+
+it('draws the initial for a picture an older version offered', () => {
+  useStore.getState().setActiveProfile('Max', '', { color: '#127a6d', avatar: 'rocket' })
+  const { getByRole } = render(<ProfileAvatar />)
+  expect(getByRole('button').textContent).toBe('M')
 })

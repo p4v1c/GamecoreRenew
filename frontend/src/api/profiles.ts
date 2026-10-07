@@ -9,6 +9,9 @@ export interface Profile {
   avatar: string | null
   created: string
   primary: boolean
+  /** The theme put on when this profile plays: an id, or null for the
+   *  built-in look. Absent until the profile has worn one. */
+  theme?: string | null
 }
 
 export interface ProfilesState {
@@ -23,7 +26,7 @@ export interface ProfilesState {
   shared_saves?: string[]
 }
 
-export type ProfileFields = Partial<Pick<Profile, 'name' | 'color' | 'avatar'>>
+export type ProfileFields = Partial<Pick<Profile, 'name' | 'color' | 'avatar' | 'theme'>>
 
 // Errors carry the backend's sentence ("Sam is already a profile.").
 export const profiles = {

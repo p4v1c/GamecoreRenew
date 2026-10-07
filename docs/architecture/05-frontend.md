@@ -294,7 +294,7 @@ per-profile storage: `sdk.players.storageKey(base)`, re-read on
 is `components/ProfileAvatar.tsx`: the active profile's picture (or initial)
 on its colour, for a top bar, rendering nothing without profiles; the shell's
 `onProfile` opens Settings with `initialCategory="profiles"`. The pictures are
-`settings/avatars.js` (`AVATARS`), kept equal to `profiles.AVATARS` by a test. Settings → Profiles is `frontend/src/settings/profiles.js`, the
+`settings/avatars.js` (`AVATARS`, animal drawings as SVG markup), kept equal to `profiles.AVATARS` by a test, picked in a grid (`frontend/src/settings/avatarPicker.js`). Settings → Profiles is `frontend/src/settings/profiles.js`, the
 tenth rail category every theme draws; its subtitle names the systems whose
 saves follow the profile (`separate_saves`, `savesLine()`).
 

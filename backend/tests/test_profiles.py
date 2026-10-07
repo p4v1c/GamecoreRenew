@@ -11,8 +11,29 @@ from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
 from backend.routers import profiles as profiles_router
-from backend.services import paths, profiles
+from backend.services import paths, profiles, themes
 from backend.services.errors import ServiceError
+
+
+@pytest.fixture(autouse=True)
+def wardrobe(monkeypatch):
+    """The themes as profiles see them: what is on, and which ids exist. The
+    real module reads the box's theme.json, wherever these tests run."""
+    worn = types.SimpleNamespace(on="shelf", installed={"shelf", "orbit", "jelly"})
+
+    def check(theme_id):
+        if theme_id is not None and theme_id not in worn.installed:
+            raise LookupError("no such theme")
+
+    def set_active(theme_id):
+        check(theme_id)
+        worn.on = theme_id
+        return theme_id
+
+    monkeypatch.setattr(themes, "get_active", lambda: worn.on)
+    monkeypatch.setattr(themes, "check", check)
+    monkeypatch.setattr(themes, "set_active", set_active)
+    return worn
 
 
 @pytest.fixture
@@ -235,13 +256,70 @@ def test_the_pictures_are_the_ones_the_interface_draws():
 
 def test_a_picture_is_set_and_cleared(named):
     me = profiles.active()["id"]
-    assert profiles.update(me, {"avatar": "rocket"})["avatar"] == "rocket"
+    assert profiles.update(me, {"avatar": "fox"})["avatar"] == "fox"
     assert profiles.update(me, {"avatar": None})["avatar"] is None
     with pytest.raises(ServiceError):
         profiles.update(me, {"avatar": "dragon"})
+
+
+def test_a_picture_from_an_older_version_reads_as_none(named):
+    state = json.loads(profiles._file().read_text())
+    state["profiles"][0]["avatar"] = "rocket"
+    profiles._file().write_text(json.dumps(state))
+    assert profiles.active()["avatar"] is None
 
 
 def test_log_in_automatically_is_off_until_turned_on(client):
     assert client.get("/api/profiles").json()["auto_login"] is False
     assert client.put("/api/profiles/auto-login", json={"enabled": True}).json() == {"auto_login": True}
     assert client.get("/api/profiles").json()["auto_login"] is True
+
+
+# ── the theme follows the profile ────────────────────────────────────────────
+
+def test_switching_puts_on_the_theme_the_profile_wore(client, wardrobe):
+    max_id = profiles.active()["id"]
+    sam = profiles.create("Sam")
+    client.put("/api/profiles/active", json={"id": sam["id"]})
+    profiles.remember_theme("orbit")          # Sam picks Orbit in Settings
+    wardrobe.on = "orbit"
+    assert client.put("/api/profiles/active", json={"id": max_id}).status_code == 200
+    assert wardrobe.on == "shelf"             # Max had Shelf on when Sam took over
+    client.put("/api/profiles/active", json={"id": sam["id"]})
+    assert wardrobe.on == "orbit"
+
+
+def test_a_profile_from_before_themes_keeps_the_one_on_screen(client, wardrobe):
+    sam = profiles.create("Sam")
+    wardrobe.on = "jelly"
+    client.put("/api/profiles/active", json={"id": sam["id"]})
+    assert wardrobe.on == "jelly"
+    assert profiles.active()["theme"] == "jelly"
+
+
+def test_a_theme_is_remembered_only_once_profiles_exist(store):
+    profiles.remember_theme("orbit")
+    assert "theme" not in profiles.active()
+    profiles.update(profiles.active()["id"], {"name": "Max"})
+    profiles.remember_theme(None)             # the built-in look is a choice too
+    assert profiles.active()["theme"] is None
+
+
+def test_editing_the_active_profiles_theme_puts_it_on(client, wardrobe):
+    me = profiles.active()["id"]
+    r = client.patch(f"/api/profiles/{me}", json={"theme": "jelly"})
+    assert r.status_code == 200 and wardrobe.on == "jelly"
+    sam = profiles.create("Sam")
+    client.patch(f"/api/profiles/{sam['id']}", json={"theme": "orbit"})
+    assert wardrobe.on == "jelly"             # Sam is not playing: nothing changes yet
+    r = client.patch(f"/api/profiles/{me}", json={"theme": "gone"})
+    assert r.status_code == 400
+
+
+def test_a_theme_uninstalled_since_leaves_the_screen_as_it_is(client, wardrobe):
+    max_id = profiles.active()["id"]
+    sam = profiles.create("Sam")
+    profiles.update(sam["id"], {"theme": "orbit"})
+    wardrobe.installed.discard("orbit")
+    assert client.put("/api/profiles/active", json={"id": sam["id"]}).status_code == 200
+    assert wardrobe.on == "shelf" and profiles.active()["id"] != max_id

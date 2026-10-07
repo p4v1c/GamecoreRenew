@@ -3,7 +3,7 @@
 One JSON file, `<DATA>/config/profiles/profiles.json`:
 
     {"active": "<id>", "auto_login": false,
-     "profiles": [{"id", "name", "color", "avatar", "created", "primary"}]}
+     "profiles": [{"id", "name", "color", "avatar", "created", "primary", "theme"}]}
 
 The `id` is random and never derived from the name: later work keys saves and
 controllers on it, and a rename must never move anything. `primary` marks the
@@ -26,7 +26,7 @@ from pathlib import Path
 
 from ..utils import atomic_write_json
 
-from . import paths
+from . import paths, themes
 from .errors import ServiceError
 
 log = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ _FIRST_COLOR = next(iter(PALETTE))
 # The pictures a profile can pick (frontend/src/settings/avatars.js draws
 # them); None draws the initial on the colour.
 AVATARS: frozenset[str] = frozenset(
-    {"controller", "star", "heart", "bolt", "leaf", "moon", "rocket", "cat"})
+    {"cat", "dog", "fox", "bear", "panda", "rabbit", "owl", "frog", "penguin", "lion", "koala"})
 
 # ponytail: one process-wide lock; the backend is a single process.
 _lock = threading.Lock()
@@ -78,6 +78,11 @@ def _load() -> dict:
             state["active"] = ids[0]
         if len(ids) == 1 and state["profiles"][0]["name"] == LEGACY_DEFAULT_NAME:
             state["profiles"][0]["name"] = ""
+        for p in state["profiles"]:
+            # A picture an older version offered (a rocket, a star) is gone:
+            # the initial stands in until another is picked.
+            if p.get("avatar") not in AVATARS:
+                p["avatar"] = None
         return state
     except FileNotFoundError:
         pass
@@ -178,7 +183,8 @@ def create(name: str, color: str | None = None, avatar: str | None = None) -> di
 
 
 def update(profile_id: str, fields: dict) -> dict:
-    """Rename, recolour or change the avatar. Keys absent from `fields` stay."""
+    """Rename, recolour, change the avatar or the theme. Keys absent from
+    `fields` stay; `theme: None` is the built-in look, not "none"."""
     with _lock:
         state = _load()
         profile = _find(state, profile_id)
@@ -189,8 +195,25 @@ def update(profile_id: str, fields: dict) -> dict:
             profile["color"] = fields["color"]
         if "avatar" in fields:
             profile["avatar"] = fields["avatar"]
+        if "theme" in fields:
+            try:
+                themes.check(fields["theme"])
+            except (ValueError, LookupError):
+                raise ServiceError(400, "That theme cannot be used.")
+            profile["theme"] = fields["theme"]
         _save(state)
         return profile
+
+
+def remember_theme(theme_id: str | None) -> None:
+    """The theme just put on is the active profile's from now on. Nothing on
+    a box without profiles: there is nobody to remember it for."""
+    with _lock:
+        state = _load()
+        if not _primary(state)["name"]:
+            return
+        _find(state, state["active"])["theme"] = theme_id
+        _save(state)
 
 
 def delete(profile_id: str) -> dict:
@@ -225,6 +248,11 @@ def set_active(profile_id: str) -> dict:
         profile = _find(state, profile_id)
         if profile_id != state["active"]:
             _refuse_switch_mid_game()
+            # A profile from before themes followed the profile: it keeps the
+            # theme on screen now, so switching back finds it again.
+            on = themes.get_active()
+            _find(state, state["active"]).setdefault("theme", on)
+            profile.setdefault("theme", on)
         state["active"] = profile_id
         _save(state)
         return profile

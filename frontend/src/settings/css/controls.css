@@ -34,7 +34,7 @@
 .gcs-row2-badge {
   flex: 0 0 auto; display: grid; place-items: center;
   width: 44px; height: 44px; border-radius: 50%;
-  color: #fff; font: 700 21px var(--font-display);
+  color: #fff; font-weight: 700; font-size: 21px; font-family: var(--font-display, inherit);
 }
 
 .gcs-row2-info {

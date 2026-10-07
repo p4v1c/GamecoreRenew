@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from .. import ws
-from ..services import themes
+from ..services import profiles, themes
 
 router = APIRouter(tags=["themes"])
 
@@ -35,6 +35,8 @@ async def set_active(body: ActiveBody):
         raise HTTPException(400, "invalid theme id")
     except LookupError:
         raise HTTPException(404, "no such theme")
+    # Picked by whoever is playing: their profile wears it from now on.
+    profiles.remember_theme(active)
     # Lets a second screen (or the settings page on another client) follow along.
     await ws.broadcast("theme:changed", {"active": active})
     return {"ok": True, "active": active}

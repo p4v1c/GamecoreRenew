@@ -2,7 +2,7 @@
  * Settings → Profiles: switch, recolour, delete after a confirmation, add
  * through the keyboard. Every theme draws this page.
  */
-import { render, waitFor, fireEvent, cleanup } from '@testing-library/react'
+import { render, waitFor, fireEvent, cleanup, act } from '@testing-library/react'
 import { it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { buildSdk } from '../lib/themeSdk'
 import { createProfilesPage, savesLine } from '../settings/profiles'
@@ -20,6 +20,11 @@ let state = {
   shared_saves: ['PlayStation 3', 'Xbox 360'],
 }
 let calls: { method: string; url: string; body?: unknown }[] = []
+const themes = {
+  active: 'shelf',
+  themes: [{ id: 'shelf', name: 'Shelf', compatible: true }, { id: 'orbit', name: 'Orbit', compatible: true },
+    { id: 'old', name: 'Old', compatible: false }],
+}
 
 afterEach(cleanup)
 
@@ -30,7 +35,8 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: { method?: string; body?: string }) => {
     const method = init?.method ?? 'GET'
     calls.push({ method, url: String(url), body: init?.body && JSON.parse(init.body) })
-    const body = method === 'GET' ? state : method === 'DELETE' ? { active: 'a' } : state.profiles[1]
+    const body = String(url).endsWith('/themes') ? themes
+      : method === 'GET' ? state : method === 'DELETE' ? { active: 'a' } : state.profiles[1]
     return { ok: true, status: 200, statusText: 'OK', json: async () => body }
   }))
 })
@@ -118,13 +124,39 @@ it('says a deleted profile’s saves are kept but out of reach', async () => {
   expect(container.textContent).toContain('Sam’s saves are kept on the console, but no profile opens them again.')
 })
 
-it('picks a picture for a profile', async () => {
+it('picks a picture for a profile from the grid', async () => {
+  const { findByText, getByRole } = page()
+  press(await findByText('Sam'), 'Edit')
+  fireEvent.click(row(await findByText('Picture')))
+  const grid = getByRole('listbox', { name: 'Pictures' })
+  expect(grid.querySelectorAll('[role="option"]')).toHaveLength(12)
+  fireEvent.click([...grid.querySelectorAll('button')].find((b) => b.textContent === 'Fox')!)
+  await waitFor(() => expect(sent('PATCH')[0]).toMatchObject({ url: '/api/profiles/b', body: { avatar: 'fox' } }))
+})
+
+it('walks the picture grid in both directions with the pad', async () => {
+  const { findByText, getByRole } = page()
+  press(await findByText('Sam'), 'Edit')
+  fireEvent.click(row(await findByText('Picture')))
+  const gp = (name: string) => act(() => { window.dispatchEvent(new CustomEvent(name)) })
+  const on = () => getByRole('listbox').querySelector('[data-on="1"] .gcs-pick-label')!.textContent
+  expect(on()).toBe('Initial')
+  gp('gp:dpad-down'); expect(on()).toBe('Rabbit')    // one row down, same column
+  gp('gp:dpad-down'); expect(on()).toBe('Rabbit')    // the last row: stays
+  gp('gp:dpad-right'); expect(on()).toBe('Owl')
+  gp('gp:back')
+  await waitFor(() => expect(() => getByRole('listbox')).toThrow())
+  expect(sent('PATCH')).toHaveLength(0)
+})
+
+it('gives a profile its own theme, from the ones that load', async () => {
   const { findByText, container } = page()
   press(await findByText('Sam'), 'Edit')
-  await findByText('Picture')
-  const arrows = container.querySelectorAll('.gcs-val-arrow')
-  fireEvent.click(arrows[arrows.length - 1])
-  await waitFor(() => expect(sent('PATCH')[0]).toMatchObject({ url: '/api/profiles/b', body: { avatar: 'controller' } }))
+  const theme = row(await findByText('Theme'))
+  expect(theme.textContent).toContain('Shelf')
+  expect(container.textContent).toContain('Put on when Sam plays.')
+  fireEvent.click(theme.querySelectorAll('.gcs-val-arrow')[1])
+  await waitFor(() => expect(sent('PATCH')[0]).toMatchObject({ url: '/api/profiles/b', body: { theme: 'orbit' } }))
 })
 
 it('opens straight on Profiles from the top bar picture', async () => {

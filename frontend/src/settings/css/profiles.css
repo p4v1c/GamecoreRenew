@@ -25,7 +25,7 @@
 
 .gcs-who-avatar {
   display: grid; place-items: center; width: 160px; height: 160px; border-radius: 50%;
-  color: #fff; font: 700 72px var(--font-display);
+  color: #fff; font-weight: 700; font-size: 72px; font-family: var(--font-display, inherit);
   outline: 4px solid transparent; outline-offset: 4px;
   transition: transform 140ms ease, outline-color 140ms ease;
 }
@@ -77,14 +77,43 @@
   font: 700 18px/1 var(--font-display, system-ui);
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
 }
-.gcs-avatar svg { width: 62%; height: 62%; }
 /* The built-in top bar is 52 px tall. */
 .gcs-avatar.gc-topbar-avatar { width: 34px; height: 34px; font-size: 15px; }
 .gcs-avatar:focus-visible { outline: 3px solid var(--gc-accent-soft, #f2a46a); outline-offset: 3px; }
 
-.gcs-who-avatar svg, .gcs-row2-badge svg { width: 62%; height: 62%; }
+/* An animal fills its round (avatars.js); `overflow` keeps its ears inside. */
+.gcs-avatar, .gcs-who-avatar, .gcs-row2-badge { overflow: hidden; }
+.gcs-animal { display: block; width: 94%; height: 94%; margin-top: 6%; }
+.gcs-animal svg { display: block; width: 100%; height: 100%; }
 
 @media (prefers-reduced-motion: reduce) {
   .gcs-who-avatar { transition: none; }
   .gcs-who-tile[data-on="1"] .gcs-who-avatar { transform: none; }
+}
+
+/* The picture picker (settings/avatarPicker.js): six to a row, the d-pad's
+   tile ringed and lifted like a "Who's using" tile. */
+.gcs-pick-grid {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px 12px;
+  margin-top: 18px;
+}
+.gcs-pick-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer;
+}
+.gcs-pick-face {
+  display: grid; place-items: center; overflow: hidden;
+  width: 88px; height: 88px; border-radius: 50%;
+  color: #fff; font-weight: 700; font-size: 38px; font-family: var(--font-display, inherit);
+  outline: 3px solid transparent; outline-offset: 3px;
+  transition: transform 120ms ease, outline-color 120ms ease;
+}
+.gcs-pick-tile[data-on="1"] .gcs-pick-face { transform: scale(1.08); outline-color: var(--gc-accent-soft, #f2a46a); }
+.gcs-pick-label { font-size: 16px; color: var(--set-ink-2); }
+.gcs-pick-tile[data-on="1"] .gcs-pick-label { color: var(--set-ink); font-weight: 600; }
+.gcs-pick-hint { margin-top: 18px; font-size: 16px; color: var(--set-ink-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .gcs-pick-face { transition: none; }
+  .gcs-pick-tile[data-on="1"] .gcs-pick-face { transform: none; }
 }

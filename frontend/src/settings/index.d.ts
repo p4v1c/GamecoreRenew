@@ -92,8 +92,10 @@ declare module '*/settings/bios' {
 }
 
 declare module '*/settings/avatars' {
-  /** [key stored in profiles.json, label, SVG path on a 24-unit grid]. */
+  /** [key stored in profiles.json, label, SVG markup on a 64-unit grid]. */
   export const AVATARS: [string, string, string][]
+  /** The drawing as an `<svg>` string, '' for no picture or an unknown key. */
+  export function avatarSvg(key: string | null | undefined): string
   /** The letter drawn on a profile's colour when it has no picture. */
   export function initial(name: string): string
 }

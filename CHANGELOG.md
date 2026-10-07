@@ -30,6 +30,11 @@ are the auto-incremented tags.
   active profile's name instead of P1 in every theme, the controller screen
   and notifications (`sdk.players`, `profiles:changed`). The profile cannot
   change while a game is open or suspended.
+- **Each profile has its own theme and an animal picture.** The theme picked
+  in Settings → Themes, or on a profile's page, is the profile's: switching
+  profile puts it back on. Pictures are now eleven drawn animals, chosen from
+  a grid; a profile that had one of the old line icons shows its initial
+  until it picks an animal.
 - **Saves per profile, on every emulator but Xenia.** `profileSaves` in
   pack.json, mostly with no code: the save options (`keys`) or the folders
   with no option (`dirs`, swapped for a link) to point at the profile's

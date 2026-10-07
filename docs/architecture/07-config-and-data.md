@@ -547,8 +547,10 @@ surface, `/login` included, leaving no way back in short of SSH.
 
 ## `config/profiles/profiles.json`
 
-`{active, auto_login, profiles: [{id, name, color, avatar, created, primary}]}`
-(`auto_login`: "Log in automatically", absent = off). `id` is 16
+`{active, auto_login, profiles: [{id, name, color, avatar, created, primary, theme}]}`
+(`auto_login`: "Log in automatically", absent = off; `theme`: the theme put on
+when the profile is picked, an id or null for the built-in look, absent until
+the profile has worn one; an `avatar` no longer offered reads as null). `id` is 16
 random hex digits and never derived from the name, so a rename moves nothing.
 `primary` marks the profile that owns what the box held before profiles, and
 keeps today's save locations; other profiles' saves go to

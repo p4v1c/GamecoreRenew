@@ -1,11 +1,14 @@
 """Who plays on this box: list, create, edit, delete profiles; read and set the active one."""
+import logging
+
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from .. import ws
-from ..services import profile_saves, profiles
+from ..services import profile_saves, profiles, themes
 from ..services.catalog import load_catalog
 
+log = logging.getLogger(__name__)
 router = APIRouter(tags=["profiles"])
 
 # Name caps are generous on purpose: the service trims, then enforces NAME_MAX
@@ -20,6 +23,7 @@ class ProfileEdit(BaseModel):
     name: str | None = Field(None, max_length=200)
     color: str | None = None
     avatar: str | None = None
+    theme: str | None = Field(None, max_length=64)
 
 
 class AutoLogin(BaseModel):
@@ -28,6 +32,19 @@ class AutoLogin(BaseModel):
 
 class ActiveProfile(BaseModel):
     id: str = Field(max_length=64)
+
+
+async def _wear_theme(profile: dict) -> None:
+    """Put on the theme `profile` wore last, when it has one and it is not on."""
+    if "theme" not in profile or profile["theme"] == themes.get_active():
+        return
+    try:
+        themes.set_active(profile["theme"])
+    except (ValueError, LookupError) as e:
+        # Uninstalled or broken since: the theme on screen stays.
+        log.warning("profiles: %s's theme %s not put on: %s", profile["id"], profile["theme"], e)
+        return
+    await ws.broadcast("theme:changed", {"active": profile["theme"]})
 
 
 async def _changed(switched: bool = False) -> None:
@@ -68,6 +85,8 @@ def get_active_profile():
 async def set_active_profile(body: ActiveProfile):
     before = profiles.active()["id"]
     profile = profiles.set_active(body.id)
+    if profile["id"] != before:
+        await _wear_theme(profile)
     await _changed(switched=profile["id"] != before)
     return profile
 
@@ -75,7 +94,10 @@ async def set_active_profile(body: ActiveProfile):
 @router.patch("/profiles/{profile_id}")
 async def update_profile(profile_id: str, body: ProfileEdit):
     # Only the fields the caller sent: `avatar: null` clears, absent keeps.
-    profile = profiles.update(profile_id, body.model_dump(exclude_unset=True))
+    fields = body.model_dump(exclude_unset=True)
+    profile = profiles.update(profile_id, fields)
+    if "theme" in fields and profile["id"] == profiles.active()["id"]:
+        await _wear_theme(profile)
     await _changed()
     return profile
 
@@ -84,5 +106,7 @@ async def update_profile(profile_id: str, body: ProfileEdit):
 async def delete_profile(profile_id: str):
     before = profiles.active()["id"]
     out = profiles.delete(profile_id)
+    if out["active"] != before:
+        await _wear_theme(profiles.active())
     await _changed(switched=out["active"] != before)
     return out
