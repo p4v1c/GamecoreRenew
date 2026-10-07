@@ -11,6 +11,14 @@ import { asList } from './list.js'
 /** The letter drawn on a profile's colour while no avatar art exists. */
 export const initial = (name) => (Array.from(String(name || '').trim())[0] || '?').toUpperCase()
 
+/** Which systems keep a save per profile, from the packs' `profileSaves`. */
+export const savesLine = (systems) => {
+  const list = asList(systems)
+  return list.length
+    ? `Separate saves per profile: ${list.join(', ')}. Other systems share one save.`
+    : 'Every system shares one save between profiles.'
+}
+
 export const createProfilesPage = (sdk, Rows, Dialog) => {
   const { html, useState, useEffect, React } = sdk.ui
   const Keyboard = sdk.defaults.DefaultKeyboard
@@ -110,7 +118,7 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
         state=${current ? '' : list.length === 1 ? '1 profile' : `${list.length} profiles`}
         sub=${current
           ? 'Rename, recolour or delete this profile.'
-          : 'Who plays on this box. With two or more, the console asks who is playing when it starts.'}
+          : `Who plays on this box. With two or more, the console asks who is playing when it starts. ${savesLine(state && state.separate_saves)}`}
         aside=${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null} />
 
       ${naming ? html`

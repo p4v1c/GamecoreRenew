@@ -5,7 +5,7 @@
 import { render, waitFor, fireEvent, cleanup } from '@testing-library/react'
 import { it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { buildSdk } from '../lib/themeSdk'
-import { createProfilesPage } from '../settings/profiles'
+import { createProfilesPage, savesLine } from '../settings/profiles'
 import { createRows } from '../settings/rows'
 import { createDialogs } from '../settings/dialog'
 
@@ -16,6 +16,7 @@ const state = {
     { id: 'b', name: 'Sam', color: '#127a6d', avatar: null, created: '', primary: false },
   ],
   palette: [{ color: '#b8501b', name: 'Ember' }, { color: '#127a6d', name: 'Teal' }],
+  separate_saves: ['Nintendo DS'],
 }
 let calls: { method: string; url: string; body?: unknown }[] = []
 
@@ -46,6 +47,7 @@ it('lists the profiles with the one playing now', async () => {
   expect(container.textContent).toContain('Playing now')
   expect(container.textContent).toContain('2 profiles')
   expect(container.querySelector('.gcs-row2-badge')?.textContent).toBe('P')
+  expect(container.textContent).toContain('Separate saves per profile: Nintendo DS. Other systems share one save.')
 })
 
 it('switches to a profile and changes its colour', async () => {
@@ -73,4 +75,9 @@ it('opens the keyboard to add a profile', async () => {
   const { findByText, getByRole } = page()
   fireEvent.click(row(await findByText('Add profile')))
   expect(getByRole('dialog').textContent).toContain('New profile')
+})
+
+it('says every save is shared when no system separates them', () => {
+  expect(savesLine([])).toBe('Every system shares one save between profiles.')
+  expect(savesLine(undefined)).toBe('Every system shares one save between profiles.')
 })

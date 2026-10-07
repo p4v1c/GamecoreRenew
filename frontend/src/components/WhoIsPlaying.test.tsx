@@ -24,8 +24,8 @@ beforeEach(() => { calls = []; sessionStorage.clear() })
 
 it('asks only with two profiles or more', () => {
   expect(shouldAskWhoIsPlaying(null)).toBe(false)
-  expect(shouldAskWhoIsPlaying({ active: 'a', profiles: [profile('a', 'Player 1')], palette: [] })).toBe(false)
-  expect(shouldAskWhoIsPlaying({ active: 'a', profiles: [profile('a', 'P1'), profile('b', 'Sam')], palette: [] })).toBe(true)
+  expect(shouldAskWhoIsPlaying({ active: 'a', profiles: [profile('a', 'Player 1')], palette: [], separate_saves: [] })).toBe(false)
+  expect(shouldAskWhoIsPlaying({ active: 'a', profiles: [profile('a', 'P1'), profile('b', 'Sam')], palette: [], separate_saves: [] })).toBe(true)
 })
 
 it('stays away on a box with one profile', async () => {

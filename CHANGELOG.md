@@ -25,6 +25,12 @@ are the auto-incremented tags.
   people who play on the box. With two or more, "Who's playing?" opens when
   the interface starts. A box with one profile (the default "Player 1",
   created on first start in `config/profiles/`) looks exactly as before.
+- **Saves per profile.** A pack opts in with `profileSaves` in pack.json and a
+  `place_saves` hook in generator.py; melonDS does (`per-instance`). A
+  profile other than the primary one keeps its saves in
+  `emu/profile-saves/<profile id>/<system>/`; the primary profile keeps every
+  existing save where it is, and nothing is moved. Players 2-4 are unchanged
+  until pads carry profiles.
 
 - **Logs you can read without a terminal.** Each launch keeps the emulator's
   output and the backend writes its log under `<data>/logs/`, capped in size:

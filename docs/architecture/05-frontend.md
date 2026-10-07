@@ -284,7 +284,8 @@ and render errors to `api.logs.ui`, 50 per page load at most.
 `api.profiles` (`list`, `create`, `update`, `remove`, `setActive`) lives in
 `api/profiles.ts`; its errors carry the backend's sentence (`sendDetailed` in
 `api/http.ts`). Settings → Profiles is `frontend/src/settings/profiles.js`, the
-tenth rail category every theme draws.
+tenth rail category every theme draws; its subtitle names the systems whose
+saves follow the profile (`separate_saves`, `savesLine()`).
 
 `api.media` is the one to read before drawing artwork that is not a jacket:
 

@@ -11,7 +11,13 @@ export interface Profile {
   primary: boolean
 }
 
-export interface ProfilesState { active: string; profiles: Profile[]; palette: { color: string; name: string }[] }
+export interface ProfilesState {
+  active: string
+  profiles: Profile[]
+  palette: { color: string; name: string }[]
+  /** Labels of the systems whose saves follow the profile playing. */
+  separate_saves: string[]
+}
 
 export type ProfileFields = Partial<Pick<Profile, 'name' | 'color' | 'avatar'>>
 
