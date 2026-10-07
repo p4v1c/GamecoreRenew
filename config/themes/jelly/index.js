@@ -17,10 +17,12 @@ import {createSession} from './views/session.js'
 import {createJellySettings} from './views/settings.js'
 import {createController} from './views/controller.js'
 import {SOUNDS} from './lib/sounds.js'
+import {followProfiles} from './lib/favourites.js'
 
 /** Every Jelly screen, built over one shared context. The theme and its tests
  * both start here, so they cannot wire it differently. */
 export function createParts(sdk) {
+  followProfiles(sdk)
   const tabs = createTabs(sdk)
   const collection = createCollection(sdk)
   const art = createArt(sdk)

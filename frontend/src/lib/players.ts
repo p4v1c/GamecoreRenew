@@ -28,13 +28,28 @@ export function usePlayerLabel(): (player: number) => string {
   return useCallback((player: number) => playerLabel(player, name), [name])
 }
 
-/** Keeps `playerOneName` current: read once, then on every profile change. */
+interface ActiveLike { id?: unknown; name?: unknown; primary?: unknown }
+
+/** Keeps `playerOneName` and `profileKey` current: read once, then on every profile change. */
 export function usePlayerNames(): void {
   useEffect(() => {
-    const set = (name: unknown) => useStore.getState().setPlayerOneName(typeof name === 'string' ? name : '')
+    const set = (p: ActiveLike | undefined) => useStore.getState().setActiveProfile(
+      typeof p?.name === 'string' ? p.name : '',
+      !p?.primary && typeof p?.id === 'string' ? p.id : '')
     api.profiles.list()
-      .then((s) => set(s.profiles.find((p) => p.id === s.active)?.name))
+      .then((s) => set(s.profiles.find((p) => p.id === s.active)))
       .catch((e) => console.error('profiles: could not read the active profile', e))
-    return onWsEvent('profiles:changed', (d) => set((d.active as { name?: unknown } | undefined)?.name))
+    return onWsEvent('profiles:changed', (d) => set(d.active as ActiveLike | undefined))
   }, [])
 }
+
+/** `base` for the primary profile, `base:<id>` for another: a theme's own
+ *  per-profile storage, with the primary keeping what it had before profiles. */
+export const profileStorageKey = (base: string): string => {
+  const key = useStore.getState().profileKey
+  return key ? `${base}:${key}` : base
+}
+
+/** `fn()` after the active profile changes. Returns the unsubscribe. */
+export const onProfileChange = (fn: () => void): (() => void) =>
+  useStore.subscribe((s, prev) => { if (s.profileKey !== prev.profileKey) fn() })

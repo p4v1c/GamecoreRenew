@@ -22,7 +22,7 @@ import { onWsEvent } from '../hooks/useWebSocket'
 import { playSound, getAudioContext, soundSettings } from './sounds'
 import { formatGameName, hexToRgb, fmtTime, fmtDate, systemColor } from './format'
 import * as defaults from '../components/defaults'
-import { playerLabel, usePlayerLabel } from './players'
+import { onProfileChange, playerLabel, profileStorageKey, usePlayerLabel } from './players'
 
 /**
  * SDK major. Bump it when anything is removed, changes shape, or becomes
@@ -73,7 +73,12 @@ export interface ThemeSdk {
   ui: Record<string, unknown>
   api: typeof api
   format: Record<string, unknown>
-  players: { useLabel: () => (player: number) => string; label: (player: number) => string }
+  players: {
+    useLabel: () => (player: number) => string
+    label: (player: number) => string
+    storageKey: (base: string) => string
+    onChange: (fn: () => void) => () => void
+  }
   nav: Record<string, unknown>
   session: Record<string, unknown>
   themes: Record<string, unknown>
@@ -155,6 +160,13 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
       useLabel: usePlayerLabel,
       /** One-shot read, for event handlers. */
       label: (player: number) => playerLabel(player, useStore.getState().playerOneName),
+      /**
+       * What the theme keeps per person (favourites): `storageKey('x')` is
+       * 'x' for the primary profile, so what it saved before profiles stays
+       * its own, and 'x:<id>' for another. Re-read on `onChange`.
+       */
+      storageKey: profileStorageKey,
+      onChange: onProfileChange,
     },
 
     nav: {

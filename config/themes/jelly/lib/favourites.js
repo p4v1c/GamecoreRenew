@@ -1,12 +1,31 @@
 /** Favourites, in this browser only: GameCore has none of its own. Keyed
- * `system:filename`, as playtime is, so two consoles never share a favourite. */
-const KEY = 'jelly-favourites'
+ * `system:filename`, as playtime is, so two consoles never share a favourite.
+ * One list per profile (`followProfiles`); the primary keeps the list it had. */
+const BASE = 'jelly-favourites'
 const listeners = new Set()
-let saved = new Set()
-try {
-  const raw = JSON.parse(localStorage.getItem(KEY) || '[]')
-  if (Array.isArray(raw)) saved = new Set(raw.filter((v) => typeof v === 'string'))
-} catch { /* storage disabled: no favourites, nothing else changes */ }
+let key = BASE
+let saved = read()
+
+function read() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(key) || '[]')
+    if (Array.isArray(raw)) return new Set(raw.filter((v) => typeof v === 'string'))
+  } catch { /* storage disabled: no favourites, nothing else changes */ }
+  return new Set()
+}
+
+/** Switch to the active profile's list now and on every change. */
+export function followProfiles(sdk) {
+  const players = sdk.players
+  if (!players?.storageKey) return () => {}
+  const reload = () => {
+    key = players.storageKey(BASE)
+    saved = read()
+    listeners.forEach((fn) => fn())
+  }
+  reload()
+  return players.onChange(reload)
+}
 
 const keyOf = (systemId, filename) => `${systemId}:${filename}`
 
@@ -17,7 +36,7 @@ export function toggleFavourite(systemId, filename) {
   const k = keyOf(systemId, filename)
   if (saved.has(k)) saved.delete(k)
   else saved.add(k)
-  try { localStorage.setItem(KEY, JSON.stringify([...saved])) } catch { /* ignore */ }
+  try { localStorage.setItem(key, JSON.stringify([...saved])) } catch { /* ignore */ }
   listeners.forEach((fn) => fn())
   return saved.has(k)
 }
