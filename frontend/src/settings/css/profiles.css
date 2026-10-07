@@ -78,6 +78,8 @@
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
 }
 .gcs-avatar svg { width: 62%; height: 62%; }
+/* The built-in top bar is 52 px tall. */
+.gcs-avatar.gc-topbar-avatar { width: 34px; height: 34px; font-size: 15px; }
 .gcs-avatar:focus-visible { outline: 3px solid var(--gc-accent-soft, #f2a46a); outline-offset: 3px; }
 
 .gcs-who-avatar svg, .gcs-row2-badge svg { width: 62%; height: 62%; }

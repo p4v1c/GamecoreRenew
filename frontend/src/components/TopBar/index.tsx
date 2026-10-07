@@ -176,7 +176,7 @@ export default function TopBar({ onSettings, onPower, onProfile }: Props) {
         <span style={{ fontSize: 15, color: 'var(--gc-ink-3)', fontWeight: 500 }}>{time}</span>
         <TBtn icon="settings" label="Settings" color="#b8501b" onClick={onSettings} />
         <TBtn icon="power" label="Power" color="#ef4444" onClick={onPower} />
-        <ProfileAvatar onClick={onProfile} />
+        <ProfileAvatar className="gc-topbar-avatar" onClick={onProfile} />
       </div>
     </div>
   )
