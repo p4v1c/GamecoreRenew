@@ -360,6 +360,10 @@
       }
     },
 
+    "profileSaves": {
+      "description": "How this emulator keeps each profile's saves apart. Absent = one save shared by every profile, as before profiles existed. `per-instance`: one emulator instance per player, each pointed at its player's profile folder (melonDS). `p1`: one save, the player 1 profile's. The pack's generator.py must define `place_saves(dirs, root, opts)`, which writes the emulator's own save options; the primary profile gets None (the emulator's default location). `per-slot` and `native-users` join this enum with the code that implements them.",
+      "enum": ["per-instance", "p1"]
+    },
     "perGame": {
       "description": "Whether this emulator can be configured ONE GAME AT A TIME, and if so where that file goes.\n\nThe cases this exists for are binary, not cosmetic: an RPCS3 title that sits on a black screen until Write Color Buffers is ticked, a Dolphin game that freezes on anything but Vulkan, a Wii U dump whose textures are garbage without its graphic pack. The difference is not 40 fps against 60 — it is starts against does not start, and from a sofa the only remedy was to leave GameCore, find the emulator's own window, and hunt.\n\nREQUIRED on every emulator pack, and the requirement is the point. An emulator that cannot do this must say so with `supported: false` and a reason, because the failure mode of leaving it out is silence: the button is absent, the player cannot tell 'this emulator has no per-game settings' from 'GameCore forgot this emulator', and neither can anyone reading the catalogue.\n\nAnd because it is DATA, the day shadPS4 grows per-title configs is a pack.json pushed down the signed OTA channel — not a release, not a frontend build, not a box reboot. That is the whole reason this block is here and not in a table in backend/services/.",
       "type": "object",

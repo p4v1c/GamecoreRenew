@@ -727,11 +727,14 @@ signatures. The docstrings carry the rest.
 `launch(system, system_id, rom_path, game_key)` runs, in order: foreground
 check → ROM path inside `romsPath` → resume-or-refuse (one resident game) →
 catalogue args → BIOS gate → USB notice → `standby.exit_standby()` → wait for
-pad profiles → release stale slots → per-game config → pack
+pad profiles → release stale slots → profile saves → per-game config → pack
 `prepare_launch` → pack `launch_command` → `process_manager.launch()` → udev
 re-fire / fullscreen tasks. Refusals raise `LaunchRefused(status, detail)`; the router maps them.
 Every preparation step is budgeted and never raises: a late config costs a
-session, a failed launch costs the box.
+session, a failed launch costs the box. The one exception is
+`_place_profile_saves()` (`profile_saves.place`): when a pack that separates
+saves cannot be pointed at the profile's folder, the launch is refused
+(`game:failed`), since the game would write into another profile's save.
 
 `_pack_launch_command()` calls a pack's optional `launch_command(rom_path,
 exec_path, exec_args, players, opts)` hook (`generator.py`), which may return
@@ -931,13 +934,30 @@ atomically.
 | `list_profiles()` | the state plus `PALETTE`; with no file, creates one primary profile ("Player 1") that owns everything the box held before profiles |
 | `create(name, color, avatar)` | trims the name, refuses empty, over `NAME_MAX`, non-printable, or taken (case-insensitive); colour from `PALETTE` (default: the first unused), avatar from `AVATARS` (empty: no art ships yet) |
 | `update(id, fields)` | the same checks; the id never changes, so nothing keyed on it moves |
-| `delete(id)` | the record only; refuses the last profile; `primary` and `active` pass to the oldest profile left |
+| `delete(id)` | the record only (its saves folder stays on disk); refuses the last profile; `primary` and `active` pass to the oldest profile left |
 | `active()`, `set_active(id)` | the profile the interface is used as |
 
 A file that does not parse is renamed `profiles.json.broken-<time>` and a fresh
 primary profile is created: the old one stays readable for a repair by hand.
 Favourites, recently played and playtime are not per profile yet.
 
+
+### `profile_saves.py` — saves that follow the profile
+
+Packs opt in with `profileSaves` ([10](10-catalog-and-install.md#profilesaves--saves-per-profile)).
+At launch the active profile is player 1.
+
+| Function | Does |
+|---|---|
+| `mode(pack)` | `per-instance`, `p1`, or None (one save shared by every profile) |
+| `save_dir(profile_id, system_id)` | `paths.profile_saves_dir()/<id>/<system>/`; refuses an id that is not alphanumeric (`profiles.json` is hand-editable) |
+| `player_dirs(players, system_id, mode)` | one entry per slot (4): the profile's folder, created on demand, or None for the primary profile, no profile, and players 2-4 in `p1` mode |
+| `place(system_id)` | calls the pack's `place_saves(dirs, root, opts)` with `player_dirs([active profile])`; raises when a declared pack has no hook or no config dir |
+| `separate_systems(packs)` | labels of the packs that declare a mode, for `GET /profiles` |
+
+Never moves, copies or deletes a save: only the emulator's options change.
+Runs whether or not autoconfig is on for the pack, because saves are not
+controller config.
 ### `storage.py` — external disks
 
 "I plug my ROM disk in" is one of the first three things anyone expects from a

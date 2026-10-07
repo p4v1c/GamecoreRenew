@@ -2,7 +2,8 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from ..services import profiles
+from ..services import profile_saves, profiles
+from ..services.catalog import load_catalog
 
 router = APIRouter(tags=["profiles"])
 
@@ -26,7 +27,8 @@ class ActiveProfile(BaseModel):
 
 @router.get("/profiles")
 def list_profiles():
-    return profiles.list_profiles()
+    return {**profiles.list_profiles(),
+            "separate_saves": profile_saves.separate_systems(load_catalog())}
 
 
 @router.post("/profiles")

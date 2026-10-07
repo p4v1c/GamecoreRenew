@@ -147,7 +147,7 @@ def update(profile_id: str, fields: dict) -> dict:
 
 
 def delete(profile_id: str) -> dict:
-    """Remove the record only: no data is stored per profile yet."""
+    """Remove the record only: its saves folder stays on disk, untouched."""
     with _lock:
         state = _load()
         profile = _find(state, profile_id)

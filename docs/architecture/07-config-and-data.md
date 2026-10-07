@@ -549,7 +549,9 @@ surface, `/login` included, leaving no way back in short of SSH.
 
 `{active, profiles: [{id, name, color, avatar, created, primary}]}`. `id` is 16
 random hex digits and never derived from the name, so a rename moves nothing.
-`primary` marks the profile that owns what the box held before profiles. Created
+`primary` marks the profile that owns what the box held before profiles, and
+keeps today's save locations; other profiles' saves go to
+`emu/profile-saves/<id>/` ([Assets](#assets)). Created
 with one "Player 1" on first read. Schema and checks:
 [`profiles.py`](04-backend-services.md#profilespy--who-plays-on-this-box).
 
@@ -672,7 +674,7 @@ skip the saves" is not an available option:
 | Ryujinx | `bis/user/save/` |
 | Eden | `nand/user/save/` |
 | azahar | `sdmc/`, `nand/` |
-| mGBA, melonDS | `.sav` files **next to the ROMs** |
+| mGBA, melonDS | `.sav` files **next to the ROMs** (melonDS: a non-primary profile's in `emu/profile-saves/`) |
 
 The last row is the one bright spot: those `.sav` files live in `emu/<system>/`
 and are therefore already inside `/userdata` and already backed up. Every other
@@ -726,3 +728,4 @@ were before the split, which is the status quo and not a regression.
 | `assets/overlays/` | bezel PNGs — excluded from OTA |
 | `backend/data/gamecontrollerdb.txt` | vendored SDL_GameControllerDB, exported as `SDL_GAMECONTROLLERCONFIG_FILE` |
 | `emu/<system>/` | ROMs — excluded from OTA |
+| `emu/profile-saves/<profile id>/<system>/` | saves of a profile other than the primary, for packs with `profileSaves` (`paths.profile_saves_dir()`, `services/profile_saves.py`); created on demand, never moved or deleted by GameCore, kept when the profile is deleted. Under `emu/` on purpose: outside git, the OTA rsync **and** the update's `.prev` snapshot, whose restore would roll a save back |
