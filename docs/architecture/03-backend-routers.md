@@ -399,6 +399,8 @@ error line in `logs/ui/ui.log`. Logic in `services/logs.py`.
 | `GET /profiles` | `{active, auto_login, profiles, palette, separate_saves, shared_saves}`; the first call creates the primary profile. `separate_saves`: labels of the systems whose saves follow the profile; `shared_saves`: the emulators whose saves every profile shares (`profile_saves`) |
 | `POST /profiles` `{name, color?, avatar?}` | a new profile; 400 on a bad name, colour or avatar, 409 on a name taken or while the primary profile has no name |
 | `PATCH /profiles/{id}` `{name?, color?, avatar?, theme?}` | rename, recolour, picture, theme (null: the built-in look; 400 for one that cannot load); the id never changes. A new theme on the active profile is put on now (`theme:changed`) |
+| `POST /profiles/{id}/controllers` `{id}` | show a connected pad (`id` from `GET /controllers/pads`) on this profile, and off any other; 404 when the pad is not connected now. Display only |
+| `DELETE /profiles/{id}/controllers/{controller_id}` | take it off the profile, connected or not; 404 when it is not there |
 | `DELETE /profiles/{id}` | the record only, saves stay on disk → `{active}`; 409 on the last profile |
 | `PUT /profiles/auto-login` `{enabled}` | "Log in automatically": start as the last profile without asking who is playing → `{auto_login}` |
 | `GET /profiles/active`, `PUT /profiles/active` `{id}` | the profile the interface is used as; 409 while a game is on screen or suspended. A switch puts on the theme the profile wore last (`theme:changed`) |

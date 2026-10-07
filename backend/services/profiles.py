@@ -3,7 +3,8 @@
 One JSON file, `<DATA>/config/profiles/profiles.json`:
 
     {"active": "<id>", "auto_login": false,
-     "profiles": [{"id", "name", "color", "avatar", "created", "primary", "theme"}]}
+     "profiles": [{"id", "name", "color", "avatar", "created", "primary", "theme",
+                   "controllers": [{"id", "name"}]}]}
 
 A profile wears its own theme: a pick in Settings → Themes is the active
 profile's only, and a new profile starts on the look a new box shows.
@@ -29,7 +30,7 @@ from pathlib import Path
 
 from ..utils import atomic_write_json
 
-from . import paths, themes
+from . import logs, paths, themes
 from .errors import ServiceError
 
 log = logging.getLogger(__name__)
@@ -220,6 +221,38 @@ def remember_theme(theme_id: str | None) -> None:
             return
         _find(state, state["active"])["theme"] = theme_id
         _save(state)
+
+
+def _shown(controller_id: str) -> str:
+    return logs.mask_mac(controller_id) if controller_id.count(":") == 5 else controller_id
+
+
+def add_controller(profile_id: str, pad: dict) -> dict:
+    """Show `pad` ({id, name}) on this profile's page, and on no other.
+    Display only: no save, theme or login follows the pad."""
+    with _lock:
+        state = _load()
+        profile = _find(state, profile_id)
+        for p in state["profiles"]:
+            if "controllers" in p:
+                p["controllers"] = [c for c in p["controllers"] if c["id"] != pad["id"]]
+        profile.setdefault("controllers", []).append({"id": pad["id"], "name": pad["name"]})
+        _save(state)
+    log.info("profiles: controller %s now shown on %s", _shown(pad["id"]), profile_id)
+    return profile
+
+
+def remove_controller(profile_id: str, controller_id: str) -> dict:
+    with _lock:
+        state = _load()
+        profile = _find(state, profile_id)
+        kept = [c for c in profile.get("controllers", []) if c["id"] != controller_id]
+        if len(kept) == len(profile.get("controllers", [])):
+            raise ServiceError(404, "That controller is not on this profile.")
+        profile["controllers"] = kept
+        _save(state)
+    log.info("profiles: controller %s removed from %s", _shown(controller_id), profile_id)
+    return profile
 
 
 def delete(profile_id: str) -> dict:

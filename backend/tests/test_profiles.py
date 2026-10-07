@@ -345,3 +345,51 @@ def test_a_theme_uninstalled_since_leaves_the_screen_as_it_is(client, wardrobe):
     wardrobe.installed.discard("orbit")
     assert client.put("/api/profiles/active", json={"id": sam["id"]}).status_code == 200
     assert wardrobe.on == "shelf" and profiles.active()["id"] != max_id
+
+
+# ── controllers shown on a profile (display only) ────────────────────────────
+
+DS4 = {"id": "84:30:95:07:c8:1c", "name": "PS4 Controller", "connection": "Bluetooth"}
+XBOX = {"id": "045e:0b13", "name": "Xbox Wireless Controller", "connection": "USB"}
+
+
+@pytest.fixture
+def pads(monkeypatch):
+    connected = [DS4, XBOX]
+    monkeypatch.setattr(profiles_router.controller_roster, "connected_pads", lambda: list(connected))
+    return connected
+
+
+def test_a_controller_is_shown_on_one_profile_only(client, pads):
+    max_id = profiles.active()["id"]
+    sam = profiles.create("Sam")
+    r = client.post(f"/api/profiles/{max_id}/controllers", json={"id": DS4["id"]})
+    assert r.status_code == 200
+    assert r.json()["controllers"] == [{"id": DS4["id"], "name": "PS4 Controller"}]
+    client.post(f"/api/profiles/{sam['id']}/controllers", json={"id": DS4["id"]})
+    by_name = {p["name"]: p for p in client.get("/api/profiles").json()["profiles"]}
+    assert by_name["Max"]["controllers"] == []
+    assert [c["id"] for c in by_name["Sam"]["controllers"]] == [DS4["id"]]
+
+
+def test_only_a_connected_controller_can_be_added(client, pads):
+    me = profiles.active()["id"]
+    r = client.post(f"/api/profiles/{me}/controllers", json={"id": "aa:bb:cc:dd:ee:ff"})
+    assert r.status_code == 404 and "not connected" in r.json()["detail"]
+    assert client.post(f"/api/profiles/{me}/controllers", json={"id": "x" * 65}).status_code == 422
+    assert client.post("/api/profiles/nobody/controllers", json={"id": XBOX["id"]}).status_code == 404
+
+
+def test_a_removed_controller_stays_known_to_nobody(client, pads):
+    me = profiles.active()["id"]
+    client.post(f"/api/profiles/{me}/controllers", json={"id": XBOX["id"]})
+    pads.clear()                              # off: it can still be removed
+    r = client.delete(f"/api/profiles/{me}/controllers/{XBOX['id']}")
+    assert r.status_code == 200 and r.json()["controllers"] == []
+    assert client.delete(f"/api/profiles/{me}/controllers/{XBOX['id']}").status_code == 404
+
+
+def test_a_controllers_mac_is_masked_in_the_log(named, caplog):
+    caplog.set_level("INFO", logger=profiles.log.name)
+    profiles.add_controller(profiles.active()["id"], DS4)
+    assert "84:30:95:xx:xx:1c" in caplog.text and DS4["id"] not in caplog.text

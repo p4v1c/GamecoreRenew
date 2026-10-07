@@ -73,6 +73,8 @@ def test_the_roster_joins_slot_battery_connection_and_identity(two_pads):
     assert generic["known"] == "unknown"
     assert generic["controls"] is None          # no SDL mapping: layout unknown
     assert generic["battery"] is None and generic["connection"] == "USB"
+    # What a profile keeps: the MAC, else the model (a devnode moves on replug).
+    assert (ds4["id"], generic["id"]) == ("40:1b:5f:b9:ea:8d", "0079:0006")
 
 
 def test_a_wizard_capture_counts_as_mapped_and_gives_the_layout(two_pads, monkeypatch):
