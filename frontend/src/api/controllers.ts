@@ -2,6 +2,8 @@
 
 /** One connected pad as the backend knows it — see api.controllers.pads. */
 export interface RosterPad {
+  /** What a profile keeps it by: the MAC, else vendor:product. */
+  id: string
   player: number | null
   /** For a human: SDL3's name, else the community DB's, else the kernel's. */
   name: string

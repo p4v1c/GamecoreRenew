@@ -8,11 +8,11 @@
   })
   // What the backend would say about each pad (GET /api/controllers/pads).
   const ROSTER = {
-    ds4: { name: 'PS4 Controller', vendor: '054c', product: '09cc', connection: 'Bluetooth', battery: 85, charging: true, known: 'sdl', controls: null, analogTriggers: true },
-    xbox: { name: 'Xbox Wireless Controller', vendor: '045e', product: '0b13', connection: 'USB', battery: null, charging: false, known: 'sdl', controls: null, analogTriggers: true },
-    stick: { name: 'Hori Fighting Stick mini 4', vendor: '0f0d', product: '0092', connection: 'USB', battery: null, charging: false, known: 'table',
+    ds4: { id: '84:30:95:07:c8:1c', name: 'PS4 Controller', vendor: '054c', product: '09cc', connection: 'Bluetooth', battery: 85, charging: true, known: 'sdl', controls: null, analogTriggers: true },
+    xbox: { id: '045e:0b13', name: 'Xbox Wireless Controller', vendor: '045e', product: '0b13', connection: 'USB', battery: null, charging: false, known: 'sdl', controls: null, analogTriggers: true },
+    stick: { id: '0f0d:0092', name: 'Hori Fighting Stick mini 4', vendor: '0f0d', product: '0092', connection: 'USB', battery: null, charging: false, known: 'table',
       controls: ['south', 'east', 'west', 'north', 'l1', 'r1', 'l2', 'r2', 'select', 'start', 'home', 'up', 'down', 'left', 'right'], analogTriggers: false },
-    generic: { name: 'USB Gamepad', vendor: '0079', product: '0006', connection: 'USB', battery: null, charging: false, known: 'unknown', controls: null, analogTriggers: true },
+    generic: { id: '0079:0006', name: 'USB Gamepad', vendor: '0079', product: '0006', connection: 'USB', battery: null, charging: false, known: 'unknown', controls: null, analogTriggers: true },
   }
   let names = []
   const realFetch = window.fetch.bind(window)

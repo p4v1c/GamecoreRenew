@@ -43,6 +43,12 @@ def key_for(uniq: str | None, path: str) -> str:
     return normalize_mac(uniq) or path
 
 
+def identity(key: str, vendor: str, product: str) -> str:
+    """What a profile remembers a pad by: its MAC, else its model. Two
+    identical pads without a MAC read as one; a devnode changes on replug."""
+    return normalize_mac(key) or f"{vendor}:{product}"
+
+
 def nodes_by_key(nodes: list[tuple[str | None, str]]) -> dict[str, list[str]]:
     """registry key → EVERY devnode that belongs to that physical controller.
 

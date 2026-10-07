@@ -82,6 +82,10 @@ reason in `warnings` — the UI needs to say *why*, not just refuse. That rule i
 the one users feel: it is what makes a theme all-or-nothing, so there is never a
 half-dressed UI.
 
+`get_active()` is the box's choice (`config/theme.json`); with no file it falls
+back to `shipped()`: `SHIPPED_DEFAULT` when it loads, else the built-in look.
+A new profile starts on `shipped()` too.
+
 Covered by `backend/tests/test_themes.py`.
 
 ## `gamepad_monitor.py` — evdev, the source of truth for input
@@ -115,6 +119,7 @@ Assigns P1…P4 and keeps them stable across reconnects.
 |---|---|
 | `normalize_mac(value)` | extracts a lowercased `aa:bb:…` from any MAC-ish string |
 | `key_for(uniq, path)` | stable key: the MAC when known, else the device node |
+| `identity(key, vendor, product)` | what a profile remembers a pad by: the MAC, else `vendor:product` (a devnode changes on replug; two identical pads without a MAC read as one) |
 | `has(key)` / `label_for(key)` / `player_for(key)` | lookups |
 | `connect(key, label)` | assigns the **lowest free slot**; idempotent for a known key |
 | `disconnect(key)` | frees the slot, returns the player number it held |
@@ -127,11 +132,12 @@ Assigns P1…P4 and keeps them stable across reconnects.
 
 `connected_pads()` joins `gamepad_monitor.roster()` (the last scan), the
 registry slot, the sysfs battery and the pad's identity into one row per pad:
-`{player, name, kernelName, vendor, product, connection, battery, charging,
+`{id, player, name, kernelName, vendor, product, connection, battery, charging,
 known, controls, analogTriggers}`.
 
 | Field | Source |
 |---|---|
+| `id` | `controller_registry.identity()`: the MAC, else `vendor:product` |
 | `known` | `mapped` (a wizard capture exists for this vendor:product), `sdl` / `table` (`resolve_name` source in `SDL3_TRUSTED`), else `unknown` |
 | `controls` | the standard controls its SDL mapping binds (`parse_controls`): the capture first, else `sdl2_probe`'s built-in mapping; `null` when SDL has none |
 | `analogTriggers` | a trigger bound to an axis; `b6`-style triggers are buttons |
@@ -928,18 +934,19 @@ logger name to `SECTIONS`. MAC addresses go through `mask_mac()`
 ### `profiles.py` — who plays on this box
 
 One file, `paths.profiles_dir()/profiles.json`: `{active, auto_login, profiles: [{id, name,
-color, avatar, created, primary, theme}]}`, read and written under one lock,
+color, avatar, created, primary, theme, controllers}]}`, read and written under one lock,
 atomically.
 
 | Function | Does |
 |---|---|
 | `list_profiles()` | the state plus `PALETTE`; with no file, creates one unnamed primary profile that owns everything the box held before profiles. Unnamed = no profiles yet |
-| `create(name, color, avatar)` | refuses (409) while the primary is unnamed; trims the name, refuses empty, over `NAME_MAX`, non-printable, or taken (case-insensitive); colour from `PALETTE` (default: the first unused), avatar from `AVATARS` (the animals `frontend/src/settings/avatars.js` draws; None draws the initial, and a picture an older version offered reads as None) |
+| `create(name, color, avatar)` | refuses (409) while the primary is unnamed; trims the name, refuses empty, over `NAME_MAX`, non-printable, or taken (case-insensitive); colour from `PALETTE` (default: the first unused), theme `themes.shipped()` (the look a new box shows, so it never inherits another profile's pick); avatar from `AVATARS` (the animals `frontend/src/settings/avatars.js` draws; None draws the initial, and a picture an older version offered reads as None) |
 | `update(id, fields)` | the same checks, and `theme` through `themes.check`; the id never changes, so nothing keyed on it moves |
 | `remember_theme(theme_id)` | the theme just picked in Settings → Themes becomes the active profile's; nothing without profiles |
+| `add_controller(id, pad)`, `remove_controller(id, controller_id)` | the controllers shown on a profile's page (`{id, name}`); a pad is on one profile at most, so adding it to one takes it off the other. Display only: nothing (saves, login, theme) follows the pad. MACs are masked in the log (`logs.mask_mac`) |
 | `delete(id)` | the record only (its saves folder stays on disk); refuses the last profile and the primary one (it owns the saves beside the ROMs); `active` passes to the primary |
 | `set_auto_login(enabled)` | "Log in automatically" (`auto_login` in the file, off by default): the start screen is skipped and the box starts as the last profile |
-| `active()`, `set_active(id)` | the profile the interface is used as. A switch, or deleting the active profile, is refused (409) while a game is on screen or suspended: a suspended game resumes without its saves being placed again, so the new profile would play in the old one's save. A switch gives a profile without `theme` the one on screen, the leaving one included, so switching back finds it |
+| `active()`, `set_active(id)` | the profile the interface is used as. A switch, or deleting the active profile, is refused (409) while a game is on screen or suspended: a suspended game resumes without its saves being placed again, so the new profile would play in the old one's save. A profile saved without `theme` (made before this rule): when it leaves, it keeps the one on screen; when it arrives, it gets `themes.shipped()`, never the theme another profile just picked |
 
 A file that does not parse, or lists no profile, is renamed `profiles.json.broken-<time>` and a fresh
 primary profile is created: the old one stays readable for a repair by hand.

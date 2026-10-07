@@ -3,7 +3,11 @@
 One JSON file, `<DATA>/config/profiles/profiles.json`:
 
     {"active": "<id>", "auto_login": false,
-     "profiles": [{"id", "name", "color", "avatar", "created", "primary", "theme"}]}
+     "profiles": [{"id", "name", "color", "avatar", "created", "primary", "theme",
+                   "controllers": [{"id", "name"}]}]}
+
+A profile wears its own theme: a pick in Settings → Themes is the active
+profile's only, and a new profile starts on the look a new box shows.
 
 The `id` is random and never derived from the name: later work keys saves and
 controllers on it, and a rename must never move anything. `primary` marks the
@@ -26,7 +30,7 @@ from pathlib import Path
 
 from ..utils import atomic_write_json
 
-from . import paths, themes
+from . import logs, paths, themes
 from .errors import ServiceError
 
 log = logging.getLogger(__name__)
@@ -176,8 +180,10 @@ def create(name: str, color: str | None = None, avatar: str | None = None) -> di
         if color is None:
             used = {p["color"] for p in state["profiles"]}
             color = next((c for c in PALETTE if c not in used), _FIRST_COLOR)
+        # Its own theme from the start, so it never inherits another's pick.
         profile = {"id": secrets.token_hex(8), "name": clean, "color": color,
-                   "avatar": avatar, "created": _now(), "primary": False}
+                   "avatar": avatar, "created": _now(), "primary": False,
+                   "theme": themes.shipped()}
         state["profiles"].append(profile)
         _save(state)
         return profile
@@ -217,6 +223,38 @@ def remember_theme(theme_id: str | None) -> None:
         _save(state)
 
 
+def _shown(controller_id: str) -> str:
+    return logs.mask_mac(controller_id) if controller_id.count(":") == 5 else controller_id
+
+
+def add_controller(profile_id: str, pad: dict) -> dict:
+    """Show `pad` ({id, name}) on this profile's page, and on no other.
+    Display only: no save, theme or login follows the pad."""
+    with _lock:
+        state = _load()
+        profile = _find(state, profile_id)
+        for p in state["profiles"]:
+            if "controllers" in p:
+                p["controllers"] = [c for c in p["controllers"] if c["id"] != pad["id"]]
+        profile.setdefault("controllers", []).append({"id": pad["id"], "name": pad["name"]})
+        _save(state)
+    log.info("profiles: controller %s now shown on %s", _shown(pad["id"]), profile_id)
+    return profile
+
+
+def remove_controller(profile_id: str, controller_id: str) -> dict:
+    with _lock:
+        state = _load()
+        profile = _find(state, profile_id)
+        kept = [c for c in profile.get("controllers", []) if c["id"] != controller_id]
+        if len(kept) == len(profile.get("controllers", [])):
+            raise ServiceError(404, "That controller is not on this profile.")
+        profile["controllers"] = kept
+        _save(state)
+    log.info("profiles: controller %s removed from %s", _shown(controller_id), profile_id)
+    return profile
+
+
 def delete(profile_id: str) -> dict:
     """Remove the record only: its saves folder stays on disk, untouched."""
     with _lock:
@@ -249,11 +287,11 @@ def set_active(profile_id: str) -> dict:
         profile = _find(state, profile_id)
         if profile_id != state["active"]:
             _refuse_switch_mid_game()
-            # A profile from before themes followed the profile: it keeps the
-            # theme on screen now, so switching back finds it again.
-            on = themes.get_active()
-            _find(state, state["active"]).setdefault("theme", on)
-            profile.setdefault("theme", on)
+            # Saved before themes followed profiles: the one leaving keeps what
+            # it wore; the one arriving gets the new-box look, never the theme
+            # someone else just picked.
+            _find(state, state["active"]).setdefault("theme", themes.get_active())
+            profile.setdefault("theme", themes.shipped())
         state["active"] = profile_id
         _save(state)
         return profile

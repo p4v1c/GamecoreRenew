@@ -282,7 +282,7 @@ the page every theme draws (the legacy `DefaultSettingsList` menu has
 entry, since a theme reaches it through its System page). `frontend/src/lib/reportErrors.ts` (installed in `main.tsx`, and
 called by `components/ErrorBoundary.tsx`) sends uncaught errors, rejected promises
 and render errors to `api.logs.ui`, 50 per page load at most.
-`api.profiles` (`list`, `create`, `update`, `remove`, `setActive`) lives in
+`api.profiles` (`list`, `create`, `update`, `remove`, `setActive`, `addController`, `removeController`) lives in
 `api/profiles.ts`; its errors carry the backend's sentence (`sendDetailed` in
 `api/http.ts`). `frontend/src/lib/players.ts` names player slots (`playerLabel`, `playerTitle`,
 `controllerTitle`): player 1 is the active profile's name once the box has
@@ -302,7 +302,12 @@ profile", then the "Log in automatically" row); Edit opens the profile's page
 over the whole screen (`frontend/src/settings/profileDetail.js`: Switch, Rename,
 Delete on the left, the playtime of the profile playing, and picture, colour and
 theme, with each theme's `preview`, in view on the right, walked in two
-directions with the pad). Both use the screen's `--set-*` tokens; a theme whose
+directions with the pad; under them the controllers the profile shows,
+`frontend/src/settings/profilePads.js`: each pad with its live state from
+`GET /controllers/pads` (re-read on `gamepadconnected`), ✕ removes, "Add
+controller" lists the connected pads it does not show and ○ cancels that list.
+Display only. Its line icons come from `frontend/src/settings/icons.js`, shared
+with the settings rail). Both use the screen's `--set-*` tokens; a theme whose
 settings do not set them maps its own there (`config/themes/summer/css/profile.css`).
 `frontend/src/settings/themeNames.js` names a profile's theme on the cards and on
 "Who's using this controller?".

@@ -1,11 +1,11 @@
 """Who plays on this box: list, create, edit, delete profiles; read and set the active one."""
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from .. import ws
-from ..services import profile_saves, profiles, themes
+from ..services import controller_roster, profile_saves, profiles, themes
 from ..services.catalog import load_catalog
 
 log = logging.getLogger(__name__)
@@ -31,6 +31,10 @@ class AutoLogin(BaseModel):
 
 
 class ActiveProfile(BaseModel):
+    id: str = Field(max_length=64)
+
+
+class ControllerPick(BaseModel):
     id: str = Field(max_length=64)
 
 
@@ -110,3 +114,21 @@ async def delete_profile(profile_id: str):
         await _wear_theme(profiles.active())
     await _changed(switched=out["active"] != before)
     return out
+
+
+@router.post("/profiles/{profile_id}/controllers")
+async def add_controller(profile_id: str, body: ControllerPick):
+    # Only a pad the box sees now: its name comes from the roster, not the caller.
+    pad = next((p for p in controller_roster.connected_pads() if p["id"] == body.id), None)
+    if pad is None:
+        raise HTTPException(404, "That controller is not connected. Turn it on, then try again.")
+    profile = profiles.add_controller(profile_id, pad)
+    await _changed()
+    return profile
+
+
+@router.delete("/profiles/{profile_id}/controllers/{controller_id}")
+async def remove_controller(profile_id: str, controller_id: str):
+    profile = profiles.remove_controller(profile_id, controller_id)
+    await _changed()
+    return profile

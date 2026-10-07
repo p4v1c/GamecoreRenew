@@ -79,6 +79,7 @@ def connected_pads() -> list[dict]:
         layout, mapped = _layout(vendor, product)
         power = batteries.get(player)
         rows.append({
+            "id": controller_registry.identity(key, vendor, product),
             "player": player,
             "name": display_name(vendor, product, name),
             "kernelName": name,

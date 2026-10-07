@@ -3,9 +3,9 @@
  *
  * Two levels: the list (profileCards.js: a card per profile with Switch and
  * Edit, "Add profile", then "Log in automatically"), and one profile's page
- * over the whole screen (profileDetail.js: picture, colour and theme in view,
- * Switch, Rename, Delete). ○ on a profile goes back to the list. Names come
- * from the host's on-screen keyboard.
+ * over the whole screen (profileDetail.js: picture, colour, theme and the
+ * controllers it shows in view, Switch, Rename, Delete). ○ on a profile goes
+ * back to the list. Names come from the host's on-screen keyboard.
  *
  * A box whose only profile has no name has no profiles yet: the list is one
  * row that names it, and only then can others be added.
@@ -46,6 +46,8 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
     const [looks, setLooks] = useState([])
     const [stats, setStats] = useState(null)
     const [msg, setMsg] = useState('')
+    const [pads, setPads] = useState([])          // the connected pads, for the controllers row
+    const [adding, setAdding] = useState(false)
     const themeName = useThemeNames(sdk)
 
     const load = () => sdk.api.profiles.list().then(setState)
@@ -67,6 +69,22 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
     const unnamed = list.length === 1 && !list[0].name ? list[0] : null
     const current = list.find((p) => p.id === editing) || null
     const playing = !!current && !!state && current.id === state.active
+
+    const readPads = () => sdk.api.controllers.pads()
+      .then((r) => { const list = asList(r && r.pads); setPads(list); return list })
+      .catch(() => [])
+    // Re-read as pads come and go, so "Connected" stays true on the page.
+    useEffect(() => {
+      setAdding(false)
+      if (!editing) return undefined
+      readPads()
+      window.addEventListener('gamepadconnected', readPads)
+      window.addEventListener('gamepaddisconnected', readPads)
+      return () => {
+        window.removeEventListener('gamepadconnected', readPads)
+        window.removeEventListener('gamepaddisconnected', readPads)
+      }
+    }, [editing])
 
     // Playtime is kept for the profile playing; another profile's is not read.
     useEffect(() => {
@@ -94,6 +112,31 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
       const theme = 'theme' in fields ? looks.find((t) => t.id === fields.theme) : null
       run(sdk.api.profiles.update(current.id, fields),
         () => (theme && !playing ? `${current.name} plays in ${theme.name}.` : ''))
+    }
+
+    // Who else shows each pad, so the pick list can say it moves.
+    const owners = {}
+    for (const p of list) {
+      if (p.id === editing) continue
+      for (const c of asList(p.controllers)) owners[c.id] = p.name
+    }
+    const startAdding = () => readPads().then((now) => {
+      const mine = asList(current && current.controllers)
+      if (now.some((p) => !mine.some((c) => c.id === p.id))) { setMsg(''); setAdding(true) }
+      else setMsg('No other controller is connected. Turn one on, then try again.')
+    })
+    const addPad = (padId) => {
+      const pad = pads.find((p) => p.id === padId)
+      // Out of the pick list once the new pad is drawn, so the cursor lands
+      // on "Add controller" and not on the pad, where ✕ would remove it.
+      run(sdk.api.profiles.addController(current.id, padId),
+        () => (pad ? `${pad.name} added to ${current.name}.` : ''))
+        .finally(() => setAdding(false))
+    }
+    const removePad = (padId) => {
+      const pad = asList(current.controllers).find((c) => c.id === padId)
+      run(sdk.api.profiles.removeController(current.id, padId),
+        () => (pad ? `${pad.name} removed from ${current.name}.` : ''))
     }
 
     const onDelete = () => {
@@ -151,6 +194,8 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
       ${current ? html`
         <${Detail} key=${current.id} profile=${current} playing=${playing} palette=${palette}
           looks=${looks} stats=${stats} msg=${msg} active=${active && !naming}
+          pads=${pads} owners=${owners} adding=${adding}
+          onAddStart=${startAdding} onAddPad=${addPad} onRemovePad=${removePad} onAddEnd=${() => setAdding(false)}
           onPick=${onPick} onSwitch=${() => switchTo(current.id)} onRename=${() => setNaming(current.id)}
           onDelete=${onDelete} onBack=${back} />` : null}
 
