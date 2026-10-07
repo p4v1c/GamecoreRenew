@@ -110,6 +110,31 @@ def test_a_failed_placement_refuses_the_launch(monkeypatch):
     assert sent == ["game:failed"]
 
 
+
+def test_a_launch_that_fails_after_placing_gives_the_saves_back(monkeypatch):
+    """No game, so no release at its end: left placed, the emulator started
+    from Desktop Mode would save into the profile's folder."""
+    released = []
+
+    async def nothing(*_a, **_k):
+        return None
+
+    async def same_command(_sid, _rom, path, args):
+        return path, args
+
+    async def not_installed(*_a, **_k):
+        raise launch_service.LaunchRefused(503, "melonds: cannot start - not installed")
+
+    monkeypatch.setattr(launch_service, "_resume_or_refuse", nothing)
+    monkeypatch.setattr(launch_service, "_gates", lambda *_a: nothing())
+    monkeypatch.setattr(launch_service, "_prepare", nothing)
+    monkeypatch.setattr(launch_service, "_pack_launch_command", same_command)
+    monkeypatch.setattr(launch_service, "_spawn", not_installed)
+    monkeypatch.setattr(profile_saves, "release", lambda sid, started: released.append(sid))
+    with pytest.raises(launch_service.LaunchRefused):
+        asyncio.run(launch_service.launch({"id": "melonds", "path": "/x"}, "melonds", "", "game"))
+    assert released == ["melonds"]
+
 def test_the_schema_takes_the_implemented_modes_only():
     schema = load_schema(CATALOG / "_schema" / "pack.schema.json")
     pack = json.loads((CATALOG / "melonds" / "pack.json").read_text())

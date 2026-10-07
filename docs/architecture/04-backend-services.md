@@ -735,6 +735,8 @@ session, a failed launch costs the box. The one exception is
 `_place_profile_saves()` (`profile_saves.place`): when a pack that separates
 saves cannot be pointed at the profile's folder, the launch is refused
 (`game:failed`), since the game would write into another profile's save.
+A launch that fails after that step gives the saves back at once
+(`_release_profile_saves()`): no game ends, so nothing else would.
 
 `_pack_launch_command()` calls a pack's optional `launch_command(rom_path,
 exec_path, exec_args, players, opts)` hook (`generator.py`), which may return
