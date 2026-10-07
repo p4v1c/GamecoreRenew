@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Glyph } from '../ui'
 import { api, SysInfo } from '../../api'
 import { onWsEvent } from '../../hooks/useWebSocket'
+import { usePlayerLabel } from '../../lib/players'
 import logo from '../../assets/logo.png'
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 
 export function ControllerBattery({ player, level, charging }: { player?: number | null; level: number; charging?: boolean }) {
   const color = charging ? '#4ade80' : level > 60 ? '#4ade80' : level > 20 ? '#fbbf24' : '#ef4444'
+  const label = usePlayerLabel()
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', borderRadius: 7, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
       {/* Gamepad icon */}
@@ -23,7 +25,7 @@ export function ControllerBattery({ player, level, charging }: { player?: number
       {/* Console-style slot from the backend controller registry */}
       {player != null && (
         <span style={{ fontSize: 14, color: 'var(--gc-ink-2)', fontWeight: 700, fontFamily: 'monospace' }}>
-          P{player}
+          {label(player)}
         </span>
       )}
       {/* Battery bar */}

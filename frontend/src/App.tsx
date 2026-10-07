@@ -13,6 +13,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import DefaultShell from './components/DefaultShell'
 import SessionBar from './components/SessionBar'
 import WhoIsPlaying from './components/WhoIsPlaying'
+import { usePlayerNames } from './lib/players'
 import { useTheme } from './hooks/useTheme'
 import { ThemeProvider, Shell } from './components/ThemeSurface'
 
@@ -79,6 +80,7 @@ export default function App() {
   useWebSocket()
   useGamepad()
   const theme = useTheme()
+  usePlayerNames()
 
   /**
    * The boot animation is decided once, and only once the theme has resolved.

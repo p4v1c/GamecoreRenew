@@ -20,13 +20,15 @@ const ASKED_KEY = 'gamecore-who-asked'
 export const shouldAskWhoIsPlaying = (s: ProfilesState | null): boolean =>
   !!s && Array.isArray(s.profiles) && s.profiles.length >= 2
 
-/** True the first time per interface start; storage errors count as first. */
-function firstAskThisStart(): boolean {
-  try {
-    if (sessionStorage.getItem(ASKED_KEY)) return false
-    sessionStorage.setItem(ASKED_KEY, '1')
-  } catch { /* private storage: ask, at worst again after a reload */ }
-  return true
+/** Already asked since the interface started; storage errors count as not. */
+function askedThisStart(): boolean {
+  try { return !!sessionStorage.getItem(ASKED_KEY) } catch { return false }
+}
+
+// Marked only once the list arrived: a backend still starting must not cost
+// the question for the whole run.
+function markAsked(): void {
+  try { sessionStorage.setItem(ASKED_KEY, '1') } catch { /* private storage: ask again after a reload */ }
 }
 
 interface ViewProps {
@@ -50,9 +52,10 @@ export default function WhoIsPlaying({ enabled }: { enabled: boolean }) {
   }, [])
 
   useEffect(() => {
-    if (!enabled || !firstAskThisStart()) return
+    if (!enabled || askedThisStart()) return
     api.profiles.list()
       .then((s) => {
+        markAsked()
         // An interface restarted under a running game must not cover it.
         if (shouldAskWhoIsPlaying(s) && !useStore.getState().sessionGameKey) setState(s)
       })
@@ -70,11 +73,14 @@ export default function WhoIsPlaying({ enabled }: { enabled: boolean }) {
   if (!state) return null
 
   const close = () => setState(null)
+  // Closed only once the switch is saved: closing first would leave the
+  // player believing they play as someone the backend never switched to.
   const pick = (id: string) => {
-    close()
-    if (id !== state.active) {
-      api.profiles.setActive(id).catch((e) => console.error('profiles: could not switch', e))
-    }
+    if (id === state.active) return close()
+    setMsg('')
+    api.profiles.setActive(id)
+      .then(close)
+      .catch((e) => setMsg(String(e?.message || 'Could not switch profile.')))
   }
   const add = (name: string) => {
     setAdding(false)

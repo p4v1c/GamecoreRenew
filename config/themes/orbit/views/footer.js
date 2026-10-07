@@ -26,7 +26,10 @@ export function createFooter(sdk, tabs) {
       apps: systems.filter(isApp).length, games: totals.games}
     listeners.forEach(fn => fn(counts))
   }
+  // Player 1 shows the active profile's name; a host without `sdk.players` says P1.
+  const usePadLabel = sdk.players?.useLabel ?? (() => (n) => `P${n}`)
   function Footer() {
+    const padLabel = usePadLabel()
     const [collection, setCollection] = useState(counts)
     const [info, setInfo] = useState(null)
     const {background} = sdk.session.use()
@@ -54,7 +57,7 @@ export function createFooter(sdk, tabs) {
         ${background.length ? html`<span><${PadKey} k=${labels['PS ×2'] || 'PS ×2'} /> Session</span>` : null}</div>
       <div className="status-bar" aria-label="Connected controllers and network">
         ${(info?.controllers || []).map((pad, i) => html`<span key=${i} className="topbar-pad" title=${pad.name || pad.label || 'Controller'}>
-          <b>P${pad.player ?? i + 1}</b>${Number.isFinite(pad.level) && pad.level >= 0 ? html`<span>${pad.level}%</span>` : null}</span>`)}
+          <b>${padLabel(pad.player ?? i + 1)}</b>${Number.isFinite(pad.level) && pad.level >= 0 ? html`<span>${pad.level}%</span>` : null}</span>`)}
         ${info?.ip ? html`<span className="topbar-ip">${info.ip}</span>` : null}
       </div>
     </footer>`

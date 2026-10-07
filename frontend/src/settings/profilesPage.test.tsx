@@ -9,10 +9,10 @@ import { createProfilesPage, savesLine } from '../settings/profiles'
 import { createRows } from '../settings/rows'
 import { createDialogs } from '../settings/dialog'
 
-const state = {
+let state = {
   active: 'a',
   profiles: [
-    { id: 'a', name: 'Player 1', color: '#b8501b', avatar: null, created: '', primary: true },
+    { id: 'a', name: 'Max', color: '#b8501b', avatar: null, created: '', primary: true },
     { id: 'b', name: 'Sam', color: '#127a6d', avatar: null, created: '', primary: false },
   ],
   palette: [{ color: '#b8501b', name: 'Ember' }, { color: '#127a6d', name: 'Teal' }],
@@ -22,8 +22,10 @@ let calls: { method: string; url: string; body?: unknown }[] = []
 
 afterEach(cleanup)
 
+const twoProfiles = state
 beforeEach(() => {
   calls = []
+  state = twoProfiles
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: { method?: string; body?: string }) => {
     const method = init?.method ?? 'GET'
     calls.push({ method, url: String(url), body: init?.body && JSON.parse(init.body) })
@@ -46,7 +48,7 @@ it('lists the profiles with the one playing now', async () => {
   await findByText('Sam')
   expect(container.textContent).toContain('Playing now')
   expect(container.textContent).toContain('2 profiles')
-  expect(container.querySelector('.gcs-row2-badge')?.textContent).toBe('P')
+  expect(container.querySelector('.gcs-row2-badge')?.textContent).toBe('M')
   expect(container.textContent).toContain('Separate saves per profile: Nintendo DS. Other systems share one save.')
 })
 
@@ -73,8 +75,8 @@ it('deletes only after a second press', async () => {
 
 it('offers no delete on the primary profile', async () => {
   const { findByText, queryByText } = page()
-  fireEvent.click(row(await findByText('Player 1')))
-  await findByText('Play as Player 1')
+  fireEvent.click(row(await findByText('Max')))
+  await findByText('Play as Max')
   expect(queryByText('Delete profile')).toBeNull()
 })
 
@@ -87,4 +89,21 @@ it('opens the keyboard to add a profile', async () => {
 it('says every save is shared when no system separates them', () => {
   expect(savesLine([])).toBe('Every system shares one save between profiles.')
   expect(savesLine(undefined)).toBe('Every system shares one save between profiles.')
+})
+
+it('starts profiles by naming the first one, keeping its saves', async () => {
+  state = { ...twoProfiles, profiles: [{ ...twoProfiles.profiles[0], name: '' }] }
+  const { findByText, queryByText, getByRole, container } = page()
+  fireEvent.click(row(await findByText('Set up profiles')))
+  expect(container.textContent).toContain('No profiles')
+  expect(container.textContent).toContain('keeps the saves already on this console')
+  expect(queryByText('Add profile')).toBeNull()
+  expect(getByRole('dialog').textContent).toContain('First profile')
+})
+
+it('says a deleted profile’s saves are kept but out of reach', async () => {
+  const { findByText, container } = page()
+  fireEvent.click(row(await findByText('Sam')))
+  await findByText('Delete profile')
+  expect(container.textContent).toContain('Sam’s saves are kept on the console, but no profile opens them again.')
 })

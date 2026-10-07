@@ -347,14 +347,18 @@ Open Settings from the top-right icon or press **Start** on the controller.
 - **System** — reboot / shutdown
 - **Profiles** — who plays on this box: add, rename, recolour, delete, switch
 
-**Profiles.** A box starts with one profile, "Player 1", and behaves exactly
-as before. Add a second one in **Settings → Profiles** and the console asks
-"Who's playing?" each time the interface starts; **○** keeps the last one. A
-profile is a name and a colour. Nintendo DS saves follow the profile playing
-(player 1): "Player 1" keeps the saves the box already had, beside the ROMs,
-and every other profile starts its own. Settings → Profiles lists the systems
-that do this; on the others, and for favourites and playtime, the whole box
-shares one. Deleting a profile keeps its saves on disk.
+**Profiles.** A box starts with no profiles and behaves exactly as before:
+controllers are P1 to P4. **Settings → Profiles → Set up profiles** names the
+first one, which keeps the saves the box already had, beside the ROMs; from
+then on player 1 is shown by the name of the profile playing (status bar,
+controller screen, notifications), and others can be added. With two or more,
+the console asks "Who's playing?" each time the interface starts; **○** keeps
+the last one. A profile is a name and a colour. Nintendo DS saves follow the
+profile playing (player 1): every profile but the first starts its own.
+Settings → Profiles lists the systems that do this; on the others, and for
+favourites and playtime, the whole box shares one. The profile cannot change
+while a game is open or suspended: close it first. Deleting a profile keeps
+its saves on disk, but no profile opens them again.
 
 **Logs.** Each game launch keeps the emulator's output, and the backend keeps
 its own log, under `logs/` in the data folder (`/userdata/logs` on a box set up

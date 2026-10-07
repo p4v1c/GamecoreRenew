@@ -8,6 +8,11 @@ One JSON file, `<DATA>/config/profiles/profiles.json`:
 The `id` is random and never derived from the name: later work keys saves and
 controllers on it, and a rename must never move anything. `primary` marks the
 profile that owns everything the box held before profiles existed.
+
+The primary profile starts without a name, and an unnamed primary is "no
+profiles": the box shows players as P1-P4, as it did before. Naming it is how
+profiles start, the way a console's first account is set up: only then can
+others be added, and player 1 is shown by that name.
 """
 from __future__ import annotations
 
@@ -27,7 +32,9 @@ from .errors import ServiceError
 log = logging.getLogger(__name__)
 
 NAME_MAX = 20
-DEFAULT_NAME = "Player 1"
+# What the primary was called before it started unnamed: read as unnamed while
+# it is the only profile, since nobody chose it.
+LEGACY_DEFAULT_NAME = "Player 1"
 # Colour -> the name the UI shows. White initials read at >= 5:1 on every one.
 PALETTE = {"#b8501b": "Ember", "#127a6d": "Teal", "#2563a8": "Blue", "#3f7d20": "Green",
            "#b3261e": "Red", "#4b5563": "Slate", "#a3245c": "Rose", "#8a6a00": "Ochre"}
@@ -48,7 +55,7 @@ def _now() -> str:
 
 
 def _default_state() -> dict:
-    first = {"id": secrets.token_hex(8), "name": DEFAULT_NAME, "color": _FIRST_COLOR,
+    first = {"id": secrets.token_hex(8), "name": "", "color": _FIRST_COLOR,
              "avatar": None, "created": _now(), "primary": True}
     return {"active": first["id"], "profiles": [first]}
 
@@ -62,11 +69,14 @@ def _load() -> dict:
     f = _file()
     try:
         state = json.loads(f.read_text(encoding="utf-8"))
-        if state["profiles"]:
-            ids = [p["id"] for p in state["profiles"]]
-            if state.get("active") not in ids:
-                state["active"] = ids[0]
-            return state
+        if not state["profiles"]:
+            raise ValueError("no profile in the list")
+        ids = [p["id"] for p in state["profiles"]]
+        if state.get("active") not in ids:
+            state["active"] = ids[0]
+        if len(ids) == 1 and state["profiles"][0]["name"] == LEGACY_DEFAULT_NAME:
+            state["profiles"][0]["name"] = ""
+        return state
     except FileNotFoundError:
         pass
     except (OSError, ValueError, LookupError, TypeError) as e:
@@ -108,6 +118,27 @@ def _check_look(color: str | None, avatar: str | None) -> None:
         raise ServiceError(400, "Unknown avatar.")
 
 
+def _primary(state: dict) -> dict:
+    return next((p for p in state["profiles"] if p.get("primary")), state["profiles"][0])
+
+
+def _game_in_progress() -> str | None:
+    """The game on screen or suspended, or None. Apps do not count: they keep
+    no save that follows a profile."""
+    from .process_manager import process_manager
+    sessions = [process_manager.foreground_session, *process_manager.background_sessions]
+    game = next((s for s in sessions if s is not None and not s.is_app), None)
+    return (game.game_key or "a game") if game else None
+
+
+def _refuse_switch_mid_game() -> None:
+    # The emulator was pointed at the active profile's saves when it started,
+    # and a suspended game resumes without starting again: switching now would
+    # have the new profile play, and save, in the old one's game.
+    if game := _game_in_progress():
+        raise ServiceError(409, f"Close {game} before switching profile.")
+
+
 def list_profiles() -> dict:
     """`{"active": id, "profiles": [...], "palette": [{"color", "name"}]}`."""
     with _lock:
@@ -118,6 +149,8 @@ def list_profiles() -> dict:
 def create(name: str, color: str | None = None, avatar: str | None = None) -> dict:
     with _lock:
         state = _load()
+        if not _primary(state)["name"]:
+            raise ServiceError(409, "Name the first profile before adding another.")
         clean = _clean_name(state, name)
         _check_look(color, avatar)
         if color is None:
@@ -157,9 +190,11 @@ def delete(profile_id: str) -> dict:
         # ROMs and hide its own: the owner of the box's existing saves stays.
         if profile.get("primary"):
             raise ServiceError(409, f"{profile['name']} keeps the saves made before profiles and cannot be deleted.")
+        if state["active"] == profile_id:
+            _refuse_switch_mid_game()
         state["profiles"].remove(profile)
         if state["active"] == profile_id:
-            state["active"] = state["profiles"][0]["id"]
+            state["active"] = _primary(state)["id"]
         _save(state)
         return {"active": state["active"]}
 
@@ -174,6 +209,8 @@ def set_active(profile_id: str) -> dict:
     with _lock:
         state = _load()
         profile = _find(state, profile_id)
+        if profile_id != state["active"]:
+            _refuse_switch_mid_game()
         state["active"] = profile_id
         _save(state)
         return profile

@@ -158,6 +158,7 @@ and returns an unsubscribe.
 | `gp:guide` | `gamepad_monitor` | `action` (`backgrounded`, `home`, `failed`), `gesture` | double press: suspends a game; `home` (a pair begun in the interface) opens the session menu in `SessionBar` |
 | `standby:screensaver` / `standby:sleep` / `standby:exit` | `standby._enter()` / `exit_standby()` | — | drives `Screensaver` |
 | `theme:changed` | `routers/themes.py` | `active` | reloads the theme |
+| `profiles:changed` | `routers/profiles.py` | `active` (the active profile) | `frontend/src/lib/players.ts` sets `playerOneName`: player 1 is shown by that name |
 | `update:log` / `update:done` | `routers/update.py` | `line` / `success`, `code` | OTA progress |
 | `catalog:log` / `catalog:done` | `routers/catalog.py` | `line` / `action`, `id`, `success` | pack install/remove progress |
 | `catalog:updated` | `routers/catalog.py` | OTA summary | catalogue refreshed over the air |
@@ -197,7 +198,7 @@ and returns an unsubscribe.
 | `components/ui/index.tsx` | 144 | `Overlay`, `OverlayLabel`, `BackHeader`, `Toggle`, `SliderRow`, `Chip`, `Bars`, `hexToRgb`, `fmtTime`, `fmtDate` |
 | `components/ui/VirtualKeyboard.tsx` | 205 | on-screen keyboard (WiFi passwords, library search) |
 | `components/ui/Toasts.tsx` | 117 | top-right stack, `TOAST_MS = 10000` |
-| `components/WhoIsPlaying.tsx` | — | "Who's playing?" at start, drawn by the kernel over every shell (z 950, under the splash): asked once per interface start (sessionStorage survives a theme reload) when `shouldAskWhoIsPlaying()` (2+ profiles) and no game holds the screen; raises `modalDepth`; markup in `settings/whoIsPlaying.js`, built-in palette |
+| `components/WhoIsPlaying.tsx` | — | "Who's playing?" at start, drawn by the kernel over every shell (z 950, under the splash): asked once per interface start (sessionStorage survives a theme reload; marked only once the list arrived, so a backend still starting does not cost the question) when `shouldAskWhoIsPlaying()` (2+ profiles) and no game holds the screen; a pick closes it only once the switch is saved, a refusal (a game is open) is shown on it; raises `modalDepth`; markup in `settings/whoIsPlaying.js`, built-in palette |
 
 ### Settings pages — `components/modals/settings/`
 
@@ -283,7 +284,11 @@ called by `components/ErrorBoundary.tsx`) sends uncaught errors, rejected promis
 and render errors to `api.logs.ui`, 50 per page load at most.
 `api.profiles` (`list`, `create`, `update`, `remove`, `setActive`) lives in
 `api/profiles.ts`; its errors carry the backend's sentence (`sendDetailed` in
-`api/http.ts`). Settings → Profiles is `frontend/src/settings/profiles.js`, the
+`api/http.ts`). `frontend/src/lib/players.ts` names player slots (`playerLabel`, `playerTitle`,
+`controllerTitle`): player 1 is the active profile's name once the box has
+profiles (`store.playerOneName`, kept by `usePlayerNames()` in `App.tsx` and
+the `profiles:changed` event), `P<n>` otherwise; themes reach it as
+`sdk.players`. Settings → Profiles is `frontend/src/settings/profiles.js`, the
 tenth rail category every theme draws; its subtitle names the systems whose
 saves follow the profile (`separate_saves`, `savesLine()`).
 

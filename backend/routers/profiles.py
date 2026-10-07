@@ -2,6 +2,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from .. import ws
 from ..services import profile_saves, profiles
 from ..services.catalog import load_catalog
 
@@ -25,6 +26,11 @@ class ActiveProfile(BaseModel):
     id: str = Field(max_length=64)
 
 
+async def _changed() -> None:
+    # Player 1 is shown by the active profile's name: every write may change it.
+    await ws.broadcast("profiles:changed", {"active": profiles.active()})
+
+
 @router.get("/profiles")
 def list_profiles():
     return {**profiles.list_profiles(),
@@ -32,8 +38,10 @@ def list_profiles():
 
 
 @router.post("/profiles")
-def create_profile(body: NewProfile):
-    return profiles.create(body.name, body.color, body.avatar)
+async def create_profile(body: NewProfile):
+    made = profiles.create(body.name, body.color, body.avatar)
+    await _changed()
+    return made
 
 
 @router.get("/profiles/active")
@@ -42,16 +50,22 @@ def get_active_profile():
 
 
 @router.put("/profiles/active")
-def set_active_profile(body: ActiveProfile):
-    return profiles.set_active(body.id)
+async def set_active_profile(body: ActiveProfile):
+    profile = profiles.set_active(body.id)
+    await _changed()
+    return profile
 
 
 @router.patch("/profiles/{profile_id}")
-def update_profile(profile_id: str, body: ProfileEdit):
+async def update_profile(profile_id: str, body: ProfileEdit):
     # Only the fields the caller sent: `avatar: null` clears, absent keeps.
-    return profiles.update(profile_id, body.model_dump(exclude_unset=True))
+    profile = profiles.update(profile_id, body.model_dump(exclude_unset=True))
+    await _changed()
+    return profile
 
 
 @router.delete("/profiles/{profile_id}")
-def delete_profile(profile_id: str):
-    return profiles.delete(profile_id)
+async def delete_profile(profile_id: str):
+    out = profiles.delete(profile_id)
+    await _changed()
+    return out

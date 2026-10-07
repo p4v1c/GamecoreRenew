@@ -1,6 +1,6 @@
 /**
  * "Who's playing?" appears only with two profiles or more, once per start,
- * and a pick switches the active profile.
+ * and a pick switches the active profile, closing only once it did.
  */
 import { render, waitFor, fireEvent, act, cleanup } from '@testing-library/react'
 import { it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -46,11 +46,39 @@ it('waits for the boot, then asks once and switches on a pick', async () => {
   expect(useStore.getState().modalDepth).toBe(1)
   fireEvent.click((await findByText('Sam')).closest('button')!)
   await waitFor(() => expect(calls).toContainEqual(['PUT', '/api/profiles/active']))
-  expect(container.textContent).toBe('')
+  await waitFor(() => expect(container.textContent).toBe(''))
   expect(useStore.getState().modalDepth).toBe(0)
 
   // A theme switch reloads the page; the question is not asked again.
   const again = render(<WhoIsPlaying enabled />)
   await act(async () => {})
   expect(again.container.textContent).toBe('')
+})
+
+it('stays open and says why when the switch is refused', async () => {
+  serve([profile('a', 'Max'), profile('b', 'Sam')])
+  const fetchOk = globalThis.fetch as unknown as (u: string, i?: { method?: string }) => Promise<unknown>
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: { method?: string }) => {
+    if (init?.method === 'PUT') {
+      calls.push(['PUT', String(url)])
+      return { ok: false, status: 409, statusText: 'Conflict',
+        json: async () => ({ detail: 'Close mario.nds before switching profile.' }) }
+    }
+    return fetchOk(url, init)
+  }))
+  const { findByText } = render(<WhoIsPlaying enabled />)
+  fireEvent.click((await findByText('Sam')).closest('button')!)
+  expect(await findByText('Close mario.nds before switching profile.')).toBeTruthy()
+  expect(await findByText('Who’s playing?')).toBeTruthy()
+})
+
+it('asks again later when the profiles could not be read at start', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('backend starting') }))
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  render(<WhoIsPlaying enabled />)
+  await act(async () => {})
+  cleanup()
+  serve([profile('a', 'Max'), profile('b', 'Sam')])
+  const { findByText } = render(<WhoIsPlaying enabled />)
+  expect(await findByText('Who’s playing?')).toBeTruthy()
 })

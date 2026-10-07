@@ -52,6 +52,18 @@ def separate_systems(packs: dict) -> list[str]:
     return sorted(p.data.get("label", p.id) for p in packs.values() if mode(p))
 
 
+def _hook(system_id: str):
+    """(pack, place_saves, opts), or None for a pack that shares its saves."""
+    pack = load_catalog().get(system_id.lower())
+    if not mode(pack):
+        return None
+    hook = getattr(configgen.load_generator(pack), "place_saves", None)
+    opts = configgen.generator_opts(pack, configgen.HOME, configgen.SNAP_DIR)
+    if hook is None or opts is None:
+        raise ServiceError(500, f"{pack.id} declares profileSaves but cannot place them.")
+    return pack, hook, opts
+
+
 def place(system_id: str) -> list[Path | None] | None:
     """Point the pack at the active profile's folders before the spawn.
 
@@ -59,14 +71,19 @@ def place(system_id: str) -> list[Path | None] | None:
     Raises when the pack opted in but could not be told: launching then
     would write one profile's progress into another's save.
     """
-    pack = load_catalog().get(system_id.lower())
-    save_mode = mode(pack)
-    if not save_mode:
+    found = _hook(system_id)
+    if found is None:
         return None
-    hook = getattr(configgen.load_generator(pack), "place_saves", None)
-    opts = configgen.generator_opts(pack, configgen.HOME, configgen.SNAP_DIR)
-    if hook is None or opts is None:
-        raise ServiceError(500, f"{pack.id} declares profileSaves but cannot place them.")
-    dirs = player_dirs([profiles.active()], system_id, save_mode)
+    pack, hook, opts = found
+    dirs = player_dirs([profiles.active()], system_id, mode(pack))
     hook(dirs=dirs, root=paths.profile_saves_dir(), opts=opts)
     return dirs
+
+
+def release(system_id: str) -> None:
+    """After the game: every player back on the emulator's default paths, so
+    the emulator started outside GameCore saves where it always did."""
+    found = _hook(system_id)
+    if found is not None:
+        _pack, hook, opts = found
+        hook(dirs=[None] * MAX_PLAYERS, root=paths.profile_saves_dir(), opts=opts)

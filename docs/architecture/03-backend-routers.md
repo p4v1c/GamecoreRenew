@@ -395,12 +395,12 @@ error line in `logs/ui/ui.log`. Logic in `services/logs.py`.
 | Route | Does |
 |---|---|
 | `GET /profiles` | `{active, profiles, palette, separate_saves}`; the first call creates the primary profile. `separate_saves`: labels of the systems whose saves follow the profile (`profile_saves.separate_systems`) |
-| `POST /profiles` `{name, color?, avatar?}` | a new profile; 400 on a bad name, colour or avatar, 409 on a name taken |
+| `POST /profiles` `{name, color?, avatar?}` | a new profile; 400 on a bad name, colour or avatar, 409 on a name taken or while the primary profile has no name |
 | `PATCH /profiles/{id}` `{name?, color?, avatar?}` | rename, recolour; the id never changes |
 | `DELETE /profiles/{id}` | the record only, saves stay on disk → `{active}`; 409 on the last profile |
-| `GET /profiles/active`, `PUT /profiles/active` `{id}` | the profile the interface is used as |
+| `GET /profiles/active`, `PUT /profiles/active` `{id}` | the profile the interface is used as; 409 while a game is on screen or suspended |
 
-Logic in `services/profiles.py`.
+Every write broadcasts `profiles:changed` `{active}`. Logic in `services/profiles.py`.
 
 ### `storage.py` — external disks
 

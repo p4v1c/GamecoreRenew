@@ -5,6 +5,9 @@
  * profile"), and one profile's rows (play as, rename, colour, delete). ○ on a
  * profile goes back to the list. Names come from the host's on-screen keyboard.
  * Delete takes two presses, like the logs purge.
+ *
+ * A box whose only profile has no name has no profiles yet: the list is one
+ * row that names it, and only then can others be added.
  */
 import { asList } from './list.js'
 
@@ -35,6 +38,7 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
 
     const list = asList(state && state.profiles)
     const palette = asList(state && state.palette)
+    const unnamed = list.length === 1 && !list[0].name ? list[0] : null
     const current = list.find((p) => p.id === editing) || null
     const badge = (p) => ({ color: p.color, text: initial(p.name) })
     // Every write answers with the sentence to show; the list is re-read after.
@@ -42,7 +46,13 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
       .then((r) => { setMsg(done(r)); return load() })
       .catch((e) => setMsg(String((e && e.message) || 'Could not save that.')))
 
-    const listRows = [
+    const listRows = unnamed ? [
+      {
+        id: 'start', type: 'action', label: 'Set up profiles',
+        desc: 'Name the first profile. It keeps the saves already on this console.',
+        label2: 'Start',
+      },
+    ] : [
       ...list.map((p) => ({
         id: p.id, type: 'action', label: p.name, badge: badge(p),
         desc: p.id === state.active ? 'Playing now' : '',
@@ -66,7 +76,9 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
       // The primary profile owns the saves made before profiles: never deleted.
       ...(!current.primary ? [{
         id: 'delete', type: 'action', label: 'Delete profile',
-        desc: 'Only the profile. Games and saves stay on the box.',
+        // Honest about where the saves go: kept on disk, but a new profile,
+        // even with the same name, starts again.
+        desc: `Games stay. ${current.name}’s saves are kept on the console, but no profile opens them again.`,
         // Verbatim: `label2` would be lower-cased and eat the capital of the name.
         label2: `Delete ${current.name}`, confirmText: `Press again to delete ${current.name}`,
         danger: true, confirm: true,
@@ -75,7 +87,8 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
 
     const onAct = (id) => {
       if (!current) {
-        if (id === 'add') setNaming('new')
+        if (id === 'start') setNaming(unnamed.id)
+        else if (id === 'add') setNaming('new')
         else { setEditing(id); setMsg('') }
         return
       }
@@ -101,12 +114,15 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
       if (target === 'new') {
         run(sdk.api.profiles.create({ name: raw }), (p) => `${p.name} added.`)
       } else {
-        run(sdk.api.profiles.update(target, { name: raw }), (p) => `Renamed to ${p.name}.`)
+        const first = unnamed && unnamed.id === target
+        run(sdk.api.profiles.update(target, { name: raw }),
+          (p) => (first ? `${p.name} is set up. Add the others below.` : `Renamed to ${p.name}.`))
       }
     }
 
     const back = () => { setEditing(null); setMsg('') }
     const named = naming && naming !== 'new' ? list.find((p) => p.id === naming) : null
+    const dialogTitle = !named ? 'New profile' : named.name ? `Rename ${named.name}` : 'First profile'
 
     return html`
       <${React.Fragment}>
@@ -116,14 +132,14 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
         onLeave=${current ? back : onLeave} onLeft=${current ? back : onLeft}
         onSet=${onSet} onAct=${onAct}
         title=${current ? current.name : 'Profiles'}
-        state=${current ? '' : list.length === 1 ? '1 profile' : `${list.length} profiles`}
+        state=${current ? '' : unnamed ? 'No profiles' : list.length === 1 ? '1 profile' : `${list.length} profiles`}
         sub=${current
           ? 'Rename, recolour or delete this profile.'
           : `Who plays on this box. With two or more, the console asks who is playing when it starts. ${savesLine(state && state.separate_saves)}`}
         aside=${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null} />
 
       ${naming ? html`
-        <${Dialog} kicker="Profile" title=${named ? `Rename ${named.name}` : 'New profile'}
+        <${Dialog} kicker="Profile" title=${dialogTitle}
                    wide=${true} ownsInput=${true} onCancel=${() => setNaming(null)}>
           <div class="gcs-set-kb">
             <${Keyboard} title="" placeholder="Name" initialValue=${named ? named.name : ''}

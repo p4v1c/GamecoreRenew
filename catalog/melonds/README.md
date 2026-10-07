@@ -84,7 +84,7 @@ the solo launch, unchanged. Architecture and the reasons:
 playing. `place_saves` in `generator.py` runs before every launch, solo or
 multiplayer, and writes `[Instance0] SaveFilePath` and `SavestatePath`:
 
-- the primary profile ("Player 1" on most boxes): left as they are, empty =
+- the primary profile (the first one, named in Settings → Profiles): left as they are, empty =
   next to the ROM, where every save from before profiles lives. A path under
   `emu/profile-saves/` left by another profile's launch is emptied (melonDS
   writes its config back on exit); a path you set yourself stays;
@@ -95,4 +95,6 @@ multiplayer, and writes `[Instance0] SaveFilePath` and `SavestatePath`:
 Players 2-4 in local multiplayer keep `<rom>.sav.N` beside the ROM until pads
 carry profiles. The flatpak sees the folder because it has `/userdata` and
 the install directory. A non-primary launch with no `melonDS.toml` yet is
-refused rather than saving into the primary's file.
+refused rather than saving into the primary's file. When the game ends both
+paths go back to the defaults (`profile_saves.release`), so melonDS started
+from Desktop Mode saves beside the ROM.

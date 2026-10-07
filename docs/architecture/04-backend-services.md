@@ -931,13 +931,13 @@ atomically.
 
 | Function | Does |
 |---|---|
-| `list_profiles()` | the state plus `PALETTE`; with no file, creates one primary profile ("Player 1") that owns everything the box held before profiles |
-| `create(name, color, avatar)` | trims the name, refuses empty, over `NAME_MAX`, non-printable, or taken (case-insensitive); colour from `PALETTE` (default: the first unused), avatar from `AVATARS` (empty: no art ships yet) |
+| `list_profiles()` | the state plus `PALETTE`; with no file, creates one unnamed primary profile that owns everything the box held before profiles. Unnamed = no profiles yet |
+| `create(name, color, avatar)` | refuses (409) while the primary is unnamed; trims the name, refuses empty, over `NAME_MAX`, non-printable, or taken (case-insensitive); colour from `PALETTE` (default: the first unused), avatar from `AVATARS` (empty: no art ships yet) |
 | `update(id, fields)` | the same checks; the id never changes, so nothing keyed on it moves |
-| `delete(id)` | the record only (its saves folder stays on disk); refuses the last profile and the primary one (it owns the saves beside the ROMs); `active` passes to the oldest profile left |
-| `active()`, `set_active(id)` | the profile the interface is used as |
+| `delete(id)` | the record only (its saves folder stays on disk); refuses the last profile and the primary one (it owns the saves beside the ROMs); `active` passes to the primary |
+| `active()`, `set_active(id)` | the profile the interface is used as. A switch, or deleting the active profile, is refused (409) while a game is on screen or suspended: a suspended game resumes without its saves being placed again, so the new profile would play in the old one's save |
 
-A file that does not parse is renamed `profiles.json.broken-<time>` and a fresh
+A file that does not parse, or lists no profile, is renamed `profiles.json.broken-<time>` and a fresh
 primary profile is created: the old one stays readable for a repair by hand.
 Favourites, recently played and playtime are not per profile yet.
 
@@ -953,6 +953,7 @@ At launch the active profile is player 1.
 | `save_dir(profile_id, system_id)` | `paths.profile_saves_dir()/<id>/<system>/`; refuses an id that is not alphanumeric (`profiles.json` is hand-editable) |
 | `player_dirs(players, system_id, mode)` | one entry per slot (4): the profile's folder, created on demand, or None for the primary profile, no profile, and players 2-4 in `p1` mode |
 | `place(system_id)` | calls the pack's `place_saves(dirs, root, opts)` with `player_dirs([active profile])`; raises when a declared pack has no hook or no config dir |
+| `release(system_id)` | the same hook with every slot None, once the game has exited (`process_manager`, before the slot is freed so no launch can slip in between): the emulator started outside GameCore saves where it always did |
 | `separate_systems(packs)` | labels of the packs that declare a mode, for `GET /profiles` |
 
 Never moves, copies or deletes a save: only the emulator's options change.

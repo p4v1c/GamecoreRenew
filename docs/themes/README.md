@@ -622,13 +622,21 @@ The props a view gets, new in SDK 9:
 written before SDK 9 (`layout` is always `'generic'`). The drawing is by
 position, so there is no family to pick any more.
 
-## 5i. Profiles — nothing to write, one thing to check
+## 5i. Profiles — one name to draw, one thing to check
+
+**Player labels.** Once the box has profiles, player 1 is the profile playing
+and is shown by its name, never "P1". Wherever a theme writes a player number,
+it draws `sdk.players.useLabel()(n)` instead: `"Max"` for player 1 on a box
+with profiles, `"P2"`, and `"P1"` on a box without. `sdk.players.label(n)` is
+the one-shot read for a handler. A theme that must load on an older host guards
+it: `const usePadLabel = sdk.players?.useLabel ?? (() => (n) => \`P${n}\`)`,
+as the four shipped themes do in their status bars.
 
 **"Who's playing?"** (2+ profiles, once per interface start) is drawn by the
 host over your shell, in the built-in palette, from
 `frontend/src/components/WhoIsPlaying.tsx`. It raises `modalDepth` while it is
 up, so a theme that already pauses its pad handlers on `modalDepth` (§5f) needs
-nothing. No SDK change.
+nothing.
 
 **Settings → Profiles** is the tenth category of the shared settings screen
 (`frontend/src/settings/profiles.js`), drawn with the same `gcs-row2` rows as

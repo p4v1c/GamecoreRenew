@@ -20,7 +20,10 @@ export const createTopBar = (sdk) => {
   const { html, useState, useEffect } = sdk.ui
   const Glyph = sdk.ui.Glyph || (() => null)
 
+  // Player 1 shows the active profile's name; a host without `sdk.players` says P1.
+  const usePadLabel = sdk.players?.useLabel ?? (() => (n) => `P${n}`)
   return ({ onSettings, onPower }) => {
+    const padLabel = usePadLabel()
     const [info, setInfo] = useState(null)
     const [clock, setClock] = useState('')
     const [system, setSystem] = useState(null)
@@ -79,7 +82,7 @@ export const createTopBar = (sdk) => {
             const low = n <= 1
             return html`
               <span key=${i} class="cz-pad" data-low=${low ? '1' : '0'} title=${`${p.level}%`}>
-                <b>P${p.player ?? i + 1}</b>
+                <b>${padLabel(p.player ?? i + 1)}</b>
                 <span class="cz-bat">
                   ${Array.from({ length: SEGMENTS }, (_, k) => html`
                     <i key=${k} data-fill=${k < n ? '1' : '0'} />`)}

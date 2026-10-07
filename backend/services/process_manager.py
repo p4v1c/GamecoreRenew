@@ -819,6 +819,7 @@ class ProcessManager:
         except (OSError, ProcessLookupError):
             pass
 
+        _release_profile_saves(target)
         self._sessions = [s for s in self._sessions if s is not target]
         self._save_state()
         self._publish()
@@ -883,6 +884,7 @@ class ProcessManager:
         await session.proc.wait()
         elapsed = session.played_secs(time.time())
 
+        _release_profile_saves(session)
         # Only the slot that still holds this session may be cleared by it.
         if session in self._sessions:
             self._sessions = [s for s in self._sessions if s is not session]
@@ -918,6 +920,23 @@ class ProcessManager:
             })
         except Exception:
             log.exception("_watch: failed to broadcast game:finished")
+
+
+def _release_profile_saves(session: Session) -> None:
+    """Hand the emulator's save paths back to its defaults once it has exited.
+
+    It wrote the active profile's folder back into its config on the way out,
+    so a launch from Desktop Mode would otherwise save into that profile.
+    Synchronous, and before the slot is freed: awaited, a launch of the same
+    emulator could place its saves in between and have them reset here.
+    """
+    if session.is_app or not session.system_id:
+        return
+    from . import profile_saves
+    try:
+        profile_saves.release(session.system_id)
+    except Exception:
+        log.exception("profile saves: could not release %s", session.system_id)
 
 
 def _as_float(value) -> float:

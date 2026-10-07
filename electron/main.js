@@ -398,12 +398,15 @@ function showHudToast({ icon = 'gamepad', title = '', body = '', accent = '#fbbf
   }, HUD_TOAST_MS)
 }
 
-function showBatteryToast({ level = 0, player = null, theme } = {}) {
+// `who` comes from the renderer, which knows the active profile's name.
+const padTitle = (who, player) => (typeof who === 'string' && who) || (player ? `Controller ${player}` : 'Controller')
+
+function showBatteryToast({ level = 0, player = null, who = '', theme } = {}) {
   if (typeof level !== 'number' || !Number.isFinite(level) || level < 0 || level > 100) return
   const stage = hudContract.battery.find(s => level <= s.threshold) || hudContract.battery.at(-1)
-  const who = player ? `Controller ${player}` : 'Controller'
+  const title = padTitle(who, player)
   showHudToast({
-    icon: 'gamepad', title: `${who} battery at ${Math.round(level)}%`,
+    icon: 'gamepad', title: `${title} battery at ${Math.round(level)}%`,
     body: stage.message, accent: stage.color, theme, tone: `battery-${stage.threshold}`,
   })
 }
@@ -412,7 +415,7 @@ ipcMain.on('notify:battery', (_, data) => showBatteryToast(data || {}))
 
 ipcMain.on('notify:controller', (_, data) => {
   const d = data || {}
-  const who = d.player ? `Controller ${d.player}` : 'Controller'
+  const who = padTitle(d.who, d.player)
 
   // Systems this pad was NOT configured for. A pad can be recognised and still
   // be left out of one emulator, and until this branch existed that arrived as

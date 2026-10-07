@@ -72,6 +72,7 @@ def _fake_pack(monkeypatch, hook_module, declared="per-instance", target=None):
 def test_place_hands_the_active_profile_folder_to_the_pack(data, monkeypatch):
     seen = {}
     _fake_pack(monkeypatch, types.SimpleNamespace(place_saves=lambda **kw: seen.update(kw)))
+    profiles.update(profiles.active()["id"], {"name": "Max"})
     sam = profiles.create("Sam")
     profiles.set_active(sam["id"])
     dirs = profile_saves.place("testpack")
@@ -125,3 +126,20 @@ def test_every_pack_that_separates_saves_can_place_them():
 
 def test_settings_learn_which_systems_separate_saves():
     assert "Nintendo DS" in profile_saves.separate_systems(load_catalog())
+
+
+def test_release_hands_every_player_back_to_the_default(data, monkeypatch):
+    """After the game, so the emulator started from Desktop Mode saves where it always did."""
+    seen = {}
+    _fake_pack(monkeypatch, types.SimpleNamespace(place_saves=lambda **kw: seen.update(kw)))
+    profile_saves.release("testpack")
+    assert seen["dirs"] == [None] * configgen.MAX_PLAYERS
+
+
+def test_the_end_of_a_game_releases_its_saves(monkeypatch):
+    from backend.services import process_manager as pm
+    released = []
+    monkeypatch.setattr(profile_saves, "release", released.append)
+    pm._release_profile_saves(pm.Session(game_key="mario.nds", system_id="melonds"))
+    pm._release_profile_saves(pm.Session(game_key="stremio", system_id="stremio"))
+    assert released == ["melonds"], "an app keeps no profile save"

@@ -17,7 +17,10 @@ const segsFor = (level) => Math.max(0, Math.min(SEGMENTS, Math.ceil((level || 0)
 export const createTopBar = (sdk) => {
   const { html, useState, useEffect } = sdk.ui
   const Glyph = sdk.ui.Glyph || (() => null)
+  // Player 1 shows the active profile's name; a host without `sdk.players` says P1.
+  const usePadLabel = sdk.players?.useLabel ?? (() => (n) => `P${n}`)
   return ({ onSettings, onPower }) => {
+    const padLabel = usePadLabel()
     const [info, setInfo] = useState(null)
     const [clock, setClock] = useState('')
     const [tod, setTod] = useState(() => currentTod().tod)
@@ -62,7 +65,7 @@ export const createTopBar = (sdk) => {
             const low = n <= 1
             return html`
               <div key=${i} class="sm-chip sm-pad" data-low=${low ? '1' : '0'}>
-                <span class="sm-pad-n">P${p.player ?? i + 1}</span>
+                <span class="sm-pad-n">${padLabel(p.player ?? i + 1)}</span>
                 <span class="sm-pad-glyph" aria-hidden="true">
                   <svg viewBox="0 0 24 16" width="20" height="14">
                     <path d="M7 3.2h10a5 5 0 0 1 4.8 6.4l-.9 3A2.6 2.6 0 0 1 16.6 13L15 11H9l-1.6 2a2.6 2.6 0 0 1-4.3-.4l-.9-3A5 5 0 0 1 7 3.2Z"

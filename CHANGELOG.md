@@ -23,14 +23,19 @@ are the auto-incremented tags.
 
 - **Profiles.** Settings → Profiles adds, renames, recolours and deletes the
   people who play on the box. With two or more, "Who's playing?" opens when
-  the interface starts. A box with one profile (the default "Player 1",
-  created on first start in `config/profiles/`) looks exactly as before.
+  the interface starts. A box starts with one unnamed profile (created on
+  first start in `config/profiles/`) and looks exactly as before; naming it
+  ("Set up profiles") starts profiles, and player 1 is then shown by the
+  active profile's name instead of P1 in every theme, the controller screen
+  and notifications (`sdk.players`, `profiles:changed`). The profile cannot
+  change while a game is open or suspended.
 - **Saves per profile.** A pack opts in with `profileSaves` in pack.json and a
   `place_saves` hook in generator.py; melonDS does (`per-instance`). A
   profile other than the primary one keeps its saves in
   `emu/profile-saves/<profile id>/<system>/`; the primary profile keeps every
   existing save where it is, and nothing is moved. Players 2-4 are unchanged
-  until pads carry profiles.
+  until pads carry profiles. When the game ends the emulator's save paths are
+  put back, so melonDS started from Desktop Mode saves beside the ROM.
 
 - **Logs you can read without a terminal.** Each launch keeps the emulator's
   output and the backend writes its log under `<data>/logs/`, capped in size:

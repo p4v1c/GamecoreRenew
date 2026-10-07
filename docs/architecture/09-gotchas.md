@@ -83,8 +83,15 @@ its whole config back on exit, so `[Instance0] SaveFilePath` still names the
 last profile's folder (`emu/profile-saves/`) when the next person launches.
 `place_saves` therefore runs on **every** launch and empties a path under that
 root for the primary profile; skipping it "because nothing changed" puts the
-owner's progress in someone else's save. Launching melonDS outside GameCore
-after a non-primary profile played uses that profile's folder.
+owner's progress in someone else's save. `profile_saves.release` puts the
+defaults back when the game exits, so melonDS started outside GameCore saves
+beside the ROM. It runs synchronously before the session's slot is freed:
+awaited, a new launch could place its saves in between and see them reset.
+
+**A suspended game is not relaunched, so its saves are not placed again.**
+Switching profile while one is held would have the new profile resume the old
+one's game and save into it. `profiles.set_active` refuses while a game is on
+screen or suspended (apps do not count).
 ([10](10-catalog-and-install.md#profilesaves--saves-per-profile))
 
 ## Backend wiring

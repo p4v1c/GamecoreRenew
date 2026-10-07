@@ -552,7 +552,10 @@ random hex digits and never derived from the name, so a rename moves nothing.
 `primary` marks the profile that owns what the box held before profiles, and
 keeps today's save locations; other profiles' saves go to
 `emu/profile-saves/<id>/` ([Assets](#assets)). Created
-with one "Player 1" on first read. Schema and checks:
+with one unnamed primary profile on first read: unnamed means "no profiles"
+(players shown as P1-P4), and no other profile can be added until it has a
+name. A lone primary still called "Player 1" (the old default) reads as
+unnamed. Schema and checks:
 [`profiles.py`](04-backend-services.md#profilespy--who-plays-on-this-box).
 
 ## `config/session.json`
