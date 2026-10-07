@@ -114,3 +114,14 @@ def test_the_schema_takes_the_implemented_modes_only():
     assert validate(pack, schema) == []
     for mode in ("per-slot", "native-users", "everything"):
         assert validate({**pack, "profileSaves": mode}, schema)
+
+
+def test_every_pack_that_separates_saves_can_place_them():
+    declared = [p for p in load_catalog().values() if profile_saves.mode(p)]
+    assert declared, "melonDS declares per-instance"
+    for pack in declared:
+        assert hasattr(configgen.load_generator(pack), "place_saves"), pack.id
+
+
+def test_settings_learn_which_systems_separate_saves():
+    assert "Nintendo DS" in profile_saves.separate_systems(load_catalog())

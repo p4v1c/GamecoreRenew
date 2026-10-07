@@ -142,3 +142,8 @@ def test_api_patch_without_name_keeps_it(client):
     sam = client.post("/api/profiles", json={"name": "Sam"}).json()
     r = client.patch(f"/api/profiles/{sam['id']}", json={"name": None, "color": list(profiles.PALETTE)[4]})
     assert r.json()["name"] == "Sam" and r.json()["color"] == list(profiles.PALETTE)[4]
+
+
+def test_the_list_says_which_systems_keep_saves_per_profile(client):
+    body = client.get("/api/profiles").json()
+    assert "Nintendo DS" in body["separate_saves"]

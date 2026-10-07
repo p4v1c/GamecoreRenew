@@ -78,6 +78,15 @@ reads `~/.var/app/<id>/config/…`, not `~/.config/…`. Both trees usually
 exist, and editing the native one changes nothing
 ([07-config-and-data.md](07-config-and-data.md)).
 
+**A per-profile save path outlives the launch that wrote it.** melonDS writes
+its whole config back on exit, so `[Instance0] SaveFilePath` still names the
+last profile's folder (`emu/profile-saves/`) when the next person launches.
+`place_saves` therefore runs on **every** launch and empties a path under that
+root for the primary profile; skipping it "because nothing changed" puts the
+owner's progress in someone else's save. Launching melonDS outside GameCore
+after a non-primary profile played uses that profile's folder.
+([10](10-catalog-and-install.md#profilesaves--saves-per-profile))
+
 ## Backend wiring
 
 **`/ws` must stay registered before the `/` static mount.**
