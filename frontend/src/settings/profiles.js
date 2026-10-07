@@ -63,7 +63,8 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
         id: 'color', type: 'value', label: 'Colour', value: colorIdx,
         options: palette.map((c) => c.name), badge: { color: current.color, text: '' },
       },
-      ...(list.length > 1 ? [{
+      // The primary profile owns the saves made before profiles: never deleted.
+      ...(!current.primary ? [{
         id: 'delete', type: 'action', label: 'Delete profile',
         desc: 'Only the profile. Games and saves stay on the box.',
         // Verbatim: `label2` would be lower-cased and eat the capital of the name.

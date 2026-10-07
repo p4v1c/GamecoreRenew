@@ -934,7 +934,7 @@ atomically.
 | `list_profiles()` | the state plus `PALETTE`; with no file, creates one primary profile ("Player 1") that owns everything the box held before profiles |
 | `create(name, color, avatar)` | trims the name, refuses empty, over `NAME_MAX`, non-printable, or taken (case-insensitive); colour from `PALETTE` (default: the first unused), avatar from `AVATARS` (empty: no art ships yet) |
 | `update(id, fields)` | the same checks; the id never changes, so nothing keyed on it moves |
-| `delete(id)` | the record only (its saves folder stays on disk); refuses the last profile; `primary` and `active` pass to the oldest profile left |
+| `delete(id)` | the record only (its saves folder stays on disk); refuses the last profile and the primary one (it owns the saves beside the ROMs); `active` passes to the oldest profile left |
 | `active()`, `set_active(id)` | the profile the interface is used as |
 
 A file that does not parse is renamed `profiles.json.broken-<time>` and a fresh

@@ -81,12 +81,21 @@ def test_the_last_profile_cannot_be_deleted(store):
     assert e.value.status == 409
 
 
-def test_deleting_primary_and_active_hands_both_on(store):
+def test_the_primary_profile_cannot_be_deleted(store):
+    """It owns the saves beside the ROMs: handing that on would swap saves."""
     first = profiles.active()
-    other = profiles.create("Sam")
-    assert profiles.delete(first["id"])["active"] == other["id"]
-    (left,) = profiles.list_profiles()["profiles"]
-    assert left["primary"] is True
+    profiles.create("Sam")
+    with pytest.raises(ServiceError) as e:
+        profiles.delete(first["id"])
+    assert e.value.status == 409
+    assert len(profiles.list_profiles()["profiles"]) == 2
+
+
+def test_deleting_the_active_profile_hands_active_to_the_primary(store):
+    sam = profiles.create("Sam")
+    profiles.set_active(sam["id"])
+    assert profiles.delete(sam["id"])["active"] == profiles.list_profiles()["profiles"][0]["id"]
+    assert profiles.active()["primary"] is True
 
 
 def test_a_failed_write_leaves_the_old_file(store, monkeypatch):

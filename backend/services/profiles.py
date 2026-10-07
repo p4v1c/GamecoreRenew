@@ -153,10 +153,11 @@ def delete(profile_id: str) -> dict:
         profile = _find(state, profile_id)
         if len(state["profiles"]) == 1:
             raise ServiceError(409, "The last profile cannot be deleted.")
-        state["profiles"].remove(profile)
-        # The box's existing data needs an owner; the oldest profile left takes it.
+        # Handing `primary` on would give another profile the saves beside the
+        # ROMs and hide its own: the owner of the box's existing saves stays.
         if profile.get("primary"):
-            state["profiles"][0]["primary"] = True
+            raise ServiceError(409, f"{profile['name']} keeps the saves made before profiles and cannot be deleted.")
+        state["profiles"].remove(profile)
         if state["active"] == profile_id:
             state["active"] = state["profiles"][0]["id"]
         _save(state)

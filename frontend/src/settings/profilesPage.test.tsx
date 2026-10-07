@@ -71,6 +71,13 @@ it('deletes only after a second press', async () => {
   await waitFor(() => expect(container.textContent).toContain('Sam deleted.'))
 })
 
+it('offers no delete on the primary profile', async () => {
+  const { findByText, queryByText } = page()
+  fireEvent.click(row(await findByText('Player 1')))
+  await findByText('Play as Player 1')
+  expect(queryByText('Delete profile')).toBeNull()
+})
+
 it('opens the keyboard to add a profile', async () => {
   const { findByText, getByRole } = page()
   fireEvent.click(row(await findByText('Add profile')))
