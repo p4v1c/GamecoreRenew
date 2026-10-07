@@ -31,6 +31,7 @@ def wardrobe(monkeypatch):
         return theme_id
 
     monkeypatch.setattr(themes, "get_active", lambda: worn.on)
+    monkeypatch.setattr(themes, "shipped", lambda: "shelf")
     monkeypatch.setattr(themes, "check", check)
     monkeypatch.setattr(themes, "set_active", set_active)
     return worn
@@ -290,12 +291,32 @@ def test_switching_puts_on_the_theme_the_profile_wore(client, wardrobe):
     assert wardrobe.on == "orbit"
 
 
-def test_a_profile_from_before_themes_keeps_the_one_on_screen(client, wardrobe):
+def test_a_theme_picked_by_one_profile_never_lands_on_another(client, wardrobe):
+    """Max picks Jelly in Settings → Themes; Sam, who never picked one, used
+    to be handed Jelly for good at the first switch."""
+    max_id = profiles.active()["id"]
     sam = profiles.create("Sam")
+    profiles.remember_theme("jelly")
     wardrobe.on = "jelly"
     client.put("/api/profiles/active", json={"id": sam["id"]})
+    assert wardrobe.on == "shelf" and profiles.active()["theme"] == "shelf"
+    client.put("/api/profiles/active", json={"id": max_id})
     assert wardrobe.on == "jelly"
-    assert profiles.active()["theme"] == "jelly"
+
+
+def test_a_profile_saved_without_a_theme_gets_the_out_of_box_look(client, store, wardrobe):
+    """Profiles made before this fix have no `theme`: the one leaving keeps
+    what it wore, the one arriving gets the look a new box shows."""
+    sam = profiles.create("Sam")
+    state = json.loads(store.read_text())
+    for p in state["profiles"]:
+        p.pop("theme", None)
+    store.write_text(json.dumps(state))
+    wardrobe.on = "jelly"
+    client.put("/api/profiles/active", json={"id": sam["id"]})
+    assert wardrobe.on == "shelf"
+    by_name = {p["name"]: p for p in profiles.list_profiles()["profiles"]}
+    assert by_name["Max"]["theme"] == "jelly" and by_name["Sam"]["theme"] == "shelf"
 
 
 def test_a_theme_is_remembered_only_once_profiles_exist(store):

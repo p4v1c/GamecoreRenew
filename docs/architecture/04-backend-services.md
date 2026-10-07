@@ -82,6 +82,10 @@ reason in `warnings` — the UI needs to say *why*, not just refuse. That rule i
 the one users feel: it is what makes a theme all-or-nothing, so there is never a
 half-dressed UI.
 
+`get_active()` is the box's choice (`config/theme.json`); with no file it falls
+back to `shipped()`: `SHIPPED_DEFAULT` when it loads, else the built-in look.
+A new profile starts on `shipped()` too.
+
 Covered by `backend/tests/test_themes.py`.
 
 ## `gamepad_monitor.py` — evdev, the source of truth for input
@@ -934,12 +938,12 @@ atomically.
 | Function | Does |
 |---|---|
 | `list_profiles()` | the state plus `PALETTE`; with no file, creates one unnamed primary profile that owns everything the box held before profiles. Unnamed = no profiles yet |
-| `create(name, color, avatar)` | refuses (409) while the primary is unnamed; trims the name, refuses empty, over `NAME_MAX`, non-printable, or taken (case-insensitive); colour from `PALETTE` (default: the first unused), avatar from `AVATARS` (the animals `frontend/src/settings/avatars.js` draws; None draws the initial, and a picture an older version offered reads as None) |
+| `create(name, color, avatar)` | refuses (409) while the primary is unnamed; trims the name, refuses empty, over `NAME_MAX`, non-printable, or taken (case-insensitive); colour from `PALETTE` (default: the first unused), theme `themes.shipped()` (the look a new box shows, so it never inherits another profile's pick); avatar from `AVATARS` (the animals `frontend/src/settings/avatars.js` draws; None draws the initial, and a picture an older version offered reads as None) |
 | `update(id, fields)` | the same checks, and `theme` through `themes.check`; the id never changes, so nothing keyed on it moves |
 | `remember_theme(theme_id)` | the theme just picked in Settings → Themes becomes the active profile's; nothing without profiles |
 | `delete(id)` | the record only (its saves folder stays on disk); refuses the last profile and the primary one (it owns the saves beside the ROMs); `active` passes to the primary |
 | `set_auto_login(enabled)` | "Log in automatically" (`auto_login` in the file, off by default): the start screen is skipped and the box starts as the last profile |
-| `active()`, `set_active(id)` | the profile the interface is used as. A switch, or deleting the active profile, is refused (409) while a game is on screen or suspended: a suspended game resumes without its saves being placed again, so the new profile would play in the old one's save. A switch gives a profile without `theme` the one on screen, the leaving one included, so switching back finds it |
+| `active()`, `set_active(id)` | the profile the interface is used as. A switch, or deleting the active profile, is refused (409) while a game is on screen or suspended: a suspended game resumes without its saves being placed again, so the new profile would play in the old one's save. A profile saved without `theme` (made before this rule): when it leaves, it keeps the one on screen; when it arrives, it gets `themes.shipped()`, never the theme another profile just picked |
 
 A file that does not parse, or lists no profile, is renamed `profiles.json.broken-<time>` and a fresh
 primary profile is created: the old one stays readable for a repair by hand.

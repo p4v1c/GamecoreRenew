@@ -321,11 +321,16 @@ def get_active() -> str | None:
         # directory. Verified rather than assumed: a shipped default that is
         # missing or refused would otherwise leave the box quoting an id that
         # loads nothing, and the built-in UI is the honest answer then.
-        if SHIPPED_DEFAULT and any(t["id"] == SHIPPED_DEFAULT and t.get("compatible")
-                                   for t in list_themes()):
-            return SHIPPED_DEFAULT
-        return None
+        return shipped()
     return raw.get("active") or None
+
+
+def shipped() -> str | None:
+    """The look a new box shows: `SHIPPED_DEFAULT` when it loads, else the built-in."""
+    if SHIPPED_DEFAULT and any(t["id"] == SHIPPED_DEFAULT and t.get("compatible")
+                               for t in list_themes()):
+        return SHIPPED_DEFAULT
+    return None
 
 
 def check(theme_id: str | None) -> None:

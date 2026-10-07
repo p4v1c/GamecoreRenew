@@ -5,6 +5,9 @@ One JSON file, `<DATA>/config/profiles/profiles.json`:
     {"active": "<id>", "auto_login": false,
      "profiles": [{"id", "name", "color", "avatar", "created", "primary", "theme"}]}
 
+A profile wears its own theme: a pick in Settings → Themes is the active
+profile's only, and a new profile starts on the look a new box shows.
+
 The `id` is random and never derived from the name: later work keys saves and
 controllers on it, and a rename must never move anything. `primary` marks the
 profile that owns everything the box held before profiles existed.
@@ -176,8 +179,10 @@ def create(name: str, color: str | None = None, avatar: str | None = None) -> di
         if color is None:
             used = {p["color"] for p in state["profiles"]}
             color = next((c for c in PALETTE if c not in used), _FIRST_COLOR)
+        # Its own theme from the start, so it never inherits another's pick.
         profile = {"id": secrets.token_hex(8), "name": clean, "color": color,
-                   "avatar": avatar, "created": _now(), "primary": False}
+                   "avatar": avatar, "created": _now(), "primary": False,
+                   "theme": themes.shipped()}
         state["profiles"].append(profile)
         _save(state)
         return profile
@@ -249,11 +254,11 @@ def set_active(profile_id: str) -> dict:
         profile = _find(state, profile_id)
         if profile_id != state["active"]:
             _refuse_switch_mid_game()
-            # A profile from before themes followed the profile: it keeps the
-            # theme on screen now, so switching back finds it again.
-            on = themes.get_active()
-            _find(state, state["active"]).setdefault("theme", on)
-            profile.setdefault("theme", on)
+            # Saved before themes followed profiles: the one leaving keeps what
+            # it wore; the one arriving gets the new-box look, never the theme
+            # someone else just picked.
+            _find(state, state["active"]).setdefault("theme", themes.get_active())
+            profile.setdefault("theme", themes.shipped())
         state["active"] = profile_id
         _save(state)
         return profile
