@@ -14,6 +14,7 @@ import { useStore } from '../store'
 import { buildSdk } from '../lib/themeSdk'
 import { createWhoIsPlaying } from '../settings/whoIsPlaying'
 import { VirtualKeyboard } from './ui/VirtualKeyboard'
+import { useThemeCtx } from './ThemeSurface'
 import '../settings/settings.css'
 
 const ASKED_KEY = 'gamecore-who-asked'
@@ -49,10 +50,19 @@ export default function WhoIsPlaying({ enabled }: { enabled: boolean }) {
   const [adding, setAdding] = useState(false)
   const [msg, setMsg] = useState('')
 
-  const View = useMemo(() => {
+  const ownView = useMemo(() => {
     const sdk = buildSdk('', { selectTheme: async () => {} })
     return createWhoIsPlaying(sdk, { skin: 'gcs-skin-default' }) as unknown as ComponentType<ViewProps>
   }, [])
+  // The theme's dress when it brought one (`whoIsPlaying`), the host's
+  // otherwise; when to ask and what a pick does stay here either way.
+  const themeCtx = useThemeCtx()
+  const themed = themeCtx?.whoIsPlaying as (ComponentType<ViewProps> & { skin?: string }) | undefined
+  // Shown once the theme has loaded: drawn before, it would swap from the
+  // host's dress to the theme's under the player and lose the cursor.
+  const themeLoading = !!themeCtx?.loading
+  const View = themed ?? ownView
+  const skin = (themed ? themed.skin : '') || 'gcs-skin-default'
 
   useEffect(() => {
     if (!enabled || askedThisStart()) return
@@ -66,14 +76,14 @@ export default function WhoIsPlaying({ enabled }: { enabled: boolean }) {
   }, [enabled])
 
   // Raises the modal depth, which every shell's own pad handlers respect.
-  const open = state !== null
+  const open = state !== null && !themeLoading
   useEffect(() => {
     if (!open) return
     useStore.getState().openModal()
     return () => useStore.getState().closeModal()
   }, [open])
 
-  if (!state) return null
+  if (!state || themeLoading) return null
 
   const close = () => setState(null)
   // Closed only once the switch is saved: closing first would leave the
@@ -97,7 +107,7 @@ export default function WhoIsPlaying({ enabled }: { enabled: boolean }) {
       <View profiles={state.profiles} activeId={state.active} active={!adding} msg={msg}
             onPick={pick} onAdd={() => { setMsg(''); setAdding(true) }} onSkip={close} />
       {adding && (
-        <div className="gcs-who-kb gcs-skin-default">
+        <div className={`gcs-who-kb ${skin}`}>
           <div className="gcs-who-kb-panel">
             <VirtualKeyboard title="New profile" placeholder="Name"
                              onConfirm={add} onCancel={() => setAdding(false)} />

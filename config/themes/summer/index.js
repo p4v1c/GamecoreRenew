@@ -73,5 +73,7 @@ export default (sdk) => {
   // sea glass on the tideline — see views/session.js.
   return { splash: createSplash(sdk), shell: Shell, sounds: SOUNDS,
            sessionBar: createSessionBar(sdk), sessionMenu: createSessionMenu(sdk),
-           ceremony: Warp }
+           ceremony: Warp,
+           // The start screen as sea glass (css/who.css); when it shows stays the host's.
+           whoIsPlaying: sdk.defaults.createWhoIsPlaying?.(sdk, { skin: 'summer-who' }) }
 }

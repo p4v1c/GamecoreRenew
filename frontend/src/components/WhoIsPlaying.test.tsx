@@ -84,3 +84,28 @@ it('asks again later when the profiles could not be read at start', async () => 
   const { findByText } = render(<WhoIsPlaying enabled />)
   expect(await findByText('Who’s using this controller?')).toBeTruthy()
 })
+
+it('wears the theme’s dress when the theme brings one', async () => {
+  const { ThemeProvider } = await import('./ThemeSurface')
+  const { buildSdk } = await import('../lib/themeSdk')
+  const { createWhoIsPlaying } = await import('../settings/whoIsPlaying')
+  const dressed = createWhoIsPlaying(buildSdk('jelly', { selectTheme: async () => {} }), { skin: 'jelly-who' })
+  serve([profile('a', 'Max'), profile('b', 'Sam')])
+  const { findByText, container } = render(
+    <ThemeProvider value={{ whoIsPlaying: dressed } as never}><WhoIsPlaying enabled /></ThemeProvider>)
+  await findByText('Who’s using this controller?')
+  expect(container.querySelector('.gcs-who.jelly-who')).toBeTruthy()
+  expect(container.querySelector('.gcs-skin-default')).toBeNull()
+})
+
+it('waits for the theme to load before asking', async () => {
+  const { ThemeProvider } = await import('./ThemeSurface')
+  serve([profile('a', 'Max'), profile('b', 'Sam')])
+  const { container, rerender, findByText } = render(
+    <ThemeProvider value={{ loading: true } as never}><WhoIsPlaying enabled /></ThemeProvider>)
+  await waitFor(() => expect(calls).toHaveLength(1))
+  await act(async () => {})
+  expect(container.textContent).toBe('')
+  rerender(<ThemeProvider value={{ loading: false } as never}><WhoIsPlaying enabled /></ThemeProvider>)
+  expect(await findByText('Who’s using this controller?')).toBeTruthy()
+})

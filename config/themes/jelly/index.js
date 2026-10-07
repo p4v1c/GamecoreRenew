@@ -65,6 +65,7 @@ export default function createJelly(sdk) {
     sounds: SOUNDS,
     sessionBar: session.Bar,
     sessionMenu: session.Menu,
+    whoIsPlaying: sdk.defaults.createWhoIsPlaying?.(sdk, {skin: 'jelly-who'}),
     rumble: {
       'gp:confirm': {duration: 30, strong: 0.25},
       'gp:back': {duration: 20, weak: 0.35},

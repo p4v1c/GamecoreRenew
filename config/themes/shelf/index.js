@@ -79,5 +79,7 @@ export default (sdk) => {
   // it as the ledge under the shelf — see views/session.js.
   return { splash: createSplash(sdk), shell: Shell, sounds: SOUNDS,
            sessionBar: createSessionBar(sdk), sessionMenu: createSessionMenu(sdk),
-           ceremony: Ceremony }
+           ceremony: Ceremony,
+           // The start screen in Shelf's paper (css/who.css); when it shows stays the host's.
+           whoIsPlaying: sdk.defaults.createWhoIsPlaying?.(sdk, { skin: 'shelf-who' }) }
 }

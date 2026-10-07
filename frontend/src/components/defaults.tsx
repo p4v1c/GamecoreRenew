@@ -120,6 +120,7 @@ export const DefaultKeyboard = VirtualKeyboard
  */
 export { createSettings } from '../settings/screen'
 export { createPowerView } from '../settings/power'
+export { createWhoIsPlaying } from '../settings/whoIsPlaying'
 
 /** The whole default frontend. Render it with overrides to change one screen. */
 export const Shell = DefaultShell

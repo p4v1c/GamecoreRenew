@@ -62,5 +62,6 @@ export default function createOrbit(sdk) {
   }
 
   return {shell: Shell, splash: createSplash(sdk), sounds: SOUNDS,
-          sessionBar: sessions.Bar, sessionMenu: sessions.Menu, ceremony: Ceremony}
+          sessionBar: sessions.Bar, sessionMenu: sessions.Menu, ceremony: Ceremony,
+          whoIsPlaying: sdk.defaults.createWhoIsPlaying?.(sdk, {skin: 'orbit-who'})}
 }

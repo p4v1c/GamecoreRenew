@@ -255,6 +255,9 @@ shell; it reads `sdk.nav.use(s => s.transition)` to draw `launch`, `resume`, or
 `suspend`. The host owns the timing and stacking, so the component needs no
 `z-index`.
 
+Another optional one, `whoIsPlaying`: the start screen's dress, built with
+`sdk.defaults.createWhoIsPlaying(sdk, { skin })` (§5i).
+
 So "add snow to the dashboard" is a shell that renders `sdk.defaults.Shell` with
 a `decor`, and "replace everything" is a shell that renders its own tree. Same
 mechanism, effort proportional to ambition.
@@ -651,8 +654,13 @@ active profile, and a switch sends `playtime:rekeyed`.
 
 **"Who's using this controller?"** (2+ profiles, "Log in automatically" off,
 once per interface start) is drawn by the
-host over your shell, in the built-in palette, from
-`frontend/src/components/WhoIsPlaying.tsx`. It raises `modalDepth` while it is
+host over your shell, from `frontend/src/components/WhoIsPlaying.tsx`. Dress it
+by returning `whoIsPlaying: sdk.defaults.createWhoIsPlaying(sdk, { skin: 'my-who' })`
+with your surfaces and styling `.gcs-who.my-who` (and `.gcs-who-kb.my-who`, the
+keyboard of "Add profile") in your stylesheet: the `--set-*` palette, the
+background, the focus ring. When it shows, what a pick does and the pad stay
+the host's; without it the host draws its own dark one. The four shipped
+themes each do it in `css/who.css`. It raises `modalDepth` while it is
 up, so a theme that already pauses its pad handlers on `modalDepth` (§5f) needs
 nothing.
 

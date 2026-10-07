@@ -18,7 +18,7 @@ export const createWhoIsPlaying = (sdk, parts = {}) => {
    * @param active    false while something above (the keyboard) owns the pad
    * @param onPick    (id) a profile; onAdd () the last tile; onSkip () ○
    */
-  return ({ profiles, activeId, active, msg, onPick, onAdd, onSkip }) => {
+  const View = ({ profiles, activeId, active, msg, onPick, onAdd, onSkip }) => {
     const count = profiles.length + 1
     const [idx, setIdx] = useState(Math.max(0, profiles.findIndex((p) => p.id === activeId)))
     const ref = useRef({ idx, profiles })
@@ -64,4 +64,7 @@ export const createWhoIsPlaying = (sdk, parts = {}) => {
         <div class="gcs-who-hint"><${PadHints} text="←→ Move · ✕ Select · ○ Skip" /></div>
       </div>`
   }
+  // The class the host puts on its keyboard, so it wears the same palette.
+  View.skin = parts.skin || ''
+  return View
 }
