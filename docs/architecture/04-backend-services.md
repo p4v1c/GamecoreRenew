@@ -953,7 +953,7 @@ At launch the active profile is player 1.
 | `save_dir(profile_id, system_id)` | `paths.profile_saves_dir()/<id>/<system>/`; refuses an id that is not alphanumeric (`profiles.json` is hand-editable) |
 | `player_dirs(players, system_id, mode)` | one entry per slot (4): the profile's folder, created on demand, or None for the primary profile, no profile, and players 2-4 in `p1` mode |
 | `place(system_id)` | calls the pack's `place_saves(dirs, root, opts)` with `player_dirs([active profile])`; raises when a declared pack has no hook or no config dir |
-| `release(system_id)` | the same hook with every slot None, once the game has exited (`process_manager`, before the slot is freed so no launch can slip in between): the emulator started outside GameCore saves where it always did |
+| `release(system_id, started)` | the same hook with every slot None, once the game that started at `started` has exited (`process_manager`): the emulator started outside GameCore saves where it always did. Skipped when a later launch placed that emulator again; `place` and `release` share one lock |
 | `separate_systems(packs)` | labels of the packs that declare a mode, for `GET /profiles` |
 
 Never moves, copies or deletes a save: only the emulator's options change.

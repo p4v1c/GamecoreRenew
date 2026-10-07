@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 import types
 from pathlib import Path
 
@@ -132,14 +133,27 @@ def test_release_hands_every_player_back_to_the_default(data, monkeypatch):
     """After the game, so the emulator started from Desktop Mode saves where it always did."""
     seen = {}
     _fake_pack(monkeypatch, types.SimpleNamespace(place_saves=lambda **kw: seen.update(kw)))
-    profile_saves.release("testpack")
+    assert profile_saves.release("testpack", started=time.time())
     assert seen["dirs"] == [None] * configgen.MAX_PLAYERS
+
+
+def test_release_leaves_a_later_launch_alone(data, monkeypatch):
+    """The end of game A can be seen after game B placed its saves: resetting
+    them then would send B's progress to the primary profile."""
+    calls = []
+    _fake_pack(monkeypatch, types.SimpleNamespace(place_saves=lambda **kw: calls.append(kw["dirs"])))
+    profiles.update(profiles.active()["id"], {"name": "Max"})
+    profiles.set_active(profiles.create("Sam")["id"])
+    game_a_started = time.time() - 60
+    profile_saves.place("testpack")
+    assert profile_saves.release("testpack", started=game_a_started) is False
+    assert calls[-1][0] is not None, "Sam's folder stays"
 
 
 def test_the_end_of_a_game_releases_its_saves(monkeypatch):
     from backend.services import process_manager as pm
     released = []
-    monkeypatch.setattr(profile_saves, "release", released.append)
-    pm._release_profile_saves(pm.Session(game_key="mario.nds", system_id="melonds"))
+    monkeypatch.setattr(profile_saves, "release", lambda sid, started: released.append((sid, started)))
+    pm._release_profile_saves(pm.Session(game_key="mario.nds", system_id="melonds", start_time=12.0))
     pm._release_profile_saves(pm.Session(game_key="stremio", system_id="stremio"))
-    assert released == ["melonds"], "an app keeps no profile save"
+    assert released == [("melonds", 12.0)], "an app keeps no profile save"

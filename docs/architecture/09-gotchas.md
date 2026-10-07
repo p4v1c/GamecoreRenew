@@ -85,8 +85,10 @@ last profile's folder (`emu/profile-saves/`) when the next person launches.
 root for the primary profile; skipping it "because nothing changed" puts the
 owner's progress in someone else's save. `profile_saves.release` puts the
 defaults back when the game exits, so melonDS started outside GameCore saves
-beside the ROM. It runs synchronously before the session's slot is freed:
-awaited, a new launch could place its saves in between and see them reset.
+beside the ROM. It is skipped when the same emulator was placed again after
+that game started: `_reap` frees a dead slot before its watcher runs, so the
+next launch can place its saves first, and resetting them would send that
+game's progress to the primary profile.
 
 **A suspended game is not relaunched, so its saves are not placed again.**
 Switching profile while one is held would have the new profile resume the old

@@ -290,6 +290,8 @@ class ProcessManager:
         # that will 409 forever. Its finish has to be broadcast by the only
         # thing that noticed: this.
         departed = [s for s in self._sessions if s not in keep and s.orphan_pgid]
+        for session in departed:
+            _release_profile_saves(session)
         self._sessions = keep
         self._save_state()
         self._publish()
@@ -927,14 +929,14 @@ def _release_profile_saves(session: Session) -> None:
 
     It wrote the active profile's folder back into its config on the way out,
     so a launch from Desktop Mode would otherwise save into that profile.
-    Synchronous, and before the slot is freed: awaited, a launch of the same
-    emulator could place its saves in between and have them reset here.
+    `release` skips it when the next launch already placed its own saves:
+    `_reap` can free this slot before the watcher gets here.
     """
     if session.is_app or not session.system_id:
         return
     from . import profile_saves
     try:
-        profile_saves.release(session.system_id)
+        profile_saves.release(session.system_id, session.start_time)
     except Exception:
         log.exception("profile saves: could not release %s", session.system_id)
 

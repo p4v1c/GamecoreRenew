@@ -10,6 +10,8 @@ default", so nothing changes on disk for it. Saves are never moved or copied.
 """
 from __future__ import annotations
 
+import threading
+import time
 from pathlib import Path
 
 from . import configgen, paths, profiles
@@ -64,6 +66,13 @@ def _hook(system_id: str):
     return pack, hook, opts
 
 
+# Place and release write the same file from two threads, and the end of one
+# game can be noticed after the next launch of that emulator already placed its
+# saves: the process manager frees a dead slot before its watcher runs.
+_lock = threading.Lock()
+_placed_at: dict[str, float] = {}
+
+
 def place(system_id: str) -> list[Path | None] | None:
     """Point the pack at the active profile's folders before the spawn.
 
@@ -76,14 +85,26 @@ def place(system_id: str) -> list[Path | None] | None:
         return None
     pack, hook, opts = found
     dirs = player_dirs([profiles.active()], system_id, mode(pack))
-    hook(dirs=dirs, root=paths.profile_saves_dir(), opts=opts)
+    with _lock:
+        _placed_at[system_id.lower()] = time.time()
+        hook(dirs=dirs, root=paths.profile_saves_dir(), opts=opts)
     return dirs
 
 
-def release(system_id: str) -> None:
-    """After the game: every player back on the emulator's default paths, so
-    the emulator started outside GameCore saves where it always did."""
+def release(system_id: str, started: float) -> bool:
+    """After the game that started at `started` (wall clock): every player back
+    on the emulator's default paths, so the emulator started outside GameCore
+    saves where it always did.
+
+    Skipped, False, when a later launch of the same emulator has placed its
+    saves since: resetting them would send that game's progress to the
+    primary profile."""
     found = _hook(system_id)
-    if found is not None:
-        _pack, hook, opts = found
+    if found is None:
+        return False
+    _pack, hook, opts = found
+    with _lock:
+        if _placed_at.get(system_id.lower(), 0.0) > started:
+            return False
         hook(dirs=[None] * MAX_PLAYERS, root=paths.profile_saves_dir(), opts=opts)
+    return True
