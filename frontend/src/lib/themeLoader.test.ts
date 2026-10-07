@@ -81,7 +81,7 @@ describe('both surfaces are mandatory', () => {
   })
 
   it('accepts host-placed optional surfaces without making them mandatory', () => {
-    expect(OPTIONAL_SURFACES).toEqual(['sessionBar', 'sessionMenu', 'ceremony'])
+    expect(OPTIONAL_SURFACES).toEqual(['sessionBar', 'sessionMenu', 'ceremony', 'whoIsPlaying'])
   })
 })
 
