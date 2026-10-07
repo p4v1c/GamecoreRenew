@@ -17,7 +17,7 @@
   padding: 40px 48px; border-radius: 22px;
   background: rgba(12, 26, 33, 0.72); border: 1px solid rgba(255, 253, 247, 0.14);
 }
-.summer-who .gcs-who-tile[data-on="1"] .gcs-who-avatar { outline-color: #F0761E; }
+.summer-who .gcs-who-tile[data-on="1"] { background: rgba(255, 253, 247, 0.1); box-shadow: 0 0 0 4px #F0761E; }
 .summer-who .gcs-who-tile[data-add="1"] .gcs-who-avatar { background: rgba(255, 253, 247, 0.06); border-color: rgba(255, 253, 247, 0.3); }
 .summer-who .gcs-who-title { text-shadow: 0 2px 18px rgba(6, 18, 26, 0.6); }
 .gcs-who-kb.summer-who .gcs-who-kb-panel { border-radius: 22px; }

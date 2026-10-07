@@ -15,7 +15,7 @@
   background: radial-gradient(ellipse at 50% 35%, #1d3352 0%, #101e33 55%, #0b1425 100%);
 }
 .orbit-who .gcs-who-title { font-weight: 300; letter-spacing: -0.035em; font-size: clamp(42px, 3.6vw, 62px); }
-.orbit-who .gcs-who-tile[data-on="1"] .gcs-who-avatar { outline-color: #9fcdfb; }
+.orbit-who .gcs-who-tile[data-on="1"] { background: #192a42; box-shadow: 0 0 0 3px #9fcdfb, 0 24px 60px #0008; }
 .orbit-who .gcs-who-tile b { font-weight: 400; }
 .orbit-who .gcs-who-tile[data-add="1"] .gcs-who-avatar { background: #c0dcff09; border-color: #c5dfff40; }
 .gcs-who-kb.orbit-who .gcs-who-kb-panel { border-radius: 23px; border-color: #bddbff35; }

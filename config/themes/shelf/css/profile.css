@@ -1,0 +1,11 @@
+/* A profile's page (frontend/src/settings/profileDetail.js) in Shelf: the
+   paper wall washed back, as on "Who's using", so the settings list behind
+   does not show through; the left card white, like the shelf's cards. */
+.gcs-prof {
+  background:
+    linear-gradient(rgba(244, 242, 237, 0.9), rgba(244, 242, 237, 0.9)),
+    var(--gc-paper-pattern, none) center / var(--gc-paper-tile, 120px),
+    #F4F2ED;
+  backdrop-filter: none;
+}
+.gcs-prof-hero, .gcs-prof-theme { background: #ffffff; }

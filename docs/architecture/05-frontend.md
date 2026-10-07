@@ -294,9 +294,18 @@ per-profile storage: `sdk.players.storageKey(base)`, re-read on
 is `components/ProfileAvatar.tsx`: the active profile's picture (or initial)
 on its colour, for a top bar, rendering nothing without profiles; the shell's
 `onProfile` opens Settings with `initialCategory="profiles"`. The pictures are
-`settings/avatars.js` (`AVATARS`, animal drawings as SVG markup), kept equal to `profiles.AVATARS` by a test, picked in a grid (`frontend/src/settings/avatarPicker.js`). Settings → Profiles is `frontend/src/settings/profiles.js`, the
+`settings/avatars.js` (`AVATARS`, animal drawings as SVG markup), kept equal to `profiles.AVATARS` by a test. Settings → Profiles is `frontend/src/settings/profiles.js`, the
 tenth rail category every theme draws; its subtitle names the systems whose
-saves follow the profile (`separate_saves`, `savesLine()`).
+saves follow the profile (`separate_saves`, `savesLine()`). The list is a card
+per profile (`frontend/src/settings/profileCards.js`: Switch, Edit, "Add
+profile", then the "Log in automatically" row); Edit opens the profile's page
+over the whole screen (`frontend/src/settings/profileDetail.js`: Switch, Rename,
+Delete on the left, the playtime of the profile playing, and picture, colour and
+theme, with each theme's `preview`, in view on the right, walked in two
+directions with the pad). Both use the screen's `--set-*` tokens; a theme whose
+settings do not set them maps its own there (`config/themes/summer/css/profile.css`).
+`frontend/src/settings/themeNames.js` names a profile's theme on the cards and on
+"Who's using this controller?".
 
 `api.media` is the one to read before drawing artwork that is not a jacket:
 

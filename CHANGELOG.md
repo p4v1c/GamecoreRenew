@@ -32,9 +32,13 @@ are the auto-incremented tags.
   change while a game is open or suspended.
 - **Each profile has its own theme and an animal picture.** The theme picked
   in Settings → Themes, or on a profile's page, is the profile's: switching
-  profile puts it back on. Pictures are now eleven drawn animals, chosen from
-  a grid; a profile that had one of the old line icons shows its initial
-  until it picks an animal.
+  profile puts it back on. Pictures are now eleven drawn animals; a profile
+  that had one of the old line icons shows its initial until it picks an
+  animal.
+- **Profiles, redrawn.** Settings → Profiles shows a card per profile (Switch,
+  Edit), and Edit opens the profile's own page: picture, colour and theme all
+  in view, with the playtime of the profile playing. "Who's using this
+  controller?" shows each profile as a card with its theme.
 - **Saves per profile, on every emulator but Xenia.** `profileSaves` in
   pack.json, mostly with no code: the save options (`keys`) or the folders
   with no option (`dirs`, swapped for a link) to point at the profile's

@@ -1,12 +1,14 @@
 /**
- * "Who's playing?": one tile per profile, then "Add profile". Markup and the
- * pad's cursor only; when to show it and what a pick does are the host's
- * (components/WhoIsPlaying.tsx), so every theme gets the same screen.
+ * "Who's playing?": one card per profile (its animal, name and theme), then
+ * "Add profile". Markup and the pad's cursor only; when to show it and what a
+ * pick does are the host's (components/WhoIsPlaying.tsx), so every theme gets
+ * the same screen.
  *
  * ←/→ move, ✕ picks, ○ keeps the profile already active.
  */
 import { avatarFace } from './avatars.js'
 import { PadHints } from '../lib/padKey.js'
+import { useThemeNames, wornTheme } from './themeNames.js'
 
 export const createWhoIsPlaying = (sdk, parts = {}) => {
   const { html, useState, useEffect, useRef } = sdk.ui
@@ -21,6 +23,7 @@ export const createWhoIsPlaying = (sdk, parts = {}) => {
   const View = ({ profiles, activeId, active, msg, onPick, onAdd, onSkip }) => {
     const count = profiles.length + 1
     const [idx, setIdx] = useState(Math.max(0, profiles.findIndex((p) => p.id === activeId)))
+    const themeName = useThemeNames(sdk)
     const ref = useRef({ idx, profiles })
     useEffect(() => { ref.current = { idx, profiles } })
 
@@ -52,12 +55,14 @@ export const createWhoIsPlaying = (sdk, parts = {}) => {
                     data-on=${idx === i ? '1' : '0'} onClick=${() => { setIdx(i); choose(i) }}>
               <span class="gcs-who-avatar" aria-hidden="true" style=${{ background: p.color }}>${avatarFace(html, p)}</span>
               <b>${p.name}</b>
+              <i class="gcs-who-sub">${wornTheme(p, themeName)}</i>
             </button>`)}
           <button type="button" class="gcs-who-tile" data-add="1"
                   data-on=${idx === profiles.length ? '1' : '0'}
                   onClick=${() => { setIdx(profiles.length); choose(profiles.length) }}>
             <span class="gcs-who-avatar" aria-hidden="true">+</span>
             <b>Add profile</b>
+            <i class="gcs-who-sub">Name, animal, colour</i>
           </button>
         </div>
         <p class="gcs-who-msg" role="status">${msg || ''}</p>

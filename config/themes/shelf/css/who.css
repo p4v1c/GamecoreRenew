@@ -19,7 +19,8 @@
 .shelf-who .gcs-who-tiles {
   padding: 40px 48px; border-radius: 28px; background: #ffffff; box-shadow: 0 12px 40px #17171a1a;
 }
-.shelf-who .gcs-who-tile[data-on="1"] .gcs-who-avatar { outline-color: #127a6d; }
+.shelf-who .gcs-who-tile[data-on="1"] { background: #F4F2ED; box-shadow: 0 0 0 4px #127a6d; }
+.shelf-who .gcs-who-sub { color: #55555c; }
 .shelf-who .gcs-who-tile[data-add="1"] .gcs-who-avatar { background: #F4F2ED; color: #127a6d; border-color: #127a6d80; }
 .shelf-who .gcs-who-hint { padding: 8px 16px; border-radius: 999px; background: #ffffff; color: #17171a; }
 .gcs-who-kb.shelf-who { background: #17171acc; }
