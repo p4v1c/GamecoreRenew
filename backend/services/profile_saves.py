@@ -10,6 +10,7 @@ default", so nothing changes on disk for it. Saves are never moved or copied.
 """
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from pathlib import Path
@@ -18,6 +19,8 @@ from . import configgen, paths, profiles
 from .catalog import load_catalog
 from .configgen import MAX_PLAYERS
 from .errors import ServiceError
+
+log = logging.getLogger(__name__)
 
 
 def mode(pack) -> str | None:
@@ -108,3 +111,14 @@ def release(system_id: str, started: float) -> bool:
             return False
         hook(dirs=[None] * MAX_PLAYERS, root=paths.profile_saves_dir(), opts=opts)
     return True
+
+
+def release_session(session) -> None:
+    """`release` for a process-manager session that has ended. Never raises:
+    a session's end must still be recorded when this cannot be done."""
+    if session.is_app or not session.system_id:
+        return    # an app keeps no save that follows a profile
+    try:
+        release(session.system_id, session.start_time)
+    except Exception:
+        log.exception("profile saves: could not release %s", session.system_id)

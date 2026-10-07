@@ -154,6 +154,6 @@ def test_the_end_of_a_game_releases_its_saves(monkeypatch):
     from backend.services import process_manager as pm
     released = []
     monkeypatch.setattr(profile_saves, "release", lambda sid, started: released.append((sid, started)))
-    pm._release_profile_saves(pm.Session(game_key="mario.nds", system_id="melonds", start_time=12.0))
-    pm._release_profile_saves(pm.Session(game_key="stremio", system_id="stremio"))
+    profile_saves.release_session(pm.Session(game_key="mario.nds", system_id="melonds", start_time=12.0))
+    profile_saves.release_session(pm.Session(game_key="stremio", system_id="stremio"))
     assert released == [("melonds", 12.0)], "an app keeps no profile save"
