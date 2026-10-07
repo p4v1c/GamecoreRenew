@@ -45,11 +45,13 @@ it('waits for the boot, then asks once and switches on a pick', async () => {
   expect(calls).toHaveLength(0)
   rerender(<WhoIsPlaying enabled />)
   expect(await findByText('Who’s using this controller?')).toBeTruthy()
-  expect(useStore.getState().modalDepth).toBe(1)
+  // The depth is raised in a passive effect, a task after the commit that
+  // findByText sees: wait for it rather than read it in the same tick.
+  await waitFor(() => expect(useStore.getState().modalDepth).toBe(1))
   fireEvent.click((await findByText('Sam')).closest('button')!)
   await waitFor(() => expect(calls).toContainEqual(['PUT', '/api/profiles/active']))
   await waitFor(() => expect(container.textContent).toBe(''))
-  expect(useStore.getState().modalDepth).toBe(0)
+  await waitFor(() => expect(useStore.getState().modalDepth).toBe(0))
 
   // A theme switch reloads the page; the question is not asked again.
   const again = render(<WhoIsPlaying enabled />)
