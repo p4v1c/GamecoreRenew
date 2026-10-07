@@ -9,7 +9,7 @@ const state = (over: Partial<GamepadState> = {}): GamepadState => ({
 })
 const gp = (index: number, id: string, mapping = 'standard') => ({ index, id, mapping } as Gamepad)
 const row = (over: Partial<RosterPad>): RosterPad => ({
-  player: 1, name: 'PS4 Controller', kernelName: 'Wireless Controller', vendor: '054c', product: '09cc',
+  id: '84:30:95:07:c8:1c', player: 1, name: 'PS4 Controller', kernelName: 'Wireless Controller', vendor: '054c', product: '09cc',
   connection: 'Bluetooth', battery: 85, charging: false, known: 'sdl', controls: null, analogTriggers: true, ...over,
 })
 const DS4 = 'Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 09cc)'

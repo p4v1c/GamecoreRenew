@@ -12,6 +12,14 @@ export interface Profile {
   /** The theme put on when this profile plays: an id, or null for the
    *  built-in look. Absent until the profile has worn one. */
   theme?: string | null
+  /** Pads shown on the profile's page, for display only; absent = none. */
+  controllers?: ProfileController[]
+}
+
+/** `id` matches `RosterPad.id`; `name` is shown while the pad is off. */
+export interface ProfileController {
+  id: string
+  name: string
 }
 
 export interface ProfilesState {
@@ -36,6 +44,11 @@ export const profiles = {
     sendDetailed<Profile>('PATCH', `/profiles/${encodeURIComponent(id)}`, fields),
   remove: (id: string) => sendDetailed<{ active: string }>('DELETE', `/profiles/${encodeURIComponent(id)}`),
   setActive: (id: string) => sendDetailed<Profile>('PUT', '/profiles/active', { id }),
+  addController: (id: string, controllerId: string) =>
+    sendDetailed<Profile>('POST', `/profiles/${encodeURIComponent(id)}/controllers`, { id: controllerId }),
+  removeController: (id: string, controllerId: string) =>
+    sendDetailed<Profile>('DELETE',
+      `/profiles/${encodeURIComponent(id)}/controllers/${encodeURIComponent(controllerId)}`),
   setAutoLogin: (enabled: boolean) =>
     sendDetailed<{ auto_login: boolean }>('PUT', '/profiles/auto-login', { enabled }),
 }

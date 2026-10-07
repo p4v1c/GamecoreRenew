@@ -17,6 +17,8 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- A profile's page lists its controllers: add a connected pad, remove one. For display
+  only: nothing (saves, login, theme) follows a pad. A pad shows on one profile at most.
 - A theme picked in Settings → Themes now stays with the profile playing. A profile
   that never picked one used to take that theme at its first turn; it now starts on
   the look a new box shows (Shelf). A profile already dressed that way keeps it: pick

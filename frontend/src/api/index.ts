@@ -5,7 +5,7 @@ export type { StorageVolume } from './storage'
 import { logs } from './logs'
 export type { LogsUsage } from './logs'
 import { profiles } from './profiles'
-export type { Profile, ProfilesState, ProfileFields } from './profiles'
+export type { Profile, ProfileController, ProfilesState, ProfileFields } from './profiles'
 
 import { BASE, get, put, post, postDetailed } from './http'
 
