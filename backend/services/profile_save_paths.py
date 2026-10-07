@@ -169,28 +169,35 @@ def _backup(path: Path) -> Path:
     return path.with_name(path.name + PRIMARY_SUFFIX)
 
 
-def apply_dir(path: Path, target: Path | None) -> None:
-    """`path` becomes a symlink to `target`, or the primary's folder again (None)."""
+def _is_ours(path: Path, root: Path) -> bool:
+    """A link this module made: it points into the profile saves root."""
+    return path.is_symlink() and Path(os.readlink(path)).is_relative_to(root)
+
+
+def apply_dir(path: Path, target: Path | None, root: Path) -> None:
+    """`path` becomes a symlink to `target`, or the primary's folder again (None).
+    A link the owner made himself (saves on another disk) is his folder."""
     backup = _backup(path)
+    taken = backup.exists() or backup.is_symlink()
     if target is not None:
         if not path.parent.is_dir():
             raise ServiceError(500, f"{path.parent} is missing: start the emulator once first.")
         target.mkdir(parents=True, exist_ok=True)
-        if path.is_symlink():
+        if _is_ours(path, root):
             path.unlink()
-        elif path.exists():
-            if backup.exists() or backup.is_symlink():
+        elif path.exists() or path.is_symlink():
+            if taken:
                 raise ServiceError(500, f"{path} and {backup.name} both exist: sort them out by hand.")
             path.rename(backup)
         os.symlink(target, path, target_is_directory=True)
         return
-    if path.is_symlink():
+    if _is_ours(path, root):
         path.unlink()
-    elif path.exists():
-        if backup.exists():
+    elif path.exists() or path.is_symlink():
+        if taken:
             # The emulator replaced the link with a real folder: whose saves
             # those are cannot be told, so neither side is overwritten.
             raise ServiceError(500, f"{path} is a folder and {backup.name} too: sort them out by hand.")
         return
-    if backup.exists():
+    if taken:
         backup.rename(path)

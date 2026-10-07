@@ -105,7 +105,7 @@ def _declared(owner, opts: dict | None):
             if folder is not None and e.get("optional") and not path.parent.is_dir():
                 continue
             target = folder / (e.get("as") or path.name) if folder is not None else None
-            profile_save_paths.apply_dir(path, target)
+            profile_save_paths.apply_dir(path, target, root)
             applied += 1
         if folder is not None and not applied:
             raise ServiceError(500, f"{owner.id}: none of its save folders exist yet: start it once first.")

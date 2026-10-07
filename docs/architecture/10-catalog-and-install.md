@@ -340,7 +340,7 @@ folder (`@SAVES@`), from pack.json alone (`services/profile_save_paths.py`):
 | Field | What |
 |---|---|
 | `keys[]` | an option in a config file: `config` (relative to the config directory configgen resolves, native or flatpak; `..` allowed) or `path` (tokens), `section` (absent for a flat file such as RetroArch's), `key`, `value` (`@SAVES@` = the profile's folder; a value without it, `true`, is set as is), `quote` |
-| `dirs[]` | a folder the emulator has no option for: renamed `<name>.gamecore-primary`, replaced by a symlink to `<profile folder>/<as or name>`, renamed back for the primary. Its parent must exist (the emulator ran once), else the launch is refused; `optional` skips it instead, for an emulator that moved its folder between versions, as long as one entry applies |
+| `dirs[]` | a folder the emulator has no option for: renamed `<name>.gamecore-primary`, replaced by a symlink to `<profile folder>/<as or name>`, renamed back for the primary. A symlink the owner put there himself (saves on another disk) counts as his folder: renamed too, never deleted. Its parent must exist (the emulator ran once), else the launch is refused; `optional` skips it instead, for an emulator that moved its folder between versions, as long as one entry applies |
 
 The owner's values are remembered in `profile-saves/.primary.json` before the
 first write, keyed by file and option (not by pack), and put back for the

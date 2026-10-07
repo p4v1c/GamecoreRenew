@@ -93,28 +93,28 @@ def test_a_folder_is_swapped_for_a_link_and_renamed_back(tmp_path):
     (saves / "ULUS10041").mkdir(parents=True)
     (saves / "ULUS10041" / "DATA.BIN").write_text("owner")
     sam = tmp_path / "profile-saves" / "sam" / "ppsspp" / "SAVEDATA"
-    psp.apply_dir(saves, sam)
+    psp.apply_dir(saves, sam, sam.parents[2])
     assert saves.is_symlink() and saves.resolve() == sam.resolve()
     assert (tmp_path / "PSP" / "SAVEDATA.gamecore-primary" / "ULUS10041" / "DATA.BIN").read_text() == "owner"
     (saves / "NEW").mkdir()                       # Sam's game writes through the link
-    psp.apply_dir(saves, None)
+    psp.apply_dir(saves, None, sam.parents[2])
     assert not saves.is_symlink() and (saves / "ULUS10041" / "DATA.BIN").read_text() == "owner"
     assert (sam / "NEW").is_dir(), "Sam's save stays in Sam's folder"
-    psp.apply_dir(saves, None)                    # nothing to do twice
+    psp.apply_dir(saves, None, sam.parents[2])    # nothing to do twice
 
 
 def test_a_folder_the_emulator_never_made_still_gets_a_link(tmp_path):
     saves = tmp_path / "nand" / "user" / "save"
     saves.parent.mkdir(parents=True)
-    psp.apply_dir(saves, tmp_path / "sam")
+    psp.apply_dir(saves, tmp_path / "sam", tmp_path)
     assert saves.is_symlink()
-    psp.apply_dir(saves, None)
+    psp.apply_dir(saves, None, tmp_path)
     assert not saves.exists()
 
 
 def test_a_folder_whose_parent_is_missing_refuses_the_profile(tmp_path):
     with pytest.raises(ServiceError):
-        psp.apply_dir(tmp_path / "dev_hdd0" / "home" / "00000001" / "savedata", tmp_path / "sam")
+        psp.apply_dir(tmp_path / "dev_hdd0" / "home" / "00000001" / "savedata", tmp_path / "sam", tmp_path)
 
 
 def test_two_real_folders_are_never_merged(tmp_path):
@@ -122,6 +122,22 @@ def test_two_real_folders_are_never_merged(tmp_path):
     saves.mkdir()
     (tmp_path / "SAVEDATA.gamecore-primary").mkdir()
     with pytest.raises(ServiceError):
-        psp.apply_dir(saves, None)
+        psp.apply_dir(saves, None, tmp_path)
     with pytest.raises(ServiceError):
-        psp.apply_dir(saves, tmp_path / "sam")
+        psp.apply_dir(saves, tmp_path / "sam", tmp_path)
+
+
+def test_the_owners_own_symlink_is_kept_for_every_profile(tmp_path):
+    elsewhere = tmp_path / "usb" / "switch-saves"
+    (elsewhere / "0100").mkdir(parents=True)
+    saves = tmp_path / "nand" / "user" / "save"
+    saves.parent.mkdir(parents=True)
+    saves.symlink_to(elsewhere)                   # the owner keeps his saves on another disk
+    root = tmp_path / "profile-saves"
+    psp.apply_dir(saves, None, root)              # the primary profile launches
+    assert saves.is_symlink() and saves.resolve() == elsewhere.resolve()
+    psp.apply_dir(saves, root / "sam" / "switch" / "save", root)
+    assert saves.resolve() == (root / "sam" / "switch" / "save").resolve()
+    psp.apply_dir(saves, None, root)
+    assert saves.is_symlink() and saves.resolve() == elsewhere.resolve()
+    assert (elsewhere / "0100").is_dir()
