@@ -92,6 +92,8 @@ config/auth_secret
 # machine's choice on every install, and an update would overwrite the
 # player's. The backend treats a missing file as "default theme".
 config/theme.json
+# Who plays on this box: the player's own, like theme.json.
+config/profiles/
 # Measured bezel holes, keyed by ABSOLUTE path. Pure cache — the backend
 # rebuilds it in 0.4 s per PNG and invalidates each entry by mtime and size, so
 # there is nothing to preserve. Committed once by accident, carrying this

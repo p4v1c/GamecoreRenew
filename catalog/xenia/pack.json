@@ -49,6 +49,10 @@
       "xbox 360"
     ]
   },
+  "profileSaves": {
+    "supported": false,
+    "why": "Xenia keeps title updates and DLC in the same content folder as the saves, so a profile of its own would lose them."
+  },
   "perGame": {
     "supported": false,
     "why": "Xenia does keep a config per title id, but this pack ships no reader for a 360 container and nobody has verified the path against a real install."

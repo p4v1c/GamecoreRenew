@@ -27,7 +27,10 @@ export function createFooter(sdk) {
   // battery, so it is used for the levels and nothing else.
   const connected = () => (navigator.getGamepads ? [...navigator.getGamepads()] : []).filter(Boolean)
 
+  // Player 1 shows the active profile's name; a host without `sdk.players` says P1.
+  const usePadLabel = sdk.players?.useLabel ?? (() => (n) => `P${n}`)
   return function Footer({hints}) {
+    const padLabel = usePadLabel()
     const [now, setNow] = useState(info)
     const [count, setCount] = useState(() => connected().length)
     const {background} = sdk.session.use()
@@ -50,7 +53,7 @@ export function createFooter(sdk) {
       <div className="jl-status" aria-label="Controllers and network">
         ${pads.length
           ? pads.map((p, i) => html`<span key=${i} className="jl-pad" title=${p.name || p.label || 'Controller'}>
-              <i className="jl-dot" />P${p.player ?? i + 1}${Number.isFinite(p.level) && p.level >= 0 ? `, ${p.level} %` : ''}</span>`)
+              <i className="jl-dot" />${padLabel(p.player ?? i + 1)}${Number.isFinite(p.level) && p.level >= 0 ? `, ${p.level} %` : ''}</span>`)
           : html`<span className="jl-pad jl-pad-none">No controller</span>`}
         ${now?.ip ? html`<span className="jl-ip">${now.ip}</span>` : null}
       </div>

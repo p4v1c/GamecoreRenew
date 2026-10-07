@@ -1,0 +1,32 @@
+/* "Who's using this controller?" in Shelf: the paper and its pattern, ink
+   type, the teal of the shelf for the focus ring. The palette is Shelf's
+   :root one; this only places it. */
+.gcs-who.shelf-who,
+.gcs-who-kb.shelf-who {
+  --gc-accent-soft: #127a6d; --gc-accent-bright: #17171a; --gc-kb-ink-strong: #17171a;
+  --gc-pad-cross: #2A55B8; --gc-pad-circle: #C0303C; --gc-pad-square: #A8307E;
+}
+/* The pattern washed back, as the wall behind the shelf is: at full strength
+   it ran through the question. */
+.gcs-who.shelf-who {
+  background:
+    linear-gradient(rgba(244, 242, 237, 0.82), rgba(244, 242, 237, 0.82)),
+    var(--gc-paper-pattern, none) center / var(--gc-paper-tile, 120px),
+    #F4F2ED;
+  color: #17171a;
+}
+.shelf-who .gcs-who-title { font-weight: 800; letter-spacing: -0.04em; color: #17171a; }
+.shelf-who .gcs-who-tiles {
+  padding: 40px 48px; border-radius: 28px; background: #ffffff; box-shadow: 0 12px 40px #17171a1a;
+}
+.shelf-who .gcs-who-tile[data-on="1"] { background: #F4F2ED; box-shadow: 0 0 0 4px #127a6d; }
+.shelf-who .gcs-who-sub { color: #55555c; }
+.shelf-who .gcs-who-tile[data-add="1"] .gcs-who-avatar { background: #F4F2ED; color: #127a6d; border-color: #127a6d80; }
+.shelf-who .gcs-who-hint { padding: 8px 16px; border-radius: 999px; background: #ffffff; color: #17171a; }
+.gcs-who-kb.shelf-who {
+  background: #17171acc;
+  /* Shelf's :root has no --set-card-2/--set-key: without these the panel and
+     keys had no fill and the tiles showed through. Same keys as settings.css. */
+  --gc-kb-field: rgba(23, 23, 26, 0.05); --gc-kb-key: #FFFFFF; --gc-kb-key-edge: rgba(23, 23, 26, 0.14);
+}
+.gcs-who-kb.shelf-who .gcs-who-kb-panel { background: #F4F2ED; border: 0; border-radius: 28px; }

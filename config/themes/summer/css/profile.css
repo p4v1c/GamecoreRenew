@@ -1,0 +1,25 @@
+/* Settings → Profiles in Summer: the cards (profileCards.js) and a profile's
+   page (profileDetail.js) are drawn in the screen's --set-* tokens, which
+   Summer never set (its settings speak in glass and foam). They are given
+   here, on those two surfaces only, in Summer's own words: mandarin is the
+   cursor, sea green is "on". */
+.gcs-pcards-page, .gcs-prof {
+  --set-acc: var(--accent-mandarin); --set-acc-deep: var(--accent-mandarin);
+  --set-ink: var(--foam-000); --set-ink-2: var(--foam-200); --set-ink-3: var(--foam-400);
+  --set-line: var(--glass-hairline);
+  --set-card: var(--glass-700); --set-card-2: var(--glass-900);
+  --set-bg: rgba(12, 26, 33, 0.95);
+  --set-ok: var(--state-ok); --set-alert: var(--state-alert); --set-danger: var(--state-alert);
+}
+
+.gcs-pcard-btn, .gcs-prof-btn[data-primary="1"] {
+  background: color-mix(in srgb, var(--sea-brand) 55%, transparent);
+  border: 1px solid var(--glass-hairline); color: var(--foam-000);
+}
+.gcs-pcard-add { border: 2px dashed var(--glass-hairline); }
+
+/* The page itself: the same deep-sea glass, dense enough that the list
+   behind it does not read through. */
+.gcs-prof { background: var(--set-bg); }
+.gcs-prof-btn { background: var(--glass-700); }
+.gcs-prof-btn[data-danger="1"] { background: transparent; }

@@ -1,0 +1,21 @@
+/* "Who's using this controller?" in Orbit: the night-blue glass of its
+   settings, thin Red Hat Display for the question, a pale blue focus ring. */
+.gcs-who.orbit-who,
+.gcs-who-kb.orbit-who {
+  --set-acc: #9fcdfb; --set-acc-deep: #76abdf;
+  --set-ink: #eaf2ff; --set-ink-rgb: 234, 242, 255; --set-ink-2: #abc3df; --set-ink-3: #8fa9c9;
+  --set-line: #c5dfff1f; --set-bg: #101e33; --set-card: #c0dcff09; --set-card-2: #192a42;
+  --set-key: #c0dcff12; --set-knob: #ffffff; --set-kbd: #eaf2ff; --set-kbd-ink: #101e33;
+  --set-alert: #ef9ba9;
+  --font-display: 'Red Hat Display', 'Noto Sans', sans-serif;
+  --font-body: 'Red Hat Text', 'Noto Sans', sans-serif;
+  --gc-accent-soft: #9fcdfb; --gc-accent-bright: #eaf2ff;
+}
+.gcs-who.orbit-who {
+  background: radial-gradient(ellipse at 50% 35%, #1d3352 0%, #101e33 55%, #0b1425 100%);
+}
+.orbit-who .gcs-who-title { font-weight: 300; letter-spacing: -0.035em; font-size: clamp(42px, 3.6vw, 62px); }
+.orbit-who .gcs-who-tile[data-on="1"] { background: #192a42; box-shadow: 0 0 0 3px #9fcdfb, 0 24px 60px #0008; }
+.orbit-who .gcs-who-tile b { font-weight: 400; }
+.orbit-who .gcs-who-tile[data-add="1"] .gcs-who-avatar { background: #c0dcff09; border-color: #c5dfff40; }
+.gcs-who-kb.orbit-who .gcs-who-kb-panel { border-radius: 23px; border-color: #bddbff35; }

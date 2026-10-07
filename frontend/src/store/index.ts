@@ -42,6 +42,20 @@ interface GamecoreStore {
   setStandby: (stage: 'off' | 'screensaver' | 'sleep') => void
 
   /**
+   * The active profile's name, '' while the box has no profiles. Player 1 is
+   * shown by it instead of "P1" (lib/players.ts); kept current by the
+   * `profiles:changed` event.
+   */
+  playerOneName: string
+  /** '' for the primary profile (and a box without profiles), else its id: what
+   *  per-profile storage keys add, so the primary keeps its old keys. */
+  profileKey: string
+  /** The active profile's colour and picture, for the picture in a top bar. */
+  profileLook: { color: string; avatar: string | null }
+  setActiveProfile: (playerOneName: string, profileKey: string,
+                     profileLook?: { color: string; avatar: string | null }) => void
+
+  /**
    * The session ON THE SCREEN — and it keeps that meaning exactly.
    *
    * Every reader of this asks the same question in different words: the pad
@@ -133,6 +147,9 @@ export const useStore = create<GamecoreStore>((set) => ({
   modalDepth: 0,
   powerPending: null,
   standby: 'off',
+  playerOneName: '',
+  profileKey: '',
+  profileLook: { color: '', avatar: null },
   sessionGameKey: null,
   sessionSystemId: null,
   backgroundSessions: [],
@@ -161,6 +178,8 @@ export const useStore = create<GamecoreStore>((set) => ({
   closeModal: () => set(s => ({ modalDepth: Math.max(0, s.modalDepth - 1) })),
   setPowerPending: (action) => set({ powerPending: action }),
   setStandby: (stage) => set({ standby: stage }),
+  setActiveProfile: (playerOneName, profileKey, profileLook = { color: '', avatar: null }) =>
+    set({ playerOneName, profileKey, profileLook }),
   requestRemap: () => set(s => ({ remapRequest: s.remapRequest + 1 })),
   setGameOptions: (gameOptions) => set({ gameOptions }),
   requestSessionMenu: () => set(s => ({ sessionMenuRequest: s.sessionMenuRequest + 1 })),

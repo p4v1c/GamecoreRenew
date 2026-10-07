@@ -2,15 +2,19 @@ import { useState, useEffect } from 'react'
 import { Glyph } from '../ui'
 import { api, SysInfo } from '../../api'
 import { onWsEvent } from '../../hooks/useWebSocket'
+import { usePlayerLabel } from '../../lib/players'
+import ProfileAvatar from '../ProfileAvatar'
 import logo from '../../assets/logo.png'
 
 interface Props {
   onSettings: () => void
   onPower: () => void
+  onProfile?: () => void
 }
 
 export function ControllerBattery({ player, level, charging }: { player?: number | null; level: number; charging?: boolean }) {
   const color = charging ? '#4ade80' : level > 60 ? '#4ade80' : level > 20 ? '#fbbf24' : '#ef4444'
+  const label = usePlayerLabel()
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', borderRadius: 7, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
       {/* Gamepad icon */}
@@ -23,7 +27,7 @@ export function ControllerBattery({ player, level, charging }: { player?: number
       {/* Console-style slot from the backend controller registry */}
       {player != null && (
         <span style={{ fontSize: 14, color: 'var(--gc-ink-2)', fontWeight: 700, fontFamily: 'monospace' }}>
-          P{player}
+          {label(player)}
         </span>
       )}
       {/* Battery bar */}
@@ -62,7 +66,7 @@ function TBtn({ icon, label, color, onClick }: { icon: string; label: string; co
   )
 }
 
-export default function TopBar({ onSettings, onPower }: Props) {
+export default function TopBar({ onSettings, onPower, onProfile }: Props) {
   const [time, setTime] = useState('')
   const [sysInfo, setSysInfo] = useState<SysInfo | null>(null)
   // Kept out of sysInfo on purpose: controller state arrives pushed and must not
@@ -172,6 +176,7 @@ export default function TopBar({ onSettings, onPower }: Props) {
         <span style={{ fontSize: 15, color: 'var(--gc-ink-3)', fontWeight: 500 }}>{time}</span>
         <TBtn icon="settings" label="Settings" color="#b8501b" onClick={onSettings} />
         <TBtn icon="power" label="Power" color="#ef4444" onClick={onPower} />
+        <ProfileAvatar className="gc-topbar-avatar" onClick={onProfile} />
       </div>
     </div>
   )

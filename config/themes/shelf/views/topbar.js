@@ -20,7 +20,12 @@ export const createTopBar = (sdk) => {
   const { html, useState, useEffect } = sdk.ui
   const Glyph = sdk.ui.Glyph || (() => null)
 
-  return ({ onSettings, onPower }) => {
+  // Player 1 shows the active profile's name; a host without `sdk.players` says P1.
+  const usePadLabel = sdk.players?.useLabel ?? (() => (n) => `P${n}`)
+  // The profile picture; a host without it (or a box without profiles) shows nothing.
+  const Avatar = sdk.players?.Avatar || (() => null)
+  return ({ onSettings, onPower, onProfile }) => {
+    const padLabel = usePadLabel()
     const [info, setInfo] = useState(null)
     const [clock, setClock] = useState('')
     const [system, setSystem] = useState(null)
@@ -79,7 +84,7 @@ export const createTopBar = (sdk) => {
             const low = n <= 1
             return html`
               <span key=${i} class="cz-pad" data-low=${low ? '1' : '0'} title=${`${p.level}%`}>
-                <b>P${p.player ?? i + 1}</b>
+                <b>${padLabel(p.player ?? i + 1)}</b>
                 <span class="cz-bat">
                   ${Array.from({ length: SEGMENTS }, (_, k) => html`
                     <i key=${k} data-fill=${k < n ? '1' : '0'} />`)}
@@ -114,6 +119,7 @@ export const createTopBar = (sdk) => {
               <path d="M12 3v9M6.3 6.3a9 9 0 1 0 11.4 0" />
             </svg>
           </button>
+          <${Avatar} className="cz-avatar" onClick=${onProfile} />
         </div>
       </div>`
   }

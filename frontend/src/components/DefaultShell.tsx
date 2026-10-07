@@ -41,7 +41,8 @@ export interface ShellParts {
   background?: React.ComponentType
   decor?: React.ComponentType
   screensaver?: React.ComponentType
-  topbar?: React.ComponentType<{ onSettings: () => void; onPower: () => void }>
+  /** `onProfile` opens Settings on Profiles: what the profile picture does. */
+  topbar?: React.ComponentType<{ onSettings: () => void; onPower: () => void; onProfile?: () => void }>
   /**
    * The dashboard's *markup* — not the dashboard. Paging, focus and launching
    * stay in HomeScreen so a themed grid and the default one behave identically;
@@ -65,7 +66,7 @@ export interface ShellParts {
    * a theme that takes one owns the behaviour behind it.
    */
   homeOmit?: string[]
-  settings?: React.ComponentType<{ onClose: () => void }>
+  settings?: React.ComponentType<{ onClose: () => void; initialCategory?: string }>
   /**
    * Markup for the power menu and the controller screen. Their flows stay with
    * the host — the two-press shutdown confirmation and its failsafe, and the
@@ -134,6 +135,9 @@ export default function DefaultShell(parts: ShellParts = {}) {
   const SettingsC = parts.settings ?? SettingsScreen
 
   const [showSettings, setShowSettings] = useState(false)
+  // The page Settings opens on: null for the first, 'profiles' from the picture.
+  const [settingsPage, setSettingsPage] = useState<string | null>(null)
+  const openSettings = (page: string | null) => { setSettingsPage(page); setShowSettings(true) }
   const [showPower, setShowPower] = useState(false)
   const [showGamepad, setShowGamepad] = useState(false)
   const [homeOptionsGame, setHomeOptionsGame] = useState<ReturnType<NonNullable<ShellParts['homeGameOptions']>>>(null)
@@ -237,7 +241,8 @@ export default function DefaultShell(parts: ShellParts = {}) {
           playtime and game counts are fetched while the boot animation plays,
           so the dashboard is already populated when it fades away. */}
       <div style={{ position: 'relative', zIndex: 1, display: 'contents' }}>
-        <TopBarC onSettings={() => setShowSettings(true)} onPower={() => setShowPower(true)} />
+        <TopBarC onSettings={() => openSettings(null)} onPower={() => setShowPower(true)}
+                 onProfile={() => openSettings('profiles')} />
         <Toasts view={parts.toasts} />
 
         {/* Both screens stay mounted at all times — toggled via display:none.
@@ -267,7 +272,7 @@ export default function DefaultShell(parts: ShellParts = {}) {
       <AnimatePresence>
         {showSettings && (
           <ModalScope key="settings">
-            <SettingsC onClose={() => setShowSettings(false)} />
+            <SettingsC onClose={() => setShowSettings(false)} initialCategory={settingsPage ?? undefined} />
           </ModalScope>
         )}
       </AnimatePresence>

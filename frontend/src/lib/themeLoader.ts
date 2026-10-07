@@ -33,10 +33,12 @@ export type SurfaceName = 'splash' | 'shell'
  * player would be left with a frozen emulator holding several gigabytes and
  * nothing on screen able to resume or close it. So the host always draws one.
  * `ceremony` has no visual fallback, but the host still supplies its safe
- * overlay layer.
+ * overlay layer. `whoIsPlaying` is the theme's dress for the start screen
+ * (`sdk.defaults.createWhoIsPlaying(sdk, { skin })`); when it shows and what
+ * a pick does stay the host's, and without it the host draws its own.
  */
-export type OptionalSurfaceName = 'sessionBar' | 'sessionMenu' | 'ceremony'
-export const OPTIONAL_SURFACES: OptionalSurfaceName[] = ['sessionBar', 'sessionMenu', 'ceremony']
+export type OptionalSurfaceName = 'sessionBar' | 'sessionMenu' | 'ceremony' | 'whoIsPlaying'
+export const OPTIONAL_SURFACES: OptionalSurfaceName[] = ['sessionBar', 'sessionMenu', 'ceremony', 'whoIsPlaying']
 
 export const SURFACES: SurfaceName[] = ['splash', 'shell']
 

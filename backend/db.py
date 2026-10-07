@@ -29,6 +29,17 @@ async def init_db() -> None:
             last_played TEXT,
             PRIMARY KEY (system_id, game_key)
         );
+        -- A profile other than the primary one: its own playtime and recents.
+        -- The primary's stay in `playtime`, where they were before profiles.
+        CREATE TABLE IF NOT EXISTS profile_playtime (
+            profile_id  TEXT NOT NULL,
+            game_key    TEXT NOT NULL,
+            system_id   TEXT NOT NULL,
+            total_secs  INTEGER NOT NULL DEFAULT 0,
+            session_count INTEGER NOT NULL DEFAULT 0,
+            last_played TEXT,
+            PRIMARY KEY (profile_id, system_id, game_key)
+        );
         CREATE TABLE IF NOT EXISTS sessions (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             game_key    TEXT NOT NULL,

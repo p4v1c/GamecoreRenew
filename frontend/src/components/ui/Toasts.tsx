@@ -5,6 +5,7 @@ import { onWsEvent } from '../../hooks/useWebSocket'
 import { useStore } from '../../store'
 import type { Toast, ToastsViewProps } from './toasts/types'
 import { readHudTheme, batteryNotice } from './toasts/theme'
+import { controllerTitle } from '../../lib/players'
 
 const TOAST_MS = 10000
 
@@ -57,17 +58,18 @@ function useToastQueue() {
       const level = d.level as number
       if (typeof level !== 'number' || !Number.isFinite(level) || level < 0 || level > 100) return
       const player = (d.player ?? null) as number | null
+      const who = controllerTitle(player, useStore.getState().playerOneName)
       if (window.gamecore?.batteryToast) {
-        window.gamecore.batteryToast({ level, player, theme: readHudTheme() })
+        window.gamecore.batteryToast({ level, player, who, theme: readHudTheme() })
         return
       }
-      push(batteryNotice(level, player))
+      push(batteryNotice(level, who))
     })
 
     const onControllerEvent = (connected: boolean) => (d: Record<string, unknown>) => {
       const player = (d.player ?? null) as number | null
       const label = typeof d.label === 'string' ? d.label : ''
-      const who = player ? `Controller ${player}` : 'Controller'
+      const who = controllerTitle(player, useStore.getState().playerOneName)
 
       // P1 made the give-up visible in the journal. That is not where the
       // player is standing: they have just plugged a pad in and it does not
@@ -117,7 +119,7 @@ function useToastQueue() {
         // 3DS, Game Boy Advance" — nine systems truncated to three, describing
         // a fault, for a box doing exactly what it was told.
         if (window.gamecore?.controllerToast) {
-          window.gamecore.controllerToast({ theme: readHudTheme(), player, label, connected, autoconfigOff })
+          window.gamecore.controllerToast({ theme: readHudTheme(), player, who, label, connected, autoconfigOff })
           return
         }
         push({
@@ -145,7 +147,7 @@ function useToastQueue() {
 
       if (connected && unconfigured.length > 0) {
         if (window.gamecore?.controllerToast) {
-          window.gamecore.controllerToast({ theme: readHudTheme(), player, label, connected, unconfigured })
+          window.gamecore.controllerToast({ theme: readHudTheme(), player, who, label, connected, unconfigured })
           return
         }
         push({
@@ -160,7 +162,7 @@ function useToastQueue() {
       }
 
       if (window.gamecore?.controllerToast) {
-        window.gamecore.controllerToast({ theme: readHudTheme(), player, label, connected })
+        window.gamecore.controllerToast({ theme: readHudTheme(), player, who, label, connected })
         return
       }
       push({

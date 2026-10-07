@@ -12,6 +12,8 @@ import { bootBackground, bootSteps, isBootReady, onBootChange } from './lib/boot
 import ErrorBoundary from './components/ErrorBoundary'
 import DefaultShell from './components/DefaultShell'
 import SessionBar from './components/SessionBar'
+import WhoIsPlaying from './components/WhoIsPlaying'
+import { usePlayerNames } from './lib/players'
 import { useTheme } from './hooks/useTheme'
 import { ThemeProvider, Shell } from './components/ThemeSurface'
 
@@ -78,6 +80,7 @@ export default function App() {
   useWebSocket()
   useGamepad()
   const theme = useTheme()
+  usePlayerNames()
 
   /**
    * The boot animation is decided once, and only once the theme has resolved.
@@ -174,6 +177,10 @@ export default function App() {
           otherwise leave a frozen emulator holding gigabytes of RAM with
           nothing on screen able to resume or close it. */}
       <SessionBar view={theme.sessionBar} menuView={theme.sessionMenu} />
+
+      {/* Over every shell, under the splash: asked by the host so no theme can
+          drop it. Waits for the splash to finish. */}
+      <WhoIsPlaying enabled={ready && splashDone} />
 
       {/* Above the shell, and outside it. A theme draws its own boot animation
           but cannot remove it, and cannot decide when booting ends: onDone is

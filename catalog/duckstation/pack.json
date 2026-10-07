@@ -94,6 +94,22 @@
       "psx"
     ]
   },
+  "profileSaves": {
+    "keys": [
+      {
+        "config": "settings.ini",
+        "section": "MemoryCards",
+        "key": "Directory",
+        "value": "@SAVES@/memcards"
+      },
+      {
+        "config": "settings.ini",
+        "section": "Folders",
+        "key": "SaveStates",
+        "value": "@SAVES@/savestates"
+      }
+    ]
+  },
   "perGame": {
     "supported": false,
     "why": "The serial is readable — the pack already declares the playstation parser — but nobody has checked on a real install which directory DuckStation reads a per-game ini from, and a file written to the wrong one saves happily and changes nothing."

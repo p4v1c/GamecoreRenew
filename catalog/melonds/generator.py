@@ -36,10 +36,13 @@ launch: `launch_command` and multiplayer/.
 """
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 
 from backend.services.configgen.helpers.base import atomic_write, backup
-from backend.services.configgen.helpers.ini import extract_section, replace_section
+from backend.services.configgen.helpers.ini import (
+    extract_section, replace_section, section, set_key, set_section)
 
 EMU_ID = "melonds"
 
@@ -178,6 +181,57 @@ def launch_command(*, rom_path: str, exec_path: str, exec_args: str,
     return _multiplayer().launch_command(
         rom_path=rom_path, exec_path=exec_path, exec_args=exec_args,
         players=players, opts=opts)
+
+
+# Per instance, so player N's saves follow player N's profile. Empty = next to the ROM.
+SAVE_KEYS = ("SaveFilePath", "SavestatePath")
+
+
+def _save_value(text: str, header: str, key: str) -> str | None:
+    m = re.search(rf"^{key} = (.*)$", section(text, header) or "", re.M)
+    return m.group(1) if m else None
+
+
+def _is_under(quoted: str, root: Path) -> bool:
+    try:
+        return Path(json.loads(quoted)).is_relative_to(root)
+    except (ValueError, TypeError):
+        return False
+
+
+def place_saves(*, dirs: list, root: Path, opts: dict) -> None:
+    """`[Instance{N}]` save paths from the launch's per-player folders.
+
+    A folder: saves and savestates go there. None: melonDS's default, so a
+    path left under `root` by another profile's launch is emptied, and a path
+    the owner chose stays. No write when nothing changes. Raises when a
+    folder is given and melonDS has no config yet, or a path set by hand.
+    """
+    toml = opts["target"]
+    if not toml.is_file() and not any(dirs):
+        return
+    text = new = toml.read_text()
+    for instance, folder in enumerate(dirs):
+        header = f"Instance{instance}"
+        for key in SAVE_KEYS:
+            current = _save_value(new, header, key)
+            if folder is not None:
+                if current not in (None, '""') and not _is_under(current, root):
+                    # Nothing remembers it: overwriting it would lose the owner's folder.
+                    raise ValueError(f"melonDS {key} is set by hand ({current}): clear it to give profiles their saves.")
+                # TOML basic strings take JSON's escapes.
+                want = json.dumps(str(folder), ensure_ascii=False)
+            elif current and _is_under(current, root):
+                want = '""'
+            else:
+                continue
+            if section(new, header) is None:
+                new = set_section(new, header, f"{key} = {want}\n")
+            else:
+                new, _changed = set_key(new, header, key, want)
+    if new != text:
+        backup(toml)
+        atomic_write(toml, new)
 
 
 _SETUP = None

@@ -337,6 +337,7 @@ is why. See also the open decision on Flatpak saves below.
 | `session.json` | `services/process_manager.py`, atomically | idem, at startup | no |
 | `auth.json`, `auth_secret` | `services/auth.py`, mode 0600 | idem | no |
 | `playtime.db` | backend (SQLite) | backend | no |
+| `profiles/profiles.json` | `services/profiles.py`, atomically | idem | no |
 
 **The OTA rsync excludes `config/` entirely** — but "not in git" is *not* true of
 all of it, and the distinction matters when deciding whether overwriting a file
@@ -347,7 +348,7 @@ is data loss:
   `install/generated/*.dist` on **every** run, so editing them in place is not durable —
   edit the `.dist` files.
 - The **state** (`theme.json`, `addons.json`, `standby.json`, `session.json`,
-  `auth.json`, `auth_secret`, `playtime.db`) is never in git and exists only on
+  `auth.json`, `auth_secret`, `playtime.db`, `profiles/`) is never in git and exists only on
   the box. That is its identity: credentials, installed addons, play history,
   the selected theme. Treat overwriting one as data loss.
 
@@ -544,6 +545,22 @@ bytes, the HMAC key for session cookies. Both 0600, written atomically by
 through here — a truncated or foreign `auth.json` used to 500 the whole proxied
 surface, `/login` included, leaving no way back in short of SSH.
 
+## `config/profiles/profiles.json`
+
+`{active, auto_login, profiles: [{id, name, color, avatar, created, primary, theme}]}`
+(`auto_login`: "Log in automatically", absent = off; `theme`: the theme put on
+when the profile is picked, an id or null for the built-in look, absent until
+the profile has worn one; an `avatar` no longer offered reads as null). `id` is 16
+random hex digits and never derived from the name, so a rename moves nothing.
+`primary` marks the profile that owns what the box held before profiles, and
+keeps today's save locations; other profiles' saves go to
+`emu/profile-saves/<id>/` ([Assets](#assets)). Created
+with one unnamed primary profile on first read: unnamed means "no profiles"
+(players shown as P1-P4), and no other profile can be added until it has a
+name. A lone primary still called "Player 1" (the old default) reads as
+unnamed. Schema and checks:
+[`profiles.py`](04-backend-services.md#profilespy--who-plays-on-this-box).
+
 ## `config/session.json`
 
 The current writer stores `{sessions: [...]}` plus the first session's legacy
@@ -615,6 +632,13 @@ ON CONFLICT(game_key) DO UPDATE SET
 `game_key` is the ROM filename (or the system id for an app), which is why
 renaming a ROM resets its history.
 
+**Per profile.** `playtime` holds the primary profile's rows, which are every
+row from before profiles; a finished game of another profile goes to
+`profile_playtime` (same columns plus `profile_id`, keyed by
+`(profile_id, system_id, game_key)`), and `/api/playtime` reads the active
+profile's ([`playtime_rows`](04-backend-services.md#playtime_rowspy--playtime-per-profile)).
+The playtime repair and `split-systems` re-key `playtime` only.
+
 `get_db()` re-opens the handle if the cached connection has gone stale — a
 long-lived aiosqlite connection can die under the box's suspend cycles.
 
@@ -663,7 +687,7 @@ skip the saves" is not an available option:
 | Ryujinx | `bis/user/save/` |
 | Eden | `nand/user/save/` |
 | azahar | `sdmc/`, `nand/` |
-| mGBA, melonDS | `.sav` files **next to the ROMs** |
+| mGBA, melonDS | `.sav` files **next to the ROMs** (melonDS: a non-primary profile's in `emu/profile-saves/`) |
 
 The last row is the one bright spot: those `.sav` files live in `emu/<system>/`
 and are therefore already inside `/userdata` and already backed up. Every other
@@ -717,3 +741,4 @@ were before the split, which is the status quo and not a regression.
 | `assets/overlays/` | bezel PNGs — excluded from OTA |
 | `backend/data/gamecontrollerdb.txt` | vendored SDL_GameControllerDB, exported as `SDL_GAMECONTROLLERCONFIG_FILE` |
 | `emu/<system>/` | ROMs — excluded from OTA |
+| `emu/profile-saves/<profile id>/<system>/` | saves of a profile other than the primary, for packs with `profileSaves` (`paths.profile_saves_dir()`, `services/profile_saves.py`); created on demand, never moved or deleted by GameCore, kept when the profile is deleted. `emu/profile-saves/.primary.json`: the emulator options a profile replaced, put back for the primary (`profile_save_paths.py`). A folder swapped for a link waits beside it as `<name>.gamecore-primary` while another profile plays. Under `emu/` on purpose: outside git, the OTA rsync **and** the update's `.prev` snapshot, whose restore would roll a save back |

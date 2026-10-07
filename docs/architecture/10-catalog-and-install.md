@@ -94,6 +94,7 @@ by `scripts/check-catalog.py`, which CI runs before anything else. Required:
 | `scraper` `overlay` | covers, bezel identification | metadata |
 | `bios` | `backend/services/bios.py` | which system files the OWNER must supply, so the UI can answer "absent / wrong md5 / conforming" instead of a black screen |
 | `perGame` | `backend/services/pergame.py` | whether per-game settings are supported, and the strategy |
+| `profileSaves` | `backend/services/profile_saves.py` | how each profile's saves are kept apart; absent = shared by every profile ([below](#profilesaves--saves-per-profile)) |
 | `localMedia` | `backend/services/local_media.py` | how covers/titles are read out of the dumps themselves (PARAM.SFO, disc headers) |
 | `usb` | the tile, `services/launch.py` | non-gamepad accessories a launch should check for, and what to say when absent |
 | `install` | `installer/providers.py` | how the **main artifact** is obtained |
@@ -241,7 +242,7 @@ four pads:
 | menu bar | `launcher.py`, `windows.py` | melonDS hides it only when it toggles fullscreen itself, for all of an instance's windows at once: the first window is activated (Qt drops keys sent to an inactive window under KWin) and gets F11 held across a frame; the AT-SPI menu bar heights confirm it, up to three tries |
 | layout | `catalog/melonds/multiplayer/windows.py` | finds `[pN:wM]` windows, drops fullscreen, maximized states and decorations, then one full-height column per player (`columns()`), top screen above touch screen (`screen_rect()`). 2 players keep the native shape (720 px); 3-4 stretch vertically (x1.125, x1.5), the owner's choice. Xlib errors are ignored: the default handler exits, and the launcher exiting would end the session |
 | mice | `catalog/melonds/multiplayer/mouse_touch.py`, `inputdev.py`, `arrows.py` | one mouse keeps the plain X pointer. Once a second mouse is really used, mice get players in the order they are used, are grabbed (evdev), move an arrow window wearing the box's cursor theme (`cursor_theme.py`: XCURSOR_THEME, else KDE's kcminputrc, Inherits= followed; a drawn arrow without one) inside their player's column, moved once per frame and raised once a second, constant gain like X's flat profile, and their left button touches through that player's own uinput touchscreen (`gc-touch-pN`). Not MPX: removing a master crashes kwin_x11, adding one fast crashed Electron's GTK3. One touchscreen per player: melonDS reads only the first touch point and Qt shares a device's fingers between windows. X's own pointer follows every touch (the touchscreens drive the core pointer); after each touch the router warps it to the last pixel and checks it with `XQueryPointer` until it is there. XFixesHideCursor did not hide it on the box. Nothing to clean after a SIGKILL (kernel and X server do it) |
-| saves | `setup.py` (`blank_player_saves`, in the hook) | melonDS opens `<rom>.sav.N` for player N and, when it is missing, loads player 1's `<rom>.sav`: player 2 started on a copy of the owner's game. Before the launch, players 2-4 with no save get a blank one (0xFF, the size of player 1's). Player 1's and existing player saves are never touched; archives are skipped |
+| saves | `setup.py` (`blank_player_saves`, in the hook) | melonDS opens `<rom>.sav.N` for player N and, when it is missing, loads player 1's `<rom>.sav`: player 2 started on a copy of the owner's game. Before the launch, players 2-4 with no save get a blank one (0xFF, the size of player 1's). Player 1's and existing player saves are never touched; archives are skipped. Player 1's save folder follows the profile (`profileSaves`, `place_saves` in `generator.py`); players 2-4 stay beside the ROM |
 
 melonDS 1.x links instances only inside one process (`LocalMP`); between
 processes it offers LAN mode, opened from dialogs only. Hence one process and
@@ -316,6 +317,87 @@ Write the narrowest rule that works. `MODE="0666"` on a device that also
 carries a keyboard interface is every keystroke on the box readable by any
 local uid — `install/arch.sh` documents that trade at length around
 `99-gamecore-input.rules`.
+
+### `profileSaves` — saves per profile
+
+The save follows the person, never the player slot. At launch the active
+profile ([04](04-backend-services.md#profile_savespy--saves-that-follow-the-profile))
+is player 1. Only the pack that owns the emulator declares it; a pack that
+`sharesEmulator` (gb, gbc, mgba → gba; dolphin, wii → gamecube) follows its
+owner, with the owner's folder: `<data>/emu/profile-saves/<profile id>/<owner id>/`.
+`check-catalog.py` refuses it on a sharing pack. Three forms:
+
+**1. An object — no code, most emulators.** What to point at the profile's
+folder (`@SAVES@`), from pack.json alone (`services/profile_save_paths.py`):
+
+```json
+"profileSaves": {
+  "keys": [{"config": "PCSX2.ini", "section": "Folders", "key": "MemoryCards", "value": "@SAVES@/memcards"}],
+  "dirs": [{"path": "@FLATPAK_DATA@/eden/nand/user/save"}]
+}
+```
+
+| Field | What |
+|---|---|
+| `keys[]` | an option in a config file: `config` (relative to the config directory configgen resolves, native or flatpak; `..` allowed) or `path` (tokens), `section` (absent for a flat file such as RetroArch's), `key`, `value` (`@SAVES@` = the profile's folder; a value without it, `true`, is set as is), `quote` |
+| `dirs[]` | a folder the emulator has no option for: renamed `<name>.gamecore-primary`, replaced by a symlink to `<profile folder>/<as or name>`, renamed back for the primary. A symlink the owner put there himself (saves on another disk) counts as his folder: renamed too, never deleted. Its parent must exist (the emulator ran once), else the launch is refused; `optional` skips it instead, for an emulator that moved its folder between versions, as long as one entry applies |
+
+The owner's values are remembered in `profile-saves/.primary.json` before the
+first write, keyed by file and option (not by pack), and put back for the
+primary profile and when the game ends.
+
+**2. `per-instance` / `p1` — a hook in generator.py**, for a layout that
+needs code. The core calls `place_saves(dirs, root, opts)`:
+
+| Argument | What |
+|---|---|
+| `dirs` | 4 entries, player 1 first: the profile's folder (created), or None = the emulator's default location |
+| `root` | `<data>/emu/profile-saves`: a value under it left by an earlier launch must be cleared for a None entry; any other value is the owner's and stays |
+| `opts` | what a controller generator gets (`target`, `config_dir`, `home`…), whether or not autoconfig is on |
+
+`per-instance` is melonDS (one instance per player; players 2-4 get None
+until pads carry profiles). `p1`: one save, player 1's.
+
+**3. `{"supported": false, "why": "…"}`** — the saves cannot follow a profile,
+and why. Settings → Profiles names these systems (`shared_saves`).
+
+Save locations checked against the `save-manager` addon's catalogue, which
+backs the same folders up.
+
+| Emulator | How |
+|---|---|
+| RetroArch (17 packs) | `savefile_directory`, `savestate_directory` in `<pack>.cfg`, before its `#include` |
+| mGBA (gba, gb, gbc, mgba) | `[ports.qt] savegamePath`, `savestatePath` |
+| Snes9x | `[Files] SRAMDirectory`, `SaveStateDirectory` |
+| RMG (gopher64) | `[Core] SaveSRAMPath`, `SaveStatePath` |
+| DuckStation | `[MemoryCards] Directory`, `[Folders] SaveStates` |
+| PCSX2 | `[Folders] MemoryCards`, `Savestates` |
+| Dolphin (gamecube, wii, dolphin) | `[Core] MemcardA/BPath`, `GCIFolderA/BPath`, `[General] NANDRootPath` |
+| Azahar | `[Data%20Storage]` custom storage, `sdmc_directory` (the NAND stays shared; titles installed as CIA are per profile) |
+| melonDS | hook, `per-instance` |
+| PPSSPP | folders `PSP/SAVEDATA`, `PSP/PPSSPP_STATE` |
+| Eden | folder `nand/user/save` |
+| Ryujinx | folders `bis/user/save` and the save index `bis/system/save/8000000000000000` |
+| RPCS3 | folders `dev_hdd0/home/00000001/savedata` and `trophy` |
+| shadPS4 | folder `home/1/savedata` (≥ 0.16) or `savedata/1` (≤ 0.15), whichever exists (`optional`) |
+| Cemu | folder `mlc01/usr/save/00050000` (game saves; accounts stay shared) |
+| Xenia | `supported: false`: title updates and DLC share `content/` with the saves, so a profile of its own would lose them |
+
+Rules, each one a way to mix two people's progress:
+
+- **The primary profile keeps today's paths.** It owns every save made
+  before profiles; with it active nothing is written but the owner's values back.
+- **Rewrite every launch, and put back when the game ends**
+  (`profile_saves.release`). Emulators save their config on exit.
+- **Never move, copy or delete a save.** Redirection, or a rename in place.
+- **Refuse rather than guess.** No parent folder, or both a real folder and
+  its `.gamecore-primary`: the launch is refused. A config file the emulator
+  has not written yet (RetroArch writes its `.cfg` on exit) is created with
+  the save options alone, which is what it would read anyway.
+
+A Flatpak only sees the folder if its sandbox reaches the data root (the
+emulators get `/userdata` and the install directory). `GET /profiles` returns
+`separate_saves` and `shared_saves` for Settings → Profiles.
 
 ### `perGame` — and why it is **required** on every emulator pack
 

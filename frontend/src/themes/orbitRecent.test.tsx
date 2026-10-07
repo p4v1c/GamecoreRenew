@@ -17,7 +17,7 @@ async function recent(entries: unknown[]) {
   const { createHomeHooks } = await load('views/home/hooks')
   const list = vi.fn(async (_id: string) => games)
   const sdk = { ui: React, api: { playtime: { all: async () => entries }, games: { list } },
-    format: { gameName: (s: string) => s } }
+    format: { gameName: (s: string) => s }, system: { onWsEvent: () => () => {} } }
   const { useRecent } = createHomeHooks(sdk, {}, {})
   const hook = renderHook(() => useRecent(systems))
   await waitFor(() => expect(hook.result.current).toHaveLength(6))

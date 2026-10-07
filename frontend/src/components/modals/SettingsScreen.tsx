@@ -15,7 +15,7 @@ import { createSettings } from '../../settings/screen'
 import { useThemeCtx } from '../ThemeSurface'
 import '../../settings/settings.css'
 
-export default function SettingsScreen({ onClose }: { onClose: () => void }) {
+export default function SettingsScreen({ onClose, initialCategory }: { onClose: () => void; initialCategory?: string }) {
   // The context, never `useTheme()` directly: that hook IS the theme state
   // machine, and calling it a second time would start a second one — loading
   // the active theme again behind the screen the player is standing on.
@@ -48,5 +48,5 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return <Screen onClose={onClose} />
+  return <Screen onClose={onClose} initialCategory={initialCategory} />
 }

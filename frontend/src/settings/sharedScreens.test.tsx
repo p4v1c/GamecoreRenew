@@ -73,14 +73,14 @@ describe('the built-in settings screen', () => {
     const rail = () => container.querySelector('.gcs-set-rail')
     await waitFor(() => expect(rail()).toBeTruthy())
     const rows = [...rail()!.querySelectorAll('.gcs-set-row')].map(r => r.textContent ?? '')
-    // The capture's nine, in its order. The list this replaced had Storage,
+    // The capture's nine, in its order, then Profiles. The list this replaced had Storage,
     // Standby and Update as top-level rows; the rail folds them into System,
     // which is the difference that matters.
     for (const label of ['Wi-Fi', 'Bluetooth', 'Display', 'Audio', 'Controllers',
-                         'Emulators & apps', 'BIOS', 'Themes', 'System']) {
+                         'Emulators & apps', 'BIOS', 'Themes', 'System', 'Profiles']) {
       expect(rows.some(r => r.includes(label)), `${label} is missing from the rail`).toBe(true)
     }
-    expect(rows).toHaveLength(9)
+    expect(rows).toHaveLength(10)
   })
 
   it('carries the class its palette is scoped to', () => {
@@ -96,7 +96,7 @@ describe('the built-in settings screen', () => {
     // Same rule as the list it replaced: a settings screen that fails to open
     // because a service is down is the last thing this surface may do.
     await waitFor(() =>
-      expect(container.querySelectorAll('.gcs-set-rail .gcs-set-row')).toHaveLength(9))
+      expect(container.querySelectorAll('.gcs-set-rail .gcs-set-row')).toHaveLength(10))
   })
 })
 

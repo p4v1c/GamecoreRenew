@@ -5,9 +5,12 @@
  *   · value   — short list, ←/→ step (wraps)
  *   · slider  — 0–100, ←/→ by `step` (default 5: 20 presses is too many)
  *   · action  — button, ✕ runs it
+ *   · choice  — several buttons (`buttons: [{id, label}]`), ←/→ pick one,
+ *               ✕ runs it through `onAct(button id)`; ← past the first leaves
  *
  * Rows marked `confirm` (actions AND toggles) take two presses; `label2`
  * states what the second press will do. Moving focus away disarms.
+ * `badge: { color, text }` draws a round mark before the label (a profile).
  */
 import { follow } from './list.js'
 
@@ -28,9 +31,12 @@ export const createRows = (sdk) => {
   return ({ rows, active, onLeave, onLeft, onSet, onAct, title, sub, aside, state, sections }) => {
     const [idx, setIdx] = useState(0)
     const [armed, setArmed] = useState(null)
+    // The button under the cursor in a `choice` row; back to the first on a new row.
+    const [pick, setPick] = useState(0)
+    useEffect(() => { setPick(0) }, [idx])
 
-    const ref = useRef({ idx, rows, armed })
-    useEffect(() => { ref.current = { idx, rows, armed } }, [idx, rows, armed])
+    const ref = useRef({ idx, rows, armed, pick })
+    useEffect(() => { ref.current = { idx, rows, armed, pick } }, [idx, rows, armed, pick])
 
     // Keep the focused row on screen.
     //
@@ -100,6 +106,11 @@ export const createRows = (sdk) => {
       if (r.confirm && ref.current.armed !== r.id) { setArmed(r.id); return }
       setArmed(null)
       if (r.type === 'toggle') { onSet(r.id, !r.value); return }
+      if (r.type === 'choice') {
+        const b = r.buttons[Math.min(ref.current.pick, r.buttons.length - 1)]
+        if (b) onAct(b.id)
+        return
+      }
       if (r.type !== 'action') return
       onAct(r.id)
     }
@@ -118,11 +129,15 @@ export const createRows = (sdk) => {
         sdk.input.onGp('gp:dpad-left', () => {
           const r = cur()
           if (r && (r.type === 'value' || r.type === 'slider')) { sdk.system.playSound('move'); step(r, -1) }
+          else if (r && r.type === 'choice' && ref.current.pick > 0) { sdk.system.playSound('move'); setPick((n) => n - 1) }
           else (onLeft || onLeave)()
         }),
         sdk.input.onGp('gp:dpad-right', () => {
           const r = cur()
           if (r && (r.type === 'value' || r.type === 'slider')) { sdk.system.playSound('move'); step(r, +1) }
+          else if (r && r.type === 'choice' && ref.current.pick < r.buttons.length - 1) {
+            sdk.system.playSound('move'); setPick((n) => n + 1)
+          }
         }),
         sdk.input.onGp('gp:confirm', () => { const r = cur(); if (r) { sdk.system.playSound('confirm'); fire(r) } }),
         sdk.input.onGp('gp:back', onLeave),
@@ -162,6 +177,9 @@ export const createRows = (sdk) => {
                    aria-valuetext=${r.type === 'value' ? r.options[r.value] : undefined}
                    ref=${(el) => { rowRefs.current[i] = el }}
                    onClick=${() => { setIdx(i); fire(r) }}>
+                ${r.badge ? html`
+                  <span class="gcs-row2-badge" aria-hidden="true"
+                        style=${{ background: r.badge.color }}>${r.badge.text}</span>` : null}
                 <span class="gcs-row2-text">
                   ${/* `confirmText` is used verbatim; `label2` is lower-cased to
                        finish the sentence "Press again to …". The verbatim form
@@ -199,6 +217,13 @@ export const createRows = (sdk) => {
 
                 ${r.type === 'info' ? html`
                   <span class="gcs-row2-info">${r.display}</span>` : null}
+
+                ${r.type === 'choice' ? html`
+                  <span class="gcs-choice">
+                    ${r.buttons.map((b, j) => html`
+                      <button key=${b.id} type="button" class="gcs-act" data-pick=${on && pick === j ? '1' : '0'}
+                              onClick=${(e) => { e.stopPropagation(); setIdx(i); setPick(j); onAct(b.id) }}>${b.label}</button>`)}
+                  </span>` : null}
 
                 ${r.type === 'action' ? html`
                   <span class="gcs-act" data-danger=${r.danger ? '1' : '0'} data-armed=${isArmed ? '1' : '0'}>

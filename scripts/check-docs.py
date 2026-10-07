@@ -93,6 +93,7 @@ RUNTIME_GENERATED = {
     "config/addons.json",     # installed addons registry
     "config/display.json",    # the confirmed display mode, written by /confirm
     "config/ui-scale.json",   # the interface zoom chosen in Display
+    "config/profiles/profiles.json",  # who plays on this box
 }
 
 # Named on purpose although not there YET: a document describing how to turn a

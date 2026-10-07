@@ -360,6 +360,129 @@
       }
     },
 
+    "profileSaves": {
+      "description": "How this emulator keeps each profile's saves apart. Absent = one save shared by every profile, as before profiles existed. Only the pack that owns the emulator declares it; a pack that `sharesEmulator` follows its owner. Three forms. An object with `keys` and/or `dirs` (most emulators, no code): the save options to point at the profile's folder (`@SAVES@`) and the folders with no option, swapped for a symlink to it; the primary profile keeps the emulator's own values and folders (backend/services/profile_save_paths.py). `per-instance` / `p1` with a `place_saves(dirs, root, opts)` hook in generator.py, for a layout that needs code (melonDS: one instance per player). `{supported: false, why}`: the saves cannot follow a profile, and why, so Settings can say so.",
+      "oneOf": [
+        {
+          "enum": [
+            "per-instance",
+            "p1"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "supported",
+            "why"
+          ],
+          "properties": {
+            "supported": {
+              "const": false
+            },
+            "why": {
+              "type": "string",
+              "minLength": 10
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "keys": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "config": {
+                    "type": "string",
+                    "description": "Relative to the pack's config directory (native or flatpak, as configgen resolves it); `..` allowed."
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "With the usual tokens (@FLATPAK_DATA@, @HOME@…)."
+                  },
+                  "section": {
+                    "type": "string",
+                    "description": "INI section; absent for a flat file (RetroArch)."
+                  },
+                  "key": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "`@SAVES@` is the profile's folder. A value without it (`true`) is set as is."
+                  },
+                  "quote": {
+                    "type": "boolean",
+                    "description": "Write the value in double quotes."
+                  }
+                },
+                "required": [
+                  "key",
+                  "value"
+                ],
+                "oneOf": [
+                  {
+                    "required": [
+                      "config"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "path"
+                    ]
+                  }
+                ]
+              }
+            },
+            "dirs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "config": {
+                    "type": "string",
+                    "description": "Relative to the pack's config directory (native or flatpak, as configgen resolves it); `..` allowed."
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "With the usual tokens (@FLATPAK_DATA@, @HOME@…)."
+                  },
+                  "as": {
+                    "type": "string",
+                    "description": "Name of the profile's folder for it; default: the folder's own name."
+                  },
+                  "optional": {
+                    "type": "boolean",
+                    "description": "Skip it when its parent folder is missing (one of two layouts an emulator has used). At least one entry must apply."
+                  }
+                },
+                "oneOf": [
+                  {
+                    "required": [
+                      "config"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "path"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "minProperties": 1
+        }
+      ]
+    },
+
     "perGame": {
       "description": "Whether this emulator can be configured ONE GAME AT A TIME, and if so where that file goes.\n\nThe cases this exists for are binary, not cosmetic: an RPCS3 title that sits on a black screen until Write Color Buffers is ticked, a Dolphin game that freezes on anything but Vulkan, a Wii U dump whose textures are garbage without its graphic pack. The difference is not 40 fps against 60 — it is starts against does not start, and from a sofa the only remedy was to leave GameCore, find the emulator's own window, and hunt.\n\nREQUIRED on every emulator pack, and the requirement is the point. An emulator that cannot do this must say so with `supported: false` and a reason, because the failure mode of leaving it out is silence: the button is absent, the player cannot tell 'this emulator has no per-game settings' from 'GameCore forgot this emulator', and neither can anyone reading the catalogue.\n\nAnd because it is DATA, the day shadPS4 grows per-title configs is a pack.json pushed down the signed OTA channel — not a release, not a frontend build, not a box reboot. That is the whole reason this block is here and not in a table in backend/services/.",
       "type": "object",

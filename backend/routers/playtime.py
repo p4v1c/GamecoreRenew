@@ -1,6 +1,7 @@
-"""Playtime queries."""
+"""Playtime queries, for the active profile (services/playtime_rows.py)."""
 from fastapi import APIRouter
 from ..db import get_db
+from ..services import playtime_rows
 
 router = APIRouter(tags=["playtime"])
 
@@ -8,16 +9,18 @@ router = APIRouter(tags=["playtime"])
 @router.get("/playtime")
 async def get_all_playtime():
     db = await get_db()
-    rows = await db.execute_fetchall("SELECT * FROM playtime ORDER BY last_played DESC")
+    src, args = playtime_rows.source()
+    rows = await db.execute_fetchall(f"SELECT * FROM {src} ORDER BY last_played DESC", args)
     return [dict(r) for r in rows]
 
 
 @router.get("/playtime/system/{system_id}")
 async def get_system_playtime(system_id: str):
     db = await get_db()
+    src, args = playtime_rows.source()
     rows = await db.execute_fetchall(
-        "SELECT * FROM playtime WHERE system_id = ? ORDER BY total_secs DESC",
-        (system_id,)
+        f"SELECT * FROM {src} WHERE system_id = ? ORDER BY total_secs DESC",
+        (*args, system_id)
     )
     return [dict(r) for r in rows]
 
@@ -33,11 +36,12 @@ async def get_game_playtime(game_key: str, system_id: str | None = None):
     whichever row came first was not.
     """
     db = await get_db()
+    src, args = playtime_rows.source()
     # aiosqlite has no execute_fetchone — go through a cursor explicitly
     if system_id is not None:
         cur = await db.execute(
-            "SELECT * FROM playtime WHERE system_id = ? AND game_key = ?",
-            (system_id, game_key))
+            f"SELECT * FROM {src} WHERE system_id = ? AND game_key = ?",
+            (*args, system_id, game_key))
         row = await cur.fetchone()
         await cur.close()
         if not row:
@@ -46,7 +50,7 @@ async def get_game_playtime(game_key: str, system_id: str | None = None):
         return dict(row)
 
     rows = await db.execute_fetchall(
-        "SELECT * FROM playtime WHERE game_key = ?", (game_key,))
+        f"SELECT * FROM {src} WHERE game_key = ?", (*args, game_key))
     if not rows:
         return {"game_key": game_key, "total_secs": 0, "session_count": 0, "last_played": None}
     played = [r["last_played"] for r in rows if r["last_played"]]

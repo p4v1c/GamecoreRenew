@@ -1,0 +1,149 @@
+/* Settings → Profiles: the cards (settings/profileCards.js) and one profile's
+   page (settings/profileDetail.js). The screen's own tokens only, so every
+   theme dresses them as it dresses the rest of Settings. Focus is a ring in
+   the accent, never a fill: an accent fill under text fails on half the
+   themes. */
+
+/* ── the cards ─────────────────────────────────────────────────────────── */
+.gcs-pcards {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 20px;
+  margin: 8px 0 22px;
+}
+
+.gcs-pcard {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 26px 18px 18px; border-radius: 22px;
+  background: var(--set-card); border: 1px solid var(--set-line);
+  color: inherit; font: inherit; text-align: center;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+.gcs-pcard[data-on="1"] {
+  border-color: var(--set-acc); box-shadow: 0 0 0 2px var(--set-acc), 0 18px 40px rgba(0, 0, 0, 0.18);
+  transform: translateY(-4px);
+}
+
+.gcs-pcard-face {
+  display: grid; place-items: center; overflow: hidden; width: 120px; height: 120px; border-radius: 50%;
+  color: #fff; font-weight: 700; font-size: 52px; font-family: var(--font-display, inherit);
+}
+.gcs-pcard-name {
+  max-width: 100%; overflow-wrap: anywhere; line-height: 1.15;
+  font-family: var(--font-display, inherit); font-size: 26px; font-weight: 700;
+}
+.gcs-pcard-now {
+  padding: 3px 12px; border-radius: 999px; font-size: 15px; font-weight: 700;
+  background: color-mix(in srgb, var(--set-ok, #4ade80) 22%, transparent); color: var(--set-ink);
+}
+.gcs-pcard-theme { min-height: 1.3em; font-style: normal; font-size: 16px; color: var(--set-ink-3); }
+
+.gcs-pcard-btns { display: flex; gap: 8px; width: 100%; margin-top: auto; padding-top: 8px; }
+.gcs-pcard-btn {
+  flex: 1; min-height: 46px; border: 0; border-radius: 12px; cursor: pointer;
+  background: color-mix(in srgb, var(--set-acc) 18%, var(--set-card)); color: var(--set-ink);
+  font: inherit; font-size: 17px; font-weight: 700;
+}
+.gcs-pcard-btn[data-on="1"] { outline: 3px solid var(--set-acc); outline-offset: 2px; }
+
+.gcs-pcard-add { justify-content: center; border-style: dashed; cursor: pointer; background: transparent; }
+.gcs-pcard-plus {
+  display: grid; place-items: center; width: 120px; height: 120px; border-radius: 50%;
+  border: 2px dashed var(--set-line); color: var(--set-ink-2); font-size: 56px; line-height: 1;
+}
+
+/* ── one profile ───────────────────────────────────────────────────────── */
+.gcs-prof {
+  position: fixed; inset: 0; z-index: 15;
+  display: flex; flex-direction: column; gap: 22px; padding: 40px 64px 28px;
+  background: var(--set-bg); color: var(--set-ink); font-family: var(--font-body);
+  backdrop-filter: blur(24px);
+}
+.gcs-prof-crumb { font-size: 18px; color: var(--set-ink-2); }
+.gcs-prof-body { flex: 1; min-height: 0; display: flex; gap: 40px; }
+
+.gcs-prof-hero {
+  flex: 0 0 440px; display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 36px 32px 28px; border-radius: 28px;
+  background: var(--set-card-2); border: 1px solid var(--set-line);
+}
+.gcs-prof-face {
+  display: grid; place-items: center; overflow: hidden; width: 220px; height: 220px; border-radius: 50%;
+  color: #fff; font-weight: 700; font-size: 96px; font-family: var(--font-display, inherit);
+}
+.gcs-prof-name {
+  margin: 6px 0 0; max-width: 100%; overflow-wrap: anywhere; text-align: center; line-height: 1.1;
+  font-family: var(--font-display, inherit); font-size: 50px; font-weight: 800; letter-spacing: -0.01em;
+}
+.gcs-prof-tags { display: flex; align-items: center; gap: 12px; font-size: 18px; color: var(--set-ink-2); }
+
+.gcs-prof-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; margin-top: 8px; }
+.gcs-prof-stats div {
+  display: flex; flex-direction: column; gap: 2px; padding: 14px 18px; border-radius: 16px;
+  background: var(--set-card); border: 1px solid var(--set-line);
+}
+.gcs-prof-stats b { font-family: var(--font-display, inherit); font-size: 26px; font-weight: 800; }
+.gcs-prof-stats i { font-style: normal; font-size: 16px; color: var(--set-ink-2); }
+
+.gcs-prof-grow { flex: 1; }
+.gcs-prof-side { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.gcs-prof-btn {
+  min-height: 56px; border: 0; border-radius: 14px; cursor: pointer;
+  background: var(--set-card); color: var(--set-ink); box-shadow: inset 0 0 0 1px var(--set-line);
+  font: inherit; font-size: 19px; font-weight: 700;
+}
+.gcs-prof-btn[data-primary="1"] { background: color-mix(in srgb, var(--set-acc) 22%, var(--set-card)); }
+.gcs-prof-btn[data-danger="1"] { background: transparent; color: var(--set-alert, #f87171); box-shadow: inset 0 0 0 2px rgba(var(--set-danger-rgb, 239, 68, 68), 0.45); }
+.gcs-prof-btn[data-on="1"] { outline: 3px solid var(--set-acc); outline-offset: 3px; }
+.gcs-prof-btn[data-danger="1"][data-on="1"] { outline-color: var(--set-danger, #ef4444); }
+.gcs-prof-note { margin: 2px 0 0; text-align: center; font-size: 15px; line-height: 1.35; color: var(--set-ink-3); }
+
+.gcs-prof-looks { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 26px; }
+.gcs-prof-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+.gcs-prof-h h2 { margin: 0; font-family: var(--font-display, inherit); font-size: 28px; font-weight: 800; }
+.gcs-prof-h span { font-size: 18px; color: var(--set-ink-2); }
+
+.gcs-prof-pics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px 12px; }
+.gcs-prof-pic { display: flex; justify-content: center; padding: 6px 0; border: 0; background: none; cursor: pointer; }
+.gcs-prof-pic-face {
+  display: grid; place-items: center; overflow: hidden; width: 96px; height: 96px; border-radius: 50%;
+  color: #fff; font-weight: 700; font-size: 42px; font-family: var(--font-display, inherit);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+/* Chosen: a thin ring. Under the pad: the accent ring and a lift. */
+.gcs-prof-pic[data-sel="1"] .gcs-prof-pic-face { box-shadow: 0 0 0 3px var(--set-bg), 0 0 0 6px var(--set-ink-2); }
+.gcs-prof-pic[data-on="1"] .gcs-prof-pic-face { box-shadow: 0 0 0 3px var(--set-bg), 0 0 0 7px var(--set-acc); transform: scale(1.08); }
+
+.gcs-prof-cols { display: flex; flex-wrap: wrap; gap: 18px; }
+.gcs-prof-col {
+  width: 64px; height: 64px; border: 0; border-radius: 50%; cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.gcs-prof-col[data-sel="1"] { box-shadow: 0 0 0 3px var(--set-bg), 0 0 0 6px var(--set-ink-2); }
+.gcs-prof-col[data-on="1"] { box-shadow: 0 0 0 3px var(--set-bg), 0 0 0 7px var(--set-acc); transform: scale(1.1); }
+
+.gcs-prof-themes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+.gcs-prof-theme {
+  display: flex; flex-direction: column; overflow: hidden; padding: 0; cursor: pointer;
+  border: 1px solid var(--set-line); border-radius: 16px; background: var(--set-card-2);
+  color: inherit; font: inherit; text-align: left;
+  transition: box-shadow 120ms ease, transform 120ms ease;
+}
+.gcs-prof-theme img, .gcs-prof-theme-plain { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+.gcs-prof-theme b { padding: 10px 14px; font-size: 18px; font-weight: 700; }
+.gcs-prof-theme[data-sel="1"] b::after { content: " ✓"; color: var(--set-acc); }
+.gcs-prof-theme[data-on="1"] { box-shadow: 0 0 0 3px var(--set-acc); transform: translateY(-3px); }
+/* The built-in look has no picture: its own colours, drawn. */
+.gcs-prof-theme-plain {
+  box-sizing: border-box; padding: 12%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8%;
+  align-content: end; background: #0a0a12;
+}
+.gcs-prof-theme-plain i { height: 40%; min-height: 18px; border-radius: 6px; background: #1d1d2b; }
+.gcs-prof-theme-plain i:last-child { background: #b8501b; }
+
+.gcs-prof-msg { margin: 0; font-size: 18px; color: var(--set-alert); }
+.gcs-prof-hint { display: flex; justify-content: flex-end; font-size: 18px; color: var(--set-ink-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .gcs-pcard, .gcs-prof-pic-face, .gcs-prof-col, .gcs-prof-theme { transition: none; }
+  .gcs-pcard[data-on="1"], .gcs-prof-pic[data-on="1"] .gcs-prof-pic-face,
+  .gcs-prof-col[data-on="1"], .gcs-prof-theme[data-on="1"] { transform: none; }
+}

@@ -1,4 +1,4 @@
-/** Settings: the host's nine categories (`createSettings`), dressed in Jelly:
+/** Settings: the host's categories (`createSettings`), dressed in Jelly:
  * rail, L1/R1 between categories, details in dialogs. Jelly adds L2/R2 to
  * scroll a long page, never under a dialog, which owns the pad. */
 export function createJellySettings(sdk) {

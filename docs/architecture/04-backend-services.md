@@ -727,11 +727,16 @@ signatures. The docstrings carry the rest.
 `launch(system, system_id, rom_path, game_key)` runs, in order: foreground
 check → ROM path inside `romsPath` → resume-or-refuse (one resident game) →
 catalogue args → BIOS gate → USB notice → `standby.exit_standby()` → wait for
-pad profiles → release stale slots → per-game config → pack
+pad profiles → release stale slots → profile saves → per-game config → pack
 `prepare_launch` → pack `launch_command` → `process_manager.launch()` → udev
 re-fire / fullscreen tasks. Refusals raise `LaunchRefused(status, detail)`; the router maps them.
 Every preparation step is budgeted and never raises: a late config costs a
-session, a failed launch costs the box.
+session, a failed launch costs the box. The one exception is
+`_place_profile_saves()` (`profile_saves.place`): when a pack that separates
+saves cannot be pointed at the profile's folder, the launch is refused
+(`game:failed`), since the game would write into another profile's save.
+A launch that fails after that step gives the saves back at once
+(`_release_profile_saves()`): no game ends, so nothing else would.
 
 `_pack_launch_command()` calls a pack's optional `launch_command(rom_path,
 exec_path, exec_args, players, opts)` hook (`generator.py`), which may return
@@ -919,6 +924,62 @@ A section's modules are raised to INFO, so their INFO lines also reach the
 journal, as `standby`'s already did. A new module joins a section by adding its
 logger name to `SECTIONS`. MAC addresses go through `mask_mac()`
 (`AA:BB:CC:xx:xx:FF`). Wi-Fi passwords are never logged.
+
+### `profiles.py` — who plays on this box
+
+One file, `paths.profiles_dir()/profiles.json`: `{active, auto_login, profiles: [{id, name,
+color, avatar, created, primary, theme}]}`, read and written under one lock,
+atomically.
+
+| Function | Does |
+|---|---|
+| `list_profiles()` | the state plus `PALETTE`; with no file, creates one unnamed primary profile that owns everything the box held before profiles. Unnamed = no profiles yet |
+| `create(name, color, avatar)` | refuses (409) while the primary is unnamed; trims the name, refuses empty, over `NAME_MAX`, non-printable, or taken (case-insensitive); colour from `PALETTE` (default: the first unused), avatar from `AVATARS` (the animals `frontend/src/settings/avatars.js` draws; None draws the initial, and a picture an older version offered reads as None) |
+| `update(id, fields)` | the same checks, and `theme` through `themes.check`; the id never changes, so nothing keyed on it moves |
+| `remember_theme(theme_id)` | the theme just picked in Settings → Themes becomes the active profile's; nothing without profiles |
+| `delete(id)` | the record only (its saves folder stays on disk); refuses the last profile and the primary one (it owns the saves beside the ROMs); `active` passes to the primary |
+| `set_auto_login(enabled)` | "Log in automatically" (`auto_login` in the file, off by default): the start screen is skipped and the box starts as the last profile |
+| `active()`, `set_active(id)` | the profile the interface is used as. A switch, or deleting the active profile, is refused (409) while a game is on screen or suspended: a suspended game resumes without its saves being placed again, so the new profile would play in the old one's save. A switch gives a profile without `theme` the one on screen, the leaving one included, so switching back finds it |
+
+A file that does not parse, or lists no profile, is renamed `profiles.json.broken-<time>` and a fresh
+primary profile is created: the old one stays readable for a repair by hand.
+Favourites, recently played and playtime are not per profile yet.
+
+
+### `profile_saves.py` — saves that follow the profile
+
+Packs opt in with `profileSaves` ([10](10-catalog-and-install.md#profilesaves--saves-per-profile)).
+At launch the active profile is player 1. A pack that `sharesEmulator` uses
+its owner's declaration, folder and lock.
+
+| Function | Does |
+|---|---|
+| `mode(pack, packs?)` | `per-instance`, `p1` (also for an object declaration), or None (shared, or `supported: false`) |
+| `save_dir(profile_id, system_id)` | `paths.profile_saves_dir()/<id>/<system>/`; refuses an id that is not alphanumeric (`profiles.json` is hand-editable) |
+| `player_dirs(players, system_id, mode)` | one entry per slot (4): the profile's folder, created on demand, or None for the primary profile, no profile, and players 2-4 in `p1` mode |
+| `place(system_id)` | the owner's `place_saves(dirs, root, opts)` (generator hook, or the object declaration through `profile_save_paths`) with `player_dirs([active profile])`; raises when it cannot be told |
+| `release(system_id, started)` | the same with every slot None, once the game that started at `started` has exited: the emulator started outside GameCore saves where it always did. Skipped when a later launch placed that emulator again; `place` and `release` share one lock |
+| `release_session(session)` | `release` for an ended process-manager session; never raises, skips apps |
+| `separate_systems(packs)`, `shared_systems(packs)` | labels of the systems whose saves follow the profile, and of the emulators that share theirs, for `GET /profiles` |
+
+Never moves, copies or deletes a save: only the emulator's options change, or
+a folder is renamed in place. Runs whether or not autoconfig is on for the
+pack, because saves are not controller config.
+
+### `profile_save_paths.py` — the object form of `profileSaves`
+
+| Function | Does |
+|---|---|
+| `apply_keys(entries, folder, root)` | each `(file, entry)` option set to the profile's value, the file's own values remembered first in `root/.primary.json`; `folder` None puts the remembered values back (an option that was absent is removed) and forgets them. A missing file is created with the profile's options alone (never for the primary) |
+| `apply_dir(path, target)` | `path` renamed `<name>.gamecore-primary` and replaced by a symlink to `target`; None removes the link and renames the folder back. Refuses when its parent is missing, or when a real folder and its `.gamecore-primary` both exist (whose saves are whose cannot be told) |
+| `read_key`, `write_key` | one `key = value` in an INI section, or a flat file; a new option in a flat file goes before its first `#include` |
+
+### `playtime_rows.py` — playtime per profile
+
+| Function | Does |
+|---|---|
+| `source()` | `(FROM target, params)` for the active profile: `playtime` for the primary (every figure from before profiles, untouched, and the only table the playtime repair and `split-systems` re-key), else that profile's rows of `profile_playtime`, with the same columns |
+| `record(db, game_key, system_id, elapsed, when)` | adds a finished session to the active profile's row; the profile cannot change while a game is held, so it is the one that started it |
 
 ### `storage.py` — external disks
 

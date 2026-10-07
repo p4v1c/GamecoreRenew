@@ -43,6 +43,7 @@ from .routers import controllers as controllers_router
 from .routers import themes as themes_router
 from .routers import storage as storage_router
 from .routers import logs as logs_router
+from .routers import profiles as profiles_router
 from .routers.settings import wifi, audio, bluetooth, display
 from .services import (battery, boot, desktop_power, gamepad_monitor, http_cache, logs,
                        playtime_repair, prefetch, standby, storage_monitor)
@@ -293,6 +294,7 @@ app.include_router(standby_router.router, prefix="/api")
 app.include_router(controllers_router.router, prefix="/api")
 app.include_router(storage_router.router, prefix="/api")
 app.include_router(logs_router.router, prefix="/api")
+app.include_router(profiles_router.router, prefix="/api")
 app.include_router(themes_router.router, prefix="/api")
 app.include_router(wifi.router, prefix="/api")
 app.include_router(audio.router, prefix="/api")

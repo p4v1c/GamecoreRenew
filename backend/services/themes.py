@@ -328,8 +328,9 @@ def get_active() -> str | None:
     return raw.get("active") or None
 
 
-def set_active(theme_id: str | None) -> str | None:
-    """Persist the selection. None (or an unknown id) means the default theme."""
+def check(theme_id: str | None) -> None:
+    """Raise ValueError or LookupError unless `theme_id` can be selected.
+    None, the built-in default, always can."""
     if theme_id is not None:
         if not _safe_id(theme_id):
             raise ValueError("invalid theme id")
@@ -341,6 +342,11 @@ def set_active(theme_id: str | None) -> str | None:
         # wondering why their choice did nothing.
         if not match["compatible"]:
             raise ValueError("; ".join(match["warnings"]) or "theme is not compatible")
+
+
+def set_active(theme_id: str | None) -> str | None:
+    """Persist the selection. None means the default theme."""
+    check(theme_id)
     # tmp + os.replace, like auth._write_private: write_text truncates first,
     # so a power cut mid-write left a half-written theme.json that get_active()
     # could not parse — and the player's theme silently reverted to the default.

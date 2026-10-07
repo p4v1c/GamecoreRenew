@@ -345,6 +345,24 @@ Open Settings from the top-right icon or press **Start** on the controller.
 - **Themes** — change the look of the whole UI
 - **Update** — check for and apply OTA updates
 - **System** — reboot / shutdown
+- **Profiles** — who plays on this box: add, rename, recolour, delete, switch
+
+**Profiles.** A box starts with no profiles and behaves exactly as before:
+controllers are P1 to P4. **Settings → Profiles → Set up profiles** names the
+first one, which keeps the saves the box already had, beside the ROMs; from
+then on player 1 is shown by the name of the profile playing (status bar,
+controller screen, notifications), and others can be added. With two or more,
+the console asks "Who's using this controller?" each time the interface
+starts, as a PS5 does; **○** keeps the last one, and **Log in automatically**
+(Settings → Profiles) skips the question and starts as the last profile. A profile is a name, a colour and a picture, shown at the top
+right of every theme beside Settings and Power (press it to open Profiles), with its own saves, playtime,
+recently played and favourites. Saves follow the profile playing (player 1)
+on every system but the Xbox 360: the first profile keeps the saves the box
+already had, every other one starts its own. GameCore points each emulator
+at the profile's folder before the game and back afterwards; nothing is ever
+moved or copied. The profile cannot change while a game is open or
+suspended: close it first. Deleting a profile keeps its saves on disk, but no
+profile opens them again.
 
 **Logs.** Each game launch keeps the emulator's output, and the backend keeps
 its own log, under `logs/` in the data folder (`/userdata/logs` on a box set up

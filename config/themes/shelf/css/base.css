@@ -166,6 +166,9 @@
   background: rgba(255, 255, 255, 0.5); color: var(--ink-2); cursor: pointer;
   transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
 }
+
+/* The profile picture, one step larger than the tools beside it. */
+.cz-avatar.gcs-avatar { width: 34px; height: 34px; font-size: 15px; box-shadow: 0 0 0 2px var(--paper, #fff); }
 .cz-tool:hover { background: #fff; color: var(--ink); border-color: rgba(23, 22, 26, 0.24); }
 .cz-tool-power:hover { color: #A8321F; border-color: rgba(168, 50, 31, 0.45); }
 

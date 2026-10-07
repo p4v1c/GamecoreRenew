@@ -227,7 +227,7 @@ describe('the session parts', () => {
 })
 
 describe('the settings', () => {
-  it('is the host\'s nine-category screen, with L1/R1 between categories', async () => {
+  it('is the host\'s ten-category screen, with L1/R1 between categories', async () => {
     const sdk = buildSdk('jelly', { selectTheme: vi.fn(async () => {}) })
     const { createJellySettings } = await import(/* @vite-ignore */ `${THEME}/views/settings.js`)
     const Settings = createJellySettings(sdk)
@@ -235,7 +235,7 @@ describe('the settings', () => {
     await settle()
     const screen = r.container.querySelector('.gcs-set.jelly-settings') as HTMLElement
     expect(screen.dataset.pager).toBe('1')
-    expect(r.container.querySelectorAll('.gcs-set-row')).toHaveLength(9)
+    expect(r.container.querySelectorAll('.gcs-set-row')).toHaveLength(10)
     await press('gp:r1')
     expect((r.container.querySelector('.gcs-set-page') as HTMLElement).dataset.cat).toBe('bluetooth')
   })

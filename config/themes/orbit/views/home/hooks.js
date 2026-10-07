@@ -6,6 +6,9 @@ export function createHomeHooks(sdk, tabs, systemsRef) {
   /** An installed collection, with recently used games and apps first and a bounded rail. */
   function useRecent(systems) {
     const [rows, setRows] = useState([])
+    // Playtime is the active profile's: another profile, another history.
+    const [epoch, setEpoch] = useState(0)
+    useEffect(() => sdk.system.onWsEvent('playtime:rekeyed', () => setEpoch(n => n + 1)), [])
     useEffect(() => {
       let live = true
       Promise.all([
@@ -29,7 +32,7 @@ export function createHomeHooks(sdk, tabs, systemsRef) {
           || a.title.localeCompare(b.title)).slice(0, 6))
       }).catch(() => {})
       return () => {live = false}
-    }, [systems])
+    }, [systems, epoch])
     return rows
   }
 

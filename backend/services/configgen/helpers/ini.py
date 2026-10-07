@@ -17,7 +17,8 @@ def section(text: str, header: str) -> str | None:
 def set_section(text: str, header: str, body: str) -> str:
     pat = rf"^\[{re.escape(header)}\]\n.*?(?=^\[|\Z)"
     if re.search(pat, text, re.S | re.M):
-        return re.sub(pat, f"[{header}]\n{body}", text, count=1, flags=re.S | re.M)
+        # A function, not a template: a value's backslashes ("a\\nb") are not escapes.
+        return re.sub(pat, lambda _: f"[{header}]\n{body}", text, count=1, flags=re.S | re.M)
     return text.rstrip() + f"\n\n[{header}]\n{body}"
 
 

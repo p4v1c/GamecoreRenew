@@ -84,6 +84,10 @@ _LAYOUT = {
     "volumes":   "volumes",           # symlinks to external disks, one per label
     "pergame":   "config/per-game",   # per-game settings, <system>/<game id>.json
     "logs":      "logs",              # one folder per section, see services/logs.py
+    "profiles":  "config/profiles",   # who plays on this box, see services/profiles.py
+    # Under emu/ like the .sav files beside the ROMs: outside git, the OTA
+    # rsync and the update's .prev snapshot, whose restore would roll saves back.
+    "profile_saves": "emu/profile-saves",  # <id>/<system>/, see services/profile_saves.py
 }
 
 
@@ -127,6 +131,8 @@ def themes_dir() -> Path:      return data_dir("themes")
 def addons_dir() -> Path:      return data_dir("addons")
 def volumes_dir() -> Path:     return data_dir("volumes")
 def logs_dir() -> Path:        return data_dir("logs")
+def profiles_dir() -> Path:    return data_dir("profiles")
+def profile_saves_dir() -> Path: return data_dir("profile_saves")
 
 
 def pergame_dir() -> Path:

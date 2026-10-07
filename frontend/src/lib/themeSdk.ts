@@ -22,6 +22,8 @@ import { onWsEvent } from '../hooks/useWebSocket'
 import { playSound, getAudioContext, soundSettings } from './sounds'
 import { formatGameName, hexToRgb, fmtTime, fmtDate, systemColor } from './format'
 import * as defaults from '../components/defaults'
+import { onProfileChange, playerLabel, profileStorageKey, usePlayerLabel } from './players'
+import ProfileAvatar from '../components/ProfileAvatar'
 
 /**
  * SDK major. Bump it when anything is removed, changes shape, or becomes
@@ -72,6 +74,13 @@ export interface ThemeSdk {
   ui: Record<string, unknown>
   api: typeof api
   format: Record<string, unknown>
+  players: {
+    useLabel: () => (player: number) => string
+    label: (player: number) => string
+    storageKey: (base: string) => string
+    onChange: (fn: () => void) => () => void
+    Avatar: typeof ProfileAvatar
+  }
   nav: Record<string, unknown>
   session: Record<string, unknown>
   themes: Record<string, unknown>
@@ -140,6 +149,32 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
     themes: {
       list: () => fetchThemeIndex(),
       select: (id: string | null) => host.selectTheme(id ?? null),
+    },
+
+    /**
+     * How to name a player slot: the active profile's name for player 1 once
+     * the box has profiles, "P<n>" otherwise. A theme draws `useLabel()(n)`
+     * wherever it would have written `P${n}`, so a renamed profile shows up
+     * without the theme knowing profiles exist.
+     */
+    players: {
+      /** Reactive: `(player) => label`. Call it inside a component. */
+      useLabel: usePlayerLabel,
+      /** One-shot read, for event handlers. */
+      label: (player: number) => playerLabel(player, useStore.getState().playerOneName),
+      /**
+       * What the theme keeps per person (favourites): `storageKey('x')` is
+       * 'x' for the primary profile, so what it saved before profiles stays
+       * its own, and 'x:<id>' for another. Re-read on `onChange`.
+       */
+      storageKey: profileStorageKey,
+      onChange: onProfileChange,
+      /**
+       * The active profile's picture as a button, for the top bar beside
+       * Settings and Power; nothing on a box without profiles. Give it the
+       * shell's `onProfile`, which opens Settings → Profiles.
+       */
+      Avatar: ProfileAvatar,
     },
 
     nav: {

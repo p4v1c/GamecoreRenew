@@ -7,11 +7,14 @@
  * right. See gamepad/types.ts for what each prop means.
  */
 import type { GamepadViewProps } from './types'
+import { useStore } from '../../../store'
+import { playerLabel, playerTitle } from '../../../lib/players'
 
 export default function DefaultGamepadView({
   pads, pad, status, missing, rawButtons = [], actions, Position, notice = '',
   onClose, onRemap, Art, skin = 'gcs-skin-default',
 }: GamepadViewProps & { skin?: string; callouts?: boolean }) {
+  const playerOneName = useStore(s => s.playerOneName)
   const lost = pad?.raw || pad?.known === 'unknown'
   const battery = pad?.battery != null ? ` · ${pad.battery}%${pad.charging ? ' ↯' : ''}` : ''
   return (
@@ -31,7 +34,7 @@ export default function DefaultGamepadView({
         <div className="gcs-pad-body">
           <div className="gcs-pad-main">
             <div className="gcs-pad-meta">
-              <span className="gcs-pad-player">{pad ? `PLAYER ${pad.player || 1}` : 'NOT CONNECTED'}</span>
+              <span className="gcs-pad-player">{pad ? playerTitle(pad.player || 1, playerOneName).toUpperCase() : 'NOT CONNECTED'}</span>
               <span className="gcs-pad-conn">{pad?.connection}{battery}</span>
             </div>
             <div className="gcs-pad-art" aria-hidden="true" data-empty={!pad || !!pad.raw}><Art /></div>
@@ -80,7 +83,7 @@ export default function DefaultGamepadView({
               <div className="gcs-pad-roster">
                 {pads.map(p => (
                   <div key={p.index} data-active={p.active ? '1' : '0'}>
-                    <b>P{p.player}</b><span>{p.name}</span><i />
+                    <b>{p.player ? playerLabel(p.player, playerOneName) : 'P'}</b><span>{p.name}</span><i />
                   </div>
                 ))}
                 <p>Press a button on another controller to test it.</p>

@@ -53,6 +53,22 @@
       "32x"
     ]
   },
+  "profileSaves": {
+    "keys": [
+      {
+        "config": "sega32x.cfg",
+        "key": "savefile_directory",
+        "value": "@SAVES@/saves",
+        "quote": true
+      },
+      {
+        "config": "sega32x.cfg",
+        "key": "savestate_directory",
+        "value": "@SAVES@/states",
+        "quote": true
+      }
+    ]
+  },
   "perGame": {
     "supported": false,
     "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."

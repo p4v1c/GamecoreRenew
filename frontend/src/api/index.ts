@@ -4,6 +4,8 @@ import type { StorageVolume } from './storage'
 export type { StorageVolume } from './storage'
 import { logs } from './logs'
 export type { LogsUsage } from './logs'
+import { profiles } from './profiles'
+export type { Profile, ProfilesState, ProfileFields } from './profiles'
 
 import { BASE, get, put, post, postDetailed } from './http'
 
@@ -494,6 +496,7 @@ export const api = {
       postDetailed<{ ok: boolean; detail: string }>('/storage/unmount', { device }),
   },
   logs,
+  profiles,
   controllers: {
     /**
      * The peripherals that are NOT SDL pads, present or absent.

@@ -55,6 +55,22 @@
       "nes"
     ]
   },
+  "profileSaves": {
+    "keys": [
+      {
+        "config": "nes.cfg",
+        "key": "savefile_directory",
+        "value": "@SAVES@/saves",
+        "quote": true
+      },
+      {
+        "config": "nes.cfg",
+        "key": "savestate_directory",
+        "value": "@SAVES@/states",
+        "quote": true
+      }
+    ]
+  },
   "perGame": {
     "supported": false,
     "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."

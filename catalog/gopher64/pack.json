@@ -56,6 +56,24 @@
       "nintendo 64"
     ]
   },
+  "profileSaves": {
+    "keys": [
+      {
+        "config": "mupen64plus.cfg",
+        "section": "Core",
+        "key": "SaveSRAMPath",
+        "value": "@SAVES@/sram/",
+        "quote": true
+      },
+      {
+        "config": "mupen64plus.cfg",
+        "section": "Core",
+        "key": "SaveStatePath",
+        "value": "@SAVES@/states/",
+        "quote": true
+      }
+    ]
+  },
   "perGame": {
     "supported": false,
     "why": "An N64 cartridge dump carries no serial, so its identity has to be a hash of the file. gameid can compute one; what is unverified is whether RMG reads per-game settings from a file at all rather than from its own database."

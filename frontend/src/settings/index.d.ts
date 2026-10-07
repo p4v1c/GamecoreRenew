@@ -33,7 +33,7 @@ declare module '*/settings/screen' {
     sdk: unknown,
     ownPages?: OwnPages,
     parts?: ScreenParts,
-  ): (props: { onClose: () => void }) => import('react').ReactNode
+  ): (props: { onClose: () => void; initialCategory?: string }) => import('react').ReactNode
 }
 
 declare module '*/settings/power' {
@@ -89,4 +89,37 @@ declare module '*/settings/bios' {
   /** "4/6 ready", counting installed systems only. */
   export function biosSummary(rows: unknown): string
   export function createBiosPage(sdk: unknown): (props: { active: boolean; onLeave: () => void }) => import('react').ReactNode
+}
+
+declare module '*/settings/avatars' {
+  /** [key stored in profiles.json, label, SVG markup on a 64-unit grid]. */
+  export const AVATARS: [string, string, string][]
+  /** The drawing as an `<svg>` string, '' for no picture or an unknown key. */
+  export function avatarSvg(key: string | null | undefined): string
+  /** The letter drawn on a profile's colour when it has no picture. */
+  export function initial(name: string): string
+}
+
+declare module '*/settings/profiles' {
+  /** The letter drawn on a profile's colour when it has no picture. */
+  export function initial(name: string): string
+  /** Which systems keep a save per profile, as one sentence. */
+  export function savesLine(separate: unknown, shared?: unknown): string
+  export function createProfilesPage(
+    sdk: unknown,
+    Rows: unknown,
+    Dialog: unknown,
+  ): (props: { active: boolean; onLeave: () => void }) => import('react').ReactNode
+}
+
+declare module '*/settings/whoIsPlaying' {
+  /** Props: `ViewProps` in components/WhoIsPlaying.tsx; the caller asserts the shape. */
+  export function createWhoIsPlaying(
+    sdk: unknown,
+    parts?: { skin?: string },
+  ): (props: never) => import('react').ReactNode
+}
+
+declare module '*/settings/dialog' {
+  export function createDialogs(sdk: unknown): { Dialog: unknown; useDialogOpen: () => boolean }
 }

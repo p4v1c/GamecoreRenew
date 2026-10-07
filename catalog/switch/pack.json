@@ -61,6 +61,13 @@
       "switch"
     ]
   },
+  "profileSaves": {
+    "dirs": [
+      {
+        "path": "@FLATPAK_DATA@/eden/nand/user/save"
+      }
+    ]
+  },
   "perGame": {
     "supported": false,
     "why": "Eden keeps per-title settings in config/eden/custom/<TITLEID>.ini, but a dump's title id needs NCA decryption, which no reader in backend/services/gameid.py does."

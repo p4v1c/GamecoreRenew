@@ -4,7 +4,9 @@ import {TABS} from '../lib/tabs.js'
 export function createTopBar(sdk, tabs, systemsRef) {
   const {html, useState, useEffect} = sdk.ui
 
-  return function TopBar({onSettings, onPower}) {
+  // The profile picture; a host without it (or a box without profiles) shows nothing.
+  const Avatar = sdk.players?.Avatar || (() => null)
+  return function TopBar({onSettings, onPower, onProfile}) {
     const view = tabs.useTab()
     const tab = view === 'library' ? 'systems' : view
     const [clock, setClock] = useState('')
@@ -39,6 +41,7 @@ export function createTopBar(sdk, tabs, systemsRef) {
             d="m9 3-.7 2.6-2.4 1-2.4-.7-2 3.5 1.8 1.9v2.8l-1.8 1.9 2 3.5 2.4-.7 2.4 1L9 22h4l.7-2.7 2.4-1 2.4.7 2-3.5-1.8-1.9v-2.8l1.8-1.9-2-3.5-2.4.7-2.4-1L13 3z"
             transform="translate(1 -1) scale(.95)" /><circle cx="11.5" cy="11" r="3" /></svg>
         </button>
+        <${Avatar} className="orbit-avatar" onClick=${onProfile} />
         <time>${clock}</time>
       </div>
     </header>`

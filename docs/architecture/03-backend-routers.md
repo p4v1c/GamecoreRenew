@@ -162,7 +162,9 @@ theme never has to guess twice.
 ## `playtime.py`
 
 `get_all_playtime()`, `get_system_playtime(system_id)`,
-`get_game_playtime(game_key:path)` — straight reads of the `playtime` table
+`get_game_playtime(game_key:path)` — reads of the active profile's playtime
+(`services/playtime_rows.py`): the `playtime` table for the primary profile,
+its `profile_playtime` rows for another
 ([schema](07-config-and-data.md#playtimedb)).
 
 ## `overlays.py` — resolve, measure, choose, deposit
@@ -238,7 +240,7 @@ kill a game. Killing only `bash` left its `rsync`, `pip` and `npm` writing into
 | Route | What it does |
 |---|---|
 | `GET /api/themes` | `{ sdk_version, active, themes[] }` — one validated manifest per folder in `config/themes/` |
-| `POST /api/themes/active` | `{ id }` or `{ id: null }` for the default; persists to `config/theme.json` |
+| `POST /api/themes/active` | `{ id }` or `{ id: null }` for the default; persists to `config/theme.json` and becomes the active profile's theme (`profiles.remember_theme`) |
 
 `POST` refuses an incompatible theme with a reason rather than storing it — an
 incomplete theme would otherwise be selectable, fail to load, and leave the
@@ -389,6 +391,19 @@ it. See [10](10-catalog-and-install.md#pergame--and-why-it-is-required-on-every-
 `GET /logs` → `{files, bytes}`; `DELETE /logs` → `{ok, freed}`, every file under
 `<DATA>/logs/`. `POST /logs/ui` `{message, source}` (2000 / 300 chars max) → an
 error line in `logs/ui/ui.log`. Logic in `services/logs.py`.
+
+### `profiles.py` — who plays on this box
+
+| Route | Does |
+|---|---|
+| `GET /profiles` | `{active, auto_login, profiles, palette, separate_saves, shared_saves}`; the first call creates the primary profile. `separate_saves`: labels of the systems whose saves follow the profile; `shared_saves`: the emulators whose saves every profile shares (`profile_saves`) |
+| `POST /profiles` `{name, color?, avatar?}` | a new profile; 400 on a bad name, colour or avatar, 409 on a name taken or while the primary profile has no name |
+| `PATCH /profiles/{id}` `{name?, color?, avatar?, theme?}` | rename, recolour, picture, theme (null: the built-in look; 400 for one that cannot load); the id never changes. A new theme on the active profile is put on now (`theme:changed`) |
+| `DELETE /profiles/{id}` | the record only, saves stay on disk → `{active}`; 409 on the last profile |
+| `PUT /profiles/auto-login` `{enabled}` | "Log in automatically": start as the last profile without asking who is playing → `{auto_login}` |
+| `GET /profiles/active`, `PUT /profiles/active` `{id}` | the profile the interface is used as; 409 while a game is on screen or suspended. A switch puts on the theme the profile wore last (`theme:changed`) |
+
+Every write broadcasts `profiles:changed` `{active}`; a change of active profile also broadcasts `playtime:rekeyed`, so whatever lists playtime and recents reloads them for the new profile. Logic in `services/profiles.py`.
 
 ### `storage.py` — external disks
 

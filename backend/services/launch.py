@@ -19,6 +19,7 @@ from . import (
     fullscreen_enforcer,
     gamepad_monitor,
     pergame,
+    profile_saves,
     session,
     standby,
     usb_devices,
@@ -188,6 +189,29 @@ async def _prepare_pack_launch(system_id: str, rom_path: str, exec_path: str,
                       system_id)
 
 
+async def _place_profile_saves(system_id: str, game_key: str) -> None:
+    """Point the emulator at the active profile's saves. Unlike the steps
+    above, a failure refuses the launch: the game would otherwise write into
+    another profile's save."""
+    try:
+        dirs = await asyncio.wait_for(asyncio.to_thread(profile_saves.place, system_id),
+                                      timeout=PACK_PREPARE_BUDGET)
+        if dirs and dirs[0]:
+            log.info("launch: %s — player 1 saves in %s", system_id, dirs[0])
+    except Exception as e:
+        log.exception("launch: %s — profile saves could not be placed", system_id)
+        detail = "Could not set up this profile's saves, so the game did not start."
+        await _broadcast("game:failed", game_key, system_id, detail)
+        raise LaunchRefused(500, detail) from e
+
+
+def _release_profile_saves(system_id: str) -> None:
+    try:
+        profile_saves.release(system_id, time.time())
+    except Exception:
+        log.exception("launch: %s — profile saves could not be given back", system_id)
+
+
 def _connected_players() -> list[dict]:
     """Every profiled pad with its slot, for a pack's `launch_command`."""
     players = []
@@ -305,6 +329,7 @@ async def _prepare(system_id: str, rom_path: str, exec_path: str,
     # landed before the stale-slot sweep and before the spawn.
     await _await_controller_profiles(system_id, game_key)
     await _free_stale_slots(system_id)
+    await _place_profile_saves(system_id, game_key)
     if rom_path:
         await _place_per_game_config(system_id, rom_path)
         await _prepare_pack_launch(system_id, rom_path, exec_path, exec_args, game_key)
@@ -361,9 +386,15 @@ async def launch(system: dict, system_id: str, rom_path: str, game_key: str) -> 
         return resumed
 
     exec_args = await _gates(system, system_id, system.get("args", ""), game_key)
-    await _prepare(system_id, rom_path, exec_path, exec_args, game_key)
-    exec_path, exec_args = await _pack_launch_command(system_id, rom_path,
-                                                      exec_path, exec_args)
-    resumed_flag = await _spawn(system, system_id, rom_path, exec_path, exec_args, game_key)
+    try:
+        await _prepare(system_id, rom_path, exec_path, exec_args, game_key)
+        exec_path, exec_args = await _pack_launch_command(system_id, rom_path,
+                                                          exec_path, exec_args)
+        resumed_flag = await _spawn(system, system_id, rom_path, exec_path, exec_args, game_key)
+    except Exception:
+        # No game, so no release at its end: placed saves would stay on the
+        # profile's folder for the emulator started outside GameCore.
+        await asyncio.to_thread(_release_profile_saves, system_id)
+        raise
     _start_background_tasks(system, system_id)
     return {"ok": True, "game_key": game_key, "resumed": resumed_flag}

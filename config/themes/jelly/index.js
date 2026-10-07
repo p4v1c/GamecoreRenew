@@ -17,10 +17,12 @@ import {createSession} from './views/session.js'
 import {createJellySettings} from './views/settings.js'
 import {createController} from './views/controller.js'
 import {SOUNDS} from './lib/sounds.js'
+import {followProfiles} from './lib/favourites.js'
 
 /** Every Jelly screen, built over one shared context. The theme and its tests
  * both start here, so they cannot wire it differently. */
 export function createParts(sdk) {
+  followProfiles(sdk)
   const tabs = createTabs(sdk)
   const collection = createCollection(sdk)
   const art = createArt(sdk)
@@ -63,6 +65,7 @@ export default function createJelly(sdk) {
     sounds: SOUNDS,
     sessionBar: session.Bar,
     sessionMenu: session.Menu,
+    whoIsPlaying: sdk.defaults.createWhoIsPlaying?.(sdk, {skin: 'jelly-who'}),
     rumble: {
       'gp:confirm': {duration: 30, strong: 0.25},
       'gp:back': {duration: 20, weak: 0.35},

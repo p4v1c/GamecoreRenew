@@ -255,6 +255,9 @@ shell; it reads `sdk.nav.use(s => s.transition)` to draw `launch`, `resume`, or
 `suspend`. The host owns the timing and stacking, so the component needs no
 `z-index`.
 
+Another optional one, `whoIsPlaying`: the start screen's dress, built with
+`sdk.defaults.createWhoIsPlaying(sdk, { skin })` (§5i).
+
 So "add snow to the dashboard" is a shell that renders `sdk.defaults.Shell` with
 a `decor`, and "replace everything" is a shell that renders its own tree. Same
 mechanism, effort proportional to ambition.
@@ -621,6 +624,57 @@ The props a view gets, new in SDK 9:
 `layout`, `layoutLabel`, `glyphs` and `mappings` are still filled for views
 written before SDK 9 (`layout` is always `'generic'`). The drawing is by
 position, so there is no family to pick any more.
+
+## 5i. Profiles — one name to draw, one thing to check
+
+**Player labels.** Once the box has profiles, player 1 is the profile playing
+and is shown by its name, never "P1". Wherever a theme writes a player number,
+it draws `sdk.players.useLabel()(n)` instead: `"Max"` for player 1 on a box
+with profiles, `"P2"`, and `"P1"` on a box without. `sdk.players.label(n)` is
+the one-shot read for a handler. A theme that must load on an older host guards
+it: `const usePadLabel = sdk.players?.useLabel ?? (() => (n) => \`P${n}\`)`,
+as the four shipped themes do in their status bars.
+
+**The profile picture.** The shell hands a top bar `onProfile` beside
+`onSettings` and `onPower`; it opens Settings straight on Profiles. Draw
+`<${sdk.players.Avatar} className="my-avatar" onClick=${onProfile} />` next to
+the Settings and Power buttons: the active profile's colour with its picture
+or initial, and nothing at all on a box without profiles, so the bar looks as
+it did. `.gcs-avatar` gives it its round shape at 40 px; size it with your
+class. The four shipped themes put it at the right end of their top bar.
+
+**Per-profile storage.** What a theme keeps for a person in `localStorage`
+(favourites) is per profile: read and write it under
+`sdk.players.storageKey('my-favourites')`, which is the bare key for the
+primary profile (so what it had before profiles stays its own) and
+`my-favourites:<id>` for another, and read it again in
+`sdk.players.onChange(fn)`. Jelly and Orbit do this in `followProfiles(sdk)`.
+Playtime and recents need nothing: `/api/playtime` already answers for the
+active profile, and a switch sends `playtime:rekeyed`.
+
+**"Who's using this controller?"** (2+ profiles, "Log in automatically" off,
+once per interface start) is drawn by the
+host over your shell, from `frontend/src/components/WhoIsPlaying.tsx`. Dress it
+by returning `whoIsPlaying: sdk.defaults.createWhoIsPlaying(sdk, { skin: 'my-who' })`
+with your surfaces and styling `.gcs-who.my-who` (and `.gcs-who-kb.my-who`, the
+keyboard of "Add profile") in your stylesheet: the `--set-*` palette, the
+background, the focus ring. When it shows, what a pick does and the pad stay
+the host's; without it the host draws its own dark one. The four shipped
+themes each do it in `css/who.css`. It raises `modalDepth` while it is
+up, so a theme that already pauses its pad handlers on `modalDepth` (§5f) needs
+nothing.
+
+**Settings → Profiles** is the tenth category of the shared settings screen
+(`frontend/src/settings/profiles.js`), drawn with the same `gcs-row2` rows as
+System; a round `.gcs-row2-badge` carries each profile's picture or initial on
+its colour. Each profile row is a `choice` row: Select and Edit (Edit only for
+the profile playing), ←/→ between them, the one ✕ presses ringed
+(`.gcs-choice .gcs-act[data-pick="1"]`). A theme that styles `.gcs-act` styles
+them already.
+It is not a `DefaultSettingsPages` id, so `settings.pages` in `theme.json` does
+not change. Check one thing: a stylesheet that keys the rail by position
+(`.gcs-set-row:nth-child(n)`) needs a tenth entry, and the rail has to fit ten
+rows at 1080p. Jelly 1.4.4 does both.
 
 ## 5e. Check it loads before you ship it
 

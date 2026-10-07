@@ -31,6 +31,8 @@ export const createControllersPage = (sdk, Rows) => {
     // assumed ON would hide a real one.
     const [auto, setAuto] = useState(null)
     const [showPacks, setShowPacks] = useState(false)
+    // Player 1 is the active profile, shown by its name once profiles exist.
+    const playerOneName = sdk.nav.use((s) => s.playerOneName)
 
     useEffect(() => {
       const sync = () => setPads(readPads())
@@ -60,7 +62,7 @@ export const createControllersPage = (sdk, Rows) => {
     const rows = [
       ...pads.map((p, i) => ({
         id: `pad${p.index}`, type: 'info',
-        label: `Player ${i + 1}`, desc: p.id, display: 'Connected',
+        label: i === 0 && playerOneName ? playerOneName : `Player ${i + 1}`, desc: p.id, display: 'Connected',
       })),
       {
         id: 'autoconfig', type: 'toggle', value: autoOn, confirm: true,

@@ -1,0 +1,34 @@
+/* "Who's using this controller?" in Jelly: the cyan playground floor, paper
+   tiles' ink, the yellow focus ring outlined in ink that every Jelly screen
+   uses. Markup and behaviour: frontend/src/settings/whoIsPlaying.js. */
+.gcs-who.jelly-who,
+.gcs-who-kb.jelly-who {
+  --set-acc: #5931a0; --set-acc-deep: #4a2789;
+  --set-ink: #30204e; --set-ink-rgb: 48, 32, 78; --set-ink-2: #4f3f68; --set-ink-3: #64567a;
+  --set-line: #e3d9ef; --set-bg: #fffdf7; --set-card: #ffffff; --set-card-2: #fffdf7;
+  --set-key: #ece4f7; --set-knob: #ffffff; --set-kbd: #30204e; --set-kbd-ink: #ffffff;
+  --set-alert: #b0263f;
+  --font-display: 'Jelly Red Hat', 'Trebuchet MS', Arial, sans-serif;
+  --font-body: 'Jelly Red Hat', 'Trebuchet MS', Arial, sans-serif;
+  --gc-pad-cross: #2448a8; --gc-pad-circle: #b01f35; --gc-pad-square: #9a2672; --gc-pad-triangle: #0d6b4e;
+  --gc-accent-soft: #5931a0; --gc-accent-bright: #30204e; --gc-kb-ink-strong: #30204e;
+}
+.gcs-who.jelly-who {
+  background:
+    radial-gradient(circle at 18% 22%, #ffffff66 0 3px, transparent 4px) 0 0 / 48px 48px,
+    linear-gradient(160deg, #c9f6f6 0%, #80deed 100%);
+}
+.jelly-who .gcs-who-title { font-weight: 800; letter-spacing: -0.03em; color: #30204e; }
+.jelly-who .gcs-who-avatar { box-shadow: 0 6px 0 #30204e1f; }
+.jelly-who .gcs-who-tile[data-on="1"] {
+  background: #fffdf7; box-shadow: 0 0 0 6px #ffe66b, 0 0 0 10px #30204e, 0 18px 0 #30204e1f;
+}
+.jelly-who .gcs-who-tile[data-add="1"] .gcs-who-avatar {
+  background: #fffdf7; color: #5931a0; border: 3px dashed #5931a0;
+}
+.jelly-who .gcs-who-tile b { font-weight: 800; color: #4f3f68; }
+.jelly-who .gcs-who-tile[data-on="1"] b { color: #30204e; }
+.jelly-who .gcs-who-sub { color: #4f3f68; font-weight: 700; }
+.jelly-who .gcs-who-hint { color: #30204e; font-weight: 700; }
+.gcs-who-kb.jelly-who { background: #30204ecc; }
+.gcs-who-kb.jelly-who .gcs-who-kb-panel { background: #fffdf7; border: 0; border-radius: 28px; }

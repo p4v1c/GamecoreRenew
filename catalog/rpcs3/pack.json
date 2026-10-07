@@ -76,6 +76,16 @@
       "ps3"
     ]
   },
+  "profileSaves": {
+    "dirs": [
+      {
+        "config": "dev_hdd0/home/00000001/savedata"
+      },
+      {
+        "config": "dev_hdd0/home/00000001/trophy"
+      }
+    ]
+  },
   "perGame": {
     "supported": true,
     "path": "@FLATPAK_CONFIG@/rpcs3/custom_configs/config_@GAMEID@.yml",

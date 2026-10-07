@@ -54,6 +54,22 @@
       "naomi"
     ]
   },
+  "profileSaves": {
+    "keys": [
+      {
+        "config": "naomi.cfg",
+        "key": "savefile_directory",
+        "value": "@SAVES@/saves",
+        "quote": true
+      },
+      {
+        "config": "naomi.cfg",
+        "key": "savestate_directory",
+        "value": "@SAVES@/states",
+        "quote": true
+      }
+    ]
+  },
   "perGame": {
     "supported": false,
     "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."

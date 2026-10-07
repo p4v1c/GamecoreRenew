@@ -158,11 +158,12 @@ and returns an unsubscribe.
 | `gp:guide` | `gamepad_monitor` | `action` (`backgrounded`, `home`, `failed`), `gesture` | double press: suspends a game; `home` (a pair begun in the interface) opens the session menu in `SessionBar` |
 | `standby:screensaver` / `standby:sleep` / `standby:exit` | `standby._enter()` / `exit_standby()` | — | drives `Screensaver` |
 | `theme:changed` | `routers/themes.py` | `active` | reloads the theme |
+| `profiles:changed` | `routers/profiles.py` | `active` (the active profile) | `frontend/src/lib/players.ts` sets `playerOneName`: player 1 is shown by that name |
 | `update:log` / `update:done` | `routers/update.py` | `line` / `success`, `code` | OTA progress |
 | `catalog:log` / `catalog:done` | `routers/catalog.py` | `line` / `action`, `id`, `success` | pack install/remove progress |
 | `catalog:updated` | `routers/catalog.py` | OTA summary | catalogue refreshed over the air |
 | `addon:log` / `addon:done` | `routers/addons.py` | `line` / `action`, `name`, `success` | addon install/remove progress |
-| `playtime:rekeyed` | `main.py` lifespan | `moved` | playtime rows moved to new game keys |
+| `playtime:rekeyed` | `main.py` lifespan; `routers/profiles.py` on a profile switch | `moved` | playtime rows moved to new game keys, or another profile's playtime: reload it |
 | addon events | `POST /api/addons/notify` | free-form | e.g. refresh after a ROM upload |
 
 ## Components
@@ -197,6 +198,7 @@ and returns an unsubscribe.
 | `components/ui/index.tsx` | 144 | `Overlay`, `OverlayLabel`, `BackHeader`, `Toggle`, `SliderRow`, `Chip`, `Bars`, `hexToRgb`, `fmtTime`, `fmtDate` |
 | `components/ui/VirtualKeyboard.tsx` | 205 | on-screen keyboard (WiFi passwords, library search) |
 | `components/ui/Toasts.tsx` | 117 | top-right stack, `TOAST_MS = 10000` |
+| `components/WhoIsPlaying.tsx` | — | "Who's using this controller?" at start, in the theme's dress when it returns the optional `whoIsPlaying` surface (`sdk.defaults.createWhoIsPlaying(sdk, { skin })`, `OPTIONAL_SURFACES` in `frontend/src/lib/themeLoader.ts`), else the host's, drawn by the kernel over every shell (z 950, under the splash): asked once per interface start (sessionStorage survives a theme reload; marked only once the list arrived, so a backend still starting does not cost the question) when `shouldAskWhoIsPlaying()` (2+ profiles, `auto_login` off) and no game holds the screen; a pick closes it only once the switch is saved, a refusal (a game is open) is shown on it; raises `modalDepth`; markup in `settings/whoIsPlaying.js`, built-in palette |
 
 ### Settings pages — `components/modals/settings/`
 
@@ -280,6 +282,30 @@ the page every theme draws (the legacy `DefaultSettingsList` menu has
 entry, since a theme reaches it through its System page). `frontend/src/lib/reportErrors.ts` (installed in `main.tsx`, and
 called by `components/ErrorBoundary.tsx`) sends uncaught errors, rejected promises
 and render errors to `api.logs.ui`, 50 per page load at most.
+`api.profiles` (`list`, `create`, `update`, `remove`, `setActive`) lives in
+`api/profiles.ts`; its errors carry the backend's sentence (`sendDetailed` in
+`api/http.ts`). `frontend/src/lib/players.ts` names player slots (`playerLabel`, `playerTitle`,
+`controllerTitle`): player 1 is the active profile's name once the box has
+profiles (`store.playerOneName`, kept by `usePlayerNames()` in `App.tsx` and
+the `profiles:changed` event), `P<n>` otherwise; themes reach it as
+`sdk.players`. `store.profileKey` ('' for the primary) gives a theme its
+per-profile storage: `sdk.players.storageKey(base)`, re-read on
+`sdk.players.onChange` (Jelly's and Orbit's favourites). `sdk.players.Avatar`
+is `components/ProfileAvatar.tsx`: the active profile's picture (or initial)
+on its colour, for a top bar, rendering nothing without profiles; the shell's
+`onProfile` opens Settings with `initialCategory="profiles"`. The pictures are
+`settings/avatars.js` (`AVATARS`, animal drawings as SVG markup), kept equal to `profiles.AVATARS` by a test. Settings → Profiles is `frontend/src/settings/profiles.js`, the
+tenth rail category every theme draws; its subtitle names the systems whose
+saves follow the profile (`separate_saves`, `savesLine()`). The list is a card
+per profile (`frontend/src/settings/profileCards.js`: Switch, Edit, "Add
+profile", then the "Log in automatically" row); Edit opens the profile's page
+over the whole screen (`frontend/src/settings/profileDetail.js`: Switch, Rename,
+Delete on the left, the playtime of the profile playing, and picture, colour and
+theme, with each theme's `preview`, in view on the right, walked in two
+directions with the pad). Both use the screen's `--set-*` tokens; a theme whose
+settings do not set them maps its own there (`config/themes/summer/css/profile.css`).
+`frontend/src/settings/themeNames.js` names a profile's theme on the cards and on
+"Who's using this controller?".
 
 `api.media` is the one to read before drawing artwork that is not a jacket:
 

@@ -30,6 +30,13 @@
 
 .gcs-row2-text i { font-style: normal; font-size: 14px; color: var(--set-ink-2); }
 
+/* A profile's initial on its colour. White on every palette colour is >= 5:1. */
+.gcs-row2-badge {
+  flex: 0 0 auto; display: grid; place-items: center;
+  width: 44px; height: 44px; border-radius: 50%;
+  color: #fff; font-weight: 700; font-size: 21px; font-family: var(--font-display, inherit);
+}
+
 .gcs-row2-info {
   flex: 0 0 auto; font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 14px; color: var(--set-ink-3);
 }
@@ -102,4 +109,10 @@
 .gcs-act[data-danger="1"] { background: rgba(var(--set-danger-rgb), 0.12); color: var(--set-danger-deep); }
 
 .gcs-act[data-armed="1"] { background: var(--set-danger); color: #fff; }
+
+/* Several buttons on one row (`choice`): the one ✕ would press has a ring,
+   so it reads without colour on every theme. */
+.gcs-choice { display: flex; flex: 0 0 auto; gap: 10px; }
+.gcs-choice .gcs-act { border: 0; font-family: inherit; cursor: pointer; }
+.gcs-choice .gcs-act[data-pick="1"] { outline: 2px solid currentColor; outline-offset: 2px; }
 

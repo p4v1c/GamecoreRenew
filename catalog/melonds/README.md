@@ -77,3 +77,25 @@ the solo launch, unchanged. Architecture and the reasons:
 - Saves: player 1 keeps `<rom>.sav`; players 2-4 get their own `<rom>.sav.N`,
   blank the first time (a new game), never a copy of player 1's.
 - Diagnostics: `melonds-multiplayer.log` in `$GAMECORE_LOG_DIR` (`<data>/logs/packs/melonds/` when GameCore launches it), else in `~/.cache/gamecore/`.
+
+## Saves per profile
+
+`"profileSaves": "per-instance"` in `pack.json`: the save follows the profile
+playing. `place_saves` in `generator.py` runs before every launch, solo or
+multiplayer, and writes `[Instance0] SaveFilePath` and `SavestatePath`:
+
+- the primary profile (the first one, named in Settings → Profiles): left as they are, empty =
+  next to the ROM, where every save from before profiles lives. A path under
+  `emu/profile-saves/` left by another profile's launch is emptied (melonDS
+  writes its config back on exit); a path you set yourself stays;
+- any other profile: `<data>/emu/profile-saves/<profile id>/melonds/`, created
+  if missing. The first launch finds no save and the game offers a new one.
+  The ROM-side save is never read, copied or touched.
+
+Players 2-4 in local multiplayer keep `<rom>.sav.N` beside the ROM until pads
+carry profiles. The flatpak sees the folder because it has `/userdata` and
+the install directory. A non-primary launch with no `melonDS.toml` yet is
+refused rather than saving into the primary's file, and so is one while a
+path you set yourself is in place: nothing remembers it, so it would be lost. When the game ends both
+paths go back to the defaults (`profile_saves.release`), so melonDS started
+from Desktop Mode saves beside the ROM.

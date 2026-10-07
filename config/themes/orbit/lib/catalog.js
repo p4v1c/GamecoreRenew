@@ -157,13 +157,31 @@ export const consoleArt = (sdk, s) => s?.art?.console
  * pair the playtime table uses, because a filename alone collides across two
  * consoles holding the same game.
  */
-const KEY = 'orbit-favourites'
+const BASE = 'orbit-favourites'
 const listeners = new Set()
-let favourites = new Set()
-try {
-  const saved = JSON.parse(localStorage.getItem(KEY) || '[]')
-  if (Array.isArray(saved)) favourites = new Set(saved.filter((v) => typeof v === 'string'))
-} catch { /* a box with storage disabled simply has no favourites */ }
+let storeKey = BASE
+let favourites = readFavourites()
+
+function readFavourites() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(storeKey) || '[]')
+    if (Array.isArray(saved)) return new Set(saved.filter((v) => typeof v === 'string'))
+  } catch { /* a box with storage disabled simply has no favourites */ }
+  return new Set()
+}
+
+/** One list per profile; the primary keeps the list it had before profiles. */
+export function followProfiles(sdk) {
+  const players = sdk.players
+  if (!players?.storageKey) return () => {}
+  const reload = () => {
+    storeKey = players.storageKey(BASE)
+    favourites = readFavourites()
+    listeners.forEach((fn) => fn())
+  }
+  reload()
+  return players.onChange(reload)
+}
 
 export const favouriteKey = (systemId, filename) => `${systemId}:${filename}`
 export const isFavourite = (systemId, filename) =>
@@ -173,7 +191,7 @@ export function toggleFavourite(systemId, filename) {
   const key = favouriteKey(systemId, filename)
   if (favourites.has(key)) favourites.delete(key)
   else favourites.add(key)
-  try { localStorage.setItem(KEY, JSON.stringify([...favourites])) } catch { /* ignore */ }
+  try { localStorage.setItem(storeKey, JSON.stringify([...favourites])) } catch { /* ignore */ }
   listeners.forEach((fn) => fn())
   return favourites.has(key)
 }

@@ -10,11 +10,13 @@ import {createController} from './views/controller.js'
 import {createSplash} from './views/splash.js'
 import {createCeremony} from './views/ceremony.js'
 import {SOUNDS} from './lib/sounds.js'
+import {followProfiles} from './lib/catalog.js'
 
 /** Orbit's mockup over the host's real catalogue, library and session controls.
  * SDK 6 lets the grid own directional focus while the host keeps launch/search. */
 export default function createOrbit(sdk) {
   const {html} = sdk.ui
+  followProfiles(sdk)
   const backdrop = createBackdrop(sdk)
   const sessions = createSession(sdk)
   const tabs = createTabs(sdk)
@@ -60,5 +62,6 @@ export default function createOrbit(sdk) {
   }
 
   return {shell: Shell, splash: createSplash(sdk), sounds: SOUNDS,
-          sessionBar: sessions.Bar, sessionMenu: sessions.Menu, ceremony: Ceremony}
+          sessionBar: sessions.Bar, sessionMenu: sessions.Menu, ceremony: Ceremony,
+          whoIsPlaying: sdk.defaults.createWhoIsPlaying?.(sdk, {skin: 'orbit-who'})}
 }

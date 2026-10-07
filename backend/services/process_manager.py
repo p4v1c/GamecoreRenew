@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timezone
 
 from .. import ws
-from . import logs
+from . import logs, playtime_rows, profile_saves
 from .paths import config_dir
 from ..db import get_db
 from .session import display_env
@@ -290,6 +290,8 @@ class ProcessManager:
         # that will 409 forever. Its finish has to be broadcast by the only
         # thing that noticed: this.
         departed = [s for s in self._sessions if s not in keep and s.orphan_pgid]
+        for session in departed:
+            profile_saves.release_session(session)
         self._sessions = keep
         self._save_state()
         self._publish()
@@ -819,6 +821,7 @@ class ProcessManager:
         except (OSError, ProcessLookupError):
             pass
 
+        profile_saves.release_session(target)
         self._sessions = [s for s in self._sessions if s is not target]
         self._save_state()
         self._publish()
@@ -883,6 +886,7 @@ class ProcessManager:
         await session.proc.wait()
         elapsed = session.played_secs(time.time())
 
+        profile_saves.release_session(session)
         # Only the slot that still holds this session may be cleared by it.
         if session in self._sessions:
             self._sessions = [s for s in self._sessions if s is not session]
@@ -893,15 +897,7 @@ class ProcessManager:
             try:
                 db = await get_db()
                 now = datetime.now(timezone.utc).isoformat()
-                await db.execute("""
-                    INSERT INTO playtime (game_key, system_id, total_secs, session_count, last_played)
-                    VALUES (?, ?, ?, 1, ?)
-                    ON CONFLICT(system_id, game_key) DO UPDATE SET
-                        total_secs    = total_secs + excluded.total_secs,
-                        session_count = session_count + 1,
-                        last_played   = excluded.last_played
-                """, (session.game_key, session.system_id, elapsed, now))
-                await db.commit()
+                await playtime_rows.record(db, session.game_key, session.system_id, elapsed, now)
             except Exception:
                 log.exception("_watch: failed to save playtime for %s",
                               session.game_key)

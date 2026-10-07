@@ -65,6 +65,22 @@
       "gba"
     ]
   },
+  "profileSaves": {
+    "keys": [
+      {
+        "config": "config.ini",
+        "section": "ports.qt",
+        "key": "savegamePath",
+        "value": "@SAVES@"
+      },
+      {
+        "config": "config.ini",
+        "section": "ports.qt",
+        "key": "savestatePath",
+        "value": "@SAVES@/states"
+      }
+    ]
+  },
   "perGame": {
     "supported": false,
     "why": "mGBA stores its per-game overrides inside its own single config file, keyed by game code, rather than in a file per game. Writing that safely means editing a file mGBA rewrites wholesale, which is a different mechanism from this one."

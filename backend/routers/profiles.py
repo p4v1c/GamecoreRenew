@@ -1,0 +1,112 @@
+"""Who plays on this box: list, create, edit, delete profiles; read and set the active one."""
+import logging
+
+from fastapi import APIRouter
+from pydantic import BaseModel, Field
+
+from .. import ws
+from ..services import profile_saves, profiles, themes
+from ..services.catalog import load_catalog
+
+log = logging.getLogger(__name__)
+router = APIRouter(tags=["profiles"])
+
+# Name caps are generous on purpose: the service trims, then enforces NAME_MAX
+# with a sentence the UI can show.
+class NewProfile(BaseModel):
+    name: str = Field(max_length=200)
+    color: str | None = None
+    avatar: str | None = None
+
+
+class ProfileEdit(BaseModel):
+    name: str | None = Field(None, max_length=200)
+    color: str | None = None
+    avatar: str | None = None
+    theme: str | None = Field(None, max_length=64)
+
+
+class AutoLogin(BaseModel):
+    enabled: bool
+
+
+class ActiveProfile(BaseModel):
+    id: str = Field(max_length=64)
+
+
+async def _wear_theme(profile: dict) -> None:
+    """Put on the theme `profile` wore last, when it has one and it is not on."""
+    if "theme" not in profile or profile["theme"] == themes.get_active():
+        return
+    try:
+        themes.set_active(profile["theme"])
+    except (ValueError, LookupError) as e:
+        # Uninstalled or broken since: the theme on screen stays.
+        log.warning("profiles: %s's theme %s not put on: %s", profile["id"], profile["theme"], e)
+        return
+    await ws.broadcast("theme:changed", {"active": profile["theme"]})
+
+
+async def _changed(switched: bool = False) -> None:
+    # Player 1 is shown by the active profile's name: every write may change it.
+    await ws.broadcast("profiles:changed", {"active": profiles.active()})
+    if switched:
+        # Playtime and recents are the active profile's: what reloads them
+        # after the playtime repair reloads them here too.
+        await ws.broadcast("playtime:rekeyed", {"moved": 0})
+
+
+@router.get("/profiles")
+def list_profiles():
+    packs = load_catalog()
+    return {**profiles.list_profiles(),
+            "separate_saves": profile_saves.separate_systems(packs),
+            "shared_saves": profile_saves.shared_systems(packs)}
+
+
+@router.post("/profiles")
+async def create_profile(body: NewProfile):
+    made = profiles.create(body.name, body.color, body.avatar)
+    await _changed()
+    return made
+
+
+@router.put("/profiles/auto-login")
+def set_auto_login(body: AutoLogin):
+    return {"auto_login": profiles.set_auto_login(body.enabled)}
+
+
+@router.get("/profiles/active")
+def get_active_profile():
+    return profiles.active()
+
+
+@router.put("/profiles/active")
+async def set_active_profile(body: ActiveProfile):
+    before = profiles.active()["id"]
+    profile = profiles.set_active(body.id)
+    if profile["id"] != before:
+        await _wear_theme(profile)
+    await _changed(switched=profile["id"] != before)
+    return profile
+
+
+@router.patch("/profiles/{profile_id}")
+async def update_profile(profile_id: str, body: ProfileEdit):
+    # Only the fields the caller sent: `avatar: null` clears, absent keeps.
+    fields = body.model_dump(exclude_unset=True)
+    profile = profiles.update(profile_id, fields)
+    if "theme" in fields and profile["id"] == profiles.active()["id"]:
+        await _wear_theme(profile)
+    await _changed()
+    return profile
+
+
+@router.delete("/profiles/{profile_id}")
+async def delete_profile(profile_id: str):
+    before = profiles.active()["id"]
+    out = profiles.delete(profile_id)
+    if out["active"] != before:
+        await _wear_theme(profiles.active())
+    await _changed(switched=out["active"] != before)
+    return out
