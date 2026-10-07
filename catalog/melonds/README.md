@@ -95,6 +95,7 @@ multiplayer, and writes `[Instance0] SaveFilePath` and `SavestatePath`:
 Players 2-4 in local multiplayer keep `<rom>.sav.N` beside the ROM until pads
 carry profiles. The flatpak sees the folder because it has `/userdata` and
 the install directory. A non-primary launch with no `melonDS.toml` yet is
-refused rather than saving into the primary's file. When the game ends both
+refused rather than saving into the primary's file, and so is one while a
+path you set yourself is in place: nothing remembers it, so it would be lost. When the game ends both
 paths go back to the defaults (`profile_saves.release`), so melonDS started
 from Desktop Mode saves beside the ROM.

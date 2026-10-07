@@ -205,7 +205,7 @@ def place_saves(*, dirs: list, root: Path, opts: dict) -> None:
     A folder: saves and savestates go there. None: melonDS's default, so a
     path left under `root` by another profile's launch is emptied, and a path
     the owner chose stays. No write when nothing changes. Raises when a
-    folder is given and melonDS has no config yet.
+    folder is given and melonDS has no config yet, or a path set by hand.
     """
     toml = opts["target"]
     if not toml.is_file() and not any(dirs):
@@ -216,6 +216,9 @@ def place_saves(*, dirs: list, root: Path, opts: dict) -> None:
         for key in SAVE_KEYS:
             current = _save_value(new, header, key)
             if folder is not None:
+                if current not in (None, '""') and not _is_under(current, root):
+                    # Nothing remembers it: overwriting it would lose the owner's folder.
+                    raise ValueError(f"melonDS {key} is set by hand ({current}): clear it to give profiles their saves.")
                 # TOML basic strings take JSON's escapes.
                 want = json.dumps(str(folder), ensure_ascii=False)
             elif current and _is_under(current, root):

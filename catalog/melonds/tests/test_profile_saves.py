@@ -125,3 +125,12 @@ def test_no_config_refuses_a_folder_and_ignores_the_primary(tmp_path):
     assert not target.exists()
     with pytest.raises(FileNotFoundError):
         _place(target, root, [root / "b0b0" / "melonds", None, None, None])
+
+
+def test_a_path_the_owner_chose_refuses_another_profile_and_stays(box):
+    target, root = box
+    mine = SEED.replace('SaveFilePath = ""', 'SaveFilePath = "/userdata/my-saves"', 1)
+    target.write_text(mine)
+    with pytest.raises(Exception, match="set by hand"):
+        _place(target, root, [root / "sam" / "melonds", None, None, None])
+    assert target.read_text() == mine
