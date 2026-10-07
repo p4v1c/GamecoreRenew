@@ -50,7 +50,8 @@ export const createProfileDetail = (sdk) => {
     const tiles = padTiles({ mine: profile.controllers || [], pads, owners, adding })
     const ref = useRef({})
     // The pad handlers are bound once; they read the latest callbacks here.
-    ref.current = { cur, side, armed, palette, looks, tiles, adding, onAddStart, onAddPad, onRemovePad, onAddEnd }
+    ref.current = { cur, side, armed, palette, looks, tiles, adding,
+      onPick, onSwitch, onRename, onDelete, onAddStart, onAddPad, onRemovePad, onAddEnd }
     const box = useRef(null)
     useEffect(() => { if (cur.zone !== 'side' || side[cur.i]?.[0] !== 'delete') setArmed(false) }, [cur.zone, cur.i])
     // Into the pick list on its first tile; back out onto "Add controller".
@@ -75,12 +76,12 @@ export const createProfileDetail = (sdk) => {
       const c = ref.current
       if (zone === 'side') {
         const verb = c.side[i] && c.side[i][0]
-        if (verb === 'switch') onSwitch()
-        else if (verb === 'rename') onRename()
-        else if (verb === 'delete') { if (c.armed) onDelete(); else setArmed(true) }
-      } else if (zone === 'pic') onPick({ avatar: PICTURES[i][0] })
-      else if (zone === 'col' && c.palette[i]) onPick({ color: c.palette[i].color })
-      else if (zone === 'theme' && c.looks[i]) onPick({ theme: c.looks[i].id })
+        if (verb === 'switch') c.onSwitch()
+        else if (verb === 'rename') c.onRename()
+        else if (verb === 'delete') { if (c.armed) c.onDelete(); else setArmed(true) }
+      } else if (zone === 'pic') c.onPick({ avatar: PICTURES[i][0] })
+      else if (zone === 'col' && c.palette[i]) c.onPick({ color: c.palette[i].color })
+      else if (zone === 'theme' && c.looks[i]) c.onPick({ theme: c.looks[i].id })
       else if (zone === 'pad' && c.tiles[i]) {
         const t = c.tiles[i]
         if (t.kind === 'pad') c.onRemovePad(t.key)

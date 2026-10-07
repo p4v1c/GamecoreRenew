@@ -4,8 +4,8 @@
  * Two levels: the list (profileCards.js: a card per profile with Switch and
  * Edit, "Add profile", then "Log in automatically"), and one profile's page
  * over the whole screen (profileDetail.js: picture, colour, theme and the
- * controllers it shows in view, Switch, Rename, Delete). ○ on a profile goes back to the list. Names come
- * from the host's on-screen keyboard.
+ * controllers it shows in view, Switch, Rename, Delete). ○ on a profile goes
+ * back to the list. Names come from the host's on-screen keyboard.
  *
  * A box whose only profile has no name has no profiles yet: the list is one
  * row that names it, and only then can others be added.
