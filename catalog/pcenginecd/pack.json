@@ -57,6 +57,22 @@
       "pc engine cd"
     ]
   },
+  "profileSaves": {
+    "keys": [
+      {
+        "config": "pcenginecd.cfg",
+        "key": "savefile_directory",
+        "value": "@SAVES@/saves",
+        "quote": true
+      },
+      {
+        "config": "pcenginecd.cfg",
+        "key": "savestate_directory",
+        "value": "@SAVES@/states",
+        "quote": true
+      }
+    ]
+  },
   "perGame": {
     "supported": false,
     "why": "GameCore owns the per-system RetroArch controller lines only; core options and per-game remaps are deliberately left to RetroArch/the owner."

@@ -29,13 +29,21 @@ are the auto-incremented tags.
   active profile's name instead of P1 in every theme, the controller screen
   and notifications (`sdk.players`, `profiles:changed`). The profile cannot
   change while a game is open or suspended.
-- **Saves per profile.** A pack opts in with `profileSaves` in pack.json and a
-  `place_saves` hook in generator.py; melonDS does (`per-instance`). A
+- **Saves per profile, on every emulator but Xenia.** `profileSaves` in
+  pack.json, mostly with no code: the save options (`keys`) or the folders
+  with no option (`dirs`, swapped for a link) to point at the profile's
+  folder; a `place_saves` hook for melonDS (`per-instance`); or
+  `{supported: false, why}` (Xenia). RetroArch's 17 packs, mGBA, Snes9x, RMG,
+  DuckStation, PCSX2, Dolphin, Azahar, melonDS, PPSSPP, Eden, Ryujinx, RPCS3,
+  shadPS4 and Cemu. A
   profile other than the primary one keeps its saves in
   `emu/profile-saves/<profile id>/<system>/`; the primary profile keeps every
   existing save where it is, and nothing is moved. Players 2-4 are unchanged
   until pads carry profiles. When the game ends the emulator's save paths are
-  put back, so melonDS started from Desktop Mode saves beside the ROM.
+  put back, so an emulator started from Desktop Mode saves where it always did.
+- **Playtime, recently played and favourites per profile.** The primary
+  profile keeps every figure and favourite it had; another profile has its own
+  (`profile_playtime`, `sdk.players.storageKey`).
 
 - **Logs you can read without a terminal.** Each launch keeps the emulator's
   output and the backend writes its log under `<data>/logs/`, capped in size:

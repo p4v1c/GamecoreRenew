@@ -72,6 +72,22 @@
       "super nintendo"
     ]
   },
+  "profileSaves": {
+    "keys": [
+      {
+        "config": "snes9x.conf",
+        "section": "Files",
+        "key": "SRAMDirectory",
+        "value": "@SAVES@"
+      },
+      {
+        "config": "snes9x.conf",
+        "section": "Files",
+        "key": "SaveStateDirectory",
+        "value": "@SAVES@/states"
+      }
+    ]
+  },
   "perGame": {
     "supported": false,
     "why": "A SNES cartridge dump carries no stable serial and Snes9x keeps its GTK preferences in the global snes9x.conf. GameCore can still identify media by filename/hash, but there is no verified Snes9x per-game file contract for this pack to write safely."

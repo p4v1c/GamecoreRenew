@@ -945,20 +945,38 @@ Favourites, recently played and playtime are not per profile yet.
 ### `profile_saves.py` — saves that follow the profile
 
 Packs opt in with `profileSaves` ([10](10-catalog-and-install.md#profilesaves--saves-per-profile)).
-At launch the active profile is player 1.
+At launch the active profile is player 1. A pack that `sharesEmulator` uses
+its owner's declaration, folder and lock.
 
 | Function | Does |
 |---|---|
-| `mode(pack)` | `per-instance`, `p1`, or None (one save shared by every profile) |
+| `mode(pack, packs?)` | `per-instance`, `p1` (also for an object declaration), or None (shared, or `supported: false`) |
 | `save_dir(profile_id, system_id)` | `paths.profile_saves_dir()/<id>/<system>/`; refuses an id that is not alphanumeric (`profiles.json` is hand-editable) |
 | `player_dirs(players, system_id, mode)` | one entry per slot (4): the profile's folder, created on demand, or None for the primary profile, no profile, and players 2-4 in `p1` mode |
-| `place(system_id)` | calls the pack's `place_saves(dirs, root, opts)` with `player_dirs([active profile])`; raises when a declared pack has no hook or no config dir |
-| `release(system_id, started)` | the same hook with every slot None, once the game that started at `started` has exited (`process_manager`): the emulator started outside GameCore saves where it always did. Skipped when a later launch placed that emulator again; `place` and `release` share one lock |
-| `separate_systems(packs)` | labels of the packs that declare a mode, for `GET /profiles` |
+| `place(system_id)` | the owner's `place_saves(dirs, root, opts)` (generator hook, or the object declaration through `profile_save_paths`) with `player_dirs([active profile])`; raises when it cannot be told |
+| `release(system_id, started)` | the same with every slot None, once the game that started at `started` has exited: the emulator started outside GameCore saves where it always did. Skipped when a later launch placed that emulator again; `place` and `release` share one lock |
+| `release_session(session)` | `release` for an ended process-manager session; never raises, skips apps |
+| `separate_systems(packs)`, `shared_systems(packs)` | labels of the systems whose saves follow the profile, and of the emulators that share theirs, for `GET /profiles` |
 
-Never moves, copies or deletes a save: only the emulator's options change.
-Runs whether or not autoconfig is on for the pack, because saves are not
-controller config.
+Never moves, copies or deletes a save: only the emulator's options change, or
+a folder is renamed in place. Runs whether or not autoconfig is on for the
+pack, because saves are not controller config.
+
+### `profile_save_paths.py` — the object form of `profileSaves`
+
+| Function | Does |
+|---|---|
+| `apply_keys(entries, folder, root)` | each `(file, entry)` option set to the profile's value, the file's own values remembered first in `root/.primary.json`; `folder` None puts the remembered values back (an option that was absent is removed) and forgets them. A missing file refuses a profile and is ignored for the primary |
+| `apply_dir(path, target)` | `path` renamed `<name>.gamecore-primary` and replaced by a symlink to `target`; None removes the link and renames the folder back. Refuses when its parent is missing, or when a real folder and its `.gamecore-primary` both exist (whose saves are whose cannot be told) |
+| `read_key`, `write_key` | one `key = value` in an INI section, or a flat file; a new option in a flat file goes before its first `#include` |
+
+### `playtime_rows.py` — playtime per profile
+
+| Function | Does |
+|---|---|
+| `source()` | `(FROM target, params)` for the active profile: `playtime` for the primary (every figure from before profiles, untouched, and the only table the playtime repair and `split-systems` re-key), else that profile's rows of `profile_playtime`, with the same columns |
+| `record(db, game_key, system_id, elapsed, when)` | adds a finished session to the active profile's row; the profile cannot change while a game is held, so it is the one that started it |
+
 ### `storage.py` — external disks
 
 "I plug my ROM disk in" is one of the first three things anyone expects from a

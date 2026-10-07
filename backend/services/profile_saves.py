@@ -1,8 +1,16 @@
 """Per-profile saves: which folder each player's saves go to at launch.
 
-A pack opts in with `profileSaves` in its pack.json and a `place_saves(...)`
-hook in its generator.py that points the emulator at the folders, with its own
-option names. A pack that declares nothing keeps one save for every profile.
+A pack opts in with `profileSaves` in its pack.json, in one of two forms:
+
+- an object listing the emulator's save options and folders
+  (`profile_save_paths`): GameCore points them at the profile's folder, with
+  no code in the pack. Most emulators;
+- `per-instance` or `p1`, with a `place_saves(...)` hook in generator.py, for
+  an emulator whose layout needs code (melonDS: one instance per player).
+
+A pack that declares nothing keeps one save for every profile. A pack that
+`sharesEmulator` uses its owner's declaration and folder: gb, gbc and gba are
+one mGBA and one set of saves per profile.
 
 The primary profile owns every save made before profiles existed and keeps
 today's locations: its entry is None, which tells the pack "the emulator's
@@ -11,11 +19,12 @@ default", so nothing changes on disk for it. Saves are never moved or copied.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from pathlib import Path
 
-from . import configgen, paths, profiles
+from . import configgen, paths, profile_save_paths, profiles
 from .catalog import load_catalog
 from .configgen import MAX_PLAYERS
 from .errors import ServiceError
@@ -23,10 +32,20 @@ from .errors import ServiceError
 log = logging.getLogger(__name__)
 
 
-def mode(pack) -> str | None:
-    """`per-instance` or `p1` when the pack separates saves, else None (shared)."""
-    return pack.data.get("profileSaves") if pack else None
+def _owner(pack, packs: dict | None = None):
+    """The pack that owns the emulator: itself, or the one it `sharesEmulator` with."""
+    if pack is None or not pack.data.get("sharesEmulator"):
+        return pack
+    return (packs if packs is not None else load_catalog()).get(pack.data["sharesEmulator"])
 
+
+def mode(pack, packs: dict | None = None) -> str | None:
+    """`per-instance` or `p1` when the pack separates saves, else None (shared).
+    An object declaration is `p1`: one emulator, player 1's profile."""
+    spec = (_owner(pack, packs).data.get("profileSaves") if _owner(pack, packs) else None)
+    if isinstance(spec, dict):
+        return "p1" if spec.get("supported", True) else None
+    return spec
 
 def save_dir(profile_id: str, system_id: str) -> Path:
     # profiles.json is hand-editable: an id must not climb out of the root.
@@ -54,19 +73,52 @@ def player_dirs(players: list[dict | None], system_id: str, save_mode: str) -> l
 
 def separate_systems(packs: dict) -> list[str]:
     """Labels of the systems whose saves follow the profile, for Settings → Profiles."""
-    return sorted(p.data.get("label", p.id) for p in packs.values() if mode(p))
+    return sorted(p.data.get("label", p.id) for p in packs.values() if mode(p, packs))
+
+
+def shared_systems(packs: dict) -> list[str]:
+    """Labels of the emulators whose saves every profile shares."""
+    return sorted(p.data.get("label", p.id) for p in packs.values()
+                  if p.data.get("kind") == "emulator" and not mode(p, packs))
+
+
+def _declared(owner, opts: dict | None):
+    """`place_saves` for an object declaration: player 1's folder only."""
+    spec = owner.data["profileSaves"]
+    config_dir = opts["config_dir"] if opts else None
+
+    def resolve(entry: dict) -> Path:
+        if "config" in entry:
+            if config_dir is None:
+                raise ServiceError(500, f"{owner.id}: no config directory to find {entry['config']} in.")
+            return Path(os.path.normpath(config_dir / entry["config"]))
+        return Path(owner.expand(entry["path"], configgen.HOME))
+
+    def place_saves(*, dirs, root, opts):
+        folder = dirs[0]
+        keys = [(resolve(e), e) for e in spec.get("keys", [])]
+        profile_save_paths.apply_keys(keys, folder, root)
+        for e in spec.get("dirs", []):
+            path = resolve(e)
+            target = folder / (e.get("as") or path.name) if folder is not None else None
+            profile_save_paths.apply_dir(path, target)
+    return place_saves
 
 
 def _hook(system_id: str):
-    """(pack, place_saves, opts), or None for a pack that shares its saves."""
-    pack = load_catalog().get(system_id.lower())
-    if not mode(pack):
+    """(emulator id, place_saves, opts), or None for a pack that shares its saves."""
+    packs = load_catalog()
+    pack = packs.get(system_id.lower())
+    owner = _owner(pack, packs)
+    if not mode(pack, packs) or owner is None:
         return None
-    hook = getattr(configgen.load_generator(pack), "place_saves", None)
-    opts = configgen.generator_opts(pack, configgen.HOME, configgen.SNAP_DIR)
+    opts = configgen.generator_opts(owner, configgen.HOME, configgen.SNAP_DIR)
+    if isinstance(owner.data["profileSaves"], dict):
+        return owner.id, _declared(owner, opts), opts
+    hook = getattr(configgen.load_generator(owner), "place_saves", None)
     if hook is None or opts is None:
-        raise ServiceError(500, f"{pack.id} declares profileSaves but cannot place them.")
-    return pack, hook, opts
+        raise ServiceError(500, f"{owner.id} declares profileSaves but cannot place them.")
+    return owner.id, hook, opts
 
 
 # Place and release write the same file from two threads, and the end of one
@@ -86,10 +138,10 @@ def place(system_id: str) -> list[Path | None] | None:
     found = _hook(system_id)
     if found is None:
         return None
-    pack, hook, opts = found
-    dirs = player_dirs([profiles.active()], system_id, mode(pack))
+    emulator, hook, opts = found
+    dirs = player_dirs([profiles.active()], emulator, mode(load_catalog().get(emulator)))
     with _lock:
-        _placed_at[system_id.lower()] = time.time()
+        _placed_at[emulator] = time.time()
         hook(dirs=dirs, root=paths.profile_saves_dir(), opts=opts)
     return dirs
 
@@ -105,9 +157,9 @@ def release(system_id: str, started: float) -> bool:
     found = _hook(system_id)
     if found is None:
         return False
-    _pack, hook, opts = found
+    emulator, hook, opts = found
     with _lock:
-        if _placed_at.get(system_id.lower(), 0.0) > started:
+        if _placed_at.get(emulator, 0.0) > started:
             return False
         hook(dirs=[None] * MAX_PLAYERS, root=paths.profile_saves_dir(), opts=opts)
     return True

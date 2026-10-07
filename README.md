@@ -353,12 +353,14 @@ first one, which keeps the saves the box already had, beside the ROMs; from
 then on player 1 is shown by the name of the profile playing (status bar,
 controller screen, notifications), and others can be added. With two or more,
 the console asks "Who's playing?" each time the interface starts; **○** keeps
-the last one. A profile is a name and a colour. Nintendo DS saves follow the
-profile playing (player 1): every profile but the first starts its own.
-Settings → Profiles lists the systems that do this; on the others, and for
-favourites and playtime, the whole box shares one. The profile cannot change
-while a game is open or suspended: close it first. Deleting a profile keeps
-its saves on disk, but no profile opens them again.
+the last one. A profile is a name and a colour, with its own saves, playtime,
+recently played and favourites. Saves follow the profile playing (player 1)
+on every system but the Xbox 360: the first profile keeps the saves the box
+already had, every other one starts its own. GameCore points each emulator
+at the profile's folder before the game and back afterwards; nothing is ever
+moved or copied. The profile cannot change while a game is open or
+suspended: close it first. Deleting a profile keeps its saves on disk, but no
+profile opens them again.
 
 **Logs.** Each game launch keeps the emulator's output, and the backend keeps
 its own log, under `logs/` in the data folder (`/userdata/logs` on a box set up

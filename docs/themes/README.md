@@ -632,6 +632,15 @@ the one-shot read for a handler. A theme that must load on an older host guards
 it: `const usePadLabel = sdk.players?.useLabel ?? (() => (n) => \`P${n}\`)`,
 as the four shipped themes do in their status bars.
 
+**Per-profile storage.** What a theme keeps for a person in `localStorage`
+(favourites) is per profile: read and write it under
+`sdk.players.storageKey('my-favourites')`, which is the bare key for the
+primary profile (so what it had before profiles stays its own) and
+`my-favourites:<id>` for another, and read it again in
+`sdk.players.onChange(fn)`. Jelly and Orbit do this in `followProfiles(sdk)`.
+Playtime and recents need nothing: `/api/playtime` already answers for the
+active profile, and a switch sends `playtime:rekeyed`.
+
 **"Who's playing?"** (2+ profiles, once per interface start) is drawn by the
 host over your shell, in the built-in palette, from
 `frontend/src/components/WhoIsPlaying.tsx`. It raises `modalDepth` while it is

@@ -59,6 +59,14 @@
       "wiiu"
     ]
   },
+  "profileSaves": {
+    "dirs": [
+      {
+        "path": "@FLATPAK_DATA@/Cemu/mlc01/usr/save/00050000",
+        "as": "save"
+      }
+    ]
+  },
   "perGame": {
     "supported": true,
     "path": "@FLATPAK_CONFIG@/Cemu/gameProfiles/@GAMEID@.ini",

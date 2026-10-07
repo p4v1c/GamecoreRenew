@@ -278,7 +278,7 @@ def check(only: str | None = None) -> list[str]:
 
 # What only the emulator's owner may carry: they write the emulator's own files,
 # and two packs writing them would overwrite each other on every pad plug.
-OWNER_ONLY = ("config", "controllers")
+OWNER_ONLY = ("config", "controllers", "profileSaves")
 OWNER_ONLY_FILES = ("seed", "generator.py")
 
 

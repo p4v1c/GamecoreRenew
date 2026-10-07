@@ -119,10 +119,22 @@ def test_the_schema_takes_the_implemented_modes_only():
 
 
 def test_every_pack_that_separates_saves_can_place_them():
-    declared = [p for p in load_catalog().values() if profile_saves.mode(p)]
-    assert declared, "melonDS declares per-instance"
+    """A string mode needs the generator's hook; an object needs no code."""
+    packs = load_catalog()
+    declared = [p for p in packs.values() if profile_saves.mode(p, packs)]
+    assert len(declared) > 30, "every emulator but Xenia"
     for pack in declared:
-        assert hasattr(configgen.load_generator(pack), "place_saves"), pack.id
+        spec = profile_saves._owner(pack, packs).data["profileSaves"]
+        if isinstance(spec, str):
+            assert hasattr(configgen.load_generator(pack), "place_saves"), pack.id
+
+
+def test_a_shared_emulator_follows_its_owner():
+    packs = load_catalog()
+    for pid, owner in (("gb", "gba"), ("gbc", "gba"), ("mgba", "gba"), ("wii", "gamecube"), ("dolphin", "gamecube")):
+        assert profile_saves._owner(packs[pid], packs).id == owner
+        assert profile_saves.mode(packs[pid], packs) == "p1"
+    assert profile_saves.mode(packs["xenia"], packs) is None, "declared unsupported, with a reason"
 
 
 def test_settings_learn_which_systems_separate_saves():
@@ -157,3 +169,31 @@ def test_the_end_of_a_game_releases_its_saves(monkeypatch):
     profile_saves.release_session(pm.Session(game_key="mario.nds", system_id="melonds", start_time=12.0))
     profile_saves.release_session(pm.Session(game_key="stremio", system_id="stremio"))
     assert released == [("melonds", 12.0)], "an app keeps no profile save"
+
+
+def test_a_declared_pack_is_placed_and_released_with_no_code(data, monkeypatch, tmp_path):
+    """RetroArch's NES, end to end: no generator hook, only pack.json."""
+    home = tmp_path / "home"
+    cfg = home / ".config" / "gamecore-retroarch" / "nes.cfg"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text((CATALOG / "nes" / "seed" / "nes.cfg").read_text())
+    seed = cfg.read_text()
+    monkeypatch.setattr(configgen, "HOME", home)
+    profiles.update(profiles.active()["id"], {"name": "Max"})
+    sam = profiles.create("Sam")
+    profiles.set_active(sam["id"])
+    dirs = profile_saves.place("nes")
+    started = time.time()                        # the spawn comes after the placing
+    assert f'savefile_directory = "{dirs[0]}/saves"' in cfg.read_text()
+    assert profile_saves.release("nes", started) is True
+    assert cfg.read_text() == seed
+
+
+def test_the_primary_profile_never_touches_a_declared_pack(data, monkeypatch, tmp_path):
+    home = tmp_path / "home"
+    cfg = home / ".config" / "gamecore-retroarch" / "nes.cfg"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("video_fullscreen = \"true\"\n")
+    monkeypatch.setattr(configgen, "HOME", home)
+    assert profile_saves.place("nes") == [None] * configgen.MAX_PLAYERS
+    assert cfg.read_text() == "video_fullscreen = \"true\"\n"

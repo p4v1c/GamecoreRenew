@@ -66,6 +66,40 @@
       "gamecube"
     ]
   },
+  "profileSaves": {
+    "keys": [
+      {
+        "config": "Dolphin.ini",
+        "section": "Core",
+        "key": "MemcardAPath",
+        "value": "@SAVES@/GC/MemoryCardA.raw"
+      },
+      {
+        "config": "Dolphin.ini",
+        "section": "Core",
+        "key": "MemcardBPath",
+        "value": "@SAVES@/GC/MemoryCardB.raw"
+      },
+      {
+        "config": "Dolphin.ini",
+        "section": "Core",
+        "key": "GCIFolderAPath",
+        "value": "@SAVES@/GC/Card A"
+      },
+      {
+        "config": "Dolphin.ini",
+        "section": "Core",
+        "key": "GCIFolderBPath",
+        "value": "@SAVES@/GC/Card B"
+      },
+      {
+        "config": "Dolphin.ini",
+        "section": "General",
+        "key": "NANDRootPath",
+        "value": "@SAVES@/Wii"
+      }
+    ]
+  },
   "perGame": {
     "supported": true,
     "path": "@FLATPAK_DATA@/dolphin-emu/GameSettings/@GAMEID@.ini",

@@ -85,6 +85,22 @@
       "ps2"
     ]
   },
+  "profileSaves": {
+    "keys": [
+      {
+        "config": "PCSX2.ini",
+        "section": "Folders",
+        "key": "MemoryCards",
+        "value": "@SAVES@/memcards"
+      },
+      {
+        "config": "PCSX2.ini",
+        "section": "Folders",
+        "key": "Savestates",
+        "value": "@SAVES@/sstates"
+      }
+    ]
+  },
   "perGame": {
     "supported": false,
     "why": "PCSX2 names a per-game ini after the serial AND the disc CRC, and nothing here computes the CRC. Half an identity would name a file PCSX2 never opens."

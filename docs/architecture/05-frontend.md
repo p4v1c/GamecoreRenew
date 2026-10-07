@@ -163,7 +163,7 @@ and returns an unsubscribe.
 | `catalog:log` / `catalog:done` | `routers/catalog.py` | `line` / `action`, `id`, `success` | pack install/remove progress |
 | `catalog:updated` | `routers/catalog.py` | OTA summary | catalogue refreshed over the air |
 | `addon:log` / `addon:done` | `routers/addons.py` | `line` / `action`, `name`, `success` | addon install/remove progress |
-| `playtime:rekeyed` | `main.py` lifespan | `moved` | playtime rows moved to new game keys |
+| `playtime:rekeyed` | `main.py` lifespan; `routers/profiles.py` on a profile switch | `moved` | playtime rows moved to new game keys, or another profile's playtime: reload it |
 | addon events | `POST /api/addons/notify` | free-form | e.g. refresh after a ROM upload |
 
 ## Components
@@ -288,7 +288,9 @@ and render errors to `api.logs.ui`, 50 per page load at most.
 `controllerTitle`): player 1 is the active profile's name once the box has
 profiles (`store.playerOneName`, kept by `usePlayerNames()` in `App.tsx` and
 the `profiles:changed` event), `P<n>` otherwise; themes reach it as
-`sdk.players`. Settings → Profiles is `frontend/src/settings/profiles.js`, the
+`sdk.players`. `store.profileKey` ('' for the primary) gives a theme its
+per-profile storage: `sdk.players.storageKey(base)`, re-read on
+`sdk.players.onChange` (Jelly's and Orbit's favourites). Settings → Profiles is `frontend/src/settings/profiles.js`, the
 tenth rail category every theme draws; its subtitle names the systems whose
 saves follow the profile (`separate_saves`, `savesLine()`).
 

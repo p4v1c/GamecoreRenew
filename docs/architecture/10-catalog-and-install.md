@@ -320,43 +320,79 @@ local uid — `install/arch.sh` documents that trade at length around
 
 ### `profileSaves` — saves per profile
 
-```json
-"profileSaves": "per-instance"
-```
-
 The save follows the person, never the player slot. At launch the active
 profile ([04](04-backend-services.md#profile_savespy--saves-that-follow-the-profile))
-is player 1; the core resolves one folder per player and calls the pack's
-`place_saves(dirs, root, opts)` in `generator.py`, which writes the emulator's
-own save options:
+is player 1. Only the pack that owns the emulator declares it; a pack that
+`sharesEmulator` (gb, gbc, mgba → gba; dolphin, wii → gamecube) follows its
+owner, with the owner's folder: `<data>/emu/profile-saves/<profile id>/<owner id>/`.
+`check-catalog.py` refuses it on a sharing pack. Three forms:
+
+**1. An object — no code, most emulators.** What to point at the profile's
+folder (`@SAVES@`), from pack.json alone (`services/profile_save_paths.py`):
+
+```json
+"profileSaves": {
+  "keys": [{"config": "PCSX2.ini", "section": "Folders", "key": "MemoryCards", "value": "@SAVES@/memcards"}],
+  "dirs": [{"path": "@FLATPAK_DATA@/eden/nand/user/save"}]
+}
+```
+
+| Field | What |
+|---|---|
+| `keys[]` | an option in a config file: `config` (relative to the config directory configgen resolves, native or flatpak; `..` allowed) or `path` (tokens), `section` (absent for a flat file such as RetroArch's), `key`, `value` (`@SAVES@` = the profile's folder; a value without it, `true`, is set as is), `quote` |
+| `dirs[]` | a folder the emulator has no option for: renamed `<name>.gamecore-primary`, replaced by a symlink to `<profile folder>/<as or name>`, renamed back for the primary. Its parent must exist (the emulator ran once), else the launch is refused |
+
+The owner's values are remembered in `profile-saves/.primary.json` before the
+first write, keyed by file and option (not by pack), and put back for the
+primary profile and when the game ends.
+
+**2. `per-instance` / `p1` — a hook in generator.py**, for a layout that
+needs code. The core calls `place_saves(dirs, root, opts)`:
 
 | Argument | What |
 |---|---|
-| `dirs` | 4 entries, player 1 first: `<data>/emu/profile-saves/<profile id>/<system>/` (created), or None = the emulator's default location |
+| `dirs` | 4 entries, player 1 first: the profile's folder (created), or None = the emulator's default location |
 | `root` | `<data>/emu/profile-saves`: a value under it left by an earlier launch must be cleared for a None entry; any other value is the owner's and stays |
 | `opts` | what a controller generator gets (`target`, `config_dir`, `home`…), whether or not autoconfig is on |
 
-| Mode | Meaning | State |
-|---|---|---|
-| absent | one save shared by every profile, exactly as before profiles | every pack but melonDS |
-| `per-instance` | one emulator instance per player, each with its player's folder | melonDS. Players 2-4 get None until pads carry profiles |
-| `p1` | one save, the player 1 profile's; players 2-4 always None | accepted, no pack yet |
-| `per-slot` | memory card / VMU / controller pak per player slot | later, with its code |
-| `native-users` | the emulator's own accounts (Eden, RPCS3, Xenia, shadPS4) | later, with its code |
+`per-instance` is melonDS (one instance per player; players 2-4 get None
+until pads carry profiles). `p1`: one save, player 1's.
 
-Rules the hook follows, each one a way to mix two people's progress:
+**3. `{"supported": false, "why": "…"}`** — the saves cannot follow a profile,
+and why. Settings → Profiles names these systems (`shared_saves`).
 
-- **The primary profile gets None** and keeps today's paths. It owns every save
-  made before profiles; with it active, the hook writes nothing.
-- **Rewrite every launch.** Emulators save their config on exit, so the last
-  profile's folder is still in the file; a None entry must empty it.
-- **Never move, copy or delete a save.** Redirection only.
-- **Raise when a folder cannot be set.** The core refuses the launch rather
-  than let the game write into another profile's save.
+| Emulator | How |
+|---|---|
+| RetroArch (17 packs) | `savefile_directory`, `savestate_directory` in `<pack>.cfg`, before its `#include` |
+| mGBA (gba, gb, gbc, mgba) | `[ports.qt] savegamePath`, `savestatePath` |
+| Snes9x | `[Files] SRAMDirectory`, `SaveStateDirectory` |
+| RMG (gopher64) | `[Core] SaveSRAMPath`, `SaveStatePath` |
+| DuckStation | `[MemoryCards] Directory`, `[Folders] SaveStates` |
+| PCSX2 | `[Folders] MemoryCards`, `Savestates` |
+| Dolphin (gamecube, wii, dolphin) | `[Core] MemcardA/BPath`, `GCIFolderA/BPath`, `[General] NANDRootPath` |
+| Azahar | `[Data%20Storage]` custom storage, `sdmc_directory` (the NAND stays shared; titles installed as CIA are per profile) |
+| melonDS | hook, `per-instance` |
+| PPSSPP | folders `PSP/SAVEDATA`, `PSP/PPSSPP_STATE` |
+| Eden | folder `nand/user/save` |
+| Ryujinx | folders `bis/user/save` and the save index `bis/system/save/8000000000000000` |
+| RPCS3 | folder `dev_hdd0/home/00000001/savedata` |
+| shadPS4 | folder `user/savedata` |
+| Cemu | folder `mlc01/usr/save/00050000` (game saves; accounts stay shared) |
+| Xenia | `supported: false`: its saves live in its own Xbox profiles inside Wine |
+
+Rules, each one a way to mix two people's progress:
+
+- **The primary profile keeps today's paths.** It owns every save made
+  before profiles; with it active nothing is written but the owner's values back.
+- **Rewrite every launch, and put back when the game ends**
+  (`profile_saves.release`). Emulators save their config on exit.
+- **Never move, copy or delete a save.** Redirection, or a rename in place.
+- **Refuse rather than guess.** No config file, no parent folder, or both a
+  real folder and its `.gamecore-primary`: the launch is refused.
 
 A Flatpak only sees the folder if its sandbox reaches the data root (the
-emulators get `/userdata` and the install directory). `separate_saves` on
-`GET /profiles` lists the declaring packs, which Settings → Profiles shows.
+emulators get `/userdata` and the install directory). `GET /profiles` returns
+`separate_saves` and `shared_saves` for Settings → Profiles.
 
 ### `perGame` — and why it is **required** on every emulator pack
 

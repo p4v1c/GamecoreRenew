@@ -17,6 +17,7 @@ let state = {
   ],
   palette: [{ color: '#b8501b', name: 'Ember' }, { color: '#127a6d', name: 'Teal' }],
   separate_saves: ['Nintendo DS'],
+  shared_saves: ['PlayStation 3', 'Xbox 360'],
 }
 let calls: { method: string; url: string; body?: unknown }[] = []
 
@@ -89,6 +90,12 @@ it('opens the keyboard to add a profile', async () => {
 it('says every save is shared when no system separates them', () => {
   expect(savesLine([])).toBe('Every system shares one save between profiles.')
   expect(savesLine(undefined)).toBe('Every system shares one save between profiles.')
+})
+
+it('names the exceptions when most systems keep saves per profile', () => {
+  expect(savesLine(['Nintendo DS', 'PlayStation', 'Wii'], ['Xbox 360']))
+    .toBe('Every system keeps separate saves per profile, except Xbox 360.')
+  expect(savesLine(['Nintendo DS'], [])).toBe('Every system keeps separate saves per profile.')
 })
 
 it('starts profiles by naming the first one, keeping its saves', async () => {

@@ -162,7 +162,9 @@ theme never has to guess twice.
 ## `playtime.py`
 
 `get_all_playtime()`, `get_system_playtime(system_id)`,
-`get_game_playtime(game_key:path)` — straight reads of the `playtime` table
+`get_game_playtime(game_key:path)` — reads of the active profile's playtime
+(`services/playtime_rows.py`): the `playtime` table for the primary profile,
+its `profile_playtime` rows for another
 ([schema](07-config-and-data.md#playtimedb)).
 
 ## `overlays.py` — resolve, measure, choose, deposit
@@ -394,13 +396,13 @@ error line in `logs/ui/ui.log`. Logic in `services/logs.py`.
 
 | Route | Does |
 |---|---|
-| `GET /profiles` | `{active, profiles, palette, separate_saves}`; the first call creates the primary profile. `separate_saves`: labels of the systems whose saves follow the profile (`profile_saves.separate_systems`) |
+| `GET /profiles` | `{active, profiles, palette, separate_saves, shared_saves}`; the first call creates the primary profile. `separate_saves`: labels of the systems whose saves follow the profile; `shared_saves`: the emulators whose saves every profile shares (`profile_saves`) |
 | `POST /profiles` `{name, color?, avatar?}` | a new profile; 400 on a bad name, colour or avatar, 409 on a name taken or while the primary profile has no name |
 | `PATCH /profiles/{id}` `{name?, color?, avatar?}` | rename, recolour; the id never changes |
 | `DELETE /profiles/{id}` | the record only, saves stay on disk → `{active}`; 409 on the last profile |
 | `GET /profiles/active`, `PUT /profiles/active` `{id}` | the profile the interface is used as; 409 while a game is on screen or suspended |
 
-Every write broadcasts `profiles:changed` `{active}`. Logic in `services/profiles.py`.
+Every write broadcasts `profiles:changed` `{active}`; a change of active profile also broadcasts `playtime:rekeyed`, so whatever lists playtime and recents reloads them for the new profile. Logic in `services/profiles.py`.
 
 ### `storage.py` — external disks
 

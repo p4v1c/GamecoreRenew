@@ -26,15 +26,21 @@ class ActiveProfile(BaseModel):
     id: str = Field(max_length=64)
 
 
-async def _changed() -> None:
+async def _changed(switched: bool = False) -> None:
     # Player 1 is shown by the active profile's name: every write may change it.
     await ws.broadcast("profiles:changed", {"active": profiles.active()})
+    if switched:
+        # Playtime and recents are the active profile's: what reloads them
+        # after the playtime repair reloads them here too.
+        await ws.broadcast("playtime:rekeyed", {"moved": 0})
 
 
 @router.get("/profiles")
 def list_profiles():
+    packs = load_catalog()
     return {**profiles.list_profiles(),
-            "separate_saves": profile_saves.separate_systems(load_catalog())}
+            "separate_saves": profile_saves.separate_systems(packs),
+            "shared_saves": profile_saves.shared_systems(packs)}
 
 
 @router.post("/profiles")
@@ -51,8 +57,9 @@ def get_active_profile():
 
 @router.put("/profiles/active")
 async def set_active_profile(body: ActiveProfile):
+    before = profiles.active()["id"]
     profile = profiles.set_active(body.id)
-    await _changed()
+    await _changed(switched=profile["id"] != before)
     return profile
 
 
@@ -66,6 +73,7 @@ async def update_profile(profile_id: str, body: ProfileEdit):
 
 @router.delete("/profiles/{profile_id}")
 async def delete_profile(profile_id: str):
+    before = profiles.active()["id"]
     out = profiles.delete(profile_id)
-    await _changed()
+    await _changed(switched=out["active"] != before)
     return out

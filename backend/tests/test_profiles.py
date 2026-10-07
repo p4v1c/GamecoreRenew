@@ -167,6 +167,7 @@ def test_api_patch_without_name_keeps_it(client):
 def test_the_list_says_which_systems_keep_saves_per_profile(client):
     body = client.get("/api/profiles").json()
     assert "Nintendo DS" in body["separate_saves"]
+    assert body["shared_saves"] == ["Xbox 360"], "the one emulator that says why it cannot"
 
 
 def test_an_empty_list_is_set_aside_too(store):

@@ -14,12 +14,19 @@ import { asList } from './list.js'
 /** The letter drawn on a profile's colour while no avatar art exists. */
 export const initial = (name) => (Array.from(String(name || '').trim())[0] || '?').toUpperCase()
 
-/** Which systems keep a save per profile, from the packs' `profileSaves`. */
-export const savesLine = (systems) => {
-  const list = asList(systems)
-  return list.length
-    ? `Separate saves per profile: ${list.join(', ')}. Other systems share one save.`
-    : 'Every system shares one save between profiles.'
+/**
+ * Which systems keep a save per profile, from the packs' `profileSaves`.
+ * The shorter list is the one named: "every system except Xbox 360" reads
+ * on a TV, thirty console names do not.
+ */
+export const savesLine = (separate, shared) => {
+  const yes = asList(separate)
+  const no = asList(shared)
+  if (!yes.length) return 'Every system shares one save between profiles.'
+  if (!no.length) return 'Every system keeps separate saves per profile.'
+  return no.length < yes.length
+    ? `Every system keeps separate saves per profile, except ${no.join(', ')}.`
+    : `Separate saves per profile: ${yes.join(', ')}. Other systems share one save.`
 }
 
 export const createProfilesPage = (sdk, Rows, Dialog) => {
@@ -135,7 +142,7 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
         state=${current ? '' : unnamed ? 'No profiles' : list.length === 1 ? '1 profile' : `${list.length} profiles`}
         sub=${current
           ? 'Rename, recolour or delete this profile.'
-          : `Who plays on this box. With two or more, the console asks who is playing when it starts. ${savesLine(state && state.separate_saves)}`}
+          : `Who plays on this box. With two or more, the console asks who is playing when it starts. ${savesLine(state && state.separate_saves, state && state.shared_saves)}`}
         aside=${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null} />
 
       ${naming ? html`

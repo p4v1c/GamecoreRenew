@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timezone
 
 from .. import ws
-from . import logs, profile_saves
+from . import logs, playtime_rows, profile_saves
 from .paths import config_dir
 from ..db import get_db
 from .session import display_env
@@ -897,15 +897,7 @@ class ProcessManager:
             try:
                 db = await get_db()
                 now = datetime.now(timezone.utc).isoformat()
-                await db.execute("""
-                    INSERT INTO playtime (game_key, system_id, total_secs, session_count, last_played)
-                    VALUES (?, ?, ?, 1, ?)
-                    ON CONFLICT(system_id, game_key) DO UPDATE SET
-                        total_secs    = total_secs + excluded.total_secs,
-                        session_count = session_count + 1,
-                        last_played   = excluded.last_played
-                """, (session.game_key, session.system_id, elapsed, now))
-                await db.commit()
+                await playtime_rows.record(db, session.game_key, session.system_id, elapsed, now)
             except Exception:
                 log.exception("_watch: failed to save playtime for %s",
                               session.game_key)

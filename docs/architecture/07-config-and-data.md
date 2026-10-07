@@ -629,6 +629,13 @@ ON CONFLICT(game_key) DO UPDATE SET
 `game_key` is the ROM filename (or the system id for an app), which is why
 renaming a ROM resets its history.
 
+**Per profile.** `playtime` holds the primary profile's rows, which are every
+row from before profiles; a finished game of another profile goes to
+`profile_playtime` (same columns plus `profile_id`, keyed by
+`(profile_id, system_id, game_key)`), and `/api/playtime` reads the active
+profile's ([`playtime_rows`](04-backend-services.md#playtime_rowspy--playtime-per-profile)).
+The playtime repair and `split-systems` re-key `playtime` only.
+
 `get_db()` re-opens the handle if the cached connection has gone stale — a
 long-lived aiosqlite connection can die under the box's suspend cycles.
 
@@ -731,4 +738,4 @@ were before the split, which is the status quo and not a regression.
 | `assets/overlays/` | bezel PNGs — excluded from OTA |
 | `backend/data/gamecontrollerdb.txt` | vendored SDL_GameControllerDB, exported as `SDL_GAMECONTROLLERCONFIG_FILE` |
 | `emu/<system>/` | ROMs — excluded from OTA |
-| `emu/profile-saves/<profile id>/<system>/` | saves of a profile other than the primary, for packs with `profileSaves` (`paths.profile_saves_dir()`, `services/profile_saves.py`); created on demand, never moved or deleted by GameCore, kept when the profile is deleted. Under `emu/` on purpose: outside git, the OTA rsync **and** the update's `.prev` snapshot, whose restore would roll a save back |
+| `emu/profile-saves/<profile id>/<system>/` | saves of a profile other than the primary, for packs with `profileSaves` (`paths.profile_saves_dir()`, `services/profile_saves.py`); created on demand, never moved or deleted by GameCore, kept when the profile is deleted. `emu/profile-saves/.primary.json`: the emulator options a profile replaced, put back for the primary (`profile_save_paths.py`). A folder swapped for a link waits beside it as `<name>.gamecore-primary` while another profile plays. Under `emu/` on purpose: outside git, the OTA rsync **and** the update's `.prev` snapshot, whose restore would roll a save back |

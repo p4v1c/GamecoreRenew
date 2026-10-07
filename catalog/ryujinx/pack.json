@@ -65,6 +65,17 @@
       "switch"
     ]
   },
+  "profileSaves": {
+    "dirs": [
+      {
+        "config": "bis/user/save"
+      },
+      {
+        "config": "bis/system/save/8000000000000000",
+        "as": "save-index"
+      }
+    ]
+  },
   "perGame": {
     "supported": false,
     "why": "Ryujinx has no per-title configuration file: its settings are global, and a title override is a fork feature that this pack's appIds do not point at."

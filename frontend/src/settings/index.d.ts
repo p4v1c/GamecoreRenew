@@ -95,7 +95,7 @@ declare module '*/settings/profiles' {
   /** The letter drawn on a profile's colour while no avatar art exists. */
   export function initial(name: string): string
   /** Which systems keep a save per profile, as one sentence. */
-  export function savesLine(systems: unknown): string
+  export function savesLine(separate: unknown, shared?: unknown): string
   export function createProfilesPage(
     sdk: unknown,
     Rows: unknown,
