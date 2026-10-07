@@ -112,9 +112,10 @@ def _clean_name(state: dict, raw: str, own_id: str | None = None) -> str:
         raise ServiceError(400, "Enter a name.")
     if len(name) > NAME_MAX or not name.isprintable():
         raise ServiceError(400, f"Use up to {NAME_MAX} letters, numbers or symbols.")
-    if any(p["name"].casefold() == name.casefold() and p["id"] != own_id
-           for p in state["profiles"]):
-        raise ServiceError(409, f"{name} is already a profile.")
+    taken = next((p for p in state["profiles"]
+                  if p["name"].casefold() == name.casefold() and p["id"] != own_id), None)
+    if taken:
+        raise ServiceError(409, f"{taken['name']} is already a profile.")
     return name
 
 

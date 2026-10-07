@@ -390,8 +390,10 @@ Rules, each one a way to mix two people's progress:
 - **Rewrite every launch, and put back when the game ends**
   (`profile_saves.release`). Emulators save their config on exit.
 - **Never move, copy or delete a save.** Redirection, or a rename in place.
-- **Refuse rather than guess.** No config file, no parent folder, or both a
-  real folder and its `.gamecore-primary`: the launch is refused.
+- **Refuse rather than guess.** No parent folder, or both a real folder and
+  its `.gamecore-primary`: the launch is refused. A config file the emulator
+  has not written yet (RetroArch writes its `.cfg` on exit) is created with
+  the save options alone, which is what it would read anyway.
 
 A Flatpak only sees the folder if its sandbox reaches the data root (the
 emulators get `/userdata` and the install directory). `GET /profiles` returns

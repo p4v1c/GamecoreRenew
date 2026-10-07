@@ -76,11 +76,16 @@ def test_qt_keys_with_backslashes(tmp_path, root):
     assert ini.read_text() == before
 
 
-def test_no_config_file_refuses_a_profile_and_ignores_the_primary(tmp_path, root):
-    missing = tmp_path / "nope.cfg"
-    with pytest.raises(ServiceError):
-        psp.apply_keys(_keys(missing, "nes"), root / "sam" / "nes", root)
+def test_no_config_file_yet_still_gives_a_profile_its_folder(tmp_path, root):
+    """RetroArch writes its .cfg on exit: a box that never ran a system has none,
+    and refusing would lock every profile but the owner out of it."""
+    missing = tmp_path / "cfg" / "nes.cfg"
     psp.apply_keys(_keys(missing, "nes"), None, root)
+    assert not missing.exists(), "the primary writes nothing"
+    psp.apply_keys(_keys(missing, "nes"), root / "sam" / "nes", root)
+    assert str(root / "sam" / "nes") in missing.read_text()
+    psp.apply_keys(_keys(missing, "nes"), None, root)
+    assert "savefile_directory" not in missing.read_text(), "the owner's 'absent' comes back"
 
 
 def test_a_folder_is_swapped_for_a_link_and_renamed_back(tmp_path):

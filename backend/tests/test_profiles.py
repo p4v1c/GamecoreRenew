@@ -87,6 +87,7 @@ def test_names_are_unique_ignoring_case(named):
     with pytest.raises(ServiceError) as e:
         profiles.create("sAM")
     assert e.value.status == 409
+    assert e.value.detail.startswith("Sam "), "named as the profile that has it"
 
 
 def test_colour_and_avatar_are_checked(named):

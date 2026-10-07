@@ -130,10 +130,15 @@ def apply_keys(entries: list[tuple[Path, dict]], folder: Path | None, root: Path
         by_file.setdefault(file, []).append(entry)
     for file, group in by_file.items():
         if not file.is_file():
-            if folder is not None:
-                raise ServiceError(500, f"{file.name} is missing: start the emulator once first.")
-            continue
-        text = new = file.read_text(encoding="utf-8")
+            if folder is None:
+                continue
+            # Never run yet (RetroArch writes its .cfg on exit): a file with
+            # only the save options is what the emulator would read anyway,
+            # defaults for everything else. The owner's values are "absent".
+            file.parent.mkdir(parents=True, exist_ok=True)
+            text = new = ""
+        else:
+            text = new = file.read_text(encoding="utf-8")
         if folder is not None:
             # Remember the owner's values once, before the first write.
             fresh = {_key_id(file, e): read_key(text, e.get("section"), e["key"])

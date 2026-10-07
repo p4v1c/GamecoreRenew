@@ -968,7 +968,7 @@ pack, because saves are not controller config.
 
 | Function | Does |
 |---|---|
-| `apply_keys(entries, folder, root)` | each `(file, entry)` option set to the profile's value, the file's own values remembered first in `root/.primary.json`; `folder` None puts the remembered values back (an option that was absent is removed) and forgets them. A missing file refuses a profile and is ignored for the primary |
+| `apply_keys(entries, folder, root)` | each `(file, entry)` option set to the profile's value, the file's own values remembered first in `root/.primary.json`; `folder` None puts the remembered values back (an option that was absent is removed) and forgets them. A missing file is created with the profile's options alone (never for the primary) |
 | `apply_dir(path, target)` | `path` renamed `<name>.gamecore-primary` and replaced by a symlink to `target`; None removes the link and renames the folder back. Refuses when its parent is missing, or when a real folder and its `.gamecore-primary` both exist (whose saves are whose cannot be told) |
 | `read_key`, `write_key` | one `key = value` in an INI section, or a flat file; a new option in a flat file goes before its first `#include` |
 
