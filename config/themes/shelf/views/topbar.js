@@ -22,7 +22,9 @@ export const createTopBar = (sdk) => {
 
   // Player 1 shows the active profile's name; a host without `sdk.players` says P1.
   const usePadLabel = sdk.players?.useLabel ?? (() => (n) => `P${n}`)
-  return ({ onSettings, onPower }) => {
+  // The profile picture; a host without it (or a box without profiles) shows nothing.
+  const Avatar = sdk.players?.Avatar || (() => null)
+  return ({ onSettings, onPower, onProfile }) => {
     const padLabel = usePadLabel()
     const [info, setInfo] = useState(null)
     const [clock, setClock] = useState('')
@@ -117,6 +119,7 @@ export const createTopBar = (sdk) => {
               <path d="M12 3v9M6.3 6.3a9 9 0 1 0 11.4 0" />
             </svg>
           </button>
+          <${Avatar} className="cz-avatar" onClick=${onProfile} />
         </div>
       </div>`
   }

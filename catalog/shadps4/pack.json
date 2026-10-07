@@ -36,7 +36,13 @@
   "profileSaves": {
     "dirs": [
       {
-        "path": "@FLATPAK_DATA@/shadPS4/user/savedata"
+        "path": "@FLATPAK_DATA@/shadPS4/home/1/savedata",
+        "optional": true
+      },
+      {
+        "path": "@FLATPAK_DATA@/shadPS4/savedata/1",
+        "as": "savedata-v015",
+        "optional": true
       }
     ]
   },

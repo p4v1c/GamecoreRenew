@@ -151,13 +151,16 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
       <path d=${ICONS[id] || ICONS.system} />
     </svg>`
 
-  return ({ onClose }) => {
-    const [cat, setCat] = useState('wifi')
-    const [railFocus, setRailFocus] = useState(0)
+  // `initialCategory` opens straight on one page with the pad in it: the
+  // profile picture in a top bar opens Profiles.
+  return ({ onClose, initialCategory }) => {
+    const opened = Math.max(0, CATS.findIndex((c) => c.id === initialCategory))
+    const [cat, setCat] = useState(initialCategory && opened ? CATS[opened].id : CATS[0].id)
+    const [railFocus, setRailFocus] = useState(opened)
     // 'rail' or 'page'. The capture has no visible cursor, so which column
     // answers the d-pad has to be legible from the highlight alone. In the
     // index layout 'rail' is the category list.
-    const [zone, setZone] = useState('rail')
+    const [zone, setZone] = useState(initialCategory && opened ? 'page' : 'rail')
     const [meta, setMeta] = useState({})
     // The raw answers behind the rail's values. Wi-Fi and Bluetooth need the
     // same two requests the rail already made, so the page opens with them in

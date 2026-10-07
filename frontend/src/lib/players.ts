@@ -28,14 +28,16 @@ export function usePlayerLabel(): (player: number) => string {
   return useCallback((player: number) => playerLabel(player, name), [name])
 }
 
-interface ActiveLike { id?: unknown; name?: unknown; primary?: unknown }
+interface ActiveLike { id?: unknown; name?: unknown; primary?: unknown; color?: unknown; avatar?: unknown }
 
 /** Keeps `playerOneName` and `profileKey` current: read once, then on every profile change. */
 export function usePlayerNames(): void {
   useEffect(() => {
     const set = (p: ActiveLike | undefined) => useStore.getState().setActiveProfile(
       typeof p?.name === 'string' ? p.name : '',
-      !p?.primary && typeof p?.id === 'string' ? p.id : '')
+      !p?.primary && typeof p?.id === 'string' ? p.id : '',
+      { color: typeof p?.color === 'string' ? p.color : '',
+        avatar: typeof p?.avatar === 'string' ? p.avatar : null })
     api.profiles.list()
       .then((s) => set(s.profiles.find((p) => p.id === s.active)))
       .catch((e) => console.error('profiles: could not read the active profile', e))

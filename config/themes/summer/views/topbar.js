@@ -19,7 +19,9 @@ export const createTopBar = (sdk) => {
   const Glyph = sdk.ui.Glyph || (() => null)
   // Player 1 shows the active profile's name; a host without `sdk.players` says P1.
   const usePadLabel = sdk.players?.useLabel ?? (() => (n) => `P${n}`)
-  return ({ onSettings, onPower }) => {
+  // The profile picture; a host without it (or a box without profiles) shows nothing.
+  const Avatar = sdk.players?.Avatar || (() => null)
+  return ({ onSettings, onPower, onProfile }) => {
     const padLabel = usePadLabel()
     const [info, setInfo] = useState(null)
     const [clock, setClock] = useState('')
@@ -95,6 +97,7 @@ export const createTopBar = (sdk) => {
           <div class="sm-clock"><span class="sm-glyph"><${Glyph} name=${TOD_GLYPH(tod)} size=${16} /></span>${clock}</div>
           <button class="sm-icon" onClick=${onSettings} title="Settings" aria-label="Settings"><${Glyph} name="settings" size=${18} /></button>
           <button class="sm-icon sm-icon-power" onClick=${onPower} title="Power" aria-label="Power"><${Glyph} name="power" size=${18} /></button>
+          <${Avatar} className="sm-avatar" onClick=${onProfile} />
         </div>
       </div>`
   }

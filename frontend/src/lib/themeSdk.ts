@@ -23,6 +23,7 @@ import { playSound, getAudioContext, soundSettings } from './sounds'
 import { formatGameName, hexToRgb, fmtTime, fmtDate, systemColor } from './format'
 import * as defaults from '../components/defaults'
 import { onProfileChange, playerLabel, profileStorageKey, usePlayerLabel } from './players'
+import ProfileAvatar from '../components/ProfileAvatar'
 
 /**
  * SDK major. Bump it when anything is removed, changes shape, or becomes
@@ -78,6 +79,7 @@ export interface ThemeSdk {
     label: (player: number) => string
     storageKey: (base: string) => string
     onChange: (fn: () => void) => () => void
+    Avatar: typeof ProfileAvatar
   }
   nav: Record<string, unknown>
   session: Record<string, unknown>
@@ -167,6 +169,12 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
        */
       storageKey: profileStorageKey,
       onChange: onProfileChange,
+      /**
+       * The active profile's picture as a button, for the top bar beside
+       * Settings and Power; nothing on a box without profiles. Give it the
+       * shell's `onProfile`, which opens Settings → Profiles.
+       */
+      Avatar: ProfileAvatar,
     },
 
     nav: {

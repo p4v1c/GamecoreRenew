@@ -932,7 +932,7 @@ atomically.
 | Function | Does |
 |---|---|
 | `list_profiles()` | the state plus `PALETTE`; with no file, creates one unnamed primary profile that owns everything the box held before profiles. Unnamed = no profiles yet |
-| `create(name, color, avatar)` | refuses (409) while the primary is unnamed; trims the name, refuses empty, over `NAME_MAX`, non-printable, or taken (case-insensitive); colour from `PALETTE` (default: the first unused), avatar from `AVATARS` (empty: no art ships yet) |
+| `create(name, color, avatar)` | refuses (409) while the primary is unnamed; trims the name, refuses empty, over `NAME_MAX`, non-printable, or taken (case-insensitive); colour from `PALETTE` (default: the first unused), avatar from `AVATARS` (the eight pictures `frontend/src/settings/avatars.js` draws; None draws the initial) |
 | `update(id, fields)` | the same checks; the id never changes, so nothing keyed on it moves |
 | `delete(id)` | the record only (its saves folder stays on disk); refuses the last profile and the primary one (it owns the saves beside the ROMs); `active` passes to the primary |
 | `active()`, `set_active(id)` | the profile the interface is used as. A switch, or deleting the active profile, is refused (409) while a game is on screen or suspended: a suspended game resumes without its saves being placed again, so the new profile would play in the old one's save |

@@ -51,7 +51,7 @@
   },
   "profileSaves": {
     "supported": false,
-    "why": "Xenia keeps its saves in its own Xbox profiles inside Wine, in a folder GameCore cannot find for certain on every box yet."
+    "why": "Xenia keeps title updates and DLC in the same content folder as the saves, so a profile of its own would lose them."
   },
   "perGame": {
     "supported": false,

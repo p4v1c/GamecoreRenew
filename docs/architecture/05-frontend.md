@@ -290,7 +290,11 @@ profiles (`store.playerOneName`, kept by `usePlayerNames()` in `App.tsx` and
 the `profiles:changed` event), `P<n>` otherwise; themes reach it as
 `sdk.players`. `store.profileKey` ('' for the primary) gives a theme its
 per-profile storage: `sdk.players.storageKey(base)`, re-read on
-`sdk.players.onChange` (Jelly's and Orbit's favourites). Settings → Profiles is `frontend/src/settings/profiles.js`, the
+`sdk.players.onChange` (Jelly's and Orbit's favourites). `sdk.players.Avatar`
+is `components/ProfileAvatar.tsx`: the active profile's picture (or initial)
+on its colour, for a top bar, rendering nothing without profiles; the shell's
+`onProfile` opens Settings with `initialCategory="profiles"`. The pictures are
+`settings/avatars.js` (`AVATARS`), kept equal to `profiles.AVATARS` by a test. Settings → Profiles is `frontend/src/settings/profiles.js`, the
 tenth rail category every theme draws; its subtitle names the systems whose
 saves follow the profile (`separate_saves`, `savesLine()`).
 

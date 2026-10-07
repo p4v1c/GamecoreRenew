@@ -10,9 +10,9 @@
  * row that names it, and only then can others be added.
  */
 import { asList } from './list.js'
+import { AVATARS, avatarFace, initial } from './avatars.js'
 
-/** The letter drawn on a profile's colour while no avatar art exists. */
-export const initial = (name) => (Array.from(String(name || '').trim())[0] || '?').toUpperCase()
+export { initial }
 
 /**
  * Which systems keep a save per profile, from the packs' `profileSaves`.
@@ -47,7 +47,7 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
     const palette = asList(state && state.palette)
     const unnamed = list.length === 1 && !list[0].name ? list[0] : null
     const current = list.find((p) => p.id === editing) || null
-    const badge = (p) => ({ color: p.color, text: initial(p.name) })
+    const badge = (p) => ({ color: p.color, text: avatarFace(html, p) })
     // Every write answers with the sentence to show; the list is re-read after.
     const run = (promise, done) => promise
       .then((r) => { setMsg(done(r)); return load() })
@@ -80,6 +80,11 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
         id: 'color', type: 'value', label: 'Colour', value: colorIdx,
         options: palette.map((c) => c.name), badge: { color: current.color, text: '' },
       },
+      {
+        id: 'picture', type: 'value', label: 'Picture',
+        value: Math.max(0, AVATARS.findIndex(([key]) => key === current.avatar) + 1),
+        options: ['Initial', ...AVATARS.map(([, label]) => label)], badge: badge(current),
+      },
       // The primary profile owns the saves made before profiles: never deleted.
       ...(!current.primary ? [{
         id: 'delete', type: 'action', label: 'Delete profile',
@@ -111,8 +116,13 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
     }
 
     const onSet = (id, v) => {
-      if (id !== 'color' || !current || !palette[v]) return
-      run(sdk.api.profiles.update(current.id, { color: palette[v].color }), () => '')
+      if (!current) return
+      if (id === 'color' && palette[v]) {
+        run(sdk.api.profiles.update(current.id, { color: palette[v].color }), () => '')
+      } else if (id === 'picture') {
+        const pick = v > 0 && AVATARS[v - 1] ? AVATARS[v - 1][0] : null
+        run(sdk.api.profiles.update(current.id, { avatar: pick }), () => '')
+      }
     }
 
     const onName = (raw) => {
@@ -141,7 +151,7 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
         title=${current ? current.name : 'Profiles'}
         state=${current ? '' : unnamed ? 'No profiles' : list.length === 1 ? '1 profile' : `${list.length} profiles`}
         sub=${current
-          ? 'Rename, recolour or delete this profile.'
+          ? 'Rename, change the colour or picture, or delete this profile.'
           : `Who plays on this box. With two or more, the console asks who is playing when it starts. ${savesLine(state && state.separate_saves, state && state.shared_saves)}`}
         aside=${msg ? html`<div class="gcs-wifi-msg">${msg}</div>` : null} />
 

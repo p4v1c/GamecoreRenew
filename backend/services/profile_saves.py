@@ -98,10 +98,17 @@ def _declared(owner, opts: dict | None):
         folder = dirs[0]
         keys = [(resolve(e), e) for e in spec.get("keys", [])]
         profile_save_paths.apply_keys(keys, folder, root)
+        applied = len(keys)
         for e in spec.get("dirs", []):
             path = resolve(e)
+            # An optional folder is one of two layouts the emulator has used.
+            if folder is not None and e.get("optional") and not path.parent.is_dir():
+                continue
             target = folder / (e.get("as") or path.name) if folder is not None else None
             profile_save_paths.apply_dir(path, target)
+            applied += 1
+        if folder is not None and not applied:
+            raise ServiceError(500, f"{owner.id}: none of its save folders exist yet: start it once first.")
     return place_saves
 
 

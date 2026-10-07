@@ -197,3 +197,18 @@ def test_the_primary_profile_never_touches_a_declared_pack(data, monkeypatch, tm
     monkeypatch.setattr(configgen, "HOME", home)
     assert profile_saves.place("nes") == [None] * configgen.MAX_PLAYERS
     assert cfg.read_text() == "video_fullscreen = \"true\"\n"
+
+
+def test_an_optional_layout_is_skipped_but_one_must_apply(data, monkeypatch, tmp_path):
+    """shadPS4 moved its saves between versions: whichever folder exists is used."""
+    home = tmp_path / "home"
+    root = home / ".var/app/net.shadps4.shadPS4/data/shadPS4"
+    monkeypatch.setattr(configgen, "HOME", home)
+    profiles.update(profiles.active()["id"], {"name": "Max"})
+    profiles.set_active(profiles.create("Sam")["id"])
+    with pytest.raises(ServiceError):
+        profile_saves.place("shadps4")
+    (root / "home" / "1").mkdir(parents=True)
+    profile_saves.place("shadps4")
+    assert (root / "home/1/savedata").is_symlink()
+    assert not (root / "savedata").exists(), "the other layout is left alone"

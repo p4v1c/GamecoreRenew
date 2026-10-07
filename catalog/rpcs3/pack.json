@@ -80,6 +80,9 @@
     "dirs": [
       {
         "config": "dev_hdd0/home/00000001/savedata"
+      },
+      {
+        "config": "dev_hdd0/home/00000001/trophy"
       }
     ]
   },

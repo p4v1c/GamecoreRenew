@@ -632,6 +632,14 @@ the one-shot read for a handler. A theme that must load on an older host guards
 it: `const usePadLabel = sdk.players?.useLabel ?? (() => (n) => \`P${n}\`)`,
 as the four shipped themes do in their status bars.
 
+**The profile picture.** The shell hands a top bar `onProfile` beside
+`onSettings` and `onPower`; it opens Settings straight on Profiles. Draw
+`<${sdk.players.Avatar} className="my-avatar" onClick=${onProfile} />` next to
+the Settings and Power buttons: the active profile's colour with its picture
+or initial, and nothing at all on a box without profiles, so the bar looks as
+it did. `.gcs-avatar` gives it its round shape at 40 px; size it with your
+class. The four shipped themes put it at the right end of their top bar.
+
 **Per-profile storage.** What a theme keeps for a person in `localStorage`
 (favourites) is per profile: read and write it under
 `sdk.players.storageKey('my-favourites')`, which is the bare key for the

@@ -50,7 +50,10 @@ interface GamecoreStore {
   /** '' for the primary profile (and a box without profiles), else its id: what
    *  per-profile storage keys add, so the primary keeps its old keys. */
   profileKey: string
-  setActiveProfile: (playerOneName: string, profileKey: string) => void
+  /** The active profile's colour and picture, for the picture in a top bar. */
+  profileLook: { color: string; avatar: string | null }
+  setActiveProfile: (playerOneName: string, profileKey: string,
+                     profileLook?: { color: string; avatar: string | null }) => void
 
   /**
    * The session ON THE SCREEN — and it keeps that meaning exactly.
@@ -146,6 +149,7 @@ export const useStore = create<GamecoreStore>((set) => ({
   standby: 'off',
   playerOneName: '',
   profileKey: '',
+  profileLook: { color: '', avatar: null },
   sessionGameKey: null,
   sessionSystemId: null,
   backgroundSessions: [],
@@ -174,7 +178,8 @@ export const useStore = create<GamecoreStore>((set) => ({
   closeModal: () => set(s => ({ modalDepth: Math.max(0, s.modalDepth - 1) })),
   setPowerPending: (action) => set({ powerPending: action }),
   setStandby: (stage) => set({ standby: stage }),
-  setActiveProfile: (playerOneName, profileKey) => set({ playerOneName, profileKey }),
+  setActiveProfile: (playerOneName, profileKey, profileLook = { color: '', avatar: null }) =>
+    set({ playerOneName, profileKey, profileLook }),
   requestRemap: () => set(s => ({ remapRequest: s.remapRequest + 1 })),
   setGameOptions: (gameOptions) => set({ gameOptions }),
   requestSessionMenu: () => set(s => ({ sessionMenuRequest: s.sessionMenuRequest + 1 })),

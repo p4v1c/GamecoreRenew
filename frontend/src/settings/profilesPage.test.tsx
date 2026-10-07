@@ -114,3 +114,20 @@ it('says a deleted profile’s saves are kept but out of reach', async () => {
   await findByText('Delete profile')
   expect(container.textContent).toContain('Sam’s saves are kept on the console, but no profile opens them again.')
 })
+
+it('picks a picture for a profile', async () => {
+  const { findByText, container } = page()
+  fireEvent.click(row(await findByText('Sam')))
+  await findByText('Picture')
+  const arrows = container.querySelectorAll('.gcs-val-arrow')
+  fireEvent.click(arrows[arrows.length - 1])
+  await waitFor(() => expect(sent('PATCH')[0]).toMatchObject({ url: '/api/profiles/b', body: { avatar: 'controller' } }))
+})
+
+it('opens straight on Profiles from the top bar picture', async () => {
+  const { createSettings } = await import('../settings/screen')
+  const sdk = buildSdk('shelf', { selectTheme: vi.fn(async () => {}) })
+  const Screen = createSettings(sdk, {}, {}) as React.ComponentType<{ onClose: () => void; initialCategory?: string }>
+  const { findByText } = render(<Screen onClose={() => {}} initialCategory="profiles" />)
+  expect(await findByText(/Who plays on this box/)).toBeTruthy()
+})

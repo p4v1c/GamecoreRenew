@@ -39,8 +39,10 @@ LEGACY_DEFAULT_NAME = "Player 1"
 PALETTE = {"#b8501b": "Ember", "#127a6d": "Teal", "#2563a8": "Blue", "#3f7d20": "Green",
            "#b3261e": "Red", "#4b5563": "Slate", "#a3245c": "Rose", "#8a6a00": "Ochre"}
 _FIRST_COLOR = next(iter(PALETTE))
-# No avatar art ships yet: the UI draws the initial on the colour.
-AVATARS: frozenset[str] = frozenset()
+# The pictures a profile can pick (frontend/src/settings/avatars.js draws
+# them); None draws the initial on the colour.
+AVATARS: frozenset[str] = frozenset(
+    {"controller", "star", "heart", "bolt", "leaf", "moon", "rocket", "cat"})
 
 # ponytail: one process-wide lock; the backend is a single process.
 _lock = threading.Lock()

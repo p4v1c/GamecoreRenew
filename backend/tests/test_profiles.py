@@ -223,3 +223,19 @@ def test_an_app_does_not_hold_the_profile(named, monkeypatch):
     game = types.SimpleNamespace(is_app=False, game_key="zelda.nds")
     monkeypatch.setattr(type(process_manager), "background_sessions", property(lambda s: [game]))
     assert profiles._game_in_progress() == "zelda.nds"
+
+
+def test_the_pictures_are_the_ones_the_interface_draws():
+    from pathlib import Path
+    import re
+    js = (Path(__file__).resolve().parents[2] / "frontend/src/settings/avatars.js").read_text()
+    drawn = set(re.findall(r"^\s*\['([a-z]+)', '", js, re.M))
+    assert drawn == set(profiles.AVATARS)
+
+
+def test_a_picture_is_set_and_cleared(named):
+    me = profiles.active()["id"]
+    assert profiles.update(me, {"avatar": "rocket"})["avatar"] == "rocket"
+    assert profiles.update(me, {"avatar": None})["avatar"] is None
+    with pytest.raises(ServiceError):
+        profiles.update(me, {"avatar": "dragon"})

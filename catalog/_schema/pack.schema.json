@@ -457,6 +457,10 @@
                   "as": {
                     "type": "string",
                     "description": "Name of the profile's folder for it; default: the folder's own name."
+                  },
+                  "optional": {
+                    "type": "boolean",
+                    "description": "Skip it when its parent folder is missing (one of two layouts an emulator has used). At least one entry must apply."
                   }
                 },
                 "oneOf": [

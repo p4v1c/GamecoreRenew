@@ -68,6 +68,20 @@
   background: var(--set-card-2); border: 1px solid var(--set-line);
 }
 
+/* The active profile's picture in a top bar (components/ProfileAvatar.tsx). A
+   theme sizes it with its own class; this is the shape every theme starts from. */
+.gcs-avatar {
+  display: inline-grid; place-items: center; flex: none;
+  width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%;
+  background: #4b5563; color: #fff; cursor: pointer;
+  font: 700 18px/1 var(--font-display, system-ui);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+.gcs-avatar svg { width: 62%; height: 62%; }
+.gcs-avatar:focus-visible { outline: 3px solid var(--gc-accent-soft, #f2a46a); outline-offset: 3px; }
+
+.gcs-who-avatar svg, .gcs-row2-badge svg { width: 62%; height: 62%; }
+
 @media (prefers-reduced-motion: reduce) {
   .gcs-who-avatar { transition: none; }
   .gcs-who-tile[data-on="1"] .gcs-who-avatar { transform: none; }

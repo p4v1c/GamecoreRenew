@@ -340,7 +340,7 @@ folder (`@SAVES@`), from pack.json alone (`services/profile_save_paths.py`):
 | Field | What |
 |---|---|
 | `keys[]` | an option in a config file: `config` (relative to the config directory configgen resolves, native or flatpak; `..` allowed) or `path` (tokens), `section` (absent for a flat file such as RetroArch's), `key`, `value` (`@SAVES@` = the profile's folder; a value without it, `true`, is set as is), `quote` |
-| `dirs[]` | a folder the emulator has no option for: renamed `<name>.gamecore-primary`, replaced by a symlink to `<profile folder>/<as or name>`, renamed back for the primary. Its parent must exist (the emulator ran once), else the launch is refused |
+| `dirs[]` | a folder the emulator has no option for: renamed `<name>.gamecore-primary`, replaced by a symlink to `<profile folder>/<as or name>`, renamed back for the primary. Its parent must exist (the emulator ran once), else the launch is refused; `optional` skips it instead, for an emulator that moved its folder between versions, as long as one entry applies |
 
 The owner's values are remembered in `profile-saves/.primary.json` before the
 first write, keyed by file and option (not by pack), and put back for the
@@ -361,6 +361,9 @@ until pads carry profiles). `p1`: one save, player 1's.
 **3. `{"supported": false, "why": "…"}`** — the saves cannot follow a profile,
 and why. Settings → Profiles names these systems (`shared_saves`).
 
+Save locations checked against the `save-manager` addon's catalogue, which
+backs the same folders up.
+
 | Emulator | How |
 |---|---|
 | RetroArch (17 packs) | `savefile_directory`, `savestate_directory` in `<pack>.cfg`, before its `#include` |
@@ -375,10 +378,10 @@ and why. Settings → Profiles names these systems (`shared_saves`).
 | PPSSPP | folders `PSP/SAVEDATA`, `PSP/PPSSPP_STATE` |
 | Eden | folder `nand/user/save` |
 | Ryujinx | folders `bis/user/save` and the save index `bis/system/save/8000000000000000` |
-| RPCS3 | folder `dev_hdd0/home/00000001/savedata` |
-| shadPS4 | folder `user/savedata` |
+| RPCS3 | folders `dev_hdd0/home/00000001/savedata` and `trophy` |
+| shadPS4 | folder `home/1/savedata` (≥ 0.16) or `savedata/1` (≤ 0.15), whichever exists (`optional`) |
 | Cemu | folder `mlc01/usr/save/00050000` (game saves; accounts stay shared) |
-| Xenia | `supported: false`: its saves live in its own Xbox profiles inside Wine |
+| Xenia | `supported: false`: title updates and DLC share `content/` with the saves, so a profile of its own would lose them |
 
 Rules, each one a way to mix two people's progress:
 

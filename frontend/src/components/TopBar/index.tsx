@@ -3,11 +3,13 @@ import { Glyph } from '../ui'
 import { api, SysInfo } from '../../api'
 import { onWsEvent } from '../../hooks/useWebSocket'
 import { usePlayerLabel } from '../../lib/players'
+import ProfileAvatar from '../ProfileAvatar'
 import logo from '../../assets/logo.png'
 
 interface Props {
   onSettings: () => void
   onPower: () => void
+  onProfile?: () => void
 }
 
 export function ControllerBattery({ player, level, charging }: { player?: number | null; level: number; charging?: boolean }) {
@@ -64,7 +66,7 @@ function TBtn({ icon, label, color, onClick }: { icon: string; label: string; co
   )
 }
 
-export default function TopBar({ onSettings, onPower }: Props) {
+export default function TopBar({ onSettings, onPower, onProfile }: Props) {
   const [time, setTime] = useState('')
   const [sysInfo, setSysInfo] = useState<SysInfo | null>(null)
   // Kept out of sysInfo on purpose: controller state arrives pushed and must not
@@ -174,6 +176,7 @@ export default function TopBar({ onSettings, onPower }: Props) {
         <span style={{ fontSize: 15, color: 'var(--gc-ink-3)', fontWeight: 500 }}>{time}</span>
         <TBtn icon="settings" label="Settings" color="#b8501b" onClick={onSettings} />
         <TBtn icon="power" label="Power" color="#ef4444" onClick={onPower} />
+        <ProfileAvatar onClick={onProfile} />
       </div>
     </div>
   )

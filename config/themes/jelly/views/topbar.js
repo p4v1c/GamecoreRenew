@@ -16,7 +16,9 @@ export function createTopBar(sdk, {tabs, actions}) {
   const icon = (name) => html`<svg viewBox="0 0 24 24" aria-hidden="true"
     dangerouslySetInnerHTML=${{__html: ICONS[name]}} />`
 
-  return function TopBar({onSettings, onPower}) {
+  // The profile picture; a host without it (or a box without profiles) shows nothing.
+  const Avatar = sdk.players?.Avatar || (() => null)
+  return function TopBar({onSettings, onPower, onProfile}) {
     const tab = tabs.useTab()
     const screen = sdk.nav.use((s) => s.screen)
     const [clock, setClock] = useState('')
@@ -47,6 +49,7 @@ export function createTopBar(sdk, {tabs, actions}) {
         <button type="button" className="jl-icon" aria-label="Search" onClick=${() => actions.search?.()}>${icon('search')}</button>
         <button type="button" className="jl-icon" aria-label="Settings" onClick=${onSettings}>${icon('settings')}</button>
         <button type="button" className="jl-icon" aria-label="Power" onClick=${onPower}>${icon('power')}</button>
+        <${Avatar} className="jl-avatar" onClick=${onProfile} />
         <time className="jl-clock">${clock}</time>
       </div>
     </header>`

@@ -5,7 +5,7 @@
  *
  * ←/→ move, ✕ picks, ○ keeps the profile already active.
  */
-import { initial } from './profiles.js'
+import { avatarFace } from './avatars.js'
 import { PadHints } from '../lib/padKey.js'
 
 export const createWhoIsPlaying = (sdk, parts = {}) => {
@@ -50,7 +50,7 @@ export const createWhoIsPlaying = (sdk, parts = {}) => {
           ${profiles.map((p, i) => html`
             <button key=${p.id} type="button" class="gcs-who-tile"
                     data-on=${idx === i ? '1' : '0'} onClick=${() => { setIdx(i); choose(i) }}>
-              <span class="gcs-who-avatar" aria-hidden="true" style=${{ background: p.color }}>${initial(p.name)}</span>
+              <span class="gcs-who-avatar" aria-hidden="true" style=${{ background: p.color }}>${avatarFace(html, p)}</span>
               <b>${p.name}</b>
             </button>`)}
           <button type="button" class="gcs-who-tile" data-add="1"
