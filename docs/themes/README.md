@@ -657,7 +657,11 @@ nothing.
 
 **Settings → Profiles** is the tenth category of the shared settings screen
 (`frontend/src/settings/profiles.js`), drawn with the same `gcs-row2` rows as
-System; a round `.gcs-row2-badge` carries each profile's initial on its colour.
+System; a round `.gcs-row2-badge` carries each profile's picture or initial on
+its colour. Each profile row is a `choice` row: Select and Edit (Edit only for
+the profile playing), ←/→ between them, the one ✕ presses ringed
+(`.gcs-choice .gcs-act[data-pick="1"]`). A theme that styles `.gcs-act` styles
+them already.
 It is not a `DefaultSettingsPages` id, so `settings.pages` in `theme.json` does
 not change. Check one thing: a stylesheet that keys the rail by position
 (`.gcs-set-row:nth-child(n)`) needs a tenth entry, and the rail has to fit ten

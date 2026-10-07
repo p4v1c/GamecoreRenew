@@ -110,3 +110,9 @@
 
 .gcs-act[data-armed="1"] { background: var(--set-danger); color: #fff; }
 
+/* Several buttons on one row (`choice`): the one ✕ would press has a ring,
+   so it reads without colour on every theme. */
+.gcs-choice { display: flex; flex: 0 0 auto; gap: 10px; }
+.gcs-choice .gcs-act { border: 0; font-family: inherit; cursor: pointer; }
+.gcs-choice .gcs-act[data-pick="1"] { outline: 2px solid currentColor; outline-offset: 2px; }
+

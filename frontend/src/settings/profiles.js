@@ -1,8 +1,9 @@
 /**
  * Settings → Profiles: who plays on this box.
  *
- * Two levels on the shared rows: the list (one row per profile, then "Add
- * profile"), and one profile's rows (play as, rename, colour, delete). ○ on a
+ * Two levels on the shared rows: the list (one row per profile, with Select
+ * and Edit, then "Add profile"), and one profile's rows (play as, rename,
+ * colour, picture, delete). ○ on a
  * profile goes back to the list. Names come from the host's on-screen keyboard.
  * Delete takes two presses, like the logs purge.
  *
@@ -60,10 +61,14 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
         label2: 'Start',
       },
     ] : [
+      // The profile playing has nothing to select: Edit only. Every other
+      // one can be switched to from the list, without opening it first.
       ...list.map((p) => ({
-        id: p.id, type: 'action', label: p.name, badge: badge(p),
+        id: p.id, type: 'choice', label: p.name, badge: badge(p),
         desc: p.id === state.active ? 'Playing now' : '',
-        label2: 'Edit',
+        buttons: p.id === state.active
+          ? [{ id: `edit:${p.id}`, label: 'Edit' }]
+          : [{ id: `select:${p.id}`, label: 'Select' }, { id: `edit:${p.id}`, label: 'Edit' }],
       })),
       { id: 'add', type: 'action', label: 'Add profile', desc: 'A name and a colour', label2: 'Add' },
     ]
@@ -99,9 +104,11 @@ export const createProfilesPage = (sdk, Rows, Dialog) => {
 
     const onAct = (id) => {
       if (!current) {
+        const [verb, pid] = id.split(':')
         if (id === 'start') setNaming(unnamed.id)
         else if (id === 'add') setNaming('new')
-        else { setEditing(id); setMsg('') }
+        else if (verb === 'select') run(sdk.api.profiles.setActive(pid), (p) => `Playing as ${p.name}.`)
+        else if (verb === 'edit') { setEditing(pid); setMsg('') }
         return
       }
       if (id === 'use' && current.id !== state.active) {

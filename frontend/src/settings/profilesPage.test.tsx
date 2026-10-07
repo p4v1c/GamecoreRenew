@@ -42,6 +42,9 @@ const page = () => {
   return render(<Page active onLeave={() => {}} />)
 }
 const row = (el: HTMLElement) => el.closest('.gcs-row2') as HTMLElement
+/** A profile's Edit (or Select) button, in its list row. */
+const press = (el: HTMLElement, label: string) =>
+  fireEvent.click([...row(el).querySelectorAll('button')].find((b) => b.textContent === label)!)
 const sent = (method: string) => calls.filter((c) => c.method === method)
 
 it('lists the profiles with the one playing now', async () => {
@@ -55,7 +58,7 @@ it('lists the profiles with the one playing now', async () => {
 
 it('switches to a profile and changes its colour', async () => {
   const { findByText, container } = page()
-  fireEvent.click(row(await findByText('Sam')))
+  press(await findByText('Sam'), 'Edit')
   fireEvent.click(row(await findByText('Play as Sam')))
   await waitFor(() => expect(sent('PUT')[0]).toMatchObject({ url: '/api/profiles/active', body: { id: 'b' } }))
   fireEvent.click(container.querySelectorAll('.gcs-val-arrow')[1])
@@ -64,7 +67,7 @@ it('switches to a profile and changes its colour', async () => {
 
 it('deletes only after a second press', async () => {
   const { findByText, container } = page()
-  fireEvent.click(row(await findByText('Sam')))
+  press(await findByText('Sam'), 'Edit')
   const del = row(await findByText('Delete profile'))
   expect(del.dataset.danger).toBe('1')
   fireEvent.click(del)
@@ -76,7 +79,7 @@ it('deletes only after a second press', async () => {
 
 it('offers no delete on the primary profile', async () => {
   const { findByText, queryByText } = page()
-  fireEvent.click(row(await findByText('Max')))
+  press(await findByText('Max'), 'Edit')
   await findByText('Play as Max')
   expect(queryByText('Delete profile')).toBeNull()
 })
@@ -110,14 +113,14 @@ it('starts profiles by naming the first one, keeping its saves', async () => {
 
 it('says a deleted profile’s saves are kept but out of reach', async () => {
   const { findByText, container } = page()
-  fireEvent.click(row(await findByText('Sam')))
+  press(await findByText('Sam'), 'Edit')
   await findByText('Delete profile')
   expect(container.textContent).toContain('Sam’s saves are kept on the console, but no profile opens them again.')
 })
 
 it('picks a picture for a profile', async () => {
   const { findByText, container } = page()
-  fireEvent.click(row(await findByText('Sam')))
+  press(await findByText('Sam'), 'Edit')
   await findByText('Picture')
   const arrows = container.querySelectorAll('.gcs-val-arrow')
   fireEvent.click(arrows[arrows.length - 1])
@@ -130,4 +133,25 @@ it('opens straight on Profiles from the top bar picture', async () => {
   const Screen = createSettings(sdk, {}, {}) as React.ComponentType<{ onClose: () => void; initialCategory?: string }>
   const { findByText } = render(<Screen onClose={() => {}} initialCategory="profiles" />)
   expect(await findByText(/Who plays on this box/)).toBeTruthy()
+})
+
+it('selects another profile from the list, and offers only Edit on the one playing', async () => {
+  const { findByText } = page()
+  const max = row(await findByText('Max'))
+  expect([...max.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Edit'])
+  const sam = row(await findByText('Sam'))
+  expect([...sam.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Select', 'Edit'])
+  press(await findByText('Sam'), 'Select')
+  await waitFor(() => expect(sent('PUT')[0]).toMatchObject({ url: '/api/profiles/active', body: { id: 'b' } }))
+})
+
+it('moves between Select and Edit with the d-pad', async () => {
+  const { findByText, container } = page()
+  await findByText('Sam')
+  window.dispatchEvent(new CustomEvent('gp:dpad-down'))
+  await waitFor(() => expect(container.querySelector('.gcs-row2[data-on="1"]')?.textContent).toContain('Sam'))
+  window.dispatchEvent(new CustomEvent('gp:dpad-right'))
+  await waitFor(() => expect(container.querySelector('.gcs-act[data-pick="1"]')?.textContent).toBe('Edit'))
+  window.dispatchEvent(new CustomEvent('gp:confirm'))
+  expect(await findByText('Play as Sam')).toBeTruthy()
 })
