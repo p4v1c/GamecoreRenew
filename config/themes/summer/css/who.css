@@ -21,3 +21,4 @@
 .summer-who .gcs-who-tile[data-add="1"] .gcs-who-avatar { background: rgba(255, 253, 247, 0.06); border-color: rgba(255, 253, 247, 0.3); }
 .summer-who .gcs-who-title { text-shadow: 0 2px 18px rgba(6, 18, 26, 0.6); }
 .gcs-who-kb.summer-who .gcs-who-kb-panel { border-radius: 22px; }
+.summer-who .gcs-who-hint { padding: 8px 16px; border-radius: 999px; background: rgba(12, 26, 33, 0.72); }

@@ -18,3 +18,9 @@ SKINNED = sorted(p.parent.parent.name for p in THEMES.glob("*/css/who.css"))
 def test_the_who_keyboard_panel_is_filled_on_every_theme(theme):
     css = read_css(THEMES / theme / "theme.css")
     assert "--set-card-2" in css or "gcs-who-kb-panel { background" in css, theme
+
+
+def test_summer_puts_the_who_hints_on_glass():
+    # Straight on the blurred sand the ✕ and ○ glyphs measured 2.1-2.4:1.
+    css = read_css(THEMES / "summer" / "theme.css")
+    assert ".summer-who .gcs-who-hint {" in css and "background" in css.split(".summer-who .gcs-who-hint {")[1].split("}")[0]
