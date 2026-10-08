@@ -116,7 +116,8 @@ Nothing is timed. The shell waits on `GET /api/ready` — 200 once the backend's
 required startup is done, 503 with the outstanding step until then — and the
 interface then tells the shell it is worth looking at through `boot:ready`
 (`electron/preload.js`), decided in the host by `frontend/src/lib/boot.ts`:
-the theme resolved, the dashboard's own data settled, and a frame painted.
+the theme resolved, the dashboard's own data settled, "Who's using this
+controller?" decided (not asked, or drawn under the splash), and a frame painted.
 
 The states are `STARTING → WAITING_BACKEND → LOADING_UI → PRESENTABLE →
 RUNNING`, plus `RECOVERING`. Durations appear in exactly one role: bounding a

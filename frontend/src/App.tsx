@@ -179,8 +179,8 @@ export default function App() {
       <SessionBar view={theme.sessionBar} menuView={theme.sessionMenu} />
 
       {/* Over every shell, under the splash: asked by the host so no theme can
-          drop it. Waits for the splash to finish. */}
-      <WhoIsPlaying enabled={ready && splashDone} />
+          drop it. Drawn during the boot, answered once the splash is gone. */}
+      <WhoIsPlaying interactive={ready && splashDone} />
 
       {/* Above the shell, and outside it. A theme draws its own boot animation
           but cannot remove it, and cannot decide when booting ends: onDone is

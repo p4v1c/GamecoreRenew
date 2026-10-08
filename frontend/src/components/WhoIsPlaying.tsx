@@ -7,10 +7,15 @@
  * before profiles. A theme switch
  * reloads the page, so "once" is kept in sessionStorage, which a reload keeps
  * and a restart of the interface clears.
+ *
+ * Decided during the boot and drawn under the splash (the `who` boot step), so
+ * the splash hands over straight to the question: read after it, the home
+ * showed until the answer came.
  */
-import { useEffect, useMemo, useState, type ComponentType } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState, type ComponentType } from 'react'
 import { api, type ProfilesState } from '../api'
 import { useStore } from '../store'
+import { markBootStep } from '../lib/boot'
 import { buildSdk } from '../lib/themeSdk'
 import { createWhoIsPlaying } from '../settings/whoIsPlaying'
 import { VirtualKeyboard } from './ui/VirtualKeyboard'
@@ -45,7 +50,8 @@ interface ViewProps {
   onSkip: () => void
 }
 
-export default function WhoIsPlaying({ enabled }: { enabled: boolean }) {
+/** `interactive`: the splash is gone, so the pad may answer the question. */
+export default function WhoIsPlaying({ interactive }: { interactive: boolean }) {
   const [state, setState] = useState<ProfilesState | null>(null)
   const [adding, setAdding] = useState(false)
   const [msg, setMsg] = useState('')
@@ -65,18 +71,24 @@ export default function WhoIsPlaying({ enabled }: { enabled: boolean }) {
   const skin = (themed ? themed.skin : '') || 'gcs-skin-default'
 
   useEffect(() => {
-    if (!enabled || askedThisStart()) return
-    api.profiles.list()
-      .then((s) => {
+    if (askedThisStart()) { markBootStep('who'); return }
+    // The session is asked too: at boot the store does not know it yet.
+    Promise.all([api.profiles.list(), api.games.session()])
+      .then(([s, session]) => {
         markAsked()
         // An interface restarted under a running game must not cover it.
-        if (shouldAskWhoIsPlaying(s) && !useStore.getState().sessionGameKey) setState(s)
+        if (shouldAskWhoIsPlaying(s) && !session.game_key) setState(s)
+        else markBootStep('who')
       })
-      .catch((e) => console.error('profiles: could not ask who is playing', e))
-  }, [enabled])
+      // Never holds the boot: no answer means no question.
+      .catch((e) => { console.error('profiles: could not ask who is playing', e); markBootStep('who') })
+  }, [])
 
   // Raises the modal depth, which every shell's own pad handlers respect.
   const open = state !== null && !themeLoading
+  // Marked once the question is in the DOM, before the paint: the frame the
+  // boot gate waits for then already holds it.
+  useLayoutEffect(() => { if (open) markBootStep('who') }, [open])
   useEffect(() => {
     if (!open) return
     useStore.getState().openModal()
@@ -104,7 +116,7 @@ export default function WhoIsPlaying({ enabled }: { enabled: boolean }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 950 }}>
-      <View profiles={state.profiles} activeId={state.active} active={!adding} msg={msg}
+      <View profiles={state.profiles} activeId={state.active} active={interactive && !adding} msg={msg}
             onPick={pick} onAdd={() => { setMsg(''); setAdding(true) }} onSkip={close} />
       {adding && (
         <div className={`gcs-who-kb ${skin}`}>
