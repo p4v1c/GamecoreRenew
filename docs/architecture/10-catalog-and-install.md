@@ -234,6 +234,18 @@ is written once and `config/` is outside the OTA rsync, so the pack names the
 args it used to ship and the update merge rewrites a tile still carrying one
 (`merge.launcher_is_stale`). Any other args are the operator's and stay.
 
+### Switch: updates and DLC before Ryujinx's first start
+
+The seed points Ryujinx's library at `emu/switch` and `emu/Switch DLC & Updates`
+(`game_dirs`, `autoload_dirs`) and skips its profile picker (one profile, and
+the picker needs a mouse). Ryujinx then chooses each game's update and DLC in
+a library scan, but that scan runs beside a launch: on a first start the game
+ran in v1.0.0, and Mario Kart 8 rewrote a v3.0.4 save in the old format. So
+`catalog/switch/title_updates.py` writes `games/<title>/updates.json` and
+`dlc.json` first, when absent, at install and before each launch. Title ids
+come from the ticket names in each NSP (`<rights id>.tik`), no decryption;
+a game with two updates, or an NSP without a ticket, is left to Ryujinx.
+
 ### melonDS local multiplayer
 
 `catalog/melonds/generator.py` implements the `launch_command` launch hook
@@ -385,7 +397,7 @@ backs the same folders up.
 | Azahar | `[Data%20Storage]` custom storage, `sdmc_directory` (the NAND stays shared; titles installed as CIA are per profile) |
 | melonDS | hook, `per-instance` |
 | PPSSPP | folders `PSP/SAVEDATA`, `PSP/PPSSPP_STATE` |
-| Ryujinx (switch) | folders `bis/user/save` (`as: user-save`) and the save index `bis/system/save/8000000000000000` (`as: save-index`); Eden's per-profile folder was `save` |
+| Ryujinx (switch) | folders `bis/user/save` (`as: user-save`) and the save index `bis/system/save/8000000000000000` (`as: save-index`); Eden's per-profile folder was `save`, read by the Eden import |
 | RPCS3 | folders `dev_hdd0/home/00000001/savedata` and `trophy` |
 | shadPS4 | folder `home/1/savedata` (≥ 0.16) or `savedata/1` (≤ 0.15), whichever exists (`optional`) |
 | Cemu | folder `mlc01/usr/save/00050000` (game saves; accounts stay shared) |

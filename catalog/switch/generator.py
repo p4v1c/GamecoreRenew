@@ -269,3 +269,25 @@ def release(player_index: int, opts: dict,
     atomic_write(cfg_path, json.dumps(cfg, indent=2) + "\n")
     return [f"ryujinx: Player {player_index} unbound"]
 
+
+
+# ── Before Ryujinx starts ────────────────────────────────────────────────────
+
+def prepare_launch(*, rom_path, home, exec_path: str, exec_args: str,
+                   deadline: float) -> dict:
+    """Each game's update and DLC chosen before Ryujinx's own scan can."""
+    import importlib.util
+    from pathlib import Path
+
+    from backend.services import configgen
+    from backend.services.catalog import load_catalog
+
+    ryujinx = configgen.resolve_config_dir(load_catalog()["switch"], Path(home))
+    if ryujinx is None:
+        return {}
+    spec = importlib.util.spec_from_file_location(
+        "gamecore_switch_title_updates", Path(__file__).resolve().parent / "title_updates.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.write_missing(ryujinx)
+    return {}

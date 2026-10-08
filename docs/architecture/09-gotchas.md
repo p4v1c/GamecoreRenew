@@ -177,6 +177,10 @@ duckstation or pcsx2.
 
 ## Switch (Ryujinx)
 
+**A Switch game must not start once without its update.** A save from a
+newer version is rewritten in the old format (Mario Kart 8, v3.0.4 → v1.0.0).
+Ryujinx's own library scan is too late on its first start: `title_updates.py`.
+
 **Eden's profile folder and Ryujinx's must not share a name.** The Eden-era
 pack linked `nand/user/save` to `<profile>/switch/save`; Ryujinx's dirs are
 `user-save` and `save-index` (`as`). Without `as` Ryujinx would have been

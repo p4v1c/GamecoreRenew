@@ -34,7 +34,7 @@
   "focus_lost_action_type": "DoNothing",
   "show_confirm_exit": true,
   "ignore_applet": false,
-  "skip_user_profiles": false,
+  "skip_user_profiles": true,
   "remember_window_state": true,
   "show_title_bar": true,
   "enable_hardware_acceleration": true,
@@ -75,7 +75,9 @@
     "sort_column_id": 0,
     "sort_ascending": false
   },
-  "game_dirs": [],
+  "game_dirs": [
+    "@GAMECORE_DATA@/emu/switch"
+  ],
   "autoload_dirs": [
     "@GAMECORE_DATA@/emu/Switch DLC & Updates"
   ],
