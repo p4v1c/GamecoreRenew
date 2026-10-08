@@ -5,7 +5,7 @@ import { onWsEvent } from '../../hooks/useWebSocket'
 import { useStore } from '../../store'
 import type { Toast, ToastsViewProps } from './toasts/types'
 import { readHudTheme, batteryNotice } from './toasts/theme'
-import { controllerTitle } from '../../lib/players'
+import { controllerTitle, refreshPlayers } from '../../lib/players'
 
 const TOAST_MS = 10000
 
@@ -58,7 +58,7 @@ function useToastQueue() {
       const level = d.level as number
       if (typeof level !== 'number' || !Number.isFinite(level) || level < 0 || level > 100) return
       const player = (d.player ?? null) as number | null
-      const who = controllerTitle(player, useStore.getState().playerOneName)
+      const who = controllerTitle(player, useStore.getState().padOwners)
       if (window.gamecore?.batteryToast) {
         window.gamecore.batteryToast({ level, player, who, theme: readHudTheme() })
         return
@@ -66,10 +66,10 @@ function useToastQueue() {
       push(batteryNotice(level, who))
     })
 
-    const onControllerEvent = (connected: boolean) => (d: Record<string, unknown>) => {
+    const announce = (connected: boolean, d: Record<string, unknown>) => {
       const player = (d.player ?? null) as number | null
       const label = typeof d.label === 'string' ? d.label : ''
-      const who = controllerTitle(player, useStore.getState().playerOneName)
+      const who = controllerTitle(player, useStore.getState().padOwners)
 
       // P1 made the give-up visible in the journal. That is not where the
       // player is standing: they have just plugged a pad in and it does not
@@ -172,8 +172,13 @@ function useToastQueue() {
         accent: connected ? '#4ade80' : '#94a3b8', tone: connected ? 'connected' : 'disconnected',
       })
     }
-    const offConnected = onWsEvent('gp:connected', onControllerEvent(true))
-    const offDisconnected = onWsEvent('gp:disconnected', onControllerEvent(false))
+    // An arriving pad is named once the roster has it (a box without profiles
+    // names none, so it does not wait); a leaving one by the label it had.
+    const offConnected = onWsEvent('gp:connected', (d) => {
+      if (!useStore.getState().profileName) announce(true, d)
+      else refreshPlayers().then(() => announce(true, d))
+    })
+    const offDisconnected = onWsEvent('gp:disconnected', (d) => announce(false, d))
 
     // A launch that never started. Without this the API answered 503 and the
     // loading screen simply stayed up, with nothing on screen saying why.

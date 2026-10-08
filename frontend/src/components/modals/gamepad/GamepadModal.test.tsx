@@ -19,6 +19,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, cleanup } from '@testing-library/react'
 import GamepadModal from '../GamepadModal'
 import { api } from '../../../api'
+import { useStore } from '../../../store'
 import { GP_BTN } from '../../../hooks/useGamepad'
 import type { GamepadState } from '../../../hooks/useGamepad'
 
@@ -145,6 +146,17 @@ describe('which pad the screen reads', () => {
     await act(async () => { push?.({ ...IDLE, index: 0 }) })
     expect(screen.getByText('PLAYER 1')).toBeTruthy()
     expect(screen.getByText('Bluetooth · 85%')).toBeTruthy()
+  })
+
+  it('names a pad linked to a profile after it, the others by number', async () => {
+    vi.spyOn(api.controllers, 'pads').mockResolvedValue(roster('sdl') as never)
+    useStore.getState().setPads([], { 1: 'jimmy' })
+    try {
+      await mount()
+      await act(async () => { push?.({ ...IDLE, index: 0 }) })
+      expect(screen.getByText('JIMMY')).toBeTruthy()
+      expect([...document.querySelectorAll('.gcs-pad-roster b')].map((b) => b.textContent)).toEqual(['jimmy', 'P2'])
+    } finally { useStore.getState().setPads([], {}) }
   })
 
   it('says a pad is not recognised and offers the wizard', async () => {

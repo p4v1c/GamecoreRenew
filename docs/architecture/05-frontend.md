@@ -158,7 +158,7 @@ and returns an unsubscribe.
 | `gp:guide` | `gamepad_monitor` | `action` (`backgrounded`, `home`, `failed`), `gesture` | double press: suspends a game; `home` (a pair begun in the interface) opens the session menu in `SessionBar` |
 | `standby:screensaver` / `standby:sleep` / `standby:exit` | `standby._enter()` / `exit_standby()` | — | drives `Screensaver` |
 | `theme:changed` | `routers/themes.py` | `active` | reloads the theme |
-| `profiles:changed` | `routers/profiles.py` | `active` (the active profile) | `frontend/src/lib/players.ts` sets `playerOneName`: player 1 is shown by that name |
+| `profiles:changed` | `routers/profiles.py` | `active` (the active profile) | `frontend/src/lib/players.ts` re-reads the profiles and the pad roster (`refreshPlayers`) |
 | `update:log` / `update:done` | `routers/update.py` | `line` / `success`, `code` | OTA progress |
 | `catalog:log` / `catalog:done` | `routers/catalog.py` | `line` / `action`, `id`, `success` | pack install/remove progress |
 | `catalog:updated` | `routers/catalog.py` | OTA summary | catalogue refreshed over the air |
@@ -285,10 +285,15 @@ and render errors to `api.logs.ui`, 50 per page load at most.
 `api.profiles` (`list`, `create`, `update`, `remove`, `setActive`, `addController`, `removeController`) lives in
 `api/profiles.ts`; its errors carry the backend's sentence (`sendDetailed` in
 `api/http.ts`). `frontend/src/lib/players.ts` names player slots (`playerLabel`, `playerTitle`,
-`controllerTitle`): player 1 is the active profile's name once the box has
-profiles (`store.playerOneName`, kept by `usePlayerNames()` in `App.tsx` and
-the `profiles:changed` event), `P<n>` otherwise; themes reach it as
-`sdk.players`. `store.profileKey` ('' for the primary) gives a theme its
+`controllerTitle`): a pad linked to a profile (its page → Controllers) is
+shown by that profile's name whichever profile is active, any other pad by
+`P<n>`. `refreshPlayers()` reads `GET /api/profiles` and `GET /api/controllers/pads`
+into `store.profileName`, `store.padRoster` and `store.padOwners` (player slot →
+owner, `padOwners()` matches `RosterPad.id`); `usePlayerNames()` in `App.tsx`
+runs it on mount and on `profiles:changed`, `gp:connected`, `gp:disconnected`
+and `gp:controllers`. Settings → Controllers meets browser pads to slots with
+`matchRoster` (`frontend/src/lib/padLayout.ts`); the arrival toast waits for the read.
+Themes reach the labels as `sdk.players`. `store.profileKey` ('' for the primary) gives a theme its
 per-profile storage: `sdk.players.storageKey(base)`, re-read on
 `sdk.players.onChange` (Jelly's and Orbit's favourites). `sdk.players.Avatar`
 is `components/ProfileAvatar.tsx`: the active profile's picture (or initial)

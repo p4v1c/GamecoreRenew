@@ -16,7 +16,7 @@ profile that owns everything the box held before profiles existed.
 The primary profile starts without a name, and an unnamed primary is "no
 profiles": the box shows players as P1-P4, as it did before. Naming it is how
 profiles start, the way a console's first account is set up: only then can
-others be added, and player 1 is shown by that name.
+others be added, and a pad added to a profile is shown by its name.
 """
 from __future__ import annotations
 

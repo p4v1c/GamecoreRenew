@@ -8,7 +8,7 @@ import { useStore } from '../store'
 import { avatarSvg, initial } from '../settings/avatars'
 
 export default function ProfileAvatar({ onClick, className = '' }: { onClick?: () => void; className?: string }) {
-  const name = useStore((s) => s.playerOneName)
+  const name = useStore((s) => s.profileName)
   const look = useStore((s) => s.profileLook)
   if (!name) return null
   const svg = avatarSvg(look.avatar)

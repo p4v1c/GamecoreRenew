@@ -32,9 +32,10 @@ are the auto-incremented tags.
   controller?" opens when the interface starts, unless "Log in automatically"
   is on (`PUT /api/profiles/auto-login`). A box starts with one unnamed profile (created on
   first start in `config/profiles/`) and looks exactly as before; naming it
-  ("Set up profiles") starts profiles, and player 1 is then shown by the
-  active profile's name instead of P1 in every theme, the controller screen
-  and notifications (`sdk.players`, `profiles:changed`). The profile cannot
+  ("Set up profiles") starts profiles. A controller added on a profile's page
+  is then shown by that profile's name instead of P<n> in every theme, the
+  controller screen and notifications, whichever profile is active; the
+  others keep their number (`sdk.players`, `profiles:changed`). The profile cannot
   change while a game is open or suspended.
 - **Each profile has its own theme and an animal picture.** The theme picked
   in Settings → Themes, or on a profile's page, is the profile's: switching

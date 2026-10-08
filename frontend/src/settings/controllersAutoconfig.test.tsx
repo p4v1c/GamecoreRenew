@@ -17,6 +17,7 @@
 import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { buildSdk } from '../lib/themeSdk'
+import { useStore } from '../store'
 // `../settings/...`, not `./...`: see index.d.ts — the ambient declarations
 // match on the specifier, and it has to carry the directory name.
 import { createControllersPage } from '../settings/controllers'
@@ -224,5 +225,22 @@ describe('the per-emulator exception', () => {
     // not know exists.
     expect(await screen.findByText('GameCube / Wii')).toBeTruthy()
     expect(await screen.findByText(/GameCore leaves them alone/)).toBeTruthy()
+  })
+})
+
+describe('the pad rows', () => {
+  it('name a pad linked to a profile after it, and the next one by number', async () => {
+    vi.stubGlobal('navigator', { ...navigator, getGamepads: () => [
+      { index: 0, id: 'Xbox (Vendor: 045e Product: 0b13)' },
+      { index: 1, id: 'Wireless Controller (Vendor: 054c Product: 09cc)' }] })
+    useStore.getState().setPads([
+      { id: '84:30:95:07:c8:1c', player: 1, vendor: '054c', product: '09cc' },
+      { id: '045e:0b13', player: 2, vendor: '045e', product: '0b13' }] as never, { 1: 'jimmy' })
+    try {
+      backend(true)
+      page()
+      expect(await screen.findByText('jimmy')).toBeTruthy()
+      expect(screen.getByText('Player 2')).toBeTruthy()
+    } finally { useStore.getState().setPads([], {}) }
   })
 })

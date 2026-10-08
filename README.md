@@ -350,8 +350,9 @@ Open Settings from the top-right icon or press **Start** on the controller.
 **Profiles.** A box starts with no profiles and behaves exactly as before:
 controllers are P1 to P4. **Settings → Profiles → Set up profiles** names the
 first one, which keeps the saves the box already had, beside the ROMs; from
-then on player 1 is shown by the name of the profile playing (status bar,
-controller screen, notifications), and others can be added. With two or more,
+then on a controller added to a profile (its page → Controllers) is shown by
+that profile's name (status bar, controller screen, notifications), whoever is
+playing; the others stay P1 to P4. Others can be added. With two or more,
 the console asks "Who's using this controller?" each time the interface
 starts, as a PS5 does; **○** keeps the last one, and **Log in automatically**
 (Settings → Profiles) skips the question and starts as the last profile. A profile is a name, a colour and a picture, shown at the top

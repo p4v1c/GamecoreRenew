@@ -20,7 +20,7 @@ export const createTopBar = (sdk) => {
   const { html, useState, useEffect } = sdk.ui
   const Glyph = sdk.ui.Glyph || (() => null)
 
-  // Player 1 shows the active profile's name; a host without `sdk.players` says P1.
+  // A pad linked to a profile shows its name; a host without `sdk.players` says P<n>.
   const usePadLabel = sdk.players?.useLabel ?? (() => (n) => `P${n}`)
   // The profile picture; a host without it (or a box without profiles) shows nothing.
   const Avatar = sdk.players?.Avatar || (() => null)
