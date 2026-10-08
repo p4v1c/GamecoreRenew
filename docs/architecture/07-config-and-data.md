@@ -686,6 +686,7 @@ skip the saves" is not an available option:
 | PCSX2, DuckStation | `memcards/` |
 | Cemu | `mlc01/usr/save/` |
 | Ryujinx | `bis/user/save/` (+ the index `bis/system/save/8000000000000000/`) |
+| Eden (before Ryujinx came back) | `nand/user/save/`, only read by the Eden import |
 | azahar | `sdmc/`, `nand/` |
 | mGBA, melonDS | `.sav` files **next to the ROMs** (melonDS: a non-primary profile's in `emu/profile-saves/`) |
 

@@ -270,24 +270,56 @@ def release(player_index: int, opts: dict,
     return [f"ryujinx: Player {player_index} unbound"]
 
 
+# ── Before Ryujinx starts: updates chosen, Eden's saves copied ──────────────
 
-# ── Before Ryujinx starts ────────────────────────────────────────────────────
+_MODULES: dict = {}
+
+
+def _sibling(name: str):
+    """A module beside this one, loaded once: steps/import-eden.sh runs them too."""
+    if name not in _MODULES:
+        import importlib.util
+        import sys
+        from pathlib import Path
+        spec = importlib.util.spec_from_file_location(
+            f"gamecore_switch_{name}", Path(__file__).resolve().parent / f"{name}.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module     # a dataclass looks its module up there
+        spec.loader.exec_module(module)
+        _MODULES[name] = module
+    return _MODULES[name]
+
 
 def prepare_launch(*, rom_path, home, exec_path: str, exec_args: str,
                    deadline: float) -> dict:
-    """Each game's update and DLC chosen before Ryujinx's own scan can."""
-    import importlib.util
+    """Updates chosen, then the playing profile's Eden saves Ryujinx lacks.
+
+    Every Eden save at once, not the launched title's: a dump's title id
+    needs NCA decryption (see `perGame`). After the first launch this only
+    reads the index.
+    """
     from pathlib import Path
 
-    from backend.services import configgen
+    from backend.services import configgen, paths
     from backend.services.catalog import load_catalog
 
+    mod = _sibling("eden_saves")
+    log_dir = paths.logs_dir() / "packs" / "switch"
     ryujinx = configgen.resolve_config_dir(load_catalog()["switch"], Path(home))
     if ryujinx is None:
         return {}
-    spec = importlib.util.spec_from_file_location(
-        "gamecore_switch_title_updates", Path(__file__).resolve().parent / "title_updates.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    module.write_missing(ryujinx)
-    return {}
+    mod.log_notes(_sibling("title_updates").write_missing(ryujinx), log_dir)
+    eden_data = Path(home) / ".var/app" / mod.EDEN_APP_ID / "data/eden"
+    if not eden_data.is_dir():
+        return {}
+    try:
+        source = mod.eden_source(ryujinx, eden_data, paths.profile_saves_dir())
+        notes = mod.import_saves(ryujinx, source, eden_data, deadline)
+    except mod.ImportRefused as e:
+        mod.log_notes([f"refused: {e}"], log_dir)
+        return {"notice": f"Eden saves not copied: {e}."}
+    mod.log_notes(notes, log_dir)
+    copied = sum(" copied from " in n for n in notes)
+    if not copied:
+        return {}
+    return {"notice": f"Copied {copied} Switch save{'s' * (copied > 1)} from Eden."}

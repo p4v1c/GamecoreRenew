@@ -177,6 +177,12 @@ duckstation or pcsx2.
 
 ## Switch (Ryujinx)
 
+**Ryujinx's save index must stay sorted.** LibHac loads `imkvdb.arc` into a
+flat map and aborts the whole emulator at boot when a key is out of order
+(program id, then type, then user). MK8 has an account and a device save
+under one program id: written in the wrong order, Ryujinx would not start.
+`eden_saves.pack_index` sorts.
+
 **A Switch game must not start once without its update.** A save from a
 newer version is rewritten in the old format (Mario Kart 8, v3.0.4 → v1.0.0).
 Ryujinx's own library scan is too late on its first start: `title_updates.py`.
