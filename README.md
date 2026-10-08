@@ -49,7 +49,7 @@ You navigate with a gamepad, launch emulators, and never touch a keyboard.
 | `rpcs3` | RPCS3 | PlayStation 3 |
 | `ppsspp` | PPSSPP | PSP |
 | `cemu` | Cemu | Wii U |
-| `switch` | Eden | Nintendo Switch |
+| `switch` | Ryujinx | Nintendo Switch |
 | `azahar` | Azahar | Nintendo 3DS |
 | `gb` | mGBA | Game Boy |
 | `gbc` | mGBA | Game Boy Color |
@@ -60,7 +60,7 @@ You navigate with a gamepad, launch emulators, and never touch a keyboard.
 | `shadps4` | shadPS4 | PlayStation 4 |
 
 > - **Nintendo 64**: the pack **id** is `gopher64` but the emulator installed is **Rosalie's Mupen GUI** (`com.github.Rosalie241.RMG`), a front end over the Mupen64Plus core — which is why its config file is `mupen64plus.cfg`. The id is a key: it names the catalogue directory, `emu/gopher64/` on every installed box, and the controller snapshots. Renaming it without a migration would move a player's N64 library under a path the scanner no longer reads, so it stays.
-> - **Nintendo Switch** runs Eden (`dev.eden_emu.eden`). Put `prod.keys` (and `title.keys` if you have one) in `~/.var/app/dev.eden_emu.eden/data/eden/keys/`, updates and DLC as `.nsp` in `emu/Switch DLC & Updates/`. Keep **one** profile in Eden: with two, some games (EA FC 26) cannot save. A box installed before this keeps its Ryujinx tile until its games are moved (`CHANGELOG.md`).
+> - **Nintendo Switch** runs Ryujinx (Ryubing, `io.github.ryubing.Ryujinx`). Put `prod.keys` (and `title.keys` if you have one) in `~/.var/app/io.github.ryubing.Ryujinx/config/Ryujinx/system/`, updates and DLC as `.nsp` in `emu/Switch DLC & Updates/`. A box that ran Eden gets Eden's keys, firmware and saves copied into Ryujinx when Ryujinx is installed, and each profile's at its first launch; Eden's files are only read (`CHANGELOG.md`). The Eden variant lives on the `switch-eden` branch.
 > - **PlayStation 1** uses the official DuckStation **AppImage** — the Flatpak was discontinued upstream in 2025.
 > - **Xbox 360** runs Xenia Canary **through Wine** (`lib/xenia/xenia_canary.exe`, downloaded by the full installer).
 > - **PlayStation 4** uses the shadPS4 Flatpak; games are folders (`emu/shadps4/<Game>/eboot.bin`, `scanDirs`).

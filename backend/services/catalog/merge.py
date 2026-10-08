@@ -21,7 +21,7 @@ may have edited.
 **When is a launcher stale?** Not "different from the catalogue" — that would
 undo `flatpakify-systems.sh`, which rewrites launchers to what the box actually
 has, and would break a box legitimately running a native binary from `lib/`.
-Two cases only:
+Three cases only:
 
   · it launches `flatpak run <app-id>` and NO pack declares that app id. This
     is the gopher64 case exactly: the box says
@@ -29,6 +29,8 @@ Two cases only:
     com.github.Rosalie241.RMG. `launcher_exists()` in flatpakify cannot catch
     it, because the *path* is `flatpak` and that always exists.
   · the launcher path does not resolve on disk at all.
+  · its args are ones the pack declares as `launch.formerArgs`: the system
+    kept its id and changed emulator (switch: Eden's `-f -g`, then Ryujinx).
 
 **Why `extensions` is merged and not just the launcher.** A machine installed
 before `*.cue` was added to duckstation keeps a catalogue that scans `*.bin`
@@ -96,6 +98,10 @@ def _launcher_resolves(path: str, root: Path) -> bool:
 def launcher_is_stale(entry: dict, pack, known_app_ids: set[str], root: Path) -> str:
     """"" when the launcher is fine, otherwise why it is not."""
     path, args = entry.get("path", ""), entry.get("args", "")
+    # The system kept its id but changed emulator: the old args reach the new
+    # one (Eden's `-g` is Ryujinx's graphics backend, the ROM never opens).
+    if args in (pack.data.get("launch") or {}).get("formerArgs", []):
+        return f"carries {args!r}, the args of the emulator this pack replaced"
     if path == "flatpak":
         app_id = flatpak_app_id(args)
         if app_id == APPID_TOKEN:

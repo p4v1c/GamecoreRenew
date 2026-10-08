@@ -95,7 +95,7 @@
     "color": "#e6001a",
     "iconPath": "assets/logos/switch.png",
     "path": "flatpak",
-    "args": "run @APPID@ -f -g",
+    "args": "run @APPID@",
     "romsPath": "emu/switch/",
     "extensions": [
       "*.xci",

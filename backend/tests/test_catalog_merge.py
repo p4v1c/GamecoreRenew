@@ -77,6 +77,24 @@ def test_a_launcher_already_on_the_token_is_left_alone(packs, tmp_path):
     assert not [n for n in notes if "rpcs3: launcher" in n]
 
 
+def test_the_switch_tile_drops_edens_args_for_ryujinx(packs, tmp_path):
+    """The switch id stayed, the emulator changed. Eden's `-f -g` handed to
+    Ryujinx makes the ROM path its graphics backend: the game never opens."""
+    live = [_entry("switch", "flatpak", "run @APPID@ -f -g")]
+    merged, notes = merge_systems(live, packs, tmp_path)
+    assert merged[0]["args"] == "run @APPID@"
+    assert any("switch: launcher updated" in n for n in notes)
+    again, notes = merge_systems(merged, packs, tmp_path)
+    assert again[0]["args"] == "run @APPID@"
+    assert not [n for n in notes if "switch: launcher" in n]
+
+
+def test_args_the_operator_set_on_the_switch_tile_stay(packs, tmp_path):
+    live = [_entry("switch", "flatpak", "run @APPID@ --fullscreen")]
+    merged, _notes = merge_systems(live, packs, tmp_path)
+    assert merged[0]["args"] == "run @APPID@ --fullscreen"
+
+
 def test_a_native_launcher_that_exists_is_never_overwritten(packs, tmp_path):
     """flatpakify rewrites launchers to what the box HAS. A box legitimately
     running the native binary from lib/ must not be pushed back to Flatpak."""

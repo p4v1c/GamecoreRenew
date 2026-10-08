@@ -25,7 +25,7 @@ and does **not** belong: see §4 below. Its button profile is device-agnostic,
 but nothing binds a pad to an N64 port, so "nothing to do, ever" is false for
 it in the way that matters.
 
-## 2. Dolphin, RPCS3, Cemu, Ryujinx, Eden, azahar, mgba — live per-slot profiling
+## 2. Dolphin, RPCS3, Cemu, Ryujinx, azahar, mgba — live per-slot profiling
 
 Ground-truthed by reading their actual configs on the box:
 
@@ -44,11 +44,6 @@ Ground-truthed by reading their actual configs on the box:
      **per name** (`sdl_pad_handler.cpp`), Dolphin a 0-based counter **per
      name** (`SDL/<k>/<name>`, ciface DeviceContainer). A lone DualSense is
      "DualSense Wireless Controller 1" / `SDL/0/…` even as Player 2.
-
-- **Eden** (Switch) binds `guid` + `port` + raw SDL indices in `qt-config.ini`
-  (`player_0`..`player_3`). The GUID is SDL's with the name CRC zeroed, the port
-  counts pads of the same GUID, and the indices come from Eden's runtime SDL.
-  Buttons are positional: Switch A is the east button.
 
 - **Ryujinx** binds by a device **GUID**, and it resolves that GUID by string
   equality: `DriverConfigurationUpdate` → `GetGamepad(id)` →

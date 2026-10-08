@@ -95,7 +95,7 @@
         "color": "#e6001a",
         "iconPath": "assets/logos/switch.png",
         "path": "flatpak",
-        "args": "run dev.eden_emu.eden -f -g",
+        "args": "run @APPID@",
         "romsPath": "emu/switch/",
         "extensions": [
             "*.xci",

@@ -162,9 +162,9 @@ emulator's own files and two packs writing them overwrite each other.
 The packs that were split stay in the catalogue as `supersededBy` packs
 (`dolphin` → `gamecube`, `wii`; `mgba` → `gba`, `gbc`, `gb`). They keep
 `sharesEmulator`, so the old tile on a box that has not migrated still launches
-exactly as before. `ryujinx` → `switch` is the same mechanism for a change of
-emulator: the old pack keeps its own install, launch and generator (Ryujinx),
-the new one runs Eden. They are never offered (`gen-catalog.py`, `selected()`), never
+exactly as before. `ryujinx` → `switch` is the same: `switch` owns Ryujinx
+(its generator, seed and `profileSaves`), and the old tile of a box that never
+moved its games launches the same emulator. They are never offered (`gen-catalog.py`, `selected()`), never
 added by the merge, and while their tile is on a grid the merge does **not** add
 their successors either: the old tile holds the games, and empty twins beside it
 would be a lie. The owner moves the games with `scripts/split-systems.py`, by
@@ -224,6 +224,58 @@ Two things a tile may need once the app is up, both read by
 The pack spells them in camelCase like the rest of the schema;
 `gen-catalog.py` writes the `wm_class` / `timeout_s` spelling the enforcer has
 always read into the tile entry.
+
+### `launch.formerArgs` — a system that changed emulator
+
+`switch` kept its id, its tile and `emu/switch/` when it went from Eden back
+to Ryujinx, but a tile written under Eden carries `run @APPID@ -f -g`, and
+Ryujinx reads `-g <rom>` as a graphics backend: the game never opens. A tile
+is written once and `config/` is outside the OTA rsync, so the pack names the
+args it used to ship and the update merge rewrites a tile still carrying one
+(`merge.launcher_is_stale`). Any other args are the operator's and stay.
+
+### Switch: updates and DLC before Ryujinx's first start
+
+The seed points Ryujinx's library at `emu/switch` and `emu/Switch DLC & Updates`
+(`game_dirs`, `autoload_dirs`) and skips its profile picker (one profile, and
+the picker needs a mouse). Ryujinx then chooses each game's update and DLC in
+a library scan, but that scan runs beside a launch: on a first start the game
+ran in v1.0.0, and Mario Kart 8 rewrote a v3.0.4 save in the old format. So
+`catalog/switch/title_updates.py` writes `games/<title>/updates.json` and
+`dlc.json` first, when absent, at install and before each launch. Title ids
+come from the ticket names in each NSP (`<rights id>.tik`), no decryption;
+a game with two updates, or an NSP without a ticket, is left to Ryujinx.
+
+### Switch: Eden's saves copied into Ryujinx
+
+A box that ran Eden holds its Switch saves there only. They are copied into
+Ryujinx, never moved, and Eden's files are only read:
+
+| When | Where | What |
+|---|---|---|
+| `gamecore-emu install switch` | `postInstall`: `catalog/switch/steps/import-eden.sh` → `catalog/switch/eden_import.py` | `prod.keys`, `title.keys` and the firmware (`nand/system/Contents/registered`, the same `<id>.nca/00` layout Ryujinx reads) where Ryujinx has none, then the primary profile's saves. Before the first launch: the BIOS gate refuses a Switch without `prod.keys` |
+| every launch | `prepare_launch` in `catalog/switch/generator.py` → `catalog/switch/eden_saves.py` | the playing profile's saves Ryujinx lacks. Runs after `profileSaves` placed the profile's folders, so it writes through those links into that profile's folder; its Eden saves are `<profile>/switch/save`, the folder the Eden-era pack used |
+
+All of a profile's saves at once, not the launched game's: knowing which
+title a dump is needs NCA decryption (`perGame`), and the index is rewritten
+whole either way. After the first pass a launch only reads the index.
+
+Each save becomes a container shaped like Ryujinx 1.3.3's own:
+`bis/user/save/<id>/0/` (the data), `ExtraData0`/`1` (program id, user, type,
+owner) and an entry in `bis/system/save/8000000000000000/0/imkvdb.arc` with
+`lastPublishedId` moved past it. Eden's single user (its `profiles.dat`)
+becomes Ryujinx's `last_opened` user; the all-zero user folder is device
+saves (type 3).
+
+| Guarantee | How |
+|---|---|
+| never overwrites a Ryujinx save | same program, user and type in the index: left alone |
+| each Eden save once per target | `gamecore-eden-import.json` beside the index (it follows a profile's folder), so a save deleted in Ryujinx does not come back |
+| never half a save | copied to `<id>.gamecore-tmp`, renamed, then the index; past the hook's deadline the copy is dropped and the rest waits for the next launch, because Ryujinx may already be reading the index |
+| refuses what it cannot tell apart | several Eden users (account saves skipped, device saves copied), an unreadable index or `Profiles.json`, Eden or Ryujinx running, Eden's folder a link with no parked primary |
+
+Log: `logs/packs/switch/eden-import.log`; a launch that copied something says so
+in a `game:notice`.
 
 ### melonDS local multiplayer
 
@@ -333,7 +385,7 @@ folder (`@SAVES@`), from pack.json alone (`services/profile_save_paths.py`):
 ```json
 "profileSaves": {
   "keys": [{"config": "PCSX2.ini", "section": "Folders", "key": "MemoryCards", "value": "@SAVES@/memcards"}],
-  "dirs": [{"path": "@FLATPAK_DATA@/eden/nand/user/save"}]
+  "dirs": [{"config": "bis/user/save", "as": "user-save"}]
 }
 ```
 
@@ -376,8 +428,7 @@ backs the same folders up.
 | Azahar | `[Data%20Storage]` custom storage, `sdmc_directory` (the NAND stays shared; titles installed as CIA are per profile) |
 | melonDS | hook, `per-instance` |
 | PPSSPP | folders `PSP/SAVEDATA`, `PSP/PPSSPP_STATE` |
-| Eden | folder `nand/user/save` |
-| Ryujinx | folders `bis/user/save` and the save index `bis/system/save/8000000000000000` |
+| Ryujinx (switch) | folders `bis/user/save` (`as: user-save`) and the save index `bis/system/save/8000000000000000` (`as: save-index`); Eden's per-profile folder was `save`, read by the Eden import |
 | RPCS3 | folders `dev_hdd0/home/00000001/savedata` and `trophy` |
 | shadPS4 | folder `home/1/savedata` (≥ 0.16) or `savedata/1` (≤ 0.15), whichever exists (`optional`) |
 | Cemu | folder `mlc01/usr/save/00050000` (game saves; accounts stay shared) |

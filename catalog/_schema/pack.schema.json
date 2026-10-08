@@ -118,6 +118,11 @@
       "properties": {
         "path": { "type": "string", "minLength": 1 },
         "args": { "type": "string" },
+        "formerArgs": {
+          "description": "Launcher args this pack shipped before its emulator changed (the Switch: Eden's `run @APPID@ -f -g`, which Ryujinx reads as a graphics backend). A tile still carrying one is rewritten by the update merge (backend/services/catalog/merge.py); any other args are the operator's and stay.",
+          "type": "array", "uniqueItems": true,
+          "items": { "type": "string" }
+        },
         "fullscreen": {
           "description": "For an app with no fullscreen CLI flag (Stremio has none). backend/services/fullscreen_enforcer.py waits for a window whose WM_CLASS matches, then asks the WM to fullscreen it over EWMH.",
           "type": "object",
