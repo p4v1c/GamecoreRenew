@@ -175,6 +175,18 @@ the emulator, still polling. So it happened on dolphin, rpcs3, ryujinx, cemu,
 ppsspp, xenia and shadps4, and never on melonds, azahar, mgba, gopher64,
 duckstation or pcsx2.
 
+## Switch (Ryujinx)
+
+**Eden's profile folder and Ryujinx's must not share a name.** The Eden-era
+pack linked `nand/user/save` to `<profile>/switch/save`; Ryujinx's dirs are
+`user-save` and `save-index` (`as`). Without `as` Ryujinx would have been
+pointed at Eden's layout.
+
+**A box that switched Ryujinx's autoconfig off finds the Switch's off.**
+`ryujinx` shares the `switch` pack's emulator, so its old exception is read
+as an alias (`own_switch`). The reference box set `ryujinx: false` only while
+Ryujinx was uninstalled: turn the Switch back on in Settings.
+
 ## Display
 
 **Overlays are X11-only.**

@@ -33,6 +33,14 @@ Also on `v*.*.*` tags and on `workflow_dispatch`.
 > it would publish a release named after your branch — which every box would then
 > take for the latest.
 
+## Frozen branches
+
+`switch-eden` is `main` as it was with Eden running the Switch (v1.3.12, before
+Ryujinx came back): Eden pack, its generator and seed, profiles. Protected
+(pull requests only, no force push, no deletion) and never released from:
+`release.yml` runs on `main` only, and dispatching it from this branch would
+publish it to every box. To bring Eden back, open a PR from it to `main`.
+
 ## The two jobs
 
 ```mermaid

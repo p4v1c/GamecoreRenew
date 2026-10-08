@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-SEED = ROOT / "catalog/ryujinx/seed/Config.json"
+SEED = ROOT / "catalog/switch/seed/Config.json"
 
 BY_POSITION = {"button_a": "B", "button_b": "A", "button_x": "Y", "button_y": "X"}
 LETTER_IDENTITY = {"button_a": "A", "button_b": "B", "button_x": "X", "button_y": "Y"}
@@ -21,7 +21,7 @@ LETTER_IDENTITY = {"button_a": "A", "button_b": "B", "button_x": "X", "button_y"
 @pytest.fixture(scope="module")
 def gen():
     spec = importlib.util.spec_from_file_location(
-        "ryu_gen", ROOT / "catalog/ryujinx/generator.py")
+        "ryu_gen", ROOT / "catalog/switch/generator.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

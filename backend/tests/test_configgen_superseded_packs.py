@@ -4,7 +4,12 @@ The reference box moved its Switch games from `ryujinx` to `switch` and then
 uninstalled Ryujinx. The `ryujinx` pack stayed profilable, failed on every pad
 ("cannot locate io.github.ryubing.Ryujinx"), and every Switch launch waited 8 s
 and showed "Wireless Controller was not configured in time".
+
+`ryujinx` now shares the `switch` pack's emulator and profiles nothing, so the
+pack under test is that old one rebuilt: a superseded pack with its own
+controllers block.
 """
+import dataclasses
 import json
 import sys
 from pathlib import Path
@@ -29,7 +34,12 @@ def box(tmp_path, monkeypatch):
 
 @pytest.fixture(scope="module")
 def packs():
-    return load_catalog(ROOT / "catalog", ROOT / "config" / "catalog.d")
+    packs = load_catalog(ROOT / "catalog", ROOT / "config" / "catalog.d")
+    old = packs["ryujinx"]
+    data = {k: v for k, v in old.data.items() if k != "sharesEmulator"}
+    data["controllers"] = packs["switch"].data["controllers"]
+    packs["ryujinx"] = dataclasses.replace(old, data=data)
+    return packs
 
 
 def _on(packs) -> set[str]:

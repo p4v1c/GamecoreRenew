@@ -248,12 +248,12 @@ def switch_box(tmp_path):
         paths.use_roots(*before)
 
 
-def test_switch_games_move_to_eden_and_a_zip_keeps_the_ryujinx_tile(switch_box, packs):
+def test_switch_games_move_to_the_switch_tile_and_a_zip_keeps_the_ryujinx_tile(switch_box, packs):
     system_split.apply(system_split.plan(packs), packs)
     emu = switch_box / "emu"
     assert sorted(p.name for p in (emu / "switch").iterdir()) == ["Mario Kart.xci", "Zelda.nsp"]
     assert [p.name for p in (emu / "ryujinx").iterdir()] == ["Old dump.zip"]
     assert _ids(switch_box) == ["switch", "ryujinx"]
-    # Ryujinx still owns its emulator, so its autoconfig switch stays its own.
+    # The switch pack owns Ryujinx now: the owner's choice for it follows.
     autoconfig = json.loads((switch_box / "config" / "controller-autoconfig.json").read_text())
-    assert autoconfig["packs"] == {"ryujinx": False}
+    assert autoconfig["packs"] == {"switch": False}

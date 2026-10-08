@@ -258,8 +258,7 @@ SCENARIOS: tuple[Scenario, ...] = (
 # backups (*.bak-ctrlmodel) are deliberately NOT captured: they are copies of
 # the input, and comparing them would only restate the fixtures.
 WATCHED = {
-    "ryujinx": [".var/app/io.github.ryubing.Ryujinx/config/Ryujinx/Config.json"],
-    "switch": [".var/app/dev.eden_emu.eden/config/eden/qt-config.ini"],
+    "switch": [".var/app/io.github.ryubing.Ryujinx/config/Ryujinx/Config.json"],
     "gamecube": [".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu/GCPadNew.ini",
                 ".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu/WiimoteNew.ini"],
     "rpcs3": [".var/app/net.rpcs3.RPCS3/config/rpcs3/input_configs/global/Default.yml"],
@@ -288,8 +287,7 @@ WATCHED = {
 
 # Where each pack's seed lands in the fake HOME.
 SEED_DEST = {
-    "ryujinx": ".var/app/io.github.ryubing.Ryujinx/config/Ryujinx",
-    "switch": ".var/app/dev.eden_emu.eden/config/eden",
+    "switch": ".var/app/io.github.ryubing.Ryujinx/config/Ryujinx",
     "gamecube": ".var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu",
     "rpcs3": ".var/app/net.rpcs3.RPCS3/config/rpcs3",
     "pcsx2": ".var/app/net.pcsx2.PCSX2/config/PCSX2/inis",
@@ -400,7 +398,7 @@ def install_stubs(cp, home: Path, monkeypatch) -> None:
     # ── pre-refactor seams (no-ops once they are gone) ─────────────────────
     for attr, value in (
         ("HOME", home),
-        ("RYUJINX_CFG", home / SEED_DEST["ryujinx"] / "Config.json"),
+        ("RYUJINX_CFG", home / SEED_DEST["switch"] / "Config.json"),
         ("DOLPHIN_DIR", home / SEED_DEST["gamecube"]),
         ("DUCK_INI", home / SEED_DEST["duckstation"] / "settings.ini"),
         ("AZAHAR", home / "azahar-absent.ini"),

@@ -2,18 +2,23 @@
   "id": "switch",
   "kind": "emulator",
   "label": "Nintendo Switch",
-  "emulatorName": "Eden",
+  "emulatorName": "Ryujinx",
   "platform": "Switch",
   "family": "Nintendo",
   "color": "#e6001a",
   "order": 3,
   "install": {
     "provider": "flatpak",
-    "appIds": ["dev.eden_emu.eden"]
+    "appIds": [
+      "io.github.ryubing.Ryujinx"
+    ]
   },
   "launch": {
     "path": "flatpak",
-    "args": "run @APPID@ -f -g"
+    "args": "run @APPID@",
+    "formerArgs": [
+      "run @APPID@ -f -g"
+    ]
   },
   "roms": {
     "dir": "emu/switch",
@@ -23,30 +28,30 @@
     ]
   },
   "config": {
-    "dest": "@FLATPAK_CONFIG@/eden"
+    "dest": "@FLATPAK_CONFIG@/Ryujinx"
   },
   "bios": {
-    "dir": "@FLATPAK_DATA@/eden/keys",
+    "dir": "@FLATPAK_CONFIG@/Ryujinx/system",
     "files": [
       {
         "file": "prod.keys",
         "required": true,
-        "note": "Switch console keys. Without them Eden decrypts nothing."
+        "note": "Switch console keys. Without them Ryujinx decrypts nothing and stops on a black window."
       },
       {
         "file": "title.keys",
         "required": false,
-        "note": "Per-title keys. Only some dumps need them."
+        "note": "Per-title keys. Only some dumps need them, so a box without this file is a working box."
       }
     ]
   },
   "controllers": {
     "maxPlayers": 4,
     "order": 0,
-    "strategy": "snapshot-restore",
-    "target": "qt-config.ini",
+    "strategy": "guid-rebind",
+    "target": "Config.json",
     "seedMustNotContain": [
-      "guid:[0-9a-f]{32}"
+      "\"id\":\\s*\"\\d+-[0-9a-f]{8}-"
     ]
   },
   "scraper": {
@@ -64,12 +69,17 @@
   "profileSaves": {
     "dirs": [
       {
-        "path": "@FLATPAK_DATA@/eden/nand/user/save"
+        "config": "bis/user/save",
+        "as": "user-save"
+      },
+      {
+        "config": "bis/system/save/8000000000000000",
+        "as": "save-index"
       }
     ]
   },
   "perGame": {
     "supported": false,
-    "why": "Eden keeps per-title settings in config/eden/custom/<TITLEID>.ini, but a dump's title id needs NCA decryption, which no reader in backend/services/gameid.py does."
+    "why": "Ryujinx has no per-title configuration file: its settings are global, and a title override is a fork feature that this pack's appIds do not point at."
   }
 }

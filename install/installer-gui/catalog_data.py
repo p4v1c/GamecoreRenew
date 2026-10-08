@@ -9,7 +9,7 @@ EMULATORS = [
     ('cemu', 'Cemu', 'Wii U'),
     ('gamecube', 'Dolphin', 'Nintendo GameCube'),
     ('wii', 'Dolphin', 'Nintendo Wii'),
-    ('switch', 'Eden', 'Nintendo Switch'),
+    ('switch', 'Ryujinx', 'Nintendo Switch'),
     ('duckstation', 'DuckStation', 'PlayStation'),
     ('pcsx2', 'PCSX2', 'PlayStation 2'),
     ('rpcs3', 'RPCS3', 'PlayStation 3'),

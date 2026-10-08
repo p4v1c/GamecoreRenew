@@ -162,9 +162,9 @@ emulator's own files and two packs writing them overwrite each other.
 The packs that were split stay in the catalogue as `supersededBy` packs
 (`dolphin` → `gamecube`, `wii`; `mgba` → `gba`, `gbc`, `gb`). They keep
 `sharesEmulator`, so the old tile on a box that has not migrated still launches
-exactly as before. `ryujinx` → `switch` is the same mechanism for a change of
-emulator: the old pack keeps its own install, launch and generator (Ryujinx),
-the new one runs Eden. They are never offered (`gen-catalog.py`, `selected()`), never
+exactly as before. `ryujinx` → `switch` is the same: `switch` owns Ryujinx
+(its generator, seed and `profileSaves`), and the old tile of a box that never
+moved its games launches the same emulator. They are never offered (`gen-catalog.py`, `selected()`), never
 added by the merge, and while their tile is on a grid the merge does **not** add
 their successors either: the old tile holds the games, and empty twins beside it
 would be a lie. The owner moves the games with `scripts/split-systems.py`, by
@@ -224,6 +224,15 @@ Two things a tile may need once the app is up, both read by
 The pack spells them in camelCase like the rest of the schema;
 `gen-catalog.py` writes the `wm_class` / `timeout_s` spelling the enforcer has
 always read into the tile entry.
+
+### `launch.formerArgs` — a system that changed emulator
+
+`switch` kept its id, its tile and `emu/switch/` when it went from Eden back
+to Ryujinx, but a tile written under Eden carries `run @APPID@ -f -g`, and
+Ryujinx reads `-g <rom>` as a graphics backend: the game never opens. A tile
+is written once and `config/` is outside the OTA rsync, so the pack names the
+args it used to ship and the update merge rewrites a tile still carrying one
+(`merge.launcher_is_stale`). Any other args are the operator's and stay.
 
 ### melonDS local multiplayer
 
@@ -333,7 +342,7 @@ folder (`@SAVES@`), from pack.json alone (`services/profile_save_paths.py`):
 ```json
 "profileSaves": {
   "keys": [{"config": "PCSX2.ini", "section": "Folders", "key": "MemoryCards", "value": "@SAVES@/memcards"}],
-  "dirs": [{"path": "@FLATPAK_DATA@/eden/nand/user/save"}]
+  "dirs": [{"config": "bis/user/save", "as": "user-save"}]
 }
 ```
 
@@ -376,8 +385,7 @@ backs the same folders up.
 | Azahar | `[Data%20Storage]` custom storage, `sdmc_directory` (the NAND stays shared; titles installed as CIA are per profile) |
 | melonDS | hook, `per-instance` |
 | PPSSPP | folders `PSP/SAVEDATA`, `PSP/PPSSPP_STATE` |
-| Eden | folder `nand/user/save` |
-| Ryujinx | folders `bis/user/save` and the save index `bis/system/save/8000000000000000` |
+| Ryujinx (switch) | folders `bis/user/save` (`as: user-save`) and the save index `bis/system/save/8000000000000000` (`as: save-index`); Eden's per-profile folder was `save` |
 | RPCS3 | folders `dev_hdd0/home/00000001/savedata` and `trophy` |
 | shadPS4 | folder `home/1/savedata` (≥ 0.16) or `savedata/1` (≤ 0.15), whichever exists (`optional`) |
 | Cemu | folder `mlc01/usr/save/00050000` (game saves; accounts stay shared) |

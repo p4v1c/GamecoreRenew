@@ -16,7 +16,7 @@ mapping and the owner's report decodes word for word:
 
 Nothing is stubbed here except SDL and the wizard's database. `flatpak_location`
 and `sdl2_probe` shell out, and a test whose result depends on what the machine
-happens to have installed is not testing the code — see catalog/ryujinx/tests.
+happens to have installed is not testing the code — see catalog/switch/tests.
 """
 import sys
 from pathlib import Path

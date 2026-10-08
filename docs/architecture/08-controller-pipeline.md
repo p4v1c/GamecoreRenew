@@ -147,12 +147,6 @@ its own id from every other slot before writing, and its early "already correct,
 don't rewrite 11 KB" return is conditional on there being no duplicate —
 otherwise the slot that is right is exactly the one that hides the phantom.
 
-**Eden zeroes the name CRC too, and counts ports per GUID.** Its id is SDL's
-GUID with bytes 2-3 cleared (`sdl_driver.cpp` `GetGUID`), and `port` is the pad's
-rank among connected pads of that GUID, which is `Pad.dup_index`. Unlike Ryujinx
-it binds raw SDL indices, so they are asked of the SDL it links (the KDE
-runtime's), the azahar rule above. `catalog/switch/generator.py`.
-
 ## Naming a device — and refusing to guess
 
 RPCS3 and Dolphin record the *device name string*, so it has to match exactly.

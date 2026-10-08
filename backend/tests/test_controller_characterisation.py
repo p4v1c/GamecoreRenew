@@ -154,7 +154,7 @@ def test_ryujinx_uses_the_guid_its_own_sdl2_reports(box):
     a vendor:product. Measured: the host says bus 0x05 for a Bluetooth DS4,
     Ryujinx's own SDL2 says 0x03."""
     ch.run_scenario(cp, next(s for s in ch.SCENARIOS if s.name == "one-ds4"))
-    cfg = ch.snapshot(box)["ryujinx"]["Config.json"]
+    cfg = ch.snapshot(box)["switch"]["Config.json"]
     assert '"0-00000003-054c-0000-cc09-000000006800"' in cfg
     assert "00000005-054c" not in cfg, "the host's bus byte must not survive"
 

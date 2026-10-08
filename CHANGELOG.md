@@ -17,6 +17,11 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- **The Switch runs Ryujinx (Ryubing) again.** Same tile, same `emu/switch/` games. After
+  the update, install Ryujinx from Settings or with `gamecore-emu install switch`. The
+  Eden variant stays on the `switch-eden` branch.
+- If controller autoconfig was off for Ryujinx, it is off for the Switch: turn it back on
+  in Settings.
 - A profile's page lists its controllers: add a connected pad, remove one. For display
   only: nothing (saves, login, theme) follows a pad. A pad shows on one profile at most.
 - A theme picked in Settings → Themes now stays with the profile playing. A profile
