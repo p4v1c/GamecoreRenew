@@ -4,13 +4,14 @@
  *
  *   theme    resolved, or its fallback took over
  *   systems  the dashboard data settled (an empty list is a success)
- *   painted  a frame drawn after the two above (`ready-to-show` is not that)
+ *   who      "Who's playing?" decided: not asked, or drawn under the splash
+ *   painted  a frame drawn after the three above (`ready-to-show` is not that)
  *
  * Deliberately NOT waited for: network, covers, metadata, ROM scan, playtime,
  * a connected pad — all can be absent on a good box.
  */
 
-export const BOOT_STEPS = ['theme', 'systems', 'painted'] as const
+export const BOOT_STEPS = ['theme', 'systems', 'who', 'painted'] as const
 export type BootStep = (typeof BOOT_STEPS)[number]
 
 const done = new Set<BootStep>()
@@ -27,7 +28,7 @@ let paintToken = 0
 export function markBootStep(step: BootStep): void {
   if (done.has(step)) return
   done.add(step)
-  if (step !== 'painted' && done.has('theme') && done.has('systems')) schedulePaint()
+  if (step !== 'painted' && BOOT_STEPS.every(s => s === 'painted' || done.has(s))) schedulePaint()
   listeners.forEach(fn => fn())
   announce()
 }

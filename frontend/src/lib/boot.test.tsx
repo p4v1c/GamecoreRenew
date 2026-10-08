@@ -29,11 +29,15 @@ describe('what the host waits for', () => {
     markBootStep('theme')
     expect(isBootReady()).toBe(false)
     markBootStep('systems')
+    await frame()
+    // "Who's playing?" not decided yet: the home must not be painted first.
+    expect(isBootReady()).toBe(false)
+    markBootStep('who')
     // `painted` is marked from a frame callback, not from this call.
     expect(isBootReady()).toBe(false)
     await frame()
     expect(isBootReady()).toBe(true)
-    expect(bootSteps()).toEqual({ theme: true, systems: true, painted: true })
+    expect(bootSteps()).toEqual({ theme: true, systems: true, who: true, painted: true })
   })
 
   it('accepts a successful empty systems response', async () => {
@@ -42,6 +46,7 @@ describe('what the host waits for', () => {
     // something.
     markBootStep('theme')
     markBootStep('systems')
+    markBootStep('who')
     await frame()
     expect(isBootReady()).toBe(true)
   })
@@ -50,7 +55,7 @@ describe('what the host waits for', () => {
     // Not the network, the covers, the scraper, a ROM scan or a connected pad:
     // every one of them is absent on some perfectly good box, and a boot that
     // waits for an optional thing is a boot that hangs on a bad afternoon.
-    expect([...BOOT_STEPS]).toEqual(['theme', 'systems', 'painted'])
+    expect([...BOOT_STEPS]).toEqual(['theme', 'systems', 'who', 'painted'])
   })
 })
 
@@ -61,10 +66,11 @@ describe('what the shell is told', () => {
 
     markBootStep('theme')
     markBootStep('systems')
+    markBootStep('who')
     await frame()
 
     expect(bootReady).toHaveBeenCalledTimes(1)
-    expect(bootReady.mock.calls[0][0].steps).toEqual({ theme: true, systems: true, painted: true })
+    expect(bootReady.mock.calls[0][0].steps).toEqual({ theme: true, systems: true, who: true, painted: true })
 
     markBootStep('theme')          // a second mark changes nothing
     await frame()
@@ -74,7 +80,7 @@ describe('what the shell is told', () => {
   it('does not fall over outside Electron', async () => {
     // The browser dev server has nobody to tell, and the interface is ready
     // just the same.
-    markBootStep('theme'); markBootStep('systems')
+    markBootStep('theme'); markBootStep('systems'); markBootStep('who')
     await frame()
     expect(isBootReady()).toBe(true)
   })
@@ -89,7 +95,7 @@ describe('who is watching', () => {
     const r = render(<Probe />)
     expect(r.getByTestId('ready').textContent).toBe('false')
 
-    await act(async () => { markBootStep('theme'); markBootStep('systems') })
+    await act(async () => { markBootStep('theme'); markBootStep('systems'); markBootStep('who') })
     await frame()
     expect(r.getByTestId('ready').textContent).toBe('true')
   })

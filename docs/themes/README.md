@@ -655,7 +655,8 @@ active profile, and a switch sends `playtime:rekeyed`.
 
 **"Who's using this controller?"** (2+ profiles, "Log in automatically" off,
 once per interface start) is drawn by the
-host over your shell, from `frontend/src/components/WhoIsPlaying.tsx`. Dress it
+host over your shell, under the splash before the boot ends, so your splash
+hands over straight to it, from `frontend/src/components/WhoIsPlaying.tsx`. Dress it
 by returning `whoIsPlaying: sdk.defaults.createWhoIsPlaying(sdk, { skin: 'my-who' })`
 with your surfaces and styling `.gcs-who.my-who` (and `.gcs-who-kb.my-who`, the
 keyboard of "Add profile") in your stylesheet: the `--set-*` palette, the
