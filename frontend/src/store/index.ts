@@ -193,3 +193,12 @@ export const useStore = create<GamecoreStore>((set) => ({
   setGameOptions: (gameOptions) => set({ gameOptions }),
   requestSessionMenu: () => set(s => ({ sessionMenuRequest: s.sessionMenuRequest + 1 })),
 }))
+
+/**
+ * True while a game or app holds the screen. The one definition of the
+ * session invariant: the input bus, the UI sounds, the theme rescue and
+ * `sdk.input.rumble` all read it, and frame subscribers that act must too.
+ */
+export function isPlaying(): boolean {
+  return useStore.getState().sessionGameKey !== null
+}

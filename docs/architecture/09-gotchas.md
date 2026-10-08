@@ -124,6 +124,17 @@ those is data loss — the password, the addon registry, the play history.
 **While a game runs, the UI ignores every gamepad event except `gp:guide`.**
 Otherwise emulator input drives the launcher hiding behind the game.
 
+**No UI sound while a game holds the screen, whoever asks.** `playSound`
+checks `isPlaying()` itself: the bus is not its only caller (settings rows,
+theme handlers, `sdk.system.playSound`).
+
+**A test browser on the box hears the real pad and plays through its speakers.**
+Headless Chromium against a dev server has no session, so the player's
+in-game presses drove the audit pages (their controller screen opened by
+itself). `legibility-audit.mjs` runs with `--mute-audio` and an empty
+`navigator.getGamepads` unless `--init` fakes pads; do the same in any CDP
+script of your own.
+
 **Guide needs a double press within 1 s.**
 Enforced in both `useGamepad.ts` and `gamepad_monitor.py`. A single press must
 never kill a running game.

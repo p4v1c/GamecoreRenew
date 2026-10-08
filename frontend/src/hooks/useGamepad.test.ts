@@ -19,8 +19,8 @@
  */
 import { cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useStore } from '../store'
-import { GP_BTN, isPlaying, onGamepadFrame, onGp, useGamepad } from './useGamepad'
+import { isPlaying, useStore } from '../store'
+import { GP_BTN, onGamepadFrame, onGp, useGamepad } from './useGamepad'
 
 beforeEach(() => {
   useStore.setState({ sessionGameKey: null, sessionSystemId: null })

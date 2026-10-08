@@ -1101,6 +1101,8 @@ typo'd path costs one bip, not the theme.
   `ctx.destination` — the second is how you would escape the slider, and a
   theme that can be louder than the player allows is a theme they can only
   silence by uninstalling it.
+- **A game on screen means silence.** `playSound` (yours or the host's)
+  plays nothing while a game or app holds the screen.
 - **Stop when nobody is listening.** A loop *you* start is outside all of the
   above, so read `sdk.system.sound` (`enabled`, `volume`) and follow it. A game
   running or the box asleep means silence; `useIdle` in Summer shows the

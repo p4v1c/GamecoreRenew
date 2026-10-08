@@ -23,6 +23,7 @@ are the auto-incremented tags.
   that never picked one used to take that theme at its first turn; it now starts on
   the look a new box shows (Shelf). A profile already dressed that way keeps it: pick
   its theme again on its page.
+- No menu sound plays over a game, whichever screen or theme asks for one.
 - Jelly opens per-game overlay options with Options on a focused Collection game. On Play and Consoles, Options opens Settings.
 
 ### Behaviour that changed on its own

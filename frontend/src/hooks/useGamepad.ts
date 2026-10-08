@@ -13,7 +13,7 @@
  * While a game session is active, every event except gp:guide is suppressed.
  */
 import { useEffect, useRef, useState } from 'react'
-import { useStore } from '../store'
+import { useStore, isPlaying } from '../store'
 import { playSound, soundForGpEvent } from '../lib/sounds'
 import { api } from '../api'
 import { rumble, rumbleForGpEvent } from '../lib/rumble'
@@ -137,16 +137,6 @@ function emit(name: string, detail?: unknown) {
   const pattern = rumbleForGpEvent(name)
   if (pattern) rumble(pattern)
   window.dispatchEvent(new CustomEvent(name, detail !== undefined ? { detail } : undefined))
-}
-
-/** True when an emulator / app is running — reads Zustand state synchronously.
- *
- * Exported because `onGamepadFrame` subscribers have to apply it themselves:
- * the frame callback is deliberately outside the guard below, and anything that
- * *acts* on a frame rather than just displaying it needs this. One name for the
- * invariant, so there is no second definition to drift. */
-export function isPlaying(): boolean {
-  return useStore.getState().sessionGameKey !== null
 }
 
 // ── Which pad the box is listening to ─────────────────────────────────────────

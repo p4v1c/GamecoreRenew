@@ -48,8 +48,10 @@ if (THEME) {
 }
 
 const profile = mkdtempSync(join(tmpdir(), 'legibility-'))
+// Headless Chromium still plays through the box's speakers and reads its real
+// pads: muted, and blind to pads unless --init fakes some (fake-pads.js).
 const chrome = spawn('chromium', ['--headless=new', `--remote-debugging-port=${PORT}`,
-  `--user-data-dir=${profile}`, '--window-size=1920,1080', '--hide-scrollbars', 'about:blank'],
+  `--user-data-dir=${profile}`, '--window-size=1920,1080', '--hide-scrollbars', '--mute-audio', 'about:blank'],
 { stdio: 'ignore' })
 
 let ws
@@ -88,6 +90,7 @@ try {
   await send('Page.enable')
   // The box renders at 1920x1080; the headless window alone is a bit shorter.
   await send('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false })
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: 'navigator.getGamepads = () => []' })
   if (INIT) await send('Page.addScriptToEvaluateOnNewDocument', { source: readFileSync(INIT, 'utf8') })
   await send('Page.navigate', { url: URL_ })
   await settle()

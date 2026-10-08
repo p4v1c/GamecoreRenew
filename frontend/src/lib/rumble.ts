@@ -11,11 +11,9 @@
  * change to how the console feels that nobody asked for. The mechanism is here,
  * the table is empty, and a theme fills it in.
  *
- * Nothing here checks whether a game is running, and that is on purpose: this
- * module would have to import `isPlaying` from the input bus, which imports
- * this one. `isPlaying` is the single name for that invariant and it stays
- * that way — the two callers apply it themselves (the bus already suppresses
- * every event during a session, and `sdk.input.rumble` guards explicitly).
+ * Nothing here checks whether a game is running: the two callers apply
+ * `isPlaying` (store) themselves — the bus suppresses every event during a
+ * session, and `sdk.input.rumble` guards explicitly.
  */
 
 const LS_ENABLED = 'gc:rumble'

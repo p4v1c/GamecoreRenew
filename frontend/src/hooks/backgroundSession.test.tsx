@@ -18,8 +18,7 @@
 import { render, act, cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useWebSocket } from './useWebSocket'
-import { isPlaying } from './useGamepad'
-import { useStore } from '../store'
+import { isPlaying, useStore } from '../store'
 import { api } from '../api'
 
 class FakeSocket {
