@@ -20,9 +20,9 @@ import {
 } from '../lib/themeSafety'
 import { clearThemeSounds } from '../lib/sounds'
 import { clearThemeRumble } from '../lib/rumble'
-import { onGamepadFrame, isPlaying, GP_BTN } from './useGamepad'
+import { onGamepadFrame, GP_BTN } from './useGamepad'
 import { onWsEvent } from './useWebSocket'
-import { useStore } from '../store'
+import { useStore, isPlaying } from '../store'
 import { markBootStep } from '../lib/boot'
 
 /** How long L1+R1 must be held to force the default theme. */

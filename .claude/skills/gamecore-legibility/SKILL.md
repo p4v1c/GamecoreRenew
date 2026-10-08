@@ -93,6 +93,9 @@ node $A --theme orbit --url 'http://127.0.0.1:8766/?pads=ds4,xbox' --init $F \
 node $A --theme shelf --url 'http://127.0.0.1:8766/?pads=ds4&bg=1' --init $F --eval '0;;0;;0;;__press(8)'  # power menu
 ```
 
+The audit's Chromium is muted and sees no real pad (the box's controller
+drove audit pages while the owner played); `--init` pads are the only ones.
+
 The three `0` let the shell mount; the first real press after load only
 wakes the box. The built-in UI answers these presses too.
 

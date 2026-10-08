@@ -8,6 +8,8 @@
  * "tick", not a phone notification.
  */
 
+import { isPlaying } from '../store'
+
 /** The five the host synthesizes. A theme may replace any of them, and may add
  *  names of its own — hence `string` wherever a sound is played. */
 export type SoundName = 'move' | 'confirm' | 'back' | 'launch' | 'startup'
@@ -157,7 +159,9 @@ function playThemeSound(name: string): boolean {
  * rather than an error.
  */
 export function playSound(name: SoundName | string) {
-  if (!soundSettings.enabled) return
+  // The one gate for every caller (bus, settings rows, theme handlers): a menu
+  // sound over a game is heard as the game's, whichever path asked for it.
+  if (!soundSettings.enabled || isPlaying()) return
   if (playThemeSound(name)) return
   const c = audio()
   if (!c) return

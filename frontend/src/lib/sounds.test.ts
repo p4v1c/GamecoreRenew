@@ -164,6 +164,35 @@ describe("the player's settings win", () => {
   })
 })
 
+describe('a game on screen', () => {
+  // Every UI sound, not only the bus's: settings rows, theme handlers and
+  // `sdk.system.playSound` call playSound directly.
+  it('silences the host and the theme while a game holds the screen', async () => {
+    const s = await load()
+    const themeMove = vi.fn()
+    s.setThemeSounds({ move: themeMove })
+    const { useStore } = await import('../store')
+    useStore.getState().setSession('FIFA 19', 'rpcs3')
+
+    s.playSound('move')
+    s.playSound('confirm')
+
+    expect(themeMove).not.toHaveBeenCalled()
+    expect(s.started).toEqual([])
+  })
+
+  it('plays again once the game is suspended or closed', async () => {
+    const s = await load()
+    const { useStore } = await import('../store')
+    useStore.getState().setSession('FIFA 19', 'rpcs3')
+    useStore.getState().setSession(null, null)
+
+    s.playSound('move')
+
+    expect(s.started).toEqual(['host-oscillator'])
+  })
+})
+
 describe('a theme that misbehaves does not take the press down with it', () => {
   it("falls back to the host's sound when the theme's throws", async () => {
     const s = await load()

@@ -80,7 +80,8 @@ the host `Overlay`, whose CSS variables are supplied by each theme.
 
 `useGamepad()` runs one `requestAnimationFrame` poll loop and dispatches
 `CustomEvent`s on `window`. Anything in the tree subscribes with
-`onGp(event, handler)` and gets a cleanup function back.
+`onGp(event, handler)` and gets a cleanup function back. The dispatch runs
+inside `flushSync`, so what a handler sets is drawn in the poll's own frame.
 
 ```mermaid
 flowchart LR
@@ -107,8 +108,10 @@ gp:connected(name)   gp:disconnected
 ### The three invariants
 
 1. **While a game runs, every event is suppressed except `gp:guide`.**
-   `isPlaying()` reads Zustand synchronously. Otherwise emulator input would
+   `isPlaying()` (`store/index.ts`) reads Zustand synchronously. Otherwise emulator input would
    drive the launcher behind the game. Mirrors the old C++ behaviour.
+   `playSound` applies the same test, so no caller (settings rows, theme
+   handlers, `sdk.system.playSound`) can play a UI sound over a game.
 2. **`gp:guide` requires a double press within `GUIDE_DOUBLE_PRESS_MS` (1 s).**
    One press must never kill a running game by accident. Its detail
    `{fromGame}` is what held the screen at the first press: `SessionBar` opens
@@ -261,7 +264,7 @@ Colours are `--pd-*` variables a theme sets from its stylesheet.
 
 | File | Exports |
 |---|---|
-| `sounds.ts` | `playSound(name)`, `soundForGpEvent(event)`, `soundSettings`, `getAudioContext`. Sounds are **synthesised** with `note()` on a shared `AudioContext` — no audio assets. Settings persist in `localStorage` (`gc:uiSounds`, `gc:uiSoundsVolume`) |
+| `sounds.ts` | `playSound(name)`, `soundForGpEvent(event)`, `soundSettings`, `getAudioContext`. Sounds are **synthesised** with `note()` on a shared `AudioContext` — no audio assets. Silent while `isPlaying()`. Settings persist in `localStorage` (`gc:uiSounds`, `gc:uiSoundsVolume`) |
 | `systemColors.ts` | `SYSTEM_COLORS` fallback palette per system id |
 | `formatGameName.ts` | `formatGameName(raw)` — strips trailing region and language-sequence noise (`REGION_RE`, `LANG_SEQ_RE`) |
 
