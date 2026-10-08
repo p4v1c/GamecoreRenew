@@ -13,6 +13,7 @@
  * While a game session is active, every event except gp:guide is suppressed.
  */
 import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useStore, isPlaying } from '../store'
 import { playSound, soundForGpEvent } from '../lib/sounds'
 import { api } from '../api'
@@ -136,7 +137,12 @@ function emit(name: string, detail?: unknown) {
   // a theme filled the table in — nothing on this box vibrated before.
   const pattern = rumbleForGpEvent(name)
   if (pattern) rumble(pattern)
-  window.dispatchEvent(new CustomEvent(name, detail !== undefined ? { detail } : undefined))
+  // Rendered now, inside the poll's frame: a setState from a rAF callback
+  // otherwise renders in a later task, after this frame is painted, and every
+  // move on a useState cursor (themes, settings) reaches the screen a frame late.
+  flushSync(() => {
+    window.dispatchEvent(new CustomEvent(name, detail !== undefined ? { detail } : undefined))
+  })
 }
 
 // ── Which pad the box is listening to ─────────────────────────────────────────

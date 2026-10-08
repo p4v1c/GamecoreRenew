@@ -80,7 +80,8 @@ the host `Overlay`, whose CSS variables are supplied by each theme.
 
 `useGamepad()` runs one `requestAnimationFrame` poll loop and dispatches
 `CustomEvent`s on `window`. Anything in the tree subscribes with
-`onGp(event, handler)` and gets a cleanup function back.
+`onGp(event, handler)` and gets a cleanup function back. The dispatch runs
+inside `flushSync`, so what a handler sets is drawn in the poll's own frame.
 
 ```mermaid
 flowchart LR

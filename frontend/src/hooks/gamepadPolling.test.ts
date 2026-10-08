@@ -22,7 +22,8 @@
  * What is NOT claimed here: how any of it feels in the hand. The numbers below
  * are the ones the hook ships with, not a measurement of a good stick.
  */
-import { cleanup, renderHook } from '@testing-library/react'
+import { cleanup, render, renderHook } from '@testing-library/react'
+import { createElement, useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useStore } from '../store'
 import { getActiveGamepadIndex, onGp, useGamepad } from './useGamepad'
@@ -189,6 +190,25 @@ describe('buttons', () => {
     box.connect(pad({ index: 0, buttons: { 0: true, 9: true } }))
     box.frame()
     expect(box.seen).toEqual([])
+  })
+})
+
+describe('the frame a move is drawn in', () => {
+  it('commits what a handler set before the poll frame ends', () => {
+    // A setState from a rAF callback renders in a later task, after this
+    // frame is painted: every move on a useState cursor showed a frame late.
+    function Cursor() {
+      const [at, setAt] = useState(0)
+      useEffect(() => onGp('gp:dpad-right', () => setAt(n => n + 1)), [])
+      return createElement('span', { 'data-testid': 'cursor' }, String(at))
+    }
+    const view = render(createElement(Cursor))
+    start(pad({ index: 0 }))
+    box.connect(pad({ index: 0, buttons: { 15: true } }))
+
+    box.frame()
+
+    expect(view.getByTestId('cursor').textContent).toBe('1')
   })
 })
 

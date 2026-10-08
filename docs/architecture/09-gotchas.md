@@ -135,6 +135,12 @@ itself). `legibility-audit.mjs` runs with `--mute-audio` and an empty
 `navigator.getGamepads` unless `--init` fakes pads; do the same in any CDP
 script of your own.
 
+**A move must render inside the poll's frame.** A `setState` from a
+`requestAnimationFrame` callback renders in a later task, after that frame is
+painted: every cursor kept in `useState` (themes, the settings screen) showed
+each move a frame late. `emit()` dispatches inside `flushSync`; do not move the
+dispatch out of it (`gamepadPolling.test.ts` pins it).
+
 **Guide needs a double press within 1 s.**
 Enforced in both `useGamepad.ts` and `gamepad_monitor.py`. A single press must
 never kill a running game.
