@@ -17,6 +17,8 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- An update that fails half-way (dependencies, console helpers) now puts the previous
+  version back by itself and is offered again, instead of leaving a half-updated box.
 - A screen that stops reading the box's live updates (a frozen browser tab) no longer
   holds up launches and update progress for every other screen.
 - A power cut while game info is being saved no longer leaves that game's entry unreadable.

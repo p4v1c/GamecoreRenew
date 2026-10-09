@@ -172,11 +172,15 @@ Two properties that are easy to get wrong:
   `.venv`, `npm install` into `node_modules`, and the `echo > VERSION` at the end
   of the script are **not**. They are excluded for that reason, not for size —
   they are rebuilt from the release anyway.
-- **It is deliberately never restored automatically.** A trap that rolls back on
-  any failure has to be right about a machine whose state it does not know, and
-  that path cannot be exercised in CI. An automatic restore that goes wrong turns
-  a recoverable update into an unbootable box. Shipping the snapshot plus the
-  exact command is the part that is safe to ship untested.
+- **A failure after the snapshot restores it automatically.** `fail()` runs
+  `restore_prev()`: `rsync -a --delete` from the snapshot with the snapshot's
+  own excludes (so only files the release added are removed), plus the data
+  dirs the deploy never writes (`assets/overlays|logos|art/`, `addons/`,
+  `volumes/`). Then it exits non-zero with VERSION untouched, so the update is
+  offered again. Before this, a pip or session-refresh failure left new code on
+  old dependencies, and the next reboot ran it. Not rolled back: `.venv` and
+  any helper the session refresh already copied to `/usr/local/bin`.
+  `backend/tests/test_ota_failure_restores.py` runs the script with stubs.
 
 There is **one** snapshot: the next update overwrites it. It gets you back one
 release, not to an arbitrary one.
@@ -186,8 +190,9 @@ Themes follow the same single-snapshot rule at
 must be fixable by a release, and the version the box had is kept rather than
 discarded.
 
-If the snapshot could not be taken, the script says so loudly and the restore
-hint becomes a no-op. That message is the only warning you get.
+If the snapshot could not be taken, the script says so loudly and a later
+failure leaves the install half-updated. That message is the only warning you get.
+If the automatic restore itself fails, the script prints the manual command above.
 
 ## The gate before you merge
 
