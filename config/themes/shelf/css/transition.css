@@ -17,8 +17,12 @@
 .cz-lib .cz-shelfline { animation: cz-draw 560ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 .cz-lib .cz-card     { animation: cz-in-right 480ms cubic-bezier(0.22, 0.61, 0.36, 1) 100ms both; }
 
-.cz-home > .cz-body  { animation: cz-in-up 460ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
-.cz-home > .cz-foot  { animation: cz-in-down 400ms ease 120ms both; }
+/* The home: the copy settles, the row rises onto the sweep, the foot last. The
+   photo is not listed: it plays its own entrance every time the focus changes
+   (css/home.css), and that covers arriving on the screen too. */
+.cz-studio > .cz-st-left { animation: cz-in-up 460ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.cz-studio > .cz-st-wrap { animation: cz-in-up 520ms cubic-bezier(0.22, 0.61, 0.36, 1) 60ms both; }
+.cz-studio > .cz-foot    { animation: cz-in-down 400ms ease 120ms both; }
 
 @keyframes cz-in-up    { from { opacity: 0; transform: translateY(26px) scale(0.985); } }
 @keyframes cz-in-down  { from { opacity: 0; transform: translateY(-10px); } }

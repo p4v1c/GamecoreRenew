@@ -218,3 +218,41 @@ export const vars = (a) => ({
   '--acc-s': `${a.s}%`,
   '--acc-l': `${a.l}%`,
 })
+
+/**
+ * A pack's brand colour, darkened just enough to be read on the paper wall.
+ *
+ * The home's eyebrow, focus bar and button ring wear the console's own colour
+ * (the 3DS pack's #ff0096, YouTube's #ff0000), and most of those are bright
+ * enough to fall under the contrast floor on #F4F2ED: hot pink is 3.4:1 there.
+ * Rather than swap a brand's colour for a house one, the lightness is walked
+ * down in HSL until the colour clears `ratio`, so a 3DS stays pink and a GBA
+ * stays violet. Text asks for 4.6:1 (the theme's own floor, DESIGN.md);
+ * a line or a ring only needs 3:1.
+ */
+const PAPER_LUM = 0.885     // relative luminance of --paper, #F4F2ED
+
+const lum = (r, g, b) => {
+  const f = (v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+}
+
+const hslToRgb = (h, s, l) => {
+  const S = s / 100, L = l / 100
+  const k = (n) => (n + h / 30) % 12
+  const a = S * Math.min(L, 1 - L)
+  const f = (n) => L - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1))
+  return [f(0), f(8), f(4)].map((v) => Math.round(v * 255))
+}
+
+export const onPaper = (hex, ratio = 4.6) => {
+  const hsl = hexToHsl(hex)
+  if (!hsl) return null
+  let { h, s, l } = hsl
+  for (let i = 0; i < 100 && l > 0; i++) {
+    const [r, g, b] = hslToRgb(h, s, l)
+    if ((PAPER_LUM + 0.05) / (lum(r, g, b) + 0.05) >= ratio) return `rgb(${r} ${g} ${b})`
+    l -= 1
+  }
+  return 'rgb(23 22 26)'
+}

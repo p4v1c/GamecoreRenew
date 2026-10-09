@@ -47,7 +47,7 @@ export default (sdk) => {
 
   const Background = createBackground(sdk, accent, useIdle)
   const TopBar = createTopBar(sdk)
-  const HomeView = createHomeView(sdk, accent)
+  const HomeView = createHomeView(sdk)
   const LibraryView = createLibraryView(sdk, {
     accent,
     useBrowse: createUseBrowse(sdk),
