@@ -1,5 +1,6 @@
 # Compact per-frame timeline of the jacket holders from samples.json.
-import json, sys
+import json
+import sys
 s = json.load(open(sys.argv[1] + '/samples.json'))
 prev = None
 for x in s:

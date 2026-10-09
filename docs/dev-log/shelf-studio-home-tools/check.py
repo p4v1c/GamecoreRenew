@@ -2,7 +2,8 @@
 # A cut = a jacket that appears or disappears while NOT at its row pose
 #         (edge-on: |turn| ~ 90, travelled to depth z ~ dive).
 # A jump = a change of turn > 40 deg or of depth > 160 px between two samples.
-import json, sys
+import json
+import sys
 s = json.load(open(sys.argv[1] + '/samples.json'))
 DIVE = -425
 # Sampled every ~40 ms headless, so a jacket created at p = 1 may already have
