@@ -178,3 +178,16 @@ describe('the confirmation step', () => {
     expect(marked?.className).toContain('session-danger')
   })
 })
+
+// ── an application's artwork ────────────────────────────────────────────────
+
+describe('an application in the background', () => {
+  it('shows its logo, not its initials', async () => {
+    const sessions = await orbitSession()
+    const app = { session: 2, gameKey: 'youtube', systemId: 'youtube', kind: 'app' as const }
+    const { container } = render(createElement(sessions.Bar,
+      { sessions: [app], focusIdx: 0, active: false, busy: false, onManage: vi.fn() }))
+    expect(container.querySelector('.session-dock-art img')?.getAttribute('src')).toBe('/assets/logos/youtube.png')
+    expect(container.querySelector('.art-fallback')).toBeNull()
+  })
+})

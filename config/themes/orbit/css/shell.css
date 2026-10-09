@@ -74,6 +74,8 @@
 .session-menu-body .session-menu-header{display:flex;align-items:center;gap:18px;margin:14px 0 18px}
 .session-menu-body .session-menu-header img,.session-menu-body .session-menu-header .art-fallback{
   width:104px;height:104px;border-radius:14px;object-fit:cover;flex:none}
+/* An application's logo is not a jacket: whole, not cropped to the square. */
+.session-menu-body .session-menu-header img[src*="/assets/logos/"]{object-fit:contain}
 /* The no-cover case is a `<span>` of initials, and a span is inline: the 104px
    square above did nothing to it, so a game with no artwork got two letters of
    body text where every other session shows a jacket. */
