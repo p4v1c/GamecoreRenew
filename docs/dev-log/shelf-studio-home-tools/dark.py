@@ -1,6 +1,8 @@
 # Dark-pixel fraction per frame in the jacket's area (screen 640..1010 x 300..760,
 # in front of the row), so a black face or slab shows up as a spike.
-import json, sys, glob
+import json
+import sys
+import glob
 from PIL import Image
 d = sys.argv[1]
 meta = json.load(open(d + '/frames.json')); t0 = meta['pressAt'][0]

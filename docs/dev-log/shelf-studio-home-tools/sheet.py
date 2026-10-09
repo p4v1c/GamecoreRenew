@@ -1,5 +1,7 @@
 # Contact sheet of screencast frames (cropped to the stage), with times relative to the first press.
-import json, sys, glob
+import json
+import sys
+import glob
 from PIL import Image, ImageDraw
 d = sys.argv[1]; start = int(sys.argv[2]) if len(sys.argv) > 2 else 0; n = int(sys.argv[3]) if len(sys.argv) > 3 else 40
 meta = json.load(open(d + '/frames.json'))
