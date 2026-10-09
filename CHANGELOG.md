@@ -17,6 +17,7 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Pressing Play twice in a row no longer resets the saves of the game that is starting.
 - After a power cut, the box no longer believes an old game is still running, and
   double-PS can no longer kill an unrelated process in its place.
 - **The Switch runs Ryujinx (Ryubing) again.** Same tile, same `emu/switch/` games. After

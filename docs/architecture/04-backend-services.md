@@ -736,6 +736,10 @@ catalogue args → BIOS gate → USB notice → `standby.exit_standby()` → wai
 pad profiles → release stale slots → profile saves → per-game config → pack
 `prepare_launch` → pack `launch_command` → `process_manager.launch()` → udev
 re-fire / fullscreen tasks. Refusals raise `LaunchRefused(status, detail)`; the router maps them.
+The foreground check also claims a module-level `_launching` flag, held until
+the spawn returns: a second launch arriving meanwhile is refused (409) before
+any preparation. Without it, the refused launch re-placed and then released the
+running game's profile saves.
 Every preparation step is budgeted and never raises: a late config costs a
 session, a failed launch costs the box. The one exception is
 `_place_profile_saves()` (`profile_saves.place`): when a pack that separates
