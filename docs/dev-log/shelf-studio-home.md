@@ -283,3 +283,13 @@ Everything above is done, committed and pushed. Last step: the final commit
 with the swap step cap, the test updates and this log. Nothing is pending
 locally. If resuming: verify on the real console (Electron), and optionally
 regenerate `preview.png`.
+
+## Follow-up: back covers warmed too
+
+`lib/swap.js` now warms each resting neighbour's `box-back` as well as its
+front (±1, ±2, 400 ms after the cursor stops), so a flipped or turning box
+already has its reverse decoded. Spines are not warmed: they already stand in
+the row. Disk caching is unchanged and already covers every image at boot
+(`backend/services/prefetch.py`, GAMECORE_WARM_MEDIA). Checks: check-theme 0
+errors, `npx vitest run src/themes/shelfSwap.test.tsx` 5 passed,
+`pytest backend/tests/test_theme_versions.py` passed.

@@ -212,16 +212,21 @@ export const createUseSwap = (sdk) => {
     useEffect(() => { S.jackets.forEach((j) => { j.mode = null; apply(j) }) }, [mode])
     useEffect(() => () => { if (S.raf) cancelAnimationFrame(S.raf) }, [])
 
-    // Warm the neighbours' jackets once the cursor rests, so the next box out
-    // has its front decoded before it turns to face you.
+    // Warm the neighbours once the cursor rests, so the next box out has its
+    // front and back decoded before it turns to face you or is flipped. The
+    // spine needs nothing: it is already standing in the row. A game with no
+    // back scan answers 404 from its cached manifest, which costs nothing.
     useEffect(() => {
       const t = setTimeout(() => {
         for (const d of [1, -1, 2, -2]) {
           const g = games[selectedIdx + d]
           if (!g) continue
-          const img = new Image()
-          img.decoding = 'async'
-          img.src = jacket(systemId, g.filename)
+          for (const src of [jacket(systemId, g.filename),
+            sdk.api.media.url(systemId, g.filename, 'box-back')]) {
+            const img = new Image()
+            img.decoding = 'async'
+            img.src = src
+          }
         }
       }, 400)
       return () => clearTimeout(t)
