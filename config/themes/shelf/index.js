@@ -7,7 +7,8 @@
  *
  *   views/  splash · background (the wall) · box (solid, spines) · topbar
  *           home (consoles) · library (the shelf) · cartridge · gamepad
- *   lib/    accent · names · dossier · browse (flip, restack) · idle
+ *   lib/    accent · names · dossier · browse (flip, restack) · swap (the
+ *           jacket put back / taken out) · idle · consoles · home-data · trim
  *
  * Settings and the power menu are the host's (`sdk.defaults.createSettings`,
  * `createPowerView`), dressed via `gcs-*` classes. The wallpaper is
@@ -19,6 +20,7 @@ import { createAccentStore } from './lib/accent.js'
 import { createUseIdle } from './lib/idle.js'
 import { createUseBrowse } from './lib/browse.js'
 import { createUseDossier } from './lib/dossier.js'
+import { createUseSwap } from './lib/swap.js'
 
 import { createBackground } from './views/background.js'
 import { createTopBar } from './views/topbar.js'
@@ -52,6 +54,7 @@ export default (sdk) => {
     accent,
     useBrowse: createUseBrowse(sdk),
     useDossier: createUseDossier(sdk),
+    useSwap: createUseSwap(sdk),
     Box: createBox(sdk),
     Cartridge: createCartridge(sdk),
   })

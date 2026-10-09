@@ -43,7 +43,7 @@ export const createSessionBar = (sdk) => {
           </div>
           <div class="cz-session-title">
             <strong>${title(s)}</strong>
-            <small>${noun === 'app' ? 'Application' : 'Game'} paused, still open</small>
+            <small>${s.kind === 'app' ? 'Application' : 'Game'} paused, still open</small>
           </div>
           <div class="cz-session-acts">
             <button class="cz-btn cz-btn-primary" disabled=${busy}
