@@ -75,6 +75,14 @@ describe('the host bar', () => {
     expect(screen.getByText('Zelda')).toBeTruthy()
   })
 
+  it('names an application by its pack label, not its id', async () => {
+    vi.spyOn(api.systems, 'list').mockResolvedValue([{ id: 'stremio', kind: 'app', label: 'Stremio' }] as never)
+    render(<SessionBar />)
+    held(APP)
+    expect(await screen.findByText('Stremio')).toBeTruthy()
+    expect(screen.queryByText('stremio')).toBeNull()
+  })
+
   it('says application, not game, when that is what it is', () => {
     // Getting this wrong is the interface talking about a game the player
     // never started. A tile with no ROM launches with game_key === system_id.

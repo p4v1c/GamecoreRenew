@@ -17,6 +17,8 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- An application left in the background is named as on its tile ("YouTube", not
+  "youtube") in the session bar and menu, on every theme.
 - Orbit: an application left in the background (YouTube, Steam, Twitch…) shows its
   logo in the session dock and menu, instead of two letters.
 - An update that fails half-way (dependencies, console helpers) now puts the previous
