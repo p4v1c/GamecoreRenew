@@ -712,8 +712,11 @@ without storing any session state.
 ## `ws.py` and `db.py` (backend root)
 
 `ws.py` — `connect(ws)` (accepts and replays `game:running` if a game is
-already up), `disconnect(ws)`, `broadcast(event, data)` (drops dead clients),
-`set_current_game(game)`.
+already up), `disconnect(ws)`, `broadcast(event, data)`, `set_current_game(game)`.
+`broadcast` sends to all clients concurrently, each send bounded by
+`SEND_TIMEOUT` (2 s); a client that errors or stalls is dropped and its socket
+closed so the UI reconnects. Awaiting sends one by one with no timeout let one
+stuck client stall launches, addon CLI output and the OTA log pump.
 
 `db.py` — `get_db()` returns a live `aiosqlite` handle, re-opening it if the
 cached one has gone stale; `init_db()` creates the `playtime` and `sessions`

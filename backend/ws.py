@@ -1,11 +1,17 @@
 """WebSocket broadcast manager."""
+import asyncio
 import json
 import logging
 from fastapi import WebSocket
 
 log = logging.getLogger(__name__)
 
+# A client whose socket stopped draining would otherwise hold up every
+# broadcast: launches, addon CLI output, the OTA log pump.
+SEND_TIMEOUT = 2.0
+
 _clients: list[WebSocket] = []
+_closing: set[asyncio.Task] = set()
 _current_game: dict | None = None
 
 
@@ -41,14 +47,32 @@ def disconnect(ws: WebSocket) -> None:
         _clients.remove(ws)
 
 
+async def _send(ws: WebSocket, payload: str) -> bool:
+    try:
+        await asyncio.wait_for(ws.send_text(payload), SEND_TIMEOUT)
+        return True
+    except Exception as e:
+        log.debug("ws broadcast failed (client will be dropped): %r", e)
+        return False
+
+
 async def broadcast(event: str, data: dict | None = None) -> None:
+    """Send to every client at once; drop those that fail or stall."""
     payload = json.dumps({"event": event, "data": data or {}})
-    dead = []
-    for ws in _clients:
-        try:
-            await ws.send_text(payload)
-        except Exception as e:
-            log.debug("ws broadcast failed (client will be dropped): %s", e)
-            dead.append(ws)
-    for ws in dead:
-        disconnect(ws)
+    # A snapshot: connect()/disconnect() may change the list while we await.
+    clients = list(_clients)
+    sent = await asyncio.gather(*(_send(ws, payload) for ws in clients))
+    for ws, ok in zip(clients, sent):
+        if not ok:
+            disconnect(ws)
+            # Closed, not just forgotten: the UI reconnects on close and resyncs.
+            task = asyncio.create_task(_close(ws))
+            _closing.add(task)          # the loop holds tasks only weakly
+            task.add_done_callback(_closing.discard)
+
+
+async def _close(ws: WebSocket) -> None:
+    try:
+        await asyncio.wait_for(ws.close(), SEND_TIMEOUT)
+    except Exception:
+        pass
