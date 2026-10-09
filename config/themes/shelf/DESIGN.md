@@ -19,14 +19,26 @@ bevels. No blur, no glow. Gradients only where they model light on cardboard
 or plastic.
 
 **Motion:** the box turns (L2), restacks (R2), the cartridge goes in (launch,
-`launch.ms`). Spines never move on their own.
+`launch.ms`). Moving along the shelf always puts the box back and takes the
+next one out; pressing faster makes it faster, never skips it. Spines never
+move on their own.
 
 **Sound:** cardboard, wood, plastic (`lib/sounds.js`): a fingertip tap on
 move, marimba notes on confirm and back, the cartridge sliding and clunking in
 on launch. Synthesized, played into the host's volume.
 
 **Copy:** printed-label feel in sentence case; publisher on the box back may
-be uppercase like real print. No "·" meta, no em dashes as joiners.
+be uppercase like real print. No "·" meta, no em dashes as joiners — with one
+approved exception: the home's eyebrow (`NINTENDO · 2011 · HANDHELD`), set
+uppercase and tracked like a product sheet.
+
+**Home (Studio):** the paper wall, the console's photo on the right, the copy
+top left in Archivo (name 100px / 850, -0.045em), stats on white 14px cards,
+an ink pill with a ring of the console's colour for ✕, a white pill for △.
+The bottom 330px fade to white (#fbfaf7 → #fff), the studio sweep; consoles
+stand on it with a contact shadow and a faint reflection, apps as white 124px
+tiles (radius 32). Focus: larger, name bold ink, a 44×4 bar in the console's
+colour. Never a full-screen colour wash.
 
 **Legibility:** ink-3 `#66646D` is the faintest text (4.6:1 on paper-sink).
 Anything read on the wall sits on a paper plate (`base.css`): bare text over

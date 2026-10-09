@@ -11,9 +11,12 @@
  *   suspend  the game let go and the shelf is back — the iris opens
  *
  * The same iris both ways, so the box has one gesture for "the screen changes
- * hands" rather than three unrelated ones. `launch` is deliberately ignored
- * here: the library is already drawing it, and two overlays for one handover
- * is worse than none.
+ * hands" rather than three unrelated ones. A `launch` from the library is
+ * ignored here: the library is already drawing it, and two overlays for one
+ * handover is worse than none. A launch from the HOME screen (△ on a console
+ * starts the last game played on it, views/home.js) has no shelf and no
+ * cartridge on screen, so it gets the resume's iris — a game is about to take
+ * the screen either way, and the home passes CLOSE_MS as the hold.
  *
  * The host says when — `transition` in the store, set by the resume the session
  * bar sends and by the backgrounded event — and holds the resume for
@@ -38,16 +41,18 @@ export const createCeremony = (sdk) => {
 
   return () => {
     const transition = sdk.nav.use((s) => s.transition)
+    const screen = sdk.nav.use((s) => s.screen)
     // Held one beat past the store, so the picture finishes instead of being
     // unmounted on the frame the host stops caring.
     const [shown, setShown] = useState(null)
 
     useEffect(() => {
       if (transition === 'resume' || transition === 'suspend') { setShown(transition); return }
+      if (transition === 'launch' && screen === 'home') { setShown('resume'); return }
       if (!shown) return
       const hold = setTimeout(() => setShown(null), HIDE_GRACE_MS)
       return () => clearTimeout(hold)
-    }, [transition, shown])
+    }, [transition, shown, screen])
 
     if (!shown) return null
 

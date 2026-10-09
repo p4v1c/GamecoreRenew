@@ -228,41 +228,33 @@ Released / Developer / Publisher / Genre / Players — not a row of chips. One
 `sdk.api.media.list()` answers with the metadata *and* the artwork catalogue,
 so the card costs one request, on the settled selection only.
 
-**The dashboard is a horizontal rail, and the host's pager is untouched.**
-`HomeScreen` traverses a COLS × ROWS grid across pages and a theme may not
-change that. But read its `navigate()` closely and the grid already *is* a set
-of horizontal lanes: pressing right at the last column turns the page and lands
-on `row * COLS` — the same row. From system 3 you go to system 8, never to 4.
+**The dashboard is a studio shot, and the host's pager is untouched.**
+The manifest asks for one unpaged row (`home: {rows: 1, paged: false}`), so
+←→ walk every console and then every app as one list, exactly as the host
+pages it. What the theme draws over that list:
 
-```
-grid, as the host pages it        the same thing, drawn as lanes
-page 0      page 1                lane 0 ▸ 0 1 2 3 8 9 10 11 …
-0 1 2 3     8  9 10 11            lane 1 ▸ 4 5 6 7 12 13 14 15 …
-4 5 6 7    12 13 14 15
-```
+- top left, the focused console's maker, year and kind (in its pack colour,
+  darkened by `onPaper()` until it reads on paper), its name set at 100px,
+  one sentence, the real stats (games, time played, last played), ✕ *Open
+  library* and △ *Resume <last game>*, and up to four recently played covers;
+- on the right, the console's photo (`system.art.console`, the pack's own);
+- along the bottom, the paper fading to white like a photographer's sweep,
+  with every console standing on it as a photo, then a thin rule and the apps
+  as white rounded tiles. Logos are cropped to their ink at runtime
+  (`lib/trim.js`), so a mark drawn small on a big canvas still fills its tile.
 
-So each grid row is laid out as one continuous rail, and ←→ walks it linearly
-straight through the page boundary, ↑↓ changes lane, L1/R1 still pages.
-Nothing is rebound and nothing is reimplemented — what you feel under your
-thumb is the pager the host wrote.
+The maker, year and sentence are not on the box: `lib/consoles.js` carries
+them, copied from Orbit's catalog (themes do not import each other). A pack
+missing there shows no eyebrow and no sentence rather than an invented one.
 
-The view reads `cols` and `rows` from props rather than assuming 4 and 2, so
-**setting `ROWS = 1` (and `COLS` to taste) in
-`frontend/src/components/HomeScreen/index.tsx` turns this into a single
-unbroken rail** with no change to the theme. `DefaultHomeView` builds its grid
-from the same two props, so it follows too. That is the one-line change if you
-want the pure single-row feel; the theme is correct either way.
+△ is the one button the theme binds here, because the host leaves it free on
+this screen: on a console it starts the last game played on it (the iris of
+views/ceremony.js covers the hold); on an app running in the background it
+closes it, on a second press. ↑↓ do nothing: the row is the only zone.
 
-Every console on the rail is the same solid the library builds, on the same
-plank, under the same card. Four faces instead of six: a console box is never
-flipped and never seen from below, so a back and a bottom would be hidden
-layers for nothing. The artwork is the system's own logo — there is no
-`box-front` for a console — on cardboard under a band of its accent colour,
-which the spine repeats.
-
-**The screensaver is the default.** The standby slideshow is dark cover art,
-which is right for a room that has gone quiet, and nothing in the capture
-suggested otherwise.
+A full-screen colour wash per console was mocked and refused: it read as
+generated, and it repainted the room on every step, which is why the wall
+stopped taking the jacket's colour too.
 
 ## Searching
 
@@ -314,8 +306,10 @@ Six animated elements at rest, and every one stops.
 |---|---|---|---|
 | two wallpaper layers | `transform` | 140s / 190s loop | paused on standby and while a game runs |
 | the rail | `transform` | 340ms | static |
-| the solid (turn / flip) | `transform` | 620ms | static |
-| a console box turning to focus | `transform` | 420ms | static |
+| the solid (flip) | `transform` | 620ms | static |
+| the jacket swap (lib/swap.js, rAF) | `transform` | 360ms back + 560ms out at rest, down to a third in a burst | stops when the box is in hand |
+| home row / focused console | `transform` | 420ms / 320ms | static |
+| home photo and copy on focus | `transform` `opacity` | 460ms / 320ms | plays once per focus |
 | screen entrance (5 elements, staggered) | `transform` `opacity` | 420–560ms | plays once on arrival |
 | the wall tint | `background-color` | 900ms | static |
 | boot: rise then iris | `transform` | 900ms + 620ms | only while launching |
@@ -334,17 +328,19 @@ Six animated elements at rest, and every one stops.
 What to look at, per surface:
 
 - **splash** — a cartridge drops into a slot, overshoots, settles; wordmark fades up.
-- **home** — consoles on two horizontal planks. Hold ← or →: the rail slides
-  sideways and keeps sliding *through* the page boundary without jumping to
-  the other plank. ↑↓ swaps plank. The focused box should *turn* towards you
-  and lift, and the wall retints to its colour.
+- **home** — hold ← or →: the row on the sweep slides to keep the focus in
+  view and the photo on the right changes with it. The apps sit past the rule;
+  their marks should all look the same size. △ on a console you played starts
+  that game behind the iris.
 - **the transition** — ✕ on a console, then ○ back, a few times. The arriving
   screen should build itself in each way, not appear whole.
 - **search** — △ opens the host's keyboard; the bar shows what you typed and
   the hit count. Type in the field with a mouse and the shelf filters live.
-- **library** — spines slide, the centre box holds still and its artwork settles
-  150ms behind the cursor. **L2** turns it over: watch it go *past the opening
-  edge*, not cross-fade. **R2** three times returns you to `shelf`.
+- **library** — spines slide; each step puts the box in your hand back into
+  the row and takes the next one out. Tap → quickly: it must still animate,
+  faster, and never cut or show a black box. **L2** turns it over: watch it go
+  *past the opening edge*, not cross-fade. **R2** three times returns you to
+  `shelf`.
 - **alphabet rail** — jump with the mouse; sort by playtime with L1/R1 and the
   rail hands over to a sort note, because letters mean nothing under that sort.
 - **boot** — ✕. The card empties, the cartridge rises and fills the screen, the
@@ -363,7 +359,7 @@ strongly tinted, the box turned about 25°, the card visible at the right.
 ```
 index.js       the wiring, and nothing else
 theme.json  theme.css  README.md
-views/   splash.js     the cartridge going in    home.js       the consoles
+views/   splash.js     the cartridge going in    home.js       the studio home
          background.js the wall                  library.js    the shelf
          box.js        the solid and its spines  cartridge.js  the media
          topbar.js     the shelf label           settings.js   the drawer
@@ -371,6 +367,8 @@ views/   splash.js     the cartridge going in    home.js       the consoles
          gamepad.js    the live pad
 lib/     paper.js      the wallpaper, as a mask  accent.js     the colour
          names.js      titles, letters, regions  dossier.js    one lookup
+         swap.js       the jacket put back/out   consoles.js   maker, year, sentence
+         home-data.js  recent games, playtime    trim.js       logos cropped to ink
          browse.js     flip and restack          idle.js       is anyone here
 ```
 

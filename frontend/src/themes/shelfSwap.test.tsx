@@ -1,26 +1,20 @@
 /**
- * The jacket coming out of the shelf, and what a second press does to it.
+ * The jacket put back into the shelf and the next one taken out.
  *
- * Two defects from the 2026-09-04 audit (findings 4 and 5), both on the same
- * gesture and both about time rather than about pixels.
+ * The gesture used to be two keyframe animations on two keyed holders. A
+ * keyframe cannot be interrupted, only cancelled, so a second press inside the
+ * 360 ms put-back deleted the outgoing jacket mid-turn and kept the next one
+ * hidden: tapping → at any ordinary pace showed no animation at all. And the
+ * jacket going back was a NEW holder with a new solid, so its scans loaded
+ * again and the faces painted board-black until they had (the black flash).
  *
- *   · The travel and the turn ran on two different clocks. The holder was
- *     keyed on the cursor and mounted on the press; the solid inside it was
- *     keyed on the settled selection and therefore replaced 150 ms later, with
- *     a fresh animation. Measured in a browser half a second after a step: 500
- *     ms elapsed on the travel, 333 ms on the turn — the box had set off down
- *     the shelf and was still standing edge-on.
- *
- *   · A second press half a second in deleted the outgoing jacket and re-hid
- *     the arriving one, leaving nothing on the stage at all. That was written
- *     for a burst, where nothing has come out yet and there is nothing to
- *     preserve; applied to a jacket already standing at the front, it deletes
- *     what the player is looking at.
- *
- * jsdom runs no animations, so what is asserted here is the structure they run
- * on: which node draws which game, whether one node is replaced while its
- * animation would be running, and how many solids are on the stage. How it
- * looks on a television is the owner's to judge and is not claimed below.
+ * lib/swap.js replaced both with one progress value per jacket, moved every
+ * animation frame. jsdom draws nothing, so what is asserted is the structure
+ * that guarantees the motion: a jacket's elements are never replaced while it
+ * moves, a jacket leaves the stage only when it is back in its column, every
+ * press in a burst has a jacket on stage, and a box sent back mid-way turns
+ * from the angle it had rather than jumping. How it looks on a television is
+ * the owner's to judge; docs/dev-log/shelf-studio-home.md has the frames.
  */
 import { render, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -52,7 +46,9 @@ beforeEach(() => {
   // "press, wait 100 ms, press" ran past the 360 ms handover on a slow machine
   // and exercised the opposite branch. Driven timers make each press land
   // exactly where the test says it does.
-  vi.useFakeTimers()
+  // requestAnimationFrame and performance too: the swap is driven per frame.
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval',
+    'Date', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] })
   stubStageWidth(STAGE_W)
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(typeof input === 'string' ? input : (input as Request).url ?? input)
@@ -107,89 +103,91 @@ const wait = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync
 /** Longer than PUSH_MS + 560, so the whole gesture is over. */
 const settle = () => wait(1200)
 
-const arriving = (c: HTMLElement) => c.querySelector('.cz-hold[data-phase="in"]')
-const solids = (c: HTMLElement) => [...c.querySelectorAll('.cz-hold')]
-  .filter(n => n.getAttribute('data-tucked') !== '1')
+const holder = (c: HTMLElement, i: number) =>
+  c.querySelector(`.cz-hold[data-game="${GAMES[i].filename}"]`) as HTMLElement | null
+const holders = (c: HTMLElement) => [...c.querySelectorAll('.cz-hold')] as HTMLElement[]
+/** The angle the solid is turned to, from the transform the swap writes on it. */
+const turn = (h: HTMLElement | null) => {
+  const t = (h?.querySelector('.cz-box') as HTMLElement | null)?.style.transform || ''
+  const m = /rotateY\((-?[\d.]+)deg\)/.exec(t)
+  return m ? Number(m[1]) : null
+}
+const gap = (c: HTMLElement, i: number) =>
+  [...c.querySelectorAll('.cz-slot')].find((s) => s.querySelector(`[aria-label="Game ${String(i).padStart(3, '0')}"]`))
+    ?.getAttribute('data-gap')
 
-describe('the jacket and the clock it moves on', () => {
-  it('never replaces the solid inside a holder that is already animating', async () => {
+describe('the jacket and the frames it moves on', () => {
+  it('never replaces a jacket while it moves, and hands the rest pose back to CSS', async () => {
     const { container } = await shelf(); await settle()
-    const h0 = arriving(container)
-    const b0 = h0?.querySelector('.cz-box')
-
     await press('gp:dpad-right')
-    await wait(20)                       // before the artwork settles
-    const h1 = arriving(container)
+    await wait(400)
+    const h1 = holder(container, 1)
     const b1 = h1?.querySelector('.cz-box')
-
-    await wait(300)                      // after it
-    const h2 = arriving(container)
-    const b2 = h2?.querySelector('.cz-box')
-
-    // The invariant, and the whole of finding 4: a new solid is a new holder.
-    // The travel runs on the holder and the turn on the solid, so a solid
-    // rebuilt underneath a surviving holder is a gesture on two clocks — 500
-    // ms elapsed on one and 333 on the other, measured in a browser.
-    expect(b2 === b1).toBe(h2 === h1)
-    expect(b1 === b0).toBe(h1 === h0)
-    expect(b2).not.toBe(b0)              // and it did follow the cursor
+    expect(h1).not.toBeNull()
+    await wait(200)                      // the artwork has settled by now
+    expect(holder(container, 1)).toBe(h1)
+    expect(holder(container, 1)?.querySelector('.cz-box')).toBe(b1)
+    await settle()
+    expect(holder(container, 1)).toBe(h1)
+    // In the hand and still: the stylesheet owns the pose again (and the flip).
+    expect((h1?.querySelector('.cz-box') as HTMLElement).style.transform).toBe('')
   })
 
-  it('pays back the settle delay so the jacket still comes out on time', async () => {
-    // The arriving holder is mounted when the selection settles, 150 ms after
-    // the press, and its CSS delay exists to let the outgoing jacket land
-    // first. Counted from the mount it would arrive 150 ms late — and the row
-    // gives its column up on the press's clock, not the mount's, so those 150
-    // ms are exactly the window in which two spines are drawn in one column.
+  it('puts the last box back into its column instead of deleting it', async () => {
     const { container } = await shelf(); await settle()
+    const h0 = holder(container, 0)
     await press('gp:dpad-right')
-    await wait(200)
-    const style = arriving(container)?.getAttribute('style') ?? ''
-    const wait_ms = Number(/--wait:\s*(\d+)ms/.exec(style)?.[1] ?? NaN)
-    expect(wait_ms).toBeGreaterThan(100)
-    expect(wait_ms).toBeLessThan(320)
+    await wait(50)
+    expect(holder(container, 0)).toBe(h0)        // still on stage, same element
+    expect(gap(container, 0)).toBe('1')          // its column is still empty
+    await settle()
+    expect(holder(container, 0)).toBeNull()      // home, and drawn by the row again
+    expect(gap(container, 0)).toBe('0')
   })
 
   it('draws the game its holder is keyed on, never the previous one', async () => {
     const { container } = await shelf(); await settle()
     await press('gp:dpad-right')
     await settle()
-    // The card names the settled game; the box must be the same game.
     const name = container.querySelector('.cz-card-name')?.textContent
-    const alt = arriving(container)?.querySelector('.cz-f-front img')?.getAttribute('alt')
+    const alt = holder(container, 1)?.querySelector('.cz-f-front img')?.getAttribute('alt')
     expect(alt).toBe(name)
+    expect(holders(container)).toHaveLength(1)
   })
 })
 
-describe('a second press, and what is left standing', () => {
-  it('keeps a solid on the stage when the jacket is already out', async () => {
+describe('a burst on the d-pad', () => {
+  it('always has a jacket on stage, and ends with the right one in hand', async () => {
     const { container } = await shelf(); await settle()
-    await press('gp:dpad-right')
-    await wait(500)
-    // The arriving jacket has come out of the row by now.
-    expect(arriving(container)?.getAttribute('data-tucked')).toBe('0')
-
-    await press('gp:dpad-right')
-    expect(solids(container).length).toBeGreaterThan(0)
-    await wait(50)
-    expect(solids(container).length).toBeGreaterThan(0)
+    for (let i = 0; i < 4; i++) {
+      await press('gp:dpad-right')
+      for (let t = 0; t < 120; t += 20) {
+        await wait(20)
+        expect(holders(container).length).toBeGreaterThan(0)
+      }
+    }
+    await settle(); await settle()
+    expect(useStore.getState().selectedGameIdx).toBe(4)
+    expect(holders(container).map((h) => h.getAttribute('data-game'))).toEqual([GAMES[4].filename])
   })
 
-  it('still slides with nothing in hand during a real burst', async () => {
-    // Presses inside the wait before anything comes out: no outgoing jacket,
-    // the row simply moves. This is the behaviour the cancellation was written
-    // for and it is deliberately kept — there is nothing on screen to preserve.
+  it('turns a box sent back mid-way from the angle it had, without a jump', async () => {
     const { container } = await shelf(); await settle()
     await press('gp:dpad-right')
-    await wait(100)
+    // Long enough for the next box to be part way through turning to face you.
+    let before: number | null = null
+    for (let t = 0; t < 900 && !(before != null && before < 80); t += 16) {
+      await wait(16); before = turn(holder(container, 1))
+    }
+    expect(before).not.toBeNull()
+    expect(before!).toBeLessThan(80)
+    const h1 = holder(container, 1)
     await press('gp:dpad-right')
-    await wait(100)
-    await press('gp:dpad-right')
-    expect(container.querySelector('.cz-hold[data-phase="out"]')).toBeNull()
-    expect(arriving(container)?.getAttribute('data-tucked')).toBe('1')
-    // And it ends with the jacket out, once the player stops.
-    await settle()
-    expect(arriving(container)?.getAttribute('data-tucked')).toBe('0')
-    expect(useStore.getState().selectedGameIdx).toBe(3)
+    await wait(16)
+    const after = turn(holder(container, 1))
+    expect(holder(container, 1)).toBe(h1)        // same element, not a new one
+    expect(after).not.toBeNull()
+    expect(after!).toBeGreaterThanOrEqual(before!)  // heading back to edge-on…
+    expect(after! - before!).toBeLessThan(30)       // …from where it was
   })
 })

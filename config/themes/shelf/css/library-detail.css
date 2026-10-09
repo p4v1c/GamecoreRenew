@@ -97,10 +97,6 @@
   padding-top: 12px;
   font-family: var(--font-body, inherit); font-variant-numeric: tabular-nums; font-size: 16px; color: var(--ink-2);
 }
-/* The dashboard's foot is the last thing in its column, so `margin-top: auto`
-   drops it onto the bottom edge instead of leaving it wherever the row above
-   happens to end. */
-.cz-ps > .cz-foot { margin-top: auto; padding-bottom: 2px; }
 .cz-lib[data-booting="1"] .cz-count { color: var(--ink); }
 
 /* The button legend is the one thing on screen you look for while holding a
