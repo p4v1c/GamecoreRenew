@@ -112,7 +112,7 @@ _need_kb=$(du -sk "${SRC_DIR}" 2>/dev/null | cut -f1)
 _free_kb=$(df -Pk "${GAMECORE_PATH}" 2>/dev/null | awk 'NR==2 {print $4}')
 if [[ -n "$_need_kb" && -n "$_free_kb" ]] && (( _free_kb < _need_kb * 2 )); then
   # fail() is defined at the top of this file; the definition shellcheck found
-  # is the REDEFINITION further down, which adds the restore hint once there is
+  # is the REDEFINITION further down, which restores the snapshot once there is
   # a snapshot to restore from. Before that point there is nothing to restore,
   # and the plain one is the right one.
   # shellcheck disable=SC2218
@@ -132,11 +132,8 @@ fi
 # in them worth going back to. What is left is exactly the code rsync replaces,
 # which is what the snapshot is for.
 #
-# Deliberately NOT restored automatically. A trap that rolls back on any
-# failure has to be right about a machine whose state it does not know, and
-# this path could not be exercised here — an automatic restore that goes wrong
-# turns a recoverable update into an unbootable box. The snapshot plus the
-# exact command is the part that is safe to ship untested.
+# Restored automatically by fail() below: new code left on disk with old
+# dependencies and no VERSION boots broken at the next restart.
 PREV_DIR="${GAMECORE_PATH}.prev"
 if rm -rf "$PREV_DIR" 2>/dev/null && \
    rsync -a --delete \
@@ -151,13 +148,27 @@ if rm -rf "$PREV_DIR" 2>/dev/null && \
     echo "[update] (no --delete: the snapshot excludes .venv, node_modules, emu/ and"
     echo "[update]  config/, which must not be removed from the live install)"
   }
+  # The snapshot's excludes (so --delete drops only what the release added),
+  # plus the data dirs the deploy never writes but the backend may have changed.
+  restore_prev() {
+    echo "[update] Restoring the previous install from ${PREV_DIR}..."
+    if rsync -a --delete --exclude='.venv/' --exclude='node_modules/' --exclude='emu/' \
+         --exclude='config/' --exclude='logs/' --exclude='VERSION' --exclude='/assets/overlays/' \
+         --exclude='/assets/logos/' --exclude='/assets/art/' --exclude='/addons/' --exclude='/volumes/' \
+         "${PREV_DIR}/" "${GAMECORE_PATH}/"; then
+      echo "[update] Previous code restored; the update will be offered again."
+      echo "[update] Not rolled back: .venv, and /usr/local/bin helpers the session refresh copied."
+    else
+      echo "[update] Automatic restore FAILED."; restore_hint
+    fi
+  }
 else
   echo "[update] WARNING: could not snapshot the current install — no easy way back if this fails."
-  restore_hint() { :; }
+  restore_prev() { echo "[update] No snapshot: the install is left half-updated."; }
 fi
 
-# From here on, a failure leaves files half-replaced: say how to undo it.
-fail() { echo "[update] ERROR: $*"; restore_hint; exit 1; }
+# From here on, a failure leaves files half-replaced: put the old ones back.
+fail() { echo "[update] ERROR: $*"; restore_prev; exit 1; }
 
 echo "[update] Installing new files..."
 # Excluded paths are user data — never overwrite them:

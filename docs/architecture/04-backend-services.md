@@ -25,7 +25,7 @@ State: `_proc`, `_launching`, `_game_key`, `_system_id`, `_start_time`,
 | `current_game` | `{game_key, system_id}` or `None` |
 | `launch(...)` | builds argv (`shlex.split` + ROM), spawns with its output in `logs.launch_output()`, records the session, broadcasts `game:started`, starts `_watch()` |
 | `_save_session()` / `_clear_session()` | write/remove `config/session.json` atomically |
-| `adopt_orphan()` | at startup, re-attach to a game a previous backend left running |
+| `adopt_orphan()` | at startup, re-attach to a game a previous backend left running — only if boot id and leader start time match (`process_identity.py`) |
 | `kill()` | orphan → `_kill_orphan()`; otherwise `_flatpak_kill()` then `_proc_kill()` |
 | `_flatpak_kill()` | finds the app-id (token after `run`) and runs `flatpak kill <app-id>`, 1 s timeout |
 | `_proc_kill()` | delegates to `kill_process_group()` |
@@ -712,8 +712,11 @@ without storing any session state.
 ## `ws.py` and `db.py` (backend root)
 
 `ws.py` — `connect(ws)` (accepts and replays `game:running` if a game is
-already up), `disconnect(ws)`, `broadcast(event, data)` (drops dead clients),
-`set_current_game(game)`.
+already up), `disconnect(ws)`, `broadcast(event, data)`, `set_current_game(game)`.
+`broadcast` sends to all clients concurrently, each send bounded by
+`SEND_TIMEOUT` (2 s); a client that errors or stalls is dropped and its socket
+closed so the UI reconnects. Awaiting sends one by one with no timeout let one
+stuck client stall launches, addon CLI output and the OTA log pump.
 
 `db.py` — `get_db()` returns a live `aiosqlite` handle, re-opening it if the
 cached one has gone stale; `init_db()` creates the `playtime` and `sessions`
@@ -736,6 +739,10 @@ catalogue args → BIOS gate → USB notice → `standby.exit_standby()` → wai
 pad profiles → release stale slots → profile saves → per-game config → pack
 `prepare_launch` → pack `launch_command` → `process_manager.launch()` → udev
 re-fire / fullscreen tasks. Refusals raise `LaunchRefused(status, detail)`; the router maps them.
+The foreground check also claims a module-level `_launching` flag, held until
+the spawn returns: a second launch arriving meanwhile is refused (409) before
+any preparation. Without it, the refused launch re-placed and then released the
+running game's profile saves.
 Every preparation step is budgeted and never raises: a late config costs a
 session, a failed launch costs the box. The one exception is
 `_place_profile_saves()` (`profile_saves.place`): when a pack that separates

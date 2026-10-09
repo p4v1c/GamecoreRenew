@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timezone
 
 from .. import ws
-from . import logs, playtime_rows, profile_saves
+from . import logs, playtime_rows, process_identity, profile_saves
 from .paths import config_dir
 from ..db import get_db
 from .session import display_env
@@ -49,7 +49,7 @@ def _pgid_alive(pgid: int) -> bool:
     except ProcessLookupError:
         return False
     except PermissionError:
-        return True          # the group exists; we merely may not signal it
+        return False         # every group we start is ours to signal
     except OSError:
         return False
     return True
@@ -79,14 +79,15 @@ class Session:
 
     __slots__ = ("proc", "orphan_pgid", "game_key", "system_id", "rom_path",
                  "exec_path", "launch_args", "start_time", "session_id",
-                 "state", "bg_since", "bg_total")
+                 "state", "bg_since", "bg_total", "leader_start")
 
     def __init__(self, *, proc=None, orphan_pgid: int = 0, game_key: str = "",
                  system_id: str = "", rom_path: str = "", exec_path: str = "",
                  launch_args: list[str] | None = None, start_time: float = 0.0,
                  session_id: int = 0, state: str = "foreground",
-                 bg_since: float = 0.0, bg_total: float = 0.0):
+                 bg_since: float = 0.0, bg_total: float = 0.0, leader_start: str = ""):
         self.proc = proc
+        self.leader_start = leader_start
         # Set only for a session adopted from a previous backend: we cannot
         # await() something that is not our child, so it is polled by pgid.
         self.orphan_pgid = orphan_pgid
@@ -177,6 +178,9 @@ class Session:
         }
 
     def to_disk(self) -> dict:
+        # Read while the leader lives: adoption needs it to reject a reused pgid.
+        if not self.leader_start:
+            self.leader_start = process_identity.start_time(self.pgid)
         return {
             "pgid": self.pgid,
             "game_key": self.game_key,
@@ -188,6 +192,8 @@ class Session:
             "state": self.state,
             "bg_since": self.bg_since,
             "bg_total": self.bg_total,
+            "boot_id": process_identity.boot_id(),
+            "leader_start": self.leader_start,
         }
 
 
@@ -446,7 +452,7 @@ class ProcessManager:
                 pgid = int(entry.get("pgid") or 0)
             except (TypeError, ValueError):
                 continue
-            if not _pgid_alive(pgid):
+            if not (_pgid_alive(pgid) and process_identity.matches(entry, pgid)):
                 continue
             try:
                 started = float(entry.get("started_at") or time.time())
@@ -467,6 +473,7 @@ class ProcessManager:
                 state=state,
                 bg_since=_as_float(entry.get("bg_since")),
                 bg_total=_as_float(entry.get("bg_total")),
+                leader_start=str(entry.get("leader_start") or ""),
             ))
 
         if not adopted:

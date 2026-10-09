@@ -566,7 +566,9 @@ unnamed. Schema and checks:
 
 The current writer stores `{sessions: [...]}` plus the first session's legacy
 flat fields. Each row contains `pgid`, game/system identity, executable and
-arguments, start time, foreground/background state and suspended-time counters.
+arguments, start time, foreground/background state, suspended-time counters,
+and the group's identity: `boot_id` (`/proc/sys/kernel/random/boot_id`) and
+`leader_start` (field 22 of `/proc/<pgid>/stat`).
 It is written atomically whenever a session launches, suspends, resumes or
 exits; the file disappears when no session remains.
 
@@ -577,9 +579,12 @@ and unkillable — the double-PS shortcut could never close it again. The UI is 
 separate service and does not restart with the backend, so it kept asking and
 nothing answered.
 
-`adopt_orphan()` runs in the lifespan: if the pgid is still alive, the session is
-adopted (reported by `/api/games/session`, killable via `POST /api/games/kill`);
-if not, the file is discarded. This was chosen over killing the game on shutdown,
+`adopt_orphan()` runs in the lifespan: if the pgid is still alive, signalable by
+us, and both identity fields match (`backend/services/process_identity.py`), the
+session is adopted (reported by `/api/games/session`, killable via
+`POST /api/games/kill`); if not, the file is discarded. A row without the
+identity fields (an older build) is discarded too: after a power cut the kernel
+reuses pgids, and adopting one SIGKILLed an unrelated group on double-PS. This was chosen over killing the game on shutdown,
 which would take unsaved progress with it on every OTA **and** would still leave
 a crash — where no shutdown code runs at all — stranding the player.
 

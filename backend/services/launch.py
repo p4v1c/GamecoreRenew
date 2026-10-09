@@ -370,11 +370,24 @@ def _start_background_tasks(system: dict, system_id: str) -> None:
         fs_task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 
 
+_launching = False
+
+
 async def launch(system: dict, system_id: str, rom_path: str, game_key: str) -> dict:
     """Launch `rom_path` (or the app) for `system`. Raises LaunchRefused."""
-    # A second thing on the screen is always refused.
-    if process_manager.is_foreground:
+    global _launching
+    # Checked and claimed with no await between: a second launch slipping past
+    # ran _prepare over the first, then released the running game's saves.
+    if _launching or process_manager.is_foreground:
         raise LaunchRefused(409, "A game is already running")
+    _launching = True
+    try:
+        return await _launch(system, system_id, rom_path, game_key)
+    finally:
+        _launching = False
+
+
+async def _launch(system: dict, system_id: str, rom_path: str, game_key: str) -> dict:
     if rom_path:
         _check_rom_path(system, rom_path)
 
