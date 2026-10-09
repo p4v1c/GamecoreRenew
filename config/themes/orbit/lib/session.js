@@ -43,13 +43,12 @@ export function createSession(sdk) {
   /** Real artwork or none at all — never a stand-in dressed as a cover.
    *
    * A game's `gameKey` IS its ROM filename (routers/games.py), so the cover
-   * endpoint takes it directly. An application has no cover; it falls back to
-   * the console photo Orbit owns for that pack, and then to `Image`'s initials.
+   * endpoint takes it directly. An application has no cover: its pack's logo,
+   * served under its id (catalog/<id>/logo.png), then `Image`'s initials.
    */
   const artOf = (s) => {
     if (!s) return null
-    // An application has no cover and no console photo: initials.
-    if (s.kind === 'app') return null
+    if (s.kind === 'app') return s.systemId ? `/assets/logos/${encodeURIComponent(s.systemId)}.png` : null
     return s.systemId && s.gameKey ? coverUrl(s.systemId, s.gameKey) : null
   }
 

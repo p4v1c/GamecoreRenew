@@ -17,6 +17,8 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Orbit: an application left in the background (YouTube, Steam, Twitch…) shows its
+  logo in the session dock and menu, instead of two letters.
 - An update that fails half-way (dependencies, console helpers) now puts the previous
   version back by itself and is offered again, instead of leaving a half-updated box.
 - A screen that stops reading the box's live updates (a frozen browser tab) no longer
