@@ -17,6 +17,8 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- After a power cut, the box no longer believes an old game is still running, and
+  double-PS can no longer kill an unrelated process in its place.
 - **The Switch runs Ryujinx (Ryubing) again.** Same tile, same `emu/switch/` games. After
   the update: back up `~/.var/app/dev.eden_emu.eden/`, then install Ryujinx from
   Settings or with `gamecore-emu install switch`. That copies Eden's keys, firmware and

@@ -158,6 +158,7 @@ def test_recovery_never_reports_a_freeze_it_did_not_perform(tmp_path,
     monkeypatch.setattr(pm, "SESSION_FILE", session_file)
     monkeypatch.setattr(pm.ws, "set_current_game", lambda data: None)
     monkeypatch.setattr(pm, "_pgid_alive", lambda pgid: True)
+    monkeypatch.setattr(pm.process_identity, "matches", lambda entry, pgid: True)
 
     sent: list[tuple[int, int]] = []
     monkeypatch.setattr(pm.os, "killpg", lambda pgid, sig: sent.append((pgid, sig)))
@@ -188,6 +189,7 @@ def test_recovery_keeps_a_session_it_cannot_fit_rather_than_leaking_it(
     monkeypatch.setattr(pm, "SESSION_FILE", session_file)
     monkeypatch.setattr(pm.ws, "set_current_game", lambda data: None)
     monkeypatch.setattr(pm, "_pgid_alive", lambda pgid: True)
+    monkeypatch.setattr(pm.process_identity, "matches", lambda entry, pgid: True)
     monkeypatch.setattr(pm.os, "killpg", lambda pgid, sig: None)
 
     entries = ",".join(

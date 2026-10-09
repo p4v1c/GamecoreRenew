@@ -25,7 +25,7 @@ State: `_proc`, `_launching`, `_game_key`, `_system_id`, `_start_time`,
 | `current_game` | `{game_key, system_id}` or `None` |
 | `launch(...)` | builds argv (`shlex.split` + ROM), spawns with its output in `logs.launch_output()`, records the session, broadcasts `game:started`, starts `_watch()` |
 | `_save_session()` / `_clear_session()` | write/remove `config/session.json` atomically |
-| `adopt_orphan()` | at startup, re-attach to a game a previous backend left running |
+| `adopt_orphan()` | at startup, re-attach to a game a previous backend left running — only if boot id and leader start time match (`process_identity.py`) |
 | `kill()` | orphan → `_kill_orphan()`; otherwise `_flatpak_kill()` then `_proc_kill()` |
 | `_flatpak_kill()` | finds the app-id (token after `run`) and runs `flatpak kill <app-id>`, 1 s timeout |
 | `_proc_kill()` | delegates to `kill_process_group()` |

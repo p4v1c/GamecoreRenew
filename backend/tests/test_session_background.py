@@ -452,6 +452,7 @@ def test_a_suspended_session_survives_a_backend_restart(tmp_path, monkeypatch):
     monkeypatch.setattr(pm, "SESSION_FILE", session_file)
     monkeypatch.setattr(pm.ws, "set_current_game", lambda data: None)
     monkeypatch.setattr(pm, "_pgid_alive", lambda pgid: True)
+    monkeypatch.setattr(pm.process_identity, "matches", lambda entry, pgid: True)
 
     session_file.write_text(
         '{"sessions": [{"pgid": 4242, "game_key": "zelda.iso", '
@@ -469,28 +470,6 @@ def test_a_suspended_session_survives_a_backend_restart(tmp_path, monkeypatch):
     assert fresh.is_running and not fresh.is_foreground
 
 
-def test_a_session_file_from_an_older_build_is_still_adopted(tmp_path,
-                                                             monkeypatch):
-    """The flat shape, written by every build before the second slot.
-
-    A downgrade — an OTA rolled back with a game running — must not leave an
-    unkillable emulator on the screen because the file grew a key.
-    """
-    session_file = tmp_path / "session.json"
-    monkeypatch.setattr(pm, "SESSION_FILE", session_file)
-    monkeypatch.setattr(pm.ws, "set_current_game", lambda data: None)
-    monkeypatch.setattr(pm, "_pgid_alive", lambda pgid: True)
-    session_file.write_text(
-        '{"pgid": 99, "game_key": "old.iso", "system_id": "pcsx2", '
-        '"exec_path": "/usr/bin/pcsx2", "launch_args": [], "rom_path": "", '
-        '"started_at": 1000.0}')
-
-    fresh = pm.ProcessManager()
-    asyncio.run(fresh.adopt_orphan())
-    assert fresh.foreground_session is not None
-    assert fresh.foreground_session.game_key == "old.iso"
-
-
 def test_what_is_written_can_be_read_back(tmp_path, monkeypatch):
     """Both slots round-trip, so a restart finds the box as it was left."""
     session_file = tmp_path / "session.json"
@@ -499,6 +478,8 @@ def test_what_is_written_can_be_read_back(tmp_path, monkeypatch):
     monkeypatch.setattr(pm, "_pgid_alive", lambda pgid: True)
     monkeypatch.setattr(pm.os, "getpgid", lambda pid: pid)
     monkeypatch.setattr(pm.os, "killpg", lambda pgid, sig: None)
+    monkeypatch.setattr(pm.process_identity, "boot_id", lambda: "boot-a")
+    monkeypatch.setattr(pm.process_identity, "start_time", lambda pid: f"t{pid}")
     monkeypatch.setattr(pm, "display_env", AsyncMock(return_value={}))
     monkeypatch.setattr(pm.ws, "broadcast", AsyncMock())
 

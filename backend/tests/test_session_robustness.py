@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import pytest
 
+from backend.services import process_identity
 from backend.services import process_manager as pm
 
 from backend.services import session as xsession
@@ -157,6 +158,12 @@ def _spawn_sleeper() -> subprocess.Popen:
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def _identity(pid: int) -> dict:
+    """What `_save_state` records beside the pgid to recognise it later."""
+    return {"boot_id": process_identity.boot_id(),
+            "leader_start": process_identity.start_time(pid)}
+
+
 def test_a_restarted_backend_finds_the_running_game(session_file):
     proc = _spawn_sleeper()
     try:
@@ -165,6 +172,7 @@ def test_a_restarted_backend_finds_the_running_game(session_file):
             "system_id": "dolphin", "exec_path": "/usr/bin/dolphin-emu",
             "rom_path": "/run/media/gc/ROMS/gamecube/Melee.iso",
             "launch_args": [], "started_at": time.time(),
+            **_identity(proc.pid),
         }))
 
         fresh = pm.ProcessManager()          # what starting the backend gives you
@@ -199,6 +207,7 @@ def test_the_adopted_game_can_still_be_killed(session_file):
     session_file.write_text(json.dumps({
         "pgid": pgid, "game_key": "Melee.iso", "system_id": "dolphin",
         "exec_path": "/usr/bin/dolphin-emu", "launch_args": [], "started_at": time.time(),
+        **_identity(pgid),
     }))
 
     fresh = pm.ProcessManager()
