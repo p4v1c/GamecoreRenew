@@ -378,3 +378,8 @@ The five UI sounds (`move`, `confirm`, `back`, `launch`, `startup`) are this
 theme's own, synthesized in `lib/sounds.js` from the two helpers in
 `lib/synth.js`; see DESIGN.md for their character. The host still decides when
 each one plays, and the player's sound setting and volume still apply.
+
+The library adds four of its own, played by `lib/browse.js`: `swap` whenever
+the box under the cursor changes (shorter during a burst), `flip` and `unflip`
+on L2, `restack` on R2. The bus still fires `move` for those presses, so
+`move` is silent while the library has the pad.
