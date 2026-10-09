@@ -33,7 +33,7 @@ import httpx
 
 from ..config import SCRAPER_LANG, THEGAMESDB_API_KEY
 from .paths import metadata_dir
-from ..utils import rom_in_root
+from ..utils import atomic_write_json, rom_in_root
 from . import gamemedia, local_media
 from .rom_scanner import clean_name
 from .scraper import TGDB_PLATFORM_MAP, Unreachable
@@ -143,7 +143,7 @@ def _worth_another_look(negative: dict) -> bool:
 
 def _write_negative(cache: Path, tried: list[str]) -> None:
     """Record WHO said no, not just that someone did."""
-    cache.write_text(json.dumps({"found": False, "tiers_tried": sorted(set(tried))}))
+    atomic_write_json(cache, {"found": False, "tiers_tried": sorted(set(tried))})
 
 
 async def resolve(system: dict, filename: str) -> dict | None:
@@ -155,7 +155,7 @@ async def resolve(system: dict, filename: str) -> dict | None:
 
     if cache.is_file():
         try:
-            data = json.loads(cache.read_text())
+            data = json.loads(cache.read_text(encoding="utf-8"))
             if data.get("found") and not _wrong_language(data) \
                     and not _from_a_weaker_source(data):
                 return data
@@ -177,7 +177,7 @@ async def resolve(system: dict, filename: str) -> dict | None:
         manifest = await gamemedia.resolve(sid, str(rom) if rom else filename)
         if manifest is not None and manifest.get("found"):
             data = gamemedia.to_game_meta(manifest)
-            cache.write_text(json.dumps(data, ensure_ascii=False))
+            atomic_write_json(cache, data, ensure_ascii=False)
             return data
         # Counted as tried only when it really answered. `unreachable` means the
         # question could not be asked — a spent quota is not evidence about the
@@ -210,7 +210,7 @@ async def resolve(system: dict, filename: str) -> dict | None:
         # record written here says who wrote it and is left alone from then on,
         # even on a box where gamemedia is configured but does not know the game.
         data["source"] = "thegamesdb"
-        cache.write_text(json.dumps(data, ensure_ascii=False))
+        atomic_write_json(cache, data, ensure_ascii=False)
         return data
     # Only reached when TheGamesDB answered and had nothing. _fetch_tgdb raises
     # on a non-200, so an exhausted quota is no longer written down as "this
