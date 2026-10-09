@@ -32,7 +32,7 @@ import { createSplash } from './views/splash.js'
 import { createGamepadView } from './views/gamepad.js'
 import { createSessionBar, createSessionMenu } from './views/session.js'
 import { createCeremony } from './views/ceremony.js'
-import { SOUNDS } from './lib/sounds.js'
+import { createSounds } from './lib/sounds.js'
 
 export default (sdk) => {
   // The two screens this theme shares with Summer and with the built-in
@@ -80,7 +80,7 @@ export default (sdk) => {
   // `sessionBar` is optional: the host draws its own if a theme omits one, so
   // the way back to a suspended game can never be lost to a theme. Shelf draws
   // it as the ledge under the shelf — see views/session.js.
-  return { splash: createSplash(sdk), shell: Shell, sounds: SOUNDS,
+  return { splash: createSplash(sdk), shell: Shell, sounds: createSounds(sdk),
            sessionBar: createSessionBar(sdk), sessionMenu: createSessionMenu(sdk),
            ceremony: Ceremony,
            // The start screen in Shelf's paper (css/who.css); when it shows stays the host's.

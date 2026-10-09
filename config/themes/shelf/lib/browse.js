@@ -50,6 +50,8 @@ export const createUseBrowse = (sdk) => {
     // the moment the saved layout has to be picked up.
     const [mode, setMode] = useState(readMode)
     const [flipped, setFlipped] = useState(false)
+    const flippedRef = useRef(false)
+    flippedRef.current = flipped
 
     // The bindings below are registered once with `[]`, so they cannot read
     // `mode` from the closure — it would be for ever the value it had at mount,
@@ -99,6 +101,17 @@ export const createUseBrowse = (sdk) => {
     const gate = useRef(true)
     gate.current = screen === 'library' && modalDepth === 0 && session === null
 
+    // Every change of box sounds like one, whoever moved the cursor: ←→ here,
+    // ↑↓ and the letter jumps in the host. Not on the first render (that is
+    // arriving, not swapping), and not when the shelf is not the one being
+    // driven (a menu or a game over it).
+    const lastIdx = useRef(selectedIdx)
+    useEffect(() => {
+      if (lastIdx.current === selectedIdx) return
+      lastIdx.current = selectedIdx
+      if (gate.current) sdk.system.playSound('swap')
+    }, [selectedIdx])
+
     useEffect(() => {
       const blocked = () => !gate.current || live.current.launching
 
@@ -108,7 +121,6 @@ export const createUseBrowse = (sdk) => {
         const i = sdk.nav.get().selectedGameIdx
         const next = Math.max(0, Math.min(n - 1, i + delta))
         if (next === i) return
-        sdk.system.playSound('move')
         pick(next)
       }
 
@@ -117,12 +129,14 @@ export const createUseBrowse = (sdk) => {
         sdk.input.onGp('gp:dpad-right', () => step(1)),
         sdk.input.onGp('gp:l2', () => {
           if (blocked()) return
-          sdk.system.playSound('confirm')
+          // Read from a ref, not inside the updater: React may run an
+          // updater twice, and a sound is not something to do twice.
+          sdk.system.playSound(flippedRef.current ? 'unflip' : 'flip')
           setFlipped((f) => !f)
         }),
         sdk.input.onGp('gp:r2', () => {
           if (blocked()) return
-          sdk.system.playSound('move')
+          sdk.system.playSound('restack')
           const i = MODES.indexOf(modeRef.current)
           applyMode(MODES[(i + 1) % MODES.length])
         }),

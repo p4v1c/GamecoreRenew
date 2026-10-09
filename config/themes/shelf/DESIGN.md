@@ -25,7 +25,10 @@ move on their own.
 
 **Sound:** cardboard, wood, plastic (`lib/sounds.js`): a fingertip tap on
 move, marimba notes on confirm and back, the cartridge sliding and clunking in
-on launch. Synthesized, played into the host's volume.
+on launch. In the library the d-pad handles boxes, so it sounds like it: a
+slide and a knock when a box comes out, the air and the card's flap when L2
+turns it over, three boxes knocked square on R2. Synthesized, played into the
+host's volume.
 
 **Copy:** printed-label feel in sentence case; publisher on the box back may
 be uppercase like real print. No "·" meta, no em dashes as joiners — with one

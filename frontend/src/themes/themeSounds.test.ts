@@ -1,13 +1,24 @@
 /**
- * Every shipped theme answers the five UI sounds with its own, and every one of
- * them stays under the player's volume: it plays into the `out` node the host
- * hands it, never into `ctx.destination`, and every source it starts stops.
+ * Every shipped theme answers the five UI sounds with its own (Shelf adds four
+ * for its library), and every one of them stays under the player's volume: it
+ * plays into the `out` node the host hands it, never into `ctx.destination`,
+ * and every source it starts stops.
  */
 import { describe, expect, it } from 'vitest'
 import { resolveThemeSounds } from '../lib/themeLoader'
 
 const THEMES = ['jelly', 'orbit', 'shelf', 'summer']
 const NAMES = ['move', 'confirm', 'back', 'launch', 'startup']
+/** Sounds a theme adds on top of the five, played by the theme itself. */
+const EXTRA: Record<string, string[]> = { shelf: ['flip', 'restack', 'swap', 'unflip'] }
+
+/** A theme's sound table: `SOUNDS`, or `createSounds(sdk)` for one that reads state. */
+async function soundsOf(theme: string, screen = 'home') {
+  const mod = await import(/* @vite-ignore */ `../../../config/themes/${theme}/lib/sounds.js`)
+  if (mod.SOUNDS) return mod.SOUNDS
+  const sdk = { nav: { get: () => ({ screen, modalDepth: 0, sessionGameKey: null }) } }
+  return mod.createSounds(sdk)
+}
 
 /** Just enough of an AudioContext to record the graph a sound builds. */
 function fakeContext() {
@@ -41,10 +52,10 @@ function fakeContext() {
 describe('theme sounds', () => {
   for (const theme of THEMES) {
     it(`${theme} supplies all five, inside the player's volume`, async () => {
-      const { SOUNDS } = await import(/* @vite-ignore */ `../../../config/themes/${theme}/lib/sounds.js`)
-      const resolved = resolveThemeSounds({ id: theme, version: '1' } as never, { sounds: SOUNDS })
-      expect(Object.keys(resolved).sort()).toEqual([...NAMES].sort())
-      for (const name of NAMES) {
+      const resolved = resolveThemeSounds({ id: theme, version: '1' } as never, { sounds: await soundsOf(theme) })
+      const names = [...NAMES, ...(EXTRA[theme] ?? [])]
+      expect(Object.keys(resolved).sort()).toEqual([...names].sort())
+      for (const name of names) {
         const { ctx, edges, sources, destination } = fakeContext()
         const out = { connect() {} }
         ;(resolved[name] as (c: unknown, o: unknown) => void)(ctx, out)
@@ -59,4 +70,13 @@ describe('theme sounds', () => {
       }
     })
   }
+
+  // In the library the d-pad handles boxes and lib/browse.js plays `swap`;
+  // the bus's `move` for the same press must not land on top of it.
+  it('shelf keeps move quiet while the library has the pad', async () => {
+    const sounds = await soundsOf('shelf', 'library')
+    const { ctx, sources } = fakeContext()
+    sounds.move(ctx, { connect() {} })
+    expect(sources.length).toBe(0)
+  })
 })
