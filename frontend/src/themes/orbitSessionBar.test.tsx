@@ -190,4 +190,12 @@ describe('an application in the background', () => {
     expect(container.querySelector('.session-dock-art img')?.getAttribute('src')).toBe('/assets/logos/youtube.png')
     expect(container.querySelector('.art-fallback')).toBeNull()
   })
+
+  it('is named by the host, which knows the app\'s label', async () => {
+    const sessions = await orbitSession()
+    const app = { session: 2, gameKey: 'youtube', systemId: 'youtube', kind: 'app' as const }
+    const { container } = render(createElement(sessions.Bar,
+      { sessions: [app], focusIdx: 0, active: false, busy: false, onManage: vi.fn(), title: () => 'YouTube' }))
+    expect(container.querySelector('.session-dock-info strong')?.textContent).toBe('YouTube')
+  })
 })

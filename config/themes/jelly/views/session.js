@@ -22,13 +22,15 @@ export function createSession(sdk, {Icon}) {
   }
 
   /** The bar takes no button: the screen under it owns ✕. It points at PS ×2. */
-  function Bar({sessions, focusIdx, busy, onManage}) {
+  function Bar({sessions, focusIdx, busy, onManage, title}) {
     const s = sessions[focusIdx] || sessions[0]
     if (!s) return null
+    // The host's title names an app by its pack label; Jelly's own is the fallback.
+    const name = title || titleOf
     return html`<aside className="jl-dock" aria-label="Paused game">
       <span className="jl-dock-art"><${Art} s=${s} /></span>
       <span className="jl-dock-text"><small><${Icon} name="pause" />Paused${sessions.length > 1 ? `, ${focusIdx + 1} of ${sessions.length}` : ''}</small>
-        <b>${titleOf(s)}</b></span>
+        <b>${name(s)}</b></span>
       <button type="button" className="jl-dock-button" disabled=${busy} onClick=${() => onManage?.()}>
         ${busy ? 'One moment…' : 'Manage'}</button>
       <span className="jl-dock-key"><${PadKey} k="PS ×2" /></span>

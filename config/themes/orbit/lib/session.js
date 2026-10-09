@@ -36,7 +36,7 @@ export function createSession(sdk) {
   }
 
   const noun = (s) => (s?.kind === 'app' ? 'application' : 'game')
-  const titleOf = (s) => (s?.kind === 'app'
+  const titleOfKey = (s) => (s?.kind === 'app'
     ? (s.systemId || s.gameKey)
     : sdk.format.gameName(s?.gameKey || ''))
 
@@ -115,9 +115,11 @@ export function createSession(sdk) {
    * open the menu, where resume, close and back all live and where the pad
    * works. `PS ×2` beside it is the same door without the pointer.
    */
-  function Bar({sessions, focusIdx, active, busy, onManage}) {
+  function Bar({sessions, focusIdx, active, busy, onManage, title}) {
     const s = sessions[focusIdx] || sessions[0]
     if (!s) return null
+    // The host's title names an app by its pack label; Orbit's own is the fallback.
+    const titleOf = title || titleOfKey
     return html`<aside className=${`session-dock orbit-compact-dock ${active ? 'controller-active' : ''}`}
                        aria-label="Background session">
       <div className="session-dock-art"><${Image} src=${artOf(s)} alt=${titleOf(s)} /></div>
@@ -137,5 +139,5 @@ export function createSession(sdk) {
     </aside>`
   }
 
-  return {available, heldMatch, titleOf, noun, artOf, Bar, Menu}
+  return {available, heldMatch, titleOf: titleOfKey, noun, artOf, Bar, Menu}
 }

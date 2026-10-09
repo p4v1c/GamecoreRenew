@@ -196,6 +196,18 @@ export default function SessionBar(
   { view, menuView }: { view?: ComponentType<SessionBarProps>
                         menuView?: ComponentType<SessionMenuProps> }) {
   const sessions = useStore(s => s.backgroundSessions)
+  // An application session carries only its pack id ("youtube"): its name
+  // ("YouTube") comes from the systems list, read once an app is held.
+  const [appNames, setAppNames] = useState<Record<string, string>>({})
+  const holdsApp = sessions.some(s => s.kind === 'app')
+  useEffect(() => {
+    if (!holdsApp) return
+    let live = true
+    api.systems.list()
+      .then(list => { if (live) setAppNames(Object.fromEntries(list.filter(x => x.label).map(x => [x.id, x.label!]))) })
+      .catch(() => {})
+    return () => { live = false }
+  }, [holdsApp])
   const foreground = useStore(s => s.sessionGameKey)
   const modalDepth = useStore(s => s.modalDepth)
   const [focusIdx, setFocusIdx] = useState(0)
@@ -405,7 +417,7 @@ export default function SessionBar(
    */
   const title = (s: BackgroundSession) =>
     s.kind === 'app'
-      ? (s.systemId || s.gameKey)
+      ? (appNames[s.systemId] || s.systemId || s.gameKey)
       : formatGameName(cleanRomName(s.gameKey))
 
   const menuProps: SessionMenuProps = {
