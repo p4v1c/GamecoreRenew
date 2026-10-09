@@ -11,97 +11,83 @@
   display: grid; place-items: center; overflow: hidden;
 }
 
-/* The interface falling back and away, rather than a cut. The shell is the
-   only thing under this layer, so scaling the layer's own backdrop is what
-   sells the depth without touching a single view. */
+/* The night the box jumps into: Orbit's own background colour, a shade
+   lighter at the centre where the stars come from. Opaque at its last frame,
+   so the game takes over from night blue, never from white. */
 .orbit-ceremony-field {
-  position: absolute; inset: -10%;
-  background: radial-gradient(circle at 50% 48%,
-    rgba(11, 20, 36, 0) 0%, rgba(7, 13, 26, 0.62) 45%, rgba(4, 8, 17, 0.97) 78%);
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 50%, #0d1830 0%, #070d1a 45%, #04070e 80%);
   opacity: 0;
 }
 
-/* The light the box travels into. Two layers: a soft core that swells, and a
-   thin ring that runs ahead of it — the ring is what makes it read as motion
-   towards the viewer rather than a fade to white. */
-.orbit-ceremony-core {
-  position: absolute; width: 42vmin; height: 42vmin; border-radius: 50%;
-  background: radial-gradient(circle,
-    #eaf4ff 0%, #bcdcff 34%, rgba(141, 192, 245, 0.35) 62%, rgba(141, 192, 245, 0) 74%);
-  transform: scale(0); opacity: 0;
+/* The streaks: one thin line per star, laid along its own angle from the
+   centre and thrown outwards. The angle, delay and length come from
+   views/ceremony.js (--a, --d, --l, --r). They carry the motion; the field
+   only darkens, so the jump reads as speed rather than as a fade. */
+.orbit-ceremony-stars { position: absolute; inset: 0; }
+.orbit-ceremony-stars i {
+  position: absolute; left: 50%; top: 50%;
+  width: var(--l); height: 2px; margin-top: -1px; border-radius: 1px;
+  background: linear-gradient(90deg, rgba(130, 190, 255, 0), rgba(214, 234, 255, 0.85));
+  transform-origin: 0 50%;
+  transform: rotate(var(--a)) translateX(2vmin) scaleX(0.2);
+  opacity: 0;
 }
 
+/* The return's opening: a thin cool ring, never a filled light. */
 .orbit-ceremony-ring {
   position: absolute; width: 42vmin; height: 42vmin; border-radius: 50%;
-  border: 1px solid rgba(226, 241, 255, 0.85);
-  box-shadow: 0 0 40px rgba(188, 220, 255, 0.45), inset 0 0 30px rgba(188, 220, 255, 0.3);
+  border: 1.5px solid rgba(178, 216, 255, 0.8);
+  box-shadow: 0 0 36px rgba(130, 190, 255, 0.35), inset 0 0 24px rgba(130, 190, 255, 0.2);
   transform: scale(0); opacity: 0;
 }
 
-/* ── going: launch and resume ─────────────────────────────────────────────── */
+/* ── going: launch and resume (300 ms of motion, then settled night) ──────── */
 
 .orbit-ceremony[data-dir="away"] .orbit-ceremony-field {
-  animation: orbit-ceremony-recede 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: orbit-ceremony-night 300ms cubic-bezier(0.55, 0, 0.75, 0.4) forwards;
 }
-.orbit-ceremony[data-dir="away"] .orbit-ceremony-core {
-  animation: orbit-ceremony-swell 300ms cubic-bezier(0.5, 0, 0.75, 0) forwards;
-}
-.orbit-ceremony[data-dir="away"] .orbit-ceremony-ring {
-  animation: orbit-ceremony-ring 300ms cubic-bezier(0.33, 0, 0.15, 1) forwards;
+.orbit-ceremony[data-dir="away"] .orbit-ceremony-stars i {
+  animation: orbit-ceremony-streak 210ms cubic-bezier(0.5, 0, 0.9, 0.5) var(--d) forwards;
 }
 
-@keyframes orbit-ceremony-recede {
-  from { opacity: 0; transform: scale(1); }
-  35%  { opacity: 1; }
-  to   { opacity: 1; transform: scale(1.12); }
+@keyframes orbit-ceremony-night {
+  from { opacity: 0; }
+  60%  { opacity: 0.88; }
+  to   { opacity: 1; }
 }
-@keyframes orbit-ceremony-swell {
-  from { transform: scale(0); opacity: 0; }
-  18%  { opacity: 0.9; }
-  70%  { transform: scale(1.9); opacity: 1; }
-  to   { transform: scale(9); opacity: 1; }
-}
-@keyframes orbit-ceremony-ring {
-  from { transform: scale(0.2); opacity: 0; }
-  22%  { opacity: 0.9; }
-  75%  { opacity: 0.5; }
-  to   { transform: scale(7.5); opacity: 0; }
+@keyframes orbit-ceremony-streak {
+  from { opacity: 0; transform: rotate(var(--a)) translateX(2vmin) scaleX(0.2); }
+  30%  { opacity: 0.9; }
+  to   { opacity: 0; transform: rotate(var(--a)) translateX(var(--r)) scaleX(1); }
 }
 
 /* ── coming back: suspend ─────────────────────────────────────────────────── */
-/* The same picture run the other way: the light parts and the interface
-   arrives from behind it. Shorter, because the player did not ask to travel —
-   they asked for their interface back, and making them wait for it is the one
-   thing this animation must not do. */
+/* The night opens: the field lifts while the ring runs out from the centre,
+   and the interface is there behind it. Shorter than it looks, because the
+   player asked for their interface back, not for a show. */
 
 .orbit-ceremony[data-dir="back"] .orbit-ceremony-field {
-  animation: orbit-ceremony-arrive 900ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
-}
-.orbit-ceremony[data-dir="back"] .orbit-ceremony-core {
-  animation: orbit-ceremony-part 900ms cubic-bezier(0.3, 0.8, 0.4, 1) forwards;
+  animation: orbit-ceremony-dawn 900ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
 }
 .orbit-ceremony[data-dir="back"] .orbit-ceremony-ring {
-  animation: orbit-ceremony-ring-back 900ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+  animation: orbit-ceremony-open 900ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
 }
 
-@keyframes orbit-ceremony-arrive {
-  from { opacity: 1; transform: scale(1.12); }
-  to   { opacity: 0; transform: scale(1); }
+@keyframes orbit-ceremony-dawn {
+  from { opacity: 1; }
+  to   { opacity: 0; }
 }
-@keyframes orbit-ceremony-part {
-  from { transform: scale(6); opacity: 1; }
-  to   { transform: scale(0); opacity: 0; }
-}
-@keyframes orbit-ceremony-ring-back {
-  from { transform: scale(5); opacity: 0.6; }
-  to   { transform: scale(0.2); opacity: 0; }
+@keyframes orbit-ceremony-open {
+  from { transform: scale(0.05); opacity: 0.9; }
+  to   { transform: scale(4.5); opacity: 0; }
 }
 
 /* Somebody who has asked the box not to move things gets the handover without
-   the travel: the light is still there, it simply does not fly. */
+   the travel: the night still comes and goes, nothing flies. */
 @media (prefers-reduced-motion: reduce) {
+  .orbit-ceremony-stars { display: none; }
   .orbit-ceremony-field,
-  .orbit-ceremony-core,
   .orbit-ceremony-ring { animation-duration: 1ms !important; }
 }
 /* === End Orbit ceremony =================================================== */

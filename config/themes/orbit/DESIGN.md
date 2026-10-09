@@ -19,7 +19,9 @@ and session buttons.
 session menu, settings panel. Soft cool glow = focus; no glow on text.
 
 **Motion:** launch/resume/suspend ceremony (`views/ceremony.js`,
-`TRAVEL_MS` = `launch.ms`). Focus moves in ~150 ms ease-out. Nothing animates
+`TRAVEL_MS` = `launch.ms`): on launch the screen falls into night blue while
+star streaks fly out from the centre; on suspend the night opens on a thin
+ring. Never a white fill: the game takes over from night blue. Focus moves in ~150 ms ease-out. Nothing animates
 on idle. `prefers-reduced-motion` gets the handover without movement.
 
 **Sound:** glass and air (`lib/sounds.js`): a soft high tick on move, an open
