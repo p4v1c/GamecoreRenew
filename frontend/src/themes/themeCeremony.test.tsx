@@ -47,6 +47,7 @@ describe('Orbit ceremony', () => {
 
 describe('Shelf ceremony', () => {
   it('leaves launch to the cartridge animation and draws resume and suspend', async () => {
+    useStore.setState({ screen: 'library' })
     const Ceremony = await factory('shelf')
     const view = render(createElement(Ceremony))
 
@@ -56,6 +57,16 @@ describe('Shelf ceremony', () => {
     expect(view.container.querySelector('.cz-handover')?.getAttribute('data-move')).toBe('resume')
     act(() => { useStore.getState().setTransition('suspend') })
     expect(view.container.querySelector('.cz-handover')?.getAttribute('data-move')).toBe('suspend')
+  })
+})
+
+describe('Shelf ceremony, launching from the home', () => {
+  it('closes the iris over a launch the home started, where no cartridge is on screen', async () => {
+    useStore.setState({ screen: 'home' })
+    const Ceremony = await factory('shelf')
+    const view = render(createElement(Ceremony))
+    act(() => { useStore.getState().setTransition('launch') })
+    expect(view.container.querySelector('.cz-handover')?.getAttribute('data-move')).toBe('resume')
   })
 })
 

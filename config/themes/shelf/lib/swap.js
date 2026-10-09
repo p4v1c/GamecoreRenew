@@ -42,6 +42,9 @@ const PULL_MS = 560          // take out, at rest
 const FASTEST = 3            // the most a burst may speed it up
 const CATCH_UP = 1.2         // extra, for a box put away while the next one waits
 const STEP_MS = 34           // the longest frame the motion will take in one step
+/** The most of a gesture one drawn frame may cover, so even the fastest put-back
+ *  is seen on eight frames or more rather than as a hop. */
+const MAX_DP = 0.12
 /** One whole swap at rest: the put-back up to its hand-over point, then the
  *  take-out. Presses closer together than this get a swap that fits between
  *  them, so up to about four presses a second every box still turns to face
@@ -184,7 +187,7 @@ export const createUseSwap = (sdk) => {
         const home = j.key !== t
         // Someone is waiting to come out: put the last one away quicker.
         const rate = home ? (k * (waiting ? CATCH_UP : 1)) / PUSH_MS : k / PULL_MS
-        j.p = Math.max(0, Math.min(1, j.p + (home ? 1 : -1) * rate * dt))
+        j.p = Math.max(0, Math.min(1, j.p + (home ? 1 : -1) * Math.min(MAX_DP, rate * dt)))
         if (home ? j.p < 1 : j.p > 0) moving = true
         apply(j)
       }

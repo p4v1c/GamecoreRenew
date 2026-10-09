@@ -13,6 +13,7 @@
 import { LETTERS, initial, title, stamp, released, played, day } from '../lib/names.js'
 import { sample, hexToHsl, vars, NEUTRAL } from '../lib/accent.js'
 import { jacket } from '../lib/dossier.js'
+import { createUseSwap } from '../lib/swap.js'
 
 /**
  * The fewest spines that may stand either side of the cursor.
@@ -88,7 +89,10 @@ const IRIS_MS = 620
 const DARK_MS = 260
 export const BOOT_MS = RISE_MS + IRIS_MS + DARK_MS
 
-export const createLibraryView = (sdk, { accent, useBrowse, useDossier, useSwap, Box, Cartridge }) => {
+export const createLibraryView = (sdk, { accent, useBrowse, useDossier, useSwap: injected, Box, Cartridge }) => {
+  // Injected like the others so a test or a fork can replace the motion; the
+  // theme's own when nobody does (the vitest harnesses build the view by hand).
+  const useSwap = injected || createUseSwap(sdk)
   const { html, useState, useEffect, useMemo, useRef } = sdk.ui
   // Controller button prompts from the host; plain text on an older host.
   const PadKey = sdk.ui.PadKey || (({ k }) => html`<kbd>${k}</kbd>`)
