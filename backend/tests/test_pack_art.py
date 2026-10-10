@@ -32,9 +32,14 @@ def client(monkeypatch):
     return TestClient(app)
 
 
+# Systems that are not one machine. Themes draw their logo where a photo goes.
+NO_HARDWARE = {"lutris"}
+
+
 def test_every_console_pack_ships_a_console_photo():
     missing = [pid for pid, pack in load_catalog(ROOT / "catalog").items()
-               if pack.kind == "emulator" and not pack.superseded_by and "console" not in pack.art]
+               if pack.kind == "emulator" and not pack.superseded_by
+               and pid not in NO_HARDWARE and "console" not in pack.art]
     assert missing == [], f"console packs with no art/console.*: {missing}"
 
 

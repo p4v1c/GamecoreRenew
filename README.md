@@ -296,10 +296,29 @@ regenerated from `install/generated/systems.json.dist` on every install;
 | NEC PC Engine CD / TurboGrafx-CD | `emu/pcenginecd/` | `.cue` `.ccd` `.chd` `.toc` `.m3u` |
 | NEC PC Engine SuperGrafx | `emu/supergrafx/` | `.sgx` |
 | Arcade (MAME) | `emu/mame/` | `.zip` `.7z` `.cmd` |
+| PC (Lutris) | `emu/lutris/` | `.lutris` — written by GameCore, one per game installed in Lutris; nothing to copy here |
 
 > A multi-track PS1 dump is `Game.cue` plus its `Game (Track NN).bin` files.
 > Launch the **`.cue`** — it is the one that knows about the other tracks.
 > Starting `Track 01.bin` on its own boots the game without its CD audio.
+
+### PC games (Lutris)
+
+Tick **PC** in the installer (or install it from Settings → Catalog). That brings
+Lutris (Flatpak), gamemode, and within a minute of the next login the latest
+GE-Proton, set as Lutris's default with DXVK, VKD3D, esync, fsync and gamemode on.
+
+Games are installed in Lutris itself, which needs a mouse and keyboard: Settings →
+Desktop, open **Lutris** from the menu, install the game (a GOG offline installer,
+itch.io, Epic or GOG through Lutris's sources, a disc), then come back to GameCore.
+The first time Lutris opens it downloads its own runtime (umu, DXVK); let it
+finish. New games install to `emu/lutris-games/` unless you choose another folder.
+
+Every game installed in Lutris appears under **PC** the next time you open it,
+and disappears when you remove it in Lutris; games you hide in Lutris stay
+hidden. A game starts with A, without the Lutris window, and GameCore gets the
+screen back when you quit it. The files in `emu/lutris/` are written by
+GameCore; there is nothing to copy there.
 
 ---
 

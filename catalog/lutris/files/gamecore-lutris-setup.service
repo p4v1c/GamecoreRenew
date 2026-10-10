@@ -1,0 +1,12 @@
+[Unit]
+Description=GameCore: GE-Proton and console defaults for Lutris
+
+[Service]
+Type=oneshot
+# Exit status 1 when a download or a step failed; the timer tries again.
+# What it installed: ~/.local/share/gamecore/lutris/state.json.
+ExecStart=/usr/bin/python3 "@GAMECORE_PATH@/catalog/lutris/files/lutris_setup.py" --app-id net.lutris.Lutris --games-dir "@GAMECORE_DATA@/emu/lutris-games"
+NoNewPrivileges=true
+PrivateTmp=true
+Nice=10
+IOSchedulingClass=idle

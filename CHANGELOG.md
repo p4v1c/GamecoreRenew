@@ -17,6 +17,12 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- New system: **PC**, your Windows games through Lutris. Installing it adds Lutris
+  (Flatpak), gamemode and GE-Proton, and adds the player to the `gamemode` group
+  (effective at the next login). Games are installed from Lutris's own window
+  (Settings → Desktop); they then appear under PC and start without Lutris
+  showing. The default and Summer libraries no longer print an extension for
+  them.
 - Jelly has its own standby screen: your covers float in jellies that bounce
   and wobble on the cyan floor; every half minute or so one grows in the middle
   to show its cover large, and now and then a jelly pops and another game

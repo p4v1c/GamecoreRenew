@@ -88,7 +88,7 @@ by `scripts/check-catalog.py`, which CI runs before anything else. Required:
 | `emulatorName` `family` `description` | the grid, the install wizard | display only |
 | `order` | `gen-catalog.py` | where the tile sits in the grid and in the wizard's list. A curated running order, not alphabetical. **Absent means last**, never absent — that ordering used to be a list of ids inside the script, and a pack missing from it was silently dropped from both |
 | `launch` | the backend, `flatpakify-systems.sh` | the command the tile runs. `preferIfPresent` picks a native binary over the Flatpak when one exists. `fullscreen` and `gamepadTrigger` cover what happens just after — see below |
-| `roms` | the backend, `arch.sh` | ROM directory and extensions. `roms.consoles` declares the DISTINCT MACHINES one emulator runs (mGBA: Game Boy, Color, Advance) with per-console extensions and an optional `ratio` (what the machine draws, `3:2`) — it feeds the per-console bezel cascade, the drift-correction cache keys and the overlay slots' expected ratio; see [06-electron-and-overlays](06-electron-and-overlays.md). Declared, never derived: `.zip` says nothing and `.rvz` holds two consoles |
+| `roms` | the backend, `arch.sh` | ROM directory and extensions; `showExtension: false` sends an empty `ext` for entries whose extension means nothing to a player (`.lutris` stubs, `services/pack_library.py`). `roms.consoles` declares the DISTINCT MACHINES one emulator runs (mGBA: Game Boy, Color, Advance) with per-console extensions and an optional `ratio` (what the machine draws, `3:2`) — it feeds the per-console bezel cascade, the drift-correction cache keys and the overlay slots' expected ratio; see [06-electron-and-overlays](06-electron-and-overlays.md). Declared, never derived: `.zip` says nothing and `.rvz` holds two consoles |
 | `config` | `install-emu-configs.sh` | where `seed/` is deployed. A seed may carry `@HOME@`, `@GAMECORE_PATH@` and `@GAMECORE_DATA@`, replaced at deploy time (`backend/services/configgen/seed.py`) |
 | `controllers` | `backend/services/configgen/` | which binding strategy `generator.py` implements |
 | `scraper` `overlay` | covers, bezel identification | metadata |
@@ -102,6 +102,7 @@ by `scripts/check-catalog.py`, which CI runs before anything else. Required:
 | `supersededBy` | `gen-catalog.py`, `merge.py`, `catalog.selected()` | this pack was split into these; kept only so an unmigrated tile still launches |
 | `sandbox` | `installer/providers.py` | Flatpak override flags. Absent = the emulator default |
 | `packages` | `installer/applier.py` | extra system dependencies, *not* the main artifact |
+| `hostAccess` | `installer/host_access.py` | fixed host prerequisites, as root, undone by the uninstaller from a receipt: `uinput`, `ptrace` (melonDS, Azahar layout daemons), `gamemode` (the player joins the `gamemode` group, the only one gamemode's polkit rule lets change the CPU governor) |
 | `sources` | `installer/applier.py` | git checkouts the app needs beside it |
 | `secrets` | the install wizard, `applier.py` | keys to prompt for, and to expand in templates |
 | `files` | `installer/applier.py` | files to write, verbatim or from a template |
@@ -302,6 +303,27 @@ its own menus, no patched emulator. Saves (`.sav.N`), firmware copies and MAC
 addresses are per instance in melonDS itself. The launcher runs in the game's
 process group, so suspend and quit reach melonDS; it never exits before
 melonDS. Log: `melonds-multiplayer.log` in `$GAMECORE_LOG_DIR`, else `~/.cache/gamecore/`.
+
+### PC games (Lutris)
+
+`catalog/lutris` is the PC system: the Windows games the owner installs in the
+Flatpak Lutris (GOG offline installers, itch.io, Epic or GOG through Lutris's
+own services, discs). Everything is read from Lutris 0.5.23, the commit
+`net.lutris.Lutris` builds; the dev log (`docs/dev-log/pc-pack.md`) says what
+was verified and how.
+
+| Piece | Where | What |
+|---|---|---|
+| install | `pack.json` | `net.lutris.Lutris` from Flathub, its GL32/Compat.i386 extensions pulled with it (32-bit Vulkan/GL for Wine); `gamemode` and `python-yaml` from pacman; `hostAccess.gamemode` |
+| GE-Proton + defaults | `files/gamecore-lutris-setup.timer` → `files/lutris_setup.py` | a minute after login, then daily: the latest GE-Proton release (tag from the `/releases/latest` redirect, sha512 checked) into `<runners>/wine/<tag>/`, where Lutris lists Proton builds and runs them through umu; then `runners/wine.yml` `version` (that build), `dxvk`, `vkd3d`, `esync`, `fsync` and `system.yml` `gamemode`, `game_path` (`emu/lutris-games` on the data root) — each only where absent (`files/lutris_defaults.py`). `version` moves to a newer build only while it still names one this pack installed. Two of our builds are kept, plus any a game config names |
+| config location | `files/lutris_paths.py` | Lutris uses `~/.var/app/<id>/config/lutris` only if it exists, else everything is under `data/lutris`. The setup never creates that `config` folder |
+| library | `generator.py` `sync_library` → `files/lutris_library.py` | before each listing (`services/pack_library.py`): one `<Title>.lutris` stub (JSON, the Lutris game id) per installed game in `emu/lutris/`, Lutris's `coverart/<slug>.jpg` copied as the cover when there is none. A stub keeps its name for its Lutris id (the playtime key survives a rename); a stub is removed only when `pga.db` was read and the game is gone; games in Lutris's `.hidden` category are left out |
+| launch | `files/lutris_session.py` | the tile runs `python3 lutris_session.py --app-id @APPID@ <stub>`, which runs `flatpak run <id> lutris:rungameid/<id>`: no Lutris window. It is the session: it closes an idle Lutris first (else the command is forwarded over D-Bus and returns at once), follows the game through its `lutris-wrapper` process, then gives Lutris 10 s to quit before `flatpak kill`. Without a stub it opens Lutris's window |
+| media | `scraper.mediaAlias: ["pc windows"]` | ScreenScraper system 138 ("PC Windows", LaunchBox "Windows"), by name: `.lutris` is never hashed (`gamemedia/ss_client.py`) |
+
+Winetricks ships inside Lutris; nothing to add. `perGame` and `profileSaves`
+are `supported: false` (Lutris keeps its own per-game configs; Windows games
+save anywhere in their prefix).
 
 ### `usb` — the peripherals that are not SDL gamepads
 

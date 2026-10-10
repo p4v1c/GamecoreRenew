@@ -1,0 +1,46 @@
+{
+  "id": "lutris",
+  "kind": "emulator",
+  "label": "PC",
+  "emulatorName": "Lutris",
+  "description": "Windows games you own (GOG, itch.io, Epic, discs), run by Lutris with GE-Proton and gamemode",
+  "platform": "PC",
+  "family": "PC",
+  "color": "#2f5bea",
+  "order": 37,
+  "install": {
+    "provider": "flatpak",
+    "appIds": ["net.lutris.Lutris"]
+  },
+  "launch": {
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/catalog/lutris/files/lutris_session.py' --app-id @APPID@"
+  },
+  "roms": {
+    "dir": "emu/lutris",
+    "extensions": ["*.lutris"],
+    "showExtension": false
+  },
+  "scraper": {
+    "screenscraper": [138],
+    "mediaAlias": ["pc windows"]
+  },
+  "packages": {
+    "pacman": ["gamemode", "python-yaml"]
+  },
+  "hostAccess": {
+    "gamemode": true
+  },
+  "services": [
+    { "unit": "files/gamecore-lutris-setup.service", "scope": "user", "enable": false },
+    { "unit": "files/gamecore-lutris-setup.timer", "scope": "user", "enable": true }
+  ],
+  "perGame": {
+    "supported": false,
+    "why": "Lutris already keeps one config per game (games/<slug>-<id>.yml) and edits it in its own window; a second copy here would only drift from it."
+  },
+  "profileSaves": {
+    "supported": false,
+    "why": "Each Windows game writes its saves wherever it likes inside its own Wine prefix (Documents, AppData, the game folder), so there is no one folder to give each profile."
+  }
+}

@@ -660,5 +660,20 @@
     "libretroSystems": [
       "MAME"
     ]
+  },
+  {
+    "id": "lutris",
+    "type": "emulator",
+    "label": "PC",
+    "platform": "PC",
+    "color": "#2f5bea",
+    "iconPath": "assets/logos/lutris.png",
+    "path": "/usr/bin/python3",
+    "args": "'@GAMECORE_PATH@/catalog/lutris/files/lutris_session.py' --app-id @APPID@",
+    "romsPath": "emu/lutris/",
+    "extensions": [
+      "*.lutris"
+    ],
+    "libretroSystems": []
   }
 ]
