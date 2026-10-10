@@ -1,0 +1,22 @@
+/* Standby: the host's CRT room (sdk.defaults.CrtStandby). The room, the TV
+ * and its light are the host's picture and are not themed; Orbit sets only the
+ * caption card, in its own type and night-blue, on the carpet corner.
+ * Contrast measured on the card (legibility-audit): white 17.0:1,
+ * --muted 9.9:1, ink-3 #8FA9C9 7.4:1, --blue 9.0:1. */
+.crt-standby.orbit-standby {
+  --crt-cap-font: 'Red Hat Text', 'Noto Sans', sans-serif;
+  --crt-cap-bg: rgba(16, 23, 34, 0.86);
+  --crt-cap-ink: #f8f9ff;
+  --crt-cap-ink-2: #b8c2d3;
+  --crt-cap-ink-3: #8fa9c9;
+  --crt-cap-radius: 12px;
+}
+.orbit-standby .crt-caption-title,
+.orbit-standby .crt-caption-clock {
+  font-family: 'Red Hat Display', 'Noto Sans', sans-serif;
+  letter-spacing: -0.01em;
+}
+.orbit-standby .crt-caption-title { font-weight: 600; }
+.orbit-standby .crt-caption-clock { font-weight: 300; }
+/* The one cool light: what is on now. */
+.orbit-standby .crt-caption-label { color: #82beff; }

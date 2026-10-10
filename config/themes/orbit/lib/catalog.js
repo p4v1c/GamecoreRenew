@@ -187,6 +187,8 @@ export const favouriteKey = (systemId, filename) => `${systemId}:${filename}`
 export const isFavourite = (systemId, filename) =>
   favourites.has(favouriteKey(systemId, filename))
 export const favouriteCount = () => favourites.size
+/** Every favourite key, for the CRT standby to play them more often. */
+export const favouriteKeys = () => [...favourites]
 export function toggleFavourite(systemId, filename) {
   const key = favouriteKey(systemId, filename)
   if (favourites.has(key)) favourites.delete(key)

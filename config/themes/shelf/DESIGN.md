@@ -50,6 +50,10 @@ the pattern measured 1.8:1. Pad glyphs on paper: `--gc-pad-cross #2A55B8`,
 resets them. Settings: accent `#127A6D` (white on it 5.2:1), ink-3 at 0.66.
 Box spines and back-of-box fine print are art, exempt from the 14px floor.
 
+**Standby:** the host's CRT room (`sdk.defaults.CrtStandby`); Shelf sets the
+caption as a dark glass card (`css/standby.css`) in Archivo, heavy title, brass
+label. A bright paper label was tried and dropped: it pulled the eye off the TV.
+
 **Power / controller:** power is label strips pinned on the wall (no card):
 inked title strip, focus = brass tab and the strip slides 14 px; asking again
 uses danger ink `#9C1F28` (7.4:1 on card) with words, never colour alone.

@@ -243,7 +243,7 @@ which and why.
 | `libraryView` | the game list, detail panel and metadata — **markup only**, like `homeView` |
 | `homeOmit` | home-screen shortcuts you bind yourself: `'nav'` (d-pad), `'pages'` (L1/R1), `'confirm'` (✕). Take one and you own what it does — see §5g |
 | `libraryOmit` | the same, for the library: `'nav'`, `'confirm'`, `'sort'` (L1/R1). The per-game options on ≡ are not omittable (§6a) |
-| `screensaver` | the standby slideshow |
+| `screensaver` | the standby screen. The host's slideshow by default; `sdk.defaults.CrtStandby` (SDK 11) is the CRT room, see below |
 | `settings` | the settings screen |
 | `powerView` | the power menu's markup — the two-press confirmation, the pending lock and the failsafe stay with the host. Dress the host's with `sdk.defaults.createPowerView(sdk, { skin, layout })` (§5h) |
 | `gamepadView` | the controller screen's markup — the live pad diagram arrives ready-made and bound. Dress the host's with `sdk.defaults.GamepadView` (SDK 9, §5h) |
@@ -799,6 +799,23 @@ it declares `"api": 9`.
 
 SDK 10 adds `homeGameOptions` to `sdk.defaults.Shell`. Themes using it declare
 `"api": 10`; the host keeps the game options panel and modal controls.
+
+SDK 11 adds `sdk.defaults.CrtStandby`, the CRT standby: a rendered room at
+night whose TV plays the library's game clips (`GET /api/standby/videos`) and
+lights the room with their colour. Pass it as the Shell's `screensaver`:
+
+```js
+const Standby = sdk.defaults.CrtStandby
+  ? () => html`<${sdk.defaults.CrtStandby} skin="my-standby" favourites=${() => keys} />`
+  : undefined   // an older host keeps its slideshow
+```
+
+`skin` is a class on the root; set the caption's `--crt-cap-font`, `-bg`,
+`-ink`, `-ink-2`, `-ink-3`, `-radius` and `-shadow` on it (Orbit:
+`css/standby.css`, Shelf: a paper label). `favourites` returns
+`system_id:filename` keys that come up more often. Feature-detect it as above
+rather than declaring `"api": 11`: a theme that requires it would drop to safe
+mode on an older host instead of keeping the slideshow.
 
 SDK 8 removes things rather than adding them: `gp:menu` and `gp:power` from
 `sdk.input` (reserved, §6a) and `'options'` from `libraryOmit`. No theme needs

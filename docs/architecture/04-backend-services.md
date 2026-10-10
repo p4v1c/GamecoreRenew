@@ -628,6 +628,35 @@ box is built from (`box-3d`, `box-spine`, `box-back`) and the two captures the
 detail panel shows. Override with `GAMECORE_WARM_MEDIA` — comma-separated, empty
 to warm nothing, for a box on a slow line or with a very large library.
 
+`wait_until_nobody_is_playing()` is the deferral both this worker and
+`standby_videos` use: it returns once no game is in the foreground.
+
+## `standby_videos.py` + `standby_picks.py`
+
+The clips the CRT standby plays on its TV. Never part of `WARM_MEDIA`: a clip is
+5 to 20 MB. `run()` sweeps 3 minutes after boot, then every 3 hours:
+
+1. `standby_picks.rank()` orders the library by value: hours played (capped at
+   50 h) plus how recently (fades over 30 days), summed over every profile
+   (`playtime` + `profile_playtime`). Unplayed games follow, mixed across
+   consoles.
+2. `plan_eviction()` trims the clips on disk to the cap, least valuable first;
+   a clip whose ROM is gone ranks last.
+3. Downloads `video-normalized`, else `video`, in value order through
+   `gamemedia.media_file()` (same lock, same ScreenScraper pacing), after
+   `prefetch.wait_until_nobody_is_playing()` each time. Only games that already
+   have a manifest; it never scrapes.
+4. Stops at the cap: `GAMECORE_STANDBY_VIDEO_CAP_GB` (default 5, `0` drops every
+   clip). A fetched clip that does not fit is dropped and the sweep stops.
+
+Eviction goes through `gamemedia.drop_file()`, which files the media back as
+`deferred` with its URL and `bytes`: deleting the file alone would make the
+manifest incomplete and cost a rescrape. The kept `bytes` lets the next sweep
+skip a clip it knows will not fit instead of fetching it again.
+
+`playlist()` is what `GET /standby/videos` returns; see
+[03](03-backend-routers.md#standbypy).
+
 Measured on the reference box before this existed: `box-front` 47/47, but
 `box-3d` and `screenshot-gameplay` only 41/47 — the six missing were simply the
 games nobody had opened yet, each one costing a round trip behind the scraper's

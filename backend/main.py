@@ -46,7 +46,8 @@ from .routers import logs as logs_router
 from .routers import profiles as profiles_router
 from .routers.settings import wifi, audio, bluetooth, display
 from .services import (battery, boot, desktop_power, gamepad_monitor, http_cache, logs,
-                       playtime_repair, prefetch, standby, storage_monitor)
+                       playtime_repair, prefetch, standby, standby_videos,
+                       storage_monitor)
 from .services.errors import ServiceError
 from .services.process_manager import process_manager
 from .config import BACKEND_PORT
@@ -173,6 +174,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(battery.run()),
         asyncio.create_task(standby.run()),
         asyncio.create_task(prefetch.run()),
+        asyncio.create_task(standby_videos.run()),
         asyncio.create_task(storage_monitor.run()),
         asyncio.create_task(logs.run()),
     ]

@@ -17,6 +17,12 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Orbit and Shelf have a new standby screen: a small CRT in a room at night playing
+  short videos of the games you play most, its light on the walls. Videos are
+  downloaded in the background (never during a game) from ScreenScraper, up to
+  5 GB; set `GAMECORE_STANDBY_VIDEO_CAP_GB` in the backend's environment to
+  change that, `0` to keep none. Without ScreenScraper the TV shows screenshots,
+  or snow.
 - An application left in the background is named as on its tile ("YouTube", not
   "youtube") in the session bar and menu, on every theme.
 - Orbit: an application left in the background (YouTube, Steam, Twitch…) shows its

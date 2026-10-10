@@ -143,8 +143,11 @@ def _startup_jobs() -> list[tuple[dict, str]]:
     return jobs
 
 
-async def _wait_until_nobody_is_playing() -> None:
+async def wait_until_nobody_is_playing() -> None:
     """Hold the batch while a game is on screen — see the module docstring.
+
+    Public because the standby clip downloader (`standby_videos`) defers on
+    exactly the same condition.
 
     On screen, and not merely resident: a suspended session is not reading its
     disc and not competing for anything this worker wants. Waiting for it would
@@ -251,7 +254,7 @@ async def run() -> None:
                 await _wake.wait()
             continue
 
-        await _wait_until_nobody_is_playing()
+        await wait_until_nobody_is_playing()
         try:
             await _warm(batch)
         except asyncio.CancelledError:

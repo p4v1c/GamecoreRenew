@@ -24,6 +24,7 @@ one cover â€” 3D box, gameplay screenshot, clear logo, video, ready-made mixes â
 so a theme can be built on something other than a flat jacket.
 """
 import asyncio
+import json
 import logging
 import os
 import re
@@ -254,6 +255,45 @@ async def warm(system_id: str, target: Path | str,
     if got:
         await _replace_stale_plate(system_id, target, cached(system_id, name) or {}, types)
     return got
+
+
+async def drop_file(path: Path) -> int:
+    """Delete one downloaded media and file it as deferred. Returns bytes freed.
+
+    The manifest has to change with the file: a `file` that is gone makes the
+    entry incomplete, and an incomplete entry is rescraped (one jeuInfos) the
+    next time anything asks. Deferred with its URL, it costs one download if a
+    theme ever wants it back. Without a URL the slug is forgotten instead.
+    """
+    d, slug = path.parent, path.stem
+    root = Path(gm.CACHE_ROOT).resolve()
+    if root not in d.resolve().parents:
+        raise ValueError("media path outside the cache")
+
+    def work() -> int:
+        try:
+            freed = path.stat().st_size
+        except OSError:
+            freed = 0
+        path.unlink(missing_ok=True)
+        try:
+            manifest = json.loads((d / gm.MANIFEST).read_text("utf-8"))
+        except (OSError, ValueError):
+            return freed
+        media = dict(manifest.get("media") or {})
+        info = media.get(slug) or {}
+        if info.get("url"):
+            # `bytes` stays as a size hint: the standby sweep reads it to skip a
+            # clip it already knows will not fit, instead of fetching it again.
+            kept = {k: v for k, v in info.items() if k != "file"}
+            media[slug] = {**kept, "deferred": True}
+        else:
+            media.pop(slug, None)
+        gm.write_json(d / gm.MANIFEST, {**manifest, "media": media})
+        return freed
+
+    async with _scrape_lock:
+        return await asyncio.to_thread(work)
 
 
 async def _replace_stale_plate(system_id: str, target: Path | str,
