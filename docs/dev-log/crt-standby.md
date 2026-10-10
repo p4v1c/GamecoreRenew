@@ -30,10 +30,10 @@ played, with the clock.
 
 ## Where I stopped
 
-Steps 1, 2 and 3 committed (plates; backend clip service; the shared
-`CrtStandby` view opted into by Orbit and Shelf). Visual review pass 1 done and
-fixed. Next: pass 2 screenshots, reduced-motion shot, the two recordings, final
-checks, final report.
+**Done.** All three parts are committed and pushed. Two visual review passes
+(the second found nothing), recordings made, every check run (results below).
+What is left is the owner's call: look at the shots, then try it on the TV
+with real ScreenScraper clips (see Known issues). Nothing is half-done.
 
 ## Journal
 
@@ -77,6 +77,26 @@ checks, final report.
      viewport (x=1910) under the standby; the audit cannot prove it is covered.
      Every on-screen label resolves to the standby on top (probe). Artefact,
      not a leak.
+9. Visual review pass 2 (`$SCRATCH/mock/standby-shots/`), cold: every state
+   re-shot on both themes plus Orbit under reduced motion. Nothing to fix:
+   two clips give two light colours on the stand top and bezel; the snow
+   throws a white glow; stills push in and tint the room (red for the red
+   screenshot); no-media is soft snow with the clock only; reduced motion
+   has no canvas dust and no snow (fade). The dots still visible under
+   reduced motion are the dust baked into the plate.
+10. Recordings, 17 s each, both contain a switch (Orbit: Crash to Advance
+    Wars; Shelf: Crash to Mario Kart). Checked with a frame strip.
+11. Final checks, all on the last commit:
+    - `ruff check .` (0.16.1 from a scratch `pip --target`, and 0.15.20):
+      clean. `shellcheck -S warning`: clean.
+    - `pytest backend/tests catalog -m "not network"`: 2602 passed, 57
+      skipped, 4 failed, the known ones on untouched `main`
+      (`test_install_media_index.py` x3,
+      `test_system_split.py::test_the_command_dry_runs_by_default`).
+    - `vitest run`: 79 files, 704 tests passed. `tsc --noEmit`: clean.
+    - `test_theme_versions.py`: 5 passed. `check-theme.mjs` orbit and shelf:
+      0 syntax errors, settings reach all 10 pages. `check-docs.py --all`:
+      clean. File-size check `--diff`: clean.
 
 ## Decisions
 
@@ -216,9 +236,35 @@ Standby is entered by answering `GET /api/standby` with `state: screensaver`
 
 ## Screenshots
 
-(filled in at the end)
+All in `$SCRATCH/mock/standby-shots/`, 1920x1080 (crops at 2x). **Every
+picture on the TV is a stand-in** made by `make-standins.py` and labelled
+"stand-in clip" / "stand-in screenshot" on screen: the dev box has no
+ScreenScraper account. The Chrono Trigger "clip" is the validated scene's own
+TV picture (`$SCRATCH/scene/frame.png`) panned; the others are ffmpeg test
+sources. The game names, systems and "played N days ago" are real dev data.
+
+| File | Shows |
+|---|---|
+| `orbit-real-1.png`, `orbit-real-2.png` | Orbit, two clips, two light colours (stand-in clips) |
+| `shelf-real-1.png`, `shelf-real-2.png` | Shelf, the same (stand-in clips) |
+| `orbit-real-static.png`, `shelf-real-static.png` | the snow between clips |
+| `orbit-real-caption.png`, `shelf-real-caption.png` | the caption, 2x |
+| `orbit-real-tv.png`, `shelf-real-tv.png` | the TV glass, 2x: warp, scanlines, rounded mask, bezel light |
+| `*-stills-1.png`, `*-stills-2.png`, `*-stills-tv.png`, `*-stills-static.png` | screenshot fallback, Ken Burns (stand-in screenshots) |
+| `*-none-1.png`, `*-none-tv.png`, `*-none-caption.png` | no media at all: soft snow, clock only |
+| `orbit-real-reduced-*.png` | Orbit under `prefers-reduced-motion` (no dust, fade instead of snow) |
+| `orbit-switch.webm`, `shelf-switch.webm` | 17 s recordings with one clip switch each (stand-in clips) |
+| `pass1/` | the first review pass, before its fixes, plus `*-audit.png` from the legibility audit |
 
 ## Known issues and TODO
+
+- **Not seen with real ScreenScraper clips or on the TV.** Real clips are
+  H.264 MP4; Electron plays them, Playwright's Chromium cannot, hence VP9
+  stand-ins. First thing to check on the box: a real clip on the glass, the
+  light colour, and the sweep's log line (`standby videos: N fetched...`).
+- Not measured on the box's GPU: two full-screen layers blended (screen +
+  multiply), a full-screen dust canvas at 25 fps, the bloom `box-shadow`
+  repainted 20x/s. If the box stutters, drop the dust first.
 
 - The floor boxes are baked into the plate (v1, accepted). TODO(standby):
   render the floor empty and lay the library's covers like the video, if the
