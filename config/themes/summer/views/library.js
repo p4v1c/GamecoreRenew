@@ -152,7 +152,7 @@ export const createLibraryView = (sdk) => {
                    onClick=${() => onSelect(i)}>
                 <span class="sm-lib-row-main">
                   <b>${clean(g.display_name)}</b>
-                  <i>${g.ext}</i>
+                  ${g.ext ? html`<i>${g.ext}</i>` : null}
                 </span>
                 <span class="sm-lib-row-time">
                   <b>${fmt(playtime[g.filename]?.total_secs)}</b>
@@ -184,7 +184,7 @@ export const createLibraryView = (sdk) => {
                 <div class="sm-lib-sys">${system?.label || system?.platform || systemId}</div>
                 <h2 class="sm-lib-name">${clean(detailGame.display_name)}</h2>
                 <${Meta} systemId=${systemId} filename=${detailGame.filename}
-                         color=${CHIP_INK} extChip=${html`<span class="sm-lib-chip">${detailGame.ext}</span>`} />
+                         color=${CHIP_INK} extChip=${detailGame.ext ? html`<span class="sm-lib-chip">${detailGame.ext}</span>` : null} />
                 <!-- The image is the frame. A wrapper would have to pick a
                      size before knowing the picture's shape, and whatever it
                      picked would be wrong for one console or the other —
