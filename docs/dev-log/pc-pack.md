@@ -3,8 +3,12 @@
 ## Status
 
 Pack written (`catalog/lutris/`), on branch `claude/modest-noether-4ipr9j`, not
-merged. Install, library, launch, media and the host extension rule are done
-and unit-tested. Not exercised on a real box: see "Not verified".
+merged. Install, library, launch, media and the host extension rule are done,
+unit-tested, and checked against the real Flathub Lutris (0.5.22) on an Ubuntu
+VM with Xvfb: install through the provider, Lutris reading our config and our
+GE-Proton folder, and a full launch of a native test game through the session
+wrapper. Not exercised: a Wine game, a real GPU, gamemode on Arch, the GE-Proton
+download (GitHub releases unreachable from here). See "Not verified".
 
 ## What was built
 
@@ -24,9 +28,11 @@ and unit-tested. Not exercised on a real box: see "Not verified".
 Sources read, not guessed (clones under `/home/user/research`, `/home/user/lutris`,
 `/home/user/flathub` in the session that wrote this):
 
-- **Flatpak target**: `flathub/net.lutris.Lutris` manifest at `067090ef` builds
-  Lutris commit `4d3e4150` = **Lutris 0.5.23**, GNOME runtime 51, base
-  `org.winehq.Wine` 26.08. finish-args already give `--filesystem=home`,
+- **Flatpak target**: Flathub **stable** (what `flatpak install flathub
+  net.lutris.Lutris` gets; branch `master` at `5a74a8b`) builds Lutris
+  `159d7a21` = **0.5.22**, GNOME 49, base `org.winehq.Wine` stable-25.08. The
+  `beta` branch (`067090ef`) builds **0.5.23** on GNOME 51 / Wine 26.08. Every
+  fact below was read in both versions and holds in both. finish-args already give `--filesystem=home`,
   `~/Games`, `--device=all`, x11 + wayland, `xdg-data/umu:create`.
 - **32-bit / Vulkan**: the manifest declares `org.freedesktop.Platform.GL32`
   (`download-if: active-gl-driver`, so the right one for the host driver is
@@ -96,6 +102,25 @@ Sources read, not guessed (clones under `/home/user/research`, `/home/user/lutri
   `systemesListe.php`). So the alias is `pc windows`, never `pc` (= DOS).
   Test: `backend/tests/test_pack_library.py`.
 
+## Checked against the real Flatpak (Ubuntu 24.04 VM, flatpak 1.14.6, Xvfb)
+
+Scripts in `pc-pack-tools/real-lutris/`; the test user was `gcplayer`.
+
+| Check | Result |
+|---|---|
+| `gamecore-provider.py install lutris --user gcplayer` | `net.lutris.Lutris` installed (stable, 0.5.22) with `Platform.Compat.i386`, `GL.default`, `GL32.default` 25.08 pulled automatically; `flatpak override` applied (filesystem = install root, devices all, x11); `gamecore-lutris-setup.{service,timer}` written with tokens expanded and the timer enabled. pacman and `hostAccess.gamemode` failed as expected on Ubuntu (no pacman, no `gamemode` group) and were reported, not raised |
+| `lutris_setup.py` as the player | GitHub answered 403 (this sandbox's proxy): logged, exit 1, defaults still written to `data/lutris/runners/wine.yml` and `system.yml`, no `config/lutris` created |
+| Lutris starting on that home | used `data/lutris` (no `config/lutris`), kept our `system.yml`/`wine.yml`, created `pga.db` with the columns and the `categories`/`games_categories` tables the sync reads |
+| Lutris's own view (in the sandbox, `lutris.util.wine.proton`) | a `GE-Proton11-7/` folder (with `proton`, `files/bin/wine`) in `runners/wine/` is listed as a Proton version once umu exists; with `version: GE-Proton11-7` written by `lutris_defaults.apply`, the wine runner resolves that version; `dxvk`, `vkd3d`, `esync`, `fsync`, `gamemode`, `game_path` read back as written |
+| launch premise | with Lutris's window open, a bare `flatpak run net.lutris.Lutris lutris:rungameid/1` returned after **0.8 s** (forwarded over D-Bus) |
+| `lutris_session.py` on a native test game (`linux` runner, `/usr/bin/sleep 6`) | `exit=0 elapsed=9.6` s: Lutris without a window, the game followed through `lutris-wrapper`, Lutris quit on its own after it |
+| same, Lutris window already open | "closing an idle Lutris first", then the same 9.6 s session, no instance left |
+| GameCore's kill (SIGKILL to the session's process group) | `lutris-wrapper` and the game ran **in the session's group**; after the kill no game process and no Flatpak instance were left |
+| real `lutris-wrapper` cmdline | not retitled in the sandbox (`python3 /app/share/lutris/bin/lutris-wrapper Sleeper 0 0 gamemoderun ./sleep 6`): the script-path match in `is_game_cmdline` is the one that fires. `gamemoderun` is there: our `gamemode: true` reached the launch |
+
+No container test: Docker Hub answered 429 to the Arch image pull, and a
+privileged container (needed for bwrap) was refused in this session.
+
 ## Decisions
 
 - **Library = stubs** in `emu/lutris/` (`<Title>.lutris`, JSON with the Lutris
@@ -128,10 +153,17 @@ Sources read, not guessed (clones under `/home/user/research`, `/home/user/lutri
 
 ## Not verified (cannot run here)
 
-- A real Lutris start, a real Wine/Proton game, umu's first-run download,
-  gamemode's governor switch, GE-Proton's real 500 MB download and unpack.
-- That `flatpak run`/bwrap keeps the game in GameCore's process group for
-  Lutris specifically (measured for other Flatpaks, `process_manager.py`).
+- A Wine/Proton game (no GPU, no umu runtime download here), DXVK/VKD3D at
+  work, umu's first-run download of the Steam runtime.
+- GE-Proton's real download and unpack: github.com release URLs are blocked
+  from this sandbox. The redirect parsing, checksum and unpack are unit-tested
+  on a tarball built like GE's.
+- gamemode on Arch: the `gamemode` group, polkit, the portal path from the
+  Flatpak to gamemoded. Group membership takes effect at the next login.
+- Suspend (SIGSTOP to the group) during a Wine game; the group was verified
+  for a native game only.
+- A Lutris lingering after its game (the 10 s close path) was not reproduced;
+  it is unit-tested.
 
 ## How to test
 
@@ -149,7 +181,19 @@ On a box: install PC, wait a minute after login, then
 GameCore, start it; `logs/launch/lutris/` has the wrapper's lines
 (`[gamecore-lutris]`). `gamemoded -s` while the game runs says active.
 
+## Screenshots
+
+`pc-pack-tools/shots/`, taken with `pc-library-shots.cjs` against devserve with
+a fake Lutris home (`pc-fixture.py`): the stubs and covers in them were
+written by the real sync, not mocked. Covers are drawn placeholders.
+
+| File | What it shows |
+|---|---|
+| `default-library.png` | default UI: PC library, no extension line, no chip |
+| `summer-library.png` | Summer: same, cover from Lutris's coverart |
+| `shelf-home.png`, `shelf-library.png`, `shelf-reverse.png` | Shelf: PC on the console row (the monitor logo, no hardware photo), the PC case with the disc, the printed reverse with no media |
+| `orbit-home.png`, `jelly-home.png` | PC games among the others on Orbit and Jelly homes |
+
 ## Next
 
-- Screenshots of the PC library in Shelf/Orbit/Jelly/Summer/default.
-- Jelly drawn 3D box fallback (optional).
+- Jelly drawn 3D box fallback (optional, not started).
