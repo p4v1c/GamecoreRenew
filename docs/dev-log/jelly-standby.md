@@ -27,62 +27,36 @@ reduced motion holds everything still and cross-fades the featured game.
 
 ## Where I stopped
 
-Stopped early at the owner's request (out of tokens). State on the branch:
+**Done.** Everything in the plan is built, reviewed twice, documented and
+pushed; every check passes (results below). The owner's next step is to look
+at the shots and the video, then try it on the TV with real clips.
 
-**Done, tested, pushed**
-- Pure core `lib/standby/physics.js`, `director.js` (incl. `deck.add` for
-  games that arrive late) and 22 vitest in `jellyStandbyPhysics.test.ts`.
-- Views `views/standby/*`, `css/standby.css`, wired as the Shell's
-  `screensaver`; 8 component tests in `jellyStandby.test.tsx` (all 30 green
-  on the last run).
-- SDK 12 helpers (`defaults.useLocalWake`, `format.playedAgo`).
-- Visual review pass 1 and its fixes; pass 2 partly shot
-  (`$SCRATCH/mock/jelly-standby-shots/pass2/`: real, stills, reduced).
+Session 2 (after the token stop):
+- Clock switched to ink figures on a white jelly step at the owner's
+  choice: 8.4:1 on the floor, the audit passes, the wobble stays.
+- Late-collection fill checked in a browser (`no-media-cover-feature.png`:
+  the playlist is empty and the collection loads after standby started).
+- Review pass 2 (`pass2b/`) found one more problem: under reduced motion,
+  still jellies piled on each other on the left. Nothing pushes them apart,
+  so a jelly that would overlap now shrinks (x0.8, x0.64), and is left out
+  if it still does not fit. Re-shot: seven still jellies, no overlap. The
+  real-mode pop, feature and release shots needed no fix.
+- Recording 24 s, checked with a frame strip: the first frame is black, the
+  host's own standby before the theme loads (boot straight into standby);
+  then the floor, the swarm drifting and colliding, a pop (Mother 3 wobbles
+  in), and the Chrono Trigger clip gathering into the centre jelly and playing.
 
-**Last change, not browser-checked**
-- `engine.js`: `fill()` + `addGames()` deal jellies when the collection
-  loads after standby started (pass 2 `none` mode timed out with an empty
-  floor because of that). Unit tests pass; not yet seen in a browser.
-- Collection-late fix in `index.js` (`useCollection` → `addGames`): same.
+## Results (last commit)
 
-**Not done**
-- Pass 2 review of the images (only `real` pop and feature were looked at:
-  fine, except the pop shot came too early; the tool now waits 220 ms).
-- `none` mode shots, deliverables copied to `$SCRATCH/mock/jelly-standby-shots/`
-  (swarm, feature, pop, caption crop, reduced), the ~20 s
-  `jelly-standby.webm` (`--video`), comparison with `jelly-veille.webm`.
-- Docs: `docs/themes/README.md` (SDK 12 + Jelly standby), Jelly `DESIGN.md`
-  (standby tokens: `--jl-sb-green/orange/lilac`, floor light/deep, motion),
-  Jelly `README.md` (screens table, files), `CHANGELOG.md`, `README.md`.
-- Full runs: `npx vitest run`, `pytest backend/tests -q -m "not network"`,
-  `check-docs.py --all`, file-size `--diff`, slop-audit.
-- Theme version: 1.5.0 is on the branch; bump to 1.5.1 before the next push.
-
-**Known issues / open decisions**
-- Clock: white figures on an ink step; the legibility audit still reads
-  white on cyan as 1.5:1 (FAIL). Alternative that passes: ink figures with a
-  white step. Owner to choose.
-- Headless Chromium here runs 13-22 fps in software; recordings will look
-  choppier than the box. Engine time runs on capped dt, so it lags the wall.
-- Jellies may overlap each other ~8 % (soft contact) and get squeezed into
-  the featured jelly near a zone wall; the zones themselves hold (tested).
-- Gather path of the featured jelly can cross a zone corner for 1.6 s.
-- All clips and screenshots on screen are stand-ins (`make-standins.py
-  --centre`), labelled "stand-in clip".
-
-**Resumed (session 2)**
-- Clock switched to ink figures on a white jelly step (owner's choice:
-  passes the audit, keeps the wobble). Jelly 1.5.1.
-- Late-collection fill checked in a browser: the `none` mode (empty
-  playlist, collection loading after standby) fills the floor and features
-  a cover (`pass2b/jelly-none-*.png`).
-
-**Resume**
-1. Restart devserve (command in "How to test"), `rsync` the theme, rebuild
-   only if host code changed.
-2. Run the shot tool for `none`, `real`, `real --reduced`, then `--video`;
-   review pass 2 cold; fix; copy finals to `$SCRATCH/mock/jelly-standby-shots/`.
-3. Docs listed above, bump 1.5.1, run every check in "How to test", push.
+- `npx vitest run`: 81 files, 734 tests passed. `npx tsc --noEmit`: clean.
+- `pytest backend/tests -q -m "not network"`: 2388 passed, 56 skipped, 4
+  failed: the known ones on `main` (`test_install_media_index.py` x3,
+  `test_system_split.py::test_the_command_dry_runs_by_default`).
+- `test_theme_versions.py`: 5 passed (Jelly 1.5.1).
+- `check-theme.mjs config/themes/jelly`: 48 modules, 0 syntax errors, 10 pages.
+- `ruff check .` 0.16.1: clean. `shellcheck -S warning`: clean.
+- `check-docs.py --all`: clean. `check-file-size.sh --diff`: clean.
+- Legibility audit in standby: 6 checked, 0 failing (lowest 6.16:1).
 
 ## Plan
 
@@ -241,4 +215,39 @@ PATH=$SCRATCH/bin:$PATH node .claude/skills/gamecore-legibility/scripts/legibili
 
 ## Screenshots
 
+All in `$SCRATCH/mock/jelly-standby-shots/`, 1920x1080 (crops at 2x).
+**Every clip and screenshot inside a jelly is a stand-in** from
+`make-standins.py --centre`, labelled "stand-in clip" on the picture: the
+dev box has no ScreenScraper account. Covers, game names, consoles and
+"played N days ago" are the dev box's real data.
+
+| File | Shows |
+|---|---|
+| `swarm.png` | the swarm drifting, caption and clock clear |
+| `feature-clip.png`, `feature-clip-2.png` | a clip playing in the featured jelly (stand-in clips) |
+| `pop.png` | a pop in progress: the jelly swelling and fading, its drops flying |
+| `release.png` | the featured jelly shrinking back, its cover returning |
+| `caption-2x.png`, `clock-2x.png` | the caption and the clock, 2x |
+| `reduced-motion.png`, `reduced-motion-swarm.png` | reduced motion: still jellies, the feature faded in on the still centre jelly |
+| `no-media-cover-feature.png` | empty playlist: a cover grows in the centre jelly |
+| `jelly-standby.webm`, `jelly-standby-strip.png` | 24 s recording and its frame strip |
+| `pass0/`, `pass1/`, `pass2/`, `pass2b/` | the review passes, before their fixes |
+
 ## Known issues
+
+- **Not seen on the TV or with real clips.** Real clips are H.264; the dev
+  Chromium plays only the VP9 stand-ins.
+- **Frame rate:** headless Chromium renders 13-22 fps here in software, so
+  the recording is choppier than the box (GPU) should be. Engine time runs
+  on capped dt and lags the wall clock when frames are slow. Not measured
+  on the box's GPU: animated `border-radius` repaints seven jellies at 30 Hz;
+  if it stutters, lower `MORPH_EVERY_S` first.
+- Jellies overlap each other by up to ~8 % (soft contact), more when the
+  crowd squeezes one against the featured jelly near a zone wall. The
+  caption and clock zones themselves hold (tested).
+- The featured jelly's path to the centre can cross a zone corner for 1.6 s.
+- Under reduced motion a crowded floor holds fewer than seven jellies.
+- Deviations from the mockup: ink clock on a white step (was white with a
+  20 % shadow); the date pill has a gap instead of "·"; gradients instead of
+  blurred inset shadows and a blurred shine (cost); mass by area in
+  collisions; blobs keep out of the caption and clock (the approved fix).
