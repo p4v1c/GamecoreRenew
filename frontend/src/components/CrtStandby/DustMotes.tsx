@@ -1,18 +1,33 @@
 import { useEffect, useRef } from 'react'
 
-const COUNT = 38
-const FRAME_MS = 40
+const COUNT = 46
+/** Pixels per second at 1080 lines, for the nearest motes; far ones are slower. */
+const FALL = 26
+/** Width of the side-to-side drift, in pixels, and how long one sway takes. */
+const SWAY = 14
+const SWAY_S = 7
 
-interface Mote { x: number; y: number; r: number; vx: number; vy: number; a: number; phase: number }
+interface Mote { x: number; y: number; z: number; phase: number; twinkle: number }
 
-const spawn = (w: number, h: number): Mote => ({
-  x: Math.random() * w, y: Math.random() * h,
-  r: 0.8 + Math.random() * 1.6,
-  vx: (Math.random() - 0.5) * 0.12, vy: -0.03 - Math.random() * 0.08,
-  a: 0.25 + Math.random() * 0.4, phase: Math.random() * Math.PI * 2,
+/** z is depth, 0 far to 1 near: near motes are bigger, brighter and fall faster. */
+const spawn = (w: number, h: number, top = false): Mote => ({
+  x: Math.random() * w,
+  y: top ? -6 - Math.random() * h * 0.2 : Math.random() * h,
+  z: Math.random(),
+  phase: Math.random() * Math.PI * 2,
+  twinkle: 0.6 + Math.random() * 1.4,
 })
 
-/** Dust drifting through the lamp light and the moonlight. Not drawn under reduced motion. */
+/**
+ * Dust falling through the lamp light and the moonlight.
+ *
+ * It used to rise at a few hundredths of a pixel per frame, which on a TV read
+ * as dust frozen in the picture. Now every mote falls, sways, and catches the
+ * light as it turns; a mote that reaches the floor starts again above the top
+ * edge. Warm on the lamp's side, cool on the window's. Driven by the frame
+ * clock rather than a timer, so the speed does not depend on the frame rate.
+ * Not drawn under reduced motion (the parent leaves it out).
+ */
 export function DustMotes() {
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
@@ -23,24 +38,30 @@ export function DustMotes() {
     const fit = () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight }
     fit()
     const motes = Array.from({ length: COUNT }, () => spawn(w, h))
-    let tick = 0
-    const draw = () => {
-      tick++
+    let raf = 0
+    let last = performance.now()
+    const draw = (now: number) => {
+      const dt = Math.min(0.1, (now - last) / 1000)
+      last = now
+      const t = now / 1000
+      const scale = h / 1080
       ctx.clearRect(0, 0, w, h)
       for (const m of motes) {
-        m.x += m.vx + Math.sin(tick / 90 + m.phase) * 0.05
-        m.y += m.vy
-        if (m.y < -4) Object.assign(m, spawn(w, h), { y: h + 4 })
-        if (m.x < -4) m.x = w + 4
-        if (m.x > w + 4) m.x = -4
-        ctx.globalAlpha = m.a * (0.7 + 0.3 * Math.sin(tick / 40 + m.phase))
-        ctx.fillStyle = '#e8ecff'
-        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill()
+        m.y += FALL * scale * (0.35 + 0.65 * m.z) * dt
+        if (m.y > h + 6) Object.assign(m, spawn(w, h, true))
+        const x = m.x + Math.sin(t * (Math.PI * 2 / SWAY_S) + m.phase) * SWAY * scale * (0.5 + m.z)
+        const glint = 0.55 + 0.45 * Math.sin(t * m.twinkle + m.phase)
+        ctx.globalAlpha = (0.18 + 0.5 * m.z) * glint
+        ctx.fillStyle = x < w * 0.4 ? '#ffe2c8' : '#e3e8ff'
+        ctx.beginPath()
+        ctx.arc(x, m.y, (0.7 + 1.7 * m.z) * scale, 0, Math.PI * 2)
+        ctx.fill()
       }
+      raf = requestAnimationFrame(draw)
     }
-    const t = setInterval(draw, FRAME_MS)
+    raf = requestAnimationFrame(draw)
     window.addEventListener('resize', fit)
-    return () => { clearInterval(t); window.removeEventListener('resize', fit) }
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', fit) }
   }, [])
   return <canvas ref={ref} className="crt-dust" aria-hidden="true" />
 }
