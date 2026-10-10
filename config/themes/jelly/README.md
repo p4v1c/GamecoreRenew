@@ -22,7 +22,7 @@ touched.
 | Game details | jacket, metadata, playtime, Play / Resume, favourite | Jelly, launch by the host |
 | Settings (Options) | the host's ten categories, dressed | host (`createSettings`, `pager`, `detail: 'dialog'`) |
 | Power (Share), controller (□), session menu (PS ×2) | dressed host markup | host |
-| Standby | your covers in jellies on the cyan floor; one grows and plays its game's standby clip (or a panning screenshot) about every 25 s; pops deal the next game; caption and clock | Jelly (`views/standby/`); stage, wake and clips are the host's (SDK 12, feature-detected) |
+| Standby | your covers in jellies on the cyan floor; one grows in the centre to show its cover about every 25 s (no clips); pops deal the next game; caption and clock | Jelly (`views/standby/`); stage and wake are the host's (SDK 12, feature-detected) |
 
 **Pictures.** Game cards stand on the game's 3D box (`box-3d` in its media
 index) when it has one, drawn at its own shape on the jelly, and on the flat

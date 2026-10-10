@@ -251,3 +251,11 @@ dev box has no ScreenScraper account. Covers, game names, consoles and
   20 % shadow); the date pill has a gap instead of "·"; gradients instead of
   blurred inset shadows and a blurred shine (cost); mass by area in
   collisions; blobs keep out of the caption and clock (the approved fix).
+
+## Follow-up: no clips
+
+The owner asked for Jelly's standby without clips. `views/standby/index.js` no
+longer fetches the standby playlist; the engine gets an empty reel, so every
+feature is a cover grown in the centre (the path already shot as
+`no-media-cover-feature.png`). `media.js` and the reel helpers stay for now:
+the engine still routes covers through them.

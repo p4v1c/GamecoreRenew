@@ -1,7 +1,7 @@
 /**
  * Jelly's standby as the Shell gets it: mounted only in the `screensaver`
- * stage, jellies holding covers, one clip at a time in the featured jelly,
- * everything stopped and emptied when the stage moves on. Frames are pumped
+ * stage, jellies holding the library's covers, a cover grown in the centre
+ * now and then (never a clip), everything stopped when the stage moves on. Frames are pumped
  * by hand; what it looks like is checked in a browser (docs/dev-log).
  */
 import { createElement } from 'react'
@@ -12,15 +12,8 @@ import { api } from '../api'
 import { useStore } from '../store'
 
 const THEME = '../../../config/themes/jelly'
-const item = (system_id: string, filename: string, display_name: string, media_type = 'video-normalized') => ({
-  system_id, filename, display_name, system_name: 'Game Boy Advance', last_played: null, media_type,
-  url: `/api/media/${system_id}/${encodeURIComponent(filename)}/media/${media_type}`,
-})
-const PLAYLIST = {
-  videos: [item('gba', 'Golden Sun (Europe).gba', 'Golden Sun')],
-  stills: [item('gba', 'Metroid Fusion (Europe).gba', 'Metroid Fusion', 'screenshot-gameplay'),
-    item('gba', 'Wario Land 4 (Europe).gba', 'Wario Land 4', 'screenshot-gameplay')],
-}
+const GAMES = ['Golden Sun (Europe).gba', 'Metroid Fusion (Europe).gba', 'Wario Land 4 (Europe).gba']
+  .map((filename) => ({ filename, display_name: filename.replace(/ \(.*$/, ''), path: `/roms/gba/${filename}` }))
 
 let frames: FrameRequestCallback[] = []
 let clock = 0
@@ -55,7 +48,10 @@ beforeEach(() => {
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
   vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
   vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {})
-  vi.spyOn(api.standby, 'videos').mockResolvedValue(PLAYLIST)
+  vi.spyOn(api.systems, 'list').mockResolvedValue([{ id: 'gba', name: 'Game Boy Advance', kind: 'emulator' }] as never)
+  vi.spyOn(api.games, 'list').mockResolvedValue(GAMES as never)
+  vi.spyOn(api.playtime, 'all').mockResolvedValue([] as never)
+  vi.spyOn(api.standby, 'videos').mockResolvedValue({ videos: [], stills: [] } as never)
   vi.spyOn(api.standby, 'exit').mockResolvedValue({ ok: true } as never)
 })
 afterEach(() => {
@@ -101,20 +97,14 @@ describe('jelly standby', () => {
     expect(container.querySelector('video')).toBeNull()
   })
 
-  it('features the clip in a jelly, then lets it go; one video at most', async () => {
+  it('grows a cover in the centre, then lets it go; never a clip', async () => {
     const { container } = await mounted()
     pump(10)
     expect(container.querySelector('.jl-standby')?.getAttribute('data-phase')).toBe('show')
-    const videos = container.querySelectorAll('video')
-    expect(videos).toHaveLength(1)
-    expect(videos[0].closest('.jl-sb-blob')?.classList.contains('is-featured')).toBe(true)
-    expect(videos[0].getAttribute('src')).toBe(PLAYLIST.videos[0].url)
-    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled()
-    expect(container.querySelector('.jl-sb-title')?.textContent).toBe('Golden Sun')
-    act(() => { videos[0].dispatchEvent(new Event('ended')) })
-    pump(3)
     expect(container.querySelector('video')).toBeNull()
-    expect(container.querySelector('.jl-standby')?.getAttribute('data-phase')).toBe('swarm')
+    expect(api.standby.videos).not.toHaveBeenCalled()
+    pump(14)
+    expect(container.querySelector('.jl-standby')?.getAttribute('data-phase')).not.toBe('show')
   })
 
   it('pops a jelly and wobbles another in', async () => {
@@ -123,16 +113,12 @@ describe('jelly standby', () => {
     expect(container.querySelector('.jl-sb-splat')).not.toBeNull()
   })
 
-  it('stops and empties everything when the stage leaves the screensaver', async () => {
+  it('stops everything when the stage leaves the screensaver', async () => {
     const { container } = await mounted()
     pump(10)
-    const video = container.querySelector('video')!
     act(() => useStore.getState().setStandby('sleep'))
     expect(container.querySelector('.jl-standby')).toBeNull()
     expect(container.querySelector('.jl-standby-sleep')).not.toBeNull()
-    expect(video.isConnected).toBe(false)
-    expect(video.getAttribute('src')).toBeNull()
-    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled()
     expect(frames).toHaveLength(0)
     act(() => useStore.getState().setStandby('off'))
     expect(container.innerHTML).toBe('')
@@ -145,7 +131,8 @@ describe('jelly standby', () => {
     expect(frames).toHaveLength(0)
     expect(container.querySelectorAll('.jl-sb-blob.is-still').length).toBeGreaterThanOrEqual(3)
     act(() => { vi.advanceTimersByTime(9000) })
-    expect(container.querySelector('.jl-sb-stage.is-on video')).not.toBeNull()
+    expect(container.querySelector('.jl-sb-stage.is-on')).not.toBeNull()
+    expect(container.querySelector('video')).toBeNull()
     vi.useRealTimers()
   })
 

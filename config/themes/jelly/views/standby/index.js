@@ -1,6 +1,4 @@
 import {systemName} from '../../lib/catalog.js'
-import {favouriteKeys} from '../../lib/favourites.js'
-import {featureReel} from '../../lib/standby/director.js'
 import {createCaption} from './caption.js'
 import {createEngine} from './engine.js'
 
@@ -9,9 +7,6 @@ const libraryGames = (games) => games.map((g) => ({
   key: g.key, systemId: g.systemId, filename: g.gameKey, title: g.title,
   systemName: systemName(g.system), lastPlayed: g.lastPlayed,
 }))
-
-/** The playlist's games, once each: the pool when the collection never loaded. */
-const reelGames = (reel) => [...new Map(reel.map((r) => [r.game.key, r.game])).values()]
 
 /** A box as a root-relative rect, or null before it is laid out. */
 function rectIn(root, el) {
@@ -24,7 +19,9 @@ function rectIn(root, el) {
 
 /**
  * Jelly's standby, the Shell's `screensaver`: the cyan floor, jellies holding
- * the library's covers, a featured clip now and then, the caption and clock.
+ * the library's covers, one now and then grown in the centre, the caption and
+ * clock. No clips: the owner wanted Jelly's standby to be the covers alone, so
+ * it never asks for the standby playlist and no video is ever decoded here.
  * Driven by the store's `standby` stage like the host's: `sleep` mounts a
  * black screen and nothing else (DPMS has the screen off), and leaving
  * `screensaver` unmounts the room, which stops the loop and empties the video.
@@ -44,31 +41,28 @@ export function createStandby(sdk, {collection}) {
     const clockBox = useRef(null)
     const engine = useRef(null)
     const [game, setGame] = useState(null)
-    const library = collection.useCollection()
+    // The jellies are the library's covers and nothing else, so a box that
+    // boots straight into standby, before Home has loaded the collection,
+    // asks for the consoles itself; otherwise the floor would stay empty.
+    const [systems, setSystems] = useState(null)
+    useEffect(() => {
+      if (collection.get().games.length) return
+      sdk.api.systems.list().then(setSystems).catch(() => {})
+    }, [])
+    const library = collection.useCollection(systems)
 
     const zones = () => [rectIn(root.current, captionBox.current), rectIn(root.current, clockBox.current)]
       .filter(Boolean)
 
     useEffect(() => {
-      let live = true
       const reduced = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-      const playlist = sdk.api.standby?.videos
-        ? sdk.api.standby.videos(favouriteKeys()).catch(() => null)
-        : Promise.resolve(null)
-      playlist.then((list) => {
-        if (!live) return
-        const reel = featureReel(list)
-        const library = libraryGames(collection.get().games || [])
-        const games = library.length ? library : reelGames(reel)
-        engine.current = createEngine({root: root.current, layer: layer.current, games, reel, reduced,
-          onCaption: setGame})
-        engine.current.setZones(zones())
-        engine.current.start()
-      })
+      engine.current = createEngine({root: root.current, layer: layer.current,
+        games: libraryGames(collection.get().games || []), reel: [], reduced, onCaption: setGame})
+      engine.current.setZones(zones())
+      engine.current.start()
       const resize = () => engine.current?.measure()
       window.addEventListener('resize', resize)
       return () => {
-        live = false
         window.removeEventListener('resize', resize)
         engine.current?.stop()
         engine.current = null
