@@ -10,7 +10,7 @@ import {createController} from './views/controller.js'
 import {createSplash} from './views/splash.js'
 import {createCeremony} from './views/ceremony.js'
 import {SOUNDS} from './lib/sounds.js'
-import {followProfiles} from './lib/catalog.js'
+import {favouriteKeys, followProfiles} from './lib/catalog.js'
 
 /** Orbit's mockup over the host's real catalogue, library and session controls.
  * SDK 6 lets the grid own directional focus while the host keeps launch/search. */
@@ -48,6 +48,13 @@ export default function createOrbit(sdk) {
   const Controller = createController(sdk)
   const Ceremony = createCeremony(sdk)
 
+  // Standby is the host's CRT room (SDK 11): the night, the TV playing the
+  // games played most, favourites more often. Orbit only sets the caption in
+  // its own type (css/standby.css). An older host keeps its slideshow.
+  const Standby = sdk.defaults.CrtStandby
+    ? () => html`<${sdk.defaults.CrtStandby} skin="orbit-standby" favourites=${favouriteKeys} />`
+    : undefined
+
   function Shell() {
     // PS and the session menu belong to the host now — one binding for every
     // theme, and no second panel to collide with it.
@@ -55,7 +62,7 @@ export default function createOrbit(sdk) {
     return html`<div className="orbit-app">
       <${sdk.defaults.Shell} background=${Background} topbar=${TopBar}
         homeView=${Home} libraryView=${Library} settings=${Settings}
-        powerView=${Power} gamepadView=${Controller}
+        powerView=${Power} gamepadView=${Controller} screensaver=${Standby}
         homeOmit=${['nav', 'pages', 'confirm']} libraryOmit=${['nav', 'confirm', 'sort']} />
       <${footer.Component} />
     </div>`

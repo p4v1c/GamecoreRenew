@@ -67,6 +67,12 @@ export default (sdk) => {
 
   const Ceremony = createCeremony(sdk)
 
+  // Standby is the host's CRT room (SDK 11). Shelf only prints the caption on
+  // one of its paper labels (css/standby.css). An older host keeps its slideshow.
+  const Standby = sdk.defaults.CrtStandby
+    ? () => html`<${sdk.defaults.CrtStandby} skin="shelf-standby" />`
+    : undefined
+
   const Shell = () => html`
     <${sdk.defaults.Shell}
       background=${Background}
@@ -75,7 +81,8 @@ export default (sdk) => {
       libraryView=${LibraryView}
       settings=${Settings}
       powerView=${createPowerView(sdk, { skin: 'shelf-power' })}
-      gamepadView=${createGamepadView(sdk)} />`
+      gamepadView=${createGamepadView(sdk)}
+      screensaver=${Standby} />`
 
   // `sessionBar` is optional: the host draws its own if a theme omits one, so
   // the way back to a suspended game can never be lost to a theme. Shelf draws

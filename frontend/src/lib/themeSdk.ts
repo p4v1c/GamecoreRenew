@@ -40,7 +40,8 @@ import ProfileAvatar from '../components/ProfileAvatar'
 // 8 reserves gp:menu and gp:power for the host and drops libraryOmit 'options'.
 // 9 adds defaults.GamepadView and the roster props of gamepadView (pads, pad, status…).
 // 10 adds Shell.homeGameOptions for games selected on a custom home screen.
-export const SDK_VERSION = 10
+// 11 adds defaults.CrtStandby, the shared CRT standby screen.
+export const SDK_VERSION = 11
 
 /**
  * Game or application, from the identity the launcher gave the session.

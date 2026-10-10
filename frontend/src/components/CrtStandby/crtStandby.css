@@ -1,0 +1,95 @@
+/* The CRT standby: a rendered room, a game on the TV, the TV's light on the
+   walls. Themes restyle the caption through the --crt-cap-* variables on their
+   skin class (see docs/themes/README.md); the room itself is a picture and is
+   not themable. Everything here is composited by the GPU: no layout per frame. */
+
+.crt-standby {
+  position: fixed; inset: 0; z-index: 9500; overflow: hidden;
+  background: #05060d;
+  --crt-cap-bg: rgba(9, 11, 28, 0.86);
+  --crt-cap-ink: #fff;
+  --crt-cap-ink-2: rgba(255, 255, 255, 0.8);
+  --crt-cap-ink-3: rgba(255, 255, 255, 0.66);
+  --crt-cap-font: var(--gc-font-ui, system-ui, sans-serif);
+  --crt-cap-radius: 14px;
+  --crt-cap-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  /* Written by useTvLight a few times per second. */
+  --tv-tint: rgb(160, 180, 255);
+  --tv-light: 0;
+}
+.crt-standby-sleep { position: fixed; inset: 0; z-index: 9500; background: #000; }
+
+.crt-plate {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; user-select: none; pointer-events: none;
+}
+
+/* The TV's light: the light pass tinted by the picture, screened over the room.
+   mix-blend-mode isolates the group, so the multiply only tints the pass. */
+.crt-light { position: absolute; inset: 0; mix-blend-mode: screen; opacity: var(--tv-light); }
+.crt-light-tint { position: absolute; inset: 0; background: var(--tv-tint); mix-blend-mode: multiply; }
+
+/* The glass, warped onto the plate by a matrix3d (useTvPlacement). */
+.crt-tv {
+  position: absolute; left: 0; top: 0; transform-origin: 0 0;
+  border-radius: 7% / 9%; overflow: hidden; background: #07080a;
+  /* A little of the picture spills onto the bezel: the "bloom". */
+  box-shadow: 0 0 22px 4px color-mix(in srgb, var(--tv-tint) calc(var(--tv-light) * 70%), transparent);
+}
+.crt-tv-picture {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  filter: saturate(1.18) contrast(1.06) brightness(1.06);
+  transition: opacity 320ms ease;
+}
+.crt-tv-picture.is-hidden { opacity: 0; }
+.crt-tv-still { animation: crt-ken-burns 9s ease-in-out both; transform-origin: 40% 45%; }
+@keyframes crt-ken-burns {
+  from { transform: scale(1.02) translate(0, 0); }
+  to   { transform: scale(1.14) translate(-3%, -2%); }
+}
+.crt-tv-static { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+.crt-tv-static.is-on { opacity: 1; }
+.crt-tv-static.is-idle { opacity: 0.32; }
+
+/* Over the picture, in the glass's own coordinates: scanlines (about 90 over
+   the height, so they read at the TV's real size), the tube's vignette, and a
+   window-side highlight on the curved glass. */
+.crt-tv-glass {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(118deg, rgba(200, 215, 255, 0.13) 0%, rgba(200, 215, 255, 0.04) 26%, transparent 42%),
+    radial-gradient(ellipse 72% 68% at 50% 48%, transparent 58%, rgba(0, 0, 0, 0.55) 100%),
+    repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.26) 0 2.7px, transparent 2.7px 5.5px);
+  box-shadow: inset 0 0 34px 6px rgba(0, 0, 0, 0.6);
+}
+
+.crt-dust { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+/* The caption: a card on the carpet's corner, never straight on the picture. */
+.crt-caption {
+  position: absolute; left: 64px; bottom: 56px; max-width: 560px;
+  padding: 22px 28px 20px;
+  background: var(--crt-cap-bg); color: var(--crt-cap-ink);
+  border-radius: var(--crt-cap-radius); box-shadow: var(--crt-cap-shadow);
+  font-family: var(--crt-cap-font);
+}
+.crt-caption-label { font-size: 18px; color: var(--crt-cap-ink-2); margin: 0 0 4px; }
+.crt-caption-title {
+  font-size: 34px; font-weight: 700; line-height: 1.15; margin: 0;
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.crt-caption-meta { font-size: 20px; color: var(--crt-cap-ink-2); margin: 6px 0 0; }
+.crt-caption-time {
+  display: flex; align-items: baseline; gap: 14px; margin-top: 16px; padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--crt-cap-ink) 18%, transparent);
+}
+.crt-caption-time:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.crt-caption-clock { font-size: 40px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.crt-caption-date { font-size: 20px; color: var(--crt-cap-ink-2); }
+.crt-caption-hint { font-size: 16px; color: var(--crt-cap-ink-3); margin: 10px 0 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .crt-tv-still { animation: none; }
+  .crt-tv-picture { transition-duration: 500ms; }
+}

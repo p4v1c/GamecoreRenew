@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '../store'
 import { api } from '../api'
+import { useLocalWake } from '../hooks/useLocalWake'
 
 type Stage = 'off' | 'screensaver' | 'sleep'
 
@@ -28,17 +29,7 @@ export default function Screensaver() {
   const [idx, setIdx] = useState(0)
   const [clock, setClock] = useState('')
 
-  // Local (non-gamepad) input wakes the box too
-  useEffect(() => {
-    if (stage === 'off') return
-    const wake = () => { api.standby.exit().catch(() => {}) }
-    window.addEventListener('pointermove', wake)
-    window.addEventListener('keydown', wake)
-    return () => {
-      window.removeEventListener('pointermove', wake)
-      window.removeEventListener('keydown', wake)
-    }
-  }, [stage])
+  useLocalWake(stage)
 
   // Build the slideshow list when the screensaver kicks in
   useEffect(() => {

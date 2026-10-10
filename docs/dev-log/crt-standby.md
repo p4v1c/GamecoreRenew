@@ -30,8 +30,10 @@ played, with the clock.
 
 ## Where I stopped
 
-Steps 1 and 2 done (plates committed; backend clip service + endpoint + tests
-+ docs). Next: the frontend standby view (step 3).
+Steps 1, 2 and 3 committed (plates; backend clip service; the shared
+`CrtStandby` view opted into by Orbit and Shelf). Visual review pass 1 done and
+fixed. Next: pass 2 screenshots, reduced-motion shot, the two recordings, final
+checks, final report.
 
 ## Journal
 
@@ -50,6 +52,31 @@ Steps 1 and 2 done (plates committed; backend clip service + endpoint + tests
 4. Final renders: plate 1920x1080/128 samples in 7:00, light pass
    1280x720/64 in 1:17 (`$SCRATCH/plate/room-off.png`, `room-tvlight.png`).
    Corners identical to the validated render's. webp q92: 98 KB + 24 KB.
+5. Frontend: pure helpers first (`homography.ts`, `standbyPlaylist.ts`,
+   `tvLight.ts`, 12 vitest), then `components/CrtStandby/`, the SDK export
+   (`defaults.CrtStandby`, SDK 11 in both `themeSdk.ts` and
+   `backend/services/themes.py`), the Orbit and Shelf opt-ins with their
+   caption skins, theme versions bumped (Orbit 4.2.0 → 4.3.0, Shelf 4.3.1 →
+   4.4.0). Wake on mouse/key extracted to `hooks/useLocalWake.ts` (was inline
+   in `Screensaver.tsx`; now shared).
+6. Found while testing: `homography` rounded the projective terms to 9
+   decimals, which shifts corners by 1e-4 px on a 640 px box (they are
+   ~1e-6); switched to 12 significant digits.
+7. Dev data: `docs/dev-log/crt-standby-tools/make-standins.py` files four
+   VP9 stand-in clips and four stand-in screenshots in the dev media cache the
+   way gamemedia files them. The real `GET /api/standby/videos` and the real
+   media route serve them on devserve.
+8. Visual review pass 1 (`$SCRATCH/mock/standby-shots/pass1/`): both themes,
+   clip, static, stills, no media, 2x caption and TV crops. Legibility audit
+   on both: every caption line passes (lowest 5.4:1). Findings and fixes:
+   - Shelf title tracking -0.03em closed the word space ("CrashBandicoot")
+     → -0.015em.
+   - The contrast ratios written in both themes' `css/standby.css` headers
+     were estimates → replaced with the audit's measured values.
+   - Audit FAIL on Shelf `cz-st-name "DS"`: a home-screen label half off the
+     viewport (x=1910) under the standby; the audit cannot prove it is covered.
+     Every on-screen label resolves to the standby on top (probe). Artefact,
+     not a leak.
 
 ## Decisions
 
@@ -84,6 +111,30 @@ Steps 1 and 2 done (plates committed; backend clip service + endpoint + tests
 - **Plates live in `frontend/src/assets/standby/`**, imported by the host
   component, so they ship hashed in the bundle (no new static route). There is
   no `public/` folder in this frontend; `assets/logo.png` is the precedent.
+- **One shared view, host side**: `components/CrtStandby/`, exposed as
+  `sdk.defaults.CrtStandby` (SDK 11). Themes **feature-detect** it instead of
+  declaring `"api": 11` (precedent: `createWhoIsPlaying?.`): requiring it would
+  drop the whole theme on an older host instead of keeping the slideshow.
+- **Theme touches are CSS variables only** (`--crt-cap-*` on a `skin` class):
+  Orbit a night-blue card in Red Hat with the `--blue` label; Shelf a paper
+  label with a brass tab, slightly crooked.
+- **Light = light pass x tint, screened.** `room-tvlight` in a group with
+  `mix-blend-mode: screen`, a `multiply` div of the mean colour inside it.
+  Colour from a 16x12 `drawImage` 4x/s; CSS variables written directly, no
+  React render per frame. Opacity 0.18 + 0.62 x luminance, ±4 % flicker.
+- **Double-buffered video**: two `<video>` slots, only the shown one plays;
+  the next loads paused. On unmount both are paused and emptied.
+- **Clip length** = its duration or 25 s, whichever is shorter; 450 ms snow
+  between; stills 9 s with a Ken Burns push-in. Reduced motion: no dust, no
+  flicker, a 500 ms fade instead of snow.
+- **No media**: soft snow on the TV, caption shows only the clock.
+- **Scanline period** ~90 lines over the glass: at the TV's real size (about
+  210 px wide) a true 240-line raster would alias into moiré.
+- **Caption bottom-left** on the carpet corner, on a card in the theme's
+  material (never straight on the picture), 34 px title, 20 px meta, 16 px
+  hint. Clock 24 h (`fr-FR`, as the TopBar), date in English.
+- **slop-audit**: default-ui gradients 20 → 23, all three in the CRT glass
+  (reflection, vignette, scanlines): light the metaphor has. Nothing else moved.
 - **Worker** starts 180 s after boot, re-sweeps every 3 h (playtime moves).
 
 ## Files changed
@@ -101,6 +152,25 @@ Backend (step 2):
 - Docs: `docs/architecture/03-backend-routers.md`, `04-backend-services.md`,
   `07-config-and-data.md`.
 
+Frontend (step 3):
+- `frontend/src/components/CrtStandby/` (new): `index.tsx`, `TvPicture.tsx`,
+  `TvStatic.tsx`, `DustMotes.tsx`, `StandbyCaption.tsx`, `useTvPlacement.ts`,
+  `useTvLight.ts`, `crtStandby.css`.
+- `frontend/src/lib/homography.ts`, `standbyPlaylist.ts`, `tvLight.ts` (new,
+  + tests); `frontend/src/api/standby.ts` (new); `api/index.ts`
+  (`standby.videos`); `hooks/useLocalWake.ts` (new); `Screensaver.tsx` uses it.
+- `frontend/src/components/defaults.tsx` (`CrtStandby`), `lib/themeSdk.ts`
+  (SDK 11), `backend/services/themes.py` (SDK 11).
+- `frontend/src/themes/orbitShelfStandby.test.tsx` (new, 5 tests).
+- Orbit: `index.js`, `lib/catalog.js` (`favouriteKeys`), `css/standby.css`,
+  `theme.css`, `theme.json` 4.3.0, `DESIGN.md`.
+- Shelf: `index.js`, `css/standby.css`, `theme.css`, `theme.json` 4.4.0,
+  `DESIGN.md`.
+- Docs: `docs/architecture/05-frontend.md`, `docs/themes/README.md`,
+  `README.md`, `CHANGELOG.md`.
+- Dev tools: `docs/dev-log/crt-standby-tools/make-standins.py`,
+  `standby-shots.cjs`, `standby-init.js`.
+
 Scene (step 1):
 - `docs/dev-log/crt-standby-scene/crt-room.py`: the validated scene script
   with `--screen off|on`, `--pass full|tvlight`, `--covers`, `--assets`.
@@ -112,9 +182,37 @@ Scene (step 1):
 
 ```bash
 ruff check .
-python3 -m pytest backend/tests/test_standby_videos.py -q
+shellcheck -S warning $(git ls-files '*.sh') install/bin/*
+python3 -m pytest backend/tests catalog -q -m "not network"
+git fetch --tags && python3 -m pytest backend/tests/test_theme_versions.py -q
+node scripts/check-theme.mjs config/themes/orbit
+node scripts/check-theme.mjs config/themes/shelf
+(cd frontend && npx vitest run && npx tsc --noEmit)
 python3 scripts/check-docs.py --all
 ```
+
+Seeing it (dev box, no ScreenScraper):
+
+```bash
+SCRATCH=/tmp/claude-0/-home-user-GamecoreRenew/1b797080-036c-5ff1-9857-ebc0724751de/scratchpad
+# stand-in clips + screenshots into the dev media cache
+GAMECORE_PATH=$PWD GAMECORE_DATA=$SCRATCH/gcdata PYTHONPATH=$PWD \
+  python3 docs/dev-log/crt-standby-tools/make-standins.py $SCRATCH/scene/frame.png
+(cd frontend && npm run build)
+for t in orbit shelf; do rsync -a --delete config/themes/$t/ $SCRATCH/gcdata/config/themes/$t/; done
+GAMECORE_PATH=$PWD GAMECORE_DATA=$SCRATCH/gcdata PYTHONPATH=$PWD \
+  python3 .claude/skills/gamecore-legibility/scripts/devserve.py &
+# shots: real | stills | none, optional --video (17 s recording) or --reduced
+node docs/dev-log/crt-standby-tools/standby-shots.cjs orbit $SCRATCH/mock/standby-shots real
+# legibility audit in standby (needs a `chromium` on PATH that runs as root:
+# a wrapper around Playwright's headless_shell with --no-sandbox, see Known issues)
+node .claude/skills/gamecore-legibility/scripts/legibility-audit.mjs --theme orbit \
+  --init docs/dev-log/crt-standby-tools/standby-init.js --eval "0;;0;;0;;0" --all
+```
+
+Standby is entered by answering `GET /api/standby` with `state: screensaver`
+(Playwright route in `standby-shots.cjs`, a fetch wrapper in
+`standby-init.js`): devserve is read-only and never runs the standby timer.
 
 ## Screenshots
 
@@ -122,4 +220,17 @@ python3 scripts/check-docs.py --all
 
 ## Known issues and TODO
 
-(filled in as found)
+- The floor boxes are baked into the plate (v1, accepted). TODO(standby):
+  render the floor empty and lay the library's covers like the video, if the
+  owner wants the floor to follow the library.
+- Favourites only weight the playlist; the download order cannot see them
+  (they live in the theme's localStorage).
+- Clips are fetched only for games that already have a gamemedia manifest
+  (the cover pass makes them); a game added today gets its clip on the next
+  sweep (3 h) after its cover.
+- `legibility-audit.mjs` spawns `chromium` from PATH; on this dev box that
+  is a scratch wrapper around Playwright's `headless_shell --no-sandbox`
+  (`$SCRATCH/bin/chromium`). The full `chrome` build never opened its
+  DevTools port here.
+- Audit artefact: a half-off-screen Shelf home label under the standby is
+  reported FAIL (see journal 8).

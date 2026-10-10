@@ -16,6 +16,7 @@ import HomeScreen from './HomeScreen'
 import LibraryScreen from './LibraryScreen'
 import TopBar from './TopBar'
 import Screensaver from './Screensaver'
+import CrtStandby from './CrtStandby'
 import PowerModal from './modals/PowerModal'
 import GamepadModal from './modals/GamepadModal'
 import DefaultGamepadView from './modals/gamepad/DefaultGamepadView'
@@ -83,6 +84,14 @@ export async function launchGame(
 export const DefaultHome = () => <HomeScreen onLaunchApp={launchApp} />
 export const DefaultLibrary = () => <LibraryScreen />
 export const DefaultScreensaver = () => <Screensaver />
+
+/**
+ * SDK 11. The CRT standby: a rendered room, the library's game clips on its
+ * TV, the TV's light on the walls. A theme opts in by passing it as the
+ * Shell's `screensaver`, with `skin` (a class for the caption's
+ * `--crt-cap-*` variables) and `favourites` (`system_id:filename` keys).
+ */
+export { CrtStandby }
 
 /** The modals close themselves through the store-independent callbacks App owns. */
 export type CloseProps = { onClose: () => void }

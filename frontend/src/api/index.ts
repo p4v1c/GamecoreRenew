@@ -5,6 +5,8 @@ export type { StorageVolume } from './storage'
 import { logs } from './logs'
 export type { LogsUsage } from './logs'
 import { profiles } from './profiles'
+import { standbyVideos } from './standby'
+export type { StandbyItem, StandbyPlaylist } from './standby'
 export type { Profile, ProfileController, ProfilesState, ProfileFields } from './profiles'
 
 import { BASE, get, put, post, postDetailed } from './http'
@@ -401,6 +403,8 @@ export const api = {
     setConfig: (cfg: { enabled?: boolean; screensaver_mins?: number; sleep_mins?: number }) =>
       post<{ ok: boolean; enabled: boolean; screensaver_mins: number; sleep_mins: number }>('/standby/config', cfg),
     exit: () => post('/standby/exit'),
+    /** What the CRT standby plays: clips and screenshots already on disk. */
+    videos: standbyVideos,
   },
   bios: {
     list: () => get<BiosSystem[]>('/bios'),

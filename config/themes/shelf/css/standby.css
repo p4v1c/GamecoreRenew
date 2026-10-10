@@ -1,0 +1,18 @@
+/* Standby: the host's CRT room (sdk.defaults.CrtStandby). The room, the TV
+ * and its light are the host's picture and are not themed; Shelf prints the
+ * caption on one of its paper labels: card paper, ink, a brass tab on top,
+ * a real-object shadow, set down a little crooked on the carpet.
+ * Contrast measured on #F8F7F4 (legibility-audit): ink 16.8:1,
+ * ink-2 #46444C 8.9:1, ink-3 #66646D 5.4:1. */
+.crt-standby.shelf-standby {
+  --crt-cap-font: 'Archivo', 'Noto Sans', sans-serif;
+  --crt-cap-bg: #F8F7F4;
+  --crt-cap-ink: #17161A;
+  --crt-cap-ink-2: #46444C;
+  --crt-cap-ink-3: #66646D;
+  --crt-cap-radius: 14px;
+  --crt-cap-shadow: 0 2px 0 #E7E4DC, 0 16px 34px rgba(4, 4, 12, 0.5);
+}
+.shelf-standby .crt-caption { border-top: 6px solid #B8892B; transform: rotate(-0.8deg); }
+.shelf-standby .crt-caption-title { font-weight: 800; letter-spacing: -0.015em; }
+.shelf-standby .crt-caption-clock { font-weight: 700; letter-spacing: -0.02em; }

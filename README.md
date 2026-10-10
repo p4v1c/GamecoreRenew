@@ -751,11 +751,19 @@ If no key is set, the scraper silently falls back to libretro only.
 ## Standby
 
 After a configurable idle time (Settings → Standby), GameCore shows a
-cover-art screensaver, then turns the screen off via DPMS and drops the
+screensaver (Orbit and Shelf: a room at night where a CRT plays short videos
+of the games you play most; other themes: a cover-art slideshow), then turns
+the screen off via DPMS and drops the
 CPU governor to powersave. The box itself stays up: backend, SSH and OTA
 updates keep working. **Any controller button wakes it** (evdev-based, so
 it works even with the UI asleep); mouse/keyboard input works too. A
 running game always blocks standby.
+
+The standby videos come from ScreenScraper, so they need its account (the same
+one that brings the 3D boxes). The backend downloads them in the background,
+the most played games first, never while a game is running, and keeps at most
+5 GB; `GAMECORE_STANDBY_VIDEO_CAP_GB=2` in the backend's environment lowers
+that, `0` turns the videos off and deletes them.
 
 Governor switching is optional and needs a sudoers rule (the screen is
 the real power sink — skip this if you don't care):

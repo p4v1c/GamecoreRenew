@@ -159,7 +159,7 @@ and returns an unsubscribe.
 | `gp:battery` | `battery.run()` | `name`, `level`, `threshold` | toast, or native HUD in-game |
 | `gp:controllers` | `battery.run()` | `controllers[]` | battery levels for the controllers screen |
 | `gp:guide` | `gamepad_monitor` | `action` (`backgrounded`, `home`, `failed`), `gesture` | double press: suspends a game; `home` (a pair begun in the interface) opens the session menu in `SessionBar` |
-| `standby:screensaver` / `standby:sleep` / `standby:exit` | `standby._enter()` / `exit_standby()` | — | drives `Screensaver` |
+| `standby:screensaver` / `standby:sleep` / `standby:exit` | `standby._enter()` / `exit_standby()` | — | drives `Screensaver`, or `CrtStandby` when the theme opts in |
 | `theme:changed` | `routers/themes.py` | `active` | reloads the theme |
 | `profiles:changed` | `routers/profiles.py` | `active` (the active profile) | `frontend/src/lib/players.ts` re-reads the profiles and the pad roster (`refreshPlayers`) |
 | `update:log` / `update:done` | `routers/update.py` | `line` / `success`, `code` | OTA progress |
@@ -189,6 +189,8 @@ and returns an unsubscribe.
 | `components/LibraryScreen/GameMetaPanel.tsx` | 40 | year/genres/players; handed to the view |
 | `components/TopBar/index.tsx` | 134 | clock, IP, storage, `ControllerBattery`, `TBtn` |
 | `components/Screensaver.tsx` | 136 | standby slideshow, `ROTATE_MS = 9000` |
+| `components/CrtStandby/index.tsx` | — | the CRT standby (`sdk.defaults.CrtStandby`, SDK 11): stage, playlist (`api.standby.videos`), fallbacks video → stills → snow. Orbit and Shelf opt in; see [CRT standby](#crt-standby) |
+| `hooks/useLocalWake.ts` | — | mouse move / key press ends standby; shared by both standby screens |
 | `components/OverlayScreen/index.tsx` | 109 | what the transparent Electron overlay window renders |
 | `components/modals/SettingsModal.tsx` | 85 | menu; pages live in `settings/`. **Every id in `ITEMS` needs a matching `page === …` line** — `themes` was missing one and the button was silently dead. |
 | `components/modals/PowerModal.tsx` | 149 | **flow**: Shut down, Restart, Return to desktop (led by In the background), two-press confirm, ↑↓ and ←→ both move, `POWER_FAILSAFE_MS = 10000` |
@@ -260,6 +262,25 @@ Lit by position, so any mapped pad lights the right spot.
 `STICK_TRAVEL = 13` is the stick deflection at full axis, the calibration knob.
 Colours are `--pd-*` variables a theme sets from its stylesheet.
 
+## CRT standby
+
+`components/CrtStandby/`: a pre-rendered room (`frontend/src/assets/standby/room-off.webp`)
+with the game's clip on its TV.
+
+| File | Job |
+|---|---|
+| `index.tsx` | `screensaver` stage only mounts the room; `sleep` is black with nothing mounted; leaving unmounts it, which pauses and empties both videos. Fetches the playlist once per standby. Reduced motion: no dust, no flicker, a fade instead of snow |
+| `TvPicture.tsx` | the reel. Two `<video>` slots: one plays, the next loads paused behind it, so one decodes at a time. A clip plays `clipSeconds()` (its length, 25 s at most), then 450 ms of snow. Every item failing → stills, then snow |
+| `useTvPlacement.ts` | `matrix3d` from `frontend/src/assets/standby/room-screen.json` and the cover-fit plate, recomputed on resize |
+| `useTvLight.ts` | the picture's mean colour, 16x12 `drawImage` 4x a second; writes `--tv-tint` / `--tv-light` on the root (no re-render). `room-tvlight.webp` is tinted by it (multiply) and screened over the room |
+| `TvStatic.tsx`, `DustMotes.tsx`, `StandbyCaption.tsx` | snow canvas, dust canvas, the caption card |
+| `crtStandby.css` | layout and the CRT look; the caption reads `--crt-cap-*`, which a theme sets on its `skin` class |
+
+Pure helpers, tested: `frontend/src/lib/homography.ts` (corners → `matrix3d`),
+`frontend/src/lib/standbyPlaylist.ts` (mode, clip length, "played 3 days ago"),
+`frontend/src/lib/tvLight.ts` (mean colour → tint and amount). The plate is re-rendered
+from `docs/dev-log/crt-standby-scene/`.
+
 ## `lib/`
 
 | File | Exports |
@@ -272,7 +293,8 @@ Colours are `--pd-*` variables a theme sets from its stylesheet.
 
 `BASE = '/api'`, generic `get<T>` / `post<T>`, and the `api` object grouping
 `systems`, `games`, `metadata`, `media`, `playtime`, `sysinfo`, `update`,
-`wifi`, `audio`, `bluetooth`, `addons`, `standby`. Types exported for the UI:
+`wifi`, `audio`, `bluetooth`, `addons`, `standby` (`standby.videos(favourites)`
+lives in `api/standby.ts`, with `StandbyItem` / `StandbyPlaylist`). Types exported for the UI:
 `SystemEntry`, `GameEntry`, `GameMeta`, `MediaEntry`, `GameMediaIndex`,
 `PlaytimeEntry`, `SysInfo`. The controller types (`RosterPad`, `UsbDevice`,
 the autoconfig and mapping-wizard shapes) live in `api/controllers.ts` and are
