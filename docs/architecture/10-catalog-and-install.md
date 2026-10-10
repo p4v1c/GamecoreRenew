@@ -308,9 +308,9 @@ melonDS. Log: `melonds-multiplayer.log` in `$GAMECORE_LOG_DIR`, else `~/.cache/g
 
 `catalog/lutris` is the PC system: the Windows games the owner installs in the
 Flatpak Lutris (GOG offline installers, itch.io, Epic or GOG through Lutris's
-own services, discs). Everything is read from Lutris 0.5.23, the commit
-`net.lutris.Lutris` builds; the dev log (`docs/dev-log/pc-pack.md`) says what
-was verified and how.
+own services, discs). Everything is read from Lutris 0.5.22 (Flathub stable)
+and 0.5.23 (beta) and checked against the stable Flatpak; the dev log
+(`docs/dev-log/pc-pack.md`) says what was verified and how.
 
 | Piece | Where | What |
 |---|---|---|

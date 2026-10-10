@@ -1,6 +1,6 @@
 """Lutris defaults for a console: the fast paths on, written only where absent.
 
-Keys and file shapes read from Lutris 0.5.23:
+Keys and file shapes read from Lutris 0.5.22 and 0.5.23:
 
     runners/wine.yml   {"wine": {version, dxvk, vkd3d, esync, fsync, ...}}
                        (`lutris/runners/wine.py` runner options)

@@ -22,7 +22,7 @@ generator = _load("test_lutris_generator", PACK / "generator.py")
 
 
 def make_db(path: Path, games, hidden=()):
-    """A pga.db with Lutris 0.5.23's columns that the sync reads."""
+    """A pga.db with the Lutris columns that the sync reads."""
     path.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(path)
     con.executescript(

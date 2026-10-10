@@ -1,8 +1,9 @@
 """Where the Flatpak Lutris keeps its library, its config and its runners.
 
-Read from Lutris 0.5.23 (`lutris/settings.py`), the version net.lutris.Lutris
-builds. Inside the sandbox XDG_CONFIG_HOME and XDG_DATA_HOME are
-`~/.var/app/<app id>/config` and `.../data`, and Lutris then decides:
+Read from Lutris 0.5.22 and 0.5.23 (`lutris/settings.py`), Flathub's stable
+and beta builds, and checked against the stable Flatpak. Inside the sandbox
+XDG_CONFIG_HOME and XDG_DATA_HOME are `~/.var/app/<app id>/config` and
+`.../data`, and Lutris then decides:
 
     config   ~/.config/lutris only if that directory already exists,
              otherwise everything lives in ~/.local/share/lutris

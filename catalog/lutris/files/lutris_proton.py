@@ -1,6 +1,6 @@
 """GE-Proton, fetched where the Flatpak Lutris lists it.
 
-Lutris 0.5.23 finds a Proton build in `<runners>/wine/<name>/` when the
+Lutris 0.5.22 and 0.5.23 find a Proton build in `<runners>/wine/<name>/` when the
 directory holds a `proton` script (`lutris/util/wine/proton.py`), lists it
 under that name and runs it through umu. `runners/proton/` is the old
 location; a Lutris migration moves it into `runners/wine/`.
@@ -57,6 +57,7 @@ def latest_tag(log: Log) -> str | None:
     except urllib.error.HTTPError as e:
         if tag := tag_from_location(e.headers.get("Location", "")):
             return tag
+        log(f"releases/latest answered {e.code}, not a redirect")
     except (OSError, ValueError) as e:
         log(f"releases/latest did not answer: {e}")
     try:
