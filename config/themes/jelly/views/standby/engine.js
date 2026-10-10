@@ -26,6 +26,8 @@ const FEATURE_MORPH_AMP = 4
 const REDUCED_TICK_MS = 250
 const REDUCED_FADE_S = 0.6
 const REDUCED_LEAVE_MS = 650
+/** How much of its radius a still jelly may overlap another by. */
+const REDUCED_MAX_OVERLAP = 0.1
 
 const easeOutBack = (k) => 1 + 2.6 * Math.pow(k - 1, 3) + 1.6 * Math.pow(k - 1, 2)
 const easeInOut = (k) => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2)
@@ -88,12 +90,25 @@ export function createEngine({root, layer, games, reel, reduced, onCaption, rand
   // Popping jellies count too: the game that just popped is not dealt straight back.
   const onScreen = () => new Set([...bodies.map((b) => b.game.key), ...pending])
 
+  /** A spot and size for a new jelly. Still jellies never push each other
+   * apart, so under reduced motion one that would overlap shrinks, up to
+   * twice, then is not placed. */
+  function place(d, at) {
+    if (at) return {pos: at, d}
+    for (const k of reduced ? [1, 0.8, 0.64] : [1]) {
+      const spot = findSpawn(bodies, world, (d * k) / 2, rand)
+      if (!reduced || spot.room >= (-REDUCED_MAX_OVERLAP * d * k) / 2) return {pos: {x: spot.x, y: spot.y}, d: d * k}
+    }
+    return null
+  }
+
   function addBody(game, at) {
-    const color = PALETTE[dealt % PALETTE.length]
-    const d = SIZES[dealt % SIZES.length] * unit
-    dealt++
+    const n = dealt++
+    const spot = place(SIZES[n % SIZES.length] * unit, at)
+    if (!spot) return null
+    const {pos, d} = spot
+    const color = PALETTE[n % PALETTE.length]
     const el = createBlobEl(game, color, d)
-    const pos = at || findSpawn(bodies, world, d / 2, rand)
     const v = reduced ? {vx: 0, vy: 0} : driftVelocity(world.speed, rand)
     const b = {game, color, el, d, elW: d, elH: d, vw: d, vh: d, r: d / 2, ...pos, ...v,
       sq: 0, sqa: 0, phase: rand() * 6, born: t, popAt: null, tween: null, pinned: false}

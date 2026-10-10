@@ -175,7 +175,8 @@ function clearance(x, y, r, bodies, world) {
 }
 
 /** Where a new jelly of radius `r` wobbles in: the roomiest of `tries`
- * random spots. `rand` returns [0, 1), injected for the tests. */
+ * random spots, with its `room` (negative: it would overlap by that much).
+ * `rand` returns [0, 1), injected for the tests. */
 export function findSpawn(bodies, world, r, rand, tries = 24) {
   let best = {x: world.w / 2, y: world.h / 2, room: -Infinity}
   for (let i = 0; i < tries; i++) {
@@ -184,7 +185,7 @@ export function findSpawn(bodies, world, r, rand, tries = 24) {
     const room = clearance(x, y, r, bodies, world)
     if (room > best.room) best = {x, y, room}
   }
-  return {x: best.x, y: best.y}
+  return best
 }
 
 /** A drift velocity in the band, in a random heading. */
