@@ -291,12 +291,18 @@ export function createEngine({root, layer, games, reel, reduced, onCaption, rand
     raf = requestAnimationFrame(frame)
   }
 
+  /** Deal until the floor holds its jellies (fewer when the library is small). */
+  async function fill() {
+    const missing = SIZES.length - bodies.filter((b) => b.popAt === null).length - pending.size
+    const dealtNow = await Promise.all(Array.from({length: Math.max(0, missing)}, () => deal()))
+    const shown = dealtNow.find(Boolean)
+    if (shown && !featured && !stopped) onCaption(shown.game)
+  }
+
   async function start() {
     measure()
-    const first = await Promise.all(SIZES.slice(0, Math.min(SIZES.length, games.length)).map(() => deal()))
+    await fill()
     if (stopped) return
-    const shown = first.find(Boolean)
-    if (shown && !featured) onCaption(shown.game)
     if (reduced) timer = setInterval(() => { t += REDUCED_TICK_MS / 1000; act() }, REDUCED_TICK_MS)
     else raf = requestAnimationFrame(frame)
   }
@@ -310,5 +316,12 @@ export function createEngine({root, layer, games, reel, reduced, onCaption, rand
     bodies.length = 0
   }
 
-  return {start, stop, setZones, measure, addGames: (more) => deck.add(more)}
+  /** More games for the deck; empty places on the floor fill at once. */
+  function addGames(more) {
+    if (stopped || !more.length) return
+    deck.add(more)
+    fill()
+  }
+
+  return {start, stop, setZones, measure, addGames}
 }
