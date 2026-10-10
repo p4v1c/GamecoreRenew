@@ -280,3 +280,8 @@ sources. The game names, systems and "played N days ago" are real dev data.
   DevTools port here.
 - Audit artefact: a half-off-screen Shelf home label under the standby is
   reported FAIL (see journal 8).
+
+## Follow-up: Shelf caption
+
+The owner preferred Orbit's dark card to Shelf's white paper label. Shelf's
+caption is now a dark glass card (Archivo, brass label); Shelf 4.4.0 -> 4.4.1.
