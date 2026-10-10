@@ -27,7 +27,11 @@ reduced motion holds everything still and cross-fades the featured game.
 
 ## Where I stopped
 
-Step 0: plan written, nothing built yet.
+Steps 1 and 2 done and pushed: the pure core with its tests, the views, the
+CSS, the SDK 12 helpers. Visual review pass 1 done (findings fixed, below).
+Next: pass 2 on fresh shots, the reduced-motion and no-media shots, the
+recording, docs (`docs/themes/README.md`, DESIGN.md, README, CHANGELOG),
+then the full checks.
 
 ## Plan
 
@@ -44,13 +48,145 @@ Step 0: plan written, nothing built yet.
 
 1. Read the `gamecore-*` skills, Jelly's DESIGN.md and README, the CRT
    standby (`frontend/src/components/CrtStandby/`) and its dev log, the
-   mockup and its recording.
+   mockup and its recording. Jelly had no standby of its own: the host's
+   slideshow showed, and `views/background.js` only pauses the floor during
+   standby (kept, nothing to replace).
+2. Pure core: `lib/standby/physics.js` and `lib/standby/director.js`, 21
+   vitest (`jellyStandbyPhysics.test.ts`). One fix from the first run: the
+   edge test stepped 0.1 s, which decays the squash below its own threshold.
+3. SDK 12: `defaults.useLocalWake` and `format.playedAgo` exposed (see
+   Decisions). `test_sdk_version_gate.py` + `test_themes.py`: 69 passed.
+4. Views (`views/standby/`), `css/standby.css`, wired as the Shell's
+   `screensaver`. Component tests (`jellyStandby.test.tsx`, 8) with a hand
+   pumped frame clock: mount per stage, covers, feature with one video,
+   pop, release on `sleep`, reduced motion, wake, old host.
+5. First browser run (`$SCRATCH/mock/jelly-standby-shots/pass0/`): works,
+   close to the mockup. Headless Chromium here renders 13-22 fps at 1080p in
+   software, so the engine's capped dt runs its clock slower than the wall;
+   the capture tool waits on `data-phase` instead of fixed delays.
+6. Visual review pass 1 (`pass0/`, `pass1/`), findings and fixes:
+   - the clip in the featured jelly read as a flat cut-out: the rim film's
+     gradient never reached the clipped outline → `closest-side` rim in the
+     jelly's colour plus its shade over the picture;
+   - the stand-in label sat in the corner the jelly crops away →
+     `make-standins.py --centre`;
+   - a pop dealt the popped game straight back (Crash popped, Crash wobbled
+     in) → popping jellies count as on screen;
+   - the splat drops were tiny dots → larger, jelly-shaped, with the step;
+   - the big yellow jelly sat over the clock's top edge (a crowd and the
+     featured jelly can push past a soft field) → soft field 72 px plus a
+     hard wall 24 px from the outline, tested;
+   - the white clock is 1.5:1 on the floor (audit FAIL) → solid ink jelly
+     step under the white figures (see Decisions, Known issues).
 
 ## Decisions
 
+- **Theme code, not host code.** The standby is `views/standby/` in Jelly,
+  passed as the Shell's `screensaver` (the CRT room's seam). Two small host
+  helpers were exposed instead of copied, SDK 11 → 12 (`themeSdk.ts`,
+  `backend/services/themes.py`): `sdk.defaults.useLocalWake` (mouse/key wake,
+  already shared by the host's two standbys) and `sdk.format.playedAgo`
+  (the CRT caption's "played 3 days ago", so both standbys say it the same
+  way). Jelly feature-detects both and keeps `"api": 10`: on an older host
+  `createStandby` returns undefined and the Shell keeps its slideshow.
+- **Pure core, imperative frame.** Physics and timeline are pure modules;
+  `views/standby/engine.js` owns one rAF loop that writes `transform` on
+  each jelly and its `border-radius` at 30 Hz (a repaint; the morph is slow
+  enough that 30 Hz is smooth). React renders only the room, caption and
+  clock. No layout read per frame: the root size and the caption/clock rects
+  are read at start, on resize and when the caption's game changes.
+- **dt is real and capped at 50 ms**, so a stall never teleports a jelly.
+- **Sizes change once per feature**, never per frame: the featured jelly's
+  element takes the feature size (860x600 design px) when it is picked and
+  is scaled down to where it was, so the clip is drawn at full resolution;
+  its own size comes back when it settles.
+- **Mass by area** in collisions (the mockup swapped equal masses): a big
+  jelly shoves a small one. The featured jelly is pinned, infinite mass.
+- **Repel zones:** a soft spring (72 px from the drawn outline) plus a hard
+  wall at 24 px, because the soft field alone lost to a crowd. Both from the
+  outline, not the soft contact radius: the text must stay uncovered.
+- **Featured game:** the reel is the host playlist, clips first then
+  screenshots, round robin. If the game has no jelly on screen, the jelly
+  nearest the centre pops and the game wobbles in there. No playlist at all:
+  a jelly on screen grows with its cover. Every ~25 s of swarm (first at
+  8 s), gather 1.6 s, show = the clip's length up to 20 s or 12 s for a
+  still, release 1.4 s.
+- **Pops** every 10-16 s (first at 5 s), never during a gather or release.
+  The new jelly holds the next game of a shuffled deck of the whole
+  library, so the library comes round. Caption: the featured game during a
+  feature, otherwise the game that last wobbled in.
+- **Covers only for games that have one:** each cover is preloaded and a
+  404 drops the game from the deck. Games come from Jelly's collection
+  (already loaded for Home); if it never loaded, from the playlist.
+- **Favourites** (`jelly-favourites`) weight the playlist like Orbit's.
+- **No sound.** The host plays nothing in standby and the theme has no hook
+  there; a pop is silent.
+- **Cheaper jelly than the mockup:** the inner shade and light are radial
+  gradients instead of blurred inset shadows (a blur on every outline
+  repaint), the highlight is a soft-edged gradient instead of `filter: blur`,
+  the dot drift is a `transform` loop instead of `background-position`
+  (a full-screen repaint per frame), the cover's float is a CSS loop.
+- **Clock:** white digits on a solid ink jelly step (`0 10px 0 --jl-ink`)
+  instead of the mockup's 20 % shadow. The pill reads "Saturday 10 October
+  Press any button" with a gap instead of the mockup's "·" (human-touch).
+- **Reduced motion:** no frame loop at all (a 250 ms timer runs the
+  timeline), jellies still, no squash, no dot drift, no cover float, no
+  clock wobble; a pop is a 600 ms fade; the featured game fades in on a
+  still jelly at the centre (the swarm keeps out of it as a third zone).
+
 ## Files
 
+Theme (`config/themes/jelly/`):
+- `lib/standby/physics.js` (new): step, edges, collisions, zones, squash, outline, spawn.
+- `lib/standby/director.js` (new): deck, feature reel, timings, timeline.
+- `views/standby/index.js` (new): stage, wake, data, the room.
+- `views/standby/engine.js` (new): the frame loop and actions.
+- `views/standby/blob.js` (new): a jelly's element, cover preload, splat.
+- `views/standby/media.js` (new): the one video / still of the feature.
+- `views/standby/caption.js` (new): caption and clock.
+- `css/standby.css` (new), `theme.css` (import), `index.js` (`screensaver`),
+  `lib/favourites.js` (`favouriteKeys`), `theme.json` 1.4.6 → 1.5.0.
+
+Host:
+- `frontend/src/components/defaults.tsx` (`useLocalWake` re-export),
+  `frontend/src/lib/themeSdk.ts` (`format.playedAgo`, SDK 12),
+  `backend/services/themes.py` (SDK 12).
+
+Tests: `frontend/src/themes/jellyStandbyPhysics.test.ts`,
+`frontend/src/themes/jellyStandby.test.tsx`.
+
+Dev tools: `docs/dev-log/jelly-standby-tools/jelly-standby-shots.cjs`;
+`docs/dev-log/crt-standby-tools/make-standins.py` gained `--centre`.
+
 ## How to test
+
+```bash
+(cd frontend && npx vitest run src/themes/jellyStandbyPhysics.test.ts src/themes/jellyStandby.test.tsx)
+(cd frontend && npx vitest run && npx tsc --noEmit)
+python3 -m pytest backend/tests -q -m "not network"
+git fetch --tags && python3 -m pytest backend/tests/test_theme_versions.py -q
+node scripts/check-theme.mjs config/themes/jelly
+ruff check .                                   # 0.16.1
+shellcheck -S warning $(git ls-files '*.sh') install/bin/*
+```
+
+Seeing it (dev box):
+
+```bash
+SCRATCH=/tmp/claude-0/-home-user-GamecoreRenew/1b797080-036c-5ff1-9857-ebc0724751de/scratchpad
+GAMECORE_PATH=$PWD GAMECORE_DATA=$SCRATCH/gcdata PYTHONPATH=$PWD \
+  python3 docs/dev-log/crt-standby-tools/make-standins.py $SCRATCH/scene/frame.png --centre
+(cd frontend && npm run build)
+rsync -a --delete config/themes/jelly/ $SCRATCH/gcdata/config/themes/jelly/
+GAMECORE_PATH=$PWD GAMECORE_DATA=$SCRATCH/gcdata PYTHONPATH=$PWD \
+  python3 .claude/skills/gamecore-legibility/scripts/devserve.py &
+node docs/dev-log/jelly-standby-tools/jelly-standby-shots.cjs $SCRATCH/mock/jelly-standby-shots real
+node docs/dev-log/jelly-standby-tools/jelly-standby-shots.cjs $SCRATCH/mock/jelly-standby-shots real --reduced
+node docs/dev-log/jelly-standby-tools/jelly-standby-shots.cjs $SCRATCH/mock/jelly-standby-shots real --video
+# legibility (needs the `chromium` wrapper, see crt-standby.md Known issues)
+PATH=$SCRATCH/bin:$PATH node .claude/skills/gamecore-legibility/scripts/legibility-audit.mjs --theme jelly \
+  --init docs/dev-log/crt-standby-tools/standby-init.js --eval "0;;0;;0;;0" --all
+```
 
 ## Screenshots
 

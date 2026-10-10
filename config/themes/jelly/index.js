@@ -16,6 +16,7 @@ import {createCeremony} from './views/ceremony.js'
 import {createSession} from './views/session.js'
 import {createJellySettings} from './views/settings.js'
 import {createController} from './views/controller.js'
+import {createStandby} from './views/standby/index.js'
 import {SOUNDS} from './lib/sounds.js'
 import {followProfiles} from './lib/favourites.js'
 
@@ -47,13 +48,15 @@ export default function createJelly(sdk) {
   const Settings = createJellySettings(sdk)
   const Power = sdk.defaults.createPowerView(sdk, {skin: 'jelly-power'})
   const Controller = createController(sdk)
+  // Undefined on a host before SDK 12, which then keeps its own slideshow.
+  const Standby = createStandby(sdk, ctx)
 
   function Shell() {
     return html`<div className="jelly-app">
       <${sdk.defaults.Shell} background=${Background} topbar=${TopBar}
         homeView=${Home} libraryView=${Library} settings=${Settings}
         homeGameOptions=${homeGameOptions}
-        powerView=${Power} gamepadView=${Controller}
+        powerView=${Power} gamepadView=${Controller} screensaver=${Standby}
         homeOmit=${['nav', 'pages', 'confirm']} libraryOmit=${['nav', 'confirm', 'sort']} />
     </div>`
   }

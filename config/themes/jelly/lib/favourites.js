@@ -31,6 +31,8 @@ const keyOf = (systemId, filename) => `${systemId}:${filename}`
 
 export const isFavourite = (systemId, filename) => saved.has(keyOf(systemId, filename))
 export const favouriteCount = () => saved.size
+/** Every favourite as `system:filename`, the standby playlist's weighting. */
+export const favouriteKeys = () => [...saved]
 
 export function toggleFavourite(systemId, filename) {
   const k = keyOf(systemId, filename)

@@ -6,7 +6,10 @@ download: `<data>/<media>/<system>/<game key>/<slug>.<ext>` plus `game.json`.
 WebM/VP9, because Playwright's Chromium has no H.264. Every picture carries
 the words "stand-in clip" so a screenshot cannot pass for a real video.
 
-    GAMECORE_DATA=$SCRATCH/gcdata PYTHONPATH=$PWD python3 make-standins.py [frame.png]
+    GAMECORE_DATA=$SCRATCH/gcdata PYTHONPATH=$PWD python3 make-standins.py [frame.png] [--centre]
+
+`--centre` puts the label in the middle of the picture, larger: Jelly's
+standby shows clips cropped inside a round jelly, which hides the corners.
 """
 import subprocess
 import sys
@@ -15,8 +18,11 @@ from pathlib import Path
 
 from backend.services.gamemedia import gamemedia as gm
 
-FRAME = sys.argv[1] if len(sys.argv) > 1 else None
-LABEL = "drawtext=text='stand-in clip':x=16:y=h-40:fontsize=22:fontcolor=white:box=1:boxcolor=black@0.5"
+POSITIONAL = [a for a in sys.argv[1:] if not a.startswith("--")]
+FRAME = POSITIONAL[0] if POSITIONAL else None
+LABEL = ("drawtext=text='stand-in clip':x=(w-text_w)/2:y=h*0.3:fontsize=34:fontcolor=white:box=1:boxcolor=black@0.6"
+         if "--centre" in sys.argv else
+         "drawtext=text='stand-in clip':x=16:y=h-40:fontsize=22:fontcolor=white:box=1:boxcolor=black@0.5")
 CLIPS = [  # (system, rom, seconds, ffmpeg input)
     ("snes9x", "Chrono Trigger (USA).sfc", 12, ["-f", "lavfi", "-i", "mandelbrot=s=640x480:r=30"]),
     ("azahar", "Mario Kart 7 (Europe).3ds", 14, ["-f", "lavfi", "-i", "testsrc2=s=640x480:r=30"]),

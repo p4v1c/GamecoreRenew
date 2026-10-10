@@ -1,0 +1,170 @@
+/* ===========================================================================
+   The standby (views/standby/): Jelly's floor, the jellies, the caption and
+   the clock. The engine writes only `transform`, `opacity` and the outline
+   (`border-radius`, 30 Hz); everything else here is static or a CSS loop on
+   transform, so a mini PC composites it instead of repainting.
+   =========================================================================== */
+
+.jl-standby {
+  /* The mockup's three extra jelly colours (views/standby/blob.js PALETTE). */
+  --jl-sb-green: #7ee08a;
+  --jl-sb-orange: #ff9a5a;
+  --jl-sb-lilac: #b48cff;
+  --jl-sb-floor-light: #a8ecf5;
+  --jl-sb-floor-deep: #5ec7da;
+  position: fixed; inset: 0; z-index: 9500; overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 20%, var(--jl-sb-floor-light), var(--jl-cyan) 55%, var(--jl-sb-floor-deep));
+  font-family: 'Jelly Red Hat', 'Trebuchet MS', Arial, sans-serif; color: var(--jl-ink);
+  cursor: none;
+}
+.jl-standby-sleep { position: fixed; inset: 0; z-index: 9500; background: #000; cursor: none; }
+
+/* The white dot grid, drifting one tile right and two down every 30 s. */
+.jl-sb-dots {
+  position: absolute; inset: calc(-92 * var(--px));
+  background-image: radial-gradient(#ffffff55 calc(3 * var(--px)), transparent calc(3.5 * var(--px)));
+  background-size: calc(46 * var(--px)) calc(46 * var(--px));
+  opacity: 0.6; will-change: transform;
+  animation: jl-sb-drift 30s linear infinite;
+}
+@keyframes jl-sb-drift {
+  from { transform: translate3d(calc(-46 * var(--px)), calc(-92 * var(--px)), 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+
+/* ── a jelly ── */
+.jl-sb-layer { position: absolute; inset: 0; }
+.jl-sb-blob {
+  position: absolute; left: 0; top: 0; display: grid; place-items: center;
+  border-radius: 50%; opacity: 0.9; will-change: transform;
+  /* Inner shade at the bottom, a softer light at the top, the body's colour:
+     gradients instead of the mockup's blurred inset shadows, which cost a
+     blur on every outline repaint. */
+  background:
+    radial-gradient(ellipse 72% 42% at 50% 104%, #30204e30, #30204e00 72%),
+    radial-gradient(ellipse 70% 34% at 50% -4%, #ffffff70, #ffffff00 72%),
+    radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--c) 70%, #fff), color-mix(in srgb, var(--c) 85%, #000 5%));
+  /* The jelly step (DESIGN.md): a hard offset, never a glow. */
+  box-shadow: 0 calc(22 * var(--px)) 0 #30204e22;
+}
+.jl-sb-cover {
+  width: 46%; border-radius: calc(10 * var(--px)); opacity: 0.85; mix-blend-mode: multiply;
+  box-shadow: 0 calc(6 * var(--px)) 0 #30204e22;
+  animation: jl-sb-float 7s ease-in-out infinite; animation-delay: var(--float-delay, 0s);
+  transition: opacity 600ms ease;
+}
+/* A cover-only feature: the cover grows with its jelly, by height. */
+.jl-sb-blob.is-big .jl-sb-cover { width: auto; height: 60%; }
+.jl-sb-blob.is-featured .jl-sb-cover { opacity: 0; }
+@keyframes jl-sb-float {
+  0%, 100% { transform: rotate(calc(var(--tilt, 0deg) - 6deg)) translateY(calc(-8 * var(--px))); }
+  50% { transform: rotate(calc(var(--tilt, 0deg) + 6deg)) translateY(calc(8 * var(--px))); }
+}
+.jl-sb-shine {
+  position: absolute; left: 22%; top: 16%; width: 22%; height: 12%; border-radius: 50%;
+  background: radial-gradient(closest-side, #fffffff2 60%, #ffffff00); opacity: 0.75;
+  transform: rotate(-24deg); pointer-events: none;
+}
+
+/* ── the featured jelly's clip or screenshot ── */
+.jl-sb-media {
+  position: absolute; inset: 0; border-radius: inherit; overflow: hidden;
+  opacity: 0; transition: opacity 600ms ease;
+}
+.jl-sb-media.is-on { opacity: 1; }
+.jl-sb-clip, .jl-sb-still { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.jl-sb-still { animation: jl-sb-pan 12s linear both; }
+@keyframes jl-sb-pan {
+  from { transform: scale(1.12) translate3d(-3%, 2%, 0); }
+  to { transform: scale(1.22) translate3d(3%, -2%, 0); }
+}
+/* The jelly's own colour thickening toward its rim (closest-side follows
+   the jelly's outline), and its shade over the picture, so the clip sits
+   inside the jelly rather than on it. */
+.jl-sb-film {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 72% 40% at 50% 104%, #30204e38, #30204e00 72%),
+    radial-gradient(closest-side, #ffffff00 70%, color-mix(in srgb, var(--c) 80%, #fff) 100%);
+}
+
+/* ── a pop ── */
+.jl-sb-splat { position: absolute; left: 0; top: 0; pointer-events: none; }
+.jl-sb-drop {
+  position: absolute; left: calc(var(--s) / -2); top: calc(var(--s) / -2);
+  width: var(--s); height: var(--s); border-radius: 46% 54% 52% 48% / 55% 45% 55% 45%;
+  background: radial-gradient(circle at 40% 35%, color-mix(in srgb, var(--c) 60%, #fff), var(--c));
+  box-shadow: 0 calc(6 * var(--px)) 0 #30204e22; opacity: 0.92;
+  animation: jl-sb-splat 700ms cubic-bezier(.2, .7, .3, 1) both;
+}
+@keyframes jl-sb-splat {
+  0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.95; }
+  60% { opacity: 0.9; }
+  100% { transform: translate3d(var(--dx), calc(var(--dy) + 40 * var(--px)), 0) scale(0.25); opacity: 0; }
+}
+
+/* ── reduced motion: still jellies, fades only ── */
+.jl-sb-blob.is-still { animation: jl-sb-fade 600ms ease both; transition: opacity 600ms ease; }
+.jl-sb-blob.is-leaving { opacity: 0; }
+.jl-sb-stage { opacity: 0; transition: opacity 600ms ease; animation: none; }
+.jl-sb-stage.is-on { opacity: 0.9; }
+@keyframes jl-sb-fade { from { opacity: 0; } }
+
+/* ── the caption ── */
+.jl-sb-caption {
+  position: absolute; left: calc(96 * var(--px)); bottom: calc(90 * var(--px)); z-index: 2;
+  min-width: calc(420 * var(--px)); max-width: calc(640 * var(--px)); min-height: calc(150 * var(--px));
+  padding: calc(22 * var(--px)) calc(30 * var(--px)); border-radius: var(--jl-radius);
+  background: var(--jl-paper); box-shadow: 0 calc(6 * var(--px)) 0 #30204e22;
+  transform: rotate(-2deg);
+}
+.jl-sb-caption[data-empty="true"] { visibility: hidden; }
+.jl-sb-eyebrow {
+  display: block; font-size: max(16px, calc(16 * var(--px))); font-weight: 900;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--jl-pink-ink);
+}
+.jl-sb-title {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  margin-top: calc(6 * var(--px)); font-size: var(--jl-t-xl); font-weight: 900;
+  letter-spacing: -0.03em; line-height: 1.08;
+}
+.jl-sb-meta { display: block; margin-top: calc(6 * var(--px)); font-size: var(--jl-t-m); font-weight: 600; color: var(--jl-ink-2); }
+
+/* ── the clock ── */
+.jl-sb-clock {
+  position: absolute; right: calc(110 * var(--px)); bottom: calc(90 * var(--px)); z-index: 2;
+  display: flex; flex-direction: column; align-items: flex-end;
+}
+.jl-sb-time {
+  display: block; font-size: calc(200 * var(--px)); font-weight: 900; letter-spacing: -0.04em; line-height: 0.85;
+  font-variant-numeric: tabular-nums; color: var(--jl-paper);
+  /* White digits on a solid ink step: white alone is 1.5:1 on the floor,
+     the step gives every figure an ink edge (DESIGN.md's jelly step). */
+  text-shadow: 0 calc(10 * var(--px)) 0 var(--jl-ink);
+  transform-origin: 80% 90%; animation: jl-sb-wobble 3.2s ease-in-out infinite;
+}
+@keyframes jl-sb-wobble {
+  0%, 100% { transform: rotate(-3deg) scale(1, 1); }
+  25% { transform: rotate(-2deg) scale(1.03, 0.97); }
+  50% { transform: rotate(-3.5deg) scale(0.98, 1.02); }
+  75% { transform: rotate(-2.5deg) scale(1.01, 0.99); }
+}
+.jl-sb-pill {
+  display: inline-flex; align-items: baseline; gap: calc(18 * var(--px));
+  margin-top: calc(24 * var(--px)); padding: calc(12 * var(--px)) calc(22 * var(--px));
+  border-radius: calc(16 * var(--px)); background: var(--jl-paper);
+  box-shadow: 0 calc(6 * var(--px)) 0 #30204e22;
+  font-size: calc(24 * var(--px)); font-weight: 800;
+}
+.jl-sb-wake { font-weight: 700; color: var(--jl-ink-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  /* motion.css cuts every animation to 1 ms; here the loops stop outright and
+     the fades keep their length, since a fade is not motion. */
+  .jelly-app .jl-standby .jl-sb-dots, .jelly-app .jl-standby .jl-sb-cover,
+  .jelly-app .jl-standby .jl-sb-still, .jelly-app .jl-standby .jl-sb-time { animation: none !important; }
+  .jelly-app .jl-standby .jl-sb-time { transform: rotate(-3deg); }
+  .jelly-app .jl-standby .jl-sb-blob, .jelly-app .jl-standby .jl-sb-media {
+    transition-duration: 600ms !important; animation-duration: 600ms !important;
+  }
+}
