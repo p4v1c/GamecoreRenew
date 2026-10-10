@@ -47,24 +47,32 @@ export function coverLoads(game) {
   })
 }
 
-const DROPS = 7
-const SPLAT_MS = 700
+const DROPS = 14
+const SPLAT_MS = 950
 
-/** A pop's splat: drops of the jelly's colour flying out from its centre.
- * CSS keyframes on transform and opacity; removed when they land. */
+/** A pop's splat: a ring of the jelly's colour snapping outward, drops of
+ * every size flung out and falling back under their own weight, a few white
+ * glints. CSS keyframes on transform and opacity; removed when they land. */
 export function splatAt(layer, x, y, radius, color) {
   const group = document.createElement('div')
   group.className = 'jl-sb-splat'
   group.style.transform = `translate3d(${x}px, ${y}px, 0)`
   group.style.setProperty('--c', color)
+  group.style.setProperty('--r', `${radius}px`)
+  const ring = document.createElement('span')
+  ring.className = 'jl-sb-ring'
+  group.appendChild(ring)
   for (let i = 0; i < DROPS; i++) {
-    const a = (i / DROPS) * Math.PI * 2 + Math.random() * 0.6
-    const reach = radius * (0.9 + Math.random() * 0.5)
+    const a = (i / DROPS) * Math.PI * 2 + Math.random() * 0.5
+    const reach = radius * (1.1 + Math.random() * 0.9)
     const drop = document.createElement('span')
-    drop.className = 'jl-sb-drop'
+    drop.className = i % 4 === 3 ? 'jl-sb-drop is-glint' : 'jl-sb-drop'
     drop.style.setProperty('--dx', `${Math.cos(a) * reach}px`)
     drop.style.setProperty('--dy', `${Math.sin(a) * reach}px`)
-    drop.style.setProperty('--s', `${radius * (0.16 + Math.random() * 0.14)}px`)
+    // Thrown up first, then down: the arc a real blob of jelly would make.
+    drop.style.setProperty('--up', `${-radius * (0.25 + Math.random() * 0.35)}px`)
+    drop.style.setProperty('--s', `${radius * (i % 4 === 3 ? 0.07 : 0.1 + Math.random() * 0.22)}px`)
+    drop.style.animationDelay = `${Math.round(Math.random() * 60)}ms`
     group.appendChild(drop)
   }
   layer.appendChild(group)

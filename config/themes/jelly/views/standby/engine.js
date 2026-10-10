@@ -17,7 +17,9 @@ const ZONE_MARGIN = 72
 const ZONE_GUARD = 24
 
 const ENTER_S = 0.9
-const POP_S = 0.28
+/** The swell and shiver before a burst, then the burst itself. */
+const SWELL_S = 0.38
+const POP_S = 0.62
 const DT_MAX = 0.05
 /** The outline is a repaint, so it breathes at 30 Hz; transforms run every frame. */
 const MORPH_EVERY_S = 1 / 30
@@ -143,8 +145,6 @@ export function createEngine({root, layer, games, reel, reduced, onCaption, rand
     if (reduced) {
       b.el.classList.add('is-leaving')
       setTimeout(() => remove(b), REDUCED_LEAVE_MS)
-    } else {
-      splatAt(layer, b.x, b.y, (b.vw / 2) * 1.1, b.color)
     }
   }
 
@@ -274,9 +274,21 @@ export function createEngine({root, layer, games, reel, reduced, onCaption, rand
       const age = t - b.born
       if (age < ENTER_S) s = Math.max(0.001, wobbleIn(age / ENTER_S))
       if (b.popAt !== null) {
-        const k = Math.min(1, (t - b.popAt) / POP_S)
-        s *= 1 + 0.25 * k
-        b.el.style.opacity = String(1 - k)
+        const age = t - b.popAt
+        if (age < SWELL_S) {
+          // Swells and shivers faster and faster, like it is about to give.
+          const k = age / SWELL_S
+          s *= 1 + 0.18 * k + Math.sin(age * 70) * 0.03 * k
+        } else {
+          if (!b.burst) {
+            b.burst = true
+            b.el.classList.add('is-popping')
+            splatAt(layer, b.x, b.y, (b.vw / 2) * 1.18, b.color)
+          }
+          const k = Math.min(1, (age - SWELL_S) / (POP_S - SWELL_S))
+          s *= 1.18 + 0.35 * k
+          b.el.style.opacity = String(1 - k)
+        }
       }
     }
     b.r = Math.max(1, ((b.vw + b.vh) / 4) * Math.min(1, s))

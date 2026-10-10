@@ -259,3 +259,10 @@ longer fetches the standby playlist; the engine gets an empty reel, so every
 feature is a cover grown in the centre (the path already shot as
 `no-media-cover-feature.png`). `media.js` and the reel helpers stay for now:
 the engine still routes covers through them.
+
+## Follow-up: a bigger pop
+
+The owner asked for a stronger burst. A popping jelly now swells and shivers
+for 0.38 s, then bursts: a ring of its colour snaps out, 14 drops (some white
+glints) are thrown up and fall back, and its cover is flung up spinning
+(`engine.js` SWELL_S/POP_S, `blob.js` splatAt, `css/standby.css`).
