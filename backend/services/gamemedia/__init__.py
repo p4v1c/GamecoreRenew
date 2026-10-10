@@ -386,4 +386,7 @@ def to_game_meta(manifest: dict) -> dict:
         "score_count": meta.get("rating_count"),
         "classifications": classifications,
         "platform": meta.get("platform") or "",
+        # A PC game's minimum spec ({os, cpu, ram, gpu, disk}), for the box
+        # reverse. No console source has one; a PC source fills it.
+        "requirements": dict(meta.get("requirements") or {}),
     }

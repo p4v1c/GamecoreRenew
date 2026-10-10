@@ -356,8 +356,9 @@ same as an unknown game; `unreachable: true` means the question could not be
 asked and a retry later is worth something.
 
 `GameMeta` gained optional fields on the same call — `developer`, `publisher`,
-`released`, `score` (0–1), `classifications`. They are optional because a box
-answering from TheGamesDB has none of them. The seven original keys did not
+`released`, `score` (0–1), `classifications`, `requirements` (a PC game's
+minimum spec: `os`, `cpu`, `ram`, `gpu`, `disk`). They are optional because a
+box answering from TheGamesDB has none of them. The seven original keys did not
 move.
 
 Same-origin by construction — the SPA is served by the backend, so no base URL

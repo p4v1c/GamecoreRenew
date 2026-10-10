@@ -53,6 +53,8 @@ export const consoles = {
     "Four controller ports and the first 3D Mario. Runs in Rosalie's Mupen GUI."],
   xenia: ['Xbox 360', 'Microsoft', '2005', '#a5d998', '360',
     'The Xbox of the HD era. Runs in Xenia Canary; compatibility varies by game.'],
+  lutris: ['PC', 'Windows', '', '#5f86f5', 'PC',
+    'Your PC games, run through Lutris and Wine without leaving the couch.'],
   snes9x: ['Super Nintendo', 'Nintendo', '1990 / 1992', '#b6a4ff', 'SNES',
     'The 16-bit Nintendo, Mode 7 included. Runs in Snes9x.'],
   nes: ['NES', 'Nintendo', '1983 / 1986', '#ff9a9a', 'NES',

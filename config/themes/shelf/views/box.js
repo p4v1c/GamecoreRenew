@@ -11,6 +11,8 @@
 import { pick, jacket } from '../lib/dossier.js'
 import { title, stamp } from '../lib/names.js'
 import { flat } from '../lib/accent.js'
+import { isPc } from '../lib/pc.js'
+import { createPcCase } from './pc-case.js'
 
 /** Portrait, the commonest cover shape — held until the front image measures. */
 const RATIO_UNKNOWN = 0.72
@@ -69,6 +71,7 @@ const hueOf = (s) => {
 
 export const createBox = (sdk) => {
   const { html, useState, useEffect } = sdk.ui
+  const { PcBand, PcBack } = createPcCase(sdk)
 
   /**
    * Mark a spine scan as landscape (data-wide) so the CSS stands it upright.
@@ -99,7 +102,7 @@ export const createBox = (sdk) => {
     const src = sdk.api.media.url(systemId, game.filename, 'box-spine')
 
     return html`
-      <button class="cz-spine" data-on=${on ? '1' : '0'} data-scan=${scan ? '1' : '0'}
+      <button class="cz-spine" data-pc=${isPc(systemId) ? '1' : '0'} data-on=${on ? '1' : '0'} data-scan=${scan ? '1' : '0'}
               onClick=${onClick} style=${{ '--spine-h': String(hueOf(name)) }}
               aria-label=${name}>
         ${scan
@@ -108,7 +111,7 @@ export const createBox = (sdk) => {
                       onError=${() => setScan(false)} />`
           : html`
             <span class="cz-spine-print">
-              <span class="cz-spine-cap" />
+              ${isPc(systemId) ? html`<span class="pc-spine-mark">PC</span>` : html`<span class="cz-spine-cap" />`}
               <span class="cz-spine-name">${name}</span>
               <span class="cz-spine-foot" />
             </span>`}
@@ -185,6 +188,7 @@ export const createBox = (sdk) => {
     if (!game) return null
 
     const name = title(game.display_name)
+    const pc = isPc(systemId)
     const scraped = pick(sdk, systemId, game.filename, media, ['box-front'])
     // Derived, so it becomes true on the render where `media` lands rather than
     // needing something to notice and act. One step only: once we are on the
@@ -237,10 +241,11 @@ export const createBox = (sdk) => {
     const seed = (el) => { if (el && el.complete) measure(el) }
 
     return html`
-      <div class="cz-box" data-flipped=${flipped ? '1' : '0'}
+      <div class="cz-box" data-pc=${pc ? '1' : '0'} data-flipped=${flipped ? '1' : '0'}
            style=${{ '--ratio': String(ratio) }}>
 
         <div class="cz-f cz-f-front">
+          ${pc ? html`<${PcBand} />` : null}
           ${frontDead
             ? html`
               <div class="cz-noart">
@@ -256,13 +261,13 @@ export const createBox = (sdk) => {
           ${back
             ? html`<${BackScan} src=${back} name=${name} systemId=${systemId}
                                 game=${game} meta=${meta} media=${media} />`
-            : html`<${BackPrint} systemId=${systemId} game=${game} meta=${meta} media=${media} />`}
+            : html`<${pc ? PcBack : BackPrint} systemId=${systemId} game=${game} meta=${meta} media=${media} />`}
         </div>
 
         <div class="cz-f cz-f-spine" data-scan=${spineDead ? '0' : '1'}
              style=${{ '--spine-h': String(hueOf(name)) }}>
           ${spineDead
-            ? html`<span class="cz-spine-name">${name}</span>`
+            ? html`${pc ? html`<span class="pc-spine-mark">PC</span>` : null}<span class="cz-spine-name">${name}</span>`
             : html`<img src=${spine} alt=""
                         onLoad=${(e) => standUp(e.target)}
                         onError=${() => setSpineDead(true)} />`}
@@ -295,7 +300,7 @@ export const createBox = (sdk) => {
       flat(src).then((blank) => { if (live && blank) setDead(true) })
       return () => { live = false }
     }, [src])
-    if (dead) return html`<${BackPrint} systemId=${systemId} game=${game} meta=${meta} media=${media} />`
+    if (dead) return html`<${isPc(systemId) ? PcBack : BackPrint} systemId=${systemId} game=${game} meta=${meta} media=${media} />`
     return html`<img src=${src} alt=${`${name}, back cover`} onError=${() => setDead(true)} />`
   }
 

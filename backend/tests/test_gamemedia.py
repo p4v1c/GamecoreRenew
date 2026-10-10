@@ -274,6 +274,13 @@ def test_a_missing_field_never_becomes_a_missing_key():
     """The panel reads meta.genres.slice() without checking it exists."""
     meta = gamemedia.to_game_meta({"found": True, "meta": {}})
     assert meta["genres"] == [] and meta["title"] == "" and meta["players"] == 0
+    assert meta["requirements"] == {}
+
+
+def test_a_pc_minimum_spec_passes_through_for_the_box_reverse():
+    meta = gamemedia.to_game_meta({"found": True, "meta": {
+        "requirements": {"os": "Windows 10", "ram": "4 GB"}}})
+    assert meta["requirements"] == {"os": "Windows 10", "ram": "4 GB"}
 
 
 # ── The API surface ──────────────────────────────────────────────────────────
