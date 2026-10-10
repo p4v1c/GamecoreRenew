@@ -17,6 +17,12 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Jelly has its own standby screen: your covers float in jellies that bounce
+  and wobble on the cyan floor; every half minute or so one grows in the middle
+  to show its cover large, and now and then a jelly pops and another game
+  wobbles in. No videos: Jelly's standby is the covers alone.
+  Theme SDK 12 adds `defaults.useLocalWake` and `format.playedAgo` for themes
+  that draw their own standby.
 - Orbit and Shelf have a new standby screen: a small CRT in a room at night playing
   short videos of the games you play most, its light on the walls. Videos are
   downloaded in the background (never during a game) from ScreenScraper, up to

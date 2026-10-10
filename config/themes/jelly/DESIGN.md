@@ -27,7 +27,7 @@ Covers and console photos get a soft drop shadow, as objects.
 **Motion.** Focus lifts in 160 ms with a slight overshoot. Pages arrive in
 260 ms, dialogs pop in 320 ms. The floor drifts, karts lap, the hero jacket
 wobbles; all stop while a game runs or in standby, and reduced motion stops
-everything but the focus ring.
+everything but the focus ring. Standby jellies (+ `--jl-sb-green/orange/lilac`) drift and squash; reduced: fades only.
 
 **Sound.** Bubbles and wobbly boings (`lib/sounds.js`): a pop on move, two
 bouncy plucks on confirm, a squish on back, a wobbly slide on launch.

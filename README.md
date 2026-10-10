@@ -752,7 +752,9 @@ If no key is set, the scraper silently falls back to libretro only.
 
 After a configurable idle time (Settings → Standby), GameCore shows a
 screensaver (Orbit and Shelf: a room at night where a CRT plays short videos
-of the games you play most; other themes: a cover-art slideshow), then turns
+of the games you play most; Jelly: your covers floating in jellies on the cyan
+floor, one of them growing now and then to play its game's video; other
+themes: a cover-art slideshow), then turns
 the screen off via DPMS and drops the
 CPU governor to powersave. The box itself stays up: backend, SSH and OTA
 updates keep working. **Any controller button wakes it** (evdev-based, so
