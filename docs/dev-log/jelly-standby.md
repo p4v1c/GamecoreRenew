@@ -27,11 +27,55 @@ reduced motion holds everything still and cross-fades the featured game.
 
 ## Where I stopped
 
-Steps 1 and 2 done and pushed: the pure core with its tests, the views, the
-CSS, the SDK 12 helpers. Visual review pass 1 done (findings fixed, below).
-Next: pass 2 on fresh shots, the reduced-motion and no-media shots, the
-recording, docs (`docs/themes/README.md`, DESIGN.md, README, CHANGELOG),
-then the full checks.
+Stopped early at the owner's request (out of tokens). State on the branch:
+
+**Done, tested, pushed**
+- Pure core `lib/standby/physics.js`, `director.js` (incl. `deck.add` for
+  games that arrive late) and 22 vitest in `jellyStandbyPhysics.test.ts`.
+- Views `views/standby/*`, `css/standby.css`, wired as the Shell's
+  `screensaver`; 8 component tests in `jellyStandby.test.tsx` (all 30 green
+  on the last run).
+- SDK 12 helpers (`defaults.useLocalWake`, `format.playedAgo`).
+- Visual review pass 1 and its fixes; pass 2 partly shot
+  (`$SCRATCH/mock/jelly-standby-shots/pass2/`: real, stills, reduced).
+
+**Last change, not browser-checked**
+- `engine.js`: `fill()` + `addGames()` deal jellies when the collection
+  loads after standby started (pass 2 `none` mode timed out with an empty
+  floor because of that). Unit tests pass; not yet seen in a browser.
+- Collection-late fix in `index.js` (`useCollection` → `addGames`): same.
+
+**Not done**
+- Pass 2 review of the images (only `real` pop and feature were looked at:
+  fine, except the pop shot came too early; the tool now waits 220 ms).
+- `none` mode shots, deliverables copied to `$SCRATCH/mock/jelly-standby-shots/`
+  (swarm, feature, pop, caption crop, reduced), the ~20 s
+  `jelly-standby.webm` (`--video`), comparison with `jelly-veille.webm`.
+- Docs: `docs/themes/README.md` (SDK 12 + Jelly standby), Jelly `DESIGN.md`
+  (standby tokens: `--jl-sb-green/orange/lilac`, floor light/deep, motion),
+  Jelly `README.md` (screens table, files), `CHANGELOG.md`, `README.md`.
+- Full runs: `npx vitest run`, `pytest backend/tests -q -m "not network"`,
+  `check-docs.py --all`, file-size `--diff`, slop-audit.
+- Theme version: 1.5.0 is on the branch; bump to 1.5.1 before the next push.
+
+**Known issues / open decisions**
+- Clock: white figures on an ink step; the legibility audit still reads
+  white on cyan as 1.5:1 (FAIL). Alternative that passes: ink figures with a
+  white step. Owner to choose.
+- Headless Chromium here runs 13-22 fps in software; recordings will look
+  choppier than the box. Engine time runs on capped dt, so it lags the wall.
+- Jellies may overlap each other ~8 % (soft contact) and get squeezed into
+  the featured jelly near a zone wall; the zones themselves hold (tested).
+- Gather path of the featured jelly can cross a zone corner for 1.6 s.
+- All clips and screenshots on screen are stand-ins (`make-standins.py
+  --centre`), labelled "stand-in clip".
+
+**Resume**
+1. Restart devserve (command in "How to test"), `rsync` the theme, rebuild
+   only if host code changed.
+2. Run the shot tool for `none`, `real`, `real --reduced`, then `--video`;
+   review pass 2 cold; fix; copy finals to `$SCRATCH/mock/jelly-standby-shots/`.
+3. Docs listed above, bump 1.5.1, run every check in "How to test", push.
 
 ## Plan
 
