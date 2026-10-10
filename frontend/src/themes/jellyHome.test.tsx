@@ -252,6 +252,10 @@ describe('the jackets', () => {
     expect(srcOf(container, 'Mario Kart 7')).toContain('/media/box-3d')
     expect(container.querySelector('.jl-jacket[data-kind="3d"]')).toBeTruthy()
     expect(srcOf(container, 'Crash Bandicoot')).toContain('/api/covers/duckstation/')
+    // No box-3d: the flat jacket is drawn as a box rather than shown flat.
+    const crash = [...container.querySelectorAll('.jl-grid .jl-card')]
+      .find(c => c.querySelector('strong')?.textContent === 'Crash Bandicoot')
+    expect(crash?.querySelector('.jl-jacket')?.getAttribute('data-kind')).toBe('drawn')
   })
 
   it('go flat for every game when the player says so, and remember it', async () => {
@@ -261,6 +265,7 @@ describe('the jackets', () => {
     ;(container.querySelector('[data-nav="f-style"]') as HTMLElement).click()
     await settle()
     expect(srcOf(container, 'Mario Kart 7')).toContain('/api/covers/azahar/')
+    expect(container.querySelector('.jl-jacket[data-kind="drawn"]')).toBeNull()
     expect(localStorage.getItem('jelly-jacket')).toBe('box-front')
     ;(container.querySelector('[data-nav="f-style"]') as HTMLElement).click()
     await settle()

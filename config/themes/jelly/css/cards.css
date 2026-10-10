@@ -36,6 +36,14 @@
   border-radius: 0; box-shadow: none; transform: none;
   filter: drop-shadow(0 calc(10 * var(--px)) calc(10 * var(--px)) #20123a66);
 }
+/* No box-3d: the flat jacket turned like a box, its spine the jelly step in
+   ink and a hairline of light on the edge. */
+.jl-jacket[data-kind="drawn"] img {
+  border-radius: calc(3 * var(--px));
+  transform: perspective(calc(900 * var(--px))) rotateY(22deg) rotate(-1deg);
+  box-shadow: calc(-2 * var(--px)) 0 0 #ffffff66, calc(-13 * var(--px)) 0 0 var(--jl-ink),
+    0 calc(10 * var(--px)) calc(16 * var(--px)) #20123a55;
+}
 .jl-jacket[data-art="none"] { overflow: hidden; }
 .jl-jacket-title {
   max-width: 100%; opacity: 0.85; color: #fff; font-size: calc(26 * var(--px)); font-weight: 900; line-height: 0.95;

@@ -69,6 +69,8 @@ export interface GameEntry {
   display_name: string
   path: string
   size: number
+  /** The file's extension, upper case; "" for a system whose pack sets
+   *  `roms.showExtension: false` (launcher entries such as Lutris stubs). */
   ext: string
 }
 

@@ -134,9 +134,11 @@ export default function DefaultLibraryView({
                     overflow: 'hidden', textOverflow: 'ellipsis',
                     color: isSel ? '#fff' : 'var(--gc-ink-2)',
                   }}>{formatGameName(g.display_name)}</div>
-                  <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 3 }}>
-                    {g.ext}
-                  </div>
+                  {g.ext && (
+                    <div style={{ fontSize: 14, color: 'var(--gc-ink-3)', marginTop: 3 }}>
+                      {g.ext}
+                    </div>
+                  )}
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 600, color: isSel ? color : 'var(--gc-ink-3)' }}>
@@ -194,7 +196,7 @@ export default function DefaultLibraryView({
                     <h2 style={{ fontSize: 30, fontWeight: 900, letterSpacing: -0.5, lineHeight: 1.1, marginBottom: 16 }}>
                       {formatGameName(detailGame.display_name)}
                     </h2>
-                    <Meta systemId={systemId} filename={detailGame.filename} extChip={<Chip label={detailGame.ext} color={color} />} color={color} />
+                    <Meta systemId={systemId} filename={detailGame.filename} extChip={detailGame.ext ? <Chip label={detailGame.ext} color={color} /> : null} color={color} />
                     <div style={{ display: 'flex', gap: 24, marginBottom: 28 }}>
                       {[
                         { l: 'Play time', v: fmtTime(playtime[detailGame.filename]?.total_secs || 0) },

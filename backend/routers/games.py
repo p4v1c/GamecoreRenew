@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from ..config import resolve_path
 from ..services import launch as launch_service
-from ..services import local_media, prefetch
+from ..services import local_media, pack_library, prefetch
 from ..services.process_manager import SessionConflict, process_manager
 from ..services.rom_scanner import clean_name, iter_rom_files
 from ..services.systems import find
@@ -57,8 +57,14 @@ def list_games(system_id: str):
     if not roms_path:
         return []
 
+    # A system whose games live in another program's library (Lutris) brings
+    # its folder up to date first; the scan below then sees ordinary files.
+    pack_library.sync(system["id"], roms_path)
     games = scan_roms(roms_path, system.get("extensions", []),
                       scan_dirs=system.get("scanDirs", False), system_id=system["id"])
+    if not pack_library.shows_extension(system["id"]):
+        for game in games:
+            game["ext"] = ""
 
     # This listing IS the box's ROM scan, and it runs whenever the grid opens.
     # It is therefore the one place that learns a game was added since boot —

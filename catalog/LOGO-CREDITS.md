@@ -26,4 +26,7 @@ unchanged from `catalog/dolphin/logo.png`.
 per system; they are shown only on a box that has not run
 `scripts/split-systems.py` yet.
 
+`lutris` (PC) is the monitor icon approved for the PC case work, kept in
+`docs/dev-log/pc-pack-tools/logo.png`; it is not the Lutris logo.
+
 Console names and logos are trademarks of their owners.

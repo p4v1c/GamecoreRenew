@@ -23,6 +23,8 @@ key 11, badge 9. Hero, pill and count tilt a few degrees; controls never do.
 **Depth.** One shadow kind, the jelly step: a hard offset in a darker shade of
 the surface (`0 6px 0`), never a glow. Blur only on the scrim under a dialog.
 Covers and console photos get a soft drop shadow, as objects.
+With 3D boxes on, a game with no `box-3d` (most PC games) has its flat
+jacket drawn as a box: turned 22°, the spine a hard ink step (`css/cards.css`).
 
 **Motion.** Focus lifts in 160 ms with a slight overshoot. Pages arrive in
 260 ms, dialogs pop in 320 ms. The floor drifts, karts lap, the hero jacket

@@ -788,6 +788,17 @@ is off for the pack, so the hook may change the command but not the config.
 None, an exception or `PACK_PREPARE_BUDGET` keep the usual command. melonDS
 uses it for local multiplayer ([10](10-catalog-and-install.md#melonds-local-multiplayer)).
 
+### `pack_library.py` — what a pack adds to its library listing
+
+Called by `GET /systems/{id}/games` (`routers/games.py`) around the folder scan:
+
+| Function | What |
+|---|---|
+| `sync(system_id, roms_path)` | runs the pack's optional `sync_library(roms_dir, covers_dir, home)` hook (`generator.py`) before the scan. For a system whose games live in another program's library: the Lutris pack writes one stub per installed game, so covers, playtime and favourites work on ordinary files ([10](10-catalog-and-install.md#pc-games-lutris)). Never raises: the stubs already there are listed |
+| `shows_extension(system_id)` | `roms.showExtension`, default true. False: every entry's `ext` is sent as `""`, and the views print no extension |
+
+The pack table is read once per process, like `local_media`'s.
+
 ### `systems.py` — the grid rows
 
 `get_systems()`, `get_apps()`, `list_all()`, `find(system_id)`. Hot-reloads

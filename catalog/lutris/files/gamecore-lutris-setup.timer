@@ -1,0 +1,11 @@
+[Unit]
+Description=Keep GE-Proton and the Lutris defaults current for GameCore
+
+[Timer]
+OnActiveSec=1min
+OnUnitActiveSec=1d
+AccuracySec=5m
+Unit=gamecore-lutris-setup.service
+
+[Install]
+WantedBy=default.target

@@ -14,6 +14,7 @@ export const SYSTEM_COLORS: Record<string, string> = {
   gba: '#4f46c8',
   gbc: '#d81b60',
   gopher64: '#b400ff',
+  lutris: '#2f5bea',
   mame: '#424242',
   mastersystem: '#1565c0',
   megacd: '#455a64',

@@ -39,6 +39,7 @@ EMULATORS = [
     ('pcenginecd', 'RetroArch / beetle-pce', 'NEC PC Engine CD / TurboGrafx-CD'),
     ('supergrafx', 'RetroArch / beetle-pce', 'NEC PC Engine SuperGrafx'),
     ('mame', 'RetroArch / mame', 'Arcade (MAME)'),
+    ('lutris', 'Lutris', 'PC'),
 ]
 
 APPS = [

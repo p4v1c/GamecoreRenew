@@ -24,6 +24,10 @@ UINPUT_FILES = {
 }
 PTRACE_FILE = "sysctl.d/90-gamecore-layout-ptrace.conf"
 PTRACE_CONFIG = "# melonDS layout daemon: access to another process of the gaming user.\nkernel.yama.ptrace_scope = 0\n"
+# gamemode's polkit rule lets only this group change the CPU governor.
+GAMEMODE_GROUP = "gamemode"
+# Where the receipt lists the users this module added to each group.
+GROUP_RECEIPTS = {"input": "input_users_added", GAMEMODE_GROUP: "gamemode_users_added"}
 
 
 def _run(*argv: str) -> None:
@@ -56,6 +60,25 @@ def _write(state: dict, rel: str, content: str) -> None:
     path.chmod(0o644)
 
 
+def _join_group(state: dict, user: str, group: str) -> None:
+    """Add `user` to `group`, recording it so uninstall takes only that back."""
+    if not user:
+        return
+    entry = grp.getgrnam(group)
+    if user in entry.gr_mem:
+        return
+    # getgrouplist also includes a user's primary group.
+    import pwd
+    account = pwd.getpwnam(user)
+    if entry.gr_gid in os.getgrouplist(user, account.pw_gid):
+        return
+    added = state.setdefault(GROUP_RECEIPTS[group], [])
+    if user not in added:
+        added.append(user)
+        _save(state)
+    _run("usermod", "-aG", group, user)
+
+
 def apply_host_access(pack, ctx) -> list[Result]:
     access = pack.data.get("hostAccess") or {}
     if not any(access.values()):
@@ -67,17 +90,7 @@ def apply_host_access(pack, ctx) -> list[Result]:
     try:
         state = _load()
         if access.get("uinput"):
-            if ctx.user:
-                input_group = grp.getgrnam("input")
-                if ctx.user not in input_group.gr_mem:
-                    # getgrouplist also includes a user's primary group.
-                    import pwd
-                    account = pwd.getpwnam(ctx.user)
-                    if input_group.gr_gid not in os.getgrouplist(ctx.user, account.pw_gid):
-                        if ctx.user not in state.setdefault("input_users_added", []):
-                            state["input_users_added"].append(ctx.user)
-                            _save(state)
-                        _run("usermod", "-aG", "input", ctx.user)
+            _join_group(state, ctx.user, "input")
             for rel, content in UINPUT_FILES.items():
                 _write(state, rel, content)
             _run("modprobe", "uinput")
@@ -90,6 +103,9 @@ def apply_host_access(pack, ctx) -> list[Result]:
                 _save(state)
             _write(state, PTRACE_FILE, PTRACE_CONFIG)
             _run("sysctl", "-w", "kernel.yama.ptrace_scope=0")
+        if access.get("gamemode"):
+            # The group comes with the gamemode package (`packages`, applied first).
+            _join_group(state, ctx.user, GAMEMODE_GROUP)
         return [Result(True, f"{pack.id}: host access ready {access}")]
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as e:
         return [Result(False, f"{pack.id}: host access failed — {e}")]
@@ -125,8 +141,13 @@ can use it. Keep the receipt if a command fails, so uninstall can be retried.
             _run("sysctl", "-w", f"kernel.yama.ptrace_scope={previous}")
     state.pop("restore_ptrace_pending", None)
     _save(state)
-    for user in state.get("input_users_added", []):
-        if user in grp.getgrnam("input").gr_mem:
-            _run("gpasswd", "-d", user, "input")
+    for group, key in GROUP_RECEIPTS.items():
+        for user in state.get(key, []):
+            try:
+                members = grp.getgrnam(group).gr_mem
+            except KeyError:
+                continue                # the package that made the group is gone
+            if user in members:
+                _run("gpasswd", "-d", user, group)
     _run("udevadm", "control", "--reload-rules")
     RECEIPT.unlink()
