@@ -121,6 +121,7 @@ installer writes them into one systemd drop-in,
 | `SCREENSCRAPER_DEV_ID` / `SCREENSCRAPER_DEV_PASSWORD` | **developer** credentials, granted per software on the ScreenScraper forum. The id is the developer's *pseudonym*, not the number in the `devinfos.php` URL |
 | `SCREENSCRAPER_USER` / `SCREENSCRAPER_PASSWORD` | a **member** account. It carries the daily quota and the thread count |
 | `GAMECORE_SCRAPER_LANG` | comma-separated, most preferred first. Default `en,fr` |
+| `GAMECORE_STANDBY_VIDEO_CAP_GB` | disk budget for the standby TV's game clips, in GB (decimals allowed). Default `5`; `0` removes every clip ([why](04-backend-services.md#standby_videospy--standby_pickspy)) |
 | `GAMECORE_WARM_MEDIA` | which media `prefetch` downloads at boot beyond the cover. Comma-separated, empty to warm nothing. Default `box-front,box-3d,box-spine,box-back,screenshot-gameplay,screenshot-game-title` ([why](04-backend-services.md#prefetchpy-82-l)) |
 
 ### Moving the data out — who has to be told

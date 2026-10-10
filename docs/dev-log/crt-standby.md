@@ -30,7 +30,9 @@ played, with the clock.
 
 ## Where I stopped
 
-Step 0: dev log created. Nothing else committed yet.
+Step 2 done (backend clip service + endpoint + tests + docs). Next: commit the
+rendered plates (step 1, rendering in `$SCRATCH/plate/`), then the frontend
+standby view (step 3).
 
 ## Journal
 
@@ -39,18 +41,70 @@ Step 0: dev log created. Nothing else committed yet.
    `config/themes/summer/views/screensaver.js`), the SDK seam
    (`sdk.defaults`, `Shell` part `screensaver`), `backend/services/prefetch.py`
    and the gamemedia facade.
+2. Scene script copied into the repo, flags added, low-res test of both new
+   modes (`$SCRATCH/plate/t-off.png`, `t-light.png`): fine. Final renders
+   launched in the background (`$SCRATCH/plate/render.sh`).
+3. Backend: `standby_picks.py`, `standby_videos.py`, `drop_file()`, endpoint,
+   worker, tests. First test run found the refetch churn (see Decisions).
+   68 tests green across `test_standby_videos.py`, `test_prefetch_after_boot.py`
+   and `test_gamemedia.py`.
 
 ## Decisions
 
-(filled in as they are taken)
+- **Scene script lives in `docs/dev-log/crt-standby-scene/`**, next to this
+  log, like the Shelf dev-log tools: it needs Blender and Poly Haven assets,
+  so it is not a repo script. Made ruff-clean (the validated `ref.py` had
+  `import bpy, math, …` on one line, E401, which a release already failed on).
+  The scene code itself is byte-identical except the screen material, the
+  `tvl` light switch and the asset/cover paths (diff checked).
+- **Two plates, not one**: `room-off` (TV off, dark glass, `tvl` hidden) and
+  `room-tvlight` (only the TV's light, white, Standard view transform). The UI
+  tints the second with the video's colour and screens it over the first; the
+  light pass costs 77 s at 1280x720, so it was cheap.
+- **Backend selection = playtime only.** Favourites live in each theme's
+  localStorage (Orbit `orbit-favourites`), the backend cannot see them; the
+  playlist endpoint takes `?favourite=system:file` to weight them instead.
+- **Value** = hours played capped at 50 h (0..10) + recency fading over 30
+  days (0..10), summed over every profile. Unplayed games follow in a stable
+  hash order so the tail mixes consoles.
+- **Eviction keeps the size hint.** `gamemedia.drop_file()` files the clip back
+  as `deferred` with URL and `bytes`. Deleting the file alone makes the
+  manifest incomplete, which triggers a rescrape (one jeuInfos). The `bytes`
+  hint stops a sweep from re-downloading a clip it just evicted (found by the
+  cap test: every sweep re-fetched and re-dropped the same clip).
+- **Cap** = env `GAMECORE_STANDBY_VIDEO_CAP_GB`, default 5, like
+  `GAMECORE_WARM_MEDIA` (no settings UI). `0` drops every clip.
+- **Never scrapes**: only games that already have a manifest (the cover pass
+  makes them). Deferral reuses `prefetch.wait_until_nobody_is_playing()` (made
+  public) before every download.
+- **Worker** starts 180 s after boot, re-sweeps every 3 h (playtime moves).
 
 ## Files changed
 
-(filled in per step)
+Backend (step 2):
+- `backend/services/standby_picks.py` (new): value, rank, weighted shuffle,
+  playtime across profiles, library scan.
+- `backend/services/standby_videos.py` (new): cap, eviction plan, sweep,
+  worker, playlist.
+- `backend/services/gamemedia/__init__.py`: `drop_file()`.
+- `backend/services/prefetch.py`: `wait_until_nobody_is_playing` made public.
+- `backend/routers/standby.py`: `GET /api/standby/videos`.
+- `backend/main.py`: starts `standby_videos.run()` in the lifespan.
+- `backend/tests/test_standby_videos.py` (new, 10 tests).
+- Docs: `docs/architecture/03-backend-routers.md`, `04-backend-services.md`,
+  `07-config-and-data.md`.
+
+Scene (step 1):
+- `docs/dev-log/crt-standby-scene/crt-room.py`: the validated scene script
+  with `--screen off|on`, `--pass full|tvlight`, `--covers`, `--assets`.
 
 ## How to test
 
-(filled in per step)
+```bash
+ruff check .
+python3 -m pytest backend/tests/test_standby_videos.py -q
+python3 scripts/check-docs.py --all
+```
 
 ## Screenshots
 

@@ -1,8 +1,8 @@
 """Standby state + configuration."""
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
-from ..services import desktop_power, standby
+from ..services import desktop_power, standby, standby_videos
 
 router = APIRouter(tags=["standby"])
 
@@ -48,3 +48,14 @@ async def set_config(cfg: StandbyConfig):
 async def wake():
     await standby.exit_standby()
     return {"ok": True}
+
+
+@router.get("/standby/videos")
+async def standby_playlist(favourite: list[str] = Query(default=[])):
+    """Clips on disk for the standby TV, plus screenshots for games without one.
+
+    `favourite` (repeatable, `system_id:filename`) makes those games come up
+    more often; favourites live in the theme, not on the backend.
+    """
+    favs = {(f.split(":", 1)[0].lower(), f.split(":", 1)[1]) for f in favourite if ":" in f}
+    return await standby_videos.playlist(favourites=favs)

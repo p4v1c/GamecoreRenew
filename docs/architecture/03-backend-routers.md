@@ -257,6 +257,14 @@ battery). The TopBar and the controller screen both read it.
 `get_standby()` (state + config), `set_config(cfg)` (`StandbyConfig` model,
 persisted to `config/standby.json`), `wake()` → `standby.exit_standby()`.
 
+`GET /standby/videos` → `standby_videos.playlist()`: what the CRT standby
+plays. `{videos: [...], stills: [...]}`, each entry
+`{system_id, filename, display_name, system_name, last_played, media_type, url}`
+where `url` is the `/api/media/.../media/<type>` file route. Only files already
+on disk; `videos` are clips, `stills` screenshots of games without one (at most
+40). Weighted shuffle: played games come up more. `?favourite=<system>:<file>`
+(repeatable) doubles a game's weight; favourites live in the theme.
+
 ## `controllers.py`
 
 `GET /controllers/devices` (declared non-SDL peripherals), `GET /controllers/pads`
