@@ -58,7 +58,7 @@ const phase = (p, name, timeout = 40000) =>
   const popped = reduced ? '.jl-sb-blob.is-leaving' : '.jl-sb-splat'
   await p.waitForFunction((s) => !!document.querySelector(s), popped, {polling: 30, timeout: 40000})
     .catch(() => console.log('no pop'))
-  await wait(reduced ? 300 : 60)
+  await wait(reduced ? 300 : 220)
   await p.screenshot({path: `${OUT}/${tag}-pop.png`})
   await phase(p, 'show')
   await wait(2500)

@@ -310,5 +310,5 @@ export function createEngine({root, layer, games, reel, reduced, onCaption, rand
     bodies.length = 0
   }
 
-  return {start, stop, setZones, measure}
+  return {start, stop, setZones, measure, addGames: (more) => deck.add(more)}
 }

@@ -197,6 +197,13 @@ describe('jelly standby timeline', () => {
     expect(deck.next(new Set(['c', 'd']))).toBeNull()
   })
 
+  it('deals games added later before the rest, once each', () => {
+    const deck = director.createDeck(games.slice(0, 2), seeded())
+    deck.next()
+    deck.add([{ key: 'a' }, { key: 'x' }, { key: 'y' }])
+    expect(new Set([deck.next().key, deck.next().key])).toEqual(new Set(['x', 'y']))
+  })
+
   it('builds the feature reel: clips first, then screenshots, as games', () => {
     const item = (f: string, url = `/m/${f}`) => ({ system_id: 'gba', filename: f, display_name: f.toUpperCase(),
       system_name: 'Game Boy Advance', last_played: null, url })

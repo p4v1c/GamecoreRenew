@@ -48,7 +48,15 @@ export function createDeck(games, rand) {
     }
     return byKey.get(live[0])
   }
-  return {next, drop: (key) => dropped.add(key), has: (key) => byKey.has(key) && !dropped.has(key)}
+  /** Games the deck did not know (the collection finished loading after
+   * the standby started): they come up next, shuffled. */
+  function add(more) {
+    const fresh = more.filter((g) => !byKey.has(g.key))
+    fresh.forEach((g) => byKey.set(g.key, g))
+    order.splice(at, 0, ...shuffle(fresh.map((g) => g.key), rand))
+  }
+
+  return {next, add, drop: (key) => dropped.add(key), has: (key) => byKey.has(key) && !dropped.has(key)}
 }
 
 /** A playlist entry as a standby game: `{key, systemId, filename, ...}`. */

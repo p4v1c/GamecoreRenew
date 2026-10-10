@@ -44,6 +44,7 @@ export function createStandby(sdk, {collection}) {
     const clockBox = useRef(null)
     const engine = useRef(null)
     const [game, setGame] = useState(null)
+    const library = collection.useCollection()
 
     const zones = () => [rectIn(root.current, captionBox.current), rectIn(root.current, clockBox.current)]
       .filter(Boolean)
@@ -73,6 +74,10 @@ export function createStandby(sdk, {collection}) {
         engine.current = null
       }
     }, [])
+
+    // Standby can start before the collection has loaded (a boot straight
+    // into standby): its games join the deck when they arrive.
+    useEffect(() => { engine.current?.addGames(libraryGames(library.games || [])) }, [library.games])
 
     // A new title changes the caption's width: the zone follows it.
     useEffect(() => { engine.current?.setZones(zones()) }, [game])
