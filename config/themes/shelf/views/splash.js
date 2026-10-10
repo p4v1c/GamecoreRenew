@@ -35,6 +35,12 @@ export const createSplash = (sdk) => {
     const [seated, setSeated] = useState(false)   // the cartridge is in; the frame holds
     const allowed = bootReady !== false
 
+    // The boot's own sound (lib/sounds.js `boot`), timed on this animation:
+    // played once, with it. Not under reduced motion, where the animation is
+    // skipped and a sound timed on it would play over a still frame.
+    useEffect(() => {
+      if (!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches) sdk.system.playSound('boot')
+    }, [])
     useEffect(() => {
       const t = setTimeout(() => setSeated(true), DROP_MS + HOLD_MS)
       return () => clearTimeout(t)

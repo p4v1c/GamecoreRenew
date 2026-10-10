@@ -53,6 +53,19 @@ export const createSounds = (sdk) => {
     // G B D G on the marimba.
     startup: (ctx, out) => [392, 493.88, 587.33, 783.99].forEach((freq, i) => bar(ctx, out, freq, i * 0.12, 0.06)),
 
+    // The boot, timed on views/splash.js and css/splash.css: the cartridge
+    // slides down the slot, hits home at 72 % of the drop (0.83 s), springs
+    // back and seats with a click (0.97 s); the marimba answers as the
+    // wordmark comes up (0.68 s on, landing with the cartridge).
+    boot: (ctx, out) => {
+      hiss(ctx, out, {freq: 600, to: 1500, q: 1.2, dur: 0.8, peak: 0.03, attack: 0.5})
+      tone(ctx, out, {freq: 150, to: 82, at: 0.83, dur: 0.16, peak: 0.13})
+      hiss(ctx, out, {freq: 2200, q: 2, at: 0.83, dur: 0.04, peak: 0.05})
+      tone(ctx, out, {freq: 190, to: 130, at: 0.97, dur: 0.06, peak: 0.06})
+      hiss(ctx, out, {freq: 4200, filter: 'highpass', at: 0.98, dur: 0.025, peak: 0.05})
+      ;[392, 493.88, 587.33, 783.99].forEach((freq, i) => bar(ctx, out, freq, 1.15 + i * 0.1, 0.07))
+    },
+
     // A box drawn out of the row: cardboard sliding on cardboard, then it
     // settles in the hand with a soft knock and the grain of the edge.
     swap: (ctx, out) => {

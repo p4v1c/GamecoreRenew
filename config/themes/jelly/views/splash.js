@@ -21,6 +21,12 @@ export function createSplash(sdk) {
     const done = useRef(onDone)
     done.current = onDone
 
+    // The boot's own sound (lib/sounds.js `boot`), timed on this animation:
+    // played once, with it. Not under reduced motion, where the animation is
+    // skipped and a sound timed on it would play over a still frame.
+    useEffect(() => {
+      if (!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches) sdk.system.playSound('boot')
+    }, [])
     useEffect(() => {
       const reduced = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches
       const t = setTimeout(() => setHeld(true), reduced ? 150 : INTRO_MS)

@@ -25,6 +25,15 @@ export const SOUNDS = {
     hiss(ctx, out, {freq: 400, to: 1800, filter: 'lowpass', q: 0.6, dur: 0.9, peak: 0.04, attack: 0.35})
     ;[523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => pan(ctx, out, freq, 0.12 + i * 0.09, 0.05))
   },
+  // The boot, timed on views/splash.js: a wave rolling in as the sun climbs,
+  // a slow warm swell rising with it, and when the sun clears the horizon
+  // (1.7 s) a steel-drum chord, then the wave drawing back.
+  boot: (ctx, out) => {
+    hiss(ctx, out, {freq: 250, to: 1100, filter: 'lowpass', q: 0.5, dur: 1.9, peak: 0.035, attack: 1.1})
+    tone(ctx, out, {freq: 196, to: 261.63, type: 'triangle', dur: 1.8, peak: 0.025, attack: 0.9})
+    ;[392, 493.88, 587.33, 783.99].forEach((freq, i) => pan(ctx, out, freq, 1.7 + i * 0.11, 0.05))
+    hiss(ctx, out, {freq: 1100, to: 300, filter: 'lowpass', q: 0.5, at: 2.2, dur: 1.6, peak: 0.022, attack: 0.3})
+  },
   // The sea, then a soft chord over it.
   startup: (ctx, out) => {
     hiss(ctx, out, {freq: 300, to: 900, filter: 'lowpass', q: 0.5, dur: 1.4, peak: 0.03, attack: 0.6})
