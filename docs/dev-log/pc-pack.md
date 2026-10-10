@@ -193,7 +193,15 @@ written by the real sync, not mocked. Covers are drawn placeholders.
 | `summer-library.png` | Summer: same, cover from Lutris's coverart |
 | `shelf-home.png`, `shelf-library.png`, `shelf-reverse.png` | Shelf: PC on the console row (the monitor logo, no hardware photo), the PC case with the disc, the printed reverse with no media |
 | `orbit-home.png`, `jelly-home.png` | PC games among the others on Orbit and Jelly homes |
+| `jelly-collection.png` | Jelly with 3D boxes on: games with no `box-3d` drawn as boxes (PC and, here, every game: no ScreenScraper in this fixture) |
+
+## Jelly: drawn box
+
+With the 3D style on and no `box-3d` for a game, `lib/art.js` marks the jacket
+`data-kind="drawn"` and `css/cards.css` turns the flat cover 22° with an ink
+spine (the theme's hard-step shadow). Flat style and real `box-3d` unchanged.
+Test: `frontend/src/themes/jellyHome.test.tsx`. Jelly 1.6.0.
 
 ## Next
 
-- Jelly drawn 3D box fallback (optional, not started).
+- Owner review; open questions in the final report of the session.

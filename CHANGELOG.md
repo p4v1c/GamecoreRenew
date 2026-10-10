@@ -23,6 +23,8 @@ are the auto-incremented tags.
   (Settings → Desktop); they then appear under PC and start without Lutris
   showing. The default and Summer libraries no longer print an extension for
   them.
+- Jelly: with 3D boxes on, a game with no 3D box art (most PC games) is drawn as
+  a box instead of showing a flat cover among the boxes.
 - Jelly has its own standby screen: your covers float in jellies that bounce
   and wobble on the cyan floor; every half minute or so one grows in the middle
   to show its cover large, and now and then a jelly pops and another game
