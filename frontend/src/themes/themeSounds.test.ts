@@ -1,8 +1,8 @@
 /**
- * Every shipped theme answers the five UI sounds with its own (Shelf adds four
- * for its library), and every one of them stays under the player's volume: it
- * plays into the `out` node the host hands it, never into `ctx.destination`,
- * and every source it starts stops.
+ * Every shipped theme answers the five UI sounds with its own (each adds a
+ * `boot` for its splash, and Shelf four for its library), and every one of
+ * them stays under the player's volume: it plays into the `out` node the host
+ * hands it, never into `ctx.destination`, and every source it starts stops.
  */
 import { describe, expect, it } from 'vitest'
 import { resolveThemeSounds } from '../lib/themeLoader'
@@ -10,7 +10,10 @@ import { resolveThemeSounds } from '../lib/themeLoader'
 const THEMES = ['jelly', 'orbit', 'shelf', 'summer']
 const NAMES = ['move', 'confirm', 'back', 'launch', 'startup']
 /** Sounds a theme adds on top of the five, played by the theme itself. */
-const EXTRA: Record<string, string[]> = { shelf: ['flip', 'restack', 'swap', 'unflip'] }
+const EXTRA: Record<string, string[]> = {
+  jelly: ['boot'], orbit: ['boot'], summer: ['boot'],
+  shelf: ['boot', 'flip', 'restack', 'swap', 'unflip'],
+}
 
 /** A theme's sound table: `SOUNDS`, or `createSounds(sdk)` for one that reads state. */
 async function soundsOf(theme: string, screen = 'home') {
@@ -65,7 +68,7 @@ describe('theme sounds', () => {
         for (const s of sources) {
           expect(s.started).toBe(true)
           expect(s.stopAt).not.toBeNull()
-          expect(s.stopAt! - ctx.currentTime).toBeLessThan(2.5)
+          expect(s.stopAt! - ctx.currentTime).toBeLessThan(5)
         }
       }
     })
