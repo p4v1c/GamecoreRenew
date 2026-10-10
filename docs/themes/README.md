@@ -779,7 +779,7 @@ means `"api": 6`: on an older host the first two are `undefined` and the
 theme's own buttons throw, and `__all__` is a console that does not exist, so
 the screen renders empty and the tab looks broken rather than bare.
 | `sdk.system` | `onWsEvent`, `playSound`, `getAudioContext`, `sound` (read-only `enabled` / `volume`), `gamecore`, `asset(path)` | `asset()` resolves a path inside the theme folder. `splashHoldMs` was here and is gone in SDK 4 — the splash is told when the interface is ready instead of being told how long to wait (§8) |
-| `sdk.format` | `gameName`, `time`, `date`, `hexToRgb`, `systemColor` | how the rest of the UI renders the box's data. Reimplementing these does not fail, it *drifts* |
+| `sdk.format` | `gameName`, `time`, `date`, `hexToRgb`, `systemColor`, `playedAgo` (SDK 12) | how the rest of the UI renders the box's data. Reimplementing these does not fail, it *drifts* |
 | `sdk.themes` | `list()`, `select(id \| null)` | so a theme can dress its own theme picker. `select()` is the host's: it clears safe mode, resets the crash count and reloads the frontend |
 | `sdk.defaults` | `Shell` (the default frontend, takes parts), every screen, `DefaultSettingsPages`, `SettingsOverlay`, `Label`, `BackBar`, `DefaultKeyboard`, `launchApp` | compose instead of rewrite. The pages already carry their own overlay — render them bare; `SettingsOverlay`, `Label` and `BackBar` are the chrome to build a page of your own that matches them |
 
@@ -816,6 +816,15 @@ const Standby = sdk.defaults.CrtStandby
 `system_id:filename` keys that come up more often. Feature-detect it as above
 rather than declaring `"api": 11`: a theme that requires it would drop to safe
 mode on an older host instead of keeping the slideshow.
+
+SDK 12 adds two helpers for a theme that draws its own standby instead of
+`CrtStandby`: `sdk.defaults.useLocalWake(stage)`, the mouse/key wake the
+host's standbys use (call it with `sdk.nav.use(s => s.standby)`; pads are
+woken by the host), and `sdk.format.playedAgo(lastPlayed, now)`, the CRT
+caption's "played 3 days ago" (null when never played). Jelly's standby
+(`config/themes/jelly/views/standby/`) uses both and feature-detects them
+like `CrtStandby`: on an older host it returns no `screensaver` and the
+slideshow stays.
 
 SDK 8 removes things rather than adding them: `gp:menu` and `gp:power` from
 `sdk.input` (reserved, §6a) and `'options'` from `libraryOmit`. No theme needs

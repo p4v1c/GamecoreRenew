@@ -1,4 +1,4 @@
-# Jelly 1.4.5
+# Jelly 1.5.1
 
 A bright, rounded GameCore theme: a cyan playground, purple and pink jelly
 tiles, keys that press down, one burst of confetti at boot. Textures and
@@ -22,6 +22,7 @@ touched.
 | Game details | jacket, metadata, playtime, Play / Resume, favourite | Jelly, launch by the host |
 | Settings (Options) | the host's ten categories, dressed | host (`createSettings`, `pager`, `detail: 'dialog'`) |
 | Power (Share), controller (□), session menu (PS ×2) | dressed host markup | host |
+| Standby | your covers in jellies on the cyan floor; one grows and plays its game's standby clip (or a panning screenshot) about every 25 s; pops deal the next game; caption and clock | Jelly (`views/standby/`); stage, wake and clips are the host's (SDK 12, feature-detected) |
 
 **Pictures.** Game cards stand on the game's 3D box (`box-3d` in its media
 index) when it has one, drawn at its own shape on the jelly, and on the flat
@@ -78,8 +79,10 @@ lib/                catalog (names, marks, colours), collection (all games + pla
 views/              home + home/{play,hero,shortcuts,collection,consoles},
                     library/{index,toolbar,rows}, search/{index,header,zones,results,keyboard},
                     details, cards, chips, topbar, footer, background, splash, ceremony,
-                    session, settings, controller
-css/                base, shell, cards, home, dialogs, moments, settings, motion
+                    session, settings, controller,
+                    standby/{index,engine,blob,media,caption}
+lib/standby/        physics (jellies: edges, collisions, repel zones, squash), director (deck, reel, timeline)
+css/                base, shell, cards, home, dialogs, moments, settings, standby, motion
 fonts/red-hat/      Red Hat Display (SIL OFL)
 ```
 
@@ -89,8 +92,8 @@ confetti; focus keeps its ring.
 
 ## Checks
 
-- `node scripts/check-theme.mjs config/themes/jelly` — 39 modules, all ten settings pages reachable
-- `npx vitest run src/themes/jelly src/themes/themeSplashContract.test.tsx` (frontend)
+- `node scripts/check-theme.mjs config/themes/jelly` — 48 modules, all ten settings pages reachable
+- `npx vitest run src/themes/jelly src/themes/themeSplashContract.test.tsx` (frontend; `jellyStandby*` cover the standby)
 - `pytest backend/tests -k theme` — the shared theme rules (ceremony length, settings grid, versions, controller wizard)
 
 ## Sounds
