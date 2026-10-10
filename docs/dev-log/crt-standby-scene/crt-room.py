@@ -6,6 +6,7 @@ Python (bpy as a module or `blender -b -P`); see README.md beside this file.
 
     python crt-room.py -- <width> <samples> <out.png> [--screen on|off]
                           [--pass full|tvlight] [--covers DIR] [--frame PNG]
+                          [--dust on|off]
 
 --screen off   the glass is dark and glossy and the TV casts no light: the
                plate the interface lays the game video over.
@@ -199,9 +200,12 @@ lp = bpy.data.lights.new('lamp', 'POINT'); lp.energy = 30; lp.color = (1, 0.58, 
 lo = bpy.data.objects.new('lamp', lp); sc.collection.objects.link(lo); lo.location = (TX, TY, 0.86)
 
 # ── dust ──────────────────────────────────────────────────────────────────
+# Off by default: a mote baked into the plate cannot move, and still dust in
+# the air reads as dead pixels. The interface draws falling dust on top
+# (CrtStandby/DustMotes.tsx). `--dust on` restores the validated stills.
 random.seed(7)
 dust = mat('dust', (1, 1, 1, 1), 0.5, emit=(0.85, 0.85, 1, 1), strength=1.0)
-for i in range(45):
+for i in range(45 if flags.get('dust', 'off') == 'on' else 0):
     bpy.ops.mesh.primitive_ico_sphere_add(radius=0.0016, subdivisions=1,
         location=(random.uniform(-1.2, 1.5), random.uniform(-0.6, 0.9), random.uniform(0.05, 1.3)))
     bpy.context.object.data.materials.append(dust)

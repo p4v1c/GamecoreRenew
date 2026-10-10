@@ -285,3 +285,11 @@ sources. The game names, systems and "played N days ago" are real dev data.
 
 The owner preferred Orbit's dark card to Shelf's white paper label. Shelf's
 caption is now a dark glass card (Archivo, brass label); Shelf 4.4.0 -> 4.4.1.
+
+## Follow-up: falling dust
+
+The owner saw the dust as frozen. Two causes: 45 motes were baked into the plate,
+and the canvas motes rose a few hundredths of a pixel a frame. The plate is
+re-rendered without dust (`--dust` defaults to off; corners unchanged) and
+`DustMotes.tsx` now falls on the frame clock, by depth, with sway, twinkle and a
+soft halo, warm by the lamp and cool by the window.
