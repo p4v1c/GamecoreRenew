@@ -30,9 +30,8 @@ played, with the clock.
 
 ## Where I stopped
 
-Step 2 done (backend clip service + endpoint + tests + docs). Next: commit the
-rendered plates (step 1, rendering in `$SCRATCH/plate/`), then the frontend
-standby view (step 3).
+Steps 1 and 2 done (plates committed; backend clip service + endpoint + tests
++ docs). Next: the frontend standby view (step 3).
 
 ## Journal
 
@@ -48,6 +47,9 @@ standby view (step 3).
    worker, tests. First test run found the refetch churn (see Decisions).
    68 tests green across `test_standby_videos.py`, `test_prefetch_after_boot.py`
    and `test_gamemedia.py`.
+4. Final renders: plate 1920x1080/128 samples in 7:00, light pass
+   1280x720/64 in 1:17 (`$SCRATCH/plate/room-off.png`, `room-tvlight.png`).
+   Corners identical to the validated render's. webp q92: 98 KB + 24 KB.
 
 ## Decisions
 
@@ -77,6 +79,11 @@ standby view (step 3).
 - **Never scrapes**: only games that already have a manifest (the cover pass
   makes them). Deferral reuses `prefetch.wait_until_nobody_is_playing()` (made
   public) before every download.
+- **webp quality 92, not 85**: at 85 the wall gradients band (visible on a
+  TV in a dark room); 92 is still 98 KB, far under the 600 KB budget.
+- **Plates live in `frontend/src/assets/standby/`**, imported by the host
+  component, so they ship hashed in the bundle (no new static route). There is
+  no `public/` folder in this frontend; `assets/logo.png` is the precedent.
 - **Worker** starts 180 s after boot, re-sweeps every 3 h (playtime moves).
 
 ## Files changed
@@ -97,6 +104,9 @@ Backend (step 2):
 Scene (step 1):
 - `docs/dev-log/crt-standby-scene/crt-room.py`: the validated scene script
   with `--screen off|on`, `--pass full|tvlight`, `--covers`, `--assets`.
+- `docs/dev-log/crt-standby-scene/README.md`: how to re-render, licences.
+- `frontend/src/assets/standby/room-off.webp`, `room-tvlight.webp`,
+  `room-screen.json`.
 
 ## How to test
 
