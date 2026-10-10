@@ -93,6 +93,13 @@ export const DefaultScreensaver = () => <Screensaver />
  */
 export { CrtStandby }
 
+/**
+ * SDK 12. Wakes the box on a mouse move or a key press while `stage` is not
+ * 'off', for a theme drawing its own standby: the backend only hears pads.
+ * Call it with `sdk.nav.use(s => s.standby)`.
+ */
+export { useLocalWake } from '../hooks/useLocalWake'
+
 /** The modals close themselves through the store-independent callbacks App owns. */
 export type CloseProps = { onClose: () => void }
 export const DefaultPowerModal = ({ onClose }: CloseProps) => <PowerModal onClose={onClose} />

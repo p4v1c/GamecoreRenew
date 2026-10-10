@@ -21,6 +21,7 @@ import { rumble, rumbleSettings, type RumblePattern } from './rumble'
 import { onWsEvent } from '../hooks/useWebSocket'
 import { playSound, getAudioContext, soundSettings } from './sounds'
 import { formatGameName, hexToRgb, fmtTime, fmtDate, systemColor } from './format'
+import { playedAgo } from './standbyPlaylist'
 import * as defaults from '../components/defaults'
 import { onProfileChange, playerLabel, profileStorageKey, usePlayerLabel } from './players'
 import ProfileAvatar from '../components/ProfileAvatar'
@@ -41,7 +42,8 @@ import ProfileAvatar from '../components/ProfileAvatar'
 // 9 adds defaults.GamepadView and the roster props of gamepadView (pads, pad, status…).
 // 10 adds Shell.homeGameOptions for games selected on a custom home screen.
 // 11 adds defaults.CrtStandby, the shared CRT standby screen.
-export const SDK_VERSION = 11
+// 12 adds defaults.useLocalWake and format.playedAgo, for a theme's own standby.
+export const SDK_VERSION = 12
 
 /**
  * Game or application, from the identity the launcher gave the session.
@@ -140,6 +142,9 @@ export function buildSdk(themeId: string, host: SdkHost): ThemeSdk {
       hexToRgb,
       /** A system's accent: its pack's colour, the catalogue's, then the default. */
       systemColor,
+      /** `(lastPlayed, now)` → "played 3 days ago", null when never played:
+       *  the CRT standby's caption words. SDK 12. */
+      playedAgo,
     },
 
     /**

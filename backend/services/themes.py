@@ -28,7 +28,8 @@ STATE_FILE = config_dir() / "theme.json"
 # 6 adds the aggregate/spatial library contract required by Orbit.
 # 8 removes gp:menu/gp:power from theme input and libraryOmit 'options'.
 # 11 adds defaults.CrtStandby (themes feature-detect it).
-SDK_VERSION = 11
+# 12 adds defaults.useLocalWake and format.playedAgo (Jelly feature-detects them).
+SDK_VERSION = 12
 
 # What a box shows when nobody has chosen — a fresh install, or one whose config
 # directory was replaced. Not a hardcoded look: it is a theme id like any other,
