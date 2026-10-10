@@ -36,6 +36,9 @@ Blender may segfault on exit after `Saved:`; the files are already written.
 `--screen on --frame <png>` renders the look the owner validated, with a
 picture on the glass.
 
+Dust is left out of the plate by default: a baked mote cannot move. The
+interface draws falling dust instead. `--dust on` puts the 45 still motes back.
+
 ## What it needs
 
 - **`--assets`**: a folder holding `gamepad/gamepad_1k.gltf` (+ its `.bin` and

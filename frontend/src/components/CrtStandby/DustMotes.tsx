@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-const COUNT = 46
+const COUNT = 60
 /** Pixels per second at 1080 lines, for the nearest motes; far ones are slower. */
 const FALL = 26
 /** Width of the side-to-side drift, in pixels, and how long one sway takes. */
@@ -51,10 +51,14 @@ export function DustMotes() {
         if (m.y > h + 6) Object.assign(m, spawn(w, h, true))
         const x = m.x + Math.sin(t * (Math.PI * 2 / SWAY_S) + m.phase) * SWAY * scale * (0.5 + m.z)
         const glint = 0.55 + 0.45 * Math.sin(t * m.twinkle + m.phase)
-        ctx.globalAlpha = (0.18 + 0.5 * m.z) * glint
-        ctx.fillStyle = x < w * 0.4 ? '#ffe2c8' : '#e3e8ff'
+        ctx.globalAlpha = (0.3 + 0.6 * m.z) * glint
+        const tint = x < w * 0.4 ? '#ffe2c8' : '#e3e8ff'
+        ctx.fillStyle = tint
+        // A soft halo, so a mote reads as lit dust and not as a dead pixel.
+        ctx.shadowColor = tint
+        ctx.shadowBlur = 6 * scale * m.z
         ctx.beginPath()
-        ctx.arc(x, m.y, (0.7 + 1.7 * m.z) * scale, 0, Math.PI * 2)
+        ctx.arc(x, m.y, (1.1 + 2.3 * m.z) * scale, 0, Math.PI * 2)
         ctx.fill()
       }
       raf = requestAnimationFrame(draw)
