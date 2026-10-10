@@ -74,10 +74,13 @@ export function createArt(sdk) {
         <span className="jl-jacket-mark" aria-hidden="true">${initials(title)}</span>
       </span>`
     }
+    // With the 3D style and no box-3d (most PC games), the flat jacket is
+    // drawn as a box by the stylesheet rather than shown flat among boxes.
+    const kind = stage === '3d' ? '3d' : style === 'box-3d' ? 'drawn' : 'flat'
     // The title shows while the picture is on its way, so a slow scrape never
     // leaves a blank card.
     return html`<span className="jl-jacket" data-art=${ready ? 'ready' : 'loading'}
-                      data-kind=${stage === '3d' ? '3d' : 'flat'}>
+                      data-kind=${kind}>
       ${ready ? null : html`<span className="jl-jacket-title" aria-hidden="true">${title}</span>`}
       ${src ? html`<img key=${src} src=${src} alt="" draggable="false" loading="lazy" decoding="async"
            onLoad=${load} onError=${fail} />` : null}
