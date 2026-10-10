@@ -8,6 +8,7 @@
  * Gradients only: nothing to fetch, scales cleanly for the boot animation.
  */
 import { pick, jacket } from '../lib/dossier.js'
+import { isPc } from '../lib/pc.js'
 
 const CART_SYSTEMS = new Set(['gb', 'gbc', 'gba', 'mgba', 'gopher64', 'rmg', 'melonds', 'azahar', 'ryujinx', 'switch'])
 const DISC_SYSTEMS = new Set(['duckstation', 'pcsx2', 'rpcs3', 'shadps4', 'ppsspp', 'gamecube', 'wii', 'dolphin', 'cemu', 'xenia'])
@@ -16,6 +17,7 @@ const CART_EXT = /^\.?(xci|nsp|nes|fds|sfc|smc|gb|gbc|gba|nds|3ds|cia|n64|z64|v6
 
 export const shellFor = (ext, systemId = '') => {
   const id = String(systemId || '').toLowerCase()
+  if (isPc(id)) return 'disc'
   if (CART_SYSTEMS.has(id)) return 'cart'
   if (DISC_SYSTEMS.has(id)) return 'disc'
   if (DISC_EXT.test(String(ext || ''))) return 'disc'

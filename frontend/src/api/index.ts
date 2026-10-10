@@ -100,6 +100,8 @@ export interface GameMeta {
   /** { PEGI: "16", ESRB: "T", USK: "16", … } */
   classifications?: Record<string, string>
   platform?: string
+  /** A PC game's minimum spec, for a printed box reverse. Empty for consoles. */
+  requirements?: { os?: string; cpu?: string; ram?: string; gpu?: string; disk?: string }
 }
 
 /** A bezel that exists on this box and may therefore be offered. */

@@ -62,6 +62,8 @@ const CONSOLES = {
     "Four controller ports and the first 3D Mario. Runs in Rosalie's Mupen GUI."],
   xenia: ['Xbox 360', 'Microsoft', '2005',
     'The Xbox of the HD era. Runs in Xenia Canary; compatibility varies by game.'],
+  lutris: ['PC', 'Windows', '',
+    'Your PC games, run through Lutris and Wine without leaving the couch.'],
   snes9x: ['Super Nintendo', 'Nintendo', '1990 / 1992',
     'The 16-bit Nintendo, Mode 7 included. Runs in Snes9x.'],
   nes: ['NES', 'Nintendo', '1983 / 1986',
@@ -95,7 +97,7 @@ const CONSOLES = {
 const KIND = {
   azahar: 'Handheld', melonds: 'Handheld', gb: 'Handheld', gbc: 'Handheld',
   gba: 'Handheld', mgba: 'Handheld', ppsspp: 'Handheld', gamegear: 'Handheld',
-  switch: 'Hybrid', ryujinx: 'Hybrid',
+  switch: 'Hybrid', ryujinx: 'Hybrid', lutris: 'Computer',
   fds: 'Add-on', megacd: 'Add-on', sega32x: 'Add-on',
   naomi: 'Arcade board', naomigd: 'Arcade board', atomiswave: 'Arcade board', mame: 'Arcade',
 }

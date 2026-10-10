@@ -34,6 +34,7 @@ const CONSOLES = {
   gopher64: ['Nintendo 64', 'Nintendo', '1996', 'N64', GREEN],
   rmg: ['Nintendo 64', 'Nintendo', '1996', 'N64', GREEN],
   xenia: ['Xbox 360', 'Microsoft', '2005', '360', GREEN],
+  lutris: ['PC', 'Windows', '', 'PC', BLUE],
   snes9x: ['Super Nintendo', 'Nintendo', '1990', 'SNES', BLUE],
   nes: ['NES', 'Nintendo', '1983', 'NES', CORAL],
   fds: ['Famicom Disk System', 'Nintendo', '1986', 'FDS', ORANGE],

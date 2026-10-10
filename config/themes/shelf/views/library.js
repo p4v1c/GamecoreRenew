@@ -14,6 +14,7 @@ import { LETTERS, initial, title, stamp, released, played, day } from '../lib/na
 import { sample, hexToHsl, vars, NEUTRAL } from '../lib/accent.js'
 import { jacket } from '../lib/dossier.js'
 import { createUseSwap } from '../lib/swap.js'
+import { isPc } from '../lib/pc.js'
 
 /**
  * The fewest spines that may stand either side of the cursor.
@@ -314,7 +315,7 @@ export const createLibraryView = (sdk, { accent, useBrowse, useDossier, useSwap:
                   ${mark.std ? html`<span class="cz-stamp cz-stamp-std">${mark.std}</span>` : null}
                   ${mark.region ? html`<span class="cz-stamp">${mark.region}</span>` : null}
                   ${!mark.std && !mark.region
-                    ? html`<span class="cz-stamp">${String(detailGame?.ext || '').replace('.', '').toUpperCase() || 'ROM'}</span>`
+                    ? html`<span class="cz-stamp">${isPc(systemId) ? 'PC' : (String(detailGame?.ext || '').replace('.', '').toUpperCase() || 'ROM')}</span>`
                     : null}
                 </div>
               </div>
