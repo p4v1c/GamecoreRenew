@@ -141,6 +141,9 @@ privileged container (needed for bwrap) was refused in this session.
   timer retries daily and picks up new releases; two of our builds are kept,
   plus any a game config names.
 - `perGame` / `profileSaves`: `supported: false`, reasons in pack.json.
+- `meta.requirements` stays empty: no offline source exists (Steam store data
+  and PCGamingWiki are network lookups by name), and the reverse prints only
+  the rows present.
 
 ## Pack-model gaps found
 
