@@ -70,6 +70,13 @@ Stopped early at the owner's request (out of tokens). State on the branch:
 - All clips and screenshots on screen are stand-ins (`make-standins.py
   --centre`), labelled "stand-in clip".
 
+**Resumed (session 2)**
+- Clock switched to ink figures on a white jelly step (owner's choice:
+  passes the audit, keeps the wobble). Jelly 1.5.1.
+- Late-collection fill checked in a browser: the `none` mode (empty
+  playlist, collection loading after standby) fills the floor and features
+  a cover (`pass2b/jelly-none-*.png`).
+
 **Resume**
 1. Restart devserve (command in "How to test"), `rsync` the theme, rebuild
    only if host code changed.

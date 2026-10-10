@@ -137,10 +137,10 @@
 }
 .jl-sb-time {
   display: block; font-size: calc(200 * var(--px)); font-weight: 900; letter-spacing: -0.04em; line-height: 0.85;
-  font-variant-numeric: tabular-nums; color: var(--jl-paper);
-  /* White digits on a solid ink step: white alone is 1.5:1 on the floor,
-     the step gives every figure an ink edge (DESIGN.md's jelly step). */
-  text-shadow: 0 calc(10 * var(--px)) 0 var(--jl-ink);
+  font-variant-numeric: tabular-nums; color: var(--jl-ink);
+  /* Ink figures on a white jelly step: white figures were 1.5:1 on the
+     floor; ink is 9:1 and the step keeps the mockup's white. */
+  text-shadow: 0 calc(10 * var(--px)) 0 var(--jl-paper);
   transform-origin: 80% 90%; animation: jl-sb-wobble 3.2s ease-in-out infinite;
 }
 @keyframes jl-sb-wobble {
