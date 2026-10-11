@@ -11,6 +11,7 @@ import { title } from '../lib/names.js'
 
 /** The spec rows, in the order a box prints them, keyed as meta.requirements. */
 const REQS = [['os', 'OS'], ['cpu', 'CPU'], ['ram', 'RAM'], ['gpu', 'GPU'], ['disk', 'Disk']]
+const SHOT_TYPES = ['screenshot-gameplay', 'screenshot-gameplay-2', 'screenshot-game-title', 'screenshot-gameplay-3']
 
 export const createPcCase = (sdk) => {
   const { html } = sdk.ui
@@ -33,13 +34,14 @@ export const createPcCase = (sdk) => {
     // a bare band over an empty panel.
     const hero = art(['fanart-background', 'screenshot-gameplay', 'screenshot-game-title'])
       || jacket(systemId, game.filename)
-    const shots = [art(['screenshot-gameplay']), art(['screenshot-game-title'])]
-      .filter((s) => s && s !== hero)
+    // Two shots that are not the key art. A scrape keeps up to three
+    // gameplay shots, so a game whose hero is one still fills the row.
+    const shots = SHOT_TYPES.map((t) => art([t])).filter((s) => s && s !== hero).slice(0, 2)
     const scraped = hero !== jacket(systemId, game.filename)
     const reqs = REQS.filter(([k]) => meta?.requirements?.[k])
 
     return html`
-      <div class="pc-back">
+      <div class="pc-back" data-full=${shots.length && reqs.length ? '1' : '0'}>
         <${PcBand} small />
         <div class="pc-hero" data-art="1" data-jacket=${scraped ? '0' : '1'}
              style=${{ backgroundImage: `url("${hero}")` }}>

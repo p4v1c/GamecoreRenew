@@ -590,7 +590,11 @@
         "tgdbId":        { "type": "integer" },
         "screenscraper": { "type": "array", "items": { "type": "integer" } },
         "libretro":      { "type": "array", "items": { "type": "string" } },
-        "mediaAlias":    { "type": "array", "items": { "type": "string" } }
+        "mediaAlias":    { "type": "array", "items": { "type": "string" } },
+        "steamStore": {
+          "description": "PC games only: after a scrape, read the minimum system requirements from the public Steam store (title search, then appdetails) into `meta.requirements`. Opt-in because a console game has no PC spec, and a store hit by name on one would print a wrong one. See backend/services/gamemedia/steam_store.py.",
+          "type": "boolean"
+        }
       }
     },
 

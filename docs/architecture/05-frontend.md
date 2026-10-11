@@ -357,7 +357,8 @@ asked and a retry later is worth something.
 
 `GameMeta` gained optional fields on the same call — `developer`, `publisher`,
 `released`, `score` (0–1), `classifications`, `requirements` (a PC game's
-minimum spec: `os`, `cpu`, `ram`, `gpu`, `disk`). They are optional because a
+minimum spec: `os`, `cpu`, `ram`, `gpu`, `disk`, from the Steam store for packs
+with `scraper.steamStore`). They are optional because a
 box answering from TheGamesDB has none of them. The seven original keys did not
 move.
 

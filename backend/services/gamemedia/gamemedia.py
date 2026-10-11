@@ -483,6 +483,10 @@ def ss_everything(parsed: dict, rom_path: Path | None,
 
 # ── Tier 3: LaunchBox ───────────────────────────────────────────────────────
 
+# GameCore: how many LaunchBox gameplay screenshots a manifest records.
+LB_GAMEPLAY_SHOTS = 3
+
+
 def lb_everything(parsed: dict, cutoff: float) -> dict | None:
     """Same through the local LaunchBox index — description included, offline.
 
@@ -505,7 +509,8 @@ def lb_everything(parsed: dict, cutoff: float) -> dict | None:
         game, score = gs.find_game(db, parsed, parsed["systems"], cutoff)
         if not game:
             return None
-        images = gs.game_images(db, game["id"], parsed, None, False)
+        # GameCore: every URL per type, not only the best one; see below.
+        images = gs.game_images(db, game["id"], parsed, None, True)
     finally:
         db.close()
     media = {}
@@ -515,6 +520,11 @@ def lb_everything(parsed: dict, cutoff: float) -> dict | None:
         category, kind = gs.lb_media_info(typ)
         media[typ] = {"url": urls[0], "region": "", "format": "",
                       "category": category, "kind": kind, "ss_type": ""}
+        # GameCore: extra gameplay shots as `screenshot-gameplay-2`, `-3`. A PC
+        # back uses the first as key art, and its shot row was left empty.
+        if typ == "screenshot-gameplay":
+            for n, url in enumerate(urls[1:LB_GAMEPLAY_SHOTS], start=2):
+                media[f"{typ}-{n}"] = {**media[typ], "url": url}
     # `released` carries an ISO date when LaunchBox has one (15 % of games), the
     # year otherwise: the field keeps the same meaning as on the ScreenScraper
     # side.

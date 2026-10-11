@@ -77,6 +77,22 @@ describe('the printed PC reverse', () => {
     expect(container.querySelector('.pc-logo-text')?.textContent).toBe('Hades')
   })
 
+  it('fills the shot row from the extra gameplay shots when the first one is the key art', async () => {
+    const { createPcCase } = await load()
+    const { PcBack } = createPcCase(sdk)
+    const meta = { requirements: { os: 'Windows 10', cpu: 'Intel Core i3-6100' } }
+    const media = image('screenshot-gameplay', 'screenshot-gameplay-2', 'screenshot-gameplay-3')
+    const { container } = render(React.createElement(PcBack, { systemId: 'lutris', game: GAME, meta, media }))
+
+    expect((container.querySelector('.pc-hero') as HTMLElement).style.backgroundImage).toContain('/media/screenshot-gameplay"')
+    const shots = [...container.querySelectorAll('.pc-shots img')].map(n => n.getAttribute('src'))
+    expect(shots).toEqual([
+      '/api/media/lutris/Hades.lutris/media/screenshot-gameplay-2',
+      '/api/media/lutris/Hades.lutris/media/screenshot-gameplay-3',
+    ])
+    expect((container.querySelector('.pc-back') as HTMLElement).dataset.full).toBe('1')
+  })
+
   it('falls back to the jacket when nothing was scraped, without printing the name over it', async () => {
     const { createPcCase } = await load()
     const { PcBack } = createPcCase(sdk)
