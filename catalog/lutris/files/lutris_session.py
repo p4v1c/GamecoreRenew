@@ -12,7 +12,11 @@ So an idle Lutris is closed first, the game is followed through its
 `lutris-wrapper` process (Lutris runs every game under one and retitles it
 "lutris-wrapper: <name>"), and once that is gone Lutris gets a few seconds to
 quit before it is closed. Everything runs in this process group, so
-GameCore's suspend and kill reach the whole tree.
+GameCore's suspend and kill reach the whole tree. Under gamescope the game is
+gamescope's child, and gamescope is still lutris-wrapper's: nothing changes.
+
+Before starting Lutris it writes the gamescope defaults (`lutris_gamescope.py`)
+for the display GameCore launched it on.
 
     lutris_session.py --app-id net.lutris.Lutris [/path/Game.lutris]
 
@@ -30,6 +34,7 @@ from pathlib import Path
 from typing import Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lutris_gamescope  # noqa: E402
 from lutris_library import game_id_of  # noqa: E402
 
 PROC = Path("/proc")
@@ -130,6 +135,14 @@ def _clear_idle_instance(app_id: str) -> None:
         time.sleep(POLL_S)
 
 
+def _gamescope_defaults(app_id: str) -> None:
+    """Fullscreen gamescope at the TV's mode; never stops the launch."""
+    try:
+        _log(lutris_gamescope.apply(Path.home(), app_id, lutris_gamescope.current_mode()))
+    except Exception as e:                       # a setting must not cost the game
+        _log(f"gamescope settings not written: {e}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--app-id", required=True)
@@ -147,6 +160,7 @@ def main(argv: list[str] | None = None) -> int:
         _log("Lutris is already running a game or an installer; close it first")
         return 1
     _clear_idle_instance(args.app_id)
+    _gamescope_defaults(args.app_id)
     command.append(f"lutris:rungameid/{game_id}")
     _log(" ".join(command))
     child = subprocess.Popen(command)

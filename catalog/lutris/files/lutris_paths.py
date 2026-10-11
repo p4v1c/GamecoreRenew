@@ -65,3 +65,8 @@ def db_path(home: Path, app_id: str) -> Path:
 
 def coverart_dir(home: Path, app_id: str) -> Path:
     return data_dir(home, app_id) / "coverart"
+
+
+def state_dir(home: Path) -> Path:
+    """GameCore's own records about Lutris (what it installed, what it wrote)."""
+    return home / ".local" / "share" / "gamecore" / "lutris"

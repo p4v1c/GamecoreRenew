@@ -50,7 +50,7 @@ def pick_version(current: object, ours: set[str], new: str) -> str | None:
     return None
 
 
-def _load(path: Path) -> dict | None:
+def load(path: Path) -> dict | None:
     """The YAML mapping, {} when absent, None when unreadable (never rewritten)."""
     if not path.exists():
         return {}
@@ -63,7 +63,7 @@ def _load(path: Path) -> dict | None:
     return doc if isinstance(doc, dict) else None
 
 
-def _save(path: Path, doc: dict) -> None:
+def save(path: Path, doc: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.gamecore-tmp")
     tmp.write_text(yaml.safe_dump(doc, default_flow_style=False), encoding="utf-8")
@@ -77,7 +77,7 @@ def apply(config_dir: Path, *, proton: str | None, ours: set[str],
         return ["python-yaml is missing: Lutris defaults not written"]
     out = []
     wine_yml = config_dir / "runners" / "wine.yml"
-    doc = _load(wine_yml)
+    doc = load(wine_yml)
     if doc is None:
         out.append(f"{wine_yml} is not readable YAML: left alone")
     else:
@@ -86,11 +86,11 @@ def apply(config_dir: Path, *, proton: str | None, ours: set[str],
             doc["wine"]["version"] = version
             changed.append(f"version={version}")
         if changed:
-            _save(wine_yml, doc)
+            save(wine_yml, doc)
             out.append(f"{wine_yml}: {', '.join(changed)}")
 
     system_yml = config_dir / "system.yml"
-    doc = _load(system_yml)
+    doc = load(system_yml)
     if doc is None:
         out.append(f"{system_yml} is not readable YAML: left alone")
         return out
@@ -99,7 +99,7 @@ def apply(config_dir: Path, *, proton: str | None, ours: set[str],
         values["game_path"] = str(games_dir)
     changed = merge_absent(doc, "system", values)
     if changed:
-        _save(system_yml, doc)
+        save(system_yml, doc)
         out.append(f"{system_yml}: {', '.join(changed)}")
     if games_dir is not None and doc["system"].get("game_path") == str(games_dir):
         games_dir.mkdir(parents=True, exist_ok=True)

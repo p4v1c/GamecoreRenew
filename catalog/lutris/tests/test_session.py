@@ -87,6 +87,15 @@ def test_a_game_outliving_lutris_still_holds_the_session():
     assert elapsed >= 20 * session.POLL_S
 
 
+def test_a_game_under_gamescope_is_still_followed():
+    # Lutris starts `gamescope … -- gamemoderun umu-run …` as lutris-wrapper's
+    # child: the wrapper, which is what is followed, is unchanged.
+    cmd = (b"python3\0/app/share/lutris/bin/lutris-wrapper\0FIFA 22\0" b"0\0" b"0\0"
+           b"gamescope\0-W\0" b"3840\0-H\0" b"2160\0-f\0--\0gamemoderun\0umu-run\0")
+    assert session.is_game_cmdline(cmd) is True
+    assert session.is_game_cmdline(b"gamescope\0-f\0--\0game.exe\0") is False
+
+
 @pytest.mark.parametrize("cmdline, expected", [
     (b"lutris-wrapper: Celeste\0\0\0", True),
     (b"/usr/bin/python3\0/app/share/lutris/bin/lutris-wrapper\0Celeste\0", True),
@@ -117,12 +126,24 @@ def test_a_stub_launches_lutris_by_game_id(tmp_path, monkeypatch):
     stub = tmp_path / "Celeste.lutris"
     stub.write_text(json.dumps({"lutrisId": 12, "name": "Celeste"}))
     started = []
+    order = []
+    monkeypatch.setattr(session, "_gamescope_defaults", lambda app: order.append("gamescope"))
     monkeypatch.setattr(session, "game_running", lambda *a: False)
     monkeypatch.setattr(session, "instance_running", lambda app: False)
-    monkeypatch.setattr(session.subprocess, "Popen", lambda cmd: started.append(cmd) or "child")
+    monkeypatch.setattr(session.subprocess, "Popen",
+                        lambda cmd: started.append(cmd) or order.append("lutris") or "child")
     monkeypatch.setattr(session, "follow", lambda child, **kw: 0)
     assert session.main(["--app-id", "net.lutris.Lutris", str(stub)]) == 0
     assert started == [["flatpak", "run", "net.lutris.Lutris", "lutris:rungameid/12"]]
+    # The settings are in place before Lutris reads them.
+    assert order == ["gamescope", "lutris"]
+
+
+def test_a_gamescope_failure_never_stops_the_launch(monkeypatch):
+    def boom(*a):
+        raise RuntimeError("disk full")
+    monkeypatch.setattr(session.lutris_gamescope, "apply", boom)
+    session._gamescope_defaults("net.lutris.Lutris")
 
 
 def test_an_idle_lutris_is_closed_before_the_launch(tmp_path, monkeypatch):
@@ -136,6 +157,7 @@ def test_an_idle_lutris_is_closed_before_the_launch(tmp_path, monkeypatch):
                         lambda app: killed.append(app) or up.__setitem__(0, False))
     monkeypatch.setattr(session.subprocess, "Popen", lambda cmd: "child")
     monkeypatch.setattr(session, "follow", lambda child, **kw: 0)
+    monkeypatch.setattr(session, "_gamescope_defaults", lambda app: None)
     session.main(["--app-id", "net.lutris.Lutris", str(stub)])
     assert killed == ["net.lutris.Lutris"]
 

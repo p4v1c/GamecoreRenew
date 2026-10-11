@@ -93,6 +93,7 @@ def test_a_setup_run_installs_configures_and_records(tmp_path, monkeypatch):
         return True
     monkeypatch.setattr(setup.lutris_proton, "latest_tag", lambda log: TAG)
     monkeypatch.setattr(setup.lutris_proton, "fetch", fetch)
+    monkeypatch.setattr(setup, "ensure_extensions", lambda: True)
     assert setup.run(tmp_path, APP, None) == 0
     config = tmp_path / ".var/app" / APP / "data/lutris"
     assert read(config / "runners/wine.yml")["wine"]["version"] == TAG
@@ -108,6 +109,7 @@ def test_offline_the_newest_build_we_have_is_still_the_default(tmp_path, monkeyp
     (wine / "GE-Proton10-25" / "proton").write_text("")
     setup.save_state(tmp_path, {"proton": ["GE-Proton10-25"]})
     monkeypatch.setattr(setup.lutris_proton, "latest_tag", lambda log: None)
+    monkeypatch.setattr(setup, "ensure_extensions", lambda: True)
     assert setup.run(tmp_path, APP, None) == 1
     config = tmp_path / ".var/app" / APP / "data/lutris"
     assert read(config / "runners/wine.yml")["wine"]["version"] == "GE-Proton10-25"

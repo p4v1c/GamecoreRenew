@@ -5,7 +5,9 @@ Run by `gamecore-lutris-setup.timer` shortly after login and once a day:
 
 1. the latest GE-Proton release into `<runners>/wine/` (once per release);
 2. the defaults of `lutris_defaults.py`, with that build as the Wine version;
-3. our builds beyond the newest two removed, unless a game is pinned to one.
+3. our builds beyond the newest two removed, unless a game is pinned to one;
+4. gamescope's Vulkan layer on the branch Lutris's runtime now declares
+   (`ensure_extensions`).
 
 What it installed is recorded in ~/.local/share/gamecore/lutris/state.json.
 Exit status 1 when a step failed; the next run tries again.
@@ -28,14 +30,18 @@ import lutris_paths  # noqa: E402
 import lutris_proton  # noqa: E402
 
 KEEP_BUILDS = 2
+PACK_ID = "lutris"
+# Root-only work (a system Flatpak extension) goes through the one command the
+# player may run as root: install/steps/setup-update-permissions.sh grants it.
+GAMECORE_EMU = Path("/usr/local/bin/gamecore-emu")
+EXTENSIONS_TIMEOUT_S = 1800
 
 
 def _log(message: str) -> None:
     print(f"[gamecore-lutris-setup] {message}", flush=True)
 
 
-def state_dir(home: Path) -> Path:
-    return home / ".local" / "share" / "gamecore" / "lutris"
+state_dir = lutris_paths.state_dir
 
 
 def load_state(home: Path) -> dict:
@@ -93,6 +99,28 @@ def ensure_proton(wine_dir: Path, state: dict) -> tuple[str | None, bool]:
     return tag, True
 
 
+def ensure_extensions() -> bool:
+    """gamescope's layer on the branch Lutris's runtime declares today.
+
+    Lutris may have moved to a newer runtime since the install; the matching
+    branch is installed by `gamecore-emu extensions`, which reads it from the
+    runtime itself. False when that could not run or failed.
+    """
+    if not GAMECORE_EMU.is_file():
+        _log(f"{GAMECORE_EMU} is missing: Flatpak extensions not checked")
+        return False
+    try:
+        r = subprocess.run(["sudo", "-n", str(GAMECORE_EMU), "extensions", PACK_ID],
+                           capture_output=True, text=True, timeout=EXTENSIONS_TIMEOUT_S)
+    except (OSError, subprocess.SubprocessError) as e:
+        _log(f"Flatpak extensions not checked: {e}")
+        return False
+    for line in (r.stdout + r.stderr).splitlines():
+        if line.startswith(("OK ", "SAME ", "FAIL ")) or "sudo" in line:
+            _log(line)
+    return r.returncode == 0
+
+
 def run(home: Path, app_id: str, games_dir: Path | None) -> int:
     wine_dir = lutris_paths.wine_dir(home, app_id)
     config_dir = lutris_paths.config_dir(home, app_id)
@@ -107,6 +135,7 @@ def run(home: Path, app_id: str, games_dir: Path | None) -> int:
         state["proton"] = [t for t in state["proton"] if t not in removed]
         save_state(home, state)
         _log(f"removed older builds: {', '.join(removed)}")
+    ok = ensure_extensions() and ok
     return 0 if ok else 1
 
 

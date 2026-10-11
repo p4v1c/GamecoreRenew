@@ -3,14 +3,18 @@
   "kind": "emulator",
   "label": "PC",
   "emulatorName": "Lutris",
-  "description": "Windows games you own (GOG, itch.io, Epic, discs), run by Lutris with GE-Proton and gamemode",
+  "description": "Windows games you own (GOG, itch.io, Epic, discs), run by Lutris with GE-Proton, gamescope and gamemode",
   "platform": "PC",
   "family": "PC",
   "color": "#2f5bea",
   "order": 37,
   "install": {
     "provider": "flatpak",
-    "appIds": ["net.lutris.Lutris"]
+    "appIds": ["net.lutris.Lutris"],
+    "extensions": [
+      { "id": "org.freedesktop.Platform.VulkanLayer.gamescope",
+        "extensionPoint": "org.freedesktop.Platform.VulkanLayer" }
+    ]
   },
   "launch": {
     "path": "/usr/bin/python3",

@@ -314,6 +314,16 @@ itch.io, Epic or GOG through Lutris's sources, a disc), then come back to GameCo
 The first time Lutris opens it downloads its own runtime (umu, DXVK); let it
 finish. New games install to `emu/lutris-games/` unless you choose another folder.
 
+Games run in **gamescope**, fullscreen at your screen's current resolution: the
+pack installs gamescope's Lutris layer and turns it on in Lutris's System options
+the first time a game starts. To run one game without it, open that game's
+**Configure → System options** in Lutris and untick *Enable Gamescope*; to turn it
+off for every game, untick it in Lutris's global System options. Values you set
+there are kept. Lutris sees a newly installed gamescope only after it restarts
+(GameCore closes an idle Lutris before each game). If you installed
+`org.freedesktop.Platform.VulkanLayer.gamescope` yourself (system, 25.08), the
+pack finds it and installs nothing.
+
 Every game installed in Lutris appears under **PC** the next time you open it,
 and disappears when you remove it in Lutris; games you hide in Lutris stay
 hidden. A game starts with A, without the Lutris window, and GameCore gets the

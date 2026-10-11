@@ -17,6 +17,12 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- PC: games now run in gamescope, fullscreen at the screen's resolution. Installing
+  or reinstalling PC (Settings → Catalog) adds gamescope's layer for Lutris. A box
+  that already has PC: install PC once more from Settings → Catalog; that also
+  rewrites the daily Lutris check so it can keep the layer on the branch Lutris's
+  runtime needs after a Lutris update. A layer installed by hand is kept. Turn
+  gamescope off per game in Lutris (Configure → System options).
 - New system: **PC**, your Windows games through Lutris. Installing it adds Lutris
   (Flatpak), gamemode and GE-Proton, and adds the player to the `gamemode` group
   (effective at the next login). Games are installed from Lutris's own window
