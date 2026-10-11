@@ -116,12 +116,10 @@
 .cz-f > img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
 /* The printed faces are cardboard-white until their scan has decoded, not
-   board-black. A jacket coming off the shelf is mounted with its front still
-   loading, and on a slow box that load can outlast the turn: the front then
-   swung round as a black slab for a few frames before the cover popped in —
-   the black flash this theme was reported for. Unprinted card is what a box
-   is under its print anyway, and it reads as "loading" rather than "broken".
-   The fallbacks (no cover, printed reverse) paint their own dark card on top. */
+   board-black (the black flash this theme was reported for). The front should
+   never show it: lib/swap.js holds a jacket edge-on until its front decodes.
+   It remains for the back, flipped before its scan is in. The fallbacks (no
+   cover, printed reverse) paint their own dark card on top. */
 .cz-f-front, .cz-f-back { background: #E9E6DF; }
 
 .cz-f-front, .cz-f-back { width: var(--w); height: var(--h); }

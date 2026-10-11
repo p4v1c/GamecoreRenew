@@ -50,6 +50,8 @@ const MAX_DP = 0.12
  *  them, so up to about four presses a second every box still turns to face
  *  you; only faster than FASTEST allows does one turn back before it has. */
 const SWAP_MS = PUSH_MS * 0.55 + PULL_MS
+/** Where the turn ends and the move into the row begins: edge-on, front unseen. */
+const EDGE_ON = 0.5
 
 /** Ease both ways: the motion reverses mid-flight, so neither end is special. */
 const ease = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t))
@@ -89,6 +91,7 @@ export const createUseSwap = (sdk) => {
     }
     const S = live.current
     S.games = games
+    S.systemId = systemId
     S.target = target
     S.stack = stack
     S.lean = lean
@@ -139,8 +142,8 @@ export const createUseSwap = (sdk) => {
         }
         return
       }
-      const r = seg(j.p, 0, 0.5)          // the turn
-      const q = seg(j.p, 0.5, 1)          // the move into the row
+      const r = seg(j.p, 0, EDGE_ON)      // the turn
+      const q = seg(j.p, EDGE_ON, 1)      // the move into the row
       const at = railAt(S.railRef.current, S.stack)
       const idx = S.games.findIndex((g) => g.filename === j.key)
       const off = (idx < 0 || at == null) ? 0 : (idx - at) * j.slide
@@ -179,7 +182,7 @@ export const createUseSwap = (sdk) => {
       // once it is turned edge-on and only sliding home.
       const others = [...S.jackets.values()].filter((j) => j.key !== t)
       const ready = others.every((j) => j.p >= (k > 1.15 ? 0.55 : 1))
-      if (t && !S.jackets.has(t) && ready) S.jackets.set(t, { key: t, p: 1, flip: 0 })
+      if (t && !S.jackets.has(t) && ready) S.jackets.set(t, decoded({ key: t, p: 1, flip: 0 }))
       const waiting = t && !S.jackets.has(t)
 
       let moving = false
@@ -187,8 +190,9 @@ export const createUseSwap = (sdk) => {
         const home = j.key !== t
         // Someone is waiting to come out: put the last one away quicker.
         const rate = home ? (k * (waiting ? CATCH_UP : 1)) / PUSH_MS : k / PULL_MS
-        j.p = Math.max(0, Math.min(1, j.p + (home ? 1 : -1) * Math.min(MAX_DP, rate * dt)))
-        if (home ? j.p < 1 : j.p > 0) moving = true
+        const floor = home || j.ready ? 0 : EDGE_ON
+        j.p = Math.max(floor, Math.min(1, j.p + (home ? 1 : -1) * Math.min(MAX_DP, rate * dt)))
+        if (home ? j.p < 1 : j.p > floor) moving = true
         apply(j)
       }
       for (const [key, j] of S.jackets) if (key !== t && j.p >= 1) S.jackets.delete(key)
@@ -201,6 +205,21 @@ export const createUseSwap = (sdk) => {
       if (!S.raf) { S.last = 0; S.raf = requestAnimationFrame(frame) }
     }
 
+    /**
+     * Start decoding a new jacket's front; it may not turn past edge-on until
+     * that settles. An undecoded front paints the bare card colour, the beige
+     * slab seen when the cover arrived after the turn (cold cache, busy
+     * backend). A failed decode lets it turn too: the Face prints its fallback.
+     */
+    const decoded = (j) => {
+      j.ready = false
+      j.img = new Image()
+      j.img.src = jacket(S.systemId, j.key)
+      const go = () => { j.ready = true; j.img = null; if (!S.gone) kick() }
+      ;(j.img.decode ? j.img.decode() : Promise.resolve()).then(go, go)
+      return j
+    }
+
     useEffect(() => {
       if (!target) return
       const now = performance.now()
@@ -210,7 +229,7 @@ export const createUseSwap = (sdk) => {
 
     // A change of stacking moves the row and the hand; re-read both.
     useEffect(() => { S.jackets.forEach((j) => { j.mode = null; apply(j) }) }, [mode])
-    useEffect(() => () => { if (S.raf) cancelAnimationFrame(S.raf) }, [])
+    useEffect(() => () => { S.gone = true; if (S.raf) cancelAnimationFrame(S.raf) }, [])
 
     // Warm the neighbours once the cursor rests, so the next box out has its
     // front and back decoded before it turns to face you or is flipped. The
