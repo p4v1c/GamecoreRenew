@@ -407,6 +407,8 @@ export const api = {
     setConfig: (cfg: { enabled?: boolean; screensaver_mins?: number; sleep_mins?: number }) =>
       post<{ ok: boolean; enabled: boolean; screensaver_mins: number; sleep_mins: number }>('/standby/config', cfg),
     exit: () => post('/standby/exit'),
+    /** The UI has faded to black: the backend may switch the screen off. */
+    dark: () => post('/standby/dark'),
     /** What the CRT standby plays: clips and screenshots already on disk. */
     videos: standbyVideos,
   },

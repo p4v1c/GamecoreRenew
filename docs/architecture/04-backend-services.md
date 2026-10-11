@@ -166,7 +166,8 @@ HUD instead, because the React toast is hidden under the emulator.
 | `_run_cmd(*argv)` | helper, returns success |
 | `_screen(on)` | DPMS on/off |
 | `_governor(gov)` | `cpupower frequency-set -g …` — optional, needs a sudoers rule |
-| `_enter(stage)` | stage transition + WS broadcast |
+| `_enter(stage)` | stage transition + WS broadcast; `sleep` waits for `ui_dark()` (3 s cap) before DPMS |
+| `ui_dark()` | the UI's fade to black is over (`POST /api/standby/dark`) |
 | `exit_standby()` | wake — **unconditional** |
 | `resume_after_restart()` | called from the lifespan; forces the screen on at startup |
 | `on_input()` | called from the evdev loop on any controller button |
@@ -755,7 +756,7 @@ without storing any session state.
 ## `ws.py` and `db.py` (backend root)
 
 `ws.py` — `connect(ws)` (accepts and replays `game:running` if a game is
-already up), `disconnect(ws)`, `broadcast(event, data)`, `set_current_game(game)`.
+already up), `disconnect(ws)`, `has_clients()`, `broadcast(event, data)`, `set_current_game(game)`.
 `broadcast` sends to all clients concurrently, each send bounded by
 `SEND_TIMEOUT` (2 s); a client that errors or stalls is dropped and its socket
 closed so the UI reconnects. Awaiting sends one by one with no timeout let one

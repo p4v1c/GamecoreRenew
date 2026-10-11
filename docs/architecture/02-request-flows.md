@@ -181,6 +181,15 @@ CPU (optional, needs a sudoers rule). `on_input()` is called from
 `gamepad_monitor`'s evdev loop — which is why a controller wakes the box even
 though the UI is asleep and the browser is not listening.
 
+Every stage change reaches the UI as a crossfade: `frontend/src/lib/standbyFade.ts`
+writes the stage inside `document.startViewTransition` (500 ms, set in
+`frontend/index.html`; skipped under reduced motion), so every theme's standby
+fades in and out without knowing it. Going to sleep, `_enter("sleep")`
+broadcasts, then waits for the TV window's `POST /api/standby/dark` (sent when the
+fade to black ends) before DPMS, so the TV loses signal on a black frame. It
+waits at most `_UI_DARK_WAIT_SECS` (3 s), not at all with no WebSocket client,
+and does not cut the screen if a press woke the box meanwhile.
+
 ## 6. LAN authentication
 
 ```mermaid

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useStore, type BackgroundSession } from '../store'
 import { api, type SessionState } from '../api'
+import { fadeToStandby } from '../lib/standbyFade'
 
 /** How long the 'interface is back' beat lasts. Purely visual: nothing
  *  is waiting on it, and a theme that draws nothing never sees it. */
@@ -278,10 +279,9 @@ export function useWebSocket() {
     // screensaver. The input bus reads it to decide whether a press is a
     // command or a wake, and that has to hold for a theme that draws its own
     // standby screen (Summer) or none at all.
-    const setStandby = useStore.getState().setStandby
-    const off4 = onWsEvent('standby:screensaver', () => setStandby('screensaver'))
-    const off5 = onWsEvent('standby:sleep', () => setStandby('sleep'))
-    const off6 = onWsEvent('standby:exit', () => setStandby('off'))
+    const off4 = onWsEvent('standby:screensaver', () => fadeToStandby('screensaver'))
+    const off5 = onWsEvent('standby:sleep', () => fadeToStandby('sleep'))
+    const off6 = onWsEvent('standby:exit', () => fadeToStandby('off'))
 
     return () => {
       if (suspendBeat.timer) clearTimeout(suspendBeat.timer)
