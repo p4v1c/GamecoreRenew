@@ -253,6 +253,11 @@ being found missing:
   `0x03…` over USB, while a DualShock 4 reads `0x03…` either way because HIDAPI
   drives it.
 
+Not a pad at all: the Xbox 360 copies the PC pack makes during a Lutris game
+(phys `gamecore-virtual-pad/<n>`, [10](10-catalog-and-install.md#xbox-pads-for-pc-games)).
+`_find_gamepad_devices` and `detect_pads` skip them; counted, one took player 2
+and rewrote every emulator's player 2 each time it appeared or left.
+
 Those counters describe the **roster**, not one pad — which is why one pad
 leaving invalidates the others.
 

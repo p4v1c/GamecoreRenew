@@ -17,6 +17,11 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- PC games (Lutris) see every PlayStation pad as an Xbox 360 pad. It needs
+  `/dev/uinput`: a box that has neither melonDS nor Azahar installed gets it with
+  `sudo gamecore-emu install lutris` (`hostAccess.uinput`); until then pads are
+  left as they were. Per game opt-out: `GAMECORE_XBOX_PAD=0` in Lutris.
+
 - **Operator step** for the `bios-manager` addon: Caddy routes `/bios/` to it
   (`127.0.0.1:8773`). An update does not rewrite `/etc/caddy/Caddyfile`; apply the
   shipped one as `update/linux.sh` prints, then `sudo systemctl reload caddy`.

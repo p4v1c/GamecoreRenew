@@ -317,12 +317,32 @@ and 0.5.23 (beta) and checked against the stable Flatpak; the dev log
 
 | Piece | Where | What |
 |---|---|---|
-| install | `pack.json` | `net.lutris.Lutris` from Flathub, its GL32/Compat.i386 extensions pulled with it (32-bit Vulkan/GL for Wine); `gamemode` and `python-yaml` from pacman; `hostAccess.gamemode` |
+| install | `pack.json` | `net.lutris.Lutris` from Flathub, its GL32/Compat.i386 extensions pulled with it (32-bit Vulkan/GL for Wine); `gamemode` and `python-yaml` from pacman; `hostAccess.gamemode`; `hostAccess.uinput` (the Xbox pad mirror) |
 | GE-Proton + defaults | `files/gamecore-lutris-setup.timer` → `files/lutris_setup.py` | a minute after login, then daily: the latest GE-Proton release (tag from the `/releases/latest` redirect, sha512 checked) into `<runners>/wine/<tag>/`, where Lutris lists Proton builds and runs them through umu; then `runners/wine.yml` `version` (that build), `dxvk`, `vkd3d`, `esync`, `fsync` and `system.yml` `gamemode`, `game_path` (`emu/lutris-games` on the data root) — each only where absent (`files/lutris_defaults.py`). `version` moves to a newer build only while it still names one this pack installed. Two of our builds are kept, plus any a game config names |
 | config location | `files/lutris_paths.py` | Lutris uses `~/.var/app/<id>/config/lutris` only if it exists, else everything is under `data/lutris`. The setup never creates that `config` folder |
 | library | `generator.py` `sync_library` → `files/lutris_library.py` | before each listing (`services/pack_library.py`): one `<Title>.lutris` stub (JSON, the Lutris game id) per installed game in `emu/lutris/`, Lutris's `coverart/<slug>.jpg` copied as the cover when there is none. A stub keeps its name for its Lutris id (the playtime key survives a rename); a stub is removed only when `pga.db` was read and the game is gone; games in Lutris's `.hidden` category are left out |
 | launch | `files/lutris_session.py` | the tile runs `python3 lutris_session.py --app-id @APPID@ <stub>`, which runs `flatpak run <id> lutris:rungameid/<id>`: no Lutris window. It is the session: it closes an idle Lutris first (else the command is forwarded over D-Bus and returns at once), follows the game through its `lutris-wrapper` process, then gives Lutris 10 s to quit before `flatpak kill`. Without a stub it opens Lutris's window |
 | media | `scraper.mediaAlias: ["pc windows"]` | ScreenScraper system 138 ("PC Windows", LaunchBox "Windows"), by name: `.lutris` is never hashed (`gamemedia/ss_client.py`); `scraper.steamStore` for the minimum spec on the box back (`gamemedia/steam_store.py`) |
+
+| Xbox pads | `files/lutris_xpad.py`, started by `lutris_session.py` | see below |
+
+#### Xbox pads for PC games
+
+Proton gives a DualShock 4 or a DualSense to the game as raw HID (hidraw), not
+as XInput: a game that reads only XInput (Cyberpunk 2077) sees no pad. For the
+length of the session, a thread in `lutris_session.py` does what Steam Input
+does:
+
+| What | How |
+|---|---|
+| which pads | `find_pads`: every evdev pad with `BTN_SOUTH`, sticks on X/Y and RX/RY, not Microsoft (`045e`, already XInput) or Valve (`28de`); connection order, 4 players at most |
+| the copy | one uinput "Microsoft X-Box 360 pad" `045e:028e` per pad (the xpad layout: square sends `0x133`, triangle `0x134`), sticks scaled to ±32767, triggers 0-255, d-pad as a hat. PS is declared but never sent: the real pad already brings it to GameCore. No rumble |
+| no double input | the session's environment, which flatpak and Lutris pass to the game, hides every Sony pad plus the pads present at launch: `SDL_GAMECONTROLLER_IGNORE_DEVICES` (GE-Proton's `winebus.so` honours it) and `PROTON_DISABLE_HIDRAW` (`winebus.sys`, per `0xVVVV/0xPPPP`). A non-Sony pad plugged after launch is not mirrored: it was not hidden |
+| GameCore's own pads | the real pad is never grabbed. The copies carry phys `gamecore-virtual-pad/<n>`; `gamepad_devices.VIRTUAL_PAD_PHYS` keeps them out of the roster and `configgen.detect_pads` (one counted took player 2 and rewrote the emulator configs each time it came and went) |
+| disconnect | the player's copy stays, released to neutral; the next pad to connect takes the first free player |
+| lifetime | the uinput fds belong to the session process: SIGKILL or SIGTERM of the group closes them and the kernel removes the pads. While the session is suspended (SIGSTOP) they stay, idle |
+| opt out | `GAMECORE_XBOX_PAD=0` in the game's Lutris environment variables (`system.env` of `games/<configpath>.yml`, found through `pga.db`): the game gets the real pads, as before. For a game whose native PlayStation support (glyphs, touchpad) matters more |
+| no uinput | `/dev/uinput` not writable: nothing is hidden or mirrored |
 
 Winetricks ships inside Lutris; nothing to add. `perGame` and `profileSaves`
 are `supported: false` (Lutris keeps its own per-game configs; Windows games

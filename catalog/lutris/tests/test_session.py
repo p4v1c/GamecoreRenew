@@ -121,6 +121,7 @@ def test_a_stub_launches_lutris_by_game_id(tmp_path, monkeypatch):
     monkeypatch.setattr(session, "instance_running", lambda app: False)
     monkeypatch.setattr(session.subprocess, "Popen", lambda cmd: started.append(cmd) or "child")
     monkeypatch.setattr(session, "follow", lambda child, **kw: 0)
+    monkeypatch.setattr(session, "_start_mirror", lambda app, game: None)
     assert session.main(["--app-id", "net.lutris.Lutris", str(stub)]) == 0
     assert started == [["flatpak", "run", "net.lutris.Lutris", "lutris:rungameid/12"]]
 
@@ -136,6 +137,7 @@ def test_an_idle_lutris_is_closed_before_the_launch(tmp_path, monkeypatch):
                         lambda app: killed.append(app) or up.__setitem__(0, False))
     monkeypatch.setattr(session.subprocess, "Popen", lambda cmd: "child")
     monkeypatch.setattr(session, "follow", lambda child, **kw: 0)
+    monkeypatch.setattr(session, "_start_mirror", lambda app, game: None)
     session.main(["--app-id", "net.lutris.Lutris", str(stub)])
     assert killed == ["net.lutris.Lutris"]
 
@@ -147,6 +149,79 @@ def test_a_running_game_is_never_taken_over(tmp_path, monkeypatch):
     monkeypatch.setattr(session.subprocess, "Popen",
                         lambda cmd: pytest.fail("must not start Lutris"))
     assert session.main(["--app-id", "net.lutris.Lutris", str(stub)]) == 1
+
+
+class FakeMirror:
+    def __init__(self):
+        self.stopped = False
+
+    def stop(self):
+        self.stopped = True
+
+
+@pytest.mark.parametrize("follow_raises", [False, True])
+def test_the_mirror_stops_when_the_session_ends(tmp_path, monkeypatch, follow_raises):
+    stub = tmp_path / "Cyberpunk.lutris"
+    stub.write_text(json.dumps({"lutrisId": 2}))
+    mirror = FakeMirror()
+
+    def follow(child, **kw):
+        if follow_raises:
+            raise KeyboardInterrupt
+        return 0
+
+    monkeypatch.setattr(session, "game_running", lambda *a: False)
+    monkeypatch.setattr(session, "instance_running", lambda app: False)
+    monkeypatch.setattr(session.subprocess, "Popen", lambda cmd: "child")
+    monkeypatch.setattr(session, "follow", follow)
+    monkeypatch.setattr(session, "_start_mirror", lambda app, game: mirror)
+    if follow_raises:
+        with pytest.raises(KeyboardInterrupt):
+            session.main(["--app-id", "net.lutris.Lutris", str(stub)])
+    else:
+        session.main(["--app-id", "net.lutris.Lutris", str(stub)])
+    assert mirror.stopped
+
+
+@pytest.mark.parametrize("env, wanted", [
+    (None, True),
+    ({"OTHER": "1"}, True),
+    ({"GAMECORE_XBOX_PAD": "0"}, False),
+    ({"GAMECORE_XBOX_PAD": "off"}, False),
+    ({"GAMECORE_XBOX_PAD": 0}, False),
+    ({"GAMECORE_XBOX_PAD": "1"}, True),
+    ("not a mapping", True),
+])
+def test_a_game_opts_out_of_the_xbox_pad_in_its_lutris_env(tmp_path, env, wanted):
+    yml = tmp_path / "fifa-22-1791674927.yml"
+    doc = {"game": {"exe": "/games/FIFA22.exe"}}
+    if env is not None:
+        doc["system"] = {"env": env}
+    yml.write_text(json.dumps(doc))             # JSON is YAML
+    assert session.xbox_pad_wanted(yml) is wanted
+
+
+def test_an_unknown_game_config_keeps_the_xbox_pad(tmp_path):
+    assert session.xbox_pad_wanted(None) is True
+    assert session.xbox_pad_wanted(tmp_path / "missing.yml") is True
+
+
+def test_an_opted_out_game_hides_nothing(monkeypatch):
+    monkeypatch.setattr(session, "_game_yml", lambda app, game: Path("x.yml"))
+    monkeypatch.setattr(session, "xbox_pad_wanted", lambda yml: False)
+    monkeypatch.setattr(session.lutris_xpad, "Mirror",
+                        lambda *a, **kw: pytest.fail("must not mirror"))
+    before = dict(os.environ)
+    assert session._start_mirror("net.lutris.Lutris", 1) is None
+    assert dict(os.environ) == before
+
+
+def test_without_uinput_the_real_pads_stay_visible(monkeypatch):
+    monkeypatch.setattr(session, "_game_yml", lambda app, game: None)
+    monkeypatch.setattr(session.os, "access", lambda path, mode: False)
+    before = dict(os.environ)
+    assert session._start_mirror("net.lutris.Lutris", 1) is None
+    assert dict(os.environ) == before
 
 
 def test_the_installed_script_starts_on_its_own():

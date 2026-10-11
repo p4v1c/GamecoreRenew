@@ -50,7 +50,7 @@ def pick_version(current: object, ours: set[str], new: str) -> str | None:
     return None
 
 
-def _load(path: Path) -> dict | None:
+def load_yaml(path: Path) -> dict | None:
     """The YAML mapping, {} when absent, None when unreadable (never rewritten)."""
     if not path.exists():
         return {}
@@ -77,7 +77,7 @@ def apply(config_dir: Path, *, proton: str | None, ours: set[str],
         return ["python-yaml is missing: Lutris defaults not written"]
     out = []
     wine_yml = config_dir / "runners" / "wine.yml"
-    doc = _load(wine_yml)
+    doc = load_yaml(wine_yml)
     if doc is None:
         out.append(f"{wine_yml} is not readable YAML: left alone")
     else:
@@ -90,7 +90,7 @@ def apply(config_dir: Path, *, proton: str | None, ours: set[str],
             out.append(f"{wine_yml}: {', '.join(changed)}")
 
     system_yml = config_dir / "system.yml"
-    doc = _load(system_yml)
+    doc = load_yaml(system_yml)
     if doc is None:
         out.append(f"{system_yml} is not readable YAML: left alone")
         return out

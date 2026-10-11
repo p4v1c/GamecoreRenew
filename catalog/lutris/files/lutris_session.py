@@ -14,6 +14,10 @@ So an idle Lutris is closed first, the game is followed through its
 quit before it is closed. Everything runs in this process group, so
 GameCore's suspend and kill reach the whole tree.
 
+For the game, every non-Xbox pad is mirrored as an Xbox 360 pad and the real
+one is hidden from Wine (`lutris_xpad.py`); a game opts out with
+GAMECORE_XBOX_PAD=0 in its Lutris environment variables.
+
     lutris_session.py --app-id net.lutris.Lutris [/path/Game.lutris]
 
 Without a stub it opens Lutris's own window and ends when that closes.
@@ -30,7 +34,10 @@ from pathlib import Path
 from typing import Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from lutris_library import game_id_of  # noqa: E402
+import lutris_xpad  # noqa: E402
+from lutris_defaults import load_yaml, yaml  # noqa: E402
+from lutris_library import config_name_of, game_id_of  # noqa: E402
+from lutris_paths import config_dir, db_path  # noqa: E402
 
 PROC = Path("/proc")
 WRAPPER_TITLE = b"lutris-wrapper:"
@@ -39,6 +46,8 @@ POLL_S = 0.5
 # How long Lutris may stay up after its game before it is closed.
 LINGER_S = 10.0
 CLOSE_WAIT_S = 5.0
+XBOX_PAD_VAR = "GAMECORE_XBOX_PAD"
+OFF_VALUES = {"0", "false", "no", "off"}
 
 
 def _log(message: str) -> None:
@@ -130,6 +139,40 @@ def _clear_idle_instance(app_id: str) -> None:
         time.sleep(POLL_S)
 
 
+def xbox_pad_wanted(game_yml: Path | None) -> bool:
+    """False when the game's Lutris environment sets GAMECORE_XBOX_PAD=0."""
+    if game_yml is None or yaml is None:
+        return True
+    system = (load_yaml(game_yml) or {}).get("system")
+    env = system.get("env") if isinstance(system, dict) else None
+    if not isinstance(env, dict):
+        return True
+    return str(env.get(XBOX_PAD_VAR, "1")).strip().lower() not in OFF_VALUES
+
+
+def _game_yml(app_id: str, game_id: int) -> Path | None:
+    home = Path.home()
+    name = config_name_of(db_path(home, app_id), game_id)
+    return config_dir(home, app_id) / "games" / f"{name}.yml" if name else None
+
+
+def _start_mirror(app_id: str, game_id: int) -> lutris_xpad.Mirror | None:
+    """Mirror the pads and hide the real ones from the game (this process's
+    environment is the game's: flatpak and Lutris pass it on)."""
+    if not xbox_pad_wanted(_game_yml(app_id, game_id)):
+        _log(f"{XBOX_PAD_VAR}=0 for this game: pads left as they are")
+        return None
+    if not os.access(lutris_xpad.UINPUT, os.W_OK):
+        # Hiding the real pads with no mirror would leave the game with none.
+        _log(f"{lutris_xpad.UINPUT} is not writable: pads left as they are")
+        return None
+    hidden = lutris_xpad.hidden_ids(lutris_xpad.find_pads())
+    os.environ.update(lutris_xpad.hide_env(hidden, dict(os.environ)))
+    mirror = lutris_xpad.Mirror(hidden, _log)
+    mirror.start()
+    return mirror
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--app-id", required=True)
@@ -148,9 +191,14 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     _clear_idle_instance(args.app_id)
     command.append(f"lutris:rungameid/{game_id}")
-    _log(" ".join(command))
-    child = subprocess.Popen(command)
-    return follow(child, running=game_running, close=lambda: close_instance(args.app_id))
+    mirror = _start_mirror(args.app_id, game_id)
+    try:
+        _log(" ".join(command))
+        child = subprocess.Popen(command)
+        return follow(child, running=game_running, close=lambda: close_instance(args.app_id))
+    finally:
+        if mirror is not None:
+            mirror.stop()
 
 
 if __name__ == "__main__":

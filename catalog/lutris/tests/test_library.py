@@ -190,3 +190,17 @@ def test_a_custom_library_path_in_lutris_conf_is_followed(tmp_path):
     paths = generator.paths
     assert paths.db_path(home, APP) == elsewhere
     assert lib.installed_games(paths.db_path(home, APP))[0].name == "Hades"
+
+
+def test_a_games_config_name_comes_from_pga_db(tmp_path):
+    db = make_db(tmp_path / "pga.db", [(2, "Cyberpunk 2077", "cyberpunk-2077", "wine", "", 1)])
+    con = sqlite3.connect(db)
+    con.execute("ALTER TABLE games ADD COLUMN configpath TEXT")
+    con.execute("UPDATE games SET configpath = 'cyberpunk-2077-1791732503' WHERE id = 2")
+    con.execute("INSERT INTO games VALUES (3, 'x', 'x', 'wine', '', 1, '../../etc/passwd')")
+    con.commit()
+    con.close()
+    assert lib.config_name_of(db, 2) == "cyberpunk-2077-1791732503"
+    assert lib.config_name_of(db, 3) is None        # never a path out of games/
+    assert lib.config_name_of(db, 9) is None
+    assert lib.config_name_of(tmp_path / "missing.db", 2) is None

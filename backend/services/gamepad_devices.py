@@ -21,6 +21,11 @@ BTN_SOUTH = 0x130
 # player 2 and a "not configured" toast on every box running Sunshine.
 KEYBOARD_KEYS = frozenset(range(1, 32))
 
+# The Xbox pads the PC pack mirrors from real ones during a game
+# (catalog/lutris/files/lutris_xpad.py): a copy, not a player. Counted, it took
+# player 2 and rewrote every emulator's pad config each time it came and went.
+VIRTUAL_PAD_PHYS = "gamecore-virtual-pad"
+
 EV_KEY = 1   # evdev event type for key/button events
 EV_ABS  = 3   # axes: sticks, triggers, and the d-pad on most modern pads
 KEY_DOWN = 1  # event value for key press
@@ -121,6 +126,9 @@ def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str, int]]:
             caps = dev.capabilities()
             keys = caps.get(EV_KEY, [])
             name, uniq = dev.name, (dev.uniq or "")
+            if (dev.phys or "").startswith(VIRTUAL_PAD_PHYS):
+                dev.close()
+                continue
             info = dev.info
             vendor, product = f"{info.vendor:04x}", f"{info.product:04x}"
             bustype = getattr(info, "bustype", 0)

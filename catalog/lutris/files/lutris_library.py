@@ -93,6 +93,17 @@ def game_id_of(path: Path) -> int | None:
     return stub[STUB_KEY] if stub else None
 
 
+def config_name_of(db: Path, game_id: int) -> str | None:
+    """The game's config file stem in Lutris's games/ folder (pga.db `configpath`)."""
+    try:
+        with sqlite3.connect(f"{db.as_uri()}?mode=ro", uri=True, timeout=DB_TIMEOUT_S) as con:
+            row = con.execute("SELECT configpath FROM games WHERE id = ?", (game_id,)).fetchone()
+    except sqlite3.Error:
+        return None
+    name = row[0] if row else None
+    return name if isinstance(name, str) and _SLUG_RE.match(name) else None
+
+
 def safe_stem(name: str, fallback: str) -> str:
     """A file name stem for a title: no separator, no leading dot, bounded."""
     stem = " ".join(_UNSAFE_CHARS.sub(" ", name).split()).strip(" .")
