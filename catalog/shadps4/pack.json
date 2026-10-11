@@ -20,6 +20,51 @@
     "scanDirs": true,
     "extensions": []
   },
+  "bios": {
+    "dir": "@FLATPAK_DATA@/shadPS4",
+    "files": [
+      {
+        "file": "sys_modules/libSceNgs2.sprx",
+        "required": false,
+        "note": "PS4 audio library. shadPS4's own replacement is incomplete; some games play without sound."
+      },
+      {
+        "file": "sys_modules/libSceUlt.sprx",
+        "required": false,
+        "note": "PS4 user-level threads library. shadPS4 has no replacement; games that use it fail without it."
+      },
+      {
+        "file": "sys_modules/libSceJson.sprx",
+        "required": false,
+        "note": "PS4 JSON library. shadPS4 has no replacement; games that use it fail without it."
+      },
+      {
+        "file": "sys_modules/libSceJson2.sprx",
+        "required": false,
+        "note": "PS4 JSON library, second version. shadPS4 has no replacement; games that use it fail without it."
+      },
+      {
+        "file": "sys_modules/libSceCesCs.sprx",
+        "required": false,
+        "note": "PS4 character-set conversion library. shadPS4 has no replacement; games that use it fail without it."
+      },
+      {
+        "file": "sys_modules/libSceFont.sprx",
+        "required": false,
+        "note": "PS4 font library. shadPS4's own replacement is incomplete; some game text is missing."
+      },
+      {
+        "file": "sys_modules/libSceFontFt.sprx",
+        "required": false,
+        "note": "PS4 FreeType font library. shadPS4's own replacement is incomplete."
+      },
+      {
+        "file": "sys_modules/libSceFreeTypeOt.sprx",
+        "required": false,
+        "note": "PS4 OpenType font library. shadPS4 has no replacement; games that use it fail without it."
+      }
+    ]
+  },
   "controllers": {
     "maxPlayers": 0,
     "strategy": "none"

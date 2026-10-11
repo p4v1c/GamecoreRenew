@@ -29,6 +29,51 @@
   "config": {
     "dest": "@HOME@/.config/gamecore-retroarch"
   },
+  "bios": {
+    "dir": "@HOME@/.config/gamecore-retroarch/system",
+    "files": [
+      {
+        "file": "mame/bios/neogeo.zip",
+        "required": false,
+        "note": "Neo Geo MVS/AES BIOS set. Every Neo Geo game needs it unless its own archive is non-merged."
+      },
+      {
+        "file": "mame/bios/qsound.zip",
+        "required": false,
+        "note": "Capcom QSound sound chip ROM, needed by CPS-2 games from split or merged sets."
+      },
+      {
+        "file": "mame/bios/pgm.zip",
+        "required": false,
+        "note": "IGS PolyGame Master BIOS set, needed by every PGM game."
+      },
+      {
+        "file": "mame/bios/stvbios.zip",
+        "required": false,
+        "note": "Sega ST-V BIOS set, needed by every ST-V game."
+      },
+      {
+        "file": "mame/bios/cpzn1.zip",
+        "required": false,
+        "note": "Capcom ZN-1 BIOS set (Star Gladiator, Street Fighter EX)."
+      },
+      {
+        "file": "mame/bios/cpzn2.zip",
+        "required": false,
+        "note": "Capcom ZN-2 BIOS set (Rival Schools, Street Fighter EX2)."
+      },
+      {
+        "file": "mame/bios/skns.zip",
+        "required": false,
+        "note": "Super Kaneko Nova System BIOS set (Cyvern, Gals Panic 4)."
+      },
+      {
+        "file": "mame/bios/decocass.zip",
+        "required": false,
+        "note": "DECO Cassette System BIOS set, needed by every DECO Cassette game."
+      }
+    ]
+  },
   "controllers": {
     "maxPlayers": 4,
     "order": 36,
