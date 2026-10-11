@@ -59,3 +59,21 @@ def test_no_theme_means_the_drawn_arrow(tmp_path):
 
 def test_a_broken_file_is_ignored():
     assert cursor_theme.read_xcursor(b"not a cursor", 32) is None
+
+
+def test_the_arrow_gets_a_dark_ring_that_shows_on_white():
+    """One white pixel, hotspot on it: a 2 px black disc around it, hotspot moved."""
+    white = cursor_theme.CursorImage(3, 3, 1, 1, bytes(4 * 4) + b"\xff\xff\xff\xff" + bytes(4 * 4))
+    ring = cursor_theme.outlined(white, px=2)
+    assert (ring.width, ring.height, ring.hot_x, ring.hot_y) == (7, 7, 3, 3)
+
+    def pixel(x, y):
+        return ring.argb[(y * 7 + x) * 4:(y * 7 + x) * 4 + 4]
+    assert pixel(3, 3) == b"\xff\xff\xff\xff"          # the arrow itself kept
+    assert pixel(1, 3) == pixel(3, 5) == pixel(2, 2) == b"\x00\x00\x00\xff"
+    assert pixel(1, 1) == pixel(0, 3) == bytes(4)      # round, 2 px, no further
+
+
+def test_soft_edges_alone_get_no_ring():
+    faint = cursor_theme.CursorImage(1, 1, 0, 0, b"\x10\x10\x10\x40")
+    assert cursor_theme.outlined(faint, px=1).argb == bytes(9 * 4)

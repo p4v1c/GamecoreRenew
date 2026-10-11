@@ -4,6 +4,7 @@ Theme and size come from XCURSOR_THEME / XCURSOR_SIZE, else from KDE's
 ~/.config/kcminputrc ([Mouse] cursorTheme, cursorSize), else the "default"
 theme. A theme missing the arrow is followed through its Inherits= line.
 None when nothing is found: the arrows fall back to a drawn one.
+`outlined` rings the image in black so a pale theme shows on a white screen.
 """
 from __future__ import annotations
 
@@ -16,6 +17,11 @@ from pathlib import Path
 ARROW_NAMES = ("left_ptr", "default", "arrow")
 _IMAGE_CHUNK = 0xFFFD0002
 _DEFAULT_SIZE = 24
+# A pixel this opaque is part of the arrow; a shaped window is all-or-nothing.
+SOLID_ALPHA = 128
+# The owner's pale DS Lite stylus vanished on white DS screens: a dark ring
+# this many pixels wide around it. Calibration knob.
+OUTLINE_PX = 2
 
 
 @dataclass
@@ -110,3 +116,24 @@ def load_arrow(home: Path | None = None, env: dict[str, str] | None = None) -> C
         return read_xcursor(path.read_bytes(), nominal)
     except (OSError, struct.error):
         return None
+
+
+def outlined(img: CursorImage, px: int = OUTLINE_PX) -> CursorImage:
+    """`img` on a canvas `px` wider on each side, every pixel within `px` of the
+    arrow made opaque over black (a ring around it); the hotspot follows."""
+    w, h = img.width + 2 * px, img.height + 2 * px
+    reach = [(dx, dy) for dx in range(-px, px + 1) for dy in range(-px, px + 1)
+             if dx * dx + dy * dy <= px * px]
+    out = bytearray(w * h * 4)
+    for i in range(img.width * img.height):
+        if img.argb[i * 4 + 3] < SOLID_ALPHA:
+            continue
+        x, y = i % img.width + px, i // img.width + px
+        for dx, dy in reach:
+            out[((y + dy) * w + x + dx) * 4 + 3] = 0xFF
+    for i in range(img.width * img.height):
+        j = ((i // img.width + px) * w + i % img.width + px) * 4
+        if out[j + 3]:
+            # Premultiplied "over black" keeps the colour bytes as they are.
+            out[j:j + 3] = img.argb[i * 4:i * 4 + 3]
+    return CursorImage(w, h, img.hot_x + px, img.hot_y + px, bytes(out))

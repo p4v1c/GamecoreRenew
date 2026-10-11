@@ -69,9 +69,10 @@ the solo launch, unchanged. Architecture and the reasons:
   any process with more than one player (its A/B layout broke the screen
   windows).
 - Two mice or more: once a second mouse is used, each mouse belongs to one
-  player (order of first use), with its own arrow (the box's cursor theme, same for all) kept in that
-  player's column; its click is that player's stylus, so two players can
-  drag at once. X's own arrow, moved by every touch, goes back to the
+  player (order of first use), with its own arrow (the box's cursor theme,
+  same for all, ringed in black to show on white) kept on that player's
+  touch screen, never the top one; its click is that player's stylus, so
+  two players can drag at once. X's own arrow, moved by every touch, goes back to the
   off-screen corner when the touch ends.
   One mouse keeps the normal pointer.
 - Saves: player 1 keeps `<rom>.sav`; players 2-4 get their own `<rom>.sav.N`,
