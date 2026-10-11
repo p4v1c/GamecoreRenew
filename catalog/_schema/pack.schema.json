@@ -124,7 +124,7 @@
           "items": { "type": "string" }
         },
         "fullscreen": {
-          "description": "For an app with no fullscreen CLI flag (Stremio has none). backend/services/fullscreen_enforcer.py waits for a window whose WM_CLASS matches, then asks the WM to fullscreen it over EWMH.",
+          "description": "For a window no CLI flag makes fullscreen (Stremio has none; Lutris's nested gamescope ignores -f under KWin). backend/services/fullscreen_enforcer.py waits for a window whose WM_CLASS matches, then asks the WM to fullscreen it over EWMH.",
           "type": "object",
           "required": ["wmClass"],
           "additionalProperties": false,

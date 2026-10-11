@@ -311,3 +311,16 @@ def test_merge_keeps_an_absent_newcomer_off_the_grid(packs, tmp_path):
     merged, notes = merge_systems([], packs, tmp_path, present=lambda p: p.id != "nes")
     assert "nes" not in {e["id"] for e in merged}
     assert "nes: not added — its emulator is not installed" in notes
+
+
+def test_a_box_gains_the_fullscreen_block_and_keeps_its_own(packs, tmp_path):
+    """`config/` is outside the OTA: a release that adds `launch.fullscreen`
+    to a pack reaches a box with that tile already written only through here
+    (a Lutris game under gamescope stayed windowed)."""
+    live = [_entry("lutris", "/usr/bin/python3", "x"),
+            _entry("lutris", "/usr/bin/python3", "x",
+                   fullscreen={"wm_class": ["mine"], "timeout_s": 5})]
+    merged, notes = merge_systems(live, packs, tmp_path)
+    assert merged[0]["fullscreen"]["wm_class"] == ["gamescope-brokey", "gamescope", "steam_app_default"]
+    assert merged[1]["fullscreen"] == {"wm_class": ["mine"], "timeout_s": 5}
+    assert notes.count("lutris: fullscreen filled in") == 1

@@ -674,6 +674,14 @@
     "extensions": [
       "*.lutris"
     ],
-    "libretroSystems": []
+    "libretroSystems": [],
+    "fullscreen": {
+      "wm_class": [
+        "gamescope-brokey",
+        "gamescope",
+        "steam_app_default"
+      ],
+      "timeout_s": 120
+    }
   }
 ]

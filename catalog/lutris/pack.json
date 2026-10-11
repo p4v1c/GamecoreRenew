@@ -14,7 +14,8 @@
   },
   "launch": {
     "path": "/usr/bin/python3",
-    "args": "'@GAMECORE_PATH@/catalog/lutris/files/lutris_session.py' --app-id @APPID@"
+    "args": "'@GAMECORE_PATH@/catalog/lutris/files/lutris_session.py' --app-id @APPID@",
+    "fullscreen": { "wmClass": ["gamescope-brokey", "gamescope", "steam_app_default"], "timeoutSec": 120 }
   },
   "roms": {
     "dir": "emu/lutris",
