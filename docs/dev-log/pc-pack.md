@@ -184,6 +184,28 @@ On a box: install PC, wait a minute after login, then
 GameCore, start it; `logs/launch/lutris/` has the wrapper's lines
 (`[gamecore-lutris]`). `gamemoded -s` while the game runs says active.
 
+## Gamescope (after the owner's first real test, v1.3.24)
+
+Found on the box: the library works (FIFA 22), the prefix landed in
+`/userdata/emu/lutris-games/`, but the game did not start fullscreen. Owner's
+data: runtime `org.gnome.Platform/x86_64/49`; with
+`org.freedesktop.Platform.VulkanLayer.gamescope//25.08` installed system-wide,
+`which gamescope` in the sandbox is `/usr/lib/extensions/vulkan/gamescope/bin/gamescope`;
+display MSI Optix MAG24C, 1920x1080 144 Hz, X11 Plasma.
+
+| Piece | What | Verified |
+|---|---|---|
+| layer branch | `install.extensions` (new, `installer/flatpak_extensions.py`): `version` of `[Extension org.freedesktop.Platform.VulkanLayer]` in the app's metadata, else in its runtime's (`flatpak info --show-runtime`, then `--show-metadata <runtime>`). No table | VM: `org.gnome.Platform//49` metadata declares `version = 25.08`; the real `gamecore-provider.py extensions lutris` installed `…gamescope//25.08` `--system` from Lutris's origin, `-y --noninteractive`; a second run said SAME; `which gamescope` in the sandbox found it |
+| hand-installed layer | `flatpak info --system <id>//<branch>` first: present = nothing done | unit test + the SAME run above |
+| runtime moves | daily timer runs `sudo -n /usr/local/bin/gamecore-emu extensions lutris` (the NOPASSWD rule the box already has for hot installs); new subcommand that only installs what a catalogue pack declares, on the branch read from the runtime | unit-tested (26.08 case); the sudo path from a user unit not run here (no rule on the VM). `NoNewPrivileges` dropped from the unit, or sudo cannot work. A box installed with v1.3.24 keeps its old unit (with `NoNewPrivileges`) until PC is installed again from Settings → Catalog (CHANGELOG says so) |
+| Lutris keys | 0.5.22 `sysoptions.py`: `gamescope` (bool, default false, shown only when `gamescope` is on PATH), `gamescope_window_mode` (`-f` fullscreen default, `""`, `-b`), `gamescope_output_res` / `gamescope_game_res` (`WxH` → `-W -H` / `-w -h`), `gamescope_fps_limiter` (`-r`), `gamescope_fsr_sharpness`, `gamescope_flags`, `gamescope_hdr`; `runner_interpreter.py` builds `gamescope … -- gamemoderun <cmd>` | VM: Lutris ran `gamescope -w 1920 -h 1080 -W 1920 -H 1080 -f -- gamemoderun ./sleep 6` from our system.yml |
+| resolutions | written at each launch by `lutris_session.py` → `lutris_gamescope.py`, from `xrandr --query` on GameCore's DISPLAY (primary output's current geometry): absent, or equal to the mode we wrote last (`~/.local/share/gamecore/lutris/gamescope.json`). Why both: gamescope's SDL backend opens at 1280x720 without `-W/-H` and sizes the game (`-w/-h`) from that before fullscreen (`SDLBackend.cpp`, `main.cpp`), so the game would be 720p, stretched. Refresh: on window show the SDL backend takes the desktop mode's refresh (144 Hz here), so no `-r` | VM (Xvfb 1920x1080): written as expected before Lutris started |
+| session under gamescope | the tree is `lutris-wrapper → gamescope → gamemoderun → game`; we follow lutris-wrapper, unchanged. gamescope only `setsid`s with `--new-session` (`gamescopereaper.cpp`), never passed by Lutris, and gives its children PDEATHSIG; GameCore's group SIGKILL also ends the sandbox | VM: gamescope itself exits on llvmpipe (no `VK_KHR_present_wait`); the session then ended normally (exit 0). A game actually running under gamescope needs a GPU: not verified |
+| re-detection | Lutris builds its option list (the `gamescope` condition) at import, and a running sandbox never sees an extension installed after it started: Lutris must restart. `lutris_session.py` closes an idle Lutris before each launch; README says so | source read (0.5.22 `sysoptions.py`, `system.can_find_executable` uncached but evaluated at import) |
+
+Per-game opt-out: Lutris → game → Configure → System options → Enable Gamescope
+(game level wins over system.yml). README says it.
+
 ## Screenshots
 
 `pc-pack-tools/shots/`, taken with `pc-library-shots.cjs` against devserve with
@@ -207,4 +229,5 @@ Test: `frontend/src/themes/jellyHome.test.tsx`. Jelly 1.6.0.
 
 ## Next
 
-- Owner review; open questions in the final report of the session.
+- Owner: a real game under gamescope on the box (1080p, 144 Hz), and reinstalling
+  PC once from Settings → Catalog so the daily check can follow runtime updates.
