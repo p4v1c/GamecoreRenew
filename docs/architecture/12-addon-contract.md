@@ -98,8 +98,8 @@ gain, and the player would have no way to tell why.
 
 ## Where an addon may listen
 
-Addons run as **systemd user units** and bind their own ports (`:8770`, `:8771`,
-`:8772` today). They are reachable from the LAN only through Caddy, which
+Addons run as **systemd user units** and bind their own ports (`:8770` to
+`:8773` today). They are reachable from the LAN only through Caddy, which
 authenticates; the core's `/api/*` is 403 through that path. An addon talks back
 to the core with `POST /api/addons/notify`.
 
