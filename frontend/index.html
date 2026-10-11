@@ -12,6 +12,8 @@
       ::-webkit-scrollbar { width: 4px; }
       ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
       @keyframes spin { to { transform: rotate(360deg); } }
+      /* Standby crossfade (lib/standbyFade.ts): slow enough to read as a fade, short enough not to feel late. */
+      ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 500ms; }
     </style>
     <script>
       // Paints before the bundle runs: the shell's boot colour (theme boot.background,

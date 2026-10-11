@@ -50,6 +50,13 @@ async def wake():
     return {"ok": True}
 
 
+@router.post("/standby/dark")
+async def ui_dark():
+    """The UI has faded to black; the sleep stage may switch the screen off."""
+    standby.ui_dark()
+    return {"ok": True}
+
+
 @router.get("/standby/videos")
 async def standby_playlist(favourite: list[str] = Query(default=[])):
     """Clips on disk for the standby TV, plus screenshots for games without one.

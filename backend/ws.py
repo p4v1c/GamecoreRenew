@@ -42,6 +42,10 @@ async def connect(ws: WebSocket) -> None:
         log.warning("ws initial send failed: %s", e)
 
 
+def has_clients() -> bool:
+    return bool(_clients)
+
+
 def disconnect(ws: WebSocket) -> None:
     if ws in _clients:
         _clients.remove(ws)

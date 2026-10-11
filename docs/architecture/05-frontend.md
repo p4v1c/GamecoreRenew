@@ -159,7 +159,7 @@ and returns an unsubscribe.
 | `gp:battery` | `battery.run()` | `name`, `level`, `threshold` | toast, or native HUD in-game |
 | `gp:controllers` | `battery.run()` | `controllers[]` | battery levels for the controllers screen |
 | `gp:guide` | `gamepad_monitor` | `action` (`backgrounded`, `home`, `failed`), `gesture` | double press: suspends a game; `home` (a pair begun in the interface) opens the session menu in `SessionBar` |
-| `standby:screensaver` / `standby:sleep` / `standby:exit` | `standby._enter()` / `exit_standby()` | — | drives `Screensaver`, or `CrtStandby` when the theme opts in |
+| `standby:screensaver` / `standby:sleep` / `standby:exit` | `standby._enter()` / `exit_standby()` | — | `frontend/src/lib/standbyFade.ts` crossfades the page into the stage; drives `Screensaver`, or the theme's standby |
 | `theme:changed` | `routers/themes.py` | `active` | reloads the theme |
 | `profiles:changed` | `routers/profiles.py` | `active` (the active profile) | `frontend/src/lib/players.ts` re-reads the profiles and the pad roster (`refreshPlayers`) |
 | `update:log` / `update:done` | `routers/update.py` | `line` / `success`, `code` | OTA progress |
@@ -287,6 +287,7 @@ from `docs/dev-log/crt-standby-scene/`.
 |---|---|
 | `sounds.ts` | `playSound(name)`, `soundForGpEvent(event)`, `soundSettings`, `getAudioContext`. Sounds are **synthesised** with `note()` on a shared `AudioContext` — no audio assets. Silent while `isPlaying()`. Settings persist in `localStorage` (`gc:uiSounds`, `gc:uiSoundsVolume`) |
 | `systemColors.ts` | `SYSTEM_COLORS` fallback palette per system id |
+| `standbyFade.ts` | `fadeToStandby(stage)`: store write inside a view transition (whole-page crossfade, every theme); after the fade into `sleep`, `api.standby.dark()` |
 | `formatGameName.ts` | `formatGameName(raw)` — strips trailing region and language-sequence noise (`REGION_RE`, `LANG_SEQ_RE`) |
 
 ## `api/index.ts`

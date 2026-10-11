@@ -92,6 +92,13 @@ _activity_signal_reported = False
 _CLAIM_RETRY_SECS = 60.0
 _last_claim_attempt = 0.0
 
+# Set by POST /api/standby/dark once the UI has faded to black. DPMS waits for
+# it so the screen goes off on a black frame, not mid-picture; capped for a box
+# whose UI never answers (crashed kiosk, a frontend older than the endpoint).
+# Made per sleep, so an earlier fade's answer is never already set.
+_ui_dark: asyncio.Event | None = None
+_UI_DARK_WAIT_SECS = 3.0
+
 # state: "active" | "screensaver" | "sleep"
 _state = "active"
 _last_input = time.monotonic()
@@ -295,7 +302,7 @@ async def _governor(gov: str) -> None:
 
 
 async def _enter(stage: str) -> None:
-    global _state
+    global _state, _ui_dark
     from .. import ws
     if _state == stage:
         return
@@ -304,9 +311,23 @@ async def _enter(stage: str) -> None:
     if stage == "screensaver":
         await ws.broadcast("standby:screensaver", {})
     elif stage == "sleep":
+        _ui_dark = dark = asyncio.Event()
         await ws.broadcast("standby:sleep", {})
+        if ws.has_clients():
+            try:
+                await asyncio.wait_for(dark.wait(), _UI_DARK_WAIT_SECS)
+            except asyncio.TimeoutError:
+                log.info("standby: no UI faded to black, screen off anyway")
+        if _state != "sleep":
+            return      # a press woke the box during the fade
         await _screen(False)
         await _governor("powersave")
+
+
+def ui_dark() -> None:
+    """The UI has finished fading to black: the screen may go off now."""
+    if _ui_dark is not None:
+        _ui_dark.set()
 
 
 async def exit_standby() -> None:

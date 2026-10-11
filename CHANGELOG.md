@@ -17,6 +17,9 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Standby fades instead of cutting: the screensaver and the black screen fade in
+  and out on every theme, and the TV switches off only once the picture is black.
+
 - Shelf: a box no longer turns to face you as a blank beige card when its cover is
   slow to arrive; it waits edge-on until the cover is ready, then turns.
 - New system: **PC**, your Windows games through Lutris. Installing it adds Lutris
