@@ -14,7 +14,7 @@ shapes GameCore already speaks.
 ## Local changes
 
 Everything GameCore changed is marked `# GameCore:` in the source, so a diff
-against a newer upstream copy is a grep away. There are four:
+against a newer upstream copy is a grep away. There are five:
 
 | Change | Why |
 |---|---|
@@ -22,6 +22,7 @@ against a newer upstream copy is a grep away. There are four:
 | `resolve(..., only={…})` | downloading all ~28 media of a game costs ~34 s at the 1.2 s ScreenScraper asks for. Only what is displayed is fetched during a scrape; the rest is recorded as `deferred` with its URL |
 | `fetch_media(system, filename, slug)` | fetches one deferred media on demand — one HTTP request, no second `jeuInfos`, no quota spent |
 | `strip_creds()` / `with_creds()` | a deferred media keeps its URL in `game.json`, and a ScreenScraper media URL carries `devid`, `devpassword`, `ssid` and `sspassword` in its query. They are removed on write and restored from the live credentials on read, so the developer account is never written to disk |
+| `lb_everything()` keeps up to `LB_GAMEPLAY_SHOTS` gameplay screenshots (`screenshot-gameplay-2`, `-3`) | upstream keeps one image per type; the Shelf PC back uses the first as key art and needs others for its shot row. They are `deferred` like every non-eager media |
 
 `_manifest_complete()` gained one branch for the same reason: `deferred` is a
 media that is *deliberately* not downloaded yet, unlike `pending`, which is the

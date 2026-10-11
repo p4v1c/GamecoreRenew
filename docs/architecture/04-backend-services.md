@@ -363,6 +363,10 @@ FIFA 22 never takes FIFA 23's spec. The answer, a miss included, is stored as
 `steam: {appid, checked_at}` in the manifest and not asked again until
 `?refresh=1`; a network failure stores nothing.
 
+The LaunchBox tier also records up to three gameplay shots
+(`screenshot-gameplay`, `-2`, `-3`, deferred like the rest): the Shelf PC back
+uses the first as key art and the others for its shot row.
+
 **How a game is identified**, best first: the file's CRC32+MD5+SHA1 when it is a
 real file under 384 MiB (certain — a renamed or mistagged ROM still lands on the
 right game); the `TITLE` its `PARAM.SFO` declares when it is a PS3/PS4/PSP
