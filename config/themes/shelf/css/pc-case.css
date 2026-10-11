@@ -36,6 +36,9 @@
   background: linear-gradient(160deg, var(--pc), #17161A) center / cover;
 }
 .pc-hero[data-art="1"] { background-size: cover; background-position: center; }
+/* The jacket standing in for key art: a box front already carries the title,
+   so the reverse shows its upper half and prints no name over it. */
+.pc-hero[data-jacket="1"] { flex-basis: 52%; background-position: center 20%; }
 .pc-logo { display: block; max-width: 100%; max-height: 80%; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.55)); }
 .pc-logo-text { font-family: var(--font-display); font-size: 18px; font-weight: 800; color: #FFFFFF; text-align: center; }
 .pc-body { flex: 1; min-height: 0; padding: 9px 12px 8px; display: flex; flex-direction: column; gap: 7px; }

@@ -6,7 +6,7 @@
  * retail PC back is set: key art under the logo, the blurb, two shots, the
  * minimum spec panel, the credit and the bars.
  */
-import { pick } from '../lib/dossier.js'
+import { pick, jacket } from '../lib/dossier.js'
 import { title } from '../lib/names.js'
 
 /** The spec rows, in the order a box prints them, keyed as meta.requirements. */
@@ -29,19 +29,23 @@ export const createPcCase = (sdk) => {
     const logo = art(['clear-logo-hd', 'clear-logo'])
     // A title screen as the key art would print the logo twice; gameplay
     // first, then the fanart, then whatever shot there is.
+    // With no scraped art at all, the jacket itself, so the reverse is never
+    // a bare band over an empty panel.
     const hero = art(['fanart-background', 'screenshot-gameplay', 'screenshot-game-title'])
+      || jacket(systemId, game.filename)
     const shots = [art(['screenshot-gameplay']), art(['screenshot-game-title'])]
       .filter((s) => s && s !== hero)
+    const scraped = hero !== jacket(systemId, game.filename)
     const reqs = REQS.filter(([k]) => meta?.requirements?.[k])
 
     return html`
       <div class="pc-back">
         <${PcBand} small />
-        <div class="pc-hero" data-art=${hero ? '1' : '0'}
-             style=${hero ? { backgroundImage: `url("${hero}")` } : null}>
+        <div class="pc-hero" data-art="1" data-jacket=${scraped ? '0' : '1'}
+             style=${{ backgroundImage: `url("${hero}")` }}>
           ${logo
             ? html`<img class="pc-logo" src=${logo} alt="" />`
-            : html`<b class="pc-logo-text">${title(game.display_name)}</b>`}
+            : scraped ? html`<b class="pc-logo-text">${title(game.display_name)}</b>` : null}
         </div>
         <div class="pc-body">
           ${meta?.description ? html`<p class="pc-blurb">${meta.description}</p>` : null}
