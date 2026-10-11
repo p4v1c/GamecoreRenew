@@ -146,20 +146,37 @@ export const createHomeView = (sdk) => {
     const firstApp = systems.findIndex(isApp)
     const wrapRef = useRef(null)
     const rowRef = useRef(null)
-    useEffect(() => {
+    const placeRow = () => {
       const wrap = wrapRef.current, row = rowRef.current
       if (!wrap || !row) return
       const cell = row.children[idx + (firstApp >= 0 && idx >= firstApp ? 1 : 0)]
       if (!cell) return
       const edge = parseFloat(getComputedStyle(wrap).getPropertyValue('--st-edge')) || 0
       const W = wrap.clientWidth, R = row.scrollWidth
+      // Not laid out yet (the home mounts behind the splash): placing it now
+      // parks the row off screen until the next move. The observer below
+      // places it once it has a size.
+      if (!W) return
       const centre = cell.offsetLeft + cell.offsetWidth / 2
       // Centred while it fits; once it does not, follow the focus but never
       // pull an end of the row in past the edge margin.
       const x = R <= W - 2 * edge ? (W - R) / 2
         : Math.max(W - edge - R, Math.min(edge, W / 2 - centre))
       row.style.transform = `translate3d(${Math.round(x)}px, 0, 0)`
-    }, [idx, systems.length])
+    }
+    const placeRef = useRef(placeRow)
+    placeRef.current = placeRow
+    useEffect(() => { placeRow() }, [idx, systems.length])
+    // A size change moves the centre too: the first layout after the splash,
+    // console photos decoding, a resolution change.
+    useEffect(() => {
+      const wrap = wrapRef.current, row = rowRef.current
+      if (!wrap || !row || typeof ResizeObserver === 'undefined') return
+      const ro = new ResizeObserver(() => placeRef.current())
+      ro.observe(wrap)
+      ro.observe(row)
+      return () => ro.disconnect()
+    }, [])
 
     // ── copy ───────────────────────────────────────────────────────────
     const stats = []

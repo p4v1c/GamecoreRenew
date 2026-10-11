@@ -76,4 +76,16 @@ describe('the printed PC reverse', () => {
     expect(container.querySelector('.pc-req')).toBeNull()
     expect(container.querySelector('.pc-logo-text')?.textContent).toBe('Hades')
   })
+
+  it('falls back to the jacket when nothing was scraped, without printing the name over it', async () => {
+    const { createPcCase } = await load()
+    const { PcBack } = createPcCase(sdk)
+    const { container } = render(React.createElement(PcBack, {
+      systemId: 'lutris', game: GAME, meta: {}, media: {},
+    }))
+    const hero = container.querySelector('.pc-hero') as HTMLElement
+    expect(hero.style.backgroundImage).toContain('/api/covers/lutris/Hades.lutris')
+    expect(hero.dataset.jacket).toBe('1')
+    expect(container.querySelector('.pc-logo-text')).toBeNull()
+  })
 })
