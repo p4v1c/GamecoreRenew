@@ -120,6 +120,11 @@ are the auto-incremented tags.
   one file per area (controllers, media, session, network, updates, addons,
   interface errors) and one for every warning. Settings → System → Logs purges them.
 
+- **DS multiplayer arrows stay on the touch screen, and show on white.** With
+  one mouse per player, an arrow no longer goes up onto the top screen (it
+  takes no touch). The cursor theme keeps its look, with a dark ring around
+  it so a pale stylus reads on a white DS screen.
+
 - **Bluetooth pairing works from GameCore again.** A mouse or a DualSense
   could only be paired from the desktop session; the console's pairing ran
   with no agent to answer the device.

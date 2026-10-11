@@ -33,9 +33,6 @@ OUTLINE_COLOUR = 0x000000
 
 _CW_OVERRIDE_REDIRECT = 1 << 9
 _Z_PIXMAP, _COORD_MODE_ORIGIN = 2, 0
-# A theme pixel this opaque is part of the arrow; softer edges are dropped,
-# since a shaped window is all-or-nothing.
-_ALPHA_SOLID = 128
 _SHAPE_BOUNDING, _SHAPE_INPUT, _SHAPE_SET = 0, 2, 0
 _COMPLEX, _COORD_ORIGIN = 0, 0
 
@@ -113,7 +110,8 @@ class Arrows:
                                   ctypes.c_uint, ctypes.c_uint]
         self.windows: dict[int, int] = {}
         # The box's own pointer look (owner's theme); None: the drawn arrow.
-        self.image = cursor_theme.load_arrow()
+        theme_arrow = cursor_theme.load_arrow()
+        self.image = cursor_theme.outlined(theme_arrow) if theme_arrow else None
         self.hot = (self.image.hot_x, self.image.hot_y) if self.image else (0, 0)
 
     def _polygon(self, drawable, gc, colour, polygon) -> None:
@@ -162,7 +160,7 @@ class Arrows:
         lib.XSetForeground(dpy, gc, 0)
         lib.XFillRectangle(dpy, mask, gc, 0, 0, img.width, img.height)
         solid = [(i % img.width, i // img.width) for i in range(img.width * img.height)
-                 if img.argb[i * 4 + 3] >= _ALPHA_SOLID]
+                 if img.argb[i * 4 + 3] >= cursor_theme.SOLID_ALPHA]
         if solid:
             pts, n = _points(solid)
             lib.XSetForeground(dpy, gc, 1)
