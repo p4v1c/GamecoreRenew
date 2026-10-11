@@ -206,6 +206,20 @@ display MSI Optix MAG24C, 1920x1080 144 Hz, X11 Plasma.
 Per-game opt-out: Lutris → game → Configure → System options → Enable Gamescope
 (game level wins over system.yml). README says it.
 
+## Media for stubs (FIFA 22 had none on the box)
+
+The stub went to ScreenScraper as `romnom=FIFA 22.lutris`. A PS3 folder goes as
+its bare PARAM.SFO title and is found, so a stub now goes as its bare name
+(`FIFA 22`), on system 138 (test: `backend/tests/test_gamemedia_stub.py`, which
+fails on the old code). Negatives cached under the old query are asked again
+once: a gamemedia manifest for a stub without `parsed.romnom`, a metadata
+negative without `by_title` (otherwise kept a week). `tgdbId: 1` ("PC" in
+TheGamesDB, from Skyscraper's `tgdb_platforms.json`) added as the fallback.
+Not verified: ScreenScraper's live answer for "FIFA 22" on 138 (no account
+here), and whether the box has ScreenScraper credentials or the LaunchBox index
+at all (without either, gamemedia is off and only TheGamesDB, with a key, can
+answer).
+
 ## Screenshots
 
 `pc-pack-tools/shots/`, taken with `pc-library-shots.cjs` against devserve with
