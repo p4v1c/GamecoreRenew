@@ -54,6 +54,20 @@
               "items": { "type": "string", "minLength": 1 },
               "minItems": 1,
               "uniqueItems": true
+            },
+            "extensions": {
+              "description": "Flatpak extensions the app needs (gamescope's Vulkan layer for Lutris). The branch is not written here: it is the `version` the app's metadata, else its runtime's, declares for `extensionPoint`, read at install time and again by `gamecore-emu extensions <id>`, so a runtime that moves to a newer branch gets the matching one. Installed in the app's own installation (system or user), from its own remote, never interactively (backend/services/installer/flatpak_extensions.py).",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["id", "extensionPoint"],
+                "additionalProperties": false,
+                "properties": {
+                  "id": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+$" },
+                  "extensionPoint": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+$" }
+                }
+              }
             }
           },
           "required": ["provider", "appIds"],

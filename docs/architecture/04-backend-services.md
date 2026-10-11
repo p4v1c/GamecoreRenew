@@ -836,7 +836,8 @@ not here. All of [8](08-controller-pipeline.md).
 
 ### `installer/` — obtaining what a pack declares
 
-`providers.py`, `fetch.py`, `applier.py`, `manifest.py`. The applier is what
+`providers.py`, `fetch.py`, `applier.py`, `manifest.py`, `flatpak_extensions.py`
+(`install.extensions`: an app's Flatpak extensions on its runtime's branch). The applier is what
 refuses a pack that names a file it does not carry — the check the repository did
 not have when a refactor deleted a directory `arch.sh` still read, and an install
 died at 66 % on a fresh machine months later.

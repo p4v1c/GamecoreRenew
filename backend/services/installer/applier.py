@@ -6,7 +6,7 @@ the user unit it runs under, and the two-step ceremonies (generate a cert, then
 trust it) that no amount of declaration can turn into data.
 
     packages   → pacman, recorded in the uninstall manifest
-    install    → providers.py
+    install    → providers.py, then its Flatpak extensions (flatpak_extensions.py)
     sources    → git clone, or ff-only sync of an existing checkout
     files      → src verbatim, or template with the tokens below
     usb        → one udev rules file per pack, written and NOT activated
@@ -52,6 +52,7 @@ from pathlib import Path
 from .. import usb_devices
 from .providers import Context, Result, _chown, _pacman_install, install
 from .host_access import apply_host_access
+from . import flatpak_extensions
 
 log = logging.getLogger(__name__)
 
@@ -473,8 +474,8 @@ def apply(pack, ctx: AppContext) -> list[Result]:
     results = apply_packages(pack, ctx)
     if pack.data.get("install"):
         results.append(install(pack, ctx))
-    for step in (apply_host_access, apply_sources, apply_files, apply_udev, apply_services,
-                 run_post_install):
+    for step in (flatpak_extensions.ensure, apply_host_access, apply_sources, apply_files,
+                 apply_udev, apply_services, run_post_install):
         try:
             results.extend(step(pack, ctx))
         except Exception as e:                    # never take the install down

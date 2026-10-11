@@ -8,6 +8,8 @@
 #  remove  <id>...      drop the tile; the binary and the ROMs stay
 #  reconfigure <id>...  re-deploy the seed and re-profile the pads
 #  verify [<id>...]     is what the catalogue declares actually here?
+#  extensions <id>...   the pack's Flatpak extensions, on the branch its
+#                       runtime declares now (run daily by the PC pack)
 #
 #  Same shape as gamecore-addon on purpose: same subcommand names, same
 #  --json output, same "offline is not a failure" behaviour. Two tools that
@@ -330,6 +332,16 @@ sys.exit(1 if bad else 0)
 PY
 }
 
+# ── extensions ───────────────────────────────────────────────────
+# Only what a catalogue pack declares under install.extensions, on the branch
+# the app's runtime asks for: no ref or branch comes from the caller.
+cmd_extensions() {
+  require_ids "$@"
+  "$PY" "$PROVIDER" extensions "$@" \
+      --user "$GAMECORE_USER" --gamecore-path "$GAMECORE_PATH" \
+      --gamecore-data "$GAMECORE_DATA" --local "$GAMECORE_DATA/config/catalog.d"
+}
+
 # ── grid ─────────────────────────────────────────────────────────
 refresh_grid() {
   info "refreshing the grid"
@@ -365,6 +377,7 @@ case "${1:-}" in
   remove)      shift; cmd_remove "$@" ;;
   reconfigure) shift; cmd_reconfigure "$@" ;;
   verify)      shift || true; cmd_verify "$@" ;;
+  extensions)  shift; cmd_extensions "$@" ;;
   *) cat >&2 <<'EOF'
 gamecore-emu — add an emulator to a box that is already running
 Usage:
@@ -373,6 +386,7 @@ Usage:
   gamecore-emu remove      <id>...      (tile only — ROMs and saves stay)
   gamecore-emu reconfigure <id>...      (re-deploy the seed, re-profile pads)
   gamecore-emu verify      [<id>...]
+  gamecore-emu extensions  <id>...      (Flatpak extensions on the runtime's branch)
 EOF
      exit 1 ;;
 esac

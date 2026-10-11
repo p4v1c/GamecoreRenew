@@ -31,12 +31,13 @@ sys.path.insert(0, str(ROOT))
 from backend.services.catalog import load_catalog, selected  # noqa: E402
 from backend.services.installer import AppContext, apply, enabled_units  # noqa: E402
 from backend.services.installer.applier import start_services  # noqa: E402
+from backend.services.installer import flatpak_extensions  # noqa: E402
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=["install", "start-services"])
+    ap.add_argument("command", choices=["install", "start-services", "extensions"])
     ap.add_argument("ids", nargs="*", help="pack ids; empty means --select")
     ap.add_argument("--select", default="",
                     help="'all' or a space-separated list of ids")
@@ -94,7 +95,13 @@ def main() -> int:
         # The emulator phase is by far the longest part of an install and a bar
         # that does not move for forty minutes reads as hung.
         print(f"PACK {pack.id}")
-        results = apply(pack, ctx) if args.command == "install" else start_services(pack, ctx)
+        if args.command == "install":
+            results = apply(pack, ctx)
+        elif args.command == "extensions":
+            # The daily re-check: the runtime may have moved to a newer branch.
+            results = flatpak_extensions.ensure(pack, ctx)
+        else:
+            results = start_services(pack, ctx)
         for result in results:
             tag = "SAME" if result.already else ("OK" if result.ok else "FAIL")
             print(f"{tag} {result.message}")
