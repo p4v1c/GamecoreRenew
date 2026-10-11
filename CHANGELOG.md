@@ -17,6 +17,15 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- **Operator step** for the `bios-manager` addon: Caddy routes `/bios/` to it
+  (`127.0.0.1:8773`). An update does not rewrite `/etc/caddy/Caddyfile`; apply the
+  shipped one as `update/linux.sh` prints, then `sudo systemctl reload caddy`.
+
+- BIOS page: MAME lists its common BIOS sets (`neogeo.zip`, `qsound.zip`, `pgm.zip`…,
+  in `system/mame/bios/`) and PS4 lists the shadPS4 system modules (`sys_modules/*.sprx`).
+  GameCube lists Dolphin's IPLs (`GC/<region>/IPL.bin`). All optional: nothing new
+  blocks a launch.
+
 - Standby fades instead of cutting: the screensaver and the black screen fade in
   and out on every theme, and the TV switches off only once the picture is black.
 

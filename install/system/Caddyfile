@@ -77,6 +77,7 @@ https://:8443 {
 		redir /roms /roms/ 308
 		redir /saves /saves/ 308
 		redir /rpcs3 /rpcs3/ 308
+		redir /bios /bios/ 308
 		redir /twitch /twitch/ 308
 		handle /roms/* {
 			reverse_proxy 127.0.0.1:8770
@@ -86,6 +87,9 @@ https://:8443 {
 		}
 		handle /rpcs3/* {
 			reverse_proxy 127.0.0.1:8771
+		}
+		handle /bios/* {
+			reverse_proxy 127.0.0.1:8773
 		}
 
 		# EmberTV. It used to listen on 0.0.0.0:8097 with no auth at all, which

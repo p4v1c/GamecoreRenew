@@ -65,6 +65,7 @@ flowchart TB
             a1[":8770 rom-manager"]
             a2[":8771 rpcs3-manager"]
             a3[":8772 save-manager"]
+            a4[":8773 bios-manager"]
         end
         caddy["Caddy :8443<br/>TLS + shared-password auth"]
     end
@@ -79,7 +80,7 @@ flowchart TB
     api -.->|WebSocket events| main
     lan -->|https| caddy
     caddy -->|forward_auth| api
-    caddy --> a1 & a2 & a3
+    caddy --> a1 & a2 & a3 & a4
     a1 & a2 & a3 -->|"POST /api/addons/notify"| api
 ```
 

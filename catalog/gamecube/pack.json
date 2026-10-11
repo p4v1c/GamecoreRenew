@@ -29,6 +29,26 @@
   "config": {
     "dest": "@FLATPAK_CONFIG@/dolphin-emu"
   },
+  "bios": {
+    "dir": "@FLATPAK_DATA@/dolphin-emu",
+    "files": [
+      {
+        "file": "GC/EUR/IPL.bin",
+        "required": false,
+        "note": "European GameCube IPL: the boot animation and system font. Dolphin plays without it."
+      },
+      {
+        "file": "GC/USA/IPL.bin",
+        "required": false,
+        "note": "American GameCube IPL: the boot animation and system font. Dolphin plays without it."
+      },
+      {
+        "file": "GC/JAP/IPL.bin",
+        "required": false,
+        "note": "Japanese GameCube IPL: the boot animation and system font. Dolphin plays without it."
+      }
+    ]
+  },
   "usb": [
     {
       "vidPid": "057e:0337",

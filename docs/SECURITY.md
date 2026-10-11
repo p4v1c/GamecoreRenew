@@ -23,6 +23,7 @@ LAN (phone / laptop)
         │    ├─ /roms/*    → 127.0.0.1:8770  (rom-manager)
         │    ├─ /saves/*   → 127.0.0.1:8772  (save-manager)
         │    ├─ /rpcs3/*   → 127.0.0.1:8771  (rpcs3-manager)
+        │    ├─ /bios/*    → 127.0.0.1:8773  (bios-manager)
         │    ├─ /twitch/*  → 127.0.0.1:8097  (EmberTV)
         │    ├─ /api/*     → 403 (the core is NEVER exposed to the LAN)
         │    └─ /…         → core :8765 (statics: /assets/*, /covers/*)
@@ -255,7 +256,7 @@ otherwise unchanged — nothing new is *served*, and no GameCore data crosses it
 
 Why it is worth the exception: the box is reachable at exactly one address and
 that address is a DHCP lease. When the lease changes, every noted URL breaks at
-once — the login page, `/roms/`, `/saves/`, `/rpcs3/`. mDNS replaces the address
+once — the login page, `/roms/`, `/saves/`, `/rpcs3/`, `/bios/`. mDNS replaces the address
 with `<hostname>.local`. **The installer does not set the hostname** — the box
 answers under whatever name the machine already had, so `gamecore.local` holds
 only if `/etc/hostname` says `gamecore`.
@@ -313,5 +314,5 @@ systemctl enable --now avahi-daemon.service
   why `gamecore-session-select` takes no third argument: a rule that had to
   accept one would have to accept any.
 - **Verification**: `ss -tlnp` must show, for GameCore, only Caddy on `:8443`;
-  `8765`, `8097`, `8770`, `8771` and `8772` on `127.0.0.1` only. On UDP,
+  `8765`, `8097`, `8770`, `8771`, `8772` and `8773` on `127.0.0.1` only. On UDP,
   `ss -ulnp` shows avahi on `5353` — expected, and the only one (see "mDNS").

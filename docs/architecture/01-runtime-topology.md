@@ -18,6 +18,7 @@ Plus, out of band:
 | rom-manager | `gamecore-addon-rom-manager.service` (**user** unit) | `127.0.0.1:8770` |
 | rpcs3-manager | `gamecore-addon-rpcs3-manager.service` | `127.0.0.1:8771` |
 | save-manager | `gamecore-addon-save-manager.service` | `127.0.0.1:8772` |
+| bios-manager | `gamecore-addon-bios-manager.service` | `127.0.0.1:8773` |
 | Caddy | `caddy.service` | `:8443` — **the only LAN-facing port** |
 
 Ports 8770-8799 are reserved for addons. Vite (`:5173`) exists in development
@@ -35,7 +36,7 @@ flowchart TB
             be["<b>backend</b> :8765<br/>gamecore-backend.service<br/>REST · WebSocket · serves frontend/dist"]
             el["<b>Electron</b><br/>gamecore-ui.service<br/>kiosk window · overlay · HUD"]
             mon["overlay_monitor.py<br/>JSON-lines on stdio"]
-            addons["addons :8770-8772<br/><i>systemd user units</i>"]
+            addons["addons :8770-8773<br/><i>systemd user units</i>"]
             caddy["<b>Caddy</b> :8443<br/>TLS + shared password<br/><i>the only LAN-facing port</i>"]
         end
 
