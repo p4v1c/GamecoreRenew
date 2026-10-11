@@ -147,3 +147,15 @@ def test_x_pointer_goes_back_to_the_corner_after_a_touch_never_during_it():
     assert router._park_due                           # warped, not confirmed yet
     router._park_pointer()
     assert not router._park_due and router.arrows.calls == 2
+
+
+def test_the_arrow_never_reaches_the_top_screen():
+    """The top screen takes no touch: each arrow stays on its own bottom screen."""
+    area = mouse_touch.touch_area(2, 2, (1920, 1080))
+    assert area == (960, 540, 720, 540)                # player 2's touch window
+    p = mouse_touch.Pointer(area, gain=1.0)
+    assert p.position == (1320, 810)                   # starts mid touch screen
+    p.feed(_move(-5000, -5000))
+    assert p.position == (960, 540)                    # clamped, not wrapped
+    p.feed(_move(5000, 5000))
+    assert p.position == (1679, 1079)

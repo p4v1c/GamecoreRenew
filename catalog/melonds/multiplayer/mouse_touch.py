@@ -3,8 +3,9 @@
 Mice are only watched until a second one is really used: one mouse keeps
 the plain shared X pointer. From then on, each mouse belongs to the player
 it was first used for (first used = player 1), is grabbed away from X,
-moves that player's own arrow inside that player's column, and its left
-button touches through that player's virtual touchscreen.
+moves that player's own arrow inside that player's touch screen (never onto
+the top screen, which takes no touch), and its left button touches through
+that player's virtual touchscreen.
 
 Why touch and not clicks: every melonDS instance lives in one Qt process,
 and Qt sends all mouse motion to the window a button went down in, whatever
@@ -36,10 +37,18 @@ RAISE_SECONDS = 1.0
 # keyboard's built-in pointer node never moves, and a desk bump stays under.
 ACTIVITY_THRESHOLD = 40
 RESCAN_SECONDS = 3.0
+# windows.screen_rect: window 2 is the bottom, touch screen.
+TOUCH_WINDOW = 2
+
+
+def touch_area(player: int, players: int, screen: tuple[int, int]) -> tuple[int, int, int, int]:
+    """(x, y, w, h) player N's arrow is clamped to: their touch screen, where
+    windows.tile() puts it."""
+    return windows.screen_rect(windows.columns(players, *screen)[player - 1], TOUCH_WINDOW)
 
 
 class Pointer:
-    """One player's arrow, kept inside that player's column."""
+    """One player's arrow, kept inside a rectangle."""
 
     def __init__(self, rect: tuple[int, int, int, int], gain: float = MOUSE_GAIN):
         self.left, self.top, self.width, self.height = rect
@@ -220,12 +229,11 @@ class MouseRouter:
             self._park_due = True
         for mouse in self.mice.values():
             self._grab(mouse)
-        cols = windows.columns(self.players, *screen)
         for player in self.assigner.owner.values():
             if player not in self.pointers:
                 self.touches[player] = inputdev.Touchscreen(
                     inputdev.TOUCH_NAME.format(player), *screen, 1)
-                self.pointers[player] = Pointer(cols[player - 1])
+                self.pointers[player] = Pointer(touch_area(player, self.players, screen))
                 self.arrows.show(player, *self.pointers[player].position)
 
     def _park_pointer(self) -> None:
