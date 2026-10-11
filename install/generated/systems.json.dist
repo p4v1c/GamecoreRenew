@@ -678,7 +678,8 @@
     "fullscreen": {
       "wm_class": [
         "gamescope-brokey",
-        "gamescope"
+        "gamescope",
+        "steam_app_default"
       ],
       "timeout_s": 120
     }

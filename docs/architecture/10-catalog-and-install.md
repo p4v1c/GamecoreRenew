@@ -216,7 +216,8 @@ Two things a tile may need once the app is up, both read by
 
 - `fullscreen` — for a window no CLI flag makes fullscreen: Stremio has none,
   and Lutris's nested gamescope (WM_CLASS `gamescope-brokey`) opens windowed
-  under KWin despite `-f`. `fullscreen_enforcer.py` waits up to `timeoutSec` for
+  under KWin despite `-f`; without gamescope, Proton names the game window
+  `steam_app_default`. `fullscreen_enforcer.py` waits up to `timeoutSec` for
   a window whose WM_CLASS matches, then asks the window manager to fullscreen it
   over EWMH. X11 and XWayland only. `merge.py` adds the block to a tile already
   on a box when the tile has none.

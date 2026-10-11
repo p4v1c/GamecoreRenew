@@ -321,6 +321,6 @@ def test_a_box_gains_the_fullscreen_block_and_keeps_its_own(packs, tmp_path):
             _entry("lutris", "/usr/bin/python3", "x",
                    fullscreen={"wm_class": ["mine"], "timeout_s": 5})]
     merged, notes = merge_systems(live, packs, tmp_path)
-    assert merged[0]["fullscreen"]["wm_class"] == ["gamescope-brokey", "gamescope"]
+    assert merged[0]["fullscreen"]["wm_class"] == ["gamescope-brokey", "gamescope", "steam_app_default"]
     assert merged[1]["fullscreen"] == {"wm_class": ["mine"], "timeout_s": 5}
     assert notes.count("lutris: fullscreen filled in") == 1
