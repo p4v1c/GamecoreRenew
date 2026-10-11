@@ -26,6 +26,7 @@
     "showExtension": false
   },
   "scraper": {
+    "tgdbId": 1,
     "screenscraper": [138],
     "mediaAlias": ["pc windows"]
   },

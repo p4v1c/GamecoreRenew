@@ -174,7 +174,8 @@ _CONTAINER_EXTS = {"chd", "rvz", "cso", "zso", "wbfs", "gcz", "wia", "pbp",
                    "ecm", "7z", "rar", "squashfs", "nsz", "xcz"}
 # GameCore: launcher entries, not dumps. A `.lutris` stub holds a Lutris game
 # id; its hash names nothing, and asking costs quota before the name search.
-_POINTER_EXTS = {"lutris"}
+# Its name is the game's title, and is searched without the extension.
+POINTER_EXTS = {"lutris"}
 # Hashing ceiling. It was 4 GiB: a PS2 .iso was read IN FULL inside the HTTP
 # handler — over two minutes of blocking on a USB disk. ES-DE cuts at 384 MiB by
 # default, Skyscraper at 50 for its cache key.
@@ -206,7 +207,7 @@ def hashes_for(path: Path) -> dict[str, str] | None:
         size = path.stat().st_size
     except OSError:
         return None
-    if path.suffix.lower().lstrip(".") in _CONTAINER_EXTS | _POINTER_EXTS:
+    if path.suffix.lower().lstrip(".") in _CONTAINER_EXTS | POINTER_EXTS:
         return None
     if size > HASH_MAX_BYTES:
         return None

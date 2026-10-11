@@ -132,6 +132,7 @@ try:
         _rating_01,
         _title_score,
         _year_of,
+        POINTER_EXTS,
         hashes_for,
         ss_request,
         ss_threads,
@@ -147,7 +148,7 @@ except ImportError:                                            # plain-script CL
     from ss_client import (                                    # noqa: F401
         HASH_MAX_BYTES, NAME_ACCEPT, SS_MAX_THREADS, ScreenScraperClosed,
         ScreenScraperUnreachable, _hash_confirmed, _matched_by, _rating_01, _ss_limiter,
-        _title_score, _year_of, hashes_for, ss_request, ss_threads,
+        _title_score, _year_of, hashes_for, ss_request, ss_threads, POINTER_EXTS,
     )
 
 
@@ -557,6 +558,11 @@ def _manifest_complete(d: Path, manifest: dict) -> bool:
     resource, the way Skyscraper's dedup key does (src/cache.cpp:1464-1486).
     """
     if not manifest.get("found"):
+        # GameCore: a stub's negative written while its name was still sent
+        # with the extension was an answer to the wrong question. Once.
+        if is_pointer(manifest.get("filename", "")) and \
+                not (manifest.get("parsed") or {}).get("romnom"):
+            return False
         # A negative written while a tier was missing deserves another try.
         tried = set(manifest.get("tiers_tried") or [])
         if gs.ss_credentials() and "screenscraper" not in tried:
@@ -610,6 +616,11 @@ def _manifest_complete(d: Path, manifest: dict) -> bool:
         if info.get("bytes", 0) < _PLATE_SUSPECT_BYTES and gs.looks_like_flat_plate(path):
             return False
     return True
+
+
+def is_pointer(filename: str) -> bool:
+    """GameCore: a launcher stub (`.lutris`), searched by its name only."""
+    return Path(filename).suffix.lower().lstrip(".") in POINTER_EXTS
 
 
 def load_cached(system: str, filename: str) -> dict | None:
@@ -673,6 +684,11 @@ def resolve(system: str, filename: str, *, refresh: bool = False,
         parsed["title"] = ident["title"]
         parsed["serial"] = ident["serial"]
         parsed["identified_by"] = "PARAM.SFO"
+    elif is_pointer(filename):
+        # GameCore: a launcher stub's name IS the title. Sent with `.lutris`
+        # on it, ScreenScraper was asked about a file format it does not know.
+        parsed["romnom"] = rom.stem
+        parsed["identified_by"] = "stub name"
     hit, unreachable, notes = None, False, []
     tiers_tried: list[str] = []
     if not gs.ss_credentials():

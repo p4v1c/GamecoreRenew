@@ -141,9 +141,16 @@ def _worth_another_look(negative: dict) -> bool:
     return bool(_sources_now() - set(negative.get("tiers_tried") or []))
 
 
+def _stub_asked_wrongly(negative: dict, filename: str) -> bool:
+    """A launcher stub's negative from when its name went out with `.lutris`."""
+    return gamemedia.is_pointer(filename) and not negative.get("by_title")
+
+
 def _write_negative(cache: Path, tried: list[str]) -> None:
-    """Record WHO said no, not just that someone did."""
-    atomic_write_json(cache, {"found": False, "tiers_tried": sorted(set(tried))})
+    """Record WHO said no, not just that someone did. `by_title`: since stubs
+    are searched by their title (see `_stub_asked_wrongly`)."""
+    atomic_write_json(cache, {"found": False, "tiers_tried": sorted(set(tried)),
+                              "by_title": True})
 
 
 async def resolve(system: dict, filename: str) -> dict | None:
@@ -159,7 +166,7 @@ async def resolve(system: dict, filename: str) -> dict | None:
             if data.get("found") and not _wrong_language(data) \
                     and not _from_a_weaker_source(data):
                 return data
-            if not _worth_another_look(data) and \
+            if not _worth_another_look(data) and not _stub_asked_wrongly(data, filename) and \
                     time.time() - cache.stat().st_mtime < _MISS_TTL:
                 return None
         except (json.JSONDecodeError, OSError):

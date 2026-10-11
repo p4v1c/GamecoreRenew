@@ -116,6 +116,10 @@ _SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 _scrape_lock = asyncio.Lock()
 
 
+# A launcher stub (`.lutris`): searched by its name, never hashed.
+is_pointer = gm.is_pointer
+
+
 def available() -> bool:
     """True when at least one source can answer. Cheap: no network."""
     try:
