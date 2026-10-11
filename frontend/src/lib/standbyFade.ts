@@ -23,7 +23,9 @@ export function fadeToStandby(stage: Stage): void {
   const faded = animate
     ? document.startViewTransition(apply).finished.catch(() => {})
     : Promise.resolve(apply())
-  if (stage !== 'sleep') return
+  // Only the TV's window answers: a phone's background tab skips the fade and
+  // would let DPMS cut the TV mid-fade.
+  if (stage !== 'sleep' || !window.gamecore) return
   faded.then(() => {
     // Woken during the fade: the screen must stay on.
     if (useStore.getState().standby === 'sleep') api.standby.dark().catch(() => {})

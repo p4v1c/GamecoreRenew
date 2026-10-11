@@ -24,12 +24,15 @@ function fakeTransition() {
 const flush = () => new Promise((r) => setTimeout(r, 0))
 
 let dark: ReturnType<typeof vi.fn>
+const win = window as unknown as { gamecore?: unknown }
 beforeEach(() => {
+  win.gamecore = {}
   useStore.setState({ standby: 'off' })
   dark = vi.fn().mockResolvedValue({})
   vi.spyOn(api.standby, 'dark').mockImplementation(dark)
 })
 afterEach(() => {
+  delete win.gamecore
   delete doc.startViewTransition
   vi.restoreAllMocks()
 })
@@ -68,6 +71,13 @@ describe('fadeToStandby', () => {
     expect(useStore.getState().standby).toBe('sleep')
     await flush()
     expect(dark).toHaveBeenCalledOnce()
+  })
+
+  it('leaves the answer to the TV window, not a phone', async () => {
+    delete win.gamecore
+    fadeToStandby('sleep')
+    await flush()
+    expect(dark).not.toHaveBeenCalled()
   })
 
   it('honours reduced motion', () => {

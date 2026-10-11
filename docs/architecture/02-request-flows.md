@@ -185,7 +185,7 @@ Every stage change reaches the UI as a crossfade: `frontend/src/lib/standbyFade.
 writes the stage inside `document.startViewTransition` (500 ms, set in
 `frontend/index.html`; skipped under reduced motion), so every theme's standby
 fades in and out without knowing it. Going to sleep, `_enter("sleep")`
-broadcasts, then waits for the UI's `POST /api/standby/dark` (sent when the
+broadcasts, then waits for the TV window's `POST /api/standby/dark` (sent when the
 fade to black ends) before DPMS, so the TV loses signal on a black frame. It
 waits at most `_UI_DARK_WAIT_SECS` (3 s), not at all with no WebSocket client,
 and does not cut the screen if a press woke the box meanwhile.
