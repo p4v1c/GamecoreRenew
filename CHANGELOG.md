@@ -23,6 +23,11 @@ are the auto-incremented tags.
   (Settings → Desktop); they then appear under PC and start without Lutris
   showing. The default and Summer libraries no longer print an extension for
   them.
+- PC (Lutris) games now get their description, developer, genres and artwork
+  from the LaunchBox index; the `.lutris` extension was kept in the title and
+  every lookup missed. A PC game already scraped as "not found" keeps that
+  answer until it is refreshed once:
+  `curl 'http://127.0.0.1:8765/api/media/lutris/<file>.lutris?refresh=1'`.
 - Jelly: with 3D boxes on, a game with no 3D box art (most PC games) is drawn as
   a box instead of showing a flat cover among the boxes.
 - Jelly has its own standby screen: your covers float in jellies that bounce
