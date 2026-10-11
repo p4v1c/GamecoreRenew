@@ -111,7 +111,9 @@ def parse_rom(raw: str) -> dict:
     ext = ""
     for _ in range(2):                      # handles "game.nds.zip"
         stem, dot, suffix = name.rpartition(".")
-        if not dot or len(suffix) > 5 or not suffix.isalnum():
+        # GameCore: six, not five. `.lutris` stubs are the longest extension a pack
+        # declares, and a kept suffix sank their LaunchBox match.
+        if not dot or len(suffix) > 6 or not suffix.isalnum():
             break
         low = suffix.lower()
         if not ext or low not in ("zip", "7z", "rar"):
