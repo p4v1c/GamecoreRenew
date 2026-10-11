@@ -23,3 +23,12 @@ def test_lutris_extension_is_not_part_of_the_title():
 
 def test_a_dotted_title_word_still_survives():
     assert parse_rom("Dr. Mario (USA).nes")["title"] == "Dr. Mario"
+
+
+def test_every_pack_extension_is_peeled_off_the_title():
+    """The suffix cap must cover whatever a pack declares, or its games miss."""
+    from backend.services.catalog.loader import load_catalog
+    for pack in load_catalog().values():
+        for pattern in (pack.data.get("roms") or {}).get("extensions") or []:
+            ext = pattern.lstrip("*.").lower()
+            assert parse_rom(f"Some Game.{ext}")["ext"] == ext, (pack.id, ext)
