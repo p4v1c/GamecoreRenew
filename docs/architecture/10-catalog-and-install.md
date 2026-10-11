@@ -214,10 +214,12 @@ Two things a tile may need once the app is up, both read by
 }
 ```
 
-- `fullscreen` — for an app with no fullscreen CLI flag, and Stremio has none.
-  `fullscreen_enforcer.py` waits up to `timeoutSec` for a window whose WM_CLASS
-  matches, then asks the window manager to fullscreen it over EWMH. X11 and
-  XWayland only.
+- `fullscreen` — for a window no CLI flag makes fullscreen: Stremio has none,
+  and Lutris's nested gamescope (WM_CLASS `gamescope-brokey`) opens windowed
+  under KWin despite `-f`. `fullscreen_enforcer.py` waits up to `timeoutSec` for
+  a window whose WM_CLASS matches, then asks the window manager to fullscreen it
+  over EWMH. X11 and XWayland only. `merge.py` adds the block to a tile already
+  on a box when the tile has none.
 - `gamepadTrigger` — re-fires `udevadm trigger` after launch. A Flatpak app only
   sees the pads that existed when it started; this makes one plugged in
   afterwards appear. Needs the udevadm sudoers rule.

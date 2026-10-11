@@ -16,7 +16,9 @@ may have edited.
                                   installed box at all.
     an id both have               the launcher is repaired ONLY when it is
                                   stale (see below), `extensions` gains what it
-                                  is missing, and everything else is left alone.
+                                  is missing, `libretroSystems`, `consoles` and
+                                  `fullscreen` are filled in when absent, and
+                                  everything else is left alone.
 
 **When is a launcher stale?** Not "different from the catalogue" — that would
 undo `flatpakify-systems.sh`, which rewrites launchers to what the box actually
@@ -256,6 +258,12 @@ def merge_systems(live: list[dict], packs: dict, root: Path,
             if gained:
                 merged["consoles"] = list(merged["consoles"])
                 notes.append(f"{sid}: console ratio filled in ({', '.join(gained)})")
+
+        # Absent only: a fullscreen block the operator wrote or emptied stays.
+        if "fullscreen" not in entry:
+            if fs := entry_from_pack(pack, root).get("fullscreen"):
+                merged["fullscreen"] = fs
+                notes.append(f"{sid}: fullscreen filled in")
 
         out.append(merged)
 
