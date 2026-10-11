@@ -28,6 +28,12 @@ are the auto-incremented tags.
   every lookup missed. A PC game already scraped as "not found" keeps that
   answer until it is refreshed once:
   `curl 'http://127.0.0.1:8765/api/media/lutris/<file>.lutris?refresh=1'`.
+- Shelf: the back of a PC game's box prints its minimum system requirements
+  (from the Steam store, matched by exact title) and two gameplay shots. Games
+  already scraped get them after one refresh, then a restart of the UI, which
+  keeps the media list in memory:
+  `curl 'http://127.0.0.1:8765/api/media/lutris/<file>.lutris?refresh=1'`,
+  then `systemctl --user restart gamecore-ui`.
 - Jelly: with 3D boxes on, a game with no 3D box art (most PC games) is drawn as
   a box instead of showing a flat cover among the boxes.
 - Jelly has its own standby screen: your covers float in jellies that bounce
