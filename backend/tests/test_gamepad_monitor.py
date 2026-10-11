@@ -30,8 +30,9 @@ KEY_A = 30              # a plain keyboard key
 
 class FakeDevice:
     def __init__(self, path, name, keys, uniq="", vendor=0x054C, product=0x09CC,
-                 bustype=0x05):
+                 bustype=0x05, phys=""):
         self.path, self.name, self._keys, self.uniq = path, name, keys, uniq
+        self.phys = phys
         self.info = types.SimpleNamespace(vendor=vendor, product=product,
                                           bustype=bustype)
 
@@ -65,6 +66,15 @@ def test_a_pad_with_a_guide_button_is_detected(fake_evdev):
     found = gm._find_gamepad_devices()
     assert "/dev/input/event3" in found
     assert found["/dev/input/event3"][2] is True, "is_pad"
+
+
+def test_the_pc_packs_virtual_xbox_pad_takes_no_player_slot(fake_evdev):
+    """It mirrors a real pad during a PC game; counted, it took player 2."""
+    fake_evdev["/dev/input/event24"] = FakeDevice(
+        "/dev/input/event24", "Microsoft X-Box 360 pad", [BTN_MODE, BTN_SOUTH],
+        vendor=0x045E, product=0x028E, bustype=0x03, phys="gamecore-virtual-pad/1")
+
+    assert gm._find_gamepad_devices() == {}
 
 
 def test_a_pad_without_a_guide_button_is_detected_too(fake_evdev):

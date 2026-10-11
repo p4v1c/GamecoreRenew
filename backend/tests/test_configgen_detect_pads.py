@@ -12,8 +12,8 @@ BTN_SOUTH = 0x130
 
 
 class FakeDevice:
-    def __init__(self, name, keys, vendor, product, uniq=""):
-        self.name, self._keys, self.uniq = name, keys, uniq
+    def __init__(self, name, keys, vendor, product, uniq="", phys=""):
+        self.name, self._keys, self.uniq, self.phys = name, keys, uniq, phys
         self.info = types.SimpleNamespace(vendor=vendor, product=product)
 
     def capabilities(self):
@@ -47,3 +47,11 @@ def test_a_virtual_keyboard_does_not_push_pad_two_to_player_three(devices):
         ("054c", "09cc", "Wireless Controller"),
         ("045e", "0b13", "Xbox Wireless Controller"),
     ]
+
+
+def test_the_pc_packs_virtual_xbox_pad_is_not_a_player(devices):
+    devices["/dev/input/event10"] = FakeDevice("Wireless Controller", [BTN_SOUTH], 0x054C, 0x09CC)
+    devices["/dev/input/event24"] = FakeDevice("Microsoft X-Box 360 pad", [BTN_SOUTH], 0x045E,
+                                               0x028E, phys="gamecore-virtual-pad/1")
+
+    assert controllers.detect_pads() == [("054c", "09cc", "Wireless Controller")]
