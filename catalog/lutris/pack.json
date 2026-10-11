@@ -24,7 +24,8 @@
   },
   "scraper": {
     "screenscraper": [138],
-    "mediaAlias": ["pc windows"]
+    "mediaAlias": ["pc windows"],
+    "steamStore": true
   },
   "packages": {
     "pacman": ["gamemode", "python-yaml"]

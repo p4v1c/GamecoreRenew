@@ -353,6 +353,16 @@ media types per game instead of one cover.
 | `to_game_meta(manifest)` | a manifest in the `GameMeta` shape `/api/metadata` has always returned |
 | `cached(system_id, filename)` | the manifest already on disk. No network, no thread |
 
+**A PC game's minimum spec** comes from neither source. `steam_store.py`
+(GameCore's, not vendored) asks the public Steam store after `resolve()`, only
+for packs with `scraper.steamStore` (`STEAM_STORE_SYSTEMS`): `storesearch` by
+the scraped title, then `appdetails` → `pc_requirements.minimum`, cut to one
+short line per key (`meta.requirements`: `os`, `cpu`, `ram`, `gpu`, `disk`).
+A store entry counts only at `NAME_ACCEPT` with the same episode numbers, so
+FIFA 22 never takes FIFA 23's spec. The answer, a miss included, is stored as
+`steam: {appid, checked_at}` in the manifest and not asked again until
+`?refresh=1`; a network failure stores nothing.
+
 **How a game is identified**, best first: the file's CRC32+MD5+SHA1 when it is a
 real file under 384 MiB (certain — a renamed or mistagged ROM still lands on the
 right game); the `TITLE` its `PARAM.SFO` declares when it is a PS3/PS4/PSP

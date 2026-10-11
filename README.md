@@ -318,7 +318,8 @@ Every game installed in Lutris appears under **PC** the next time you open it,
 and disappears when you remove it in Lutris; games you hide in Lutris stay
 hidden. A game starts with A, without the Lutris window, and GameCore gets the
 screen back when you quit it. The files in `emu/lutris/` are written by
-GameCore; there is nothing to copy there.
+GameCore; there is nothing to copy there. On the Shelf theme, the back of a PC
+game's box shows its minimum system requirements, read from the Steam store.
 
 ---
 

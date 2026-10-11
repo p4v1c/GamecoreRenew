@@ -34,6 +34,7 @@ from ...config import SCRAPER_LANG
 from ..paths import media_cache_dir, media_index_dir
 from . import gamemedia as gm
 from . import gamescrape as gs
+from . import steam_store
 
 log = logging.getLogger(__name__)
 
@@ -106,6 +107,10 @@ COVER_ORDER = ("box-front", "box-scan", "box-3d", "mix-rbv2", "mix-rbv1",
 # fetch_media only serves a slug the scrape actually recorded for this game.
 _SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 
+# PC systems whose minimum spec is read from the Steam store after a scrape
+# (pack.json `scraper.steamStore`). No console source carries one.
+STEAM_STORE_SYSTEMS = steam_store.opted_in_systems()
+
 # ── Concurrency ──────────────────────────────────────────────────────────────
 # gamemedia is synchronous (urllib + a thread pool), the backend is async, so
 # every call runs in a worker thread. The lock is not about thread safety —
@@ -169,7 +174,10 @@ async def resolve(system_id: str, target: Path | str, *,
         only = EAGER_MEDIA
 
     def work() -> dict:
-        return gm.resolve(system_id, name, refresh=refresh, only=only)
+        manifest = gm.resolve(system_id, name, refresh=refresh, only=only)
+        if system_id in STEAM_STORE_SYSTEMS:
+            manifest = steam_store.add_requirements(system_id, manifest)
+        return manifest
 
     async with _scrape_lock:
         try:
