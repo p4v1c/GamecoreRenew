@@ -17,6 +17,8 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Shelf: a box no longer turns to face you as a blank beige card when its cover is
+  slow to arrive; it waits edge-on until the cover is ready, then turns.
 - New system: **PC**, your Windows games through Lutris. Installing it adds Lutris
   (Flatpak), gamemode and GE-Proton, and adds the player to the `gamemode` group
   (effective at the next login). Games are installed from Lutris's own window

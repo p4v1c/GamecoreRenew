@@ -191,3 +191,39 @@ describe('a burst on the d-pad', () => {
     expect(after! - before!).toBeLessThan(30)       // …from where it was
   })
 })
+
+describe('a jacket whose front is not decoded yet', () => {
+  /** Image whose decode() settles only when the test says so. */
+  const pending: Array<{ src: string, settle: (ok: boolean) => void }> = []
+  class SlowImage {
+    src = ''
+    decoding = 'auto'
+    decode() {
+      return new Promise<void>((ok, no) => {
+        pending.push({ src: this.src, settle: (good) => (good ? ok() : no(new Error('broken'))) })
+      })
+    }
+  }
+  const front = (i: number) => pending.find((p) => p.src.endsWith(encodeURIComponent(GAMES[i].filename)))
+
+  beforeEach(() => { pending.length = 0; vi.stubGlobal('Image', SlowImage) })
+
+  it('comes out edge-on and turns to face you only once its scan is decoded', async () => {
+    const { container } = await shelf(); await settle()
+    front(0)?.settle(true); await settle()
+    await press('gp:dpad-right')
+    await settle(); await settle()
+    // Out of the row but still edge-on (rotateY 90): the unprinted card never shows.
+    expect(turn(holder(container, 1))).toBe(90)
+    front(1)!.settle(true)
+    await settle()
+    expect((holder(container, 1)?.querySelector('.cz-box') as HTMLElement).style.transform).toBe('')
+  })
+
+  it('turns anyway when the scan fails, so the printed fallback shows', async () => {
+    const { container } = await shelf(); await settle()
+    front(0)!.settle(false)
+    await settle()
+    expect((holder(container, 0)?.querySelector('.cz-box') as HTMLElement).style.transform).toBe('')
+  })
+})
