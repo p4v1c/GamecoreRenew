@@ -321,6 +321,12 @@ screen back when you quit it. The files in `emu/lutris/` are written by
 GameCore; there is nothing to copy there. On the Shelf theme, the back of a PC
 game's box shows its minimum system requirements, read from the Steam store.
 
+During a PC game, each PlayStation pad (and any other pad that is not an Xbox
+one) is shown to the game as an Xbox 360 pad, so games that only accept Xbox
+pads work; the game shows Xbox buttons. A game that supports PlayStation pads
+itself can get them back: in Lutris, the game's Configure → System options →
+Environment variables, add `GAMECORE_XBOX_PAD` = `0`.
+
 ---
 
 ## Controller navigation

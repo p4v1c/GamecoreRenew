@@ -31,7 +31,8 @@
     "pacman": ["gamemode", "python-yaml"]
   },
   "hostAccess": {
-    "gamemode": true
+    "gamemode": true,
+    "uinput": true
   },
   "services": [
     { "unit": "files/gamecore-lutris-setup.service", "scope": "user", "enable": false },
