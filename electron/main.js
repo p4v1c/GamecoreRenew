@@ -170,6 +170,12 @@ function createWindow() {
     restartBoot()
   })
 
+  // Uncaught errors and console.error of the interface, into the journal:
+  // without this they exist only in a DevTools nobody opens on a TV.
+  mainWindow.webContents.on('console-message', (_e, level, message, line, source) => {
+    if (level >= 3) console.error(`[renderer] ${message} (${source}:${line})`)
+  })
+
   if (DEBUG) mainWindow.webContents.openDevTools({ mode: 'detach' })
 
   mainWindow.on('closed', () => { mainWindow = null })

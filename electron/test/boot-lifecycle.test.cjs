@@ -35,6 +35,7 @@ function rig({ answers = [true], env = {}, execRefuses = [] } = {}) {
   const asked = []
   const execs = []          // every shell command the shell asked for, in order
   const quits = []
+  const errors = []          // what main.js wrote with console.error
   let readyResolve
   const appReady = new Promise((r) => { readyResolve = r })
 
@@ -103,7 +104,7 @@ function rig({ answers = [true], env = {}, execRefuses = [] } = {}) {
     require: (id) => id === './hud-tokens.json' ? require('../hud-tokens.json') : stubs[id],
     __dirname: path.dirname(MAIN),
     process: { env, on: (sig, fn) => signals.set(sig, fn) },
-    console: { log: () => {}, warn: () => {}, error: () => {} },
+    console: { log: () => {}, warn: () => {}, error: (...a) => { errors.push(a.join(' ')) } },
     setTimeout, clearTimeout, URLSearchParams, AbortSignal, AbortController,
     fetch: (url) => {
       asked.push(String(url))
@@ -113,7 +114,7 @@ function rig({ answers = [true], env = {}, execRefuses = [] } = {}) {
   })
   vm.runInContext(fs.readFileSync(MAIN, 'utf8'), context, { filename: MAIN })
   return {
-    context, windows, ipc, asked, execs, quits, switches,
+    context, windows, ipc, asked, execs, quits, switches, errors,
     /** What systemd sends on `systemctl stop`. */
     signal: (sig = 'SIGTERM') => signals.get(sig)?.(),
     hasSignal: (sig) => signals.has(sig),
@@ -463,4 +464,18 @@ test('and it does not look for a proxy to reach its own loopback', async () => {
   r.stop()
   assert.ok(r.switches.includes('no-proxy-server'),
     `the shell did not switch the proxy lookup off; flags were ${JSON.stringify(r.switches)}`)
+})
+
+test('an error in the interface reaches the journal', async () => {
+  // Uncaught errors in the renderer were only visible in DevTools, so the
+  // ones the owner saw after a restart left no trace to diagnose.
+  const r = rig({ answers: [false], env: { INVOCATION_ID: 'x' } })
+  r.start()
+  await settle(60)
+  r.stop()
+  const say = r.windows[0].rendererHandlers.get('console-message')
+  say({}, 1, 'theme loaded', 3, 'app.js')
+  say({}, 3, 'Uncaught TypeError: x is undefined', 42, 'http://localhost:8765/assets/index.js')
+  assert.deepEqual(r.errors.filter(e => e.startsWith('[renderer]')),
+    ['[renderer] Uncaught TypeError: x is undefined (http://localhost:8765/assets/index.js:42)'])
 })
