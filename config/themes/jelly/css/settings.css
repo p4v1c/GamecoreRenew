@@ -110,6 +110,8 @@
 .jelly-settings .gcs-set-row:nth-child(9) { --jl-row-icon: var(--jl-i-system); }
 .jelly-settings .gcs-set-row:nth-child(10) { --jl-row-icon: var(--jl-i-profiles); }
 .jelly-settings:has(.gcs-set-page[data-cat="wifi"]) { --jl-cat-icon: var(--jl-i-wifi); --jl-tag: 'Signal found.'; }
+/* The radio switch is off: "Signal found." would be the one false line on the page. */
+.jelly-settings:has(.gcs-set-page[data-cat="wifi"] [role="switch"][aria-checked="false"]) { --jl-tag: 'Radio off.'; }
 .jelly-settings:has(.gcs-set-page[data-cat="bluetooth"]) { --jl-cat-icon: var(--jl-i-bluetooth); --jl-tag: 'Everything connects.'; }
 .jelly-settings:has(.gcs-set-page[data-cat="display"]) { --jl-cat-icon: var(--jl-i-display); --jl-tag: 'Big screen.'; }
 .jelly-settings:has(.gcs-set-page[data-cat="audio"]) { --jl-cat-icon: var(--jl-i-audio); --jl-tag: 'Turn it up.'; }
