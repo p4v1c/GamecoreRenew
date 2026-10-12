@@ -295,7 +295,14 @@ from `docs/dev-log/crt-standby-scene/`.
 `BASE = '/api'`, generic `get<T>` / `post<T>`, and the `api` object grouping
 `systems`, `games`, `metadata`, `media`, `playtime`, `sysinfo`, `update`,
 `wifi`, `audio`, `bluetooth`, `addons`, `standby` (`standby.videos(favourites)`
-lives in `api/standby.ts`, with `StandbyItem` / `StandbyPlaylist`). Types exported for the UI:
+lives in `api/standby.ts`, with `StandbyItem` / `StandbyPlaylist`).
+`wifi.setRadio(enabled)` switches the radio and rejects with the backend's
+`detail`; `wifi.status().radio` is the state the Wi-Fi pages
+(`frontend/src/settings/wifi.js`, `WifiPage.tsx`) draw their switch row from.
+No row when it is not a boolean (no hardware, older backend). Turning it off
+with no Ethernet takes two presses; right after off → on, an empty scan reads
+as "scanning" until the next periodic refresh (NetworkManager has not scanned
+yet). Types exported for the UI:
 `SystemEntry`, `GameEntry`, `GameMeta`, `MediaEntry`, `GameMediaIndex`,
 `PlaytimeEntry`, `SysInfo`. The controller types (`RosterPad`, `UsbDevice`,
 the autoconfig and mapping-wizard shapes) live in `api/controllers.ts` and are
