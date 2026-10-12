@@ -7,7 +7,11 @@ import { useSubPageGamepad } from './useSubPageGamepad'
 import { PadHints } from '../../../lib/padKey'
 
 type WifiNetwork = { ssid: string; signal: number; secured: boolean; connected: boolean }
-type WifiStatus  = { connected: boolean; ssid: string; ip: string; iface: string; ethernet: { connected: boolean; iface: string; ip: string } }
+type WifiStatus  = { connected: boolean; ssid: string; ip: string; iface: string; radio?: boolean | null; ethernet: { connected: boolean; iface: string; ip: string } }
+
+const REFRESH_MS = 10000
+/** `focusIdx` of the radio row, above network 0. */
+const RADIO = -1
 
 export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () => void }) {
   const [networks, setNetworks]     = useState<WifiNetwork[]>([])
@@ -20,6 +24,8 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
   const [pendingSsid, setPendingSsid]   = useState('')
   const [focusIdx, setFocusIdx]     = useState(0)
   const [showWifiAnyway, setShowWifiAnyway] = useState(false)
+  // Turning the radio off with no cable takes the box offline: two presses.
+  const [armed, setArmed] = useState(false)
 
   const networksRef = useRef(networks)
   const focusIdxRef = useRef(focusIdx)
@@ -27,17 +33,60 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
   useEffect(() => { networksRef.current = networks }, [networks])
   useEffect(() => { focusIdxRef.current = focusIdx }, [focusIdx])
   useEffect(() => { busyRef.current = busy }, [busy])
+  // Right after off → on NetworkManager has not scanned yet: an empty answer
+  // means "not yet" until the next periodic refresh, so the page keeps saying
+  // it is scanning without scanning forever where there is no network.
+  const radioRef  = useRef<boolean | null | undefined>(undefined)
+  const wakingRef = useRef(false)
 
-  const refresh = async () => {
+  /** `tick`: called by the periodic refresh rather than by an action. */
+  const refresh = async (tick = false) => {
     try {
-      const [nets, st] = await Promise.all([api.wifi.networks(), api.wifi.status()])
-      setNetworks(nets)
+      const st = await api.wifi.status()
       setWifiStatus(st)
+      const was = radioRef.current
+      radioRef.current = st.radio
+      if (was === false && st.radio === true) { wakingRef.current = true; setLoading(true) }
+      if (st.radio === false) { setNetworks([]); setLoading(false); return }
+      const nets = await api.wifi.networks()
+      if (wakingRef.current && nets.length === 0 && !tick) return
+      wakingRef.current = false
+      setNetworks(nets)
     } catch {}
     setLoading(false)
   }
 
   useEffect(() => { refresh() }, [])
+  // Picks up a radio or network change made outside this page.
+  useEffect(() => {
+    const t = setInterval(() => { if (!busyRef.current && !showKeyboard) refresh(true) }, REFRESH_MS)
+    return () => clearInterval(t)
+  }, [showKeyboard])
+
+  const hasRadio = typeof wifiStatus?.radio === 'boolean'
+  const radioOn  = wifiStatus?.radio === true
+  const onEthernet = !!wifiStatus?.ethernet?.connected
+
+  const switchRadio = async () => {
+    if (busyRef.current) return
+    if (radioOn && !onEthernet && !armed) { setArmed(true); return }
+    setArmed(false); setBusy(true); setMsg('')
+    try { await api.wifi.setRadio(!radioOn) } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Could not reach the backend.'); setMsgError(true)
+    }
+    setBusy(false)
+    await refresh()
+  }
+  const switchRef = useRef(switchRadio)
+  switchRef.current = switchRadio
+
+  // Off the radio row disarms it; no network to stand on puts the cursor there.
+  useEffect(() => { if (focusIdx !== RADIO) setArmed(false) }, [focusIdx])
+  useEffect(() => {
+    if (hasRadio && !loading && networks.length === 0) setFocusIdx(RADIO)
+  }, [hasRadio, loading, networks.length])
+  const topRef = useRef(0)
+  topRef.current = hasRadio ? RADIO : 0
 
   useSubPageGamepad(
     showKeyboard ? () => setShowKeyboard(false) : onBack,
@@ -50,9 +99,14 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
   useEffect(() => {
     if (showKeyboard) return
     const offs = [
-      onGp('gp:dpad-up',   () => setFocusIdx(i => Math.max(0, i - 1))),
-      onGp('gp:dpad-down', () => setFocusIdx(i => Math.min(networksRef.current.length - 1, i + 1))),
-      onGp('gp:confirm',   () => { if (!busyRef.current) { const n = networksRef.current[focusIdxRef.current]; if (n) handleNetworkRef.current(n) } }),
+      onGp('gp:dpad-up',   () => setFocusIdx(i => Math.max(topRef.current, i - 1))),
+      onGp('gp:dpad-down', () => setFocusIdx(i => Math.max(topRef.current, Math.min(networksRef.current.length - 1, i + 1)))),
+      onGp('gp:confirm',   () => {
+        if (busyRef.current) return
+        if (focusIdxRef.current === RADIO) { switchRef.current(); return }
+        const n = networksRef.current[focusIdxRef.current]
+        if (n) handleNetworkRef.current(n)
+      }),
     ]
     return () => offs.forEach(o => o())
   }, [showKeyboard])
@@ -105,9 +159,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
     )
   }
 
-  const onEthernet = !!wifiStatus?.ethernet?.connected
-
-  const showList = !onEthernet || showWifiAnyway
+  const showList = (!onEthernet || showWifiAnyway) && (radioOn || !hasRadio)
 
   return (
     <Overlay onClose={onClose} width={560}>
@@ -130,6 +182,14 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
           <Glyph name="refresh" size={14} />{loading ? 'Scanning…' : 'Refresh'}
         </button>
       )} />
+
+      {hasRadio && (
+        <RadioRow on={radioOn} focused={focusIdx === RADIO} armed={armed}
+          note={onEthernet ? 'The cable keeps this box online either way.'
+            : radioOn ? 'Turning it off takes this box offline.'
+            : 'This box is offline until Wi-Fi is back on.'}
+          onClick={() => { setFocusIdx(RADIO); switchRadio() }} />
+      )}
 
       {/* Wired connection — no need for Wi-Fi */}
       {onEthernet && (
@@ -165,7 +225,7 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
       )}
 
       {/* On ethernet: hide the Wi-Fi list (not needed) unless asked */}
-      {onEthernet && !showWifiAnyway && (
+      {onEthernet && !showWifiAnyway && (radioOn || !hasRadio) && (
         <div
           onClick={() => setShowWifiAnyway(true)}
           style={{ textAlign: 'center', fontSize: 15, color: 'var(--gc-ink-3)', cursor: 'pointer', padding: 8 }}
@@ -173,6 +233,15 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
           Show Wi-Fi networks anyway ›
         </div>
       )}
+
+      {hasRadio && !radioOn && <>
+        <div style={{ color: 'var(--gc-ink-3)', fontSize: 15, textAlign: 'center', padding: 20 }}>
+          Wi-Fi is off. Turn it on to see the networks in range.
+        </div>
+        <div style={{ marginTop: 14, textAlign: 'center', fontSize: 14, color: 'var(--gc-ink-3)', }}>
+          <PadHints text="✕ Turn on · ○ Back" />
+        </div>
+      </>}
 
       {showList && <>
       {/* Network list */}
@@ -227,6 +296,34 @@ export function WifiPage({ onClose, onBack }: { onClose: () => void; onBack: () 
       </div>
       </>}
     </Overlay>
+  )
+}
+
+/** The radio switch, drawn like the Standby page's toggle row. */
+function RadioRow({ on, focused, armed, note, onClick }: {
+  on: boolean; focused: boolean; armed: boolean; note: string; onClick: () => void
+}) {
+  return (
+    <div role="switch" aria-checked={on} aria-label="Wi-Fi" onClick={onClick} style={{
+      padding: '14px 18px', borderRadius: 12, marginBottom: 14, cursor: 'pointer',
+      background: focused ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 15%, transparent)' : 'rgba(255,255,255,0.04)',
+      border: focused ? '1px solid color-mix(in srgb, var(--gc-accent, #b8501b) 40%, transparent)' : '1px solid rgba(255,255,255,0.07)',
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14,
+      transition: 'all 0.15s',
+    }}>
+      <div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>
+          {armed ? 'Press again to turn Wi-Fi off' : 'Wi-Fi'}
+        </div>
+        <div style={{ fontSize: 15, color: 'var(--gc-ink-3)', marginTop: 3 }}>{note}</div>
+      </div>
+      <div style={{
+        width: 46, height: 26, borderRadius: 13, position: 'relative', flexShrink: 0, transition: 'background 0.2s',
+        background: on ? 'color-mix(in srgb, var(--gc-accent, #b8501b) 80%, transparent)' : 'rgba(255,255,255,0.12)',
+      }}>
+        <div style={{ position: 'absolute', top: 3, left: on ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+      </div>
+    </div>
   )
 }
 
