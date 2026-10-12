@@ -425,7 +425,8 @@ export const api = {
   },
   wifi: {
     networks: () => get<{ ssid: string; signal: number; secured: boolean; connected: boolean }[]>('/settings/wifi/networks'),
-    status: () => get<{ connected: boolean; ssid: string; ip: string; iface: string; gateway: string; dns: string[]; mac: string; ethernet: { connected: boolean; iface: string; ip: string } }>('/settings/wifi/status'),
+    // `radio` is null on a box with no Wi-Fi hardware, absent on an older backend.
+    status: () => get<{ connected: boolean; ssid: string; ip: string; iface: string; gateway: string; dns: string[]; mac: string; radio?: boolean | null; ethernet: { connected: boolean; iface: string; ip: string } }>('/settings/wifi/status'),
     /**
      * The radio detail behind each SSID — security, channel, band, link rate.
      *
@@ -436,6 +437,8 @@ export const api = {
     details: () => get<{ ssid: string; security: string; channel: number; band: string; rate: string }[]>('/settings/wifi/details'),
     connect: (ssid: string, password = '') => post<{ ok: boolean; wrong_password: boolean; error?: string }>('/settings/wifi/connect', { ssid, password }),
     disconnect: () => fetch(BASE + '/settings/wifi/connect', { method: 'DELETE' }).then(r => r.json()) as Promise<{ ok: boolean; error?: string }>,
+    /** Rejects with nmcli's own sentence ("Not authorized…", hardware block). */
+    setRadio: (enabled: boolean) => postDetailed<{ enabled: boolean | null }>('/settings/wifi/radio', { enabled }),
   },
   audio: {
     get: () => get<{ volume: number; muted: boolean }>('/settings/audio'),

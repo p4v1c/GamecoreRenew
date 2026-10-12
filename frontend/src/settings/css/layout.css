@@ -61,6 +61,14 @@
   --r-chip:       999px;
 }
 
+/* `--set-acc-deep` is also the fill under white button text, so it stays dark;
+   as text on this near-black card it reads 2.7:1. Accent text gets the light
+   ember instead (about 8:1). */
+.gcs-set.gcs-skin-default .gcs-wifi-state,
+.gcs-set.gcs-skin-default .gcs-wifi-conn,
+.gcs-set.gcs-skin-default .gcs-wifi-msg,
+.gcs-set.gcs-skin-default .gcs-set-kicker { color: color-mix(in srgb, var(--set-acc) 45%, #fff); }
+
 /* ── the layout, shared by all three surfaces ─────────────────────────────── */
 
 .gcs-set {

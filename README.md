@@ -365,7 +365,8 @@ With one controller nothing changes.
 
 Open Settings from the top-right icon or press **Start** on the controller.
 
-- **Wi-Fi** — scan and connect to networks
+- **Wi-Fi** — turn Wi-Fi on or off, scan and connect to networks. Turning it
+  off with no cable plugged in takes the box offline, so it asks for a second press
 - **Audio** — volume control
 - **Bluetooth** — pair controllers
 - **Themes** — change the look of the whole UI

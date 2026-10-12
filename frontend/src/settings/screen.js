@@ -180,7 +180,8 @@ export const createSettings = (sdk, ownPages = {}, parts = {}) => {
         .then((s) => {
           keep('wifi', s)
           put('wifi', s.connected ? s.ssid
-            : s.ethernet && s.ethernet.connected ? 'Wired' : 'Not connected')
+            : s.ethernet && s.ethernet.connected ? 'Wired'
+            : s.radio === false ? 'Off' : 'Not connected')
         })
         .catch(() => {})
       api.bluetooth.devices()
