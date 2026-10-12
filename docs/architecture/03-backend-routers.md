@@ -330,7 +330,8 @@ becomes the HTTP error.
 | `_wifi_iface()` | — active WiFi interface name |
 | `scan_networks()` (+ `_rescan()`) | `GET /wifi/networks` |
 | `_iface_ip(iface)`, `_ethernet_status()` | — |
-| `wifi_status()` | `GET /wifi/status` — SSID, IP **and wired status**, so the UI can skip the WiFi flow entirely on ethernet |
+| `wifi_status()` | `GET /wifi/status` — SSID, IP **and wired status**, so the UI can skip the WiFi flow entirely on ethernet; `radio` true/false (null: no Wi-Fi hardware) |
+| `set_radio(req)` | `POST /wifi/radio` `{enabled}` → `{enabled}` read back; logic in [`wifi_radio.py`](04-backend-services.md#wifi_radiopy--the-wi-fi-radio-switch) |
 | `connect_wifi(req)` | `POST /wifi/connect` — returns `wrong_password` distinctly |
 | `disconnect_wifi()` | `DELETE /wifi/connect` |
 | `_spawn_bg(coro, label)` | — background task helper with error logging |

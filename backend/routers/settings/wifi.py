@@ -5,6 +5,8 @@ import logging
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from ...services import wifi_radio
+
 router = APIRouter(prefix="/settings/wifi", tags=["wifi"])
 log = logging.getLogger(__name__)
 
@@ -361,8 +363,12 @@ async def _ethernet_status() -> dict:
 
 @router.get("/status")
 async def wifi_status():
-    """Return currently connected SSID + IP, plus wired (ethernet) status."""
+    """Return currently connected SSID + IP, wired (ethernet) status and the radio.
+
+    `radio` is true/false, or null on a box with no Wi-Fi to switch.
+    """
     ethernet = await _ethernet_status()
+    radio = await wifi_radio.radio_enabled()
     _, out, _ = await _run(
         "nmcli", "-t", "-f", "NAME,TYPE,STATE,DEVICE", "con", "show", "--active"
     )
@@ -374,13 +380,23 @@ async def wifi_status():
             ssid = parts[0].replace("\\:", ":")
             iface = parts[3] if len(parts) > 3 else ""
             return {"connected": True, "ssid": ssid, "ip": await _iface_ip(iface),
-                    "iface": iface, "ethernet": ethernet,
+                    "iface": iface, "ethernet": ethernet, "radio": radio,
                     **await _link_info(iface)}
     # The same keys either way. A screen that reads `body.gateway` must not
     # have to know whether the box happened to be connected when it asked —
     # that is how a disconnected box renders `undefined` into a table row.
     return {"connected": False, "ssid": "", "ip": "", "iface": "", "ethernet": ethernet,
-            "gateway": "", "dns": [], "mac": ""}
+            "radio": radio, "gateway": "", "dns": [], "mac": ""}
+
+
+class RadioRequest(BaseModel):
+    enabled: bool
+
+
+@router.post("/radio")
+async def set_radio(req: RadioRequest):
+    """Turn the Wi-Fi radio on or off. Logic: services/wifi_radio.py."""
+    return await wifi_radio.set_radio(req.enabled)
 
 
 class ConnectRequest(BaseModel):

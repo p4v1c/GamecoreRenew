@@ -1064,3 +1064,17 @@ scanned per request from its `romsPath`, and `romsPath` points at the stable lin
 rather than at a mount point — so the next scan already reads the new disk. There
 is no cached library to clear, and adding a hook for one that does not exist would
 be a line nobody could ever prove still works.
+
+### `wifi_radio.py` — the Wi-Fi radio switch
+
+| Function | Does |
+|---|---|
+| `parse_radio(text)` | `WIFI-HW:WIFI` from `nmcli -t -f WIFI-HW,WIFI radio` → `True`/`False`, `None` with no Wi-Fi hardware |
+| `radio_enabled()` | the state, `None` when nmcli fails or hangs |
+| `set_radio(enabled)` | `nmcli radio wifi on` or `off`, then reads the state back; `ServiceError` 502 (nmcli refused, its sentence as detail), 504 (hung, killed after `NMCLI_SECS`), 409 (turned on under an rfkill hard block) |
+
+The backend is a system unit with no logind session. polkit still grants it
+`org.freedesktop.NetworkManager.enable-disable-wifi` ("implicit active: yes")
+because its user owns the active seat session (autologin): polkit falls back to
+the user's display session. Check on a box with
+`pkcheck --action-id org.freedesktop.NetworkManager.enable-disable-wifi --process <backend pid>`.
