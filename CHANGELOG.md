@@ -17,6 +17,13 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Rest mode in the Power menu (first, and where the cursor opens): closes every
+  game and app, then suspends; a pad wakes it to Home. No operator step: the
+  update installs `/etc/sudoers.d/gamecore-rest`, `gamecore-wake.service` and a
+  udev rule through `gamecore-session-migrate.service`. If Rest mode answers
+  "Couldn’t sleep" after the update, run once (see `journalctl -u gamecore-session-migrate`):
+  `sudo bash <install>/install/steps/setup-rest-mode.sh <user>`.
+
 - PC games (Lutris) see every PlayStation pad as an Xbox 360 pad. It needs
   `/dev/uinput`: a box that has neither melonDS nor Azahar installed gets it with
   `sudo gamecore-emu install lutris` (`hostAccess.uinput`); until then pads are

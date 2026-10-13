@@ -24,8 +24,8 @@ interface GamecoreStore {
   // Modal focus lock — prevents background screens from consuming gamepad events
   modalDepth: number
 
-  // Power action in flight ('shutdown' | 'restart') — freezes the UI so nothing
-  // jumps back on screen while the OS is powering off
+  // Power action in flight ('rest' | 'shutdown' | 'restart' | 'desktop'):
+  // freezes the UI so nothing jumps back on screen while the OS acts
   powerPending: string | null
 
   /**
@@ -142,6 +142,14 @@ interface GamecoreStore {
    */
   sessionMenuRequest: number
   requestSessionMenu: () => void
+
+  /**
+   * Bumped once per wake from Rest mode (or any sleep). The kernel replays the
+   * theme's boot animation on a change and the shell closes its modals, so the
+   * player lands on Home whatever was open when the box went to sleep.
+   */
+  wakeCount: number
+  wake: () => void
 }
 
 export const useStore = create<GamecoreStore>((set) => ({
@@ -166,6 +174,7 @@ export const useStore = create<GamecoreStore>((set) => ({
   remapRequest: 0,
   gameOptions: null,
   sessionMenuRequest: 0,
+  wakeCount: 0,
 
   goHome: () => set({ screen: 'home', selectedSystemId: null, gridPage: 0, gridFocusIdx: 0 }),
   goLibrary: (id) => set({ screen: 'library', selectedSystemId: id, selectedGameIdx: 0 }),
@@ -192,6 +201,10 @@ export const useStore = create<GamecoreStore>((set) => ({
   requestRemap: () => set(s => ({ remapRequest: s.remapRequest + 1 })),
   setGameOptions: (gameOptions) => set({ gameOptions }),
   requestSessionMenu: () => set(s => ({ sessionMenuRequest: s.sessionMenuRequest + 1 })),
+  wake: () => set(s => ({
+    wakeCount: s.wakeCount + 1, powerPending: null, launchConflict: null,
+    screen: 'home', selectedSystemId: null, gridPage: 0, gridFocusIdx: 0,
+  })),
 }))
 
 /**

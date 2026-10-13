@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useStore, type BackgroundSession } from '../store'
 import { api, type SessionState } from '../api'
 import { fadeToStandby } from '../lib/standbyFade'
+import { onResumed, syncWake } from '../lib/wake'
 
 /** How long the 'interface is back' beat lasts. Purely visual: nothing
  *  is waiting on it, and a theme that draws nothing never sees it. */
@@ -167,7 +168,7 @@ function connect() {
 
   socket = new WebSocket(WS_URL)
 
-  socket.onopen = () => { syncStandby(); syncSession() }
+  socket.onopen = () => { syncStandby(); syncSession(); syncWake() }
 
   socket.onmessage = (e) => {
     try {
@@ -282,11 +283,13 @@ export function useWebSocket() {
     const off4 = onWsEvent('standby:screensaver', () => fadeToStandby('screensaver'))
     const off5 = onWsEvent('standby:sleep', () => fadeToStandby('sleep'))
     const off6 = onWsEvent('standby:exit', () => fadeToStandby('off'))
+    // Rest mode's wake: Home, with the boot animation (App.tsx, DefaultShell).
+    const off9 = onWsEvent('power:resumed', (d) => onResumed(d.resumes))
 
     return () => {
       if (suspendBeat.timer) clearTimeout(suspendBeat.timer)
       if (useStore.getState().transition === 'suspend') useStore.getState().setTransition(null)
-      off1(); off1b(); off2(); off4(); off5(); off6(); off7(); off8()
+      off1(); off1b(); off2(); off4(); off5(); off6(); off7(); off8(); off9()
     }
   }, [])
 }

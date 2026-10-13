@@ -802,6 +802,18 @@ the real power sink — skip this if you don't care):
 your_user ALL=(root) NOPASSWD: /usr/bin/cpupower frequency-set -g powersave, /usr/bin/cpupower frequency-set -g performance
 ```
 
+### Rest mode
+
+The Power menu opens on **Rest mode**: it closes every game and app (the
+suspended ones too), then puts the box to sleep. Press the PS / Guide button on
+a paired Bluetooth pad, or a button on a USB pad, to wake it: the theme's boot
+animation plays with its sound and you land on Home. **Turn off**, **Restart**
+and **Return to desktop** are unchanged.
+
+Whether a pad can wake the box depends on the hardware (the Bluetooth adapter
+and the board's USB wake support). GameCore arms the adapter, USB pads and
+paired Bluetooth pads by itself, at every boot and after an update.
+
 ---
 
 ## OTA updates

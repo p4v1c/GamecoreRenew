@@ -194,6 +194,9 @@
 .jelly-power .gcs-pwr-text b { font-weight: 900; }
 .jelly-power .gcs-pwr-text i { color: var(--set-ink-2); }
 .jelly-power .gcs-pwr-row[data-confirm="1"] .gcs-pwr-text i { color: #fff; }
+/* The confirm row is red: ink, icon and pad glyphs go white (measured 1.2-2.5:1). */
+.jelly-power .gcs-pwr-row[data-confirm="1"] :is(.gcs-pwr-text b, .gcs-pwr-icon) { color: #fff; }
+.jelly-power .gcs-pwr-row[data-confirm="1"] { --gc-pad-cross: #fff; --gc-pad-circle: #fff; }
 .jelly-power .gcs-pwr-hint { color: var(--set-ink); font-weight: 700; }
 
 /* ── controller screen ── */

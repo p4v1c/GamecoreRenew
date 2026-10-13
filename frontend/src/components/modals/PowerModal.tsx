@@ -9,6 +9,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useStore } from '../../store'
 import { onGp } from '../../hooks/useGamepad'
+import { api } from '../../api'
 import DefaultPowerView from './power/DefaultPowerView'
 import { useSharedPowerView } from './power/useSharedPowerView'
 import type { PowerOption, PowerViewProps } from './power/types'
@@ -19,19 +20,20 @@ interface Props {
 }
 
 /**
- * The three ways a session ends, and nothing else.
+ * The four ways a session ends, and nothing else.
  *
  * There is no longer any way for a theme to take a row out. `omit` existed so
  * themes could move "Scan mapping" and "Forget mapping" to their Controllers
  * screen; both actions were removed, and what is left — shutdown, restart,
- * desktop — is exactly the set no theme was ever allowed to drop.
+ * desktop, and now rest — is exactly the set no theme was ever allowed to drop.
  */
 const OPTIONS: PowerOption[] = [
-  // Shutdown before restart, which is the order the design asks for and the
-  // order of how often each is wanted. It leads, so the cursor opens on it:
-  // the two-press confirmation is what stands between that and a
-  // powered-off box, and it is the same for every row here.
-  { id: 'shutdown', label: 'Shut down', busy: 'Shutting down…', icon: '⏻', color: 'var(--set-danger, #ef4444)', desc: 'Power off' },
+  // Rest mode leads and the cursor opens on it, as on a PS5: it is what the
+  // power button is for most evenings. The backend closes every game and app
+  // before the box sleeps; the second press is the warning that it will.
+  { id: 'rest', label: 'Rest mode', busy: 'Going to sleep…', icon: '☾', color: 'var(--set-acc, #e8a33d)', desc: 'Closes games and apps, then sleeps' },
+  // Then the order of how often each is wanted.
+  { id: 'shutdown', label: 'Turn off', busy: 'Turning off…', icon: '⏻', color: 'var(--set-danger, #ef4444)', desc: 'Power off' },
   { id: 'restart',  label: 'Restart',  busy: 'Restarting…',    icon: '↺', color: 'var(--set-warn, #f59e0b)', desc: 'Reboot the system' },
   // Leaving for the desktop is the third way a session ends, and it belonged
   // in the menu the other two are in. It was reachable only from
@@ -55,6 +57,10 @@ const SESSIONS: PowerOption = {
 // If the OS is still alive after this delay the power command failed
 // (no sudo rights, systemctl error…) — unfreeze the UI instead of soft-locking.
 const POWER_FAILSAFE_MS = 10000
+// Rest mode first waits for every game to close (up to ~25 s in
+// backend/services/rest_mode.py) before it asks for sleep.
+const REST_FAILSAFE_MS = 35000
+const REST_REFUSED = 'Couldn’t sleep. Try again, or turn off.'
 
 export default function PowerModal({ onClose, view }: Props) {
   /**
@@ -69,12 +75,18 @@ export default function PowerModal({ onClose, view }: Props) {
   const Shared = useSharedPowerView()
   const View = view ?? Shared ?? DefaultPowerView
   const hasSessions = useStore(s => s.backgroundSessions.length > 0)
-  const options = hasSessions ? [SESSIONS, ...OPTIONS] : OPTIONS
+  // Why the last Rest mode was refused, shown in that row's subtitle: every
+  // theme draws `desc`, so no view needs a new prop for it.
+  const [restError, setRestError] = useState<string | null>(null)
+  const base = hasSessions ? [SESSIONS, ...OPTIONS] : OPTIONS
+  const options = restError
+    ? base.map(o => (o.id === 'rest' ? { ...o, desc: restError } : o))
+    : base
   const optionsRef = useRef(options)
   optionsRef.current = options
 
   const [confirm, setConfirm] = useState<string | null>(null)
-  const [focusIdx, setFocusIdx] = useState(0)
+  const [focusIdx, setFocusIdx] = useState(() => Math.max(0, options.findIndex(o => o.id === 'rest')))
   const { powerPending, setPowerPending } = useStore()
 
   // Stable refs to avoid stale closure in confirm handler
@@ -86,7 +98,8 @@ export default function PowerModal({ onClose, view }: Props) {
   // Failsafe: re-enable the UI if the system never actually powered off
   useEffect(() => {
     if (!powerPending) return
-    const t = setTimeout(() => setPowerPending(null), POWER_FAILSAFE_MS)
+    const t = setTimeout(() => setPowerPending(null),
+                         powerPending === 'rest' ? REST_FAILSAFE_MS : POWER_FAILSAFE_MS)
     return () => clearTimeout(t)
   }, [powerPending, setPowerPending])
 
@@ -103,6 +116,18 @@ export default function PowerModal({ onClose, view }: Props) {
       // which stays for the sentence of explanation this row has no room for.
       window.gamecore?.quit()
       window.close()
+      return
+    }
+    if (id === 'rest') {
+      // The backend owns the whole sequence: close, verify, suspend. A refusal
+      // (no sudoers rule yet) gives the menu back instead of waiting it out.
+      setRestError(null)
+      api.power.rest().catch((e: Error) => {
+        // A bare "503 Service Unavailable" means nothing on a TV.
+        setRestError(e.message && !/^\d{3} /.test(e.message) ? e.message : REST_REFUSED)
+        setPowerPending(null)
+        setConfirm(null)
+      })
       return
     }
     if (window.gamecore) {

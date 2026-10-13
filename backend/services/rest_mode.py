@@ -37,6 +37,9 @@ SUSPEND_TIMEOUT_SECS = 15.0
 REOPEN_AFTER_SECS = 60.0
 
 GATE_REASON = "The box is going to sleep."
+#: Shown in the menu row. The usual cause is a box whose sudoers rule has not
+#: been installed yet (an update that could not run its migration).
+REFUSED = "Couldn’t sleep. Update GameCore, then try again."
 
 _resting = False
 _reopen_task: asyncio.Task | None = None
@@ -160,8 +163,7 @@ async def enter() -> dict:
     if not ok:
         woke()
         log.warning("rest: suspend refused: %s", detail)
-        raise ServiceError(503, "Rest mode is not set up on this box. "
-                                "Update GameCore, or turn it off instead.")
+        raise ServiceError(503, REFUSED)
     log.info("rest: suspend requested")
     _reopen_task = asyncio.create_task(_reopen_later())
     return {"ok": True, "forced": len(survivors)}

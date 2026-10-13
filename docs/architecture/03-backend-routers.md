@@ -267,6 +267,13 @@ on disk; `videos` are clips, `stills` screenshots of games without one (at most
 40). Weighted shuffle: played games come up more. `?favourite=<system>:<file>`
 (repeatable) doubles a game's weight; favourites live in the theme.
 
+## `power.py`
+
+`POST /power/rest` → `rest_mode.enter()`: closes every session, then suspends;
+`{ok, forced}`, 409 while already going to sleep, 503 when `systemctl suspend`
+is refused (no sudoers rule). `GET /power/state` → `{resting, resumes}`;
+`resumes` grows by one per wake (`resume.resume_count()`).
+
 ## `controllers.py`
 
 `GET /controllers/devices` (declared non-SDL peripherals), `GET /controllers/pads`

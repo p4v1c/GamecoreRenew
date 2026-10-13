@@ -450,9 +450,6 @@ for helper in gamecore-session gamecore-session-select gamecore-xsetup gamecore-
     || fail "session migration left an outdated $helper"
 done
 [[ -f /usr/share/xsessions/gamecore.desktop ]] || fail "session entry was not installed"
-# Rest mode rides on the same migration. Not fatal: the box still turns off.
-cmp -s "$GAMECORE_PATH/install/bin/gamecore-wake-setup" /usr/local/bin/gamecore-wake-setup \
-  || echo "[update] WARNING: Rest mode wake helper not installed — see journalctl -u gamecore-session-migrate"
 echo "[update] Console helpers updated; the selected boot session is unchanged."
 
 # The addon CLI lives in /usr/local/bin — a path root controls, so that an

@@ -95,13 +95,17 @@ Every call is a one-way `ipcRenderer.send` except the three `on*` listeners.
 
 | Channel | Handler |
 |---|---|
-| `system:reboot` | `exec('sudo systemctl reboot')` |
-| `system:shutdown` | `exec('sudo systemctl poweroff')` |
+| `system:reboot` | `exec('sudo systemctl reboot')` (`electron/power.js`) |
+| `system:shutdown` | `exec('sudo systemctl poweroff')` (`electron/power.js`) |
 | `system:quit` | `app.quit()` |
 | `overlay:start` | `loadOverlayConfig()` → `startOverlayMonitor()` |
 | `overlay:stop` | `stopOverlayMonitor()` + `destroyOverlayWindow()` |
 | `notify:battery` | `showBatteryToast(data)` |
 | `notify:controller` | `showHudToast(...)` |
+
+`powerMonitor` `resume` (`electron/power.js`, `watchResume`): unless a session
+owns the screen, the main window is set fullscreen again, shown and focused.
+Rest mode itself is the backend's (`POST /api/power/rest`), not an IPC.
 
 ## HUD toasts and untrusted text
 

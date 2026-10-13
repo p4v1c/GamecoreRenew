@@ -18,8 +18,20 @@ with `power/wakeup=enabled` on the adapter's USB device + BlueZ
 
 ## Where I stopped
 
-Milestone 1 (backend + system pieces) committed. Next: frontend menu, resume
-replay, Electron window, docs, screenshots.
+**Done, pending the owner's test on the box.** Backend, system pieces, menu in
+all five themes, wake replay, Electron window, docs, screenshots: committed
+and pushed. Next step is the owner's: update the box from this branch's
+release once merged, open the Power menu, Rest mode, press PS.
+
+What the owner should check on the box (cannot be done here):
+1. `systemctl status gamecore-wake.service` ran at boot; `journalctl -u
+   gamecore-wake` names the AX200 (8087:0029) as "wake enabled".
+2. `cat /sys/class/bluetooth/hci0/device/../power/wakeup` says `enabled`.
+3. `busctl get-property org.bluez /org/bluez/hci0/dev_XX… org.bluez.Device1
+   WakeAllowed` says `b true` (set by the backend, `journalctl -u
+   gamecore-backend | grep bt_wake`).
+4. A game running, Rest mode: the game closes, the box sleeps, PS wakes it, the
+   theme's boot plays with sound, Home is shown, the pad works.
 
 ## Decisions
 
@@ -33,14 +45,48 @@ replay, Electron window, docs, screenshots.
 | BlueZ wake | Backend `services/bt_wake.py`, `busctl set-property … WakeAllowed b true` | Any user may set it on the system bus. Runs at start and whenever a pad not seen before joins the roster, which covers pads paired later. Pads = paired with `Icon` input-gaming, or MAC on GameCore's roster; keyboards/mice never. |
 | Install path | `install/steps/setup-rest-mode.sh`, called from `setup-gamecore-session.sh` | arch.sh runs that step, and every OTA runs it through `gamecore-session-migrate.service`. The old installed migrate helper execs the step from the freshly rsynced tree, so the first update lands everything. |
 
+| Menu | `rest` row first in `PowerModal.OPTIONS`, cursor opens on it (also when "In the background" leads); "Shut down" renamed "Turn off" as the owner listed it; two presses like every row | Every theme draws the host's rows (`createPowerView`), so each theme dresses it in its own CSS with no theme code. No SDK surface added, so no SDK bump. |
+| Refusal | 503 sentence shown in the Rest row's subtitle | No new view prop: every theme already draws `desc`. |
+| Wake replay | `store.wake()` bumps `wakeCount`; `App.tsx` re-keys the splash, `DefaultShell` closes its modals | Themes' splashes play `sdk.system.playSound('boot')` on mount, so a remount replays the sound. |
+| Jelly | confirm row ink, icon and pad glyphs white (1.6.2) | Rest mode made the confirm row the common case; it measured 1.2-2.5:1. |
+
 ## Verified (and how)
 
-- `pytest backend/tests/test_rest_mode.py test_resume.py test_bt_wake.py
-  test_display_restore.py test_wake_setup_helper.py test_rest_mode_install.py`:
-  fakes for processes, signals, suspend, gdbus, busctl and sysfs.
-- Install step run with `DESTDIR` twice (second run changes nothing) and
-  through the session step (the OTA path).
+- Backend: `test_rest_mode.py` (every session gone before suspend, frozen ones
+  thawed then killed, lingering group forced, in-flight launch waited for and
+  killed, launches refused until the wake, refused suspend reopens, router),
+  `test_resume.py` (gdbus lines, wake steps in order, one failing step does not
+  stop the others, fake `gdbus` process), `test_bt_wake.py` (pads only, never
+  keyboard/mouse, roster MACs, busctl calls, new pad triggers a pass),
+  `test_display_restore.py`, `test_wake_setup_helper.py` (the bash helper on a
+  fake sysfs: adapter + pads armed, keyboard/mouse/virtual not, idempotent,
+  udev mode, agrees with `is_pad_keys`), `test_rest_mode_install.py` (DESTDIR,
+  idempotent, sudoers exact line and mode 440, OTA path through the session
+  step, rollback records the new files).
+- Frontend: `PowerModal.test.tsx`, `lib/wake.test.tsx`, shelf/ui tests.
+- Electron: `electron/test/power.test.cjs` (commands, resume re-fullscreen and
+  focus, nothing when a session owns the screen).
+- Screens: `rest-mode-tools/power-shots.cjs` on devserve, all five themes,
+  reviewed twice (Jelly's confirm row fixed after pass 1). Legibility audit,
+  power menu open / confirm / with a suspended game: 0 FAIL in all five.
+- Pre-push list (ruff, shellcheck, gen-catalog, check-catalog, pytest, tsc,
+  vitest, electron bench, check-theme jelly, theme versions, check-docs,
+  file size): see the commit; pytest fails only the 4 known tests on `main`.
+
+Shots (960x540): `rest-mode-tools/shots/<theme>-power.png`, `-power-confirm`,
+`-power-bg` (a suspended game: the session row leads, the cursor is on Rest
+mode), `-wake-splash` (the boot replaying after `power:resumed`),
+`default-power-refused.png`, `default-wake-home.png`.
 
 ## Not verified
 
-- Real suspend/resume: this VM cannot sleep. Everything around it is faked.
+- Real suspend and resume: this VM cannot sleep. Process kills, suspend, gdbus,
+  busctl, sysfs and powerMonitor are all fakes in the tests.
+- That the PS button wakes the box with these settings: measured by the owner
+  by hand with the same two settings, not with this code.
+- Boot sound after a real wake (AudioContext after resume), display mode and
+  window focus after a real resume, NetworkManager reconnecting (GameCore does
+  nothing for it; the settings pages refetch when opened).
+- `systemctl suspend` through the new sudoers rule; `visudo` on the real file.
+- A sleep started outside GameCore (power button, KDE) leaves games running;
+  the wake still lands on Home, the game stays in the session bar.

@@ -1,10 +1,11 @@
 'use strict'
-const { app, BrowserWindow, ipcMain, screen } = require('electron')
+const { app, BrowserWindow, ipcMain, powerMonitor, screen } = require('electron')
 const { exec, spawn } = require('child_process')
 const path = require('path')
 const fs   = require('fs')
 const os   = require('os')
 const hudContract = require('./hud-tokens.json')
+const power = require('./power.js')
 
 // Required on Linux X11 for per-pixel transparency in BrowserWindow
 app.commandLine.appendSwitch('enable-transparent-visuals')
@@ -941,8 +942,7 @@ ipcMain.on('boot:ready', (_, payload) => {
   setBootState(BOOT.RUNNING)
 })
 
-ipcMain.on('system:reboot',   () => exec('sudo systemctl reboot'))
-ipcMain.on('system:shutdown', () => exec('sudo systemctl poweroff'))
+power.registerPowerIpc({ ipcMain, exec })
 
 /**
  * Exit to desktop. In the console session, leaving is a session change: point
@@ -1053,6 +1053,9 @@ app.whenReady().then(async () => {
   // something", and the wait is exactly when there was nothing to see.
   createWindow()
   startOverlayMonitor()
+  // After app ready: powerMonitor cannot be subscribed to before it.
+  power.watchResume({ powerMonitor, getWindow: () => mainWindow,
+                      sessionOwnsScreen: () => sessionOwnsScreen })
 
   await startBackend()
   const up = await waitForBackend(generation)
