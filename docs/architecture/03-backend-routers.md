@@ -269,10 +269,11 @@ on disk; `videos` are clips, `stills` screenshots of games without one (at most
 
 ## `power.py`
 
-`POST /power/rest` → `rest_mode.enter()`: closes every session, then suspends;
-`{ok, forced}`, 409 while already going to sleep, 503 when `systemctl suspend`
-is refused (no sudoers rule). `GET /power/state` → `{resting, resumes}`;
-`resumes` grows by one per wake (`resume.resume_count()`).
+`POST /power/rest` → `rest_mode.enter()`: closes every session, then suspends.
+Answers `{ok, forced}` after the wake (`systemctl suspend` waits for its job),
+409 while already going to sleep, 503 when the suspend is refused (no sudoers
+rule). `GET /power/state` → `{resting, resumes}`; `resumes` grows by one per
+wake (`resume.resume_count()`).
 
 ## `controllers.py`
 

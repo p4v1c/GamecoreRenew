@@ -8,7 +8,7 @@ router = APIRouter(prefix="/power", tags=["power"])
 
 @router.post("/rest")
 async def rest():
-    """Close every game and app, then suspend. Answers once sleep is requested."""
+    """Close every game and app, then suspend. Answers after the wake, or on refusal."""
     return await rest_mode.enter()
 
 

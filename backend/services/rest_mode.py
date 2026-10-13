@@ -31,7 +31,9 @@ FORCE_WAIT_SECS = 2.0
 POLL_SECS = 0.1
 #: Granted by /etc/sudoers.d/gamecore-rest (install/steps/setup-rest-mode.sh).
 SUSPEND_CMD = ("sudo", "-n", "systemctl", "suspend")
-SUSPEND_TIMEOUT_SECS = 15.0
+#: systemctl waits for the suspend job, which ends after the wake; the loop's
+#: clock stops while asleep, so this only bounds the awake part.
+SUSPEND_TIMEOUT_SECS = 60.0
 #: Reopens launches if no wake is ever reported (suspend accepted but skipped).
 #: The event loop clock stops while the box sleeps, so this runs after a wake.
 REOPEN_AFTER_SECS = 60.0
