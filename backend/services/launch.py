@@ -371,11 +371,32 @@ def _start_background_tasks(system: dict, system_id: str) -> None:
 
 
 _launching = False
+# Set while the box goes to sleep (services/rest_mode.py): the sentence a
+# refused launch answers with, or "" when launches are allowed.
+_gate_reason = ""
+
+
+def is_launching() -> bool:
+    """A launch is between its gate and its spawn."""
+    return _launching
+
+
+def close_gate(reason: str) -> None:
+    """Refuse every new launch with `reason` until `open_gate()`."""
+    global _gate_reason
+    _gate_reason = reason
+
+
+def open_gate() -> None:
+    global _gate_reason
+    _gate_reason = ""
 
 
 async def launch(system: dict, system_id: str, rom_path: str, game_key: str) -> dict:
     """Launch `rom_path` (or the app) for `system`. Raises LaunchRefused."""
     global _launching
+    if _gate_reason:
+        raise LaunchRefused(409, _gate_reason)
     # Checked and claimed with no await between: a second launch slipping past
     # ran _prepare over the first, then released the running game's saves.
     if _launching or process_manager.is_foreground:

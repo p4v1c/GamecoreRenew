@@ -363,11 +363,11 @@ describe('Shelf v2 — the power menu', () => {
 
   })
 
-  it('hands over the three session rows, and the pad cannot lose the cursor', async () => {
+  it('hands over the four session rows, and the pad cannot lose the cursor', async () => {
     // "Scan mapping" and "Forget mapping" were removed. What must hold after
     // that: no row is left pointing at them, the d-pad stops on the first and
     // last real rows instead of walking onto nothing, and ✕ on the row under
-    // the cursor arms it rather than firing — the cursor now opens on Shutdown.
+    // the cursor arms it rather than firing — the cursor opens on Rest mode.
     const PowerModal = (await import('../components/modals/PowerModal')).default
     const { render, act } = await import('@testing-library/react')
     const { createElement } = await import('react')
@@ -381,16 +381,16 @@ describe('Shelf v2 — the power menu', () => {
     const gp = (name: string) => act(() => { window.dispatchEvent(new CustomEvent(name)) })
 
     render(createElement(PowerModal, { onClose: vi.fn(), view: Spy as never }))
-    expect(last().ids).toEqual(['shutdown', 'restart', 'desktop'])
+    expect(last().ids).toEqual(['rest', 'shutdown', 'restart', 'desktop'])
     expect(last().focusIdx).toBe(0)
 
     for (let i = 0; i < 5; i++) gp('gp:dpad-down')
-    expect(last().focusIdx).toBe(2)
+    expect(last().focusIdx).toBe(3)
     for (let i = 0; i < 5; i++) gp('gp:dpad-up')
     expect(last().focusIdx).toBe(0)
 
     gp('gp:confirm')
-    expect(last().confirmId).toBe('shutdown')
+    expect(last().confirmId).toBe('rest')
     expect(vi.mocked(fetch)).not.toHaveBeenCalled()
   })
 })

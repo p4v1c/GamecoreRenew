@@ -73,6 +73,11 @@ export default function App() {
   // store — the library cursor included. See components/shellRerender.test.tsx.
   const goHome = useStore(s => s.goHome)
   const sessionGameKey = useStore(s => s.sessionGameKey)
+  const wakeCount = useStore(s => s.wakeCount)
+
+  // A wake from Rest mode plays the boot again, sound included: the theme's
+  // splash plays its `boot` sound on mount, so a fresh key is all it takes.
+  useEffect(() => { if (wakeCount) setSplashDone(false) }, [wakeCount])
 
   const sessionRef = useRef(sessionGameKey)
   useEffect(() => { sessionRef.current = sessionGameKey }, [sessionGameKey])
@@ -211,7 +216,7 @@ export default function App() {
 
       <AnimatePresence>
         {showSplash && (SplashC ? (
-          <div key="splash" style={{ position: 'fixed', inset: 0, zIndex: 9000 }}>
+          <div key={`splash-${wakeCount}`} style={{ position: 'fixed', inset: 0, zIndex: 9000 }}>
             <ErrorBoundary resetKey={theme.resetKey} fallback={<Splash onDone={() => setSplashDone(true)} />}>
               {/* `bootReady` is the SDK 4 half of the contract: the animation
                   may end on a held frame and leave when the host allows it.

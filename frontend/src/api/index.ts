@@ -5,6 +5,8 @@ export type { StorageVolume } from './storage'
 import { logs } from './logs'
 export type { LogsUsage } from './logs'
 import { profiles } from './profiles'
+import { power } from './power'
+export type { PowerState } from './power'
 import { standbyVideos } from './standby'
 export type { StandbyItem, StandbyPlaylist } from './standby'
 export type { Profile, ProfileController, ProfilesState, ProfileFields } from './profiles'
@@ -510,6 +512,7 @@ export const api = {
   },
   logs,
   profiles,
+  power,
   controllers: {
     /**
      * The peripherals that are NOT SDL pads, present or absent.

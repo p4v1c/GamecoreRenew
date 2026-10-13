@@ -1,6 +1,6 @@
 /**
- * The power menu: Shut down, Restart, Return to desktop, led by "In the
- * background" while a session is suspended. One markup; each theme dresses it
+ * The power menu: Rest mode, Turn off, Restart, Return to desktop, led by
+ * "In the background" while a session is suspended. One markup; each theme dresses it
  * from its stylesheet through the `gcs-pwr-*` classes and `data-*` hooks. The host hands over the
  * rows, so no theme can build a box that cannot be turned off.
  *
@@ -12,6 +12,7 @@
 import { PadHints, PadKey } from '../lib/padKey.js'
 const ICONS = {
   sessions: 'M8 5.5v13l10.5-6.5z',
+  rest: 'M19.5 14.5A8 8 0 1 1 9.5 4.5a6.5 6.5 0 0 0 10 10z',
   restart: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5',
   shutdown: 'M12 3v9M6.3 6.3a9 9 0 1 0 11.4 0',
   desktop: 'M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M16 17l5-5-5-5M21 12H9',
@@ -19,7 +20,7 @@ const ICONS = {
 
 // The ids that end a session. A rule separates them from the "In the
 // background" row, the one row here that ends nothing.
-const SESSION = new Set(['restart', 'shutdown', 'desktop'])
+const SESSION = new Set(['rest', 'restart', 'shutdown', 'desktop'])
 
 // `layout: 'row'` lays the rows side by side (Summer); the host binds ← → as
 // well as ↑ ↓, so only the hint changes.

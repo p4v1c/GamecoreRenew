@@ -156,6 +156,14 @@ export default function DefaultShell(parts: ShellParts = {}) {
   const sessionGameKey = useStore(s => s.sessionGameKey)
   const remapRequest = useStore(s => s.remapRequest)
   const launchConflict = useStore(s => s.launchConflict)
+  const wakeCount = useStore(s => s.wakeCount)
+
+  // Back from Rest mode: Home with nothing open, like a console after sleep.
+  useEffect(() => {
+    if (!wakeCount) return
+    setShowPower(false); setShowSettings(false); setShowGamepad(false)
+    setStartInWizard(false); setHomeOptionsGame(null)
+  }, [wakeCount])
 
   // The unrecognised-controller toast asks for the wizard; the shell is what
   // can grant it, because it owns which modal is up. Straight into the wizard

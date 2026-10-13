@@ -190,6 +190,48 @@ fade to black ends) before DPMS, so the TV loses signal on a black frame. It
 waits at most `_UI_DARK_WAIT_SECS` (3 s), not at all with no WebSocket client,
 and does not cut the screen if a press woke the box meanwhile.
 
+## 5b. Rest mode, and the wake
+
+```mermaid
+sequenceDiagram
+    participant ui as PowerModal
+    participant be as rest_mode.enter()
+    participant pm as process_manager
+    participant ld as logind
+    ui->>be: POST /api/power/rest (second press)
+    be->>be: launch.close_gate(), wait for a launch in flight (15 s)
+    be->>pm: kill() every session, frozen ones too
+    be->>be: poll each process group; SIGKILL survivors after 8 s; 2 s more
+    be->>ld: sudo -n systemctl suspend
+    Note over ld: deep sleep; PS button wakes the box over Bluetooth
+    ld-->>be: PrepareForSleep(false) (resume.py, gdbus monitor)
+    be->>be: open the gate, screen on, power:resumed, display mode, pads, BlueZ wake
+    be-->>ui: WS power:resumed (or GET /api/power/state after a reconnect)
+    ui->>ui: store.wake(): Home, modals closed, splash replayed with its boot sound
+```
+
+- Nothing sleeps while a session is alive: every group is checked gone before
+  `systemctl suspend`. A group still there after the forced kill is logged and
+  the box sleeps anyway (a process in D state cannot be killed).
+- **Every sleep closes the games**, not only Rest mode's: the backend holds a
+  logind delay lock for `sleep` (`services/sleep_guard.py`, `systemd-inhibit
+  --mode=delay … cat`, released by closing its stdin). On `PrepareForSleep(true)`
+  it closes the launch gate, runs Rest mode's sweep with shorter waits (6 s,
+  then SIGKILL, 2 s) and releases; logind holds the sleep up to
+  `InhibitDelayMaxSec` (15 s with `/etc/systemd/logind.conf.d/90-gamecore.conf`,
+  5 s without). On the wake it sweeps again (a sleep that outran the lock) and
+  takes the lock back. The Rest mode button sweeps first, so the second sweep
+  finds nothing and releases at once.
+- Power key: the same drop-in sets `HandlePowerKey=suspend`. In GameCore's own
+  session nothing else takes the key (no PowerDevil), so a short press is a
+  sleep with games closed; in a Plasma desktop session PowerDevil keeps its own
+  setting. The long press is the firmware's force-off, untouched.
+- Electron's `powerMonitor` `resume` (`electron/power.js`) only puts the main
+  window back in fullscreen and focus; everything else is the backend's.
+- Wake permission: `gamecore-wake-setup` (root, boot + udev) arms the USB
+  adapter and USB pads; `services/bt_wake.py` sets BlueZ `WakeAllowed=true` on
+  paired pads, at start and whenever a new pad joins the roster.
+
 ## 6. LAN authentication
 
 ```mermaid

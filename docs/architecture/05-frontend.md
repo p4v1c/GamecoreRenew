@@ -160,6 +160,7 @@ and returns an unsubscribe.
 | `gp:controllers` | `battery.run()` | `controllers[]` | battery levels for the controllers screen |
 | `gp:guide` | `gamepad_monitor` | `action` (`backgrounded`, `home`, `failed`), `gesture` | double press: suspends a game; `home` (a pair begun in the interface) opens the session menu in `SessionBar` |
 | `standby:screensaver` / `standby:sleep` / `standby:exit` | `standby._enter()` / `exit_standby()` | — | `frontend/src/lib/standbyFade.ts` crossfades the page into the stage; drives `Screensaver`, or the theme's standby |
+| `power:resumed` | `resume.on_resume()` | `resumes` | `frontend/src/lib/wake.ts` → `store.wake()`: Home, modals closed, splash replayed; `syncWake()` re-reads `GET /api/power/state` on every reconnect |
 | `theme:changed` | `routers/themes.py` | `active` | reloads the theme |
 | `profiles:changed` | `routers/profiles.py` | `active` (the active profile) | `frontend/src/lib/players.ts` re-reads the profiles and the pad roster (`refreshPlayers`) |
 | `update:log` / `update:done` | `routers/update.py` | `line` / `success`, `code` | OTA progress |
@@ -193,7 +194,7 @@ and returns an unsubscribe.
 | `hooks/useLocalWake.ts` | — | mouse move / key press ends standby; shared by both standby screens |
 | `components/OverlayScreen/index.tsx` | 109 | what the transparent Electron overlay window renders |
 | `components/modals/SettingsModal.tsx` | 85 | menu; pages live in `settings/`. **Every id in `ITEMS` needs a matching `page === …` line** — `themes` was missing one and the button was silently dead. |
-| `components/modals/PowerModal.tsx` | 149 | **flow**: Shut down, Restart, Return to desktop (led by In the background), two-press confirm, ↑↓ and ←→ both move, `POWER_FAILSAFE_MS = 10000` |
+| `components/modals/PowerModal.tsx` | — | **flow**: Rest mode (cursor opens on it), Turn off, Restart, Return to desktop (led by In the background), two-press confirm, ↑↓ and ←→ both move, `POWER_FAILSAFE_MS = 10000`, `REST_FAILSAFE_MS = 35000`; Rest mode is `api.power.rest()`, a refusal shows in the row's subtitle |
 | `components/modals/power/DefaultPowerView.tsx` | 68 | **markup** of the default power menu |
 | `components/modals/power/types.ts` | 32 | `PowerViewProps` |
 | `components/modals/GamepadModal.tsx` | 178 | **flow**: the pad being read (the bus's active pad), the roster (`api.controllers.pads`), live state, the △ hold to the wizard |

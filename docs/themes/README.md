@@ -590,6 +590,10 @@ is still allowed, and then every prop below is yours to honour.
 | `skin` | a class on the scrim (`gcs-pwr-scrim <skin>`) your CSS keys on |
 | `layout: 'row'` | rows side by side (Summer) and a ← → hint; the host moves the cursor on ← → as well as ↑ ↓, so nothing else changes |
 
+Rows, in order: *In the background* (only while a session is suspended),
+`rest` (Rest mode, where the cursor opens), `shutdown` (Turn off), `restart`,
+`desktop`. Summer's row layout holds up to five tiles.
+
 Hooks: `.gcs-pwr`, `.gcs-pwr-title`, `.gcs-pwr-list`, `.gcs-pwr-sep` (the
 rule after *In the background*), `.gcs-pwr-row[data-id][data-on][data-confirm][data-dim]`,
 `.gcs-pwr-icon`, `.gcs-pwr-text b/i`, `.gcs-pwr-hint`. No Cancel button: ○ closes,

@@ -1,5 +1,5 @@
 'use strict'
-const { app, BrowserWindow, ipcMain, screen } = require('electron')
+const { app, BrowserWindow, ipcMain, powerMonitor, screen } = require('electron')
 const { exec, spawn } = require('child_process')
 const path = require('path')
 const fs   = require('fs')
@@ -941,8 +941,8 @@ ipcMain.on('boot:ready', (_, payload) => {
   setBootState(BOOT.RUNNING)
 })
 
-ipcMain.on('system:reboot',   () => exec('sudo systemctl reboot'))
-ipcMain.on('system:shutdown', () => exec('sudo systemctl poweroff'))
+require('./power.js').register({ app, ipcMain, exec, powerMonitor,
+  getWindow: () => mainWindow, sessionOwnsScreen: () => sessionOwnsScreen })
 
 /**
  * Exit to desktop. In the console session, leaving is a session change: point
