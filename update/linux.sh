@@ -450,6 +450,9 @@ for helper in gamecore-session gamecore-session-select gamecore-xsetup gamecore-
     || fail "session migration left an outdated $helper"
 done
 [[ -f /usr/share/xsessions/gamecore.desktop ]] || fail "session entry was not installed"
+# Rest mode rides on the same migration. Not fatal: the box still turns off.
+cmp -s "$GAMECORE_PATH/install/bin/gamecore-wake-setup" /usr/local/bin/gamecore-wake-setup \
+  || echo "[update] WARNING: Rest mode wake helper not installed — see journalctl -u gamecore-session-migrate"
 echo "[update] Console helpers updated; the selected boot session is unchanged."
 
 # The addon CLI lives in /usr/local/bin — a path root controls, so that an
@@ -552,11 +555,12 @@ sudo_rules="$(sudo -n -l 2>/dev/null || true)"
 # The rules to expect are READ FROM THE INSTALLERS THIS UPDATE JUST SHIPPED,
 # never typed here. A hardcoded list would cover the two rules that happened to
 # be missing the day this was written and go stale on the third — which is the
-# very drift it exists to catch. arch.sh and setup-update-permissions.sh are the
-# only writers of sudoers rules, and they are both in the OTA archive.
+# very drift it exists to catch. arch.sh, setup-update-permissions.sh and
+# setup-rest-mode.sh write the rules this checks, all in the OTA archive.
 expected_cmds="$(grep -rhoE 'NOPASSWD: *[^"]*' \
                    "${GAMECORE_PATH}/install/arch.sh" \
-                   "${GAMECORE_PATH}/install/steps/setup-update-permissions.sh" 2>/dev/null \
+                   "${GAMECORE_PATH}/install/steps/setup-update-permissions.sh" \
+                   "${GAMECORE_PATH}/install/steps/setup-rest-mode.sh" 2>/dev/null \
                  | sed 's/NOPASSWD: *//' \
                  | tr ',' '\n' \
                  | grep -oE '/[a-zA-Z0-9/._-]+' \

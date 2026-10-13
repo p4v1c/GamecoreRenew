@@ -24,7 +24,8 @@ logging.basicConfig(level=logging.DEBUG if DEBUG else logging.WARNING)
 # back", and there was no way to tell a handover that happened from one that
 # never ran.
 for _observable in ("backend.services.standby", "backend.services.gamepad_monitor",
-                    "backend.services.desktop_power"):
+                    "backend.services.desktop_power", "backend.services.rest_mode",
+                    "backend.services.resume", "backend.services.bt_wake"):
     logging.getLogger(_observable).setLevel(logging.INFO)
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -44,10 +45,11 @@ from .routers import themes as themes_router
 from .routers import storage as storage_router
 from .routers import logs as logs_router
 from .routers import profiles as profiles_router
+from .routers import power as power_router
 from .routers.settings import wifi, audio, bluetooth, display
-from .services import (battery, boot, desktop_power, gamepad_monitor, http_cache, logs,
-                       playtime_repair, prefetch, standby, standby_videos,
-                       storage_monitor)
+from .services import (battery, boot, bt_wake, desktop_power, gamepad_monitor, http_cache,
+                       logs, playtime_repair, prefetch, resume, standby,
+                       standby_videos, storage_monitor)
 from .services.errors import ServiceError
 from .services.process_manager import process_manager
 from .config import BACKEND_PORT
@@ -177,6 +179,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(standby_videos.run()),
         asyncio.create_task(storage_monitor.run()),
         asyncio.create_task(logs.run()),
+        asyncio.create_task(resume.run()),
+        asyncio.create_task(bt_wake.run()),
     ]
     yield
     # Handed back on the way out: a backend that stops and does not come back
@@ -297,6 +301,7 @@ app.include_router(controllers_router.router, prefix="/api")
 app.include_router(storage_router.router, prefix="/api")
 app.include_router(logs_router.router, prefix="/api")
 app.include_router(profiles_router.router, prefix="/api")
+app.include_router(power_router.router, prefix="/api")
 app.include_router(themes_router.router, prefix="/api")
 app.include_router(wifi.router, prefix="/api")
 app.include_router(audio.router, prefix="/api")

@@ -117,7 +117,17 @@ def _no_real_commands_from_the_suite():
     async def no_desktop(*argv, **kw):
         return 1, ""
 
-    originals = (standby._run_cmd, desktop_power._run)
+    # Rest mode's lifespan tasks: the real BlueZ would get WakeAllowed set on
+    # the developer's own pads, and gdbus would follow the real logind.
+    from backend.services import bt_wake, resume
+
+    async def no_bluez(*argv, **kw):
+        return 1, "no bus under test"
+
+    originals = (standby._run_cmd, desktop_power._run, bt_wake._busctl,
+                 resume.LOGIND_MONITOR)
     standby._run_cmd, desktop_power._run = refuse, no_desktop
+    bt_wake._busctl, resume.LOGIND_MONITOR = no_bluez, ("true",)
     yield
-    standby._run_cmd, desktop_power._run = originals
+    (standby._run_cmd, desktop_power._run, bt_wake._busctl,
+     resume.LOGIND_MONITOR) = originals

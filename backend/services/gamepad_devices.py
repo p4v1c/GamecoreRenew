@@ -70,6 +70,15 @@ def _report_denied(denied: int, total: int) -> None:
         "config, and no guide shortcut, in the menu as well as in games.",
         denied, total)
 
+def is_pad_keys(keys) -> bool:
+    """A real pad: declares BTN_SOUTH and is not a keyboard.
+
+    Mirrored in bash by install/bin/gamecore-wake-setup (Rest mode wake);
+    backend/tests/test_wake_setup_helper.py keeps the two in step.
+    """
+    return BTN_SOUTH in keys and not KEYBOARD_KEYS <= set(keys)
+
+
 def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str, int]]:
     """
     Map path → (name, uniq, is_pad, vendor, product) for event devices that
@@ -134,7 +143,7 @@ def _find_gamepad_devices() -> dict[str, tuple[str, str, bool, str, str, int]]:
             bustype = getattr(info, "bustype", 0)
             dev.close()
             has_guide = any(code in GUIDE_CODES for code in keys)
-            is_pad = BTN_SOUTH in keys and not KEYBOARD_KEYS <= set(keys)
+            is_pad = is_pad_keys(keys)
             # `or is_pad` is the second half of this test, and it was missing:
             # a device had to declare a Guide/Home code to be seen at all. A pad
             # without a Home button — a generic USB pad, an arcade stick, a SNES

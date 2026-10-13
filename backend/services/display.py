@@ -418,3 +418,34 @@ async def revert_now() -> dict:
         if not ok:
             raise DisplayError(500, detail or "Could not restore the previous mode.")
     return {"ok": True, "reverted": True}
+
+
+def _same_mode(a: dict, b: dict) -> bool:
+    return (a["width"], a["height"]) == (b["width"], b["height"]) \
+        and abs(a["rate"] - b["rate"]) < 0.01
+
+
+async def restore_preferred() -> bool:
+    """Put the confirmed mode back if a wake left the output on another one.
+
+    A TV that was off while the box slept can hand X a different mode on
+    resume. No revert timer: the player confirmed this mode already. Returns
+    True when a mode was applied.
+    """
+    wanted = preferred_mode()
+    if wanted is None or _pending is not None or process_manager.is_running:
+        return False
+    async with _mode_lock:
+        data = await read_state()
+        current = data.get("current")
+        if not data["output"] or not current or _same_mode(current, wanted):
+            return False
+        if wanted["output"] and wanted["output"] != data["output"]:
+            return False
+        mode = next((m for m in data["modes"] if _same_mode(m, wanted)), None)
+        if mode is None:
+            return False
+        ok, detail = await _apply(data["backend"], data["output"], mode)
+    log.info("display: restored %sx%s@%s after a wake (%s)", wanted["width"],
+             wanted["height"], wanted["rate"], "ok" if ok else detail)
+    return ok

@@ -1,0 +1,167 @@
+"""Rest mode: close everything that runs, then put the box to sleep.
+
+The order is the feature. A box that sleeps with a game alive wakes into it,
+and a frozen emulator holding the GPU across a suspend is the case most likely
+to come back broken. So nothing sleeps until every session, suspended ones
+included, is gone: killed, waited for, and SIGKILLed again if it lingers.
+
+Launches are refused from the first step to the wake (`launch.close_gate`),
+so a launch racing the menu cannot start a game after the sweep.
+"""
+import asyncio
+import logging
+import os
+import signal
+import time
+
+from . import launch
+from . import process_manager as pm
+from .errors import ServiceError
+from .process_manager import process_manager
+
+log = logging.getLogger(__name__)
+
+#: A launch already past its gate gets this long to spawn, so the sweep sees it.
+#: Covers the pad-profile wait (8 s) and the pack prepare hook (3 s).
+LAUNCH_SETTLE_SECS = 15.0
+#: How long killed sessions may take to disappear before they are forced.
+EXIT_WAIT_SECS = 8.0
+#: The grace after the forced SIGKILL, before sleeping anyway.
+FORCE_WAIT_SECS = 2.0
+POLL_SECS = 0.1
+#: Granted by /etc/sudoers.d/gamecore-rest (install/steps/setup-rest-mode.sh).
+SUSPEND_CMD = ("sudo", "-n", "systemctl", "suspend")
+SUSPEND_TIMEOUT_SECS = 15.0
+#: Reopens launches if no wake is ever reported (suspend accepted but skipped).
+#: The event loop clock stops while the box sleeps, so this runs after a wake.
+REOPEN_AFTER_SECS = 60.0
+
+GATE_REASON = "The box is going to sleep."
+
+_resting = False
+_reopen_task: asyncio.Task | None = None
+
+
+def is_resting() -> bool:
+    """True from the menu press until the box is awake again."""
+    return _resting
+
+
+def _resident() -> list[pm.Session]:
+    """Every live session: the one on screen and the frozen ones."""
+    fg = process_manager.foreground_session
+    return ([fg] if fg else []) + process_manager.background_sessions
+
+
+def _alive(pgid: int) -> bool:
+    # The group, not the leader: an emulator's children outlive a dead wrapper.
+    return pm._pgid_alive(pgid)
+
+
+async def _wait_gone(pgids: list[int], budget: float) -> list[int]:
+    """Poll until no group is alive or `budget` runs out. Returns survivors."""
+    deadline = time.monotonic() + budget
+    alive = [p for p in pgids if _alive(p)]
+    while alive and time.monotonic() < deadline:
+        await asyncio.sleep(POLL_SECS)
+        alive = [p for p in alive if _alive(p)]
+    return alive
+
+
+async def _settle_launch() -> None:
+    """Let a launch that passed its gate before ours finish spawning."""
+    deadline = time.monotonic() + LAUNCH_SETTLE_SECS
+    while launch.is_launching() and time.monotonic() < deadline:
+        await asyncio.sleep(POLL_SECS)
+    if launch.is_launching():
+        log.warning("rest: a launch is still preparing after %ss; sweeping anyway",
+                    LAUNCH_SETTLE_SECS)
+
+
+def _force_kill(pgids: list[int]) -> None:
+    own = os.getpgid(0)
+    for pgid in pgids:
+        if pgid <= 1 or pgid == own:
+            continue
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except OSError:
+            pass
+
+
+async def close_everything() -> list[int]:
+    """Kill every session and wait for each group to be gone.
+
+    Returns the process groups that outlived the forced kill (normally none).
+    """
+    sessions = _resident()
+    pgids = [s.pgid for s in sessions if s.pgid]
+    for s in sessions:
+        log.info("rest: closing %s (%s)", s.game_key or "?", s.system_id)
+        try:
+            await process_manager.kill(s.session_id)
+        except Exception:
+            log.exception("rest: could not close %s", s.game_key or "?")
+    survivors = await _wait_gone(pgids, EXIT_WAIT_SECS)
+    if not survivors:
+        return []
+    log.warning("rest: %d group(s) still alive after %ss, forcing: %s",
+                len(survivors), EXIT_WAIT_SECS, survivors)
+    _force_kill(survivors)
+    survivors = await _wait_gone(survivors, FORCE_WAIT_SECS)
+    if survivors:
+        log.error("rest: groups %s survived SIGKILL; sleeping anyway", survivors)
+    return survivors
+
+
+async def _suspend() -> tuple[bool, str]:
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *SUSPEND_CMD, stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT)
+        out, _ = await asyncio.wait_for(proc.communicate(), SUSPEND_TIMEOUT_SECS)
+    except (OSError, asyncio.TimeoutError) as e:
+        return False, str(e) or type(e).__name__
+    return proc.returncode == 0, (out or b"").decode(errors="replace").strip()
+
+
+def woke() -> None:
+    """The box is awake: launches are allowed again."""
+    global _resting, _reopen_task
+    if _reopen_task is not None and not _reopen_task.done():
+        _reopen_task.cancel()
+    _reopen_task = None
+    _resting = False
+    launch.open_gate()
+
+
+async def _reopen_later() -> None:
+    await asyncio.sleep(REOPEN_AFTER_SECS)
+    if _resting:
+        log.warning("rest: no wake reported %ss after suspending; reopening launches",
+                    REOPEN_AFTER_SECS)
+        woke()
+
+
+async def enter() -> dict:
+    """Close everything, then suspend. Raises ServiceError when sleep is refused."""
+    global _resting, _reopen_task
+    if _resting:
+        raise ServiceError(409, "The box is already going to sleep.")
+    _resting = True
+    launch.close_gate(GATE_REASON)
+    try:
+        await _settle_launch()
+        survivors = await close_everything()
+        ok, detail = await _suspend()
+    except BaseException:
+        woke()
+        raise
+    if not ok:
+        woke()
+        log.warning("rest: suspend refused: %s", detail)
+        raise ServiceError(503, "Rest mode is not set up on this box. "
+                                "Update GameCore, or turn it off instead.")
+    log.info("rest: suspend requested")
+    _reopen_task = asyncio.create_task(_reopen_later())
+    return {"ok": True, "forced": len(survivors)}
