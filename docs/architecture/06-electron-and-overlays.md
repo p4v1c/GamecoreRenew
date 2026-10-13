@@ -103,7 +103,7 @@ Every call is a one-way `ipcRenderer.send` except the three `on*` listeners.
 | `notify:battery` | `showBatteryToast(data)` |
 | `notify:controller` | `showHudToast(...)` |
 
-`powerMonitor` `resume` (`electron/power.js`, `watchResume`): unless a session
+`powerMonitor` `resume` (`electron/power.js`, `watchResume`, registered with the IPC by `register()` and subscribed once the app is ready): unless a session
 owns the screen, the main window is set fullscreen again, shown and focused.
 Rest mode itself is the backend's (`POST /api/power/rest`), not an IPC.
 

@@ -39,6 +39,10 @@ def steps(monkeypatch):
         return step
 
     monkeypatch.setattr(resume.rest_mode, "woke", lambda: seen.append("gate"))
+    monkeypatch.setattr(resume.sleep_guard, "after_wake", note("sweep"))
+    monkeypatch.setattr(resume.sleep_guard, "before_sleep", note("close"))
+    monkeypatch.setattr(resume.sleep_guard, "take", note("lock"))
+    monkeypatch.setattr(resume.sleep_guard, "release", note("unlock"))
     monkeypatch.setattr(resume.standby, "exit_standby", note("screen"))
     monkeypatch.setattr(resume.display, "restore_preferred", note("display"))
     monkeypatch.setattr(resume.gamepad_monitor, "request_reprofile",
@@ -52,7 +56,8 @@ def steps(monkeypatch):
 
 def test_a_wake_reopens_lights_announces_and_redetects(steps):
     asyncio.run(resume.on_resume())
-    assert steps == ["gate", "screen", "power:resumed", "display", "pads", "bluetooth"]
+    assert steps == ["sweep", "gate", "screen", "power:resumed", "display", "pads",
+                     "bluetooth"]
     assert resume.resume_count() == 1
 
 
@@ -64,7 +69,7 @@ def test_one_failed_step_does_not_cost_the_others(steps, monkeypatch):
     assert "power:resumed" in steps and "bluetooth" in steps and "pads" in steps
 
 
-def test_the_monitor_acts_on_the_wake_and_not_on_the_sleep(steps, monkeypatch):
+def test_the_sleep_closes_games_and_the_wake_puts_the_box_back(steps, monkeypatch):
     script = f"printf '%s\\n' {shlex.quote(SLEEP)} {shlex.quote(WAKE)}"
     monkeypatch.setattr(resume, "LOGIND_MONITOR", ("sh", "-c", script))
     monkeypatch.setattr(resume, "RESTART_SECS", 30.0)
@@ -81,6 +86,8 @@ def test_the_monitor_acts_on_the_wake_and_not_on_the_sleep(steps, monkeypatch):
     asyncio.run(scenario())
     assert resume.resume_count() == 1
     assert steps.count("power:resumed") == 1
+    # Lock while listening, the sweep on the sleep, all before the wake's steps.
+    assert steps[:3] == ["lock", "close", "sweep"]
 
 
 def test_no_gdbus_is_a_warning_not_a_crash(monkeypatch, caplog):

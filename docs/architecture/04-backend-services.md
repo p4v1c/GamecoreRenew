@@ -165,7 +165,10 @@ HUD instead, because the React toast is hidden under the emulator.
 | `rest_mode.close_everything()` | `process_manager.kill()` per session, poll groups (`EXIT_WAIT_SECS`), SIGKILL survivors (`FORCE_WAIT_SECS`) |
 | `rest_mode.woke()` | reopen launches; also after `REOPEN_AFTER_SECS` if no wake is reported |
 | `launch.close_gate(reason)` / `open_gate()` / `is_launching()` | the gate `launch()` checks first |
-| `resume.run()` | `gdbus monitor` on logind; `parse_sleep_signal(line)` is pure |
+| `resume.run()` | `gdbus monitor` on logind; `parse_sleep_signal(line)` is pure; holds `sleep_guard`'s lock while it listens |
+| `sleep_guard.take()` / `release()` | the logind delay lock for sleep (`systemd-inhibit … cat`; released by closing stdin) |
+| `sleep_guard.before_sleep()` | `PrepareForSleep(true)`: gate, `close_everything(6, 2)` bounded by `SLEEP_BUDGET_SECS` (12 s), then release, always |
+| `sleep_guard.after_wake()` | sweep again after a sleep, take the lock back (first step of `on_resume()`) |
 | `resume.on_resume()` | gate, `standby.exit_standby()`, `power:resumed`, `display.restore_preferred()`, `gamepad_monitor.request_reprofile()`, `bt_wake.allow_paired_pads()`; each step isolated |
 | `bt_wake.pads_to_arm(objects, roster_macs)` | **pure**: paired devices with `Icon` input-gaming or a roster MAC, never keyboard/mouse, whose `WakeAllowed` is false |
 | `bt_wake.run()` | a pass at start, then whenever a new pad MAC joins `gamepad_monitor.roster()` |

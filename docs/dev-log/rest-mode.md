@@ -32,6 +32,35 @@ What the owner should check on the box (cannot be done here):
    gamecore-backend | grep bt_wake`).
 4. A game running, Rest mode: the game closes, the box sleeps, PS wakes it, the
    theme's boot plays with sound, Home is shown, the pad works.
+5. `systemd-inhibit --list` shows GameCore's `sleep` delay lock; a game
+   running, then `systemctl suspend` from SSH: the game is gone after the wake.
+6. In the GameCore session, `systemd-inhibit --list` shows nobody holding
+   `handle-power-key`; a short press of the case button sleeps (games closed).
+7. `systemd-analyze cat-config systemd/logind.conf` shows `90-gamecore.conf`.
+
+## Follow-up: every sleep closes the games, and the power key
+
+The owner asked for games to be killed on every way the box sleeps (power
+button, KDE menu, idle, `systemctl suspend` from anywhere), and for a short
+press of the case button to be Rest mode.
+
+| Question | Choice | Why |
+|---|---|---|
+| Hook | logind delay lock for `sleep`, held by `systemd-inhibit --what=sleep --mode=delay … cat` (`services/sleep_guard.py`) | The lock is an fd; `cat` keeps `systemd-inhibit` alive until its stdin closes, so releasing is closing a pipe, and a dead backend releases it too. No D-Bus binding needed, same subprocess style as `resume.py`. Delay locks for sleep need no privilege. |
+| When | Taken while the gdbus monitor runs (released if it dies, so sleeps are never delayed for nobody); on `PrepareForSleep(true)`: gate, Rest mode's sweep with 6 s + SIGKILL + 2 s, bounded at 12 s, release in `finally`; on the wake: sweep again, take it back | A sleep that outran the lock (logind's own limit) or a launch that slipped in is closed before the UI comes back, so the wake never lands in a game. |
+| Budget | `InhibitDelayMaxSec=15` in `/etc/systemd/logind.conf.d/90-gamecore.conf` | logind's default 5 s is shorter than one Flatpak's `flatpak kill` plus a grace. 15 s is the most a sleep waits, normally well under 1 s (SIGKILL is immediate). |
+| Rest button | Unchanged path: it sweeps with its long waits, then `systemctl suspend`; logind's `PrepareForSleep(true)` makes sleep_guard sweep an empty box and release | No double kill (nothing left), no deadlock (the sweep never waits on systemctl). Tested with both in one run. |
+| Power key | `HandlePowerKey=suspend` in the same drop-in | In GameCore's session the compositor is a bare `kwin_x11` (`install/bin/gamecore-session`) and nothing starts PowerDevil (see `services/desktop_power.py`), so nobody takes the `handle-power-key` lock and logind acts: a sleep, with games closed by the lock. In a Plasma desktop session PowerDevil holds the key and its own setting applies. `HandlePowerKeyLongPress` is left alone; the 4 s hold is the firmware's force-off anyway. |
+| Applying it | `systemctl reload systemd-logind` only if the unit says `CanReload=yes` (systemd 254+, SIGHUP); otherwise at the next boot. Never a restart | Restarting logind ends every session, the TV's included. On a logind that does not handle SIGHUP, the signal would kill it, hence the check instead of a bare `systemctl kill -s HUP`. |
+
+Verified with fakes: `test_sleep_guard.py` (lock held and released by EOF,
+sweep then release, release even on a slow or failing sweep, wake sweeps
+again and re-locks, button + lock together kill once), `test_resume.py` (lock
+while listening, sweep on the sleep line before the wake's steps),
+`test_rest_mode_install.py` (drop-in installed, idempotent, exact keys, logind
+reloaded only when it can be, never restarted). Not verified: a real logind
+holding a real sleep for the lock, the real power key, PowerDevil in the
+desktop session, `systemctl reload systemd-logind` on Manjaro's systemd.
 
 ## Decisions
 
@@ -87,5 +116,5 @@ mode), `-wake-splash` (the boot replaying after `power:resumed`),
   window focus after a real resume, NetworkManager reconnecting (GameCore does
   nothing for it; the settings pages refetch when opened).
 - `systemctl suspend` through the new sudoers rule; `visudo` on the real file.
-- A sleep started outside GameCore (power button, KDE) leaves games running;
-  the wake still lands on Home, the game stays in the session bar.
+- A sleep started outside GameCore now closes games through the lock (see the
+  follow-up), verified with fakes only.

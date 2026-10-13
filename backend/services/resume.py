@@ -1,9 +1,10 @@
 """Notice the box waking up, and put back what a sleep can break.
 
-The signal is logind's `PrepareForSleep(false)`, read from `gdbus monitor` on
+The signal is logind's `PrepareForSleep`, read from `gdbus monitor` on
 the system bus. logind sends it for every suspend, Rest mode or not (power
-button, desktop menu), and the backend is the process that has to act on it:
-the screen, the pads and the launch gate are its state. The interface learns
+button, desktop menu, lid, idle), and the backend is the process that has to
+act on it. `true` closes every game while sleep_guard's delay lock holds the
+sleep back; `false` puts the screen, pads and launch gate back. The interface learns
 it from the `power:resumed` event, and from `GET /api/power/state` after a
 socket that dropped across the sleep.
 """
@@ -13,7 +14,7 @@ import re
 import shutil
 
 from .. import ws
-from . import bt_wake, display, gamepad_monitor, rest_mode, standby
+from . import bt_wake, display, gamepad_monitor, rest_mode, sleep_guard, standby
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ async def on_resume() -> None:
     global _resumes
     _resumes += 1
     log.info("resume: the box is awake (wake %d)", _resumes)
+    await _step("close what survived the sleep", sleep_guard.after_wake())
     rest_mode.woke()
     await _step("screen", standby.exit_standby())
     await _step("announce", ws.broadcast("power:resumed", {"resumes": _resumes}))
@@ -65,6 +67,7 @@ async def _read(proc) -> None:
         state = parse_sleep_signal(raw.decode(errors="replace"))
         if state is True:
             log.info("resume: logind says the box is going to sleep")
+            await sleep_guard.before_sleep()
         elif state is False:
             await on_resume()
 
@@ -79,9 +82,13 @@ async def run() -> None:
         proc = await asyncio.create_subprocess_exec(
             *LOGIND_MONITOR, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL)
+        # The lock only while someone listens: a lock with no monitor behind it
+        # would delay every sleep for nothing.
+        await sleep_guard.take()
         try:
             await _read(proc)
         finally:
+            await sleep_guard.release()
             if proc.returncode is None:
                 proc.kill()
                 await proc.wait()

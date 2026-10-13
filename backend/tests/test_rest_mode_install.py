@@ -14,7 +14,8 @@ STEP = REPO / "install" / "steps" / "setup-rest-mode.sh"
 SESSION_STEP = REPO / "install" / "steps" / "setup-gamecore-session.sh"
 PIECES = ("etc/sudoers.d/gamecore-rest", "usr/local/bin/gamecore-wake-setup",
           "etc/systemd/system/gamecore-wake.service",
-          "etc/udev/rules.d/90-gamecore-wake.rules")
+          "etc/udev/rules.d/90-gamecore-wake.rules",
+          "etc/systemd/logind.conf.d/90-gamecore.conf")
 
 
 def _run(cmd, root: Path):
@@ -71,3 +72,20 @@ def test_the_unit_runs_the_installed_helper():
     assert "ExecStart=/usr/local/bin/gamecore-wake-setup\n" in unit
     rule = (REPO / "install/system/90-gamecore-wake.rules").read_text()
     assert rule.count("/usr/local/bin/gamecore-wake-setup --device %S%p") == 2
+
+
+def test_the_logind_drop_in_sleeps_on_a_short_press_and_waits_for_the_sweep():
+    from backend.services import sleep_guard
+    conf = (REPO / "install/system/logind-gamecore.conf").read_text()
+    keys = dict(line.split("=", 1) for line in conf.splitlines()
+                if "=" in line and not line.startswith("#"))
+    assert keys == {"HandlePowerKey": "suspend", "InhibitDelayMaxSec": "15"}
+    assert "HandlePowerKeyLongPress" not in conf, "the long press is the firmware's"
+    assert sleep_guard.SLEEP_BUDGET_SECS < int(keys["InhibitDelayMaxSec"])
+
+
+def test_logind_is_reloaded_only_when_it_can_be_and_never_restarted():
+    step = STEP.read_text()
+    assert "systemctl restart systemd-logind" not in step
+    assert "kill -s HUP" not in step
+    assert "CanReload" in step and "systemctl reload systemd-logind.service" in step

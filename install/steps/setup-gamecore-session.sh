@@ -212,7 +212,8 @@ fi
 # without it still turns off and restarts.
 for dest in "${DESTDIR}/etc/sudoers.d/gamecore-rest" "$BIN_DIR/gamecore-wake-setup" \
             "${DESTDIR}/etc/systemd/system/gamecore-wake.service" \
-            "${DESTDIR}/etc/udev/rules.d/90-gamecore-wake.rules"; do
+            "${DESTDIR}/etc/udev/rules.d/90-gamecore-wake.rules" \
+            "${DESTDIR}/etc/systemd/logind.conf.d/90-gamecore.conf"; do
   backup "$dest"
 done
 bash "$HERE/setup-rest-mode.sh" "$GC_USER" \

@@ -213,9 +213,19 @@ sequenceDiagram
 - Nothing sleeps while a session is alive: every group is checked gone before
   `systemctl suspend`. A group still there after the forced kill is logged and
   the box sleeps anyway (a process in D state cannot be killed).
-- `resume.py` follows logind, not the menu: a sleep from the power button or
-  the desktop also wakes the UI on Home with the splash. It does not close
-  games for those sleeps.
+- **Every sleep closes the games**, not only Rest mode's: the backend holds a
+  logind delay lock for `sleep` (`services/sleep_guard.py`, `systemd-inhibit
+  --mode=delay … cat`, released by closing its stdin). On `PrepareForSleep(true)`
+  it closes the launch gate, runs Rest mode's sweep with shorter waits (6 s,
+  then SIGKILL, 2 s) and releases; logind holds the sleep up to
+  `InhibitDelayMaxSec` (15 s with `/etc/systemd/logind.conf.d/90-gamecore.conf`,
+  5 s without). On the wake it sweeps again (a sleep that outran the lock) and
+  takes the lock back. The Rest mode button sweeps first, so the second sweep
+  finds nothing and releases at once.
+- Power key: the same drop-in sets `HandlePowerKey=suspend`. In GameCore's own
+  session nothing else takes the key (no PowerDevil), so a short press is a
+  sleep with games closed; in a Plasma desktop session PowerDevil keeps its own
+  setting. The long press is the firmware's force-off, untouched.
 - Electron's `powerMonitor` `resume` (`electron/power.js`) only puts the main
   window back in fullscreen and focus; everything else is the backend's.
 - Wake permission: `gamecore-wake-setup` (root, boot + udev) arms the USB

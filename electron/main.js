@@ -5,7 +5,6 @@ const path = require('path')
 const fs   = require('fs')
 const os   = require('os')
 const hudContract = require('./hud-tokens.json')
-const power = require('./power.js')
 
 // Required on Linux X11 for per-pixel transparency in BrowserWindow
 app.commandLine.appendSwitch('enable-transparent-visuals')
@@ -942,7 +941,8 @@ ipcMain.on('boot:ready', (_, payload) => {
   setBootState(BOOT.RUNNING)
 })
 
-power.registerPowerIpc({ ipcMain, exec })
+require('./power.js').register({ app, ipcMain, exec, powerMonitor,
+  getWindow: () => mainWindow, sessionOwnsScreen: () => sessionOwnsScreen })
 
 /**
  * Exit to desktop. In the console session, leaving is a session change: point
@@ -1053,9 +1053,6 @@ app.whenReady().then(async () => {
   // something", and the wait is exactly when there was nothing to see.
   createWindow()
   startOverlayMonitor()
-  // After app ready: powerMonitor cannot be subscribed to before it.
-  power.watchResume({ powerMonitor, getWindow: () => mainWindow,
-                      sessionOwnsScreen: () => sessionOwnsScreen })
 
   await startBackend()
   const up = await waitForBackend(generation)

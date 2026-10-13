@@ -208,7 +208,11 @@ session and stop with it.
 Bluetooth adapter and on USB pads, so Rest mode can be woken by a pad. The
 attribute resets at every boot and replug; `/etc/udev/rules.d/90-gamecore-wake.rules`
 (source `install/system/90-gamecore-wake.rules`) re-runs the helper for a pad or
-adapter plugged in later. Installed by `install/steps/setup-rest-mode.sh`, see
+adapter plugged in later. `/etc/systemd/logind.conf.d/90-gamecore.conf` (source
+`install/system/logind-gamecore.conf`): power key short press = suspend, and
+`InhibitDelayMaxSec=15` for the backend's sleep lock. Changed only by a logind
+**reload** where logind supports it; never a restart, which would end the
+session. Installed by `install/steps/setup-rest-mode.sh`, see
 [Rest mode](02-request-flows.md#5b-rest-mode-and-the-wake).
 
 ## The session the kiosk runs in

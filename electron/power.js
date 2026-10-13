@@ -37,4 +37,11 @@ function watchResume({ powerMonitor, getWindow, sessionOwnsScreen, log = console
   return true
 }
 
-module.exports = { registerPowerIpc, watchResume }
+/** Both, from main.js: the resume hook waits for app ready, before which
+ *  powerMonitor cannot be subscribed to. */
+function register({ app, ipcMain, exec, powerMonitor, getWindow, sessionOwnsScreen }) {
+  registerPowerIpc({ ipcMain, exec })
+  app.whenReady().then(() => watchResume({ powerMonitor, getWindow, sessionOwnsScreen }))
+}
+
+module.exports = { register, registerPowerIpc, watchResume }

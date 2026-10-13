@@ -4,7 +4,7 @@
  */
 const assert = require('node:assert/strict')
 const { test } = require('node:test')
-const { registerPowerIpc, watchResume } = require('../power.js')
+const { register, registerPowerIpc, watchResume } = require('../power.js')
 
 function fakeWindow({ fullscreen = false } = {}) {
   const calls = []
@@ -52,4 +52,24 @@ test('a wake leaves a session that owns the screen alone', () => {
 test('an Electron without powerMonitor is not an error', () => {
   assert.equal(watchResume({ powerMonitor: undefined, getWindow: () => null,
                              sessionOwnsScreen: () => false }), false)
+})
+
+test('register wires the commands now and the resume hook once the app is ready', async () => {
+  const ipc = new Map()
+  const monitor = fakeMonitor()
+  const win = fakeWindow()
+  let ready
+  const app = { whenReady: () => new Promise((r) => { ready = r }) }
+  register({ app, ipcMain: { on: (k, fn) => ipc.set(k, fn) }, exec: () => {}, powerMonitor: monitor,
+             getWindow: () => win, sessionOwnsScreen: () => false })
+  assert.ok(ipc.has('system:reboot') && ipc.has('system:shutdown'))
+  monitor.emit('resume')
+  assert.deepEqual(win.calls, [], 'subscribed before app ready')
+  ready()
+  await new Promise((r) => setImmediate(r))
+  const quiet = console.log
+  console.log = () => {}
+  monitor.emit('resume')
+  console.log = quiet
+  assert.deepEqual(win.calls, ['fullscreen:true', 'show', 'focus'])
 })

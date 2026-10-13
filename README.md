@@ -810,6 +810,9 @@ a paired Bluetooth pad, or a button on a USB pad, to wake it: the theme's boot
 animation plays with its sound and you land on Home. **Turn off**, **Restart**
 and **Return to desktop** are unchanged.
 
+A short press of the box's power button does the same (a long press still
+forces it off). Games are closed before *any* sleep, whatever started it.
+
 Whether a pad can wake the box depends on the hardware (the Bluetooth adapter
 and the board's USB wake support). GameCore arms the adapter, USB pads and
 paired Bluetooth pads by itself, at every boot and after an update.

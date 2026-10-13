@@ -94,11 +94,16 @@ def _force_kill(pgids: list[int]) -> None:
             pass
 
 
-async def close_everything() -> list[int]:
+async def close_everything(exit_wait: float | None = None,
+                           force_wait: float | None = None) -> list[int]:
     """Kill every session and wait for each group to be gone.
 
-    Returns the process groups that outlived the forced kill (normally none).
+    The waits default to Rest mode's; a sleep from elsewhere passes shorter
+    ones (services/sleep_guard.py). Returns the groups that outlived the forced
+    kill (normally none).
     """
+    exit_wait = EXIT_WAIT_SECS if exit_wait is None else exit_wait
+    force_wait = FORCE_WAIT_SECS if force_wait is None else force_wait
     sessions = _resident()
     pgids = [s.pgid for s in sessions if s.pgid]
     for s in sessions:
@@ -107,13 +112,13 @@ async def close_everything() -> list[int]:
             await process_manager.kill(s.session_id)
         except Exception:
             log.exception("rest: could not close %s", s.game_key or "?")
-    survivors = await _wait_gone(pgids, EXIT_WAIT_SECS)
+    survivors = await _wait_gone(pgids, exit_wait)
     if not survivors:
         return []
     log.warning("rest: %d group(s) still alive after %ss, forcing: %s",
-                len(survivors), EXIT_WAIT_SECS, survivors)
+                len(survivors), exit_wait, survivors)
     _force_kill(survivors)
-    survivors = await _wait_gone(survivors, FORCE_WAIT_SECS)
+    survivors = await _wait_gone(survivors, force_wait)
     if survivors:
         log.error("rest: groups %s survived SIGKILL; sleeping anyway", survivors)
     return survivors
