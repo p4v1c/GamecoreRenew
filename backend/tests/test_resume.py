@@ -136,3 +136,33 @@ def test_the_settle_delay_is_waited_before_the_announcement(steps, monkeypatch):
     monkeypatch.setattr(resume.display_ready, "wait_for_display", link)
     asyncio.run(resume.on_resume())
     assert stamps["power:resumed"] - stamps["link"] >= 0.19
+
+
+def test_a_cancel_swallowed_while_releasing_the_lock_still_stops_the_monitor(monkeypatch):
+    """Python 3.11's wait_for can eat a cancel that lands as it finishes; the
+    loop then slept 30 s and the backend's shutdown hung behind it."""
+    monkeypatch.setattr(resume, "LOGIND_MONITOR", ("true",))
+    monkeypatch.setattr(resume, "RESTART_SECS", 30.0)
+    releasing = asyncio.Event()
+
+    async def take():
+        return True
+
+    async def release():
+        releasing.set()
+        try:
+            await asyncio.sleep(0.2)
+        except asyncio.CancelledError:
+            pass                                 # what wait_for did
+
+    monkeypatch.setattr(resume.sleep_guard, "take", take)
+    monkeypatch.setattr(resume.sleep_guard, "release", release)
+
+    async def scenario():
+        task = asyncio.create_task(resume.run())
+        await releasing.wait()
+        task.cancel()
+        done, _ = await asyncio.wait({task}, timeout=2)
+        assert done, "the monitor loop outlived its cancellation"
+
+    asyncio.run(scenario())

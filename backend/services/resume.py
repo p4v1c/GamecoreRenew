@@ -115,8 +115,13 @@ async def run() -> None:
         finally:
             await sleep_guard.release()
             if proc.returncode is None:
-                proc.kill()
-                await proc.wait()
+                await sleep_guard.kill_bounded(proc)
+        # Python 3.11's wait_for can swallow a cancel that lands while it
+        # finishes (release() above); the task then slept on and the backend's
+        # shutdown waited for it. Measured: a hung lifespan in the test suite.
+        task = asyncio.current_task()
+        if task is not None and task.cancelling():
+            raise asyncio.CancelledError
         log.warning("resume: the logind monitor exited (%s); restarting in %ss",
                     proc.returncode, RESTART_SECS)
         await asyncio.sleep(RESTART_SECS)
