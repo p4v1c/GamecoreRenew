@@ -158,3 +158,13 @@ Not verified: what amdgpu's sysfs reports during a real resume on the 680M
 (whether `enabled`/`dpms` go through a not-ready state, or whether only the
 settle delay does the work); the right default for the owner's TV; the boot
 sound after a real wake.
+
+Found on the way: the full suite hung in a `TestClient` teardown, about one
+run in two. The logind monitor loop (`resume.run`, from PR #149) could lose
+its cancellation inside `sleep_guard.release()` (Python 3.11 `wait_for`
+swallows a cancel that lands as it completes), then slept 30 s and restarted,
+so the lifespan waited forever. The loop now re-raises a pending cancel and
+every wait on the lock's helper process is bounded; `test_resume.py` has a
+test that fails without the fix. On the box this would have shown as a
+backend that does not stop on `systemctl stop`/OTA restart until systemd's
+timeout.
