@@ -150,6 +150,15 @@ interface GamecoreStore {
    */
   wakeCount: number
   wake: () => void
+
+  /**
+   * The box is going to sleep, or waking and waiting for the TV: the kernel
+   * covers everything in black so the TV never shows the frame from before the
+   * sleep. Set by Rest mode's second press and by `power:sleeping`; cleared by
+   * `wake()`, in the same write that replays the splash.
+   */
+  asleep: boolean
+  setAsleep: (asleep: boolean) => void
 }
 
 export const useStore = create<GamecoreStore>((set) => ({
@@ -175,6 +184,7 @@ export const useStore = create<GamecoreStore>((set) => ({
   gameOptions: null,
   sessionMenuRequest: 0,
   wakeCount: 0,
+  asleep: false,
 
   goHome: () => set({ screen: 'home', selectedSystemId: null, gridPage: 0, gridFocusIdx: 0 }),
   goLibrary: (id) => set({ screen: 'library', selectedSystemId: id, selectedGameIdx: 0 }),
@@ -201,8 +211,9 @@ export const useStore = create<GamecoreStore>((set) => ({
   requestRemap: () => set(s => ({ remapRequest: s.remapRequest + 1 })),
   setGameOptions: (gameOptions) => set({ gameOptions }),
   requestSessionMenu: () => set(s => ({ sessionMenuRequest: s.sessionMenuRequest + 1 })),
+  setAsleep: (asleep) => set({ asleep }),
   wake: () => set(s => ({
-    wakeCount: s.wakeCount + 1, powerPending: null, launchConflict: null,
+    wakeCount: s.wakeCount + 1, powerPending: null, launchConflict: null, asleep: false,
     screen: 'home', selectedSystemId: null, gridPage: 0, gridFocusIdx: 0,
   })),
 }))

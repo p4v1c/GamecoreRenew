@@ -205,4 +205,4 @@ def test_the_router_rests_and_reports_wakes(monkeypatch):
     client = TestClient(app)
     assert client.post("/api/power/rest").json() == {"ok": True, "forced": 0}
     state = client.get("/api/power/state").json()
-    assert set(state) == {"resting", "resumes"}
+    assert set(state) == {"resting", "resumes", "sleeping"}

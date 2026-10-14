@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useStore, type BackgroundSession } from '../store'
 import { api, type SessionState } from '../api'
 import { fadeToStandby } from '../lib/standbyFade'
-import { onResumed, syncWake } from '../lib/wake'
+import { onResumed, onSleeping, syncWake } from '../lib/wake'
 
 /** How long the 'interface is back' beat lasts. Purely visual: nothing
  *  is waiting on it, and a theme that draws nothing never sees it. */
@@ -285,11 +285,12 @@ export function useWebSocket() {
     const off6 = onWsEvent('standby:exit', () => fadeToStandby('off'))
     // Rest mode's wake: Home, with the boot animation (App.tsx, DefaultShell).
     const off9 = onWsEvent('power:resumed', (d) => onResumed(d.resumes))
+    const off10 = onWsEvent('power:sleeping', onSleeping)
 
     return () => {
       if (suspendBeat.timer) clearTimeout(suspendBeat.timer)
       if (useStore.getState().transition === 'suspend') useStore.getState().setTransition(null)
-      off1(); off1b(); off2(); off4(); off5(); off6(); off7(); off8(); off9()
+      off1(); off1b(); off2(); off4(); off5(); off6(); off7(); off8(); off9(); off10()
     }
   }, [])
 }

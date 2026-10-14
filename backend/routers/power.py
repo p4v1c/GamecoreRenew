@@ -14,5 +14,7 @@ async def rest():
 
 @router.get("/state")
 def state():
-    """`resumes` grows by one per wake; a client compares it after reconnecting."""
-    return {"resting": rest_mode.is_resting(), "resumes": resume.resume_count()}
+    """`resumes` grows by one per wake (once the TV is back); `sleeping` is true
+    from the sleep announcement until then. A client reads both after reconnecting."""
+    return {"resting": rest_mode.is_resting(), "resumes": resume.resume_count(),
+            "sleeping": resume.is_sleeping()}

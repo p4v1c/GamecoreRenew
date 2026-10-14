@@ -74,6 +74,7 @@ export default function App() {
   const goHome = useStore(s => s.goHome)
   const sessionGameKey = useStore(s => s.sessionGameKey)
   const wakeCount = useStore(s => s.wakeCount)
+  const asleep = useStore(s => s.asleep)
 
   // A wake from Rest mode plays the boot again, sound included: the theme's
   // splash plays its `boot` sound on mount, so a fresh key is all it takes.
@@ -228,6 +229,13 @@ export default function App() {
           <div key="pre-splash" style={{ position: 'fixed', inset: 0, zIndex: 900, background: bootBg }} />
         ))}
       </AnimatePresence>
+
+      {/* Asleep, or awake and waiting for the TV: plain black over everything,
+          splash included, so the frame from before the sleep never shows.
+          Dropped in the same store write that replays the splash. */}
+      {asleep && (
+        <div data-testid="sleep-cover" style={{ position: 'fixed', inset: 0, zIndex: 9600, background: '#000', cursor: 'none' }} />
+      )}
 
       {stuck && <BootRecovery steps={bootSteps()} onRetry={() => window.location.reload()} />}
     </ThemeProvider>

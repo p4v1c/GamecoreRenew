@@ -122,7 +122,11 @@ export default function PowerModal({ onClose, view }: Props) {
       // The backend owns the whole sequence: close, verify, suspend. A refusal
       // (no sudoers rule yet) gives the menu back instead of waiting it out.
       setRestError(null)
+      // Black now, not when logind announces the sleep: the games close behind
+      // it, and the TV never sees the menu again before the wake.
+      useStore.getState().setAsleep(true)
       api.power.rest().catch((e: Error) => {
+        useStore.getState().setAsleep(false)
         // A bare "503 Service Unavailable" means nothing on a TV.
         setRestError(e.message && !/^\d{3} /.test(e.message) ? e.message : REST_REFUSED)
         setPowerPending(null)

@@ -405,9 +405,9 @@ export const api = {
     reconfigure: (id: string) => post(`/catalog/${encodeURIComponent(id)}/reconfigure`),
   },
   standby: {
-    get: () => get<{ state: string; enabled: boolean; screensaver_mins: number; sleep_mins: number }>('/standby'),
-    setConfig: (cfg: { enabled?: boolean; screensaver_mins?: number; sleep_mins?: number }) =>
-      post<{ ok: boolean; enabled: boolean; screensaver_mins: number; sleep_mins: number }>('/standby/config', cfg),
+    get: () => get<{ state: string; enabled: boolean; screensaver_mins: number; sleep_mins: number; wake_settle_secs?: number }>('/standby'),
+    setConfig: (cfg: { enabled?: boolean; screensaver_mins?: number; sleep_mins?: number; wake_settle_secs?: number }) =>
+      post<{ ok: boolean; enabled: boolean; screensaver_mins: number; sleep_mins: number; wake_settle_secs?: number }>('/standby/config', cfg),
     exit: () => post('/standby/exit'),
     /** The UI has faded to black: the backend may switch the screen off. */
     dark: () => post('/standby/dark'),

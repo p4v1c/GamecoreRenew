@@ -8,6 +8,10 @@
  */
 const SAVER_MINS = [2, 4, 6, 10, 15]
 const SLEEP_MINS = [10, 16, 30, 60, 0]           // 0 = never
+// After a wake from Rest mode: black this long once the TV link is back, while
+// the TV finds the signal. Every TV differs; the backend clamps to 0-8 s.
+const WAKE_SECS = [0, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8]
+const secs = (s) => (s === 0 ? 'None' : `${s} s`)
 const label = (m) => (m === 0 ? 'Never' : m >= 60 ? `${m / 60} h` : `${m} min`)
 const megabytes = (b) => `${(b / 1048576).toFixed(b < 10485760 ? 1 : 0)} MB`
 const nearest = (list, v) => {
@@ -45,6 +49,8 @@ export const createSystemPage = (sdk, Rows) => {
 
     const saverIdx = standby ? nearest(SAVER_MINS, standby.screensaver_mins) : 2
     const sleepIdx = standby ? nearest(SLEEP_MINS, standby.sleep_mins) : 1
+    const wakeIdx = nearest(WAKE_SECS, standby && standby.wake_settle_secs != null
+      ? standby.wake_settle_secs : 2.5)
 
     const rows = [
       {
@@ -75,6 +81,11 @@ export const createSystemPage = (sdk, Rows) => {
           id: 'sb_off', type: 'value', value: sleepIdx,
           options: SLEEP_MINS.map(label), label: 'Screen off after', desc: '',
         },
+        {
+          id: 'sb_wake', type: 'value', value: wakeIdx,
+          options: WAKE_SECS.map(secs), label: 'Wait for the TV after waking',
+          desc: 'After Rest mode, the screen stays black this long once the signal is back, so the boot animation plays from the start',
+        },
       ] : []),
       ...(logs ? [{
         id: 'logs', type: 'action',
@@ -99,7 +110,8 @@ export const createSystemPage = (sdk, Rows) => {
       if (!standby) return
       const patch = id === 'sb_on' ? { enabled: v }
         : id === 'sb_saver' ? { screensaver_mins: SAVER_MINS[v] }
-        : id === 'sb_off' ? { sleep_mins: SLEEP_MINS[v] } : null
+        : id === 'sb_off' ? { sleep_mins: SLEEP_MINS[v] }
+        : id === 'sb_wake' ? { wake_settle_secs: WAKE_SECS[v] } : null
       if (!patch) return
       setStandby((s) => ({ ...s, ...patch }))
       sdk.api.standby.setConfig(patch)

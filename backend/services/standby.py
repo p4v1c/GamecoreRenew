@@ -45,7 +45,11 @@ log = logging.getLogger(__name__)
 
 CONFIG_FILE = config_dir() / "standby.json"
 
-DEFAULTS = {"enabled": True, "screensaver_mins": 10, "sleep_mins": 20}
+DEFAULTS = {"enabled": True, "screensaver_mins": 10, "sleep_mins": 20,
+            # After a wake from sleep: how long the screen stays black once the
+            # link is up, while the TV finds the signal (services/display_ready.py).
+            "wake_settle_secs": 2.5}
+WAKE_SETTLE_MAX_SECS = 8.0
 
 _POLL_SECS = 15
 
@@ -125,6 +129,8 @@ def save_config(cfg: dict) -> dict:
     # _tick tests sleep_mins first, so the screensaver stage became unreachable.
     # Picking "Never" on a box at 4 minutes blacked the television at 4 minutes.
     merged["sleep_mins"] = max(0, int(merged["sleep_mins"]))
+    merged["wake_settle_secs"] = min(WAKE_SETTLE_MAX_SECS,
+                                     max(0.0, float(merged["wake_settle_secs"])))
     if merged["sleep_mins"]:
         # Otherwise screen-off always comes after (or with) the screensaver
         merged["sleep_mins"] = max(merged["screensaver_mins"], merged["sleep_mins"])

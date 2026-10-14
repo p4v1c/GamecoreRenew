@@ -45,19 +45,23 @@ def steps(monkeypatch):
     monkeypatch.setattr(resume.sleep_guard, "release", note("unlock"))
     monkeypatch.setattr(resume.standby, "exit_standby", note("screen"))
     monkeypatch.setattr(resume.display, "restore_preferred", note("display"))
+    monkeypatch.setattr(resume.display_ready, "wait_for_display", note("link"))
+    monkeypatch.setattr(resume.standby, "load_config", lambda: {"wake_settle_secs": 0})
     monkeypatch.setattr(resume.gamepad_monitor, "request_reprofile",
                         lambda: seen.append("pads"))
     monkeypatch.setattr(resume.bt_wake, "allow_paired_pads", note("bluetooth"))
     broadcast = AsyncMock(side_effect=lambda ev, data: seen.append(ev))
     monkeypatch.setattr(resume.ws, "broadcast", broadcast)
     monkeypatch.setattr(resume, "_resumes", 0)
+    monkeypatch.setattr(resume, "_sleeping", False)
     return seen
 
 
 def test_a_wake_reopens_lights_announces_and_redetects(steps):
     asyncio.run(resume.on_resume())
-    assert steps == ["sweep", "gate", "screen", "power:resumed", "display", "pads",
-                     "bluetooth"]
+    # The UI hears of the wake only once the link is up and the mode is back.
+    assert steps == ["sweep", "gate", "screen", "link", "display", "power:resumed",
+                     "pads", "bluetooth"]
     assert resume.resume_count() == 1
 
 
@@ -87,10 +91,48 @@ def test_the_sleep_closes_games_and_the_wake_puts_the_box_back(steps, monkeypatc
     assert resume.resume_count() == 1
     assert steps.count("power:resumed") == 1
     # Lock while listening, the sweep on the sleep, all before the wake's steps.
-    assert steps[:3] == ["lock", "close", "sweep"]
+    assert steps[:4] == ["lock", "power:sleeping", "close", "sweep"]
 
 
 def test_no_gdbus_is_a_warning_not_a_crash(monkeypatch, caplog):
     monkeypatch.setattr(resume, "LOGIND_MONITOR", ("gamecore-no-such-tool",))
     asyncio.run(resume.run())
     assert "will not be noticed" in caplog.text
+
+
+def test_the_wake_count_and_sleeping_flag_move_only_when_the_screen_is_back(steps, monkeypatch):
+    seen = {}
+
+    async def link(*a, **kw):
+        seen["count_during_wait"] = resume.resume_count()
+        seen["sleeping_during_wait"] = resume.is_sleeping()
+
+    monkeypatch.setattr(resume.display_ready, "wait_for_display", link)
+
+    async def scenario():
+        await resume.announce_sleep()
+        assert resume.is_sleeping()
+        await resume.on_resume()
+
+    asyncio.run(scenario())
+    assert seen == {"count_during_wait": 0, "sleeping_during_wait": True}
+    assert resume.resume_count() == 1 and not resume.is_sleeping()
+
+
+def test_the_settle_delay_is_waited_before_the_announcement(steps, monkeypatch):
+    import time
+    monkeypatch.setattr(resume.standby, "load_config", lambda: {"wake_settle_secs": 0.2})
+    stamps = {}
+    real = resume.ws.broadcast
+
+    async def stamp(ev, data):
+        stamps[ev] = time.monotonic()
+        await real(ev, data)
+
+    monkeypatch.setattr(resume.ws, "broadcast", stamp)
+
+    async def link(*a, **kw):
+        stamps["link"] = time.monotonic()
+    monkeypatch.setattr(resume.display_ready, "wait_for_display", link)
+    asyncio.run(resume.on_resume())
+    assert stamps["power:resumed"] - stamps["link"] >= 0.19
