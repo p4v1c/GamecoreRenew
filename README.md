@@ -1,7 +1,9 @@
 # GameCore
 
-A retro gaming frontend built for kiosk / living-room use.  
-React + Electron shell + FastAPI backend — plug in a controller and play.
+A living-room console for Arch Linux, built around the recent consoles (PS3,
+PS4, Switch, Wii U, Xbox 360), with 29 more systems and your PC games beside
+them. React and Electron in front, a FastAPI backend behind: plug in a
+controller and play.
 
 ![GameCore in the Orbit theme: a Nintendo 3DS picked in a row of consoles](docs/img/themes/orbit-home.webp)
 
@@ -20,16 +22,19 @@ Website: [p4v1c.github.io/GamecoreRenew](https://p4v1c.github.io/GamecoreRenew/)
 3. [Installation (device)](#installation-device)
 4. [Uninstallation](#uninstallation)
 5. [Development setup](#development-setup)
-5. [First launch](#first-launch)
-6. [Adding ROMs](#adding-roms)
-7. [Controller navigation](#controller-navigation)
-8. [Settings & Wi-Fi](#settings--wi-fi)
-9. [Themes](#themes)
-10. [Overlays (bezels)](#overlays-bezels)
-11. [OTA updates](#ota-updates)
-12. [Adding an emulator or an app](#adding-an-emulator-or-an-app)
-13. [Living-room box setup](#living-room-box-setup)
-14. [Project structure](#project-structure)
+6. [First launch](#first-launch)
+7. [Adding ROMs](#adding-roms)
+8. [Controller navigation](#controller-navigation)
+9. [Settings & Wi-Fi](#settings--wi-fi)
+10. [Themes](#themes)
+11. [Addons](#addons)
+12. [Overlays (bezels)](#overlays-bezels)
+13. [Cover art and game media](#cover-art-and-game-media)
+14. [Standby](#standby)
+15. [OTA updates](#ota-updates)
+16. [Adding an emulator or an app](#adding-an-emulator-or-an-app)
+17. [Living-room box setup](#living-room-box-setup)
+18. [Project structure](#project-structure)
 
 ---
 
@@ -38,26 +43,9 @@ Website: [p4v1c.github.io/GamecoreRenew](https://p4v1c.github.io/GamecoreRenew/)
 GameCore is a full-screen game launcher designed to run on a dedicated machine connected to a TV.  
 You navigate with a gamepad, launch emulators, and never touch a keyboard.
 
-**Supported emulators (out of the box):**
-
-| ID | Emulator | System |
-|----|----------|--------|
-| `gamecube` | Dolphin | Nintendo GameCube |
-| `wii` | Dolphin | Nintendo Wii |
-| `duckstation` | DuckStation | PlayStation 1 |
-| `pcsx2` | PCSX2 | PlayStation 2 |
-| `rpcs3` | RPCS3 | PlayStation 3 |
-| `ppsspp` | PPSSPP | PSP |
-| `cemu` | Cemu | Wii U |
-| `switch` | Ryujinx | Nintendo Switch |
-| `azahar` | Azahar | Nintendo 3DS |
-| `gb` | mGBA | Game Boy |
-| `gbc` | mGBA | Game Boy Color |
-| `gba` | mGBA | Game Boy Advance |
-| `melonds` | melonDS | Nintendo DS |
-| `gopher64` | Rosalie's Mupen GUI (Mupen64Plus core) | Nintendo 64 |
-| `xenia` | Xenia Canary | Xbox 360 |
-| `shadps4` | shadPS4 | PlayStation 4 |
+**Systems:** 34 emulated systems plus PC games through Lutris. The full list,
+with the folder and file types for each, is the table in
+[Adding ROMs](#adding-roms). Notes on the ones that differ:
 
 > - **Nintendo 64**: the pack **id** is `gopher64` but the emulator installed is **Rosalie's Mupen GUI** (`com.github.Rosalie241.RMG`), a front end over the Mupen64Plus core — which is why its config file is `mupen64plus.cfg`. The id is a key: it names the catalogue directory, `emu/gopher64/` on every installed box, and the controller snapshots. Renaming it without a migration would move a player's N64 library under a path the scanner no longer reads, so it stays.
 > - **Nintendo Switch** runs Ryujinx (Ryubing, `io.github.ryubing.Ryujinx`). Put `prod.keys` (and `title.keys` if you have one) in `~/.var/app/io.github.ryubing.Ryujinx/config/Ryujinx/system/`, updates and DLC as `.nsp` in `emu/Switch DLC & Updates/`. A box that ran Eden gets Eden's keys, firmware and saves copied into Ryujinx when Ryujinx is installed, and each profile's at its first launch; Eden's files are only read (`CHANGELOG.md`). The Eden variant lives on the `switch-eden` branch.
@@ -118,22 +106,25 @@ What the installer does:
 - Creates a Python virtual environment and installs backend dependencies
 - Builds the React frontend, installs Node modules for Electron
 - Creates the Linux user you named (or reuses it if it exists)
-- Configures SDDM auto-login into that user's **KDE Plasma X11 session**, with
-  the GameCore kiosk drawn over it
+- Configures SDDM auto-login into **GameCore's own X11 session** (`gamecore`,
+  with KWin as its window manager); KDE Plasma stays installed as the desktop
+  you can leave to
 - Registers two systemd services: `gamecore-backend` and `gamecore-ui`
 - The machine boots straight into GameCore after a reboot
 
-Closing GameCore from Settings → Desktop drops you on that Plasma desktop. To
-keep the desktop across reboots — and put the kiosk back later:
+**Return to desktop** in the Power menu (or Settings → Desktop) takes you to
+the Plasma desktop. To choose which session the box logs into at boot:
 
 ```bash
-sudo gamecore-session-select desktop     # kiosk off, it stops starting at boot
-sudo gamecore-session-select gamecore    # kiosk back on
+sudo gamecore-session-select desktop     # boot into the desktop from now on
+sudo gamecore-session-select gamecore    # boot into GameCore again
+sudo gamecore-session-select desktop --restart-dm   # …and apply it now
 gamecore-session-select status           # which mode, and the sessions available
 ```
 
-There is one session, so this changes no login configuration: it enables or
-disables `gamecore-ui.service`, nothing else.
+It rewrites the SDDM auto-login (`/etc/sddm.conf.d/zz-gamecore-autologin.conf`)
+and remembers the desktop session the box used before, so `desktop` goes back
+to it.
 
 Verify an install from the outside — it changes nothing:
 
@@ -224,12 +215,11 @@ Set both to `false` before deploying to a device.
 
 ## First launch
 
-On first boot the splash screen appears, then the **Home** screen.
+On first boot the theme's boot animation plays, then its **Home** screen. A
+new box starts on Shelf (see [Themes](#themes)). Home shows your consoles; pick
+one to open its library.
 
-- **Home** — shows your recently played games and quick-launch apps
-- **Library** — full list of all systems and their ROMs, navigate with the D-pad
-
-If no ROMs are found, the library will be empty until you add some (see below).
+A console with no games shows an empty library until you add some (see below).
 
 ---
 
@@ -365,14 +355,18 @@ With one controller nothing changes.
 
 Open Settings from the top-right icon or press **Start** on the controller.
 
-- **Wi-Fi** — turn Wi-Fi on or off, scan and connect to networks. Turning it
+- **Wi-Fi**: turn Wi-Fi on or off, scan and connect to networks. Turning it
   off with no cable plugged in takes the box offline, so it asks for a second press
-- **Audio** — volume control
-- **Bluetooth** — pair controllers
-- **Themes** — change the look of the whole UI
-- **Update** — check for and apply OTA updates
-- **System** — reboot / shutdown
-- **Profiles** — who plays on this box: add, rename, recolour, delete, switch
+- **Bluetooth**: pair controllers
+- **Display**: resolution, refresh rate and interface scale, reverted unless you keep them
+- **Audio**: volume and interface sounds
+- **Controllers**: automatic controller setup per emulator, rumble
+- **Emulators & apps**: install or remove a system or an app from the catalogue
+- **BIOS**: which files each system needs, and which are missing
+- **Themes**: change the look of the whole UI
+- **System**: update, standby and screensaver timers, wait for the TV after
+  waking, logs, storage
+- **Profiles**: who plays on this box: add, rename, recolour, delete, switch
 
 **Profiles.** A box starts with no profiles and behaves exactly as before:
 controllers are P1 to P4. **Settings → Profiles → Set up profiles** names the
@@ -406,6 +400,8 @@ second press to confirm.
 ## Themes
 
 Five themes ship with the box. Same screens, same pad controls, different looks.
+These shots are made by `node scripts/shoot-site.mjs` from the themes as they
+are now (made-up games, drawn jackets).
 
 | Default: a quiet dark console | Orbit: night blue, one light on the focus |
 |---|---|
@@ -419,7 +415,7 @@ Five themes ship with the box. Same screens, same pad controls, different looks.
 
 | Jelly: a cyan playground in jelly tiles |
 |---|
-| ![Jelly theme consoles](docs/img/themes/jelly-home.webp) |
+| ![Jelly theme home](docs/img/themes/jelly-home.webp) |
 | ![Jelly theme controller screen](docs/img/themes/jelly-controller.webp) |
 
 In Jelly, focus a game in Collection and press **Options** to choose its overlay. On Play and Consoles, Options opens Settings. The game options menu is also available in a console's library.
@@ -777,7 +773,7 @@ If no key is set, the scraper silently falls back to libretro only.
 
 ## Standby
 
-After a configurable idle time (Settings → Standby), GameCore shows a
+After a configurable idle time (Settings → System → Standby mode), GameCore shows a
 screensaver (Orbit and Shelf: a room at night where a CRT plays short videos
 of the games you play most; Jelly: your covers floating in jellies on the cyan
 floor, one of them growing now and then to play its game's video; other

@@ -55,7 +55,7 @@ and there is never a second React in memory.
 | `config/themes/<id>/views/`, `lib/` | one feature per file (§5) |
 | `config/themes/<id>/theme.css` | the theme's own stylesheet |
 | `config/themes/<id>/css/*.css` | the stylesheet split by concern; `theme.css` only `@import`s them in cascade order (served no-cache, so imports never go stale). Tests read the whole sheet with `backend/tests/css_bundle.py` |
-| `config/themes/<id>/preview.png` | thumbnail for the settings page |
+| `config/themes/<id>/preview.png` | 640x360 thumbnail in a profile's theme picker; shot with `node scripts/shoot-site.mjs --themes <id>` |
 | `config/themes/<id>/assets/` | images, fonts, audio |
 | `config/theme.json` | the active theme, written by the API. Per-device: not in git, not in the OTA archive |
 

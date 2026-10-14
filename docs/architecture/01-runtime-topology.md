@@ -217,24 +217,24 @@ session. Installed by `install/steps/setup-rest-mode.sh`, see
 
 ## The session the kiosk runs in
 
-SDDM auto-logs the gaming user into **the machine's own X11 desktop session**,
-and `gamecore-ui.service` draws the kiosk over it. The whole stack is X11-only —
-the bezel overlays, the fullscreen enforcer, `gamecore-xsetup`'s 1080p pin and
-the gamepad→keyboard bridge's window detection all speak X11 — so a Wayland
-session is not a supported target.
+SDDM auto-logs the gaming user into **GameCore's own X11 session**,
+`gamecore` (`/usr/share/xsessions/gamecore.desktop`, started by
+`install/bin/gamecore-session`), and `gamecore-ui.service` draws the kiosk in
+it. The whole stack is X11-only — the bezel overlays, the fullscreen enforcer,
+`gamecore-xsetup`'s 1080p pin and the gamepad→keyboard bridge's window
+detection all speak X11 — so a Wayland session is not a supported target.
 
-The session name is **not hardcoded anywhere**. `install/bin/gamecore-session-select
+The desktop is the way out, not the host. `install/bin/gamecore-session-select
 pick-desktop --x11` ranks what `/usr/share/xsessions/` offers (Plasma first,
-then the other full desktops), `install/arch.sh` writes the winner into
-`/etc/sddm.conf.d/zz-gamecore-autologin.conf` and records it in
-`/var/lib/gamecore/manifest.env` as `KIOSK_SESSION`. `check-install.sh` reads it
-back from there rather than comparing to a literal.
+then the other full desktops); `install/arch.sh` records the winner in
+`/var/lib/gamecore/manifest.env` as `DESKTOP_SESSION`, writes `gamecore` into
+`/etc/sddm.conf.d/zz-gamecore-autologin.conf` and records that as
+`KIOSK_SESSION`. `check-install.sh` reads them back from the manifest rather
+than comparing to a literal.
 
-> The kiosk used to get a bare openbox session installed for the purpose. That
-> was the wrong half of the requirement: GameCore needs X11, not an empty
-> session. Hosting it on the desktop costs nothing and means **closing the kiosk
-> reveals a usable desktop** — under openbox it revealed a root window with no
-> panel and no menu, reported as a black screen.
+> The kiosk used to be drawn over the Plasma session, and before that over a
+> bare openbox session. Why it got a session of its own:
+> `docs/reports/boot-console-2026-09-06.md`.
 
 `zz-` in that filename is load-bearing. SDDM reads `/etc/sddm.conf.d/*` in name
 order and the **last** `[Autologin]` wins; Manjaro Plasma ships
@@ -250,12 +250,15 @@ bindings, and none of KWin's window animations (`fade`, `glide`, `scale`,
 interface in over them on every suspend, because the kiosk window is unmapped
 while a game runs.
 
-`sudo gamecore-session-select desktop` / `… gamecore` toggles the kiosk. There is
-only one session, so it changes **no SDDM configuration at all** — it is
-`systemctl enable|disable --now gamecore-ui.service` behind an argument-narrow
-sudoers rule. `enable`/`disable`, never `start`/`stop`: the unit is enabled at
-install, so merely stopping it brought the kiosk back over the desktop at the
-next boot.
+`sudo gamecore-session-select desktop` / `… gamecore` chooses the session the
+box logs into: it rewrites the auto-login file above and verifies that its own
+file is the one SDDM will read. `desktop` goes back to the session the box used
+before the console was armed (remembered in `/var/lib/gamecore/`), else to the
+ranked pick. `--restart-dm` applies the change now; `--once` (the interface's
+Return to desktop) leaves for this session only, and the next boot opens
+GameCore again. Arming `gamecore` is refused when no X11 window manager is
+installed (`kwin_x11`, `kwin` or `openbox`), unless `--force`: a console with no
+window manager looks like it works until the first fullscreen emulator.
 
 ## Environment reconstruction
 
