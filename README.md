@@ -810,6 +810,11 @@ a paired Bluetooth pad, or a button on a USB pad, to wake it: the theme's boot
 animation plays with its sound and you land on Home. **Turn off**, **Restart**
 and **Return to desktop** are unchanged.
 
+While the box sleeps and wakes the screen stays black, so the TV never shows
+the old picture; the animation starts once the TV has the signal back. TVs
+differ: if yours still shows "no signal" at the start of the animation, raise
+Settings → System → **Wait for the TV after waking**.
+
 A short press of the box's power button does the same (a long press still
 forces it off). Games are closed before *any* sleep, whatever started it.
 

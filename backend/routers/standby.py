@@ -16,6 +16,7 @@ class StandbyConfig(BaseModel):
     enabled: bool | None = None
     screensaver_mins: int | None = None
     sleep_mins: int | None = None
+    wake_settle_secs: float | None = None
 
 
 @router.post("/standby/config")

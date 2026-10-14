@@ -68,8 +68,21 @@ async def release() -> None:
         proc.stdin.close()
         await asyncio.wait_for(proc.wait(), RELEASE_WAIT_SECS)
     except (OSError, asyncio.TimeoutError):
+        await kill_bounded(proc)
+
+
+async def kill_bounded(proc) -> None:
+    """SIGKILL and wait, bounded: an exit status reaped elsewhere (another
+    waitpid(-1) in the process) never reaches asyncio, and an unbounded wait
+    here hangs the backend's shutdown."""
+    try:
         proc.kill()
-        await proc.wait()
+    except ProcessLookupError:
+        return
+    try:
+        await asyncio.wait_for(proc.wait(), RELEASE_WAIT_SECS)
+    except asyncio.TimeoutError:
+        log.warning("sleep_guard: pid %s did not report its exit", proc.pid)
 
 
 async def _sweep() -> None:

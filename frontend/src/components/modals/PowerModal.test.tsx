@@ -13,7 +13,7 @@ const SUSPENDED = { gameKey: 'crash.cue', systemId: 'duckstation', session: 1, k
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
-  useStore.setState({ backgroundSessions: [], powerPending: null, sessionMenuRequest: 0 })
+  useStore.setState({ backgroundSessions: [], powerPending: null, sessionMenuRequest: 0, asleep: false })
 })
 
 const press = (name: string) => act(() => { window.dispatchEvent(new CustomEvent(name)) })
@@ -89,6 +89,7 @@ describe('the power menu', () => {
     expect(screen.getByText('Rest mode?')).toBeTruthy()
     press('gp:confirm')
     expect(useStore.getState().powerPending).toBe('rest')
+    expect(useStore.getState().asleep).toBe(true)
     expect(fetchMock).toHaveBeenCalledWith('/api/power/rest', expect.objectContaining({ method: 'POST' }))
   })
 
@@ -102,6 +103,7 @@ describe('the power menu', () => {
     press('gp:confirm')
     await act(async () => { await new Promise(r => setTimeout(r, 0)) })
     expect(useStore.getState().powerPending).toBeNull()
+    expect(useStore.getState().asleep).toBe(false)
     expect(last().options[0].desc).toBe('Rest mode is not set up on this box.')
   })
 

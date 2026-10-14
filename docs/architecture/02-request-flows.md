@@ -198,16 +198,19 @@ sequenceDiagram
     participant be as rest_mode.enter()
     participant pm as process_manager
     participant ld as logind
+    ui->>ui: store.setAsleep(true): black over everything
     ui->>be: POST /api/power/rest (second press)
     be->>be: launch.close_gate(), wait for a launch in flight (15 s)
     be->>pm: kill() every session, frozen ones too
     be->>be: poll each process group; SIGKILL survivors after 8 s; 2 s more
     be->>ld: sudo -n systemctl suspend
+    ld-->>be: PrepareForSleep(true): power:sleeping (any sleep path), sleep_guard sweep
     Note over ld: deep sleep; PS button wakes the box over Bluetooth
     ld-->>be: PrepareForSleep(false) (resume.py, gdbus monitor)
-    be->>be: open the gate, screen on, power:resumed, display mode, pads, BlueZ wake
+    be->>be: sweep again, open the gate, screen on
+    be->>be: wait for a lit DRM connector (10 s max), display mode, settle delay
     be-->>ui: WS power:resumed (or GET /api/power/state after a reconnect)
-    ui->>ui: store.wake(): Home, modals closed, splash replayed with its boot sound
+    ui->>ui: store.wake(): black layer off, Home, splash from the start with its boot sound
 ```
 
 - Nothing sleeps while a session is alive: every group is checked gone before
@@ -222,6 +225,16 @@ sequenceDiagram
   5 s without). On the wake it sweeps again (a sleep that outran the lock) and
   takes the lock back. The Rest mode button sweeps first, so the second sweep
   finds nothing and releases at once.
+- The TV first: after a wake the HDMI link is back seconds before the
+  picture. `power:sleeping` (and Rest mode's own second press) puts a plain
+  black layer over everything; `resume.on_resume()` waits for a connector in
+  `/sys/class/drm/card*-*` that is `connected`, `enabled` and `dpms` On
+  (`services/display_ready.py`, 10 s at most, then it goes on anyway), then
+  the player's `wake_settle_secs` (Settings → System, 0-8 s, 2.5 s default),
+  and only then counts the wake and sends `power:resumed`. sysfs rather than
+  xrandr: no X connection or privilege needed, and X is the slowest thing to
+  come back. The sysfs state can still read "lit" from before the sleep for an
+  instant, which the settle delay also covers.
 - Power key: the same drop-in sets `HandlePowerKey=suspend`. In GameCore's own
   session nothing else takes the key (no PowerDevil), so a short press is a
   sleep with games closed; in a Plasma desktop session PowerDevil keeps its own

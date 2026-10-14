@@ -160,7 +160,8 @@ and returns an unsubscribe.
 | `gp:controllers` | `battery.run()` | `controllers[]` | battery levels for the controllers screen |
 | `gp:guide` | `gamepad_monitor` | `action` (`backgrounded`, `home`, `failed`), `gesture` | double press: suspends a game; `home` (a pair begun in the interface) opens the session menu in `SessionBar` |
 | `standby:screensaver` / `standby:sleep` / `standby:exit` | `standby._enter()` / `exit_standby()` | — | `frontend/src/lib/standbyFade.ts` crossfades the page into the stage; drives `Screensaver`, or the theme's standby |
-| `power:resumed` | `resume.on_resume()` | `resumes` | `frontend/src/lib/wake.ts` → `store.wake()`: Home, modals closed, splash replayed; `syncWake()` re-reads `GET /api/power/state` on every reconnect |
+| `power:sleeping` | `resume.announce_sleep()` | — | `store.setAsleep(true)`: `App.tsx` draws plain black over everything, splash included (Rest mode's second press sets it locally first) |
+| `power:resumed` | `resume.on_resume()`, once the TV is back | `resumes` | `frontend/src/lib/wake.ts` → `store.wake()`: black layer off, Home, modals closed, splash replayed from the start; `syncWake()` re-reads `GET /api/power/state` (`resumes`, `sleeping`) on every reconnect and drops a black layer the backend no longer stands behind |
 | `theme:changed` | `routers/themes.py` | `active` | reloads the theme |
 | `profiles:changed` | `routers/profiles.py` | `active` (the active profile) | `frontend/src/lib/players.ts` re-reads the profiles and the pad roster (`refreshPlayers`) |
 | `update:log` / `update:done` | `routers/update.py` | `line` / `success`, `code` | OTA progress |

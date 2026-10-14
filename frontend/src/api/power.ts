@@ -4,6 +4,8 @@ import { get, postDetailed } from './http'
 export interface PowerState {
   resting: boolean
   resumes: number
+  /** From the sleep announcement until the TV is back; older backends omit it. */
+  sleeping?: boolean
 }
 
 export const power = {
