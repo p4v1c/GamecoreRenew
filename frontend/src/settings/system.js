@@ -84,7 +84,7 @@ export const createSystemPage = (sdk, Rows) => {
         {
           id: 'sb_wake', type: 'value', value: wakeIdx,
           options: WAKE_SECS.map(secs), label: 'Wait for the TV after waking',
-          desc: 'After Rest mode, the screen stays black this long once the signal is back, so the boot animation plays from the start',
+          desc: 'After Rest mode, black this long once the signal is back, so the boot animation plays whole',
         },
       ] : []),
       ...(logs ? [{

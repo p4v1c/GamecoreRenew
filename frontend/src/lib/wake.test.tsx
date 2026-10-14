@@ -5,17 +5,18 @@
 import { render, act, cleanup } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useStore } from '../store'
-import { onResumed, syncWake, resetWakeForTests } from './wake'
+import { onResumed, onSleeping, syncWake, resetWakeForTests } from './wake'
 import DefaultShell from '../components/DefaultShell'
 import type { PowerViewProps } from '../components/modals/power/types'
 
-const answer = (resumes: number) => vi.stubGlobal('fetch', vi.fn(async () => ({
-  ok: true, status: 200, statusText: 'OK', json: async () => ({ resting: false, resumes }),
-})))
+const answer = (resumes: number, sleeping = false, resting = false) =>
+  vi.stubGlobal('fetch', vi.fn(async () => ({
+    ok: true, status: 200, statusText: 'OK', json: async () => ({ resting, resumes, sleeping }),
+  })))
 
 beforeEach(() => {
   resetWakeForTests()
-  useStore.setState({ wakeCount: 0, powerPending: null, screen: 'home', modalDepth: 0,
+  useStore.setState({ wakeCount: 0, asleep: false, powerPending: null, screen: 'home', modalDepth: 0,
                       sessionGameKey: null, backgroundSessions: [] })
 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
@@ -52,6 +53,34 @@ describe('the wake count', () => {
     answer(0)
     await syncWake()
     expect(useStore.getState().wakeCount).toBe(0)
+  })
+})
+
+describe('the black layer', () => {
+  it('goes up when the sleep is announced and down with the wake, splash and all', () => {
+    onSleeping()
+    expect(useStore.getState().asleep).toBe(true)
+    onResumed(1)
+    expect(useStore.getState().asleep).toBe(false)
+    expect(useStore.getState().wakeCount).toBe(1)
+  })
+
+  it('stays up while the backend still waits for the TV', async () => {
+    answer(0)
+    await syncWake()
+    onSleeping()
+    answer(0, true)
+    await syncWake()                    // a reconnect mid-wake
+    expect(useStore.getState().asleep).toBe(true)
+  })
+
+  it('is dropped if the backend no longer stands behind it', async () => {
+    answer(0)
+    await syncWake()
+    onSleeping()
+    answer(0, false, false)
+    await syncWake()
+    expect(useStore.getState().asleep).toBe(false)
   })
 })
 
