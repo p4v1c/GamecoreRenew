@@ -118,3 +118,43 @@ mode), `-wake-splash` (the boot replaying after `power:resumed`),
 - `systemctl suspend` through the new sudoers rule; `visudo` on the real file.
 - A sleep started outside GameCore now closes games through the lock (see the
   follow-up), verified with fakes only.
+
+## Follow-up 2: the TV misses the start of the animation (`claude/wake-display`)
+
+Rest mode works on the box (PR #149: PS wakes it, games closed). On wake the
+splash started at once while the TV was still re-syncing HDMI, so the owner
+saw only its end. Branch `claude/wake-display`, from `origin/main` at `7a44855`.
+
+| Question | Choice | Why |
+|---|---|---|
+| Stale frame | A plain black layer in `App.tsx` (z 9600, over the splash) from the sleep to the wake. Set by Rest mode's second press locally, and by `power:sleeping`, which `resume.py` sends on `PrepareForSleep(true)` for every sleep path | The TV must never show the menu from before the sleep, and games close behind black. |
+| When is the screen back | `/sys/class/drm/card*-*`: `status` connected, `enabled` enabled, `dpms` On, polled every 200 ms (`services/display_ready.py`), at most 10 s, then on anyway | amdgpu updates these as soon as it re-senses the TV and a mode is set. No X connection or privilege needed (X is the slowest thing to come back, and the backend's X access is a guess at that moment), and nothing to subscribe to. xrandr would need DISPLAY and can block; a udev monitor would need a second subprocess for a 10 s window. |
+| After the link | Display mode restored (needs the output re-sensed), then `wake_settle_secs` (default 2.5 s) | A TV shows "no signal" a moment after the link is up; the sysfs files can also still read "lit" from before the sleep for an instant. The delay covers both. |
+| Setting | `standby.json` `wake_settle_secs`, 0-8 s, clamped in `save_config`; Settings → System row "Wait for the TV after waking" (`frontend/src/settings/system.js`, steps 0, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8 s) | Every TV differs. The shared settings page is what all five themes draw, so one row reaches every theme. The legacy `SettingsModal`/`StandbyPage` is not used by any shipped theme and was left alone. |
+| Announce | The wake count grows and `power:resumed` goes out only after the settle delay; `GET /api/power/state` adds `sleeping` | A client reconnecting mid-wake must not start the splash early, and must drop a black layer the backend no longer stands behind (`syncWake`). |
+
+Verified, with fakes: `test_display_ready.py` (connector rule, waits for a
+fake sysfs to come back, gives up at the bound and wakes anyway, no DRM means
+no wait, setting clamped 0-8 and saved), `test_resume.py` (order: sweep, gate,
+screen, link, mode, settle, then `power:resumed`; count and `sleeping` move
+only after the wait; the settle is waited before the announcement;
+`power:sleeping` before the sweep), `wake.test.tsx` (layer up on
+`power:sleeping`, down with the wake; kept while the backend still waits;
+dropped when the backend no longer sleeps), `PowerModal.test.tsx` (Rest mode
+sets the layer, a refusal drops it), `settings/wakeSettle.test.tsx` (row
+reached and changed with the pad, saves `wake_settle_secs`).
+
+Screens (`rest-mode-tools/wake-shots.cjs`, devserve): `shots/wake-setting-<theme>.png`
+for all five themes, the row focused at 2.5 s; `shots/wake-black-default.png`
+(every theme's frame measured all pixels 0); `shots/wake-splash-start-orbit.png`
+and `-jelly.png`, the splash's first frames after `power:resumed`. Reviewed:
+the row matches its neighbours in every theme (it is the same row type as
+"Screen off after"); the first draft's description was two lines long in Orbit
+and was shortened. A legibility audit was not run on this row (the audit tool
+cannot reach the System page by itself); it reuses the row style the audit
+passed before.
+
+Not verified: what amdgpu's sysfs reports during a real resume on the 680M
+(whether `enabled`/`dpms` go through a not-ready state, or whether only the
+settle delay does the work); the right default for the owner's TV; the boot
+sound after a real wake.

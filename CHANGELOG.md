@@ -17,6 +17,11 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Waking from Rest mode: the screen stays black until the TV shows a picture
+  again, then the boot animation plays from the start. How long to wait once
+  the signal is back is in Settings → System → "Wait for the TV after waking"
+  (2.5 s by default, up to 8 s). No operator step.
+
 - Rest mode in the Power menu (first, and where the cursor opens): closes every
   game and app, then suspends; a pad wakes it to Home. No operator step: the
   update installs `/etc/sudoers.d/gamecore-rest`, `gamecore-wake.service` and a

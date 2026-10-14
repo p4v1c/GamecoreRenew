@@ -531,8 +531,10 @@ player would have no way to tell why.
 
 ## `config/standby.json`
 
-`{enabled, screensaver_delay, sleep_delay, governor}` — shape enforced by the
-`StandbyConfig` pydantic model in `routers/standby.py`.
+`{enabled, screensaver_mins, sleep_mins, wake_settle_secs}` — shape enforced by
+the `StandbyConfig` pydantic model in `routers/standby.py`. `wake_settle_secs`
+(0-8, default 2.5) is how long the screen stays black after a wake once the TV
+link is back (`services/display_ready.py`); Settings → System edits it.
 
 ## `config/auth.json` + `auth_secret`
 
