@@ -29,16 +29,18 @@
 
   ## Screenshots
 
-  img/themes/ comes from the headless UI tour (dev data, simulated pads). Rules
-  for any image added here: no commercial cover art, no ROM filenames, and no
-  data from a real box (LAN IP, Wi-Fi name, MAC address): mask them first.
+  img/themes/, img/social.jpg and every theme's preview.png come from one
+  command, `node scripts/shoot-site.mjs` (made-up games, drawn jackets,
+  simulated pads). Re-run it in the same PR as any change to a theme's look.
+  Rules for any image added here: no commercial cover art, no ROM filenames,
+  and no data from a real box (LAN IP, Wi-Fi name, MAC address).
 
   Look: the built-in UI's own identity (frontend/src/DESIGN.md), a quiet dark
   console where the screenshots carry the colour.
 -->
 
 <title>GameCore: living-room emulation for Arch Linux (PS3, PS4, Switch, Wii U)</title>
-<meta name="description" content="A gamepad-only emulation box for the recent consoles: PS3, PS4, Switch, Wii U, Xbox 360 and 29 more systems. Flatpak emulators that stay current, controllers that configure themselves, on an Arch install that stays a real computer.">
+<meta name="description" content="A gamepad-only emulation box for the recent consoles: PS3, PS4, Switch, Wii U, Xbox 360, 29 more systems and your PC games. Flatpak emulators that stay current, controllers that configure themselves, on an Arch install that stays a real computer.">
 <link rel="canonical" href="https://p4v1c.github.io/GamecoreRenew/">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#09090f">
@@ -46,7 +48,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="GameCore">
 <meta property="og:title" content="GameCore, a living-room box for the recent consoles">
-<meta property="og:description" content="PS3, PS4, Switch, Wii U, Xbox 360 and 29 more systems. Always-current Flatpak emulators, controllers that configure themselves, on an Arch that stays a real machine.">
+<meta property="og:description" content="PS3, PS4, Switch, Wii U, Xbox 360, 29 more systems and your PC games. Always-current Flatpak emulators, controllers that configure themselves, on an Arch that stays a real machine.">
 <meta property="og:url" content="https://p4v1c.github.io/GamecoreRenew/">
 <meta property="og:image" content="https://p4v1c.github.io/GamecoreRenew/img/social.jpg">
 <meta property="og:image:width" content="1200">
@@ -54,7 +56,7 @@
 <meta property="og:image:alt" content="The GameCore console screen in the Orbit theme, a Nintendo 3DS picked in a row of consoles">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="GameCore, a living-room box for the recent consoles">
-<meta name="twitter:description" content="PS3, PS4, Switch, Wii U, Xbox 360 and 29 more systems. Always-current Flatpak emulators, controllers that configure themselves, on an Arch that stays a real machine.">
+<meta name="twitter:description" content="PS3, PS4, Switch, Wii U, Xbox 360, 29 more systems and your PC games. Always-current Flatpak emulators, controllers that configure themselves, on an Arch that stays a real machine.">
 <meta name="twitter:image" content="https://p4v1c.github.io/GamecoreRenew/img/social.jpg">
 
 <script type="application/ld+json">
@@ -229,6 +231,7 @@
 <div class="wrap top">
   <a class="brand" href="#">GameCore</a>
   <a class="hide-sm" href="#themes">Themes</a>
+  <a class="hide-sm" href="#features">Features</a>
   <a class="hide-sm" href="#systems">Systems</a>
   <a href="https://github.com/p4v1c/GamecoreRenew">GitHub</a>
 </div>
@@ -237,9 +240,9 @@
   <div class="wrap">
     <h1>A living-room box for the consoles people want to emulate.</h1>
     <p class="lede">
-      PS3, PS4, Switch, Wii U and Xbox 360, plus 29 more systems, driven
-      entirely with a gamepad on an Arch Linux machine that stays a real
-      computer underneath.
+      PS3, PS4, Switch, Wii U and Xbox 360, 29 more systems and your PC
+      games, driven entirely with a gamepad on an Arch Linux machine that
+      stays a real computer underneath.
     </p>
     <div class="actions">
       <a class="btn primary" href="#download">Download</a>
@@ -281,9 +284,10 @@
         <dd>Arch or Manjaro already installed, UEFI, a 1080p screen, 4&nbsp;GB of RAM
           and about 80&nbsp;GB of storage before your games.</dd>
         <dt>Why Linux only</dt>
-        <dd>The installer sets up systemd services, SDDM auto-login and a KDE
-          Plasma X11 session, all specific to Arch and Manjaro. No date is
-          promised for Windows.</dd>
+        <dd>The installer sets up systemd services, SDDM auto-login into
+          GameCore's own X11 session, and KDE Plasma as the desktop you can
+          leave to, all specific to Arch and Manjaro. No date is promised for
+          Windows.</dd>
         <dt>A network during the install</dt>
         <dd>The emulators come from Flathub.</dd>
       </dl>
@@ -294,40 +298,47 @@
 <!-- ── Themes ───────────────────────────────────────────────────────────── -->
 <section id="themes">
   <div class="wrap">
-    <h2>Four looks, one console</h2>
+    <h2>Five looks, one console</h2>
     <p class="sub">
-      Every theme runs the same screens with the same pad controls. Switch
-      between them in Settings, and anyone can write a new one with the
-      theme SDK.
+      Every theme runs the same screens with the same pad controls. Pick one
+      in Settings, and each profile keeps its own. Anyone can write a new
+      one with the theme SDK.
     </p>
     <div class="themes">
       <div class="theme">
-        <div><h3>Default</h3><p>A quiet dark console. The games carry the colour.</p></div>
+        <div><h3>Default</h3><p>A quiet dark console. Your consoles in a grid, the games carry the colour.</p></div>
         <figure class="shot"><a href="img/themes/default-home.webp"><img src="img/themes/default-home.webp" width="1280" height="720" loading="lazy"
-          alt="Default theme home: consoles in a grid with game counts"></a></figure>
+          alt="Default theme home: consoles in a grid with their game counts and playtime"></a></figure>
         <figure class="shot"><a href="img/themes/default-controller.webp"><img src="img/themes/default-controller.webp" width="1280" height="720" loading="lazy"
-          alt="Default theme controller screen with two pads connected"></a></figure>
+          alt="Default theme controller screen: the connected pad drawn live, with a pressed button lit"></a></figure>
       </div>
       <div class="theme">
-        <div><h3>Orbit</h3><p>A night-blue home you orbit around, one bright light on what has focus.</p></div>
+        <div><h3>Orbit</h3><p>A night-blue home in three tabs, games, consoles and apps, with one light on what has focus.</p></div>
         <figure class="shot"><a href="img/themes/orbit-home.webp"><img src="img/themes/orbit-home.webp" width="1280" height="720" loading="lazy"
           alt="Orbit theme: a Nintendo 3DS picked in a row of consoles"></a></figure>
         <figure class="shot"><a href="img/themes/orbit-controller.webp"><img src="img/themes/orbit-controller.webp" width="1280" height="720" loading="lazy"
-          alt="Orbit theme controller screen with two pads connected"></a></figure>
+          alt="Orbit theme controller screen: the connected pad drawn live, with a pressed button lit"></a></figure>
       </div>
       <div class="theme">
-        <div><h3>Shelf</h3><p>Your library as boxed games on a papered wall: print, cardboard, labels.</p></div>
+        <div><h3>Shelf</h3><p>Your library as boxed games on a papered wall: browse the spines, turn a box over, slot the cartridge in.</p></div>
         <figure class="shot"><a href="img/themes/shelf-home.webp"><img src="img/themes/shelf-home.webp" width="1280" height="720" loading="lazy"
-          alt="Shelf theme: console boxes on a patterned wallpaper"></a></figure>
+          alt="Shelf theme: the Nintendo 3DS picked on a patterned wallpaper, recently played below, consoles in a row"></a></figure>
         <figure class="shot"><a href="img/themes/shelf-controller.webp"><img src="img/themes/shelf-controller.webp" width="1280" height="720" loading="lazy"
-          alt="Shelf theme controller screen: a drawn pad with lettered buttons"></a></figure>
+          alt="Shelf theme controller screen: the connected pad drawn live, with a pressed button lit"></a></figure>
       </div>
       <div class="theme">
         <div><h3>Summer</h3><p>A beach at the hour it really is, with a live ocean behind sea-glass panels.</p></div>
         <figure class="shot"><a href="img/themes/summer-home.webp"><img src="img/themes/summer-home.webp" width="1280" height="720" loading="lazy"
-          alt="Summer theme: console cards over a sunset beach"></a></figure>
+          alt="Summer theme: console cards over an afternoon beach"></a></figure>
         <figure class="shot"><a href="img/themes/summer-controller.webp"><img src="img/themes/summer-controller.webp" width="1280" height="720" loading="lazy"
-          alt="Summer theme controller screen over the beach"></a></figure>
+          alt="Summer theme controller screen: the connected pad drawn live, with a pressed button lit"></a></figure>
+      </div>
+      <div class="theme">
+        <div><h3>Jelly</h3><p>Round shapes and bright colours on a cyan floor: your last game up front, the rest in jelly tiles.</p></div>
+        <figure class="shot"><a href="img/themes/jelly-home.webp"><img src="img/themes/jelly-home.webp" width="1280" height="720" loading="lazy"
+          alt="Jelly theme: the last game played in a large purple card, recently played games below"></a></figure>
+        <figure class="shot"><a href="img/themes/jelly-controller.webp"><img src="img/themes/jelly-controller.webp" width="1280" height="720" loading="lazy"
+          alt="Jelly theme controller screen: the connected pad drawn live, with a pressed button lit"></a></figure>
       </div>
     </div>
   </div>
@@ -389,9 +400,57 @@
       </li>
       <li>
         <h3>Still a real computer</h3>
-        <p>A full Arch install with KDE Plasma underneath. Nothing is
-          read-only or locked, and one command closes the console screen and
-          hands the desktop back.</p>
+        <p>A full Arch install with KDE Plasma beside it. Nothing is
+          read-only or locked, and Return to desktop in the Power menu hands
+          you the Plasma desktop.</p>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- ── Day to day ───────────────────────────────────────────────────────── -->
+<section id="features">
+  <div class="wrap">
+    <h2>Day to day</h2>
+    <p class="sub">What it does once the games are on it.</p>
+    <ul class="points">
+      <li>
+        <h3>Rest mode, woken by the pad</h3>
+        <p>The Power menu opens on Rest mode: every game and app closes and
+          the box sleeps. The PS or Guide button on a paired Bluetooth pad, or
+          a button on a USB pad, wakes it straight to Home, with the theme's
+          boot animation and sound.</p>
+      </li>
+      <li>
+        <h3>Put a game aside</h3>
+        <p>Press Guide twice in a game to suspend it and go back to the
+          menu. Pick it up later where you left it: the Power menu lists what
+          is set aside.</p>
+      </li>
+      <li>
+        <h3>A screensaver worth leaving on</h3>
+        <p>After the idle time you set, Orbit and Shelf show a small CRT in a
+          room at night playing short clips of the games you play most, and
+          Jelly floats your covers in bouncing jellies. Then the screen turns
+          off. Any pad button brings it back.</p>
+      </li>
+      <li>
+        <h3>A profile for each player</h3>
+        <p>A name, a colour, an animal picture and a theme, with their own
+          saves, playtime, recently played and favourites. With two or more,
+          the box asks who is playing when it starts.</p>
+      </li>
+      <li>
+        <h3>Your PC games too</h3>
+        <p>Install a Windows game once in Lutris, with a mouse. It then shows
+          up under PC and starts from the pad, on GE-Proton. PlayStation pads
+          are shown to the game as Xbox pads, so Xbox-only games work.</p>
+      </li>
+      <li>
+        <h3>A frame around the old games</h3>
+        <p>A bezel per game or per system fills the black bars of 4:3 and
+          handheld games. The hole is measured from the image itself, and
+          Start on a game in the library picks another one or turns it off.</p>
       </li>
     </ul>
   </div>
@@ -426,7 +485,7 @@
 <!-- ── Systems ──────────────────────────────────────────────────────────── -->
 <section id="systems">
   <div class="wrap">
-    <h2>34 systems</h2>
+    <h2>34 systems, and your PC games</h2>
     <p class="sub">Every emulator installs from Flathub unless noted. Apps sit
       next to them: Steam, Stremio, YouTube and Twitch.</p>
     <div class="systems">
@@ -449,6 +508,7 @@
             <tr><td>Nintendo 64</td><td>Rosalie's Mupen GUI</td></tr>
             <tr><td>Game Boy, Color, Advance</td><td>mGBA</td></tr>
             <tr><td>Super Nintendo</td><td>Snes9x</td></tr>
+            <tr><td>PC <span class="dim">Windows games</span></td><td>Lutris <span class="dim">with GE-Proton</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -481,6 +541,7 @@
       <li><strong>X11 only.</strong> The overlays, the fullscreen enforcer and the gamepad-to-keyboard bridge all depend on it. Wayland is not a small change.</li>
       <li><strong>No bootable image.</strong> The installer goes onto an Arch that is already there, and it needs a network for Flathub.</li>
       <li><strong>Multi-controller setups are proven by a test harness, not by hardware.</strong> Two, three and four-pad configurations are replayed as synthetic controller sets against the real config generators and compared with recorded output. That is real evidence for the generated configs. It is not four people playing on a real box.</li>
+      <li><strong>Waking with a pad depends on the hardware.</strong> GameCore arms the Bluetooth adapter and the USB pads itself, but whether they can wake the board is up to the board and the adapter.</li>
       <li><strong>One developer.</strong> The bus factor is one.</li>
       <li><strong>No games, ROMs, BIOS files or keys</strong> are distributed, downloaded or included. Bring your own.</li>
     </ul>
