@@ -101,10 +101,12 @@ desktop session, `systemctl reload systemd-logind` on Manjaro's systemd.
   vitest, electron bench, check-theme jelly, theme versions, check-docs,
   file size): see the commit; pytest fails only the 4 known tests on `main`.
 
-Shots (960x540): `rest-mode-tools/shots/<theme>-power.png`, `-power-confirm`,
-`-power-bg` (a suspended game: the session row leads, the cursor is on Rest
-mode), `-wake-splash` (the boot replaying after `power:resumed`),
-`default-power-refused.png`, `default-wake-home.png`.
+Shots (960x540), made by `rest-mode-tools/power-shots.cjs` for every theme:
+`<theme>-power.png`, `-power-confirm`, `-power-bg` (a suspended game: the
+session row leads, the cursor is on Rest mode), `-wake-splash` (the boot
+replaying after `power:resumed`). Kept in `rest-mode-tools/shots/`: the
+default theme's `default-power.png`, `default-power-refused.png` and
+`default-wake-home.png`; re-run the script for the other themes.
 
 ## Not verified
 
@@ -145,9 +147,9 @@ sets the layer, a refusal drops it), `settings/wakeSettle.test.tsx` (row
 reached and changed with the pad, saves `wake_settle_secs`).
 
 Screens (`rest-mode-tools/wake-shots.cjs`, devserve): `shots/wake-setting-<theme>.png`
-for all five themes, the row focused at 2.5 s; `shots/wake-black-default.png`
+for all five themes, the row focused at 2.5 s (only the default one is kept); `shots/wake-black-default.png`
 (every theme's frame measured all pixels 0); `shots/wake-splash-start-orbit.png`
-and `-jelly.png`, the splash's first frames after `power:resumed`. Reviewed:
+and `-jelly.png` (not kept), the splash's first frames after `power:resumed`. Reviewed:
 the row matches its neighbours in every theme (it is the same row type as
 "Screen off after"); the first draft's description was two lines long in Orbit
 and was shortened. A legibility audit was not run on this row (the audit tool
