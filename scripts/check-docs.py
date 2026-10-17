@@ -51,8 +51,13 @@ rather than excused.
 If you add an entry to any of the three, say why. A list of bare paths becomes a
 place to silence this script, which is the opposite of the point.
 
+A third check, with --all: the website (docs/index.html) and the README's
+theme gallery against what ships. Every shipped theme has its two shots and a
+preview.png, no page shows a theme that is gone, and the site's system count
+matches the catalogue. Fix with `node scripts/shoot-site.mjs`.
+
 Run:  python3 scripts/check-docs.py [--all]
-      --all also scans docs/*.md, not just docs/architecture/.
+      --all also scans docs/*.md, not just docs/architecture/, and the website.
 """
 from __future__ import annotations
 
@@ -197,6 +202,61 @@ def check_file(md: Path) -> list[str]:
     return problems
 
 
+# ── The website and the README's theme gallery ─────────────────────────────
+#
+# The owner changed a theme and the old screenshots stayed; Jelly shipped and
+# the website kept saying "four looks". Both are facts the repo can check: which
+# themes ship, which shots and previews exist, how many systems the catalogue
+# has. Re-shoot with `node scripts/shoot-site.mjs` when this fails.
+
+SHOT_KINDS = ("home", "controller")
+SITE_SHOT = re.compile(r"img/themes/([a-z0-9_-]+?)-(?:home|controller)\.webp")
+
+
+def shipped_themes() -> list[str]:
+    """`default` (built in) and every theme folder a player can pick."""
+    found = {Path(p).parts[2] for p in TRACKED
+             if p.startswith("config/themes/") and len(Path(p).parts) > 3}
+    return ["default"] + sorted(t for t in found if not t.startswith("_"))
+
+
+def site_problems(themes: list[str], tracked: set[str], pages: dict[str, str],
+                  systems: int) -> list[str]:
+    """What the website and the README say against what ships.
+
+    `pages` maps a page's path to its text; `systems` counts the emulated
+    systems (PC excluded: the site lists it apart, as "your PC games").
+    """
+    problems = []
+    for t in themes:
+        for kind in SHOT_KINDS:
+            shot = f"docs/img/themes/{t}-{kind}.webp"
+            if shot not in tracked:
+                problems.append(f"{shot}: missing, theme `{t}` ships")
+            for page, text in pages.items():
+                if f"img/themes/{t}-{kind}.webp" not in text:
+                    problems.append(f"{page}: no {t}-{kind}.webp, theme `{t}` ships")
+        if t != "default" and f"config/themes/{t}/preview.png" not in tracked:
+            problems.append(f"config/themes/{t}/preview.png: missing")
+    for page, text in pages.items():
+        for t in sorted(set(SITE_SHOT.findall(text)) - set(themes)):
+            problems.append(f"{page}: shows theme `{t}`, which no longer ships")
+    site = pages.get("docs/index.html", "")
+    for claim in (f"{systems} systems", f"{systems - 5} more systems"):
+        if site and claim not in site:
+            problems.append(f"docs/index.html: does not say \"{claim}\" "
+                            f"(the catalogue has {systems} systems besides PC)")
+    return problems
+
+
+def check_site() -> list[str]:
+    import json
+    dist = json.loads((ROOT / "install/generated/systems.json.dist").read_text())
+    systems = sum(1 for s in dist if s["id"] != "lutris")
+    pages = {p: (ROOT / p).read_text(encoding="utf-8") for p in ("docs/index.html", "README.md")}
+    return site_problems(shipped_themes(), TRACKED, pages, systems)
+
+
 def main() -> int:
     scan_all = "--all" in sys.argv
     docs = sorted((ROOT / "docs" / "architecture").glob("*.md"))
@@ -206,6 +266,8 @@ def main() -> int:
     problems: list[str] = []
     for md in docs:
         problems += check_file(md)
+    if scan_all:
+        problems += check_site()
 
     if problems:
         print(f"check-docs: {len(problems)} stale reference(s)\n")

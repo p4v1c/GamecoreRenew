@@ -61,3 +61,36 @@ def test_the_checker_actually_fails_on_a_missing_path(tmp_path):
         assert "nope-not-a-doc.md" in r.stdout
     finally:
         bad.unlink()
+
+
+def _check_docs_module():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("check_docs", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_the_site_check_fails_on_a_theme_left_out_or_gone():
+    """The website kept "four looks" after Jelly shipped, with no check to say so."""
+    cd = _check_docs_module()
+    tracked = {f"docs/img/themes/{t}-{k}.webp" for t in ("default", "jelly") for k in ("home", "controller")}
+    tracked.add("config/themes/jelly/preview.png")
+    full = " ".join(f"img/themes/{t}-{k}.webp" for t in ("default", "jelly") for k in ("home", "controller"))
+    site = full + " 34 systems 29 more systems"
+
+    assert cd.site_problems(["default", "jelly"], tracked, {"docs/index.html": site}, 34) == []
+
+    left_out = cd.site_problems(["default", "jelly"], tracked,
+                                {"docs/index.html": site.replace("jelly-home", "x")}, 34)
+    assert any("no jelly-home.webp" in p for p in left_out)
+
+    gone = cd.site_problems(["default"], tracked, {"docs/index.html": site}, 34)
+    assert any("`jelly`, which no longer ships" in p for p in gone)
+
+    no_preview = cd.site_problems(["default", "jelly"], tracked - {"config/themes/jelly/preview.png"},
+                                  {"docs/index.html": site}, 34)
+    assert any("jelly/preview.png: missing" in p for p in no_preview)
+
+    assert any("35 systems" in p for p in cd.site_problems(["default", "jelly"], tracked,
+                                                            {"docs/index.html": site}, 35))

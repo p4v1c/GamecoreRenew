@@ -47,7 +47,10 @@ Budgets while building: `gamecore-file-size`, `gamecore-naming`,
 
 - [ ] code in the right layer, no file over budget grew
 - [ ] tests for the new logic, suite green
-- [ ] docs + CHANGELOG updated, `check-docs.py` green
+- [ ] docs + CHANGELOG updated, `check-docs.py --all` green
+- [ ] user-visible: README and `docs/index.html` say what it does now; a
+      theme's look changed: `node scripts/shoot-site.mjs --themes <id>` in the
+      same PR
 - [ ] English comments, short
 - [ ] works with a pad only, on a fresh install, and after an OTA
       (config/ untouched, `frontend/dist` rebuilt — see gotchas "OTA rebuild trap")

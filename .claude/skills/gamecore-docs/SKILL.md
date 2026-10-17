@@ -28,7 +28,10 @@ than no map.
 | `release.yml`, `update/`, OTA content | `docs/architecture/13-release-and-ota.md` |
 | theme SDK / `config/themes/**` | `docs/themes/README.md` |
 | tests, markers, conftest | `docs/TESTING.md` |
-| user-visible feature | `README.md` (user manual) + `CHANGELOG.md` |
+| user-visible feature added, changed or removed | `README.md` (user manual) + `docs/index.html` (the website: claims, counts, "Day to day", "What it does not do") + `CHANGELOG.md` |
+| a theme's look (`config/themes/<id>/**` CSS, views, home) | re-shoot with `node scripts/shoot-site.mjs --themes <id>`: its `preview.png` and the website/README shots, **same PR**, theme version bumped |
+| a theme added or removed | the above, plus its row in `docs/index.html` (Themes) and the README gallery; `check-docs.py --all` fails until they match |
+| a system added or removed (`catalog/`) | the counts and systems table in `docs/index.html`, the README ROM table |
 | a session's decisions / measurements | new `docs/reports/<topic>-YYYY-MM-DD.md` + row in `docs/reports/README.md` |
 
 New area with no home? Add a numbered file in `docs/architecture/` and a row
@@ -49,10 +52,27 @@ in `docs/architecture/README.md` ("Read in this order" + "Looking for").
 - Every "do not do X" names the failure that taught it, in one line.
 - Mermaid for flows, not ASCII art.
 
+## Screenshots
+
+- **Website, README gallery, theme previews**: only from
+  `node scripts/shoot-site.mjs` (made-up games, drawn jackets, fixed time,
+  no real box data). Never hand-made, never from a real box. Look at every
+  image it wrote before committing: a console render can arrive late, re-run
+  that theme. `git checkout` the `preview.png` of a theme you did not change.
+- **`docs/dev-log/`, `docs/reports/`**: scratch. Commit the capture script and
+  a few representative PNGs the log names (one theme, the key states), not
+  the full theme × state set; the script regenerates the rest. Large sets
+  stay in `~/Downloads/<topic>/shots/`.
+- A doc that stops being true is fixed or deleted, not left: a report whose
+  subject is gone (a branch, a box's state on one day) goes, with a line in
+  the PR saying why.
+
 ## Checks
 
 ```bash
-python3 scripts/check-docs.py --all     # every named path and link resolves
+python3 scripts/check-docs.py --all     # every named path and link resolves;
+                                        # every shipped theme has its site shots,
+                                        # its preview.png, and the site's system count is right
 ```
 
 Then read the diff: every new public name (endpoint, WS event, config key,

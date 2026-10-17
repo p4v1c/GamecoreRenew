@@ -24,7 +24,7 @@ node $A --theme <t> [--press <gp>] --shot $OUT/<t>-<screen>-after.png --crops   
 node $A --theme <t> [--press <gp>] --shot $OUT/<t>-<screen>-card.png --clip 660,300,600,560   # one component, 2x
 ```
 
-- Every theme the change can reach (default, orbit, shelf, summer), every
+- Every theme the change can reach (default, orbit, shelf, summer, jelly), every
   screen and state it touches: focused and unfocused, empty and full, long
   names, several pads, error state, the modal open and closed.
 - A 1920×1080 image is shrunk when you read it: small defects hide. Read the
@@ -71,6 +71,14 @@ Checklist for every image:
   separate reviewer (a fresh agent with only the request, DESIGN.md and the
   images).
 - Repeat until a pass finds nothing. Two passes is the floor, not the goal.
+
+## 3b. When the look changed for good
+
+A change that alters what a theme looks like at rest (home, controller screen)
+also re-shoots its public images in the same PR:
+`node scripts/shoot-site.mjs --themes <id>`, then bump the theme version
+(`gamecore-docs`). The review shots above stay in `~/Downloads`; they are not
+committed.
 
 ## 4. Report
 

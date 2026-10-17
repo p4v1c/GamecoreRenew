@@ -70,7 +70,7 @@ Audit, per theme and per screen:
 
 ```bash
 A=.claude/skills/gamecore-legibility/scripts/legibility-audit.mjs
-for t in default orbit shelf summer; do
+for t in default orbit shelf summer jelly; do
   node $A --theme $t                           # home
   node $A --theme $t --press confirm          # library (Orbit: --press r1,confirm)
   node $A --theme $t --press x                # controller screen

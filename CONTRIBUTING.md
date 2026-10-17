@@ -45,6 +45,13 @@ skips it when there is no `node`. It is the only place the bezel window's
 geometry and the cancellation of a launch are checked at all — nothing in
 Python can see them.
 
+A change to a theme's look, or to what the box can do, also changes the
+public pages: re-shoot with `node scripts/shoot-site.mjs --themes <id>` (website
+shots, README gallery, the theme's `preview.png`) and update `README.md` and
+`docs/index.html` in the same PR. `python3 scripts/check-docs.py --all` (run
+by pytest) fails when a shipped theme has no shots or preview, or the site's
+system count is wrong.
+
 `gen-catalog.py --check` is the one people forget. Three committed files are
 **generated** from `catalog/*/pack.json` — `install/generated/*.dist` and
 `install/installer-gui/catalog_data.py`. Edit a pack without regenerating and
