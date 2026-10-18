@@ -244,7 +244,10 @@ sequenceDiagram
   black and forces a full repaint; everything else is the backend's.
 - Wake permission: `gamecore-wake-setup` (root, boot + udev) arms the USB
   adapter and USB pads; `services/bt_wake.py` sets BlueZ `WakeAllowed=true` on
-  paired pads, at start and whenever a new pad joins the roster.
+  paired pads and `false` on paired Bluetooth mice and keyboards (BlueZ allows
+  HID wake by default; a moved mouse woke the box), at start, after each wake
+  and whenever a new pad joins the roster. USB keyboards and the power button
+  are not BlueZ's and keep waking it.
 - What woke the box: `services/wake_source.py` keeps the wakeup counters
   from the sleep announcement and logs the ones that moved after the wake
   (`journalctl -u gamecore-backend | grep wake_source`). `3-3 (…)` is the

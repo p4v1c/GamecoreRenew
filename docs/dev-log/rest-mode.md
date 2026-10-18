@@ -178,7 +178,7 @@ picture came back (Home with black polygons) before the animation.
 |---|---|
 | A Bluetooth device paging the box wakes it | Each immediate wake: bluetoothd `Authorization request for non-connected device!?` as user space freezes, then the Xbox Wireless Controller (045e:02fd) back 40-60 ms after the resume. Same line on 15/10 13:44: the Bluetooth mouse woke the box. DS4-only sleeps on 14/10: no such line, they held for hours. |
 | The kernel's disconnect is not a console's | Kernel 6.12 `hci_suspend_sync` disconnects every link with "power off" (0x15) before arming the wake filter (the `ACL packet for unknown connection handle` lines); the Xbox pad pages straight back, the DS4 does not. BlueZ `Device1.Disconnect` ends the link with 0x13 "remote user terminated" (source: BlueZ 5.87 `disconnect_all()` → `MGMT_OP_DISCONNECT`, kernel `disconnect_sync()` → `hci_abort_conn(conn, HCI_ERROR_REMOTE_USER_TERM)`; the L2CAP idle drop uses the same `disc_reason`). An earlier draft of this log said a GameCore disconnect would repeat the kernel's: wrong, the reason differs. Built: `bt_wake.turn_off_pads()` in `sleep_guard.before_sleep()`. |
-| The mouse has `WakeAllowed` | BlueZ's default for HID devices, not `bt_wake.py`. |
+| The mouse has `WakeAllowed` | BlueZ's default for HID devices, not `bt_wake.py`. Now set false by `bt_wake.py` for every `NOT_PADS` icon. |
 | The menu came back as the box fell asleep | `POST /api/power/rest` is in no access log, ever: Chromium drops every socket as NetworkManager sleeps (WebSocket 1006 in the same millisecond). The fetch error was taken for a refusal, the black layer lifted, and that frame went to sleep with the box. |
 
 Fixes: `services/wake_source.py` logs the wakeup sources whose `event_count`

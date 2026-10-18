@@ -49,7 +49,7 @@ def steps(monkeypatch):
     monkeypatch.setattr(resume.standby, "load_config", lambda: {"wake_settle_secs": 0})
     monkeypatch.setattr(resume.gamepad_monitor, "request_reprofile",
                         lambda: seen.append("pads"))
-    monkeypatch.setattr(resume.bt_wake, "allow_paired_pads", note("bluetooth"))
+    monkeypatch.setattr(resume.bt_wake, "set_wake_permissions", note("bluetooth"))
     monkeypatch.setattr(resume.wake_source, "remember", lambda: seen.append("counts"))
     monkeypatch.setattr(resume.wake_source, "report", lambda: seen.append("source"))
     broadcast = AsyncMock(side_effect=lambda ev, data: seen.append(ev))

@@ -68,7 +68,7 @@ def test_a_pass_sets_wake_allowed_through_busctl(monkeypatch):
 
     monkeypatch.setattr(bt_wake, "_busctl", busctl)
     monkeypatch.setattr(bt_wake.gamepad_monitor, "roster", lambda: {})
-    assert asyncio.run(bt_wake.allow_paired_pads()) is True
+    assert asyncio.run(bt_wake.set_wake_permissions()) is True
     assert calls[1] == ("set-property", "org.bluez", "/org/bluez/hci0/dev_AA_00_00_00_00_01",
                         "org.bluez.Device1", "WakeAllowed", "b", "true")
     assert len(calls) == 2
@@ -78,7 +78,7 @@ def test_bluez_not_answering_is_reported_as_unknown(monkeypatch):
     async def busctl(*args):
         return 1, "Failed to connect to bus"
     monkeypatch.setattr(bt_wake, "_busctl", busctl)
-    assert asyncio.run(bt_wake.allow_paired_pads()) is None
+    assert asyncio.run(bt_wake.set_wake_permissions()) is None
 
 
 def test_the_loop_passes_again_when_a_new_pad_connects(monkeypatch):
@@ -89,7 +89,7 @@ def test_the_loop_passes_again_when_a_new_pad_connects(monkeypatch):
         passes.append(set(roster))
         return True
 
-    monkeypatch.setattr(bt_wake, "allow_paired_pads", one_pass)
+    monkeypatch.setattr(bt_wake, "set_wake_permissions", one_pass)
     monkeypatch.setattr(bt_wake.gamepad_monitor, "roster", lambda: dict(roster))
     monkeypatch.setattr(bt_wake, "ROSTER_POLL_SECS", 0.01)
 
@@ -151,3 +151,17 @@ def test_no_bluez_turns_nothing_off(monkeypatch):
     monkeypatch.setattr(bt_wake, "_busctl", busctl)
     assert asyncio.run(bt_wake.turn_off_pads()) == 0
 
+
+def test_mice_and_keyboards_lose_their_wake_and_pads_keep_theirs(monkeypatch):
+    assert bt_wake.others_to_disarm(AT_SLEEP) == [
+        "/org/bluez/hci0/dev_00_00_13_08_05_04", "/org/bluez/hci0/dev_AA_00_00_00_00_0B"]
+    calls = _fake_bus(monkeypatch, AT_SLEEP)
+    monkeypatch.setattr(bt_wake.gamepad_monitor, "roster", lambda: {})
+    assert asyncio.run(bt_wake.set_wake_permissions()) is True
+    sets = [c for c in calls if c[0] == "set-property"]
+    assert sets == [
+        ("set-property", "org.bluez", "/org/bluez/hci0/dev_00_00_13_08_05_04",
+         "org.bluez.Device1", "WakeAllowed", "b", "false"),
+        ("set-property", "org.bluez", "/org/bluez/hci0/dev_AA_00_00_00_00_0B",
+         "org.bluez.Device1", "WakeAllowed", "b", "false"),
+    ]

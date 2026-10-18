@@ -85,7 +85,7 @@ async def on_resume() -> None:
     _sleeping = False
     await _step("announce", ws.broadcast("power:resumed", {"resumes": _resumes}))
     gamepad_monitor.request_reprofile()
-    await _step("bluetooth wake", bt_wake.allow_paired_pads())
+    await _step("bluetooth wake", bt_wake.set_wake_permissions())
 
 
 async def _read(proc) -> None:

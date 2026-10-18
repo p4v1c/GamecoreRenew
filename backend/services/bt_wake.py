@@ -1,4 +1,5 @@
-"""Bluetooth and sleep: pads wake the box, and are turned off before it sleeps.
+"""Bluetooth and sleep: pads wake the box, are turned off before it sleeps,
+and nothing else wakes it.
 
 BlueZ only arms a device for wake when its `WakeAllowed` property is true, and
 on the reference box it was false for the pad until set by hand. Any user may
@@ -8,7 +9,9 @@ sees new pads arrive. The adapter's own USB wakeup is root's job:
 `install/bin/gamecore-wake-setup`.
 
 Which devices: paired ones BlueZ draws as a gamepad (`Icon` input-gaming), or
-whose address is a pad on GameCore's own roster. Never a keyboard or a mouse.
+whose address is a pad on GameCore's own roster. Keyboards and mice get
+`WakeAllowed` false: BlueZ allows it by default for HID, and a moved mouse
+woke the box.
 
 Before a sleep, connected pads are disconnected over Device1.Disconnect, which
 ends the link with "remote user terminated" (0x13): the pad turns itself off.
@@ -65,6 +68,13 @@ def pads_to_arm(objects: dict, roster_macs: set[str]) -> list[str]:
                   if _is_pad(props, roster_macs) and _value(props, "WakeAllowed") is False)
 
 
+def others_to_disarm(objects: dict) -> list[str]:
+    """Paired keyboards and mice (NOT_PADS) still allowed to wake the box."""
+    return sorted(p for p, props in _paired(objects)
+                  if (_value(props, "Icon") or "") in NOT_PADS
+                  and _value(props, "WakeAllowed") is True)
+
+
 def pads_to_turn_off(objects: dict, roster_macs: set[str]) -> list[str]:
     """Paired pads connected right now. Audio and input devices that are not pads stay."""
     return sorted(p for p, props in _paired(objects)
@@ -112,13 +122,18 @@ async def _set_wake(path: str, allowed: bool) -> None:
         log.warning("bt_wake: could not set WakeAllowed=%s on %s: %s", value, path, detail.strip())
 
 
-async def allow_paired_pads() -> bool | None:
-    """One pass. True when BlueZ answered, None when it could not be asked."""
+async def set_wake_permissions() -> bool | None:
+    """One pass: arm pads, disarm keyboards and mice.
+
+    True when BlueZ answered, None when it could not be asked.
+    """
     objects = await _devices()
     if objects is None:
         return None
     for path in pads_to_arm(objects, roster_macs()):
         await _set_wake(path, True)
+    for path in others_to_disarm(objects):
+        await _set_wake(path, False)
     return True
 
 
@@ -155,7 +170,7 @@ async def run() -> None:
         macs = roster_macs()
         new_pad = seen is None or not macs <= seen
         if new_pad or (retry_at and loop.time() >= retry_at):
-            answered = await allow_paired_pads()
+            answered = await set_wake_permissions()
             retry_at = 0.0 if answered else loop.time() + RETRY_SECS
             seen = (seen or set()) | macs
         await asyncio.sleep(ROSTER_POLL_SECS)

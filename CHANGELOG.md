@@ -21,6 +21,10 @@ are the auto-incremented tags.
   console does: an Xbox pad left to the kernel paged back and woke the box at
   once. The pad's home button still wakes it. No operator step.
 
+- Bluetooth mice and keyboards no longer wake the box from Rest mode (BlueZ
+  allowed it by default; a mouse did on 15/10). Pads, USB keyboards and the
+  power button still do. No operator step.
+
 - Rest mode: the screen stays black from the press to the boot animation (the
   menu used to come back as the box fell asleep, and showed again, half
   black, on the wake), and the backend journal names what woke the box
