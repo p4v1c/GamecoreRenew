@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useStore, type BackgroundSession } from '../store'
 import { api, type SessionState } from '../api'
 import { fadeToStandby } from '../lib/standbyFade'
-import { onResumed, onSleeping, syncWake } from '../lib/wake'
+import { onResumed, onShellResumed, onSleeping, syncWake } from '../lib/wake'
 
 /** How long the 'interface is back' beat lasts. Purely visual: nothing
  *  is waiting on it, and a theme that draws nothing never sees it. */
@@ -286,6 +286,8 @@ export function useWebSocket() {
     // Rest mode's wake: Home, with the boot animation (App.tsx, DefaultShell).
     const off9 = onWsEvent('power:resumed', (d) => onResumed(d.resumes))
     const off10 = onWsEvent('power:sleeping', onSleeping)
+    // Subscribed once (the guard above): the shell has no way to unsubscribe.
+    window.gamecore?.onResume?.(onShellResumed)
 
     return () => {
       if (suspendBeat.timer) clearTimeout(suspendBeat.timer)

@@ -157,7 +157,7 @@ HUD instead, because the React toast is hidden under the emulator.
 
 ---
 
-## Rest mode: `rest_mode.py`, `resume.py`, `bt_wake.py`
+## Rest mode: `rest_mode.py`, `resume.py`, `bt_wake.py`, `wake_source.py`
 
 | Function | Role |
 |---|---|
@@ -167,12 +167,15 @@ HUD instead, because the React toast is hidden under the emulator.
 | `launch.close_gate(reason)` / `open_gate()` / `is_launching()` | the gate `launch()` checks first |
 | `resume.run()` | `gdbus monitor` on logind; `parse_sleep_signal(line)` is pure; holds `sleep_guard`'s lock while it listens |
 | `sleep_guard.take()` / `release()` | the logind delay lock for sleep (`systemd-inhibit … cat`; released by closing stdin) |
-| `sleep_guard.before_sleep()` | `PrepareForSleep(true)`: gate, `close_everything(6, 2)` bounded by `SLEEP_BUDGET_SECS` (12 s), then release, always |
+| `sleep_guard.before_sleep()` | `PrepareForSleep(true)`: gate, `close_everything(6, 2)` and `bt_wake.turn_off_pads()` together (one failing does not cut the other short), bounded by `SLEEP_BUDGET_SECS` (12 s), then release, always |
 | `sleep_guard.after_wake()` | sweep again after a sleep, take the lock back (first step of `on_resume()`) |
-| `resume.on_resume()` | `sleep_guard.after_wake()`, gate, `standby.exit_standby()`, `display_ready.wait_for_display()`, `display.restore_preferred()`, the `wake_settle_secs` delay, then the wake count and `power:resumed`, `gamepad_monitor.request_reprofile()`, `bt_wake.allow_paired_pads()`; each step isolated |
+| `resume.on_resume()` | `wake_source.report()`, `sleep_guard.after_wake()`, gate, `standby.exit_standby()`, `display_ready.wait_for_display()`, `display.restore_preferred()`, the `wake_settle_secs` delay, then the wake count and `power:resumed`, `gamepad_monitor.request_reprofile()`, `bt_wake.set_wake_permissions()`; each step isolated |
+| `wake_source.remember()` / `report()` | `event_count` of every `/sys/class/wakeup/wakeup*` on `PrepareForSleep(true)`, compared first thing after the wake; logs `wake_source: woken by <name> (<USB product>) +N` (+ `/sys/power/pm_wakeup_irq` when set). `moved()` is pure |
 | `resume.announce_sleep()` / `is_sleeping()` | `power:sleeping` on `PrepareForSleep(true)`; true until `power:resumed` |
 | `display_ready.wait_for_display(settle, root, max_wait)` | poll `/sys/class/drm/card*-*` (`status`, `enabled`, `dpms`) every 200 ms until one connector is lit, `WAIT_MAX_SECS` = 10 s; no DRM at all means no wait. `connector_ready()` is pure |
 | `bt_wake.pads_to_arm(objects, roster_macs)` | **pure**: paired devices with `Icon` input-gaming or a roster MAC, never keyboard/mouse, whose `WakeAllowed` is false |
+| `bt_wake.others_to_disarm(objects)` | **pure**: paired devices whose `Icon` is in `NOT_PADS` (keyboard, mouse, tablet) and `WakeAllowed` is true; `set_wake_permissions()` sets them false in the same pass that arms the pads |
+| `bt_wake.pads_to_turn_off(objects, roster_macs)` / `turn_off_pads()` | **pure** / edge: connected paired pads (same pad rule as `pads_to_arm`); `Device1.Disconnect` on each, concurrently, `BUSCTL_SECS` each; returns how many |
 | `bt_wake.run()` | a pass at start, then whenever a new pad MAC joins `gamepad_monitor.roster()` |
 | `display.restore_preferred()` | after a wake, put the confirmed mode back if the output came up in another |
 

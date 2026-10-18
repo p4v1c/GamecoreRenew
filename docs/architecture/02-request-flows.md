@@ -239,11 +239,28 @@ sequenceDiagram
   session nothing else takes the key (no PowerDevil), so a short press is a
   sleep with games closed; in a Plasma desktop session PowerDevil keeps its own
   setting. The long press is the firmware's force-off, untouched.
-- Electron's `powerMonitor` `resume` (`electron/power.js`) only puts the main
-  window back in fullscreen and focus; everything else is the backend's.
+- Electron's `powerMonitor` `resume` (`electron/power.js`) puts the main
+  window back in fullscreen and focus, tells the renderer to cover itself in
+  black and forces a full repaint; everything else is the backend's.
 - Wake permission: `gamecore-wake-setup` (root, boot + udev) arms the USB
   adapter and USB pads; `services/bt_wake.py` sets BlueZ `WakeAllowed=true` on
-  paired pads, at start and whenever a new pad joins the roster.
+  paired pads and `false` on paired Bluetooth mice and keyboards (BlueZ allows
+  HID wake by default; a moved mouse woke the box), at start, after each wake
+  and whenever a new pad joins the roster. USB keyboards and the power button
+  are not BlueZ's and keep waking it.
+- What woke the box: `services/wake_source.py` keeps the wakeup counters
+  from the sleep announcement and logs the ones that moved after the wake
+  (`journalctl -u gamecore-backend | grep wake_source`). `3-3 (…)` is the
+  Bluetooth adapter's USB port: a paired device paged the box.
+- Pads off before any sleep: `sleep_guard.before_sleep()` runs
+  `bt_wake.turn_off_pads()` next to the sweep, under the delay lock: BlueZ
+  `Device1.Disconnect` on every connected paired pad (never audio, mice or
+  keyboards), awaited, each call bounded by `BUSCTL_SECS`. That ends the link
+  with HCI reason 0x13 "remote user terminated" (BlueZ → `MGMT_OP_DISCONNECT`
+  → `hci_abort_conn(conn, HCI_ERROR_REMOTE_USER_TERM)`), which turns a pad
+  off. Left to the kernel, the link ends at suspend with 0x15 "power off"
+  (`hci_suspend_sync`), and an Xbox pad answers that by paging straight back,
+  which woke the box at once. `WakeAllowed` stays set: the home button wakes it.
 
 ## 6. LAN authentication
 

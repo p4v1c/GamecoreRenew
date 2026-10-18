@@ -60,6 +60,8 @@ interface GamecoreAPI {
   onOverlayShow:    (cb: (data: OverlayData) => void) => void
   onOverlayHide:    (cb: (data: OverlayData) => void) => void
   onOverlayWaiting: (cb: (data: OverlayData) => void) => void
+  /** Electron's powerMonitor `resume`, relayed by electron/power.js. Older shells lack it. */
+  onResume?: (cb: () => void) => void
 }
 
 declare global {

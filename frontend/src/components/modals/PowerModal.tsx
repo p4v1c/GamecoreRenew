@@ -126,6 +126,10 @@ export default function PowerModal({ onClose, view }: Props) {
       // it, and the TV never sees the menu again before the wake.
       useStore.getState().setAsleep(true)
       api.power.rest().catch((e: Error) => {
+        // No answer at all is the sleep itself: Chromium drops every socket
+        // as the network goes down, and the answer only comes after the wake.
+        // Only a refusal gives the menu back; the wake lifts the black.
+        if (e instanceof TypeError) return
         useStore.getState().setAsleep(false)
         // A bare "503 Service Unavailable" means nothing on a TV.
         setRestError(e.message && !/^\d{3} /.test(e.message) ? e.message : REST_REFUSED)

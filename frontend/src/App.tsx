@@ -3,6 +3,7 @@ import { AnimatePresence } from 'framer-motion'
 import { useWebSocket, applyIfStillCurrent } from './hooks/useWebSocket'
 import { useGamepad, onGp } from './hooks/useGamepad'
 import { useEmulatorOverlay } from './hooks/useEmulatorOverlay'
+import { useWakeSplash } from './hooks/useWakeSplash'
 import { useStore } from './store'
 import { api } from './api'
 
@@ -58,8 +59,11 @@ export default function App() {
   // render rather than at module scope: the value belongs to the shell, and
   // reading it where it is used keeps that visible.
   const bootBg = bootBackground()
+  // A wake from Rest mode plays the boot again, sound included: the theme's
+  // splash plays its `boot` sound on mount, so a fresh key is all it takes.
+  const wakeCount = useStore(s => s.wakeCount)
   /** The animation is finished. NOT "the box is ready" — see below. */
-  const [splashDone, setSplashDone] = useState(false)
+  const [splashDone, finishSplash] = useWakeSplash(wakeCount)
   const [stuck, setStuck] = useState(false)
   /**
    * The three facts, from the host's own gate (lib/boot.ts). Subscribed rather
@@ -73,12 +77,7 @@ export default function App() {
   // store — the library cursor included. See components/shellRerender.test.tsx.
   const goHome = useStore(s => s.goHome)
   const sessionGameKey = useStore(s => s.sessionGameKey)
-  const wakeCount = useStore(s => s.wakeCount)
   const asleep = useStore(s => s.asleep)
-
-  // A wake from Rest mode plays the boot again, sound included: the theme's
-  // splash plays its `boot` sound on mount, so a fresh key is all it takes.
-  useEffect(() => { if (wakeCount) setSplashDone(false) }, [wakeCount])
 
   const sessionRef = useRef(sessionGameKey)
   useEffect(() => { sessionRef.current = sessionGameKey }, [sessionGameKey])
@@ -111,7 +110,7 @@ export default function App() {
     if (splashDone) return
     const t = setTimeout(() => {
       console.warn('[gamecore] the boot animation never finished — treating it as over')
-      setSplashDone(true)
+      finishSplash()
     }, SPLASH_WATCHDOG_MS)
     return () => clearTimeout(t)
   }, [splashDone])
@@ -218,11 +217,11 @@ export default function App() {
       <AnimatePresence>
         {showSplash && (SplashC ? (
           <div key={`splash-${wakeCount}`} style={{ position: 'fixed', inset: 0, zIndex: 9000 }}>
-            <ErrorBoundary resetKey={theme.resetKey} fallback={<Splash onDone={() => setSplashDone(true)} />}>
+            <ErrorBoundary resetKey={theme.resetKey} fallback={<Splash onDone={finishSplash} />}>
               {/* `bootReady` is the SDK 4 half of the contract: the animation
                   may end on a held frame and leave when the host allows it.
                   A theme that ignores the prop behaves exactly as before. */}
-              <SplashC onDone={() => setSplashDone(true)} bootReady={ready} />
+              <SplashC onDone={finishSplash} bootReady={ready} />
             </ErrorBoundary>
           </div>
         ) : (

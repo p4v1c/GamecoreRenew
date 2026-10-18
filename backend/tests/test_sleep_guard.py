@@ -147,3 +147,39 @@ def test_the_rest_button_and_the_lock_do_not_double_kill(monkeypatch):
         assert not sleep_guard.holding()
         rest_mode.woke()
     asyncio.run(scenario())
+
+
+def test_the_pads_are_off_before_the_lock_lets_the_sleep_go(guard, monkeypatch):
+    order = []
+
+    async def pads_off():
+        order.append("pads off")
+        return 1
+
+    real_release = sleep_guard.release
+
+    async def release():
+        order.append("release")
+        await real_release()
+
+    monkeypatch.setattr(sleep_guard.bt_wake, "turn_off_pads", pads_off)
+    monkeypatch.setattr(sleep_guard, "release", release)
+
+    async def scenario():
+        await sleep_guard.take()
+        await sleep_guard.before_sleep()
+    asyncio.run(scenario())
+    assert order == ["pads off", "release"]
+
+
+def test_a_failing_pad_step_still_lets_the_sweep_finish(guard, monkeypatch):
+    async def broken():
+        raise RuntimeError("bluez gone")
+    monkeypatch.setattr(sleep_guard.bt_wake, "turn_off_pads", broken)
+
+    async def scenario():
+        await sleep_guard.take()
+        await sleep_guard.before_sleep()
+        assert not sleep_guard.holding()
+    asyncio.run(scenario())
+    assert guard == [("close", sleep_guard.SLEEP_EXIT_WAIT_SECS, sleep_guard.SLEEP_FORCE_WAIT_SECS)]

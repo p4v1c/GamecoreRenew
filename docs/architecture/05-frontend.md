@@ -161,7 +161,7 @@ and returns an unsubscribe.
 | `gp:guide` | `gamepad_monitor` | `action` (`backgrounded`, `home`, `failed`), `gesture` | double press: suspends a game; `home` (a pair begun in the interface) opens the session menu in `SessionBar` |
 | `standby:screensaver` / `standby:sleep` / `standby:exit` | `standby._enter()` / `exit_standby()` | — | `frontend/src/lib/standbyFade.ts` crossfades the page into the stage; drives `Screensaver`, or the theme's standby |
 | `power:sleeping` | `resume.announce_sleep()` | — | `store.setAsleep(true)`: `App.tsx` draws plain black over everything, splash included (Rest mode's second press sets it locally first) |
-| `power:resumed` | `resume.on_resume()`, once the TV is back | `resumes` | `frontend/src/lib/wake.ts` → `store.wake()`: black layer off, Home, modals closed, splash replayed from the start; `syncWake()` re-reads `GET /api/power/state` (`resumes`, `sleeping`) on every reconnect and drops a black layer the backend no longer stands behind |
+| `power:resumed` | `resume.on_resume()`, once the TV is back | `resumes` | `frontend/src/lib/wake.ts` → `store.wake()`: black layer off, Home, modals closed, splash replayed from the start; `syncWake()` re-reads `GET /api/power/state` (`resumes`, `sleeping`) on every reconnect, puts the black layer back while the backend still says `sleeping` or `resting` (a `power:sleeping` lost with its socket) and drops one it no longer stands behind. The shell's `onResume` (`onShellResumed()`) covers at once and runs `syncWake()`. Rest mode's POST never gets an answer before the sleep (Chromium drops every socket as the network goes down): a `TypeError` keeps the black, only an HTTP refusal gives the menu back |
 | `theme:changed` | `routers/themes.py` | `active` | reloads the theme |
 | `profiles:changed` | `routers/profiles.py` | `active` (the active profile) | `frontend/src/lib/players.ts` re-reads the profiles and the pad roster (`refreshPlayers`) |
 | `update:log` / `update:done` | `routers/update.py` | `line` / `success`, `code` | OTA progress |
@@ -193,6 +193,7 @@ and returns an unsubscribe.
 | `components/Screensaver.tsx` | 136 | standby slideshow, `ROTATE_MS = 9000` |
 | `components/CrtStandby/index.tsx` | — | the CRT standby (`sdk.defaults.CrtStandby`, SDK 11): stage, playlist (`api.standby.videos`), fallbacks video → stills → snow. Orbit and Shelf opt in; see [CRT standby](#crt-standby) |
 | `hooks/useLocalWake.ts` | — | mouse move / key press ends standby; shared by both standby screens |
+| `hooks/useWakeSplash.ts` | — | `App.tsx`'s "splash done" flag, derived per `wakeCount`: the store write that lifts the black layer after a wake renders the splash in the same frame (an effect-based reset showed one frame of Home first) |
 | `components/OverlayScreen/index.tsx` | 109 | what the transparent Electron overlay window renders |
 | `components/modals/SettingsModal.tsx` | 85 | menu; pages live in `settings/`. **Every id in `ITEMS` needs a matching `page === …` line** — `themes` was missing one and the button was silently dead. |
 | `components/modals/PowerModal.tsx` | — | **flow**: Rest mode (cursor opens on it), Turn off, Restart, Return to desktop (led by In the background), two-press confirm, ↑↓ and ←→ both move, `POWER_FAILSAFE_MS = 10000`, `REST_FAILSAFE_MS = 35000`; Rest mode is `api.power.rest()`, a refusal shows in the row's subtitle |

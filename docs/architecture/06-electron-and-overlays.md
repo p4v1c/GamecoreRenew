@@ -79,17 +79,17 @@ interface behind it is not ready.
 
 ## The preload bridge — `preload.js`
 
-Exactly ten methods on `window.gamecore`, nothing else:
+The methods on `window.gamecore` (plus the boot ones: `bootBackground`, `bootReady`, `setUiScale`, and `sessionScreen`):
 
 ```js
 reboot()  shutdown()  quit()
 overlayStart(system_id)  overlayStop(system_id)
 batteryToast(data)  controllerToast(data)
-onOverlayShow(cb)  onOverlayHide(cb)  onOverlayWaiting(cb)
+onOverlayShow(cb)  onOverlayHide(cb)  onOverlayWaiting(cb)  onResume(cb)
 ```
 
 Typed for the UI in `frontend/src/gamecore.d.ts` (`GamecoreAPI`, `OverlayData`).
-Every call is a one-way `ipcRenderer.send` except the three `on*` listeners.
+Every call is a one-way `ipcRenderer.send` except the four `on*` listeners.
 
 ## IPC handlers in `main.js`
 
@@ -104,7 +104,10 @@ Every call is a one-way `ipcRenderer.send` except the three `on*` listeners.
 | `notify:controller` | `showHudToast(...)` |
 
 `powerMonitor` `resume` (`electron/power.js`, `watchResume`, registered with the IPC by `register()` and subscribed once the app is ready): unless a session
-owns the screen, the main window is set fullscreen again, shown and focused.
+owns the screen, the main window is set fullscreen again, shown and focused,
+then gets `power:resume` (the renderer covers itself in black, `onResume`) and a
+full repaint (`webContents.invalidate()`): the frame kept from before the sleep
+comes back with regions gone black.
 Rest mode itself is the backend's (`POST /api/power/rest`), not an IPC.
 
 ## HUD toasts and untrusted text

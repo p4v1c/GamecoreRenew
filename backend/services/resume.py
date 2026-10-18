@@ -15,7 +15,7 @@ import shutil
 
 from .. import ws
 from . import (bt_wake, display, display_ready, gamepad_monitor, rest_mode, sleep_guard,
-               standby)
+               standby, wake_source)
 
 log = logging.getLogger(__name__)
 
@@ -71,6 +71,8 @@ async def on_resume() -> None:
     visible steps: once the TV shows a picture, so the splash plays whole."""
     global _resumes, _sleeping
     log.info("resume: the box is awake")
+    # First: anything that runs before it may itself bump a counter.
+    wake_source.report()
     await _step("close what survived the sleep", sleep_guard.after_wake())
     rest_mode.woke()
     await _step("screen", standby.exit_standby())
@@ -83,7 +85,7 @@ async def on_resume() -> None:
     _sleeping = False
     await _step("announce", ws.broadcast("power:resumed", {"resumes": _resumes}))
     gamepad_monitor.request_reprofile()
-    await _step("bluetooth wake", bt_wake.allow_paired_pads())
+    await _step("bluetooth wake", bt_wake.set_wake_permissions())
 
 
 async def _read(proc) -> None:
@@ -91,6 +93,7 @@ async def _read(proc) -> None:
         state = parse_sleep_signal(raw.decode(errors="replace"))
         if state is True:
             log.info("resume: logind says the box is going to sleep")
+            wake_source.remember()
             await _step("announce the sleep", announce_sleep())
             await sleep_guard.before_sleep()
         elif state is False:
