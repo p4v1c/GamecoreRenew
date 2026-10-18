@@ -7,8 +7,8 @@
  * game before suspending, which the shell cannot see. After a wake, the
  * backend puts the screen, pads and display mode back and tells the renderer;
  * what is left here is this window. A suspend can leave a kiosk window
- * unfocused or out of fullscreen on X11, and then the pad drives nothing,
- * and showing the frame from before the sleep with parts of it gone black.
+ * unfocused or out of fullscreen on X11, where the pad then drives nothing,
+ * or showing the frame from before the sleep with parts of it gone black.
  *
  * Dependencies are handed in, so the VM bench can load this without Electron.
  */
