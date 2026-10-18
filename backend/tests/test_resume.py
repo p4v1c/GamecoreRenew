@@ -50,6 +50,8 @@ def steps(monkeypatch):
     monkeypatch.setattr(resume.gamepad_monitor, "request_reprofile",
                         lambda: seen.append("pads"))
     monkeypatch.setattr(resume.bt_wake, "allow_paired_pads", note("bluetooth"))
+    monkeypatch.setattr(resume.wake_source, "remember", lambda: seen.append("counts"))
+    monkeypatch.setattr(resume.wake_source, "report", lambda: seen.append("source"))
     broadcast = AsyncMock(side_effect=lambda ev, data: seen.append(ev))
     monkeypatch.setattr(resume.ws, "broadcast", broadcast)
     monkeypatch.setattr(resume, "_resumes", 0)
@@ -60,7 +62,7 @@ def steps(monkeypatch):
 def test_a_wake_reopens_lights_announces_and_redetects(steps):
     asyncio.run(resume.on_resume())
     # The UI hears of the wake only once the link is up and the mode is back.
-    assert steps == ["sweep", "gate", "screen", "link", "display", "power:resumed",
+    assert steps == ["source", "sweep", "gate", "screen", "link", "display", "power:resumed",
                      "pads", "bluetooth"]
     assert resume.resume_count() == 1
 
@@ -90,8 +92,9 @@ def test_the_sleep_closes_games_and_the_wake_puts_the_box_back(steps, monkeypatc
     asyncio.run(scenario())
     assert resume.resume_count() == 1
     assert steps.count("power:resumed") == 1
-    # Lock while listening, the sweep on the sleep, all before the wake's steps.
-    assert steps[:4] == ["lock", "power:sleeping", "close", "sweep"]
+    # Lock while listening, the counts and the sweep on the sleep, then the
+    # wake source before anything else of the wake's.
+    assert steps[:6] == ["lock", "counts", "power:sleeping", "close", "source", "sweep"]
 
 
 def test_no_gdbus_is_a_warning_not_a_crash(monkeypatch, caplog):

@@ -157,7 +157,7 @@ HUD instead, because the React toast is hidden under the emulator.
 
 ---
 
-## Rest mode: `rest_mode.py`, `resume.py`, `bt_wake.py`
+## Rest mode: `rest_mode.py`, `resume.py`, `bt_wake.py`, `wake_source.py`
 
 | Function | Role |
 |---|---|
@@ -169,7 +169,8 @@ HUD instead, because the React toast is hidden under the emulator.
 | `sleep_guard.take()` / `release()` | the logind delay lock for sleep (`systemd-inhibit … cat`; released by closing stdin) |
 | `sleep_guard.before_sleep()` | `PrepareForSleep(true)`: gate, `close_everything(6, 2)` bounded by `SLEEP_BUDGET_SECS` (12 s), then release, always |
 | `sleep_guard.after_wake()` | sweep again after a sleep, take the lock back (first step of `on_resume()`) |
-| `resume.on_resume()` | `sleep_guard.after_wake()`, gate, `standby.exit_standby()`, `display_ready.wait_for_display()`, `display.restore_preferred()`, the `wake_settle_secs` delay, then the wake count and `power:resumed`, `gamepad_monitor.request_reprofile()`, `bt_wake.allow_paired_pads()`; each step isolated |
+| `resume.on_resume()` | `wake_source.report()`, `sleep_guard.after_wake()`, gate, `standby.exit_standby()`, `display_ready.wait_for_display()`, `display.restore_preferred()`, the `wake_settle_secs` delay, then the wake count and `power:resumed`, `gamepad_monitor.request_reprofile()`, `bt_wake.allow_paired_pads()`; each step isolated |
+| `wake_source.remember()` / `report()` | `event_count` of every `/sys/class/wakeup/wakeup*` on `PrepareForSleep(true)`, compared first thing after the wake; logs `wake_source: woken by <name> (<USB product>) +N` (+ `/sys/power/pm_wakeup_irq` when set). `moved()` is pure |
 | `resume.announce_sleep()` / `is_sleeping()` | `power:sleeping` on `PrepareForSleep(true)`; true until `power:resumed` |
 | `display_ready.wait_for_display(settle, root, max_wait)` | poll `/sys/class/drm/card*-*` (`status`, `enabled`, `dpms`) every 200 ms until one connector is lit, `WAIT_MAX_SECS` = 10 s; no DRM at all means no wait. `connector_ready()` is pure |
 | `bt_wake.pads_to_arm(objects, roster_macs)` | **pure**: paired devices with `Icon` input-gaming or a roster MAC, never keyboard/mouse, whose `WakeAllowed` is false |

@@ -244,6 +244,13 @@ sequenceDiagram
 - Wake permission: `gamecore-wake-setup` (root, boot + udev) arms the USB
   adapter and USB pads; `services/bt_wake.py` sets BlueZ `WakeAllowed=true` on
   paired pads, at start and whenever a new pad joins the roster.
+- What woke the box: `services/wake_source.py` keeps the wakeup counters
+  from the sleep announcement and logs the ones that moved after the wake
+  (`journalctl -u gamecore-backend | grep wake_source`). `3-3 (…)` is the
+  Bluetooth adapter's USB port: a paired device paged the box. The kernel
+  already drops every Bluetooth link before sleeping (`hci_suspend_sync`,
+  reason "power off"); a pad or mouse that pages straight back wakes the box
+  at once; a disconnect from GameCore would only repeat the kernel's.
 
 ## 6. LAN authentication
 
