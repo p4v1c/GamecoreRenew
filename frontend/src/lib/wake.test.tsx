@@ -5,7 +5,7 @@
 import { render, act, cleanup } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useStore } from '../store'
-import { onResumed, onSleeping, syncWake, resetWakeForTests } from './wake'
+import { onResumed, onShellResumed, onSleeping, syncWake, resetWakeForTests } from './wake'
 import DefaultShell from '../components/DefaultShell'
 import type { PowerViewProps } from '../components/modals/power/types'
 
@@ -72,6 +72,28 @@ describe('the black layer', () => {
     answer(0, true)
     await syncWake()                    // a reconnect mid-wake
     expect(useStore.getState().asleep).toBe(true)
+  })
+
+  it('comes back on a reconnect when the sleep announcement was lost', async () => {
+    answer(0)
+    await syncWake()
+    answer(0, true)
+    await syncWake()                    // power:sleeping died with its socket
+    expect(useStore.getState().asleep).toBe(true)
+  })
+
+  it('goes up as soon as the shell sees the resume, and down if no sleep was ours', async () => {
+    answer(0)
+    await syncWake()
+    answer(0, true)
+    onShellResumed()
+    expect(useStore.getState().asleep).toBe(true)
+    await act(async () => { await new Promise(r => setTimeout(r, 0)) })
+    expect(useStore.getState().asleep).toBe(true)
+    answer(0, false, false)
+    onShellResumed()
+    await act(async () => { await new Promise(r => setTimeout(r, 0)) })
+    expect(useStore.getState().asleep).toBe(false)
   })
 
   it('is dropped if the backend no longer stands behind it', async () => {

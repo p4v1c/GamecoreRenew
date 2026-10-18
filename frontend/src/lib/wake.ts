@@ -27,14 +27,27 @@ export function onSleeping(): void {
   useStore.getState().setAsleep(true)
 }
 
+/**
+ * The shell saw the machine resume, before any socket is back: cover now, so
+ * the first frame after the wake is black whatever was on screen before it,
+ * then ask the backend, which lifts it again if this was no sleep of ours.
+ */
+export function onShellResumed(): void {
+  useStore.getState().setAsleep(true)
+  void syncWake()
+}
+
 /** On every socket open. A failed request changes nothing. */
 export async function syncWake(): Promise<void> {
   try {
     const { resumes, sleeping, resting } = await api.power.state()
     if (lastResumes !== null && resumes > lastResumes) useStore.getState().wake()
+    // `power:sleeping` can die with the socket it was sent on: the backend's
+    // word puts the black back until the wake is announced.
+    else if (sleeping || resting) useStore.getState().setAsleep(true)
     // A black layer the backend no longer stands behind (a page reloaded, an
     // announcement lost) would hide the box for good.
-    else if (!sleeping && !resting && useStore.getState().asleep) useStore.getState().setAsleep(false)
+    else if (useStore.getState().asleep) useStore.getState().setAsleep(false)
     lastResumes = resumes
   } catch { /* the socket will tell us */ }
 }

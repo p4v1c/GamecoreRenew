@@ -7,7 +7,8 @@
  * game before suspending, which the shell cannot see. After a wake, the
  * backend puts the screen, pads and display mode back and tells the renderer;
  * what is left here is this window. A suspend can leave a kiosk window
- * unfocused or out of fullscreen on X11, and then the pad drives nothing.
+ * unfocused or out of fullscreen on X11, and then the pad drives nothing,
+ * and showing the frame from before the sleep with parts of it gone black.
  *
  * Dependencies are handed in, so the VM bench can load this without Electron.
  */
@@ -32,6 +33,10 @@ function watchResume({ powerMonitor, getWindow, sessionOwnsScreen, log = console
       if (!win.isFullScreen()) win.setFullScreen(true)
       win.show()
       win.focus()
+      // The renderer covers itself in black; a full repaint replaces the
+      // frame from before the sleep, which amdgpu brings back half lost.
+      win.webContents.send('power:resume')
+      win.webContents.invalidate()
     } catch { /* the window is going away */ }
   })
   return true

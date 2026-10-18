@@ -56,4 +56,7 @@ contextBridge.exposeInMainWorld('gamecore', {
   onOverlayShow:    (cb) => ipcRenderer.on('overlay:show',    (_, d) => cb(d)),
   onOverlayHide:    (cb) => ipcRenderer.on('overlay:hide',    (_, d) => cb(d)),
   onOverlayWaiting: (cb) => ipcRenderer.on('overlay:waiting', (_, d) => cb(d)),
+
+  // The machine woke from sleep (electron/power.js)
+  onResume: (cb) => ipcRenderer.on('power:resume', () => cb()),
 })

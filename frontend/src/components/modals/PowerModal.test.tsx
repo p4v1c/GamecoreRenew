@@ -107,6 +107,19 @@ describe('the power menu', () => {
     expect(last().options[0].desc).toBe('Rest mode is not set up on this box.')
   })
 
+  it('stays black when the request dies with the sleep', async () => {
+    // Chromium drops every socket as the box goes down: fetch rejects, no status.
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
+    const { Spy, last } = spyView()
+    render(<PowerModal onClose={() => {}} view={Spy as never} />)
+    press('gp:confirm')
+    press('gp:confirm')
+    await act(async () => { await new Promise(r => setTimeout(r, 0)) })
+    expect(useStore.getState().asleep).toBe(true)
+    expect(useStore.getState().powerPending).toBe('rest')
+    expect(last().options[0].desc).not.toContain('fetch')
+  })
+
   it('moves with left and right as well, for a menu laid out in a row', () => {
     const { Spy, last } = spyView()
     render(<PowerModal onClose={() => {}} view={Spy as never} />)

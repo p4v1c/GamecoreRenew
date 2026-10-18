@@ -14,6 +14,10 @@ function fakeWindow({ fullscreen = false } = {}) {
     setFullScreen: (v) => { fullscreen = v; calls.push(`fullscreen:${v}`) },
     show: () => calls.push('show'),
     focus: () => calls.push('focus'),
+    webContents: {
+      send: (channel) => calls.push(`send:${channel}`),
+      invalidate: () => calls.push('repaint'),
+    },
   }
 }
 
@@ -37,7 +41,7 @@ test('a wake puts the interface back in fullscreen and focused', () => {
   watchResume({ powerMonitor: monitor, getWindow: () => win,
                 sessionOwnsScreen: () => false, log: () => {} })
   monitor.emit('resume')
-  assert.deepEqual(win.calls, ['fullscreen:true', 'show', 'focus'])
+  assert.deepEqual(win.calls, ['fullscreen:true', 'show', 'focus', 'send:power:resume', 'repaint'])
 })
 
 test('a wake leaves a session that owns the screen alone', () => {
@@ -71,5 +75,5 @@ test('register wires the commands now and the resume hook once the app is ready'
   console.log = () => {}
   monitor.emit('resume')
   console.log = quiet
-  assert.deepEqual(win.calls, ['fullscreen:true', 'show', 'focus'])
+  assert.deepEqual(win.calls, ['fullscreen:true', 'show', 'focus', 'send:power:resume', 'repaint'])
 })

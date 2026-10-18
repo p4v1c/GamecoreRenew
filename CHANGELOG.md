@@ -17,6 +17,11 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Rest mode: the screen stays black from the press to the boot animation (the
+  menu used to come back as the box fell asleep, and showed again, half
+  black, on the wake), and the backend journal names what woke the box
+  (`wake_source: woken by …`). No operator step.
+
 - Waking from Rest mode: the screen stays black until the TV shows a picture
   again, then the boot animation plays from the start. How long to wait once
   the signal is back is in Settings → System → "Wait for the TV after waking"
