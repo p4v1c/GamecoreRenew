@@ -18,7 +18,7 @@ import asyncio
 import logging
 import shutil
 
-from . import launch, rest_mode
+from . import bt_wake, launch, rest_mode
 
 log = logging.getLogger(__name__)
 
@@ -92,17 +92,22 @@ async def _sweep() -> None:
 
 
 async def before_sleep() -> None:
-    """PrepareForSleep(true): refuse launches, close everything, release the lock."""
+    """PrepareForSleep(true): refuse launches, close everything and turn the
+    Bluetooth pads off (together, inside the budget), release the lock."""
     global _swept_for_sleep
     _swept_for_sleep = True
     launch.close_gate(rest_mode.GATE_REASON)
     try:
-        await asyncio.wait_for(_sweep(), SLEEP_BUDGET_SECS)
+        # One failing never cuts the other short: the lock waits for both.
+        results = await asyncio.wait_for(
+            asyncio.gather(_sweep(), bt_wake.turn_off_pads(), return_exceptions=True),
+            SLEEP_BUDGET_SECS)
+        for step, result in zip(("sweep", "pads off"), results):
+            if isinstance(result, Exception):
+                log.error("sleep_guard: %s failed", step, exc_info=result)
     except asyncio.TimeoutError:
         log.error("sleep_guard: sweep not done in %ss; releasing anyway, "
                   "finishing after the wake", SLEEP_BUDGET_SECS)
-    except Exception:
-        log.exception("sleep_guard: sweep failed")
     finally:
         await release()
 

@@ -177,7 +177,7 @@ picture came back (Home with black polygons) before the animation.
 | Finding | Evidence |
 |---|---|
 | A Bluetooth device paging the box wakes it | Each immediate wake: bluetoothd `Authorization request for non-connected device!?` as user space freezes, then the Xbox Wireless Controller (045e:02fd) back 40-60 ms after the resume. Same line on 15/10 13:44: the Bluetooth mouse woke the box. DS4-only sleeps on 14/10: no such line, they held for hours. |
-| Disconnecting pads before the sleep would change nothing | Kernel 6.12 `hci_suspend_sync` already disconnects every link with "power off" (0x15) before arming the wake filter (the `ACL packet for unknown connection handle` lines). The Xbox pad pages straight back; the DS4 does not. Not implemented. |
+| The kernel's disconnect is not a console's | Kernel 6.12 `hci_suspend_sync` disconnects every link with "power off" (0x15) before arming the wake filter (the `ACL packet for unknown connection handle` lines); the Xbox pad pages straight back, the DS4 does not. BlueZ `Device1.Disconnect` ends the link with 0x13 "remote user terminated" (source: BlueZ 5.87 `disconnect_all()` → `MGMT_OP_DISCONNECT`, kernel `disconnect_sync()` → `hci_abort_conn(conn, HCI_ERROR_REMOTE_USER_TERM)`; the L2CAP idle drop uses the same `disc_reason`). An earlier draft of this log said a GameCore disconnect would repeat the kernel's: wrong, the reason differs. Built: `bt_wake.turn_off_pads()` in `sleep_guard.before_sleep()`. |
 | The mouse has `WakeAllowed` | BlueZ's default for HID devices, not `bt_wake.py`. |
 | The menu came back as the box fell asleep | `POST /api/power/rest` is in no access log, ever: Chromium drops every socket as NetworkManager sleeps (WebSocket 1006 in the same millisecond). The fetch error was taken for a refusal, the black layer lifted, and that frame went to sleep with the box. |
 
@@ -195,5 +195,6 @@ press on all five themes. After: 0.0 % lit pixels after the press and after
 the shell's resume, the theme's splash from its first frame 50 ms after
 `power:resumed`.
 
-Not verified: a real suspend (not run on the box), whether the Xbox pad
-stays off after a user-initiated disconnect (`bluetoothctl disconnect`), which decides whether a disconnect could help it.
+Not verified: a real suspend (not run on the box). That 0x13 turns the Xbox
+pad off is its firmware's behaviour, not readable in any source: the
+`wake_source` line after the owner's test says whether it held.
