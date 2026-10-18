@@ -168,3 +168,32 @@ every wait on the lock's helper process is bounded; `test_resume.py` has a
 test that fails without the fix. On the box this would have shown as a
 backend that does not stop on `systemctl stop`/OTA restart until systemd's
 timeout.
+
+## Follow-up 3: wakes by itself, picture before the splash (`fix/rest-mode-wake`)
+
+Owner, TCL TV, 16/10: Rest mode woke at once, five times in a row; the
+picture came back (Home with black polygons) before the animation.
+
+| Finding | Evidence |
+|---|---|
+| A Bluetooth device paging the box wakes it | Each immediate wake: bluetoothd `Authorization request for non-connected device!?` as user space freezes, then the Xbox Wireless Controller (045e:02fd) back 40-60 ms after the resume. Same line on 15/10 13:44: the Bluetooth mouse woke the box. DS4-only sleeps on 14/10: no such line, they held for hours. |
+| Disconnecting pads before the sleep would change nothing | Kernel 6.12 `hci_suspend_sync` already disconnects every link with "power off" (0x15) before arming the wake filter (the `ACL packet for unknown connection handle` lines). The Xbox pad pages straight back; the DS4 does not. Not implemented. |
+| The mouse has `WakeAllowed` | BlueZ's default for HID devices, not `bt_wake.py`. |
+| The menu came back as the box fell asleep | `POST /api/power/rest` is in no access log, ever: Chromium drops every socket as NetworkManager sleeps (WebSocket 1006 in the same millisecond). The fetch error was taken for a refusal, the black layer lifted, and that frame went to sleep with the box. |
+
+Fixes: `services/wake_source.py` logs the wakeup sources whose `event_count`
+moved across the sleep; a `TypeError` from Rest mode's POST keeps the black;
+`syncWake()` puts it back while the backend says `sleeping`/`resting`; the
+shell relays `powerMonitor` `resume` (`onResume`, black at once) and calls
+`webContents.invalidate()`; `hooks/useWakeSplash.ts` derives "splash done"
+per wake so the splash renders in the frame the black goes.
+
+Screens (headless Chromium, devserve, a script that kills the POST like the
+box does): every theme, before and after, in the owner's
+`~/Downloads/rest-mode-wake/shots`. Before: the menu is back after the
+press on all five themes. After: 0.0 % lit pixels after the press and after
+the shell's resume, the theme's splash from its first frame 50 ms after
+`power:resumed`.
+
+Not verified: a real suspend (not run on the box), whether the Xbox pad
+stays off after a user-initiated disconnect (`bluetoothctl disconnect`), which decides whether a disconnect could help it.
