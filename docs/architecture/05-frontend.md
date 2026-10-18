@@ -193,6 +193,7 @@ and returns an unsubscribe.
 | `components/Screensaver.tsx` | 136 | standby slideshow, `ROTATE_MS = 9000` |
 | `components/CrtStandby/index.tsx` | — | the CRT standby (`sdk.defaults.CrtStandby`, SDK 11): stage, playlist (`api.standby.videos`), fallbacks video → stills → snow. Orbit and Shelf opt in; see [CRT standby](#crt-standby) |
 | `hooks/useLocalWake.ts` | — | mouse move / key press ends standby; shared by both standby screens |
+| `hooks/useWakeSplash.ts` | — | `App.tsx`'s "splash done" flag, derived per `wakeCount`: the store write that lifts the black layer after a wake renders the splash in the same frame (an effect-based reset showed one frame of Home first) |
 | `components/OverlayScreen/index.tsx` | 109 | what the transparent Electron overlay window renders |
 | `components/modals/SettingsModal.tsx` | 85 | menu; pages live in `settings/`. **Every id in `ITEMS` needs a matching `page === …` line** — `themes` was missing one and the button was silently dead. |
 | `components/modals/PowerModal.tsx` | — | **flow**: Rest mode (cursor opens on it), Turn off, Restart, Return to desktop (led by In the background), two-press confirm, ↑↓ and ←→ both move, `POWER_FAILSAFE_MS = 10000`, `REST_FAILSAFE_MS = 35000`; Rest mode is `api.power.rest()`, a refusal shows in the row's subtitle |
