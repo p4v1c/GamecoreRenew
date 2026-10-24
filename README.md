@@ -327,6 +327,24 @@ pads work; the game shows Xbox buttons. A game that supports PlayStation pads
 itself can get them back: in Lutris, the game's Configure → System options →
 Environment variables, add `GAMECORE_XBOX_PAD` = `0`.
 
+### Native ports (recompiled games)
+
+A console game recompiled for PC runs without its emulator, and still belongs
+to its console. Put a launcher script in that console's folder, for example
+`emu/rpcs3/Uncharted 2.sh`, and make it executable (`chmod +x`): it shows up
+under PlayStation 3 as "Uncharted 2".
+
+```sh
+#!/bin/sh
+# gamecore-saves: /userdata/Recomp/Uncharted/Saves/savedata/1/CUSA02343
+exec /userdata/Recomp/Uncharted/Uncharted.AppImage --play
+```
+
+The `gamecore-saves` line gives each profile its own saves. Name the folder
+the game saves in (one line per folder), then start the game once with the
+first profile so that folder exists. Without the line, every profile shares
+one save. Details: [native ports](docs/architecture/07-config-and-data.md#native-ports--emusystemsh).
+
 ---
 
 ## Controller navigation

@@ -8,7 +8,8 @@ A pack opts in with `profileSaves` in its pack.json, in one of two forms:
 - `per-instance` or `p1`, with a `place_saves(...)` hook in generator.py, for
   an emulator whose layout needs code (melonDS: one instance per player).
 
-A pack that declares nothing keeps one save for every profile. A pack that
+A native port (`native_ports`) declares its folders in its own script. A pack
+that declares nothing keeps one save for every profile. A pack that
 `sharesEmulator` uses its owner's declaration and folder: gb, gbc and gba are
 one mGBA and one set of saves per profile.
 
@@ -24,12 +25,15 @@ import threading
 import time
 from pathlib import Path
 
-from . import configgen, paths, profile_save_paths, profiles
+from . import configgen, native_ports, paths, profile_save_paths, profiles
 from .catalog import load_catalog
 from .configgen import MAX_PLAYERS
 from .errors import ServiceError
 
 log = logging.getLogger(__name__)
+
+# Native ports' folders inside a profile's system folder.
+PORTS_DIR = "ports"
 
 
 def _owner(pack, packs: dict | None = None):
@@ -112,8 +116,36 @@ def _declared(owner, opts: dict | None):
     return place_saves
 
 
-def _hook(system_id: str):
-    """(emulator id, place_saves, opts), or None for a pack that shares its saves."""
+def port_dir(folder: Path, script: Path) -> Path:
+    """The port's own folder in a profile, for a script that takes a save
+    directory option (`GAMECORE_SAVES_DIR`)."""
+    return folder / PORTS_DIR / script.stem
+
+
+def _port(system_id: str, script: Path):
+    """`_hook` for a native port: the folders its header declares."""
+    declared = native_ports.declared_saves(script, configgen.HOME)
+
+    def place_saves(*, dirs, root, opts):
+        folder = dirs[0]
+        for path in declared:
+            # A file would break: a game saving by atomic rename replaces the
+            # link, and the save lands in the primary's place.
+            if folder is not None and not path.is_dir():
+                raise ServiceError(500, f"{script.name}: {path} is not a folder yet. "
+                                        "Start the game once with the primary profile first.")
+            target = (folder / PORTS_DIR / native_ports.profile_folder_name(path)
+                      if folder is not None else None)
+            profile_save_paths.apply_dir(path, target, root)
+    # One key for every port of the system: ports can share a save folder
+    # (Uncharted 1-3), so a late release must not undo the next port's link.
+    return f"{system_id.lower()}:{PORTS_DIR}", place_saves, None
+
+
+def _hook(system_id: str, rom_path: str = ""):
+    """(placement key, place_saves, opts), or None for a pack that shares its saves."""
+    if rom_path and native_ports.is_port(Path(rom_path)):
+        return _port(system_id, Path(rom_path))
     packs = load_catalog()
     pack = packs.get(system_id.lower())
     owner = _owner(pack, packs)
@@ -135,25 +167,28 @@ _lock = threading.Lock()
 _placed_at: dict[str, float] = {}
 
 
-def place(system_id: str) -> list[Path | None] | None:
+def place(system_id: str, rom_path: str = "") -> list[Path | None] | None:
     """Point the pack at the active profile's folders before the spawn.
 
     Returns what the hook got, or None for a pack that shares its saves.
     Raises when the pack opted in but could not be told: launching then
     would write one profile's progress into another's save.
     """
-    found = _hook(system_id)
+    found = _hook(system_id, rom_path)
     if found is None:
         return None
-    emulator, hook, opts = found
-    dirs = player_dirs([profiles.active()], emulator, mode(load_catalog().get(emulator)))
+    key, hook, opts = found
+    if rom_path and native_ports.is_port(Path(rom_path)):
+        dirs = player_dirs([profiles.active()], system_id, "p1")
+    else:
+        dirs = player_dirs([profiles.active()], key, mode(load_catalog().get(key)))
     with _lock:
-        _placed_at[emulator] = time.time()
+        _placed_at[key] = time.time()
         hook(dirs=dirs, root=paths.profile_saves_dir(), opts=opts)
     return dirs
 
 
-def release(system_id: str, started: float) -> bool:
+def release(system_id: str, started: float, rom_path: str = "") -> bool:
     """After the game that started at `started` (wall clock): every player back
     on the emulator's default paths, so the emulator started outside GameCore
     saves where it always did.
@@ -161,12 +196,12 @@ def release(system_id: str, started: float) -> bool:
     Skipped, False, when a later launch of the same emulator has placed its
     saves since: resetting them would send that game's progress to the
     primary profile."""
-    found = _hook(system_id)
+    found = _hook(system_id, rom_path)
     if found is None:
         return False
-    emulator, hook, opts = found
+    key, hook, opts = found
     with _lock:
-        if _placed_at.get(emulator, 0.0) > started:
+        if _placed_at.get(key, 0.0) > started:
             return False
         hook(dirs=[None] * MAX_PLAYERS, root=paths.profile_saves_dir(), opts=opts)
     return True
@@ -178,6 +213,9 @@ def release_session(session) -> None:
     if session.is_app or not session.system_id:
         return    # an app keeps no save that follows a profile
     try:
-        release(session.system_id, session.start_time)
+        # Only a port's session (started through `env`) is keyed by its script:
+        # a script inside a PS3 dump ran as that emulator's game.
+        port = session.rom_path if session.exec_path == native_ports.ENV_BIN else ""
+        release(session.system_id, session.start_time, port)
     except Exception:
         log.exception("profile saves: could not release %s", session.system_id)

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterator
 
 from ..utils import TAG_RE
+from .native_ports import is_port
 
 # ── Disc images: one game, several files ─────────────────────────────────────
 #
@@ -112,7 +113,8 @@ def matches_ext(filename: str, extensions: list[str]) -> bool:
 
 
 def iter_rom_files(roms_path: Path, extensions: list[str], scan_dirs: bool = False) -> Iterator[Path]:
-    """Yield ROM file/folder paths in alphabetical order, applying common filters."""
+    """Yield ROM file/folder paths in alphabetical order, applying common filters.
+    A native port (`native_ports.is_port`) is listed in every system."""
     if not roms_path.exists():
         return
     try:
@@ -126,7 +128,9 @@ def iter_rom_files(roms_path: Path, extensions: list[str], scan_dirs: bool = Fal
     for f in entries:
         if f.name.startswith(".") or "example" in f.name.lower():
             continue
-        if scan_dirs:
+        if is_port(f):
+            yield f
+        elif scan_dirs:
             if f.is_dir():
                 yield f
         else:

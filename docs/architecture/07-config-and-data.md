@@ -749,5 +749,33 @@ were before the split, which is the status quo and not a regression.
 | `assets/logos/` | system tiles — **excluded from OTA**, users add their own |
 | `assets/overlays/` | bezel PNGs — excluded from OTA |
 | `backend/data/gamecontrollerdb.txt` | vendored SDL_GameControllerDB, exported as `SDL_GAMECONTROLLERCONFIG_FILE` |
-| `emu/<system>/` | ROMs — excluded from OTA |
+| `emu/<system>/` | ROMs and [native ports](#native-ports--emusystemsh) — excluded from OTA |
 | `emu/profile-saves/<profile id>/<system>/` | saves of a profile other than the primary, for packs with `profileSaves` (`paths.profile_saves_dir()`, `services/profile_saves.py`); created on demand, never moved or deleted by GameCore, kept when the profile is deleted. `emu/profile-saves/.primary.json`: the emulator options a profile replaced, put back for the primary (`profile_save_paths.py`). A folder swapped for a link waits beside it as `<name>.gamecore-primary` while another profile plays. Under `emu/` on purpose: outside git, the OTA rsync **and** the update's `.prev` snapshot, whose restore would roll a save back |
+
+## Native ports — `emu/<system>/*.sh`
+
+A recompiled or decompiled game runs without the system's emulator. An
+**executable** `*.sh` directly in any `emu/<system>/` is one tile, named after
+the file (`Uncharted 2.sh` → "Uncharted 2"), in every system, whatever its
+`extensions` or `scanDirs` (`services/native_ports.py`, `services/rom_scanner.py`).
+
+```sh
+#!/bin/sh
+# gamecore-saves: ~/.local/share/bbport/user/savedata/1/CUSA00900
+exec /userdata/Recomp/Bloodborne/Bloodborne.AppImage --play
+```
+
+| Rule | Why |
+|---|---|
+| `chmod +x` is what makes it a game | rom-manager writes uploads 0644: a file sent over the LAN is never run |
+| launch = `env [GAMECORE_SAVES_DIR=…] <script>`, nothing else of the pack | no Flatpak app, BIOS gate, per-game config, `prepare_launch`, `launch_command`, fullscreen or the emulator's `profileSaves` (`launch._launch_port`) |
+| `# gamecore-saves: <folder>` in the first 40 lines, one per folder | the folder is swapped for a link to `emu/profile-saves/<profile>/<system>/ports/<name>-<hash>/` while another profile plays (`profile_save_paths.apply_dir`), and given back at the end. `~` and `@HOME@` = the player's home; relative = relative to the script |
+| folders only; a declared file refuses the launch | a game saving by atomic rename replaces a file link, and the save lands in the primary's place |
+| the folder must exist: start the game once with the primary profile | a missing folder refuses the launch rather than start a profile on nothing it can give back |
+| no line = one save for every profile | saves mixed into the game's own files cannot be given a folder per profile |
+| player 1 only, like `p1` packs | the active profile is player 1 |
+| `GAMECORE_SAVES_DIR` = `…/ports/<script stem>/`, unset for the primary | for a game that takes a save folder option, no link needed |
+
+Scripts declaring the same folder share it (Uncharted 1-3: one collection, one
+save). All the ports of a system share one placement key, so the late end of
+one never gives back the link the next one placed.

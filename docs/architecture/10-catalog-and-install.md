@@ -422,7 +422,9 @@ profile ([04](04-backend-services.md#profile_savespy--saves-that-follow-the-prof
 is player 1. Only the pack that owns the emulator declares it; a pack that
 `sharesEmulator` (gb, gbc, mgba → gba; dolphin, wii → gamecube) follows its
 owner, with the owner's folder: `<data>/emu/profile-saves/<profile id>/<owner id>/`.
-`check-catalog.py` refuses it on a sharing pack. Three forms:
+`check-catalog.py` refuses it on a sharing pack. A native port declares its
+own folders in its script, whatever the pack says
+([7](07-config-and-data.md#native-ports--emusystemsh)). Three forms:
 
 **1. An object — no code, most emulators.** What to point at the profile's
 folder (`@SAVES@`), from pack.json alone (`services/profile_save_paths.py`):
