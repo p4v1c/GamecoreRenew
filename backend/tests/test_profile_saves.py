@@ -100,7 +100,7 @@ def test_a_failed_placement_refuses_the_launch(monkeypatch):
     async def broadcast(event, payload):
         sent.append(event)
 
-    def broken(_system_id):
+    def broken(_system_id, _rom_path=""):
         raise OSError("read-only")
 
     monkeypatch.setattr(launch_service.ws, "broadcast", broadcast)
@@ -130,7 +130,7 @@ def test_a_launch_that_fails_after_placing_gives_the_saves_back(monkeypatch):
     monkeypatch.setattr(launch_service, "_prepare", nothing)
     monkeypatch.setattr(launch_service, "_pack_launch_command", same_command)
     monkeypatch.setattr(launch_service, "_spawn", not_installed)
-    monkeypatch.setattr(profile_saves, "release", lambda sid, started: released.append(sid))
+    monkeypatch.setattr(profile_saves, "release", lambda sid, started, rom_path="": released.append(sid))
     with pytest.raises(launch_service.LaunchRefused):
         asyncio.run(launch_service.launch({"id": "melonds", "path": "/x"}, "melonds", "", "game"))
     assert released == ["melonds"]
@@ -190,7 +190,7 @@ def test_release_leaves_a_later_launch_alone(data, monkeypatch):
 def test_the_end_of_a_game_releases_its_saves(monkeypatch):
     from backend.services import process_manager as pm
     released = []
-    monkeypatch.setattr(profile_saves, "release", lambda sid, started: released.append((sid, started)))
+    monkeypatch.setattr(profile_saves, "release", lambda sid, started, rom_path="": released.append((sid, started)))
     profile_saves.release_session(pm.Session(game_key="mario.nds", system_id="melonds", start_time=12.0))
     profile_saves.release_session(pm.Session(game_key="stremio", system_id="stremio"))
     assert released == [("melonds", 12.0)], "an app keeps no profile save"

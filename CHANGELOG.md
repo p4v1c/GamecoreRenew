@@ -17,6 +17,12 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Native ports: an executable `*.sh` in any `emu/<system>/` is a game of that
+  system, launched as is (a recompiled Uncharted in PS3, Bloodborne in PS4).
+  `# gamecore-saves: <folder>` lines in its header give each profile its own
+  saves. Operator step per game: `chmod +x` the script, and start it once with
+  the primary profile. Contract: `docs/architecture/07-config-and-data.md`.
+
 - Rest mode and every other sleep turn the Bluetooth pads off first, as a
   console does: an Xbox pad left to the kernel paged back and woke the box at
   once. The pad's home button still wakes it. No operator step.

@@ -29,6 +29,7 @@ Looking for something specific:
 
 - *"Where does a game actually get launched?"* → [2](02-request-flows.md#1-launching-a-game) then [`process_manager`](04-backend-services.md#process_managerpy)
 - *"Why is my controller not mapped in melonDS?"* → [8](08-controller-pipeline.md)
+- *"How do I add a recompiled PC port of a console game?"* → [7](07-config-and-data.md#native-ports--emusystemsh)
 - *"What writes `config/addons.json`?"* → [7](07-config-and-data.md#configaddonsjson)
 - *"Why did my UI change disappear after an update?"* → [9](09-gotchas.md#the-ota-rebuild-trap)
 - *"What events can the UI listen to?"* → [5](05-frontend.md#the-websocket-event-table)

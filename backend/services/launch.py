@@ -18,6 +18,7 @@ from . import (
     controller_registry,
     fullscreen_enforcer,
     gamepad_monitor,
+    native_ports,
     pergame,
     profile_saves,
     session,
@@ -189,15 +190,18 @@ async def _prepare_pack_launch(system_id: str, rom_path: str, exec_path: str,
                       system_id)
 
 
-async def _place_profile_saves(system_id: str, game_key: str) -> None:
+async def _place_profile_saves(system_id: str, game_key: str,
+                               rom_path: str = "") -> list[Path | None] | None:
     """Point the emulator at the active profile's saves. Unlike the steps
     above, a failure refuses the launch: the game would otherwise write into
     another profile's save."""
     try:
-        dirs = await asyncio.wait_for(asyncio.to_thread(profile_saves.place, system_id),
-                                      timeout=PACK_PREPARE_BUDGET)
+        dirs = await asyncio.wait_for(
+            asyncio.to_thread(profile_saves.place, system_id, rom_path),
+            timeout=PACK_PREPARE_BUDGET)
         if dirs and dirs[0]:
             log.info("launch: %s — player 1 saves in %s", system_id, dirs[0])
+        return dirs
     except Exception as e:
         log.exception("launch: %s — profile saves could not be placed", system_id)
         detail = "Could not set up this profile's saves, so the game did not start."
@@ -205,9 +209,9 @@ async def _place_profile_saves(system_id: str, game_key: str) -> None:
         raise LaunchRefused(500, detail) from e
 
 
-def _release_profile_saves(system_id: str) -> None:
+def _release_profile_saves(system_id: str, rom_path: str = "") -> None:
     try:
-        profile_saves.release(system_id, time.time())
+        profile_saves.release(system_id, time.time(), rom_path)
     except Exception:
         log.exception("launch: %s — profile saves could not be given back", system_id)
 
@@ -418,6 +422,8 @@ async def _launch(system: dict, system_id: str, rom_path: str, game_key: str) ->
     resumed = await _resume_or_refuse(system, system_id, game_key)
     if resumed is not None:
         return resumed
+    if rom_path and _is_listed_port(system, Path(rom_path)):
+        return await _launch_port(system, system_id, rom_path, game_key)
 
     exec_args = await _gates(system, system_id, system.get("args", ""), game_key)
     try:
@@ -431,4 +437,30 @@ async def _launch(system: dict, system_id: str, rom_path: str, game_key: str) ->
         await asyncio.to_thread(_release_profile_saves, system_id)
         raise
     _start_background_tasks(system, system_id)
+    return {"ok": True, "game_key": game_key, "resumed": resumed_flag}
+
+
+def _is_listed_port(system: dict, rom: Path) -> bool:
+    """Only a script the library lists runs: one in a game's own folder (a PS3
+    dump) is that game's file, never a launcher."""
+    roms_root = resolve_path(system.get("romsPath", ""))
+    return native_ports.is_port(rom) and rom.resolve().parent == roms_root.resolve()
+
+
+async def _launch_port(system: dict, system_id: str, rom_path: str, game_key: str) -> dict:
+    """A native port runs its own script: the emulator's gates (Flatpak app,
+    BIOS, per-game config, pack hooks, its saves) are not its concern."""
+    await standby.exit_standby()
+    await _await_controller_profiles(system_id, game_key)
+    try:
+        dirs = await _place_profile_saves(system_id, game_key, rom_path)
+        folder = dirs[0] if dirs else None
+        saves_dir = profile_saves.port_dir(folder, Path(rom_path)) if folder else None
+        if saves_dir is not None:
+            saves_dir.mkdir(parents=True, exist_ok=True)
+        exec_path, exec_args = native_ports.command(saves_dir)
+        resumed_flag = await _spawn(system, system_id, rom_path, exec_path, exec_args, game_key)
+    except Exception:
+        await asyncio.to_thread(_release_profile_saves, system_id, rom_path)
+        raise
     return {"ok": True, "game_key": game_key, "resumed": resumed_flag}

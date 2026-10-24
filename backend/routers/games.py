@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from ..config import resolve_path
 from ..services import launch as launch_service
-from ..services import local_media, pack_library, prefetch
+from ..services import local_media, native_ports, pack_library, prefetch
 from ..services.process_manager import SessionConflict, process_manager
 from ..services.rom_scanner import clean_name, iter_rom_files
 from ..services.systems import find
@@ -15,6 +15,13 @@ from ..services.systems import find
 log = logging.getLogger(__name__)
 
 router = APIRouter(tags=["games"])
+
+
+def _ext(f: Path) -> str:
+    # A port's `.sh` is how it launches, not what the player is playing.
+    if native_ports.is_port(f):
+        return ""
+    return "FOLDER" if f.is_dir() else f.suffix.lstrip(".").upper()
 
 
 def scan_roms(roms_path: Path, extensions: list[str], scan_dirs: bool = False,
@@ -35,7 +42,7 @@ def scan_roms(roms_path: Path, extensions: list[str], scan_dirs: bool = False,
             "display_name": title or clean_name(f.name),
             "path": str(f),
             "size": stat.st_size,
-            "ext": "FOLDER" if f.is_dir() else f.suffix.lstrip(".").upper(),
+            "ext": _ext(f),
         })
     return files
 

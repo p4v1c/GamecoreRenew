@@ -569,7 +569,8 @@ already in memory.
 `clean_name(filename)` (strips extension and bracketed tags like `[!]`,
 `(USA)`), `matches_ext(filename, extensions)`, and
 `iter_rom_files(roms_path, extensions, scan_dirs)` — alphabetical, applying the
-common exclusions. The rom-manager addon keeps a mirrored copy.
+common exclusions, plus every native port (`native_ports.is_port`) whatever the
+system scans. The rom-manager addon keeps a mirrored copy.
 
 ### One game, one entry
 
@@ -805,6 +806,8 @@ signatures. The docstrings carry the rest.
 
 `launch(system, system_id, rom_path, game_key)` runs, in order: foreground
 check → ROM path inside `romsPath` → resume-or-refuse (one resident game) →
+a native port leaves here for `_launch_port()` (standby exit, pad profiles,
+its saves, its script: [7](07-config-and-data.md#native-ports--emusystemsh)) →
 catalogue args → BIOS gate → USB notice → `standby.exit_standby()` → wait for
 pad profiles → release stale slots → profile saves → per-game config → pack
 `prepare_launch` → pack `launch_command` → `process_manager.launch()` → udev
@@ -1052,14 +1055,23 @@ its owner's declaration, folder and lock.
 | `mode(pack, packs?)` | `per-instance`, `p1` (also for an object declaration), or None (shared, or `supported: false`) |
 | `save_dir(profile_id, system_id)` | `paths.profile_saves_dir()/<id>/<system>/`; refuses an id that is not alphanumeric (`profiles.json` is hand-editable) |
 | `player_dirs(players, system_id, mode)` | one entry per slot (4): the profile's folder, created on demand, or None for the primary profile, no profile, and players 2-4 in `p1` mode |
-| `place(system_id)` | the owner's `place_saves(dirs, root, opts)` (generator hook, or the object declaration through `profile_save_paths`) with `player_dirs([active profile])`; raises when it cannot be told |
-| `release(system_id, started)` | the same with every slot None, once the game that started at `started` has exited: the emulator started outside GameCore saves where it always did. Skipped when a later launch placed that emulator again; `place` and `release` share one lock |
+| `place(system_id, rom_path?)` | for a native port, its script's `# gamecore-saves:` folders (player 1, folders only, refuses a missing one). Otherwise the owner's `place_saves(dirs, root, opts)` (generator hook, or the object declaration through `profile_save_paths`) with `player_dirs([active profile])`; raises when it cannot be told |
+| `release(system_id, started, rom_path?)` | the same with every slot None, once the game that started at `started` has exited: the emulator started outside GameCore saves where it always did. Skipped when a later launch placed that emulator again; `place` and `release` share one lock |
 | `release_session(session)` | `release` for an ended process-manager session; never raises, skips apps |
 | `separate_systems(packs)`, `shared_systems(packs)` | labels of the systems whose saves follow the profile, and of the emulators that share theirs, for `GET /profiles` |
 
 Never moves, copies or deletes a save: only the emulator's options change, or
 a folder is renamed in place. Runs whether or not autoconfig is on for the
 pack, because saves are not controller config.
+
+| `port_dir(folder, script)` | `<folder>/ports/<script stem>/`, the port's `GAMECORE_SAVES_DIR` |
+
+### `native_ports.py` — games that are a script
+
+`is_port(path)` (regular `*.sh` with an executable bit), `declared_saves(script,
+home)` (the header's `# gamecore-saves:` folders), `profile_folder_name(path)`
+(`<name>-<hash>`), `command(saves_dir)` (`env` with `GAMECORE_SAVES_DIR`).
+Stdlib only: `rom_scanner` imports it. Contract: [7](07-config-and-data.md#native-ports--emusystemsh).
 
 ### `profile_save_paths.py` — the object form of `profileSaves`
 
