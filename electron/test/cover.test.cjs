@@ -15,6 +15,7 @@ function rig() {
       this.webContents = {
         send: (ch, d) => this.sent.push([ch, d]),
         once: (ev, fn) => { this.events[`wc:${ev}`] = fn },
+        on: (ev, fn) => { this.events[`wc:${ev}`] = fn },
       }
     }
     setIgnoreMouseEvents() {}
@@ -26,7 +27,9 @@ function rig() {
     moveTop() { this.calls.push('moveTop') }
     on(ev, fn) { this.events[ev] = fn }
     close() { this.calls.push('close'); this.events.closed?.() }
+    destroy() { this.calls.push('destroy') }
     loaded() { this.events['wc:did-finish-load']?.() }
+    failed(code = -102) { this.events['wc:did-fail-load']?.({}, code, '', '', true) }
   }
   const setTimer = (fn, ms) => { const t = { fn, ms, done: false }; timers.push(t); return t }
   const clearTimer = (t) => { if (t) t.done = true }
@@ -98,6 +101,25 @@ test('a second launch reuses the window with the new game', () => {
   assert.deepEqual(windows[0].sent[2][1], { system: 'b', rom: 'B' })
 })
 
+test('a page that failed to load (backend not up yet) is made again at the launch', () => {
+  const { cover, windows } = rig()
+  cover.warm()
+  windows[0].failed()              // ERR_CONNECTION_REFUSED at boot
+  assert.ok(windows[0].calls.includes('destroy'))
+  cover.show({ system_id: 'rpcs3', game_key: 'G' })
+  assert.equal(windows.length, 2, 'a fresh window, not the dead page')
+  windows[1].loaded()
+  assert.deepEqual(windows[1].sent, [['cover:game', { system: 'rpcs3', rom: 'G' }]])
+})
+
+test('a superseded load is not a failure', () => {
+  const { cover, windows } = rig()
+  cover.warm()
+  windows[0].failed(-3)
+  assert.ok(!windows[0].calls.includes('destroy'))
+  assert.equal(cover.window(), windows[0])
+})
+
 test('a window that was closed is made again on the next launch', () => {
   const { cover, windows } = rig()
   cover.warm()
@@ -112,7 +134,7 @@ test('the interface coming back takes it down, and a later window does not cover
   const appEvents = {}
   const windows = []
   class Window {
-    constructor() { this.calls = []; windows.push(this); this.webContents = { send: () => {}, once: () => {} } }
+    constructor() { this.calls = []; windows.push(this); this.webContents = { send: () => {}, once: () => {}, on: () => {} } }
     setIgnoreMouseEvents() {} setAlwaysOnTop() {} setBounds() {} loadURL() {} showInactive() {} on() {}
     hide() { this.calls.push('hide') }
     moveTop() { this.calls.push('moveTop') }

@@ -67,6 +67,14 @@ function createCover({ BrowserWindow, bounds, pageUrl, preload,
       if (queued) send('cover:game', queued)
       queued = null
     })
+    // Made at start, often before the backend answers: a page that failed to
+    // load would never get its game. Dropped, it is made again at the launch.
+    win.webContents.on?.('did-fail-load', (_e, code, _desc, _url, mainFrame) => {
+      if (win !== mine || !mainFrame || code === -3) return   // -3: superseded
+      win = null
+      up = false
+      try { mine.destroy() } catch { /* already gone */ }
+    })
     win.on('closed', () => { if (win === mine) { win = null; up = false } })
     win.loadURL(pageUrl)
   }
