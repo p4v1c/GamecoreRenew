@@ -96,3 +96,38 @@ it('fades out when the shell says the game is running', async () => {
   act(() => leave())
   expect(root.getAttribute('data-leaving')).toBe('1')
 })
+
+it('is reused: a game by message, the next game by message, blank in between', async () => {
+  vi.stubGlobal('Image', FakeImage)
+  const on: Record<string, (d?: unknown) => void> = {}
+  const off = vi.fn()
+  ;(window as unknown as { gamecore: unknown }).gamecore = {
+    onCoverGame: (cb: (d: unknown) => void) => { on.game = cb; return off },
+    onCoverLeave: (cb: () => void) => { on.leave = cb; return off },
+    onCoverReset: (cb: () => void) => { on.reset = cb; return off },
+  }
+  vi.spyOn(api.media, 'list').mockResolvedValue(index([]))
+  window.history.pushState({}, '', '/cover')
+  const { container, unmount } = render(<LaunchCover />)
+  const root = container.querySelector('.gc-cover')!
+  expect(root.getAttribute('data-shown')).toBe('0')   // warmed, no game yet
+
+  act(() => on.game({ system: 'rpcs3', rom: 'God of war 3' }))
+  await waitFor(() => expect(pending.length).toBe(1))
+  await settle()
+  expect(screen.getByText('God of war 3')).toBeTruthy()
+  act(() => on.leave())
+  expect(root.getAttribute('data-leaving')).toBe('1')
+
+  act(() => on.reset())
+  expect(root.getAttribute('data-shown')).toBe('0')
+  expect(root.getAttribute('data-leaving')).toBe('0')
+  expect(screen.queryByText('God of war 3')).toBeNull()
+
+  act(() => on.game({ system: 'switch', rom: 'Cuphead.nsp' }))
+  await waitFor(() => expect(pending.length).toBe(1))
+  await settle()
+  expect(screen.getByText('Cuphead')).toBeTruthy()
+  unmount()
+  expect(off).toHaveBeenCalledTimes(3)
+})

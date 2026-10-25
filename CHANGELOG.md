@@ -19,6 +19,9 @@ are the auto-incremented tags.
 
 - Launch cover: comes up in one fade with its art already decoded, instead of
   the box and the name first, swapped for the key art and logo a moment later.
+  Its window is made once at start and reused, so it no longer waits for the
+  interface to load at each launch. It leaves like a console: the art goes to
+  black, then the black opens on the game.
 
 - Launch cover: a pack's `launch.ready` (a log line, or the game window
   appearing) keeps the game's art over the emulator until the game really

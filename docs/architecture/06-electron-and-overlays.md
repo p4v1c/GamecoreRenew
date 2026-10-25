@@ -86,7 +86,8 @@ reboot()  shutdown()  quit()
 overlayStart(system_id)  overlayStop(system_id)
 coverShow(data)  coverHide()
 batteryToast(data)  controllerToast(data)
-onOverlayShow(cb)  onOverlayHide(cb)  onOverlayWaiting(cb)  onResume(cb)  onCoverLeave(cb)
+onOverlayShow(cb)  onOverlayHide(cb)  onOverlayWaiting(cb)  onResume(cb)
+onCoverGame(cb)  onCoverLeave(cb)  onCoverReset(cb)   (each returns its unsubscribe)
 ```
 
 Typed for the UI in `frontend/src/gamecore.d.ts` (`GamecoreAPI`, `OverlayData`).
@@ -136,8 +137,8 @@ cache screens, Ryujinx's PTC screen and the like never show.
 |---|---|
 | `backend/services/launch_ready.py` | decides: `game:loading` before the spawn, `game:ready` on the pack's signal (`launch.ready`, [10](10-catalog-and-install.md#launchready--the-launch-cover)) |
 | `frontend/src/hooks/useLaunchCover.ts` | relays both to `coverShow` / `coverHide` |
-| `electron/cover.js` | owns the window: the bezel's recipe (transparent, frameless, `setAlwaysOnTop(true, 'screen-saver')`, explicit geometry from `overlayBounds()`), **not focusable** and shown with `showInactive()`, so the emulator keeps the keyboard and the pads; `moveTop()` over any window created after it (bezel, HUD) |
-| `frontend/src/components/LaunchCover/` | the page at `/cover`: transparent until its art is decoded, then fades in once; fades out on `cover:leave`; `FADE_MS` later the window closes |
+| `electron/cover.js` | owns ONE window, made hidden once the app is ready and reused (a window made at launch spent the first second loading the bundle, and the emulator could map first): `cover:game` hands it the game, `cover:reset` blanks it when it is hidden again. The bezel's recipe (transparent, frameless, `setAlwaysOnTop(true, 'screen-saver')`, explicit geometry from `overlayBounds()`), **not focusable** and shown with `showInactive()`, so the emulator keeps the keyboard and the pads; `moveTop()` over any window created after it (bezel, HUD) |
+| `frontend/src/components/LaunchCover/` | the page at `/cover`: transparent until its art is decoded, then fades in once; on `cover:leave` the art goes to black, then the black opens on the game; `FADE_MS` later the window is hidden and reset |
 
 It always comes down: on the signal; at the pack's `timeoutSec` ceiling (the
 backend's `game:ready` `reason: timeout`); when the launch fails or the game

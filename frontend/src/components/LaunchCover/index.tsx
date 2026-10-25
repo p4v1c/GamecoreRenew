@@ -59,41 +59,67 @@ async function finalArt(system: string, rom: string): Promise<CoverArt> {
   return { ...art, hero: hero ? art.hero : null, logo: logo ? art.logo : null, jacket: jacket ? art.jacket : '' }
 }
 
+type Game = { system: string; rom: string }
+
 /**
- * The launch cover's page, in the window electron/cover.js opens over the
+ * The launch cover's page, in the window electron/cover.js keeps over the
  * emulator. Built-in look on purpose: it shows for seconds over a game, under
  * every theme, and the game's own art carries it.
  *
+ * The window is made once and reused: the game comes by `cover:game` (or the
+ * URL, in a browser), and `cover:reset` blanks the page between launches.
  * Invisible until its art is decoded, then one fade in: the window is
- * transparent, so until then the launch ceremony stays on screen.
+ * transparent, so until then the launch ceremony stays on screen. It leaves
+ * like a console: the art goes to black, then the black opens on the game.
  */
 export default function LaunchCover() {
-  const params = new URLSearchParams(window.location.search)
-  const system = params.get('system') ?? ''
-  const rom = params.get('rom') ?? ''
+  const [game, setGame] = useState<Game | null>(() => {
+    const params = new URLSearchParams(window.location.search)
+    const system = params.get('system') ?? ''
+    return system ? { system, rom: params.get('rom') ?? '' } : null
+  })
   const [art, setArt] = useState<CoverArt | null>(null)
   const [leaving, setLeaving] = useState(false)
 
   useEffect(() => {
+    const offs = [
+      window.gamecore?.onCoverGame?.((d) => {
+        setArt(null)
+        setLeaving(false)
+        setGame({ system: d.system ?? '', rom: d.rom ?? '' })
+      }),
+      window.gamecore?.onCoverLeave?.(() => setLeaving(true)),
+      window.gamecore?.onCoverReset?.(() => {
+        setGame(null)
+        setArt(null)
+        setLeaving(false)
+      }),
+    ]
+    return () => offs.forEach((off) => { if (typeof off === 'function') off() })
+  }, [])
+
+  useEffect(() => {
+    if (!game) return
     let live = true
-    finalArt(system, rom).then((a) => { if (live) setArt(a) })
-    window.gamecore?.onCoverLeave?.(() => setLeaving(true))
+    finalArt(game.system, game.rom).then((a) => { if (live) setArt(a) })
     return () => { live = false }
-  }, [system, rom])
+  }, [game])
 
   return (
     <div className="gc-cover" data-shown={art ? '1' : '0'} data-leaving={leaving ? '1' : '0'}>
-      {art && (art.hero
-        ? <img className="gc-cover-hero" src={art.hero} alt="" />
-        : art.jacket && <img className="gc-cover-jacket" src={art.jacket} alt="" />)}
       {art && (
-        <div className="gc-cover-name">
-          {art.logo
-            ? <img className="gc-cover-logo" src={art.logo} alt={art.title} />
-            : <span className="gc-cover-title">{art.title}</span>}
+        <div className="gc-cover-art">
+          {art.hero
+            ? <img className="gc-cover-hero" src={art.hero} alt="" />
+            : art.jacket && <img className="gc-cover-jacket" src={art.jacket} alt="" />}
+          <div className="gc-cover-name">
+            {art.logo
+              ? <img className="gc-cover-logo" src={art.logo} alt={art.title} />
+              : <span className="gc-cover-title">{art.title}</span>}
+          </div>
+          <div className="gc-cover-spinner" role="progressbar" aria-label="Loading" />
         </div>
       )}
-      {art && <div className="gc-cover-spinner" role="progressbar" aria-label="Loading" />}
     </div>
   )
 }

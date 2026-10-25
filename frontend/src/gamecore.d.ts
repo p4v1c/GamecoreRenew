@@ -64,8 +64,12 @@ interface GamecoreAPI {
    *  and the emulator's own loading screens then show, as before. */
   coverShow?: (data: { system_id: string; game_key: string; timeout_s?: number }) => void
   coverHide?: () => void
-  /** On the cover page only: the game is running, fade out now. */
-  onCoverLeave?: (cb: () => void) => void
+  /** On the cover page only. Its window is reused across launches: the game
+   *  to show, the game is running (fade out now), and back to blank. Each
+   *  returns its unsubscribe (an older shell returns nothing). */
+  onCoverGame?: (cb: (data: { system?: string; rom?: string }) => void) => (() => void) | void
+  onCoverLeave?: (cb: () => void) => (() => void) | void
+  onCoverReset?: (cb: () => void) => (() => void) | void
   /** Electron's powerMonitor `resume`, relayed by electron/power.js. Older shells lack it. */
   onResume?: (cb: () => void) => void
 }
