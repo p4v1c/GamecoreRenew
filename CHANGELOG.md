@@ -23,6 +23,11 @@ are the auto-incremented tags.
   interface to load at each launch. It leaves like a console: the art goes to
   black, then the black opens on the game.
 
+- Launch cover, RPCS3 and Switch: after the emulator's log says the game runs,
+  the cover now also waits for the game's window to go black, which is when
+  the emulator's own loading screen gives way to the game (pack field
+  `launch.ready.handOver`). No operator step.
+
 - Launch cover: a pack's `launch.ready` (a log line, or the game window
   appearing) keeps the game's art over the emulator until the game really
   runs. Shipped for RPCS3, Switch (Ryujinx), PCSX2 and Dolphin. New path token

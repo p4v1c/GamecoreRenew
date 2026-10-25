@@ -26,7 +26,8 @@
     "ready": {
       "log": "@FLATPAK_CONFIG@/Ryujinx/Logs/Ryujinx_*.log",
       "match": "SurfaceFlinger CreateLayerFromId",
-      "timeoutSec": 180
+      "timeoutSec": 180,
+      "handOver": "black"
     }
   },
   "roms": {

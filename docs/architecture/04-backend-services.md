@@ -769,9 +769,11 @@ calls it around `process_manager.launch()`; nothing in it may fail a launch.
 |---|---|
 | `spec_for(system_id, rom_path, port)` | the pack's `launch.ready` with its path expanded, or the port's `# gamecore-ready-*` lines; None = no cover |
 | `announce(game_key, system_id, rom_path, port)` | before the spawn: snapshot the log (inode, size), broadcast `game:loading` with `timeout_s` |
-| `follow(watch, resumed)` | after it: a task waits for the signal, the ceiling or the end of the session, then broadcasts `game:ready` with `reason` (`signal`, `timeout`, `ended`, `resumed`) |
+| `follow(watch, resumed)` | after it: a task waits for the signal, the ceiling or the end of the session, then broadcasts `game:ready` with `reason` (`signal`, `black`, `timeout`, `ended`, `resumed`) |
+| `_hand_over(watch)` | with `handOver: black`, after the signal: polls `window_black.is_black(pgid)` every 100 ms until the game's window is black (`black`), the `handOverSec` ceiling, or an unreadable window (`signal`) |
 | `drop(watch, reason)` | `game:ready` now: the spawn failed (`failed`) |
 | `_LogCursor.found()` | reads what the log gained since the last poll; a file whose inode differs from the snapshot (RPCS3 recreates its log, Ryujinx starts a new one) is read from its start, a truncated one again |
+| `window_black.is_black(pgid)` | the session's biggest window, a 5×5 grid of its own pixels (readable under the cover): black when 90 % have every channel ≤ 24; None without X or window |
 
 ---
 

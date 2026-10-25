@@ -135,12 +135,12 @@ cache screens, Ryujinx's PTC screen and the like never show.
 
 | Who | What |
 |---|---|
-| `backend/services/launch_ready.py` | decides: `game:loading` before the spawn, `game:ready` on the pack's signal (`launch.ready`, [10](10-catalog-and-install.md#launchready--the-launch-cover)) |
+| `backend/services/launch_ready.py` | decides: `game:loading` before the spawn, `game:ready` on the pack's signal (`launch.ready`, [10](10-catalog-and-install.md#launchready--the-launch-cover)), then with `handOver: black` once the game's window goes black (`window_black.py`) |
 | `frontend/src/hooks/useLaunchCover.ts` | relays both to `coverShow` / `coverHide` |
 | `electron/cover.js` | owns ONE window, made hidden once the app is ready and reused (a window made at launch spent the first second loading the bundle, and the emulator could map first): `cover:game` hands it the game, `cover:reset` blanks it when it is hidden again. The bezel's recipe (transparent, frameless, `setAlwaysOnTop(true, 'screen-saver')`, explicit geometry from `overlayBounds()`), **not focusable** and shown with `showInactive()`, so the emulator keeps the keyboard and the pads; `moveTop()` over any window created after it (bezel, HUD) |
 | `frontend/src/components/LaunchCover/` | the page at `/cover`: transparent until its art is decoded, then fades in once; on `cover:leave` the art goes to black, then the black opens on the game; `FADE_MS` later the window is hidden and reset |
 
-It always comes down: on the signal; at the pack's `timeoutSec` ceiling (the
+It always comes down: on the signal (and its hand-over to black); at the pack's `timeoutSec` ceiling (the
 backend's `game:ready` `reason: timeout`); when the launch fails or the game
 ends (`game:failed`, `game:finished`); when the interface takes the screen back
 (`shell:session-screen` false, a suspend); and, if every message was lost, on

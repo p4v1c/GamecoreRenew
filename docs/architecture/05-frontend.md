@@ -150,7 +150,7 @@ and returns an unsubscribe.
 |---|---|---|---|
 | `game:loading` | `services/launch_ready.py` (before the spawn) | `game_key`, `system_id`, `timeout_s` | `useLaunchCover` raises the launch cover |
 | `game:started` | `process_manager.launch()` | `game_key`, `system_id`, `session` | Electron shows the bezel overlay |
-| `game:ready` | `services/launch_ready.py` | `game_key`, `system_id`, `reason` (`signal`, `timeout`, `ended`, `resumed`, `failed`) | `useLaunchCover` drops the cover; nothing else listens |
+| `game:ready` | `services/launch_ready.py` | `game_key`, `system_id`, `reason` (`signal`, `black`, `timeout`, `ended`, `resumed`, `failed`) | `useLaunchCover` drops the cover; nothing else listens |
 | `game:finished` | `process_manager._watch()` | + `elapsed`, `session` | removes that run and hides the overlay when foreground |
 | `game:running` | `ws.connect()` | foreground plus `background[]` | late-joining client catches up |
 | `game:backgrounded` / `game:foregrounded` | `process_manager` | transition plus complete state snapshot | atomically moves the run between screen and session bar |
