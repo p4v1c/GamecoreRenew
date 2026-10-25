@@ -7,9 +7,12 @@
   background: #09090f;
   font-family: var(--gc-font-ui);
   color: var(--gc-ink);
-  /* FADE_MS in electron/cover.js waits for this. */
+  /* Hidden until the art is decoded (index.tsx), then one fade in. FADE_MS
+     in electron/cover.js waits for the fade out. */
+  opacity: 0;
   transition: opacity 400ms ease-out;
 }
+.gc-cover[data-shown='1'] { opacity: 1; }
 .gc-cover[data-leaving='1'] { opacity: 0; }
 
 .gc-cover-hero {
@@ -18,10 +21,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0;
-  transition: opacity 300ms ease-out;
 }
-.gc-cover-hero[data-shown='1'] { opacity: 1; }
 
 /* No key art: the box alone, as it sits on the shelf. */
 .gc-cover-jacket {
@@ -82,5 +82,5 @@
 @keyframes gc-cover-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .gc-cover-spinner::after { animation: none; }
-  .gc-cover, .gc-cover-hero { transition: none; }
+  .gc-cover { transition: none; }
 }

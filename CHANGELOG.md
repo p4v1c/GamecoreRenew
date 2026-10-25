@@ -17,6 +17,9 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Launch cover: comes up in one fade with its art already decoded, instead of
+  the box and the name first, swapped for the key art and logo a moment later.
+
 - Launch cover: a pack's `launch.ready` (a log line, or the game window
   appearing) keeps the game's art over the emulator until the game really
   runs. Shipped for RPCS3, Switch (Ryujinx), PCSX2 and Dolphin. New path token

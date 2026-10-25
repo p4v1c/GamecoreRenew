@@ -137,7 +137,7 @@ cache screens, Ryujinx's PTC screen and the like never show.
 | `backend/services/launch_ready.py` | decides: `game:loading` before the spawn, `game:ready` on the pack's signal (`launch.ready`, [10](10-catalog-and-install.md#launchready--the-launch-cover)) |
 | `frontend/src/hooks/useLaunchCover.ts` | relays both to `coverShow` / `coverHide` |
 | `electron/cover.js` | owns the window: the bezel's recipe (transparent, frameless, `setAlwaysOnTop(true, 'screen-saver')`, explicit geometry from `overlayBounds()`), **not focusable** and shown with `showInactive()`, so the emulator keeps the keyboard and the pads; `moveTop()` over any window created after it (bezel, HUD) |
-| `frontend/src/components/LaunchCover/` | the page at `/cover`: draws the art, fades out on `cover:leave`; `FADE_MS` later the window closes |
+| `frontend/src/components/LaunchCover/` | the page at `/cover`: transparent until its art is decoded, then fades in once; fades out on `cover:leave`; `FADE_MS` later the window closes |
 
 It always comes down: on the signal; at the pack's `timeoutSec` ceiling (the
 backend's `game:ready` `reason: timeout`); when the launch fails or the game
