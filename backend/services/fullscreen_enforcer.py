@@ -80,23 +80,40 @@ def _request_fullscreen(disp, win) -> None:
     disp.flush()
 
 
-def _enforce_sync(system_id: str, wm_classes: list[str], timeout_s: float) -> None:
+def _open_display():
     # The backend runs from systemd without X in its own environment —
     # borrow the same DISPLAY/XAUTHORITY resolution used to launch the app.
     env = _display_env()
     for key in ("DISPLAY", "XAUTHORITY"):
         if env.get(key):
             os.environ.setdefault(key, env[key])
+    return xdisplay.Display(env.get("DISPLAY"))
 
-    disp = xdisplay.Display(env.get("DISPLAY"))
+
+def _wait_window(disp, wm_classes: list[str], deadline: float, cancelled=lambda: False):
+    while time.time() < deadline and not cancelled():
+        if win := _find_window(disp, wm_classes):
+            return win
+        time.sleep(0.5)
+    return None
+
+
+def wait_for_window(wm_classes: list[str], timeout_s: float, cancelled=lambda: False) -> bool:
+    """Block until a window whose WM_CLASS matches is mapped. False on timeout,
+    on `cancelled()`, or with no X to ask."""
+    if not _XLIB_OK:
+        return False
+    disp = _open_display()
     try:
-        deadline = time.time() + timeout_s
-        win = None
-        while time.time() < deadline:
-            win = _find_window(disp, wm_classes)
-            if win:
-                break
-            time.sleep(0.5)
+        return _wait_window(disp, wm_classes, time.time() + timeout_s, cancelled) is not None
+    finally:
+        disp.close()
+
+
+def _enforce_sync(system_id: str, wm_classes: list[str], timeout_s: float) -> None:
+    disp = _open_display()
+    try:
+        win = _wait_window(disp, wm_classes, time.time() + timeout_s)
         if not win:
             log.warning("fullscreen_enforcer[%s]: no window matching %s after %ss",
                         system_id, wm_classes, timeout_s)

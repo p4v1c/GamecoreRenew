@@ -121,7 +121,7 @@ by `scripts/check-catalog.py`, which CI runs before anything else. Required:
 `appIds` is an ordered list, not a string, because an upstream can vanish
 overnight — Ryujinx original left Flathub with no warning. The installer takes
 the first candidate the remote still offers; everything else on the box (the
-`@FLATPAK_CONFIG@` and `@FLATPAK_DATA@` expansions, `verify`, the launcher)
+`@FLATPAK_CONFIG@`, `@FLATPAK_DATA@` and `@FLATPAK_CACHE@` expansions, `verify`, the launcher)
 takes the first one actually **installed**, so a box that fell back keeps its
 config, its saves and its BIOS under one app id rather than three.
 
@@ -228,6 +228,30 @@ Two things a tile may need once the app is up, both read by
 The pack spells them in camelCase like the rest of the schema;
 `gen-catalog.py` writes the `wm_class` / `timeout_s` spelling the enforcer has
 always read into the tile entry.
+
+### `launch.ready` — the launch cover
+
+For an emulator that shows its own loading screens before the game (RPCS3
+compiling its shader and SPU caches, Ryujinx its PTC). While it is declared,
+the screen shows the game's art over the emulator from the spawn until the
+game really runs, then fades to it
+([6](06-electron-and-overlays.md#the-launch-cover)):
+
+```json
+"ready": { "log": "@FLATPAK_CACHE@/rpcs3/RPCS3.log",
+           "match": "Thread \\(main_thread\\) \\[", "timeoutSec": 240 }
+"ready": { "wmClass": ["pcsx2-qt", "pcsx2"], "timeoutSec": 30 }
+```
+
+- `log` + `match`: a line the emulator writes once the game runs, searched only
+  in what the log gains after the spawn. `@FLATPAK_CACHE@` (`.var/app/<id>/cache`)
+  joins the usual tokens; a `*` names an emulator that starts a new file each
+  run (Ryujinx). Measured signals, and why each one: see
+  [the report](../reports/launch-cover-signals-2026-10-25.md).
+- `wmClass`: the game's window appearing, for an emulator with no usable log.
+- `timeoutSec` (default 90) is a ceiling, not a delay: past it the cover drops
+  whatever the log says, so a renamed line never hides a running game.
+- A pack that `sharesEmulator` declares the same block (`launch` must match).
 
 ### `launch.formerArgs` — a system that changed emulator
 

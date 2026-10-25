@@ -18,6 +18,7 @@ from . import (
     controller_registry,
     fullscreen_enforcer,
     gamepad_monitor,
+    launch_ready,
     native_ports,
     pergame,
     profile_saves,
@@ -340,6 +341,19 @@ async def _prepare(system_id: str, rom_path: str, exec_path: str,
 
 
 async def _spawn(system: dict, system_id: str, rom_path: str, exec_path: str,
+                 exec_args: str, game_key: str, *, port: bool = False) -> bool:
+    # Up before the emulator maps a window, down on the game's own signal.
+    cover = await launch_ready.announce(game_key, system_id, rom_path, port=port)
+    try:
+        resumed = await _start(system, system_id, rom_path, exec_path, exec_args, game_key)
+    except Exception:
+        await launch_ready.drop(cover, "failed")
+        raise
+    launch_ready.follow(cover, resumed)
+    return resumed
+
+
+async def _start(system: dict, system_id: str, rom_path: str, exec_path: str,
                  exec_args: str, game_key: str) -> bool:
     try:
         return await process_manager.launch(
@@ -459,7 +473,8 @@ async def _launch_port(system: dict, system_id: str, rom_path: str, game_key: st
         if saves_dir is not None:
             saves_dir.mkdir(parents=True, exist_ok=True)
         exec_path, exec_args = native_ports.command(saves_dir)
-        resumed_flag = await _spawn(system, system_id, rom_path, exec_path, exec_args, game_key)
+        resumed_flag = await _spawn(system, system_id, rom_path, exec_path, exec_args,
+                                    game_key, port=True)
     except Exception:
         await asyncio.to_thread(_release_profile_saves, system_id, rom_path)
         raise

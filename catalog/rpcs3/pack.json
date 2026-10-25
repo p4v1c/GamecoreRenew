@@ -23,6 +23,11 @@
     "preferIfPresent": {
       "path": "lib/rpcs3",
       "args": "--fullscreen --no-gui"
+    },
+    "ready": {
+      "log": "@FLATPAK_CACHE@/rpcs3/RPCS3.log",
+      "match": "Thread \\(main_thread\\) \\[",
+      "timeoutSec": 240
     }
   },
   "roms": {

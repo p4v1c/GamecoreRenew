@@ -775,6 +775,7 @@ exec /userdata/Recomp/Bloodborne/Bloodborne.AppImage --play
 | no line = one save for every profile | saves mixed into the game's own files cannot be given a folder per profile |
 | player 1 only, like `p1` packs | the active profile is player 1 |
 | `GAMECORE_SAVES_DIR` = `…/ports/<script stem>/`, unset for the primary | for a game that takes a save folder option, no link needed |
+| `# gamecore-ready-log: <file>` + `# gamecore-ready-match: <regex>`, or `# gamecore-ready-window: <wm_class>, …` | the launch cover, as a pack's `launch.ready` ([10](10-catalog-and-install.md#launchready--the-launch-cover)): up until the port's log says the game runs, or its window appears. Paths as for the saves. No line = no cover |
 
 Scripts declaring the same folder share it (Uncharted 1-3: one collection, one
 save). All the ports of a system share one placement key, so the late end of

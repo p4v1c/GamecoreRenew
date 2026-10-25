@@ -20,6 +20,9 @@ from pathlib import Path
 
 PORT_SUFFIX = ".sh"
 SAVES_TAG = "gamecore-saves:"
+READY_LOG_TAG = "gamecore-ready-log:"
+READY_MATCH_TAG = "gamecore-ready-match:"
+READY_WINDOW_TAG = "gamecore-ready-window:"
 # The declarations sit in the header; a script is not read past it.
 HEADER_LINES = 40
 SAVES_ENV = "GAMECORE_SAVES_DIR"
@@ -38,27 +41,50 @@ def is_port(path: Path) -> bool:
     return stat.S_ISREG(mode) and bool(mode & 0o111)
 
 
-def declared_saves(script: Path, home: Path) -> list[Path]:
-    """The save folders the script's header declares, absolute, in order."""
+def _header(script: Path, tag: str) -> list[str]:
+    """The values of every `# <tag> <value>` line in the script's header."""
     try:
         with script.open(encoding="utf-8", errors="replace") as f:
             head = [next(f, "") for _ in range(HEADER_LINES)]
     except OSError:
         return []
-    out: list[Path] = []
+    out = []
     for line in head:
         text = line.strip().lstrip("#").strip()
-        if not line.lstrip().startswith("#") or not text.startswith(SAVES_TAG):
-            continue
-        raw = text[len(SAVES_TAG):].strip().replace("@HOME@", str(home))
-        if not raw:
-            continue
-        if raw == "~" or raw.startswith("~/"):
-            raw = str(home) + raw[1:]
-        path = Path(os.path.normpath(script.parent / raw))
+        if line.lstrip().startswith("#") and text.startswith(tag):
+            if value := text[len(tag):].strip():
+                out.append(value)
+    return out
+
+
+def _expand(raw: str, script: Path, home: Path) -> Path:
+    raw = raw.replace("@HOME@", str(home))
+    if raw == "~" or raw.startswith("~/"):
+        raw = str(home) + raw[1:]
+    return Path(os.path.normpath(script.parent / raw))
+
+
+def declared_saves(script: Path, home: Path) -> list[Path]:
+    """The save folders the script's header declares, absolute, in order."""
+    out: list[Path] = []
+    for raw in _header(script, SAVES_TAG):
+        path = _expand(raw, script, home)
         if path not in out:
             out.append(path)
     return out
+
+
+def declared_ready(script: Path, home: Path) -> dict | None:
+    """The script's `launch.ready`, in the pack's shape, or None.
+
+    `# gamecore-ready-log:` + `# gamecore-ready-match:` (a line in the
+    port's own log), or `# gamecore-ready-window:` (WM_CLASS, comma-separated)."""
+    logs, matches = _header(script, READY_LOG_TAG), _header(script, READY_MATCH_TAG)
+    if logs and matches:
+        return {"log": str(_expand(logs[0], script, home)), "match": matches[0]}
+    windows = _header(script, READY_WINDOW_TAG)
+    classes = [c.strip() for c in windows[0].split(",") if c.strip()] if windows else []
+    return {"wmClass": classes} if classes else None
 
 
 def profile_folder_name(path: Path) -> str:
