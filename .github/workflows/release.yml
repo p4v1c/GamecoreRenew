@@ -112,7 +112,7 @@ jobs:
       # three comparators read left to right. The script's docstring has the
       # reasoning; the tests have the proof.
       #
-      # `fetch-depth: 0` on the checkout above is what makes `git describe`
+      # `fetch-depth: 0` on the checkout above is what makes the tag lookup
       # work here. Without it there are no tags and every release would be
       # v1.0.1.
       - name: Version for each merge
@@ -122,7 +122,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          previous="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo '')"
+          # The highest reachable tag, not `git describe`'s nearest: a re-run
+          # after a late failure leaves two tags on one commit (v1.3.38 and
+          # v1.3.39 on #152), and describe picked the lower one.
+          previous="$(git tag --merged HEAD --sort=-v:refname --list 'v*' | sed -n 1p)"
           if [[ -z "$previous" ]]; then
             echo "::error::no v* tag reachable — refusing to guess a version"
             exit 1
