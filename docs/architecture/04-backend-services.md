@@ -756,7 +756,22 @@ flag (`"fullscreen"` key on a system entry).
 `_iter_client_windows`, `_find_window(disp, wm_classes)`, `_is_fullscreen`,
 `_request_fullscreen` (adds `_NET_WM_STATE_FULLSCREEN` by client message),
 `_enforce_sync(system_id, wm_classes, timeout_s)`, and the async
-fire-and-forget `enforce(system_id, cfg)`.
+fire-and-forget `enforce(system_id, cfg)`. `wait_for_window(wm_classes,
+timeout_s)` is the same wait on its own, for the launch cover.
+
+## `launch_ready.py` — when the game behind the cover runs
+
+The backend half of the launch cover
+([6](06-electron-and-overlays.md#the-launch-cover)). `services/launch.py:_spawn`
+calls it around `process_manager.launch()`; nothing in it may fail a launch.
+
+| Function | Role |
+|---|---|
+| `spec_for(system_id, rom_path, port)` | the pack's `launch.ready` with its path expanded, or the port's `# gamecore-ready-*` lines; None = no cover |
+| `announce(game_key, system_id, rom_path, port)` | before the spawn: snapshot the log (inode, size), broadcast `game:loading` with `timeout_s` |
+| `follow(watch, resumed)` | after it: a task waits for the signal, the ceiling or the end of the session, then broadcasts `game:ready` with `reason` (`signal`, `timeout`, `ended`, `resumed`) |
+| `drop(watch, reason)` | `game:ready` now: the spawn failed (`failed`) |
+| `_LogCursor.found()` | reads what the log gained since the last poll; a file whose inode differs from the snapshot (RPCS3 recreates its log, Ryujinx starts a new one) is read from its start, a truncated one again |
 
 ---
 
@@ -810,7 +825,7 @@ a native port leaves here for `_launch_port()` (standby exit, pad profiles,
 its saves, its script: [7](07-config-and-data.md#native-ports--emusystemsh)) →
 catalogue args → BIOS gate → USB notice → `standby.exit_standby()` → wait for
 pad profiles → release stale slots → profile saves → per-game config → pack
-`prepare_launch` → pack `launch_command` → `process_manager.launch()` → udev
+`prepare_launch` → pack `launch_command` → launch cover up (`launch_ready.announce`) → `process_manager.launch()` → cover watch (`launch_ready.follow`) → udev
 re-fire / fullscreen tasks. Refusals raise `LaunchRefused(status, detail)`; the router maps them.
 The foreground check also claims a module-level `_launching` flag, held until
 the spawn returns: a second launch arriving meanwhile is refused (409) before

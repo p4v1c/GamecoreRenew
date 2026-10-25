@@ -26,6 +26,7 @@ want to understand how the box got here.
 | [boot-ground-index-2026-09-27.md](boot-ground-index-2026-09-27.md) | 2026-09-27 | the dark frame before Shelf's paper: `index.html` hardcoded `#09090f` before any module ran; frame colours on the four themes |
 | [power-controller-ui-2026-09-27.md](power-controller-ui-2026-09-27.md) | 2026-09-27 | power menu and controller screen per theme: the universal pad diagram by position, the roster route, what each real pad shows, five review rounds with before/after |
 | [bios-coverage-2026-10-11.md](bios-coverage-2026-10-11.md) | 2026-10-11 | which packs need an owner-supplied file, with the emulator source for each; MAME, shadPS4 and Dolphin IPL blocks added; why 32X, mGBA and melonDS have none |
+| [launch-cover-signals-2026-10-25.md](launch-cover-signals-2026-10-25.md) | 2026-10-25 | the "game is running" line for RPCS3 and Ryujinx, measured in real boot logs; why PCSX2 and Dolphin fall back to their window |
 
 A rule these files follow, worth keeping for future entries: **every claim
 names its evidence** (a command, a measurement, a failing test), and every

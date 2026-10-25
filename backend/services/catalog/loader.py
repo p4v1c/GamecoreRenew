@@ -144,6 +144,7 @@ class Pack:
         return Path(value
                     .replace("@FLATPAK_CONFIG@", f"{home}/.var/app/{self.app_id}/config")
                     .replace("@FLATPAK_DATA@", f"{home}/.var/app/{self.app_id}/data")
+                    .replace("@FLATPAK_CACHE@", f"{home}/.var/app/{self.app_id}/cache")
                     .replace("@GAMECORE_DATA@", str(GAMECORE_DATA))
                     .replace("@GAMECORE_PATH@", str(GAMECORE_ROOT))
                     .replace("@HOME@", str(home)))

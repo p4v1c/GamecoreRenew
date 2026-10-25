@@ -17,6 +17,10 @@
     "preferIfPresent": {
       "path": "lib/pcsx2",
       "args": "-nogui -fullscreen"
+    },
+    "ready": {
+      "wmClass": ["pcsx2-qt", "pcsx2", "PCSX2", "net.pcsx2.PCSX2"],
+      "timeoutSec": 30
     }
   },
   "roms": {

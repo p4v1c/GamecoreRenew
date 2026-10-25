@@ -22,7 +22,12 @@
     "args": "run @APPID@",
     "formerArgs": [
       "run @APPID@ -f -g"
-    ]
+    ],
+    "ready": {
+      "log": "@FLATPAK_CONFIG@/Ryujinx/Logs/Ryujinx_*.log",
+      "match": "SurfaceFlinger CreateLayerFromId",
+      "timeoutSec": 180
+    }
   },
   "roms": {
     "dir": "emu/ryujinx",

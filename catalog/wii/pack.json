@@ -16,7 +16,11 @@
   },
   "launch": {
     "path": "flatpak",
-    "args": "run @APPID@ -b"
+    "args": "run @APPID@ -b",
+    "ready": {
+      "wmClass": ["dolphin-emu", "org.DolphinEmu.dolphin-emu"],
+      "timeoutSec": 30
+    }
   },
   "roms": {
     "dir": "emu/wii",

@@ -17,6 +17,11 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Launch cover: a pack's `launch.ready` (a log line, or the game window
+  appearing) keeps the game's art over the emulator until the game really
+  runs. Shipped for RPCS3, Switch (Ryujinx), PCSX2 and Dolphin. New path token
+  `@FLATPAK_CACHE@`. Ports: `# gamecore-ready-*` header lines. No operator step.
+
 - Native ports: an executable `*.sh` in any `emu/<system>/` is a game of that
   system, launched as is (a recompiled Uncharted in PS3, Bloodborne in PS4).
   `# gamecore-saves: <folder>` lines in its header give each profile its own

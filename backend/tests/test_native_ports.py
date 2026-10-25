@@ -180,7 +180,7 @@ def _stub_launch(monkeypatch, spawned: list):
     async def nothing(*_a, **_k):
         return None
 
-    async def spawn(_system, _sid, rom_path, exec_path, exec_args, _key):
+    async def spawn(_system, _sid, rom_path, exec_path, exec_args, _key, **_k):
         spawned.append([exec_path, *shlex.split(exec_args), rom_path])
         return False
 

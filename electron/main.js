@@ -61,7 +61,6 @@ const REBUILD_LIMIT  = 3
 const REBUILD_WINDOW = 10_000
 let monitorProcess = null
 
-
 /**
  * The colour the box boots to — the active theme's, read from disk.
  *
@@ -291,7 +290,6 @@ function createOverlayWindow() {
 
   overlayWindow.on('closed', () => { overlayWindow = null })
 }
-
 
 function destroyOverlayWindow() {
   if (overlayWindow) {
@@ -943,6 +941,8 @@ ipcMain.on('boot:ready', (_, payload) => {
 
 require('./power.js').register({ app, ipcMain, exec, powerMonitor,
   getWindow: () => mainWindow, sessionOwnsScreen: () => sessionOwnsScreen })
+require('./cover.js').register({ app, ipcMain, BrowserWindow, bounds: overlayBounds,
+  pageUrl: `${DEV ? DEV_URL : BACKEND_URL}/cover`, preload: path.join(__dirname, 'preload.js') })
 
 /**
  * Exit to desktop. In the console session, leaving is a session change: point

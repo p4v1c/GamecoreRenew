@@ -3,6 +3,7 @@ import { AnimatePresence } from 'framer-motion'
 import { useWebSocket, applyIfStillCurrent } from './hooks/useWebSocket'
 import { useGamepad, onGp } from './hooks/useGamepad'
 import { useEmulatorOverlay } from './hooks/useEmulatorOverlay'
+import { useLaunchCover } from './hooks/useLaunchCover'
 import { useWakeSplash } from './hooks/useWakeSplash'
 import { useStore } from './store'
 import { api } from './api'
@@ -129,6 +130,8 @@ export default function App() {
   // raw start/finish events — see hooks/useEmulatorOverlay.ts for why suspending
   // made the old version leave the interface hidden behind a frozen bezel.
   useEmulatorOverlay()
+  // Over the emulator from the spawn until the game really runs.
+  useLaunchCover()
 
   /**
    * The one binding no theme may own: leaving a running game.
