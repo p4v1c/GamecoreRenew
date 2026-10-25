@@ -60,6 +60,12 @@ interface GamecoreAPI {
   onOverlayShow:    (cb: (data: OverlayData) => void) => void
   onOverlayHide:    (cb: (data: OverlayData) => void) => void
   onOverlayWaiting: (cb: (data: OverlayData) => void) => void
+  /** The launch cover (electron/cover.js). Optional: an older shell has none,
+   *  and the emulator's own loading screens then show, as before. */
+  coverShow?: (data: { system_id: string; game_key: string; timeout_s?: number }) => void
+  coverHide?: () => void
+  /** On the cover page only: the game is running, fade out now. */
+  onCoverLeave?: (cb: () => void) => void
   /** Electron's powerMonitor `resume`, relayed by electron/power.js. Older shells lack it. */
   onResume?: (cb: () => void) => void
 }

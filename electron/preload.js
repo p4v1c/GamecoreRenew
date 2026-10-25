@@ -57,6 +57,12 @@ contextBridge.exposeInMainWorld('gamecore', {
   onOverlayHide:    (cb) => ipcRenderer.on('overlay:hide',    (_, d) => cb(d)),
   onOverlayWaiting: (cb) => ipcRenderer.on('overlay:waiting', (_, d) => cb(d)),
 
+  // The launch cover (electron/cover.js): up on `game:loading`, down on
+  // `game:ready`, both relayed from the websocket by the interface.
+  coverShow: (data) => ipcRenderer.send('cover:show', data || {}),
+  coverHide: () => ipcRenderer.send('cover:hide'),
+  onCoverLeave: (cb) => ipcRenderer.on('cover:leave', () => cb()),
+
   // The machine woke from sleep (electron/power.js)
   onResume: (cb) => ipcRenderer.on('power:resume', () => cb()),
 })

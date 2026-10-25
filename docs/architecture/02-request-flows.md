@@ -18,6 +18,10 @@ sequenceDiagram
     r->>r: list_all() → system, else 404
     r->>pm: is_running? → 409 if busy
     r->>r: rom_path.resolve().relative_to(roms_root) → 403 if outside
+    opt the pack declares launch.ready
+        r->>ws: launch_ready.announce() → broadcast("game:loading")
+        ws-->>ui: game:loading → window.gamecore.coverShow()
+    end
     r->>pm: launch(exec_path, exec_args, rom_path, …)
     pm->>pm: _launching = True (synchronous claim)
     pm->>pm: session.display_env()
@@ -32,6 +36,11 @@ sequenceDiagram
     mon-->>el: {"event":"window:ready","rect":{…}}
     el->>el: createOverlayWindow() — transparent, always-on-top
     r-->>ui: {ok: true, game_key}
+    opt cover up
+        r->>r: launch_ready.follow() — the log line or the window
+        r->>ws: broadcast("game:ready", {reason})
+        ws-->>ui: game:ready → window.gamecore.coverHide() → the page fades
+    end
 ```
 
 After the response, `launch_game()` may also schedule two fire-and-forget

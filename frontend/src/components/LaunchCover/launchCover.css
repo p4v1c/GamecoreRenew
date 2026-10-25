@@ -1,0 +1,86 @@
+/* The launch cover: the game's key art, its logo, one quiet ring.
+   Built-in palette (frontend/src/DESIGN.md): ground #09090f, white ink. */
+.gc-cover {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #09090f;
+  font-family: var(--gc-font-ui);
+  color: var(--gc-ink);
+  /* FADE_MS in electron/cover.js waits for this. */
+  transition: opacity 400ms ease-out;
+}
+.gc-cover[data-leaving='1'] { opacity: 0; }
+
+.gc-cover-hero {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 300ms ease-out;
+}
+.gc-cover-hero[data-shown='1'] { opacity: 1; }
+
+/* No key art: the box alone, as it sits on the shelf. */
+.gc-cover-jacket {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  height: 58vh;
+  max-width: 70vw;
+  transform: translate(-50%, -56%);
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+}
+
+/* The name, logo or text, sits on a plate of the ground colour: a logo in
+   the art's own colours vanishes into that art (Cyberpunk's yellow on yellow). */
+.gc-cover-name {
+  position: absolute;
+  left: 6vw;
+  bottom: 9vh;
+  max-width: 52vw;
+  padding: 18px 26px;
+  border-radius: 12px;
+  background: rgba(9, 9, 15, 0.86);
+}
+.gc-cover-logo {
+  display: block;
+  max-width: 30vw;
+  max-height: 16vh;
+  object-fit: contain;
+  object-position: left center;
+}
+.gc-cover-title {
+  display: block;
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.gc-cover-spinner {
+  position: absolute;
+  right: 6vw;
+  bottom: 9vh;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(9, 9, 15, 0.86);
+}
+.gc-cover-spinner::after {
+  content: '';
+  position: absolute;
+  inset: 14px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.28);
+  border-top-color: #fff;
+  animation: gc-cover-spin 1.1s linear infinite;
+}
+@keyframes gc-cover-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .gc-cover-spinner::after { animation: none; }
+  .gc-cover, .gc-cover-hero { transition: none; }
+}

@@ -314,6 +314,7 @@ app.include_router(auth_routes.router, prefix="/api")
 # see https://github.com/p4v1c/gamecore-addons
 
 @app.get("/overlay", include_in_schema=False)
+@app.get("/cover", include_in_schema=False)
 def overlay_page():
     # Same file as the shell, and therefore the same rule: it names the bundle
     # without being named by it, so keeping it is how an OTA stays invisible.

@@ -345,6 +345,22 @@ the game saves in (one line per folder), then start the game once with the
 first profile so that folder exists. Without the line, every profile shares
 one save. Details: [native ports](docs/architecture/07-config-and-data.md#native-ports--emusystemsh).
 
+### The loading screen
+
+PlayStation 3, Switch, PlayStation 2 and GameCube/Wii games start behind the
+game's own artwork: RPCS3 building its caches or Ryujinx loading its shaders
+stay out of sight, and the picture fades to the game once it is really running.
+A port can have the same with two header lines naming its log and the line
+that means "running":
+
+```sh
+# gamecore-ready-log: /userdata/Recomp/Uncharted/Saves/last_run.log
+# gamecore-ready-match: Entering original x86-64 code
+```
+
+If the signal never comes, the artwork leaves on its own after a few minutes
+at most, never hiding a game that runs. Details: [the launch cover](docs/architecture/06-electron-and-overlays.md#the-launch-cover).
+
 ---
 
 ## Controller navigation

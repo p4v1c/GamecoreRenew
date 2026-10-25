@@ -84,8 +84,9 @@ The methods on `window.gamecore` (plus the boot ones: `bootBackground`, `bootRea
 ```js
 reboot()  shutdown()  quit()
 overlayStart(system_id)  overlayStop(system_id)
+coverShow(data)  coverHide()
 batteryToast(data)  controllerToast(data)
-onOverlayShow(cb)  onOverlayHide(cb)  onOverlayWaiting(cb)  onResume(cb)
+onOverlayShow(cb)  onOverlayHide(cb)  onOverlayWaiting(cb)  onResume(cb)  onCoverLeave(cb)
 ```
 
 Typed for the UI in `frontend/src/gamecore.d.ts` (`GamecoreAPI`, `OverlayData`).
@@ -102,6 +103,7 @@ Every call is a one-way `ipcRenderer.send` except the four `on*` listeners.
 | `overlay:stop` | `stopOverlayMonitor()` + `destroyOverlayWindow()` |
 | `notify:battery` | `showBatteryToast(data)` |
 | `notify:controller` | `showHudToast(...)` |
+| `cover:show` / `cover:hide` | the launch cover (`electron/cover.js`), below |
 
 `powerMonitor` `resume` (`electron/power.js`, `watchResume`, registered with the IPC by `register()` and subscribed once the app is ready): unless a session
 owns the screen, the main window is set fullscreen again, shown and focused,
@@ -123,6 +125,29 @@ broadcasts — including `POST /api/addons/notify` (reachable by any addon) and
 | `safeColor(c)` (L138) | the accent lands inside `style=""`, so it is only ever accepted as a plain colour token |
 
 Never interpolate a broadcast string raw into that template.
+
+## The launch cover
+
+`electron/cover.js`, registered by `main.js` like `power.js`. A window over the
+emulator from the spawn until the game really runs, so RPCS3's shader and SPU
+cache screens, Ryujinx's PTC screen and the like never show.
+
+| Who | What |
+|---|---|
+| `backend/services/launch_ready.py` | decides: `game:loading` before the spawn, `game:ready` on the pack's signal (`launch.ready`, [10](10-catalog-and-install.md#launchready--the-launch-cover)) |
+| `frontend/src/hooks/useLaunchCover.ts` | relays both to `coverShow` / `coverHide` |
+| `electron/cover.js` | owns the window: the bezel's recipe (transparent, frameless, `setAlwaysOnTop(true, 'screen-saver')`, explicit geometry from `overlayBounds()`), **not focusable** and shown with `showInactive()`, so the emulator keeps the keyboard and the pads; `moveTop()` over any window created after it (bezel, HUD) |
+| `frontend/src/components/LaunchCover/` | the page at `/cover`: draws the art, fades out on `cover:leave`; `FADE_MS` later the window closes |
+
+It always comes down: on the signal; at the pack's `timeoutSec` ceiling (the
+backend's `game:ready` `reason: timeout`); when the launch fails or the game
+ends (`game:failed`, `game:finished`); when the interface takes the screen back
+(`shell:session-screen` false, a suspend); and, if every message was lost, on
+its own timer, the ceiling plus `SAFETY_MS`. The ceiling is a safety net, never
+the mechanism: the owner rejects delays tuned on one machine.
+
+Only the start is covered. A shader RPCS3 compiles mid-game still shows its
+notice.
 
 ## The overlay monitor subprocess
 

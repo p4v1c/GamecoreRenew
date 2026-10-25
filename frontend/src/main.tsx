@@ -5,13 +5,16 @@ import './tokens.css'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import OverlayScreen from './components/OverlayScreen'
+import LaunchCover from './components/LaunchCover'
 import { api } from './api'
 import { installErrorReports } from './lib/reportErrors'
 
 installErrorReports()
 
 const isOverlay = window.location.pathname === '/overlay'
-if (isOverlay) {
+// The launch cover (electron/cover.js): a transparent window, like the bezel's.
+const isCover = window.location.pathname === '/cover'
+if (isOverlay || isCover) {
   document.documentElement.classList.add('overlay-mode')
   document.body.classList.add('overlay-mode')
 } else {
@@ -22,7 +25,7 @@ if (isOverlay) {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {isOverlay ? <OverlayScreen /> : (
+    {isCover ? <LaunchCover /> : isOverlay ? <OverlayScreen /> : (
       /* Last net. Anything that escapes a surface boundary lands here rather
          than on a white screen the user cannot recover from without a mouse. */
       <ErrorBoundary fallback={

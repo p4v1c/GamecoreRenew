@@ -101,7 +101,8 @@ function rig({ answers = [true], env = {}, execRefuses = [] } = {}) {
   const signals = new Map()
   const context = vm.createContext({
     require: (id) => id === './hud-tokens.json' ? require('../hud-tokens.json')
-      : id === './power.js' ? require('../power.js') : stubs[id],
+      : id === './power.js' ? require('../power.js')
+      : id === './cover.js' ? { register: () => {} } : stubs[id],
     __dirname: path.dirname(MAIN),
     process: { env, on: (sig, fn) => signals.set(sig, fn) },
     console: { log: () => {}, warn: () => {}, error: () => {} },
