@@ -1,7 +1,9 @@
 """The launch cover: when the game behind it is really running.
 
 A pack's `launch.ready` (a port's `# gamecore-ready-*` lines) names the signal:
-a line in the emulator's log, or its window appearing. `announce()` runs
+a line in the emulator's log, or its window appearing; then, with `handOver:
+black`, the game's window going black (window_black.py), which is how RPCS3
+and Ryujinx hand their own loading screen over to the game. `announce()` runs
 before the spawn: it notes what the log already holds, so a line from the
 previous run never counts, and tells the UI to draw the cover
 (`game:loading`). `follow()` then waits for the signal, or the ceiling, and
@@ -19,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .. import ws
-from . import configgen, fullscreen_enforcer, native_ports
+from . import configgen, fullscreen_enforcer, native_ports, window_black
 from .catalog import load_catalog
 from .process_manager import process_manager
 
@@ -33,6 +35,9 @@ POLL_S = 0.25
 READ_LIMIT = 4 << 20
 # A partial line longer than this is a dump, not a status line.
 MAX_TAIL = 64 << 10
+# The black between an emulator's loading screen and the game can be short.
+HAND_OVER_POLL_S = 0.1
+HAND_OVER_CAP_S = 15
 
 
 @dataclass
@@ -170,9 +175,32 @@ async def _wait(w: Watch) -> str:
             found = await asyncio.to_thread(fullscreen_enforcer.wait_for_window,
                                             w.spec["wmClass"], 1.0)
         if found:
-            return "signal"
+            return await _hand_over(w)
         await asyncio.sleep(POLL_S)
     return "timeout"
+
+
+async def _hand_over(w: Watch) -> str:
+    """After the signal, until the game's window goes black: the emulator keeps
+    its own loading screen up a moment longer (God of War 3: 0.4 s, Animal
+    Crossing: 4 s on the reference box). Its ceiling is a net for a game that
+    never shows black; a window that cannot be read leaves the log's word."""
+    if w.spec.get("handOver") != "black":
+        return "signal"
+    session = process_manager.foreground_session
+    pgid = session.pgid if session else 0
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + float(w.spec.get("handOverSec") or HAND_OVER_CAP_S)
+    while loop.time() < deadline:
+        if not _still_ours(w):
+            return "ended"
+        black = await asyncio.to_thread(window_black.is_black, pgid)
+        if black is None:
+            return "signal"
+        if black:
+            return "black"
+        await asyncio.sleep(HAND_OVER_POLL_S)
+    return "signal"
 
 
 async def _run(w: Watch) -> None:

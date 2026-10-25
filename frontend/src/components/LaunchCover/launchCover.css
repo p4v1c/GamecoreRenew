@@ -7,10 +7,23 @@
   background: #09090f;
   font-family: var(--gc-font-ui);
   color: var(--gc-ink);
-  /* FADE_MS in electron/cover.js waits for this. */
-  transition: opacity 400ms ease-out;
+  /* Hidden until the art is decoded (index.tsx), then one fade in. */
+  opacity: 0;
+  transition: opacity 500ms cubic-bezier(0.33, 0, 0.2, 1);
 }
-.gc-cover[data-leaving='1'] { opacity: 0; }
+.gc-cover[data-shown='1'] { opacity: 1; }
+/* The leave, like a console's: the art goes to black, then the black opens on
+   the game. FADE_MS in electron/cover.js waits for both (450 + 450 ms). */
+.gc-cover-art {
+  position: absolute;
+  inset: 0;
+  transition: opacity 450ms ease-in-out;
+}
+.gc-cover[data-leaving='1'] .gc-cover-art { opacity: 0; }
+.gc-cover[data-leaving='1'] {
+  opacity: 0;
+  transition: opacity 450ms ease-in-out 450ms;
+}
 
 .gc-cover-hero {
   position: absolute;
@@ -18,10 +31,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0;
-  transition: opacity 300ms ease-out;
 }
-.gc-cover-hero[data-shown='1'] { opacity: 1; }
 
 /* No key art: the box alone, as it sits on the shelf. */
 .gc-cover-jacket {
@@ -82,5 +92,5 @@
 @keyframes gc-cover-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .gc-cover-spinner::after { animation: none; }
-  .gc-cover, .gc-cover-hero { transition: none; }
+  .gc-cover, .gc-cover[data-leaving='1'], .gc-cover-art { transition: none; }
 }

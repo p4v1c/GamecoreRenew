@@ -239,7 +239,8 @@ game really runs, then fades to it
 
 ```json
 "ready": { "log": "@FLATPAK_CACHE@/rpcs3/RPCS3.log",
-           "match": "Thread \\(main_thread\\) \\[", "timeoutSec": 240 }
+           "match": "Thread \\(main_thread\\) \\[", "timeoutSec": 240,
+           "handOver": "black" }
 "ready": { "wmClass": ["pcsx2-qt", "pcsx2"], "timeoutSec": 30 }
 ```
 
@@ -251,6 +252,13 @@ game really runs, then fades to it
 - `wmClass`: the game's window appearing, for an emulator with no usable log.
 - `timeoutSec` (default 90) is a ceiling, not a delay: past it the cover drops
   whatever the log says, so a renamed line never hides a running game.
+- `handOver: "black"`: after the signal, the cover waits for the game's own
+  window to go black (`backend/services/window_black.py`, a 5×5 grid of that
+  window's pixels, readable under the cover). RPCS3 and Ryujinx keep their
+  loading screen up after their log line, then go to black before the game's
+  first picture; neither logs that moment (measured 25/10: God of War 3 0.4 s,
+  Animal Crossing 4 s). `handOverSec` (default 15) is its ceiling, for a game
+  that never shows black; a window that cannot be read leaves the log's word.
 - A pack that `sharesEmulator` declares the same block (`launch` must match).
 
 ### `launch.formerArgs` — a system that changed emulator

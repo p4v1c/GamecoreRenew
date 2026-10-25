@@ -12,6 +12,12 @@ const { contextBridge, ipcRenderer, webFrame } = require('electron')
 const BOOT_BG = (process.argv.find(a => a.startsWith('--gamecore-boot-bg=')) || '')
   .slice('--gamecore-boot-bg='.length) || null
 
+/** `ipcRenderer.on` that hands back its own unsubscribe. */
+function listen(channel, fn) {
+  ipcRenderer.on(channel, fn)
+  return () => ipcRenderer.removeListener(channel, fn)
+}
+
 contextBridge.exposeInMainWorld('gamecore', {
   /** `null` outside Electron and on an older shell: callers fall back. */
   bootBackground: BOOT_BG,
@@ -61,7 +67,10 @@ contextBridge.exposeInMainWorld('gamecore', {
   // `game:ready`, both relayed from the websocket by the interface.
   coverShow: (data) => ipcRenderer.send('cover:show', data || {}),
   coverHide: () => ipcRenderer.send('cover:hide'),
-  onCoverLeave: (cb) => ipcRenderer.on('cover:leave', () => cb()),
+  // The cover's window is reused across launches: each returns its unsubscribe.
+  onCoverGame:  (cb) => listen('cover:game',  (_, d) => cb(d || {})),
+  onCoverLeave: (cb) => listen('cover:leave', () => cb()),
+  onCoverReset: (cb) => listen('cover:reset', () => cb()),
 
   // The machine woke from sleep (electron/power.js)
   onResume: (cb) => ipcRenderer.on('power:resume', () => cb()),

@@ -244,3 +244,72 @@ def test_a_system_without_a_signal_launches_as_before(monkeypatch, events):
     monkeypatch.setattr(launch_service, "_start", start)
     assert asyncio.run(launch_service._spawn({"id": "snes9x"}, "snes9x", "/r/M.sfc", "x", "", "M.sfc")) is False
     assert events == []
+
+
+# ── the hand-over: the emulator's loading screen, then black, then the game ─
+
+def _hand_over_spec(monkeypatch, log: Path, **extra):
+    monkeypatch.setattr(launch_ready, "spec_for", lambda *a, **k: {
+        "log": str(log), "match": "READY", "timeoutSec": 5, "handOver": "black", **extra})
+    monkeypatch.setattr(launch_ready, "HAND_OVER_POLL_S", 0.01)
+    monkeypatch.setattr(launch_ready.process_manager.__class__, "foreground_session",
+                        property(lambda self: SimpleNamespace(pgid=4242)))
+
+
+def _screens(monkeypatch, *frames):
+    """What the game's window shows at each look: True black, False not, None unreadable."""
+    seen = list(frames)
+    looked: list[int] = []
+
+    def is_black(pgid):
+        looked.append(pgid)
+        return seen.pop(0) if len(seen) > 1 else seen[0]
+    monkeypatch.setattr(launch_ready.window_black, "is_black", is_black)
+    return looked
+
+
+def _signalled_run(tmp_path, monkeypatch):
+    log = tmp_path / "emu.log"
+    log.write_text("")
+
+    async def run():
+        w = await launch_ready.announce("G", "rpcs3", "/r/G")
+        with log.open("a") as f:
+            f.write("READY\n")
+        await asyncio.wait_for(launch_ready._run(w), 2)
+    return log, run
+
+
+def test_after_the_signal_the_cover_waits_for_the_window_to_go_black(tmp_path, monkeypatch, events):
+    log, run = _signalled_run(tmp_path, monkeypatch)
+    _hand_over_spec(monkeypatch, log)
+    _game(monkeypatch, key="G")
+    # Measured: RPCS3's loading screen for a few looks after its log line, then black.
+    looked = _screens(monkeypatch, False, False, False, True)
+    asyncio.run(run())
+    assert events[-1][1]["reason"] == "black"
+    assert len(looked) == 4 and set(looked) == {4242}
+
+
+def test_a_window_that_cannot_be_read_leaves_the_logs_word(tmp_path, monkeypatch, events):
+    log, run = _signalled_run(tmp_path, monkeypatch)
+    _hand_over_spec(monkeypatch, log)
+    _game(monkeypatch, key="G")
+    _screens(monkeypatch, None)
+    asyncio.run(run())
+    assert events[-1][1]["reason"] == "signal"
+
+
+def test_a_game_that_never_shows_black_still_drops_the_cover(tmp_path, monkeypatch, events):
+    log, run = _signalled_run(tmp_path, monkeypatch)
+    _hand_over_spec(monkeypatch, log, handOverSec=0.05)
+    _game(monkeypatch, key="G")
+    _screens(monkeypatch, False)
+    asyncio.run(run())
+    assert events[-1][1]["reason"] == "signal"
+
+
+def test_rpcs3_and_ryujinx_hand_over_through_black():
+    for pack in ("rpcs3", "switch", "ryujinx"):
+        ready = json.loads((Path(__file__).parents[2] / "catalog" / pack / "pack.json").read_text())["launch"]["ready"]
+        assert ready.get("handOver") == "black", pack

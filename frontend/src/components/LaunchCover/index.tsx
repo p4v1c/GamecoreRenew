@@ -38,44 +38,88 @@ export function coverArt(system: string, rom: string, index: GameMediaIndex | nu
   }
 }
 
+/** Resolves once `url` is decoded and ready to paint, false when it cannot load. */
+function preload(url: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => { img.decode().then(() => resolve(true), () => resolve(true)) }
+    img.onerror = () => resolve(false)
+    img.src = url
+  })
+}
+
+/** The art the page will show, every image already decoded: a picture that
+ * arrives after the page is up swaps one screen for another in front of the
+ * player (the box and the name first, then the key art and the logo). */
+async function finalArt(system: string, rom: string): Promise<CoverArt> {
+  const index = await api.media.list(system, rom).catch(() => null)
+  const art = coverArt(system, rom, index)
+  const [hero, logo] = await Promise.all([art.hero, art.logo].map((u) => (u ? preload(u) : false)))
+  const jacket = !hero && await preload(art.jacket)
+  return { ...art, hero: hero ? art.hero : null, logo: logo ? art.logo : null, jacket: jacket ? art.jacket : '' }
+}
+
+type Game = { system: string; rom: string }
+
 /**
- * The launch cover's page, in the window electron/cover.js opens over the
+ * The launch cover's page, in the window electron/cover.js keeps over the
  * emulator. Built-in look on purpose: it shows for seconds over a game, under
  * every theme, and the game's own art carries it.
+ *
+ * The window is made once and reused: the game comes by `cover:game` (or the
+ * URL, in a browser), and `cover:reset` blanks the page between launches.
+ * Invisible until its art is decoded, then one fade in: the window is
+ * transparent, so until then the launch ceremony stays on screen. It leaves
+ * like a console: the art goes to black, then the black opens on the game.
  */
 export default function LaunchCover() {
-  const params = new URLSearchParams(window.location.search)
-  const system = params.get('system') ?? ''
-  const rom = params.get('rom') ?? ''
-  const [art, setArt] = useState<CoverArt>(() => coverArt(system, rom, null))
-  const [heroShown, setHeroShown] = useState(false)
+  const [game, setGame] = useState<Game | null>(() => {
+    const params = new URLSearchParams(window.location.search)
+    const system = params.get('system') ?? ''
+    return system ? { system, rom: params.get('rom') ?? '' } : null
+  })
+  const [art, setArt] = useState<CoverArt | null>(null)
   const [leaving, setLeaving] = useState(false)
 
   useEffect(() => {
+    const offs = [
+      window.gamecore?.onCoverGame?.((d) => {
+        setArt(null)
+        setLeaving(false)
+        setGame({ system: d.system ?? '', rom: d.rom ?? '' })
+      }),
+      window.gamecore?.onCoverLeave?.(() => setLeaving(true)),
+      window.gamecore?.onCoverReset?.(() => {
+        setGame(null)
+        setArt(null)
+        setLeaving(false)
+      }),
+    ]
+    return () => offs.forEach((off) => { if (typeof off === 'function') off() })
+  }, [])
+
+  useEffect(() => {
+    if (!game) return
     let live = true
-    api.media.list(system, rom)
-      .then((index) => { if (live) setArt(coverArt(system, rom, index)) })
-      .catch(() => { /* the name and the box are enough */ })
-    window.gamecore?.onCoverLeave?.(() => setLeaving(true))
+    finalArt(game.system, game.rom).then((a) => { if (live) setArt(a) })
     return () => { live = false }
-  }, [system, rom])
+  }, [game])
 
   return (
-    <div className="gc-cover" data-leaving={leaving ? '1' : '0'}>
-      {art.hero ? (
-        <img className="gc-cover-hero" data-shown={heroShown ? '1' : '0'} src={art.hero} alt=""
-             onLoad={() => setHeroShown(true)} onError={() => setArt({ ...art, hero: null })} />
-      ) : (
-        <img className="gc-cover-jacket" src={art.jacket} alt=""
-             onError={(e) => { e.currentTarget.hidden = true }} />
+    <div className="gc-cover" data-shown={art ? '1' : '0'} data-leaving={leaving ? '1' : '0'}>
+      {art && (
+        <div className="gc-cover-art">
+          {art.hero
+            ? <img className="gc-cover-hero" src={art.hero} alt="" />
+            : art.jacket && <img className="gc-cover-jacket" src={art.jacket} alt="" />}
+          <div className="gc-cover-name">
+            {art.logo
+              ? <img className="gc-cover-logo" src={art.logo} alt={art.title} />
+              : <span className="gc-cover-title">{art.title}</span>}
+          </div>
+          <div className="gc-cover-spinner" role="progressbar" aria-label="Loading" />
+        </div>
       )}
-      <div className="gc-cover-name">
-        {art.logo
-          ? <img className="gc-cover-logo" src={art.logo} alt={art.title}
-                 onError={() => setArt({ ...art, logo: null })} />
-          : <span className="gc-cover-title">{art.title}</span>}
-      </div>
-      <div className="gc-cover-spinner" role="progressbar" aria-label="Loading" />
     </div>
   )
 }
