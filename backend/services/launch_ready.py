@@ -121,13 +121,16 @@ def spec_for(system_id: str, rom_path: str, *, port: bool) -> dict | None:
     if pack is None:
         return None
     launch = pack.data.get("launch") or {}
+    forced = launch.get("fullscreen") or {}
+    # The windows the pack forces fullscreen are the game's even outside its
+    # process group (a Lutris game).
+    classes = {"fullscreenClass": list(forced["wmClass"])} if forced.get("wmClass") else {}
     ready = launch.get("ready")
     if not ready:
-        cap = (launch.get("fullscreen") or {}).get("timeoutSec") or FULLSCREEN_CAP_S
-        return {"timeoutSec": cap}
+        return {"timeoutSec": forced.get("timeoutSec") or FULLSCREEN_CAP_S, **classes}
     if "log" in ready:
-        return {**ready, "log": str(pack.expand(ready["log"], configgen.HOME))}
-    return dict(ready)
+        return {**ready, "log": str(pack.expand(ready["log"], configgen.HOME)), **classes}
+    return {**ready, **classes}
 
 
 def _watch(game_key: str, system_id: str, rom_path: str, port: bool) -> Watch | None:
@@ -208,7 +211,8 @@ async def _until_fullscreen(w: Watch, reason: str, cap_s: float) -> str:
     while loop.time() < deadline:
         if not _still_ours(w):
             return "ended"
-        full = await asyncio.to_thread(window_black.covers_screen, pgid)
+        full = await asyncio.to_thread(window_black.covers_screen, pgid,
+                                       tuple(w.spec.get("fullscreenClass") or ()))
         if full is None or full:
             return reason
         await asyncio.sleep(HAND_OVER_POLL_S)

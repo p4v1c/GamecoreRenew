@@ -64,10 +64,14 @@ def is_black(pgid: int) -> bool | None:
 COVERED = 0.95
 
 
-def covers_screen(pgid: int) -> bool | None:
+def covers_screen(pgid: int, wm_classes: tuple[str, ...] = ()) -> bool | None:
     """True once the game's windows fill the screen: an emulator that maps a
     small window, then goes fullscreen, is caught between the two by nothing
-    else (Dolphin, mGBA, Lutris's gamescope…). None when it cannot be told."""
+    else (Dolphin, mGBA, Lutris's gamescope…). None when it cannot be told.
+
+    `wm_classes`: the pack's `launch.fullscreen.wmClass`, for a game that
+    leaves the session's process group (FIFA22.exe under Lutris runs in its
+    own, measured on the box)."""
     if not window_focus._XLIB_OK or pgid <= 1:
         return None
     try:
@@ -77,8 +81,17 @@ def covers_screen(pgid: int) -> bool | None:
     try:
         root = disp.screen().root
         screen = root.get_geometry()
+        wins = {w.id: w for w in window_focus._find_all_by_pids(disp, window_focus._pids_of(pgid))}
+        if wm_classes:
+            wanted = {c.lower() for c in wm_classes}
+            for w in window_focus._client_windows(disp):
+                try:
+                    if wanted & {c.lower() for c in (w.get_wm_class() or ())}:
+                        wins[w.id] = w
+                except Exception:
+                    continue
         area = 0
-        for win in window_focus._find_all_by_pids(disp, window_focus._pids_of(pgid)):
+        for win in wins.values():
             try:
                 if win.get_attributes().map_state != window_focus.X.IsViewable:
                     continue

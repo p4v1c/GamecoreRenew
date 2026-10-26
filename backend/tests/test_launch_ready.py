@@ -125,7 +125,8 @@ def test_a_pack_that_forces_fullscreen_lends_its_ceiling(monkeypatch):
     pack = _pack(None)
     pack.data["launch"]["fullscreen"] = {"wmClass": ["gamescope"], "timeoutSec": 120}
     monkeypatch.setattr(launch_ready, "load_catalog", lambda: {"lutris": pack})
-    assert launch_ready.spec_for("lutris", "/emu/lutris/FIFA.lutris", port=False) == {"timeoutSec": 120}
+    assert launch_ready.spec_for("lutris", "/emu/lutris/FIFA.lutris", port=False) == {
+        "timeoutSec": 120, "fullscreenClass": ["gamescope"]}
 
 
 def test_an_unknown_system_gets_no_cover(monkeypatch):
@@ -168,7 +169,7 @@ def full_screen(monkeypatch):
     """The game's window fills the screen unless a test says otherwise."""
     state = {"frames": [True]}
 
-    def covers(pgid):
+    def covers(pgid, wm_classes=()):
         f = state["frames"]
         return f.pop(0) if len(f) > 1 else f[0]
     monkeypatch.setattr(launch_ready.window_black, "covers_screen", covers)

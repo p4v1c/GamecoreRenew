@@ -54,6 +54,7 @@ def test_no_window_or_no_x_cannot_be_told(monkeypatch):
 class Placed:
     def __init__(self, x, y, w, h, viewable=True):
         self.x, self.y, self.w, self.h, self.viewable = x, y, w, h, viewable
+        self.id = id(self)
 
     def get_attributes(self):
         return SimpleNamespace(map_state=2 if self.viewable else 0)
@@ -73,6 +74,10 @@ def _with_windows(monkeypatch, wins):
     monkeypatch.setattr(window_black.window_focus, "_open", lambda: disp)
     monkeypatch.setattr(window_black.window_focus, "_pids_of", lambda pgid: {1})
     monkeypatch.setattr(window_black.window_focus, "_find_all_by_pids", lambda d, pids: wins)
+    monkeypatch.setattr(window_black.window_focus, "_client_windows", lambda d: wins + others)
+
+
+others: list = []
 
 
 def test_a_small_window_about_to_go_fullscreen_does_not_cover(monkeypatch):
@@ -93,3 +98,16 @@ def test_melonds_side_by_side_windows_cover_together(monkeypatch):
 def test_a_window_spilling_off_screen_counts_only_what_shows(monkeypatch):
     _with_windows(monkeypatch, [Placed(1000, 0, 1920, 1080)])
     assert window_black.covers_screen(4242) is False
+
+
+def test_a_game_outside_the_session_group_is_found_by_its_class(monkeypatch):
+    # FIFA22.exe under Lutris: its own process group, the pack's wmClass names it.
+    exe = Placed(0, 0, 1920, 1080)
+    exe.get_wm_class = lambda: ("steam_app_default", "steam_app_default")
+    _with_windows(monkeypatch, [])
+    others.append(exe)
+    try:
+        assert window_black.covers_screen(4242) is False
+        assert window_black.covers_screen(4242, ("steam_app_default",)) is True
+    finally:
+        others.clear()
