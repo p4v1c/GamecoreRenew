@@ -156,7 +156,7 @@
             "match": { "type": "string", "minLength": 1, "description": "A Python regular expression, searched in every line the emulator writes after the spawn." },
             "wmClass": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
             "timeoutSec": { "type": "integer", "minimum": 5, "maximum": 600 },
-            "handOver": { "enum": ["black"], "description": "After the signal, wait for the game's own window to go black before the cover drops: RPCS3 and Ryujinx keep their loading screen up a moment after their log says the game runs, then go to black before the game's first picture (backend/services/window_black.py). A window that cannot be read leaves the signal's word." },
+            "handOver": { "enum": ["black", "painted"], "description": "`painted`: once fullscreen, wait until the game draws at the window's size (no flat unpainted block, not only a stale outer band: Lutris/Wine and Dolphin show their old-size frame for ~3 s, backend/services/window_black.py `painted`). `black`: after the signal, wait for the game's own window to go black before the cover drops: RPCS3 and Ryujinx keep their loading screen up a moment after their log says the game runs, then go to black before the game's first picture (backend/services/window_black.py). A window that cannot be read leaves the signal's word." },
             "handOverSec": { "type": "integer", "minimum": 2, "maximum": 60, "description": "Ceiling of the hand-over, for a game that never shows black. Default 15." }
           },
           "oneOf": [

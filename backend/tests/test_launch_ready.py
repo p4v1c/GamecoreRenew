@@ -368,3 +368,35 @@ def test_a_declared_signal_still_waits_for_fullscreen(tmp_path, monkeypatch, eve
     asyncio.run(run())
     assert events[-1][1]["reason"] == "black"
     assert full_screen["frames"] == [True]
+
+
+def test_painted_waits_until_the_game_draws_at_full_size(tmp_path, monkeypatch, events, full_screen):
+    monkeypatch.setattr(launch_ready, "spec_for", lambda *a, **k: {
+        "wmClass": ["steam_app_default"], "timeoutSec": 5, "handOver": "painted",
+        "fullscreenClass": ["steam_app_default"]})
+    monkeypatch.setattr(launch_ready.fullscreen_enforcer, "wait_for_window", lambda cls, t: True)
+    monkeypatch.setattr(launch_ready.process_manager.__class__, "foreground_session",
+                        property(lambda self: SimpleNamespace(pgid=4242)))
+    monkeypatch.setattr(launch_ready, "HAND_OVER_POLL_S", 0.01)
+    monkeypatch.setattr(launch_ready, "PAINT_POLL_S", 0.01)
+    _game(monkeypatch, key="F", system="lutris")
+    seen = [False, False, True]
+    asked = []
+
+    def is_painted(pgid, classes):
+        asked.append(classes)
+        return seen.pop(0)
+    monkeypatch.setattr(launch_ready.window_black, "is_painted", is_painted)
+
+    async def run():
+        w = await launch_ready.announce("F", "lutris", "/r/F")
+        await asyncio.wait_for(launch_ready._run(w), 2)
+    asyncio.run(run())
+    assert events[-1][1]["reason"] == "painted"
+    assert seen == [] and asked[0] == ("steam_app_default",)
+
+
+def test_lutris_and_dolphin_wait_for_a_painted_frame():
+    for pack in ("lutris", "gamecube", "wii", "dolphin"):
+        ready = json.loads((Path(__file__).parents[2] / "catalog" / pack / "pack.json").read_text())["launch"]["ready"]
+        assert ready.get("handOver") == "painted", pack

@@ -45,6 +45,8 @@ HAND_OVER_CAP_S = 15
 # pack that declares no signal (its `launch.fullscreen.timeoutSec` wins), and
 # the wait for fullscreen after a declared signal.
 FULLSCREEN_CAP_S = 30
+# A full grab of the window each look: a quarter second is enough.
+PAINT_POLL_S = 0.25
 FULLSCREEN_AFTER_SIGNAL_S = 10
 
 
@@ -190,14 +192,41 @@ async def _wait(w: Watch) -> str:
             found = await asyncio.to_thread(fullscreen_enforcer.wait_for_window,
                                             w.spec["wmClass"], 1.0)
         else:
-            return await _until_fullscreen(w, "fullscreen", deadline - loop.time())
+            reason = await _until_fullscreen(w, "fullscreen", deadline - loop.time())
+            return await _until_painted(w, reason)
         if found:
             reason = await _hand_over(w)
             if reason == "ended":
                 return reason
-            return await _until_fullscreen(w, reason, FULLSCREEN_AFTER_SIGNAL_S)
+            reason = await _until_fullscreen(w, reason, FULLSCREEN_AFTER_SIGNAL_S)
+            return await _until_painted(w, reason)
         await asyncio.sleep(POLL_S)
     return "timeout"
+
+
+async def _until_painted(w: Watch, reason: str) -> str:
+    """With `handOver: painted`, once fullscreen: until the game draws at the
+    window's new size (window_black.painted). FIFA 22 under Lutris and Dolphin
+    show their old-size frame on an unpainted or stale window for ~3 s after
+    going fullscreen (recorded on the box). A window that cannot be read, or
+    the `handOverSec` ceiling, leaves `reason` as it was."""
+    if reason == "ended" or w.spec.get("handOver") != "painted":
+        return reason
+    session = process_manager.foreground_session
+    pgid = session.pgid if session else 0
+    classes = tuple(w.spec.get("fullscreenClass") or ())
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + float(w.spec.get("handOverSec") or HAND_OVER_CAP_S)
+    while loop.time() < deadline:
+        if not _still_ours(w):
+            return "ended"
+        drawn = await asyncio.to_thread(window_black.is_painted, pgid, classes)
+        if drawn is None:
+            return reason
+        if drawn:
+            return "painted"
+        await asyncio.sleep(PAINT_POLL_S)
+    return reason
 
 
 async def _until_fullscreen(w: Watch, reason: str, cap_s: float) -> str:
