@@ -35,7 +35,7 @@
  * Transforms are written straight to the elements from requestAnimationFrame.
  * React only learns which jackets exist, so a frame of motion costs no render.
  */
-import { jacket } from './dossier.js'
+import { frontOf } from './front.js'
 
 const PUSH_MS = 360          // put back, at rest
 const PULL_MS = 560          // take out, at rest
@@ -206,17 +206,15 @@ export const createUseSwap = (sdk) => {
     }
 
     /**
-     * Start decoding a new jacket's front; it may not turn past edge-on until
-     * that settles. An undecoded front paints the bare card colour, the beige
-     * slab seen when the cover arrived after the turn (cold cache, busy
-     * backend). A failed decode lets it turn too: the Face prints its fallback.
+     * Settle a new jacket's front (lib/front.js); it may not turn past
+     * edge-on until then. Turning earlier showed the bare card colour (the
+     * beige slab) or a PS3 cover's logo banner drawn as a giant box. No cover
+     * lets it turn too: the Face prints its fallback.
      */
     const decoded = (j) => {
       j.ready = false
-      j.img = new Image()
-      j.img.src = jacket(S.systemId, j.key)
-      const go = () => { j.ready = true; j.img = null; if (!S.gone) kick() }
-      ;(j.img.decode ? j.img.decode() : Promise.resolve()).then(go, go)
+      const go = () => { j.ready = true; if (!S.gone) kick() }
+      frontOf(sdk, S.systemId, j.key).then(go, go)
       return j
     }
 
@@ -240,12 +238,10 @@ export const createUseSwap = (sdk) => {
         for (const d of [1, -1, 2, -2]) {
           const g = games[selectedIdx + d]
           if (!g) continue
-          for (const src of [jacket(systemId, g.filename),
-            sdk.api.media.url(systemId, g.filename, 'box-back')]) {
-            const img = new Image()
-            img.decoding = 'async'
-            img.src = src
-          }
+          frontOf(sdk, systemId, g.filename)
+          const img = new Image()
+          img.decoding = 'async'
+          img.src = sdk.api.media.url(systemId, g.filename, 'box-back')
         }
       }, 400)
       return () => clearTimeout(t)

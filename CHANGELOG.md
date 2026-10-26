@@ -17,6 +17,9 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Shelf: opening a PS3 or PSP shelf no longer shows a giant box printed with
+  the game's logo banner; the jacket waits edge-on for the real sleeve.
+
 - Shelf: walking the shelf no longer lifts a spine that nobody chose (the
   hidden mouse pointer was hovering it).
 

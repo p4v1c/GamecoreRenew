@@ -50,6 +50,8 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval',
     'Date', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] })
   stubStageWidth(STAGE_W)
+  // lib/front.js remembers each game's front for the session; each test is a new session.
+  vi.resetModules()
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(typeof input === 'string' ? input : (input as Request).url ?? input)
     const body: unknown = url.includes('/games') ? GAMES
@@ -225,5 +227,55 @@ describe('a jacket whose front is not decoded yet', () => {
     front(0)!.settle(false)
     await settle()
     expect((holder(container, 0)?.querySelector('.cz-box') as HTMLElement).style.transform).toBe('')
+  })
+})
+
+describe('a cover that is not a box front', () => {
+  // PS3 and PSP covers are the disc's ICON0, a 320x176 logo banner. The game's
+  // box-front scan is the real sleeve; the banner must never be drawn as a box.
+  const COVER = /\/api\/covers\//
+  const BOX_FRONT = /\/media\/box-front$/
+  let sizes: (src: string) => [number, number] | null
+  class SizedImage {
+    src = ''
+    decoding = 'auto'
+    naturalWidth = 0
+    naturalHeight = 0
+    decode() {
+      const size = sizes(this.src)
+      if (!size) return Promise.reject(new Error('404'))
+      ;[this.naturalWidth, this.naturalHeight] = size
+      return Promise.resolve()
+    }
+  }
+  beforeEach(() => { vi.stubGlobal('Image', SizedImage) })
+
+  const front = (c: HTMLElement, i: number) => holder(c, i)?.querySelector('.cz-f-front img')?.getAttribute('src') ?? null
+  const ratio = (c: HTMLElement, i: number) =>
+    Number((holder(c, i)?.querySelector('.cz-box') as HTMLElement | null)?.style.getPropertyValue('--ratio'))
+
+  it('draws the box-front scan at its own shape and never shows the banner', async () => {
+    sizes = (src) => COVER.test(src) ? [320, 176] : BOX_FRONT.test(src) ? [581, 680] : [300, 400]
+    const { container } = await shelf()
+    for (let t = 0; t < 1500; t += 16) {
+      await wait(16)
+      expect(front(container, 0) ?? '').not.toMatch(COVER)
+    }
+    expect(front(container, 0)).toMatch(BOX_FRONT)
+    expect(ratio(container, 0)).toBeCloseTo(581 / 680, 3)
+  })
+
+  it('falls back to the banner, clamped, when the game has no box-front', async () => {
+    sizes = (src) => COVER.test(src) ? [320, 176] : null
+    const { container } = await shelf(); await settle()
+    expect(front(container, 0)).toMatch(COVER)
+    expect(ratio(container, 0)).toBe(1.5)
+  })
+
+  it('keeps a cover that is a box front, at its own shape', async () => {
+    sizes = (src) => COVER.test(src) ? [600, 420] : BOX_FRONT.test(src) ? [581, 680] : null
+    const { container } = await shelf(); await settle()
+    expect(front(container, 0)).toMatch(COVER)
+    expect(ratio(container, 0)).toBeCloseTo(600 / 420, 3)
   })
 })

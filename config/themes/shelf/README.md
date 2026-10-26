@@ -221,7 +221,11 @@ and `lib/paper.js`, which existed only to generate the weave, is gone with it.
 `object-fit: cover` in a frame the caller sizes; a shelf needs the opposite,
 because a box that crops its own cover is not a box. The front is a plain
 `<img>` at its natural ratio with the same fallback chain reimplemented rather
-than skipped. Everything else still goes through the host's components.
+than skipped. Which picture that is gets settled once per game by
+`lib/front.js`: a PS3 or PSP cover is the disc's logo banner, so an aspect no
+box has falls through to the scraped `box-front`, and the jacket stays
+edge-on until the answer is in. Everything else still goes through the host's
+components.
 
 **The card is not the host's `Meta`.** The capture's card is a spec table —
 Released / Developer / Publisher / Genre / Players — not a row of chips. One
@@ -370,6 +374,7 @@ lib/     paper.js      the wallpaper, as a mask  accent.js     the colour
          swap.js       the jacket put back/out   consoles.js   maker, year, sentence
          home-data.js  recent games, playtime    trim.js       logos cropped to ink
          browse.js     flip and restack          idle.js       is anyone here
+         front.js      which picture is the front
 ```
 
 ## Sounds

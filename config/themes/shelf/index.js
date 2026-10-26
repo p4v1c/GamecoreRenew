@@ -8,7 +8,8 @@
  *   views/  splash · background (the wall) · box (solid, spines) · topbar
  *           home (consoles) · library (the shelf) · cartridge · gamepad
  *   lib/    accent · names · dossier · browse (flip, restack) · swap (the
- *           jacket put back / taken out) · idle · consoles · home-data · trim
+ *           jacket put back / taken out) · front (which picture is the box
+ *           front) · idle · consoles · home-data · trim
  *
  * Settings and the power menu are the host's (`sdk.defaults.createSettings`,
  * `createPowerView`), dressed via `gcs-*` classes. The wallpaper is
