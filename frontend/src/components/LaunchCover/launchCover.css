@@ -1,4 +1,4 @@
-/* The launch cover: the game's key art, its logo, one quiet ring.
+/* The launch cover: the game's key art and one quiet ring, nothing else.
    Built-in palette (frontend/src/DESIGN.md): ground #09090f, white ink. */
 .gc-cover {
   position: fixed;
@@ -44,31 +44,6 @@
   object-fit: contain;
   border-radius: 8px;
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
-}
-
-/* The name, logo or text, sits on a plate of the ground colour: a logo in
-   the art's own colours vanishes into that art (Cyberpunk's yellow on yellow). */
-.gc-cover-name {
-  position: absolute;
-  left: 6vw;
-  bottom: 9vh;
-  max-width: 52vw;
-  padding: 18px 26px;
-  border-radius: 12px;
-  background: rgba(9, 9, 15, 0.86);
-}
-.gc-cover-logo {
-  display: block;
-  max-width: 30vw;
-  max-height: 16vh;
-  object-fit: contain;
-  object-position: left center;
-}
-.gc-cover-title {
-  display: block;
-  font-size: 40px;
-  font-weight: 600;
-  line-height: 1.15;
 }
 
 .gc-cover-spinner {

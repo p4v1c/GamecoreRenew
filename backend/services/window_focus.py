@@ -27,6 +27,7 @@ log = logging.getLogger(__name__)
 try:
     from Xlib import X, display as xdisplay
     from Xlib.protocol import event as xevent
+    from Xlib.ext import res as xres
     _XLIB_OK = True
 except ImportError:
     _XLIB_OK = False
@@ -70,7 +71,7 @@ def _client_windows(disp):
 def _pids_of(pgid: int) -> set[int]:
     """Every pid in the process group, so a window can be matched to a session.
 
-    `_NET_WM_PID` names the process that owns the window, and for a Flatpak
+    `_window_pid` names the process that owns the window, and for a Flatpak
     emulator that is the application deep inside the sandbox — not the `flatpak`
     wrapper the launcher knows about. The group is the link between them: the
     measurement on the reference box showed all five sandbox processes sharing
@@ -92,6 +93,22 @@ def _pids_of(pgid: int) -> set[int]:
 
 
 def _window_pid(disp, win) -> int:
+    """The host pid of the process that made the window.
+
+    Asked of the X server first (X-Resource: the pid behind the client's
+    socket). A Flatpak app writes its own `_NET_WM_PID` from inside its pid
+    namespace, where it is process 2 (measured in Ryujinx's sandbox), so that
+    property never matched a session and the game's window was never found:
+    no resume raise, no launch-cover hand-over. `_NET_WM_PID` stays the
+    fallback for a server without the extension.
+    """
+    try:
+        reply = disp.res_query_client_ids([{"client": win.id, "mask": xres.LocalClientPIDMask}])
+        for cid in reply.ids:
+            if cid.spec.mask & xres.LocalClientPIDMask and cid.value:
+                return int(cid.value[0])
+    except Exception:
+        pass
     try:
         prop = win.get_full_property(disp.intern_atom("_NET_WM_PID"), 0)
         return int(prop.value[0]) if prop and prop.value else 0

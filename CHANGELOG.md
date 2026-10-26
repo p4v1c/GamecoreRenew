@@ -17,6 +17,11 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Launch cover: the game's name or logo on a grey plate (bottom left) is gone;
+  the key art and the ring are all it shows. RPCS3 and Switch (Flatpak) games'
+  windows are now found by their host pid, so the cover's hand-over to black
+  works for them and a resumed Flatpak game is raised again.
+
 - Launch cover: comes up in one fade with its art already decoded, instead of
   the box and the name first, swapped for the key art and logo a moment later.
   Its window is made once at start and reused, so it no longer waits for the
