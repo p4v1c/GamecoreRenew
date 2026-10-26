@@ -17,6 +17,12 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Shelf: opening a PS3 or PSP shelf no longer shows a giant box printed with
+  the game's logo banner; the jacket waits edge-on for the real sleeve.
+
+- Shelf: walking the shelf no longer lifts a spine that nobody chose (the
+  hidden mouse pointer was hovering it).
+
 - Launch cover: the game's name or logo on a grey plate (bottom left) is gone;
   the key art and the ring are all it shows. RPCS3 and Switch (Flatpak) games'
   windows are now found by their host pid, so the cover's hand-over to black

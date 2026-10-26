@@ -9,57 +9,14 @@
  * selected one is a full solid (20 solids = 60 layers).
  */
 import { pick, jacket } from '../lib/dossier.js'
+import { frontOf, knownFront } from '../lib/front.js'
 import { title, stamp } from '../lib/names.js'
 import { flat } from '../lib/accent.js'
 import { isPc } from '../lib/pc.js'
 import { createPcCase } from './pc-case.js'
 
-/** Portrait, the commonest cover shape — held until the front image measures. */
+/** Portrait, the commonest cover shape: held until lib/front.js has measured. */
 const RATIO_UNKNOWN = 0.72
-
-/**
- * Proportions already measured, by game. Survives the component.
- *
- * `Face` is keyed on the game it draws, so moving the cursor unmounts one and
- * mounts another — which is what makes a box carry its own title's shape
- * instead of the previous one's. The cost is that a fresh component starts at
- * RATIO_UNKNOWN and jumps to the real value when the image measures, and
- * `--ratio` is the box's width: that jump is a visible change of size.
- *
- * While the jacket is travelling out of the shelf, it is a change of size
- * MID-FLIGHT — the cut the animation is not supposed to have. Remembering what
- * each game measured removes it for every title already seen, which on a shelf
- * you walk up and down is nearly all of them: the box mounts at its own width
- * and never moves.
- *
- * A plain Map, not an LRU. One number per game looked at in a session, against
- * a library the same screen already holds in memory.
- */
-const ratios = new Map()
-const shapeKey = (systemId, filename) => `${systemId}::${filename}`
-
-/**
- * The shapes a game box actually comes in.
- *
- * The solid is built from the artwork: height is fixed and width follows the
- * image's aspect, which is the only way one theme draws a PS3 slipcase and a
- * Mega Drive carton without cropping two thirds of a real collection. The catch
- * is that it trusts the file to *be* a box front, and the cover route does not
- * always return one — for four games on the reference box it returned a wide
- * logo banner, three of them at exactly 320×176. At a ratio of 1.82 against a
- * fixed 400px height, that draws a box 728px wide: the jacket filled the stage
- * and dwarfed the shelf it was supposed to have come out of.
- *
- * So an aspect no box has is read as what it is — evidence that the file is not
- * a box front — rather than faithfully rendered. Measured against the 55 covers
- * cached on that box, the legitimate ones run 0.60 to 1.43 (a portrait PS3 case
- * at one end, a landscape Mario Kart 64 carton at the other) and the banners
- * sit at 1.80–1.82, with nothing in between. The band below is wide enough to
- * hold every real shape with room to spare and still exclude them.
- */
-const RATIO_MIN = 0.5
-const RATIO_MAX = 1.5
-const plausible = (r) => r >= RATIO_MIN && r <= RATIO_MAX
 
 /** Stable per title: the printed spine's colour, for a game with no scan. */
 const hueOf = (s) => {
@@ -127,58 +84,22 @@ export const createBox = (sdk) => {
    * assembled rather than composited: a flat image cannot be turned over.
    */
   const Face = ({ systemId, game, meta, media, flipped }) => {
-    // Seeded from what this game measured last time, so a box that has been
-    // seen before mounts at its own proportions rather than at the portrait
-    // guess. `useState` takes the initialiser once, on mount, which is exactly
-    // the moment the key gives us a new component for a new game.
-    const [ratio, setRatio] = useState(
-      () => ratios.get(shapeKey(systemId, game?.filename)) ?? RATIO_UNKNOWN)
+    // Which picture is the front, and the box's shape, are settled once per
+    // game by lib/front.js: the same answer the swap waits for before the
+    // jacket turns to face you, so nothing here is drawn before it is known.
+    // `undefined` while settling, `null` when the game has no cover.
+    const [front, setFront] = useState(() => knownFront(systemId, game?.filename))
     const [frontDead, setFrontDead] = useState(false)
     const [spineDead, setSpineDead] = useState(false)
 
-    // The host's cover route has handed back something that is not a box front.
-    // It is the preferred source — the same URL the rest of the UI requests, so
-    // it is a cache hit rather than a second download — but it is not the only
-    // one, and when it fails this way the scraped `box-front` sitting in the
-    // media set usually is one. All four of the banners found on the reference
-    // box had a correct box-front on disk.
-    //
-    // This is a VERDICT, not an instruction, and that distinction is the whole
-    // fix. It used to be `ownArt` — "we have switched to the scraped art" —
-    // and switching was only possible when `box-front` was already known. But
-    // the cover is a cache hit and `media` is a round trip, so the measurement
-    // almost always happens first: `scraped` was still null, the swap was
-    // skipped, and the else-branch clamped the banner to RATIO_MAX and drew it.
-    // That is the wide blue FIFA slab — a 1.81 banner squashed to 1.5 and
-    // rendered as a box. `media` then arrived with the real front, and nothing
-    // asked again, because an <img> that has loaded does not load twice.
-    //
-    // Remembered instead, the verdict outlives the race: the moment box-front
-    // turns up, `front` below points at it and the new source measures itself.
-    const [rejected, setRejected] = useState(false)
-
-    // A cover can fail in three ways, and only one of them raises `onError`.
-    // It can be a file that loads perfectly and contains no picture — a
-    // scraper's chroma-key plate — which has to be looked at to be recognised.
-    // Or it can be a picture of something else, which is what a wide logo
-    // banner is, and that one is only visible once it has been measured.
-    //
-    // This effect used to open by resetting the four states above for the new
-    // game, and that is what drew one game's box at another game's proportions.
-    // An effect runs AFTER paint; an <img> whose src points at something the
-    // browser already has fires `load` before that. So the order was measure,
-    // then reset — and the reset won. The box then stood at RATIO_UNKNOWN, a
-    // portrait guess, whatever shape the artwork actually was, and it stayed
-    // there because nothing would fire `load` a second time. Walking away and
-    // back re-entered on a cold node and it came out right, which is exactly
-    // the "wrong until I scroll away and return" this produced.
-    //
-    // The reset is gone. `Face` is now keyed on the game it draws (see
-    // views/library.js), so a different game is a different component with
-    // fresh state, decided before any image can load rather than after.
+    // `Face` is keyed on the game it draws (views/library.js), so this state
+    // is always this game's: a reset here once ran after a cached image had
+    // already measured, and drew one game at another's proportions.
     useEffect(() => {
       if (!game) return
       let live = true
+      frontOf(sdk, systemId, game.filename).then((f) => { if (live) setFront(f) })
+      // A cover can also load fine and hold no picture: a scraper's chroma-key plate.
       flat(jacket(systemId, game.filename)).then((blank) => {
         if (live && blank) setFrontDead(true)
       })
@@ -189,56 +110,9 @@ export const createBox = (sdk) => {
 
     const name = title(game.display_name)
     const pc = isPc(systemId)
-    const scraped = pick(sdk, systemId, game.filename, media, ['box-front'])
-    // Derived, so it becomes true on the render where `media` lands rather than
-    // needing something to notice and act. One step only: once we are on the
-    // scraped front there is nothing further to fall back to.
-    const useScraped = rejected && !!scraped
-    const front = useScraped ? scraped : jacket(systemId, game.filename)
+    const ratio = front?.ratio || RATIO_UNKNOWN
     const spine = sdk.api.media.url(systemId, game.filename, 'box-spine')
     const back = pick(sdk, systemId, game.filename, media, ['box-back'])
-
-    /**
-     * The image decides the shape of the solid, so it has to be believed —
-     * but only once it has said something believable.
-     *
-     * An implausible aspect is not a shape to draw, it is a wrong file. Record
-     * that and the swap to the scraped box-front follows on its own, whenever
-     * the media set arrives — which is the point, because it usually arrives
-     * after this runs. `useScraped` makes it a single step, so a game whose
-     * every source is a banner cannot loop. If the second file is no better the
-     * value is clamped rather than obeyed: a box at the edge of the band is
-     * odd, a box twice the width of the stage is broken.
-     *
-     * Measured on the reference box, FIFA 19 on PS3: the cover route answers
-     * 320x176 (ratio 1.82, a wide EA logo banner) and box-front is 581x680
-     * (0.85, the actual sleeve). Both files were there the whole time.
-     */
-    const measure = (el) => {
-      if (!el) return
-      const { naturalWidth: w, naturalHeight: h } = el
-      if (!w || !h) return
-      const r = w / h
-      if (!plausible(r) && !useScraped) {
-        // Record it whether or not there is anywhere to go yet. If box-front is
-        // already here the swap re-measures on the new file and this value is
-        // irrelevant; if it is not, the clamped banner stands in until it
-        // arrives, which beats an empty stage.
-        setRejected(true)
-        if (scraped) return
-      }
-      const kept = Math.max(RATIO_MIN, Math.min(RATIO_MAX, r))
-      ratios.set(shapeKey(systemId, game.filename), kept)
-      setRatio(kept)
-    }
-
-    // `load` is an event, and an event only reaches a listener that was already
-    // attached. A cached image assigned to a node that is being reused can be
-    // complete before the handler is on it, and then the measurement simply
-    // never happens — the second half of the same bug, and the half that
-    // survives a remount. Reading `complete` on the node settles it without
-    // waiting for anything: if the picture is already there, measure it now.
-    const seed = (el) => { if (el && el.complete) measure(el) }
 
     return html`
       <div class="cz-box" data-pc=${pc ? '1' : '0'} data-flipped=${flipped ? '1' : '0'}
@@ -246,15 +120,16 @@ export const createBox = (sdk) => {
 
         <div class="cz-f cz-f-front">
           ${pc ? html`<${PcBand} />` : null}
-          ${frontDead
+          ${frontDead || front === null
             ? html`
               <div class="cz-noart">
                 <span class="cz-noart-name">${name}</span>
                 <span class="cz-noart-note">No cover scanned</span>
               </div>`
-            : html`<img key=${front} ref=${seed} src=${front} alt=${name}
-                        onLoad=${(e) => measure(e.target)}
-                        onError=${() => setFrontDead(true)} />`}
+            : front
+              ? html`<img key=${front.src} src=${front.src} alt=${name}
+                          onError=${() => setFrontDead(true)} />`
+              : null}
         </div>
 
         <div class="cz-f cz-f-back">

@@ -37,7 +37,6 @@
    back into and the gesture has to lunge towards you to reach it. 380 against
    the solid's 400 is the recession `--dive` is derived from. */
 .cz-lib[data-view="stack"] .cz-spine { width: 40px; height: 380px; }
-.cz-lib[data-view="stack"] .cz-spine:hover { transform: translateY(-4px); }
 .cz-lib[data-view="stack"] .cz-shelfline { display: none; }
 .cz-lib[data-view="stack"] .cz-box { --turn: -16deg; --tilt: 12deg; }
 .cz-lib[data-view="stack"] .cz-hold { perspective: 1400px; perspective-origin: 42% 50%; }
