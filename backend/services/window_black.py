@@ -20,10 +20,26 @@ DARK = 24
 SHARE = 0.9
 
 
-def _game_window(disp, pgid: int):
+def _session_windows(disp, pgid: int, wm_classes: tuple[str, ...] = ()) -> list:
+    """The session's windows, plus any of `wm_classes`: the pack's
+    `launch.fullscreen.wmClass`, for a game that leaves the session's process
+    group (FIFA22.exe under Lutris runs in its own, measured on the box)."""
+    wins = {w.id: w for w in window_focus._find_all_by_pids(disp, window_focus._pids_of(pgid))}
+    if wm_classes:
+        wanted = {c.lower() for c in wm_classes}
+        for w in window_focus._client_windows(disp):
+            try:
+                if wanted & {c.lower() for c in (w.get_wm_class() or ())}:
+                    wins[w.id] = w
+            except Exception:
+                continue
+    return list(wins.values())
+
+
+def _game_window(disp, pgid: int, wm_classes: tuple[str, ...] = ()):
     """The session's biggest window: the game's, not a dialog or a tooltip."""
     best, area = None, 0
-    for win in window_focus._find_all_by_pids(disp, window_focus._pids_of(pgid)):
+    for win in _session_windows(disp, pgid, wm_classes):
         try:
             g = win.get_geometry()
         except Exception:
@@ -69,9 +85,7 @@ def covers_screen(pgid: int, wm_classes: tuple[str, ...] = ()) -> bool | None:
     small window, then goes fullscreen, is caught between the two by nothing
     else (Dolphin, mGBA, Lutris's gamescope…). None when it cannot be told.
 
-    `wm_classes`: the pack's `launch.fullscreen.wmClass`, for a game that
-    leaves the session's process group (FIFA22.exe under Lutris runs in its
-    own, measured on the box)."""
+    `wm_classes`: see `_session_windows`."""
     if not window_focus._XLIB_OK or pgid <= 1:
         return None
     try:
@@ -81,17 +95,8 @@ def covers_screen(pgid: int, wm_classes: tuple[str, ...] = ()) -> bool | None:
     try:
         root = disp.screen().root
         screen = root.get_geometry()
-        wins = {w.id: w for w in window_focus._find_all_by_pids(disp, window_focus._pids_of(pgid))}
-        if wm_classes:
-            wanted = {c.lower() for c in wm_classes}
-            for w in window_focus._client_windows(disp):
-                try:
-                    if wanted & {c.lower() for c in (w.get_wm_class() or ())}:
-                        wins[w.id] = w
-                except Exception:
-                    continue
         area = 0
-        for win in wins.values():
+        for win in _session_windows(disp, pgid, wm_classes):
             try:
                 if win.get_attributes().map_state != window_focus.X.IsViewable:
                     continue
@@ -104,6 +109,60 @@ def covers_screen(pgid: int, wm_classes: tuple[str, ...] = ()) -> bool | None:
             x1, y1 = min(screen.width, -at.x + g.width), min(screen.height, -at.y + g.height)
             area += max(0, x1 - x0) * max(0, y1 - y0)
         return area >= COVERED * screen.width * screen.height
+    except Exception:
+        return None
+    finally:
+        disp.close()
+
+
+# ── painted: the game draws at the window's size ─────────────────────────────
+# A window can fill the screen before the game draws at that size: FIFA 22
+# drew its old 1280x720 frame in a corner, Wine's unpainted rest grey then
+# white, for ~3 s; Dolphin went black with stale pixels in a bottom band
+# until its first frame (recorded on the box, 26/10).
+
+CELLS = (48, 27)
+# A light colour shared by this share of the picture is a surface nobody
+# drew on (Wine's background), not a game frame.
+BLOCK_SHARE = 0.4
+
+
+def painted(img) -> bool:
+    """True once a picture (PIL, RGB) looks drawn by the game at full size:
+    something on it, not only in its outer band, and no large flat light block."""
+    small = img.convert("RGB").resize(CELLS)
+    w, h = CELLS
+    px = list(small.getdata())
+    lit = [i for i, p in enumerate(px) if max(p) > DARK]
+    if not lit:
+        return False
+    if all(i % w in (0, w - 1) or i // w in (0, h - 1) for i in lit):
+        return False
+    counts: dict[tuple, int] = {}
+    for p in px:
+        if max(p) > 40:
+            key = (p[0] // 16, p[1] // 16, p[2] // 16)
+            counts[key] = counts.get(key, 0) + 1
+    return not counts or max(counts.values()) < BLOCK_SHARE * len(px)
+
+
+def is_painted(pgid: int, wm_classes: tuple[str, ...] = ()) -> bool | None:
+    """`painted` on the game's own window, read under the cover; None when it
+    cannot be told. One full grab: only while the cover waits, a few seconds."""
+    if not window_focus._XLIB_OK or pgid <= 1:
+        return None
+    try:
+        from PIL import Image
+        disp = window_focus._open()
+    except Exception:
+        return None
+    try:
+        win = _game_window(disp, pgid, wm_classes)
+        if win is None:
+            return None
+        g = win.get_geometry()
+        raw = win.get_image(0, 0, g.width, g.height, window_focus.X.ZPixmap, 0xFFFFFFFF)
+        return painted(Image.frombytes("RGB", (g.width, g.height), raw.data, "raw", "BGRX"))
     except Exception:
         return None
     finally:

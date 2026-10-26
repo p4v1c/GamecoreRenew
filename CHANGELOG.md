@@ -17,6 +17,10 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Launch cover, PC (Lutris) and GameCube/Wii (Dolphin): the cover also waits
+  until the game draws at full size after going fullscreen, so its old-size
+  frame on a white or stale window no longer shows. No operator step.
+
 - Launch cover on every launch: emulators, PC games and apps are covered until
   their window fills the screen, so a small window jumping to fullscreen
   (GameCube, N64, PC…) no longer shows. Packs with a loading signal wait for

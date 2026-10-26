@@ -19,7 +19,8 @@
     "args": "run @APPID@ -b",
     "ready": {
       "wmClass": ["dolphin-emu", "org.DolphinEmu.dolphin-emu"],
-      "timeoutSec": 30
+      "timeoutSec": 30,
+      "handOver": "painted"
     }
   },
   "roms": {

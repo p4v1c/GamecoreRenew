@@ -111,3 +111,32 @@ def test_a_game_outside_the_session_group_is_found_by_its_class(monkeypatch):
         assert window_black.covers_screen(4242, ("steam_app_default",)) is True
     finally:
         others.clear()
+
+
+# ── painted: the game draws at the window's size ─────────────────────────────
+
+def _img(paint, size=(480, 270)):
+    from PIL import Image
+    im = Image.new("RGB", size)
+    im.putdata([paint(x, y) for y in range(size[1]) for x in range(size[0])])
+    return im
+
+
+def test_an_old_size_frame_on_an_unpainted_window_is_not_painted():
+    # FIFA 22 under Lutris: its 1280x720 frame top left, Wine's white elsewhere.
+    assert window_black.painted(_img(lambda x, y: (5, 5, 5) if x < 320 and y < 180 else (250, 250, 250))) is False
+
+
+def test_black_with_stale_pixels_only_at_the_edge_is_not_painted():
+    # Dolphin just gone fullscreen: black, old pixels in the bottom band.
+    assert window_black.painted(_img(lambda x, y: (120, 40, 160) if y > 262 else (0, 0, 0))) is False
+
+
+def test_all_black_is_not_painted_yet():
+    assert window_black.painted(_img(lambda x, y: (0, 0, 0))) is False
+
+
+def test_a_game_frame_is_painted():
+    # Text on black (Mario Smash Football's 60 Hz screen) and a busy picture.
+    assert window_black.painted(_img(lambda x, y: (230, 230, 230) if 100 < y < 110 and 60 < x < 300 else (0, 0, 0))) is True
+    assert window_black.painted(_img(lambda x, y: ((x * 7) % 256, (y * 5) % 256, (x + y) % 256))) is True

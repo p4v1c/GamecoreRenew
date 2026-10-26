@@ -263,6 +263,12 @@ the game
   first picture; neither logs that moment (measured 25/10: God of War 3 0.4 s,
   Animal Crossing 4 s). `handOverSec` (default 15) is its ceiling, for a game
   that never shows black; a window that cannot be read leaves the log's word.
+- `handOver: "painted"`: once fullscreen, the cover waits until the game draws
+  at the window's size (`window_black.painted`: something drawn beyond the
+  outer band, no flat light block over 40 % of the picture). Lutris (Wine) and
+  Dolphin show their old-size frame for ~3 s after going fullscreen — a corner
+  frame on Wine's white, or black with stale pixels in a band (recorded
+  26/10). Same `handOverSec` ceiling.
 - A pack that `sharesEmulator` declares the same block (`launch` must match).
 
 ### `launch.formerArgs` — a system that changed emulator
