@@ -57,3 +57,41 @@ def is_black(pgid: int) -> bool | None:
         return None
     finally:
         disp.close()
+
+
+# The session's windows must cover this share of the screen: one fullscreen
+# window, or melonDS's local multiplayer laid out as several.
+COVERED = 0.95
+
+
+def covers_screen(pgid: int) -> bool | None:
+    """True once the game's windows fill the screen: an emulator that maps a
+    small window, then goes fullscreen, is caught between the two by nothing
+    else (Dolphin, mGBA, Lutris's gamescope…). None when it cannot be told."""
+    if not window_focus._XLIB_OK or pgid <= 1:
+        return None
+    try:
+        disp = window_focus._open()
+    except Exception:
+        return None
+    try:
+        root = disp.screen().root
+        screen = root.get_geometry()
+        area = 0
+        for win in window_focus._find_all_by_pids(disp, window_focus._pids_of(pgid)):
+            try:
+                if win.get_attributes().map_state != window_focus.X.IsViewable:
+                    continue
+                g = win.get_geometry()
+                at = win.translate_coords(root, 0, 0)
+            except Exception:
+                continue
+            # Only the part on the screen counts (translate_coords is negated).
+            x0, y0 = max(0, -at.x), max(0, -at.y)
+            x1, y1 = min(screen.width, -at.x + g.width), min(screen.height, -at.y + g.height)
+            area += max(0, x1 - x0) * max(0, y1 - y0)
+        return area >= COVERED * screen.width * screen.height
+    except Exception:
+        return None
+    finally:
+        disp.close()

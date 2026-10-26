@@ -771,6 +771,7 @@ calls it around `process_manager.launch()`; nothing in it may fail a launch.
 | `announce(game_key, system_id, rom_path, port)` | before the spawn: snapshot the log (inode, size), broadcast `game:loading` with `timeout_s` |
 | `follow(watch, resumed)` | after it: a task waits for the signal, the ceiling or the end of the session, then broadcasts `game:ready` with `reason` (`signal`, `black`, `timeout`, `ended`, `resumed`) |
 | `_hand_over(watch)` | with `handOver: black`, after the signal: polls `window_black.is_black(pgid)` every 100 ms until the game's window is black (`black`), the `handOverSec` ceiling, or an unreadable window (`signal`) |
+| `_until_fullscreen(watch, reason, cap)` | until `window_black.covers_screen(pgid)`: the session's viewable windows cover 95 % of the screen (one fullscreen window, or melonDS's several); every launch goes through it, `fullscreen` is the reason for a pack with no signal |
 | `drop(watch, reason)` | `game:ready` now: the spawn failed (`failed`) |
 | `_LogCursor.found()` | reads what the log gained since the last poll; a file whose inode differs from the snapshot (RPCS3 recreates its log, Ryujinx starts a new one) is read from its start, a truncated one again |
 | `window_black.is_black(pgid)` | the session's biggest window, a 5×5 grid of its own pixels (readable under the cover): black when 90 % have every channel ≤ 24; None without X or window |

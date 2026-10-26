@@ -115,9 +115,22 @@ def test_a_pack_log_path_takes_the_flatpak_cache_token(tmp_path, monkeypatch):
     assert spec["log"] == f"{tmp_path}/.var/app/net.rpcs3.RPCS3/cache/rpcs3/RPCS3.log"
 
 
-def test_a_pack_without_ready_gets_no_cover(monkeypatch):
+def test_a_pack_without_ready_is_covered_until_fullscreen(monkeypatch):
     monkeypatch.setattr(launch_ready, "load_catalog", lambda: {"snes9x": _pack(None)})
-    assert launch_ready.spec_for("snes9x", "/emu/snes9x/Mario.sfc", port=False) is None
+    assert launch_ready.spec_for("snes9x", "/emu/snes9x/Mario.sfc", port=False) == {
+        "timeoutSec": launch_ready.FULLSCREEN_CAP_S}
+
+
+def test_a_pack_that_forces_fullscreen_lends_its_ceiling(monkeypatch):
+    pack = _pack(None)
+    pack.data["launch"]["fullscreen"] = {"wmClass": ["gamescope"], "timeoutSec": 120}
+    monkeypatch.setattr(launch_ready, "load_catalog", lambda: {"lutris": pack})
+    assert launch_ready.spec_for("lutris", "/emu/lutris/FIFA.lutris", port=False) == {"timeoutSec": 120}
+
+
+def test_an_unknown_system_gets_no_cover(monkeypatch):
+    monkeypatch.setattr(launch_ready, "load_catalog", lambda: {})
+    assert launch_ready.spec_for("nope", "/x", port=False) is None
 
 
 def test_a_port_declares_its_signal_in_its_header(tmp_path):
@@ -149,6 +162,17 @@ def test_packs_that_share_an_emulator_wait_for_the_same_signal():
 
 
 # ── the cover always comes down ──────────────────────────────────────────────
+
+@pytest.fixture(autouse=True)
+def full_screen(monkeypatch):
+    """The game's window fills the screen unless a test says otherwise."""
+    state = {"frames": [True]}
+
+    def covers(pgid):
+        f = state["frames"]
+        return f.pop(0) if len(f) > 1 else f[0]
+    monkeypatch.setattr(launch_ready.window_black, "covers_screen", covers)
+    return state
 
 @pytest.fixture
 def events(monkeypatch):
@@ -313,3 +337,33 @@ def test_rpcs3_and_ryujinx_hand_over_through_black():
     for pack in ("rpcs3", "switch", "ryujinx"):
         ready = json.loads((Path(__file__).parents[2] / "catalog" / pack / "pack.json").read_text())["launch"]["ready"]
         assert ready.get("handOver") == "black", pack
+
+
+# ── no small window before fullscreen ────────────────────────────────────────
+
+def test_a_pack_with_no_signal_drops_the_cover_once_its_window_fills_the_screen(monkeypatch, events, full_screen):
+    monkeypatch.setattr(launch_ready, "spec_for", lambda *a, **k: {"timeoutSec": 5})
+    monkeypatch.setattr(launch_ready.process_manager.__class__, "foreground_session",
+                        property(lambda self: SimpleNamespace(pgid=4242)))
+    monkeypatch.setattr(launch_ready, "HAND_OVER_POLL_S", 0.01)
+    _game(monkeypatch, key="G", system="gamecube")
+    # Dolphin: a small window first, then fullscreen.
+    full_screen["frames"] = [False, False, True]
+
+    async def run():
+        w = await launch_ready.announce("G", "gamecube", "/r/G")
+        await asyncio.wait_for(launch_ready._run(w), 2)
+    asyncio.run(run())
+    assert events[-1][1]["reason"] == "fullscreen"
+    assert full_screen["frames"] == [True], "dropped before the window filled the screen"
+
+
+def test_a_declared_signal_still_waits_for_fullscreen(tmp_path, monkeypatch, events, full_screen):
+    log, run = _signalled_run(tmp_path, monkeypatch)
+    _hand_over_spec(monkeypatch, log)
+    _game(monkeypatch, key="G")
+    _screens(monkeypatch, True)
+    full_screen["frames"] = [False, True]
+    asyncio.run(run())
+    assert events[-1][1]["reason"] == "black"
+    assert full_screen["frames"] == [True]

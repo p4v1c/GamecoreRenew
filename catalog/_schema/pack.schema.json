@@ -148,7 +148,7 @@
           }
         },
         "ready": {
-          "description": "When the game is really running, for an emulator that shows its own loading screens first (RPCS3's shader and SPU caches, Ryujinx's PTC). Absent: nothing changes. Present: GameCore draws a cover over the emulator from the spawn until the signal, then fades it out (backend/services/launch_ready.py, electron/cover.js). The signal decides; `timeoutSec` is only the ceiling after which the cover drops anyway, so a missed line never hides a running game. Two forms: `log` + `match`, a line the emulator writes once the game runs (`log` takes the usual tokens plus @FLATPAK_CACHE@, and a `*` for emulators that start a new file each run); or `wmClass`, the game's window appearing.",
+          "description": "When the game is really running, for an emulator that shows its own loading screens first (RPCS3's shader and SPU caches, Ryujinx's PTC). Absent: the cover still goes up and drops once the game's window fills the screen (ceiling: `launch.fullscreen.timeoutSec`, else 30 s). Present: GameCore draws a cover over the emulator from the spawn until the signal, and until the window fills the screen, then fades it out (backend/services/launch_ready.py, electron/cover.js). The signal decides; `timeoutSec` is only the ceiling after which the cover drops anyway, so a missed line never hides a running game. Two forms: `log` + `match`, a line the emulator writes once the game runs (`log` takes the usual tokens plus @FLATPAK_CACHE@, and a `*` for emulators that start a new file each run); or `wmClass`, the game's window appearing.",
           "type": "object",
           "additionalProperties": false,
           "properties": {

@@ -47,3 +47,49 @@ def test_no_window_or_no_x_cannot_be_told(monkeypatch):
     assert window_black.is_black(4242) is None
     monkeypatch.setattr(window_black.window_focus, "_XLIB_OK", False)
     assert window_black.is_black(4242) is None
+
+
+# ── covers_screen: the game's windows fill the screen ────────────────────────
+
+class Placed:
+    def __init__(self, x, y, w, h, viewable=True):
+        self.x, self.y, self.w, self.h, self.viewable = x, y, w, h, viewable
+
+    def get_attributes(self):
+        return SimpleNamespace(map_state=2 if self.viewable else 0)
+
+    def get_geometry(self):
+        return SimpleNamespace(width=self.w, height=self.h)
+
+    def translate_coords(self, src, x, y):
+        return SimpleNamespace(x=-self.x, y=-self.y)
+
+
+def _with_windows(monkeypatch, wins):
+    root = SimpleNamespace(get_geometry=lambda: SimpleNamespace(width=1920, height=1080))
+    disp = SimpleNamespace(close=lambda: None, screen=lambda: SimpleNamespace(root=root))
+    monkeypatch.setattr(window_black.window_focus, "_XLIB_OK", True)
+    monkeypatch.setattr(window_black.window_focus, "X", SimpleNamespace(IsViewable=2), raising=False)
+    monkeypatch.setattr(window_black.window_focus, "_open", lambda: disp)
+    monkeypatch.setattr(window_black.window_focus, "_pids_of", lambda pgid: {1})
+    monkeypatch.setattr(window_black.window_focus, "_find_all_by_pids", lambda d, pids: wins)
+
+
+def test_a_small_window_about_to_go_fullscreen_does_not_cover(monkeypatch):
+    _with_windows(monkeypatch, [Placed(640, 300, 640, 480)])
+    assert window_black.covers_screen(4242) is False
+
+
+def test_a_fullscreen_window_covers(monkeypatch):
+    _with_windows(monkeypatch, [Placed(0, 0, 1920, 1080)])
+    assert window_black.covers_screen(4242) is True
+
+
+def test_melonds_side_by_side_windows_cover_together(monkeypatch):
+    _with_windows(monkeypatch, [Placed(0, 0, 960, 1080), Placed(960, 0, 960, 1080), Placed(0, 0, 50, 50, viewable=False)])
+    assert window_black.covers_screen(4242) is True
+
+
+def test_a_window_spilling_off_screen_counts_only_what_shows(monkeypatch):
+    _with_windows(monkeypatch, [Placed(1000, 0, 1920, 1080)])
+    assert window_black.covers_screen(4242) is False

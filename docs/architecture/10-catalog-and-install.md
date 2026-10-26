@@ -231,10 +231,14 @@ always read into the tile entry.
 
 ### `launch.ready` — the launch cover
 
-For an emulator that shows its own loading screens before the game (RPCS3
-compiling its shader and SPU caches, Ryujinx its PTC). While it is declared,
-the screen shows the game's art over the emulator from the spawn until the
-game really runs, then fades to it
+Every launch is covered from the spawn until the game's windows fill the
+screen (`window_black.covers_screen`), so a small window going fullscreen
+(Dolphin, mGBA, Lutris's gamescope) never shows; a pack without `ready`
+gets that alone, capped by its `launch.fullscreen.timeoutSec` or 30 s.
+`ready` is for an emulator that shows its own loading screens before the
+game (RPCS3 compiling its shader and SPU caches, Ryujinx its PTC): the
+cover then waits for its signal, and for fullscreen after it, then fades to
+the game
 ([6](06-electron-and-overlays.md#the-launch-cover)):
 
 ```json
