@@ -140,7 +140,7 @@ cache screens, Ryujinx's PTC screen and the like never show.
 | `electron/cover.js` | owns ONE window, made hidden once the app is ready and reused (a window made at launch spent the first second loading the bundle, and the emulator could map first): `cover:game` hands it the game, `cover:reset` blanks it when it is hidden again. The bezel's recipe (transparent, frameless, `setAlwaysOnTop(true, 'screen-saver')`, explicit geometry from `overlayBounds()`), **not focusable** and shown with `showInactive()`, so the emulator keeps the keyboard and the pads; `moveTop()` over any window created after it (bezel, HUD) |
 | `frontend/src/components/LaunchCover/` | the page at `/cover`: transparent until its art is decoded, then fades in once; on `cover:leave` the art goes to black, then the black opens on the game; `FADE_MS` later the window is hidden and reset |
 
-It always comes down: on the signal (and its hand-over to black); at the pack's `timeoutSec` ceiling (the
+Every launch raises it (a pack with no `ready` until its window fills the screen). It always comes down: on the signal (and its hand-over to black, then fullscreen); at the pack's `timeoutSec` ceiling (the
 backend's `game:ready` `reason: timeout`); when the launch fails or the game
 ends (`game:failed`, `game:finished`); when the interface takes the screen back
 (`shell:session-screen` false, a suspend); and, if every message was lost, on

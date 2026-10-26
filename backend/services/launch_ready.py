@@ -1,7 +1,9 @@
 """The launch cover: when the game behind it is really running.
 
 A pack's `launch.ready` (a port's `# gamecore-ready-*` lines) names the signal:
-a line in the emulator's log, or its window appearing; then, with `handOver:
+a line in the emulator's log, or its window appearing (a pack that declares
+none is covered until its window fills the screen, and every signal waits for
+that too); then, with `handOver:
 black`, the game's window going black (window_black.py), which is how RPCS3
 and Ryujinx hand their own loading screen over to the game. `announce()` runs
 before the spawn: it notes what the log already holds, so a line from the
@@ -38,6 +40,12 @@ MAX_TAIL = 64 << 10
 # The black between an emulator's loading screen and the game can be short.
 HAND_OVER_POLL_S = 0.1
 HAND_OVER_CAP_S = 15
+# Every launch is covered until the game's window fills the screen: before
+# that the player saw a small window jump to fullscreen. The ceiling for a
+# pack that declares no signal (its `launch.fullscreen.timeoutSec` wins), and
+# the wait for fullscreen after a declared signal.
+FULLSCREEN_CAP_S = 30
+FULLSCREEN_AFTER_SIGNAL_S = 10
 
 
 @dataclass
@@ -110,12 +118,19 @@ def spec_for(system_id: str, rom_path: str, *, port: bool) -> dict | None:
     if port:
         return native_ports.declared_ready(Path(rom_path), configgen.HOME)
     pack = load_catalog().get(system_id.lower())
-    ready = (pack.data.get("launch") or {}).get("ready") if pack else None
-    if not ready:
+    if pack is None:
         return None
+    launch = pack.data.get("launch") or {}
+    forced = launch.get("fullscreen") or {}
+    # The windows the pack forces fullscreen are the game's even outside its
+    # process group (a Lutris game).
+    classes = {"fullscreenClass": list(forced["wmClass"])} if forced.get("wmClass") else {}
+    ready = launch.get("ready")
+    if not ready:
+        return {"timeoutSec": forced.get("timeoutSec") or FULLSCREEN_CAP_S, **classes}
     if "log" in ready:
-        return {**ready, "log": str(pack.expand(ready["log"], configgen.HOME))}
-    return dict(ready)
+        return {**ready, "log": str(pack.expand(ready["log"], configgen.HOME)), **classes}
+    return {**ready, **classes}
 
 
 def _watch(game_key: str, system_id: str, rom_path: str, port: bool) -> Watch | None:
@@ -171,13 +186,37 @@ async def _wait(w: Watch) -> str:
             return "ended"
         if w.cursor is not None:
             found = await asyncio.to_thread(w.cursor.found)
-        else:
+        elif "wmClass" in w.spec:
             found = await asyncio.to_thread(fullscreen_enforcer.wait_for_window,
                                             w.spec["wmClass"], 1.0)
+        else:
+            return await _until_fullscreen(w, "fullscreen", deadline - loop.time())
         if found:
-            return await _hand_over(w)
+            reason = await _hand_over(w)
+            if reason == "ended":
+                return reason
+            return await _until_fullscreen(w, reason, FULLSCREEN_AFTER_SIGNAL_S)
         await asyncio.sleep(POLL_S)
     return "timeout"
+
+
+async def _until_fullscreen(w: Watch, reason: str, cap_s: float) -> str:
+    """Until the game's windows fill the screen (window_black.covers_screen):
+    the cover must not drop on a small window about to go fullscreen. A window
+    that cannot be read, or the ceiling, leaves `reason` as it was."""
+    session = process_manager.foreground_session
+    pgid = session.pgid if session else 0
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + max(cap_s, 0)
+    while loop.time() < deadline:
+        if not _still_ours(w):
+            return "ended"
+        full = await asyncio.to_thread(window_black.covers_screen, pgid,
+                                       tuple(w.spec.get("fullscreenClass") or ()))
+        if full is None or full:
+            return reason
+        await asyncio.sleep(HAND_OVER_POLL_S)
+    return reason
 
 
 async def _hand_over(w: Watch) -> str:

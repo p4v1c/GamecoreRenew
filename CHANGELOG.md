@@ -17,6 +17,11 @@ are the auto-incremented tags.
 
 ## Unreleased
 
+- Launch cover on every launch: emulators, PC games and apps are covered until
+  their window fills the screen, so a small window jumping to fullscreen
+  (GameCube, N64, PC…) no longer shows. Packs with a loading signal wait for
+  it and then for fullscreen. No operator step.
+
 - Shelf: opening a PS3 or PSP shelf no longer shows a giant box printed with
   the game's logo banner; the jacket waits edge-on for the real sleeve.
 
