@@ -412,6 +412,25 @@ def test_a_bare_kill_closes_the_suspended_one_when_the_screen_is_empty(
     asyncio.run(scenario())
 
 
+def test_killing_a_lutris_session_also_closes_its_flatpak_app(
+        manager, signals, monkeypatch):
+    """The Lutris pack starts `flatpak run` from a python script, so the
+    session's exec is python3, not flatpak. Killing only the group left the
+    Lutris sandbox, and with it the game, running."""
+    async def scenario():
+        spawn = AsyncMock(return_value=FakeProcess(pid=88))
+        monkeypatch.setattr(pm.asyncio, "create_subprocess_exec", spawn)
+        await manager.launch("/usr/bin/python3",
+                             "lutris_session.py --app-id net.lutris.Lutris",
+                             game_key="g", system_id="lutris")
+        await manager.kill()
+        closed = [c.args[:3] for c in spawn.call_args_list]
+        assert ("flatpak", "kill", "net.lutris.Lutris") in closed, closed
+        assert signals[-1] == (88, signal.SIGKILL)
+
+    asyncio.run(scenario())
+
+
 # ── the reap, which the slot cap made load-bearing ───────────────────────────
 
 def test_a_game_that_has_exited_does_not_hold_a_slot(manager, signals,
