@@ -876,7 +876,7 @@ class ProcessManager:
         log.info("flatpak_kill: flatpak kill %s", app_id)
         try:
             proc = await asyncio.create_subprocess_exec(
-                "flatpak", "kill", app_id,
+                "flatpak", "kill", app_id, env=await display_env(),
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
