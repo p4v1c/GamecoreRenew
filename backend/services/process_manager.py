@@ -810,7 +810,7 @@ class ProcessManager:
         if target.state == "background":
             self._signal(target, signal.SIGCONT)
 
-        if "flatpak" in target.exec_path or target.launch_args[:1] == ["run"]:
+        if self._flatpak_app_id(target):
             await self._flatpak_kill(target)
 
         if target.orphan_pgid:
@@ -844,14 +844,30 @@ class ProcessManager:
         except Exception:
             log.exception("_kill_orphan: failed to broadcast game:finished")
 
-    async def _flatpak_kill(self, target: Session) -> None:
-        """Run 'flatpak kill <app-id>' non-blockingly, like the C++ startDetached."""
+    @staticmethod
+    def _flatpak_app_id(target: Session) -> str:
+        """The Flatpak app a session runs in, or "" when it runs none.
+
+        A launcher script can start a Flatpak app without being `flatpak`
+        itself: the Lutris pack runs `python3 lutris_session.py --app-id
+        net.lutris.Lutris`. Without this, its kill never reached the sandbox
+        and the game kept running.
+        """
         # Read by tiles.py: the id is the first NON-OPTION argument after
         # `run`, not the token after it. This used to take args[idx + 1] and so
         # ran `flatpak kill --nosocket=wayland` for any tile carrying a flag —
         # killing nothing, warning about nothing, and leaving the sandbox up.
         from .catalog.tiles import flatpak_app_id
-        app_id = flatpak_app_id(" ".join(target.launch_args))
+        if "flatpak" in target.exec_path or target.launch_args[:1] == ["run"]:
+            return flatpak_app_id(" ".join(target.launch_args))
+        args = target.launch_args
+        if "--app-id" in args[:-1]:
+            return args[args.index("--app-id") + 1]
+        return ""
+
+    async def _flatpak_kill(self, target: Session) -> None:
+        """Run 'flatpak kill <app-id>' non-blockingly, like the C++ startDetached."""
+        app_id = self._flatpak_app_id(target)
         if not app_id:
             log.warning("flatpak_kill: could not find app-id in args %s",
                         target.launch_args)
