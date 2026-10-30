@@ -46,6 +46,9 @@ POLL_S = 0.5
 # How long Lutris may stay up after its game before it is closed.
 LINGER_S = 10.0
 CLOSE_WAIT_S = 5.0
+# How long a launch waits for the previous game to die: a killed game
+# outlives its Flatpak instance by a few seconds.
+GAME_EXIT_WAIT_S = 15.0
 XBOX_PAD_VAR = "GAMECORE_XBOX_PAD"
 OFF_VALUES = {"0", "false", "no", "off"}
 
@@ -139,6 +142,16 @@ def _clear_idle_instance(app_id: str) -> None:
         time.sleep(POLL_S)
 
 
+def wait_for_game_exit() -> bool:
+    """True once no Lutris game of this user runs; False if one outlives the wait."""
+    deadline = time.monotonic() + GAME_EXIT_WAIT_S
+    while game_running():
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(POLL_S)
+    return True
+
+
 def xbox_pad_wanted(game_yml: Path | None) -> bool:
     """False when the game's Lutris environment sets GAMECORE_XBOX_PAD=0."""
     if game_yml is None or yaml is None:
@@ -186,7 +199,7 @@ def main(argv: list[str] | None = None) -> int:
     if game_id is None:
         _log(f"{args.stub.name} is not a Lutris entry")
         return 2
-    if game_running():
+    if not wait_for_game_exit():
         _log("Lutris is already running a game or an installer; close it first")
         return 1
     _clear_idle_instance(args.app_id)
