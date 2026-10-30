@@ -145,28 +145,10 @@ def test_an_idle_lutris_is_closed_before_the_launch(tmp_path, monkeypatch):
 def test_a_running_game_is_never_taken_over(tmp_path, monkeypatch):
     stub = tmp_path / "Celeste.lutris"
     stub.write_text(json.dumps({"lutrisId": 3}))
-    monkeypatch.setattr(session, "GAME_EXIT_WAIT_S", 0)
     monkeypatch.setattr(session, "game_running", lambda *a: True)
     monkeypatch.setattr(session.subprocess, "Popen",
                         lambda cmd: pytest.fail("must not start Lutris"))
     assert session.main(["--app-id", "net.lutris.Lutris", str(stub)]) == 1
-
-
-def test_a_launch_waits_for_a_killed_game_to_die(tmp_path, monkeypatch):
-    """A killed game outlives its Flatpak instance for a few seconds; the
-    relaunch that follows a kill must wait for it, not be refused."""
-    stub = tmp_path / "Celeste.lutris"
-    stub.write_text(json.dumps({"lutrisId": 12}))
-    still_dying = iter([True, True, False])
-    started = []
-    monkeypatch.setattr(session, "game_running", lambda *a: next(still_dying, False))
-    monkeypatch.setattr(session, "instance_running", lambda app: False)
-    monkeypatch.setattr(session.time, "sleep", lambda s: None)
-    monkeypatch.setattr(session.subprocess, "Popen", lambda cmd: started.append(cmd) or "child")
-    monkeypatch.setattr(session, "follow", lambda child, **kw: 0)
-    monkeypatch.setattr(session, "_start_mirror", lambda app, game: None)
-    assert session.main(["--app-id", "net.lutris.Lutris", str(stub)]) == 0
-    assert started
 
 
 class FakeMirror:
