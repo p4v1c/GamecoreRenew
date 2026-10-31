@@ -5,6 +5,7 @@ import { useGamepad, onGp } from './hooks/useGamepad'
 import { useEmulatorOverlay } from './hooks/useEmulatorOverlay'
 import { useLaunchCover } from './hooks/useLaunchCover'
 import { useWakeSplash } from './hooks/useWakeSplash'
+import { useChosenSplash } from './hooks/useChosenSplash'
 import { useStore } from './store'
 import { api } from './api'
 
@@ -89,19 +90,11 @@ export default function App() {
   usePlayerNames()
 
   /**
-   * The boot animation is decided once, and only once the theme has resolved.
-   *
-   * Reading `theme.splash ?? Splash` on every render mounts the default splash
-   * immediately — the theme is still loading, so its splash is undefined — and
-   * then swaps in the theme's a moment later, mid-animation. You see both boot
-   * animations running over each other.
-   *
-   * Until the theme answers, the screen is a plain opaque cover: a fraction of
-   * a second, and the alternative is the dashboard flashing before the splash.
+   * The boot animation waits for the theme to resolve: reading
+   * `theme.splash ?? Splash` straight away mounted the default splash, then
+   * swapped in the theme's mid-animation. Until then, a plain opaque cover.
    */
-  const chosenSplash = useRef<React.ComponentType<{ onDone: () => void; bootReady?: boolean }> | null>(null)
-  if (!chosenSplash.current && !theme.loading) chosenSplash.current = theme.splash ?? Splash
-  const SplashC = chosenSplash.current
+  const SplashC = useChosenSplash(theme.splash, theme.loading, showSplash, Splash)
   const Ceremony = theme.ceremony
 
   // A themed splash decides its own length, but not whether booting ever ends:
