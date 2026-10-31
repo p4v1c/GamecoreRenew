@@ -24,6 +24,9 @@ it('shows 2.5 s by default and saves the next step on → with the pad', async (
   const label = await findByText('Wait for the TV after waking')
   const row = label.closest('[aria-valuetext]') ?? label.closest('.gcs-row2')
   expect(row?.textContent).toContain('2.5 s')
+  // The row is in the DOM before Rows rebinds its pad handlers (a passive
+  // effect); pressing in between moved through the old one-row list on slow CI.
+  await act(async () => {})
 
   const press = (name: string) => act(() => { window.dispatchEvent(new CustomEvent(name)) })
   for (let i = 0; i < 4; i++) press('gp:dpad-down')   // update, standby, saver, off, wake
