@@ -175,6 +175,11 @@ _probe_cache: tuple[str, str] | None = None
 _probe_retry_at: float = 0.0
 _PROBE_RETRY_SECS = 5.0
 
+# Session file the cache was probed under. A display probed on the
+# desktop outlives it: back in the console, its deleted cookie made every game
+# exit instantly. A new (or no) session file therefore drops the cache.
+_probe_session: str | None = None
+
 
 def _probe_due() -> bool:
     """True when _display_env() would actually run the probe — and so may block."""
@@ -228,6 +233,14 @@ def _session_display(uid: int) -> tuple[str, str] | None:
     return display, values.get("XAUTHORITY", "")
 
 
+def _session_stamp(uid: int) -> str | None:
+    """The session file's text (it carries STARTED), or None when there is none."""
+    try:
+        return session_env_file(uid).read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return None
+
+
 def _display_env() -> dict:
     """Build an env dict for launching GUI apps from systemd (DISPLAY, XDG_RUNTIME_DIR, DBUS, XAUTHORITY).
 
@@ -239,9 +252,13 @@ def _display_env() -> dict:
     whole loop blocked behind it — no WebSocket, no API, no pad events.
     Measured at 4.7 s on an unrelated GET /api/systems during one launch.
     """
-    global _probe_cache, _probe_retry_at
+    global _probe_cache, _probe_retry_at, _probe_session
     env = os.environ.copy()
     uid = os.getuid()
+    stamp = _session_stamp(uid)
+    if stamp != _probe_session:
+        _probe_session = stamp
+        invalidate_display_cache()
     if not env.get("SDL_GAMECONTROLLERCONFIG_FILE"):
         db = _controller_db()
         if db:

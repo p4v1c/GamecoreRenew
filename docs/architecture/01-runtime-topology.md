@@ -285,7 +285,10 @@ A process started by systemd has no session environment. Two places rebuild it:
 
   The result is **memoised**: the display does not move during a session, and
   the probe can block for seconds when X is slow to answer. It is recomputed
-  only after a failed launch (`invalidate_display_cache()`).
+  after a failed launch (`invalidate_display_cache()`) and whenever the
+  session file changes or disappears: a display probed on the desktop kept its
+  deleted cookie after the desktop icon brought the console back, and every
+  game exited at once.
 
 ## Development topology
 
