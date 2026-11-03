@@ -15,8 +15,8 @@ import {
   type SurfaceMap, type ThemeManifest,
 } from '../lib/themeLoader'
 import {
-  clearCrashes, clearSafeMode, getSafeMode, isBlocked,
-  recordCrash, setSafeMode, type SafeModeInfo,
+  clearCrashes, clearFetchReloads, clearSafeMode, getSafeMode, isBlocked,
+  isFetchFailure, recordCrash, reloadAfterFetchFailure, setSafeMode, type SafeModeInfo,
 } from '../lib/themeSafety'
 import { clearThemeSounds } from '../lib/sounds'
 import { clearThemeRumble } from '../lib/rumble'
@@ -96,6 +96,7 @@ export function useTheme(): ThemeState {
     // lines later on the one path that keeps a theme.
     clearThemeSounds()
     clearThemeRumble()
+    let reloading = false
     try {
       const index = await fetchThemeIndex()
       const id = index.active
@@ -128,10 +129,13 @@ export function useTheme(): ThemeState {
 
       const loaded = await loadTheme(m, { selectTheme: (id) => selectRef.current(id) })
       setSurfaces(loaded); setThemeId(id); setManifest(m)
+      clearFetchReloads()
       // Forget older failures only once it has actually stayed up (see above).
       if (stableTimer.current) clearTimeout(stableTimer.current)
       stableTimer.current = setTimeout(() => clearCrashes(id), STABLE_AFTER_MS)
     } catch (e) {
+      // Stay on the boot screen until the reload; the default UI would flash.
+      if (isFetchFailure(e) && reloadAfterFetchFailure()) { reloading = true; return }
       const id = activeIdRef.current
       const reason = e instanceof Error ? e.message : String(e)
       console.error('[gamecore] theme load failed:', e)
@@ -143,7 +147,7 @@ export function useTheme(): ThemeState {
       clearThemeStyles()
       setSurfaces({}); setThemeId(null)
     } finally {
-      setLoading(false)
+      if (!reloading) setLoading(false)
     }
   }, [])
 

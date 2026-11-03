@@ -16,9 +16,14 @@
  */
 const KEY_CRASH = 'gc:theme:crashes'
 const KEY_SAFE = 'gc:theme:safeMode'
+const KEY_FETCH_RELOADS = 'gc:theme:fetchReloads'
 
 /** Refuse a theme after this many recorded crashes. */
 export const CRASH_LIMIT = 2
+
+/** Page reloads spent on a theme whose files could not be downloaded. */
+export const FETCH_RELOAD_LIMIT = 3
+const FETCH_RELOAD_DELAY_MS = 1000
 
 export interface SafeModeInfo {
   active: boolean
@@ -86,5 +91,41 @@ export function setSafeMode(themeId: string, reason: string): void {
 export function clearSafeMode(): void {
   try {
     localStorage.removeItem(KEY_SAFE)
+  } catch { /* ignore */ }
+}
+
+/**
+ * A download that failed, not a theme that broke.
+ *
+ * At boot the network comes up while the theme loads; Chromium aborts the
+ * requests in flight and the import rejects with "Failed to fetch dynamically
+ * imported module". Counted as a crash, it dropped Orbit for the default UI.
+ */
+export function isFetchFailure(e: unknown): boolean {
+  return e instanceof TypeError && /Failed to fetch/i.test(e.message)
+}
+
+/**
+ * Retry a failed theme download by reloading the page. False once the limit is spent.
+ *
+ * A reload, not a second import(): Chromium keeps a failed module for the
+ * page's lifetime, so the same page would fail the same way.
+ */
+export function reloadAfterFetchFailure(reload: () => void = () => location.reload()): boolean {
+  try {
+    const n = Number(sessionStorage.getItem(KEY_FETCH_RELOADS)) || 0
+    if (n >= FETCH_RELOAD_LIMIT) return false
+    sessionStorage.setItem(KEY_FETCH_RELOADS, String(n + 1))
+  } catch {
+    return false
+  }
+  setTimeout(reload, FETCH_RELOAD_DELAY_MS)
+  return true
+}
+
+/** Called once a theme has loaded, so the next failure gets its retries back. */
+export function clearFetchReloads(): void {
+  try {
+    sessionStorage.removeItem(KEY_FETCH_RELOADS)
   } catch { /* ignore */ }
 }

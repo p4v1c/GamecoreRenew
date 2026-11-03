@@ -248,6 +248,29 @@ def test_no_session_file_means_the_old_behaviour_exactly(tmp_path, monkeypatch):
     assert env["DISPLAY"] == ":3"
 
 
+def test_a_new_session_forgets_the_display_probed_in_the_previous_one(tmp_path, monkeypatch):
+    """Desktop icon → console: the desktop's dead cookie made every game exit at once."""
+    import sys
+    sys.path.insert(0, str(REPO))
+    from backend.services import session as xsession
+
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("XAUTHORITY", raising=False)
+    monkeypatch.setattr(xsession, "_probe_retry_at", 0.0)
+    # Probed while the desktop was up; that X server and its cookie are gone.
+    monkeypatch.setattr(xsession, "_probe_cache", (":0", "/run/user/1000/xauth_desktop"))
+    monkeypatch.setattr(xsession, "_probe_session", None)
+    monkeypatch.setattr(xsession, "_probe_display", lambda uid: (":0", "/tmp/xauth_console"))
+
+    session = tmp_path / "gamecore" / "session.env"
+    session.parent.mkdir(parents=True)
+    session.write_text("DISPLAY=:0\nSTARTED=2026-10-25T17:04:29Z\n")
+
+    env = xsession._display_env()
+    assert env["XAUTHORITY"] == "/tmp/xauth_console"
+
+
 # ── what manages the windows ────────────────────────────────────────────────
 #
 # Recent Plasma ships KWin's X11 binary in its own `kwin-x11` package, so a box

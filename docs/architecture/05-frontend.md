@@ -46,7 +46,10 @@ the theme system came from a theme reimplementing this logic slightly wrong.
 
 `ThemeSurface.tsx` mounts the theme's shell behind an error boundary; if it
 throws, the default shell takes over and the crash is recorded (three strikes
-and the theme is refused at boot — `useTheme.ts`).
+and the theme is refused at boot — `useTheme.ts`). A theme whose files could
+not be downloaded is not a crash: the page reloads, up to three times
+(`frontend/src/lib/themeSafety.ts`), because the network coming up at boot aborts the
+import and the default UI used to replace Orbit for the whole session.
 
 ## Store — `store/index.ts`
 
