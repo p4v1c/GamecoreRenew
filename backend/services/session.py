@@ -22,6 +22,7 @@ import logging
 import os
 import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -308,6 +309,37 @@ def _display_env() -> dict:
     # that the line was too. The session changed; X11-only did not.
     env.pop("WAYLAND_DISPLAY", None)
     return env
+
+
+_X_KEYS = ("DISPLAY", "XAUTHORITY")
+_x_env_lock = threading.Lock()
+
+
+def _set_env(key: str, value: str | None) -> None:
+    if value:
+        os.environ[key] = value
+    else:
+        os.environ.pop(key, None)
+
+
+def open_x_display():
+    """An Xlib connection to the session's display.
+
+    Xlib reads the cookie from os.environ only, so it is exported for the
+    connect and put back after. Left there, it outranked session.env in
+    _display_env(): after a desktop round trip every game met a dead cookie.
+    """
+    from Xlib import display as xdisplay
+    env = _display_env()
+    with _x_env_lock:
+        saved = {key: os.environ.get(key) for key in _X_KEYS}
+        try:
+            for key in _X_KEYS:
+                _set_env(key, env.get(key))
+            return xdisplay.Display(env.get("DISPLAY"))
+        finally:
+            for key, value in saved.items():
+                _set_env(key, value)
 
 
 async def display_env() -> dict:

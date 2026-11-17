@@ -33,6 +33,30 @@ def start_time(pid: int) -> str:
     return rest[index] if len(rest) > index else ""
 
 
+def descendant_groups(pid: int) -> set[int]:
+    """The process groups of every descendant of `pid`, its own excluded.
+
+    `flatpak run` started by a wrapper (the melonDS multiplayer launcher, the
+    Lutris session) moves the sandbox into a group of its own, so a signal to
+    the wrapper's group never reaches the game.
+    """
+    children: dict[int, list[tuple[int, int]]] = {}
+    for stat_file in PROC_DIR.glob("[0-9]*/stat"):
+        try:
+            fields = stat_file.read_text().rsplit(")", 1)[-1].split()
+            ppid, pgid = int(fields[1]), int(fields[2])
+        except (OSError, ValueError, IndexError):
+            continue
+        children.setdefault(ppid, []).append((int(stat_file.parent.name), pgid))
+    groups, todo = set(), [pid]
+    while todo:
+        for child, pgid in children.get(todo.pop(), []):
+            groups.add(pgid)
+            todo.append(child)
+    groups.discard(pid)
+    return groups
+
+
 def matches(entry: dict, pgid: int) -> bool:
     """Whether a saved session still names the group it was saved for.
 

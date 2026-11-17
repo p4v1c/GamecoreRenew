@@ -20,12 +20,12 @@ import asyncio
 import logging
 import os
 
-from .session import _display_env
+from .session import open_x_display
 
 log = logging.getLogger(__name__)
 
 try:
-    from Xlib import X, display as xdisplay
+    from Xlib import X
     from Xlib.protocol import event as xevent
     from Xlib.ext import res as xres
     _XLIB_OK = True
@@ -49,11 +49,7 @@ SHELL_WM_CLASSES = ("gamecore", "gamecore-electron", "GameCore")
 
 
 def _open():
-    env = _display_env()
-    for key in ("DISPLAY", "XAUTHORITY"):
-        if env.get(key):
-            os.environ.setdefault(key, env[key])
-    return xdisplay.Display(env.get("DISPLAY"))
+    return open_x_display()
 
 
 def _client_windows(disp):

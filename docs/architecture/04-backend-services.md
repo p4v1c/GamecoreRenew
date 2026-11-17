@@ -19,6 +19,7 @@ State: `_proc`, `_launching`, `_game_key`, `_system_id`, `_start_time`,
 |---|---|
 | `session._display_env()` | (in `services/session.py`) rebuilds a GUI environment for a systemd child — see [1](01-runtime-topology.md#environment-reconstruction). **Synchronous**; memoised |
 | `session.display_env()` | the `async` wrapper every event-loop caller must use |
+| `session.open_x_display()` | in-process Xlib connection (`window_focus.py`, `fullscreen_enforcer.py`): exports the cookie only for the connect, so `_display_env()` keeps reading the session file after a desktop round trip |
 | `session.invalidate_display_cache()` | forget the probed display — called by `services/launch.py` after a failed launch, and by `_display_env()` when the session file changes |
 | `kill_process_group(proc)` | module-level: SIGKILL a process **and its children**. Shared with `routers/update.py` |
 | `is_running` | `_launching or (_proc alive) or (_orphan_pgid alive)` |
@@ -26,7 +27,8 @@ State: `_proc`, `_launching`, `_game_key`, `_system_id`, `_start_time`,
 | `launch(...)` | builds argv (`shlex.split` + ROM), spawns with its output in `logs.launch_output()`, records the session, broadcasts `game:started`, starts `_watch()` |
 | `_save_session()` / `_clear_session()` | write/remove `config/session.json` atomically |
 | `adopt_orphan()` | at startup, re-attach to a game a previous backend left running — only if boot id and leader start time match (`process_identity.py`) |
-| `kill()` | orphan → `_kill_orphan()`; otherwise `_flatpak_kill()` then `_proc_kill()` |
+| `_signal(session, sig)` | `killpg` on the session's group **and** every group its descendants moved to (`process_identity.descendant_groups()`): a wrapped `flatpak run` leaves the wrapper's group. Used by suspend, resume and kill |
+| `kill()` | orphan → `_kill_orphan()`; otherwise `_flatpak_kill()`, SIGKILL via `_signal()`, then `_proc_kill()` |
 | `_flatpak_kill()` | finds the app-id (token after `run`) and runs `flatpak kill <app-id>`, 1 s timeout |
 | `_proc_kill()` | delegates to `kill_process_group()` |
 | `_watch()` | awaits exit, clears the session file, records playtime if > 5 s, broadcasts `game:finished` |

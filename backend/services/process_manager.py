@@ -643,20 +643,23 @@ class ProcessManager:
     # ── suspend and resume ───────────────────────────────────────────────────
 
     def _signal(self, session: Session, sig: int) -> bool:
-        """Signal the whole group, and say whether it landed.
+        """Signal the group and the groups its descendants moved to.
 
-        The group and never the pid: see `Session.pgid`. A failure here is
-        reported rather than raised into the caller's face — the session may
-        have exited between the check and the signal, which is not an error,
-        it is the game having ended.
+        True when the session's own group took it; False means the game ended
+        in between. The group, never the pid: see `Session.pgid`.
         """
         pgid = session.pgid
         if not pgid:
             return False
+        for group in process_identity.descendant_groups(pgid):
+            try:
+                os.killpg(group, sig)
+            except OSError:
+                pass
         try:
             os.killpg(pgid, sig)
             return True
-        except (OSError, ProcessLookupError):
+        except OSError:
             return False
 
     async def background(self) -> dict:
@@ -791,9 +794,8 @@ class ProcessManager:
     async def kill(self, session_id: int | None = None) -> None:
         """End a session. The one on the screen unless another is named.
 
-        With nothing on the screen this ends the suspended one, which is what
-        "close it" means from a session bar: the player is looking at a game
-        that is not in front of them and asking for it to be gone.
+        With nothing on the screen this ends the suspended one: "close it" from
+        a session bar means the game that is not in front of the player.
         """
         if session_id is None:
             target = self.foreground_session or self.background_session
@@ -803,16 +805,14 @@ class ProcessManager:
         if target is None:
             return
 
-        # A stopped process cannot run its own exit path: `flatpak kill` sends
-        # SIGTERM inside the sandbox and a frozen process never handles it, so
-        # the sandbox would be torn down by SIGKILL alone with its files still
-        # open. Thawed first, killed immediately after.
+        # Thawed first: `flatpak kill` sends SIGTERM inside the sandbox, and a
+        # frozen process never handles it.
         if target.state == "background":
             self._signal(target, signal.SIGCONT)
-
         if self._flatpak_app_id(target):
             await self._flatpak_kill(target)
-
+        if target.alive():
+            self._signal(target, signal.SIGKILL)  # reaches a wrapped sandbox too
         if target.orphan_pgid:
             await self._kill_orphan(target)
             return

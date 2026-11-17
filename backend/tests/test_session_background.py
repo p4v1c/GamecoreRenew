@@ -68,6 +68,8 @@ def signals(monkeypatch):
     # The pgid of a fake child is its pid; getpgid would raise on a pid that
     # does not exist.
     monkeypatch.setattr(pm.os, "getpgid", lambda pid: pid)
+    # Fake pids may be real ones on the test machine; their trees are not ours.
+    monkeypatch.setattr(pm.process_identity, "descendant_groups", lambda pid: set())
     return sent
 
 
@@ -427,6 +429,25 @@ def test_killing_a_lutris_session_also_closes_its_flatpak_app(
         closed = [c.args[:3] for c in spawn.call_args_list]
         assert ("flatpak", "kill", "net.lutris.Lutris") in closed, closed
         assert signals[-1] == (88, signal.SIGKILL)
+
+    asyncio.run(scenario())
+
+
+def test_a_wrapped_flatpak_is_suspended_and_killed_with_its_launcher(
+        manager, signals, monkeypatch):
+    """The melonDS multiplayer launcher wraps `flatpak run`, whose sandbox
+    leaves the launcher's group: suspended, the game kept its sound, and Quit
+    left it running."""
+    monkeypatch.setattr(pm.process_identity, "descendant_groups",
+                        lambda pid: {pid + 1})
+
+    async def scenario():
+        await _launch(manager, [FakeProcess(pid=500)], game_key="mkds",
+                      system_id="melonds", monkeypatch=monkeypatch)
+        await manager.background()
+        assert (501, signal.SIGSTOP) in signals
+        await manager.kill()
+        assert (501, signal.SIGKILL) in signals
 
     asyncio.run(scenario())
 
