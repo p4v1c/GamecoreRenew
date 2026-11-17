@@ -26,6 +26,11 @@ leader (the melonDS multiplayer launcher, the Lutris session). A signal to the
 session's group froze nothing and killed nothing: the game kept its sound while
 suspended and survived Quit. `_signal()` also signals every descendant's group.
 
+**Never leave DISPLAY or XAUTHORITY in the backend's `os.environ`.**
+`_display_env()` trusts them over `session.env`; a cookie left there by an Xlib
+caller survived the desktop round trip and every game met a dead X server.
+Open X through `session.open_x_display()`.
+
 **A one-frame crash is not a play session.**
 `_watch()` only records playtime past 5 s, or a crash-looping emulator would
 inflate the library stats.

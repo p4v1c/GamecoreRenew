@@ -19,7 +19,8 @@ are the auto-incremented tags.
 
 - DS multiplayer (and any pack that wraps `flatpak run`): suspending the game
   freezes it again (no more sound in the background) and Quit closes it.
-  No operator step.
+  Back to GameCore from the desktop icon: games start again instead of
+  closing at once. No operator step.
 
 - Launch cover, PC (Lutris) and GameCube/Wii (Dolphin): the cover also waits
   until the game draws at full size after going fullscreen, so its old-size

@@ -318,3 +318,33 @@ def test_the_default_order_prefers_kwin_and_keeps_a_fallback():
     line = [ln for ln in SESSION.read_text().splitlines()
             if ln.startswith("WM_CANDIDATES=")]
     assert line and "kwin_x11 kwin openbox" in line[0], line
+
+
+@pytest.mark.parametrize("module, opener", [
+    ("window_focus", "_open"), ("fullscreen_enforcer", "_open_display")])
+def test_opening_x_does_not_pin_the_cookie_in_the_backend(tmp_path, monkeypatch,
+                                                          module, opener):
+    """Desktop icon → console: a cookie left in os.environ outranked session.env."""
+    import importlib
+    import os
+    import sys
+    sys.path.insert(0, str(REPO))
+    from Xlib import display as xdisplay
+    from backend.services import session as xsession
+    caller = importlib.import_module(f"backend.services.{module}")
+
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("XAUTHORITY", raising=False)
+    seen = []
+    monkeypatch.setattr(xdisplay, "Display",
+                        lambda name: seen.append((name, os.environ.get("XAUTHORITY"))))
+    session = tmp_path / "gamecore" / "session.env"
+    session.parent.mkdir(parents=True)
+    session.write_text("DISPLAY=:0\nXAUTHORITY=/tmp/xauth_before\nSTARTED=1\n")
+
+    getattr(caller, opener)()
+    assert seen == [(":0", "/tmp/xauth_before")]
+
+    session.write_text("DISPLAY=:0\nXAUTHORITY=/tmp/xauth_after\nSTARTED=2\n")
+    assert xsession._display_env()["XAUTHORITY"] == "/tmp/xauth_after"

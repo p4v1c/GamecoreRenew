@@ -19,6 +19,7 @@ State: `_proc`, `_launching`, `_game_key`, `_system_id`, `_start_time`,
 |---|---|
 | `session._display_env()` | (in `services/session.py`) rebuilds a GUI environment for a systemd child — see [1](01-runtime-topology.md#environment-reconstruction). **Synchronous**; memoised |
 | `session.display_env()` | the `async` wrapper every event-loop caller must use |
+| `session.open_x_display()` | in-process Xlib connection (`window_focus.py`, `fullscreen_enforcer.py`): exports the cookie only for the connect, so `_display_env()` keeps reading the session file after a desktop round trip |
 | `session.invalidate_display_cache()` | forget the probed display — called by `services/launch.py` after a failed launch, and by `_display_env()` when the session file changes |
 | `kill_process_group(proc)` | module-level: SIGKILL a process **and its children**. Shared with `routers/update.py` |
 | `is_running` | `_launching or (_proc alive) or (_orphan_pgid alive)` |

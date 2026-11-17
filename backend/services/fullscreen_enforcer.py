@@ -16,15 +16,14 @@ no X display is reachable.
 """
 import asyncio
 import logging
-import os
 import time
 
-from .session import _display_env
+from .session import open_x_display
 
 log = logging.getLogger(__name__)
 
 try:
-    from Xlib import X, display as xdisplay
+    from Xlib import X
     from Xlib.protocol import event as xevent
     _XLIB_OK = True
 except ImportError:
@@ -81,13 +80,7 @@ def _request_fullscreen(disp, win) -> None:
 
 
 def _open_display():
-    # The backend runs from systemd without X in its own environment —
-    # borrow the same DISPLAY/XAUTHORITY resolution used to launch the app.
-    env = _display_env()
-    for key in ("DISPLAY", "XAUTHORITY"):
-        if env.get(key):
-            os.environ.setdefault(key, env[key])
-    return xdisplay.Display(env.get("DISPLAY"))
+    return open_x_display()
 
 
 def _wait_window(disp, wm_classes: list[str], deadline: float, cancelled=lambda: False):
