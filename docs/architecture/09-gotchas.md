@@ -20,6 +20,12 @@ Several answer it with a confirmation dialog that cannot be clicked from a
 gamepad. `_proc_kill()` goes straight to SIGKILL. For Flatpak, `flatpak kill
 <app-id>` must come first: a signal to the wrapper never reaches the sandbox.
 
+**A `flatpak run` started by a wrapper is in another process group.**
+Flatpak moves the sandbox to a group of its own when it is not the group
+leader (the melonDS multiplayer launcher, the Lutris session). A signal to the
+session's group froze nothing and killed nothing: the game kept its sound while
+suspended and survived Quit. `_signal()` also signals every descendant's group.
+
 **A one-frame crash is not a play session.**
 `_watch()` only records playtime past 5 s, or a crash-looping emulator would
 inflate the library stats.
